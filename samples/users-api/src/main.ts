@@ -1,3 +1,4 @@
+import './tracing'; // ← MUST be first: starts the OTel SDK before NestJS loads
 import 'reflect-metadata';
 import { NestFactory } from '@nestjs/core';
 import { FastifyAdapter, NestFastifyApplication } from '@nestjs/platform-fastify';

@@ -12,6 +12,13 @@
   },
   "dependencies": {
     "@nestjs-pipeline/core": "workspace:*",
+    "@nestjs-pipeline/opentelemetry": "workspace:*",
+    "@opentelemetry/sdk-node": "^0.57.0",
+    "@opentelemetry/api": "^1.9.0",
+    "@opentelemetry/exporter-trace-otlp-grpc": "^0.57.0",
+    "@opentelemetry/instrumentation-http": "^0.57.0",
+    "@opentelemetry/instrumentation-pg": "^0.47.0",
+    "@opentelemetry/instrumentation-nestjs-core": "^0.43.0",
     "@nestjs/common": "^11.0.0",
     "@nestjs/core": "^11.0.0",
     "@nestjs/cqrs": "^11.0.0",
