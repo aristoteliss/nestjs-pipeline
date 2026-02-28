@@ -1,0 +1,32 @@
+{
+  "name": "@nestjs-pipeline/zod",
+  "version": "0.1.0",
+  "description": "Zod validation behavior for @nestjs-pipeline/core",
+  "author": "",
+  "license": "SEE LICENSE IN LICENSE",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist",
+    "LICENSE",
+    "COMMERCIAL_LICENSE.txt"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "build:watch": "tsc -p tsconfig.build.json --watch",
+    "clean": "rm -rf dist tsconfig.tsbuildinfo",
+    "lint": "tsc --noEmit",
+    "test": "echo \"No tests yet\" && exit 0",
+    "prepublishOnly": "pnpm run build"
+  },
+  "peerDependencies": {
+    "@nestjs-pipeline/core": "*",
+    "zod": "^3.0.0"
+  },
+  "devDependencies": {
+    "zod": "^3.0.0"
+  }
+}
