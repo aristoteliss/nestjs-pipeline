@@ -75,7 +75,7 @@ function extractBehaviorTypes(entries: PipelineBehaviorEntry[]): Type<IPipelineB
  * 1. Parent pipeline context (saga / nested command)
  * 2. {@link correlationStore} — populated by {@link HttpCorrelationMiddleware}
  *    or {@link runWithCorrelationId} (Bull / RabbitMQ / custom)
- * 3. `crypto.randomUUID()` fallback
+ * 3. `uuidv7()` fallback (timestamp-sortable UUID)
  */
 @Global()
 @Module({})

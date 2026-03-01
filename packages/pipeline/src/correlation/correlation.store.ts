@@ -38,8 +38,8 @@ import { AsyncLocalStorage } from 'async_hooks';
  * **How it is consumed:**
  * The pipeline bootstrap service reads `correlationStore.getStore()` when a
  * command, query, or event handler is invoked. If a value exists it becomes
- * the `correlationId` for that pipeline run; otherwise a `crypto.randomUUID()`
- * fallback is generated.
+ * the `correlationId` for that pipeline run; otherwise a `uuidv7()`
+ * fallback is generated (timestamp-sortable UUID per RFC 9562).
  *
  * Uses Node.js built-in `AsyncLocalStorage` — zero external dependencies.
  *
@@ -59,7 +59,7 @@ export const correlationStore = new AsyncLocalStorage<string>();
  * into any CQRS commands or queries dispatched inside the callback.
  *
  * If `correlationId` is `undefined` or empty, `fn` executes without a store
- * and the pipeline will fall back to `crypto.randomUUID()`.
+ * and the pipeline will fall back to `uuidv7()`.
  *
  * @example
  * ```ts

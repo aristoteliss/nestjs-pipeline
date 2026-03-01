@@ -43,7 +43,7 @@ import { PIPELINE_MODULE_OPTIONS, PipelineModuleOptions } from '../options/pipel
 import { GlobalBehaviorsOptions } from '../options/global-behaviors.options';
 import { correlationStore } from '../correlation/correlation.store';
 import { ExplorerService } from '@nestjs/cqrs/dist/services/explorer.service';
-import { randomUUID } from 'crypto';
+import { uuidv7 } from '../helpers/uuidv7';
 
 /**
  * At application bootstrap, this service:
@@ -228,10 +228,10 @@ export class PipelineBootstrapService implements OnApplicationBootstrap {
       }
 
       // Eagerly resolve correlationId BEFORE any behavior runs.
-      // Priority: parent context (saga) > correlationStore > randomUUID()
+      // Priority: parent context (saga) > correlationStore > uuidv7()
       if (!context.correlationId) {
         const fromStore = correlationStore.getStore();
-        context.correlationId = fromStore || randomUUID();
+        context.correlationId = fromStore || uuidv7();
       }
 
       // Lock the original value — immutable from this point forward.

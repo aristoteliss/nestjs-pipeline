@@ -33,5 +33,6 @@ export * from './decorators/pipeline.decorator';
 export * from './pipeline.context';
 export * from './correlation';
 export * from './behaviors/logging.behavior';
+export * from './helpers/uuidv7';
 export * from './services/pipeline.bootstrap.service';
 export * from './pipeline.module';

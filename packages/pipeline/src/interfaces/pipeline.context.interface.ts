@@ -41,7 +41,7 @@ export interface IPipelineContext<TRequest = any, TResponse = any> {
    * 1. Inherited from parent pipeline (saga / nested command via AsyncLocalStorage)
    * 2. {@link correlationStore} — populated by {@link HttpCorrelationMiddleware}
    *    or {@link runWithCorrelationId} (Bull / RabbitMQ / custom)
-   * 3. Auto-generated `crypto.randomUUID()`
+   * 3. Auto-generated `uuidv7()` (timestamp-sortable UUID)
    *
    * Use {@link originalCorrelationId} to access the initial value even after override.
    */
