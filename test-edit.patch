@@ -1,0 +1,64 @@
+--- packages/pipeline/src/pipeline.module.spec.ts
++++ packages/pipeline/src/pipeline.module.spec.ts
+@@ -1,4 +1,4 @@
+-import { describe, it, expect } from 'vitest';
++import { describe, it, expect, vi } from 'vitest';
+ import { PipelineModule } from './pipeline.module';
+ import { IPipelineBehavior, NextDelegate } from './interfaces/pipeline.behavior.interface';
+ import { IPipelineContext } from './interfaces/pipeline.context.interface';
+@@ -95,6 +95,20 @@
+     ).length;
+     expect(alphaCounts).toBe(1);
+   });
++
++  it('extracts behavior types from global behavior tuples (before and after)', () => {
++    const mod = PipelineModule.forRoot({
++      globalBehaviors: {
++        before: [[AlphaBehavior, { someOpt: true }]],
++        after: [[BetaBehavior, { otherOpt: false }]],
++      },
++    });
++
++    expect(mod.providers).toContain(AlphaBehavior);
++    expect(mod.providers).toContain(BetaBehavior);
++    expect(mod.exports).toContain(AlphaBehavior);
++    expect(mod.exports).toContain(BetaBehavior);
++  });
+ });
+ 
+ // ── forFeature ──────────────────────────────────────────────
+@@ -118,3 +132,32 @@
+     expect(mod.exports).toEqual([]);
+   });
+ });
++
++// ── configure (MiddlewareConsumer) ──────────────────────────
++
++describe('PipelineModule.configure', () => {
++  it('applies HttpCorrelationMiddleware to * routes by default', () => {
++    // reset static config which might be mutated by other tests (side-effect)
++    PipelineModule.forRoot({});
++    const module = new PipelineModule();
++    const applyMock = vi.fn().mockReturnThis();
++    const forRoutesMock = vi.fn();
++    const consumer = { apply: applyMock, forRoutes: forRoutesMock } as any;
++
++    module.configure(consumer);
++
++    expect(applyMock).toHaveBeenCalledWith(HttpCorrelationMiddleware);
++    expect(forRoutesMock).toHaveBeenCalledWith('*');
++  });
++
++  it('does not apply HttpCorrelationMiddleware if correlation.header is set to false', () => {
++    PipelineModule.forRoot({ correlation: { header: false } });
++    const module = new PipelineModule();
++    const applyMock = vi.fn().mockReturnThis();
++    const forRoutesMock = vi.fn();
++    const consumer = { apply: applyMock, forRoutes: forRoutesMock } as any;
++
++    module.configure(consumer);
++
++    expect(applyMock).not.toHaveBeenCalled();
++    expect(forRoutesMock).not.toHaveBeenCalled();
++  });
++});

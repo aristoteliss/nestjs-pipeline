@@ -2,8 +2,5 @@ packages:
   - packages/*
   - samples/*
 
-ignoredBuiltDependencies:
-  - protobufjs
-
 onlyBuiltDependencies:
-  - '@nestjs/core'
+  - esbuild

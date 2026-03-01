@@ -19,7 +19,8 @@
     "build:watch": "tsc -p tsconfig.build.json --watch",
     "clean": "rm -rf dist tsconfig.tsbuildinfo",
     "lint": "tsc --noEmit",
-    "test": "echo \"No tests yet\" && exit 0",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "prepublishOnly": "pnpm run build"
   },
   "peerDependencies": {
@@ -33,7 +34,9 @@
     "@nestjs/common": "^11.0.0",
     "@nestjs/core": "^11.0.0",
     "@nestjs/cqrs": "^11.0.0",
+    "@vitest/coverage-v8": "^4.0.18",
     "reflect-metadata": "^0.2.0",
-    "rxjs": "^7.0.0"
+    "rxjs": "^7.0.0",
+    "vitest": "^4.0.18"
   }
 }

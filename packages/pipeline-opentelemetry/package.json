@@ -19,15 +19,21 @@
     "build:watch": "tsc -p tsconfig.build.json --watch",
     "clean": "rm -rf dist tsconfig.tsbuildinfo",
     "lint": "tsc --noEmit",
-    "test": "echo \"No tests yet\" && exit 0",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "prepublishOnly": "pnpm run build"
   },
   "peerDependencies": {
     "@nestjs-pipeline/core": "*",
-    "@nestjs/common": "^11.0.0",
-    "@opentelemetry/api": "^1.9.0"
+    "@nestjs/common": "^10.0.0 || ^11.0.0",
+    "@opentelemetry/api": "^1.9.0",
+    "reflect-metadata": "^0.1.13 || ^0.2.0"
   },
   "devDependencies": {
-    "@opentelemetry/api": "^1.9.0"
+    "@nestjs/common": "^11.0.0",
+    "@opentelemetry/api": "^1.9.0",
+    "@vitest/coverage-v8": "^4.0.18",
+    "reflect-metadata": "^0.2.0",
+    "vitest": "^4.0.18"
   }
 }
