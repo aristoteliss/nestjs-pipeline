@@ -57,7 +57,7 @@ function isSdkInitialized(): boolean {
 
 @Injectable()
 export class TraceBehavior implements IPipelineBehavior, OnModuleInit {
-  private readonly logger = new Logger(TraceBehavior.name);
+  private readonly logger = new Logger(TraceBehavior.name, { timestamp: true });
   /** false = SDK not initialized; handle() will pass through without tracing. */
   private sdkReady = false;
 

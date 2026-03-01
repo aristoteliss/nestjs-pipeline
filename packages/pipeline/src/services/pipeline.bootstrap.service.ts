@@ -64,7 +64,7 @@ import { uuidv7 } from '../helpers/uuidv7';
  */
 @Injectable()
 export class PipelineBootstrapService implements OnApplicationBootstrap {
-  private readonly logger = new Logger(PipelineBootstrapService.name);
+  private readonly logger = new Logger(PipelineBootstrapService.name, { timestamp: true });
 
   constructor(
     private readonly moduleRef: ModuleRef,
