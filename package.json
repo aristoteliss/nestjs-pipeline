@@ -22,6 +22,10 @@
   "pnpm": {
     "onlyBuiltDependencies": [
       "esbuild"
+    ],
+    "ignoredBuiltDependencies": [
+      "@nestjs/core",
+      "protobufjs"
     ]
   }
 }

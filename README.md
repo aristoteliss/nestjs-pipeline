@@ -1,87 +1,1151 @@
 # nestjs-pipeline
 
-A pnpm monorepo of NestJS CQRS pipeline behavior packages.
+Pipeline behaviors for **NestJS CQRS** — wrap every command, query, and event handler with reusable cross-cutting concerns (logging, validation, tracing, audit, …) using a clean middleware-like chain.
+
+```
+HTTP Request
+  → HttpCorrelationMiddleware          (extracts x-correlation-id)
+  → Controller (ZodPipe validation)
+  → CommandBus / QueryBus / EventBus
+  → Pipeline chain:
+      [global before] → [@UsePipeline behaviors] → [global after] → handler
+```
+
+Zero additional runtime dependencies beyond NestJS itself. Works with Express and Fastify.
+
+---
+
+## Table of Contents
+
+- [Packages](#packages)
+- [Quick Start](#quick-start)
+  - [1  Install](#1-install)
+  - [2  Register the Module](#2-register-the-module)
+  - [3  Define a Command with Zod Validation](#3-define-a-command-with-zod-validation)
+  - [4  Write the Handler](#4-write-the-handler)
+  - [5  Wire Up the Controller](#5-wire-up-the-controller)
+  - [6  Bootstrap the Application](#6-bootstrap-the-application)
+- [Writing Custom Behaviors](#writing-custom-behaviors)
+  - [Example: Metrics Behavior](#example-metrics-behavior)
+  - [Example: Audit-Trail Behavior with Options](#example-audit-trail-behavior-with-options)
+  - [Example: Caching Behavior](#example-caching-behavior)
+  - [Example: Retry Behavior](#example-retry-behavior)
+  - [Registering Behaviors](#registering-behaviors)
+- [Pipeline Execution Model](#pipeline-execution-model)
+  - [Execution Order](#execution-order)
+  - [Deduplication](#deduplication)
+- [Correlation IDs](#correlation-ids)
+  - [HTTP Requests](#http-requests)
+  - [Bull Queue Processor](#bull-queue-processor)
+  - [RabbitMQ Handler](#rabbitmq-handler)
+  - [Cron Jobs](#cron-jobs)
+  - [Nested Commands (Sagas)](#nested-commands-sagas)
+- [Pipeline Context Reference](#pipeline-context-reference)
+  - [Properties](#properties)
+  - [Using items for Inter-Behavior Communication](#using-items-for-inter-behavior-communication)
+  - [Behavior Options](#behavior-options)
+- [Built-in LoggingBehavior](#built-in-loggingbehavior)
+- [Zod Integration](#zod-integration-nestjs-pipelinezod)
+  - [Pipeline-Level Validation](#pipeline-level-validation)
+  - [Controller-Level Validation with ZodPipe](#controller-level-validation-with-zodpipe)
+  - [Zod Transform Mappers (DTO → Command)](#zod-transform-mappers-dto--command)
+  - [Error Handling with ZodValidationFilter](#error-handling-with-zodvalidationfilter)
+  - [Attaching Schemas to Plain Event Classes](#attaching-schemas-to-plain-event-classes)
+- [OpenTelemetry Integration](#opentelemetry-integration-nestjs-pipelineopentelemetry)
+  - [Setup](#setup)
+  - [Span Details](#span-details)
+  - [No SDK? No Problem.](#no-sdk-no-problem)
+- [Sample Application](#sample-application)
+- [Repository Structure](#repository-structure)
+- [Development](#development)
+- [Adding a New Behavior Package](#adding-a-new-behavior-package)
+- [License and Commercial Use](#license-and-commercial-use)
+
+---
 
 ## Packages
 
-| Package | Version | Description |
-|---|---|---|
-| [`@nestjs-pipeline/core`](packages/pipeline) | 0.1.0 | Base pipeline |
+| Package | Description |
+|---|---|
+| [`@nestjs-pipeline/core`](packages/pipeline) | Pipeline engine, `@UsePipeline` decorator, `PipelineModule`, `LoggingBehavior`, correlation IDs |
+| [`@nestjs-pipeline/zod`](packages/pipeline-zod) | Zod v4 validation behavior, `ZodPipe`, `ZodValidationFilter`, `ZodValidationError` |
+| [`@nestjs-pipeline/opentelemetry`](packages/pipeline-opentelemetry) | OpenTelemetry tracing behavior — auto-creates spans for every pipeline invocation |
 
 > Add-on packages live in `packages/pipeline-<name>/` and peer-depend on `@nestjs-pipeline/core`.
 
 ---
 
-## Repository structure
+## Quick Start
 
+### 1. Install
+
+```bash
+pnpm add @nestjs-pipeline/core @nestjs/common @nestjs/core @nestjs/cqrs reflect-metadata rxjs
+
+# Optional add-ons
+pnpm add @nestjs-pipeline/zod zod
+pnpm add @nestjs-pipeline/opentelemetry @opentelemetry/api
 ```
-nestjs-pipeline/
-├── package.json            # root — private, workspace scripts
-├── pnpm-workspace.yaml     # declares packages/*
-├── tsconfig.base.json      # shared TS config
-└── packages/
-    └── pipeline/           # @nestjs-pipeline/core
-        ├── package.json
-        ├── tsconfig.json
-        ├── tsconfig.build.json
-        └── src/
-            ├── index.ts
-            ├── pipeline.ts
-            ├── interfaces/
-            │   ├── pipeline-handler.interface.ts
-            │   └── behavior.interface.ts
-            └── behaviors/
-                └── pipeline-behavior.base.ts
+
+### 2. Register the Module
+
+```typescript
+// app.module.ts
+import { Module } from '@nestjs/common';
+import { CqrsModule } from '@nestjs/cqrs';
+import { PipelineModule, LoggingBehavior } from '@nestjs-pipeline/core';
+import { ZodValidationBehavior } from '@nestjs-pipeline/zod';
+import { TraceBehavior } from '@nestjs-pipeline/opentelemetry';
+
+@Module({
+  imports: [
+    CqrsModule.forRoot(),
+    PipelineModule.forRoot({
+      globalBehaviors: {
+        scope: 'all',                // 'commands' | 'queries' | 'events' | 'all'
+        before: [LoggingBehavior],   // runs first (outermost)
+        after: [                     // runs closest to the handler
+          [TraceBehavior, { tracerName: 'my-service' }],
+          ZodValidationBehavior,
+        ],
+      },
+      correlation: { header: 'x-correlation-id' }, // or false to disable
+    }),
+  ],
+})
+export class AppModule {}
+```
+
+### 3. Define a Command with Zod Validation
+
+```typescript
+// create-user.command.ts
+import { z } from 'zod';
+import { ZodValidationError } from '@nestjs-pipeline/zod';
+
+// 1. Define the schema
+const schema = z.object({
+  username: z.string().min(4),
+  email: z.email(),
+});
+
+// 2. Build a helper that creates a self-validating class
+function createRequest<T extends z.ZodRawShape>(s: z.ZodObject<T>) {
+  type Input = z.infer<z.ZodObject<T>>;
+  return class {
+    static readonly _zodSchema = s;                  // ZodValidationBehavior reads this
+    constructor(input: Input) {
+      const result = s.safeParse(input);
+      if (!result.success) throw new ZodValidationError(result.error);
+      Object.assign(this, result.data);
+    }
+  };
+}
+
+// 3. Create the command — fully typed, self-validating
+export interface CreateUserCommand extends z.infer<typeof schema> {}
+export class CreateUserCommand extends createRequest(schema) {}
+
+// Usage:
+// const cmd = new CreateUserCommand({ username: 'jane', email: 'jane@example.com' });
+// cmd.username → 'jane'
+// cmd.email    → 'jane@example.com'
+// new CreateUserCommand({ username: 'ab', email: 'bad' }) → throws ZodValidationError
+```
+
+### 4. Write the Handler
+
+```typescript
+// create-user.handler.ts
+import { CommandHandler, EventBus, ICommandHandler } from '@nestjs/cqrs';
+import { UsePipeline, LoggingBehavior } from '@nestjs-pipeline/core';
+import { CreateUserCommand } from './create-user.command';
+
+@CommandHandler(CreateUserCommand)
+@UsePipeline(
+  // Override global LoggingBehavior options for this handler only
+  [LoggingBehavior, { requestResponseLogLevel: 'log' }],
+)
+export class CreateUserHandler implements ICommandHandler<CreateUserCommand> {
+  constructor(
+    private readonly userRepository: UserRepository,
+    private readonly eventBus: EventBus,
+  ) {}
+
+  async execute(command: CreateUserCommand): Promise<User> {
+    const user = User.create(command.username, command.email);
+    this.userRepository.save(user);
+
+    this.eventBus.publish(
+      new UserCreatedEvent({
+        userId: user.id,
+        username: user.username,
+        email: user.email,
+      }),
+    );
+
+    return user;
+  }
+}
+```
+
+### 5. Wire Up the Controller
+
+```typescript
+// users.controller.ts
+import { Body, Controller, Get, Param, Post, HttpCode } from '@nestjs/common';
+import { CommandBus, QueryBus } from '@nestjs/cqrs';
+import { ZodPipe } from '@nestjs-pipeline/zod';
+import { z } from 'zod';
+
+const CreateUserDtoSchema = z.object({ name: z.string().min(5), email: z.email() });
+type CreateUserDto = z.infer<typeof CreateUserDtoSchema>;
+
+const UserIdSchema = z.string().uuid();
+
+@Controller('users')
+export class UsersController {
+  constructor(
+    private readonly commandBus: CommandBus,
+    private readonly queryBus: QueryBus,
+  ) {}
+
+  @Post()
+  @HttpCode(201)
+  async createUser(
+    @Body(new ZodPipe(CreateUserDtoSchema)) dto: CreateUserDto,
+  ) {
+    return this.commandBus.execute(
+      new CreateUserCommand({ username: dto.name, email: dto.email }),
+    );
+  }
+
+  @Get(':id')
+  async getUser(
+    @Param('id', new ZodPipe(UserIdSchema)) id: string,
+  ) {
+    return this.queryBus.execute(new GetUserQuery({ userId: id }));
+  }
+}
+```
+
+### 6. Bootstrap the Application
+
+```typescript
+// main.ts
+import { NestFactory } from '@nestjs/core';
+import { AppModule } from './app.module';
+import { ZodValidationFilter } from '@nestjs-pipeline/zod';
+
+async function bootstrap() {
+  const app = await NestFactory.create(AppModule);
+  app.useGlobalFilters(new ZodValidationFilter()); // maps ZodValidationError → HTTP 400
+  await app.listen(3000);
+}
+bootstrap();
 ```
 
 ---
 
-## Getting started
+## Writing Custom Behaviors
+
+Every behavior implements the `IPipelineBehavior` interface — a single `handle(context, next)` method:
+
+```typescript
+import { Injectable } from '@nestjs/common';
+import {
+  IPipelineBehavior,
+  IPipelineContext,
+  NextDelegate,
+} from '@nestjs-pipeline/core';
+
+@Injectable()
+export class MyBehavior implements IPipelineBehavior {
+  async handle(
+    context: IPipelineContext,
+    next: NextDelegate,
+  ): Promise<any> {
+    // ── BEFORE the handler ──
+    // Access context.request, context.correlationId, context.requestKind, etc.
+
+    const result = await next(); // call the next behavior in the chain (or the handler)
+
+    // ── AFTER the handler ──
+    // Access context.response (set automatically after the handler returns)
+
+    return result;
+  }
+}
+```
+
+### Example: Metrics Behavior
+
+```typescript
+import { Injectable } from '@nestjs/common';
+import { IPipelineBehavior, IPipelineContext, NextDelegate } from '@nestjs-pipeline/core';
+
+@Injectable()
+export class MetricsBehavior implements IPipelineBehavior {
+  constructor(private readonly metricsService: MetricsService) {}
+
+  async handle(context: IPipelineContext, next: NextDelegate): Promise<any> {
+    const start = performance.now();
+    const labels = {
+      kind: context.requestKind,     // 'command' | 'query' | 'event'
+      name: context.requestName,     // 'CreateUserCommand'
+      handler: context.handlerName,  // 'CreateUserHandler'
+    };
+
+    try {
+      const result = await next();
+      const durationMs = performance.now() - start;
+      this.metricsService.recordDuration('pipeline.duration_ms', durationMs, labels);
+      this.metricsService.incrementCounter('pipeline.success', labels);
+      return result;
+    } catch (error) {
+      const durationMs = performance.now() - start;
+      this.metricsService.recordDuration('pipeline.duration_ms', durationMs, labels);
+      this.metricsService.incrementCounter('pipeline.failure', labels);
+      throw error;
+    }
+  }
+}
+```
+
+### Example: Audit-Trail Behavior with Options
+
+Pass per-handler options via the `[Behavior, { ... }]` tuple form and read them with `getBehaviorOptions()`:
+
+```typescript
+// audit.behavior.ts
+import { Injectable } from '@nestjs/common';
+import { IPipelineBehavior, IPipelineContext, NextDelegate } from '@nestjs-pipeline/core';
+
+export interface AuditOptions {
+  action: string;
+  severity?: 'low' | 'medium' | 'high';
+}
+
+@Injectable()
+export class AuditBehavior implements IPipelineBehavior {
+  constructor(private readonly auditService: AuditService) {}
+
+  async handle(context: IPipelineContext, next: NextDelegate): Promise<any> {
+    const result = await next();
+
+    // Read handler-specific options from @UsePipeline([AuditBehavior, { ... }])
+    const opts = context.getBehaviorOptions<AuditOptions>(AuditBehavior);
+    if (opts) {
+      await this.auditService.log({
+        action: opts.action,
+        severity: opts.severity ?? 'medium',
+        correlationId: context.correlationId,
+        requestKind: context.requestKind,
+        requestName: context.requestName,
+        handler: context.handlerName,
+        timestamp: context.startedAt,
+        payload: context.request,
+      });
+    }
+
+    return result;
+  }
+}
+
+// create-user.handler.ts — handler-level options
+@CommandHandler(CreateUserCommand)
+@UsePipeline(
+  [AuditBehavior, { action: 'user.create', severity: 'high' }],
+)
+export class CreateUserHandler implements ICommandHandler<CreateUserCommand> {
+  async execute(command: CreateUserCommand): Promise<User> { /* ... */ }
+}
+
+// delete-order.handler.ts — different options for a different handler
+@CommandHandler(DeleteOrderCommand)
+@UsePipeline(
+  [AuditBehavior, { action: 'order.delete', severity: 'high' }],
+)
+export class DeleteOrderHandler implements ICommandHandler<DeleteOrderCommand> {
+  async execute(command: DeleteOrderCommand): Promise<void> { /* ... */ }
+}
+```
+
+### Example: Caching Behavior
+
+```typescript
+import { Injectable } from '@nestjs/common';
+import { IPipelineBehavior, IPipelineContext, NextDelegate } from '@nestjs-pipeline/core';
+
+@Injectable()
+export class CachingBehavior implements IPipelineBehavior {
+  constructor(private readonly cache: CacheService) {}
+
+  async handle(context: IPipelineContext, next: NextDelegate): Promise<any> {
+    // Only cache queries — commands and events always execute
+    if (context.requestKind !== 'query') {
+      return next();
+    }
+
+    const cacheKey = `${context.requestName}:${JSON.stringify(context.request)}`;
+    const cached = await this.cache.get(cacheKey);
+    if (cached) return cached;
+
+    const result = await next();
+    await this.cache.set(cacheKey, result, { ttl: 60 });
+    return result;
+  }
+}
+```
+
+### Example: Retry Behavior
+
+```typescript
+import { Injectable, Logger } from '@nestjs/common';
+import { IPipelineBehavior, IPipelineContext, NextDelegate } from '@nestjs-pipeline/core';
+
+@Injectable()
+export class RetryBehavior implements IPipelineBehavior {
+  private readonly logger = new Logger(RetryBehavior.name);
+
+  async handle(context: IPipelineContext, next: NextDelegate): Promise<any> {
+    const maxRetries = 3;
+    let lastError: Error;
+
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        return await next();
+      } catch (error) {
+        lastError = error as Error;
+        this.logger.warn(
+          `[${context.correlationId}] ${context.requestName} ` +
+          `attempt ${attempt}/${maxRetries} failed: ${lastError.message}`,
+        );
+        if (attempt < maxRetries) {
+          await new Promise((r) => setTimeout(r, 100 * attempt));
+        }
+      }
+    }
+
+    throw lastError!;
+  }
+}
+```
+
+### Registering Behaviors
+
+```typescript
+// ── Global: auto-wraps all commands, queries, and events ──
+PipelineModule.forRoot({
+  globalBehaviors: {
+    scope: 'all',
+    before: [MetricsBehavior, LoggingBehavior],
+    after:  [ZodValidationBehavior],
+  },
+})
+
+// ── Scoped global: only commands ──
+PipelineModule.forRoot({
+  globalBehaviors: {
+    scope: 'commands',
+    before: [AuditBehavior],
+  },
+})
+
+// ── Per-handler: override or add behaviors for specific handlers ──
+@CommandHandler(CreateUserCommand)
+@UsePipeline(
+  [LoggingBehavior, { requestResponseLogLevel: 'log' }],
+  [AuditBehavior, { action: 'user.create' }],
+)
+export class CreateUserHandler { /* ... */ }
+
+// ── Feature module: register behaviors owned by a specific module ──
+@Module({
+  imports: [PipelineModule.forFeature([AuditBehavior, CachingBehavior])],
+})
+export class AuditModule {}
+```
+
+---
+
+## Pipeline Execution Model
+
+```
+┌─ global before ──┐   ┌── @UsePipeline ──┐   ┌─ global after ──┐
+│ LoggingBehavior  │ → │ AuditBehavior    │ → │ TraceBehavior   │ → handler.execute()
+│ MetricsBehavior  │   │                  │   │ ZodValidation   │
+└──────────────────┘   └──────────────────┘   └─────────────────┘
+                    ← response propagates back through the chain ←
+```
+
+1. **`PipelineBootstrapService`** scans all CQRS handlers at startup via `@nestjs/cqrs` `ExplorerService`.
+2. For each handler it pre-resolves behavior instances, metadata, and builds the chain once — zero reflection or DI lookups at request time.
+3. Per invocation: creates a `PipelineContext`, resolves correlation ID, runs the chain inside `AsyncLocalStorage` for nested propagation.
+4. Supports **singleton** and **request-scoped** handlers (`Scope.REQUEST`, `Scope.TRANSIENT`).
+
+### Execution Order
+
+| Phase | Source | Position |
+|---|---|---|
+| Global `before` | `globalBehaviors.before` | Outermost (first to run) |
+| Handler-level | `@UsePipeline(...)` | Middle |
+| Global `after` | `globalBehaviors.after` | Innermost (closest to handler) |
+| Handler | `execute()` / `handle()` | Core |
+
+### Deduplication
+
+When both global and handler-level configurations include the same behavior class, the **handler-level entry wins** (including its options). The duplicate global entry is removed automatically.
+
+```typescript
+// Global config
+PipelineModule.forRoot({
+  globalBehaviors: {
+    scope: 'all',
+    before: [LoggingBehavior], // default options: metricLogLevel='log', requestResponseLogLevel='debug'
+  },
+})
+
+// Handler overrides LoggingBehavior's options
+@CommandHandler(CreateUserCommand)
+@UsePipeline(
+  [LoggingBehavior, { requestResponseLogLevel: 'log' }], // ← wins over the global entry
+)
+export class CreateUserHandler { /* ... */ }
+
+// Effective chain for CreateUserHandler:
+//   [LoggingBehavior (handler opts)] → handler
+// NOT:
+//   [LoggingBehavior (global)] → [LoggingBehavior (handler)] → handler
+```
+
+---
+
+## Correlation IDs
+
+Every pipeline invocation carries a `correlationId` resolved in priority order:
+
+1. **Parent pipeline** — if a saga or nested `CommandBus.execute()` triggers a child, it inherits the parent's ID via `AsyncLocalStorage`.
+2. **`HttpCorrelationMiddleware`** — extracts from the request header (default `x-correlation-id`).
+3. **`runWithCorrelationId(id, fn)`** — for non-HTTP entry points.
+4. **`uuidv7()` fallback** — timestamp-sortable UUID when no ID is available.
+
+### HTTP Requests
+
+Correlation IDs are extracted automatically. No code needed — just send the header:
 
 ```bash
-# Install dependencies for all packages
+curl -X POST http://localhost:3000/users \
+  -H 'x-correlation-id: req-abc-123' \
+  -H 'Content-Type: application/json' \
+  -d '{"name": "Jane", "email": "jane@example.com"}'
+```
+
+The pipeline `context.correlationId` will be `"req-abc-123"` for the entire chain. If the header is omitted, a `uuidv7()` is generated automatically.
+
+To customize the header name or disable the middleware:
+
+```typescript
+// Custom header
+PipelineModule.forRoot({ correlation: { header: 'x-request-id' } })
+
+// Disable HTTP middleware (worker-only app with no HTTP)
+PipelineModule.forRoot({ correlation: { header: false } })
+```
+
+### Bull Queue Processor
+
+```typescript
+import { runWithCorrelationId } from '@nestjs-pipeline/core';
+import { Process, Processor } from '@nestjs/bull';
+
+@Processor('email-queue')
+export class EmailProcessor {
+  constructor(private readonly commandBus: CommandBus) {}
+
+  @Process('send-email')
+  async handleSendEmail(job: Job) {
+    return runWithCorrelationId(job.data.correlationId, async () => {
+      await this.commandBus.execute(new SendEmailCommand(job.data));
+    });
+  }
+}
+```
+
+### RabbitMQ Handler
+
+```typescript
+import { runWithCorrelationId } from '@nestjs-pipeline/core';
+
+@MessagePattern('user.created')
+async handle(@Payload() data: UserPayload, @Ctx() ctx: RmqContext) {
+  const correlationId = ctx.getMessage().properties.correlationId;
+
+  return runWithCorrelationId(correlationId, () =>
+    this.commandBus.execute(new SyncUserCommand(data)),
+  );
+}
+```
+
+### Cron Jobs
+
+```typescript
+import { runWithCorrelationId, uuidv7 } from '@nestjs-pipeline/core';
+import { Cron } from '@nestjs/schedule';
+
+@Injectable()
+export class SyncScheduler {
+  constructor(private readonly commandBus: CommandBus) {}
+
+  @Cron('0 * * * *')
+  async hourlySync() {
+    return runWithCorrelationId(uuidv7(), () =>
+      this.commandBus.execute(new SyncAllUsersCommand()),
+    );
+  }
+}
+```
+
+### Nested Commands (Sagas)
+
+Sagas do **not** need `@UsePipeline`. Commands emitted by a saga flow through the `CommandBus` and hit the target handler's pipeline automatically. The child pipeline inherits the parent's `correlationId` via `AsyncLocalStorage`:
+
+```typescript
+// Saga — no @UsePipeline needed
+@Injectable()
+export class OrderSagas {
+  @Saga()
+  orderCreated = (events$: Observable<any>): Observable<ICommand> =>
+    events$.pipe(
+      ofType(OrderCreatedEvent),
+      map((event) => new SendOrderConfirmationCommand({ orderId: event.orderId })),
+      // ↑ This command inherits the correlationId from the parent pipeline context
+    );
+}
+```
+
+---
+
+## Pipeline Context Reference
+
+### Properties
+
+Every behavior receives `IPipelineContext`:
+
+| Property | Type | Description |
+|---|---|---|
+| `correlationId` | `string` | Mutable correlation ID — behaviors may override it |
+| `originalCorrelationId` | `string` | Immutable snapshot of the initial correlation ID |
+| `request` | `TRequest` | The command / query / event instance |
+| `requestType` | `Type<TRequest>` | Class constructor (e.g. `CreateUserCommand`) |
+| `requestName` | `string` | Class name string (e.g. `"CreateUserCommand"`) |
+| `handlerType` | `Type` | Handler class constructor |
+| `handlerName` | `string` | Handler class name (e.g. `"CreateUserHandler"`) |
+| `requestKind` | `'command' \| 'query' \| 'event' \| 'unknown'` | Auto-detected from `@nestjs/cqrs` metadata |
+| `startedAt` | `Date` | UTC timestamp of pipeline start |
+| `response` | `TResponse \| undefined` | Set after `next()` returns; `undefined` before handler runs |
+| `items` | `Map<string, any>` | Shared bag for inter-behavior communication |
+
+### Using `items` for Inter-Behavior Communication
+
+```typescript
+// AuthBehavior — runs before other behaviors
+@Injectable()
+export class AuthBehavior implements IPipelineBehavior {
+  async handle(context: IPipelineContext, next: NextDelegate): Promise<any> {
+    const userId = await this.authService.getCurrentUserId();
+    context.items.set('currentUserId', userId);  // ← store data
+    return next();
+  }
+}
+
+// AuditBehavior — runs after AuthBehavior in the chain
+@Injectable()
+export class AuditBehavior implements IPipelineBehavior {
+  async handle(context: IPipelineContext, next: NextDelegate): Promise<any> {
+    const result = await next();
+    const userId = context.items.get('currentUserId');  // ← read data
+    await this.auditService.log({
+      action: context.requestName,
+      userId,
+      correlationId: context.correlationId,
+    });
+    return result;
+  }
+}
+```
+
+### Behavior Options
+
+Pass per-handler options with the `[Behavior, { ... }]` tuple form and read them with `getBehaviorOptions()`:
+
+```typescript
+// Handler declaration
+@CommandHandler(CreateUserCommand)
+@UsePipeline(
+  [AuditBehavior, { action: 'user.create', severity: 'high' }],
+  [LoggingBehavior, { metricLogLevel: 'verbose', requestResponseLogLevel: 'log' }],
+)
+export class CreateUserHandler implements ICommandHandler<CreateUserCommand> {
+  /* ... */
+}
+
+// Inside AuditBehavior
+async handle(context: IPipelineContext, next: NextDelegate): Promise<any> {
+  const opts = context.getBehaviorOptions<AuditOptions>(AuditBehavior);
+  // opts → { action: 'user.create', severity: 'high' }
+  // ...
+}
+```
+
+Options can also be set at the global level:
+
+```typescript
+PipelineModule.forRoot({
+  globalBehaviors: {
+    scope: 'all',
+    before: [
+      [LoggingBehavior, { metricLogLevel: 'log', requestResponseLogLevel: 'debug' }],
+    ],
+    after: [
+      [TraceBehavior, { tracerName: 'my-service' }],
+    ],
+  },
+})
+```
+
+---
+
+## Built-in LoggingBehavior
+
+The core package ships with `LoggingBehavior` that logs request/response data and timing metrics via the NestJS `Logger`:
+
+```typescript
+import { LoggingBehavior } from '@nestjs-pipeline/core';
+
+// Register globally with default options
+PipelineModule.forRoot({
+  globalBehaviors: { scope: 'all', before: [LoggingBehavior] },
+})
+```
+
+**Options** (`LoggingBehaviorOptions`):
+
+| Option | Type | Default | Description |
+|---|---|---|---|
+| `metricLogLevel` | `LogLevel \| 'none'` | `'log'` | Log level for timing/duration messages |
+| `requestResponseLogLevel` | `LogLevel \| 'none'` | `'debug'` | Log level for request/response payloads |
+
+```typescript
+// Verbose logging for a specific handler
+@CommandHandler(CreateUserCommand)
+@UsePipeline([LoggingBehavior, { requestResponseLogLevel: 'log' }])
+export class CreateUserHandler { /* ... */ }
+
+// Disable payload logging entirely, keep timing metrics
+@UsePipeline([LoggingBehavior, { requestResponseLogLevel: 'none' }])
+
+// Disable all logging for a handler
+@UsePipeline([LoggingBehavior, { metricLogLevel: 'none', requestResponseLogLevel: 'none' }])
+```
+
+**Output example** (on success):
+
+```
+[Nest] LOG   [LoggingBehavior] Request: {"username":"jane","email":"jane@example.com"}
+[Nest] LOG   [LoggingBehavior] [019728a3-...] COMMAND CreateUserCommand → CreateUserHandler completed in 12.34ms
+[Nest] DEBUG [LoggingBehavior] Response: {"id":"...","username":"jane","email":"jane@example.com"}
+```
+
+**Output example** (on error):
+
+```
+[Nest] ERROR [LoggingBehavior] [019728a3-...] COMMAND CreateUserCommand → CreateUserHandler failed after 2.10ms: Error: User already exists
+```
+
+---
+
+## Zod Integration (`@nestjs-pipeline/zod`)
+
+Comprehensive Zod v4 integration at every layer of a NestJS CQRS application.
+
+### Pipeline-Level Validation
+
+Register `ZodValidationBehavior` globally. It auto-validates any request class that has a static `_zodSchema` property (set automatically by the `createRequest()` helper):
+
+```typescript
+// app.module.ts
+PipelineModule.forRoot({
+  globalBehaviors: {
+    scope: 'all',
+    after: [ZodValidationBehavior],  // validates before the handler runs
+  },
+})
+
+// create-user.command.ts
+import { z } from 'zod';
+
+const schema = z.object({
+  username: z.string().min(4),
+  email: z.email(),
+});
+
+export interface CreateUserCommand extends z.infer<typeof schema> {}
+export class CreateUserCommand extends createRequest(schema) {}
+//                                       ↑ attaches schema as static _zodSchema
+```
+
+If validation fails, `ZodValidationBehavior` throws a `ZodValidationError` with structured details from `ZodError.flatten()`.
+
+### Controller-Level Validation with ZodPipe
+
+`ZodPipe` validates `@Body()`, `@Param()`, `@Query()` values against a Zod schema — including transform schemas:
+
+```typescript
+import { z } from 'zod';
+import { ZodPipe } from '@nestjs-pipeline/zod';
+
+// Simple schemas
+const CreateUserDtoSchema = z.object({
+  email: z.email(),
+  name: z.string().min(5),
+});
+type CreateUserDto = z.infer<typeof CreateUserDtoSchema>;
+
+const UserIdSchema = z.string().uuid();
+
+@Controller('users')
+export class UsersController {
+  // Validate request body
+  @Post()
+  createUser(@Body(new ZodPipe(CreateUserDtoSchema)) dto: CreateUserDto) {
+    return this.commandBus.execute(new CreateUserCommand(dto));
+  }
+
+  // Validate route param (UUID format)
+  @Get(':id')
+  getUser(@Param('id', new ZodPipe(UserIdSchema)) id: string) {
+    return this.queryBus.execute(new GetUserQuery({ userId: id }));
+  }
+
+  // Validate + transform body
+  @Patch(':id')
+  updateUser(
+    @Param('id', new ZodPipe(UserIdSchema)) id: string,
+    @Body(new ZodPipe(UpdateUserDtoSchema)) dto: UpdateUserDto,
+  ) {
+    return this.commandBus.execute(UpdateUserMapper.map(id, dto));
+  }
+}
+```
+
+### Zod Transform Mappers (DTO → Command)
+
+Use Zod transforms to map DTOs to commands in a single step:
+
+```typescript
+// create-user.mapper.ts
+import { BadRequestException } from '@nestjs/common';
+import { CreateUserDtoSchema } from '../dtos/create-user.dto';
+import { CreateUserCommand } from '../cqrs/commands/create-user.command';
+
+// Schema that validates a DTO and transforms it into a command
+const CreateUserMapperSchema = CreateUserDtoSchema.transform(
+  ({ name, email }) => new CreateUserCommand({ username: name, email }),
+);
+
+export const CreateUserMapper = {
+  map(input: CreateUserDto): CreateUserCommand {
+    const result = CreateUserMapperSchema.safeParse(input);
+    if (!result.success) throw new BadRequestException(result.error.flatten());
+    return result.data;
+  },
+};
+
+// Usage in controller
+@Post()
+createUser(@Body(new ZodPipe(CreateUserDtoSchema)) dto: CreateUserDto) {
+  return this.commandBus.execute(CreateUserMapper.map(dto));
+}
+```
+
+### Error Handling with ZodValidationFilter
+
+Register `ZodValidationFilter` as a global exception filter to catch `ZodValidationError` and return a structured HTTP 400 response:
+
+```typescript
+// main.ts
+import { ZodValidationFilter } from '@nestjs-pipeline/zod';
+
+async function bootstrap() {
+  const app = await NestFactory.create(AppModule);
+  app.useGlobalFilters(new ZodValidationFilter());
+  await app.listen(3000);
+}
+```
+
+**Response format** (HTTP 400):
+
+```json
+{
+  "statusCode": 400,
+  "error": "Bad Request",
+  "message": "Validation failed",
+  "details": {
+    "formErrors": [],
+    "fieldErrors": {
+      "email": ["Invalid email"],
+      "username": ["String must contain at least 4 character(s)"]
+    }
+  }
+}
+```
+
+### Attaching Schemas to Plain Event Classes
+
+Event classes that don't use `createRequest()` can still be validated by attaching the schema manually:
+
+```typescript
+import { ZOD_SCHEMA_KEY } from '@nestjs-pipeline/zod';
+import { z } from 'zod';
+
+const userCreatedSchema = z.object({
+  userId: z.string().uuid(),
+  username: z.string().min(1),
+  email: z.email(),
+});
+
+export class UserCreatedEvent {
+  static readonly [ZOD_SCHEMA_KEY] = userCreatedSchema;
+
+  constructor(
+    public readonly userId: string,
+    public readonly username: string,
+    public readonly email: string,
+  ) {}
+}
+```
+
+---
+
+## OpenTelemetry Integration (`@nestjs-pipeline/opentelemetry`)
+
+Auto-creates spans for every pipeline invocation with full context attributes.
+
+### Setup
+
+```typescript
+// tracing.ts — MUST be imported before NestFactory.create()
+import { NodeSDK } from '@opentelemetry/sdk-node';
+import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-http';
+
+const sdk = new NodeSDK({
+  traceExporter: new OTLPTraceExporter({ url: 'http://localhost:4318/v1/traces' }),
+  serviceName: 'users-api',
+});
+sdk.start();
+
+// main.ts
+import './tracing'; // ← MUST be the first import
+import { NestFactory } from '@nestjs/core';
+import { AppModule } from './app.module';
+
+// app.module.ts
+PipelineModule.forRoot({
+  globalBehaviors: {
+    scope: 'all',
+    after: [[TraceBehavior, { tracerName: 'users-api' }]],
+  },
+})
+```
+
+### Span Details
+
+Each span includes:
+
+| Field | Example |
+|---|---|
+| **Span name** | `command.CreateUserCommand` |
+| `pipeline.request.kind` | `command` |
+| `pipeline.request.name` | `CreateUserCommand` |
+| `pipeline.handler.name` | `CreateUserHandler` |
+| `pipeline.correlation_id` | `019728a3-...` |
+| `pipeline.started_at` | `2026-03-01T12:00:00.000Z` |
+| **Status** | `OK` on success, `ERROR` with recorded exception |
+
+### No SDK? No Problem.
+
+If the OpenTelemetry SDK is not initialized, `TraceBehavior` silently passes through — no overhead, no errors. A warning is logged once at startup:
+
+```
+[Nest] WARN [TraceBehavior] OpenTelemetry SDK is NOT initialized — TraceBehavior will pass through without tracing.
+```
+
+---
+
+## Sample Application
+
+The `samples/users-api/` directory contains a complete working application:
+
+```bash
+cd samples/users-api
+pnpm install
+pnpm start
+```
+
+**CRUD operations:**
+
+```bash
+# Create a user
+curl -X POST http://localhost:3000/users \
+  -H 'Content-Type: application/json' \
+  -H 'x-correlation-id: demo-123' \
+  -d '{"name": "Aristotelis", "email": "aristotelis@example.com"}'
+
+# Get all users
+curl http://localhost:3000/users
+
+# Get by ID
+curl http://localhost:3000/users/<id>
+
+# Update
+curl -X PATCH http://localhost:3000/users/<id> \
+  -H 'Content-Type: application/json' \
+  -d '{"name": "NewName"}'
+
+# Delete
+curl -X DELETE http://localhost:3000/users/<id>
+
+# Run with Fastify adapter
+ADAPTER=fastify pnpm start
+```
+
+**What it demonstrates:**
+
+- Global + per-handler pipeline behaviors
+- Zod-validated commands, queries, and events via `createRequest()`
+- Controller-level `ZodPipe` validation
+- Zod transform mappers (DTO → Command mapping)
+- OpenTelemetry tracing with `TraceBehavior`
+- DDD-style `User` entity with factory methods
+- Correlation ID propagation across handlers and events
+- Express and Fastify adapter support
+
+---
+
+## Repository Structure
+
+```
+nestjs-pipeline/
+├── package.json                  # root — workspace scripts
+├── pnpm-workspace.yaml           # declares packages/* and samples/*
+├── tsconfig.base.json            # shared TypeScript config
+├── packages/
+│   ├── pipeline/                 # @nestjs-pipeline/core
+│   │   └── src/
+│   │       ├── behaviors/        # LoggingBehavior
+│   │       ├── constants/        # pipelineStore (AsyncLocalStorage)
+│   │       ├── correlation/      # correlationStore, HttpCorrelationMiddleware
+│   │       ├── decorators/       # @UsePipeline
+│   │       ├── helpers/          # uuidv7, safeStringify
+│   │       ├── interfaces/       # IPipelineBehavior, IPipelineContext
+│   │       ├── options/          # PipelineModuleOptions, GlobalBehaviorsOptions
+│   │       ├── services/         # PipelineBootstrapService
+│   │       ├── pipeline.context.ts
+│   │       └── pipeline.module.ts
+│   ├── pipeline-zod/             # @nestjs-pipeline/zod
+│   │   └── src/
+│   │       ├── errors/           # ZodValidationError
+│   │       ├── filters/          # ZodValidationFilter
+│   │       ├── pipes/            # ZodPipe
+│   │       └── zod-validation.behavior.ts
+│   └── pipeline-opentelemetry/   # @nestjs-pipeline/opentelemetry
+│       └── src/
+│           └── trace.behavior.ts
+└── samples/
+    └── users-api/                # Full working example
+```
+
+---
+
+## Development
+
+```bash
+# Install all dependencies
 pnpm install
 
 # Build all packages
 pnpm build
 
-# Lint (type-check) all packages
+# Run all tests
+pnpm test
+
+# Type-check all packages
 pnpm lint
+
+# Clean build artifacts
+pnpm clean
 ```
 
-## Adding a new behavior package
+## Adding a New Behavior Package
 
-1. Create `packages/pipeline-<name>/` following the same structure.
-2. Add `@nestjs-pipeline/core` as a peer dependency.
-3. Implement your behavior by extending `PipelineBehavior`.
-4. Export it from `src/index.ts`.
-5. The package is automatically included in the workspace via `pnpm-workspace.yaml`.
+1. Create `packages/pipeline-<name>/` with `package.json`, `tsconfig.json`, `tsconfig.build.json`, and `src/index.ts`.
 
-## Publishing to npm
+2. Add `@nestjs-pipeline/core` as a peer dependency:
 
-```bash
-# Publish all packages (requires npm login)
-pnpm publish:all
-```
+   ```json
+   {
+     "peerDependencies": {
+       "@nestjs-pipeline/core": "*"
+     }
+   }
+   ```
 
-Each package must have `"publishConfig": { "access": "public" }` in its `package.json`
-and `"private"` must **not** be set to `true`.
+3. Implement `IPipelineBehavior`:
+
+   ```typescript
+   import { Injectable } from '@nestjs/common';
+   import { IPipelineBehavior, IPipelineContext, NextDelegate } from '@nestjs-pipeline/core';
+
+   @Injectable()
+   export class RateLimitBehavior implements IPipelineBehavior {
+     constructor(private readonly rateLimiter: RateLimiterService) {}
+
+     async handle(context: IPipelineContext, next: NextDelegate): Promise<any> {
+       const key = `${context.requestKind}:${context.requestName}`;
+       await this.rateLimiter.consume(key);
+       return next();
+     }
+   }
+   ```
+
+4. Export from `src/index.ts`:
+
+   ```typescript
+   export { RateLimitBehavior } from './rate-limit.behavior';
+   ```
+
+5. The package is automatically included via `pnpm-workspace.yaml`.
 
 ---
 
 ## License and Commercial Use
 
-This software is **Dual-Licensed**. 
+This software is **Dual-Licensed**.
 
-By default, this project is licensed under the **GNU AGPLv3** (see the `LICENSE` file). This means you can use, modify, and distribute it freely, provided that your entire application is also open-sourced under the AGPLv3.
+By default, this project is licensed under the **GNU AGPLv3** (see the `LICENSE` file). You can use, modify, and distribute it freely, provided your entire application is also open-sourced under the AGPLv3.
 
 **Commercial License (No AGPL Restrictions)**
-If you are using this software for commercial purposes and cannot (or do not want to) open-source your application under the AGPLv3, you must use the **Commercial License** (see the `COMMERCIAL_LICENSE.txt` file).
 
-The Commercial License pricing is designed to be fair and scales based on your organization's total gross annual revenue:
-* **Under $500,000 USD/year:** Free 
-* **$500,001 - $10,000,000 USD/year:** 0.1% of gross revenue
-* **$10,000,001 - $50,000,000 USD/year:** 0.05% of gross revenue
-* **Over $50,000,000 USD/year:** 0.01% of gross revenue (Capped at $50,000 max/year)
+If you are using this software commercially and cannot (or do not want to) open-source your application under the AGPLv3, you must use the **Commercial License** (see `COMMERCIAL_LICENSE.txt`).
 
-To pay the commercial fee or register your free commercial tier, please contact: aristotelis@ik.me
+Revenue-based pricing:
+
+| Annual Gross Revenue | Fee |
+|---|---|
+| Under $500,000 | **Free** |
+| $500,001 — $10,000,000 | 0.1% of gross revenue |
+| $10,000,001 — $50,000,000 | 0.05% of gross revenue |
+| Over $50,000,000 | 0.01% of gross revenue (capped at $50,000/year) |
+
+Contact: **aristotelis@ik.me**

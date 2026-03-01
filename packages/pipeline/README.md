@@ -1,15 +1,36 @@
 # @nestjs-pipeline/core
 
-> NestJS CQRS pipeline behavior base library.
+Pipeline behaviors for **NestJS CQRS** — wrap every command, query, and event handler with reusable cross-cutting concerns using a clean middleware-like chain.
 
-Provides the foundational building blocks for wrapping NestJS CQRS handlers (commands, queries, events) with an ordered chain of cross-cutting behaviors — without introducing any additional runtime dependencies beyond NestJS itself.
+No additional runtime dependencies beyond NestJS itself. Works with Express and Fastify.
 
 ---
 
-## Concepts
+## Table of Contents
 
-| Concept | Description |
+- [Installation](#installation)
+- [Module Registration](#module-registration)
+  - [forRoot()](#forroot)
+  - [forFeature()](#forfeature)
+- [The @UsePipeline Decorator](#the-usepipeline-decorator)
+- [Writing a Custom Behavior](#writing-a-custom-behavior)
+- [Pipeline Context](#pipeline-context)
+  - [Properties](#properties)
+  - [Behavior Options](#behavior-options)
+  - [Inter-Behavior Communication](#inter-behavior-communication)
+- [Global Behaviors](#global-behaviors)
+  - [Scoping](#scoping)
+  - [Deduplication](#deduplication)
+- [Built-in LoggingBehavior](#built-in-loggingbehavior)
+- [Correlation IDs](#correlation-ids)
+  - [HTTP Requests](#http-requests)
+  - [Non-HTTP Entry Points](#non-http-entry-points)
+  - [Nested Commands and Sagas](#nested-commands-and-sagas)
+- [Execution Model](#execution-model)
+- [API Reference](#api-reference)
+- [License](#license)
 
+---
 
 ## Installation
 
@@ -17,7 +38,7 @@ Provides the foundational building blocks for wrapping NestJS CQRS handlers (com
 pnpm add @nestjs-pipeline/core
 ```
 
-Peer dependencies that must be installed in your application:
+**Peer dependencies** (must be installed in your application):
 
 ```bash
 pnpm add @nestjs/common @nestjs/core @nestjs/cqrs reflect-metadata rxjs
@@ -25,71 +46,514 @@ pnpm add @nestjs/common @nestjs/core @nestjs/cqrs reflect-metadata rxjs
 
 ---
 
-## Usage
+## Module Registration
 
-### 1. Create a custom behavior
+### forRoot()
 
-```typescript
-
-```
-
-### 2. Wrap a NestJS CQRS handler
+Import `PipelineModule` once in your root `AppModule`. There are two calling styles:
 
 ```typescript
+import { Module } from '@nestjs/common';
+import { CqrsModule } from '@nestjs/cqrs';
+import { PipelineModule, LoggingBehavior } from '@nestjs-pipeline/core';
 
+// ── Style 1: Full options object ──
+
+@Module({
+  imports: [
+    CqrsModule.forRoot(),
+    PipelineModule.forRoot({
+      // Global behaviors auto-wrap every handler
+      globalBehaviors: {
+        scope: 'all',                // 'commands' | 'queries' | 'events' | 'all'
+        before: [LoggingBehavior],   // runs first (outermost)
+        after:  [MetricsBehavior],   // runs closest to the handler
+      },
+      // Behaviors to register in DI (for @UsePipeline references)
+      behaviors: [AuditBehavior],
+      // Correlation ID header (or false to disable HTTP middleware)
+      correlation: { header: 'x-correlation-id' },
+    }),
+  ],
+})
+export class AppModule {}
+
+// ── Style 2: Simple array (backward-compatible) ──
+
+@Module({
+  imports: [
+    CqrsModule.forRoot(),
+    PipelineModule.forRoot([LoggingBehavior, AuditBehavior]),
+  ],
+})
+export class AppModule {}
+
+// ── Style 3: Worker-only (no HTTP middleware) ──
+
+@Module({
+  imports: [
+    CqrsModule.forRoot(),
+    PipelineModule.forRoot({
+      behaviors: [LoggingBehavior],
+      correlation: { header: false },
+    }),
+  ],
+})
+export class WorkerAppModule {}
 ```
 
-> **Note** — `ICommandHandler.execute()` maps to `IPipelineHandler.handle()`.
-> Wrap the handler in a NestJS provider factory or override `execute` to delegate
-> through the pipeline.
+### forFeature()
 
-### 3. Build the pipeline
+Register behaviors owned by a specific feature module:
 
 ```typescript
+import { Module } from '@nestjs/common';
+import { PipelineModule } from '@nestjs-pipeline/core';
 
+@Module({
+  imports: [PipelineModule.forFeature([AuditBehavior, CachingBehavior])],
+})
+export class AuditModule {}
 ```
+
+This makes `AuditBehavior` and `CachingBehavior` available for `@UsePipeline()` references within that module hierarchy.
 
 ---
 
-## Creating add-on packages
+## The @UsePipeline Decorator
 
-Each additional package in this monorepo follows the same pattern:
+Decorate `@CommandHandler`, `@QueryHandler`, or `@EventsHandler` classes to attach handler-specific behaviors:
 
+```typescript
+import { CommandHandler, ICommandHandler } from '@nestjs/cqrs';
+import { UsePipeline, LoggingBehavior } from '@nestjs-pipeline/core';
+
+// Simple form — just list behavior classes
+@CommandHandler(CreateUserCommand)
+@UsePipeline(LoggingBehavior, AuditBehavior)
+export class CreateUserHandler implements ICommandHandler<CreateUserCommand> {
+  async execute(command: CreateUserCommand): Promise<User> {
+    // your domain logic
+  }
+}
+
+// Tuple form — pass options to specific behaviors
+@CommandHandler(CreateUserCommand)
+@UsePipeline(
+  [LoggingBehavior, { requestResponseLogLevel: 'log' }],
+  [AuditBehavior, { action: 'user.create', severity: 'high' }],
+)
+export class CreateUserHandler implements ICommandHandler<CreateUserCommand> {
+  async execute(command: CreateUserCommand): Promise<User> {
+    // your domain logic
+  }
+}
+
+// Event handler
+@EventsHandler(UserCreatedEvent)
+@UsePipeline(LoggingBehavior)
+export class UserCreatedHandler implements IEventHandler<UserCreatedEvent> {
+  handle(event: UserCreatedEvent): void {
+    console.log(`User created: ${event.userId}`);
+  }
+}
+
+// Query handler
+@QueryHandler(GetUserQuery)
+@UsePipeline(CachingBehavior)
+export class GetUserHandler implements IQueryHandler<GetUserQuery> {
+  async execute(query: GetUserQuery): Promise<User> {
+    return this.userRepository.findById(query.userId);
+  }
+}
 ```
-packages/
-  pipeline-<name>/
-    package.json        # peerDep on @nestjs-pipeline/core + the 3rd-party lib
-    src/
-      behaviors/
-        <name>.behavior.ts
-      index.ts
+
+Behaviors execute **left-to-right**: the first one listed is the outermost wrapper.
+
+> **Sagas** are NOT decorated with `@UsePipeline` — they are reactive stream factories. Commands a saga emits flow through the `CommandBus` and hit the target handler's pipeline automatically.
+
+---
+
+## Writing a Custom Behavior
+
+Implement the `IPipelineBehavior` interface:
+
+```typescript
+import { Injectable } from '@nestjs/common';
+import {
+  IPipelineBehavior,
+  IPipelineContext,
+  NextDelegate,
+} from '@nestjs-pipeline/core';
+
+@Injectable()
+export class MetricsBehavior implements IPipelineBehavior {
+  constructor(private readonly metricsService: MetricsService) {}
+
+  async handle(
+    context: IPipelineContext,
+    next: NextDelegate,
+  ): Promise<any> {
+    const start = performance.now();
+    const labels = {
+      kind: context.requestKind,     // 'command' | 'query' | 'event'
+      name: context.requestName,     // 'CreateUserCommand'
+      handler: context.handlerName,  // 'CreateUserHandler'
+    };
+
+    try {
+      const result = await next();
+      this.metricsService.record('pipeline.success', performance.now() - start, labels);
+      return result;
+    } catch (error) {
+      this.metricsService.record('pipeline.failure', performance.now() - start, labels);
+      throw error;
+    }
+  }
+}
 ```
 
-Install `@nestjs-pipeline/core` as a peer dependency:
+The `next()` call is what advances the chain. Code before `next()` runs before the handler; code after runs after:
 
-```json
-{
-  "peerDependencies": {
-    "@nestjs-pipeline/core": "*"
+```typescript
+@Injectable()
+export class TimingBehavior implements IPipelineBehavior {
+  async handle(context: IPipelineContext, next: NextDelegate): Promise<any> {
+    console.log(`→ Starting ${context.requestName}`);  // BEFORE
+
+    const result = await next();                        // HANDLER RUNS HERE
+
+    console.log(`← Finished ${context.requestName}`);  // AFTER
+    // context.response is now available
+    return result;
   }
 }
 ```
 
 ---
 
-## License and Commercial Use
+## Pipeline Context
 
-This software is **Dual-Licensed**. 
+### Properties
 
-By default, this project is licensed under the **GNU AGPLv3** (see the `LICENSE` file). This means you can use, modify, and distribute it freely, provided that your entire application is also open-sourced under the AGPLv3.
+Every behavior receives `IPipelineContext`:
 
-**Commercial License (No AGPL Restrictions)**
-If you are using this software for commercial purposes and cannot (or do not want to) open-source your application under the AGPLv3, you must use the **Commercial License** (see the `COMMERCIAL_LICENSE.txt` file).
+| Property | Type | Description |
+|---|---|---|
+| `correlationId` | `string` | Mutable correlation ID — behaviors may override it |
+| `originalCorrelationId` | `string` | Immutable snapshot of the initial correlation ID |
+| `request` | `TRequest` | The command / query / event instance |
+| `requestType` | `Type<TRequest>` | Class constructor (e.g. `CreateUserCommand`) |
+| `requestName` | `string` | Class name string (e.g. `"CreateUserCommand"`) |
+| `handlerType` | `Type` | Handler class constructor |
+| `handlerName` | `string` | Handler class name (e.g. `"CreateUserHandler"`) |
+| `requestKind` | `'command' \| 'query' \| 'event' \| 'unknown'` | Auto-detected from `@nestjs/cqrs` metadata |
+| `startedAt` | `Date` | UTC timestamp of pipeline start |
+| `response` | `TResponse \| undefined` | Set after `next()` returns; `undefined` before the handler runs |
+| `items` | `Map<string, any>` | Shared bag for inter-behavior communication |
 
-The Commercial License pricing is designed to be fair and scales based on your organization's total gross annual revenue:
-* **Under $500,000 USD/year:** Free 
-* **$500,001 - $10,000,000 USD/year:** 0.1% of gross revenue
-* **$10,000,001 - $50,000,000 USD/year:** 0.05% of gross revenue
-* **Over $50,000,000 USD/year:** 0.01% of gross revenue (Capped at $50,000 max/year)
+### Behavior Options
 
-To pay the commercial fee or register your free commercial tier, please contact: [Insert Your Email/Website]
+Pass per-handler options using the `[Behavior, { ... }]` tuple form and retrieve with `getBehaviorOptions()`:
+
+```typescript
+// Handler
+@CommandHandler(CreateUserCommand)
+@UsePipeline(
+  [AuditBehavior, { action: 'user.create', severity: 'high' }],
+)
+export class CreateUserHandler { /* ... */ }
+
+// Inside AuditBehavior
+async handle(context: IPipelineContext, next: NextDelegate): Promise<any> {
+  const opts = context.getBehaviorOptions<AuditOptions>(AuditBehavior);
+  console.log(opts);  // → { action: 'user.create', severity: 'high' }
+  return next();
+}
+```
+
+Options set at the global level via `globalBehaviors` are merged with handler-level options. Handler-level options win on conflict.
+
+### Inter-Behavior Communication
+
+Use `context.items` to pass data between behaviors in the same pipeline execution:
+
+```typescript
+// AuthBehavior (runs first)
+async handle(context: IPipelineContext, next: NextDelegate): Promise<any> {
+  const userId = await this.authService.getCurrentUserId();
+  context.items.set('currentUserId', userId);
+  return next();
+}
+
+// AuditBehavior (runs later in the chain)
+async handle(context: IPipelineContext, next: NextDelegate): Promise<any> {
+  const result = await next();
+  const userId = context.items.get('currentUserId');
+  await this.auditService.log({ userId, action: context.requestName });
+  return result;
+}
+```
+
+---
+
+## Global Behaviors
+
+### Scoping
+
+Global behaviors can be scoped to specific handler kinds:
+
+```typescript
+// All handler kinds
+PipelineModule.forRoot({
+  globalBehaviors: {
+    scope: 'all',
+    before: [LoggingBehavior],
+    after:  [MetricsBehavior],
+  },
+})
+
+// Commands only
+PipelineModule.forRoot({
+  globalBehaviors: {
+    scope: 'commands',
+    before: [AuditBehavior],
+  },
+})
+
+// Queries only
+PipelineModule.forRoot({
+  globalBehaviors: {
+    scope: 'queries',
+    before: [CachingBehavior],
+  },
+})
+
+// Events only
+PipelineModule.forRoot({
+  globalBehaviors: {
+    scope: 'events',
+    before: [LoggingBehavior],
+  },
+})
+```
+
+Options can be passed to global behaviors using the tuple form:
+
+```typescript
+PipelineModule.forRoot({
+  globalBehaviors: {
+    scope: 'all',
+    before: [
+      [LoggingBehavior, { metricLogLevel: 'verbose', requestResponseLogLevel: 'debug' }],
+    ],
+  },
+})
+```
+
+### Deduplication
+
+When the same behavior class appears in both global and handler-level configurations, the **handler-level entry wins** (including its options). The duplicate global entry is removed:
+
+```typescript
+// Global: LoggingBehavior with default options
+PipelineModule.forRoot({
+  globalBehaviors: { scope: 'all', before: [LoggingBehavior] },
+})
+
+// Handler: LoggingBehavior with custom options → global entry is dropped
+@CommandHandler(CreateUserCommand)
+@UsePipeline([LoggingBehavior, { requestResponseLogLevel: 'log' }])
+export class CreateUserHandler { /* ... */ }
+
+// Effective chain: [LoggingBehavior (handler opts)] → handler
+```
+
+---
+
+## Built-in LoggingBehavior
+
+The package includes `LoggingBehavior` for structured pipeline logging via the NestJS `Logger`:
+
+```typescript
+import { LoggingBehavior } from '@nestjs-pipeline/core';
+
+PipelineModule.forRoot({
+  globalBehaviors: { scope: 'all', before: [LoggingBehavior] },
+})
+```
+
+**Options** (`LoggingBehaviorOptions`):
+
+| Option | Type | Default | Description |
+|---|---|---|---|
+| `metricLogLevel` | `LogLevel \| 'none'` | `'log'` | Log level for timing/duration messages |
+| `requestResponseLogLevel` | `LogLevel \| 'none'` | `'debug'` | Log level for request/response payloads |
+
+```typescript
+// Override options per handler
+@CommandHandler(CreateUserCommand)
+@UsePipeline([LoggingBehavior, { requestResponseLogLevel: 'log' }])
+export class CreateUserHandler { /* ... */ }
+
+// Disable payload logging, keep metrics
+@UsePipeline([LoggingBehavior, { requestResponseLogLevel: 'none' }])
+
+// Silence all logging
+@UsePipeline([LoggingBehavior, { metricLogLevel: 'none', requestResponseLogLevel: 'none' }])
+```
+
+**Output** (success):
+
+```
+[LoggingBehavior] Request: {"username":"jane","email":"jane@example.com"}
+[LoggingBehavior] [019728a3-...] COMMAND CreateUserCommand → CreateUserHandler completed in 12.34ms
+[LoggingBehavior] Response: {"id":"...","username":"jane"}
+```
+
+**Output** (error):
+
+```
+[LoggingBehavior] [019728a3-...] COMMAND CreateUserCommand → CreateUserHandler failed after 2.10ms: Error: User already exists
+```
+
+---
+
+## Correlation IDs
+
+Every pipeline invocation carries a `correlationId` for distributed tracing, resolved in priority order:
+
+1. **Parent pipeline** — inherited from `AsyncLocalStorage` (saga / nested command)
+2. **`HttpCorrelationMiddleware`** — extracted from the HTTP request header
+3. **`runWithCorrelationId(id, fn)`** — manually set for non-HTTP entry points
+4. **`uuidv7()`** — timestamp-sortable UUID fallback
+
+### HTTP Requests
+
+Correlation IDs are extracted automatically from the `x-correlation-id` header (configurable):
+
+```bash
+curl -X POST http://localhost:3000/users \
+  -H 'x-correlation-id: req-abc-123' \
+  -H 'Content-Type: application/json' \
+  -d '{"name": "Jane", "email": "jane@example.com"}'
+```
+
+```typescript
+// Custom header name
+PipelineModule.forRoot({ correlation: { header: 'x-request-id' } })
+
+// Disable HTTP middleware entirely (background worker app)
+PipelineModule.forRoot({ correlation: { header: false } })
+```
+
+### Non-HTTP Entry Points
+
+Use `runWithCorrelationId()` for Bull queues, RabbitMQ, WebSocket gateways, cron jobs, etc.:
+
+```typescript
+import { runWithCorrelationId, uuidv7 } from '@nestjs-pipeline/core';
+
+// Bull queue processor
+@Process('send-email')
+async handleSendEmail(job: Job) {
+  return runWithCorrelationId(job.data.correlationId, async () => {
+    await this.commandBus.execute(new SendEmailCommand(job.data));
+  });
+}
+
+// RabbitMQ handler
+@MessagePattern('user.created')
+async handle(@Payload() data: any, @Ctx() ctx: RmqContext) {
+  const id = ctx.getMessage().properties.correlationId;
+  return runWithCorrelationId(id, () =>
+    this.commandBus.execute(new SyncUserCommand(data)),
+  );
+}
+
+// Cron job
+@Cron('0 * * * *')
+async hourlySync() {
+  return runWithCorrelationId(uuidv7(), () =>
+    this.commandBus.execute(new SyncCommand()),
+  );
+}
+```
+
+### Nested Commands and Sagas
+
+Child pipelines automatically inherit the parent's `correlationId` via `AsyncLocalStorage`:
+
+```typescript
+// This saga emits a command — it will inherit the correlationId
+// from the event handler's pipeline context
+@Saga()
+orderCreated = (events$: Observable<any>): Observable<ICommand> =>
+  events$.pipe(
+    ofType(OrderCreatedEvent),
+    map((event) => new SendConfirmationCommand({ orderId: event.orderId })),
+  );
+```
+
+---
+
+## Execution Model
+
+```
+┌─ global before ──┐   ┌── @UsePipeline ──┐   ┌─ global after ──┐
+│ LoggingBehavior  │ → │ AuditBehavior    │ → │ MetricsBehavior │ → handler.execute()
+└──────────────────┘   └──────────────────┘   └─────────────────┘
+                    ← response propagates back through the chain ←
+```
+
+| Phase | Source | Position |
+|---|---|---|
+| Global `before` | `globalBehaviors.before` | Outermost (first to run) |
+| Handler-level | `@UsePipeline(...)` | Middle |
+| Global `after` | `globalBehaviors.after` | Innermost (closest to handler) |
+| Handler | `execute()` / `handle()` | Core |
+
+**Bootstrap process:**
+
+1. `PipelineBootstrapService` runs at `OnApplicationBootstrap`.
+2. Discovers all CQRS handlers via `@nestjs/cqrs` `ExplorerService` (commands, queries, events).
+3. For each handler with `@UsePipeline` or matching global behaviors: pre-resolves behavior instances, builds metadata, wraps the `execute()` / `handle()` method.
+4. Everything is computed once at startup — zero reflection or DI lookups at request time.
+5. Supports singleton and request-scoped handlers (`Scope.REQUEST`, `Scope.TRANSIENT`).
+
+---
+
+## API Reference
+
+### Exports
+
+| Export | Type | Description |
+|---|---|---|
+| `PipelineModule` | Module | `.forRoot()` and `.forFeature()` registration |
+| `UsePipeline` | Decorator | Attach behaviors to CQRS handlers |
+| `IPipelineBehavior` | Interface | Behavior contract: `handle(context, next)` |
+| `IPipelineContext` | Interface | Rich execution context |
+| `NextDelegate` | Type | `() => Promise<TResponse>` |
+| `BasePipelineContext` | Class | Extensible base — override if you need custom contexts |
+| `PipelineContext` | Class | Concrete context created per invocation |
+| `LoggingBehavior` | Class | Built-in structured logging |
+| `correlationStore` | `AsyncLocalStorage` | Access the current correlation ID |
+| `runWithCorrelationId` | Function | Set correlation ID for non-HTTP entry points |
+| `HttpCorrelationMiddleware` | Middleware | Auto-extracts correlation ID from HTTP headers |
+| `uuidv7` | Function | Generate timestamp-sortable UUIDs |
+| `pipelineStore` | `AsyncLocalStorage` | Access the current pipeline context |
+| `PipelineModuleOptions` | Interface | Options for `PipelineModule.forRoot()` |
+| `GlobalBehaviorsOptions` | Interface | Global behavior configuration |
+| `PIPELINE_MODULE_OPTIONS` | Symbol | DI token for module options |
+| `PipelineBootstrapService` | Class | Scans and wraps handlers at bootstrap |
+| `PipelineHandlerMeta` | Interface | Pre-computed handler metadata |
+| `PIPELINE_BEHAVIOR_ID` | Symbol | Custom deduplication key for behaviors |
+| `PipelineBehaviorEntry` | Type | `Type \| [Type, Record<string, any>]` |
+
+---
+
+## License
+
+Dual-licensed under **AGPLv3** and a **Commercial License**. See the root [`LICENSE`](../../LICENSE) and [`COMMERCIAL_LICENSE.txt`](../../COMMERCIAL_LICENSE.txt) for details.
+
+Contact: **aristotelis@ik.me**
