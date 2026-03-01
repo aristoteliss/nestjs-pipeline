@@ -110,12 +110,23 @@ export class PipelineBootstrapService implements OnApplicationBootstrap {
     requestKind: 'command' | 'query' | 'event',
     methodName: 'execute' | 'handle',
   ): void {
-    const instance = wrapper.instance;
-    if (!instance || !instance.constructor) return;
+    // Determine handler class — works for both singleton and scoped handlers.
+    // For scoped handlers (REQUEST / TRANSIENT), wrapper.instance is undefined
+    // at bootstrap time, so we read the class from wrapper.metatype instead.
+    const handlerType: Type | undefined =
+      (wrapper.metatype as Type) ?? (wrapper.instance?.constructor as Type);
+    if (!handlerType) return;
+
+    // Scope.DEFAULT = 0 (falsy), Scope.REQUEST = 2, Scope.TRANSIENT = 1 (truthy)
+    const isScoped = !!(wrapper as any).scope;
+
+    // For singleton handlers, verify the instance exists
+    const instance = isScoped ? undefined : wrapper.instance;
+    if (!isScoped && !instance) return;
 
     // Handler-specific behaviors from @UsePipeline decorator
     const handlerBehaviorTypes: Type<IPipelineBehavior>[] | undefined =
-      Reflect.getMetadata(PIPELINE_BEHAVIORS_METADATA, instance.constructor);
+      Reflect.getMetadata(PIPELINE_BEHAVIORS_METADATA, handlerType);
 
     // Global behaviors for this handler kind
     const { beforeTypes, afterTypes, globalOptions } =
@@ -125,8 +136,6 @@ export class PipelineBootstrapService implements OnApplicationBootstrap {
     const hasGlobalBehaviors = beforeTypes.length > 0 || afterTypes.length > 0;
 
     if (!hasHandlerBehaviors && !hasGlobalBehaviors) return;
-
-    const handlerType: Type = instance.constructor as Type;
 
     // Handler behaviors override global behaviors of the same class.
     // Any global (before/after) entry whose class also appears in the handler
@@ -149,7 +158,10 @@ export class PipelineBootstrapService implements OnApplicationBootstrap {
       ...filteredAfterTypes,
     ];
 
-    const originalMethod = instance[methodName];
+    // For scoped handlers, wrap the prototype so every per-request instance
+    // gets the pipelined method. For singletons, wrap the instance directly.
+    const target = isScoped ? handlerType.prototype : instance;
+    const originalMethod = target[methodName];
     if (typeof originalMethod !== 'function') return;
 
     // ── Pre-resolve everything at bootstrap ──
@@ -190,13 +202,16 @@ export class PipelineBootstrapService implements OnApplicationBootstrap {
 
     this.logger.log(
       `Wrapping ${meta.handlerName}.${methodName}() ` +
-      `[${requestKind}] with pipeline: [${behaviorTypes.map((b) => b.name).join(' → ')}]`,
+      `[${requestKind}${isScoped ? ', scoped' : ''}] with pipeline: [${behaviorTypes.map((b) => b.name).join(' → ')}]`,
     );
 
     const moduleRef = this.moduleRef;
 
-    // 3. Replace method — closure captures pre-resolved behaviors and meta
-    instance[methodName] = async function pipelinedMethod(
+    // 3. Replace method — closure captures pre-resolved behaviors and meta.
+    //    For scoped handlers the prototype is patched, so every per-request
+    //    instance created by the DI container inherits the pipelined method.
+    target[methodName] = async function pipelinedMethod(
+      this: any,
       request: any,
     ): Promise<any> {
       const context = new PipelineContext(request, meta);
@@ -229,8 +244,11 @@ export class PipelineBootstrapService implements OnApplicationBootstrap {
       context[SET_ORIGINAL_CORRELATION_ID](context.correlationId);
 
       // Build chain: behavior[0] → behavior[1] → ... → originalMethod
+      // Use `this` so the correct instance is called for both singletons
+      // (captured instance === this) and scoped handlers (per-request instance).
+      const self = this;
       let chain: NextDelegate = async () => {
-        const result = await originalMethod.call(instance, request);
+        const result = await originalMethod.call(self, request);
         context[SET_RESPONSE](result);
         return result;
       };
