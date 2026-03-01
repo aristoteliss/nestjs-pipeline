@@ -39,7 +39,8 @@ export interface IPipelineContext<TRequest = any, TResponse = any> {
    *
    * Resolution order (before any behavior runs):
    * 1. Inherited from parent pipeline (saga / nested command via AsyncLocalStorage)
-   * 2. Extracted via `correlationIdFactory` from the request (configured in PipelineModule)
+   * 2. {@link correlationStore} — populated by {@link HttpCorrelationMiddleware}
+   *    or {@link runWithCorrelationId} (Bull / RabbitMQ / custom)
    * 3. Auto-generated `crypto.randomUUID()`
    *
    * Use {@link originalCorrelationId} to access the initial value even after override.

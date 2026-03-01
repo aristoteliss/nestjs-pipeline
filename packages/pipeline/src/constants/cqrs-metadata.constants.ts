@@ -25,11 +25,12 @@
  */
 
 /**
- * NestJS CQRS metadata keys — imported from `@nestjs/cqrs` internal constants.
+ * NestJS CQRS metadata keys — re-exported from `@nestjs/cqrs` internal constants
+ * as a convenience for consumers who need to inspect handler metadata directly.
  *
  * These are the keys set by `@CommandHandler`, `@QueryHandler`, and
- * `@EventsHandler` decorators. Used by the pipeline bootstrap service
- * to detect handler kind and method name.
+ * `@EventsHandler` decorators. The pipeline itself uses `ExplorerService.explore()`
+ * rather than reading these keys directly.
  */
 export {
   COMMAND_HANDLER_METADATA,

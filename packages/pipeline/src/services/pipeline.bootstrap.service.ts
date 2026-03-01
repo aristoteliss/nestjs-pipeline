@@ -47,8 +47,8 @@ import { randomUUID } from 'crypto';
 
 /**
  * At application bootstrap, this service:
- * 1. Scans all providers across all modules
- * 2. Finds handlers decorated with @UsePipeline(...)
+ * 1. Discovers all CQRS handlers via ExplorerService (commands, queries, events)
+ * 2. Finds handlers decorated with @UsePipeline(...) or matched by global behaviors
  * 3. Pre-resolves all behavior instances and handler metadata
  * 4. Wraps their execution method with the declared behavior chain
  *
@@ -60,8 +60,7 @@ import { randomUUID } from 'crypto';
  *   - Command handlers  → wraps `execute(command)`
  *   - Query handlers    → wraps `execute(query)`
  *   - Event handlers    → wraps `handle(event)`
- *
- * The method to wrap is determined by NestJS CQRS handler metadata.
+ *   - Scoped handlers   → wraps `prototype[method]` so per-request instances inherit it
  */
 @Injectable()
 export class PipelineBootstrapService implements OnApplicationBootstrap {
@@ -74,11 +73,6 @@ export class PipelineBootstrapService implements OnApplicationBootstrap {
     private readonly options?: PipelineModuleOptions,
   ) {}
 
-  // It also is not globally provided — only available within CqrsModule's scope,
-  // so it must be injected with { strict: false }:
-  // this.moduleRef.get(ExplorerService, { strict: false });
-  // explore() returns { commands, queries, events, sagas } — each an InstanceWrapper[].
-  // This eliminates the manual ModulesContainer iteration + metadata checks.
   onApplicationBootstrap() {
     const explorer = this.moduleRef.get(ExplorerService, { strict: false });
     const { commands = [], queries = [], events = [] } = explorer.explore();
@@ -269,7 +263,8 @@ export class PipelineBootstrapService implements OnApplicationBootstrap {
 
   /**
    * Resolves global before/after behaviors that match the given handler kind.
-   * Events are never affected by global behaviors.
+   * Scope filtering is controlled by `globalBehaviors.scope` in module options
+   * ('all' | 'commands' | 'queries' | 'events'). Default is 'all'.
    *
    * @returns Behavior types to prepend/append plus any inline options from tuple entries.
    */

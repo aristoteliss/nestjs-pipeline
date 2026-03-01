@@ -33,8 +33,8 @@ import { safeStringify } from '../helpers/safeStringify';
  * Configuration options for the logging behavior.
  *
  * @interface LoggingBehaviorOptions
- * @property {(LogLevel | 'none')} [traceLogLevel] - The log level for trace information. Defaults to 'log' if not specified.
- * @property {(LogLevel | 'none')} [requestResponseLogLevel] - The log level for request and response data. Defaults to 'log' if not specified.
+ * @property {(LogLevel | 'none')} [metricLogLevel] - The log level for pipeline timing/completion metrics. Defaults to 'log' if not specified.
+ * @property {(LogLevel | 'none')} [requestResponseLogLevel] - The log level for request and response data. Defaults to 'debug' if not specified.
  */
 export interface LoggingBehaviorOptions {
   metricLogLevel?: LogLevel | 'none';
