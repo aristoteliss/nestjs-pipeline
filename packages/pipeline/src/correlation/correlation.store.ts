@@ -25,6 +25,7 @@
  */
 
 import { AsyncLocalStorage } from 'async_hooks';
+import { uuidv7 } from 'src';
 
 /**
  * Async-local store that holds the current correlation ID.
@@ -99,8 +100,6 @@ export function runWithCorrelationId<T>(
   correlationId: string | undefined,
   fn: () => T,
 ): T {
-  if (correlationId) {
-    return correlationStore.run(correlationId, fn);
-  }
-  return fn();
+  const id = correlationId ?? correlationStore.getStore() ?? uuidv7();
+  return correlationStore.run(id, fn);
 }
