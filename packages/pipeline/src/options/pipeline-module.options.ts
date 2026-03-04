@@ -24,7 +24,7 @@
  * along with this program. If not, see <https://www.gnu.org/licenses/>.
  */
 
-import { Type } from '@nestjs/common';
+import { LogLevel, Type } from '@nestjs/common';
 import { IPipelineBehavior } from '../interfaces/pipeline.behavior.interface';
 import { CorrelationOptions } from './correlation.options';
 import { GlobalBehaviorsOptions } from './global-behaviors.options';
@@ -76,6 +76,27 @@ export interface PipelineModuleOptions {
    * ```
    */
   behaviors?: Type<IPipelineBehavior>[];
+
+  /**
+   * Log level for the bootstrap "Wrapping ..." messages emitted when
+   * the pipeline patches handler methods.
+   *
+   * - Any NestJS {@link LogLevel} value routes to the corresponding
+   *   `Logger` method (`'log'`, `'debug'`, `'verbose'`, `'warn'`, `'error'`).
+   * - `'none'` suppresses the message entirely.
+   *
+   * @default 'debug'
+   *
+   * @example
+   * ```ts
+   * // Silence wrapping messages in production
+   * bootstrapLogLevel: 'none'
+   *
+   * // Show wrapping messages only when verbose logging is enabled
+   * bootstrapLogLevel: 'verbose'
+   * ```
+   */
+  bootstrapLogLevel?: LogLevel | 'none';
 
   /**
    * How the pipeline obtains a correlation ID from HTTP requests.

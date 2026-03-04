@@ -28,6 +28,7 @@ import {
   Inject,
   Injectable,
   Logger,
+  LogLevel,
   OnApplicationBootstrap,
   Optional,
   Type,
@@ -65,6 +66,7 @@ import { uuidv7 } from '../helpers/uuidv7';
 @Injectable()
 export class PipelineBootstrapService implements OnApplicationBootstrap {
   private readonly logger = new Logger(PipelineBootstrapService.name, { timestamp: true });
+  private bootstrapLogLevel!: LogLevel | 'none';
 
   constructor(
     private readonly moduleRef: ModuleRef,
@@ -74,6 +76,8 @@ export class PipelineBootstrapService implements OnApplicationBootstrap {
   ) {}
 
   onApplicationBootstrap() {
+    this.bootstrapLogLevel = this.options?.bootstrapLogLevel ?? 'debug';
+
     const explorer = this.moduleRef.get(ExplorerService, { strict: false });
     const { commands = [], queries = [], events = [] } = explorer.explore();
 
@@ -194,10 +198,12 @@ export class PipelineBootstrapService implements OnApplicationBootstrap {
       behaviorOptions: mergedOptions.size > 0 ? mergedOptions : undefined,
     };
 
-    this.logger.log(
-      `Wrapping ${meta.handlerName}.${methodName}() ` +
-      `[${requestKind}${isScoped ? ', scoped' : ''}] with pipeline: [${behaviorTypes.map((b) => b.name).join(' → ')}]`,
-    );
+    if (this.bootstrapLogLevel !== 'none') {
+      this.logger[this.bootstrapLogLevel](
+        `Wrapping ${meta.handlerName}.${methodName}() ` +
+        `[${requestKind}${isScoped ? ', scoped' : ''}] with pipeline: [${behaviorTypes.map((b) => b.name).join(' → ')}]`,
+      );
+    }
 
     const moduleRef = this.moduleRef;
 

@@ -1,4 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { Logger } from '@nestjs/common';
 import { PipelineBootstrapService } from './pipeline.bootstrap.service';
 import { ExplorerService } from '@nestjs/cqrs/dist/services/explorer.service';
 import { IPipelineBehavior, NextDelegate } from '../interfaces/pipeline.behavior.interface';
@@ -499,6 +500,97 @@ describe('PipelineBootstrapService', () => {
       });
 
       expect(childCorrId).toBe(parentCorrId);
+    });
+  });
+
+  // ─────────────────────────────────────────────────────────────────
+  describe('bootstrapLogLevel option', () => {
+    let logSpy: ReturnType<typeof vi.spyOn>;
+    let debugSpy: ReturnType<typeof vi.spyOn>;
+    let verboseSpy: ReturnType<typeof vi.spyOn>;
+    let warnSpy: ReturnType<typeof vi.spyOn>;
+
+    beforeEach(() => {
+      logSpy = vi.spyOn(Logger.prototype, 'log').mockImplementation(() => {});
+      debugSpy = vi.spyOn(Logger.prototype, 'debug').mockImplementation(() => {});
+      verboseSpy = vi.spyOn(Logger.prototype, 'verbose').mockImplementation(() => {});
+      warnSpy = vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => {});
+    });
+
+    afterEach(() => {
+      logSpy.mockRestore();
+      debugSpy.mockRestore();
+      verboseSpy.mockRestore();
+      warnSpy.mockRestore();
+    });
+
+    it('defaults to "debug" level when bootstrapLogLevel is not set', () => {
+      const handler = new MockCommandHandler();
+      explorerServiceMock.explore.mockReturnValue({
+        commands: [makeWrapper(handler, MockCommandHandler)],
+        queries: [], events: [],
+      });
+
+      new PipelineBootstrapService(moduleRefMock).onApplicationBootstrap();
+
+      expect(debugSpy).toHaveBeenCalledWith(
+        expect.stringContaining('Wrapping MockCommandHandler.execute()'),
+      );
+      expect(logSpy).not.toHaveBeenCalledWith(
+        expect.stringContaining('Wrapping'),
+      );
+    });
+
+    it('uses "log" level when bootstrapLogLevel is "log"', () => {
+      const handler = new MockCommandHandler();
+      explorerServiceMock.explore.mockReturnValue({
+        commands: [makeWrapper(handler, MockCommandHandler)],
+        queries: [], events: [],
+      });
+
+      new PipelineBootstrapService(moduleRefMock, {
+        bootstrapLogLevel: 'log',
+      }).onApplicationBootstrap();
+
+      expect(logSpy).toHaveBeenCalledWith(
+        expect.stringContaining('Wrapping MockCommandHandler.execute()'),
+      );
+      expect(debugSpy).not.toHaveBeenCalledWith(
+        expect.stringContaining('Wrapping'),
+      );
+    });
+
+    it('uses "verbose" level when bootstrapLogLevel is "verbose"', () => {
+      const handler = new MockCommandHandler();
+      explorerServiceMock.explore.mockReturnValue({
+        commands: [makeWrapper(handler, MockCommandHandler)],
+        queries: [], events: [],
+      });
+
+      new PipelineBootstrapService(moduleRefMock, {
+        bootstrapLogLevel: 'verbose',
+      }).onApplicationBootstrap();
+
+      expect(verboseSpy).toHaveBeenCalledWith(
+        expect.stringContaining('Wrapping MockCommandHandler.execute()'),
+      );
+    });
+
+    it('suppresses the message entirely when bootstrapLogLevel is "none"', () => {
+      const handler = new MockCommandHandler();
+      explorerServiceMock.explore.mockReturnValue({
+        commands: [makeWrapper(handler, MockCommandHandler)],
+        queries: [], events: [],
+      });
+
+      new PipelineBootstrapService(moduleRefMock, {
+        bootstrapLogLevel: 'none',
+      }).onApplicationBootstrap();
+
+      expect(logSpy).not.toHaveBeenCalledWith(expect.stringContaining('Wrapping'));
+      expect(debugSpy).not.toHaveBeenCalledWith(expect.stringContaining('Wrapping'));
+      expect(verboseSpy).not.toHaveBeenCalledWith(expect.stringContaining('Wrapping'));
+      expect(warnSpy).not.toHaveBeenCalledWith(expect.stringContaining('Wrapping'));
     });
   });
 });
