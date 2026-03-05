@@ -6,7 +6,7 @@
   "license": "SEE LICENSE IN LICENSE",
   "repository": {
     "type": "git",
-    "url": "https://github.com/aristoteliss/nestjs-pipeline.git",
+    "url": "git+https://github.com/aristoteliss/nestjs-pipeline.git",
     "directory": "packages/pipeline-zod"
   },
   "homepage": "https://github.com/aristoteliss/nestjs-pipeline#readme",

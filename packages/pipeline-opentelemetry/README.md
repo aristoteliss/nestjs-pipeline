@@ -1,5 +1,7 @@
 # @nestjs-pipeline/opentelemetry
 
+[![npm version](https://img.shields.io/npm/v/@nestjs-pipeline/opentelemetry.svg)](https://www.npmjs.com/package/@nestjs-pipeline/opentelemetry)
+[![License](https://img.shields.io/npm/l/@nestjs-pipeline/opentelemetry.svg)](https://www.npmjs.com/package/@nestjs-pipeline/opentelemetry)
 OpenTelemetry tracing behavior for `@nestjs-pipeline/core` — auto-creates spans for every command, query, and event pipeline invocation with rich attributes and error recording.
 
 ---
