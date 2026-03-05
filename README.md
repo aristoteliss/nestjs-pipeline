@@ -40,6 +40,8 @@ Zero additional runtime dependencies beyond NestJS itself. Works with Express an
   - [RabbitMQ Handler](#rabbitmq-handler)
   - [Cron Jobs](#cron-jobs)
   - [Nested Commands (Sagas)](#nested-commands-sagas)
+  - [@WithCorrelation Decorator](#withcorrelation-decorator)
+  - [Producer-Side: Stamping Correlation IDs](#producer-side-stamping-correlation-ids)
 - [Pipeline Context Reference](#pipeline-context-reference)
   - [Properties](#properties)
   - [Using items for Inter-Behavior Communication](#using-items-for-inter-behavior-communication)
@@ -622,6 +624,78 @@ export class OrderSagas {
       // ↑ This command inherits the correlationId from the parent pipeline context
     );
 }
+```
+
+### @WithCorrelation Decorator
+
+Instead of manually calling `runWithCorrelationId`, use the `@WithCorrelation()` method decorator for a cleaner approach. It wraps the method body in a correlation context automatically:
+
+```typescript
+import { WithCorrelation, CorrelationFrom, getCorrelationId } from '@nestjs-pipeline/core';
+
+// ── Bull (reads from job.data.correlationId by default) ──
+@Process('send-email')
+@WithCorrelation()
+async handleSendEmail(job: Job) {
+  const id = getCorrelationId(); // available anywhere in the call stack
+  await this.commandBus.execute(new SendEmailCommand(job.data));
+}
+
+// ── RabbitMQ (AMQP properties) ──
+@MessagePattern('user.created')
+@WithCorrelation(CorrelationFrom.amqp())
+async handle(@Payload() data: any, @Ctx() ctx: RmqContext) {
+  await this.commandBus.execute(new SyncUserCommand(data));
+}
+
+// ── Kafka (message headers) ──
+@EventPattern('order.placed')
+@WithCorrelation(CorrelationFrom.kafka())
+async handle(@Payload() data: any, @Ctx() ctx: KafkaContext) {
+  await this.commandBus.execute(new ProcessOrderCommand(data));
+}
+
+// ── NATS ──
+@MessagePattern('user.created')
+@WithCorrelation(CorrelationFrom.nats())
+async handle(@Payload() data: any, @Ctx() ctx: NatsContext) { }
+
+// ── gRPC ──
+@GrpcMethod('UsersService', 'FindOne')
+@WithCorrelation(CorrelationFrom.grpc())
+async findOne(data: any, metadata: Metadata) { }
+
+// ── Cron (no ID in args → auto-generates uuidv7) ──
+@Cron('0 * * * *')
+@WithCorrelation()
+async hourlySync() {
+  await this.commandBus.execute(new SyncCommand());
+}
+```
+
+### Producer-Side: Stamping Correlation IDs
+
+When enqueuing jobs or publishing messages, stamp the current correlation ID onto the payload or headers:
+
+```typescript
+import { addCorrelationId, correlationHeaders, getCorrelationId } from '@nestjs-pipeline/core';
+
+// ── Bull / BullMQ (data payload) ──
+await queue.add('send-email', addCorrelationId({ userId, email }));
+// → { userId, email, correlationId: '019728a3-...' }
+
+// ── Kafka (message headers) ──
+await producer.send({
+  topic: 'orders',
+  messages: [{ value: JSON.stringify(order), headers: correlationHeaders() }],
+});
+// → headers: { 'x-correlation-id': '019728a3-...' }
+
+// ── HTTP (outgoing request) ──
+await fetch(url, { headers: { ...correlationHeaders(), 'content-type': 'application/json' } });
+
+// ── Read the current ID anywhere ──
+const id = getCorrelationId(); // reads from async-local context, falls back to uuidv7()
 ```
 
 ---

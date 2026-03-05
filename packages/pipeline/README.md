@@ -25,6 +25,9 @@ No additional runtime dependencies beyond NestJS itself. Works with Express and 
 - [Correlation IDs](#correlation-ids)
   - [HTTP Requests](#http-requests)
   - [Non-HTTP Entry Points](#non-http-entry-points)
+  - [@WithCorrelation Decorator](#withcorrelation-decorator)
+  - [Producer-Side Utilities](#producer-side-utilities)
+  - [Reading the Current Correlation ID](#reading-the-current-correlation-id)
   - [Nested Commands and Sagas](#nested-commands-and-sagas)
 - [Execution Model](#execution-model)
 - [API Reference](#api-reference)
@@ -480,6 +483,80 @@ async hourlySync() {
 }
 ```
 
+### @WithCorrelation Decorator
+
+Instead of manually calling `runWithCorrelationId`, use the `@WithCorrelation()` method decorator. It wraps the method body in a correlation context automatically:
+
+```typescript
+import { WithCorrelation, CorrelationFrom, getCorrelationId } from '@nestjs-pipeline/core';
+
+// ── Bull (reads from job.data.correlationId by default) ──
+@Process('send-email')
+@WithCorrelation()
+async handleSendEmail(job: Job) {
+  const id = getCorrelationId();
+  await this.commandBus.execute(new SendEmailCommand(job.data));
+}
+
+// ── RabbitMQ (AMQP properties) ──
+@MessagePattern('user.created')
+@WithCorrelation(CorrelationFrom.amqp())
+async handle(@Payload() data: any, @Ctx() ctx: RmqContext) {
+  await this.commandBus.execute(new SyncUserCommand(data));
+}
+
+// ── Kafka (message headers) ──
+@EventPattern('order.placed')
+@WithCorrelation(CorrelationFrom.kafka())
+async handle(@Payload() data: any, @Ctx() ctx: KafkaContext) {
+  await this.commandBus.execute(new ProcessOrderCommand(data));
+}
+
+// ── NATS / gRPC ──
+@WithCorrelation(CorrelationFrom.nats())
+@WithCorrelation(CorrelationFrom.grpc())
+
+// ── Cron (no ID in args → auto-generates uuidv7) ──
+@Cron('0 * * * *')
+@WithCorrelation()
+async hourlySync() {
+  await this.commandBus.execute(new SyncCommand());
+}
+```
+
+### Producer-Side Utilities
+
+When enqueuing jobs or publishing messages, stamp the current correlation ID onto the payload or headers:
+
+```typescript
+import { addCorrelationId, correlationHeaders } from '@nestjs-pipeline/core';
+
+// Bull / BullMQ — stamp onto data payload
+await queue.add('send-email', addCorrelationId({ userId, email }));
+// → { userId, email, correlationId: '019728a3-...' }
+
+// Kafka — stamp as message headers
+await producer.send({
+  topic: 'orders',
+  messages: [{ value: JSON.stringify(order), headers: correlationHeaders() }],
+});
+
+// HTTP (outgoing)
+await fetch(url, { headers: { ...correlationHeaders(), 'content-type': 'application/json' } });
+```
+
+### Reading the Current Correlation ID
+
+Use `getCorrelationId()` anywhere in the async call stack:
+
+```typescript
+import { getCorrelationId } from '@nestjs-pipeline/core';
+
+const id = getCorrelationId(); // reads from async-local context, falls back to uuidv7()
+```
+
+Works inside HTTP requests, `@WithCorrelation` methods, `runWithCorrelationId` callbacks, and CQRS handlers wrapped by the pipeline.
+
 ### Nested Commands and Sagas
 
 Child pipelines automatically inherit the parent's `correlationId` via `AsyncLocalStorage`:
@@ -537,13 +614,24 @@ orderCreated = (events$: Observable<any>): Observable<ICommand> =>
 | `BasePipelineContext` | Class | Extensible base — override if you need custom contexts |
 | `PipelineContext` | Class | Concrete context created per invocation |
 | `LoggingBehavior` | Class | Built-in structured logging |
-| `correlationStore` | `AsyncLocalStorage` | Access the current correlation ID |
+| `LoggingBehaviorOptions` | Interface | Options for `LoggingBehavior` (`metricLogLevel`, `requestResponseLogLevel`) |
+| `correlationStore` | `AsyncLocalStorage` | Access the raw correlation-ID async-local store |
+| `getCorrelationId` | Function | Read the current correlation ID (falls back to `uuidv7()`) |
 | `runWithCorrelationId` | Function | Set correlation ID for non-HTTP entry points |
+| `addCorrelationId` | Function | Stamp the current correlation ID onto a data object |
+| `correlationHeaders` | Function | Return a `{ [header]: correlationId }` object for outgoing requests |
+| `WithCorrelationId` | Type | Utility type that adds a `correlationId` field to any shape |
+| `WithCorrelation` | Decorator | Extract & propagate correlation ID in non-HTTP handlers |
+| `CorrelationFrom` | Object | Preset extractors for `WithCorrelation` (Bull, RabbitMQ, Kafka, etc.) |
+| `CorrelationExtractor` | Type | `(...args: any[]) => string \| undefined` |
+| `CorrelationDecoratorOptions` | Interface | Options for `WithCorrelation` decorator |
 | `HttpCorrelationMiddleware` | Middleware | Auto-extracts correlation ID from HTTP headers |
 | `uuidv7` | Function | Generate timestamp-sortable UUIDs |
 | `pipelineStore` | `AsyncLocalStorage` | Access the current pipeline context |
 | `PipelineModuleOptions` | Interface | Options for `PipelineModule.forRoot()` |
+| `CorrelationOptions` | Interface | Correlation configuration (`header` option) |
 | `GlobalBehaviorsOptions` | Interface | Global behavior configuration |
+| `GlobalBehaviorScope` | Type | `'commands' \| 'queries' \| 'events' \| 'all'` |
 | `PIPELINE_MODULE_OPTIONS` | Symbol | DI token for module options |
 | `PipelineBootstrapService` | Class | Scans and wraps handlers at bootstrap |
 | `PipelineHandlerMeta` | Interface | Pre-computed handler metadata |
