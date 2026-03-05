@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { correlationStore, runWithCorrelationId } from '../correlation/correlation.store';
+import { correlationStore, runWithCorrelationId, addCorrelationId, getCorrelationId, correlationHeaders } from '../correlation/correlation.store';
 
 describe('correlationStore', () => {
   it('returns undefined when no store is active', () => {
@@ -40,18 +40,18 @@ describe('runWithCorrelationId', () => {
     expect(result).toBe('my-id');
   });
 
-  it('runs fn without a store when id is undefined', () => {
+  it('generates a uuidv7 fallback when id is undefined', () => {
     const result = runWithCorrelationId(undefined, () => {
       return correlationStore.getStore();
     });
-    expect(result).toBeUndefined();
+    expect(result).toMatch(/^[0-9a-f-]{36}$/);
   });
 
-  it('runs fn without a store when id is empty string', () => {
+  it('generates a uuidv7 fallback when id is empty string', () => {
     const result = runWithCorrelationId('', () => {
       return correlationStore.getStore();
     });
-    expect(result).toBeUndefined();
+    expect(result).toMatch(/^[0-9a-f-]{36}$/);
   });
 
   it('returns the value from fn', () => {
@@ -65,5 +65,65 @@ describe('runWithCorrelationId', () => {
         throw new Error('boom');
       }),
     ).toThrow('boom');
+  });
+});
+
+describe('addCorrelationId', () => {
+  it('stamps correlationId from the active context', () => {
+    const result = runWithCorrelationId('ctx-abc', () => {
+      return addCorrelationId({ userId: '1', email: 'a@b.com' });
+    });
+    expect(result).toEqual({ userId: '1', email: 'a@b.com', correlationId: 'ctx-abc' });
+  });
+
+  it('generates a uuidv7 fallback when no context is active', () => {
+    const result = addCorrelationId({ foo: 'bar' });
+    expect(result.foo).toBe('bar');
+    expect(result.correlationId).toMatch(/^[0-9a-f-]{36}$/);
+  });
+
+  it('does not mutate the original object', () => {
+    const original = { key: 'value' };
+    const stamped = addCorrelationId(original);
+    expect(original).not.toHaveProperty('correlationId');
+    expect(stamped).toHaveProperty('correlationId');
+    expect(stamped.key).toBe('value');
+  });
+
+  it('works with an empty object', () => {
+    const result = runWithCorrelationId('empty-test', () => {
+      return addCorrelationId({});
+    });
+    expect(result).toEqual({ correlationId: 'empty-test' });
+  });
+
+  it('preserves all existing properties', () => {
+    const data = { a: 1, b: 'two', c: [3], d: { nested: true } };
+    const result = runWithCorrelationId('preserve-test', () => {
+      return addCorrelationId(data);
+    });
+    expect(result).toEqual({ ...data, correlationId: 'preserve-test' });
+  });
+});
+
+describe('correlationHeaders', () => {
+  it('returns default x-correlation-id header from active context', () => {
+    const result = runWithCorrelationId('hdr-abc', () => {
+      return correlationHeaders();
+    });
+    expect(result).toEqual({ 'x-correlation-id': 'hdr-abc' });
+  });
+
+  it('supports a custom header key', () => {
+    const result = runWithCorrelationId('custom-hdr', () => {
+      return correlationHeaders('x-request-id');
+    });
+    expect(result).toEqual({ 'x-request-id': 'custom-hdr' });
+  });
+
+  it('generates a uuidv7 fallback when no context is active', () => {
+    const result = correlationHeaders();
+    expect(Object.keys(result)).toEqual(['x-correlation-id']);
+    expect(result['x-correlation-id']).toMatch(/^[0-9a-f-]{36}$/);
   });
 });

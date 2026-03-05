@@ -29,7 +29,7 @@ export * from './interfaces/pipeline.context.interface';
 export * from './interfaces/pipeline-handler-meta.interface';
 export * from './constants/pipeline-context.constants';
 export * from './options';
-export * from './decorators/pipeline.decorator';
+export * from './decorators';
 export * from './pipeline.context';
 export * from './correlation';
 export * from './behaviors/logging.behavior';

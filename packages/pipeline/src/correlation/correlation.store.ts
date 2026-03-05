@@ -25,7 +25,8 @@
  */
 
 import { AsyncLocalStorage } from 'async_hooks';
-import { uuidv7 } from 'src';
+import { uuidv7 } from '../helpers/uuidv7';
+import { pipelineStore } from '../constants/pipeline-context.constants';
 
 /**
  * Async-local store that holds the current correlation ID.
@@ -100,6 +101,138 @@ export function runWithCorrelationId<T>(
   correlationId: string | undefined,
   fn: () => T,
 ): T {
-  const id = correlationId ?? correlationStore.getStore() ?? uuidv7();
+  const id = correlationId || getCorrelationId();
   return correlationStore.run(id, fn);
+}
+
+/**
+ * Read the current correlation ID from the async-local context.
+ *
+ * Works inside:
+ * - HTTP requests (after {@link HttpCorrelationMiddleware})
+ * - Methods decorated with {@link WithCorrelation}
+ * - Callbacks passed to {@link runWithCorrelationId}
+ * - CQRS handlers wrapped by the pipeline (via `context.correlationId`)
+ *
+ * Returns a UUIDv7 string when called outside any correlation context.
+ *
+ * @publicApi
+ *
+ * @example
+ * ```ts
+ * import { getCorrelationId } from '@nestjs-pipeline/core';
+ *
+ * @Process('send-email')
+ * @WithCorrelation()
+ * async handle(job: Job) {
+ *   const id = getCorrelationId();
+ *   this.logger.log(`Processing with correlation: ${id}`);
+ *   await this.commandBus.execute(new SendEmailCommand(job.data));
+ * }
+ * ```
+ */
+export function getCorrelationId(): string {
+  return correlationStore.getStore() || pipelineStore.getStore()?.correlationId || uuidv7();
+}
+
+/**
+ * Utility type that adds a `correlationId` field to any data shape.
+ *
+ * Use it to type BullMQ job data, RabbitMQ payloads, Kafka messages, etc.
+ * so that the correlation ID is part of the contract.
+ *
+ * @example
+ * ```ts
+ * interface WelcomeEmailJobData {
+ *   userId: string;
+ *   email: string;
+ * }
+ *
+ * // Queue typed as Queue<WithCorrelationId<WelcomeEmailJobData>>
+ * await queue.add('send', addCorrelationId({ userId, email }));
+ * ```
+ *
+ * @publicApi
+ */
+export type WithCorrelationId<T = Record<string, any>> = T & { correlationId: string };
+
+/**
+ * Stamp the current correlation ID onto a data object.
+ *
+ * This is the **producer-side** counterpart to {@link WithCorrelation}:
+ * - `addCorrelationId(data)` → stamps the ID when **enqueuing** a job / publishing a message
+ * - `@WithCorrelation()` → extracts the ID when **processing** the job / handling the message
+ *
+ * Both default to the `'correlationId'` key, so they work together out of the box.
+ *
+ * @example
+ * ```ts
+ * // Bull / BullMQ
+ * await queue.add('send-email', addCorrelationId({ userId, email }));
+ *
+ * // RabbitMQ (ClientProxy)
+ * this.client.emit('user.created', addCorrelationId(payload));
+ *
+ * // Kafka
+ * await this.producer.send({
+ *   topic: 'orders',
+ *   messages: [{ value: JSON.stringify(addCorrelationId(order)) }],
+ * });
+ *
+ * // PostgreSQL NOTIFY
+ * await sql`SELECT pg_notify('events', ${JSON.stringify(addCorrelationId(data))})`;
+ * ```
+ *
+ * @param data - The payload to enrich. A shallow copy is returned; the original is not mutated.
+ * @returns A new object with `correlationId` added.
+ *
+ * @publicApi
+ */
+export function addCorrelationId<T extends Record<string, any>>(
+  data: T,
+): WithCorrelationId<T> {
+  return { ...data, correlationId: getCorrelationId() };
+}
+
+/**
+ * Return a headers object stamped with the current correlation ID.
+ *
+ * Use this for **header-based** transports (Kafka, NATS, gRPC metadata, HTTP)
+ * where the correlation ID belongs in message headers / metadata — **not** in
+ * the data payload.
+ *
+ * For transports without native headers (Bull/BullMQ, PostgreSQL NOTIFY), use
+ * {@link addCorrelationId} instead.
+ *
+ * @param key - Header name. Defaults to `'x-correlation-id'`.
+ * @returns `{ [key]: correlationId }` — spread into your transport's headers.
+ *
+ * @publicApi
+ *
+ * @example
+ * ```ts
+ * // Kafka
+ * await producer.send({
+ *   topic: 'orders',
+ *   messages: [{ value: JSON.stringify(order), headers: correlationHeaders() }],
+ * });
+ *
+ * // RabbitMQ (amqplib) — AMQP has a first-class correlationId property:
+ * channel.publish(exchange, key, buffer, { correlationId: getCorrelationId() });
+ * // …or in headers:
+ * channel.publish(exchange, key, buffer, { headers: correlationHeaders() });
+ *
+ * // NATS
+ * const headers = nats.headers();
+ * Object.entries(correlationHeaders()).forEach(([k, v]) => headers.set(k, v));
+ * nc.publish(subject, payload, { headers });
+ *
+ * // HTTP (outgoing)
+ * await fetch(url, { headers: { ...correlationHeaders(), 'content-type': 'application/json' } });
+ * ```
+ */
+export function correlationHeaders(
+  key = 'x-correlation-id',
+): Record<string, string> {
+  return { [key]: getCorrelationId() };
 }

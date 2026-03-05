@@ -12,6 +12,7 @@
  */
 import { Module } from '@nestjs/common';
 import { CqrsModule } from '@nestjs/cqrs';
+import { BullModule } from '@nestjs/bullmq';
 import { LoggingBehavior, PipelineModule } from '@nestjs-pipeline/core';
 import { UsersModule } from './users/users.module';
 import { TraceBehavior } from '@nestjs-pipeline/opentelemetry';
@@ -20,6 +21,12 @@ import { ZodValidationBehavior } from '@nestjs-pipeline/zod';
 @Module({
   imports: [
     CqrsModule.forRoot(),
+    BullModule.forRoot({
+      connection: {
+        host: process.env['REDIS_HOST'] ?? 'localhost',
+        port: Number(process.env['REDIS_PORT'] ?? 6379),
+      },
+    }),
     PipelineModule.forRoot({
       /**
        * Register LoggingBehavior globally so every command query and event automatically gets logging.

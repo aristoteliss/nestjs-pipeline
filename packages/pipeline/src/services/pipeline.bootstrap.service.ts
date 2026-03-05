@@ -42,9 +42,8 @@ import { PipelineHandlerMeta } from '../interfaces/pipeline-handler-meta.interfa
 import { pipelineStore, SET_ORIGINAL_CORRELATION_ID, SET_RESPONSE } from '../constants/pipeline-context.constants';
 import { PIPELINE_MODULE_OPTIONS, PipelineModuleOptions } from '../options/pipeline-module.options';
 import { GlobalBehaviorsOptions } from '../options/global-behaviors.options';
-import { correlationStore } from '../correlation/correlation.store';
+import { getCorrelationId, runWithCorrelationId } from '../correlation/correlation.store';
 import { ExplorerService } from '@nestjs/cqrs/dist/services/explorer.service';
-import { uuidv7 } from '../helpers/uuidv7';
 
 /**
  * At application bootstrap, this service:
@@ -236,8 +235,7 @@ export class PipelineBootstrapService implements OnApplicationBootstrap {
       // Eagerly resolve correlationId BEFORE any behavior runs.
       // Priority: parent context (saga) > correlationStore > uuidv7()
       if (!context.correlationId) {
-        const fromStore = correlationStore.getStore();
-        context.correlationId = fromStore || uuidv7();
+        context.correlationId = getCorrelationId();
       }
 
       // Lock the original value — immutable from this point forward.
@@ -259,9 +257,13 @@ export class PipelineBootstrapService implements OnApplicationBootstrap {
         chain = () => behavior.handle(context, nextInChain);
       }
 
-      // Run inside AsyncLocalStorage with a live reference to context.
-      // Child commands read context.correlationId — always the latest value.
-      return pipelineStore.run(context, chain);
+      // Run inside both correlation and pipeline async-local stores.
+      // correlationStore makes the ID available to non-pipeline code
+      // (services, repositories) via getCorrelationId().
+      // pipelineStore provides the full PipelineContext to behaviors.
+      return runWithCorrelationId(context.correlationId, () =>
+        pipelineStore.run(context, chain),
+      );
     };
   }
 

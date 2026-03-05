@@ -11,6 +11,7 @@
  * companies that do not wish to be bound by the AGPL terms. Contact Aristotelis for details.
  */
 import { Module } from '@nestjs/common';
+import { BullModule } from '@nestjs/bullmq';
 import { UsersController } from './controllers/users.controller';
 import { CreateUserHandler } from './cqrs/commands/create-user.handler';
 import { UpdateUserHandler } from './cqrs/commands/update-user.handler';
@@ -20,8 +21,12 @@ import { DeleteUserHandler } from './cqrs/commands/delete-user.handler';
 import { GetUsersHandler } from './cqrs/queries/get-uses.handler';
 import { InMemoryUserRepository } from './repositories/in-memory-user.repository';
 import { USER_REPOSITORY } from './repositories/user.repository.interface';
+import { SendWelcomeEmailProcessor, WELCOME_EMAIL_QUEUE } from './jobs/send-welcome-email.processor';
 
 @Module({
+  imports: [
+    BullModule.registerQueue({ name: WELCOME_EMAIL_QUEUE }),
+  ],
   controllers: [UsersController],
   providers: [
     // Repository
@@ -38,6 +43,9 @@ import { USER_REPOSITORY } from './repositories/user.repository.interface';
 
     // Events
     UserCreatedHandler,
+
+    // Job Processors
+    SendWelcomeEmailProcessor,
   ],
 })
 export class UsersModule {}

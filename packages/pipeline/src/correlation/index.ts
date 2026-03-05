@@ -24,5 +24,6 @@
  * along with this program. If not, see <https://www.gnu.org/licenses/>.
  */
 
-export { correlationStore, runWithCorrelationId } from './correlation.store';
+export { correlationStore, runWithCorrelationId, getCorrelationId, addCorrelationId, correlationHeaders } from './correlation.store';
+export type { WithCorrelationId } from './correlation.store';
 export { HttpCorrelationMiddleware } from './http-correlation.middleware';
