@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
-import { HttpCorrelationMiddleware } from '../correlation/http-correlation.middleware';
-import { correlationStore } from '../correlation/correlation.store';
+import { HttpCorrelationMiddleware } from './http-correlation.middleware';
+import { correlationStore } from '../correlation.store';
 import { IncomingMessage, ServerResponse } from 'http';
 
 function fakeRequest(headers: Record<string, string> = {}): IncomingMessage {
@@ -33,7 +33,7 @@ describe('HttpCorrelationMiddleware', () => {
 
   it('uses a custom header name from options', () => {
     const middleware = new HttpCorrelationMiddleware({
-      correlation: { header: 'x-request-id' },
+      header: 'x-request-id',
     });
     const req = fakeRequest({ 'x-request-id': 'custom-456' });
 

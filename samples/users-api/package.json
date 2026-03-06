@@ -11,6 +11,7 @@
     "start:prod:fastify": "ADAPTER=fastify node dist/main"
   },
   "dependencies": {
+    "@nestjs-pipeline/correlation": "workspace:*",
     "@nestjs-pipeline/core": "workspace:*",
     "@nestjs-pipeline/opentelemetry": "workspace:*",
     "@nestjs-pipeline/zod": "workspace:*",

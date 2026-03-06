@@ -24,6 +24,24 @@
  * along with this program. If not, see <https://www.gnu.org/licenses/>.
  */
 
-export { correlationStore, runWithCorrelationId, getCorrelationId, addCorrelationId, correlationHeaders } from './correlation.store';
+export {
+  correlationStore,
+  runWithCorrelationId,
+  getCorrelationId,
+  addCorrelationId,
+  correlationHeaders,
+  setCorrelationFallback,
+} from './correlation.store';
 export type { WithCorrelationId } from './correlation.store';
-export { HttpCorrelationMiddleware } from './http-correlation.middleware';
+export { HttpCorrelationMiddleware } from './middlewares/http-correlation.middleware';
+export { CORRELATION_OPTIONS } from './options/correlation.options';
+export type { CorrelationOptions } from './options/correlation.options';
+export {
+  WithCorrelation,
+  CorrelationFrom,
+} from './decorators/with-correlation.decorator';
+export type {
+  CorrelationExtractor,
+  CorrelationDecoratorOptions,
+} from './decorators/with-correlation.decorator';
+export { uuidv7 } from './helpers/uuidv7';

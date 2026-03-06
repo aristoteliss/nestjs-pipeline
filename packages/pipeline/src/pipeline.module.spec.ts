@@ -1,11 +1,10 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { PipelineModule } from './pipeline.module';
 import { IPipelineBehavior, NextDelegate } from './interfaces/pipeline.behavior.interface';
 import { IPipelineContext } from './interfaces/pipeline.context.interface';
 import { Injectable } from '@nestjs/common';
 import { PIPELINE_MODULE_OPTIONS } from './options/pipeline-module.options';
 import { PipelineBootstrapService } from './services/pipeline.bootstrap.service';
-import { HttpCorrelationMiddleware } from './correlation/http-correlation.middleware';
 
 // ── Test behaviors ──────────────────────────────────────────
 
@@ -44,7 +43,7 @@ describe('PipelineModule.forRoot', () => {
     expect(mod.exports).toContain(BetaBehavior);
   });
 
-  it('registers core providers (options, bootstrap service, middleware)', () => {
+  it('registers core providers (options, bootstrap service)', () => {
     const mod = PipelineModule.forRoot([AlphaBehavior]);
 
     const providerTokens = mod.providers!.map((p: any) =>
@@ -53,13 +52,12 @@ describe('PipelineModule.forRoot', () => {
 
     expect(providerTokens).toContain(PIPELINE_MODULE_OPTIONS);
     expect(providerTokens).toContain(PipelineBootstrapService);
-    expect(providerTokens).toContain(HttpCorrelationMiddleware);
   });
 
   it('accepts an options object with behaviors', () => {
     const mod = PipelineModule.forRoot({
       behaviors: [AlphaBehavior],
-      correlation: { header: 'x-request-id' },
+      correlationIdFactory: () => 'test-id',
     });
 
     expect(mod.providers).toContain(AlphaBehavior);
@@ -68,7 +66,7 @@ describe('PipelineModule.forRoot', () => {
       (p: any) => p.provide === PIPELINE_MODULE_OPTIONS,
     );
     expect(optionsProvider).toBeDefined();
-    expect(optionsProvider.useValue.correlation).toEqual({ header: 'x-request-id' });
+    expect(optionsProvider.useValue.correlationIdFactory).toBeDefined();
   });
 
   it('registers global before/after behavior types', () => {
@@ -132,36 +130,5 @@ describe('PipelineModule.forFeature', () => {
     const mod = PipelineModule.forFeature([]);
     expect(mod.providers).toEqual([]);
     expect(mod.exports).toEqual([]);
-  });
-});
-
-// ── configure (MiddlewareConsumer) ──────────────────────────
-
-describe('PipelineModule.configure', () => {
-  it('applies HttpCorrelationMiddleware to * routes by default', () => {
-    // reset static config which might be mutated by other tests (side-effect)
-    PipelineModule.forRoot({});
-    const module = new PipelineModule();
-    const applyMock = vi.fn().mockReturnThis();
-    const forRoutesMock = vi.fn();
-    const consumer = { apply: applyMock, forRoutes: forRoutesMock } as any;
-
-    module.configure(consumer);
-
-    expect(applyMock).toHaveBeenCalledWith(HttpCorrelationMiddleware);
-    expect(forRoutesMock).toHaveBeenCalledWith('*');
-  });
-
-  it('does not apply HttpCorrelationMiddleware if correlation.header is set to false', () => {
-    PipelineModule.forRoot({ correlation: { header: false } });
-    const module = new PipelineModule();
-    const applyMock = vi.fn().mockReturnThis();
-    const forRoutesMock = vi.fn();
-    const consumer = { apply: applyMock, forRoutes: forRoutesMock } as any;
-
-    module.configure(consumer);
-
-    expect(applyMock).not.toHaveBeenCalled();
-    expect(forRoutesMock).not.toHaveBeenCalled();
   });
 });

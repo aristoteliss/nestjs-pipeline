@@ -25,8 +25,7 @@
  */
 
 import { AsyncLocalStorage } from 'async_hooks';
-import { uuidv7 } from '../helpers/uuidv7';
-import { pipelineStore } from '../constants/pipeline-context.constants';
+import { uuidv7 } from './helpers/uuidv7';
 
 /**
  * Async-local store that holds the current correlation ID.
@@ -52,6 +51,30 @@ import { pipelineStore } from '../constants/pipeline-context.constants';
  * ```
  */
 export const correlationStore = new AsyncLocalStorage<string>();
+
+/**
+ * Optional fallback function registered by higher-level packages
+ * (e.g. `@nestjs-pipeline/core`) to provide additional correlation ID
+ * resolution (e.g. reading from a parent pipeline context).
+ *
+ * @internal
+ */
+let _correlationFallback: (() => string | undefined) | undefined;
+
+/**
+ * Register a fallback function for {@link getCorrelationId}.
+ *
+ * Called by `@nestjs-pipeline/core` to wire in the `pipelineStore` fallback
+ * so that `getCorrelationId()` can read from a parent pipeline context
+ * when no explicit correlation store is active.
+ *
+ * @param fn - Fallback that returns a correlation ID or `undefined`.
+ *
+ * @internal
+ */
+export function setCorrelationFallback(fn: () => string | undefined): void {
+  _correlationFallback = fn;
+}
 
 /**
  * Run a callback within a correlation context.
@@ -120,7 +143,7 @@ export function runWithCorrelationId<T>(
  *
  * @example
  * ```ts
- * import { getCorrelationId } from '@nestjs-pipeline/core';
+ * import { getCorrelationId } from '@nestjs-pipeline/correlation';
  *
  * @Process('send-email')
  * @WithCorrelation()
@@ -132,7 +155,7 @@ export function runWithCorrelationId<T>(
  * ```
  */
 export function getCorrelationId(): string {
-  return correlationStore.getStore() || pipelineStore.getStore()?.correlationId || uuidv7();
+  return correlationStore.getStore() || _correlationFallback?.() || uuidv7();
 }
 
 /**

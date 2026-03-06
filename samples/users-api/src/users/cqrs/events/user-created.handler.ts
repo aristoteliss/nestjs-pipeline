@@ -14,7 +14,7 @@ import { EventsHandler, IEventHandler } from '@nestjs/cqrs';
 import { Logger } from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
-import { addCorrelationId, getCorrelationId } from '@nestjs-pipeline/core';
+import { addCorrelationId, getCorrelationId } from '@nestjs-pipeline/correlation';
 import { UserCreatedEvent } from './user-created.event';
 import { WELCOME_EMAIL_QUEUE, WelcomeEmailJobData } from '../../jobs/send-welcome-email.processor';
 

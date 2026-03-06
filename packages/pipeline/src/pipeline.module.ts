@@ -24,17 +24,14 @@
  * along with this program. If not, see <https://www.gnu.org/licenses/>.
  */
 
-import { DynamicModule, Global, MiddlewareConsumer, Module, NestModule, Type } from '@nestjs/common';
-import { HttpCorrelationMiddleware } from './correlation/http-correlation.middleware';
+import { DynamicModule, Global, Module, Type } from '@nestjs/common';
 import { IPipelineBehavior } from './interfaces/pipeline.behavior.interface';
 import { PipelineBehaviorEntry } from './decorators/pipeline.decorator';
 import { PipelineBootstrapService } from './services/pipeline.bootstrap.service';
-import { CorrelationOptions } from './options/correlation.options';
 import { PIPELINE_MODULE_OPTIONS, PipelineModuleOptions } from './options/pipeline-module.options';
 
 // Re-export so existing `from './pipeline.module'` imports keep working.
 export {
-  CorrelationOptions,
   GlobalBehaviorScope,
   GlobalBehaviorsOptions,
   PIPELINE_MODULE_OPTIONS,
@@ -54,40 +51,32 @@ function extractBehaviorTypes(entries: PipelineBehaviorEntry[]): Type<IPipelineB
  *
  * @example
  * ```ts
- * // Simple — array of behaviors (backward-compatible, HTTP correlation by default)
+ * // Simple — array of behaviors (backward-compatible)
  * PipelineModule.forRoot([LoggingBehavior, AuditBehavior])
  *
- * // Advanced — global behaviors + custom header
+ * // Advanced — global behaviors + correlation ID factory
  * PipelineModule.forRoot({
  *   behaviors: [LoggingBehavior],
  *   globalBehaviors: { scope: 'all', before: [MetricsBehavior] },
- *   correlation: { header: 'x-request-id' },
+ *   correlationIdFactory: () => myCorrelationSource(),
  * })
  *
- * // Worker-only — no HTTP middleware
+ * // Integration with @nestjs-pipeline/correlation
+ * import { getCorrelationId } from '@nestjs-pipeline/correlation';
  * PipelineModule.forRoot({
  *   behaviors: [LoggingBehavior],
- *   correlation: { header: false },
+ *   correlationIdFactory: getCorrelationId,
  * })
  * ```
  *
  * Correlation ID resolution order (before any behavior runs):
  * 1. Parent pipeline context (saga / nested command)
- * 2. {@link correlationStore} — populated by {@link HttpCorrelationMiddleware}
- *    or {@link runWithCorrelationId} (Bull / RabbitMQ / custom)
+ * 2. `correlationIdFactory` — user-supplied factory from module options
  * 3. `uuidv7()` fallback (timestamp-sortable UUID)
  */
 @Global()
 @Module({})
-export class PipelineModule implements NestModule {
-  private static correlation: CorrelationOptions = {};
-
-  configure(consumer: MiddlewareConsumer) {
-    if (PipelineModule.correlation.header !== false) {
-      consumer.apply(HttpCorrelationMiddleware).forRoutes('*');
-    }
-  }
-
+export class PipelineModule {
   static forRoot(
     optionsOrBehaviors: PipelineModuleOptions | Type<IPipelineBehavior>[] = [],
   ): DynamicModule {
@@ -103,19 +92,15 @@ export class PipelineModule implements NestModule {
       ...(options.globalBehaviors?.after ?? []),
     ]).filter((t) => !behaviors.includes(t));
 
-    // Store for configure() — static because configure() runs on the class instance
-    PipelineModule.correlation = options.correlation ?? {};
-
     return {
       module: PipelineModule,
       providers: [
         { provide: PIPELINE_MODULE_OPTIONS, useValue: options },
         PipelineBootstrapService,
-        HttpCorrelationMiddleware,
         ...globalBehaviorTypes,
         ...behaviors,
       ],
-      exports: [HttpCorrelationMiddleware, ...globalBehaviorTypes, ...behaviors],
+      exports: [...globalBehaviorTypes, ...behaviors],
     };
   }
 

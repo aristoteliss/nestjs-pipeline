@@ -77,8 +77,9 @@ import { PipelineModule, LoggingBehavior } from '@nestjs-pipeline/core';
       },
       // Behaviors to register in DI (for @UsePipeline references)
       behaviors: [AuditBehavior],
-      // Correlation ID header (or false to disable HTTP middleware)
-      correlation: { header: 'x-correlation-id' },
+      // Bridge correlation IDs from @nestjs-pipeline/correlation (optional)
+      // correlationIdFactory: getCorrelationId,
+      // correlationIdRunner: runWithCorrelationId,
     }),
   ],
 })
@@ -94,18 +95,21 @@ export class AppModule {}
 })
 export class AppModule {}
 
-// ── Style 3: Worker-only (no HTTP middleware) ──
+// ── Style 3: With correlation ID bridge ──
+
+import { getCorrelationId, runWithCorrelationId } from '@nestjs-pipeline/correlation';
 
 @Module({
   imports: [
     CqrsModule.forRoot(),
     PipelineModule.forRoot({
       behaviors: [LoggingBehavior],
-      correlation: { header: false },
+      correlationIdFactory: getCorrelationId,
+      correlationIdRunner: runWithCorrelationId,
     }),
   ],
 })
-export class WorkerAppModule {}
+export class AppModule {}
 ```
 
 ### forFeature()
@@ -430,13 +434,47 @@ export class CreateUserHandler { /* ... */ }
 Every pipeline invocation carries a `correlationId` for distributed tracing, resolved in priority order:
 
 1. **Parent pipeline** — inherited from `AsyncLocalStorage` (saga / nested command)
-2. **`HttpCorrelationMiddleware`** — extracted from the HTTP request header
-3. **`runWithCorrelationId(id, fn)`** — manually set for non-HTTP entry points
-4. **`uuidv7()`** — timestamp-sortable UUID fallback
+2. **`correlationIdFactory`** — user-supplied factory from module options
+3. **`uuidv7()`** — timestamp-sortable UUID fallback
+
+The pipeline core generates its own `uuidv7()` IDs by default. To bridge external correlation IDs (HTTP headers, message queues, etc.), install [`@nestjs-pipeline/correlation`](../pipeline-correlation) and pass `getCorrelationId` + `runWithCorrelationId`:
+
+```typescript
+import { getCorrelationId, runWithCorrelationId } from '@nestjs-pipeline/correlation';
+
+PipelineModule.forRoot({
+  correlationIdFactory: getCorrelationId,
+  correlationIdRunner: runWithCorrelationId,
+  // ...
+})
+```
+
+`correlationIdFactory` **reads** the current correlation ID (e.g. set by HTTP middleware or `@WithCorrelation`).  
+`correlationIdRunner` **writes** the pipeline's resolved correlation ID back into the correlation store so that `getCorrelationId()` returns it throughout the entire handler chain — including event handlers dispatched via `eventBus.publish()`.
+
+Or supply any custom factory/runner:
+
+```typescript
+PipelineModule.forRoot({
+  correlationIdFactory: () => myCustomIdSource(),
+  correlationIdRunner: (id, fn) => myCustomRunner(id, fn),
+})
+```
 
 ### HTTP Requests
 
-Correlation IDs are extracted automatically from the `x-correlation-id` header (configurable):
+HTTP correlation ID extraction is provided by `@nestjs-pipeline/correlation`. Install it and apply the middleware:
+
+```typescript
+import { HttpCorrelationMiddleware } from '@nestjs-pipeline/correlation';
+
+@Module({ /* ... */ })
+export class AppModule implements NestModule {
+  configure(consumer: MiddlewareConsumer) {
+    consumer.apply(HttpCorrelationMiddleware).forRoutes('*');
+  }
+}
+```
 
 ```bash
 curl -X POST http://localhost:3000/users \
@@ -445,20 +483,12 @@ curl -X POST http://localhost:3000/users \
   -d '{"name": "Jane", "email": "jane@example.com"}'
 ```
 
-```typescript
-// Custom header name
-PipelineModule.forRoot({ correlation: { header: 'x-request-id' } })
-
-// Disable HTTP middleware entirely (background worker app)
-PipelineModule.forRoot({ correlation: { header: false } })
-```
-
 ### Non-HTTP Entry Points
 
-Use `runWithCorrelationId()` for Bull queues, RabbitMQ, WebSocket gateways, cron jobs, etc.:
+For Bull queues, RabbitMQ, Kafka, cron jobs, etc., use utilities from `@nestjs-pipeline/correlation`:
 
 ```typescript
-import { runWithCorrelationId, uuidv7 } from '@nestjs-pipeline/core';
+import { runWithCorrelationId, uuidv7 } from '@nestjs-pipeline/correlation';
 
 // Bull queue processor
 @Process('send-email')
@@ -466,15 +496,6 @@ async handleSendEmail(job: Job) {
   return runWithCorrelationId(job.data.correlationId, async () => {
     await this.commandBus.execute(new SendEmailCommand(job.data));
   });
-}
-
-// RabbitMQ handler
-@MessagePattern('user.created')
-async handle(@Payload() data: any, @Ctx() ctx: RmqContext) {
-  const id = ctx.getMessage().properties.correlationId;
-  return runWithCorrelationId(id, () =>
-    this.commandBus.execute(new SyncUserCommand(data)),
-  );
 }
 
 // Cron job
@@ -488,10 +509,10 @@ async hourlySync() {
 
 ### @WithCorrelation Decorator
 
-Instead of manually calling `runWithCorrelationId`, use the `@WithCorrelation()` method decorator. It wraps the method body in a correlation context automatically:
+Instead of manually calling `runWithCorrelationId`, use the `@WithCorrelation()` method decorator from `@nestjs-pipeline/correlation`:
 
 ```typescript
-import { WithCorrelation, CorrelationFrom, getCorrelationId } from '@nestjs-pipeline/core';
+import { WithCorrelation, CorrelationFrom, getCorrelationId } from '@nestjs-pipeline/correlation';
 
 // ── Bull (reads from job.data.correlationId by default) ──
 @Process('send-email')
@@ -532,7 +553,7 @@ async hourlySync() {
 When enqueuing jobs or publishing messages, stamp the current correlation ID onto the payload or headers:
 
 ```typescript
-import { addCorrelationId, correlationHeaders } from '@nestjs-pipeline/core';
+import { addCorrelationId, correlationHeaders } from '@nestjs-pipeline/correlation';
 
 // Bull / BullMQ — stamp onto data payload
 await queue.add('send-email', addCorrelationId({ userId, email }));
@@ -550,15 +571,13 @@ await fetch(url, { headers: { ...correlationHeaders(), 'content-type': 'applicat
 
 ### Reading the Current Correlation ID
 
-Use `getCorrelationId()` anywhere in the async call stack:
+Use `getCorrelationId()` from `@nestjs-pipeline/correlation` anywhere in the async call stack:
 
 ```typescript
-import { getCorrelationId } from '@nestjs-pipeline/core';
+import { getCorrelationId } from '@nestjs-pipeline/correlation';
 
 const id = getCorrelationId(); // reads from async-local context, falls back to uuidv7()
 ```
-
-Works inside HTTP requests, `@WithCorrelation` methods, `runWithCorrelationId` callbacks, and CQRS handlers wrapped by the pipeline.
 
 ### Nested Commands and Sagas
 
@@ -618,21 +637,9 @@ orderCreated = (events$: Observable<any>): Observable<ICommand> =>
 | `PipelineContext` | Class | Concrete context created per invocation |
 | `LoggingBehavior` | Class | Built-in structured logging |
 | `LoggingBehaviorOptions` | Interface | Options for `LoggingBehavior` (`metricLogLevel`, `requestResponseLogLevel`) |
-| `correlationStore` | `AsyncLocalStorage` | Access the raw correlation-ID async-local store |
-| `getCorrelationId` | Function | Read the current correlation ID (falls back to `uuidv7()`) |
-| `runWithCorrelationId` | Function | Set correlation ID for non-HTTP entry points |
-| `addCorrelationId` | Function | Stamp the current correlation ID onto a data object |
-| `correlationHeaders` | Function | Return a `{ [header]: correlationId }` object for outgoing requests |
-| `WithCorrelationId` | Type | Utility type that adds a `correlationId` field to any shape |
-| `WithCorrelation` | Decorator | Extract & propagate correlation ID in non-HTTP handlers |
-| `CorrelationFrom` | Object | Preset extractors for `WithCorrelation` (Bull, RabbitMQ, Kafka, etc.) |
-| `CorrelationExtractor` | Type | `(...args: any[]) => string \| undefined` |
-| `CorrelationDecoratorOptions` | Interface | Options for `WithCorrelation` decorator |
-| `HttpCorrelationMiddleware` | Middleware | Auto-extracts correlation ID from HTTP headers |
 | `uuidv7` | Function | Generate timestamp-sortable UUIDs |
 | `pipelineStore` | `AsyncLocalStorage` | Access the current pipeline context |
 | `PipelineModuleOptions` | Interface | Options for `PipelineModule.forRoot()` |
-| `CorrelationOptions` | Interface | Correlation configuration (`header` option) |
 | `GlobalBehaviorsOptions` | Interface | Global behavior configuration |
 | `GlobalBehaviorScope` | Type | `'commands' \| 'queries' \| 'events' \| 'all'` |
 | `PIPELINE_MODULE_OPTIONS` | Symbol | DI token for module options |
@@ -640,6 +647,16 @@ orderCreated = (events$: Observable<any>): Observable<ICommand> =>
 | `PipelineHandlerMeta` | Interface | Pre-computed handler metadata |
 | `PIPELINE_BEHAVIOR_ID` | Symbol | Custom deduplication key for behaviors |
 | `PipelineBehaviorEntry` | Type | `Type \| [Type, Record<string, any>]` |
+
+**`PipelineModuleOptions` fields:**
+
+| Field | Type | Description |
+|---|---|---|
+| `behaviors` | `Type[]` | Behavior classes to register in DI |
+| `globalBehaviors` | `GlobalBehaviorsOptions` | Auto-wrap all handlers |
+| `correlationIdFactory` | `() => string \| undefined` | Read the current correlation ID (e.g. `getCorrelationId`) |
+| `correlationIdRunner` | `<T>(id: string, fn: () => T) => T` | Wrap each pipeline invocation in a correlation context (e.g. `runWithCorrelationId`) |
+| `bootstrapLogLevel` | `LogLevel \| 'none'` | Log level for bootstrap messages (default `'log'`) |
 
 ---
 

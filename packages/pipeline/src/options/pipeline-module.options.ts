@@ -26,7 +26,6 @@
 
 import { LogLevel, Type } from '@nestjs/common';
 import { IPipelineBehavior } from '../interfaces/pipeline.behavior.interface';
-import { CorrelationOptions } from './correlation.options';
 import { GlobalBehaviorsOptions } from './global-behaviors.options';
 
 /**
@@ -99,21 +98,52 @@ export interface PipelineModuleOptions {
   bootstrapLogLevel?: LogLevel | 'none';
 
   /**
-   * How the pipeline obtains a correlation ID from HTTP requests.
+   * Optional factory that provides a correlation ID for each pipeline run.
    *
-   * For non-HTTP transports (Bull, RabbitMQ, WebSocket, etc.),
-   * use `runWithCorrelationId()` in your processor or handler.
+   * When set, the factory is called before any behavior executes.
+   * If it returns a string, that becomes the pipeline's `correlationId`.
+   * If it returns `undefined` (or is not set), a `uuidv7()` fallback is generated.
    *
-   * @default `{ header: 'x-correlation-id' }`
+   * Integrates with `@nestjs-pipeline/correlation` — pass `getCorrelationId`
+   * to bridge HTTP / message-queue correlation IDs into the pipeline:
    *
    * @example
    * ```ts
-   * // Custom header
-   * correlation: { header: 'x-request-id' }
+   * import { getCorrelationId } from '@nestjs-pipeline/correlation';
    *
-   * // Disable HTTP middleware (worker-only app)
-   * correlation: { header: false }
+   * PipelineModule.forRoot({
+   *   behaviors: [LoggingBehavior],
+   *   correlationIdFactory: getCorrelationId,
+   * })
+   * ```
+   *
+   * @example
+   * ```ts
+   * // Custom factory
+   * correlationIdFactory: () => myCustomIdSource(),
    * ```
    */
-  correlation?: CorrelationOptions;
+  correlationIdFactory?: () => string | undefined;
+
+  /**
+   * Optional runner that wraps each pipeline invocation in a correlation context.
+   *
+   * When provided, every handler chain runs inside this wrapper **in addition to**
+   * `pipelineStore`. This ensures that `getCorrelationId()` (from the correlation
+   * package) returns the pipeline's `correlationId` throughout the entire handler —
+   * including event handlers dispatched via `eventBus.publish()`.
+   *
+   * Pair with `correlationIdFactory` for full bidirectional correlation support:
+   *
+   * @example
+   * ```ts
+   * import { getCorrelationId, runWithCorrelationId } from '@nestjs-pipeline/correlation';
+   *
+   * PipelineModule.forRoot({
+   *   correlationIdFactory: getCorrelationId,
+   *   correlationIdRunner: runWithCorrelationId,
+   * })
+   * ```
+   */
+  correlationIdRunner?: <T>(correlationId: string, fn: () => T) => T;
 }

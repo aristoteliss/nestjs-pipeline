@@ -16,7 +16,7 @@
  * ----------------------------
  */
 
-import { runWithCorrelationId } from '../correlation/correlation.store';
+import { runWithCorrelationId } from '../correlation.store';
 
 /**
  * A function that extracts the correlation ID from the method arguments.
@@ -91,7 +91,7 @@ function getByPath(obj: any, path: string): string | undefined {
  *
  * Inside the method body, read the active ID with:
  * ```ts
- * import { getCorrelationId } from '@nestjs-pipeline/core';
+ * import { getCorrelationId } from '@nestjs-pipeline/correlation';
  * const id = getCorrelationId();
  * ```
  *

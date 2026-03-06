@@ -1,8 +1,7 @@
 import 'reflect-metadata';
 import { describe, it, expect } from 'vitest';
 import { WithCorrelation, CorrelationFrom } from './with-correlation.decorator';
-import { getCorrelationId } from '../correlation/correlation.store';
-import { correlationStore } from '../correlation/correlation.store';
+import { getCorrelationId, correlationStore } from '../correlation.store';
 
 // ── Helpers ─────────────────────────────────────────────────
 

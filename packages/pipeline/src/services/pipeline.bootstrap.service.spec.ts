@@ -6,7 +6,6 @@ import { IPipelineBehavior, NextDelegate } from '../interfaces/pipeline.behavior
 import { IPipelineContext } from '../interfaces/pipeline.context.interface';
 import { UsePipeline } from '../decorators/pipeline.decorator';
 import { pipelineStore } from '../constants/pipeline-context.constants';
-import { correlationStore } from '../correlation/correlation.store';
 
 // ─────────────────────────────────────────────────────────────────
 // Behaviors
@@ -451,22 +450,20 @@ describe('PipelineBootstrapService', () => {
       expect(result.store!.correlationId.length).toBeGreaterThan(0);
     });
 
-    it('inherits correlationId from correlationStore when active (HTTP middleware / Bull)', async () => {
+    it('uses correlationIdFactory when provided', async () => {
       const handler = new MockCommandHandler();
       explorerServiceMock.explore.mockReturnValue({
         commands: [makeWrapper(handler, MockCommandHandler)],
         queries: [], events: [],
       });
 
-      new PipelineBootstrapService(moduleRefMock).onApplicationBootstrap();
+      new PipelineBootstrapService(moduleRefMock, {
+        correlationIdFactory: () => 'factory-corr-abc',
+      }).onApplicationBootstrap();
 
-      let captured: string | undefined;
-      await correlationStore.run('http-corr-abc', async () => {
-        const result = await handler.execute(new MockCommand(1));
-        captured = result.store!.originalCorrelationId;
-      });
+      const result = await handler.execute(new MockCommand(1));
 
-      expect(captured).toBe('http-corr-abc');
+      expect(result.store!.originalCorrelationId).toBe('factory-corr-abc');
     });
 
     it('inherits correlationId from parent pipeline context (saga / nested dispatch)', async () => {
@@ -500,6 +497,29 @@ describe('PipelineBootstrapService', () => {
       });
 
       expect(childCorrId).toBe(parentCorrId);
+    });
+
+    it('wraps the chain with correlationIdRunner when provided', async () => {
+      const handler = new MockCommandHandler();
+      explorerServiceMock.explore.mockReturnValue({
+        commands: [makeWrapper(handler, MockCommandHandler)],
+        queries: [], events: [],
+      });
+
+      const runnerCalls: { id: string }[] = [];
+
+      new PipelineBootstrapService(moduleRefMock, {
+        correlationIdFactory: () => 'runner-corr-id',
+        correlationIdRunner: <T>(id: string, fn: () => T): T => {
+          runnerCalls.push({ id });
+          return fn();
+        },
+      }).onApplicationBootstrap();
+
+      await handler.execute(new MockCommand(1));
+
+      expect(runnerCalls).toHaveLength(1);
+      expect(runnerCalls[0].id).toBe('runner-corr-id');
     });
   });
 

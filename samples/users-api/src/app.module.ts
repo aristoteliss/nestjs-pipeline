@@ -10,10 +10,11 @@
  * Alternatively, a Commercial License is available for individuals or 
  * companies that do not wish to be bound by the AGPL terms. Contact Aristotelis for details.
  */
-import { Module } from '@nestjs/common';
+import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import { CqrsModule } from '@nestjs/cqrs';
 import { BullModule } from '@nestjs/bullmq';
 import { LoggingBehavior, PipelineModule } from '@nestjs-pipeline/core';
+import { getCorrelationId, HttpCorrelationMiddleware, runWithCorrelationId } from '@nestjs-pipeline/correlation';
 import { UsersModule } from './users/users.module';
 import { TraceBehavior } from '@nestjs-pipeline/opentelemetry';
 import { ZodValidationBehavior } from '@nestjs-pipeline/zod';
@@ -28,6 +29,12 @@ import { ZodValidationBehavior } from '@nestjs-pipeline/zod';
       },
     }),
     PipelineModule.forRoot({
+      /**
+       * Bridge correlation IDs from @nestjs-pipeline/correlation into the pipeline.
+       * getCorrelationId() reads from HTTP middleware, @WithCorrelation, or runWithCorrelationId.
+       */
+      correlationIdFactory: getCorrelationId,
+      correlationIdRunner: runWithCorrelationId,
       /**
        * Register LoggingBehavior globally so every command query and event automatically gets logging.
        * ZodValidationBehavior runs before the handler and validates the request against the
@@ -44,4 +51,8 @@ import { ZodValidationBehavior } from '@nestjs-pipeline/zod';
     UsersModule,
   ],
 })
-export class AppModule { }
+export class AppModule implements NestModule {
+  configure(consumer: MiddlewareConsumer) {
+    consumer.apply(HttpCorrelationMiddleware).forRoutes('*');
+  }
+}

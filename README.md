@@ -4,7 +4,6 @@ Pipeline behaviors for **NestJS CQRS** — wrap every command, query, and event 
 
 ```
 HTTP Request
-  → HttpCorrelationMiddleware          (extracts x-correlation-id)
   → Controller (ZodPipe validation)
   → CommandBus / QueryBus / EventBus
   → Pipeline chain:
@@ -69,7 +68,8 @@ Zero additional runtime dependencies beyond NestJS itself. Works with Express an
 
 | Package | Description |
 |---|---|
-| [`@nestjs-pipeline/core`](packages/pipeline) | Pipeline engine, `@UsePipeline` decorator, `PipelineModule`, `LoggingBehavior`, correlation IDs |
+| [`@nestjs-pipeline/core`](packages/pipeline) | Pipeline engine, `@UsePipeline` decorator, `PipelineModule`, `LoggingBehavior` |
+| [`@nestjs-pipeline/correlation`](packages/pipeline-correlation) | Standalone correlation ID propagation — HTTP middleware, `@WithCorrelation`, `runWithCorrelationId`, `getCorrelationId` |
 | [`@nestjs-pipeline/zod`](packages/pipeline-zod) | Zod v4 validation behavior, `ZodPipe`, `ZodValidationFilter`, `ZodValidationError` |
 | [`@nestjs-pipeline/opentelemetry`](packages/pipeline-opentelemetry) | OpenTelemetry tracing behavior — auto-creates spans for every pipeline invocation |
 
@@ -85,6 +85,7 @@ Zero additional runtime dependencies beyond NestJS itself. Works with Express an
 pnpm add @nestjs-pipeline/core @nestjs/common @nestjs/core @nestjs/cqrs reflect-metadata rxjs
 
 # Optional add-ons
+pnpm add @nestjs-pipeline/correlation   # HTTP correlation middleware, @WithCorrelation, etc.
 pnpm add @nestjs-pipeline/zod zod
 pnpm add @nestjs-pipeline/opentelemetry @opentelemetry/api
 ```
@@ -93,9 +94,10 @@ pnpm add @nestjs-pipeline/opentelemetry @opentelemetry/api
 
 ```typescript
 // app.module.ts
-import { Module } from '@nestjs/common';
+import { Module, NestModule, MiddlewareConsumer } from '@nestjs/common';
 import { CqrsModule } from '@nestjs/cqrs';
 import { PipelineModule, LoggingBehavior } from '@nestjs-pipeline/core';
+import { getCorrelationId, runWithCorrelationId, HttpCorrelationMiddleware } from '@nestjs-pipeline/correlation';
 import { ZodValidationBehavior } from '@nestjs-pipeline/zod';
 import { TraceBehavior } from '@nestjs-pipeline/opentelemetry';
 
@@ -103,6 +105,9 @@ import { TraceBehavior } from '@nestjs-pipeline/opentelemetry';
   imports: [
     CqrsModule.forRoot(),
     PipelineModule.forRoot({
+      // Bridge correlation IDs from @nestjs-pipeline/correlation into the pipeline
+      correlationIdFactory: getCorrelationId,
+      correlationIdRunner: runWithCorrelationId,
       globalBehaviors: {
         scope: 'all',                // 'commands' | 'queries' | 'events' | 'all'
         before: [LoggingBehavior],   // runs first (outermost)
@@ -111,11 +116,14 @@ import { TraceBehavior } from '@nestjs-pipeline/opentelemetry';
           ZodValidationBehavior,
         ],
       },
-      correlation: { header: 'x-correlation-id' }, // or false to disable
     }),
   ],
 })
-export class AppModule {}
+export class AppModule implements NestModule {
+  configure(consumer: MiddlewareConsumer) {
+    consumer.apply(HttpCorrelationMiddleware).forRoutes('*');
+  }
+}
 ```
 
 ### 3. Define a Command with Zod Validation
@@ -528,13 +536,37 @@ export class CreateUserHandler { /* ... */ }
 Every pipeline invocation carries a `correlationId` resolved in priority order:
 
 1. **Parent pipeline** — if a saga or nested `CommandBus.execute()` triggers a child, it inherits the parent's ID via `AsyncLocalStorage`.
-2. **`HttpCorrelationMiddleware`** — extracts from the request header (default `x-correlation-id`).
-3. **`runWithCorrelationId(id, fn)`** — for non-HTTP entry points.
-4. **`uuidv7()` fallback** — timestamp-sortable UUID when no ID is available.
+2. **`correlationIdFactory`** — user-supplied factory from `PipelineModule.forRoot()` options (e.g. `getCorrelationId` from `@nestjs-pipeline/correlation`).
+3. **`uuidv7()` fallback** — timestamp-sortable UUID when no ID is available.
+
+For full bidirectional correlation support, also provide `correlationIdRunner`. It wraps each pipeline invocation so that `getCorrelationId()` returns the pipeline's resolved ID throughout the entire handler chain — including event handlers dispatched via `eventBus.publish()`:
+
+```typescript
+import { getCorrelationId, runWithCorrelationId } from '@nestjs-pipeline/correlation';
+
+PipelineModule.forRoot({
+  correlationIdFactory: getCorrelationId,
+  correlationIdRunner: runWithCorrelationId,
+  // ...
+})
+```
 
 ### HTTP Requests
 
-Correlation IDs are extracted automatically. No code needed — just send the header:
+Install `@nestjs-pipeline/correlation` and apply `HttpCorrelationMiddleware` to extract correlation IDs from HTTP headers:
+
+```typescript
+import { HttpCorrelationMiddleware } from '@nestjs-pipeline/correlation';
+
+@Module({ /* ... */ })
+export class AppModule implements NestModule {
+  configure(consumer: MiddlewareConsumer) {
+    consumer.apply(HttpCorrelationMiddleware).forRoutes('*');
+  }
+}
+```
+
+Then send the header:
 
 ```bash
 curl -X POST http://localhost:3000/users \
@@ -545,20 +577,10 @@ curl -X POST http://localhost:3000/users \
 
 The pipeline `context.correlationId` will be `"req-abc-123"` for the entire chain. If the header is omitted, a `uuidv7()` is generated automatically.
 
-To customize the header name or disable the middleware:
-
-```typescript
-// Custom header
-PipelineModule.forRoot({ correlation: { header: 'x-request-id' } })
-
-// Disable HTTP middleware (worker-only app with no HTTP)
-PipelineModule.forRoot({ correlation: { header: false } })
-```
-
 ### Bull Queue Processor
 
 ```typescript
-import { runWithCorrelationId } from '@nestjs-pipeline/core';
+import { runWithCorrelationId } from '@nestjs-pipeline/correlation';
 import { Process, Processor } from '@nestjs/bull';
 
 @Processor('email-queue')
@@ -577,7 +599,7 @@ export class EmailProcessor {
 ### RabbitMQ Handler
 
 ```typescript
-import { runWithCorrelationId } from '@nestjs-pipeline/core';
+import { runWithCorrelationId } from '@nestjs-pipeline/correlation';
 
 @MessagePattern('user.created')
 async handle(@Payload() data: UserPayload, @Ctx() ctx: RmqContext) {
@@ -592,7 +614,7 @@ async handle(@Payload() data: UserPayload, @Ctx() ctx: RmqContext) {
 ### Cron Jobs
 
 ```typescript
-import { runWithCorrelationId, uuidv7 } from '@nestjs-pipeline/core';
+import { runWithCorrelationId, uuidv7 } from '@nestjs-pipeline/correlation';
 import { Cron } from '@nestjs/schedule';
 
 @Injectable()
@@ -631,7 +653,7 @@ export class OrderSagas {
 Instead of manually calling `runWithCorrelationId`, use the `@WithCorrelation()` method decorator for a cleaner approach. It wraps the method body in a correlation context automatically:
 
 ```typescript
-import { WithCorrelation, CorrelationFrom, getCorrelationId } from '@nestjs-pipeline/core';
+import { WithCorrelation, CorrelationFrom, getCorrelationId } from '@nestjs-pipeline/correlation';
 
 // ── Bull (reads from job.data.correlationId by default) ──
 @Process('send-email')
@@ -678,7 +700,7 @@ async hourlySync() {
 When enqueuing jobs or publishing messages, stamp the current correlation ID onto the payload or headers:
 
 ```typescript
-import { addCorrelationId, correlationHeaders, getCorrelationId } from '@nestjs-pipeline/core';
+import { addCorrelationId, correlationHeaders, getCorrelationId } from '@nestjs-pipeline/correlation';
 
 // ── Bull / BullMQ (data payload) ──
 await queue.add('send-email', addCorrelationId({ userId, email }));
@@ -1119,7 +1141,6 @@ nestjs-pipeline/
 │   │   └── src/
 │   │       ├── behaviors/        # LoggingBehavior
 │   │       ├── constants/        # pipelineStore (AsyncLocalStorage)
-│   │       ├── correlation/      # correlationStore, HttpCorrelationMiddleware
 │   │       ├── decorators/       # @UsePipeline
 │   │       ├── helpers/          # uuidv7, safeStringify
 │   │       ├── interfaces/       # IPipelineBehavior, IPipelineContext
@@ -1127,6 +1148,12 @@ nestjs-pipeline/
 │   │       ├── services/         # PipelineBootstrapService
 │   │       ├── pipeline.context.ts
 │   │       └── pipeline.module.ts
+│   ├── pipeline-correlation/      # @nestjs-pipeline/correlation
+│   │   └── src/
+│   │       ├── correlation.store.ts    # correlationStore, getCorrelationId, runWithCorrelationId
+│   │       ├── http-correlation.middleware.ts
+│   │       ├── with-correlation.decorator.ts
+│   │       └── correlation.options.ts
 │   ├── pipeline-zod/             # @nestjs-pipeline/zod
 │   │   └── src/
 │   │       ├── errors/           # ZodValidationError

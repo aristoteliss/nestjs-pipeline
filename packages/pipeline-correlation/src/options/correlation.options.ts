@@ -25,7 +25,7 @@
  */
 
 /**
- * Correlation ID configuration for the pipeline.
+ * Correlation ID configuration.
  *
  * Controls the HTTP middleware that automatically extracts correlation IDs
  * from incoming requests. For non-HTTP transports (Bull, RabbitMQ, etc.),
@@ -50,3 +50,11 @@ export interface CorrelationOptions {
    */
   header?: string | false;
 }
+
+/**
+ * Injection token for correlation options.
+ *
+ * Provided by `@nestjs-pipeline/core`'s `PipelineModule.forRoot()` or
+ * directly by the consumer when using this package standalone.
+ */
+export const CORRELATION_OPTIONS = Symbol('CORRELATION_OPTIONS');

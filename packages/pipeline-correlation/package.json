@@ -1,13 +1,13 @@
 {
-  "name": "@nestjs-pipeline/core",
-  "version": "0.1.7",
-  "description": "NestJS CQRS pipeline behavior base library",
+  "name": "@nestjs-pipeline/correlation",
+  "version": "0.1.0",
+  "description": "Correlation ID propagation for NestJS (HTTP, Bull, RabbitMQ, Kafka, gRPC, NATS, cron)",
   "author": "Aristotelis <aristotelis@ik.me>",
   "license": "SEE LICENSE IN LICENSE",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/aristoteliss/nestjs-pipeline.git",
-    "directory": "packages/pipeline"
+    "directory": "packages/pipeline-correlation"
   },
   "homepage": "https://github.com/aristoteliss/nestjs-pipeline#readme",
   "bugs": {
@@ -33,19 +33,12 @@
     "prepublishOnly": "pnpm run build"
   },
   "peerDependencies": {
-    "@nestjs/common": "^10.0.0 || ^11.0.0",
-    "@nestjs/core": "^10.0.0 || ^11.0.0",
-    "@nestjs/cqrs": "^10.0.0 || ^11.0.0",
-    "reflect-metadata": "^0.1.13 || ^0.2.0",
-    "rxjs": "^7.0.0"
+    "@nestjs/common": "^10.0.0 || ^11.0.0"
   },
   "devDependencies": {
     "@nestjs/common": "^11.0.0",
-    "@nestjs/core": "^11.0.0",
-    "@nestjs/cqrs": "^11.0.0",
     "@vitest/coverage-v8": "^4.0.18",
     "reflect-metadata": "^0.2.0",
-    "rxjs": "^7.0.0",
     "vitest": "^4.0.18"
   }
 }

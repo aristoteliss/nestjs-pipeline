@@ -39,8 +39,7 @@ export interface IPipelineContext<TRequest = any, TResponse = any> {
    *
    * Resolution order (before any behavior runs):
    * 1. Inherited from parent pipeline (saga / nested command via AsyncLocalStorage)
-   * 2. {@link correlationStore} — populated by {@link HttpCorrelationMiddleware}
-   *    or {@link runWithCorrelationId} (Bull / RabbitMQ / custom)
+   * 2. `correlationIdFactory` — user-supplied factory from module options
    * 3. Auto-generated `uuidv7()` (timestamp-sortable UUID)
    *
    * Use {@link originalCorrelationId} to access the initial value even after override.

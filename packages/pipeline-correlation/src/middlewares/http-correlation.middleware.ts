@@ -26,15 +26,16 @@
 
 import { Inject, Injectable, NestMiddleware, Optional } from '@nestjs/common';
 import { IncomingMessage, ServerResponse } from 'http';
-import { PIPELINE_MODULE_OPTIONS, PipelineModuleOptions } from '../options/pipeline-module.options';
-import { correlationStore } from './correlation.store';
+import { CORRELATION_OPTIONS, CorrelationOptions } from '../options/correlation.options';
+import { correlationStore, getCorrelationId } from '../correlation.store';
 
 /**
  * NestJS middleware that extracts a correlation ID from the incoming HTTP
  * request header and stores it in {@link correlationStore}.
  *
  * The header name defaults to `x-correlation-id` and can be customized via
- * `correlation: { header: 'x-request-id' }` in {@link PipelineModule.forRoot}.
+ * the `CORRELATION_OPTIONS` token or `correlation: { header: 'x-request-id' }`
+ * in `PipelineModule.forRoot`.
  *
  * Applied automatically unless `correlation: { header: false }` is set.
  */
@@ -44,20 +45,17 @@ export class HttpCorrelationMiddleware implements NestMiddleware {
 
   constructor(
     @Optional()
-    @Inject(PIPELINE_MODULE_OPTIONS)
-    options?: PipelineModuleOptions,
+    @Inject(CORRELATION_OPTIONS)
+    options?: CorrelationOptions,
   ) {
-    const h = options?.correlation?.header;
+    const h = options?.header;
     this.header = typeof h === 'string' ? h : 'x-correlation-id';
   }
 
   use(req: IncomingMessage, _res: ServerResponse, next: () => void): void {
-    const correlationId = req.headers?.[this.header] as string | undefined;
+    const correlationId = req.headers?.[this.header] as string | undefined
+      || getCorrelationId();
 
-    if (correlationId) {
-      correlationStore.run(correlationId, next);
-    } else {
-      next();
-    }
+    correlationStore.run(correlationId, next);
   }
 }

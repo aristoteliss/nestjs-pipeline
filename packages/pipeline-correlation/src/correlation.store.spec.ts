@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { correlationStore, runWithCorrelationId, addCorrelationId, getCorrelationId, correlationHeaders } from '../correlation/correlation.store';
+import { correlationStore, runWithCorrelationId, addCorrelationId, correlationHeaders } from './correlation.store';
 
 describe('correlationStore', () => {
   it('returns undefined when no store is active', () => {
