@@ -16,7 +16,8 @@
  * ----------------------------
  */
 
-import { runWithCorrelationId } from '../correlation.store';
+import { getCorrelationId, runWithCorrelationId } from '../correlation.store';
+import { Logger, LogLevel } from '@nestjs/common';
 
 /**
  * A function that extracts the correlation ID from the method arguments.
@@ -58,6 +59,26 @@ export interface CorrelationDecoratorOptions {
    * ```
    */
   extract?: CorrelationExtractor;
+
+  /**
+   * Log level for the start of the method execution.
+   *
+   * - Any NestJS {@link LogLevel} value routes to the corresponding
+   *   `Logger` method (`'log'`, `'debug'`, `'verbose'`, `'warn'`, `'error'`).
+   * - `'none'` suppresses the message entirely (same as not setting it).
+   *
+   * When omitted, no log message is emitted.
+   *
+   * @example
+   * ```ts
+   * // Log at 'debug' level
+   * @WithCorrelation({ logLevel: 'debug' })
+   *
+   * // Log at 'verbose' level
+   * @WithCorrelation({ logLevel: 'verbose' })
+   * ```
+   */
+  logLevel?: LogLevel | 'none';
 }
 
 /**
@@ -143,6 +164,7 @@ export function WithCorrelation(options: CorrelationDecoratorOptions): MethodDec
 export function WithCorrelation(
   pathOrOptions?: string | CorrelationDecoratorOptions,
 ): MethodDecorator {
+  const logger = new Logger(WithCorrelation.name);
   const options: CorrelationDecoratorOptions =
     typeof pathOrOptions === 'string'
       ? { path: pathOrOptions }
@@ -162,9 +184,14 @@ export function WithCorrelation(
         ? extract(...args)
         : getByPath(args[0], path);
 
-      return runWithCorrelationId(correlationId, () =>
-        originalMethod.apply(this, args),
-      );
+      return runWithCorrelationId(correlationId, () => {
+        if (options.logLevel && options.logLevel !== 'none') {
+          logger[options.logLevel](
+            `🔗 Starting ${this.constructor?.name}.${String(_propertyKey)} with correlationId: ${getCorrelationId()}`,
+          );
+        }
+        return originalMethod.apply(this, args);
+      });
     };
 
     // Preserve function name for stack traces and debugging.

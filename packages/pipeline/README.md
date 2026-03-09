@@ -656,7 +656,7 @@ orderCreated = (events$: Observable<any>): Observable<ICommand> =>
 | `globalBehaviors` | `GlobalBehaviorsOptions` | Auto-wrap all handlers |
 | `correlationIdFactory` | `() => string \| undefined` | Read the current correlation ID (e.g. `getCorrelationId`) |
 | `correlationIdRunner` | `<T>(id: string, fn: () => T) => T` | Wrap each pipeline invocation in a correlation context (e.g. `runWithCorrelationId`) |
-| `bootstrapLogLevel` | `LogLevel \| 'none'` | Log level for bootstrap messages (default `'log'`) |
+| `bootstrapLogLevel` | `LogLevel \| 'none'` | Log level for bootstrap messages (default `'debug'`) |
 
 ---
 

@@ -117,7 +117,7 @@ export function setCorrelationFallback(fn: () => string | undefined): void {
  * }
  * ```
  *
- * @param correlationId - The correlation ID to propagate. If falsy, `fn` runs without a store.
+ * @param correlationId - The correlation ID to propagate. If falsy, falls back to {@link getCorrelationId} (parent context or `uuidv7()`).
  * @param fn - The callback to execute within the correlation context.
  */
 export function runWithCorrelationId<T>(

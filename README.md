@@ -1150,10 +1150,11 @@ nestjs-pipeline/
 │   │       └── pipeline.module.ts
 │   ├── pipeline-correlation/      # @nestjs-pipeline/correlation
 │   │   └── src/
-│   │       ├── correlation.store.ts    # correlationStore, getCorrelationId, runWithCorrelationId
-│   │       ├── http-correlation.middleware.ts
-│   │       ├── with-correlation.decorator.ts
-│   │       └── correlation.options.ts
+│   │       ├── decorators/       # @WithCorrelation, CorrelationFrom
+│   │       ├── helpers/          # uuidv7
+│   │       ├── middlewares/      # HttpCorrelationMiddleware
+│   │       ├── options/          # CorrelationOptions
+│   │       └── correlation.store.ts    # correlationStore, getCorrelationId, runWithCorrelationId
 │   ├── pipeline-zod/             # @nestjs-pipeline/zod
 │   │   └── src/
 │   │       ├── errors/           # ZodValidationError

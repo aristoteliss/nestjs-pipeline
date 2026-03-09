@@ -1,7 +1,8 @@
 import 'reflect-metadata';
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { WithCorrelation, CorrelationFrom } from './with-correlation.decorator';
 import { getCorrelationId, correlationStore } from '../correlation.store';
+import { Logger } from '@nestjs/common';
 
 // ── Helpers ─────────────────────────────────────────────────
 
@@ -554,5 +555,125 @@ describe('CorrelationFrom.grpc', () => {
     const h = new Handler();
     await h.handle({}, fakeMetadata);
     expect(captured).toBe('grpc-456');
+  });
+});
+
+// ── logLevel option ─────────────────────────────────────────
+
+describe('WithCorrelation — logLevel', () => {
+  it('logs at the specified level with the resolved correlationId', async () => {
+    const debugSpy = vi.spyOn(Logger.prototype, 'debug').mockImplementation(() => {});
+
+    class Processor {
+      @WithCorrelation({ logLevel: 'debug' })
+      async handle(job: any) {
+        return getCorrelationId();
+      }
+    }
+
+    const p = new Processor();
+    await p.handle(fakeJob({ correlationId: 'log-test-123' }));
+
+    expect(debugSpy).toHaveBeenCalledOnce();
+    expect(debugSpy).toHaveBeenCalledWith(
+      expect.stringContaining('log-test-123'),
+    );
+
+    debugSpy.mockRestore();
+  });
+
+  it('logs the class and method name in the message', async () => {
+    const verboseSpy = vi.spyOn(Logger.prototype, 'verbose').mockImplementation(() => {});
+
+    class EmailProcessor {
+      @WithCorrelation({ logLevel: 'verbose' })
+      async handleSendEmail(job: any) {}
+    }
+
+    const p = new EmailProcessor();
+    await p.handleSendEmail(fakeJob({ correlationId: 'id' }));
+
+    expect(verboseSpy).toHaveBeenCalledWith(
+      expect.stringContaining('EmailProcessor.handleSendEmail'),
+    );
+
+    verboseSpy.mockRestore();
+  });
+
+  it('does not log when logLevel is omitted', async () => {
+    const debugSpy = vi.spyOn(Logger.prototype, 'debug').mockImplementation(() => {});
+    const logSpy = vi.spyOn(Logger.prototype, 'log').mockImplementation(() => {});
+
+    class Processor {
+      @WithCorrelation()
+      async handle(job: any) {}
+    }
+
+    const p = new Processor();
+    await p.handle(fakeJob({ correlationId: 'default-level' }));
+
+    expect(debugSpy).not.toHaveBeenCalled();
+    expect(logSpy).not.toHaveBeenCalled();
+
+    debugSpy.mockRestore();
+    logSpy.mockRestore();
+  });
+
+  it('does not log when logLevel is "none"', async () => {
+    const debugSpy = vi.spyOn(Logger.prototype, 'debug').mockImplementation(() => {});
+    const logSpy = vi.spyOn(Logger.prototype, 'log').mockImplementation(() => {});
+
+    class Processor {
+      @WithCorrelation({ logLevel: 'none' })
+      async handle(job: any) {}
+    }
+
+    const p = new Processor();
+    await p.handle(fakeJob({ correlationId: 'none-level' }));
+
+    expect(debugSpy).not.toHaveBeenCalled();
+    expect(logSpy).not.toHaveBeenCalled();
+
+    debugSpy.mockRestore();
+    logSpy.mockRestore();
+  });
+
+  it('logs the resolved uuidv7 when extracted ID is undefined', async () => {
+    const debugSpy = vi.spyOn(Logger.prototype, 'debug').mockImplementation(() => {});
+
+    class Processor {
+      @WithCorrelation({ logLevel: 'debug' })
+      async handle(job: any) {}
+    }
+
+    const p = new Processor();
+    await p.handle(fakeJob({})); // no correlationId → fallback to uuidv7
+
+    expect(debugSpy).toHaveBeenCalledOnce();
+    // Should log the resolved uuidv7, not "undefined"
+    expect(debugSpy).toHaveBeenCalledWith(
+      expect.not.stringContaining('undefined'),
+    );
+
+    debugSpy.mockRestore();
+  });
+
+  it('routes to the correct Logger method for each level', async () => {
+    const levels = ['log', 'debug', 'verbose', 'warn', 'error'] as const;
+
+    for (const level of levels) {
+      const spy = vi.spyOn(Logger.prototype, level).mockImplementation(() => {});
+
+      class Processor {
+        @WithCorrelation({ logLevel: level })
+        async handle(job: any) {}
+      }
+
+      const p = new Processor();
+      await p.handle(fakeJob({ correlationId: `id-${level}` }));
+
+      expect(spy).toHaveBeenCalledOnce();
+      spy.mockRestore();
+    }
   });
 });
