@@ -188,6 +188,11 @@ export type WithCorrelationId<T = Record<string, any>> = T & { correlationId: st
  *
  * Both default to the `'correlationId'` key, so they work together out of the box.
  *
+ * @throws {TypeError} If `data` is an array. Spreading an array into an object
+ * destroys its structure (indices become string keys, `length` is lost) and
+ * breaks the serialization contract on the consumer side. Wrap the array
+ * first: `addCorrelationId({ items: myArray })`.
+ *
  * @example
  * ```ts
  * // Bull / BullMQ
@@ -204,9 +209,14 @@ export type WithCorrelationId<T = Record<string, any>> = T & { correlationId: st
  *
  * // PostgreSQL NOTIFY
  * await sql`SELECT pg_notify('events', ${JSON.stringify(addCorrelationId(data))})`;
+ *
+ * // ⚠️ Arrays must be wrapped — passing one directly throws:
+ * // addCorrelationId([item1, item2]);           // ❌ TypeError
+ * addCorrelationId({ items: [item1, item2] });   // ✅
  * ```
  *
- * @param data - The payload to enrich. A shallow copy is returned; the original is not mutated.
+ * @param data - The payload to enrich. Must be a plain object, **not** an array.
+ *              A shallow copy is returned; the original is not mutated.
  * @returns A new object with `correlationId` added.
  *
  * @publicApi
@@ -214,6 +224,13 @@ export type WithCorrelationId<T = Record<string, any>> = T & { correlationId: st
 export function addCorrelationId<T extends Record<string, any>>(
   data: T,
 ): WithCorrelationId<T> {
+  if (Array.isArray(data)) {
+    throw new TypeError(
+      'addCorrelationId(data) received an array. Spreading an array into an object ' +
+      'destroys its structure and breaks the serialization contract. ' +
+      'Wrap it first: addCorrelationId({ items: myArray })',
+    );
+  }
   return { ...data, correlationId: getCorrelationId() };
 }
 

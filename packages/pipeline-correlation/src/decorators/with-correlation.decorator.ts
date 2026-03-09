@@ -65,17 +65,20 @@ export interface CorrelationDecoratorOptions {
    *
    * - Any NestJS {@link LogLevel} value routes to the corresponding
    *   `Logger` method (`'log'`, `'debug'`, `'verbose'`, `'warn'`, `'error'`).
-   * - `'none'` suppresses the message entirely (same as not setting it).
+   * - `'none'` suppresses the log message entirely.
    *
-   * When omitted, no log message is emitted.
+   * @default 'debug'
    *
    * @example
    * ```ts
-   * // Log at 'debug' level
-   * @WithCorrelation({ logLevel: 'debug' })
+   * // Uses default 'debug' level
+   * @WithCorrelation()
    *
    * // Log at 'verbose' level
    * @WithCorrelation({ logLevel: 'verbose' })
+   *
+   * // Suppress the log message
+   * @WithCorrelation({ logLevel: 'none' })
    * ```
    */
   logLevel?: LogLevel | 'none';
@@ -109,6 +112,15 @@ function getByPath(obj: any, path: string): string | undefined {
  * 3. If the extracted ID is `undefined`, `runWithCorrelationId` falls back to
  *    any parent context, then to `uuidv7()` — so a correlation ID is **always**
  *    available inside the method via {@link getCorrelationId}.
+ *
+ * **⚠️ Array payloads:**
+ * When using the default dot-path extraction, the first argument must be an
+ * object (e.g. a Bull `Job`). If it is an array, the dot-path cannot resolve
+ * and the decorator emits a `Logger.warn` at runtime. For transports that
+ * deliver an array as the first argument, use the `extract` option:
+ * ```ts
+ * @WithCorrelation({ extract: (items) => items?.[0]?.correlationId })
+ * ```
  *
  * Inside the method body, read the active ID with:
  * ```ts
@@ -180,13 +192,21 @@ export function WithCorrelation(
     const originalMethod = descriptor.value;
 
     descriptor.value = function (this: any, ...args: any[]) {
+      if (!extract && Array.isArray(args[0])) {
+        logger.warn(
+          `${this.constructor?.name}.${String(_propertyKey)}: first argument is an array — ` +
+          `dot-path "${path}" cannot extract a correlation ID from it. ` +
+          `Use the 'extract' option for array payloads.`,
+        );
+      }
+
       const correlationId = extract
         ? extract(...args)
         : getByPath(args[0], path);
 
       return runWithCorrelationId(correlationId, () => {
-        if (options.logLevel && options.logLevel !== 'none') {
-          logger[options.logLevel](
+        if (options.logLevel !== 'none') {
+          logger[options.logLevel ?? 'debug'](
             `🔗 Starting ${this.constructor?.name}.${String(_propertyKey)} with correlationId: ${getCorrelationId()}`,
           );
         }

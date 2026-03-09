@@ -17,15 +17,18 @@ import { CreateUserHandler } from './cqrs/commands/create-user.handler';
 import { UpdateUserHandler } from './cqrs/commands/update-user.handler';
 import { GetUserHandler } from './cqrs/queries/get-user.handler';
 import { UserCreatedHandler } from './cqrs/events/user-created.handler';
+import { UserUpdatedHandler } from './cqrs/events/user-updated.handler';
 import { DeleteUserHandler } from './cqrs/commands/delete-user.handler';
 import { GetUsersHandler } from './cqrs/queries/get-uses.handler';
 import { InMemoryUserRepository } from './repositories/in-memory-user.repository';
 import { USER_REPOSITORY } from './repositories/user.repository.interface';
 import { SendWelcomeEmailProcessor, WELCOME_EMAIL_QUEUE } from './jobs/send-welcome-email.processor';
+import { BatchUpdateUsersProcessor, BATCH_UPDATE_USERS_QUEUE } from './jobs/batch-update-users.processor';
 
 @Module({
   imports: [
     BullModule.registerQueue({ name: WELCOME_EMAIL_QUEUE }),
+    BullModule.registerQueue({ name: BATCH_UPDATE_USERS_QUEUE }),
   ],
   controllers: [UsersController],
   providers: [
@@ -43,9 +46,11 @@ import { SendWelcomeEmailProcessor, WELCOME_EMAIL_QUEUE } from './jobs/send-welc
 
     // Events
     UserCreatedHandler,
+    UserUpdatedHandler,
 
     // Job Processors
     SendWelcomeEmailProcessor,
+    BatchUpdateUsersProcessor,
   ],
 })
 export class UsersModule {}

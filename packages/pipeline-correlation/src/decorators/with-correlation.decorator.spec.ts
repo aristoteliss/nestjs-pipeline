@@ -335,6 +335,44 @@ describe('WithCorrelation — this context & meta', () => {
 // ── Edge cases ──────────────────────────────────────────────
 
 describe('WithCorrelation — edge cases', () => {
+  it('warns when first argument is an array and dot-path is used', async () => {
+    const warnSpy = vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => {});
+
+    class Processor {
+      @WithCorrelation()
+      async handle(_job: any) {
+        return getCorrelationId();
+      }
+    }
+
+    const p = new Processor();
+    await p.handle([{ correlationId: 'in-array' }] as any);
+
+    expect(warnSpy).toHaveBeenCalledOnce();
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.stringContaining('first argument is an array'),
+    );
+
+    warnSpy.mockRestore();
+  });
+
+  it('does not warn for array when custom extract is provided', async () => {
+    const warnSpy = vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => {});
+
+    class Processor {
+      @WithCorrelation({ extract: (data: any) => data?.[0]?.correlationId })
+      async handle(_job: any) {
+        return getCorrelationId();
+      }
+    }
+
+    const p = new Processor();
+    await p.handle([{ correlationId: 'arr-extract' }] as any);
+
+    expect(warnSpy).not.toHaveBeenCalled();
+    warnSpy.mockRestore();
+  });
+
   it('handles undefined first argument (generates uuidv7)', async () => {
     let captured: string | undefined;
 
@@ -600,9 +638,8 @@ describe('WithCorrelation — logLevel', () => {
     verboseSpy.mockRestore();
   });
 
-  it('does not log when logLevel is omitted', async () => {
+  it('logs at debug level when logLevel is omitted', async () => {
     const debugSpy = vi.spyOn(Logger.prototype, 'debug').mockImplementation(() => {});
-    const logSpy = vi.spyOn(Logger.prototype, 'log').mockImplementation(() => {});
 
     class Processor {
       @WithCorrelation()
@@ -612,11 +649,12 @@ describe('WithCorrelation — logLevel', () => {
     const p = new Processor();
     await p.handle(fakeJob({ correlationId: 'default-level' }));
 
-    expect(debugSpy).not.toHaveBeenCalled();
-    expect(logSpy).not.toHaveBeenCalled();
+    expect(debugSpy).toHaveBeenCalledOnce();
+    expect(debugSpy).toHaveBeenCalledWith(
+      expect.stringContaining('default-level'),
+    );
 
     debugSpy.mockRestore();
-    logSpy.mockRestore();
   });
 
   it('does not log when logLevel is "none"', async () => {

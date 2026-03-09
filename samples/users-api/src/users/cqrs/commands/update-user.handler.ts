@@ -11,8 +11,9 @@
  * companies that do not wish to be bound by the AGPL terms. Contact Aristotelis for details.
  */
 import { Scope, Inject } from '@nestjs/common';
-import { CommandHandler, ICommandHandler } from '@nestjs/cqrs';
+import { CommandHandler, EventBus, ICommandHandler } from '@nestjs/cqrs';
 import { UpdateUserCommand } from './update-user.command';
+import { UserUpdatedEvent } from '../events/user-updated.event';
 import { LoggingBehavior, UsePipeline } from '@nestjs-pipeline/core';
 import { User } from '../../domain/user.entity';
 import { IUserRepository, USER_REPOSITORY } from '../../repositories/user.repository.interface';
@@ -24,12 +25,19 @@ import { IUserRepository, USER_REPOSITORY } from '../../repositories/user.reposi
 export class UpdateUserHandler implements ICommandHandler<UpdateUserCommand, User> {
   constructor(
     @Inject(USER_REPOSITORY) private readonly userRepository: IUserRepository,
+    private readonly eventBus: EventBus,
   ) {}
 
   async execute(command: UpdateUserCommand): Promise<User> {
     const user = this.userRepository.findById(command.id);
     user.rename(command.username);
     this.userRepository.save(user);
+
+    this.eventBus.publish(new UserUpdatedEvent({
+      userId: user.id,
+      username: user.username,
+    }));
+
     return user;
   }
 }

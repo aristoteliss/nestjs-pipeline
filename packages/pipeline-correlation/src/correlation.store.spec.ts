@@ -104,6 +104,17 @@ describe('addCorrelationId', () => {
     });
     expect(result).toEqual({ ...data, correlationId: 'preserve-test' });
   });
+
+  it('throws TypeError when data is an array', () => {
+    expect(() => addCorrelationId([{ id: 1 }, { id: 2 }] as any)).toThrow(TypeError);
+    expect(() => addCorrelationId([{ id: 1 }, { id: 2 }] as any)).toThrow(
+      /received an array/,
+    );
+  });
+
+  it('throws TypeError for empty array', () => {
+    expect(() => addCorrelationId([] as any)).toThrow(TypeError);
+  });
 });
 
 describe('correlationHeaders', () => {
