@@ -161,6 +161,9 @@ export class PipelineBootstrapService implements OnApplicationBootstrap {
     const originalMethod = target[methodName];
     if (typeof originalMethod !== 'function') return;
 
+    // Guard against double-wrapping (e.g. HMR re-bootstrap)
+    if ((originalMethod as any).__pipelined) return;
+
     // ── Pre-resolve everything at bootstrap ──
 
     // 1. Resolve behavior instances once (singletons — no per-request DI lookups)
@@ -204,6 +207,12 @@ export class PipelineBootstrapService implements OnApplicationBootstrap {
       );
     }
 
+    // Pre-capture singleton behavior array once — avoids allocating a new
+    // array on every invocation in the common all-singletons fast path.
+    const singletonBehaviors: IPipelineBehavior[] = dynamicIndices.size === 0
+      ? behaviorTypes.map((_, i) => resolvedBehaviors.get(i)!)
+      : [];
+
     const moduleRef = this.moduleRef;
     const correlationIdFactory = this.options?.correlationIdFactory;
     const correlationIdRunner = this.options?.correlationIdRunner;
@@ -230,14 +239,14 @@ export class PipelineBootstrapService implements OnApplicationBootstrap {
           ),
         );
       } else {
-        // Fast path — all singletons, no copy needed
-        localBehaviors = behaviorTypes.map((_, i) => resolvedBehaviors.get(i)!);
+        // Fast path — all singletons, reuse pre-captured array (zero allocation)
+        localBehaviors = singletonBehaviors;
       }
 
       // Eagerly resolve correlationId BEFORE any behavior runs.
       // Priority: parent context (saga) > correlationIdFactory > uuidv7()
       if (!context.correlationId) {
-        context.correlationId = correlationIdFactory?.() || uuidv7();
+        context.correlationId = correlationIdFactory?.() ?? uuidv7();
       }
 
       // Lock the original value — immutable from this point forward.
@@ -269,6 +278,9 @@ export class PipelineBootstrapService implements OnApplicationBootstrap {
       }
       return runChain();
     };
+
+    // Mark as pipelined to prevent double-wrapping on HMR re-bootstrap
+    (target[methodName] as any).__pipelined = true;
   }
 
   // ── Global behavior resolution ──

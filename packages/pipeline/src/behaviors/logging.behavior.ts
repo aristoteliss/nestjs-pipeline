@@ -82,7 +82,6 @@ export class LoggingBehavior implements IPipelineBehavior {
         `${context.requestName} → ${context.handlerName} failed after ${duration}ms: ` +
         `${err.name}: ${err.message}`,
       );
-      this.log(requestResponseLogLevel, `Request: ${safeStringify(context.request)}`);
       throw error;
     }
   }

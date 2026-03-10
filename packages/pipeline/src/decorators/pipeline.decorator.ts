@@ -65,6 +65,19 @@ export function getBehaviorId(cls: Type<IPipelineBehavior>): string {
 export const PIPELINE_OPTIONS_REGISTRY = new Map<string, Map<string, Record<string, any>>>();
 
 /**
+ * Clears the static options registry. Useful in test teardown to prevent
+ * stale entries from leaking across test suites (Jest --watch, module reloads).
+ *
+ * @example
+ * ```ts
+ * afterEach(() => clearPipelineOptionsRegistry());
+ * ```
+ */
+export function clearPipelineOptionsRegistry(): void {
+  PIPELINE_OPTIONS_REGISTRY.clear();
+}
+
+/**
  * A pipeline behavior entry can be either:
  * - A behavior class: `LoggingBehavior`
  * - A tuple of behavior class and options: `[AuditBehavior, { title: '...', message: '...' }]`
