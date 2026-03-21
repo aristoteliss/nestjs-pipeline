@@ -29,17 +29,17 @@ export class InMemoryUserRepository implements IUserRepository {
   private readonly store = new Map<string, UserSnapshot>();
 
   save(user: User): void {
-    this.store.set(user.id, user.toSnapshot());
+    this.store.set(user.id, user.toJSON());
   }
 
   findById(id: string): User {
     const snapshot = this.store.get(id);
     if (!snapshot) throw new NotFoundException(`User ${id} not found`);
-    return User.reconstitute(snapshot);
+    return User.fromJSON(snapshot);
   }
 
   findAll(): User[] {
-    return Array.from(this.store.values()).map(User.reconstitute);
+    return Array.from(this.store.values()).map(User.fromJSON);
   }
 
   delete(id: string): void {

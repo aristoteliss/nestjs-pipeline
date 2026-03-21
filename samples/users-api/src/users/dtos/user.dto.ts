@@ -23,7 +23,7 @@ export const UserResponseDtoSchema = z.object({
 export type UserResponseDto = z.output<typeof UserResponseDtoSchema>;
 
 export function toResponseDto(user: User): UserResponseDto {
-  const result = UserResponseDtoSchema.safeParse(user.toSnapshot());
+  const result = UserResponseDtoSchema.safeParse(user.toJSON());
   if (!result.success) throw new InternalServerErrorException('Response mapping failed');
   return result.data;
 }

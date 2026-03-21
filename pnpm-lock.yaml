@@ -94,6 +94,12 @@ importers:
         specifier: ^4.0.0
         version: 4.3.6
 
+  samples/core:
+    dependencies:
+      '@nestjs-pipeline/core':
+        specifier: workspace:*
+        version: link:../../packages/pipeline
+
   samples/users-api:
     dependencies:
       '@nestjs-pipeline/core':
@@ -105,6 +111,9 @@ importers:
       '@nestjs-pipeline/opentelemetry':
         specifier: workspace:*
         version: link:../../packages/pipeline-opentelemetry
+      '@nestjs-pipeline/sample-core':
+        specifier: workspace:*
+        version: link:../core
       '@nestjs-pipeline/zod':
         specifier: workspace:*
         version: link:../../packages/pipeline-zod
