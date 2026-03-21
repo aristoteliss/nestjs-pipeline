@@ -31,7 +31,7 @@ export * from './constants/pipeline-context.constants';
 export * from './options';
 export * from './decorators';
 export * from './pipeline.context';
-export { uuidv7 } from './helpers/uuidv7';
+export { uuidv7, isUuidV7 } from './helpers/uuidv7';
 export * from './behaviors/logging.behavior';
 export * from './services/pipeline.bootstrap.service';
 export * from './pipeline.module';
