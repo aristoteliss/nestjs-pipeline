@@ -31,17 +31,14 @@ import {
   SendWelcomeEmailProcessor,
   WELCOME_EMAIL_QUEUE,
 } from './jobs/send-welcome-email.processor';
-import { CreateUserPersistence } from './persistence/create-user.persistence';
-import { DeleteUserPersistence } from './persistence/delete-user.persistence';
-import { GetUserRetrieve } from './persistence/get-user.retrieve';
-import { GetUsersRetrieve } from './persistence/get-users.retrieve';
-import {
-  COMMAND_REPOSITORY,
-  QUERY_REPOSITORY,
-} from './persistence/persistence.tokens';
-import { UpdateUserPersistence } from './persistence/update-user.persistence';
+import { CreateUserCommandRepository } from './persistence/create-user.command-repository';
+import { DeleteUserCommandRepository } from './persistence/delete-user.command-repository';
+import { GetUserQueryRepository } from './persistence/get-user.query-repository';
+import { GetUsersQueryRepository } from './persistence/get-users.query-repository';
+import { UpdateUserCommandRepository } from './persistence/update-user.command-repository';
 import { InMemoryUserRepository } from './repositories/in-memory-user.repository';
 import { USER_REPOSITORY } from './repositories/user.repository.interface';
+import { COMMAND_REPOSITORY, QUERY_REPOSITORY } from './repository.tokens';
 
 @Module({
   imports: [
@@ -58,20 +55,20 @@ import { USER_REPOSITORY } from './repositories/user.repository.interface';
     // Repositories (Command)
     {
       provide: COMMAND_REPOSITORY.createUser,
-      useClass: CreateUserPersistence,
+      useClass: CreateUserCommandRepository,
     },
     {
       provide: COMMAND_REPOSITORY.updateUser,
-      useClass: UpdateUserPersistence,
+      useClass: UpdateUserCommandRepository,
     },
     {
       provide: COMMAND_REPOSITORY.deleteUser,
-      useClass: DeleteUserPersistence,
+      useClass: DeleteUserCommandRepository,
     },
 
     // Repositories (Query)
-    { provide: QUERY_REPOSITORY.getUser, useClass: GetUserRetrieve },
-    { provide: QUERY_REPOSITORY.getUsers, useClass: GetUsersRetrieve },
+    { provide: QUERY_REPOSITORY.getUser, useClass: GetUserQueryRepository },
+    { provide: QUERY_REPOSITORY.getUsers, useClass: GetUsersQueryRepository },
 
     // Queries
     GetUserHandler,

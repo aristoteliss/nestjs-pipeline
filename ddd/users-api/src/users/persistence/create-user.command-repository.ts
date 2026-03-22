@@ -5,7 +5,7 @@ import { UserSnapshot } from '../domain/models/user.entity';
 import { UserCreateOutcome } from '../domain/outcomes/user-create.outcome';
 
 @Injectable()
-export class CreateUserPersistence
+export class CreateUserCommandRepository
   implements ICommandRepository<UserCreateOutcome>
 {
   constructor(private readonly store: MemoryStore<UserSnapshot>) {}

@@ -20,7 +20,7 @@ import {
 } from '@nestjs-pipeline/ddd-core';
 import { User } from '../../domain/models/user.entity';
 import { UserCreateOutcome } from '../../domain/outcomes/user-create.outcome';
-import { COMMAND_REPOSITORY } from '../../persistence/persistence.tokens';
+import { COMMAND_REPOSITORY } from '../../repository.tokens';
 import { CreateUserCommand } from './create-user.command';
 
 @CommandHandler(CreateUserCommand)

@@ -5,7 +5,7 @@ import { UserSnapshot } from '../domain/models/user.entity';
 import { UserUpdateOutcome } from '../domain/outcomes/user-update.outcome';
 
 @Injectable()
-export class DeleteUserPersistence
+export class UpdateUserCommandRepository
   implements ICommandRepository<UserUpdateOutcome>
 {
   constructor(private readonly store: MemoryStore<UserSnapshot>) {}
@@ -13,7 +13,7 @@ export class DeleteUserPersistence
   async save(command: UserUpdateOutcome): Promise<unknown> {
     const { entity } = command;
 
-    await this.store.delete(entity.id);
+    await this.store.save(entity.id, entity.toJSON());
 
     return;
   }

@@ -5,7 +5,7 @@ import { MemoryStore } from '../db/memory-store';
 import { User, UserSnapshot } from '../domain/models/user.entity';
 
 @Injectable()
-export class GetUsersRetrieve
+export class GetUsersQueryRepository
   implements IQueryRepository<GetUsersQuery, User[]>
 {
   constructor(private readonly store: MemoryStore<UserSnapshot>) {}
