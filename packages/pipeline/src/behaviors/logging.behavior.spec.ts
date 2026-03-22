@@ -1,9 +1,14 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { LoggingBehavior, LoggingBehaviorOptions } from '../behaviors/logging.behavior';
-import { IPipelineContext } from '../interfaces/pipeline.context.interface';
 import { Type } from '@nestjs/common';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import {
+  LoggingBehavior,
+  LoggingBehaviorOptions,
+} from '../behaviors/logging.behavior';
+import { IPipelineContext } from '../interfaces/pipeline.context.interface';
 
-function createMockContext(overrides: Partial<IPipelineContext> = {}): IPipelineContext {
+function createMockContext(
+  overrides: Partial<IPipelineContext> = {},
+): IPipelineContext {
   return {
     correlationId: 'test-corr-id',
     originalCorrelationId: 'test-corr-id',

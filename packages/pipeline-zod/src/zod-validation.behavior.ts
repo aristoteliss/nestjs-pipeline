@@ -7,13 +7,17 @@
  * License, or (at your option) any later version.
  *
  * --- COMMERCIAL EXCEPTION ---
- * Alternatively, a Commercial License is available for individuals or 
+ * Alternatively, a Commercial License is available for individuals or
  * companies that do not wish to be bound by the AGPL terms. Contact Aristotelis for details.
  */
 import { Injectable } from '@nestjs/common';
+import {
+  IPipelineBehavior,
+  IPipelineContext,
+  NextDelegate,
+  untyped,
+} from '@nestjs-pipeline/core';
 import { ZodType } from 'zod';
-import { IPipelineBehavior, NextDelegate } from '@nestjs-pipeline/core';
-import { IPipelineContext } from '@nestjs-pipeline/core';
 import { ZodValidationError } from './errors/zod-validation.error';
 
 /**
@@ -82,8 +86,13 @@ export const ZOD_SCHEMA = ZOD_SCHEMA_KEY;
  */
 @Injectable()
 export class ZodValidationBehavior implements IPipelineBehavior {
-  async handle(context: IPipelineContext, next: NextDelegate): Promise<any> {
-    const schema = (context.requestType as any)[ZOD_SCHEMA_KEY] as ZodType | undefined;
+  async handle(
+    context: IPipelineContext,
+    next: NextDelegate,
+  ): Promise<unknown> {
+    const schema = untyped(context.requestType)[ZOD_SCHEMA_KEY] as
+      | ZodType
+      | undefined;
 
     if (schema) {
       const result = schema.safeParse(context.request);

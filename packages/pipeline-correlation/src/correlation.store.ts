@@ -7,11 +7,11 @@
  * License, or (at your option) any later version.
  *
  * --- COMMERCIAL EXCEPTION ---
- * Alternatively, a Commercial License is available for individuals or 
- * organizations that require proprietary use without the AGPLv3 
- * copyleft restrictions. 
+ * Alternatively, a Commercial License is available for individuals or
+ * organizations that require proprietary use without the AGPLv3
+ * copyleft restrictions.
  *
- * See COMMERCIAL_LICENSE.txt in this repository for the tiered 
+ * See COMMERCIAL_LICENSE.txt in this repository for the tiered
  * revenue-based terms, or contact: aristotelis@ik.me
  * ----------------------------
  *
@@ -24,7 +24,7 @@
  * along with this program. If not, see <https://www.gnu.org/licenses/>.
  */
 
-import { AsyncLocalStorage } from 'async_hooks';
+import { AsyncLocalStorage } from 'node:async_hooks';
 import { uuidv7 } from './helpers/uuidv7';
 
 /**
@@ -177,7 +177,9 @@ export function getCorrelationId(): string {
  *
  * @publicApi
  */
-export type WithCorrelationId<T = Record<string, any>> = T & { correlationId: string };
+export type WithCorrelationId<T = Record<string, unknown>> = T & {
+  correlationId: string;
+};
 
 /**
  * Stamp the current correlation ID onto a data object.
@@ -221,14 +223,14 @@ export type WithCorrelationId<T = Record<string, any>> = T & { correlationId: st
  *
  * @publicApi
  */
-export function addCorrelationId<T extends Record<string, any>>(
+export function addCorrelationId<T extends Record<string, unknown>>(
   data: T,
 ): WithCorrelationId<T> {
   if (Array.isArray(data)) {
     throw new TypeError(
       'addCorrelationId(data) received an array. Spreading an array into an object ' +
-      'destroys its structure and breaks the serialization contract. ' +
-      'Wrap it first: addCorrelationId({ items: myArray })',
+        'destroys its structure and breaks the serialization contract. ' +
+        'Wrap it first: addCorrelationId({ items: myArray })',
     );
   }
   return { ...data, correlationId: getCorrelationId() };

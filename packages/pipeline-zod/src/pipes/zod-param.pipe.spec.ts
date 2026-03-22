@@ -7,13 +7,14 @@
  * License, or (at your option) any later version.
  *
  * --- COMMERCIAL EXCEPTION ---
- * Alternatively, a Commercial License is available for individuals or 
+ * Alternatively, a Commercial License is available for individuals or
  * companies that do not wish to be bound by the AGPL terms. Contact Aristotelis for details.
  */
-import { describe, it, expect } from 'vitest';
-import { ZodPipe } from './zod-param.pipe';
+
 import { BadRequestException } from '@nestjs/common';
+import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
+import { ZodPipe } from './zod-param.pipe';
 
 // ---------------------------------------------------------------------------
 // Tests
@@ -82,7 +83,9 @@ describe('ZodPipe', () => {
       const schema = z.object({ id: z.string().uuid() });
       type Out = z.infer<typeof schema>;
       const pipe = new ZodPipe<Out, unknown>(schema);
-      const result = pipe.transform({ id: '018e0d5c-4ef6-7000-b7c8-a1e6bc5c9e70' });
+      const result = pipe.transform({
+        id: '018e0d5c-4ef6-7000-b7c8-a1e6bc5c9e70',
+      });
       expect(result.id).toBe('018e0d5c-4ef6-7000-b7c8-a1e6bc5c9e70');
     });
   });

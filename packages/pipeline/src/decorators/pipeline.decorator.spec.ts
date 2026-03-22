@@ -1,13 +1,16 @@
-import { describe, it, expect } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import {
-  UsePipeline,
+  getBehaviorId,
+  PIPELINE_BEHAVIOR_ID,
   PIPELINE_BEHAVIORS_METADATA,
   PIPELINE_BEHAVIORS_OPTIONS_METADATA,
   PIPELINE_OPTIONS_REGISTRY,
-  getBehaviorId,
-  PIPELINE_BEHAVIOR_ID,
+  UsePipeline,
 } from '../decorators/pipeline.decorator';
-import { IPipelineBehavior, NextDelegate } from '../interfaces/pipeline.behavior.interface';
+import {
+  IPipelineBehavior,
+  NextDelegate,
+} from '../interfaces/pipeline.behavior.interface';
 import { IPipelineContext } from '../interfaces/pipeline.context.interface';
 
 // ── Test behaviors ──────────────────────────────────────────
@@ -38,7 +41,10 @@ describe('@UsePipeline decorator', () => {
     @UsePipeline(BehaviorA, BehaviorB)
     class TestHandler {}
 
-    const behaviors = Reflect.getMetadata(PIPELINE_BEHAVIORS_METADATA, TestHandler);
+    const behaviors = Reflect.getMetadata(
+      PIPELINE_BEHAVIORS_METADATA,
+      TestHandler,
+    );
     expect(behaviors).toEqual([BehaviorA, BehaviorB]);
   });
 
@@ -46,7 +52,7 @@ describe('@UsePipeline decorator', () => {
     @UsePipeline(BehaviorA)
     class TestHandler {}
 
-    const options: Map<string, Record<string, any>> = Reflect.getMetadata(
+    const options: Map<string, Record<string, unknown>> = Reflect.getMetadata(
       PIPELINE_BEHAVIORS_OPTIONS_METADATA,
       TestHandler,
     );
@@ -60,10 +66,13 @@ describe('@UsePipeline decorator', () => {
     @UsePipeline([BehaviorA, opts], BehaviorB)
     class TestHandler {}
 
-    const behaviors = Reflect.getMetadata(PIPELINE_BEHAVIORS_METADATA, TestHandler);
+    const behaviors = Reflect.getMetadata(
+      PIPELINE_BEHAVIORS_METADATA,
+      TestHandler,
+    );
     expect(behaviors).toEqual([BehaviorA, BehaviorB]);
 
-    const options: Map<string, Record<string, any>> = Reflect.getMetadata(
+    const options: Map<string, Record<string, unknown>> = Reflect.getMetadata(
       PIPELINE_BEHAVIORS_OPTIONS_METADATA,
       TestHandler,
     );
@@ -95,7 +104,7 @@ describe('@UsePipeline decorator', () => {
     @UsePipeline([BehaviorA, optsA], [BehaviorB, optsB])
     class MultiOptionsHandler {}
 
-    const options: Map<string, Record<string, any>> = Reflect.getMetadata(
+    const options: Map<string, Record<string, unknown>> = Reflect.getMetadata(
       PIPELINE_BEHAVIORS_OPTIONS_METADATA,
       MultiOptionsHandler,
     );
@@ -110,10 +119,13 @@ describe('@UsePipeline decorator', () => {
     @UsePipeline(BehaviorA, [BehaviorB, optsB])
     class MixedHandler {}
 
-    const behaviors = Reflect.getMetadata(PIPELINE_BEHAVIORS_METADATA, MixedHandler);
+    const behaviors = Reflect.getMetadata(
+      PIPELINE_BEHAVIORS_METADATA,
+      MixedHandler,
+    );
     expect(behaviors).toEqual([BehaviorA, BehaviorB]);
 
-    const options: Map<string, Record<string, any>> = Reflect.getMetadata(
+    const options: Map<string, Record<string, unknown>> = Reflect.getMetadata(
       PIPELINE_BEHAVIORS_OPTIONS_METADATA,
       MixedHandler,
     );

@@ -7,11 +7,11 @@
  * License, or (at your option) any later version.
  *
  * --- COMMERCIAL EXCEPTION ---
- * Alternatively, a Commercial License is available for individuals or 
- * organizations that require proprietary use without the AGPLv3 
- * copyleft restrictions. 
+ * Alternatively, a Commercial License is available for individuals or
+ * organizations that require proprietary use without the AGPLv3
+ * copyleft restrictions.
  *
- * See COMMERCIAL_LICENSE.txt in this repository for the tiered 
+ * See COMMERCIAL_LICENSE.txt in this repository for the tiered
  * revenue-based terms, or contact: aristotelis@ik.me
  * ----------------------------
  *
@@ -24,10 +24,13 @@
  * along with this program. If not, see <https://www.gnu.org/licenses/>.
  */
 
+import { IncomingMessage, ServerResponse } from 'node:http';
 import { Inject, Injectable, NestMiddleware, Optional } from '@nestjs/common';
-import { IncomingMessage, ServerResponse } from 'http';
-import { CORRELATION_OPTIONS, CorrelationOptions } from '../options/correlation.options';
 import { correlationStore, getCorrelationId } from '../correlation.store';
+import {
+  CORRELATION_OPTIONS,
+  CorrelationOptions,
+} from '../options/correlation.options';
 
 /**
  * NestJS middleware that extracts a correlation ID from the incoming HTTP
@@ -54,7 +57,8 @@ export class HttpCorrelationMiddleware implements NestMiddleware {
 
   use(req: IncomingMessage, _res: ServerResponse, next: () => void): void {
     const raw = req.headers?.[this.header];
-    const correlationId = (Array.isArray(raw) ? raw[0] : raw) || getCorrelationId();
+    const correlationId =
+      (Array.isArray(raw) ? raw[0] : raw) || getCorrelationId();
 
     correlationStore.run(correlationId, next);
   }

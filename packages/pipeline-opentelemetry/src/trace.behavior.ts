@@ -7,11 +7,11 @@
  * License, or (at your option) any later version.
  *
  * --- COMMERCIAL EXCEPTION ---
- * Alternatively, a Commercial License is available for individuals or 
- * organizations that require proprietary use without the AGPLv3 
- * copyleft restrictions. 
+ * Alternatively, a Commercial License is available for individuals or
+ * organizations that require proprietary use without the AGPLv3
+ * copyleft restrictions.
  *
- * See COMMERCIAL_LICENSE.txt in this repository for the tiered 
+ * See COMMERCIAL_LICENSE.txt in this repository for the tiered
  * revenue-based terms, or contact: aristotelis@ik.me
  * ----------------------------
  *
@@ -24,10 +24,19 @@
  * along with this program. If not, see <https://www.gnu.org/licenses/>.
  */
 
-
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
-import { IPipelineBehavior, IPipelineContext, NextDelegate } from '@nestjs-pipeline/core';
-import { trace, SpanStatusCode, SpanKind, Attributes } from '@opentelemetry/api';
+import {
+  IPipelineBehavior,
+  IPipelineContext,
+  NextDelegate,
+  untyped,
+} from '@nestjs-pipeline/core';
+import {
+  Attributes,
+  SpanKind,
+  SpanStatusCode,
+  trace,
+} from '@opentelemetry/api';
 
 /** Options for the TraceBehavior. */
 export interface TraceBehaviorOptions {
@@ -49,7 +58,7 @@ const TRACER_NAME = 'nestjs-pipeline';
  * and return undefined ourselves so callers can skip span creation entirely.
  */
 function isSdkInitialized(): boolean {
-  const provider = trace.getTracerProvider() as any;
+  const provider = untyped(trace.getTracerProvider());
   if (typeof provider?.getDelegate !== 'function') return false;
   const delegate = provider.getDelegate();
   return !!delegate && typeof delegate.getTracer === 'function';
@@ -67,25 +76,28 @@ export class TraceBehavior implements IPipelineBehavior, OnModuleInit {
     if (!this.sdkReady) {
       this.logger.warn(
         'OpenTelemetry SDK is NOT initialized — TraceBehavior will pass through without tracing. ' +
-        'Ensure your tracing bootstrap runs BEFORE NestFactory.create() ' +
-        '(import "./tracing" as the first line of main.ts, or use --require ./tracing.js).',
+          'Ensure your tracing bootstrap runs BEFORE NestFactory.create() ' +
+          '(import "./tracing" as the first line of main.ts, or use --require ./tracing.js).',
       );
     } else {
-      this.logger.log('OpenTelemetry tracer provider is active — spans will be emitted.');
+      this.logger.log(
+        'OpenTelemetry tracer provider is active — spans will be emitted.',
+      );
     }
   }
 
   async handle(
     context: IPipelineContext,
     next: NextDelegate,
-  ): Promise<any> {
+  ): Promise<unknown> {
     // sdkReady is false when SDK was not initialized — skip span creation entirely.
     // trace.getTracer() would NOT throw here, but would silently discard all spans.
     if (!this.sdkReady) {
       return next();
     }
 
-    const options = context.getBehaviorOptions<TraceBehaviorOptions>(TraceBehavior);
+    const options =
+      context.getBehaviorOptions<TraceBehaviorOptions>(TraceBehavior);
     // Per-handler tracerName wins; falls back to the package default.
     const tracer = trace.getTracer(options?.tracerName ?? TRACER_NAME);
     const spanName = `${context.requestKind}.${context.requestName}`;
@@ -106,9 +118,14 @@ export class TraceBehavior implements IPipelineBehavior, OnModuleInit {
           const result = await next();
           span.setStatus({ code: SpanStatusCode.OK });
           return result;
-        } catch (err: any) {
-          span.recordException(err);
-          span.setStatus({ code: SpanStatusCode.ERROR, message: err?.message });
+        } catch (err: unknown) {
+          if (err instanceof Error) {
+            span.recordException(err);
+          }
+          span.setStatus({
+            code: SpanStatusCode.ERROR,
+            message: untyped(err)?.message as string,
+          });
           throw err;
         } finally {
           span.end();

@@ -7,11 +7,11 @@
  * License, or (at your option) any later version.
  *
  * --- COMMERCIAL EXCEPTION ---
- * Alternatively, a Commercial License is available for individuals or 
- * organizations that require proprietary use without the AGPLv3 
- * copyleft restrictions. 
+ * Alternatively, a Commercial License is available for individuals or
+ * organizations that require proprietary use without the AGPLv3
+ * copyleft restrictions.
  *
- * See COMMERCIAL_LICENSE.txt in this repository for the tiered 
+ * See COMMERCIAL_LICENSE.txt in this repository for the tiered
  * revenue-based terms, or contact: aristotelis@ik.me
  * ----------------------------
  *
@@ -27,9 +27,12 @@
 import 'reflect-metadata';
 import { Type } from '@nestjs/common';
 import { IPipelineBehavior } from '../interfaces/pipeline.behavior.interface';
+import { untyped } from '../types/safe-typing';
 
 export const PIPELINE_BEHAVIORS_METADATA = Symbol('PIPELINE_BEHAVIORS');
-export const PIPELINE_BEHAVIORS_OPTIONS_METADATA = Symbol('PIPELINE_BEHAVIORS_OPTIONS');
+export const PIPELINE_BEHAVIORS_OPTIONS_METADATA = Symbol(
+  'PIPELINE_BEHAVIORS_OPTIONS',
+);
 
 /**
  * Optional static property on a behavior class that provides a stable,
@@ -53,7 +56,7 @@ export const PIPELINE_BEHAVIOR_ID = Symbol('PIPELINE_BEHAVIOR_ID');
  * Prefers the explicit `PIPELINE_BEHAVIOR_ID` symbol, falls back to `cls.name`.
  */
 export function getBehaviorId(cls: Type<IPipelineBehavior>): string {
-  return (cls as any)[PIPELINE_BEHAVIOR_ID] ?? cls.name;
+  return (untyped(cls)[PIPELINE_BEHAVIOR_ID] as string) ?? cls.name;
 }
 
 /**
@@ -62,7 +65,10 @@ export function getBehaviorId(cls: Type<IPipelineBehavior>): string {
  *
  * Available immediately after module load — no runtime scanning needed.
  */
-export const PIPELINE_OPTIONS_REGISTRY = new Map<string, Map<string, Record<string, any>>>();
+export const PIPELINE_OPTIONS_REGISTRY = new Map<
+  string,
+  Map<string, Record<string, unknown>>
+>();
 
 /**
  * Clears the static options registry. Useful in test teardown to prevent
@@ -84,7 +90,7 @@ export function clearPipelineOptionsRegistry(): void {
  */
 export type PipelineBehaviorEntry =
   | Type<IPipelineBehavior>
-  | [Type<IPipelineBehavior>, Record<string, any>];
+  | [Type<IPipelineBehavior>, Record<string, unknown>];
 
 /**
  * Decorator applied to a @CommandHandler, @QueryHandler, OR @EventsHandler class
@@ -112,9 +118,9 @@ export type PipelineBehaviorEntry =
 export function UsePipeline(
   ...entries: PipelineBehaviorEntry[]
 ): ClassDecorator {
-  return (target: Function) => {
+  return (target) => {
     const behaviors: Type<IPipelineBehavior>[] = [];
-    const options = new Map<string, Record<string, any>>();
+    const options = new Map<string, Record<string, unknown>>();
 
     for (const entry of entries) {
       if (Array.isArray(entry)) {
@@ -126,7 +132,11 @@ export function UsePipeline(
     }
 
     Reflect.defineMetadata(PIPELINE_BEHAVIORS_METADATA, behaviors, target);
-    Reflect.defineMetadata(PIPELINE_BEHAVIORS_OPTIONS_METADATA, options, target);
+    Reflect.defineMetadata(
+      PIPELINE_BEHAVIORS_OPTIONS_METADATA,
+      options,
+      target,
+    );
 
     if (options.size > 0) {
       PIPELINE_OPTIONS_REGISTRY.set(target.name, options);

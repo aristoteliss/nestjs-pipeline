@@ -1,8 +1,8 @@
 import 'reflect-metadata';
-import { describe, it, expect, vi } from 'vitest';
-import { WithCorrelation, CorrelationFrom } from './with-correlation.decorator';
-import { getCorrelationId, correlationStore } from '../correlation.store';
 import { Logger } from '@nestjs/common';
+import { describe, expect, it, vi } from 'vitest';
+import { correlationStore, getCorrelationId } from '../correlation.store';
+import { CorrelationFrom, WithCorrelation } from './with-correlation.decorator';
 
 // ── Helpers ─────────────────────────────────────────────────
 
@@ -32,7 +32,7 @@ describe('WithCorrelation — default path', () => {
 
     class Processor {
       @WithCorrelation()
-      async handle(job: any) {
+      async handle(_job: any) {
         captured = getCorrelationId();
         return 'done';
       }
@@ -50,7 +50,7 @@ describe('WithCorrelation — default path', () => {
 
     class Processor {
       @WithCorrelation()
-      async handle(job: any) {
+      async handle(_job: any) {
         captured = getCorrelationId();
       }
     }
@@ -68,7 +68,7 @@ describe('WithCorrelation — default path', () => {
   it('does not leak correlation ID outside the method', async () => {
     class Processor {
       @WithCorrelation()
-      async handle(job: any) {
+      async handle(_job: any) {
         return getCorrelationId();
       }
     }
@@ -86,7 +86,7 @@ describe('WithCorrelation — default path', () => {
 
     class Processor {
       @WithCorrelation()
-      async handle(job: any) {
+      async handle(_job: any) {
         captured = getCorrelationId();
       }
     }
@@ -111,7 +111,7 @@ describe('WithCorrelation — custom path', () => {
 
     class Processor {
       @WithCorrelation('data.x-request-id')
-      async handle(job: any) {
+      async handle(_job: any) {
         captured = getCorrelationId();
       }
     }
@@ -127,7 +127,7 @@ describe('WithCorrelation — custom path', () => {
 
     class Processor {
       @WithCorrelation({ path: 'data.traceId' })
-      async handle(job: any) {
+      async handle(_job: any) {
         captured = getCorrelationId();
       }
     }
@@ -143,7 +143,7 @@ describe('WithCorrelation — custom path', () => {
 
     class Processor {
       @WithCorrelation({ path: 'metadata.tracing.correlationId' })
-      async handle(msg: any) {
+      async handle(_msg: any) {
         captured = getCorrelationId();
       }
     }
@@ -168,7 +168,7 @@ describe('WithCorrelation — custom extract', () => {
         extract: (_data: any, ctx: any) =>
           ctx.getMessage().properties.correlationId,
       })
-      async handle(data: any, ctx: any) {
+      async handle(_data: any, _ctx: any) {
         captured = getCorrelationId();
       }
     }
@@ -189,7 +189,7 @@ describe('WithCorrelation — custom extract', () => {
           return headers?.['x-correlation-id']?.toString();
         },
       })
-      async handle(data: any, ctx: any) {
+      async handle(_data: any, _ctx: any) {
         captured = getCorrelationId();
       }
     }
@@ -211,7 +211,7 @@ describe('WithCorrelation — custom extract', () => {
         path: 'data.correlationId',
         extract: () => 'from-extract',
       })
-      async handle(job: any) {
+      async handle(_job: any) {
         captured = getCorrelationId();
       }
     }
@@ -279,9 +279,9 @@ describe('WithCorrelation — return value & errors', () => {
     }
 
     const p = new Processor();
-    await expect(
-      p.handle(fakeJob({ correlationId: 'id' })),
-    ).rejects.toThrow('boom');
+    await expect(p.handle(fakeJob({ correlationId: 'id' }))).rejects.toThrow(
+      'boom',
+    );
   });
 
   it('propagates synchronous errors', () => {
@@ -336,7 +336,9 @@ describe('WithCorrelation — this context & meta', () => {
 
 describe('WithCorrelation — edge cases', () => {
   it('warns when first argument is an array and dot-path is used', async () => {
-    const warnSpy = vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => {});
+    const warnSpy = vi
+      .spyOn(Logger.prototype, 'warn')
+      .mockImplementation(() => {});
 
     class Processor {
       @WithCorrelation()
@@ -357,7 +359,9 @@ describe('WithCorrelation — edge cases', () => {
   });
 
   it('does not warn for array when custom extract is provided', async () => {
-    const warnSpy = vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => {});
+    const warnSpy = vi
+      .spyOn(Logger.prototype, 'warn')
+      .mockImplementation(() => {});
 
     class Processor {
       @WithCorrelation({ extract: (data: any) => data?.[0]?.correlationId })
@@ -433,7 +437,7 @@ describe('WithCorrelation — edge cases', () => {
 
     class Processor {
       @WithCorrelation()
-      async handle(job: any) {
+      async handle(_job: any) {
         captured = getCorrelationId();
       }
     }
@@ -517,7 +521,10 @@ describe('CorrelationFrom.kafka', () => {
     }
 
     const h = new Handler();
-    await h.handle({}, fakeKafkaContext({ 'x-correlation-id': Buffer.from('kafka-123') }));
+    await h.handle(
+      {},
+      fakeKafkaContext({ 'x-correlation-id': Buffer.from('kafka-123') }),
+    );
     expect(captured).toBe('kafka-123');
   });
 
@@ -565,7 +572,8 @@ describe('CorrelationFrom.nats', () => {
 
     const fakeNatsCtx = {
       getHeaders: () => ({
-        get: (key: string) => key === 'x-correlation-id' ? 'nats-789' : undefined,
+        get: (key: string) =>
+          key === 'x-correlation-id' ? 'nats-789' : undefined,
       }),
     };
 
@@ -587,7 +595,7 @@ describe('CorrelationFrom.grpc', () => {
     }
 
     const fakeMetadata = {
-      get: (key: string) => key === 'x-correlation-id' ? ['grpc-456'] : [],
+      get: (key: string) => (key === 'x-correlation-id' ? ['grpc-456'] : []),
     };
 
     const h = new Handler();
@@ -600,11 +608,13 @@ describe('CorrelationFrom.grpc', () => {
 
 describe('WithCorrelation — logLevel', () => {
   it('logs at the specified level with the resolved correlationId', async () => {
-    const debugSpy = vi.spyOn(Logger.prototype, 'debug').mockImplementation(() => {});
+    const debugSpy = vi
+      .spyOn(Logger.prototype, 'debug')
+      .mockImplementation(() => {});
 
     class Processor {
       @WithCorrelation({ logLevel: 'debug' })
-      async handle(job: any) {
+      async handle(_job: unknown) {
         return getCorrelationId();
       }
     }
@@ -621,11 +631,13 @@ describe('WithCorrelation — logLevel', () => {
   });
 
   it('logs the class and method name in the message', async () => {
-    const verboseSpy = vi.spyOn(Logger.prototype, 'verbose').mockImplementation(() => {});
+    const verboseSpy = vi
+      .spyOn(Logger.prototype, 'verbose')
+      .mockImplementation(() => {});
 
     class EmailProcessor {
       @WithCorrelation({ logLevel: 'verbose' })
-      async handleSendEmail(job: any) {}
+      async handleSendEmail(_job: any) {}
     }
 
     const p = new EmailProcessor();
@@ -639,11 +651,13 @@ describe('WithCorrelation — logLevel', () => {
   });
 
   it('logs at debug level when logLevel is omitted', async () => {
-    const debugSpy = vi.spyOn(Logger.prototype, 'debug').mockImplementation(() => {});
+    const debugSpy = vi
+      .spyOn(Logger.prototype, 'debug')
+      .mockImplementation(() => {});
 
     class Processor {
       @WithCorrelation()
-      async handle(job: any) {}
+      async handle(_job: any) {}
     }
 
     const p = new Processor();
@@ -658,12 +672,16 @@ describe('WithCorrelation — logLevel', () => {
   });
 
   it('does not log when logLevel is "none"', async () => {
-    const debugSpy = vi.spyOn(Logger.prototype, 'debug').mockImplementation(() => {});
-    const logSpy = vi.spyOn(Logger.prototype, 'log').mockImplementation(() => {});
+    const debugSpy = vi
+      .spyOn(Logger.prototype, 'debug')
+      .mockImplementation(() => {});
+    const logSpy = vi
+      .spyOn(Logger.prototype, 'log')
+      .mockImplementation(() => {});
 
     class Processor {
       @WithCorrelation({ logLevel: 'none' })
-      async handle(job: any) {}
+      async handle(_job: any) {}
     }
 
     const p = new Processor();
@@ -677,11 +695,13 @@ describe('WithCorrelation — logLevel', () => {
   });
 
   it('logs the resolved uuidv7 when extracted ID is undefined', async () => {
-    const debugSpy = vi.spyOn(Logger.prototype, 'debug').mockImplementation(() => {});
+    const debugSpy = vi
+      .spyOn(Logger.prototype, 'debug')
+      .mockImplementation(() => {});
 
     class Processor {
       @WithCorrelation({ logLevel: 'debug' })
-      async handle(job: any) {}
+      async handle(_job: any) {}
     }
 
     const p = new Processor();
@@ -700,11 +720,13 @@ describe('WithCorrelation — logLevel', () => {
     const levels = ['log', 'debug', 'verbose', 'warn', 'error'] as const;
 
     for (const level of levels) {
-      const spy = vi.spyOn(Logger.prototype, level).mockImplementation(() => {});
+      const spy = vi
+        .spyOn(Logger.prototype, level)
+        .mockImplementation(() => {});
 
       class Processor {
         @WithCorrelation({ logLevel: level })
-        async handle(job: any) {}
+        async handle(_job: any) {}
       }
 
       const p = new Processor();

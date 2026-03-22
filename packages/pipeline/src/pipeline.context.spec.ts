@@ -1,7 +1,11 @@
-import { describe, it, expect } from 'vitest';
-import { PipelineContext } from './pipeline.context';
+import { describe, expect, it } from 'vitest';
+import {
+  pipelineStore,
+  SET_ORIGINAL_CORRELATION_ID,
+  SET_RESPONSE,
+} from './constants/pipeline-context.constants';
 import { PipelineHandlerMeta } from './interfaces/pipeline-handler-meta.interface';
-import { SET_RESPONSE, SET_ORIGINAL_CORRELATION_ID, pipelineStore } from './constants/pipeline-context.constants';
+import { PipelineContext } from './pipeline.context';
 
 // ── Helpers ─────────────────────────────────────────────────
 
@@ -15,7 +19,9 @@ class FakeHandler {
   }
 }
 
-function buildMeta(overrides: Partial<PipelineHandlerMeta> = {}): PipelineHandlerMeta {
+function buildMeta(
+  overrides: Partial<PipelineHandlerMeta> = {},
+): PipelineHandlerMeta {
   return {
     handlerType: FakeHandler,
     handlerName: 'FakeHandler',
@@ -79,7 +85,10 @@ describe('PipelineContext', () => {
   });
 
   it('inherits correlationId from parent pipeline store', () => {
-    const parentCtx = new PipelineContext(new FakeCommand('parent'), buildMeta());
+    const parentCtx = new PipelineContext(
+      new FakeCommand('parent'),
+      buildMeta(),
+    );
     parentCtx.correlationId = 'parent-corr-id';
 
     let childCtx: PipelineContext | undefined;
@@ -91,7 +100,10 @@ describe('PipelineContext', () => {
   });
 
   it('does not inherit from parent when parent correlationId is empty', () => {
-    const parentCtx = new PipelineContext(new FakeCommand('parent'), buildMeta());
+    const parentCtx = new PipelineContext(
+      new FakeCommand('parent'),
+      buildMeta(),
+    );
     parentCtx.correlationId = '';
 
     let childCtx: PipelineContext | undefined;
@@ -107,13 +119,19 @@ describe('PipelineContext.getBehaviorOptions', () => {
   class SomeBehavior {}
 
   it('returns undefined when no options map exists', () => {
-    const ctx = new PipelineContext(new FakeCommand('x'), buildMeta({ behaviorOptions: undefined }));
+    const ctx = new PipelineContext(
+      new FakeCommand('x'),
+      buildMeta({ behaviorOptions: undefined }),
+    );
     expect(ctx.getBehaviorOptions(SomeBehavior)).toBeUndefined();
   });
 
   it('returns undefined when behavior has no options', () => {
     const opts = new Map<string, Record<string, any>>();
-    const ctx = new PipelineContext(new FakeCommand('x'), buildMeta({ behaviorOptions: opts }));
+    const ctx = new PipelineContext(
+      new FakeCommand('x'),
+      buildMeta({ behaviorOptions: opts }),
+    );
     expect(ctx.getBehaviorOptions(SomeBehavior)).toBeUndefined();
   });
 
@@ -121,7 +139,10 @@ describe('PipelineContext.getBehaviorOptions', () => {
     const opts = new Map<string, Record<string, any>>([
       ['SomeBehavior', { level: 'debug' }],
     ]);
-    const ctx = new PipelineContext(new FakeCommand('x'), buildMeta({ behaviorOptions: opts }));
+    const ctx = new PipelineContext(
+      new FakeCommand('x'),
+      buildMeta({ behaviorOptions: opts }),
+    );
     expect(ctx.getBehaviorOptions(SomeBehavior)).toEqual({ level: 'debug' });
   });
 });

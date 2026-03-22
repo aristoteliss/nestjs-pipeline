@@ -7,11 +7,11 @@
  * License, or (at your option) any later version.
  *
  * --- COMMERCIAL EXCEPTION ---
- * Alternatively, a Commercial License is available for individuals or 
- * organizations that require proprietary use without the AGPLv3 
- * copyleft restrictions. 
+ * Alternatively, a Commercial License is available for individuals or
+ * organizations that require proprietary use without the AGPLv3
+ * copyleft restrictions.
  *
- * See COMMERCIAL_LICENSE.txt in this repository for the tiered 
+ * See COMMERCIAL_LICENSE.txt in this repository for the tiered
  * revenue-based terms, or contact: aristotelis@ik.me
  * ----------------------------
  *
@@ -24,12 +24,12 @@
  * along with this program. If not, see <https://www.gnu.org/licenses/>.
  */
 
-import { IPipelineContext } from "./pipeline.context.interface";
+import { IPipelineContext } from './pipeline.context.interface';
 
 /**
  * Delegate to call the next behavior in the chain, or the real handler.
  */
-export type NextDelegate<TResponse = any> = () => Promise<TResponse>;
+export type NextDelegate<TResponse = unknown> = () => Promise<TResponse>;
 
 /**
  * Interface every pipeline behavior must implement.
@@ -39,7 +39,7 @@ export type NextDelegate<TResponse = any> = () => Promise<TResponse>;
  * Any commands a saga emits will flow through the CommandBus and
  * hit the pipeline of the target command handler automatically.
  */
-export interface IPipelineBehavior<TRequest = any, TResponse = any> {
+export interface IPipelineBehavior<TRequest = unknown, TResponse = unknown> {
   handle(
     context: IPipelineContext<TRequest, TResponse>,
     next: NextDelegate<TResponse>,

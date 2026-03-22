@@ -7,11 +7,11 @@
  * License, or (at your option) any later version.
  *
  * --- COMMERCIAL EXCEPTION ---
- * Alternatively, a Commercial License is available for individuals or 
- * organizations that require proprietary use without the AGPLv3 
- * copyleft restrictions. 
+ * Alternatively, a Commercial License is available for individuals or
+ * organizations that require proprietary use without the AGPLv3
+ * copyleft restrictions.
  *
- * See COMMERCIAL_LICENSE.txt in this repository for the tiered 
+ * See COMMERCIAL_LICENSE.txt in this repository for the tiered
  * revenue-based terms, or contact: aristotelis@ik.me
  * ----------------------------
  *
@@ -25,10 +25,13 @@
  */
 
 import { DynamicModule, Global, Module, Type } from '@nestjs/common';
-import { IPipelineBehavior } from './interfaces/pipeline.behavior.interface';
 import { PipelineBehaviorEntry } from './decorators/pipeline.decorator';
+import { IPipelineBehavior } from './interfaces/pipeline.behavior.interface';
+import {
+  PIPELINE_MODULE_OPTIONS,
+  PipelineModuleOptions,
+} from './options/pipeline-module.options';
 import { PipelineBootstrapService } from './services/pipeline.bootstrap.service';
-import { PIPELINE_MODULE_OPTIONS, PipelineModuleOptions } from './options/pipeline-module.options';
 
 // Re-export so existing `from './pipeline.module'` imports keep working.
 export {
@@ -42,7 +45,9 @@ export {
  * Extracts the behavior class (Type) from each entry,
  * discarding inline options used by the tuple form.
  */
-function extractBehaviorTypes(entries: PipelineBehaviorEntry[]): Type<IPipelineBehavior>[] {
+function extractBehaviorTypes(
+  entries: PipelineBehaviorEntry[],
+): Type<IPipelineBehavior>[] {
   return entries.map((entry) => (Array.isArray(entry) ? entry[0] : entry));
 }
 
@@ -76,6 +81,7 @@ function extractBehaviorTypes(entries: PipelineBehaviorEntry[]): Type<IPipelineB
  */
 @Global()
 @Module({})
+// biome-ignore lint/complexity/noStaticOnlyClass: This module only has static methods for configuration.
 export class PipelineModule {
   static forRoot(
     optionsOrBehaviors: PipelineModuleOptions | Type<IPipelineBehavior>[] = [],

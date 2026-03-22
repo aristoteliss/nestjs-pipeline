@@ -7,11 +7,11 @@
  * License, or (at your option) any later version.
  *
  * --- COMMERCIAL EXCEPTION ---
- * Alternatively, a Commercial License is available for individuals or 
- * organizations that require proprietary use without the AGPLv3 
- * copyleft restrictions. 
+ * Alternatively, a Commercial License is available for individuals or
+ * organizations that require proprietary use without the AGPLv3
+ * copyleft restrictions.
  *
- * See COMMERCIAL_LICENSE.txt in this repository for the tiered 
+ * See COMMERCIAL_LICENSE.txt in this repository for the tiered
  * revenue-based terms, or contact: aristotelis@ik.me
  * ----------------------------
  *
@@ -33,7 +33,7 @@ import { Type } from '@nestjs/common';
  * The concrete implementation ({@link BasePipelineContext}) provides shared
  * logic; extend it only when you need a custom context variant.
  */
-export interface IPipelineContext<TRequest = any, TResponse = any> {
+export interface IPipelineContext<TRequest = unknown, TResponse = unknown> {
   /**
    * Correlation ID for distributed tracing. Mutable — behaviors may override it.
    *
@@ -81,11 +81,13 @@ export interface IPipelineContext<TRequest = any, TResponse = any> {
   readonly response: TResponse | undefined;
 
   /** Bag for sharing arbitrary data between behaviors in the same execution. */
-  readonly items: Map<string, any>;
+  readonly items: Map<string, unknown>;
 
   /**
    * Retrieve options passed to a specific behavior via @UsePipeline([Behavior, opts]).
    * Returns undefined if no options were provided for that behavior.
    */
-  getBehaviorOptions<T = Record<string, any>>(behaviorType: Type): T | undefined;
+  getBehaviorOptions<T = Record<string, unknown>>(
+    behaviorType: Type,
+  ): T | undefined;
 }

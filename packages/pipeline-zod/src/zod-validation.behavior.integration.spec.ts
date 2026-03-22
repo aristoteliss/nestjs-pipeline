@@ -7,13 +7,16 @@
  * License, or (at your option) any later version.
  *
  * --- COMMERCIAL EXCEPTION ---
- * Alternatively, a Commercial License is available for individuals or 
+ * Alternatively, a Commercial License is available for individuals or
  * companies that do not wish to be bound by the AGPL terms. Contact Aristotelis for details.
  */
-import { describe, it, expect, vi } from 'vitest';
-import { ZOD_SCHEMA_KEY, ZodValidationBehavior } from './zod-validation.behavior';
-import { ZodValidationError } from './errors/zod-validation.error';
+import { describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
+import { ZodValidationError } from './errors/zod-validation.error';
+import {
+  ZOD_SCHEMA_KEY,
+  ZodValidationBehavior,
+} from './zod-validation.behavior';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -53,12 +56,17 @@ describe('ZodValidationBehavior – integration', () => {
 
     it('passes for nested objects', async () => {
       const Req = makeClass(z.object({ user: z.object({ name: z.string() }) }));
-      const result = await behavior.handle(ctx({ user: { name: 'Alice' } }, Req), next);
+      const result = await behavior.handle(
+        ctx({ user: { name: 'Alice' } }, Req),
+        next,
+      );
       expect(result).toBe('ok');
     });
 
     it('passes for optional fields', async () => {
-      const Req = makeClass(z.object({ name: z.string(), bio: z.string().optional() }));
+      const Req = makeClass(
+        z.object({ name: z.string(), bio: z.string().optional() }),
+      );
       const result = await behavior.handle(ctx({ name: 'Alice' }, Req), next);
       expect(result).toBe('ok');
     });
@@ -67,12 +75,18 @@ describe('ZodValidationBehavior – integration', () => {
   describe('invalid requests', () => {
     it('throws ZodValidationError for wrong types', async () => {
       const Req = makeClass(z.object({ foo: z.string() }));
-      await expect(behavior.handle(ctx({ foo: 123 }, Req), next)).rejects.toThrow(ZodValidationError);
+      await expect(
+        behavior.handle(ctx({ foo: 123 }, Req), next),
+      ).rejects.toThrow(ZodValidationError);
     });
 
     it('throws for missing required fields', async () => {
-      const Req = makeClass(z.object({ name: z.string(), email: z.string().email() }));
-      await expect(behavior.handle(ctx({}, Req), next)).rejects.toThrow('Validation failed');
+      const Req = makeClass(
+        z.object({ name: z.string(), email: z.string().email() }),
+      );
+      await expect(behavior.handle(ctx({}, Req), next)).rejects.toThrow(
+        'Validation failed',
+      );
     });
 
     it('does NOT call next() on validation failure', async () => {

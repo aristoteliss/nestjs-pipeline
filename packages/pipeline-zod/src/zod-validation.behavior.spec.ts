@@ -7,15 +7,19 @@
  * License, or (at your option) any later version.
  *
  * --- COMMERCIAL EXCEPTION ---
- * Alternatively, a Commercial License is available for individuals or 
+ * Alternatively, a Commercial License is available for individuals or
  * companies that do not wish to be bound by the AGPL terms. Contact Aristotelis for details.
  */
-import { describe, it, expect, vi } from 'vitest';
-import { z } from 'zod';
+
 import { Type } from '@nestjs/common';
 import { IPipelineContext } from '@nestjs-pipeline/core';
-import { ZodValidationBehavior, ZOD_SCHEMA_KEY } from './zod-validation.behavior';
+import { describe, expect, it, vi } from 'vitest';
+import { z } from 'zod';
 import { ZodValidationError } from './errors/zod-validation.error';
+import {
+  ZOD_SCHEMA_KEY,
+  ZodValidationBehavior,
+} from './zod-validation.behavior';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -27,7 +31,9 @@ function makeRequestType(schema?: z.ZodType): Type {
   return cls as unknown as Type;
 }
 
-function createMockContext(overrides: Partial<IPipelineContext> = {}): IPipelineContext {
+function createMockContext(
+  overrides: Partial<IPipelineContext> = {},
+): IPipelineContext {
   return {
     correlationId: 'test-corr-id',
     originalCorrelationId: 'test-corr-id',
@@ -72,7 +78,10 @@ describe('ZodValidationBehavior', () => {
   });
 
   describe('when ZOD_SCHEMA is attached and the request is valid', () => {
-    const schema = z.object({ username: z.string().min(4), email: z.string().email() });
+    const schema = z.object({
+      username: z.string().min(4),
+      email: z.string().email(),
+    });
     const requestType = makeRequestType(schema);
     const request = { username: 'Alice', email: 'alice@example.com' };
 
@@ -88,7 +97,10 @@ describe('ZodValidationBehavior', () => {
   });
 
   describe('when ZOD_SCHEMA is attached and the request is invalid', () => {
-    const schema = z.object({ username: z.string().min(4), email: z.string().email() });
+    const schema = z.object({
+      username: z.string().min(4),
+      email: z.string().email(),
+    });
     const requestType = makeRequestType(schema);
 
     it('throws ZodValidationError and does NOT call next()', async () => {
@@ -96,7 +108,9 @@ describe('ZodValidationBehavior', () => {
       const ctx = createMockContext({ request: invalidRequest, requestType });
       const next = vi.fn();
 
-      await expect(behavior.handle(ctx, next)).rejects.toThrow(ZodValidationError);
+      await expect(behavior.handle(ctx, next)).rejects.toThrow(
+        ZodValidationError,
+      );
       expect(next).not.toHaveBeenCalled();
     });
 
@@ -121,7 +135,9 @@ describe('ZodValidationBehavior', () => {
       const ctx = createMockContext({ request: {}, requestType });
       const next = vi.fn();
 
-      await expect(behavior.handle(ctx, next)).rejects.toThrow('Validation failed');
+      await expect(behavior.handle(ctx, next)).rejects.toThrow(
+        'Validation failed',
+      );
     });
   });
 
@@ -133,8 +149,15 @@ describe('ZodValidationBehavior', () => {
     const eventType = makeRequestType(eventSchema);
 
     it('validates events that have ZOD_SCHEMA attached', async () => {
-      const validEvent = { userId: '018e0d5c-4ef6-7000-b7c8-a1e6bc5c9e70', username: 'Bob' };
-      const ctx = createMockContext({ request: validEvent, requestType: eventType, requestKind: 'event' });
+      const validEvent = {
+        userId: '018e0d5c-4ef6-7000-b7c8-a1e6bc5c9e70',
+        username: 'Bob',
+      };
+      const ctx = createMockContext({
+        request: validEvent,
+        requestType: eventType,
+        requestKind: 'event',
+      });
       const next = vi.fn().mockResolvedValue(undefined);
 
       await expect(behavior.handle(ctx, next)).resolves.toBeUndefined();
@@ -143,10 +166,16 @@ describe('ZodValidationBehavior', () => {
 
     it('rejects invalid events that have ZOD_SCHEMA attached', async () => {
       const invalidEvent = { userId: 'not-a-uuid', username: '' };
-      const ctx = createMockContext({ request: invalidEvent, requestType: eventType, requestKind: 'event' });
+      const ctx = createMockContext({
+        request: invalidEvent,
+        requestType: eventType,
+        requestKind: 'event',
+      });
       const next = vi.fn();
 
-      await expect(behavior.handle(ctx, next)).rejects.toThrow(ZodValidationError);
+      await expect(behavior.handle(ctx, next)).rejects.toThrow(
+        ZodValidationError,
+      );
       expect(next).not.toHaveBeenCalled();
     });
   });

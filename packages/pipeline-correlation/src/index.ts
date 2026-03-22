@@ -7,11 +7,11 @@
  * License, or (at your option) any later version.
  *
  * --- COMMERCIAL EXCEPTION ---
- * Alternatively, a Commercial License is available for individuals or 
- * organizations that require proprietary use without the AGPLv3 
- * copyleft restrictions. 
+ * Alternatively, a Commercial License is available for individuals or
+ * organizations that require proprietary use without the AGPLv3
+ * copyleft restrictions.
  *
- * See COMMERCIAL_LICENSE.txt in this repository for the tiered 
+ * See COMMERCIAL_LICENSE.txt in this repository for the tiered
  * revenue-based terms, or contact: aristotelis@ik.me
  * ----------------------------
  *
@@ -24,24 +24,24 @@
  * along with this program. If not, see <https://www.gnu.org/licenses/>.
  */
 
+export type { WithCorrelationId } from './correlation.store';
 export {
-  correlationStore,
-  runWithCorrelationId,
-  getCorrelationId,
   addCorrelationId,
   correlationHeaders,
+  correlationStore,
+  getCorrelationId,
+  runWithCorrelationId,
   setCorrelationFallback,
 } from './correlation.store';
-export type { WithCorrelationId } from './correlation.store';
-export { HttpCorrelationMiddleware } from './middlewares/http-correlation.middleware';
-export { CORRELATION_OPTIONS } from './options/correlation.options';
-export type { CorrelationOptions } from './options/correlation.options';
-export {
-  WithCorrelation,
-  CorrelationFrom,
-} from './decorators/with-correlation.decorator';
 export type {
-  CorrelationExtractor,
   CorrelationDecoratorOptions,
+  CorrelationExtractor,
+} from './decorators/with-correlation.decorator';
+export {
+  CorrelationFrom,
+  WithCorrelation,
 } from './decorators/with-correlation.decorator';
 export { uuidv7 } from './helpers/uuidv7';
+export { HttpCorrelationMiddleware } from './middlewares/http-correlation.middleware';
+export type { CorrelationOptions } from './options/correlation.options';
+export { CORRELATION_OPTIONS } from './options/correlation.options';

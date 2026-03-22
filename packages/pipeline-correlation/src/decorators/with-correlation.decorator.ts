@@ -16,8 +16,9 @@
  * ----------------------------
  */
 
-import { getCorrelationId, runWithCorrelationId } from '../correlation.store';
 import { Logger, LogLevel } from '@nestjs/common';
+import { getCorrelationId, runWithCorrelationId } from '../correlation.store';
+import { dyn, untyped } from '../types/safe-typing';
 
 /**
  * A function that extracts the correlation ID from the method arguments.
@@ -25,7 +26,7 @@ import { Logger, LogLevel } from '@nestjs/common';
  * Receives the same arguments the decorated method receives.
  * Return `undefined` to let the pipeline fall back to parent context or `uuidv7()`.
  */
-export type CorrelationExtractor = (...args: any[]) => string | undefined;
+export type CorrelationExtractor = (...args: unknown[]) => string | undefined;
 
 /**
  * Options for the {@link WithCorrelation} decorator.
@@ -90,13 +91,13 @@ export interface CorrelationDecoratorOptions {
  *
  * @internal
  */
-function getByPath(obj: any, path: string): string | undefined {
-  let current = obj;
+function getByPath(obj: unknown, path: string): string | undefined {
+  let current = untyped(obj);
   for (const segment of path.split('.')) {
     if (current == null) return undefined;
-    current = current[segment];
+    current = untyped(current[segment]);
   }
-  return typeof current === 'string' ? current : undefined;
+  return typeof current === 'string' ? (current as string) : undefined;
 }
 
 /**
@@ -172,7 +173,9 @@ function getByPath(obj: any, path: string): string | undefined {
  */
 export function WithCorrelation(): MethodDecorator;
 export function WithCorrelation(path: string): MethodDecorator;
-export function WithCorrelation(options: CorrelationDecoratorOptions): MethodDecorator;
+export function WithCorrelation(
+  options: CorrelationDecoratorOptions,
+): MethodDecorator;
 export function WithCorrelation(
   pathOrOptions?: string | CorrelationDecoratorOptions,
 ): MethodDecorator {
@@ -180,23 +183,23 @@ export function WithCorrelation(
   const options: CorrelationDecoratorOptions =
     typeof pathOrOptions === 'string'
       ? { path: pathOrOptions }
-      : pathOrOptions ?? {};
+      : (pathOrOptions ?? {});
 
   const { path = 'data.correlationId', extract } = options;
 
   return (
     _target: object,
     _propertyKey: string | symbol,
-    descriptor: TypedPropertyDescriptor<any>,
+    descriptor: PropertyDescriptor,
   ) => {
     const originalMethod = descriptor.value;
 
-    descriptor.value = function (this: any, ...args: any[]) {
+    descriptor.value = function (this: unknown, ...args: unknown[]) {
       if (!extract && Array.isArray(args[0])) {
         logger.warn(
-          `${this.constructor?.name}.${String(_propertyKey)}: first argument is an array — ` +
-          `dot-path "${path}" cannot extract a correlation ID from it. ` +
-          `Use the 'extract' option for array payloads.`,
+          `${untyped(this).constructor?.name}.${String(_propertyKey)}: first argument is an array — ` +
+            `dot-path "${path}" cannot extract a correlation ID from it. ` +
+            `Use the 'extract' option for array payloads.`,
         );
       }
 
@@ -207,7 +210,7 @@ export function WithCorrelation(
       return runWithCorrelationId(correlationId, () => {
         if (options.logLevel !== 'none') {
           logger[options.logLevel ?? 'debug'](
-            `🔗 Starting ${this.constructor?.name}.${String(_propertyKey)} with correlationId: ${getCorrelationId()}`,
+            `🔗 Starting ${untyped(this).constructor?.name}.${String(_propertyKey)} with correlationId: ${getCorrelationId()}`,
           );
         }
         return originalMethod.apply(this, args);
@@ -270,8 +273,8 @@ export const CorrelationFrom = {
    * ```
    */
   amqp: (): CorrelationDecoratorOptions => ({
-    extract: (_data: any, ctx: any) =>
-      ctx?.getMessage?.()?.properties?.correlationId,
+    extract: (_data: unknown, ctx: unknown) =>
+      dyn(ctx)?.getMessage?.()?.properties?.correlationId as string | undefined,
   }),
 
   /**
@@ -286,8 +289,8 @@ export const CorrelationFrom = {
    * @param header - Header key. Defaults to `'x-correlation-id'`.
    */
   kafka: (header = 'x-correlation-id'): CorrelationDecoratorOptions => ({
-    extract: (_data: any, ctx: any) =>
-      ctx?.getMessage?.()?.headers?.[header]?.toString(),
+    extract: (_data: unknown, ctx: unknown) =>
+      dyn(ctx)?.getMessage?.()?.headers?.[header]?.toString(),
   }),
 
   /**
@@ -296,8 +299,8 @@ export const CorrelationFrom = {
    * @param header - Header key. Defaults to `'x-correlation-id'`.
    */
   nats: (header = 'x-correlation-id'): CorrelationDecoratorOptions => ({
-    extract: (_data: any, ctx: any) =>
-      ctx?.getHeaders?.()?.get?.(header),
+    extract: (_data: unknown, ctx: unknown) =>
+      dyn(ctx)?.getHeaders?.()?.get?.(header) as string | undefined,
   }),
 
   /**
@@ -308,8 +311,8 @@ export const CorrelationFrom = {
    * @param key - Metadata key. Defaults to `'x-correlation-id'`.
    */
   grpc: (key = 'x-correlation-id'): CorrelationDecoratorOptions => ({
-    extract: (_data: any, metadata: any) => {
-      const values = metadata?.get?.(key);
+    extract: (_data: unknown, metadata: unknown) => {
+      const values = dyn(metadata)?.get?.(key);
       return values?.[0]?.toString();
     },
   }),

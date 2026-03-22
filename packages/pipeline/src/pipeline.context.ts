@@ -7,11 +7,11 @@
  * License, or (at your option) any later version.
  *
  * --- COMMERCIAL EXCEPTION ---
- * Alternatively, a Commercial License is available for individuals or 
- * organizations that require proprietary use without the AGPLv3 
- * copyleft restrictions. 
+ * Alternatively, a Commercial License is available for individuals or
+ * organizations that require proprietary use without the AGPLv3
+ * copyleft restrictions.
  *
- * See COMMERCIAL_LICENSE.txt in this repository for the tiered 
+ * See COMMERCIAL_LICENSE.txt in this repository for the tiered
  * revenue-based terms, or contact: aristotelis@ik.me
  * ----------------------------
  *
@@ -25,9 +25,14 @@
  */
 
 import { Type } from '@nestjs/common';
+import {
+  pipelineStore,
+  SET_ORIGINAL_CORRELATION_ID,
+  SET_RESPONSE,
+} from './constants/pipeline-context.constants';
 import { IPipelineContext } from './interfaces/pipeline.context.interface';
 import { PipelineHandlerMeta } from './interfaces/pipeline-handler-meta.interface';
-import { pipelineStore, SET_RESPONSE, SET_ORIGINAL_CORRELATION_ID } from './constants/pipeline-context.constants';
+import { untyped } from './types/safe-typing';
 
 /**
  * Abstract base class with shared implementation for all pipeline contexts.
@@ -40,8 +45,10 @@ import { pipelineStore, SET_RESPONSE, SET_ORIGINAL_CORRELATION_ID } from './cons
  * Extend this class to create custom context variants for specialized pipelines.
  * Behaviors should still type-hint against {@link IPipelineContext} (the interface).
  */
-export abstract class BasePipelineContext<TRequest = any, TResponse = any>
-  implements IPipelineContext<TRequest, TResponse>
+export abstract class BasePipelineContext<
+  TRequest = unknown,
+  TResponse = unknown,
+> implements IPipelineContext<TRequest, TResponse>
 {
   correlationId: string;
 
@@ -72,7 +79,7 @@ export abstract class BasePipelineContext<TRequest = any, TResponse = any>
   abstract readonly requestKind: 'command' | 'query' | 'event' | 'unknown';
 
   readonly startedAt: Date;
-  readonly items: Map<string, any>;
+  readonly items: Map<string, unknown>;
 
   /** Backing field for `response` — only writable via `[SET_RESPONSE]()`. */
   private _response: TResponse | undefined = undefined;
@@ -92,7 +99,7 @@ export abstract class BasePipelineContext<TRequest = any, TResponse = any>
 
   /** Behavior options map — populated from @UsePipeline metadata. */
   protected abstract readonly behaviorOptionsMap:
-    | Map<string, Record<string, any>>
+    | Map<string, Record<string, unknown>>
     | undefined;
 
   constructor() {
@@ -110,7 +117,7 @@ export abstract class BasePipelineContext<TRequest = any, TResponse = any>
   /**
    * Retrieve options passed to a specific behavior via @UsePipeline([Behavior, opts]).
    */
-  getBehaviorOptions<T = Record<string, any>>(
+  getBehaviorOptions<T = Record<string, unknown>>(
     behaviorType: Type,
   ): T | undefined {
     return this.behaviorOptionsMap?.get(behaviorType.name) as T | undefined;
@@ -121,10 +128,10 @@ export abstract class BasePipelineContext<TRequest = any, TResponse = any>
  * Concrete pipeline context created per request.
  * Pre-computed handler metadata is injected via {@link PipelineHandlerMeta}.
  */
-export class PipelineContext<TRequest = any, TResponse = any> extends BasePipelineContext<
-  TRequest,
-  TResponse
-> {
+export class PipelineContext<
+  TRequest = unknown,
+  TResponse = unknown,
+> extends BasePipelineContext<TRequest, TResponse> {
   readonly requestType: Type<TRequest>;
   readonly requestName: string;
   readonly handlerType: Type;
@@ -132,7 +139,7 @@ export class PipelineContext<TRequest = any, TResponse = any> extends BasePipeli
   readonly requestKind: 'command' | 'query' | 'event' | 'unknown';
 
   protected readonly behaviorOptionsMap:
-    | Map<string, Record<string, any>>
+    | Map<string, Record<string, unknown>>
     | undefined;
 
   constructor(
@@ -140,7 +147,7 @@ export class PipelineContext<TRequest = any, TResponse = any> extends BasePipeli
     meta: PipelineHandlerMeta,
   ) {
     super();
-    this.requestType = (request as any).constructor;
+    this.requestType = untyped(request).constructor as Type<TRequest>;
     this.requestName = this.requestType.name;
     this.handlerType = meta.handlerType;
     this.handlerName = meta.handlerName;

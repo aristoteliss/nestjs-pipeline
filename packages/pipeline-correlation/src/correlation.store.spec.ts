@@ -1,5 +1,10 @@
-import { describe, it, expect } from 'vitest';
-import { correlationStore, runWithCorrelationId, addCorrelationId, correlationHeaders } from './correlation.store';
+import { describe, expect, it } from 'vitest';
+import {
+  addCorrelationId,
+  correlationHeaders,
+  correlationStore,
+  runWithCorrelationId,
+} from './correlation.store';
 
 describe('correlationStore', () => {
   it('returns undefined when no store is active', () => {
@@ -73,7 +78,11 @@ describe('addCorrelationId', () => {
     const result = runWithCorrelationId('ctx-abc', () => {
       return addCorrelationId({ userId: '1', email: 'a@b.com' });
     });
-    expect(result).toEqual({ userId: '1', email: 'a@b.com', correlationId: 'ctx-abc' });
+    expect(result).toEqual({
+      userId: '1',
+      email: 'a@b.com',
+      correlationId: 'ctx-abc',
+    });
   });
 
   it('generates a uuidv7 fallback when no context is active', () => {
@@ -106,7 +115,9 @@ describe('addCorrelationId', () => {
   });
 
   it('throws TypeError when data is an array', () => {
-    expect(() => addCorrelationId([{ id: 1 }, { id: 2 }] as any)).toThrow(TypeError);
+    expect(() => addCorrelationId([{ id: 1 }, { id: 2 }] as any)).toThrow(
+      TypeError,
+    );
     expect(() => addCorrelationId([{ id: 1 }, { id: 2 }] as any)).toThrow(
       /received an array/,
     );

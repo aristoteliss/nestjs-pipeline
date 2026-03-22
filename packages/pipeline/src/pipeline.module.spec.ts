@@ -1,9 +1,12 @@
-import { describe, it, expect } from 'vitest';
-import { PipelineModule } from './pipeline.module';
-import { IPipelineBehavior, NextDelegate } from './interfaces/pipeline.behavior.interface';
-import { IPipelineContext } from './interfaces/pipeline.context.interface';
 import { Injectable } from '@nestjs/common';
+import { describe, expect, it } from 'vitest';
+import {
+  IPipelineBehavior,
+  NextDelegate,
+} from './interfaces/pipeline.behavior.interface';
+import { IPipelineContext } from './interfaces/pipeline.context.interface';
 import { PIPELINE_MODULE_OPTIONS } from './options/pipeline-module.options';
+import { PipelineModule } from './pipeline.module';
 import { PipelineBootstrapService } from './services/pipeline.bootstrap.service';
 
 // ── Test behaviors ──────────────────────────────────────────
@@ -46,7 +49,7 @@ describe('PipelineModule.forRoot', () => {
   it('registers core providers (options, bootstrap service)', () => {
     const mod = PipelineModule.forRoot([AlphaBehavior]);
 
-    const providerTokens = mod.providers!.map((p: any) =>
+    const providerTokens = mod.providers?.map((p: any) =>
       typeof p === 'function' ? p : p.provide,
     );
 
@@ -87,13 +90,13 @@ describe('PipelineModule.forRoot', () => {
     const mod = PipelineModule.forRoot({
       behaviors: [AlphaBehavior],
       globalBehaviors: {
-        before: [AlphaBehavior],   // same class
+        before: [AlphaBehavior], // same class
       },
     });
 
     // AlphaBehavior should appear only once in providers
-    const alphaCounts = (mod.providers as any[]).filter(
-      (p: any) => p === AlphaBehavior,
+    const alphaCounts = (mod.providers as unknown[]).filter(
+      (p: unknown) => p === AlphaBehavior,
     ).length;
     expect(alphaCounts).toBe(1);
   });

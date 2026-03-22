@@ -7,11 +7,11 @@
  * License, or (at your option) any later version.
  *
  * --- COMMERCIAL EXCEPTION ---
- * Alternatively, a Commercial License is available for individuals or 
- * organizations that require proprietary use without the AGPLv3 
- * copyleft restrictions. 
+ * Alternatively, a Commercial License is available for individuals or
+ * organizations that require proprietary use without the AGPLv3
+ * copyleft restrictions.
  *
- * See COMMERCIAL_LICENSE.txt in this repository for the tiered 
+ * See COMMERCIAL_LICENSE.txt in this repository for the tiered
  * revenue-based terms, or contact: aristotelis@ik.me
  * ----------------------------
  *
@@ -34,5 +34,5 @@ export interface PipelineHandlerMeta {
   readonly handlerType: Type;
   readonly handlerName: string;
   readonly requestKind: 'command' | 'query' | 'event' | 'unknown';
-  readonly behaviorOptions?: Map<string, Record<string, any>>;
+  readonly behaviorOptions?: Map<string, Record<string, unknown>>;
 }

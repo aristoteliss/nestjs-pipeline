@@ -7,11 +7,11 @@
  * License, or (at your option) any later version.
  *
  * --- COMMERCIAL EXCEPTION ---
- * Alternatively, a Commercial License is available for individuals or 
- * organizations that require proprietary use without the AGPLv3 
- * copyleft restrictions. 
+ * Alternatively, a Commercial License is available for individuals or
+ * organizations that require proprietary use without the AGPLv3
+ * copyleft restrictions.
  *
- * See COMMERCIAL_LICENSE.txt in this repository for the tiered 
+ * See COMMERCIAL_LICENSE.txt in this repository for the tiered
  * revenue-based terms, or contact: aristotelis@ik.me
  * ----------------------------
  *
@@ -25,9 +25,12 @@
  */
 
 import { Injectable, Logger, LogLevel } from '@nestjs/common';
-import { IPipelineBehavior, NextDelegate } from '../interfaces/pipeline.behavior.interface';
-import { IPipelineContext } from '../interfaces/pipeline.context.interface';
 import { safeStringify } from '../helpers/safeStringify';
+import {
+  IPipelineBehavior,
+  NextDelegate,
+} from '../interfaces/pipeline.behavior.interface';
+import { IPipelineContext } from '../interfaces/pipeline.context.interface';
 
 /**
  * Configuration options for the logging behavior.
@@ -48,12 +51,16 @@ export class LoggingBehavior implements IPipelineBehavior {
   async handle(
     context: IPipelineContext,
     next: NextDelegate,
-  ): Promise<any> {
-    const options = context.getBehaviorOptions<LoggingBehaviorOptions>(LoggingBehavior);
+  ): Promise<unknown> {
+    const options =
+      context.getBehaviorOptions<LoggingBehaviorOptions>(LoggingBehavior);
     const metricLogLevel = options?.metricLogLevel ?? 'log';
     const requestResponseLogLevel = options?.requestResponseLogLevel ?? 'debug';
 
-    this.log(requestResponseLogLevel, `Request: ${safeStringify(context.request)}`);
+    this.log(
+      requestResponseLogLevel,
+      `Request: ${safeStringify(context.request)}`,
+    );
 
     const startTime = performance.now();
 
@@ -68,7 +75,7 @@ export class LoggingBehavior implements IPipelineBehavior {
       this.log(
         metricLogLevel,
         `[${context.correlationId}] ${context.requestKind.toUpperCase()} ` +
-        `${context.requestName} → ${context.handlerName} completed in ${duration}ms`,
+          `${context.requestName} → ${context.handlerName} completed in ${duration}ms`,
       );
       this.log(requestResponseLogLevel, `Response: ${responseLog}`);
 
@@ -79,8 +86,8 @@ export class LoggingBehavior implements IPipelineBehavior {
       this.log(
         'error',
         `[${context.correlationId}] ${context.requestKind.toUpperCase()} ` +
-        `${context.requestName} → ${context.handlerName} failed after ${duration}ms: ` +
-        `${err.name}: ${err.message}`,
+          `${context.requestName} → ${context.handlerName} failed after ${duration}ms: ` +
+          `${err.name}: ${err.message}`,
       );
       throw error;
     }

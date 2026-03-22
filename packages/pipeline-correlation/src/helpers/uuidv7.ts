@@ -7,11 +7,11 @@
  * License, or (at your option) any later version.
  *
  * --- COMMERCIAL EXCEPTION ---
- * Alternatively, a Commercial License is available for individuals or 
- * organizations that require proprietary use without the AGPLv3 
- * copyleft restrictions. 
+ * Alternatively, a Commercial License is available for individuals or
+ * organizations that require proprietary use without the AGPLv3
+ * copyleft restrictions.
  *
- * See COMMERCIAL_LICENSE.txt in this repository for the tiered 
+ * See COMMERCIAL_LICENSE.txt in this repository for the tiered
  * revenue-based terms, or contact: aristotelis@ik.me
  * ----------------------------
  *
@@ -24,7 +24,7 @@
  * along with this program. If not, see <https://www.gnu.org/licenses/>.
  */
 
-import { randomBytes } from 'crypto';
+import { randomBytes } from 'node:crypto';
 
 /**
  * Generates a UUIDv7 string per RFC 9562.
@@ -77,10 +77,14 @@ export function uuidv7(): string {
   // Format as standard UUID string
   const hex = bytes.toString('hex');
   return (
-    hex.substring(0, 8) + '-' +
-    hex.substring(8, 12) + '-' +
-    hex.substring(12, 16) + '-' +
-    hex.substring(16, 20) + '-' +
+    hex.substring(0, 8) +
+    '-' +
+    hex.substring(8, 12) +
+    '-' +
+    hex.substring(12, 16) +
+    '-' +
+    hex.substring(16, 20) +
+    '-' +
     hex.substring(20, 32)
   );
 }

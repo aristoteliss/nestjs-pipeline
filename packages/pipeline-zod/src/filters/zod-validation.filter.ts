@@ -7,10 +7,15 @@
  * License, or (at your option) any later version.
  *
  * --- COMMERCIAL EXCEPTION ---
- * Alternatively, a Commercial License is available for individuals or 
+ * Alternatively, a Commercial License is available for individuals or
  * companies that do not wish to be bound by the AGPL terms. Contact Aristotelis for details.
  */
-import { ArgumentsHost, Catch, ExceptionFilter, HttpStatus } from '@nestjs/common';
+import {
+  ArgumentsHost,
+  Catch,
+  ExceptionFilter,
+  HttpStatus,
+} from '@nestjs/common';
 import { ZodValidationError } from '../errors/zod-validation.error';
 
 type ErrorResponseBody = {
@@ -20,7 +25,9 @@ type ErrorResponseBody = {
   details: ZodValidationError['details'];
 };
 
-type HttpResponse = { status(code: number): { json(body: ErrorResponseBody): void } };
+type HttpResponse = {
+  status(code: number): { json(body: ErrorResponseBody): void };
+};
 
 /**
  * Catches {@link ZodValidationError} thrown by both `createRequest()` constructors

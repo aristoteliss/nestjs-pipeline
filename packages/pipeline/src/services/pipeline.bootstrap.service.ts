@@ -7,11 +7,11 @@
  * License, or (at your option) any later version.
  *
  * --- COMMERCIAL EXCEPTION ---
- * Alternatively, a Commercial License is available for individuals or 
- * organizations that require proprietary use without the AGPLv3 
- * copyleft restrictions. 
+ * Alternatively, a Commercial License is available for individuals or
+ * organizations that require proprietary use without the AGPLv3
+ * copyleft restrictions.
  *
- * See COMMERCIAL_LICENSE.txt in this repository for the tiered 
+ * See COMMERCIAL_LICENSE.txt in this repository for the tiered
  * revenue-based terms, or contact: aristotelis@ik.me
  * ----------------------------
  *
@@ -35,15 +35,31 @@ import {
 } from '@nestjs/common';
 import { ModuleRef } from '@nestjs/core';
 import { InstanceWrapper } from '@nestjs/core/injector/instance-wrapper';
-import { PIPELINE_BEHAVIORS_METADATA, PIPELINE_BEHAVIORS_OPTIONS_METADATA, PipelineBehaviorEntry, getBehaviorId } from '../decorators/pipeline.decorator';
-import { IPipelineBehavior, NextDelegate } from '../interfaces/pipeline.behavior.interface';
-import { PipelineContext } from '../pipeline.context';
-import { PipelineHandlerMeta } from '../interfaces/pipeline-handler-meta.interface';
-import { pipelineStore, SET_ORIGINAL_CORRELATION_ID, SET_RESPONSE } from '../constants/pipeline-context.constants';
-import { PIPELINE_MODULE_OPTIONS, PipelineModuleOptions } from '../options/pipeline-module.options';
-import { GlobalBehaviorsOptions } from '../options/global-behaviors.options';
-import { uuidv7 } from '../helpers/uuidv7';
 import { ExplorerService } from '@nestjs/cqrs/dist/services/explorer.service';
+import {
+  pipelineStore,
+  SET_ORIGINAL_CORRELATION_ID,
+  SET_RESPONSE,
+} from '../constants/pipeline-context.constants';
+import {
+  getBehaviorId,
+  PIPELINE_BEHAVIORS_METADATA,
+  PIPELINE_BEHAVIORS_OPTIONS_METADATA,
+  PipelineBehaviorEntry,
+} from '../decorators/pipeline.decorator';
+import { uuidv7 } from '../helpers/uuidv7';
+import {
+  IPipelineBehavior,
+  NextDelegate,
+} from '../interfaces/pipeline.behavior.interface';
+import { PipelineHandlerMeta } from '../interfaces/pipeline-handler-meta.interface';
+import { GlobalBehaviorsOptions } from '../options/global-behaviors.options';
+import {
+  PIPELINE_MODULE_OPTIONS,
+  PipelineModuleOptions,
+} from '../options/pipeline-module.options';
+import { PipelineContext } from '../pipeline.context';
+import { untyped } from '../types/safe-typing';
 
 /**
  * At application bootstrap, this service:
@@ -64,7 +80,9 @@ import { ExplorerService } from '@nestjs/cqrs/dist/services/explorer.service';
  */
 @Injectable()
 export class PipelineBootstrapService implements OnApplicationBootstrap {
-  private readonly logger = new Logger(PipelineBootstrapService.name, { timestamp: true });
+  private readonly logger = new Logger(PipelineBootstrapService.name, {
+    timestamp: true,
+  });
   private bootstrapLogLevel!: LogLevel | 'none';
 
   constructor(
@@ -115,7 +133,7 @@ export class PipelineBootstrapService implements OnApplicationBootstrap {
     if (!handlerType) return;
 
     // Scope.DEFAULT = 0 (falsy), Scope.REQUEST = 2, Scope.TRANSIENT = 1 (truthy)
-    const isScoped = !!(wrapper as any).scope;
+    const isScoped = !!untyped(wrapper).scope;
 
     // For singleton handlers, verify the instance exists
     const instance = isScoped ? undefined : wrapper.instance;
@@ -129,7 +147,8 @@ export class PipelineBootstrapService implements OnApplicationBootstrap {
     const { beforeTypes, afterTypes, globalOptions } =
       this.resolveGlobalBehaviors(requestKind);
 
-    const hasHandlerBehaviors = handlerBehaviorTypes && handlerBehaviorTypes.length > 0;
+    const hasHandlerBehaviors =
+      handlerBehaviorTypes && handlerBehaviorTypes.length > 0;
     const hasGlobalBehaviors = beforeTypes.length > 0 || afterTypes.length > 0;
 
     if (!hasHandlerBehaviors && !hasGlobalBehaviors) return;
@@ -145,8 +164,12 @@ export class PipelineBootstrapService implements OnApplicationBootstrap {
     const handlerBehaviorIds = new Set<string>(
       (handlerBehaviorTypes ?? []).map(getBehaviorId),
     );
-    const filteredBeforeTypes = beforeTypes.filter((t) => !handlerBehaviorIds.has(getBehaviorId(t)));
-    const filteredAfterTypes = afterTypes.filter((t) => !handlerBehaviorIds.has(getBehaviorId(t)));
+    const filteredBeforeTypes = beforeTypes.filter(
+      (t) => !handlerBehaviorIds.has(getBehaviorId(t)),
+    );
+    const filteredAfterTypes = afterTypes.filter(
+      (t) => !handlerBehaviorIds.has(getBehaviorId(t)),
+    );
 
     // Effective order: filteredGlobalBefore → handlerBehaviors → filteredGlobalAfter
     const behaviorTypes: Type<IPipelineBehavior>[] = [
@@ -162,7 +185,7 @@ export class PipelineBootstrapService implements OnApplicationBootstrap {
     if (typeof originalMethod !== 'function') return;
 
     // Guard against double-wrapping (e.g. HMR re-bootstrap)
-    if ((originalMethod as any).__pipelined) return;
+    if (untyped(originalMethod).__pipelined) return;
 
     // ── Pre-resolve everything at bootstrap ──
 
@@ -173,7 +196,10 @@ export class PipelineBootstrapService implements OnApplicationBootstrap {
     for (let i = 0; i < behaviorTypes.length; i++) {
       const BehaviorClass = behaviorTypes[i];
       try {
-        resolvedBehaviors.set(i, this.moduleRef.get(BehaviorClass, { strict: false }));
+        resolvedBehaviors.set(
+          i,
+          this.moduleRef.get(BehaviorClass, { strict: false }),
+        );
       } catch {
         // Fallback for request-scoped providers (rare)
         this.logger.warn(
@@ -185,10 +211,10 @@ export class PipelineBootstrapService implements OnApplicationBootstrap {
 
     // 2. Build handler metadata (kind, name, options) — computed once
     //    Merge global options with handler-specific options (handler wins on conflict)
-    const handlerOptions: Map<string, Record<string, any>> | undefined =
+    const handlerOptions: Map<string, Record<string, unknown>> | undefined =
       Reflect.getMetadata(PIPELINE_BEHAVIORS_OPTIONS_METADATA, handlerType);
 
-    const mergedOptions = new Map<string, Record<string, any>>([
+    const mergedOptions = new Map<string, Record<string, unknown>>([
       ...globalOptions,
       ...(handlerOptions ?? []),
     ]);
@@ -203,15 +229,14 @@ export class PipelineBootstrapService implements OnApplicationBootstrap {
     if (this.bootstrapLogLevel !== 'none') {
       this.logger[this.bootstrapLogLevel](
         `Wrapping ${meta.handlerName}.${methodName}() ` +
-        `[${requestKind}${isScoped ? ', scoped' : ''}] with pipeline: [${behaviorTypes.map((b) => b.name).join(' → ')}]`,
+          `[${requestKind}${isScoped ? ', scoped' : ''}] with pipeline: [${behaviorTypes.map((b) => b.name).join(' → ')}]`,
       );
     }
 
     // Pre-capture singleton behavior array once — avoids allocating a new
     // array on every invocation in the common all-singletons fast path.
-    const singletonBehaviors: IPipelineBehavior[] = dynamicIndices.size === 0
-      ? behaviorTypes.map((_, i) => resolvedBehaviors.get(i)!)
-      : [];
+    const singletonBehaviors: IPipelineBehavior[] =
+      dynamicIndices.size === 0 ? Array.from(resolvedBehaviors.values()) : [];
 
     const moduleRef = this.moduleRef;
     const correlationIdFactory = this.options?.correlationIdFactory;
@@ -221,9 +246,9 @@ export class PipelineBootstrapService implements OnApplicationBootstrap {
     //    For scoped handlers the prototype is patched, so every per-request
     //    instance created by the DI container inherits the pipelined method.
     target[methodName] = async function pipelinedMethod(
-      this: any,
-      request: any,
-    ): Promise<any> {
+      this: unknown,
+      request: unknown,
+    ): Promise<unknown> {
       const context = new PipelineContext(request, meta);
 
       // Build per-invocation array — singleton slots reused, request-scoped freshly resolved.
@@ -234,8 +259,11 @@ export class PipelineBootstrapService implements OnApplicationBootstrap {
         localBehaviors = await Promise.all(
           behaviorTypes.map((BehaviorClass, i) =>
             dynamicIndices.has(i)
-              ? moduleRef.resolve<IPipelineBehavior>(BehaviorClass, undefined, { strict: false })
-              : Promise.resolve(resolvedBehaviors.get(i)!),
+              ? moduleRef.resolve<IPipelineBehavior>(BehaviorClass, undefined, {
+                  strict: false,
+                })
+              : // biome-ignore lint/style/noNonNullAssertion: index guaranteed by the resolve loop above
+                Promise.resolve(resolvedBehaviors.get(i)!),
           ),
         );
       } else {
@@ -253,8 +281,7 @@ export class PipelineBootstrapService implements OnApplicationBootstrap {
       context[SET_ORIGINAL_CORRELATION_ID](context.correlationId);
 
       // Build chain: behavior[0] → behavior[1] → ... → originalMethod
-      // Use `this` so the correct instance is called for both singletons
-      // (captured instance === this) and scoped handlers (per-request instance).
+      // biome-ignore lint/complexity/noUselessThisAlias: Use `this` so the correct instance is called for both singletons (captured instance === this) and scoped handlers (per-request instance).
       const self = this;
       let chain: NextDelegate = async () => {
         const result = await originalMethod.call(self, request);
@@ -280,7 +307,7 @@ export class PipelineBootstrapService implements OnApplicationBootstrap {
     };
 
     // Mark as pipelined to prevent double-wrapping on HMR re-bootstrap
-    (target[methodName] as any).__pipelined = true;
+    untyped(target[methodName]).__pipelined = true;
   }
 
   // ── Global behavior resolution ──
@@ -295,15 +322,16 @@ export class PipelineBootstrapService implements OnApplicationBootstrap {
   private resolveGlobalBehaviors(requestKind: 'command' | 'query' | 'event'): {
     beforeTypes: Type<IPipelineBehavior>[];
     afterTypes: Type<IPipelineBehavior>[];
-    globalOptions: Map<string, Record<string, any>>;
+    globalOptions: Map<string, Record<string, unknown>>;
   } {
     const empty = {
       beforeTypes: [] as Type<IPipelineBehavior>[],
       afterTypes: [] as Type<IPipelineBehavior>[],
-      globalOptions: new Map<string, Record<string, any>>(),
+      globalOptions: new Map<string, Record<string, unknown>>(),
     };
 
-    const config: GlobalBehaviorsOptions | undefined = this.options?.globalBehaviors;
+    const config: GlobalBehaviorsOptions | undefined =
+      this.options?.globalBehaviors;
     if (!config) return empty;
 
     const scope = config.scope ?? 'all';
@@ -313,9 +341,11 @@ export class PipelineBootstrapService implements OnApplicationBootstrap {
     if (scope === 'queries' && requestKind !== 'query') return empty;
     if (scope === 'events' && requestKind !== 'event') return empty;
 
-    const globalOptions = new Map<string, Record<string, any>>();
+    const globalOptions = new Map<string, Record<string, unknown>>();
 
-    const parseEntries = (entries: PipelineBehaviorEntry[]): Type<IPipelineBehavior>[] =>
+    const parseEntries = (
+      entries: PipelineBehaviorEntry[],
+    ): Type<IPipelineBehavior>[] =>
       entries.map((entry) => {
         if (Array.isArray(entry)) {
           globalOptions.set(getBehaviorId(entry[0]), entry[1]);

@@ -1,7 +1,7 @@
-import { describe, it, expect, vi } from 'vitest';
-import { HttpCorrelationMiddleware } from './http-correlation.middleware';
+import { IncomingMessage, ServerResponse } from 'node:http';
+import { describe, expect, it, vi } from 'vitest';
 import { correlationStore } from '../correlation.store';
-import { IncomingMessage, ServerResponse } from 'http';
+import { HttpCorrelationMiddleware } from './http-correlation.middleware';
 
 function fakeRequest(headers: Record<string, string> = {}): IncomingMessage {
   return { headers } as unknown as IncomingMessage;

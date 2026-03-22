@@ -1,5 +1,9 @@
-import { describe, it, expect } from 'vitest';
-import { pipelineStore, SET_RESPONSE, SET_ORIGINAL_CORRELATION_ID } from '../constants/pipeline-context.constants';
+import { describe, expect, it } from 'vitest';
+import {
+  pipelineStore,
+  SET_ORIGINAL_CORRELATION_ID,
+  SET_RESPONSE,
+} from '../constants/pipeline-context.constants';
 import { IPipelineContext } from '../interfaces/pipeline.context.interface';
 
 describe('pipelineStore', () => {
@@ -38,6 +42,8 @@ describe('symbol keys', () => {
 
   it('SET_ORIGINAL_CORRELATION_ID is a unique symbol', () => {
     expect(typeof SET_ORIGINAL_CORRELATION_ID).toBe('symbol');
-    expect(SET_ORIGINAL_CORRELATION_ID.toString()).toContain('setOriginalCorrelationId');
+    expect(SET_ORIGINAL_CORRELATION_ID.toString()).toContain(
+      'setOriginalCorrelationId',
+    );
   });
 });

@@ -1,7 +1,7 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { trace, SpanStatusCode, SpanKind } from '@opentelemetry/api';
-import { TraceBehavior } from './trace.behavior';
 import { IPipelineContext } from '@nestjs-pipeline/core';
+import { SpanKind, SpanStatusCode, trace } from '@opentelemetry/api';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { TraceBehavior } from './trace.behavior';
 
 // ─── Mock the entire OTel API surface ────────────────────────────────────────
 // We preserve real enum values (SpanStatusCode, SpanKind, …) via importOriginal
@@ -179,8 +179,11 @@ describe('TraceBehavior', () => {
       expect(trace.getTracer).toHaveBeenCalledWith('my-service');
     });
 
-    it('creates a span named "${requestKind}.${requestName}"', async () => {
-      const ctx = makeCtx({ requestKind: 'query', requestName: 'GetUserQuery' });
+    it('creates a span named "{requestKind}.{requestName}"', async () => {
+      const ctx = makeCtx({
+        requestKind: 'query',
+        requestName: 'GetUserQuery',
+      });
 
       await behavior.handle(ctx, vi.fn().mockResolvedValue(null));
 
@@ -265,7 +268,10 @@ describe('TraceBehavior', () => {
     });
 
     it('works for event handlers (requestKind="event")', async () => {
-      const ctx = makeCtx({ requestKind: 'event', requestName: 'UserCreatedEvent' });
+      const ctx = makeCtx({
+        requestKind: 'event',
+        requestName: 'UserCreatedEvent',
+      });
       const next = vi.fn().mockResolvedValue(undefined);
 
       await behavior.handle(ctx, next);
@@ -275,7 +281,9 @@ describe('TraceBehavior', () => {
         expect.anything(),
         expect.any(Function),
       );
-      expect(mockSpan.setStatus).toHaveBeenCalledWith({ code: SpanStatusCode.OK });
+      expect(mockSpan.setStatus).toHaveBeenCalledWith({
+        code: SpanStatusCode.OK,
+      });
     });
   });
 });

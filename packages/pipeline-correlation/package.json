@@ -1,6 +1,6 @@
 {
   "name": "@nestjs-pipeline/correlation",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "description": "Correlation ID propagation for NestJS (HTTP, Bull, RabbitMQ, Kafka, gRPC, NATS, cron)",
   "author": "Aristotelis <aristotelis@ik.me>",
   "license": "SEE LICENSE IN LICENSE",

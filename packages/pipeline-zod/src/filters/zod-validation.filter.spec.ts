@@ -7,14 +7,15 @@
  * License, or (at your option) any later version.
  *
  * --- COMMERCIAL EXCEPTION ---
- * Alternatively, a Commercial License is available for individuals or 
+ * Alternatively, a Commercial License is available for individuals or
  * companies that do not wish to be bound by the AGPL terms. Contact Aristotelis for details.
  */
-import { describe, it, expect } from 'vitest';
-import { ZodValidationFilter } from './zod-validation.filter';
+
 import { HttpStatus } from '@nestjs/common';
-import { ZodValidationError } from '../errors/zod-validation.error';
+import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
+import { ZodValidationError } from '../errors/zod-validation.error';
+import { ZodValidationFilter } from './zod-validation.filter';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -48,21 +49,36 @@ describe('ZodValidationFilter', () => {
   it('responds with HTTP 400 status code', () => {
     const error = makeError(z.object({ name: z.string() }), { name: 123 });
     let response: any;
-    filter.catch(error, createMockHost((body) => { response = body; }));
+    filter.catch(
+      error,
+      createMockHost((body) => {
+        response = body;
+      }),
+    );
     expect(response.code).toBe(HttpStatus.BAD_REQUEST);
   });
 
   it('includes "Bad Request" as error string', () => {
     const error = makeError(z.string(), 42);
     let response: any;
-    filter.catch(error, createMockHost((body) => { response = body; }));
+    filter.catch(
+      error,
+      createMockHost((body) => {
+        response = body;
+      }),
+    );
     expect(response.error).toBe('Bad Request');
   });
 
   it('includes "Validation failed" as message', () => {
     const error = makeError(z.string(), 42);
     let response: any;
-    filter.catch(error, createMockHost((body) => { response = body; }));
+    filter.catch(
+      error,
+      createMockHost((body) => {
+        response = body;
+      }),
+    );
     expect(response.message).toBe('Validation failed');
   });
 
@@ -72,7 +88,12 @@ describe('ZodValidationFilter', () => {
       { email: 'bad', age: -1 },
     );
     let response: any;
-    filter.catch(error, createMockHost((body) => { response = body; }));
+    filter.catch(
+      error,
+      createMockHost((body) => {
+        response = body;
+      }),
+    );
 
     expect(response.details).toHaveProperty('fieldErrors');
     expect(response.details.fieldErrors).toHaveProperty('email');
@@ -82,7 +103,12 @@ describe('ZodValidationFilter', () => {
   it('includes statusCode field in the response body', () => {
     const error = makeError(z.string(), null);
     let response: any;
-    filter.catch(error, createMockHost((body) => { response = body; }));
+    filter.catch(
+      error,
+      createMockHost((body) => {
+        response = body;
+      }),
+    );
     expect(response.statusCode).toBe(HttpStatus.BAD_REQUEST);
   });
 });

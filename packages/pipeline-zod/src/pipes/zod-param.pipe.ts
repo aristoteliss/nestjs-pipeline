@@ -7,7 +7,7 @@
  * License, or (at your option) any later version.
  *
  * --- COMMERCIAL EXCEPTION ---
- * Alternatively, a Commercial License is available for individuals or 
+ * Alternatively, a Commercial License is available for individuals or
  * companies that do not wish to be bound by the AGPL terms. Contact Aristotelis for details.
  */
 import { BadRequestException, PipeTransform } from '@nestjs/common';
@@ -21,7 +21,9 @@ import { ZodType } from 'zod';
  *   @Body(new ZodPipe(CreateUserDtoSchema))
  *   @Body(new ZodPipe(CreateUserMapper))   // transform schema → outputs a Command
  */
-export class ZodPipe<TOutput, TInput = any> implements PipeTransform<TInput, TOutput> {
+export class ZodPipe<TOutput, TInput = unknown>
+  implements PipeTransform<TInput, TOutput>
+{
   constructor(private readonly schema: ZodType<TOutput>) {}
 
   transform(value: TInput): TOutput {

@@ -7,12 +7,12 @@
  * License, or (at your option) any later version.
  *
  * --- COMMERCIAL EXCEPTION ---
- * Alternatively, a Commercial License is available for individuals or 
+ * Alternatively, a Commercial License is available for individuals or
  * companies that do not wish to be bound by the AGPL terms. Contact Aristotelis for details.
  */
-import { describe, it, expect } from 'vitest';
+import { describe, expect, it } from 'vitest';
+import { ZodError, z } from 'zod';
 import { ZodValidationError } from './zod-validation.error';
-import { z, ZodError } from 'zod';
 
 // ---------------------------------------------------------------------------
 // Tests
@@ -43,7 +43,9 @@ describe('ZodValidationError', () => {
 
   it('exposes flattened fieldErrors for object schemas', () => {
     const schema = z.object({ foo: z.string(), bar: z.number() });
-    const err = new ZodValidationError(parseError(schema, { foo: 123, bar: 'nope' }));
+    const err = new ZodValidationError(
+      parseError(schema, { foo: 123, bar: 'nope' }),
+    );
 
     expect(err.details).toHaveProperty('fieldErrors');
     expect(err.details.fieldErrors).toHaveProperty('foo');
@@ -72,7 +74,9 @@ describe('ZodValidationError', () => {
       age: z.number().int().positive(),
       email: z.string().email(),
     });
-    const err = new ZodValidationError(parseError(schema, { name: 'a', age: -1, email: 'bad' }));
+    const err = new ZodValidationError(
+      parseError(schema, { name: 'a', age: -1, email: 'bad' }),
+    );
 
     expect(Object.keys(err.details.fieldErrors!)).toHaveLength(3);
   });

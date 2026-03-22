@@ -7,11 +7,11 @@
  * License, or (at your option) any later version.
  *
  * --- COMMERCIAL EXCEPTION ---
- * Alternatively, a Commercial License is available for individuals or 
- * organizations that require proprietary use without the AGPLv3 
- * copyleft restrictions. 
+ * Alternatively, a Commercial License is available for individuals or
+ * organizations that require proprietary use without the AGPLv3
+ * copyleft restrictions.
  *
- * See COMMERCIAL_LICENSE.txt in this repository for the tiered 
+ * See COMMERCIAL_LICENSE.txt in this repository for the tiered
  * revenue-based terms, or contact: aristotelis@ik.me
  * ----------------------------
  *
@@ -24,7 +24,7 @@
  * along with this program. If not, see <https://www.gnu.org/licenses/>.
  */
 
-import { AsyncLocalStorage } from 'async_hooks';
+import { AsyncLocalStorage } from 'node:async_hooks';
 import { IPipelineContext } from '../interfaces/pipeline.context.interface';
 
 /**
@@ -45,7 +45,9 @@ export const pipelineStore = new AsyncLocalStorage<IPipelineContext>();
  *
  * @internal — used exclusively by {@link PipelineBootstrapService}.
  */
-export const SET_RESPONSE: unique symbol = Symbol('PipelineContext.setResponse');
+export const SET_RESPONSE: unique symbol = Symbol(
+  'PipelineContext.setResponse',
+);
 
 /**
  * Symbol-keyed setter for `originalCorrelationId`. Only code that imports
@@ -53,4 +55,6 @@ export const SET_RESPONSE: unique symbol = Symbol('PipelineContext.setResponse')
  *
  * @internal — used exclusively by {@link PipelineBootstrapService}.
  */
-export const SET_ORIGINAL_CORRELATION_ID: unique symbol = Symbol('PipelineContext.setOriginalCorrelationId');
+export const SET_ORIGINAL_CORRELATION_ID: unique symbol = Symbol(
+  'PipelineContext.setOriginalCorrelationId',
+);
