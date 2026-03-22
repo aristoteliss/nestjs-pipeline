@@ -12,6 +12,14 @@
     "lint": "tsc --noEmit"
   },
   "dependencies": {
-    "@nestjs-pipeline/core": "workspace:*"
+    "@nestjs-pipeline/core": "workspace:*",
+    "@nestjs-pipeline/correlation": "workspace:*",
+    "@nestjs/common": "^11.1.17",
+    "@nestjs/cqrs": "^11.0.3"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.4.8",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.9.3"
   }
 }

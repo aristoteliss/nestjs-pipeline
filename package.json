@@ -13,8 +13,8 @@
     "publish:all": "pnpm -r publish --access public"
   },
   "devDependencies": {
-    "@types/node": "^22.0.0",
-    "typescript": "^5.7.0"
+    "@types/node": "^25.5.0",
+    "typescript": "^5.9.3"
   },
   "engines": {
     "node": ">=18.0.0",

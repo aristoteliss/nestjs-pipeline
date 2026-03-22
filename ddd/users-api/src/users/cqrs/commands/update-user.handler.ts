@@ -11,9 +11,10 @@
  * companies that do not wish to be bound by the AGPL terms. Contact Aristotelis for details.
  */
 import { Inject, Scope } from '@nestjs/common';
-import { CommandHandler, EventBus, ICommandHandler } from '@nestjs/cqrs';
+import { CommandHandler, EventBus } from '@nestjs/cqrs';
 import { LoggingBehavior, UsePipeline } from '@nestjs-pipeline/core';
-import { User } from '../../domain/models/user.entity';
+import { CommandBaseHandler } from '@nestjs-pipeline/ddd-core';
+import { UserUpdateOutcome } from '../../domain/outcomes/user-update.outcome';
 import {
   type IUserRepository,
   USER_REPOSITORY,
@@ -22,25 +23,26 @@ import { UpdateUserCommand } from './update-user.command';
 
 @CommandHandler(UpdateUserCommand, { scope: Scope.REQUEST })
 @UsePipeline([LoggingBehavior, { requestResponseLogLevel: 'log' }])
-export class UpdateUserHandler
-  implements ICommandHandler<UpdateUserCommand, User>
-{
+export class UpdateUserHandler extends CommandBaseHandler<
+  UpdateUserCommand,
+  UserUpdateOutcome
+> {
   constructor(
     @Inject(USER_REPOSITORY) private readonly userRepository: IUserRepository,
-    private readonly eventBus: EventBus,
-  ) {}
+    protected readonly eventBus: EventBus,
+  ) {
+    super(eventBus);
+  }
 
-  async execute(command: UpdateUserCommand): Promise<User> {
+  async handle(command: UpdateUserCommand): Promise<UserUpdateOutcome> {
     const { id, username } = command;
 
     const user = this.userRepository.findById(id);
 
-    const { entity: userOutcome, events } = user.rename(username);
+    const outcome = user.rename(username);
 
-    this.userRepository.save(userOutcome);
+    this.userRepository.save(outcome.entity);
 
-    await this.eventBus.publishAll(events);
-
-    return user;
+    return outcome;
   }
 }

@@ -1,4 +1,5 @@
-export * from './decorators.ts/Mutate';
+export * from './application/command-base.handler';
+export * from './decorators/Mutate';
 export * from './domain/events/domain.event';
 export * from './domain/events/root-domain.event';
 export * from './domain/interfaces/root-entity-snapshot.interface';

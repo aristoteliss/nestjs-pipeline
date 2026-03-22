@@ -11,8 +11,10 @@
  * companies that do not wish to be bound by the AGPL terms. Contact Aristotelis for details.
  */
 import { Inject } from '@nestjs/common';
-import { CommandHandler, EventBus, type ICommandHandler } from '@nestjs/cqrs';
+import { CommandHandler, EventBus } from '@nestjs/cqrs';
 import { LoggingBehavior, UsePipeline } from '@nestjs-pipeline/core';
+import { CommandBaseHandler } from '@nestjs-pipeline/ddd-core';
+import { UserUpdateOutcome } from '../../domain/outcomes/user-update.outcome';
 import {
   type IUserRepository,
   USER_REPOSITORY,
@@ -21,23 +23,26 @@ import { DeleteUserCommand } from './delete-user.command';
 
 @CommandHandler(DeleteUserCommand)
 @UsePipeline([LoggingBehavior, { requestResponseLogLevel: 'log' }])
-export class DeleteUserHandler
-  implements ICommandHandler<DeleteUserCommand, void>
-{
+export class DeleteUserHandler extends CommandBaseHandler<
+  DeleteUserCommand,
+  UserUpdateOutcome
+> {
   constructor(
     @Inject(USER_REPOSITORY) private readonly userRepository: IUserRepository,
-    private readonly eventBus: EventBus,
-  ) {}
+    protected readonly eventBus: EventBus,
+  ) {
+    super(eventBus);
+  }
 
-  async execute(command: DeleteUserCommand): Promise<void> {
+  async handle(command: DeleteUserCommand): Promise<UserUpdateOutcome> {
     const { id } = command;
 
     const user = this.userRepository.findById(id);
 
-    const { entity: _userOutcome, events } = user.delete();
+    const outcome = user.delete();
 
     this.userRepository.delete(command.id);
 
-    await this.eventBus.publishAll(events);
+    return outcome;
   }
 }

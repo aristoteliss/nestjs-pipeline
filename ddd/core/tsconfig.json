@@ -7,7 +7,7 @@
     "index.ts",
     "domain/**/*.ts",
     "types/Method.ts",
-    "decorators.ts/Mutate.ts"
+    "decorators/Mutate.ts"
   ],
   "exclude": ["dist", "node_modules"]
 }

@@ -40,10 +40,10 @@
     "reflect-metadata": "^0.1.13 || ^0.2.0"
   },
   "devDependencies": {
-    "@nestjs/common": "^11.0.0",
+    "@nestjs/common": "^11.1.17",
     "@opentelemetry/api": "^1.9.0",
-    "@vitest/coverage-v8": "^4.0.18",
-    "reflect-metadata": "^0.2.0",
-    "vitest": "^4.0.18"
+    "@vitest/coverage-v8": "^4.1.0",
+    "reflect-metadata": "^0.2.2",
+    "vitest": "^4.1.0"
   }
 }

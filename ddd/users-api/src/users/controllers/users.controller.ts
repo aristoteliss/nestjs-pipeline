@@ -30,6 +30,8 @@ import { UpdateUserCommand } from '../cqrs/commands/update-user.command';
 import { GetUserQuery } from '../cqrs/queries/get-user.query';
 import { GetUsersQuery } from '../cqrs/queries/get-users.query';
 import { User } from '../domain/models/user.entity';
+import { UserCreateOutcome } from '../domain/outcomes/user-create.outcome';
+import { UserUpdateOutcome } from '../domain/outcomes/user-update.outcome';
 import {
   type CreateUserDto,
   CreateUserDtoSchema,
@@ -77,10 +79,11 @@ export class UsersController {
   async createUser(
     @Body(new ZodPipe(CreateUserDtoSchema)) dto: CreateUserDto,
   ): Promise<UserResponseDto> {
-    const user = await this.commandBus.execute<CreateUserCommand, User>(
-      CreateUserMapper.map(dto),
-    );
-    return toResponseDto(user);
+    const outcome = await this.commandBus.execute<
+      CreateUserCommand,
+      UserCreateOutcome
+    >(CreateUserMapper.map(dto));
+    return toResponseDto(outcome.entity);
   }
 
   @Patch(':id')
@@ -89,10 +92,11 @@ export class UsersController {
     @Param('id', new ZodPipe<UserIdDto, string>(UserIdDtoSchema)) id: UserIdDto,
     @Body(new ZodPipe(UpdateUserDtoSchema)) dto: UpdateUserDto,
   ): Promise<UserResponseDto> {
-    const user = await this.commandBus.execute<UpdateUserCommand, User>(
-      UpdateUserMapper.map(id, dto),
-    );
-    return toResponseDto(user);
+    const outcome = await this.commandBus.execute<
+      UpdateUserCommand,
+      UserUpdateOutcome
+    >(UpdateUserMapper.map(id, dto));
+    return toResponseDto(outcome.entity);
   }
 
   @Delete(':id')
@@ -100,7 +104,7 @@ export class UsersController {
   async deleteUser(
     @Param('id', new ZodPipe<UserIdDto, string>(UserIdDtoSchema)) id: UserIdDto,
   ): Promise<void> {
-    await this.commandBus.execute<DeleteUserCommand, void>(
+    await this.commandBus.execute<DeleteUserCommand, UserUpdateOutcome>(
       new DeleteUserCommand({ id }),
     );
   }

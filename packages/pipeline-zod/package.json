@@ -39,9 +39,9 @@
   },
   "devDependencies": {
     "@nestjs-pipeline/core": "workspace:*",
-    "@nestjs/common": "^11.0.0",
-    "reflect-metadata": "^0.2.0",
-    "vitest": "^3.0.0",
-    "zod": "^4.0.0"
+    "@nestjs/common": "^11.1.17",
+    "reflect-metadata": "^0.2.2",
+    "vitest": "^4.1.0",
+    "zod": "^4.3.6"
   }
 }
