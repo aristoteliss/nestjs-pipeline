@@ -56,7 +56,7 @@ Zero additional runtime dependencies beyond NestJS itself. Works with Express an
   - [Setup](#setup)
   - [Span Details](#span-details)
   - [No SDK? No Problem.](#no-sdk-no-problem)
-- [Sample Application](#sample-application)
+- [DDD Example](#ddd-example)
 - [Repository Structure](#repository-structure)
 - [Development](#development)
 - [Adding a New Behavior Package](#adding-a-new-behavior-package)
@@ -1079,12 +1079,37 @@ If the OpenTelemetry SDK is not initialized, `TraceBehavior` silently passes thr
 
 ---
 
-## Sample Application
+## DDD Example
 
-The `samples/users-api/` directory contains a complete working application:
+The `ddd/` directory demonstrates Domain-Driven Design with `@nestjs-pipeline`.
+
+### `ddd/core` — Reusable DDD Primitives
+
+The `@nestjs-pipeline/ddd-core` package (`ddd/core/`) provides the foundational building blocks for any domain layer:
+
+| Export              | Description                                                        |
+|---------------------|--------------------------------------------------------------------|
+| `RootEntity`        | Abstract base entity with UUID v7 identity, `createdAt`/`updatedAt` lifecycle, and mutation tracking |
+| `RootEntitySnapshot`| Interface for serializing/rehydrating entities                     |
+| `DomainEvent`       | Abstract base class for domain events (carries a UUID v7 `id`)     |
+| `RootDomainEvent`   | Domain event that carries a reference to the originating entity    |
+| `DomainOutcome`     | Base outcome class — bundles domain events produced by an operation |
+| `RootDomainOutcome` | Outcome that pairs an entity with its domain events                |
+| `Mutate`            | Decorator that calls `onUpdate()` after a method executes          |
+| `Method`            | Utility type for extracting method signatures                      |
+
+Import them in your domain layer:
+
+```typescript
+import { RootEntity, RootDomainEvent, RootDomainOutcome, Mutate } from '@nestjs-pipeline/ddd-core';
+```
+
+### `ddd/users-api` — Full Working Application
+
+The `ddd/users-api/` directory contains a complete working application:
 
 ```bash
-cd samples/users-api
+cd ddd/users-api
 pnpm install
 pnpm start
 ```
@@ -1123,7 +1148,7 @@ ADAPTER=fastify pnpm start
 - Controller-level `ZodPipe` validation
 - Zod transform mappers (DTO → Command mapping)
 - OpenTelemetry tracing with `TraceBehavior`
-- DDD-style `User` entity with factory methods
+- DDD-style `User` entity built on `ddd-core` primitives (`RootEntity`, `RootDomainEvent`, `RootDomainOutcome`)
 - Correlation ID propagation across handlers and events
 - Express and Fastify adapter support
 
@@ -1134,7 +1159,7 @@ ADAPTER=fastify pnpm start
 ```
 nestjs-pipeline/
 ├── package.json                  # root — workspace scripts
-├── pnpm-workspace.yaml           # declares packages/* and samples/*
+├── pnpm-workspace.yaml           # declares packages/* and ddd/*
 ├── tsconfig.base.json            # shared TypeScript config
 ├── packages/
 │   ├── pipeline/                 # @nestjs-pipeline/core
@@ -1164,8 +1189,14 @@ nestjs-pipeline/
 │   └── pipeline-opentelemetry/   # @nestjs-pipeline/opentelemetry
 │       └── src/
 │           └── trace.behavior.ts
-└── samples/
-    └── users-api/                # Full working example
+└── ddd/
+    ├── core/                     # @nestjs-pipeline/ddd-core — reusable DDD primitives
+    │   └── domain/
+    │       ├── events/            # DomainEvent, RootDomainEvent
+    │       ├── interfaces/        # RootEntitySnapshot
+    │       ├── models/            # RootEntity
+    │       └── outcomes/          # DomainOutcome, RootDomainOutcome
+    └── users-api/                # Full working example using ddd-core
 ```
 
 ---

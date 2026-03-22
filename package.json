@@ -9,6 +9,7 @@
     "test": "pnpm -r test",
     "lint": "pnpm -r lint",
     "clean": "pnpm -r clean",
+    "rebuild": "pnpm -r clean && pnpm -r build",
     "publish:all": "pnpm -r publish --access public"
   },
   "devDependencies": {

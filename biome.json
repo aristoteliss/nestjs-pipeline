@@ -48,6 +48,19 @@
           }
         }
       }
+    },
+    {
+      "includes": [
+        "**/outcomes/**",
+        "**/events/**"
+      ],
+      "linter": {
+        "rules": {
+          "complexity": {
+            "noUselessConstructor": "off"
+          }
+        }
+      }
     }
   ]
 }

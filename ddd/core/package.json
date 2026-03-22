@@ -1,0 +1,17 @@
+{
+  "name": "@nestjs-pipeline/ddd-core",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Shared DDD primitives (entities, domain events, outcomes, and decorators) for the sample applications.",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "clean": "rm -rf dist tsconfig.tsbuildinfo",
+    "rebuild": "pnpm run clean && pnpm run build",
+    "lint": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@nestjs-pipeline/core": "workspace:*"
+  }
+}

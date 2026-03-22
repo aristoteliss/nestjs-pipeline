@@ -27,6 +27,7 @@
     "build": "tsc -p tsconfig.build.json",
     "build:watch": "tsc -p tsconfig.build.json --watch",
     "clean": "rm -rf dist tsconfig.tsbuildinfo",
+    "rebuild": "pnpm run clean && pnpm run build",
     "lint": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",

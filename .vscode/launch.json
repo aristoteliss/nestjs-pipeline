@@ -1,26 +1,20 @@
 {
-    "version": "0.2.0",
-    "configurations": [
-        {
-            "type": "node",
-            "request": "launch",
-            "name": "Debug Users API",
-            "skipFiles": [
-                "<node_internals>/**"
-            ],
-            "runtimeArgs": [
-                "--nolazy",
-                "-r",
-                "ts-node/register"
-            ],
-            "program": "${workspaceFolder}/samples/users-api/src/main.ts",
-            "cwd": "${workspaceFolder}/samples/users-api",
-            "env": {
-                "TS_NODE_PROJECT": "${workspaceFolder}/samples/users-api/tsconfig.json"
-            },
-            "sourceMaps": true,
-            "console": "integratedTerminal",
-            "outputCapture": "std"
-        }
-    ]
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "type": "node",
+      "request": "launch",
+      "name": "Debug Users API",
+      "skipFiles": ["<node_internals>/**"],
+      "runtimeArgs": ["--nolazy", "-r", "ts-node/register"],
+      "program": "${workspaceFolder}/ddd/users-api/src/main.ts",
+      "cwd": "${workspaceFolder}/ddd/users-api",
+      "env": {
+        "TS_NODE_PROJECT": "${workspaceFolder}/ddd/users-api/tsconfig.json"
+      },
+      "sourceMaps": true,
+      "console": "integratedTerminal",
+      "outputCapture": "std"
+    }
+  ]
 }
