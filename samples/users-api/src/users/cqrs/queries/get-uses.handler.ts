@@ -7,14 +7,17 @@
  * License, or (at your option) any later version.
  *
  * --- COMMERCIAL EXCEPTION ---
- * Alternatively, a Commercial License is available for individuals or 
+ * Alternatively, a Commercial License is available for individuals or
  * companies that do not wish to be bound by the AGPL terms. Contact Aristotelis for details.
  */
 import { Inject } from '@nestjs/common';
-import { IQueryHandler, QueryHandler } from '@nestjs/cqrs';
+import { type IQueryHandler, QueryHandler } from '@nestjs/cqrs';
+import type { User } from '../../domain/user.entity';
+import {
+  type IUserRepository,
+  USER_REPOSITORY,
+} from '../../repositories/user.repository.interface';
 import { GetUsersQuery } from './get-users.query';
-import { User } from '../../domain/user.entity';
-import { IUserRepository, USER_REPOSITORY } from '../../repositories/user.repository.interface';
 
 @QueryHandler(GetUsersQuery)
 export class GetUsersHandler implements IQueryHandler<GetUsersQuery, User[]> {

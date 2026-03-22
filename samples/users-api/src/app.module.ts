@@ -7,25 +7,34 @@
  * License, or (at your option) any later version.
  *
  * --- COMMERCIAL EXCEPTION ---
- * Alternatively, a Commercial License is available for individuals or 
+ * Alternatively, a Commercial License is available for individuals or
  * companies that do not wish to be bound by the AGPL terms. Contact Aristotelis for details.
  */
-import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
-import { CqrsModule } from '@nestjs/cqrs';
+
 import { BullModule } from '@nestjs/bullmq';
+import {
+  type MiddlewareConsumer,
+  Module,
+  type NestModule,
+} from '@nestjs/common';
+import { CqrsModule } from '@nestjs/cqrs';
 import { LoggingBehavior, PipelineModule } from '@nestjs-pipeline/core';
-import { getCorrelationId, HttpCorrelationMiddleware, runWithCorrelationId } from '@nestjs-pipeline/correlation';
-import { UsersModule } from './users/users.module';
+import {
+  getCorrelationId,
+  HttpCorrelationMiddleware,
+  runWithCorrelationId,
+} from '@nestjs-pipeline/correlation';
 import { TraceBehavior } from '@nestjs-pipeline/opentelemetry';
 import { ZodValidationBehavior } from '@nestjs-pipeline/zod';
+import { UsersModule } from './users/users.module';
 
 @Module({
   imports: [
     CqrsModule.forRoot(),
     BullModule.forRoot({
       connection: {
-        host: process.env['REDIS_HOST'] ?? 'localhost',
-        port: Number(process.env['REDIS_PORT'] ?? 6379),
+        host: process.env.REDIS_HOST ?? 'localhost',
+        port: Number(process.env.REDIS_PORT ?? 6379),
       },
     }),
     PipelineModule.forRoot({
@@ -45,7 +54,10 @@ import { ZodValidationBehavior } from '@nestjs-pipeline/zod';
       globalBehaviors: {
         scope: 'all',
         before: [LoggingBehavior],
-        after: [[TraceBehavior, { tracerName: 'users-api' }], ZodValidationBehavior],
+        after: [
+          [TraceBehavior, { tracerName: 'users-api' }],
+          ZodValidationBehavior,
+        ],
       },
     }),
     UsersModule,

@@ -7,18 +7,23 @@
  * License, or (at your option) any later version.
  *
  * --- COMMERCIAL EXCEPTION ---
- * Alternatively, a Commercial License is available for individuals or 
+ * Alternatively, a Commercial License is available for individuals or
  * companies that do not wish to be bound by the AGPL terms. Contact Aristotelis for details.
  */
 import { Inject } from '@nestjs/common';
-import { CommandHandler, ICommandHandler } from '@nestjs/cqrs';
-import { DeleteUserCommand } from './delete-user.command';
+import { CommandHandler, type ICommandHandler } from '@nestjs/cqrs';
 import { LoggingBehavior, UsePipeline } from '@nestjs-pipeline/core';
-import { IUserRepository, USER_REPOSITORY } from '../../repositories/user.repository.interface';
+import {
+  type IUserRepository,
+  USER_REPOSITORY,
+} from '../../repositories/user.repository.interface';
+import { DeleteUserCommand } from './delete-user.command';
 
 @CommandHandler(DeleteUserCommand)
 @UsePipeline([LoggingBehavior, { requestResponseLogLevel: 'log' }])
-export class DeleteUserHandler implements ICommandHandler<DeleteUserCommand, void> {
+export class DeleteUserHandler
+  implements ICommandHandler<DeleteUserCommand, void>
+{
   constructor(
     @Inject(USER_REPOSITORY) private readonly userRepository: IUserRepository,
   ) {}

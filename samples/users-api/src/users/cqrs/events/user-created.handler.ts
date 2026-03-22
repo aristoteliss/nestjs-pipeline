@@ -7,16 +7,23 @@
  * License, or (at your option) any later version.
  *
  * --- COMMERCIAL EXCEPTION ---
- * Alternatively, a Commercial License is available for individuals or 
+ * Alternatively, a Commercial License is available for individuals or
  * companies that do not wish to be bound by the AGPL terms. Contact Aristotelis for details.
  */
-import { EventsHandler, IEventHandler } from '@nestjs/cqrs';
-import { Logger } from '@nestjs/common';
+
 import { InjectQueue } from '@nestjs/bullmq';
-import { Queue } from 'bullmq';
-import { addCorrelationId, getCorrelationId } from '@nestjs-pipeline/correlation';
+import { Logger } from '@nestjs/common';
+import { EventsHandler, type IEventHandler } from '@nestjs/cqrs';
+import {
+  addCorrelationId,
+  getCorrelationId,
+} from '@nestjs-pipeline/correlation';
+import type { Queue } from 'bullmq';
+import {
+  WELCOME_EMAIL_QUEUE,
+  type WelcomeEmailJobData,
+} from '../../jobs/send-welcome-email.processor';
 import { UserCreatedEvent } from './user-created.event';
-import { WELCOME_EMAIL_QUEUE, WelcomeEmailJobData } from '../../jobs/send-welcome-email.processor';
 
 @EventsHandler(UserCreatedEvent)
 export class UserCreatedHandler implements IEventHandler<UserCreatedEvent> {
@@ -36,8 +43,13 @@ export class UserCreatedHandler implements IEventHandler<UserCreatedEvent> {
     );
 
     // addCorrelationId stamps the current correlationId into the job data — works with any queue
-    await this.welcomeEmailQueue.add('send', addCorrelationId({ userId, username, email }));
+    await this.welcomeEmailQueue.add(
+      'send',
+      addCorrelationId({ userId, username, email }),
+    );
 
-    this.logger.log(`📤 [${correlationId}] Enqueued welcome email job for ${email}`);
+    this.logger.log(
+      `📤 [${correlationId}] Enqueued welcome email job for ${email}`,
+    );
   }
 }

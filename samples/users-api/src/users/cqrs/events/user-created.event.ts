@@ -7,7 +7,7 @@
  * License, or (at your option) any later version.
  *
  * --- COMMERCIAL EXCEPTION ---
- * Alternatively, a Commercial License is available for individuals or 
+ * Alternatively, a Commercial License is available for individuals or
  * companies that do not wish to be bound by the AGPL terms. Contact Aristotelis for details.
  */
 import { z } from 'zod';
@@ -18,7 +18,5 @@ const schema = z.object({
   username: z.string().min(1),
   email: z.email(),
 });
-
-export interface UserCreatedEvent extends z.infer<typeof schema> {}
 
 export class UserCreatedEvent extends createRequest(schema) {}

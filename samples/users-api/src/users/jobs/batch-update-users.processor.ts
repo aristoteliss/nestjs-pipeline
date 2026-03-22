@@ -1,7 +1,10 @@
 import { Processor, WorkerHost } from '@nestjs/bullmq';
 import { Logger } from '@nestjs/common';
-import { Job } from 'bullmq';
-import { WithCorrelation, getCorrelationId } from '@nestjs-pipeline/correlation';
+import {
+  getCorrelationId,
+  WithCorrelation,
+} from '@nestjs-pipeline/correlation';
+import type { Job } from 'bullmq';
 
 export const BATCH_UPDATE_USERS_QUEUE = 'batch-update-users';
 
@@ -15,7 +18,7 @@ export interface BatchUpdateUserItem {
 export class BatchUpdateUsersProcessor extends WorkerHost {
   private readonly logger = new Logger(BatchUpdateUsersProcessor.name);
 
-  @WithCorrelation({ path: "opts.correlationId" })
+  @WithCorrelation({ path: 'opts.correlationId' })
   async process(job: Job<BatchUpdateUserItem[]>): Promise<void> {
     const correlationId = getCorrelationId();
     const items = job.data;

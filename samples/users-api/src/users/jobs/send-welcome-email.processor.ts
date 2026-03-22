@@ -1,7 +1,10 @@
 import { Processor, WorkerHost } from '@nestjs/bullmq';
 import { Logger } from '@nestjs/common';
-import { Job } from 'bullmq';
-import { WithCorrelation, getCorrelationId } from '@nestjs-pipeline/correlation';
+import {
+  getCorrelationId,
+  WithCorrelation,
+} from '@nestjs-pipeline/correlation';
+import type { Job } from 'bullmq';
 
 export const WELCOME_EMAIL_QUEUE = 'welcome-email';
 

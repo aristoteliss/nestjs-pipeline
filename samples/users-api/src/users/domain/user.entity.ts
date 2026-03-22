@@ -15,8 +15,7 @@ import {
   Mutate,
   RootEntity,
   type RootEntitySnapshot,
-} from "@nestjs-pipeline/sample-core";
-
+} from '@nestjs-pipeline/sample-core';
 
 export interface UserSnapshot extends Partial<RootEntitySnapshot> {
   readonly username: string;
@@ -57,8 +56,8 @@ export class User extends RootEntity<UserSnapshot> {
       id: User.normalizeId(snapshot.id),
       username: User.normalizeUsername(snapshot.username),
       email: snapshot.email,
-      createdAt: User.normalizeDate(snapshot.createdAt, "createdAt"),
-      updatedAt: User.normalizeDate(snapshot.updatedAt, "updatedAt"),
+      createdAt: User.normalizeDate(snapshot.createdAt, 'createdAt'),
+      updatedAt: User.normalizeDate(snapshot.updatedAt, 'updatedAt'),
     });
   }
 

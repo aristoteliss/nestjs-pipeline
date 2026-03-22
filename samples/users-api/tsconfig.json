@@ -3,6 +3,10 @@
   "compilerOptions": {
     "outDir": "dist"
   },
-  "include": ["src", "../../packages/pipeline-zod/src/zod-validation.filter.ts", "../../packages/pipeline-zod/src/pipes/zod-param.pipe.ts"],
+  "include": [
+    "src",
+    "../../packages/pipeline-zod/src/zod-validation.filter.ts",
+    "../../packages/pipeline-zod/src/pipes/zod-param.pipe.ts"
+  ],
   "exclude": ["dist", "node_modules"]
 }

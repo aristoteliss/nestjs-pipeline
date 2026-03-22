@@ -1,10 +1,13 @@
-import { EventsHandler, IEventHandler } from '@nestjs/cqrs';
-import { Logger } from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bullmq';
-import { JobsOptions, Queue } from 'bullmq';
+import { Logger } from '@nestjs/common';
+import { EventsHandler, type IEventHandler } from '@nestjs/cqrs';
 import { getCorrelationId } from '@nestjs-pipeline/correlation';
+import type { JobsOptions, Queue } from 'bullmq';
+import {
+  BATCH_UPDATE_USERS_QUEUE,
+  type BatchUpdateUserItem,
+} from '../../jobs/batch-update-users.processor';
 import { UserUpdatedEvent } from './user-updated.event';
-import { BATCH_UPDATE_USERS_QUEUE, BatchUpdateUserItem } from '../../jobs/batch-update-users.processor';
 
 @EventsHandler(UserUpdatedEvent)
 export class UserUpdatedHandler implements IEventHandler<UserUpdatedEvent> {
@@ -25,11 +28,9 @@ export class UserUpdatedHandler implements IEventHandler<UserUpdatedEvent> {
 
     const items: BatchUpdateUserItem[] = [{ userId, username }];
 
-    await this.batchUpdateQueue.add(
-      'batch-update',
-      items,
-      { ...({ correlationId }) } as JobsOptions & { correlationId: string },
-    );
+    await this.batchUpdateQueue.add('batch-update', items, {
+      ...{ correlationId },
+    } as JobsOptions & { correlationId: string });
 
     this.logger.log(
       `📤 [${correlationId}] Enqueued batch-update job for user ${userId}`,

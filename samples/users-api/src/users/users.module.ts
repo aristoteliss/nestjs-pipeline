@@ -7,23 +7,30 @@
  * License, or (at your option) any later version.
  *
  * --- COMMERCIAL EXCEPTION ---
- * Alternatively, a Commercial License is available for individuals or 
+ * Alternatively, a Commercial License is available for individuals or
  * companies that do not wish to be bound by the AGPL terms. Contact Aristotelis for details.
  */
-import { Module } from '@nestjs/common';
+
 import { BullModule } from '@nestjs/bullmq';
+import { Module } from '@nestjs/common';
 import { UsersController } from './controllers/users.controller';
 import { CreateUserHandler } from './cqrs/commands/create-user.handler';
+import { DeleteUserHandler } from './cqrs/commands/delete-user.handler';
 import { UpdateUserHandler } from './cqrs/commands/update-user.handler';
-import { GetUserHandler } from './cqrs/queries/get-user.handler';
 import { UserCreatedHandler } from './cqrs/events/user-created.handler';
 import { UserUpdatedHandler } from './cqrs/events/user-updated.handler';
-import { DeleteUserHandler } from './cqrs/commands/delete-user.handler';
+import { GetUserHandler } from './cqrs/queries/get-user.handler';
 import { GetUsersHandler } from './cqrs/queries/get-uses.handler';
+import {
+  BATCH_UPDATE_USERS_QUEUE,
+  BatchUpdateUsersProcessor,
+} from './jobs/batch-update-users.processor';
+import {
+  SendWelcomeEmailProcessor,
+  WELCOME_EMAIL_QUEUE,
+} from './jobs/send-welcome-email.processor';
 import { InMemoryUserRepository } from './repositories/in-memory-user.repository';
 import { USER_REPOSITORY } from './repositories/user.repository.interface';
-import { SendWelcomeEmailProcessor, WELCOME_EMAIL_QUEUE } from './jobs/send-welcome-email.processor';
-import { BatchUpdateUsersProcessor, BATCH_UPDATE_USERS_QUEUE } from './jobs/batch-update-users.processor';
 
 @Module({
   imports: [

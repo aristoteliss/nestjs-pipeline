@@ -7,22 +7,25 @@
  * License, or (at your option) any later version.
  *
  * --- COMMERCIAL EXCEPTION ---
- * Alternatively, a Commercial License is available for individuals or 
+ * Alternatively, a Commercial License is available for individuals or
  * companies that do not wish to be bound by the AGPL terms. Contact Aristotelis for details.
  */
-import { Scope, Inject } from '@nestjs/common';
+import { Inject, Scope } from '@nestjs/common';
 import { CommandHandler, EventBus, ICommandHandler } from '@nestjs/cqrs';
-import { UpdateUserCommand } from './update-user.command';
-import { UserUpdatedEvent } from '../events/user-updated.event';
 import { LoggingBehavior, UsePipeline } from '@nestjs-pipeline/core';
 import { User } from '../../domain/user.entity';
-import { IUserRepository, USER_REPOSITORY } from '../../repositories/user.repository.interface';
+import {
+  type IUserRepository,
+  USER_REPOSITORY,
+} from '../../repositories/user.repository.interface';
+import { UserUpdatedEvent } from '../events/user-updated.event';
+import { UpdateUserCommand } from './update-user.command';
 
 @CommandHandler(UpdateUserCommand, { scope: Scope.REQUEST })
-@UsePipeline(
-  [LoggingBehavior, { requestResponseLogLevel: 'log' }]
-)
-export class UpdateUserHandler implements ICommandHandler<UpdateUserCommand, User> {
+@UsePipeline([LoggingBehavior, { requestResponseLogLevel: 'log' }])
+export class UpdateUserHandler
+  implements ICommandHandler<UpdateUserCommand, User>
+{
   constructor(
     @Inject(USER_REPOSITORY) private readonly userRepository: IUserRepository,
     private readonly eventBus: EventBus,
@@ -33,10 +36,12 @@ export class UpdateUserHandler implements ICommandHandler<UpdateUserCommand, Use
     user.rename(command.username);
     this.userRepository.save(user);
 
-    this.eventBus.publish(new UserUpdatedEvent({
-      userId: user.id,
-      username: user.username,
-    }));
+    this.eventBus.publish(
+      new UserUpdatedEvent({
+        userId: user.id,
+        username: user.username,
+      }),
+    );
 
     return user;
   }

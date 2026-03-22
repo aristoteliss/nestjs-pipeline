@@ -7,11 +7,17 @@
  * License, or (at your option) any later version.
  *
  * --- COMMERCIAL EXCEPTION ---
- * Alternatively, a Commercial License is available for individuals or 
+ * Alternatively, a Commercial License is available for individuals or
  * companies that do not wish to be bound by the AGPL terms. Contact Aristotelis for details.
  */
-import { ZodObject, ZodRawShape, z } from 'zod';
+
 import { ZodValidationError } from '@nestjs-pipeline/zod';
+import type { ZodObject, ZodRawShape, z } from 'zod';
+
+type RequestClass<TSchema extends ZodObject<ZodRawShape>> = {
+  new (input: z.input<TSchema>): z.output<TSchema>;
+  readonly _zodSchema: TSchema;
+};
 
 /**
  * Generates a validated Command/Query class from a Zod schema.
@@ -24,12 +30,13 @@ import { ZodValidationError } from '@nestjs-pipeline/zod';
  * Usage:
  *   const schema = z.object({ id: z.string().uuid() });
  *   export class DeleteUserCommand extends createRequest(schema) {}
- *   export interface DeleteUserCommand extends z.infer<typeof schema> {}
  */
-export function createRequest<T extends ZodRawShape>(schema: ZodObject<T>) {
-  type Input = z.infer<ZodObject<T>>;
+export function createRequest<TSchema extends ZodObject<ZodRawShape>>(
+  schema: TSchema,
+): RequestClass<TSchema> {
+  type Input = z.input<TSchema>;
 
-  return class {
+  class Request {
     /** Attached so ZodValidationBehavior can discover and validate the schema. */
     static readonly _zodSchema = schema;
 
@@ -38,5 +45,7 @@ export function createRequest<T extends ZodRawShape>(schema: ZodObject<T>) {
       if (!result.success) throw new ZodValidationError(result.error);
       Object.assign(this, result.data);
     }
-  };
+  }
+
+  return Request as RequestClass<TSchema>;
 }

@@ -1,4 +1,3 @@
-
 /*
  * Copyright (C) 2026-present Aristotelis
  *
@@ -8,7 +7,7 @@
  * License, or (at your option) any later version.
  *
  * --- COMMERCIAL EXCEPTION ---
- * Alternatively, a Commercial License is available for individuals or 
+ * Alternatively, a Commercial License is available for individuals or
  * companies that do not wish to be bound by the AGPL terms. Contact Aristotelis for details.
  */
 import { z } from 'zod';

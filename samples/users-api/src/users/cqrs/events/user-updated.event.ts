@@ -6,6 +6,4 @@ const schema = z.object({
   username: z.string().min(1),
 });
 
-export interface UserUpdatedEvent extends z.infer<typeof schema> {}
-
 export class UserUpdatedEvent extends createRequest(schema) {}

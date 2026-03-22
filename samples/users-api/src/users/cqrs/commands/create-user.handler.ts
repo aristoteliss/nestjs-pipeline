@@ -7,23 +7,26 @@
  * License, or (at your option) any later version.
  *
  * --- COMMERCIAL EXCEPTION ---
- * Alternatively, a Commercial License is available for individuals or 
+ * Alternatively, a Commercial License is available for individuals or
  * companies that do not wish to be bound by the AGPL terms. Contact Aristotelis for details.
  */
-import { CommandHandler, EventBus, ICommandHandler } from '@nestjs/cqrs';
+
 import { Inject } from '@nestjs/common';
-import { CreateUserCommand } from './create-user.command';
-import { UserCreatedEvent } from '../events/user-created.event';
+import { CommandHandler, EventBus, ICommandHandler } from '@nestjs/cqrs';
 import { LoggingBehavior, UsePipeline } from '@nestjs-pipeline/core';
 import { User } from '../../domain/user.entity';
-import { IUserRepository, USER_REPOSITORY } from '../../repositories/user.repository.interface';
+import {
+  type IUserRepository,
+  USER_REPOSITORY,
+} from '../../repositories/user.repository.interface';
+import { UserCreatedEvent } from '../events/user-created.event';
+import { CreateUserCommand } from './create-user.command';
 
 @CommandHandler(CreateUserCommand)
-@UsePipeline([
-  LoggingBehavior,
-  { requestResponseLogLevel: 'log' },
-])
-export class CreateUserHandler implements ICommandHandler<CreateUserCommand, User> {
+@UsePipeline([LoggingBehavior, { requestResponseLogLevel: 'log' }])
+export class CreateUserHandler
+  implements ICommandHandler<CreateUserCommand, User>
+{
   constructor(
     @Inject(USER_REPOSITORY) private readonly userRepository: IUserRepository,
     private readonly eventBus: EventBus,
@@ -33,11 +36,13 @@ export class CreateUserHandler implements ICommandHandler<CreateUserCommand, Use
     const user = User.create(command.username, command.email);
     this.userRepository.save(user);
 
-    this.eventBus.publish(new UserCreatedEvent({ 
-      userId: user.id, 
-      username: user.username, 
-      email: user.email 
-    }));
+    this.eventBus.publish(
+      new UserCreatedEvent({
+        userId: user.id,
+        username: user.username,
+        email: user.email,
+      }),
+    );
 
     return user;
   }

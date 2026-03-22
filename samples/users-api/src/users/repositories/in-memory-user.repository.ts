@@ -7,12 +7,12 @@
  * License, or (at your option) any later version.
  *
  * --- COMMERCIAL EXCEPTION ---
- * Alternatively, a Commercial License is available for individuals or 
+ * Alternatively, a Commercial License is available for individuals or
  * companies that do not wish to be bound by the AGPL terms. Contact Aristotelis for details.
  */
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { User, UserSnapshot } from '../domain/user.entity';
-import { IUserRepository } from './user.repository.interface';
+import { User, type UserSnapshot } from '../domain/user.entity';
+import type { IUserRepository } from './user.repository.interface';
 
 /**
  * In-memory implementation of {@link IUserRepository}.

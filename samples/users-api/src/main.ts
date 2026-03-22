@@ -7,21 +7,28 @@
  * License, or (at your option) any later version.
  *
  * --- COMMERCIAL EXCEPTION ---
- * Alternatively, a Commercial License is available for individuals or 
+ * Alternatively, a Commercial License is available for individuals or
  * companies that do not wish to be bound by the AGPL terms. Contact Aristotelis for details.
  */
-import './tracing'; // ← MUST be first: starts the OTel SDK before NestJS loads
-import 'reflect-metadata';
+
 import { NestFactory } from '@nestjs/core';
-import { FastifyAdapter, NestFastifyApplication } from '@nestjs/platform-fastify';
-import { AppModule } from './app.module';
+import {
+  FastifyAdapter,
+  type NestFastifyApplication,
+} from '@nestjs/platform-fastify';
 import { ZodValidationFilter } from '@nestjs-pipeline/zod';
+import 'reflect-metadata';
+import { AppModule } from './app.module';
+import './tracing'; // ← MUST be first: starts the OTel SDK before NestJS loads
 
 async function bootstrap() {
-  const useFastify = process.env['ADAPTER'] === 'fastify';
+  const useFastify = process.env.ADAPTER === 'fastify';
 
   const app = useFastify
-    ? await NestFactory.create<NestFastifyApplication>(AppModule, new FastifyAdapter())
+    ? await NestFactory.create<NestFastifyApplication>(
+        AppModule,
+        new FastifyAdapter(),
+      )
     : await NestFactory.create(AppModule);
 
   app.useGlobalFilters(new ZodValidationFilter());
