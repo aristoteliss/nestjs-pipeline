@@ -1,7 +1,7 @@
 import { z } from 'zod';
-import { createRequest } from '../helpers/createRequest.helper';
+import { createQuery } from '../helpers/createQuery.helper';
 
-export class GetUserQuery extends createRequest(
+export class GetUserQuery extends createQuery(
   z.object({
     userId: z.uuid(),
   }),

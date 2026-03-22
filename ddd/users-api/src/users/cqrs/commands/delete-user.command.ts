@@ -11,9 +11,9 @@
  * companies that do not wish to be bound by the AGPL terms. Contact Aristotelis for details.
  */
 import { z } from 'zod';
-import { createRequest } from '../helpers/createRequest.helper';
+import { createExecuteClass } from '../helpers/createExecute.helper';
 
-export class DeleteUserCommand extends createRequest(
+export class DeleteUserCommand extends createExecuteClass(
   z.object({
     id: z.uuid(),
   }),

@@ -13,6 +13,7 @@
     "publish:all": "pnpm -r publish --access public"
   },
   "devDependencies": {
+    "@biomejs/biome": "^2.4.8",
     "@types/node": "^25.5.0",
     "typescript": "^5.9.3"
   },

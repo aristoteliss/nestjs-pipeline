@@ -1,4 +1,5 @@
 export * from './application/command-base.handler';
+export * from './application/query.retrieve';
 export * from './decorators/Mutate';
 export * from './domain/events/domain.event';
 export * from './domain/events/root-domain.event';
@@ -6,4 +7,6 @@ export * from './domain/interfaces/root-entity-snapshot.interface';
 export * from './domain/models/root.entity';
 export * from './domain/outcomes/domain.outcome';
 export * from './domain/outcomes/root-domain.outcome';
+export * from './persistence/command-repository.interface';
+export * from './persistence/query-repository.interface';
 export * from './types/Method.type';

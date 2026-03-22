@@ -68,9 +68,9 @@ export class UsersController {
   async getUser(
     @Param('id', new ZodPipe<UserIdDto, string>(UserIdDtoSchema)) id: UserIdDto,
   ): Promise<UserResponseDto> {
-    const user = await this.queryBus.execute<GetUserQuery, User>(
-      new GetUserQuery({ userId: id }),
-    );
+    const query = new GetUserQuery({ userId: id }, `user:${id}`);
+
+    const user = await this.queryBus.execute<GetUserQuery, User>(query);
     return toResponseDto(user);
   }
 

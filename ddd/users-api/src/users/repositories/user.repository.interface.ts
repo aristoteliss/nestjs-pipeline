@@ -26,14 +26,14 @@ export const USER_REPOSITORY = Symbol('IUserRepository');
  */
 export interface IUserRepository {
   /** Persist a new or updated User. */
-  save(user: User): void;
+  save(user: User): Promise<void>;
 
   /** Find a user by id. Throws NotFoundException if not found. */
-  findById(id: string): User;
+  findById(id: string): Promise<User>;
 
   /** Return all stored users. */
-  findAll(): User[];
+  findAll(): Promise<User[]>;
 
   /** Remove a user by id. Throws NotFoundException if not found. */
-  delete(id: string): void;
+  delete(id: string): Promise<void>;
 }

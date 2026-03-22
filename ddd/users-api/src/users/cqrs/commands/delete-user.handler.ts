@@ -10,15 +10,22 @@
  * Alternatively, a Commercial License is available for individuals or
  * companies that do not wish to be bound by the AGPL terms. Contact Aristotelis for details.
  */
+
 import { Inject } from '@nestjs/common';
 import { CommandHandler, EventBus } from '@nestjs/cqrs';
 import { LoggingBehavior, UsePipeline } from '@nestjs-pipeline/core';
-import { CommandBaseHandler } from '@nestjs-pipeline/ddd-core';
+import {
+  CommandBaseHandler,
+  ICommandRepository,
+  IQueryRepository,
+} from '@nestjs-pipeline/ddd-core';
+import { User } from '../../domain/models/user.entity';
 import { UserUpdateOutcome } from '../../domain/outcomes/user-update.outcome';
 import {
-  type IUserRepository,
-  USER_REPOSITORY,
-} from '../../repositories/user.repository.interface';
+  COMMAND_REPOSITORY,
+  QUERY_REPOSITORY,
+} from '../../persistence/persistence.tokens';
+import { GetUserQuery } from '../queries/get-user.query';
 import { DeleteUserCommand } from './delete-user.command';
 
 @CommandHandler(DeleteUserCommand)
@@ -28,7 +35,10 @@ export class DeleteUserHandler extends CommandBaseHandler<
   UserUpdateOutcome
 > {
   constructor(
-    @Inject(USER_REPOSITORY) private readonly userRepository: IUserRepository,
+    @Inject(QUERY_REPOSITORY.getUser)
+    private readonly queryRepository: IQueryRepository<GetUserQuery, User>,
+    @Inject(COMMAND_REPOSITORY.deleteUser)
+    private readonly commandRepository: ICommandRepository<UserUpdateOutcome>,
     protected readonly eventBus: EventBus,
   ) {
     super(eventBus);
@@ -37,11 +47,13 @@ export class DeleteUserHandler extends CommandBaseHandler<
   async handle(command: DeleteUserCommand): Promise<UserUpdateOutcome> {
     const { id } = command;
 
-    const user = this.userRepository.findById(id);
+    const query = new GetUserQuery({ userId: id }, `user:${id}`);
+
+    const user = await this.queryRepository.find(query);
 
     const outcome = user.delete();
 
-    this.userRepository.delete(command.id);
+    this.commandRepository.save(outcome);
 
     return outcome;
   }

@@ -3,7 +3,7 @@ import { DomainOutcome } from '../domain/outcomes/domain.outcome';
 
 export abstract class CommandBaseHandler<
   TCommand extends ICommand = ICommand,
-  TResult extends DomainOutcome = DomainOutcome,
+  TResult = DomainOutcome,
 > implements ICommandHandler<ICommand, TResult>
 {
   protected constructor(protected eventBus: EventBus) {}
@@ -13,7 +13,9 @@ export abstract class CommandBaseHandler<
   async execute(command: ICommand): Promise<TResult> {
     const commandResult = await this.handle(command as TCommand);
 
-    this.eventBus.publishAll(commandResult.events);
+    if (commandResult instanceof DomainOutcome) {
+      this.eventBus.publishAll(commandResult.events);
+    }
 
     return commandResult;
   }

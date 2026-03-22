@@ -14,8 +14,16 @@
 import { ZodValidationError } from '@nestjs-pipeline/zod';
 import type { ZodObject, ZodRawShape, z } from 'zod';
 
-type RequestClass<TSchema extends ZodObject<ZodRawShape>> = {
-  new (input: z.input<TSchema>): z.output<TSchema>;
+type AbstractConstructor<T = object> = abstract new (...args: never[]) => T;
+
+type ExecuteClass<
+  TSchema extends ZodObject<ZodRawShape>,
+  TBase extends AbstractConstructor,
+> = {
+  new (
+    input: z.input<TSchema>,
+    ...baseArgs: ConstructorParameters<TBase>
+  ): InstanceType<TBase> & z.output<TSchema>;
   readonly _zodSchema: TSchema;
 };
 
@@ -29,23 +37,30 @@ type RequestClass<TSchema extends ZodObject<ZodRawShape>> = {
  *
  * Usage:
  *   const schema = z.object({ id: z.string().uuid() });
- *   export class DeleteUserCommand extends createRequest(schema) {}
+ *   export class DeleteUserCommand extends createExecuteClass(schema) {}
+ *
+ * With base options:
+ *   export class GetUserQuery extends createExecuteClass(schema, QueryOptions) {}
  */
-export function createRequest<TSchema extends ZodObject<ZodRawShape>>(
-  schema: TSchema,
-): RequestClass<TSchema> {
+export function createExecuteClass<
+  TSchema extends ZodObject<ZodRawShape>,
+  TBase extends AbstractConstructor = AbstractConstructor,
+>(schema: TSchema, Base?: TBase): ExecuteClass<TSchema, TBase> {
   type Input = z.input<TSchema>;
+  const Parent = (Base ?? class {}) as new (...args: unknown[]) => object;
 
-  class Request {
+  class Execute extends Parent {
     /** Attached so ZodValidationBehavior can discover and validate the schema. */
     static readonly _zodSchema = schema;
 
-    constructor(input: Input) {
+    constructor(input: Input, ...baseArgs: unknown[]) {
+      super(...baseArgs);
+
       const result = schema.safeParse(input);
       if (!result.success) throw new ZodValidationError(result.error);
       Object.assign(this, result.data);
     }
   }
 
-  return Request as RequestClass<TSchema>;
+  return Execute as unknown as ExecuteClass<TSchema, TBase>;
 }

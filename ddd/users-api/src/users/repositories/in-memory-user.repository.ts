@@ -11,6 +11,7 @@
  * companies that do not wish to be bound by the AGPL terms. Contact Aristotelis for details.
  */
 import { Injectable, NotFoundException } from '@nestjs/common';
+import { MemoryStore } from '../db/memory-store';
 import { User, type UserSnapshot } from '../domain/models/user.entity';
 import type { IUserRepository } from './user.repository.interface';
 
@@ -26,24 +27,24 @@ import type { IUserRepository } from './user.repository.interface';
  */
 @Injectable()
 export class InMemoryUserRepository implements IUserRepository {
-  private readonly store = new Map<string, UserSnapshot>();
+  constructor(private readonly store: MemoryStore<UserSnapshot>) {}
 
-  save(user: User): void {
-    this.store.set(user.id, user.toJSON());
+  async save(user: User): Promise<void> {
+    await this.store.save(user.id, user.toJSON());
   }
 
-  findById(id: string): User {
-    const snapshot = this.store.get(id);
+  async findById(id: string): Promise<User> {
+    const snapshot = await this.store.get(id);
     if (!snapshot) throw new NotFoundException(`User ${id} not found`);
     return User.fromJSON(snapshot);
   }
 
-  findAll(): User[] {
-    return Array.from(this.store.values()).map(User.fromJSON);
+  async findAll(): Promise<User[]> {
+    const all = await this.store.getAll();
+    return all.map((snapshot) => User.fromJSON(snapshot));
   }
 
-  delete(id: string): void {
-    this.findById(id); // validates existence first
-    this.store.delete(id);
+  async delete(id: string): Promise<void> {
+    await this.store.delete(id);
   }
 }

@@ -14,13 +14,13 @@
 import { Inject } from '@nestjs/common';
 import { CommandHandler, EventBus } from '@nestjs/cqrs';
 import { LoggingBehavior, UsePipeline } from '@nestjs-pipeline/core';
-import { CommandBaseHandler } from '@nestjs-pipeline/ddd-core';
+import {
+  CommandBaseHandler,
+  ICommandRepository,
+} from '@nestjs-pipeline/ddd-core';
 import { User } from '../../domain/models/user.entity';
 import { UserCreateOutcome } from '../../domain/outcomes/user-create.outcome';
-import {
-  type IUserRepository,
-  USER_REPOSITORY,
-} from '../../repositories/user.repository.interface';
+import { COMMAND_REPOSITORY } from '../../persistence/persistence.tokens';
 import { CreateUserCommand } from './create-user.command';
 
 @CommandHandler(CreateUserCommand)
@@ -30,16 +30,19 @@ export class CreateUserHandler extends CommandBaseHandler<
   UserCreateOutcome
 > {
   constructor(
-    @Inject(USER_REPOSITORY) private readonly userRepository: IUserRepository,
+    @Inject(COMMAND_REPOSITORY.createUser)
+    private readonly commandRepository: ICommandRepository<UserCreateOutcome>,
     protected readonly eventBus: EventBus,
   ) {
     super(eventBus);
   }
 
   async handle(command: CreateUserCommand): Promise<UserCreateOutcome> {
-    const outcome = User.create(command.username, command.email);
+    const { username, email } = command;
 
-    this.userRepository.save(outcome.entity);
+    const outcome = User.create(username, email);
+
+    this.commandRepository.save(outcome);
 
     return outcome;
   }

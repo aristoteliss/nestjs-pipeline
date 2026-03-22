@@ -1,4 +1,4 @@
 import { z } from 'zod';
-import { createRequest } from '../helpers/createRequest.helper';
+import { createQuery } from '../helpers/createQuery.helper';
 
-export class GetUsersQuery extends createRequest(z.object({})) {}
+export class GetUsersQuery extends createQuery(z.object({})) {}

@@ -22,6 +22,7 @@ import { UserDeletedHandler } from './cqrs/events/user-deleted.handler';
 import { UserUpdatedHandler } from './cqrs/events/user-updated.handler';
 import { GetUserHandler } from './cqrs/queries/get-user.handler';
 import { GetUsersHandler } from './cqrs/queries/get-uses.handler';
+import { MemoryStore } from './db/memory-store';
 import {
   BATCH_UPDATE_USERS_QUEUE,
   BatchUpdateUsersProcessor,
@@ -30,6 +31,15 @@ import {
   SendWelcomeEmailProcessor,
   WELCOME_EMAIL_QUEUE,
 } from './jobs/send-welcome-email.processor';
+import { CreateUserPersistence } from './persistence/create-user.persistence';
+import { DeleteUserPersistence } from './persistence/delete-user.persistence';
+import { GetUserRetrieve } from './persistence/get-user.retrieve';
+import { GetUsersRetrieve } from './persistence/get-users.retrieve';
+import {
+  COMMAND_REPOSITORY,
+  QUERY_REPOSITORY,
+} from './persistence/persistence.tokens';
+import { UpdateUserPersistence } from './persistence/update-user.persistence';
 import { InMemoryUserRepository } from './repositories/in-memory-user.repository';
 import { USER_REPOSITORY } from './repositories/user.repository.interface';
 
@@ -40,8 +50,28 @@ import { USER_REPOSITORY } from './repositories/user.repository.interface';
   ],
   controllers: [UsersController],
   providers: [
+    MemoryStore,
+
     // Repository
     { provide: USER_REPOSITORY, useClass: InMemoryUserRepository },
+
+    // Repositories (Command)
+    {
+      provide: COMMAND_REPOSITORY.createUser,
+      useClass: CreateUserPersistence,
+    },
+    {
+      provide: COMMAND_REPOSITORY.updateUser,
+      useClass: UpdateUserPersistence,
+    },
+    {
+      provide: COMMAND_REPOSITORY.deleteUser,
+      useClass: DeleteUserPersistence,
+    },
+
+    // Repositories (Query)
+    { provide: QUERY_REPOSITORY.getUser, useClass: GetUserRetrieve },
+    { provide: QUERY_REPOSITORY.getUsers, useClass: GetUsersRetrieve },
 
     // Queries
     GetUserHandler,

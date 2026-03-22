@@ -1,12 +1,7 @@
 {
   "$schema": "https://biomejs.dev/schemas/2.4.8/schema.json",
   "files": {
-    "includes": [
-      "**",
-      "!!**/dist",
-      "!!**/coverage",
-      "!!**/.turbo"
-    ]
+    "includes": ["**", "!!**/dist", "!!**/coverage", "!!**/.turbo"]
   },
   "formatter": {
     "indentStyle": "space",
@@ -50,10 +45,7 @@
       }
     },
     {
-      "includes": [
-        "**/outcomes/**",
-        "**/events/**"
-      ],
+      "includes": ["**/outcomes/**", "**/events/**"],
       "linter": {
         "rules": {
           "complexity": {

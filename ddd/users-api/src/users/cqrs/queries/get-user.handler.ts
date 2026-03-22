@@ -12,20 +12,19 @@
  */
 import { Inject } from '@nestjs/common';
 import { type IQueryHandler, QueryHandler } from '@nestjs/cqrs';
+import { IQueryRepository } from '@nestjs-pipeline/ddd-core';
 import type { User } from '../../domain/models/user.entity';
-import {
-  type IUserRepository,
-  USER_REPOSITORY,
-} from '../../repositories/user.repository.interface';
+import { QUERY_REPOSITORY } from '../../persistence/persistence.tokens';
 import { GetUserQuery } from './get-user.query';
 
 @QueryHandler(GetUserQuery)
 export class GetUserHandler implements IQueryHandler<GetUserQuery, User> {
   constructor(
-    @Inject(USER_REPOSITORY) private readonly userRepository: IUserRepository,
+    @Inject(QUERY_REPOSITORY.getUser)
+    private readonly queryRepository: IQueryRepository<GetUserQuery, User>,
   ) {}
 
   async execute(query: GetUserQuery): Promise<User> {
-    return this.userRepository.findById(query.userId);
+    return await this.queryRepository.find(query);
   }
 }

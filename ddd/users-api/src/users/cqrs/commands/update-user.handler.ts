@@ -13,12 +13,18 @@
 import { Inject, Scope } from '@nestjs/common';
 import { CommandHandler, EventBus } from '@nestjs/cqrs';
 import { LoggingBehavior, UsePipeline } from '@nestjs-pipeline/core';
-import { CommandBaseHandler } from '@nestjs-pipeline/ddd-core';
+import {
+  CommandBaseHandler,
+  ICommandRepository,
+  IQueryRepository,
+} from '@nestjs-pipeline/ddd-core';
+import { User } from '../../domain/models/user.entity';
 import { UserUpdateOutcome } from '../../domain/outcomes/user-update.outcome';
 import {
-  type IUserRepository,
-  USER_REPOSITORY,
-} from '../../repositories/user.repository.interface';
+  COMMAND_REPOSITORY,
+  QUERY_REPOSITORY,
+} from '../../persistence/persistence.tokens';
+import { GetUserQuery } from '../queries/get-user.query';
 import { UpdateUserCommand } from './update-user.command';
 
 @CommandHandler(UpdateUserCommand, { scope: Scope.REQUEST })
@@ -28,7 +34,10 @@ export class UpdateUserHandler extends CommandBaseHandler<
   UserUpdateOutcome
 > {
   constructor(
-    @Inject(USER_REPOSITORY) private readonly userRepository: IUserRepository,
+    @Inject(QUERY_REPOSITORY.getUser)
+    private readonly queryRepository: IQueryRepository<GetUserQuery, User>,
+    @Inject(COMMAND_REPOSITORY.updateUser)
+    private readonly commandRepository: ICommandRepository<UserUpdateOutcome>,
     protected readonly eventBus: EventBus,
   ) {
     super(eventBus);
@@ -37,11 +46,13 @@ export class UpdateUserHandler extends CommandBaseHandler<
   async handle(command: UpdateUserCommand): Promise<UserUpdateOutcome> {
     const { id, username } = command;
 
-    const user = this.userRepository.findById(id);
+    const query = new GetUserQuery({ userId: id }, `user:${id}`);
+
+    const user = await this.queryRepository.find(query);
 
     const outcome = user.rename(username);
 
-    this.userRepository.save(outcome.entity);
+    this.commandRepository.save(outcome);
 
     return outcome;
   }
