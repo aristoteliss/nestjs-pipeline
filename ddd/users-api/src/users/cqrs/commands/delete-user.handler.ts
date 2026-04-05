@@ -44,7 +44,7 @@ export class DeleteUserHandler extends CommandBaseHandler<
   async handle(command: DeleteUserCommand): Promise<UserUpdateOutcome> {
     const { id } = command;
 
-    const query = new GetUserQuery({ userId: id }, `user:${id}`);
+    const query = new GetUserQuery({ userId: id });
 
     const user = await this.queryRepository.find(query);
 

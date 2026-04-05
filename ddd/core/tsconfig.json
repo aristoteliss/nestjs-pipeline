@@ -5,9 +5,10 @@
   },
   "include": [
     "index.ts",
+    "application/**/*.ts",
     "domain/**/*.ts",
-    "types/Method.ts",
-    "decorators/Mutate.ts"
+    "persistence/**/*.ts",
+    "types/**/*.ts"
   ],
   "exclude": ["dist", "node_modules"]
 }

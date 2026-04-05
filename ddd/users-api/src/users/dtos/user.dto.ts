@@ -12,7 +12,7 @@
  */
 import { InternalServerErrorException } from '@nestjs/common';
 import { z } from 'zod';
-import type { User } from '../domain/models/user.entity';
+import type { User, UserSnapshot } from '../domain/models/user.entity';
 
 export const UserResponseDtoSchema = z
   .object({
@@ -24,8 +24,12 @@ export const UserResponseDtoSchema = z
 
 export type UserResponseDto = z.output<typeof UserResponseDtoSchema>;
 
-export function toResponseDto(user: User): UserResponseDto {
-  const result = UserResponseDtoSchema.safeParse(user.toJSON());
+export function toResponseDto(user: User | UserSnapshot): UserResponseDto {
+  const plain =
+    'toJSON' in user && typeof user.toJSON === 'function'
+      ? user.toJSON()
+      : user;
+  const result = UserResponseDtoSchema.safeParse(plain);
   if (!result.success)
     throw new InternalServerErrorException('Response mapping failed');
   return result.data;

@@ -1,8 +1,8 @@
 import { DomainOutcome } from '../domain/outcomes/domain.outcome';
 
 export interface ICommandRepository<
-  TCommand = DomainOutcome,
+  TDomainOutcome = DomainOutcome,
   TResult = unknown,
 > {
-  save(command: TCommand): Promise<TResult | undefined>;
+  save(domainOutcome: TDomainOutcome): Promise<TResult | null>;
 }

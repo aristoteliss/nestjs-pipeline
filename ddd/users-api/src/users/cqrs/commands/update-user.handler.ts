@@ -43,7 +43,7 @@ export class UpdateUserHandler extends CommandBaseHandler<
   async handle(command: UpdateUserCommand): Promise<UserUpdateOutcome> {
     const { id, username } = command;
 
-    const query = new GetUserQuery({ userId: id }, `user:${id}`);
+    const query = new GetUserQuery({ userId: id });
 
     const user = await this.queryRepository.find(query);
 

@@ -12,8 +12,8 @@
  */
 
 import {
+  CacheableEntity,
   Mutate,
-  RootEntity,
   type RootEntitySnapshot,
 } from '@nestjs-pipeline/ddd-core';
 import { UserCreatedEvent } from '../events/user-created.event';
@@ -39,12 +39,14 @@ const USERNAME_MIN_LENGTH = 5;
  * - `User.fromJson()` rebuilds the entity from persisted snapshot data.
  * - `rename()` enforces the username business rule and updates `updatedAt`.
  */
-export class User extends RootEntity<UserSnapshot> {
+export class User extends CacheableEntity<UserSnapshot> {
+  static readonly prefixKey = 'user:';
+
   private _username: string;
   private _email: string;
 
   private constructor(snapshot: UserSnapshot) {
-    super(snapshot);
+    super(User, snapshot);
     this._username = User.normalizeUsername(snapshot.username);
     this._email = snapshot.email;
   }

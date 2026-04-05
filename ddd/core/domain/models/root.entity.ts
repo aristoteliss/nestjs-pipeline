@@ -1,4 +1,5 @@
 import { isUuidV7, uuidv7 } from '@nestjs-pipeline/core';
+import { ICacheKey } from '../interfaces/cache-key.interface';
 import { RootEntitySnapshot } from '../interfaces/root-entity-snapshot.interface';
 
 /**
@@ -10,7 +11,7 @@ import { RootEntitySnapshot } from '../interfaces/root-entity-snapshot.interface
  * - Requires child entities to provide JSON serialization.
  */
 export abstract class RootEntity<TSnapshot extends Partial<RootEntitySnapshot>>
-  implements RootEntitySnapshot
+  implements RootEntitySnapshot, ICacheKey
 {
   private readonly _id: string;
   private readonly _createdAt: Date;
@@ -47,6 +48,9 @@ export abstract class RootEntity<TSnapshot extends Partial<RootEntitySnapshot>>
     this._createdAt = now;
     this._updatedAt = now;
   }
+
+  abstract prefixKey: string;
+  abstract cacheKey: string;
 
   protected static normalizeId(id?: string): string {
     if (typeof id !== 'string' || !isUuidV7(id)) {

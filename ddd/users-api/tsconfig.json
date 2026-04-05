@@ -1,12 +1,9 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    "outDir": "dist"
+    "outDir": "dist",
+    "rootDir": "src"
   },
-  "include": [
-    "src",
-    "../../packages/pipeline-zod/src/zod-validation.filter.ts",
-    "../../packages/pipeline-zod/src/pipes/zod-param.pipe.ts"
-  ],
+  "include": ["src"],
   "exclude": ["dist", "node_modules"]
 }

@@ -1,7 +1,7 @@
 export abstract class QueryOptions {
-  public cacheKey?: string;
+  readonly hydrate: boolean;
 
-  constructor(cacheKey?: string) {
-    this.cacheKey = cacheKey;
+  constructor(options?: Partial<QueryOptions>) {
+    this.hydrate = options?.hydrate ?? true;
   }
 }

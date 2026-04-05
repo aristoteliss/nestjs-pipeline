@@ -1,4 +1,4 @@
-import { Method } from '../types/Method.type';
+import { Method } from '../../types/Method.type';
 
 export function Mutate(): MethodDecorator {
   return (

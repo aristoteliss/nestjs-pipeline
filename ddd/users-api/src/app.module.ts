@@ -62,6 +62,7 @@ import { UsersModule } from './users/users.module';
     }),
     UsersModule,
   ],
+  providers: [],
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {

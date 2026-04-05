@@ -31,6 +31,7 @@ import {
   SendWelcomeEmailProcessor,
   WELCOME_EMAIL_QUEUE,
 } from './jobs/send-welcome-email.processor';
+import { CACHE_TOKEN, MemoryCache } from './persistence/cache/memory.cache';
 import { CreateUserCommandRepository } from './persistence/create-user.command-repository';
 import { DeleteUserCommandRepository } from './persistence/delete-user.command-repository';
 import { GetUserQueryRepository } from './persistence/get-user.query-repository';
@@ -48,6 +49,11 @@ import { COMMAND_REPOSITORY, QUERY_REPOSITORY } from './repository.tokens';
   controllers: [UsersController],
   providers: [
     MemoryStore,
+    // Cache
+    {
+      provide: CACHE_TOKEN,
+      useClass: MemoryCache,
+    },
 
     // Repository
     { provide: USER_REPOSITORY, useClass: InMemoryUserRepository },
