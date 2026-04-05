@@ -27,8 +27,14 @@ export class UpdateUserCommandRepository extends CommandRepository<UserUpdateOut
     const snapshot = entity.toJSON();
 
     await this.client.execute({
-      sql: `INSERT OR REPLACE INTO users (id, data) VALUES (?, ?)`,
-      args: [entity.id, JSON.stringify(snapshot)],
+      sql: `INSERT OR REPLACE INTO users (id, username, email, created_at, updated_at) VALUES (?, ?, ?, ?, ?)`,
+      args: [
+        snapshot.id,
+        snapshot.username,
+        snapshot.email,
+        new Date(snapshot.createdAt).getTime(),
+        new Date(snapshot.updatedAt).getTime(),
+      ],
     });
 
     return snapshot;

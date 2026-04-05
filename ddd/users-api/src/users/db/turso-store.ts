@@ -11,7 +11,13 @@ export class TursoStore implements OnModuleInit {
 
   async onModuleInit(): Promise<void> {
     await this.client.execute(
-      `CREATE TABLE IF NOT EXISTS users (id TEXT PRIMARY KEY, data TEXT NOT NULL)`,
+      `CREATE TABLE IF NOT EXISTS users (
+        id         TEXT     PRIMARY KEY,
+        username   TEXT     NOT NULL,
+        email      TEXT     NOT NULL,
+        created_at INTEGER  NOT NULL,
+        updated_at INTEGER  NOT NULL
+      )`,
     );
     this.logger.log(`Turso table "users" ready`);
   }

@@ -32,7 +32,8 @@ import {
   SendWelcomeEmailProcessor,
   WELCOME_EMAIL_QUEUE,
 } from './jobs/send-welcome-email.processor';
-import { CACHE_TOKEN, MemoryCache } from './persistence/cache/memory.cache';
+import { CACHE_TOKEN } from './persistence/cache/memory.cache';
+import { TursoCache } from './persistence/cache/turso.cache';
 import { CreateUserCommandRepository } from './persistence/create-user.command-repository';
 import { DeleteUserCommandRepository } from './persistence/delete-user.command-repository';
 import { GetUserQueryRepository } from './persistence/get-user.query-repository';
@@ -48,10 +49,8 @@ import { COMMAND_REPOSITORY, QUERY_REPOSITORY } from './repository.tokens';
   controllers: [UsersController],
   providers: [
     // Cache
-    {
-      provide: CACHE_TOKEN,
-      useClass: MemoryCache,
-    },
+    // { provide: CACHE_TOKEN, useClass: MemoryCache,},
+    { provide: CACHE_TOKEN, useClass: TursoCache },
 
     // Store
     TursoStore,
@@ -63,7 +62,7 @@ import { COMMAND_REPOSITORY, QUERY_REPOSITORY } from './repository.tokens';
       }),
     },
 
-    // // Repository
+    // Repository
     // { provide: MEMORY_STORE, useClass: MemoryStore },
     // { provide: USER_REPOSITORY, useClass: InMemoryUserRepository },
 

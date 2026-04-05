@@ -2,7 +2,6 @@ import { Client } from '@libsql/client';
 import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 import {
   Cache,
-  CacheableEntity,
   ICache,
   QueryRepository,
 } from '@nestjs-pipeline/ddd-core';
@@ -31,17 +30,23 @@ export class GetUserQueryRepository extends QueryRepository<
     const { userId } = query;
 
     const user = await this.client.execute({
-      sql: `SELECT data FROM users WHERE id = ?`,
+      sql: `SELECT id, username, email, created_at, updated_at FROM users WHERE id = ?`,
       args: [userId],
     });
 
-    if (!user || !user.rows || user.rows.length === 0) {
+    if (!user.rows.length) {
       throw new NotFoundException('User not found');
     }
 
-    return CacheableEntity.fromStringify<UserSnapshot, User>(
-      user.rows[0].data as string,
-      User.fromJSON,
-    );
+    const row = user.rows[0];
+    const snapshot: UserSnapshot = {
+      id: row.id as string,
+      username: row.username as string,
+      email: row.email as string,
+      createdAt: new Date(row.created_at as number),
+      updatedAt: new Date(row.updated_at as number),
+    };
+
+    return User.fromJSON(snapshot);
   }
 }
