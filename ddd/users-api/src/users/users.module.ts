@@ -48,8 +48,7 @@ import { COMMAND_REPOSITORY, QUERY_REPOSITORY } from './repository.tokens';
   ],
   controllers: [UsersController],
   providers: [
-    // Cache
-    // { provide: CACHE_TOKEN, useClass: MemoryCache,},
+    // Cache — swap useClass to MemoryCache for in-process caching (no persistence, no TTL)
     { provide: CACHE_TOKEN, useClass: TursoCache },
 
     // Store

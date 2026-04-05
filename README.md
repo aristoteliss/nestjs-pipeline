@@ -1087,21 +1087,27 @@ The `ddd/` directory demonstrates Domain-Driven Design with `@nestjs-pipeline`.
 
 The `@nestjs-pipeline/ddd-core` package (`ddd/core/`) provides the foundational building blocks for any domain layer:
 
-| Export              | Description                                                        |
-|---------------------|--------------------------------------------------------------------|
-| `RootEntity`        | Abstract base entity with UUID v7 identity, `createdAt`/`updatedAt` lifecycle, and mutation tracking |
-| `RootEntitySnapshot`| Interface for serializing/rehydrating entities                     |
-| `DomainEvent`       | Abstract base class for domain events (carries a UUID v7 `id`)     |
-| `RootDomainEvent`   | Domain event that carries a reference to the originating entity    |
-| `DomainOutcome`     | Base outcome class — bundles domain events produced by an operation |
-| `RootDomainOutcome` | Outcome that pairs an entity with its domain events                |
-| `Mutate`            | Decorator that calls `onUpdate()` after a method executes          |
-| `Method`            | Utility type for extracting method signatures                      |
+| Export                | Description                                                                           |
+|-----------------------|---------------------------------------------------------------------------------------|
+| `RootEntity`          | Abstract base entity with UUID v7 identity, `createdAt`/`updatedAt` lifecycle, and mutation tracking |
+| `CacheableEntity`     | Extends `RootEntity` — adds `cacheKey` (`<prefixKey><id>`) used by `@Cacheable`/`@Cache` decorators |
+| `RootEntitySnapshot`  | Interface for serializing/rehydrating entities                                        |
+| `DomainEvent`         | Abstract base class for domain events (carries a UUID v7 `id`)                        |
+| `RootDomainEvent`     | Domain event that carries a reference to the originating entity                       |
+| `DomainOutcome`       | Base outcome class — bundles domain events produced by an operation                   |
+| `RootDomainOutcome`   | Outcome that pairs an entity with its domain events                                   |
+| `Mutate`              | Decorator that calls `onUpdate()` after a method executes                             |
+| `ICache<T>`           | Interface for cache providers (`get`, `set`, `delete`)                                |
+| `CommandRepository`   | Abstract base for write repositories — holds an `ICache` and defines `save(outcome)` |
+| `QueryRepository`     | Abstract base for read repositories — holds an `ICache` and defines `find(query)`    |
+| `@Cacheable()`        | Decorator for `save()` — write-through cache on successful writes, evict on delete   |
+| `@Cache()`            | Decorator for `find()` — read-through cache with optional hydration function         |
+| `Method`              | Utility type for extracting method signatures                                         |
 
 Import them in your domain layer:
 
 ```typescript
-import { RootEntity, RootDomainEvent, RootDomainOutcome, Mutate } from '@nestjs-pipeline/ddd-core';
+import { CacheableEntity, RootDomainEvent, RootDomainOutcome, Mutate } from '@nestjs-pipeline/ddd-core';
 ```
 
 ### `ddd/users-api` — Full Working Application
@@ -1113,6 +1119,13 @@ cd ddd/users-api
 pnpm install
 pnpm start
 ```
+
+Configure the database via environment variables (defaults to a local file):
+
+| Variable             | Default         | Description                          |
+|----------------------|-----------------|--------------------------------------|
+| `TURSO_DATABASE_URL` | `file:local.db` | libSQL database URL (file or remote) |
+| `TURSO_AUTH_TOKEN`   | _(none)_        | Auth token for Turso cloud databases |
 
 **CRUD operations:**
 
@@ -1148,7 +1161,9 @@ ADAPTER=fastify pnpm start
 - Controller-level `ZodPipe` validation
 - Zod transform mappers (DTO → Command mapping)
 - OpenTelemetry tracing with `TraceBehavior`
-- DDD-style `User` entity built on `ddd-core` primitives (`RootEntity`, `RootDomainEvent`, `RootDomainOutcome`)
+- DDD-style `User` entity built on `ddd-core` primitives (`CacheableEntity`, `RootDomainEvent`, `RootDomainOutcome`)
+- Turso (libSQL) persistence with a normalized schema (`id`, `username`, `email`, `created_at`, `updated_at`)
+- Pluggable `ICache<T>` — `TursoCache` (Turso-backed, TTL-aware) or `MemoryCache` swapped via a single provider token
 - Correlation ID propagation across handlers and events
 - Express and Fastify adapter support
 

@@ -19,7 +19,6 @@ export class DeleteUserCommandRepository extends CommandRepository<UserUpdateOut
     super(cache);
   }
 
-  //@Cacheable<UserUpdateOutcome, null>(null, null)
   @Cacheable()
   async save(domainOutcome: UserUpdateOutcome): Promise<null> {
     const { entity } = domainOutcome;

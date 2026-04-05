@@ -19,7 +19,6 @@ export class UpdateUserCommandRepository extends CommandRepository<UserUpdateOut
     super(cache);
   }
 
-  //@Cacheable<UserCreateOutcome,UserSnapshot>((k) => k.entity.id, (o) => [o.entity.id])
   @Cacheable()
   async save(domainOutcome: UserUpdateOutcome): Promise<UserSnapshot> {
     const { entity } = domainOutcome;
