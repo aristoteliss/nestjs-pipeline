@@ -24,6 +24,7 @@
  * along with this program. If not, see <https://www.gnu.org/licenses/>.
  */
 
+import { performance } from 'node:perf_hooks';
 import { Injectable, Logger, LogLevel } from '@nestjs/common';
 import { safeStringify } from '../helpers/safeStringify';
 import {
