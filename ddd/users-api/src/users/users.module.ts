@@ -11,6 +11,7 @@
  * companies that do not wish to be bound by the AGPL terms. Contact Aristotelis for details.
  */
 
+import { createClient } from '@libsql/client';
 import { BullModule } from '@nestjs/bullmq';
 import { Module } from '@nestjs/common';
 import { UsersController } from './controllers/users.controller';
@@ -22,7 +23,7 @@ import { UserDeletedHandler } from './cqrs/events/user-deleted.handler';
 import { UserUpdatedHandler } from './cqrs/events/user-updated.handler';
 import { GetUserHandler } from './cqrs/queries/get-user.handler';
 import { GetUsersHandler } from './cqrs/queries/get-uses.handler';
-import { MemoryStore } from './db/memory-store';
+import { TURSO_CLIENT, TursoStore } from './db/turso-store';
 import {
   BATCH_UPDATE_USERS_QUEUE,
   BatchUpdateUsersProcessor,
@@ -37,8 +38,6 @@ import { DeleteUserCommandRepository } from './persistence/delete-user.command-r
 import { GetUserQueryRepository } from './persistence/get-user.query-repository';
 import { GetUsersQueryRepository } from './persistence/get-users.query-repository';
 import { UpdateUserCommandRepository } from './persistence/update-user.command-repository';
-import { InMemoryUserRepository } from './repositories/in-memory-user.repository';
-import { USER_REPOSITORY } from './repositories/user.repository.interface';
 import { COMMAND_REPOSITORY, QUERY_REPOSITORY } from './repository.tokens';
 
 @Module({
@@ -48,15 +47,25 @@ import { COMMAND_REPOSITORY, QUERY_REPOSITORY } from './repository.tokens';
   ],
   controllers: [UsersController],
   providers: [
-    MemoryStore,
     // Cache
     {
       provide: CACHE_TOKEN,
       useClass: MemoryCache,
     },
 
-    // Repository
-    { provide: USER_REPOSITORY, useClass: InMemoryUserRepository },
+    // Store
+    TursoStore,
+    {
+      provide: TURSO_CLIENT,
+      useValue: createClient({
+        url: process.env.TURSO_DATABASE_URL ?? 'file:local.db',
+        authToken: process.env.TURSO_AUTH_TOKEN,
+      }),
+    },
+
+    // // Repository
+    // { provide: MEMORY_STORE, useClass: MemoryStore },
+    // { provide: USER_REPOSITORY, useClass: InMemoryUserRepository },
 
     // Repositories (Command)
     {

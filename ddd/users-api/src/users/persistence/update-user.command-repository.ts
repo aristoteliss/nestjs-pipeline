@@ -1,10 +1,11 @@
+import { Client } from '@libsql/client';
 import { Inject, Injectable } from '@nestjs/common';
 import {
   Cacheable,
   CommandRepository,
   ICache,
 } from '@nestjs-pipeline/ddd-core';
-import { MemoryStore } from '../db/memory-store';
+import { TURSO_CLIENT } from '../db/turso-store';
 import { UserSnapshot } from '../domain/models/user.entity';
 import { UserUpdateOutcome } from '../domain/outcomes/user-update.outcome';
 import { CACHE_TOKEN } from './cache/memory.cache';
@@ -13,7 +14,7 @@ import { CACHE_TOKEN } from './cache/memory.cache';
 export class UpdateUserCommandRepository extends CommandRepository<UserUpdateOutcome> {
   constructor(
     @Inject(CACHE_TOKEN) protected readonly cache: ICache<UserSnapshot>,
-    private readonly store: MemoryStore<UserSnapshot>,
+    @Inject(TURSO_CLIENT) private readonly client: Client,
   ) {
     super(cache);
   }
@@ -25,7 +26,10 @@ export class UpdateUserCommandRepository extends CommandRepository<UserUpdateOut
 
     const snapshot = entity.toJSON();
 
-    await this.store.save(entity.id, snapshot);
+    await this.client.execute({
+      sql: `INSERT OR REPLACE INTO users (id, data) VALUES (?, ?)`,
+      args: [entity.id, JSON.stringify(snapshot)],
+    });
 
     return snapshot;
   }

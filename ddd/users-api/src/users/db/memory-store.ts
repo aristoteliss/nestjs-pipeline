@@ -1,7 +1,8 @@
 import { Injectable } from '@nestjs/common';
+import { IStore } from './store.interface';
 
 @Injectable()
-export class MemoryStore<T> {
+export class MemoryStore<T> implements IStore<T> {
   private store: Map<string, T> = new Map();
 
   async save(key: string, value: T): Promise<void> {

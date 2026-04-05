@@ -39,7 +39,7 @@ const USERNAME_MIN_LENGTH = 5;
  * - `User.fromJson()` rebuilds the entity from persisted snapshot data.
  * - `rename()` enforces the username business rule and updates `updatedAt`.
  */
-export class User extends CacheableEntity<UserSnapshot> {
+export class User extends CacheableEntity<UserSnapshot, User> {
   static readonly prefixKey = 'user:';
 
   private _username: string;

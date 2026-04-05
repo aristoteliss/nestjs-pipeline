@@ -12,6 +12,6 @@
  */
 import { z } from 'zod';
 
-export const UserIdDtoSchema = z.string().uuid();
+export const UserIdDtoSchema = z.uuid();
 
 export type UserIdDto = z.infer<typeof UserIdDtoSchema>;

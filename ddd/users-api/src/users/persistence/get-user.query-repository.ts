@@ -1,7 +1,13 @@
+import { Client } from '@libsql/client';
 import { Inject, Injectable, NotFoundException } from '@nestjs/common';
-import { Cache, ICache, QueryRepository } from '@nestjs-pipeline/ddd-core';
+import {
+  Cache,
+  CacheableEntity,
+  ICache,
+  QueryRepository,
+} from '@nestjs-pipeline/ddd-core';
 import { GetUserQuery } from '../cqrs/queries/get-user.query';
-import { MemoryStore } from '../db/memory-store';
+import { TURSO_CLIENT } from '../db/turso-store';
 import { User, UserSnapshot } from '../domain/models/user.entity';
 import { CACHE_TOKEN } from './cache/memory.cache';
 
@@ -12,7 +18,7 @@ export class GetUserQueryRepository extends QueryRepository<
 > {
   constructor(
     @Inject(CACHE_TOKEN) protected readonly cache: ICache<User>,
-    private readonly store: MemoryStore<UserSnapshot>,
+    @Inject(TURSO_CLIENT) private readonly client: Client,
   ) {
     super(cache);
   }
@@ -24,12 +30,18 @@ export class GetUserQueryRepository extends QueryRepository<
   async find(query: GetUserQuery): Promise<User> {
     const { userId } = query;
 
-    const user = await this.store.get(userId);
+    const user = await this.client.execute({
+      sql: `SELECT data FROM users WHERE id = ?`,
+      args: [userId],
+    });
 
-    if (!user) {
+    if (!user || !user.rows || user.rows.length === 0) {
       throw new NotFoundException('User not found');
     }
 
-    return User.fromJSON(user);
+    return CacheableEntity.fromStringify<UserSnapshot, User>(
+      user.rows[0].data as string,
+      User.fromJSON,
+    );
   }
 }
