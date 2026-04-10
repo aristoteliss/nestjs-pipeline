@@ -36,7 +36,7 @@ import {
   type CreateUserDto,
   CreateUserDtoSchema,
 } from '../dtos/create-user.dto';
-import { type UserIdDto, UserIdDtoSchema } from '../dtos/get-user.dto';
+import { type UserIdDto, UserIdDtoSchema } from '../dtos/get-userId.dto';
 import {
   type UpdateUserDto,
   UpdateUserDtoSchema,

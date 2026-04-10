@@ -17,7 +17,9 @@ import {
   Module,
   type NestModule,
 } from '@nestjs/common';
+import { APP_INTERCEPTOR } from '@nestjs/core';
 import { CqrsModule } from '@nestjs/cqrs';
+import { CaslModule } from '@nestjs-pipeline/casl';
 import {
   LOGGING_BEHAVIOR_LOGGER,
   LoggingBehavior,
@@ -33,7 +35,15 @@ import {
   TraceBehavior,
 } from '@nestjs-pipeline/opentelemetry';
 import { ZodValidationBehavior } from '@nestjs-pipeline/zod';
+import { PersistenceModule } from '@persistence/persistence.module';
+import { IncomingMessage } from 'http';
 import { Logger, LoggerModule } from 'nestjs-pino';
+import { AuthsModule } from './auths/auths.module';
+import { GetUserCapabilitiesQueryRepository } from './auths/repositories/get-user-capabilities.query-repository';
+import { AuthSessionInterceptor } from './common/interceptors/auth-session.interceptor';
+import { GetRolesCapabilitiesQueryRepository } from './roles/persistence/get-roles-capabilities.query-repository';
+import { RolesModule } from './roles/roles.module';
+import { GetUserContextQueryRepository } from './users/persistence/get-user-context.query-repository';
 import { UsersModule } from './users/users.module';
 
 @Module({
@@ -50,11 +60,14 @@ import { UsersModule } from './users/users.module';
                   colorize: true,
                   //singleLine: true,
                   messageFormat: '[{context}] {msg}',
-                  //ignore: 'pid,hostname,context,req,res,responseTime',
+                  ignore: 'pid,hostname,context,req,res,responseTime',
                   translateTime: 'SYS:HH:MM:ss.l',
                 },
               }
             : undefined,
+        customProps: (req: IncomingMessage) => ({
+          context: `${req.method} ${req.url}`,
+        }),
       },
     }),
     CqrsModule.forRoot(),
@@ -92,11 +105,20 @@ import { UsersModule } from './users/users.module';
         ],
       },
     }),
+    CaslModule.forRoot({
+      roleProvider: GetRolesCapabilitiesQueryRepository,
+      userContextResolver: GetUserContextQueryRepository,
+      userCapabilityProvider: GetUserCapabilitiesQueryRepository,
+    }),
     UsersModule,
+    RolesModule,
+    AuthsModule,
+    PersistenceModule,
   ],
   providers: [
     { provide: LOGGING_BEHAVIOR_LOGGER, useExisting: Logger },
     { provide: TRACE_BEHAVIOR_LOGGER, useExisting: Logger },
+    { provide: APP_INTERCEPTOR, useClass: AuthSessionInterceptor },
   ],
 })
 export class AppModule implements NestModule {

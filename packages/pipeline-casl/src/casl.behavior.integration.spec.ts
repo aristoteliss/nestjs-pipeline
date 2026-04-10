@@ -602,7 +602,7 @@ describe('CaslBehavior.handle() integration', () => {
 
     it('should return undefined from async resolver for unauthenticated', async () => {
       const asyncResolver: IUserContextResolver = {
-        resolve: async () => Promise.resolve(undefined),
+        resolve: async () => Promise.resolve(null),
       };
 
       const behavior = createBehavior(allRoles, userCapProvider, asyncResolver);

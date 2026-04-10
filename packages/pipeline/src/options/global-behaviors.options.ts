@@ -38,11 +38,19 @@ export type GlobalBehaviorScope = 'commands' | 'queries' | 'events' | 'all';
  *
  * @example
  * ```ts
+ * // Single object
  * globalBehaviors: {
  *   scope: 'all',
  *   before: [LoggingBehavior, [MetricsBehavior, { prefix: 'api' }]],
  *   after:  [AuditBehavior],
  * }
+ *
+ * // Array — different scopes for different handler kinds
+ * globalBehaviors: [
+ *   { scope: 'commands', before: [AuditBehavior] },
+ *   { scope: 'queries',  before: [CachingBehavior] },
+ *   { scope: 'all',      after:  [LoggingBehavior] },
+ * ]
  * ```
  */
 export interface GlobalBehaviorsOptions {

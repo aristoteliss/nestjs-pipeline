@@ -5,10 +5,10 @@ import {
   CommandRepository,
   ICache,
 } from '@nestjs-pipeline/ddd-core';
-import { TURSO_CLIENT } from '../db/turso-store';
+import { CACHE_TOKEN } from '@persistence/cache/memory.cache';
+import { TURSO_CLIENT } from '@persistence/turso-store';
 import { UserSnapshot } from '../domain/models/user.entity';
 import { UserUpdateOutcome } from '../domain/outcomes/user-update.outcome';
-import { CACHE_TOKEN } from './cache/memory.cache';
 
 @Injectable()
 export class DeleteUserCommandRepository extends CommandRepository<UserUpdateOutcome> {

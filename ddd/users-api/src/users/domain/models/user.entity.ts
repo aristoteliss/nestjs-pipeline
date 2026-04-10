@@ -25,6 +25,8 @@ import { UserUpdateOutcome } from '../outcomes/user-update.outcome';
 export interface UserSnapshot extends Partial<RootEntitySnapshot> {
   readonly username: string;
   readonly email: string;
+  readonly tenantId?: string;
+  readonly department?: string;
 }
 
 const USERNAME_MIN_LENGTH = 5;
@@ -43,18 +45,29 @@ export class User extends CacheableEntity<UserSnapshot, User> {
   static readonly prefixKey = 'user:';
 
   private _username: string;
-  private _email: string;
+  readonly email: string;
+  readonly tenantId?: string;
+  readonly department?: string;
 
   private constructor(snapshot: UserSnapshot) {
     super(User, snapshot);
     this._username = User.normalizeUsername(snapshot.username);
-    this._email = snapshot.email;
+    this.email = snapshot.email;
+    this.tenantId = snapshot.tenantId;
+    this.department = snapshot.department;
   }
 
-  static create(username: string, email: string): UserCreateOutcome {
+  static create(
+    username: string,
+    email: string,
+    tenantId?: string,
+    department?: string,
+  ): UserCreateOutcome {
     const user = new User({
       username: User.normalizeUsername(username),
       email,
+      tenantId,
+      department,
     });
 
     const events = [new UserCreatedEvent(user)];
@@ -67,6 +80,8 @@ export class User extends CacheableEntity<UserSnapshot, User> {
       id: User.normalizeId(snapshot.id),
       username: User.normalizeUsername(snapshot.username),
       email: snapshot.email,
+      tenantId: snapshot.tenantId,
+      department: snapshot.department,
       createdAt: User.normalizeDate(snapshot.createdAt),
       updatedAt: User.normalizeDate(snapshot.updatedAt),
     });
@@ -85,9 +100,6 @@ export class User extends CacheableEntity<UserSnapshot, User> {
   get username(): string {
     return this._username;
   }
-  get email(): string {
-    return this._email;
-  }
 
   @Mutate()
   rename(username: string): UserUpdateOutcome {
@@ -104,7 +116,9 @@ export class User extends CacheableEntity<UserSnapshot, User> {
     return this.freezeState({
       id: this.id,
       username: this._username,
-      email: this._email,
+      email: this.email,
+      tenantId: this.tenantId,
+      department: this.department,
       createdAt: this.createdAt,
       updatedAt: this.updatedAt,
     });

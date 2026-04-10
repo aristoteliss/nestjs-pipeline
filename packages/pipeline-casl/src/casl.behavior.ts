@@ -465,13 +465,11 @@ export class CaslBehavior implements IPipelineBehavior {
 
   private async resolveUser(
     context: IPipelineContext,
-  ): Promise<CaslUserContext | undefined> {
+  ): Promise<CaslUserContext | null> {
     if (this.userContextResolver) {
-      return this.userContextResolver.resolve(context.items);
+      return (await this.userContextResolver.resolve(context)) ?? null;
     }
-    return context.items.get(CASL_USER_CONTEXT_KEY) as
-      | CaslUserContext
-      | undefined;
+    return context.items.get(CASL_USER_CONTEXT_KEY) as CaslUserContext | null;
   }
 
   private async buildAbilityForUser(

@@ -114,6 +114,45 @@ describe('PipelineModule.forRoot', () => {
     expect(mod.exports).toContain(AlphaBehavior);
     expect(mod.exports).toContain(BetaBehavior);
   });
+
+  it('registers behavior types from an array of GlobalBehaviorsOptions', () => {
+    const mod = PipelineModule.forRoot({
+      globalBehaviors: [
+        { scope: 'commands', before: [AlphaBehavior] },
+        { scope: 'queries', after: [BetaBehavior] },
+      ],
+    });
+
+    expect(mod.providers).toContain(AlphaBehavior);
+    expect(mod.providers).toContain(BetaBehavior);
+    expect(mod.exports).toContain(AlphaBehavior);
+    expect(mod.exports).toContain(BetaBehavior);
+  });
+
+  it('does not duplicate behaviors that appear in both behaviors[] and array globalBehaviors', () => {
+    const mod = PipelineModule.forRoot({
+      behaviors: [AlphaBehavior],
+      globalBehaviors: [
+        { scope: 'commands', before: [AlphaBehavior] },
+        { scope: 'queries', after: [BetaBehavior] },
+      ],
+    });
+
+    const alphaCounts = (mod.providers as unknown[]).filter(
+      (p: unknown) => p === AlphaBehavior,
+    ).length;
+    expect(alphaCounts).toBe(1);
+    expect(mod.providers).toContain(BetaBehavior);
+  });
+
+  it('handles an empty globalBehaviors array', () => {
+    const mod = PipelineModule.forRoot({
+      globalBehaviors: [],
+    });
+
+    expect(mod.module).toBe(PipelineModule);
+    expect(mod.providers).toBeDefined();
+  });
 });
 
 // ── forFeature ──────────────────────────────────────────────

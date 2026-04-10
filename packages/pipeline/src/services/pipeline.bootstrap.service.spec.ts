@@ -383,6 +383,105 @@ describe('PipelineBootstrapService', () => {
   });
 
   // ─────────────────────────────────────────────────────────────────
+  describe('Global behaviors — array form (multiple GlobalBehaviorsOptions)', () => {
+    it('applies mixed-scope array entries to the correct handler kinds', async () => {
+      class PlainQueryHandler3 {
+        async execute(_q: MockQuery) {
+          return { store: pipelineStore.getStore() };
+        }
+      }
+
+      const cmdHandler = new NoPipelineCommandHandler();
+      const qHandler = new PlainQueryHandler3();
+
+      explorerServiceMock.explore.mockReturnValue({
+        commands: [makeWrapper(cmdHandler, NoPipelineCommandHandler)],
+        queries: [makeWrapper(qHandler, PlainQueryHandler3)],
+        events: [],
+      });
+
+      new PipelineBootstrapService(moduleRefMock, {
+        globalBehaviors: [
+          { scope: 'commands', before: [MockBehavior] },
+          { scope: 'queries', before: [SecondMockBehavior] },
+        ],
+      }).onApplicationBootstrap();
+
+      const cmdResult = await cmdHandler.execute(new MockCommand(1));
+      const qResult = await qHandler.execute(new MockQuery(1));
+
+      // MockBehavior applied to command
+      expect(cmdResult.store).toBeDefined();
+      expect(cmdResult.store!.items.get('mock')).toBe(true);
+      expect(cmdResult.store!.items.get('second')).toBeUndefined();
+
+      // SecondMockBehavior applied to query
+      expect(qResult.store).toBeDefined();
+      expect(qResult.store!.items.get('second')).toBe(true);
+      expect(qResult.store!.items.get('mock')).toBeUndefined();
+    });
+
+    it('merges behaviors from multiple array entries with matching scopes', async () => {
+      const handler = new NoPipelineCommandHandler();
+      explorerServiceMock.explore.mockReturnValue({
+        commands: [makeWrapper(handler, NoPipelineCommandHandler)],
+        queries: [],
+        events: [],
+      });
+
+      new PipelineBootstrapService(moduleRefMock, {
+        globalBehaviors: [
+          { scope: 'all', before: [MockBehavior] },
+          { scope: 'commands', before: [SecondMockBehavior] },
+        ],
+      }).onApplicationBootstrap();
+
+      const result = await handler.execute(new MockCommand(1));
+
+      // Both behaviors should have run
+      expect(result.store).toBeDefined();
+      expect(result.store!.items.get('mock')).toBe(true);
+      expect(result.store!.items.get('second')).toBe(true);
+    });
+
+    it('skips array entries whose scope does not match the handler kind', async () => {
+      const handler = new NoPipelineCommandHandler();
+      explorerServiceMock.explore.mockReturnValue({
+        commands: [makeWrapper(handler, NoPipelineCommandHandler)],
+        queries: [],
+        events: [],
+      });
+
+      new PipelineBootstrapService(moduleRefMock, {
+        globalBehaviors: [
+          { scope: 'queries', before: [MockBehavior] },
+          { scope: 'events', before: [SecondMockBehavior] },
+        ],
+      }).onApplicationBootstrap();
+
+      const result = await handler.execute(new MockCommand(1));
+      // Neither behavior should apply to a command handler
+      expect(result.store).toBeUndefined();
+    });
+
+    it('handles an empty array gracefully', async () => {
+      const handler = new NoPipelineCommandHandler();
+      explorerServiceMock.explore.mockReturnValue({
+        commands: [makeWrapper(handler, NoPipelineCommandHandler)],
+        queries: [],
+        events: [],
+      });
+
+      new PipelineBootstrapService(moduleRefMock, {
+        globalBehaviors: [],
+      }).onApplicationBootstrap();
+
+      const result = await handler.execute(new MockCommand(1));
+      expect(result.store).toBeUndefined();
+    });
+  });
+
+  // ─────────────────────────────────────────────────────────────────
   describe('Deduplication — same behavior in @UsePipeline and globalBehaviors', () => {
     it('runs the behavior only once when it appears in both @UsePipeline and global before', async () => {
       @UsePipeline(SecondMockBehavior)

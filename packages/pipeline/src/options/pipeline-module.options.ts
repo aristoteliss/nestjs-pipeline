@@ -52,14 +52,14 @@ export interface PipelineModuleOptions {
    * }
    *
    * // Apply only to commands, with options
-   * globalBehaviors: {
+   * globalBehaviors: [{
    *   scope: 'commands',
    *   before: [[MetricsBehavior, { prefix: 'cmd' }]],
    *   after:  [AuditBehavior],
-   * }
+   * }]
    * ```
    */
-  globalBehaviors?: GlobalBehaviorsOptions;
+  globalBehaviors?: GlobalBehaviorsOptions | GlobalBehaviorsOptions[];
 
   /**
    * Behavior classes to register in the DI container.

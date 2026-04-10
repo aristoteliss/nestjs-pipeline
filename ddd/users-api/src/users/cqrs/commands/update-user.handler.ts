@@ -20,7 +20,10 @@ import {
 } from '@nestjs-pipeline/ddd-core';
 import { User } from '../../domain/models/user.entity';
 import { UserUpdateOutcome } from '../../domain/outcomes/user-update.outcome';
-import { COMMAND_REPOSITORY, QUERY_REPOSITORY } from '../../repository.tokens';
+import {
+  COMMAND_REPOSITORY,
+  QUERY_REPOSITORY,
+} from '../../repositories/repository.tokens';
 import { GetUserQuery } from '../queries/get-user.query';
 import { UpdateUserCommand } from './update-user.command';
 

@@ -53,7 +53,6 @@ import {
   NextDelegate,
 } from '../interfaces/pipeline.behavior.interface';
 import { PipelineHandlerMeta } from '../interfaces/pipeline-handler-meta.interface';
-import { GlobalBehaviorsOptions } from '../options/global-behaviors.options';
 import {
   PIPELINE_MODULE_OPTIONS,
   PipelineModuleOptions,
@@ -314,8 +313,9 @@ export class PipelineBootstrapService implements OnApplicationBootstrap {
 
   /**
    * Resolves global before/after behaviors that match the given handler kind.
-   * Scope filtering is controlled by `globalBehaviors.scope` in module options
-   * ('all' | 'commands' | 'queries' | 'events'). Default is 'all'.
+   * `globalBehaviors` may be a single `GlobalBehaviorsOptions` object or an array.
+   * Each entry is filtered by its `scope` ('all' | 'commands' | 'queries' | 'events').
+   * Matching entries are merged — behaviors accumulate across all matching configs.
    *
    * @returns Behavior types to prepend/append plus any inline options from tuple entries.
    */
@@ -330,18 +330,15 @@ export class PipelineBootstrapService implements OnApplicationBootstrap {
       globalOptions: new Map<string, Record<string, unknown>>(),
     };
 
-    const config: GlobalBehaviorsOptions | undefined =
-      this.options?.globalBehaviors;
-    if (!config) return empty;
+    const raw = this.options?.globalBehaviors;
+    if (!raw) return empty;
 
-    const scope = config.scope ?? 'all';
-
-    // Scope filtering
-    if (scope === 'commands' && requestKind !== 'command') return empty;
-    if (scope === 'queries' && requestKind !== 'query') return empty;
-    if (scope === 'events' && requestKind !== 'event') return empty;
+    const configs = Array.isArray(raw) ? raw : [raw];
+    if (configs.length === 0) return empty;
 
     const globalOptions = new Map<string, Record<string, unknown>>();
+    const beforeTypes: Type<IPipelineBehavior>[] = [];
+    const afterTypes: Type<IPipelineBehavior>[] = [];
 
     const parseEntries = (
       entries: PipelineBehaviorEntry[],
@@ -354,8 +351,17 @@ export class PipelineBootstrapService implements OnApplicationBootstrap {
         return entry;
       });
 
-    const beforeTypes = parseEntries(config.before ?? []);
-    const afterTypes = parseEntries(config.after ?? []);
+    for (const config of configs) {
+      const scope = config.scope ?? 'all';
+
+      // Scope filtering — skip entries that don't match the handler kind
+      if (scope === 'commands' && requestKind !== 'command') continue;
+      if (scope === 'queries' && requestKind !== 'query') continue;
+      if (scope === 'events' && requestKind !== 'event') continue;
+
+      beforeTypes.push(...parseEntries(config.before ?? []));
+      afterTypes.push(...parseEntries(config.after ?? []));
+    }
 
     return { beforeTypes, afterTypes, globalOptions };
   }

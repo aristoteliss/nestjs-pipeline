@@ -8,7 +8,7 @@ export abstract class RootDomainOutcome<
 > extends DomainOutcome {
   public readonly entity: T;
 
-  protected constructor(entity: T, events: Array<DomainEvent>) {
+  protected constructor(entity: T, events?: Array<DomainEvent>) {
     super(events);
     this.entity = entity;
   }

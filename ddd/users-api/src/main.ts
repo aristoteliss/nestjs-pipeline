@@ -11,6 +11,8 @@
  * companies that do not wish to be bound by the AGPL terms. Contact Aristotelis for details.
  */
 
+import './tracing'; // ← MUST be first: starts the OTel SDK before NestJS loads
+import secureSession from '@fastify/secure-session';
 import { NestFactory } from '@nestjs/core';
 import {
   FastifyAdapter,
@@ -20,7 +22,8 @@ import { ZodValidationFilter } from '@nestjs-pipeline/zod';
 import { Logger } from 'nestjs-pino';
 import 'reflect-metadata';
 import { AppModule } from './app.module';
-import './tracing'; // ← MUST be first: starts the OTel SDK before NestJS loads
+
+process.loadEnvFile();
 
 async function bootstrap() {
   const useFastify = process.env.ADAPTER === 'fastify';
@@ -32,6 +35,25 @@ async function bootstrap() {
         { bufferLogs: true },
       )
     : await NestFactory.create(AppModule, { bufferLogs: true });
+
+  if (useFastify) {
+    if (!process.env.SESSION_SECRET) {
+      throw new Error('SESSION_SECRET must be set for secure sessions');
+    }
+
+    await (app as NestFastifyApplication)
+      .getHttpAdapter()
+      .getInstance()
+      .register(secureSession, {
+        key: Buffer.from(process.env.SESSION_SECRET, 'hex'),
+        cookieName: 'session',
+        cookie: {
+          path: '/',
+          httpOnly: true,
+          secure: process.env.NODE_ENV === 'production',
+        },
+      });
+  }
 
   app.useLogger(app.get(Logger));
   app.useGlobalFilters(new ZodValidationFilter());

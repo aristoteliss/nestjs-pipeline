@@ -11,7 +11,7 @@
  * companies that do not wish to be bound by the AGPL terms. Contact Aristotelis for details.
  */
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { MemoryStore } from '../db/memory-store';
+import { MemoryStore } from '@persistence/memory-store';
 import { User, type UserSnapshot } from '../domain/models/user.entity';
 import type { IUserRepository } from './user.repository.interface';
 

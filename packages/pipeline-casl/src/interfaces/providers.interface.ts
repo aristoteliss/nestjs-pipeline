@@ -16,6 +16,7 @@
  * ----------------------------
  */
 
+import { IPipelineContext } from '@nestjs-pipeline/core';
 import type {
   CaslUserContext,
   RoleDefinition,
@@ -36,8 +37,8 @@ import type {
  * export class PgUserContextResolver implements IUserContextResolver {
  *   constructor(private readonly pool: Pool) {}
  *
- *   async resolve(items: Map<string, unknown>): Promise<CaslUserContext | undefined> {
- *     const jwt = items.get('jwt') as { sub: string } | undefined;
+ *   async resolve(context: IPipelineContext): Promise<CaslUserContext | undefined> {
+ *     const jwt = context.items.get('jwt') as { sub: string } | undefined;
  *     if (!jwt) return undefined;
  *
  *     const { rows } = await this.pool.query(
@@ -51,8 +52,8 @@ import type {
  */
 export interface IUserContextResolver {
   resolve(
-    items: Map<string, unknown>,
-  ): CaslUserContext | undefined | Promise<CaslUserContext | undefined>;
+    context: IPipelineContext,
+  ): CaslUserContext | null | Promise<CaslUserContext | null>;
 }
 
 /**

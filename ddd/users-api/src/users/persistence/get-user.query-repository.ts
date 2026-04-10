@@ -1,14 +1,10 @@
 import { Client } from '@libsql/client';
 import { Inject, Injectable, NotFoundException } from '@nestjs/common';
-import {
-  Cache,
-  ICache,
-  QueryRepository,
-} from '@nestjs-pipeline/ddd-core';
+import { Cache, ICache, QueryRepository } from '@nestjs-pipeline/ddd-core';
+import { CACHE_TOKEN } from '@persistence/cache/memory.cache';
+import { TURSO_CLIENT } from '@persistence/turso-store';
 import { GetUserQuery } from '../cqrs/queries/get-user.query';
-import { TURSO_CLIENT } from '../db/turso-store';
 import { User, UserSnapshot } from '../domain/models/user.entity';
-import { CACHE_TOKEN } from './cache/memory.cache';
 
 @Injectable()
 export class GetUserQueryRepository extends QueryRepository<
@@ -23,15 +19,27 @@ export class GetUserQueryRepository extends QueryRepository<
   }
 
   @Cache<GetUserQuery, User>(
-    (q) => `${User.prefixKey}${q.userId}`,
+    (q) =>
+      q.userId
+        ? `${User.prefixKey}${q.userId}`
+        : `${User.prefixKey}email:${q.email}`,
     (cached) => User.fromJSON(cached as UserSnapshot),
   )
   async find(query: GetUserQuery): Promise<User> {
-    const { userId } = query;
+    const { userId, email } = query;
+
+    const sql = userId
+      ? `SELECT id, username, email, tenant_id, department, created_at, updated_at FROM users WHERE id = ?`
+      : `SELECT id, username, email, tenant_id, department, created_at, updated_at FROM users WHERE email = ?`;
+    const arg = userId ?? email;
+
+    if (!arg) {
+      throw new NotFoundException('Either userId or email is required');
+    }
 
     const user = await this.client.execute({
-      sql: `SELECT id, username, email, created_at, updated_at FROM users WHERE id = ?`,
-      args: [userId],
+      sql,
+      args: [arg],
     });
 
     if (!user.rows.length) {
@@ -43,6 +51,8 @@ export class GetUserQueryRepository extends QueryRepository<
       id: row.id as string,
       username: row.username as string,
       email: row.email as string,
+      tenantId: row.tenant_id as string | undefined,
+      department: row.department as string | undefined,
       createdAt: new Date(row.created_at as number),
       updatedAt: new Date(row.updated_at as number),
     };

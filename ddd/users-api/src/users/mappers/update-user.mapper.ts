@@ -1,10 +1,10 @@
+import { createMapper } from '@common/mappers/create-mapper.helper';
 import { z } from 'zod';
 import { UpdateUserCommand } from '../cqrs/commands/update-user.command';
 import {
   type UpdateUserDto,
   UpdateUserDtoSchema,
 } from '../dtos/update-user.dto';
-import { createMapper } from './create-mapper.helper';
 
 const base = createMapper(
   z

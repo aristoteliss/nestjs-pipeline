@@ -478,6 +478,15 @@ PipelineModule.forRoot({
   },
 })
 
+// ── Per-kind scoping with array form ──
+PipelineModule.forRoot({
+  globalBehaviors: [
+    { scope: 'commands', before: [AuditBehavior] },
+    { scope: 'queries',  before: [CachingBehavior] },
+    { scope: 'all',      after:  [LoggingBehavior] },
+  ],
+})
+
 // ── Per-handler: override or add behaviors for specific handlers ──
 @CommandHandler(CreateUserCommand)
 @UsePipeline(

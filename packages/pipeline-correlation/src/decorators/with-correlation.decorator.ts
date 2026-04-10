@@ -204,8 +204,6 @@ export function WithCorrelation(
       : (pathOrOptions ?? {});
 
   const { path = 'data.correlationId', extract } = options;
-  const logger: LoggerService =
-    options.logger ?? new Logger(WithCorrelation.name);
 
   return (
     _target: object,
@@ -215,6 +213,11 @@ export function WithCorrelation(
     const originalMethod = descriptor.value;
 
     descriptor.value = function (this: unknown, ...args: unknown[]) {
+      const logger: LoggerService =
+        options.logger ??
+        (untyped(this)?.logger as LoggerService) ??
+        new Logger(WithCorrelation.name);
+
       if (!extract && Array.isArray(args[0])) {
         logger.warn(
           `${untyped(this).constructor?.name}.${String(_propertyKey)}: first argument is an array — ` +
@@ -342,3 +345,4 @@ export const CorrelationFrom = {
     },
   }),
 } as const;
+
