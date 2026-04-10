@@ -41,13 +41,13 @@
     "rxjs": "^7.0.0"
   },
   "devDependencies": {
-    "@nestjs/common": "^11.1.17",
-    "@nestjs/core": "^11.1.17",
+    "@nestjs/common": "^11.1.18",
+    "@nestjs/core": "^11.1.18",
     "@nestjs/cqrs": "^11.0.3",
-    "@types/node": "^25.5.0",
-    "@vitest/coverage-v8": "^4.1.0",
+    "@types/node": "^25.6.0",
+    "@vitest/coverage-v8": "^4.1.4",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.2",
-    "vitest": "^4.1.0"
+    "vitest": "^4.1.4"
   }
 }

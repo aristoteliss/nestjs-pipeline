@@ -20,25 +20,25 @@
     "@nestjs-pipeline/opentelemetry": "workspace:*",
     "@nestjs-pipeline/zod": "workspace:*",
     "@nestjs/bullmq": "^11.0.4",
-    "@nestjs/common": "^11.1.17",
-    "@nestjs/core": "^11.1.17",
+    "@nestjs/common": "^11.1.18",
+    "@nestjs/core": "^11.1.18",
     "@nestjs/cqrs": "^11.0.3",
-    "@nestjs/platform-express": "^11.1.17",
-    "@nestjs/platform-fastify": "^11.1.17",
-    "@opentelemetry/api": "^1.9.0",
-    "@opentelemetry/exporter-trace-otlp-grpc": "^0.213.0",
-    "@opentelemetry/instrumentation-http": "^0.213.0",
-    "@opentelemetry/instrumentation-nestjs-core": "^0.59.0",
-    "@opentelemetry/instrumentation-pg": "^0.65.0",
-    "@opentelemetry/sdk-node": "^0.213.0",
-    "bullmq": "^5.71.0",
+    "@nestjs/platform-express": "^11.1.18",
+    "@nestjs/platform-fastify": "^11.1.18",
+    "@opentelemetry/api": "^1.9.1",
+    "@opentelemetry/exporter-trace-otlp-grpc": "^0.214.0",
+    "@opentelemetry/instrumentation-http": "^0.214.0",
+    "@opentelemetry/instrumentation-nestjs-core": "^0.60.0",
+    "@opentelemetry/instrumentation-pg": "^0.66.0",
+    "@opentelemetry/sdk-node": "^0.214.0",
+    "bullmq": "^5.73.3",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.2",
     "zod": "^4.3.6"
   },
   "devDependencies": {
-    "@biomejs/biome": "^2.4.8",
+    "@biomejs/biome": "^2.4.11",
     "tsx": "^4.21.0",
-    "typescript": "^5.9.3"
+    "typescript": "^6.0.2"
   }
 }
