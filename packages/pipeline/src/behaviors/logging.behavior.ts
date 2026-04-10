@@ -25,7 +25,14 @@
  */
 
 import { performance } from 'node:perf_hooks';
-import { Injectable, Logger, LogLevel } from '@nestjs/common';
+import {
+  Inject,
+  Injectable,
+  Logger,
+  LoggerService,
+  LogLevel,
+  Optional,
+} from '@nestjs/common';
 import { safeStringify } from '../helpers/safeStringify';
 import {
   IPipelineBehavior,
@@ -34,11 +41,24 @@ import {
 import { IPipelineContext } from '../interfaces/pipeline.context.interface';
 
 /**
+ * Injection token for providing a custom {@link LoggerService} to {@link LoggingBehavior}.
+ *
+ * @example
+ * ```ts
+ * // In your module providers:
+ * { provide: LOGGING_BEHAVIOR_LOGGER, useValue: myPinoLogger }
+ * ```
+ */
+export const LOGGING_BEHAVIOR_LOGGER = Symbol('LOGGING_BEHAVIOR_LOGGER');
+
+/**
  * Configuration options for the logging behavior.
  *
- * @interface LoggingBehaviorOptions
- * @property {(LogLevel | 'none')} [metricLogLevel] - The log level for pipeline timing/completion metrics. Defaults to 'log' if not specified.
- * @property {(LogLevel | 'none')} [requestResponseLogLevel] - The log level for request and response data. Defaults to 'debug' if not specified.
+ * Levels use NestJS {@link LogLevel} names (`'verbose'`, `'debug'`, `'log'`, `'warn'`, `'error'`, `'fatal'`).
+ * When using `nestjs-pino`, these map to pino levels:
+ * `'verbose'` → `trace`, `'debug'` → `debug`, `'log'` → `info`, `'warn'` → `warn`,
+ * `'error'` → `error`, `'fatal'` → `fatal`.
+ * Use `'none'` to suppress a message entirely.
  */
 export interface LoggingBehaviorOptions {
   metricLogLevel?: LogLevel | 'none';
@@ -47,7 +67,15 @@ export interface LoggingBehaviorOptions {
 
 @Injectable()
 export class LoggingBehavior implements IPipelineBehavior {
-  private readonly logger = new Logger(LoggingBehavior.name);
+  private readonly logger: LoggerService;
+
+  constructor(
+    @Optional()
+    @Inject(LOGGING_BEHAVIOR_LOGGER)
+    logger?: LoggerService,
+  ) {
+    this.logger = logger ?? new Logger(LoggingBehavior.name);
+  }
 
   async handle(
     context: IPipelineContext,
@@ -94,10 +122,13 @@ export class LoggingBehavior implements IPipelineBehavior {
     }
   }
 
-  /** Calls the appropriate Logger method, or skips entirely when level is `'none'`. */
+  /** Calls the appropriate Logger method, or skips entirely when level is `'none'` or unsupported. */
   private log(level: LogLevel | 'none', message: string): void {
-    if (level !== 'none') {
-      this.logger[level](message);
+    if (level === 'none') return;
+
+    const method = this.logger[level as keyof LoggerService];
+    if (typeof method === 'function') {
+      (method as (msg: string) => void).call(this.logger, message);
     }
   }
 }

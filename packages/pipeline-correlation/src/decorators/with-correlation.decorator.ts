@@ -16,7 +16,7 @@
  * ----------------------------
  */
 
-import { Logger, LogLevel } from '@nestjs/common';
+import { Logger, LoggerService, LogLevel } from '@nestjs/common';
 import { getCorrelationId, runWithCorrelationId } from '../correlation.store';
 import { dyn, untyped } from '../types/safe-typing';
 
@@ -68,6 +68,11 @@ export interface CorrelationDecoratorOptions {
    *   `Logger` method (`'log'`, `'debug'`, `'verbose'`, `'warn'`, `'error'`).
    * - `'none'` suppresses the log message entirely.
    *
+   * **When using `nestjs-pino`**, NestJS levels map to pino levels as follows:
+   * `'verbose'` → `trace`, `'debug'` → `debug`, `'log'` → `info`, `'warn'` → `warn`,
+   * `'error'` → `error`, `'fatal'` → `fatal`.
+   * To see `'verbose'` logs, set `level: 'trace'` in `LoggerModule.forRoot`.
+   *
    * @default 'debug'
    *
    * @example
@@ -83,6 +88,20 @@ export interface CorrelationDecoratorOptions {
    * ```
    */
   logLevel?: LogLevel | 'none';
+
+  /**
+   * Custom logger instance to use instead of the built-in NestJS {@link Logger}.
+   *
+   * Accepts any object that implements {@link LoggerService}
+   * (e.g. a Pino or Winston adapter).
+   *
+   * @example
+   * ```ts
+   * @WithCorrelation({ logger: myPinoLogger })
+   * async handleJob(job: Job) { ... }
+   * ```
+   */
+  logger?: LoggerService;
 }
 
 /**
@@ -179,13 +198,13 @@ export function WithCorrelation(
 export function WithCorrelation(
   pathOrOptions?: string | CorrelationDecoratorOptions,
 ): MethodDecorator {
-  const logger = new Logger(WithCorrelation.name);
   const options: CorrelationDecoratorOptions =
     typeof pathOrOptions === 'string'
       ? { path: pathOrOptions }
       : (pathOrOptions ?? {});
 
   const { path = 'data.correlationId', extract } = options;
+  const logger: LoggerService = options.logger ?? new Logger(WithCorrelation.name);
 
   return (
     _target: object,
@@ -209,9 +228,14 @@ export function WithCorrelation(
 
       return runWithCorrelationId(correlationId, () => {
         if (options.logLevel !== 'none') {
-          logger[options.logLevel ?? 'debug'](
-            `🔗 Starting ${untyped(this).constructor?.name}.${String(_propertyKey)} with correlationId: ${getCorrelationId()}`,
-          );
+          const level = options.logLevel ?? 'debug';
+          const method = logger[level as keyof LoggerService];
+          if (typeof method === 'function') {
+            (method as (msg: string) => void).call(
+              logger,
+              `🔗 Starting ${untyped(this).constructor?.name}.${String(_propertyKey)} with correlationId: ${getCorrelationId()}`,
+            );
+          }
         }
         return originalMethod.apply(this, args);
       });

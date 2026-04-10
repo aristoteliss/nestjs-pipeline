@@ -1,6 +1,6 @@
 {
   "name": "@nestjs-pipeline/zod",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "Zod validation behavior for @nestjs-pipeline/core",
   "author": "Aristotelis <aristotelis@ik.me>",
   "license": "SEE LICENSE IN LICENSE",

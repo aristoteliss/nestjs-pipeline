@@ -84,6 +84,18 @@ export interface PipelineModuleOptions {
    *   `Logger` method (`'log'`, `'debug'`, `'verbose'`, `'warn'`, `'error'`).
    * - `'none'` suppresses the message entirely.
    *
+   * **When using `nestjs-pino`**, NestJS levels map to pino levels as follows:
+   * | NestJS level | Pino level |
+   * |---|---|
+   * | `'verbose'` | `trace` |
+   * | `'debug'` | `debug` |
+   * | `'log'` | `info` |
+   * | `'warn'` | `warn` |
+   * | `'error'` | `error` |
+   * | `'fatal'` | `fatal` |
+   *
+   * To see `'verbose'` logs, set `level: 'trace'` in `LoggerModule.forRoot`.
+   *
    * @default 'debug'
    *
    * @example

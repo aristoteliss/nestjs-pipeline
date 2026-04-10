@@ -24,7 +24,14 @@
  * along with this program. If not, see <https://www.gnu.org/licenses/>.
  */
 
-import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import {
+  Inject,
+  Injectable,
+  Logger,
+  LoggerService,
+  OnModuleInit,
+  Optional,
+} from '@nestjs/common';
 import {
   IPipelineBehavior,
   IPipelineContext,
@@ -50,6 +57,17 @@ export interface TraceBehaviorOptions {
 const TRACER_NAME = 'nestjs-pipeline';
 
 /**
+ * Injection token for providing a custom {@link LoggerService} to {@link TraceBehavior}.
+ *
+ * @example
+ * ```ts
+ * // In your module providers:
+ * { provide: TRACE_BEHAVIOR_LOGGER, useValue: myPinoLogger }
+ * ```
+ */
+export const TRACE_BEHAVIOR_LOGGER = Symbol('TRACE_BEHAVIOR_LOGGER');
+
+/**
  * Returns a real Tracer only when the OTel SDK is properly initialized.
  *
  * `trace.getTracer()` NEVER throws and NEVER returns undefined — when the SDK is
@@ -66,9 +84,17 @@ function isSdkInitialized(): boolean {
 
 @Injectable()
 export class TraceBehavior implements IPipelineBehavior, OnModuleInit {
-  private readonly logger = new Logger(TraceBehavior.name, { timestamp: true });
+  private readonly logger: LoggerService;
   /** false = SDK not initialized; handle() will pass through without tracing. */
   private sdkReady = false;
+
+  constructor(
+    @Optional()
+    @Inject(TRACE_BEHAVIOR_LOGGER)
+    logger?: LoggerService,
+  ) {
+    this.logger = logger ?? new Logger(TraceBehavior.name, { timestamp: true });
+  }
 
   onModuleInit(): void {
     this.sdkReady = isSdkInitialized();

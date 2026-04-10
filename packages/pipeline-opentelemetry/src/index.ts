@@ -24,4 +24,8 @@
  * along with this program. If not, see <https://www.gnu.org/licenses/>.
  */
 
-export { TraceBehavior, TraceBehaviorOptions } from './trace.behavior';
+export {
+  TRACE_BEHAVIOR_LOGGER,
+  TraceBehavior,
+  TraceBehaviorOptions,
+} from './trace.behavior';
