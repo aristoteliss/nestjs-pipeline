@@ -18,18 +18,45 @@ import {
   type NestModule,
 } from '@nestjs/common';
 import { CqrsModule } from '@nestjs/cqrs';
-import { LoggingBehavior, PipelineModule } from '@nestjs-pipeline/core';
+import {
+  LOGGING_BEHAVIOR_LOGGER,
+  LoggingBehavior,
+  PipelineModule,
+} from '@nestjs-pipeline/core';
 import {
   getCorrelationId,
   HttpCorrelationMiddleware,
   runWithCorrelationId,
 } from '@nestjs-pipeline/correlation';
-import { TraceBehavior } from '@nestjs-pipeline/opentelemetry';
+import {
+  TRACE_BEHAVIOR_LOGGER,
+  TraceBehavior,
+} from '@nestjs-pipeline/opentelemetry';
 import { ZodValidationBehavior } from '@nestjs-pipeline/zod';
+import { Logger, LoggerModule } from 'nestjs-pino';
 import { UsersModule } from './users/users.module';
 
 @Module({
   imports: [
+    LoggerModule.forRoot({
+      pinoHttp: {
+        autoLogging: true,
+        level: process.env.NODE_ENV === 'production' ? 'info' : 'debug',
+        transport:
+          process.env.NODE_ENV !== 'production'
+            ? {
+                target: 'pino-pretty',
+                options: {
+                  colorize: true,
+                  //singleLine: true,
+                  messageFormat: '[{context}] {msg}',
+                  //ignore: 'pid,hostname,context,req,res,responseTime',
+                  translateTime: 'SYS:HH:MM:ss.l',
+                },
+              }
+            : undefined,
+      },
+    }),
     CqrsModule.forRoot(),
     BullModule.forRoot({
       connection: {
@@ -62,7 +89,10 @@ import { UsersModule } from './users/users.module';
     }),
     UsersModule,
   ],
-  providers: [],
+  providers: [
+    { provide: LOGGING_BEHAVIOR_LOGGER, useExisting: Logger },
+    { provide: TRACE_BEHAVIOR_LOGGER, useExisting: Logger },
+  ],
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
