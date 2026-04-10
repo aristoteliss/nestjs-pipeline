@@ -204,7 +204,8 @@ export function WithCorrelation(
       : (pathOrOptions ?? {});
 
   const { path = 'data.correlationId', extract } = options;
-  const logger: LoggerService = options.logger ?? new Logger(WithCorrelation.name);
+  const logger: LoggerService =
+    options.logger ?? new Logger(WithCorrelation.name);
 
   return (
     _target: object,
