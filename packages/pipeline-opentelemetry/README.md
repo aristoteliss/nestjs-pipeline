@@ -133,6 +133,30 @@ Each span includes the following:
 
 ## Configuration
 
+### Custom Logger
+
+`TraceBehavior` accepts a custom Nest `LoggerService` via the `TRACE_BEHAVIOR_LOGGER` token.
+This is useful when your app uses `nestjs-pino`.
+
+```typescript
+import { Module } from '@nestjs/common';
+import { Logger } from 'nestjs-pino';
+import {
+  TRACE_BEHAVIOR_LOGGER,
+  TraceBehavior,
+} from '@nestjs-pipeline/opentelemetry';
+
+@Module({
+  providers: [
+    TraceBehavior,
+    { provide: TRACE_BEHAVIOR_LOGGER, useExisting: Logger },
+  ],
+})
+export class AppModule {}
+```
+
+The same Nest-to-pino level mapping applies here (`verbose` → `trace`, `log` → `info`, etc.).
+
 ### Global Tracer Name
 
 Set the tracer name when registering globally — this appears in your APM tool:

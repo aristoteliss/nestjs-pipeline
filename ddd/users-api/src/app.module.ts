@@ -72,11 +72,16 @@ import { UsersModule } from './users/users.module';
       correlationIdFactory: getCorrelationId,
       correlationIdRunner: runWithCorrelationId,
       /**
-       * Register LoggingBehavior globally so every command query and event automatically gets logging.
-       * ZodValidationBehavior runs before the handler and validates the request against the
-       * ZOD_SCHEMA static property when present (attached by createRequest / createEvent helpers).
-       * TraceBehavior is registered globally as an "after" behavior to ensure it wraps the entire request lifecycle,
-       * automatically gets pipeline wrapping — no per-handler decoration needed.
+       * Register global behaviors once so all commands, queries, and events share
+       * the same logging/tracing/validation pipeline without per-handler decorators.
+       *
+       * before: LoggingBehavior
+       * - emits request/response + timing logs
+       * - uses nestjs-pino through LOGGING_BEHAVIOR_LOGGER provider
+       *
+       * after: TraceBehavior + ZodValidationBehavior
+       * - TraceBehavior creates OTel spans (and uses nestjs-pino via TRACE_BEHAVIOR_LOGGER)
+       * - ZodValidationBehavior validates static _zodSchema when present
        */
       globalBehaviors: {
         scope: 'all',

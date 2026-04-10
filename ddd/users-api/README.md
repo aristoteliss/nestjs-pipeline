@@ -12,6 +12,7 @@ This sample builds on `@nestjs-pipeline/ddd-core` to show a full CQRS + DDD stac
 - **Caching** — Two `ICache<T>` implementations: `TursoCache` (Turso-backed, TTL-aware) and `MemoryCache` (in-process). Configured via `CACHE_TOKEN` in `UsersModule`.
 - **Event handlers** — React to domain events, enqueue background jobs via BullMQ.
 - **Controllers** — REST endpoints with `ZodPipe` validation and correlation ID propagation.
+- **Logging** — `nestjs-pino` logger wired into both `LoggingBehavior` and `TraceBehavior` via DI tokens.
 
 ## Getting Started
 
@@ -27,6 +28,15 @@ pnpm start
 |----------------------|----------------|--------------------------------------|
 | `TURSO_DATABASE_URL` | `file:local.db`| libSQL database URL (file or remote) |
 | `TURSO_AUTH_TOKEN`   | _(none)_       | Auth token for Turso cloud databases |
+
+## Logging
+
+This sample uses `nestjs-pino` as the application logger and forwards it to pipeline libraries:
+
+- `LOGGING_BEHAVIOR_LOGGER` → `Logger` from `nestjs-pino`
+- `TRACE_BEHAVIOR_LOGGER` → `Logger` from `nestjs-pino`
+
+This gives one consistent logger for HTTP logs, pipeline request/response logs, and tracing startup diagnostics.
 
 ## Database schema
 
@@ -91,9 +101,12 @@ Applied to `find()` in query repositories. Checks the cache first; on a miss it 
 
 ## Dependencies
 
-- `@nestjs-pipeline/core`
-- `@nestjs-pipeline/ddd-core`
-- `@nestjs-pipeline/correlation`
-- `@nestjs-pipeline/opentelemetry`
-- `@nestjs-pipeline/zod`
+- `@nestjs-pipeline/core` (`workspace:*`, current `0.1.11`)
+- `@nestjs-pipeline/ddd-core` (`workspace:*`, current `0.0.3`)
+- `@nestjs-pipeline/correlation` (`workspace:*`, current `0.1.6`)
+- `@nestjs-pipeline/opentelemetry` (`workspace:*`, current `0.1.5`)
+- `@nestjs-pipeline/zod` (`workspace:*`, current `0.1.5`)
 - `@libsql/client`
+- `nestjs-pino`
+- `pino-http`
+- `pino-pretty`

@@ -60,6 +60,7 @@ Zero additional runtime dependencies beyond NestJS itself. Works with Express an
 - [Repository Structure](#repository-structure)
 - [Development](#development)
 - [Adding a New Behavior Package](#adding-a-new-behavior-package)
+- [Proposals](#proposals)
 - [License and Commercial Use](#license-and-commercial-use)
 
 ---
@@ -75,6 +76,15 @@ Zero additional runtime dependencies beyond NestJS itself. Works with Express an
 
 > Add-on packages live in `packages/pipeline-<name>/` and peer-depend on `@nestjs-pipeline/core`.
 
+### Current Package Versions
+
+| Package | Version |
+|---|---|
+| `@nestjs-pipeline/core` | `0.1.11` |
+| `@nestjs-pipeline/correlation` | `0.1.6` |
+| `@nestjs-pipeline/zod` | `0.1.5` |
+| `@nestjs-pipeline/opentelemetry` | `0.1.5` |
+
 ---
 
 ## Quick Start
@@ -88,6 +98,9 @@ pnpm add @nestjs-pipeline/core @nestjs/common @nestjs/core @nestjs/cqrs reflect-
 pnpm add @nestjs-pipeline/correlation   # HTTP correlation middleware, @WithCorrelation, etc.
 pnpm add @nestjs-pipeline/zod zod
 pnpm add @nestjs-pipeline/opentelemetry @opentelemetry/api
+
+# Optional: pino logger integration
+pnpm add nestjs-pino pino-http pino-pretty
 ```
 
 ### 2. Register the Module
@@ -832,6 +845,35 @@ PipelineModule.forRoot({
 | `metricLogLevel` | `LogLevel \| 'none'` | `'log'` | Log level for timing/duration messages |
 | `requestResponseLogLevel` | `LogLevel \| 'none'` | `'debug'` | Log level for request/response payloads |
 
+To provide your own logger implementation (for example `nestjs-pino`), bind the `LOGGING_BEHAVIOR_LOGGER` token:
+
+```typescript
+import { Module } from '@nestjs/common';
+import { Logger } from 'nestjs-pino';
+import {
+  LOGGING_BEHAVIOR_LOGGER,
+  LoggingBehavior,
+  PipelineModule,
+} from '@nestjs-pipeline/core';
+
+@Module({
+  imports: [
+    PipelineModule.forRoot({
+      globalBehaviors: { scope: 'all', before: [LoggingBehavior] },
+      bootstrapLogLevel: 'verbose',
+    }),
+  ],
+  providers: [
+    { provide: LOGGING_BEHAVIOR_LOGGER, useExisting: Logger },
+  ],
+})
+export class AppModule {}
+```
+
+When using `nestjs-pino`, Nest log levels map to pino as:
+`verbose` → `trace`, `debug` → `debug`, `log` → `info`, `warn` → `warn`, `error` → `error`, `fatal` → `fatal`.
+If you use `bootstrapLogLevel: 'verbose'`, set pino `level: 'trace'`.
+
 ```typescript
 // Verbose logging for a specific handler
 @CommandHandler(CreateUserCommand)
@@ -1274,6 +1316,18 @@ pnpm clean
    ```
 
 5. The package is automatically included via `pnpm-workspace.yaml`.
+
+---
+
+## Proposals
+
+The following behavior packages are planned as future additions to the pipeline ecosystem. Each one follows the same `IPipelineBehavior` pattern and will be published as an independent `@nestjs-pipeline/*` package.
+
+| Phase | Packages | Why |
+|---|---|---|
+| 1 — High value | `pipeline-cache`, `pipeline-retry`, `pipeline-timeout` | Most commonly needed in any CQRS app |
+| 2 — Production hardening | `pipeline-authz`, `pipeline-idempotency`, `pipeline-circuit-breaker` | Required for production-grade distributed systems |
+| 3 — Observability+ | `pipeline-metrics`, `pipeline-audit`, `pipeline-deadletter`, `pipeline-rate-limit` | Polish and operational maturity |
 
 ---
 

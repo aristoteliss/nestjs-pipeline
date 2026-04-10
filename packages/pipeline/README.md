@@ -48,6 +48,9 @@ pnpm add @nestjs-pipeline/core
 
 ```bash
 pnpm add @nestjs/common @nestjs/core @nestjs/cqrs reflect-metadata rxjs
+
+# Optional: use pino as Nest logger
+pnpm add nestjs-pino pino-http pino-pretty
 ```
 
 ---
@@ -399,6 +402,34 @@ PipelineModule.forRoot({
 |---|---|---|---|
 | `metricLogLevel` | `LogLevel \| 'none'` | `'log'` | Log level for timing/duration messages |
 | `requestResponseLogLevel` | `LogLevel \| 'none'` | `'debug'` | Log level for request/response payloads |
+
+Provide your own logger by binding `LOGGING_BEHAVIOR_LOGGER` (for example with `nestjs-pino`):
+
+```typescript
+import { Module } from '@nestjs/common';
+import { Logger } from 'nestjs-pino';
+import {
+  LOGGING_BEHAVIOR_LOGGER,
+  LoggingBehavior,
+  PipelineModule,
+} from '@nestjs-pipeline/core';
+
+@Module({
+  imports: [
+    PipelineModule.forRoot({
+      globalBehaviors: { scope: 'all', before: [LoggingBehavior] },
+      bootstrapLogLevel: 'verbose',
+    }),
+  ],
+  providers: [
+    { provide: LOGGING_BEHAVIOR_LOGGER, useExisting: Logger },
+  ],
+})
+export class AppModule {}
+```
+
+Nest log levels map to pino as:
+`verbose` → `trace`, `debug` → `debug`, `log` → `info`, `warn` → `warn`, `error` → `error`, `fatal` → `fatal`.
 
 ```typescript
 // Override options per handler
