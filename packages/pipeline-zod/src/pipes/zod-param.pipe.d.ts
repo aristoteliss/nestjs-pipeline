@@ -8,9 +8,11 @@ import { ZodType } from 'zod';
  *   @Body(new ZodPipe(CreateUserDtoSchema))
  *   @Body(new ZodPipe(CreateUserMapper))   // transform schema → outputs a Command
  */
-export declare class ZodPipe<TOutput, TInput = unknown> implements PipeTransform<TInput, TOutput> {
-    private readonly schema;
-    constructor(schema: ZodType<TOutput>);
-    transform(value: TInput): TOutput;
+export declare class ZodPipe<TOutput, TInput = unknown>
+  implements PipeTransform<TInput, TOutput>
+{
+  private readonly schema;
+  constructor(schema: ZodType<TOutput>);
+  transform(value: TInput): TOutput;
 }
 //# sourceMappingURL=zod-param.pipe.d.ts.map

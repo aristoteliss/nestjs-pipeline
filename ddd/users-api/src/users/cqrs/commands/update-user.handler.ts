@@ -12,6 +12,7 @@
  */
 import { Inject, Scope } from '@nestjs/common';
 import { CommandHandler, EventBus } from '@nestjs/cqrs';
+import { CaslBehavior } from '@nestjs-pipeline/casl';
 import { LoggingBehavior, UsePipeline } from '@nestjs-pipeline/core';
 import {
   CommandBaseHandler,
@@ -20,12 +21,23 @@ import {
 } from '@nestjs-pipeline/ddd-core';
 import { User } from '../../domain/models/user.entity';
 import { UserUpdateOutcome } from '../../domain/outcomes/user-update.outcome';
-import { COMMAND_REPOSITORY, QUERY_REPOSITORY } from '../../repository.tokens';
+import {
+  COMMAND_REPOSITORY,
+  QUERY_REPOSITORY,
+} from '../../repositories/repository.tokens';
 import { GetUserQuery } from '../queries/get-user.query';
 import { UpdateUserCommand } from './update-user.command';
 
 @CommandHandler(UpdateUserCommand, { scope: Scope.REQUEST })
-@UsePipeline([LoggingBehavior, { requestResponseLogLevel: 'log' }])
+@UsePipeline([LoggingBehavior, { requestResponseLogLevel: 'log' }],
+  [
+    CaslBehavior,
+    {
+      subjectFromRequest: 'User',
+      rules: [{ action: 'update', subject: 'User' }],
+    },
+  ],
+)
 export class UpdateUserHandler extends CommandBaseHandler<
   UpdateUserCommand,
   UserUpdateOutcome
@@ -41,15 +53,14 @@ export class UpdateUserHandler extends CommandBaseHandler<
   }
 
   async handle(command: UpdateUserCommand): Promise<UserUpdateOutcome> {
-    const { id, username } = command;
+    const { id, username, department } = command;
 
     const query = new GetUserQuery({ userId: id });
-
     const user = await this.queryRepository.find(query);
 
-    const outcome = user.rename(username);
+    const outcome = user.update({ username, department });
 
-    this.commandRepository.save(outcome);
+    await this.commandRepository.save(outcome);
 
     return outcome;
   }

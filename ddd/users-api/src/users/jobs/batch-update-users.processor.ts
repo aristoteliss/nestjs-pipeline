@@ -19,7 +19,10 @@ export class BatchUpdateUsersProcessor extends WorkerHost {
   private readonly logger = new Logger(BatchUpdateUsersProcessor.name);
 
   @WithCorrelation({ path: 'opts.correlationId' })
-  async process(job: Job<BatchUpdateUserItem[]>): Promise<void> {
+  async process(
+    job: Job<BatchUpdateUserItem[]>,
+    _token?: string,
+  ): Promise<void> {
     const correlationId = getCorrelationId();
     const items = job.data;
 

@@ -11,9 +11,10 @@
  * companies that do not wish to be bound by the AGPL terms. Contact Aristotelis for details.
  */
 
-import { createClient } from '@libsql/client';
 import { BullModule } from '@nestjs/bullmq';
 import { Module } from '@nestjs/common';
+import { LoggerModule } from 'nestjs-pino';
+import { GetUserCapabilitiesQueryRepository } from '../auths/repositories/get-user-capabilities.query-repository';
 import { UsersController } from './controllers/users.controller';
 import { CreateUserHandler } from './cqrs/commands/create-user.handler';
 import { DeleteUserHandler } from './cqrs/commands/delete-user.handler';
@@ -22,8 +23,8 @@ import { UserCreatedHandler } from './cqrs/events/user-created.handler';
 import { UserDeletedHandler } from './cqrs/events/user-deleted.handler';
 import { UserUpdatedHandler } from './cqrs/events/user-updated.handler';
 import { GetUserHandler } from './cqrs/queries/get-user.handler';
+import { GetUserContextHandler } from './cqrs/queries/get-user-context.handler';
 import { GetUsersHandler } from './cqrs/queries/get-uses.handler';
-import { TURSO_CLIENT, TursoStore } from './db/turso-store';
 import {
   BATCH_UPDATE_USERS_QUEUE,
   BatchUpdateUsersProcessor,
@@ -32,39 +33,25 @@ import {
   SendWelcomeEmailProcessor,
   WELCOME_EMAIL_QUEUE,
 } from './jobs/send-welcome-email.processor';
-import { CACHE_TOKEN } from './persistence/cache/memory.cache';
-import { TursoCache } from './persistence/cache/turso.cache';
 import { CreateUserCommandRepository } from './persistence/create-user.command-repository';
 import { DeleteUserCommandRepository } from './persistence/delete-user.command-repository';
 import { GetUserQueryRepository } from './persistence/get-user.query-repository';
+import { GetUserContextQueryRepository } from './persistence/get-user-context.query-repository';
 import { GetUsersQueryRepository } from './persistence/get-users.query-repository';
 import { UpdateUserCommandRepository } from './persistence/update-user.command-repository';
-import { COMMAND_REPOSITORY, QUERY_REPOSITORY } from './repository.tokens';
+import {
+  COMMAND_REPOSITORY,
+  QUERY_REPOSITORY,
+} from './repositories/repository.tokens';
 
 @Module({
   imports: [
+    LoggerModule,
     BullModule.registerQueue({ name: WELCOME_EMAIL_QUEUE }),
     BullModule.registerQueue({ name: BATCH_UPDATE_USERS_QUEUE }),
   ],
   controllers: [UsersController],
   providers: [
-    // Cache — swap useClass to MemoryCache for in-process caching (no persistence, no TTL)
-    { provide: CACHE_TOKEN, useClass: TursoCache },
-
-    // Store
-    TursoStore,
-    {
-      provide: TURSO_CLIENT,
-      useValue: createClient({
-        url: process.env.TURSO_DATABASE_URL ?? 'file:local.db',
-        authToken: process.env.TURSO_AUTH_TOKEN,
-      }),
-    },
-
-    // Repository
-    // { provide: MEMORY_STORE, useClass: MemoryStore },
-    // { provide: USER_REPOSITORY, useClass: InMemoryUserRepository },
-
     // Repositories (Command)
     {
       provide: COMMAND_REPOSITORY.createUser,
@@ -82,10 +69,19 @@ import { COMMAND_REPOSITORY, QUERY_REPOSITORY } from './repository.tokens';
     // Repositories (Query)
     { provide: QUERY_REPOSITORY.getUser, useClass: GetUserQueryRepository },
     { provide: QUERY_REPOSITORY.getUsers, useClass: GetUsersQueryRepository },
+    {
+      provide: QUERY_REPOSITORY.getUserContext,
+      useClass: GetUserContextQueryRepository,
+    },
+    {
+      provide: QUERY_REPOSITORY.getUserCapabilities,
+      useClass: GetUserCapabilitiesQueryRepository,
+    },
 
     // Queries
     GetUserHandler,
     GetUsersHandler,
+    GetUserContextHandler,
 
     // Commands
     CreateUserHandler,

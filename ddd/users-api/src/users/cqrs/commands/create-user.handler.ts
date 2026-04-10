@@ -20,11 +20,13 @@ import {
 } from '@nestjs-pipeline/ddd-core';
 import { User } from '../../domain/models/user.entity';
 import { UserCreateOutcome } from '../../domain/outcomes/user-create.outcome';
-import { COMMAND_REPOSITORY } from '../../repository.tokens';
+import { COMMAND_REPOSITORY } from '../../repositories/repository.tokens';
 import { CreateUserCommand } from './create-user.command';
 
 @CommandHandler(CreateUserCommand)
-@UsePipeline([LoggingBehavior, { requestResponseLogLevel: 'log' }])
+@UsePipeline(
+  [LoggingBehavior, { requestResponseLogLevel: 'log' }]
+)
 export class CreateUserHandler extends CommandBaseHandler<
   CreateUserCommand,
   UserCreateOutcome
@@ -38,11 +40,11 @@ export class CreateUserHandler extends CommandBaseHandler<
   }
 
   async handle(command: CreateUserCommand): Promise<UserCreateOutcome> {
-    const { username, email } = command;
+    const { username, email, tenantId, department } = command;
 
-    const outcome = User.create(username, email);
+    const outcome = User.create(username, email, tenantId, department);
 
-    this.commandRepository.save(outcome);
+    await this.commandRepository.save(outcome);
 
     return outcome;
   }

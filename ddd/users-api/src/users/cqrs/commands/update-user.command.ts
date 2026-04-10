@@ -10,12 +10,20 @@
  * Alternatively, a Commercial License is available for individuals or
  * companies that do not wish to be bound by the AGPL terms. Contact Aristotelis for details.
  */
+
+import { AuthCommand } from '@common/cqrs/commands/auth.command';
+import { createExecuteClass } from '@common/cqrs/helpers/createExecute.helper';
 import { z } from 'zod';
-import { createExecuteClass } from '../helpers/createExecute.helper';
 
 export class UpdateUserCommand extends createExecuteClass(
-  z.object({
-    id: z.uuid(),
-    username: z.string().min(5),
-  }),
-) {}
+  z
+    .object({
+      id: z.uuid(),
+      username: z.string().min(5).nullable().optional(),
+      department: z.string().min(1).nullable().optional(),
+    })
+    .refine((data) => data.username !== undefined || data.department !== undefined, {
+      message: 'At least one of username or department must be provided',
+    }),
+  AuthCommand,
+) { }

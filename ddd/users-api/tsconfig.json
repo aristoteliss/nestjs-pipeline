@@ -3,7 +3,11 @@
   "compilerOptions": {
     "types": ["node"],
     "outDir": "dist",
-    "rootDir": "src"
+    "rootDir": "src",
+    "paths": {
+      "@common/*": ["./src/common/*"],
+      "@persistence/*": ["./src/persistence/*"]
+    }
   },
   "include": ["src"],
   "exclude": ["dist", "node_modules"]

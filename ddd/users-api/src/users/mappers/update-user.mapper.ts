@@ -1,16 +1,22 @@
+import { createMapper } from '@common/mappers/create-mapper.helper';
 import { z } from 'zod';
 import { UpdateUserCommand } from '../cqrs/commands/update-user.command';
 import {
   type UpdateUserDto,
   UpdateUserDtoSchema,
 } from '../dtos/update-user.dto';
-import { createMapper } from './create-mapper.helper';
 
 const base = createMapper(
   z
     .object({ id: z.uuid() })
     .extend(UpdateUserDtoSchema.shape)
-    .transform(({ id, name }) => new UpdateUserCommand({ id, username: name })),
+    .transform(({ id, name, department }) => {
+      return new UpdateUserCommand({
+        id,
+        username: name,
+        department: department,
+      });
+    }),
 );
 
 export const UpdateUserMapper = {

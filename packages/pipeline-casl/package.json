@@ -1,0 +1,49 @@
+{
+  "name": "@nestjs-pipeline/casl",
+  "version": "0.1.0",
+  "description": "CASL authorization behavior for @nestjs-pipeline/core — ABAC with role-based capability trees",
+  "author": "Aristotelis <aristotelis@ik.me>",
+  "license": "SEE LICENSE IN LICENSE",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/aristoteliss/nestjs-pipeline.git",
+    "directory": "packages/pipeline-casl"
+  },
+  "homepage": "https://github.com/aristoteliss/nestjs-pipeline#readme",
+  "bugs": {
+    "url": "https://github.com/aristoteliss/nestjs-pipeline/issues"
+  },
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist",
+    "LICENSE",
+    "COMMERCIAL_LICENSE.txt"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "build:watch": "tsc -p tsconfig.build.json --watch",
+    "clean": "rm -rf dist tsconfig.tsbuildinfo",
+    "rebuild": "pnpm run clean && pnpm run build",
+    "lint": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "prepublishOnly": "pnpm run build"
+  },
+  "peerDependencies": {
+    "@casl/ability": "^6.0.0",
+    "@nestjs-pipeline/core": "*",
+    "@nestjs/common": "^10.0.0 || ^11.0.0",
+    "reflect-metadata": "^0.1.13 || ^0.2.0"
+  },
+  "devDependencies": {
+    "@casl/ability": "^6.8.1",
+    "@nestjs/common": "^11.1.19",
+    "@vitest/coverage-v8": "^4.1.5",
+    "reflect-metadata": "^0.2.2",
+    "vitest": "^4.1.5"
+  }
+}

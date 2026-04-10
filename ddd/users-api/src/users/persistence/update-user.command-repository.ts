@@ -5,10 +5,10 @@ import {
   CommandRepository,
   ICache,
 } from '@nestjs-pipeline/ddd-core';
-import { TURSO_CLIENT } from '../db/turso-store';
+import { CACHE_TOKEN } from '@persistence/cache/memory.cache';
+import { TURSO_CLIENT } from '@persistence/turso-store';
 import { UserSnapshot } from '../domain/models/user.entity';
 import { UserUpdateOutcome } from '../domain/outcomes/user-update.outcome';
-import { CACHE_TOKEN } from './cache/memory.cache';
 
 @Injectable()
 export class UpdateUserCommandRepository extends CommandRepository<UserUpdateOutcome> {
@@ -26,11 +26,13 @@ export class UpdateUserCommandRepository extends CommandRepository<UserUpdateOut
     const snapshot = entity.toJSON();
 
     await this.client.execute({
-      sql: `INSERT OR REPLACE INTO users (id, username, email, created_at, updated_at) VALUES (?, ?, ?, ?, ?)`,
+      sql: `INSERT OR REPLACE INTO users (id, username, email, tenant_id, department, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)`,
       args: [
         snapshot.id,
         snapshot.username,
         snapshot.email,
+        snapshot.tenantId ?? null,
+        snapshot.department ?? null,
         new Date(snapshot.createdAt).getTime(),
         new Date(snapshot.updatedAt).getTime(),
       ],

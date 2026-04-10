@@ -12,8 +12,10 @@
  */
 import { z } from 'zod';
 
+
 export const UpdateUserDtoSchema = z.object({
-  name: z.string().min(5),
+  name: z.string().min(5).nullable().optional(),
+  department: z.string().min(1).nullable().optional(),
 });
 
 export type UpdateUserDto = z.infer<typeof UpdateUserDtoSchema>;

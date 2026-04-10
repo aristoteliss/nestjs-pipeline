@@ -10,8 +10,9 @@
  * Alternatively, a Commercial License is available for individuals or
  * companies that do not wish to be bound by the AGPL terms. Contact Aristotelis for details.
  */
+
+import { createExecuteClass } from '@common/cqrs/helpers/createExecute.helper';
 import { z } from 'zod';
-import { createExecuteClass } from '../helpers/createExecute.helper';
 
 export class DeleteUserCommand extends createExecuteClass(
   z.object({
