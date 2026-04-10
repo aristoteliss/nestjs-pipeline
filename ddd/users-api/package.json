@@ -13,6 +13,7 @@
     "start:prod:fastify": "ADAPTER=fastify node dist/main"
   },
   "dependencies": {
+    "@libsql/client": "^0.17.2",
     "@nestjs-pipeline/core": "workspace:*",
     "@nestjs-pipeline/correlation": "workspace:*",
     "@nestjs-pipeline/ddd-core": "workspace:*",
@@ -30,7 +31,6 @@
     "@opentelemetry/instrumentation-nestjs-core": "^0.59.0",
     "@opentelemetry/instrumentation-pg": "^0.65.0",
     "@opentelemetry/sdk-node": "^0.213.0",
-    "@libsql/client": "^0.17.2",
     "bullmq": "^5.71.0",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.2",
@@ -38,7 +38,7 @@
   },
   "devDependencies": {
     "@biomejs/biome": "^2.4.8",
-    "ts-node": "^10.9.2",
+    "tsx": "^4.21.0",
     "typescript": "^5.9.3"
   }
 }

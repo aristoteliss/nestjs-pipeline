@@ -6,11 +6,11 @@
       "request": "launch",
       "name": "Debug Users API",
       "skipFiles": ["<node_internals>/**"],
-      "runtimeArgs": ["--nolazy", "-r", "ts-node/register"],
+      "runtimeArgs": ["--nolazy", "-r", "tsx/cjs"],
       "program": "${workspaceFolder}/ddd/users-api/src/main.ts",
       "cwd": "${workspaceFolder}/ddd/users-api",
       "env": {
-        "TS_NODE_PROJECT": "${workspaceFolder}/ddd/users-api/tsconfig.json"
+        "TSX_TSCONFIG_PATH": "${workspaceFolder}/ddd/users-api/tsconfig.json"
       },
       "sourceMaps": true,
       "console": "integratedTerminal",
