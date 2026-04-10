@@ -14,12 +14,12 @@
   "dependencies": {
     "@nestjs-pipeline/core": "workspace:*",
     "@nestjs-pipeline/correlation": "workspace:*",
-    "@nestjs/common": "^11.1.18",
+    "@nestjs/common": "^11.1.19",
     "@nestjs/cqrs": "^11.0.3"
   },
   "devDependencies": {
-    "@biomejs/biome": "^2.4.11",
+    "@biomejs/biome": "^2.4.13",
     "tsx": "^4.21.0",
-    "typescript": "^6.0.2"
+    "typescript": "^6.0.3"
   }
 }

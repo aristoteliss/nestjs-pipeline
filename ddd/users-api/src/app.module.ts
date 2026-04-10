@@ -11,13 +11,17 @@
  * companies that do not wish to be bound by the AGPL terms. Contact Aristotelis for details.
  */
 
+import { IncomingMessage } from 'node:http';
+import { AuthSessionInterceptor } from '@common/interceptors/auth-session.interceptor';
 import { BullModule } from '@nestjs/bullmq';
 import {
   type MiddlewareConsumer,
   Module,
   type NestModule,
 } from '@nestjs/common';
+import { APP_INTERCEPTOR } from '@nestjs/core';
 import { CqrsModule } from '@nestjs/cqrs';
+import { CaslModule } from '@nestjs-pipeline/casl';
 import {
   LOGGING_BEHAVIOR_LOGGER,
   LoggingBehavior,
@@ -32,7 +36,13 @@ import {
   TraceBehavior,
 } from '@nestjs-pipeline/opentelemetry';
 import { ZodValidationBehavior } from '@nestjs-pipeline/zod';
+import { PersistenceModule } from '@persistence/persistence.module';
 import { LoggerModule, NativeLogger } from 'nestjs-pino';
+import { AuthsModule } from './auths/auths.module';
+import { GetUserCapabilitiesQueryRepository } from './auths/repositories/get-user-capabilities.query-repository';
+import { GetRolesCapabilitiesQueryRepository } from './roles/persistence/get-roles-capabilities.query-repository';
+import { RolesModule } from './roles/roles.module';
+import { GetUserContextQueryRepository } from './users/persistence/get-user-context.query-repository';
 import { UsersModule } from './users/users.module';
 
 @Module({
@@ -54,6 +64,9 @@ import { UsersModule } from './users/users.module';
               },
             }
             : undefined,
+        customProps: (req: IncomingMessage) => ({
+          context: `${req.method} ${req.url}`,
+        }),
       },
     }),
     CqrsModule.forRoot(),
@@ -92,12 +105,27 @@ import { UsersModule } from './users/users.module';
       },
       loggerProvider: { provide: LOGGING_BEHAVIOR_LOGGER, useExisting: NativeLogger }
     }),
+    CaslModule.forRoot({
+      roleProvider: GetRolesCapabilitiesQueryRepository,
+      userContextResolver: GetUserContextQueryRepository,
+      userCapabilityProvider: GetUserCapabilitiesQueryRepository,
+      subjectContextPaths: ['sessionUser'],
+      defaultFieldsFromRequest: {
+        User: ['username', 'department', 'email'],
+      },
+    }),
     UsersModule,
+    RolesModule,
+    AuthsModule,
+    PersistenceModule,
   ],
-  providers: [],
+  providers: [
+    { provide: APP_INTERCEPTOR, useClass: AuthSessionInterceptor },
+  ],
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
     consumer.apply(HttpCorrelationMiddleware).forRoutes('*');
   }
 }
+

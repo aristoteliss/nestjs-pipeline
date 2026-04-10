@@ -1,6 +1,6 @@
 {
   "name": "@nestjs-pipeline/opentelemetry",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "description": "OpenTelemetry tracing behavior for @nestjs-pipeline/core",
   "author": "Aristotelis <aristotelis@ik.me>",
   "license": "SEE LICENSE IN LICENSE",
@@ -40,10 +40,10 @@
     "reflect-metadata": "^0.1.13 || ^0.2.0"
   },
   "devDependencies": {
-    "@nestjs/common": "^11.1.18",
+    "@nestjs/common": "^11.1.19",
     "@opentelemetry/api": "^1.9.1",
-    "@vitest/coverage-v8": "^4.1.4",
+    "@vitest/coverage-v8": "^4.1.5",
     "reflect-metadata": "^0.2.2",
-    "vitest": "^4.1.4"
+    "vitest": "^4.1.5"
   }
 }

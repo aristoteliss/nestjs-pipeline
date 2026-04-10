@@ -1,0 +1,94 @@
+# ──────────────────────────────────────────────────────────────────────────────
+# Demo CASL role definitions — load with a YAML-backed IRoleProvider.
+#
+# Format per capability string:  [!]subject|action|conditions[|fields]
+#
+#   subject    — entity type ('Post', 'User') or 'all' for any subject
+#   action     — verb ('read', 'create') or 'manage' for any action
+#   conditions — '*' for none, or MongoDB-style JSON with ${user.*} placeholders
+#   fields     — omit for all, or comma-separated: title,body,status
+#   ! prefix   — inverted (deny) rule
+#
+# Capabilities can also be written as objects (see 'auditor' role below).
+# ──────────────────────────────────────────────────────────────────────────────
+
+roles:
+  # ── Basic roles ──────────────────────────────────────────────────────────
+
+  - name: admin
+    capabilities:
+      - all|manage|*
+
+  - name: viewer
+    capabilities:
+      - Post|read|*
+      - Comment|read|*
+
+  - name: author
+    capabilities:
+      - Post|read|*
+      - Post|create|*
+      - Post|update|{"authorId":"${user.id}"}
+      - Post|delete|{"authorId":"${user.id}"}
+      - Comment|read|*
+      - Comment|create|*
+
+  # ── Multi-tenant roles ──────────────────────────────────────────────────
+
+  - name: tenant-admin
+    capabilities:
+      # Manage all resources scoped to own tenant
+      - User|manage|{"tenantId":"${user.tenantId}"}
+      - Project|manage|{"tenantId":"${user.tenantId}"}
+      - Invoice|read|{"tenantId":"${user.tenantId}"}
+      # Cannot delete invoices even within own tenant
+      - "!Invoice|delete|*"
+
+  - name: project-manager
+    capabilities:
+      - Project|read|{"tenantId":"${user.tenantId}"}
+      # Update projects they belong to, only in active/planning status
+      - 'Project|update|{"tenantId":"${user.tenantId}","members":{"$elemMatch":{"userId":"${user.id}"}},"status":{"$in":["active","planning"]}}'
+      # Manage own tasks, read all tasks in tenant
+      - Task|manage|{"tenantId":"${user.tenantId}","assigneeId":"${user.id}"}
+      - Task|read|{"tenantId":"${user.tenantId}"}
+      # Read comments, create own comments, delete only own draft comments
+      - Comment|read|{"tenantId":"${user.tenantId}"}
+      - Comment|create|*
+      - Comment|delete|{"authorId":"${user.id}","status":"draft"}
+
+  # ── Auditor — uses object form for field restrictions ───────────────────
+
+  - name: auditor
+    capabilities:
+      # Read-only with restricted fields on User (object form)
+      - subject: User
+        action: read
+        conditions:
+          tenantId: "${user.tenantId}"
+        fields: [id, name, email, role]
+      # Compact string form for the rest
+      - Project|read|{"tenantId":"${user.tenantId}"}
+      - Invoice|read|{"tenantId":"${user.tenantId}"}
+      - AuditLog|read|{"tenantId":"${user.tenantId}"}
+      # Denied: cannot update users
+      - subject: User
+        action: update
+        inverted: true
+        reason: Auditors have read-only access
+
+  # ── Support agent — mixed conditions and field restrictions ─────────────
+
+  - name: support-agent
+    capabilities:
+      # Read tickets scoped to own department
+      - Ticket|read|{"department":"${user.department}"}
+      # Update only the status and assignee fields on tickets
+      - Ticket|update|{"department":"${user.department}"}|status,assigneeId
+      # Read user profiles but only selected fields
+      - User|read|*|id,name,email
+      # Create internal notes on any ticket
+      - Note|create|*
+      - Note|read|{"department":"${user.department}"}
+      # Cannot delete tickets
+      - "!Ticket|delete|*"

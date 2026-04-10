@@ -19,8 +19,15 @@ export const UserResponseDtoSchema = z
     id: z.string(),
     email: z.string(),
     username: z.string(),
+    tenantId: z.string().optional(),
+    department: z.string().optional(),
   })
-  .transform(({ id, email, username }) => ({ id, email, name: username }));
+  .transform(({ id, email, username, department }) => ({
+    id,
+    email,
+    name: username,
+    department,
+  }));
 
 export type UserResponseDto = z.output<typeof UserResponseDtoSchema>;
 

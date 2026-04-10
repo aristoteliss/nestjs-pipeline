@@ -7,4 +7,6 @@ export const COMMAND_REPOSITORY = {
 export const QUERY_REPOSITORY = {
   getUser: Symbol('getUser'),
   getUsers: Symbol('getUsers'),
+  getUserContext: Symbol('getUserContext'),
+  getUserCapabilities: Symbol('getUserCapabilities'),
 } as const;

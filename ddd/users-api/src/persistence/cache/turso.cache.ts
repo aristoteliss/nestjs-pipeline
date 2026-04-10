@@ -1,7 +1,7 @@
 import type { Client } from '@libsql/client';
-import { Inject, Injectable, Logger, type OnModuleInit } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import { ICache } from '@nestjs-pipeline/ddd-core';
-import { TURSO_CLIENT } from '../../db/turso-store';
+import { TURSO_CLIENT } from '../turso-store';
 
 export interface CacheSetOptions {
   /** Time-to-live in milliseconds. Omit for no expiry. */
@@ -9,21 +9,8 @@ export interface CacheSetOptions {
 }
 
 @Injectable()
-export class TursoCache<T> implements ICache<T>, OnModuleInit {
-  private readonly logger = new Logger(TursoCache.name);
-
+export class TursoCache<T> implements ICache<T> {
   constructor(@Inject(TURSO_CLIENT) private readonly client: Client) {}
-
-  async onModuleInit(): Promise<void> {
-    await this.client.execute(
-      `CREATE TABLE IF NOT EXISTS cache (
-        key        TEXT    PRIMARY KEY,
-        value      TEXT    NOT NULL,
-        expires_at INTEGER
-      )`,
-    );
-    this.logger.log(`Turso table "cache" ready`);
-  }
 
   async get(key: string): Promise<T | undefined> {
     const result = await this.client.execute({

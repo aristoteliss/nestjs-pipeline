@@ -26,10 +26,7 @@ export abstract class CacheableEntity<
     return `${this.prefixKey}${this.id}`;
   }
 
-  static fromStringify<S, E>(
-    data: string,
-    fromJSON: (snapshot: S) => E,
-  ): E {
+  static fromStringify<S, E>(data: string, fromJSON: (snapshot: S) => E): E {
     return fromJSON(JSON.parse(data) as S);
   }
 }

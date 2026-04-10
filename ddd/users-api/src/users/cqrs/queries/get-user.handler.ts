@@ -14,7 +14,7 @@ import { Inject } from '@nestjs/common';
 import { type IQueryHandler, QueryHandler } from '@nestjs/cqrs';
 import { IQueryRepository } from '@nestjs-pipeline/ddd-core';
 import type { User } from '../../domain/models/user.entity';
-import { QUERY_REPOSITORY } from '../../repository.tokens';
+import { QUERY_REPOSITORY } from '../../repositories/repository.tokens';
 import { GetUserQuery } from './get-user.query';
 
 @QueryHandler(GetUserQuery)

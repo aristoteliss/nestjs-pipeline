@@ -73,6 +73,7 @@ Zero additional runtime dependencies beyond NestJS itself. Works with Express an
 | [`@nestjs-pipeline/correlation`](packages/pipeline-correlation) | Standalone correlation ID propagation — HTTP middleware, `@WithCorrelation`, `runWithCorrelationId`, `getCorrelationId` |
 | [`@nestjs-pipeline/zod`](packages/pipeline-zod) | Zod v4 validation behavior, `ZodPipe`, `ZodValidationFilter`, `ZodValidationError` |
 | [`@nestjs-pipeline/opentelemetry`](packages/pipeline-opentelemetry) | OpenTelemetry tracing behavior — auto-creates spans for every pipeline invocation |
+| [`@nestjs-pipeline/casl`](packages/pipeline-casl) | CASL ABAC authorization behavior — role-based capability trees, condition interpolation, inline `rules` on `CaslBehaviorOptions` |
 
 > Add-on packages live in `packages/pipeline-<name>/` and peer-depend on `@nestjs-pipeline/core`.
 
@@ -84,6 +85,7 @@ Zero additional runtime dependencies beyond NestJS itself. Works with Express an
 | `@nestjs-pipeline/correlation` | `0.1.6` |
 | `@nestjs-pipeline/zod` | `0.1.5` |
 | `@nestjs-pipeline/opentelemetry` | `0.1.5` |
+| `@nestjs-pipeline/casl` | `0.1.0` |
 
 ---
 
@@ -98,6 +100,7 @@ pnpm add @nestjs-pipeline/core @nestjs/common @nestjs/core @nestjs/cqrs reflect-
 pnpm add @nestjs-pipeline/correlation   # HTTP correlation middleware, @WithCorrelation, etc.
 pnpm add @nestjs-pipeline/zod zod
 pnpm add @nestjs-pipeline/opentelemetry @opentelemetry/api
+pnpm add @nestjs-pipeline/casl @casl/ability      # ABAC authorization with CASL
 
 # Optional: pino logger integration
 pnpm add nestjs-pino pino-http pino-pretty
@@ -1168,6 +1171,8 @@ The `ddd/users-api/` directory contains a complete working application:
 ```bash
 cd ddd/users-api
 pnpm install
+pnpm db:migrate   # create tables (idempotent)
+pnpm db:seed      # populate demo data (runs migrate first)
 pnpm start
 ```
 
@@ -1208,12 +1213,15 @@ ADAPTER=fastify pnpm start
 **What it demonstrates:**
 
 - Global + per-handler pipeline behaviors
+- Per-handler CASL authorization with inline `rules` on `CaslBehaviorOptions` and `CaslBehavior`
+- Turso-backed CASL providers (roles, capabilities, user context)
+- Versioned database migrations with tracking (`_migrations` table)
 - Zod-validated commands, queries, and events via `createRequest()`
 - Controller-level `ZodPipe` validation
 - Zod transform mappers (DTO → Command mapping)
 - OpenTelemetry tracing with `TraceBehavior`
 - DDD-style `User` entity built on `ddd-core` primitives (`CacheableEntity`, `RootDomainEvent`, `RootDomainOutcome`)
-- Turso (libSQL) persistence with a normalized schema (`id`, `username`, `email`, `created_at`, `updated_at`)
+- Turso (libSQL) persistence with a normalized schema
 - Pluggable `ICache<T>` — `TursoCache` (Turso-backed, TTL-aware) or `MemoryCache` swapped via a single provider token
 - Correlation ID propagation across handlers and events
 - Express and Fastify adapter support
@@ -1252,6 +1260,15 @@ nestjs-pipeline/
 │   │       ├── filters/          # ZodValidationFilter
 │   │       ├── pipes/            # ZodPipe
 │   │       └── zod-validation.behavior.ts
+│   ├── pipeline-casl/            # @nestjs-pipeline/casl
+│   │   └── src/
+│   │       ├── constants/        # Injection tokens
+│   │       ├── helpers/          # Capability parsing, interpolation
+│   │       ├── interfaces/       # IRoleProvider, IUserCapabilityProvider, IUserContextResolver
+│   │       ├── providers/        # StaticRoleProvider
+│   │       ├── services/         # buildAbility factory
+│   │       ├── casl.behavior.ts
+│   │       └── casl.module.ts
 │   └── pipeline-opentelemetry/   # @nestjs-pipeline/opentelemetry
 │       └── src/
 │           └── trace.behavior.ts
@@ -1262,7 +1279,13 @@ nestjs-pipeline/
     │       ├── interfaces/        # RootEntitySnapshot
     │       ├── models/            # RootEntity
     │       └── outcomes/          # DomainOutcome, RootDomainOutcome
-    └── users-api/                # Full working example using ddd-core
+    └── users-api/                # Full working example using ddd-core + casl
+        └── src/users/
+            ├── casl/             # Turso-backed CASL providers
+            ├── db/               # TursoStore, migrate.ts, seed.ts
+            ├── cqrs/             # Commands, queries, events
+            ├── domain/           # User entity, domain events, outcomes
+            └── persistence/      # Repositories, cache
 ```
 
 ---
@@ -1334,8 +1357,8 @@ The following behavior packages are planned as future additions to the pipeline 
 
 | Phase | Packages | Why |
 |---|---|---|
-| 1 — High value | `pipeline-cache`, `pipeline-retry`, `pipeline-timeout` | Most commonly needed in any CQRS app |
-| 2 — Production hardening | `pipeline-authz`, `pipeline-idempotency`, `pipeline-circuit-breaker` | Required for production-grade distributed systems |
+| 1 — High value | `pipeline-retry`, `pipeline-timeout` | Most commonly needed in any CQRS app |
+| 2 — Production hardening | `pipeline-idempotency`, `pipeline-circuit-breaker` | Required for production-grade distributed systems |
 | 3 — Observability+ | `pipeline-metrics`, `pipeline-audit`, `pipeline-deadletter`, `pipeline-rate-limit` | Polish and operational maturity |
 
 ---
