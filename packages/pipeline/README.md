@@ -314,10 +314,10 @@ async handle(context: IPipelineContext, next: NextDelegate): Promise<any> {
 
 ### Scoping
 
-Global behaviors can be scoped to specific handler kinds:
+Global behaviors can be scoped to specific handler kinds. Pass a single object or an array for per-kind control:
 
 ```typescript
-// All handler kinds
+// All handler kinds (single object)
 PipelineModule.forRoot({
   globalBehaviors: {
     scope: 'all',
@@ -348,6 +348,15 @@ PipelineModule.forRoot({
     scope: 'events',
     before: [LoggingBehavior],
   },
+})
+
+// Array form — different scopes for different handler kinds
+PipelineModule.forRoot({
+  globalBehaviors: [
+    { scope: 'commands', before: [AuditBehavior] },
+    { scope: 'queries',  before: [CachingBehavior] },
+    { scope: 'all',      after:  [LoggingBehavior] },
+  ],
 })
 ```
 
@@ -684,7 +693,7 @@ orderCreated = (events$: Observable<any>): Observable<ICommand> =>
 | Field | Type | Description |
 |---|---|---|
 | `behaviors` | `Type[]` | Behavior classes to register in DI |
-| `globalBehaviors` | `GlobalBehaviorsOptions` | Auto-wrap all handlers |
+| `globalBehaviors` | `GlobalBehaviorsOptions \| GlobalBehaviorsOptions[]` | Auto-wrap all handlers |
 | `correlationIdFactory` | `() => string \| undefined` | Read the current correlation ID (e.g. `getCorrelationId`) |
 | `correlationIdRunner` | `<T>(id: string, fn: () => T) => T` | Wrap each pipeline invocation in a correlation context (e.g. `runWithCorrelationId`) |
 | `bootstrapLogLevel` | `LogLevel \| 'none'` | Log level for bootstrap messages (default `'debug'`) |

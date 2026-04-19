@@ -66,6 +66,15 @@ function extractBehaviorTypes(
  *   correlationIdFactory: () => myCorrelationSource(),
  * })
  *
+ * // Per-kind scoping with array form
+ * PipelineModule.forRoot({
+ *   globalBehaviors: [
+ *     { scope: 'commands', before: [AuditBehavior] },
+ *     { scope: 'queries',  before: [CachingBehavior] },
+ *     { scope: 'all',      after:  [LoggingBehavior] },
+ *   ],
+ * })
+ *
  * // Integration with @nestjs-pipeline/correlation
  * import { getCorrelationId } from '@nestjs-pipeline/correlation';
  * PipelineModule.forRoot({
@@ -93,10 +102,17 @@ export class PipelineModule {
     const behaviors = options.behaviors ?? [];
 
     // Extract global behavior types for DI registration (deduplicated against `behaviors`)
-    const globalBehaviorTypes = extractBehaviorTypes([
-      ...(options.globalBehaviors?.before ?? []),
-      ...(options.globalBehaviors?.after ?? []),
-    ]).filter((t) => !behaviors.includes(t));
+    const globalConfigs = options.globalBehaviors
+      ? Array.isArray(options.globalBehaviors)
+        ? options.globalBehaviors
+        : [options.globalBehaviors]
+      : [];
+    const globalBehaviorTypes = extractBehaviorTypes(
+      globalConfigs.flatMap((cfg) => [
+        ...(cfg.before ?? []),
+        ...(cfg.after ?? []),
+      ]),
+    ).filter((t) => !behaviors.includes(t));
 
     return {
       module: PipelineModule,
