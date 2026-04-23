@@ -1,6 +1,7 @@
 import { Processor, WorkerHost } from '@nestjs/bullmq';
 import { Logger } from '@nestjs/common';
 import {
+  CorrelationDecoratorOptions,
   getCorrelationId,
   WithCorrelation,
 } from '@nestjs-pipeline/correlation';
@@ -18,7 +19,9 @@ export interface WelcomeEmailJobData {
 export class SendWelcomeEmailProcessor extends WorkerHost {
   private readonly logger = new Logger(SendWelcomeEmailProcessor.name);
 
-  @WithCorrelation()
+  @WithCorrelation({
+    extract: (job: Job, _token: string) => job.data.correlationId,
+  } as CorrelationDecoratorOptions)
   async process(job: Job<WelcomeEmailJobData>): Promise<void> {
     const correlationId = getCorrelationId();
 
