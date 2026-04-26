@@ -1,10 +1,11 @@
-import { AuthCommand } from '@common/cqrs/commands/auth.command';
 import type { Client } from '@libsql/client';
-import { Inject, Injectable, Scope } from '@nestjs/common';
+import { Inject, Injectable, Optional, Scope } from '@nestjs/common';
 import type {
+  CaslBehaviorOptions,
   CaslUserContext,
   IUserContextResolver,
 } from '@nestjs-pipeline/casl';
+import { CASL_SUBJECT_CONTEXT_PATHS } from '@nestjs-pipeline/casl';
 import type { IPipelineContext } from '@nestjs-pipeline/core';
 import { Cache, ICache, QueryRepository } from '@nestjs-pipeline/ddd-core';
 import { CACHE_TOKEN } from '@persistence/cache/memory.cache';
@@ -14,8 +15,11 @@ import { GetUserContextQuery } from '../cqrs/queries/get-user-context.query';
 /**
  * Resolves the CASL user context from the HTTP request.
  *
- * Reads the `x-user-id` header (for easy manual testing / demo purposes).
- * In production you would extract the user from a JWT or session instead.
+ * Reads the current user from the configured CASL `subjectContextPaths`
+ * (for example `sessionUser` in this sample app).
+ *
+ * This keeps user-context resolution aligned with the same request path
+ * configuration used by `CaslBehavior` for instance-level subject checks.
  *
  * REQUEST-scoped so it can access the current HTTP request.
  */
@@ -27,28 +31,70 @@ export class GetUserContextQueryRepository
     @Inject(CACHE_TOKEN)
     protected readonly cache: ICache<CaslUserContext | null>,
     @Inject(TURSO_CLIENT) private readonly client: Client,
+    @Optional()
+    @Inject(CASL_SUBJECT_CONTEXT_PATHS)
+    private readonly subjectContextPaths?: CaslBehaviorOptions['subjectContextPaths'],
   ) {
     super(cache);
   }
 
   async resolve(context: IPipelineContext): Promise<CaslUserContext | null> {
-    const user = (context.request as AuthCommand)?.sessionUser;
-    if (!user) return null;
+    const userContext = this.resolveUserContextFromRequest(
+      context.request as Record<string, unknown> | undefined,
+    );
+    if (!userContext) return null;
 
-    if (user.capabilities) {
+    if (userContext.capabilities) {
       return {
-        id: user.id,
-        tenantId: user.tenantId,
-        department: user.department,
-        capabilities: user.capabilities,
+        id: userContext.id,
+        tenantId: userContext.tenantId,
+        department: userContext.department,
+        capabilities: userContext.capabilities,
       } as CaslUserContext;
     }
 
-    if (!user.id) return null;
+    if (!userContext.id) return null;
 
     return this.find(
-      new GetUserContextQuery({ userId: user.id }),
+      new GetUserContextQuery({ userId: String(userContext.id) }),
     ) as Promise<CaslUserContext | null>;
+  }
+
+  private resolveUserContextFromRequest(
+    request: Record<string, unknown> | undefined,
+  ): CaslUserContext | null {
+    if (!request || !this.subjectContextPaths) return null;
+
+    for (const path of this.subjectContextPaths) {
+      const resolved = this.getNestedObject(request, path);
+      if (resolved) {
+        return resolved as CaslUserContext;
+      }
+    }
+
+    return null;
+  }
+
+  private getNestedObject(
+    source: Record<string, unknown>,
+    path: string,
+  ): Record<string, unknown> | undefined {
+    const keys = path.split('.').filter(Boolean);
+    if (keys.length === 0) return undefined;
+
+    let current: unknown = source;
+    for (const key of keys) {
+      if (!current || typeof current !== 'object') {
+        return undefined;
+      }
+      current = (current as Record<string, unknown>)[key];
+    }
+
+    if (!current || typeof current !== 'object') {
+      return undefined;
+    }
+
+    return current as Record<string, unknown>;
   }
 
   @Cache<GetUserContextQuery, CaslUserContext | undefined>(

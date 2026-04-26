@@ -27,7 +27,7 @@ export class GetRolesCapabilitiesQueryRepository
   )
   async find(query: GetRolesCapabilitiesQuery): Promise<RoleDefinition[]> {
     const { names } = query;
-    let rows: Array<{ id: string; name: string }>;
+    let rows: Array<{ id: string; name: string }> = [];
 
     if (names && names.length > 0) {
       const placeholders = names.map(() => '?').join(',');
@@ -40,11 +40,8 @@ export class GetRolesCapabilitiesQueryRepository
         name: r.name as string,
       }));
     } else {
-      const result = await this.client.execute('SELECT id, name FROM roles');
-      rows = result.rows.map((r) => ({
-        id: r.id as string,
-        name: r.name as string,
-      }));
+      // If no role names are provided, return an empty array (no roles)
+      return [];
     }
 
     return this.hydrate(rows);

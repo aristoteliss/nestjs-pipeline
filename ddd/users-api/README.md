@@ -10,7 +10,7 @@ This sample builds on `@nestjs-pipeline/ddd-core` to show a full CQRS + DDD stac
 - **CQRS layer** — Command/query handlers with `@UsePipeline` behaviors, validated via `createExecuteClass()` / `createQuery()` and Zod schemas.
 - **Persistence** — Turso (libSQL) as the primary store; repositories extend `CommandRepository` / `QueryRepository` from `ddd-core`.
 - **Caching** — Two `ICache<T>` implementations: `TursoCache` (Turso-backed, TTL-aware) and `MemoryCache` (in-process). Configured via `CACHE_TOKEN` in `PersistenceModule`.
-- **Authorization** — ABAC via `@nestjs-pipeline/casl`. Per-handler `CaslBehavior` with Turso-backed role/capability providers, condition interpolation, and inline `rules` on `CaslBehaviorOptions`.
+- **Authorization** — ABAC via `@nestjs-pipeline/casl`. Per-handler `CaslBehavior` with Turso-backed role/capability providers, explicit `subjectContextPaths`, global `defaultFieldsFromRequest`, condition interpolation, and inline `rules` on `CaslBehaviorOptions`.
 - **Event handlers** — React to domain events, enqueue background jobs via BullMQ.
 - **Controllers** — REST endpoints with `ZodPipe` validation and correlation ID propagation.
 - **Logging** — `nestjs-pino` logger wired into both `LoggingBehavior` and `TraceBehavior` via DI tokens.
@@ -179,14 +179,21 @@ Uses `@nestjs-pipeline/casl` for attribute-based access control with roles.
 All three CASL provider interfaces are implemented as proper `QueryRepository` subclasses with `@Cache` decorators, following the same DDD pattern as the rest of the application:
 
 - **`GetRolesCapabilitiesQueryRepository`** (`roles/persistence/`) — implements `IRoleProvider`. Loads role → capability definitions from the `roles` / `role_capabilities` / `capabilities` tables. Extends `QueryRepository<GetRolesCapabilitiesQuery, RoleDefinition[]>`.
-- **`GetUserContextQueryRepository`** (`users/persistence/`) — implements `IUserContextResolver`. Reads the `x-user-id` HTTP header (demo) and fetches the user's tenant/department from the `users` table for condition interpolation. REQUEST-scoped. Extends `QueryRepository<GetUserContextQuery, CaslUserContext | undefined>`.
+- **`GetUserContextQueryRepository`** (`users/persistence/`) — implements `IUserContextResolver`. Reads the current user from the configured CASL `subjectContextPaths` (in this app: `sessionUser`) and fetches tenant/department from the `users` table when capability data is not already embedded in the session/JWT. REQUEST-scoped. Extends `QueryRepository<GetUserContextQuery, CaslUserContext | undefined>`.
 - **`GetUserCapabilitiesQueryRepository`** (`users/persistence/`) — implements `IUserCapabilityProvider`. Returns the user's assigned roles plus any per-user additional/denied capabilities. Extends `QueryRepository<GetUserCapabilitiesQuery, UserCapabilities>`.
 
 Each has a corresponding Zod-validated query class (via `createQuery()`) and a `@QueryHandler` in its module's `cqrs/queries/` directory.
 
 ### Per-handler (not global)
 
-CASL is attached per-handler via `@UsePipeline`. For example, `CreateRoleHandler` requires multiple capabilities declared inline via `rules`:
+CASL is attached per-handler via `@UsePipeline`. The app also defines global CASL defaults in `AppModule`:
+
+- `subjectContextPaths: ['sessionUser']`
+- `defaultFieldsFromRequest: { User: ['username', 'department', 'email'] }`
+
+These defaults mean handlers do not need to repeat nested user/session lookup or common field-level update checks unless they want to override them.
+
+For example, `CreateRoleHandler` requires multiple capabilities declared inline via `rules`:
 
 ```ts
 export class CreateRoleCommand extends createExecuteClass(...) {}
@@ -209,25 +216,29 @@ Other handlers remain unaffected. To extend authorization to more commands/queri
 
 ### Testing authorization
 
-Pass the `x-user-id` header to identify the caller:
+Authenticate with a Bearer JWT or a secure session cookie. The request user is
+stored under `sessionUser`, which is also the configured CASL subject-context path.
 
 ```bash
 # Seed the database first
 pnpm db:seed
 
+# Obtain a token first (example login endpoint may vary by environment)
+# Then call protected routes with Authorization: Bearer <token>
+
 # Admin (alice) — allowed to create users
 curl -X POST http://localhost:3000/users \
   -H 'Content-Type: application/json' \
-  -H 'x-user-id: u-alice' \
+  -H 'Authorization: Bearer <alice-token>' \
   -d '{"name":"New User","email":"new@acme.io"}'
 
 # Viewer (dave) — should be denied (no User|create capability)
 curl -X POST http://localhost:3000/users \
   -H 'Content-Type: application/json' \
-  -H 'x-user-id: u-dave' \
+  -H 'Authorization: Bearer <dave-token>' \
   -d '{"name":"New User","email":"new@acme.io"}'
 
-# No header — ForbiddenException (authentication required)
+# No credentials — ForbiddenException (authentication required)
 curl -X POST http://localhost:3000/users \
   -H 'Content-Type: application/json' \
   -d '{"name":"New User","email":"new@acme.io"}'
@@ -240,12 +251,12 @@ Run `pnpm db:seed` to populate the authorization tables with 7 users, 5 roles, 1
 | Scenario                    | User    | Role(s)                  | Notes                                           |
 |-----------------------------|---------|--------------------------|--------------------------------------------------|
 | Unrestricted admin          | Alice   | `admin`                  | `all|manage|*`                                    |
-| Tenant-scoped manager       | Bob     | `user-manager`           | Can manage users in own tenant, cannot delete     |
-| Self-service only           | Carol   | `self-service`           | Can update/read own profile only                  |
-| Read-only viewer            | Dave    | `viewer`                 | Field-restricted read + per-user `User|create`    |
-| Multi-role merge            | Eve     | `viewer` + `self-service`| Combined: read all + update own                   |
+| Tenant-scoped manager       | Bob     | `user-manager`           | Can manage users in own tenant, cannot delete or update email |
+| Self only           | Carol   | `self`           | Can read own profile and update only own username |
+| Read-only viewer            | Dave    | `viewer`                 | Field-restricted read + per-user `User|create`; cannot self-update |
+| Multi-role merge            | Eve     | `viewer` + `self`| Combined: read all + update own                   |
 | Department-scoped agent     | Frank   | `support-agent`          | Scoped read + field-restricted update + no delete |
-| Manager with denial         | Grace   | `user-manager`           | Same as Bob + denied email field update           |
+| Manager with denial         | Grace   | `user-manager`           | Same as Bob; email denial is now role-level       |
 
 ## Caching
 

@@ -56,18 +56,11 @@ export class UpdateUserHandler extends CommandBaseHandler<
     const { id, username, department } = command;
 
     const query = new GetUserQuery({ userId: id });
-
     const user = await this.queryRepository.find(query);
 
-    if (!username && !department) {
-      throw new Error('No update fields provided');
-    }
+    const outcome = user.update({ username, department });
 
-    const outcome = username
-      ? user.rename(username)
-      : user.changeDepartment(department!);
-
-    this.commandRepository.save(outcome);
+    await this.commandRepository.save(outcome);
 
     return outcome;
   }

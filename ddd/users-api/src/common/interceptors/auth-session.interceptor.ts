@@ -37,7 +37,7 @@ import { type SessionData, SessionUser } from '../types/SessionUser';
  *
  * 1. An existing session cookie (automatic — handled by @fastify/secure-session)
  * 2. A Bearer JWT in the `Authorization` header (verified)
- * 3. The `x-user-id` header as a simple fallback (for manual testing)
+ * 3. The `x-api-id` header for API-client authentication
  *
  * Why an Interceptor instead of a Middleware?
  * NestJS middleware with Fastify runs through @fastify/middie and receives the

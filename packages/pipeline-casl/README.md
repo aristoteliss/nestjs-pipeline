@@ -10,6 +10,8 @@ CASL authorization behavior for `@nestjs-pipeline/core` — ABAC (Attribute-Base
 - **Pluggable providers**: Bring your own role provider (DB, YAML, static) and user capability provider
 - **Pipeline integration**: Works as a `@UsePipeline` behavior on commands, queries, and events
 - **Inline `rules`**: Declare permission requirements directly on the handler via `CaslBehaviorOptions.rules`
+- **Configurable subject context paths**: Resolve nested session/user payloads explicitly via `subjectContextPaths`
+- **Global field-level checks**: Enforce field permissions from request payloads with `defaultFieldsFromRequest`
 
 ## Installation
 
@@ -102,6 +104,10 @@ import { PipelineModule } from '@nestjs-pipeline/core';
   imports: [
     CaslModule.forRoot({
       roleProvider: { useFactory: () => roleProvider },
+      subjectContextPaths: ['sessionUser'],
+      defaultFieldsFromRequest: {
+        User: ['username', 'department', 'email'],
+      },
       userCapabilityProvider: DatabaseUserCapabilityProvider,
     }),
     PipelineModule.forRoot({
@@ -114,6 +120,9 @@ import { PipelineModule } from '@nestjs-pipeline/core';
 })
 export class AppModule {}
 ```
+
+`subjectContextPaths` is explicit and required at module registration. CASL does
+not assume a built-in request path such as `sessionUser`.
 
 ### 3. Declare rules on handlers
 
@@ -230,6 +239,28 @@ class UpdatePostHandler { /* ... */ }
 }])
 class UpdateProjectHandler { /* ... */ }
 
+// ── Nested session/user payloads ───────────────────────────────────────
+// Some apps keep actor context under a nested request object instead of at the root.
+// Configure the path explicitly so CASL can merge that payload for condition checks.
+@CommandHandler(UpdateUserCommand)
+@UsePipeline([CaslBehavior, {
+  subjectFromRequest: 'User',
+  subjectContextPaths: ['auth.session.user'],
+  rules: [{ action: 'update', subject: 'User' }],
+}])
+class UpdateUserHandler { /* ... */ }
+
+// ── Field-level update enforcement from request payload ────────────────
+// fieldsFromRequest does not grant access. It only tells CASL which changed
+// fields to validate against the user's ability.
+@CommandHandler(UpdateUserProfileCommand)
+@UsePipeline([CaslBehavior, {
+  subjectFromRequest: 'User',
+  fieldsFromRequest: ['username', 'department', 'email'],
+  rules: [{ action: 'update', subject: 'User' }],
+}])
+class UpdateUserProfileHandler { /* ... */ }
+
 // ── Cross-resource command ──────────────────────────────────────────────
 // User must update Order.status AND create AuditLog.
 // subjectFromRequest: 'Order' checks conditions on the Order requirement;
@@ -274,6 +305,10 @@ context.items.set(CASL_USER_CONTEXT_KEY, {
 ```
 
 Or implement `IUserContextResolver` for custom extraction.
+
+When your request keeps actor/session data under a nested object, pair this
+with `subjectContextPaths` so both user resolution and subject condition checks
+read from the same configured path.
 
 ## Capability String Format
 

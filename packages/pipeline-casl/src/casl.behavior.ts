@@ -33,7 +33,9 @@ import {
 import {
   CASL_ABILITY_KEY,
   CASL_BEHAVIOR_LOGGER,
+  CASL_FIELDS_FROM_REQUEST,
   CASL_ROLE_PROVIDER,
+  CASL_SUBJECT_CONTEXT_PATHS,
   CASL_USER_CAPABILITY_PROVIDER,
   CASL_USER_CONTEXT_KEY,
   CASL_USER_CONTEXT_RESOLVER,
@@ -115,6 +117,68 @@ export interface CaslBehaviorOptions {
    * ```
    */
   subjectFromRequest?: string | string[];
+
+  /**
+   * Optional request paths that may contain session/user context to be merged
+   * into instance-level CASL subject checks.
+   *
+   * This is useful when request DTOs do not expose tenant/user fields at the
+   * root level but keep them under a nested session object.
+   *
+   * Paths use dot notation and are checked in order. The first path that
+   * resolves to an object is used.
+   *
+   * @example
+   * ```ts
+   * @UsePipeline([CaslBehavior, {
+   *   subjectFromRequest: 'User',
+   *   subjectContextPaths: ['auth.session.user', 'sessionUser'],
+   *   rules: [{ action: 'update', subject: 'User' }],
+   * }])
+   * ```
+   */
+  subjectContextPaths?: string[];
+
+  /**
+   * Optional list or per-subject map of request fields that should be checked
+   * as CASL field-level permissions for instance-level requirements.
+    *
+    * Important: this option does not grant access by itself. It only tells
+    * CaslBehavior which fields to validate. Actual permissions still come
+    * from capabilities/rules in the built ability.
+   *
+   * When configured, each present field (value !== undefined) is checked with
+   * `throwUnlessCan(action, subject, field)`.
+   *
+   * This enables partial-update authorization policies such as:
+   * - allow updating `username`
+   * - deny updating `department`
+   *
+   * @example Single subject update command
+   * ```ts
+   * @UsePipeline([CaslBehavior, {
+   *   subjectFromRequest: 'User',
+   *   fieldsFromRequest: ['username', 'department'],
+   *   rules: [{ action: 'update', subject: 'User' }],
+   * }])
+   * ```
+   *
+   * @example Multi-subject command
+   * ```ts
+   * @UsePipeline([CaslBehavior, {
+   *   subjectFromRequest: ['Project', 'Task'],
+   *   fieldsFromRequest: {
+   *     Project: ['name', 'status'],
+   *     Task: ['title', 'priority'],
+   *   },
+   *   rules: [
+   *     { action: 'update', subject: 'Project' },
+   *     { action: 'update', subject: 'Task' },
+   *   ],
+   * }])
+   * ```
+   */
+  fieldsFromRequest?: string[] | Record<string, string[]>;
 
   /**
    * When true, the behavior skips authorization checks for this handler
@@ -401,6 +465,16 @@ export class CaslBehavior implements IPipelineBehavior {
     @Optional()
     @Inject(CASL_BEHAVIOR_LOGGER)
     logger?: LoggerService,
+
+    @Optional()
+    @Inject(CASL_SUBJECT_CONTEXT_PATHS)
+    private readonly globalSubjectContextPaths?: string[],
+
+    @Optional()
+    @Inject(CASL_FIELDS_FROM_REQUEST)
+    private readonly globalFieldsFromRequest?:
+      | string[]
+      | Record<string, string[]>,
   ) {
     this.logger = logger ?? new Logger(CaslBehavior.name, { timestamp: true });
   }
@@ -425,7 +499,7 @@ export class CaslBehavior implements IPipelineBehavior {
     if (!user && requirements && requirements.length > 0) {
       this.logger.warn?.(
         'Authorization required but no user context found. ' +
-          `Set "${CASL_USER_CONTEXT_KEY}" in context.items or provide a CASL_USER_CONTEXT_RESOLVER.`,
+        `Set "${CASL_USER_CONTEXT_KEY}" in context.items or provide a CASL_USER_CONTEXT_RESOLVER.`,
       );
       throw new ForbiddenException('Access denied — authentication required.');
     }
@@ -452,11 +526,16 @@ export class CaslBehavior implements IPipelineBehavior {
 
     // Check all requirements
     if (requirements && requirements.length > 0) {
+      const effectiveFieldsFromRequest =
+        options?.fieldsFromRequest ?? this.globalFieldsFromRequest;
+
       this.checkRequirements(
         ability,
         requirements,
         context,
         options?.subjectFromRequest,
+        options?.subjectContextPaths,
+        effectiveFieldsFromRequest,
       );
     }
 
@@ -492,7 +571,7 @@ export class CaslBehavior implements IPipelineBehavior {
     // No IUserCapabilityProvider — cannot load user roles.
     throw new Error(
       'No IUserCapabilityProvider registered — cannot determine user roles. ' +
-        'Register an IUserCapabilityProvider or use CaslBehaviorOptions.prebuiltAbility.',
+      'Register an IUserCapabilityProvider or use CaslBehaviorOptions.prebuiltAbility.',
     );
   }
 
@@ -501,6 +580,8 @@ export class CaslBehavior implements IPipelineBehavior {
     requirements: AbilityRequirement[],
     context: IPipelineContext,
     subjectFromRequest?: string | string[],
+    subjectContextPaths?: string[],
+    fieldsFromRequest?: string[] | Record<string, string[]>,
   ): void {
     const instanceSubjects = Array.isArray(subjectFromRequest)
       ? subjectFromRequest
@@ -514,15 +595,36 @@ export class CaslBehavior implements IPipelineBehavior {
           // Instance-level check: evaluate conditions against the request payload.
           // Shallow-copy to avoid CASL's subject-type stamp conflicting when
           // multiple subjects are checked against the same request object.
+          const requestPayload =
+            context.request as Record<string, unknown> | undefined;
+          const instancePayload = this.buildInstanceSubjectPayload(
+            requestPayload,
+            subjectContextPaths,
+          );
           const sub = caslSubject(req.subject, {
-            ...(context.request as Record<string, unknown>),
+            ...instancePayload,
           }) as unknown as string;
+
+          const requestedFields = this.resolveRequestedFields(
+            req.subject,
+            requestPayload,
+            fieldsFromRequest,
+          );
+
           if (req.field) {
             ForbiddenError.from(ability).throwUnlessCan(
               req.action,
               sub,
               req.field,
             );
+          } else if (requestedFields.length > 0) {
+            for (const field of requestedFields) {
+              ForbiddenError.from(ability).throwUnlessCan(
+                req.action,
+                sub,
+                field,
+              );
+            }
           } else {
             ForbiddenError.from(ability).throwUnlessCan(req.action, sub);
           }
@@ -545,7 +647,7 @@ export class CaslBehavior implements IPipelineBehavior {
         if (error instanceof ForbiddenError) {
           this.logger.debug?.(
             `Authorization failed: ${error.message} ` +
-              `(action=${req.action}, subject=${req.subject}${req.field ? `, field=${req.field}` : ''})`,
+            `(action=${req.action}, subject=${req.subject}${req.field ? `, field=${req.field}` : ''})`,
           );
           throw new ForbiddenException(
             'Access denied — insufficient permissions.',
@@ -554,5 +656,79 @@ export class CaslBehavior implements IPipelineBehavior {
         throw error;
       }
     }
+  }
+
+  private buildInstanceSubjectPayload(
+    requestPayload: Record<string, unknown> | undefined,
+    subjectContextPaths?: string[],
+  ): Record<string, unknown> {
+    if (!requestPayload) return {};
+
+    const paths =
+      subjectContextPaths && subjectContextPaths.length > 0
+        ? subjectContextPaths
+        : this.globalSubjectContextPaths && this.globalSubjectContextPaths.length > 0
+          ? this.globalSubjectContextPaths
+          : [];
+
+    const contextualPayload = this.resolveContextualPayload(requestPayload, paths);
+
+    // Request payload is spread last so explicit request fields stay authoritative
+    // over context defaults (e.g. target `id` vs actor `id`).
+    return {
+      ...(contextualPayload ?? {}),
+      ...requestPayload,
+    };
+  }
+
+  private resolveContextualPayload(
+    requestPayload: Record<string, unknown>,
+    paths: string[],
+  ): Record<string, unknown> | undefined {
+    for (const path of paths) {
+      const resolved = this.getNestedObject(requestPayload, path);
+      if (resolved) {
+        return resolved;
+      }
+    }
+    return undefined;
+  }
+
+  private getNestedObject(
+    source: Record<string, unknown>,
+    path: string,
+  ): Record<string, unknown> | undefined {
+    const keys = path.split('.').filter(Boolean);
+    if (keys.length === 0) return undefined;
+
+    let current: unknown = source;
+    for (const key of keys) {
+      if (!current || typeof current !== 'object') {
+        return undefined;
+      }
+      current = (current as Record<string, unknown>)[key];
+    }
+
+    if (!current || typeof current !== 'object') {
+      return undefined;
+    }
+
+    return current as Record<string, unknown>;
+  }
+
+  private resolveRequestedFields(
+    subject: string,
+    requestPayload: Record<string, unknown> | undefined,
+    fieldsFromRequest?: string[] | Record<string, string[]>,
+  ): string[] {
+    if (!requestPayload || !fieldsFromRequest) return [];
+
+    const configuredFields = Array.isArray(fieldsFromRequest)
+      ? fieldsFromRequest
+      : fieldsFromRequest[subject] ?? [];
+
+    return configuredFields.filter(
+      (field) => typeof field === 'string' && requestPayload[field] !== undefined,
+    );
   }
 }

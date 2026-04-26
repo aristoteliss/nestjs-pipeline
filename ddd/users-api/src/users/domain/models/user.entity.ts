@@ -112,14 +112,13 @@ export class User extends CacheableEntity<UserSnapshot, User> {
   }
 
   @Mutate()
-  rename(username: string): UserUpdateOutcome {
-    this._username = User.normalizeWithMinLength({ username }, 'username', USERNAME_MIN_LENGTH);
-    return new UserUpdateOutcome(this, [new UserUpdatedEvent(this)]);
-  }
-
-  @Mutate()
-  changeDepartment(department: string): UserUpdateOutcome {
-    this._department = User.normalizeWithMinLength({ department }, 'department', DEPARTMENT_MIN_LENGTH);
+  update(fields: { username?: string | null; department?: string | null }): UserUpdateOutcome {
+    if (fields.username !== undefined) {
+      this._username = User.normalizeWithMinLength({ username: fields.username }, 'username', USERNAME_MIN_LENGTH);
+    }
+    if (fields.department !== undefined) {
+      this._department = User.normalizeWithMinLength({ department: fields.department }, 'department', DEPARTMENT_MIN_LENGTH);
+    }
     return new UserUpdateOutcome(this, [new UserUpdatedEvent(this)]);
   }
 

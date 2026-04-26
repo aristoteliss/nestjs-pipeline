@@ -55,15 +55,15 @@ import { UsersModule } from './users/users.module';
         transport:
           process.env.NODE_ENV !== 'production'
             ? {
-                target: 'pino-pretty',
-                options: {
-                  colorize: true,
-                  //singleLine: true,
-                  messageFormat: '[{context}] {msg}',
-                  ignore: 'pid,hostname,context,req,res,responseTime',
-                  translateTime: 'SYS:HH:MM:ss.l',
-                },
-              }
+              target: 'pino-pretty',
+              options: {
+                colorize: true,
+                //singleLine: true,
+                messageFormat: '[{context}] {msg}',
+                ignore: 'pid,hostname,context,req,res,responseTime',
+                translateTime: 'SYS:HH:MM:ss.l',
+              },
+            }
             : undefined,
         customProps: (req: IncomingMessage) => ({
           context: `${req.method} ${req.url}`,
@@ -109,6 +109,10 @@ import { UsersModule } from './users/users.module';
       roleProvider: GetRolesCapabilitiesQueryRepository,
       userContextResolver: GetUserContextQueryRepository,
       userCapabilityProvider: GetUserCapabilitiesQueryRepository,
+      subjectContextPaths: ['sessionUser'],
+      defaultFieldsFromRequest: {
+        User: ['username', 'department', 'email'],
+      },
     }),
     UsersModule,
     RolesModule,

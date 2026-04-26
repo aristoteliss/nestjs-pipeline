@@ -23,9 +23,12 @@ import {
   Provider,
   Type,
 } from '@nestjs/common';
+import type { CaslBehaviorOptions } from './casl.behavior';
 import { CaslBehavior } from './casl.behavior';
 import {
+  CASL_FIELDS_FROM_REQUEST,
   CASL_ROLE_PROVIDER,
+  CASL_SUBJECT_CONTEXT_PATHS,
   CASL_USER_CAPABILITY_PROVIDER,
   CASL_USER_CONTEXT_RESOLVER,
 } from './constants/tokens';
@@ -44,30 +47,30 @@ export interface CaslModuleOptions {
    * Use `useClass`, `useExisting`, or `useFactory`.
    */
   roleProvider:
-    | Type<IRoleProvider>
-    | { useClass: Type<IRoleProvider> }
-    | { useExisting: Type<IRoleProvider> }
-    | {
-        useFactory: (
-          ...args: never[]
-        ) => IRoleProvider | Promise<IRoleProvider>;
-        inject?: InjectionToken[];
-      };
+  | Type<IRoleProvider>
+  | { useClass: Type<IRoleProvider> }
+  | { useExisting: Type<IRoleProvider> }
+  | {
+    useFactory: (
+      ...args: never[]
+    ) => IRoleProvider | Promise<IRoleProvider>;
+    inject?: InjectionToken[];
+  };
 
   /**
    * Optional user context resolver.
    * Extracts the current user from the pipeline context items bag.
    */
   userContextResolver?:
-    | Type<IUserContextResolver>
-    | { useClass: Type<IUserContextResolver> }
-    | { useExisting: Type<IUserContextResolver> }
-    | {
-        useFactory: (
-          ...args: never[]
-        ) => IUserContextResolver | Promise<IUserContextResolver>;
-        inject?: InjectionToken[];
-      };
+  | Type<IUserContextResolver>
+  | { useClass: Type<IUserContextResolver> }
+  | { useExisting: Type<IUserContextResolver> }
+  | {
+    useFactory: (
+      ...args: never[]
+    ) => IUserContextResolver | Promise<IUserContextResolver>;
+    inject?: InjectionToken[];
+  };
 
   /**
    * Per-user capability provider.
@@ -81,15 +84,31 @@ export interface CaslModuleOptions {
    * and denied capabilities.
    */
   userCapabilityProvider?:
-    | Type<IUserCapabilityProvider>
-    | { useClass: Type<IUserCapabilityProvider> }
-    | { useExisting: Type<IUserCapabilityProvider> }
-    | {
-        useFactory: (
-          ...args: never[]
-        ) => IUserCapabilityProvider | Promise<IUserCapabilityProvider>;
-        inject?: InjectionToken[];
-      };
+  | Type<IUserCapabilityProvider>
+  | { useClass: Type<IUserCapabilityProvider> }
+  | { useExisting: Type<IUserCapabilityProvider> }
+  | {
+    useFactory: (
+      ...args: never[]
+    ) => IUserCapabilityProvider | Promise<IUserCapabilityProvider>;
+    inject?: InjectionToken[];
+  };
+
+  /**
+   * Global default request paths used by CaslBehavior to extract contextual
+   * session/user fields for instance-level checks.
+   *
+   * This avoids repeating `subjectContextPaths` in every handler.
+   */
+  subjectContextPaths: string[];
+
+  /**
+   * Global default for extracting/updating field checks from request payloads.
+   *
+   * This is used when a handler does not provide
+   * `CaslBehaviorOptions.fieldsFromRequest`.
+   */
+  defaultFieldsFromRequest?: CaslBehaviorOptions['fieldsFromRequest'];
 }
 
 function toProvider(
@@ -267,6 +286,16 @@ export class CaslModule {
   static forRoot(options: CaslModuleOptions): DynamicModule {
     const providers: Provider[] = [CaslBehavior];
 
+    providers.push({
+      provide: CASL_SUBJECT_CONTEXT_PATHS,
+      useValue: options.subjectContextPaths,
+    });
+
+    providers.push({
+      provide: CASL_FIELDS_FROM_REQUEST,
+      useValue: options.defaultFieldsFromRequest,
+    });
+
     const roleProvider = toProvider(CASL_ROLE_PROVIDER, options.roleProvider);
     if (roleProvider) providers.push(roleProvider);
 
@@ -288,7 +317,9 @@ export class CaslModule {
       providers,
       exports: [
         CaslBehavior,
+        CASL_FIELDS_FROM_REQUEST,
         CASL_ROLE_PROVIDER,
+        CASL_SUBJECT_CONTEXT_PATHS,
         ...(userContextResolver ? [CASL_USER_CONTEXT_RESOLVER] : []),
         ...(userCapabilityProvider ? [CASL_USER_CAPABILITY_PROVIDER] : []),
       ],

@@ -149,7 +149,7 @@ function makeContext<T>(
     request,
     requestType: requestClass,
     requestName: requestClass.name,
-    handlerType: class Handler {},
+    handlerType: class Handler { },
     handlerName: 'TestHandler',
     requestKind: 'command',
     startedAt: new Date(),
@@ -166,6 +166,7 @@ function createBehavior(
   roles: RoleDefinition[],
   userCapProvider?: IUserCapabilityProvider,
   contextResolver?: IUserContextResolver,
+  globalSubjectContextPaths?: string[],
 ): CaslBehavior {
   return new (
     CaslBehavior as unknown as new (
@@ -176,20 +177,21 @@ function createBehavior(
     contextResolver,
     userCapProvider,
     undefined, // logger
+    globalSubjectContextPaths,
   );
 }
 
 // ── Test request classes ────────────────────────────────────────────────
 
 class GetPostQuery {
-  constructor(public readonly postId: string) {}
+  constructor(public readonly postId: string) { }
 }
 
 class CreatePostCommand {
   constructor(
     public readonly title: string,
     public readonly authorId: string,
-  ) {}
+  ) { }
 }
 
 class UpdatePostCommand {
@@ -197,7 +199,7 @@ class UpdatePostCommand {
     public readonly postId: string,
     public readonly authorId: string,
     public readonly title: string,
-  ) {}
+  ) { }
 }
 
 class DeleteCommentCommand {
@@ -205,7 +207,7 @@ class DeleteCommentCommand {
     public readonly commentId: string,
     public readonly authorId: string,
     public readonly status: string,
-  ) {}
+  ) { }
 }
 
 class UpdateProjectCommand {
@@ -215,7 +217,7 @@ class UpdateProjectCommand {
     public readonly status: string,
     public readonly members: Array<{ userId: string }>,
     public readonly name: string,
-  ) {}
+  ) { }
 }
 
 class FulfillOrderCommand {
@@ -223,24 +225,76 @@ class FulfillOrderCommand {
     public readonly orderId: string,
     public readonly assigneeId: string,
     public readonly status: string,
-  ) {}
+  ) { }
 }
 
-class PurgeCommand {}
+class PurgeCommand { }
 
 class NoRequirementsQuery {
-  constructor(public readonly page: number) {}
+  constructor(public readonly page: number) { }
 }
 
 class GetTicketsQuery {
-  constructor(public readonly department: string) {}
+  constructor(public readonly department: string) { }
 }
 
 class GetProjectWithTasksQuery {
   constructor(
     public readonly projectId: string,
     public readonly tenantId: string,
-  ) {}
+  ) { }
+}
+
+class UpdateUserProfileCommand {
+  constructor(
+    public readonly id: string,
+    public readonly username: string,
+    public readonly sessionUser: {
+      id: string;
+      tenantId: string;
+    },
+  ) { }
+}
+
+class UpdateUserProfileWithNestedSessionCommand {
+  constructor(
+    public readonly id: string,
+    public readonly username: string,
+    public readonly auth: {
+      session: {
+        user: {
+          id: string;
+          tenantId: string;
+        };
+      };
+    },
+  ) { }
+}
+
+class UpdateOwnUserCommand {
+  constructor(
+    public readonly id: string,
+    public readonly username?: string,
+    public readonly department?: string,
+    public readonly sessionUser?: {
+      id: string;
+      tenantId?: string;
+    },
+  ) { }
+}
+
+class UpdateTenantUserCommand {
+  constructor(
+    public readonly id: string,
+    public readonly tenantId: string,
+    public readonly username?: string,
+    public readonly department?: string,
+    public readonly email?: string,
+    public readonly sessionUser?: {
+      id: string;
+      tenantId: string;
+    },
+  ) { }
 }
 
 // ── Tests ───────────────────────────────────────────────────────────────
@@ -409,6 +463,294 @@ describe('CaslBehavior.handle() integration', () => {
       await expect(behavior.handle(ctx, nextDelegate)).rejects.toThrow(
         ForbiddenException,
       );
+    });
+  });
+
+  describe('instance-level checks with sessionUser fallback payload', () => {
+    const tenantManagerRole: RoleDefinition = {
+      name: 'tenant-manager',
+      capabilities: ['User|manage|{"tenantId":"${tenantId}"}'],
+    };
+
+    const roles = [...allRoles, tenantManagerRole];
+    const capProvider = makeUserCapabilityProvider({
+      'tenant-manager-1': ['tenant-manager'],
+    });
+
+    it('should allow update when request has tenant only under sessionUser', async () => {
+      const behavior = createBehavior(roles, capProvider);
+      const command = new UpdateUserProfileCommand(
+        'user-1',
+        'updated-name',
+        {
+          id: 'tenant-manager-1',
+          tenantId: 'tenant-a',
+        },
+      );
+      const ctx = makeContext(
+        UpdateUserProfileCommand,
+        command,
+        { id: 'tenant-manager-1', tenantId: 'tenant-a' },
+        {
+          subjectFromRequest: 'User',
+          subjectContextPaths: ['sessionUser'],
+          rules: [{ action: 'update', subject: 'User' }],
+        },
+      );
+
+      const result = await behavior.handle(ctx, nextDelegate);
+      expect(result).toBe('handler-result');
+    });
+
+    it('should allow update when using custom subjectContextPaths', async () => {
+      const behavior = createBehavior(roles, capProvider);
+      const command = new UpdateUserProfileWithNestedSessionCommand(
+        'user-1',
+        'updated-name',
+        {
+          session: {
+            user: {
+              id: 'tenant-manager-1',
+              tenantId: 'tenant-a',
+            },
+          },
+        },
+      );
+      const ctx = makeContext(
+        UpdateUserProfileWithNestedSessionCommand,
+        command,
+        { id: 'tenant-manager-1', tenantId: 'tenant-a' },
+        {
+          subjectFromRequest: 'User',
+          subjectContextPaths: ['auth.session.user'],
+          rules: [{ action: 'update', subject: 'User' }],
+        },
+      );
+
+      const result = await behavior.handle(ctx, nextDelegate);
+      expect(result).toBe('handler-result');
+    });
+
+    it('should allow update using global default path without per-handler override', async () => {
+      const behavior = createBehavior(
+        roles,
+        capProvider,
+        undefined,
+        ['auth.session.user'],
+      );
+      const command = new UpdateUserProfileWithNestedSessionCommand(
+        'user-1',
+        'updated-name',
+        {
+          session: {
+            user: {
+              id: 'tenant-manager-1',
+              tenantId: 'tenant-a',
+            },
+          },
+        },
+      );
+      const ctx = makeContext(
+        UpdateUserProfileWithNestedSessionCommand,
+        command,
+        { id: 'tenant-manager-1', tenantId: 'tenant-a' },
+        {
+          subjectFromRequest: 'User',
+          rules: [{ action: 'update', subject: 'User' }],
+        },
+      );
+
+      const result = await behavior.handle(ctx, nextDelegate);
+      expect(result).toBe('handler-result');
+    });
+  });
+
+  describe('instance-level field authorization via fieldsFromRequest', () => {
+    const selfServiceRole: RoleDefinition = {
+        name: 'self-limited',
+      capabilities: ['User|update|{"id":"${id}"}|username'],
+    };
+
+    const roles = [...allRoles, selfServiceRole];
+    const capProvider = makeUserCapabilityProvider({
+        'self-user-1': ['self-limited'],
+    });
+
+    it('should allow updating own username', async () => {
+      const behavior = createBehavior(roles, capProvider);
+      const command = new UpdateOwnUserCommand(
+        'self-user-1',
+        'new-username',
+        undefined,
+        { id: 'self-user-1' },
+      );
+      const ctx = makeContext(
+        UpdateOwnUserCommand,
+        command,
+        { id: 'self-user-1' },
+        {
+          subjectFromRequest: 'User',
+          fieldsFromRequest: ['username', 'department'],
+          rules: [{ action: 'update', subject: 'User' }],
+        },
+      );
+
+      const result = await behavior.handle(ctx, nextDelegate);
+      expect(result).toBe('handler-result');
+    });
+
+    it('should deny updating own department when only username is allowed', async () => {
+      const behavior = createBehavior(roles, capProvider);
+      const command = new UpdateOwnUserCommand(
+        'self-user-1',
+        undefined,
+        'marketing',
+        { id: 'self-user-1' },
+      );
+      const ctx = makeContext(
+        UpdateOwnUserCommand,
+        command,
+        { id: 'self-user-1' },
+        {
+          subjectFromRequest: 'User',
+          fieldsFromRequest: ['username', 'department'],
+          rules: [{ action: 'update', subject: 'User' }],
+        },
+      );
+
+      await expect(behavior.handle(ctx, nextDelegate)).rejects.toThrow(
+        ForbiddenException,
+      );
+    });
+
+    it('should allow manager to update username within tenant', async () => {
+      const managerRole: RoleDefinition = {
+        name: 'manager-limited',
+        capabilities: [
+          'User|manage|{"tenantId":"${tenantId}"}',
+          '!User|update|{"tenantId":"${tenantId}"}|email',
+        ],
+      };
+      const behavior = createBehavior([...allRoles, managerRole],
+        makeUserCapabilityProvider({ 'manager-1': ['manager-limited'] }));
+
+      const command = new UpdateTenantUserCommand(
+        'target-1',
+        'tenant-a',
+        'updated-name',
+        undefined,
+        undefined,
+        { id: 'manager-1', tenantId: 'tenant-a' },
+      );
+      const ctx = makeContext(
+        UpdateTenantUserCommand,
+        command,
+        { id: 'manager-1', tenantId: 'tenant-a' },
+        {
+          subjectFromRequest: 'User',
+          fieldsFromRequest: ['username', 'department', 'email'],
+          rules: [{ action: 'update', subject: 'User' }],
+        },
+      );
+
+      const result = await behavior.handle(ctx, nextDelegate);
+      expect(result).toBe('handler-result');
+    });
+
+    it('should allow manager to update department within tenant', async () => {
+      const managerRole: RoleDefinition = {
+        name: 'manager-limited',
+        capabilities: [
+          'User|manage|{"tenantId":"${tenantId}"}',
+          '!User|update|{"tenantId":"${tenantId}"}|email',
+        ],
+      };
+      const behavior = createBehavior([...allRoles, managerRole],
+        makeUserCapabilityProvider({ 'manager-1': ['manager-limited'] }));
+
+      const command = new UpdateTenantUserCommand(
+        'target-1',
+        'tenant-a',
+        undefined,
+        'engineering',
+        undefined,
+        { id: 'manager-1', tenantId: 'tenant-a' },
+      );
+      const ctx = makeContext(
+        UpdateTenantUserCommand,
+        command,
+        { id: 'manager-1', tenantId: 'tenant-a' },
+        {
+          subjectFromRequest: 'User',
+          fieldsFromRequest: ['username', 'department', 'email'],
+          rules: [{ action: 'update', subject: 'User' }],
+        },
+      );
+
+      const result = await behavior.handle(ctx, nextDelegate);
+      expect(result).toBe('handler-result');
+    });
+
+    it('should deny manager updating email within tenant', async () => {
+      const managerRole: RoleDefinition = {
+        name: 'manager-limited',
+        capabilities: [
+          'User|manage|{"tenantId":"${tenantId}"}',
+          '!User|update|{"tenantId":"${tenantId}"}|email',
+        ],
+      };
+      const behavior = createBehavior([...allRoles, managerRole],
+        makeUserCapabilityProvider({ 'manager-1': ['manager-limited'] }));
+
+      const command = new UpdateTenantUserCommand(
+        'target-1',
+        'tenant-a',
+        undefined,
+        undefined,
+        'new-email@acme.io',
+        { id: 'manager-1', tenantId: 'tenant-a' },
+      );
+      const ctx = makeContext(
+        UpdateTenantUserCommand,
+        command,
+        { id: 'manager-1', tenantId: 'tenant-a' },
+        {
+          subjectFromRequest: 'User',
+          fieldsFromRequest: ['username', 'department', 'email'],
+          rules: [{ action: 'update', subject: 'User' }],
+        },
+      );
+
+      await expect(behavior.handle(ctx, nextDelegate)).rejects.toThrow(
+        ForbiddenException,
+      );
+    });
+
+    it('should allow admin to update email', async () => {
+      const behavior = createBehavior(allRoles,
+        makeUserCapabilityProvider({ 'admin-1': ['admin'] }));
+
+      const command = new UpdateTenantUserCommand(
+        'target-1',
+        'tenant-a',
+        undefined,
+        undefined,
+        'new-email@acme.io',
+        { id: 'admin-1', tenantId: 'tenant-a' },
+      );
+      const ctx = makeContext(
+        UpdateTenantUserCommand,
+        command,
+        { id: 'admin-1', tenantId: 'tenant-a' },
+        {
+          subjectFromRequest: 'User',
+          fieldsFromRequest: ['username', 'department', 'email'],
+          rules: [{ action: 'update', subject: 'User' }],
+        },
+      );
+
+      const result = await behavior.handle(ctx, nextDelegate);
+      expect(result).toBe('handler-result');
     });
   });
 

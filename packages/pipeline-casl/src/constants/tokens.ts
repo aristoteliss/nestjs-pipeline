@@ -41,6 +41,18 @@ export const CASL_USER_CAPABILITY_PROVIDER = Symbol(
 );
 
 /**
+ * Token for global default request paths used to extract contextual session
+ * payload for instance-level subject checks.
+ */
+export const CASL_SUBJECT_CONTEXT_PATHS = Symbol('CASL_SUBJECT_CONTEXT_PATHS');
+
+/**
+ * Token for global default field extraction/check configuration used during
+ * instance-level permission checks.
+ */
+export const CASL_FIELDS_FROM_REQUEST = Symbol('CASL_FIELDS_FROM_REQUEST');
+
+/**
  * Token for providing a custom {@link LoggerService} to {@link CaslBehavior}.
  */
 export const CASL_BEHAVIOR_LOGGER = Symbol('CASL_BEHAVIOR_LOGGER');

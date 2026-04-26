@@ -9,12 +9,11 @@
  *
  *   1. Admin with unrestricted access
  *   2. User-manager scoped to own tenant (can manage users, but cannot delete)
- *   3. Self-service user who can only update their own profile
+ *   3. Self user who can only update their own profile
  *   4. Viewer with read-only access and field restrictions
- *   5. Multi-role user (viewer + self-service) demonstrating role merging
+ *   5. Multi-role user (viewer + self) demonstrating role merging
  *   6. Support agent with department-scoped access and field-restricted updates
  *   7. Per-user additional capability (viewer promoted to create users)
- *   8. Per-user denied capability (user-manager blocked from updating emails)
  */
 
 import { createClient } from '@libsql/client';
@@ -55,7 +54,7 @@ async function seed() {
   const role = {
     admin: uuidv7(),
     userManager: uuidv7(),
-    selfService: uuidv7(),
+    self: uuidv7(),
     viewer: uuidv7(),
     supportAgent: uuidv7(),
   };
@@ -68,6 +67,7 @@ async function seed() {
     eve: uuidv7(),
     frank: uuidv7(),
     grace: uuidv7(),
+    vince: uuidv7(),
   };
 
   // ── Capabilities ──────────────────────────────────────────────────────────
@@ -90,36 +90,36 @@ async function seed() {
 
       // User CRUD — tenant-scoped
       `INSERT OR IGNORE INTO capabilities (id, subject, action, conditions)
-         VALUES ('${cap.tenantManage}', 'User', 'manage', '{"tenantId":"$\{user.tenantId}"}')`,
+         VALUES ('${cap.tenantManage}', 'User', 'manage', '{"tenantId":"$\{sessionUser.tenantId}"}')`,
 
       // User — deny delete (even within own tenant)
       `INSERT OR IGNORE INTO capabilities (id, subject, action, inverted, reason)
          VALUES ('${cap.denyDelete}', 'User', 'delete', 1, 'User managers cannot delete users')`,
 
-      // User — self-service: update only own profile
-      `INSERT OR IGNORE INTO capabilities (id, subject, action, conditions)
-         VALUES ('${cap.selfUpdate}', 'User', 'update', '{"id":"$\{user.id}"}')`,
+      // User — self: update only own profile username
+      `INSERT OR IGNORE INTO capabilities (id, subject, action, conditions, fields)
+         VALUES ('${cap.selfUpdate}', 'User', 'update', '{"id":"$\{sessionUser.id}"}', 'username')`,
 
-      // User — self-service: read only own profile
+      // User — self: read only own profile
       `INSERT OR IGNORE INTO capabilities (id, subject, action, conditions)
-         VALUES ('${cap.selfRead}', 'User', 'read', '{"id":"$\{user.id}"}')`,
+         VALUES ('${cap.selfRead}', 'User', 'read', '{"id":"$\{sessionUser.id}"}')`,
 
       // User — read with field restrictions (viewer)
       `INSERT OR IGNORE INTO capabilities (id, subject, action, fields)
          VALUES ('${cap.viewerRead}', 'User', 'read', 'id,username,email')`,
 
-      // User — deny update email field (override for specific user)
+      // User — deny update email field
       `INSERT OR IGNORE INTO capabilities (id, subject, action, conditions, inverted, reason, fields)
-         VALUES ('${cap.denyEmailUpdate}', 'User', 'update', '{"tenantId":"$\{user.tenantId}"}', 1,
+         VALUES ('${cap.denyEmailUpdate}', 'User', 'update', '{"tenantId":"$\{sessionUser.tenantId}"}', 1,
                  'Cannot modify email addresses', 'email')`,
 
       // User — department-scoped read (support agent)
       `INSERT OR IGNORE INTO capabilities (id, subject, action, conditions)
-         VALUES ('${cap.deptRead}', 'User', 'read', '{"department":"$\{user.department}"}')`,
+         VALUES ('${cap.deptRead}', 'User', 'read', '{"department":"$\{sessionUser.department}"}')`,
 
       // User — department-scoped update with field restriction
       `INSERT OR IGNORE INTO capabilities (id, subject, action, conditions, fields)
-         VALUES ('${cap.deptUpdate}', 'User', 'update', '{"department":"$\{user.department}"}', 'username')`,
+         VALUES ('${cap.deptUpdate}', 'User', 'update', '{"department":"$\{sessionUser.department}"}', 'username')`,
 
       // User — deny delete for support agents
       `INSERT OR IGNORE INTO capabilities (id, subject, action, inverted, reason)
@@ -134,7 +134,7 @@ async function seed() {
     [
       `INSERT OR IGNORE INTO roles (id, name) VALUES ('${role.admin}', 'admin')`,
       `INSERT OR IGNORE INTO roles (id, name) VALUES ('${role.userManager}', 'user-manager')`,
-      `INSERT OR IGNORE INTO roles (id, name) VALUES ('${role.selfService}', 'self-service')`,
+      `INSERT OR IGNORE INTO roles (id, name) VALUES ('${role.self}', 'self')`,
       `INSERT OR IGNORE INTO roles (id, name) VALUES ('${role.viewer}', 'viewer')`,
       `INSERT OR IGNORE INTO roles (id, name) VALUES ('${role.supportAgent}', 'support-agent')`,
     ],
@@ -149,17 +149,19 @@ async function seed() {
       `INSERT OR IGNORE INTO role_capabilities (role_id, capability_id)
          VALUES ('${role.admin}', '${cap.adminManage}')`,
 
-      // user-manager → tenant-scoped manage + deny delete
+      // user-manager → tenant-scoped manage + deny delete + deny email updates
       `INSERT OR IGNORE INTO role_capabilities (role_id, capability_id)
          VALUES ('${role.userManager}', '${cap.tenantManage}')`,
       `INSERT OR IGNORE INTO role_capabilities (role_id, capability_id)
          VALUES ('${role.userManager}', '${cap.denyDelete}')`,
+      `INSERT OR IGNORE INTO role_capabilities (role_id, capability_id)
+         VALUES ('${role.userManager}', '${cap.denyEmailUpdate}')`,
 
-      // self-service → update own profile + read own profile
+      // self → update own profile + read own profile
       `INSERT OR IGNORE INTO role_capabilities (role_id, capability_id)
-         VALUES ('${role.selfService}', '${cap.selfUpdate}')`,
+         VALUES ('${role.self}', '${cap.selfUpdate}')`,
       `INSERT OR IGNORE INTO role_capabilities (role_id, capability_id)
-         VALUES ('${role.selfService}', '${cap.selfRead}')`,
+         VALUES ('${role.self}', '${cap.selfRead}')`,
 
       // viewer → read users (field-restricted: id, username, email)
       `INSERT OR IGNORE INTO role_capabilities (role_id, capability_id)
@@ -190,7 +192,7 @@ async function seed() {
       `INSERT OR IGNORE INTO users (id, username, email, tenant_id, department, created_at, updated_at)
          VALUES ('${user.bob}', 'bob_manager', 'bob@acme.io', 'tenant-a', 'engineering', ${now}, ${now})`,
 
-      // Tenant A — marketing (self-service only)
+      // Tenant A — marketing (self only)
       `INSERT OR IGNORE INTO users (id, username, email, tenant_id, department, created_at, updated_at)
          VALUES ('${user.carol}', 'carol_user', 'carol@acme.io', 'tenant-a', 'marketing', ${now}, ${now})`,
 
@@ -198,7 +200,7 @@ async function seed() {
       `INSERT OR IGNORE INTO users (id, username, email, tenant_id, department, created_at, updated_at)
          VALUES ('${user.dave}', 'dave_viewer', 'dave@acme.io', 'tenant-a', 'marketing', ${now}, ${now})`,
 
-      // Tenant B — support (multi-role: viewer + self-service)
+      // Tenant B — support (multi-role: viewer + self)
       `INSERT OR IGNORE INTO users (id, username, email, tenant_id, department, created_at, updated_at)
          VALUES ('${user.eve}', 'eve_multirole', 'eve@globex.io', 'tenant-b', 'support', ${now}, ${now})`,
 
@@ -206,9 +208,13 @@ async function seed() {
       `INSERT OR IGNORE INTO users (id, username, email, tenant_id, department, created_at, updated_at)
          VALUES ('${user.frank}', 'frank_support', 'frank@globex.io', 'tenant-b', 'support', ${now}, ${now})`,
 
-      // Tenant B — engineering (user-manager with per-user denied email update)
+      // Tenant B — engineering (user-manager)
       `INSERT OR IGNORE INTO users (id, username, email, tenant_id, department, created_at, updated_at)
          VALUES ('${user.grace}', 'grace_limited', 'grace@globex.io', 'tenant-b', 'engineering', ${now}, ${now})`,
+
+      // Tenant B — marketing (viewer only, no self)
+      `INSERT OR IGNORE INTO users (id, username, email, tenant_id, department, created_at, updated_at)
+         VALUES ('${user.vince}', 'vince_viewer', 'vince@globex.io', 'tenant-b', 'marketing', ${now}, ${now})`,
     ],
     'write',
   );
@@ -217,27 +223,35 @@ async function seed() {
 
   await client.batch(
     [
-      // Alice → admin (unrestricted)
+      // Alice → admin + self
       `INSERT OR IGNORE INTO user_roles (user_id, role_id) VALUES ('${user.alice}', '${role.admin}')`,
+      `INSERT OR IGNORE INTO user_roles (user_id, role_id) VALUES ('${user.alice}', '${role.self}')`,
 
-      // Bob → user-manager (tenant-scoped manage, cannot delete)
+      // Bob → user-manager + self
       `INSERT OR IGNORE INTO user_roles (user_id, role_id) VALUES ('${user.bob}', '${role.userManager}')`,
+      `INSERT OR IGNORE INTO user_roles (user_id, role_id) VALUES ('${user.bob}', '${role.self}')`,
 
-      // Carol → self-service (own profile only)
-      `INSERT OR IGNORE INTO user_roles (user_id, role_id) VALUES ('${user.carol}', '${role.selfService}')`,
+      // Carol → self (own profile only)
+      `INSERT OR IGNORE INTO user_roles (user_id, role_id) VALUES ('${user.carol}', '${role.self}')`,
 
-      // Dave → viewer (read-only, field-restricted)
+      // Dave → viewer + self
       `INSERT OR IGNORE INTO user_roles (user_id, role_id) VALUES ('${user.dave}', '${role.viewer}')`,
+      `INSERT OR IGNORE INTO user_roles (user_id, role_id) VALUES ('${user.dave}', '${role.self}')`,
 
-      // Eve → viewer + self-service (multi-role merge: can read all + update own)
+      // Eve → viewer + self (multi-role merge: can read all + update own)
       `INSERT OR IGNORE INTO user_roles (user_id, role_id) VALUES ('${user.eve}', '${role.viewer}')`,
-      `INSERT OR IGNORE INTO user_roles (user_id, role_id) VALUES ('${user.eve}', '${role.selfService}')`,
+      `INSERT OR IGNORE INTO user_roles (user_id, role_id) VALUES ('${user.eve}', '${role.self}')`,
 
-      // Frank → support-agent (department-scoped, field-restricted updates)
+      // Frank → support-agent + self
       `INSERT OR IGNORE INTO user_roles (user_id, role_id) VALUES ('${user.frank}', '${role.supportAgent}')`,
+      `INSERT OR IGNORE INTO user_roles (user_id, role_id) VALUES ('${user.frank}', '${role.self}')`,
 
-      // Grace → user-manager (same as Bob, but with per-user denial below)
+      // Grace → user-manager + self
       `INSERT OR IGNORE INTO user_roles (user_id, role_id) VALUES ('${user.grace}', '${role.userManager}')`,
+      `INSERT OR IGNORE INTO user_roles (user_id, role_id) VALUES ('${user.grace}', '${role.self}')`,
+
+      // Vince → viewer only (no self)
+      `INSERT OR IGNORE INTO user_roles (user_id, role_id) VALUES ('${user.vince}', '${role.viewer}')`,
     ],
     'write',
   );
@@ -250,15 +264,12 @@ async function seed() {
       `INSERT OR IGNORE INTO user_additional_capabilities (user_id, capability_id)
          VALUES ('${user.dave}', '${cap.userCreate}')`,
 
-      // Grace (user-manager) is denied updating email fields within her tenant
-      `INSERT OR IGNORE INTO user_denied_capabilities (user_id, capability_id)
-         VALUES ('${user.grace}', '${cap.denyEmailUpdate}')`,
     ],
     'write',
   );
 
   console.log(
-    'Seed complete — 7 users, 5 roles, 13 capabilities, 2 per-user overrides',
+    'Seed complete — 7 users, 5 roles, 13 capabilities, 1 per-user override',
   );
 }
 
