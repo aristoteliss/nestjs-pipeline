@@ -7,9 +7,8 @@ import { User, UserSnapshot } from '../domain/models/user.entity';
 
 @Injectable()
 export class GetUsersQueryRepository
-  implements IQueryRepository<GetUsersQuery, User[]>
-{
-  constructor(@Inject(TURSO_CLIENT) private readonly client: Client) {}
+  implements IQueryRepository<GetUsersQuery, User[]> {
+  constructor(@Inject(TURSO_CLIENT) private readonly client: Client) { }
 
   async find(_query: GetUsersQuery): Promise<User[]> {
     const users = await this.client.execute(
@@ -21,8 +20,8 @@ export class GetUsersQueryRepository
         id: row.id as string,
         username: row.username as string,
         email: row.email as string,
-        tenantId: row.tenant_id as string | undefined,
-        department: row.department as string | undefined,
+        tenantId: row.tenant_id as string,
+        department: row.department as string,
         createdAt: new Date(row.created_at as number),
         updatedAt: new Date(row.updated_at as number),
       };

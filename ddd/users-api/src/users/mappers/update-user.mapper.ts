@@ -10,7 +10,13 @@ const base = createMapper(
   z
     .object({ id: z.uuid() })
     .extend(UpdateUserDtoSchema.shape)
-    .transform(({ id, name }) => new UpdateUserCommand({ id, username: name })),
+    .transform(({ id, name, department }) => {
+      return new UpdateUserCommand({
+        id,
+        username: name,
+        department: department,
+      });
+    }),
 );
 
 export const UpdateUserMapper = {

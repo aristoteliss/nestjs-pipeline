@@ -22,8 +22,7 @@ import { GetUserContextQuery } from '../cqrs/queries/get-user-context.query';
 @Injectable({ scope: Scope.REQUEST })
 export class GetUserContextQueryRepository
   extends QueryRepository<GetUserContextQuery, CaslUserContext | null>
-  implements IUserContextResolver
-{
+  implements IUserContextResolver {
   constructor(
     @Inject(CACHE_TOKEN)
     protected readonly cache: ICache<CaslUserContext | null>,
@@ -68,8 +67,8 @@ export class GetUserContextQueryRepository
 
     return {
       id: row.id as string,
-      tenantId: row.tenant_id as string | undefined,
-      department: row.department as string | undefined,
+      tenantId: row.tenant_id as string,
+      department: row.department as string | null,
     };
   }
 }

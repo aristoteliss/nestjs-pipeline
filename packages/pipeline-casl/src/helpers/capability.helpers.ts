@@ -216,12 +216,22 @@ export function interpolateConditions(
 }
 
 function getNestedValue(obj: Record<string, unknown>, path: string): unknown {
-  return path.split('.').reduce<unknown>((current, key) => {
-    if (current !== null && typeof current === 'object') {
-      return (current as Record<string, unknown>)[key];
+  const segments = path.split('.').filter(Boolean);
+
+  for (let start = 0; start < segments.length; start++) {
+    const resolved = segments.slice(start).reduce<unknown>((current, key) => {
+      if (current !== null && typeof current === 'object') {
+        return (current as Record<string, unknown>)[key];
+      }
+      return undefined;
+    }, obj);
+
+    if (typeof resolved !== 'undefined') {
+      return resolved;
     }
-    return undefined;
-  }, obj);
+  }
+
+  return undefined;
 }
 
 /**

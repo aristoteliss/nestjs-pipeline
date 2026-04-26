@@ -214,6 +214,30 @@ describe('capability.helpers', () => {
       expect(result).toEqual({ owner: { id: 42 } });
     });
 
+    it('should interpolate placeholders with a prefixed root segment', () => {
+      const result = interpolateConditions(
+        { tenantId: '${user.tenantId}' },
+        user,
+      );
+      expect(result).toEqual({ tenantId: 'abc' });
+    });
+
+    it('should interpolate placeholders with any leading root segment', () => {
+      const result = interpolateConditions(
+        { tenantId: '${principal.tenantId}' },
+        user,
+      );
+      expect(result).toEqual({ tenantId: 'abc' });
+    });
+
+    it('should interpolate nested placeholders with a prefixed root segment', () => {
+      const result = interpolateConditions(
+        { owner: { tenantId: '${user.tenantId}' } },
+        user,
+      );
+      expect(result).toEqual({ owner: { tenantId: 'abc' } });
+    });
+
     it('should pass through non-string values', () => {
       const result = interpolateConditions(
         { status: true, count: 5, tags: ['a', 'b'] },
@@ -267,6 +291,18 @@ describe('capability.helpers', () => {
         { id: 42 },
       );
       expect(rule.conditions).toEqual({ authorId: 42 });
+    });
+
+    it('should interpolate ${user.property} conditions when user is provided', () => {
+      const rule = capabilityToRawRule(
+        {
+          subject: 'User',
+          action: 'manage',
+          conditions: { tenantId: '${user.tenantId}' },
+        },
+        { id: 42, tenantId: 'abc' },
+      );
+      expect(rule.conditions).toEqual({ tenantId: 'abc' });
     });
 
     it('should keep raw conditions when no user is provided', () => {

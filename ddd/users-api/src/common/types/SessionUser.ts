@@ -2,9 +2,9 @@ import type { UserCapabilities } from '@nestjs-pipeline/casl';
 
 export type SessionUser = {
   id: string;
-  email?: string;
-  tenantId?: string;
-  department?: string;
+  email?: string | null;
+  tenantId?: string | null;
+  department?: string | null;
   capabilities?: UserCapabilities;
 };
 

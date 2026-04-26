@@ -13,7 +13,6 @@
 
 import { Inject } from '@nestjs/common';
 import { CommandHandler, EventBus } from '@nestjs/cqrs';
-import { CaslBehavior } from '@nestjs-pipeline/casl';
 import { LoggingBehavior, UsePipeline } from '@nestjs-pipeline/core';
 import {
   CommandBaseHandler,
@@ -26,14 +25,7 @@ import { CreateUserCommand } from './create-user.command';
 
 @CommandHandler(CreateUserCommand)
 @UsePipeline(
-  [LoggingBehavior, { requestResponseLogLevel: 'log' }],
-  [
-    CaslBehavior,
-    {
-      subjectFromRequest: 'User',
-      rules: [{ action: 'read', subject: 'User' }],
-    },
-  ],
+  [LoggingBehavior, { requestResponseLogLevel: 'log' }]
 )
 export class CreateUserHandler extends CommandBaseHandler<
   CreateUserCommand,

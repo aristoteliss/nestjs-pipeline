@@ -25,11 +25,12 @@ import { UserUpdateOutcome } from '../outcomes/user-update.outcome';
 export interface UserSnapshot extends Partial<RootEntitySnapshot> {
   readonly username: string;
   readonly email: string;
-  readonly tenantId?: string;
-  readonly department?: string;
+  readonly tenantId: string;
+  readonly department?: string | null;
 }
 
 const USERNAME_MIN_LENGTH = 5;
+const DEPARTMENT_MIN_LENGTH = 5;
 
 /**
  * User domain entity following Clean Architecture / DDD principles.
@@ -45,29 +46,29 @@ export class User extends CacheableEntity<UserSnapshot, User> {
   static readonly prefixKey = 'user:';
 
   private _username: string;
+  private _department: string | null;
   readonly email: string;
-  readonly tenantId?: string;
-  readonly department?: string;
+  readonly tenantId: string;
 
   private constructor(snapshot: UserSnapshot) {
     super(User, snapshot);
-    this._username = User.normalizeUsername(snapshot.username);
+    this._username = User.normalizeWithMinLength(snapshot, 'username', USERNAME_MIN_LENGTH);
+    this._department = User.normalizeWithMinLength(snapshot, 'department', DEPARTMENT_MIN_LENGTH);
     this.email = snapshot.email;
     this.tenantId = snapshot.tenantId;
-    this.department = snapshot.department;
   }
 
   static create(
     username: string,
     email: string,
-    tenantId?: string,
-    department?: string,
+    tenantId: string,
+    department?: string | null,
   ): UserCreateOutcome {
     const user = new User({
-      username: User.normalizeUsername(username),
+      username: User.normalizeWithMinLength({ username }, 'username', USERNAME_MIN_LENGTH),
+      department: User.normalizeWithMinLength({ department }, 'department', DEPARTMENT_MIN_LENGTH),
       email,
       tenantId,
-      department,
     });
 
     const events = [new UserCreatedEvent(user)];
@@ -78,20 +79,25 @@ export class User extends CacheableEntity<UserSnapshot, User> {
   static fromJSON(snapshot: UserSnapshot): User {
     return new User({
       id: User.normalizeId(snapshot.id),
-      username: User.normalizeUsername(snapshot.username),
+      username: User.normalizeWithMinLength(snapshot, 'username', USERNAME_MIN_LENGTH),
       email: snapshot.email,
       tenantId: snapshot.tenantId,
-      department: snapshot.department,
+      department: User.normalizeWithMinLength(snapshot, 'department', DEPARTMENT_MIN_LENGTH),
       createdAt: User.normalizeDate(snapshot.createdAt),
       updatedAt: User.normalizeDate(snapshot.updatedAt),
     });
   }
 
-  private static normalizeUsername(username: string): string {
-    const trimmed = username?.trim();
-    if (!trimmed || trimmed.length < USERNAME_MIN_LENGTH) {
+  private static normalizeWithMinLength<T extends object>(
+    obj: T,
+    key: keyof T,
+    minLength: number,
+  ): string {
+    const text = obj[key] as string;
+    const trimmed = text?.trim();
+    if (!trimmed || trimmed.length < minLength) {
       throw new Error(
-        `Username must be at least ${USERNAME_MIN_LENGTH} characters.`,
+        `${String(key)} must be at least ${minLength} characters.`,
       );
     }
     return trimmed;
@@ -101,9 +107,19 @@ export class User extends CacheableEntity<UserSnapshot, User> {
     return this._username;
   }
 
+  get department(): string | null {
+    return this._department;
+  }
+
   @Mutate()
   rename(username: string): UserUpdateOutcome {
-    this._username = User.normalizeUsername(username);
+    this._username = User.normalizeWithMinLength({ username }, 'username', USERNAME_MIN_LENGTH);
+    return new UserUpdateOutcome(this, [new UserUpdatedEvent(this)]);
+  }
+
+  @Mutate()
+  changeDepartment(department: string): UserUpdateOutcome {
+    this._department = User.normalizeWithMinLength({ department }, 'department', DEPARTMENT_MIN_LENGTH);
     return new UserUpdateOutcome(this, [new UserUpdatedEvent(this)]);
   }
 
@@ -116,9 +132,9 @@ export class User extends CacheableEntity<UserSnapshot, User> {
     return this.freezeState({
       id: this.id,
       username: this._username,
+      department: this._department,
       email: this.email,
       tenantId: this.tenantId,
-      department: this.department,
       createdAt: this.createdAt,
       updatedAt: this.updatedAt,
     });

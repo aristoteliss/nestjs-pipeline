@@ -161,8 +161,7 @@ export class AuthSessionInterceptor implements NestInterceptor {
     } catch (e: unknown) {
       // Invalid signature/claims; ignore and continue with fallback auth paths.
       this.logger.warn(
-        `Failed to verify JWT from Authorization header: ${
-          e instanceof Error ? e.message : String(e)
+        `Failed to verify JWT from Authorization header: ${e instanceof Error ? e.message : String(e)
         }`,
       );
       throw new UnauthorizedException('Invalid or expired token');

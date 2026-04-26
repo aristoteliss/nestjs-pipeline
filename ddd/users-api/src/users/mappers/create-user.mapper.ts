@@ -4,6 +4,11 @@ import { CreateUserDtoSchema } from '../dtos/create-user.dto';
 
 export const CreateUserMapper = createMapper(
   CreateUserDtoSchema.transform(
-    ({ name, email }) => new CreateUserCommand({ username: name, email }),
+    ({ name, email, tenantId, department }) => new CreateUserCommand({
+      username: name,
+      email,
+      tenantId,
+      department
+    }),
   ),
 );

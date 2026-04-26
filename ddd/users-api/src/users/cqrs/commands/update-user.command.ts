@@ -11,12 +11,19 @@
  * companies that do not wish to be bound by the AGPL terms. Contact Aristotelis for details.
  */
 
+import { AuthCommand } from '@common/cqrs/commands/auth.command';
 import { createExecuteClass } from '@common/cqrs/helpers/createExecute.helper';
 import { z } from 'zod';
 
 export class UpdateUserCommand extends createExecuteClass(
-  z.object({
-    id: z.uuid(),
-    username: z.string().min(5),
-  }),
-) {}
+  z
+    .object({
+      id: z.uuid(),
+      username: z.string().min(5).optional(),
+      department: z.string().min(1).optional(),
+    })
+    .refine((data) => data.username !== undefined || data.department !== undefined, {
+      message: 'At least one of username or department must be provided',
+    }),
+  AuthCommand,
+) { }

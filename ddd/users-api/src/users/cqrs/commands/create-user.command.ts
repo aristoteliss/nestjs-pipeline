@@ -19,8 +19,8 @@ export class CreateUserCommand extends createExecuteClass(
   z.object({
     username: z.string().min(4),
     email: z.email(),
-    tenantId: z.string().optional(),
+    tenantId: z.string().min(1),
     department: z.string().optional(),
   }),
   AuthCommand,
-) {}
+) { }

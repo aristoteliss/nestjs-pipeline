@@ -51,8 +51,8 @@ export class GetUserQueryRepository extends QueryRepository<
       id: row.id as string,
       username: row.username as string,
       email: row.email as string,
-      tenantId: row.tenant_id as string | undefined,
-      department: row.department as string | undefined,
+      tenantId: row.tenant_id as string,
+      department: row.department as string | null,
       createdAt: new Date(row.created_at as number),
       updatedAt: new Date(row.updated_at as number),
     };

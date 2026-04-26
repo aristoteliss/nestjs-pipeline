@@ -50,6 +50,9 @@ export class AuthService {
       throw new InternalServerErrorException('JWT_SECRET is not configured');
     }
 
+    const issuer = process.env.JWT_ISSUER;
+    const audience = process.env.JWT_AUDIENCE;
+
     const userCapabilities = await this.queryBus.execute<
       GetUserCapabilitiesQuery,
       UserCapabilities
@@ -61,7 +64,7 @@ export class AuthService {
       ...(userCapabilities.deniedCapabilities ?? []),
     );
 
-    const accessToken = await new SignJWT({
+    const jwt = new SignJWT({
       email: user.email,
       tenantId: user.tenantId,
       department: user.department,
@@ -71,8 +74,17 @@ export class AuthService {
       .setProtectedHeader({ alg: 'HS256', typ: 'JWT' })
       .setSubject(user.id)
       .setIssuedAt()
-      .setExpirationTime('1h')
-      .sign(new TextEncoder().encode(jwtSecret));
+      .setExpirationTime('1h');
+
+    if (issuer) {
+      jwt.setIssuer(issuer);
+    }
+
+    if (audience) {
+      jwt.setAudience(audience);
+    }
+
+    const accessToken = await jwt.sign(new TextEncoder().encode(jwtSecret));
 
     return {
       userId: user.id,
