@@ -35,6 +35,7 @@ import {
 import {
   IPipelineBehavior,
   IPipelineContext,
+  LOGGING_BEHAVIOR_LOGGER,
   NextDelegate,
   untyped,
 } from '@nestjs-pipeline/core';
@@ -57,17 +58,6 @@ export interface TraceBehaviorOptions {
 const TRACER_NAME = 'nestjs-pipeline';
 
 /**
- * Injection token for providing a custom {@link LoggerService} to {@link TraceBehavior}.
- *
- * @example
- * ```ts
- * // In your module providers:
- * { provide: TRACE_BEHAVIOR_LOGGER, useValue: myPinoLogger }
- * ```
- */
-export const TRACE_BEHAVIOR_LOGGER = Symbol('TRACE_BEHAVIOR_LOGGER');
-
-/**
  * Returns a real Tracer only when the OTel SDK is properly initialized.
  *
  * `trace.getTracer()` NEVER throws and NEVER returns undefined — when the SDK is
@@ -85,15 +75,25 @@ function isSdkInitialized(): boolean {
 @Injectable()
 export class TraceBehavior implements IPipelineBehavior, OnModuleInit {
   private readonly logger: LoggerService;
+  private readonly context: string | undefined;
   /** false = SDK not initialized; handle() will pass through without tracing. */
   private sdkReady = false;
 
   constructor(
     @Optional()
-    @Inject(TRACE_BEHAVIOR_LOGGER)
+    @Inject(LOGGING_BEHAVIOR_LOGGER)
     logger?: LoggerService,
   ) {
-    this.logger = logger ?? new Logger(TraceBehavior.name, { timestamp: true });
+    if (!logger) {
+      this.logger = new Logger(TraceBehavior.name, { timestamp: true });
+      return;
+    }
+
+    this.logger = logger;
+    this.context = TraceBehavior.name;
+    if (typeof (this.logger as any).setContext === 'function') {
+      (this.logger as any).setContext(this.context);
+    }
   }
 
   onModuleInit(): void {
@@ -102,12 +102,14 @@ export class TraceBehavior implements IPipelineBehavior, OnModuleInit {
     if (!this.sdkReady) {
       this.logger.warn(
         'OpenTelemetry SDK is NOT initialized — TraceBehavior will pass through without tracing. ' +
-          'Ensure your tracing bootstrap runs BEFORE NestFactory.create() ' +
-          '(import "./tracing" as the first line of main.ts, or use --require ./tracing.js).',
+        'Ensure your tracing bootstrap runs BEFORE NestFactory.create() ' +
+        '(import "./tracing" as the first line of main.ts, or use --require ./tracing.js).',
+        this.context
       );
     } else {
       this.logger.log(
         'OpenTelemetry tracer provider is active — spans will be emitted.',
+        this.context
       );
     }
   }

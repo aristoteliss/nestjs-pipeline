@@ -29,11 +29,10 @@ import {
   runWithCorrelationId,
 } from '@nestjs-pipeline/correlation';
 import {
-  TRACE_BEHAVIOR_LOGGER,
   TraceBehavior,
 } from '@nestjs-pipeline/opentelemetry';
 import { ZodValidationBehavior } from '@nestjs-pipeline/zod';
-import { Logger, LoggerModule } from 'nestjs-pino';
+import { LoggerModule, NativeLogger } from 'nestjs-pino';
 import { UsersModule } from './users/users.module';
 
 @Module({
@@ -45,15 +44,15 @@ import { UsersModule } from './users/users.module';
         transport:
           process.env.NODE_ENV !== 'production'
             ? {
-                target: 'pino-pretty',
-                options: {
-                  colorize: true,
-                  //singleLine: true,
-                  messageFormat: '[{context}] {msg}',
-                  //ignore: 'pid,hostname,context,req,res,responseTime',
-                  translateTime: 'SYS:HH:MM:ss.l',
-                },
-              }
+              target: 'pino-pretty',
+              options: {
+                colorize: true,
+                //singleLine: true,
+                messageFormat: '[{context}] {msg}',
+                //ignore: 'pid,hostname,context,req,res,responseTime',
+                translateTime: 'SYS:HH:MM:ss.l',
+              },
+            }
             : undefined,
       },
     }),
@@ -80,7 +79,7 @@ import { UsersModule } from './users/users.module';
        * - uses nestjs-pino through LOGGING_BEHAVIOR_LOGGER provider
        *
        * after: TraceBehavior + ZodValidationBehavior
-       * - TraceBehavior creates OTel spans (and uses nestjs-pino via TRACE_BEHAVIOR_LOGGER)
+       * - TraceBehavior creates OTel spans (and uses nestjs-pino via LOGGING_BEHAVIOR_LOGGER)
        * - ZodValidationBehavior validates static _zodSchema when present
        */
       globalBehaviors: {
@@ -91,13 +90,11 @@ import { UsersModule } from './users/users.module';
           ZodValidationBehavior,
         ],
       },
+      loggerProvider: { provide: LOGGING_BEHAVIOR_LOGGER, useExisting: NativeLogger }
     }),
     UsersModule,
   ],
-  providers: [
-    { provide: LOGGING_BEHAVIOR_LOGGER, useExisting: Logger },
-    { provide: TRACE_BEHAVIOR_LOGGER, useExisting: Logger },
-  ],
+  providers: [],
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {

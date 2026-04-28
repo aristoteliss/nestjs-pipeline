@@ -25,6 +25,7 @@
  */
 
 import { DynamicModule, Global, Module, Type } from '@nestjs/common';
+import { LOGGING_BEHAVIOR_LOGGER } from './behaviors/logging.behavior';
 import { PipelineBehaviorEntry } from './decorators/pipeline.decorator';
 import { IPipelineBehavior } from './interfaces/pipeline.behavior.interface';
 import {
@@ -121,8 +122,13 @@ export class PipelineModule {
         PipelineBootstrapService,
         ...globalBehaviorTypes,
         ...behaviors,
+        ...(options.loggerProvider ? [options.loggerProvider] : []),
       ],
-      exports: [...globalBehaviorTypes, ...behaviors],
+      exports: [
+        ...globalBehaviorTypes,
+        ...behaviors,
+        ...(options.loggerProvider ? [LOGGING_BEHAVIOR_LOGGER] : []),
+      ],
     };
   }
 

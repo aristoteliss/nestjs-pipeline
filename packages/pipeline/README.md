@@ -416,7 +416,7 @@ Provide your own logger by binding `LOGGING_BEHAVIOR_LOGGER` (for example with `
 
 ```typescript
 import { Module } from '@nestjs/common';
-import { Logger } from 'nestjs-pino';
+import { NativeLogger } from 'nestjs-pino';
 import {
   LOGGING_BEHAVIOR_LOGGER,
   LoggingBehavior,

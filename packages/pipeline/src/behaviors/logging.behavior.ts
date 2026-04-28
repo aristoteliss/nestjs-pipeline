@@ -43,6 +43,10 @@ import { IPipelineContext } from '../interfaces/pipeline.context.interface';
 /**
  * Injection token for providing a custom {@link LoggerService} to {@link LoggingBehavior}.
  *
+ * The provided logger must either implement all methods from {@link LoggerService} (log, debug, verbose, warn, error, fatal),
+ * or support the NestJS log level mapping (e.g., 'log' → 'info', 'verbose' → 'trace', etc.).
+ * If you use a logger like nestjs-pino's Logger, ensure it is compatible or that your pipeline version includes the mapping logic.
+ *
  * @example
  * ```ts
  * // In your module providers:
@@ -65,9 +69,14 @@ export interface LoggingBehaviorOptions {
   requestResponseLogLevel?: LogLevel | 'none';
 }
 
+interface ContextLogger extends LoggerService {
+  setContext(context: string): void;
+}
+
 @Injectable()
 export class LoggingBehavior implements IPipelineBehavior {
   private readonly logger: LoggerService;
+  private readonly hasSetContext: boolean;
 
   constructor(
     @Optional()
@@ -75,6 +84,7 @@ export class LoggingBehavior implements IPipelineBehavior {
     logger?: LoggerService,
   ) {
     this.logger = logger ?? new Logger(LoggingBehavior.name);
+    this.hasSetContext = typeof (this.logger as ContextLogger).setContext === 'function';
   }
 
   async handle(
@@ -86,9 +96,14 @@ export class LoggingBehavior implements IPipelineBehavior {
     const metricLogLevel = options?.metricLogLevel ?? 'log';
     const requestResponseLogLevel = options?.requestResponseLogLevel ?? 'debug';
 
+    if (this.hasSetContext) {
+      (this.logger as ContextLogger).setContext(context.handlerName);
+    }
+
     this.log(
       requestResponseLogLevel,
       `Request: ${safeStringify(context.request)}`,
+      context.handlerName,
     );
 
     const startTime = performance.now();
@@ -104,9 +119,14 @@ export class LoggingBehavior implements IPipelineBehavior {
       this.log(
         metricLogLevel,
         `[${context.correlationId}] ${context.requestKind.toUpperCase()} ` +
-          `${context.requestName} → ${context.handlerName} completed in ${duration}ms`,
+        `${context.requestName} → ${context.handlerName} completed in ${duration}ms`,
+        context.handlerName,
       );
-      this.log(requestResponseLogLevel, `Response: ${responseLog}`);
+
+      this.log(requestResponseLogLevel,
+        `Response: ${responseLog}`,
+        context.handlerName,
+      );
 
       return result;
     } catch (error) {
@@ -115,20 +135,21 @@ export class LoggingBehavior implements IPipelineBehavior {
       this.log(
         'error',
         `[${context.correlationId}] ${context.requestKind.toUpperCase()} ` +
-          `${context.requestName} → ${context.handlerName} failed after ${duration}ms: ` +
-          `${err.name}: ${err.message}`,
+        `${context.requestName} → ${context.handlerName} failed after ${duration}ms: ` +
+        `${err.name}: ${err.message}`,
+        context.handlerName,
       );
       throw error;
     }
   }
 
   /** Calls the appropriate Logger method, or skips entirely when level is `'none'` or unsupported. */
-  private log(level: LogLevel | 'none', message: string): void {
+  private log(level: LogLevel | 'none', message: string, ...optionalParams: unknown[]): void {
     if (level === 'none') return;
 
     const method = this.logger[level as keyof LoggerService];
     if (typeof method === 'function') {
-      (method as (msg: string) => void).call(this.logger, message);
+      (method as (msg: string, ...optionalParams: unknown[]) => void).call(this.logger, message, ...optionalParams);
     }
   }
 }

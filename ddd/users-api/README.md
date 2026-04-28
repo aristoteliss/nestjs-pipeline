@@ -34,7 +34,6 @@ pnpm start
 This sample uses `nestjs-pino` as the application logger and forwards it to pipeline libraries:
 
 - `LOGGING_BEHAVIOR_LOGGER` → `Logger` from `nestjs-pino`
-- `TRACE_BEHAVIOR_LOGGER` → `Logger` from `nestjs-pino`
 
 This gives one consistent logger for HTTP logs, pipeline request/response logs, and tracing startup diagnostics.
 

@@ -135,21 +135,21 @@ Each span includes the following:
 
 ### Custom Logger
 
-`TraceBehavior` accepts a custom Nest `LoggerService` via the `TRACE_BEHAVIOR_LOGGER` token.
+`TraceBehavior` accepts a custom Nest `LoggerService` via the `LOGGING_BEHAVIOR_LOGGER` token.
 This is useful when your app uses `nestjs-pino`.
 
 ```typescript
 import { Module } from '@nestjs/common';
-import { Logger } from 'nestjs-pino';
+import { NativeLogger } from 'nestjs-pino';
 import {
-  TRACE_BEHAVIOR_LOGGER,
+  LOGGING_BEHAVIOR_LOGGER,
   TraceBehavior,
 } from '@nestjs-pipeline/opentelemetry';
 
 @Module({
   providers: [
     TraceBehavior,
-    { provide: TRACE_BEHAVIOR_LOGGER, useExisting: Logger },
+    { provide: LOGGING_BEHAVIOR_LOGGER, useExisting: Logger },
   ],
 })
 export class AppModule {}

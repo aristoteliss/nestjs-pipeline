@@ -17,7 +17,7 @@ import {
   type NestFastifyApplication,
 } from '@nestjs/platform-fastify';
 import { ZodValidationFilter } from '@nestjs-pipeline/zod';
-import { Logger } from 'nestjs-pino';
+import { NativeLogger } from 'nestjs-pino';
 import 'reflect-metadata';
 import { AppModule } from './app.module';
 import './tracing'; // ← MUST be first: starts the OTel SDK before NestJS loads
@@ -27,13 +27,13 @@ async function bootstrap() {
 
   const app = useFastify
     ? await NestFactory.create<NestFastifyApplication>(
-        AppModule,
-        new FastifyAdapter(),
-        { bufferLogs: true },
-      )
+      AppModule,
+      new FastifyAdapter(),
+      { bufferLogs: true },
+    )
     : await NestFactory.create(AppModule, { bufferLogs: true });
 
-  app.useLogger(app.get(Logger));
+  app.useLogger(app.get(NativeLogger));
   app.useGlobalFilters(new ZodValidationFilter());
 
   await app.listen(3000, '0.0.0.0');

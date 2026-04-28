@@ -25,7 +25,6 @@
  */
 
 export {
-  TRACE_BEHAVIOR_LOGGER,
   TraceBehavior,
   TraceBehaviorOptions,
 } from './trace.behavior';
