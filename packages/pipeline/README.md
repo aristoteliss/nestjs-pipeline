@@ -411,6 +411,9 @@ PipelineModule.forRoot({
 |---|---|---|---|
 | `metricLogLevel` | `LogLevel \| 'none'` | `'log'` | Log level for timing/duration messages |
 | `requestResponseLogLevel` | `LogLevel \| 'none'` | `'debug'` | Log level for request/response payloads |
+| `excludeKeys` | `string[]` | `[]` | Keys to omit from request/response logs (supports dot notation for nested properties) |
+| `excludeRequestObj` | `boolean` | `true` | If true, omits the request object from logs entirely (shows placeholder instead) |
+| `excludeResponseObj` | `boolean` | `true` | If true, omits the response object from logs entirely (shows placeholder instead) |
 
 Provide your own logger by binding `LOGGING_BEHAVIOR_LOGGER` (for example with `nestjs-pino`):
 
