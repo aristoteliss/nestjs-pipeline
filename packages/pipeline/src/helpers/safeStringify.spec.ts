@@ -2,6 +2,25 @@ import { describe, expect, it } from 'vitest';
 import { safeStringify } from '../helpers/safeStringify';
 
 describe('safeStringify', () => {
+    it('excludes specified keys from objects', () => {
+      const obj = { a: 1, b: 2, secret: 'hidden', password: '1234' };
+      const exclude = new Set(['secret', 'password']);
+      const result = safeStringify(obj, exclude);
+      expect(result).toBe('{"a":1,"b":2}');
+    });
+
+    it('excludes keys at all nesting levels', () => {
+      const obj = { a: 1, nested: { secret: 'hidden', b: 2 }, arr: [{ password: 'x', c: 3 }] };
+      const exclude = new Set(['secret', 'password']);
+      const result = safeStringify(obj, exclude);
+      expect(result).toBe('{"a":1,"nested":{"b":2},"arr":[{"c":3}]}');
+    });
+
+    it('returns all keys if excludeKeys is empty', () => {
+      const obj = { a: 1, b: 2 };
+      const result = safeStringify(obj, new Set());
+      expect(result).toBe('{"a":1,"b":2}');
+    });
   it('stringifies a plain object', () => {
     expect(safeStringify({ a: 1, b: 'hello' })).toBe('{"a":1,"b":"hello"}');
   });
@@ -34,7 +53,7 @@ describe('safeStringify', () => {
   });
 
   it('supports indentation', () => {
-    const result = safeStringify({ x: 1 }, 2);
+    const result = safeStringify({ x: 1 }, new Set(), 2);
     expect(result).toContain('\n');
     expect(result).toContain('  "x": 1');
   });

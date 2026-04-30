@@ -65,8 +65,26 @@ export const LOGGING_BEHAVIOR_LOGGER = Symbol('LOGGING_BEHAVIOR_LOGGER');
  * Use `'none'` to suppress a message entirely.
  */
 export interface LoggingBehaviorOptions {
+  /**
+   * Log level for metrics (duration, completion, etc.).
+   * Uses NestJS LogLevel names or 'none' to suppress.
+   * Default: 'log'.
+   */
   metricLogLevel?: LogLevel | 'none';
+
+  /**
+   * Log level for request/response payloads.
+   * Uses NestJS LogLevel names or 'none' to suppress.
+   * Default: 'debug'.
+   */
   requestResponseLogLevel?: LogLevel | 'none';
+
+  /**
+   * Keys to exclude from request/response logs.
+   * Passed to safeStringify as a Set<string> for filtering object properties.
+   * Example: ['password', 'token', ctx.sessionUser ] will omit these fields from log output. support dot for inner properties.
+   */
+  excludeKeys: string[];
 }
 
 interface ContextLogger extends LoggerService {
@@ -95,6 +113,7 @@ export class LoggingBehavior implements IPipelineBehavior {
       context.getBehaviorOptions<LoggingBehaviorOptions>(LoggingBehavior);
     const metricLogLevel = options?.metricLogLevel ?? 'log';
     const requestResponseLogLevel = options?.requestResponseLogLevel ?? 'debug';
+    const excludeKeys = options?.excludeKeys ? new Set<string>(options.excludeKeys) : new Set<string>();
 
     if (this.hasSetContext) {
       (this.logger as ContextLogger).setContext(context.handlerName);
@@ -102,7 +121,7 @@ export class LoggingBehavior implements IPipelineBehavior {
 
     this.log(
       requestResponseLogLevel,
-      `Request: ${safeStringify(context.request)}`,
+      `Request: ${safeStringify(context.request, excludeKeys)}`,
       context.handlerName,
     );
 
@@ -112,10 +131,6 @@ export class LoggingBehavior implements IPipelineBehavior {
       const result = await next();
       const duration = (performance.now() - startTime).toFixed(2);
 
-      // Event handlers may return void/undefined
-      const responseLog =
-        result !== undefined ? safeStringify(result) : '(void)';
-
       this.log(
         metricLogLevel,
         `[${context.correlationId}] ${context.requestKind.toUpperCase()} ` +
@@ -123,8 +138,9 @@ export class LoggingBehavior implements IPipelineBehavior {
         context.handlerName,
       );
 
-      this.log(requestResponseLogLevel,
-        `Response: ${responseLog}`,
+      this.log(
+        requestResponseLogLevel,
+        `Response: ${result != null ? safeStringify(result, excludeKeys) : '(void)'}`,
         context.handlerName,
       );
 
