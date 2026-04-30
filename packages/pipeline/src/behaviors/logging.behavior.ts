@@ -43,9 +43,11 @@ import { IPipelineContext } from '../interfaces/pipeline.context.interface';
 /**
  * Injection token for providing a custom {@link LoggerService} to {@link LoggingBehavior}.
  *
- * The provided logger must either implement all methods from {@link LoggerService} (log, debug, verbose, warn, error, fatal),
+ * The provided logger must either implement all methods from {@link LoggerService} 
+ * (log, debug, verbose, warn, error, fatal),
  * or support the NestJS log level mapping (e.g., 'log' → 'info', 'verbose' → 'trace', etc.).
- * If you use a logger like nestjs-pino's Logger, ensure it is compatible or that your pipeline version includes the mapping logic.
+ * If you use a logger like nestjs-pino's Logger, ensure it is compatible or that your 
+ * pipeline version includes the mapping logic.
  *
  * @example
  * ```ts
@@ -58,7 +60,8 @@ export const LOGGING_BEHAVIOR_LOGGER = Symbol('LOGGING_BEHAVIOR_LOGGER');
 /**
  * Configuration options for the logging behavior.
  *
- * Levels use NestJS {@link LogLevel} names (`'verbose'`, `'debug'`, `'log'`, `'warn'`, `'error'`, `'fatal'`).
+ * Levels use NestJS {@link LogLevel} names (`'verbose'`, `'debug'`, `'log'`,
+ * `'warn'`, `'error'`, `'fatal'`).
  * When using `nestjs-pino`, these map to pino levels:
  * `'verbose'` → `trace`, `'debug'` → `debug`, `'log'` → `info`, `'warn'` → `warn`,
  * `'error'` → `error`, `'fatal'` → `fatal`.
@@ -82,9 +85,22 @@ export interface LoggingBehaviorOptions {
   /**
    * Keys to exclude from request/response logs.
    * Passed to safeStringify as a Set<string> for filtering object properties.
-   * Example: ['password', 'token', ctx.sessionUser ] will omit these fields from log output. support dot for inner properties.
+   * Example: ['password', 'token', 'ctx.sessionUser' ] will omit these fields from log output.
+   * Support dot operator for inner properties.
    */
   excludeKeys: string[];
+
+  /**
+   * If true, omits the request object from logs entirely (shows placeholder instead).
+   * Default: true.
+   */
+  excludeRequestObj: boolean;
+
+  /**
+   * If true, omits the response object from logs entirely (shows placeholder instead).
+   * Default: true.
+   */
+  excludeResponseObj: boolean;
 }
 
 interface ContextLogger extends LoggerService {
@@ -109,11 +125,14 @@ export class LoggingBehavior implements IPipelineBehavior {
     context: IPipelineContext,
     next: NextDelegate,
   ): Promise<unknown> {
-    const options =
-      context.getBehaviorOptions<LoggingBehaviorOptions>(LoggingBehavior);
+    const options = context.getBehaviorOptions<LoggingBehaviorOptions>(LoggingBehavior);
     const metricLogLevel = options?.metricLogLevel ?? 'log';
     const requestResponseLogLevel = options?.requestResponseLogLevel ?? 'debug';
-    const excludeKeys = options?.excludeKeys ? new Set<string>(options.excludeKeys) : new Set<string>();
+    const excludeKeys = options?.excludeKeys
+      ? new Set<string>(options.excludeKeys)
+      : new Set<string>();
+    const excludeRequestObj = options?.excludeRequestObj ?? true;
+    const excludeResponseObj = options?.excludeResponseObj ?? true;
 
     if (this.hasSetContext) {
       (this.logger as ContextLogger).setContext(context.handlerName);
@@ -121,7 +140,9 @@ export class LoggingBehavior implements IPipelineBehavior {
 
     this.log(
       requestResponseLogLevel,
-      `Request: ${safeStringify(context.request, excludeKeys)}`,
+      `Request: ${excludeRequestObj
+        ? '[exclude request obj]'
+        : safeStringify(context.request, excludeKeys)}`,
       context.handlerName,
     );
 
@@ -140,7 +161,11 @@ export class LoggingBehavior implements IPipelineBehavior {
 
       this.log(
         requestResponseLogLevel,
-        `Response: ${result != null ? safeStringify(result, excludeKeys) : '(void)'}`,
+        `Response: ${excludeResponseObj
+          ? '[exclude response obj]'
+          : result != null
+            ? safeStringify(result, excludeKeys)
+            : '(void)'}`,
         context.handlerName,
       );
 
@@ -159,13 +184,15 @@ export class LoggingBehavior implements IPipelineBehavior {
     }
   }
 
-  /** Calls the appropriate Logger method, or skips entirely when level is `'none'` or unsupported. */
+  /** Calls the appropriate Logger method, 
+   * or skips entirely when level is `'none'` or unsupported. */
   private log(level: LogLevel | 'none', message: string, ...optionalParams: unknown[]): void {
     if (level === 'none') return;
 
     const method = this.logger[level as keyof LoggerService];
     if (typeof method === 'function') {
-      (method as (msg: string, ...optionalParams: unknown[]) => void).call(this.logger, message, ...optionalParams);
+      (method as (msg: string, ...optionalParams: unknown[]) => void)
+        .call(this.logger, message, ...optionalParams);
     }
   }
 }
