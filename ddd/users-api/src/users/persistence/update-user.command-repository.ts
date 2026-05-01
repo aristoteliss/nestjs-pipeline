@@ -1,4 +1,21 @@
-import { Client } from '@libsql/client';
+/*
+ * Copyright (C) 2026-present Aristotelis
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as
+ * published by the Free Software Foundation, either version 3 of the
+ * License, or (at your option) any later version.
+ *
+ * --- COMMERCIAL EXCEPTION ---
+ * Alternatively, a Commercial License is available for individuals or
+ * organizations that require proprietary use without the AGPLv3
+ * copyleft restrictions.
+ *
+ * See COMMERCIAL_LICENSE.txt in this repository for the tiered
+ * revenue-based terms, or contact: aristotelis@ik.me
+ * ----------------------------
+ */
+
 import { Inject, Injectable } from '@nestjs/common';
 import {
   Cacheable,
@@ -6,15 +23,15 @@ import {
   ICache,
 } from '@nestjs-pipeline/ddd-core';
 import { CACHE_TOKEN } from '@persistence/cache/memory.cache';
-import { TURSO_CLIENT } from '@persistence/turso-store';
-import { UserSnapshot } from '../domain/models/user.entity';
+import { MIKRO_ORM_CLIENT, MikroOrmStore } from '@persistence/mikro-orm.store';
+import { User, UserSnapshot } from '../domain/models/user.entity';
 import { UserUpdateOutcome } from '../domain/outcomes/user-update.outcome';
 
 @Injectable()
 export class UpdateUserCommandRepository extends CommandRepository<UserUpdateOutcome> {
   constructor(
     @Inject(CACHE_TOKEN) protected readonly cache: ICache<UserSnapshot>,
-    @Inject(TURSO_CLIENT) private readonly client: Client,
+    @Inject(MIKRO_ORM_CLIENT) private readonly store: MikroOrmStore,
   ) {
     super(cache);
   }
@@ -23,21 +40,8 @@ export class UpdateUserCommandRepository extends CommandRepository<UserUpdateOut
   async save(domainOutcome: UserUpdateOutcome): Promise<UserSnapshot> {
     const { entity } = domainOutcome;
 
-    const snapshot = entity.toJSON();
+    await this.store.em.upsert(User, entity);
 
-    await this.client.execute({
-      sql: `INSERT OR REPLACE INTO users (id, username, email, tenant_id, department, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      args: [
-        snapshot.id,
-        snapshot.username,
-        snapshot.email,
-        snapshot.tenantId ?? null,
-        snapshot.department ?? null,
-        new Date(snapshot.createdAt).getTime(),
-        new Date(snapshot.updatedAt).getTime(),
-      ],
-    });
-
-    return snapshot;
+    return entity.toJSON();
   }
 }

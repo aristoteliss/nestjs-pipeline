@@ -1,3 +1,21 @@
+/*
+ * Copyright (C) 2026-present Aristotelis
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as
+ * published by the Free Software Foundation, either version 3 of the
+ * License, or (at your option) any later version.
+ *
+ * --- COMMERCIAL EXCEPTION ---
+ * Alternatively, a Commercial License is available for individuals or
+ * organizations that require proprietary use without the AGPLv3
+ * copyleft restrictions.
+ *
+ * See COMMERCIAL_LICENSE.txt in this repository for the tiered
+ * revenue-based terms, or contact: aristotelis@ik.me
+ * ----------------------------
+ */
+
 /**
  * Integration tests for CaslBehavior.handle() — the full pipeline path.
  *
@@ -567,13 +585,13 @@ describe('CaslBehavior.handle() integration', () => {
 
   describe('instance-level field authorization via fieldsFromRequest', () => {
     const selfServiceRole: RoleDefinition = {
-        name: 'self-limited',
+      name: 'self-limited',
       capabilities: ['User|update|{"id":"${id}"}|username'],
     };
 
     const roles = [...allRoles, selfServiceRole];
     const capProvider = makeUserCapabilityProvider({
-        'self-user-1': ['self-limited'],
+      'self-user-1': ['self-limited'],
     });
 
     it('should allow updating own username', async () => {

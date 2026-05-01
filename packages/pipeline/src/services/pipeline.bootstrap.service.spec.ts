@@ -1,3 +1,21 @@
+/*
+ * Copyright (C) 2026-present Aristotelis
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as
+ * published by the Free Software Foundation, either version 3 of the
+ * License, or (at your option) any later version.
+ *
+ * --- COMMERCIAL EXCEPTION ---
+ * Alternatively, a Commercial License is available for individuals or
+ * organizations that require proprietary use without the AGPLv3
+ * copyleft restrictions.
+ *
+ * See COMMERCIAL_LICENSE.txt in this repository for the tiered
+ * revenue-based terms, or contact: aristotelis@ik.me
+ * ----------------------------
+ */
+
 import { Logger } from '@nestjs/common';
 import { ExplorerService } from '@nestjs/cqrs/dist/services/explorer.service';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -35,15 +53,15 @@ class SecondMockBehavior implements IPipelineBehavior {
 // ─────────────────────────────────────────────────────────────────
 
 class MockCommand {
-  constructor(public id: number) {}
+  constructor(public id: number) { }
 }
 
 class MockQuery {
-  constructor(public id: number) {}
+  constructor(public id: number) { }
 }
 
 class MockEvent {
-  constructor(public payload: string) {}
+  constructor(public payload: string) { }
 }
 
 // ─────────────────────────────────────────────────────────────────
@@ -626,7 +644,7 @@ describe('PipelineBootstrapService', () => {
         }
       }
       @UsePipeline(MockBehavior)
-      class DecoratedChildHandler extends ChildCommandHandler {}
+      class DecoratedChildHandler extends ChildCommandHandler { }
 
       const childHandler = new DecoratedChildHandler();
       explorerServiceMock.explore.mockReturnValue({
@@ -688,14 +706,14 @@ describe('PipelineBootstrapService', () => {
     let warnSpy: ReturnType<typeof vi.spyOn>;
 
     beforeEach(() => {
-      logSpy = vi.spyOn(Logger.prototype, 'log').mockImplementation(() => {});
+      logSpy = vi.spyOn(Logger.prototype, 'log').mockImplementation(() => { });
       debugSpy = vi
         .spyOn(Logger.prototype, 'debug')
-        .mockImplementation(() => {});
+        .mockImplementation(() => { });
       verboseSpy = vi
         .spyOn(Logger.prototype, 'verbose')
-        .mockImplementation(() => {});
-      warnSpy = vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => {});
+        .mockImplementation(() => { });
+      warnSpy = vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => { });
     });
 
     afterEach(() => {

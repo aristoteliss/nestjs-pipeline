@@ -8,7 +8,12 @@
  *
  * --- COMMERCIAL EXCEPTION ---
  * Alternatively, a Commercial License is available for individuals or
- * companies that do not wish to be bound by the AGPL terms. Contact Aristotelis for details.
+ * organizations that require proprietary use without the AGPLv3
+ * copyleft restrictions.
+ *
+ * See COMMERCIAL_LICENSE.txt in this repository for the tiered
+ * revenue-based terms, or contact: aristotelis@ik.me
+ * ----------------------------
  */
 
 import { CommandHandler, ICommandHandler } from '@nestjs/cqrs';
@@ -16,8 +21,7 @@ import { DeleteAuthCommand } from './delete-auth.command';
 
 @CommandHandler(DeleteAuthCommand)
 export class DeleteAuthHandler
-  implements ICommandHandler<DeleteAuthCommand, void>
-{
+  implements ICommandHandler<DeleteAuthCommand, void> {
   async execute(_command: DeleteAuthCommand): Promise<void> {
     // Session clearing is performed by the controller after this command resolves.
     // Add audit logging or logout-triggered side effects here if needed.

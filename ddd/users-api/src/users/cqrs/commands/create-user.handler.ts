@@ -8,11 +8,17 @@
  *
  * --- COMMERCIAL EXCEPTION ---
  * Alternatively, a Commercial License is available for individuals or
- * companies that do not wish to be bound by the AGPL terms. Contact Aristotelis for details.
+ * organizations that require proprietary use without the AGPLv3
+ * copyleft restrictions.
+ *
+ * See COMMERCIAL_LICENSE.txt in this repository for the tiered
+ * revenue-based terms, or contact: aristotelis@ik.me
+ * ----------------------------
  */
 
 import { Inject } from '@nestjs/common';
 import { CommandHandler, EventBus } from '@nestjs/cqrs';
+import { CaslBehavior } from '@nestjs-pipeline/casl';
 import { LoggingBehavior, UsePipeline } from '@nestjs-pipeline/core';
 import {
   CommandBaseHandler,
@@ -24,8 +30,14 @@ import { COMMAND_REPOSITORY } from '../../repositories/repository.tokens';
 import { CreateUserCommand } from './create-user.command';
 
 @CommandHandler(CreateUserCommand)
-@UsePipeline(
-  [LoggingBehavior, { requestResponseLogLevel: 'log' }]
+@UsePipeline([LoggingBehavior, { requestResponseLogLevel: 'log' }],
+  [
+    CaslBehavior,
+    {
+      subjectFromRequest: 'User',
+      rules: [{ action: 'create', subject: 'User' }],
+    },
+  ],
 )
 export class CreateUserHandler extends CommandBaseHandler<
   CreateUserCommand,

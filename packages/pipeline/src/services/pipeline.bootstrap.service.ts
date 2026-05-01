@@ -14,14 +14,6 @@
  * See COMMERCIAL_LICENSE.txt in this repository for the tiered
  * revenue-based terms, or contact: aristotelis@ik.me
  * ----------------------------
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU Affero General Public License for more details.
- *
- * You should have received a copy of the GNU Affero General Public License
- * along with this program. If not, see <https://www.gnu.org/licenses/>.
  */
 
 import {
@@ -89,7 +81,7 @@ export class PipelineBootstrapService implements OnApplicationBootstrap {
     @Optional()
     @Inject(PIPELINE_MODULE_OPTIONS)
     private readonly options?: PipelineModuleOptions,
-  ) {}
+  ) { }
 
   onApplicationBootstrap() {
     this.bootstrapLogLevel = this.options?.bootstrapLogLevel ?? 'debug';
@@ -228,7 +220,7 @@ export class PipelineBootstrapService implements OnApplicationBootstrap {
     if (this.bootstrapLogLevel !== 'none') {
       this.logger[this.bootstrapLogLevel](
         `Wrapping ${meta.handlerName}.${methodName}() ` +
-          `[${requestKind}${isScoped ? ', scoped' : ''}] with pipeline: [${behaviorTypes.map((b) => b.name).join(' → ')}]`,
+        `[${requestKind}${isScoped ? ', scoped' : ''}] with pipeline: [${behaviorTypes.map((b) => b.name).join(' → ')}]`,
       );
     }
 
@@ -259,10 +251,10 @@ export class PipelineBootstrapService implements OnApplicationBootstrap {
           behaviorTypes.map((BehaviorClass, i) =>
             dynamicIndices.has(i)
               ? moduleRef.resolve<IPipelineBehavior>(BehaviorClass, undefined, {
-                  strict: false,
-                })
+                strict: false,
+              })
               : // biome-ignore lint/style/noNonNullAssertion: index guaranteed by the resolve loop above
-                Promise.resolve(resolvedBehaviors.get(i)!),
+              Promise.resolve(resolvedBehaviors.get(i)!),
           ),
         );
       } else {

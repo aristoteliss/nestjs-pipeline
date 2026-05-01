@@ -8,13 +8,19 @@
  *
  * --- COMMERCIAL EXCEPTION ---
  * Alternatively, a Commercial License is available for individuals or
- * companies that do not wish to be bound by the AGPL terms. Contact Aristotelis for details.
+ * organizations that require proprietary use without the AGPLv3
+ * copyleft restrictions.
+ *
+ * See COMMERCIAL_LICENSE.txt in this repository for the tiered
+ * revenue-based terms, or contact: aristotelis@ik.me
+ * ----------------------------
  */
 
 import { createClient } from '@libsql/client';
 import { Global, Module } from '@nestjs/common';
 import { CACHE_TOKEN } from './cache/memory.cache';
 import { TursoCache } from './cache/turso.cache';
+import { MIKRO_ORM_CLIENT, MikroOrmStore } from './mikro-orm.store';
 import { TURSO_CLIENT, TursoStore } from './turso-store';
 
 @Global()
@@ -24,13 +30,19 @@ import { TURSO_CLIENT, TursoStore } from './turso-store';
       provide: TURSO_CLIENT,
       useFactory: () =>
         createClient({
-          url: process.env.TURSO_DATABASE_URL ?? 'file:local.db',
-          authToken: process.env.TURSO_AUTH_TOKEN,
+          url: process.env.DATABASE_URL ?? 'file:local.db',
+          authToken: process.env.AUTH_TOKEN,
         }),
     },
     TursoStore,
+    MikroOrmStore,
+    {
+      provide: MIKRO_ORM_CLIENT,
+      useFactory: (store: MikroOrmStore) => store,
+      inject: [MikroOrmStore],
+    },
     { provide: CACHE_TOKEN, useClass: TursoCache },
   ],
-  exports: [TURSO_CLIENT, CACHE_TOKEN],
+  exports: [TURSO_CLIENT, MIKRO_ORM_CLIENT, CACHE_TOKEN],
 })
-export class PersistenceModule {}
+export class PersistenceModule { }

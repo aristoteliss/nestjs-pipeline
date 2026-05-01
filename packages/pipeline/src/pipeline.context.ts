@@ -14,14 +14,6 @@
  * See COMMERCIAL_LICENSE.txt in this repository for the tiered
  * revenue-based terms, or contact: aristotelis@ik.me
  * ----------------------------
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU Affero General Public License for more details.
- *
- * You should have received a copy of the GNU Affero General Public License
- * along with this program. If not, see <https://www.gnu.org/licenses/>.
  */
 
 import { Type } from '@nestjs/common';
@@ -48,8 +40,7 @@ import { untyped } from './types/safe-typing';
 export abstract class BasePipelineContext<
   TRequest = unknown,
   TResponse = unknown,
-> implements IPipelineContext<TRequest, TResponse>
-{
+> implements IPipelineContext<TRequest, TResponse> {
   correlationId: string;
 
   /** Backing field for `originalCorrelationId`. */

@@ -1,12 +1,25 @@
-import { Client } from '@libsql/client';
+/*
+ * Copyright (C) 2026-present Aristotelis
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as
+ * published by the Free Software Foundation, either version 3 of the
+ * License, or (at your option) any later version.
+ *
+ * --- COMMERCIAL EXCEPTION ---
+ * Alternatively, a Commercial License is available for individuals or
+ * organizations that require proprietary use without the AGPLv3
+ * copyleft restrictions.
+ *
+ * See COMMERCIAL_LICENSE.txt in this repository for the tiered
+ * revenue-based terms, or contact: aristotelis@ik.me
+ * ----------------------------
+ */
+
 import { Inject, Injectable } from '@nestjs/common';
-import {
-  Cacheable,
-  CommandRepository,
-  ICache,
-} from '@nestjs-pipeline/ddd-core';
+import { Cacheable, CommandRepository, ICache } from '@nestjs-pipeline/ddd-core';
 import { CACHE_TOKEN } from '@persistence/cache/memory.cache';
-import { TURSO_CLIENT } from '@persistence/turso-store';
+import { MIKRO_ORM_CLIENT, MikroOrmStore } from '@persistence/mikro-orm.store';
 import { UserSnapshot } from '../domain/models/user.entity';
 import { UserCreateOutcome } from '../domain/outcomes/user-create.outcome';
 
@@ -14,7 +27,7 @@ import { UserCreateOutcome } from '../domain/outcomes/user-create.outcome';
 export class CreateUserCommandRepository extends CommandRepository<UserCreateOutcome> {
   constructor(
     @Inject(CACHE_TOKEN) protected readonly cache: ICache<UserSnapshot>,
-    @Inject(TURSO_CLIENT) private readonly client: Client,
+    @Inject(MIKRO_ORM_CLIENT) private readonly store: MikroOrmStore,
   ) {
     super(cache);
   }
@@ -23,21 +36,9 @@ export class CreateUserCommandRepository extends CommandRepository<UserCreateOut
   async save(domainOutcome: UserCreateOutcome): Promise<UserSnapshot> {
     const { entity } = domainOutcome;
 
-    const snapshot = entity.toJSON();
+    this.store.em.persist(entity);
+    await this.store.em.flush();
 
-    await this.client.execute({
-      sql: `INSERT OR REPLACE INTO users (id, username, email, tenant_id, department, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      args: [
-        snapshot.id,
-        snapshot.username,
-        snapshot.email,
-        snapshot.tenantId ?? null,
-        snapshot.department ?? null,
-        new Date(snapshot.createdAt).getTime(),
-        new Date(snapshot.updatedAt).getTime(),
-      ],
-    });
-
-    return snapshot;
+    return entity.toJSON();
   }
 }

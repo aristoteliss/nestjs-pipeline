@@ -14,14 +14,7 @@
  * See COMMERCIAL_LICENSE.txt in this repository for the tiered
  * revenue-based terms, or contact: aristotelis@ik.me
  * ----------------------------
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU Affero General Public License for more details.
- *
- * You should have received a copy of the GNU Affero General Public License
- * along with this program. If not, see <https://www.gnu.org/licenses/>.
+
  */
 
 import { AsyncLocalStorage } from 'node:async_hooks';
@@ -229,8 +222,8 @@ export function addCorrelationId<T extends Record<string, unknown>>(
   if (Array.isArray(data)) {
     throw new TypeError(
       'addCorrelationId(data) received an array. Spreading an array into an object ' +
-        'destroys its structure and breaks the serialization contract. ' +
-        'Wrap it first: addCorrelationId({ items: myArray })',
+      'destroys its structure and breaks the serialization contract. ' +
+      'Wrap it first: addCorrelationId({ items: myArray })',
     );
   }
   return { ...data, correlationId: getCorrelationId() };

@@ -1,4 +1,21 @@
-import { Client } from '@libsql/client';
+/*
+ * Copyright (C) 2026-present Aristotelis
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as
+ * published by the Free Software Foundation, either version 3 of the
+ * License, or (at your option) any later version.
+ *
+ * --- COMMERCIAL EXCEPTION ---
+ * Alternatively, a Commercial License is available for individuals or
+ * organizations that require proprietary use without the AGPLv3
+ * copyleft restrictions.
+ *
+ * See COMMERCIAL_LICENSE.txt in this repository for the tiered
+ * revenue-based terms, or contact: aristotelis@ik.me
+ * ----------------------------
+ */
+
 import { Inject, Injectable } from '@nestjs/common';
 import {
   Cacheable,
@@ -6,15 +23,15 @@ import {
   ICache,
 } from '@nestjs-pipeline/ddd-core';
 import { CACHE_TOKEN } from '@persistence/cache/memory.cache';
-import { TURSO_CLIENT } from '@persistence/turso-store';
-import { UserSnapshot } from '../domain/models/user.entity';
+import { MIKRO_ORM_CLIENT, MikroOrmStore } from '@persistence/mikro-orm.store';
+import { User, UserSnapshot } from '../domain/models/user.entity';
 import { UserUpdateOutcome } from '../domain/outcomes/user-update.outcome';
 
 @Injectable()
 export class DeleteUserCommandRepository extends CommandRepository<UserUpdateOutcome> {
   constructor(
     @Inject(CACHE_TOKEN) protected readonly cache: ICache<UserSnapshot>,
-    @Inject(TURSO_CLIENT) private readonly client: Client,
+    @Inject(MIKRO_ORM_CLIENT) private readonly store: MikroOrmStore,
   ) {
     super(cache);
   }
@@ -23,10 +40,7 @@ export class DeleteUserCommandRepository extends CommandRepository<UserUpdateOut
   async save(domainOutcome: UserUpdateOutcome): Promise<null> {
     const { entity } = domainOutcome;
 
-    await this.client.execute({
-      sql: `DELETE FROM users WHERE id = ?`,
-      args: [entity.id],
-    });
+    await this.store.em.nativeDelete(User, entity.id);
 
     return null;
   }

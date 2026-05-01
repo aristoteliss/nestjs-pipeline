@@ -1180,8 +1180,8 @@ Configure the database via environment variables (defaults to a local file):
 
 | Variable             | Default         | Description                          |
 |----------------------|-----------------|--------------------------------------|
-| `TURSO_DATABASE_URL` | `file:local.db` | libSQL database URL (file or remote) |
-| `TURSO_AUTH_TOKEN`   | _(none)_        | Auth token for Turso cloud databases |
+| `DATABASE_URL` | `file:local.db` | libSQL database URL (file or remote) |
+| `AUTH_TOKEN`   | _(none)_        | Auth token for Turso cloud databases |
 
 **CRUD operations:**
 

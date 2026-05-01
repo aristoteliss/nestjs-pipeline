@@ -2,15 +2,16 @@
 
 A complete NestJS application demonstrating `@nestjs-pipeline` with Domain-Driven Design.
 
+
 ## Overview
 
-This sample builds on `@nestjs-pipeline/ddd-core` to show a full CQRS + DDD stack:
+This sample builds on `@nestjs-pipeline/ddd-core` to show a full CQRS + DDD stack, with **MikroORM as the primary persistence and cache layer**. Turso (libSQL) is retained as a backup/secondary option.
 
 - **Domain layer** — `User` and `Role` entities extending `CacheableEntity`, domain events, and outcomes.
 - **CQRS layer** — Command/query handlers with `@UsePipeline` behaviors, validated via `createExecuteClass()` / `createQuery()` and Zod schemas.
-- **Persistence** — Turso (libSQL) as the primary store; repositories extend `CommandRepository` / `QueryRepository` from `ddd-core`.
-- **Caching** — Two `ICache<T>` implementations: `TursoCache` (Turso-backed, TTL-aware) and `MemoryCache` (in-process). Configured via `CACHE_TOKEN` in `PersistenceModule`.
-- **Authorization** — ABAC via `@nestjs-pipeline/casl`. Per-handler `CaslBehavior` with Turso-backed role/capability providers, explicit `subjectContextPaths`, global `defaultFieldsFromRequest`, condition interpolation, and inline `rules` on `CaslBehaviorOptions`.
+- **Persistence** — **MikroORM as the primary store**; repositories extend `CommandRepository` / `QueryRepository` from `ddd-core`. Turso is available as a backup.
+- **Caching** — **MikroOrmCache** (MikroORM-backed, TTL-aware) is the default; `TursoCache` is available as a backup. Configured via `CACHE_TOKEN` in `PersistenceModule`.
+- **Authorization** — ABAC via `@nestjs-pipeline/casl`. Per-handler `CaslBehavior` with MikroORM-backed role/capability providers, explicit `subjectContextPaths`, global `defaultFieldsFromRequest`, condition interpolation, and inline `rules` on `CaslBehaviorOptions`.
 - **Event handlers** — React to domain events, enqueue background jobs via BullMQ.
 - **Controllers** — REST endpoints with `ZodPipe` validation and correlation ID propagation.
 - **Logging** — `nestjs-pino` logger wired into both `LoggingBehavior` and `TraceBehavior` via DI tokens.
@@ -48,15 +49,17 @@ src/
 │       └── create-mapper.helper.ts   # DTO → Command mapper factory
 │
 ├── persistence/               # Global persistence layer (aliased as @persistence/*)
-│   ├── persistence.module.ts  # @Global() — provides TURSO_CLIENT, CACHE_TOKEN
-│   ├── turso-store.ts         # libSQL client wrapper + migration runner
+│   ├── persistence.module.ts  # @Global() — provides MIKRO_ORM_CLIENT, CACHE_TOKEN
+│   ├── mikro-orm.store.ts     # MikroORM client wrapper (primary store)
+│   ├── turso-store.ts         # libSQL client wrapper + migration runner (backup)
 │   ├── migrate.ts             # Versioned migrations
 │   ├── seed.ts                # Demo data seeder
 │   ├── store.interface.ts
 │   ├── memory-store.ts
 │   └── cache/
 │       ├── memory.cache.ts    # In-process ICache<T> (CACHE_TOKEN)
-│       └── turso.cache.ts     # Turso-backed ICache<T> (default)
+│       ├── mikro-orm.cache.ts # MikroORM-backed ICache<T> (default)
+│       └── turso.cache.ts     # Turso-backed ICache<T> (backup)
 │
 ├── users/                     # Users bounded context
 │   ├── users.module.ts
@@ -259,12 +262,17 @@ Run `pnpm db:seed` to populate the authorization tables with 7 users, 5 roles, 1
 
 ## Caching
 
-### `TursoCache<T>` — Turso-backed cache (default)
 
-Implements `ICache<T>` using the same libSQL client as the main store. Entries are stored in the `cache` table.
+### `MikroOrmCache<T>` — MikroORM-backed cache (default)
+
+Implements `ICache<T>` using MikroORM as the primary cache store. Entries are stored in the `cache` table.
 
 - **TTL**: pass `{ ttl: <ms> }` as the third argument to `set()`. Expired entries are filtered on `get()` (lazy eviction).
 - **No expiry**: omit `options` or leave `ttl` undefined.
+
+### `TursoCache<T>` — Turso-backed cache (backup)
+
+Implements `ICache<T>` using the libSQL client as a backup/secondary cache. Entries are stored in the `cache` table.
 
 ### `MemoryCache<T>` — In-process cache (alternative)
 
