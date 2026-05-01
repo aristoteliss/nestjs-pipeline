@@ -37,6 +37,7 @@ export class CreateUserCommandRepository extends CommandRepository<UserCreateOut
     const { entity } = domainOutcome;
 
     this.store.em.persist(entity);
+
     await this.store.em.flush();
 
     return entity.toJSON();

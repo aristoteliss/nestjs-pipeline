@@ -16,7 +16,7 @@
  * ----------------------------
  */
 
-import { AuthCommand } from '@common/cqrs/commands/auth.command';
+import { SessionCommand } from '@common/cqrs/commands/session.command';
 import { createExecuteClass } from '@common/cqrs/helpers/createExecute.helper';
 import { z } from 'zod';
 
@@ -24,5 +24,5 @@ export class CreateRoleCommand extends createExecuteClass(
   z.object({
     name: z.string().min(3),
   }),
-  AuthCommand,
+  SessionCommand,
 ) { }

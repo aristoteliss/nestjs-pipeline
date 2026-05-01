@@ -37,11 +37,11 @@ export class DeleteUserCommandRepository extends CommandRepository<UserUpdateOut
   }
 
   @Cacheable()
-  async save(domainOutcome: UserUpdateOutcome): Promise<null> {
+  async save(domainOutcome: UserUpdateOutcome): Promise<number> {
     const { entity } = domainOutcome;
 
-    await this.store.em.nativeDelete(User, entity.id);
+    const result = await this.store.em.nativeDelete(User, entity.id);
 
-    return null;
+    return result;
   }
 }

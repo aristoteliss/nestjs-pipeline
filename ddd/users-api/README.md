@@ -5,12 +5,12 @@ A complete NestJS application demonstrating `@nestjs-pipeline` with Domain-Drive
 
 ## Overview
 
-This sample builds on `@nestjs-pipeline/ddd-core` to show a full CQRS + DDD stack, with **MikroORM as the primary persistence and cache layer**. Turso (libSQL) is retained as a backup/secondary option.
+This sample builds on `@nestjs-pipeline/ddd-core` to show a full CQRS + DDD stack, with **MikroORM as the persistence and cache layer**.
 
 - **Domain layer** — `User` and `Role` entities extending `CacheableEntity`, domain events, and outcomes.
 - **CQRS layer** — Command/query handlers with `@UsePipeline` behaviors, validated via `createExecuteClass()` / `createQuery()` and Zod schemas.
-- **Persistence** — **MikroORM as the primary store**; repositories extend `CommandRepository` / `QueryRepository` from `ddd-core`. Turso is available as a backup.
-- **Caching** — **MikroOrmCache** (MikroORM-backed, TTL-aware) is the default; `TursoCache` is available as a backup. Configured via `CACHE_TOKEN` in `PersistenceModule`.
+- **Persistence** — **MikroORM store**; repositories extend `CommandRepository` / `QueryRepository` from `ddd-core`.
+- **Caching** — **MikroOrmCache** (MikroORM-backed, TTL-aware) configured via `CACHE_TOKEN` in `PersistenceModule`.
 - **Authorization** — ABAC via `@nestjs-pipeline/casl`. Per-handler `CaslBehavior` with MikroORM-backed role/capability providers, explicit `subjectContextPaths`, global `defaultFieldsFromRequest`, condition interpolation, and inline `rules` on `CaslBehaviorOptions`.
 - **Event handlers** — React to domain events, enqueue background jobs via BullMQ.
 - **Controllers** — REST endpoints with `ZodPipe` validation and correlation ID propagation.
@@ -21,8 +21,7 @@ This sample builds on `@nestjs-pipeline/ddd-core` to show a full CQRS + DDD stac
 ```bash
 cd ddd/users-api
 pnpm install
-pnpm db:migrate   # create tables (idempotent)
-pnpm db:seed      # populate demo data (runs migrate first)
+pnpm db:migrate   # apply schema + data migrations (idempotent)
 pnpm start
 ```
 
@@ -30,8 +29,8 @@ pnpm start
 
 | Variable             | Default        | Description                          |
 |----------------------|----------------|--------------------------------------|
-| `TURSO_DATABASE_URL` | `file:local.db`| libSQL database URL (file or remote) |
-| `TURSO_AUTH_TOKEN`   | _(none)_       | Auth token for Turso cloud databases |
+| `DATABASE_URL`       | `file:local.db`| Database URL (local file or remote libSQL endpoint) |
+| `AUTH_TOKEN`         | _(none)_       | Auth token for remote libSQL databases |
 
 ## Project structure
 
@@ -50,16 +49,13 @@ src/
 │
 ├── persistence/               # Global persistence layer (aliased as @persistence/*)
 │   ├── persistence.module.ts  # @Global() — provides MIKRO_ORM_CLIENT, CACHE_TOKEN
-│   ├── mikro-orm.store.ts     # MikroORM client wrapper (primary store)
-│   ├── turso-store.ts         # libSQL client wrapper + migration runner (backup)
-│   ├── migrate.ts             # Versioned migrations
-│   ├── seed.ts                # Demo data seeder
+│   ├── mikro-orm.store.ts     # MikroORM client wrapper + startup migration runner
+│   ├── migrations/            # Native MikroORM migration classes
 │   ├── store.interface.ts
 │   ├── memory-store.ts
 │   └── cache/
 │       ├── memory.cache.ts    # In-process ICache<T> (CACHE_TOKEN)
-│       ├── mikro-orm.cache.ts # MikroORM-backed ICache<T> (default)
-│       └── turso.cache.ts     # Turso-backed ICache<T> (backup)
+│       └── mikro-orm.cache.ts # MikroORM-backed ICache<T> (default)
 │
 ├── users/                     # Users bounded context
 │   ├── users.module.ts
@@ -102,23 +98,11 @@ TypeScript path aliases keep imports clean and decouple modules from relative pa
 
 ## Migrations
 
-Database schema is managed by a simple versioned migration runner in `src/persistence/migrate.ts`.
+Database schema is managed by native MikroORM migrations in `src/persistence/migrations`.
 
-- **`pnpm db:migrate`** — run standalone from the CLI. Creates a `_migrations` tracking table and applies only pending migrations.
-- **On app startup** — `TursoStore.onModuleInit()` calls the same `migrate()` function, so the schema is always up to date before the first request.
-- **`pnpm db:seed`** — runs pending migrations first, then inserts demo data (idempotent via `INSERT OR IGNORE`).
-
-Migrations are defined in `migrate.ts` as an ordered array. To add a new migration, append a new entry with the next version number:
-
-```ts
-// migrate.ts
-export const migrations: Migration[] = [
-  { version: 1, name: 'create_users_and_cache', sql: [...] },
-  { version: 2, name: 'create_casl_tables',     sql: [...] },
-  // ↓ add new migrations here
-  { version: 3, name: 'add_avatar_column',      sql: ['ALTER TABLE users ADD COLUMN avatar TEXT'] },
-];
-```
+- **On app startup** — `MikroOrmStore.onModuleInit()` runs `orm.migrator.up()` so pending migrations are applied before serving requests.
+- **Migration files** — create new migration classes in `src/persistence/migrations` (or generate them via MikroORM CLI if configured).
+- **Seed data** — stored as data migrations and applied with `pnpm db:migrate`.
 
 ## Logging
 
@@ -222,8 +206,8 @@ Authenticate with a Bearer JWT or a secure session cookie. The request user is
 stored under `sessionUser`, which is also the configured CASL subject-context path.
 
 ```bash
-# Seed the database first
-pnpm db:seed
+# Apply migrations (schema + seed data)
+pnpm db:migrate
 
 # Obtain a token first (example login endpoint may vary by environment)
 # Then call protected routes with Authorization: Bearer <token>
@@ -248,7 +232,7 @@ curl -X POST http://localhost:3000/users \
 
 ### Seed data
 
-Run `pnpm db:seed` to populate the authorization tables with 7 users, 5 roles, 13 capabilities, and per-user overrides exercising:
+Run `pnpm db:migrate` to apply schema and seed data migrations. The demo data includes 7 users, 5 roles, 13 capabilities, and per-user overrides exercising:
 
 | Scenario                    | User    | Role(s)                  | Notes                                           |
 |-----------------------------|---------|--------------------------|--------------------------------------------------|
@@ -269,10 +253,6 @@ Implements `ICache<T>` using MikroORM as the primary cache store. Entries are st
 
 - **TTL**: pass `{ ttl: <ms> }` as the third argument to `set()`. Expired entries are filtered on `get()` (lazy eviction).
 - **No expiry**: omit `options` or leave `ttl` undefined.
-
-### `TursoCache<T>` — Turso-backed cache (backup)
-
-Implements `ICache<T>` using the libSQL client as a backup/secondary cache. Entries are stored in the `cache` table.
 
 ### `MemoryCache<T>` — In-process cache (alternative)
 
@@ -302,9 +282,9 @@ Applied to `find()` in query repositories. Checks the cache first; on a miss it 
 - Controller-level `ZodPipe` validation
 - OpenTelemetry tracing with `TraceBehavior`
 - DDD-style entities built on `ddd-core` primitives (`CacheableEntity`, `RootDomainEvent`, `RootDomainOutcome`)
-- Versioned database migrations with tracking (`_migrations` table)
-- Turso (libSQL) persistence with a fully normalized schema
-- Pluggable `ICache<T>` — swap `TursoCache` ↔ `MemoryCache` via a single provider token
+- Native MikroORM migrations executed at startup
+- libSQL-backed persistence via MikroORM with a normalized schema
+- Pluggable `ICache<T>` — swap `MikroOrmCache` ↔ `MemoryCache` via a single provider token
 - Correlation ID propagation across handlers and events
 - Express and Fastify adapter support
 - BullMQ background job processing

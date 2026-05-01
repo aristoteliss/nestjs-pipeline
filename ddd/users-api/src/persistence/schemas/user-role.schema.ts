@@ -17,18 +17,13 @@
  */
 
 import { EntitySchema } from '@mikro-orm/core';
-import { Role } from '../../roles/domain/models/role.entity';
+import { UserRole } from '../entities/user-role.entity';
 
-export const RoleSchema = new EntitySchema<Role>({
-  // @ts-expect-error MikroORM requires a public constructor
-  class: Role,
-  tableName: 'roles',
+export const UserRoleSchema = new EntitySchema<UserRole>({
+  class: UserRole,
+  tableName: 'user_roles',
   properties: {
-    // @ts-expect-error Maps to private property from RootEntity
-    _id: { type: 'string', primary: true, fieldName: 'id' },
-    _createdAt: { type: 'number', fieldName: 'created_at' },
-    _updatedAt: { type: 'number', fieldName: 'updated_at' },
-    _name: { type: 'string', fieldName: 'name', unique: true },
-    prefixKey: { type: 'string', persist: false },
+    userId: { type: 'string', primary: true, fieldName: 'user_id' },
+    roleId: { type: 'string', primary: true, fieldName: 'role_id' },
   },
 });

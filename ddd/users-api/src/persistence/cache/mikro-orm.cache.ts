@@ -20,13 +20,14 @@ import { Inject, Injectable } from '@nestjs/common';
 import { ICache } from '@nestjs-pipeline/ddd-core';
 import { MIKRO_ORM_CLIENT, MikroOrmStore } from '../mikro-orm.store';
 import { CacheEntry } from './cache.entity';
-import { CacheSetOptions } from './turso.cache';
+
+export interface CacheSetOptions {
+  ttl?: number;
+}
 
 /**
  * MikroOrmCache is the PRIMARY cache implementation for this app.
  * Uses MikroORM for persistence, storing cache entries in the 'cache' table.
- *
- * TursoCache remains as a backup/secondary implementation.
  */
 @Injectable()
 export class MikroOrmCache<T> implements ICache<T> {

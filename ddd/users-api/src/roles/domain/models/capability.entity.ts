@@ -23,6 +23,9 @@ export interface CapabilitySnapshot extends Partial<RootEntitySnapshot> {
   readonly action: string;
   readonly subject: string;
   readonly conditions?: string | null;
+  readonly inverted?: boolean;
+  readonly reason?: string | null;
+  readonly fields?: string | null;
 }
 
 export class Capability extends RootEntity<CapabilitySnapshot> {
@@ -32,6 +35,9 @@ export class Capability extends RootEntity<CapabilitySnapshot> {
   readonly action: string;
   readonly subject: string;
   readonly conditions?: string | null;
+  readonly inverted: boolean;
+  readonly reason?: string | null;
+  readonly fields?: string | null;
 
   private constructor(snapshot: CapabilitySnapshot) {
     super(snapshot);
@@ -39,6 +45,9 @@ export class Capability extends RootEntity<CapabilitySnapshot> {
     this.action = snapshot.action;
     this.subject = snapshot.subject;
     this.conditions = snapshot.conditions;
+    this.inverted = snapshot.inverted ?? false;
+    this.reason = snapshot.reason;
+    this.fields = snapshot.fields;
   }
 
   get cacheKey(): string {
@@ -50,8 +59,19 @@ export class Capability extends RootEntity<CapabilitySnapshot> {
     action: string,
     subject: string,
     conditions?: string | null,
+    inverted = false,
+    reason?: string | null,
+    fields?: string | null,
   ): Capability {
-    return new Capability({ roleId, action, subject, conditions });
+    return new Capability({
+      roleId,
+      action,
+      subject,
+      conditions,
+      inverted,
+      reason,
+      fields,
+    });
   }
 
   static fromJSON(snapshot: CapabilitySnapshot): Capability {
@@ -61,6 +81,9 @@ export class Capability extends RootEntity<CapabilitySnapshot> {
       action: snapshot.action,
       subject: snapshot.subject,
       conditions: snapshot.conditions,
+      inverted: snapshot.inverted,
+      reason: snapshot.reason,
+      fields: snapshot.fields,
       createdAt: Capability.normalizeDate(snapshot.createdAt),
       updatedAt: Capability.normalizeDate(snapshot.updatedAt),
     });
@@ -73,6 +96,9 @@ export class Capability extends RootEntity<CapabilitySnapshot> {
       action: this.action,
       subject: this.subject,
       conditions: this.conditions,
+      inverted: this.inverted,
+      reason: this.reason,
+      fields: this.fields,
       createdAt: this.createdAt,
       updatedAt: this.updatedAt,
     });

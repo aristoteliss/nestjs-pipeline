@@ -121,14 +121,14 @@ export class GetUserContextQueryRepository
   async find(query: GetUserContextQuery): Promise<CaslUserContext | null> {
     const { userId } = query;
 
-    const userOrm = await this.store.em.findOne(User, { id: userId });
+    const user = await this.store.em.findOne(User, { id: userId });
 
-    if (!userOrm) return null;
+    if (!user) return null;
 
     return {
-      id: userOrm.id,
-      tenantId: userOrm.tenantId as string,
-      department: userOrm.department as string | null,
-    };
+      id: user.id,
+      tenantId: user.tenantId as string,
+      department: user.department as string | null,
+    } as CaslUserContext;
   }
 }

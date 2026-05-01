@@ -10,7 +10,7 @@
     "clean": "rm -rf dist tsconfig.tsbuildinfo",
     "rebuild": "pnpm run clean && pnpm run build",
     "db:migrate": "tsx src/persistence/migrate.ts",
-    "db:seed": "tsx src/persistence/seed.ts",
+    "db:revert": "tsx src/persistence/revert.ts",
     "start:prod": "node dist/main",
     "start:prod:fastify": "ADAPTER=fastify node dist/main"
   },
@@ -20,6 +20,7 @@
     "@libsql/client": "^0.17.3",
     "@mikro-orm/core": "^7.0.13",
     "@mikro-orm/libsql": "^7.0.13",
+    "@mikro-orm/migrations": "^7.0.13",
     "@mikro-orm/nestjs": "^7.0.1",
     "@mikro-orm/sqlite": "^7.0.13",
     "@nestjs-pipeline/casl": "workspace:*",

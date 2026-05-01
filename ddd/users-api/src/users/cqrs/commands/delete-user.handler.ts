@@ -58,7 +58,7 @@ export class DeleteUserHandler extends CommandBaseHandler<
 
     const outcome = user.delete();
 
-    this.commandRepository.save(outcome);
+    await this.commandRepository.save(outcome);
 
     return outcome;
   }

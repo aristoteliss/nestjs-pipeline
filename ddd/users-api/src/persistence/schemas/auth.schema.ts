@@ -31,5 +31,6 @@ export const AuthSchema = new EntitySchema<Auth>({
     userId: { type: 'string', fieldName: 'user_id' },
     tenantId: { type: 'string', fieldName: 'tenant_id', nullable: true },
     token: { type: 'string' },
+    prefixKey: { type: 'string', persist: false },
   },
 });

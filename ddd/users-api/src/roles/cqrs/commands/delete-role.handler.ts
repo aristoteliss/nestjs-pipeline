@@ -58,7 +58,7 @@ export class DeleteRoleHandler extends CommandBaseHandler<
 
     const outcome = role.delete();
 
-    this.commandRepository.save(outcome);
+    await this.commandRepository.save(outcome);
 
     return outcome;
   }

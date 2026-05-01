@@ -16,7 +16,7 @@
  * ----------------------------
  */
 
-import { AuthCommand } from '@common/cqrs/commands/auth.command';
+import { SessionCommand } from '@common/cqrs/commands/session.command';
 import { createExecuteClass } from '@common/cqrs/helpers/createExecute.helper';
 import { z } from 'zod';
 
@@ -27,5 +27,5 @@ export class CreateUserCommand extends createExecuteClass(
     tenantId: z.string().min(1),
     department: z.string().optional(),
   }),
-  AuthCommand,
+  SessionCommand,
 ) { }

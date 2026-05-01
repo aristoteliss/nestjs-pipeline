@@ -58,7 +58,7 @@ export class UpdateRoleHandler extends CommandBaseHandler<
 
     const outcome = role.rename(name);
 
-    this.commandRepository.save(outcome);
+    await this.commandRepository.save(outcome);
 
     return outcome;
   }

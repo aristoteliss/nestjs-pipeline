@@ -17,7 +17,8 @@
  */
 
 import { EntityManager } from '@mikro-orm/core';
-import { LibSqlDriver, MikroORM } from '@mikro-orm/libsql';
+import { LibSqlDriver, MikroORM, SqlEntityManager } from '@mikro-orm/libsql';
+import { Migrator } from '@mikro-orm/migrations';
 import {
   Injectable,
   Logger,
@@ -28,13 +29,15 @@ import { AuthSchema } from './schemas/auth.schema';
 import { CacheSchema } from './schemas/cache.schema';
 import { CapabilitySchema } from './schemas/capability.schema';
 import { RoleSchema } from './schemas/role.schema';
+import { RoleCapabilitySchema } from './schemas/role-capability.schema';
 import { UserSchema } from './schemas/user.schema';
+import { UserAdditionalCapabilitySchema } from './schemas/user-additional-capability.schema';
+import { UserDeniedCapabilitySchema } from './schemas/user-denied-capability.schema';
+import { UserRoleSchema } from './schemas/user-role.schema';
 
 /**
  * MikroOrmStore is the PRIMARY persistence layer for the application.
  * It manages all entities (users, roles, capabilities, cache, etc.) using MikroORM.
- *
- * TursoStore is retained as a backup/secondary option.
  */
 export const MIKRO_ORM_CLIENT = Symbol('MIKRO_ORM_CLIENT');
 
@@ -47,13 +50,24 @@ export class MikroOrmStore implements OnModuleInit, OnModuleDestroy {
     this.orm = await MikroORM.init({
       driver: LibSqlDriver,
       dbName: process.env.DATABASE_URL ?? 'file:local.db',
+      password: process.env.AUTH_TOKEN,
       entities: [
         UserSchema,
         AuthSchema,
         RoleSchema,
         CapabilitySchema,
+        RoleCapabilitySchema,
+        UserRoleSchema,
+        UserAdditionalCapabilitySchema,
+        UserDeniedCapabilitySchema,
         CacheSchema,
       ],
+      extensions: [Migrator],
+      migrations: {
+        path: 'dist/persistence/migrations',
+        pathTs: 'src/persistence/migrations',
+        glob: '!(*.d).{js,ts}',
+      },
       debug: process.env.NODE_ENV !== 'production',
     });
 
@@ -66,7 +80,7 @@ export class MikroOrmStore implements OnModuleInit, OnModuleDestroy {
     }
   }
 
-  get em(): EntityManager {
+  get em(): EntityManager | SqlEntityManager {
     return this.orm.em.fork();
   }
 }

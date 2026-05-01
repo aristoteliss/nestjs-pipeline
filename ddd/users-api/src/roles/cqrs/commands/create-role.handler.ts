@@ -60,7 +60,7 @@ export class CreateRoleHandler extends CommandBaseHandler<
 
     const outcome = Role.create(name);
 
-    this.commandRepository.save(outcome);
+    await this.commandRepository.save(outcome);
 
     return outcome;
   }

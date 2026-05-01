@@ -16,13 +16,14 @@
  * ----------------------------
  */
 
-import { getSessionUserFromStore } from '@common/context/session-user.store';
-import { SessionUser } from '@common/types/SessionUser';
+import { EntitySchema } from '@mikro-orm/core';
+import { RoleCapability } from '../entities/role-capability.entity';
 
-export abstract class AuthCommand {
-  public readonly sessionUser?: SessionUser;
-
-  constructor(sessionUser?: SessionUser) {
-    this.sessionUser = sessionUser ?? getSessionUserFromStore();
-  }
-}
+export const RoleCapabilitySchema = new EntitySchema<RoleCapability>({
+  class: RoleCapability,
+  tableName: 'role_capabilities',
+  properties: {
+    roleId: { type: 'string', primary: true, fieldName: 'role_id' },
+    capabilityId: { type: 'string', primary: true, fieldName: 'capability_id' },
+  },
+});

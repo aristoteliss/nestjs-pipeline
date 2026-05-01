@@ -60,6 +60,9 @@ importers:
       '@mikro-orm/libsql':
         specifier: ^7.0.13
         version: 7.0.13(@mikro-orm/core@7.0.13)
+      '@mikro-orm/migrations':
+        specifier: ^7.0.13
+        version: 7.0.13(@mikro-orm/core@7.0.13)
       '@mikro-orm/nestjs':
         specifier: ^7.0.1
         version: 7.0.1(@mikro-orm/core@7.0.13)(@nestjs/common@11.1.19(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/core@11.1.19)(reflect-metadata@0.2.2)
@@ -632,6 +635,12 @@ packages:
 
   '@mikro-orm/libsql@7.0.13':
     resolution: {integrity: sha512-DBVhCNkvK97LCvZpy8cffoXI/lCdj6GZV9TtlMFqqF81Yz11yCFpFSFRH5ymNprIJRLlHk1Ht/aAChh6xhpNTA==}
+    engines: {node: '>= 22.17.0'}
+    peerDependencies:
+      '@mikro-orm/core': 7.0.13
+
+  '@mikro-orm/migrations@7.0.13':
+    resolution: {integrity: sha512-SMSz9lsUNdQYDl+h+jGmbcfpBZm5UKUmyaMOljWK7czm/rkqZyKh2la4hFwF8IMOZ71agZtgtxFy1Ag6IOhsNA==}
     engines: {node: '>= 22.17.0'}
     peerDependencies:
       '@mikro-orm/core': 7.0.13
@@ -2711,6 +2720,11 @@ snapshots:
       '@mikro-orm/sql': 7.0.13(@mikro-orm/core@7.0.13)
       kysely: 0.28.16
       libsql: 0.5.29
+
+  '@mikro-orm/migrations@7.0.13(@mikro-orm/core@7.0.13)':
+    dependencies:
+      '@mikro-orm/core': 7.0.13
+      '@mikro-orm/sql': 7.0.13(@mikro-orm/core@7.0.13)
 
   '@mikro-orm/nestjs@7.0.1(@mikro-orm/core@7.0.13)(@nestjs/common@11.1.19(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/core@11.1.19)(reflect-metadata@0.2.2)':
     dependencies:

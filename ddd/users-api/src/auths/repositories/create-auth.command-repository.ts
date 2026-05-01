@@ -36,8 +36,8 @@ export class CreateAuthCommandRepository extends CommandRepository<AuthCreateOut
   async save(domainOutcome: AuthCreateOutcome): Promise<AuthSnapshot> {
     const { entity } = domainOutcome;
 
-    await this.store.em.upsert(Auth, entity);
+    const auth = await this.store.em.upsert(Auth, entity);
 
-    return entity.toJSON();
+    return auth.toJSON();
   }
 }

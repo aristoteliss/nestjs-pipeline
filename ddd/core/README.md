@@ -144,7 +144,7 @@ Two implementations are available in `ddd-users-api` as reference:
 
 | Class         | Backed by          | TTL support |
 |---------------|--------------------|-------------|
-| `TursoCache`  | Turso / libSQL     | Yes         |
+| `MikroOrmCache` | MikroORM (libSQL) | Yes         |
 | `MemoryCache` | In-process `Map`   | No          |
 
 ## Peer Dependencies

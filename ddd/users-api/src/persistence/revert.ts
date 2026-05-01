@@ -29,7 +29,37 @@ import { UserAdditionalCapabilitySchema } from './schemas/user-additional-capabi
 import { UserDeniedCapabilitySchema } from './schemas/user-denied-capability.schema';
 import { UserRoleSchema } from './schemas/user-role.schema';
 
-export async function migrate(): Promise<number> {
+function parseSteps(argv: string[]): number {
+  const args = argv.slice(2);
+
+  const inline = args.find((arg) => arg.startsWith('--steps='));
+  if (inline) {
+    const value = Number.parseInt(inline.split('=')[1] ?? '', 10);
+    if (!Number.isNaN(value) && value > 0) {
+      return value;
+    }
+    throw new Error('--steps must be a positive integer.');
+  }
+
+  const stepsIndex = args.indexOf('--steps');
+  if (stepsIndex >= 0) {
+    const next = args[stepsIndex + 1];
+    const value = Number.parseInt(next ?? '', 10);
+    if (!Number.isNaN(value) && value > 0) {
+      return value;
+    }
+    throw new Error('--steps must be a positive integer.');
+  }
+
+  const positional = args.find((arg) => /^\d+$/.test(arg));
+  if (positional) {
+    return Number.parseInt(positional, 10);
+  }
+
+  return 1;
+}
+
+export async function revert(steps = 1): Promise<number> {
   const orm = await MikroORM.init({
     driver: LibSqlDriver,
     dbName: process.env.DATABASE_URL ?? 'file:local.db',
@@ -54,8 +84,20 @@ export async function migrate(): Promise<number> {
   });
 
   try {
-    const executed = await orm.migrator.up();
-    return Array.isArray(executed) ? executed.length : 0;
+    let revertedCount = 0;
+
+    for (let i = 0; i < steps; i += 1) {
+      const reverted = await orm.migrator.down();
+      const count = Array.isArray(reverted) ? reverted.length : 0;
+
+      if (count === 0) {
+        break;
+      }
+
+      revertedCount += count;
+    }
+
+    return revertedCount;
   } finally {
     await orm.close();
   }
@@ -63,16 +105,17 @@ export async function migrate(): Promise<number> {
 
 if (
   process.argv[1] &&
-  (process.argv[1].endsWith('/migrate.ts') ||
-    process.argv[1].endsWith('/migrate.js'))
+  (process.argv[1].endsWith('/revert.ts') ||
+    process.argv[1].endsWith('/revert.js'))
 ) {
   (async () => {
     process.loadEnvFile();
-    const applied = await migrate();
+    const steps = parseSteps(process.argv);
+    const reverted = await revert(steps);
     console.log(
-      applied > 0
-        ? `Done - ${applied} migration(s) applied.`
-        : 'Already up to date.',
+      reverted > 0
+        ? `Done - ${reverted} migration(s) reverted.`
+        : 'Nothing to revert.',
     );
   })();
 }

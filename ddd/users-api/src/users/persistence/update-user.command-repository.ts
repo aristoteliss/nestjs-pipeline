@@ -40,8 +40,8 @@ export class UpdateUserCommandRepository extends CommandRepository<UserUpdateOut
   async save(domainOutcome: UserUpdateOutcome): Promise<UserSnapshot> {
     const { entity } = domainOutcome;
 
-    await this.store.em.upsert(User, entity);
+    const user = await this.store.em.upsert(User, entity);
 
-    return entity.toJSON();
+    return user.toJSON();
   }
 }

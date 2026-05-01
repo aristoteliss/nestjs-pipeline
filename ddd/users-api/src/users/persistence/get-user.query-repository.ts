@@ -16,17 +16,29 @@
  * ----------------------------
  */
 
-import { Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { filterCacheKey } from '@common/cqrs/helpers/filterCacheKey.helper';
+import { FilterQuery } from '@mikro-orm/core';
+import { Inject, Injectable } from '@nestjs/common';
 import { Cache, ICache, QueryRepository } from '@nestjs-pipeline/ddd-core';
 import { CACHE_TOKEN } from '@persistence/cache/memory.cache';
 import { MIKRO_ORM_CLIENT, MikroOrmStore } from '@persistence/mikro-orm.store';
 import { GetUserQuery } from '../cqrs/queries/get-user.query';
 import { User, UserSnapshot } from '../domain/models/user.entity';
 
+function buildConditions(query: GetUserQuery): Record<string, unknown> {
+  const conditions: Record<string, unknown> = query.userId
+    ? { _id: query.userId }
+    : { email: query.email };
+
+  if (query.department) conditions._department = query.department;
+
+  return conditions;
+}
+
 @Injectable()
 export class GetUserQueryRepository extends QueryRepository<
   GetUserQuery,
-  User
+  User | null
 > {
   constructor(
     @Inject(CACHE_TOKEN) protected readonly cache: ICache<User>,
@@ -36,25 +48,12 @@ export class GetUserQueryRepository extends QueryRepository<
   }
 
   @Cache<GetUserQuery, User>(
-    (q) =>
-      q.userId
-        ? `${User.prefixKey}${q.userId}`
-        : `${User.prefixKey}email:${q.email}`,
+    (q) => filterCacheKey(User, buildConditions(q)),
     (cached) => User.fromJSON(cached as UserSnapshot),
   )
-  async find(query: GetUserQuery): Promise<User> {
-    const { userId, email } = query;
+  async find(query: GetUserQuery): Promise<User | null> {
+    const conditions = buildConditions(query);
 
-    const where = userId ?? { email };
-    const user = await this.store.em.findOne(
-      User,
-      where as Parameters<typeof this.store.em.findOne<User>>[1],
-    );
-
-    if (!user) {
-      throw new NotFoundException('User not found');
-    }
-
-    return user;
+    return this.store.em.findOne(User, conditions as FilterQuery<User>);
   }
 }

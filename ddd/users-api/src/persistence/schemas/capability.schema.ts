@@ -32,5 +32,8 @@ export const CapabilitySchema = new EntitySchema<Capability>({
     action: { type: 'string' },
     subject: { type: 'string' },
     conditions: { type: 'string', nullable: true },
+    inverted: { type: 'boolean', default: false },
+    reason: { type: 'string', nullable: true },
+    fields: { type: 'string', nullable: true },
   },
 });

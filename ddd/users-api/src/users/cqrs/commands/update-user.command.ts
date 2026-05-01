@@ -16,7 +16,7 @@
  * ----------------------------
  */
 
-import { AuthCommand } from '@common/cqrs/commands/auth.command';
+import { SessionCommand } from '@common/cqrs/commands/session.command';
 import { createExecuteClass } from '@common/cqrs/helpers/createExecute.helper';
 import { z } from 'zod';
 
@@ -30,5 +30,5 @@ export class UpdateUserCommand extends createExecuteClass(
     .refine((data) => data.username !== undefined || data.department !== undefined, {
       message: 'At least one of username or department must be provided',
     }),
-  AuthCommand,
+  SessionCommand,
 ) { }

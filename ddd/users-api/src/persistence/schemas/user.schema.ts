@@ -32,5 +32,6 @@ export const UserSchema = new EntitySchema<User>({
     _department: { type: 'string', fieldName: 'department', nullable: true },
     email: { type: 'string' },
     tenantId: { type: 'string', fieldName: 'tenant_id', nullable: true },
+    prefixKey: { type: 'string', persist: false },
   },
 });

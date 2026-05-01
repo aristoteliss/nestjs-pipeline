@@ -16,7 +16,6 @@
  * ----------------------------
  */
 
-import { Client } from '@libsql/client';
 import { Inject, Injectable } from '@nestjs/common';
 import {
   Cacheable,
@@ -24,15 +23,15 @@ import {
   ICache,
 } from '@nestjs-pipeline/ddd-core';
 import { CACHE_TOKEN } from '@persistence/cache/memory.cache';
-import { TURSO_CLIENT } from '@persistence/turso-store';
-import { RoleSnapshot } from '../domain/models/role.entity';
+import { MIKRO_ORM_CLIENT, MikroOrmStore } from '@persistence/mikro-orm.store';
+import { Role, RoleSnapshot } from '../domain/models/role.entity';
 import { RoleUpdateOutcome } from '../domain/outcomes/role-update.outcome';
 
 @Injectable()
 export class UpdateRoleCommandRepository extends CommandRepository<RoleUpdateOutcome> {
   constructor(
     @Inject(CACHE_TOKEN) protected readonly cache: ICache<RoleSnapshot>,
-    @Inject(TURSO_CLIENT) private readonly client: Client,
+    @Inject(MIKRO_ORM_CLIENT) private readonly store: MikroOrmStore,
   ) {
     super(cache);
   }
@@ -41,18 +40,8 @@ export class UpdateRoleCommandRepository extends CommandRepository<RoleUpdateOut
   async save(domainOutcome: RoleUpdateOutcome): Promise<RoleSnapshot> {
     const { entity } = domainOutcome;
 
-    const snapshot = entity.toJSON();
+    const role = await this.store.em.upsert(Role, entity);
 
-    await this.client.execute({
-      sql: `INSERT OR REPLACE INTO roles (id, name, created_at, updated_at) VALUES (?, ?, ?, ?)`,
-      args: [
-        snapshot.id,
-        snapshot.name,
-        new Date(snapshot.createdAt).getTime(),
-        new Date(snapshot.updatedAt).getTime(),
-      ],
-    });
-
-    return snapshot;
+    return role.toJSON();
   }
 }

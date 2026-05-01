@@ -1171,8 +1171,7 @@ The `ddd/users-api/` directory contains a complete working application:
 ```bash
 cd ddd/users-api
 pnpm install
-pnpm db:migrate   # create tables (idempotent)
-pnpm db:seed      # populate demo data (runs migrate first)
+pnpm db:migrate   # apply schema + data migrations (idempotent)
 pnpm start
 ```
 
@@ -1181,7 +1180,7 @@ Configure the database via environment variables (defaults to a local file):
 | Variable             | Default         | Description                          |
 |----------------------|-----------------|--------------------------------------|
 | `DATABASE_URL` | `file:local.db` | libSQL database URL (file or remote) |
-| `AUTH_TOKEN`   | _(none)_        | Auth token for Turso cloud databases |
+| `AUTH_TOKEN`   | _(none)_        | Auth token for libSQL remote databases (e.g. Turso) |
 
 **CRUD operations:**
 
@@ -1214,15 +1213,15 @@ ADAPTER=fastify pnpm start
 
 - Global + per-handler pipeline behaviors
 - Per-handler CASL authorization with inline `rules` on `CaslBehaviorOptions` and `CaslBehavior`
-- Turso-backed CASL providers (roles, capabilities, user context)
+- MikroORM-backed CASL providers (roles, capabilities, user context)
 - Versioned database migrations with tracking (`_migrations` table)
 - Zod-validated commands, queries, and events via `createRequest()`
 - Controller-level `ZodPipe` validation
 - Zod transform mappers (DTO → Command mapping)
 - OpenTelemetry tracing with `TraceBehavior`
 - DDD-style `User` entity built on `ddd-core` primitives (`CacheableEntity`, `RootDomainEvent`, `RootDomainOutcome`)
-- Turso (libSQL) persistence with a normalized schema
-- Pluggable `ICache<T>` — `TursoCache` (Turso-backed, TTL-aware) or `MemoryCache` swapped via a single provider token
+- MikroORM (libSQL driver) persistence with a normalized schema
+- Pluggable `ICache<T>` — `MikroOrmCache` (MikroORM-backed, TTL-aware) or `MemoryCache` swapped via a single provider token
 - Correlation ID propagation across handlers and events
 - Express and Fastify adapter support
 
@@ -1280,12 +1279,14 @@ nestjs-pipeline/
     │       ├── models/            # RootEntity
     │       └── outcomes/          # DomainOutcome, RootDomainOutcome
     └── users-api/                # Full working example using ddd-core + casl
-        └── src/users/
-            ├── casl/             # Turso-backed CASL providers
-            ├── db/               # TursoStore, migrate.ts, seed.ts
-            ├── cqrs/             # Commands, queries, events
-            ├── domain/           # User entity, domain events, outcomes
-            └── persistence/      # Repositories, cache
+        └── src/
+            ├── persistence/      # MikroOrmStore, MikroOrmCache, schemas/, migrate.ts
+            ├── roles/            # MikroORM-backed CASL providers (role CRUD + capabilities)
+            ├── auths/            # Auth CRUD + user-context resolver
+            └── users/
+                ├── cqrs/         # Commands, queries, events
+                ├── domain/       # User entity, domain events, outcomes
+                └── persistence/  # Repositories
 ```
 
 ---

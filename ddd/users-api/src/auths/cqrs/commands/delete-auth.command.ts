@@ -16,6 +16,6 @@
  * ----------------------------
  */
 
-import { AuthCommand } from '@common/cqrs/commands/auth.command';
+import { SessionCommand } from '@common/cqrs/commands/session.command';
 
-export class DeleteAuthCommand extends AuthCommand { }
+export class DeleteAuthCommand extends SessionCommand { }

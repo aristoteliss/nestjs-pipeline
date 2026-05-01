@@ -16,33 +16,22 @@
  * ----------------------------
  */
 
-import { createClient } from '@libsql/client';
 import { Global, Module } from '@nestjs/common';
 import { CACHE_TOKEN } from './cache/memory.cache';
-import { TursoCache } from './cache/turso.cache';
+import { MikroOrmCache } from './cache/mikro-orm.cache';
 import { MIKRO_ORM_CLIENT, MikroOrmStore } from './mikro-orm.store';
-import { TURSO_CLIENT, TursoStore } from './turso-store';
 
 @Global()
 @Module({
   providers: [
-    {
-      provide: TURSO_CLIENT,
-      useFactory: () =>
-        createClient({
-          url: process.env.DATABASE_URL ?? 'file:local.db',
-          authToken: process.env.AUTH_TOKEN,
-        }),
-    },
-    TursoStore,
     MikroOrmStore,
     {
       provide: MIKRO_ORM_CLIENT,
       useFactory: (store: MikroOrmStore) => store,
       inject: [MikroOrmStore],
     },
-    { provide: CACHE_TOKEN, useClass: TursoCache },
+    { provide: CACHE_TOKEN, useClass: MikroOrmCache },
   ],
-  exports: [TURSO_CLIENT, MIKRO_ORM_CLIENT, CACHE_TOKEN],
+  exports: [MIKRO_ORM_CLIENT, CACHE_TOKEN],
 })
 export class PersistenceModule { }
