@@ -283,6 +283,18 @@ function toProvider(
 @Module({})
 // biome-ignore lint/complexity/noStaticOnlyClass: static-only class
 export class CaslModule {
+  /**
+   * Configures the CASL authorization module.
+   *
+   * Registers {@link CaslBehavior} plus the providers wiring up the configured
+   * role provider, user-context resolver, and user-capability provider, along
+   * with the global subject-context paths and default request fields. Attach
+   * `CaslBehavior` per handler (via `@UsePipeline`) or globally through
+   * `PipelineModule`.
+   *
+   * @param options - Providers and CASL defaults for the application.
+   * @returns The configured {@link DynamicModule}.
+   */
   static forRoot(options: CaslModuleOptions): DynamicModule {
     const providers: Provider[] = [CaslBehavior];
 

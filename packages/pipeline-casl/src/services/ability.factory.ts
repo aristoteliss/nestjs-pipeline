@@ -48,7 +48,7 @@ import type {
  */
 export function buildAbility(
   roles: RoleDefinition[],
-  user: CaslUserContext,
+  user?: CaslUserContext | undefined,
   additional?: Array<Capability | CapabilityString>,
   denied?: Array<Capability | CapabilityString>,
 ): AppAbility {

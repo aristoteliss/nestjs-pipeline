@@ -8,9 +8,15 @@
  *
  * --- COMMERCIAL EXCEPTION ---
  * Alternatively, a Commercial License is available for individuals or
- * companies that do not wish to be bound by the AGPL terms. Contact Aristotelis for details.
+ * organizations that require proprietary use without the AGPLv3
+ * copyleft restrictions.
+ *
+ * See COMMERCIAL_LICENSE.txt in this repository for the tiered
+ * revenue-based terms, or contact: aristotelis@ik.me
+ * ----------------------------
  */
 
+import { timingSafeEqual } from 'node:crypto';
 import { sessionUserStore } from '@common/context/session-user.store';
 import { Session } from '@fastify/secure-session';
 import {
@@ -37,7 +43,8 @@ import { type SessionData, SessionUser } from '../types/SessionUser';
  *
  * 1. An existing session cookie (automatic — handled by @fastify/secure-session)
  * 2. A Bearer JWT in the `Authorization` header (verified)
- * 3. The `x-api-id` header for API-client authentication
+ * 3. The `x-api-id` + `x-api-key` headers for API-client authentication, verified
+ *    against the credentials configured in the `API_CLIENTS` env var
  *
  * Why an Interceptor instead of a Middleware?
  * NestJS middleware with Fastify runs through @fastify/middie and receives the
@@ -54,6 +61,10 @@ import { type SessionData, SessionUser } from '../types/SessionUser';
 export class AuthSessionInterceptor implements NestInterceptor {
   private readonly encoder = new TextEncoder();
   private readonly logger = new Logger(AuthSessionInterceptor.name);
+  private apiClients?: Map<
+    string,
+    { key: string; capabilities?: UserCapabilities }
+  >;
 
   intercept(context: ExecutionContext, next: CallHandler): Observable<unknown> {
     const req = context.switchToHttp().getRequest<{
@@ -83,10 +94,7 @@ export class AuthSessionInterceptor implements NestInterceptor {
     req: { headers?: Record<string, string | string[] | undefined> },
     session: Session<SessionData>,
   ): Promise<SessionUser | undefined> {
-    const rawAuthorization = req.headers?.authorization;
-    const authHeader = Array.isArray(rawAuthorization)
-      ? rawAuthorization[0]
-      : rawAuthorization;
+    const authHeader = this.firstHeaderValue(req.headers?.authorization);
 
     if (typeof authHeader === 'string' && authHeader.startsWith('Bearer ')) {
       const token = authHeader.slice(7);
@@ -100,16 +108,106 @@ export class AuthSessionInterceptor implements NestInterceptor {
       }
     }
 
-    // TODO API header support
-    const apiId = req.headers?.['x-api-id'];
-    const normalizedAppId = Array.isArray(apiId) ? apiId[0] : apiId;
-    if (typeof normalizedAppId === 'string' && normalizedAppId.length > 0) {
-      session.set('api', { id: normalizedAppId });
-      this.logger.debug(
-        `Authenticated API client ${normalizedAppId} from x-api-id header`,
+    // API-client authentication via the `x-api-id` / `x-api-key` headers,
+    // verified against the credentials configured in `API_CLIENTS`.
+    return this.verifyApiClient(req, session);
+  }
+
+  /**
+   * Authenticates an API client from the `x-api-id` / `x-api-key` headers.
+   *
+   * On success it records the client on the session and returns a
+   * {@link SessionUser} carrying the client's configured capabilities, so the
+   * request flows through the same authorization pipeline as a human user.
+   * Returns `undefined` when no `x-api-id` is present, and throws
+   * {@link UnauthorizedException} when an `x-api-id` is presented but the
+   * credentials are missing or invalid.
+   */
+  private verifyApiClient(
+    req: { headers?: Record<string, string | string[] | undefined> },
+    session: Session<SessionData>,
+  ): SessionUser | undefined {
+    const apiId = this.firstHeaderValue(req.headers?.['x-api-id']);
+    if (!apiId) return undefined;
+
+    const apiKey = this.firstHeaderValue(req.headers?.['x-api-key']);
+    const client = this.getApiClients().get(apiId);
+
+    if (!client || !apiKey || !this.timingSafeEqualString(apiKey, client.key)) {
+      this.logger.warn(
+        `Rejected API client "${apiId}": missing or invalid x-api-key`,
       );
+      throw new UnauthorizedException('Invalid API credentials');
     }
-    return;
+
+    session.set('api', { id: apiId });
+    this.logger.debug(
+      `Authenticated API client ${apiId} from x-api-id/x-api-key headers`,
+    );
+
+    return { id: apiId, capabilities: client.capabilities };
+  }
+
+  /**
+   * Parses and caches the API-client credential map from the `API_CLIENTS`
+   * environment variable, which must be a JSON array of
+   * `{ id, key, capabilities? }` entries.
+   */
+  private getApiClients(): Map<
+    string,
+    { key: string; capabilities?: UserCapabilities }
+  > {
+    if (this.apiClients) return this.apiClients;
+
+    const clients = new Map<
+      string,
+      { key: string; capabilities?: UserCapabilities }
+    >();
+
+    const raw = process.env.API_CLIENTS;
+    if (raw) {
+      try {
+        const parsed: unknown = JSON.parse(raw);
+
+        for (const entry of Array.isArray(parsed) ? parsed : []) {
+          if (
+            entry &&
+            typeof entry.id === 'string' &&
+            entry.id.length > 0 &&
+            typeof entry.key === 'string' &&
+            entry.key.length > 0
+          ) {
+            clients.set(entry.id, {
+              key: entry.key,
+              capabilities: this.compactUserCapabilities(entry.capabilities),
+            });
+          }
+        }
+      } catch (_e: unknown) {
+        this.logger.warn(
+          'API_CLIENTS is set but is not valid JSON; API-client authentication is disabled.',
+        );
+      }
+    }
+
+    this.apiClients = clients;
+    return clients;
+  }
+
+  /** Returns the first value of a header that may arrive as a string or array. */
+  private firstHeaderValue(
+    value: string | string[] | undefined,
+  ): string | undefined {
+    const single = Array.isArray(value) ? value[0] : value;
+    return typeof single === 'string' && single.length > 0 ? single : undefined;
+  }
+
+  /** Constant-time string comparison to avoid leaking the key via timing. */
+  private timingSafeEqualString(a: string, b: string): boolean {
+    const aBytes = this.encoder.encode(a);
+    const bBytes = this.encoder.encode(b);
+    if (aBytes.length !== bBytes.length) return false;
+    return timingSafeEqual(aBytes, bBytes);
   }
 
   private async verifyAndSetSessionUser(
@@ -139,8 +237,6 @@ export class AuthSessionInterceptor implements NestInterceptor {
       const user: SessionUser = {
         id: payload.sub,
         email: typeof payload.email === 'string' ? payload.email : undefined,
-        tenantId:
-          typeof payload.tenantId === 'string' ? payload.tenantId : undefined,
         department:
           typeof payload.department === 'string'
             ? payload.department
@@ -159,7 +255,10 @@ export class AuthSessionInterceptor implements NestInterceptor {
       session.set('user', user);
       return user;
     } catch (e: unknown) {
-      // Invalid signature/claims; ignore and continue with fallback auth paths.
+      // A Bearer token was supplied but failed verification (bad signature,
+      // expired, or invalid claims). Reject the request rather than silently
+      // falling through to other auth paths — a malformed token is an explicit
+      // authentication attempt and must not be ignored.
       this.logger.warn(
         `Failed to verify JWT from Authorization header: ${e instanceof Error ? e.message : String(e)
         }`,
@@ -237,7 +336,7 @@ export class AuthSessionInterceptor implements NestInterceptor {
       }
     }
 
-    const secret = process.env.JWT_SECRET ?? process.env.AUTH_JWT_SECRET;
+    const secret = process.env.JWT_SECRET;
     if (secret) return this.encoder.encode(secret);
 
     return undefined;

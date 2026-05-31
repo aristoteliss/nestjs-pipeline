@@ -8,7 +8,12 @@
  *
  * --- COMMERCIAL EXCEPTION ---
  * Alternatively, a Commercial License is available for individuals or
- * companies that do not wish to be bound by the AGPL terms. Contact Aristotelis for details.
+ * organizations that require proprietary use without the AGPLv3
+ * copyleft restrictions.
+ *
+ * See COMMERCIAL_LICENSE.txt in this repository for the tiered
+ * revenue-based terms, or contact: aristotelis@ik.me
+ * ----------------------------
  */
 
 import { IncomingMessage } from 'node:http';
@@ -36,6 +41,7 @@ import {
   TraceBehavior,
 } from '@nestjs-pipeline/opentelemetry';
 import { ZodValidationBehavior } from '@nestjs-pipeline/zod';
+import { TenantSchemaMiddleware } from '@persistence/middlewares/tenant-schema.middleware';
 import { PersistenceModule } from '@persistence/persistence.module';
 import { LoggerModule, NativeLogger } from 'nestjs-pino';
 import { AuthsModule } from './auths/auths.module';
@@ -84,8 +90,15 @@ import { UsersModule } from './users/users.module';
       correlationIdFactory: getCorrelationId,
       correlationIdRunner: runWithCorrelationId,
       /**
-       * Register global behaviors once so all commands, queries, and events share
-       * the same logging/tracing/validation pipeline without per-handler decorators.
+       * Register global behaviors once so every command, query, and event handler
+       * shares the same logging/tracing/validation pipeline by default — without
+       * repeating them on each handler.
+       *
+       * A handler may still opt into a per-handler `@UsePipeline` entry: if it
+       * declares the same behavior class as a global one, the handler's entry
+       * REPLACES the global entry for that handler (it does not run twice). This is
+       * how individual handlers override `LoggingBehavior` with a custom
+       * `requestResponseLogLevel` while everything else falls back to these globals.
        *
        * before: LoggingBehavior
        * - emits request/response + timing logs
@@ -124,8 +137,15 @@ import { UsersModule } from './users/users.module';
   ],
 })
 export class AppModule implements NestModule {
+  constructor(private readonly tenantSchemaMiddleware: TenantSchemaMiddleware) { }
+
   configure(consumer: MiddlewareConsumer) {
-    consumer.apply(HttpCorrelationMiddleware).forRoutes('*');
+    consumer
+      .apply(
+        HttpCorrelationMiddleware,
+        this.tenantSchemaMiddleware.use.bind(this.tenantSchemaMiddleware),
+      )
+      .forRoutes('*');
   }
 }
 

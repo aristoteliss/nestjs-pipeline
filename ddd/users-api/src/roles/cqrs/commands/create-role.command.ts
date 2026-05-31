@@ -8,10 +8,15 @@
  *
  * --- COMMERCIAL EXCEPTION ---
  * Alternatively, a Commercial License is available for individuals or
- * companies that do not wish to be bound by the AGPL terms. Contact Aristotelis for details.
+ * organizations that require proprietary use without the AGPLv3
+ * copyleft restrictions.
+ *
+ * See COMMERCIAL_LICENSE.txt in this repository for the tiered
+ * revenue-based terms, or contact: aristotelis@ik.me
+ * ----------------------------
  */
 
-import { AuthCommand } from '@common/cqrs/commands/auth.command';
+import { BaseCommand } from '@common/cqrs/commands/base.command';
 import { createExecuteClass } from '@common/cqrs/helpers/createExecute.helper';
 import { z } from 'zod';
 
@@ -19,5 +24,5 @@ export class CreateRoleCommand extends createExecuteClass(
   z.object({
     name: z.string().min(3),
   }),
-  AuthCommand,
-) {}
+  BaseCommand,
+) { }

@@ -1,3 +1,21 @@
+/*
+ * Copyright (C) 2026-present Aristotelis
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as
+ * published by the Free Software Foundation, either version 3 of the
+ * License, or (at your option) any later version.
+ *
+ * --- COMMERCIAL EXCEPTION ---
+ * Alternatively, a Commercial License is available for individuals or
+ * organizations that require proprietary use without the AGPLv3
+ * copyleft restrictions.
+ *
+ * See COMMERCIAL_LICENSE.txt in this repository for the tiered
+ * revenue-based terms, or contact: aristotelis@ik.me
+ * ----------------------------
+ */
+
 import { describe, expect, it } from 'vitest';
 import {
   getBehaviorId,
@@ -39,7 +57,7 @@ class CustomIdBehavior implements IPipelineBehavior {
 describe('@UsePipeline decorator', () => {
   it('stores behavior classes in metadata', () => {
     @UsePipeline(BehaviorA, BehaviorB)
-    class TestHandler {}
+    class TestHandler { }
 
     const behaviors = Reflect.getMetadata(
       PIPELINE_BEHAVIORS_METADATA,
@@ -50,7 +68,7 @@ describe('@UsePipeline decorator', () => {
 
   it('stores empty options map when no options are provided', () => {
     @UsePipeline(BehaviorA)
-    class TestHandler {}
+    class TestHandler { }
 
     const options: Map<string, Record<string, unknown>> = Reflect.getMetadata(
       PIPELINE_BEHAVIORS_OPTIONS_METADATA,
@@ -64,7 +82,7 @@ describe('@UsePipeline decorator', () => {
     const opts = { requestResponseLogLevel: 'log' };
 
     @UsePipeline([BehaviorA, opts], BehaviorB)
-    class TestHandler {}
+    class TestHandler { }
 
     const behaviors = Reflect.getMetadata(
       PIPELINE_BEHAVIORS_METADATA,
@@ -83,7 +101,7 @@ describe('@UsePipeline decorator', () => {
     const opts = { foo: 'bar' };
 
     @UsePipeline([BehaviorA, opts])
-    class RegistryTestHandler {}
+    class RegistryTestHandler { }
 
     expect(PIPELINE_OPTIONS_REGISTRY.has(RegistryTestHandler.name)).toBe(true);
     const reg = PIPELINE_OPTIONS_REGISTRY.get(RegistryTestHandler.name)!;
@@ -92,7 +110,7 @@ describe('@UsePipeline decorator', () => {
 
   it('does not populate PIPELINE_OPTIONS_REGISTRY when no options are present', () => {
     @UsePipeline(BehaviorA)
-    class NoOptionsHandler {}
+    class NoOptionsHandler { }
 
     expect(PIPELINE_OPTIONS_REGISTRY.has(NoOptionsHandler.name)).toBe(false);
   });
@@ -102,7 +120,7 @@ describe('@UsePipeline decorator', () => {
     const optsB = { title: 'audit' };
 
     @UsePipeline([BehaviorA, optsA], [BehaviorB, optsB])
-    class MultiOptionsHandler {}
+    class MultiOptionsHandler { }
 
     const options: Map<string, Record<string, unknown>> = Reflect.getMetadata(
       PIPELINE_BEHAVIORS_OPTIONS_METADATA,
@@ -117,7 +135,7 @@ describe('@UsePipeline decorator', () => {
     const optsB = { key: 'value' };
 
     @UsePipeline(BehaviorA, [BehaviorB, optsB])
-    class MixedHandler {}
+    class MixedHandler { }
 
     const behaviors = Reflect.getMetadata(
       PIPELINE_BEHAVIORS_METADATA,

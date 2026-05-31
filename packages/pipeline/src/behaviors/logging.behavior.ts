@@ -14,14 +14,6 @@
  * See COMMERCIAL_LICENSE.txt in this repository for the tiered
  * revenue-based terms, or contact: aristotelis@ik.me
  * ----------------------------
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU Affero General Public License for more details.
- *
- * You should have received a copy of the GNU Affero General Public License
- * along with this program. If not, see <https://www.gnu.org/licenses/>.
  */
 
 import { performance } from 'node:perf_hooks';
@@ -107,6 +99,15 @@ interface ContextLogger extends LoggerService {
   setContext(context: string): void;
 }
 
+/**
+ * Pipeline behavior that logs each request/response and execution timing.
+ *
+ * Emits the incoming request, a completion metric (duration), and the response,
+ * each at a configurable log level (see `LoggingBehaviorOptions`). Request and
+ * response payloads are excluded by default and can be opted in, with key-based
+ * redaction. Uses the logger bound to `LOGGING_BEHAVIOR_LOGGER` (e.g. nestjs-pino)
+ * when provided, otherwise falls back to the Nest `Logger`.
+ */
 @Injectable()
 export class LoggingBehavior implements IPipelineBehavior {
   private readonly logger: LoggerService;

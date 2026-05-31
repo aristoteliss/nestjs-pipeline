@@ -8,8 +8,14 @@
  *
  * --- COMMERCIAL EXCEPTION ---
  * Alternatively, a Commercial License is available for individuals or
- * companies that do not wish to be bound by the AGPL terms. Contact Aristotelis for details.
+ * organizations that require proprietary use without the AGPLv3
+ * copyleft restrictions.
+ *
+ * See COMMERCIAL_LICENSE.txt in this repository for the tiered
+ * revenue-based terms, or contact: aristotelis@ik.me
+ * ----------------------------
  */
+
 import { Inject, Scope } from '@nestjs/common';
 import { CommandHandler, EventBus } from '@nestjs/cqrs';
 import { CaslBehavior } from '@nestjs-pipeline/casl';
@@ -28,6 +34,7 @@ import {
 import { GetUserQuery } from '../queries/get-user.query';
 import { UpdateUserCommand } from './update-user.command';
 
+// Example of using request-scoped handler if needed for per-request dependencies
 @CommandHandler(UpdateUserCommand, { scope: Scope.REQUEST })
 @UsePipeline([LoggingBehavior, { requestResponseLogLevel: 'log' }],
   [
@@ -55,7 +62,8 @@ export class UpdateUserHandler extends CommandBaseHandler<
   async handle(command: UpdateUserCommand): Promise<UserUpdateOutcome> {
     const { id, username, department } = command;
 
-    const query = new GetUserQuery({ userId: id });
+    const query = new GetUserQuery({ userId: id }, { hydrate: true });
+
     const user = await this.queryRepository.find(query);
 
     const outcome = user.update({ username, department });

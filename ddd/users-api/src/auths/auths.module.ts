@@ -8,10 +8,17 @@
  *
  * --- COMMERCIAL EXCEPTION ---
  * Alternatively, a Commercial License is available for individuals or
- * companies that do not wish to be bound by the AGPL terms. Contact Aristotelis for details.
+ * organizations that require proprietary use without the AGPLv3
+ * copyleft restrictions.
+ *
+ * See COMMERCIAL_LICENSE.txt in this repository for the tiered
+ * revenue-based terms, or contact: aristotelis@ik.me
+ * ----------------------------
  */
 
 import { Module } from '@nestjs/common';
+import { GetUserQueryRepository } from '../users/persistence/get-user.query-repository';
+import { EXT_USER_QUERY_REPOSITORY } from '../users/repositories/repository.tokens';
 import { AuthsController } from './controllers/auths.controller';
 import { CreateAuthHandler } from './cqrs/commands/create-auth.handler';
 import { DeleteAuthHandler } from './cqrs/commands/delete-auth.handler';
@@ -23,18 +30,22 @@ import {
   COMMAND_REPOSITORY,
   QUERY_REPOSITORY,
 } from './repositories/repository.tokens';
-import { AuthService } from './services/auth.serivce';
+import { AuthService } from './services/auth.service';
 
 @Module({
   controllers: [AuthsController],
   providers: [
     // Repositories (Query)
     {
+      provide: EXT_USER_QUERY_REPOSITORY.getUser,
+      useClass: GetUserQueryRepository,
+    },
+    {
       provide: QUERY_REPOSITORY.getUserCapabilities,
       useClass: GetUserCapabilitiesQueryRepository,
     },
 
-    // Repositories (Commnad)
+    // Repositories (Command)
     {
       provide: COMMAND_REPOSITORY.createAuth,
       useClass: CreateAuthCommandRepository,
@@ -53,4 +64,4 @@ import { AuthService } from './services/auth.serivce';
     CreatedAuthHandler,
   ],
 })
-export class AuthsModule {}
+export class AuthsModule { }

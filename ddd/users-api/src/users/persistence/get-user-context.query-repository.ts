@@ -1,4 +1,21 @@
-import type { Client } from '@libsql/client';
+/*
+ * Copyright (C) 2026-present Aristotelis
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as
+ * published by the Free Software Foundation, either version 3 of the
+ * License, or (at your option) any later version.
+ *
+ * --- COMMERCIAL EXCEPTION ---
+ * Alternatively, a Commercial License is available for individuals or
+ * organizations that require proprietary use without the AGPLv3
+ * copyleft restrictions.
+ *
+ * See COMMERCIAL_LICENSE.txt in this repository for the tiered
+ * revenue-based terms, or contact: aristotelis@ik.me
+ * ----------------------------
+ */
+
 import { Inject, Injectable, Optional, Scope } from '@nestjs/common';
 import type {
   CaslBehaviorOptions,
@@ -7,10 +24,11 @@ import type {
 } from '@nestjs-pipeline/casl';
 import { CASL_SUBJECT_CONTEXT_PATHS } from '@nestjs-pipeline/casl';
 import type { IPipelineContext } from '@nestjs-pipeline/core';
-import { Cache, ICache, QueryRepository } from '@nestjs-pipeline/ddd-core';
+import { FromCache, ICache, QueryRepository } from '@nestjs-pipeline/ddd-core';
 import { CACHE_TOKEN } from '@persistence/cache/memory.cache';
-import { TURSO_CLIENT } from '@persistence/turso-store';
+import { MIKRO_ORM_CLIENT, MikroOrmStore } from '@persistence/mikro-orm.store';
 import { GetUserContextQuery } from '../cqrs/queries/get-user-context.query';
+import { User } from '../domain/models/user.entity';
 
 /**
  * Resolves the CASL user context from the HTTP request.
@@ -30,7 +48,7 @@ export class GetUserContextQueryRepository
   constructor(
     @Inject(CACHE_TOKEN)
     protected readonly cache: ICache<CaslUserContext | null>,
-    @Inject(TURSO_CLIENT) private readonly client: Client,
+    @Inject(MIKRO_ORM_CLIENT) private readonly store: MikroOrmStore,
     @Optional()
     @Inject(CASL_SUBJECT_CONTEXT_PATHS)
     private readonly subjectContextPaths?: CaslBehaviorOptions['subjectContextPaths'],
@@ -47,7 +65,6 @@ export class GetUserContextQueryRepository
     if (userContext.capabilities) {
       return {
         id: userContext.id,
-        tenantId: userContext.tenantId,
         department: userContext.department,
         capabilities: userContext.capabilities,
       } as CaslUserContext;
@@ -97,24 +114,19 @@ export class GetUserContextQueryRepository
     return current as Record<string, unknown>;
   }
 
-  @Cache<GetUserContextQuery, CaslUserContext | undefined>(
+  @FromCache<GetUserContextQuery, CaslUserContext | undefined>(
     (q) => `user:context:${q.userId}`,
   )
   async find(query: GetUserContextQuery): Promise<CaslUserContext | null> {
     const { userId } = query;
 
-    const result = await this.client.execute({
-      sql: `SELECT id, tenant_id, department FROM users WHERE id = ?`,
-      args: [userId],
-    });
+    const user = await this.store.em.findOne(User, { id: userId });
 
-    const row = result.rows[0];
-    if (!row) return null;
+    if (!user) return null;
 
     return {
-      id: row.id as string,
-      tenantId: row.tenant_id as string,
-      department: row.department as string | null,
-    };
+      id: user.id,
+      department: user.department as string | null,
+    } as CaslUserContext;
   }
 }

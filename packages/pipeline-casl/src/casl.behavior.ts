@@ -49,9 +49,8 @@ import { buildAbility } from './services/ability.factory';
 import type {
   AbilityRequirement,
   AppAbility,
-  Capability,
-  CapabilityString,
   CaslUserContext,
+  UserCapabilities,
 } from './types/casl.types';
 
 /**
@@ -554,25 +553,64 @@ export class CaslBehavior implements IPipelineBehavior {
   private async buildAbilityForUser(
     user: CaslUserContext,
   ): Promise<AppAbility> {
-    // Load per-user capability overrides if provider exists
-    let additional: undefined | Array<Capability | CapabilityString>;
-    let denied: typeof additional;
+    // Prefer capabilities already resolved onto the user context (e.g. from a
+    // JWT claim or session) to avoid a redundant per-request lookup. The role
+    // provider still expands role names into capabilities.
+    const preResolved = this.extractUserCapabilities(user);
+    if (preResolved) {
+      const roles = await this.roleProvider.getRoles(preResolved.roles);
+      return buildAbility(
+        roles,
+        user,
+        preResolved.additionalCapabilities,
+        preResolved.deniedCapabilities,
+      );
+    }
 
+    // Otherwise load per-user capability overrides from the provider.
     if (this.userCapabilityProvider) {
       const userCaps =
         await this.userCapabilityProvider.getUserCapabilities(user);
-      const roleNames = userCaps.roles;
-      const roles = await this.roleProvider.getRoles(roleNames);
-      additional = userCaps.additionalCapabilities;
-      denied = userCaps.deniedCapabilities;
-      return buildAbility(roles, user, additional, denied);
+      const roles = await this.roleProvider.getRoles(userCaps.roles);
+      return buildAbility(
+        roles,
+        user,
+        userCaps.additionalCapabilities,
+        userCaps.deniedCapabilities,
+      );
     }
 
-    // No IUserCapabilityProvider — cannot load user roles.
+    // No pre-resolved capabilities and no IUserCapabilityProvider — cannot
+    // determine user roles.
     throw new Error(
-      'No IUserCapabilityProvider registered — cannot determine user roles. ' +
-      'Register an IUserCapabilityProvider or use CaslBehaviorOptions.prebuiltAbility.',
+      'No IUserCapabilityProvider registered and no capabilities present on the ' +
+      'user context — cannot determine user roles. Register an ' +
+      'IUserCapabilityProvider, attach capabilities to the resolved user, or use ' +
+      'CaslBehaviorOptions.prebuiltAbility.',
     );
+  }
+
+  /**
+   * Extract a pre-resolved {@link UserCapabilities} bag from the user context,
+   * if the authentication layer attached one (e.g. from a verified JWT claim).
+   *
+   * Returns `undefined` when the context does not carry a valid capabilities
+   * shape, so the behavior can fall back to the {@link IUserCapabilityProvider}.
+   */
+  private extractUserCapabilities(
+    user: CaslUserContext,
+  ): UserCapabilities | undefined {
+    const candidate = (user as { capabilities?: unknown }).capabilities;
+    if (!candidate || typeof candidate !== 'object') return undefined;
+
+    const bag = candidate as Partial<UserCapabilities>;
+    if (!Array.isArray(bag.roles)) return undefined;
+
+    return {
+      roles: bag.roles,
+      additionalCapabilities: bag.additionalCapabilities,
+      deniedCapabilities: bag.deniedCapabilities,
+    };
   }
 
   private checkRequirements(

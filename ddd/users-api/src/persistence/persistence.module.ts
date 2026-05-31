@@ -8,29 +8,44 @@
  *
  * --- COMMERCIAL EXCEPTION ---
  * Alternatively, a Commercial License is available for individuals or
- * companies that do not wish to be bound by the AGPL terms. Contact Aristotelis for details.
+ * organizations that require proprietary use without the AGPLv3
+ * copyleft restrictions.
+ *
+ * See COMMERCIAL_LICENSE.txt in this repository for the tiered
+ * revenue-based terms, or contact: aristotelis@ik.me
+ * ----------------------------
  */
 
-import { createClient } from '@libsql/client';
 import { Global, Module } from '@nestjs/common';
 import { CACHE_TOKEN } from './cache/memory.cache';
-import { TursoCache } from './cache/turso.cache';
-import { TURSO_CLIENT, TursoStore } from './turso-store';
+import { MikroOrmCache } from './cache/mikro-orm.cache';
+import { TenantSchemaMiddleware } from './middlewares/tenant-schema.middleware';
+import { MIKRO_ORM_CLIENT, MikroOrmStore } from './mikro-orm.store';
+import { PostgresMikroOrmStore } from './postgres-mikro-orm.store';
+import { TenantSchemaContext } from './tenant-schema.context';
 
 @Global()
 @Module({
   providers: [
+    TenantSchemaContext,
+    MikroOrmStore,
+    PostgresMikroOrmStore,
     {
-      provide: TURSO_CLIENT,
-      useFactory: () =>
-        createClient({
-          url: process.env.TURSO_DATABASE_URL ?? 'file:local.db',
-          authToken: process.env.TURSO_AUTH_TOKEN,
-        }),
+      provide: TenantSchemaMiddleware,
+      useFactory: (tenantSchemaContext: TenantSchemaContext) =>
+        new TenantSchemaMiddleware(tenantSchemaContext),
+      inject: [TenantSchemaContext],
     },
-    TursoStore,
-    { provide: CACHE_TOKEN, useClass: TursoCache },
+    {
+      provide: MIKRO_ORM_CLIENT,
+      useFactory: (
+        sqliteStore: MikroOrmStore,
+        postgresStore: PostgresMikroOrmStore,
+      ) => (process.env.DB_ENGINE === 'postgres' ? postgresStore : sqliteStore),
+      inject: [MikroOrmStore, PostgresMikroOrmStore],
+    },
+    { provide: CACHE_TOKEN, useClass: MikroOrmCache },
   ],
-  exports: [TURSO_CLIENT, CACHE_TOKEN],
+  exports: [MIKRO_ORM_CLIENT, CACHE_TOKEN, TenantSchemaContext, TenantSchemaMiddleware],
 })
-export class PersistenceModule {}
+export class PersistenceModule { }

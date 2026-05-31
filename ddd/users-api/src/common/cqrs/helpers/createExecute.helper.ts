@@ -8,7 +8,12 @@
  *
  * --- COMMERCIAL EXCEPTION ---
  * Alternatively, a Commercial License is available for individuals or
- * companies that do not wish to be bound by the AGPL terms. Contact Aristotelis for details.
+ * organizations that require proprietary use without the AGPLv3
+ * copyleft restrictions.
+ *
+ * See COMMERCIAL_LICENSE.txt in this repository for the tiered
+ * revenue-based terms, or contact: aristotelis@ik.me
+ * ----------------------------
  */
 
 import { ZodValidationError } from '@nestjs-pipeline/zod';
@@ -20,7 +25,7 @@ type ExecuteClass<
   TSchema extends ZodObject<ZodRawShape>,
   TBase extends AbstractConstructor,
 > = {
-  new (
+  new(
     input: z.input<TSchema>,
     ...baseArgs: ConstructorParameters<TBase>
   ): InstanceType<TBase> & z.output<TSchema>;
@@ -39,15 +44,13 @@ type ExecuteClass<
  *   const schema = z.object({ id: z.string().uuid() });
  *   export class DeleteUserCommand extends createExecuteClass(schema) {}
  *
- * With base options:
- *   export class GetUserQuery extends createExecuteClass(schema, QueryOptions) {}
  */
 export function createExecuteClass<
   TSchema extends ZodObject<ZodRawShape>,
   TBase extends AbstractConstructor = AbstractConstructor,
 >(schema: TSchema, Base?: TBase): ExecuteClass<TSchema, TBase> {
   type Input = z.input<TSchema>;
-  const Parent = (Base ?? class {}) as new (...args: unknown[]) => object;
+  const Parent = (Base ?? class { }) as new (...args: unknown[]) => object;
 
   class Execute extends Parent {
     /** Attached so ZodValidationBehavior can discover and validate the schema. */

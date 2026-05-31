@@ -27,6 +27,8 @@
     ],
     "ignoredBuiltDependencies": [
       "@nestjs/core",
+      "better-sqlite3",
+      "msgpackr-extract",
       "protobufjs"
     ]
   }

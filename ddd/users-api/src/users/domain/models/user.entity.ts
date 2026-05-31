@@ -8,7 +8,12 @@
  *
  * --- COMMERCIAL EXCEPTION ---
  * Alternatively, a Commercial License is available for individuals or
- * companies that do not wish to be bound by the AGPL terms. Contact Aristotelis for details.
+ * organizations that require proprietary use without the AGPLv3
+ * copyleft restrictions.
+ *
+ * See COMMERCIAL_LICENSE.txt in this repository for the tiered
+ * revenue-based terms, or contact: aristotelis@ik.me
+ * ----------------------------
  */
 
 import {
@@ -25,7 +30,6 @@ import { UserUpdateOutcome } from '../outcomes/user-update.outcome';
 export interface UserSnapshot extends Partial<RootEntitySnapshot> {
   readonly username: string;
   readonly email: string;
-  readonly tenantId: string;
   readonly department?: string | null;
 }
 
@@ -48,27 +52,23 @@ export class User extends CacheableEntity<UserSnapshot, User> {
   private _username: string;
   private _department: string | null;
   readonly email: string;
-  readonly tenantId: string;
 
   private constructor(snapshot: UserSnapshot) {
     super(User, snapshot);
     this._username = User.normalizeWithMinLength(snapshot, 'username', USERNAME_MIN_LENGTH);
     this._department = User.normalizeWithMinLength(snapshot, 'department', DEPARTMENT_MIN_LENGTH);
     this.email = snapshot.email;
-    this.tenantId = snapshot.tenantId;
   }
 
   static create(
     username: string,
     email: string,
-    tenantId: string,
     department?: string | null,
   ): UserCreateOutcome {
     const user = new User({
       username: User.normalizeWithMinLength({ username }, 'username', USERNAME_MIN_LENGTH),
       department: User.normalizeWithMinLength({ department }, 'department', DEPARTMENT_MIN_LENGTH),
       email,
-      tenantId,
     });
 
     const events = [new UserCreatedEvent(user)];
@@ -81,7 +81,6 @@ export class User extends CacheableEntity<UserSnapshot, User> {
       id: User.normalizeId(snapshot.id),
       username: User.normalizeWithMinLength(snapshot, 'username', USERNAME_MIN_LENGTH),
       email: snapshot.email,
-      tenantId: snapshot.tenantId,
       department: User.normalizeWithMinLength(snapshot, 'department', DEPARTMENT_MIN_LENGTH),
       createdAt: User.normalizeDate(snapshot.createdAt),
       updatedAt: User.normalizeDate(snapshot.updatedAt),
@@ -133,7 +132,6 @@ export class User extends CacheableEntity<UserSnapshot, User> {
       username: this._username,
       department: this._department,
       email: this.email,
-      tenantId: this.tenantId,
       createdAt: this.createdAt,
       updatedAt: this.updatedAt,
     });
@@ -143,3 +141,4 @@ export class User extends CacheableEntity<UserSnapshot, User> {
     // No side effects needed on update for User, but this method must be implemented
   }
 }
+

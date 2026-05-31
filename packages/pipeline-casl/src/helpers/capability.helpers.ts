@@ -243,7 +243,7 @@ function getNestedValue(obj: Record<string, unknown>, path: string): unknown {
  */
 export function capabilityToRawRule(
   capability: Capability,
-  user?: CaslUserContext,
+  user?: CaslUserContext | undefined,
 ): AppRawRule {
   const rule: AppRawRule = {
     action: capability.action,
@@ -279,7 +279,7 @@ export function capabilityToRawRule(
  */
 export function capabilitiesToRawRules(
   capabilities: Array<Capability | CapabilityString>,
-  user?: CaslUserContext,
+  user?: CaslUserContext | undefined,
 ): AppRawRule[] {
   const normalized = capabilities.map(normalizeCapability);
 

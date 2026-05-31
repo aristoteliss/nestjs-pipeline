@@ -1,149 +1,150 @@
-/**
- * Database migration runner for the users-api Turso store.
+/*
+ * Copyright (C) 2026-present Aristotelis
  *
- * Standalone:  pnpm db:migrate
- * Programmatic: import { migrate } from './migrate' and call it with a Client.
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as
+ * published by the Free Software Foundation, either version 3 of the
+ * License, or (at your option) any later version.
  *
- * Tracks applied migrations in a `_migrations` table so each migration
- * runs at most once (idempotent on re-run).
+ * --- COMMERCIAL EXCEPTION ---
+ * Alternatively, a Commercial License is available for individuals or
+ * organizations that require proprietary use without the AGPLv3
+ * copyleft restrictions.
+ *
+ * See COMMERCIAL_LICENSE.txt in this repository for the tiered
+ * revenue-based terms, or contact: aristotelis@ik.me
+ * ----------------------------
  */
 
-import type { Client } from '@libsql/client';
+import { MikroORM } from '@mikro-orm/core';
+import { LibSqlDriver } from '@mikro-orm/libsql';
+import {
+  createLibsqlOrmOptions,
+  DEFAULT_SQLITE_DATABASE_URL,
+} from './libsql-options';
+import {
+  createPostgresOrmOptions,
+  normalizeSchemaName,
+} from './postgres-options';
 
-export interface Migration {
-  version: number;
-  name: string;
-  sql: string[];
+function isPostgresEngine(): boolean {
+  return (process.env.DB_ENGINE ?? '').toLowerCase() === 'postgres';
 }
 
-/**
- * All migrations in order. Append new ones at the end with the next version.
- */
-export const migrations: Migration[] = [
-  {
-    version: 1,
-    name: 'create_users_and_cache',
-    sql: [
-      `CREATE TABLE IF NOT EXISTS users (
-        id         TEXT     PRIMARY KEY,
-        username   TEXT     NOT NULL,
-        email      TEXT     NOT NULL,
-        tenant_id  TEXT,
-        department TEXT,
-        created_at INTEGER  NOT NULL,
-        updated_at INTEGER  NOT NULL
-      )`,
-      `CREATE TABLE IF NOT EXISTS cache (
-        key        TEXT    PRIMARY KEY,
-        value      TEXT    NOT NULL,
-        expires_at INTEGER
-      )`,
-    ],
-  },
-  {
-    version: 2,
-    name: 'create_casl_tables',
-    sql: [
-      `CREATE TABLE IF NOT EXISTS capabilities (
-        id         TEXT    PRIMARY KEY,
-        subject    TEXT    NOT NULL,
-        action     TEXT    NOT NULL,
-        conditions TEXT,
-        inverted   INTEGER NOT NULL DEFAULT 0,
-        reason     TEXT,
-        fields     TEXT
-      )`,
-      `CREATE TABLE IF NOT EXISTS roles (
-        id   TEXT PRIMARY KEY,
-        name TEXT NOT NULL UNIQUE
-      )`,
-      `CREATE TABLE IF NOT EXISTS role_capabilities (
-        role_id       TEXT NOT NULL REFERENCES roles(id),
-        capability_id TEXT NOT NULL REFERENCES capabilities(id),
-        PRIMARY KEY (role_id, capability_id)
-      )`,
-      `CREATE TABLE IF NOT EXISTS user_roles (
-        user_id TEXT NOT NULL REFERENCES users(id),
-        role_id TEXT NOT NULL REFERENCES roles(id),
-        PRIMARY KEY (user_id, role_id)
-      )`,
-      `CREATE TABLE IF NOT EXISTS user_additional_capabilities (
-        user_id       TEXT NOT NULL REFERENCES users(id),
-        capability_id TEXT NOT NULL REFERENCES capabilities(id),
-        PRIMARY KEY (user_id, capability_id)
-      )`,
-      `CREATE TABLE IF NOT EXISTS user_denied_capabilities (
-        user_id       TEXT NOT NULL REFERENCES users(id),
-        capability_id TEXT NOT NULL REFERENCES capabilities(id),
-        PRIMARY KEY (user_id, capability_id)
-      )`,
-    ],
-  },
-  {
-    version: 3,
-    name: 'add_role_timestamps',
-    sql: [
-      `ALTER TABLE roles ADD COLUMN created_at INTEGER`,
-      `ALTER TABLE roles ADD COLUMN updated_at INTEGER`,
-      `UPDATE roles SET created_at = (CAST(strftime('%s', 'now') AS INTEGER) * 1000), updated_at = (CAST(strftime('%s', 'now') AS INTEGER) * 1000) WHERE created_at IS NULL`,
-    ],
-  },
-  {
-    version: 4,
-    name: 'create_auth_table',
-    sql: [
-      `CREATE TABLE IF NOT EXISTS auth (
-        id         TEXT     PRIMARY KEY,
-        tenant_id  TEXT,
-        token      TEXT     NOT NULL,
-        created_at INTEGER  NOT NULL,
-        updated_at INTEGER  NOT NULL
-      )`,
-    ],
-  },
-];
-
-/**
- * Run all pending migrations against the given client.
- * Returns the number of migrations applied.
- */
-export async function migrate(client: Client): Promise<number> {
-  // Ensure the migrations tracking table exists
-  await client.execute(
-    `CREATE TABLE IF NOT EXISTS _migrations (
-      version    INTEGER PRIMARY KEY,
-      name       TEXT    NOT NULL,
-      applied_at INTEGER NOT NULL
-    )`,
-  );
-
-  // Fetch already-applied versions
-  const applied = await client.execute('SELECT version FROM _migrations');
-  const appliedSet = new Set(applied.rows.map((r) => Number(r.version)));
-
-  let count = 0;
-  for (const m of migrations) {
-    if (appliedSet.has(m.version)) continue;
-
-    await client.batch(
-      [
-        ...m.sql,
-        {
-          sql: 'INSERT INTO _migrations (version, name, applied_at) VALUES (?, ?, ?)',
-          args: [m.version, m.name, Date.now()],
-        },
-      ],
-      'write',
-    );
-    count++;
-    console.log(`  ✓ migration ${m.version}: ${m.name}`);
+function parseSchemas(): string[] {
+  const list = process.env.TENANT_SCHEMAS ?? process.env.DB_DEFAULT_SCHEMA;
+  if (!list) {
+    return [normalizeSchemaName(undefined)];
   }
 
-  return count;
+  return list
+    .split(',')
+    .map((value) => normalizeSchemaName(value))
+    .filter((value, index, all) => all.indexOf(value) === index);
 }
 
-// ── CLI entry point ────────────────────────────────────────────────────────
-// Only runs when executed directly: pnpm db:migrate
+function parseSqliteTenants(): string[] {
+  const list = process.env.SQLITE_TENANTS ?? process.env.TENANT_SCHEMAS;
+  if (!list) {
+    return ['default'];
+  }
+
+  return list
+    .split(',')
+    .map((value) => value.trim())
+    .filter(Boolean)
+    .filter((value, index, all) => all.indexOf(value) === index);
+}
+
+function resolveLibsqlDbName(tenant: string, totalTenants: number): string {
+  const base =
+    process.env.SQLITE_DATABASE_TEMPLATE ??
+    process.env.DATABASE_URL ??
+    DEFAULT_SQLITE_DATABASE_URL;
+
+  if (base.includes('{tenant}')) {
+    return base.replaceAll('{tenant}', tenant);
+  }
+
+  if (totalTenants <= 1) {
+    return base;
+  }
+
+  if (!base.startsWith('file:')) {
+    throw new Error(
+      'For multiple sqlite tenants set SQLITE_DATABASE_TEMPLATE with {tenant}.',
+    );
+  }
+
+  const filePath = base.slice('file:'.length);
+  const dotIndex = filePath.lastIndexOf('.');
+
+  if (dotIndex > 0) {
+    return `file:${filePath.slice(0, dotIndex)}-${tenant}${filePath.slice(dotIndex)}`;
+  }
+
+  return `file:${filePath}-${tenant}`;
+}
+
+async function migrateSchema(schema: string): Promise<number> {
+  const originalSeedTenant = process.env.SEED_TENANT;
+  const orm = await MikroORM.init(createPostgresOrmOptions(schema));
+
+  try {
+    process.env.SEED_TENANT = schema;
+    await orm.em.getConnection().execute(`create schema if not exists "${schema}";`);
+    const executed = await orm.migrator.up();
+    return Array.isArray(executed) ? executed.length : 0;
+  } finally {
+    process.env.SEED_TENANT = originalSeedTenant;
+    await orm.close();
+  }
+}
+
+async function migrateLibsqlTenant(
+  tenant: string,
+  totalTenants: number,
+): Promise<number> {
+  const originalSeedTenant = process.env.SEED_TENANT;
+  const dbName = resolveLibsqlDbName(tenant, totalTenants);
+  const orm = await MikroORM.init<LibSqlDriver>(createLibsqlOrmOptions(dbName));
+
+  try {
+    process.env.SEED_TENANT = tenant;
+    const executed = await orm.migrator.up();
+    return Array.isArray(executed) ? executed.length : 0;
+  } finally {
+    process.env.SEED_TENANT = originalSeedTenant;
+    await orm.close();
+  }
+}
+
+async function migrateLibsql(): Promise<number> {
+  const tenants = parseSqliteTenants();
+  let total = 0;
+
+  for (const tenant of tenants) {
+    total += await migrateLibsqlTenant(tenant, tenants.length);
+  }
+
+  return total;
+}
+
+export async function migrate(): Promise<number> {
+  if (!isPostgresEngine()) {
+    return migrateLibsql();
+  }
+
+  const schemas = parseSchemas();
+  let total = 0;
+
+  for (const schema of schemas) {
+    total += await migrateSchema(schema);
+  }
+
+  return total;
+}
+
 if (
   process.argv[1] &&
   (process.argv[1].endsWith('/migrate.ts') ||
@@ -151,19 +152,11 @@ if (
 ) {
   (async () => {
     process.loadEnvFile();
-    const { createClient } = await import('@libsql/client');
-    const client = createClient({
-      url: process.env.TURSO_DATABASE_URL ?? 'file:local.db',
-      authToken: process.env.TURSO_AUTH_TOKEN,
-    });
-
-    console.log('Running migrations…');
-    const applied = await migrate(client);
+    const applied = await migrate();
     console.log(
       applied > 0
-        ? `Done — ${applied} migration(s) applied.`
+        ? `Done - ${applied} migration(s) applied.`
         : 'Already up to date.',
     );
-    client.close();
   })();
 }

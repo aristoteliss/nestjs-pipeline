@@ -14,14 +14,6 @@
  * See COMMERCIAL_LICENSE.txt in this repository for the tiered
  * revenue-based terms, or contact: aristotelis@ik.me
  * ----------------------------
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU Affero General Public License for more details.
- *
- * You should have received a copy of the GNU Affero General Public License
- * along with this program. If not, see <https://www.gnu.org/licenses/>.
  */
 
 import {
@@ -72,6 +64,14 @@ function isSdkInitialized(): boolean {
   return !!delegate && typeof delegate.getTracer === 'function';
 }
 
+/**
+ * Pipeline behavior that wraps each handler in an OpenTelemetry span.
+ *
+ * On module init it checks whether an OTel SDK/tracer provider is active. If the
+ * SDK is not initialized, the behavior logs a warning and passes through without
+ * tracing so handlers still run. Uses the logger bound to
+ * `LOGGING_BEHAVIOR_LOGGER` (e.g. nestjs-pino) when provided.
+ */
 @Injectable()
 export class TraceBehavior implements IPipelineBehavior, OnModuleInit {
   private readonly logger: LoggerService;
@@ -91,8 +91,8 @@ export class TraceBehavior implements IPipelineBehavior, OnModuleInit {
 
     this.logger = logger;
     this.context = TraceBehavior.name;
-    if (typeof (this.logger as any).setContext === 'function') {
-      (this.logger as any).setContext(this.context);
+    if (typeof (untyped(this.logger)).setContext === 'function') {
+      (this.logger as LoggerService & { setContext(context: string): void }).setContext(this.context);
     }
   }
 

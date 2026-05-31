@@ -1,5 +1,30 @@
+/*
+ * Copyright (C) 2026-present Aristotelis
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as
+ * published by the Free Software Foundation, either version 3 of the
+ * License, or (at your option) any later version.
+ *
+ * --- COMMERCIAL EXCEPTION ---
+ * Alternatively, a Commercial License is available for individuals or
+ * organizations that require proprietary use without the AGPLv3
+ * copyleft restrictions.
+ *
+ * See COMMERCIAL_LICENSE.txt in this repository for the tiered
+ * revenue-based terms, or contact: aristotelis@ik.me
+ * ----------------------------
+ */
+
 import { DomainEvent } from '../events/domain.event';
 
+/**
+ * Base class for the result of a domain operation.
+ *
+ * Collects the {@link DomainEvent}s raised while producing the outcome. The
+ * command base handler publishes these events automatically after the handler
+ * returns.
+ */
 export abstract class DomainOutcome {
   public readonly events: Array<DomainEvent>;
 

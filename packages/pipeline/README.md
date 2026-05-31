@@ -375,7 +375,7 @@ PipelineModule.forRoot({
 
 ### Deduplication
 
-When the same behavior class appears in both global and handler-level configurations, the **handler-level entry wins** (including its options). The duplicate global entry is removed:
+When the same behavior class appears in both global and handler-level configurations, the **handler-level entry wins** (including its options). Global duplicates are deduplicated:
 
 ```typescript
 // Global: LoggingBehavior with default options
