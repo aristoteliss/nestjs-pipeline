@@ -17,7 +17,7 @@
  */
 
 import { MikroORM } from '@mikro-orm/libsql';
-import { EntityManager, SqlEntityManager } from '@mikro-orm/sqlite';
+import { EntityManager, SqlEntityManager } from '@mikro-orm/libsql';
 import {
   BadRequestException,
   Inject,
