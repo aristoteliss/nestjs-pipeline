@@ -8,8 +8,14 @@
  *
  * --- COMMERCIAL EXCEPTION ---
  * Alternatively, a Commercial License is available for individuals or
- * companies that do not wish to be bound by the AGPL terms. Contact Aristotelis for details.
+ * organizations that require proprietary use without the AGPLv3
+ * copyleft restrictions.
+ *
+ * See COMMERCIAL_LICENSE.txt in this repository for the tiered
+ * revenue-based terms, or contact: aristotelis@ik.me
+ * ----------------------------
  */
+
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { MemoryStore } from '@persistence/memory-store';
 import { User, type UserSnapshot } from '../domain/models/user.entity';
@@ -27,7 +33,7 @@ import type { IUserRepository } from './user.repository.interface';
  */
 @Injectable()
 export class InMemoryUserRepository implements IUserRepository {
-  constructor(private readonly store: MemoryStore<UserSnapshot>) {}
+  constructor(private readonly store: MemoryStore<UserSnapshot>) { }
 
   async save(user: User): Promise<void> {
     await this.store.save(user.id, user.toJSON());

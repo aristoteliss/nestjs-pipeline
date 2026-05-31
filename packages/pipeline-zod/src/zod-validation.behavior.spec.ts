@@ -8,7 +8,12 @@
  *
  * --- COMMERCIAL EXCEPTION ---
  * Alternatively, a Commercial License is available for individuals or
- * companies that do not wish to be bound by the AGPL terms. Contact Aristotelis for details.
+ * organizations that require proprietary use without the AGPLv3
+ * copyleft restrictions.
+ *
+ * See COMMERCIAL_LICENSE.txt in this repository for the tiered
+ * revenue-based terms, or contact: aristotelis@ik.me
+ * ----------------------------
  */
 
 import { Type } from '@nestjs/common';
@@ -26,7 +31,7 @@ import {
 // ---------------------------------------------------------------------------
 
 function makeRequestType(schema?: z.ZodType): Type {
-  const cls = class {};
+  const cls = class { };
   if (schema) (cls as any)[ZOD_SCHEMA_KEY] = schema;
   return cls as unknown as Type;
 }
@@ -40,7 +45,7 @@ function createMockContext(
     request: {},
     requestType: makeRequestType(),
     requestName: 'MockRequest',
-    handlerType: class MockHandler {} as Type,
+    handlerType: class MockHandler { } as Type,
     handlerName: 'MockHandler',
     requestKind: 'command',
     startedAt: new Date(),

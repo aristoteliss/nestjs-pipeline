@@ -10,6 +10,12 @@ HTTP Request
       [global before] → [@UsePipeline behaviors] → [global after] → handler
 ```
 
+> **Same-class override:** if a handler's `@UsePipeline` declares the same
+> behavior class as a global `before`/`after` entry, the handler's entry replaces
+> the global one for that handler — the behavior runs **once**, using the
+> handler's options. This lets a handler tune (e.g.) `LoggingBehavior` without it
+> executing twice.
+
 Zero additional runtime dependencies beyond NestJS itself. Works with Express and Fastify.
 
 ---
@@ -530,7 +536,7 @@ export class AuditModule {}
 
 ### Deduplication
 
-When both global and handler-level configurations include the same behavior class, the **handler-level entry wins** (including its options). The duplicate global entry is removed automatically.
+When both global and handler-level configurations include the same behavior class, the **handler-level entry wins** (including its options). Global duplicates are deduplicated automatically.
 
 ```typescript
 // Global config
@@ -1144,7 +1150,7 @@ The `@nestjs-pipeline/ddd-core` package (`ddd/core/`) provides the foundational 
 | Export                | Description                                                                           |
 |-----------------------|---------------------------------------------------------------------------------------|
 | `RootEntity`          | Abstract base entity with UUID v7 identity, `createdAt`/`updatedAt` lifecycle, and mutation tracking |
-| `CacheableEntity`     | Extends `RootEntity` — adds `cacheKey` (`<prefixKey><id>`) used by `@Cacheable`/`@Cache` decorators |
+| `CacheableEntity`     | Extends `RootEntity` — adds `cacheKey` (`<prefixKey><id>`) used by `@Cache`/`@FromCache` decorators |
 | `RootEntitySnapshot`  | Interface for serializing/rehydrating entities                                        |
 | `DomainEvent`         | Abstract base class for domain events (carries a UUID v7 `id`)                        |
 | `RootDomainEvent`     | Domain event that carries a reference to the originating entity                       |
@@ -1154,8 +1160,8 @@ The `@nestjs-pipeline/ddd-core` package (`ddd/core/`) provides the foundational 
 | `ICache<T>`           | Interface for cache providers (`get`, `set`, `delete`)                                |
 | `CommandRepository`   | Abstract base for write repositories — holds an `ICache` and defines `save(outcome)` |
 | `QueryRepository`     | Abstract base for read repositories — holds an `ICache` and defines `find(query)`    |
-| `@Cacheable()`        | Decorator for `save()` — write-through cache on successful writes, evict on delete   |
-| `@Cache()`            | Decorator for `find()` — read-through cache with optional hydration function         |
+| `@Cache()`            | Decorator for `save()` — write-through cache on successful writes, evict on delete   |
+| `@FromCache()`        | Decorator for `find()` — read-through cache with optional hydration function         |
 | `Method`              | Utility type for extracting method signatures                                         |
 
 Import them in your domain layer:
@@ -1171,8 +1177,7 @@ The `ddd/users-api/` directory contains a complete working application:
 ```bash
 cd ddd/users-api
 pnpm install
-pnpm db:migrate   # create tables (idempotent)
-pnpm db:seed      # populate demo data (runs migrate first)
+pnpm db:migrate   # apply schema + data migrations (idempotent)
 pnpm start
 ```
 
@@ -1180,8 +1185,8 @@ Configure the database via environment variables (defaults to a local file):
 
 | Variable             | Default         | Description                          |
 |----------------------|-----------------|--------------------------------------|
-| `TURSO_DATABASE_URL` | `file:local.db` | libSQL database URL (file or remote) |
-| `TURSO_AUTH_TOKEN`   | _(none)_        | Auth token for Turso cloud databases |
+| `DATABASE_URL` | `file:local.db` | libSQL database URL (file or remote) |
+| `AUTH_TOKEN`   | _(none)_        | Auth token for libSQL remote databases (e.g. Turso) |
 
 **CRUD operations:**
 
@@ -1214,15 +1219,15 @@ ADAPTER=fastify pnpm start
 
 - Global + per-handler pipeline behaviors
 - Per-handler CASL authorization with inline `rules` on `CaslBehaviorOptions` and `CaslBehavior`
-- Turso-backed CASL providers (roles, capabilities, user context)
+- MikroORM-backed CASL providers (roles, capabilities, user context)
 - Versioned database migrations with tracking (`_migrations` table)
 - Zod-validated commands, queries, and events via `createRequest()`
 - Controller-level `ZodPipe` validation
 - Zod transform mappers (DTO → Command mapping)
 - OpenTelemetry tracing with `TraceBehavior`
 - DDD-style `User` entity built on `ddd-core` primitives (`CacheableEntity`, `RootDomainEvent`, `RootDomainOutcome`)
-- Turso (libSQL) persistence with a normalized schema
-- Pluggable `ICache<T>` — `TursoCache` (Turso-backed, TTL-aware) or `MemoryCache` swapped via a single provider token
+- MikroORM (libSQL driver) persistence with a normalized schema
+- Pluggable `ICache<T>` — `MikroOrmCache` (MikroORM-backed, TTL-aware) or `MemoryCache` swapped via a single provider token
 - Correlation ID propagation across handlers and events
 - Express and Fastify adapter support
 
@@ -1280,12 +1285,14 @@ nestjs-pipeline/
     │       ├── models/            # RootEntity
     │       └── outcomes/          # DomainOutcome, RootDomainOutcome
     └── users-api/                # Full working example using ddd-core + casl
-        └── src/users/
-            ├── casl/             # Turso-backed CASL providers
-            ├── db/               # TursoStore, migrate.ts, seed.ts
-            ├── cqrs/             # Commands, queries, events
-            ├── domain/           # User entity, domain events, outcomes
-            └── persistence/      # Repositories, cache
+        └── src/
+            ├── persistence/      # MikroOrmStore, MikroOrmCache, schemas/, migrate.ts
+            ├── roles/            # MikroORM-backed CASL providers (role CRUD + capabilities)
+            ├── auths/            # Auth CRUD + user-context resolver
+            └── users/
+                ├── cqrs/         # Commands, queries, events
+                ├── domain/       # User entity, domain events, outcomes
+                └── persistence/  # Repositories
 ```
 
 ---

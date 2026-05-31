@@ -8,9 +8,15 @@
  *
  * --- COMMERCIAL EXCEPTION ---
  * Alternatively, a Commercial License is available for individuals or
- * companies that do not wish to be bound by the AGPL terms. Contact Aristotelis for details.
+ * organizations that require proprietary use without the AGPLv3
+ * copyleft restrictions.
+ *
+ * See COMMERCIAL_LICENSE.txt in this repository for the tiered
+ * revenue-based terms, or contact: aristotelis@ik.me
+ * ----------------------------
  */
-import { InternalServerErrorException } from '@nestjs/common';
+
+import { InternalServerErrorException, NotFoundException } from '@nestjs/common';
 import { z } from 'zod';
 import type { User, UserSnapshot } from '../domain/models/user.entity';
 
@@ -19,7 +25,6 @@ export const UserResponseDtoSchema = z
     id: z.string(),
     email: z.string(),
     username: z.string(),
-    tenantId: z.string().optional(),
     department: z.string().optional(),
   })
   .transform(({ id, email, username, department }) => ({
@@ -32,12 +37,18 @@ export const UserResponseDtoSchema = z
 export type UserResponseDto = z.output<typeof UserResponseDtoSchema>;
 
 export function toResponseDto(user: User | UserSnapshot): UserResponseDto {
+  if (!user)
+    throw new NotFoundException('User not found');
+
   const plain =
     'toJSON' in user && typeof user.toJSON === 'function'
       ? user.toJSON()
       : user;
+
   const result = UserResponseDtoSchema.safeParse(plain);
+
   if (!result.success)
     throw new InternalServerErrorException('Response mapping failed');
+
   return result.data;
 }

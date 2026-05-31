@@ -8,7 +8,12 @@
  *
  * --- COMMERCIAL EXCEPTION ---
  * Alternatively, a Commercial License is available for individuals or
- * companies that do not wish to be bound by the AGPL terms. Contact Aristotelis for details.
+ * organizations that require proprietary use without the AGPLv3
+ * copyleft restrictions.
+ *
+ * See COMMERCIAL_LICENSE.txt in this repository for the tiered
+ * revenue-based terms, or contact: aristotelis@ik.me
+ * ----------------------------
  */
 
 import { SessionUser } from '@common/types/SessionUser';
@@ -22,7 +27,7 @@ import {
 import { Auth, AuthSnapshot } from '../../domain/models/auth.entity';
 import { AuthCreateOutcome } from '../../domain/outcomes/auth-create.outcome';
 import { COMMAND_REPOSITORY } from '../../repositories/repository.tokens';
-import { AuthService } from '../../services/auth.serivce';
+import { AuthService } from '../../services/auth.service';
 import { CreateAuthCommand } from './create-auth.command';
 
 @CommandHandler(CreateAuthCommand)
@@ -54,7 +59,6 @@ export class CreateAuthHandler extends CommandBaseHandler<
 
     const outcome = Auth.create(
       authResult.userId,
-      verifiedUser.tenantId,
       authResult.accessToken,
     );
 
@@ -63,7 +67,6 @@ export class CreateAuthHandler extends CommandBaseHandler<
     return {
       id: authResult.userId,
       email,
-      tenantId: verifiedUser.tenantId,
       department: verifiedUser.department,
       capabilities: authResult.userCapabilities,
       token: authResult.accessToken,

@@ -6,12 +6,15 @@ CASL authorization behavior for `@nestjs-pipeline/core` — ABAC (Attribute-Base
 
 - **ABAC + Roles**: Define roles with predefined capability sets, plus per-user overrides
 - **Capability tree strings**: Compact `subject|action|conditions[|fields]` format for JWT/cookie transport
-- **Condition interpolation**: Template placeholders (`${id}`, `{{ tenantId }}`) resolved against user context
+- **Condition interpolation**: Template placeholders (`${id}`, `{{ tenantId }}`, `{{ tenantSchema }}`) resolved against user context
 - **Pluggable providers**: Bring your own role provider (DB, YAML, static) and user capability provider
 - **Pipeline integration**: Works as a `@UsePipeline` behavior on commands, queries, and events
 - **Inline `rules`**: Declare permission requirements directly on the handler via `CaslBehaviorOptions.rules`
 - **Configurable subject context paths**: Resolve nested session/user payloads explicitly via `subjectContextPaths`
 - **Global field-level checks**: Enforce field permissions from request payloads with `defaultFieldsFromRequest`
+
+CASL is tenant-model agnostic: conditions can target any tenant scope field
+(`tenantId`, `tenantSchema`, organization id, etc.) available in request/user context.
 
 ## Installation
 

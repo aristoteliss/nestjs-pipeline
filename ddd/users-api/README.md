@@ -2,15 +2,17 @@
 
 A complete NestJS application demonstrating `@nestjs-pipeline` with Domain-Driven Design.
 
+
 ## Overview
 
-This sample builds on `@nestjs-pipeline/ddd-core` to show a full CQRS + DDD stack:
+This sample builds on `@nestjs-pipeline/ddd-core` to show a full CQRS + DDD stack, with **MikroORM as the persistence and cache layer**.
 
 - **Domain layer** — `User` and `Role` entities extending `CacheableEntity`, domain events, and outcomes.
 - **CQRS layer** — Command/query handlers with `@UsePipeline` behaviors, validated via `createExecuteClass()` / `createQuery()` and Zod schemas.
-- **Persistence** — Turso (libSQL) as the primary store; repositories extend `CommandRepository` / `QueryRepository` from `ddd-core`.
-- **Caching** — Two `ICache<T>` implementations: `TursoCache` (Turso-backed, TTL-aware) and `MemoryCache` (in-process). Configured via `CACHE_TOKEN` in `PersistenceModule`.
-- **Authorization** — ABAC via `@nestjs-pipeline/casl`. Per-handler `CaslBehavior` with Turso-backed role/capability providers, explicit `subjectContextPaths`, global `defaultFieldsFromRequest`, condition interpolation, and inline `rules` on `CaslBehaviorOptions`.
+- **Persistence** — Dual-engine support: **libSQL** (SQLite) for local development and **PostgreSQL** for production multi-tenant deployments. Conditional routing via `MIKRO_ORM_CLIENT` provider.
+- **Multi-tenant routing** — When `DB_ENGINE=postgres`, tenant schema is resolved per-request from the `x-tenant-schema` header and isolated via PostgreSQL schema-per-tenant pattern. Domain entities remain tenant-agnostic (no embedded `tenantId`).
+- **Caching** — **MikroOrmCache** (MikroORM-backed, TTL-aware) configured via `CACHE_TOKEN` in `PersistenceModule`.
+- **Authorization** — ABAC via `@nestjs-pipeline/casl`. Per-handler `CaslBehavior` with MikroORM-backed role/capability providers, explicit `subjectContextPaths`, global `defaultFieldsFromRequest`, condition interpolation, and inline `rules` on `CaslBehaviorOptions`.
 - **Event handlers** — React to domain events, enqueue background jobs via BullMQ.
 - **Controllers** — REST endpoints with `ZodPipe` validation and correlation ID propagation.
 - **Logging** — `nestjs-pino` logger wired into both `LoggingBehavior` and `TraceBehavior` via DI tokens.
@@ -20,8 +22,7 @@ This sample builds on `@nestjs-pipeline/ddd-core` to show a full CQRS + DDD stac
 ```bash
 cd ddd/users-api
 pnpm install
-pnpm db:migrate   # create tables (idempotent)
-pnpm db:seed      # populate demo data (runs migrate first)
+pnpm db:migrate   # apply schema + data migrations (idempotent)
 pnpm start
 ```
 
@@ -29,8 +30,30 @@ pnpm start
 
 | Variable             | Default        | Description                          |
 |----------------------|----------------|--------------------------------------|
-| `TURSO_DATABASE_URL` | `file:local.db`| libSQL database URL (file or remote) |
-| `TURSO_AUTH_TOKEN`   | _(none)_       | Auth token for Turso cloud databases |
+| `DB_ENGINE`          | `libsql`       | Persistence engine: `libsql` (SQLite) or `postgres` |
+| `DATABASE_URL`       | `file:src/persistence/local-tenant_a.db` | SQLite database URL (only used when `DB_ENGINE=libsql`); supports local file or remote libSQL endpoint |
+| `AUTH_TOKEN`         | _(none)_       | Auth token for remote libSQL databases (only used when `DB_ENGINE=libsql`) |
+| `DATABASE_HOST`      | `127.0.0.1`    | PostgreSQL host (only used when `DB_ENGINE=postgres`) |
+| `DATABASE_PORT`      | `5432`         | PostgreSQL port (only used when `DB_ENGINE=postgres`) |
+| `DATABASE_NAME`      | `nestjs_pipeline` | PostgreSQL database name (only used when `DB_ENGINE=postgres`) |
+| `DATABASE_USER`      | `postgres`     | PostgreSQL database user (only used when `DB_ENGINE=postgres`) |
+| `DATABASE_PASSWORD`  | `postgres`     | PostgreSQL database password (only used when `DB_ENGINE=postgres`) |
+| `DB_DEFAULT_SCHEMA`  | `tenant_default` | Default PostgreSQL schema for tenant (only used when `DB_ENGINE=postgres`) |
+| `TENANT_SCHEMAS`     | _(none)_       | Comma-separated list of tenant schema names for migrations (e.g. `tenant_a,tenant_b`); if set, `migrate` and `revert` commands process all listed schemas |
+
+### Dual-engine architecture
+
+**libSQL (SQLite)** — Default for local development:
+- Uses separate database files per tenant (`local-tenant_a.db`, `local-tenant_b.db`)
+- No schema isolation; each file is independent
+- Loaded by `MikroOrmStore` when `DB_ENGINE !== 'postgres'`
+
+**PostgreSQL** — For production multi-tenant deployments:
+- One database, multiple schemas (one per tenant)
+- Request middleware extracts `x-tenant-schema` header and sets tenant context
+- `AppModule` binds the DI-provided `TenantSchemaMiddleware` handler in `configure()`
+- `PostgresMikroOrmStore` forks EntityManager with the tenant schema
+- Domain entities remain tenant-agnostic; schema routing is transparent to business logic
 
 ## Project structure
 
@@ -43,20 +66,26 @@ src/
 ├── common/                    # Shared helpers (aliased as @common/*)
 │   ├── cqrs/helpers/
 │   │   ├── createExecute.helper.ts   # Zod-validated Command/Query class factory
-│   │   └── createQuery.helper.ts     # Query-specific variant (extends QueryOptions)
 │   └── mappers/
 │       └── create-mapper.helper.ts   # DTO → Command mapper factory
 │
 ├── persistence/               # Global persistence layer (aliased as @persistence/*)
-│   ├── persistence.module.ts  # @Global() — provides TURSO_CLIENT, CACHE_TOKEN
-│   ├── turso-store.ts         # libSQL client wrapper + migration runner
-│   ├── migrate.ts             # Versioned migrations
-│   ├── seed.ts                # Demo data seeder
+│   ├── persistence.module.ts  # @Global() — provides MIKRO_ORM_CLIENT, CACHE_TOKEN; routes to libSQL or PostgreSQL
+│   ├── libsql-options.ts      # MikroORM config factory for SQLite (libSQL)
+│   ├── postgres-options.ts    # MikroORM config factory for PostgreSQL + schema validation
+│   ├── mikro-orm.store.ts     # SQLite client wrapper (uses libsql-options.ts)
+│   ├── postgres-mikro-orm.store.ts # PostgreSQL client wrapper with tenant schema routing
+│   ├── tenant-schema.context.ts # AsyncLocalStorage for per-request tenant schema isolation
+│   ├── migrations/            # Native MikroORM migration classes
+│   ├── middlewares/
+│   │   └── tenant-schema.middleware.ts # Express middleware to extract x-tenant-schema header
+│   ├── migrate.ts             # CLI runner for schema + seed migrations
+│   ├── revert.ts              # CLI runner to revert migrations
 │   ├── store.interface.ts
 │   ├── memory-store.ts
 │   └── cache/
 │       ├── memory.cache.ts    # In-process ICache<T> (CACHE_TOKEN)
-│       └── turso.cache.ts     # Turso-backed ICache<T> (default)
+│       └── mikro-orm.cache.ts # MikroORM-backed ICache<T> (default)
 │
 ├── users/                     # Users bounded context
 │   ├── users.module.ts
@@ -99,23 +128,29 @@ TypeScript path aliases keep imports clean and decouple modules from relative pa
 
 ## Migrations
 
-Database schema is managed by a simple versioned migration runner in `src/persistence/migrate.ts`.
+Database schema is managed by native MikroORM migrations in `src/persistence/migrations`.
 
-- **`pnpm db:migrate`** — run standalone from the CLI. Creates a `_migrations` tracking table and applies only pending migrations.
-- **On app startup** — `TursoStore.onModuleInit()` calls the same `migrate()` function, so the schema is always up to date before the first request.
-- **`pnpm db:seed`** — runs pending migrations first, then inserts demo data (idempotent via `INSERT OR IGNORE`).
+### libSQL (SQLite) mode (default)
 
-Migrations are defined in `migrate.ts` as an ordered array. To add a new migration, append a new entry with the next version number:
+- **On app startup** — `MikroOrmStore.onModuleInit()` auto-runs `orm.migrator.up()` against the configured database file.
+- **Multiple databases** — Update `DATABASE_URL` to point to different files, or run migrations separately for each file.
+- **CLI** — Use `pnpm db:migrate` to apply pending migrations (runs against current `DATABASE_URL`).
 
-```ts
-// migrate.ts
-export const migrations: Migration[] = [
-  { version: 1, name: 'create_users_and_cache', sql: [...] },
-  { version: 2, name: 'create_casl_tables',     sql: [...] },
-  // ↓ add new migrations here
-  { version: 3, name: 'add_avatar_column',      sql: ['ALTER TABLE users ADD COLUMN avatar TEXT'] },
-];
-```
+### PostgreSQL mode
+
+When `DB_ENGINE=postgres`, schema-per-tenant routing is enabled:
+
+- **Per-request isolation** — `TenantSchemaMiddleware` extracts `x-tenant-schema` header and stores it in `TenantSchemaContext` (via `AsyncLocalStorage`).
+- **EntityManager forking** — `PostgresMikroOrmStore.em` forks the connection with the tenant schema, so all queries are automatically scoped.
+- **Domain entities** — Remain tenant-agnostic; no `tenantId` field (schema isolation is transparent).
+- **Startup migrations** — On app boot, runs migrations **only against the default schema** (`DB_DEFAULT_SCHEMA`).
+- **CLI multi-tenant** — Use `TENANT_SCHEMAS=tenant_a,tenant_b pnpm db:migrate` to run migrations across multiple schemas.
+
+### Migration and seed files
+
+- **New migrations** — Create migration classes in `src/persistence/migrations` (or generate via MikroORM CLI).
+- **Seed data** — Stored as data migrations (e.g., `Migration20260501010000.ts`) and applied with `pnpm db:migrate`.
+- **Idempotent** — All migrations use `if not exists` clauses and `upsert` logic to safely re-run.
 
 ## Logging
 
@@ -134,7 +169,6 @@ This gives one consistent logger for HTTP logs, pipeline request/response logs, 
 | `id`         | TEXT PK | UUID v7 identifier               |
 | `username`   | TEXT    | Normalized username              |
 | `email`      | TEXT    | Email address                    |
-| `tenant_id`  | TEXT    | Tenant identifier (nullable)     |
 | `department` | TEXT    | Department name (nullable)       |
 | `created_at` | INTEGER | Creation timestamp (Unix ms)     |
 | `updated_at` | INTEGER | Last-updated timestamp (Unix ms) |
@@ -169,16 +203,60 @@ This gives one consistent logger for HTTP logs, pipeline request/response logs, 
 
 All tables are created via versioned migrations (see [Migrations](#migrations)).
 
+### PostgreSQL Schema-per-tenant pattern
+
+Tenant isolation is achieved via PostgreSQL schemas, not by embedding `tenantId` in tables. This keeps domain entities clean and simplifies backoffice queries.
+
+```bash
+# Create schemas for each tenant
+psql -U postgres -d nestjs_pipeline -c "create schema if not exists tenant_acme;"
+psql -U postgres -d nestjs_pipeline -c "create schema if not exists tenant_globex;"
+
+# Migrate both tenants
+TENANT_SCHEMAS=tenant_acme,tenant_globex pnpm db:migrate
+```
+
+**Request routing** — Client sends `x-tenant-schema` header:
+
+```bash
+# Route to tenant_acme
+curl http://localhost:3000/users \
+  -H 'x-tenant-schema: tenant_acme' \
+  -H 'Authorization: Bearer <token>'
+
+# Route to tenant_globex (same table structure, different schema)
+curl http://localhost:3000/users \
+  -H 'x-tenant-schema: tenant_globex' \
+  -H 'Authorization: Bearer <token>'
+```
+
+**Backoffice cross-tenant reads** — Use a DB-level union view:
+
+```sql
+create or replace view backoffice_users as
+select 'tenant_acme'::text as tenant_schema, id, username, email, department, created_at
+from tenant_acme.users
+union all
+select 'tenant_globex'::text as tenant_schema, id, username, email, department, created_at
+from tenant_globex.users;
+
+-- Keyset paging example
+select * from backoffice_users
+where (created_at, id, tenant_schema) < ($1, $2, $3)
+order by created_at desc, id desc, tenant_schema desc
+limit 50;
+```
+
 ## Authorization (CASL)
 
 Uses `@nestjs-pipeline/casl` for attribute-based access control with roles.
 
 ### Architecture
 
-All three CASL provider interfaces are implemented as proper `QueryRepository` subclasses with `@Cache` decorators, following the same DDD pattern as the rest of the application:
+All three CASL provider interfaces are implemented as proper `QueryRepository` subclasses with `@FromCache` decorators, following the same DDD pattern as the rest of the application:
 
 - **`GetRolesCapabilitiesQueryRepository`** (`roles/persistence/`) — implements `IRoleProvider`. Loads role → capability definitions from the `roles` / `role_capabilities` / `capabilities` tables. Extends `QueryRepository<GetRolesCapabilitiesQuery, RoleDefinition[]>`.
-- **`GetUserContextQueryRepository`** (`users/persistence/`) — implements `IUserContextResolver`. Reads the current user from the configured CASL `subjectContextPaths` (in this app: `sessionUser`) and fetches tenant/department from the `users` table when capability data is not already embedded in the session/JWT. REQUEST-scoped. Extends `QueryRepository<GetUserContextQuery, CaslUserContext | undefined>`.
+- **`GetUserContextQueryRepository`** (`users/persistence/`) — implements `IUserContextResolver`. Reads the current user from the configured CASL `subjectContextPaths` (in this app: `sessionUser`) and fetches department from the `users` table when capability data is not already embedded in the session/JWT. REQUEST-scoped. Extends `QueryRepository<GetUserContextQuery, CaslUserContext | undefined>`.
 - **`GetUserCapabilitiesQueryRepository`** (`users/persistence/`) — implements `IUserCapabilityProvider`. Returns the user's assigned roles plus any per-user additional/denied capabilities. Extends `QueryRepository<GetUserCapabilitiesQuery, UserCapabilities>`.
 
 Each has a corresponding Zod-validated query class (via `createQuery()`) and a `@QueryHandler` in its module's `cqrs/queries/` directory.
@@ -211,6 +289,8 @@ export class CreateRoleCommand extends createExecuteClass(...) {}
 export class CreateRoleHandler extends CommandBaseHandler<...> { ... }
 ```
 
+The `[LoggingBehavior, { requestResponseLogLevel: 'log' }]` entry here re-declares a behavior that is also registered globally in `AppModule`. Because the pipeline applies a **same-class override**, the handler's entry replaces the global `LoggingBehavior` for this handler (running once, at the `log` level) rather than running twice.
+
 Other handlers remain unaffected. To extend authorization to more commands/queries, add `[CaslBehavior, { rules: [...] }]` to their `@UsePipeline`.
 
 ### Testing authorization
@@ -219,8 +299,8 @@ Authenticate with a Bearer JWT or a secure session cookie. The request user is
 stored under `sessionUser`, which is also the configured CASL subject-context path.
 
 ```bash
-# Seed the database first
-pnpm db:seed
+# Apply migrations (schema + seed data)
+pnpm db:migrate
 
 # Obtain a token first (example login endpoint may vary by environment)
 # Then call protected routes with Authorization: Bearer <token>
@@ -245,12 +325,12 @@ curl -X POST http://localhost:3000/users \
 
 ### Seed data
 
-Run `pnpm db:seed` to populate the authorization tables with 7 users, 5 roles, 13 capabilities, and per-user overrides exercising:
+Run `pnpm db:migrate` to apply schema and seed data migrations. The demo data includes 7 users, 5 roles, 13 capabilities, and per-user overrides exercising:
 
 | Scenario                    | User    | Role(s)                  | Notes                                           |
 |-----------------------------|---------|--------------------------|--------------------------------------------------|
 | Unrestricted admin          | Alice   | `admin`                  | `all|manage|*`                                    |
-| Tenant-scoped manager       | Bob     | `user-manager`           | Can manage users in own tenant, cannot delete or update email |
+| Department-scoped manager   | Bob     | `user-manager`           | Can manage users in own department, cannot delete or update email |
 | Self only           | Carol   | `self`           | Can read own profile and update only own username |
 | Read-only viewer            | Dave    | `viewer`                 | Field-restricted read + per-user `User|create`; cannot self-update |
 | Multi-role merge            | Eve     | `viewer` + `self`| Combined: read all + update own                   |
@@ -259,9 +339,10 @@ Run `pnpm db:seed` to populate the authorization tables with 7 users, 5 roles, 1
 
 ## Caching
 
-### `TursoCache<T>` — Turso-backed cache (default)
 
-Implements `ICache<T>` using the same libSQL client as the main store. Entries are stored in the `cache` table.
+### `MikroOrmCache<T>` — MikroORM-backed cache (default)
+
+Implements `ICache<T>` using MikroORM as the primary cache store. Entries are stored in the `cache` table.
 
 - **TTL**: pass `{ ttl: <ms> }` as the third argument to `set()`. Expired entries are filtered on `get()` (lazy eviction).
 - **No expiry**: omit `options` or leave `ttl` undefined.
@@ -275,11 +356,11 @@ Simple `Map`-backed implementation, useful for local development or testing. Swi
 { provide: CACHE_TOKEN, useClass: MemoryCache }
 ```
 
-### `@Cacheable()` — Command-side write-through
+### `@Cache()` — Command-side write-through
 
 Applied to `save()` in command repositories. After a successful write it upserts the result into the cache; if the result is `null` (delete), it evicts the entry.
 
-### `@Cache()` — Query-side read-through
+### `@FromCache()` — Query-side read-through
 
 Applied to `find()` in query repositories. Checks the cache first; on a miss it calls the database and populates the cache. Accepts a key function and an optional hydration function to reconstruct the domain entity from the cached value.
 
@@ -289,14 +370,18 @@ Applied to `find()` in query repositories. Checks the cache first; on a miss it 
 - Shared infrastructure via `@Global()` `PersistenceModule` and `common/` helpers with `@common/*` / `@persistence/*` path aliases
 - Global + per-handler pipeline behaviors
 - Per-handler CASL authorization with inline `rules` on `CaslBehaviorOptions` and `CaslBehavior`
-- CASL providers (`IRoleProvider`, `IUserContextResolver`, `IUserCapabilityProvider`) implemented as `QueryRepository` subclasses with `@Cache` decorators
+- CASL providers (`IRoleProvider`, `IUserContextResolver`, `IUserCapabilityProvider`) implemented as `QueryRepository` subclasses with `@FromCache` decorators
 - Zod-validated commands, queries, and events via `createExecuteClass()` / `createQuery()`
 - Controller-level `ZodPipe` validation
 - OpenTelemetry tracing with `TraceBehavior`
 - DDD-style entities built on `ddd-core` primitives (`CacheableEntity`, `RootDomainEvent`, `RootDomainOutcome`)
-- Versioned database migrations with tracking (`_migrations` table)
-- Turso (libSQL) persistence with a fully normalized schema
-- Pluggable `ICache<T>` — swap `TursoCache` ↔ `MemoryCache` via a single provider token
+- Native MikroORM migrations executed at startup
+- **Dual-engine persistence architecture**
+  - libSQL (SQLite) by default — multi-database files per tenant
+  - PostgreSQL with schema-per-tenant isolation — domain entities remain tenant-agnostic
+  - Conditional routing via `MIKRO_ORM_CLIENT` DI token based on `DB_ENGINE` environment variable
+- **Multi-tenant request isolation** — `TenantSchemaContext` + `AsyncLocalStorage` for per-request schema routing (PostgreSQL)
+- Pluggable `ICache<T>` — swap `MikroOrmCache` ↔ `MemoryCache` via a single provider token
 - Correlation ID propagation across handlers and events
 - Express and Fastify adapter support
 - BullMQ background job processing
@@ -311,6 +396,8 @@ Applied to `find()` in query repositories. Checks the cache first; on a miss it 
 - `@nestjs-pipeline/zod` (`workspace:*`)
 - `@casl/ability`
 - `@libsql/client`
+- `@mikro-orm/libsql`
+- `@mikro-orm/postgresql`
 - `nestjs-pino`
 - `pino-http`
 - `pino-pretty`

@@ -14,14 +14,6 @@
  * See COMMERCIAL_LICENSE.txt in this repository for the tiered
  * revenue-based terms, or contact: aristotelis@ik.me
  * ----------------------------
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU Affero General Public License for more details.
- *
- * You should have received a copy of the GNU Affero General Public License
- * along with this program. If not, see <https://www.gnu.org/licenses/>.
  */
 
 import { DynamicModule, Global, Module, Type } from '@nestjs/common';
@@ -93,6 +85,18 @@ function extractBehaviorTypes(
 @Module({})
 // biome-ignore lint/complexity/noStaticOnlyClass: This module only has static methods for configuration.
 export class PipelineModule {
+  /**
+   * Configures the pipeline as a global dynamic module.
+   *
+   * Accepts either a bare array of behavior classes or a
+   * {@link PipelineModuleOptions} object (global before/after behaviors,
+   * correlation-id bridging, logger provider, etc.). Registers all behavior
+   * classes for DI — deduplicating global behaviors already listed in
+   * `behaviors` — and the {@link PipelineBootstrapService} that wraps handlers.
+   *
+   * @param optionsOrBehaviors - A list of behavior classes, or full module options.
+   * @returns The configured global {@link DynamicModule}.
+   */
   static forRoot(
     optionsOrBehaviors: PipelineModuleOptions | Type<IPipelineBehavior>[] = [],
   ): DynamicModule {

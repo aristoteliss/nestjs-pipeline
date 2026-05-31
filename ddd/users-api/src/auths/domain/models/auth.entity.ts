@@ -8,7 +8,12 @@
  *
  * --- COMMERCIAL EXCEPTION ---
  * Alternatively, a Commercial License is available for individuals or
- * companies that do not wish to be bound by the AGPL terms. Contact Aristotelis for details.
+ * organizations that require proprietary use without the AGPLv3
+ * copyleft restrictions.
+ *
+ * See COMMERCIAL_LICENSE.txt in this repository for the tiered
+ * revenue-based terms, or contact: aristotelis@ik.me
+ * ----------------------------
  */
 
 import { RootEntity, RootEntitySnapshot } from '@nestjs-pipeline/ddd-core';
@@ -17,7 +22,6 @@ import { AuthCreateOutcome } from '../outcomes/auth-create.outcome';
 
 export interface AuthSnapshot extends Partial<RootEntitySnapshot> {
   readonly userId: string;
-  readonly tenantId?: string;
   readonly token: string;
 }
 
@@ -25,13 +29,11 @@ export class Auth extends RootEntity<AuthSnapshot> {
   readonly prefixKey = 'auth:';
 
   readonly userId: string;
-  readonly tenantId?: string;
   readonly token: string;
 
   private constructor(snapshot: AuthSnapshot) {
     super(snapshot);
     this.userId = snapshot.userId;
-    this.tenantId = snapshot.tenantId;
     this.token = snapshot.token;
   }
 
@@ -41,10 +43,9 @@ export class Auth extends RootEntity<AuthSnapshot> {
 
   static create(
     userId: string,
-    tenantId: string | undefined,
     token: string,
   ): AuthCreateOutcome {
-    const auth = new Auth({ userId, tenantId, token });
+    const auth = new Auth({ userId, token });
     return new AuthCreateOutcome(auth, [new CreatedAuthEvent(auth)]);
   }
 
@@ -52,7 +53,6 @@ export class Auth extends RootEntity<AuthSnapshot> {
     return new Auth({
       id: Auth.normalizeId(snapshot.id),
       userId: snapshot.userId,
-      tenantId: snapshot.tenantId,
       token: snapshot.token,
       createdAt: Auth.normalizeDate(snapshot.createdAt),
       updatedAt: Auth.normalizeDate(snapshot.updatedAt),
@@ -63,12 +63,12 @@ export class Auth extends RootEntity<AuthSnapshot> {
     return this.freezeState({
       id: this.id,
       userId: this.userId,
-      tenantId: this.tenantId,
       token: this.token,
       createdAt: this.createdAt,
       updatedAt: this.updatedAt,
     });
   }
 
-  afterUpdate(): void {}
+  afterUpdate(): void { }
 }
+

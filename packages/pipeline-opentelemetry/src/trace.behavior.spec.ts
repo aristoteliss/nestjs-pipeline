@@ -1,3 +1,21 @@
+/*
+ * Copyright (C) 2026-present Aristotelis
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as
+ * published by the Free Software Foundation, either version 3 of the
+ * License, or (at your option) any later version.
+ *
+ * --- COMMERCIAL EXCEPTION ---
+ * Alternatively, a Commercial License is available for individuals or
+ * organizations that require proprietary use without the AGPLv3
+ * copyleft restrictions.
+ *
+ * See COMMERCIAL_LICENSE.txt in this repository for the tiered
+ * revenue-based terms, or contact: aristotelis@ik.me
+ * ----------------------------
+ */
+
 import { IPipelineContext } from '@nestjs-pipeline/core';
 import { SpanKind, SpanStatusCode, trace } from '@opentelemetry/api';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -49,9 +67,9 @@ function makeCtx(overrides: Partial<IPipelineContext> = {}): IPipelineContext {
     correlationId: 'test-corr-id',
     originalCorrelationId: 'test-corr-id',
     request: {},
-    requestType: class TestRequest {},
+    requestType: class TestRequest { },
     requestName: 'TestCommand',
-    handlerType: class TestHandler {},
+    handlerType: class TestHandler { },
     handlerName: 'TestHandler',
     requestKind: 'command',
     startedAt: new Date('2026-01-01T00:00:00.000Z'),

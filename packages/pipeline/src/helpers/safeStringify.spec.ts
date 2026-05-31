@@ -1,26 +1,44 @@
+/*
+ * Copyright (C) 2026-present Aristotelis
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as
+ * published by the Free Software Foundation, either version 3 of the
+ * License, or (at your option) any later version.
+ *
+ * --- COMMERCIAL EXCEPTION ---
+ * Alternatively, a Commercial License is available for individuals or
+ * organizations that require proprietary use without the AGPLv3
+ * copyleft restrictions.
+ *
+ * See COMMERCIAL_LICENSE.txt in this repository for the tiered
+ * revenue-based terms, or contact: aristotelis@ik.me
+ * ----------------------------
+ */
+
 import { describe, expect, it } from 'vitest';
 import { safeStringify } from '../helpers/safeStringify';
 
 describe('safeStringify', () => {
-    it('excludes specified keys from objects', () => {
-      const obj = { a: 1, b: 2, secret: 'hidden', password: '1234' };
-      const exclude = new Set(['secret', 'password']);
-      const result = safeStringify(obj, exclude);
-      expect(result).toBe('{"a":1,"b":2}');
-    });
+  it('excludes specified keys from objects', () => {
+    const obj = { a: 1, b: 2, secret: 'hidden', password: '1234' };
+    const exclude = new Set(['secret', 'password']);
+    const result = safeStringify(obj, exclude);
+    expect(result).toBe('{"a":1,"b":2}');
+  });
 
-    it('excludes keys at all nesting levels', () => {
-      const obj = { a: 1, nested: { secret: 'hidden', b: 2 }, arr: [{ password: 'x', c: 3 }] };
-      const exclude = new Set(['secret', 'password']);
-      const result = safeStringify(obj, exclude);
-      expect(result).toBe('{"a":1,"nested":{"b":2},"arr":[{"c":3}]}');
-    });
+  it('excludes keys at all nesting levels', () => {
+    const obj = { a: 1, nested: { secret: 'hidden', b: 2 }, arr: [{ password: 'x', c: 3 }] };
+    const exclude = new Set(['secret', 'password']);
+    const result = safeStringify(obj, exclude);
+    expect(result).toBe('{"a":1,"nested":{"b":2},"arr":[{"c":3}]}');
+  });
 
-    it('returns all keys if excludeKeys is empty', () => {
-      const obj = { a: 1, b: 2 };
-      const result = safeStringify(obj, new Set());
-      expect(result).toBe('{"a":1,"b":2}');
-    });
+  it('returns all keys if excludeKeys is empty', () => {
+    const obj = { a: 1, b: 2 };
+    const result = safeStringify(obj, new Set());
+    expect(result).toBe('{"a":1,"b":2}');
+  });
   it('stringifies a plain object', () => {
     expect(safeStringify({ a: 1, b: 'hello' })).toBe('{"a":1,"b":"hello"}');
   });

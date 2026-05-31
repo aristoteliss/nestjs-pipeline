@@ -1,3 +1,21 @@
+/*
+ * Copyright (C) 2026-present Aristotelis
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as
+ * published by the Free Software Foundation, either version 3 of the
+ * License, or (at your option) any later version.
+ *
+ * --- COMMERCIAL EXCEPTION ---
+ * Alternatively, a Commercial License is available for individuals or
+ * organizations that require proprietary use without the AGPLv3
+ * copyleft restrictions.
+ *
+ * See COMMERCIAL_LICENSE.txt in this repository for the tiered
+ * revenue-based terms, or contact: aristotelis@ik.me
+ * ----------------------------
+ */
+
 /**
  * Integration tests for CaslBehavior.handle() — the full pipeline path.
  *
@@ -567,13 +585,13 @@ describe('CaslBehavior.handle() integration', () => {
 
   describe('instance-level field authorization via fieldsFromRequest', () => {
     const selfServiceRole: RoleDefinition = {
-        name: 'self-limited',
+      name: 'self-limited',
       capabilities: ['User|update|{"id":"${id}"}|username'],
     };
 
     const roles = [...allRoles, selfServiceRole];
     const capProvider = makeUserCapabilityProvider({
-        'self-user-1': ['self-limited'],
+      'self-user-1': ['self-limited'],
     });
 
     it('should allow updating own username', async () => {
@@ -1279,5 +1297,74 @@ describe('CaslBehavior.handle() integration', () => {
       const result = await behavior.handle(ctx, nextDelegate);
       expect(result).toBe('handler-result');
     });
+  });
+});
+
+describe('CaslBehavior.handle() pre-resolved capabilities', () => {
+  // A provider that fails the test if the behavior queries it. When the user
+  // context already carries capabilities (e.g. from a verified JWT), the
+  // behavior must NOT hit the IUserCapabilityProvider.
+  const throwingProvider: IUserCapabilityProvider = {
+    getUserCapabilities: () => {
+      throw new Error('getUserCapabilities should not be called');
+    },
+  };
+
+  function resolverFor(user: CaslUserContext): IUserContextResolver {
+    return { resolve: () => user };
+  }
+
+  it('uses capabilities attached to the user context instead of the provider', async () => {
+    const resolver = resolverFor({
+      id: 'author-1',
+      capabilities: { roles: ['author'] },
+    });
+    const behavior = createBehavior(allRoles, throwingProvider, resolver);
+    const command = new UpdatePostCommand('post-1', 'author-1', 'New Title');
+    const ctx = makeContext(UpdatePostCommand, command, undefined, {
+      subjectFromRequest: 'Post',
+      rules: [{ action: 'update', subject: 'Post' }],
+    });
+
+    const result = await behavior.handle(ctx, nextDelegate);
+    expect(result).toBe('handler-result');
+  });
+
+  it('denies when pre-resolved roles lack the required permission', async () => {
+    const resolver = resolverFor({
+      id: 'viewer-1',
+      capabilities: { roles: ['viewer'] },
+    });
+    const behavior = createBehavior(allRoles, throwingProvider, resolver);
+    const command = new CreatePostCommand('Title', 'viewer-1');
+    const ctx = makeContext(CreatePostCommand, command, undefined, {
+      rules: [{ action: 'create', subject: 'Post' }],
+    });
+
+    await expect(behavior.handle(ctx, nextDelegate)).rejects.toThrow(
+      ForbiddenException,
+    );
+  });
+
+  it('honors pre-resolved per-user denied capabilities', async () => {
+    const resolver = resolverFor({
+      id: 'author-1',
+      capabilities: {
+        roles: ['author'],
+        deniedCapabilities: [
+          { subject: 'Post', action: 'delete', inverted: true },
+        ],
+      },
+    });
+    const behavior = createBehavior(allRoles, throwingProvider, resolver);
+    const command = new DeleteCommentCommand('post-1', 'author-1', 'draft');
+    const ctx = makeContext(DeleteCommentCommand, command, undefined, {
+      subjectFromRequest: 'Post',
+      rules: [{ action: 'delete', subject: 'Post' }],
+    });
+
+    await expect(behavior.handle(ctx, nextDelegate)).rejects.toThrow(
+      ForbiddenException,
+    );
   });
 });

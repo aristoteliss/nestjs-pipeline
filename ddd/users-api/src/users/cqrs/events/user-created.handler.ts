@@ -8,7 +8,12 @@
  *
  * --- COMMERCIAL EXCEPTION ---
  * Alternatively, a Commercial License is available for individuals or
- * companies that do not wish to be bound by the AGPL terms. Contact Aristotelis for details.
+ * organizations that require proprietary use without the AGPLv3
+ * copyleft restrictions.
+ *
+ * See COMMERCIAL_LICENSE.txt in this repository for the tiered
+ * revenue-based terms, or contact: aristotelis@ik.me
+ * ----------------------------
  */
 
 import { InjectQueue } from '@nestjs/bullmq';
@@ -32,7 +37,7 @@ export class UserCreatedHandler implements IEventHandler<UserCreatedEvent> {
   constructor(
     @InjectQueue(WELCOME_EMAIL_QUEUE)
     private readonly welcomeEmailQueue: Queue<WelcomeEmailJobData>,
-  ) {}
+  ) { }
 
   async handle(event: UserCreatedEvent): Promise<void> {
     const {

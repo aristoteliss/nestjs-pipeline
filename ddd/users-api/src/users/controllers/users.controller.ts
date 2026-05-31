@@ -8,7 +8,12 @@
  *
  * --- COMMERCIAL EXCEPTION ---
  * Alternatively, a Commercial License is available for individuals or
- * companies that do not wish to be bound by the AGPL terms. Contact Aristotelis for details.
+ * organizations that require proprietary use without the AGPLv3
+ * copyleft restrictions.
+ *
+ * See COMMERCIAL_LICENSE.txt in this repository for the tiered
+ * revenue-based terms, or contact: aristotelis@ik.me
+ * ----------------------------
  */
 
 import {
@@ -50,7 +55,7 @@ export class UsersController {
   constructor(
     private readonly commandBus: CommandBus,
     private readonly queryBus: QueryBus,
-  ) {}
+  ) { }
 
   @Get()
   @HttpCode(200)
@@ -68,8 +73,10 @@ export class UsersController {
   async getUser(
     @Param('id', new ZodPipe<UserIdDto, string>(UserIdDtoSchema)) id: UserIdDto,
   ): Promise<UserResponseDto> {
-    const query = new GetUserQuery({ userId: id }, { hydrate: false });
+    const query = new GetUserQuery({ userId: id }, { hydrate: true });
+
     const user = await this.queryBus.execute<GetUserQuery, User>(query);
+
     return toResponseDto(user);
   }
 
@@ -82,6 +89,7 @@ export class UsersController {
       CreateUserCommand,
       UserCreateOutcome
     >(CreateUserMapper.map(dto));
+
     return toResponseDto(outcome.entity);
   }
 
@@ -95,6 +103,7 @@ export class UsersController {
       UpdateUserCommand,
       UserUpdateOutcome
     >(UpdateUserMapper.map(id, dto));
+
     return toResponseDto(outcome.entity);
   }
 
