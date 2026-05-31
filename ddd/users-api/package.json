@@ -6,7 +6,11 @@
   "scripts": {
     "start": "ts-node -r tsconfig-paths/register src/main.ts",
     "start:fastify": "ADAPTER=fastify ts-node -r tsconfig-paths/register src/main.ts",
+    "build:deps": "pnpm --filter \"@nestjs-pipeline/ddd-users-api^...\" run build",
+    "prebuild": "pnpm run build:deps",
     "build": "tsc -p tsconfig.json",
+    "predev": "pnpm run build",
+    "dev": "node --nolazy -r tsx/cjs dist/main.js",
     "clean": "rm -rf dist tsconfig.tsbuildinfo",
     "rebuild": "pnpm run clean && pnpm run build",
     "db:migrate": "tsx src/persistence/migrate.ts",
