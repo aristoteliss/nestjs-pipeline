@@ -5,6 +5,13 @@ Bull/BullMQ, RabbitMQ, Kafka, NATS, gRPC, cron jobs, and any custom transport.
 
 Part of the [@nestjs-pipeline](https://github.com/aristoteliss/nestjs-pipeline) monorepo.
 
+## Table of Contents
+
+- [Installation](#installation)
+- [Features](#features)
+- [Quick Start](#quick-start)
+- [API Reference](#api-reference)
+
 ## Installation
 
 ```bash
@@ -113,3 +120,45 @@ async handle(@Payload() data: any, @Ctx() ctx: KafkaContext) { }
 > @WithCorrelation({ extract: (items) => items?.[0]?.correlationId })
 > async handle(items: any[]) { }
 > ```
+
+
+## API Reference
+
+| Export | Type | Description |
+|--------|------|-------------|
+| `correlationStore` | `AsyncLocalStorage<string>` | Holds the current correlation ID |
+| `getCorrelationId()` | `() => string \| undefined` | Read the active correlation ID from any call stack |
+| `runWithCorrelationId(id, fn)` | `(id: string, fn: () => T) => T` | Execute a callback inside a correlation context |
+| `addCorrelationId(data)` | `(data: object) => object` | Stamp the current ID onto a plain-object payload |
+| `correlationHeaders(key?)` | `(key?: string) => Record<string, string>` | Return a headers object for header-based transports |
+| `@WithCorrelation(opts?)` | Decorator | Restore correlation context on non-HTTP entry points |
+| `CorrelationFrom` | Object | Pre-built extractors: `.amqp()`, `.kafka()`, `.nats()`, `.grpc()` |
+| `HttpCorrelationMiddleware` | NestJS Middleware | Extracts/generates correlation ID from HTTP `x-correlation-id` header |
+| `uuidv7()` | `() => string` | Generate a timestamp-sortable UUID v7 (RFC 9562) |
+
+### Module Setup
+
+To bridge correlation IDs into the pipeline, pass `getCorrelationId` as the `correlationIdFactory`:
+
+```typescript
+import { PipelineModule } from '@nestjs-pipeline/core';
+import { getCorrelationId } from '@nestjs-pipeline/correlation';
+
+PipelineModule.forRoot({
+  correlationIdFactory: getCorrelationId,
+})
+```
+
+For HTTP requests, register `HttpCorrelationMiddleware` in your app module:
+
+```typescript
+import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
+import { HttpCorrelationMiddleware } from '@nestjs-pipeline/correlation';
+
+@Module({})
+export class AppModule implements NestModule {
+  configure(consumer: MiddlewareConsumer) {
+    consumer.apply(HttpCorrelationMiddleware).forRoutes('*');
+  }
+}
+```
