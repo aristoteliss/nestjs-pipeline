@@ -141,15 +141,13 @@ This is useful when your app uses `nestjs-pino`.
 ```typescript
 import { Module } from '@nestjs/common';
 import { NativeLogger } from 'nestjs-pino';
-import {
-  LOGGING_BEHAVIOR_LOGGER,
-  TraceBehavior,
-} from '@nestjs-pipeline/opentelemetry';
+import { LOGGING_BEHAVIOR_LOGGER } from '@nestjs-pipeline/core';
+import { TraceBehavior } from '@nestjs-pipeline/opentelemetry';
 
 @Module({
   providers: [
     TraceBehavior,
-    { provide: LOGGING_BEHAVIOR_LOGGER, useExisting: Logger },
+    { provide: LOGGING_BEHAVIOR_LOGGER, useExisting: NativeLogger },
   ],
 })
 export class AppModule {}

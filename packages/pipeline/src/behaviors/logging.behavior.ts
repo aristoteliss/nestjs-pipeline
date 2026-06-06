@@ -80,19 +80,19 @@ export interface LoggingBehaviorOptions {
    * Example: ['password', 'token', 'ctx.sessionUser' ] will omit these fields from log output.
    * Support dot operator for inner properties.
    */
-  excludeKeys: string[];
+  excludeKeys?: string[];
 
   /**
    * If true, omits the request object from logs entirely (shows placeholder instead).
    * Default: true.
    */
-  excludeRequestObj: boolean;
+  excludeRequestObj?: boolean;
 
   /**
    * If true, omits the response object from logs entirely (shows placeholder instead).
    * Default: true.
    */
-  excludeResponseObj: boolean;
+  excludeResponseObj?: boolean;
 }
 
 interface ContextLogger extends LoggerService {
