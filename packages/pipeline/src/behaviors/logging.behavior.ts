@@ -68,6 +68,13 @@ export interface LoggingBehaviorOptions {
   metricLogLevel?: LogLevel | 'none';
 
   /**
+   * Log level  when happend an error.
+   * Uses NestJS LogLevel names or 'none' to suppress.
+   * Default: 'error'.
+   */
+  errorLogLevel?: LogLevel | 'none';
+
+  /**
    * Log level for request/response payloads.
    * Uses NestJS LogLevel names or 'none' to suppress.
    * Default: 'debug'.
@@ -129,6 +136,7 @@ export class LoggingBehavior implements IPipelineBehavior {
     const options = context.getBehaviorOptions<LoggingBehaviorOptions>(LoggingBehavior);
     const metricLogLevel = options?.metricLogLevel ?? 'log';
     const requestResponseLogLevel = options?.requestResponseLogLevel ?? 'debug';
+    const errorLogLevel = options?.errorLogLevel ?? 'error';
     const excludeKeys = options?.excludeKeys
       ? new Set<string>(options.excludeKeys)
       : new Set<string>();
@@ -175,7 +183,7 @@ export class LoggingBehavior implements IPipelineBehavior {
       const duration = (performance.now() - startTime).toFixed(2);
       const err = error as Error;
       this.log(
-        'error',
+        errorLogLevel,
         `[${context.correlationId}] ${context.requestKind.toUpperCase()} ` +
         `${context.requestName} → ${context.handlerName} failed after ${duration}ms: ` +
         `${err.name}: ${err.message}`,
