@@ -35,10 +35,10 @@ import { IPipelineContext } from '../interfaces/pipeline.context.interface';
 /**
  * Injection token for providing a custom {@link LoggerService} to {@link LoggingBehavior}.
  *
- * The provided logger must either implement all methods from {@link LoggerService} 
+ * The provided logger must either implement all methods from {@link LoggerService}
  * (log, debug, verbose, warn, error, fatal),
  * or support the NestJS log level mapping (e.g., 'log' → 'info', 'verbose' → 'trace', etc.).
- * If you use a logger like nestjs-pino's Logger, ensure it is compatible or that your 
+ * If you use a logger like nestjs-pino's Logger, ensure it is compatible or that your
  * pipeline version includes the mapping logic.
  *
  * @example
@@ -48,6 +48,9 @@ import { IPipelineContext } from '../interfaces/pipeline.context.interface';
  * ```
  */
 export const LOGGING_BEHAVIOR_LOGGER = Symbol('LOGGING_BEHAVIOR_LOGGER');
+
+// Type definition accepting any error class
+type ErrorClass = abstract new (...args: never[]) => Error;
 
 /**
  * Configuration options for the logging behavior.
@@ -68,11 +71,19 @@ export interface LoggingBehaviorOptions {
   metricLogLevel?: LogLevel | 'none';
 
   /**
-   * Log level  when happend an error.
+   * Log level when an error happend.
    * Uses NestJS LogLevel names or 'none' to suppress.
    * Default: 'error'.
    */
   errorLogLevel?: LogLevel | 'none';
+
+  /**
+   * Log level per specific application exception error (mapped by class type).
+   * Resolves to the most specific matching exception class in the prototype chain,
+   * regardless of insertion order.
+   * Example: `new Map([[Error, 'error'], [ForbiddenException, 'warn']])`
+   */
+  mapLogLevel?: Map<ErrorClass, LogLevel | 'none'>;
 
   /**
    * Log level for request/response payloads.
@@ -126,14 +137,16 @@ export class LoggingBehavior implements IPipelineBehavior {
     logger?: LoggerService,
   ) {
     this.logger = logger ?? new Logger(LoggingBehavior.name);
-    this.hasSetContext = typeof (this.logger as ContextLogger).setContext === 'function';
+    this.hasSetContext =
+      typeof (this.logger as ContextLogger).setContext === 'function';
   }
 
   async handle(
     context: IPipelineContext,
     next: NextDelegate,
   ): Promise<unknown> {
-    const options = context.getBehaviorOptions<LoggingBehaviorOptions>(LoggingBehavior);
+    const options =
+      context.getBehaviorOptions<LoggingBehaviorOptions>(LoggingBehavior);
     const metricLogLevel = options?.metricLogLevel ?? 'log';
     const requestResponseLogLevel = options?.requestResponseLogLevel ?? 'debug';
     const errorLogLevel = options?.errorLogLevel ?? 'error';
@@ -149,9 +162,11 @@ export class LoggingBehavior implements IPipelineBehavior {
 
     this.log(
       requestResponseLogLevel,
-      `Request: ${excludeRequestObj
-        ? '[exclude request obj]'
-        : safeStringify(context.request, excludeKeys)}`,
+      `Request: ${
+        excludeRequestObj
+          ? '[exclude request obj]'
+          : safeStringify(context.request, excludeKeys)
+      }`,
       context.handlerName,
     );
 
@@ -164,44 +179,68 @@ export class LoggingBehavior implements IPipelineBehavior {
       this.log(
         metricLogLevel,
         `[${context.correlationId}] ${context.requestKind.toUpperCase()} ` +
-        `${context.requestName} → ${context.handlerName} completed in ${duration}ms`,
+          `${context.requestName} → ${context.handlerName} completed in ${duration}ms`,
         context.handlerName,
       );
 
       this.log(
         requestResponseLogLevel,
-        `Response: ${excludeResponseObj
-          ? '[exclude response obj]'
-          : result != null
-            ? safeStringify(result, excludeKeys)
-            : '(void)'}`,
+        `Response: ${
+          excludeResponseObj
+            ? '[exclude response obj]'
+            : result != null
+              ? safeStringify(result, excludeKeys)
+              : '(void)'
+        }`,
         context.handlerName,
       );
 
       return result;
     } catch (error) {
       const duration = (performance.now() - startTime).toFixed(2);
-      const err = error as Error;
+      const err = error instanceof Error ? error : undefined;
+      let logLevel = errorLogLevel;
+
+      if (options?.mapLogLevel) {
+        let bestMatch: ErrorClass | undefined;
+        for (const [errorType, level] of options.mapLogLevel.entries()) {
+          if (!(error instanceof errorType)) {
+            continue;
+          }
+          if (!bestMatch || errorType.prototype instanceof bestMatch) {
+            bestMatch = errorType;
+            logLevel = level;
+          }
+        }
+      }
+
       this.log(
-        errorLogLevel,
+        logLevel,
         `[${context.correlationId}] ${context.requestKind.toUpperCase()} ` +
-        `${context.requestName} → ${context.handlerName} failed after ${duration}ms: ` +
-        `${err.name}: ${err.message}`,
+          `${context.requestName} → ${context.handlerName} failed after ${duration}ms: ` +
+          `${err ? `${err.name}: ${err.message}` : String(error)}`,
         context.handlerName,
       );
       throw error;
     }
   }
 
-  /** Calls the appropriate Logger method, 
+  /** Calls the appropriate Logger method,
    * or skips entirely when level is `'none'` or unsupported. */
-  private log(level: LogLevel | 'none', message: string, ...optionalParams: unknown[]): void {
+  private log(
+    level: LogLevel | 'none',
+    message: string,
+    ...optionalParams: unknown[]
+  ): void {
     if (level === 'none') return;
 
     const method = this.logger[level as keyof LoggerService];
     if (typeof method === 'function') {
-      (method as (msg: string, ...optionalParams: unknown[]) => void)
-        .call(this.logger, message, ...optionalParams);
+      (method as (msg: string, ...optionalParams: unknown[]) => void).call(
+        this.logger,
+        message,
+        ...optionalParams,
+      );
     }
   }
 }

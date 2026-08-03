@@ -34,3 +34,4 @@ export * from './persistence/decorators/FromCache';
 export * from './persistence/query-repository.abstract';
 export * from './persistence/query-repository.interface';
 export * from './types/Method.type';
+export * from './persistence/types/unix-timestamp.type';
