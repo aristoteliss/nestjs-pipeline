@@ -30,6 +30,17 @@
       "better-sqlite3",
       "msgpackr-extract",
       "protobufjs"
-    ]
+    ],
+    "peerDependencyRules": {
+      "ignoreMissing": ["*"],
+      "allowedVersions": {
+        "*": "*"
+      }
+    }
+  },
+  "overrides": {
+    "@nestjs/core": "11.1.24",
+    "@nestjs/common": "11.1.24",
+    "@nestjs/cqrs": "11.0.3"
   }
 }

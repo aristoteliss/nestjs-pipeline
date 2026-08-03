@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2026-present Aristotelis
+* Copyright (C) 2026-present Aristotelis
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
@@ -14,9 +14,10 @@
  * See COMMERCIAL_LICENSE.txt in this repository for the tiered
  * revenue-based terms, or contact: aristotelis@ik.me
  * ----------------------------
- */
+*/
 
 import { EntitySchema } from '@mikro-orm/core';
+import { UnixTimestampType } from '@nestjs-pipeline/ddd-core';
 import { Capability } from '../../roles/domain/models/capability.entity';
 
 export const CapabilitySchema = new EntitySchema<Capability>({
@@ -26,8 +27,8 @@ export const CapabilitySchema = new EntitySchema<Capability>({
   properties: {
     // @ts-expect-error Maps to private property from RootEntity
     _id: { type: 'string', primary: true, fieldName: 'id' },
-    _createdAt: { type: 'number', fieldName: 'created_at' },
-    _updatedAt: { type: 'number', fieldName: 'updated_at' },
+    _createdAt: { type: UnixTimestampType, fieldName: 'created_at' },
+    _updatedAt: { type: UnixTimestampType, fieldName: 'updated_at' },
     roleId: { type: 'string', fieldName: 'role_id' },
     action: { type: 'string' },
     subject: { type: 'string' },

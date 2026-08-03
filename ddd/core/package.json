@@ -12,6 +12,7 @@
     "lint": "tsc --noEmit"
   },
   "dependencies": {
+    "@mikro-orm/core": "^7.1.9",
     "@nestjs-pipeline/core": "workspace:*",
     "@nestjs-pipeline/correlation": "workspace:*",
     "@nestjs/common": "^11.1.24",

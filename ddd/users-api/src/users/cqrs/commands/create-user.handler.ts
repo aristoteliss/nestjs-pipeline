@@ -16,6 +16,7 @@
  * ----------------------------
  */
 
+import { UniqueConstraintViolationException } from '@mikro-orm/core';
 import { Inject } from '@nestjs/common';
 import { CommandHandler, EventBus } from '@nestjs/cqrs';
 import { CaslBehavior } from '@nestjs-pipeline/casl';
@@ -24,13 +25,21 @@ import {
   CommandBaseHandler,
   ICommandRepository,
 } from '@nestjs-pipeline/ddd-core';
+import { UniqueEmailException } from '../../domain/models/errors/email.exception';
 import { User } from '../../domain/models/user.entity';
 import { UserCreateOutcome } from '../../domain/outcomes/user-create.outcome';
 import { COMMAND_REPOSITORY } from '../../repositories/repository.tokens';
 import { CreateUserCommand } from './create-user.command';
 
 @CommandHandler(CreateUserCommand)
-@UsePipeline([LoggingBehavior, { requestResponseLogLevel: 'log' }],
+@UsePipeline(
+  [
+    LoggingBehavior,
+    {
+      requestResponseLogLevel: 'log',
+      mapLogLevel: new Map([[UniqueEmailException, 'warn']]),
+    },
+  ],
   [
     CaslBehavior,
     {
@@ -56,7 +65,17 @@ export class CreateUserHandler extends CommandBaseHandler<
 
     const outcome = User.create(username, email, department);
 
-    await this.commandRepository.save(outcome);
+    try {
+      await this.commandRepository.save(outcome);
+    } catch (err: any) {
+      if (
+        err instanceof UniqueConstraintViolationException ||
+        err?.code === 'SQLITE_CONSTRAINT_UNIQUE'
+      ) {
+        throw new UniqueEmailException(outcome.entity);
+      }
+      throw err;
+    }
 
     return outcome;
   }

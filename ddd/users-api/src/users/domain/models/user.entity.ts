@@ -66,8 +66,16 @@ export class User extends CacheableEntity<UserSnapshot, User> {
     department?: string | null,
   ): UserCreateOutcome {
     const user = new User({
-      username: User.normalizeWithMinLength({ username }, 'username', USERNAME_MIN_LENGTH),
-      department: User.normalizeWithMinLength({ department }, 'department', DEPARTMENT_MIN_LENGTH),
+      username: User.normalizeWithMinLength(
+        { username },
+        'username',
+        USERNAME_MIN_LENGTH,
+      ),
+      department: User.normalizeWithMinLength(
+        { department },
+        'department',
+        DEPARTMENT_MIN_LENGTH,
+      ),
       email,
     });
 
@@ -79,9 +87,17 @@ export class User extends CacheableEntity<UserSnapshot, User> {
   static fromJSON(snapshot: UserSnapshot): User {
     return new User({
       id: User.normalizeId(snapshot.id),
-      username: User.normalizeWithMinLength(snapshot, 'username', USERNAME_MIN_LENGTH),
+      username: User.normalizeWithMinLength(
+        snapshot,
+        'username',
+        USERNAME_MIN_LENGTH,
+      ),
       email: snapshot.email,
-      department: User.normalizeWithMinLength(snapshot, 'department', DEPARTMENT_MIN_LENGTH),
+      department: User.normalizeWithMinLength(
+        snapshot,
+        'department',
+        DEPARTMENT_MIN_LENGTH,
+      ),
       createdAt: User.normalizeDate(snapshot.createdAt),
       updatedAt: User.normalizeDate(snapshot.updatedAt),
     });
@@ -111,12 +127,23 @@ export class User extends CacheableEntity<UserSnapshot, User> {
   }
 
   @Mutate()
-  update(fields: { username?: string | null; department?: string | null }): UserUpdateOutcome {
+  update(fields: {
+    username?: string | null;
+    department?: string | null;
+  }): UserUpdateOutcome {
     if (fields.username !== undefined) {
-      this._username = User.normalizeWithMinLength({ username: fields.username }, 'username', USERNAME_MIN_LENGTH);
+      this._username = User.normalizeWithMinLength(
+        { username: fields.username },
+        'username',
+        USERNAME_MIN_LENGTH,
+      );
     }
     if (fields.department !== undefined) {
-      this._department = User.normalizeWithMinLength({ department: fields.department }, 'department', DEPARTMENT_MIN_LENGTH);
+      this._department = User.normalizeWithMinLength(
+        { department: fields.department },
+        'department',
+        DEPARTMENT_MIN_LENGTH,
+      );
     }
     return new UserUpdateOutcome(this, [new UserUpdatedEvent(this)]);
   }
@@ -141,4 +168,3 @@ export class User extends CacheableEntity<UserSnapshot, User> {
     // No side effects needed on update for User, but this method must be implemented
   }
 }
-

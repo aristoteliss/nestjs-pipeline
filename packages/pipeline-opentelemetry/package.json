@@ -40,6 +40,7 @@
     "reflect-metadata": "^0.1.13 || ^0.2.0"
   },
   "devDependencies": {
+    "@nestjs-pipeline/core": "workspace:*",
     "@nestjs/common": "^11.1.24",
     "@opentelemetry/api": "^1.9.1",
     "@vitest/coverage-v8": "^4.1.7",
