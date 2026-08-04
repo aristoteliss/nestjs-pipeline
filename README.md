@@ -87,11 +87,11 @@ Zero additional runtime dependencies beyond NestJS itself. Works with Express an
 
 | Package | Version |
 |---|---|
-| `@nestjs-pipeline/core` | `0.1.11` |
-| `@nestjs-pipeline/correlation` | `0.1.6` |
-| `@nestjs-pipeline/zod` | `0.1.5` |
-| `@nestjs-pipeline/opentelemetry` | `0.1.5` |
-| `@nestjs-pipeline/casl` | `0.1.0` |
+| `@nestjs-pipeline/core` | `0.1.17` |
+| `@nestjs-pipeline/correlation` | `0.1.8` |
+| `@nestjs-pipeline/zod` | `0.1.6` |
+| `@nestjs-pipeline/opentelemetry` | `0.1.8` |
+| `@nestjs-pipeline/casl` | `0.1.1` |
 
 ---
 
@@ -862,6 +862,8 @@ PipelineModule.forRoot({
 |---|---|---|---|
 | `metricLogLevel` | `LogLevel \| 'none'` | `'log'` | Log level for timing/duration messages |
 | `requestResponseLogLevel` | `LogLevel \| 'none'` | `'debug'` | Log level for request/response payloads |
+| `errorLogLevel` | `LogLevel \| 'none'` | `'error'` | Log level when an error happened |
+| `mapLogLevel` | `Map<ErrorClass, LogLevel \| 'none'>` | `undefined` | Specific log levels mapped by exception error class (most specific match in prototype chain wins) |
 | `excludeKeys` | `string[]` | `[]` | Keys to omit from request/response logs (supports dot notation for nested properties) |
 | `excludeRequestObj` | `boolean` | `true` | If true, omits the request object from logs entirely (shows placeholder instead) |
 | `excludeResponseObj` | `boolean` | `true` | If true, omits the response object from logs entirely (shows placeholder instead) |
@@ -900,6 +902,14 @@ If you use `bootstrapLogLevel: 'verbose'`, set pino `level: 'trace'`.
 @CommandHandler(CreateUserCommand)
 @UsePipeline([LoggingBehavior, { requestResponseLogLevel: 'log' }])
 export class CreateUserHandler { /* ... */ }
+
+// Map specific exceptions to different log levels (e.g. log constraint violations as warnings)
+@UsePipeline([LoggingBehavior, { 
+  mapLogLevel: new Map([
+    [UniqueConstraintException, 'warn'],
+    [NotFoundException, 'debug'],
+  ]) 
+}])
 
 // Disable payload logging entirely, keep timing metrics
 @UsePipeline([LoggingBehavior, { requestResponseLogLevel: 'none' }])
