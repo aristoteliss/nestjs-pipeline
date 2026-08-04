@@ -411,6 +411,8 @@ PipelineModule.forRoot({
 |---|---|---|---|
 | `metricLogLevel` | `LogLevel \| 'none'` | `'log'` | Log level for timing/duration messages |
 | `requestResponseLogLevel` | `LogLevel \| 'none'` | `'debug'` | Log level for request/response payloads |
+| `errorLogLevel` | `LogLevel \| 'none'` | `'error'` | Log level when an error happened |
+| `mapLogLevel` | `Map<ErrorClass, LogLevel \| 'none'>` | `undefined` | Specific log levels mapped by exception error class (most specific match in prototype chain wins) |
 | `excludeKeys` | `string[]` | `[]` | Keys to omit from request/response logs (supports dot notation for nested properties) |
 | `excludeRequestObj` | `boolean` | `true` | If true, omits the request object from logs entirely (shows placeholder instead) |
 | `excludeResponseObj` | `boolean` | `true` | If true, omits the response object from logs entirely (shows placeholder instead) |
@@ -448,6 +450,14 @@ Nest log levels map to pino as:
 @CommandHandler(CreateUserCommand)
 @UsePipeline([LoggingBehavior, { requestResponseLogLevel: 'log' }])
 export class CreateUserHandler { /* ... */ }
+
+// Map specific exceptions to different log levels (e.g. log constraint violations as warnings)
+@UsePipeline([LoggingBehavior, { 
+  mapLogLevel: new Map([
+    [UniqueConstraintException, 'warn'],
+    [NotFoundException, 'debug'],
+  ]) 
+}])
 
 // Disable payload logging, keep metrics
 @UsePipeline([LoggingBehavior, { requestResponseLogLevel: 'none' }])
@@ -679,7 +689,7 @@ orderCreated = (events$: Observable<any>): Observable<ICommand> =>
 | `BasePipelineContext` | Class | Extensible base — override if you need custom contexts |
 | `PipelineContext` | Class | Concrete context created per invocation |
 | `LoggingBehavior` | Class | Built-in structured logging |
-| `LoggingBehaviorOptions` | Interface | Options for `LoggingBehavior` (`metricLogLevel`, `requestResponseLogLevel`) |
+| `LoggingBehaviorOptions` | Interface | Options for `LoggingBehavior` (`metricLogLevel`, `requestResponseLogLevel`, `errorLogLevel`, `mapLogLevel`) |
 | `uuidv7` | Function | Generate timestamp-sortable UUIDs |
 | `pipelineStore` | `AsyncLocalStorage` | Access the current pipeline context |
 | `PipelineModuleOptions` | Interface | Options for `PipelineModule.forRoot()` |
