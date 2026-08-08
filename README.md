@@ -867,6 +867,11 @@ PipelineModule.forRoot({
 | `excludeKeys` | `string[]` | `[]` | Keys to omit from request/response logs (supports dot notation for nested properties) |
 | `excludeRequestObj` | `boolean` | `true` | If true, omits the request object from logs entirely (shows placeholder instead) |
 | `excludeResponseObj` | `boolean` | `true` | If true, omits the response object from logs entirely (shows placeholder instead) |
+| `logFormat` | `'text' \| 'structured'` | `'text'` | Output shape for request/response/metric/error logs. `'text'` produces a single interpolated string; `'structured'` produces a plain object (e.g. `{ msg, request }`), useful for structured loggers like `nestjs-pino`/pino that serialize to JSON |
+
+> By default `excludeRequestObj`/`excludeResponseObj` are `true`, so out of the box you'll see the placeholders `[exclude request obj]` / `[exclude response obj]` rather than the actual payload — set them to `false` to log the real request/response.
+
+On failure, the error log also includes the thrown error's `stack` (when it's an `Error` instance) and, if the error exposes an `optionalParams` property (e.g. a custom exception carrying extra structured context), those values are appended to the log entry as well.
 
 To provide your own logger implementation (for example `nestjs-pino`), bind the `LOGGING_BEHAVIOR_LOGGER` token:
 
@@ -918,18 +923,20 @@ export class CreateUserHandler { /* ... */ }
 @UsePipeline([LoggingBehavior, { metricLogLevel: 'none', requestResponseLogLevel: 'none' }])
 ```
 
+`LoggingBehavior` logs under the **handler's** context, not its own — it calls `setContext(context.handlerName)` on the injected logger before logging, so the bracketed tag below is the handler name. With `excludeRequestObj: false, excludeResponseObj: false`:
+
 **Output example** (on success):
 
 ```
-[Nest] LOG   [LoggingBehavior] Request: {"username":"jane","email":"jane@example.com"}
-[Nest] LOG   [LoggingBehavior] [019728a3-...] COMMAND CreateUserCommand → CreateUserHandler completed in 12.34ms
-[Nest] DEBUG [LoggingBehavior] Response: {"id":"...","username":"jane","email":"jane@example.com"}
+[Nest] LOG   [CreateUserHandler] Request: {"username":"jane","email":"jane@example.com"}
+[Nest] LOG   [CreateUserHandler] [019728a3-...] COMMAND CreateUserCommand → CreateUserHandler completed in 12.34ms
+[Nest] DEBUG [CreateUserHandler] Response: {"id":"...","username":"jane","email":"jane@example.com"}
 ```
 
 **Output example** (on error):
 
 ```
-[Nest] ERROR [LoggingBehavior] [019728a3-...] COMMAND CreateUserCommand → CreateUserHandler failed after 2.10ms: Error: User already exists
+[Nest] ERROR [CreateUserHandler] [019728a3-...] COMMAND CreateUserCommand → CreateUserHandler failed after 2.10ms: Error: User already exists
 ```
 
 ---
@@ -1161,7 +1168,7 @@ The `ddd/` directory demonstrates Domain-Driven Design with `@nestjs-pipeline`.
 The `@nestjs-pipeline/ddd-core` package (`ddd/core/`) provides the foundational building blocks for any domain layer:
 
 | Export                | Description                                                                           |
-|-----------------------|---------------------------------------------------------------------------------------|
+|-----------------------|-----------------------------------------------------------------------------------------|
 | `RootEntity`          | Abstract base entity with UUID v7 identity, `createdAt`/`updatedAt` lifecycle, and mutation tracking |
 | `CacheableEntity`     | Extends `RootEntity` — adds `cacheKey` (`<prefixKey><id>`) used by `@Cache`/`@FromCache` decorators |
 | `RootEntitySnapshot`  | Interface for serializing/rehydrating entities                                        |

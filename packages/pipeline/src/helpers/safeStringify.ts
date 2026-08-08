@@ -19,8 +19,8 @@
 const SAFE_PRIMITIVES = new Set(['string', 'number', 'boolean']);
 
 interface ExcludeMatchers {
-  flatKeys: Set<string>;  // 'token'     → excluded at ANY depth
-  pathKeys: Set<string>;  // 'ctx.sessionUser'  → excluded ONLY at that exact path
+  flatKeys: Set<string>; // 'token'     → excluded at ANY depth
+  pathKeys: Set<string>; // 'ctx.sessionUser'  → excluded ONLY at that exact path
 }
 
 function buildExcludeMatchers(excludeKeys: Set<string>): ExcludeMatchers {
@@ -33,6 +33,128 @@ function buildExcludeMatchers(excludeKeys: Set<string>): ExcludeMatchers {
   }
 
   return { flatKeys, pathKeys };
+}
+
+/**
+ * Recursively sanitizes a single value: applies key/path-based exclusion,
+ * normalizes non-serializable types, and guards against circular references.
+ *
+ * @param val - The value currently being visited
+ * @param path - Dot-path of `val` from the root (e.g. 'ctx.sessionUser')
+ * @param matchers - Precomputed flat/path exclusion sets, or null if no exclusion is configured
+ * @param seen - WeakSet tracking already-visited objects/arrays for circular detection
+ */
+function sanitizeValue(
+  val: unknown,
+  path: string,
+  matchers: ExcludeMatchers | null,
+  seen: WeakSet<object>,
+): unknown {
+  // 1. Null / undefined
+  if (val === null) return null;
+  if (val === undefined) return undefined;
+
+  // 2. Date → ISO string
+  if (val instanceof Date) return val.toISOString();
+
+  // 3. Error → structured object
+  if (val instanceof Error) {
+    return { name: val.name, message: val.message, stack: val.stack };
+  }
+
+  // 4. Binary data (Buffer, ArrayBuffer, TypedArrays, DataView)
+  if (
+    (typeof Buffer !== 'undefined' && Buffer.isBuffer(val)) ||
+    val instanceof ArrayBuffer ||
+    ArrayBuffer.isView(val)
+  ) {
+    return '[Binary Data]';
+  }
+
+  // 5. Stream — requires both pipe and on to reduce false positives
+  if (
+    typeof val === 'object' &&
+    typeof (val as Record<string, unknown>).pipe === 'function' &&
+    typeof (val as Record<string, unknown>).on === 'function'
+  ) {
+    return '[Stream]';
+  }
+
+  // 6. Multer file
+  if (
+    typeof val === 'object' &&
+    'originalname' in val &&
+    'buffer' in val &&
+    Buffer.isBuffer((val as Record<string, unknown>).buffer)
+  ) {
+    return `[File: ${(val as Record<string, unknown>).originalname}]`;
+  }
+
+  // 7. RegExp → string representation
+  if (val instanceof RegExp) return val.toString();
+
+  // 8. Map / Set — both silently emit {} without this
+  if (val instanceof Map) {
+    return sanitizeValue(Object.fromEntries(val), path, matchers, seen);
+  }
+  if (val instanceof Set) {
+    return sanitizeValue([...val], path, matchers, seen);
+  }
+
+  // 9. Arrays — recurse per item, guard against circular refs
+  if (Array.isArray(val)) {
+    if (seen.has(val)) return '[Circular]';
+    seen.add(val);
+    return val.map((item) => sanitizeValue(item, path, matchers, seen));
+  }
+
+  // 10. Plain objects — recurse per key, applying key/path-based exclusion
+  if (typeof val === 'object') {
+    if (seen.has(val)) return '[Circular]';
+    seen.add(val);
+
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(val as Record<string, unknown>)) {
+      const currentPath = path ? `${path}.${k}` : k;
+
+      // Key/path-based exclusion
+      if (
+        matchers &&
+        (matchers.flatKeys.has(k) || matchers.pathKeys.has(currentPath))
+      ) {
+        continue;
+      }
+
+      out[k] = sanitizeValue(v, currentPath, matchers, seen);
+    }
+    return out;
+  }
+
+  // 11. Leaf primitive validation
+  const type = typeof val;
+  return SAFE_PRIMITIVES.has(type) ? val : `[${type}]`;
+}
+
+/**
+ * Sanitizes a value for structured logging: handles circular references,
+ * non-serializable types, and optional key exclusion (flat or path-based) —
+ * WITHOUT stringifying it. Returns a plain object/array/primitive suitable
+ * for handing directly to a structured logger (pino, nestjs-pino, etc.),
+ * where fields stay queryable instead of being flattened into text.
+ *
+ * Flat key:  'token'    → excluded at any depth
+ * Path key:  'ctx.sessionUser' → excluded only at that exact path
+ *
+ * @param value - The value to sanitize
+ * @param excludeKeys - Optional Set of keys/paths to exclude from the output
+ * @returns The sanitized value (object, array, or primitive)
+ */
+export function safeSanitize(
+  value: unknown,
+  excludeKeys?: Set<string>,
+): unknown {
+  const matchers = excludeKeys?.size ? buildExcludeMatchers(excludeKeys) : null;
+  return sanitizeValue(value, '', matchers, new WeakSet());
 }
 
 /**
@@ -52,91 +174,5 @@ export function safeStringify(
   excludeKeys?: Set<string>,
   indent?: number,
 ): string {
-  const seen = new WeakSet();
-
-  // Only build matchers / pathMap when exclusion is actually needed
-  const matchers = excludeKeys?.size ? buildExcludeMatchers(excludeKeys) : null;
-  const pathMap = matchers ? new WeakMap<object, string>() : null;
-
-  return JSON.stringify(
-    value,
-    function (this: unknown, key: string, val: unknown) {
-
-      // 1. Path tracking — register each object's path so children can look it up
-      if (pathMap && val !== null && typeof val === 'object') {
-        const parentPath = pathMap.get(this as object) ?? '';
-        const currentPath = key ? (parentPath ? `${parentPath}.${key}` : key) : '';
-        pathMap.set(val as object, currentPath);
-      }
-
-      // 2. Key/path-based exclusion (skip root key which is always '')
-      if (key && matchers) {
-        const parentPath = pathMap?.get(this as object) ?? '';
-        const currentPath = parentPath ? `${parentPath}.${key}` : key;
-
-        if (matchers.flatKeys.has(key) || matchers.pathKeys.has(currentPath)) {
-          return undefined;
-        }
-      }
-
-      // 3. Null / undefined
-      if (val === null) return null;
-      if (val === undefined) return undefined;
-
-      // 4. Date → ISO string
-      if (val instanceof Date) return val.toISOString();
-
-      // 5. Error → structured object
-      if (val instanceof Error) {
-        return { name: val.name, message: val.message, stack: val.stack };
-      }
-
-      // 6. Binary data (Buffer, ArrayBuffer, TypedArrays, DataView)
-      if (
-        (typeof Buffer !== 'undefined' && Buffer.isBuffer(val)) ||
-        val instanceof ArrayBuffer ||
-        ArrayBuffer.isView(val)
-      ) {
-        return '[Binary Data]';
-      }
-
-      // 7. Stream — requires both pipe and on to reduce false positives
-      if (
-        typeof val === 'object' &&
-        typeof (val as Record<string, unknown>).pipe === 'function' &&
-        typeof (val as Record<string, unknown>).on === 'function'
-      ) {
-        return '[Stream]';
-      }
-
-      // 8. Multer file
-      if (
-        typeof val === 'object' &&
-        'originalname' in val &&
-        'buffer' in val &&
-        Buffer.isBuffer((val as Record<string, unknown>).buffer)
-      ) {
-        return `[File: ${(val as Record<string, unknown>).originalname}]`;
-      }
-
-      // 9. RegExp → string representation
-      if (val instanceof RegExp) return val.toString();
-
-      // 10. Map / Set — both silently emit {} without this
-      if (val instanceof Map) return Object.fromEntries(val);
-      if (val instanceof Set) return [...val];
-
-      // 11. Circular reference check
-      if (typeof val === 'object') {
-        if (seen.has(val)) return '[Circular]';
-        seen.add(val);
-        return val;
-      }
-
-      // 12. Leaf primitive validation
-      const type = typeof val;
-      return SAFE_PRIMITIVES.has(type) ? val : `[${type}]`;
-    },
-    indent,
-  );
+  return JSON.stringify(safeSanitize(value, excludeKeys), undefined, indent);
 }

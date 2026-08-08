@@ -413,9 +413,16 @@ PipelineModule.forRoot({
 | `requestResponseLogLevel` | `LogLevel \| 'none'` | `'debug'` | Log level for request/response payloads |
 | `errorLogLevel` | `LogLevel \| 'none'` | `'error'` | Log level when an error happened |
 | `mapLogLevel` | `Map<ErrorClass, LogLevel \| 'none'>` | `undefined` | Specific log levels mapped by exception error class (most specific match in prototype chain wins) |
-| `excludeKeys` | `string[]` | `[]` | Keys to omit from request/response logs (supports dot notation for nested properties) |
+| `excludeKeys` | `string[]` | `[]` | Keys to omit from request/response logs (supports dot notation for nested properties, e.g. `'ctx.sessionUser'`) |
 | `excludeRequestObj` | `boolean` | `true` | If true, omits the request object from logs entirely (shows placeholder instead) |
 | `excludeResponseObj` | `boolean` | `true` | If true, omits the response object from logs entirely (shows placeholder instead) |
+| `logFormat` | `'text' \| 'structured'` | `'text'` | Output shape for request/response/metric/error logs. `'text'` emits a single interpolated string; `'structured'` emits a plain object payload (e.g. `{ msg, request }` for request/response, `{ message, stack, ... }` for errors) — suitable for structured loggers like `nestjs-pino`/pino that serialize objects into JSON fields |
+
+When the wrapped handler throws, the logged error entry is also enriched with:
+- the error's `stack`, if it's an `Error` instance;
+- the error's `optionalParams`, if the thrown value defines one — normalized into an array and merged into the logged payload, so any extra context an exception carries beyond `message`/`stack` still reaches the logs.
+
+The original error is always re-thrown unchanged after logging, so `LoggingBehavior` only observes failures — it never swallows them.
 
 Provide your own logger by binding `LOGGING_BEHAVIOR_LOGGER` (for example with `nestjs-pino`):
 
@@ -464,9 +471,12 @@ export class CreateUserHandler { /* ... */ }
 
 // Silence all logging
 @UsePipeline([LoggingBehavior, { metricLogLevel: 'none', requestResponseLogLevel: 'none' }])
+
+// Emit structured objects instead of strings (e.g. for nestjs-pino)
+@UsePipeline([LoggingBehavior, { logFormat: 'structured' }])
 ```
 
-**Output** (success):
+**Output** (success, default `logFormat: 'text'`):
 
 ```
 [LoggingBehavior] Request: {"username":"jane","email":"jane@example.com"}
@@ -474,10 +484,39 @@ export class CreateUserHandler { /* ... */ }
 [LoggingBehavior] Response: {"id":"...","username":"jane"}
 ```
 
-**Output** (error):
+**Output** (error, default `logFormat: 'text'`):
 
 ```
 [LoggingBehavior] [019728a3-...] COMMAND CreateUserCommand → CreateUserHandler failed after 2.10ms: Error: User already exists
+```
+
+**Output** (`logFormat: 'structured'`):
+
+With `logFormat: 'structured'`, the same events are emitted as plain objects instead of interpolated strings — handy for loggers like `nestjs-pino` that serialize objects into JSON fields:
+
+```typescript
+// Request
+{ msg: 'Request → CreateUserHandler', request: '[exclude request obj]' }
+
+// Metric (on success)
+{
+  msg: '[019728a3-...] COMMAND CreateUserCommand → CreateUserHandler completed in 12.34ms',
+  correlationId: '019728a3-...',
+  requestKind: 'command',
+  requestName: 'CreateUserCommand',
+  handlerName: 'CreateUserHandler',
+  durationMs: 12.34,
+}
+
+// Response
+{ msg: 'Response ← CreateUserHandler', response: '[exclude response obj]' }
+
+// Error
+{
+  message: '[019728a3-...] COMMAND CreateUserCommand → CreateUserHandler failed after 2.10ms: Error: User already exists',
+  stack: 'Error: User already exists\n    at ...',
+  // ...any optionalParams the thrown error carried, merged in here
+}
 ```
 
 ---
@@ -689,7 +728,7 @@ orderCreated = (events$: Observable<any>): Observable<ICommand> =>
 | `BasePipelineContext` | Class | Extensible base — override if you need custom contexts |
 | `PipelineContext` | Class | Concrete context created per invocation |
 | `LoggingBehavior` | Class | Built-in structured logging |
-| `LoggingBehaviorOptions` | Interface | Options for `LoggingBehavior` (`metricLogLevel`, `requestResponseLogLevel`, `errorLogLevel`, `mapLogLevel`) |
+| `LoggingBehaviorOptions` | Interface | Options for `LoggingBehavior` (`metricLogLevel`, `requestResponseLogLevel`, `errorLogLevel`, `mapLogLevel`, `excludeKeys`, `excludeRequestObj`, `excludeResponseObj`, `logFormat`) |
 | `uuidv7` | Function | Generate timestamp-sortable UUIDs |
 | `pipelineStore` | `AsyncLocalStorage` | Access the current pipeline context |
 | `PipelineModuleOptions` | Interface | Options for `PipelineModule.forRoot()` |
