@@ -46,7 +46,7 @@ import {
 } from '@nestjs-pipeline/deadletter';
 import { FeatureFlagsModule } from '@nestjs-pipeline/feature-flags';
 import { IdempotencyModule } from '@nestjs-pipeline/idempotency';
-import { TraceBehavior } from '@nestjs-pipeline/opentelemetry';
+import { MetricsBehavior, TraceBehavior } from '@nestjs-pipeline/opentelemetry';
 import { RateLimitModule } from '@nestjs-pipeline/rate-limit';
 import { ResilienceModule } from '@nestjs-pipeline/resilience';
 import { ZodValidationBehavior } from '@nestjs-pipeline/zod';
@@ -103,9 +103,8 @@ import { UsersModule } from './users/users.module';
       correlationIdRunner: runWithCorrelationId,
       /**
        * Register global behaviors once so every command, query, and event handler
-       * shares the same logging/tracing/validation pipeline by default — without
+       * shares the same logging/tracing/metrics/validation pipeline by default — without
        * repeating them on each handler.
-       *
        * A handler may still opt into a per-handler `@UsePipeline` entry: if it
        * declares the same behavior class as a global one, the handler's entry
        * REPLACES the global entry for that handler (it does not run twice). This is
@@ -116,15 +115,16 @@ import { UsersModule } from './users/users.module';
        * - emits request/response + timing logs
        * - uses nestjs-pino through LOGGING_BEHAVIOR_LOGGER provider
        *
-       * after: TraceBehavior + ZodValidationBehavior
+       * after: TraceBehavior + MetricsBehavior + ZodValidationBehavior
        * - TraceBehavior creates OTel spans (and uses nestjs-pino via LOGGING_BEHAVIOR_LOGGER)
-       * - ZodValidationBehavior validates static _zodSchema when present
+       * - MetricsBehavior records execution duration histogram and invocation counters
        */
       globalBehaviors: {
         scope: 'all',
         before: [DeadLetterBehavior, LoggingBehavior],
         after: [
           [TraceBehavior, { tracerName: 'users-api' }],
+          [MetricsBehavior, { meterName: 'users-api' }],
           ZodValidationBehavior,
         ],
       },
@@ -264,6 +264,11 @@ import { UsersModule } from './users/users.module';
     FeatureFlagsModule.forRoot({
       provider: new InMemoryProvider({
         'user-registration': {
+          disabled: false,
+          variants: { on: true, off: false },
+          defaultVariant: 'on',
+        },
+        'role-creation': {
           disabled: false,
           variants: { on: true, off: false },
           defaultVariant: 'on',

@@ -19,11 +19,18 @@
 import { SessionUser } from '@common/types/SessionUser';
 import { Inject } from '@nestjs/common';
 import { CommandHandler, EventBus } from '@nestjs/cqrs';
-import { LoggingBehavior, UsePipeline } from '@nestjs-pipeline/core';
+import { AuditBehavior } from '@nestjs-pipeline/audit';
+import {
+  type IPipelineContext,
+  LoggingBehavior,
+  UsePipeline,
+} from '@nestjs-pipeline/core';
 import {
   CommandBaseHandler,
   ICommandRepository,
 } from '@nestjs-pipeline/ddd-core';
+import { MetricsBehavior } from '@nestjs-pipeline/opentelemetry';
+import { RateLimitBehavior } from '@nestjs-pipeline/rate-limit';
 import { Auth, AuthSnapshot } from '../../domain/models/auth.entity';
 import { AuthCreateOutcome } from '../../domain/outcomes/auth-create.outcome';
 import { COMMAND_REPOSITORY } from '../../repositories/repository.tokens';
@@ -31,7 +38,31 @@ import { AuthService } from '../../services/auth.service';
 import { CreateAuthCommand } from './create-auth.command';
 
 @CommandHandler(CreateAuthCommand)
-@UsePipeline([LoggingBehavior, { requestResponseLogLevel: 'log' }])
+@UsePipeline(
+  [LoggingBehavior, { requestResponseLogLevel: 'log' }],
+  // Override global MetricsBehavior with auths-specific meter name
+  [MetricsBehavior, { meterName: 'users-api.auth' }],
+  // Rate limit login attempts to prevent brute-force attacks
+  [
+    RateLimitBehavior,
+    {
+      keyFactory: (ctx: IPipelineContext) =>
+        `auth:login:${(ctx.request as CreateAuthCommand).email}`,
+    },
+  ],
+  // Audit login events with actor extracted from the login command
+  [
+    AuditBehavior,
+    {
+      action: 'auth.login',
+      severity: 'medium',
+      actor: (ctx: IPipelineContext) => {
+        const req = ctx.request as CreateAuthCommand;
+        return { id: req?.email ?? 'anonymous', email: req?.email };
+      },
+    },
+  ],
+)
 export class CreateAuthHandler extends CommandBaseHandler<
   CreateAuthCommand,
   SessionUser

@@ -17,10 +17,9 @@
  */
 
 import { getSessionUserFromStore } from '@common/context/session-user.store';
-import { Inject, NotFoundException, Optional } from '@nestjs/common';
+import { Inject, NotFoundException } from '@nestjs/common';
 import { CommandHandler, EventBus } from '@nestjs/cqrs';
 import { AuditBehavior } from '@nestjs-pipeline/audit';
-import { PIPELINE_CACHE } from '@nestjs-pipeline/cache';
 import { CaslBehavior } from '@nestjs-pipeline/casl';
 import { LoggingBehavior, UsePipeline } from '@nestjs-pipeline/core';
 import {
@@ -29,7 +28,6 @@ import {
   IQueryRepository,
 } from '@nestjs-pipeline/ddd-core';
 import { ResilienceBehavior } from '@nestjs-pipeline/resilience';
-import { TenantSchemaContext } from '@persistence/tenant-schema.context';
 import { User } from '../../domain/models/user.entity';
 import { UserUpdateOutcome } from '../../domain/outcomes/user-update.outcome';
 import {
@@ -114,11 +112,6 @@ export class DeleteUserHandler extends CommandBaseHandler<
     private readonly queryRepository: IQueryRepository<GetUserQuery, User>,
     @Inject(COMMAND_REPOSITORY.deleteUser)
     private readonly commandRepository: ICommandRepository<UserUpdateOutcome>,
-    @Optional()
-    @Inject(PIPELINE_CACHE)
-    private readonly pipelineCache: {
-      delete?: (key: string) => Promise<unknown>;
-    } | null,
     protected readonly eventBus: EventBus,
   ) {
     super(eventBus);
@@ -138,17 +131,6 @@ export class DeleteUserHandler extends CommandBaseHandler<
     const outcome = user.delete();
 
     await this.commandRepository.save(outcome);
-
-    // Evict Redis cache entry for GetUserQuery
-    if (this.pipelineCache) {
-      const cacheKey = `${TenantSchemaContext.currentSchema}:GetUserQuery:${id}`;
-      const c = this.pipelineCache as Record<string, unknown>;
-      if (typeof c.del === 'function') {
-        await (c.del as (k: string) => Promise<unknown>)(cacheKey);
-      } else if (typeof c.delete === 'function') {
-        await (c.delete as (k: string) => Promise<unknown>)(cacheKey);
-      }
-    }
 
     return outcome;
   }

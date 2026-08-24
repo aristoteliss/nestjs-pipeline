@@ -562,6 +562,100 @@ describe('pipeline-packages (e2e)', () => {
     });
   });
 
+  describe('@nestjs-pipeline/feature-flags (Role Creation Feature Flag)', () => {
+    it('allows role creation when role-creation feature flag is enabled', async () => {
+      const roleName = `flagged-role-${Date.now()}`;
+      const res = await as(admin).post('/roles').send({ name: roleName });
+
+      expect(res.status).toBe(201);
+      expect(res.body.name).toBe(roleName);
+    });
+  });
+
+  describe('@nestjs-pipeline/idempotency (Roles API)', () => {
+    it('replays identical role response for duplicate create request with same name', async () => {
+      const roleName = `idem-role-${Date.now()}`;
+      const body = { name: roleName };
+
+      const first = await as(admin).post('/roles').send(body);
+      const second = await as(admin).post('/roles').send(body);
+
+      expect(first.status).toBe(201);
+      expect(second.status).toBe(201);
+      expect(second.body.id).toBe(first.body.id);
+      expect(second.body.name).toBe(first.body.name);
+    });
+  });
+
+  describe('@nestjs-pipeline/rate-limit (Auth Login Throttling)', () => {
+    it('throttles login attempts exceeding 5 attempts within 60s per email (429)', async () => {
+      const email = newEmail();
+
+      // Send 5 login attempts
+      for (let i = 0; i < 5; i++) {
+        await request(http)
+          .post('/auth/login')
+          .set('x-tenant-schema', 'tenant')
+          .send({ email, code: '000000' });
+      }
+
+      // 6th attempt should be throttled by RateLimitBehavior
+      const throttled = await request(http)
+        .post('/auth/login')
+        .set('x-tenant-schema', 'tenant')
+        .send({ email, code: '000000' });
+
+      expect(throttled.status).toBe(429);
+      expect(throttled.body).toMatchObject({
+        statusCode: 429,
+        error: 'Too Many Requests',
+      });
+      expect(throttled.headers).toHaveProperty('retry-after');
+    });
+  });
+
+  describe('@nestjs-pipeline/cache (Role Queries Caching)', () => {
+    it('caches get-role and get-roles query responses in Redis', async () => {
+      const roleName = `cached-role-${Date.now()}`;
+      const created = await as(admin).post('/roles').send({ name: roleName });
+      expect(created.status).toBe(201);
+      const roleId = created.body.id;
+
+      // 1st single query -> hits DB and populates Redis
+      const firstRole = await as(admin).get(`/roles/${roleId}`);
+      expect(firstRole.status).toBe(200);
+      expect(firstRole.body.name).toBe(roleName);
+
+      // 2nd single query -> served from Redis cache
+      const secondRole = await as(admin).get(`/roles/${roleId}`);
+      expect(secondRole.status).toBe(200);
+      expect(secondRole.body.id).toBe(roleId);
+
+      // List roles query -> hits DB & caches
+      const firstList = await as(admin).get('/roles');
+      expect(firstList.status).toBe(200);
+
+      // Second list query -> served from cache
+      const secondList = await as(admin).get('/roles');
+      expect(secondList.status).toBe(200);
+      expect(secondList.body.roles.length).toBe(firstList.body.roles.length);
+    });
+  });
+
+  describe('@nestjs-pipeline/audit & resilience (DeleteRoleHandler)', () => {
+    it('executes role deletion with resilience policy and audit logging', async () => {
+      const roleName = `audit-delete-role-${Date.now()}`;
+      const created = await as(admin).post('/roles').send({ name: roleName });
+      expect(created.status).toBe(201);
+
+      const delRes = await as(admin).delete(`/roles/${created.body.id}`);
+      expect(delRes.status).toBe(204);
+
+      const getRes = await as(admin).get(`/roles/${created.body.id}`);
+      expect(getRes.status).toBe(404);
+    });
+  });
+
   describe('@nestjs-pipeline/zod (Validation boundaries)', () => {
     it('validates payloads with Zod and returns 400 with fieldErrors', async () => {
       const res = await as(admin)

@@ -20,11 +20,18 @@ import { UniqueConstraintViolationException } from '@mikro-orm/core';
 import { Inject } from '@nestjs/common';
 import { CommandHandler, EventBus } from '@nestjs/cqrs';
 import { CaslBehavior } from '@nestjs-pipeline/casl';
-import { LoggingBehavior, UsePipeline } from '@nestjs-pipeline/core';
+import {
+  type IPipelineContext,
+  LoggingBehavior,
+  UsePipeline,
+} from '@nestjs-pipeline/core';
 import {
   CommandBaseHandler,
   ICommandRepository,
 } from '@nestjs-pipeline/ddd-core';
+import { FeatureFlagBehavior } from '@nestjs-pipeline/feature-flags';
+import { IdempotencyBehavior } from '@nestjs-pipeline/idempotency';
+import { TenantSchemaContext } from '@persistence/tenant-schema.context';
 import { UniqueRoleNameException } from '../../domain/models/errors/role-name.exception';
 import { Role } from '../../domain/models/role.entity';
 import { RoleCreateOutcome } from '../../domain/outcomes/role-create.outcome';
@@ -48,6 +55,16 @@ import { CreateRoleCommand } from './create-role.command';
         { action: 'create', subject: 'Role' },
         { action: 'read', subject: 'User' },
       ],
+    },
+  ],
+  // Gate role creation behind the 'role-creation' feature flag
+  [FeatureFlagBehavior, { flag: 'role-creation' }],
+  // Ensure idempotent role creation requests per role name
+  [
+    IdempotencyBehavior,
+    {
+      keyFactory: (ctx: IPipelineContext) =>
+        `${TenantSchemaContext.currentSchema}:role.create:${(ctx.request as CreateRoleCommand).name}`,
     },
   ],
 )

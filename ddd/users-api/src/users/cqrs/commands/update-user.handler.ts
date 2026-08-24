@@ -16,9 +16,8 @@
  * ----------------------------
  */
 
-import { Inject, NotFoundException, Optional, Scope } from '@nestjs/common';
+import { Inject, NotFoundException, Scope } from '@nestjs/common';
 import { CommandHandler, EventBus } from '@nestjs/cqrs';
-import { PIPELINE_CACHE } from '@nestjs-pipeline/cache';
 import {
   assertEntityPermission,
   CaslBehavior,
@@ -30,7 +29,6 @@ import {
   ICommandRepository,
   IQueryRepository,
 } from '@nestjs-pipeline/ddd-core';
-import { TenantSchemaContext } from '@persistence/tenant-schema.context';
 import { User } from '../../domain/models/user.entity';
 import { UserUpdateOutcome } from '../../domain/outcomes/user-update.outcome';
 import {
@@ -61,11 +59,6 @@ export class UpdateUserHandler extends CommandBaseHandler<
     private readonly queryRepository: IQueryRepository<GetUserQuery, User>,
     @Inject(COMMAND_REPOSITORY.updateUser)
     private readonly commandRepository: ICommandRepository<UserUpdateOutcome>,
-    @Optional()
-    @Inject(PIPELINE_CACHE)
-    private readonly pipelineCache: {
-      delete?: (key: string) => Promise<unknown>;
-    } | null,
     protected readonly eventBus: EventBus,
   ) {
     super(eventBus);
@@ -103,17 +96,6 @@ export class UpdateUserHandler extends CommandBaseHandler<
     const outcome = user.update({ username, department });
 
     await this.commandRepository.save(outcome);
-
-    // Evict Redis cache entry for GetUserQuery
-    if (this.pipelineCache) {
-      const cacheKey = `${TenantSchemaContext.currentSchema}:GetUserQuery:${id}`;
-      const c = this.pipelineCache as Record<string, unknown>;
-      if (typeof c.del === 'function') {
-        await (c.del as (k: string) => Promise<unknown>)(cacheKey);
-      } else if (typeof c.delete === 'function') {
-        await (c.delete as (k: string) => Promise<unknown>)(cacheKey);
-      }
-    }
 
     return outcome;
   }

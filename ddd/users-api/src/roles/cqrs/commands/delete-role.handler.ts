@@ -16,8 +16,10 @@
  * ----------------------------
  */
 
+import { getSessionUserFromStore } from '@common/context/session-user.store';
 import { Inject, NotFoundException } from '@nestjs/common';
 import { CommandHandler, EventBus } from '@nestjs/cqrs';
+import { AuditBehavior } from '@nestjs-pipeline/audit';
 import { CaslBehavior } from '@nestjs-pipeline/casl';
 import { LoggingBehavior, UsePipeline } from '@nestjs-pipeline/core';
 import {
@@ -25,6 +27,7 @@ import {
   ICommandRepository,
   IQueryRepository,
 } from '@nestjs-pipeline/ddd-core';
+import { ResilienceBehavior } from '@nestjs-pipeline/resilience';
 import { Role } from '../../domain/models/role.entity';
 import { RoleUpdateOutcome } from '../../domain/outcomes/role-update.outcome';
 import {
@@ -42,6 +45,32 @@ import { DeleteRoleCommand } from './delete-role.command';
     {
       subjectFromRequest: 'Role',
       rules: [{ action: 'delete', subject: 'Role' }],
+    },
+  ],
+  // Resilience policy for transient faults during role deletion
+  [
+    ResilienceBehavior,
+    {
+      handle: (error: unknown) => !(error instanceof NotFoundException),
+      timeout: { duration: 3_000 },
+      retry: {
+        maxAttempts: 3,
+        backoff: { type: 'exponential', initialDelay: 100, maxDelay: 2_000 },
+      },
+    },
+  ],
+  // Audit the sensitive role deletion action
+  [
+    AuditBehavior,
+    {
+      action: 'role.delete',
+      severity: 'high',
+      actor: () => {
+        const sessionUser = getSessionUserFromStore();
+        return sessionUser
+          ? { id: sessionUser.id, email: sessionUser.email ?? undefined }
+          : undefined;
+      },
     },
   ],
 )
