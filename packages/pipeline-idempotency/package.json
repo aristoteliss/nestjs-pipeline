@@ -1,0 +1,58 @@
+{
+  "name": "@nestjs-pipeline/idempotency",
+  "version": "0.1.0",
+  "description": "Idempotency behavior for the NestJS pipeline — runs each command at most once per idempotency key (TTL window) and replays the stored response on duplicates, via a pluggable store (in-memory default, Redis/Postgres drop-in).",
+  "author": "Aristotelis <aristotelis@ik.me>",
+  "license": "SEE LICENSE IN LICENSE",
+  "keywords": [
+    "nestjs",
+    "pipeline",
+    "cqrs",
+    "idempotency",
+    "idempotent",
+    "deduplication",
+    "exactly-once",
+    "retry-safe",
+    "behavior"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/aristoteliss/nestjs-pipeline.git",
+    "directory": "packages/pipeline-idempotency"
+  },
+  "homepage": "https://github.com/aristoteliss/nestjs-pipeline#readme",
+  "bugs": {
+    "url": "https://github.com/aristoteliss/nestjs-pipeline/issues"
+  },
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist",
+    "LICENSE",
+    "COMMERCIAL_LICENSE.txt"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "build:watch": "tsc -p tsconfig.build.json --watch",
+    "clean": "rm -rf dist tsconfig.tsbuildinfo",
+    "rebuild": "pnpm run clean && pnpm run build",
+    "lint": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "prepublishOnly": "pnpm run rebuild"
+  },
+  "peerDependencies": {
+    "@nestjs-pipeline/core": "*",
+    "@nestjs/common": "^10.0.0 || ^11.0.0",
+    "reflect-metadata": "^0.1.13 || ^0.2.0"
+  },
+  "devDependencies": {
+    "@nestjs/common": "^11.1.24",
+    "@vitest/coverage-v8": "^4.1.7",
+    "reflect-metadata": "^0.2.2",
+    "vitest": "^4.1.7"
+  }
+}
