@@ -37,7 +37,7 @@
     "@nestjs/common": "^10.0.0 || ^11.0.0"
   },
   "devDependencies": {
-    "@nestjs/common": "^11.1.24",
+    "@nestjs/common": "^11.2.1",
     "@vitest/coverage-v8": "^4.1.7",
     "reflect-metadata": "^0.2.2",
     "vitest": "^4.1.7"

@@ -18,11 +18,11 @@
     "@mikro-orm/core": "^7.1.9",
     "@nestjs-pipeline/core": "workspace:*",
     "@nestjs-pipeline/correlation": "workspace:*",
-    "@nestjs/common": "^11.1.24",
+    "@nestjs/common": "^11.2.1",
     "@nestjs/cqrs": "^11.0.3"
   },
   "devDependencies": {
-    "@biomejs/biome": "^2.4.16",
+    "@biomejs/biome": "^2.5.10",
     "tsx": "^4.22.4",
     "typescript": "^6.0.3"
   }
