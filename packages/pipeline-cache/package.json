@@ -1,0 +1,80 @@
+{
+  "name": "@nestjs-pipeline/cache",
+  "version": "0.1.0",
+  "description": "Caching behavior for the NestJS pipeline — cache-manager v7 on top of Keyv with pluggable stores (memory, redis, memcache, sqlite, postgres).",
+  "author": "Aristotelis <aristotelis@ik.me>",
+  "license": "SEE LICENSE IN LICENSE",
+  "keywords": [
+    "nestjs",
+    "pipeline",
+    "cqrs",
+    "cache",
+    "caching",
+    "cache-manager",
+    "keyv",
+    "redis",
+    "behavior"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/aristoteliss/nestjs-pipeline.git",
+    "directory": "packages/pipeline-cache"
+  },
+  "homepage": "https://github.com/aristoteliss/nestjs-pipeline#readme",
+  "bugs": {
+    "url": "https://github.com/aristoteliss/nestjs-pipeline/issues"
+  },
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist",
+    "LICENSE",
+    "COMMERCIAL_LICENSE.txt"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "build:watch": "tsc -p tsconfig.build.json --watch",
+    "clean": "rm -rf dist tsconfig.tsbuildinfo",
+    "rebuild": "pnpm run clean && pnpm run build",
+    "lint": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "prepublishOnly": "pnpm run rebuild"
+  },
+  "peerDependencies": {
+    "@keyv/memcache": "^2.0.0",
+    "@keyv/postgres": "^2.0.0",
+    "@keyv/redis": "^4.0.0 || ^5.0.0",
+    "@keyv/sqlite": "^4.0.0",
+    "@nestjs-pipeline/core": "*",
+    "@nestjs/common": "^10.0.0 || ^11.0.0",
+    "cache-manager": "^7.0.0",
+    "keyv": "^5.0.0",
+    "reflect-metadata": "^0.1.13 || ^0.2.0"
+  },
+  "peerDependenciesMeta": {
+    "@keyv/memcache": {
+      "optional": true
+    },
+    "@keyv/postgres": {
+      "optional": true
+    },
+    "@keyv/redis": {
+      "optional": true
+    },
+    "@keyv/sqlite": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@nestjs/common": "^11.1.24",
+    "@vitest/coverage-v8": "^4.1.7",
+    "cache-manager": "^7.2.8",
+    "keyv": "^5.5.3",
+    "reflect-metadata": "^0.2.2",
+    "vitest": "^4.1.7"
+  }
+}
