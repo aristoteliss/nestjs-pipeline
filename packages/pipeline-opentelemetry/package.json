@@ -1,7 +1,7 @@
 {
   "name": "@nestjs-pipeline/opentelemetry",
-  "version": "0.1.8",
-  "description": "OpenTelemetry tracing behavior for @nestjs-pipeline/core",
+  "version": "0.2.0",
+  "description": "OpenTelemetry tracing & metrics behaviors for @nestjs-pipeline/core",
   "author": "Aristotelis <aristotelis@ik.me>",
   "license": "SEE LICENSE IN LICENSE",
   "repository": {
