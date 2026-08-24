@@ -17,12 +17,11 @@
  */
 
 /**
- * NestJS CQRS metadata keys — re-exported from `@nestjs/cqrs` internal constants
- * as a convenience for consumers who need to inspect handler metadata directly.
+ * NestJS CQRS metadata keys re-exported from `@nestjs/cqrs` internal constants.
  *
  * These are the keys set by `@CommandHandler`, `@QueryHandler`, and
- * `@EventsHandler` decorators. The pipeline itself uses `ExplorerService.explore()`
- * rather than reading these keys directly.
+ * `@EventsHandler` decorators. This module is internal — the pipeline discovers
+ * handlers via `ExplorerService.explore()` rather than reading these keys directly.
  */
 export {
   COMMAND_HANDLER_METADATA,

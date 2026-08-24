@@ -207,7 +207,7 @@ export interface UserCapabilities {
 
 /**
  * The user context object that the pipeline uses to resolve capabilities.
- * Your application must place this in `context.items` under the `CASL_USER_CONTEXT` key
+ * Your application must place this in `context.items` under the `CASL_USER_CONTEXT_KEY` key
  * (or provide an {@link IUserContextResolver}).
  *
  * Maps to a row in the `users` table. Any additional columns (e.g. `tenant_id`,

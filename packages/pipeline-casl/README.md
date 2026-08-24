@@ -16,6 +16,93 @@ CASL authorization behavior for `@nestjs-pipeline/core` — ABAC (Attribute-Base
 CASL is tenant-model agnostic: conditions can target any tenant scope field
 (`tenantId`, `tenantSchema`, organization id, etc.) available in request/user context.
 
+## Package Anatomy
+
+Everything is re-exported from the package root (`@nestjs-pipeline/casl`). The
+moving parts fall into seven groups.
+
+### Behavior
+
+| Export | Kind | Purpose |
+|--------|------|---------|
+| `CaslBehavior` | class | The pipeline behavior. Resolves the user, builds their ability, stores it on the pipeline context, and enforces the handler's `rules`. |
+| `CaslBehaviorOptions` | interface | Per-handler options passed as the second tuple element of `@UsePipeline([CaslBehavior, { ... }])`. |
+
+`CaslBehaviorOptions` fields:
+
+| Option | Type | Description |
+|--------|------|-------------|
+| `rules` | `AbilityRequirement[]` | Requirements to enforce. **All** must pass (logical AND). |
+| `subjectFromRequest` | `string \| string[]` | Promote the named subject(s) to an *instance-level* check, so CASL evaluates conditions against the request payload. |
+| `subjectContextPaths` | `string[]` | Request dot-paths whose payload is merged in for instance checks. Overrides the module default. |
+| `fieldsFromRequest` | `string[] \| Record<string, string[]>` | Which request fields to validate for field-level permission. Does **not** grant access — only narrows what is checked. |
+| `skipCheck` | `boolean` | Build and store the ability but skip enforcement (useful for public endpoints that shape their response from the ability). |
+| `prebuiltAbility` | `AppAbility` | Use a supplied ability instead of resolving one from providers — handy for tests or precomputed/cached abilities. |
+
+### Module
+
+| Export | Kind | Purpose |
+|--------|------|---------|
+| `CaslModule` | class | `CaslModule.forRoot(options)` wires the providers and tokens. |
+| `CaslModuleOptions` | interface | Registration options. |
+
+`CaslModuleOptions` fields:
+
+| Option | Required | Description |
+|--------|----------|-------------|
+| `roleProvider` | yes | `IRoleProvider` as a class, or `{ useClass }` / `{ useExisting }` / `{ useFactory, inject }`. |
+| `subjectContextPaths` | yes | Default request dot-paths used to merge session/user payload for instance-level checks. |
+| `userContextResolver` | no | `IUserContextResolver` used to resolve the user from the items bag (instead of the `CASL_USER_CONTEXT_KEY` lookup). |
+| `userCapabilityProvider` | no\* | `IUserCapabilityProvider`. \*Required at runtime for any handler that declares `rules`, since it maps the user to their roles/overrides. |
+| `defaultFieldsFromRequest` | no | Default `fieldsFromRequest` configuration applied per subject. |
+
+### Providers & interfaces
+
+| Export | Kind | Purpose |
+|--------|------|---------|
+| `IRoleProvider` | interface | Supplies `RoleDefinition[]` from any source (DB, YAML, static). Registered under `CASL_ROLE_PROVIDER`. |
+| `IUserContextResolver` | interface | Resolves the `CaslUserContext` from the pipeline context. Registered under `CASL_USER_CONTEXT_RESOLVER`. |
+| `IUserCapabilityProvider` | interface | Maps a user to their roles plus per-user additional/denied capabilities. Registered under `CASL_USER_CAPABILITY_PROVIDER`. |
+| `StaticRoleProvider` | class | In-memory `IRoleProvider` for roles defined in code or a config file. |
+
+### Factory
+
+| Export | Signature | Purpose |
+|--------|-----------|---------|
+| `buildAbility` | `(roles, user?, additional?, denied?)` | Merges role + additional + denied capabilities, interpolates conditions against `user`, and globally re-orders so every deny lands after every allow. |
+| `buildAbilityFromRules` | `(rules: AppRawRule[])` | Builds an ability from pre-computed raw rules **as-is** (no re-ordering). Ideal for rebuilding from a JWT/cache. |
+
+### Capability helpers
+
+| Export | Purpose |
+|--------|---------|
+| `parseCapabilityString` | `CapabilityString` → `Capability`. |
+| `serializeCapability` | `Capability` → compact `CapabilityString` (e.g. for JWT claims). |
+| `normalizeCapability` | Accept either form and return a `Capability`. |
+| `capabilityToRawRule` | `Capability` → `AppRawRule`, interpolating conditions if a user is supplied. |
+| `capabilitiesToRawRules` | Array of capabilities/strings → ordered `AppRawRule[]` (allows then denies within the list). |
+| `interpolateConditions` | Resolve `${...}` / `{{ ... }}` placeholders against the user context. **Fails closed** — throws on an unresolved placeholder. |
+
+### Runtime access helpers
+
+| Export | Purpose |
+|--------|---------|
+| `getCaslAbility(context?)` | Read the resolved `AppAbility` from the ambient pipeline store (or an explicit context). |
+| `assertEntityPermission(ability, check)` | Second-phase, entity-level check against a loaded entity; throws NestJS `ForbiddenException` on failure. |
+| `EntityPermissionCheck` | The `{ action, subject, entity, fields? }` shape consumed by `assertEntityPermission`. |
+
+### Tokens & types
+
+Injection tokens: `CASL_ROLE_PROVIDER`, `CASL_USER_CONTEXT_RESOLVER`,
+`CASL_USER_CAPABILITY_PROVIDER`, `CASL_SUBJECT_CONTEXT_PATHS`,
+`CASL_FIELDS_FROM_REQUEST`, `CASL_BEHAVIOR_LOGGER`. Plus two string keys for the
+items bag: `CASL_USER_CONTEXT_KEY` (`'casl:user'`, the input user context) and
+`CASL_ABILITY_KEY` (`'casl:ability'`, the stored output ability).
+
+Types: `Capability`, `CapabilityString`, `RoleDefinition`, `UserCapabilities`,
+`CaslUserContext`, `AbilityRequirement`, and the CASL aliases `AppAbility`
+(`MongoAbility<[string, string]>`) and `AppRawRule` (`RawRuleOf<AppAbility>`).
+
 ## Installation
 
 ```bash
@@ -281,11 +368,15 @@ class FulfillOrderHandler { /* ... */ }
 // ── Public endpoint with skipCheck ──────────────────────────────────────
 // No rules needed. The ability is built and stored for
 // downstream use, but no access check is performed.
+//
+// Note: handlers receive ONLY the query/command — the pipeline context is
+// not passed as an argument. It flows through an AsyncLocalStorage store, so
+// use `getCaslAbility()` (or `pipelineStore.getStore()`) to read the ability.
 @QueryHandler(ListPostsQuery)
 @UsePipeline([CaslBehavior, { skipCheck: true }])
 class ListPostsHandler implements IQueryHandler<ListPostsQuery> {
-  async execute(query: ListPostsQuery, context: IPipelineContext) {
-    const ability = context.items.get(CASL_ABILITY_KEY) as AppAbility;
+  async execute(query: ListPostsQuery) {
+    const ability = getCaslAbility();
     const includeDrafts = ability?.can('read', 'DraftPost');
     // Tailor the response based on what the user can see
   }
@@ -600,16 +691,156 @@ export class AppModule {}
 
 ## Accessing the Ability Downstream
 
-After the CASL behavior runs, the resolved ability is available in `context.items`:
+After the CASL behavior runs, the resolved ability is stored on the pipeline
+context. Handlers are invoked with **only** the command/query argument — the
+context is not passed in; it is carried through an `AsyncLocalStorage` store.
+Use the `getCaslAbility()` helper to read it from anywhere inside the handler
+call stack:
 
 ```ts
-import { CASL_ABILITY_KEY, AppAbility } from '@nestjs-pipeline/casl';
+import { getCaslAbility } from '@nestjs-pipeline/casl';
 
-const ability = context.items.get(CASL_ABILITY_KEY) as AppAbility;
-if (ability.can('publish', 'Post')) {
+const ability = getCaslAbility();
+if (ability?.can('publish', 'Post')) {
   // ...
 }
 ```
+
+### Two-phase (entity-level) authorization
+
+`CaslBehavior` runs *before* the handler, so it can only evaluate conditions
+against the incoming request payload. Conditions that depend on the **persisted**
+state of the target entity (e.g. "a supervisor may only update users in their own
+department") must be re-checked after the entity is loaded. Use
+`assertEntityPermission()` for that second phase:
+
+```ts
+import { assertEntityPermission, getCaslAbility } from '@nestjs-pipeline/casl';
+
+async handle(command: UpdateUserCommand) {
+  const user = await this.repo.find(command.id);
+
+  const ability = getCaslAbility();
+  if (ability) {
+    assertEntityPermission(ability, {
+      action: 'update',
+      subject: 'User',
+      entity: user.toJSON(),       // real, persisted attributes
+      fields: ['username'],        // only the fields being changed
+    });
+  }
+
+  // ...apply the update
+}
+```
+
+Manually reading the raw store is also possible if you prefer:
+
+```ts
+import { pipelineStore } from '@nestjs-pipeline/core';
+import { CASL_ABILITY_KEY, AppAbility } from '@nestjs-pipeline/casl';
+
+const ability = pipelineStore.getStore()?.items.get(CASL_ABILITY_KEY) as
+  | AppAbility
+  | undefined;
+```
+
+## Recipes
+
+Extra, self-contained examples for common needs beyond the Quick Start.
+
+### Field-level partial updates
+
+Allow a user to change some columns but not others. The capability lists the
+permitted fields; `fieldsFromRequest` tells CASL which changed fields to verify.
+
+```ts
+// Role capability — may update users in own tenant, but only name & username:
+//   User|update|{"tenantId":"${user.tenantId}"}|name,username
+@CommandHandler(UpdateUserCommand)
+@UsePipeline([CaslBehavior, {
+  subjectFromRequest: 'User',
+  fieldsFromRequest: ['name', 'username'], // department/email would be rejected
+  rules: [{ action: 'update', subject: 'User' }],
+}])
+class UpdateUserHandler { /* ... */ }
+```
+
+### Compact capabilities in a JWT (no DB on the hot path)
+
+Collapse capabilities into strings at login, embed them in the token, then
+rebuild the ability per-request without touching the database.
+
+```ts
+import {
+  serializeCapability,
+  parseCapabilityString,
+  capabilitiesToRawRules,
+  buildAbilityFromRules,
+} from '@nestjs-pipeline/casl';
+
+// ── At login: persist a compact capability list into the JWT ──
+const claims = {
+  sub: user.id,
+  tenantId: user.tenantId,
+  caps: resolvedCapabilities.map(serializeCapability),
+  // e.g. ['Post|read|*', 'Post|update|{"authorId":"${id}"}', '!Post|delete|*']
+};
+
+// ── Per request (e.g. inside an IUserContextResolver or auth behavior) ──
+const rules = capabilitiesToRawRules(
+  jwt.caps.map(parseCapabilityString),
+  { id: jwt.sub, tenantId: jwt.tenantId }, // interpolates ${id}, ${user.tenantId}
+);
+const ability = buildAbilityFromRules(rules);
+```
+
+### Testing a handler with `prebuiltAbility`
+
+Bypass providers entirely and inject a known ability — ideal for unit tests.
+
+```ts
+import { buildAbilityFromRules, capabilitiesToRawRules, CaslBehavior } from '@nestjs-pipeline/casl';
+
+const ability = buildAbilityFromRules(
+  capabilitiesToRawRules(['Post|read|*', '!Post|delete|*']),
+);
+
+@QueryHandler(GetPostQuery)
+@UsePipeline([CaslBehavior, {
+  prebuiltAbility: ability,
+  rules: [{ action: 'read', subject: 'Post' }],
+}])
+class GetPostHandler { /* ... */ }
+```
+
+### Building an ability standalone with `buildAbility`
+
+Use the factory directly when you need an ability outside the pipeline (scripts,
+background jobs, custom guards). It merges roles, per-user additions and denials,
+and guarantees denies win across sources.
+
+```ts
+import { buildAbility } from '@nestjs-pipeline/casl';
+
+const roles = await roleProvider.getRoles(['author']);
+const ability = buildAbility(
+  roles,
+  { id: user.id, tenantId: user.tenantId }, // condition interpolation context
+  ['User|invite|*'],                        // per-user additional capabilities
+  ['!Post|delete|*'],                       // per-user denied capabilities
+);
+
+ability.can('invite', 'User');   // true
+ability.can('delete', 'Post');   // false (deny applied after any allow)
+```
+
+### Two-phase entity authorization
+
+`CaslBehavior` can only see the request payload. For rules that depend on the
+**persisted** entity, re-check after loading it (see
+[Accessing the Ability Downstream](#accessing-the-ability-downstream) above for
+the full `assertEntityPermission` example).
 
 ## License
 

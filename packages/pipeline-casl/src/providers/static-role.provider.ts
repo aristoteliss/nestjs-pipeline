@@ -96,7 +96,7 @@ import type { RoleDefinition } from '../types/casl.types';
  *       'Project|read|{"tenantId":"${user.tenantId}"}',
  *       'Invoice|read|{"tenantId":"${user.tenantId}"}',
  *       'AuditLog|read|{"tenantId":"${user.tenantId}"}',
- *       // Explicitly denied: cannot read or manage anything else
+ *       // Explicitly denied: cannot update users
  *       '!User|update|*',
  *     ],
  *   },

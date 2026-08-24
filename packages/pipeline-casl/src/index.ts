@@ -41,6 +41,11 @@ export {
   parseCapabilityString,
   serializeCapability,
 } from './helpers/capability.helpers';
+export {
+  assertEntityPermission,
+  type EntityPermissionCheck,
+  getCaslAbility,
+} from './helpers/entity-authorization.helper';
 // Interfaces (for implementers)
 export {
   IRoleProvider,

@@ -88,7 +88,7 @@ import { PipelineModule, LoggingBehavior } from '@nestjs-pipeline/core';
 })
 export class AppModule {}
 
-// ── Style 2: Simple array (backward-compatible) ──
+// ── Style 2: Simple array ──
 
 @Module({
   imports: [
@@ -263,7 +263,7 @@ Every behavior receives `IPipelineContext`:
 | `requestKind` | `'command' \| 'query' \| 'event' \| 'unknown'` | Auto-detected from `@nestjs/cqrs` metadata |
 | `startedAt` | `Date` | UTC timestamp of pipeline start |
 | `response` | `TResponse \| undefined` | Set after `next()` returns; `undefined` before the handler runs |
-| `items` | `Map<string, any>` | Shared bag for inter-behavior communication |
+| `items` | `Map<string, unknown>` | Shared bag for inter-behavior communication |
 
 ### Behavior Options
 
@@ -476,18 +476,26 @@ export class CreateUserHandler { /* ... */ }
 @UsePipeline([LoggingBehavior, { logFormat: 'structured' }])
 ```
 
-**Output** (success, default `logFormat: 'text'`):
+**Output** (success, default `logFormat: 'text'`, with default `excludeRequestObj`/`excludeResponseObj`):
 
 ```
-[LoggingBehavior] Request: {"username":"jane","email":"jane@example.com"}
-[LoggingBehavior] [019728a3-...] COMMAND CreateUserCommand → CreateUserHandler completed in 12.34ms
-[LoggingBehavior] Response: {"id":"...","username":"jane"}
+[CreateUserHandler] Request: [exclude request obj]
+[CreateUserHandler] [019728a3-...] COMMAND CreateUserCommand → CreateUserHandler completed in 12.34ms
+[CreateUserHandler] Response: [exclude response obj]
+```
+
+With `excludeRequestObj: false, excludeResponseObj: false`:
+
+```
+[CreateUserHandler] Request: {"username":"jane","email":"jane@example.com"}
+[CreateUserHandler] [019728a3-...] COMMAND CreateUserCommand → CreateUserHandler completed in 12.34ms
+[CreateUserHandler] Response: {"id":"...","username":"jane"}
 ```
 
 **Output** (error, default `logFormat: 'text'`):
 
 ```
-[LoggingBehavior] [019728a3-...] COMMAND CreateUserCommand → CreateUserHandler failed after 2.10ms: Error: User already exists
+[CreateUserHandler] [019728a3-...] COMMAND CreateUserCommand → CreateUserHandler failed after 2.10ms: Error: User already exists
 ```
 
 **Output** (`logFormat: 'structured'`):
@@ -738,7 +746,7 @@ orderCreated = (events$: Observable<any>): Observable<ICommand> =>
 | `PipelineBootstrapService` | Class | Scans and wraps handlers at bootstrap |
 | `PipelineHandlerMeta` | Interface | Pre-computed handler metadata |
 | `PIPELINE_BEHAVIOR_ID` | Symbol | Custom deduplication key for behaviors |
-| `PipelineBehaviorEntry` | Type | `Type \| [Type, Record<string, any>]` |
+| `PipelineBehaviorEntry` | Type | `Type \| [Type, Record<string, unknown>]` |
 
 **`PipelineModuleOptions` fields:**
 
@@ -749,6 +757,7 @@ orderCreated = (events$: Observable<any>): Observable<ICommand> =>
 | `correlationIdFactory` | `() => string \| undefined` | Read the current correlation ID (e.g. `getCorrelationId`) |
 | `correlationIdRunner` | `<T>(id: string, fn: () => T) => T` | Wrap each pipeline invocation in a correlation context (e.g. `runWithCorrelationId`) |
 | `bootstrapLogLevel` | `LogLevel \| 'none'` | Log level for bootstrap messages (default `'debug'`) |
+| `loggerProvider` | `Provider` | Custom DI provider bound to `LOGGING_BEHAVIOR_LOGGER` (registered and exported) |
 
 ---
 

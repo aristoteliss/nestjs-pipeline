@@ -25,7 +25,7 @@ import {
   Optional,
   Type,
 } from '@nestjs/common';
-import { ModuleRef } from '@nestjs/core';
+import { ContextIdFactory, ModuleRef } from '@nestjs/core';
 import { InstanceWrapper } from '@nestjs/core/injector/instance-wrapper';
 import { ExplorerService } from '@nestjs/cqrs/dist/services/explorer.service';
 import {
@@ -81,7 +81,7 @@ export class PipelineBootstrapService implements OnApplicationBootstrap {
     @Optional()
     @Inject(PIPELINE_MODULE_OPTIONS)
     private readonly options?: PipelineModuleOptions,
-  ) { }
+  ) {}
 
   onApplicationBootstrap() {
     this.bootstrapLogLevel = this.options?.bootstrapLogLevel ?? 'debug';
@@ -186,18 +186,27 @@ export class PipelineBootstrapService implements OnApplicationBootstrap {
 
     for (let i = 0; i < behaviorTypes.length; i++) {
       const BehaviorClass = behaviorTypes[i];
+      let instance: IPipelineBehavior | undefined;
+
       try {
-        resolvedBehaviors.set(
-          i,
-          this.moduleRef.get(BehaviorClass, { strict: false }),
-        );
+        instance = this.moduleRef.get(BehaviorClass, { strict: false });
       } catch {
         // Fallback for request-scoped providers (rare)
         this.logger.warn(
           `${BehaviorClass.name} could not be resolved as singleton — will resolve per-request`,
         );
         dynamicIndices.add(i);
+        continue;
       }
+
+      if (!instance) {
+        throw new Error(
+          `${BehaviorClass.name} resolved to a falsy value via moduleRef.get(). ` +
+            `Check its provider registration — this is not a scoping issue.`,
+        );
+      }
+
+      resolvedBehaviors.set(i, instance);
     }
 
     // 2. Build handler metadata (kind, name, options) — computed once
@@ -220,14 +229,25 @@ export class PipelineBootstrapService implements OnApplicationBootstrap {
     if (this.bootstrapLogLevel !== 'none') {
       this.logger[this.bootstrapLogLevel](
         `Wrapping ${meta.handlerName}.${methodName}() ` +
-        `[${requestKind}${isScoped ? ', scoped' : ''}] with pipeline: [${behaviorTypes.map((b) => b.name).join(' → ')}]`,
+          `[${requestKind}${isScoped ? ', scoped' : ''}] with pipeline: [${behaviorTypes.map((b) => b.name).join(' → ')}]`,
       );
     }
 
     // Pre-capture singleton behavior array once — avoids allocating a new
     // array on every invocation in the common all-singletons fast path.
-    const singletonBehaviors: IPipelineBehavior[] =
-      dynamicIndices.size === 0 ? Array.from(resolvedBehaviors.values()) : [];
+    // When dynamic indices exist, short-circuit to [] since this array won't be used.
+    const singletonBehaviors =
+      dynamicIndices.size === 0
+        ? behaviorTypes.map((_, i) => {
+            const behavior = resolvedBehaviors.get(i);
+            if (!behavior) {
+              throw new Error(
+                `Expected singleton behavior at index ${i} to be pre-resolved during bootstrap.`,
+              );
+            }
+            return behavior;
+          })
+        : [];
 
     const moduleRef = this.moduleRef;
     const correlationIdFactory = this.options?.correlationIdFactory;
@@ -247,15 +267,31 @@ export class PipelineBootstrapService implements OnApplicationBootstrap {
       // are local to this invocation, preventing cross-request state leaks.
       let localBehaviors: IPipelineBehavior[];
       if (dynamicIndices.size > 0) {
+        // For request-scoped handlers (`isScoped === true`), `this` is the per-request instance
+        // created by Nest's DI and tagged with `REQUEST_CONTEXT_ID`, returning the cached ID.
+        // For singleton handlers, `this` lacks the `REQUEST_CONTEXT_ID` tag, so
+        // `ContextIdFactory.getByRequest(this)` defaults to `ContextIdFactory.create()`, producing
+        // a fresh `ContextId` for each dispatch (`request` fallback used if `this` is undefined).
+        const contextId = ContextIdFactory.getByRequest(
+          (this ?? request) as Record<string, unknown>,
+        );
         localBehaviors = await Promise.all(
-          behaviorTypes.map((BehaviorClass, i) =>
-            dynamicIndices.has(i)
-              ? moduleRef.resolve<IPipelineBehavior>(BehaviorClass, undefined, {
-                strict: false,
-              })
-              : // biome-ignore lint/style/noNonNullAssertion: index guaranteed by the resolve loop above
-              Promise.resolve(resolvedBehaviors.get(i)!),
-          ),
+          behaviorTypes.map((BehaviorClass, i) => {
+            if (dynamicIndices.has(i)) {
+              return moduleRef.resolve<IPipelineBehavior>(
+                BehaviorClass,
+                contextId,
+                { strict: false },
+              );
+            }
+            const behavior = resolvedBehaviors.get(i);
+            if (!behavior) {
+              throw new Error(
+                `Expected singleton behavior at index ${i} to be pre-resolved during bootstrap.`,
+              );
+            }
+            return Promise.resolve(behavior);
+          }),
         );
       } else {
         // Fast path — all singletons, reuse pre-captured array (zero allocation)

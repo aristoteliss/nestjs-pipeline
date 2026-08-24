@@ -105,6 +105,7 @@ export interface LoggingBehaviorOptions {
    * Passed to `safeStringify`/`safeSanitize` as a `Set<string>` for filtering object properties.
    * Supports dot notation for nested properties (e.g. `'ctx.sessionUser'`).
    * Example: `['password', 'token', 'ctx.sessionUser']` omits those fields from the log output.
+   * Default: [] (no keys excluded).
    */
   excludeKeys?: string[];
 
@@ -270,13 +271,13 @@ export class LoggingBehavior implements IPipelineBehavior {
         metricLogLevel,
         structured
           ? {
-              msg: metricMsg,
-              correlationId: context.correlationId,
-              requestKind: context.requestKind,
-              requestName: context.requestName,
-              handlerName: context.handlerName,
-              durationMs: Number(duration),
-            }
+            msg: metricMsg,
+            correlationId: context.correlationId,
+            requestKind: context.requestKind,
+            requestName: context.requestName,
+            handlerName: context.handlerName,
+            durationMs: Number(duration),
+          }
           : metricMsg,
         context.handlerName,
       );
@@ -293,9 +294,9 @@ export class LoggingBehavior implements IPipelineBehavior {
         requestResponseLogLevel,
         structured
           ? {
-              msg: `Response ← ${context.handlerName}`,
-              response: responsePayload,
-            }
+            msg: `Response ← ${context.handlerName}`,
+            response: responsePayload,
+          }
           : `Response: ${responsePayload}`,
         context.handlerName,
       );
@@ -322,23 +323,25 @@ export class LoggingBehavior implements IPipelineBehavior {
         `${context.requestName} → ${context.handlerName} failed after ${duration}ms: ` +
         `${err ? `${err.name}: ${err.message}` : String(error)}`;
 
-      const extra = {
-        ...(err?.stack ? { stack: err.stack } : {}),
-        ...(this.hasOptionalParams(error)
-          ? this.extractOptionalParams(error)
-          : {}),
-      };
-      const hasExtra = err?.stack || this.hasOptionalParams(error);
-
-      this.log(
-        logLevel,
-        structured
-          ? { message, ...(hasExtra ? extra : {}) }
-          : hasExtra
-            ? { message, ...extra }
-            : message,
-        context.handlerName,
-      );
+      if (structured) {
+        const payload: Record<string, unknown> = {
+          message,
+          ...(err?.stack ? { stack: err.stack } : {}),
+          ...(this.hasOptionalParams(error)
+            ? { optionalParams: this.extractOptionalParams(error) }
+            : {}),
+        };
+        this.log(logLevel, payload, context.handlerName);
+      } else {
+        const optionalParams: unknown[] = [
+          ...(err?.stack ? [err.stack] : []),
+          ...(this.hasOptionalParams(error)
+            ? this.extractOptionalParams(error)
+            : []),
+          context.handlerName,
+        ];
+        this.log(logLevel, message, ...optionalParams);
+      }
 
       throw error;
     }

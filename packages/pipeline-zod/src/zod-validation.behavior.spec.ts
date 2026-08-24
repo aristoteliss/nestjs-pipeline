@@ -99,6 +99,21 @@ describe('ZodValidationBehavior', () => {
       expect(next).toHaveBeenCalledOnce();
       expect(result).toEqual({ id: '1' });
     });
+
+    it('applies default and transformed values from result.data back onto context.request', async () => {
+      const transformSchema = z.object({
+        count: z.string().transform((val) => Number(val)),
+        role: z.string().default('user'),
+      });
+      const reqType = makeRequestType(transformSchema);
+      const reqObj = { count: '42' };
+      const ctx = createMockContext({ request: reqObj, requestType: reqType });
+      const next = vi.fn().mockResolvedValue('ok');
+
+      await behavior.handle(ctx, next);
+
+      expect(reqObj).toEqual({ count: 42, role: 'user' });
+    });
   });
 
   describe('when ZOD_SCHEMA is attached and the request is invalid', () => {
