@@ -71,10 +71,10 @@
   },
   "devDependencies": {
     "@nestjs/common": "^11.2.1",
-    "@vitest/coverage-v8": "^4.1.7",
+    "@vitest/coverage-v8": "^4.1.11",
     "cache-manager": "^7.2.8",
     "keyv": "^5.5.3",
     "reflect-metadata": "^0.2.2",
-    "vitest": "^4.1.7"
+    "vitest": "^4.1.11"
   }
 }

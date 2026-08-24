@@ -41,7 +41,7 @@
     "@nestjs-pipeline/core": "workspace:*",
     "@nestjs/common": "^11.2.1",
     "reflect-metadata": "^0.2.2",
-    "vitest": "^4.1.7",
+    "vitest": "^4.1.11",
     "zod": "^4.4.3"
   }
 }

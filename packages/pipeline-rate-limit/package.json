@@ -52,9 +52,9 @@
   },
   "devDependencies": {
     "@nestjs/common": "^11.2.1",
-    "@vitest/coverage-v8": "^4.1.7",
+    "@vitest/coverage-v8": "^4.1.11",
     "rate-limiter-flexible": "^5.0.5",
     "reflect-metadata": "^0.2.2",
-    "vitest": "^4.1.7"
+    "vitest": "^4.1.11"
   }
 }
