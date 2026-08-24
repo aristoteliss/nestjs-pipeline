@@ -19,7 +19,12 @@
 import type { FactoryProvider } from '@nestjs/common';
 import { OpenFeature, type Provider } from '@openfeature/server-sdk';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { FEATURE_FLAGS_CLIENT } from './constants/tokens';
+import {
+  FEATURE_FLAGS_CLIENT,
+  FEATURE_FLAGS_DEFAULT_CONTEXT,
+  FEATURE_FLAGS_DEFAULT_OPTIONS,
+} from './constants/tokens';
+import { FeatureFlagBehavior } from './feature-flag.behavior';
 import { FeatureFlagsModule } from './feature-flags.module';
 
 vi.mock('@openfeature/server-sdk', () => ({
@@ -103,5 +108,18 @@ describe('FeatureFlagsModule.forRoot', () => {
 
     expect(OpenFeature.setProvider).toHaveBeenCalledWith(provider);
     expect(OpenFeature.setProviderAndWait).not.toHaveBeenCalled();
+  });
+
+  it('provides default options and context tokens', () => {
+    const defaults = { flag: 'default-flag' };
+    const context = { targetingKey: 'user-1' };
+    const module = FeatureFlagsModule.forRoot({ defaults, context });
+
+    expect(module.exports).toEqual([
+      FeatureFlagBehavior,
+      FEATURE_FLAGS_CLIENT,
+      FEATURE_FLAGS_DEFAULT_OPTIONS,
+      FEATURE_FLAGS_DEFAULT_CONTEXT,
+    ]);
   });
 });

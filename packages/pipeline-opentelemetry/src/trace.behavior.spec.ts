@@ -67,9 +67,9 @@ function makeCtx(overrides: Partial<IPipelineContext> = {}): IPipelineContext {
     correlationId: 'test-corr-id',
     originalCorrelationId: 'test-corr-id',
     request: {},
-    requestType: class TestRequest {},
+    requestType: class TestRequest { },
     requestName: 'TestCommand',
-    handlerType: class TestHandler {},
+    handlerType: class TestHandler { },
     handlerName: 'TestHandler',
     requestKind: 'command',
     startedAt: new Date('2026-01-01T00:00:00.000Z'),
@@ -296,7 +296,13 @@ describe('TraceBehavior', () => {
 
       expect(mockTracer.startActiveSpan).toHaveBeenCalledWith(
         'event.UserCreatedEvent',
-        expect.anything(),
+        expect.objectContaining({
+          kind: SpanKind.INTERNAL,
+          attributes: expect.objectContaining({
+            'pipeline.request.kind': 'event',
+            'pipeline.request.name': 'UserCreatedEvent',
+          }),
+        }),
         expect.any(Function),
       );
       expect(mockSpan.setStatus).toHaveBeenCalledWith({
