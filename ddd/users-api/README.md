@@ -22,8 +22,10 @@ This sample builds on `@nestjs-pipeline/ddd-core` to show a full CQRS + DDD stac
 ```bash
 cd ddd/users-api
 pnpm install
-pnpm db:migrate   # apply schema + data migrations (idempotent)
-pnpm start
+pnpm build              # build workspace dependencies
+cp .env.example .env    # create local environment file (edit as needed)
+pnpm db:migrate         # apply schema + data migrations (idempotent)
+pnpm dev                # start with tsx (hot-reload)
 ```
 
 ### Environment variables
@@ -38,8 +40,16 @@ pnpm start
 | `DATABASE_NAME`      | `nestjs_pipeline` | PostgreSQL database name (only used when `DB_ENGINE=postgres`) |
 | `DATABASE_USER`      | `postgres`     | PostgreSQL database user (only used when `DB_ENGINE=postgres`) |
 | `DATABASE_PASSWORD`  | `postgres`     | PostgreSQL database password (only used when `DB_ENGINE=postgres`) |
-| `DB_DEFAULT_SCHEMA`  | `tenant_default` | Default PostgreSQL schema for tenant (only used when `DB_ENGINE=postgres`) |
+| `DB_DEFAULT_SCHEMA`  | `tenant` | Default PostgreSQL schema for tenant (only used when `DB_ENGINE=postgres`) |
 | `TENANT_SCHEMAS`     | _(none)_       | Comma-separated list of tenant schema names for migrations (e.g. `tenant_a,tenant_b`); if set, `migrate` and `revert` commands process all listed schemas |
+| `AUTH_LOGIN_CODE`    | _(none)_       | Code required for the login endpoint |
+| `JWT_SECRET`         | _(none)_       | Secret key used for JWT token signing |
+| `SESSION_SECRET`     | _(none)_       | 32-byte hex string for `@fastify/secure-session` (required when `ADAPTER=fastify`) |
+| `ADAPTER`            | _(none)_       | Set to `fastify` to use Fastify adapter; omit for Express |
+| `REDIS_HOST`         | `localhost`    | Redis host for BullMQ job queues |
+| `REDIS_PORT`         | `6379`         | Redis port for BullMQ job queues |
+| `OTEL_SERVICE_NAME`  | _(none)_       | OpenTelemetry service name |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | _(none)_ | OpenTelemetry OTLP collector endpoint |
 
 ### Dual-engine architecture
 

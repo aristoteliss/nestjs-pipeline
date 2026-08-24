@@ -434,7 +434,7 @@ import {
     }),
   ],
   providers: [
-    { provide: LOGGING_BEHAVIOR_LOGGER, useExisting: Logger },
+    { provide: LOGGING_BEHAVIOR_LOGGER, useExisting: NativeLogger },
   ],
 })
 export class AppModule {}

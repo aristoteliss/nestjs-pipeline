@@ -280,7 +280,7 @@ On validation failure, `ZodPipe` throws a NestJS `BadRequestException` with `err
 
 ## ZodValidationFilter
 
-An NestJS `ExceptionFilter` that catches `ZodValidationError` (thrown by `ZodValidationBehavior` or `createRequest()` constructors) and maps it to an HTTP 400 response.
+A NestJS `ExceptionFilter` that catches `ZodValidationError` (thrown by `ZodValidationBehavior` or `createRequest()` constructors) and maps it to an HTTP 400 response.
 
 ```typescript
 // main.ts

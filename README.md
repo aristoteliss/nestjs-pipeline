@@ -862,12 +862,15 @@ PipelineModule.forRoot({
 |---|---|---|---|
 | `metricLogLevel` | `LogLevel \| 'none'` | `'log'` | Log level for timing/duration messages |
 | `requestResponseLogLevel` | `LogLevel \| 'none'` | `'debug'` | Log level for request/response payloads |
+| `excludeKeys` | `string[]` | `[]` | Keys to omit from request/response logs (supports dot notation for nested properties) |
+| `excludeRequestObj` | `boolean` | `true` | If true, omits the request object from logs entirely (shows placeholder instead) |
+| `excludeResponseObj` | `boolean` | `true` | If true, omits the response object from logs entirely (shows placeholder instead) |
 
 To provide your own logger implementation (for example `nestjs-pino`), bind the `LOGGING_BEHAVIOR_LOGGER` token:
 
 ```typescript
 import { Module } from '@nestjs/common';
-import { Logger } from 'nestjs-pino';
+import { NativeLogger } from 'nestjs-pino';
 import {
   LOGGING_BEHAVIOR_LOGGER,
   LoggingBehavior,
@@ -882,7 +885,7 @@ import {
     }),
   ],
   providers: [
-    { provide: LOGGING_BEHAVIOR_LOGGER, useExisting: Logger },
+    { provide: LOGGING_BEHAVIOR_LOGGER, useExisting: NativeLogger },
   ],
 })
 export class AppModule {}
@@ -1177,15 +1180,17 @@ The `ddd/users-api/` directory contains a complete working application:
 ```bash
 cd ddd/users-api
 pnpm install
-pnpm db:migrate   # apply schema + data migrations (idempotent)
-pnpm start
+pnpm build              # build workspace dependencies
+cp .env.example .env    # create local environment file (edit as needed)
+pnpm db:migrate         # apply schema + data migrations (idempotent)
+pnpm dev                # start with tsx (hot-reload)
 ```
 
 Configure the database via environment variables (defaults to a local file):
 
 | Variable             | Default         | Description                          |
 |----------------------|-----------------|--------------------------------------|
-| `DATABASE_URL` | `file:local.db` | libSQL database URL (file or remote) |
+| `DATABASE_URL` | `file:src/persistence/local.db` | libSQL database URL (file or remote) |
 | `AUTH_TOKEN`   | _(none)_        | Auth token for libSQL remote databases (e.g. Turso) |
 
 **CRUD operations:**
@@ -1311,6 +1316,9 @@ pnpm test
 
 # Type-check all packages
 pnpm lint
+
+# Format / lint with Biome
+pnpm biome check .
 
 # Clean build artifacts
 pnpm clean
