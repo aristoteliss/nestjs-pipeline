@@ -17,6 +17,10 @@
  */
 
 export {
+  MetricsBehavior,
+  MetricsBehaviorOptions,
+} from './metrics.behavior';
+export {
   TraceBehavior,
   TraceBehaviorOptions,
 } from './trace.behavior';

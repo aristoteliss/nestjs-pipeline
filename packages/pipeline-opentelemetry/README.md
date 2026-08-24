@@ -3,7 +3,12 @@
 [![npm version](https://img.shields.io/npm/v/@nestjs-pipeline/opentelemetry.svg)](https://www.npmjs.com/package/@nestjs-pipeline/opentelemetry)
 [![License](https://img.shields.io/npm/l/@nestjs-pipeline/opentelemetry.svg)](https://www.npmjs.com/package/@nestjs-pipeline/opentelemetry)
 
-OpenTelemetry tracing behavior for `@nestjs-pipeline/core` — auto-creates spans for every command, query, and event pipeline invocation with rich attributes and error recording.
+OpenTelemetry **tracing & metrics** behaviors for `@nestjs-pipeline/core` — auto-create spans **and** record duration/throughput/error metrics for every command, query, and event pipeline invocation, with rich attributes and error recording.
+
+- **`TraceBehavior`** — wraps each handler in an OTel span (via the Trace API).
+- **`MetricsBehavior`** — records a latency histogram and an invocation counter (via the Metrics API).
+
+Both are no-op-safe: if the matching SDK isn't initialized, they pass through / record to a no-op meter without errors.
 
 ---
 
@@ -14,7 +19,14 @@ OpenTelemetry tracing behavior for `@nestjs-pipeline/core` — auto-creates span
   - [1. Initialize the OTel SDK](#1-initialize-the-otel-sdk)
   - [2. Register TraceBehavior](#2-register-tracebehavior)
 - [Span Details](#span-details)
+- [Metrics](#metrics)
+  - [Instruments](#instruments)
+  - [Attributes](#attributes)
+  - [Registering MetricsBehavior](#registering-metricsbehavior)
+  - [Custom Meter Name](#custom-meter-name)
+  - [Example Queries](#example-queries)
 - [Configuration](#configuration)
+  - [Custom Logger](#custom-logger)
   - [Global Tracer Name](#global-tracer-name)
   - [Per-Handler Tracer Name](#per-handler-tracer-name)
 - [No SDK? No Problem.](#no-sdk-no-problem)
@@ -131,6 +143,145 @@ Each span includes the following:
 
 ---
 
+## Metrics
+
+`MetricsBehavior` records OpenTelemetry **metrics** via the Metrics API,
+complementing the spans emitted by `TraceBehavior`. From these two instruments
+you can derive **throughput**, **error-rate**, and **latency percentiles**
+(p50/p95/p99) per handler.
+
+### Instruments
+
+| Instrument | Type | Unit | Description |
+|---|---|---|---|
+| `pipeline.handler.duration` | Histogram | `ms` | Handler execution time |
+| `pipeline.handler.invocations` | Counter | — | Number of handler invocations |
+
+### Attributes
+
+Both instruments are tagged with the same **low-cardinality** attributes so they
+can be sliced per handler and outcome:
+
+| Attribute | Example Value |
+|---|---|
+| `pipeline.request.kind` | `command` |
+| `pipeline.request.name` | `CreateUserCommand` |
+| `pipeline.handler.name` | `CreateUserHandler` |
+| `outcome` | `success` \| `failure` |
+| `error.type` | `ZodValidationError` _(failures only — `err.name`)_ |
+
+> **Why no `correlation_id` / `started_at`?** Unlike spans, metric attributes
+> become time-series dimensions. High-cardinality values (correlation ids,
+> timestamps) would explode your series count — they belong on spans, not
+> metrics. `error.type` uses `err.name`, which is bounded.
+
+### Registering MetricsBehavior
+
+Register it alongside `TraceBehavior` (typically in the `after` group):
+
+```typescript
+import { Module } from '@nestjs/common';
+import { CqrsModule } from '@nestjs/cqrs';
+import { PipelineModule, LoggingBehavior } from '@nestjs-pipeline/core';
+import { TraceBehavior, MetricsBehavior } from '@nestjs-pipeline/opentelemetry';
+
+@Module({
+  imports: [
+    CqrsModule.forRoot(),
+    PipelineModule.forRoot({
+      globalBehaviors: {
+        scope: 'all',
+        before: [LoggingBehavior],
+        after: [
+          [TraceBehavior, { tracerName: 'users-api' }],
+          [MetricsBehavior, { meterName: 'users-api' }],
+        ],
+      },
+    }),
+  ],
+})
+export class AppModule {}
+```
+
+You'll also need a **metrics** exporter wired into your SDK (in addition to the
+trace exporter), e.g.:
+
+```typescript
+// tracing.ts
+import { NodeSDK } from '@opentelemetry/sdk-node';
+import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-http';
+import { OTLPMetricExporter } from '@opentelemetry/exporter-metrics-otlp-http';
+import { PeriodicExportingMetricReader } from '@opentelemetry/sdk-metrics';
+
+const sdk = new NodeSDK({
+  serviceName: 'users-api',
+  traceExporter: new OTLPTraceExporter({
+    url: 'http://localhost:4318/v1/traces',
+  }),
+  metricReader: new PeriodicExportingMetricReader({
+    exporter: new OTLPMetricExporter({
+      url: 'http://localhost:4318/v1/metrics',
+    }),
+  }),
+});
+
+sdk.start();
+```
+
+### Custom Meter Name
+
+Like `tracerName`, the `meterName` can be set globally or overridden
+per-handler via `@UsePipeline`:
+
+```typescript
+import { CommandHandler, ICommandHandler } from '@nestjs/cqrs';
+import { UsePipeline } from '@nestjs-pipeline/core';
+import { MetricsBehavior } from '@nestjs-pipeline/opentelemetry';
+
+@CommandHandler(ProcessPaymentCommand)
+@UsePipeline([MetricsBehavior, { meterName: 'payment-service' }])
+export class ProcessPaymentHandler
+  implements ICommandHandler<ProcessPaymentCommand>
+{
+  async execute(command: ProcessPaymentCommand): Promise<PaymentResult> {
+    // This handler's metrics are recorded on the 'payment-service' meter
+    return this.paymentGateway.charge(command);
+  }
+}
+```
+
+If no `meterName` is provided (neither globally nor per-handler), the default is
+`'nestjs-pipeline'`.
+
+### Example Queries
+
+With an OTLP → Prometheus pipeline, the instruments map to time series you can
+query directly:
+
+```promql
+# Request rate per handler (req/s)
+sum by (pipeline_handler_name) (rate(pipeline_handler_invocations_total[1m]))
+
+# Error rate per handler
+sum by (pipeline_handler_name) (
+  rate(pipeline_handler_invocations_total{outcome="failure"}[5m])
+)
+
+# p95 latency per handler
+histogram_quantile(
+  0.95,
+  sum by (le, pipeline_handler_name) (
+    rate(pipeline_handler_duration_bucket[5m])
+  )
+)
+```
+
+> Exact metric/label names depend on your exporter's naming conventions (the
+> Prometheus exporter, for example, lowercases dots to underscores and appends
+> `_total` to counters).
+
+---
+
 ## Configuration
 
 ### Custom Logger
@@ -142,18 +293,20 @@ This is useful when your app uses `nestjs-pino`.
 import { Module } from '@nestjs/common';
 import { NativeLogger } from 'nestjs-pino';
 import { LOGGING_BEHAVIOR_LOGGER } from '@nestjs-pipeline/core';
-import { TraceBehavior } from '@nestjs-pipeline/opentelemetry';
+import { TraceBehavior, MetricsBehavior } from '@nestjs-pipeline/opentelemetry';
 
 @Module({
   providers: [
     TraceBehavior,
+    MetricsBehavior,
     { provide: LOGGING_BEHAVIOR_LOGGER, useExisting: NativeLogger },
   ],
 })
 export class AppModule {}
 ```
 
-The same Nest-to-pino level mapping applies here (`verbose` → `trace`, `log` → `info`, etc.).
+Both behaviors only emit `warn`/`log` messages at startup; how those map to your
+transport (e.g. pino levels) is handled entirely by the injected logger.
 
 ### Global Tracer Name
 
@@ -195,18 +348,23 @@ If no `tracerName` is provided (neither globally nor per-handler), the default i
 
 ## No SDK? No Problem.
 
-If the OpenTelemetry SDK is **not** initialized (e.g. in development or test environments), `TraceBehavior` detects this at module init and silently passes through — no overhead, no errors, no thrown exceptions.
+If the OpenTelemetry SDK is **not** initialized (e.g. in development or test environments), both behaviors degrade gracefully — no overhead, no errors, no thrown exceptions:
 
-A warning is logged once at startup:
+- `TraceBehavior` detects the missing tracer provider at module init and **passes through** without creating spans.
+- `MetricsBehavior` records to a **no-op meter** (recordings are silently discarded), so it keeps working without a metrics pipeline.
+
+A warning is logged once at startup for each:
 
 ```
 [Nest] WARN [TraceBehavior] OpenTelemetry SDK is NOT initialized — TraceBehavior will pass through without tracing. Ensure your tracing bootstrap runs BEFORE NestFactory.create() (import "./tracing" as the first line of main.ts, or use --require ./tracing.js).
+[Nest] WARN [MetricsBehavior] OpenTelemetry metrics SDK is NOT initialized — MetricsBehavior will record to a no-op meter (metrics discarded). Register a MeterProvider with a reader/exporter to export pipeline metrics.
 ```
 
 When the SDK IS active:
 
 ```
 [Nest] LOG [TraceBehavior] OpenTelemetry tracer provider is active — spans will be emitted.
+[Nest] LOG [MetricsBehavior] OpenTelemetry meter provider is active — pipeline metrics will be exported.
 ```
 
 ---
@@ -217,14 +375,21 @@ When the SDK IS active:
 // ── tracing.ts ──
 import { NodeSDK } from '@opentelemetry/sdk-node';
 import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-http';
+import { OTLPMetricExporter } from '@opentelemetry/exporter-metrics-otlp-http';
+import { PeriodicExportingMetricReader } from '@opentelemetry/sdk-metrics';
 import { getNodeAutoInstrumentations } from '@opentelemetry/auto-instrumentations-node';
 
 const sdk = new NodeSDK({
+  serviceName: 'users-api',
   traceExporter: new OTLPTraceExporter({
     url: 'http://localhost:4318/v1/traces',
   }),
+  metricReader: new PeriodicExportingMetricReader({
+    exporter: new OTLPMetricExporter({
+      url: 'http://localhost:4318/v1/metrics',
+    }),
+  }),
   instrumentations: [getNodeAutoInstrumentations()],
-  serviceName: 'users-api',
 });
 
 sdk.start();
@@ -246,7 +411,7 @@ bootstrap();
 import { Module } from '@nestjs/common';
 import { CqrsModule } from '@nestjs/cqrs';
 import { PipelineModule, LoggingBehavior } from '@nestjs-pipeline/core';
-import { TraceBehavior } from '@nestjs-pipeline/opentelemetry';
+import { TraceBehavior, MetricsBehavior } from '@nestjs-pipeline/opentelemetry';
 import { ZodValidationBehavior } from '@nestjs-pipeline/zod';
 
 @Module({
@@ -258,6 +423,7 @@ import { ZodValidationBehavior } from '@nestjs-pipeline/zod';
         before: [LoggingBehavior],
         after: [
           [TraceBehavior, { tracerName: 'users-api' }],
+          [MetricsBehavior, { meterName: 'users-api' }],
           ZodValidationBehavior,
         ],
       },
@@ -276,9 +442,10 @@ import { UsePipeline, LoggingBehavior } from '@nestjs-pipeline/core';
 export class CreateUserHandler implements ICommandHandler<CreateUserCommand> {
   async execute(command: CreateUserCommand): Promise<User> {
     // This handler is now:
-    // 1. Logged (global LoggingBehavior + handler override)
-    // 2. Traced (global TraceBehavior → span: command.CreateUserCommand)
-    // 3. Validated (global ZodValidationBehavior → checks _zodSchema)
+    // 1. Logged   (global LoggingBehavior + handler override)
+    // 2. Traced   (global TraceBehavior → span: command.CreateUserCommand)
+    // 3. Measured (global MetricsBehavior → duration histogram + invocation counter)
+    // 4. Validated (global ZodValidationBehavior → checks _zodSchema)
     return this.userRepository.create(command.username, command.email);
   }
 }
@@ -296,6 +463,13 @@ Trace: users-api
     └── pipeline.started_at = "2026-03-01T12:00:00.000Z"
 ```
 
+**Plus metrics** (same handler) on the `users-api` meter:
+
+```
+pipeline.handler.duration{...,outcome="success"}     histogram → p50/p95/p99 latency
+pipeline.handler.invocations{...,outcome="success"} counter   → request & error rate
+```
+
 ---
 
 ## API Reference
@@ -304,6 +478,8 @@ Trace: users-api
 |---|---|---|
 | `TraceBehavior` | Class | Pipeline behavior — creates OTel spans per handler invocation |
 | `TraceBehaviorOptions` | Interface | `{ tracerName?: string }` — configure the tracer name |
+| `MetricsBehavior` | Class | Pipeline behavior — records duration histogram & invocation counter per handler |
+| `MetricsBehaviorOptions` | Interface | `{ meterName?: string }` — configure the meter name |
 
 ---
 
@@ -312,3 +488,4 @@ Trace: users-api
 Dual-licensed under **AGPLv3** and a **Commercial License**. See the root [`LICENSE`](../../LICENSE) and [`COMMERCIAL_LICENSE.txt`](../../COMMERCIAL_LICENSE.txt) for details.
 
 Contact: **aristotelis@ik.me**
+
