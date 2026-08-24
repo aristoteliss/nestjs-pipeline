@@ -30,7 +30,9 @@ export class Migration20260501000000 extends Migration {
       primary key (id)
     );`);
 
-    this.addSql('create unique index if not exists users_email_unique on users (email);');
+    this.addSql(
+      'create unique index if not exists users_email_unique on users (email);',
+    );
 
     this.addSql(`create table if not exists auth (
       id varchar(64) not null,
@@ -41,7 +43,9 @@ export class Migration20260501000000 extends Migration {
       primary key (id)
     );`);
 
-    this.addSql('create index if not exists auth_user_id_idx on auth (user_id);');
+    this.addSql(
+      'create index if not exists auth_user_id_idx on auth (user_id);',
+    );
 
     this.addSql(`create table if not exists roles (
       id varchar(64) not null,
@@ -51,7 +55,9 @@ export class Migration20260501000000 extends Migration {
       primary key (id)
     );`);
 
-    this.addSql('create unique index if not exists roles_name_unique on roles (name);');
+    this.addSql(
+      'create unique index if not exists roles_name_unique on roles (name);',
+    );
 
     this.addSql(`create table if not exists capabilities (
       id varchar(64) not null,
@@ -97,7 +103,9 @@ export class Migration20260501000000 extends Migration {
       primary key (key)
     );`);
 
-    this.addSql('create index if not exists cache_expires_at_idx on cache (expires_at);');
+    this.addSql(
+      'create index if not exists cache_expires_at_idx on cache (expires_at);',
+    );
   }
 
   override async down(): Promise<void> {

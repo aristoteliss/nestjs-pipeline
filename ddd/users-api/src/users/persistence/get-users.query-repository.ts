@@ -24,10 +24,11 @@ import { User } from '../domain/models/user.entity';
 
 @Injectable()
 export class GetUsersQueryRepository
-  implements IQueryRepository<GetUsersQuery, User[]> {
+  implements IQueryRepository<GetUsersQuery, User[]>
+{
   constructor(
     @Inject(MIKRO_ORM_CLIENT) private readonly store: MikroOrmStore,
-  ) { }
+  ) {}
 
   async find(_query: GetUsersQuery): Promise<User[]> {
     return this.store.em.findAll(User);

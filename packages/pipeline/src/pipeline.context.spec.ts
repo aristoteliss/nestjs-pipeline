@@ -28,7 +28,7 @@ import { PipelineContext } from './pipeline.context';
 // ── Helpers ─────────────────────────────────────────────────
 
 class FakeCommand {
-  constructor(public readonly name: string) { }
+  constructor(public readonly name: string) {}
 }
 
 class FakeHandler {
@@ -134,7 +134,7 @@ describe('PipelineContext', () => {
 });
 
 describe('PipelineContext.getBehaviorOptions', () => {
-  class SomeBehavior { }
+  class SomeBehavior {}
 
   it('returns undefined when no options map exists', () => {
     const ctx = new PipelineContext(

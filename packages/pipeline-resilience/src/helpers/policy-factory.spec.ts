@@ -18,7 +18,10 @@
 
 import { TimeoutStrategy, timeout } from 'cockatiel';
 import { describe, expect, it, vi } from 'vitest';
-import { buildResiliencePolicy, type PolicyBuildContext } from './policy-factory';
+import {
+  buildResiliencePolicy,
+  type PolicyBuildContext,
+} from './policy-factory';
 
 describe('buildResiliencePolicy', () => {
   const ctx: PolicyBuildContext = {
@@ -129,8 +132,16 @@ describe('buildResiliencePolicy', () => {
       );
 
       expect(policy).not.toBeNull();
-      await expect(policy!.execute(async () => { throw new Error('err1'); })).rejects.toThrow('err1');
-      await expect(policy!.execute(async () => { throw new Error('err2'); })).rejects.toThrow('err2');
+      await expect(
+        policy!.execute(async () => {
+          throw new Error('err1');
+        }),
+      ).rejects.toThrow('err1');
+      await expect(
+        policy!.execute(async () => {
+          throw new Error('err2');
+        }),
+      ).rejects.toThrow('err2');
       expect(onCircuitOpen).toHaveBeenCalled();
     });
 
@@ -139,7 +150,12 @@ describe('buildResiliencePolicy', () => {
         {
           circuitBreaker: {
             halfOpenAfter: 100,
-            breaker: { type: 'sampling', threshold: 0.5, duration: 1000, minimumRps: 5 },
+            breaker: {
+              type: 'sampling',
+              threshold: 0.5,
+              duration: 1000,
+              minimumRps: 5,
+            },
           },
         },
         ctx,
@@ -152,7 +168,12 @@ describe('buildResiliencePolicy', () => {
         {
           circuitBreaker: {
             halfOpenAfter: 100,
-            breaker: { type: 'count', threshold: 0.5, size: 10, minimumNumberOfCalls: 5 },
+            breaker: {
+              type: 'count',
+              threshold: 0.5,
+              size: 10,
+              minimumNumberOfCalls: 5,
+            },
           },
         },
         ctx,
@@ -173,7 +194,9 @@ describe('buildResiliencePolicy', () => {
       );
 
       expect(policy).not.toBeNull();
-      const slow = policy!.execute(() => new Promise((resolve) => setTimeout(resolve, 50)));
+      const slow = policy!.execute(
+        () => new Promise((resolve) => setTimeout(resolve, 50)),
+      );
       await expect(policy!.execute(async () => 'second')).rejects.toThrow();
       expect(onBulkheadRejected).toHaveBeenCalled();
       await slow;
@@ -205,7 +228,9 @@ describe('buildResiliencePolicy', () => {
       );
 
       await expect(
-        policy!.execute(() => new Promise((resolve) => setTimeout(resolve, 50))),
+        policy!.execute(
+          () => new Promise((resolve) => setTimeout(resolve, 50)),
+        ),
       ).rejects.toThrow();
       expect(onTimeout).toHaveBeenCalled();
     });
@@ -242,8 +267,8 @@ describe('buildResiliencePolicy', () => {
   });
 
   describe('custom handle predicate', () => {
-    class IgnoredError extends Error { }
-    class HandledError extends Error { }
+    class IgnoredError extends Error {}
+    class HandledError extends Error {}
 
     it('only retries errors matching the handle predicate', async () => {
       const policy = buildResiliencePolicy(
@@ -283,4 +308,3 @@ describe('buildResiliencePolicy', () => {
     });
   });
 });
-

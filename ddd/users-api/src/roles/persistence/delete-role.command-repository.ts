@@ -17,11 +17,7 @@
  */
 
 import { Inject, Injectable } from '@nestjs/common';
-import {
-  Cache,
-  CommandRepository,
-  ICache,
-} from '@nestjs-pipeline/ddd-core';
+import { Cache, CommandRepository, ICache } from '@nestjs-pipeline/ddd-core';
 import { CACHE_TOKEN } from '@persistence/cache/memory.cache';
 import { MIKRO_ORM_CLIENT, MikroOrmStore } from '@persistence/mikro-orm.store';
 import { Role, RoleSnapshot } from '../domain/models/role.entity';

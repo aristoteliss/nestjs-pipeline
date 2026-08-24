@@ -31,9 +31,9 @@ function createMockContext(
     correlationId: 'test-corr-id',
     originalCorrelationId: 'test-corr-id',
     request: { name: 'MockCommand' },
-    requestType: class MockCommand { } as Type,
+    requestType: class MockCommand {} as Type,
     requestName: 'MockCommand',
-    handlerType: class MockHandler { } as Type,
+    handlerType: class MockHandler {} as Type,
     handlerName: 'MockHandler',
     requestKind: 'command',
     startedAt: new Date(),
@@ -189,7 +189,10 @@ describe('LoggingBehavior', () => {
     });
 
     // Success structured logging
-    await loggingBehavior.handle(ctx, vi.fn().mockResolvedValue({ status: 'ok' }));
+    await loggingBehavior.handle(
+      ctx,
+      vi.fn().mockResolvedValue({ status: 'ok' }),
+    );
 
     expect(mockLogger.debug).toHaveBeenCalledWith(
       {

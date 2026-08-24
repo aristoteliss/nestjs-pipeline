@@ -64,4 +64,4 @@ import { AuthService } from './services/auth.service';
     CreatedAuthHandler,
   ],
 })
-export class AuthsModule { }
+export class AuthsModule {}

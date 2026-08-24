@@ -66,7 +66,6 @@ import { ResilienceBehavior } from './resilience.behavior';
  * ```
  */
 @Module({})
-// biome-ignore lint/complexity/noStaticOnlyClass: static-only configuration class
 export class ResilienceModule {
   /**
    * Registers the resilience behavior and optional application-wide defaults.

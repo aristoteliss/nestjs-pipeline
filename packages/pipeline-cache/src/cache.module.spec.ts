@@ -40,7 +40,9 @@ describe('CacheModule.forRoot', () => {
   });
 
   it('logs initialized store type', () => {
-    const logSpy = vi.spyOn(Logger.prototype, 'log').mockImplementation(() => {});
+    const logSpy = vi
+      .spyOn(Logger.prototype, 'log')
+      .mockImplementation(() => {});
 
     CacheModule.forRoot({ store: { type: 'memory' } });
     expect(logSpy).toHaveBeenCalledWith(

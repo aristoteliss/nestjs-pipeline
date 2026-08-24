@@ -21,7 +21,10 @@ import { DomainEvent } from './domain.event';
 import { RootDomainEvent } from './root-domain.event';
 
 class CustomDomainEvent extends DomainEvent {
-  constructor(public readonly detail: string, id?: string) {
+  constructor(
+    public readonly detail: string,
+    id?: string,
+  ) {
     super(id);
   }
 }
@@ -53,4 +56,3 @@ describe('DomainEvent & RootDomainEvent', () => {
     expect(event.id).toBeDefined();
   });
 });
-

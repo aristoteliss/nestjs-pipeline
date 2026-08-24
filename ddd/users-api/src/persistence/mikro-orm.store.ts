@@ -16,8 +16,7 @@
  * ----------------------------
  */
 
-import { MikroORM } from '@mikro-orm/libsql';
-import { EntityManager, SqlEntityManager } from '@mikro-orm/libsql';
+import { EntityManager, MikroORM, SqlEntityManager } from '@mikro-orm/libsql';
 import {
   BadRequestException,
   Inject,
@@ -53,23 +52,23 @@ export class MikroOrmStore implements OnModuleInit, OnModuleDestroy {
   constructor(
     @Inject(TenantSchemaContext)
     private readonly tenantSchemaContext: TenantSchemaContext,
-  ) { }
+  ) {}
 
   async onModuleInit(): Promise<void> {
     for (const tenant of resolveLibsqlTenants()) {
       const dbName = resolveLibsqlDbUrl(tenant);
       const orm = await MikroORM.init(createLibsqlOrmOptions(dbName));
       this.orms.set(tenant, orm);
-      this.logger.log(`MikroORM initialized for tenant "${tenant}" (${dbName})`);
+      this.logger.log(
+        `MikroORM initialized for tenant "${tenant}" (${dbName})`,
+      );
     }
 
     this.orm = this.orms.get(resolveDefaultSchema()) as MikroORM;
   }
 
   async onModuleDestroy(): Promise<void> {
-    await Promise.all(
-      Array.from(this.orms.values()).map((orm) => orm.close()),
-    );
+    await Promise.all(Array.from(this.orms.values()).map((orm) => orm.close()));
     this.orms.clear();
   }
 

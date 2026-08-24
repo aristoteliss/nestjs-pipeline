@@ -53,15 +53,15 @@ class SecondMockBehavior implements IPipelineBehavior {
 // ─────────────────────────────────────────────────────────────────
 
 class MockCommand {
-  constructor(public id: number) { }
+  constructor(public id: number) {}
 }
 
 class MockQuery {
-  constructor(public id: number) { }
+  constructor(public id: number) {}
 }
 
 class MockEvent {
-  constructor(public payload: string) { }
+  constructor(public payload: string) {}
 }
 
 // ─────────────────────────────────────────────────────────────────
@@ -648,7 +648,7 @@ describe('PipelineBootstrapService', () => {
         }
       }
       @UsePipeline(MockBehavior)
-      class DecoratedChildHandler extends ChildCommandHandler { }
+      class DecoratedChildHandler extends ChildCommandHandler {}
 
       const childHandler = new DecoratedChildHandler();
       explorerServiceMock.explore.mockReturnValue({
@@ -710,14 +710,14 @@ describe('PipelineBootstrapService', () => {
     let warnSpy: ReturnType<typeof vi.spyOn>;
 
     beforeEach(() => {
-      logSpy = vi.spyOn(Logger.prototype, 'log').mockImplementation(() => { });
+      logSpy = vi.spyOn(Logger.prototype, 'log').mockImplementation(() => {});
       debugSpy = vi
         .spyOn(Logger.prototype, 'debug')
-        .mockImplementation(() => { });
+        .mockImplementation(() => {});
       verboseSpy = vi
         .spyOn(Logger.prototype, 'verbose')
-        .mockImplementation(() => { });
-      warnSpy = vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => { });
+        .mockImplementation(() => {});
+      warnSpy = vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => {});
     });
 
     afterEach(() => {

@@ -60,4 +60,3 @@ describe('@Mutate decorator', () => {
     expect(obj.onUpdateHook).toHaveBeenCalledTimes(1);
   });
 });
-

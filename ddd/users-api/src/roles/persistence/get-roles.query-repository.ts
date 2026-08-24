@@ -24,8 +24,11 @@ import { Role } from '../domain/models/role.entity';
 
 @Injectable()
 export class GetRolesQueryRepository
-  implements IQueryRepository<GetRolesQuery, Role[]> {
-  constructor(@Inject(MIKRO_ORM_CLIENT) private readonly store: MikroOrmStore) { }
+  implements IQueryRepository<GetRolesQuery, Role[]>
+{
+  constructor(
+    @Inject(MIKRO_ORM_CLIENT) private readonly store: MikroOrmStore,
+  ) {}
 
   async find(_query: GetRolesQuery): Promise<Role[]> {
     return await this.store.em.find(Role, {});

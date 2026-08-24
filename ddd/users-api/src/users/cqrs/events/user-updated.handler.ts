@@ -35,7 +35,7 @@ export class UserUpdatedHandler implements IEventHandler<UserUpdatedEvent> {
   constructor(
     @InjectQueue(BATCH_UPDATE_USERS_QUEUE)
     private readonly batchUpdateQueue: Queue<BatchUpdateUserItem[]>,
-  ) { }
+  ) {}
 
   async handle(event: UserUpdatedEvent): Promise<void> {
     const {

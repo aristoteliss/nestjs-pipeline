@@ -167,7 +167,7 @@ function makeContext<T>(
     request,
     requestType: requestClass,
     requestName: requestClass.name,
-    handlerType: class Handler { },
+    handlerType: class Handler {},
     handlerName: 'TestHandler',
     requestKind: 'command',
     startedAt: new Date(),
@@ -202,14 +202,14 @@ function createBehavior(
 // ── Test request classes ────────────────────────────────────────────────
 
 class GetPostQuery {
-  constructor(public readonly postId: string) { }
+  constructor(public readonly postId: string) {}
 }
 
 class CreatePostCommand {
   constructor(
     public readonly title: string,
     public readonly authorId: string,
-  ) { }
+  ) {}
 }
 
 class UpdatePostCommand {
@@ -217,7 +217,7 @@ class UpdatePostCommand {
     public readonly postId: string,
     public readonly authorId: string,
     public readonly title: string,
-  ) { }
+  ) {}
 }
 
 class DeleteCommentCommand {
@@ -225,7 +225,7 @@ class DeleteCommentCommand {
     public readonly commentId: string,
     public readonly authorId: string,
     public readonly status: string,
-  ) { }
+  ) {}
 }
 
 class UpdateProjectCommand {
@@ -235,7 +235,7 @@ class UpdateProjectCommand {
     public readonly status: string,
     public readonly members: Array<{ userId: string }>,
     public readonly name: string,
-  ) { }
+  ) {}
 }
 
 class FulfillOrderCommand {
@@ -243,24 +243,24 @@ class FulfillOrderCommand {
     public readonly orderId: string,
     public readonly assigneeId: string,
     public readonly status: string,
-  ) { }
+  ) {}
 }
 
-class PurgeCommand { }
+class PurgeCommand {}
 
 class NoRequirementsQuery {
-  constructor(public readonly page: number) { }
+  constructor(public readonly page: number) {}
 }
 
 class GetTicketsQuery {
-  constructor(public readonly department: string) { }
+  constructor(public readonly department: string) {}
 }
 
 class GetProjectWithTasksQuery {
   constructor(
     public readonly projectId: string,
     public readonly tenantId: string,
-  ) { }
+  ) {}
 }
 
 class UpdateUserProfileCommand {
@@ -271,7 +271,7 @@ class UpdateUserProfileCommand {
       id: string;
       tenantId: string;
     },
-  ) { }
+  ) {}
 }
 
 class UpdateUserProfileWithNestedSessionCommand {
@@ -286,7 +286,7 @@ class UpdateUserProfileWithNestedSessionCommand {
         };
       };
     },
-  ) { }
+  ) {}
 }
 
 class UpdateOwnUserCommand {
@@ -298,7 +298,7 @@ class UpdateOwnUserCommand {
       id: string;
       tenantId?: string;
     },
-  ) { }
+  ) {}
 }
 
 class UpdateTenantUserCommand {
@@ -312,7 +312,7 @@ class UpdateTenantUserCommand {
       id: string;
       tenantId: string;
     },
-  ) { }
+  ) {}
 }
 
 // ── Tests ───────────────────────────────────────────────────────────────
@@ -497,14 +497,10 @@ describe('CaslBehavior.handle() integration', () => {
 
     it('should allow update when request has tenant only under sessionUser', async () => {
       const behavior = createBehavior(roles, capProvider);
-      const command = new UpdateUserProfileCommand(
-        'user-1',
-        'updated-name',
-        {
-          id: 'tenant-manager-1',
-          tenantId: 'tenant-a',
-        },
-      );
+      const command = new UpdateUserProfileCommand('user-1', 'updated-name', {
+        id: 'tenant-manager-1',
+        tenantId: 'tenant-a',
+      });
       const ctx = makeContext(
         UpdateUserProfileCommand,
         command,
@@ -550,12 +546,9 @@ describe('CaslBehavior.handle() integration', () => {
     });
 
     it('should allow update using global default path without per-handler override', async () => {
-      const behavior = createBehavior(
-        roles,
-        capProvider,
-        undefined,
-        ['auth.session.user'],
-      );
+      const behavior = createBehavior(roles, capProvider, undefined, [
+        'auth.session.user',
+      ]);
       const command = new UpdateUserProfileWithNestedSessionCommand(
         'user-1',
         'updated-name',
@@ -649,8 +642,10 @@ describe('CaslBehavior.handle() integration', () => {
           '!User|update|{"tenantId":"${tenantId}"}|email',
         ],
       };
-      const behavior = createBehavior([...allRoles, managerRole],
-        makeUserCapabilityProvider({ 'manager-1': ['manager-limited'] }));
+      const behavior = createBehavior(
+        [...allRoles, managerRole],
+        makeUserCapabilityProvider({ 'manager-1': ['manager-limited'] }),
+      );
 
       const command = new UpdateTenantUserCommand(
         'target-1',
@@ -683,8 +678,10 @@ describe('CaslBehavior.handle() integration', () => {
           '!User|update|{"tenantId":"${tenantId}"}|email',
         ],
       };
-      const behavior = createBehavior([...allRoles, managerRole],
-        makeUserCapabilityProvider({ 'manager-1': ['manager-limited'] }));
+      const behavior = createBehavior(
+        [...allRoles, managerRole],
+        makeUserCapabilityProvider({ 'manager-1': ['manager-limited'] }),
+      );
 
       const command = new UpdateTenantUserCommand(
         'target-1',
@@ -717,8 +714,10 @@ describe('CaslBehavior.handle() integration', () => {
           '!User|update|{"tenantId":"${tenantId}"}|email',
         ],
       };
-      const behavior = createBehavior([...allRoles, managerRole],
-        makeUserCapabilityProvider({ 'manager-1': ['manager-limited'] }));
+      const behavior = createBehavior(
+        [...allRoles, managerRole],
+        makeUserCapabilityProvider({ 'manager-1': ['manager-limited'] }),
+      );
 
       const command = new UpdateTenantUserCommand(
         'target-1',
@@ -745,8 +744,10 @@ describe('CaslBehavior.handle() integration', () => {
     });
 
     it('should allow admin to update email', async () => {
-      const behavior = createBehavior(allRoles,
-        makeUserCapabilityProvider({ 'admin-1': ['admin'] }));
+      const behavior = createBehavior(
+        allRoles,
+        makeUserCapabilityProvider({ 'admin-1': ['admin'] }),
+      );
 
       const command = new UpdateTenantUserCommand(
         'target-1',

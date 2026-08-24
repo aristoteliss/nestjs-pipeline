@@ -18,11 +18,7 @@
 
 import { filterCacheKey } from '@common/cqrs/helpers/filterCacheKey.helper';
 import { Inject, Injectable } from '@nestjs/common';
-import {
-  Cache,
-  CommandRepository,
-  ICache,
-} from '@nestjs-pipeline/ddd-core';
+import { Cache, CommandRepository, ICache } from '@nestjs-pipeline/ddd-core';
 import { CACHE_TOKEN } from '@persistence/cache/memory.cache';
 import { MIKRO_ORM_CLIENT, MikroOrmStore } from '@persistence/mikro-orm.store';
 import { User, UserSnapshot } from '../domain/models/user.entity';
@@ -48,10 +44,9 @@ export class DeleteUserCommandRepository extends CommandRepository<UserUpdateOut
     }
 
     // Clean up junction tables first to prevent foreign key constraint violations
-    await this.store.em.execute(
-      'DELETE FROM user_roles WHERE user_id = ?',
-      [entity.id],
-    );
+    await this.store.em.execute('DELETE FROM user_roles WHERE user_id = ?', [
+      entity.id,
+    ]);
     await this.store.em.execute(
       'DELETE FROM user_additional_capabilities WHERE user_id = ?',
       [entity.id],

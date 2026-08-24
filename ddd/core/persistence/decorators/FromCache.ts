@@ -30,7 +30,10 @@ import { QueryRepository } from '../query-repository.abstract';
  * @param keyFn - Builds the cache key from the query, or returns `null` to skip caching.
  * @param hydrateFn - Optional transform applied to cached values when `query.hydrate` is true.
  */
-export function FromCache<TQuery extends IQueryOptions = IQueryOptions, TResult = unknown>(
+export function FromCache<
+  TQuery extends IQueryOptions = IQueryOptions,
+  TResult = unknown,
+>(
   keyFn: (query: TQuery) => string | null,
   hydrateFn?: (cached: unknown) => TResult,
 ): MethodDecorator {

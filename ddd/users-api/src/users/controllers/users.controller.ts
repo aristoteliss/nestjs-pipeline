@@ -55,7 +55,7 @@ export class UsersController {
   constructor(
     private readonly commandBus: CommandBus,
     private readonly queryBus: QueryBus,
-  ) { }
+  ) {}
 
   @Get()
   @HttpCode(200)

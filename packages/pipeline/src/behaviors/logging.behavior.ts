@@ -271,13 +271,13 @@ export class LoggingBehavior implements IPipelineBehavior {
         metricLogLevel,
         structured
           ? {
-            msg: metricMsg,
-            correlationId: context.correlationId,
-            requestKind: context.requestKind,
-            requestName: context.requestName,
-            handlerName: context.handlerName,
-            durationMs: Number(duration),
-          }
+              msg: metricMsg,
+              correlationId: context.correlationId,
+              requestKind: context.requestKind,
+              requestName: context.requestName,
+              handlerName: context.handlerName,
+              durationMs: Number(duration),
+            }
           : metricMsg,
         context.handlerName,
       );
@@ -294,9 +294,9 @@ export class LoggingBehavior implements IPipelineBehavior {
         requestResponseLogLevel,
         structured
           ? {
-            msg: `Response ← ${context.handlerName}`,
-            response: responsePayload,
-          }
+              msg: `Response ← ${context.handlerName}`,
+              response: responsePayload,
+            }
           : `Response: ${responsePayload}`,
         context.handlerName,
       );

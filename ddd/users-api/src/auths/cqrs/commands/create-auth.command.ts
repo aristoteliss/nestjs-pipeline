@@ -24,4 +24,4 @@ export class CreateAuthCommand extends createExecuteClass(
     email: z.email(),
     code: z.string().min(4).max(6),
   }),
-) { }
+) {}

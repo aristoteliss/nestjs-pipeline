@@ -57,10 +57,7 @@ export class CreateAuthHandler extends CommandBaseHandler<
 
     const authResult = await this.authService.signToken(verifiedUser);
 
-    const outcome = Auth.create(
-      authResult.userId,
-      authResult.accessToken,
-    );
+    const outcome = Auth.create(authResult.userId, authResult.accessToken);
 
     await this.commandRepository.save(outcome);
 

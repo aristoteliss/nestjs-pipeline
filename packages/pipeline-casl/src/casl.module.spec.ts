@@ -77,4 +77,3 @@ describe('CaslModule.forRoot', () => {
     expect(capProvider?.useClass).toBe(MockCapabilityProvider);
   });
 });
-

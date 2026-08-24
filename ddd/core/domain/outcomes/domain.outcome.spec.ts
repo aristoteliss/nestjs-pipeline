@@ -63,4 +63,3 @@ describe('DomainOutcome & RootDomainOutcome', () => {
     expect(outcome.events).toEqual([event]);
   });
 });
-

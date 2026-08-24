@@ -17,10 +17,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import {
-  RATE_LIMIT_DEFAULT_OPTIONS,
-  RATE_LIMITER,
-} from './constants/tokens';
+import { RATE_LIMIT_DEFAULT_OPTIONS, RATE_LIMITER } from './constants/tokens';
 import type { RateLimiterLike } from './interfaces/rate-limiter.interface';
 import { RateLimitBehavior } from './rate-limit.behavior';
 import { RateLimitModule } from './rate-limit.module';
@@ -74,4 +71,3 @@ describe('RateLimitModule', () => {
     expect(limiterProvider?.useFactory).toBe(factory);
   });
 });
-

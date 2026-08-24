@@ -27,7 +27,8 @@ import { GetRolesCapabilitiesQuery } from '../cqrs/queries/get-roles-capabilitie
 @Injectable()
 export class GetRolesCapabilitiesQueryRepository
   extends QueryRepository<GetRolesCapabilitiesQuery, RoleDefinition[]>
-  implements IRoleProvider {
+  implements IRoleProvider
+{
   constructor(
     @Inject(CACHE_TOKEN) protected readonly cache: ICache<RoleDefinition[]>,
     @Inject(MIKRO_ORM_CLIENT) private readonly store: MikroOrmStore,

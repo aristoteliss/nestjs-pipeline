@@ -54,4 +54,3 @@ describe('ResilienceModule.forRoot', () => {
     expect(optionsProvider?.useValue).toEqual(defaults);
   });
 });
-

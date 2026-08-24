@@ -106,10 +106,10 @@ export class ResilienceBehavior implements IPipelineBehavior {
 
     const policy = effective
       ? buildResiliencePolicy(effective, {
-        logger: this.logger,
-        requestName: context.requestName,
-        handlerName: context.handlerName,
-      })
+          logger: this.logger,
+          requestName: context.requestName,
+          handlerName: context.handlerName,
+        })
       : null;
 
     this.policyCache.set(context.handlerType, policy);

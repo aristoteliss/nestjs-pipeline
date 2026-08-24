@@ -49,7 +49,7 @@ export class AuthService {
     private readonly queryBus: QueryBus,
     @Inject(EXT_USER_QUERY_REPOSITORY.getUser)
     private readonly queryRepository: IQueryRepository<GetUserQuery, User>,
-  ) { }
+  ) {}
 
   async authenticate(email: string, code: string): Promise<User> {
     const expectedCode = process.env.AUTH_LOGIN_CODE;
@@ -63,9 +63,7 @@ export class AuthService {
       throw new UnauthorizedException('Invalid code');
     }
 
-    const user = await this.queryRepository.find(
-      new GetUserQuery({ email }),
-    );
+    const user = await this.queryRepository.find(new GetUserQuery({ email }));
 
     if (!user) {
       throw new UnauthorizedException('Invalid credentials');

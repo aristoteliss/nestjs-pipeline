@@ -73,7 +73,6 @@ import type {
  * ```
  */
 @Module({})
-// biome-ignore lint/complexity/noStaticOnlyClass: static-only configuration class
 export class FeatureFlagsModule {
   /**
    * Registers the feature-flag behavior, resolves the OpenFeature client

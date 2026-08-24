@@ -92,7 +92,9 @@ async function migrateSchema(schema: string): Promise<number> {
 
   try {
     process.env.SEED_TENANT = schema;
-    await orm.em.getConnection().execute(`create schema if not exists "${schema}";`);
+    await orm.em
+      .getConnection()
+      .execute(`create schema if not exists "${schema}";`);
     const executed = await orm.migrator.up();
     return Array.isArray(executed) ? executed.length : 0;
   } finally {

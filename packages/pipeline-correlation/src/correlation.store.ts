@@ -223,8 +223,8 @@ export function addCorrelationId<T extends Record<string, unknown>>(
   if (Array.isArray(data)) {
     throw new TypeError(
       'addCorrelationId(data) received an array. Spreading an array into an object ' +
-      'destroys its structure and breaks the serialization contract. ' +
-      'Wrap it first: addCorrelationId({ items: myArray })',
+        'destroys its structure and breaks the serialization contract. ' +
+        'Wrap it first: addCorrelationId({ items: myArray })',
     );
   }
   return { ...data, correlationId: getCorrelationId() };

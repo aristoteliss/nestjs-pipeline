@@ -109,7 +109,10 @@ describe('users-api (e2e)', () => {
       const rawEmail = `Upper.${Date.now()}-${emailSeq++}@Acme.Test`;
       const expectedEmail = rawEmail.toLowerCase();
 
-      const res = await createUser(admin, { email: rawEmail, name: 'Case Sensitive Carl' });
+      const res = await createUser(admin, {
+        email: rawEmail,
+        name: 'Case Sensitive Carl',
+      });
 
       expect(res.status).toBe(201);
       expect(res.body.email).toBe(expectedEmail);

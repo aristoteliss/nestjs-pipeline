@@ -24,5 +24,5 @@ export class GetUserCapabilitiesQuery extends createExecuteClass(
   z.object({
     userId: z.union([z.string().min(1), z.number()]),
   }),
-  BaseQuery
-) { }
+  BaseQuery,
+) {}

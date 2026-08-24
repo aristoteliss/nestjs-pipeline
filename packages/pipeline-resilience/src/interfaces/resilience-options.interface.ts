@@ -45,12 +45,12 @@ export type RetryBackoff =
    * (`initialDelay: 128`, `maxDelay: 30_000`, `exponent: 2`).
    */
   | {
-    type: 'exponential';
-    initialDelay?: number;
-    maxDelay?: number;
-    exponent?: number;
-    jitter?: JitterStrategy;
-  }
+      type: 'exponential';
+      initialDelay?: number;
+      maxDelay?: number;
+      exponent?: number;
+      jitter?: JitterStrategy;
+    }
   /** Walk through an explicit list of delays (ms); the last value repeats. */
   | { type: 'iterable'; delays: number[] };
 
@@ -71,21 +71,21 @@ export type BreakerStrategy =
    * rolling `duration` (ms) window. `minimumRps` avoids tripping under low load.
    */
   | {
-    type: 'sampling';
-    threshold: number;
-    duration: number;
-    minimumRps?: number;
-  }
+      type: 'sampling';
+      threshold: number;
+      duration: number;
+      minimumRps?: number;
+    }
   /**
    * Open when the failure proportion exceeds `threshold` (0–1) over the last
    * `size` calls (count-based sliding window).
    */
   | {
-    type: 'count';
-    threshold: number;
-    size: number;
-    minimumNumberOfCalls?: number;
-  };
+      type: 'count';
+      threshold: number;
+      size: number;
+      minimumNumberOfCalls?: number;
+    };
 
 /** Circuit breaker configuration. */
 export interface CircuitBreakerOptions {

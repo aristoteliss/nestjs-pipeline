@@ -42,7 +42,7 @@ describe('AuditModule', () => {
   });
 
   it('registers globally via forRoot with custom sink and defaults', () => {
-    const customSink: AuditSink = { write: async () => { } };
+    const customSink: AuditSink = { write: async () => {} };
     const dynamicModule = AuditModule.forRoot({
       sink: customSink,
       defaults: { captureRequest: true },
@@ -73,4 +73,3 @@ describe('AuditModule', () => {
     expect(sinkProvider?.useFactory).toBe(factory);
   });
 });
-

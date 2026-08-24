@@ -41,10 +41,7 @@ export class Auth extends RootEntity<AuthSnapshot> {
     return `${this.prefixKey}${this.id}`;
   }
 
-  static create(
-    userId: string,
-    token: string,
-  ): AuthCreateOutcome {
+  static create(userId: string, token: string): AuthCreateOutcome {
     const auth = new Auth({ userId, token });
     return new AuthCreateOutcome(auth, [new CreatedAuthEvent(auth)]);
   }
@@ -69,6 +66,5 @@ export class Auth extends RootEntity<AuthSnapshot> {
     });
   }
 
-  afterUpdate(): void { }
+  afterUpdate(): void {}
 }
-

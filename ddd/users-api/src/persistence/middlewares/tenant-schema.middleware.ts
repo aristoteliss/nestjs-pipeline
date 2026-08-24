@@ -16,7 +16,11 @@
  * ----------------------------
  */
 
-import { ForbiddenException, Injectable, type NestMiddleware } from '@nestjs/common';
+import {
+  ForbiddenException,
+  Injectable,
+  type NestMiddleware,
+} from '@nestjs/common';
 import { TenantSchemaContext } from '../tenant-schema.context';
 
 @Injectable()
@@ -25,7 +29,7 @@ import { TenantSchemaContext } from '../tenant-schema.context';
  * inside the tenant async context used by persistence components.
  */
 export class TenantSchemaMiddleware implements NestMiddleware {
-  constructor(private readonly tenantSchemaContext: TenantSchemaContext) { }
+  constructor(private readonly tenantSchemaContext: TenantSchemaContext) {}
 
   use(
     request: { headers?: Record<string, string | string[] | undefined> },

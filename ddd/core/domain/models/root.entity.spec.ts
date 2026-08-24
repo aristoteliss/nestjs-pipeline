@@ -72,7 +72,12 @@ describe('RootEntity', () => {
     const createdAt = new Date('2026-01-01T00:00:00.000Z');
     const updatedAt = new Date('2026-01-02T00:00:00.000Z');
 
-    const entity = new TestEntity({ id, createdAt, updatedAt, name: 'Rehydrated' });
+    const entity = new TestEntity({
+      id,
+      createdAt,
+      updatedAt,
+      name: 'Rehydrated',
+    });
 
     expect(entity.id).toBe(id);
     expect(entity.createdAt.toISOString()).toBe(createdAt.toISOString());
@@ -88,23 +93,25 @@ describe('RootEntity', () => {
   });
 
   it('throws on invalid UUIDv7 id during rehydration', () => {
-    expect(() =>
-      new TestEntity({
-        id: 'invalid-uuid',
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      }),
+    expect(
+      () =>
+        new TestEntity({
+          id: 'invalid-uuid',
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        }),
     ).toThrowError('id must be a valid UUID v7.');
   });
 
   it('throws on invalid date during rehydration', () => {
     const id = uuidv7();
-    expect(() =>
-      new TestEntity({
-        id,
-        createdAt: 'invalid-date' as any,
-        updatedAt: new Date(),
-      }),
+    expect(
+      () =>
+        new TestEntity({
+          id,
+          createdAt: 'invalid-date' as any,
+          updatedAt: new Date(),
+        }),
     ).toThrowError('Date must be a valid non-empty date.');
   });
 
@@ -115,7 +122,9 @@ describe('RootEntity', () => {
     entity.triggerUpdate();
 
     expect(entity.afterUpdateHook).toHaveBeenCalledTimes(1);
-    expect(entity.updatedAt.getTime()).toBeGreaterThanOrEqual(initialUpdatedAt.getTime());
+    expect(entity.updatedAt.getTime()).toBeGreaterThanOrEqual(
+      initialUpdatedAt.getTime(),
+    );
   });
 
   it('serializes state with toJSON', () => {
@@ -127,4 +136,3 @@ describe('RootEntity', () => {
     expect(Object.isFrozen(json)).toBe(true);
   });
 });
-

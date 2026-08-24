@@ -104,8 +104,8 @@ export class TraceBehavior implements IPipelineBehavior, OnModuleInit {
     if (!this.sdkReady) {
       this.logger.warn(
         'OpenTelemetry SDK is NOT initialized — TraceBehavior will pass through without tracing. ' +
-        'Ensure your tracing bootstrap runs BEFORE NestFactory.create() ' +
-        '(import "./tracing" as the first line of main.ts, or use --require ./tracing.js).',
+          'Ensure your tracing bootstrap runs BEFORE NestFactory.create() ' +
+          '(import "./tracing" as the first line of main.ts, or use --require ./tracing.js).',
         this.context,
       );
     } else {

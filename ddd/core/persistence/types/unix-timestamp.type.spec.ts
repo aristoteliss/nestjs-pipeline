@@ -49,4 +49,3 @@ describe('UnixTimestampType', () => {
     expect(type.getColumnType()).toBe('number');
   });
 });
-

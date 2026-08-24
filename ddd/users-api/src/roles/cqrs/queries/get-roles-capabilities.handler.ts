@@ -25,14 +25,15 @@ import { GetRolesCapabilitiesQuery } from './get-roles-capabilities.query';
 
 @QueryHandler(GetRolesCapabilitiesQuery)
 export class GetRolesCapabilitiesHandler
-  implements IQueryHandler<GetRolesCapabilitiesQuery, RoleDefinition[]> {
+  implements IQueryHandler<GetRolesCapabilitiesQuery, RoleDefinition[]>
+{
   constructor(
     @Inject(QUERY_REPOSITORY.getRolesCapabilities)
     private readonly queryRepository: IQueryRepository<
       GetRolesCapabilitiesQuery,
       RoleDefinition[]
     >,
-  ) { }
+  ) {}
 
   async execute(query: GetRolesCapabilitiesQuery): Promise<RoleDefinition[]> {
     return await this.queryRepository.find(query);

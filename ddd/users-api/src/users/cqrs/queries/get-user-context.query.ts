@@ -24,5 +24,5 @@ export class GetUserContextQuery extends createExecuteClass(
   z.object({
     userId: z.string().min(1),
   }),
-  BaseQuery
-) { }
+  BaseQuery,
+) {}

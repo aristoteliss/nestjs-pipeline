@@ -44,7 +44,8 @@ interface CapabilityRow {
 @Injectable()
 export class GetUserCapabilitiesQueryRepository
   extends QueryRepository<GetUserCapabilitiesQuery, UserCapabilities>
-  implements IUserCapabilityProvider {
+  implements IUserCapabilityProvider
+{
   constructor(
     @Inject(CACHE_TOKEN)
     protected readonly cache: ICache<UserCapabilities>,

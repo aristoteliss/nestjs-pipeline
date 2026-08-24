@@ -101,7 +101,6 @@ export interface PipelineModuleOptions {
    */
   bootstrapLogLevel?: LogLevel | 'none';
 
-
   /**
    * @example
    * ```ts
@@ -110,21 +109,21 @@ export interface PipelineModuleOptions {
    *   loggerProvider: { provide: LOGGING_BEHAVIOR_LOGGER, useExisting: MyLogger },
    * })
    * ```
-  * Optional custom logger provider token for `LOGGING_BEHAVIOR_LOGGER`.
-  *
-  * If provided, will be registered in the DI container and exported.
-  * This allows using a custom logger (and DI binding) for pipeline logging
-  * instead of the default (e.g., integrate with nestjs-pino or custom logger).
-  *
-  * **Note:** The logger must implement all methods from `LoggerService` (log, debug, verbose, warn, error, fatal),
-  * or support the NestJS log level mapping (e.g., 'log' → 'info', 'verbose' → 'trace', etc.).
-  *
-  * Example:
-  * ```ts
-  * PipelineModule.forRoot({
-  *   loggerProvider: { provide: LOGGING_BEHAVIOR_LOGGER, useExisting: MyLogger },
-  * })
-  * ```
+   * Optional custom logger provider token for `LOGGING_BEHAVIOR_LOGGER`.
+   *
+   * If provided, will be registered in the DI container and exported.
+   * This allows using a custom logger (and DI binding) for pipeline logging
+   * instead of the default (e.g., integrate with nestjs-pino or custom logger).
+   *
+   * **Note:** The logger must implement all methods from `LoggerService` (log, debug, verbose, warn, error, fatal),
+   * or support the NestJS log level mapping (e.g., 'log' → 'info', 'verbose' → 'trace', etc.).
+   *
+   * Example:
+   * ```ts
+   * PipelineModule.forRoot({
+   *   loggerProvider: { provide: LOGGING_BEHAVIOR_LOGGER, useExisting: MyLogger },
+   * })
+   * ```
    */
   loggerProvider?: Provider;
 

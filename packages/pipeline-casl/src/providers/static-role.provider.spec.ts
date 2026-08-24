@@ -50,4 +50,3 @@ describe('StaticRoleProvider', () => {
     expect(result.map((r) => r.name)).toEqual(['admin', 'viewer']);
   });
 });
-

@@ -28,7 +28,11 @@ describe('safeStringify', () => {
   });
 
   it('excludes keys at all nesting levels', () => {
-    const obj = { a: 1, nested: { secret: 'hidden', b: 2 }, arr: [{ password: 'x', c: 3 }] };
+    const obj = {
+      a: 1,
+      nested: { secret: 'hidden', b: 2 },
+      arr: [{ password: 'x', c: 3 }],
+    };
     const exclude = new Set(['secret', 'password']);
     const result = safeStringify(obj, exclude);
     expect(result).toBe('{"a":1,"nested":{"b":2},"arr":[{"c":3}]}');

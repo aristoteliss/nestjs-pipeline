@@ -48,8 +48,18 @@ describe('buildAbility & buildAbilityFromRules', () => {
 
     const ability = buildAbility(roles, { id: 'usr-99' });
 
-    expect(ability.can('update', { __caslSubjectType__: 'Doc', ownerId: 'usr-99' } as any)).toBe(true);
-    expect(ability.can('update', { __caslSubjectType__: 'Doc', ownerId: 'usr-100' } as any)).toBe(false);
+    expect(
+      ability.can('update', {
+        __caslSubjectType__: 'Doc',
+        ownerId: 'usr-99',
+      } as any),
+    ).toBe(true);
+    expect(
+      ability.can('update', {
+        __caslSubjectType__: 'Doc',
+        ownerId: 'usr-100',
+      } as any),
+    ).toBe(false);
   });
 
   it('builds ability directly from raw rules using buildAbilityFromRules', () => {

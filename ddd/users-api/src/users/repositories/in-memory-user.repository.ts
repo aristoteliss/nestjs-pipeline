@@ -33,7 +33,7 @@ import type { IUserRepository } from './user.repository.interface';
  */
 @Injectable()
 export class InMemoryUserRepository implements IUserRepository {
-  constructor(private readonly store: MemoryStore<UserSnapshot>) { }
+  constructor(private readonly store: MemoryStore<UserSnapshot>) {}
 
   async save(user: User): Promise<void> {
     await this.store.save(user.id, user.toJSON());

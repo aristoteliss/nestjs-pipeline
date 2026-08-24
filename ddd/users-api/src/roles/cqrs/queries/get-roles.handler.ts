@@ -37,7 +37,7 @@ export class GetRolesHandler implements IQueryHandler<GetRolesQuery, Role[]> {
   constructor(
     @Inject(QUERY_REPOSITORY.getRoles)
     private readonly queryRepository: IQueryRepository<GetRolesQuery, Role[]>,
-  ) { }
+  ) {}
 
   async execute(query: GetRolesQuery): Promise<Role[]> {
     return await this.queryRepository.find(query);

@@ -23,4 +23,4 @@ export class DeleteUserCommand extends createExecuteClass(
   z.object({
     id: z.uuid(),
   }),
-) { }
+) {}

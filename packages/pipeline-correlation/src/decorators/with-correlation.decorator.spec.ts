@@ -339,7 +339,7 @@ describe('WithCorrelation — this context & meta', () => {
   it('preserves original function name', () => {
     class Processor {
       @WithCorrelation()
-      async handleSendEmail(_job: any) { }
+      async handleSendEmail(_job: any) {}
     }
 
     const descriptor = Object.getOwnPropertyDescriptor(
@@ -356,7 +356,7 @@ describe('WithCorrelation — edge cases', () => {
   it('warns when first argument is an array and dot-path is used', async () => {
     const warnSpy = vi
       .spyOn(Logger.prototype, 'warn')
-      .mockImplementation(() => { });
+      .mockImplementation(() => {});
 
     class Processor {
       @WithCorrelation()
@@ -379,7 +379,7 @@ describe('WithCorrelation — edge cases', () => {
   it('does not warn for array when custom extract is provided', async () => {
     const warnSpy = vi
       .spyOn(Logger.prototype, 'warn')
-      .mockImplementation(() => { });
+      .mockImplementation(() => {});
 
     class Processor {
       @WithCorrelation({ extract: (data: any) => data?.[0]?.correlationId })
@@ -442,7 +442,7 @@ describe('WithCorrelation — edge cases', () => {
     class Processor {
       @FakeProcess('send-email')
       @WithCorrelation()
-      async handle(_job: any) { }
+      async handle(_job: any) {}
     }
 
     const instance = new Processor();
@@ -628,7 +628,7 @@ describe('WithCorrelation — logLevel', () => {
   it('logs at the specified level with the resolved correlationId', async () => {
     const debugSpy = vi
       .spyOn(Logger.prototype, 'debug')
-      .mockImplementation(() => { });
+      .mockImplementation(() => {});
 
     class Processor {
       @WithCorrelation({ logLevel: 'debug' })
@@ -651,11 +651,11 @@ describe('WithCorrelation — logLevel', () => {
   it('logs the class and method name in the message', async () => {
     const verboseSpy = vi
       .spyOn(Logger.prototype, 'verbose')
-      .mockImplementation(() => { });
+      .mockImplementation(() => {});
 
     class EmailProcessor {
       @WithCorrelation({ logLevel: 'verbose' })
-      async handleSendEmail(_job: any) { }
+      async handleSendEmail(_job: any) {}
     }
 
     const p = new EmailProcessor();
@@ -671,11 +671,11 @@ describe('WithCorrelation — logLevel', () => {
   it('logs at debug level when logLevel is omitted', async () => {
     const debugSpy = vi
       .spyOn(Logger.prototype, 'debug')
-      .mockImplementation(() => { });
+      .mockImplementation(() => {});
 
     class Processor {
       @WithCorrelation()
-      async handle(_job: any) { }
+      async handle(_job: any) {}
     }
 
     const p = new Processor();
@@ -692,14 +692,14 @@ describe('WithCorrelation — logLevel', () => {
   it('does not log when logLevel is "none"', async () => {
     const debugSpy = vi
       .spyOn(Logger.prototype, 'debug')
-      .mockImplementation(() => { });
+      .mockImplementation(() => {});
     const logSpy = vi
       .spyOn(Logger.prototype, 'log')
-      .mockImplementation(() => { });
+      .mockImplementation(() => {});
 
     class Processor {
       @WithCorrelation({ logLevel: 'none' })
-      async handle(_job: any) { }
+      async handle(_job: any) {}
     }
 
     const p = new Processor();
@@ -715,11 +715,11 @@ describe('WithCorrelation — logLevel', () => {
   it('logs the resolved uuidv7 when extracted ID is undefined', async () => {
     const debugSpy = vi
       .spyOn(Logger.prototype, 'debug')
-      .mockImplementation(() => { });
+      .mockImplementation(() => {});
 
     class Processor {
       @WithCorrelation({ logLevel: 'debug' })
-      async handle(_job: any) { }
+      async handle(_job: any) {}
     }
 
     const p = new Processor();
@@ -740,11 +740,11 @@ describe('WithCorrelation — logLevel', () => {
     for (const level of levels) {
       const spy = vi
         .spyOn(Logger.prototype, level)
-        .mockImplementation(() => { });
+        .mockImplementation(() => {});
 
       class Processor {
         @WithCorrelation({ logLevel: level })
-        async handle(_job: any) { }
+        async handle(_job: any) {}
       }
 
       const p = new Processor();

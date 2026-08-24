@@ -16,7 +16,10 @@
  * ----------------------------
  */
 
-import { InternalServerErrorException, NotFoundException } from '@nestjs/common';
+import {
+  InternalServerErrorException,
+  NotFoundException,
+} from '@nestjs/common';
 import { z } from 'zod';
 import type { Role, RoleSnapshot } from '../domain/models/role.entity';
 

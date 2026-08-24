@@ -116,7 +116,9 @@ export class DeleteUserHandler extends CommandBaseHandler<
     private readonly commandRepository: ICommandRepository<UserUpdateOutcome>,
     @Optional()
     @Inject(PIPELINE_CACHE)
-    private readonly pipelineCache: { delete?: (key: string) => Promise<unknown> } | null,
+    private readonly pipelineCache: {
+      delete?: (key: string) => Promise<unknown>;
+    } | null,
     protected readonly eventBus: EventBus,
   ) {
     super(eventBus);

@@ -18,7 +18,6 @@
 
 import { z } from 'zod';
 
-
 export const UpdateUserDtoSchema = z.object({
   name: z.string().trim().min(3).optional(),
   department: z.string().trim().min(3).nullable().optional(),

@@ -10,7 +10,10 @@
     "lint": "pnpm -r lint",
     "clean": "pnpm -r clean",
     "rebuild": "pnpm -r clean && pnpm -r build",
-    "publish:all": "pnpm -r publish --access public"
+    "publish:all": "pnpm -r publish --access public",
+    "check": "biome check .",
+    "format": "biome check --write .",
+    "biome:lint": "biome lint --write ."
   },
   "devDependencies": {
     "@biomejs/biome": "^2.5.6",

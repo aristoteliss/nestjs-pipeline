@@ -83,7 +83,6 @@ function extractBehaviorTypes(
  */
 @Global()
 @Module({})
-// biome-ignore lint/complexity/noStaticOnlyClass: This module only has static methods for configuration.
 export class PipelineModule {
   /**
    * Configures the pipeline as a global dynamic module.

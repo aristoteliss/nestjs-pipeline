@@ -69,7 +69,6 @@ import type {
  * ```
  */
 @Module({})
-// biome-ignore lint/complexity/noStaticOnlyClass: static-only configuration class
 export class CacheModule {
   private static readonly logger = new Logger(CacheModule.name);
 
@@ -88,9 +87,9 @@ export class CacheModule {
     };
 
     const storeType = options.store
-      ? (Array.isArray(options.store)
+      ? Array.isArray(options.store)
         ? options.store.map((s) => s.type).join(', ')
-        : options.store.type)
+        : options.store.type
       : options.stores
         ? 'custom-stores'
         : options.cache

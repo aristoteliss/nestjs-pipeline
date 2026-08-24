@@ -20,7 +20,10 @@ import { Migration } from '@mikro-orm/migrations';
 import { uuidv7 } from '@nestjs-pipeline/core';
 
 type SeedIds = {
-  roles: Record<'admin' | 'userManager' | 'self' | 'viewer' | 'supportAgent', string>;
+  roles: Record<
+    'admin' | 'userManager' | 'self' | 'viewer' | 'supportAgent',
+    string
+  >;
   users: Record<
     | 'aliceAdmin'
     | 'bobManager'
@@ -148,14 +151,54 @@ export class Migration20260501010000 extends Migration {
     const tenantToken = this.tenantToken();
 
     const users: Array<[string, string, string, string]> = [
-      [ids.users.aliceAdmin, `alice_${tenantToken}`, `alice+${tenantToken}@seed.local`, 'engineering'],
-      [ids.users.bobManager, `bob_${tenantToken}`, `bob+${tenantToken}@seed.local`, 'engineering'],
-      [ids.users.carolUser, `carol_${tenantToken}`, `carol+${tenantToken}@seed.local`, 'marketing'],
-      [ids.users.daveViewer, `dave_${tenantToken}`, `dave+${tenantToken}@seed.local`, 'marketing'],
-      [ids.users.eveMultirole, `eve_${tenantToken}`, `eve+${tenantToken}@seed.local`, 'support'],
-      [ids.users.frankSupport, `frank_${tenantToken}`, `frank+${tenantToken}@seed.local`, 'support'],
-      [ids.users.graceLimited, `grace_${tenantToken}`, `grace+${tenantToken}@seed.local`, 'engineering'],
-      [ids.users.vinceViewer, `vince_${tenantToken}`, `vince+${tenantToken}@seed.local`, 'marketing'],
+      [
+        ids.users.aliceAdmin,
+        `alice_${tenantToken}`,
+        `alice+${tenantToken}@seed.local`,
+        'engineering',
+      ],
+      [
+        ids.users.bobManager,
+        `bob_${tenantToken}`,
+        `bob+${tenantToken}@seed.local`,
+        'engineering',
+      ],
+      [
+        ids.users.carolUser,
+        `carol_${tenantToken}`,
+        `carol+${tenantToken}@seed.local`,
+        'marketing',
+      ],
+      [
+        ids.users.daveViewer,
+        `dave_${tenantToken}`,
+        `dave+${tenantToken}@seed.local`,
+        'marketing',
+      ],
+      [
+        ids.users.eveMultirole,
+        `eve_${tenantToken}`,
+        `eve+${tenantToken}@seed.local`,
+        'support',
+      ],
+      [
+        ids.users.frankSupport,
+        `frank_${tenantToken}`,
+        `frank+${tenantToken}@seed.local`,
+        'support',
+      ],
+      [
+        ids.users.graceLimited,
+        `grace_${tenantToken}`,
+        `grace+${tenantToken}@seed.local`,
+        'engineering',
+      ],
+      [
+        ids.users.vinceViewer,
+        `vince_${tenantToken}`,
+        `vince+${tenantToken}@seed.local`,
+        'marketing',
+      ],
     ];
 
     for (const [id, username, email, department] of users) {
@@ -168,24 +211,114 @@ export class Migration20260501010000 extends Migration {
   private seedCapabilities(ids: SeedIds): void {
     const now = Date.now();
 
-    const capabilities: Array<[string, string, string, string | null, number, string | null, string | null]> = [
+    const capabilities: Array<
+      [
+        string,
+        string,
+        string,
+        string | null,
+        number,
+        string | null,
+        string | null,
+      ]
+    > = [
       [ids.capabilities.allManage, 'all', 'manage', null, 0, null, null],
       [ids.capabilities.userRead, 'User', 'read', null, 0, null, null],
       [ids.capabilities.userCreate, 'User', 'create', null, 0, null, null],
       [ids.capabilities.userUpdate, 'User', 'update', null, 0, null, null],
       [ids.capabilities.userDelete, 'User', 'delete', null, 0, null, null],
-      [ids.capabilities.tenantManageUsers, 'User', 'manage', '{"department":"${sessionUser.department}"}', 0, null, null],
-      [ids.capabilities.denyDeleteByManager, 'User', 'delete', null, 1, 'User managers cannot delete users', null],
-      [ids.capabilities.selfUpdateUsername, 'User', 'update', '{"id":"${sessionUser.id}"}', 0, null, 'username'],
-      [ids.capabilities.selfRead, 'User', 'read', '{"id":"${sessionUser.id}"}', 0, null, null],
-      [ids.capabilities.viewerReadFields, 'User', 'read', null, 0, null, 'id,username,email'],
-      [ids.capabilities.denyTenantEmailUpdate, 'User', 'update', '{"department":"${sessionUser.department}"}', 1, 'Cannot modify email addresses', 'email'],
-      [ids.capabilities.supportReadDepartment, 'User', 'read', '{"department":"${sessionUser.department}"}', 0, null, null],
-      [ids.capabilities.supportUpdateDepartmentUsername, 'User', 'update', '{"department":"${sessionUser.department}"}', 0, null, 'username'],
-      [ids.capabilities.denyDeleteBySupport, 'User', 'delete', null, 1, 'Support agents cannot delete users', null],
+      [
+        ids.capabilities.tenantManageUsers,
+        'User',
+        'manage',
+        '{"department":"${sessionUser.department}"}',
+        0,
+        null,
+        null,
+      ],
+      [
+        ids.capabilities.denyDeleteByManager,
+        'User',
+        'delete',
+        null,
+        1,
+        'User managers cannot delete users',
+        null,
+      ],
+      [
+        ids.capabilities.selfUpdateUsername,
+        'User',
+        'update',
+        '{"id":"${sessionUser.id}"}',
+        0,
+        null,
+        'username',
+      ],
+      [
+        ids.capabilities.selfRead,
+        'User',
+        'read',
+        '{"id":"${sessionUser.id}"}',
+        0,
+        null,
+        null,
+      ],
+      [
+        ids.capabilities.viewerReadFields,
+        'User',
+        'read',
+        null,
+        0,
+        null,
+        'id,username,email',
+      ],
+      [
+        ids.capabilities.denyTenantEmailUpdate,
+        'User',
+        'update',
+        '{"department":"${sessionUser.department}"}',
+        1,
+        'Cannot modify email addresses',
+        'email',
+      ],
+      [
+        ids.capabilities.supportReadDepartment,
+        'User',
+        'read',
+        '{"department":"${sessionUser.department}"}',
+        0,
+        null,
+        null,
+      ],
+      [
+        ids.capabilities.supportUpdateDepartmentUsername,
+        'User',
+        'update',
+        '{"department":"${sessionUser.department}"}',
+        0,
+        null,
+        'username',
+      ],
+      [
+        ids.capabilities.denyDeleteBySupport,
+        'User',
+        'delete',
+        null,
+        1,
+        'Support agents cannot delete users',
+        null,
+      ],
     ];
 
-    for (const [id, subject, action, conditions, inverted, reason, fields] of capabilities) {
+    for (const [
+      id,
+      subject,
+      action,
+      conditions,
+      inverted,
+      reason,
+      fields,
+    ] of capabilities) {
       this.addSql(`
         insert into capabilities (
           id, action, subject, conditions, inverted, reason, fields, created_at, updated_at
@@ -206,7 +339,10 @@ export class Migration20260501010000 extends Migration {
       [ids.roles.self, ids.capabilities.selfRead],
       [ids.roles.viewer, ids.capabilities.viewerReadFields],
       [ids.roles.supportAgent, ids.capabilities.supportReadDepartment],
-      [ids.roles.supportAgent, ids.capabilities.supportUpdateDepartmentUsername],
+      [
+        ids.roles.supportAgent,
+        ids.capabilities.supportUpdateDepartmentUsername,
+      ],
       [ids.roles.supportAgent, ids.capabilities.denyDeleteBySupport],
     ];
 

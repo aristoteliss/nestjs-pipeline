@@ -45,4 +45,3 @@ describe('uuidv7', () => {
     expect(id1 < id2).toBe(true);
   });
 });
-

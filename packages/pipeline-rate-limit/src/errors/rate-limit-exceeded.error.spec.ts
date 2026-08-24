@@ -52,4 +52,3 @@ describe('RateLimitExceededError', () => {
     expect(error.limit).toBeUndefined();
   });
 });
-

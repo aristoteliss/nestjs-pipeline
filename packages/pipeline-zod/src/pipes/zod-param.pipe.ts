@@ -28,8 +28,9 @@ import { ZodType } from 'zod';
  *   @Body(new ZodPipe(CreateUserMapper))   // transform schema → outputs a Command
  */
 export class ZodPipe<TOutput, TInput = unknown>
-  implements PipeTransform<TInput, TOutput> {
-  constructor(private readonly schema: ZodType<TOutput>) { }
+  implements PipeTransform<TInput, TOutput>
+{
+  constructor(private readonly schema: ZodType<TOutput>) {}
 
   transform(value: TInput): TOutput {
     const result = this.schema.safeParse(value);

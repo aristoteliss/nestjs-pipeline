@@ -57,4 +57,3 @@ describe('stableStringify and fingerprintValue', () => {
     expect(hash1).not.toBe(hash2);
   });
 });
-

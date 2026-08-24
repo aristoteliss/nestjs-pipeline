@@ -22,9 +22,12 @@ import { getQueueToken } from '@nestjs/bullmq';
 import type { Queue } from 'bullmq';
 import request from 'supertest';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { WELCOME_EMAIL_QUEUE } from '../src/users/jobs/send-welcome-email.processor';
+import {
+  MIKRO_ORM_CLIENT,
+  type MikroOrmStore,
+} from '../src/persistence/mikro-orm.store';
 import { BATCH_UPDATE_USERS_QUEUE } from '../src/users/jobs/batch-update-users.processor';
-import { MIKRO_ORM_CLIENT, type MikroOrmStore } from '../src/persistence/mikro-orm.store';
+import { WELCOME_EMAIL_QUEUE } from '../src/users/jobs/send-welcome-email.processor';
 import { bootstrapE2E, type E2EContext } from './support/e2e-app';
 
 /**
@@ -98,7 +101,9 @@ describe('pipeline-packages (e2e)', () => {
     });
 
     it('propagates x-correlation-id from HTTP request into CQRS event and BullMQ job', async () => {
-      const welcomeEmailQueue = ctx.app.get<Queue>(getQueueToken(WELCOME_EMAIL_QUEUE));
+      const welcomeEmailQueue = ctx.app.get<Queue>(
+        getQueueToken(WELCOME_EMAIL_QUEUE),
+      );
       const email = newEmail();
       const customCorrId = `corr-${randomUUID()}`;
 
@@ -113,7 +118,12 @@ describe('pipeline-packages (e2e)', () => {
       expect(res.headers['x-correlation-id']).toBe(customCorrId);
 
       // Verify the correlation ID reached the BullMQ job via HttpCorrelationMiddleware + correlationStore
-      const jobs = await welcomeEmailQueue.getJobs(['waiting', 'active', 'completed', 'delayed']);
+      const jobs = await welcomeEmailQueue.getJobs([
+        'waiting',
+        'active',
+        'completed',
+        'delayed',
+      ]);
       const job = jobs.find((j) => j.data?.email === email);
 
       expect(job).toBeDefined();
@@ -176,16 +186,20 @@ describe('pipeline-packages (e2e)', () => {
     it('enforces ABAC condition-based entity permissions on UpdateUserHandler', async () => {
       // Create user in engineering department
       const engEmail = newEmail();
-      const engUser = await as(admin)
-        .post('/users')
-        .send({ email: engEmail, name: 'Eng Target User', department: 'engineering' });
+      const engUser = await as(admin).post('/users').send({
+        email: engEmail,
+        name: 'Eng Target User',
+        department: 'engineering',
+      });
       expect(engUser.status).toBe(201);
 
       // Create user in sales department
       const salesEmail = newEmail();
-      const salesUser = await as(admin)
-        .post('/users')
-        .send({ email: salesEmail, name: 'Sales Target User', department: 'sales' });
+      const salesUser = await as(admin).post('/users').send({
+        email: salesEmail,
+        name: 'Sales Target User',
+        department: 'sales',
+      });
       expect(salesUser.status).toBe(201);
 
       // Principal that can only update users in 'engineering' department
@@ -254,7 +268,9 @@ describe('pipeline-packages (e2e)', () => {
         capabilities: {
           roles: [],
           additionalCapabilities: ['all|manage|*'],
-          deniedCapabilities: [{ subject: 'User', action: 'create', inverted: true }],
+          deniedCapabilities: [
+            { subject: 'User', action: 'create', inverted: true },
+          ],
         },
       });
 
@@ -284,25 +300,33 @@ describe('pipeline-packages (e2e)', () => {
         capabilities: {
           roles: [],
           additionalCapabilities: ['all|manage|*'],
-          deniedCapabilities: [{ subject: 'User', action: 'delete', inverted: true }],
+          deniedCapabilities: [
+            { subject: 'User', action: 'delete', inverted: true },
+          ],
         },
       });
 
       // 1. Can read user
-      const getRes = await as(userWithoutDelete).get(`/users/${created.body.id}`);
+      const getRes = await as(userWithoutDelete).get(
+        `/users/${created.body.id}`,
+      );
       expect(getRes.status).toBe(200);
 
       // 2. Delete is DENIED (403) by CaslBehavior on DeleteUserHandler
-      const deleteRes = await as(userWithoutDelete).delete(`/users/${created.body.id}`);
+      const deleteRes = await as(userWithoutDelete).delete(
+        `/users/${created.body.id}`,
+      );
       expect(deleteRes.status).toBe(403);
     });
 
     it('resolves capabilities persisted in SQLite database tables (user_roles -> capabilities)', async () => {
       // 1. Create a user via API
       const userEmail = newEmail();
-      const createRes = await as(admin)
-        .post('/users')
-        .send({ email: userEmail, name: 'Db Capability User', department: 'engineering' });
+      const createRes = await as(admin).post('/users').send({
+        email: userEmail,
+        name: 'Db Capability User',
+        department: 'engineering',
+      });
       expect(createRes.status).toBe(201);
       const userId = createRes.body.id;
 
@@ -349,7 +373,9 @@ describe('pipeline-packages (e2e)', () => {
 
       // CASL userCapabilityProvider (GetUserCapabilitiesQueryRepository) will load
       // the capabilities from the database!
-      const getRes = await as(sessionUserWithNoInlineCaps).get(`/users/${userId}`);
+      const getRes = await as(sessionUserWithNoInlineCaps).get(
+        `/users/${userId}`,
+      );
       expect(getRes.status).toBe(200);
       expect(getRes.body.id).toBe(userId);
     });
@@ -358,7 +384,11 @@ describe('pipeline-packages (e2e)', () => {
   describe('@nestjs-pipeline/idempotency', () => {
     it('replays identical response for duplicate create request with same email key', async () => {
       const email = newEmail();
-      const body = { email, name: 'Idempotency Test User', department: 'engineering' };
+      const body = {
+        email,
+        name: 'Idempotency Test User',
+        department: 'engineering',
+      };
 
       const first = await as(admin).post('/users').send(body);
       const second = await as(admin).post('/users').send(body);
@@ -438,7 +468,9 @@ describe('pipeline-packages (e2e)', () => {
 
   describe('@nestjs-pipeline/deadletter & BullMQ Event Queueing', () => {
     it('enqueues welcome-email job with stamped correlationId on UserCreatedEvent', async () => {
-      const welcomeEmailQueue = ctx.app.get<Queue>(getQueueToken(WELCOME_EMAIL_QUEUE));
+      const welcomeEmailQueue = ctx.app.get<Queue>(
+        getQueueToken(WELCOME_EMAIL_QUEUE),
+      );
       const email = newEmail();
       const customCorrId = `corr-welcome-${Date.now()}`;
 
@@ -452,7 +484,12 @@ describe('pipeline-packages (e2e)', () => {
       expect(created.status).toBe(201);
 
       // Verify a job was added to the BullMQ welcome-email queue
-      const jobs = await welcomeEmailQueue.getJobs(['waiting', 'active', 'completed', 'delayed']);
+      const jobs = await welcomeEmailQueue.getJobs([
+        'waiting',
+        'active',
+        'completed',
+        'delayed',
+      ]);
       const matchingJob = jobs.find((j) => j.data?.email === email);
 
       expect(matchingJob).toBeDefined();
@@ -465,7 +502,9 @@ describe('pipeline-packages (e2e)', () => {
     });
 
     it('enqueues batch-update-users job with stamped correlationId on UserUpdatedEvent', async () => {
-      const batchQueue = ctx.app.get<Queue>(getQueueToken(BATCH_UPDATE_USERS_QUEUE));
+      const batchQueue = ctx.app.get<Queue>(
+        getQueueToken(BATCH_UPDATE_USERS_QUEUE),
+      );
       const email = newEmail();
 
       const created = await as(admin)
@@ -484,9 +523,18 @@ describe('pipeline-packages (e2e)', () => {
       expect(updateRes.status).toBe(200);
 
       // Verify job in batch queue
-      const jobs = await batchQueue.getJobs(['waiting', 'active', 'completed', 'delayed']);
-      const matchingJob = jobs.find((j) =>
-        Array.isArray(j.data) && j.data.some((item: { userId: string }) => item.userId === created.body.id),
+      const jobs = await batchQueue.getJobs([
+        'waiting',
+        'active',
+        'completed',
+        'delayed',
+      ]);
+      const matchingJob = jobs.find(
+        (j) =>
+          Array.isArray(j.data) &&
+          j.data.some(
+            (item: { userId: string }) => item.userId === created.body.id,
+          ),
       );
 
       expect(matchingJob).toBeDefined();
@@ -507,7 +555,9 @@ describe('pipeline-packages (e2e)', () => {
       // Confirm deletion in uncached list
       const listRes = await as(admin).get('/users');
       expect(
-        listRes.body.users.some((u: { id: string }) => u.id === created.body.id),
+        listRes.body.users.some(
+          (u: { id: string }) => u.id === created.body.id,
+        ),
       ).toBe(false);
     });
   });

@@ -25,14 +25,15 @@ import { GetUserCapabilitiesQuery } from './get-user-capabilities.query';
 
 @QueryHandler(GetUserCapabilitiesQuery)
 export class GetUserCapabilitiesHandler
-  implements IQueryHandler<GetUserCapabilitiesQuery, UserCapabilities> {
+  implements IQueryHandler<GetUserCapabilitiesQuery, UserCapabilities>
+{
   constructor(
     @Inject(QUERY_REPOSITORY.getUserCapabilities)
     private readonly queryRepository: IQueryRepository<
       GetUserCapabilitiesQuery,
       UserCapabilities
     >,
-  ) { }
+  ) {}
 
   async execute(query: GetUserCapabilitiesQuery): Promise<UserCapabilities> {
     return await this.queryRepository.find(query);

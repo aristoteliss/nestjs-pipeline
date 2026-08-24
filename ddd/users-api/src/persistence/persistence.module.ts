@@ -46,6 +46,11 @@ import { TenantSchemaContext } from './tenant-schema.context';
     },
     { provide: CACHE_TOKEN, useClass: MikroOrmCache },
   ],
-  exports: [MIKRO_ORM_CLIENT, CACHE_TOKEN, TenantSchemaContext, TenantSchemaMiddleware],
+  exports: [
+    MIKRO_ORM_CLIENT,
+    CACHE_TOKEN,
+    TenantSchemaContext,
+    TenantSchemaMiddleware,
+  ],
 })
-export class PersistenceModule { }
+export class PersistenceModule {}

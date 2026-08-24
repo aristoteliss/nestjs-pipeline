@@ -16,7 +16,6 @@
  * ----------------------------
  */
 
-
 import { getSessionUserFromStore } from '@common/context/session-user.store';
 import { Inject, Injectable, Optional, Scope } from '@nestjs/common';
 import type {
@@ -46,7 +45,8 @@ import { User } from '../domain/models/user.entity';
 @Injectable({ scope: Scope.REQUEST })
 export class GetUserContextQueryRepository
   extends QueryRepository<GetUserContextQuery, CaslUserContext | null>
-  implements IUserContextResolver {
+  implements IUserContextResolver
+{
   constructor(
     @Inject(CACHE_TOKEN)
     protected readonly cache: ICache<CaslUserContext | null>,
@@ -62,7 +62,8 @@ export class GetUserContextQueryRepository
     const rawUser =
       this.resolveUserContextFromRequest(
         context.request as Record<string, unknown> | undefined,
-      ) ?? (getSessionUserFromStore() as unknown as CaslUserContext | undefined);
+      ) ??
+      (getSessionUserFromStore() as unknown as CaslUserContext | undefined);
 
     if (!rawUser) return null;
 

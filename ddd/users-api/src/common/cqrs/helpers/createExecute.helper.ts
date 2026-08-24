@@ -25,7 +25,7 @@ type ExecuteClass<
   TSchema extends ZodObject<ZodRawShape>,
   TBase extends AbstractConstructor,
 > = {
-  new(
+  new (
     input: z.input<TSchema>,
     ...baseArgs: ConstructorParameters<TBase>
   ): InstanceType<TBase> & z.output<TSchema>;
@@ -50,7 +50,7 @@ export function createExecuteClass<
   TBase extends AbstractConstructor = AbstractConstructor,
 >(schema: TSchema, Base?: TBase): ExecuteClass<TSchema, TBase> {
   type Input = z.input<TSchema>;
-  const Parent = (Base ?? class { }) as new (...args: unknown[]) => object;
+  const Parent = (Base ?? class {}) as new (...args: unknown[]) => object;
 
   class Execute extends Parent {
     /** Attached so ZodValidationBehavior can discover and validate the schema. */

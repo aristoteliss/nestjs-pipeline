@@ -87,9 +87,7 @@
       },
       "indexes": [
         {
-          "columnNames": [
-            "user_id"
-          ],
+          "columnNames": ["user_id"],
           "composite": false,
           "constraint": false,
           "keyName": "auth_user_id_idx",
@@ -97,9 +95,7 @@
           "unique": false
         },
         {
-          "columnNames": [
-            "id"
-          ],
+          "columnNames": ["id"],
           "composite": false,
           "constraint": true,
           "keyName": "primary",
@@ -165,9 +161,7 @@
       },
       "indexes": [
         {
-          "columnNames": [
-            "expires_at"
-          ],
+          "columnNames": ["expires_at"],
           "composite": false,
           "constraint": false,
           "keyName": "cache_expires_at_idx",
@@ -175,9 +169,7 @@
           "unique": false
         },
         {
-          "columnNames": [
-            "key"
-          ],
+          "columnNames": ["key"],
           "composite": false,
           "constraint": true,
           "keyName": "primary",
@@ -339,9 +331,7 @@
       },
       "indexes": [
         {
-          "columnNames": [
-            "id"
-          ],
+          "columnNames": ["id"],
           "composite": false,
           "constraint": true,
           "keyName": "primary",
@@ -391,10 +381,7 @@
       },
       "indexes": [
         {
-          "columnNames": [
-            "role_id",
-            "capability_id"
-          ],
+          "columnNames": ["role_id", "capability_id"],
           "composite": true,
           "constraint": true,
           "keyName": "primary",
@@ -405,26 +392,18 @@
       "checks": [],
       "foreignKeys": {
         "role_capabilities_capability_id_foreign": {
-          "columnNames": [
-            "capability_id"
-          ],
+          "columnNames": ["capability_id"],
           "constraintName": "role_capabilities_capability_id_foreign",
           "localTableName": "role_capabilities",
-          "referencedColumnNames": [
-            "id"
-          ],
+          "referencedColumnNames": ["id"],
           "referencedTableName": "capabilities",
           "deleteRule": "cascade"
         },
         "role_capabilities_role_id_foreign": {
-          "columnNames": [
-            "role_id"
-          ],
+          "columnNames": ["role_id"],
           "constraintName": "role_capabilities_role_id_foreign",
           "localTableName": "role_capabilities",
-          "referencedColumnNames": [
-            "id"
-          ],
+          "referencedColumnNames": ["id"],
           "referencedTableName": "roles",
           "deleteRule": "cascade"
         }
@@ -501,9 +480,7 @@
       },
       "indexes": [
         {
-          "columnNames": [
-            "id"
-          ],
+          "columnNames": ["id"],
           "composite": false,
           "constraint": true,
           "keyName": "primary",
@@ -511,9 +488,7 @@
           "unique": true
         },
         {
-          "columnNames": [
-            "name"
-          ],
+          "columnNames": ["name"],
           "composite": false,
           "constraint": true,
           "keyName": "roles_name_unique",
@@ -563,10 +538,7 @@
       },
       "indexes": [
         {
-          "columnNames": [
-            "user_id",
-            "capability_id"
-          ],
+          "columnNames": ["user_id", "capability_id"],
           "composite": true,
           "constraint": true,
           "keyName": "primary",
@@ -577,26 +549,18 @@
       "checks": [],
       "foreignKeys": {
         "user_additional_capabilities_capability_id_foreign": {
-          "columnNames": [
-            "capability_id"
-          ],
+          "columnNames": ["capability_id"],
           "constraintName": "user_additional_capabilities_capability_id_foreign",
           "localTableName": "user_additional_capabilities",
-          "referencedColumnNames": [
-            "id"
-          ],
+          "referencedColumnNames": ["id"],
           "referencedTableName": "capabilities",
           "deleteRule": "cascade"
         },
         "user_additional_capabilities_user_id_foreign": {
-          "columnNames": [
-            "user_id"
-          ],
+          "columnNames": ["user_id"],
           "constraintName": "user_additional_capabilities_user_id_foreign",
           "localTableName": "user_additional_capabilities",
-          "referencedColumnNames": [
-            "id"
-          ],
+          "referencedColumnNames": ["id"],
           "referencedTableName": "users",
           "deleteRule": "cascade"
         }
@@ -641,10 +605,7 @@
       },
       "indexes": [
         {
-          "columnNames": [
-            "user_id",
-            "capability_id"
-          ],
+          "columnNames": ["user_id", "capability_id"],
           "composite": true,
           "constraint": true,
           "keyName": "primary",
@@ -655,26 +616,18 @@
       "checks": [],
       "foreignKeys": {
         "user_denied_capabilities_capability_id_foreign": {
-          "columnNames": [
-            "capability_id"
-          ],
+          "columnNames": ["capability_id"],
           "constraintName": "user_denied_capabilities_capability_id_foreign",
           "localTableName": "user_denied_capabilities",
-          "referencedColumnNames": [
-            "id"
-          ],
+          "referencedColumnNames": ["id"],
           "referencedTableName": "capabilities",
           "deleteRule": "cascade"
         },
         "user_denied_capabilities_user_id_foreign": {
-          "columnNames": [
-            "user_id"
-          ],
+          "columnNames": ["user_id"],
           "constraintName": "user_denied_capabilities_user_id_foreign",
           "localTableName": "user_denied_capabilities",
-          "referencedColumnNames": [
-            "id"
-          ],
+          "referencedColumnNames": ["id"],
           "referencedTableName": "users",
           "deleteRule": "cascade"
         }
@@ -719,10 +672,7 @@
       },
       "indexes": [
         {
-          "columnNames": [
-            "user_id",
-            "role_id"
-          ],
+          "columnNames": ["user_id", "role_id"],
           "composite": true,
           "constraint": true,
           "keyName": "primary",
@@ -733,26 +683,18 @@
       "checks": [],
       "foreignKeys": {
         "user_roles_role_id_foreign": {
-          "columnNames": [
-            "role_id"
-          ],
+          "columnNames": ["role_id"],
           "constraintName": "user_roles_role_id_foreign",
           "localTableName": "user_roles",
-          "referencedColumnNames": [
-            "id"
-          ],
+          "referencedColumnNames": ["id"],
           "referencedTableName": "roles",
           "deleteRule": "cascade"
         },
         "user_roles_user_id_foreign": {
-          "columnNames": [
-            "user_id"
-          ],
+          "columnNames": ["user_id"],
           "constraintName": "user_roles_user_id_foreign",
           "localTableName": "user_roles",
-          "referencedColumnNames": [
-            "id"
-          ],
+          "referencedColumnNames": ["id"],
           "referencedTableName": "users",
           "deleteRule": "cascade"
         }
@@ -861,9 +803,7 @@
       },
       "indexes": [
         {
-          "columnNames": [
-            "id"
-          ],
+          "columnNames": ["id"],
           "composite": false,
           "constraint": true,
           "keyName": "primary",
@@ -871,9 +811,7 @@
           "unique": true
         },
         {
-          "columnNames": [
-            "email"
-          ],
+          "columnNames": ["email"],
           "composite": false,
           "constraint": true,
           "keyName": "users_email_unique",

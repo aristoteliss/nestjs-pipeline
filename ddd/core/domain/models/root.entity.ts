@@ -29,7 +29,8 @@ import { RootEntitySnapshot } from '../interfaces/root-entity-snapshot.interface
  * - Requires child entities to provide JSON serialization.
  */
 export abstract class RootEntity<TSnapshot extends Partial<RootEntitySnapshot>>
-  implements RootEntitySnapshot, ICacheKey {
+  implements RootEntitySnapshot, ICacheKey
+{
   private readonly _id: string;
   private readonly _createdAt: Date;
   private _updatedAt: Date;

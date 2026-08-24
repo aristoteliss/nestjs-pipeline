@@ -75,4 +75,3 @@ describe('IdempotencyModule', () => {
     expect(storeProvider?.useFactory).toBe(factory);
   });
 });
-

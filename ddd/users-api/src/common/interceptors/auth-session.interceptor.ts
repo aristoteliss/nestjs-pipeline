@@ -260,7 +260,8 @@ export class AuthSessionInterceptor implements NestInterceptor {
       // falling through to other auth paths — a malformed token is an explicit
       // authentication attempt and must not be ignored.
       this.logger.warn(
-        `Failed to verify JWT from Authorization header: ${e instanceof Error ? e.message : String(e)
+        `Failed to verify JWT from Authorization header: ${
+          e instanceof Error ? e.message : String(e)
         }`,
       );
       throw new UnauthorizedException('Invalid or expired token');

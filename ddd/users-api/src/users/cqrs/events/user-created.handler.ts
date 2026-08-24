@@ -48,7 +48,7 @@ export class UserCreatedHandler implements IEventHandler<UserCreatedEvent> {
   constructor(
     @InjectQueue(WELCOME_EMAIL_QUEUE)
     private readonly welcomeEmailQueue: Queue<WelcomeEmailJobData>,
-  ) { }
+  ) {}
 
   async handle(event: UserCreatedEvent): Promise<void> {
     const {

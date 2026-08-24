@@ -79,4 +79,4 @@ import { UpdateRoleCommandRepository } from './persistence/update-role.command-r
     RoleDeletedHandler,
   ],
 })
-export class RolesModule { }
+export class RolesModule {}

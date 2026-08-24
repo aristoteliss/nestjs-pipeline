@@ -26,7 +26,8 @@ describe('FeatureDisabledError', () => {
     expect(error.name).toBe('FeatureDisabledError');
     expect(error.flag).toBe('beta-feature');
     expect(error.requestName).toBe('ExportDataQuery');
-    expect(error.message).toBe('Feature "beta-feature" is disabled for ExportDataQuery');
+    expect(error.message).toBe(
+      'Feature "beta-feature" is disabled for ExportDataQuery',
+    );
   });
 });
-

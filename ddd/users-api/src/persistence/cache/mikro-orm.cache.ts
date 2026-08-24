@@ -33,7 +33,7 @@ export interface CacheSetOptions {
 export class MikroOrmCache<T> implements ICache<T> {
   constructor(
     @Inject(MIKRO_ORM_CLIENT) private readonly store: MikroOrmStore,
-  ) { }
+  ) {}
 
   /**
    * Get a value from the cache by key. Handles TTL expiry and lazy eviction.

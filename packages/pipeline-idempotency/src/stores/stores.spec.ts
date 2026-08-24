@@ -24,10 +24,7 @@ import {
   PostgresIdempotencyStore,
   type PostgresQueryableLike,
 } from './postgres.store';
-import {
-  type RedisClientLike,
-  RedisIdempotencyStore,
-} from './redis.store';
+import { type RedisClientLike, RedisIdempotencyStore } from './redis.store';
 
 const record = (
   overrides: Partial<IdempotencyRecord> = {},

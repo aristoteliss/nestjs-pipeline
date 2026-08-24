@@ -47,30 +47,30 @@ export interface CaslModuleOptions {
    * Use `useClass`, `useExisting`, or `useFactory`.
    */
   roleProvider:
-  | Type<IRoleProvider>
-  | { useClass: Type<IRoleProvider> }
-  | { useExisting: Type<IRoleProvider> }
-  | {
-    useFactory: (
-      ...args: never[]
-    ) => IRoleProvider | Promise<IRoleProvider>;
-    inject?: InjectionToken[];
-  };
+    | Type<IRoleProvider>
+    | { useClass: Type<IRoleProvider> }
+    | { useExisting: Type<IRoleProvider> }
+    | {
+        useFactory: (
+          ...args: never[]
+        ) => IRoleProvider | Promise<IRoleProvider>;
+        inject?: InjectionToken[];
+      };
 
   /**
    * Optional user context resolver.
    * Extracts the current user from the pipeline context items bag.
    */
   userContextResolver?:
-  | Type<IUserContextResolver>
-  | { useClass: Type<IUserContextResolver> }
-  | { useExisting: Type<IUserContextResolver> }
-  | {
-    useFactory: (
-      ...args: never[]
-    ) => IUserContextResolver | Promise<IUserContextResolver>;
-    inject?: InjectionToken[];
-  };
+    | Type<IUserContextResolver>
+    | { useClass: Type<IUserContextResolver> }
+    | { useExisting: Type<IUserContextResolver> }
+    | {
+        useFactory: (
+          ...args: never[]
+        ) => IUserContextResolver | Promise<IUserContextResolver>;
+        inject?: InjectionToken[];
+      };
 
   /**
    * Per-user capability provider.
@@ -84,15 +84,15 @@ export interface CaslModuleOptions {
    * and denied capabilities.
    */
   userCapabilityProvider?:
-  | Type<IUserCapabilityProvider>
-  | { useClass: Type<IUserCapabilityProvider> }
-  | { useExisting: Type<IUserCapabilityProvider> }
-  | {
-    useFactory: (
-      ...args: never[]
-    ) => IUserCapabilityProvider | Promise<IUserCapabilityProvider>;
-    inject?: InjectionToken[];
-  };
+    | Type<IUserCapabilityProvider>
+    | { useClass: Type<IUserCapabilityProvider> }
+    | { useExisting: Type<IUserCapabilityProvider> }
+    | {
+        useFactory: (
+          ...args: never[]
+        ) => IUserCapabilityProvider | Promise<IUserCapabilityProvider>;
+        inject?: InjectionToken[];
+      };
 
   /**
    * Global default request paths used by CaslBehavior to extract contextual
@@ -281,7 +281,6 @@ function toProvider(
  * ```
  */
 @Module({})
-// biome-ignore lint/complexity/noStaticOnlyClass: static-only class
 export class CaslModule {
   /**
    * Configures the CASL authorization module.

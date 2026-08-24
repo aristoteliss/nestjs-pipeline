@@ -31,8 +31,9 @@ import { IQueryRepository } from './query-repository.interface';
  * @typeParam TResult - The result type returned by {@link find}.
  */
 export abstract class QueryRepository<TQuery = IQueryOptions, TResult = unknown>
-  implements IQueryRepository<TQuery, TResult> {
-  constructor(protected readonly cache: ICache<TResult>) { }
+  implements IQueryRepository<TQuery, TResult>
+{
+  constructor(protected readonly cache: ICache<TResult>) {}
 
   abstract find(query: TQuery): Promise<TResult>;
 }

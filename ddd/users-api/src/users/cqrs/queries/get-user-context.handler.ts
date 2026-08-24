@@ -25,14 +25,15 @@ import { GetUserContextQuery } from './get-user-context.query';
 
 @QueryHandler(GetUserContextQuery)
 export class GetUserContextHandler
-  implements IQueryHandler<GetUserContextQuery, CaslUserContext | null> {
+  implements IQueryHandler<GetUserContextQuery, CaslUserContext | null>
+{
   constructor(
     @Inject(QUERY_REPOSITORY.getUserContext)
     private readonly queryRepository: IQueryRepository<
       GetUserContextQuery,
       CaslUserContext | null
     >,
-  ) { }
+  ) {}
 
   async execute(query: GetUserContextQuery): Promise<CaslUserContext | null> {
     return await this.queryRepository.find(query);

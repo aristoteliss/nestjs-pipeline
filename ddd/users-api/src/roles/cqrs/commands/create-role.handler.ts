@@ -70,10 +70,13 @@ export class CreateRoleHandler extends CommandBaseHandler<
 
     try {
       await this.commandRepository.save(outcome);
-    } catch (err: any) {
+    } catch (err: unknown) {
       if (
         err instanceof UniqueConstraintViolationException ||
-        err?.code === 'SQLITE_CONSTRAINT_UNIQUE'
+        (typeof err === 'object' &&
+          err !== null &&
+          'code' in err &&
+          err.code === 'SQLITE_CONSTRAINT_UNIQUE')
       ) {
         throw new UniqueRoleNameException(outcome.entity);
       }

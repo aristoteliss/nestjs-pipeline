@@ -28,7 +28,7 @@ import { LoginMapper } from '../mappers/login.mapper';
 
 @Controller('auth')
 export class AuthsController {
-  constructor(private readonly commandBus: CommandBus) { }
+  constructor(private readonly commandBus: CommandBus) {}
 
   /**
    * Authenticates a user and creates the Auth domain aggregate.

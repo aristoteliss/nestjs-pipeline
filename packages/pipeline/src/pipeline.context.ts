@@ -40,7 +40,8 @@ import { untyped } from './types/safe-typing';
 export abstract class BasePipelineContext<
   TRequest = unknown,
   TResponse = unknown,
-> implements IPipelineContext<TRequest, TResponse> {
+> implements IPipelineContext<TRequest, TResponse>
+{
   correlationId: string;
 
   /** Backing field for `originalCorrelationId`. */

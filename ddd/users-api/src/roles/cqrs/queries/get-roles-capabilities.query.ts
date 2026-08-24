@@ -24,5 +24,5 @@ export class GetRolesCapabilitiesQuery extends createExecuteClass(
   z.object({
     names: z.array(z.string().min(1)).optional(),
   }),
-  BaseQuery
-) { }
+  BaseQuery,
+) {}

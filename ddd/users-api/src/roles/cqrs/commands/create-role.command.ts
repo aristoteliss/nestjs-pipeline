@@ -25,4 +25,4 @@ export class CreateRoleCommand extends createExecuteClass(
     name: z.string().min(3),
   }),
   BaseCommand,
-) { }
+) {}

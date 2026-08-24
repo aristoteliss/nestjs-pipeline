@@ -17,10 +17,7 @@
  */
 
 import { MikroORM } from '@mikro-orm/core';
-import {
-  EntityManager,
-  SqlEntityManager,
-} from '@mikro-orm/postgresql';
+import { EntityManager, SqlEntityManager } from '@mikro-orm/postgresql';
 import {
   Inject,
   Injectable,
@@ -43,7 +40,7 @@ export class PostgresMikroOrmStore implements OnModuleInit, OnModuleDestroy {
   constructor(
     @Inject(TenantSchemaContext)
     private readonly tenantSchemaContext: TenantSchemaContext,
-  ) { }
+  ) {}
 
   async onModuleInit(): Promise<void> {
     this.orm = await MikroORM.init(createPostgresOrmOptions());

@@ -23,7 +23,7 @@ import { DomainOutcome } from '../domain/outcomes/domain.outcome';
 import { CommandBaseHandler } from './command-base.handler';
 
 class CreateOrderCommand implements ICommand {
-  constructor(public readonly orderId: string) { }
+  constructor(public readonly orderId: string) {}
 }
 
 class OrderCreatedEvent extends DomainEvent {
@@ -33,16 +33,18 @@ class OrderCreatedEvent extends DomainEvent {
 }
 
 class OrderOutcome extends DomainOutcome {
-  constructor(public readonly orderId: string, events: DomainEvent[]) {
+  constructor(
+    public readonly orderId: string,
+    events: DomainEvent[],
+  ) {
     super(events);
   }
 }
 
-class CreateOrderHandler extends CommandBaseHandler<CreateOrderCommand, OrderOutcome> {
-  constructor(eventBus: EventBus) {
-    super(eventBus);
-  }
-
+class CreateOrderHandler extends CommandBaseHandler<
+  CreateOrderCommand,
+  OrderOutcome
+> {
   async handle(command: CreateOrderCommand): Promise<OrderOutcome> {
     const event = new OrderCreatedEvent(command.orderId);
     return new OrderOutcome(command.orderId, [event]);
@@ -50,10 +52,6 @@ class CreateOrderHandler extends CommandBaseHandler<CreateOrderCommand, OrderOut
 }
 
 class PlainCommandHandler extends CommandBaseHandler<ICommand, string> {
-  constructor(eventBus: EventBus) {
-    super(eventBus);
-  }
-
   async handle(_command: ICommand): Promise<string> {
     return 'non-outcome-result';
   }
@@ -88,4 +86,3 @@ describe('CommandBaseHandler', () => {
     expect(eventBus.publishAll).not.toHaveBeenCalled();
   });
 });
-

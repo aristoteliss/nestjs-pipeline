@@ -42,7 +42,8 @@ import { UpdateUserCommand } from './update-user.command';
 
 // Example of using request-scoped handler if needed for per-request dependencies
 @CommandHandler(UpdateUserCommand, { scope: Scope.REQUEST })
-@UsePipeline([LoggingBehavior, { requestResponseLogLevel: 'log' }],
+@UsePipeline(
+  [LoggingBehavior, { requestResponseLogLevel: 'log' }],
   [
     CaslBehavior,
     {
@@ -62,7 +63,9 @@ export class UpdateUserHandler extends CommandBaseHandler<
     private readonly commandRepository: ICommandRepository<UserUpdateOutcome>,
     @Optional()
     @Inject(PIPELINE_CACHE)
-    private readonly pipelineCache: { delete?: (key: string) => Promise<unknown> } | null,
+    private readonly pipelineCache: {
+      delete?: (key: string) => Promise<unknown>;
+    } | null,
     protected readonly eventBus: EventBus,
   ) {
     super(eventBus);

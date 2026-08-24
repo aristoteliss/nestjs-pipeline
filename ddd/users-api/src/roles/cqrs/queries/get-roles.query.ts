@@ -20,4 +20,7 @@ import { createExecuteClass } from '@common/cqrs/helpers/createExecute.helper';
 import { BaseQuery } from '@common/cqrs/queries/base.query';
 import { z } from 'zod';
 
-export class GetRolesQuery extends createExecuteClass(z.object({}), BaseQuery) { }
+export class GetRolesQuery extends createExecuteClass(
+  z.object({}),
+  BaseQuery,
+) {}

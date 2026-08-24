@@ -16,7 +16,7 @@
  * ----------------------------
  */
 
-import { ForbiddenError, subject as caslSubject } from '@casl/ability';
+import { subject as caslSubject, ForbiddenError } from '@casl/ability';
 import { ForbiddenException } from '@nestjs/common';
 import { type IPipelineContext, pipelineStore } from '@nestjs-pipeline/core';
 import { CASL_ABILITY_KEY } from '../constants/tokens';
@@ -102,10 +102,9 @@ export function assertEntityPermission(
   ability: AppAbility,
   check: EntityPermissionCheck,
 ): void {
-  const typedSubject = caslSubject(
-    check.subject,
-    { ...check.entity },
-  ) as unknown as string;
+  const typedSubject = caslSubject(check.subject, {
+    ...check.entity,
+  }) as unknown as string;
 
   const guard = ForbiddenError.from(ability);
 
@@ -119,9 +118,7 @@ export function assertEntityPermission(
     }
   } catch (error: unknown) {
     if (error instanceof ForbiddenError) {
-      throw new ForbiddenException(
-        'Access denied — insufficient permissions.',
-      );
+      throw new ForbiddenException('Access denied — insufficient permissions.');
     }
     throw error;
   }

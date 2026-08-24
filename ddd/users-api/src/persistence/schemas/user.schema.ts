@@ -1,12 +1,12 @@
 /*
-* Copyright (C) 2026-present Aristotelis
+ * Copyright (C) 2026-present Aristotelis
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
  * published by the Free Software Foundation, either version 3 of the
  * License, or (at your option) any later version.
-*
-* --- COMMERCIAL EXCEPTION ---
+ *
+ * --- COMMERCIAL EXCEPTION ---
  * Alternatively, a Commercial License is available for individuals or
  * organizations that require proprietary use without the AGPLv3
  * copyleft restrictions.
@@ -17,8 +17,8 @@
  */
 
 import { EntitySchema } from '@mikro-orm/core';
-import { User } from '../../users/domain/models/user.entity';
 import { UnixTimestampType } from '@nestjs-pipeline/ddd-core';
+import { User } from '../../users/domain/models/user.entity';
 
 export const UserSchema = new EntitySchema<User>({
   // @ts-expect-error MikroORM requires a public constructor

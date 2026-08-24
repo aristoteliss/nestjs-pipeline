@@ -24,4 +24,4 @@ export class UpdateRoleCommand extends createExecuteClass(
     id: z.uuid(),
     name: z.string().min(3),
   }),
-) { }
+) {}

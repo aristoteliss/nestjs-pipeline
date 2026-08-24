@@ -52,5 +52,5 @@ export class GetUserQuery extends createExecuteClass(
         });
       }
     }),
-  BaseQuery
-) { }
+  BaseQuery,
+) {}

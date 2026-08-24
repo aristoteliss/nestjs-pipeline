@@ -51,7 +51,7 @@ export class GetUserHandler implements IQueryHandler<GetUserQuery, User> {
   constructor(
     @Inject(QUERY_REPOSITORY.getUser)
     private readonly queryRepository: IQueryRepository<GetUserQuery, User>,
-  ) { }
+  ) {}
 
   async execute(query: GetUserQuery): Promise<User> {
     return await this.queryRepository.find(query);

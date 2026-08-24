@@ -24,5 +24,5 @@ export class GetRoleQuery extends createExecuteClass(
   z.object({
     roleId: z.uuid(),
   }),
-  BaseQuery
-) { }
+  BaseQuery,
+) {}

@@ -31,7 +31,7 @@ import {
 // ---------------------------------------------------------------------------
 
 function makeRequestType(schema?: z.ZodType): Type {
-  const cls = class { };
+  const cls = class {};
   if (schema) (cls as any)[ZOD_SCHEMA_KEY] = schema;
   return cls as unknown as Type;
 }
@@ -45,7 +45,7 @@ function createMockContext(
     request: {},
     requestType: makeRequestType(),
     requestName: 'MockRequest',
-    handlerType: class MockHandler { } as Type,
+    handlerType: class MockHandler {} as Type,
     handlerName: 'MockHandler',
     requestKind: 'command',
     startedAt: new Date(),

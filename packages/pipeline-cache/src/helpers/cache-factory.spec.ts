@@ -24,22 +24,34 @@ import { buildCache, buildKeyv } from './cache-factory';
 describe('cache-factory', () => {
   describe('buildKeyv', () => {
     it('creates in-memory Keyv store with namespace and ttl', () => {
-      const keyv = buildKeyv({ type: 'memory', namespace: 'test-ns', ttl: 5000 });
+      const keyv = buildKeyv({
+        type: 'memory',
+        namespace: 'test-ns',
+        ttl: 5000,
+      });
       expect(keyv).toBeInstanceOf(Keyv);
     });
 
     it('creates adapter Keyv stores when configured', () => {
-      const redisKeyv = buildKeyv({ type: 'redis', url: 'redis://localhost:6379' });
+      const redisKeyv = buildKeyv({
+        type: 'redis',
+        url: 'redis://localhost:6379',
+      });
       expect(redisKeyv).toBeInstanceOf(Keyv);
 
-      const memcacheKeyv = buildKeyv({ type: 'memcache', url: 'memcache://localhost:11211' });
+      const memcacheKeyv = buildKeyv({
+        type: 'memcache',
+        url: 'memcache://localhost:11211',
+      });
       expect(memcacheKeyv).toBeInstanceOf(Keyv);
     });
 
     it('throws descriptive error when optional adapter is missing', () => {
       expect(() =>
         buildKeyv({ type: 'sqlite', url: 'sqlite://cache.sqlite' }),
-      ).toThrowError(/\[pipeline-cache\] The optional '@keyv\/sqlite' package is required/);
+      ).toThrowError(
+        /\[pipeline-cache\] The optional '@keyv\/sqlite' package is required/,
+      );
     });
   });
 

@@ -23,4 +23,4 @@ export class DeleteRoleCommand extends createExecuteClass(
   z.object({
     id: z.uuid(),
   }),
-) { }
+) {}

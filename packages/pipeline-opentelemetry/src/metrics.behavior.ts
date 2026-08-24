@@ -125,8 +125,8 @@ export class MetricsBehavior implements IPipelineBehavior, OnModuleInit {
     } else {
       this.logger.warn(
         'OpenTelemetry metrics SDK is NOT initialized — MetricsBehavior will record ' +
-        'to a no-op meter (metrics discarded). Register a MeterProvider with a ' +
-        'reader/exporter to export pipeline metrics.',
+          'to a no-op meter (metrics discarded). Register a MeterProvider with a ' +
+          'reader/exporter to export pipeline metrics.',
         this.context,
       );
     }

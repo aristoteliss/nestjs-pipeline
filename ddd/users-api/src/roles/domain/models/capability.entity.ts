@@ -97,5 +97,5 @@ export class Capability extends RootEntity<CapabilitySnapshot> {
     });
   }
 
-  afterUpdate(): void { }
+  afterUpdate(): void {}
 }

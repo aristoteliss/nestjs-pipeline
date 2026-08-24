@@ -24,7 +24,7 @@ export const COMMAND_REPOSITORY = {
 
 export const EXT_USER_QUERY_REPOSITORY = {
   getUser: Symbol('getUser'),
-}
+};
 
 export const QUERY_REPOSITORY = {
   ...EXT_USER_QUERY_REPOSITORY,

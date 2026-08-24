@@ -41,7 +41,7 @@ class ItemEntity extends CacheableEntity<ItemSnapshot, ItemEntity> {
     return new ItemEntity(snapshot);
   }
 
-  afterUpdate(): void { }
+  afterUpdate(): void {}
 
   toJSON(): RootEntitySnapshot & ItemSnapshot {
     return this.freezeState({
@@ -63,7 +63,10 @@ describe('CacheableEntity', () => {
     const original = ItemEntity.create('Original Item');
     const jsonString = JSON.stringify(original.toJSON());
 
-    const restored = CacheableEntity.fromStringify(jsonString, ItemEntity.fromJSON);
+    const restored = CacheableEntity.fromStringify(
+      jsonString,
+      ItemEntity.fromJSON,
+    );
 
     expect(restored).toBeInstanceOf(ItemEntity);
     expect(restored.id).toBe(original.id);
@@ -71,4 +74,3 @@ describe('CacheableEntity', () => {
     expect(restored.cacheKey).toBe(original.cacheKey);
   });
 });
-

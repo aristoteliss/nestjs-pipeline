@@ -27,7 +27,7 @@ import type { DeadLetterTransport } from './interfaces/dead-letter-transport.int
 
 describe('DeadLetterModule', () => {
   const mockTransport: DeadLetterTransport = {
-    send: async () => { },
+    send: async () => {},
   };
 
   it('registers globally via forRoot with transport', () => {
@@ -69,4 +69,3 @@ describe('DeadLetterModule', () => {
     expect(transportProvider?.useFactory).toBe(factory);
   });
 });
-

@@ -27,4 +27,4 @@ export class CreateUserCommand extends createExecuteClass(
     department: z.string().trim().min(3).optional(),
   }),
   BaseCommand,
-) { }
+) {}

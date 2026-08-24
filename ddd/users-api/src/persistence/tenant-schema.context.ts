@@ -33,14 +33,23 @@ export class TenantSchemaContext {
 
   run<T>(schema: string | undefined, callback: () => T): T {
     const normalizedSchema = normalizeSchemaName(schema);
-    return TenantSchemaContext.storage.run({ schema: normalizedSchema }, callback);
+    return TenantSchemaContext.storage.run(
+      { schema: normalizedSchema },
+      callback,
+    );
   }
 
   get schema(): string {
-    return TenantSchemaContext.storage.getStore()?.schema ?? normalizeSchemaName(undefined);
+    return (
+      TenantSchemaContext.storage.getStore()?.schema ??
+      normalizeSchemaName(undefined)
+    );
   }
 
   static get currentSchema(): string {
-    return TenantSchemaContext.storage.getStore()?.schema ?? normalizeSchemaName(undefined);
+    return (
+      TenantSchemaContext.storage.getStore()?.schema ??
+      normalizeSchemaName(undefined)
+    );
   }
 }

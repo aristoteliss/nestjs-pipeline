@@ -1,5 +1,5 @@
 /*
-* Copyright (C) 2026-present Aristotelis
+ * Copyright (C) 2026-present Aristotelis
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
@@ -14,7 +14,7 @@
  * See COMMERCIAL_LICENSE.txt in this repository for the tiered
  * revenue-based terms, or contact: aristotelis@ik.me
  * ----------------------------
-*/
+ */
 
 import { EntitySchema } from '@mikro-orm/core';
 import { UnixTimestampType } from '@nestjs-pipeline/ddd-core';

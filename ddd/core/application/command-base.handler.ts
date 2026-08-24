@@ -37,8 +37,9 @@ import { DomainOutcome } from '../domain/outcomes/domain.outcome';
 export abstract class CommandBaseHandler<
   TCommand extends ICommand = ICommand,
   TResult = DomainOutcome,
-> implements ICommandHandler<ICommand, TResult> {
-  protected constructor(protected eventBus: EventBus) { }
+> implements ICommandHandler<ICommand, TResult>
+{
+  protected constructor(protected eventBus: EventBus) {}
 
   /**
    * Handles the command and produces a result.

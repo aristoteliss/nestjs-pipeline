@@ -55,8 +55,16 @@ export class User extends CacheableEntity<UserSnapshot, User> {
 
   private constructor(snapshot: UserSnapshot) {
     super(User, snapshot);
-    this._username = User.normalizeWithMinLength(snapshot, 'username', USERNAME_MIN_LENGTH);
-    this._department = User.normalizeOptionalWithMinLength(snapshot, 'department', DEPARTMENT_MIN_LENGTH);
+    this._username = User.normalizeWithMinLength(
+      snapshot,
+      'username',
+      USERNAME_MIN_LENGTH,
+    );
+    this._department = User.normalizeOptionalWithMinLength(
+      snapshot,
+      'department',
+      DEPARTMENT_MIN_LENGTH,
+    );
     this.email = snapshot.email;
   }
 

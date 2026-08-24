@@ -78,7 +78,6 @@ import type {
  * ```
  */
 @Module({})
-// biome-ignore lint/complexity/noStaticOnlyClass: static-only configuration class
 export class DeadLetterModule {
   /**
    * Registers the behavior with a ready-made transport instance.

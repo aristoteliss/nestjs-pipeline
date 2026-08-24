@@ -1,12 +1,7 @@
 {
   "$schema": "https://biomejs.dev/schemas/2.5.6/schema.json",
   "files": {
-    "includes": [
-      "**",
-      "!!**/dist",
-      "!!**/coverage",
-      "!!**/.turbo"
-    ]
+    "includes": ["**", "!!**/dist", "!!**/coverage", "!!**/.turbo"]
   },
   "formatter": {
     "indentStyle": "space",
@@ -16,6 +11,9 @@
     "enabled": true,
     "rules": {
       "preset": "recommended",
+      "complexity": {
+        "noStaticOnlyClass": "off"
+      },
       "style": {
         "useImportType": "off"
       }
@@ -41,7 +39,8 @@
       "linter": {
         "rules": {
           "suspicious": {
-            "noExplicitAny": "off"
+            "noExplicitAny": "off",
+            "noTemplateCurlyInString": "off"
           },
           "style": {
             "noNonNullAssertion": "off"
@@ -50,14 +49,21 @@
       }
     },
     {
-      "includes": [
-        "**/outcomes/**",
-        "**/events/**"
-      ],
+      "includes": ["**/outcomes/**", "**/events/**"],
       "linter": {
         "rules": {
           "complexity": {
             "noUselessConstructor": "off"
+          }
+        }
+      }
+    },
+    {
+      "includes": ["**/migrations/**"],
+      "linter": {
+        "rules": {
+          "suspicious": {
+            "noTemplateCurlyInString": "off"
           }
         }
       }

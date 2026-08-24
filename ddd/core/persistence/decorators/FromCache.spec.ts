@@ -28,7 +28,7 @@ interface GetUserQuery extends IQueryOptions {
 class TestQueryRepo {
   public dbFetchCount = 0;
 
-  constructor(public cache?: ICache) { }
+  constructor(public cache?: ICache) {}
 
   @FromCache<GetUserQuery, { id: string; name: string }>(
     (q) => (q.userId ? `user:${q.userId}` : null),
@@ -91,7 +91,9 @@ describe('@FromCache decorator on QueryRepository.find', () => {
 
     expect(result).toEqual({ id: '40', name: 'User 40' });
     expect(repo.dbFetchCount).toBe(1);
-    expect(mockCache.set).toHaveBeenCalledWith('user:40', { id: '40', name: 'User 40' });
+    expect(mockCache.set).toHaveBeenCalledWith('user:40', {
+      id: '40',
+      name: 'User 40',
+    });
   });
 });
-

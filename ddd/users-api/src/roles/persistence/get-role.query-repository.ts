@@ -45,7 +45,6 @@ export class GetRoleQueryRepository extends QueryRepository<
     (cached) => Role.fromJSON(cached as RoleSnapshot),
   )
   async find(query: GetRoleQuery): Promise<Role | null> {
-
     const role = await this.store.em.findOne(Role, buildConditions(query));
 
     return role;

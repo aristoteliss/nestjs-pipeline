@@ -65,7 +65,6 @@ import { MemoryIdempotencyStore } from './stores/memory.store';
  * ```
  */
 @Module({})
-// biome-ignore lint/complexity/noStaticOnlyClass: static-only configuration class
 export class IdempotencyModule {
   /**
    * Registers the behavior with a ready-made store (defaults to

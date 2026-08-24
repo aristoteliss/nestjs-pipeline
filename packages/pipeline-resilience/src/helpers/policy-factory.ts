@@ -142,7 +142,7 @@ function buildRetry(
   policy.onRetry((event) => {
     ctx.logger?.debug?.(
       `[resilience] retrying ${ctx.requestName} → ${ctx.handlerName} ` +
-      `(attempt ${event.attempt}, delay ${event.delay}ms)`,
+        `(attempt ${event.attempt}, delay ${event.delay}ms)`,
     );
     ctx.telemetry?.onRetry?.({ attempt: event.attempt, delay: event.delay });
   });
@@ -183,7 +183,7 @@ function buildBulkhead(
   policy.onReject(() => {
     ctx.logger?.warn?.(
       `[resilience] bulkhead rejected ${ctx.handlerName} ` +
-      `(limit ${options.limit}, queue ${options.queue ?? 0})`,
+        `(limit ${options.limit}, queue ${options.queue ?? 0})`,
     );
     ctx.telemetry?.onBulkheadRejected?.();
   });

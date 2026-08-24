@@ -31,11 +31,12 @@ import { RootEntity } from './root.entity';
  * @typeParam TEntity - The concrete entity type produced from a snapshot.
  */
 export abstract class CacheableEntity<
-  TSnapshot extends Partial<RootEntitySnapshot>,
-  TEntity,
->
+    TSnapshot extends Partial<RootEntitySnapshot>,
+    TEntity,
+  >
   extends RootEntity<TSnapshot>
-  implements ICacheKey {
+  implements ICacheKey
+{
   readonly prefixKey: string;
 
   protected constructor(

@@ -22,13 +22,14 @@ import type { ICache } from '../cache.interface';
 import { Cache } from './Cache';
 
 class MockOutcome extends RootDomainOutcome<{ cacheKey: string; id: string }> {
+  // biome-ignore lint/complexity/noUselessConstructor: public constructor exposing protected base constructor
   constructor(entity: { cacheKey: string; id: string }) {
     super(entity);
   }
 }
 
 class TestCommandRepo {
-  constructor(public cache?: ICache) { }
+  constructor(public cache?: ICache) {}
 
   @Cache()
   async save(outcome: MockOutcome): Promise<{ id: string } | null> {
@@ -72,7 +73,10 @@ describe('@Cache decorator on CommandRepository.save', () => {
     };
 
     const repo = new TestCommandRepo(mockCache);
-    const outcome = new MockOutcome({ id: 'delete-me', cacheKey: 'user:delete-me' });
+    const outcome = new MockOutcome({
+      id: 'delete-me',
+      cacheKey: 'user:delete-me',
+    });
 
     const result = await repo.save(outcome);
 
@@ -81,4 +85,3 @@ describe('@Cache decorator on CommandRepository.save', () => {
     expect(mockCache.set).not.toHaveBeenCalled();
   });
 });
-

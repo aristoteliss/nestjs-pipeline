@@ -57,7 +57,7 @@ class CustomIdBehavior implements IPipelineBehavior {
 describe('@UsePipeline decorator', () => {
   it('stores behavior classes in metadata', () => {
     @UsePipeline(BehaviorA, BehaviorB)
-    class TestHandler { }
+    class TestHandler {}
 
     const behaviors = Reflect.getMetadata(
       PIPELINE_BEHAVIORS_METADATA,
@@ -68,7 +68,7 @@ describe('@UsePipeline decorator', () => {
 
   it('stores empty options map when no options are provided', () => {
     @UsePipeline(BehaviorA)
-    class TestHandler { }
+    class TestHandler {}
 
     const options: Map<string, Record<string, unknown>> = Reflect.getMetadata(
       PIPELINE_BEHAVIORS_OPTIONS_METADATA,
@@ -82,7 +82,7 @@ describe('@UsePipeline decorator', () => {
     const opts = { requestResponseLogLevel: 'log' };
 
     @UsePipeline([BehaviorA, opts], BehaviorB)
-    class TestHandler { }
+    class TestHandler {}
 
     const behaviors = Reflect.getMetadata(
       PIPELINE_BEHAVIORS_METADATA,
@@ -101,7 +101,7 @@ describe('@UsePipeline decorator', () => {
     const opts = { foo: 'bar' };
 
     @UsePipeline([BehaviorA, opts])
-    class RegistryTestHandler { }
+    class RegistryTestHandler {}
 
     expect(PIPELINE_OPTIONS_REGISTRY.has(RegistryTestHandler.name)).toBe(true);
     const reg = PIPELINE_OPTIONS_REGISTRY.get(RegistryTestHandler.name)!;
@@ -110,7 +110,7 @@ describe('@UsePipeline decorator', () => {
 
   it('does not populate PIPELINE_OPTIONS_REGISTRY when no options are present', () => {
     @UsePipeline(BehaviorA)
-    class NoOptionsHandler { }
+    class NoOptionsHandler {}
 
     expect(PIPELINE_OPTIONS_REGISTRY.has(NoOptionsHandler.name)).toBe(false);
   });
@@ -120,7 +120,7 @@ describe('@UsePipeline decorator', () => {
     const optsB = { title: 'audit' };
 
     @UsePipeline([BehaviorA, optsA], [BehaviorB, optsB])
-    class MultiOptionsHandler { }
+    class MultiOptionsHandler {}
 
     const options: Map<string, Record<string, unknown>> = Reflect.getMetadata(
       PIPELINE_BEHAVIORS_OPTIONS_METADATA,
@@ -135,7 +135,7 @@ describe('@UsePipeline decorator', () => {
     const optsB = { key: 'value' };
 
     @UsePipeline(BehaviorA, [BehaviorB, optsB])
-    class MixedHandler { }
+    class MixedHandler {}
 
     const behaviors = Reflect.getMetadata(
       PIPELINE_BEHAVIORS_METADATA,

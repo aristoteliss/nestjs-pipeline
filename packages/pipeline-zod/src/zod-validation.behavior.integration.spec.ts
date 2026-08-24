@@ -29,7 +29,7 @@ import {
 // ---------------------------------------------------------------------------
 
 function makeClass(schema?: z.ZodType) {
-  const cls = class { };
+  const cls = class {};
   if (schema) (cls as any)[ZOD_SCHEMA_KEY] = schema;
   return cls;
 }
@@ -98,7 +98,7 @@ describe('ZodValidationBehavior – integration', () => {
     it('does NOT call next() on validation failure', async () => {
       const spy = vi.fn();
       const Req = makeClass(z.object({ foo: z.string() }));
-      await behavior.handle(ctx({ foo: 123 }, Req), spy).catch(() => { });
+      await behavior.handle(ctx({ foo: 123 }, Req), spy).catch(() => {});
       expect(spy).not.toHaveBeenCalled();
     });
   });

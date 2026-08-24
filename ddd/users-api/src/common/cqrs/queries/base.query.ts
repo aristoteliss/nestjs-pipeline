@@ -23,7 +23,10 @@ import { IQueryOptions } from '@nestjs-pipeline/ddd-core/application/query.optio
 export abstract class BaseQuery implements IQueryOptions {
   public readonly hydrate?: boolean = false;
 
-  constructor(options?: Partial<IQueryOptions>, public readonly sessionUser?: SessionUser) {
+  constructor(
+    options?: Partial<IQueryOptions>,
+    public readonly sessionUser?: SessionUser,
+  ) {
     this.sessionUser = sessionUser ?? getSessionUserFromStore();
     this.hydrate = options?.hydrate ?? false;
   }

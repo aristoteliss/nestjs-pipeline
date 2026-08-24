@@ -25,9 +25,9 @@ describe('buildDeadLetterRecord', () => {
     correlationId: 'corr-123',
     originalCorrelationId: 'corr-123',
     request: { userId: 'u1' },
-    requestType: class TestRequest { },
+    requestType: class TestRequest {},
     requestName: 'CreateUserCommand',
-    handlerType: class TestHandler { },
+    handlerType: class TestHandler {},
     handlerName: 'CreateUserHandler',
     requestKind: 'command',
     startedAt: new Date(),
@@ -53,7 +53,9 @@ describe('buildDeadLetterRecord', () => {
 
   it('omits stack trace when includeStack is false', () => {
     const error = new Error('validation error');
-    const record = buildDeadLetterRecord(mockContext, error, { includeStack: false });
+    const record = buildDeadLetterRecord(mockContext, error, {
+      includeStack: false,
+    });
 
     expect(record.error.message).toBe('validation error');
     expect(record.error.stack).toBeUndefined();
@@ -82,4 +84,3 @@ describe('buildDeadLetterRecord', () => {
     });
   });
 });
-

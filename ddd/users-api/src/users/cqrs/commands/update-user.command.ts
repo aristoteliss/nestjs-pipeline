@@ -27,8 +27,11 @@ export class UpdateUserCommand extends createExecuteClass(
       username: z.string().trim().min(3).optional(),
       department: z.string().trim().min(3).nullable().optional(),
     })
-    .refine((data) => data.username !== undefined || data.department !== undefined, {
-      message: 'At least one of username or department must be provided',
-    }),
+    .refine(
+      (data) => data.username !== undefined || data.department !== undefined,
+      {
+        message: 'At least one of username or department must be provided',
+      },
+    ),
   BaseCommand,
-) { }
+) {}

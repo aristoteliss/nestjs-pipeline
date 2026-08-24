@@ -5,8 +5,8 @@ export class UnixTimestampType extends Type<Date, number> {
     value: Date | undefined | null,
     _platform?: Platform,
     _context?: TransformContext,
-  ): any {
-    if (value == null) return value;
+  ): number {
+    if (value == null) return value as unknown as number;
     if (value instanceof Date) return value.getTime();
     if (typeof value === 'number') return value;
     return new Date(value).getTime();
@@ -16,8 +16,8 @@ export class UnixTimestampType extends Type<Date, number> {
     value: number | undefined | null,
     _platform?: Platform,
     _context?: TransformContext,
-  ): any {
-    if (value == null) return value;
+  ): Date {
+    if (value == null) return value as unknown as Date;
     return new Date(value);
   }
 

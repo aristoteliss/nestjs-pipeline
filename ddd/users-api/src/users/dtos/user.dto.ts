@@ -16,7 +16,10 @@
  * ----------------------------
  */
 
-import { InternalServerErrorException, NotFoundException } from '@nestjs/common';
+import {
+  InternalServerErrorException,
+  NotFoundException,
+} from '@nestjs/common';
 import { z } from 'zod';
 import type { User, UserSnapshot } from '../domain/models/user.entity';
 
@@ -37,8 +40,7 @@ export const UserResponseDtoSchema = z
 export type UserResponseDto = z.output<typeof UserResponseDtoSchema>;
 
 export function toResponseDto(user: User | UserSnapshot): UserResponseDto {
-  if (!user)
-    throw new NotFoundException('User not found');
+  if (!user) throw new NotFoundException('User not found');
 
   const plain =
     'toJSON' in user && typeof user.toJSON === 'function'

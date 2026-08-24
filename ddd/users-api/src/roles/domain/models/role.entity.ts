@@ -110,4 +110,3 @@ export class Role extends CacheableEntity<RoleSnapshot, Role> {
     // No side effects needed on update for Role, but this method must be implemented
   }
 }
-
