@@ -271,8 +271,7 @@ Exported as `CACHE_HIT_ITEM` and `CACHE_KEY_ITEM`.
 
 ## Custom Logger
 
-The behavior emits `debug` cache hit/miss lines through the logger bound to
-`LOGGING_BEHAVIOR_LOGGER` (the same token used by the core `LoggingBehavior`).
+`CacheBehavior` emits `debug` cache hit/miss lines and `CacheModule.forRoot` logs the initialized store type at startup through the logger bound to `LOGGING_BEHAVIOR_LOGGER` (the same token used by the core `LoggingBehavior`).
 If none is bound, a standard NestJS `Logger` is used. No extra wiring needed.
 
 ---

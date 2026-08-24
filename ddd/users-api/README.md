@@ -381,32 +381,41 @@ Applied to `save()` in command repositories. After a successful write it upserts
 
 Applied to `find()` in query repositories. Checks the cache first; on a miss it calls the database and populates the cache. Accepts a key function and an optional hydration function to reconstruct the domain entity from the cached value.
 
+## Testing
+
+```bash
+# Run unit & behavior test suite (fast, in-memory)
+pnpm test
+
+# Run full end-to-end integration test suite (requires docker/redis for full testcontainers run)
+pnpm test:e2e
+```
+
 ## What it demonstrates
 
-- Two bounded contexts (`users/`, `roles/`) with independent modules, controllers, CQRS layers, and persistence
-- Shared infrastructure via `@Global()` `PersistenceModule` and `common/` helpers with `@common/*` / `@persistence/*` path aliases
-- Global + per-handler pipeline behaviors
-- Per-handler CASL authorization with inline `rules` on `CaslBehaviorOptions` and `CaslBehavior`
-- CASL providers (`IRoleProvider`, `IUserContextResolver`, `IUserCapabilityProvider`) implemented as `QueryRepository` subclasses with `@FromCache` decorators
-- Zod-validated commands, queries, and events via `createExecuteClass()`
-- Controller-level `ZodPipe` validation
-- OpenTelemetry tracing with `TraceBehavior` and metrics with `MetricsBehavior`
-- Global `DeadLetterBehavior` capturing failed commands/queries/events to a BullMQ `dead-letters` queue for inspection and replay (with `UserCreatedHandler` opting into `{ rethrow: false }` for fire-and-forget side effects)
-- Per-handler `RateLimitBehavior` throttling `CreateUserHandler` to 5 registrations / 60s per email (in-memory limiter), with `RateLimitExceededFilter` mapping breaches to HTTP 429 + `Retry-After`
-- Per-handler `AuditBehavior` recording the sensitive `user.delete` action (actor, outcome, duration, redacted payload) to the default `LogAuditSink`, with the actor resolved from the request-scoped session
-- Per-handler `IdempotencyBehavior` making `CreateUserHandler` idempotent per email (in-memory store default) — a retried POST replays the first response instead of creating a duplicate, with `IdempotencyConflictFilter` mapping in-flight duplicates to HTTP 409 and payload-mismatched key reuse to HTTP 422
-- Feature gating with `FeatureFlagBehavior` (`@openfeature/server-sdk`)
-- DDD-style entities built on `ddd-core` primitives (`CacheableEntity`, `RootDomainEvent`, `RootDomainOutcome`)
-- Native MikroORM migrations applied via `pnpm db:migrate` (not at startup)
-- **Dual-engine persistence architecture**
-  - libSQL (SQLite) by default — multi-database files per tenant
-  - PostgreSQL with schema-per-tenant isolation — domain entities remain tenant-agnostic
-  - Conditional routing via `MIKRO_ORM_CLIENT` DI token based on `DB_ENGINE` environment variable
-- **Multi-tenant request isolation** — `TenantSchemaContext` + `AsyncLocalStorage` for per-request schema routing (PostgreSQL)
-- Pluggable `ICache<T>` — swap `MikroOrmCache` ↔ `MemoryCache` via a single provider token
-- Correlation ID propagation across handlers and events
-- Express and Fastify adapter support
-- BullMQ background job processing
+This sample serves as the complete reference application demonstrating **all 12 behaviors** from `@nestjs-pipeline/*` in a production-ready DDD/CQRS architecture:
+
+- **Clean Declarative Pipelines** — Zero handler pollution: handlers focus exclusively on business logic while behaviors are configured via global settings and `@UsePipeline` decorators.
+- **Global Behaviors** (in `AppModule`):
+  - `LoggingBehavior` (`@nestjs-pipeline/core`) — Structured request/response and timing logging with `nestjs-pino`.
+  - `DeadLetterBehavior` (`@nestjs-pipeline/deadletter`) — Captures failed commands/queries/events to a BullMQ `dead-letters` queue for inspection and replay (with `UserCreatedHandler` opting into `{ rethrow: false }` for fire-and-forget side effects).
+  - `TraceBehavior` (`@nestjs-pipeline/opentelemetry`) — Emits OpenTelemetry spans for every CQRS invocation (`tracerName: 'users-api'`).
+  - `MetricsBehavior` (`@nestjs-pipeline/opentelemetry`) — Emits OpenTelemetry latency histograms and invocation counters (`meterName: 'users-api'`).
+  - `ZodValidationBehavior` (`@nestjs-pipeline/zod`) — Validates command/query/event payloads against `_zodSchema` before handler execution.
+- **Per-Handler Declarative Behaviors** (`@UsePipeline`):
+  - **`RateLimitBehavior`** (`@nestjs-pipeline/rate-limit`) — Throttles `CreateUserHandler` (5 registrations / 60s per email) and `CreateAuthHandler` (login attempts per email), with `RateLimitExceededFilter` mapping breaches to HTTP 429 + `Retry-After`.
+  - **`AuditBehavior`** (`@nestjs-pipeline/audit`) — Audits sensitive actions: `auth.login` on `CreateAuthHandler`, `role.delete` on `DeleteRoleHandler`, and `user.delete` on `DeleteUserHandler` (capturing actor, severity, outcome, duration, redacted payload).
+  - **`IdempotencyBehavior`** (`@nestjs-pipeline/idempotency`) — Enforces at-most-once execution on `CreateUserHandler` (`user.create:<email>`) and `CreateRoleHandler` (`role.create:<name>`) with response replay, with `IdempotencyConflictFilter` mapping conflicts to HTTP 409/422.
+  - **`FeatureFlagBehavior`** (`@nestjs-pipeline/feature-flags`) — Gates `CreateUserHandler` behind `user-registration` and `CreateRoleHandler` behind `role-creation` using OpenFeature, with `FeatureDisabledFilter` mapping disabled features to HTTP 403.
+  - **`ResilienceBehavior`** (`@nestjs-pipeline/resilience`) — Configures retry, circuit breaker, and timeout policies on `DeleteRoleHandler` and `DeleteUserHandler`.
+  - **`CacheBehavior`** (`@nestjs-pipeline/cache`) — Transparent read-through query caching on `GetUserHandler`, `GetRoleHandler`, and `GetRolesHandler` with Redis backing and in-memory fallback.
+  - **`CaslBehavior`** (`@nestjs-pipeline/casl`) — Fine-grained ABAC authorization with inline `rules`, condition interpolation, and database-backed capability providers on all command and query handlers.
+- **DDD & Persistence Architecture**:
+  - Dual-engine persistence: **libSQL** (SQLite) for local dev and **PostgreSQL** with schema-per-tenant isolation for production.
+  - Domain entities built on `ddd-core` primitives (`CacheableEntity`, `RootDomainEvent`, `RootDomainOutcome`).
+  - Native MikroORM migrations applied via `pnpm db:migrate`.
+  - Multi-tenant request isolation via `TenantSchemaContext` and `AsyncLocalStorage`.
+  - Background job processing with BullMQ.
 
 ## Dependencies
 
