@@ -8,7 +8,7 @@ A complete NestJS application demonstrating `@nestjs-pipeline` with Domain-Drive
 This sample builds on `@nestjs-pipeline/ddd-core` to show a full CQRS + DDD stack, with **MikroORM as the persistence and cache layer**.
 
 - **Domain layer** — `User` and `Role` entities extending `CacheableEntity`, domain events, and outcomes.
-- **CQRS layer** — Command/query handlers with `@UsePipeline` behaviors, validated via `createExecuteClass()` / `createQuery()` and Zod schemas.
+- **CQRS layer** — Command/query handlers with `@UsePipeline` behaviors, validated via `createExecuteClass()` and Zod schemas.
 - **Persistence** — Dual-engine support: **libSQL** (SQLite) for local development and **PostgreSQL** for production multi-tenant deployments. Conditional routing via `MIKRO_ORM_CLIENT` provider.
 - **Multi-tenant routing** — When `DB_ENGINE=postgres`, tenant schema is resolved per-request from the `x-tenant-schema` header and isolated via PostgreSQL schema-per-tenant pattern. Domain entities remain tenant-agnostic (no embedded `tenantId`).
 - **Caching** — **MikroOrmCache** (MikroORM-backed, TTL-aware) configured via `CACHE_TOKEN` in `PersistenceModule`.
@@ -33,14 +33,15 @@ pnpm dev                # start with tsx (hot-reload)
 | Variable             | Default        | Description                          |
 |----------------------|----------------|--------------------------------------|
 | `DB_ENGINE`          | `libsql`       | Persistence engine: `libsql` (SQLite) or `postgres` |
-| `DATABASE_URL`       | `file:src/persistence/local-tenant_a.db` | SQLite database URL (only used when `DB_ENGINE=libsql`); supports local file or remote libSQL endpoint |
+| `DATABASE_URL`       | `file:src/persistence/local.db` | SQLite database URL (only used when `DB_ENGINE=libsql`); base/template — a `-<tenant>` suffix is inserted per tenant; supports local file or remote libSQL endpoint |
 | `AUTH_TOKEN`         | _(none)_       | Auth token for remote libSQL databases (only used when `DB_ENGINE=libsql`) |
 | `DATABASE_HOST`      | `127.0.0.1`    | PostgreSQL host (only used when `DB_ENGINE=postgres`) |
 | `DATABASE_PORT`      | `5432`         | PostgreSQL port (only used when `DB_ENGINE=postgres`) |
 | `DATABASE_NAME`      | `nestjs_pipeline` | PostgreSQL database name (only used when `DB_ENGINE=postgres`) |
 | `DATABASE_USER`      | `postgres`     | PostgreSQL database user (only used when `DB_ENGINE=postgres`) |
 | `DATABASE_PASSWORD`  | `postgres`     | PostgreSQL database password (only used when `DB_ENGINE=postgres`) |
-| `DB_DEFAULT_SCHEMA`  | `tenant` | Default PostgreSQL schema for tenant (only used when `DB_ENGINE=postgres`) |
+| `DB_DEFAULT_SCHEMA`  | `tenant` | Default schema name for the default tenant (used by both engines) |
+| `SQLITE_TENANTS`     | _(none)_       | Comma-separated libSQL tenant list initialized at startup (only used when `DB_ENGINE=libsql`) |
 | `TENANT_SCHEMAS`     | _(none)_       | Comma-separated list of tenant schema names for migrations (e.g. `tenant_a,tenant_b`); if set, `migrate` and `revert` commands process all listed schemas |
 | `AUTH_LOGIN_CODE`    | _(none)_       | Code required for the login endpoint |
 | `JWT_SECRET`         | _(none)_       | Secret key used for JWT token signing |
@@ -103,14 +104,13 @@ src/
 │   ├── cqrs/
 │   │   ├── commands/          # CreateUser, UpdateUser, DeleteUser
 │   │   ├── events/            # UserCreated, UserUpdated, UserDeleted
-│   │   └── queries/           # GetUser, GetUsers, GetUserContext, GetUserCapabilities
+│   │   └── queries/           # GetUser, GetUsers, GetUserContext
 │   ├── domain/                # User entity, events, outcomes
 │   ├── dtos/                  # Zod-validated DTOs
 │   ├── jobs/                  # BullMQ processors
 │   ├── mappers/               # DTO → Command mappers
 │   ├── persistence/           # Command + Query repositories
-│   │   ├── get-user-context.query-repository.ts        # implements IUserContextResolver
-│   │   └── get-user-capabilities.query-repository.ts   # implements IUserCapabilityProvider
+│   │   └── get-user-context.query-repository.ts        # implements IUserContextResolver
 │   └── repositories/         # Repository DI tokens
 │
 └── roles/                     # Roles bounded context
@@ -127,6 +127,13 @@ src/
         └── get-roles-capabilities.query-repository.ts  # implements IRoleProvider
 ```
 
+> The `auths/` bounded context (`auths.module.ts`, `controllers/`, `cqrs/`, `domain/`,
+> `dtos/`, `mappers/`, `repositories/`, `services/`) provides authentication/session
+> handling. `auths/repositories/get-user-capabilities.query-repository.ts` implements
+> `IUserCapabilityProvider`, and `auths/cqrs/queries/` holds `GetUserCapabilities`.
+> A global `AuthSessionInterceptor` (`common/interceptors/`) is wired as an
+> `APP_INTERCEPTOR` in `app.module.ts`.
+
 ### Path aliases
 
 TypeScript path aliases keep imports clean and decouple modules from relative path depth:
@@ -142,7 +149,7 @@ Database schema is managed by native MikroORM migrations in `src/persistence/mig
 
 ### libSQL (SQLite) mode (default)
 
-- **On app startup** — `MikroOrmStore.onModuleInit()` auto-runs `orm.migrator.up()` against the configured database file.
+- **Migrations are NOT run on startup** — apply them explicitly with `pnpm db:migrate` (runs `orm.migrator.up()` via `src/persistence/migrate.ts`). `MikroOrmStore.onModuleInit()` only initializes the ORM per tenant.
 - **Multiple databases** — Update `DATABASE_URL` to point to different files, or run migrations separately for each file.
 - **CLI** — Use `pnpm db:migrate` to apply pending migrations (runs against current `DATABASE_URL`).
 
@@ -153,7 +160,7 @@ When `DB_ENGINE=postgres`, schema-per-tenant routing is enabled:
 - **Per-request isolation** — `TenantSchemaMiddleware` extracts `x-tenant-schema` header and stores it in `TenantSchemaContext` (via `AsyncLocalStorage`).
 - **EntityManager forking** — `PostgresMikroOrmStore.em` forks the connection with the tenant schema, so all queries are automatically scoped.
 - **Domain entities** — Remain tenant-agnostic; no `tenantId` field (schema isolation is transparent).
-- **Startup migrations** — On app boot, runs migrations **only against the default schema** (`DB_DEFAULT_SCHEMA`).
+- **Migrations** — run explicitly via `pnpm db:migrate` (optionally `TENANT_SCHEMAS=tenant_a,tenant_b`); they are not executed at application boot.
 - **CLI multi-tenant** — Use `TENANT_SCHEMAS=tenant_a,tenant_b pnpm db:migrate` to run migrations across multiple schemas.
 
 ### Migration and seed files
@@ -166,7 +173,7 @@ When `DB_ENGINE=postgres`, schema-per-tenant routing is enabled:
 
 This sample uses `nestjs-pino` as the application logger and forwards it to pipeline libraries:
 
-- `LOGGING_BEHAVIOR_LOGGER` → `Logger` from `nestjs-pino`
+- `LOGGING_BEHAVIOR_LOGGER` → `NativeLogger` from `nestjs-pino`
 
 This gives one consistent logger for HTTP logs, pipeline request/response logs, and tracing startup diagnostics.
 
@@ -266,10 +273,10 @@ Uses `@nestjs-pipeline/casl` for attribute-based access control with roles.
 All three CASL provider interfaces are implemented as proper `QueryRepository` subclasses with `@FromCache` decorators, following the same DDD pattern as the rest of the application:
 
 - **`GetRolesCapabilitiesQueryRepository`** (`roles/persistence/`) — implements `IRoleProvider`. Loads role → capability definitions from the `roles` / `role_capabilities` / `capabilities` tables. Extends `QueryRepository<GetRolesCapabilitiesQuery, RoleDefinition[]>`.
-- **`GetUserContextQueryRepository`** (`users/persistence/`) — implements `IUserContextResolver`. Reads the current user from the configured CASL `subjectContextPaths` (in this app: `sessionUser`) and fetches department from the `users` table when capability data is not already embedded in the session/JWT. REQUEST-scoped. Extends `QueryRepository<GetUserContextQuery, CaslUserContext | undefined>`.
-- **`GetUserCapabilitiesQueryRepository`** (`users/persistence/`) — implements `IUserCapabilityProvider`. Returns the user's assigned roles plus any per-user additional/denied capabilities. Extends `QueryRepository<GetUserCapabilitiesQuery, UserCapabilities>`.
+- **`GetUserContextQueryRepository`** (`users/persistence/`) — implements `IUserContextResolver`. Reads the current user from the configured CASL `subjectContextPaths` (in this app: `sessionUser`) and fetches department from the `users` table when capability data is not already embedded in the session/JWT. REQUEST-scoped. Extends `QueryRepository<GetUserContextQuery, CaslUserContext | null>`.
+- **`GetUserCapabilitiesQueryRepository`** (`auths/repositories/`) — implements `IUserCapabilityProvider`. Returns the user's assigned roles plus any per-user additional/denied capabilities. Extends `QueryRepository<GetUserCapabilitiesQuery, UserCapabilities>`.
 
-Each has a corresponding Zod-validated query class (via `createQuery()`) and a `@QueryHandler` in its module's `cqrs/queries/` directory.
+Each has a corresponding Zod-validated query class (via `createExecuteClass()`) and a `@QueryHandler` in its module's `cqrs/queries/` directory.
 
 ### Per-handler (not global)
 
@@ -381,11 +388,16 @@ Applied to `find()` in query repositories. Checks the cache first; on a miss it 
 - Global + per-handler pipeline behaviors
 - Per-handler CASL authorization with inline `rules` on `CaslBehaviorOptions` and `CaslBehavior`
 - CASL providers (`IRoleProvider`, `IUserContextResolver`, `IUserCapabilityProvider`) implemented as `QueryRepository` subclasses with `@FromCache` decorators
-- Zod-validated commands, queries, and events via `createExecuteClass()` / `createQuery()`
+- Zod-validated commands, queries, and events via `createExecuteClass()`
 - Controller-level `ZodPipe` validation
-- OpenTelemetry tracing with `TraceBehavior`
+- OpenTelemetry tracing with `TraceBehavior` and metrics with `MetricsBehavior`
+- Global `DeadLetterBehavior` capturing failed commands/queries/events to a BullMQ `dead-letters` queue for inspection and replay (with `UserCreatedHandler` opting into `{ rethrow: false }` for fire-and-forget side effects)
+- Per-handler `RateLimitBehavior` throttling `CreateUserHandler` to 5 registrations / 60s per email (in-memory limiter), with `RateLimitExceededFilter` mapping breaches to HTTP 429 + `Retry-After`
+- Per-handler `AuditBehavior` recording the sensitive `user.delete` action (actor, outcome, duration, redacted payload) to the default `LogAuditSink`, with the actor resolved from the request-scoped session
+- Per-handler `IdempotencyBehavior` making `CreateUserHandler` idempotent per email (in-memory store default) — a retried POST replays the first response instead of creating a duplicate, with `IdempotencyConflictFilter` mapping in-flight duplicates to HTTP 409 and payload-mismatched key reuse to HTTP 422
+- Feature gating with `FeatureFlagBehavior` (`@openfeature/server-sdk`)
 - DDD-style entities built on `ddd-core` primitives (`CacheableEntity`, `RootDomainEvent`, `RootDomainOutcome`)
-- Native MikroORM migrations executed at startup
+- Native MikroORM migrations applied via `pnpm db:migrate` (not at startup)
 - **Dual-engine persistence architecture**
   - libSQL (SQLite) by default — multi-database files per tenant
   - PostgreSQL with schema-per-tenant isolation — domain entities remain tenant-agnostic
@@ -398,11 +410,18 @@ Applied to `find()` in query repositories. Checks the cache first; on a miss it 
 
 ## Dependencies
 
-- `@nestjs-pipeline/core` (`workspace:*`)
+- `@nestjs-pipeline/audit` (`workspace:*`)
+- `@nestjs-pipeline/cache` (`workspace:*`)
 - `@nestjs-pipeline/casl` (`workspace:*`)
-- `@nestjs-pipeline/ddd-core` (`workspace:*`)
+- `@nestjs-pipeline/core` (`workspace:*`)
 - `@nestjs-pipeline/correlation` (`workspace:*`)
+- `@nestjs-pipeline/ddd-core` (`workspace:*`)
+- `@nestjs-pipeline/deadletter` (`workspace:*`)
+- `@nestjs-pipeline/feature-flags` (`workspace:*`)
+- `@nestjs-pipeline/idempotency` (`workspace:*`)
 - `@nestjs-pipeline/opentelemetry` (`workspace:*`)
+- `@nestjs-pipeline/rate-limit` (`workspace:*`)
+- `@nestjs-pipeline/resilience` (`workspace:*`)
 - `@nestjs-pipeline/zod` (`workspace:*`)
 - `@casl/ability`
 - `@libsql/client`
@@ -411,3 +430,4 @@ Applied to `find()` in query repositories. Checks the cache first; on a miss it 
 - `nestjs-pino`
 - `pino-http`
 - `pino-pretty`
+

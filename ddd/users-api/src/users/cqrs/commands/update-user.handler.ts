@@ -16,15 +16,21 @@
  * ----------------------------
  */
 
-import { Inject, Scope } from '@nestjs/common';
+import { Inject, NotFoundException, Optional, Scope } from '@nestjs/common';
 import { CommandHandler, EventBus } from '@nestjs/cqrs';
-import { CaslBehavior } from '@nestjs-pipeline/casl';
+import { PIPELINE_CACHE } from '@nestjs-pipeline/cache';
+import {
+  assertEntityPermission,
+  CaslBehavior,
+  getCaslAbility,
+} from '@nestjs-pipeline/casl';
 import { LoggingBehavior, UsePipeline } from '@nestjs-pipeline/core';
 import {
   CommandBaseHandler,
   ICommandRepository,
   IQueryRepository,
 } from '@nestjs-pipeline/ddd-core';
+import { TenantSchemaContext } from '@persistence/tenant-schema.context';
 import { User } from '../../domain/models/user.entity';
 import { UserUpdateOutcome } from '../../domain/outcomes/user-update.outcome';
 import {
@@ -54,6 +60,9 @@ export class UpdateUserHandler extends CommandBaseHandler<
     private readonly queryRepository: IQueryRepository<GetUserQuery, User>,
     @Inject(COMMAND_REPOSITORY.updateUser)
     private readonly commandRepository: ICommandRepository<UserUpdateOutcome>,
+    @Optional()
+    @Inject(PIPELINE_CACHE)
+    private readonly pipelineCache: { delete?: (key: string) => Promise<unknown> } | null,
     protected readonly eventBus: EventBus,
   ) {
     super(eventBus);
@@ -66,9 +75,42 @@ export class UpdateUserHandler extends CommandBaseHandler<
 
     const user = await this.queryRepository.find(query);
 
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    // Entity-level authorization against the loaded target user. Conditions
+    // like "User|update|{department: <mine>}" depend on the target's persisted
+    // attributes, which the command payload does not carry, so they are
+    // re-checked here against the real entity and the fields being changed.
+    const ability = getCaslAbility();
+    if (ability) {
+      const changedFields = Object.entries({ username, department })
+        .filter(([, value]) => value !== undefined)
+        .map(([field]) => field);
+
+      assertEntityPermission(ability, {
+        action: 'update',
+        subject: 'User',
+        entity: user.toJSON() as unknown as Record<string, unknown>,
+        fields: changedFields,
+      });
+    }
+
     const outcome = user.update({ username, department });
 
     await this.commandRepository.save(outcome);
+
+    // Evict Redis cache entry for GetUserQuery
+    if (this.pipelineCache) {
+      const cacheKey = `${TenantSchemaContext.currentSchema}:GetUserQuery:${id}`;
+      const c = this.pipelineCache as Record<string, unknown>;
+      if (typeof c.del === 'function') {
+        await (c.del as (k: string) => Promise<unknown>)(cacheKey);
+      } else if (typeof c.delete === 'function') {
+        await (c.delete as (k: string) => Promise<unknown>)(cacheKey);
+      }
+    }
 
     return outcome;
   }

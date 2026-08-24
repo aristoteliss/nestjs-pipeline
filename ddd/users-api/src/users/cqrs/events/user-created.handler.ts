@@ -19,10 +19,13 @@
 import { InjectQueue } from '@nestjs/bullmq';
 import { Logger } from '@nestjs/common';
 import { EventsHandler, type IEventHandler } from '@nestjs/cqrs';
+import { UsePipeline } from '@nestjs-pipeline/core';
 import {
   addCorrelationId,
   getCorrelationId,
 } from '@nestjs-pipeline/correlation';
+import { DeadLetterBehavior } from '@nestjs-pipeline/deadletter';
+import { TenantSchemaContext } from '@persistence/tenant-schema.context';
 import type { Queue } from 'bullmq';
 import { UserCreatedEvent } from '../../domain/events/user-created.event';
 import {
@@ -31,6 +34,14 @@ import {
 } from '../../jobs/send-welcome-email.processor';
 
 @EventsHandler(UserCreatedEvent)
+/**
+ * Fire-and-forget side effect: if enqueuing the welcome email fails, the
+ * failure is dead-lettered (captured to the 'dead-letters' queue for replay)
+ * but NOT re-thrown, so a transient email/queue outage never surfaces as an
+ * unhandled rejection from the event bus. `{ rethrow: false }` overrides the
+ * global DeadLetterBehavior's default re-throw for this handler only.
+ */
+@UsePipeline([DeadLetterBehavior, { rethrow: false }])
 export class UserCreatedHandler implements IEventHandler<UserCreatedEvent> {
   private readonly logger = new Logger(UserCreatedHandler.name);
 
@@ -44,15 +55,16 @@ export class UserCreatedHandler implements IEventHandler<UserCreatedEvent> {
       entity: { id: userId, username, email },
     } = event;
     const correlationId = getCorrelationId();
+    const tenant = TenantSchemaContext.currentSchema;
 
     this.logger.log(
-      `📬 [${correlationId}] UserCreated — id: ${userId}, username: ${username}, email: ${email}`,
+      `📬 [${correlationId}] UserCreated — id: ${userId}, username: ${username}, email: ${email}, tenant: ${tenant}`,
     );
 
     // addCorrelationId stamps the current correlationId into the job data — works with any queue
     await this.welcomeEmailQueue.add(
       'send',
-      addCorrelationId({ userId, username, email }),
+      addCorrelationId({ userId, username, email, tenant }),
     );
 
     this.logger.log(

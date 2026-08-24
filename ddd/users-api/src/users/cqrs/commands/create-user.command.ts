@@ -22,9 +22,9 @@ import { z } from 'zod';
 
 export class CreateUserCommand extends createExecuteClass(
   z.object({
-    username: z.string().min(4),
-    email: z.email(),
-    department: z.string().optional(),
+    username: z.string().trim().min(3),
+    email: z.string().email().toLowerCase().trim(),
+    department: z.string().trim().min(3).optional(),
   }),
   BaseCommand,
 ) { }

@@ -20,11 +20,19 @@ import { UniqueConstraintViolationException } from '@mikro-orm/core';
 import { Inject } from '@nestjs/common';
 import { CommandHandler, EventBus } from '@nestjs/cqrs';
 import { CaslBehavior } from '@nestjs-pipeline/casl';
-import { LoggingBehavior, UsePipeline } from '@nestjs-pipeline/core';
+import {
+  type IPipelineContext,
+  LoggingBehavior,
+  UsePipeline,
+} from '@nestjs-pipeline/core';
 import {
   CommandBaseHandler,
   ICommandRepository,
 } from '@nestjs-pipeline/ddd-core';
+import { FeatureFlagBehavior } from '@nestjs-pipeline/feature-flags';
+import { IdempotencyBehavior } from '@nestjs-pipeline/idempotency';
+import { RateLimitBehavior } from '@nestjs-pipeline/rate-limit';
+import { TenantSchemaContext } from '@persistence/tenant-schema.context';
 import { UniqueEmailException } from '../../domain/models/errors/email.exception';
 import { User } from '../../domain/models/user.entity';
 import { UserCreateOutcome } from '../../domain/outcomes/user-create.outcome';
@@ -45,6 +53,29 @@ import { CreateUserCommand } from './create-user.command';
     {
       subjectFromRequest: 'User',
       rules: [{ action: 'create', subject: 'User' }],
+    },
+  ],
+  // Gate user registration behind the 'user-registration' feature flag. When
+  // disabled, this handler never runs and FeatureDisabledError is thrown.
+  [FeatureFlagBehavior, { flag: 'user-registration' }],
+  // Throttle registrations per email to 5 / 60s (module default limiter). A 6th
+  // attempt throws RateLimitExceededError → HTTP 429 (see RateLimitExceededFilter).
+  [
+    RateLimitBehavior,
+    {
+      keyFactory: (ctx: IPipelineContext) =>
+        `${TenantSchemaContext.currentSchema}:${(ctx.request as CreateUserCommand).email}`,
+    },
+  ],
+  // Make registration idempotent per email: a retried POST (or double-click)
+  // with the same email replays the first response instead of creating a second
+  // user. Reusing the email with a DIFFERENT payload yields HTTP 422; a
+  // still-in-flight duplicate yields HTTP 409 (see IdempotencyConflictFilter).
+  [
+    IdempotencyBehavior,
+    {
+      keyFactory: (ctx: IPipelineContext) =>
+        `${TenantSchemaContext.currentSchema}:user.create:${(ctx.request as CreateUserCommand).email}`,
     },
   ],
 )

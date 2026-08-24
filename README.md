@@ -66,7 +66,6 @@ Zero additional runtime dependencies beyond NestJS itself. Works with Express an
 - [Repository Structure](#repository-structure)
 - [Development](#development)
 - [Adding a New Behavior Package](#adding-a-new-behavior-package)
-- [Proposals](#proposals)
 - [License and Commercial Use](#license-and-commercial-use)
 
 ---
@@ -78,8 +77,15 @@ Zero additional runtime dependencies beyond NestJS itself. Works with Express an
 | [`@nestjs-pipeline/core`](packages/pipeline) | Pipeline engine, `@UsePipeline` decorator, `PipelineModule`, `LoggingBehavior` |
 | [`@nestjs-pipeline/correlation`](packages/pipeline-correlation) | Standalone correlation ID propagation — HTTP middleware, `@WithCorrelation`, `runWithCorrelationId`, `getCorrelationId` |
 | [`@nestjs-pipeline/zod`](packages/pipeline-zod) | Zod v4 validation behavior, `ZodPipe`, `ZodValidationFilter`, `ZodValidationError` |
-| [`@nestjs-pipeline/opentelemetry`](packages/pipeline-opentelemetry) | OpenTelemetry tracing behavior — auto-creates spans for every pipeline invocation |
+| [`@nestjs-pipeline/opentelemetry`](packages/pipeline-opentelemetry) | OpenTelemetry tracing & metrics behaviors — spans plus duration/throughput/error instruments for every pipeline invocation |
 | [`@nestjs-pipeline/casl`](packages/pipeline-casl) | CASL ABAC authorization behavior — role-based capability trees, condition interpolation, inline `rules` on `CaslBehaviorOptions` |
+| [`@nestjs-pipeline/resilience`](packages/pipeline-resilience) | Resilience & transient-fault-handling behavior — retry, circuit breaker, timeout, bulkhead, fallback (powered by cockatiel) |
+| [`@nestjs-pipeline/cache`](packages/pipeline-cache) | Read-through caching behavior for queries — pluggable stores (memory, redis, memcache, sqlite, postgres) via cache-manager v7 on keyv |
+| [`@nestjs-pipeline/feature-flags`](packages/pipeline-feature-flags) | Feature-flag gating behavior — provider-agnostic via OpenFeature (Unleash default, Flagsmith/LaunchDarkly drop-in) |
+| [`@nestjs-pipeline/deadletter`](packages/pipeline-deadletter) | Dead-letter capture behavior for failed requests — transport-agnostic (BullMQ default, RabbitMQ/Postgres drop-in) |
+| [`@nestjs-pipeline/rate-limit`](packages/pipeline-rate-limit) | Rate-limiting behavior — backend-agnostic via rate-limiter-flexible (memory, Redis/Valkey, Mongo, SQL), HTTP 429 filter |
+| [`@nestjs-pipeline/audit`](packages/pipeline-audit) | Audit-trail behavior — records who/what/outcome/duration to a pluggable `AuditSink` (console default, Postgres drop-in), with payload redaction |
+| [`@nestjs-pipeline/idempotency`](packages/pipeline-idempotency) | Idempotency behavior — at-most-once command execution per key with response replay, via a pluggable store (in-memory default, Redis/Postgres drop-in) |
 
 > Add-on packages live in `packages/pipeline-<name>/` and peer-depend on `@nestjs-pipeline/core`.
 
@@ -87,11 +93,18 @@ Zero additional runtime dependencies beyond NestJS itself. Works with Express an
 
 | Package | Version |
 |---|---|
-| `@nestjs-pipeline/core` | `0.1.17` |
+| `@nestjs-pipeline/core` | `0.1.18` |
 | `@nestjs-pipeline/correlation` | `0.1.8` |
 | `@nestjs-pipeline/zod` | `0.1.6` |
-| `@nestjs-pipeline/opentelemetry` | `0.1.8` |
+| `@nestjs-pipeline/opentelemetry` | `0.2.0` |
 | `@nestjs-pipeline/casl` | `0.1.1` |
+| `@nestjs-pipeline/resilience` | `0.1.0` |
+| `@nestjs-pipeline/cache` | `0.1.0` |
+| `@nestjs-pipeline/feature-flags` | `0.1.0` |
+| `@nestjs-pipeline/deadletter` | `0.1.0` |
+| `@nestjs-pipeline/rate-limit` | `0.1.0` |
+| `@nestjs-pipeline/audit` | `0.1.0` |
+| `@nestjs-pipeline/idempotency` | `0.1.0` |
 
 ---
 
@@ -107,6 +120,12 @@ pnpm add @nestjs-pipeline/correlation   # HTTP correlation middleware, @WithCorr
 pnpm add @nestjs-pipeline/zod zod
 pnpm add @nestjs-pipeline/opentelemetry @opentelemetry/api
 pnpm add @nestjs-pipeline/casl @casl/ability      # ABAC authorization with CASL
+pnpm add @nestjs-pipeline/resilience cockatiel    # retry, circuit breaker, timeout, bulkhead, fallback
+pnpm add @nestjs-pipeline/cache cache-manager keyv  # read-through query caching (+ optional @keyv/redis, @keyv/postgres, ...)
+pnpm add @nestjs-pipeline/deadletter bullmq        # dead-letter failed requests (or amqplib / pg as a drop-in)
+pnpm add @nestjs-pipeline/rate-limit rate-limiter-flexible  # rate limiting (memory, Redis/Valkey, Mongo, SQL backends)
+pnpm add @nestjs-pipeline/audit   # audit trail (console default; + optional pg for Postgres)
+pnpm add @nestjs-pipeline/idempotency   # idempotent commands (in-memory default; + optional redis/pg)
 
 # Optional: pino logger integration
 pnpm add nestjs-pino pino-http pino-pretty
@@ -311,6 +330,8 @@ export class MyBehavior implements IPipelineBehavior {
 ```
 
 ### Example: Metrics Behavior
+
+> **Tip:** A production-ready metrics behavior already ships in [`@nestjs-pipeline/opentelemetry`](packages/pipeline-opentelemetry) (`MetricsBehavior`, built on the OTel Metrics API). The example below is a from-scratch illustration for any custom metrics backend.
 
 ```typescript
 import { Injectable } from '@nestjs/common';
@@ -1106,7 +1127,7 @@ export class UserCreatedEvent {
 
 ## OpenTelemetry Integration (`@nestjs-pipeline/opentelemetry`)
 
-Auto-creates spans for every pipeline invocation with full context attributes.
+Auto-creates **spans** (`TraceBehavior`) and records **metrics** (`MetricsBehavior`) for every pipeline invocation with full context attributes.
 
 ### Setup
 
@@ -1114,10 +1135,15 @@ Auto-creates spans for every pipeline invocation with full context attributes.
 // tracing.ts — MUST be imported before NestFactory.create()
 import { NodeSDK } from '@opentelemetry/sdk-node';
 import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-http';
+import { OTLPMetricExporter } from '@opentelemetry/exporter-metrics-otlp-http';
+import { PeriodicExportingMetricReader } from '@opentelemetry/sdk-metrics';
 
 const sdk = new NodeSDK({
-  traceExporter: new OTLPTraceExporter({ url: 'http://localhost:4318/v1/traces' }),
   serviceName: 'users-api',
+  traceExporter: new OTLPTraceExporter({ url: 'http://localhost:4318/v1/traces' }),
+  metricReader: new PeriodicExportingMetricReader({
+    exporter: new OTLPMetricExporter({ url: 'http://localhost:4318/v1/metrics' }),
+  }),
 });
 sdk.start();
 
@@ -1130,7 +1156,10 @@ import { AppModule } from './app.module';
 PipelineModule.forRoot({
   globalBehaviors: {
     scope: 'all',
-    after: [[TraceBehavior, { tracerName: 'users-api' }]],
+    after: [
+      [TraceBehavior, { tracerName: 'users-api' }],
+      [MetricsBehavior, { meterName: 'users-api' }],
+    ],
   },
 })
 ```
@@ -1149,12 +1178,24 @@ Each span includes:
 | `pipeline.started_at` | `2026-03-01T12:00:00.000Z` |
 | **Status** | `OK` on success, `ERROR` with recorded exception |
 
+### Metrics
+
+`MetricsBehavior` records two instruments via the OTel **Metrics API** — derive throughput, error-rate, and latency percentiles per handler:
+
+| Instrument | Type | Unit | Attributes |
+|---|---|---|---|
+| `pipeline.handler.duration` | Histogram | `ms` | `pipeline.request.kind/name`, `pipeline.handler.name`, `outcome` |
+| `pipeline.handler.invocations` | Counter | — | + `error.type` on failures |
+
+Metric attributes are intentionally **low-cardinality** (no `correlation_id`/`started_at`, which would explode time-series count — those live on spans).
+
 ### No SDK? No Problem.
 
-If the OpenTelemetry SDK is not initialized, `TraceBehavior` silently passes through — no overhead, no errors. A warning is logged once at startup:
+If the OpenTelemetry SDK is not initialized, both behaviors degrade gracefully — `TraceBehavior` passes through without spans, `MetricsBehavior` records to a no-op meter. A warning is logged once at startup:
 
 ```
 [Nest] WARN [TraceBehavior] OpenTelemetry SDK is NOT initialized — TraceBehavior will pass through without tracing.
+[Nest] WARN [MetricsBehavior] OpenTelemetry metrics SDK is NOT initialized — MetricsBehavior will record to a no-op meter (metrics discarded).
 ```
 
 ---
@@ -1242,11 +1283,15 @@ ADAPTER=fastify pnpm start
 - Global + per-handler pipeline behaviors
 - Per-handler CASL authorization with inline `rules` on `CaslBehaviorOptions` and `CaslBehavior`
 - MikroORM-backed CASL providers (roles, capabilities, user context)
-- Versioned database migrations with tracking (`_migrations` table)
-- Zod-validated commands, queries, and events via `createRequest()`
+- Versioned database migrations with tracking (`mikro_orm_migrations` table)
+- Zod-validated commands, queries, and events via `createExecuteClass()`
 - Controller-level `ZodPipe` validation
 - Zod transform mappers (DTO → Command mapping)
 - OpenTelemetry tracing with `TraceBehavior`
+- Global `DeadLetterBehavior` capturing failed commands/queries/events to a BullMQ `dead-letters` queue for inspection and replay (with `UserCreatedHandler` opting into `{ rethrow: false }` for fire-and-forget side effects)
+- Per-handler `RateLimitBehavior` throttling `CreateUserHandler` to 5 registrations / 60s per email (in-memory limiter), with `RateLimitExceededFilter` mapping breaches to HTTP 429 + `Retry-After`
+- Per-handler `AuditBehavior` recording the sensitive `user.delete` action (actor, outcome, duration, redacted payload) to the default `LogAuditSink`, with the actor resolved from the request-scoped session
+- Per-handler `IdempotencyBehavior` making `CreateUserHandler` idempotent per email (in-memory store default) — a retried POST replays the first response instead of creating a duplicate, with `IdempotencyConflictFilter` mapping in-flight duplicates to HTTP 409 and payload-mismatched key reuse to HTTP 422
 - DDD-style `User` entity built on `ddd-core` primitives (`CacheableEntity`, `RootDomainEvent`, `RootDomainOutcome`)
 - MikroORM (libSQL driver) persistence with a normalized schema
 - Pluggable `ICache<T>` — `MikroOrmCache` (MikroORM-backed, TTL-aware) or `MemoryCache` swapped via a single provider token
@@ -1296,9 +1341,67 @@ nestjs-pipeline/
 │   │       ├── services/         # buildAbility factory
 │   │       ├── casl.behavior.ts
 │   │       └── casl.module.ts
-│   └── pipeline-opentelemetry/   # @nestjs-pipeline/opentelemetry
+│   ├── pipeline-opentelemetry/   # @nestjs-pipeline/opentelemetry
+│   │   └── src/
+│   │       ├── trace.behavior.ts     # TraceBehavior (OTel Trace API)
+│   │       └── metrics.behavior.ts   # MetricsBehavior (OTel Metrics API)
+│   ├── pipeline-resilience/      # @nestjs-pipeline/resilience
+│   │   └── src/
+│   │       ├── constants/        # RESILIENCE_DEFAULT_OPTIONS token
+│   │       ├── helpers/          # buildResiliencePolicy (cockatiel composition)
+│   │       ├── interfaces/       # ResilienceBehaviorOptions and layer option types
+│   │       ├── resilience.behavior.ts
+│   │       └── resilience.module.ts
+│   ├── pipeline-cache/           # @nestjs-pipeline/cache
+│   │   └── src/
+│   │       ├── constants/        # PIPELINE_CACHE, CACHE_DEFAULT_OPTIONS tokens
+│   │       ├── helpers/          # buildCache / buildKeyv (store factory), cache-key
+│   │       ├── interfaces/       # CacheModuleOptions, CacheBehaviorOptions, CacheStoreConfig
+│   │       ├── cache.behavior.ts
+│   │       └── cache.module.ts
+│   ├── pipeline-feature-flags/   # @nestjs-pipeline/feature-flags
+│   │   └── src/
+│   │       ├── constants/        # FEATURE_FLAGS_CLIENT and default-options/context tokens
+│   │       ├── errors/           # FeatureDisabledError
+│   │       ├── helpers/          # buildEvaluationContext (targeting context)
+│   │       ├── interfaces/       # FeatureFlagBehaviorOptions, FeatureFlagsModuleOptions
+│   │       ├── feature-flag.behavior.ts  # FeatureFlagBehavior (OpenFeature gating)
+│   │       └── feature-flags.module.ts
+│   ├── pipeline-deadletter/      # @nestjs-pipeline/deadletter
+│   │   └── src/
+│   │       ├── constants/        # DEAD_LETTER_TRANSPORT, DEAD_LETTER_DEFAULT_OPTIONS tokens
+│   │       ├── helpers/          # buildDeadLetterRecord
+│   │       ├── interfaces/       # DeadLetterTransport, DeadLetterRecord, options types
+│   │       ├── transports/       # BullMQ (default), RabbitMQ, Postgres drop-in transports
+│   │       ├── dead-letter.behavior.ts   # DeadLetterBehavior (capture failed requests)
+│   │       └── dead-letter.module.ts
+│   ├── pipeline-rate-limit/      # @nestjs-pipeline/rate-limit
+│   │   └── src/
+│   │       ├── constants/        # RATE_LIMITER, RATE_LIMIT_DEFAULT_OPTIONS tokens
+│   │       ├── errors/           # RateLimitExceededError
+│   │       ├── filters/          # RateLimitExceededFilter (HTTP 429 + Retry-After)
+│   │       ├── helpers/          # buildRateLimitKey
+│   │       ├── interfaces/       # RateLimiterLike, RateLimitBehaviorOptions, module options
+│   │       ├── rate-limit.behavior.ts    # RateLimitBehavior (rate-limiter-flexible)
+│   │       └── rate-limit.module.ts
+│   ├── pipeline-audit/           # @nestjs-pipeline/audit
+│   │   └── src/
+│   │       ├── constants/        # AUDIT_SINK, AUDIT_DEFAULT_OPTIONS tokens
+│   │       ├── helpers/          # redactValue, buildAuditRecord
+│   │       ├── interfaces/       # AuditSink, AuditRecord, options types
+│   │       ├── sinks/            # LogAuditSink (default), PostgresAuditSink drop-in
+│   │       ├── audit.behavior.ts # AuditBehavior (records who/what/outcome/duration)
+│   │       └── audit.module.ts
+│   └── pipeline-idempotency/     # @nestjs-pipeline/idempotency
 │       └── src/
-│           └── trace.behavior.ts
+│           ├── constants/        # IDEMPOTENCY_STORE, IDEMPOTENCY_DEFAULT_OPTIONS tokens
+│           ├── errors/           # IdempotencyConflictError
+│           ├── filters/          # IdempotencyConflictFilter (HTTP 409 / 422)
+│           ├── helpers/          # fingerprintValue (stable payload hash)
+│           ├── interfaces/       # IdempotencyStore, IdempotencyRecord, options types
+│           ├── stores/           # Memory (default), Redis, Postgres drop-in stores
+│           ├── idempotency.behavior.ts   # IdempotencyBehavior (at-most-once + replay)
+│           └── idempotency.module.ts
 └── ddd/
     ├── core/                     # @nestjs-pipeline/ddd-core — reusable DDD primitives
     │   └── domain/
@@ -1380,18 +1483,6 @@ pnpm clean
    ```
 
 5. The package is automatically included via `pnpm-workspace.yaml`.
-
----
-
-## Proposals
-
-The following behavior packages are planned as future additions to the pipeline ecosystem. Each one follows the same `IPipelineBehavior` pattern and will be published as an independent `@nestjs-pipeline/*` package.
-
-| Phase | Packages | Why |
-|---|---|---|
-| 1 — High value | `pipeline-retry`, `pipeline-timeout` | Most commonly needed in any CQRS app |
-| 2 — Production hardening | `pipeline-idempotency`, `pipeline-circuit-breaker` | Required for production-grade distributed systems |
-| 3 — Observability+ | `pipeline-metrics`, `pipeline-audit`, `pipeline-deadletter`, `pipeline-rate-limit` | Polish and operational maturity |
 
 ---
 

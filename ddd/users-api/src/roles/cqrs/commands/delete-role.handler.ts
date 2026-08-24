@@ -16,8 +16,9 @@
  * ----------------------------
  */
 
-import { Inject } from '@nestjs/common';
+import { Inject, NotFoundException } from '@nestjs/common';
 import { CommandHandler, EventBus } from '@nestjs/cqrs';
+import { CaslBehavior } from '@nestjs-pipeline/casl';
 import { LoggingBehavior, UsePipeline } from '@nestjs-pipeline/core';
 import {
   CommandBaseHandler,
@@ -34,7 +35,16 @@ import { GetRoleQuery } from '../queries/get-role.query';
 import { DeleteRoleCommand } from './delete-role.command';
 
 @CommandHandler(DeleteRoleCommand)
-@UsePipeline([LoggingBehavior, { requestResponseLogLevel: 'log' }])
+@UsePipeline(
+  [LoggingBehavior, { requestResponseLogLevel: 'log' }],
+  [
+    CaslBehavior,
+    {
+      subjectFromRequest: 'Role',
+      rules: [{ action: 'delete', subject: 'Role' }],
+    },
+  ],
+)
 export class DeleteRoleHandler extends CommandBaseHandler<
   DeleteRoleCommand,
   RoleUpdateOutcome
@@ -55,6 +65,10 @@ export class DeleteRoleHandler extends CommandBaseHandler<
     const query = new GetRoleQuery({ roleId: id });
 
     const role = await this.queryRepository.find(query);
+
+    if (!role) {
+      throw new NotFoundException('Role not found');
+    }
 
     const outcome = role.delete();
 

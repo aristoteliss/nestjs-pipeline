@@ -304,22 +304,6 @@
           "enumItems": [],
           "mappedType": "text"
         },
-        "role_id": {
-          "name": "role_id",
-          "type": "text",
-          "unsigned": false,
-          "autoincrement": false,
-          "primary": false,
-          "nullable": false,
-          "unique": false,
-          "length": 64,
-          "precision": null,
-          "scale": null,
-          "default": null,
-          "comment": null,
-          "enumItems": [],
-          "mappedType": "string"
-        },
         "subject": {
           "name": "subject",
           "type": "text",

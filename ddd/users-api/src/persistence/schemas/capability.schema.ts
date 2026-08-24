@@ -29,7 +29,6 @@ export const CapabilitySchema = new EntitySchema<Capability>({
     _id: { type: 'string', primary: true, fieldName: 'id' },
     _createdAt: { type: UnixTimestampType, fieldName: 'created_at' },
     _updatedAt: { type: UnixTimestampType, fieldName: 'updated_at' },
-    roleId: { type: 'string', fieldName: 'role_id' },
     action: { type: 'string' },
     subject: { type: 'string' },
     conditions: { type: 'string', nullable: true },

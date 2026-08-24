@@ -16,7 +16,7 @@
  * ----------------------------
  */
 
-import { InternalServerErrorException } from '@nestjs/common';
+import { InternalServerErrorException, NotFoundException } from '@nestjs/common';
 import { z } from 'zod';
 import type { Role, RoleSnapshot } from '../domain/models/role.entity';
 
@@ -28,6 +28,10 @@ export const RoleResponseDtoSchema = z.object({
 export type RoleResponseDto = z.output<typeof RoleResponseDtoSchema>;
 
 export function toRoleResponseDto(role: Role | RoleSnapshot): RoleResponseDto {
+  if (!role) {
+    throw new NotFoundException('Role not found');
+  }
+
   const plain =
     'toJSON' in role && typeof role.toJSON === 'function'
       ? role.toJSON()

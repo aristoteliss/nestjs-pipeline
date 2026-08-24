@@ -48,10 +48,14 @@ export class HttpCorrelationMiddleware implements NestMiddleware {
     this.header = typeof h === 'string' ? h : 'x-correlation-id';
   }
 
-  use(req: IncomingMessage, _res: ServerResponse, next: () => void): void {
+  use(req: IncomingMessage, res: ServerResponse, next: () => void): void {
     const raw = req.headers?.[this.header];
     const correlationId =
       (Array.isArray(raw) ? raw[0] : raw) || getCorrelationId();
+
+    if (typeof res?.setHeader === 'function') {
+      res.setHeader(this.header, correlationId);
+    }
 
     correlationStore.run(correlationId, next);
   }

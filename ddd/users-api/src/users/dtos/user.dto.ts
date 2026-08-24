@@ -25,13 +25,13 @@ export const UserResponseDtoSchema = z
     id: z.string(),
     email: z.string(),
     username: z.string(),
-    department: z.string().optional(),
+    department: z.string().nullable().optional(),
   })
   .transform(({ id, email, username, department }) => ({
     id,
     email,
     name: username,
-    department,
+    department: department ?? null,
   }));
 
 export type UserResponseDto = z.output<typeof UserResponseDtoSchema>;

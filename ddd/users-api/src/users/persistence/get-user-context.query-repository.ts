@@ -16,6 +16,8 @@
  * ----------------------------
  */
 
+
+import { getSessionUserFromStore } from '@common/context/session-user.store';
 import { Inject, Injectable, Optional, Scope } from '@nestjs/common';
 import type {
   CaslBehaviorOptions,
@@ -34,7 +36,7 @@ import { User } from '../domain/models/user.entity';
  * Resolves the CASL user context from the HTTP request.
  *
  * Reads the current user from the configured CASL `subjectContextPaths`
- * (for example `sessionUser` in this sample app).
+ * (for example `sessionUser` in this sample app) or the active `sessionUserStore`.
  *
  * This keeps user-context resolution aligned with the same request path
  * configuration used by `CaslBehavior` for instance-level subject checks.
@@ -57,23 +59,25 @@ export class GetUserContextQueryRepository
   }
 
   async resolve(context: IPipelineContext): Promise<CaslUserContext | null> {
-    const userContext = this.resolveUserContextFromRequest(
-      context.request as Record<string, unknown> | undefined,
-    );
-    if (!userContext) return null;
+    const rawUser =
+      this.resolveUserContextFromRequest(
+        context.request as Record<string, unknown> | undefined,
+      ) ?? (getSessionUserFromStore() as unknown as CaslUserContext | undefined);
 
-    if (userContext.capabilities) {
+    if (!rawUser) return null;
+
+    if (rawUser.capabilities) {
       return {
-        id: userContext.id,
-        department: userContext.department,
-        capabilities: userContext.capabilities,
+        id: rawUser.id,
+        department: rawUser.department,
+        capabilities: rawUser.capabilities,
       } as CaslUserContext;
     }
 
-    if (!userContext.id) return null;
+    if (!rawUser.id) return null;
 
     return this.find(
-      new GetUserContextQuery({ userId: String(userContext.id) }),
+      new GetUserContextQuery({ userId: String(rawUser.id) }),
     ) as Promise<CaslUserContext | null>;
   }
 

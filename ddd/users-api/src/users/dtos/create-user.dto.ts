@@ -19,9 +19,9 @@
 import { z } from 'zod';
 
 export const CreateUserDtoSchema = z.object({
-  email: z.email(),
-  name: z.string().min(5),
-  department: z.string().optional(),
+  email: z.string().email().toLowerCase().trim(),
+  name: z.string().trim().min(3),
+  department: z.string().trim().min(3).optional(),
 });
 
 export type CreateUserDto = z.infer<typeof CreateUserDtoSchema>;

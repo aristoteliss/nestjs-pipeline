@@ -16,6 +16,7 @@
  * ----------------------------
  */
 
+import { filterCacheKey } from '@common/cqrs/helpers/filterCacheKey.helper';
 import { Inject, Injectable } from '@nestjs/common';
 import {
   Cache,
@@ -39,6 +40,11 @@ export class UpdateUserCommandRepository extends CommandRepository<UserUpdateOut
   @Cache()
   async save(domainOutcome: UserUpdateOutcome): Promise<UserSnapshot> {
     const { entity } = domainOutcome;
+
+    await this.cache?.delete(filterCacheKey(User, { _id: entity.id }));
+    if (entity.email) {
+      await this.cache?.delete(filterCacheKey(User, { email: entity.email }));
+    }
 
     const user = await this.store.em.upsert(User, entity);
 
