@@ -105,6 +105,18 @@ export class ZodValidationBehavior implements IPipelineBehavior {
       if (!result.success) {
         throw new ZodValidationError(result.error);
       }
+      if (
+        result.data &&
+        typeof result.data === 'object' &&
+        context.request &&
+        typeof context.request === 'object'
+      ) {
+        for (const key of Object.keys(context.request)) {
+          if (!(key in result.data))
+            delete (context.request as unknown as Record<string, unknown>)[key];
+        }
+        Object.assign(context.request, result.data);
+      }
     }
 
     return next();

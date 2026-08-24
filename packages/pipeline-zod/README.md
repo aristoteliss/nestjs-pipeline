@@ -465,7 +465,7 @@ export class UsersController {
 | `ZodValidationFilter` | Class | Exception filter — catches `ZodValidationError` → HTTP 400 |
 | `ZodPipe` | Class | NestJS pipe — validates params/body/query against Zod schema |
 | `ZOD_SCHEMA_KEY` | `'_zodSchema'` | Key for attaching schemas to request classes |
-| `ZOD_SCHEMA` | `'_zodSchema'` | Alias for `ZOD_SCHEMA_KEY` |
+| `ZOD_SCHEMA` | `'_zodSchema'` | **Deprecated** — alias for `ZOD_SCHEMA_KEY`; use `ZOD_SCHEMA_KEY` instead |
 
 ---
 

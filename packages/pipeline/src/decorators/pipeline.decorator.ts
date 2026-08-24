@@ -64,7 +64,7 @@ export const PIPELINE_OPTIONS_REGISTRY = new Map<
 
 /**
  * Clears the static options registry. Useful in test teardown to prevent
- * stale entries from leaking across test suites (Jest --watch, module reloads).
+ * stale entries from leaking across test suites (watch mode, module reloads).
  *
  * @example
  * ```ts

@@ -141,10 +141,10 @@ export interface CaslBehaviorOptions {
   /**
    * Optional list or per-subject map of request fields that should be checked
    * as CASL field-level permissions for instance-level requirements.
-    *
-    * Important: this option does not grant access by itself. It only tells
-    * CaslBehavior which fields to validate. Actual permissions still come
-    * from capabilities/rules in the built ability.
+   *
+   * Important: this option does not grant access by itself. It only tells
+   * CaslBehavior which fields to validate. Actual permissions still come
+   * from capabilities/rules in the built ability.
    *
    * When configured, each present field (value !== undefined) is checked with
    * `throwUnlessCan(action, subject, field)`.
@@ -190,12 +190,14 @@ export interface CaslBehaviorOptions {
    * ```ts
    * // Anyone can list posts, but the handler checks ability to decide
    * // whether to include draft posts or restricted fields.
-   *
+   * //
+   * // Handlers receive only the query/command argument; read the ability from
+   * // the ambient pipeline store with getCaslAbility().
    * @QueryHandler(ListPostsQuery)
    * @UsePipeline([CaslBehavior, { skipCheck: true }])
    * class ListPostsHandler implements IQueryHandler<ListPostsQuery> {
-   *   async execute(query: ListPostsQuery, context: IPipelineContext) {
-   *     const ability = context.items.get(CASL_ABILITY_KEY) as AppAbility;
+   *   async execute(query: ListPostsQuery) {
+   *     const ability = getCaslAbility();
    *     const includeDrafts = ability?.can('read', 'DraftPost');
    *     // ... fetch posts accordingly
    *   }
@@ -205,7 +207,7 @@ export interface CaslBehaviorOptions {
   skipCheck?: boolean;
 
   /**
-   * Provide pre-built raw rules directly instead of resolving from providers.
+   * Provide a pre-built ability directly instead of resolving one from providers.
    * Useful for testing or when the ability is pre-computed.
    *
    * @example Testing a handler with a specific ability
@@ -421,8 +423,8 @@ export interface CaslBehaviorOptions {
  * @QueryHandler(ListPostsQuery)
  * @UsePipeline([CaslBehavior, { skipCheck: true }])
  * class ListPostsHandler implements IQueryHandler<ListPostsQuery> {
- *   async execute(query: ListPostsQuery, context: IPipelineContext) {
- *     const ability = context.items.get(CASL_ABILITY_KEY) as AppAbility;
+ *   async execute(query: ListPostsQuery) {
+ *     const ability = getCaslAbility();
  *     const includeDrafts = ability?.can('read', 'DraftPost');
  *     // Tailor the response based on what the user can see
  *   }
@@ -498,7 +500,7 @@ export class CaslBehavior implements IPipelineBehavior {
     if (!user && requirements && requirements.length > 0) {
       this.logger.warn?.(
         'Authorization required but no user context found. ' +
-        `Set "${CASL_USER_CONTEXT_KEY}" in context.items or provide a CASL_USER_CONTEXT_RESOLVER.`,
+          `Set "${CASL_USER_CONTEXT_KEY}" in context.items or provide a CASL_USER_CONTEXT_RESOLVER.`,
       );
       throw new ForbiddenException('Access denied — authentication required.');
     }
@@ -584,9 +586,9 @@ export class CaslBehavior implements IPipelineBehavior {
     // determine user roles.
     throw new Error(
       'No IUserCapabilityProvider registered and no capabilities present on the ' +
-      'user context — cannot determine user roles. Register an ' +
-      'IUserCapabilityProvider, attach capabilities to the resolved user, or use ' +
-      'CaslBehaviorOptions.prebuiltAbility.',
+        'user context — cannot determine user roles. Register an ' +
+        'IUserCapabilityProvider, attach capabilities to the resolved user, or use ' +
+        'CaslBehaviorOptions.prebuiltAbility.',
     );
   }
 
@@ -633,8 +635,9 @@ export class CaslBehavior implements IPipelineBehavior {
           // Instance-level check: evaluate conditions against the request payload.
           // Shallow-copy to avoid CASL's subject-type stamp conflicting when
           // multiple subjects are checked against the same request object.
-          const requestPayload =
-            context.request as Record<string, unknown> | undefined;
+          const requestPayload = context.request as
+            | Record<string, unknown>
+            | undefined;
           const instancePayload = this.buildInstanceSubjectPayload(
             requestPayload,
             subjectContextPaths,
@@ -685,7 +688,7 @@ export class CaslBehavior implements IPipelineBehavior {
         if (error instanceof ForbiddenError) {
           this.logger.debug?.(
             `Authorization failed: ${error.message} ` +
-            `(action=${req.action}, subject=${req.subject}${req.field ? `, field=${req.field}` : ''})`,
+              `(action=${req.action}, subject=${req.subject}${req.field ? `, field=${req.field}` : ''})`,
           );
           throw new ForbiddenException(
             'Access denied — insufficient permissions.',
@@ -705,17 +708,23 @@ export class CaslBehavior implements IPipelineBehavior {
     const paths =
       subjectContextPaths && subjectContextPaths.length > 0
         ? subjectContextPaths
-        : this.globalSubjectContextPaths && this.globalSubjectContextPaths.length > 0
+        : this.globalSubjectContextPaths &&
+            this.globalSubjectContextPaths.length > 0
           ? this.globalSubjectContextPaths
           : [];
 
-    const contextualPayload = this.resolveContextualPayload(requestPayload, paths);
+    const contextualPayload = this.resolveContextualPayload(
+      requestPayload,
+      paths,
+    );
 
-    // Request payload is spread last so explicit request fields stay authoritative
+    // Request payload is spread last so explicit defined request fields stay authoritative
     // over context defaults (e.g. target `id` vs actor `id`).
     return {
       ...(contextualPayload ?? {}),
-      ...requestPayload,
+      ...Object.fromEntries(
+        Object.entries(requestPayload).filter(([, v]) => v !== undefined),
+      ),
     };
   }
 
@@ -763,10 +772,11 @@ export class CaslBehavior implements IPipelineBehavior {
 
     const configuredFields = Array.isArray(fieldsFromRequest)
       ? fieldsFromRequest
-      : fieldsFromRequest[subject] ?? [];
+      : (fieldsFromRequest[subject] ?? []);
 
     return configuredFields.filter(
-      (field) => typeof field === 'string' && requestPayload[field] !== undefined,
+      (field) =>
+        typeof field === 'string' && requestPayload[field] !== undefined,
     );
   }
 }

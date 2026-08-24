@@ -111,6 +111,27 @@ describe('buildAbility', () => {
     expect(ability.can('create', 'Comment')).toBe(true);
   });
 
+  it('should keep a deny from one role even when another role grants a broader allow listed later', () => {
+    // Regression: a deny rule contributed by an earlier role must not be
+    // overridden by a broad allow contributed by a role processed afterwards.
+    const restrictedRole: RoleDefinition = {
+      name: 'restricted',
+      capabilities: ['!User|delete|*'],
+    };
+    const powerRole: RoleDefinition = {
+      name: 'power',
+      capabilities: ['User|manage|*'],
+    };
+
+    // Order matters: the deny-bearing role comes first, the broad allow second.
+    const ability = buildAbility([restrictedRole, powerRole], { id: 1 });
+
+    expect(ability.can('read', 'User')).toBe(true);
+    expect(ability.can('update', 'User')).toBe(true);
+    // The deny must win regardless of role ordering.
+    expect(ability.can('delete', 'User')).toBe(false);
+  });
+
   it('should add per-user additional capabilities', () => {
     const ability = buildAbility(
       [viewerRole],

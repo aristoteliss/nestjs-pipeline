@@ -163,6 +163,14 @@ export function serializeCapability(cap: Capability): CapabilityString {
  *
  * Supports nested property access via dot notation (e.g. `${address.city}`).
  *
+ * A placeholder that cannot be resolved against the user context throws,
+ * rather than collapsing to an empty string. This fails closed: a condition
+ * such as `{ department: '${department}' }` can never silently become
+ * `{ department: '' }` and match unintended records.
+ *
+ * @throws {Error} When a placeholder references a property absent from the user
+ *   context.
+ *
  * @example
  * ```ts
  * interpolateConditions({ authorId: '${id}' }, { id: 42 })
@@ -180,23 +188,32 @@ export function interpolateConditions(
 
   for (const [key, value] of Object.entries(conditions)) {
     if (typeof value === 'string') {
-      // Match ${property} or {{ property }} patterns
-      const interpolated = value.replace(
-        /\$\{([^}]+)\}|\{\{\s*([^}]+?)\s*\}\}/g,
-        (_, p1: string | undefined, p2: string | undefined) => {
-          const prop = (p1 ?? p2 ?? '').trim();
-          const resolved = getNestedValue(user, prop);
-          return String(resolved ?? '');
-        },
-      );
-
-      // If the entire string was a single placeholder, preserve the original type
+      // If the entire string is a single placeholder, preserve the resolved
+      // value's original type (e.g. a numeric id stays a number).
       if (/^(\$\{[^}]+\}|\{\{\s*[^}]+?\s*\}\})$/.test(value)) {
         const prop = value.replace(/^\$\{|\}$|^\{\{\s*|\s*\}\}$/g, '').trim();
         const resolved = getNestedValue(user, prop);
-        result[key] = resolved ?? interpolated;
+        if (typeof resolved === 'undefined') {
+          throw new Error(
+            `Cannot interpolate capability condition "${key}": property "${prop}" is missing from the user context.`,
+          );
+        }
+        result[key] = resolved;
       } else {
-        result[key] = interpolated;
+        // Mixed string with one or more placeholders.
+        result[key] = value.replace(
+          /\$\{([^}]+)\}|\{\{\s*([^}]+?)\s*\}\}/g,
+          (_, p1: string | undefined, p2: string | undefined) => {
+            const prop = (p1 ?? p2 ?? '').trim();
+            const resolved = getNestedValue(user, prop);
+            if (typeof resolved === 'undefined') {
+              throw new Error(
+                `Cannot interpolate capability condition "${key}": property "${prop}" is missing from the user context.`,
+              );
+            }
+            return String(resolved);
+          },
+        );
       }
     } else if (
       value !== null &&
@@ -276,6 +293,11 @@ export function capabilityToRawRule(
  * CASL raw rules. Places direct (allow) rules first, then inverted (deny)
  * rules, following CASL's ordering convention so that denials correctly
  * override broader grants.
+ *
+ * Note: this orders rules **within a single list** only. When rules come from
+ * several sources (multiple roles plus per-user additional/denied lists), the
+ * cross-source ordering is re-applied by {@link buildAbility}, which globally
+ * places every deny after every allow.
  */
 export function capabilitiesToRawRules(
   capabilities: Array<Capability | CapabilityString>,

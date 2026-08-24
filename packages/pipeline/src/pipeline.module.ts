@@ -26,7 +26,7 @@ import {
 } from './options/pipeline-module.options';
 import { PipelineBootstrapService } from './services/pipeline.bootstrap.service';
 
-// Re-export so existing `from './pipeline.module'` imports keep working.
+// Re-export the option types so they can be imported from this module too.
 export {
   GlobalBehaviorScope,
   GlobalBehaviorsOptions,
@@ -49,7 +49,7 @@ function extractBehaviorTypes(
  *
  * @example
  * ```ts
- * // Simple — array of behaviors (backward-compatible)
+ * // Simple — array of behaviors
  * PipelineModule.forRoot([LoggingBehavior, AuditBehavior])
  *
  * // Advanced — global behaviors + correlation ID factory
@@ -140,8 +140,8 @@ export class PipelineModule {
    * Register pipeline behavior classes in a feature module.
    *
    * Use this in any module that owns behaviors referenced by
-   * `@UsePipeline(...)` decorators. It makes the intent explicit
-   * and provides a future-proof hook for validation or metadata.
+   * `@UsePipeline(...)` decorators. It registers each behavior class as a
+   * provider and exports it for the module hierarchy.
    *
    * @example
    * ```ts

@@ -263,6 +263,18 @@ describe('capability.helpers', () => {
       );
       expect(result).toEqual({ status: true, count: 5, tags: ['a', 'b'] });
     });
+
+    it('should throw when a placeholder cannot be resolved', () => {
+      expect(() =>
+        interpolateConditions({ department: '${department}' }, user),
+      ).toThrow('department');
+    });
+
+    it('should throw when a placeholder inside a mixed string is missing', () => {
+      expect(() =>
+        interpolateConditions({ prefix: 'team-${department}' }, user),
+      ).toThrow('department');
+    });
   });
 
   describe('capabilityToRawRule', () => {

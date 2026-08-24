@@ -593,9 +593,13 @@ describe('PipelineBootstrapService', () => {
 
       const result = (await handler.execute(new MockCommand(1))) as any;
 
-      expect(resolveMock).toHaveBeenCalledWith(MockBehavior, undefined, {
-        strict: false,
-      });
+      expect(resolveMock).toHaveBeenCalledWith(
+        MockBehavior,
+        expect.any(Object),
+        {
+          strict: false,
+        },
+      );
       expect(result.store).toBeDefined();
     });
   });
