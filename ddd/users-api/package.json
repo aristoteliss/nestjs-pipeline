@@ -2,6 +2,7 @@
   "name": "@nestjs-pipeline/ddd-users-api",
   "version": "0.0.4",
   "private": true,
+  "license": "SEE LICENSE IN LICENSE",
   "description": "Sample NestJS app demonstrating @nestjs-pipeline/core usage",
   "scripts": {
     "start": "tsx src/main.ts",

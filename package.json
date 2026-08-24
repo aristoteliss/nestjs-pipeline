@@ -32,7 +32,9 @@
       "protobufjs"
     ],
     "peerDependencyRules": {
-      "ignoreMissing": ["*"],
+      "ignoreMissing": [
+        "*"
+      ],
       "allowedVersions": {
         "*": "*"
       }

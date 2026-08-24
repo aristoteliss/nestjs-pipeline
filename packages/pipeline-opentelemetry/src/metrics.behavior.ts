@@ -100,13 +100,13 @@ export class MetricsBehavior implements IPipelineBehavior, OnModuleInit {
     @Inject(LOGGING_BEHAVIOR_LOGGER)
     logger?: LoggerService,
   ) {
+    this.context = MetricsBehavior.name;
     if (!logger) {
-      this.logger = new Logger(MetricsBehavior.name, { timestamp: true });
+      this.logger = new Logger(this.context, { timestamp: true });
       return;
     }
 
     this.logger = logger;
-    this.context = MetricsBehavior.name;
     if (typeof untyped(this.logger).setContext === 'function') {
       (
         this.logger as LoggerService & { setContext(context: string): void }

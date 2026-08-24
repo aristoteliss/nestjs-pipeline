@@ -53,19 +53,39 @@ export class User extends CacheableEntity<UserSnapshot, User> {
   static readonly prefixKey = 'user:';
 
   private _username: string;
+  readonly email: string;
 
   private constructor(snapshot: UserSnapshot) {
     super(User, snapshot);
-    this._username = snapshot.username;
+    this._username = snapshot.username!;
+    this.email = snapshot.email!;
   }
 
   static create(username: string, email: string): User {
     return new User({ username, email });
   }
 
+  static fromJSON(snapshot: UserSnapshot): User {
+    return new User(snapshot);
+  }
+
   @Mutate()
   rename(username: string): void {
     this._username = username;
+  }
+
+  toJSON(): RootEntitySnapshot & UserSnapshot {
+    return this.freezeState({
+      id: this.id,
+      username: this._username,
+      email: this.email,
+      createdAt: this.createdAt,
+      updatedAt: this.updatedAt,
+    });
+  }
+
+  afterUpdate(): void {
+    // Hook called after each @Mutate() update
   }
 }
 ```

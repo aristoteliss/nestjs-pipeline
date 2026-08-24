@@ -89,15 +89,15 @@ export class CacheModule {
 
     const storeType = options.store
       ? (Array.isArray(options.store)
-          ? options.store.map((s) => s.type).join(', ')
-          : options.store.type)
+        ? options.store.map((s) => s.type).join(', ')
+        : options.store.type)
       : options.stores
         ? 'custom-stores'
         : options.cache
           ? 'custom-cache'
           : 'memory';
 
-    this.logger.log(`Initialized cache with [${storeType}] store`);
+    CacheModule.logger.log(`Initialized cache with [${storeType}] store`);
 
     return {
       module: CacheModule,

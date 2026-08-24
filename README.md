@@ -93,11 +93,11 @@ Zero additional runtime dependencies beyond NestJS itself. Works with Express an
 
 | Package | Version |
 |---|---|
-| `@nestjs-pipeline/core` | `0.1.18` |
-| `@nestjs-pipeline/correlation` | `0.1.8` |
-| `@nestjs-pipeline/zod` | `0.1.6` |
-| `@nestjs-pipeline/opentelemetry` | `0.2.0` |
-| `@nestjs-pipeline/casl` | `0.1.1` |
+| `@nestjs-pipeline/core` | `0.1.19` |
+| `@nestjs-pipeline/correlation` | `0.1.9` |
+| `@nestjs-pipeline/zod` | `0.1.7` |
+| `@nestjs-pipeline/opentelemetry` | `0.1.9` |
+| `@nestjs-pipeline/casl` | `0.1.2` |
 | `@nestjs-pipeline/resilience` | `0.1.0` |
 | `@nestjs-pipeline/cache` | `0.1.0` |
 | `@nestjs-pipeline/feature-flags` | `0.1.0` |
@@ -792,7 +792,7 @@ Every behavior receives `IPipelineContext`:
 | `requestKind` | `'command' \| 'query' \| 'event' \| 'unknown'` | Auto-detected from `@nestjs/cqrs` metadata |
 | `startedAt` | `Date` | UTC timestamp of pipeline start |
 | `response` | `TResponse \| undefined` | Set after `next()` returns; `undefined` before handler runs |
-| `items` | `Map<string, any>` | Shared bag for inter-behavior communication |
+| `items` | `Map<string, unknown>` | Shared bag for inter-behavior communication |
 
 ### Using `items` for Inter-Behavior Communication
 

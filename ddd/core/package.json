@@ -2,6 +2,7 @@
   "name": "@nestjs-pipeline/ddd-core",
   "version": "0.0.3",
   "private": true,
+  "license": "SEE LICENSE IN LICENSE",
   "description": "Shared DDD primitives (entities, domain events, outcomes, and decorators) for the sample applications.",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",

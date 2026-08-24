@@ -84,13 +84,13 @@ export class TraceBehavior implements IPipelineBehavior, OnModuleInit {
     @Inject(LOGGING_BEHAVIOR_LOGGER)
     logger?: LoggerService,
   ) {
+    this.context = TraceBehavior.name;
     if (!logger) {
-      this.logger = new Logger(TraceBehavior.name, { timestamp: true });
+      this.logger = new Logger(this.context, { timestamp: true });
       return;
     }
 
     this.logger = logger;
-    this.context = TraceBehavior.name;
     if (typeof untyped(this.logger).setContext === 'function') {
       (
         this.logger as LoggerService & { setContext(context: string): void }
@@ -104,8 +104,8 @@ export class TraceBehavior implements IPipelineBehavior, OnModuleInit {
     if (!this.sdkReady) {
       this.logger.warn(
         'OpenTelemetry SDK is NOT initialized — TraceBehavior will pass through without tracing. ' +
-          'Ensure your tracing bootstrap runs BEFORE NestFactory.create() ' +
-          '(import "./tracing" as the first line of main.ts, or use --require ./tracing.js).',
+        'Ensure your tracing bootstrap runs BEFORE NestFactory.create() ' +
+        '(import "./tracing" as the first line of main.ts, or use --require ./tracing.js).',
         this.context,
       );
     } else {
