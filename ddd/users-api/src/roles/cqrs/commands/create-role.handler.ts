@@ -16,6 +16,7 @@
  * ----------------------------
  */
 
+import { UniqueConstraintViolationException } from '@mikro-orm/core';
 import { Inject } from '@nestjs/common';
 import { CommandHandler, EventBus } from '@nestjs/cqrs';
 import { CaslBehavior } from '@nestjs-pipeline/casl';
@@ -24,6 +25,7 @@ import {
   CommandBaseHandler,
   ICommandRepository,
 } from '@nestjs-pipeline/ddd-core';
+import { UniqueRoleNameException } from '../../domain/models/errors/role-name.exception';
 import { Role } from '../../domain/models/role.entity';
 import { RoleCreateOutcome } from '../../domain/outcomes/role-create.outcome';
 import { COMMAND_REPOSITORY } from '../../persistence/repository.tokens';
@@ -31,7 +33,13 @@ import { CreateRoleCommand } from './create-role.command';
 
 @CommandHandler(CreateRoleCommand)
 @UsePipeline(
-  [LoggingBehavior, { requestResponseLogLevel: 'log' }],
+  [
+    LoggingBehavior,
+    {
+      requestResponseLogLevel: 'log',
+      mapLogLevel: new Map([[UniqueRoleNameException, 'warn']]),
+    },
+  ],
   [
     CaslBehavior,
     {
@@ -60,7 +68,17 @@ export class CreateRoleHandler extends CommandBaseHandler<
 
     const outcome = Role.create(name);
 
-    await this.commandRepository.save(outcome);
+    try {
+      await this.commandRepository.save(outcome);
+    } catch (err: any) {
+      if (
+        err instanceof UniqueConstraintViolationException ||
+        err?.code === 'SQLITE_CONSTRAINT_UNIQUE'
+      ) {
+        throw new UniqueRoleNameException(outcome.entity);
+      }
+      throw err;
+    }
 
     return outcome;
   }

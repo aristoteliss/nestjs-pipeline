@@ -20,8 +20,8 @@ import { z } from 'zod';
 
 
 export const UpdateUserDtoSchema = z.object({
-  name: z.string().min(5).nullable().optional(),
-  department: z.string().min(1).nullable().optional(),
+  name: z.string().trim().min(3).optional(),
+  department: z.string().trim().min(3).nullable().optional(),
 });
 
 export type UpdateUserDto = z.infer<typeof UpdateUserDtoSchema>;

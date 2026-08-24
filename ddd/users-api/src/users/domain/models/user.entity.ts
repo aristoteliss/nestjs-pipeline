@@ -33,8 +33,8 @@ export interface UserSnapshot extends Partial<RootEntitySnapshot> {
   readonly department?: string | null;
 }
 
-const USERNAME_MIN_LENGTH = 5;
-const DEPARTMENT_MIN_LENGTH = 5;
+const USERNAME_MIN_LENGTH = 3;
+const DEPARTMENT_MIN_LENGTH = 3;
 
 /**
  * User domain entity following Clean Architecture / DDD principles.
@@ -56,7 +56,7 @@ export class User extends CacheableEntity<UserSnapshot, User> {
   private constructor(snapshot: UserSnapshot) {
     super(User, snapshot);
     this._username = User.normalizeWithMinLength(snapshot, 'username', USERNAME_MIN_LENGTH);
-    this._department = User.normalizeWithMinLength(snapshot, 'department', DEPARTMENT_MIN_LENGTH);
+    this._department = User.normalizeOptionalWithMinLength(snapshot, 'department', DEPARTMENT_MIN_LENGTH);
     this.email = snapshot.email;
   }
 
@@ -71,7 +71,7 @@ export class User extends CacheableEntity<UserSnapshot, User> {
         'username',
         USERNAME_MIN_LENGTH,
       ),
-      department: User.normalizeWithMinLength(
+      department: User.normalizeOptionalWithMinLength(
         { department },
         'department',
         DEPARTMENT_MIN_LENGTH,
@@ -93,7 +93,7 @@ export class User extends CacheableEntity<UserSnapshot, User> {
         USERNAME_MIN_LENGTH,
       ),
       email: snapshot.email,
-      department: User.normalizeWithMinLength(
+      department: User.normalizeOptionalWithMinLength(
         snapshot,
         'department',
         DEPARTMENT_MIN_LENGTH,
@@ -118,6 +118,27 @@ export class User extends CacheableEntity<UserSnapshot, User> {
     return trimmed;
   }
 
+  private static normalizeOptionalWithMinLength<T extends object>(
+    obj: T,
+    key: keyof T,
+    minLength: number,
+  ): string | null {
+    const text = obj[key] as string | null | undefined;
+    if (text === null || text === undefined) {
+      return null;
+    }
+    const trimmed = text.trim();
+    if (trimmed.length === 0) {
+      return null;
+    }
+    if (trimmed.length < minLength) {
+      throw new Error(
+        `${String(key)} must be at least ${minLength} characters.`,
+      );
+    }
+    return trimmed;
+  }
+
   get username(): string {
     return this._username;
   }
@@ -131,7 +152,7 @@ export class User extends CacheableEntity<UserSnapshot, User> {
     username?: string | null;
     department?: string | null;
   }): UserUpdateOutcome {
-    if (fields.username !== undefined) {
+    if (fields.username !== undefined && fields.username !== null) {
       this._username = User.normalizeWithMinLength(
         { username: fields.username },
         'username',
@@ -139,7 +160,7 @@ export class User extends CacheableEntity<UserSnapshot, User> {
       );
     }
     if (fields.department !== undefined) {
-      this._department = User.normalizeWithMinLength(
+      this._department = User.normalizeOptionalWithMinLength(
         { department: fields.department },
         'department',
         DEPARTMENT_MIN_LENGTH,

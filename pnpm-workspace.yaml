@@ -4,10 +4,14 @@ packages:
 
 allowBuilds:
   '@nestjs/core': false
+  '@swc/core': false
   better-sqlite3: false
+  cpu-features: false
   esbuild: true
   msgpackr-extract: false
   protobufjs: false
+  sqlite3: false
+  ssh2: false
 
 onlyBuiltDependencies:
   - esbuild

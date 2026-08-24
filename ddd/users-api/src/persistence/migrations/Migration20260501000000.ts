@@ -57,7 +57,6 @@ export class Migration20260501000000 extends Migration {
       id varchar(64) not null,
       created_at bigint not null,
       updated_at bigint not null,
-      role_id varchar(64) not null,
       action varchar(64) not null,
       subject varchar(128) not null,
       conditions text null,

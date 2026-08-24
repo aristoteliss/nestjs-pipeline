@@ -16,7 +16,6 @@
  * ----------------------------
  */
 
-
 import './tracing'; // ← MUST be first: starts the OTel SDK before NestJS loads
 import secureSession from '@fastify/secure-session';
 import { NestFactory } from '@nestjs/core';
@@ -24,10 +23,13 @@ import {
   FastifyAdapter,
   type NestFastifyApplication,
 } from '@nestjs/platform-fastify';
+import { IdempotencyConflictFilter } from '@nestjs-pipeline/idempotency';
+import { RateLimitExceededFilter } from '@nestjs-pipeline/rate-limit';
 import { ZodValidationFilter } from '@nestjs-pipeline/zod';
 import { NativeLogger } from 'nestjs-pino';
 import 'reflect-metadata';
 import { AppModule } from './app.module';
+import { FeatureDisabledFilter } from './common/filters/feature-disabled.filter';
 
 process.loadEnvFile();
 
@@ -36,10 +38,10 @@ async function bootstrap() {
 
   const app = useFastify
     ? await NestFactory.create<NestFastifyApplication>(
-      AppModule,
-      new FastifyAdapter(),
-      { bufferLogs: true },
-    )
+        AppModule,
+        new FastifyAdapter(),
+        { bufferLogs: true },
+      )
     : await NestFactory.create(AppModule, { bufferLogs: true });
 
   if (useFastify) {
@@ -62,7 +64,12 @@ async function bootstrap() {
   }
 
   app.useLogger(app.get(NativeLogger));
-  app.useGlobalFilters(new ZodValidationFilter());
+  app.useGlobalFilters(
+    new ZodValidationFilter(),
+    new FeatureDisabledFilter(),
+    new RateLimitExceededFilter(),
+    new IdempotencyConflictFilter(),
+  );
 
   await app.listen(3000, '0.0.0.0');
   console.log(

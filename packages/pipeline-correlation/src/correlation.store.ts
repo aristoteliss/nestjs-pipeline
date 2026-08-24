@@ -76,8 +76,9 @@ export function setCorrelationFallback(fn: () => string | undefined): void {
  * WebSocket gateways, cron jobs, etc.) to propagate an external correlation ID
  * into any CQRS commands or queries dispatched inside the callback.
  *
- * If `correlationId` is `undefined` or empty, `fn` executes without a store
- * and the pipeline will fall back to `uuidv7()`.
+ * If `correlationId` is falsy (`undefined` or empty), the id is resolved via
+ * {@link getCorrelationId} (parent context, or a generated `uuidv7()`), and `fn`
+ * always executes inside a populated correlation store.
  *
  * @example
  * ```ts

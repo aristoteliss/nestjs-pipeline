@@ -16,29 +16,32 @@
  * ----------------------------
  */
 
+import { TenantSchemaContext } from '@persistence/tenant-schema.context';
+
 /**
  * Derives a deterministic cache key from an entity's static `prefixKey` and
- * a set of filter conditions.
+ * a set of filter conditions, namespaced by the active tenant schema.
  *
  * Keys are sorted alphabetically so `{ email, _department }` and
  * `{ _department, email }` produce the same string.
  *
  * @example
  * filterCacheKey(User, { _id: '123' })
- * // → "user:_id:123"
+ * // → "tenant:user:_id:123"
  *
  * filterCacheKey(User, { email: 'a@b.com', _department: 'eng' })
- * // → "user:_department:eng:email:a@b.com"
+ * // → "tenant:user:_department:eng:email:a@b.com"
  */
 export function filterCacheKey(
   entity: { prefixKey: string },
   conditions: Record<string, unknown>,
 ): string {
+  const schema = TenantSchemaContext.currentSchema;
   const segments = Object.entries(conditions)
     .filter(([, v]) => v !== undefined && v !== null)
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([k, v]) => `${k}:${v}`)
     .join(':');
 
-  return `${entity.prefixKey}${segments}`;
+  return `${schema}:${entity.prefixKey}${segments}`;
 }

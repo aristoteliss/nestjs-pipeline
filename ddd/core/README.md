@@ -13,6 +13,7 @@ This package provides the foundational building blocks for implementing a DDD do
 - **`RootDomainEvent`** — Domain event that carries a typed reference to the originating entity.
 - **`DomainOutcome`** — Base outcome class that bundles domain events produced by an operation.
 - **`RootDomainOutcome`** — Outcome that pairs an entity with its domain events, enabling `const { entity, events } = ...` destructuring.
+- **`UnixTimestampType`** — Custom MikroORM `Type<Date, number>` mapping JavaScript `Date` instances to Unix timestamps (ms) in integer database columns.
 - **`@Mutate()`** — Method decorator that calls `onUpdate()` after the decorated method executes, updating `updatedAt` automatically.
 - **`Method`** — Utility type for extracting method signatures.
 

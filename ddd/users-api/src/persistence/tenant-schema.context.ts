@@ -29,14 +29,18 @@ type TenantSchemaStore = {
  * Stores and resolves the active tenant schema per async execution context.
  */
 export class TenantSchemaContext {
-  private readonly storage = new AsyncLocalStorage<TenantSchemaStore>();
+  private static readonly storage = new AsyncLocalStorage<TenantSchemaStore>();
 
   run<T>(schema: string | undefined, callback: () => T): T {
     const normalizedSchema = normalizeSchemaName(schema);
-    return this.storage.run({ schema: normalizedSchema }, callback);
+    return TenantSchemaContext.storage.run({ schema: normalizedSchema }, callback);
   }
 
   get schema(): string {
-    return this.storage.getStore()?.schema ?? normalizeSchemaName(undefined);
+    return TenantSchemaContext.storage.getStore()?.schema ?? normalizeSchemaName(undefined);
+  }
+
+  static get currentSchema(): string {
+    return TenantSchemaContext.storage.getStore()?.schema ?? normalizeSchemaName(undefined);
   }
 }

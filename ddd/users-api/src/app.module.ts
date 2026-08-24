@@ -18,7 +18,7 @@
 
 import { IncomingMessage } from 'node:http';
 import { AuthSessionInterceptor } from '@common/interceptors/auth-session.interceptor';
-import { BullModule } from '@nestjs/bullmq';
+import { BullModule, getQueueToken } from '@nestjs/bullmq';
 import {
   type MiddlewareConsumer,
   Module,
@@ -26,6 +26,8 @@ import {
 } from '@nestjs/common';
 import { APP_INTERCEPTOR } from '@nestjs/core';
 import { CqrsModule } from '@nestjs/cqrs';
+import { AuditModule } from '@nestjs-pipeline/audit';
+import { CacheModule } from '@nestjs-pipeline/cache';
 import { CaslModule } from '@nestjs-pipeline/casl';
 import {
   LOGGING_BEHAVIOR_LOGGER,
@@ -38,12 +40,22 @@ import {
   runWithCorrelationId,
 } from '@nestjs-pipeline/correlation';
 import {
-  TraceBehavior,
-} from '@nestjs-pipeline/opentelemetry';
+  BullMqDeadLetterTransport,
+  DeadLetterBehavior,
+  DeadLetterModule,
+} from '@nestjs-pipeline/deadletter';
+import { FeatureFlagsModule } from '@nestjs-pipeline/feature-flags';
+import { IdempotencyModule } from '@nestjs-pipeline/idempotency';
+import { TraceBehavior } from '@nestjs-pipeline/opentelemetry';
+import { RateLimitModule } from '@nestjs-pipeline/rate-limit';
+import { ResilienceModule } from '@nestjs-pipeline/resilience';
 import { ZodValidationBehavior } from '@nestjs-pipeline/zod';
+import { InMemoryProvider } from '@openfeature/server-sdk';
 import { TenantSchemaMiddleware } from '@persistence/middlewares/tenant-schema.middleware';
 import { PersistenceModule } from '@persistence/persistence.module';
+import type { Queue } from 'bullmq';
 import { LoggerModule, NativeLogger } from 'nestjs-pino';
+import { RateLimiterMemory } from 'rate-limiter-flexible';
 import { AuthsModule } from './auths/auths.module';
 import { GetUserCapabilitiesQueryRepository } from './auths/repositories/get-user-capabilities.query-repository';
 import { GetRolesCapabilitiesQueryRepository } from './roles/persistence/get-roles-capabilities.query-repository';
@@ -110,14 +122,92 @@ import { UsersModule } from './users/users.module';
        */
       globalBehaviors: {
         scope: 'all',
-        before: [LoggingBehavior],
+        before: [DeadLetterBehavior, LoggingBehavior],
         after: [
           [TraceBehavior, { tracerName: 'users-api' }],
           ZodValidationBehavior,
         ],
       },
-      loggerProvider: { provide: LOGGING_BEHAVIOR_LOGGER, useExisting: NativeLogger }
+      loggerProvider: {
+        provide: LOGGING_BEHAVIOR_LOGGER,
+        useExisting: NativeLogger,
+      },
     }),
+    /**
+     * Registers DeadLetterBehavior globally (outermost `before` entry) so that
+     * when any command, query, or event handler fails — after any per-handler
+     * ResilienceBehavior retries are exhausted — a serializable snapshot of the
+     * failed request is captured to a durable sink for inspection and replay.
+     *
+     * The transport is the only backend-specific piece: this app uses the
+     * BullMQ default (reusing the Redis connection already configured above),
+     * but swapping to RabbitMQ or Postgres is a one-line change here — handler
+     * code never changes:
+     *
+     *   useFactory: (channel) => new RabbitMqDeadLetterTransport(channel)
+     *   useFactory: (pool) => new PostgresDeadLetterTransport(pool)
+     *
+     * Inspect/replay failed jobs via the 'dead-letters' queue
+     * (queue.getFailed(), job.retry(), or Bull Board).
+     */
+    DeadLetterModule.forRootAsync({
+      imports: [BullModule.registerQueue({ name: 'dead-letters' })],
+      inject: [getQueueToken('dead-letters')],
+      useFactory: (queue: Queue) => new BullMqDeadLetterTransport(queue),
+    }),
+    /**
+     * Registers RateLimitBehavior globally so handlers can opt in per-handler
+     * via `@UsePipeline([RateLimitBehavior, { ... }])` (see CreateUserHandler).
+     *
+     * Backend-agnostic via rate-limiter-flexible: this example uses an in-memory
+     * limiter so it runs without external infrastructure. Swapping to a shared
+     * Redis/Valkey, Mongo, or SQL backend is a one-line change here — no handler
+     * code changes:
+     *
+     *   limiter: new RateLimiterRedis({ storeClient: redis, points: 5, duration: 60 })
+     *
+     * The module default below caps each bucket at 5 requests per 60s; handlers
+     * pick the bucket key (e.g. per email/IP) via their `keyFactory`.
+     */
+    RateLimitModule.forRoot({
+      limiter: new RateLimiterMemory({ points: 5, duration: 60 }),
+    }),
+    /**
+     * Registers AuditBehavior globally so handlers can opt in per-handler via
+     * `@UsePipeline([AuditBehavior, { action, severity, actor }])` (see
+     * DeleteUserHandler). The behavior records who did what, with what outcome,
+     * duration, and a redacted payload — on BOTH success and failure.
+     *
+     * Sink-agnostic via the tiny `AuditSink` interface: this example uses the
+     * zero-dependency LogAuditSink default (JSON lines through the app logger),
+     * so it runs without external infrastructure. Swapping to Postgres or your
+     * own event store is a one-line change here — no handler code changes:
+     *
+     *   sink: new PostgresAuditSink(pool)   // + await pool.query(createAuditTableSql())
+     *
+     * Sensitive fields (password, token, secret, ...) are redacted before the
+     * record is written.
+     */
+    AuditModule.forRoot(),
+    /**
+     * Registers IdempotencyBehavior globally so handlers can opt in per-handler
+     * via `@UsePipeline([IdempotencyBehavior, { keyFactory, ... }])` (see
+     * CreateUserHandler). The behavior runs each command at most once per key
+     * within a TTL window and replays the stored response on duplicates — so a
+     * retried POST or a double-click can't create the same user twice.
+     *
+     * Store-agnostic via the tiny `IdempotencyStore` interface: this example
+     * uses the zero-dependency in-memory store default, so it runs without
+     * external infrastructure. Swapping to Redis (shared across instances) or
+     * Postgres is a one-line change here — no handler code changes:
+     *
+     *   store: new RedisIdempotencyStore(redisClient)
+     *   store: new PostgresIdempotencyStore(pool)   // + createIdempotencyTableSql()
+     *
+     * In-flight duplicates get HTTP 409 and a key reused with a different
+     * payload gets HTTP 422 (see IdempotencyConflictFilter in main.ts).
+     */
+    IdempotencyModule.forRoot(),
     CaslModule.forRoot({
       roleProvider: GetRolesCapabilitiesQueryRepository,
       userContextResolver: GetUserContextQueryRepository,
@@ -127,17 +217,71 @@ import { UsersModule } from './users/users.module';
         User: ['username', 'department', 'email'],
       },
     }),
+    /**
+     * Registers ResilienceBehavior globally so handlers can opt in per-handler
+     * via `@UsePipeline([ResilienceBehavior, { ... }])` (see DeleteUserHandler).
+     * No global defaults are set here — each handler declares its own policy.
+     */
+    ResilienceModule.forRoot(),
+    /**
+     * Registers CacheBehavior globally backed by a Redis store (shared across
+     * instances). Handlers opt in per-handler via
+     * `@UsePipeline([CacheBehavior, { ... }])` (see GetUserHandler). Only query
+     * handlers that opt in are cached; the default per-handler TTL is 30s.
+     */
+    CacheModule.forRoot(
+      process.env.NODE_ENV === 'development' || !process.env.NODE_ENV
+        ? {
+            store: { type: 'memory' },
+            ttl: 30_000,
+          }
+        : {
+            store: {
+              type: 'redis',
+              url: `redis://${process.env.REDIS_HOST ?? 'localhost'}:${Number(
+                process.env.REDIS_PORT ?? 6379,
+              )}`,
+            },
+            ttl: 30_000,
+          },
+    ),
+    /**
+     * Registers FeatureFlagBehavior globally so handlers can gate themselves
+     * per-handler via `@UsePipeline([FeatureFlagBehavior, { flag: '...' }])`
+     * (see CreateUserHandler).
+     *
+     * Provider-agnostic via OpenFeature: this example uses an in-memory provider
+     * so it runs without external infrastructure. Swapping to Unleash or
+     * Flagsmith is a one-line change here (pass their OpenFeature provider) —
+     * no handler code changes:
+     *
+     *   provider: new UnleashProvider({ url, appName, token })
+     *   provider: new FlagsmithProvider({ environmentKey })
+     *
+     * The `user-registration` flag below defaults to enabled; flip it to false
+     * to see CreateUserHandler short-circuit with FeatureDisabledError.
+     */
+    FeatureFlagsModule.forRoot({
+      provider: new InMemoryProvider({
+        'user-registration': {
+          disabled: false,
+          variants: { on: true, off: false },
+          defaultVariant: 'on',
+        },
+      }),
+      context: { environment: process.env.NODE_ENV ?? 'development' },
+    }),
     UsersModule,
     RolesModule,
     AuthsModule,
     PersistenceModule,
   ],
-  providers: [
-    { provide: APP_INTERCEPTOR, useClass: AuthSessionInterceptor },
-  ],
+  providers: [{ provide: APP_INTERCEPTOR, useClass: AuthSessionInterceptor }],
 })
 export class AppModule implements NestModule {
-  constructor(private readonly tenantSchemaMiddleware: TenantSchemaMiddleware) { }
+  constructor(
+    private readonly tenantSchemaMiddleware: TenantSchemaMiddleware,
+  ) { }
 
   configure(consumer: MiddlewareConsumer) {
     consumer
@@ -148,4 +292,3 @@ export class AppModule implements NestModule {
       .forRoutes('*');
   }
 }
-

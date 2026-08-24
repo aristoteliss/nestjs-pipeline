@@ -22,6 +22,7 @@ import {
   getCorrelationId,
   WithCorrelation,
 } from '@nestjs-pipeline/correlation';
+import { TenantSchemaContext } from '@persistence/tenant-schema.context';
 import type { Job } from 'bullmq';
 
 export const BATCH_UPDATE_USERS_QUEUE = 'batch-update-users';
@@ -30,34 +31,43 @@ export interface BatchUpdateUserItem {
   userId: string;
   username?: string;
   email?: string;
+  tenant?: string;
 }
 
 @Processor(BATCH_UPDATE_USERS_QUEUE)
 export class BatchUpdateUsersProcessor extends WorkerHost {
   private readonly logger = new Logger(BatchUpdateUsersProcessor.name);
 
+  constructor(private readonly tenantContext: TenantSchemaContext) {
+    super();
+  }
+
   @WithCorrelation({ path: 'opts.correlationId' })
   async process(
     job: Job<BatchUpdateUserItem[]>,
     _token?: string,
   ): Promise<void> {
-    const correlationId = getCorrelationId();
     const items = job.data;
+    const tenant = items[0]?.tenant;
 
-    this.logger.log(
-      `🔄 Batch updating ${items.length} users (correlationId: ${correlationId})`,
-    );
+    return this.tenantContext.run(tenant, async () => {
+      const correlationId = getCorrelationId();
 
-    for (const item of items) {
-      this.logger.debug(
-        `  → Updating user ${item.userId} (correlationId: ${correlationId})`,
+      this.logger.log(
+        `🔄 Batch updating ${items.length} users (tenant: ${this.tenantContext.schema}, correlationId: ${correlationId})`,
       );
-      // Simulate update delay
-      await new Promise((resolve) => setTimeout(resolve, 50));
-    }
 
-    this.logger.log(
-      `✅ Batch update complete for ${items.length} users (correlationId: ${correlationId})`,
-    );
+      for (const item of items) {
+        this.logger.debug(
+          `  → Updating user ${item.userId} (correlationId: ${correlationId})`,
+        );
+        // Simulate update delay
+        await new Promise((resolve) => setTimeout(resolve, 50));
+      }
+
+      this.logger.log(
+        `✅ Batch update complete for ${items.length} users (correlationId: ${correlationId})`,
+      );
+    });
   }
 }

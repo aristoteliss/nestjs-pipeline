@@ -19,7 +19,6 @@
 import { RootEntity, type RootEntitySnapshot } from '@nestjs-pipeline/ddd-core';
 
 export interface CapabilitySnapshot extends Partial<RootEntitySnapshot> {
-  readonly roleId: string;
   readonly action: string;
   readonly subject: string;
   readonly conditions?: string | null;
@@ -31,7 +30,6 @@ export interface CapabilitySnapshot extends Partial<RootEntitySnapshot> {
 export class Capability extends RootEntity<CapabilitySnapshot> {
   readonly prefixKey = 'capability:';
 
-  readonly roleId: string;
   readonly action: string;
   readonly subject: string;
   readonly conditions?: string | null;
@@ -41,7 +39,6 @@ export class Capability extends RootEntity<CapabilitySnapshot> {
 
   private constructor(snapshot: CapabilitySnapshot) {
     super(snapshot);
-    this.roleId = snapshot.roleId;
     this.action = snapshot.action;
     this.subject = snapshot.subject;
     this.conditions = snapshot.conditions;
@@ -55,7 +52,6 @@ export class Capability extends RootEntity<CapabilitySnapshot> {
   }
 
   static create(
-    roleId: string,
     action: string,
     subject: string,
     conditions?: string | null,
@@ -64,7 +60,6 @@ export class Capability extends RootEntity<CapabilitySnapshot> {
     fields?: string | null,
   ): Capability {
     return new Capability({
-      roleId,
       action,
       subject,
       conditions,
@@ -77,7 +72,6 @@ export class Capability extends RootEntity<CapabilitySnapshot> {
   static fromJSON(snapshot: CapabilitySnapshot): Capability {
     return new Capability({
       id: Capability.normalizeId(snapshot.id),
-      roleId: snapshot.roleId,
       action: snapshot.action,
       subject: snapshot.subject,
       conditions: snapshot.conditions,
@@ -92,7 +86,6 @@ export class Capability extends RootEntity<CapabilitySnapshot> {
   toJSON(): RootEntitySnapshot & CapabilitySnapshot {
     return this.freezeState({
       id: this.id,
-      roleId: this.roleId,
       action: this.action,
       subject: this.subject,
       conditions: this.conditions,

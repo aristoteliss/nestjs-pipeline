@@ -188,9 +188,9 @@ export class Migration20260501010000 extends Migration {
     for (const [id, subject, action, conditions, inverted, reason, fields] of capabilities) {
       this.addSql(`
         insert into capabilities (
-          id, role_id, action, subject, conditions, inverted, reason, fields, created_at, updated_at
+          id, action, subject, conditions, inverted, reason, fields, created_at, updated_at
         ) values (
-          '${id}', '', '${action}', '${subject}', ${conditions ? `'${conditions}'` : 'null'}, ${inverted}, ${reason ? `'${reason}'` : 'null'}, ${fields ? `'${fields}'` : 'null'}, ${now}, ${now}
+          '${id}', '${action}', '${subject}', ${conditions ? `'${conditions}'` : 'null'}, ${inverted}, ${reason ? `'${reason}'` : 'null'}, ${fields ? `'${fields}'` : 'null'}, ${now}, ${now}
         ) on conflict (id) do nothing;
       `);
     }

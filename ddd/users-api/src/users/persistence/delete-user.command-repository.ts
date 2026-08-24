@@ -16,6 +16,7 @@
  * ----------------------------
  */
 
+import { filterCacheKey } from '@common/cqrs/helpers/filterCacheKey.helper';
 import { Inject, Injectable } from '@nestjs/common';
 import {
   Cache,
@@ -39,6 +40,26 @@ export class DeleteUserCommandRepository extends CommandRepository<UserUpdateOut
   @Cache()
   async save(domainOutcome: UserUpdateOutcome): Promise<number> {
     const { entity } = domainOutcome;
+
+    // Invalidate in-memory cache
+    await this.cache?.delete(filterCacheKey(User, { _id: entity.id }));
+    if (entity.email) {
+      await this.cache?.delete(filterCacheKey(User, { email: entity.email }));
+    }
+
+    // Clean up junction tables first to prevent foreign key constraint violations
+    await this.store.em.execute(
+      'DELETE FROM user_roles WHERE user_id = ?',
+      [entity.id],
+    );
+    await this.store.em.execute(
+      'DELETE FROM user_additional_capabilities WHERE user_id = ?',
+      [entity.id],
+    );
+    await this.store.em.execute(
+      'DELETE FROM user_denied_capabilities WHERE user_id = ?',
+      [entity.id],
+    );
 
     const result = await this.store.em.nativeDelete(User, entity.id);
 
