@@ -230,7 +230,7 @@ import { UsersModule } from './users/users.module';
      * handlers that opt in are cached; the default per-handler TTL is 30s.
      */
     CacheModule.forRoot(
-      process.env.NODE_ENV === 'development' || !process.env.NODE_ENV
+      !process.env.REDIS_HOST && process.env.NODE_ENV !== 'production'
         ? {
             store: { type: 'memory' },
             ttl: 30_000,
