@@ -26,25 +26,6 @@ afterEach(() => {
   }
 });
 
-async function verifyRs256Token(publicKeyEnv: string) {
-  const { privateKey } = generateKeyPairSync('rsa', { modulusLength: 2048 });
-  // This helper is only used by tests that create the matching public key
-  // separately; callers overwrite JWT_PUBLIC_KEY before invoking interception.
-  process.env.JWT_PUBLIC_KEY = publicKeyEnv;
-  process.env.JWT_PUBLIC_KEY_ALG = 'RS256';
-  delete process.env.JWT_ALGORITHMS;
-  delete process.env.JWT_SECRET;
-
-  const token = await new SignJWT({ email: 'user@example.test', roles: [] })
-    .setProtectedHeader({ alg: 'RS256', typ: 'JWT' })
-    .setSubject('user-1')
-    .setIssuedAt()
-    .setExpirationTime('1h')
-    .sign(privateKey);
-
-  return token;
-}
-
 function makeRequest(token: string) {
   const sessionData = new Map<string, unknown>();
   const session = {
