@@ -26,15 +26,16 @@ describe('IdempotencyConflictFilter', () => {
 
   function createMockHost() {
     const json = vi.fn();
-    const status = vi.fn().mockReturnValue({ json });
-    const getResponse = vi.fn().mockReturnValue({ status });
+    const response = { status: vi.fn(), json };
+    response.status.mockReturnValue(response);
+    const getResponse = vi.fn().mockReturnValue(response);
     const switchToHttp = vi.fn().mockReturnValue({ getResponse });
 
     const host = {
       switchToHttp,
     } as unknown as ArgumentsHost;
 
-    return { host, status, json };
+    return { host, status: response.status, json };
   }
 
   it('maps in_progress error to 409 Conflict', () => {
@@ -74,6 +75,31 @@ describe('IdempotencyConflictFilter', () => {
       message: error.message,
       idempotencyKey: 'user:456',
       reason: 'key_reuse',
+    });
+  });
+
+  it('uses Fastify send() when json() is unavailable', () => {
+    const error = new IdempotencyConflictError({
+      key: 'user:789',
+      requestName: 'CreateUserCommand',
+      reason: 'in_progress',
+    });
+    const send = vi.fn();
+    const response = { status: vi.fn(), send };
+    response.status.mockReturnValue(response);
+    const host = {
+      switchToHttp: () => ({ getResponse: () => response }),
+    } as unknown as ArgumentsHost;
+
+    filter.catch(error, host);
+
+    expect(response.status).toHaveBeenCalledWith(409);
+    expect(send).toHaveBeenCalledWith({
+      statusCode: 409,
+      error: 'Conflict',
+      message: error.message,
+      idempotencyKey: 'user:789',
+      reason: 'in_progress',
     });
   });
 });
