@@ -213,6 +213,20 @@ describe('AuditBehavior', () => {
     ).rejects.toBe(sinkError);
   });
 
+  it('does not turn a successful handler into a failure audit when a fail-closed sink throws', async () => {
+    const sinkError = new Error('audit db down');
+    write.mockRejectedValueOnce(sinkError);
+    const behavior = new AuditBehavior(sink);
+    const ctx = withOptions(makeCtx(), { failOpen: false });
+    const next = vi.fn().mockResolvedValue('ok');
+
+    await expect(behavior.handle(ctx, next)).rejects.toBe(sinkError);
+
+    expect(next).toHaveBeenCalledTimes(1);
+    expect(write).toHaveBeenCalledTimes(1);
+    expect((write.mock.calls[0]?.[0] as AuditRecord).outcome).toBe('success');
+  });
+
   it('merges handler options over module defaults (handler wins)', async () => {
     const behavior = new AuditBehavior(sink, { severity: 'low', action: 'x' });
     const ctx = withOptions(makeCtx(), { severity: 'critical' });
