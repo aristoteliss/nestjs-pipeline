@@ -23,6 +23,7 @@ import {
   SET_RESPONSE,
 } from './constants/pipeline-context.constants';
 import { getBehaviorId } from './decorators/pipeline.decorator';
+import { IPipelineBehavior } from './interfaces/pipeline.behavior.interface';
 import { IPipelineContext } from './interfaces/pipeline.context.interface';
 import { PipelineHandlerMeta } from './interfaces/pipeline-handler-meta.interface';
 import { untyped } from './types/safe-typing';
@@ -114,7 +115,7 @@ export abstract class BasePipelineContext<
     behaviorType: Type,
   ): T | undefined {
     return this.behaviorOptionsMap?.get(
-      getBehaviorId(behaviorType as Type<any>),
+      getBehaviorId(behaviorType as Type<IPipelineBehavior>),
     ) as T | undefined;
   }
 }
