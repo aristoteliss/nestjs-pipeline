@@ -42,20 +42,22 @@ function buildExcludeMatchers(excludeKeys: Set<string>): ExcludeMatchers {
  * @param val - The value currently being visited
  * @param path - Dot-path of `val` from the root (e.g. 'ctx.sessionUser')
  * @param matchers - Precomputed flat/path exclusion sets, or null if no exclusion is configured
- * @param seen - WeakSet tracking already-visited objects/arrays for circular detection
+ * @param ancestors - WeakSet tracking objects on the active recursion path
  */
 function sanitizeValue(
   val: unknown,
   path: string,
   matchers: ExcludeMatchers | null,
-  seen: WeakSet<object>,
+  ancestors: WeakSet<object>,
 ): unknown {
   // 1. Null / undefined
   if (val === null) return null;
   if (val === undefined) return undefined;
 
   // 2. Date → ISO string
-  if (val instanceof Date) return val.toISOString();
+  if (val instanceof Date) {
+    return Number.isNaN(val.getTime()) ? '[Invalid Date]' : val.toISOString();
+  }
 
   // 3. Error → structured object
   if (val instanceof Error) {
@@ -93,41 +95,64 @@ function sanitizeValue(
   // 7. RegExp → string representation
   if (val instanceof RegExp) return val.toString();
 
-  // 8. Map / Set — both silently emit {} without this
+  // 8. Map / Set — guard the collection itself before materializing it so a
+  // self-reference does not recurse forever.
   if (val instanceof Map) {
-    return sanitizeValue(Object.fromEntries(val), path, matchers, seen);
+    if (ancestors.has(val)) return '[Circular]';
+    ancestors.add(val);
+    try {
+      return sanitizeValue(Object.fromEntries(val), path, matchers, ancestors);
+    } finally {
+      ancestors.delete(val);
+    }
   }
   if (val instanceof Set) {
-    return sanitizeValue([...val], path, matchers, seen);
-  }
-
-  // 9. Arrays — recurse per item, guard against circular refs
-  if (Array.isArray(val)) {
-    if (seen.has(val)) return '[Circular]';
-    seen.add(val);
-    return val.map((item) => sanitizeValue(item, path, matchers, seen));
-  }
-
-  // 10. Plain objects — recurse per key, applying key/path-based exclusion
-  if (typeof val === 'object') {
-    if (seen.has(val)) return '[Circular]';
-    seen.add(val);
-
-    const out: Record<string, unknown> = {};
-    for (const [k, v] of Object.entries(val as Record<string, unknown>)) {
-      const currentPath = path ? `${path}.${k}` : k;
-
-      // Key/path-based exclusion
-      if (
-        matchers &&
-        (matchers.flatKeys.has(k) || matchers.pathKeys.has(currentPath))
-      ) {
-        continue;
-      }
-
-      out[k] = sanitizeValue(v, currentPath, matchers, seen);
+    if (ancestors.has(val)) return '[Circular]';
+    ancestors.add(val);
+    try {
+      return sanitizeValue([...val], path, matchers, ancestors);
+    } finally {
+      ancestors.delete(val);
     }
-    return out;
+  }
+
+  // 9. Arrays — recurse per item, guarding only the active recursion path.
+  // Repeated references in sibling branches are valid and should be serialized
+  // normally rather than being mislabeled as circular.
+  if (Array.isArray(val)) {
+    if (ancestors.has(val)) return '[Circular]';
+    ancestors.add(val);
+    try {
+      return val.map((item) => sanitizeValue(item, path, matchers, ancestors));
+    } finally {
+      ancestors.delete(val);
+    }
+  }
+
+  // 10. Objects — recurse per key, applying key/path-based exclusion.
+  if (typeof val === 'object') {
+    if (ancestors.has(val)) return '[Circular]';
+    ancestors.add(val);
+
+    try {
+      const out: Record<string, unknown> = {};
+      for (const [k, v] of Object.entries(val as Record<string, unknown>)) {
+        const currentPath = path ? `${path}.${k}` : k;
+
+        // Key/path-based exclusion
+        if (
+          matchers &&
+          (matchers.flatKeys.has(k) || matchers.pathKeys.has(currentPath))
+        ) {
+          continue;
+        }
+
+        out[k] = sanitizeValue(v, currentPath, matchers, ancestors);
+      }
+      return out;
+    } finally {
+      ancestors.delete(val);
+    }
   }
 
   // 11. Leaf primitive validation
