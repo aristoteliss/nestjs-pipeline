@@ -63,6 +63,20 @@ describe('HttpCorrelationMiddleware', () => {
     expect(captured).toBe('custom-456');
   });
 
+  it('normalizes a custom header name because Node request headers are lowercase', () => {
+    const middleware = new HttpCorrelationMiddleware({
+      header: 'X-Request-ID',
+    });
+    const req = fakeRequest({ 'x-request-id': 'custom-456' });
+
+    let captured: string | undefined;
+    middleware.use(req, fakeResponse, () => {
+      captured = correlationStore.getStore();
+    });
+
+    expect(captured).toBe('custom-456');
+  });
+
   it('defaults to x-correlation-id when options has no header field', () => {
     const middleware = new HttpCorrelationMiddleware({});
     const req = fakeRequest({ 'x-correlation-id': 'default-789' });
