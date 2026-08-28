@@ -16,6 +16,7 @@
  * ----------------------------
  */
 
+import { filterCacheKey } from '@common/cqrs/helpers/filterCacheKey.helper';
 import { Inject, Injectable } from '@nestjs/common';
 import { Cache, CommandRepository, ICache } from '@nestjs-pipeline/ddd-core';
 import { CACHE_TOKEN } from '@persistence/cache/memory.cache';
@@ -32,12 +33,15 @@ export class DeleteRoleCommandRepository extends CommandRepository<RoleUpdateOut
     super(cache);
   }
 
-  @Cache()
-  async save(domainOutcome: RoleUpdateOutcome): Promise<number> {
+  @Cache(
+    null,
+    (outcome) => [filterCacheKey(Role, { id: outcome.entity.id })],
+  )
+  async save(domainOutcome: RoleUpdateOutcome): Promise<null> {
     const { entity } = domainOutcome;
 
-    const result = await this.store.em.nativeDelete(Role, { id: entity.id });
+    await this.store.em.nativeDelete(Role, { id: entity.id });
 
-    return result;
+    return null;
   }
 }
