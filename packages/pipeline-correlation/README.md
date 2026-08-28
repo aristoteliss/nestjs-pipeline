@@ -20,13 +20,14 @@ npm install @nestjs-pipeline/correlation
 pnpm add @nestjs-pipeline/correlation
 ```
 
-> **Tip:** To bridge correlation IDs into the pipeline context, pass `getCorrelationId`
-> as the `correlationIdFactory` option in `PipelineModule.forRoot()`.
+> **Tip:** To integrate correlation IDs with the pipeline context, pass
+> `getCorrelationId` as `correlationIdFactory` and `runWithCorrelationId` as
+> `correlationIdRunner` in `PipelineModule.forRoot()`.
 
 ## Features
 
 - **`correlationStore`** — `AsyncLocalStorage` holding the current correlation ID
-- **`getCorrelationId()`** — Read the active ID anywhere in the call stack
+- **`getCorrelationId()`** — Read the active ID, falling back to a UUIDv7 when no context is active
 - **`runWithCorrelationId(id, fn)`** — Execute a callback inside a correlation context
 - **`addCorrelationId(data)`** — Stamp the current ID onto a payload (producer-side)
 - **`correlationHeaders(key?)`** — Return a headers object for header-based transports
@@ -127,8 +128,8 @@ async handle(@Payload() data: any, @Ctx() ctx: KafkaContext) { }
 | Export | Type | Description |
 |--------|------|-------------|
 | `correlationStore` | `AsyncLocalStorage<string>` | Holds the current correlation ID |
-| `getCorrelationId()` | `() => string \| undefined` | Read the active correlation ID from any call stack |
-| `runWithCorrelationId(id, fn)` | `(id: string, fn: () => T) => T` | Execute a callback inside a correlation context |
+| `getCorrelationId()` | `() => string` | Read the active/fallback ID, or generate a UUIDv7 when none exists |
+| `runWithCorrelationId(id, fn)` | `(id: string \| undefined, fn: () => T) => T` | Execute a callback inside a populated correlation context |
 | `addCorrelationId(data)` | `(data: object) => object` | Stamp the current ID onto a plain-object payload |
 | `correlationHeaders(key?)` | `(key?: string) => Record<string, string>` | Return a headers object for header-based transports |
 | `@WithCorrelation(opts?)` | Decorator | Restore correlation context on non-HTTP entry points |
@@ -136,20 +137,28 @@ async handle(@Payload() data: any, @Ctx() ctx: KafkaContext) { }
 | `HttpCorrelationMiddleware` | NestJS Middleware | Extracts/generates correlation ID from HTTP `x-correlation-id` header |
 | `uuidv7()` | `() => string` | Generate a timestamp-sortable UUID v7 (RFC 9562) |
 
-### Module Setup
+### Pipeline integration
 
-To bridge correlation IDs into the pipeline, pass `getCorrelationId` as the `correlationIdFactory`:
+The core module exposes two independent hooks. `correlationIdFactory` chooses the
+ID assigned to a new pipeline context; `correlationIdRunner` wraps execution in
+an external correlation context. Configure both to keep the pipeline context and
+this package's `AsyncLocalStorage` aligned:
 
 ```typescript
 import { PipelineModule } from '@nestjs-pipeline/core';
-import { getCorrelationId } from '@nestjs-pipeline/correlation';
+import {
+  getCorrelationId,
+  runWithCorrelationId,
+} from '@nestjs-pipeline/correlation';
 
 PipelineModule.forRoot({
   correlationIdFactory: getCorrelationId,
+  correlationIdRunner: runWithCorrelationId,
 })
 ```
 
-For HTTP requests, register `HttpCorrelationMiddleware` in your app module:
+For HTTP requests, register `HttpCorrelationMiddleware` explicitly in your app
+module. The middleware is not installed automatically by either package:
 
 ```typescript
 import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';

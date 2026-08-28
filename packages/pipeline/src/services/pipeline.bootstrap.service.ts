@@ -56,12 +56,16 @@ import { untyped } from '../types/safe-typing';
  * At application bootstrap, this service:
  * 1. Discovers all CQRS handlers via ExplorerService (commands, queries, events)
  * 2. Finds handlers decorated with @UsePipeline(...) or matched by global behaviors
- * 3. Pre-resolves all behavior instances and handler metadata
- * 4. Wraps their execution method with the declared behavior chain
+ * 3. Precomputes handler metadata and resolves singleton behavior instances
+ * 4. Wraps each matching handler method with the effective behavior chain
  *
- * Everything that can be computed once (behavior instances, request kind,
- * handler name, behavior options) is resolved at bootstrap and captured
- * in a closure — zero reflection or DI lookups at request time.
+ * Request-independent metadata (request kind, handler name, behavior options and
+ * effective behavior types) is computed once and captured in the wrapper closure.
+ * Singleton behaviors are also resolved once at bootstrap and reused. Behaviors
+ * that cannot be resolved as singletons are marked dynamic and resolved with
+ * `moduleRef.resolve()` for each invocation using the applicable Nest context ID.
+ * Therefore the common all-singleton path avoids runtime reflection and DI
+ * lookups, while request-scoped/transient behaviors retain their Nest lifecycle.
  *
  * Supports:
  *   - Command handlers  → wraps `execute(command)`
@@ -102,8 +106,10 @@ export class PipelineBootstrapService implements OnApplicationBootstrap {
   }
 
   /**
-   * Checks if the handler is decorated with @UsePipeline and/or has matching
-   * global behaviors, then wraps its method with the combined behavior chain.
+   * Checks whether the handler declares pipeline behaviors and/or matches global
+   * behavior configuration, precomputes the effective chain, then wraps the
+   * handler method. Singleton behaviors are captured at bootstrap; any dynamic
+   * behavior slots are resolved per invocation with the active Nest context ID.
    *
    * Effective order: `[globalBefore] → [@UsePipeline] → [globalAfter] → handler`
    *
@@ -180,7 +186,8 @@ export class PipelineBootstrapService implements OnApplicationBootstrap {
 
     // ── Pre-resolve everything at bootstrap ──
 
-    // 1. Resolve behavior instances once (singletons — no per-request DI lookups)
+    // 1. Resolve singleton behavior instances once. Behaviors that are scoped
+    //    (or otherwise unavailable through moduleRef.get) are resolved per run.
     const resolvedBehaviors = new Map<number, IPipelineBehavior>();
     const dynamicIndices = new Set<number>();
 
@@ -191,7 +198,7 @@ export class PipelineBootstrapService implements OnApplicationBootstrap {
       try {
         instance = this.moduleRef.get(BehaviorClass, { strict: false });
       } catch {
-        // Fallback for request-scoped providers (rare)
+        // Request-scoped/transient provider: resolve with a context ID per invocation.
         this.logger.warn(
           `${BehaviorClass.name} could not be resolved as singleton — will resolve per-request`,
         );
@@ -253,7 +260,8 @@ export class PipelineBootstrapService implements OnApplicationBootstrap {
     const correlationIdFactory = this.options?.correlationIdFactory;
     const correlationIdRunner = this.options?.correlationIdRunner;
 
-    // 3. Replace method — closure captures pre-resolved behaviors and meta.
+    // 3. Replace method — closure captures pre-resolved singleton behaviors and
+    //    metadata. Dynamic behavior slots are resolved inside each invocation.
     //    For scoped handlers the prototype is patched, so every per-request
     //    instance created by the DI container inherits the pipelined method.
     target[methodName] = async function pipelinedMethod(
@@ -263,7 +271,7 @@ export class PipelineBootstrapService implements OnApplicationBootstrap {
       const context = new PipelineContext(request, meta);
 
       // Build per-invocation array — singleton slots reused, request-scoped freshly resolved.
-      // The captured `behaviors` array is never mutated; request-scoped instances
+      // The captured singleton instances are never mutated; dynamic instances
       // are local to this invocation, preventing cross-request state leaks.
       let localBehaviors: IPipelineBehavior[];
       if (dynamicIndices.size > 0) {

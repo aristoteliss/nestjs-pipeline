@@ -56,18 +56,22 @@ export const IDEMPOTENCY_REPLAYED_ITEM = 'idempotency.replayed';
 const DEFAULT_SCOPE: IdempotencyRequestKind[] = ['command'];
 
 /**
- * Pipeline behavior that makes a handler **idempotent**: each distinct
- * idempotency key runs the handler at most once within a TTL window, and any
- * duplicate request **replays the stored response** instead of executing again.
+ * Pipeline behavior that deduplicates concurrent requests sharing an
+ * idempotency key and replays the stored response after a successful execution.
  *
  * For each in-scope request it derives a key
  * ({@link IdempotencyBehaviorOptions.keyFactory}), then atomically claims it in
  * a pluggable {@link IdempotencyStore}:
  *
- * - **first time** → claim, run the handler, store the response, return it;
+ * - **first claim** → run the handler and store the completed response;
  * - **duplicate, completed** → return the stored response (no re-execution);
  * - **duplicate, in progress** → throw {@link IdempotencyConflictError} (`409`);
  * - **key reused with a different payload** → throw it as `key_reuse` (`422`).
+ *
+ * When the handler throws, `releaseOnError` controls whether the key remains
+ * claimed. It defaults to `true`, so failed executions release the key and a
+ * later retry may execute the handler again. Set it to `false` when retaining
+ * the claim after a failure is preferable to retryability.
  *
  * Store-agnostic by design: memory (default), Redis, Postgres, or your own are
  * one-line swaps in {@link IdempotencyModule.forRoot}. When no key is produced,
