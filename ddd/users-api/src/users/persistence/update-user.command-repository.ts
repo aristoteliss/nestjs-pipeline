@@ -33,7 +33,7 @@ export class UpdateUserCommandRepository extends CommandRepository<UserUpdateOut
     super(cache);
   }
 
-  @Cache()
+  @Cache((outcome) => filterCacheKey(User, { _id: outcome.entity.id }))
   async save(domainOutcome: UserUpdateOutcome): Promise<UserSnapshot> {
     const { entity } = domainOutcome;
 
