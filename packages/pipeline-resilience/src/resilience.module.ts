@@ -23,10 +23,11 @@ import { ResilienceBehavior } from './resilience.behavior';
 
 /**
  * NestJS module that registers the {@link ResilienceBehavior} and (optionally)
- * application-wide default {@link ResilienceBehaviorOptions}.
+ * application-wide default {@link ResilienceBehaviorOptions} used wherever the
+ * behavior is attached.
  *
  * Attach the behavior either globally through `PipelineModule` or per handler
- * via `@UsePipeline`.
+ * via `@UsePipeline`. Registering this module alone does not wrap handlers.
  *
  * @example Global defaults + global behavior
  * ```ts
@@ -35,7 +36,7 @@ import { ResilienceBehavior } from './resilience.behavior';
  * @Module({
  *   imports: [
  *     ResilienceModule.forRoot({
- *       // Sensible defaults applied to every handler unless overridden
+ *       // Defaults used by every handler because the behavior is attached globally below
  *       timeout: { duration: 5_000 },
  *       retry: { maxAttempts: 3, backoff: { type: 'exponential' } },
  *     }),
@@ -70,7 +71,7 @@ export class ResilienceModule {
   /**
    * Registers the resilience behavior and optional application-wide defaults.
    *
-   * @param defaultOptions - Defaults merged under every handler's options.
+   * @param defaultOptions - Defaults merged under per-handler options whenever `ResilienceBehavior` executes.
    * @returns The configured global {@link DynamicModule}.
    */
   static forRoot(defaultOptions?: ResilienceBehaviorOptions): DynamicModule {

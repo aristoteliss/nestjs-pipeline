@@ -43,7 +43,8 @@ import type { ResilienceBehaviorOptions } from './interfaces/resilience-options.
  * cockatiel resilience policy (retry, circuit breaker, timeout, bulkhead,
  * fallback) for transient-fault handling.
  *
- * Resolution of the effective options for a handler:
+ * Resolution of the effective options for a handler where this behavior is
+ * attached:
  * 1. Application-wide defaults bound to {@link RESILIENCE_DEFAULT_OPTIONS}
  *    (via {@link ResilienceModule.forRoot}).
  * 2. Per-handler options from `@UsePipeline([ResilienceBehavior, { ... }])`,
@@ -51,8 +52,9 @@ import type { ResilienceBehaviorOptions } from './interfaces/resilience-options.
  *
  * Policies are built **lazily on first invocation and cached per handler**, so
  * stateful layers (circuit breaker, bulkhead) correctly share state across
- * every request to that handler. When no options resolve, the behavior is a
- * zero-overhead pass-through.
+ * every request to that handler. When no options resolve, the behavior caches
+ * that result and passes subsequent invocations directly to `next()` without
+ * constructing or executing a cockatiel policy.
  */
 @Injectable()
 export class ResilienceBehavior implements IPipelineBehavior {

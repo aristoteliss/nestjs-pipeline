@@ -1,7 +1,7 @@
 {
   "name": "@nestjs-pipeline/idempotency",
   "version": "0.1.0",
-  "description": "Idempotency behavior for the NestJS pipeline — runs each command at most once per idempotency key (TTL window) and replays the stored response on duplicates, via a pluggable store (in-memory default, Redis/Postgres drop-in).",
+  "description": "Idempotency behavior for the NestJS pipeline — atomically excludes concurrent duplicates and replays stored successful responses per idempotency key, via a pluggable store (in-memory default, Redis/Postgres drop-in).",
   "author": "Aristotelis <aristotelis@ik.me>",
   "license": "SEE LICENSE IN LICENSE",
   "keywords": [
@@ -11,7 +11,6 @@
     "idempotency",
     "idempotent",
     "deduplication",
-    "exactly-once",
     "retry-safe",
     "behavior"
   ],

@@ -398,14 +398,14 @@ This sample serves as the complete reference application demonstrating **all 12 
 - **Clean Declarative Pipelines** — Zero handler pollution: handlers focus exclusively on business logic while behaviors are configured via global settings and `@UsePipeline` decorators.
 - **Global Behaviors** (in `AppModule`):
   - `LoggingBehavior` (`@nestjs-pipeline/core`) — Structured request/response and timing logging with `nestjs-pino`.
-  - `DeadLetterBehavior` (`@nestjs-pipeline/deadletter`) — Captures failed commands/queries/events to a BullMQ `dead-letters` queue for inspection and replay (with `UserCreatedHandler` opting into `{ rethrow: false }` for fire-and-forget side effects).
+  - `DeadLetterBehavior` (`@nestjs-pipeline/deadletter`) — Attempts to capture failed commands/queries/events to a BullMQ `dead-letters` queue for inspection and replay (with `UserCreatedHandler` opting into `{ rethrow: false }` for fire-and-forget side effects). Transport failures are logged, so the capture marker records an attempt rather than guaranteed persistence.
   - `TraceBehavior` (`@nestjs-pipeline/opentelemetry`) — Emits OpenTelemetry spans for every CQRS invocation (`tracerName: 'users-api'`).
   - `MetricsBehavior` (`@nestjs-pipeline/opentelemetry`) — Emits OpenTelemetry latency histograms and invocation counters (`meterName: 'users-api'`).
-  - `ZodValidationBehavior` (`@nestjs-pipeline/zod`) — Validates command/query/event payloads against `_zodSchema` before handler execution.
+  - `ZodValidationBehavior` (`@nestjs-pipeline/zod`) — Parses/validates command/query/event payloads against `_zodSchema` and applies successful object output (including coercions/defaults/stripped keys) to the existing request before handler execution.
 - **Per-Handler Declarative Behaviors** (`@UsePipeline`):
   - **`RateLimitBehavior`** (`@nestjs-pipeline/rate-limit`) — Throttles `CreateUserHandler` (5 registrations / 60s per email) and `CreateAuthHandler` (login attempts per email), with `RateLimitExceededFilter` mapping breaches to HTTP 429 + `Retry-After`.
   - **`AuditBehavior`** (`@nestjs-pipeline/audit`) — Audits sensitive actions: `auth.login` on `CreateAuthHandler`, `role.delete` on `DeleteRoleHandler`, and `user.delete` on `DeleteUserHandler` (capturing actor, severity, outcome, duration, redacted payload).
-  - **`IdempotencyBehavior`** (`@nestjs-pipeline/idempotency`) — Enforces at-most-once execution on `CreateUserHandler` (`user.create:<email>`) and `CreateRoleHandler` (`role.create:<name>`) with response replay, with `IdempotencyConflictFilter` mapping conflicts to HTTP 409/422.
+  - **`IdempotencyBehavior`** (`@nestjs-pipeline/idempotency`) — Atomically excludes concurrent duplicates on `CreateUserHandler` (`user.create:<email>`) and `CreateRoleHandler` (`role.create:<name>`) and replays completed successful responses. With the default `releaseOnError: true`, failed executions release the key so a later retry may run again. `IdempotencyConflictFilter` maps conflicts to HTTP 409/422.
   - **`FeatureFlagBehavior`** (`@nestjs-pipeline/feature-flags`) — Gates `CreateUserHandler` behind `user-registration` and `CreateRoleHandler` behind `role-creation` using OpenFeature, with `FeatureDisabledFilter` mapping disabled features to HTTP 403.
   - **`ResilienceBehavior`** (`@nestjs-pipeline/resilience`) — Configures retry, circuit breaker, and timeout policies on `DeleteRoleHandler` and `DeleteUserHandler`.
   - **`CacheBehavior`** (`@nestjs-pipeline/cache`) — Transparent read-through query caching on `GetUserHandler`, `GetRoleHandler`, and `GetRolesHandler` with Redis backing and in-memory fallback.
@@ -439,4 +439,3 @@ This sample serves as the complete reference application demonstrating **all 12 
 - `nestjs-pino`
 - `pino-http`
 - `pino-pretty`
-

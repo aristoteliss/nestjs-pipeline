@@ -49,8 +49,10 @@ function extractBehaviorTypes(
  *
  * @example
  * ```ts
- * // Simple — array of behaviors
+ * // Simple — register behavior providers for @UsePipeline references
  * PipelineModule.forRoot([LoggingBehavior, AuditBehavior])
+ * // The bare array is equivalent to { behaviors: [...] }; it does not make
+ * // those behaviors execute globally. Use globalBehaviors for that.
  *
  * // Advanced — global behaviors + correlation ID factory
  * PipelineModule.forRoot({
@@ -69,10 +71,14 @@ function extractBehaviorTypes(
  * })
  *
  * // Integration with @nestjs-pipeline/correlation
- * import { getCorrelationId } from '@nestjs-pipeline/correlation';
+ * import {
+ *   getCorrelationId,
+ *   runWithCorrelationId,
+ * } from '@nestjs-pipeline/correlation';
  * PipelineModule.forRoot({
  *   behaviors: [LoggingBehavior],
  *   correlationIdFactory: getCorrelationId,
+ *   correlationIdRunner: runWithCorrelationId,
  * })
  * ```
  *
@@ -87,13 +93,14 @@ export class PipelineModule {
   /**
    * Configures the pipeline as a global dynamic module.
    *
-   * Accepts either a bare array of behavior classes or a
+   * Accepts either a bare array of behavior classes (DI registration only) or a
    * {@link PipelineModuleOptions} object (global before/after behaviors,
    * correlation-id bridging, logger provider, etc.). Registers all behavior
    * classes for DI — deduplicating global behaviors already listed in
    * `behaviors` — and the {@link PipelineBootstrapService} that wraps handlers.
+   * A bare array does not attach the listed behaviors to handlers globally.
    *
-   * @param optionsOrBehaviors - A list of behavior classes, or full module options.
+   * @param optionsOrBehaviors - A list of behavior classes to register, or full module options.
    * @returns The configured global {@link DynamicModule}.
    */
   static forRoot(

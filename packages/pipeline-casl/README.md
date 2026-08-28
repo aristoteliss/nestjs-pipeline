@@ -53,8 +53,13 @@ moving parts fall into seven groups.
 | `roleProvider` | yes | `IRoleProvider` as a class, or `{ useClass }` / `{ useExisting }` / `{ useFactory, inject }`. |
 | `subjectContextPaths` | yes | Default request dot-paths used to merge session/user payload for instance-level checks. |
 | `userContextResolver` | no | `IUserContextResolver` used to resolve the user from the items bag (instead of the `CASL_USER_CONTEXT_KEY` lookup). |
-| `userCapabilityProvider` | no\* | `IUserCapabilityProvider`. \*Required at runtime for any handler that declares `rules`, since it maps the user to their roles/overrides. |
+| `userCapabilityProvider` | no* | `IUserCapabilityProvider`. *Used when the resolved user does not already carry a valid `capabilities` bag and no `prebuiltAbility` is supplied; it maps the user to roles/overrides. |
 | `defaultFieldsFromRequest` | no | Default `fieldsFromRequest` configuration applied per subject. |
+
+When building an ability for a resolved user, `CaslBehavior` first checks for a
+valid `user.capabilities` bag (for example capabilities embedded in a verified
+JWT/session). Only when that is absent does it call `userCapabilityProvider`.
+A per-handler `prebuiltAbility` bypasses provider-based ability construction.
 
 ### Providers & interfaces
 
@@ -648,9 +653,10 @@ export class YamlRoleProvider implements IRoleProvider {
         useFactory: () => new YamlRoleProvider('./config/roles.yml'),
       },
       userContextResolver: JwtUserContextResolver,
-      // Required at runtime — without this, handlers with rules will throw.
-      // Implement IUserCapabilityProvider to map the current user to their role names.
+      // Used when the resolved user does not already carry a valid capabilities bag.
+      // Implement IUserCapabilityProvider to map that user to their role names.
       userCapabilityProvider: YamlUserCapabilityProvider,
+      subjectContextPaths: [],
     }),
     PipelineModule.forRoot({
       globalBehaviors: { scope: 'all', before: [CaslBehavior] },
@@ -678,6 +684,7 @@ export class AppModule {}
         useFactory: (pool: Pool) => new PgUserCapabilityProvider(pool),
         inject: [Pool],
       },
+      subjectContextPaths: [],
     }),
     PipelineModule.forRoot({
       globalBehaviors: { scope: 'all', before: [CaslBehavior] },

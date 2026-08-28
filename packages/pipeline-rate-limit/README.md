@@ -67,13 +67,17 @@ import { RateLimiterMemory } from 'rate-limiter-flexible';
       // 10 points per second, shared default for every handler
       limiter: new RateLimiterMemory({ points: 10, duration: 1 }),
     }),
+    // Register the behavior provider so handlers/globalBehaviors can reference it.
     PipelineModule.forRoot({ behaviors: [RateLimitBehavior] }),
   ],
 })
 export class AppModule {}
 ```
 
-Opt a handler in per-handler (or rely on the global registration above):
+The `behaviors` entry above registers `RateLimitBehavior` with Nest DI; it does
+**not** make rate limiting execute globally. Opt a handler in per-handler, or put
+`RateLimitBehavior` under `globalBehaviors` if you want it applied to a global
+scope:
 
 ```typescript
 @CommandHandler(CreateUserCommand)
