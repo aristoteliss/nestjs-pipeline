@@ -16,6 +16,7 @@
  * ----------------------------
  */
 
+import { randomUUID } from 'node:crypto';
 import {
   Inject,
   Injectable,
@@ -53,6 +54,13 @@ export const IDEMPOTENCY_KEY_ITEM = 'idempotency.key';
  */
 export const IDEMPOTENCY_REPLAYED_ITEM = 'idempotency.replayed';
 
+/**
+ * Item key set to `true` when a handler completed after its claim had expired or
+ * been replaced. The successful handler result is returned, but this execution
+ * is not allowed to overwrite the newer owner's replay state.
+ */
+export const IDEMPOTENCY_OWNERSHIP_LOST_ITEM = 'idempotency.ownershipLost';
+
 const DEFAULT_SCOPE: IdempotencyRequestKind[] = ['command'];
 
 /**
@@ -67,6 +75,10 @@ const DEFAULT_SCOPE: IdempotencyRequestKind[] = ['command'];
  * - **duplicate, completed** → return the stored response (no re-execution);
  * - **duplicate, in progress** → throw {@link IdempotencyConflictError} (`409`);
  * - **key reused with a different payload** → throw it as `key_reuse` (`422`).
+ *
+ * Each claim carries a unique owner token. Completion and release compare that
+ * token atomically, so an execution that outlives its TTL cannot overwrite or
+ * delete a newer claim after the key is reclaimed.
  *
  * When the handler throws, `releaseOnError` controls whether the key remains
  * claimed. It defaults to `true`, so failed executions release the key and a
@@ -140,11 +152,13 @@ export class IdempotencyBehavior implements IPipelineBehavior {
       (options.fingerprint ?? true)
         ? fingerprintValue(context.request)
         : undefined;
+    const claimId = randomUUID();
 
     const claim: IdempotencyRecord = {
       key,
       status: 'in_progress',
       requestName: context.requestName,
+      claimId,
       fingerprint,
       createdAt: new Date().toISOString(),
     };
@@ -159,18 +173,17 @@ export class IdempotencyBehavior implements IPipelineBehavior {
       response = await next();
     } catch (error) {
       if (options.releaseOnError ?? true) {
-        await this.release(key);
+        await this.release(key, claimId);
       }
       throw error;
     }
 
-    // The handler has already succeeded at this point. If persisting the
-    // completed record fails, keep the existing in-progress claim rather than
-    // releasing it: releasing would allow a retry to execute the successful
-    // side effect again. The store error is surfaced so callers know replay
-    // persistence did not complete; the claim expires according to its TTL.
-    await this.store.set(
+    // The handler has already succeeded. Completion must be conditional on
+    // still owning the claim; a stale execution must never overwrite a newer
+    // execution that reclaimed the key after this claim's TTL elapsed.
+    const completed = await this.store.completeIfOwned(
       key,
+      claimId,
       {
         ...claim,
         status: 'completed',
@@ -179,6 +192,16 @@ export class IdempotencyBehavior implements IPipelineBehavior {
       },
       ttl,
     );
+
+    if (!completed) {
+      context.items.set(IDEMPOTENCY_OWNERSHIP_LOST_ITEM, true);
+      this.logger.error?.(
+        `Idempotency claim ownership was lost after ${context.requestName} ` +
+          `completed successfully (key: ${key}). The successful result is being ` +
+          'returned, but this execution did not overwrite the newer claim.',
+      );
+    }
+
     return response;
   }
 
@@ -221,10 +244,13 @@ export class IdempotencyBehavior implements IPipelineBehavior {
     return existing.response;
   }
 
-  /** Release a claimed key after a failure; never let cleanup break the throw. */
-  private async release(key: string): Promise<void> {
+  /**
+   * Release a failed execution's claim only if it still owns the key; never let
+   * cleanup break propagation of the original handler error.
+   */
+  private async release(key: string, claimId: string): Promise<void> {
     try {
-      await this.store.delete(key);
+      await this.store.deleteIfOwned(key, claimId);
     } catch (error) {
       this.logger.warn?.(
         `Failed to release idempotency key "${key}": ` +
