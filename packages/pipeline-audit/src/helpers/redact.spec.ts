@@ -84,6 +84,28 @@ describe('redactValue', () => {
     expect(result.when).toBe(date);
   });
 
+  it('preserves repeated references that are not cyclic', () => {
+    const shared = { password: 'secret', value: 1 };
+    const result = redactValue({ first: shared, second: shared }) as {
+      first: Record<string, unknown>;
+      second: Record<string, unknown>;
+    };
+
+    expect(result.first).toEqual({ password: REDACTED, value: 1 });
+    expect(result.second).toEqual({ password: REDACTED, value: 1 });
+  });
+
+  it('does not misclassify a repeated non-plain object as circular', () => {
+    const date = new Date('2026-01-01T00:00:00.000Z');
+    const result = redactValue({ first: date, second: date }) as {
+      first: unknown;
+      second: unknown;
+    };
+
+    expect(result.first).toBe(date);
+    expect(result.second).toBe(date);
+  });
+
   it('guards against cyclic references', () => {
     const cyclic: Record<string, unknown> = { name: 'jane' };
     cyclic.self = cyclic;
