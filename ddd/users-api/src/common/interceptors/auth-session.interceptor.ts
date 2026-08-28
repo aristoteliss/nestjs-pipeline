@@ -324,9 +324,10 @@ export class AuthSessionInterceptor implements NestInterceptor {
   private async getJwtVerificationKey() {
     const publicKey = process.env.JWT_PUBLIC_KEY;
     if (publicKey) {
-      const normalizedKey = publicKey.includes('BEGIN PUBLIC KEY')
-        ? publicKey
-        : publicKey.replace(/\\n/g, '\n');
+      // Environment variables commonly encode PEM newlines as the two-character
+      // sequence "\\n". Normalize those regardless of whether the BEGIN marker
+      // is already present.
+      const normalizedKey = publicKey.replace(/\\n/g, '\n');
       const algorithm = process.env.JWT_PUBLIC_KEY_ALG ?? 'RS256';
       try {
         return {
