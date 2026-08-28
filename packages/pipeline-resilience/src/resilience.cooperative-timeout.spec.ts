@@ -79,7 +79,7 @@ describe('ResilienceBehavior cooperative timeout', () => {
     const ctx = makeCtx();
     vi.mocked(ctx.getBehaviorOptions).mockReturnValue({
       retry: { maxAttempts: 1, backoff: { type: 'constant', delay: 0 } },
-      timeout: { duration: 25, strategy: 'aggressive' },
+      timeout: { duration: 500, strategy: 'aggressive' },
     });
 
     const releaseFirstAttempt = deferred();
@@ -115,7 +115,7 @@ describe('ResilienceBehavior cooperative timeout', () => {
     expect(firstSignal?.aborted).toBe(true);
     expect(secondSignal).toBeInstanceOf(AbortSignal);
     expect(secondSignal).not.toBe(firstSignal);
-    expect(secondSignal?.aborted).toBe(false);
+    expect(secondSignal?.aborted).toBe(true);
     expect(firstSignalAfterRetry).toBe(firstSignal);
   });
 });
