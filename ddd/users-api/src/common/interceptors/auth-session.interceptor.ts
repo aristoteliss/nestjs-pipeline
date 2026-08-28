@@ -214,18 +214,20 @@ export class AuthSessionInterceptor implements NestInterceptor {
     token: string,
     session: Session<SessionData>,
   ): Promise<SessionUser | null> {
-    const key = await this.getJwtVerificationKey();
-    if (!key) return null;
+    const verification = await this.getJwtVerificationKey();
+    if (!verification) return null;
 
     const issuer = process.env.JWT_ISSUER;
     const audience = process.env.JWT_AUDIENCE;
-    const allowedAlgorithms = (process.env.JWT_ALGORITHMS ?? 'HS256')
+    const allowedAlgorithms = (
+      process.env.JWT_ALGORITHMS ?? verification.defaultAlgorithm
+    )
       .split(',')
       .map((a) => a.trim())
       .filter(Boolean);
 
     try {
-      const { payload } = await jwtVerify(token, key, {
+      const { payload } = await jwtVerify(token, verification.key, {
         algorithms: allowedAlgorithms,
         issuer,
         audience,
@@ -325,11 +327,12 @@ export class AuthSessionInterceptor implements NestInterceptor {
       const normalizedKey = publicKey.includes('BEGIN PUBLIC KEY')
         ? publicKey
         : publicKey.replace(/\\n/g, '\n');
+      const algorithm = process.env.JWT_PUBLIC_KEY_ALG ?? 'RS256';
       try {
-        return await importSPKI(
-          normalizedKey,
-          process.env.JWT_PUBLIC_KEY_ALG ?? 'RS256',
-        );
+        return {
+          key: await importSPKI(normalizedKey, algorithm),
+          defaultAlgorithm: algorithm,
+        };
       } catch (_e: unknown) {
         this.logger.warn(
           'JWT_PUBLIC_KEY is set but not a valid SPKI key; falling back to JWT_SECRET if available.',
@@ -338,7 +341,12 @@ export class AuthSessionInterceptor implements NestInterceptor {
     }
 
     const secret = process.env.JWT_SECRET;
-    if (secret) return this.encoder.encode(secret);
+    if (secret) {
+      return {
+        key: this.encoder.encode(secret),
+        defaultAlgorithm: 'HS256',
+      };
+    }
 
     return undefined;
   }
