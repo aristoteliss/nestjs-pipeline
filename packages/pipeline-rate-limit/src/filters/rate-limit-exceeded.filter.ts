@@ -32,7 +32,11 @@ type ErrorResponseBody = {
 };
 
 type HttpResponse = {
-  status(code: number): { json(body: ErrorResponseBody): void };
+  status(code: number): HttpResponse;
+  /** Express-style JSON sender. */
+  json?(body: ErrorResponseBody): unknown;
+  /** Fastify-style body sender. */
+  send?(body: ErrorResponseBody): unknown;
   /** Fastify-style header setter. */
   header?(name: string, value: string): unknown;
   /** Express-style header setter. */
@@ -55,6 +59,12 @@ export class RateLimitExceededFilter implements ExceptionFilter {
     const ctx = host.switchToHttp();
     const response = ctx.getResponse<HttpResponse>();
     const retryAfter = String(exception.retryAfterSeconds);
+    const body: ErrorResponseBody = {
+      statusCode: HttpStatus.TOO_MANY_REQUESTS,
+      error: 'Too Many Requests',
+      message: exception.message,
+      retryAfter: exception.retryAfterSeconds,
+    };
 
     if (typeof response.header === 'function') {
       response.header('Retry-After', retryAfter);
@@ -62,11 +72,11 @@ export class RateLimitExceededFilter implements ExceptionFilter {
       response.setHeader('Retry-After', retryAfter);
     }
 
-    response.status(HttpStatus.TOO_MANY_REQUESTS).json({
-      statusCode: HttpStatus.TOO_MANY_REQUESTS,
-      error: 'Too Many Requests',
-      message: exception.message,
-      retryAfter: exception.retryAfterSeconds,
-    });
+    response.status(HttpStatus.TOO_MANY_REQUESTS);
+    if (typeof response.json === 'function') {
+      response.json(body);
+      return;
+    }
+    response.send?.(body);
   }
 }
