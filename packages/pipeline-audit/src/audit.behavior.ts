@@ -44,14 +44,15 @@ export const AUDIT_RECORD_ITEM = 'audit.record';
  * request — **on both success and failure** — to a pluggable {@link AuditSink}.
  *
  * For each run it times the handler, resolves the actor and action, redacts the
- * payload (and optionally the response), then forwards the record. On failure it
- * records the error and **re-throws**, so the audit trail captures denied and
- * rejected attempts too — exactly what security/compliance audits need.
+ * payload (and optionally the response), then forwards the record. Handler
+ * failures are recorded before propagation. With the default `failOpen: true`,
+ * sink failures are logged and the original handler result/error is preserved;
+ * with `failOpen: false`, a sink failure is propagated and can replace a handler
+ * error that was being audited.
  *
  * Sink-agnostic by design: it depends only on {@link AuditSink}, so the backend
  * (console, Postgres, an event store, …) is a one-line swap in
- * {@link AuditModule.forRoot}. Sink failures never break the request unless
- * `failOpen: false`.
+ * {@link AuditModule.forRoot}. Record-building failures are logged and ignored.
  *
  * **Ordering:** place this near the **outside** of the chain (e.g. global
  * `before`) so the duration covers the whole handler, and after any auth

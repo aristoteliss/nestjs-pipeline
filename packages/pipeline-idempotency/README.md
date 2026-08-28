@@ -3,7 +3,7 @@
 [![npm version](https://img.shields.io/npm/v/@nestjs-pipeline/idempotency.svg)](https://www.npmjs.com/package/@nestjs-pipeline/idempotency)
 [![License](https://img.shields.io/npm/l/@nestjs-pipeline/idempotency.svg)](https://www.npmjs.com/package/@nestjs-pipeline/idempotency)
 
-Idempotency behavior for `@nestjs-pipeline/core` — runs each command **at most once per idempotency key** within a TTL window, and **replays the stored response** on duplicates. The classic safety net for retried `POST`s, double-clicks, at-least-once message delivery, and flaky network retries.
+Idempotency behavior for `@nestjs-pipeline/core` — atomically deduplicates concurrent requests sharing an idempotency key and **replays the stored response** after a successful execution. With the default `releaseOnError: true`, failed executions release the key so a later retry may execute the handler again.
 
 Store-agnostic: it depends only on a tiny `IdempotencyStore` interface. A zero-dependency **in-memory** store is the default; **Redis** and **Postgres** are genuine drop-ins for multi-instance deployments, and your own store is a one-line swap — handlers never change.
 
@@ -31,17 +31,21 @@ Store-agnostic: it depends only on a tiny `IdempotencyStore` interface. A zero-d
 
 ## Why a behavior (vs. hand-rolling)
 
-"Exactly-once" is a classic cross-cutting concern: the same "have I already done
+Idempotency is a classic cross-cutting concern: the same "have I already done
 this?" check is needed on every state-changing handler that a client might retry.
 Inlining it couples each handler to your dedupe storage and is easy to get subtly
 wrong (races between the check and the write, never replaying the original
 response, leaking partial writes after a crash). This behavior centralizes it:
 
-- **At-most-once** — the key is claimed **atomically** before the handler runs
+- **Atomic exclusion** — the key is claimed **atomically** before the handler runs
   (`SET NX` on Redis, `INSERT … ON CONFLICT DO NOTHING` on Postgres), so two
-  concurrent duplicates can never both execute.
-- **Response replay** — the first call's response is stored and returned verbatim
-  to later duplicates; the handler does not run again.
+  concurrent duplicates cannot both execute while the claim is live.
+- **Response replay** — after a successful execution, the response is stored and
+  returned to later duplicates without running the handler again while the record
+  remains live.
+- **Failure policy** — handler failures release the key by default
+  (`releaseOnError: true`), allowing a later retry to execute again. Set
+  `releaseOnError: false` when retaining the failed claim is preferable.
 - **In-flight protection** — a duplicate that arrives while the original is still
   running gets a `409 Conflict` instead of racing it.
 - **Payload safety** — an optional fingerprint rejects a key reused with a
@@ -108,7 +112,7 @@ Then opt a command in and tell the behavior how to derive its key — typically 
 ])
 export class CreatePaymentHandler {
   async execute(command: CreatePaymentCommand) {
-    /* charged at most once per key */
+    /* concurrent duplicates are excluded; successful responses are replayed */
   }
 }
 ```
@@ -223,7 +227,8 @@ interface IdempotencyStore {
 }
 ```
 
-`setIfAbsent` **must** be atomic for the guarantee to hold under concurrency.
+`setIfAbsent` **must** be atomic to prevent concurrent duplicates from both
+claiming the same live key.
 
 ---
 
@@ -244,8 +249,9 @@ For each in-scope request `IdempotencyBehavior`:
    - `completed`, different payload → throws `IdempotencyConflictError` (`422`).
 
 If the handler throws and `releaseOnError` is `true` (default), the key is
-released so the client can safely retry; the original error is re-thrown
-unchanged either way.
+released so the client can retry and the handler may execute again. The handler
+error is re-thrown after the cleanup attempt. If cleanup itself fails, that
+cleanup failure is logged and the handler error is still re-thrown.
 
 ---
 

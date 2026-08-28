@@ -1,6 +1,6 @@
 # @nestjs-pipeline/zod
 
-Zod v4 validation integration for `@nestjs-pipeline/core` — validate commands, queries, and events at the pipeline boundary, controller params/body with `ZodPipe`, and catch validation errors with `ZodValidationFilter`.
+Zod v4 validation and parsing integration for `@nestjs-pipeline/core` — parse commands, queries, and events at the pipeline boundary, validate/transform controller params and bodies with `ZodPipe`, and catch validation errors with `ZodValidationFilter`.
 
 ---
 
@@ -42,11 +42,11 @@ pnpm add @nestjs-pipeline/core @nestjs/common
 
 ## ZodValidationBehavior
 
-A pipeline behavior that validates the incoming request against a Zod schema when one is attached to the request class via the `_zodSchema` static property.
+A pipeline behavior that parses the incoming request against a Zod schema when one is attached to the request class via the `_zodSchema` static property. When parsing succeeds with an object result, the existing request object is updated in place to match the parsed data before the next behavior/handler runs.
 
 ### Global Registration
 
-Register once — every command, query, and event with a `_zodSchema` property is automatically validated:
+Register once — every command, query, and event with a `_zodSchema` property is automatically parsed:
 
 ```typescript
 import { Module } from '@nestjs/common';
@@ -70,7 +70,7 @@ export class AppModule {}
 
 ### Per-Handler Registration
 
-Use `@UsePipeline` to add validation to specific handlers only:
+Use `@UsePipeline` to add validation/parsing to specific handlers only:
 
 ```typescript
 import { CommandHandler, ICommandHandler } from '@nestjs/cqrs';
@@ -81,8 +81,9 @@ import { ZodValidationBehavior } from '@nestjs-pipeline/zod';
 @UsePipeline(ZodValidationBehavior)
 export class CreateUserHandler implements ICommandHandler<CreateUserCommand> {
   async execute(command: CreateUserCommand): Promise<User> {
-    // If command has _zodSchema and validation fails, ZodValidationError is thrown
-    // before this code runs
+    // If command has _zodSchema and parsing fails, ZodValidationError is thrown
+    // before this code runs. Successful object output has already been copied
+    // back onto this same command object.
     return this.userRepository.create(command);
   }
 }
@@ -93,7 +94,10 @@ export class CreateUserHandler implements ICommandHandler<CreateUserCommand> {
 1. `ZodValidationBehavior` reads `context.requestType._zodSchema` (a `ZodType`).
 2. If a schema exists, it runs `schema.safeParse(context.request)`.
 3. On failure, it throws `ZodValidationError` with structured details.
-4. If no schema is present (e.g. a plain event class), it's a no-op — just calls `next()`.
+4. On success, if both `result.data` and the request are objects, it mutates the existing request object to match `result.data`: request keys omitted by the parsed result are deleted, then parsed/coerced/defaulted values are assigned.
+5. If no schema is present (e.g. a plain event class), it's a no-op — just calls `next()`.
+
+This means transforms, coercions, defaults, and object-key stripping performed by the schema are visible to later behaviors and to the handler; the behavior is not validation-only.
 
 ---
 
@@ -460,7 +464,7 @@ export class UsersController {
 
 | Export | Type | Description |
 |---|---|---|
-| `ZodValidationBehavior` | Class | Pipeline behavior — validates request against `_zodSchema` |
+| `ZodValidationBehavior` | Class | Pipeline behavior — parses `_zodSchema` and applies successful object output to the existing request |
 | `ZodValidationError` | Class | Error with `details` from `ZodError.flatten()` |
 | `ZodValidationFilter` | Class | Exception filter — catches `ZodValidationError` → HTTP 400 |
 | `ZodPipe` | Class | NestJS pipe — validates params/body/query against Zod schema |

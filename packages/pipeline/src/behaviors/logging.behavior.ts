@@ -35,11 +35,11 @@ import { IPipelineContext } from '../interfaces/pipeline.context.interface';
 /**
  * Injection token for providing a custom {@link LoggerService} to {@link LoggingBehavior}.
  *
- * The provided logger must either implement all methods from {@link LoggerService}
- * (log, debug, verbose, warn, error, fatal),
- * or support the NestJS log level mapping (e.g., 'log' → 'info', 'verbose' → 'trace', etc.).
- * If you use a logger like nestjs-pino's Logger, ensure it is compatible or that your
- * pipeline version includes the mapping logic.
+ * The behavior dispatches through NestJS {@link LoggerService} method names
+ * (`log`, `debug`, `verbose`, `warn`, `error`, `fatal`) according to the
+ * configured {@link LogLevel}. A custom logger therefore needs to expose those
+ * Nest-compatible methods (directly or through an adapter such as nestjs-pino's
+ * Nest logger integration).
  *
  * @example
  * ```ts

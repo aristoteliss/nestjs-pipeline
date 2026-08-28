@@ -348,10 +348,10 @@ If no `tracerName` is provided (neither globally nor per-handler), the default i
 
 ## No SDK? No Problem.
 
-If the OpenTelemetry SDK is **not** initialized (e.g. in development or test environments), both behaviors degrade gracefully — no overhead, no errors, no thrown exceptions:
+If the OpenTelemetry SDK is **not** initialized (e.g. in development or test environments), both behaviors degrade safely: they do not export telemetry and do not throw because telemetry is unavailable.
 
 - `TraceBehavior` detects the missing tracer provider at module init and **passes through** without creating spans.
-- `MetricsBehavior` records to a **no-op meter** (recordings are silently discarded), so it keeps working without a metrics pipeline.
+- `MetricsBehavior` still performs its normal timing and metric-recording calls, but they target a **no-op meter**, so recordings are silently discarded. This is safe without a metrics pipeline, but it is not a literal zero-overhead path.
 
 A warning is logged once at startup for each:
 
@@ -445,7 +445,7 @@ export class CreateUserHandler implements ICommandHandler<CreateUserCommand> {
     // 1. Logged   (global LoggingBehavior + handler override)
     // 2. Traced   (global TraceBehavior → span: command.CreateUserCommand)
     // 3. Measured (global MetricsBehavior → duration histogram + invocation counter)
-    // 4. Validated (global ZodValidationBehavior → checks _zodSchema)
+    // 4. Parsed/validated (global ZodValidationBehavior → applies successful schema output to the request)
     return this.userRepository.create(command.username, command.email);
   }
 }
@@ -488,4 +488,3 @@ pipeline.handler.invocations{...,outcome="success"} counter   → request & erro
 Dual-licensed under **AGPLv3** and a **Commercial License**. See the root [`LICENSE`](../../LICENSE) and [`COMMERCIAL_LICENSE.txt`](../../COMMERCIAL_LICENSE.txt) for details.
 
 Contact: **aristotelis@ik.me**
-

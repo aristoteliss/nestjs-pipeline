@@ -56,7 +56,11 @@ export type RetryBackoff =
 
 /** Retry configuration — re-runs the handler on a handled failure. */
 export interface RetryOptions {
-  /** Maximum number of attempts before giving up (e.g. `3`). */
+  /**
+   * Maximum number of retry attempts after the initial call (e.g. `3` allows
+   * the original execution plus up to three retries), matching Cockatiel's
+   * `retry(..., { maxAttempts })` semantics.
+   */
   maxAttempts: number;
   /** Delay strategy between attempts. Defaults to no delay. */
   backoff?: RetryBackoff;

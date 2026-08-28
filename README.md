@@ -16,7 +16,9 @@ HTTP Request
 > handler's options. This lets a handler tune (e.g.) `LoggingBehavior` without it
 > executing twice.
 
-Zero additional runtime dependencies beyond NestJS itself. Works with Express and Fastify.
+The core package adds no runtime dependencies beyond NestJS itself. Add-on packages
+use their own declared integrations (Zod, OpenTelemetry, CASL, OpenFeature, etc.).
+Works with Express and Fastify.
 
 ---
 
@@ -76,16 +78,16 @@ Zero additional runtime dependencies beyond NestJS itself. Works with Express an
 |---|---|
 | [`@nestjs-pipeline/core`](packages/pipeline) | Pipeline engine, `@UsePipeline` decorator, `PipelineModule`, `LoggingBehavior` |
 | [`@nestjs-pipeline/correlation`](packages/pipeline-correlation) | Standalone correlation ID propagation — HTTP middleware, `@WithCorrelation`, `runWithCorrelationId`, `getCorrelationId` |
-| [`@nestjs-pipeline/zod`](packages/pipeline-zod) | Zod v4 validation behavior, `ZodPipe`, `ZodValidationFilter`, `ZodValidationError` |
+| [`@nestjs-pipeline/zod`](packages/pipeline-zod) | Zod v4 validation/parsing behavior that applies successful parsed object output to the request, plus `ZodPipe`, `ZodValidationFilter`, `ZodValidationError` |
 | [`@nestjs-pipeline/opentelemetry`](packages/pipeline-opentelemetry) | OpenTelemetry tracing & metrics behaviors — spans plus duration/throughput/error instruments for every pipeline invocation |
 | [`@nestjs-pipeline/casl`](packages/pipeline-casl) | CASL ABAC authorization behavior — role-based capability trees, condition interpolation, inline `rules` on `CaslBehaviorOptions` |
 | [`@nestjs-pipeline/resilience`](packages/pipeline-resilience) | Resilience & transient-fault-handling behavior — retry, circuit breaker, timeout, bulkhead, fallback (powered by cockatiel) |
 | [`@nestjs-pipeline/cache`](packages/pipeline-cache) | Read-through caching behavior for queries — pluggable stores (memory, redis, memcache, sqlite, postgres) via cache-manager v7 on keyv |
-| [`@nestjs-pipeline/feature-flags`](packages/pipeline-feature-flags) | Feature-flag gating behavior — provider-agnostic via OpenFeature (Unleash default, Flagsmith/LaunchDarkly drop-in) |
-| [`@nestjs-pipeline/deadletter`](packages/pipeline-deadletter) | Dead-letter capture behavior for failed requests — transport-agnostic (BullMQ default, RabbitMQ/Postgres drop-in) |
+| [`@nestjs-pipeline/feature-flags`](packages/pipeline-feature-flags) | Feature-flag gating behavior — provider-agnostic via OpenFeature (Unleash shown in examples; Flagsmith/LaunchDarkly are drop-in alternatives) |
+| [`@nestjs-pipeline/deadletter`](packages/pipeline-deadletter) | Dead-letter capture-attempt behavior for failed requests — transport-agnostic with bundled BullMQ, RabbitMQ, and Postgres transports |
 | [`@nestjs-pipeline/rate-limit`](packages/pipeline-rate-limit) | Rate-limiting behavior — backend-agnostic via rate-limiter-flexible (memory, Redis/Valkey, Mongo, SQL), HTTP 429 filter |
 | [`@nestjs-pipeline/audit`](packages/pipeline-audit) | Audit-trail behavior — records who/what/outcome/duration to a pluggable `AuditSink` (console default, Postgres drop-in), with payload redaction |
-| [`@nestjs-pipeline/idempotency`](packages/pipeline-idempotency) | Idempotency behavior — at-most-once command execution per key with response replay, via a pluggable store (in-memory default, Redis/Postgres drop-in) |
+| [`@nestjs-pipeline/idempotency`](packages/pipeline-idempotency) | Idempotency behavior — atomic concurrent duplicate exclusion and successful-response replay per key; failed executions are retryable by default, via a pluggable store (in-memory default, Redis/Postgres drop-in) |
 
 > Add-on packages live in `packages/pipeline-<name>/` and peer-depend on `@nestjs-pipeline/core`.
 
@@ -542,9 +544,10 @@ export class AuditModule {}
 ```
 
 1. **`PipelineBootstrapService`** scans all CQRS handlers at startup via `@nestjs/cqrs` `ExplorerService`.
-2. For each handler it pre-resolves behavior instances, metadata, and builds the chain once — zero reflection or DI lookups at request time.
-3. Per invocation: creates a `PipelineContext`, resolves correlation ID, runs the chain inside `AsyncLocalStorage` for nested propagation.
-4. Supports **singleton** and **request-scoped** handlers (`Scope.REQUEST`, `Scope.TRANSIENT`).
+2. For each matching handler it precomputes request-independent metadata and resolves singleton behavior instances. Behaviors that cannot be resolved as singletons are marked for per-invocation resolution.
+3. Per invocation: creates a `PipelineContext`, resolves any dynamic/request-scoped/transient behaviors with the applicable Nest context ID, resolves correlation ID, and runs the chain inside `AsyncLocalStorage` for nested propagation.
+4. The common all-singleton path reuses the pre-resolved instances with no request-time reflection or behavior DI lookup; scoped/dynamic behaviors intentionally use request-time DI resolution.
+5. Supports **singleton** and **request-scoped** handlers (`Scope.REQUEST`, `Scope.TRANSIENT`).
 
 ### Execution Order
 
@@ -862,6 +865,11 @@ PipelineModule.forRoot({
 })
 ```
 
+When the same behavior has options at both global and handler level, the handler
+entry replaces the global behavior entry and its **whole options record** for
+that handler. The core combines behavior-option maps; it does not shallow-merge
+individual properties inside those two records.
+
 ---
 
 ## Built-in LoggingBehavior
@@ -968,14 +976,15 @@ Comprehensive Zod v4 integration at every layer of a NestJS CQRS application.
 
 ### Pipeline-Level Validation
 
-Register `ZodValidationBehavior` globally. It auto-validates any request class that has a static `_zodSchema` property (set automatically by the `createRequest()` helper):
+Register `ZodValidationBehavior` globally. It parses any request class that has a
+static `_zodSchema` property (set automatically by the `createRequest()` helper):
 
 ```typescript
 // app.module.ts
 PipelineModule.forRoot({
   globalBehaviors: {
     scope: 'all',
-    after: [ZodValidationBehavior],  // validates before the handler runs
+    after: [ZodValidationBehavior],  // parses/validates before the handler runs
   },
 })
 
@@ -992,7 +1001,11 @@ export class CreateUserCommand extends createRequest(schema) {}
 //                                       ↑ attaches schema as static _zodSchema
 ```
 
-If validation fails, `ZodValidationBehavior` throws a `ZodValidationError` with structured details from `ZodError.flatten()`.
+If parsing fails, `ZodValidationBehavior` throws a `ZodValidationError` with
+structured details from `ZodError.flatten()`. On successful object output, it
+updates the existing request object to match the parsed data before the next
+behavior/handler runs: keys omitted by the parsed result are removed and parsed,
+coerced, transformed, or defaulted values are assigned to that same request.
 
 ### Controller-Level Validation with ZodPipe
 
@@ -1100,7 +1113,7 @@ async function bootstrap() {
 
 ### Attaching Schemas to Plain Event Classes
 
-Event classes that don't use `createRequest()` can still be validated by attaching the schema manually:
+Event classes that don't use `createRequest()` can still be parsed/validated by attaching the schema manually:
 
 ```typescript
 import { ZOD_SCHEMA_KEY } from '@nestjs-pipeline/zod';
@@ -1191,7 +1204,12 @@ Metric attributes are intentionally **low-cardinality** (no `correlation_id`/`st
 
 ### No SDK? No Problem.
 
-If the OpenTelemetry SDK is not initialized, both behaviors degrade gracefully — `TraceBehavior` passes through without spans, `MetricsBehavior` records to a no-op meter. A warning is logged once at startup:
+If the OpenTelemetry SDK is not initialized, both behaviors remain safe:
+`TraceBehavior` passes through without spans, while `MetricsBehavior` still does
+its normal timing and metric-recording calls against a no-op meter, so recordings
+are discarded. Telemetry unavailability does not make either behavior throw, but
+the metrics path is not a literal zero-overhead path. A warning is logged once at
+startup:
 
 ```
 [Nest] WARN [TraceBehavior] OpenTelemetry SDK is NOT initialized — TraceBehavior will pass through without tracing.
@@ -1284,14 +1302,14 @@ ADAPTER=fastify pnpm start
 - Per-handler CASL authorization with inline `rules` on `CaslBehaviorOptions` and `CaslBehavior`
 - MikroORM-backed CASL providers (roles, capabilities, user context)
 - Versioned database migrations with tracking (`mikro_orm_migrations` table)
-- Zod-validated commands, queries, and events via `createExecuteClass()`
+- Zod-parsed/validated commands, queries, and events via `createExecuteClass()`
 - Controller-level `ZodPipe` validation
 - Zod transform mappers (DTO → Command mapping)
 - OpenTelemetry tracing with `TraceBehavior`
-- Global `DeadLetterBehavior` capturing failed commands/queries/events to a BullMQ `dead-letters` queue for inspection and replay (with `UserCreatedHandler` opting into `{ rethrow: false }` for fire-and-forget side effects)
+- Global `DeadLetterBehavior` attempting to send failed commands/queries/events to a BullMQ `dead-letters` queue for inspection and replay (with `UserCreatedHandler` opting into `{ rethrow: false }` for fire-and-forget side effects); transport failures are logged rather than proving persistence
 - Per-handler `RateLimitBehavior` throttling `CreateUserHandler` to 5 registrations / 60s per email (in-memory limiter), with `RateLimitExceededFilter` mapping breaches to HTTP 429 + `Retry-After`
 - Per-handler `AuditBehavior` recording the sensitive `user.delete` action (actor, outcome, duration, redacted payload) to the default `LogAuditSink`, with the actor resolved from the request-scoped session
-- Per-handler `IdempotencyBehavior` making `CreateUserHandler` idempotent per email (in-memory store default) — a retried POST replays the first response instead of creating a duplicate, with `IdempotencyConflictFilter` mapping in-flight duplicates to HTTP 409 and payload-mismatched key reuse to HTTP 422
+- Per-handler `IdempotencyBehavior` atomically excluding concurrent duplicates for `CreateUserHandler` per email and replaying completed successful responses; with the default `releaseOnError: true`, a failed execution releases the key so a later retry may execute again. `IdempotencyConflictFilter` maps in-flight duplicates to HTTP 409 and payload-mismatched key reuse to HTTP 422
 - DDD-style `User` entity built on `ddd-core` primitives (`CacheableEntity`, `RootDomainEvent`, `RootDomainOutcome`)
 - MikroORM (libSQL driver) persistence with a normalized schema
 - Pluggable `ICache<T>` — `MikroOrmCache` (MikroORM-backed, TTL-aware) or `MemoryCache` swapped via a single provider token
@@ -1331,7 +1349,7 @@ nestjs-pipeline/
 │   │       ├── errors/           # ZodValidationError
 │   │       ├── filters/          # ZodValidationFilter
 │   │       ├── pipes/            # ZodPipe
-│   │       └── zod-validation.behavior.ts
+│   │       └── zod-validation.behavior.ts  # parse/validate and apply successful object output
 │   ├── pipeline-casl/            # @nestjs-pipeline/casl
 │   │   └── src/
 │   │       ├── constants/        # Injection tokens
@@ -1372,8 +1390,8 @@ nestjs-pipeline/
 │   │       ├── constants/        # DEAD_LETTER_TRANSPORT, DEAD_LETTER_DEFAULT_OPTIONS tokens
 │   │       ├── helpers/          # buildDeadLetterRecord
 │   │       ├── interfaces/       # DeadLetterTransport, DeadLetterRecord, options types
-│   │       ├── transports/       # BullMQ (default), RabbitMQ, Postgres drop-in transports
-│   │       ├── dead-letter.behavior.ts   # DeadLetterBehavior (capture failed requests)
+│   │       ├── transports/       # BullMQ, RabbitMQ, Postgres bundled transports
+│   │       ├── dead-letter.behavior.ts   # DeadLetterBehavior (capture/send attempt for failed requests)
 │   │       └── dead-letter.module.ts
 │   ├── pipeline-rate-limit/      # @nestjs-pipeline/rate-limit
 │   │   └── src/
@@ -1400,7 +1418,7 @@ nestjs-pipeline/
 │           ├── helpers/          # fingerprintValue (stable payload hash)
 │           ├── interfaces/       # IdempotencyStore, IdempotencyRecord, options types
 │           ├── stores/           # Memory (default), Redis, Postgres drop-in stores
-│           ├── idempotency.behavior.ts   # IdempotencyBehavior (at-most-once + replay)
+│           ├── idempotency.behavior.ts   # IdempotencyBehavior (concurrent exclusion + successful replay)
 │           └── idempotency.module.ts
 └── ddd/
     ├── core/                     # @nestjs-pipeline/ddd-core — reusable DDD primitives

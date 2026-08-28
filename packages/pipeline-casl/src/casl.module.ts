@@ -73,15 +73,17 @@ export interface CaslModuleOptions {
       };
 
   /**
-   * Per-user capability provider.
+   * Optional per-user capability provider.
    *
-   * **Required at runtime** for handlers that use `CaslBehaviorOptions.rules` —
-   * if not registered, those handlers will throw an `Error` because user
-   * roles cannot be determined.  Only omit this if every handler uses
-   * `CaslBehaviorOptions.prebuiltAbility` or `skipCheck: true`.
+   * CaslBehavior first uses a valid `capabilities` bag already attached to the
+   * resolved user context (for example from a verified JWT/session). If no such
+   * bag is present, this provider supplies the user's role names plus any
+   * additional/denied capabilities. `CaslBehaviorOptions.prebuiltAbility` also
+   * bypasses provider-based ability construction.
    *
-   * Provides the current user's role names plus any per-user additional
-   * and denied capabilities.
+   * Therefore this provider is required only when a handler needs CaslBehavior
+   * to build an ability for a user that does not already carry capabilities and
+   * no prebuilt ability is supplied.
    */
   userCapabilityProvider?:
     | Type<IUserCapabilityProvider>
@@ -154,6 +156,7 @@ function toProvider(
  *       roleProvider: YamlRoleProvider,
  *       userContextResolver: JwtUserContextResolver,
  *       userCapabilityProvider: DatabaseUserCapabilityProvider,
+ *       subjectContextPaths: [],
  *     }),
  *     PipelineModule.forRoot({
  *       globalBehaviors: {
@@ -268,6 +271,7 @@ function toProvider(
  *         useFactory: (pool: Pool) => new PgUserCapabilityProvider(pool),
  *         inject: [Pool],
  *       },
+ *       subjectContextPaths: [],
  *     }),
  *     PipelineModule.forRoot({
  *       globalBehaviors: {

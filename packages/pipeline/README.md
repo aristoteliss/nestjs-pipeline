@@ -88,7 +88,7 @@ import { PipelineModule, LoggingBehavior } from '@nestjs-pipeline/core';
 })
 export class AppModule {}
 
-// ── Style 2: Simple array ──
+// ── Style 2: Simple array (DI registration only) ──
 
 @Module({
   imports: [
@@ -97,6 +97,10 @@ export class AppModule {}
   ],
 })
 export class AppModule {}
+
+// The array form is equivalent to { behaviors: [...] }:
+// it registers providers for @UsePipeline references, but does not make those
+// behaviors execute globally. Use globalBehaviors for global execution.
 
 // ── Style 3: With correlation ID bridge ──
 
@@ -285,7 +289,7 @@ async handle(context: IPipelineContext, next: NextDelegate): Promise<any> {
 }
 ```
 
-Options set at the global level via `globalBehaviors` are merged with handler-level options. Handler-level options win on conflict.
+Global and handler option **maps** are combined. When the same behavior appears at both levels, the handler-level options record replaces the global options record for that behavior; individual properties are not shallow-merged by the core pipeline.
 
 ### Inter-Behavior Communication
 
@@ -716,8 +720,8 @@ orderCreated = (events$: Observable<any>): Observable<ICommand> =>
 
 1. `PipelineBootstrapService` runs at `OnApplicationBootstrap`.
 2. Discovers all CQRS handlers via `@nestjs/cqrs` `ExplorerService` (commands, queries, events).
-3. For each handler with `@UsePipeline` or matching global behaviors: pre-resolves behavior instances, builds metadata, wraps the `execute()` / `handle()` method.
-4. Everything is computed once at startup — zero reflection or DI lookups at request time.
+3. For each handler with `@UsePipeline` or matching global behaviors: computes effective behavior/handler metadata, resolves singleton behavior instances, and wraps the `execute()` / `handle()` method. Behaviors that cannot be resolved as singletons are marked for dynamic resolution.
+4. Request-independent metadata is computed once at startup. The common all-singleton path reuses pre-resolved behavior instances with no per-request reflection/behavior DI lookup; request-scoped/transient behaviors are resolved per invocation with `moduleRef.resolve()` and the applicable Nest context ID.
 5. Supports singleton and request-scoped handlers (`Scope.REQUEST`, `Scope.TRANSIENT`).
 
 ---
@@ -752,9 +756,9 @@ orderCreated = (events$: Observable<any>): Observable<ICommand> =>
 
 | Field | Type | Description |
 |---|---|---|
-| `behaviors` | `Type[]` | Behavior classes to register in DI |
-| `globalBehaviors` | `GlobalBehaviorsOptions \| GlobalBehaviorsOptions[]` | Auto-wrap all handlers |
-| `correlationIdFactory` | `() => string \| undefined` | Read the current correlation ID (e.g. `getCorrelationId`) |
+| `behaviors` | `Type[]` | Behavior classes to register in DI; registration alone does not execute them globally |
+| `globalBehaviors` | `GlobalBehaviorsOptions \| GlobalBehaviorsOptions[]` | Auto-wrap matching handlers |
+| `correlationIdFactory` | `() => string \| undefined` | Read an external correlation ID for a root run after parent inheritance is checked (e.g. `getCorrelationId`) |
 | `correlationIdRunner` | `<T>(id: string, fn: () => T) => T` | Wrap each pipeline invocation in a correlation context (e.g. `runWithCorrelationId`) |
 | `bootstrapLogLevel` | `LogLevel \| 'none'` | Log level for bootstrap messages (default `'debug'`) |
 | `loggerProvider` | `Provider` | Custom DI provider bound to `LOGGING_BEHAVIOR_LOGGER` (registered and exported) |

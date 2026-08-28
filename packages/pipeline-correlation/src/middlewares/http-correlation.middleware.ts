@@ -27,13 +27,17 @@ import {
 
 /**
  * NestJS middleware that extracts a correlation ID from the incoming HTTP
- * request header and stores it in {@link correlationStore}.
+ * request header and stores it in {@link correlationStore} for the remainder of
+ * the request callback.
  *
- * The header name defaults to `x-correlation-id` and can be customized via
- * the `CORRELATION_OPTIONS` token or `correlation: { header: 'x-request-id' }`
- * in `PipelineModule.forRoot`.
+ * The header name defaults to `x-correlation-id`. Applications that need a
+ * different header can bind {@link CORRELATION_OPTIONS} with a string `header`.
+ * The middleware itself must be registered explicitly with Nest's
+ * `MiddlewareConsumer`; it is not installed by `PipelineModule`.
  *
- * Applied automatically unless `correlation: { header: false }` is set.
+ * If `header` is omitted or is any non-string value (including `false`), the
+ * current implementation uses the default `x-correlation-id` header. A false
+ * value does not disable a middleware instance that the application registered.
  */
 @Injectable()
 export class HttpCorrelationMiddleware implements NestMiddleware {

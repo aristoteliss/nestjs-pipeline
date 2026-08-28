@@ -3,9 +3,9 @@
 [![npm version](https://img.shields.io/npm/v/@nestjs-pipeline/deadletter.svg)](https://www.npmjs.com/package/@nestjs-pipeline/deadletter)
 [![License](https://img.shields.io/npm/l/@nestjs-pipeline/deadletter.svg)](https://www.npmjs.com/package/@nestjs-pipeline/deadletter)
 
-Dead-letter capture behavior for `@nestjs-pipeline/core` — when a command, query, or event handler fails (after any retries), it forwards a serializable snapshot of the failed request to a durable **dead-letter sink** for inspection and replay.
+Dead-letter capture behavior for `@nestjs-pipeline/core` — when a command, query, or event handler fails (after any retries), it forwards a serializable snapshot of the failed request to a **dead-letter transport** for inspection and replay.
 
-Transport-agnostic: it depends only on a tiny `DeadLetterTransport` interface. **BullMQ** is the default, and **RabbitMQ** and **Postgres** are genuine drop-in replacements — handlers never change. The bundled transports are typed *structurally*, so this package adds **zero heavy dependencies**; you pass your own `Queue`, AMQP `Channel`, or pg `Pool`.
+Transport-agnostic: it depends only on a tiny `DeadLetterTransport` interface. **BullMQ**, **RabbitMQ**, and **Postgres** transports are bundled — handlers never change. The bundled transports are typed *structurally*, so this package adds **zero heavy dependencies**; you pass your own `Queue`, AMQP `Channel`, or pg `Pool`.
 
 ---
 
@@ -15,7 +15,7 @@ Transport-agnostic: it depends only on a tiny `DeadLetterTransport` interface. *
 - [Installation](#installation)
 - [Setup](#setup)
 - [Transports](#transports)
-  - [BullMQ (default)](#bullmq-default)
+  - [BullMQ](#bullmq)
   - [RabbitMQ (drop-in)](#rabbitmq-drop-in)
   - [Postgres (drop-in)](#postgres-drop-in)
   - [Custom transport](#custom-transport)
@@ -32,12 +32,11 @@ Transport-agnostic: it depends only on a tiny `DeadLetterTransport` interface. *
 
 A pipeline command/query is a **synchronous, in-process call** — you can't "park it
 for later." So this behavior does the one thing that *is* meaningful in-process:
-on final failure it **captures** the request + error to a durable sink, then:
+on final failure it attempts to send the request + error to the configured sink, then:
 
-- **commands/queries** → re-throws (the caller still gets the failure), and the
-  record lets you replay later;
-- **events** (fire-and-forget) → optionally **swallows** the error so a failed
-  side effect doesn't crash anything, while still being captured for replay.
+- **commands/queries** → re-throws (the caller still gets the failure);
+- **events** (fire-and-forget) → can optionally **swallow** the handler error with
+  `rethrow: false`.
 
 For *retrying* a request right now, use
 [`@nestjs-pipeline/resilience`](../pipeline-resilience). This package is about
@@ -84,21 +83,24 @@ const deadLetterQueue = new Queue('dead-letters', {
     DeadLetterModule.forRoot({
       transport: new BullMqDeadLetterTransport(deadLetterQueue),
     }),
+    // Registers the behavior provider for @UsePipeline/globalBehaviors.
     PipelineModule.forRoot({ behaviors: [DeadLetterBehavior] }),
   ],
 })
 export class AppModule {}
 ```
 
-Then opt a handler in per-handler (or rely on the global registration above):
+Then opt a handler in per-handler, or configure `DeadLetterBehavior` under
+`globalBehaviors` if it should execute globally. The `behaviors` registration
+above only makes the provider available to the pipeline.
 
 ```typescript
 @CommandHandler(CreateUserCommand)
-@UsePipeline([DeadLetterBehavior]) // capture + re-throw on failure
+@UsePipeline([DeadLetterBehavior]) // attempt capture + re-throw on failure
 export class CreateUserHandler implements ICommandHandler<CreateUserCommand> {}
 
 @EventsHandler(UserCreatedEvent)
-@UsePipeline([DeadLetterBehavior, { rethrow: false }]) // capture + swallow
+@UsePipeline([DeadLetterBehavior, { rethrow: false }]) // attempt capture + swallow handler error
 export class SendWelcomeEmailHandler implements IEventHandler<UserCreatedEvent> {}
 ```
 
@@ -111,9 +113,9 @@ export class SendWelcomeEmailHandler implements IEventHandler<UserCreatedEvent> 
 Swapping the backend is a **one-line** change — only the transport passed to
 `forRoot`/`forRootAsync` differs. Handlers are untouched.
 
-### BullMQ (default)
+### BullMQ
 
-Each dead letter becomes a job; inspect/replay via `queue.getFailed()`,
+Each successful transport send adds a job; inspect/replay via `queue.getFailed()`,
 `job.retry()`, or Bull Board. Defaults keep jobs around
 (`removeOnComplete: false`, `removeOnFail: false`).
 
@@ -194,9 +196,11 @@ For each request, `DeadLetterBehavior` runs the handler and, **only on failure**
 2. Skips capture if the request kind isn't in `captureKinds` (when set).
 3. Builds a serializable [`DeadLetterRecord`](#the-dead-letter-record) and calls
    `transport.send(record)`. A transport failure is logged and **never masks**
-   the original error.
-4. Marks `dead-letter.captured = true` on `context.items`.
-5. Re-throws the original error (`rethrow: true`, default) or resolves to
+   the original handler error.
+4. Sets `dead-letter.captured = true` on `context.items` after the capture attempt.
+   Because transport errors are swallowed, this flag indicates that the behavior
+   attempted the dead-letter send; it does not prove that the transport persisted it.
+5. Re-throws the original handler error (`rethrow: true`, default) or resolves to
    `undefined` (`rethrow: false`).
 
 ---
@@ -208,7 +212,7 @@ over module-wide `defaults` (handler wins):
 
 | Option | Type | Default | Description |
 |---|---|---|---|
-| `rethrow` | `boolean` | `true` | Re-throw after capture. Set `false` for fire-and-forget events. |
+| `rethrow` | `boolean` | `true` | Re-throw the handler error after the capture attempt. Set `false` for fire-and-forget events. |
 | `includeStack` | `boolean` | `true` | Include the error stack in the record. |
 | `captureKinds` | `('command'\|'query'\|'event'\|'unknown')[]` | all | Restrict which request kinds are captured. |
 | `metadata` | `(ctx) => Record<string, unknown>` | — | Extra request-aware metadata to attach. |
@@ -245,8 +249,8 @@ interface DeadLetterRecord {
 
 ## Ordering with retries
 
-Place `DeadLetterBehavior` **outside** retry behaviors so it captures only once
-retries are exhausted:
+Place `DeadLetterBehavior` **outside** retry behaviors so it attempts capture only
+after retries are exhausted:
 
 ```typescript
 PipelineModule.forRoot({
@@ -261,7 +265,7 @@ PipelineModule.forRoot({
 ```
 
 The chain becomes `DeadLetterBehavior → ResilienceBehavior → handler`: retries
-happen first; only the final failure is dead-lettered (once).
+happen first; only the final failure reaches the dead-letter capture attempt.
 
 ---
 
@@ -269,19 +273,19 @@ happen first; only the final failure is dead-lettered (once).
 
 | Export | Type | Description |
 |---|---|---|
-| `DeadLetterBehavior` | Class | Pipeline behavior — captures failed requests to the transport |
+| `DeadLetterBehavior` | Class | Pipeline behavior — attempts to send failed requests to the transport |
 | `DeadLetterModule` | Class | `forRoot(options)` / `forRootAsync(options)` |
 | `DeadLetterTransport` | Interface | One-method sink: `send(record)` |
 | `DeadLetterRecord` | Interface | Serializable failed-request snapshot |
 | `DeadLetterBehaviorOptions` | Interface | `{ rethrow?, includeStack?, captureKinds?, metadata? }` |
 | `DeadLetterModuleOptions` / `DeadLetterModuleAsyncOptions` | Interface | Module registration options |
-| `BullMqDeadLetterTransport` | Class | Default — adds a job to a BullMQ queue |
+| `BullMqDeadLetterTransport` | Class | Adds a job to a BullMQ queue |
 | `RabbitMqDeadLetterTransport` | Class | Publishes a persistent AMQP message |
 | `PostgresDeadLetterTransport` | Class | Inserts a row via `pg` |
 | `createDeadLetterTableSql` | Function | `CREATE TABLE` DDL for the Postgres transport |
 | `buildDeadLetterRecord` | Function | Builds a record from a context + error |
 | `DEAD_LETTER_TRANSPORT` / `DEAD_LETTER_DEFAULT_OPTIONS` | Token | Injection tokens |
-| `DEAD_LETTER_ITEM` | Const | `context.items` key set when captured |
+| `DEAD_LETTER_ITEM` | Const | `context.items` key set after the capture attempt |
 
 ---
 

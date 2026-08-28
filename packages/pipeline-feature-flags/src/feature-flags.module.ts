@@ -36,9 +36,10 @@ import type {
  *
  * OpenFeature is the abstraction layer, so the actual flag source is a drop-in
  * swap — pass an Unleash provider today, a Flagsmith provider tomorrow, without
- * touching handler code.
+ * touching handler code. If neither a `client` nor `provider` is supplied,
+ * the module uses OpenFeature's ambient client.
  *
- * @example Unleash (default), per-handler gating
+ * @example Unleash provider, per-handler gating
  * ```ts
  * import { FeatureFlagsModule, FeatureFlagBehavior } from '@nestjs-pipeline/feature-flags';
  * import { UnleashProvider } from '@openfeature/unleash-provider';

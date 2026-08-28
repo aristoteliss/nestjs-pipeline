@@ -1,7 +1,7 @@
 {
   "name": "@nestjs-pipeline/zod",
   "version": "0.1.7",
-  "description": "Zod validation behavior for @nestjs-pipeline/core",
+  "description": "Zod validation/parsing behavior for @nestjs-pipeline/core that applies successful parsed object output to the existing request",
   "author": "Aristotelis <aristotelis@ik.me>",
   "license": "SEE LICENSE IN LICENSE",
   "repository": {

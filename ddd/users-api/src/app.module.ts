@@ -97,27 +97,32 @@ import { UsersModule } from './users/users.module';
     PipelineModule.forRoot({
       /**
        * Bridge correlation IDs from @nestjs-pipeline/correlation into the pipeline.
-       * getCorrelationId() reads from HTTP middleware, @WithCorrelation, or runWithCorrelationId.
+       * getCorrelationId() reads from HTTP middleware, @WithCorrelation, or
+       * runWithCorrelationId, while correlationIdRunner keeps the handler chain
+       * inside the same correlation AsyncLocalStorage context.
        */
       correlationIdFactory: getCorrelationId,
       correlationIdRunner: runWithCorrelationId,
       /**
        * Register global behaviors once so every command, query, and event handler
-       * shares the same logging/tracing/metrics/validation pipeline by default — without
-       * repeating them on each handler.
+       * shares the same dead-letter/logging/tracing/metrics/validation pipeline by
+       * default — without repeating them on each handler.
        * A handler may still opt into a per-handler `@UsePipeline` entry: if it
        * declares the same behavior class as a global one, the handler's entry
        * REPLACES the global entry for that handler (it does not run twice). This is
        * how individual handlers override `LoggingBehavior` with a custom
        * `requestResponseLogLevel` while everything else falls back to these globals.
        *
-       * before: LoggingBehavior
-       * - emits request/response + timing logs
-       * - uses nestjs-pino through LOGGING_BEHAVIOR_LOGGER provider
+       * before: DeadLetterBehavior + LoggingBehavior
+       * - DeadLetterBehavior observes final failures outside per-handler retries
+       * - LoggingBehavior emits request/response + timing logs
+       * - LoggingBehavior uses nestjs-pino through LOGGING_BEHAVIOR_LOGGER provider
        *
        * after: TraceBehavior + MetricsBehavior + ZodValidationBehavior
        * - TraceBehavior creates OTel spans (and uses nestjs-pino via LOGGING_BEHAVIOR_LOGGER)
        * - MetricsBehavior records execution duration histogram and invocation counters
+       * - ZodValidationBehavior parses schema-backed requests and applies successful
+       *   object output to the existing request before the handler runs
        */
       globalBehaviors: {
         scope: 'all',
@@ -134,10 +139,12 @@ import { UsersModule } from './users/users.module';
       },
     }),
     /**
-     * Registers DeadLetterBehavior globally (outermost `before` entry) so that
-     * when any command, query, or event handler fails — after any per-handler
-     * ResilienceBehavior retries are exhausted — a serializable snapshot of the
-     * failed request is captured to a durable sink for inspection and replay.
+     * Configures the transport used by the globally attached DeadLetterBehavior
+     * above. When any command, query, or event handler finally fails — after any
+     * per-handler ResilienceBehavior retries are exhausted — the behavior attempts
+     * to send a serializable snapshot of the failed request for inspection/replay.
+     * Transport errors are logged by the behavior and do not replace the handler
+     * error, so a capture marker means an attempt occurred, not guaranteed storage.
      *
      * The transport is the only backend-specific piece: this app uses the
      * BullMQ default (reusing the Redis connection already configured above),
@@ -156,8 +163,9 @@ import { UsersModule } from './users/users.module';
       useFactory: (queue: Queue) => new BullMqDeadLetterTransport(queue),
     }),
     /**
-     * Registers RateLimitBehavior globally so handlers can opt in per-handler
-     * via `@UsePipeline([RateLimitBehavior, { ... }])` (see CreateUserHandler).
+     * Configures RateLimitBehavior so handlers can opt in per-handler via
+     * `@UsePipeline([RateLimitBehavior, { ... }])` (see CreateUserHandler).
+     * This module registration does not attach rate limiting globally.
      *
      * Backend-agnostic via rate-limiter-flexible: this example uses an in-memory
      * limiter so it runs without external infrastructure. Swapping to a shared
@@ -173,9 +181,10 @@ import { UsersModule } from './users/users.module';
       limiter: new RateLimiterMemory({ points: 5, duration: 60 }),
     }),
     /**
-     * Registers AuditBehavior globally so handlers can opt in per-handler via
-     * `@UsePipeline([AuditBehavior, { action, severity, actor }])` (see
-     * DeleteUserHandler). The behavior records who did what, with what outcome,
+     * Configures AuditBehavior and its default sink so handlers can opt in
+     * per-handler via `@UsePipeline([AuditBehavior, { action, severity, actor }])`
+     * (see DeleteUserHandler). This module registration itself does not attach the
+     * behavior globally. The behavior records who did what, with what outcome,
      * duration, and a redacted payload — on BOTH success and failure.
      *
      * Sink-agnostic via the tiny `AuditSink` interface: this example uses the
@@ -190,11 +199,16 @@ import { UsersModule } from './users/users.module';
      */
     AuditModule.forRoot(),
     /**
-     * Registers IdempotencyBehavior globally so handlers can opt in per-handler
-     * via `@UsePipeline([IdempotencyBehavior, { keyFactory, ... }])` (see
-     * CreateUserHandler). The behavior runs each command at most once per key
-     * within a TTL window and replays the stored response on duplicates — so a
-     * retried POST or a double-click can't create the same user twice.
+     * Configures IdempotencyBehavior and its default in-memory store so handlers
+     * can opt in per-handler via
+     * `@UsePipeline([IdempotencyBehavior, { keyFactory, ... }])` (see
+     * CreateUserHandler). This module registration itself does not attach the
+     * behavior globally.
+     *
+     * A live key is claimed atomically, preventing concurrent duplicates from
+     * both executing. Successful responses are stored and replayed while the
+     * record remains live. With the default `releaseOnError: true`, a failed
+     * execution releases its key, so a later retry may execute the handler again.
      *
      * Store-agnostic via the tiny `IdempotencyStore` interface: this example
      * uses the zero-dependency in-memory store default, so it runs without
@@ -218,16 +232,19 @@ import { UsersModule } from './users/users.module';
       },
     }),
     /**
-     * Registers ResilienceBehavior globally so handlers can opt in per-handler
-     * via `@UsePipeline([ResilienceBehavior, { ... }])` (see DeleteUserHandler).
-     * No global defaults are set here — each handler declares its own policy.
+     * Configures ResilienceBehavior so handlers can opt in per-handler via
+     * `@UsePipeline([ResilienceBehavior, { ... }])` (see DeleteUserHandler).
+     * This module registration does not attach resilience globally. No module-wide
+     * defaults are set here — each handler declares its own policy.
      */
     ResilienceModule.forRoot(),
     /**
-     * Registers CacheBehavior globally backed by a Redis store (shared across
-     * instances). Handlers opt in per-handler via
-     * `@UsePipeline([CacheBehavior, { ... }])` (see GetUserHandler). Only query
-     * handlers that opt in are cached; the default per-handler TTL is 30s.
+     * Configures CacheBehavior and its store. Handlers opt in per-handler via
+     * `@UsePipeline([CacheBehavior, { ... }])` (see GetUserHandler); this module
+     * registration itself does not attach caching globally. The demo uses an
+     * in-memory store for non-production runs without REDIS_HOST and Redis
+     * otherwise. Only handlers that attach CacheBehavior are cached; the module
+     * default TTL is 30s.
      */
     CacheModule.forRoot(
       !process.env.REDIS_HOST && process.env.NODE_ENV !== 'production'
@@ -246,9 +263,11 @@ import { UsersModule } from './users/users.module';
           },
     ),
     /**
-     * Registers FeatureFlagBehavior globally so handlers can gate themselves
-     * per-handler via `@UsePipeline([FeatureFlagBehavior, { flag: '...' }])`
-     * (see CreateUserHandler).
+     * Configures FeatureFlagBehavior through OpenFeature so handlers can gate
+     * themselves per-handler via
+     * `@UsePipeline([FeatureFlagBehavior, { flag: '...' }])` (see
+     * CreateUserHandler). This module registration does not attach the behavior
+     * globally.
      *
      * Provider-agnostic via OpenFeature: this example uses an in-memory provider
      * so it runs without external infrastructure. Swapping to Unleash or
