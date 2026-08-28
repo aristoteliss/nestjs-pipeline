@@ -210,8 +210,9 @@ IdempotencyModule.forRootAsync({
 
 ### Custom store
 
-Implement the four-method `IdempotencyStore` interface to back idempotency with
-anything — DynamoDB, Memcached, an HTTP service:
+Implement the six-method `IdempotencyStore` interface to back idempotency with
+anything — DynamoDB, Memcached, an HTTP service. The two owner-aware operations
+must be atomic; a read followed by a separate write/delete is not sufficient:
 
 ```typescript
 interface IdempotencyStore {
@@ -222,13 +223,34 @@ interface IdempotencyStore {
     record: IdempotencyRecord,
     ttlMs: number,
   ): MaybePromise<boolean>;
+  /** Complete only while `claimId` still owns the live in-progress record. */
+  completeIfOwned(
+    key: string,
+    claimId: string,
+    record: IdempotencyRecord,
+    ttlMs: number,
+  ): MaybePromise<boolean>;
+  /** Delete only while `claimId` still owns the live record. */
+  deleteIfOwned(key: string, claimId: string): MaybePromise<boolean>;
+  /** Unconditional administrative overwrite. */
   set(key: string, record: IdempotencyRecord, ttlMs: number): MaybePromise<void>;
+  /** Unconditional administrative delete. */
   delete(key: string): MaybePromise<void>;
 }
 ```
 
-`setIfAbsent` **must** be atomic to prevent concurrent duplicates from both
-claiming the same live key.
+`setIfAbsent`, `completeIfOwned`, and `deleteIfOwned` **must** each be atomic.
+The built-in memory, Redis, and Postgres stores implement those guarantees.
+
+#### Migrating from 0.1.x
+
+Version 0.2 adds a unique `claimId` to every in-progress record and requires
+`completeIfOwned` / `deleteIfOwned`. This is a deliberate breaking change that
+prevents an execution which outlives its TTL from overwriting or deleting a
+newer claim. Upgrade custom stores before upgrading the package. A legacy store
+is rejected when `IdempotencyBehavior` is constructed, before any handler can
+run. For Postgres, run the SQL returned by `createIdempotencyTableSql()` to add
+the nullable `claim_id` column; existing completed records remain replayable.
 
 ---
 

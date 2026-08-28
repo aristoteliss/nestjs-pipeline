@@ -32,6 +32,7 @@ export {
 } from './helpers/fingerprint';
 export {
   IDEMPOTENCY_KEY_ITEM,
+  IDEMPOTENCY_OWNERSHIP_LOST_ITEM,
   IDEMPOTENCY_REPLAYED_ITEM,
   IdempotencyBehavior,
 } from './idempotency.behavior';

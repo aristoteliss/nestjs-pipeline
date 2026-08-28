@@ -33,7 +33,7 @@ export class DeleteRoleCommandRepository extends CommandRepository<RoleUpdateOut
     super(cache);
   }
 
-  @Cache(
+  @Cache<RoleUpdateOutcome, RoleSnapshot>(
     null,
     (outcome) => [filterCacheKey(Role, { id: outcome.entity.id })],
   )

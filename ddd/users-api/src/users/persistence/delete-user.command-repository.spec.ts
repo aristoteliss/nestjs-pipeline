@@ -1,11 +1,11 @@
 import type { ICache } from '@nestjs-pipeline/ddd-core';
 import { describe, expect, it, vi } from 'vitest';
-import { User } from '../domain/models/user.entity';
+import { User, type UserSnapshot } from '../domain/models/user.entity';
 import { DeleteUserCommandRepository } from './delete-user.command-repository';
 
 describe('DeleteUserCommandRepository', () => {
   it('runs relation cleanup and user delete in one transaction, then evicts tenant-aware keys', async () => {
-    const cache: ICache = {
+    const cache: ICache<UserSnapshot> = {
       get: vi.fn(),
       set: vi.fn(),
       delete: vi.fn(),
@@ -42,7 +42,7 @@ describe('DeleteUserCommandRepository', () => {
   });
 
   it('does not evict cache when the database transaction fails', async () => {
-    const cache: ICache = {
+    const cache: ICache<UserSnapshot> = {
       get: vi.fn(),
       set: vi.fn(),
       delete: vi.fn(),

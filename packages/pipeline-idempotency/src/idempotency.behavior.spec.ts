@@ -105,6 +105,20 @@ describe('IdempotencyBehavior', () => {
     expect(ctx.items.get(IDEMPOTENCY_KEY_ITEM)).toBe('o1');
   });
 
+  it('rejects a legacy custom store before a handler can execute', () => {
+    const legacyStore = {
+      get: vi.fn(),
+      setIfAbsent: vi.fn(),
+      set: vi.fn(),
+      delete: vi.fn(),
+    } as unknown as IdempotencyStore;
+
+    expect(() => new IdempotencyBehavior(legacyStore)).toThrow(
+      /legacy four-method contract/,
+    );
+    expect(legacyStore.setIfAbsent).not.toHaveBeenCalled();
+  });
+
   it('throws a 409 conflict while a duplicate is still in progress', async () => {
     const mockStore: IdempotencyStore = {
       get: vi.fn().mockResolvedValue({
@@ -257,7 +271,12 @@ describe('IdempotencyBehavior', () => {
       set: vi.fn(),
       delete: vi.fn(),
     };
-    const logger = { error: vi.fn(), debug: vi.fn(), warn: vi.fn() };
+    const logger = {
+      log: vi.fn(),
+      error: vi.fn(),
+      debug: vi.fn(),
+      warn: vi.fn(),
+    };
     const behavior = new IdempotencyBehavior(mockStore, undefined, logger);
     const ctx = withOptions(makeCtx(), byKey);
 

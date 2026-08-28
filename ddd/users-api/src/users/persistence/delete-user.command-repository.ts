@@ -33,7 +33,7 @@ export class DeleteUserCommandRepository extends CommandRepository<UserUpdateOut
     super(cache);
   }
 
-  @Cache(
+  @Cache<UserUpdateOutcome, UserSnapshot>(
     null,
     (outcome) => [
       filterCacheKey(User, { _id: outcome.entity.id }),

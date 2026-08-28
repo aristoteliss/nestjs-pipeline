@@ -33,8 +33,16 @@ export interface RabbitMqChannelLike {
     content: Buffer,
     options?: unknown,
   ): boolean;
-  /** EventEmitter flow-control hook exposed by real amqplib channels. */
-  once?(event: 'drain', listener: () => void): unknown;
+  /** EventEmitter lifecycle hook exposed by real amqplib channels. */
+  once?(
+    event: 'drain' | 'close' | 'error',
+    listener: (error?: Error) => void,
+  ): unknown;
+  /** Removes lifecycle listeners after the backpressure wait settles. */
+  removeListener?(
+    event: 'drain' | 'close' | 'error',
+    listener: (error?: Error) => void,
+  ): unknown;
 }
 
 /** Options for {@link RabbitMqDeadLetterTransport}. */
@@ -101,10 +109,53 @@ export class RabbitMqDeadLetterTransport implements DeadLetterTransport {
     // amqplib models publish() after stream.Writable: false means the message
     // was buffered successfully but callers should stop writing until `drain`.
     // It is not a publish failure and must not be surfaced as one.
-    if (!writable && this.channel.once) {
-      await new Promise<void>((resolve) => {
-        this.channel.once?.('drain', resolve);
-      });
+    if (!writable) {
+      await this.waitForDrain();
     }
+  }
+
+  /** Waits for flow control to recover, rejecting if the channel dies first. */
+  private async waitForDrain(): Promise<void> {
+    const { once, removeListener } = this.channel;
+    if (!once || !removeListener) {
+      throw new Error(
+        'RabbitMQ channel reported backpressure but does not expose EventEmitter lifecycle methods.',
+      );
+    }
+
+    await new Promise<void>((resolve, reject) => {
+      let settled = false;
+
+      const cleanup = () => {
+        removeListener.call(this.channel, 'drain', onDrain);
+        removeListener.call(this.channel, 'close', onClose);
+        removeListener.call(this.channel, 'error', onError);
+      };
+      const finish = (error?: Error) => {
+        if (settled) return;
+        settled = true;
+        cleanup();
+        if (error) reject(error);
+        else resolve();
+      };
+      const onDrain = () => finish();
+      const onClose = () =>
+        finish(
+          new Error(
+            'RabbitMQ channel closed while waiting for publish backpressure to drain.',
+          ),
+        );
+      const onError = (error?: Error) =>
+        finish(
+          error ??
+            new Error(
+              'RabbitMQ channel failed while waiting for publish backpressure to drain.',
+            ),
+        );
+
+      once.call(this.channel, 'drain', onDrain);
+      once.call(this.channel, 'close', onClose);
+      once.call(this.channel, 'error', onError);
+    });
   }
 }

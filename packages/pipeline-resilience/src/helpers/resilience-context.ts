@@ -16,10 +16,27 @@
  * ----------------------------
  */
 
+import { AsyncLocalStorage } from 'node:async_hooks';
 import { pipelineStore } from '@nestjs-pipeline/core';
 
-/** Context item containing Cockatiel's abort signal for the active execution. */
+/**
+ * Legacy pipeline-context item for an abort signal.
+ *
+ * @deprecated Use {@link getResilienceAbortSignal}. A pipeline context is shared
+ * by overlapping aggressive-timeout attempts, so an item on it cannot identify
+ * the calling attempt reliably.
+ */
 export const RESILIENCE_ABORT_SIGNAL_ITEM = 'resilience.abortSignal';
+
+const resilienceAttemptStore = new AsyncLocalStorage<AbortSignal>();
+
+/** Runs one policy attempt with its effective signal bound to its async work. */
+export function runWithResilienceAbortSignal<T>(
+  signal: AbortSignal,
+  callback: () => T,
+): T {
+  return resilienceAttemptStore.run(signal, callback);
+}
 
 /**
  * Returns the AbortSignal supplied by the active resilience policy, when called
@@ -30,7 +47,10 @@ export const RESILIENCE_ABORT_SIGNAL_ITEM = 'resilience.abortSignal';
  * work can stop when Cockatiel requests cancellation.
  */
 export function getResilienceAbortSignal(): AbortSignal | undefined {
-  return pipelineStore
-    .getStore()
-    ?.items.get(RESILIENCE_ABORT_SIGNAL_ITEM) as AbortSignal | undefined;
+  return (
+    resilienceAttemptStore.getStore() ??
+    (pipelineStore
+      .getStore()
+      ?.items.get(RESILIENCE_ABORT_SIGNAL_ITEM) as AbortSignal | undefined)
+  );
 }

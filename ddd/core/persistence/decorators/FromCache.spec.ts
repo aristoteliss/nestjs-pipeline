@@ -52,6 +52,31 @@ class BooleanQueryRepo {
   }
 }
 
+class NullableQueryRepo {
+  public dbFetchCount = 0;
+
+  constructor(
+    public cache?: ICache<{ id: string; name: string } | null>,
+    private readonly dbResult: { id: string; name: string } | null = null,
+  ) {}
+
+  @FromCache<GetUserQuery, { id: string; name: string } | null>(
+    (q) => `user:${q.userId}`,
+    (cached) => {
+      if (cached === null) {
+        throw new Error('null must not be hydrated');
+      }
+      return cached as { id: string; name: string };
+    },
+  )
+  async find(
+    _query: GetUserQuery,
+  ): Promise<{ id: string; name: string } | null> {
+    this.dbFetchCount++;
+    return this.dbResult;
+  }
+}
+
 describe('@FromCache decorator on QueryRepository.find', () => {
   it('passes through and fetches directly when repository has no cache', async () => {
     const repo = new TestQueryRepo(undefined);
@@ -122,5 +147,36 @@ describe('@FromCache decorator on QueryRepository.find', () => {
     expect(result).toBe(false);
     expect(repo.dbFetchCount).toBe(0);
     expect(mockCache.set).not.toHaveBeenCalled();
+  });
+
+  it('treats cached null as a miss without hydrating or caching a null result', async () => {
+    const mockCache: ICache<{ id: string; name: string } | null> = {
+      get: vi.fn().mockResolvedValue(null),
+      set: vi.fn(),
+      delete: vi.fn(),
+    };
+    const repo = new NullableQueryRepo(mockCache);
+
+    const result = await repo.find({ userId: '60', hydrate: true });
+
+    expect(result).toBeNull();
+    expect(repo.dbFetchCount).toBe(1);
+    expect(mockCache.set).not.toHaveBeenCalled();
+  });
+
+  it('replaces a legacy cached null after the backing record is created', async () => {
+    const mockCache: ICache<{ id: string; name: string } | null> = {
+      get: vi.fn().mockResolvedValue(null),
+      set: vi.fn(),
+      delete: vi.fn(),
+    };
+    const persisted = { id: '70', name: 'Created User' };
+    const repo = new NullableQueryRepo(mockCache, persisted);
+
+    const result = await repo.find({ userId: '70', hydrate: true });
+
+    expect(result).toEqual(persisted);
+    expect(repo.dbFetchCount).toBe(1);
+    expect(mockCache.set).toHaveBeenCalledWith('user:70', persisted);
   });
 });

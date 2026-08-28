@@ -1,11 +1,11 @@
 import type { ICache } from '@nestjs-pipeline/ddd-core';
 import { describe, expect, it, vi } from 'vitest';
-import { Role } from '../domain/models/role.entity';
+import { Role, type RoleSnapshot } from '../domain/models/role.entity';
 import { DeleteRoleCommandRepository } from './delete-role.command-repository';
 
 describe('DeleteRoleCommandRepository', () => {
   it('evicts the tenant-aware query key and never caches the delete count', async () => {
-    const cache: ICache = {
+    const cache: ICache<RoleSnapshot> = {
       get: vi.fn(),
       set: vi.fn(),
       delete: vi.fn(),

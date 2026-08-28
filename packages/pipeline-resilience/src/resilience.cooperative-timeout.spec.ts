@@ -18,11 +18,16 @@
 
 import { type IPipelineContext, pipelineStore } from '@nestjs-pipeline/core';
 import { describe, expect, it, vi } from 'vitest';
-import {
-  getResilienceAbortSignal,
-  RESILIENCE_ABORT_SIGNAL_ITEM,
-} from './helpers/resilience-context';
+import { getResilienceAbortSignal } from './helpers/resilience-context';
 import { ResilienceBehavior } from './resilience.behavior';
+
+function deferred<T = void>() {
+  let resolve!: (value: T | PromiseLike<T>) => void;
+  const promise = new Promise<T>((settle) => {
+    resolve = settle;
+  });
+  return { promise, resolve };
+}
 
 function makeCtx(): IPipelineContext {
   return {
@@ -53,7 +58,6 @@ describe('ResilienceBehavior cooperative timeout', () => {
       behavior.handle(ctx, async () => {
         observedSignal = getResilienceAbortSignal();
         expect(observedSignal).toBeInstanceOf(AbortSignal);
-        expect(ctx.items.get(RESILIENCE_ABORT_SIGNAL_ITEM)).toBe(observedSignal);
 
         await new Promise<void>((resolve) => {
           if (observedSignal?.aborted) return resolve();
@@ -68,5 +72,50 @@ describe('ResilienceBehavior cooperative timeout', () => {
 
     expect(observedSignal?.aborted).toBe(true);
     expect(result).toBe('stopped-cooperatively');
+  });
+
+  it('keeps the abort signal isolated to each overlapping timeout retry attempt', async () => {
+    const behavior = new ResilienceBehavior();
+    const ctx = makeCtx();
+    vi.mocked(ctx.getBehaviorOptions).mockReturnValue({
+      retry: { maxAttempts: 1, backoff: { type: 'constant', delay: 0 } },
+      timeout: { duration: 25, strategy: 'aggressive' },
+    });
+
+    const releaseFirstAttempt = deferred();
+    const firstAttemptObserved = deferred();
+    let attempt = 0;
+    let firstSignal: AbortSignal | undefined;
+    let secondSignal: AbortSignal | undefined;
+    let firstSignalAfterRetry: AbortSignal | undefined;
+
+    const result = await pipelineStore.run(ctx, () =>
+      behavior.handle(ctx, async () => {
+        attempt += 1;
+
+        if (attempt === 1) {
+          firstSignal = getResilienceAbortSignal();
+          await releaseFirstAttempt.promise;
+          firstSignalAfterRetry = getResilienceAbortSignal();
+          firstAttemptObserved.resolve();
+          return 'late-first-result';
+        }
+
+        secondSignal = getResilienceAbortSignal();
+        releaseFirstAttempt.resolve();
+        await firstAttemptObserved.promise;
+        expect(getResilienceAbortSignal()).toBe(secondSignal);
+        return 'retry-result';
+      }),
+    );
+
+    expect(result).toBe('retry-result');
+    expect(attempt).toBe(2);
+    expect(firstSignal).toBeInstanceOf(AbortSignal);
+    expect(firstSignal?.aborted).toBe(true);
+    expect(secondSignal).toBeInstanceOf(AbortSignal);
+    expect(secondSignal).not.toBe(firstSignal);
+    expect(secondSignal?.aborted).toBe(false);
+    expect(firstSignalAfterRetry).toBe(firstSignal);
   });
 });

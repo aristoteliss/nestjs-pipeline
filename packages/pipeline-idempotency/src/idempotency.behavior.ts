@@ -114,6 +114,18 @@ export class IdempotencyBehavior implements IPipelineBehavior {
     @Inject(LOGGING_BEHAVIOR_LOGGER)
     logger?: LoggerService,
   ) {
+    const candidate = untyped(this.store);
+    if (
+      typeof candidate.completeIfOwned !== 'function' ||
+      typeof candidate.deleteIfOwned !== 'function'
+    ) {
+      throw new TypeError(
+        'The configured IdempotencyStore uses the legacy four-method contract. ' +
+          'Version 0.2 requires atomic completeIfOwned() and deleteIfOwned() operations; ' +
+          'upgrade the custom store before enabling IdempotencyBehavior.',
+      );
+    }
+
     this.defaults = defaults ?? {};
 
     if (!logger) {

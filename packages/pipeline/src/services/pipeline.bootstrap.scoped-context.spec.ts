@@ -22,7 +22,10 @@ import type {
   NextDelegate,
 } from '../interfaces/pipeline.behavior.interface';
 import { UsePipeline } from '../decorators/pipeline.decorator';
-import { PipelineBootstrapService } from './pipeline.bootstrap.service';
+import {
+  getAttachedCqrsContextId,
+  PipelineBootstrapService,
+} from './pipeline.bootstrap.service';
 import { AsyncContext } from '@nestjs/cqrs';
 import { ExplorerService } from '@nestjs/cqrs/dist/services/explorer.service';
 import { describe, expect, it, vi } from 'vitest';
@@ -43,6 +46,21 @@ class RequestScopedHandler {
 }
 
 describe('PipelineBootstrapService scoped CQRS context', () => {
+  it('returns undefined when CQRS does not expose AsyncContext (CQRS 10)', () => {
+    expect(getAttachedCqrsContextId(new TestCommand(), {})).toBeUndefined();
+  });
+
+  it('uses AsyncContext.of when the installed CQRS version exposes it', () => {
+    const id = { id: 42 };
+    const of = vi.fn().mockReturnValue({ id });
+    const command = new TestCommand();
+
+    expect(
+      getAttachedCqrsContextId(command, { AsyncContext: { of } }),
+    ).toBe(id);
+    expect(of).toHaveBeenCalledWith(command);
+  });
+
   it('resolves dynamic behaviors with the same AsyncContext id as the scoped handler', async () => {
     const explorer = {
       explore: vi.fn().mockReturnValue({

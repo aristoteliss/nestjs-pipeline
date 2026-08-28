@@ -25,9 +25,9 @@ import {
   Optional,
   Type,
 } from '@nestjs/common';
-import { ContextIdFactory, ModuleRef } from '@nestjs/core';
+import { type ContextId, ContextIdFactory, ModuleRef } from '@nestjs/core';
 import { InstanceWrapper } from '@nestjs/core/injector/instance-wrapper';
-import { AsyncContext } from '@nestjs/cqrs';
+import * as cqrs from '@nestjs/cqrs';
 import { ExplorerService } from '@nestjs/cqrs/dist/services/explorer.service';
 import {
   pipelineStore,
@@ -52,6 +52,29 @@ import {
 } from '../options/pipeline-module.options';
 import { PipelineContext } from '../pipeline.context';
 import { untyped } from '../types/safe-typing';
+
+type CqrsWithOptionalAsyncContext = {
+  AsyncContext?: {
+    of?(target: object): { id: ContextId } | undefined;
+  };
+};
+
+/**
+ * Reads the CQRS async context when the installed CQRS version supports it.
+ * `AsyncContext` was added after CQRS 10, which remains a supported peer.
+ *
+ * @internal Exported only so the compatibility branch can be unit tested.
+ */
+export function getAttachedCqrsContextId(
+  target: object,
+  cqrsModule: unknown = cqrs,
+): ContextId | undefined {
+  const asyncContext = (cqrsModule as CqrsWithOptionalAsyncContext)
+    .AsyncContext;
+  return typeof asyncContext?.of === 'function'
+    ? asyncContext.of(target)?.id
+    : undefined;
+}
 
 /**
  * At application bootstrap, this service:
@@ -280,12 +303,12 @@ export class PipelineBootstrapService implements OnApplicationBootstrap {
         // with an AsyncContext attached to the command/query/event. Reuse that
         // exact context id for dynamic behaviors so handler and behaviors share
         // request-scoped dependencies (transactions, tenant context, etc.).
-        const cqrsContext =
+        const cqrsContextId =
           request && typeof request === 'object'
-            ? AsyncContext.of(request as object)
+            ? getAttachedCqrsContextId(request)
             : undefined;
         const contextId =
-          cqrsContext?.id ??
+          cqrsContextId ??
           ContextIdFactory.getByRequest(
             (this ?? request) as Record<string, unknown>,
           );

@@ -49,6 +49,13 @@ class BooleanCommandRepo {
   }
 }
 
+class VoidCommandRepo {
+  constructor(public cache?: ICache<void>) {}
+
+  @Cache<MockOutcome, void>()
+  async save(_outcome: MockOutcome): Promise<void> {}
+}
+
 describe('@Cache decorator on CommandRepository.save', () => {
   it('passes through when repository has no cache attached', async () => {
     const repo = new TestCommandRepo(undefined);
@@ -108,5 +115,21 @@ describe('@Cache decorator on CommandRepository.save', () => {
     expect(result).toBe(false);
     expect(mockCache.set).toHaveBeenCalledWith('user:u1', false);
     expect(mockCache.delete).not.toHaveBeenCalled();
+  });
+
+  it('evicts instead of caching undefined for a void save', async () => {
+    const mockCache: ICache<void> = {
+      get: vi.fn(),
+      set: vi.fn(),
+      delete: vi.fn(),
+    };
+    const repo = new VoidCommandRepo(mockCache);
+    const outcome = new MockOutcome({ id: 'u1', cacheKey: 'user:u1' });
+
+    const result = await repo.save(outcome);
+
+    expect(result).toBeUndefined();
+    expect(mockCache.delete).toHaveBeenCalledWith('user:u1');
+    expect(mockCache.set).not.toHaveBeenCalled();
   });
 });

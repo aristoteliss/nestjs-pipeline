@@ -91,7 +91,7 @@ export class DeleteRoleHandler extends CommandBaseHandler<
   async handle(command: DeleteRoleCommand): Promise<RoleUpdateOutcome> {
     const { id } = command;
 
-    const query = new GetRoleQuery({ roleId: id });
+    const query = new GetRoleQuery({ roleId: id }, { hydrate: true });
 
     const role = await this.queryRepository.find(query);
 

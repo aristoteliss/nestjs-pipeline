@@ -36,7 +36,7 @@ import {
   type AnyPolicy,
   buildResiliencePolicy,
 } from './helpers/policy-factory';
-import { RESILIENCE_ABORT_SIGNAL_ITEM } from './helpers/resilience-context';
+import { runWithResilienceAbortSignal } from './helpers/resilience-context';
 import type { ResilienceBehaviorOptions } from './interfaces/resilience-options.interface';
 
 /**
@@ -98,11 +98,10 @@ export class ResilienceBehavior implements IPipelineBehavior {
 
     return policy.execute((policyContext) => {
       // Cockatiel supplies the effective AbortSignal (including timeout
-      // cancellation) to the execute callback. Preserve it on the live pipeline
-      // context so cooperative handlers/services can consume it without changing
-      // Nest CQRS handler signatures.
-      context.items.set(RESILIENCE_ABORT_SIGNAL_ITEM, policyContext.signal);
-      return next();
+      // cancellation) to each execute callback. Bind it to this attempt's async
+      // execution so an aggressive timeout followed by a retry cannot replace
+      // the signal still observed by work from the timed-out attempt.
+      return runWithResilienceAbortSignal(policyContext.signal, next);
     });
   }
 
