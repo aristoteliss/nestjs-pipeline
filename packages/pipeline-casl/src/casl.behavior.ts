@@ -282,170 +282,6 @@ export interface CaslBehaviorOptions {
  *   rules: [{ action: 'update', subject: 'Post' }],
  * }])
  * ```
- *
- * @example End-to-end with PostgreSQL-backed providers
- * ```ts
- * // ── 1. Schema (see Capability JSDoc for full column/junction layout) ────
- * // capabilities                 (id, subject, action, conditions, inverted, reason, fields)
- * // roles                        (id, name)
- * // role_capabilities            (role_id, capability_id)
- * // user_roles                   (user_id, role_id)
- * // user_additional_capabilities (user_id, capability_id)
- * // user_denied_capabilities     (user_id, capability_id)
- *
- * // ── 2. Providers ─────────────────────────────────────────────────────────
- * @Injectable()
- * class PgRoleProvider implements IRoleProvider {
- *   constructor(private readonly pool: Pool) {}
- *
- *   async getRoles(names?: string[]): Promise<RoleDefinition[]> {
- *     const where = names ? 'WHERE r.name = ANY($1)' : '';
- *     const params = names ? [names] : [];
- *     const { rows } = await this.pool.query(
- *       `SELECT r.name,
- *               json_agg(json_build_object(
- *                 'subject', c.subject, 'action', c.action,
- *                 'conditions', c.conditions, 'inverted', c.inverted,
- *                 'reason', c.reason, 'fields', c.fields
- *               )) AS capabilities
- *        FROM roles r
- *        JOIN role_capabilities rc ON rc.role_id = r.id
- *        JOIN capabilities c ON c.id = rc.capability_id
- *        ${where}
- *        GROUP BY r.id`,
- *       params,
- *     );
- *     return rows;
- *   }
- * }
- *
- * @Injectable()
- * class PgUserCapabilityProvider implements IUserCapabilityProvider {
- *   constructor(private readonly pool: Pool) {}
- *
- *   async getUserCapabilities(user: CaslUserContext): Promise<UserCapabilities> {
- *     const rolesResult = await this.pool.query(
- *       'SELECT r.name FROM user_roles ur JOIN roles r ON r.id = ur.role_id WHERE ur.user_id = $1',
- *       [user.id],
- *     );
- *
- *     const additionalResult = await this.pool.query(
- *       `SELECT c.subject, c.action, c.conditions, c.inverted, c.reason, c.fields
- *        FROM user_additional_capabilities uac
- *        JOIN capabilities c ON c.id = uac.capability_id
- *        WHERE uac.user_id = $1`,
- *       [user.id],
- *     );
- *
- *     const deniedResult = await this.pool.query(
- *       `SELECT c.subject, c.action, c.conditions, c.inverted, c.reason, c.fields
- *        FROM user_denied_capabilities udc
- *        JOIN capabilities c ON c.id = udc.capability_id
- *        WHERE udc.user_id = $1`,
- *       [user.id],
- *     );
- *
- *     return {
- *       roles: rolesResult.rows.map((r) => r.name),
- *       additionalCapabilities: additionalResult.rows,
- *       deniedCapabilities: deniedResult.rows,
- *     };
- *   }
- * }
- *
- * // ── 3. Module wiring ─────────────────────────────────────────────────────
- * @Module({
- *   imports: [
- *     CaslModule.forRoot({
- *       roleProvider: {
- *         useFactory: (pool: Pool) => new PgRoleProvider(pool),
- *         inject: [Pool],
- *       },
- *       userContextResolver: JwtUserContextResolver,
- *       userCapabilityProvider: {
- *         useFactory: (pool: Pool) => new PgUserCapabilityProvider(pool),
- *         inject: [Pool],
- *       },
- *     }),
- *     PipelineModule.forRoot({
- *       globalBehaviors: { scope: 'all', before: [CaslBehavior] },
- *     }),
- *   ],
- * })
- * export class AppModule {}
- *
- * // ── 4. Simple type-level check (no subjectFromRequest) ─────────────
- * // CASL only verifies "can the user read Posts at all?" — no conditions
- * // are evaluated against the query payload.
- * @QueryHandler(GetPostsByAuthorQuery)
- * @UsePipeline([CaslBehavior, {
- *   rules: [{ action: 'read', subject: 'Post' }],
- * }])
- * class GetPostsByAuthorHandler { ... }
- *
- * // ── 5. Instance-level check with subjectFromRequest ──────────────────
- * // CASL evaluates conditions (e.g. authorId = ${user.id}) against the
- * // command payload, so a user can only update their own posts.
- * @CommandHandler(UpdatePostCommand)
- * @UsePipeline([CaslBehavior, {
- *   subjectFromRequest: 'Post',
- *   rules: [{ action: 'update', subject: 'Post' }],
- * }])
- * class UpdatePostHandler { ... }
- *
- * // ── 6. Multi-tenant command with complex conditions ──────────────────
- * // Capability: Project|update|{"tenantId":"${user.tenantId}","status":{"$in":["active","planning"]}}
- * // subjectFromRequest makes CASL check tenantId and status on the command.
- * @CommandHandler(UpdateProjectCommand)
- * @UsePipeline([CaslBehavior, {
- *   subjectFromRequest: 'Project',
- *   rules: [{ action: 'update', subject: 'Project' }],
- * }])
- * class UpdateProjectHandler { ... }
- *
- * // ── 7. Cross-resource command — multiple requirements ────────────────
- * // User must be able to update Order.status AND create AuditLog.
- * // subjectFromRequest: 'Order' evaluates conditions against the command
- * // for the Order requirement; the AuditLog check remains type-level.
- * @CommandHandler(FulfillOrderCommand)
- * @UsePipeline([CaslBehavior, {
- *   subjectFromRequest: 'Order',
- *   rules: [
- *     { action: 'update', subject: 'Order', field: 'status' },
- *     { action: 'create', subject: 'AuditLog' },
- *   ],
- * }])
- * class FulfillOrderHandler { ... }
- *
- * // ── 8. Public endpoint with skipCheck ────────────────────────────────
- * // Anyone can list posts, but the handler uses the ability to decide
- * // what to include (e.g. drafts, restricted fields).
- * @QueryHandler(ListPostsQuery)
- * @UsePipeline([CaslBehavior, { skipCheck: true }])
- * class ListPostsHandler implements IQueryHandler<ListPostsQuery> {
- *   async execute(query: ListPostsQuery) {
- *     const ability = getCaslAbility();
- *     const includeDrafts = ability?.can('read', 'DraftPost');
- *     // Tailor the response based on what the user can see
- *   }
- * }
- *
- * // ── 9. Delete with ownership conditions ──────────────────────────────
- * // Capability: Comment|delete|{"authorId":"${user.id}","status":"draft"}
- * // Only delete own draft comments.
- * @CommandHandler(DeleteCommentCommand)
- * @UsePipeline([CaslBehavior, {
- *   subjectFromRequest: 'Comment',
- *   rules: [{ action: 'delete', subject: 'Comment' }],
- * }])
- * class DeleteCommentHandler { ... }
- *
- * // ── 10. Event with authorization (restrict who can trigger) ──────────
- * @UsePipeline([CaslBehavior, {
- *   rules: [{ action: 'publish', subject: 'Post' }],
- * }])
- * class PostPublishedHandler { ... }
- * ```
  */
 @Injectable()
 export class CaslBehavior implements IPipelineBehavior {
@@ -486,46 +322,47 @@ export class CaslBehavior implements IPipelineBehavior {
   ): Promise<unknown> {
     const options =
       context.getBehaviorOptions<CaslBehaviorOptions>(CaslBehavior);
-
     const requirements = options?.rules;
 
-    // No requirements, no prebuiltAbility, and no skipCheck? Just pass through
+    // No requirements, no prebuiltAbility, and no skipCheck? Just pass through.
     if (!requirements && !options?.prebuiltAbility && !options?.skipCheck) {
       return next();
     }
 
-    // Resolve user context
-    const user = await this.resolveUser(context);
-
-    if (!user && requirements && requirements.length > 0) {
-      this.logger.warn?.(
-        'Authorization required but no user context found. ' +
-          `Set "${CASL_USER_CONTEXT_KEY}" in context.items or provide a CASL_USER_CONTEXT_RESOLVER.`,
-      );
-      throw new ForbiddenException('Access denied — authentication required.');
-    }
-
-    // Build or use prebuilt ability
+    // A prebuilt ability is already the complete authorization state. It must
+    // bypass user/provider resolution entirely (useful for tests and callers
+    // that construct abilities outside this behavior).
     let ability: AppAbility;
-
     if (options?.prebuiltAbility) {
       ability = options.prebuiltAbility;
-    } else if (user) {
-      ability = await this.buildAbilityForUser(user);
     } else {
-      // No user, no requirements — pass through
-      return next();
+      const user = await this.resolveUser(context);
+
+      if (!user && requirements && requirements.length > 0) {
+        this.logger.warn?.(
+          'Authorization required but no user context found. ' +
+            `Set "${CASL_USER_CONTEXT_KEY}" in context.items or provide a CASL_USER_CONTEXT_RESOLVER.`,
+        );
+        throw new ForbiddenException('Access denied — authentication required.');
+      }
+
+      if (user) {
+        ability = await this.buildAbilityForUser(user);
+      } else {
+        // No user and no prebuilt ability means there is no ability to expose.
+        return next();
+      }
     }
 
-    // Store ability for downstream consumers
+    // Store ability for downstream consumers.
     context.items.set(CASL_ABILITY_KEY, ability);
 
-    // Skip actual checking if flagged
+    // Skip actual checking if flagged.
     if (options?.skipCheck) {
       return next();
     }
 
-    // Check all requirements
+    // Check all requirements.
     if (requirements && requirements.length > 0) {
       const effectiveFieldsFromRequest =
         options?.fieldsFromRequest ?? this.globalFieldsFromRequest;
@@ -555,9 +392,6 @@ export class CaslBehavior implements IPipelineBehavior {
   private async buildAbilityForUser(
     user: CaslUserContext,
   ): Promise<AppAbility> {
-    // Prefer capabilities already resolved onto the user context (e.g. from a
-    // JWT claim or session) to avoid a redundant per-request lookup. The role
-    // provider still expands role names into capabilities.
     const preResolved = this.extractUserCapabilities(user);
     if (preResolved) {
       const roles = await this.roleProvider.getRoles(preResolved.roles);
@@ -569,7 +403,6 @@ export class CaslBehavior implements IPipelineBehavior {
       );
     }
 
-    // Otherwise load per-user capability overrides from the provider.
     if (this.userCapabilityProvider) {
       const userCaps =
         await this.userCapabilityProvider.getUserCapabilities(user);
@@ -582,8 +415,6 @@ export class CaslBehavior implements IPipelineBehavior {
       );
     }
 
-    // No pre-resolved capabilities and no IUserCapabilityProvider — cannot
-    // determine user roles.
     throw new Error(
       'No IUserCapabilityProvider registered and no capabilities present on the ' +
         'user context — cannot determine user roles. Register an ' +
@@ -592,13 +423,6 @@ export class CaslBehavior implements IPipelineBehavior {
     );
   }
 
-  /**
-   * Extract a pre-resolved {@link UserCapabilities} bag from the user context,
-   * if the authentication layer attached one (e.g. from a verified JWT claim).
-   *
-   * Returns `undefined` when the context does not carry a valid capabilities
-   * shape, so the behavior can fall back to the {@link IUserCapabilityProvider}.
-   */
   private extractUserCapabilities(
     user: CaslUserContext,
   ): UserCapabilities | undefined {
@@ -632,9 +456,6 @@ export class CaslBehavior implements IPipelineBehavior {
     for (const req of requirements) {
       try {
         if (instanceSubjects.includes(req.subject)) {
-          // Instance-level check: evaluate conditions against the request payload.
-          // Shallow-copy to avoid CASL's subject-type stamp conflicting when
-          // multiple subjects are checked against the same request object.
           const requestPayload = context.request as
             | Record<string, unknown>
             | undefined;
@@ -669,20 +490,14 @@ export class CaslBehavior implements IPipelineBehavior {
           } else {
             ForbiddenError.from(ability).throwUnlessCan(req.action, sub);
           }
+        } else if (req.field) {
+          ForbiddenError.from(ability).throwUnlessCan(
+            req.action,
+            req.subject,
+            req.field,
+          );
         } else {
-          // Type-level check: can user perform action on at least one instance?
-          if (req.field) {
-            ForbiddenError.from(ability).throwUnlessCan(
-              req.action,
-              req.subject,
-              req.field,
-            );
-          } else {
-            ForbiddenError.from(ability).throwUnlessCan(
-              req.action,
-              req.subject,
-            );
-          }
+          ForbiddenError.from(ability).throwUnlessCan(req.action, req.subject);
         }
       } catch (error: unknown) {
         if (error instanceof ForbiddenError) {
@@ -718,8 +533,6 @@ export class CaslBehavior implements IPipelineBehavior {
       paths,
     );
 
-    // Request payload is spread last so explicit defined request fields stay authoritative
-    // over context defaults (e.g. target `id` vs actor `id`).
     return {
       ...(contextualPayload ?? {}),
       ...Object.fromEntries(
