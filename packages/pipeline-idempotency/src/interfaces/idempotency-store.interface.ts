@@ -28,9 +28,11 @@ export type MaybePromise<T> = T | Promise<T>;
  * is a one-line change in {@link IdempotencyModule.forRoot}; handlers never
  * change.
  *
- * Exactly-once hinges on {@link setIfAbsent} being **atomic** — it must claim
- * the key only if no live record exists (e.g. Redis `SET NX PX`, Postgres
- * `INSERT … ON CONFLICT DO NOTHING`).
+ * Concurrent duplicate exclusion hinges on {@link setIfAbsent} being **atomic**
+ * — it must claim the key only if no live record exists (e.g. Redis `SET NX PX`,
+ * Postgres `INSERT … ON CONFLICT DO NOTHING`). Atomic claiming prevents two
+ * live duplicates from both acquiring the same key; it does not by itself imply
+ * exactly-once execution across failures/retries.
  */
 export interface IdempotencyStore {
   /**
