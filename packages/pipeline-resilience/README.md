@@ -63,7 +63,10 @@ pnpm add @nestjs-pipeline/core @nestjs/common reflect-metadata
 
 ### 1. Register the module
 
-`ResilienceModule.forRoot()` registers the behavior and (optionally) application-wide defaults applied to every handler.
+`ResilienceModule.forRoot()` registers `ResilienceBehavior` and, optionally,
+application-wide default options. Those defaults are used by handlers where
+`ResilienceBehavior` is actually attached; module registration by itself does not
+wrap every handler.
 
 ```typescript
 // app.module.ts
@@ -76,7 +79,7 @@ import { ResilienceModule, ResilienceBehavior } from '@nestjs-pipeline/resilienc
   imports: [
     CqrsModule.forRoot(),
     ResilienceModule.forRoot({
-      // Defaults merged under every handler (handler options win).
+      // Defaults merged under attached handlers (handler options win).
       timeout: { duration: 5_000 },
     }),
     PipelineModule.forRoot({
@@ -142,11 +145,11 @@ Only the layers you configure are applied — everything else is skipped. Overri
 
 ### Per-handler caching
 
-Policies are built **lazily on first invocation and cached per handler**. This is essential for **stateful** layers: a circuit breaker or bulkhead must share state across every request to a handler. When no options resolve for a handler, the behavior is a zero-overhead pass-through.
+Policies are built **lazily on first invocation and cached per handler**. This is essential for **stateful** layers: a circuit breaker or bulkhead must share state across every request to a handler. When no options resolve for a handler, that no-policy result is cached and later invocations pass directly to `next()` without constructing or executing a cockatiel policy.
 
 ### Options resolution
 
-For each handler the effective options are a **shallow merge** of:
+For each handler where `ResilienceBehavior` is attached, the effective options are a **shallow merge** of:
 
 1. Application-wide defaults from `ResilienceModule.forRoot({ ... })`.
 2. Per-handler options from `@UsePipeline([ResilienceBehavior, { ... }])` (these win).
@@ -162,7 +165,7 @@ Re-runs the handler on a handled failure.
 ```typescript
 {
   retry: {
-    maxAttempts: 3, // attempts after the initial call
+    maxAttempts: 3, // retry attempts after the initial call (up to 4 executions total)
     backoff: { type: 'exponential', initialDelay: 128, maxDelay: 30_000, jitter: 'decorrelated' },
   },
 }
@@ -387,7 +390,7 @@ export class SyncInventoryHandler implements ICommandHandler<SyncInventoryComman
 
 ### `ResilienceModule.forRoot(defaultOptions?)`
 
-Returns a global `DynamicModule` that provides `ResilienceBehavior` and binds `defaultOptions` to the `RESILIENCE_DEFAULT_OPTIONS` token.
+Returns a global `DynamicModule` that provides `ResilienceBehavior` and binds `defaultOptions` to the `RESILIENCE_DEFAULT_OPTIONS` token. These defaults affect handlers only when `ResilienceBehavior` is attached to their pipeline.
 
 ### `ResilienceBehavior`
 
