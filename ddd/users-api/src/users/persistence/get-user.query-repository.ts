@@ -48,7 +48,11 @@ export class GetUserQueryRepository extends QueryRepository<
   }
 
   @FromCache<GetUserQuery, User>(
-    (q) => filterCacheKey(User, buildConditions(q)),
+    // `department` is mutable. A cached composite lookup containing the old
+    // department cannot be invalidated from the post-update entity because the
+    // previous department is no longer available. Keep stable id/email lookups
+    // cached, but execute mutable department-filtered lookups directly.
+    (q) => (q.department ? null : filterCacheKey(User, buildConditions(q))),
     (cached) => User.fromJSON(cached as UserSnapshot),
   )
   async find(query: GetUserQuery): Promise<User | null> {
