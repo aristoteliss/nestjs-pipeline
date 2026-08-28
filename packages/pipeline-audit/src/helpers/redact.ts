@@ -60,26 +60,34 @@ export function redactValue(
 function redact(
   value: unknown,
   blocked: Set<string>,
-  seen: WeakSet<object>,
+  ancestors: WeakSet<object>,
 ): unknown {
   if (value === null || typeof value !== 'object') return value;
 
-  if (seen.has(value)) return '[Circular]';
-  seen.add(value);
-
-  if (Array.isArray(value)) {
-    return value.map((item) => redact(item, blocked, seen));
+  // Preserve non-plain objects (Date, Buffer, …) verbatim. They are not walked,
+  // so they must not be added to the recursion-path set: repeated references to
+  // the same Date/Buffer are not cycles.
+  if (!Array.isArray(value)) {
+    const proto = Object.getPrototypeOf(value);
+    if (proto !== Object.prototype && proto !== null) return value;
   }
 
-  // Preserve non-plain objects (Date, Buffer, …) verbatim — only walk plain bags.
-  const proto = Object.getPrototypeOf(value);
-  if (proto !== Object.prototype && proto !== null) return value;
+  if (ancestors.has(value)) return '[Circular]';
+  ancestors.add(value);
 
-  const out: Record<string, unknown> = {};
-  for (const [key, val] of Object.entries(value as Record<string, unknown>)) {
-    out[key] = blocked.has(key.toLowerCase())
-      ? REDACTED
-      : redact(val, blocked, seen);
+  try {
+    if (Array.isArray(value)) {
+      return value.map((item) => redact(item, blocked, ancestors));
+    }
+
+    const out: Record<string, unknown> = {};
+    for (const [key, val] of Object.entries(value as Record<string, unknown>)) {
+      out[key] = blocked.has(key.toLowerCase())
+        ? REDACTED
+        : redact(val, blocked, ancestors);
+    }
+    return out;
+  } finally {
+    ancestors.delete(value);
   }
-  return out;
 }
