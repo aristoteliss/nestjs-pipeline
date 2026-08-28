@@ -27,6 +27,7 @@ import {
 } from '@nestjs/common';
 import { ContextIdFactory, ModuleRef } from '@nestjs/core';
 import { InstanceWrapper } from '@nestjs/core/injector/instance-wrapper';
+import { AsyncContext } from '@nestjs/cqrs';
 import { ExplorerService } from '@nestjs/cqrs/dist/services/explorer.service';
 import {
   pipelineStore,
@@ -275,14 +276,20 @@ export class PipelineBootstrapService implements OnApplicationBootstrap {
       // are local to this invocation, preventing cross-request state leaks.
       let localBehaviors: IPipelineBehavior[];
       if (dynamicIndices.size > 0) {
-        // For request-scoped handlers (`isScoped === true`), `this` is the per-request instance
-        // created by Nest's DI and tagged with `REQUEST_CONTEXT_ID`, returning the cached ID.
-        // For singleton handlers, `this` lacks the `REQUEST_CONTEXT_ID` tag, so
-        // `ContextIdFactory.getByRequest(this)` defaults to `ContextIdFactory.create()`, producing
-        // a fresh `ContextId` for each dispatch (`request` fallback used if `this` is undefined).
-        const contextId = ContextIdFactory.getByRequest(
-          (this ?? request) as Record<string, unknown>,
-        );
+        // CQRS request-scoped handlers are resolved by CommandBus/QueryBus/EventBus
+        // with an AsyncContext attached to the command/query/event. Reuse that
+        // exact context id for dynamic behaviors so handler and behaviors share
+        // request-scoped dependencies (transactions, tenant context, etc.).
+        const cqrsContext =
+          request && typeof request === 'object'
+            ? AsyncContext.of(request as object)
+            : undefined;
+        const contextId =
+          cqrsContext?.id ??
+          ContextIdFactory.getByRequest(
+            (this ?? request) as Record<string, unknown>,
+          );
+
         localBehaviors = await Promise.all(
           behaviorTypes.map((BehaviorClass, i) => {
             if (dynamicIndices.has(i)) {
