@@ -32,7 +32,9 @@ type ErrorResponseBody = {
 };
 
 type HttpResponse = {
-  status(code: number): { json(body: ErrorResponseBody): void };
+  status(code: number): HttpResponse;
+  json?(body: ErrorResponseBody): unknown;
+  send?(body: ErrorResponseBody): unknown;
 };
 
 /**
@@ -50,13 +52,19 @@ type HttpResponse = {
 export class IdempotencyConflictFilter implements ExceptionFilter {
   catch(exception: IdempotencyConflictError, host: ArgumentsHost): void {
     const response = host.switchToHttp().getResponse<HttpResponse>();
-
-    response.status(exception.statusCode).json({
+    const body: ErrorResponseBody = {
       statusCode: exception.statusCode,
       error: exception.statusCode === 409 ? 'Conflict' : 'Unprocessable Entity',
       message: exception.message,
       idempotencyKey: exception.key,
       reason: exception.reason,
-    });
+    };
+
+    response.status(exception.statusCode);
+    if (typeof response.json === 'function') {
+      response.json(body);
+      return;
+    }
+    response.send?.(body);
   }
 }
