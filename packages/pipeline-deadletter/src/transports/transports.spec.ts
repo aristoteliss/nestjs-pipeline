@@ -87,11 +87,17 @@ describe('RabbitMqDeadLetterTransport', () => {
     expect(routingKey).toBe('failed');
   });
 
-  it('throws on publish backpressure (false)', async () => {
+  it('waits for drain when publish reports backpressure', async () => {
     const publish = vi.fn().mockReturnValue(false);
+    const once = vi.fn((event: string, listener: () => void) => {
+      expect(event).toBe('drain');
+      queueMicrotask(listener);
+    });
+
     await expect(
-      new RabbitMqDeadLetterTransport({ publish }).send(record),
-    ).rejects.toThrow(/backpressure/);
+      new RabbitMqDeadLetterTransport({ publish, once }).send(record),
+    ).resolves.toBeUndefined();
+    expect(once).toHaveBeenCalledOnce();
   });
 });
 
