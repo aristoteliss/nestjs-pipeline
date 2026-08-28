@@ -40,6 +40,18 @@ class TestQueryRepo {
   }
 }
 
+class BooleanQueryRepo {
+  public dbFetchCount = 0;
+
+  constructor(public cache?: ICache<boolean>) {}
+
+  @FromCache<GetUserQuery, boolean>((q) => `exists:${q.userId}`)
+  async find(_query: GetUserQuery): Promise<boolean> {
+    this.dbFetchCount++;
+    return true;
+  }
+}
+
 describe('@FromCache decorator on QueryRepository.find', () => {
   it('passes through and fetches directly when repository has no cache', async () => {
     const repo = new TestQueryRepo(undefined);
@@ -95,5 +107,20 @@ describe('@FromCache decorator on QueryRepository.find', () => {
       id: '40',
       name: 'User 40',
     });
+  });
+
+  it('returns a cached falsy value without executing the repository method', async () => {
+    const mockCache: ICache<boolean> = {
+      get: vi.fn().mockResolvedValue(false),
+      set: vi.fn(),
+      delete: vi.fn(),
+    };
+    const repo = new BooleanQueryRepo(mockCache);
+
+    const result = await repo.find({ userId: '50' });
+
+    expect(result).toBe(false);
+    expect(repo.dbFetchCount).toBe(0);
+    expect(mockCache.set).not.toHaveBeenCalled();
   });
 });
