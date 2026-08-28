@@ -1,7 +1,7 @@
 {
   "name": "@nestjs-pipeline/deadletter",
   "version": "0.1.0",
-  "description": "Dead-letter capture behavior for the NestJS pipeline — transport-agnostic, BullMQ by default with RabbitMQ and Postgres as drop-in replacements.",
+  "description": "Dead-letter capture behavior for the NestJS pipeline — transport-agnostic with bundled BullMQ, RabbitMQ, and Postgres transport implementations.",
   "author": "Aristotelis <aristotelis@ik.me>",
   "license": "SEE LICENSE IN LICENSE",
   "keywords": [
