@@ -33,6 +33,8 @@ export interface RabbitMqChannelLike {
     content: Buffer,
     options?: unknown,
   ): boolean;
+  /** EventEmitter flow-control hook exposed by real amqplib channels. */
+  once?(event: 'drain', listener: () => void): unknown;
 }
 
 /** Options for {@link RabbitMqDeadLetterTransport}. */
@@ -89,19 +91,20 @@ export class RabbitMqDeadLetterTransport implements DeadLetterTransport {
       ...this.publishOptions,
     };
 
-    const ok = this.channel.publish(
+    const writable = this.channel.publish(
       this.exchange,
       this.routingKey,
       content,
       options,
     );
 
-    // publish() returns false when the write buffer is full (backpressure).
-    if (!ok) {
-      throw new Error(
-        `RabbitMQ dead-letter publish was buffered (backpressure) for ` +
-          `${this.exchange || '(default)'} -> ${this.routingKey}`,
-      );
+    // amqplib models publish() after stream.Writable: false means the message
+    // was buffered successfully but callers should stop writing until `drain`.
+    // It is not a publish failure and must not be surfaced as one.
+    if (!writable && this.channel.once) {
+      await new Promise<void>((resolve) => {
+        this.channel.once?.('drain', resolve);
+      });
     }
   }
 }
