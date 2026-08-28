@@ -24,8 +24,9 @@ import { QueryRepository } from '../query-repository.abstract';
  *
  * Derives a cache key from the query via `keyFn`; on a hit it returns the cached
  * value (optionally re-hydrated with `hydrateFn` when `query.hydrate` is set), and
- * on a miss it runs the original method and stores the result. If the repository
- * has no cache, or `keyFn` returns `null`, the call passes straight through.
+ * on a miss (`undefined`) it runs the original method and stores the result. If
+ * the repository has no cache, or `keyFn` returns `null`, the call passes straight
+ * through.
  *
  * @param keyFn - Builds the cache key from the query, or returns `null` to skip caching.
  * @param hydrateFn - Optional transform applied to cached values when `query.hydrate` is true.
@@ -54,16 +55,16 @@ export function FromCache<
 
       const key = keyFn(query);
 
-      if (key) {
+      if (key !== null) {
         const cached = await this.cache.get(key);
-        if (cached) {
+        if (cached !== undefined) {
           return query.hydrate && hydrateFn ? hydrateFn(cached) : cached;
         }
       }
 
       const result = await original.call(this, query);
 
-      if (key) {
+      if (key !== null) {
         await this.cache.set(key, result);
       }
 
