@@ -494,27 +494,28 @@ export class CaslBehavior implements IPipelineBehavior {
       return next();
     }
 
-    // Resolve user context
-    const user = await this.resolveUser(context);
-
-    if (!user && requirements && requirements.length > 0) {
-      this.logger.warn?.(
-        'Authorization required but no user context found. ' +
-          `Set "${CASL_USER_CONTEXT_KEY}" in context.items or provide a CASL_USER_CONTEXT_RESOLVER.`,
-      );
-      throw new ForbiddenException('Access denied — authentication required.');
-    }
-
-    // Build or use prebuilt ability
+    // A prebuilt ability is already complete authorization state and must not
+    // trigger user/provider resolution.
     let ability: AppAbility;
-
     if (options?.prebuiltAbility) {
       ability = options.prebuiltAbility;
-    } else if (user) {
-      ability = await this.buildAbilityForUser(user);
     } else {
-      // No user, no requirements — pass through
-      return next();
+      const user = await this.resolveUser(context);
+
+      if (!user && requirements && requirements.length > 0) {
+        this.logger.warn?.(
+          'Authorization required but no user context found. ' +
+            `Set "${CASL_USER_CONTEXT_KEY}" in context.items or provide a CASL_USER_CONTEXT_RESOLVER.`,
+        );
+        throw new ForbiddenException('Access denied — authentication required.');
+      }
+
+      if (user) {
+        ability = await this.buildAbilityForUser(user);
+      } else {
+        // No user, no requirements — pass through
+        return next();
+      }
     }
 
     // Store ability for downstream consumers

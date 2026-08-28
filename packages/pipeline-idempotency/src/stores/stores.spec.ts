@@ -32,6 +32,7 @@ const record = (
   key: 'k1',
   status: 'in_progress',
   requestName: 'CreateOrderCommand',
+  claimId: 'claim-1',
   createdAt: '2026-01-01T00:00:00.000Z',
   ...overrides,
 });
@@ -80,6 +81,62 @@ describe('MemoryIdempotencyStore', () => {
     );
     expect(store.get('k1')?.status).toBe('completed');
   });
+
+  it('completes a record only for the current claim owner', () => {
+    const store = new MemoryIdempotencyStore();
+    const claim = record({ claimId: 'owner-a' });
+    store.setIfAbsent('k1', claim, 1000);
+
+    expect(
+      store.completeIfOwned(
+        'k1',
+        'owner-a',
+        { ...claim, status: 'completed', response: 'ok' },
+        1000,
+      ),
+    ).toBe(true);
+    expect(store.get('k1')).toMatchObject({
+      status: 'completed',
+      claimId: 'owner-a',
+      response: 'ok',
+    });
+  });
+
+  it('does not let a stale owner complete a newer reclaimed claim', () => {
+    const store = new MemoryIdempotencyStore();
+    const first = record({ claimId: 'owner-a' });
+    store.setIfAbsent('k1', first, 1000);
+
+    vi.advanceTimersByTime(1001);
+
+    const second = record({ claimId: 'owner-b' });
+    expect(store.setIfAbsent('k1', second, 1000)).toBe(true);
+
+    expect(
+      store.completeIfOwned(
+        'k1',
+        'owner-a',
+        { ...first, status: 'completed', response: 'stale' },
+        1000,
+      ),
+    ).toBe(false);
+    expect(store.get('k1')).toEqual(second);
+  });
+
+  it('does not let a stale owner delete a newer reclaimed claim', () => {
+    const store = new MemoryIdempotencyStore();
+    store.setIfAbsent('k1', record({ claimId: 'owner-a' }), 1000);
+
+    vi.advanceTimersByTime(1001);
+
+    const second = record({ claimId: 'owner-b' });
+    store.setIfAbsent('k1', second, 1000);
+
+    expect(store.deleteIfOwned('k1', 'owner-a')).toBe(false);
+    expect(store.get('k1')).toEqual(second);
+    expect(store.deleteIfOwned('k1', 'owner-b')).toBe(true);
+    expect(store.get('k1')).toBeUndefined();
+  });
 });
 
 // ─── Redis ──────────────────────────────────────────────────────────────────
@@ -91,6 +148,7 @@ describe('RedisIdempotencyStore', () => {
       get: vi.fn(),
       set,
       del: vi.fn(),
+      eval: vi.fn(),
     };
     const store = new RedisIdempotencyStore(client);
 
@@ -108,6 +166,7 @@ describe('RedisIdempotencyStore', () => {
       get: vi.fn(),
       set: vi.fn().mockResolvedValue(null),
       del: vi.fn(),
+      eval: vi.fn(),
     };
     const store = new RedisIdempotencyStore(client);
     expect(await store.setIfAbsent('k1', record(), 5000)).toBe(false);
@@ -119,6 +178,7 @@ describe('RedisIdempotencyStore', () => {
       get: vi.fn().mockResolvedValue(JSON.stringify(stored)),
       set: vi.fn(),
       del: vi.fn(),
+      eval: vi.fn(),
     };
     const store = new RedisIdempotencyStore(client, { keyPrefix: 'idem:' });
 
@@ -131,13 +191,61 @@ describe('RedisIdempotencyStore', () => {
       get: vi.fn().mockResolvedValue(null),
       set: vi.fn(),
       del: vi.fn(),
+      eval: vi.fn(),
     };
     const store = new RedisIdempotencyStore(client);
     expect(await store.get('missing')).toBeUndefined();
   });
+
+  it('completes through an atomic owner-aware Lua script', async () => {
+    const evalFn = vi.fn().mockResolvedValue(1);
+    const client: RedisClientLike = {
+      get: vi.fn(),
+      set: vi.fn(),
+      del: vi.fn(),
+      eval: evalFn,
+    };
+    const store = new RedisIdempotencyStore(client);
+    const completed = record({
+      status: 'completed',
+      claimId: 'owner-a',
+      response: 'ok',
+    });
+
+    expect(
+      await store.completeIfOwned('k1', 'owner-a', completed, 5000),
+    ).toBe(true);
+    expect(evalFn).toHaveBeenCalledWith(
+      expect.stringContaining("current.claimId ~= ARGV[1]"),
+      {
+        keys: ['idempotency:k1'],
+        arguments: ['owner-a', JSON.stringify(completed), '5000'],
+      },
+    );
+  });
+
+  it('reports lost ownership when the Redis CAS script returns zero', async () => {
+    const client: RedisClientLike = {
+      get: vi.fn(),
+      set: vi.fn(),
+      del: vi.fn(),
+      eval: vi.fn().mockResolvedValue(0),
+    };
+    const store = new RedisIdempotencyStore(client);
+
+    expect(
+      await store.completeIfOwned(
+        'k1',
+        'stale-owner',
+        record({ status: 'completed', claimId: 'stale-owner' }),
+        5000,
+      ),
+    ).toBe(false);
+    expect(await store.deleteIfOwned('k1', 'stale-owner')).toBe(false);
+  });
 });
 
-// ─── Postgres ─────────────────────────────────────────────────────────────────
+// ─── Postgres ────────────────────────────────────────────────────────────────
 
 describe('PostgresIdempotencyStore', () => {
   it('claims a key when the insert returns a row', async () => {
@@ -148,6 +256,7 @@ describe('PostgresIdempotencyStore', () => {
     expect(await store.setIfAbsent('k1', record(), 5000)).toBe(true);
     const [sql] = query.mock.calls[0];
     expect(sql).toContain('ON CONFLICT (key) DO NOTHING');
+    expect(sql).toContain('claim_id');
   });
 
   it('reports a lost claim when no row is returned', async () => {
@@ -165,6 +274,7 @@ describe('PostgresIdempotencyStore', () => {
           {
             status: 'completed',
             request_name: 'CreateOrderCommand',
+            claim_id: 'owner-a',
             fingerprint: 'abc',
             response: { id: 'x' },
             created_at: '2026-01-01T00:00:00.000Z',
@@ -179,6 +289,7 @@ describe('PostgresIdempotencyStore', () => {
       key: 'k1',
       status: 'completed',
       requestName: 'CreateOrderCommand',
+      claimId: 'owner-a',
       fingerprint: 'abc',
       response: { id: 'x' },
       createdAt: '2026-01-01T00:00:00.000Z',
@@ -186,10 +297,37 @@ describe('PostgresIdempotencyStore', () => {
     });
   });
 
-  it('emits a CREATE TABLE statement for the default table', () => {
+  it('completes and deletes only when claim_id still matches', async () => {
+    const query = vi
+      .fn()
+      .mockResolvedValueOnce({ rows: [{ key: 'k1' }] })
+      .mockResolvedValueOnce({ rows: [] });
+    const db: PostgresQueryableLike = { query };
+    const store = new PostgresIdempotencyStore(db);
+
+    expect(
+      await store.completeIfOwned(
+        'k1',
+        'owner-a',
+        record({ status: 'completed', claimId: 'owner-a', response: 'ok' }),
+        5000,
+      ),
+    ).toBe(true);
+    expect(query.mock.calls[0][0]).toContain('AND claim_id = $2');
+    expect(query.mock.calls[0][0]).toContain("AND status = 'in_progress'");
+
+    expect(await store.deleteIfOwned('k1', 'stale-owner')).toBe(false);
+    expect(query.mock.calls[1][0]).toContain('AND claim_id = $2');
+  });
+
+  it('emits a CREATE/upgrade statement for the default table', () => {
     const sql = createIdempotencyTableSql();
     expect(sql).toContain('CREATE TABLE IF NOT EXISTS idempotency_keys');
     expect(sql).toContain('key           TEXT        PRIMARY KEY');
+    expect(sql).toContain('claim_id      TEXT');
+    expect(sql).toContain(
+      'ALTER TABLE idempotency_keys ADD COLUMN IF NOT EXISTS claim_id TEXT',
+    );
   });
 
   it('rejects an unsafe table name', () => {

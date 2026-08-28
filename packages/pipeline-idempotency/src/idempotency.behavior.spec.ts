@@ -21,6 +21,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { IdempotencyConflictError } from './errors/idempotency-conflict.error';
 import {
   IDEMPOTENCY_KEY_ITEM,
+  IDEMPOTENCY_OWNERSHIP_LOST_ITEM,
   IDEMPOTENCY_REPLAYED_ITEM,
   IdempotencyBehavior,
 } from './idempotency.behavior';
@@ -28,8 +29,6 @@ import type { IdempotencyBehaviorOptions } from './interfaces/idempotency-option
 import type { IdempotencyRecord } from './interfaces/idempotency-record.interface';
 import type { IdempotencyStore } from './interfaces/idempotency-store.interface';
 import { MemoryIdempotencyStore } from './stores/memory.store';
-
-// ─── Doubles ──────────────────────────────────────────────────────────────────
 
 function makeCtx(overrides: Partial<IPipelineContext> = {}): IPipelineContext {
   return {
@@ -62,8 +61,6 @@ const byKey: IdempotencyBehaviorOptions = {
   keyFactory: (c) => (c.request as { orderId: string }).orderId,
 };
 
-// ─── Tests ────────────────────────────────────────────────────────────────────
-
 describe('IdempotencyBehavior', () => {
   let store: MemoryIdempotencyStore;
 
@@ -82,6 +79,7 @@ describe('IdempotencyBehavior', () => {
     const record = (await store.get('o1')) as IdempotencyRecord;
     expect(record.status).toBe('completed');
     expect(record.response).toEqual({ id: 'created' });
+    expect(record.claimId).toEqual(expect.any(String));
   });
 
   it('replays the stored response without running the handler on a duplicate', async () => {
@@ -107,15 +105,32 @@ describe('IdempotencyBehavior', () => {
     expect(ctx.items.get(IDEMPOTENCY_KEY_ITEM)).toBe('o1');
   });
 
+  it('rejects a legacy custom store before a handler can execute', () => {
+    const legacyStore = {
+      get: vi.fn(),
+      setIfAbsent: vi.fn(),
+      set: vi.fn(),
+      delete: vi.fn(),
+    } as unknown as IdempotencyStore;
+
+    expect(() => new IdempotencyBehavior(legacyStore)).toThrow(
+      /missing required methods/,
+    );
+    expect(legacyStore.setIfAbsent).not.toHaveBeenCalled();
+  });
+
   it('throws a 409 conflict while a duplicate is still in progress', async () => {
     const mockStore: IdempotencyStore = {
       get: vi.fn().mockResolvedValue({
         key: 'o1',
         status: 'in_progress',
         requestName: 'CreateOrderCommand',
+        claimId: 'existing-owner',
         createdAt: new Date().toISOString(),
       }),
       setIfAbsent: vi.fn().mockResolvedValue(false),
+      completeIfOwned: vi.fn(),
+      deleteIfOwned: vi.fn(),
       set: vi.fn(),
       delete: vi.fn(),
     };
@@ -203,7 +218,6 @@ describe('IdempotencyBehavior', () => {
 
     expect(await store.get('o1')).toBeUndefined();
 
-    // Retry now succeeds because the key was released.
     const retry = vi.fn().mockResolvedValue('ok');
     const result = await behavior.handle(withOptions(makeCtx(), byKey), retry);
     expect(result).toBe('ok');
@@ -222,10 +236,106 @@ describe('IdempotencyBehavior', () => {
     expect(record?.status).toBe('in_progress');
   });
 
+  it('does not release a successfully executed key when persisting the completed record fails', async () => {
+    const persistenceError = new Error('store unavailable');
+    const mockStore: IdempotencyStore = {
+      get: vi.fn(),
+      setIfAbsent: vi.fn().mockResolvedValue(true),
+      completeIfOwned: vi.fn().mockRejectedValue(persistenceError),
+      deleteIfOwned: vi.fn(),
+      set: vi.fn(),
+      delete: vi.fn(),
+    };
+    const behavior = new IdempotencyBehavior(mockStore);
+    const next = vi.fn().mockResolvedValue({ id: 'already-created' });
+
+    await expect(
+      behavior.handle(withOptions(makeCtx(), byKey), next),
+    ).rejects.toBe(persistenceError);
+
+    expect(next).toHaveBeenCalledTimes(1);
+    expect(mockStore.deleteIfOwned).not.toHaveBeenCalled();
+    expect(mockStore.delete).not.toHaveBeenCalled();
+  });
+
+  it('returns the successful result without overwriting a newer claim when ownership is lost', async () => {
+    let claimedRecord: IdempotencyRecord | undefined;
+    const mockStore: IdempotencyStore = {
+      get: vi.fn(),
+      setIfAbsent: vi.fn((_key, record) => {
+        claimedRecord = record;
+        return true;
+      }),
+      completeIfOwned: vi.fn().mockResolvedValue(false),
+      deleteIfOwned: vi.fn(),
+      set: vi.fn(),
+      delete: vi.fn(),
+    };
+    const logger = {
+      log: vi.fn(),
+      error: vi.fn(),
+      debug: vi.fn(),
+      warn: vi.fn(),
+    };
+    const behavior = new IdempotencyBehavior(mockStore, undefined, logger);
+    const ctx = withOptions(makeCtx(), byKey);
+
+    const result = await behavior.handle(
+      ctx,
+      vi.fn().mockResolvedValue({ id: 'already-created' }),
+    );
+
+    expect(result).toEqual({ id: 'already-created' });
+    expect(claimedRecord?.claimId).toEqual(expect.any(String));
+    expect(mockStore.completeIfOwned).toHaveBeenCalledWith(
+      'o1',
+      claimedRecord?.claimId,
+      expect.objectContaining({
+        status: 'completed',
+        claimId: claimedRecord?.claimId,
+      }),
+      expect.any(Number),
+    );
+    expect(ctx.items.get(IDEMPOTENCY_OWNERSHIP_LOST_ITEM)).toBe(true);
+    expect(logger.error).toHaveBeenCalledTimes(1);
+  });
+
+  it('uses the same claim owner when releasing a failed execution', async () => {
+    let claimedRecord: IdempotencyRecord | undefined;
+    const mockStore: IdempotencyStore = {
+      get: vi.fn(),
+      setIfAbsent: vi.fn((_key, record) => {
+        claimedRecord = record;
+        return true;
+      }),
+      completeIfOwned: vi.fn(),
+      deleteIfOwned: vi.fn().mockResolvedValue(false),
+      set: vi.fn(),
+      delete: vi.fn(),
+    };
+    const behavior = new IdempotencyBehavior(mockStore);
+    const boom = new Error('handler failed');
+
+    await expect(
+      behavior.handle(
+        withOptions(makeCtx(), byKey),
+        vi.fn().mockRejectedValue(boom),
+      ),
+    ).rejects.toBe(boom);
+
+    expect(mockStore.deleteIfOwned).toHaveBeenCalledWith(
+      'o1',
+      claimedRecord?.claimId,
+    );
+    expect(mockStore.delete).not.toHaveBeenCalled();
+  });
+
   it('treats a lost claim with no stored record as an in-progress conflict', async () => {
     const mockStore: IdempotencyStore = {
       get: vi.fn().mockResolvedValue(undefined),
       setIfAbsent: vi.fn().mockResolvedValue(false),
+      completeIfOwned: vi.fn(),
+      deleteIfOwned: vi.fn(),
       set: vi.fn(),
       delete: vi.fn(),
     };
@@ -238,8 +348,6 @@ describe('IdempotencyBehavior', () => {
 
   it('merges module defaults under per-handler options', async () => {
     const behavior = new IdempotencyBehavior(store, { scope: ['event'] });
-    // Per-handler options omit scope, so the default scope (event) applies and
-    // a command request falls out of scope and runs the handler.
     const next = vi.fn().mockResolvedValue('ran');
     const ctx = withOptions(makeCtx(), byKey);
 

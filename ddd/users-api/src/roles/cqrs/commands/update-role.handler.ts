@@ -71,7 +71,7 @@ export class UpdateRoleHandler extends CommandBaseHandler<
   async handle(command: UpdateRoleCommand): Promise<RoleUpdateOutcome> {
     const { id, name } = command;
 
-    const query = new GetRoleQuery({ roleId: id });
+    const query = new GetRoleQuery({ roleId: id }, { hydrate: true });
 
     const role = await this.queryRepository.find(query);
 

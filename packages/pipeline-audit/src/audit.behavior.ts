@@ -113,16 +113,9 @@ export class AuditBehavior implements IPipelineBehavior {
     const startedAt = new Date();
     const start = performance.now();
 
+    let response: unknown;
     try {
-      const response = await next();
-      await this.record({
-        context,
-        options,
-        response,
-        durationMs: performance.now() - start,
-        startedAt: startedAt.toISOString(),
-      });
-      return response;
+      response = await next();
     } catch (error) {
       await this.record({
         context,
@@ -133,6 +126,15 @@ export class AuditBehavior implements IPipelineBehavior {
       });
       throw error;
     }
+
+    await this.record({
+      context,
+      options,
+      response,
+      durationMs: performance.now() - start,
+      startedAt: startedAt.toISOString(),
+    });
+    return response;
   }
 
   /** Build the record, forward it to the sink, and stash it on the context. */

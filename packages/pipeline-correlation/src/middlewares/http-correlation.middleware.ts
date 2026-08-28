@@ -49,7 +49,7 @@ export class HttpCorrelationMiddleware implements NestMiddleware {
     options?: CorrelationOptions,
   ) {
     const h = options?.header;
-    this.header = typeof h === 'string' ? h : 'x-correlation-id';
+    this.header = typeof h === 'string' ? h.toLowerCase() : 'x-correlation-id';
   }
 
   use(req: IncomingMessage, res: ServerResponse, next: () => void): void {

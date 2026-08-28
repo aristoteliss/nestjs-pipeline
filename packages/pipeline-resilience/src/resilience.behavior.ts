@@ -36,6 +36,7 @@ import {
   type AnyPolicy,
   buildResiliencePolicy,
 } from './helpers/policy-factory';
+import { runWithResilienceAbortSignal } from './helpers/resilience-context';
 import type { ResilienceBehaviorOptions } from './interfaces/resilience-options.interface';
 
 /**
@@ -94,7 +95,14 @@ export class ResilienceBehavior implements IPipelineBehavior {
   ): Promise<unknown> {
     const policy = this.resolvePolicy(context);
     if (!policy) return next();
-    return policy.execute(() => next());
+
+    return policy.execute((policyContext) => {
+      // Cockatiel supplies the effective AbortSignal (including timeout
+      // cancellation) to each execute callback. Bind it to this attempt's async
+      // execution so an aggressive timeout followed by a retry cannot replace
+      // the signal still observed by work from the timed-out attempt.
+      return runWithResilienceAbortSignal(policyContext.signal, next);
+    });
   }
 
   /** Resolves (and caches) the composed policy for the handler in `context`. */

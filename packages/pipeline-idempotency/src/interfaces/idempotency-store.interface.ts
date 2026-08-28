@@ -33,6 +33,10 @@ export type MaybePromise<T> = T | Promise<T>;
  * Postgres `INSERT … ON CONFLICT DO NOTHING`). Atomic claiming prevents two
  * live duplicates from both acquiring the same key; it does not by itself imply
  * exactly-once execution across failures/retries.
+ *
+ * Ownership-sensitive transitions use `claimId`. A stale execution whose claim
+ * expired must never complete or delete a newer execution's record. Built-in
+ * stores implement this with an atomic compare-and-set / compare-and-delete.
  */
 export interface IdempotencyStore {
   /**
@@ -54,8 +58,29 @@ export interface IdempotencyStore {
   ): MaybePromise<boolean>;
 
   /**
-   * Overwrites the record for `key` (used to flip `in_progress` → `completed`),
-   * refreshing its TTL.
+   * Atomically replaces the live `in_progress` record with `record` only when
+   * the existing record is still owned by `claimId`.
+   *
+   * @returns `true` when this claim completed its own record; `false` when the
+   * claim expired, was replaced, or was otherwise no longer owned by the caller.
+   */
+  completeIfOwned(
+    key: string,
+    claimId: string,
+    record: IdempotencyRecord,
+    ttlMs: number,
+  ): MaybePromise<boolean>;
+
+  /**
+   * Atomically removes the live record only when it is still owned by
+   * `claimId`. Used by `releaseOnError` so a stale failure cannot delete a
+   * newer execution's claim.
+   */
+  deleteIfOwned(key: string, claimId: string): MaybePromise<boolean>;
+
+  /**
+   * Unconditional overwrite retained for administrative/custom use. Pipeline
+   * execution completion uses {@link completeIfOwned}, not this method.
    */
   set(
     key: string,
@@ -63,6 +88,9 @@ export interface IdempotencyStore {
     ttlMs: number,
   ): MaybePromise<void>;
 
-  /** Removes the record for `key` (used to release a key after a failure). */
+  /**
+   * Unconditional delete retained for administrative/custom use. Pipeline
+   * failure release uses {@link deleteIfOwned}, not this method.
+   */
   delete(key: string): MaybePromise<void>;
 }

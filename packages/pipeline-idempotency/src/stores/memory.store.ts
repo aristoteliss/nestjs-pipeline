@@ -29,9 +29,10 @@ interface Entry {
  * per-entry expiry. The **default** store — ideal for a single instance, tests,
  * or local development.
  *
- * Because Node runs JavaScript on a single thread, {@link setIfAbsent} is
- * effectively atomic here. State is **not** shared across processes, so for a
- * multi-instance deployment use {@link RedisIdempotencyStore} or
+ * Because Node runs JavaScript on a single thread, {@link setIfAbsent},
+ * {@link completeIfOwned}, and {@link deleteIfOwned} are effectively atomic
+ * here. State is **not** shared across processes, so for a multi-instance
+ * deployment use {@link RedisIdempotencyStore} or
  * {@link PostgresIdempotencyStore}.
  */
 export class MemoryIdempotencyStore implements IdempotencyStore {
@@ -47,6 +48,33 @@ export class MemoryIdempotencyStore implements IdempotencyStore {
     }
     this.entries.set(key, { record, expiresAt: Date.now() + ttlMs });
     return true;
+  }
+
+  completeIfOwned(
+    key: string,
+    claimId: string,
+    record: IdempotencyRecord,
+    ttlMs: number,
+  ): boolean {
+    const current = this.live(key);
+    if (
+      !current ||
+      current.record.status !== 'in_progress' ||
+      current.record.claimId !== claimId
+    ) {
+      return false;
+    }
+
+    this.entries.set(key, { record, expiresAt: Date.now() + ttlMs });
+    return true;
+  }
+
+  deleteIfOwned(key: string, claimId: string): boolean {
+    const current = this.live(key);
+    if (!current || current.record.claimId !== claimId) {
+      return false;
+    }
+    return this.entries.delete(key);
   }
 
   set(key: string, record: IdempotencyRecord, ttlMs: number): void {

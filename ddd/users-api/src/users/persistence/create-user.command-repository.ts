@@ -16,6 +16,7 @@
  * ----------------------------
  */
 
+import { filterCacheKey } from '@common/cqrs/helpers/filterCacheKey.helper';
 import { Inject, Injectable } from '@nestjs/common';
 import { Cache, CommandRepository, ICache } from '@nestjs-pipeline/ddd-core';
 import { CACHE_TOKEN } from '@persistence/cache/memory.cache';
@@ -32,7 +33,7 @@ export class CreateUserCommandRepository extends CommandRepository<UserCreateOut
     super(cache);
   }
 
-  @Cache()
+  @Cache((outcome) => filterCacheKey(User, { _id: outcome.entity.id }))
   async save(domainOutcome: UserCreateOutcome): Promise<UserSnapshot> {
     const { entity } = domainOutcome;
     const em = this.store.em;
@@ -40,6 +41,9 @@ export class CreateUserCommandRepository extends CommandRepository<UserCreateOut
     const user = em.create(User, entity);
     em.persist(user);
     await em.flush();
+
+    // A lookup by email may have cached a miss before this user existed.
+    await this.cache.delete(filterCacheKey(User, { email: entity.email }));
 
     return user.toJSON();
   }

@@ -16,6 +16,7 @@
  * ----------------------------
  */
 
+import { EventEmitter } from 'node:events';
 import { describe, expect, it, vi } from 'vitest';
 import type { DeadLetterRecord } from '../interfaces/dead-letter-transport.interface';
 import { BullMqDeadLetterTransport } from './bullmq.transport';
@@ -87,11 +88,51 @@ describe('RabbitMqDeadLetterTransport', () => {
     expect(routingKey).toBe('failed');
   });
 
-  it('throws on publish backpressure (false)', async () => {
+  it('waits for drain when publish reports backpressure', async () => {
     const publish = vi.fn().mockReturnValue(false);
-    await expect(
-      new RabbitMqDeadLetterTransport({ publish }).send(record),
-    ).rejects.toThrow(/backpressure/);
+    const events = new EventEmitter();
+    const once = vi.fn(events.once.bind(events));
+    const removeListener = vi.fn(events.removeListener.bind(events));
+    const pending = new RabbitMqDeadLetterTransport({
+      publish,
+      once,
+      removeListener,
+    }).send(record);
+    queueMicrotask(() => events.emit('drain'));
+
+    await expect(pending).resolves.toBeUndefined();
+    expect(once).toHaveBeenCalledTimes(3);
+    expect(events.listenerCount('close')).toBe(0);
+    expect(events.listenerCount('error')).toBe(0);
+  });
+
+  it('rejects when the channel closes before drain', async () => {
+    const events = new EventEmitter();
+    const pending = new RabbitMqDeadLetterTransport({
+      publish: vi.fn().mockReturnValue(false),
+      once: events.once.bind(events),
+      removeListener: events.removeListener.bind(events),
+    }).send(record);
+    queueMicrotask(() => events.emit('close'));
+
+    await expect(pending).rejects.toThrow(/closed while waiting/);
+    expect(events.listenerCount('drain')).toBe(0);
+    expect(events.listenerCount('error')).toBe(0);
+  });
+
+  it('rejects when the channel errors before drain', async () => {
+    const events = new EventEmitter();
+    const failure = new Error('channel failed');
+    const pending = new RabbitMqDeadLetterTransport({
+      publish: vi.fn().mockReturnValue(false),
+      once: events.once.bind(events),
+      removeListener: events.removeListener.bind(events),
+    }).send(record);
+    queueMicrotask(() => events.emit('error', failure));
+
+    await expect(pending).rejects.toBe(failure);
+    expect(events.listenerCount('drain')).toBe(0);
+    expect(events.listenerCount('close')).toBe(0);
   });
 });
 

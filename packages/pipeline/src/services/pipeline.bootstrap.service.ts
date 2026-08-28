@@ -25,8 +25,9 @@ import {
   Optional,
   Type,
 } from '@nestjs/common';
-import { ContextIdFactory, ModuleRef } from '@nestjs/core';
+import { type ContextId, ContextIdFactory, ModuleRef } from '@nestjs/core';
 import { InstanceWrapper } from '@nestjs/core/injector/instance-wrapper';
+import * as cqrs from '@nestjs/cqrs';
 import { ExplorerService } from '@nestjs/cqrs/dist/services/explorer.service';
 import {
   pipelineStore,
@@ -51,6 +52,29 @@ import {
 } from '../options/pipeline-module.options';
 import { PipelineContext } from '../pipeline.context';
 import { untyped } from '../types/safe-typing';
+
+type CqrsWithOptionalAsyncContext = {
+  AsyncContext?: {
+    of?(target: object): { id: ContextId } | undefined;
+  };
+};
+
+/**
+ * Reads the CQRS async context when the installed CQRS version supports it.
+ * `AsyncContext` was added after CQRS 10, which remains a supported peer.
+ *
+ * @internal Exported only so the compatibility branch can be unit tested.
+ */
+export function getAttachedCqrsContextId(
+  target: object,
+  cqrsModule: unknown = cqrs,
+): ContextId | undefined {
+  const asyncContext = (cqrsModule as CqrsWithOptionalAsyncContext)
+    .AsyncContext;
+  return typeof asyncContext?.of === 'function'
+    ? asyncContext.of(target)?.id
+    : undefined;
+}
 
 /**
  * At application bootstrap, this service:
@@ -275,14 +299,20 @@ export class PipelineBootstrapService implements OnApplicationBootstrap {
       // are local to this invocation, preventing cross-request state leaks.
       let localBehaviors: IPipelineBehavior[];
       if (dynamicIndices.size > 0) {
-        // For request-scoped handlers (`isScoped === true`), `this` is the per-request instance
-        // created by Nest's DI and tagged with `REQUEST_CONTEXT_ID`, returning the cached ID.
-        // For singleton handlers, `this` lacks the `REQUEST_CONTEXT_ID` tag, so
-        // `ContextIdFactory.getByRequest(this)` defaults to `ContextIdFactory.create()`, producing
-        // a fresh `ContextId` for each dispatch (`request` fallback used if `this` is undefined).
-        const contextId = ContextIdFactory.getByRequest(
-          (this ?? request) as Record<string, unknown>,
-        );
+        // CQRS request-scoped handlers are resolved by CommandBus/QueryBus/EventBus
+        // with an AsyncContext attached to the command/query/event. Reuse that
+        // exact context id for dynamic behaviors so handler and behaviors share
+        // request-scoped dependencies (transactions, tenant context, etc.).
+        const cqrsContextId =
+          request && typeof request === 'object'
+            ? getAttachedCqrsContextId(request)
+            : undefined;
+        const contextId =
+          cqrsContextId ??
+          ContextIdFactory.getByRequest(
+            (this ?? request) as Record<string, unknown>,
+          );
+
         localBehaviors = await Promise.all(
           behaviorTypes.map((BehaviorClass, i) => {
             if (dynamicIndices.has(i)) {

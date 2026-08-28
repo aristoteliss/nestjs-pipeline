@@ -22,6 +22,7 @@ import {
   SET_ORIGINAL_CORRELATION_ID,
   SET_RESPONSE,
 } from './constants/pipeline-context.constants';
+import { PIPELINE_BEHAVIOR_ID } from './decorators/pipeline.decorator';
 import { PipelineHandlerMeta } from './interfaces/pipeline-handler-meta.interface';
 import { PipelineContext } from './pipeline.context';
 
@@ -162,5 +163,21 @@ describe('PipelineContext.getBehaviorOptions', () => {
       buildMeta({ behaviorOptions: opts }),
     );
     expect(ctx.getBehaviorOptions(SomeBehavior)).toEqual({ level: 'debug' });
+  });
+
+  it('uses PIPELINE_BEHAVIOR_ID when a behavior defines a custom identity', () => {
+    class CustomIdBehavior {
+      static readonly [PIPELINE_BEHAVIOR_ID] = 'pkg:custom-behavior';
+    }
+
+    const opts = new Map<string, Record<string, any>>([
+      ['pkg:custom-behavior', { level: 'trace' }],
+    ]);
+    const ctx = new PipelineContext(
+      new FakeCommand('x'),
+      buildMeta({ behaviorOptions: opts }),
+    );
+
+    expect(ctx.getBehaviorOptions(CustomIdBehavior)).toEqual({ level: 'trace' });
   });
 });

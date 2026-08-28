@@ -74,6 +74,31 @@ describe('safeStringify', () => {
     expect(() => JSON.parse(result)).not.toThrow();
   });
 
+  it('does not misclassify a repeated non-circular object reference as circular', () => {
+    const shared = { id: 'shared' };
+    const result = safeStringify({ first: shared, second: shared });
+
+    expect(result).toBe(
+      '{"first":{"id":"shared"},"second":{"id":"shared"}}',
+    );
+  });
+
+  it('handles self-referential Map and Set values without recursing forever', () => {
+    const map = new Map<string, unknown>();
+    map.set('self', map);
+    const set = new Set<unknown>();
+    set.add(set);
+
+    expect(safeStringify(map)).toBe('{"self":"[Circular]"}');
+    expect(safeStringify(set)).toBe('["[Circular]"]');
+  });
+
+  it('does not throw when sanitizing an invalid Date', () => {
+    const invalid = new Date('not-a-date');
+    expect(() => safeStringify({ invalid })).not.toThrow();
+    expect(safeStringify({ invalid })).toBe('{"invalid":"[Invalid Date]"}');
+  });
+
   it('supports indentation', () => {
     const result = safeStringify({ x: 1 }, new Set(), 2);
     expect(result).toContain('\n');

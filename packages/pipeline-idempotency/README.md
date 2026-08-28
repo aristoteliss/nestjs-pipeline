@@ -210,8 +210,9 @@ IdempotencyModule.forRootAsync({
 
 ### Custom store
 
-Implement the four-method `IdempotencyStore` interface to back idempotency with
-anything — DynamoDB, Memcached, an HTTP service:
+Implement the six-method `IdempotencyStore` interface to back idempotency with
+anything — DynamoDB, Memcached, an HTTP service. The two owner-aware operations
+must be atomic; a read followed by a separate write/delete is not sufficient:
 
 ```typescript
 interface IdempotencyStore {
@@ -222,13 +223,26 @@ interface IdempotencyStore {
     record: IdempotencyRecord,
     ttlMs: number,
   ): MaybePromise<boolean>;
+  /** Complete only while `claimId` still owns the live in-progress record. */
+  completeIfOwned(
+    key: string,
+    claimId: string,
+    record: IdempotencyRecord,
+    ttlMs: number,
+  ): MaybePromise<boolean>;
+  /** Delete only while `claimId` still owns the live record. */
+  deleteIfOwned(key: string, claimId: string): MaybePromise<boolean>;
+  /** Unconditional administrative overwrite. */
   set(key: string, record: IdempotencyRecord, ttlMs: number): MaybePromise<void>;
+  /** Unconditional administrative delete. */
   delete(key: string): MaybePromise<void>;
 }
 ```
 
-`setIfAbsent` **must** be atomic to prevent concurrent duplicates from both
-claiming the same live key.
+`setIfAbsent`, `completeIfOwned`, and `deleteIfOwned` **must** each be atomic.
+The built-in memory, Redis, and Postgres stores implement those guarantees using
+a unique `claimId` per in-progress record, preventing an execution that outlives
+its TTL from overwriting or releasing a newer claim.
 
 ---
 

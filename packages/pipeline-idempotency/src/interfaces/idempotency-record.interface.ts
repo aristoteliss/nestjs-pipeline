@@ -35,6 +35,12 @@ export interface IdempotencyRecord {
   /** The request type name, e.g. `CreateUserCommand`. */
   requestName: string;
   /**
+   * Unique owner token for the execution that claimed this record. New claims
+   * always include it; it is optional only so records written by an older
+   * package version can still be read/replayed during a rolling upgrade.
+   */
+  claimId?: string;
+  /**
    * Stable hash of the original request payload. Used to detect a key being
    * reused with a *different* body (a client bug or replay attack).
    */
