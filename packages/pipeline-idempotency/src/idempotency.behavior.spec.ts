@@ -222,6 +222,25 @@ describe('IdempotencyBehavior', () => {
     expect(record?.status).toBe('in_progress');
   });
 
+  it('does not release a successfully executed key when persisting the completed record fails', async () => {
+    const persistenceError = new Error('store unavailable');
+    const mockStore: IdempotencyStore = {
+      get: vi.fn(),
+      setIfAbsent: vi.fn().mockResolvedValue(true),
+      set: vi.fn().mockRejectedValue(persistenceError),
+      delete: vi.fn(),
+    };
+    const behavior = new IdempotencyBehavior(mockStore);
+    const next = vi.fn().mockResolvedValue({ id: 'already-created' });
+
+    await expect(
+      behavior.handle(withOptions(makeCtx(), byKey), next),
+    ).rejects.toBe(persistenceError);
+
+    expect(next).toHaveBeenCalledTimes(1);
+    expect(mockStore.delete).not.toHaveBeenCalled();
+  });
+
   it('treats a lost claim with no stored record as an in-progress conflict', async () => {
     const mockStore: IdempotencyStore = {
       get: vi.fn().mockResolvedValue(undefined),
