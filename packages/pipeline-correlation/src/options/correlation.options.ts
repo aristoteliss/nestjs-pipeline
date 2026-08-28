@@ -17,26 +17,28 @@
  */
 
 /**
- * Correlation ID configuration.
+ * Correlation ID configuration consumed by {@link HttpCorrelationMiddleware}.
  *
- * Controls the HTTP middleware that automatically extracts correlation IDs
- * from incoming requests. For non-HTTP transports (Bull, RabbitMQ, etc.),
- * use {@link runWithCorrelationId} directly in your processor/handler.
+ * The middleware is registered explicitly by the application. For non-HTTP
+ * transports (Bull, RabbitMQ, etc.), use `runWithCorrelationId()` directly in
+ * your processor/handler.
  *
  * @example
  * ```ts
- * // Custom header name
- * correlation: { header: 'x-request-id' }
+ * // Custom header name (bind CORRELATION_OPTIONS to this value)
+ * { header: 'x-request-id' }
  *
- * // Disable HTTP middleware (worker-only app)
- * correlation: { header: false }
+ * // `false` is accepted by the public type for compatibility, but the current
+ * // middleware treats every non-string value as the default header name.
+ * { header: false } // uses 'x-correlation-id'; it does not disable middleware
  * ```
  */
 export interface CorrelationOptions {
   /**
    * HTTP header name to extract the correlation ID from.
-   * Set to `false` to disable the HTTP correlation middleware entirely
-   * (e.g. for worker-only apps using Bull / RabbitMQ).
+   * A string selects that header. Any non-string value, including `false` and
+   * `undefined`, makes the current middleware implementation use the default
+   * `x-correlation-id` header.
    *
    * @default 'x-correlation-id'
    */
@@ -44,9 +46,7 @@ export interface CorrelationOptions {
 }
 
 /**
- * Injection token for correlation options.
- *
- * Provided by `@nestjs-pipeline/core`'s `PipelineModule.forRoot()` or
- * directly by the consumer when using this package standalone.
+ * Injection token for optional correlation middleware configuration.
+ * Consumers that want a custom header bind this token themselves.
  */
 export const CORRELATION_OPTIONS = Symbol('CORRELATION_OPTIONS');
