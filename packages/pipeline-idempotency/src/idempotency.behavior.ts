@@ -154,25 +154,32 @@ export class IdempotencyBehavior implements IPipelineBehavior {
       return this.replayOrConflict(context, key, fingerprint);
     }
 
+    let response: unknown;
     try {
-      const response = await next();
-      await this.store.set(
-        key,
-        {
-          ...claim,
-          status: 'completed',
-          response,
-          completedAt: new Date().toISOString(),
-        },
-        ttl,
-      );
-      return response;
+      response = await next();
     } catch (error) {
       if (options.releaseOnError ?? true) {
         await this.release(key);
       }
       throw error;
     }
+
+    // The handler has already succeeded at this point. If persisting the
+    // completed record fails, keep the existing in-progress claim rather than
+    // releasing it: releasing would allow a retry to execute the successful
+    // side effect again. The store error is surfaced so callers know replay
+    // persistence did not complete; the claim expires according to its TTL.
+    await this.store.set(
+      key,
+      {
+        ...claim,
+        status: 'completed',
+        response,
+        completedAt: new Date().toISOString(),
+      },
+      ttl,
+    );
+    return response;
   }
 
   /**
