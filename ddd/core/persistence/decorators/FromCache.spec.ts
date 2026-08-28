@@ -93,7 +93,7 @@ describe('@FromCache decorator on QueryRepository.find', () => {
 
   it('executes method and caches result on cache miss', async () => {
     const mockCache: ICache = {
-      get: vi.fn().mockResolvedValue(null),
+      get: vi.fn().mockResolvedValue(undefined),
       set: vi.fn(),
       delete: vi.fn(),
     };
