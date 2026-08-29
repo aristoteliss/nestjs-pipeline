@@ -42,9 +42,6 @@ export class CreateUserCommandRepository extends CommandRepository<UserCreateOut
     em.persist(user);
     await em.flush();
 
-    // A lookup by email may have cached a miss before this user existed.
-    await this.cache.delete(filterCacheKey(User, { email: entity.email }));
-
     return user.toJSON();
   }
 }

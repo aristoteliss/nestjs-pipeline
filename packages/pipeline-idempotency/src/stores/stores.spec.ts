@@ -212,11 +212,11 @@ describe('RedisIdempotencyStore', () => {
       response: 'ok',
     });
 
-    expect(
-      await store.completeIfOwned('k1', 'owner-a', completed, 5000),
-    ).toBe(true);
+    expect(await store.completeIfOwned('k1', 'owner-a', completed, 5000)).toBe(
+      true,
+    );
     expect(evalFn).toHaveBeenCalledWith(
-      expect.stringContaining("current.claimId ~= ARGV[1]"),
+      expect.stringContaining('current.claimId ~= ARGV[1]'),
       {
         keys: ['idempotency:k1'],
         arguments: ['owner-a', JSON.stringify(completed), '5000'],
@@ -277,6 +277,7 @@ describe('PostgresIdempotencyStore', () => {
             claim_id: 'owner-a',
             fingerprint: 'abc',
             response: { id: 'x' },
+            has_response: true,
             created_at: '2026-01-01T00:00:00.000Z',
             completed_at: '2026-01-01T00:00:01.000Z',
           },
@@ -295,6 +296,31 @@ describe('PostgresIdempotencyStore', () => {
       createdAt: '2026-01-01T00:00:00.000Z',
       completedAt: '2026-01-01T00:00:01.000Z',
     });
+  });
+
+  it('preserves an explicit null response distinct from undefined', async () => {
+    const db: PostgresQueryableLike = {
+      query: vi.fn().mockResolvedValue({
+        rows: [
+          {
+            status: 'completed',
+            request_name: 'VoidCommand',
+            claim_id: 'owner-a',
+            fingerprint: null,
+            response: null,
+            has_response: true,
+            created_at: '2026-01-01T00:00:00.000Z',
+            completed_at: '2026-01-01T00:00:01.000Z',
+          },
+        ],
+      }),
+    };
+    const store = new PostgresIdempotencyStore(db);
+    const result = await store.get('k1');
+
+    // response: null must stay null, not become undefined
+    expect(result).toBeDefined();
+    expect(result!.response).toBeNull();
   });
 
   it('completes and deletes only when claim_id still matches', async () => {

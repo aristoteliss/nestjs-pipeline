@@ -60,17 +60,28 @@ export function Cache<
         return result;
       }
 
+      // Cache maintenance is best-effort: the DB write already succeeded,
+      // so a cache failure must not turn a success into an error (which
+      // would cause idempotency release-on-error to drop the claim).
       if (result === null || result === undefined) {
         if (deleteKeysFn) {
           for (const key of deleteKeysFn(domainOutcome)) {
-            await this.cache.delete(key);
+            try {
+              await this.cache.delete(key);
+            } catch {
+              /* best-effort */
+            }
           }
         }
         return result;
       }
 
       if (setKeyFn) {
-        await this.cache.set(setKeyFn(domainOutcome), result);
+        try {
+          await this.cache.set(setKeyFn(domainOutcome), result);
+        } catch {
+          /* best-effort */
+        }
       }
 
       return result;

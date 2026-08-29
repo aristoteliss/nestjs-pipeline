@@ -128,6 +128,7 @@ interface IdempotencyRecord {
   key: string;                          // the idempotency key
   status: 'in_progress' | 'completed';  // lifecycle state
   requestName: string;                  // e.g. 'CreatePaymentCommand'
+  claimId?: string;                     // unique owner token for in-progress record
   fingerprint?: string;                 // hash of the original payload
   response?: unknown;                   // captured once completed (for replay)
   createdAt: string;                    // ISO-8601, when first claimed

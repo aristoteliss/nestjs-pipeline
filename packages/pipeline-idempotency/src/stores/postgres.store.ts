@@ -104,7 +104,9 @@ function mapRow(key: string, row: PostgresRowLike): IdempotencyRecord {
     requestName: row.request_name as string,
     claimId: (row.claim_id as string | null) ?? undefined,
     fingerprint: (row.fingerprint as string | null) ?? undefined,
-    response: row.response ?? undefined,
+    // SQL NULL → has_response=false → undefined (no response stored).
+    // JSONB null → has_response=true, row.response=null → null (explicit null).
+    response: row.has_response ? row.response : undefined,
     createdAt: toIso(row.created_at),
     completedAt: row.completed_at ? toIso(row.completed_at) : undefined,
   };
@@ -142,7 +144,9 @@ export class PostgresIdempotencyStore implements IdempotencyStore {
 
   async get(key: string): Promise<IdempotencyRecord | undefined> {
     const result = await this.db.query(
-      `SELECT status, request_name, claim_id, fingerprint, response, created_at, completed_at
+      `SELECT status, request_name, claim_id, fingerprint, response,
+              response IS NOT NULL AS has_response,
+              created_at, completed_at
          FROM ${this.table}
         WHERE key = $1 AND expires_at > now()`,
       [key],

@@ -33,32 +33,16 @@ export class DeleteUserCommandRepository extends CommandRepository<UserUpdateOut
     super(cache);
   }
 
-  @Cache<UserUpdateOutcome, UserSnapshot>(
-    null,
-    (outcome) => [
-      filterCacheKey(User, { _id: outcome.entity.id }),
-      filterCacheKey(User, { email: outcome.entity.email }),
-    ],
-  )
+  @Cache<UserUpdateOutcome, UserSnapshot>(null, (outcome) => [
+    filterCacheKey(User, { _id: outcome.entity.id }),
+    filterCacheKey(User, { email: outcome.entity.email }),
+  ])
   async save(domainOutcome: UserUpdateOutcome): Promise<null> {
     const { entity } = domainOutcome;
-    const em = this.store.em;
-
-    // The junction cleanup and aggregate delete are one logical operation.
-    // Keep them on one EntityManager/transaction so a later failure cannot
-    // leave the user with only part of its authorization relations removed.
-    await em.transactional(async (tx) => {
-      await tx.execute('DELETE FROM user_roles WHERE user_id = ?', [entity.id]);
-      await tx.execute(
-        'DELETE FROM user_additional_capabilities WHERE user_id = ?',
-        [entity.id],
-      );
-      await tx.execute(
-        'DELETE FROM user_denied_capabilities WHERE user_id = ?',
-        [entity.id],
-      );
-      await tx.nativeDelete(User, entity.id);
-    });
+    // ON DELETE CASCADE on junction tables (user_roles,
+    // user_additional_capabilities, user_denied_capabilities) handles
+    // relation cleanup automatically — a single delete is sufficient.
+    await this.store.em.nativeDelete(User, entity.id);
 
     return null;
   }

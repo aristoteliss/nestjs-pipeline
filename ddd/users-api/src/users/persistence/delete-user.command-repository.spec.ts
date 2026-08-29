@@ -4,21 +4,16 @@ import { User, type UserSnapshot } from '../domain/models/user.entity';
 import { DeleteUserCommandRepository } from './delete-user.command-repository';
 
 describe('DeleteUserCommandRepository', () => {
-  it('runs relation cleanup and user delete in one transaction, then evicts tenant-aware keys', async () => {
+  it('deletes user entity directly relying on ON DELETE CASCADE and evicts tenant-aware keys', async () => {
     const cache: ICache<UserSnapshot> = {
       get: vi.fn(),
       set: vi.fn(),
       delete: vi.fn(),
     };
-    const execute = vi.fn().mockResolvedValue(undefined);
     const nativeDelete = vi.fn().mockResolvedValue(1);
-    const tx = { execute, nativeDelete };
-    const transactional = vi.fn(async (work: (em: typeof tx) => Promise<void>) => {
-      await work(tx);
-    });
     const store = {
       get em() {
-        return { transactional };
+        return { nativeDelete };
       },
     };
     const repository = new DeleteUserCommandRepository(cache, store as never);
@@ -31,8 +26,6 @@ describe('DeleteUserCommandRepository', () => {
     const result = await repository.save(user.delete());
 
     expect(result).toBeNull();
-    expect(transactional).toHaveBeenCalledOnce();
-    expect(execute).toHaveBeenCalledTimes(3);
     expect(nativeDelete).toHaveBeenCalledWith(User, user.id);
     expect(cache.set).not.toHaveBeenCalled();
     expect(cache.delete).toHaveBeenCalledWith(`tenant:user:_id:${user.id}`);
@@ -41,17 +34,17 @@ describe('DeleteUserCommandRepository', () => {
     );
   });
 
-  it('does not evict cache when the database transaction fails', async () => {
+  it('does not evict cache when the database delete fails', async () => {
     const cache: ICache<UserSnapshot> = {
       get: vi.fn(),
       set: vi.fn(),
       delete: vi.fn(),
     };
     const failure = new Error('delete failed');
-    const transactional = vi.fn().mockRejectedValue(failure);
+    const nativeDelete = vi.fn().mockRejectedValue(failure);
     const store = {
       get em() {
-        return { transactional };
+        return { nativeDelete };
       },
     };
     const repository = new DeleteUserCommandRepository(cache, store as never);
