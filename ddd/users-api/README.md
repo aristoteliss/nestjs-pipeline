@@ -42,9 +42,10 @@ pnpm dev                # start with tsx (hot-reload)
 | `DATABASE_PASSWORD`  | `postgres`     | PostgreSQL database password (only used when `DB_ENGINE=postgres`) |
 | `DB_DEFAULT_SCHEMA`  | `tenant` | Default schema name for the default tenant (used by both engines) |
 | `SQLITE_TENANTS`     | _(none)_       | Comma-separated libSQL tenant list initialized at startup (only used when `DB_ENGINE=libsql`) |
-| `TENANT_SCHEMAS`     | _(none)_       | Comma-separated list of tenant schema names for migrations (e.g. `tenant_a,tenant_b`); if set, `migrate` and `revert` commands process all listed schemas |
+| `TENANT_SCHEMAS`     | _(none)_       | Comma-separated PostgreSQL tenant allowlist used by request routing, migrations, and reverts (e.g. `tenant_a,tenant_b`) |
 | `AUTH_LOGIN_CODE`    | _(none)_       | Code required for the login endpoint |
 | `JWT_SECRET`         | _(none)_       | Secret key used for JWT token signing |
+| `API_CLIENTS`        | _(none)_       | JSON API-client credentials; every entry must declare `tenant` or `tenants` in addition to `id` and `key` |
 | `SESSION_SECRET`     | _(none)_       | 32-byte hex string for `@fastify/secure-session` (required when `ADAPTER=fastify`) |
 | `ADAPTER`            | _(none)_       | Set to `fastify` to use Fastify adapter; omit for Express |
 | `REDIS_HOST`         | `localhost`    | Redis host for BullMQ job queues |
@@ -157,7 +158,8 @@ Database schema is managed by native MikroORM migrations in `src/persistence/mig
 
 When `DB_ENGINE=postgres`, schema-per-tenant routing is enabled:
 
-- **Per-request isolation** — `TenantSchemaMiddleware` extracts `x-tenant-schema` header and stores it in `TenantSchemaContext` (via `AsyncLocalStorage`).
+- **Per-request isolation** — `TenantSchemaMiddleware` validates `x-tenant-schema` against `TENANT_SCHEMAS` and stores it in `TenantSchemaContext` (via `AsyncLocalStorage`).
+- **Credential binding** — JWTs, secure sessions, and API clients are bound to a tenant and rejected when their tenant does not match the selected schema.
 - **EntityManager forking** — `PostgresMikroOrmStore.em` forks the connection with the tenant schema, so all queries are automatically scoped.
 - **Domain entities** — Remain tenant-agnostic; no `tenantId` field (schema isolation is transparent).
 - **Migrations** — run explicitly via `pnpm db:migrate` (optionally `TENANT_SCHEMAS=tenant_a,tenant_b`); they are not executed at application boot.
@@ -241,10 +243,10 @@ curl http://localhost:3000/users \
   -H 'x-tenant-schema: tenant_acme' \
   -H 'Authorization: Bearer <token>'
 
-# Route to tenant_globex (same table structure, different schema)
+# Route to tenant_globex with a token issued while logging into tenant_globex
 curl http://localhost:3000/users \
   -H 'x-tenant-schema: tenant_globex' \
-  -H 'Authorization: Bearer <token>'
+  -H 'Authorization: Bearer <tenant-globex-token>'
 ```
 
 **Backoffice cross-tenant reads** — Use a DB-level union view:
@@ -408,7 +410,7 @@ This sample serves as the complete reference application demonstrating **all 12 
   - **`IdempotencyBehavior`** (`@nestjs-pipeline/idempotency`) — Atomically excludes concurrent duplicates on `CreateUserHandler` (`user.create:<email>`) and `CreateRoleHandler` (`role.create:<name>`) and replays completed successful responses. With the default `releaseOnError: true`, failed executions release the key so a later retry may run again. `IdempotencyConflictFilter` maps conflicts to HTTP 409/422.
   - **`FeatureFlagBehavior`** (`@nestjs-pipeline/feature-flags`) — Gates `CreateUserHandler` behind `user-registration` and `CreateRoleHandler` behind `role-creation` using OpenFeature, with `FeatureDisabledFilter` mapping disabled features to HTTP 403.
   - **`ResilienceBehavior`** (`@nestjs-pipeline/resilience`) — Configures retry, circuit breaker, and timeout policies on `DeleteRoleHandler` and `DeleteUserHandler`.
-  - **`CacheBehavior`** (`@nestjs-pipeline/cache`) — Transparent read-through query caching on `GetUserHandler`, `GetRoleHandler`, and `GetRolesHandler` with Redis backing and in-memory fallback.
+  - **DDD repository caching** — Tenant-aware read-through caching for individual users and roles, invalidated by the corresponding writes. Query handlers avoid a second independent cache so PATCH/DELETE responses cannot be shadowed by stale outer entries.
   - **`CaslBehavior`** (`@nestjs-pipeline/casl`) — Fine-grained ABAC authorization with inline `rules`, condition interpolation, and database-backed capability providers on all command and query handlers.
 - **DDD & Persistence Architecture**:
   - Dual-engine persistence: **libSQL** (SQLite) for local dev and **PostgreSQL** with schema-per-tenant isolation for production.

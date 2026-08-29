@@ -48,6 +48,23 @@ export function normalizeSchemaName(value?: string | null): string {
   return candidate;
 }
 
+/** Returns the tenant schemas this process is configured to serve. */
+export function resolveAllowedTenantSchemas(): Set<string> {
+  const configured =
+    process.env.DB_ENGINE === 'postgres'
+      ? process.env.TENANT_SCHEMAS
+      : (process.env.SQLITE_TENANTS ?? process.env.TENANT_SCHEMAS);
+  const values = (configured?.split(',') ?? [process.env.DB_DEFAULT_SCHEMA])
+    .map((value) => value?.trim())
+    .filter((value): value is string => Boolean(value));
+
+  return new Set(
+    (values.length > 0 ? values : [undefined]).map((value) =>
+      normalizeSchemaName(value),
+    ),
+  );
+}
+
 export function createPostgresOrmOptions(schema?: string) {
   const dbName = process.env.DATABASE_NAME ?? 'nestjs_pipeline';
   const user = process.env.DATABASE_USER ?? 'postgres';

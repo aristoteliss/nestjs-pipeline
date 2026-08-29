@@ -36,6 +36,8 @@ export interface BuildAuditRecordInput {
   response?: unknown;
   /** The thrown value, if the handler failed. */
   error?: unknown;
+  /** Explicit execution state; thrown `undefined` is still a failure. */
+  failed: boolean;
   /** Wall-clock duration in milliseconds. */
   durationMs: number;
   /** ISO-8601 start timestamp. */
@@ -49,8 +51,8 @@ export interface BuildAuditRecordInput {
  * action, and normalizes non-`Error` throws to a well-formed error shape.
  */
 export function buildAuditRecord(input: BuildAuditRecordInput): AuditRecord {
-  const { context, options, response, error, durationMs, startedAt } = input;
-  const failed = error !== undefined;
+  const { context, options, response, error, failed, durationMs, startedAt } =
+    input;
 
   const record: AuditRecord = {
     id: randomUUID(),

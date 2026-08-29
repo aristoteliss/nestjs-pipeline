@@ -16,7 +16,6 @@
  * ----------------------------
  */
 
-import { SqlEntityManager } from '@mikro-orm/libsql';
 import { Inject, Injectable } from '@nestjs/common';
 import type {
   CaslUserContext,
@@ -25,21 +24,13 @@ import type {
 } from '@nestjs-pipeline/casl';
 import { FromCache, ICache, QueryRepository } from '@nestjs-pipeline/ddd-core';
 import { CACHE_TOKEN } from '@persistence/cache/memory.cache';
+import { UserAdditionalCapability } from '@persistence/entities/user-additional-capability.entity';
+import { UserDeniedCapability } from '@persistence/entities/user-denied-capability.entity';
+import { UserRole } from '@persistence/entities/user-role.entity';
 import { MIKRO_ORM_CLIENT, MikroOrmStore } from '@persistence/mikro-orm.store';
+import { Capability } from '../../roles/domain/models/capability.entity';
+import { Role } from '../../roles/domain/models/role.entity';
 import { GetUserCapabilitiesQuery } from '../cqrs/queries/get-user-capabilities.query';
-
-interface RoleRow {
-  name: string;
-}
-
-interface CapabilityRow {
-  subject: string;
-  action: string;
-  conditions: string | null;
-  inverted: number;
-  reason: string | null;
-  fields: string | null;
-}
 
 @Injectable()
 export class GetUserCapabilitiesQueryRepository
@@ -62,41 +53,47 @@ export class GetUserCapabilitiesQueryRepository
     (q) => `user:capabilities:${q.userId}`,
   )
   async find(query: GetUserCapabilitiesQuery): Promise<UserCapabilities> {
-    const { userId } = query;
-    const em = this.store.em as unknown as SqlEntityManager;
+    const userId = String(query.userId);
+    const em = this.store.em;
 
-    const rolesResult = await em.execute<RoleRow[]>(
-      `SELECT r.name FROM user_roles ur JOIN roles r ON r.id = ur.role_id WHERE ur.user_id = ?`,
-      [userId],
+    // Use entity operations so a PostgreSQL EntityManager fork applies its
+    // tenant schema. Raw execute() SQL would use the connection search_path.
+    const [userRoles, additionalLinks, deniedLinks] = await Promise.all([
+      em.find(UserRole, { userId }),
+      em.find(UserAdditionalCapability, { userId }),
+      em.find(UserDeniedCapability, { userId }),
+    ]);
+
+    const roleIds = userRoles.map((link) => String(link.roleId));
+    const additionalIds = additionalLinks.map((link) =>
+      String(link.capabilityId),
     );
+    const deniedIds = deniedLinks.map((link) => String(link.capabilityId));
+    const [rolesResult, additionalResult, deniedResult] = await Promise.all([
+      roleIds.length === 0
+        ? Promise.resolve([])
+        : em.find(Role, { id: { $in: roleIds } } as never),
+      additionalIds.length === 0
+        ? Promise.resolve([])
+        : em.find(Capability, { id: { $in: additionalIds } } as never),
+      deniedIds.length === 0
+        ? Promise.resolve([])
+        : em.find(Capability, { id: { $in: deniedIds } } as never),
+    ]);
 
-    const additionalResult = await em.execute<CapabilityRow[]>(
-      `SELECT c.subject, c.action, c.conditions, c.inverted, c.reason, c.fields
-       FROM user_additional_capabilities uac
-       JOIN capabilities c ON c.id = uac.capability_id
-       WHERE uac.user_id = ?`,
-      [userId],
-    );
-
-    const deniedResult = await em.execute<CapabilityRow[]>(
-      `SELECT c.subject, c.action, c.conditions, c.inverted, c.reason, c.fields
-       FROM user_denied_capabilities udc
-       JOIN capabilities c ON c.id = udc.capability_id
-       WHERE udc.user_id = ?`,
-      [userId],
-    );
-
-    const toCapability = (row: CapabilityRow) => ({
-      subject: row.subject,
-      action: row.action,
-      conditions: row.conditions ? JSON.parse(row.conditions) : undefined,
-      inverted: row.inverted === 1,
-      reason: row.reason ?? undefined,
-      fields: row.fields ? row.fields.split(',') : undefined,
+    const toCapability = (capability: Capability) => ({
+      subject: capability.subject,
+      action: capability.action,
+      conditions: capability.conditions
+        ? JSON.parse(capability.conditions)
+        : undefined,
+      inverted: capability.inverted,
+      reason: capability.reason ?? undefined,
+      fields: capability.fields ? capability.fields.split(',') : undefined,
     });
 
     return {
-      roles: rolesResult.map((r) => r.name),
+      roles: rolesResult.map((role) => role.name),
       additionalCapabilities: additionalResult.map(toCapability),
       deniedCapabilities: deniedResult.map(toCapability),
     };

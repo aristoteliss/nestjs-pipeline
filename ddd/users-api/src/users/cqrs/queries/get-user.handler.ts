@@ -18,35 +18,21 @@
 
 import { Inject } from '@nestjs/common';
 import { type IQueryHandler, QueryHandler } from '@nestjs/cqrs';
-import { CacheBehavior } from '@nestjs-pipeline/cache';
 import { CaslBehavior } from '@nestjs-pipeline/casl';
-import { type IPipelineContext, UsePipeline } from '@nestjs-pipeline/core';
+import { UsePipeline } from '@nestjs-pipeline/core';
 import { IQueryRepository } from '@nestjs-pipeline/ddd-core';
-import { TenantSchemaContext } from '@persistence/tenant-schema.context';
 import type { User } from '../../domain/models/user.entity';
 import { QUERY_REPOSITORY } from '../../repositories/repository.tokens';
 import { GetUserQuery } from './get-user.query';
 
 @QueryHandler(GetUserQuery)
-@UsePipeline(
-  [
-    CaslBehavior,
-    {
-      subjectFromRequest: 'User',
-      rules: [{ action: 'read', subject: 'User' }],
-    },
-  ],
-  [
-    CacheBehavior,
-    {
-      ttl: 60_000,
-      key: (ctx: IPipelineContext) => {
-        const req = ctx.request as GetUserQuery;
-        return `${TenantSchemaContext.currentSchema}:GetUserQuery:${req.userId ?? req.email}`;
-      },
-    },
-  ],
-)
+@UsePipeline([
+  CaslBehavior,
+  {
+    subjectFromRequest: 'User',
+    rules: [{ action: 'read', subject: 'User' }],
+  },
+])
 export class GetUserHandler implements IQueryHandler<GetUserQuery, User> {
   constructor(
     @Inject(QUERY_REPOSITORY.getUser)

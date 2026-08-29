@@ -60,7 +60,10 @@ export class UpdateRoleHandler extends CommandBaseHandler<
 > {
   constructor(
     @Inject(QUERY_REPOSITORY.getRole)
-    private readonly queryRepository: IQueryRepository<GetRoleQuery, Role>,
+    private readonly queryRepository: IQueryRepository<
+      GetRoleQuery,
+      Role | null
+    >,
     @Inject(COMMAND_REPOSITORY.updateRole)
     private readonly commandRepository: ICommandRepository<RoleUpdateOutcome>,
     protected readonly eventBus: EventBus,

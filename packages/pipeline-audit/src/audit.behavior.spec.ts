@@ -111,6 +111,19 @@ describe('AuditBehavior', () => {
     expect(ctx.items.get(AUDIT_RECORD_ITEM)).toBe(record);
   });
 
+  it('records throw undefined as a failure', async () => {
+    const behavior = new AuditBehavior(sink);
+
+    await expect(
+      behavior.handle(makeCtx(), vi.fn().mockRejectedValue(undefined)),
+    ).rejects.toBeUndefined();
+
+    expect(lastRecord()).toMatchObject({
+      outcome: 'failure',
+      error: { name: 'unknown', message: 'undefined' },
+    });
+  });
+
   it('captures the response when captureResponse=true', async () => {
     const behavior = new AuditBehavior(sink);
     const ctx = withOptions(makeCtx(), { captureResponse: true });
@@ -224,7 +237,7 @@ describe('AuditBehavior', () => {
 
     expect(next).toHaveBeenCalledTimes(1);
     expect(write).toHaveBeenCalledTimes(1);
-    expect((write.mock.calls[0]?.[0] as AuditRecord).outcome).toBe('success');
+    expect(lastRecord().outcome).toBe('success');
   });
 
   it('merges handler options over module defaults (handler wins)', async () => {

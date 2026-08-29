@@ -239,9 +239,10 @@ import { UsersModule } from './users/users.module';
      */
     ResilienceModule.forRoot(),
     /**
-     * Configures CacheBehavior and its store. Handlers opt in per-handler via
-     * `@UsePipeline([CacheBehavior, { ... }])` (see GetUserHandler); this module
-     * registration itself does not attach caching globally. The demo uses an
+     * Configures CacheBehavior and its store for handlers that opt in via
+     * `@UsePipeline([CacheBehavior, { ... }])`; this module registration itself
+     * does not attach caching globally. User/role reads intentionally use only
+     * their DDD repository cache so writes have one invalidation target. The demo uses an
      * in-memory store for non-production runs without REDIS_HOST and Redis
      * otherwise. Only handlers that attach CacheBehavior are cached; the module
      * default TTL is 30s.

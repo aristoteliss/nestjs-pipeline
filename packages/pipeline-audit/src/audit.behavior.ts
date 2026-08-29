@@ -121,6 +121,7 @@ export class AuditBehavior implements IPipelineBehavior {
         context,
         options,
         error,
+        failed: true,
         durationMs: performance.now() - start,
         startedAt: startedAt.toISOString(),
       });
@@ -131,6 +132,7 @@ export class AuditBehavior implements IPipelineBehavior {
       context,
       options,
       response,
+      failed: false,
       durationMs: performance.now() - start,
       startedAt: startedAt.toISOString(),
     });
@@ -143,6 +145,7 @@ export class AuditBehavior implements IPipelineBehavior {
     options: AuditBehaviorOptions;
     response?: unknown;
     error?: unknown;
+    failed: boolean;
     durationMs: number;
     startedAt: string;
   }): Promise<void> {

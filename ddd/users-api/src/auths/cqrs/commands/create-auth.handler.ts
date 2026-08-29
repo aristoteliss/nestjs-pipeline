@@ -31,6 +31,7 @@ import {
 } from '@nestjs-pipeline/ddd-core';
 import { MetricsBehavior } from '@nestjs-pipeline/opentelemetry';
 import { RateLimitBehavior } from '@nestjs-pipeline/rate-limit';
+import { TenantSchemaContext } from '@persistence/tenant-schema.context';
 import { Auth, AuthSnapshot } from '../../domain/models/auth.entity';
 import { AuthCreateOutcome } from '../../domain/outcomes/auth-create.outcome';
 import { COMMAND_REPOSITORY } from '../../repositories/repository.tokens';
@@ -94,6 +95,7 @@ export class CreateAuthHandler extends CommandBaseHandler<
 
     return {
       id: authResult.userId,
+      tenant: TenantSchemaContext.currentSchema,
       email,
       department: verifiedUser.department,
       capabilities: authResult.userCapabilities,

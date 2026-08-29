@@ -21,6 +21,10 @@ import {
   Injectable,
   type NestMiddleware,
 } from '@nestjs/common';
+import {
+  normalizeSchemaName,
+  resolveAllowedTenantSchemas,
+} from '../postgres-options';
 import { TenantSchemaContext } from '../tenant-schema.context';
 
 @Injectable()
@@ -47,7 +51,12 @@ export class TenantSchemaMiddleware implements NestMiddleware {
       );
     }
 
-    this.tenantSchemaContext.run(headerValue, () => {
+    const schema = normalizeSchemaName(headerValue);
+    if (!resolveAllowedTenantSchemas().has(schema)) {
+      throw new ForbiddenException('Unknown tenant context.');
+    }
+
+    this.tenantSchemaContext.run(schema, () => {
       next();
     });
   }

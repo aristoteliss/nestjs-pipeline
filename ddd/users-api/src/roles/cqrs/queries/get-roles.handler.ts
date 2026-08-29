@@ -18,32 +18,21 @@
 
 import { Inject } from '@nestjs/common';
 import { type IQueryHandler, QueryHandler } from '@nestjs/cqrs';
-import { CacheBehavior } from '@nestjs-pipeline/cache';
 import { CaslBehavior } from '@nestjs-pipeline/casl';
 import { UsePipeline } from '@nestjs-pipeline/core';
 import { IQueryRepository } from '@nestjs-pipeline/ddd-core';
-import { TenantSchemaContext } from '@persistence/tenant-schema.context';
 import type { Role } from '../../domain/models/role.entity';
 import { QUERY_REPOSITORY } from '../../persistence/repository.tokens';
 import { GetRolesQuery } from './get-roles.query';
 
 @QueryHandler(GetRolesQuery)
-@UsePipeline(
-  [
-    CaslBehavior,
-    {
-      subjectFromRequest: 'Role',
-      rules: [{ action: 'read', subject: 'Role' }],
-    },
-  ],
-  [
-    CacheBehavior,
-    {
-      ttl: 60_000,
-      key: () => `${TenantSchemaContext.currentSchema}:GetRolesQuery`,
-    },
-  ],
-)
+@UsePipeline([
+  CaslBehavior,
+  {
+    subjectFromRequest: 'Role',
+    rules: [{ action: 'read', subject: 'Role' }],
+  },
+])
 export class GetRolesHandler implements IQueryHandler<GetRolesQuery, Role[]> {
   constructor(
     @Inject(QUERY_REPOSITORY.getRoles)

@@ -445,8 +445,8 @@ describe('pipeline-packages (e2e)', () => {
     });
   });
 
-  describe('@nestjs-pipeline/cache (Redis Query Caching)', () => {
-    it('caches single-user query in Redis for 60s', async () => {
+  describe('DDD repository query caching', () => {
+    it('serves repeated single-user queries consistently', async () => {
       const email = newEmail();
       const created = await as(admin)
         .post('/users')
@@ -454,12 +454,12 @@ describe('pipeline-packages (e2e)', () => {
       expect(created.status).toBe(201);
       const userId = created.body.id;
 
-      // 1st request - fetches from database and populates Redis cache
+      // 1st request populates the tenant-aware repository cache.
       const firstGet = await as(admin).get(`/users/${userId}`);
       expect(firstGet.status).toBe(200);
       expect(firstGet.body.name).toBe('Cached User');
 
-      // 2nd request - served from CacheBehavior in Redis
+      // 2nd request is eligible for the repository read-through cache.
       const secondGet = await as(admin).get(`/users/${userId}`);
       expect(secondGet.status).toBe(200);
       expect(secondGet.body.id).toBe(userId);
@@ -626,7 +626,7 @@ describe('pipeline-packages (e2e)', () => {
       expect(firstRole.status).toBe(200);
       expect(firstRole.body.name).toBe(roleName);
 
-      // 2nd single query -> served from Redis cache
+      // 2nd single query is eligible for the DDD repository cache.
       const secondRole = await as(admin).get(`/roles/${roleId}`);
       expect(secondRole.status).toBe(200);
       expect(secondRole.body.id).toBe(roleId);
@@ -635,7 +635,7 @@ describe('pipeline-packages (e2e)', () => {
       const firstList = await as(admin).get('/roles');
       expect(firstList.status).toBe(200);
 
-      // Second list query -> served from cache
+      // Second list query remains consistent.
       const secondList = await as(admin).get('/roles');
       expect(secondList.status).toBe(200);
       expect(secondList.body.roles.length).toBe(firstList.body.roles.length);

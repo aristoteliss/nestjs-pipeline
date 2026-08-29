@@ -41,6 +41,7 @@ function makeInput(
   return {
     context: makeContext(),
     options: {},
+    failed: false,
     durationMs: 12.5,
     startedAt: '2026-01-01T00:00:00.000Z',
     ...overrides,
@@ -119,7 +120,7 @@ describe('buildAuditRecord', () => {
   it('records a failure outcome and normalizes an Error', () => {
     const error = new Error('boom');
 
-    const record = buildAuditRecord(makeInput({ error }));
+    const record = buildAuditRecord(makeInput({ error, failed: true }));
 
     expect(record.outcome).toBe('failure');
     expect(record.response).toBeUndefined();
@@ -129,14 +130,20 @@ describe('buildAuditRecord', () => {
 
   it('omits the stack when includeStack is false', () => {
     const record = buildAuditRecord(
-      makeInput({ error: new Error('boom'), options: { includeStack: false } }),
+      makeInput({
+        error: new Error('boom'),
+        failed: true,
+        options: { includeStack: false },
+      }),
     );
 
     expect(record.error?.stack).toBeUndefined();
   });
 
   it('normalizes a non-Error throw', () => {
-    const record = buildAuditRecord(makeInput({ error: 'just a string' }));
+    const record = buildAuditRecord(
+      makeInput({ error: 'just a string', failed: true }),
+    );
 
     expect(record.error).toEqual({
       name: 'unknown',

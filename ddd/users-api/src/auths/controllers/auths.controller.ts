@@ -47,6 +47,7 @@ export class AuthsController {
 
     req.session?.set('user', {
       id: sessionData.id,
+      tenant: sessionData.tenant,
       email: sessionData.email,
       department: sessionData.department,
       capabilities: sessionData.capabilities,

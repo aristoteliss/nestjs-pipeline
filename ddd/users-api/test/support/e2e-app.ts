@@ -41,6 +41,7 @@ export const E2E_API_CLIENTS = [
     id: 'api-admin-client',
     name: 'Admin Client',
     key: 'admin-secret-key-12345',
+    tenants: ['tenant', 'tenant_a', 'tenant_b'],
     capabilities: {
       roles: [],
       additionalCapabilities: ['all|manage|*'],
@@ -50,6 +51,7 @@ export const E2E_API_CLIENTS = [
     id: 'api-read-only-client',
     name: 'Read Only Client',
     key: 'readonly-secret-key-12345',
+    tenants: ['tenant', 'tenant_a', 'tenant_b'],
     capabilities: {
       roles: [],
       additionalCapabilities: ['User|read|*', 'Role|read|*'],
@@ -77,20 +79,18 @@ export async function createTestJwt(options?: {
   roles?: string[];
   additionalCapabilities?: string[];
   deniedCapabilities?: string[];
+  tenant?: string;
   secret?: string;
   expiresIn?: string | number;
 }): Promise<string> {
   const secret = new TextEncoder().encode(options?.secret ?? E2E_JWT_SECRET);
   const jwt = new SignJWT({
+    tenant: options?.tenant ?? 'tenant',
     email: options?.email ?? 'jwt-user@acme.test',
     department: options?.department ?? 'engineering',
-    capabilities: {
-      roles: options?.roles ?? [],
-      additionalCapabilities: options?.additionalCapabilities ?? [
-        'all|manage|*',
-      ],
-      deniedCapabilities: options?.deniedCapabilities ?? [],
-    },
+    roles: options?.roles ?? [],
+    additionalCapabilities: options?.additionalCapabilities ?? ['all|manage|*'],
+    deniedCapabilities: options?.deniedCapabilities ?? [],
   })
     .setProtectedHeader({ alg: 'HS256' })
     .setSubject(options?.sub ?? 'jwt-user-1')
@@ -197,7 +197,12 @@ export async function bootstrapE2E(options?: E2EOptions): Promise<E2EContext> {
     ) => {
       const raw = req.headers['x-test-user'];
       const header = Array.isArray(raw) ? raw[0] : raw;
-      const user = header ? JSON.parse(header) : undefined;
+      const parsedUser = header ? JSON.parse(header) : undefined;
+      const rawTenant = req.headers['x-tenant-schema'];
+      const tenant = Array.isArray(rawTenant) ? rawTenant[0] : rawTenant;
+      const user = parsedUser
+        ? { ...parsedUser, tenant: parsedUser.tenant ?? tenant }
+        : undefined;
       const store: Record<string, unknown> = user ? { user } : {};
       req.session = {
         get: (key: string) => store[key],

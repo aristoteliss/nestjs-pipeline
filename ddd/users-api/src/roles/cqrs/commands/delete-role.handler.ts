@@ -80,7 +80,10 @@ export class DeleteRoleHandler extends CommandBaseHandler<
 > {
   constructor(
     @Inject(QUERY_REPOSITORY.getRole)
-    private readonly queryRepository: IQueryRepository<GetRoleQuery, Role>,
+    private readonly queryRepository: IQueryRepository<
+      GetRoleQuery,
+      Role | null
+    >,
     @Inject(COMMAND_REPOSITORY.deleteRole)
     private readonly commandRepository: ICommandRepository<RoleUpdateOutcome>,
     protected readonly eventBus: EventBus,

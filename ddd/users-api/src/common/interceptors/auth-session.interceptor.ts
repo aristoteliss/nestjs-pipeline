@@ -33,6 +33,7 @@ import {
   serializeCapability,
   type UserCapabilities,
 } from '@nestjs-pipeline/casl';
+import { TenantSchemaContext } from '@persistence/tenant-schema.context';
 import { importSPKI, jwtVerify } from 'jose';
 import { from, type Observable } from 'rxjs';
 import { switchMap } from 'rxjs/operators';
@@ -63,7 +64,7 @@ export class AuthSessionInterceptor implements NestInterceptor {
   private readonly logger = new Logger(AuthSessionInterceptor.name);
   private apiClients?: Map<
     string,
-    { key: string; capabilities?: UserCapabilities }
+    { key: string; tenants: Set<string>; capabilities?: UserCapabilities }
   >;
 
   intercept(context: ExecutionContext, next: CallHandler): Observable<unknown> {
@@ -73,13 +74,11 @@ export class AuthSessionInterceptor implements NestInterceptor {
     }>();
 
     const session = req.session;
-    if (!session) {
-      return sessionUserStore.run(undefined, () => next.handle());
-    }
 
     // If session already has a user (from cookie), skip
-    const existingUser = session.get('user');
+    const existingUser = session?.get('user');
     if (existingUser) {
+      this.assertCurrentTenant(existingUser.tenant);
       return sessionUserStore.run(existingUser, () => next.handle());
     }
 
@@ -92,7 +91,7 @@ export class AuthSessionInterceptor implements NestInterceptor {
 
   private async enrichSessionFromRequest(
     req: { headers?: Record<string, string | string[] | undefined> },
-    session: Session<SessionData>,
+    session?: Session<SessionData>,
   ): Promise<SessionUser | undefined> {
     const authHeader = this.firstHeaderValue(req.headers?.authorization);
 
@@ -125,7 +124,7 @@ export class AuthSessionInterceptor implements NestInterceptor {
    */
   private verifyApiClient(
     req: { headers?: Record<string, string | string[] | undefined> },
-    session: Session<SessionData>,
+    session?: Session<SessionData>,
   ): SessionUser | undefined {
     const apiId = this.firstHeaderValue(req.headers?.['x-api-id']);
     if (!apiId) return undefined;
@@ -133,19 +132,25 @@ export class AuthSessionInterceptor implements NestInterceptor {
     const apiKey = this.firstHeaderValue(req.headers?.['x-api-key']);
     const client = this.getApiClients().get(apiId);
 
-    if (!client || !apiKey || !this.timingSafeEqualString(apiKey, client.key)) {
+    if (
+      !client ||
+      !apiKey ||
+      !this.timingSafeEqualString(apiKey, client.key) ||
+      !client.tenants.has(TenantSchemaContext.currentSchema)
+    ) {
       this.logger.warn(
         `Rejected API client "${apiId}": missing or invalid x-api-key`,
       );
       throw new UnauthorizedException('Invalid API credentials');
     }
 
-    session.set('api', { id: apiId });
+    const tenant = TenantSchemaContext.currentSchema;
+    session?.set('api', { id: apiId, tenant });
     this.logger.debug(
       `Authenticated API client ${apiId} from x-api-id/x-api-key headers`,
     );
 
-    return { id: apiId, capabilities: client.capabilities };
+    return { id: apiId, tenant, capabilities: client.capabilities };
   }
 
   /**
@@ -155,13 +160,13 @@ export class AuthSessionInterceptor implements NestInterceptor {
    */
   private getApiClients(): Map<
     string,
-    { key: string; capabilities?: UserCapabilities }
+    { key: string; tenants: Set<string>; capabilities?: UserCapabilities }
   > {
     if (this.apiClients) return this.apiClients;
 
     const clients = new Map<
       string,
-      { key: string; capabilities?: UserCapabilities }
+      { key: string; tenants: Set<string>; capabilities?: UserCapabilities }
     >();
 
     const raw = process.env.API_CLIENTS;
@@ -175,10 +180,21 @@ export class AuthSessionInterceptor implements NestInterceptor {
             typeof entry.id === 'string' &&
             entry.id.length > 0 &&
             typeof entry.key === 'string' &&
-            entry.key.length > 0
+            entry.key.length > 0 &&
+            (typeof entry.tenant === 'string' || Array.isArray(entry.tenants))
           ) {
+            const configuredTenants: unknown[] =
+              typeof entry.tenant === 'string' ? [entry.tenant] : entry.tenants;
+            const tenants = new Set<string>(
+              configuredTenants.filter(
+                (tenant: unknown): tenant is string =>
+                  typeof tenant === 'string' && tenant.length > 0,
+              ),
+            );
+            if (tenants.size === 0) continue;
             clients.set(entry.id, {
               key: entry.key,
+              tenants,
               capabilities: this.compactUserCapabilities(entry.capabilities),
             });
           }
@@ -212,7 +228,7 @@ export class AuthSessionInterceptor implements NestInterceptor {
 
   private async verifyAndSetSessionUser(
     token: string,
-    session: Session<SessionData>,
+    session?: Session<SessionData>,
   ): Promise<SessionUser | null> {
     const verification = await this.getJwtVerificationKey();
     if (!verification) return null;
@@ -235,9 +251,14 @@ export class AuthSessionInterceptor implements NestInterceptor {
 
       if (typeof payload.sub !== 'string' || payload.sub.length === 0)
         return null;
+      if (typeof payload.tenant !== 'string') {
+        throw new UnauthorizedException('Token is missing its tenant claim');
+      }
+      this.assertCurrentTenant(payload.tenant);
 
       const user: SessionUser = {
         id: payload.sub,
+        tenant: payload.tenant,
         email: typeof payload.email === 'string' ? payload.email : undefined,
         department:
           typeof payload.department === 'string'
@@ -254,7 +275,7 @@ export class AuthSessionInterceptor implements NestInterceptor {
         }),
       };
 
-      session.set('user', user);
+      session?.set('user', user);
       return user;
     } catch (e: unknown) {
       // A Bearer token was supplied but failed verification (bad signature,
@@ -267,6 +288,14 @@ export class AuthSessionInterceptor implements NestInterceptor {
         }`,
       );
       throw new UnauthorizedException('Invalid or expired token');
+    }
+  }
+
+  private assertCurrentTenant(credentialTenant: string): void {
+    if (credentialTenant !== TenantSchemaContext.currentSchema) {
+      throw new UnauthorizedException(
+        'Credential tenant does not match the selected tenant',
+      );
     }
   }
 

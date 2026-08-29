@@ -154,14 +154,14 @@ describe('capability.helpers', () => {
       ).toBe('!Post|delete|*');
     });
 
-    it('should serialize conditions as JSON', () => {
+    it('should serialize conditions as base64url JSON', () => {
       expect(
         serializeCapability({
           subject: 'Post',
           action: 'update',
           conditions: { authorId: 42 },
         }),
-      ).toBe('Post|update|{"authorId":42}');
+      ).toBe('Post|update|~eyJhdXRob3JJZCI6NDJ9');
     });
 
     it('should serialize fields as comma-separated 4th segment', () => {
@@ -182,7 +182,7 @@ describe('capability.helpers', () => {
           conditions: { authorId: 42 },
           fields: ['title'],
         }),
-      ).toBe('Post|update|{"authorId":42}|title');
+      ).toBe('Post|update|~eyJhdXRob3JJZCI6NDJ9|title');
     });
 
     it('should omit fields segment when no fields', () => {
@@ -195,14 +195,26 @@ describe('capability.helpers', () => {
       const original = 'Post|update|{"authorId":"${id}"}';
       const parsed = parseCapabilityString(original);
       const serialized = serializeCapability(parsed);
-      expect(serialized).toBe(original);
+      expect(parseCapabilityString(serialized)).toEqual(parsed);
     });
 
     it('should roundtrip parse → serialize with fields', () => {
       const original = 'Post|update|{"authorId":"${id}"}|title,body';
       const parsed = parseCapabilityString(original);
       const serialized = serializeCapability(parsed);
-      expect(serialized).toBe(original);
+      expect(parseCapabilityString(serialized)).toEqual(parsed);
+    });
+
+    it('roundtrips a condition containing the segment delimiter', () => {
+      const capability: Capability = {
+        subject: 'Post',
+        action: 'read',
+        conditions: { code: 'a|b' },
+      };
+
+      expect(parseCapabilityString(serializeCapability(capability))).toEqual(
+        capability,
+      );
     });
   });
 

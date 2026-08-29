@@ -111,8 +111,18 @@ class MockEventHandler {
 // scope 0 = Scope.DEFAULT (singleton), 1 = TRANSIENT, 2 = REQUEST
 // ─────────────────────────────────────────────────────────────────
 
-function makeWrapper(instance: any, metatype: any, scope = 0) {
-  return { instance, metatype, scope };
+function makeWrapper(
+  instance: any,
+  metatype: any,
+  scope = 0,
+  dependencyTreeStatic = scope !== 2,
+) {
+  return {
+    instance,
+    metatype,
+    scope,
+    isDependencyTreeStatic: vi.fn(() => dependencyTreeStatic),
+  };
 }
 
 // ─────────────────────────────────────────────────────────────────
@@ -272,9 +282,10 @@ describe('PipelineBootstrapService', () => {
       expect(result.store!.items.get('mock')).toBe(true);
     });
 
-    it('patches the prototype for TRANSIENT-scoped handlers (scope: 1)', async () => {
+    it('patches the CQRS-bound instance for a static TRANSIENT handler', async () => {
+      const handler = new ScopedCommandHandler();
       explorerServiceMock.explore.mockReturnValue({
-        commands: [makeWrapper(undefined, ScopedCommandHandler, 1)],
+        commands: [makeWrapper(handler, ScopedCommandHandler, 1, true)],
         queries: [],
         events: [],
       });
@@ -283,8 +294,27 @@ describe('PipelineBootstrapService', () => {
         globalBehaviors: { before: [MockBehavior] },
       }).onApplicationBootstrap();
 
-      const freshInstance = new ScopedCommandHandler();
-      const result = (await freshInstance.execute(new MockCommand(3))) as any;
+      const result = (await handler.execute(new MockCommand(3))) as any;
+
+      expect(result.store).toBeDefined();
+      expect(result.store!.items.get('mock')).toBe(true);
+    });
+
+    it('patches the prototype when DEFAULT scope bubbles from a request-scoped dependency', async () => {
+      explorerServiceMock.explore.mockReturnValue({
+        commands: [makeWrapper(undefined, ScopedCommandHandler, 0, false)],
+        queries: [],
+        events: [],
+      });
+
+      new PipelineBootstrapService(moduleRefMock, {
+        globalBehaviors: { before: [MockBehavior] },
+      }).onApplicationBootstrap();
+
+      const contextualInstance = new ScopedCommandHandler();
+      const result = (await contextualInstance.execute(
+        new MockCommand(4),
+      )) as any;
 
       expect(result.store).toBeDefined();
       expect(result.store!.items.get('mock')).toBe(true);

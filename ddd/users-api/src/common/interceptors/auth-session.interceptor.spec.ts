@@ -1,5 +1,6 @@
 import { generateKeyPairSync } from 'node:crypto';
 import type { CallHandler, ExecutionContext } from '@nestjs/common';
+import { TenantSchemaContext } from '@persistence/tenant-schema.context';
 import { exportSPKI, SignJWT } from 'jose';
 import { lastValueFrom, of } from 'rxjs';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -12,6 +13,7 @@ const ENV_KEYS = [
   'JWT_ALGORITHMS',
   'JWT_ISSUER',
   'JWT_AUDIENCE',
+  'API_CLIENTS',
 ] as const;
 
 const originalEnv = new Map<string, string | undefined>(
@@ -26,7 +28,7 @@ afterEach(() => {
   }
 });
 
-function makeRequest(token: string) {
+function makeRequest(token: string, withSession = true) {
   const sessionData = new Map<string, unknown>();
   const session = {
     get: vi.fn((key: string) => sessionData.get(key)),
@@ -34,7 +36,7 @@ function makeRequest(token: string) {
   };
   const request = {
     headers: { authorization: `Bearer ${token}` },
-    session,
+    session: withSession ? session : undefined,
   };
   const executionContext = {
     switchToHttp: () => ({ getRequest: () => request }),
@@ -53,7 +55,11 @@ describe('AuthSessionInterceptor JWT verification', () => {
     delete process.env.JWT_ALGORITHMS;
     delete process.env.JWT_SECRET;
 
-    const token = await new SignJWT({ email: 'user@example.test', roles: [] })
+    const token = await new SignJWT({
+      tenant: TenantSchemaContext.currentSchema,
+      email: 'user@example.test',
+      roles: [],
+    })
       .setProtectedHeader({ alg: 'RS256', typ: 'JWT' })
       .setSubject('user-1')
       .setIssuedAt()
@@ -84,7 +90,11 @@ describe('AuthSessionInterceptor JWT verification', () => {
     delete process.env.JWT_ALGORITHMS;
     delete process.env.JWT_SECRET;
 
-    const token = await new SignJWT({ email: 'escaped@example.test', roles: [] })
+    const token = await new SignJWT({
+      tenant: TenantSchemaContext.currentSchema,
+      email: 'escaped@example.test',
+      roles: [],
+    })
       .setProtectedHeader({ alg: 'RS256', typ: 'JWT' })
       .setSubject('user-escaped')
       .setIssuedAt()
@@ -104,5 +114,66 @@ describe('AuthSessionInterceptor JWT verification', () => {
         email: 'escaped@example.test',
       }),
     );
+  });
+
+  it('authenticates a Bearer token when Express provides no session object', async () => {
+    process.env.JWT_SECRET = 'express-jwt-secret';
+    const token = await new SignJWT({
+      tenant: TenantSchemaContext.currentSchema,
+      roles: [],
+    })
+      .setProtectedHeader({ alg: 'HS256' })
+      .setSubject('express-user')
+      .setExpirationTime('1h')
+      .sign(new TextEncoder().encode(process.env.JWT_SECRET));
+    const { executionContext, next } = makeRequest(token, false);
+
+    await expect(
+      lastValueFrom(
+        new AuthSessionInterceptor().intercept(executionContext, next),
+      ),
+    ).resolves.toBe('ok');
+    expect(next.handle).toHaveBeenCalledOnce();
+  });
+
+  it('rejects a token bound to a different tenant', async () => {
+    process.env.JWT_SECRET = 'tenant-jwt-secret';
+    const token = await new SignJWT({ tenant: 'different_tenant', roles: [] })
+      .setProtectedHeader({ alg: 'HS256' })
+      .setSubject('user-1')
+      .setExpirationTime('1h')
+      .sign(new TextEncoder().encode(process.env.JWT_SECRET));
+    const { executionContext, next } = makeRequest(token, false);
+
+    await expect(
+      lastValueFrom(
+        new AuthSessionInterceptor().intercept(executionContext, next),
+      ),
+    ).rejects.toThrow('Invalid or expired token');
+    expect(next.handle).not.toHaveBeenCalled();
+  });
+
+  it('authenticates a tenant-bound API key without an Express session', async () => {
+    process.env.API_CLIENTS = JSON.stringify([
+      {
+        id: 'client-1',
+        key: 'secret-1',
+        tenant: TenantSchemaContext.currentSchema,
+      },
+    ]);
+    const request = {
+      headers: { 'x-api-id': 'client-1', 'x-api-key': 'secret-1' },
+    };
+    const executionContext = {
+      switchToHttp: () => ({ getRequest: () => request }),
+    } as unknown as ExecutionContext;
+    const next: CallHandler = { handle: vi.fn(() => of('ok')) };
+
+    await expect(
+      lastValueFrom(
+        new AuthSessionInterceptor().intercept(executionContext, next),
+      ),
+    ).resolves.toBe('ok');
+    expect(next.handle).toHaveBeenCalledOnce();
   });
 });

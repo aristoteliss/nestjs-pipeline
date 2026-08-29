@@ -153,8 +153,11 @@ export class PipelineBootstrapService implements OnApplicationBootstrap {
       (wrapper.metatype as Type) ?? (wrapper.instance?.constructor as Type);
     if (!handlerType) return;
 
-    // Scope.DEFAULT = 0 (falsy), Scope.REQUEST = 2, Scope.TRANSIENT = 1 (truthy)
-    const isScoped = !!untyped(wrapper).scope;
+    // Match Nest CQRS' own handler-resolution decision. A DEFAULT-scoped
+    // handler becomes contextual when any dependency in its tree is
+    // request-scoped (scope bubbling), even though wrapper.scope remains
+    // Scope.DEFAULT.
+    const isScoped = !wrapper.isDependencyTreeStatic();
 
     // For singleton handlers, verify the instance exists
     const instance = isScoped ? undefined : wrapper.instance;

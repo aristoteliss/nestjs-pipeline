@@ -16,13 +16,15 @@
  * ----------------------------
  */
 
-import { SqlEntityManager } from '@mikro-orm/libsql';
 import { Inject, Injectable } from '@nestjs/common';
 import type { IRoleProvider, RoleDefinition } from '@nestjs-pipeline/casl';
 import { FromCache, ICache, QueryRepository } from '@nestjs-pipeline/ddd-core';
 import { CACHE_TOKEN } from '@persistence/cache/memory.cache';
+import { RoleCapability } from '@persistence/entities/role-capability.entity';
 import { MIKRO_ORM_CLIENT, MikroOrmStore } from '@persistence/mikro-orm.store';
 import { GetRolesCapabilitiesQuery } from '../cqrs/queries/get-roles-capabilities.query';
+import { Capability } from '../domain/models/capability.entity';
+import { Role } from '../domain/models/role.entity';
 
 @Injectable()
 export class GetRolesCapabilitiesQueryRepository
@@ -45,67 +47,60 @@ export class GetRolesCapabilitiesQueryRepository
   )
   async find(query: GetRolesCapabilitiesQuery): Promise<RoleDefinition[]> {
     const { names } = query;
-    const em = this.store.em as SqlEntityManager;
-    let rows: Array<{ id: string; name: string }> = [];
-
-    if (names && names.length > 0) {
-      const placeholders = names.map(() => '?').join(',');
-      const result = await em.execute(
-        `SELECT id, name FROM roles WHERE name IN (${placeholders})`,
-        names,
-      );
-      rows = (result as Array<{ id: string; name: string }>).map((r) => ({
-        id: r.id as string,
-        name: r.name as string,
-      }));
-    } else {
+    if (!names || names.length === 0) {
       // If no role names are provided, return an empty array (no roles)
       return [];
     }
 
-    return this.hydrate(em, rows);
+    const em = this.store.em;
+    const roles = await em.find(Role, { _name: { $in: names } } as never);
+
+    return this.hydrate(em, roles);
   }
 
   private async hydrate(
-    em: SqlEntityManager,
-    rows: Array<{ id: string; name: string }>,
+    em: MikroOrmStore['em'],
+    roles: Role[],
   ): Promise<RoleDefinition[]> {
-    if (rows.length === 0) return [];
+    if (roles.length === 0) return [];
 
-    const roleIds = rows.map((r) => r.id);
-    const placeholders = roleIds.map(() => '?').join(',');
-
-    const caps = await em.execute(
-      `SELECT rc.role_id,
-                   c.subject, c.action, c.conditions,
-                   c.inverted, c.reason, c.fields
-            FROM role_capabilities rc
-            JOIN capabilities c ON c.id = rc.capability_id
-            WHERE rc.role_id IN (${placeholders})`,
-      roleIds,
+    const links = await em.find(RoleCapability, {
+      roleId: { $in: roles.map((role) => role.id) },
+    });
+    const capabilityIds = [...new Set(links.map((link) => link.capabilityId))];
+    const capabilities =
+      capabilityIds.length === 0
+        ? []
+        : await em.find(Capability, {
+            id: { $in: capabilityIds },
+          } as never);
+    const capabilityById = new Map(
+      capabilities.map((capability) => [capability.id, capability]),
     );
 
     const capsByRole = new Map<string, RoleDefinition['capabilities']>();
-    for (const row of caps as Array<Record<string, unknown>>) {
-      const roleId = row.role_id as string;
+    for (const link of links) {
+      const roleId = link.roleId;
+      const capability = capabilityById.get(link.capabilityId);
+      if (!capability) continue;
       if (!capsByRole.has(roleId)) capsByRole.set(roleId, []);
 
       // biome-ignore lint/style/noNonNullAssertion: role bucket exists after has()/set() guard
       capsByRole.get(roleId)!.push({
-        subject: row.subject as string,
-        action: row.action as string,
-        conditions: row.conditions
-          ? JSON.parse(row.conditions as string)
+        subject: capability.subject,
+        action: capability.action,
+        conditions: capability.conditions
+          ? JSON.parse(capability.conditions)
           : undefined,
-        inverted: row.inverted === 1,
-        reason: (row.reason as string) || undefined,
-        fields: row.fields ? (row.fields as string).split(',') : undefined,
+        inverted: capability.inverted,
+        reason: capability.reason || undefined,
+        fields: capability.fields ? capability.fields.split(',') : undefined,
       });
     }
 
-    return rows.map((r) => ({
-      name: r.name,
-      capabilities: capsByRole.get(r.id) ?? [],
+    return roles.map((role) => ({
+      name: role.name,
+      capabilities: capsByRole.get(role.id) ?? [],
     }));
   }
 }

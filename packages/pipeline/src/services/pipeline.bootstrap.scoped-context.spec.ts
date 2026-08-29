@@ -16,19 +16,19 @@
  * ----------------------------
  */
 
-import type { IPipelineContext } from '../interfaces/pipeline.context.interface';
+import { AsyncContext } from '@nestjs/cqrs';
+import { ExplorerService } from '@nestjs/cqrs/dist/services/explorer.service';
+import { describe, expect, it, vi } from 'vitest';
+import { UsePipeline } from '../decorators/pipeline.decorator';
 import type {
   IPipelineBehavior,
   NextDelegate,
 } from '../interfaces/pipeline.behavior.interface';
-import { UsePipeline } from '../decorators/pipeline.decorator';
+import type { IPipelineContext } from '../interfaces/pipeline.context.interface';
 import {
   getAttachedCqrsContextId,
   PipelineBootstrapService,
 } from './pipeline.bootstrap.service';
-import { AsyncContext } from '@nestjs/cqrs';
-import { ExplorerService } from '@nestjs/cqrs/dist/services/explorer.service';
-import { describe, expect, it, vi } from 'vitest';
 
 class ScopedBehavior implements IPipelineBehavior {
   async handle(_context: IPipelineContext, next: NextDelegate) {
@@ -55,9 +55,9 @@ describe('PipelineBootstrapService scoped CQRS context', () => {
     const of = vi.fn().mockReturnValue({ id });
     const command = new TestCommand();
 
-    expect(
-      getAttachedCqrsContextId(command, { AsyncContext: { of } }),
-    ).toBe(id);
+    expect(getAttachedCqrsContextId(command, { AsyncContext: { of } })).toBe(
+      id,
+    );
     expect(of).toHaveBeenCalledWith(command);
   });
 
@@ -69,6 +69,7 @@ describe('PipelineBootstrapService scoped CQRS context', () => {
             instance: undefined,
             metatype: RequestScopedHandler,
             scope: 2,
+            isDependencyTreeStatic: vi.fn(() => false),
           },
         ],
         queries: [],
@@ -96,10 +97,8 @@ describe('PipelineBootstrapService scoped CQRS context', () => {
 
     await new RequestScopedHandler().execute(command);
 
-    expect(resolve).toHaveBeenCalledWith(
-      ScopedBehavior,
-      asyncContext.id,
-      { strict: false },
-    );
+    expect(resolve).toHaveBeenCalledWith(ScopedBehavior, asyncContext.id, {
+      strict: false,
+    });
   });
 });

@@ -18,15 +18,9 @@
 
 import { Inject } from '@nestjs/common';
 import { type IQueryHandler, QueryHandler } from '@nestjs/cqrs';
-import { CacheBehavior } from '@nestjs-pipeline/cache';
 import { CaslBehavior } from '@nestjs-pipeline/casl';
-import {
-  type IPipelineContext,
-  LoggingBehavior,
-  UsePipeline,
-} from '@nestjs-pipeline/core';
+import { LoggingBehavior, UsePipeline } from '@nestjs-pipeline/core';
 import { IQueryRepository } from '@nestjs-pipeline/ddd-core';
-import { TenantSchemaContext } from '@persistence/tenant-schema.context';
 import type { Role } from '../../domain/models/role.entity';
 import { QUERY_REPOSITORY } from '../../persistence/repository.tokens';
 import { GetRoleQuery } from './get-role.query';
@@ -39,16 +33,6 @@ import { GetRoleQuery } from './get-role.query';
     {
       subjectFromRequest: 'Role',
       rules: [{ action: 'read', subject: 'Role' }],
-    },
-  ],
-  [
-    CacheBehavior,
-    {
-      ttl: 60_000,
-      key: (ctx: IPipelineContext) => {
-        const req = ctx.request as GetRoleQuery;
-        return `${TenantSchemaContext.currentSchema}:GetRoleQuery:${req.roleId}`;
-      },
     },
   ],
 )

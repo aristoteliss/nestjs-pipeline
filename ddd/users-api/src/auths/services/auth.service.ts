@@ -32,6 +32,7 @@ import {
 } from '@nestjs-pipeline/casl';
 import { IQueryRepository } from '@nestjs-pipeline/ddd-core';
 import { SignJWT } from 'jose';
+import { TenantSchemaContext } from '../../persistence/tenant-schema.context';
 import { GetUserQuery } from '../../users/cqrs/queries/get-user.query';
 import { User } from '../../users/domain/models/user.entity';
 import { EXT_USER_QUERY_REPOSITORY } from '../../users/repositories/repository.tokens';
@@ -80,6 +81,7 @@ export class AuthService {
 
     const issuer = process.env.JWT_ISSUER;
     const audience = process.env.JWT_AUDIENCE;
+    const tenant = TenantSchemaContext.currentSchema;
 
     const userCapabilities = await this.queryBus.execute<
       GetUserCapabilitiesQuery,
@@ -95,6 +97,7 @@ export class AuthService {
       (caps ?? []).map((cap) => serializeCapability(normalizeCapability(cap)));
 
     const jwt = new SignJWT({
+      tenant,
       email: user.email,
       department: user.department,
       roles: userCapabilities.roles,

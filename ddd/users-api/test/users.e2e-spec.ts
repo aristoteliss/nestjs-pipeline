@@ -38,7 +38,7 @@ import { bootstrapE2E, type E2EContext } from './support/e2e-app';
  *         - FeatureFlagBehavior (kill-switch gating)
  *         - IdempotencyBehavior (duplicate detection per email)
  *         - RateLimitBehavior (5 req / 60s per email)
- *         - CacheBehavior (Redis read-through cache for single-user GET)
+ *         - tenant-aware DDD repository read-through cache
  *         - ResilienceBehavior (retry / circuit-breaker / timeout on delete)
  *         - AuditBehavior (action logging on delete)
  *     → DDD Command / Query Handlers
