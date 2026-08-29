@@ -45,6 +45,9 @@ pnpm dev                # start with tsx (hot-reload)
 | `TENANT_SCHEMAS`     | _(none)_       | Comma-separated PostgreSQL tenant allowlist used by request routing, migrations, and reverts (e.g. `tenant_a,tenant_b`) |
 | `AUTH_LOGIN_CODE`    | _(none)_       | Code required for the login endpoint |
 | `JWT_SECRET`         | _(none)_       | Secret key used for JWT token signing |
+| `JWT_PUBLIC_KEY`     | _(none)_       | Optional SPKI public key for validating asymmetric external tokens; may be configured together with `JWT_SECRET` |
+| `JWT_PUBLIC_KEY_ALG` | `RS256`        | Algorithm associated with `JWT_PUBLIC_KEY` |
+| `JWT_ALGORITHMS`     | key defaults   | Optional verification allowlist; include `HS256` when `/auth/login` issues local tokens |
 | `API_CLIENTS`        | _(none)_       | JSON API-client credentials; every entry must declare `tenant` or `tenants` in addition to `id` and `key` |
 | `SESSION_SECRET`     | _(none)_       | 32-byte hex string for `@fastify/secure-session` (required when `ADAPTER=fastify`) |
 | `ADAPTER`            | _(none)_       | Set to `fastify` to use Fastify adapter; omit for Express |
@@ -316,6 +319,8 @@ Other handlers remain unaffected. To extend authorization to more commands/queri
 
 Authenticate with a Bearer JWT or a secure session cookie. The request user is
 stored under `sessionUser`, which is also the configured CASL subject-context path.
+When both `JWT_SECRET` and `JWT_PUBLIC_KEY` are configured, the interceptor accepts
+locally issued HS256 login tokens as well as external public-key tokens.
 
 ```bash
 # Apply migrations (schema + seed data)

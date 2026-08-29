@@ -1,5 +1,3 @@
-import type { RoleDefinition } from '@nestjs-pipeline/casl';
-import type { ICache } from '@nestjs-pipeline/ddd-core';
 import { RoleCapability } from '@persistence/entities/role-capability.entity';
 import { describe, expect, it, vi } from 'vitest';
 import { GetRolesCapabilitiesQuery } from '../cqrs/queries/get-roles-capabilities.query';
@@ -20,12 +18,7 @@ describe('GetRolesCapabilitiesQueryRepository', () => {
       return [];
     });
     const execute = vi.fn();
-    const cache: ICache<RoleDefinition[]> = {
-      get: vi.fn(),
-      set: vi.fn(),
-      delete: vi.fn(),
-    };
-    const repository = new GetRolesCapabilitiesQueryRepository(cache, {
+    const repository = new GetRolesCapabilitiesQueryRepository({
       get em() {
         return { find, execute };
       },
@@ -34,8 +27,10 @@ describe('GetRolesCapabilitiesQueryRepository', () => {
     const result = await repository.find(
       new GetRolesCapabilitiesQuery({ names: ['admin'] }),
     );
+    await repository.find(new GetRolesCapabilitiesQuery({ names: ['admin'] }));
 
     expect(execute).not.toHaveBeenCalled();
+    expect(find).toHaveBeenCalledTimes(6);
     expect(result).toEqual([
       {
         name: 'admin',

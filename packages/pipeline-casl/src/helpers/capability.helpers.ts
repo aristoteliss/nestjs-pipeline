@@ -36,8 +36,8 @@ import type {
  * - Use CASL's `all` for any subject and `manage` for any action
  * - `*` as conditions (or omitted) means no conditions
  * - `*` as fields (or omitted) means all fields
- * - New serialized conditions are `~`-prefixed base64url JSON; legacy raw JSON
- *   remains accepted for backwards compatibility
+ * - Conditions remain readable JSON unless they contain `|`; those values are
+ *   `~`-prefixed base64url JSON so segment parsing stays reversible
  * - Fields are comma-separated: `title,body,status`
  *
  * @throws {Error} When the subject segment is empty or missing.
@@ -141,15 +141,19 @@ export function normalizeCapability(
  * // → 'Post|update|*|title,body'
  *
  * serializeCapability({ subject: 'Post', action: 'update', conditions: { authorId: 42 }, fields: ['title'] })
- * // → 'Post|update|~eyJhdXRob3JJZCI6NDJ9|title'
+ * // → 'Post|update|{"authorId":42}|title'
  * ```
  */
 export function serializeCapability(cap: Capability): CapabilityString {
   const prefix = cap.inverted ? '!' : '';
-  const conditions =
+  const conditionsJson =
     cap.conditions && Object.keys(cap.conditions).length > 0
-      ? `~${Buffer.from(JSON.stringify(cap.conditions), 'utf8').toString('base64url')}`
-      : '*';
+      ? JSON.stringify(cap.conditions)
+      : undefined;
+  const conditions =
+    conditionsJson?.includes('|') === true
+      ? `~${Buffer.from(conditionsJson, 'utf8').toString('base64url')}`
+      : (conditionsJson ?? '*');
   const fields =
     cap.fields && cap.fields.length > 0 ? cap.fields.join(',') : undefined;
 

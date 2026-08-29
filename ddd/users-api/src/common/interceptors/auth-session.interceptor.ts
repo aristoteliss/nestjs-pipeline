@@ -230,24 +230,43 @@ export class AuthSessionInterceptor implements NestInterceptor {
     token: string,
     session?: Session<SessionData>,
   ): Promise<SessionUser | null> {
-    const verification = await this.getJwtVerificationKey();
-    if (!verification) return null;
-
     const issuer = process.env.JWT_ISSUER;
     const audience = process.env.JWT_AUDIENCE;
-    const allowedAlgorithms = (
-      process.env.JWT_ALGORITHMS ?? verification.defaultAlgorithm
-    )
-      .split(',')
-      .map((a) => a.trim())
+    const configuredAlgorithms = process.env.JWT_ALGORITHMS?.split(',')
+      .map((algorithm) => algorithm.trim())
       .filter(Boolean);
+    const candidates = await this.getJwtVerificationCandidates();
+    if (candidates.length === 0) return null;
 
     try {
-      const { payload } = await jwtVerify(token, verification.key, {
-        algorithms: allowedAlgorithms,
-        issuer,
-        audience,
-      });
+      let payload: Awaited<ReturnType<typeof jwtVerify>>['payload'] | undefined;
+      let lastError: unknown;
+
+      for (const candidate of candidates) {
+        const algorithms = configuredAlgorithms
+          ? configuredAlgorithms.filter((algorithm) =>
+              candidate.symmetric
+                ? algorithm.startsWith('HS')
+                : !algorithm.startsWith('HS'),
+            )
+          : [candidate.defaultAlgorithm];
+        if (algorithms.length === 0) continue;
+
+        try {
+          ({ payload } = await jwtVerify(token, candidate.key, {
+            algorithms,
+            issuer,
+            audience,
+          }));
+          break;
+        } catch (error) {
+          lastError = error;
+        }
+      }
+
+      if (!payload) {
+        throw lastError ?? new Error('No JWT verification algorithm matched');
+      }
 
       if (typeof payload.sub !== 'string' || payload.sub.length === 0)
         return null;
@@ -350,7 +369,12 @@ export class AuthSessionInterceptor implements NestInterceptor {
     return compact.length > 0 ? compact : undefined;
   }
 
-  private async getJwtVerificationKey() {
+  private async getJwtVerificationCandidates() {
+    const candidates: Array<{
+      key: Uint8Array | CryptoKey;
+      defaultAlgorithm: string;
+      symmetric: boolean;
+    }> = [];
     const publicKey = process.env.JWT_PUBLIC_KEY;
     if (publicKey) {
       // Environment variables commonly encode PEM newlines as the two-character
@@ -359,25 +383,27 @@ export class AuthSessionInterceptor implements NestInterceptor {
       const normalizedKey = publicKey.replace(/\\n/g, '\n');
       const algorithm = process.env.JWT_PUBLIC_KEY_ALG ?? 'RS256';
       try {
-        return {
+        candidates.push({
           key: await importSPKI(normalizedKey, algorithm),
           defaultAlgorithm: algorithm,
-        };
+          symmetric: false,
+        });
       } catch (_e: unknown) {
         this.logger.warn(
-          'JWT_PUBLIC_KEY is set but not a valid SPKI key; falling back to JWT_SECRET if available.',
+          'JWT_PUBLIC_KEY is set but not a valid SPKI key; public-key verification is disabled.',
         );
       }
     }
 
     const secret = process.env.JWT_SECRET;
     if (secret) {
-      return {
+      candidates.push({
         key: this.encoder.encode(secret),
         defaultAlgorithm: 'HS256',
-      };
+        symmetric: true,
+      });
     }
 
-    return undefined;
+    return candidates;
   }
 }

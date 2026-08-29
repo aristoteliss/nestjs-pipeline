@@ -1,5 +1,3 @@
-import type { UserCapabilities } from '@nestjs-pipeline/casl';
-import type { ICache } from '@nestjs-pipeline/ddd-core';
 import { UserAdditionalCapability } from '@persistence/entities/user-additional-capability.entity';
 import { UserDeniedCapability } from '@persistence/entities/user-denied-capability.entity';
 import { UserRole } from '@persistence/entities/user-role.entity';
@@ -32,12 +30,7 @@ describe('GetUserCapabilitiesQueryRepository', () => {
       return [];
     });
     const execute = vi.fn();
-    const cache: ICache<UserCapabilities> = {
-      get: vi.fn(),
-      set: vi.fn(),
-      delete: vi.fn(),
-    };
-    const repository = new GetUserCapabilitiesQueryRepository(cache, {
+    const repository = new GetUserCapabilitiesQueryRepository({
       get em() {
         return { find, execute };
       },
@@ -46,8 +39,10 @@ describe('GetUserCapabilitiesQueryRepository', () => {
     const result = await repository.find(
       new GetUserCapabilitiesQuery({ userId: 'user-1' }),
     );
+    await repository.find(new GetUserCapabilitiesQuery({ userId: 'user-1' }));
 
     expect(execute).not.toHaveBeenCalled();
+    expect(find).toHaveBeenCalledTimes(12);
     expect(result.roles).toEqual(['admin']);
     expect(result.additionalCapabilities).toEqual([
       expect.objectContaining({ subject: 'User', action: 'read' }),

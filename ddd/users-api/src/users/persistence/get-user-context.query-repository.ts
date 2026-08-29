@@ -25,8 +25,6 @@ import type {
 } from '@nestjs-pipeline/casl';
 import { CASL_SUBJECT_CONTEXT_PATHS } from '@nestjs-pipeline/casl';
 import type { IPipelineContext } from '@nestjs-pipeline/core';
-import { FromCache, ICache, QueryRepository } from '@nestjs-pipeline/ddd-core';
-import { CACHE_TOKEN } from '@persistence/cache/memory.cache';
 import { MIKRO_ORM_CLIENT, MikroOrmStore } from '@persistence/mikro-orm.store';
 import { GetUserContextQuery } from '../cqrs/queries/get-user-context.query';
 import { User } from '../domain/models/user.entity';
@@ -43,20 +41,13 @@ import { User } from '../domain/models/user.entity';
  * REQUEST-scoped so it can access the current HTTP request.
  */
 @Injectable({ scope: Scope.REQUEST })
-export class GetUserContextQueryRepository
-  extends QueryRepository<GetUserContextQuery, CaslUserContext | null>
-  implements IUserContextResolver
-{
+export class GetUserContextQueryRepository implements IUserContextResolver {
   constructor(
-    @Inject(CACHE_TOKEN)
-    protected readonly cache: ICache<CaslUserContext | null>,
     @Inject(MIKRO_ORM_CLIENT) private readonly store: MikroOrmStore,
     @Optional()
     @Inject(CASL_SUBJECT_CONTEXT_PATHS)
     private readonly subjectContextPaths?: CaslBehaviorOptions['subjectContextPaths'],
-  ) {
-    super(cache);
-  }
+  ) {}
 
   async resolve(context: IPipelineContext): Promise<CaslUserContext | null> {
     const rawUser =
@@ -119,9 +110,6 @@ export class GetUserContextQueryRepository
     return current as Record<string, unknown>;
   }
 
-  @FromCache<GetUserContextQuery, CaslUserContext | undefined>(
-    (q) => `user:context:${q.userId}`,
-  )
   async find(query: GetUserContextQuery): Promise<CaslUserContext | null> {
     const { userId } = query;
 

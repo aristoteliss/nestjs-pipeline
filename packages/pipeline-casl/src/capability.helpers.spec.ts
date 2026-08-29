@@ -154,14 +154,14 @@ describe('capability.helpers', () => {
       ).toBe('!Post|delete|*');
     });
 
-    it('should serialize conditions as base64url JSON', () => {
+    it('should keep ordinary conditions readable as JSON', () => {
       expect(
         serializeCapability({
           subject: 'Post',
           action: 'update',
           conditions: { authorId: 42 },
         }),
-      ).toBe('Post|update|~eyJhdXRob3JJZCI6NDJ9');
+      ).toBe('Post|update|{"authorId":42}');
     });
 
     it('should serialize fields as comma-separated 4th segment', () => {
@@ -182,7 +182,7 @@ describe('capability.helpers', () => {
           conditions: { authorId: 42 },
           fields: ['title'],
         }),
-      ).toBe('Post|update|~eyJhdXRob3JJZCI6NDJ9|title');
+      ).toBe('Post|update|{"authorId":42}|title');
     });
 
     it('should omit fields segment when no fields', () => {

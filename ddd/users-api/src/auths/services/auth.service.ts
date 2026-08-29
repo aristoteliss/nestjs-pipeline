@@ -78,6 +78,14 @@ export class AuthService {
     if (!jwtSecret) {
       throw new InternalServerErrorException('JWT_SECRET is not configured');
     }
+    const configuredAlgorithms = process.env.JWT_ALGORITHMS?.split(',').map(
+      (algorithm) => algorithm.trim(),
+    );
+    if (configuredAlgorithms && !configuredAlgorithms.includes('HS256')) {
+      throw new InternalServerErrorException(
+        'JWT_ALGORITHMS must include HS256 for locally issued login tokens',
+      );
+    }
 
     const issuer = process.env.JWT_ISSUER;
     const audience = process.env.JWT_AUDIENCE;

@@ -22,8 +22,6 @@ import type {
   IUserCapabilityProvider,
   UserCapabilities,
 } from '@nestjs-pipeline/casl';
-import { FromCache, ICache, QueryRepository } from '@nestjs-pipeline/ddd-core';
-import { CACHE_TOKEN } from '@persistence/cache/memory.cache';
 import { UserAdditionalCapability } from '@persistence/entities/user-additional-capability.entity';
 import { UserDeniedCapability } from '@persistence/entities/user-denied-capability.entity';
 import { UserRole } from '@persistence/entities/user-role.entity';
@@ -34,24 +32,16 @@ import { GetUserCapabilitiesQuery } from '../cqrs/queries/get-user-capabilities.
 
 @Injectable()
 export class GetUserCapabilitiesQueryRepository
-  extends QueryRepository<GetUserCapabilitiesQuery, UserCapabilities>
   implements IUserCapabilityProvider
 {
   constructor(
-    @Inject(CACHE_TOKEN)
-    protected readonly cache: ICache<UserCapabilities>,
     @Inject(MIKRO_ORM_CLIENT) private readonly store: MikroOrmStore,
-  ) {
-    super(cache);
-  }
+  ) {}
 
   async getUserCapabilities(user: CaslUserContext): Promise<UserCapabilities> {
     return this.find(new GetUserCapabilitiesQuery({ userId: user.id }));
   }
 
-  @FromCache<GetUserCapabilitiesQuery, UserCapabilities>(
-    (q) => `user:capabilities:${q.userId}`,
-  )
   async find(query: GetUserCapabilitiesQuery): Promise<UserCapabilities> {
     const userId = String(query.userId);
     const em = this.store.em;

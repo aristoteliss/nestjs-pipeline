@@ -136,6 +136,30 @@ describe('AuthSessionInterceptor JWT verification', () => {
     expect(next.handle).toHaveBeenCalledOnce();
   });
 
+  it('accepts locally issued HS256 tokens when a public key is also configured', async () => {
+    const { publicKey } = generateKeyPairSync('rsa', { modulusLength: 2048 });
+    process.env.JWT_PUBLIC_KEY = await exportSPKI(publicKey);
+    process.env.JWT_PUBLIC_KEY_ALG = 'RS256';
+    process.env.JWT_SECRET = 'local-login-secret';
+    delete process.env.JWT_ALGORITHMS;
+    const token = await new SignJWT({
+      tenant: TenantSchemaContext.currentSchema,
+      roles: [],
+    })
+      .setProtectedHeader({ alg: 'HS256' })
+      .setSubject('local-user')
+      .setExpirationTime('1h')
+      .sign(new TextEncoder().encode(process.env.JWT_SECRET));
+    const { executionContext, next } = makeRequest(token, false);
+
+    await expect(
+      lastValueFrom(
+        new AuthSessionInterceptor().intercept(executionContext, next),
+      ),
+    ).resolves.toBe('ok');
+    expect(next.handle).toHaveBeenCalledOnce();
+  });
+
   it('rejects a token bound to a different tenant', async () => {
     process.env.JWT_SECRET = 'tenant-jwt-secret';
     const token = await new SignJWT({ tenant: 'different_tenant', roles: [] })

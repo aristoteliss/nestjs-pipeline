@@ -52,6 +52,7 @@ import {
 } from '@nestjs-pipeline/zod';
 import { InMemoryProvider, OpenFeature } from '@openfeature/server-sdk';
 import { metrics, trace } from '@opentelemetry/api';
+import { TenantSchemaContext } from '@persistence/tenant-schema.context';
 import { RateLimiterMemory } from 'rate-limiter-flexible';
 import { describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
@@ -177,7 +178,7 @@ describe('Users API Pipeline Behaviors Specification', () => {
       const behaviorOptions = new Map();
       behaviorOptions.set(RateLimitBehavior, {
         keyFactory: (ctx: IPipelineContext) =>
-          `auth:login:${(ctx.request as any).email}`,
+          `${TenantSchemaContext.currentSchema}:auth:login:${(ctx.request as any).email}`,
       });
 
       const ctx = createContext({
@@ -199,37 +200,37 @@ describe('Users API Pipeline Behaviors Specification', () => {
       );
     });
 
-    it('isolates rate limit buckets across different keys', async () => {
+    it('isolates login rate limit buckets across tenants', async () => {
       const limiter = new RateLimiterMemory({ points: 1, duration: 60 });
       const rateLimitBehavior = new RateLimitBehavior(limiter);
 
       const behaviorOptions = new Map();
       behaviorOptions.set(RateLimitBehavior, {
         keyFactory: (ctx: IPipelineContext) =>
-          `auth:login:${(ctx.request as any).email}`,
+          `${TenantSchemaContext.currentSchema}:auth:login:${(ctx.request as any).email}`,
       });
 
-      const ctxUserA = createContext({
+      const ctx = createContext({
         request: { email: 'alice@example.com' },
-        behaviorOptions,
-      });
-      const ctxUserB = createContext({
-        request: { email: 'bob@example.com' },
         behaviorOptions,
       });
 
       const next = vi.fn().mockResolvedValue({ token: 'abc' });
+      const tenantContext = new TenantSchemaContext();
 
-      // Alice consumes her 1 point -> ok
-      await rateLimitBehavior.handle(ctxUserA, next);
-      // Alice tries again -> throttled
-      await expect(rateLimitBehavior.handle(ctxUserA, next)).rejects.toThrow(
-        RateLimitExceededError,
+      await tenantContext.run('tenant_a', () =>
+        rateLimitBehavior.handle(ctx, next),
       );
+      await expect(
+        tenantContext.run('tenant_a', () =>
+          rateLimitBehavior.handle(ctx, next),
+        ),
+      ).rejects.toThrow(RateLimitExceededError);
 
-      // Bob tries -> not throttled because different key
-      const bobRes = await rateLimitBehavior.handle(ctxUserB, next);
-      expect(bobRes).toEqual({ token: 'abc' });
+      const otherTenantResult = await tenantContext.run('tenant_b', () =>
+        rateLimitBehavior.handle(ctx, next),
+      );
+      expect(otherTenantResult).toEqual({ token: 'abc' });
     });
   });
 

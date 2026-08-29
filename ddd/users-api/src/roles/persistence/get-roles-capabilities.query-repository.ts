@@ -18,8 +18,6 @@
 
 import { Inject, Injectable } from '@nestjs/common';
 import type { IRoleProvider, RoleDefinition } from '@nestjs-pipeline/casl';
-import { FromCache, ICache, QueryRepository } from '@nestjs-pipeline/ddd-core';
-import { CACHE_TOKEN } from '@persistence/cache/memory.cache';
 import { RoleCapability } from '@persistence/entities/role-capability.entity';
 import { MIKRO_ORM_CLIENT, MikroOrmStore } from '@persistence/mikro-orm.store';
 import { GetRolesCapabilitiesQuery } from '../cqrs/queries/get-roles-capabilities.query';
@@ -27,24 +25,15 @@ import { Capability } from '../domain/models/capability.entity';
 import { Role } from '../domain/models/role.entity';
 
 @Injectable()
-export class GetRolesCapabilitiesQueryRepository
-  extends QueryRepository<GetRolesCapabilitiesQuery, RoleDefinition[]>
-  implements IRoleProvider
-{
+export class GetRolesCapabilitiesQueryRepository implements IRoleProvider {
   constructor(
-    @Inject(CACHE_TOKEN) protected readonly cache: ICache<RoleDefinition[]>,
     @Inject(MIKRO_ORM_CLIENT) private readonly store: MikroOrmStore,
-  ) {
-    super(cache);
-  }
+  ) {}
 
   async getRoles(names?: string[]): Promise<RoleDefinition[]> {
     return this.find(new GetRolesCapabilitiesQuery({ names }));
   }
 
-  @FromCache<GetRolesCapabilitiesQuery, RoleDefinition[]>(
-    (q) => `roles:capabilities:${q.names?.sort().join(',') ?? 'all'}`,
-  )
   async find(query: GetRolesCapabilitiesQuery): Promise<RoleDefinition[]> {
     const { names } = query;
     if (!names || names.length === 0) {

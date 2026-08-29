@@ -48,7 +48,7 @@ import { CreateAuthCommand } from './create-auth.command';
     RateLimitBehavior,
     {
       keyFactory: (ctx: IPipelineContext) =>
-        `auth:login:${(ctx.request as CreateAuthCommand).email}`,
+        `${TenantSchemaContext.currentSchema}:auth:login:${(ctx.request as CreateAuthCommand).email}`,
     },
   ],
   // Audit login events with actor extracted from the login command
