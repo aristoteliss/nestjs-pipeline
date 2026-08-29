@@ -178,6 +178,8 @@ describe('PipelineContext.getBehaviorOptions', () => {
       buildMeta({ behaviorOptions: opts }),
     );
 
-    expect(ctx.getBehaviorOptions(CustomIdBehavior)).toEqual({ level: 'trace' });
+    expect(ctx.getBehaviorOptions(CustomIdBehavior)).toEqual({
+      level: 'trace',
+    });
   });
 });

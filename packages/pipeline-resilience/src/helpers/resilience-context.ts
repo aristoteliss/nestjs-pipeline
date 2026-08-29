@@ -49,8 +49,8 @@ export function runWithResilienceAbortSignal<T>(
 export function getResilienceAbortSignal(): AbortSignal | undefined {
   return (
     resilienceAttemptStore.getStore() ??
-    (pipelineStore
-      .getStore()
-      ?.items.get(RESILIENCE_ABORT_SIGNAL_ITEM) as AbortSignal | undefined)
+    (pipelineStore.getStore()?.items.get(RESILIENCE_ABORT_SIGNAL_ITEM) as
+      | AbortSignal
+      | undefined)
   );
 }

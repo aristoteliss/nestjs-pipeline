@@ -32,8 +32,7 @@ function createCachedRoleFixture() {
 
 describe('role command cache hydration', () => {
   it('hydrates a cached role snapshot before updating it', async () => {
-    const { role, cache, findOne, queryRepository } =
-      createCachedRoleFixture();
+    const { role, cache, findOne, queryRepository } = createCachedRoleFixture();
     const save = vi.fn().mockResolvedValue(undefined);
     const handler = new UpdateRoleHandler(
       queryRepository,
@@ -53,8 +52,7 @@ describe('role command cache hydration', () => {
   });
 
   it('hydrates a cached role snapshot before deleting it', async () => {
-    const { role, cache, findOne, queryRepository } =
-      createCachedRoleFixture();
+    const { role, cache, findOne, queryRepository } = createCachedRoleFixture();
     const save = vi.fn().mockResolvedValue(undefined);
     const handler = new DeleteRoleHandler(
       queryRepository,
@@ -62,7 +60,9 @@ describe('role command cache hydration', () => {
       { publishAll: vi.fn() } as never,
     );
 
-    const outcome = await handler.handle(new DeleteRoleCommand({ id: role.id }));
+    const outcome = await handler.handle(
+      new DeleteRoleCommand({ id: role.id }),
+    );
 
     expect(outcome.entity).toBeInstanceOf(Role);
     expect(save).toHaveBeenCalledWith(outcome);

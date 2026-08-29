@@ -78,9 +78,7 @@ describe('safeStringify', () => {
     const shared = { id: 'shared' };
     const result = safeStringify({ first: shared, second: shared });
 
-    expect(result).toBe(
-      '{"first":{"id":"shared"},"second":{"id":"shared"}}',
-    );
+    expect(result).toBe('{"first":{"id":"shared"},"second":{"id":"shared"}}');
   });
 
   it('handles self-referential Map and Set values without recursing forever', () => {

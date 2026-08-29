@@ -10,7 +10,10 @@ function makeHost(response: unknown): ArgumentsHost {
 }
 
 describe('FeatureDisabledFilter', () => {
-  const error = new FeatureDisabledError('user-registration', 'CreateUserCommand');
+  const error = new FeatureDisabledError(
+    'user-registration',
+    'CreateUserCommand',
+  );
 
   it('uses Express json()', () => {
     const response = { status: vi.fn(), json: vi.fn() };

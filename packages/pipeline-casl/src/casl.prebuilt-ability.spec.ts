@@ -7,7 +7,9 @@ import type {
   IUserContextResolver,
 } from './interfaces/providers.interface';
 
-function makeContext(prebuiltAbility: ReturnType<typeof createMongoAbility>): IPipelineContext {
+function makeContext(
+  prebuiltAbility: ReturnType<typeof createMongoAbility>,
+): IPipelineContext {
   return {
     correlationId: 'corr-1',
     originalCorrelationId: 'corr-1',
