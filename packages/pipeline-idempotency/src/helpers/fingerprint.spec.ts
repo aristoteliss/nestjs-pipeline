@@ -42,6 +42,24 @@ describe('stableStringify and fingerprintValue', () => {
     expect(fingerprintValue(nestedA)).toBe(fingerprintValue(nestedB));
   });
 
+  it('normalizes nested payloads on CQRS-style class instances', () => {
+    class CreateCommand {
+      constructor(readonly payload: Record<string, unknown>) {}
+    }
+
+    const first = new CreateCommand({
+      profile: { lastName: 'Lovelace', firstName: 'Ada' },
+      enabled: true,
+    });
+    const second = new CreateCommand({
+      enabled: true,
+      profile: { firstName: 'Ada', lastName: 'Lovelace' },
+    });
+
+    expect(stableStringify(first)).toBe(stableStringify(second));
+    expect(fingerprintValue(first)).toBe(fingerprintValue(second));
+  });
+
   it('handles primitive values, null, and empty objects', () => {
     expect(stableStringify(null)).toBe('null');
     expect(stableStringify('hello')).toBe('"hello"');

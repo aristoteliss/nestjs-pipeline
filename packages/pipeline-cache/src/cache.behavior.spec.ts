@@ -89,6 +89,24 @@ describe('CacheBehavior', () => {
     expect(hitCtx.items.get(CACHE_HIT_ITEM)).toBe(true);
   });
 
+  it('uses cache-manager wrap on hits so refreshThreshold can refresh in the background', async () => {
+    const next = vi.fn().mockResolvedValue('fresh');
+    const wrap = vi.fn().mockResolvedValue('stale');
+    const refreshableCache = {
+      get: vi.fn().mockResolvedValue('stale'),
+      wrap,
+    } as unknown as Cache;
+    const refreshableBehavior = new CacheBehavior(refreshableCache);
+
+    const result = await refreshableBehavior.handle(
+      makeCtx({ ttl: 500 }),
+      next,
+    );
+
+    expect(result).toBe('stale');
+    expect(wrap).toHaveBeenCalledWith('GetUserQuery:{"id":1}', next, 500);
+  });
+
   it('passes through non-query requests by default', async () => {
     const next = vi.fn().mockResolvedValue('value');
 

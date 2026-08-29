@@ -275,11 +275,11 @@ Uses `@nestjs-pipeline/casl` for attribute-based access control with roles.
 
 ### Architecture
 
-All three CASL provider interfaces are implemented as proper `QueryRepository` subclasses with `@FromCache` decorators, following the same DDD pattern as the rest of the application:
+All three CASL provider interfaces are implemented as tenant-aware MikroORM repositories. Authorization data deliberately bypasses the permanent DDD read-through cache so role and capability revocations are visible immediately:
 
-- **`GetRolesCapabilitiesQueryRepository`** (`roles/persistence/`) — implements `IRoleProvider`. Loads role → capability definitions from the `roles` / `role_capabilities` / `capabilities` tables. Extends `QueryRepository<GetRolesCapabilitiesQuery, RoleDefinition[]>`.
-- **`GetUserContextQueryRepository`** (`users/persistence/`) — implements `IUserContextResolver`. Reads the current user from the configured CASL `subjectContextPaths` (in this app: `sessionUser`) and fetches department from the `users` table when capability data is not already embedded in the session/JWT. REQUEST-scoped. Extends `QueryRepository<GetUserContextQuery, CaslUserContext | null>`.
-- **`GetUserCapabilitiesQueryRepository`** (`auths/repositories/`) — implements `IUserCapabilityProvider`. Returns the user's assigned roles plus any per-user additional/denied capabilities. Extends `QueryRepository<GetUserCapabilitiesQuery, UserCapabilities>`.
+- **`GetRolesCapabilitiesQueryRepository`** (`roles/persistence/`) — implements `IRoleProvider` and loads role → capability definitions from the `roles` / `role_capabilities` / `capabilities` tables.
+- **`GetUserContextQueryRepository`** (`users/persistence/`) — implements `IUserContextResolver`, reads the current user from `subjectContextPaths` (in this app: `sessionUser`), and fetches department from the tenant's `users` table when needed.
+- **`GetUserCapabilitiesQueryRepository`** (`auths/repositories/`) — implements `IUserCapabilityProvider` and returns assigned roles plus per-user additional/denied capabilities.
 
 Each has a corresponding Zod-validated query class (via `createExecuteClass()`) and a `@QueryHandler` in its module's `cqrs/queries/` directory.
 
@@ -400,7 +400,7 @@ pnpm test:e2e
 
 ## What it demonstrates
 
-This sample serves as the complete reference application demonstrating **all 12 behaviors** from `@nestjs-pipeline/*` in a production-ready DDD/CQRS architecture:
+This sample is a reference application for the `@nestjs-pipeline/*` behavior ecosystem in a production-ready DDD/CQRS architecture. It registers `CacheBehavior` infrastructure for experimentation, while application user/role reads intentionally use only the DDD repository cache so writes have one invalidation target:
 
 - **Clean Declarative Pipelines** — Zero handler pollution: handlers focus exclusively on business logic while behaviors are configured via global settings and `@UsePipeline` decorators.
 - **Global Behaviors** (in `AppModule`):
@@ -408,7 +408,7 @@ This sample serves as the complete reference application demonstrating **all 12 
   - `DeadLetterBehavior` (`@nestjs-pipeline/deadletter`) — Attempts to capture failed commands/queries/events to a BullMQ `dead-letters` queue for inspection and replay (with `UserCreatedHandler` opting into `{ rethrow: false }` for fire-and-forget side effects). Transport failures are logged, so the capture marker records an attempt rather than guaranteed persistence.
   - `TraceBehavior` (`@nestjs-pipeline/opentelemetry`) — Emits OpenTelemetry spans for every CQRS invocation (`tracerName: 'users-api'`).
   - `MetricsBehavior` (`@nestjs-pipeline/opentelemetry`) — Emits OpenTelemetry latency histograms and invocation counters (`meterName: 'users-api'`).
-  - `ZodValidationBehavior` (`@nestjs-pipeline/zod`) — Parses/validates command/query/event payloads against `_zodSchema` and applies successful object output (including coercions/defaults/stripped keys) to the existing request before handler execution.
+  - `ZodValidationBehavior` (`@nestjs-pipeline/zod`) — Parses/validates command/query/event payloads against `_zodSchema` and applies successful plain-object output (including coercions/defaults/stripped keys) to the existing request before handler execution.
 - **Per-Handler Declarative Behaviors** (`@UsePipeline`):
   - **`RateLimitBehavior`** (`@nestjs-pipeline/rate-limit`) — Throttles `CreateUserHandler` (5 registrations / 60s per email) and `CreateAuthHandler` (login attempts per email), with `RateLimitExceededFilter` mapping breaches to HTTP 429 + `Retry-After`.
   - **`AuditBehavior`** (`@nestjs-pipeline/audit`) — Audits sensitive actions: `auth.login` on `CreateAuthHandler`, `role.delete` on `DeleteRoleHandler`, and `user.delete` on `DeleteUserHandler` (capturing actor, severity, outcome, duration, redacted payload).

@@ -40,4 +40,34 @@ describe('GetRolesCapabilitiesQueryRepository', () => {
       },
     ]);
   });
+
+  it('returns all role definitions when names are omitted', async () => {
+    const role = Role.create('viewer').entity;
+    const find = vi.fn(async (entity: unknown) => {
+      if (entity === Role) return [role];
+      return [];
+    });
+    const repository = new GetRolesCapabilitiesQueryRepository({
+      get em() {
+        return { find };
+      },
+    } as never);
+
+    const result = await repository.getRoles();
+
+    expect(find).toHaveBeenCalledWith(Role, {});
+    expect(result).toEqual([{ name: 'viewer', capabilities: [] }]);
+  });
+
+  it('does not query persistence for an explicitly empty names list', async () => {
+    const find = vi.fn();
+    const repository = new GetRolesCapabilitiesQueryRepository({
+      get em() {
+        return { find };
+      },
+    } as never);
+
+    await expect(repository.getRoles([])).resolves.toEqual([]);
+    expect(find).not.toHaveBeenCalled();
+  });
 });

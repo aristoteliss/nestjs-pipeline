@@ -34,12 +34,14 @@ export const UserResponseDtoSchema = z
     id,
     email,
     name: username,
-    department: department ?? null,
+    ...(department !== undefined ? { department: department ?? null } : {}),
   }));
 
 export type UserResponseDto = z.output<typeof UserResponseDtoSchema>;
 
-export function toResponseDto(user: User | UserSnapshot): UserResponseDto {
+export function toResponseDto(
+  user: User | UserSnapshot | null,
+): UserResponseDto {
   if (!user) throw new NotFoundException('User not found');
 
   const plain =

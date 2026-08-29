@@ -102,7 +102,10 @@ export class CacheBehavior implements IPipelineBehavior {
     if (cached !== undefined && cached !== null) {
       context.items.set(CACHE_HIT_ITEM, true);
       this.logger.debug?.(`Cache hit for ${context.requestName} (${key})`);
-      return cached;
+      // cache-manager evaluates its module-level refreshThreshold only through
+      // wrap(). Calling wrap on a confirmed hit preserves the package's
+      // null/undefined miss semantics while enabling background refresh.
+      return this.cache.wrap(key, next, options.ttl);
     }
 
     context.items.set(CACHE_HIT_ITEM, false);

@@ -41,15 +41,26 @@ function normalize(value: unknown): unknown {
     return value.map(normalize);
   }
 
-  // Preserve non-plain objects (Date, Buffer, …) via their own serialization.
-  const proto = Object.getPrototypeOf(value);
-  if (proto !== Object.prototype && proto !== null) {
-    return value;
-  }
+  // CQRS requests are usually class instances, so normalize their enumerable
+  // payload properties too. Preserve only built-ins with meaningful native
+  // JSON serialization or atomic semantics.
+  if (isAtomicObject(value)) return value;
 
   const sorted: Record<string, unknown> = {};
   for (const key of Object.keys(value as Record<string, unknown>).sort()) {
     sorted[key] = normalize((value as Record<string, unknown>)[key]);
   }
   return sorted;
+}
+
+function isAtomicObject(value: object): boolean {
+  return (
+    value instanceof Date ||
+    value instanceof RegExp ||
+    value instanceof Error ||
+    value instanceof Map ||
+    value instanceof Set ||
+    value instanceof ArrayBuffer ||
+    ArrayBuffer.isView(value)
+  );
 }

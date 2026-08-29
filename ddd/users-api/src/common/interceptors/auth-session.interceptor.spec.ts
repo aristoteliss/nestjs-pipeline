@@ -177,6 +177,25 @@ describe('AuthSessionInterceptor JWT verification', () => {
     expect(next.handle).not.toHaveBeenCalled();
   });
 
+  it('rejects a validly signed Bearer token with no subject', async () => {
+    process.env.JWT_SECRET = 'missing-sub-secret';
+    const token = await new SignJWT({
+      tenant: TenantSchemaContext.currentSchema,
+      roles: [],
+    })
+      .setProtectedHeader({ alg: 'HS256' })
+      .setExpirationTime('1h')
+      .sign(new TextEncoder().encode(process.env.JWT_SECRET));
+    const { executionContext, next } = makeRequest(token, false);
+
+    await expect(
+      lastValueFrom(
+        new AuthSessionInterceptor().intercept(executionContext, next),
+      ),
+    ).rejects.toThrow('Invalid or expired token');
+    expect(next.handle).not.toHaveBeenCalled();
+  });
+
   it('authenticates a tenant-bound API key without an Express session', async () => {
     process.env.API_CLIENTS = JSON.stringify([
       {

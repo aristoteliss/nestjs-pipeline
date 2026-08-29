@@ -43,7 +43,7 @@ import { UpdateRoleCommand } from './update-role.command';
     LoggingBehavior,
     {
       requestResponseLogLevel: 'log',
-      errorLogLevelMap: { [UniqueRoleNameException.name]: 'warn' },
+      mapLogLevel: new Map([[UniqueRoleNameException, 'warn']]),
     },
   ],
   [

@@ -245,7 +245,7 @@ Exported as `CACHE_HIT_ITEM` and `CACHE_KEY_ITEM`.
 | `stores` | `Keyv[]` | Pre-built Keyv stores (tiered). |
 | `store` | `CacheStoreConfig \| CacheStoreConfig[]` | Declarative store(s). |
 | `ttl` | `number` | Default TTL (ms) for stores and handlers. |
-| `refreshThreshold` | `number` | Background-refresh threshold (ms). |
+| `refreshThreshold` | `number` | Background-refresh threshold (ms); cache hits use `cache-manager.wrap()` so refresh runs asynchronously. |
 | `nonBlocking` | `boolean` | Optimize multi-store reads/writes. |
 | `defaults` | `CacheBehaviorOptions` | Default per-handler options. |
 

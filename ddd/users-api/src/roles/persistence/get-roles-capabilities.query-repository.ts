@@ -36,13 +36,13 @@ export class GetRolesCapabilitiesQueryRepository implements IRoleProvider {
 
   async find(query: GetRolesCapabilitiesQuery): Promise<RoleDefinition[]> {
     const { names } = query;
-    if (!names || names.length === 0) {
-      // If no role names are provided, return an empty array (no roles)
-      return [];
-    }
+    if (names?.length === 0) return [];
 
     const em = this.store.em;
-    const roles = await em.find(Role, { _name: { $in: names } } as never);
+    const roles = await em.find(
+      Role,
+      names === undefined ? {} : ({ _name: { $in: names } } as never),
+    );
 
     return this.hydrate(em, roles);
   }

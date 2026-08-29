@@ -18,19 +18,34 @@
 
 import { Inject } from '@nestjs/common';
 import { type IQueryHandler, QueryHandler } from '@nestjs/cqrs';
+import { CaslBehavior } from '@nestjs-pipeline/casl';
+import { UsePipeline } from '@nestjs-pipeline/core';
 import { IQueryRepository } from '@nestjs-pipeline/ddd-core';
-import type { User } from '../../domain/models/user.entity';
+import type { User, UserSnapshot } from '../../domain/models/user.entity';
 import { QUERY_REPOSITORY } from '../../repositories/repository.tokens';
 import { GetUsersQuery } from './get-users.query';
+import { authorizeUserRead } from './user-read-authorization.helper';
 
 @QueryHandler(GetUsersQuery)
-export class GetUsersHandler implements IQueryHandler<GetUsersQuery, User[]> {
+@UsePipeline([
+  CaslBehavior,
+  {
+    subjectFromRequest: 'User',
+    rules: [{ action: 'read', subject: 'User' }],
+  },
+])
+export class GetUsersHandler
+  implements IQueryHandler<GetUsersQuery, UserSnapshot[]>
+{
   constructor(
     @Inject(QUERY_REPOSITORY.getUsers)
     private readonly queryRepository: IQueryRepository<GetUsersQuery, User[]>,
   ) {}
 
-  async execute(query: GetUsersQuery): Promise<User[]> {
-    return await this.queryRepository.find(query);
+  async execute(query: GetUsersQuery): Promise<UserSnapshot[]> {
+    const users = await this.queryRepository.find(query);
+    return users
+      .map((user) => authorizeUserRead(user, { omitUnauthorized: true }))
+      .filter((user): user is UserSnapshot => user !== null);
   }
 }

@@ -64,13 +64,10 @@ function redact(
 ): unknown {
   if (value === null || typeof value !== 'object') return value;
 
-  // Preserve non-plain objects (Date, Buffer, …) verbatim. They are not walked,
-  // so they must not be added to the recursion-path set: repeated references to
-  // the same Date/Buffer are not cycles.
-  if (!Array.isArray(value)) {
-    const proto = Object.getPrototypeOf(value);
-    if (proto !== Object.prototype && proto !== null) return value;
-  }
+  // CQRS commands and queries are commonly class instances. Their enumerable
+  // own properties are payload data and must be traversed just like a plain
+  // object. Preserve only genuinely atomic/special built-ins as leaves.
+  if (isAtomicObject(value)) return value;
 
   if (ancestors.has(value)) return '[Circular]';
   ancestors.add(value);
@@ -90,4 +87,16 @@ function redact(
   } finally {
     ancestors.delete(value);
   }
+}
+
+function isAtomicObject(value: object): boolean {
+  return (
+    value instanceof Date ||
+    value instanceof RegExp ||
+    value instanceof Error ||
+    value instanceof Map ||
+    value instanceof Set ||
+    value instanceof ArrayBuffer ||
+    ArrayBuffer.isView(value)
+  );
 }

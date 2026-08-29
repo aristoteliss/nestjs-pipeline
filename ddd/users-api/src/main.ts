@@ -16,65 +16,11 @@
  * ----------------------------
  */
 
-import './tracing'; // ← MUST be first: starts the OTel SDK before NestJS loads
-import secureSession from '@fastify/secure-session';
-import { NestFactory } from '@nestjs/core';
-import {
-  FastifyAdapter,
-  type NestFastifyApplication,
-} from '@nestjs/platform-fastify';
-import { IdempotencyConflictFilter } from '@nestjs-pipeline/idempotency';
-import { RateLimitExceededFilter } from '@nestjs-pipeline/rate-limit';
-import { ZodValidationFilter } from '@nestjs-pipeline/zod';
-import { NativeLogger } from 'nestjs-pino';
 import 'reflect-metadata';
-import { AppModule } from './app.module';
-import { FeatureDisabledFilter } from './common/filters/feature-disabled.filter';
 
+// This entrypoint intentionally has no environment-dependent static imports.
+// ESM dependencies execute before a module body, so load .env first and only
+// then import the module that initializes tracing and NestJS.
 process.loadEnvFile();
 
-async function bootstrap() {
-  const useFastify = process.env.ADAPTER === 'fastify';
-
-  const app = useFastify
-    ? await NestFactory.create<NestFastifyApplication>(
-        AppModule,
-        new FastifyAdapter(),
-        { bufferLogs: true },
-      )
-    : await NestFactory.create(AppModule, { bufferLogs: true });
-
-  if (useFastify) {
-    if (!process.env.SESSION_SECRET) {
-      throw new Error('SESSION_SECRET must be set for secure sessions');
-    }
-
-    await (app as NestFastifyApplication)
-      .getHttpAdapter()
-      .getInstance()
-      .register(secureSession, {
-        key: Buffer.from(process.env.SESSION_SECRET, 'hex'),
-        cookieName: 'session',
-        cookie: {
-          path: '/',
-          httpOnly: true,
-          secure: process.env.NODE_ENV === 'production',
-        },
-      });
-  }
-
-  app.useLogger(app.get(NativeLogger));
-  app.useGlobalFilters(
-    new ZodValidationFilter(),
-    new FeatureDisabledFilter(),
-    new RateLimitExceededFilter(),
-    new IdempotencyConflictFilter(),
-  );
-
-  await app.listen(3000, '0.0.0.0');
-  console.log(
-    `Users API running on http://localhost:3000 (adapter: ${useFastify ? 'fastify' : 'express'})`,
-  );
-}
-
-bootstrap();
+void import('./bootstrap').then(({ bootstrap }) => bootstrap());

@@ -34,7 +34,7 @@ import { DeleteUserCommand } from '../cqrs/commands/delete-user.command';
 import { UpdateUserCommand } from '../cqrs/commands/update-user.command';
 import { GetUserQuery } from '../cqrs/queries/get-user.query';
 import { GetUsersQuery } from '../cqrs/queries/get-users.query';
-import { User } from '../domain/models/user.entity';
+import type { UserSnapshot } from '../domain/models/user.entity';
 import { UserCreateOutcome } from '../domain/outcomes/user-create.outcome';
 import { UserUpdateOutcome } from '../domain/outcomes/user-update.outcome';
 import {
@@ -62,7 +62,7 @@ export class UsersController {
   async getUsers(
     @Req() _request: Request,
   ): Promise<{ users: UserResponseDto[] }> {
-    const users = await this.queryBus.execute<GetUsersQuery, User[]>(
+    const users = await this.queryBus.execute<GetUsersQuery, UserSnapshot[]>(
       new GetUsersQuery({}),
     );
     return { users: users.map(toResponseDto) };
@@ -75,7 +75,9 @@ export class UsersController {
   ): Promise<UserResponseDto> {
     const query = new GetUserQuery({ userId: id }, { hydrate: true });
 
-    const user = await this.queryBus.execute<GetUserQuery, User>(query);
+    const user = await this.queryBus.execute<GetUserQuery, UserSnapshot | null>(
+      query,
+    );
 
     return toResponseDto(user);
   }

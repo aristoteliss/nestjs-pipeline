@@ -188,7 +188,7 @@ import { UsersModule } from './users/users.module';
      * duration, and a redacted payload — on BOTH success and failure.
      *
      * Sink-agnostic via the tiny `AuditSink` interface: this example uses the
-     * zero-dependency LogAuditSink default (JSON lines through the app logger),
+     * zero-dependency LogAuditSink default (JSON lines through `console`),
      * so it runs without external infrastructure. Swapping to Postgres or your
      * own event store is a one-line change here — no handler code changes:
      *

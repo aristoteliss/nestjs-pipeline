@@ -341,7 +341,7 @@ describe('pipeline-packages (e2e)', () => {
       // Insert capability for User|read
       await em.execute(
         `INSERT INTO capabilities (id, created_at, updated_at, action, subject, conditions, inverted, reason, fields)
-         VALUES (?, ?, ?, 'read', 'User', NULL, 0, NULL, NULL)`,
+         VALUES (?, ?, ?, 'read', 'User', NULL, false, NULL, NULL)`,
         [capId, now, now],
       );
 

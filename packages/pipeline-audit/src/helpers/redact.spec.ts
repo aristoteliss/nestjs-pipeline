@@ -52,6 +52,26 @@ describe('redactValue', () => {
     });
   });
 
+  it('redacts enumerable properties on CQRS-style class instances', () => {
+    class LoginCommand {
+      constructor(
+        readonly email: string,
+        readonly password: string,
+        readonly nested: { token: string },
+      ) {}
+    }
+
+    const result = redactValue(
+      new LoginCommand('user@example.test', 'secret', { token: 'jwt' }),
+    );
+
+    expect(result).toEqual({
+      email: 'user@example.test',
+      password: REDACTED,
+      nested: { token: REDACTED },
+    });
+  });
+
   it('returns primitives unchanged', () => {
     expect(redactValue('plain')).toBe('plain');
     expect(redactValue(42)).toBe(42);

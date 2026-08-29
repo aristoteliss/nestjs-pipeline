@@ -268,8 +268,9 @@ export class AuthSessionInterceptor implements NestInterceptor {
         throw lastError ?? new Error('No JWT verification algorithm matched');
       }
 
-      if (typeof payload.sub !== 'string' || payload.sub.length === 0)
-        return null;
+      if (typeof payload.sub !== 'string' || payload.sub.trim().length === 0) {
+        throw new UnauthorizedException('Token is missing its subject claim');
+      }
       if (typeof payload.tenant !== 'string') {
         throw new UnauthorizedException('Token is missing its tenant claim');
       }

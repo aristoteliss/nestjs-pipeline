@@ -397,6 +397,10 @@ describe('Users API Pipeline Behaviors Specification', () => {
         set: vi.fn(async (k: string, v: unknown) => {
           cacheStore.set(k, v);
         }),
+        wrap: vi.fn(async (k: string, load: () => Promise<unknown>) => {
+          const cached = cacheStore.get(k);
+          return cached === undefined ? load() : cached;
+        }),
       };
 
       const cacheBehavior = new CacheBehavior(mockCache as any);
