@@ -275,7 +275,7 @@ Uses `@nestjs-pipeline/casl` for attribute-based access control with roles.
 
 ### Architecture
 
-All three CASL provider interfaces are implemented as tenant-aware MikroORM repositories. Authorization data deliberately bypasses the permanent DDD read-through cache so role and capability revocations are visible immediately:
+All three CASL provider interfaces are implemented as tenant-aware MikroORM repositories. Role definitions are loaded without the permanent DDD read-through cache, so edits to the capabilities attached to an already-present role are visible immediately. User membership and attributes embedded in an existing JWT or secure session—assigned roles, additional/denied capabilities, and department—remain valid until that credential is refreshed or expires.
 
 - **`GetRolesCapabilitiesQueryRepository`** (`roles/persistence/`) — implements `IRoleProvider` and loads role → capability definitions from the `roles` / `role_capabilities` / `capabilities` tables.
 - **`GetUserContextQueryRepository`** (`users/persistence/`) — implements `IUserContextResolver`, reads the current user from `subjectContextPaths` (in this app: `sessionUser`), and fetches department from the tenant's `users` table when needed.
@@ -301,7 +301,6 @@ export class CreateRoleCommand extends createExecuteClass(...) {}
 @UsePipeline(
   [LoggingBehavior, { requestResponseLogLevel: 'log' }],
   [CaslBehavior, {
-    subjectFromRequest: 'Role',
     rules: [
       { action: 'create', subject: 'Role' },
       { action: 'read', subject: 'User' },
@@ -317,7 +316,9 @@ Other handlers remain unaffected. To extend authorization to more commands/queri
 
 ### Testing authorization
 
-Authenticate with a Bearer JWT or a secure session cookie. The request user is
+Authenticate with a Bearer JWT in either adapter mode, or with a secure session
+cookie when running the Fastify adapter (the default Express bootstrap does not
+register the secure-session plugin). The request user is
 stored under `sessionUser`, which is also the configured CASL subject-context path.
 When both `JWT_SECRET` and `JWT_PUBLIC_KEY` are configured, the interceptor accepts
 locally issued HS256 login tokens as well as external public-key tokens.

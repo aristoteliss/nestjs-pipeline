@@ -88,15 +88,25 @@ export interface CaslBehaviorOptions {
    * class UpdateProjectHandler { ... }
    * ```
    *
-   * @example Delete with ownership — only delete own draft comments
+   * @example Persisted delete with ownership — verify the loaded entity
    * ```ts
    * // Capability: Comment|delete|{"authorId":"${user.id}","status":"draft"}
    * @CommandHandler(DeleteCommentCommand)
    * @UsePipeline([CaslBehavior, {
-   *   subjectFromRequest: 'Comment',
    *   rules: [{ action: 'delete', subject: 'Comment' }],
    * }])
-   * class DeleteCommentHandler { ... }
+   * class DeleteCommentHandler {
+   *   async execute(command: DeleteCommentCommand) {
+   *     const comment = await this.comments.find(command.id);
+   *     const ability = getCaslAbility();
+   *     if (ability) {
+   *       assertEntityPermission(ability, {
+   *         action: 'delete', subject: 'Comment', entity: comment,
+   *       });
+   *     }
+   *     await this.comments.delete(comment);
+   *   }
+   * }
    * ```
    *
    * @example Multiple subjects — instance-level checks on several types at once
@@ -430,15 +440,25 @@ export interface CaslBehaviorOptions {
  *   }
  * }
  *
- * // ── 9. Delete with ownership conditions ──────────────────────────────
+ * // ── 9. Persisted delete with ownership conditions ────────────────────
  * // Capability: Comment|delete|{"authorId":"${user.id}","status":"draft"}
- * // Only delete own draft comments.
+ * // Use a type-level precheck, then authorize the database-loaded comment.
  * @CommandHandler(DeleteCommentCommand)
  * @UsePipeline([CaslBehavior, {
- *   subjectFromRequest: 'Comment',
  *   rules: [{ action: 'delete', subject: 'Comment' }],
  * }])
- * class DeleteCommentHandler { ... }
+ * class DeleteCommentHandler {
+ *   async execute(command: DeleteCommentCommand) {
+ *     const comment = await this.comments.find(command.id);
+ *     const ability = getCaslAbility();
+ *     if (ability) {
+ *       assertEntityPermission(ability, {
+ *         action: 'delete', subject: 'Comment', entity: comment,
+ *       });
+ *     }
+ *     await this.comments.delete(comment);
+ *   }
+ * }
  *
  * // ── 10. Event with authorization (restrict who can trigger) ──────────
  * @UsePipeline([CaslBehavior, {
@@ -507,7 +527,9 @@ export class CaslBehavior implements IPipelineBehavior {
           'Authorization required but no user context found. ' +
             `Set "${CASL_USER_CONTEXT_KEY}" in context.items or provide a CASL_USER_CONTEXT_RESOLVER.`,
         );
-        throw new ForbiddenException('Access denied — authentication required.');
+        throw new ForbiddenException(
+          'Access denied — authentication required.',
+        );
       }
 
       if (user) {

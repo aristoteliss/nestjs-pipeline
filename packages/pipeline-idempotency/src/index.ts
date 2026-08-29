@@ -47,6 +47,7 @@ export type {
   IdempotencyRecord,
   IdempotencyRequestKind,
   IdempotencyStatus,
+  JsonValue,
 } from './interfaces/idempotency-record.interface';
 export type {
   IdempotencyStore,

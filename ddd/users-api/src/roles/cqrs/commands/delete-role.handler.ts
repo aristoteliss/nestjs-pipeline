@@ -28,6 +28,7 @@ import {
   IQueryRepository,
 } from '@nestjs-pipeline/ddd-core';
 import { ResilienceBehavior } from '@nestjs-pipeline/resilience';
+import { isTransientPersistenceError } from '@persistence/is-transient-persistence-error';
 import { Role } from '../../domain/models/role.entity';
 import { RoleUpdateOutcome } from '../../domain/outcomes/role-update.outcome';
 import {
@@ -51,7 +52,7 @@ import { DeleteRoleCommand } from './delete-role.command';
   [
     ResilienceBehavior,
     {
-      handle: (error: unknown) => !(error instanceof NotFoundException),
+      handle: isTransientPersistenceError,
       timeout: { duration: 3_000 },
       retry: {
         maxAttempts: 3,

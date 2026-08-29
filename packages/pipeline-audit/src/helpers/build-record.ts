@@ -45,10 +45,12 @@ export interface BuildAuditRecordInput {
 }
 
 /**
- * Build a serializable {@link AuditRecord} from a completed pipeline run.
+ * Build an {@link AuditRecord} from a completed pipeline run.
  *
  * Applies redaction to the payload/response, resolves the actor, severity, and
- * action, and normalizes non-`Error` throws to a well-formed error shape.
+ * action, and normalizes non-`Error` throws to a well-formed error shape. Atomic
+ * values are retained, so captured values must still satisfy the selected
+ * sink's serialization requirements.
  */
 export function buildAuditRecord(input: BuildAuditRecordInput): AuditRecord {
   const { context, options, response, error, failed, durationMs, startedAt } =

@@ -28,6 +28,7 @@ import {
   IQueryRepository,
 } from '@nestjs-pipeline/ddd-core';
 import { ResilienceBehavior } from '@nestjs-pipeline/resilience';
+import { isTransientPersistenceError } from '@persistence/is-transient-persistence-error';
 import { User } from '../../domain/models/user.entity';
 import { UserUpdateOutcome } from '../../domain/outcomes/user-update.outcome';
 import {
@@ -59,8 +60,9 @@ import { DeleteUserCommand } from './delete-user.command';
    * - circuitBreaker: after 5 consecutive failures, fail fast for 10s to give a
    *                   struggling database time to recover.
    *
-   * `handle` excludes the domain "user not found" case so a genuinely missing
-   * user is NOT retried and does NOT trip the breaker.
+   * `handle` accepts only known transient persistence/network failures, so
+   * deterministic HTTP/domain failures are not retried or counted by the
+   * circuit breaker.
    *
    * Note: retry/circuit events are already logged by ResilienceBehavior through
    * the injected logger (nestjs-pino via LOGGING_BEHAVIOR_LOGGER). The
@@ -70,7 +72,7 @@ import { DeleteUserCommand } from './delete-user.command';
   [
     ResilienceBehavior,
     {
-      handle: (error: unknown) => !(error instanceof NotFoundException),
+      handle: isTransientPersistenceError,
       timeout: { duration: 3_000 },
       retry: {
         maxAttempts: 3,

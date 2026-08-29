@@ -5,7 +5,7 @@
 
 Idempotency behavior for `@nestjs-pipeline/core` — atomically deduplicates concurrent requests sharing an idempotency key and **replays the stored response** after a successful execution. With the default `releaseOnError: true`, failed executions release the key so a later retry may execute the handler again.
 
-Store-agnostic: it depends only on a tiny `IdempotencyStore` interface. A zero-dependency **in-memory** store is the default; **Redis** and **Postgres** are genuine drop-ins for multi-instance deployments, and your own store is a one-line swap — handlers never change.
+Store-agnostic: it depends only on a tiny `IdempotencyStore` interface. A zero-dependency **in-memory** store is the default; **Redis** and **Postgres** are drop-ins for multi-instance deployments. Replay responses use one shared JSON-snapshot contract across every bundled store.
 
 ---
 
@@ -130,7 +130,7 @@ interface IdempotencyRecord {
   requestName: string;                  // e.g. 'CreatePaymentCommand'
   claimId?: string;                     // unique owner token for in-progress record
   fingerprint?: string;                 // hash of the original payload
-  response?: unknown;                   // captured once completed (for replay)
+  response?: JsonValue;                 // JSON snapshot captured for replay
   createdAt: string;                    // ISO-8601, when first claimed
   completedAt?: string;                 // ISO-8601, when the handler finished
 }
@@ -138,6 +138,9 @@ interface IdempotencyRecord {
 
 The record is created as `in_progress` the instant the key is claimed, then
 flipped to `completed` with the captured `response` when the handler succeeds.
+Handler responses used with idempotency must be acyclic JSON-serializable values.
+The initial caller receives the original handler value; subsequent callers
+receive its JSON snapshot (for example, a `Date` replays as an ISO string).
 
 ---
 
@@ -258,10 +261,11 @@ For each in-scope request `IdempotencyBehavior`:
    response, and returns it;
 5. **not claimed** → looks at the existing record:
    - still `in_progress` → throws `IdempotencyConflictError` (`409`);
-   - `completed`, same payload → **replays** the stored response (handler does
+   - `completed`, same request type and payload → **replays** the stored response (handler does
      not run) and sets `IDEMPOTENCY_REPLAYED_ITEM` (`'idempotency.replayed'`) to
      `true`;
-   - `completed`, different payload → throws `IdempotencyConflictError` (`422`).
+   - `completed`, different request type or payload → throws
+     `IdempotencyConflictError` (`422`).
 
 If the handler throws and `releaseOnError` is `true` (default), the key is
 released so the client can retry and the handler may execute again. The handler
@@ -287,7 +291,9 @@ Options are read per-handler from `@UsePipeline` and merged over module-wide
 
 ## Fingerprinting & key reuse
 
-With `fingerprint: true` (default) the behavior stores a stable SHA-256 hash of
+An idempotency key is isolated to the request type that first claimed it; reuse
+by another command/query/event type is rejected with `422` even when the payload
+hash matches. With `fingerprint: true` (default) the behavior also stores a stable SHA-256 hash of
 the request payload (object keys sorted, so property order doesn't matter). If a
 later request reuses the key with a **different** body, it is rejected with a
 `422` `key_reuse` conflict — catching client bugs and replay attacks where the

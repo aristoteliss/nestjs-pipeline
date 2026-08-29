@@ -47,8 +47,8 @@ export interface AuditError {
 }
 
 /**
- * A single audit-trail entry — the serializable, JSON-friendly snapshot of one
- * pipeline operation (who did what, when, with what outcome), forwarded to an
+ * A single audit-trail entry for one pipeline operation (who did what, when,
+ * and with what outcome), forwarded to an
  * {@link AuditSink}.
  *
  * Unlike a dead letter (failures only), an audit record is written for **both**

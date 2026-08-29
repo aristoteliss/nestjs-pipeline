@@ -45,10 +45,10 @@ export const DEAD_LETTER_ITEM = 'dead-letter.captured';
  * Pipeline behavior that forwards **failed** requests to a dead-letter sink.
  *
  * When the wrapped handler (and anything nested inside it, such as
- * `ResilienceBehavior` retries) throws, this behavior captures a serializable
+ * `ResilienceBehavior` retries) throws, this behavior captures a
  * {@link DeadLetterRecord} and hands it to the configured
  * {@link DeadLetterTransport}, then — by default — re-throws so the caller still
- * sees the failure.
+ * sees the failure. Payload and metadata must be serializable by that transport.
  *
  * Transport-agnostic by design: it depends only on {@link DeadLetterTransport},
  * so the backend (BullMQ, RabbitMQ, Postgres, …) is a one-line swap in

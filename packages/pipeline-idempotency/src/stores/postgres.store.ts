@@ -16,7 +16,10 @@
  * ----------------------------
  */
 
-import type { IdempotencyRecord } from '../interfaces/idempotency-record.interface';
+import type {
+  IdempotencyRecord,
+  JsonValue,
+} from '../interfaces/idempotency-record.interface';
 import type { IdempotencyStore } from '../interfaces/idempotency-store.interface';
 
 /** A single returned row, keyed by column name. */
@@ -106,7 +109,7 @@ function mapRow(key: string, row: PostgresRowLike): IdempotencyRecord {
     fingerprint: (row.fingerprint as string | null) ?? undefined,
     // SQL NULL → has_response=false → undefined (no response stored).
     // JSONB null → has_response=true, row.response=null → null (explicit null).
-    response: row.has_response ? row.response : undefined,
+    response: row.has_response ? (row.response as JsonValue) : undefined,
     createdAt: toIso(row.created_at),
     completedAt: row.completed_at ? toIso(row.completed_at) : undefined,
   };

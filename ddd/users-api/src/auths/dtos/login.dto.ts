@@ -16,10 +16,11 @@
  * ----------------------------
  */
 
+import { EmailSchema } from '@common/validation/email.schema';
 import { z } from 'zod';
 
 export const LoginDtoSchema = z.object({
-  email: z.email(),
+  email: EmailSchema,
   code: z.string().min(1),
 });
 

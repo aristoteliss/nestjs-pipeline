@@ -16,6 +16,7 @@
  * ----------------------------
  */
 
+import { cloneIdempotencyRecord } from '../helpers/json-snapshot';
 import type { IdempotencyRecord } from '../interfaces/idempotency-record.interface';
 import type { IdempotencyStore } from '../interfaces/idempotency-store.interface';
 
@@ -39,14 +40,18 @@ export class MemoryIdempotencyStore implements IdempotencyStore {
   private readonly entries = new Map<string, Entry>();
 
   get(key: string): IdempotencyRecord | undefined {
-    return this.live(key)?.record;
+    const record = this.live(key)?.record;
+    return record ? cloneIdempotencyRecord(record) : undefined;
   }
 
   setIfAbsent(key: string, record: IdempotencyRecord, ttlMs: number): boolean {
     if (this.live(key)) {
       return false;
     }
-    this.entries.set(key, { record, expiresAt: Date.now() + ttlMs });
+    this.entries.set(key, {
+      record: cloneIdempotencyRecord(record),
+      expiresAt: Date.now() + ttlMs,
+    });
     return true;
   }
 
@@ -58,14 +63,16 @@ export class MemoryIdempotencyStore implements IdempotencyStore {
   ): boolean {
     const current = this.live(key);
     if (
-      !current ||
-      current.record.status !== 'in_progress' ||
+      current?.record.status !== 'in_progress' ||
       current.record.claimId !== claimId
     ) {
       return false;
     }
 
-    this.entries.set(key, { record, expiresAt: Date.now() + ttlMs });
+    this.entries.set(key, {
+      record: cloneIdempotencyRecord(record),
+      expiresAt: Date.now() + ttlMs,
+    });
     return true;
   }
 
@@ -78,7 +85,10 @@ export class MemoryIdempotencyStore implements IdempotencyStore {
   }
 
   set(key: string, record: IdempotencyRecord, ttlMs: number): void {
-    this.entries.set(key, { record, expiresAt: Date.now() + ttlMs });
+    this.entries.set(key, {
+      record: cloneIdempotencyRecord(record),
+      expiresAt: Date.now() + ttlMs,
+    });
   }
 
   delete(key: string): void {

@@ -188,7 +188,7 @@ The base context is derived from the pipeline request:
 
 | Key | Value |
 |---|---|
-| `targetingKey` | `context.correlationId` _(stable per-request id for sticky/gradual rollouts)_ |
+| `targetingKey` | `context.correlationId` _(stable only within one request; override with user/account/device identity for sticky rollouts)_ |
 | `pipeline.request.kind` | `command` \| `query` \| `event` |
 | `pipeline.request.name` | `NewCheckoutCommand` |
 | `pipeline.handler.name` | `NewCheckoutHandler` |

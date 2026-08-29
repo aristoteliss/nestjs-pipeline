@@ -17,11 +17,12 @@
  */
 
 import { createExecuteClass } from '@common/cqrs/helpers/createExecute.helper';
+import { EmailSchema } from '@common/validation/email.schema';
 import { z } from 'zod';
 
 export class CreateAuthCommand extends createExecuteClass(
   z.object({
-    email: z.email(),
+    email: EmailSchema,
     code: z.string().min(4).max(6),
   }),
 ) {}

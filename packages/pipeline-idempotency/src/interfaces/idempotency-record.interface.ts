@@ -22,6 +22,15 @@ export type IdempotencyRequestKind = 'command' | 'query' | 'event' | 'unknown';
 /** Lifecycle state of an idempotency key. */
 export type IdempotencyStatus = 'in_progress' | 'completed';
 
+/** Values that have one portable representation across all bundled stores. */
+export type JsonValue =
+  | null
+  | boolean
+  | number
+  | string
+  | JsonValue[]
+  | { [key: string]: JsonValue };
+
 /**
  * The durable record stored under an idempotency key. While a handler runs the
  * record is `in_progress`; once it succeeds the record flips to `completed` and
@@ -45,8 +54,8 @@ export interface IdempotencyRecord {
    * reused with a *different* body (a client bug or replay attack).
    */
   fingerprint?: string;
-  /** The handler's response, captured once `status` is `completed`. */
-  response?: unknown;
+  /** JSON snapshot of the handler response, captured once completed. */
+  response?: JsonValue;
   /** ISO-8601 timestamp the key was first claimed. */
   createdAt: string;
   /** ISO-8601 timestamp the original request completed, when applicable. */

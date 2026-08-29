@@ -96,6 +96,35 @@ describe('IdempotencyBehavior', () => {
     expect(ctx.items.get(IDEMPOTENCY_REPLAYED_ITEM)).toBe(true);
   });
 
+  it('stores and replays a JSON snapshot consistently with durable stores', async () => {
+    const behavior = new IdempotencyBehavior(store);
+    const completedAt = new Date('2026-01-01T00:00:00.000Z');
+
+    const first = await behavior.handle(
+      withOptions(makeCtx(), byKey),
+      vi.fn().mockResolvedValue({ completedAt }),
+    );
+    const replay = await behavior.handle(
+      withOptions(makeCtx(), byKey),
+      vi.fn(),
+    );
+
+    expect(first).toEqual({ completedAt });
+    expect(replay).toEqual({ completedAt: completedAt.toISOString() });
+  });
+
+  it('rejects a non-JSON response and releases the owned claim', async () => {
+    const behavior = new IdempotencyBehavior(store);
+
+    await expect(
+      behavior.handle(
+        withOptions(makeCtx(), byKey),
+        vi.fn().mockResolvedValue(123n),
+      ),
+    ).rejects.toThrow(/JSON-serializable/);
+    expect(await store.get('o1')).toBeUndefined();
+  });
+
   it('rejects reuse of a key by a different request type', async () => {
     const behavior = new IdempotencyBehavior(store);
     await behavior.handle(

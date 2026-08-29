@@ -21,7 +21,7 @@ import type { DeadLetterBehaviorOptions } from '../interfaces/dead-letter-option
 import type { DeadLetterRecord } from '../interfaces/dead-letter-transport.interface';
 
 /**
- * Build a serializable {@link DeadLetterRecord} from a failed pipeline run.
+ * Build a transport-neutral {@link DeadLetterRecord} from a failed pipeline run.
  *
  * Non-`Error` throws are normalized to a record with `name: 'unknown'` so the
  * transport always receives a well-formed shape.

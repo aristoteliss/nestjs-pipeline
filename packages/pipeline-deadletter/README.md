@@ -3,7 +3,7 @@
 [![npm version](https://img.shields.io/npm/v/@nestjs-pipeline/deadletter.svg)](https://www.npmjs.com/package/@nestjs-pipeline/deadletter)
 [![License](https://img.shields.io/npm/l/@nestjs-pipeline/deadletter.svg)](https://www.npmjs.com/package/@nestjs-pipeline/deadletter)
 
-Dead-letter capture behavior for `@nestjs-pipeline/core` — when a command, query, or event handler fails (after any retries), it forwards a serializable snapshot of the failed request to a **dead-letter transport** for inspection and replay.
+Dead-letter capture behavior for `@nestjs-pipeline/core` — when a command, query, or event handler fails (after any retries), it forwards a record of the failed request to a **dead-letter transport** for inspection and replay.
 
 Transport-agnostic: it depends only on a tiny `DeadLetterTransport` interface. **BullMQ**, **RabbitMQ**, and **Postgres** transports are bundled — handlers never change. The bundled transports are typed *structurally*, so this package adds **zero heavy dependencies**; you pass your own `Queue`, AMQP `Channel`, or pg `Pool`.
 
@@ -194,7 +194,7 @@ For each request, `DeadLetterBehavior` runs the handler and, **only on failure**
 
 1. Resolves effective options (module defaults ← per-handler options).
 2. Skips capture if the request kind isn't in `captureKinds` (when set).
-3. Builds a serializable [`DeadLetterRecord`](#the-dead-letter-record) and calls
+3. Builds a transport-neutral [`DeadLetterRecord`](#the-dead-letter-record) and calls
    `transport.send(record)`. A transport failure is logged and **never masks**
    the original handler error.
 4. Sets `dead-letter.captured = true` on `context.items` after the capture attempt.
@@ -230,7 +230,9 @@ DeadLetterModule.forRoot({
 
 ## The dead-letter record
 
-Transport-neutral and JSON-serializable:
+Transport-neutral. The application-provided payload and metadata must be
+serializable by the selected transport; capture can fail otherwise (without
+replacing the original handler error under the default fail-open behavior):
 
 ```typescript
 interface DeadLetterRecord {

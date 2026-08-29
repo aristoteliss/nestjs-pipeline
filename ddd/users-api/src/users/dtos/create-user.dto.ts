@@ -16,10 +16,11 @@
  * ----------------------------
  */
 
+import { EmailSchema } from '@common/validation/email.schema';
 import { z } from 'zod';
 
 export const CreateUserDtoSchema = z.object({
-  email: z.string().email().toLowerCase().trim(),
+  email: EmailSchema,
   name: z.string().trim().min(3),
   department: z.string().trim().min(3).optional(),
 });

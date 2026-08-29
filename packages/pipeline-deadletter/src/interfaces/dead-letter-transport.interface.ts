@@ -30,12 +30,13 @@ export interface DeadLetterError {
 }
 
 /**
- * A single dead-letter record — the serializable snapshot of a pipeline request
- * that failed (after any retries) and was forwarded to a
+ * A single dead-letter record for a pipeline request that failed (after any
+ * retries) and was forwarded to a
  * {@link DeadLetterTransport} for inspection / replay.
  *
- * The shape is intentionally transport-neutral and JSON-serializable so it can
- * be written to a queue job, an AMQP message, or a database row unchanged.
+ * The shape is transport-neutral, but `payload` and `metadata` are supplied by
+ * the application and must satisfy the configured transport's serialization
+ * requirements.
  */
 export interface DeadLetterRecord {
   /** Correlation ID of the failed pipeline run (for cross-system tracing). */

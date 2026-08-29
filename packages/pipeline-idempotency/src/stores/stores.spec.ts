@@ -102,6 +102,22 @@ describe('MemoryIdempotencyStore', () => {
     });
   });
 
+  it('stores JSON snapshots rather than retaining live response objects', () => {
+    const store = new MemoryIdempotencyStore();
+    const response = { completedAt: new Date('2026-01-01T00:00:00.000Z') };
+    const completed = record({
+      status: 'completed',
+      response: response as never,
+    });
+
+    store.set('k1', completed, 1000);
+    response.completedAt.setUTCFullYear(2030);
+
+    expect(store.get('k1')?.response).toEqual({
+      completedAt: '2026-01-01T00:00:00.000Z',
+    });
+  });
+
   it('does not let a stale owner complete a newer reclaimed claim', () => {
     const store = new MemoryIdempotencyStore();
     const first = record({ claimId: 'owner-a' });

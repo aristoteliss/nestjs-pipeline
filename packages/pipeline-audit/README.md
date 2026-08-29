@@ -3,7 +3,7 @@
 [![npm version](https://img.shields.io/npm/v/@nestjs-pipeline/audit.svg)](https://www.npmjs.com/package/@nestjs-pipeline/audit)
 [![License](https://img.shields.io/npm/l/@nestjs-pipeline/audit.svg)](https://www.npmjs.com/package/@nestjs-pipeline/audit)
 
-Audit-trail behavior for `@nestjs-pipeline/core` — records **who did what, when, and with what outcome** for every command, query, and event handler, and forwards a serializable record to a pluggable **audit sink**.
+Audit-trail behavior for `@nestjs-pipeline/core` — records **who did what, when, and with what outcome** for every command, query, and event handler, and forwards the record to a pluggable **audit sink**. Captured application values must satisfy that sink's serialization requirements.
 
 Sink-agnostic: it depends only on a tiny `AuditSink` interface. A zero-dependency **console** sink is the default; **Postgres** is a genuine drop-in, and your own sink (event store, Kafka, HTTP collector, …) is a one-line swap — handlers never change. Records are written on **both success and failure**, sensitive payload fields are **redacted** by default, and the actor can be resolved from the pipeline context.
 

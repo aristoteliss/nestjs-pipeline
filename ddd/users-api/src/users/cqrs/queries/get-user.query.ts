@@ -18,13 +18,14 @@
 
 import { createExecuteClass } from '@common/cqrs/helpers/createExecute.helper';
 import { BaseQuery } from '@common/cqrs/queries/base.query';
-import { email, z } from 'zod';
+import { EmailSchema } from '@common/validation/email.schema';
+import { z } from 'zod';
 
 export class GetUserQuery extends createExecuteClass(
   z
     .object({
       userId: z.optional(z.uuid()),
-      email: z.optional(email()),
+      email: z.optional(EmailSchema),
       department: z.optional(z.string()),
     })
     .superRefine((value, ctx) => {

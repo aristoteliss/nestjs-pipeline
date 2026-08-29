@@ -142,7 +142,8 @@ import { UsersModule } from './users/users.module';
      * Configures the transport used by the globally attached DeadLetterBehavior
      * above. When any command, query, or event handler finally fails — after any
      * per-handler ResilienceBehavior retries are exhausted — the behavior attempts
-     * to send a serializable snapshot of the failed request for inspection/replay.
+     * to send the failed request for inspection/replay. Payload and metadata
+     * must be serializable by the configured transport.
      * Transport errors are logged by the behavior and do not replace the handler
      * error, so a capture marker means an attempt occurred, not guaranteed storage.
      *

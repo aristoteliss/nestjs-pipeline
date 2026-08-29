@@ -38,10 +38,12 @@ import {
 } from './constants/tokens';
 import { IdempotencyConflictError } from './errors/idempotency-conflict.error';
 import { fingerprintValue } from './helpers/fingerprint';
+import { toJsonSnapshot } from './helpers/json-snapshot';
 import type { IdempotencyBehaviorOptions } from './interfaces/idempotency-options.interface';
 import type {
   IdempotencyRecord,
   IdempotencyRequestKind,
+  JsonValue,
 } from './interfaces/idempotency-record.interface';
 import type { IdempotencyStore } from './interfaces/idempotency-store.interface';
 
@@ -189,6 +191,17 @@ export class IdempotencyBehavior implements IPipelineBehavior {
       throw error;
     }
 
+    let responseSnapshot: JsonValue | undefined;
+    try {
+      responseSnapshot = toJsonSnapshot(response);
+    } catch (error) {
+      // The handler has already completed, but an unusable response must not
+      // leave a permanently in-progress claim. Surface the contract violation
+      // after releasing this execution's claim.
+      await this.release(key, claimId);
+      throw error;
+    }
+
     // The handler has already succeeded. Completion must be conditional on
     // still owning the claim; a stale execution must never overwrite a newer
     // execution that reclaimed the key after this claim's TTL elapsed.
@@ -198,7 +211,7 @@ export class IdempotencyBehavior implements IPipelineBehavior {
       {
         ...claim,
         status: 'completed',
-        response,
+        response: responseSnapshot,
         completedAt: new Date().toISOString(),
       },
       ttl,
