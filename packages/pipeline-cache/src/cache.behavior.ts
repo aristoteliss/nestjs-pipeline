@@ -53,7 +53,9 @@ const DEFAULT_KINDS: Array<IPipelineContext['requestKind']> = ['query'];
  *    shallow-merged on top of the defaults (handler keys win).
  *
  * Only `query` requests are cached by default; commands and events pass through
- * untouched. `null` / `undefined` results are never written to the cache.
+ * untouched. On a cache miss, `null` / `undefined` results are not written.
+ * A background refresh is delegated to `cache-manager.wrap()`, whose store
+ * semantics determine how a nullish refresh result replaces an existing entry.
  */
 @Injectable()
 export class CacheBehavior implements IPipelineBehavior {

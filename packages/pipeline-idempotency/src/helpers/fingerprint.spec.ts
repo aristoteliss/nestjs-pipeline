@@ -74,4 +74,14 @@ describe('stableStringify and fingerprintValue', () => {
     const hash2 = fingerprintValue({ email: 'user2@example.com' });
     expect(hash1).not.toBe(hash2);
   });
+
+  it('rejects values outside the supported JSON domain', () => {
+    const cyclic: Record<string, unknown> = {};
+    cyclic.self = cyclic;
+
+    expect(() => stableStringify(undefined)).toThrow(/JSON-serializable/);
+    expect(() => stableStringify(1n)).toThrow(/JSON-serializable/);
+    expect(() => stableStringify(cyclic)).toThrow(/JSON-serializable/);
+    expect(() => fingerprintValue(undefined)).toThrow(/JSON-serializable/);
+  });
 });

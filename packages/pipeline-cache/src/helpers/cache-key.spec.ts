@@ -46,6 +46,15 @@ describe('stableStringify', () => {
     expect(stableStringify('hi')).toBe('"hi"');
     expect(stableStringify(null)).toBe('null');
   });
+
+  it('rejects values that cannot be represented as JSON', () => {
+    const cyclic: Record<string, unknown> = {};
+    cyclic.self = cyclic;
+
+    expect(() => stableStringify(undefined)).toThrow(/JSON-serializable/);
+    expect(() => stableStringify(1n)).toThrow(/JSON-serializable/);
+    expect(() => stableStringify(cyclic)).toThrow(/JSON-serializable/);
+  });
 });
 
 describe('defaultCacheKey', () => {

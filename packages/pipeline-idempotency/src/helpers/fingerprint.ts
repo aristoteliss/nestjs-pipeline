@@ -19,26 +19,58 @@
 import { createHash } from 'node:crypto';
 
 /**
- * Produces a stable SHA-256 hex digest of an arbitrary value, with object keys
- * sorted so semantically-equal payloads hash identically regardless of property
- * order. Used to detect an idempotency key being reused with a different body.
+ * Produces a stable SHA-256 hex digest of an acyclic JSON-serializable value,
+ * with object keys sorted so semantically-equal payloads hash identically
+ * regardless of property order. Used to detect an idempotency key being reused
+ * with a different body.
  */
 export function fingerprintValue(value: unknown): string {
   return createHash('sha256').update(stableStringify(value)).digest('hex');
 }
 
-/** `JSON.stringify` with deterministically ordered object keys. */
+/**
+ * `JSON.stringify` with deterministically ordered object keys. Unsupported
+ * values fail with a deliberate TypeError instead of returning `undefined` or
+ * overflowing while traversing a cycle.
+ */
 export function stableStringify(value: unknown): string {
-  return JSON.stringify(normalize(value));
+  try {
+    const serialized = JSON.stringify(normalize(value, new WeakSet()));
+    if (serialized === undefined) throw new TypeError('unsupported root value');
+    return serialized;
+  } catch {
+    throw new TypeError(
+      'stableStringify requires an acyclic JSON-serializable value.',
+    );
+  }
 }
 
-function normalize(value: unknown): unknown {
-  if (value === null || typeof value !== 'object') {
+function normalize(value: unknown, ancestors: WeakSet<object>): unknown {
+  if (value === null) {
     return value;
   }
 
+  if (typeof value !== 'object') {
+    if (
+      value === undefined ||
+      typeof value === 'bigint' ||
+      typeof value === 'function' ||
+      typeof value === 'symbol'
+    ) {
+      throw new TypeError(`Unsupported value type: ${typeof value}`);
+    }
+    return value;
+  }
+
+  if (ancestors.has(value)) throw new TypeError('Cyclic value');
+
   if (Array.isArray(value)) {
-    return value.map(normalize);
+    ancestors.add(value);
+    try {
+      return value.map((item) => normalize(item, ancestors));
+    } finally {
+      ancestors.delete(value);
+    }
   }
 
   // CQRS requests are usually class instances, so normalize their enumerable
@@ -46,9 +78,17 @@ function normalize(value: unknown): unknown {
   // JSON serialization or atomic semantics.
   if (isAtomicObject(value)) return value;
 
+  ancestors.add(value);
   const sorted: Record<string, unknown> = {};
-  for (const key of Object.keys(value as Record<string, unknown>).sort()) {
-    sorted[key] = normalize((value as Record<string, unknown>)[key]);
+  try {
+    for (const key of Object.keys(value as Record<string, unknown>).sort()) {
+      sorted[key] = normalize(
+        (value as Record<string, unknown>)[key],
+        ancestors,
+      );
+    }
+  } finally {
+    ancestors.delete(value);
   }
   return sorted;
 }

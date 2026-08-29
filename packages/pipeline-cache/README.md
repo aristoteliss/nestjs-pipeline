@@ -205,8 +205,10 @@ CacheModule.forRoot({ cache: createCache({ stores: [new Keyv()] }) });
 ### What gets cached
 
 Only **query** requests are cached by default — commands and events always pass
-through untouched. Override this with the `kinds` option. `null` and `undefined`
-results are never written to the cache.
+through untouched. Override this with the `kinds` option. On a cache miss,
+`null` and `undefined` results are not written. Background refreshes use
+`cache-manager.wrap()`, so the configured store determines how a nullish
+refresh result replaces an existing entry.
 
 ### Cache keys
 

@@ -23,6 +23,10 @@ function user(id: string, department: string) {
   });
 }
 
+function snapshot(id: string, department: string) {
+  return user(id, department).toJSON();
+}
+
 function withAbility<T>(role: RoleDefinition, run: () => T): T {
   const ability = buildAbility([role], {
     id: ACTOR_ID,
@@ -61,6 +65,35 @@ describe('authorizeUserRead', () => {
       username: 'Alice',
       email: 'alice@example.test',
     });
+  });
+
+  it('authorizes a plain cached snapshot', () => {
+    const role: RoleDefinition = {
+      name: 'viewer',
+      capabilities: ['User|read|*|id,username,email'],
+    };
+
+    expect(
+      withAbility(role, () =>
+        authorizeUserRead(snapshot(TARGET_ID, 'engineering')),
+      ),
+    ).toEqual({
+      id: TARGET_ID,
+      username: 'Alice',
+      email: 'alice@example.test',
+    });
+  });
+
+  it('rejects field permissions that omit a mandatory response field', () => {
+    const role: RoleDefinition = {
+      name: 'limited-viewer',
+      capabilities: ['User|read|*|id,username'],
+    };
+    const target = user(TARGET_ID, 'engineering');
+
+    expect(() => withAbility(role, () => authorizeUserRead(target))).toThrow(
+      ForbiddenException,
+    );
   });
 
   it('can omit unauthorized rows from collection reads', () => {

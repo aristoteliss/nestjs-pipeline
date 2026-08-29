@@ -356,7 +356,7 @@ If the OpenTelemetry SDK is **not** initialized (e.g. in development or test env
 A warning is logged once at startup for each:
 
 ```
-[Nest] WARN [TraceBehavior] OpenTelemetry SDK is NOT initialized — TraceBehavior will pass through without tracing. Ensure your tracing bootstrap runs BEFORE NestFactory.create() (import "./tracing" as the first line of main.ts, or use --require ./tracing.js).
+[Nest] WARN [TraceBehavior] OpenTelemetry SDK is NOT initialized — TraceBehavior will pass through without tracing. Ensure your tracing bootstrap runs BEFORE NestFactory.create() (initialize it in a bootstrap module or use --require ./tracing.js).
 [Nest] WARN [MetricsBehavior] OpenTelemetry metrics SDK is NOT initialized — MetricsBehavior will record to a no-op meter (metrics discarded). Register a MeterProvider with a reader/exporter to export pipeline metrics.
 ```
 

@@ -41,7 +41,7 @@ export class GetUserHandler
     @Inject(QUERY_REPOSITORY.getUser)
     private readonly queryRepository: IQueryRepository<
       GetUserQuery,
-      User | null
+      User | UserSnapshot | null
     >,
   ) {}
 

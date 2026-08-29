@@ -19,23 +19,33 @@
 import type { IPipelineContext } from '@nestjs-pipeline/core';
 
 /**
- * Deterministic JSON stringify: object keys are sorted recursively so that
- * structurally equal payloads always produce the same cache key regardless of
- * property insertion order.
+ * Deterministic JSON stringify for JSON-serializable, acyclic values. Object
+ * keys are sorted recursively so structurally equal payloads produce the same
+ * cache key regardless of property insertion order. Unsupported inputs fail
+ * with a deliberate TypeError instead of returning a non-string value.
  */
 export function stableStringify(value: unknown): string {
-  return JSON.stringify(value, (_key, val) => {
-    if (val && typeof val === 'object' && !Array.isArray(val)) {
-      const source = val as Record<string, unknown>;
-      return Object.keys(source)
-        .sort()
-        .reduce<Record<string, unknown>>((acc, key) => {
-          acc[key] = source[key];
-          return acc;
-        }, {});
-    }
-    return val;
-  });
+  try {
+    const serialized = JSON.stringify(value, (_key, val) => {
+      if (val && typeof val === 'object' && !Array.isArray(val)) {
+        const source = val as Record<string, unknown>;
+        return Object.keys(source)
+          .sort()
+          .reduce<Record<string, unknown>>((acc, key) => {
+            acc[key] = source[key];
+            return acc;
+          }, {});
+      }
+      return val;
+    });
+
+    if (serialized === undefined) throw new TypeError('unsupported root value');
+    return serialized;
+  } catch {
+    throw new TypeError(
+      'stableStringify requires an acyclic JSON-serializable value.',
+    );
+  }
 }
 
 /**

@@ -12,17 +12,20 @@ import { ForbiddenException } from '@nestjs/common';
 import { getCaslAbility } from '@nestjs-pipeline/casl';
 import type { User, UserSnapshot } from '../../domain/models/user.entity';
 
-const RESPONSE_FIELDS = ['id', 'email', 'username', 'department'] as const;
+const REQUIRED_RESPONSE_FIELDS = ['id', 'email', 'username'] as const;
 
 /**
  * Authorizes a loaded user rather than the query-shaped pseudo subject used by
  * the pre-handler check, then removes response fields the ability cannot read.
  */
 export function authorizeUserRead(
-  user: User,
+  user: User | UserSnapshot,
   options: { omitUnauthorized?: boolean } = {},
 ): UserSnapshot | null {
-  const snapshot = user.toJSON();
+  const snapshot =
+    'toJSON' in user && typeof user.toJSON === 'function'
+      ? user.toJSON()
+      : user;
   const ability = getCaslAbility();
   if (!ability) return snapshot;
 
@@ -35,12 +38,24 @@ export function authorizeUserRead(
     throw new ForbiddenException('Access denied — insufficient permissions.');
   }
 
-  const projected: Record<string, unknown> = {};
-  for (const field of RESPONSE_FIELDS) {
-    if (ability.can('read', subject, field)) {
-      projected[field] = snapshot[field];
-    }
+  // The public response schema requires these fields. Treat an ability that
+  // cannot read all of them as unauthorized instead of returning a partial
+  // object that fails response mapping with an unrelated HTTP 500.
+  if (
+    REQUIRED_RESPONSE_FIELDS.some(
+      (field) => !ability.can('read', subject, field),
+    )
+  ) {
+    if (options.omitUnauthorized) return null;
+    throw new ForbiddenException('Access denied — insufficient permissions.');
   }
 
-  return projected as unknown as UserSnapshot;
+  return {
+    id: snapshot.id,
+    email: snapshot.email,
+    username: snapshot.username,
+    ...(ability.can('read', subject, 'department')
+      ? { department: snapshot.department }
+      : {}),
+  };
 }

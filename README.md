@@ -1259,7 +1259,7 @@ pnpm install
 pnpm build              # build workspace dependencies
 cp .env.example .env    # create local environment file (edit as needed)
 pnpm db:migrate         # apply schema + data migrations (idempotent)
-pnpm dev                # start with tsx (hot-reload)
+pnpm dev                # start with ts-node
 ```
 
 Configure the database via environment variables (defaults to a local file):
