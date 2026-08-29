@@ -21,8 +21,9 @@ import { type IQueryHandler, QueryHandler } from '@nestjs/cqrs';
 import { CaslBehavior } from '@nestjs-pipeline/casl';
 import { LoggingBehavior, UsePipeline } from '@nestjs-pipeline/core';
 import { IQueryRepository } from '@nestjs-pipeline/ddd-core';
-import type { Role } from '../../domain/models/role.entity';
+import type { Role, RoleSnapshot } from '../../domain/models/role.entity';
 import { QUERY_REPOSITORY } from '../../persistence/repository.tokens';
+import { authorizeRoleRead } from '../role-authorization.helper';
 import { GetRoleQuery } from './get-role.query';
 
 @QueryHandler(GetRoleQuery)
@@ -31,18 +32,23 @@ import { GetRoleQuery } from './get-role.query';
   [
     CaslBehavior,
     {
-      subjectFromRequest: 'Role',
       rules: [{ action: 'read', subject: 'Role' }],
     },
   ],
 )
-export class GetRoleHandler implements IQueryHandler<GetRoleQuery, Role> {
+export class GetRoleHandler
+  implements IQueryHandler<GetRoleQuery, RoleSnapshot | null>
+{
   constructor(
     @Inject(QUERY_REPOSITORY.getRole)
-    private readonly queryRepository: IQueryRepository<GetRoleQuery, Role>,
+    private readonly queryRepository: IQueryRepository<
+      GetRoleQuery,
+      Role | RoleSnapshot | null
+    >,
   ) {}
 
-  async execute(query: GetRoleQuery): Promise<Role> {
-    return await this.queryRepository.find(query);
+  async execute(query: GetRoleQuery): Promise<RoleSnapshot | null> {
+    const role = await this.queryRepository.find(query);
+    return role ? authorizeRoleRead(role) : null;
   }
 }

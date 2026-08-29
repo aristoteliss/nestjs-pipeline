@@ -48,6 +48,16 @@ class SecondMockBehavior implements IPipelineBehavior {
   }
 }
 
+class ConfiguredMockBehavior implements IPipelineBehavior {
+  static callCount = 0;
+
+  async handle(ctx: IPipelineContext, next: NextDelegate) {
+    ConfiguredMockBehavior.callCount++;
+    ctx.items.set('configured', ctx.getBehaviorOptions(ConfiguredMockBehavior));
+    return next();
+  }
+}
+
 // ─────────────────────────────────────────────────────────────────
 // Commands / Queries / Events
 // ─────────────────────────────────────────────────────────────────
@@ -490,6 +500,61 @@ describe('PipelineBootstrapService', () => {
       expect(result.store).toBeDefined();
       expect(result.store!.items.get('mock')).toBe(true);
       expect(result.store!.items.get('second')).toBe(true);
+    });
+
+    it('deduplicates the same behavior across matching global configs and uses the later options', async () => {
+      ConfiguredMockBehavior.callCount = 0;
+      const handler = new NoPipelineCommandHandler();
+      explorerServiceMock.explore.mockReturnValue({
+        commands: [makeWrapper(handler, NoPipelineCommandHandler)],
+        queries: [],
+        events: [],
+      });
+
+      new PipelineBootstrapService(moduleRefMock, {
+        globalBehaviors: [
+          {
+            scope: 'all',
+            before: [[ConfiguredMockBehavior, { source: 'all' }]],
+          },
+          {
+            scope: 'commands',
+            before: [[ConfiguredMockBehavior, { source: 'commands' }]],
+          },
+        ],
+      }).onApplicationBootstrap();
+
+      const result = await handler.execute(new MockCommand(1));
+
+      expect(ConfiguredMockBehavior.callCount).toBe(1);
+      expect(result.store?.items.get('configured')).toEqual({
+        source: 'commands',
+      });
+    });
+
+    it('does not clear tuple options when a later matching config uses a bare reference', async () => {
+      ConfiguredMockBehavior.callCount = 0;
+      const handler = new NoPipelineCommandHandler();
+      explorerServiceMock.explore.mockReturnValue({
+        commands: [makeWrapper(handler, NoPipelineCommandHandler)],
+        queries: [],
+        events: [],
+      });
+
+      new PipelineBootstrapService(moduleRefMock, {
+        globalBehaviors: [
+          {
+            scope: 'all',
+            before: [[ConfiguredMockBehavior, { source: 'all' }]],
+          },
+          { scope: 'commands', before: [ConfiguredMockBehavior] },
+        ],
+      }).onApplicationBootstrap();
+
+      const result = await handler.execute(new MockCommand(1));
+
+      expect(ConfiguredMockBehavior.callCount).toBe(1);
+      expect(result.store?.items.get('configured')).toEqual({ source: 'all' });
     });
 
     it('skips array entries whose scope does not match the handler kind', async () => {

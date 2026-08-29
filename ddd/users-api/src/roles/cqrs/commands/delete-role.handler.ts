@@ -35,6 +35,7 @@ import {
   QUERY_REPOSITORY,
 } from '../../persistence/repository.tokens';
 import { GetRoleQuery } from '../queries/get-role.query';
+import { assertRolePermission } from '../role-authorization.helper';
 import { DeleteRoleCommand } from './delete-role.command';
 
 @CommandHandler(DeleteRoleCommand)
@@ -43,7 +44,6 @@ import { DeleteRoleCommand } from './delete-role.command';
   [
     CaslBehavior,
     {
-      subjectFromRequest: 'Role',
       rules: [{ action: 'delete', subject: 'Role' }],
     },
   ],
@@ -101,6 +101,8 @@ export class DeleteRoleHandler extends CommandBaseHandler<
     if (!role) {
       throw new NotFoundException('Role not found');
     }
+
+    assertRolePermission(role, 'delete');
 
     const outcome = role.delete();
 

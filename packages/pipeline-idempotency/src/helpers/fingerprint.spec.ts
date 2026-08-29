@@ -84,4 +84,9 @@ describe('stableStringify and fingerprintValue', () => {
     expect(() => stableStringify(cyclic)).toThrow(/JSON-serializable/);
     expect(() => fingerprintValue(undefined)).toThrow(/JSON-serializable/);
   });
+
+  it('uses native JSON semantics for nested undefined values', () => {
+    expect(stableStringify({ a: 1, optional: undefined })).toBe('{"a":1}');
+    expect(stableStringify([1, undefined, 3])).toBe('[1,null,3]');
+  });
 });

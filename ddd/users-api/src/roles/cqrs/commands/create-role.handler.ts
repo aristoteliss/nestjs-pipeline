@@ -36,6 +36,7 @@ import { UniqueRoleNameException } from '../../domain/models/errors/role-name.ex
 import { Role } from '../../domain/models/role.entity';
 import { RoleCreateOutcome } from '../../domain/outcomes/role-create.outcome';
 import { COMMAND_REPOSITORY } from '../../persistence/repository.tokens';
+import { assertRolePermission } from '../role-authorization.helper';
 import { CreateRoleCommand } from './create-role.command';
 
 @CommandHandler(CreateRoleCommand)
@@ -50,7 +51,6 @@ import { CreateRoleCommand } from './create-role.command';
   [
     CaslBehavior,
     {
-      subjectFromRequest: 'Role',
       rules: [
         { action: 'create', subject: 'Role' },
         { action: 'read', subject: 'User' },
@@ -84,6 +84,7 @@ export class CreateRoleHandler extends CommandBaseHandler<
     const { name } = command;
 
     const outcome = Role.create(name);
+    assertRolePermission(outcome.entity, 'create', ['name']);
 
     try {
       await this.commandRepository.save(outcome);

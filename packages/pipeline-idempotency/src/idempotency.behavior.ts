@@ -228,7 +228,23 @@ export class IdempotencyBehavior implements IPipelineBehavior {
     const existing = await this.store.get(key);
 
     // Raced/expired between claim and read — treat as an in-progress duplicate.
-    if (!existing || existing.status === 'in_progress') {
+    if (!existing) {
+      throw new IdempotencyConflictError({
+        key,
+        requestName: context.requestName,
+        reason: 'in_progress',
+      });
+    }
+
+    if (existing.requestName !== context.requestName) {
+      throw new IdempotencyConflictError({
+        key,
+        requestName: context.requestName,
+        reason: 'key_reuse',
+      });
+    }
+
+    if (existing.status === 'in_progress') {
       throw new IdempotencyConflictError({
         key,
         requestName: context.requestName,

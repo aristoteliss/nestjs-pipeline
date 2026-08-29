@@ -18,11 +18,7 @@
 
 import { Inject, NotFoundException, Scope } from '@nestjs/common';
 import { CommandHandler, EventBus } from '@nestjs/cqrs';
-import {
-  assertEntityPermission,
-  CaslBehavior,
-  getCaslAbility,
-} from '@nestjs-pipeline/casl';
+import { CaslBehavior } from '@nestjs-pipeline/casl';
 import { LoggingBehavior, UsePipeline } from '@nestjs-pipeline/core';
 import {
   CommandBaseHandler,
@@ -36,6 +32,7 @@ import {
   QUERY_REPOSITORY,
 } from '../../repositories/repository.tokens';
 import { GetUserQuery } from '../queries/get-user.query';
+import { assertUserPermission } from '../queries/user-read-authorization.helper';
 import { UpdateUserCommand } from './update-user.command';
 
 // Example of using request-scoped handler if needed for per-request dependencies
@@ -45,7 +42,6 @@ import { UpdateUserCommand } from './update-user.command';
   [
     CaslBehavior,
     {
-      subjectFromRequest: 'User',
       rules: [{ action: 'update', subject: 'User' }],
     },
   ],
@@ -79,19 +75,10 @@ export class UpdateUserHandler extends CommandBaseHandler<
     // like "User|update|{department: <mine>}" depend on the target's persisted
     // attributes, which the command payload does not carry, so they are
     // re-checked here against the real entity and the fields being changed.
-    const ability = getCaslAbility();
-    if (ability) {
-      const changedFields = Object.entries({ username, department })
-        .filter(([, value]) => value !== undefined)
-        .map(([field]) => field);
-
-      assertEntityPermission(ability, {
-        action: 'update',
-        subject: 'User',
-        entity: user.toJSON() as unknown as Record<string, unknown>,
-        fields: changedFields,
-      });
-    }
+    const changedFields = Object.entries({ username, department })
+      .filter(([, value]) => value !== undefined)
+      .map(([field]) => field);
+    assertUserPermission(user, 'update', changedFields);
 
     const outcome = user.update({ username, department });
 

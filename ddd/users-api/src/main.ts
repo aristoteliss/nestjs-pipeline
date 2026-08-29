@@ -17,14 +17,11 @@
  */
 
 import 'reflect-metadata';
+import { loadOptionalEnvFile } from '@common/environment/load-optional-env-file';
 
 // This entrypoint intentionally has no environment-dependent static imports.
 // ESM dependencies execute before a module body, so load .env first and only
 // then import the module that initializes tracing and NestJS.
-try {
-  process.loadEnvFile();
-} catch (error) {
-  if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
-}
+loadOptionalEnvFile();
 
 void import('./bootstrap').then(({ bootstrap }) => bootstrap());

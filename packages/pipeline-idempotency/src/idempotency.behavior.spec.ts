@@ -96,6 +96,26 @@ describe('IdempotencyBehavior', () => {
     expect(ctx.items.get(IDEMPOTENCY_REPLAYED_ITEM)).toBe(true);
   });
 
+  it('rejects reuse of a key by a different request type', async () => {
+    const behavior = new IdempotencyBehavior(store);
+    await behavior.handle(
+      withOptions(makeCtx(), byKey),
+      vi.fn().mockResolvedValue({ id: 'created' }),
+    );
+
+    const refundContext = withOptions(
+      makeCtx({ requestName: 'RefundOrderCommand' }),
+      byKey,
+    );
+    const refund = vi.fn().mockResolvedValue({ id: 'refunded' });
+
+    await expect(behavior.handle(refundContext, refund)).rejects.toMatchObject({
+      statusCode: 422,
+      reason: 'key_reuse',
+    });
+    expect(refund).not.toHaveBeenCalled();
+  });
+
   it('exposes the active key on the context', async () => {
     const behavior = new IdempotencyBehavior(store);
     const ctx = withOptions(makeCtx(), byKey);

@@ -35,6 +35,7 @@ import {
   QUERY_REPOSITORY,
 } from '../../repositories/repository.tokens';
 import { GetUserQuery } from '../queries/get-user.query';
+import { assertUserPermission } from '../queries/user-read-authorization.helper';
 import { DeleteUserCommand } from './delete-user.command';
 
 @CommandHandler(DeleteUserCommand)
@@ -43,7 +44,6 @@ import { DeleteUserCommand } from './delete-user.command';
   [
     CaslBehavior,
     {
-      subjectFromRequest: 'User',
       rules: [{ action: 'delete', subject: 'User' }],
     },
   ],
@@ -127,6 +127,8 @@ export class DeleteUserHandler extends CommandBaseHandler<
     if (!user) {
       throw new NotFoundException('User not found');
     }
+
+    assertUserPermission(user, 'delete');
 
     const outcome = user.delete();
 

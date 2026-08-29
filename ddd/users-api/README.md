@@ -172,7 +172,7 @@ When `DB_ENGINE=postgres`, schema-per-tenant routing is enabled:
 
 - **New migrations** — Create migration classes in `src/persistence/migrations` (or generate via MikroORM CLI).
 - **Seed data** — Stored as data migrations (e.g., `Migration20260501010000.ts`) and applied with `pnpm db:migrate`.
-- **Idempotent** — All migrations use `if not exists` clauses and `upsert` logic to safely re-run.
+- **Tracked** — MikroORM records applied migrations and does not re-run them; use `pnpm db:revert` before deliberately applying one again.
 
 ## Logging
 

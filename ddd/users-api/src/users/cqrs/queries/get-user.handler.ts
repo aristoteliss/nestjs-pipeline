@@ -30,7 +30,6 @@ import { authorizeUserRead } from './user-read-authorization.helper';
 @UsePipeline([
   CaslBehavior,
   {
-    subjectFromRequest: 'User',
     rules: [{ action: 'read', subject: 'User' }],
   },
 ])

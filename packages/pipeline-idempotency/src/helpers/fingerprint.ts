@@ -51,12 +51,7 @@ function normalize(value: unknown, ancestors: WeakSet<object>): unknown {
   }
 
   if (typeof value !== 'object') {
-    if (
-      value === undefined ||
-      typeof value === 'bigint' ||
-      typeof value === 'function' ||
-      typeof value === 'symbol'
-    ) {
+    if (typeof value === 'bigint') {
       throw new TypeError(`Unsupported value type: ${typeof value}`);
     }
     return value;
@@ -82,10 +77,19 @@ function normalize(value: unknown, ancestors: WeakSet<object>): unknown {
   const sorted: Record<string, unknown> = {};
   try {
     for (const key of Object.keys(value as Record<string, unknown>).sort()) {
-      sorted[key] = normalize(
+      const normalized = normalize(
         (value as Record<string, unknown>)[key],
         ancestors,
       );
+      // Match JSON.stringify object semantics: unsupported property values are
+      // omitted, while the same values in arrays become null during stringify.
+      if (
+        normalized !== undefined &&
+        typeof normalized !== 'function' &&
+        typeof normalized !== 'symbol'
+      ) {
+        sorted[key] = normalized;
+      }
     }
   } finally {
     ancestors.delete(value);

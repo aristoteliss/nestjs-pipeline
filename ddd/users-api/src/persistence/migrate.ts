@@ -16,6 +16,7 @@
  * ----------------------------
  */
 
+import { loadOptionalEnvFile } from '@common/environment/load-optional-env-file';
 import { MikroORM } from '@mikro-orm/core';
 import { LibSqlDriver } from '@mikro-orm/libsql';
 import {
@@ -153,7 +154,7 @@ if (
     process.argv[1].endsWith('/migrate.js'))
 ) {
   (async () => {
-    process.loadEnvFile();
+    loadOptionalEnvFile();
     const applied = await migrate();
     console.log(
       applied > 0

@@ -409,16 +409,32 @@ export class PipelineBootstrapService implements OnApplicationBootstrap {
     const beforeTypes: Type<IPipelineBehavior>[] = [];
     const afterTypes: Type<IPipelineBehavior>[] = [];
 
+    // Deduplicate across all matching configs and both chain positions. The
+    // first occurrence determines placement; later tuples may still override
+    // its options without causing the behavior to run more than once.
+    const globalIds = new Set<string>();
+
     const parseEntries = (
       entries: PipelineBehaviorEntry[],
-    ): Type<IPipelineBehavior>[] =>
-      entries.map((entry) => {
+      seenIds: Set<string>,
+    ): Type<IPipelineBehavior>[] => {
+      const types: Type<IPipelineBehavior>[] = [];
+      for (const entry of entries) {
+        const type = Array.isArray(entry) ? entry[0] : entry;
+        const id = getBehaviorId(type);
         if (Array.isArray(entry)) {
-          globalOptions.set(getBehaviorId(entry[0]), entry[1]);
-          return entry[0];
+          // Later matching configuration supplies the effective options.
+          globalOptions.set(id, entry[1]);
         }
-        return entry;
-      });
+        // A bare duplicate only ensures inclusion. It must not erase options
+        // supplied by a tuple in another matching global configuration.
+        if (!seenIds.has(id)) {
+          seenIds.add(id);
+          types.push(type);
+        }
+      }
+      return types;
+    };
 
     for (const config of configs) {
       const scope = config.scope ?? 'all';
@@ -428,8 +444,8 @@ export class PipelineBootstrapService implements OnApplicationBootstrap {
       if (scope === 'queries' && requestKind !== 'query') continue;
       if (scope === 'events' && requestKind !== 'event') continue;
 
-      beforeTypes.push(...parseEntries(config.before ?? []));
-      afterTypes.push(...parseEntries(config.after ?? []));
+      beforeTypes.push(...parseEntries(config.before ?? [], globalIds));
+      afterTypes.push(...parseEntries(config.after ?? [], globalIds));
     }
 
     return { beforeTypes, afterTypes, globalOptions };

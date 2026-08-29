@@ -37,6 +37,7 @@ import { UniqueEmailException } from '../../domain/models/errors/email.exception
 import { User } from '../../domain/models/user.entity';
 import { UserCreateOutcome } from '../../domain/outcomes/user-create.outcome';
 import { COMMAND_REPOSITORY } from '../../repositories/repository.tokens';
+import { assertUserPermission } from '../queries/user-read-authorization.helper';
 import { CreateUserCommand } from './create-user.command';
 
 @CommandHandler(CreateUserCommand)
@@ -51,7 +52,6 @@ import { CreateUserCommand } from './create-user.command';
   [
     CaslBehavior,
     {
-      subjectFromRequest: 'User',
       rules: [{ action: 'create', subject: 'User' }],
     },
   ],
@@ -95,6 +95,11 @@ export class CreateUserHandler extends CommandBaseHandler<
     const { username, email, department } = command;
 
     const outcome = User.create(username, email, department);
+    assertUserPermission(outcome.entity, 'create', [
+      'username',
+      'email',
+      ...(department !== undefined ? ['department'] : []),
+    ]);
 
     try {
       await this.commandRepository.save(outcome);

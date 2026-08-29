@@ -34,6 +34,7 @@ import {
   QUERY_REPOSITORY,
 } from '../../persistence/repository.tokens';
 import { GetRoleQuery } from '../queries/get-role.query';
+import { assertRolePermission } from '../role-authorization.helper';
 import { UpdateRoleCommand } from './update-role.command';
 
 // Example of using request-scoped handler if needed for per-request dependencies
@@ -49,7 +50,6 @@ import { UpdateRoleCommand } from './update-role.command';
   [
     CaslBehavior,
     {
-      subjectFromRequest: 'Role',
       rules: [{ action: 'update', subject: 'Role' }],
     },
   ],
@@ -81,6 +81,8 @@ export class UpdateRoleHandler extends CommandBaseHandler<
     if (!role) {
       throw new NotFoundException('Role not found');
     }
+
+    assertRolePermission(role, 'update', ['name']);
 
     const outcome = role.rename(name);
 

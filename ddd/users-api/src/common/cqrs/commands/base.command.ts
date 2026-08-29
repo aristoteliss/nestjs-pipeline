@@ -21,9 +21,12 @@ import { SessionUser } from '@common/types/SessionUser';
 import { ICommand } from '@nestjs/cqrs';
 
 export abstract class BaseCommand implements ICommand {
-  public readonly sessionUser?: SessionUser;
+  public declare readonly sessionUser?: SessionUser;
 
   constructor(sessionUser?: SessionUser) {
-    this.sessionUser = sessionUser ?? getSessionUserFromStore();
+    Object.defineProperty(this, 'sessionUser', {
+      value: sessionUser ?? getSessionUserFromStore(),
+      enumerable: false,
+    });
   }
 }

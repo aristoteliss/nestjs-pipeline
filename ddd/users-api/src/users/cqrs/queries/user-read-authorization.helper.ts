@@ -9,10 +9,38 @@
 
 import { subject as caslSubject } from '@casl/ability';
 import { ForbiddenException } from '@nestjs/common';
-import { getCaslAbility } from '@nestjs-pipeline/casl';
+import {
+  assertEntityPermission,
+  type EntityPermissionCheck,
+  getCaslAbility,
+} from '@nestjs-pipeline/casl';
 import type { User, UserSnapshot } from '../../domain/models/user.entity';
 
 const REQUIRED_RESPONSE_FIELDS = ['id', 'email', 'username'] as const;
+
+function snapshotOf(user: User | UserSnapshot): UserSnapshot {
+  return 'toJSON' in user && typeof user.toJSON === 'function'
+    ? user.toJSON()
+    : user;
+}
+
+/** Enforce a mutation permission against the constructed or loaded user. */
+export function assertUserPermission(
+  user: User | UserSnapshot,
+  action: string,
+  fields?: string[],
+): void {
+  const ability = getCaslAbility();
+  if (!ability) return;
+
+  const snapshot = snapshotOf(user);
+  assertEntityPermission(ability, {
+    action,
+    subject: 'User',
+    entity: { ...snapshot },
+    fields,
+  } satisfies EntityPermissionCheck);
+}
 
 /**
  * Authorizes a loaded user rather than the query-shaped pseudo subject used by
@@ -22,10 +50,7 @@ export function authorizeUserRead(
   user: User | UserSnapshot,
   options: { omitUnauthorized?: boolean } = {},
 ): UserSnapshot | null {
-  const snapshot =
-    'toJSON' in user && typeof user.toJSON === 'function'
-      ? user.toJSON()
-      : user;
+  const snapshot = snapshotOf(user);
   const ability = getCaslAbility();
   if (!ability) return snapshot;
 

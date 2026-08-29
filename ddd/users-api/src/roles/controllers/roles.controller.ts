@@ -34,7 +34,7 @@ import { DeleteRoleCommand } from '../cqrs/commands/delete-role.command';
 import { UpdateRoleCommand } from '../cqrs/commands/update-role.command';
 import { GetRoleQuery } from '../cqrs/queries/get-role.query';
 import { GetRolesQuery } from '../cqrs/queries/get-roles.query';
-import { Role } from '../domain/models/role.entity';
+import type { RoleSnapshot } from '../domain/models/role.entity';
 import { RoleCreateOutcome } from '../domain/outcomes/role-create.outcome';
 import { RoleUpdateOutcome } from '../domain/outcomes/role-update.outcome';
 import {
@@ -62,7 +62,7 @@ export class RolesController {
   async getRoles(
     @Req() _request: Request,
   ): Promise<{ roles: RoleResponseDto[] }> {
-    const roles = await this.queryBus.execute<GetRolesQuery, Role[]>(
+    const roles = await this.queryBus.execute<GetRolesQuery, RoleSnapshot[]>(
       new GetRolesQuery({}),
     );
     return { roles: roles.map(toRoleResponseDto) };
@@ -74,7 +74,9 @@ export class RolesController {
     @Param('id', new ZodPipe<RoleIdDto, string>(RoleIdDtoSchema)) id: RoleIdDto,
   ): Promise<RoleResponseDto> {
     const query = new GetRoleQuery({ roleId: id }, { hydrate: false });
-    const role = await this.queryBus.execute<GetRoleQuery, Role>(query);
+    const role = await this.queryBus.execute<GetRoleQuery, RoleSnapshot | null>(
+      query,
+    );
     return toRoleResponseDto(role);
   }
 

@@ -7,7 +7,10 @@ import {
 import { pipelineStore, uuidv7 } from '@nestjs-pipeline/core';
 import { describe, expect, it } from 'vitest';
 import { User } from '../../domain/models/user.entity';
-import { authorizeUserRead } from './user-read-authorization.helper';
+import {
+  assertUserPermission,
+  authorizeUserRead,
+} from './user-read-authorization.helper';
 
 const ACTOR_ID = uuidv7();
 const TARGET_ID = uuidv7();
@@ -39,6 +42,20 @@ function withAbility<T>(role: RoleDefinition, run: () => T): T {
 }
 
 describe('authorizeUserRead', () => {
+  it('checks create conditions against the constructed entity', () => {
+    const role: RoleDefinition = {
+      name: 'department-manager',
+      capabilities: ['User|create|{"department":"${department}"}'],
+    };
+    const withoutDepartment = User.create('Alice', 'alice@example.test').entity;
+
+    expect(() =>
+      withAbility(role, () =>
+        assertUserPermission(withoutDepartment, 'create'),
+      ),
+    ).toThrow(ForbiddenException);
+  });
+
   it('checks ownership conditions against the persisted target id', () => {
     const role: RoleDefinition = {
       name: 'self',
