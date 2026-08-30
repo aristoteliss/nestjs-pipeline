@@ -26,10 +26,11 @@ import type { IdempotencyRequestKind } from './idempotency-record.interface';
 import type { IdempotencyStore } from './idempotency-store.interface';
 
 /**
- * Derives the idempotency key for a request from the pipeline context — e.g. an
- * `Idempotency-Key` header stashed on `context.items` by a controller, or a
- * natural key from the command payload. Return `undefined` to skip
- * deduplication for this request.
+ * Derives the idempotency key for a request from the pipeline context. A common
+ * HTTP pattern is to copy the `Idempotency-Key` header into the CQRS command at
+ * the controller boundary and read it from `context.request`. An upstream
+ * behavior may alternatively place application metadata in `context.items`.
+ * Return `undefined` to skip deduplication for this request.
  */
 export type IdempotencyKeyFactory = (
   context: IPipelineContext,
@@ -95,7 +96,7 @@ export interface IdempotencyModuleAsyncOptions
   useFactory: (
     ...args: never[]
   ) => IdempotencyStore | Promise<IdempotencyStore>;
-  /** Providers injected into `useFactory`. */
+  /** Providers injected into {@link useFactory}. */
   inject?: Array<InjectionToken | OptionalFactoryDependency>;
   /** Module-wide default options merged under each handler's options. */
   defaults?: IdempotencyBehaviorOptions;

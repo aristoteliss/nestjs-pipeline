@@ -17,9 +17,9 @@
  */
 
 /**
- * Serialize an audit value without silently collapsing built-in collections
- * and diagnostic objects to `{}`. Tagged objects keep the JSON representation
- * explicit and portable across log and database sinks.
+ * Serialize an audit value without silently collapsing or dropping JavaScript
+ * values that native JSON.stringify cannot represent faithfully. Tagged objects
+ * keep the representation explicit and portable across log and database sinks.
  */
 export function stringifyAuditValue(value: unknown, space?: number): string {
   return JSON.stringify(normalizeAuditValue(value, new WeakSet()), null, space);
@@ -34,6 +34,12 @@ function normalizeAuditValue(
   }
   if (typeof value === 'number' && !Number.isFinite(value)) {
     return { $type: 'Number', value: String(value) };
+  }
+  if (typeof value === 'function') {
+    return { $type: 'Function', name: value.name || null };
+  }
+  if (typeof value === 'symbol') {
+    return { $type: 'Symbol', description: value.description ?? null };
   }
   if (value === undefined) return { $type: 'Undefined' };
   if (value === null || typeof value !== 'object') return value;

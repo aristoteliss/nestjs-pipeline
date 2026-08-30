@@ -31,7 +31,7 @@ export const UserSchema = new EntitySchema<User>({
     _updatedAt: { type: UnixTimestampType, fieldName: 'updated_at' },
     _username: { type: 'string', fieldName: 'username' },
     _department: { type: 'string', fieldName: 'department', nullable: true },
-    email: { type: 'string' },
+    email: { type: 'string', unique: true },
     prefixKey: { type: 'string', persist: false },
   },
 });
