@@ -113,24 +113,23 @@ import { UsersModule } from './users/users.module';
        * how individual handlers override `LoggingBehavior` with a custom
        * `requestResponseLogLevel` while everything else falls back to these globals.
        *
-       * before: DeadLetterBehavior + LoggingBehavior
+       * before: DeadLetterBehavior + LoggingBehavior + ZodValidationBehavior
        * - DeadLetterBehavior observes final failures outside per-handler retries
        * - LoggingBehavior emits request/response + timing logs
        * - LoggingBehavior uses nestjs-pino through LOGGING_BEHAVIOR_LOGGER provider
+       * - ZodValidationBehavior normalizes request data before any per-handler
+       *   authorization, rate-limit, cache, or idempotency behavior sees it
        *
-       * after: TraceBehavior + MetricsBehavior + ZodValidationBehavior
+       * after: TraceBehavior + MetricsBehavior
        * - TraceBehavior creates OTel spans (and uses nestjs-pino via LOGGING_BEHAVIOR_LOGGER)
        * - MetricsBehavior records execution duration histogram and invocation counters
-       * - ZodValidationBehavior parses schema-backed requests and applies successful
-       *   object output to the existing request before the handler runs
        */
       globalBehaviors: {
         scope: 'all',
-        before: [DeadLetterBehavior, LoggingBehavior],
+        before: [DeadLetterBehavior, LoggingBehavior, ZodValidationBehavior],
         after: [
           [TraceBehavior, { tracerName: 'users-api' }],
           [MetricsBehavior, { meterName: 'users-api' }],
-          ZodValidationBehavior,
         ],
       },
       loggerProvider: {
@@ -155,8 +154,10 @@ import { UsersModule } from './users/users.module';
      *   useFactory: (channel) => new RabbitMqDeadLetterTransport(channel)
      *   useFactory: (pool) => new PostgresDeadLetterTransport(pool)
      *
-     * Inspect/replay failed jobs via the 'dead-letters' queue
-     * (queue.getFailed(), job.retry(), or Bull Board).
+     * Inspect queued dead-letter records with Bull Board or queue.getJobs().
+     * Replay requires an application-specific worker/tool that validates a
+     * record and re-dispatches its original request; these are ordinary waiting
+     * jobs, not failed jobs eligible for job.retry().
      */
     DeadLetterModule.forRootAsync({
       imports: [BullModule.registerQueue({ name: 'dead-letters' })],

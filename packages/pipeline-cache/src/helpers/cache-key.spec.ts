@@ -54,6 +54,33 @@ describe('stableStringify', () => {
     expect(() => stableStringify(undefined)).toThrow(/JSON-serializable/);
     expect(() => stableStringify(1n)).toThrow(/JSON-serializable/);
     expect(() => stableStringify(cyclic)).toThrow(/JSON-serializable/);
+    expect(() => stableStringify({ filter: new Map([['id', 1]]) })).toThrow(
+      /JSON-serializable/,
+    );
+    expect(() => stableStringify({ filter: new Set([1]) })).toThrow(
+      /JSON-serializable/,
+    );
+    expect(() => stableStringify({ filter: /active/ })).toThrow(
+      /JSON-serializable/,
+    );
+    expect(() => stableStringify({ error: new Error('failure') })).toThrow(
+      /JSON-serializable/,
+    );
+    expect(() => stableStringify({ value: Number.NaN })).toThrow(
+      /JSON-serializable/,
+    );
+    expect(() => stableStringify({ value: Number.POSITIVE_INFINITY })).toThrow(
+      /JSON-serializable/,
+    );
+    expect(() => stableStringify({ bytes: new Uint8Array([1, 2]) })).toThrow(
+      /JSON-serializable/,
+    );
+  });
+
+  it('serializes dates explicitly as ISO strings', () => {
+    expect(stableStringify({ at: new Date('2026-01-01T00:00:00.000Z') })).toBe(
+      '{"at":"2026-01-01T00:00:00.000Z"}',
+    );
   });
 });
 

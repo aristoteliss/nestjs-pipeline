@@ -32,7 +32,10 @@ export class AuthsController {
 
   /**
    * Authenticates a user and creates the Auth domain aggregate.
-   * On success, populates the secure session cookie and returns the auth response.
+   * On success, returns a bearer token in the auth response. When the Fastify
+   * adapter has decorated the request with `@fastify/secure-session`, it also
+   * populates the secure session cookie. Express intentionally has no session
+   * object in this sample, so callers use the returned bearer token there.
    */
   @Post('login')
   @HttpCode(200)
@@ -57,7 +60,9 @@ export class AuthsController {
   }
 
   /**
-   * Clears the current session cookie, logging the user out.
+   * Clears the current Fastify secure-session cookie, when present, and records
+   * logout. Under Express there is no server session to delete; clients discard
+   * their bearer token.
    */
   @Post('logout')
   @HttpCode(204)

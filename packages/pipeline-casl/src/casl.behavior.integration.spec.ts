@@ -850,6 +850,23 @@ describe('CaslBehavior.handle() integration', () => {
       expect(ability).toBeDefined();
       expect(ability.can('manage', 'all')).toBe(false);
     });
+
+    it('stores an empty ability for an anonymous public request', async () => {
+      const behavior = createBehavior(allRoles, userCapProvider);
+      const ctx = makeContext(
+        NoRequirementsQuery,
+        new NoRequirementsQuery(1),
+        undefined,
+        { skipCheck: true },
+      );
+
+      await expect(behavior.handle(ctx, nextDelegate)).resolves.toBe(
+        'handler-result',
+      );
+      const ability = ctx.items.get(CASL_ABILITY_KEY) as AppAbility;
+      expect(ability).toBeDefined();
+      expect(ability.can('read', 'all')).toBe(false);
+    });
   });
 
   describe('prebuiltAbility option', () => {

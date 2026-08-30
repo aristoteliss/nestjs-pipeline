@@ -201,7 +201,10 @@ export interface UserCapabilities {
   roles: string[];
   /** Additional per-user capabilities beyond role definitions. */
   additionalCapabilities?: Array<Capability | CapabilityString>;
-  /** Per-user inverted capabilities (explicit denials). */
+  /**
+   * Per-user explicit denials. `buildAbility` forces every entry to be inverted,
+   * even when its object/string form does not set `inverted` / start with `!`.
+   */
   deniedCapabilities?: Array<Capability | CapabilityString>;
 }
 

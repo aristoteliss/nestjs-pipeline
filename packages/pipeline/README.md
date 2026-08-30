@@ -5,7 +5,8 @@
 
 Pipeline behaviors for **NestJS CQRS** — wrap every command, query, and event handler with reusable cross-cutting concerns using a clean middleware-like chain.
 
-No additional runtime dependencies beyond NestJS itself. Works with Express and Fastify.
+Its peer contract also includes the standard NestJS runtime peers
+`reflect-metadata` and `rxjs`. Works with Express and Fastify.
 
 ---
 

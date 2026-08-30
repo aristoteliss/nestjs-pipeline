@@ -13,7 +13,8 @@
     "publish:all": "pnpm -r publish --access public",
     "check": "biome check .",
     "format": "biome check --write .",
-    "biome:lint": "biome lint --write ."
+    "biome:lint": "biome lint --write .",
+    "verify:package-licenses": "node scripts/verify-package-licenses.mjs"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.5.10",

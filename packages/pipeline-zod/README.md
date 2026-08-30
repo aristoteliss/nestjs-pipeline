@@ -48,6 +48,11 @@ A pipeline behavior that parses the incoming request against a Zod schema when o
 
 Register once — every command, query, and event with a `_zodSchema` property is automatically parsed:
 
+Place validation in global `before` ahead of behaviors whose authorization,
+rate-limit, cache, or idempotency decisions depend on request values. Global
+`after` behaviors run after handler-specific behaviors, so validation there
+would expose raw input to those policies.
+
 ```typescript
 import { Module } from '@nestjs/common';
 import { CqrsModule } from '@nestjs/cqrs';
@@ -60,7 +65,7 @@ import { ZodValidationBehavior } from '@nestjs-pipeline/zod';
     PipelineModule.forRoot({
       globalBehaviors: {
         scope: 'all',
-        after: [ZodValidationBehavior],
+        before: [ZodValidationBehavior],
       },
     }),
   ],
@@ -381,8 +386,7 @@ import { ZodValidationBehavior } from '@nestjs-pipeline/zod';
     PipelineModule.forRoot({
       globalBehaviors: {
         scope: 'all',
-        before: [LoggingBehavior],
-        after: [ZodValidationBehavior],
+        before: [LoggingBehavior, ZodValidationBehavior],
       },
     }),
     UsersModule,

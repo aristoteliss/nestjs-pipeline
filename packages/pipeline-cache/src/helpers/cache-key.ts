@@ -26,26 +26,74 @@ import type { IPipelineContext } from '@nestjs-pipeline/core';
  */
 export function stableStringify(value: unknown): string {
   try {
-    const serialized = JSON.stringify(value, (_key, val) => {
-      if (val && typeof val === 'object' && !Array.isArray(val)) {
-        const source = val as Record<string, unknown>;
-        return Object.keys(source)
-          .sort()
-          .reduce<Record<string, unknown>>((acc, key) => {
-            acc[key] = source[key];
-            return acc;
-          }, {});
-      }
-      return val;
-    });
-
-    if (serialized === undefined) throw new TypeError('unsupported root value');
-    return serialized;
+    return JSON.stringify(normalizeJson(value, new WeakSet<object>()));
   } catch {
     throw new TypeError(
       'stableStringify requires an acyclic JSON-serializable value.',
     );
   }
+}
+
+function normalizeJson(value: unknown, ancestors: WeakSet<object>): unknown {
+  if (
+    value === null ||
+    typeof value === 'string' ||
+    typeof value === 'boolean'
+  ) {
+    return value;
+  }
+
+  if (typeof value === 'number') {
+    if (!Number.isFinite(value)) {
+      throw new TypeError('Non-finite number');
+    }
+    return value;
+  }
+
+  if (typeof value !== 'object') {
+    throw new TypeError(`Unsupported value type: ${typeof value}`);
+  }
+
+  if (ancestors.has(value)) throw new TypeError('Cyclic value');
+
+  if (value instanceof Date) {
+    if (Number.isNaN(value.getTime())) throw new TypeError('Invalid date');
+    return value.toISOString();
+  }
+
+  if (isUnsupportedObject(value)) {
+    throw new TypeError(`Unsupported object: ${value.constructor.name}`);
+  }
+
+  ancestors.add(value);
+  try {
+    if (Array.isArray(value)) {
+      return value.map((item) => normalizeJson(item, ancestors));
+    }
+
+    const source = value as Record<string, unknown>;
+    const result: Record<string, unknown> = Object.create(null);
+    for (const key of Object.keys(source).sort()) {
+      result[key] = normalizeJson(source[key], ancestors);
+    }
+    return result;
+  } finally {
+    ancestors.delete(value);
+  }
+}
+
+function isUnsupportedObject(value: object): boolean {
+  return (
+    value instanceof RegExp ||
+    value instanceof Error ||
+    value instanceof Map ||
+    value instanceof Set ||
+    value instanceof WeakMap ||
+    value instanceof WeakSet ||
+    value instanceof ArrayBuffer ||
+    ArrayBuffer.isView(value) ||
+    value instanceof Promise
+  );
 }
 
 /**

@@ -86,6 +86,15 @@ describe('capability.helpers', () => {
       );
     });
 
+    it.each(['null', 'false', '0', '""', '[]', '[{"tenantId":"x"}]'])(
+      'should reject non-object conditions JSON: %s',
+      (conditions) => {
+        expect(() =>
+          parseCapabilityString(`Post|update|${conditions}`),
+        ).toThrow('must be a JSON object');
+      },
+    );
+
     it('should parse fields from 4th segment', () => {
       const result = parseCapabilityString('Post|update|*|title,body');
       expect(result).toEqual({
@@ -122,6 +131,16 @@ describe('capability.helpers', () => {
     it('should return objects as-is', () => {
       const cap: Capability = { subject: 'Post', action: 'read' };
       expect(normalizeCapability(cap)).toBe(cap);
+    });
+
+    it('should reject invalid object-form conditions at runtime', () => {
+      expect(() =>
+        normalizeCapability({
+          subject: 'Post',
+          action: 'update',
+          conditions: null,
+        } as unknown as Capability),
+      ).toThrow('must be a JSON object');
     });
   });
 
@@ -252,12 +271,14 @@ describe('capability.helpers', () => {
       expect(result).toEqual({ tenantId: 'abc' });
     });
 
-    it('should interpolate placeholders with any leading root segment', () => {
-      const result = interpolateConditions(
-        { tenantId: '${principal.tenantId}' },
-        user,
-      );
-      expect(result).toEqual({ tenantId: 'abc' });
+    it('should reject unknown leading root segments', () => {
+      expect(() =>
+        interpolateConditions({ tenantId: '${principal.tenantId}' }, user),
+      ).toThrow('principal.tenantId');
+
+      expect(() =>
+        interpolateConditions({ authorId: '${typo.foo.id}' }, user),
+      ).toThrow('typo.foo.id');
     });
 
     it('should interpolate nested placeholders with a prefixed root segment', () => {
@@ -274,6 +295,25 @@ describe('capability.helpers', () => {
         user,
       );
       expect(result).toEqual({ status: true, count: 5, tags: ['a', 'b'] });
+    });
+
+    it('should interpolate placeholders recursively inside arrays', () => {
+      const result = interpolateConditions(
+        {
+          tenantId: {
+            $in: ['${user.tenantId}', 'public'],
+            $nin: ['blocked-${id}'],
+          },
+        },
+        user,
+      );
+
+      expect(result).toEqual({
+        tenantId: {
+          $in: ['abc', 'public'],
+          $nin: ['blocked-42'],
+        },
+      });
     });
 
     it('should throw when a placeholder cannot be resolved', () => {

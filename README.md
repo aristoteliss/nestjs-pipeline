@@ -128,6 +128,7 @@ pnpm add @nestjs-pipeline/deadletter bullmq        # dead-letter failed requests
 pnpm add @nestjs-pipeline/rate-limit rate-limiter-flexible  # rate limiting (memory, Redis/Valkey, Mongo, SQL backends)
 pnpm add @nestjs-pipeline/audit   # audit trail (console default; + optional pg for Postgres)
 pnpm add @nestjs-pipeline/idempotency   # idempotent commands (in-memory default; + optional redis/pg)
+pnpm add @nestjs-pipeline/feature-flags @openfeature/server-sdk  # feature flags (provider adapters optional)
 
 # Optional: pino logger integration
 pnpm add nestjs-pino pino-http pino-pretty
@@ -153,10 +154,12 @@ import { TraceBehavior } from '@nestjs-pipeline/opentelemetry';
       correlationIdRunner: runWithCorrelationId,
       globalBehaviors: {
         scope: 'all',                // 'commands' | 'queries' | 'events' | 'all'
-        before: [LoggingBehavior],   // runs first (outermost)
+        before: [
+          LoggingBehavior,          // outermost; may observe raw input
+          ZodValidationBehavior,     // normalizes before handler policies
+        ],
         after: [                     // runs closest to the handler
           [TraceBehavior, { tracerName: 'my-service' }],
-          ZodValidationBehavior,
         ],
       },
     }),
@@ -494,8 +497,7 @@ export class RetryBehavior implements IPipelineBehavior {
 PipelineModule.forRoot({
   globalBehaviors: {
     scope: 'all',
-    before: [MetricsBehavior, LoggingBehavior],
-    after:  [ZodValidationBehavior],
+    before: [MetricsBehavior, LoggingBehavior, ZodValidationBehavior],
   },
 })
 
@@ -984,7 +986,7 @@ static `_zodSchema` property (set automatically by the `createRequest()` helper)
 PipelineModule.forRoot({
   globalBehaviors: {
     scope: 'all',
-    after: [ZodValidationBehavior],  // parses/validates before the handler runs
+    before: [ZodValidationBehavior], // normalizes before per-handler behaviors
   },
 })
 

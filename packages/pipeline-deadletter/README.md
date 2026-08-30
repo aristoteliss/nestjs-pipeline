@@ -96,7 +96,7 @@ above only makes the provider available to the pipeline.
 
 ```typescript
 @CommandHandler(CreateUserCommand)
-@UsePipeline([DeadLetterBehavior]) // attempt capture + re-throw on failure
+@UsePipeline(DeadLetterBehavior) // attempt capture + re-throw on failure
 export class CreateUserHandler implements ICommandHandler<CreateUserCommand> {}
 
 @EventsHandler(UserCreatedEvent)
@@ -115,8 +115,12 @@ Swapping the backend is a **one-line** change — only the transport passed to
 
 ### BullMQ
 
-Each successful transport send adds a job; inspect/replay via `queue.getFailed()`,
-`job.retry()`, or Bull Board. Defaults keep jobs around
+Each successful transport send adds a normal job to the dead-letter queue. It
+starts in BullMQ's waiting state, not its failed state, so `queue.getFailed()`
+and `job.retry()` do not apply. Inspect records with Bull Board or
+`queue.getJobs(['waiting', 'delayed', 'active', 'completed'])`, then use an
+application-specific replay worker/tool to validate the record and re-dispatch
+the original request. Defaults keep jobs around
 (`removeOnComplete: false`, `removeOnFail: false`).
 
 ```typescript

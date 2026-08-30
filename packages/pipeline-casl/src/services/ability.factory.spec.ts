@@ -38,6 +38,18 @@ describe('buildAbility & buildAbilityFromRules', () => {
     expect(ability.can('delete', 'User')).toBe(false);
   });
 
+  it('forces capabilities from the denied collection to be inverted', () => {
+    const ability = buildAbility(
+      [{ name: 'manager', capabilities: ['Post|manage|*'] }],
+      { id: 'u-1' },
+      undefined,
+      ['Post|delete|*'],
+    );
+
+    expect(ability.can('read', 'Post')).toBe(true);
+    expect(ability.can('delete', 'Post')).toBe(false);
+  });
+
   it('interpolates user context variables in conditions', () => {
     const roles: RoleDefinition[] = [
       {

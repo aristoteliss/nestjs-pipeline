@@ -51,4 +51,21 @@ describe('CacheModule.forRoot', () => {
 
     logSpy.mockRestore();
   });
+
+  it('logs the same cache precedence used by construction', () => {
+    const logSpy = vi
+      .spyOn(Logger.prototype, 'log')
+      .mockImplementation(() => {});
+
+    CacheModule.forRoot({
+      cache: {} as never,
+      stores: [{} as never],
+      store: { type: 'memory' },
+    });
+    expect(logSpy).toHaveBeenCalledWith(
+      expect.stringContaining('Initialized cache with [custom-cache] store'),
+    );
+
+    logSpy.mockRestore();
+  });
 });

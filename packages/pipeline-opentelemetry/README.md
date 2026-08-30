@@ -420,11 +420,10 @@ import { ZodValidationBehavior } from '@nestjs-pipeline/zod';
     PipelineModule.forRoot({
       globalBehaviors: {
         scope: 'all',
-        before: [LoggingBehavior],
+        before: [LoggingBehavior, ZodValidationBehavior],
         after: [
           [TraceBehavior, { tracerName: 'users-api' }],
           [MetricsBehavior, { meterName: 'users-api' }],
-          ZodValidationBehavior,
         ],
       },
     }),

@@ -535,8 +535,9 @@ export class CaslBehavior implements IPipelineBehavior {
       if (user) {
         ability = await this.buildAbilityForUser(user);
       } else {
-        // No user, no requirements — pass through
-        return next();
+        // skipCheck promises downstream consumers an ability even for a
+        // genuinely public anonymous request. An empty ability grants nothing.
+        ability = buildAbility([]);
       }
     }
 

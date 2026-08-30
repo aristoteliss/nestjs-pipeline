@@ -74,19 +74,19 @@ A per-handler `prebuiltAbility` bypasses provider-based ability construction.
 
 | Export | Signature | Purpose |
 |--------|-----------|---------|
-| `buildAbility` | `(roles, user?, additional?, denied?)` | Merges role + additional + denied capabilities, interpolates conditions against `user`, and globally re-orders so every deny lands after every allow. |
+| `buildAbility` | `(roles, user?, additional?, denied?)` | Merges role + additional + denied capabilities, forcibly inverts every entry in `denied`, interpolates conditions against `user`, and globally re-orders so every deny lands after every allow. |
 | `buildAbilityFromRules` | `(rules: AppRawRule[])` | Builds an ability from pre-computed raw rules **as-is** (no re-ordering). Ideal for rebuilding from a JWT/cache. |
 
 ### Capability helpers
 
 | Export | Purpose |
 |--------|---------|
-| `parseCapabilityString` | `CapabilityString` → `Capability`. |
+| `parseCapabilityString` | `CapabilityString` → `Capability`; rejects conditions unless they are a non-null, non-array JSON object. |
 | `serializeCapability` | `Capability` → compact `CapabilityString` (e.g. for JWT claims). |
-| `normalizeCapability` | Accept either form and return a `Capability`. |
+| `normalizeCapability` | Accept either form, runtime-validate it, and return a `Capability`. |
 | `capabilityToRawRule` | `Capability` → `AppRawRule`, interpolating conditions if a user is supplied. |
 | `capabilitiesToRawRules` | Array of capabilities/strings → ordered `AppRawRule[]` (allows then denies within the list). |
-| `interpolateConditions` | Resolve `${...}` / `{{ ... }}` placeholders against the user context. **Fails closed** — throws on an unresolved placeholder. |
+| `interpolateConditions` | Recursively resolve `${id}` / `${user.id}` and `{{ ... }}` placeholders, including inside arrays. Only the explicit `user.` alias is stripped. **Fails closed** — throws on an unresolved placeholder. |
 
 ### Runtime access helpers
 
@@ -449,7 +449,7 @@ export class DbUserCapabilityProvider implements IUserCapabilityProvider {
     return {
       roles: userRecord.roles,                     // ['author']
       additionalCapabilities: userRecord.extraCaps, // e.g., ['User|invite|*']
-      deniedCapabilities: userRecord.deniedCaps,    // e.g., ['!Post|delete|*']
+      deniedCapabilities: userRecord.deniedCaps,    // e.g., ['Post|delete|*']; container forces denial
     };
   }
 }

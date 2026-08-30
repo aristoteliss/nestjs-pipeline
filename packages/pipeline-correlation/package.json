@@ -31,9 +31,12 @@
     "lint": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
+    "prepack": "node ../../scripts/package-licenses.mjs prepare",
+    "postpack": "node ../../scripts/package-licenses.mjs cleanup",
     "prepublishOnly": "pnpm run build"
   },
   "peerDependencies": {
+    "@nestjs-pipeline/core": "*",
     "@nestjs/common": "^10.0.0 || ^11.0.0"
   },
   "devDependencies": {

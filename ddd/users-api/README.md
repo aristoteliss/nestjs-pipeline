@@ -56,6 +56,12 @@ pnpm dev                # start with ts-node
 | `OTEL_SERVICE_NAME`  | _(none)_       | OpenTelemetry service name |
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | _(none)_ | OpenTelemetry OTLP collector endpoint |
 
+The default Express adapter uses bearer JWTs or API credentials and does not
+install cookie-session middleware. `POST /auth/login` still returns its bearer
+token, but only `ADAPTER=fastify` with `SESSION_SECRET` also creates the
+`@fastify/secure-session` cookie; Express logout therefore cannot revoke a
+client-held token and the client must discard it.
+
 ### Dual-engine architecture
 
 **libSQL (SQLite)** — Default for local development:
@@ -406,7 +412,7 @@ This sample is a reference application for the `@nestjs-pipeline/*` behavior eco
 - **Clean Declarative Pipelines** — Zero handler pollution: handlers focus exclusively on business logic while behaviors are configured via global settings and `@UsePipeline` decorators.
 - **Global Behaviors** (in `AppModule`):
   - `LoggingBehavior` (`@nestjs-pipeline/core`) — Structured request/response and timing logging with `nestjs-pino`.
-  - `DeadLetterBehavior` (`@nestjs-pipeline/deadletter`) — Attempts to capture failed commands/queries/events to a BullMQ `dead-letters` queue for inspection and replay (with `UserCreatedHandler` opting into `{ rethrow: false }` for fire-and-forget side effects). Transport failures are logged, so the capture marker records an attempt rather than guaranteed persistence.
+  - `DeadLetterBehavior` (`@nestjs-pipeline/deadletter`) — Attempts to capture failed commands/queries/events as ordinary waiting jobs in a BullMQ `dead-letters` queue (with `UserCreatedHandler` opting into `{ rethrow: false }` for fire-and-forget side effects). Inspect them with Bull Board or `queue.getJobs()`; replay requires an application-specific worker/tool that validates the record and re-dispatches the request. Transport failures are logged, so the capture marker records an attempt rather than guaranteed persistence.
   - `TraceBehavior` (`@nestjs-pipeline/opentelemetry`) — Emits OpenTelemetry spans for every CQRS invocation (`tracerName: 'users-api'`).
   - `MetricsBehavior` (`@nestjs-pipeline/opentelemetry`) — Emits OpenTelemetry latency histograms and invocation counters (`meterName: 'users-api'`).
   - `ZodValidationBehavior` (`@nestjs-pipeline/zod`) — Parses/validates command/query/event payloads against `_zodSchema` and applies successful plain-object output (including coercions/defaults/stripped keys) to the existing request before handler execution.

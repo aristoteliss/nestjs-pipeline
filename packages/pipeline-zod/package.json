@@ -30,6 +30,8 @@
     "rebuild": "pnpm run clean && pnpm run build",
     "lint": "tsc --noEmit",
     "test": "vitest run",
+    "prepack": "node ../../scripts/package-licenses.mjs prepare",
+    "postpack": "node ../../scripts/package-licenses.mjs cleanup",
     "prepublishOnly": "pnpm run build"
   },
   "peerDependencies": {

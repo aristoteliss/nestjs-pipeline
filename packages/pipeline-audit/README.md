@@ -279,8 +279,11 @@ with `'[REDACTED]'`. The built-in `DEFAULT_REDACT_KEYS` cover common secrets
 }])
 ```
 
-`Date`, `Buffer`, and other non-plain objects are passed through untouched, and
-cyclic references are rendered as `'[Circular]'`.
+Non-plain values are cloned rather than returned by reference. `Map` entries,
+`Set` values, and enumerable `Error` properties are traversed recursively, so a
+sensitive string key such as `token` is masked there as well. Dates, regular
+expressions, buffers, array buffers, and typed views retain their value in the
+clone. Cyclic references are rendered as `'[Circular]'`.
 
 ---
 

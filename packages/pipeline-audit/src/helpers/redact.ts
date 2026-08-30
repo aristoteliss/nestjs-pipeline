@@ -43,8 +43,9 @@ export const DEFAULT_REDACT_KEYS: readonly string[] = [
 /**
  * Return a deep copy of `value` with the values of any keys in `keys`
  * (case-insensitive) replaced by {@link REDACTED}. Recurses into nested objects
- * and arrays; primitives are returned unchanged. Never mutates the input and is
- * safe against cyclic references.
+ * and arrays, including entries/properties on Map, Set, and Error values.
+ * Built-ins are cloned rather than returned by reference. Never mutates the
+ * input and is safe against cyclic references.
  *
  * @param value - The payload / response to sanitize.
  * @param keys - Field names to mask (compared case-insensitively).
@@ -64,15 +65,49 @@ function redact(
 ): unknown {
   if (value === null || typeof value !== 'object') return value;
 
-  // CQRS commands and queries are commonly class instances. Their enumerable
-  // own properties are payload data and must be traversed just like a plain
-  // object. Preserve only genuinely atomic/special built-ins as leaves.
-  if (isAtomicObject(value)) return value;
-
   if (ancestors.has(value)) return '[Circular]';
   ancestors.add(value);
 
   try {
+    if (value instanceof Date) return new Date(value);
+    if (value instanceof RegExp) {
+      const clone = new RegExp(value.source, value.flags);
+      clone.lastIndex = value.lastIndex;
+      return clone;
+    }
+    if (value instanceof Error) {
+      const clone = new Error(value.message);
+      clone.name = value.name;
+      clone.stack = value.stack;
+      for (const [key, val] of Object.entries(value)) {
+        (clone as unknown as Record<string, unknown>)[key] = blocked.has(
+          key.toLowerCase(),
+        )
+          ? REDACTED
+          : redact(val, blocked, ancestors);
+      }
+      return clone;
+    }
+    if (value instanceof Map) {
+      const clone = new Map<unknown, unknown>();
+      for (const [key, val] of value) {
+        clone.set(
+          redact(key, blocked, ancestors),
+          typeof key === 'string' && blocked.has(key.toLowerCase())
+            ? REDACTED
+            : redact(val, blocked, ancestors),
+        );
+      }
+      return clone;
+    }
+    if (value instanceof Set) {
+      return new Set(
+        Array.from(value, (item) => redact(item, blocked, ancestors)),
+      );
+    }
+    if (value instanceof ArrayBuffer || ArrayBuffer.isView(value)) {
+      return structuredClone(value);
+    }
     if (Array.isArray(value)) {
       return value.map((item) => redact(item, blocked, ancestors));
     }
@@ -87,16 +122,4 @@ function redact(
   } finally {
     ancestors.delete(value);
   }
-}
-
-function isAtomicObject(value: object): boolean {
-  return (
-    value instanceof Date ||
-    value instanceof RegExp ||
-    value instanceof Error ||
-    value instanceof Map ||
-    value instanceof Set ||
-    value instanceof ArrayBuffer ||
-    ArrayBuffer.isView(value)
-  );
 }

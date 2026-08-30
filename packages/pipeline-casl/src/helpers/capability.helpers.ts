@@ -42,7 +42,7 @@ import type {
  *
  * @throws {Error} When the subject segment is empty or missing.
  * @throws {Error} When the action segment is empty or missing.
- * @throws {Error} When the conditions segment contains malformed JSON.
+ * @throws {Error} When the conditions segment is not a JSON object.
  *
  * @example
  * ```ts
@@ -87,16 +87,23 @@ export function parseCapabilityString(cap: CapabilityString): Capability {
 
   let conditions: Record<string, unknown> | undefined;
   if (rawConditions && rawConditions !== '*') {
+    let parsed: unknown;
     try {
       const json = rawConditions.startsWith('~')
         ? Buffer.from(rawConditions.slice(1), 'base64url').toString('utf8')
         : rawConditions;
-      conditions = JSON.parse(json) as Record<string, unknown>;
+      parsed = JSON.parse(json);
     } catch {
       throw new Error(
         `Invalid conditions JSON in capability string "${cap}": ${rawConditions}`,
       );
     }
+    if (!isRecord(parsed)) {
+      throw new TypeError(
+        `Capability conditions must be a JSON object in "${cap}".`,
+      );
+    }
+    conditions = parsed;
   }
 
   const result: Capability = { subject, action };
@@ -115,7 +122,30 @@ export function parseCapabilityString(cap: CapabilityString): Capability {
 export function normalizeCapability(
   cap: Capability | CapabilityString,
 ): Capability {
-  return typeof cap === 'string' ? parseCapabilityString(cap) : cap;
+  if (typeof cap === 'string') return parseCapabilityString(cap);
+  if (!isRecord(cap)) {
+    throw new TypeError('Capability must be an object or compact string.');
+  }
+  if (typeof cap.subject !== 'string' || cap.subject.length === 0) {
+    throw new TypeError('Capability subject must be a non-empty string.');
+  }
+  if (typeof cap.action !== 'string' || cap.action.length === 0) {
+    throw new TypeError('Capability action must be a non-empty string.');
+  }
+  if (cap.conditions !== undefined && !isRecord(cap.conditions)) {
+    throw new TypeError('Capability conditions must be a JSON object.');
+  }
+  if (
+    cap.fields !== undefined &&
+    (!Array.isArray(cap.fields) ||
+      cap.fields.some((field) => typeof field !== 'string'))
+  ) {
+    throw new TypeError('Capability fields must be an array of strings.');
+  }
+  if (cap.inverted !== undefined && typeof cap.inverted !== 'boolean') {
+    throw new TypeError('Capability inverted must be a boolean.');
+  }
+  return cap;
 }
 
 /**
@@ -196,68 +226,80 @@ export function interpolateConditions(
   const result: Record<string, unknown> = {};
 
   for (const [key, value] of Object.entries(conditions)) {
-    if (typeof value === 'string') {
-      // If the entire string is a single placeholder, preserve the resolved
-      // value's original type (e.g. a numeric id stays a number).
-      if (/^(\$\{[^}]+\}|\{\{\s*[^}]+?\s*\}\})$/.test(value)) {
-        const prop = value.replace(/^\$\{|\}$|^\{\{\s*|\s*\}\}$/g, '').trim();
-        const resolved = getNestedValue(user, prop);
-        if (typeof resolved === 'undefined') {
-          throw new Error(
-            `Cannot interpolate capability condition "${key}": property "${prop}" is missing from the user context.`,
-          );
-        }
-        result[key] = resolved;
-      } else {
-        // Mixed string with one or more placeholders.
-        result[key] = value.replace(
-          /\$\{([^}]+)\}|\{\{\s*([^}]+?)\s*\}\}/g,
-          (_, p1: string | undefined, p2: string | undefined) => {
-            const prop = (p1 ?? p2 ?? '').trim();
-            const resolved = getNestedValue(user, prop);
-            if (typeof resolved === 'undefined') {
-              throw new Error(
-                `Cannot interpolate capability condition "${key}": property "${prop}" is missing from the user context.`,
-              );
-            }
-            return String(resolved);
-          },
-        );
-      }
-    } else if (
-      value !== null &&
-      typeof value === 'object' &&
-      !Array.isArray(value)
-    ) {
-      result[key] = interpolateConditions(
-        value as Record<string, unknown>,
-        user,
-      );
-    } else {
-      result[key] = value;
-    }
+    result[key] = interpolateValue(value, user, key);
   }
 
   return result;
 }
 
-function getNestedValue(obj: Record<string, unknown>, path: string): unknown {
-  const segments = path.split('.').filter(Boolean);
-
-  for (let start = 0; start < segments.length; start++) {
-    const resolved = segments.slice(start).reduce<unknown>((current, key) => {
-      if (current !== null && typeof current === 'object') {
-        return (current as Record<string, unknown>)[key];
-      }
-      return undefined;
-    }, obj);
-
-    if (typeof resolved !== 'undefined') {
-      return resolved;
+function interpolateValue(
+  value: unknown,
+  user: CaslUserContext,
+  conditionPath: string,
+): unknown {
+  if (typeof value === 'string') {
+    // If the entire string is a single placeholder, preserve the resolved
+    // value's original type (e.g. a numeric id stays a number).
+    if (/^(\$\{[^}]+\}|\{\{\s*[^}]+?\s*\}\})$/.test(value)) {
+      const prop = value.replace(/^\$\{|\}$|^\{\{\s*|\s*\}\}$/g, '').trim();
+      return resolvePlaceholder(user, prop, conditionPath);
     }
+
+    return value.replace(
+      /\$\{([^}]+)\}|\{\{\s*([^}]+?)\s*\}\}/g,
+      (_, p1: string | undefined, p2: string | undefined) => {
+        const prop = (p1 ?? p2 ?? '').trim();
+        return String(resolvePlaceholder(user, prop, conditionPath));
+      },
+    );
   }
 
-  return undefined;
+  if (Array.isArray(value)) {
+    return value.map((item, index) =>
+      interpolateValue(item, user, `${conditionPath}[${index}]`),
+    );
+  }
+
+  if (isRecord(value)) {
+    const result: Record<string, unknown> = {};
+    for (const [key, nested] of Object.entries(value)) {
+      result[key] = interpolateValue(nested, user, `${conditionPath}.${key}`);
+    }
+    return result;
+  }
+
+  return value;
+}
+
+function resolvePlaceholder(
+  user: CaslUserContext,
+  path: string,
+  conditionPath: string,
+): unknown {
+  const resolved = getNestedValue(user, path);
+  if (typeof resolved === 'undefined') {
+    throw new Error(
+      `Cannot interpolate capability condition "${conditionPath}": property "${path}" is missing from the user context.`,
+    );
+  }
+  return resolved;
+}
+
+function getNestedValue(obj: Record<string, unknown>, path: string): unknown {
+  const normalizedPath = path.startsWith('user.') ? path.slice(5) : path;
+  const segments = normalizedPath.split('.').filter(Boolean);
+  if (segments.length === 0) return undefined;
+
+  return segments.reduce<unknown>((current, key) => {
+    if (current !== null && typeof current === 'object') {
+      return (current as Record<string, unknown>)[key];
+    }
+    return undefined;
+  }, obj);
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
 
 /**

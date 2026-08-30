@@ -96,12 +96,13 @@ describe('redactValue', () => {
     expect(result).toEqual({ password: 'kept', email: REDACTED });
   });
 
-  it('preserves non-plain objects (e.g. Date) verbatim', () => {
+  it('deep-clones non-plain objects such as Date', () => {
     const date = new Date('2026-01-01T00:00:00.000Z');
 
     const result = redactValue({ when: date }) as { when: Date };
 
-    expect(result.when).toBe(date);
+    expect(result.when).not.toBe(date);
+    expect(result.when).toEqual(date);
   });
 
   it('preserves repeated references that are not cyclic', () => {
@@ -122,8 +123,33 @@ describe('redactValue', () => {
       second: unknown;
     };
 
-    expect(result.first).toBe(date);
-    expect(result.second).toBe(date);
+    expect(result.first).toEqual(date);
+    expect(result.second).toEqual(date);
+    expect(result.first).not.toBe(date);
+    expect(result.second).not.toBe(date);
+  });
+
+  it('redacts sensitive Map entries and Error properties', () => {
+    const map = new Map<string, unknown>([
+      ['token', 'map-secret'],
+      ['profile', { password: 'nested-secret', name: 'Ada' }],
+    ]);
+    const error = new Error('failure') as Error & { token: string };
+    error.token = 'error-secret';
+
+    const result = redactValue({ map, error }) as {
+      map: Map<string, unknown>;
+      error: Error & { token: string };
+    };
+
+    expect(result.map).not.toBe(map);
+    expect(result.map.get('token')).toBe(REDACTED);
+    expect(result.map.get('profile')).toEqual({
+      password: REDACTED,
+      name: 'Ada',
+    });
+    expect(result.error).not.toBe(error);
+    expect(result.error.token).toBe(REDACTED);
   });
 
   it('guards against cyclic references', () => {

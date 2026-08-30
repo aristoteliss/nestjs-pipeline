@@ -49,7 +49,7 @@ import type {
  * @param roles       - Role definitions the user belongs to
  * @param user        - User context for condition interpolation
  * @param additional  - Extra per-user capabilities
- * @param denied      - Per-user explicit denials
+ * @param denied      - Per-user explicit denials; every entry is forcibly inverted
  */
 export function buildAbility(
   roles: RoleDefinition[],
@@ -71,7 +71,12 @@ export function buildAbility(
 
   // 3. Add per-user denied capabilities
   if (denied && denied.length > 0) {
-    rules.push(...capabilitiesToRawRules(denied, user));
+    rules.push(
+      ...capabilitiesToRawRules(denied, user).map((rule) => ({
+        ...rule,
+        inverted: true,
+      })),
+    );
   }
 
   // Place every deny after every allow so a deny from one source cannot be

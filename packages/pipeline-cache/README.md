@@ -215,7 +215,12 @@ side effect nested after the cache behavior.
 
 The default key is `` `${requestName}:${stableStringify(request)}` ``, where
 `stableStringify` sorts object keys recursively so structurally equal payloads
-always map to the same entry. Provide a `key` factory to customize it.
+always map to the same entry. It accepts `null`, booleans, finite numbers,
+strings, arrays, record-like objects, and valid dates (converted to ISO strings).
+Lossy native JSON cases such as `Map`, `Set`, `RegExp`, `Error`, binary values,
+non-finite numbers, `undefined`, bigint, functions, symbols, and cycles are
+rejected instead of risking a collision. Provide a `key` factory to customize
+the supported domain when needed.
 
 ### Options resolution
 
