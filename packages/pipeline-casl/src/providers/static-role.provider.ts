@@ -108,7 +108,13 @@ export class StaticRoleProvider implements IRoleProvider {
   private readonly roles: Map<string, RoleDefinition>;
 
   constructor(definitions: RoleDefinition[]) {
-    this.roles = new Map(definitions.map((d) => [d.name, d]));
+    this.roles = new Map();
+    for (const definition of definitions) {
+      if (this.roles.has(definition.name)) {
+        throw new Error(`Duplicate static role name: "${definition.name}".`);
+      }
+      this.roles.set(definition.name, definition);
+    }
   }
 
   getRoles(names?: string[]): RoleDefinition[] {

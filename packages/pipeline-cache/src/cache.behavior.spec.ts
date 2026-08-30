@@ -154,6 +154,28 @@ describe('CacheBehavior', () => {
     expect(await cache.get('fixed-key')).toBe('value');
   });
 
+  it('partitions handler-authorized results by principal when the key is scoped', async () => {
+    const options: CacheBehaviorOptions = {
+      key: (ctx) => `${ctx.items.get('principalId')}:${ctx.requestName}:1`,
+    };
+    const alice = makeCtx(options);
+    alice.items.set('principalId', 'alice');
+    const bob = makeCtx(options);
+    bob.items.set('principalId', 'bob');
+    const next = vi
+      .fn()
+      .mockResolvedValueOnce({ email: 'alice@example.test' })
+      .mockResolvedValueOnce({ email: 'bob@example.test' });
+
+    expect(await behavior.handle(alice, next)).toEqual({
+      email: 'alice@example.test',
+    });
+    expect(await behavior.handle(bob, next)).toEqual({
+      email: 'bob@example.test',
+    });
+    expect(next).toHaveBeenCalledTimes(2);
+  });
+
   it('skips caching when the condition returns false', async () => {
     const next = vi.fn().mockResolvedValue('value');
     const options: CacheBehaviorOptions = { condition: () => false };

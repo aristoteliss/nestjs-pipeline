@@ -24,7 +24,6 @@ export {
   correlationStore,
   getCorrelationId,
   runWithCorrelationId,
-  setCorrelationFallback,
 } from './correlation.store';
 export type {
   CorrelationDecoratorOptions,

@@ -72,6 +72,9 @@ export function parseCapabilityString(cap: CapabilityString): Capability {
   }
 
   const parts = str.split('|');
+  if (parts.length > 4) {
+    throw new Error(`Invalid capability string: too many segments in "${cap}"`);
+  }
   const subject = parts[0];
   const action = parts[1];
 
@@ -226,13 +229,12 @@ export function interpolateConditions(
   conditions: Record<string, unknown>,
   user: CaslUserContext,
 ): Record<string, unknown> {
-  const result: Record<string, unknown> = {};
-
-  for (const [key, value] of Object.entries(conditions)) {
-    result[key] = interpolateValue(value, user, key);
-  }
-
-  return result;
+  return Object.fromEntries(
+    Object.entries(conditions).map(([key, value]) => [
+      key,
+      interpolateValue(value, user, key),
+    ]),
+  );
 }
 
 function interpolateValue(
@@ -264,11 +266,12 @@ function interpolateValue(
   }
 
   if (isPlainObject(value)) {
-    const result: Record<string, unknown> = {};
-    for (const [key, nested] of Object.entries(value)) {
-      result[key] = interpolateValue(nested, user, `${conditionPath}.${key}`);
-    }
-    return result;
+    return Object.fromEntries(
+      Object.entries(value).map(([key, nested]) => [
+        key,
+        interpolateValue(nested, user, `${conditionPath}.${key}`),
+      ]),
+    );
   }
 
   return value;
@@ -295,7 +298,9 @@ function getNestedValue(obj: Record<string, unknown>, path: string): unknown {
 
   return segments.reduce<unknown>((current, key) => {
     if (current !== null && typeof current === 'object') {
-      return (current as Record<string, unknown>)[key];
+      return Object.prototype.hasOwnProperty.call(current, key)
+        ? (current as Record<string, unknown>)[key]
+        : undefined;
     }
     return undefined;
   }, obj);

@@ -68,6 +68,12 @@ function normalize(
     );
   }
 
+  if (Object.getOwnPropertySymbols(value).length > 0) {
+    throw new TypeError(
+      'Symbol-keyed properties are outside the supported JSON domain.',
+    );
+  }
+
   ancestors.add(value);
   try {
     if (Array.isArray(value)) {

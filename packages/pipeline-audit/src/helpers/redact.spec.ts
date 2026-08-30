@@ -176,6 +176,20 @@ describe('redactValue', () => {
     expect(Reflect.get(result, '__proto__')).toEqual({ password: REDACTED });
   });
 
+  it('preserves an Error own __proto__ property without changing its prototype', () => {
+    const error = new Error('failure');
+    Object.defineProperty(error, '__proto__', {
+      enumerable: true,
+      value: { token: 'secret' },
+    });
+
+    const result = redactValue(error) as Error & Record<string, unknown>;
+
+    expect(Object.getPrototypeOf(result)).toBe(Error.prototype);
+    expect(Object.hasOwn(result, '__proto__')).toBe(true);
+    expect(Reflect.get(result, '__proto__')).toEqual({ token: REDACTED });
+  });
+
   it('exposes a stable set of default keys', () => {
     expect(DEFAULT_REDACT_KEYS).toContain('password');
     expect(DEFAULT_REDACT_KEYS).toContain('authorization');

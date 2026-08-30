@@ -97,6 +97,25 @@ describe('IdempotencyBehavior', () => {
     expect(ctx.items.get(IDEMPOTENCY_REPLAYED_ITEM)).toBe(true);
   });
 
+  it('partitions replay records by principal when the key is scoped', async () => {
+    const behavior = new IdempotencyBehavior(store);
+    const options: IdempotencyBehaviorOptions = {
+      keyFactory: (ctx) =>
+        `${ctx.items.get('principalId')}:${(ctx.request as { orderId: string }).orderId}`,
+    };
+    const alice = withOptions(makeCtx(), options);
+    alice.items.set('principalId', 'alice');
+    const bob = withOptions(makeCtx(), options);
+    bob.items.set('principalId', 'bob');
+
+    expect(
+      await behavior.handle(alice, vi.fn().mockResolvedValue('alice-result')),
+    ).toBe('alice-result');
+    expect(
+      await behavior.handle(bob, vi.fn().mockResolvedValue('bob-result')),
+    ).toBe('bob-result');
+  });
+
   it('stores and replays a JSON snapshot consistently with durable stores', async () => {
     const behavior = new IdempotencyBehavior(store);
     const completedAt = new Date('2026-01-01T00:00:00.000Z');
@@ -196,6 +215,7 @@ describe('IdempotencyBehavior', () => {
         status: 'in_progress',
         requestName: 'CreateOrderCommand',
         claimId: 'existing-owner',
+        fingerprint: fingerprintValue({ orderId: 'o1', amount: 100 }),
         createdAt: new Date().toISOString(),
       }),
       setIfAbsent: vi.fn().mockResolvedValue(false),
@@ -234,6 +254,32 @@ describe('IdempotencyBehavior', () => {
 
     await expect(
       behavior.handle(withOptions(context, byKey), vi.fn()),
+    ).rejects.toMatchObject({ statusCode: 422, reason: 'key_reuse' });
+  });
+
+  it('rejects an unverifiable legacy record when fingerprinting is enabled', async () => {
+    const mockStore: IdempotencyStore = {
+      get: vi.fn().mockResolvedValue({
+        key: 'o1',
+        status: 'completed',
+        requestName: 'CreateOrderCommand',
+        claimId: 'legacy-owner',
+        response: 'legacy-result',
+        createdAt: new Date().toISOString(),
+        completedAt: new Date().toISOString(),
+      }),
+      setIfAbsent: vi.fn().mockResolvedValue(false),
+      completeIfOwned: vi.fn(),
+      deleteIfOwned: vi.fn(),
+      set: vi.fn(),
+      delete: vi.fn(),
+    };
+
+    await expect(
+      new IdempotencyBehavior(mockStore).handle(
+        withOptions(makeCtx(), byKey),
+        vi.fn(),
+      ),
     ).rejects.toMatchObject({ statusCode: 422, reason: 'key_reuse' });
   });
 

@@ -21,13 +21,17 @@ import { z } from 'zod';
 import { UpdateUserCommand } from '../cqrs/commands/update-user.command';
 import {
   type UpdateUserDto,
-  UpdateUserDtoSchema,
+  UpdateUserDtoShape,
 } from '../dtos/update-user.dto';
 
 const base = createMapper(
   z
     .object({ id: z.uuid() })
-    .extend(UpdateUserDtoSchema.shape)
+    .extend(UpdateUserDtoShape)
+    .refine(
+      (value) => value.name !== undefined || value.department !== undefined,
+      { message: 'At least one mutable field must be supplied.' },
+    )
     .transform(({ id, name, department }) => {
       return new UpdateUserCommand({
         id,

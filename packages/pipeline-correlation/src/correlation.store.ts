@@ -187,10 +187,7 @@ export type WithCorrelationId<T = Record<string, unknown>> = T & {
  *
  * Both default to the `'correlationId'` key, so they work together out of the box.
  *
- * @throws {TypeError} If `data` is an array. Spreading an array into an object
- * destroys its structure (indices become string keys, `length` is lost) and
- * breaks the serialization contract on the consumer side. Wrap the array
- * first: `addCorrelationId({ items: myArray })`.
+ * @throws {TypeError} If `data` is not a plain object.
  *
  * @example
  * ```ts
@@ -223,11 +220,14 @@ export type WithCorrelationId<T = Record<string, unknown>> = T & {
 export function addCorrelationId<T extends Record<string, unknown>>(
   data: T,
 ): WithCorrelationId<T> {
-  if (Array.isArray(data)) {
+  const prototype =
+    data !== null && typeof data === 'object'
+      ? Object.getPrototypeOf(data)
+      : undefined;
+  if (prototype !== Object.prototype && prototype !== null) {
     throw new TypeError(
-      'addCorrelationId(data) received an array. Spreading an array into an object ' +
-        'destroys its structure and breaks the serialization contract. ' +
-        'Wrap it first: addCorrelationId({ items: myArray })',
+      'addCorrelationId(data) requires a plain object payload. ' +
+        'Wrap arrays and class instances in a plain object first.',
     );
   }
   return { ...data, correlationId: getCorrelationId() };

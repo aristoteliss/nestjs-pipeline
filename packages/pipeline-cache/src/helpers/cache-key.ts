@@ -65,6 +65,10 @@ function normalizeJson(value: unknown, ancestors: WeakSet<object>): unknown {
     throw new TypeError(`Unsupported object: ${value.constructor.name}`);
   }
 
+  if (Object.getOwnPropertySymbols(value).length > 0) {
+    throw new TypeError('Symbol-keyed properties are not JSON-serializable');
+  }
+
   ancestors.add(value);
   try {
     if (Array.isArray(value)) {

@@ -160,6 +160,9 @@ export class User extends CacheableEntity<UserSnapshot, User> {
     username?: string | null;
     department?: string | null;
   }): UserUpdateOutcome {
+    if (fields.username === undefined && fields.department === undefined) {
+      throw new Error('At least one user field must be supplied for update.');
+    }
     if (fields.username !== undefined && fields.username !== null) {
       this._username = User.normalizeWithMinLength(
         { username: fields.username },

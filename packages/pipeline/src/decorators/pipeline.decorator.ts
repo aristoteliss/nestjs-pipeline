@@ -81,7 +81,7 @@ export function clearPipelineOptionsRegistry(): void {
 /**
  * A pipeline behavior entry can be either:
  * - A behavior class: `LoggingBehavior`
- * - A tuple of behavior class and options: `[AuditBehavior, { title: '...', message: '...' }]`
+ * - A tuple of behavior class and options: `[AuditBehavior, { action: 'user.create', severity: 'high' }]`
  */
 export type PipelineBehaviorEntry =
   | Type<IPipelineBehavior>

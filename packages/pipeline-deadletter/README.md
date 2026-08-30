@@ -201,12 +201,10 @@ For each request, `DeadLetterBehavior` runs the handler and, **only on failure**
 3. Builds a transport-neutral [`DeadLetterRecord`](#the-dead-letter-record) and calls
    `transport.send(record)`. A transport failure is logged and **never masks**
    the original handler error.
-4. Sets `dead-letter.captured = true` on `context.items` after the capture attempt.
-   Because transport errors are swallowed, this flag indicates that the behavior
-   attempted the dead-letter send; it does not prove that the transport persisted it.
+4. Sets `dead-letter.captured` on `context.items` to whether delivery succeeded.
 5. Re-throws the original handler error (`rethrow: true`, default) or resolves to
-   `undefined` when `rethrow: false` **and capture was selected**. An excluded
-   request kind is always re-thrown because no dead-letter attempt occurred.
+   `undefined` when `rethrow: false` **and delivery succeeded**. An excluded
+   request kind or failed transport always re-throws the original error.
 
 ---
 
@@ -217,7 +215,7 @@ over module-wide `defaults` (handler wins):
 
 | Option | Type | Default | Description |
 |---|---|---|---|
-| `rethrow` | `boolean` | `true` | Re-throw after the capture decision. `false` swallows only selected/captured kinds. |
+| `rethrow` | `boolean` | `true` | Re-throw after capture. `false` swallows only after successful transport delivery. |
 | `includeStack` | `boolean` | `true` | Include the error stack in the record. |
 | `captureKinds` | `('command'\|'query'\|'event'\|'unknown')[]` | all | Restrict which request kinds are captured. |
 | `metadata` | `(ctx) => Record<string, unknown>` | — | Extra request-aware metadata to attach. |

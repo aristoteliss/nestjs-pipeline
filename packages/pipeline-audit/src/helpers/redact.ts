@@ -80,11 +80,14 @@ function redact(
       clone.name = value.name;
       clone.stack = value.stack;
       for (const [key, val] of Object.entries(value)) {
-        (clone as unknown as Record<string, unknown>)[key] = blocked.has(
-          key.toLowerCase(),
-        )
-          ? REDACTED
-          : redact(val, blocked, ancestors);
+        Object.defineProperty(clone, key, {
+          value: blocked.has(key.toLowerCase())
+            ? REDACTED
+            : redact(val, blocked, ancestors),
+          writable: true,
+          enumerable: true,
+          configurable: true,
+        });
       }
       return clone;
     }

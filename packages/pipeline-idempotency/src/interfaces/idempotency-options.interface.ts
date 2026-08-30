@@ -41,13 +41,15 @@ export interface IdempotencyBehaviorOptions {
   /**
    * Derives the idempotency key from the request/context. **Required** for the
    * behavior to do anything — without a key (or when it returns `undefined`)
-   * the handler runs normally.
+   * the handler runs normally. Include tenant/principal ownership whenever a
+   * replay would otherwise bypass handler-level authorization.
    */
   keyFactory?: IdempotencyKeyFactory;
 
   /**
    * How long a key is remembered, in milliseconds. After this window the key
-   * may be reused and a fresh execution occurs. Default `86_400_000` (24h).
+   * may be reused and a fresh execution occurs. Successful completion restarts
+   * the TTL for the replay record. Default `86_400_000` (24h).
    */
   ttl?: number;
 

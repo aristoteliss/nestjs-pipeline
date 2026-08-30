@@ -111,6 +111,9 @@ describe('stableStringify and fingerprintValue', () => {
       /JSON-serializable/,
     );
     expect(() => stableStringify(new Array(1))).toThrow(/JSON-serializable/);
+    expect(() =>
+      stableStringify({ id: 1, [Symbol('scope')]: 'private' }),
+    ).toThrow(/JSON-serializable/);
   });
 
   it('converts valid dates to their ISO JSON representation', () => {

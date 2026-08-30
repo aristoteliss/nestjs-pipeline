@@ -80,6 +80,12 @@ describe('capability.helpers', () => {
       expect(() => parseCapabilityString('Post||*')).toThrow('missing action');
     });
 
+    it('should reject undocumented trailing segments', () => {
+      expect(() => parseCapabilityString('Post|read|*|title|ignored')).toThrow(
+        'too many segments',
+      );
+    });
+
     it('should throw on malformed conditions JSON', () => {
       expect(() => parseCapabilityString('Post|read|{invalid json}')).toThrow(
         'Invalid conditions JSON',
@@ -359,6 +365,26 @@ describe('capability.helpers', () => {
       expect(() =>
         interpolateConditions({ prefix: 'team-${department}' }, user),
       ).toThrow('department');
+    });
+
+    it('preserves an own __proto__ condition as ordinary data', () => {
+      const conditions = JSON.parse(
+        '{"__proto__":{"tenantId":"${user.tenantId}"}}',
+      ) as Record<string, unknown>;
+      const result = interpolateConditions(conditions, user);
+
+      expect(Object.getPrototypeOf(result)).toBe(Object.prototype);
+      expect(Object.hasOwn(result, '__proto__')).toBe(true);
+      expect(Reflect.get(result, '__proto__')).toEqual({ tenantId: 'abc' });
+    });
+
+    it('does not resolve inherited placeholder properties', () => {
+      expect(() =>
+        interpolateConditions({ value: '${constructor}' }, user),
+      ).toThrow('constructor');
+      expect(() =>
+        interpolateConditions({ value: '${toString}' }, user),
+      ).toThrow('toString');
     });
   });
 

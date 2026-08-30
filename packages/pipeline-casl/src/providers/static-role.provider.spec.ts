@@ -49,4 +49,10 @@ describe('StaticRoleProvider', () => {
     expect(result).toHaveLength(2);
     expect(result.map((r) => r.name)).toEqual(['admin', 'viewer']);
   });
+
+  it('rejects duplicate role names', () => {
+    expect(() => new StaticRoleProvider([roles[0], { ...roles[0] }])).toThrow(
+      'Duplicate static role name',
+    );
+  });
 });

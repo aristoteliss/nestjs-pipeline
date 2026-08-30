@@ -58,7 +58,9 @@ export interface PipelineModuleOptions {
    * Global behaviors applied to all Commands, Queries, and/or Events.
    * These are merged with handler-specific @UsePipeline behaviors.
    *
-   * Execution order: `[before] → [@UsePipeline behaviors] → [after] → handler`
+   * Execution order: `[before] → [@UsePipeline behaviors] → [after] → handler`.
+   * A same-class handler declaration overrides options without relocating the
+   * behavior from its global position.
    *
    * @example
    * ```ts
@@ -70,7 +72,7 @@ export interface PipelineModuleOptions {
    * // Apply only to commands, with options
    * globalBehaviors: [{
    *   scope: 'commands',
-   *   before: [[MetricsBehavior, { prefix: 'cmd' }]],
+   *   before: [[MetricsBehavior, { meterName: 'cmd' }]],
    *   after:  [AuditBehavior],
    * }]
    * ```

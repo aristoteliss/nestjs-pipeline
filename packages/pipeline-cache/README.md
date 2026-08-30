@@ -222,6 +222,13 @@ non-finite numbers, `undefined`, bigint, functions, symbols, and cycles are
 rejected instead of risking a collision. Provide a `key` factory to customize
 the supported domain when needed.
 
+Cache hits return before the handler runs. If a handler performs entity-level
+authorization or response-field filtering after loading data, the cache key
+**must** include every security dimension that can change that result (for
+example tenant ID, principal ID, roles, or a permission-version token). The
+default key contains only the request type and payload; it is safe only for
+results that are identical across principals and tenants.
+
 ### Options resolution
 
 Effective options for a handler are resolved as:

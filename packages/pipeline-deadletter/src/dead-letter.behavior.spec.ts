@@ -220,6 +220,18 @@ describe('DeadLetterBehavior', () => {
     ).rejects.toBe(original);
   });
 
+  it('rethrows the original error when delivery fails despite rethrow=false', async () => {
+    send.mockRejectedValue(new Error('sink down'));
+    const behavior = new DeadLetterBehavior(transport);
+    const original = new Error('original');
+    const ctx = withOptions(makeCtx(), { rethrow: false });
+
+    await expect(
+      behavior.handle(ctx, vi.fn().mockRejectedValue(original)),
+    ).rejects.toBe(original);
+    expect(ctx.items.get(DEAD_LETTER_ITEM)).toBe(false);
+  });
+
   it('merges module defaults under per-handler options (handler wins)', async () => {
     const behavior = new DeadLetterBehavior(transport, { rethrow: false });
     // Handler overrides rethrow back to true.

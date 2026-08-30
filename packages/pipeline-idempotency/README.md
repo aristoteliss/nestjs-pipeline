@@ -132,6 +132,12 @@ Alternatively, an earlier pipeline behavior can place transport metadata in
 `context.items`. A controller cannot mutate the `PipelineContext` directly
 because core creates it later when the CQRS handler executes.
 
+Completed records replay before the handler runs. If the handler performs
+entity-level authorization or result filtering, derive a namespaced key that
+includes the tenant and principal/security scope, for example
+`` `${tenantId}:${principalId}:${clientKey}` ``. A client-supplied key by itself
+must never be shared across security principals.
+
 ---
 
 ## The idempotency record
@@ -157,8 +163,9 @@ Handler responses used with idempotency must be in the strict portable JSON
 domain: `null`, booleans, finite numbers, strings, arrays, and record-like
 objects containing only those values. `Date` is explicitly converted to an ISO
 string. Lossy native JSON cases such as `Map`, `Set`, `RegExp`, `Error`, binary
-views, non-finite numbers, `undefined`, functions, symbols, bigint, and cycles
-are rejected.
+views, non-finite numbers, nested `undefined`, functions, symbols (including
+symbol-keyed properties), bigint, and cycles are rejected. A top-level
+`undefined` is retained only for successful void handlers.
 The initial caller receives the original handler value; subsequent callers
 receive its JSON snapshot (for example, a `Date` replays as an ISO string).
 
@@ -305,7 +312,7 @@ Options are read per-handler from `@UsePipeline` and merged over module-wide
 | Option           | Type                                            | Default        | Description                                                                       |
 | ---------------- | ----------------------------------------------- | -------------- | --------------------------------------------------------------------------------- |
 | `keyFactory`     | `(ctx) => string \| undefined`                  | —              | Derives the idempotency key. Without one (or when it returns `undefined`) the handler runs normally. |
-| `ttl`            | `number`                                        | `86_400_000`   | How long a key is remembered, in ms (24h). After this it may be reused.            |
+| `ttl`            | `number`                                        | `86_400_000`   | Claim lifetime in ms (24h). Successful completion restarts this TTL for the replay record. |
 | `scope`          | `('command' \| 'query' \| 'event' \| 'unknown')[]` | `['command']`  | Which request kinds the policy applies to.                                         |
 | `fingerprint`    | `boolean`                                        | `true`         | Reject a key reused with a different payload (`422`).                              |
 | `releaseOnError` | `boolean`                                        | `true`         | Release the key when the handler throws, so retries can re-run.                    |
@@ -321,6 +328,11 @@ the request payload (object keys sorted, so property order doesn't matter). If a
 later request reuses the key with a **different** body, it is rejected with a
 `422` `key_reuse` conflict — catching client bugs and replay attacks where the
 same key is sent with new data.
+
+When fingerprinting is enabled, a live legacy record that has no fingerprint
+is rejected as unverifiable `key_reuse`; it is never replayed. Disable
+fingerprinting deliberately during a compatibility window if legacy replay is
+required.
 
 Fingerprinting uses the same strict JSON domain as response snapshots, so
 values that native `JSON.stringify()` would silently collapse or discard are

@@ -409,6 +409,11 @@ Place mandatory authentication/authorization behaviors in global `before`.
 Their position remains outside handler-level cache/idempotency behaviors that
 can return without invoking `next()`.
 
+This only protects authorization performed by the outer behavior. If the
+handler later performs entity-level checks or response-field filtering, cache
+and idempotency keys must be partitioned by the applicable tenant, principal,
+and permission scope because a short-circuit hit does not execute the handler.
+
 ---
 
 ## Built-in LoggingBehavior
@@ -740,7 +745,8 @@ orderCreated = (events$: Observable<any>): Observable<ICommand> =>
 2. Discovers all CQRS handlers via `@nestjs/cqrs` `ExplorerService` (commands, queries, events).
 3. For each handler with `@UsePipeline` or matching global behaviors: computes effective behavior/handler metadata, resolves singleton behavior instances, and wraps the `execute()` / `handle()` method. Behaviors that cannot be resolved as singletons are marked for dynamic resolution.
 4. Request-independent metadata is computed once at startup. The common all-singleton path reuses pre-resolved behavior instances with no per-request reflection/behavior DI lookup; request-scoped/transient behaviors are resolved per invocation with `moduleRef.resolve()` and the applicable Nest context ID.
-5. Supports singleton and request-scoped handlers (`Scope.REQUEST`, `Scope.TRANSIENT`).
+5. Supports singleton handlers on Nest CQRS 10; request-scoped/transient
+   handlers (`Scope.REQUEST`, `Scope.TRANSIENT`) require Nest CQRS 11+.
 
 ---
 

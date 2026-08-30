@@ -263,11 +263,10 @@ export class IdempotencyBehavior implements IPipelineBehavior {
       });
     }
 
-    if (
-      fingerprint &&
-      existing.fingerprint &&
-      existing.fingerprint !== fingerprint
-    ) {
+    // When fingerprinting is enabled, a legacy record without a fingerprint
+    // cannot prove that it belongs to the same payload. Fail closed instead of
+    // replaying an unverifiable response during rolling/config migrations.
+    if (fingerprint && existing.fingerprint !== fingerprint) {
       throw new IdempotencyConflictError({
         key,
         requestName: context.requestName,

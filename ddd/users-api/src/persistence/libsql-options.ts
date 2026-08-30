@@ -18,7 +18,6 @@
 
 import { LibSqlDriver } from '@mikro-orm/libsql';
 import { Migrator } from '@mikro-orm/migrations';
-import { DEFAULT_TENANT_SCHEMA } from './postgres-options';
 import { AuthSchema } from './schemas/auth.schema';
 import { CacheSchema } from './schemas/cache.schema';
 import { CapabilitySchema } from './schemas/capability.schema';
@@ -28,6 +27,7 @@ import { UserSchema } from './schemas/user.schema';
 import { UserAdditionalCapabilitySchema } from './schemas/user-additional-capability.schema';
 import { UserDeniedCapabilitySchema } from './schemas/user-denied-capability.schema';
 import { UserRoleSchema } from './schemas/user-role.schema';
+import { DEFAULT_TENANT_SCHEMA } from './tenant-options';
 
 export const DEFAULT_SQLITE_DATABASE_URL = 'file:src/persistence/local.db';
 

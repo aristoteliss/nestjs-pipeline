@@ -78,6 +78,8 @@ export interface CacheBehaviorOptions {
   /**
    * Custom cache-key factory. Defaults to
    * `` `${requestName}:${stableStringify(request)}` ``.
+   * Include tenant/principal/permission scope whenever the response depends on
+   * handler-level authorization or field filtering, because hits skip the handler.
    */
   key?: CacheKeyFactory;
   /** Optional predicate gating whether a given request is cached. */

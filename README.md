@@ -15,6 +15,11 @@ HTTP Request
 > its global chain position**, using the handler's options. Preserving position
 > keeps global security guards outside cache/idempotency behaviors that may
 > short-circuit without calling `next()`.
+>
+> Global type-level guards do not replace entity checks or field filtering
+> performed inside a handler. Because cache/idempotency hits skip that handler,
+> their keys must include the relevant tenant, principal, and permission scope
+> whenever results depend on those checks.
 
 The core package adds no runtime dependencies beyond NestJS itself. Add-on packages
 use their own declared integrations (Zod, OpenTelemetry, CASL, OpenFeature, etc.).
@@ -559,7 +564,8 @@ feature is imported, the registered behaviors are discoverable by
 2. For each matching handler it precomputes request-independent metadata and resolves singleton behavior instances. Behaviors that cannot be resolved as singletons are marked for per-invocation resolution.
 3. Per invocation: creates a `PipelineContext`, resolves any dynamic/request-scoped/transient behaviors with the applicable Nest context ID, resolves correlation ID, and runs the chain inside `AsyncLocalStorage` for nested propagation.
 4. The common all-singleton path reuses the pre-resolved instances with no request-time reflection or behavior DI lookup; scoped/dynamic behaviors intentionally use request-time DI resolution.
-5. Supports **singleton** and **request-scoped** handlers (`Scope.REQUEST`, `Scope.TRANSIENT`).
+5. Supports **singleton** handlers on Nest CQRS 10. Request-scoped/transient
+   handlers (`Scope.REQUEST`, `Scope.TRANSIENT`) require Nest CQRS 11+.
 
 ### Execution Order
 
@@ -1012,6 +1018,24 @@ const schema = z.object({
   username: z.string().min(4),
   email: z.email(),
 });
+
+function createRequest<T extends z.ZodRawShape>(schema: z.ZodObject<T>) {
+  return class {
+    static readonly _zodSchema = schema;
+
+    constructor(input: z.input<z.ZodObject<T>>) {
+      const parsed = schema.parse(input);
+      for (const [key, value] of Object.entries(parsed)) {
+        Object.defineProperty(this, key, {
+          value,
+          writable: true,
+          enumerable: true,
+          configurable: true,
+        });
+      }
+    }
+  };
+}
 
 export interface CreateUserCommand extends z.infer<typeof schema> {}
 export class CreateUserCommand extends createRequest(schema) {}

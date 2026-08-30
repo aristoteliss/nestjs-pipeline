@@ -26,14 +26,16 @@ export type GlobalBehaviorScope = 'commands' | 'queries' | 'events' | 'all';
  * Commands, Queries, and/or Events, regardless of handler-level @UsePipeline.
  *
  * Execution order:
- * `[before] → [@UsePipeline behaviors] → [after] → handler`
+ * `[before] → [@UsePipeline behaviors] → [after] → handler`. If the same
+ * behavior class is declared globally and by a handler, it runs once at its
+ * global position with the handler's options.
  *
  * @example
  * ```ts
  * // Single object
  * globalBehaviors: {
  *   scope: 'all',
- *   before: [LoggingBehavior, [MetricsBehavior, { prefix: 'api' }]],
+ *   before: [LoggingBehavior, [MetricsBehavior, { meterName: 'api' }]],
  *   after:  [AuditBehavior],
  * }
  *

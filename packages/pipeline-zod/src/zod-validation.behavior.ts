@@ -135,9 +135,23 @@ export class ZodValidationBehavior implements IPipelineBehavior {
           delete (context.request as unknown as Record<string, unknown>)[key];
         }
       }
-      Object.assign(context.request, result.data);
+      defineEnumerableDataProperties(context.request, result.data);
     }
 
     return next();
+  }
+}
+
+function defineEnumerableDataProperties(
+  target: object,
+  source: Record<string, unknown>,
+): void {
+  for (const key of Object.keys(source)) {
+    Object.defineProperty(target, key, {
+      value: source[key],
+      writable: true,
+      enumerable: true,
+      configurable: true,
+    });
   }
 }

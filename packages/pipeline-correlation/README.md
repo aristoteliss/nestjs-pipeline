@@ -53,9 +53,9 @@ await queue.add('send-email', addCorrelationId({ userId, email }));
 this.client.emit('user.created', addCorrelationId(payload));
 ```
 
-> **⚠️ Arrays are not allowed.** `addCorrelationId` spreads `data` into a new
-> object. Passing an array destroys its structure (`[a, b]` → `{ '0': a, '1': b }`).
-> Wrap it first:
+> **⚠️ A plain object is required.** Arrays, dates, maps, sets, and class
+> instances can lose structure when spread, so `addCorrelationId` rejects them.
+> Wrap them first:
 >
 > ```ts
 > // ❌ Throws TypeError

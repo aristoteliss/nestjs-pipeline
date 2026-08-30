@@ -131,7 +131,14 @@ export function createRequest<T extends ZodRawShape>(schema: ZodObject<T>) {
     constructor(input: Input) {
       const result = schema.safeParse(input);
       if (!result.success) throw new ZodValidationError(result.error);
-      Object.assign(this, result.data);   // typed properties
+      for (const [key, value] of Object.entries(result.data)) {
+        Object.defineProperty(this, key, {
+          value,
+          writable: true,
+          enumerable: true,
+          configurable: true,
+        });
+      }
     }
   };
 }

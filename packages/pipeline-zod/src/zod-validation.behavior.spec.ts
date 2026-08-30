@@ -130,6 +130,29 @@ describe('ZodValidationBehavior', () => {
 
       expect(reqObj).toEqual({ username: 'ALICE' });
     });
+
+    it('applies an own __proto__ key without changing the request prototype', async () => {
+      const protoSchema = z
+        .object({})
+        .transform(() =>
+          JSON.parse('{"__proto__":{"admin":true}}'),
+        );
+      const reqType = makeRequestType(protoSchema);
+      const reqObj = JSON.parse('{"__proto__":{"admin":true}}') as Record<
+        string,
+        unknown
+      >;
+      const originalPrototype = Object.getPrototypeOf(reqObj);
+
+      await behavior.handle(
+        createMockContext({ request: reqObj, requestType: reqType }),
+        vi.fn().mockResolvedValue('ok'),
+      );
+
+      expect(Object.getPrototypeOf(reqObj)).toBe(originalPrototype);
+      expect(Object.hasOwn(reqObj, '__proto__')).toBe(true);
+      expect(Reflect.get(reqObj, '__proto__')).toEqual({ admin: true });
+    });
   });
 
   describe('when ZOD_SCHEMA is attached and the request is invalid', () => {

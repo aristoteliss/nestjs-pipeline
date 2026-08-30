@@ -37,7 +37,7 @@ import { buildDeadLetterRecord } from './helpers/build-record';
 import type { DeadLetterBehaviorOptions } from './interfaces/dead-letter-options.interface';
 import type { DeadLetterTransport } from './interfaces/dead-letter-transport.interface';
 
-/** Item key set after a dead-letter capture is attempted, even if transport delivery fails. */
+/** Item key set to whether the selected dead-letter transport delivery succeeded. */
 export const DEAD_LETTER_ITEM = 'dead-letter.captured';
 
 /**
@@ -98,15 +98,16 @@ export class DeadLetterBehavior implements IPipelineBehavior {
     } catch (error) {
       const options = this.resolveOptions(context);
       const shouldCapture = this.shouldCapture(context, options);
+      let captured = false;
 
       if (shouldCapture) {
-        await this.capture(context, error, options);
-        context.items.set(DEAD_LETTER_ITEM, true);
+        captured = await this.capture(context, error, options);
+        context.items.set(DEAD_LETTER_ITEM, captured);
       }
 
       // Excluding a request kind means this behavior is inactive for that
       // failure; it must not silently swallow an error it did not capture.
-      if ((options.rethrow ?? true) || !shouldCapture) throw error;
+      if ((options.rethrow ?? true) || !shouldCapture || !captured) throw error;
 
       this.logger.warn?.(
         `Dead-lettered and swallowed ${context.requestName} ` +
@@ -117,12 +118,12 @@ export class DeadLetterBehavior implements IPipelineBehavior {
     }
   }
 
-  /** Forwards the failed request to the transport, never masking the original error. */
+  /** Forwards the failed request and reports whether transport delivery succeeded. */
   private async capture(
     context: IPipelineContext,
     error: unknown,
     options: DeadLetterBehaviorOptions,
-  ): Promise<void> {
+  ): Promise<boolean> {
     try {
       const record = buildDeadLetterRecord(context, error, options);
       await this.transport.send(record);
@@ -131,6 +132,7 @@ export class DeadLetterBehavior implements IPipelineBehavior {
           `(correlationId: ${context.correlationId})`,
         DeadLetterBehavior.name,
       );
+      return true;
     } catch (transportError) {
       // The sink failing must never hide the real handler error: log and move on.
       this.logger.error?.(
@@ -138,6 +140,7 @@ export class DeadLetterBehavior implements IPipelineBehavior {
           `${transportError instanceof Error ? transportError.message : transportError}`,
         DeadLetterBehavior.name,
       );
+      return false;
     }
   }
 

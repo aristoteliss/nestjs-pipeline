@@ -16,15 +16,21 @@
  * ----------------------------
  */
 
-export * from './behaviors/logging.behavior';
-export { pipelineStore } from './constants/pipeline-context.constants';
-export * from './decorators';
-export { isUuidV7, uuidv7 } from './helpers/uuidv7';
-export * from './interfaces/pipeline.behavior.interface';
-export * from './interfaces/pipeline.context.interface';
-export * from './interfaces/pipeline-handler-meta.interface';
-export * from './options';
-export * from './pipeline.context';
-export * from './pipeline.module';
-export * from './services/pipeline.bootstrap.service';
-export { untyped } from './types/safe-typing';
+import { BadRequestException } from '@nestjs/common';
+
+export const DEFAULT_TENANT_SCHEMA = 'tenant';
+const SCHEMA_NAME_REGEX = /^[a-zA-Z_][a-zA-Z0-9_]*$/;
+
+/** Returns a normalized, syntactically safe tenant schema name. */
+export function normalizeSchemaName(value?: string | null): string {
+  const candidate = (value ?? '').trim();
+  if (!candidate) {
+    return process.env.DB_DEFAULT_SCHEMA ?? DEFAULT_TENANT_SCHEMA;
+  }
+
+  if (!SCHEMA_NAME_REGEX.test(candidate)) {
+    throw new BadRequestException(`Invalid schema name: ${candidate}`);
+  }
+
+  return candidate;
+}
