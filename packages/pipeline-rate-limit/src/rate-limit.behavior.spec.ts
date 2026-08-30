@@ -130,6 +130,20 @@ describe('RateLimitBehavior', () => {
     expect(consume).toHaveBeenCalledWith('api:CreateUserCommand:10.0.0.1', 5);
   });
 
+  it.each([0, -1, 1.5, Number.MAX_SAFE_INTEGER + 1])(
+    'rejects invalid point cost %s before consuming',
+    async (points) => {
+      const behavior = new RateLimitBehavior(limiter);
+      const next = vi.fn();
+
+      await expect(
+        behavior.handle(withOptions(makeCtx(), { points }), next),
+      ).rejects.toThrow('positive safe integer');
+      expect(consume).not.toHaveBeenCalled();
+      expect(next).not.toHaveBeenCalled();
+    },
+  );
+
   it('throws RateLimitExceededError when the limiter rejects with a result', async () => {
     consume.mockRejectedValue(
       okRes({ msBeforeNext: 2500, remainingPoints: 0 }),

@@ -185,7 +185,15 @@ export class Migration20260830000000 extends Migration {
     }
 
     const capabilities: ReadonlyArray<
-      readonly [string, string, string, string | null, boolean, string | null, string | null]
+      readonly [
+        string,
+        string,
+        string,
+        string | null,
+        boolean,
+        string | null,
+        string | null,
+      ]
     > = [
       [IDS.capabilities.allManage, 'all', 'manage', null, false, null, null],
       [IDS.capabilities.userRead, 'User', 'read', null, false, null, null],
@@ -274,7 +282,15 @@ export class Migration20260830000000 extends Migration {
         null,
       ],
     ];
-    for (const [id, subject, action, conditions, inverted, reason, fields] of capabilities) {
+    for (const [
+      id,
+      subject,
+      action,
+      conditions,
+      inverted,
+      reason,
+      fields,
+    ] of capabilities) {
       this.addSql(
         `insert into capabilities (id, action, subject, conditions, inverted, reason, fields, created_at, updated_at) values (` +
           `'${id}', '${action}', '${subject}', ${sqlString(conditions)}, ${inverted ? 'true' : 'false'}, ${sqlString(reason)}, ${sqlString(fields)}, ${now}, ${now});`,

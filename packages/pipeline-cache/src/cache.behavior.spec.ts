@@ -96,6 +96,120 @@ describe('CacheBehavior', () => {
     expect(next).toHaveBeenCalledTimes(1);
   });
 
+  it('fails open on a cache read error by default', async () => {
+    const storeError = new Error('redis unavailable');
+    const get = vi.fn().mockRejectedValue(storeError);
+    const set = vi.fn();
+    const logger = { warn: vi.fn(), error: vi.fn() };
+    const cacheBehavior = new CacheBehavior(
+      { get, set } as unknown as Cache,
+      undefined,
+      logger as never,
+    );
+    const context = makeCtx();
+    const next = vi.fn().mockResolvedValue('database result');
+
+    await expect(cacheBehavior.handle(context, next)).resolves.toBe(
+      'database result',
+    );
+    expect(context.items.get(CACHE_HIT_ITEM)).toBe(false);
+    expect(next).toHaveBeenCalledOnce();
+    expect(set).not.toHaveBeenCalled();
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining('Cache read error'),
+      CacheBehavior.name,
+    );
+    expect(logger.error).not.toHaveBeenCalled();
+  });
+
+  it('fails open on a cache write error by default', async () => {
+    const storeError = new Error('redis unavailable');
+    const logger = { warn: vi.fn(), error: vi.fn() };
+    const cacheBehavior = new CacheBehavior(
+      {
+        get: vi.fn().mockResolvedValue(undefined),
+        set: vi.fn().mockRejectedValue(storeError),
+      } as unknown as Cache,
+      undefined,
+      logger as never,
+    );
+    const next = vi.fn().mockResolvedValue('database result');
+
+    await expect(cacheBehavior.handle(makeCtx(), next)).resolves.toBe(
+      'database result',
+    );
+    expect(next).toHaveBeenCalledOnce();
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining('Cache write error'),
+      CacheBehavior.name,
+    );
+    expect(logger.error).not.toHaveBeenCalled();
+  });
+
+  it('fails closed on a cache read error when configured', async () => {
+    const storeError = new Error('redis unavailable');
+    const logger = { warn: vi.fn(), error: vi.fn() };
+    const cacheBehavior = new CacheBehavior(
+      { get: vi.fn().mockRejectedValue(storeError) } as unknown as Cache,
+      undefined,
+      logger as never,
+    );
+    const next = vi.fn();
+
+    await expect(
+      cacheBehavior.handle(makeCtx({ failOpen: false }), next),
+    ).rejects.toBe(storeError);
+    expect(next).not.toHaveBeenCalled();
+    expect(logger.error).toHaveBeenCalledWith(
+      expect.stringContaining('Cache read error'),
+      CacheBehavior.name,
+    );
+    expect(logger.warn).not.toHaveBeenCalled();
+  });
+
+  it('fails closed after a cache write error when configured', async () => {
+    const storeError = new Error('redis unavailable');
+    const logger = { warn: vi.fn(), error: vi.fn() };
+    const cacheBehavior = new CacheBehavior(
+      {
+        get: vi.fn().mockResolvedValue(undefined),
+        set: vi.fn().mockRejectedValue(storeError),
+      } as unknown as Cache,
+      undefined,
+      logger as never,
+    );
+    const next = vi.fn().mockResolvedValue('database result');
+
+    await expect(
+      cacheBehavior.handle(makeCtx({ failOpen: false }), next),
+    ).rejects.toBe(storeError);
+    expect(next).toHaveBeenCalledOnce();
+    expect(logger.error).toHaveBeenCalledWith(
+      expect.stringContaining('Cache write error'),
+      CacheBehavior.name,
+    );
+    expect(logger.warn).not.toHaveBeenCalled();
+  });
+
+  it('never treats a downstream handler error as a cache-store error', async () => {
+    const handlerError = new Error('database failed');
+    const logger = { warn: vi.fn(), error: vi.fn() };
+    const cacheBehavior = new CacheBehavior(
+      {
+        get: vi.fn().mockResolvedValue(undefined),
+        set: vi.fn(),
+      } as unknown as Cache,
+      undefined,
+      logger as never,
+    );
+
+    await expect(
+      cacheBehavior.handle(makeCtx(), vi.fn().mockRejectedValue(handlerError)),
+    ).rejects.toBe(handlerError);
+    expect(logger.warn).not.toHaveBeenCalled();
+    expect(logger.error).not.toHaveBeenCalled();
+  });
+
   it('records hit / miss and the resolved key on the context items', async () => {
     const next = vi.fn().mockResolvedValue('value');
 

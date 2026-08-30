@@ -196,6 +196,27 @@ describe('AuthSessionInterceptor JWT verification', () => {
     expect(next.handle).not.toHaveBeenCalled();
   });
 
+  it('rejects a validly signed token with a malformed capability claim', async () => {
+    process.env.JWT_SECRET = 'malformed-capability-secret';
+    const token = await new SignJWT({
+      tenant: TenantSchemaContext.currentSchema,
+      roles: [],
+      additionalCapabilities: ['not-a-compact-capability'],
+    })
+      .setProtectedHeader({ alg: 'HS256' })
+      .setSubject('user-with-bad-capability')
+      .setExpirationTime('1h')
+      .sign(new TextEncoder().encode(process.env.JWT_SECRET));
+    const { executionContext, next } = makeRequest(token, false);
+
+    await expect(
+      lastValueFrom(
+        new AuthSessionInterceptor().intercept(executionContext, next),
+      ),
+    ).rejects.toThrow('Invalid or expired token');
+    expect(next.handle).not.toHaveBeenCalled();
+  });
+
   it('authenticates a tenant-bound API key without an Express session', async () => {
     process.env.API_CLIENTS = JSON.stringify([
       {
@@ -218,5 +239,32 @@ describe('AuthSessionInterceptor JWT verification', () => {
       ),
     ).resolves.toBe('ok');
     expect(next.handle).toHaveBeenCalledOnce();
+  });
+
+  it('rejects API-client configuration with malformed capabilities', async () => {
+    process.env.API_CLIENTS = JSON.stringify([
+      {
+        id: 'client-1',
+        key: 'secret-1',
+        tenant: TenantSchemaContext.currentSchema,
+        capabilities: {
+          additionalCapabilities: ['not-a-compact-capability'],
+        },
+      },
+    ]);
+    const request = {
+      headers: { 'x-api-id': 'client-1', 'x-api-key': 'secret-1' },
+    };
+    const executionContext = {
+      switchToHttp: () => ({ getRequest: () => request }),
+    } as unknown as ExecutionContext;
+    const next: CallHandler = { handle: vi.fn(() => of('ok')) };
+
+    await expect(
+      lastValueFrom(
+        new AuthSessionInterceptor().intercept(executionContext, next),
+      ),
+    ).rejects.toThrow('Invalid API credentials');
+    expect(next.handle).not.toHaveBeenCalled();
   });
 });

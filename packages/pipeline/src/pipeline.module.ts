@@ -30,7 +30,6 @@ import { PipelineBootstrapService } from './services/pipeline.bootstrap.service'
 export {
   GlobalBehaviorScope,
   GlobalBehaviorsOptions,
-  PIPELINE_MODULE_OPTIONS,
   PipelineModuleOptions,
 } from './options';
 

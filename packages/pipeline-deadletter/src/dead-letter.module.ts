@@ -64,7 +64,7 @@ import type {
  * ```ts
  * DeadLetterModule.forRootAsync({
  *   inject: [AMQP_CHANNEL],
- *   useFactory: (channel: Channel) =>
+ *   useFactory: (channel: ConfirmChannel) =>
  *     new RabbitMqDeadLetterTransport(channel, { routingKey: 'dead-letters' }),
  * });
  * ```

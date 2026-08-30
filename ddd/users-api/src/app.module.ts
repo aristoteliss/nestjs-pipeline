@@ -151,7 +151,7 @@ import { UsersModule } from './users/users.module';
      * but swapping to RabbitMQ or Postgres is a one-line change here — handler
      * code never changes:
      *
-     *   useFactory: (channel) => new RabbitMqDeadLetterTransport(channel)
+     *   useFactory: (confirmChannel) => new RabbitMqDeadLetterTransport(confirmChannel)
      *   useFactory: (pool) => new PostgresDeadLetterTransport(pool)
      *
      * Inspect queued dead-letter records with Bull Board or queue.getJobs().

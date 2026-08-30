@@ -158,7 +158,7 @@ module-wide `defaults` (handler wins):
 
 | Option | Type | Default | Description |
 |---|---|---|---|
-| `points` | `number` | `1` | Cost of this request. |
+| `points` | `number` | `1` | Positive safe-integer cost of this request. |
 | `keyFactory` | `(ctx) => string` | `ctx.requestName` | Builds the bucket key from CQRS request/context data. |
 | `keyPrefix` | `string` | — | Prepended as `"<prefix>:<key>"`. |
 | `limiter` | `RateLimiterLike` | injected | Per-handler limiter override (stricter/looser policy). |

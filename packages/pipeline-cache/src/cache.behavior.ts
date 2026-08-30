@@ -56,6 +56,9 @@ const DEFAULT_KINDS: Array<IPipelineContext['requestKind']> = ['query'];
  * Cache hits return the value from the single explicit lookup. This behavior
  * intentionally does not use `cache-manager.wrap()` because its background
  * refresh callback would re-enter every downstream pipeline behavior.
+ * Store errors fail open by default: read failures bypass caching for that
+ * execution, and write failures return the successful handler result. Set
+ * `failOpen: false` to propagate store failures instead.
  */
 @Injectable()
 export class CacheBehavior implements IPipelineBehavior {
@@ -95,7 +98,14 @@ export class CacheBehavior implements IPipelineBehavior {
     const key = (options.key ?? defaultCacheKey)(context);
     context.items.set(CACHE_KEY_ITEM, key);
 
-    const cached = await this.cache.get(key);
+    let cached: unknown;
+    try {
+      cached = await this.cache.get(key);
+    } catch (error) {
+      this.handleStoreError('read', context, key, error, options);
+      context.items.set(CACHE_HIT_ITEM, false);
+      return next();
+    }
     if (cached !== undefined && cached !== null) {
       context.items.set(CACHE_HIT_ITEM, true);
       this.logger.debug?.(
@@ -113,10 +123,41 @@ export class CacheBehavior implements IPipelineBehavior {
 
     const result = await next();
     if (result !== undefined && result !== null) {
-      await this.cache.set(key, result, options.ttl);
+      try {
+        await this.cache.set(key, result, options.ttl);
+      } catch (error) {
+        this.handleStoreError('write', context, key, error, options);
+      }
     }
 
     return result;
+  }
+
+  /** Logs a store failure and either bypasses it or propagates it. */
+  private handleStoreError(
+    operation: 'read' | 'write',
+    context: IPipelineContext,
+    key: string,
+    error: unknown,
+    options: CacheBehaviorOptions,
+  ): void {
+    const message = error instanceof Error ? error.message : String(error);
+
+    if (options.failOpen ?? true) {
+      this.logger.warn?.(
+        `Cache ${operation} error for ${context.requestName} ` +
+          `(key: ${key}); failing open: ${message}`,
+        CacheBehavior.name,
+      );
+      return;
+    }
+
+    this.logger.error?.(
+      `Cache ${operation} error for ${context.requestName} ` +
+        `(key: ${key}); failing closed: ${message}`,
+      CacheBehavior.name,
+    );
+    throw error;
   }
 
   /** Shallow-merges per-handler options over the application defaults. */

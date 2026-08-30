@@ -61,9 +61,21 @@ describe('BullMqDeadLetterTransport', () => {
 });
 
 describe('RabbitMqDeadLetterTransport', () => {
+  it('rejects a normal channel before publishing anything', () => {
+    const publish = vi.fn().mockReturnValue(true);
+
+    expect(() => new RabbitMqDeadLetterTransport({ publish } as never)).toThrow(
+      'requires an amqplib ConfirmChannel',
+    );
+    expect(publish).not.toHaveBeenCalled();
+  });
+
   it('publishes a persistent JSON message with sane defaults', async () => {
     const publish = vi.fn().mockReturnValue(true);
-    await new RabbitMqDeadLetterTransport({ publish }).send(record);
+    const waitForConfirms = vi.fn().mockResolvedValue(undefined);
+    await new RabbitMqDeadLetterTransport({ publish, waitForConfirms }).send(
+      record,
+    );
 
     const [exchange, routingKey, content, options] = publish.mock.calls[0];
     expect(exchange).toBe('');
@@ -74,18 +86,53 @@ describe('RabbitMqDeadLetterTransport', () => {
       contentType: 'application/json',
       correlationId: 'corr-1',
     });
+    expect(waitForConfirms).toHaveBeenCalledOnce();
   });
 
   it('routes to a custom exchange/routingKey', async () => {
     const publish = vi.fn().mockReturnValue(true);
+    const waitForConfirms = vi.fn().mockResolvedValue(undefined);
     await new RabbitMqDeadLetterTransport(
-      { publish },
+      { publish, waitForConfirms },
       { exchange: 'dlx', routingKey: 'failed' },
     ).send(record);
 
     const [exchange, routingKey] = publish.mock.calls[0];
     expect(exchange).toBe('dlx');
     expect(routingKey).toBe('failed');
+  });
+
+  it('does not report success until the broker confirms the publish', async () => {
+    let confirm: (() => void) | undefined;
+    const waitForConfirms = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          confirm = resolve;
+        }),
+    );
+    const pending = new RabbitMqDeadLetterTransport({
+      publish: vi.fn().mockReturnValue(true),
+      waitForConfirms,
+    }).send(record);
+    let settled = false;
+    void pending.finally(() => {
+      settled = true;
+    });
+
+    await Promise.resolve();
+    expect(settled).toBe(false);
+    confirm?.();
+    await expect(pending).resolves.toBeUndefined();
+  });
+
+  it('rejects when the broker nacks the publish', async () => {
+    const nack = new Error('message nacked');
+    const pending = new RabbitMqDeadLetterTransport({
+      publish: vi.fn().mockReturnValue(true),
+      waitForConfirms: vi.fn().mockRejectedValue(nack),
+    }).send(record);
+
+    await expect(pending).rejects.toBe(nack);
   });
 
   it('waits for drain when publish reports backpressure', async () => {
@@ -95,6 +142,7 @@ describe('RabbitMqDeadLetterTransport', () => {
     const removeListener = vi.fn(events.removeListener.bind(events));
     const pending = new RabbitMqDeadLetterTransport({
       publish,
+      waitForConfirms: vi.fn().mockResolvedValue(undefined),
       once,
       removeListener,
     }).send(record);
@@ -110,6 +158,7 @@ describe('RabbitMqDeadLetterTransport', () => {
     const events = new EventEmitter();
     const pending = new RabbitMqDeadLetterTransport({
       publish: vi.fn().mockReturnValue(false),
+      waitForConfirms: vi.fn().mockResolvedValue(undefined),
       once: events.once.bind(events),
       removeListener: events.removeListener.bind(events),
     }).send(record);
@@ -125,6 +174,7 @@ describe('RabbitMqDeadLetterTransport', () => {
     const failure = new Error('channel failed');
     const pending = new RabbitMqDeadLetterTransport({
       publish: vi.fn().mockReturnValue(false),
+      waitForConfirms: vi.fn().mockResolvedValue(undefined),
       once: events.once.bind(events),
       removeListener: events.removeListener.bind(events),
     }).send(record);

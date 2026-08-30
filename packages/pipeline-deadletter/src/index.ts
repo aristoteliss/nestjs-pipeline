@@ -50,7 +50,7 @@ export {
   type PostgresQueryableLike,
 } from './transports/postgres.transport';
 export {
-  type RabbitMqChannelLike,
+  type RabbitMqConfirmChannelLike,
   RabbitMqDeadLetterTransport,
   type RabbitMqDeadLetterTransportOptions,
 } from './transports/rabbitmq.transport';

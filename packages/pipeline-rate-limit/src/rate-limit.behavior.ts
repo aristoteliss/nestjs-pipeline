@@ -112,6 +112,9 @@ export class RateLimitBehavior implements IPipelineBehavior {
     const limiter = options.limiter ?? this.limiter;
     const key = buildRateLimitKey(context, options);
     const points = options.points ?? 1;
+    if (!Number.isSafeInteger(points) || points <= 0) {
+      throw new TypeError('Rate-limit points must be a positive safe integer.');
+    }
 
     context.items.set(RATE_LIMIT_KEY_ITEM, key);
 

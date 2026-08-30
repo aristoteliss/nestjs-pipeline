@@ -134,9 +134,7 @@ describe('ZodValidationBehavior', () => {
     it('applies an own __proto__ key without changing the request prototype', async () => {
       const protoSchema = z
         .object({})
-        .transform(() =>
-          JSON.parse('{"__proto__":{"admin":true}}'),
-        );
+        .transform(() => JSON.parse('{"__proto__":{"admin":true}}'));
       const reqType = makeRequestType(protoSchema);
       const reqObj = JSON.parse('{"__proto__":{"admin":true}}') as Record<
         string,

@@ -211,6 +211,21 @@ that lookup directly. `CacheBehavior` does not use `cache-manager.wrap()` or
 background refresh because a refresh callback would re-run every behavior and
 side effect nested after the cache behavior.
 
+### Store errors
+
+`CacheBehavior` owns a consistent failure policy independently of the injected
+`cache-manager` or custom cache implementation. By default, `failOpen: true`:
+
+- a thrown cache read is logged, recorded as `cache.hit = false`, and bypasses
+  both the cache lookup and write for that execution;
+- a thrown cache write is logged and the successful handler result is returned.
+
+Set `failOpen: false` to log and propagate either store error. This strict mode
+can turn a successful downstream handler execution into a rejected request when
+the subsequent cache write fails, so it is best suited to cases where cache
+availability is part of the operation's contract. Errors from the condition,
+key factory, or downstream handler are always propagated unchanged.
+
 ### Cache keys
 
 The default key is `` `${requestName}:${stableStringify(request)}` ``, where
@@ -272,6 +287,7 @@ Exported as `CACHE_HIT_ITEM` and `CACHE_KEY_ITEM`.
 | `ttl` | `number` | module `ttl` | TTL (ms) for entries written by this handler. |
 | `key` | `(context) => string` | `requestName:stableStringify(request)` | Custom cache-key factory. |
 | `condition` | `(context) => boolean` | _always_ | Gate whether a request is cached. |
+| `failOpen` | `boolean` | `true` | Log and bypass thrown cache read/write errors; set `false` to propagate them. |
 
 `CacheStoreConfig` (declarative store):
 
@@ -287,7 +303,7 @@ Exported as `CACHE_HIT_ITEM` and `CACHE_KEY_ITEM`.
 
 ## Custom Logger
 
-`CacheBehavior` emits `debug` cache hit/miss lines through the logger injected with `LOGGING_BEHAVIOR_LOGGER`, falling back to a standard NestJS `Logger` when that token is not bound. `CacheModule.forRoot` uses its own static NestJS `Logger` for the startup store-initialization message.
+`CacheBehavior` emits `debug` cache hit/miss lines and `warn`/`error` store-failure lines through the logger injected with `LOGGING_BEHAVIOR_LOGGER`, falling back to a standard NestJS `Logger` when that token is not bound. `CacheModule.forRoot` uses its own static NestJS `Logger` for the startup store-initialization message.
 
 ---
 

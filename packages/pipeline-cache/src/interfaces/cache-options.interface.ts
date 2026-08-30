@@ -84,6 +84,13 @@ export interface CacheBehaviorOptions {
   key?: CacheKeyFactory;
   /** Optional predicate gating whether a given request is cached. */
   condition?: CacheCondition;
+  /**
+   * When a cache read or write throws, bypass the cache and continue (`true`,
+   * default) or propagate the store error (`false`). A failed read bypasses the
+   * write for that execution. This option does not catch key, condition, or
+   * downstream handler errors.
+   */
+  failOpen?: boolean;
 }
 
 /**

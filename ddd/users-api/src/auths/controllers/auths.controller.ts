@@ -60,9 +60,9 @@ export class AuthsController {
   }
 
   /**
-   * Clears the current Fastify secure-session cookie, when present, and records
-   * logout. Under Express there is no server session to delete; clients discard
-   * their bearer token.
+   * Clears the current Fastify secure-session cookie when present. Under
+   * Express there is no server session to delete; clients discard their bearer
+   * token.
    */
   @Post('logout')
   @HttpCode(204)

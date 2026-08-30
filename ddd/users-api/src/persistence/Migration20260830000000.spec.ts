@@ -57,7 +57,9 @@ describe('Migration20260830000000', () => {
     expect(sql.match(/insert into users /g)).toHaveLength(8);
     expect(sql.match(/insert into roles /g)).toHaveLength(5);
     expect(sql.match(/insert into capabilities /g)).toHaveLength(14);
-    expect(sql.match(/insert into user_additional_capabilities /g)).toHaveLength(1);
+    expect(
+      sql.match(/insert into user_additional_capabilities /g),
+    ).toHaveLength(1);
     expect(sql.match(/insert into user_denied_capabilities /g)).toHaveLength(1);
     expect(sql).toContain('vince+tenant-acme@seed.local');
     expect(sql).toContain('grace+tenant-acme@seed.local');

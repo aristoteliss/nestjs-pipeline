@@ -30,7 +30,7 @@ import { ZodType } from 'zod';
 export class ZodPipe<TOutput, TInput = unknown>
   implements PipeTransform<TInput, Promise<TOutput>>
 {
-  constructor(private readonly schema: ZodType<TOutput>) {}
+  constructor(private readonly schema: ZodType<TOutput, TInput>) {}
 
   async transform(value: TInput): Promise<TOutput> {
     const result = await this.schema.safeParseAsync(value);

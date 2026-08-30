@@ -770,7 +770,6 @@ orderCreated = (events$: Observable<any>): Observable<ICommand> =>
 | `PipelineModuleOptions` | Interface | Options for `PipelineModule.forRoot()` |
 | `GlobalBehaviorsOptions` | Interface | Global behavior configuration |
 | `GlobalBehaviorScope` | Type | `'commands' \| 'queries' \| 'events' \| 'all'` |
-| `PIPELINE_MODULE_OPTIONS` | Symbol | DI token for module options |
 | `PipelineBootstrapService` | Class | Scans and wraps handlers at bootstrap |
 | `PipelineHandlerMeta` | Interface | Pre-computed handler metadata |
 | `PIPELINE_BEHAVIOR_ID` | Symbol | Custom deduplication key for behaviors |

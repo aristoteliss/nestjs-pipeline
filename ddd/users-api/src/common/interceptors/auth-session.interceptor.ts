@@ -30,6 +30,7 @@ import {
 import {
   type Capability,
   type CapabilityString,
+  normalizeCapability,
   serializeCapability,
   type UserCapabilities,
 } from '@nestjs-pipeline/casl';
@@ -201,7 +202,7 @@ export class AuthSessionInterceptor implements NestInterceptor {
         }
       } catch (_e: unknown) {
         this.logger.warn(
-          'API_CLIENTS is set but is not valid JSON; API-client authentication is disabled.',
+          'API_CLIENTS contains invalid JSON or malformed credentials/capabilities; API-client authentication is disabled.',
         );
       }
     }
@@ -359,13 +360,16 @@ export class AuthSessionInterceptor implements NestInterceptor {
 
     const compact = input
       .map((cap) => {
-        if (typeof cap === 'string') return cap;
-        if (cap && typeof cap === 'object') {
-          return serializeCapability(cap as Capability);
+        if (typeof cap === 'string' || (cap && typeof cap === 'object')) {
+          return serializeCapability(
+            normalizeCapability(cap as Capability | CapabilityString),
+          );
         }
-        return undefined;
+        throw new TypeError(
+          'Capabilities must be compact strings or capability objects.',
+        );
       })
-      .filter((cap): cap is string => typeof cap === 'string');
+      .filter((cap): cap is CapabilityString => typeof cap === 'string');
 
     return compact.length > 0 ? compact : undefined;
   }
