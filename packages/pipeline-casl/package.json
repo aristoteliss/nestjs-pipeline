@@ -36,8 +36,8 @@
     "prepublishOnly": "pnpm run build"
   },
   "peerDependencies": {
-    "@casl/ability": "^6.0.0",
-    "@nestjs-pipeline/core": "*",
+    "@casl/ability": "^7.0.0",
+    "@nestjs-pipeline/core": "^0.1.19",
     "@nestjs/common": "^10.0.0 || ^11.0.0",
     "reflect-metadata": "^0.1.13 || ^0.2.0"
   },

@@ -31,14 +31,15 @@ import { WELCOME_EMAIL_QUEUE } from '../src/users/jobs/send-welcome-email.proces
 import { bootstrapE2E, type E2EContext } from './support/e2e-app';
 
 /**
- * Exhaustive end-to-end test suite for all @nestjs-pipeline/* packages:
+ * End-to-end coverage for the users-api HTTP/CQRS composition:
  * - @nestjs-pipeline/casl (RBAC, ABAC, dual rules, field-level, inverted rules, DB capabilities)
  * - @nestjs-pipeline/correlation (Header reflection, AsyncLocalStorage propagation into CQRS events & BullMQ jobs)
  * - @nestjs-pipeline/idempotency (Replay, key reuse conflict, independent keys)
  * - @nestjs-pipeline/rate-limit (Throttling, 429 status, retry-after headers)
- * - @nestjs-pipeline/cache (Query caching in Redis)
- * - @nestjs-pipeline/audit & resilience (Audit logging & resilience policy on delete)
- * - @nestjs-pipeline/deadletter & BullMQ (Event handling & job enqueuing)
+ * - DDD repository read-through caching (response consistency)
+ * - Delete flows decorated with audit/resilience (HTTP outcomes only; package
+ *   effects are covered by their focused integration/unit suites)
+ * - BullMQ event job enqueuing (not dead-letter failure capture)
  * - @nestjs-pipeline/zod (Boundary & DTO schema validation)
  */
 describe('pipeline-packages (e2e)', () => {
@@ -466,7 +467,7 @@ describe('pipeline-packages (e2e)', () => {
     });
   });
 
-  describe('@nestjs-pipeline/deadletter & BullMQ Event Queueing', () => {
+  describe('BullMQ event job queueing', () => {
     it('enqueues welcome-email job with stamped correlationId on UserCreatedEvent', async () => {
       const welcomeEmailQueue = ctx.app.get<Queue>(
         getQueueToken(WELCOME_EMAIL_QUEUE),
@@ -541,8 +542,8 @@ describe('pipeline-packages (e2e)', () => {
     });
   });
 
-  describe('@nestjs-pipeline/audit & resilience (DeleteUserHandler)', () => {
-    it('executes delete with resilience policy and audit logging', async () => {
+  describe('DeleteUserHandler HTTP flow', () => {
+    it('deletes a user and removes it from subsequent lists', async () => {
       const email = newEmail();
       const created = await as(admin)
         .post('/users')
@@ -614,8 +615,8 @@ describe('pipeline-packages (e2e)', () => {
     });
   });
 
-  describe('@nestjs-pipeline/cache (Role Queries Caching)', () => {
-    it('caches get-role and get-roles query responses in Redis', async () => {
+  describe('role repository query consistency', () => {
+    it('returns consistent repeated get-role and get-roles responses', async () => {
       const roleName = `cached-role-${Date.now()}`;
       const created = await as(admin).post('/roles').send({ name: roleName });
       expect(created.status).toBe(201);
@@ -642,8 +643,8 @@ describe('pipeline-packages (e2e)', () => {
     });
   });
 
-  describe('@nestjs-pipeline/audit & resilience (DeleteRoleHandler)', () => {
-    it('executes role deletion with resilience policy and audit logging', async () => {
+  describe('DeleteRoleHandler HTTP flow', () => {
+    it('deletes a role and returns 404 afterward', async () => {
       const roleName = `audit-delete-role-${Date.now()}`;
       const created = await as(admin).post('/roles').send({ name: roleName });
       expect(created.status).toBe(201);

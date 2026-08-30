@@ -131,7 +131,7 @@ export class ZodValidationBehavior implements IPipelineBehavior {
       }
 
       for (const key of Object.keys(context.request)) {
-        if (!(key in result.data)) {
+        if (Object.getOwnPropertyDescriptor(result.data, key) === undefined) {
           delete (context.request as unknown as Record<string, unknown>)[key];
         }
       }

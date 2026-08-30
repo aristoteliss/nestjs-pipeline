@@ -216,6 +216,11 @@ import { PipelineModule } from '@nestjs-pipeline/core';
 export class AppModule {}
 ```
 
+Keep `CaslBehavior` in global `before` as shown. Authorization must run outside
+cache/idempotency behaviors that may return a stored response without invoking
+the rest of the chain. Redeclaring `CaslBehavior` on a handler to supply rules
+overrides its options without moving it from this global position.
+
 `subjectContextPaths` is explicit and required at module registration. CASL does
 not assume a built-in request path such as `sessionUser`.
 

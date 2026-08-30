@@ -51,7 +51,7 @@
     "@keyv/postgres": "^2.0.0",
     "@keyv/redis": "^4.0.0 || ^5.0.0",
     "@keyv/sqlite": "^4.0.0",
-    "@nestjs-pipeline/core": "*",
+    "@nestjs-pipeline/core": "^0.1.19",
     "@nestjs/common": "^10.0.0 || ^11.0.0",
     "cache-manager": "^7.0.0",
     "keyv": "^5.0.0",
@@ -72,6 +72,7 @@
     }
   },
   "devDependencies": {
+    "@nestjs-pipeline/core": "workspace:*",
     "@nestjs/common": "^11.2.1",
     "@vitest/coverage-v8": "^4.1.11",
     "cache-manager": "^7.2.8",

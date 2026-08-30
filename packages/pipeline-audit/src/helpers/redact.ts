@@ -112,13 +112,14 @@ function redact(
       return value.map((item) => redact(item, blocked, ancestors));
     }
 
-    const out: Record<string, unknown> = {};
-    for (const [key, val] of Object.entries(value as Record<string, unknown>)) {
-      out[key] = blocked.has(key.toLowerCase())
-        ? REDACTED
-        : redact(val, blocked, ancestors);
-    }
-    return out;
+    return Object.fromEntries(
+      Object.entries(value as Record<string, unknown>).map(([key, val]) => [
+        key,
+        blocked.has(key.toLowerCase())
+          ? REDACTED
+          : redact(val, blocked, ancestors),
+      ]),
+    );
   } finally {
     ancestors.delete(value);
   }

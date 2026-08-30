@@ -102,7 +102,7 @@ export type PipelineBehaviorEntry =
  * @example
  * ```ts
  * @CommandHandler(CreateUserCommand)
- * @UsePipeline(LoggingBehavior, [AuditBehavior, { title: 'User Created', message: '...' }])
+ * @UsePipeline(LoggingBehavior, [AuditBehavior, { action: 'user.create', severity: 'high' }])
  * export class CreateUserHandler implements ICommandHandler<CreateUserCommand> { ... }
  *
  * @EventsHandler(OrderCreatedEvent)

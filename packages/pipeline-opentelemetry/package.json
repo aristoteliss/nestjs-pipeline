@@ -36,7 +36,7 @@
     "prepublishOnly": "pnpm run build"
   },
   "peerDependencies": {
-    "@nestjs-pipeline/core": "*",
+    "@nestjs-pipeline/core": "^0.1.19",
     "@nestjs/common": "^10.0.0 || ^11.0.0",
     "@opentelemetry/api": "^1.9.0",
     "reflect-metadata": "^0.1.13 || ^0.2.0"

@@ -46,10 +46,10 @@ export interface DeadLetterBehaviorOptions {
   /**
    * Whether to re-throw the original error after dead-lettering.
    *
-   * - `true` (default) — capture **and** propagate; the caller still sees the
+   * - `true` (default) — propagate after the capture decision; the caller sees the
    *   failure (HTTP 5xx, command rejection, …). Use for commands/queries.
-   * - `false` — capture and **swallow**; the pipeline resolves to `undefined`.
-   *   Use for fire-and-forget event handlers that must not crash on failure.
+   * - `false` — swallow only when this request kind is selected for capture;
+   *   the pipeline resolves to `undefined`. Use for fire-and-forget events.
    */
   rethrow?: boolean;
 

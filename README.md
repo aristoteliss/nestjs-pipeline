@@ -11,10 +11,10 @@ HTTP Request
 ```
 
 > **Same-class override:** if a handler's `@UsePipeline` declares the same
-> behavior class as a global `before`/`after` entry, the handler's entry replaces
-> the global one for that handler — the behavior runs **once**, using the
-> handler's options. This lets a handler tune (e.g.) `LoggingBehavior` without it
-> executing twice.
+> behavior class as a global `before`/`after` entry, the behavior runs **once at
+> its global chain position**, using the handler's options. Preserving position
+> keeps global security guards outside cache/idempotency behaviors that may
+> short-circuit without calling `next()`.
 
 The core package adds no runtime dependencies beyond NestJS itself. Add-on packages
 use their own declared integrations (Zod, OpenTelemetry, CASL, OpenFeature, etc.).
@@ -572,7 +572,9 @@ feature is imported, the registered behaviors are discoverable by
 
 ### Deduplication
 
-When both global and handler-level configurations include the same behavior class, the **handler-level entry wins** (including its options). Global duplicates are deduplicated automatically.
+When both global and handler-level configurations include the same behavior
+class, the handler's complete options record wins while the behavior retains
+its global chain position. Global duplicates are deduplicated automatically.
 
 ```typescript
 // Global config
@@ -591,10 +593,13 @@ PipelineModule.forRoot({
 export class CreateUserHandler { /* ... */ }
 
 // Effective chain for CreateUserHandler:
-//   [LoggingBehavior (handler opts)] → handler
-// NOT:
-//   [LoggingBehavior (global)] → [LoggingBehavior (handler)] → handler
+//   [LoggingBehavior at global-before position, using handler opts] → handler
 ```
+
+Configure mandatory authentication/authorization behaviors in global `before`.
+Core preserves that outer position even when a handler redeclares the behavior
+to provide rules or other options, preventing inner cache/idempotency hits from
+bypassing the guard.
 
 ---
 
@@ -878,9 +883,9 @@ PipelineModule.forRoot({
 ```
 
 When the same behavior has options at both global and handler level, the handler
-entry replaces the global behavior entry and its **whole options record** for
-that handler. The core combines behavior-option maps; it does not shallow-merge
-individual properties inside those two records.
+entry replaces its **whole options record** while the behavior retains its
+global chain position. The core does not shallow-merge individual properties
+inside those two records.
 
 ---
 
@@ -1291,25 +1296,42 @@ PostgreSQL selects a schema; libSQL selects the corresponding database.
 **CRUD operations:**
 
 ```bash
+# Log in as the seeded admin, then copy `token` from the JSON response.
+curl -X POST http://localhost:3000/auth/login \
+  -H 'Content-Type: application/json' \
+  -H 'x-tenant-schema: tenant' \
+  -d '{"email":"alice+tenant@seed.local","code":"secret-code"}'
+export TOKEN='<token from login response>'
+
 # Create a user
 curl -X POST http://localhost:3000/users \
   -H 'Content-Type: application/json' \
+  -H 'x-tenant-schema: tenant' \
+  -H "Authorization: Bearer $TOKEN" \
   -H 'x-correlation-id: demo-123' \
   -d '{"name": "Aristotelis", "email": "aristotelis@example.com"}'
 
 # Get all users
-curl http://localhost:3000/users
+curl http://localhost:3000/users \
+  -H 'x-tenant-schema: tenant' \
+  -H "Authorization: Bearer $TOKEN"
 
 # Get by ID
-curl http://localhost:3000/users/<id>
+curl http://localhost:3000/users/<id> \
+  -H 'x-tenant-schema: tenant' \
+  -H "Authorization: Bearer $TOKEN"
 
 # Update
 curl -X PATCH http://localhost:3000/users/<id> \
   -H 'Content-Type: application/json' \
+  -H 'x-tenant-schema: tenant' \
+  -H "Authorization: Bearer $TOKEN" \
   -d '{"name": "NewName"}'
 
 # Delete
-curl -X DELETE http://localhost:3000/users/<id>
+curl -X DELETE http://localhost:3000/users/<id> \
+  -H 'x-tenant-schema: tenant' \
+  -H "Authorization: Bearer $TOKEN"
 
 # Run with Fastify adapter
 ADAPTER=fastify pnpm start
@@ -1490,7 +1512,10 @@ pnpm clean
    ```json
    {
      "peerDependencies": {
-       "@nestjs-pipeline/core": "*"
+       "@nestjs-pipeline/core": "^0.1.19"
+     },
+     "devDependencies": {
+       "@nestjs-pipeline/core": "workspace:*"
      }
    }
    ```

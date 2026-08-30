@@ -205,7 +205,8 @@ For each request, `DeadLetterBehavior` runs the handler and, **only on failure**
    Because transport errors are swallowed, this flag indicates that the behavior
    attempted the dead-letter send; it does not prove that the transport persisted it.
 5. Re-throws the original handler error (`rethrow: true`, default) or resolves to
-   `undefined` (`rethrow: false`).
+   `undefined` when `rethrow: false` **and capture was selected**. An excluded
+   request kind is always re-thrown because no dead-letter attempt occurred.
 
 ---
 
@@ -216,7 +217,7 @@ over module-wide `defaults` (handler wins):
 
 | Option | Type | Default | Description |
 |---|---|---|---|
-| `rethrow` | `boolean` | `true` | Re-throw the handler error after the capture attempt. Set `false` for fire-and-forget events. |
+| `rethrow` | `boolean` | `true` | Re-throw after the capture decision. `false` swallows only selected/captured kinds. |
 | `includeStack` | `boolean` | `true` | Include the error stack in the record. |
 | `captureKinds` | `('command'\|'query'\|'event'\|'unknown')[]` | all | Restrict which request kinds are captured. |
 | `metadata` | `(ctx) => Record<string, unknown>` | — | Extra request-aware metadata to attach. |

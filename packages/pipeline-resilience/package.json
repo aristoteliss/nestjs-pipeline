@@ -49,12 +49,13 @@
     "prepublishOnly": "pnpm run build"
   },
   "peerDependencies": {
-    "@nestjs-pipeline/core": "*",
+    "@nestjs-pipeline/core": "^0.1.19",
     "@nestjs/common": "^10.0.0 || ^11.0.0",
     "cockatiel": "^3.2.1",
     "reflect-metadata": "^0.1.13 || ^0.2.0"
   },
   "devDependencies": {
+    "@nestjs-pipeline/core": "workspace:*",
     "@nestjs/common": "^11.2.1",
     "@vitest/coverage-v8": "^4.1.11",
     "cockatiel": "^3.2.1",

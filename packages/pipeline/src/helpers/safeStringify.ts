@@ -135,7 +135,7 @@ function sanitizeValue(
     ancestors.add(val);
 
     try {
-      const out: Record<string, unknown> = {};
+      const out: Record<string, unknown> = Object.create(null);
       for (const [k, v] of Object.entries(val as Record<string, unknown>)) {
         const currentPath = path ? `${path}.${k}` : k;
 
@@ -199,5 +199,8 @@ export function safeStringify(
   excludeKeys?: Set<string>,
   indent?: number,
 ): string {
-  return JSON.stringify(safeSanitize(value, excludeKeys), undefined, indent);
+  return (
+    JSON.stringify(safeSanitize(value, excludeKeys), undefined, indent) ??
+    'undefined'
+  );
 }

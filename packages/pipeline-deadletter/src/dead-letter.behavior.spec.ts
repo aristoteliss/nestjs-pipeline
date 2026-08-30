@@ -178,6 +178,24 @@ describe('DeadLetterBehavior', () => {
     expect(ctx.items.get(DEAD_LETTER_ITEM)).toBeUndefined();
   });
 
+  it('does not swallow an excluded request kind when rethrow=false', async () => {
+    const behavior = new DeadLetterBehavior(transport);
+    const ctx = withOptions(makeCtx({ requestKind: 'query' }), {
+      captureKinds: ['event'],
+      rethrow: false,
+    });
+
+    await expect(
+      behavior.handle(
+        ctx,
+        vi.fn().mockRejectedValue(new Error('not captured')),
+      ),
+    ).rejects.toThrow('not captured');
+
+    expect(send).not.toHaveBeenCalled();
+    expect(ctx.items.get(DEAD_LETTER_ITEM)).toBeUndefined();
+  });
+
   it('attaches metadata from the factory', async () => {
     const behavior = new DeadLetterBehavior(transport);
     const ctx = withOptions(makeCtx(), {

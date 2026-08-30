@@ -136,7 +136,9 @@ export class PipelineBootstrapService implements OnApplicationBootstrap {
    * handler method. Singleton behaviors are captured at bootstrap; any dynamic
    * behavior slots are resolved per invocation with the active Nest context ID.
    *
-   * Effective order: `[globalBefore] → [@UsePipeline] → [globalAfter] → handler`
+   * Effective order: `[globalBefore] → [@UsePipeline] → [globalAfter] → handler`.
+   * A handler declaration of an already-global behavior overrides its options
+   * without relocating it, preserving security-sensitive outer guards.
    *
    * @param wrapper     - The NestJS InstanceWrapper for this provider
    * @param requestKind - Handler kind from ExplorerService categorization
@@ -178,9 +180,10 @@ export class PipelineBootstrapService implements OnApplicationBootstrap {
 
     if (!hasHandlerBehaviors && !hasGlobalBehaviors) return;
 
-    // Handler behaviors override global behaviors of the same class.
-    // Any global (before/after) entry whose class also appears in the handler
-    // declaration is dropped — only the handler's entry (with handler options) runs.
+    // Handler declarations override options for a global behavior of the same
+    // class, but must not relocate it. A global security guard configured in
+    // `before` must remain outside handler-level cache/idempotency behaviors
+    // that can short-circuit without calling next().
     //
     // getBehaviorId() is used instead of reference equality (fails across monorepo
     // double-module loads) or plain .name (collides for different classes that share
@@ -189,18 +192,19 @@ export class PipelineBootstrapService implements OnApplicationBootstrap {
     const handlerBehaviorIds = new Set<string>(
       (handlerBehaviorTypes ?? []).map(getBehaviorId),
     );
-    const filteredBeforeTypes = beforeTypes.filter(
-      (t) => !handlerBehaviorIds.has(getBehaviorId(t)),
+    const globalBehaviorIds = new Set(
+      [...beforeTypes, ...afterTypes].map(getBehaviorId),
     );
-    const filteredAfterTypes = afterTypes.filter(
-      (t) => !handlerBehaviorIds.has(getBehaviorId(t)),
+    const handlerOnlyTypes = (handlerBehaviorTypes ?? []).filter(
+      (type) => !globalBehaviorIds.has(getBehaviorId(type)),
     );
 
-    // Effective order: filteredGlobalBefore → handlerBehaviors → filteredGlobalAfter
+    // Effective order: globalBefore → non-global handler behaviors → globalAfter.
+    // Matching handler entries supply options at their original global position.
     const behaviorTypes: Type<IPipelineBehavior>[] = [
-      ...filteredBeforeTypes,
-      ...(handlerBehaviorTypes ?? []),
-      ...filteredAfterTypes,
+      ...beforeTypes,
+      ...handlerOnlyTypes,
+      ...afterTypes,
     ];
 
     // For scoped handlers, wrap the prototype so every per-request instance

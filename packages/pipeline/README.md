@@ -294,7 +294,10 @@ async handle(context: IPipelineContext, next: NextDelegate): Promise<any> {
 }
 ```
 
-Global and handler option **maps** are combined. When the same behavior appears at both levels, the handler-level options record replaces the global options record for that behavior; individual properties are not shallow-merged by the core pipeline.
+Global and handler option **maps** are combined. When the same behavior appears
+at both levels, the handler-level options record replaces the global options
+record while the behavior retains its global chain position; individual
+properties are not shallow-merged.
 
 ### Inter-Behavior Communication
 
@@ -384,7 +387,9 @@ PipelineModule.forRoot({
 
 ### Deduplication
 
-When the same behavior class appears in both global and handler-level configurations, the **handler-level entry wins** (including its options). Global duplicates are deduplicated:
+When the same behavior class appears in both global and handler-level
+configurations, the handler's complete options record wins while the behavior
+retains its global chain position. Global duplicates are deduplicated:
 
 ```typescript
 // Global: LoggingBehavior with default options
@@ -392,13 +397,17 @@ PipelineModule.forRoot({
   globalBehaviors: { scope: 'all', before: [LoggingBehavior] },
 })
 
-// Handler: LoggingBehavior with custom options → global entry is dropped
+// Handler: overrides options without relocating the global behavior
 @CommandHandler(CreateUserCommand)
 @UsePipeline([LoggingBehavior, { requestResponseLogLevel: 'log' }])
 export class CreateUserHandler { /* ... */ }
 
-// Effective chain: [LoggingBehavior (handler opts)] → handler
+// Effective chain: [LoggingBehavior at global-before position (handler opts)] → handler
 ```
+
+Place mandatory authentication/authorization behaviors in global `before`.
+Their position remains outside handler-level cache/idempotency behaviors that
+can return without invoking `next()`.
 
 ---
 

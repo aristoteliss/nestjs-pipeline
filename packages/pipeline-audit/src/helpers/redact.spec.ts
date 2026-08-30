@@ -162,6 +162,20 @@ describe('redactValue', () => {
     expect(result.self).toBe('[Circular]');
   });
 
+  it('preserves and redacts an own __proto__ property as ordinary data', () => {
+    const input = { name: 'jane' } as Record<string, unknown>;
+    Object.defineProperty(input, '__proto__', {
+      enumerable: true,
+      value: { password: 'secret' },
+    });
+
+    const result = redactValue(input) as Record<string, unknown>;
+
+    expect(Object.getPrototypeOf(result)).toBe(Object.prototype);
+    expect(Object.getOwnPropertyDescriptor(result, '__proto__')).toBeDefined();
+    expect(Reflect.get(result, '__proto__')).toEqual({ password: REDACTED });
+  });
+
   it('exposes a stable set of default keys', () => {
     expect(DEFAULT_REDACT_KEYS).toContain('password');
     expect(DEFAULT_REDACT_KEYS).toContain('authorization');

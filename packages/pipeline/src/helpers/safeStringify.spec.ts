@@ -52,6 +52,17 @@ describe('safeStringify', () => {
     expect(safeStringify('text')).toBe('"text"');
     expect(safeStringify(null)).toBe('null');
     expect(safeStringify(true)).toBe('true');
+    expect(safeStringify(undefined)).toBe('undefined');
+  });
+
+  it('serializes an own __proto__ property as data', () => {
+    const input = { value: 1 } as Record<string, unknown>;
+    Object.defineProperty(input, '__proto__', {
+      enumerable: true,
+      value: { safe: true },
+    });
+
+    expect(safeStringify(input)).toBe('{"value":1,"__proto__":{"safe":true}}');
   });
 
   it('handles circular references gracefully', () => {

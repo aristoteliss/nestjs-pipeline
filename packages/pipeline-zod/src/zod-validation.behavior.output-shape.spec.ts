@@ -71,4 +71,43 @@ describe('ZodValidationBehavior top-level transform output', () => {
     ).rejects.toThrow(/plain object/);
     expect(request).toEqual({ value: 'abc' });
   });
+
+  it('removes stripped keys even when their names exist on Object.prototype', async () => {
+    const schema = z.object({ value: z.string() });
+
+    class Request {
+      static readonly [ZOD_SCHEMA_KEY] = schema;
+      constructor(public value: string) {
+        for (const key of ['constructor', 'toString', '__proto__']) {
+          Object.defineProperty(this, key, {
+            configurable: true,
+            enumerable: true,
+            writable: true,
+            value: { unsafe: true },
+          });
+        }
+      }
+    }
+
+    const request = new Request('safe');
+    const context = {
+      request,
+      requestType: Request,
+    } as unknown as IPipelineContext;
+    const next = vi.fn();
+
+    await new ZodValidationBehavior().handle(context, next);
+
+    expect(
+      Object.getOwnPropertyDescriptor(request, 'constructor'),
+    ).toBeUndefined();
+    expect(
+      Object.getOwnPropertyDescriptor(request, 'toString'),
+    ).toBeUndefined();
+    expect(
+      Object.getOwnPropertyDescriptor(request, '__proto__'),
+    ).toBeUndefined();
+    expect(request.value).toBe('safe');
+    expect(next).toHaveBeenCalledOnce();
+  });
 });

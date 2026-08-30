@@ -97,13 +97,16 @@ export class DeadLetterBehavior implements IPipelineBehavior {
       return await next();
     } catch (error) {
       const options = this.resolveOptions(context);
+      const shouldCapture = this.shouldCapture(context, options);
 
-      if (this.shouldCapture(context, options)) {
+      if (shouldCapture) {
         await this.capture(context, error, options);
         context.items.set(DEAD_LETTER_ITEM, true);
       }
 
-      if (options.rethrow ?? true) throw error;
+      // Excluding a request kind means this behavior is inactive for that
+      // failure; it must not silently swallow an error it did not capture.
+      if ((options.rethrow ?? true) || !shouldCapture) throw error;
 
       this.logger.warn?.(
         `Dead-lettered and swallowed ${context.requestName} ` +

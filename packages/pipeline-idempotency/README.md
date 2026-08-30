@@ -98,15 +98,26 @@ import {
 export class AppModule {}
 ```
 
-Then opt a command in and tell the behavior how to derive its key — typically an
-`Idempotency-Key` header your controller stashes on the context:
+Then opt a command in and tell the behavior how to derive its key. A controller
+can copy the `Idempotency-Key` header into the CQRS command before dispatch:
 
 ```typescript
+class CreatePaymentCommand {
+  constructor(
+    readonly payment: PaymentInput,
+    readonly idempotencyKey?: string,
+  ) {}
+}
+
+// In the controller:
+commandBus.execute(new CreatePaymentCommand(body, idempotencyKeyHeader));
+
 @CommandHandler(CreatePaymentCommand)
 @UsePipeline([
   IdempotencyBehavior,
   {
-    keyFactory: (ctx) => ctx.items.get('idempotencyKey') as string | undefined,
+    keyFactory: (ctx) =>
+      (ctx.request as CreatePaymentCommand).idempotencyKey,
     ttl: 86_400_000, // 24h (default)
   },
 ])
@@ -116,6 +127,10 @@ export class CreatePaymentHandler {
   }
 }
 ```
+
+Alternatively, an earlier pipeline behavior can place transport metadata in
+`context.items`. A controller cannot mutate the `PipelineContext` directly
+because core creates it later when the CQRS handler executes.
 
 ---
 

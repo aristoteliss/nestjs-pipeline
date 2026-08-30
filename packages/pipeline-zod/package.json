@@ -35,8 +35,8 @@
     "prepublishOnly": "pnpm run build"
   },
   "peerDependencies": {
-    "@nestjs-pipeline/core": "*",
-    "@nestjs/common": ">=10",
+    "@nestjs-pipeline/core": "^0.1.19",
+    "@nestjs/common": "^10.0.0 || ^11.0.0",
     "zod": "^4.0.0"
   },
   "devDependencies": {
