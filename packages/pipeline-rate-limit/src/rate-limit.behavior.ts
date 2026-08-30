@@ -28,7 +28,6 @@ import {
   type IPipelineContext,
   LOGGING_BEHAVIOR_LOGGER,
   type NextDelegate,
-  untyped,
 } from '@nestjs-pipeline/core';
 import { RATE_LIMIT_DEFAULT_OPTIONS, RATE_LIMITER } from './constants/tokens';
 import { RateLimitExceededError } from './errors/rate-limit-exceeded.error';
@@ -99,11 +98,6 @@ export class RateLimitBehavior implements IPipelineBehavior {
     }
 
     this.logger = logger;
-    if (typeof untyped(this.logger).setContext === 'function') {
-      (
-        this.logger as LoggerService & { setContext(context: string): void }
-      ).setContext(RateLimitBehavior.name);
-    }
   }
 
   async handle(
@@ -152,6 +146,7 @@ export class RateLimitBehavior implements IPipelineBehavior {
       this.logger.warn?.(
         `Rate limiter store error for ${context.requestName} ` +
           `(key: ${key}); failing open: ${message}`,
+        RateLimitBehavior.name,
       );
       return next();
     }
@@ -159,6 +154,7 @@ export class RateLimitBehavior implements IPipelineBehavior {
     this.logger.error?.(
       `Rate limiter store error for ${context.requestName} ` +
         `(key: ${key}); failing closed: ${message}`,
+      RateLimitBehavior.name,
     );
     throw error;
   }

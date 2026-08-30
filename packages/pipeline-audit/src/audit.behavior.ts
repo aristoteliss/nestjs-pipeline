@@ -28,7 +28,6 @@ import {
   type IPipelineContext,
   LOGGING_BEHAVIOR_LOGGER,
   type NextDelegate,
-  untyped,
 } from '@nestjs-pipeline/core';
 import { AUDIT_DEFAULT_OPTIONS, AUDIT_SINK } from './constants/tokens';
 import { buildAuditRecord } from './helpers/build-record';
@@ -93,11 +92,6 @@ export class AuditBehavior implements IPipelineBehavior {
     }
 
     this.logger = logger;
-    if (typeof untyped(this.logger).setContext === 'function') {
-      (
-        this.logger as LoggerService & { setContext(context: string): void }
-      ).setContext(AuditBehavior.name);
-    }
   }
 
   async handle(
@@ -157,6 +151,7 @@ export class AuditBehavior implements IPipelineBehavior {
       this.logger.error?.(
         `Failed to build audit record for ${input.context.requestName}: ` +
           `${buildError instanceof Error ? buildError.message : buildError}`,
+        AuditBehavior.name,
       );
       return;
     }
@@ -172,10 +167,10 @@ export class AuditBehavior implements IPipelineBehavior {
         `${sinkError instanceof Error ? sinkError.message : sinkError}`;
 
       if (input.options.failOpen ?? true) {
-        this.logger.warn?.(`${message}; failing open`);
+        this.logger.warn?.(`${message}; failing open`, AuditBehavior.name);
         return;
       }
-      this.logger.error?.(`${message}; failing closed`);
+      this.logger.error?.(`${message}; failing closed`, AuditBehavior.name);
       throw sinkError;
     }
   }

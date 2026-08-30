@@ -128,18 +128,8 @@ export class IdempotencyBehavior implements IPipelineBehavior {
     }
 
     this.defaults = defaults ?? {};
-
-    if (!logger) {
-      this.logger = new Logger(IdempotencyBehavior.name, { timestamp: true });
-      return;
-    }
-
-    this.logger = logger;
-    if (typeof untyped(this.logger).setContext === 'function') {
-      (
-        this.logger as LoggerService & { setContext(context: string): void }
-      ).setContext(IdempotencyBehavior.name);
-    }
+    this.logger =
+      logger ?? new Logger(IdempotencyBehavior.name, { timestamp: true });
   }
 
   async handle(
@@ -176,9 +166,21 @@ export class IdempotencyBehavior implements IPipelineBehavior {
       createdAt: new Date().toISOString(),
     };
 
-    const claimed = await this.store.setIfAbsent(key, claim, ttl);
+    let claimed = await this.store.setIfAbsent(key, claim, ttl);
     if (!claimed) {
-      return this.replayOrConflict(context, key, fingerprint);
+      const existing = await this.store.get(key);
+
+      if (existing) {
+        return this.replayOrConflict(context, key, fingerprint, existing);
+      }
+
+      // The record disappeared or expired after the failed claim. Give this
+      // request one bounded opportunity to claim the now-available key instead
+      // of reporting a false in-progress conflict.
+      claimed = await this.store.setIfAbsent(key, claim, ttl);
+      if (!claimed) {
+        return this.replayOrConflict(context, key, fingerprint);
+      }
     }
 
     let response: unknown;
@@ -223,6 +225,7 @@ export class IdempotencyBehavior implements IPipelineBehavior {
         `Idempotency claim ownership was lost after ${context.requestName} ` +
           `completed successfully (key: ${key}). The successful result is being ` +
           'returned, but this execution did not overwrite the newer claim.',
+        IdempotencyBehavior.name,
       );
     }
 
@@ -237,10 +240,13 @@ export class IdempotencyBehavior implements IPipelineBehavior {
     context: IPipelineContext,
     key: string,
     fingerprint: string | undefined,
+    knownExisting?: IdempotencyRecord,
   ): Promise<unknown> {
-    const existing = await this.store.get(key);
+    const existing = knownExisting ?? (await this.store.get(key));
 
-    // Raced/expired between claim and read — treat as an in-progress duplicate.
+    // A second failed claim followed by another disappearing record indicates
+    // repeated contention. The retry is deliberately bounded to avoid a hot
+    // loop if a backend is unstable or claims are being rapidly replaced.
     if (!existing) {
       throw new IdempotencyConflictError({
         key,
@@ -280,6 +286,7 @@ export class IdempotencyBehavior implements IPipelineBehavior {
     context.items.set(IDEMPOTENCY_REPLAYED_ITEM, true);
     this.logger.debug?.(
       `Replaying idempotent response for ${context.requestName} (key: ${key})`,
+      IdempotencyBehavior.name,
     );
     return existing.response;
   }
@@ -295,6 +302,7 @@ export class IdempotencyBehavior implements IPipelineBehavior {
       this.logger.warn?.(
         `Failed to release idempotency key "${key}": ` +
           `${error instanceof Error ? error.message : error}`,
+        IdempotencyBehavior.name,
       );
     }
   }

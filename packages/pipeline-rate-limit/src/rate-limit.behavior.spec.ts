@@ -81,6 +81,24 @@ describe('RateLimitBehavior', () => {
     consume.mockReset();
   });
 
+  it('does not mutate a shared logger and supplies its context per call', async () => {
+    consume.mockRejectedValue(new Error('store unavailable'));
+    const logger = {
+      warn: vi.fn(),
+      error: vi.fn(),
+      setContext: vi.fn(),
+    };
+    const behavior = new RateLimitBehavior(limiter, undefined, logger as never);
+
+    await behavior.handle(makeCtx(), vi.fn().mockResolvedValue('ok'));
+
+    expect(logger.setContext).not.toHaveBeenCalled();
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining('failing open'),
+      RateLimitBehavior.name,
+    );
+  });
+
   it('consumes 1 point by default, keyed by requestName, and proceeds', async () => {
     consume.mockResolvedValue(okRes());
     const behavior = new RateLimitBehavior(limiter);

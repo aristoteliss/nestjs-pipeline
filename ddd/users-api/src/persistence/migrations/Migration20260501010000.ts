@@ -17,7 +17,6 @@
  */
 
 import { Migration } from '@mikro-orm/migrations';
-import { uuidv7 } from '@nestjs-pipeline/core';
 
 type SeedIds = {
   roles: Record<
@@ -54,67 +53,117 @@ type SeedIds = {
   >;
 };
 
+type SeedPair = readonly [string, string];
+
+/**
+ * Stable identifiers make this data migration reversible without touching
+ * application-created rows. The same IDs are safe to reuse across tenants
+ * because every tenant has its own database/schema.
+ */
+const SEED_IDS: SeedIds = {
+  roles: {
+    admin: '019de10c-b680-7000-8000-000000000001',
+    userManager: '019de10c-b680-7000-8000-000000000002',
+    self: '019de10c-b680-7000-8000-000000000003',
+    viewer: '019de10c-b680-7000-8000-000000000004',
+    supportAgent: '019de10c-b680-7000-8000-000000000005',
+  },
+  users: {
+    aliceAdmin: '019de10c-b680-7000-8000-000000000006',
+    bobManager: '019de10c-b680-7000-8000-000000000007',
+    carolUser: '019de10c-b680-7000-8000-000000000008',
+    daveViewer: '019de10c-b680-7000-8000-000000000009',
+    eveMultirole: '019de10c-b680-7000-8000-00000000000a',
+    frankSupport: '019de10c-b680-7000-8000-00000000000b',
+    graceLimited: '019de10c-b680-7000-8000-00000000000c',
+    vinceViewer: '019de10c-b680-7000-8000-00000000000d',
+  },
+  capabilities: {
+    allManage: '019de10c-b680-7000-8000-00000000000e',
+    userRead: '019de10c-b680-7000-8000-00000000000f',
+    userCreate: '019de10c-b680-7000-8000-000000000010',
+    userUpdate: '019de10c-b680-7000-8000-000000000011',
+    userDelete: '019de10c-b680-7000-8000-000000000012',
+    tenantManageUsers: '019de10c-b680-7000-8000-000000000013',
+    denyDeleteByManager: '019de10c-b680-7000-8000-000000000014',
+    selfUpdateUsername: '019de10c-b680-7000-8000-000000000015',
+    selfRead: '019de10c-b680-7000-8000-000000000016',
+    viewerReadFields: '019de10c-b680-7000-8000-000000000017',
+    denyTenantEmailUpdate: '019de10c-b680-7000-8000-000000000018',
+    supportReadDepartment: '019de10c-b680-7000-8000-000000000019',
+    supportUpdateDepartmentUsername: '019de10c-b680-7000-8000-00000000001a',
+    denyDeleteBySupport: '019de10c-b680-7000-8000-00000000001b',
+  },
+};
+
+const ROLE_CAPABILITY_ENTRIES: readonly SeedPair[] = [
+  [SEED_IDS.roles.admin, SEED_IDS.capabilities.allManage],
+  [SEED_IDS.roles.userManager, SEED_IDS.capabilities.tenantManageUsers],
+  [SEED_IDS.roles.userManager, SEED_IDS.capabilities.denyDeleteByManager],
+  [SEED_IDS.roles.userManager, SEED_IDS.capabilities.denyTenantEmailUpdate],
+  [SEED_IDS.roles.self, SEED_IDS.capabilities.selfUpdateUsername],
+  [SEED_IDS.roles.self, SEED_IDS.capabilities.selfRead],
+  [SEED_IDS.roles.viewer, SEED_IDS.capabilities.viewerReadFields],
+  [SEED_IDS.roles.supportAgent, SEED_IDS.capabilities.supportReadDepartment],
+  [
+    SEED_IDS.roles.supportAgent,
+    SEED_IDS.capabilities.supportUpdateDepartmentUsername,
+  ],
+  [SEED_IDS.roles.supportAgent, SEED_IDS.capabilities.denyDeleteBySupport],
+];
+
+const USER_ROLE_ENTRIES: readonly SeedPair[] = [
+  [SEED_IDS.users.aliceAdmin, SEED_IDS.roles.admin],
+  [SEED_IDS.users.aliceAdmin, SEED_IDS.roles.self],
+  [SEED_IDS.users.bobManager, SEED_IDS.roles.userManager],
+  [SEED_IDS.users.bobManager, SEED_IDS.roles.self],
+  [SEED_IDS.users.carolUser, SEED_IDS.roles.self],
+  [SEED_IDS.users.daveViewer, SEED_IDS.roles.viewer],
+  [SEED_IDS.users.daveViewer, SEED_IDS.roles.self],
+  [SEED_IDS.users.eveMultirole, SEED_IDS.roles.viewer],
+  [SEED_IDS.users.eveMultirole, SEED_IDS.roles.self],
+  [SEED_IDS.users.frankSupport, SEED_IDS.roles.supportAgent],
+  [SEED_IDS.users.frankSupport, SEED_IDS.roles.self],
+  [SEED_IDS.users.graceLimited, SEED_IDS.roles.userManager],
+  [SEED_IDS.users.graceLimited, SEED_IDS.roles.self],
+  [SEED_IDS.users.vinceViewer, SEED_IDS.roles.viewer],
+];
+
+const USER_ADDITIONAL_CAPABILITY_ENTRIES: readonly SeedPair[] = [
+  [SEED_IDS.users.daveViewer, SEED_IDS.capabilities.userCreate],
+];
+
 export class Migration20260501010000 extends Migration {
   private readonly seedTenant = this.resolveSeedTenant();
 
   override async up(): Promise<void> {
-    const ids = this.createSeedIds();
+    const ids = SEED_IDS;
 
     this.seedRoles(ids);
     this.seedUsers(ids);
     this.seedCapabilities(ids);
-    this.seedRoleCapabilities(ids);
-    this.seedUserRoles(ids);
-    this.seedUserOverrides(ids);
+    this.seedRoleCapabilities();
+    this.seedUserRoles();
+    this.seedUserOverrides();
   }
 
   override async down(): Promise<void> {
-    this.addSql('delete from user_denied_capabilities;');
-    this.addSql('delete from user_additional_capabilities;');
-    this.addSql('delete from user_roles;');
-    this.addSql('delete from role_capabilities;');
-    this.addSql('delete from capabilities;');
-    this.addSql('delete from auth;');
-    this.addSql('delete from users;');
-    this.addSql('delete from roles;');
-  }
-
-  private createSeedIds(): SeedIds {
-    return {
-      roles: {
-        admin: uuidv7(),
-        userManager: uuidv7(),
-        self: uuidv7(),
-        viewer: uuidv7(),
-        supportAgent: uuidv7(),
-      },
-      users: {
-        aliceAdmin: uuidv7(),
-        bobManager: uuidv7(),
-        carolUser: uuidv7(),
-        daveViewer: uuidv7(),
-        eveMultirole: uuidv7(),
-        frankSupport: uuidv7(),
-        graceLimited: uuidv7(),
-        vinceViewer: uuidv7(),
-      },
-      capabilities: {
-        allManage: uuidv7(),
-        userRead: uuidv7(),
-        userCreate: uuidv7(),
-        userUpdate: uuidv7(),
-        userDelete: uuidv7(),
-        tenantManageUsers: uuidv7(),
-        denyDeleteByManager: uuidv7(),
-        selfUpdateUsername: uuidv7(),
-        selfRead: uuidv7(),
-        viewerReadFields: uuidv7(),
-        denyTenantEmailUpdate: uuidv7(),
-        supportReadDepartment: uuidv7(),
-        supportUpdateDepartmentUsername: uuidv7(),
-        denyDeleteBySupport: uuidv7(),
-      },
-    };
+    this.deleteSeedPairs(
+      'user_additional_capabilities',
+      'user_id',
+      'capability_id',
+      USER_ADDITIONAL_CAPABILITY_ENTRIES,
+    );
+    this.deleteSeedPairs('user_roles', 'user_id', 'role_id', USER_ROLE_ENTRIES);
+    this.deleteSeedPairs(
+      'role_capabilities',
+      'role_id',
+      'capability_id',
+      ROLE_CAPABILITY_ENTRIES,
+    );
+    this.deleteSeedIds('capabilities', Object.values(SEED_IDS.capabilities));
+    this.deleteSeedIds('users', Object.values(SEED_IDS.users));
+    this.deleteSeedIds('roles', Object.values(SEED_IDS.roles));
   }
 
   private resolveSeedTenant(): string {
@@ -231,7 +280,7 @@ export class Migration20260501010000 extends Migration {
         ids.capabilities.tenantManageUsers,
         'User',
         'manage',
-        '{"department":"${sessionUser.department}"}',
+        '{"department":"${user.department}"}',
         0,
         null,
         null,
@@ -249,7 +298,7 @@ export class Migration20260501010000 extends Migration {
         ids.capabilities.selfUpdateUsername,
         'User',
         'update',
-        '{"id":"${sessionUser.id}"}',
+        '{"id":"${user.id}"}',
         0,
         null,
         'username',
@@ -258,7 +307,7 @@ export class Migration20260501010000 extends Migration {
         ids.capabilities.selfRead,
         'User',
         'read',
-        '{"id":"${sessionUser.id}"}',
+        '{"id":"${user.id}"}',
         0,
         null,
         null,
@@ -276,7 +325,7 @@ export class Migration20260501010000 extends Migration {
         ids.capabilities.denyTenantEmailUpdate,
         'User',
         'update',
-        '{"department":"${sessionUser.department}"}',
+        '{"department":"${user.department}"}',
         1,
         'Cannot modify email addresses',
         'email',
@@ -285,7 +334,7 @@ export class Migration20260501010000 extends Migration {
         ids.capabilities.supportReadDepartment,
         'User',
         'read',
-        '{"department":"${sessionUser.department}"}',
+        '{"department":"${user.department}"}',
         0,
         null,
         null,
@@ -294,7 +343,7 @@ export class Migration20260501010000 extends Migration {
         ids.capabilities.supportUpdateDepartmentUsername,
         'User',
         'update',
-        '{"department":"${sessionUser.department}"}',
+        '{"department":"${user.department}"}',
         0,
         null,
         'username',
@@ -329,58 +378,46 @@ export class Migration20260501010000 extends Migration {
     }
   }
 
-  private seedRoleCapabilities(ids: SeedIds): void {
-    const entries: Array<[string, string]> = [
-      [ids.roles.admin, ids.capabilities.allManage],
-      [ids.roles.userManager, ids.capabilities.tenantManageUsers],
-      [ids.roles.userManager, ids.capabilities.denyDeleteByManager],
-      [ids.roles.userManager, ids.capabilities.denyTenantEmailUpdate],
-      [ids.roles.self, ids.capabilities.selfUpdateUsername],
-      [ids.roles.self, ids.capabilities.selfRead],
-      [ids.roles.viewer, ids.capabilities.viewerReadFields],
-      [ids.roles.supportAgent, ids.capabilities.supportReadDepartment],
-      [
-        ids.roles.supportAgent,
-        ids.capabilities.supportUpdateDepartmentUsername,
-      ],
-      [ids.roles.supportAgent, ids.capabilities.denyDeleteBySupport],
-    ];
-
-    for (const [roleId, capabilityId] of entries) {
+  private seedRoleCapabilities(): void {
+    for (const [roleId, capabilityId] of ROLE_CAPABILITY_ENTRIES) {
       this.addSql(
         `insert into role_capabilities (role_id, capability_id) values ('${roleId}', '${capabilityId}') on conflict (role_id, capability_id) do nothing;`,
       );
     }
   }
 
-  private seedUserRoles(ids: SeedIds): void {
-    const entries: Array<[string, string]> = [
-      [ids.users.aliceAdmin, ids.roles.admin],
-      [ids.users.aliceAdmin, ids.roles.self],
-      [ids.users.bobManager, ids.roles.userManager],
-      [ids.users.bobManager, ids.roles.self],
-      [ids.users.carolUser, ids.roles.self],
-      [ids.users.daveViewer, ids.roles.viewer],
-      [ids.users.daveViewer, ids.roles.self],
-      [ids.users.eveMultirole, ids.roles.viewer],
-      [ids.users.eveMultirole, ids.roles.self],
-      [ids.users.frankSupport, ids.roles.supportAgent],
-      [ids.users.frankSupport, ids.roles.self],
-      [ids.users.graceLimited, ids.roles.userManager],
-      [ids.users.graceLimited, ids.roles.self],
-      [ids.users.vinceViewer, ids.roles.viewer],
-    ];
-
-    for (const [userId, roleId] of entries) {
+  private seedUserRoles(): void {
+    for (const [userId, roleId] of USER_ROLE_ENTRIES) {
       this.addSql(
         `insert into user_roles (user_id, role_id) values ('${userId}', '${roleId}') on conflict (user_id, role_id) do nothing;`,
       );
     }
   }
 
-  private seedUserOverrides(ids: SeedIds): void {
-    this.addSql(
-      `insert into user_additional_capabilities (user_id, capability_id) values ('${ids.users.daveViewer}', '${ids.capabilities.userCreate}') on conflict (user_id, capability_id) do nothing;`,
-    );
+  private seedUserOverrides(): void {
+    for (const [userId, capabilityId] of USER_ADDITIONAL_CAPABILITY_ENTRIES) {
+      this.addSql(
+        `insert into user_additional_capabilities (user_id, capability_id) values ('${userId}', '${capabilityId}') on conflict (user_id, capability_id) do nothing;`,
+      );
+    }
+  }
+
+  private deleteSeedPairs(
+    table: string,
+    leftColumn: string,
+    rightColumn: string,
+    entries: readonly SeedPair[],
+  ): void {
+    for (const [leftId, rightId] of entries) {
+      this.addSql(
+        `delete from ${table} where ${leftColumn} = '${leftId}' and ${rightColumn} = '${rightId}';`,
+      );
+    }
+  }
+
+  private deleteSeedIds(table: string, ids: readonly string[]): void {
+    for (const id of ids) {
+      this.addSql(`delete from ${table} where id = '${id}';`);
+    }
   }
 }

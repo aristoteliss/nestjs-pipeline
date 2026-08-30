@@ -29,7 +29,6 @@ import {
   type IPipelineContext,
   LOGGING_BEHAVIOR_LOGGER,
   type NextDelegate,
-  untyped,
 } from '@nestjs-pipeline/core';
 import { RESILIENCE_DEFAULT_OPTIONS } from './constants/tokens';
 import {
@@ -60,7 +59,6 @@ import type { ResilienceBehaviorOptions } from './interfaces/resilience-options.
 @Injectable()
 export class ResilienceBehavior implements IPipelineBehavior {
   private readonly logger: LoggerService;
-  private readonly logContext: string | undefined;
   /**
    * Per-handler policy cache. `null` means "resolved, but nothing configured"
    * (pass-through), distinct from `undefined` ("not yet resolved").
@@ -81,12 +79,6 @@ export class ResilienceBehavior implements IPipelineBehavior {
     }
 
     this.logger = logger;
-    this.logContext = ResilienceBehavior.name;
-    if (typeof untyped(this.logger).setContext === 'function') {
-      (
-        this.logger as LoggerService & { setContext(context: string): void }
-      ).setContext(this.logContext);
-    }
   }
 
   async handle(

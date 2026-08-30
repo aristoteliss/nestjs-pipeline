@@ -526,12 +526,17 @@ PipelineModule.forRoot({
 )
 export class CreateUserHandler { /* ... */ }
 
-// ── Feature module: register behaviors owned by a specific module ──
+// ── Feature module: register feature-owned behaviors application-wide ──
 @Module({
   imports: [PipelineModule.forFeature([AuditBehavior, CachingBehavior])],
 })
 export class AuditModule {}
 ```
+
+`PipelineModule` is global, so `forFeature()` records where behavior providers
+are owned but does not isolate them to that feature's module hierarchy. Once the
+feature is imported, the registered behaviors are discoverable by
+`@UsePipeline()` throughout the application.
 
 ---
 

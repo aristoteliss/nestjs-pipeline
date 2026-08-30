@@ -264,15 +264,26 @@ describe('RedisIdempotencyStore', () => {
 // ─── Postgres ────────────────────────────────────────────────────────────────
 
 describe('PostgresIdempotencyStore', () => {
-  it('claims a key when the insert returns a row', async () => {
+  it('claims or atomically reclaims an expired key when the upsert returns a row', async () => {
     const query = vi.fn().mockResolvedValue({ rows: [{ key: 'k1' }] });
     const db: PostgresQueryableLike = { query };
     const store = new PostgresIdempotencyStore(db);
 
-    expect(await store.setIfAbsent('k1', record(), 5000)).toBe(true);
-    const [sql] = query.mock.calls[0];
-    expect(sql).toContain('ON CONFLICT (key) DO NOTHING');
+    expect(
+      await store.setIfAbsent(
+        'k1',
+        record({ claimId: 'replacement-owner' }),
+        5000,
+      ),
+    ).toBe(true);
+    const [sql, values] = query.mock.calls[0];
+    expect(sql).not.toContain('WITH purged');
+    expect(sql).toContain('INSERT INTO idempotency_keys AS current_record');
+    expect(sql).toContain('ON CONFLICT (key) DO UPDATE SET');
+    expect(sql).toContain('claim_id = EXCLUDED.claim_id');
+    expect(sql).toContain('WHERE current_record.expires_at <= now()');
     expect(sql).toContain('claim_id');
+    expect(values[3]).toBe('replacement-owner');
   });
 
   it('reports a lost claim when no row is returned', async () => {

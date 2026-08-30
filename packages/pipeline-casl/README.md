@@ -457,8 +457,14 @@ export class DbUserCapabilityProvider implements IUserCapabilityProvider {
 
 ### PostgreSQL-backed providers
 
+Persistence representation is application-specific. The example below uses
+PostgreSQL-native `jsonb` and `text[]` columns, but providers may instead parse
+serialized JSON/delimited text into `conditions` objects and `fields` arrays.
+The DDD showcase does that to keep one MikroORM model portable across libSQL and
+PostgreSQL.
+
 <details>
-<summary>Suggested relational schema</summary>
+<summary>Example PostgreSQL-native relational schema</summary>
 
 ```sql
 -- Central entity: every permission is a Capability row

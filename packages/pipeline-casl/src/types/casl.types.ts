@@ -52,42 +52,40 @@ import type { MongoAbility, RawRuleOf } from '@casl/ability';
  * Use {@link serializeCapability} to collapse a full {@link Capability} into this
  * format, or {@link parseCapabilityString} to expand it back.
  *
- * This type is **not intended for database storage**. In a relational database,
- * store capabilities as rows in a `capabilities` table (see {@link Capability}
- * for the proposed schema). Use `CapabilityString` only when you need to
- * serialise a compact array of rules into a JWT claim, an encrypted cookie,
- * or a session store entry.
+ * This type is primarily intended for compact transport rather than as a
+ * required persistence format. Applications may persist either this string or
+ * the fields of {@link Capability}, provided their data-access layer hydrates a
+ * valid runtime capability before returning it to this package.
  */
 export type CapabilityString = string;
 
 /**
- * The **central authorisation entity**. Every permission in the system is
- * ultimately a `Capability` row.
+ * The **central runtime authorisation rule**. Every permission supplied to this
+ * package is ultimately represented as a `Capability` object.
  *
- * Each property maps one-to-one to a database column:
+ * Persistence is application-specific. A normalized relational model commonly
+ * stores one capability per row, but native JSON/array columns are not
+ * required. For example, PostgreSQL can use `jsonb` and `text[]`, while a
+ * cross-database model can store JSON text and comma-separated/JSON fields and
+ * parse them in its provider.
  *
- * | Property     | Column type             | Notes                                                                             |
+ * | Property     | Example PostgreSQL type | Portable alternative                                                              |
  * |--------------|-------------------------|-----------------------------------------------------------------------------------|
- * | *(auto)*     | `id` uuid / serial PK   | Surrogate key, not exposed in the TS interface                                    |
- * | `subject`    | text, **indexed**       | The entity type (e.g. `'Post'`, `'Comment'`). Use `'all'` for any subject         |
- * | `action`     | text, **indexed**       | The verb (e.g. `'read'`, `'update'`). Use `'manage'` for any action               |
- * | `conditions` | jsonb, nullable         | UCAST / MongoDB-style filter — evaluated in-memory, no MongoDB needed             |
- * | `inverted`   | boolean, default false  | `true` → this is a deny rule                                                      |
- * | `reason`     | text, nullable          | Human-readable explanation (relevant only when `inverted`)                         |
- * | `fields`     | text[], nullable        | Column-level restrictions (`undefined` = all fields)                               |
+ * | `subject`    | text                    | text                                                                              |
+ * | `action`     | text                    | text                                                                              |
+ * | `conditions` | jsonb, nullable         | serialized JSON text, nullable                                                    |
+ * | `inverted`   | boolean                 | boolean / integer flag                                                            |
+ * | `reason`     | text, nullable          | text, nullable                                                                    |
+ * | `fields`     | text[], nullable        | serialized JSON or delimited text, nullable                                       |
  *
- * A composite unique index on `(subject, action, conditions)` avoids duplicates.
- *
- * Because `subject` and `action` are **plain indexed columns**, you can query
- * efficiently — e.g. "all capabilities for subject `Post`" or "every rule that
- * grants `delete`" — without JSONB path operators. Only `conditions` remains a
- * JSONB column because its structure is inherently dynamic (arbitrary
- * MongoDB-style operators evaluated at runtime by `@ucast/mongo2js`).
+ * Indexes, uniqueness rules, identifiers, and relationships likewise belong to
+ * the host application. The normalized junction-table model below is one
+ * useful design, not a requirement of the CASL package.
  *
  * ### Relationships
  *
- * `Capability` is referenced by junction tables that assign it to roles or
- * directly to users:
+ * In that normalized example, `Capability` is referenced by junction tables
+ * that assign it to roles or directly to users:
  *
  * | Junction table                 | FK → `capabilities` | FK →       | Purpose                        |
  * |--------------------------------|---------------------|------------|--------------------------------|
@@ -115,7 +113,7 @@ export interface Capability {
   /** The action (verb). Use `'manage'` for any action. */
   action: string;
   /**
-   * UCAST / MongoDB-style conditions filter (stored as JSONB).
+   * UCAST / MongoDB-style conditions filter.
    *
    * Evaluated in-memory by `@ucast/mongo2js` — no MongoDB required.
    * Supports operators like `$eq`, `$ne`, `$in`, `$gt`, `$elemMatch`, etc.
@@ -136,8 +134,9 @@ export interface Capability {
 /**
  * A named set of capabilities associated with a role.
  *
- * In the database this maps to a row in the `roles` table with a many-to-many
- * relationship to the `capabilities` table via `role_capabilities`.
+ * A relational application may map this to a `roles` row with a many-to-many
+ * `role_capabilities` relationship, but the package does not require that
+ * persistence design.
  *
  * At runtime, a role's capabilities can be expressed as full {@link Capability}
  * objects or compact {@link CapabilityString}s — the latter is useful when
@@ -170,15 +169,14 @@ export interface RoleDefinition {
 /**
  * The resolved set of capabilities for a specific user context.
  *
- * This is a **runtime aggregate** — not a single database table. It is assembled
- * by joining:
+ * This is a **runtime aggregate** — not a prescribed database table. A
+ * normalized relational implementation can assemble it by joining:
  *
  * 1. `user_roles` → `role_capabilities` → `capabilities` (role-based grants)
  * 2. `user_additional_capabilities` → `capabilities` (per-user extra grants)
  * 3. `user_denied_capabilities` → `capabilities` (per-user explicit denials)
  *
- * Storing capabilities in proper junction tables (rather than JSONB arrays on
- * the user row) lets you:
+ * If an application chooses normalized junction tables, they let it:
  * - query all users that hold a specific capability
  * - add / remove individual capabilities without rewriting an entire array
  * - enforce referential integrity via foreign keys
@@ -213,9 +211,9 @@ export interface UserCapabilities {
  * Your application must place this in `context.items` under the `CASL_USER_CONTEXT_KEY` key
  * (or provide an {@link IUserContextResolver}).
  *
- * Maps to a row in the `users` table. Any additional columns (e.g. `tenant_id`,
- * `department`) are available for `${user.<prop>}` interpolation in capability
- * conditions.
+ * It may be hydrated from a database row, JWT, session, or another source. Any
+ * additional properties (e.g. `tenantId`, `department`) are available for
+ * `${user.<prop>}` interpolation in capability conditions.
  *
  * @example Resolved from the database
  * ```ts

@@ -20,7 +20,7 @@
 -- Demo seed data for CASL relational schema.
 --
 -- Mirrors the roles from demo-roles.yml. Run after creating the schema
--- (see README § "Suggested relational schema").
+-- (see README § "Example PostgreSQL-native relational schema").
 --
 -- Condition placeholders like ${user.id} are resolved at runtime by
 -- interpolateConditions() — store them verbatim.

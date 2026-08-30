@@ -65,6 +65,26 @@ describe('CacheBehavior', () => {
     behavior = new CacheBehavior(cache);
   });
 
+  it('does not mutate a shared logger and supplies its context per call', async () => {
+    const logger = { debug: vi.fn(), setContext: vi.fn() };
+    const sharedLoggerBehavior = new CacheBehavior(
+      cache,
+      undefined,
+      logger as never,
+    );
+
+    await sharedLoggerBehavior.handle(
+      makeCtx(),
+      vi.fn().mockResolvedValue('value'),
+    );
+
+    expect(logger.setContext).not.toHaveBeenCalled();
+    expect(logger.debug).toHaveBeenCalledWith(
+      expect.stringContaining('Cache miss'),
+      CacheBehavior.name,
+    );
+  });
+
   it('caches the result on a miss and serves it on the next hit', async () => {
     const next = vi.fn().mockResolvedValue({ name: 'Ada' });
 

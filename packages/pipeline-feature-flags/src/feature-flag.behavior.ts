@@ -28,7 +28,6 @@ import {
   type IPipelineContext,
   LOGGING_BEHAVIOR_LOGGER,
   type NextDelegate,
-  untyped,
 } from '@nestjs-pipeline/core';
 import type { Client, EvaluationContext } from '@openfeature/server-sdk';
 import {
@@ -93,11 +92,6 @@ export class FeatureFlagBehavior implements IPipelineBehavior {
     }
 
     this.logger = logger;
-    if (typeof untyped(this.logger).setContext === 'function') {
-      (
-        this.logger as LoggerService & { setContext(context: string): void }
-      ).setContext(FeatureFlagBehavior.name);
-    }
   }
 
   async handle(
@@ -127,12 +121,14 @@ export class FeatureFlagBehavior implements IPipelineBehavior {
     if (enabled) {
       this.logger.debug?.(
         `Feature "${options.flag}" enabled for ${context.requestName}`,
+        FeatureFlagBehavior.name,
       );
       return next();
     }
 
     this.logger.debug?.(
       `Feature "${options.flag}" disabled for ${context.requestName}`,
+      FeatureFlagBehavior.name,
     );
 
     if (options.fallback) {

@@ -28,7 +28,6 @@ import {
   type IPipelineContext,
   LOGGING_BEHAVIOR_LOGGER,
   type NextDelegate,
-  untyped,
 } from '@nestjs-pipeline/core';
 import {
   DEAD_LETTER_DEFAULT_OPTIONS,
@@ -88,11 +87,6 @@ export class DeadLetterBehavior implements IPipelineBehavior {
     }
 
     this.logger = logger;
-    if (typeof untyped(this.logger).setContext === 'function') {
-      (
-        this.logger as LoggerService & { setContext(context: string): void }
-      ).setContext(DeadLetterBehavior.name);
-    }
   }
 
   async handle(
@@ -114,6 +108,7 @@ export class DeadLetterBehavior implements IPipelineBehavior {
       this.logger.warn?.(
         `Dead-lettered and swallowed ${context.requestName} ` +
           `(correlationId: ${context.correlationId})`,
+        DeadLetterBehavior.name,
       );
       return undefined;
     }
@@ -131,12 +126,14 @@ export class DeadLetterBehavior implements IPipelineBehavior {
       this.logger.warn?.(
         `Dead-lettered ${context.requestKind} ${context.requestName} ` +
           `(correlationId: ${context.correlationId})`,
+        DeadLetterBehavior.name,
       );
     } catch (transportError) {
       // The sink failing must never hide the real handler error: log and move on.
       this.logger.error?.(
         `Failed to dead-letter ${context.requestName}: ` +
           `${transportError instanceof Error ? transportError.message : transportError}`,
+        DeadLetterBehavior.name,
       );
     }
   }

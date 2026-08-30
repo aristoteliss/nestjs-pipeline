@@ -29,7 +29,6 @@ import {
   IPipelineContext,
   LOGGING_BEHAVIOR_LOGGER,
   NextDelegate,
-  untyped,
 } from '@nestjs-pipeline/core';
 import { Attributes, Counter, Histogram, metrics } from '@opentelemetry/api';
 
@@ -91,7 +90,7 @@ function isMetricsSdkInitialized(): boolean {
 @Injectable()
 export class MetricsBehavior implements IPipelineBehavior, OnModuleInit {
   private readonly logger: LoggerService;
-  private readonly context: string | undefined;
+  private readonly context: string;
   /** Lazily-created instruments, keyed by meter name. */
   private readonly instruments = new Map<string, MeterInstruments>();
 
@@ -107,11 +106,6 @@ export class MetricsBehavior implements IPipelineBehavior, OnModuleInit {
     }
 
     this.logger = logger;
-    if (typeof untyped(this.logger).setContext === 'function') {
-      (
-        this.logger as LoggerService & { setContext(context: string): void }
-      ).setContext(this.context);
-    }
   }
 
   onModuleInit(): void {

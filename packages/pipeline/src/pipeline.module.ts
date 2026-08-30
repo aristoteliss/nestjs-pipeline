@@ -152,11 +152,14 @@ export class PipelineModule {
   }
 
   /**
-   * Register pipeline behavior classes in a feature module.
+   * Register feature-owned pipeline behavior classes application-wide.
    *
    * Use this in any module that owns behaviors referenced by
-   * `@UsePipeline(...)` decorators. It registers each behavior class as a
-   * provider and exports it for the module hierarchy.
+   * `@UsePipeline(...)` decorators. {@link PipelineModule} is global and the
+   * pipeline bootstrap resolves behavior providers across the application, so
+   * `forFeature()` expresses ownership/organization, not Nest DI isolation.
+   * Once the importing feature module is part of the application graph, these
+   * behaviors can be referenced by handlers in any module.
    *
    * @example
    * ```ts
@@ -168,6 +171,7 @@ export class PipelineModule {
    */
   static forFeature(behaviors: Type<IPipelineBehavior>[]): DynamicModule {
     return {
+      global: true,
       module: PipelineModule,
       providers: [...behaviors],
       exports: [...behaviors],

@@ -29,6 +29,7 @@ vi.mock('@opentelemetry/api', async (importOriginal) => {
     ...actual,
     metrics: {
       getMeter: vi.fn(),
+      getMeterProvider: vi.fn(),
     },
   };
 });
@@ -79,6 +80,26 @@ describe('MetricsBehavior', () => {
     vi.mocked(metrics.getMeter)
       .mockReset()
       .mockReturnValue(mockMeter as any);
+  });
+
+  it('does not mutate a shared logger and supplies its context per call', () => {
+    const logger = {
+      warn: vi.fn(),
+      log: vi.fn(),
+      setContext: vi.fn(),
+    };
+    vi.mocked(metrics.getMeterProvider).mockReturnValue({
+      constructor: { name: 'NoopMeterProvider' },
+    } as never);
+    const sharedLoggerBehavior = new MetricsBehavior(logger as never);
+
+    sharedLoggerBehavior.onModuleInit();
+
+    expect(logger.setContext).not.toHaveBeenCalled();
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining('SDK is NOT initialized'),
+      MetricsBehavior.name,
+    );
   });
 
   it('uses the default meter name "nestjs-pipeline" when no options are provided', async () => {

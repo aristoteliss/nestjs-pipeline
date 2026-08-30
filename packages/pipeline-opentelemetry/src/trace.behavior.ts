@@ -75,7 +75,7 @@ function isSdkInitialized(): boolean {
 @Injectable()
 export class TraceBehavior implements IPipelineBehavior, OnModuleInit {
   private readonly logger: LoggerService;
-  private readonly context: string | undefined;
+  private readonly context: string;
   /** false = SDK not initialized; handle() will pass through without tracing. */
   private sdkReady = false;
 
@@ -91,11 +91,6 @@ export class TraceBehavior implements IPipelineBehavior, OnModuleInit {
     }
 
     this.logger = logger;
-    if (typeof untyped(this.logger).setContext === 'function') {
-      (
-        this.logger as LoggerService & { setContext(context: string): void }
-      ).setContext(this.context);
-    }
   }
 
   onModuleInit(): void {

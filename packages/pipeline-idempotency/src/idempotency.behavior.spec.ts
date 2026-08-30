@@ -391,7 +391,43 @@ describe('IdempotencyBehavior', () => {
     expect(mockStore.delete).not.toHaveBeenCalled();
   });
 
-  it('treats a lost claim with no stored record as an in-progress conflict', async () => {
+  it('retries once when a failed claim is followed by no live record', async () => {
+    let retriedClaim: IdempotencyRecord | undefined;
+    const mockStore: IdempotencyStore = {
+      get: vi.fn().mockResolvedValue(undefined),
+      setIfAbsent: vi
+        .fn()
+        .mockResolvedValueOnce(false)
+        .mockImplementationOnce((_key, claim) => {
+          retriedClaim = claim;
+          return true;
+        }),
+      completeIfOwned: vi.fn().mockResolvedValue(true),
+      deleteIfOwned: vi.fn(),
+      set: vi.fn(),
+      delete: vi.fn(),
+    };
+    const behavior = new IdempotencyBehavior(mockStore);
+    const next = vi.fn().mockResolvedValue({ id: 'created-after-expiry' });
+
+    await expect(
+      behavior.handle(withOptions(makeCtx(), byKey), next),
+    ).resolves.toEqual({ id: 'created-after-expiry' });
+
+    expect(mockStore.setIfAbsent).toHaveBeenCalledTimes(2);
+    expect(mockStore.get).toHaveBeenCalledTimes(1);
+    expect(next).toHaveBeenCalledTimes(1);
+    const claimAttempts = vi.mocked(mockStore.setIfAbsent).mock.calls;
+    expect(claimAttempts[0]?.[1].claimId).toBe(claimAttempts[1]?.[1].claimId);
+    expect(mockStore.completeIfOwned).toHaveBeenCalledWith(
+      'o1',
+      retriedClaim?.claimId,
+      expect.objectContaining({ claimId: retriedClaim?.claimId }),
+      expect.any(Number),
+    );
+  });
+
+  it('bounds reclaim attempts when the key remains contended', async () => {
     const mockStore: IdempotencyStore = {
       get: vi.fn().mockResolvedValue(undefined),
       setIfAbsent: vi.fn().mockResolvedValue(false),
@@ -401,10 +437,51 @@ describe('IdempotencyBehavior', () => {
       delete: vi.fn(),
     };
     const behavior = new IdempotencyBehavior(mockStore);
+    const next = vi.fn();
 
     await expect(
-      behavior.handle(withOptions(makeCtx(), byKey), vi.fn()),
+      behavior.handle(withOptions(makeCtx(), byKey), next),
     ).rejects.toMatchObject({ statusCode: 409, reason: 'in_progress' });
+
+    expect(mockStore.setIfAbsent).toHaveBeenCalledTimes(2);
+    expect(mockStore.get).toHaveBeenCalledTimes(2);
+    expect(next).not.toHaveBeenCalled();
+  });
+
+  it('does not mutate an injected logger and supplies context per message', async () => {
+    const logger = {
+      log: vi.fn(),
+      error: vi.fn(),
+      debug: vi.fn(),
+      warn: vi.fn(),
+      setContext: vi.fn(),
+    };
+    const mockStore: IdempotencyStore = {
+      get: vi.fn().mockResolvedValue({
+        key: 'o1',
+        status: 'completed',
+        requestName: 'CreateOrderCommand',
+        claimId: 'existing-owner',
+        fingerprint: 'matching-fingerprint',
+        response: 'replayed',
+        createdAt: new Date().toISOString(),
+      }),
+      setIfAbsent: vi.fn().mockResolvedValue(false),
+      completeIfOwned: vi.fn(),
+      deleteIfOwned: vi.fn(),
+      set: vi.fn(),
+      delete: vi.fn(),
+    };
+    const behavior = new IdempotencyBehavior(mockStore, undefined, logger);
+    const ctx = withOptions(makeCtx(), { ...byKey, fingerprint: false });
+
+    await expect(behavior.handle(ctx, vi.fn())).resolves.toBe('replayed');
+
+    expect(logger.setContext).not.toHaveBeenCalled();
+    expect(logger.debug).toHaveBeenCalledWith(
+      expect.stringContaining('Replaying idempotent response'),
+      IdempotencyBehavior.name,
+    );
   });
 
   it('merges module defaults under per-handler options', async () => {

@@ -65,6 +65,29 @@ describe('DeadLetterBehavior', () => {
     send.mockReset();
   });
 
+  it('does not mutate a shared logger and supplies its context per call', async () => {
+    const logger = {
+      warn: vi.fn(),
+      error: vi.fn(),
+      setContext: vi.fn(),
+    };
+    const behavior = new DeadLetterBehavior(
+      transport,
+      undefined,
+      logger as never,
+    );
+
+    await expect(
+      behavior.handle(makeCtx(), vi.fn().mockRejectedValue(new Error('boom'))),
+    ).rejects.toThrow('boom');
+
+    expect(logger.setContext).not.toHaveBeenCalled();
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining('Dead-lettered command TestCommand'),
+      DeadLetterBehavior.name,
+    );
+  });
+
   it('passes through and never touches the transport on success', async () => {
     const behavior = new DeadLetterBehavior(transport);
     const next = vi.fn().mockResolvedValue('ok');

@@ -38,8 +38,8 @@ wrong (races between the check and the write, never replaying the original
 response, leaking partial writes after a crash). This behavior centralizes it:
 
 - **Atomic exclusion** — the key is claimed **atomically** before the handler runs
-  (`SET NX` on Redis, `INSERT … ON CONFLICT DO NOTHING` on Postgres), so two
-  concurrent duplicates cannot both execute while the claim is live.
+  (`SET NX` on Redis, a conditional upsert on Postgres), so two concurrent
+  duplicates cannot both execute while the claim is live.
 - **Response replay** — after a successful execution, the response is stored and
   returned to later duplicates without running the handler again while the record
   remains live.
@@ -198,7 +198,8 @@ IdempotencyModule.forRootAsync({
 `PostgresIdempotencyStore` — backed by a `pg` `Pool`/`Client`. No extra
 infrastructure if you already run Postgres. Create the table once with
 `createIdempotencyTableSql()`; claims are atomic via
-`INSERT … ON CONFLICT (key) DO NOTHING`.
+conditional `INSERT … ON CONFLICT (key) DO UPDATE`: live rows are left
+untouched, while expired rows are replaced by the new claim in one statement.
 
 ```typescript
 import { Pool } from 'pg';
@@ -265,6 +266,8 @@ For each in-scope request `IdempotencyBehavior`:
 4. **claimed** → runs the handler, stores the `completed` record with the
    response, and returns it;
 5. **not claimed** → looks at the existing record:
+   - no live record (it expired/disappeared between claim and read) → retries
+     the atomic claim once;
    - still `in_progress` → throws `IdempotencyConflictError` (`409`);
    - `completed`, same request type and payload → **replays** the stored response (handler does
      not run) and sets `IDEMPOTENCY_REPLAYED_ITEM` (`'idempotency.replayed'`) to

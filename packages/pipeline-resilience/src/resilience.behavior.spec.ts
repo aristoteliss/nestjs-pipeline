@@ -54,6 +54,36 @@ describe('ResilienceBehavior', () => {
     behavior = new ResilienceBehavior();
   });
 
+  it('does not mutate a shared logger and supplies its context per call', async () => {
+    const logger = {
+      debug: vi.fn(),
+      warn: vi.fn(),
+      log: vi.fn(),
+      setContext: vi.fn(),
+    };
+    const sharedLoggerBehavior = new ResilienceBehavior(
+      undefined,
+      logger as never,
+    );
+    const next = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('transient'))
+      .mockResolvedValueOnce('ok');
+
+    await sharedLoggerBehavior.handle(
+      makeCtx({
+        retry: { maxAttempts: 1, backoff: { type: 'constant', delay: 0 } },
+      }),
+      next,
+    );
+
+    expect(logger.setContext).not.toHaveBeenCalled();
+    expect(logger.debug).toHaveBeenCalledWith(
+      expect.stringContaining('[resilience] retrying'),
+      ResilienceBehavior.name,
+    );
+  });
+
   it('passes through when no options are configured', async () => {
     const next = vi.fn().mockResolvedValue('ok');
     const result = await behavior.handle(makeCtx(undefined), next);

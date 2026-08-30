@@ -122,7 +122,7 @@ export class AppModule {}
 
 ### forFeature()
 
-Register behaviors owned by a specific feature module:
+Register feature-owned behaviors application-wide:
 
 ```typescript
 import { Module } from '@nestjs/common';
@@ -134,7 +134,11 @@ import { PipelineModule } from '@nestjs-pipeline/core';
 export class AuditModule {}
 ```
 
-This makes `AuditBehavior` and `CachingBehavior` available for `@UsePipeline()` references within that module hierarchy.
+`PipelineModule` is global, and pipeline behavior lookup spans the application
+graph. Once `AuditModule` is imported, `AuditBehavior` and `CachingBehavior` are
+therefore available to `@UsePipeline()` references in any module. `forFeature()`
+is an organizational registration API; it does not provide feature-local DI
+isolation.
 
 ---
 

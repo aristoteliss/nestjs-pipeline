@@ -66,6 +66,26 @@ describe('AuditBehavior', () => {
     write.mockReset();
   });
 
+  it('does not mutate a shared logger and supplies its context per call', async () => {
+    const logger = {
+      warn: vi.fn(),
+      error: vi.fn(),
+      setContext: vi.fn(),
+    };
+    const failingSink: AuditSink = {
+      write: vi.fn().mockRejectedValue(new Error('sink unavailable')),
+    };
+    const behavior = new AuditBehavior(failingSink, undefined, logger as never);
+
+    await behavior.handle(makeCtx(), vi.fn().mockResolvedValue('ok'));
+
+    expect(logger.setContext).not.toHaveBeenCalled();
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining('failing open'),
+      AuditBehavior.name,
+    );
+  });
+
   it('writes a success record with redacted payload and passes the response through', async () => {
     const behavior = new AuditBehavior(sink);
     const next = vi.fn().mockResolvedValue({ id: 'u1' });

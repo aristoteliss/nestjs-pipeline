@@ -30,9 +30,9 @@ export type MaybePromise<T> = T | Promise<T>;
  *
  * Concurrent duplicate exclusion hinges on {@link setIfAbsent} being **atomic**
  * — it must claim the key only if no live record exists (e.g. Redis `SET NX PX`,
- * Postgres `INSERT … ON CONFLICT DO NOTHING`). Atomic claiming prevents two
- * live duplicates from both acquiring the same key; it does not by itself imply
- * exactly-once execution across failures/retries.
+ * or a Postgres conditional upsert that replaces only expired conflicts).
+ * Atomic claiming prevents two live duplicates from both acquiring the same
+ * key; it does not by itself imply exactly-once execution across failures/retries.
  *
  * Ownership-sensitive transitions use `claimId`. A stale execution whose claim
  * expired must never complete or delete a newer execution's record. Built-in

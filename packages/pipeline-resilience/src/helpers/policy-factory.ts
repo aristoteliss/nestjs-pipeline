@@ -64,6 +64,8 @@ const DEFAULT_ORDER: readonly ResilienceLayer[] = [
   'timeout',
 ] as const;
 
+const LOG_CONTEXT = 'ResilienceBehavior';
+
 /** Any composed cockatiel policy (allowing a fallback's alternate return). */
 export type AnyPolicy = IPolicy<IDefaultPolicyContext, unknown>;
 
@@ -143,6 +145,7 @@ function buildRetry(
     ctx.logger?.debug?.(
       `[resilience] retrying ${ctx.requestName} → ${ctx.handlerName} ` +
         `(attempt ${event.attempt}, delay ${event.delay}ms)`,
+      LOG_CONTEXT,
     );
     ctx.telemetry?.onRetry?.({ attempt: event.attempt, delay: event.delay });
   });
@@ -159,16 +162,23 @@ function buildCircuitBreaker(
     breaker: buildBreaker(options),
   });
   policy.onBreak(() => {
-    ctx.logger?.warn?.(`[resilience] circuit OPEN for ${ctx.handlerName}`);
+    ctx.logger?.warn?.(
+      `[resilience] circuit OPEN for ${ctx.handlerName}`,
+      LOG_CONTEXT,
+    );
     ctx.telemetry?.onCircuitOpen?.();
   });
   policy.onReset(() => {
-    ctx.logger?.log?.(`[resilience] circuit CLOSED for ${ctx.handlerName}`);
+    ctx.logger?.log?.(
+      `[resilience] circuit CLOSED for ${ctx.handlerName}`,
+      LOG_CONTEXT,
+    );
     ctx.telemetry?.onCircuitClose?.();
   });
   policy.onHalfOpen(() => {
     ctx.logger?.debug?.(
       `[resilience] circuit HALF-OPEN for ${ctx.handlerName}`,
+      LOG_CONTEXT,
     );
     ctx.telemetry?.onCircuitHalfOpen?.();
   });
@@ -184,6 +194,7 @@ function buildBulkhead(
     ctx.logger?.warn?.(
       `[resilience] bulkhead rejected ${ctx.handlerName} ` +
         `(limit ${options.limit}, queue ${options.queue ?? 0})`,
+      LOG_CONTEXT,
     );
     ctx.telemetry?.onBulkheadRejected?.();
   });
@@ -202,6 +213,7 @@ function buildTimeout(
   policy.onTimeout(() => {
     ctx.logger?.warn?.(
       `[resilience] timeout after ${options.duration}ms for ${ctx.handlerName}`,
+      LOG_CONTEXT,
     );
     ctx.telemetry?.onTimeout?.();
   });

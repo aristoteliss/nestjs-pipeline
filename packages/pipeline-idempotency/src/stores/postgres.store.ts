@@ -120,12 +120,12 @@ function mapRow(key: string, row: PostgresRowLike): IdempotencyRecord {
  * replacement that shares state across instances without a separate Redis.
  *
  * Create the table once with {@link createIdempotencyTableSql}. Atomicity of
- * {@link setIfAbsent} comes from `INSERT … ON CONFLICT (key) DO NOTHING`: a CTE
- * first purges an expired row for the key, then the insert claims it only if no
- * live row exists. Completion/release also compare `claim_id` in the same SQL
- * statement, so a stale execution cannot mutate a newer claim. The table name
- * is validated as a plain SQL identifier (it is interpolated, not parameterized);
- * all values are passed as bound parameters.
+ * {@link setIfAbsent} comes from a conditional `INSERT … ON CONFLICT … DO
+ * UPDATE`: an absent key is inserted, an expired key is atomically replaced,
+ * and a live conflict is left untouched. Completion/release also compare
+ * `claim_id` in the same SQL statement, so a stale execution cannot mutate a
+ * newer claim. The table name is validated as a plain SQL identifier (it is
+ * interpolated, not parameterized); all values are passed as bound parameters.
  *
  * @example
  * ```ts
@@ -164,13 +164,19 @@ export class PostgresIdempotencyStore implements IdempotencyStore {
     ttlMs: number,
   ): Promise<boolean> {
     const result = await this.db.query(
-      `WITH purged AS (
-         DELETE FROM ${this.table} WHERE key = $1 AND expires_at <= now()
-       )
-       INSERT INTO ${this.table}
+      `INSERT INTO ${this.table} AS current_record
          (key, status, request_name, claim_id, fingerprint, response, created_at, completed_at, expires_at)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-       ON CONFLICT (key) DO NOTHING
+       ON CONFLICT (key) DO UPDATE SET
+         status = EXCLUDED.status,
+         request_name = EXCLUDED.request_name,
+         claim_id = EXCLUDED.claim_id,
+         fingerprint = EXCLUDED.fingerprint,
+         response = EXCLUDED.response,
+         created_at = EXCLUDED.created_at,
+         completed_at = EXCLUDED.completed_at,
+         expires_at = EXCLUDED.expires_at
+       WHERE current_record.expires_at <= now()
        RETURNING key`,
       this.toValues(key, record, ttlMs),
     );

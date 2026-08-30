@@ -199,10 +199,11 @@ describe('PipelineModule.forRoot', () => {
 // ── forFeature ──────────────────────────────────────────────
 
 describe('PipelineModule.forFeature', () => {
-  it('registers and exports the provided behaviors', () => {
+  it('registers and exports the provided behaviors application-wide', () => {
     const mod = PipelineModule.forFeature([AlphaBehavior, BetaBehavior]);
 
     expect(mod.module).toBe(PipelineModule);
+    expect(mod.global).toBe(true);
     expect(mod.providers).toContain(AlphaBehavior);
     expect(mod.providers).toContain(BetaBehavior);
     expect(mod.exports).toContain(AlphaBehavior);

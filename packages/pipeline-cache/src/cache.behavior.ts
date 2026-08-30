@@ -28,7 +28,6 @@ import {
   type IPipelineContext,
   LOGGING_BEHAVIOR_LOGGER,
   type NextDelegate,
-  untyped,
 } from '@nestjs-pipeline/core';
 import type { Cache } from 'cache-manager';
 import { CACHE_DEFAULT_OPTIONS, PIPELINE_CACHE } from './constants/tokens';
@@ -81,11 +80,6 @@ export class CacheBehavior implements IPipelineBehavior {
     }
 
     this.logger = logger;
-    if (typeof untyped(this.logger).setContext === 'function') {
-      (
-        this.logger as LoggerService & { setContext(context: string): void }
-      ).setContext(CacheBehavior.name);
-    }
   }
 
   async handle(
@@ -104,12 +98,18 @@ export class CacheBehavior implements IPipelineBehavior {
     const cached = await this.cache.get(key);
     if (cached !== undefined && cached !== null) {
       context.items.set(CACHE_HIT_ITEM, true);
-      this.logger.debug?.(`Cache hit for ${context.requestName} (${key})`);
+      this.logger.debug?.(
+        `Cache hit for ${context.requestName} (${key})`,
+        CacheBehavior.name,
+      );
       return cached;
     }
 
     context.items.set(CACHE_HIT_ITEM, false);
-    this.logger.debug?.(`Cache miss for ${context.requestName} (${key})`);
+    this.logger.debug?.(
+      `Cache miss for ${context.requestName} (${key})`,
+      CacheBehavior.name,
+    );
 
     const result = await next();
     if (result !== undefined && result !== null) {
