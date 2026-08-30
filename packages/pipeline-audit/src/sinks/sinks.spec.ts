@@ -70,6 +70,8 @@ describe('LogAuditSink', () => {
           set: new Set(['admin']),
           pattern: /secret/gi,
           error: new TypeError('bad input'),
+          callback: function auditCallback() {},
+          marker: Symbol('audit-marker'),
         },
       }),
     );
@@ -93,6 +95,14 @@ describe('LogAuditSink', () => {
       name: 'TypeError',
       message: 'bad input',
     });
+    expect(parsed.payload.callback).toEqual({
+      $type: 'Function',
+      name: 'auditCallback',
+    });
+    expect(parsed.payload.marker).toEqual({
+      $type: 'Symbol',
+      description: 'audit-marker',
+    });
   });
 });
 
@@ -111,7 +121,7 @@ describe('PostgresAuditSink', () => {
     expect(values[2]).toBe('user.create');
     expect(values[5]).toBe(JSON.stringify({ id: 'admin-1' }));
     expect(values[9]).toBe(JSON.stringify({ username: 'jane' }));
-    expect(values[10]).toBeNull(); // response omitted
+    expect(values[10]).toBeNull();
   });
 
   it('uses the tagged representation for JSONB values', async () => {
