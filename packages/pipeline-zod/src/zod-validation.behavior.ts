@@ -75,7 +75,7 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
  *
  * **How it works:**
  * - If `context.requestType._zodSchema` is a `ZodType`, the behavior runs
- *   `schema.safeParse(context.request)`.
+ *   `schema.safeParseAsync(context.request)`.
  * - On failure it throws {@link ZodValidationError} — catch it with an
  *   `ExceptionFilter` to map it to an HTTP 400.
  * - On success, the parsed result must be a plain object because pipeline
@@ -98,7 +98,7 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
  *
  * **Registration — per handler only:**
  * ```ts
- * @UsePipeline([ZodValidationBehavior])
+ * @UsePipeline(ZodValidationBehavior)
  * export class CreateUserHandler implements ICommandHandler<CreateUserCommand> { ... }
  * ```
  */
@@ -113,7 +113,7 @@ export class ZodValidationBehavior implements IPipelineBehavior {
       | undefined;
 
     if (schema) {
-      const result = schema.safeParse(context.request);
+      const result = await schema.safeParseAsync(context.request);
       if (!result.success) {
         throw new ZodValidationError(result.error);
       }

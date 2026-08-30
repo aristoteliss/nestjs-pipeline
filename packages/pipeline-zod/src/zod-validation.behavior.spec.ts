@@ -114,6 +114,22 @@ describe('ZodValidationBehavior', () => {
 
       expect(reqObj).toEqual({ count: 42, role: 'user' });
     });
+
+    it('supports async refinements and transforms', async () => {
+      const asyncSchema = z
+        .object({ username: z.string() })
+        .refine(async ({ username }) => username !== 'taken')
+        .transform(async ({ username }) => ({
+          username: username.toUpperCase(),
+        }));
+      const reqType = makeRequestType(asyncSchema);
+      const reqObj = { username: 'alice' };
+      const ctx = createMockContext({ request: reqObj, requestType: reqType });
+
+      await behavior.handle(ctx, vi.fn().mockResolvedValue('ok'));
+
+      expect(reqObj).toEqual({ username: 'ALICE' });
+    });
   });
 
   describe('when ZOD_SCHEMA is attached and the request is invalid', () => {

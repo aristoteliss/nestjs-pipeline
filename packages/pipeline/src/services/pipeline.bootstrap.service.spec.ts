@@ -647,6 +647,35 @@ describe('PipelineBootstrapService', () => {
       const opts = result.store!.getBehaviorOptions(MockBehavior);
       expect(opts).toEqual({ level: 'debug', suffix: '-H' });
     });
+
+    it('bare handler override clears global options for the overridden behavior', async () => {
+      const globalOpts = { mode: 'global', verbose: true };
+
+      // Bare @UsePipeline — no options tuple, so handlerOptions has no entry
+      // for ConfiguredMockBehavior. Before the fix, the global options survived.
+      @UsePipeline(ConfiguredMockBehavior)
+      class BareOverrideHandler {
+        async execute(_cmd: MockCommand) {
+          return { store: pipelineStore.getStore() };
+        }
+      }
+      const handler = new BareOverrideHandler();
+      explorerServiceMock.explore.mockReturnValue({
+        commands: [makeWrapper(handler, BareOverrideHandler)],
+        queries: [],
+        events: [],
+      });
+
+      new PipelineBootstrapService(moduleRefMock, {
+        globalBehaviors: { before: [[ConfiguredMockBehavior, globalOpts]] },
+      }).onApplicationBootstrap();
+
+      const result = await handler.execute(new MockCommand(1));
+
+      // The global options must NOT leak through — bare override means "no options"
+      const opts = result.store!.getBehaviorOptions(ConfiguredMockBehavior);
+      expect(opts).toBeUndefined();
+    });
   });
 
   // ─────────────────────────────────────────────────────────────────

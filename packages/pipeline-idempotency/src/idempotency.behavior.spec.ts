@@ -125,6 +125,18 @@ describe('IdempotencyBehavior', () => {
     expect(await store.get('o1')).toBeUndefined();
   });
 
+  it('rejects responses that native JSON would silently corrupt', async () => {
+    const behavior = new IdempotencyBehavior(store);
+
+    await expect(
+      behavior.handle(
+        withOptions(makeCtx(), byKey),
+        vi.fn().mockResolvedValue(new Map([['id', 1]])),
+      ),
+    ).rejects.toThrow(/JSON-serializable/);
+    expect(await store.get('o1')).toBeUndefined();
+  });
+
   it('rejects reuse of a key by a different request type', async () => {
     const behavior = new IdempotencyBehavior(store);
     await behavior.handle(

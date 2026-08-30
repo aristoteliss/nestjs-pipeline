@@ -17,6 +17,7 @@
  */
 
 import { createHash } from 'node:crypto';
+import { toStrictJsonValue } from './strict-json';
 
 /**
  * Produces a stable SHA-256 hex digest of an acyclic JSON-serializable value,
@@ -35,76 +36,10 @@ export function fingerprintValue(value: unknown): string {
  */
 export function stableStringify(value: unknown): string {
   try {
-    const serialized = JSON.stringify(normalize(value, new WeakSet()));
-    if (serialized === undefined) throw new TypeError('unsupported root value');
-    return serialized;
+    return JSON.stringify(toStrictJsonValue(value, true));
   } catch {
     throw new TypeError(
       'stableStringify requires an acyclic JSON-serializable value.',
     );
   }
-}
-
-function normalize(value: unknown, ancestors: WeakSet<object>): unknown {
-  if (value === null) {
-    return value;
-  }
-
-  if (typeof value !== 'object') {
-    if (typeof value === 'bigint') {
-      throw new TypeError(`Unsupported value type: ${typeof value}`);
-    }
-    return value;
-  }
-
-  if (ancestors.has(value)) throw new TypeError('Cyclic value');
-
-  if (Array.isArray(value)) {
-    ancestors.add(value);
-    try {
-      return value.map((item) => normalize(item, ancestors));
-    } finally {
-      ancestors.delete(value);
-    }
-  }
-
-  // CQRS requests are usually class instances, so normalize their enumerable
-  // payload properties too. Preserve only built-ins with meaningful native
-  // JSON serialization or atomic semantics.
-  if (isAtomicObject(value)) return value;
-
-  ancestors.add(value);
-  const sorted: Record<string, unknown> = {};
-  try {
-    for (const key of Object.keys(value as Record<string, unknown>).sort()) {
-      const normalized = normalize(
-        (value as Record<string, unknown>)[key],
-        ancestors,
-      );
-      // Match JSON.stringify object semantics: unsupported property values are
-      // omitted, while the same values in arrays become null during stringify.
-      if (
-        normalized !== undefined &&
-        typeof normalized !== 'function' &&
-        typeof normalized !== 'symbol'
-      ) {
-        sorted[key] = normalized;
-      }
-    }
-  } finally {
-    ancestors.delete(value);
-  }
-  return sorted;
-}
-
-function isAtomicObject(value: object): boolean {
-  return (
-    value instanceof Date ||
-    value instanceof RegExp ||
-    value instanceof Error ||
-    value instanceof Map ||
-    value instanceof Set ||
-    value instanceof ArrayBuffer ||
-    ArrayBuffer.isView(value)
-  );
 }

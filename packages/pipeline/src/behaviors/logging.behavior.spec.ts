@@ -61,6 +61,44 @@ describe('LoggingBehavior', () => {
     expect(result).toEqual({ id: 1 });
   });
 
+  it('passes handler context per log call without mutating a shared logger', async () => {
+    const logger = {
+      log: vi.fn(),
+      debug: vi.fn(),
+      warn: vi.fn(),
+      error: vi.fn(),
+      verbose: vi.fn(),
+      fatal: vi.fn(),
+      setContext: vi.fn(),
+    };
+    const sharedBehavior = new LoggingBehavior(logger);
+    let releaseFirst!: () => void;
+    const firstPending = new Promise<void>((resolve) => {
+      releaseFirst = resolve;
+    });
+
+    const first = sharedBehavior.handle(
+      createMockContext({ handlerName: 'FirstHandler' }),
+      vi.fn().mockImplementation(() => firstPending.then(() => 'first')),
+    );
+    await sharedBehavior.handle(
+      createMockContext({ handlerName: 'SecondHandler' }),
+      vi.fn().mockResolvedValue('second'),
+    );
+    releaseFirst();
+    await first;
+
+    expect(logger.setContext).not.toHaveBeenCalled();
+    expect(logger.log).toHaveBeenCalledWith(
+      expect.stringContaining('FirstHandler completed'),
+      'FirstHandler',
+    );
+    expect(logger.log).toHaveBeenCalledWith(
+      expect.stringContaining('SecondHandler completed'),
+      'SecondHandler',
+    );
+  });
+
   it('re-throws errors from next()', async () => {
     const ctx = createMockContext();
     const next = vi.fn().mockRejectedValue(new Error('handler failed'));

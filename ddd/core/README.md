@@ -23,7 +23,7 @@ This package provides the foundational building blocks for implementing a DDD do
 - **`CommandRepository<TOutcome, TResult>`** — Abstract base for write repositories. Receives an `ICache` instance; concrete classes implement `save(outcome)`.
 - **`QueryRepository<TQuery, TResult>`** — Abstract base for read repositories. Receives an `ICache` instance; concrete classes implement `find(query)`.
 - **`@Cache()`** — Method decorator for `save()` in command repositories. After a successful write it upserts the result into the cache via `set()`; if the result is `null` or `undefined` (e.g. a delete), it evicts all related keys via `delete()`. Cache operations are **best-effort**: a failure is swallowed so a committed DB write is never turned into an error.
-- **`@FromCache()`** — Method decorator for `find()` in query repositories. On every call it checks the cache first; on a miss it executes the query and stores **non-nullish** results only (preventing unbounded negative caching). Accepts a key function and an optional hydration function.
+- **`@FromCache()`** — Method decorator for `find()` in query repositories. On every call it checks the cache first; on a miss it executes the query and stores **non-nullish** results only (preventing unbounded negative caching). Accepts a key function and an optional hydration function. Cache reads and writes are **fail-closed**: their errors propagate, including a cache-set failure after a successful database read. This differs intentionally from the write-side `@Cache()` policy, where the database mutation has already committed and cache maintenance is best-effort.
 
 ## Installation
 

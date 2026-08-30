@@ -17,7 +17,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { uuidv7 } from './uuidv7';
+import { isUuidV7, uuidv7 } from './uuidv7';
 
 describe('uuidv7', () => {
   const UUID_V7_REGEX =
@@ -37,11 +37,16 @@ describe('uuidv7', () => {
     expect(ids.size).toBe(1000);
   });
 
-  it('generates monotonically sortable UUIDs over time', async () => {
+  it('generates timestamp-sortable UUIDs across different milliseconds', async () => {
     const id1 = uuidv7();
     await new Promise((resolve) => setTimeout(resolve, 5));
     const id2 = uuidv7();
 
     expect(id1 < id2).toBe(true);
+  });
+
+  it('validates UUIDv7 strings after trimming surrounding whitespace', () => {
+    const id = uuidv7();
+    expect(isUuidV7(`  ${id}\n`)).toBe(true);
   });
 });

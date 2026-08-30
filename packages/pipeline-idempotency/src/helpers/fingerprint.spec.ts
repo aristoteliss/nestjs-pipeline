@@ -83,10 +83,38 @@ describe('stableStringify and fingerprintValue', () => {
     expect(() => stableStringify(1n)).toThrow(/JSON-serializable/);
     expect(() => stableStringify(cyclic)).toThrow(/JSON-serializable/);
     expect(() => fingerprintValue(undefined)).toThrow(/JSON-serializable/);
+    expect(() => stableStringify({ value: new Map([['a', 1]]) })).toThrow(
+      /JSON-serializable/,
+    );
+    expect(() => stableStringify({ value: new Set([1]) })).toThrow(
+      /JSON-serializable/,
+    );
+    expect(() => stableStringify({ value: /pattern/ })).toThrow(
+      /JSON-serializable/,
+    );
+    expect(() => stableStringify({ value: new Error('failure') })).toThrow(
+      /JSON-serializable/,
+    );
+    expect(() => stableStringify({ value: Number.NaN })).toThrow(
+      /JSON-serializable/,
+    );
+    expect(() => stableStringify({ value: Number.POSITIVE_INFINITY })).toThrow(
+      /JSON-serializable/,
+    );
   });
 
-  it('uses native JSON semantics for nested undefined values', () => {
-    expect(stableStringify({ a: 1, optional: undefined })).toBe('{"a":1}');
-    expect(stableStringify([1, undefined, 3])).toBe('[1,null,3]');
+  it('rejects nested values that native JSON would silently discard', () => {
+    expect(() => stableStringify({ a: 1, optional: undefined })).toThrow(
+      /JSON-serializable/,
+    );
+    expect(() => stableStringify([1, undefined, 3])).toThrow(
+      /JSON-serializable/,
+    );
+  });
+
+  it('converts valid dates to their ISO JSON representation', () => {
+    expect(stableStringify({ at: new Date('2026-01-01T00:00:00.000Z') })).toBe(
+      '{"at":"2026-01-01T00:00:00.000Z"}',
+    );
   });
 });

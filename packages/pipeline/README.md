@@ -761,7 +761,7 @@ orderCreated = (events$: Observable<any>): Observable<ICommand> =>
 | `correlationIdFactory` | `() => string \| undefined` | Read an external correlation ID for a root run after parent inheritance is checked (e.g. `getCorrelationId`) |
 | `correlationIdRunner` | `<T>(id: string, fn: () => T) => T` | Wrap each pipeline invocation in a correlation context (e.g. `runWithCorrelationId`) |
 | `bootstrapLogLevel` | `LogLevel \| 'none'` | Log level for bootstrap messages (default `'debug'`) |
-| `loggerProvider` | `Provider` | Custom DI provider bound to `LOGGING_BEHAVIOR_LOGGER` (registered and exported) |
+| `loggerProvider` | `PipelineLoggerProvider` | Custom DI provider whose `provide` token must be `LOGGING_BEHAVIOR_LOGGER` (registered and exported) |
 
 ---
 

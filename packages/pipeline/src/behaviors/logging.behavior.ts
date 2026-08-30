@@ -135,11 +135,6 @@ export interface LoggingBehaviorOptions {
   logFormat?: 'text' | 'structured';
 }
 
-/** A {@link LoggerService} that also supports NestJS's per-instance `setContext`. */
-interface ContextLogger extends LoggerService {
-  setContext(context: string): void;
-}
-
 /**
  * Structural type for errors/exceptions that carry extra, loggable context
  * via an `optionalParams` property, in addition to the standard `message`
@@ -166,7 +161,6 @@ interface ErrorWithOptionalParams {
 @Injectable()
 export class LoggingBehavior implements IPipelineBehavior {
   private readonly logger: LoggerService;
-  private readonly hasSetContext: boolean;
 
   constructor(
     @Optional()
@@ -174,8 +168,6 @@ export class LoggingBehavior implements IPipelineBehavior {
     logger?: LoggerService,
   ) {
     this.logger = logger ?? new Logger(LoggingBehavior.name);
-    this.hasSetContext =
-      typeof (this.logger as ContextLogger).setContext === 'function';
   }
 
   /**
@@ -238,10 +230,6 @@ export class LoggingBehavior implements IPipelineBehavior {
     const excludeResponseObj = options?.excludeResponseObj ?? true;
     const logFormat = options?.logFormat ?? 'text';
     const structured = logFormat === 'structured';
-
-    if (this.hasSetContext) {
-      (this.logger as ContextLogger).setContext(context.handlerName);
-    }
 
     const requestPayload = excludeRequestObj
       ? '[exclude request obj]'

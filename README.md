@@ -952,7 +952,7 @@ export class CreateUserHandler { /* ... */ }
 @UsePipeline([LoggingBehavior, { metricLogLevel: 'none', requestResponseLogLevel: 'none' }])
 ```
 
-`LoggingBehavior` logs under the **handler's** context, not its own — it calls `setContext(context.handlerName)` on the injected logger before logging, so the bracketed tag below is the handler name. With `excludeRequestObj: false, excludeResponseObj: false`:
+`LoggingBehavior` logs under the **handler's** context, not its own. The handler name is passed with each log call, so a singleton logger is never mutated and concurrent handlers cannot overwrite one another's context. With `excludeRequestObj: false, excludeResponseObj: false`:
 
 **Output example** (on success):
 
@@ -1006,10 +1006,12 @@ structured details from `ZodError.flatten()`. On successful object output, it
 updates the existing request object to match the parsed data before the next
 behavior/handler runs: keys omitted by the parsed result are removed and parsed,
 coerced, transformed, or defaulted values are assigned to that same request.
+The behavior uses Zod's async parser, so asynchronous refinements and
+transforms are supported.
 
 ### Controller-Level Validation with ZodPipe
 
-`ZodPipe` validates `@Body()`, `@Param()`, `@Query()` values against a Zod schema — including transform schemas:
+`ZodPipe` asynchronously validates `@Body()`, `@Param()`, `@Query()` values against a Zod schema — including synchronous or asynchronous transform/refinement schemas. NestJS awaits the pipe's promise automatically:
 
 ```typescript
 import { z } from 'zod';

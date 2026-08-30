@@ -16,7 +16,16 @@
  * ----------------------------
  */
 
-import { LogLevel, Provider, Type } from '@nestjs/common';
+import {
+  ClassProvider,
+  ExistingProvider,
+  FactoryProvider,
+  LoggerService,
+  LogLevel,
+  Type,
+  ValueProvider,
+} from '@nestjs/common';
+import { LOGGING_BEHAVIOR_LOGGER } from '../behaviors/logging.behavior';
 import { IPipelineBehavior } from '../interfaces/pipeline.behavior.interface';
 import { GlobalBehaviorsOptions } from './global-behaviors.options';
 
@@ -25,6 +34,21 @@ import { GlobalBehaviorsOptions } from './global-behaviors.options';
  * @internal — consumed by {@link PipelineBootstrapService}.
  */
 export const PIPELINE_MODULE_OPTIONS = Symbol('PIPELINE_MODULE_OPTIONS');
+
+/** A Nest provider that is guaranteed to bind the pipeline logger token. */
+export type PipelineLoggerProvider =
+  | (Omit<ClassProvider<LoggerService>, 'provide'> & {
+      provide: typeof LOGGING_BEHAVIOR_LOGGER;
+    })
+  | (Omit<ValueProvider<LoggerService>, 'provide'> & {
+      provide: typeof LOGGING_BEHAVIOR_LOGGER;
+    })
+  | (Omit<FactoryProvider<LoggerService>, 'provide'> & {
+      provide: typeof LOGGING_BEHAVIOR_LOGGER;
+    })
+  | (Omit<ExistingProvider, 'provide'> & {
+      provide: typeof LOGGING_BEHAVIOR_LOGGER;
+    });
 
 /**
  * Configuration options for {@link PipelineModule.forRoot}.
@@ -127,7 +151,7 @@ export interface PipelineModuleOptions {
    * })
    * ```
    */
-  loggerProvider?: Provider;
+  loggerProvider?: PipelineLoggerProvider;
 
   /**
    * Optional factory that provides a correlation ID for a root pipeline run.

@@ -11,15 +11,14 @@ import type {
   IdempotencyRecord,
   JsonValue,
 } from '../interfaces/idempotency-record.interface';
+import { toStrictJsonValue } from './strict-json';
 
 /** Convert a replay value to the representation shared by durable stores. */
 export function toJsonSnapshot(value: unknown): JsonValue | undefined {
   if (value === undefined) return undefined;
 
   try {
-    const serialized = JSON.stringify(value);
-    if (serialized === undefined) throw new TypeError('unsupported root value');
-    return JSON.parse(serialized) as JsonValue;
+    return toStrictJsonValue(value);
   } catch {
     throw new TypeError(
       'Idempotency responses must be acyclic JSON-serializable values.',

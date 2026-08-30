@@ -244,12 +244,20 @@ export class PipelineBootstrapService implements OnApplicationBootstrap {
     }
 
     // 2. Build handler metadata (kind, name, options) — computed once
-    //    Merge global options with handler-specific options (handler wins on conflict)
+    //    Merge global options with handler-specific options (handler wins on conflict).
+    //    Any global-option entry whose behavior is overridden at handler level must be
+    //    removed first — a bare @UsePipeline(Behavior) intentionally carries no options,
+    //    so the spread below wouldn't overwrite the global entry without this deletion.
     const handlerOptions: Map<string, Record<string, unknown>> | undefined =
       Reflect.getMetadata(PIPELINE_BEHAVIORS_OPTIONS_METADATA, handlerType);
 
+    const filteredGlobalOptions = new Map(globalOptions);
+    for (const id of handlerBehaviorIds) {
+      filteredGlobalOptions.delete(id);
+    }
+
     const mergedOptions = new Map<string, Record<string, unknown>>([
-      ...globalOptions,
+      ...filteredGlobalOptions,
       ...(handlerOptions ?? []),
     ]);
 

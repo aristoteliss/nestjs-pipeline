@@ -54,8 +54,9 @@ const DEFAULT_KINDS: Array<IPipelineContext['requestKind']> = ['query'];
  *
  * Only `query` requests are cached by default; commands and events pass through
  * untouched. On a cache miss, `null` / `undefined` results are not written.
- * A background refresh is delegated to `cache-manager.wrap()`, whose store
- * semantics determine how a nullish refresh result replaces an existing entry.
+ * Cache hits return the value from the single explicit lookup. This behavior
+ * intentionally does not use `cache-manager.wrap()` because its background
+ * refresh callback would re-enter every downstream pipeline behavior.
  */
 @Injectable()
 export class CacheBehavior implements IPipelineBehavior {
@@ -104,10 +105,7 @@ export class CacheBehavior implements IPipelineBehavior {
     if (cached !== undefined && cached !== null) {
       context.items.set(CACHE_HIT_ITEM, true);
       this.logger.debug?.(`Cache hit for ${context.requestName} (${key})`);
-      // cache-manager evaluates its module-level refreshThreshold only through
-      // wrap(). Calling wrap on a confirmed hit preserves the package's
-      // null/undefined miss semantics while enabling background refresh.
-      return this.cache.wrap(key, next, options.ttl);
+      return cached;
     }
 
     context.items.set(CACHE_HIT_ITEM, false);

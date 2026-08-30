@@ -37,7 +37,7 @@ Caching behavior for `@nestjs-pipeline/core`, powered by [cache-manager](https:/
 
 ## Why
 
-Read-heavy queries often hit the same data repeatedly. `@nestjs-pipeline/cache` adds a transparent caching layer to your CQRS pipeline without coupling the caching logic to your business code. It is a thin, type-safe behavior over [cache-manager](https://github.com/jaredwray/cacheable) v7 + [Keyv](https://keyv.org/), so you get tiered caches, background refresh, and a consistent interface across every supported backend.
+Read-heavy queries often hit the same data repeatedly. `@nestjs-pipeline/cache` adds a transparent caching layer to your CQRS pipeline without coupling the caching logic to your business code. It is a thin, type-safe behavior over [cache-manager](https://github.com/jaredwray/cacheable) v7 + [Keyv](https://keyv.org/), so you get tiered caches and a consistent interface across every supported backend.
 
 ---
 
@@ -206,9 +206,10 @@ CacheModule.forRoot({ cache: createCache({ stores: [new Keyv()] }) });
 
 Only **query** requests are cached by default — commands and events always pass
 through untouched. Override this with the `kinds` option. On a cache miss,
-`null` and `undefined` results are not written. Background refreshes use
-`cache-manager.wrap()`, so the configured store determines how a nullish
-refresh result replaces an existing entry.
+`null` and `undefined` results are not written. A hit returns the value from
+that lookup directly. `CacheBehavior` does not use `cache-manager.wrap()` or
+background refresh because a refresh callback would re-run every behavior and
+side effect nested after the cache behavior.
 
 ### Cache keys
 
@@ -247,7 +248,7 @@ Exported as `CACHE_HIT_ITEM` and `CACHE_KEY_ITEM`.
 | `stores` | `Keyv[]` | Pre-built Keyv stores (tiered). |
 | `store` | `CacheStoreConfig \| CacheStoreConfig[]` | Declarative store(s). |
 | `ttl` | `number` | Default TTL (ms) for stores and handlers. |
-| `refreshThreshold` | `number` | Background-refresh threshold (ms); cache hits use `cache-manager.wrap()` so refresh runs asynchronously. |
+| `refreshThreshold` | `number` | Deprecated compatibility option forwarded to `cache-manager`; `CacheBehavior` does not call `wrap()`, so it does not trigger background refresh. |
 | `nonBlocking` | `boolean` | Optimize multi-store reads/writes. |
 | `defaults` | `CacheBehaviorOptions` | Default per-handler options. |
 

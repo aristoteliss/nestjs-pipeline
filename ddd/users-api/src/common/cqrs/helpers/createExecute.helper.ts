@@ -61,7 +61,17 @@ export function createExecuteClass<
 
       const result = schema.safeParse(input);
       if (!result.success) throw new ZodValidationError(result.error);
-      Object.assign(this, result.data);
+      // Keep generated CQRS payloads inside the portable JSON domain used by
+      // idempotency fingerprints. Zod preserves explicitly supplied optional
+      // keys with an undefined value, while JSON would silently omit them.
+      Object.assign(
+        this,
+        Object.fromEntries(
+          Object.entries(result.data).filter(
+            ([, value]) => value !== undefined,
+          ),
+        ),
+      );
     }
   }
 

@@ -85,6 +85,19 @@ describe('RootEntity', () => {
     expect(entity.name).toBe('Rehydrated');
   });
 
+  it('normalizes whitespace around a valid rehydrated id', () => {
+    const id = uuidv7();
+    const entity = new TestEntity({
+      id: `  ${id}\n`,
+      createdAt: new Date('2026-01-01T00:00:00.000Z'),
+      updatedAt: new Date('2026-01-02T00:00:00.000Z'),
+      name: 'Rehydrated',
+    });
+
+    expect(entity.id).toBe(id);
+    expect(entity.cacheKey).toBe(`test:${id}`);
+  });
+
   it('throws when only partial rehydration fields are provided', () => {
     const id = uuidv7();
     expect(() => new TestEntity({ id })).toThrowError(

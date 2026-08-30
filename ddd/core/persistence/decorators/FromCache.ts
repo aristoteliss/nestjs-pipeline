@@ -27,7 +27,9 @@ import { QueryRepository } from '../query-repository.abstract';
  * on a miss (`null` or `undefined`) it runs the original method. Only non-nullish
  * results are stored, preventing an unbounded negative cache from hiding records
  * created later. If the repository has no cache, or `keyFn` returns `null`, the
- * call passes straight through.
+ * call passes straight through. Cache errors propagate (fail-closed), including
+ * a set failure after the database read has completed; use a fail-open cache
+ * adapter when different read-side availability semantics are required.
  *
  * @param keyFn - Builds the cache key from the query, or returns `null` to skip caching.
  * @param hydrateFn - Optional transform applied to cached values when `query.hydrate` is true.

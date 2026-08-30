@@ -138,7 +138,12 @@ interface IdempotencyRecord {
 
 The record is created as `in_progress` the instant the key is claimed, then
 flipped to `completed` with the captured `response` when the handler succeeds.
-Handler responses used with idempotency must be acyclic JSON-serializable values.
+Handler responses used with idempotency must be in the strict portable JSON
+domain: `null`, booleans, finite numbers, strings, arrays, and record-like
+objects containing only those values. `Date` is explicitly converted to an ISO
+string. Lossy native JSON cases such as `Map`, `Set`, `RegExp`, `Error`, binary
+views, non-finite numbers, `undefined`, functions, symbols, bigint, and cycles
+are rejected.
 The initial caller receives the original handler value; subsequent callers
 receive its JSON snapshot (for example, a `Date` replays as an ISO string).
 
@@ -298,6 +303,10 @@ the request payload (object keys sorted, so property order doesn't matter). If a
 later request reuses the key with a **different** body, it is rejected with a
 `422` `key_reuse` conflict — catching client bugs and replay attacks where the
 same key is sent with new data.
+
+Fingerprinting uses the same strict JSON domain as response snapshots, so
+values that native `JSON.stringify()` would silently collapse or discard are
+rejected before a key is claimed.
 
 Disable it (`fingerprint: false`) when your key already fully identifies the
 payload, or expose `fingerprintValue` to compute a hash yourself.

@@ -28,12 +28,12 @@ import { ZodType } from 'zod';
  *   @Body(new ZodPipe(CreateUserMapper))   // transform schema → outputs a Command
  */
 export class ZodPipe<TOutput, TInput = unknown>
-  implements PipeTransform<TInput, TOutput>
+  implements PipeTransform<TInput, Promise<TOutput>>
 {
   constructor(private readonly schema: ZodType<TOutput>) {}
 
-  transform(value: TInput): TOutput {
-    const result = this.schema.safeParse(value);
+  async transform(value: TInput): Promise<TOutput> {
+    const result = await this.schema.safeParseAsync(value);
     if (!result.success) throw new BadRequestException(result.error.flatten());
     return result.data as TOutput;
   }

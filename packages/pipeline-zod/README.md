@@ -92,12 +92,18 @@ export class CreateUserHandler implements ICommandHandler<CreateUserCommand> {
 ### How It Works
 
 1. `ZodValidationBehavior` reads `context.requestType._zodSchema` (a `ZodType`).
-2. If a schema exists, it runs `schema.safeParse(context.request)`.
+2. If a schema exists, it awaits `schema.safeParseAsync(context.request)`.
 3. On failure, it throws `ZodValidationError` with structured details.
 4. On success, if both `result.data` and the request are objects, it mutates the existing request object to match `result.data`: request keys omitted by the parsed result are deleted, then parsed/coerced/defaulted values are assigned.
 5. If no schema is present (e.g. a plain event class), it's a no-op — just calls `next()`.
 
 This means transforms, coercions, defaults, and object-key stripping performed by the schema are visible to later behaviors and to the handler; the behavior is not validation-only.
+
+Async refinements and transforms are supported by both `ZodValidationBehavior`
+and `ZodPipe`. Consequently, `ZodPipe.transform()` returns a promise (which
+NestJS pipes await automatically). The synchronous `createRequest()` example
+below still uses `safeParse()` during construction and therefore requires a
+synchronous schema.
 
 ---
 
@@ -467,7 +473,7 @@ export class UsersController {
 | `ZodValidationBehavior` | Class | Pipeline behavior — parses `_zodSchema` and applies successful plain-object output to the existing request |
 | `ZodValidationError` | Class | Error with `details` from `ZodError.flatten()` |
 | `ZodValidationFilter` | Class | Exception filter — catches `ZodValidationError` → HTTP 400 |
-| `ZodPipe` | Class | NestJS pipe — validates params/body/query against Zod schema |
+| `ZodPipe` | Class | Async NestJS pipe — validates params/body/query against synchronous or asynchronous Zod schemas |
 | `ZOD_SCHEMA_KEY` | `'_zodSchema'` | Key for attaching schemas to request classes |
 | `ZOD_SCHEMA` | `'_zodSchema'` | **Deprecated** — alias for `ZOD_SCHEMA_KEY`; use `ZOD_SCHEMA_KEY` instead |
 

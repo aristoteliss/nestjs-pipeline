@@ -38,7 +38,7 @@ import { buildDeadLetterRecord } from './helpers/build-record';
 import type { DeadLetterBehaviorOptions } from './interfaces/dead-letter-options.interface';
 import type { DeadLetterTransport } from './interfaces/dead-letter-transport.interface';
 
-/** Item key set on the pipeline context when a request is dead-lettered. */
+/** Item key set after a dead-letter capture is attempted, even if transport delivery fails. */
 export const DEAD_LETTER_ITEM = 'dead-letter.captured';
 
 /**

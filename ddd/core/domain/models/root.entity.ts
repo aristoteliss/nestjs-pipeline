@@ -74,7 +74,7 @@ export abstract class RootEntity<TSnapshot extends Partial<RootEntitySnapshot>>
     if (typeof id !== 'string' || !isUuidV7(id)) {
       throw new Error('id must be a valid UUID v7.');
     }
-    return id;
+    return id.trim();
   }
 
   protected static normalizeDate(value?: Date | string): Date {

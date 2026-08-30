@@ -18,6 +18,7 @@
 
 import { Injectable } from '@nestjs/common';
 import { describe, expect, it } from 'vitest';
+import { LOGGING_BEHAVIOR_LOGGER } from './behaviors/logging.behavior';
 import {
   IPipelineBehavior,
   NextDelegate,
@@ -170,6 +171,28 @@ describe('PipelineModule.forRoot', () => {
 
     expect(mod.module).toBe(PipelineModule);
     expect(mod.providers).toBeDefined();
+  });
+
+  it('registers and exports a logger provider bound to the logger token', () => {
+    const provider = {
+      provide: LOGGING_BEHAVIOR_LOGGER,
+      useValue: { log() {} },
+    };
+    const mod = PipelineModule.forRoot({ loggerProvider: provider });
+
+    expect(mod.providers).toContain(provider);
+    expect(mod.exports).toContain(LOGGING_BEHAVIOR_LOGGER);
+  });
+
+  it('rejects a logger provider bound to another token at runtime', () => {
+    expect(() =>
+      PipelineModule.forRoot({
+        loggerProvider: {
+          provide: Symbol('wrong'),
+          useValue: { log() {} },
+        },
+      } as unknown as Parameters<typeof PipelineModule.forRoot>[0]),
+    ).toThrow(/LOGGING_BEHAVIOR_LOGGER/);
   });
 });
 

@@ -100,8 +100,10 @@ export interface CacheModuleOptions {
   /** Default time-to-live (milliseconds) applied across stores and handlers. */
   ttl?: number;
   /**
-   * If the remaining TTL is below this threshold (milliseconds) the value is
-   * refreshed asynchronously in the background. Forwarded to `cache-manager`.
+   * Forwarded to `cache-manager` for compatibility. `CacheBehavior` does not
+   * call `wrap()`, so this does not trigger background refresh in a pipeline.
+   *
+   * @deprecated Background refresh can re-enter downstream pipeline behaviors.
    */
   refreshThreshold?: number;
   /** Forwarded to `cache-manager`; optimizes behavior across multiple stores. */

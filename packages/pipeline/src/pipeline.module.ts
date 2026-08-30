@@ -110,6 +110,15 @@ export class PipelineModule {
       ? { behaviors: optionsOrBehaviors }
       : optionsOrBehaviors;
 
+    if (
+      options.loggerProvider &&
+      options.loggerProvider.provide !== LOGGING_BEHAVIOR_LOGGER
+    ) {
+      throw new TypeError(
+        'loggerProvider must bind the LOGGING_BEHAVIOR_LOGGER token.',
+      );
+    }
+
     const behaviors = options.behaviors ?? [];
 
     // Extract global behavior types for DI registration (deduplicated against `behaviors`)
