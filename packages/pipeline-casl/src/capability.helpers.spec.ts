@@ -142,6 +142,19 @@ describe('capability.helpers', () => {
         } as unknown as Capability),
       ).toThrow('must be a JSON object');
     });
+
+    it.each([new Map(), new Set(), new Date(), /pattern/])(
+      'should reject non-plain condition objects: %s',
+      (conditions) => {
+        expect(() =>
+          normalizeCapability({
+            subject: 'Post',
+            action: 'update',
+            conditions,
+          } as unknown as Capability),
+        ).toThrow('must be a JSON object');
+      },
+    );
   });
 
   describe('serializeCapability', () => {
@@ -149,6 +162,26 @@ describe('capability.helpers', () => {
       expect(serializeCapability({ subject: 'Post', action: 'read' })).toBe(
         'Post|read|*',
       );
+    });
+
+    it('should fail closed for malformed runtime conditions', () => {
+      expect(() =>
+        serializeCapability({
+          subject: 'Post',
+          action: 'update',
+          conditions: [],
+        } as unknown as Capability),
+      ).toThrow('must be a JSON object');
+    });
+
+    it('should reject recursively non-JSON condition values', () => {
+      expect(() =>
+        serializeCapability({
+          subject: 'Post',
+          action: 'update',
+          conditions: { nested: new Map() },
+        } as unknown as Capability),
+      ).toThrow('must be a JSON object');
     });
 
     it('should serialize "manage" directly', () => {

@@ -262,7 +262,7 @@ Every behavior receives `IPipelineContext`:
 
 | Property | Type | Description |
 |---|---|---|
-| `correlationId` | `string` | Mutable correlation ID — behaviors may override it |
+| `correlationId` | `string` | Immutable ID fixed before the behavior chain starts |
 | `originalCorrelationId` | `string` | Immutable snapshot of the initial correlation ID |
 | `request` | `TRequest` | The command / query / event instance |
 | `requestType` | `Type<TRequest>` | Class constructor (e.g. `CreateUserCommand`) |
@@ -560,6 +560,10 @@ PipelineModule.forRoot({
 
 `correlationIdFactory` **reads** the current correlation ID (e.g. set by HTTP middleware or `@WithCorrelation`).  
 `correlationIdRunner` **writes** the pipeline's resolved correlation ID back into the correlation store so that `getCorrelationId()` returns it throughout the entire handler chain — including event handlers dispatched via `eventBus.publish()`.
+
+The resolved ID is immutable during execution. This keeps
+`context.correlationId`, nested pipeline inheritance, and the configured
+correlation store on one value.
 
 Or supply any custom factory/runner:
 

@@ -285,6 +285,12 @@ sensitive string key such as `token` is masked there as well. Dates, regular
 expressions, buffers, array buffers, and typed views retain their value in the
 clone. Cyclic references are rendered as `'[Circular]'`.
 
+The bundled JSON sinks encode values that native `JSON.stringify()` would
+collapse using tagged objects such as `{ "$type": "Map", "entries": [...] }`,
+`{ "$type": "Set", "values": [...] }`, and explicit `RegExp`, `Error`, binary,
+non-finite-number, and array-hole representations. The console and Postgres
+sinks therefore preserve the same information after redaction.
+
 ---
 
 ## Resolving the actor

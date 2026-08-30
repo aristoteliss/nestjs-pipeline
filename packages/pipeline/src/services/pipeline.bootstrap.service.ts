@@ -31,6 +31,7 @@ import * as cqrs from '@nestjs/cqrs';
 import { ExplorerService } from '@nestjs/cqrs/dist/services/explorer.service';
 import {
   pipelineStore,
+  SET_CORRELATION_ID,
   SET_ORIGINAL_CORRELATION_ID,
   SET_RESPONSE,
 } from '../constants/pipeline-context.constants';
@@ -350,7 +351,7 @@ export class PipelineBootstrapService implements OnApplicationBootstrap {
       // Eagerly resolve correlationId BEFORE any behavior runs.
       // Priority: parent context (saga) > correlationIdFactory > uuidv7()
       if (!context.correlationId) {
-        context.correlationId = correlationIdFactory?.() ?? uuidv7();
+        context[SET_CORRELATION_ID](correlationIdFactory?.() ?? uuidv7());
       }
 
       // Lock the original value — immutable from this point forward.

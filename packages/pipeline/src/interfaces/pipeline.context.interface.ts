@@ -27,20 +27,21 @@ import { Type } from '@nestjs/common';
  */
 export interface IPipelineContext<TRequest = unknown, TResponse = unknown> {
   /**
-   * Correlation ID for distributed tracing. Mutable — behaviors may override it.
+   * Immutable correlation ID for distributed tracing.
    *
    * Resolution order (before any behavior runs):
    * 1. Inherited from parent pipeline (saga / nested command via AsyncLocalStorage)
    * 2. `correlationIdFactory` — user-supplied factory from module options
    * 3. Auto-generated `uuidv7()` (timestamp-sortable UUID)
    *
-   * Use {@link originalCorrelationId} to access the initial value even after override.
+   * It is fixed before the behavior chain starts so the context and any configured
+   * correlation async-local store cannot diverge.
    */
-  correlationId: string;
+  readonly correlationId: string;
 
   /**
    * The immutable correlation ID assigned when the pipeline was created.
-   * Preserved even if a behavior later overrides {@link correlationId}.
+   * Alias for the initially assigned correlation ID, retained for compatibility.
    */
   readonly originalCorrelationId: string;
 

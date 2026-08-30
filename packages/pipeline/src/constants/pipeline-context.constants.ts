@@ -24,8 +24,8 @@ import { IPipelineContext } from '../interfaces/pipeline.context.interface';
  * When a saga or nested CommandBus.execute() triggers a child handler,
  * the child's PipelineContext inherits the parent's correlationId automatically.
  *
- * Stores a reference to the live context object — any changes made by behaviors
- * (e.g. setting correlationId from an HTTP header) are visible to child pipelines.
+ * Stores a reference to the live context object so child pipelines inherit the
+ * same immutable correlation ID.
  *
  * Uses Node.js built-in `AsyncLocalStorage` — zero external dependencies.
  */
@@ -39,6 +39,11 @@ export const pipelineStore = new AsyncLocalStorage<IPipelineContext>();
  */
 export const SET_RESPONSE: unique symbol = Symbol(
   'PipelineContext.setResponse',
+);
+
+/** @internal Sets the correlation ID before execution begins. */
+export const SET_CORRELATION_ID: unique symbol = Symbol(
+  'PipelineContext.setCorrelationId',
 );
 
 /**

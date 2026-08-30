@@ -16,6 +16,7 @@
  * ----------------------------
  */
 
+import { stringifyAuditValue } from '../helpers/json';
 import type { AuditRecord } from '../interfaces/audit-record.interface';
 import type { AuditSink } from '../interfaces/audit-sink.interface';
 
@@ -56,9 +57,7 @@ export class LogAuditSink implements AuditSink {
   }
 
   write(record: AuditRecord): void {
-    const line = this.pretty
-      ? JSON.stringify(record, null, 2)
-      : JSON.stringify(record);
+    const line = stringifyAuditValue(record, this.pretty ? 2 : undefined);
 
     if (record.outcome === 'failure') {
       this.logger.warn(line);

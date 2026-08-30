@@ -21,7 +21,8 @@ import { MikroORM } from '@mikro-orm/core';
 import { LibSqlDriver } from '@mikro-orm/libsql';
 import {
   createLibsqlOrmOptions,
-  DEFAULT_SQLITE_DATABASE_URL,
+  resolveLibsqlDbUrl,
+  resolveLibsqlTenants,
 } from './libsql-options';
 import {
   createPostgresOrmOptions,
@@ -44,49 +45,6 @@ function parseSchemas(): string[] {
     .filter((value, index, all) => all.indexOf(value) === index);
 }
 
-function parseSqliteTenants(): string[] {
-  const list = process.env.SQLITE_TENANTS ?? process.env.TENANT_SCHEMAS;
-  if (!list) {
-    return ['default'];
-  }
-
-  return list
-    .split(',')
-    .map((value) => value.trim())
-    .filter(Boolean)
-    .filter((value, index, all) => all.indexOf(value) === index);
-}
-
-function resolveLibsqlDbName(tenant: string, totalTenants: number): string {
-  const base =
-    process.env.SQLITE_DATABASE_TEMPLATE ??
-    process.env.DATABASE_URL ??
-    DEFAULT_SQLITE_DATABASE_URL;
-
-  if (base.includes('{tenant}')) {
-    return base.replaceAll('{tenant}', tenant);
-  }
-
-  if (totalTenants <= 1) {
-    return base;
-  }
-
-  if (!base.startsWith('file:')) {
-    throw new Error(
-      'For multiple sqlite tenants set SQLITE_DATABASE_TEMPLATE with {tenant}.',
-    );
-  }
-
-  const filePath = base.slice('file:'.length);
-  const dotIndex = filePath.lastIndexOf('.');
-
-  if (dotIndex > 0) {
-    return `file:${filePath.slice(0, dotIndex)}-${tenant}${filePath.slice(dotIndex)}`;
-  }
-
-  return `file:${filePath}-${tenant}`;
-}
-
 async function migrateSchema(schema: string): Promise<number> {
   const originalSeedTenant = process.env.SEED_TENANT;
   const orm = await MikroORM.init(createPostgresOrmOptions(schema));
@@ -104,12 +62,9 @@ async function migrateSchema(schema: string): Promise<number> {
   }
 }
 
-async function migrateLibsqlTenant(
-  tenant: string,
-  totalTenants: number,
-): Promise<number> {
+async function migrateLibsqlTenant(tenant: string): Promise<number> {
   const originalSeedTenant = process.env.SEED_TENANT;
-  const dbName = resolveLibsqlDbName(tenant, totalTenants);
+  const dbName = resolveLibsqlDbUrl(tenant);
   const orm = await MikroORM.init<LibSqlDriver>(createLibsqlOrmOptions(dbName));
 
   try {
@@ -123,11 +78,11 @@ async function migrateLibsqlTenant(
 }
 
 async function migrateLibsql(): Promise<number> {
-  const tenants = parseSqliteTenants();
+  const tenants = resolveLibsqlTenants();
   let total = 0;
 
   for (const tenant of tenants) {
-    total += await migrateLibsqlTenant(tenant, tenants.length);
+    total += await migrateLibsqlTenant(tenant);
   }
 
   return total;

@@ -68,7 +68,12 @@ function normalizeJson(value: unknown, ancestors: WeakSet<object>): unknown {
   ancestors.add(value);
   try {
     if (Array.isArray(value)) {
-      return value.map((item) => normalizeJson(item, ancestors));
+      const result: unknown[] = [];
+      for (let index = 0; index < value.length; index += 1) {
+        if (!(index in value)) throw new TypeError('Sparse array');
+        result.push(normalizeJson(value[index], ancestors));
+      }
+      return result;
     }
 
     const source = value as Record<string, unknown>;

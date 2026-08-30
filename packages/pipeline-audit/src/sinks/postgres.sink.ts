@@ -16,6 +16,7 @@
  * ----------------------------
  */
 
+import { stringifyAuditValue } from '../helpers/json';
 import type { AuditRecord } from '../interfaces/audit-record.interface';
 import type { AuditSink } from '../interfaces/audit-sink.interface';
 
@@ -116,15 +117,17 @@ export class PostgresAuditSink implements AuditSink {
       record.action,
       record.severity,
       record.outcome,
-      record.actor ? JSON.stringify(record.actor) : null,
+      record.actor ? stringifyAuditValue(record.actor) : null,
       record.requestKind,
       record.requestName,
       record.handlerName,
-      record.payload === undefined ? null : JSON.stringify(record.payload),
-      record.response === undefined ? null : JSON.stringify(record.response),
-      record.error ? JSON.stringify(record.error) : null,
+      record.payload === undefined ? null : stringifyAuditValue(record.payload),
+      record.response === undefined
+        ? null
+        : stringifyAuditValue(record.response),
+      record.error ? stringifyAuditValue(record.error) : null,
       record.durationMs,
-      record.metadata ? JSON.stringify(record.metadata) : null,
+      record.metadata ? stringifyAuditValue(record.metadata) : null,
       record.timestamp,
     ]);
   }

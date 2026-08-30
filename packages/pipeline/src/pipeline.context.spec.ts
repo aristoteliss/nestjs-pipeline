@@ -19,6 +19,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   pipelineStore,
+  SET_CORRELATION_ID,
   SET_ORIGINAL_CORRELATION_ID,
   SET_RESPONSE,
 } from './constants/pipeline-context.constants';
@@ -86,15 +87,15 @@ describe('PipelineContext', () => {
     expect(ctx.response).toEqual({ result: 42 });
   });
 
-  it('originalCorrelationId is set via SET_ORIGINAL_CORRELATION_ID and is immutable to re-writes', () => {
+  it('sets correlationId only through the internal setter before execution', () => {
     const ctx = new PipelineContext(new FakeCommand('x'), buildMeta());
-    ctx.correlationId = 'first';
+    ctx[SET_CORRELATION_ID]('first');
     ctx[SET_ORIGINAL_CORRELATION_ID]('first');
 
-    // Change the mutable correlationId
-    ctx.correlationId = 'second';
-
-    expect(ctx.correlationId).toBe('second');
+    expect(() => {
+      (ctx as unknown as { correlationId: string }).correlationId = 'second';
+    }).toThrow();
+    expect(ctx.correlationId).toBe('first');
     expect(ctx.originalCorrelationId).toBe('first');
   });
 
@@ -108,7 +109,7 @@ describe('PipelineContext', () => {
       new FakeCommand('parent'),
       buildMeta(),
     );
-    parentCtx.correlationId = 'parent-corr-id';
+    parentCtx[SET_CORRELATION_ID]('parent-corr-id');
 
     let childCtx: PipelineContext | undefined;
     pipelineStore.run(parentCtx, () => {
@@ -123,7 +124,7 @@ describe('PipelineContext', () => {
       new FakeCommand('parent'),
       buildMeta(),
     );
-    parentCtx.correlationId = '';
+    parentCtx[SET_CORRELATION_ID]('');
 
     let childCtx: PipelineContext | undefined;
     pipelineStore.run(parentCtx, () => {

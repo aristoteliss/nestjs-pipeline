@@ -98,7 +98,7 @@ export function parseCapabilityString(cap: CapabilityString): Capability {
         `Invalid conditions JSON in capability string "${cap}": ${rawConditions}`,
       );
     }
-    if (!isRecord(parsed)) {
+    if (!isJsonObject(parsed)) {
       throw new TypeError(
         `Capability conditions must be a JSON object in "${cap}".`,
       );
@@ -123,7 +123,7 @@ export function normalizeCapability(
   cap: Capability | CapabilityString,
 ): Capability {
   if (typeof cap === 'string') return parseCapabilityString(cap);
-  if (!isRecord(cap)) {
+  if (!isObjectRecord(cap)) {
     throw new TypeError('Capability must be an object or compact string.');
   }
   if (typeof cap.subject !== 'string' || cap.subject.length === 0) {
@@ -132,7 +132,7 @@ export function normalizeCapability(
   if (typeof cap.action !== 'string' || cap.action.length === 0) {
     throw new TypeError('Capability action must be a non-empty string.');
   }
-  if (cap.conditions !== undefined && !isRecord(cap.conditions)) {
+  if (cap.conditions !== undefined && !isJsonObject(cap.conditions)) {
     throw new TypeError('Capability conditions must be a JSON object.');
   }
   if (
@@ -175,19 +175,22 @@ export function normalizeCapability(
  * ```
  */
 export function serializeCapability(cap: Capability): CapabilityString {
-  const prefix = cap.inverted ? '!' : '';
+  const normalized = normalizeCapability(cap);
+  const prefix = normalized.inverted ? '!' : '';
   const conditionsJson =
-    cap.conditions && Object.keys(cap.conditions).length > 0
-      ? JSON.stringify(cap.conditions)
+    normalized.conditions && Object.keys(normalized.conditions).length > 0
+      ? JSON.stringify(normalized.conditions)
       : undefined;
   const conditions =
     conditionsJson?.includes('|') === true
       ? `~${Buffer.from(conditionsJson, 'utf8').toString('base64url')}`
       : (conditionsJson ?? '*');
   const fields =
-    cap.fields && cap.fields.length > 0 ? cap.fields.join(',') : undefined;
+    normalized.fields && normalized.fields.length > 0
+      ? normalized.fields.join(',')
+      : undefined;
 
-  const base = `${prefix}${cap.subject}|${cap.action}|${conditions}`;
+  const base = `${prefix}${normalized.subject}|${normalized.action}|${conditions}`;
   return fields ? `${base}|${fields}` : base;
 }
 
@@ -260,7 +263,7 @@ function interpolateValue(
     );
   }
 
-  if (isRecord(value)) {
+  if (isPlainObject(value)) {
     const result: Record<string, unknown> = {};
     for (const [key, nested] of Object.entries(value)) {
       result[key] = interpolateValue(nested, user, `${conditionPath}.${key}`);
@@ -298,8 +301,53 @@ function getNestedValue(obj: Record<string, unknown>, path: string): unknown {
   }, obj);
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) {
+    return false;
+  }
+  const prototype = Object.getPrototypeOf(value);
+  return prototype === Object.prototype || prototype === null;
+}
+
+function isObjectRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
+function isJsonObject(value: unknown): value is Record<string, unknown> {
+  if (!isPlainObject(value)) return false;
+
+  const ancestors = new WeakSet<object>();
+  const isJsonValue = (candidate: unknown): boolean => {
+    if (
+      candidate === null ||
+      typeof candidate === 'string' ||
+      typeof candidate === 'boolean'
+    ) {
+      return true;
+    }
+    if (typeof candidate === 'number') return Number.isFinite(candidate);
+    if (typeof candidate !== 'object') return false;
+    if (ancestors.has(candidate)) return false;
+
+    ancestors.add(candidate);
+    try {
+      if (Array.isArray(candidate)) {
+        for (let index = 0; index < candidate.length; index += 1) {
+          if (!(index in candidate) || !isJsonValue(candidate[index])) {
+            return false;
+          }
+        }
+        return true;
+      }
+      return (
+        isPlainObject(candidate) && Object.values(candidate).every(isJsonValue)
+      );
+    } finally {
+      ancestors.delete(candidate);
+    }
+  };
+
+  return isJsonValue(value);
 }
 
 /**

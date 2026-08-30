@@ -19,6 +19,7 @@
 import type { IPipelineContext } from '@nestjs-pipeline/core';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { IdempotencyConflictError } from './errors/idempotency-conflict.error';
+import { fingerprintValue } from './helpers/fingerprint';
 import {
   IDEMPOTENCY_KEY_ITEM,
   IDEMPOTENCY_OWNERSHIP_LOST_ITEM,
@@ -135,6 +136,14 @@ describe('IdempotencyBehavior', () => {
       ),
     ).rejects.toThrow(/JSON-serializable/);
     expect(await store.get('o1')).toBeUndefined();
+
+    await expect(
+      behavior.handle(
+        withOptions(makeCtx(), byKey),
+        vi.fn().mockResolvedValue(new Array(1)),
+      ),
+    ).rejects.toThrow(/JSON-serializable/);
+    expect(await store.get('o1')).toBeUndefined();
   });
 
   it('rejects reuse of a key by a different request type', async () => {
@@ -202,6 +211,30 @@ describe('IdempotencyBehavior', () => {
       behavior.handle(withOptions(makeCtx(), byKey), next),
     ).rejects.toMatchObject({ statusCode: 409, reason: 'in_progress' });
     expect(next).not.toHaveBeenCalled();
+  });
+
+  it('throws a 422 when an in-progress key has a different payload', async () => {
+    const mockStore: IdempotencyStore = {
+      get: vi.fn().mockResolvedValue({
+        key: 'o1',
+        status: 'in_progress',
+        requestName: 'CreateOrderCommand',
+        claimId: 'existing-owner',
+        fingerprint: fingerprintValue({ orderId: 'o1', amount: 1 }),
+        createdAt: new Date().toISOString(),
+      }),
+      setIfAbsent: vi.fn().mockResolvedValue(false),
+      completeIfOwned: vi.fn(),
+      deleteIfOwned: vi.fn(),
+      set: vi.fn(),
+      delete: vi.fn(),
+    };
+    const behavior = new IdempotencyBehavior(mockStore);
+    const context = makeCtx({ request: { orderId: 'o1', amount: 999 } });
+
+    await expect(
+      behavior.handle(withOptions(context, byKey), vi.fn()),
+    ).rejects.toMatchObject({ statusCode: 422, reason: 'key_reuse' });
   });
 
   it('throws a 422 conflict when the key is reused with a different payload', async () => {

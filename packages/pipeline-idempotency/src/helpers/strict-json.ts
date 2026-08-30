@@ -71,7 +71,14 @@ function normalize(
   ancestors.add(value);
   try {
     if (Array.isArray(value)) {
-      return value.map((item) => normalize(item, ancestors, sortKeys));
+      const result: JsonValue[] = [];
+      for (let index = 0; index < value.length; index += 1) {
+        if (!(index in value)) {
+          throw new TypeError('Sparse arrays are not JSON-serializable.');
+        }
+        result.push(normalize(value[index], ancestors, sortKeys));
+      }
+      return result;
     }
 
     // CQRS requests and response DTOs are commonly class instances. Their own

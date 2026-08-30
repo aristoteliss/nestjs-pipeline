@@ -245,6 +245,11 @@ export class CreateUserHandler implements ICommandHandler<CreateUserCommand> {
 }
 ```
 
+This constructor helper is intentionally synchronous and therefore requires a
+synchronous schema. If the schema uses async refinements or transforms, validate
+with `safeParseAsync()` in `ZodValidationBehavior`/`ZodPipe` instead of doing it
+in a JavaScript constructor.
+
 ### 5. Wire Up the Controller
 
 ```typescript
@@ -792,7 +797,7 @@ Every behavior receives `IPipelineContext`:
 
 | Property | Type | Description |
 |---|---|---|
-| `correlationId` | `string` | Mutable correlation ID — behaviors may override it |
+| `correlationId` | `string` | Immutable ID fixed before the behavior chain starts |
 | `originalCorrelationId` | `string` | Immutable snapshot of the initial correlation ID |
 | `request` | `TRequest` | The command / query / event instance |
 | `requestType` | `Type<TRequest>` | Class constructor (e.g. `CreateUserCommand`) |
@@ -1275,8 +1280,13 @@ Configure the database via environment variables (defaults to a local file):
 
 | Variable             | Default         | Description                          |
 |----------------------|-----------------|--------------------------------------|
-| `DATABASE_URL` | `file:src/persistence/local.db` | libSQL database URL (file or remote) |
+| `DATABASE_URL` | `file:src/persistence/local.db` | libSQL URL, used unchanged for one tenant |
+| `SQLITE_TENANTS` | _(none)_ | Additional libSQL tenant names; local files get a tenant suffix |
+| `SQLITE_DATABASE_TEMPLATE` | _(none)_ | URL containing `{tenant}`; required for multiple remote tenants |
 | `AUTH_TOKEN`   | _(none)_        | Auth token for libSQL remote databases (e.g. Turso) |
+
+Both persistence engines require `x-tenant-schema` on routed HTTP requests.
+PostgreSQL selects a schema; libSQL selects the corresponding database.
 
 **CRUD operations:**
 

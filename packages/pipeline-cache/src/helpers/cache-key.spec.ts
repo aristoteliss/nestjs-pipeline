@@ -75,6 +75,7 @@ describe('stableStringify', () => {
     expect(() => stableStringify({ bytes: new Uint8Array([1, 2]) })).toThrow(
       /JSON-serializable/,
     );
+    expect(() => stableStringify(new Array(1))).toThrow(/JSON-serializable/);
   });
 
   it('serializes dates explicitly as ISO strings', () => {

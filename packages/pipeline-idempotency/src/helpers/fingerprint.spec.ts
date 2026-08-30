@@ -110,6 +110,7 @@ describe('stableStringify and fingerprintValue', () => {
     expect(() => stableStringify([1, undefined, 3])).toThrow(
       /JSON-serializable/,
     );
+    expect(() => stableStringify(new Array(1))).toThrow(/JSON-serializable/);
   });
 
   it('converts valid dates to their ISO JSON representation', () => {

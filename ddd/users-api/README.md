@@ -10,7 +10,7 @@ This sample builds on `@nestjs-pipeline/ddd-core` to show a full CQRS + DDD stac
 - **Domain layer** — `User` and `Role` entities extending `CacheableEntity`, domain events, and outcomes.
 - **CQRS layer** — Command/query handlers with `@UsePipeline` behaviors, validated via `createExecuteClass()` and Zod schemas.
 - **Persistence** — Dual-engine support: **libSQL** (SQLite) for local development and **PostgreSQL** for production multi-tenant deployments. Conditional routing via `MIKRO_ORM_CLIENT` provider.
-- **Multi-tenant routing** — When `DB_ENGINE=postgres`, tenant schema is resolved per-request from the `x-tenant-schema` header and isolated via PostgreSQL schema-per-tenant pattern. Domain entities remain tenant-agnostic (no embedded `tenantId`).
+- **Multi-tenant routing** — The `x-tenant-schema` header selects the active tenant for both engines. PostgreSQL uses schema-per-tenant isolation; libSQL uses database-per-tenant isolation. Domain entities remain tenant-agnostic (no embedded `tenantId`).
 - **Caching** — **MikroOrmCache** (MikroORM-backed, TTL-aware) configured via `CACHE_TOKEN` in `PersistenceModule`.
 - **Authorization** — ABAC via `@nestjs-pipeline/casl`. Per-handler `CaslBehavior` with MikroORM-backed role/capability providers, explicit `subjectContextPaths`, global `defaultFieldsFromRequest`, condition interpolation, and inline `rules` on `CaslBehaviorOptions`.
 - **Event handlers** — React to domain events, enqueue background jobs via BullMQ.
@@ -33,8 +33,9 @@ pnpm dev                # start with ts-node
 | Variable             | Default        | Description                          |
 |----------------------|----------------|--------------------------------------|
 | `DB_ENGINE`          | `libsql`       | Persistence engine: `libsql` (SQLite) or `postgres` |
-| `DATABASE_URL`       | `file:src/persistence/local.db` | SQLite database URL (only used when `DB_ENGINE=libsql`); base/template — a `-<tenant>` suffix is inserted per tenant; supports local file or remote libSQL endpoint |
+| `DATABASE_URL`       | `file:src/persistence/local.db` | libSQL URL. Used unchanged for one tenant; for multiple local tenants a `-<tenant>` filename suffix is inserted |
 | `AUTH_TOKEN`         | _(none)_       | Auth token for remote libSQL databases (only used when `DB_ENGINE=libsql`) |
+| `SQLITE_DATABASE_TEMPLATE` | _(none)_ | Explicit libSQL URL template containing `{tenant}`; required for multiple remote tenants (for example `libsql://my-{tenant}.turso.io`) |
 | `DATABASE_HOST`      | `127.0.0.1`    | PostgreSQL host (only used when `DB_ENGINE=postgres`) |
 | `DATABASE_PORT`      | `5432`         | PostgreSQL port (only used when `DB_ENGINE=postgres`) |
 | `DATABASE_NAME`      | `nestjs_pipeline` | PostgreSQL database name (only used when `DB_ENGINE=postgres`) |
@@ -65,9 +66,12 @@ client-held token and the client must discard it.
 ### Dual-engine architecture
 
 **libSQL (SQLite)** — Default for local development:
-- Uses separate database files per tenant (`local-tenant_a.db`, `local-tenant_b.db`)
+- A single tenant uses `DATABASE_URL` unchanged
+- Multiple local tenants use separate derived files (`local-tenant_a.db`, `local-tenant_b.db`)
+- Multiple remote tenants use `SQLITE_DATABASE_TEMPLATE` with `{tenant}`
 - No schema isolation; each file is independent
 - Loaded by `MikroOrmStore` when `DB_ENGINE !== 'postgres'`
+- Request middleware requires `x-tenant-schema` and selects the matching ORM instance
 
 **PostgreSQL** — For production multi-tenant deployments:
 - One database, multiple schemas (one per tenant)
@@ -160,12 +164,13 @@ Database schema is managed by native MikroORM migrations in `src/persistence/mig
 ### libSQL (SQLite) mode (default)
 
 - **Migrations are NOT run on startup** — apply them explicitly with `pnpm db:migrate` (runs `orm.migrator.up()` via `src/persistence/migrate.ts`). `MikroOrmStore.onModuleInit()` only initializes the ORM per tenant.
-- **Multiple databases** — Update `DATABASE_URL` to point to different files, or run migrations separately for each file.
-- **CLI** — Use `pnpm db:migrate` to apply pending migrations (runs against current `DATABASE_URL`).
+- **Shared resolution** — Runtime startup, migration, revert, and e2e setup use the same tenant list and URL resolver.
+- **CLI** — Use `pnpm db:migrate` to migrate every tenant in `SQLITE_TENANTS`. A single tenant uses `DATABASE_URL`; multiple local tenants derive suffixed filenames; multiple remote tenants require `SQLITE_DATABASE_TEMPLATE`.
 
 ### PostgreSQL mode
 
-When `DB_ENGINE=postgres`, schema-per-tenant routing is enabled:
+When `DB_ENGINE=postgres`, schema-per-tenant persistence is enabled. The tenant
+header middleware itself is shared by both engines:
 
 - **Per-request isolation** — `TenantSchemaMiddleware` validates `x-tenant-schema` against `TENANT_SCHEMAS` and stores it in `TenantSchemaContext` (via `AsyncLocalStorage`).
 - **Credential binding** — JWTs, secure sessions, and API clients are bound to a tenant and rejected when their tenant does not match the selected schema.

@@ -19,6 +19,7 @@
 import { Type } from '@nestjs/common';
 import {
   pipelineStore,
+  SET_CORRELATION_ID,
   SET_ORIGINAL_CORRELATION_ID,
   SET_RESPONSE,
 } from './constants/pipeline-context.constants';
@@ -44,14 +45,23 @@ export abstract class BasePipelineContext<
   TResponse = unknown,
 > implements IPipelineContext<TRequest, TResponse>
 {
-  correlationId: string;
+  private _correlationId = '';
+
+  get correlationId(): string {
+    return this._correlationId;
+  }
+
+  /** @internal Assigns the ID before the behavior chain starts. */
+  [SET_CORRELATION_ID](value: string): void {
+    this._correlationId = value;
+  }
 
   /** Backing field for `originalCorrelationId`. */
   private _originalCorrelationId = '';
 
   /**
    * The immutable correlation ID assigned when the pipeline was created.
-   * Preserved even if a behavior later overrides `correlationId`.
+   * Alias for the initially assigned correlation ID.
    */
   get originalCorrelationId(): string {
     return this._originalCorrelationId;
@@ -97,14 +107,13 @@ export abstract class BasePipelineContext<
     | undefined;
 
   constructor() {
-    this.correlationId = '';
     this.startedAt = new Date();
     this.items = new Map();
 
     // Inherit correlationId from parent pipeline context (saga / nested command)
     const parent = pipelineStore.getStore();
     if (parent?.correlationId) {
-      this.correlationId = parent.correlationId;
+      this._correlationId = parent.correlationId;
     }
   }
 

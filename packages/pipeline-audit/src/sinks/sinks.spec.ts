@@ -58,6 +58,42 @@ describe('LogAuditSink', () => {
     const line = logger.log.mock.calls[0][0] as string;
     expect(JSON.parse(line)).toMatchObject({ action: 'user.create' });
   });
+
+  it('preserves special values as tagged JSON', () => {
+    const logger = { log: vi.fn(), warn: vi.fn() };
+    const sink = new LogAuditSink({ logger });
+
+    sink.write(
+      makeRecord({
+        payload: {
+          map: new Map([['id', 1]]),
+          set: new Set(['admin']),
+          pattern: /secret/gi,
+          error: new TypeError('bad input'),
+        },
+      }),
+    );
+
+    const parsed = JSON.parse(logger.log.mock.calls[0][0] as string);
+    expect(parsed.payload.map).toEqual({
+      $type: 'Map',
+      entries: [['id', 1]],
+    });
+    expect(parsed.payload.set).toEqual({
+      $type: 'Set',
+      values: ['admin'],
+    });
+    expect(parsed.payload.pattern).toMatchObject({
+      $type: 'RegExp',
+      source: 'secret',
+      flags: 'gi',
+    });
+    expect(parsed.payload.error).toMatchObject({
+      $type: 'Error',
+      name: 'TypeError',
+      message: 'bad input',
+    });
+  });
 });
 
 describe('PostgresAuditSink', () => {
@@ -76,6 +112,19 @@ describe('PostgresAuditSink', () => {
     expect(values[5]).toBe(JSON.stringify({ id: 'admin-1' }));
     expect(values[9]).toBe(JSON.stringify({ username: 'jane' }));
     expect(values[10]).toBeNull(); // response omitted
+  });
+
+  it('uses the tagged representation for JSONB values', async () => {
+    const query = vi.fn().mockResolvedValue(undefined);
+    const sink = new PostgresAuditSink({ query });
+
+    await sink.write(makeRecord({ payload: new Set(['admin']) }));
+
+    const values = query.mock.calls[0][1] as unknown[];
+    expect(JSON.parse(values[9] as string)).toEqual({
+      $type: 'Set',
+      values: ['admin'],
+    });
   });
 
   it('rejects unsafe table identifiers', () => {

@@ -263,14 +263,6 @@ export class IdempotencyBehavior implements IPipelineBehavior {
       });
     }
 
-    if (existing.status === 'in_progress') {
-      throw new IdempotencyConflictError({
-        key,
-        requestName: context.requestName,
-        reason: 'in_progress',
-      });
-    }
-
     if (
       fingerprint &&
       existing.fingerprint &&
@@ -280,6 +272,14 @@ export class IdempotencyBehavior implements IPipelineBehavior {
         key,
         requestName: context.requestName,
         reason: 'key_reuse',
+      });
+    }
+
+    if (existing.status === 'in_progress') {
+      throw new IdempotencyConflictError({
+        key,
+        requestName: context.requestName,
+        reason: 'in_progress',
       });
     }
 
