@@ -58,6 +58,7 @@ function normalizeAuditValue(
   ancestors.add(value);
   try {
     if (value instanceof Error) {
+      const symbolProperties = normalizeSymbolProperties(value, ancestors);
       return {
         $type: 'Error',
         name: value.name,
@@ -67,6 +68,7 @@ function normalizeAuditValue(
           Object.fromEntries(Object.entries(value)),
           ancestors,
         ),
+        ...(symbolProperties.length > 0 ? { symbolProperties } : {}),
       };
     }
     if (value instanceof Map) {
@@ -104,13 +106,31 @@ function normalizeAuditValue(
       );
     }
 
-    return Object.fromEntries(
+    const properties = Object.fromEntries(
       Object.entries(value).map(([key, item]) => [
         key,
         normalizeAuditValue(item, ancestors),
       ]),
     );
+    const symbolProperties = normalizeSymbolProperties(value, ancestors);
+    return symbolProperties.length > 0
+      ? { $type: 'Object', properties, symbolProperties }
+      : properties;
   } finally {
     ancestors.delete(value);
   }
+}
+
+function normalizeSymbolProperties(
+  value: object,
+  ancestors: WeakSet<object>,
+): unknown[][] {
+  return Object.getOwnPropertySymbols(value)
+    .filter(
+      (key) => Object.getOwnPropertyDescriptor(value, key)?.enumerable === true,
+    )
+    .map((key) => [
+      normalizeAuditValue(key, ancestors),
+      normalizeAuditValue(Reflect.get(value, key), ancestors),
+    ]);
 }

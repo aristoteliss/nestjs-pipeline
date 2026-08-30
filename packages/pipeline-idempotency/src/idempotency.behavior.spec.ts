@@ -83,6 +83,43 @@ describe('IdempotencyBehavior', () => {
     expect(record.claimId).toEqual(expect.any(String));
   });
 
+  it('stores the public toJSON representation of class responses', async () => {
+    class Outcome {
+      constructor(private readonly internalId: string) {}
+
+      toJSON(): { id: string } {
+        return { id: this.internalId };
+      }
+    }
+
+    const behavior = new IdempotencyBehavior(store);
+    await behavior.handle(
+      withOptions(makeCtx(), byKey),
+      vi.fn().mockResolvedValue(new Outcome('created')),
+    );
+
+    const replay = await behavior.handle(
+      withOptions(makeCtx(), byKey),
+      vi.fn().mockResolvedValue({ id: 'SHOULD_NOT_RUN' }),
+    );
+
+    expect(replay).toEqual({ id: 'created' });
+  });
+
+  it.each([0, -1, 1.5, Number.MAX_SAFE_INTEGER + 1])(
+    'rejects invalid ttl %s before claiming a key',
+    async (ttl) => {
+      const behavior = new IdempotencyBehavior(store);
+      const next = vi.fn();
+
+      await expect(
+        behavior.handle(withOptions(makeCtx(), { ...byKey, ttl }), next),
+      ).rejects.toThrow('positive safe integer');
+      expect(next).not.toHaveBeenCalled();
+      expect(await store.get('o1')).toBeUndefined();
+    },
+  );
+
   it('replays the stored response without running the handler on a duplicate', async () => {
     const behavior = new IdempotencyBehavior(store);
     const first = vi.fn().mockResolvedValue({ id: 'created' });

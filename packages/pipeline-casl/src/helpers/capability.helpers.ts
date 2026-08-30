@@ -30,7 +30,7 @@ import type {
  * This is a **runtime-only deserialisation** step — the inverse of
  * {@link serializeCapability}.
  *
- * Format: `[!]subject|action[|conditions[|fields]]`
+ * Format: `[!]subject|action[|conditions[|fields[|reason]]]`
  *
  * - Prefix with `!` to create an inverted (deny) rule
  * - Use CASL's `all` for any subject and `manage` for any action
@@ -38,7 +38,9 @@ import type {
  * - `*` as fields (or omitted) means all fields
  * - Conditions remain readable JSON unless they contain `|`; those values are
  *   `~`-prefixed base64url JSON so segment parsing stays reversible
- * - Fields are comma-separated: `title,body,status`
+ * - Safe fields are comma-separated: `title,body,status`
+ * - Delimiter-bearing subject/action/fields/reason values are `~`-prefixed
+ *   base64url JSON so every valid capability can round-trip
  *
  * @throws {Error} When the subject segment is empty or missing.
  * @throws {Error} When the action segment is empty or missing.
@@ -72,11 +74,11 @@ export function parseCapabilityString(cap: CapabilityString): Capability {
   }
 
   const parts = str.split('|');
-  if (parts.length > 4) {
+  if (parts.length > 5) {
     throw new Error(`Invalid capability string: too many segments in "${cap}"`);
   }
-  const subject = parts[0];
-  const action = parts[1];
+  const subject = decodeTextSegment(parts[0], cap, 'subject');
+  const action = decodeTextSegment(parts[1], cap, 'action');
 
   if (!subject) {
     throw new Error(`Invalid capability string: missing subject in "${cap}"`);
@@ -87,6 +89,7 @@ export function parseCapabilityString(cap: CapabilityString): Capability {
 
   const rawConditions = parts[2];
   const rawFields = parts[3];
+  const rawReason = parts[4];
 
   let conditions: Record<string, unknown> | undefined;
   if (rawConditions && rawConditions !== '*') {
@@ -112,7 +115,12 @@ export function parseCapabilityString(cap: CapabilityString): Capability {
   const result: Capability = { subject, action };
   if (inverted) result.inverted = true;
   if (conditions) result.conditions = conditions;
-  if (rawFields && rawFields !== '*') result.fields = rawFields.split(',');
+  if (rawFields && rawFields !== '*') {
+    result.fields = decodeFieldsSegment(rawFields, cap);
+  }
+  if (rawReason !== undefined && rawReason !== '*') {
+    result.reason = decodeTextSegment(rawReason, cap, 'reason');
+  }
 
   return result;
 }
@@ -148,6 +156,9 @@ export function normalizeCapability(
   if (cap.inverted !== undefined && typeof cap.inverted !== 'boolean') {
     throw new TypeError('Capability inverted must be a boolean.');
   }
+  if (cap.reason !== undefined && typeof cap.reason !== 'string') {
+    throw new TypeError('Capability reason must be a string.');
+  }
   return cap;
 }
 
@@ -180,21 +191,98 @@ export function normalizeCapability(
 export function serializeCapability(cap: Capability): CapabilityString {
   const normalized = normalizeCapability(cap);
   const prefix = normalized.inverted ? '!' : '';
+  const subject = encodeTextSegment(normalized.subject, true);
+  const action = encodeTextSegment(normalized.action);
   const conditionsJson =
-    normalized.conditions && Object.keys(normalized.conditions).length > 0
+    normalized.conditions !== undefined
       ? JSON.stringify(normalized.conditions)
       : undefined;
   const conditions =
     conditionsJson?.includes('|') === true
       ? `~${Buffer.from(conditionsJson, 'utf8').toString('base64url')}`
       : (conditionsJson ?? '*');
-  const fields =
-    normalized.fields && normalized.fields.length > 0
-      ? normalized.fields.join(',')
+  const fields = encodeFieldsSegment(normalized.fields);
+  const reason =
+    normalized.reason !== undefined
+      ? encodeTextSegment(normalized.reason, false, true)
       : undefined;
 
-  const base = `${prefix}${normalized.subject}|${normalized.action}|${conditions}`;
-  return fields ? `${base}|${fields}` : base;
+  const base = `${prefix}${subject}|${action}|${conditions}`;
+  if (reason !== undefined) return `${base}|${fields ?? '*'}|${reason}`;
+  return fields !== undefined ? `${base}|${fields}` : base;
+}
+
+function encodeTextSegment(
+  value: string,
+  escapeBang = false,
+  escapeStar = false,
+): string {
+  const needsEncoding =
+    value.startsWith('~') ||
+    value.includes('|') ||
+    value.trim() !== value ||
+    (escapeBang && value.startsWith('!')) ||
+    (escapeStar && value === '*');
+  return needsEncoding
+    ? `~${Buffer.from(JSON.stringify(value), 'utf8').toString('base64url')}`
+    : value;
+}
+
+function decodeTextSegment(
+  value: string | undefined,
+  capability: string,
+  label: string,
+): string {
+  if (!value?.startsWith('~')) return value ?? '';
+  try {
+    const decoded: unknown = JSON.parse(
+      Buffer.from(value.slice(1), 'base64url').toString('utf8'),
+    );
+    if (typeof decoded !== 'string') throw new TypeError();
+    return decoded;
+  } catch {
+    throw new Error(
+      `Invalid encoded ${label} in capability string "${capability}".`,
+    );
+  }
+}
+
+function encodeFieldsSegment(fields: string[] | undefined): string | undefined {
+  if (fields === undefined) return undefined;
+  const safe =
+    fields.length > 0 &&
+    fields.every(
+      (field) =>
+        field.length > 0 &&
+        field !== '*' &&
+        !field.startsWith('~') &&
+        !field.includes(',') &&
+        !field.includes('|') &&
+        field.trim() === field,
+    );
+  return safe
+    ? fields.join(',')
+    : `~${Buffer.from(JSON.stringify(fields), 'utf8').toString('base64url')}`;
+}
+
+function decodeFieldsSegment(value: string, capability: string): string[] {
+  if (!value.startsWith('~')) return value.split(',');
+  try {
+    const decoded: unknown = JSON.parse(
+      Buffer.from(value.slice(1), 'base64url').toString('utf8'),
+    );
+    if (
+      !Array.isArray(decoded) ||
+      decoded.some((field) => typeof field !== 'string')
+    ) {
+      throw new TypeError();
+    }
+    return decoded;
+  } catch {
+    throw new Error(
+      `Invalid encoded fields in capability string "${capability}".`,
+    );
+  }
 }
 
 /**
@@ -298,7 +386,7 @@ function getNestedValue(obj: Record<string, unknown>, path: string): unknown {
 
   return segments.reduce<unknown>((current, key) => {
     if (current !== null && typeof current === 'object') {
-      return Object.prototype.hasOwnProperty.call(current, key)
+      return Object.getOwnPropertyDescriptor(current, key) !== undefined
         ? (current as Record<string, unknown>)[key]
         : undefined;
     }

@@ -53,7 +53,6 @@ import { DeleteRoleCommand } from './delete-role.command';
     ResilienceBehavior,
     {
       handle: isTransientPersistenceError,
-      timeout: { duration: 3_000 },
       retry: {
         maxAttempts: 3,
         backoff: { type: 'exponential', initialDelay: 100, maxDelay: 2_000 },

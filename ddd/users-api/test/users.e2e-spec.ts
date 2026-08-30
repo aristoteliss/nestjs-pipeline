@@ -36,10 +36,10 @@ import { bootstrapE2E, type E2EContext } from './support/e2e-app';
  *         - LoggingBehavior (tracing + audit log)
  *         - CaslBehavior (RBAC + ABAC authorization)
  *         - FeatureFlagBehavior (kill-switch gating)
- *         - IdempotencyBehavior (duplicate detection per email)
+ *         - IdempotencyBehavior (duplicate detection per tenant/principal/email)
  *         - RateLimitBehavior (5 req / 60s per email)
  *         - tenant-aware DDD repository read-through cache
- *         - ResilienceBehavior (retry / circuit-breaker / timeout on delete)
+ *         - ResilienceBehavior (retry / circuit-breaker on delete)
  *         - AuditBehavior (action logging on delete)
  *     → DDD Command / Query Handlers
  *     → MikroORM + libSQL persistence

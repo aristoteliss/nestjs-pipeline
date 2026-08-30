@@ -49,7 +49,8 @@ export interface IdempotencyBehaviorOptions {
   /**
    * How long a key is remembered, in milliseconds. After this window the key
    * may be reused and a fresh execution occurs. Successful completion restarts
-   * the TTL for the replay record. Default `86_400_000` (24h).
+   * the TTL for the replay record. Must be a positive safe integer. Default
+   * `86_400_000` (24h).
    */
   ttl?: number;
 

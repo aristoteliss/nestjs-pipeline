@@ -124,7 +124,7 @@ import { ZodObject, ZodRawShape, z } from 'zod';
 import { ZodValidationError } from '@nestjs-pipeline/zod';
 
 export function createRequest<T extends ZodRawShape>(schema: ZodObject<T>) {
-  type Input = z.infer<ZodObject<T>>;
+  type Input = z.input<ZodObject<T>>;
   return class {
     static readonly _zodSchema = schema;  // ZodValidationBehavior reads this
 
@@ -414,6 +414,7 @@ bootstrap();
 
 // ── create-user.command.ts ──
 import { z } from 'zod';
+import { createRequest } from './helpers/createRequest';
 
 const schema = z.object({
   username: z.string().min(4),

@@ -52,9 +52,8 @@ import { DeleteUserCommand } from './delete-user.command';
    * Wrap the delete in a resilience policy for transient-fault handling.
    *
    * Effective composition (outermost → innermost):
-   *   retry → circuitBreaker → timeout → handler
+   *   retry → circuitBreaker → handler
    *
-   * - timeout:        abort the DB read/write if it hangs past 3s.
    * - retry:          up to 3 attempts with decorrelated-jitter exponential
    *                   backoff — but only for transient errors (see `handle`).
    * - circuitBreaker: after 5 consecutive failures, fail fast for 10s to give a
@@ -73,7 +72,6 @@ import { DeleteUserCommand } from './delete-user.command';
     ResilienceBehavior,
     {
       handle: isTransientPersistenceError,
-      timeout: { duration: 3_000 },
       retry: {
         maxAttempts: 3,
         backoff: { type: 'exponential', initialDelay: 100, maxDelay: 2_000 },

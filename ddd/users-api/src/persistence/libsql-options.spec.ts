@@ -36,6 +36,19 @@ describe('libSQL tenant resolution', () => {
     expect(resolveLibsqlDbUrl('tenant')).toBe('file:src/persistence/local.db');
   });
 
+  it('normalizes the default and every configured tenant consistently', () => {
+    process.env.DB_DEFAULT_SCHEMA = ' tenant ';
+    process.env.SQLITE_TENANTS = ' tenant_a ,tenant ';
+
+    expect(resolveLibsqlTenants()).toEqual(['tenant', 'tenant_a']);
+  });
+
+  it('rejects an invalid default tenant', () => {
+    process.env.DB_DEFAULT_SCHEMA = 'tenant-name';
+
+    expect(() => resolveLibsqlTenants()).toThrow('Invalid schema name');
+  });
+
   it('suffixes filenames for multiple local tenants', () => {
     process.env.DATABASE_URL = 'file:src/persistence/local.db';
     process.env.DB_DEFAULT_SCHEMA = 'tenant';

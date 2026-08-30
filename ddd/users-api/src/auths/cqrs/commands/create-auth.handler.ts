@@ -57,6 +57,7 @@ import { CreateAuthCommand } from './create-auth.command';
     {
       action: 'auth.login',
       severity: 'medium',
+      redactKeys: ['code'],
       actor: (ctx: IPipelineContext) => {
         const req = ctx.request as CreateAuthCommand;
         return { id: req?.email ?? 'anonymous', email: req?.email };

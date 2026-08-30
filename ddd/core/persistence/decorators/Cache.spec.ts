@@ -56,6 +56,19 @@ class VoidCommandRepo {
   async save(_outcome: MockOutcome): Promise<void> {}
 }
 
+class SecondaryInvalidationRepo {
+  constructor(public cache?: ICache) {}
+
+  @Cache<MockOutcome, { id: string }>(
+    (outcome) => outcome.entity.cacheKey,
+    null,
+    (outcome) => [`email:${outcome.entity.id}`],
+  )
+  async save(outcome: MockOutcome): Promise<{ id: string }> {
+    return { id: outcome.entity.id };
+  }
+}
+
 describe('@Cache decorator on CommandRepository.save', () => {
   it('passes through when repository has no cache attached', async () => {
     const repo = new TestCommandRepo(undefined);
@@ -131,5 +144,23 @@ describe('@Cache decorator on CommandRepository.save', () => {
     expect(result).toBeUndefined();
     expect(mockCache.delete).toHaveBeenCalledWith('user:u1');
     expect(mockCache.set).not.toHaveBeenCalled();
+  });
+
+  it('evicts secondary keys after a successful save before caching the result', async () => {
+    const cache: ICache = {
+      get: vi.fn(),
+      set: vi.fn(),
+      delete: vi.fn(),
+    };
+    const repo = new SecondaryInvalidationRepo(cache);
+    const outcome = new MockOutcome({ id: 'u1', cacheKey: 'user:u1' });
+
+    await repo.save(outcome);
+
+    expect(cache.delete).toHaveBeenCalledWith('email:u1');
+    expect(cache.set).toHaveBeenCalledWith('user:u1', { id: 'u1' });
+    expect(vi.mocked(cache.delete).mock.invocationCallOrder[0]).toBeLessThan(
+      vi.mocked(cache.set).mock.invocationCallOrder[0],
+    );
   });
 });

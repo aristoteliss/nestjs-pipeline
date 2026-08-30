@@ -23,13 +23,15 @@ import type { CommandRepository } from '../command-repository.abstract';
  * Write-through cache decorator for a {@link CommandRepository} `save` method.
  *
  * After the original save runs: if it returns a result, the entry is written
- * under the key from `setKeyFn`; if it returns `null` or `undefined` (e.g. a
+ * under the key from `setKeyFn` after evicting any secondary invalidation keys;
+ * if it returns `null` or `undefined` (e.g. a
  * delete or a void save), the keys from `deleteKeysFn` are evicted. By default
  * both derive from the outcome entity's `cacheKey`. If the repository has no
  * cache, the call passes through.
  *
  * @param setKeyFn - Builds the key to write on a successful save, or `null` to skip writing.
  * @param deleteKeysFn - Builds the keys to evict when the save yields `null` or `undefined`, or `null` to skip eviction.
+ * @param invalidateKeysFn - Builds secondary keys to evict after any successful database save, before the primary result is cached.
  */
 export function Cache<
   TDomainOutcome extends RootDomainOutcome,
@@ -40,6 +42,7 @@ export function Cache<
   deleteKeysFn: ((domainOutcome: TDomainOutcome) => string[]) | null = (
     outcome,
   ) => [outcome.entity.cacheKey],
+  invalidateKeysFn: ((domainOutcome: TDomainOutcome) => string[]) | null = null,
 ): MethodDecorator {
   return (
     _target: object,
@@ -74,6 +77,16 @@ export function Cache<
           }
         }
         return result;
+      }
+
+      if (invalidateKeysFn) {
+        for (const key of invalidateKeysFn(domainOutcome)) {
+          try {
+            await this.cache.delete(key);
+          } catch {
+            /* best-effort */
+          }
+        }
       }
 
       if (setKeyFn) {

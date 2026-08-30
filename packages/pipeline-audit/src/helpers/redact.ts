@@ -89,6 +89,7 @@ function redact(
           configurable: true,
         });
       }
+      copySymbolProperties(value, clone, blocked, ancestors);
       return clone;
     }
     if (value instanceof Map) {
@@ -115,7 +116,7 @@ function redact(
       return value.map((item) => redact(item, blocked, ancestors));
     }
 
-    return Object.fromEntries(
+    const clone = Object.fromEntries(
       Object.entries(value as Record<string, unknown>).map(([key, val]) => [
         key,
         blocked.has(key.toLowerCase())
@@ -123,7 +124,27 @@ function redact(
           : redact(val, blocked, ancestors),
       ]),
     );
+    copySymbolProperties(value, clone, blocked, ancestors);
+    return clone;
   } finally {
     ancestors.delete(value);
+  }
+}
+
+function copySymbolProperties(
+  source: object,
+  target: object,
+  blocked: Set<string>,
+  ancestors: WeakSet<object>,
+): void {
+  for (const key of Object.getOwnPropertySymbols(source)) {
+    const descriptor = Object.getOwnPropertyDescriptor(source, key);
+    if (!descriptor?.enumerable) continue;
+    Object.defineProperty(target, key, {
+      value: redact(Reflect.get(source, key), blocked, ancestors),
+      writable: true,
+      enumerable: true,
+      configurable: true,
+    });
   }
 }

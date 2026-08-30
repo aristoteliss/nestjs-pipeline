@@ -192,13 +192,20 @@ const schema = z.object({
 
 // 2. Build a helper that creates a self-validating class
 function createRequest<T extends z.ZodRawShape>(s: z.ZodObject<T>) {
-  type Input = z.infer<z.ZodObject<T>>;
+  type Input = z.input<z.ZodObject<T>>;
   return class {
     static readonly _zodSchema = s;                  // ZodValidationBehavior reads this
     constructor(input: Input) {
       const result = s.safeParse(input);
       if (!result.success) throw new ZodValidationError(result.error);
-      Object.assign(this, result.data);
+      for (const [key, value] of Object.entries(result.data)) {
+        Object.defineProperty(this, key, {
+          value,
+          writable: true,
+          enumerable: true,
+          configurable: true,
+        });
+      }
     }
   };
 }
@@ -1371,10 +1378,10 @@ ADAPTER=fastify pnpm start
 - Controller-level `ZodPipe` validation
 - Zod transform mappers (DTO → Command mapping)
 - OpenTelemetry tracing with `TraceBehavior`
-- Global `DeadLetterBehavior` attempting to send failed commands/queries/events to a BullMQ `dead-letters` queue for inspection and replay (with `UserCreatedHandler` opting into `{ rethrow: false }` for fire-and-forget side effects); transport failures are logged rather than proving persistence
+- Global `DeadLetterBehavior` sending failed commands/queries/events to a BullMQ `dead-letters` queue for inspection and replay (with `UserCreatedHandler` opting into `{ rethrow: false }` only after successful delivery); transport failures are logged and preserve the original handler error
 - Per-handler `RateLimitBehavior` throttling `CreateUserHandler` to 5 registrations / 60s per email (in-memory limiter), with `RateLimitExceededFilter` mapping breaches to HTTP 429 + `Retry-After`
 - Per-handler `AuditBehavior` recording the sensitive `user.delete` action (actor, outcome, duration, redacted payload) to the default `LogAuditSink`, with the actor resolved from the request-scoped session
-- Per-handler `IdempotencyBehavior` atomically excluding concurrent duplicates for `CreateUserHandler` per email and replaying completed successful responses; with the default `releaseOnError: true`, a failed execution releases the key so a later retry may execute again. `IdempotencyConflictFilter` maps in-flight duplicates to HTTP 409 and payload-mismatched key reuse to HTTP 422
+- Per-handler `IdempotencyBehavior` atomically excluding concurrent duplicates for `CreateUserHandler` per tenant + principal + email and replaying completed successful responses; with the default `releaseOnError: true`, a failed execution releases the key so a later retry may execute again. `IdempotencyConflictFilter` maps in-flight duplicates to HTTP 409 and payload-mismatched key reuse to HTTP 422
 - DDD-style `User` entity built on `ddd-core` primitives (`CacheableEntity`, `RootDomainEvent`, `RootDomainOutcome`)
 - MikroORM (libSQL driver) persistence with a normalized schema
 - Pluggable `ICache<T>` — `MikroOrmCache` (MikroORM-backed, TTL-aware) or `MemoryCache` swapped via a single provider token

@@ -39,6 +39,11 @@ import { COMMAND_REPOSITORY } from '../../persistence/repository.tokens';
 import { assertRolePermission } from '../role-authorization.helper';
 import { CreateRoleCommand } from './create-role.command';
 
+export function createRoleIdempotencyKey(ctx: IPipelineContext): string {
+  const request = ctx.request as CreateRoleCommand;
+  return `${TenantSchemaContext.currentSchema}:${request.sessionUser?.id ?? 'anonymous'}:role.create:${request.name}`;
+}
+
 @CommandHandler(CreateRoleCommand)
 @UsePipeline(
   [
@@ -59,12 +64,11 @@ import { CreateRoleCommand } from './create-role.command';
   ],
   // Gate role creation behind the 'role-creation' feature flag
   [FeatureFlagBehavior, { flag: 'role-creation' }],
-  // Ensure idempotent role creation requests per role name
+  // Ensure idempotent role creation per tenant, principal, and role name
   [
     IdempotencyBehavior,
     {
-      keyFactory: (ctx: IPipelineContext) =>
-        `${TenantSchemaContext.currentSchema}:role.create:${(ctx.request as CreateRoleCommand).name}`,
+      keyFactory: createRoleIdempotencyKey,
     },
   ],
 )

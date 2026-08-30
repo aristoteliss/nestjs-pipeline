@@ -102,7 +102,7 @@ export interface CircuitBreakerOptions {
   breaker: BreakerStrategy;
 }
 
-/** Timeout configuration — aborts a handler that runs too long. */
+/** Timeout configuration. Underlying work stops only when it cooperates with the abort signal. */
 export interface TimeoutOptions {
   /** Duration in milliseconds after which the call times out. */
   duration: number;

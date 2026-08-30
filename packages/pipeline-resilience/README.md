@@ -204,7 +204,10 @@ Breaker strategies:
 
 ### Timeout
 
-Aborts a handler that runs too long.
+Signals timeout when a handler runs too long. Aggressive timeouts reject the
+attempt but cannot stop arbitrary work already in progress; use cooperative
+timeouts with `getResilienceAbortSignal()` and pass the signal to cancellable
+I/O when underlying work must stop.
 
 ```typescript
 {

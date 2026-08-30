@@ -40,6 +40,11 @@ import { COMMAND_REPOSITORY } from '../../repositories/repository.tokens';
 import { assertUserPermission } from '../queries/user-read-authorization.helper';
 import { CreateUserCommand } from './create-user.command';
 
+export function createUserIdempotencyKey(ctx: IPipelineContext): string {
+  const request = ctx.request as CreateUserCommand;
+  return `${TenantSchemaContext.currentSchema}:${request.sessionUser?.id ?? 'anonymous'}:user.create:${request.email}`;
+}
+
 @CommandHandler(CreateUserCommand)
 @UsePipeline(
   [
@@ -67,15 +72,14 @@ import { CreateUserCommand } from './create-user.command';
         `${TenantSchemaContext.currentSchema}:${(ctx.request as CreateUserCommand).email}`,
     },
   ],
-  // Make registration idempotent per email: a retried POST (or double-click)
+  // Make registration idempotent per tenant, principal, and email: a retried POST
   // with the same email replays the first response instead of creating a second
   // user. Reusing the email with a DIFFERENT payload yields HTTP 422; a
   // still-in-flight duplicate yields HTTP 409 (see IdempotencyConflictFilter).
   [
     IdempotencyBehavior,
     {
-      keyFactory: (ctx: IPipelineContext) =>
-        `${TenantSchemaContext.currentSchema}:user.create:${(ctx.request as CreateUserCommand).email}`,
+      keyFactory: createUserIdempotencyKey,
     },
   ],
 )

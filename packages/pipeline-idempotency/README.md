@@ -312,7 +312,7 @@ Options are read per-handler from `@UsePipeline` and merged over module-wide
 | Option           | Type                                            | Default        | Description                                                                       |
 | ---------------- | ----------------------------------------------- | -------------- | --------------------------------------------------------------------------------- |
 | `keyFactory`     | `(ctx) => string \| undefined`                  | —              | Derives the idempotency key. Without one (or when it returns `undefined`) the handler runs normally. |
-| `ttl`            | `number`                                        | `86_400_000`   | Claim lifetime in ms (24h). Successful completion restarts this TTL for the replay record. |
+| `ttl`            | positive safe integer                           | `86_400_000`   | Claim lifetime in ms (24h). Successful completion restarts this TTL for the replay record. |
 | `scope`          | `('command' \| 'query' \| 'event' \| 'unknown')[]` | `['command']`  | Which request kinds the policy applies to.                                         |
 | `fingerprint`    | `boolean`                                        | `true`         | Reject a key reused with a different payload (`422`).                              |
 | `releaseOnError` | `boolean`                                        | `true`         | Release the key when the handler throws, so retries can re-run.                    |

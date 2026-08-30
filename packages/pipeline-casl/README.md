@@ -5,7 +5,7 @@ CASL authorization behavior for `@nestjs-pipeline/core` — ABAC (Attribute-Base
 ## Features
 
 - **ABAC + Roles**: Define roles with predefined capability sets, plus per-user overrides
-- **Capability tree strings**: Compact `subject|action|conditions[|fields]` format for JWT/cookie transport
+- **Capability tree strings**: Compact `subject|action|conditions[|fields[|reason]]` format for JWT/cookie transport
 - **Condition interpolation**: Template placeholders (`${id}`, `{{ tenantId }}`, `{{ tenantSchema }}`) resolved against user context
 - **Pluggable providers**: Bring your own role provider (DB, YAML, static) and user capability provider
 - **Pipeline integration**: Works as a `@UsePipeline` behavior on commands, queries, and events
@@ -417,7 +417,7 @@ read from the same configured path.
 ## Capability String Format
 
 ```
-[!]subject|action|conditions[|fields]
+[!]subject|action|conditions[|fields[|reason]]
 ```
 
 | Part       | Description                            | Default/Wildcard       |
@@ -426,7 +426,12 @@ read from the same configured path.
 | `action`   | Verb (e.g., `read`, `create`)          | `manage` → any action  |
 | `conditions` | MongoDB-style JSON conditions        | `*` → none             |
 | `fields`   | Comma-separated field names            | omitted or `*` → all   |
+| `reason`   | Human-readable rule reason              | omitted                |
 | `!` prefix | Inverted (deny) rule                   | —                      |
+
+Segments that contain reserved delimiters (and unsafe field arrays) are encoded
+as `~` followed by base64url JSON. `parseCapabilityString()` and
+`serializeCapability()` handle this automatically and round-trip `reason` too.
 
 ### Examples
 

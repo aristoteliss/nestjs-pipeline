@@ -83,13 +83,14 @@ describe('roles-api (e2e)', () => {
       expect(res.body.id.length).toBeGreaterThan(0);
     });
 
-    it('rejects a duplicate role name with 400', async () => {
+    it('replays a duplicate role create for the same principal', async () => {
       const name = newRoleName();
       const first = await createRole(admin, name);
       expect(first.status).toBe(201);
 
       const duplicate = await createRole(admin, name);
-      expect(duplicate.status).toBe(400);
+      expect(duplicate.status).toBe(201);
+      expect(duplicate.body).toEqual(first.body);
     });
 
     it('rejects a name shorter than the minimum of 3 characters (400)', async () => {

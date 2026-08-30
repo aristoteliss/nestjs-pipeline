@@ -23,8 +23,13 @@ export { isUuidV7, uuidv7 } from './helpers/uuidv7';
 export * from './interfaces/pipeline.behavior.interface';
 export * from './interfaces/pipeline.context.interface';
 export * from './interfaces/pipeline-handler-meta.interface';
-export * from './options';
+export type {
+  GlobalBehaviorScope,
+  GlobalBehaviorsOptions,
+  PipelineLoggerProvider,
+  PipelineModuleOptions,
+} from './options';
 export * from './pipeline.context';
 export * from './pipeline.module';
-export * from './services/pipeline.bootstrap.service';
+export { PipelineBootstrapService } from './services/pipeline.bootstrap.service';
 export { untyped } from './types/safe-typing';

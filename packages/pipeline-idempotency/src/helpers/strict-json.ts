@@ -74,6 +74,16 @@ function normalize(
     );
   }
 
+  const toJSON = (value as { toJSON?: unknown }).toJSON;
+  if (typeof toJSON === 'function') {
+    ancestors.add(value);
+    try {
+      return normalize(toJSON.call(value), ancestors, sortKeys);
+    } finally {
+      ancestors.delete(value);
+    }
+  }
+
   ancestors.add(value);
   try {
     if (Array.isArray(value)) {

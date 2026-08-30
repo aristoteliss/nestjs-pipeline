@@ -88,4 +88,13 @@ describe('HttpCorrelationMiddleware', () => {
 
     expect(captured).toBe('default-789');
   });
+
+  it.each(['', ' ', 'bad header', 'x-header\r\ninjected'])(
+    'rejects invalid configured header name %j',
+    (header) => {
+      expect(() => new HttpCorrelationMiddleware({ header })).toThrow(
+        'Invalid correlation HTTP header name',
+      );
+    },
+  );
 });

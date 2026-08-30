@@ -190,6 +190,16 @@ describe('redactValue', () => {
     expect(Reflect.get(result, '__proto__')).toEqual({ token: REDACTED });
   });
 
+  it('preserves enumerable symbol-keyed own properties', () => {
+    const scope = Symbol('scope');
+    const input = { id: 1, [scope]: { token: 'secret' } };
+
+    const result = redactValue(input) as Record<PropertyKey, unknown>;
+
+    expect(Object.getOwnPropertySymbols(result)).toEqual([scope]);
+    expect(result[scope]).toEqual({ token: REDACTED });
+  });
+
   it('exposes a stable set of default keys', () => {
     expect(DEFAULT_REDACT_KEYS).toContain('password');
     expect(DEFAULT_REDACT_KEYS).toContain('authorization');

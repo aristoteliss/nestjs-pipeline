@@ -143,8 +143,8 @@ import { UsersModule } from './users/users.module';
      * per-handler ResilienceBehavior retries are exhausted — the behavior attempts
      * to send the failed request for inspection/replay. Payload and metadata
      * must be serializable by the configured transport.
-     * Transport errors are logged by the behavior and do not replace the handler
-     * error, so a capture marker means an attempt occurred, not guaranteed storage.
+     * Transport errors are logged and the original handler error is re-thrown.
+     * The capture marker records whether transport delivery succeeded.
      *
      * The transport is the only backend-specific piece: this app uses the
      * BullMQ default (reusing the Redis connection already configured above),

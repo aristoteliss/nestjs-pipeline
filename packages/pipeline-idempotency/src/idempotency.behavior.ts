@@ -151,6 +151,11 @@ export class IdempotencyBehavior implements IPipelineBehavior {
     context.items.set(IDEMPOTENCY_KEY_ITEM, key);
 
     const ttl = options.ttl ?? DEFAULT_IDEMPOTENCY_TTL_MS;
+    if (!Number.isSafeInteger(ttl) || ttl <= 0) {
+      throw new TypeError(
+        'Idempotency ttl must be a positive safe integer in milliseconds.',
+      );
+    }
     const fingerprint =
       (options.fingerprint ?? true)
         ? fingerprintValue(context.request)

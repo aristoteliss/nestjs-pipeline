@@ -22,14 +22,15 @@ import type { MongoAbility, RawRuleOf } from '@casl/ability';
  * Compact string representation of a capability, optimised for transport
  * in JWTs, cookies, and session stores where payload size matters.
  *
- * Format: `[!]subject|action|conditions[|fields]`
+ * Format: `[!]subject|action|conditions[|fields[|reason]]`
  *
  * Uses CASL's predefined keywords directly:
  * - `all` as subject  → all subjects
  * - `manage` as action → all actions
  * - `*` as conditions → no conditions (unrestricted access)
  * - `*` as fields (or omitted) → all fields (no field-level restriction)
- * - Fields are comma-separated: `title,body,status`
+ * - Safe fields are comma-separated: `title,body,status`
+ * - Segments containing reserved delimiters are `~`-prefixed base64url JSON
  *
  * Examples:
  * - `Post|manage|*`      → manage all posts (any condition, all fields)

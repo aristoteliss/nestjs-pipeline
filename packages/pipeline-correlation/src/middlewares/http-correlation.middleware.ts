@@ -25,6 +25,8 @@ import {
   CorrelationOptions,
 } from '../options/correlation.options';
 
+const HTTP_FIELD_NAME = /^[!#$%&'*+\-.^_`|~0-9A-Za-z]+$/;
+
 /**
  * NestJS middleware that extracts a correlation ID from the incoming HTTP
  * request header and stores it in {@link correlationStore} for the remainder of
@@ -49,6 +51,9 @@ export class HttpCorrelationMiddleware implements NestMiddleware {
     options?: CorrelationOptions,
   ) {
     const h = options?.header;
+    if (typeof h === 'string' && !HTTP_FIELD_NAME.test(h)) {
+      throw new TypeError(`Invalid correlation HTTP header name: "${h}".`);
+    }
     this.header = typeof h === 'string' ? h.toLowerCase() : 'x-correlation-id';
   }
 

@@ -81,9 +81,9 @@ describe('capability.helpers', () => {
     });
 
     it('should reject undocumented trailing segments', () => {
-      expect(() => parseCapabilityString('Post|read|*|title|ignored')).toThrow(
-        'too many segments',
-      );
+      expect(() =>
+        parseCapabilityString('Post|read|*|title|reason|ignored'),
+      ).toThrow('too many segments');
     });
 
     it('should throw on malformed conditions JSON', () => {
@@ -273,6 +273,33 @@ describe('capability.helpers', () => {
       expect(parseCapabilityString(serializeCapability(capability))).toEqual(
         capability,
       );
+    });
+
+    it('roundtrips delimiter-bearing segments, empty fields, and reason', () => {
+      const capabilities: Capability[] = [
+        { subject: 'A|B', action: 'read' },
+        { subject: '!Post', action: 'read|own' },
+        { subject: 'Post', action: 'read', fields: ['first,last', '*'] },
+        { subject: ' Post ', action: '~read', fields: [] },
+        {
+          subject: 'Post',
+          action: 'delete',
+          inverted: true,
+          reason: 'tenant|policy',
+        },
+        {
+          subject: 'Post',
+          action: 'read',
+          conditions: {},
+          reason: '*',
+        },
+      ];
+
+      for (const capability of capabilities) {
+        expect(parseCapabilityString(serializeCapability(capability))).toEqual(
+          capability,
+        );
+      }
     });
   });
 

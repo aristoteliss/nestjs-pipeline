@@ -33,14 +33,13 @@ export class UpdateUserCommandRepository extends CommandRepository<UserUpdateOut
     super(cache);
   }
 
-  @Cache((outcome) => filterCacheKey(User, { _id: outcome.entity.id }))
+  @Cache<UserUpdateOutcome, UserSnapshot>(
+    (outcome) => filterCacheKey(User, { _id: outcome.entity.id }),
+    null,
+    (outcome) => [filterCacheKey(User, { email: outcome.entity.email })],
+  )
   async save(domainOutcome: UserUpdateOutcome): Promise<UserSnapshot> {
     const { entity } = domainOutcome;
-
-    await this.cache?.delete(filterCacheKey(User, { _id: entity.id }));
-    if (entity.email) {
-      await this.cache?.delete(filterCacheKey(User, { email: entity.email }));
-    }
 
     const user = await this.store.em.upsert(User, entity);
 

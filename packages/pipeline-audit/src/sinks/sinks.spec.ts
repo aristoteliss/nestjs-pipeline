@@ -104,6 +104,23 @@ describe('LogAuditSink', () => {
       description: 'audit-marker',
     });
   });
+
+  it('preserves symbol-keyed own properties as tagged JSON entries', () => {
+    const logger = { log: vi.fn(), warn: vi.fn() };
+    const sink = new LogAuditSink({ logger });
+    const scope = Symbol('scope');
+
+    sink.write(makeRecord({ payload: { id: 1, [scope]: 'private' } }));
+
+    const parsed = JSON.parse(logger.log.mock.calls[0][0] as string);
+    expect(parsed.payload).toEqual({
+      $type: 'Object',
+      properties: { id: 1 },
+      symbolProperties: [
+        [{ $type: 'Symbol', description: 'scope' }, 'private'],
+      ],
+    });
+  });
 });
 
 describe('PostgresAuditSink', () => {

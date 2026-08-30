@@ -36,7 +36,8 @@
 export interface CorrelationOptions {
   /**
    * HTTP header name to extract the correlation ID from.
-   * A string selects that header. Any non-string value, including `false` and
+   * A valid, non-empty HTTP field-name string selects that header. Invalid
+   * strings throw during middleware construction. Any non-string value, including `false` and
    * `undefined`, makes the current middleware implementation use the default
    * `x-correlation-id` header.
    *
