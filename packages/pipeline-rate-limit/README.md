@@ -83,10 +83,15 @@ scope:
 @CommandHandler(CreateUserCommand)
 @UsePipeline([
   RateLimitBehavior,
-  { points: 1, keyFactory: (ctx) => `${ctx.requestName}:${ctx.request.ip}` },
+  { points: 1, keyFactory: (ctx) => `${ctx.requestName}:${ctx.request.clientIp}` },
 ])
 export class CreateUserHandler implements ICommandHandler<CreateUserCommand> {}
 ```
+
+`IPipelineContext.request` is the CQRS command/query/event, not an Express or
+Fastify request. If a transport value such as an IP address is part of the
+policy, copy it into the command/query at the transport boundary (or place it in
+`context.items` from an upstream behavior) before `RateLimitBehavior` runs.
 
 ---
 
@@ -154,7 +159,7 @@ module-wide `defaults` (handler wins):
 | Option | Type | Default | Description |
 |---|---|---|---|
 | `points` | `number` | `1` | Cost of this request. |
-| `keyFactory` | `(ctx) => string` | `ctx.requestName` | Builds the bucket key. |
+| `keyFactory` | `(ctx) => string` | `ctx.requestName` | Builds the bucket key from CQRS request/context data. |
 | `keyPrefix` | `string` | — | Prepended as `"<prefix>:<key>"`. |
 | `limiter` | `RateLimiterLike` | injected | Per-handler limiter override (stricter/looser policy). |
 | `failOpen` | `boolean` | `true` | On a **store** error, allow (`true`) or reject (`false`). |
@@ -173,18 +178,21 @@ RateLimitModule.forRoot({
 ## Keying strategy
 
 The **key** is the rate-limit bucket. The default (`ctx.requestName`) gives one
-shared bucket per request type. For per-caller limits, combine the request with a
-stable caller id:
+shared bucket per request type. For per-caller limits, use stable data already
+carried by the CQRS request or written to `context.items` by an earlier behavior:
 
 ```typescript
-// Per IP
-{ keyFactory: (ctx) => `${ctx.requestName}:${ctx.request.ip}` }
+// Transport layer copied the client IP into the command/query.
+{ keyFactory: (ctx) => `${ctx.requestName}:${ctx.request.clientIp}` }
 
-// Per authenticated user
+// Request carries the authenticated principal resolved by your application.
 { keyFactory: (ctx) => `${ctx.requestName}:${ctx.request.sessionUser.id}` }
 
-// Per tenant
+// Request carries the selected tenant.
 { keyFactory: (ctx) => `${ctx.requestName}:${ctx.request.tenantId}` }
+
+// Or consume metadata populated by an upstream pipeline behavior.
+{ keyFactory: (ctx) => `${ctx.requestName}:${ctx.items.get('callerId')}` }
 ```
 
 ---
