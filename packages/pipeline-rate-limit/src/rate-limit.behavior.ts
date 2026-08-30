@@ -61,16 +61,20 @@ function isRateLimiterRes(value: unknown): value is RateLimiterResLike {
  * {@link RateLimitExceededError} (map to HTTP 429 with
  * {@link RateLimitExceededFilter}); otherwise the handler proceeds.
  *
+ * `context.request` is the CQRS command/query/event, not an Express/Fastify
+ * request. Transport metadata needed for keying should be copied into the CQRS
+ * request or written to `context.items` by an earlier behavior.
+ *
  * Backend-agnostic: it depends only on {@link RateLimiterLike}, so any
  * `rate-limiter-flexible` backend (memory, Redis/Valkey, Mongo, SQL) is a
  * one-line swap in {@link RateLimitModule.forRoot}.
  *
- * @example Per-handler limit, keyed by caller
+ * @example Per-handler limit, keyed by caller data carried by the command
  * ```ts
  * @CommandHandler(CreateUserCommand)
  * @UsePipeline([
  *   RateLimitBehavior,
- *   { points: 1, keyFactory: (ctx) => `${ctx.requestName}:${ctx.request.ip}` },
+ *   { points: 1, keyFactory: (ctx) => `${ctx.requestName}:${ctx.request.clientIp}` },
  * ])
  * export class CreateUserHandler {}
  * ```
