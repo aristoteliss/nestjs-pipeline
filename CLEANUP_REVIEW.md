@@ -21,10 +21,8 @@
 
 ### 1. Τι πήγε στραβά (Τα "AI Slop" και Over-Engineering μοτίβα)
 1. **God-Interceptors & Παραβίαση SRP**: Ο `AuthSessionInterceptor` έφτασε τις 395 γραμμές κάνοντας ταυτόχρονα: JWT validation (πολλαπλοί αλγόριθμοι SPKI/Secret), API-key authentication, tenant mismatch checks, CASL capability compaction/serialization και session store injection.
-2. **Procedural Authorization Helpers**: Τα `user-read-authorization.helper.ts` και `role-authorization.helper.ts` τραβούν το ability μέσω `AsyncLocalStorage` (`getCaslAbility()`) και πετούν απευθείας HTTP `ForbiddenException` μέσα από application/query layers, παρακάμπτοντας την καθαρή αρχιτεκτονική.
-3. **Dynamic Class Generation (`createExecuteClass`)**: Δημιουργία dynamic κλάσεων CQRS μέσω `Object.defineProperty` και constructor Zod validation. Μειώνει το intellisense, κρύβει τα πεδία και περιπλέκει άσκοπα το typing.
-4. **Behavior Decorator Explosion**: Σε κάθε Command Handler στοιβάζονται 5 έως 8 decorators (`@UsePipeline([LoggingBehavior, ...], [CaslBehavior, ...], [FeatureFlagBehavior, ...], [RateLimitBehavior, ...], [IdempotencyBehavior, ...], [ResilienceBehavior, ...], [AuditBehavior, ...])`). Ενώ χρησιμεύει ως demo, σε πραγματικό κώδικα σκορπίζει business logic μέσα σε decorators.
-5. **Διπλότυποι Μηχανισμοί Serialization/Sanitization**: Το `packages/pipeline-audit/src/helpers/redact.ts` (151 γραμμές) υλοποιεί εκ νέου deep object cloning/masking με `WeakSet`, ενώ το `packages/pipeline/src/helpers/safeStringify.ts` (240 γραμμές) κάνει σχεδόν ακριβώς το ίδιο.
+~~2. **Procedural Authorization Helpers**: Τα `user-read-authorization.helper.ts` και `role-authorization.helper.ts` τραβούν το ability μέσω `AsyncLocalStorage` (`getCaslAbility()`) και πετούν απευθείας HTTP `ForbiddenException` μέσα από application/query layers, παρακάμπτοντας την καθαρή αρχιτεκτονική.~~
+~~4. **Διπλότυποι Μηχανισμοί Serialization/Sanitization**: Το `packages/pipeline-audit/src/helpers/redact.ts` (151 γραμμές) υλοποιεί εκ νέου deep object cloning/masking με `WeakSet`, ενώ το `packages/pipeline/src/helpers/safeStringify.ts` (240 γραμμές) κάνει σχεδόν ακριβώς το ίδιο.~~
 
 ### 2. Τι είναι εξαιρετικό και πρέπει να μείνει (Solid Architecture)
 1. **Διορθώσεις Scoped DI στο Core Pipeline**: Η χρήση του `getAttachedCqrsContextId` στο `PipelineBootstrapService` έλυσε το πρόβλημα του Request Scoping στο NestJS CQRS (Transactions, AsyncLocalStorage).

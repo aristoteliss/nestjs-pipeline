@@ -264,7 +264,7 @@ describe('RootEntity', () => {
       const entity = new TestEntity({ name: 'Alpha' });
       const authorizer = {
         can: vi.fn(
-          (action: string, _subj: string, _e: unknown, field?: string) => {
+          (_action: string, _subj: string, _e: unknown, field?: string) => {
             if (field === undefined) return false;
             return true;
           },

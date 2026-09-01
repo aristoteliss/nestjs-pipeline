@@ -19,6 +19,7 @@
 export * from './behaviors/logging.behavior';
 export { pipelineStore } from './constants/pipeline-context.constants';
 export * from './decorators';
+export * from './helpers/safeStringify';
 export { isUuidV7, uuidv7 } from './helpers/uuidv7';
 export * from './interfaces/pipeline.behavior.interface';
 export * from './interfaces/pipeline.context.interface';

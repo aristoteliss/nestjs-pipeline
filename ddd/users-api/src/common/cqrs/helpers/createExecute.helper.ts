@@ -61,9 +61,11 @@ export function createExecuteClass<
 
       const result = schema.safeParse(input);
       if (!result.success) throw new ZodValidationError(result.error);
+
       // Keep generated CQRS payloads inside the portable JSON domain used by
-      // idempotency fingerprints. Zod preserves explicitly supplied optional
-      // keys with an undefined value, while JSON would silently omit them.
+      // idempotency fingerprints. Uses [[DefineOwnProperty]] semantics rather
+      // than [[Set]] to guarantee own enumerable properties even if a Base class
+      // declares a prototype getter/accessor for the same key.
       for (const [key, value] of Object.entries(result.data)) {
         if (value === undefined) continue;
         Object.defineProperty(this, key, {
