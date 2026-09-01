@@ -96,7 +96,7 @@ export interface FeatureFlagsModuleOptions {
   domain?: string;
   /**
    * Static targeting context merged into every evaluation (e.g.
-   * `{ environment: 'prod', service: 'users-api' }`).
+   * `{ environment: 'prod', service: 'order-service' }`).
    */
   context?: EvaluationContext;
   /**

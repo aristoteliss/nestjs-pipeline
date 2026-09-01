@@ -20,11 +20,13 @@ import { Inject } from '@nestjs/common';
 import { type IQueryHandler, QueryHandler } from '@nestjs/cqrs';
 import { CaslBehavior } from '@nestjs-pipeline/casl';
 import { UsePipeline } from '@nestjs-pipeline/core';
-import { IQueryRepository } from '@nestjs-pipeline/ddd-core';
-import type { User, UserSnapshot } from '../../domain/models/user.entity';
+import {
+  IQueryRepository,
+  UnauthorizedActionException,
+} from '@nestjs-pipeline/ddd-core';
+import { User, type UserSnapshot } from '../../domain/models/user.entity';
 import { QUERY_REPOSITORY } from '../../repositories/repository.tokens';
 import { GetUsersQuery } from './get-users.query';
-import { authorizeUserRead } from './user-read-authorization.helper';
 
 @QueryHandler(GetUsersQuery)
 @UsePipeline([
@@ -42,9 +44,19 @@ export class GetUsersHandler
   ) {}
 
   async execute(query: GetUsersQuery): Promise<UserSnapshot[]> {
-    const users = await this.queryRepository.find(query);
-    return users
-      .map((user) => authorizeUserRead(user, { omitUnauthorized: true }))
-      .filter((user): user is UserSnapshot => user !== null);
+    const rawUsers = await this.queryRepository.find(query);
+    const result: UserSnapshot[] = [];
+    for (const raw of rawUsers) {
+      const user = User.from(raw);
+      if (!user) continue;
+      try {
+        result.push(user.authorize('read') as UserSnapshot);
+      } catch (err) {
+        if (!(err instanceof UnauthorizedActionException)) {
+          throw err;
+        }
+      }
+    }
+    return result;
   }
 }

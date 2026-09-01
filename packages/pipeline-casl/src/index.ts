@@ -42,8 +42,7 @@ export {
   serializeCapability,
 } from './helpers/capability.helpers';
 export {
-  assertEntityPermission,
-  type EntityPermissionCheck,
+  CaslEntityAuthorizer,
   getCaslAbility,
 } from './helpers/entity-authorization.helper';
 // Interfaces (for implementers)

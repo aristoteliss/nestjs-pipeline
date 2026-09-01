@@ -34,7 +34,6 @@ import {
   QUERY_REPOSITORY,
 } from '../../persistence/repository.tokens';
 import { GetRoleQuery } from '../queries/get-role.query';
-import { assertRolePermission } from '../role-authorization.helper';
 import { UpdateRoleCommand } from './update-role.command';
 
 // Example of using request-scoped handler if needed for per-request dependencies
@@ -75,14 +74,13 @@ export class UpdateRoleHandler extends CommandBaseHandler<
     const { id, name } = command;
 
     const query = new GetRoleQuery({ roleId: id }, { hydrate: true });
-
-    const role = await this.queryRepository.find(query);
+    const role = Role.from(await this.queryRepository.find(query));
 
     if (!role) {
       throw new NotFoundException('Role not found');
     }
 
-    assertRolePermission(role, 'update', ['name']);
+    role.authorize('update', ['name']);
 
     const outcome = role.rename(name);
 

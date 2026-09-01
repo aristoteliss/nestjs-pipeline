@@ -16,8 +16,7 @@
  * ----------------------------
  */
 
-import { subject as caslSubject, ForbiddenError } from '@casl/ability';
-import { ForbiddenException } from '@nestjs/common';
+import { subject as caslSubject } from '@casl/ability';
 import { type IPipelineContext, pipelineStore } from '@nestjs-pipeline/core';
 import { CASL_ABILITY_KEY } from '../constants/tokens';
 import type { AppAbility } from '../types/casl.types';
@@ -48,78 +47,32 @@ export function getCaslAbility(
 }
 
 /**
- * A single entity-level permission requirement evaluated against a concrete,
- * already-loaded domain entity (not the request payload).
+ * Pluggable authorizer implementation for entity instances backed by CASL.
  */
-export interface EntityPermissionCheck {
-  /** The action to check (e.g. `'update'`, `'delete'`). */
-  action: string;
-  /** The subject type the entity represents (e.g. `'User'`). */
-  subject: string;
-  /**
-   * The loaded entity instance (or its snapshot). Its attributes are matched
-   * against the capability conditions — this is what makes
-   * ownership/department/tenant rules actually enforceable.
-   */
-  entity: Record<string, unknown>;
-  /**
-   * Optional field names being mutated. When provided, each field is checked
-   * individually so field-level grants/denials (e.g. allow `username`, deny
-   * `salary`) are honoured.
-   */
-  fields?: string[];
+export class CaslEntityAuthorizer {
+  constructor(private readonly ability?: AppAbility) {}
+
+  can(
+    action: string,
+    subject: string,
+    entity: Record<string, unknown>,
+    field?: string,
+  ): boolean {
+    const ability = this.ability ?? getCaslAbility();
+    if (!ability) return true;
+    const typedSubject = caslSubject(subject, {
+      ...entity,
+    }) as unknown as string;
+    return field
+      ? ability.can(action, typedSubject, field)
+      : ability.can(action, typedSubject);
+  }
 }
 
-/**
- * Assert that the given ability permits an action against a concrete entity
- * instance, throwing a NestJS {@link ForbiddenException} otherwise.
- *
- * This is the recommended second phase of CASL authorization for mutations:
- *
- * 1. {@link CaslBehavior} performs the cheap type-level / request-payload check
- *    before the handler runs (fail fast, no DB round-trip).
- * 2. The handler loads the target entity and calls
- *    {@link assertEntityPermission} so conditions that depend on the entity's
- *    persisted attributes are enforced.
- *
- * @example Supervisor may only update users in their own department
- * ```ts
- * const ability = getCaslAbility();
- * if (ability) {
- *   assertEntityPermission(ability, {
- *     action: 'update',
- *     subject: 'User',
- *     entity: user.toJSON(),
- *     fields: changedFields,
- *   });
- * }
- * ```
- *
- * @throws {ForbiddenException} When the ability denies the action (optionally
- *         for a specific field) on the entity.
- */
-export function assertEntityPermission(
-  ability: AppAbility,
-  check: EntityPermissionCheck,
-): void {
-  const typedSubject = caslSubject(check.subject, {
-    ...check.entity,
-  }) as unknown as string;
-
-  const guard = ForbiddenError.from(ability);
-
-  try {
-    if (check.fields && check.fields.length > 0) {
-      for (const field of check.fields) {
-        guard.throwUnlessCan(check.action, typedSubject, field);
-      }
-    } else {
-      guard.throwUnlessCan(check.action, typedSubject);
-    }
-  } catch (error: unknown) {
-    if (error instanceof ForbiddenError) {
-      throw new ForbiddenException('Access denied — insufficient permissions.');
-    }
-    throw error;
-  }
+// Automatically register the CASL entity authorizer adapter as the global default authorizer
+const globalRegistry = globalThis as typeof globalThis & {
+  __PIPELINE_ENTITY_AUTHORIZER__?: CaslEntityAuthorizer;
+};
+if (!globalRegistry.__PIPELINE_ENTITY_AUTHORIZER__) {
+  globalRegistry.__PIPELINE_ENTITY_AUTHORIZER__ = new CaslEntityAuthorizer();
 }

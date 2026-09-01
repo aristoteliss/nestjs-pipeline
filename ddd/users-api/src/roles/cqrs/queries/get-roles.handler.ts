@@ -20,10 +20,12 @@ import { Inject } from '@nestjs/common';
 import { type IQueryHandler, QueryHandler } from '@nestjs/cqrs';
 import { CaslBehavior } from '@nestjs-pipeline/casl';
 import { UsePipeline } from '@nestjs-pipeline/core';
-import { IQueryRepository } from '@nestjs-pipeline/ddd-core';
-import type { Role, RoleSnapshot } from '../../domain/models/role.entity';
+import {
+  IQueryRepository,
+  UnauthorizedActionException,
+} from '@nestjs-pipeline/ddd-core';
+import { Role, type RoleSnapshot } from '../../domain/models/role.entity';
 import { QUERY_REPOSITORY } from '../../persistence/repository.tokens';
-import { authorizeRoleRead } from '../role-authorization.helper';
 import { GetRolesQuery } from './get-roles.query';
 
 @QueryHandler(GetRolesQuery)
@@ -42,9 +44,19 @@ export class GetRolesHandler
   ) {}
 
   async execute(query: GetRolesQuery): Promise<RoleSnapshot[]> {
-    const roles = await this.queryRepository.find(query);
-    return roles
-      .map((role) => authorizeRoleRead(role, { omitUnauthorized: true }))
-      .filter((role): role is RoleSnapshot => role !== null);
+    const rawRoles = await this.queryRepository.find(query);
+    const result: RoleSnapshot[] = [];
+    for (const raw of rawRoles) {
+      const role = Role.from(raw);
+      if (!role) continue;
+      try {
+        result.push(role.authorize('read') as RoleSnapshot);
+      } catch (err) {
+        if (!(err instanceof UnauthorizedActionException)) {
+          throw err;
+        }
+      }
+    }
+    return result;
   }
 }

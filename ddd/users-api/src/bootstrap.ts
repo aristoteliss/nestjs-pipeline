@@ -20,6 +20,7 @@ import { ZodValidationFilter } from '@nestjs-pipeline/zod';
 import { NativeLogger } from 'nestjs-pino';
 import { AppModule } from './app.module';
 import { FeatureDisabledFilter } from './common/filters/feature-disabled.filter';
+import { UnauthorizedActionFilter } from './common/filters/unauthorized-action.filter';
 
 export async function bootstrap(): Promise<void> {
   const useFastify = process.env.ADAPTER === 'fastify';
@@ -57,6 +58,7 @@ export async function bootstrap(): Promise<void> {
     new FeatureDisabledFilter(),
     new RateLimitExceededFilter(),
     new IdempotencyConflictFilter(),
+    new UnauthorizedActionFilter(),
   );
 
   await app.listen(3000, '0.0.0.0');

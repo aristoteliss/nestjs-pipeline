@@ -104,7 +104,7 @@ export function parseCapabilityString(cap: CapabilityString): Capability {
         `Invalid conditions JSON in capability string "${cap}": ${rawConditions}`,
       );
     }
-    if (!isJsonObject(parsed)) {
+    if (!isPlainObject(parsed)) {
       throw new TypeError(
         `Capability conditions must be a JSON object in "${cap}".`,
       );
@@ -134,7 +134,7 @@ export function normalizeCapability(
   cap: Capability | CapabilityString,
 ): Capability {
   if (typeof cap === 'string') return parseCapabilityString(cap);
-  if (!isObjectRecord(cap)) {
+  if (!isPlainObject(cap)) {
     throw new TypeError('Capability must be an object or compact string.');
   }
   if (typeof cap.subject !== 'string' || cap.subject.length === 0) {
@@ -143,7 +143,7 @@ export function normalizeCapability(
   if (typeof cap.action !== 'string' || cap.action.length === 0) {
     throw new TypeError('Capability action must be a non-empty string.');
   }
-  if (cap.conditions !== undefined && !isJsonObject(cap.conditions)) {
+  if (cap.conditions !== undefined && !isPlainObject(cap.conditions)) {
     throw new TypeError('Capability conditions must be a JSON object.');
   }
   if (
@@ -193,10 +193,26 @@ export function serializeCapability(cap: Capability): CapabilityString {
   const prefix = normalized.inverted ? '!' : '';
   const subject = encodeTextSegment(normalized.subject, true);
   const action = encodeTextSegment(normalized.action);
-  const conditionsJson =
-    normalized.conditions !== undefined
-      ? JSON.stringify(normalized.conditions)
-      : undefined;
+
+  let conditionsJson: string | undefined;
+  if (normalized.conditions !== undefined) {
+    try {
+      conditionsJson = JSON.stringify(normalized.conditions, (_k, v) => {
+        if (
+          typeof v === 'object' &&
+          v !== null &&
+          !isPlainObject(v) &&
+          !Array.isArray(v)
+        ) {
+          throw new TypeError();
+        }
+        return v;
+      });
+    } catch {
+      throw new TypeError('Capability conditions must be a JSON object.');
+    }
+  }
+
   const conditions =
     conditionsJson?.includes('|') === true
       ? `~${Buffer.from(conditionsJson, 'utf8').toString('base64url')}`
@@ -379,21 +395,6 @@ function resolvePlaceholder(
   return resolved;
 }
 
-function getNestedValue(obj: Record<string, unknown>, path: string): unknown {
-  const normalizedPath = path.startsWith('user.') ? path.slice(5) : path;
-  const segments = normalizedPath.split('.').filter(Boolean);
-  if (segments.length === 0) return undefined;
-
-  return segments.reduce<unknown>((current, key) => {
-    if (current !== null && typeof current === 'object') {
-      return Object.getOwnPropertyDescriptor(current, key) !== undefined
-        ? (current as Record<string, unknown>)[key]
-        : undefined;
-    }
-    return undefined;
-  }, obj);
-}
-
 function isPlainObject(value: unknown): value is Record<string, unknown> {
   if (value === null || typeof value !== 'object' || Array.isArray(value)) {
     return false;
@@ -402,45 +403,24 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
   return prototype === Object.prototype || prototype === null;
 }
 
-function isObjectRecord(value: unknown): value is Record<string, unknown> {
-  return value !== null && typeof value === 'object' && !Array.isArray(value);
-}
+function getNestedValue(obj: Record<string, unknown>, path: string): unknown {
+  const normalizedPath = path.startsWith('user.') ? path.slice(5) : path;
+  const segments = normalizedPath.split('.').filter(Boolean);
+  let current: unknown = obj;
 
-function isJsonObject(value: unknown): value is Record<string, unknown> {
-  if (!isPlainObject(value)) return false;
-
-  const ancestors = new WeakSet<object>();
-  const isJsonValue = (candidate: unknown): boolean => {
+  for (const seg of segments) {
     if (
-      candidate === null ||
-      typeof candidate === 'string' ||
-      typeof candidate === 'boolean'
+      current !== null &&
+      typeof current === 'object' &&
+      Object.getOwnPropertyDescriptor(current, seg) !== undefined
     ) {
-      return true;
+      current = (current as Record<string, unknown>)[seg];
+    } else {
+      return undefined;
     }
-    if (typeof candidate === 'number') return Number.isFinite(candidate);
-    if (typeof candidate !== 'object') return false;
-    if (ancestors.has(candidate)) return false;
+  }
 
-    ancestors.add(candidate);
-    try {
-      if (Array.isArray(candidate)) {
-        for (let index = 0; index < candidate.length; index += 1) {
-          if (!(index in candidate) || !isJsonValue(candidate[index])) {
-            return false;
-          }
-        }
-        return true;
-      }
-      return (
-        isPlainObject(candidate) && Object.values(candidate).every(isJsonValue)
-      );
-    } finally {
-      ancestors.delete(candidate);
-    }
-  };
-
-  return isJsonValue(value);
+  return current;
 }
 
 /**

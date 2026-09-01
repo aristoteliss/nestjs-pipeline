@@ -36,7 +36,6 @@ import {
   QUERY_REPOSITORY,
 } from '../../repositories/repository.tokens';
 import { GetUserQuery } from '../queries/get-user.query';
-import { assertUserPermission } from '../queries/user-read-authorization.helper';
 import { DeleteUserCommand } from './delete-user.command';
 
 @CommandHandler(DeleteUserCommand)
@@ -121,14 +120,13 @@ export class DeleteUserHandler extends CommandBaseHandler<
     const { id } = command;
 
     const query = new GetUserQuery({ userId: id }, { hydrate: true });
-
-    const user = await this.queryRepository.find(query);
+    const user = User.from(await this.queryRepository.find(query));
 
     if (!user) {
       throw new NotFoundException('User not found');
     }
 
-    assertUserPermission(user, 'delete');
+    user.authorize('delete');
 
     const outcome = user.delete();
 

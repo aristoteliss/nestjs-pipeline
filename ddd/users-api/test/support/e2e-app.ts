@@ -178,6 +178,9 @@ export async function bootstrapE2E(options?: E2EOptions): Promise<E2EContext> {
   const { FeatureDisabledFilter } = await import(
     '../../src/common/filters/feature-disabled.filter'
   );
+  const { UnauthorizedActionFilter } = await import(
+    '../../src/common/filters/unauthorized-action.filter'
+  );
 
   const moduleRef = await Test.createTestingModule({
     imports: [AppModule],
@@ -224,6 +227,7 @@ export async function bootstrapE2E(options?: E2EOptions): Promise<E2EContext> {
     new FeatureDisabledFilter(),
     new RateLimitExceededFilter(),
     new IdempotencyConflictFilter(),
+    new UnauthorizedActionFilter(),
   );
   await app.init();
 

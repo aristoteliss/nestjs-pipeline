@@ -36,7 +36,6 @@ import {
   QUERY_REPOSITORY,
 } from '../../persistence/repository.tokens';
 import { GetRoleQuery } from '../queries/get-role.query';
-import { assertRolePermission } from '../role-authorization.helper';
 import { DeleteRoleCommand } from './delete-role.command';
 
 @CommandHandler(DeleteRoleCommand)
@@ -95,14 +94,13 @@ export class DeleteRoleHandler extends CommandBaseHandler<
     const { id } = command;
 
     const query = new GetRoleQuery({ roleId: id }, { hydrate: true });
-
-    const role = await this.queryRepository.find(query);
+    const role = Role.from(await this.queryRepository.find(query));
 
     if (!role) {
       throw new NotFoundException('Role not found');
     }
 
-    assertRolePermission(role, 'delete');
+    role.authorize('delete');
 
     const outcome = role.delete();
 

@@ -71,7 +71,7 @@ const sdk = new NodeSDK({
   traceExporter: new OTLPTraceExporter({
     url: process.env.OTEL_EXPORTER_OTLP_ENDPOINT || 'http://localhost:4318/v1/traces',
   }),
-  serviceName: 'users-api',
+  serviceName: 'my-service',
 });
 
 sdk.start();
@@ -106,7 +106,7 @@ import { TraceBehavior } from '@nestjs-pipeline/opentelemetry';
       globalBehaviors: {
         scope: 'all',
         before: [LoggingBehavior],
-        after: [[TraceBehavior, { tracerName: 'users-api' }]],
+        after: [[TraceBehavior, { tracerName: 'my-service' }]],
       },
     }),
   ],
@@ -193,8 +193,8 @@ import { TraceBehavior, MetricsBehavior } from '@nestjs-pipeline/opentelemetry';
         scope: 'all',
         before: [LoggingBehavior],
         after: [
-          [TraceBehavior, { tracerName: 'users-api' }],
-          [MetricsBehavior, { meterName: 'users-api' }],
+          [TraceBehavior, { tracerName: 'my-service' }],
+          [MetricsBehavior, { meterName: 'my-service' }],
         ],
       },
     }),
@@ -214,7 +214,7 @@ import { OTLPMetricExporter } from '@opentelemetry/exporter-metrics-otlp-http';
 import { PeriodicExportingMetricReader } from '@opentelemetry/sdk-metrics';
 
 const sdk = new NodeSDK({
-  serviceName: 'users-api',
+  serviceName: 'my-service',
   traceExporter: new OTLPTraceExporter({
     url: 'http://localhost:4318/v1/traces',
   }),
@@ -316,7 +316,7 @@ Set the tracer name when registering globally — this appears in your APM tool:
 PipelineModule.forRoot({
   globalBehaviors: {
     scope: 'all',
-    after: [[TraceBehavior, { tracerName: 'users-api' }]],
+    after: [[TraceBehavior, { tracerName: 'my-service' }]],
   },
 })
 ```
@@ -380,7 +380,7 @@ import { PeriodicExportingMetricReader } from '@opentelemetry/sdk-metrics';
 import { getNodeAutoInstrumentations } from '@opentelemetry/auto-instrumentations-node';
 
 const sdk = new NodeSDK({
-  serviceName: 'users-api',
+  serviceName: 'my-service',
   traceExporter: new OTLPTraceExporter({
     url: 'http://localhost:4318/v1/traces',
   }),
@@ -422,8 +422,8 @@ import { ZodValidationBehavior } from '@nestjs-pipeline/zod';
         scope: 'all',
         before: [LoggingBehavior, ZodValidationBehavior],
         after: [
-          [TraceBehavior, { tracerName: 'users-api' }],
-          [MetricsBehavior, { meterName: 'users-api' }],
+          [TraceBehavior, { tracerName: 'my-service' }],
+          [MetricsBehavior, { meterName: 'my-service' }],
         ],
       },
     }),
@@ -453,7 +453,7 @@ export class CreateUserHandler implements ICommandHandler<CreateUserCommand> {
 **Result in your APM tool (e.g. SigNoz, Jaeger):**
 
 ```
-Trace: users-api
+Trace: my-service
 └── command.CreateUserCommand (12.34ms) [OK]
     ├── pipeline.request.kind = "command"
     ├── pipeline.request.name = "CreateUserCommand"
@@ -462,7 +462,7 @@ Trace: users-api
     └── pipeline.started_at = "2026-03-01T12:00:00.000Z"
 ```
 
-**Plus metrics** (same handler) on the `users-api` meter:
+**Plus metrics** (same handler) on the `my-service` meter:
 
 ```
 pipeline.handler.duration{...,outcome="success"}     histogram → p50/p95/p99 latency

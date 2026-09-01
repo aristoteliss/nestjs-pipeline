@@ -17,9 +17,9 @@
  */
 
 /** biome-ignore-all lint/suspicious/noTemplateCurlyInString: false positive */
-import { ForbiddenException } from '@nestjs/common';
 import { describe, expect, it } from 'vitest';
-import { assertEntityPermission } from './helpers/entity-authorization.helper';
+import { CASL_ABILITY_KEY } from './constants/tokens';
+import { CaslEntityAuthorizer } from './helpers/entity-authorization.helper';
 import { buildAbility } from './services/ability.factory';
 import type { CaslUserContext, RoleDefinition } from './types/casl.types';
 
@@ -38,56 +38,115 @@ const supervisorRole: RoleDefinition = {
 
 const supervisor: CaslUserContext = { id: 1, department: 'engineering' };
 
-describe('assertEntityPermission', () => {
+describe('CaslEntityAuthorizer', () => {
   it('allows updating a user in the supervisor own department', () => {
     const ability = buildAbility([supervisorRole], supervisor);
+    const authorizer = new CaslEntityAuthorizer(ability);
 
-    expect(() =>
-      assertEntityPermission(ability, {
-        action: 'update',
-        subject: 'User',
-        entity: { id: 2, department: 'engineering', username: 'bob' },
-        fields: ['username'],
-      }),
-    ).not.toThrow();
+    expect(
+      authorizer.can(
+        'update',
+        'User',
+        { id: 2, department: 'engineering', username: 'bob' },
+        'username',
+      ),
+    ).toBe(true);
   });
 
   it('denies updating a user in another department', () => {
     const ability = buildAbility([supervisorRole], supervisor);
+    const authorizer = new CaslEntityAuthorizer(ability);
 
-    expect(() =>
-      assertEntityPermission(ability, {
-        action: 'update',
-        subject: 'User',
-        entity: { id: 3, department: 'marketing', username: 'carol' },
-        fields: ['username'],
-      }),
-    ).toThrow(ForbiddenException);
+    expect(
+      authorizer.can(
+        'update',
+        'User',
+        { id: 3, department: 'marketing', username: 'carol' },
+        'username',
+      ),
+    ).toBe(false);
   });
 
   it('denies changing a protected field even within the department', () => {
     const ability = buildAbility([supervisorRole], supervisor);
+    const authorizer = new CaslEntityAuthorizer(ability);
 
-    expect(() =>
-      assertEntityPermission(ability, {
-        action: 'update',
-        subject: 'User',
-        entity: { id: 2, department: 'engineering' },
-        fields: ['department'],
-      }),
-    ).toThrow(ForbiddenException);
+    expect(
+      authorizer.can(
+        'update',
+        'User',
+        { id: 2, department: 'engineering' },
+        'department',
+      ),
+    ).toBe(false);
   });
 
   it('lets a user update their own username regardless of department', () => {
     const ability = buildAbility([supervisorRole], supervisor);
+    const authorizer = new CaslEntityAuthorizer(ability);
 
-    expect(() =>
-      assertEntityPermission(ability, {
-        action: 'update',
-        subject: 'User',
-        entity: { id: 1, department: 'engineering', username: 'me' },
-        fields: ['username'],
+    expect(
+      authorizer.can(
+        'update',
+        'User',
+        { id: 1, department: 'engineering', username: 'me' },
+        'username',
+      ),
+    ).toBe(true);
+  });
+
+  it('evaluates action without field parameter', () => {
+    const ability = buildAbility([supervisorRole], supervisor);
+    const authorizer = new CaslEntityAuthorizer(ability);
+
+    expect(
+      authorizer.can('update', 'User', {
+        id: 2,
+        department: 'engineering',
       }),
-    ).not.toThrow();
+    ).toBe(true);
+
+    expect(
+      authorizer.can('update', 'User', {
+        id: 3,
+        department: 'marketing',
+      }),
+    ).toBe(false);
+  });
+
+  it('returns true when no ability is available (safe default)', () => {
+    const authorizer = new CaslEntityAuthorizer();
+    expect(authorizer.can('update', 'User', { id: 1 })).toBe(true);
+  });
+
+  it('resolves ability from ambient pipelineStore when constructor ability is omitted', () => {
+    const { pipelineStore } = require('@nestjs-pipeline/core');
+    const ability = buildAbility([supervisorRole], supervisor);
+    const authorizer = new CaslEntityAuthorizer();
+
+    const items = new Map<unknown, unknown>();
+    items.set(CASL_ABILITY_KEY, ability);
+
+    const fakeContext = { items } as any;
+
+    pipelineStore.run(fakeContext, () => {
+      expect(
+        authorizer.can(
+          'update',
+          'User',
+          { id: 2, department: 'engineering' },
+          'username',
+        ),
+      ).toBe(true);
+
+      expect(
+        authorizer.can(
+          'update',
+          'User',
+          { id: 3, department: 'marketing' },
+          'username',
+        ),
+      ).toBe(false);
+    });
   });
 });

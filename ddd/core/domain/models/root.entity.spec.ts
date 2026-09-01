@@ -18,6 +18,7 @@
 
 import { uuidv7 } from '@nestjs-pipeline/core';
 import { describe, expect, it, vi } from 'vitest';
+import { UnauthorizedActionException } from '../exceptions/unauthorized-action.exception';
 import { RootEntitySnapshot } from '../interfaces/root-entity-snapshot.interface';
 import { RootEntity } from './root.entity';
 
@@ -54,6 +55,10 @@ class TestEntity extends RootEntity<TestSnapshot> {
       updatedAt: this.updatedAt,
       name: this.name,
     });
+  }
+
+  static fromJSON(snapshot: TestSnapshot): TestEntity {
+    return new TestEntity(snapshot);
   }
 }
 
@@ -116,6 +121,18 @@ describe('RootEntity', () => {
     ).toThrowError('id must be a valid UUID v7.');
   });
 
+  it('throws when date string is empty or whitespace', () => {
+    const id = uuidv7();
+    expect(
+      () =>
+        new TestEntity({
+          id,
+          createdAt: '   ',
+          updatedAt: new Date(),
+        }),
+    ).toThrow('Date is empty.');
+  });
+
   it('throws on invalid date during rehydration', () => {
     const id = uuidv7();
     expect(
@@ -147,5 +164,248 @@ describe('RootEntity', () => {
     expect(json.id).toBe(entity.id);
     expect(json.name).toBe('Serialized');
     expect(Object.isFrozen(json)).toBe(true);
+  });
+
+  describe('authorize()', () => {
+    it('returns snapshot untouched when no authorizer or default is configured', () => {
+      const entity = new TestEntity({ name: 'Alpha' });
+      const snapshot = entity.authorize('read');
+      expect(snapshot.name).toBe('Alpha');
+      expect(snapshot.id).toBe(entity.id);
+    });
+
+    it('authorizes read and masks non-permitted fields from partial snapshot', () => {
+      const entity = new TestEntity({ name: 'Alpha' });
+      const authorizer = {
+        can: vi.fn(
+          (
+            action: string,
+            _subject: string,
+            _entity: Record<string, unknown>,
+            field?: string,
+          ) => {
+            if (action === 'read' && field === 'name') return false;
+            if (action === 'read') return true;
+            return false;
+          },
+        ),
+      };
+
+      const snapshot = entity.authorize('read', undefined, authorizer);
+      expect(snapshot.name).toBeUndefined();
+      expect(snapshot.id).toBe(entity.id);
+      expect(snapshot.createdAt).toBeDefined();
+    });
+
+    it('throws UnauthorizedActionException when read on subject is forbidden', () => {
+      const entity = new TestEntity({ name: 'Alpha' });
+      const authorizer = {
+        can: vi.fn(() => false),
+      };
+
+      expect(() => entity.authorize('read', undefined, authorizer)).toThrow(
+        UnauthorizedActionException,
+      );
+
+      try {
+        entity.authorize('read', undefined, authorizer);
+      } catch (err) {
+        expect(err).toBeInstanceOf(UnauthorizedActionException);
+        const ex = err as UnauthorizedActionException;
+        expect(ex.action).toBe('read');
+        expect(ex.subject).toBe('TestEntity');
+        expect(ex.entityId).toBe(entity.id);
+      }
+    });
+
+    it('allows create action when authorizer permits it and returns snapshot', () => {
+      const entity = new TestEntity({ name: 'Alpha' });
+      const authorizer = {
+        can: vi.fn(() => true),
+      };
+
+      const snapshot = entity.authorize('create', undefined, authorizer);
+      expect(snapshot.name).toBe('Alpha');
+      expect(authorizer.can).toHaveBeenCalledWith(
+        'create',
+        'TestEntity',
+        expect.any(Object),
+      );
+    });
+
+    it('throws UnauthorizedActionException when create is forbidden', () => {
+      const entity = new TestEntity({ name: 'Alpha' });
+      const authorizer = {
+        can: vi.fn(() => false),
+      };
+
+      expect(() => entity.authorize('create', undefined, authorizer)).toThrow(
+        UnauthorizedActionException,
+      );
+    });
+
+    it('allows update action when all requested fields are permitted', () => {
+      const entity = new TestEntity({ name: 'Alpha' });
+      const authorizer = {
+        can: vi.fn(() => true),
+      };
+
+      const snapshot = entity.authorize('update', ['name'], authorizer);
+      expect(snapshot.name).toBe('Alpha');
+      expect(authorizer.can).toHaveBeenCalledWith(
+        'update',
+        'TestEntity',
+        expect.any(Object),
+        'name',
+      );
+    });
+
+    it('throws UnauthorizedActionException when update on entity is forbidden', () => {
+      const entity = new TestEntity({ name: 'Alpha' });
+      const authorizer = {
+        can: vi.fn(
+          (action: string, _subj: string, _e: unknown, field?: string) => {
+            if (field === undefined) return false;
+            return true;
+          },
+        ),
+      };
+
+      expect(() => entity.authorize('update', undefined, authorizer)).toThrow(
+        UnauthorizedActionException,
+      );
+    });
+
+    it('throws UnauthorizedActionException when update on specific field is forbidden', () => {
+      const entity = new TestEntity({ name: 'Alpha' });
+      const authorizer = {
+        can: vi.fn(
+          (
+            action: string,
+            _subj: string,
+            _entity: Record<string, unknown>,
+            field?: string,
+          ) => action === 'update' && field !== 'name',
+        ),
+      };
+
+      expect(() => entity.authorize('update', ['name'], authorizer)).toThrow(
+        UnauthorizedActionException,
+      );
+
+      try {
+        entity.authorize('update', ['name'], authorizer);
+      } catch (err) {
+        expect(err).toBeInstanceOf(UnauthorizedActionException);
+        const ex = err as UnauthorizedActionException;
+        expect(ex.action).toBe('update');
+        expect(ex.subject).toBe('TestEntity');
+        expect(ex.entityId).toBe(entity.id);
+        expect(ex.fields).toContain('name');
+      }
+    });
+
+    it('allows delete action when authorizer permits it and returns snapshot', () => {
+      const entity = new TestEntity({ name: 'Alpha' });
+      const authorizer = {
+        can: vi.fn(() => true),
+      };
+
+      const snapshot = entity.authorize('delete', undefined, authorizer);
+      expect(snapshot.name).toBe('Alpha');
+    });
+
+    it('throws UnauthorizedActionException when delete is forbidden', () => {
+      const entity = new TestEntity({ name: 'Alpha' });
+      const authorizer = {
+        can: vi.fn(() => false),
+      };
+
+      expect(() => entity.authorize('delete', undefined, authorizer)).toThrow(
+        UnauthorizedActionException,
+      );
+    });
+
+    it('falls back to RootEntity.defaultAuthorizer when authorizer argument is omitted', () => {
+      const entity = new TestEntity({ name: 'Alpha' });
+      const mockAuthorizer = {
+        can: vi.fn(() => true),
+      };
+
+      RootEntity.defaultAuthorizer = mockAuthorizer;
+      try {
+        const result = entity.authorize('read');
+        expect(mockAuthorizer.can).toHaveBeenCalled();
+        expect(result.name).toBe('Alpha');
+      } finally {
+        RootEntity.defaultAuthorizer = undefined;
+      }
+    });
+
+    it('prioritizes explicit authorizer over RootEntity.defaultAuthorizer', () => {
+      const entity = new TestEntity({ name: 'Alpha' });
+      const defaultAuth = {
+        can: vi.fn(() => false),
+      };
+      const explicitAuth = {
+        can: vi.fn(() => true),
+      };
+
+      RootEntity.defaultAuthorizer = defaultAuth;
+      try {
+        const result = entity.authorize('read', undefined, explicitAuth);
+        expect(explicitAuth.can).toHaveBeenCalled();
+        expect(defaultAuth.can).not.toHaveBeenCalled();
+        expect(result.name).toBe('Alpha');
+      } finally {
+        RootEntity.defaultAuthorizer = undefined;
+      }
+    });
+
+    it('falls back to global registry __PIPELINE_ENTITY_AUTHORIZER__ when no other authorizer exists', () => {
+      const entity = new TestEntity({ name: 'Alpha' });
+      const globalAuth = {
+        can: vi.fn(() => true),
+      };
+
+      const registry = globalThis as typeof globalThis & {
+        __PIPELINE_ENTITY_AUTHORIZER__?: typeof globalAuth;
+      };
+      const previous = registry.__PIPELINE_ENTITY_AUTHORIZER__;
+      registry.__PIPELINE_ENTITY_AUTHORIZER__ = globalAuth;
+
+      try {
+        const result = entity.authorize('read');
+        expect(globalAuth.can).toHaveBeenCalled();
+        expect(result.name).toBe('Alpha');
+      } finally {
+        registry.__PIPELINE_ENTITY_AUTHORIZER__ = previous;
+      }
+    });
+  });
+
+  describe('from()', () => {
+    it('returns candidate as-is when already an entity instance', () => {
+      const entity = new TestEntity({ name: 'Alpha' });
+      const result = TestEntity.from(entity);
+      expect(result).toBe(entity);
+    });
+
+    it('rehydrates snapshot into entity when plain object is given', () => {
+      const snapshot: TestSnapshot = {
+        id: uuidv7(),
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        name: 'FromSnapshot',
+      };
+      const result = TestEntity.from(snapshot);
+      expect(result).toBeInstanceOf(TestEntity);
+      expect(result?.name).toBe('FromSnapshot');
+    });
+
+    it('returns null when candidate is null or undefined', () => {
+      expect(TestEntity.from(null)).toBeNull();
+      expect(TestEntity.from(undefined)).toBeNull();
+    });
   });
 });

@@ -49,7 +49,7 @@ import type {
  *     FeatureFlagsModule.forRoot({
  *       provider: new UnleashProvider({
  *         url: 'https://unleash.example.com/api',
- *         appName: 'users-api',
+ *         appName: 'my-app',
  *         token: process.env.UNLEASH_TOKEN!,
  *       }),
  *       context: { environment: process.env.NODE_ENV ?? 'development' },

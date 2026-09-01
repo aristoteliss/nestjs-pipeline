@@ -32,7 +32,6 @@ import {
   QUERY_REPOSITORY,
 } from '../../repositories/repository.tokens';
 import { GetUserQuery } from '../queries/get-user.query';
-import { assertUserPermission } from '../queries/user-read-authorization.helper';
 import { UpdateUserCommand } from './update-user.command';
 
 // Example of using request-scoped handler if needed for per-request dependencies
@@ -64,21 +63,16 @@ export class UpdateUserHandler extends CommandBaseHandler<
     const { id, username, department } = command;
 
     const query = new GetUserQuery({ userId: id }, { hydrate: true });
-
-    const user = await this.queryRepository.find(query);
+    const user = User.from(await this.queryRepository.find(query));
 
     if (!user) {
       throw new NotFoundException('User not found');
     }
 
-    // Entity-level authorization against the loaded target user. Conditions
-    // like "User|update|{department: <mine>}" depend on the target's persisted
-    // attributes, which the command payload does not carry, so they are
-    // re-checked here against the real entity and the fields being changed.
     const changedFields = Object.entries({ username, department })
       .filter(([, value]) => value !== undefined)
       .map(([field]) => field);
-    assertUserPermission(user, 'update', changedFields);
+    user.authorize('update', changedFields);
 
     const outcome = user.update({ username, department });
 

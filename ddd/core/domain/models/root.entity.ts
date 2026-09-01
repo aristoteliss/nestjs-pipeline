@@ -17,6 +17,11 @@
  */
 
 import { isUuidV7, uuidv7 } from '@nestjs-pipeline/core';
+import { UnauthorizedActionException } from '../exceptions/unauthorized-action.exception';
+import type {
+  IAuthorizeEntity,
+  IEntityAuthorizer,
+} from '../interfaces/authorize-entity.interface';
 import { ICacheKey } from '../interfaces/cache-key.interface';
 import { RootEntitySnapshot } from '../interfaces/root-entity-snapshot.interface';
 
@@ -27,10 +32,13 @@ import { RootEntitySnapshot } from '../interfaces/root-entity-snapshot.interface
  * - Exposes immutable id, createdAt, and updatedAt getters.
  * - Exposes onUpdate/afterUpdate hooks for mutation tracking.
  * - Requires child entities to provide JSON serialization.
+ * - Provides generic `authorize()` supporting ABAC & field-level rules.
  */
 export abstract class RootEntity<TSnapshot extends Partial<RootEntitySnapshot>>
-  implements RootEntitySnapshot, ICacheKey
+  implements RootEntitySnapshot, ICacheKey, IAuthorizeEntity<TSnapshot>
 {
+  static defaultAuthorizer?: IEntityAuthorizer;
+
   private readonly _id: string;
   private readonly _createdAt: Date;
   private _updatedAt: Date;
@@ -93,6 +101,37 @@ export abstract class RootEntity<TSnapshot extends Partial<RootEntitySnapshot>>
     return parsed;
   }
 
+  /**
+   * Rehydrates or returns an already-hydrated entity instance.
+   *
+   * If `candidate` is already an instance of `RootEntity`, it is returned as-is.
+   * Otherwise, if `candidate` is a snapshot object, it is rehydrated via the class's `fromJSON()` factory.
+   */
+  static from<
+    T extends RootEntity<TSnapshot>,
+    TSnapshot extends Partial<RootEntitySnapshot>,
+  >(
+    this:
+      | { fromJSON(snapshot: TSnapshot): T }
+      | (abstract new (
+          ...args: unknown[]
+        ) => T),
+    candidate: T | TSnapshot | null | undefined,
+  ): T | null {
+    if (candidate === null || candidate === undefined) {
+      return null;
+    }
+    if (candidate instanceof RootEntity) {
+      return candidate as T;
+    }
+    // biome-ignore lint/complexity/noThisInStatic: Polymorphic static rehydration
+    const ctor = this as unknown as { fromJSON(snapshot: TSnapshot): T };
+    if (typeof ctor.fromJSON === 'function') {
+      return ctor.fromJSON(candidate as TSnapshot);
+    }
+    throw new Error('Cannot rehydrate entity: missing fromJSON factory.');
+  }
+
   get id(): string {
     return this._id;
   }
@@ -115,4 +154,77 @@ export abstract class RootEntity<TSnapshot extends Partial<RootEntitySnapshot>>
   abstract afterUpdate(): void;
 
   abstract toJSON(): RootEntitySnapshot & TSnapshot;
+
+  /**
+   * Generic entity authorization method.
+   *
+   * Evaluates the requested action and fields against the given or default authorizer.
+   *
+   * @throws {UnauthorizedActionException} when access is forbidden.
+   */
+  authorize(
+    action: 'create' | 'read' | 'update' | 'delete' | string,
+    fields?: (keyof TSnapshot | string)[],
+    authorizer?: IEntityAuthorizer,
+  ): Partial<TSnapshot> {
+    const auth =
+      authorizer ??
+      RootEntity.defaultAuthorizer ??
+      (
+        globalThis as typeof globalThis & {
+          __PIPELINE_ENTITY_AUTHORIZER__?: IEntityAuthorizer;
+        }
+      ).__PIPELINE_ENTITY_AUTHORIZER__;
+    const snapshot = this.toJSON();
+    if (!auth) {
+      return snapshot;
+    }
+
+    const subjectType = this.constructor.name;
+
+    const snapshotRecord = snapshot as unknown as Record<string, unknown>;
+
+    if (action === 'read') {
+      if (!auth.can('read', subjectType, snapshotRecord)) {
+        throw new UnauthorizedActionException({
+          action: 'read',
+          subject: subjectType,
+          entityId: this.id,
+          reason: `Access denied: insufficient permissions to read ${subjectType}.`,
+        });
+      }
+
+      const result: Record<string, unknown> = {};
+      for (const [key, value] of Object.entries(snapshot)) {
+        if (auth.can('read', subjectType, snapshotRecord, key)) {
+          result[key] = value;
+        }
+      }
+      return result as unknown as Partial<TSnapshot>;
+    }
+
+    if (fields && fields.length > 0) {
+      for (const field of fields) {
+        const fieldStr = String(field);
+        if (!auth.can(action, subjectType, snapshotRecord, fieldStr)) {
+          throw new UnauthorizedActionException({
+            action,
+            subject: subjectType,
+            entityId: this.id,
+            fields: [fieldStr],
+            reason: `Access denied: insufficient permissions to ${action} ${subjectType} field "${fieldStr}".`,
+          });
+        }
+      }
+    } else if (!auth.can(action, subjectType, snapshotRecord)) {
+      throw new UnauthorizedActionException({
+        action,
+        subject: subjectType,
+        entityId: this.id,
+        reason: `Access denied: insufficient permissions to ${action} ${subjectType}.`,
+      });
+    }
+
+    return snapshot;
+  }
 }

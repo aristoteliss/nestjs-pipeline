@@ -93,8 +93,7 @@ A per-handler `prebuiltAbility` bypasses provider-based ability construction.
 | Export | Purpose |
 |--------|---------|
 | `getCaslAbility(context?)` | Read the resolved `AppAbility` from the ambient pipeline store (or an explicit context). |
-| `assertEntityPermission(ability, check)` | Second-phase, entity-level check against a loaded entity; throws NestJS `ForbiddenException` on failure. |
-| `EntityPermissionCheck` | The `{ action, subject, entity, fields? }` shape consumed by `assertEntityPermission`. |
+| `CaslEntityAuthorizer` | Generic authorizer adapter for entity instances and field-level permissions backed by CASL. |
 
 ### Tokens & types
 
@@ -470,7 +469,7 @@ export class DbUserCapabilityProvider implements IUserCapabilityProvider {
 Persistence representation is application-specific. The example below uses
 PostgreSQL-native `jsonb` and `text[]` columns, but providers may instead parse
 serialized JSON/delimited text into `conditions` objects and `fields` arrays.
-The DDD showcase does that to keep one MikroORM model portable across libSQL and
+The sample application does that to keep one MikroORM model portable across libSQL and
 PostgreSQL.
 
 <details>
@@ -734,24 +733,14 @@ if (ability?.can('publish', 'Post')) {
 `CaslBehavior` runs *before* the handler, so it can only evaluate conditions
 against the incoming request payload. Conditions that depend on the **persisted**
 state of the target entity (e.g. "a supervisor may only update users in their own
-department") must be re-checked after the entity is loaded. Use
-`assertEntityPermission()` for that second phase:
+department") must be re-checked after the entity is loaded:
 
 ```ts
-import { assertEntityPermission, getCaslAbility } from '@nestjs-pipeline/casl';
-
 async handle(command: UpdateUserCommand) {
   const user = await this.repo.find(command.id);
 
-  const ability = getCaslAbility();
-  if (ability) {
-    assertEntityPermission(ability, {
-      action: 'update',
-      subject: 'User',
-      entity: user.toJSON(),       // real, persisted attributes
-      fields: ['username'],        // only the fields being changed
-    });
-  }
+  // Authorize directly on the entity using CASL authorizer
+  user.authorize('update', ['username']);
 
   // ...apply the update
 }
@@ -861,9 +850,8 @@ ability.can('delete', 'Post');   // false (deny applied after any allow)
 ### Two-phase entity authorization
 
 `CaslBehavior` can only see the request payload. For rules that depend on the
-**persisted** entity, re-check after loading it (see
-[Accessing the Ability Downstream](#accessing-the-ability-downstream) above for
-the full `assertEntityPermission` example).
+**persisted** entity, re-check after loading it via `entity.authorize(action, fields?)` (see
+[Accessing the Ability Downstream](#accessing-the-ability-downstream) above).
 
 ## License
 

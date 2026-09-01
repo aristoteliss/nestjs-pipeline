@@ -21,10 +21,9 @@ import { type IQueryHandler, QueryHandler } from '@nestjs/cqrs';
 import { CaslBehavior } from '@nestjs-pipeline/casl';
 import { UsePipeline } from '@nestjs-pipeline/core';
 import { IQueryRepository } from '@nestjs-pipeline/ddd-core';
-import type { User, UserSnapshot } from '../../domain/models/user.entity';
+import { User, type UserSnapshot } from '../../domain/models/user.entity';
 import { QUERY_REPOSITORY } from '../../repositories/repository.tokens';
 import { GetUserQuery } from './get-user.query';
-import { authorizeUserRead } from './user-read-authorization.helper';
 
 @QueryHandler(GetUserQuery)
 @UsePipeline([
@@ -45,7 +44,7 @@ export class GetUserHandler
   ) {}
 
   async execute(query: GetUserQuery): Promise<UserSnapshot | null> {
-    const user = await this.queryRepository.find(query);
-    return user ? authorizeUserRead(user) : null;
+    const user = User.from(await this.queryRepository.find(query));
+    return user ? (user.authorize('read') as UserSnapshot) : null;
   }
 }

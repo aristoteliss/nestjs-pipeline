@@ -20,6 +20,8 @@ export * from './application/command-base.handler';
 export * from './domain/decorators/Mutate';
 export * from './domain/events/domain.event';
 export * from './domain/events/root-domain.event';
+export * from './domain/exceptions/unauthorized-action.exception';
+export * from './domain/interfaces/authorize-entity.interface';
 export * from './domain/interfaces/cache-key.interface';
 export * from './domain/interfaces/root-entity-snapshot.interface';
 export * from './domain/models/cacheable.entity';

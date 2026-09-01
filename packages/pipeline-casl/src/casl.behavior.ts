@@ -98,12 +98,7 @@ export interface CaslBehaviorOptions {
    * class DeleteCommentHandler {
    *   async execute(command: DeleteCommentCommand) {
    *     const comment = await this.comments.find(command.id);
-   *     const ability = getCaslAbility();
-   *     if (ability) {
-   *       assertEntityPermission(ability, {
-   *         action: 'delete', subject: 'Comment', entity: comment,
-   *       });
-   *     }
+   *     comment.authorize('delete');
    *     await this.comments.delete(comment);
    *   }
    * }
@@ -450,12 +445,7 @@ export interface CaslBehaviorOptions {
  * class DeleteCommentHandler {
  *   async execute(command: DeleteCommentCommand) {
  *     const comment = await this.comments.find(command.id);
- *     const ability = getCaslAbility();
- *     if (ability) {
- *       assertEntityPermission(ability, {
- *         action: 'delete', subject: 'Comment', entity: comment,
- *       });
- *     }
+ *     comment.authorize('delete');
  *     await this.comments.delete(comment);
  *   }
  * }

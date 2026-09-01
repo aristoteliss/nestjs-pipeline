@@ -6,9 +6,11 @@ Reusable Domain-Driven Design primitives for NestJS applications using `@nestjs-
 
 This package provides the foundational building blocks for implementing a DDD domain layer:
 
-- **`RootEntity`** — Abstract base entity with UUID v7 identity, `createdAt`/`updatedAt` lifecycle, snapshot-based rehydration, and mutation tracking via `onUpdate()`.
+- **`RootEntity`** — Abstract base entity with UUID v7 identity, `createdAt`/`updatedAt` lifecycle, polymorphic snapshot rehydration via `RootEntity.from()`, domain authorization via `.authorize()`, and mutation tracking via `onUpdate()`.
 - **`CacheableEntity`** — Extends `RootEntity` with a `cacheKey` property (`<prefixKey><id>`) used by `@Cache` and `@FromCache` decorators. Also provides `fromStringify()` for deserializing cached JSON.
 - **`RootEntitySnapshot`** — Interface defining the shape of a serialized entity (`id`, `createdAt`, `updatedAt`).
+- **`IAuthorizeEntity`** & **`IEntityAuthorizer`** — Generic contracts for entity instance authorization and field-level masking.
+- **`UnauthorizedActionException`** — Pure domain exception thrown when an entity action or field access is denied.
 - **`DomainEvent`** — Abstract base class for domain events. Each event carries a unique UUID v7 `id`.
 - **`RootDomainEvent`** — Domain event that carries a typed reference to the originating entity.
 - **`DomainOutcome`** — Base outcome class that bundles domain events produced by an operation.

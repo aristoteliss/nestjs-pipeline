@@ -80,7 +80,7 @@ import { UnleashProvider } from '@openfeature/unleash-provider';
     FeatureFlagsModule.forRoot({
       provider: new UnleashProvider({
         url: 'https://unleash.example.com/api',
-        appName: 'users-api',
+        appName: 'my-app',
         token: process.env.UNLEASH_TOKEN!,
       }),
       // Static context merged into every evaluation:

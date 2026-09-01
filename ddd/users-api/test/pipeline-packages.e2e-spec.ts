@@ -221,7 +221,7 @@ describe('pipeline-packages (e2e)', () => {
       expect(updateEngRes.status).toBe(200);
       expect(updateEngRes.body.name).toBe('Renamed Eng User');
 
-      // 2. Updating sales user should be DENIED (403) by assertEntityPermission
+      // 2. Updating sales user should be DENIED (403) by entity.authorize()
       const updateSalesRes = await as(engManager)
         .patch(`/users/${salesUser.body.id}`)
         .send({ name: 'Renamed Sales User' });
