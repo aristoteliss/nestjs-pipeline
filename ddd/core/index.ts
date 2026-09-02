@@ -17,6 +17,7 @@
  */
 
 export * from './application/command-base.handler';
+export * from './ddd-core.module';
 export * from './domain/decorators/Mutate';
 export * from './domain/events/domain.event';
 export * from './domain/events/root-domain.event';

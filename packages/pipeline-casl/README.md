@@ -94,12 +94,14 @@ A per-handler `prebuiltAbility` bypasses provider-based ability construction.
 |--------|---------|
 | `getCaslAbility(context?)` | Read the resolved `AppAbility` from the ambient pipeline store (or an explicit context). |
 | `CaslEntityAuthorizer` | Generic authorizer adapter for entity instances and field-level permissions backed by CASL. |
+| `ENTITY_AUTHORIZER` | Injection token (`Symbol.for('ENTITY_AUTHORIZER')`) for entity authorizer DI providers. |
+| `IEntityAuthorizer` | Interface for pluggable entity-level authorization checks. |
 
 ### Tokens & types
 
 Injection tokens: `CASL_ROLE_PROVIDER`, `CASL_USER_CONTEXT_RESOLVER`,
 `CASL_USER_CAPABILITY_PROVIDER`, `CASL_SUBJECT_CONTEXT_PATHS`,
-`CASL_FIELDS_FROM_REQUEST`, `CASL_BEHAVIOR_LOGGER`. Plus two string keys for the
+`CASL_FIELDS_FROM_REQUEST`, `CASL_BEHAVIOR_LOGGER`, `ENTITY_AUTHORIZER`. Plus two string keys for the
 items bag: `CASL_USER_CONTEXT_KEY` (`'casl:user'`, the input user context) and
 `CASL_ABILITY_KEY` (`'casl:ability'`, the stored output ability).
 

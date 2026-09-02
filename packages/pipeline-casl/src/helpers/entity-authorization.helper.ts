@@ -19,6 +19,7 @@
 import { subject as caslSubject } from '@casl/ability';
 import { type IPipelineContext, pipelineStore } from '@nestjs-pipeline/core';
 import { CASL_ABILITY_KEY } from '../constants/tokens';
+import type { IEntityAuthorizer } from '../interfaces/entity-authorizer.interface';
 import type { AppAbility } from '../types/casl.types';
 
 /**
@@ -49,7 +50,7 @@ export function getCaslAbility(
 /**
  * Pluggable authorizer implementation for entity instances backed by CASL.
  */
-export class CaslEntityAuthorizer {
+export class CaslEntityAuthorizer implements IEntityAuthorizer {
   constructor(private readonly ability?: AppAbility) {}
 
   can(
@@ -67,12 +68,4 @@ export class CaslEntityAuthorizer {
       ? ability.can(action, typedSubject, field)
       : ability.can(action, typedSubject);
   }
-}
-
-// Automatically register the CASL entity authorizer adapter as the global default authorizer
-const globalRegistry = globalThis as typeof globalThis & {
-  __PIPELINE_ENTITY_AUTHORIZER__?: CaslEntityAuthorizer;
-};
-if (!globalRegistry.__PIPELINE_ENTITY_AUTHORIZER__) {
-  globalRegistry.__PIPELINE_ENTITY_AUTHORIZER__ = new CaslEntityAuthorizer();
 }

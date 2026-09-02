@@ -18,6 +18,7 @@
 
 import { uuidv7 } from '@nestjs-pipeline/core';
 import { describe, expect, it, vi } from 'vitest';
+import { DddCoreModule } from '../../ddd-core.module';
 import { UnauthorizedActionException } from '../exceptions/unauthorized-action.exception';
 import { RootEntitySnapshot } from '../interfaces/root-entity-snapshot.interface';
 import { RootEntity } from './root.entity';
@@ -167,11 +168,11 @@ describe('RootEntity', () => {
   });
 
   describe('authorize()', () => {
-    it('returns snapshot untouched when no authorizer or default is configured', () => {
+    it('throws Error when no authorizer or default is configured', () => {
       const entity = new TestEntity({ name: 'Alpha' });
-      const snapshot = entity.authorize('read');
-      expect(snapshot.name).toBe('Alpha');
-      expect(snapshot.id).toBe(entity.id);
+      expect(() => entity.authorize('read')).toThrow(
+        /No entity authorizer configured/,
+      );
     });
 
     it('authorizes read and masks non-permitted fields from partial snapshot', () => {
@@ -362,24 +363,21 @@ describe('RootEntity', () => {
       }
     });
 
-    it('falls back to global registry __PIPELINE_ENTITY_AUTHORIZER__ when no other authorizer exists', () => {
+    it('registers authorizer from DI via DddCoreModule on module init', () => {
       const entity = new TestEntity({ name: 'Alpha' });
-      const globalAuth = {
+      const mockAuth = {
         can: vi.fn(() => true),
       };
 
-      const registry = globalThis as typeof globalThis & {
-        __PIPELINE_ENTITY_AUTHORIZER__?: typeof globalAuth;
-      };
-      const previous = registry.__PIPELINE_ENTITY_AUTHORIZER__;
-      registry.__PIPELINE_ENTITY_AUTHORIZER__ = globalAuth;
+      const module = new DddCoreModule(mockAuth);
+      module.onModuleInit();
 
       try {
         const result = entity.authorize('read');
-        expect(globalAuth.can).toHaveBeenCalled();
+        expect(mockAuth.can).toHaveBeenCalled();
         expect(result.name).toBe('Alpha');
       } finally {
-        registry.__PIPELINE_ENTITY_AUTHORIZER__ = previous;
+        RootEntity.defaultAuthorizer = undefined;
       }
     });
   });

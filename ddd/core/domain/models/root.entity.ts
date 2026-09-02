@@ -167,19 +167,14 @@ export abstract class RootEntity<TSnapshot extends Partial<RootEntitySnapshot>>
     fields?: (keyof TSnapshot | string)[],
     authorizer?: IEntityAuthorizer,
   ): Partial<TSnapshot> {
-    const auth =
-      authorizer ??
-      RootEntity.defaultAuthorizer ??
-      (
-        globalThis as typeof globalThis & {
-          __PIPELINE_ENTITY_AUTHORIZER__?: IEntityAuthorizer;
-        }
-      ).__PIPELINE_ENTITY_AUTHORIZER__;
-    const snapshot = this.toJSON();
+    const auth = authorizer ?? RootEntity.defaultAuthorizer;
     if (!auth) {
-      return snapshot;
+      throw new Error(
+        'No entity authorizer configured. Register an IEntityAuthorizer provider (e.g. CaslModule) or pass an authorizer to authorize().',
+      );
     }
 
+    const snapshot = this.toJSON();
     const subjectType = this.constructor.name;
 
     const snapshotRecord = snapshot as unknown as Record<string, unknown>;

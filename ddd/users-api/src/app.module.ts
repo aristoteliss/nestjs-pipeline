@@ -39,6 +39,7 @@ import {
   HttpCorrelationMiddleware,
   runWithCorrelationId,
 } from '@nestjs-pipeline/correlation';
+import { DddCoreModule } from '@nestjs-pipeline/ddd-core';
 import {
   BullMqDeadLetterTransport,
   DeadLetterBehavior,
@@ -298,6 +299,7 @@ import { UsersModule } from './users/users.module';
       }),
       context: { environment: process.env.NODE_ENV ?? 'development' },
     }),
+    DddCoreModule,
     UsersModule,
     RolesModule,
     AuthsModule,

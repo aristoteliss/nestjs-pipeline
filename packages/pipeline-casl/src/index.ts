@@ -18,7 +18,6 @@
 
 // Behavior
 export { CaslBehavior, CaslBehaviorOptions } from './casl.behavior';
-
 // Module
 export { CaslModule, CaslModuleOptions } from './casl.module';
 // Tokens
@@ -45,6 +44,10 @@ export {
   CaslEntityAuthorizer,
   getCaslAbility,
 } from './helpers/entity-authorization.helper';
+export {
+  ENTITY_AUTHORIZER,
+  type IEntityAuthorizer,
+} from './interfaces/entity-authorizer.interface';
 // Interfaces (for implementers)
 export {
   IRoleProvider,

@@ -32,6 +32,8 @@ import {
   CASL_USER_CAPABILITY_PROVIDER,
   CASL_USER_CONTEXT_RESOLVER,
 } from './constants/tokens';
+import { CaslEntityAuthorizer } from './helpers/entity-authorization.helper';
+import { ENTITY_AUTHORIZER } from './interfaces/entity-authorizer.interface';
 import type {
   IRoleProvider,
   IUserCapabilityProvider,
@@ -299,7 +301,14 @@ export class CaslModule {
    * @returns The configured {@link DynamicModule}.
    */
   static forRoot(options: CaslModuleOptions): DynamicModule {
-    const providers: Provider[] = [CaslBehavior];
+    const providers: Provider[] = [
+      CaslBehavior,
+      CaslEntityAuthorizer,
+      {
+        provide: ENTITY_AUTHORIZER,
+        useExisting: CaslEntityAuthorizer,
+      },
+    ];
 
     providers.push({
       provide: CASL_SUBJECT_CONTEXT_PATHS,
@@ -332,6 +341,8 @@ export class CaslModule {
       providers,
       exports: [
         CaslBehavior,
+        CaslEntityAuthorizer,
+        ENTITY_AUTHORIZER,
         CASL_FIELDS_FROM_REQUEST,
         CASL_ROLE_PROVIDER,
         CASL_SUBJECT_CONTEXT_PATHS,

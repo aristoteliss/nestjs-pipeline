@@ -19,8 +19,12 @@
 import type { RootEntitySnapshot } from './root-entity-snapshot.interface';
 
 /**
- * Pluggable authorizer contract used by domain entities to evaluate access rules
- * without coupling the domain core to any specific authorization library (e.g. CASL).
+ * Global symbol token for entity authorizer dependency injection.
+ */
+export const ENTITY_AUTHORIZER = Symbol.for('ENTITY_AUTHORIZER');
+
+/**
+ * Pluggable authorizer contract used by domain entities to evaluate access rules.
  */
 export interface IEntityAuthorizer {
   can(

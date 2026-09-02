@@ -66,10 +66,10 @@
 * **Βαθμολογία:** **9/10 (Πολύ Καλό)**
 
 #### 1.5 `packages/pipeline-casl/src/helpers/entity-authorization.helper.ts`
-* **Γραμμές:** 43–48 (`getCaslAbility`), 101–125 (`assertEntityPermission`).
-* **Τι άλλαξε:** Προστέθηκε helper που ανακτά το ήδη υπολογισμένο CASL Ability από το `pipelineStore` (AsyncLocalStorage) και ελέγχει loaded domain entities.
-* **Γιατί / Κριτική:** Η ιδέα να μην ξαναχτίζεται το ability είναι σωστή, αλλά η ανάκτηση μέσω ambient static store μέσα από βαθιά domain/query layers ενθαρρύνει procedural συνήθειες.
-* **Βαθμολογία:** **6/10 (Χρήσιμο αλλά κρύβει κινδύνους coupling)**
+* **Γραμμές:** 1–72 (`getCaslAbility`, `CaslEntityAuthorizer`).
+* **Τι άλλαξε:** Προστέθηκε helper που ανακτά το ήδη υπολογισμένο CASL Ability από το `pipelineStore` (AsyncLocalStorage) και η κλάση `CaslEntityAuthorizer` που υλοποιεί το `IEntityAuthorizer`.
+* **Refactored (Επιλύθηκε):** Αφαιρέθηκε πλήρως το παλιό `globalThis` singleton registry. Πλέον η εγγραφή γίνεται 100% NestJS-way μέσω του `CaslModule` και του token `ENTITY_AUTHORIZER = Symbol.for('ENTITY_AUTHORIZER')`, και διασυνδέεται στο Domain μέσω του `DddCoreModule`.
+* **Βαθμολογία:** **10/10 (Καθαρό NestJS DI / Zero Globals)**
 
 #### 1.6 `packages/pipeline-opentelemetry/src/metrics.behavior.ts`
 * **Γραμμές:** 1–196 (Νέο MetricsBehavior για Prometheus/OTel Metrics).
