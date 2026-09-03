@@ -39,20 +39,11 @@ import { RootEntity } from './domain/models/root.entity';
 @Global()
 @Module({})
 export class DddCoreModule implements OnModuleInit {
-  @Optional()
-  @Inject(ENTITY_AUTHORIZER)
-  private readonly authorizer?: IEntityAuthorizer;
   constructor(
     @Optional()
     @Inject(ENTITY_AUTHORIZER)
     private readonly authorizer?: IEntityAuthorizer,
   ) {}
-
-  constructor(authorizer?: IEntityAuthorizer) {
-    if (authorizer) {
-      this.authorizer = authorizer;
-    }
-  }
 
   onModuleInit(): void {
     if (this.authorizer) {
