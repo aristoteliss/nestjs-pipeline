@@ -30,7 +30,10 @@ import {
   COMMAND_REPOSITORY,
   QUERY_REPOSITORY,
 } from './repositories/repository.tokens';
-import { AuthService } from './services/auth.service';
+import { ApiClientAuthenticator } from './services/api-client-authenticator';
+import { JwtAuthenticator } from './services/jwt-authenticator';
+import { RequestPrincipalResolver } from './services/request-principal-resolver';
+import { UserLoginService } from './services/user-login.service';
 
 @Module({
   controllers: [AuthsController],
@@ -51,7 +54,10 @@ import { AuthService } from './services/auth.service';
       useClass: CreateAuthCommandRepository,
     },
 
-    AuthService,
+    UserLoginService,
+    JwtAuthenticator,
+    ApiClientAuthenticator,
+    RequestPrincipalResolver,
 
     // Commands
     CreateAuthHandler,
@@ -62,6 +68,12 @@ import { AuthService } from './services/auth.service';
 
     // Events
     CreatedAuthHandler,
+  ],
+  exports: [
+    UserLoginService,
+    RequestPrincipalResolver,
+    JwtAuthenticator,
+    ApiClientAuthenticator,
   ],
 })
 export class AuthsModule {}

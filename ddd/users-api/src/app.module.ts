@@ -17,14 +17,15 @@
  */
 
 import { IncomingMessage } from 'node:http';
-import { AuthSessionInterceptor } from '@common/interceptors/auth-session.interceptor';
+import { AuthSessionGuard } from '@common/guards/auth-session.guard';
+import { SessionUserContextInterceptor } from '@common/interceptors/session-user-context.interceptor';
 import { BullModule, getQueueToken } from '@nestjs/bullmq';
 import {
   type MiddlewareConsumer,
   Module,
   type NestModule,
 } from '@nestjs/common';
-import { APP_INTERCEPTOR } from '@nestjs/core';
+import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { CqrsModule } from '@nestjs/cqrs';
 import { AuditModule } from '@nestjs-pipeline/audit';
 import { CacheModule } from '@nestjs-pipeline/cache';
@@ -305,7 +306,10 @@ import { UsersModule } from './users/users.module';
     AuthsModule,
     PersistenceModule,
   ],
-  providers: [{ provide: APP_INTERCEPTOR, useClass: AuthSessionInterceptor }],
+  providers: [
+    { provide: APP_GUARD, useClass: AuthSessionGuard },
+    { provide: APP_INTERCEPTOR, useClass: SessionUserContextInterceptor },
+  ],
 })
 export class AppModule implements NestModule {
   constructor(

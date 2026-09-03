@@ -102,6 +102,128 @@ curl http://localhost:3000/users \
 
 `POST /auth/login` returns a bearer token. With Fastify + `SESSION_SECRET`, it also populates `@fastify/secure-session`. Express intentionally uses bearer/API credentials only.
 
+## Authentication & Context Scoping Architecture
+
+Authentication and request-scoped context management follow a strict separation of concerns between NestJS Guards and Interceptors:
+
+```text
+Incoming HTTP Request
+         │
+         ▼
+TenantSchemaMiddleware
+         │ (Validates x-tenant-schema header, enters TenantSchemaContext)
+         ▼
+AuthSessionGuard (APP_GUARD)
+  ├─ 1. Check Fastify session cookie (req.session.get('user'))
+  ├─ 2. Parse & verify Bearer JWT (JwtAuthenticator)
+  └─ 3. Verify API-client credentials (ApiClientAuthenticator)
+  │
+  ▼ Sets req.sessionUser = principal (or throws 401 Unauthorized immediately)
+SessionUserContextInterceptor (APP_INTERCEPTOR)
+  │
+  ▼ sessionUserStore.run(req.sessionUser, () => next.handle())
+Downstream Pipeline (Controllers → CQRS Bus → CASL → Audit → DB)
+```
+
+### Architecture Components
+
+1. **`AuthSessionGuard` (`APP_GUARD`)**: Decides **who you are**. It executes early in the NestJS request lifecycle (before interceptors, pipes, or route handlers) and delegates credential resolution to:
+   - **`JwtAuthenticator`**: Parses `Authorization: Bearer <token>` (case-insensitively, accepting `Bearer` or `bearer`). Supports both symmetric (`JWT_SECRET`) and asymmetric (`JWT_PUBLIC_KEY`) keys. Asymmetric SPKI keys are memoized upon first parse to eliminate repetitive ASN.1 DER parsing. Validates tenant alignment and maps CASL capabilities.
+   - **`ApiClientAuthenticator`**: Authenticates machine-to-machine callers using `x-api-id` and `x-api-key` headers against configured `API_CLIENTS`. Uses constant-time fixed-length SHA-256 digest comparison (`timingSafeEqual`) to prevent timing side-channel leaks. Operates completely statelessly.
+   - **`RequestPrincipalResolver`**: Lean orchestrator coordinating priority resolution (Cookie $\rightarrow$ JWT $\rightarrow$ API Key $\rightarrow$ Anonymous).
+2. **`SessionUserContextInterceptor` (`APP_INTERCEPTOR`)**: Decides **the execution scope**. A single-responsibility interceptor that reads `req.sessionUser` (populated by the guard) and invokes `sessionUserStore.run(req.sessionUser, () => next.handle())`. In NestJS 11.2.1, `InterceptorsConsumer` binds stream continuations using `defer(AsyncResource.bind(...))`, guaranteeing that the `AsyncLocalStorage` context established by `run()` persists across all downstream asynchronous operations, CQRS handlers, and pipeline behaviors without cross-request context bleeding.
+3. **`UserLoginService`**: Dedicated application service responsible solely for user login credential verification (`POST /auth/login`) and signing new tenant-bound access tokens.
+
+---
+
+### Practical Examples
+
+#### 1. User Login & Token Issuance
+
+Users authenticate via `POST /auth/login` using their email and temporary login code:
+
+```bash
+curl -X POST http://localhost:3000/auth/login \
+  -H "x-tenant-schema: tenant" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "alice@example.test",
+    "code": "123456"
+  }'
+```
+
+Response:
+```json
+{
+  "userId": "usr_alice_123",
+  "accessToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ...",
+  "userCapabilities": {
+    "roles": ["admin"]
+  }
+}
+```
+
+#### 2. Calling Endpoints with a Bearer JWT
+
+Present the issued token in the standard `Authorization` header:
+
+```bash
+curl http://localhost:3000/users \
+  -H "x-tenant-schema: tenant" \
+  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ..."
+```
+
+#### 3. Machine-to-Machine Integration via API Credentials
+
+Automated scripts, microservices, and external systems authenticate with static API credentials:
+
+```bash
+curl http://localhost:3000/users \
+  -H "x-tenant-schema: tenant" \
+  -H "x-api-id: reporting-service" \
+  -H "x-api-key: secret-api-key-999"
+```
+
+Configure authorized clients in your `.env` file as a JSON array:
+
+```env
+API_CLIENTS='[{"id":"reporting-service","key":"secret-api-key-999","tenants":["tenant"],"capabilities":{"roles":["reporter"]}}]'
+```
+
+#### 4. Consuming Current User in Downstream Handlers
+
+Any CQRS command/query handler, service, or pipeline behavior accesses the authenticated caller via the request-scoped store without passing user parameters down the stack:
+
+```ts
+import { getSessionUserFromStore } from '@common/context/session-user.store';
+
+@CommandHandler(DeleteUserCommand)
+export class DeleteUserHandler {
+  async handle(command: DeleteUserCommand) {
+    const actor = getSessionUserFromStore();
+    console.log('Action performed by user:', actor?.id, 'in tenant:', actor?.tenant);
+  }
+}
+```
+
+---
+
+### Environment Variables Reference
+
+| Variable | Required | Description | Example |
+|---|---|---|---|
+| `JWT_SECRET` | Optional* | HMAC secret used to sign and verify local tokens | `super-secret-key-at-least-32-chars-long` |
+| `JWT_PUBLIC_KEY` | Optional* | RSA/ECDSA SPKI public key (PEM) for verifying external asymmetric tokens | `-----BEGIN PUBLIC KEY-----\nMIIBIj...\n-----END PUBLIC KEY-----` |
+| `JWT_PUBLIC_KEY_ALG` | Optional | Algorithm for `JWT_PUBLIC_KEY` (default: `RS256`) | `RS256` |
+| `JWT_ISSUER` | Optional | Expected `iss` claim | `users-api` |
+| `JWT_AUDIENCE` | Optional | Expected `aud` claim | `nestjs-pipeline` |
+| `JWT_ALGORITHMS` | Optional | Comma-separated list of allowed algorithms | `HS256,RS256` |
+| `API_CLIENTS` | Optional | JSON array of authorized API client identities | `[{"id":"svc","key":"k","tenants":["tenant"]}]` |
+| `AUTH_LOGIN_CODE` | Required for login | One-time code verified during `POST /auth/login` | `123456` |
+| `SESSION_SECRET` | Fastify only | 32-byte secret for Fastify secure-session cookies | `at-least-32-characters-secret-string!` |
+
+*\* Note: At least one of `JWT_SECRET` or `JWT_PUBLIC_KEY` must be set if Bearer token authentication is enabled.*
+
 ## Pipeline composition demonstrated
 
 Global and per-handler examples exercise:

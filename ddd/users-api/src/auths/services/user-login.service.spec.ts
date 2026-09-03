@@ -1,8 +1,26 @@
+/*
+ * Copyright (C) 2026-present Aristotelis
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as
+ * published by the Free Software Foundation, either version 3 of the
+ * License, or (at your option) any later version.
+ *
+ * --- COMMERCIAL EXCEPTION ---
+ * Alternatively, a Commercial License is available for individuals or
+ * organizations that require proprietary use without the AGPLv3
+ * copyleft restrictions.
+ *
+ * See COMMERCIAL_LICENSE.txt in this repository for the tiered
+ * revenue-based terms, or contact: aristotelis@ik.me
+ * ----------------------------
+ */
+
 import { TenantSchemaContext } from '@persistence/tenant-schema.context';
 import { decodeJwt } from 'jose';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { User } from '../../users/domain/models/user.entity';
-import { AuthService } from './auth.service';
+import { UserLoginService } from './user-login.service';
 
 const originalJwtSecret = process.env.JWT_SECRET;
 const originalJwtAlgorithms = process.env.JWT_ALGORITHMS;
@@ -14,12 +32,12 @@ afterEach(() => {
   else process.env.JWT_ALGORITHMS = originalJwtAlgorithms;
 });
 
-describe('AuthService', () => {
+describe('UserLoginService', () => {
   it('binds issued access tokens to the active tenant', async () => {
     process.env.JWT_SECRET = 'tenant-bound-token-secret';
     delete process.env.JWT_ALGORITHMS;
     const user = User.create('Alice', 'alice@example.test').entity;
-    const service = new AuthService(
+    const service = new UserLoginService(
       {
         execute: vi.fn().mockResolvedValue({
           roles: [],
@@ -40,7 +58,7 @@ describe('AuthService', () => {
   it('rejects local token issuance when HS256 is excluded', async () => {
     process.env.JWT_SECRET = 'tenant-bound-token-secret';
     process.env.JWT_ALGORITHMS = 'RS256';
-    const service = new AuthService(
+    const service = new UserLoginService(
       { execute: vi.fn() } as never,
       { find: vi.fn() } as never,
     );

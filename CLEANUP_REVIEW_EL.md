@@ -71,7 +71,7 @@
 - 5 από τα 7 νέα πακέτα ήταν ήδη στο δημόσιο roadmap του README — δεν είναι αυθαίρετη προσθήκη «καινούριων ιδεών».
 
 ### 4.2 Τι πήγε στραβά
-- **Ο "God Interceptor" (`AuthSessionInterceptor`) ΔΕΝ διορθώθηκε.** Είχε ήδη επισημανθεί ως πρόβλημα (395 γραμμές, πολλαπλές ευθύνες), και παρόλα αυτά **μεγάλωσε** σε 414 γραμμές αντί να σπάσει σε μικρότερα κομμάτια.
+~~- **Ο "God Interceptor" (`AuthSessionInterceptor`) ΔΕΝ διορθώθηκε.** Είχε ήδη επισημανθεί ως πρόβλημα (395 γραμμές, πολλαπλές ευθύνες), και παρόλα αυτά **μεγάλωσε** σε 414 γραμμές αντί να σπάσει σε μικρότερα κομμάτια.~~
 - **Νέο εύρημα, δικό μου:** η λογική "μετέτρεψε ένα object σε deterministic/ασφαλές JSON με ανίχνευση κυκλικών αναφορών" ξαναγράφτηκε **ανεξάρτητα 3 φορές** σε 3 διαφορετικά πακέτα (§8.4) — κλασικό σημάδι ότι κάθε πακέτο γράφτηκε "σε κενό", χωρίς να ελεγχθεί τι υπάρχει ήδη στο core.
 - 2 από τα 7 νέα πακέτα (**cache, feature-flags**) δεν ήταν στο roadmap — κάποιος βαθμός "scope creep" (προσθήκη πραγμάτων που δεν ζητήθηκαν).
 - Βρήκα μια «γενική» ρύθμιση `peerDependencyRules.ignoreMissing: ["*"]` στο root `package.json` (§9.4) που **σιωπά όλα τα peer-dependency warnings** αντί να λύνει το συγκεκριμένο πρόβλημα — τυπικό "quick fix που κρύβει προβλήματα".
@@ -375,7 +375,7 @@ Standard, καλά scoped behaviors (BullMQ/RabbitMQ/Postgres transports για 
 | `is-transient-persistence-error.ts` | Error classifier | **6** | Μικρό cleanup |
 | `pipeline-idempotency/.../strict-json.ts` | Διπλότυπη λογική (βλ. §8.4) | **5** | Ενοποίηση με core |
 | `pipeline-feature-flags` (πακέτο) | Standalone για μικρό wrapper | **5** | Σκέψου merge στο core |
-| **`AuthSessionInterceptor`** | God Interceptor, **όχι διορθωμένο** | **5** | Σπάσιμο σε Guards |
+~~| **`AuthSessionInterceptor`** | God Interceptor, **όχι διορθωμένο** | **5** | Σπάσιμο σε Guards |~~
 | `package.json` `peerDependencyRules.ignoreMissing: ["*"]` | Γενική σίγαση warnings | **4** | Στόχευσε το συγκεκριμένο πακέτο |
 | **`pipeline-cache/src/helpers/cache-key.ts`** | Πλήρες αντίγραφο λογικής core | **3** | Import από core, διαγραφή local |
 
@@ -386,14 +386,15 @@ Standard, καλά scoped behaviors (BullMQ/RabbitMQ/Postgres transports για 
 **Δεν πρόκειται για γενικευμένο "AI slop χωρίς αρχιτεκτονική"** — το μεγαλύτερο μέρος (πυρήνας pipeline, DDD core, τα 5 roadmapped πακέτα, το test suite) είναι δουλειά με **σαφές reasoning, tests, και σωστά διορθωμένα, πραγματικά bugs** (memory/scoping, negative caching, HTTP exceptions στο domain layer). Επιβεβαίωσα προσωπικά αρκετές από αυτές τις διορθώσεις διαβάζοντας τον τρέχοντα κώδικα.
 
 Υπάρχουν όμως **συγκεκριμένα, εντοπίσιμα σημεία πραγματικού προβλήματος**:
-1. Ο `AuthSessionInterceptor` παραμένει «God object» — ήταν ήδη γνωστό πρόβλημα και δεν διορθώθηκε, απλά μεγάλωσε.
+~~1. Ο `AuthSessionInterceptor` παραμένει «God object» — ήταν ήδη γνωστό πρόβλημα και δεν διορθώθηκε, απλά μεγάλωσε.~~
 2. Λογική deterministic-JSON-με-ανίχνευση-κύκλων ξαναγράφτηκε **3 φορές** σε 3 πακέτα αντί να μοιράζεται από το core (το πιο καθαρό, νέο εύρημα σε αυτή την ανάλυση).
-3. 2 πακέτα (`cache`, `feature-flags`) προστέθηκαν εκτός του δηλωμένου roadmap — ήπιο, αλλά υπαρκτό, scope creep.
-4. Μια γενική απόφαση (`peerDependencyRules.ignoreMissing: ["*"]`) σιωπά προειδοποιήσεις αντί να λύνει το ρίζα του προβλήματος.
+1. Λογική deterministic-JSON-με-ανίχνευση-κύκλων ξαναγράφτηκε **3 φορές** σε 3 πακέτα αντί να μοιράζεται από το core (το πιο καθαρό, νέο εύρημα σε αυτή την ανάλυση).
+2. 2 πακέτα (`cache`, `feature-flags`) προστέθηκαν εκτός του δηλωμένου roadmap — ήπιο, αλλά υπαρκτό, scope creep.
+3. Μια γενική απόφαση (`peerDependencyRules.ignoreMissing: ["*"]`) σιωπά προειδοποιήσεις αντί να λύνει το ρίζα του προβλήματος.
 
 ### Προτεινόμενα επόμενα βήματα, με σειρά προτεραιότητας
 1. **Εξαγωγή κοινού `stableStringify`/`toStrictJsonValue` στο core** και αντικατάσταση των 2 αντιγράφων (§8.4) — μικρή δουλειά, μεγάλο όφελος σε maintainability.
-2. **Σπάσιμο του `AuthSessionInterceptor`** σε `JwtAuthGuard` + `ApiKeyGuard` + ένα καθαρό service — υπάρχει ήδη πλήρες test coverage που θα προστατέψει το refactor.
+2. **Σπάσιμο του `AuthSessionInterceptor`**: Ολοκληρώθηκε με καθαρό διαχωρισμό σε `AuthSessionGuard` (authentication) + `SessionUserContextInterceptor` (ALS scoping) + modular services (`JwtAuthenticator`, `ApiClientAuthenticator`, `AuthSessionService`).
 3. **Στόχευση του `peerDependencyRules`** ώστε να αγνοεί μόνο τα συγκεκριμένα πακέτα/dependencies που πραγματικά το χρειάζονται, όχι όλα.
 4. Απόφαση αν το `pipeline-feature-flags` αξίζει να είναι standalone npm package ή αν αρκεί ως μέρος του core — τεκμηρίωση της απόφασης στο README.
 5. (Χαμηλή προτεραιότητα) Composed/preset decorators για τα CQRS handlers, ώστε το `@UsePipeline` stacking να μη χρειάζεται να επαναλαμβάνεται.

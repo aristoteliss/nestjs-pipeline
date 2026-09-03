@@ -35,7 +35,7 @@ import { TenantSchemaContext } from '@persistence/tenant-schema.context';
 import { Auth, AuthSnapshot } from '../../domain/models/auth.entity';
 import { AuthCreateOutcome } from '../../domain/outcomes/auth-create.outcome';
 import { COMMAND_REPOSITORY } from '../../repositories/repository.tokens';
-import { AuthService } from '../../services/auth.service';
+import { UserLoginService } from '../../services/user-login.service';
 import { CreateAuthCommand } from './create-auth.command';
 
 @CommandHandler(CreateAuthCommand)
@@ -71,7 +71,7 @@ export class CreateAuthHandler extends CommandBaseHandler<
 > {
   constructor(
     protected readonly eventBus: EventBus,
-    private readonly authService: AuthService,
+    private readonly userLoginService: UserLoginService,
     @Inject(COMMAND_REPOSITORY.createAuth)
     private readonly commandRepository: ICommandRepository<
       AuthCreateOutcome,
@@ -86,9 +86,9 @@ export class CreateAuthHandler extends CommandBaseHandler<
   ): Promise<SessionUser & { token: string }> {
     const { email, code } = command;
 
-    const verifiedUser = await this.authService.authenticate(email, code);
+    const verifiedUser = await this.userLoginService.authenticate(email, code);
 
-    const authResult = await this.authService.signToken(verifiedUser);
+    const authResult = await this.userLoginService.signToken(verifiedUser);
 
     const outcome = Auth.create(authResult.userId, authResult.accessToken);
 

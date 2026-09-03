@@ -16,6 +16,7 @@
  * ----------------------------
  */
 
+import { AUTH_HEADERS } from '@common/constants/auth-headers.constants';
 import {
   ForbiddenException,
   Injectable,
@@ -40,7 +41,7 @@ export class TenantSchemaMiddleware implements NestMiddleware {
     _response: unknown,
     next: () => void,
   ): void {
-    const rawHeaderValue = request.headers?.['x-tenant-schema'];
+    const rawHeaderValue = request.headers?.[AUTH_HEADERS.TENANT_SCHEMA];
     const headerValue = Array.isArray(rawHeaderValue)
       ? rawHeaderValue[0]
       : rawHeaderValue;

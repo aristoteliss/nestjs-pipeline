@@ -20,7 +20,7 @@
 ## 🏛️ Γενική Αρχιτεκτονική Εκτίμηση
 
 ### 1. Τι πήγε στραβά (Τα "AI Slop" και Over-Engineering μοτίβα)
-1. **God-Interceptors & Παραβίαση SRP**: Ο `AuthSessionInterceptor` έφτασε τις 395 γραμμές κάνοντας ταυτόχρονα: JWT validation (πολλαπλοί αλγόριθμοι SPKI/Secret), API-key authentication, tenant mismatch checks, CASL capability compaction/serialization και session store injection.
+~~1. **God-Interceptors & Παραβίαση SRP**: Ο `AuthSessionInterceptor` έφτασε τις 395 γραμμές κάνοντας ταυτόχρονα: JWT validation (πολλαπλοί αλγόριθμοι SPKI/Secret), API-key authentication, tenant mismatch checks, CASL capability compaction/serialization και session store injection.~~ *(Επιλύθηκε: διασπάστηκε σε `AuthSessionGuard` + `SessionUserContextInterceptor` + εξειδικευμένους authenticators `JwtAuthenticator` και `ApiClientAuthenticator`).*
 ~~2. **Procedural Authorization Helpers**: Τα `user-read-authorization.helper.ts` και `role-authorization.helper.ts` τραβούν το ability μέσω `AsyncLocalStorage` (`getCaslAbility()`) και πετούν απευθείας HTTP `ForbiddenException` μέσα από application/query layers, παρακάμπτοντας την καθαρή αρχιτεκτονική.~~
 ~~4. **Διπλότυποι Μηχανισμοί Serialization/Sanitization**: Το `packages/pipeline-audit/src/helpers/redact.ts` (151 γραμμές) υλοποιεί εκ νέου deep object cloning/masking με `WeakSet`, ενώ το `packages/pipeline/src/helpers/safeStringify.ts` (240 γραμμές) κάνει σχεδόν ακριβώς το ίδιο.~~
 

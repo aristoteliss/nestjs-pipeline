@@ -86,7 +86,7 @@ import { DeleteUserCommand } from './delete-user.command';
    * the outcome (success OR failure), the duration, and a redacted snapshot of
    * the request — to the configured AuditSink (LogAuditSink by default; see
    * app.module.ts). The actor is resolved from the request-scoped session store
-   * populated by AuthSessionInterceptor.
+   * populated by SessionUserContextInterceptor.
    */
   [
     AuditBehavior,
