@@ -42,6 +42,11 @@ export class DddCoreModule implements OnModuleInit {
   @Optional()
   @Inject(ENTITY_AUTHORIZER)
   private readonly authorizer?: IEntityAuthorizer;
+  constructor(
+    @Optional()
+    @Inject(ENTITY_AUTHORIZER)
+    private readonly authorizer?: IEntityAuthorizer,
+  ) {}
 
   constructor(authorizer?: IEntityAuthorizer) {
     if (authorizer) {
