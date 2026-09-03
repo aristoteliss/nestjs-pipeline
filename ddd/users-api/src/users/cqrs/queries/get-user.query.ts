@@ -16,12 +16,12 @@
  * ----------------------------
  */
 
-import { createExecuteClass } from '@common/cqrs/helpers/createExecute.helper';
 import { BaseQuery } from '@common/cqrs/queries/base.query';
 import { EmailSchema } from '@common/validation/email.schema';
+import { createQuery } from '@nestjs-pipeline/zod';
 import { z } from 'zod';
 
-export class GetUserQuery extends createExecuteClass(
+export class GetUserQuery extends createQuery(
   z
     .object({
       userId: z.optional(z.uuid()),

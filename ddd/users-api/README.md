@@ -134,6 +134,42 @@ Downstream Pipeline (Controllers → CQRS Bus → CASL → Audit → DB)
 2. **`SessionUserContextInterceptor` (`APP_INTERCEPTOR`)**: Decides **the execution scope**. A single-responsibility interceptor that reads `req.sessionUser` (populated by the guard) and invokes `sessionUserStore.run(req.sessionUser, () => next.handle())`. In NestJS 11.2.1, `InterceptorsConsumer` binds stream continuations using `defer(AsyncResource.bind(...))`, guaranteeing that the `AsyncLocalStorage` context established by `run()` persists across all downstream asynchronous operations, CQRS handlers, and pipeline behaviors without cross-request context bleeding.
 3. **`UserLoginService`**: Dedicated application service responsible solely for user login credential verification (`POST /auth/login`) and signing new tenant-bound access tokens.
 
+### Modular Composition Root & Clean Infrastructure Modules
+
+To maintain clear architectural boundaries and keep the root composition module maintainable, `AppModule` is decomposed into cohesive infrastructure modules:
+
+- **`ObservabilityModule` (`@common/observability/observability.module.ts`)**:
+  - Bundles HTTP correlation middleware (`HttpCorrelationMiddleware`), OpenTelemetry tracing, and metric collection.
+  - Configures global pipeline behaviors for tracing (`TraceBehavior`) and latency/throughput metrics (`MetricsBehavior`).
+- **`ReliabilityModule` (`@common/reliability/reliability.module.ts`)**:
+  - Manages failure isolation and transport resilience.
+  - Provides BullMQ-backed dead-letter capture (`DeadLetterBehavior`) with automatic fallback to structured log auditing when Redis/BullMQ is unavailable.
+  - Integrates in-memory and distributed rate-limiting infrastructure (`RateLimitBehavior`).
+  - Swappable caching providers (`MikroOrmCache` vs `MemoryCache`).
+- **`AppModule` (`src/app.module.ts`)**:
+  - Lean composition root (under 90 lines) importing domain feature modules (`UsersModule`, `RolesModule`, `AuthsModule`), persistence (`MikroOrmModule`), and infrastructure modules (`ObservabilityModule`, `ReliabilityModule`).
+  - Avoids leaking configuration noise or implementation details into business domain layers.
+
+### CQRS Commands & Queries with Zod and Base Classes
+
+All commands and queries in `users-api` are strongly-typed, self-validating, and inherit from the standard base classes using `@nestjs-pipeline/zod`:
+
+- **Commands (100% inherit from `BaseCommand`)**:
+  ```typescript
+  export class CreateUserCommand extends createCommand(CreateUserSchema, BaseCommand) {}
+  ```
+  - Automatically tagged with `requestKind: 'command'`.
+  - Inherits `sessionUser` resolution (ambient ALS store fallback) without polluting JSON payload serialization or idempotency keys (`sessionUser` is non-enumerable).
+- **Queries (100% inherit from `BaseQuery`)**:
+  ```typescript
+  export class GetUserQuery extends createQuery(GetUserSchema, BaseQuery) {}
+  ```
+  - Automatically tagged with `requestKind: 'query'`.
+  - Implements `IQueryOptions` (`hydrate`, `sessionUser`), keeping cache keys deterministic.
+- **NestJS 12 Standard Schema**:
+  - Generated classes expose `['~standard']`, allowing them to be passed directly to NestJS 12 `@Body({ schema: CommandClass })` validation pipes.
+  - Static `parse()` and `safeParse()` methods are available directly on each command and query.
+
 ---
 
 ### Practical Examples

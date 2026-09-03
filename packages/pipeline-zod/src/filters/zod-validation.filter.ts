@@ -38,8 +38,8 @@ type HttpResponse = {
 };
 
 /**
- * Catches {@link ZodValidationError} thrown by both `createRequest()` constructors
- * and {@link ZodValidationBehavior} at the pipeline boundary, mapping them to HTTP 400.
+ * Catches {@link ZodValidationError} thrown by `createCommand()`, `createQuery()`,
+ * or `createZodRequest()` constructors and {@link ZodValidationBehavior} at the pipeline boundary, mapping them to HTTP 400.
  */
 @Catch(ZodValidationError)
 export class ZodValidationFilter implements ExceptionFilter {

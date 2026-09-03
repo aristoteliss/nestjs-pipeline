@@ -16,6 +16,18 @@
  * ----------------------------
  */
 
+export {
+  createCommand,
+  createQuery,
+  createZodCommand,
+  createZodQuery,
+  createZodRequest,
+  type InferInput,
+  type InferOutput,
+  type ZodCommandClass,
+  type ZodQueryClass,
+  type ZodRequestClass,
+} from './create-zod-request';
 export { ZodValidationError } from './errors/zod-validation.error';
 export { ZodValidationFilter } from './filters/zod-validation.filter';
 export { ZodPipe } from './pipes/zod-param.pipe';

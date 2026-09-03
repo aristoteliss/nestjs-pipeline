@@ -16,11 +16,11 @@
  * ----------------------------
  */
 
-import { createExecuteClass } from '@common/cqrs/helpers/createExecute.helper';
 import { BaseQuery } from '@common/cqrs/queries/base.query';
+import { createQuery } from '@nestjs-pipeline/zod';
 import { z } from 'zod';
 
-export class GetRoleQuery extends createExecuteClass(
+export class GetRoleQuery extends createQuery(
   z.object({
     roleId: z.uuid(),
   }),

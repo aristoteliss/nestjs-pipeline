@@ -16,13 +16,15 @@
  * ----------------------------
  */
 
-import { createExecuteClass } from '@common/cqrs/helpers/createExecute.helper';
+import { BaseCommand } from '@common/cqrs/commands/base.command';
 import { EmailSchema } from '@common/validation/email.schema';
+import { createCommand } from '@nestjs-pipeline/zod';
 import { z } from 'zod';
 
-export class CreateAuthCommand extends createExecuteClass(
+export class CreateAuthCommand extends createCommand(
   z.object({
     email: EmailSchema,
     code: z.string().min(4).max(6),
   }),
+  BaseCommand,
 ) {}

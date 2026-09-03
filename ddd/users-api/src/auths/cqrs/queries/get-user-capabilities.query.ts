@@ -16,11 +16,11 @@
  * ----------------------------
  */
 
-import { createExecuteClass } from '@common/cqrs/helpers/createExecute.helper';
 import { BaseQuery } from '@common/cqrs/queries/base.query';
+import { createQuery } from '@nestjs-pipeline/zod';
 import { z } from 'zod';
 
-export class GetUserCapabilitiesQuery extends createExecuteClass(
+export class GetUserCapabilitiesQuery extends createQuery(
   z.object({
     userId: z.union([z.string().min(1), z.number()]),
   }),

@@ -29,7 +29,7 @@ import { ZodValidationError } from './errors/zod-validation.error';
 /**
  * Conventional property key used to attach a Zod schema to a command, query, or event class.
  *
- * Classes built with `createRequest()` automatically receive this property, so
+ * Classes built with `createCommand()`, `createQuery()`, or `createZodRequest()` automatically receive this property, so
  * {@link ZodValidationBehavior} can introspect and validate without extra wiring.
  *
  * For manually-written event classes you can attach the schema yourself:
@@ -71,7 +71,7 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
 /**
  * Pipeline behavior that parses the incoming request (command, query, or event)
  * with a Zod schema when one is attached to the request class via the `_zodSchema`
- * static property (set automatically by `createRequest()`).
+ * static property (set automatically by `createCommand()`, `createQuery()`, or `createZodRequest()`).
  *
  * **How it works:**
  * - If `context.requestType._zodSchema` is a `ZodType`, the behavior runs

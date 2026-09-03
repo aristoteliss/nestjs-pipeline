@@ -16,12 +16,14 @@
  * ----------------------------
  */
 
-import { createExecuteClass } from '@common/cqrs/helpers/createExecute.helper';
+import { BaseCommand } from '@common/cqrs/commands/base.command';
+import { createCommand } from '@nestjs-pipeline/zod';
 import { z } from 'zod';
 
-export class UpdateRoleCommand extends createExecuteClass(
+export class UpdateRoleCommand extends createCommand(
   z.object({
     id: z.uuid(),
     name: z.string().min(3),
   }),
+  BaseCommand,
 ) {}

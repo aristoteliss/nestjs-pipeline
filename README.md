@@ -181,38 +181,17 @@ export class AppModule implements NestModule {
 
 ```typescript
 // create-user.command.ts
+import { createCommand } from '@nestjs-pipeline/zod';
 import { z } from 'zod';
-import { ZodValidationError } from '@nestjs-pipeline/zod';
 
 // 1. Define the schema
 const schema = z.object({
   username: z.string().min(4),
-  email: z.email(),
+  email: z.string().email(),
 });
 
-// 2. Build a helper that creates a self-validating class
-function createRequest<T extends z.ZodRawShape>(s: z.ZodObject<T>) {
-  type Input = z.input<z.ZodObject<T>>;
-  return class {
-    static readonly _zodSchema = s;                  // ZodValidationBehavior reads this
-    constructor(input: Input) {
-      const result = s.safeParse(input);
-      if (!result.success) throw new ZodValidationError(result.error);
-      for (const [key, value] of Object.entries(result.data)) {
-        Object.defineProperty(this, key, {
-          value,
-          writable: true,
-          enumerable: true,
-          configurable: true,
-        });
-      }
-    }
-  };
-}
-
-// 3. Create the command — fully typed, self-validating
-export interface CreateUserCommand extends z.infer<typeof schema> {}
-export class CreateUserCommand extends createRequest(schema) {}
+// 2. Create the command — fully typed, self-validating, Standard Schema compatible
+export class CreateUserCommand extends createCommand(schema) {}
 
 // Usage:
 // const cmd = new CreateUserCommand({ username: 'jane', email: 'jane@example.com' });
@@ -1007,7 +986,7 @@ Comprehensive Zod v4 integration at every layer of a NestJS CQRS application.
 ### Pipeline-Level Validation
 
 Register `ZodValidationBehavior` globally. It parses any request class that has a
-static `_zodSchema` property (set automatically by the `createRequest()` helper):
+static `_zodSchema` property (set automatically by `createCommand()`, `createQuery()`, or `createZodRequest()`):
 
 ```typescript
 // app.module.ts
@@ -1019,34 +998,17 @@ PipelineModule.forRoot({
 })
 
 // create-user.command.ts
+import { createCommand } from '@nestjs-pipeline/zod';
 import { z } from 'zod';
 
 const schema = z.object({
   username: z.string().min(4),
-  email: z.email(),
+  email: z.string().email(),
 });
 
-function createRequest<T extends z.ZodRawShape>(schema: z.ZodObject<T>) {
-  return class {
-    static readonly _zodSchema = schema;
-
-    constructor(input: z.input<z.ZodObject<T>>) {
-      const parsed = schema.parse(input);
-      for (const [key, value] of Object.entries(parsed)) {
-        Object.defineProperty(this, key, {
-          value,
-          writable: true,
-          enumerable: true,
-          configurable: true,
-        });
-      }
-    }
-  };
-}
-
-export interface CreateUserCommand extends z.infer<typeof schema> {}
-export class CreateUserCommand extends createRequest(schema) {}
-//                                       ↑ attaches schema as static _zodSchema
+// Generates self-validating class with static _zodSchema, ~standard (NestJS 12), and static parse()/safeParse()
+export class CreateUserCommand extends createCommand(schema) {}
+//                                       ↑ attaches schema as static _zodSchema, sets requestKind: 'command'
 ```
 
 If parsing fails, `ZodValidationBehavior` throws a `ZodValidationError` with
@@ -1163,7 +1125,7 @@ async function bootstrap() {
 
 ### Attaching Schemas to Plain Event Classes
 
-Event classes that don't use `createRequest()` can still be parsed/validated by attaching the schema manually:
+Event classes that don't use `createZodRequest()` can still be parsed/validated by attaching the schema manually:
 
 ```typescript
 import { ZOD_SCHEMA_KEY } from '@nestjs-pipeline/zod';
@@ -1374,7 +1336,7 @@ ADAPTER=fastify pnpm start
 - Per-handler CASL authorization with inline `rules` on `CaslBehaviorOptions` and `CaslBehavior`
 - MikroORM-backed CASL providers (roles, capabilities, user context)
 - Versioned database migrations with tracking (`mikro_orm_migrations` table)
-- Zod-parsed/validated commands, queries, and events via `createExecuteClass()`
+- Zod-parsed/validated commands and queries via `createCommand()` and `createQuery()`
 - Controller-level `ZodPipe` validation
 - Zod transform mappers (DTO → Command mapping)
 - OpenTelemetry tracing with `TraceBehavior`

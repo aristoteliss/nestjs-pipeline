@@ -368,9 +368,9 @@ Standard, καλά scoped behaviors (BullMQ/RabbitMQ/Postgres transports για 
 | `pipeline-deadletter`, `pipeline-rate-limit` (πακέτα) | DLQ / rate limiting | **7** | Διατήρηση |
 | `ddd/core` types & Cache.ts | μικρά utilities | **7–8** | Διατήρηση |
 | `pipeline-correlation` | εσωτερικό cleanup | **6** | Ουδέτερο |
-| `pipeline-casl/.../entity-authorization.helper.ts` | Refactored σε καθαρό NestJS DI (`ENTITY_AUTHORIZER`) | **10** | Επιλύθηκε |
+~~| `pipeline-casl/.../entity-authorization.helper.ts` | Refactored σε καθαρό NestJS DI (`ENTITY_AUTHORIZER`) | **10** | Επιλύθηκε |~~
 | `users-api/.../create-user.handler.ts` κ.ά. (decorator stacking) | Demo showcase | **6** | OK για demo, όχι για prod |
-| `users-api/.../createExecute.helper.ts` | Zod→Class factory | **6** | Κρατήσιμο, όχι επεκτάσιμο |
+~~| `users-api/.../createExecute.helper.ts` | Zod→Class factory | **6** | Αντικαταστάθηκε με createCommand/createQuery στο @nestjs-pipeline/zod |~~
 | `pipeline-cache` (πακέτο) | Εκτός roadmap + διπλότυπο key helper | **6** | Refactor το cache-key.ts |
 | `is-transient-persistence-error.ts` | Error classifier | **6** | Μικρό cleanup |
 | `pipeline-idempotency/.../strict-json.ts` | Διπλότυπη λογική (βλ. §8.4) | **5** | Ενοποίηση με core |

@@ -1236,7 +1236,7 @@ test/auth/
 
 **Priority: 10/10**
 
-1. Αφαίρεση 80–90% των explanatory comments από `app.module.ts`.
+~~1. Αφαίρεση 80–90% των explanatory comments από `app.module.ts`.~~
 2. Μεταφορά των explanations στα package READMEs.
 3. Split των giant E2E files.
 4. Ενοποίηση `tsx` tooling.
@@ -1245,18 +1245,18 @@ test/auth/
 
 ---
 
-## Phase 2 — Καθάρισμα composition root
+~~## Phase 2 — Καθάρισμα composition root (Ολοκληρώθηκε: observability.module.ts, reliability.module.ts)~~
 
 **Priority: 10/10**
 
-Δημιουργία:
+~~Δημιουργία:
 
 ```text
 infrastructure/observability.module.ts
-infrastructure/pipeline-integrations.module.ts
+infrastructure/pipeline-integrations.module.ts (υλοποιήθηκε ως reliability.module.ts)
 ```
 
-Το `AppModule` να μη γνωρίζει implementation details για κάθε behavior.
+Το `AppModule` να μη γνωρίζει implementation details για κάθε behavior.~~
 
 ---
 
@@ -1405,9 +1405,9 @@ ddd/
 | # | Αλλαγή | Αναγκαιότητα |
 |---|---|---:|
 | 1 | Βγάλε όλα τα optional/demo behaviors από το βασικό users-api | **10/10** |
-| 2 | Σπάσε το AppModule | **10/10** |
+~~| 2 | Σπάσε το AppModule | **10/10** |~~
 | 3 | Σταμάτα να χρησιμοποιείς το users-api σαν integration test όλων των packages | **10/10** |
-| 4 | Αφαίρεσε τα τεράστια inline documentation blocks | **9/10** |
+~~| 4 | Αφαίρεσε τα τεράστια inline documentation blocks | **9/10** |~~
 | 5 | Hash/opaque idempotency και rate-limit keys αντί email | **9/10** |
 | 6 | Μην έχεις DeadLetter globally για `scope: all` | **9/10** |
 | 7 | Μείωσε τα decorators/policies ανά handler | **9/10** |

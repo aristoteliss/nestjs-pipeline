@@ -220,8 +220,8 @@
 
 | Αρχείο / Module | Περιγραφή Αλλαγής | Βαθμός (0-10) | Προτεινόμενη Ενέργεια Cleanup |
 | :--- | :--- | :---: | :--- |
-| `users-api/src/common/interceptors/auth-session.interceptor.ts` | God Interceptor (JWT + API Keys + CASL + Tenant) | **2/10** | **Σπάσιμο σε καθαρά NestJS Guards & Services** |
-| `users-api/src/common/cqrs/helpers/createExecute.helper.ts` | Meta-programming class factory με Object.defineProperty | **2/10** | **Διαγραφή & χρήση καθαρών TypeScript DTO classes** |
+~~| `users-api/src/common/interceptors/auth-session.interceptor.ts` | God Interceptor (JWT + API Keys + CASL + Tenant) | **2/10** | **Σπάσιμο σε καθαρά NestJS Guards & Services** |~~
+~~| `users-api/src/common/cqrs/helpers/createExecute.helper.ts` | Meta-programming class factory με Object.defineProperty | **2/10** | **Διαγραφή & χρήση καθαρών TypeScript DTO classes** |~~
 | `users-api/src/users/cqrs/queries/user-read-authorization.helper.ts` | Procedural CASL helper με άμεση ρίψη ForbiddenException | **3/10** | **Μετατροπή σε καθαρό domain/policy service** |
 | `users-api/src/roles/cqrs/role-authorization.helper.ts` | Procedural role authorization helper | **3/10** | **Ενοποίηση με το policy layer** |
 | `pipeline-audit/src/helpers/redact.ts` | 151 γραμμές deep cloning/masking (διπλότυπο) | **3/10** | **Αντικατάσταση με το `safeSanitize` του core package** |
@@ -250,7 +250,7 @@
 Όταν αποφασιστεί η εκτέλεση του καθαρισμού, η σειρά ενεργειών προτείνεται να είναι:
 
 ### Βήμα 1: Αφαίρεση του AI Slop & Περιττών Abstractions (Βαθμοί 0 - 2)
-1. **Κατάργηση του `createExecuteClass`**: Αντικατάσταση των DTOs/Commands/Queries με απλές, καθαρές TypeScript κλάσεις με Zod validation μέσω των NestJS pipes.
+~~1. **Κατάργηση του `createExecuteClass`**: Αντικατάσταση των DTOs/Commands/Queries με απλές, καθαρές TypeScript κλάσεις με Zod validation μέσω των NestJS pipes.~~
 2. **Refactor του `AuthSessionInterceptor`**:
    - Δημιουργία `JwtAuthGuard` αποκλειστικά για την επαλήθευση του token.
    - Δημιουργία `ApiKeyGuard` για το API header auth.

@@ -16,11 +16,13 @@
  * ----------------------------
  */
 
-import { createExecuteClass } from '@common/cqrs/helpers/createExecute.helper';
+import { BaseCommand } from '@common/cqrs/commands/base.command';
+import { createCommand } from '@nestjs-pipeline/zod';
 import { z } from 'zod';
 
-export class DeleteUserCommand extends createExecuteClass(
+export class DeleteUserCommand extends createCommand(
   z.object({
     id: z.uuid(),
   }),
+  BaseCommand,
 ) {}
