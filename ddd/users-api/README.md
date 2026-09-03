@@ -114,7 +114,7 @@ TenantSchemaMiddleware
          │ (Validates x-tenant-schema header, enters TenantSchemaContext)
          ▼
 AuthSessionGuard (APP_GUARD)
-  ├─ 1. Check Fastify session cookie (req.session.get('user'))
+  ├─ 1. Check Fastify session cookie (req.session?.user)
   ├─ 2. Parse & verify Bearer JWT (JwtAuthenticator)
   └─ 3. Verify API-client credentials (ApiClientAuthenticator)
   │

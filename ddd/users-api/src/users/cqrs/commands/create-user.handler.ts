@@ -16,6 +16,7 @@
  * ----------------------------
  */
 
+import { APP_ACTIONS, APP_SUBJECTS } from '@common/constants';
 import { UniqueConstraintViolationException } from '@mikro-orm/core';
 import { Inject } from '@nestjs/common';
 import { CommandHandler, EventBus } from '@nestjs/cqrs';
@@ -56,7 +57,7 @@ export function createUserIdempotencyKey(ctx: IPipelineContext): string {
   [
     CaslBehavior,
     {
-      rules: [{ action: 'create', subject: 'User' }],
+      rules: [{ action: APP_ACTIONS.CREATE, subject: APP_SUBJECTS.USER }],
     },
   ],
   // Gate user registration behind the 'user-registration' feature flag. When

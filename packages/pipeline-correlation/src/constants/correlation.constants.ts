@@ -16,25 +16,7 @@
  * ----------------------------
  */
 
-import type { UserCapabilities } from '@nestjs-pipeline/casl';
-
-export type SessionUser = {
-  id: string;
-  tenant: string;
-  email?: string | null;
-  department?: string | null;
-  capabilities?: UserCapabilities;
-};
-
-/** Shape of the Fastify secure-session data store. */
-export interface SessionData {
-  user?: SessionUser;
-  api?: { id: string; tenant: string };
-}
-
-declare module '@fastify/secure-session' {
-  interface SessionData {
-    user?: SessionUser;
-    api?: { id: string; tenant: string };
-  }
-}
+/**
+ * Default HTTP header name used for distributed correlation tracing.
+ */
+export const DEFAULT_CORRELATION_HEADER = 'x-correlation-id';

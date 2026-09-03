@@ -17,6 +17,7 @@
  */
 
 import { Logger, LoggerService, LogLevel } from '@nestjs/common';
+import { DEFAULT_CORRELATION_HEADER } from '../constants/correlation.constants';
 import { getCorrelationId, runWithCorrelationId } from '../correlation.store';
 import { dyn, untyped } from '../types/safe-typing';
 
@@ -316,7 +317,9 @@ export const CorrelationFrom = {
    *
    * @param header - Header key. Defaults to `'x-correlation-id'`.
    */
-  kafka: (header = 'x-correlation-id'): CorrelationDecoratorOptions => ({
+  kafka: (
+    header = DEFAULT_CORRELATION_HEADER,
+  ): CorrelationDecoratorOptions => ({
     extract: (_data: unknown, ctx: unknown) =>
       dyn(ctx)?.getMessage?.()?.headers?.[header]?.toString(),
   }),
@@ -326,7 +329,7 @@ export const CorrelationFrom = {
    *
    * @param header - Header key. Defaults to `'x-correlation-id'`.
    */
-  nats: (header = 'x-correlation-id'): CorrelationDecoratorOptions => ({
+  nats: (header = DEFAULT_CORRELATION_HEADER): CorrelationDecoratorOptions => ({
     extract: (_data: unknown, ctx: unknown) =>
       dyn(ctx)?.getHeaders?.()?.get?.(header) as string | undefined,
   }),
@@ -338,7 +341,7 @@ export const CorrelationFrom = {
    *
    * @param key - Metadata key. Defaults to `'x-correlation-id'`.
    */
-  grpc: (key = 'x-correlation-id'): CorrelationDecoratorOptions => ({
+  grpc: (key = DEFAULT_CORRELATION_HEADER): CorrelationDecoratorOptions => ({
     extract: (_data: unknown, metadata: unknown) => {
       const values = dyn(metadata)?.get?.(key);
       return values?.[0]?.toString();

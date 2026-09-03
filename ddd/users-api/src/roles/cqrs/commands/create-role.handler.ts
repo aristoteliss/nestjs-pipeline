@@ -16,6 +16,7 @@
  * ----------------------------
  */
 
+import { APP_ACTIONS, APP_SUBJECTS } from '@common/constants';
 import { UniqueConstraintViolationException } from '@mikro-orm/core';
 import { Inject } from '@nestjs/common';
 import { CommandHandler, EventBus } from '@nestjs/cqrs';
@@ -56,8 +57,8 @@ export function createRoleIdempotencyKey(ctx: IPipelineContext): string {
     CaslBehavior,
     {
       rules: [
-        { action: 'create', subject: 'Role' },
-        { action: 'read', subject: 'User' },
+        { action: APP_ACTIONS.CREATE, subject: APP_SUBJECTS.ROLE },
+        { action: APP_ACTIONS.READ, subject: APP_SUBJECTS.USER },
       ],
     },
   ],

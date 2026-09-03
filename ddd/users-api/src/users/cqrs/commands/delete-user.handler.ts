@@ -16,10 +16,11 @@
  * ----------------------------
  */
 
+import { APP_ACTIONS, APP_SUBJECTS, AUDIT_ACTIONS } from '@common/constants';
 import { getSessionUserFromStore } from '@common/context/session-user.store';
 import { Inject, NotFoundException } from '@nestjs/common';
 import { CommandHandler, EventBus } from '@nestjs/cqrs';
-import { AuditBehavior } from '@nestjs-pipeline/audit';
+import { AUDIT_SEVERITY, AuditBehavior } from '@nestjs-pipeline/audit';
 import { CaslBehavior } from '@nestjs-pipeline/casl';
 import { LoggingBehavior, UsePipeline } from '@nestjs-pipeline/core';
 import {
@@ -44,7 +45,7 @@ import { DeleteUserCommand } from './delete-user.command';
   [
     CaslBehavior,
     {
-      rules: [{ action: 'delete', subject: 'User' }],
+      rules: [{ action: APP_ACTIONS.DELETE, subject: APP_SUBJECTS.USER }],
     },
   ],
   /**
@@ -91,8 +92,8 @@ import { DeleteUserCommand } from './delete-user.command';
   [
     AuditBehavior,
     {
-      action: 'user.delete',
-      severity: 'high',
+      action: AUDIT_ACTIONS.USER_DELETE,
+      severity: AUDIT_SEVERITY.HIGH,
       actor: () => {
         const sessionUser = getSessionUserFromStore();
         return sessionUser

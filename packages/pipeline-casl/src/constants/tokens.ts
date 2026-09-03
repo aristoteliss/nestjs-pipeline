@@ -69,3 +69,31 @@ export const CASL_USER_CONTEXT_KEY = 'casl:user';
  * the behavior runs. Downstream behaviors or handlers can retrieve it.
  */
 export const CASL_ABILITY_KEY = 'casl:ability';
+
+/**
+ * Built-in CASL keyword subjects.
+ */
+export const CASL_SUBJECTS = {
+  /** Wildcard subject matching any entity type. */
+  ALL: 'all',
+} as const;
+
+export type CaslSubject = (typeof CASL_SUBJECTS)[keyof typeof CASL_SUBJECTS];
+
+/**
+ * Standard CASL actions, including built-in wildcard and standard CRUD verbs.
+ */
+export const CASL_ACTIONS = {
+  /** Built-in CASL wildcard action matching any operation. */
+  MANAGE: 'manage',
+  /** Standard CRUD create action. */
+  CREATE: 'create',
+  /** Standard CRUD read/retrieve action. */
+  READ: 'read',
+  /** Standard CRUD update action. */
+  UPDATE: 'update',
+  /** Standard CRUD delete action. */
+  DELETE: 'delete',
+} as const;
+
+export type CaslAction = (typeof CASL_ACTIONS)[keyof typeof CASL_ACTIONS];

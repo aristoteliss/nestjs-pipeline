@@ -16,6 +16,7 @@
  * ----------------------------
  */
 
+import { APP_ACTIONS, APP_SUBJECTS } from '@common/constants';
 import { Inject, NotFoundException, Scope } from '@nestjs/common';
 import { CommandHandler, EventBus } from '@nestjs/cqrs';
 import { CaslBehavior } from '@nestjs-pipeline/casl';
@@ -41,7 +42,7 @@ import { UpdateUserCommand } from './update-user.command';
   [
     CaslBehavior,
     {
-      rules: [{ action: 'update', subject: 'User' }],
+      rules: [{ action: APP_ACTIONS.UPDATE, subject: APP_SUBJECTS.USER }],
     },
   ],
 )

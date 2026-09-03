@@ -16,6 +16,7 @@
  * ----------------------------
  */
 
+import { APP_ACTIONS, APP_SUBJECTS } from '@common/constants';
 import { Inject } from '@nestjs/common';
 import { type IQueryHandler, QueryHandler } from '@nestjs/cqrs';
 import { CaslBehavior } from '@nestjs-pipeline/casl';
@@ -32,7 +33,7 @@ import { GetUsersQuery } from './get-users.query';
 @UsePipeline([
   CaslBehavior,
   {
-    rules: [{ action: 'read', subject: 'User' }],
+    rules: [{ action: APP_ACTIONS.READ, subject: APP_SUBJECTS.USER }],
   },
 ])
 export class GetUsersHandler

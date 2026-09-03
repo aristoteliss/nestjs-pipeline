@@ -16,6 +16,7 @@
  * ----------------------------
  */
 
+import { APP_ACTIONS, APP_SUBJECTS } from '@common/constants';
 import { UniqueConstraintViolationException } from '@mikro-orm/core';
 import { Inject, NotFoundException, Scope } from '@nestjs/common';
 import { CommandHandler, EventBus } from '@nestjs/cqrs';
@@ -49,7 +50,7 @@ import { UpdateRoleCommand } from './update-role.command';
   [
     CaslBehavior,
     {
-      rules: [{ action: 'update', subject: 'Role' }],
+      rules: [{ action: APP_ACTIONS.UPDATE, subject: APP_SUBJECTS.ROLE }],
     },
   ],
 )

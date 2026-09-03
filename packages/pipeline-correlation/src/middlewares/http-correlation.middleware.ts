@@ -19,6 +19,7 @@
 
 import { IncomingMessage, ServerResponse } from 'node:http';
 import { Inject, Injectable, NestMiddleware, Optional } from '@nestjs/common';
+import { DEFAULT_CORRELATION_HEADER } from '../constants/correlation.constants';
 import { correlationStore, getCorrelationId } from '../correlation.store';
 import {
   CORRELATION_OPTIONS,
@@ -54,7 +55,8 @@ export class HttpCorrelationMiddleware implements NestMiddleware {
     if (typeof h === 'string' && !HTTP_FIELD_NAME.test(h)) {
       throw new TypeError(`Invalid correlation HTTP header name: "${h}".`);
     }
-    this.header = typeof h === 'string' ? h.toLowerCase() : 'x-correlation-id';
+    this.header =
+      typeof h === 'string' ? h.toLowerCase() : DEFAULT_CORRELATION_HEADER;
   }
 
   use(req: IncomingMessage, res: ServerResponse, next: () => void): void {

@@ -23,6 +23,9 @@ export {
 export { AuditModule } from './audit.module';
 export {
   AUDIT_DEFAULT_OPTIONS,
+  AUDIT_OUTCOMES,
+  AUDIT_REQUEST_KINDS,
+  AUDIT_SEVERITY,
   AUDIT_SINK,
 } from './constants/tokens';
 export type { BuildAuditRecordInput } from './helpers/build-record';

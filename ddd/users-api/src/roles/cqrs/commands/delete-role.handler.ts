@@ -16,10 +16,11 @@
  * ----------------------------
  */
 
+import { APP_ACTIONS, APP_SUBJECTS, AUDIT_ACTIONS } from '@common/constants';
 import { getSessionUserFromStore } from '@common/context/session-user.store';
 import { Inject, NotFoundException } from '@nestjs/common';
 import { CommandHandler, EventBus } from '@nestjs/cqrs';
-import { AuditBehavior } from '@nestjs-pipeline/audit';
+import { AUDIT_SEVERITY, AuditBehavior } from '@nestjs-pipeline/audit';
 import { CaslBehavior } from '@nestjs-pipeline/casl';
 import { LoggingBehavior, UsePipeline } from '@nestjs-pipeline/core';
 import {
@@ -44,7 +45,7 @@ import { DeleteRoleCommand } from './delete-role.command';
   [
     CaslBehavior,
     {
-      rules: [{ action: 'delete', subject: 'Role' }],
+      rules: [{ action: APP_ACTIONS.DELETE, subject: APP_SUBJECTS.ROLE }],
     },
   ],
   // Resilience policy for transient faults during role deletion
@@ -62,8 +63,8 @@ import { DeleteRoleCommand } from './delete-role.command';
   [
     AuditBehavior,
     {
-      action: 'role.delete',
-      severity: 'high',
+      action: AUDIT_ACTIONS.ROLE_DELETE,
+      severity: AUDIT_SEVERITY.HIGH,
       actor: () => {
         const sessionUser = getSessionUserFromStore();
         return sessionUser

@@ -33,7 +33,7 @@ export type AuthenticatedRequest = {
  * Orchestrates inbound authentication across multiple authentication mechanisms.
  *
  * Evaluation follows strict priority:
- * 1. Fastify session cookie (`req.session.get('user')`) — fast path for web browser sessions.
+ * 1. Fastify session cookie (`req.session?.user`) — fast path for web browser sessions.
  * 2. Bearer JWT header (`Authorization: Bearer <token>`) via {@link JwtAuthenticator}.
  * 3. Machine API client credentials (`x-api-id` / `x-api-key`) via {@link ApiClientAuthenticator}.
  * 4. Anonymous caller fallback (returns `undefined`).
@@ -73,7 +73,7 @@ export class RequestPrincipalResolver {
   async resolvePrincipal(
     req: AuthenticatedRequest,
   ): Promise<SessionUser | undefined> {
-    const existingUser = req.session?.get('user');
+    const existingUser = req.session?.user;
     if (existingUser) {
       this.assertCurrentTenant(existingUser.tenant);
       return existingUser;
@@ -81,7 +81,9 @@ export class RequestPrincipalResolver {
 
     const jwtUser = await this.jwtAuthenticator.authenticate(req);
     if (jwtUser) {
-      req.session?.set('user', jwtUser);
+      if (req.session) {
+        req.session.user = jwtUser;
+      }
       return jwtUser;
     }
 

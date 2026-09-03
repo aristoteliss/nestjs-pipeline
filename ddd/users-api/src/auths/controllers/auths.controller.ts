@@ -48,13 +48,15 @@ export class AuthsController {
       SessionUser & { token: string }
     >(LoginMapper.map(dto));
 
-    req.session?.set('user', {
-      id: sessionData.id,
-      tenant: sessionData.tenant,
-      email: sessionData.email,
-      department: sessionData.department,
-      capabilities: sessionData.capabilities,
-    });
+    if (req.session) {
+      req.session.user = {
+        id: sessionData.id,
+        tenant: sessionData.tenant,
+        email: sessionData.email,
+        department: sessionData.department,
+        capabilities: sessionData.capabilities,
+      };
+    }
 
     return sessionData;
   }
@@ -67,7 +69,7 @@ export class AuthsController {
   @Post('logout')
   @HttpCode(204)
   async logout(@Req() req: { session?: Session<SessionData> }): Promise<void> {
-    const sessionUser = req.session?.get('user');
+    const sessionUser = req.session?.user;
 
     await this.commandBus.execute(new DeleteAuthCommand(sessionUser));
 

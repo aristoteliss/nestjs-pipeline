@@ -17,6 +17,7 @@
 
  */
 
+export { DEFAULT_CORRELATION_HEADER } from './constants/correlation.constants';
 export type { WithCorrelationId } from './correlation.store';
 export {
   addCorrelationId,

@@ -16,6 +16,7 @@
  * ----------------------------
  */
 
+import { APP_ACTIONS, APP_SUBJECTS } from '@common/constants';
 import { Inject } from '@nestjs/common';
 import { type IQueryHandler, QueryHandler } from '@nestjs/cqrs';
 import { CaslBehavior } from '@nestjs-pipeline/casl';
@@ -32,7 +33,7 @@ import { GetRolesQuery } from './get-roles.query';
 @UsePipeline([
   CaslBehavior,
   {
-    rules: [{ action: 'read', subject: 'Role' }],
+    rules: [{ action: APP_ACTIONS.READ, subject: APP_SUBJECTS.ROLE }],
   },
 ])
 export class GetRolesHandler

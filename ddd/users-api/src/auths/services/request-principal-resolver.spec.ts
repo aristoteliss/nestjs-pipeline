@@ -35,8 +35,7 @@ describe('RequestPrincipalResolver', () => {
       tenant: TenantSchemaContext.currentSchema,
     };
     const session = {
-      get: vi.fn(() => existingUser),
-      set: vi.fn(),
+      user: existingUser,
     } as unknown as Session<SessionData>;
 
     const jwtAuth = new JwtAuthenticator();
@@ -58,8 +57,7 @@ describe('RequestPrincipalResolver', () => {
       tenant: 'mismatched-tenant',
     };
     const session = {
-      get: vi.fn(() => existingUser),
-      set: vi.fn(),
+      user: existingUser,
     } as unknown as Session<SessionData>;
 
     const resolver = new RequestPrincipalResolver(
@@ -77,10 +75,7 @@ describe('RequestPrincipalResolver', () => {
       id: 'jwt-user-1',
       tenant: TenantSchemaContext.currentSchema,
     };
-    const session = {
-      get: vi.fn(() => undefined),
-      set: vi.fn(),
-    } as unknown as Session<SessionData>;
+    const session = {} as unknown as Session<SessionData>;
     const req = { headers: { authorization: 'Bearer token' }, session };
 
     const jwtAuth = new JwtAuthenticator();
@@ -91,7 +86,7 @@ describe('RequestPrincipalResolver', () => {
     const user = await resolver.resolvePrincipal(req);
 
     expect(user).toEqual(jwtUser);
-    expect(session.set).toHaveBeenCalledWith('user', jwtUser);
+    expect(session.user).toEqual(jwtUser);
   });
 
   it('delegates to ApiClientAuthenticator when x-api-id is provided', async () => {
@@ -99,10 +94,7 @@ describe('RequestPrincipalResolver', () => {
       id: 'client-1',
       tenant: TenantSchemaContext.currentSchema,
     };
-    const session = {
-      get: vi.fn(() => undefined),
-      set: vi.fn(),
-    } as unknown as Session<SessionData>;
+    const session = {} as unknown as Session<SessionData>;
     const req = { headers: { 'x-api-id': 'client-1' }, session };
 
     const jwtAuth = new JwtAuthenticator();
@@ -117,10 +109,7 @@ describe('RequestPrincipalResolver', () => {
   });
 
   it('returns undefined for anonymous caller', async () => {
-    const session = {
-      get: vi.fn(() => undefined),
-      set: vi.fn(),
-    } as unknown as Session<SessionData>;
+    const session = {} as unknown as Session<SessionData>;
     const req = { headers: {}, session };
 
     const resolver = new RequestPrincipalResolver(

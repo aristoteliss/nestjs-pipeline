@@ -16,10 +16,11 @@
  * ----------------------------
  */
 
+import { AUDIT_ACTIONS } from '@common/constants';
 import { SessionUser } from '@common/types/SessionUser';
 import { Inject } from '@nestjs/common';
 import { CommandHandler, EventBus } from '@nestjs/cqrs';
-import { AuditBehavior } from '@nestjs-pipeline/audit';
+import { AUDIT_SEVERITY, AuditBehavior } from '@nestjs-pipeline/audit';
 import {
   type IPipelineContext,
   LoggingBehavior,
@@ -55,8 +56,8 @@ import { CreateAuthCommand } from './create-auth.command';
   [
     AuditBehavior,
     {
-      action: 'auth.login',
-      severity: 'medium',
+      action: AUDIT_ACTIONS.AUTH_LOGIN,
+      severity: AUDIT_SEVERITY.MEDIUM,
       redactKeys: ['code'],
       actor: (ctx: IPipelineContext) => {
         const req = ctx.request as CreateAuthCommand;

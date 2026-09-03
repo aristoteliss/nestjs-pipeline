@@ -16,25 +16,16 @@
  * ----------------------------
  */
 
-import type { UserCapabilities } from '@nestjs-pipeline/casl';
+/**
+ * Action identifiers recorded in audit logs.
+ */
+export const AUDIT_ACTIONS = {
+  /** User entity deletion action. */
+  USER_DELETE: 'user.delete',
+  /** Role entity deletion action. */
+  ROLE_DELETE: 'role.delete',
+  /** User login credential verification action. */
+  AUTH_LOGIN: 'auth.login',
+} as const;
 
-export type SessionUser = {
-  id: string;
-  tenant: string;
-  email?: string | null;
-  department?: string | null;
-  capabilities?: UserCapabilities;
-};
-
-/** Shape of the Fastify secure-session data store. */
-export interface SessionData {
-  user?: SessionUser;
-  api?: { id: string; tenant: string };
-}
-
-declare module '@fastify/secure-session' {
-  interface SessionData {
-    user?: SessionUser;
-    api?: { id: string; tenant: string };
-  }
-}
+export type AuditAction = (typeof AUDIT_ACTIONS)[keyof typeof AUDIT_ACTIONS];

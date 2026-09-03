@@ -23,13 +23,17 @@ export { CaslModule, CaslModuleOptions } from './casl.module';
 // Tokens
 export {
   CASL_ABILITY_KEY,
+  CASL_ACTIONS,
   CASL_BEHAVIOR_LOGGER,
   CASL_FIELDS_FROM_REQUEST,
   CASL_ROLE_PROVIDER,
   CASL_SUBJECT_CONTEXT_PATHS,
+  CASL_SUBJECTS,
   CASL_USER_CAPABILITY_PROVIDER,
   CASL_USER_CONTEXT_KEY,
   CASL_USER_CONTEXT_RESOLVER,
+  type CaslAction,
+  type CaslSubject,
 } from './constants/tokens';
 // Helpers
 export {

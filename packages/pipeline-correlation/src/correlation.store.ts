@@ -18,6 +18,7 @@
  */
 
 import { AsyncLocalStorage } from 'node:async_hooks';
+import { DEFAULT_CORRELATION_HEADER } from './constants/correlation.constants';
 import { uuidv7 } from './helpers/uuidv7';
 
 /**
@@ -271,7 +272,7 @@ export function addCorrelationId<T extends Record<string, unknown>>(
  * ```
  */
 export function correlationHeaders(
-  key = 'x-correlation-id',
+  key = DEFAULT_CORRELATION_HEADER,
 ): Record<string, string> {
   return { [key]: getCorrelationId() };
 }

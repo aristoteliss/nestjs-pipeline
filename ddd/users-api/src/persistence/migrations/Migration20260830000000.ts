@@ -16,6 +16,7 @@
  * ----------------------------
  */
 
+import { SYSTEM_ROLES } from '@common/constants';
 import { Migration } from '@mikro-orm/migrations';
 
 const IDS = {
@@ -155,11 +156,11 @@ export class Migration20260830000000 extends Migration {
     const tenant = this.tenantToken();
 
     const roles = [
-      [IDS.roles.admin, 'admin'],
-      [IDS.roles.userManager, 'user-manager'],
-      [IDS.roles.self, 'self'],
-      [IDS.roles.viewer, 'viewer'],
-      [IDS.roles.supportAgent, 'support-agent'],
+      [IDS.roles.admin, SYSTEM_ROLES.ADMIN],
+      [IDS.roles.userManager, SYSTEM_ROLES.USER_MANAGER],
+      [IDS.roles.self, SYSTEM_ROLES.SELF],
+      [IDS.roles.viewer, SYSTEM_ROLES.VIEWER],
+      [IDS.roles.supportAgent, SYSTEM_ROLES.SUPPORT_AGENT],
     ] as const;
     for (const [id, name] of roles) {
       this.addSql(
