@@ -62,8 +62,8 @@ export const DEAD_LETTER_ITEM = Symbol('DEAD_LETTER_ITEM');
  * {@link DeadLetterModule.forRoot}.
  *
  * **Ordering:** place this **outside** retry behaviors so it only fires once
- * retries are exhausted, e.g. global `before: [DeadLetterBehavior]` with
- * `ResilienceBehavior` nested closer to the handler.
+ * retries are exhausted, but **inside** request validation behaviors so expected
+ * client validation errors are not dead-lettered.
  *
  * @example Fire-and-forget event — capture and swallow
  * ```ts
@@ -105,7 +105,7 @@ export class DeadLetterBehavior implements IPipelineBehavior {
       return await next();
     } catch (error) {
       const options = this.resolveOptions(context);
-      const shouldCapture = this.shouldCapture(context, options);
+      const shouldCapture = this.shouldCapture(context, options, error);
       let captured = false;
 
       if (shouldCapture) {
@@ -113,8 +113,8 @@ export class DeadLetterBehavior implements IPipelineBehavior {
         context.items.set(DEAD_LETTER_ITEM, captured);
       }
 
-      // Excluding a request kind means this behavior is inactive for that
-      // failure; it must not silently swallow an error it did not capture.
+      // Excluding a request kind or ignoring an error means this behavior is inactive
+      // for that failure; it must not silently swallow an error it did not capture.
       if ((options.rethrow ?? true) || !shouldCapture || !captured) throw error;
 
       this.logger.warn?.(
@@ -152,13 +152,34 @@ export class DeadLetterBehavior implements IPipelineBehavior {
     }
   }
 
-  /** Whether this request kind is configured to be captured. */
+  /** Whether this request kind and error are configured to be captured. */
   private shouldCapture(
     context: IPipelineContext,
     options: DeadLetterBehaviorOptions,
+    error: unknown,
   ): boolean {
-    if (!options.captureKinds) return true;
-    return options.captureKinds.includes(context.requestKind);
+    if (
+      options.captureKinds &&
+      !options.captureKinds.includes(context.requestKind)
+    ) {
+      return false;
+    }
+
+    if (options.ignoreErrors) {
+      if (typeof options.ignoreErrors === 'function') {
+        if (options.ignoreErrors(error, context)) {
+          return false;
+        }
+      } else if (Array.isArray(options.ignoreErrors)) {
+        for (const target of options.ignoreErrors) {
+          if (typeof target === 'function' && error instanceof target) {
+            return false;
+          }
+        }
+      }
+    }
+
+    return true;
   }
 
   /** Shallow-merges per-handler options over the module defaults. */

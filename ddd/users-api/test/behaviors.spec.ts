@@ -543,6 +543,59 @@ describe('Users API Pipeline Behaviors Specification', () => {
       expect(result).toBeUndefined();
       expect(transport.send).toHaveBeenCalledTimes(1);
     });
+
+    it('does not dead-letter read query failures when captureKinds excludes query', async () => {
+      const transport: DeadLetterTransport = {
+        send: vi.fn().mockResolvedValue(undefined),
+      };
+
+      const deadLetterBehavior = new DeadLetterBehavior(transport, {
+        captureKinds: ['command', 'event'],
+      });
+
+      const ctx = createContext({
+        requestKind: 'query',
+        requestName: 'GetUserQuery',
+        handlerName: 'GetUserHandler',
+      });
+
+      const next = vi.fn().mockRejectedValue(new Error('User not found'));
+
+      await expect(deadLetterBehavior.handle(ctx, next)).rejects.toThrow(
+        'User not found',
+      );
+      expect(transport.send).not.toHaveBeenCalled();
+    });
+
+    it('does not dead-letter expected validation errors when ignoreErrors is configured', async () => {
+      const transport: DeadLetterTransport = {
+        send: vi.fn().mockResolvedValue(undefined),
+      };
+
+      const deadLetterBehavior = new DeadLetterBehavior(transport, {
+        captureKinds: ['command', 'event'],
+        ignoreErrors: [ZodValidationError],
+      });
+
+      const ctx = createContext({
+        requestKind: 'command',
+        requestName: 'CreateUserCommand',
+        handlerName: 'CreateUserHandler',
+      });
+
+      const schema = z.object({ email: z.string().email() });
+      const parseResult = schema.safeParse({ email: 'invalid' });
+      const validationError = new ZodValidationError(
+        (parseResult as { error: z.ZodError }).error,
+      );
+
+      const next = vi.fn().mockRejectedValue(validationError);
+
+      await expect(deadLetterBehavior.handle(ctx, next)).rejects.toThrow(
+        'Validation failed',
+      );
+      expect(transport.send).not.toHaveBeenCalled();
+    });
   });
 
   // ─── 9. CaslBehavior ──────────────────────────────────────────────────────

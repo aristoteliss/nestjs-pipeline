@@ -219,6 +219,7 @@ over module-wide `defaults` (handler wins):
 | `rethrow` | `boolean` | `true` | Re-throw after capture. `false` swallows only after successful transport delivery. |
 | `includeStack` | `boolean` | `true` | Include the error stack in the record. |
 | `captureKinds` | `('command'\|'query'\|'event'\|'unknown')[]` | all | Restrict which request kinds are captured. |
+| `ignoreErrors` | `Type[] \| ((err, ctx) => boolean)` | — | Error classes or predicate function to skip from dead-letter capture. |
 | `metadata` | `(ctx) => Record<string, unknown>` | — | Extra request-aware metadata to attach. |
 
 Module-wide defaults:
@@ -226,7 +227,11 @@ Module-wide defaults:
 ```typescript
 DeadLetterModule.forRoot({
   transport,
-  defaults: { includeStack: false, captureKinds: ['command', 'event'] },
+  defaults: {
+    includeStack: false,
+    captureKinds: ['command', 'event'],
+    ignoreErrors: [ZodValidationError],
+  },
 });
 ```
 
@@ -253,25 +258,44 @@ interface DeadLetterRecord {
 
 ---
 
-## Ordering with retries
+## Ordering with validation and retries
 
-Place `DeadLetterBehavior` **outside** retry behaviors so it attempts capture only
-after retries are exhausted:
+Place `DeadLetterBehavior`:
+- **Inside** request validation behaviors (e.g. `ZodValidationBehavior`) so malformed client inputs (HTTP 400) fail fast and are never dead-lettered.
+- **Outside** retry behaviors (`ResilienceBehavior`) so it attempts capture only after retries are exhausted.
+- **Scoped to mutating requests** (commands and events) via `captureKinds: ['command', 'event']` or scoping configs, preventing read query failures from landing in the DLQ.
 
 ```typescript
 PipelineModule.forRoot({
-  globalBehaviors: {
-    scope: 'all',
-    before: [DeadLetterBehavior], // runs first → wraps everything below
-  },
+  globalBehaviors: [
+    {
+      scope: 'all',
+      before: [LoggingBehavior, ZodValidationBehavior],
+    },
+    {
+      scope: 'commands',
+      before: [
+        [
+          DeadLetterBehavior,
+          {
+            captureKinds: ['command'],
+            ignoreErrors: [ZodValidationError],
+          },
+        ],
+      ],
+    },
+    {
+      scope: 'events',
+      before: [[DeadLetterBehavior, { captureKinds: ['event'] }]],
+    },
+  ],
 });
 
-// …and per-handler, nest the retry closer to the handler:
+// …and per-handler, nest retries closer to the handler:
 @UsePipeline([ResilienceBehavior, { retry: { maxAttempts: 5 } }])
 ```
 
-The chain becomes `DeadLetterBehavior → ResilienceBehavior → handler`: retries
-happen first; only the final failure reaches the dead-letter capture attempt.
+The chain becomes `Logging → ZodValidation → DeadLetterBehavior → ResilienceBehavior → handler`: validation errors exit immediately, retries happen first, and only exhausted command/event failures reach dead-letter capture.
 
 ---
 
@@ -283,7 +307,7 @@ happen first; only the final failure reaches the dead-letter capture attempt.
 | `DeadLetterModule` | Class | `forRoot(options)` / `forRootAsync(options)` |
 | `DeadLetterTransport` | Interface | One-method sink: `send(record)` |
 | `DeadLetterRecord` | Interface | Serializable failed-request snapshot |
-| `DeadLetterBehaviorOptions` | Interface | `{ rethrow?, includeStack?, captureKinds?, metadata? }` |
+| `DeadLetterBehaviorOptions` | Interface | `{ rethrow?, includeStack?, captureKinds?, ignoreErrors?, metadata? }` |
 | `DeadLetterModuleOptions` / `DeadLetterModuleAsyncOptions` | Interface | Module registration options |
 | `BullMqDeadLetterTransport` | Class | Adds a job to a BullMQ queue |
 | `RabbitMqDeadLetterTransport` | Class | Publishes a persistent AMQP message |

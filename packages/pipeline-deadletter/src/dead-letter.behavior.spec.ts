@@ -196,6 +196,79 @@ describe('DeadLetterBehavior', () => {
     expect(ctx.items.get(DEAD_LETTER_ITEM)).toBeUndefined();
   });
 
+  it('skips capture when error matches ignoreErrors class array', async () => {
+    class CustomValidationError extends Error {}
+    const behavior = new DeadLetterBehavior(transport);
+    const ctx = withOptions(makeCtx(), {
+      ignoreErrors: [CustomValidationError],
+    });
+
+    await expect(
+      behavior.handle(
+        ctx,
+        vi.fn().mockRejectedValue(new CustomValidationError('invalid')),
+      ),
+    ).rejects.toThrow('invalid');
+
+    expect(send).not.toHaveBeenCalled();
+    expect(ctx.items.get(DEAD_LETTER_ITEM)).toBeUndefined();
+  });
+
+  it('captures error when ignoreErrors class array does not match', async () => {
+    class CustomValidationError extends Error {}
+    const behavior = new DeadLetterBehavior(transport);
+    const ctx = withOptions(makeCtx(), {
+      ignoreErrors: [CustomValidationError],
+    });
+
+    await expect(
+      behavior.handle(
+        ctx,
+        vi.fn().mockRejectedValue(new Error('system crash')),
+      ),
+    ).rejects.toThrow('system crash');
+
+    expect(send).toHaveBeenCalledTimes(1);
+    expect(ctx.items.get(DEAD_LETTER_ITEM)).toBe(true);
+  });
+
+  it('skips capture when error matches ignoreErrors predicate', async () => {
+    const behavior = new DeadLetterBehavior(transport);
+    const ctx = withOptions(makeCtx(), {
+      ignoreErrors: (err) =>
+        err instanceof Error && err.message.startsWith('VALIDATION:'),
+    });
+
+    await expect(
+      behavior.handle(
+        ctx,
+        vi.fn().mockRejectedValue(new Error('VALIDATION: bad input')),
+      ),
+    ).rejects.toThrow('VALIDATION: bad input');
+
+    expect(send).not.toHaveBeenCalled();
+    expect(ctx.items.get(DEAD_LETTER_ITEM)).toBeUndefined();
+  });
+
+  it('does not swallow an ignored error when rethrow=false', async () => {
+    class IgnoredError extends Error {}
+    const behavior = new DeadLetterBehavior(transport);
+    const ctx = withOptions(makeCtx(), {
+      ignoreErrors: [IgnoredError],
+      rethrow: false,
+    });
+
+    await expect(
+      behavior.handle(
+        ctx,
+        vi.fn().mockRejectedValue(new IgnoredError('skip me')),
+      ),
+    ).rejects.toThrow('skip me');
+
+    expect(send).not.toHaveBeenCalled();
+    expect(ctx.items.get(DEAD_LETTER_ITEM)).toBeUndefined();
+  });
+
   it('attaches metadata from the factory', async () => {
     const behavior = new DeadLetterBehavior(transport);
     const ctx = withOptions(makeCtx(), {

@@ -30,7 +30,10 @@ import {
 } from '@nestjs-pipeline/correlation';
 import { DeadLetterBehavior } from '@nestjs-pipeline/deadletter';
 import { MetricsBehavior, TraceBehavior } from '@nestjs-pipeline/opentelemetry';
-import { ZodValidationBehavior } from '@nestjs-pipeline/zod';
+import {
+  ZodValidationBehavior,
+  ZodValidationError,
+} from '@nestjs-pipeline/zod';
 import { TenantSchemaContext } from '@persistence/tenant-schema.context';
 import { LoggerModule, NativeLogger } from 'nestjs-pino';
 
@@ -42,7 +45,7 @@ import { LoggerModule, NativeLogger } from 'nestjs-pino';
  * - **Structured HTTP Logging**: Boots `nestjs-pino` with JSON logs in production and pretty-printing in development.
  * - **Distributed Correlation Tracing**: Bridges `getCorrelationId()` and `runWithCorrelationId()` from `@nestjs-pipeline/correlation` into every pipeline handler.
  * - **Global Pipeline Execution Chain**:
- *   - `DeadLetterBehavior`: Observes final unhandled execution failures outside retries.
+ *   - `DeadLetterBehavior`: Observes final unhandled execution failures for commands and events (excluding read queries and validation errors).
  *   - `LoggingBehavior`: Emits structured command/query execution logs and duration measurements.
  *   - `ZodValidationBehavior`: Validates and sanitizes incoming request payloads before handlers execute.
  *   - `TraceBehavior`: Spans execution with OpenTelemetry distributed traces.
@@ -89,14 +92,40 @@ import { LoggerModule, NativeLogger } from 'nestjs-pino';
       correlationIdFactory: getCorrelationId,
       correlationIdRunner: runWithCorrelationId,
       tenantIdFactory: () => TenantSchemaContext.currentSchema,
-      globalBehaviors: {
-        scope: 'all',
-        before: [DeadLetterBehavior, LoggingBehavior, ZodValidationBehavior],
-        after: [
-          [TraceBehavior, { tracerName: 'users-api' }],
-          [MetricsBehavior, { meterName: 'users-api' }],
-        ],
-      },
+      globalBehaviors: [
+        {
+          scope: 'all',
+          before: [LoggingBehavior, ZodValidationBehavior],
+          after: [
+            [TraceBehavior, { tracerName: 'users-api' }],
+            [MetricsBehavior, { meterName: 'users-api' }],
+          ],
+        },
+        {
+          scope: 'commands',
+          before: [
+            [
+              DeadLetterBehavior,
+              {
+                captureKinds: ['command'],
+                ignoreErrors: [ZodValidationError],
+              },
+            ],
+          ],
+        },
+        {
+          scope: 'events',
+          before: [
+            [
+              DeadLetterBehavior,
+              {
+                captureKinds: ['event'],
+                ignoreErrors: [ZodValidationError],
+              },
+            ],
+          ],
+        },
+      ],
       loggerProvider: {
         provide: LOGGING_BEHAVIOR_LOGGER,
         useExisting: NativeLogger,

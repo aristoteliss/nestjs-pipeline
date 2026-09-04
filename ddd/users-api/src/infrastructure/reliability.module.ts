@@ -27,6 +27,7 @@ import { FeatureFlagsModule } from '@nestjs-pipeline/feature-flags';
 import { IdempotencyModule } from '@nestjs-pipeline/idempotency';
 import { RateLimitModule } from '@nestjs-pipeline/rate-limit';
 import { ResilienceModule } from '@nestjs-pipeline/resilience';
+import { ZodValidationError } from '@nestjs-pipeline/zod';
 import { InMemoryProvider } from '@openfeature/server-sdk';
 import type { Queue } from 'bullmq';
 import { RateLimiterMemory } from 'rate-limiter-flexible';
@@ -37,7 +38,7 @@ import { RateLimiterMemory } from 'rate-limiter-flexible';
  *
  * ### Responsibilities
  * - **BullMQ & Redis Connectivity**: Connects to the Redis instance for queues and background tasks.
- * - **Dead Letter Queue (`DeadLetterModule`)**: Captures unhandled command/query failures into a dedicated BullMQ queue (`dead-letters`) for inspection or replay.
+ * - **Dead Letter Queue (`DeadLetterModule`)**: Captures unhandled command and event failures (excluding read queries and validation errors) into a dedicated BullMQ queue (`dead-letters`) for inspection or replay.
  * - **Rate Limiting (`RateLimitModule`)**: Memory-based or Redis-backed rate limiter (default: 5 ops / 60s) used by opt-in command handlers.
  * - **Idempotency (`IdempotencyModule`)**: Distributed lock claiming and cached response replaying to prevent duplicate execution of mutating operations.
  * - **Resilience Policies (`ResilienceModule`)**: Cockatiel-based retry policies, circuit breakers, and timeouts.
@@ -79,6 +80,10 @@ import { RateLimiterMemory } from 'rate-limiter-flexible';
       imports: [BullModule.registerQueue({ name: 'dead-letters' })],
       inject: [getQueueToken('dead-letters')],
       useFactory: (queue: Queue) => new BullMqDeadLetterTransport(queue),
+      defaults: {
+        captureKinds: ['command', 'event'],
+        ignoreErrors: [ZodValidationError],
+      },
     }),
     RateLimitModule.forRoot({
       limiter: new RateLimiterMemory({ points: 5, duration: 60 }),

@@ -20,6 +20,7 @@ import type {
   InjectionToken,
   ModuleMetadata,
   OptionalFactoryDependency,
+  Type,
 } from '@nestjs/common';
 import type { IPipelineContext } from '@nestjs-pipeline/core';
 import type {
@@ -64,6 +65,15 @@ export interface DeadLetterBehaviorOptions {
    * captured. Example: `['command', 'event']` to skip read-side query failures.
    */
   captureKinds?: DeadLetterRequestKind[];
+
+  /**
+   * Filter predicate or error types to ignore.
+   * Matching errors are re-thrown without being sent to the dead-letter transport.
+   * Useful for ignoring expected client validation errors (e.g. ZodValidationError).
+   */
+  ignoreErrors?:
+    | Array<Type<unknown> | (abstract new (...args: never[]) => unknown)>
+    | ((error: unknown, context: IPipelineContext) => boolean);
 
   /** Produce extra metadata to merge into the dead-letter record. */
   metadata?: DeadLetterMetadataFactory;

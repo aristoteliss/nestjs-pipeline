@@ -143,7 +143,7 @@ To maintain clear architectural boundaries and keep the root composition module 
   - Configures global pipeline behaviors for tracing (`TraceBehavior`) and latency/throughput metrics (`MetricsBehavior`).
 - **`ReliabilityModule` (`@common/reliability/reliability.module.ts`)**:
   - Manages failure isolation and transport resilience.
-  - Provides BullMQ-backed dead-letter capture (`DeadLetterBehavior`) with automatic fallback to structured log auditing when Redis/BullMQ is unavailable.
+  - Provides BullMQ-backed dead-letter capture (`DeadLetterBehavior`) scoped to commands and events (excluding read queries and validation errors) with automatic fallback to structured log auditing when Redis/BullMQ is unavailable.
   - Integrates in-memory and distributed rate-limiting infrastructure (`RateLimitBehavior`).
   - Swappable caching providers (`MikroOrmCache` vs `MemoryCache`).
 - **`AppModule` (`src/app.module.ts`)**:
