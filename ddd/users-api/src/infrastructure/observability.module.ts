@@ -31,6 +31,7 @@ import {
 import { DeadLetterBehavior } from '@nestjs-pipeline/deadletter';
 import { MetricsBehavior, TraceBehavior } from '@nestjs-pipeline/opentelemetry';
 import { ZodValidationBehavior } from '@nestjs-pipeline/zod';
+import { TenantSchemaContext } from '@persistence/tenant-schema.context';
 import { LoggerModule, NativeLogger } from 'nestjs-pino';
 
 /**
@@ -87,6 +88,7 @@ import { LoggerModule, NativeLogger } from 'nestjs-pino';
     PipelineModule.forRoot({
       correlationIdFactory: getCorrelationId,
       correlationIdRunner: runWithCorrelationId,
+      tenantIdFactory: () => TenantSchemaContext.currentSchema,
       globalBehaviors: {
         scope: 'all',
         before: [DeadLetterBehavior, LoggingBehavior, ZodValidationBehavior],

@@ -24,6 +24,7 @@ import { CaslBehavior } from '@nestjs-pipeline/casl';
 import {
   type IPipelineContext,
   LoggingBehavior,
+  PIPELINE_TENANT_ID,
   UsePipeline,
 } from '@nestjs-pipeline/core';
 import {
@@ -41,7 +42,11 @@ import { CreateRoleCommand } from './create-role.command';
 
 export function createRoleIdempotencyKey(ctx: IPipelineContext): string {
   const request = ctx.request as CreateRoleCommand;
-  return `${TenantSchemaContext.currentSchema}:${request.sessionUser?.id ?? 'anonymous'}:role.create:${request.name}`;
+  const tenantId =
+    ctx.tenantId ??
+    (ctx.items?.get(PIPELINE_TENANT_ID) as string | undefined) ??
+    TenantSchemaContext.currentSchema;
+  return `${tenantId}:${request.sessionUser?.id ?? 'anonymous'}:role.create:${request.name}`;
 }
 
 @CommandHandler(CreateRoleCommand)
@@ -62,9 +67,7 @@ export function createRoleIdempotencyKey(ctx: IPipelineContext): string {
       ],
     },
   ],
-  // Gate role creation behind the 'role-creation' feature flag
   [FeatureFlagBehavior, { flag: 'role-creation' }],
-  // Ensure idempotent role creation per tenant, principal, and role name
   [
     IdempotencyBehavior,
     {

@@ -84,6 +84,8 @@ import { PipelineModule, LoggingBehavior } from '@nestjs-pipeline/core';
       // Bridge correlation IDs from @nestjs-pipeline/correlation (optional)
       // correlationIdFactory: getCorrelationId,
       // correlationIdRunner: runWithCorrelationId,
+      // Eagerly resolve tenant ID per pipeline execution (optional)
+      // tenantIdFactory: () => TenantContext.currentTenant,
     }),
   ],
 })
@@ -264,6 +266,7 @@ Every behavior receives `IPipelineContext`:
 |---|---|---|
 | `correlationId` | `string` | Immutable ID fixed before the behavior chain starts |
 | `originalCorrelationId` | `string` | Immutable snapshot of the initial correlation ID |
+| `tenantId` | `string \| undefined` | Active tenant identifier (inherited from parent context or resolved via `tenantIdFactory`) |
 | `request` | `TRequest` | The command / query / event instance |
 | `requestType` | `Type<TRequest>` | Class constructor (e.g. `CreateUserCommand`) |
 | `requestName` | `string` | Class name string (e.g. `"CreateUserCommand"`) |
@@ -780,6 +783,8 @@ orderCreated = (events$: Observable<any>): Observable<ICommand> =>
 | `PipelineBootstrapService` | Class | Scans and wraps handlers at bootstrap |
 | `PipelineHandlerMeta` | Interface | Pre-computed handler metadata |
 | `PIPELINE_BEHAVIOR_ID` | Symbol | Custom deduplication key for behaviors |
+| `PIPELINE_TENANT_ID` | Symbol | Key symbol for tenant ID in `context.items` |
+| `SET_TENANT_ID` | Symbol | Symbol setter for `tenantId` and items sync |
 | `PipelineBehaviorEntry` | Type | `Type \| [Type, Record<string, unknown>]` |
 | `stableStringify` | Function | Deterministic JSON serialization with sorted keys and cycle detection |
 | `toStrictJsonValue` | Function | Normalizes arbitrary values into strictly typed JSON domain |
@@ -795,6 +800,7 @@ orderCreated = (events$: Observable<any>): Observable<ICommand> =>
 | `globalBehaviors` | `GlobalBehaviorsOptions \| GlobalBehaviorsOptions[]` | Auto-wrap matching handlers |
 | `correlationIdFactory` | `() => string \| undefined` | Read an external correlation ID for a root run after parent inheritance is checked (e.g. `getCorrelationId`) |
 | `correlationIdRunner` | `<T>(id: string, fn: () => T) => T` | Wrap each pipeline invocation in a correlation context (e.g. `runWithCorrelationId`) |
+| `tenantIdFactory` | `() => string \| undefined` | Eagerly resolve tenant ID per pipeline execution (e.g. from async storage context) |
 | `bootstrapLogLevel` | `LogLevel \| 'none'` | Log level for bootstrap messages (default `'debug'`) |
 | `loggerProvider` | `PipelineLoggerProvider` | Custom DI provider whose `provide` token must be `LOGGING_BEHAVIOR_LOGGER` (registered and exported) |
 

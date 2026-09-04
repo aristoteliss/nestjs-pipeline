@@ -24,6 +24,7 @@ import { AUDIT_SEVERITY, AuditBehavior } from '@nestjs-pipeline/audit';
 import {
   type IPipelineContext,
   LoggingBehavior,
+  PIPELINE_TENANT_ID,
   UsePipeline,
 } from '@nestjs-pipeline/core';
 import {
@@ -42,17 +43,19 @@ import { CreateAuthCommand } from './create-auth.command';
 @CommandHandler(CreateAuthCommand)
 @UsePipeline(
   [LoggingBehavior, { requestResponseLogLevel: 'log' }],
-  // Override global MetricsBehavior with auths-specific meter name
   [MetricsBehavior, { meterName: 'users-api.auth' }],
-  // Rate limit login attempts to prevent brute-force attacks
   [
     RateLimitBehavior,
     {
-      keyFactory: (ctx: IPipelineContext) =>
-        `${TenantSchemaContext.currentSchema}:auth:login:${(ctx.request as CreateAuthCommand).email}`,
+      keyFactory: (ctx: IPipelineContext) => {
+        const tenantId =
+          ctx.tenantId ??
+          (ctx.items?.get(PIPELINE_TENANT_ID) as string | undefined) ??
+          TenantSchemaContext.currentSchema;
+        return `${tenantId}:auth:login:${(ctx.request as CreateAuthCommand).email}`;
+      },
     },
   ],
-  // Audit login events with actor extracted from the login command
   [
     AuditBehavior,
     {

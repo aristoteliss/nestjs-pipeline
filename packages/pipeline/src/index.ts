@@ -17,7 +17,11 @@
  */
 
 export * from './behaviors/logging.behavior';
-export { pipelineStore } from './constants/pipeline-context.constants';
+export {
+  PIPELINE_TENANT_ID,
+  pipelineStore,
+  SET_TENANT_ID,
+} from './constants/pipeline-context.constants';
 export * from './decorators';
 export * from './helpers/safeStringify';
 export * from './helpers/stableStringify';

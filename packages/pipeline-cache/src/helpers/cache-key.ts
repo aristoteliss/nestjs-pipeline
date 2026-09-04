@@ -19,9 +19,10 @@
 import { type IPipelineContext, stableStringify } from '@nestjs-pipeline/core';
 
 /**
- * Default cache-key factory: combines the request name with a stable
- * serialization of the request payload.
+ * Default cache-key factory: combines the optional tenant ID, request name,
+ * and a stable serialization of the request payload.
  */
 export function defaultCacheKey(context: IPipelineContext): string {
-  return `${context.requestName}:${stableStringify(context.request)}`;
+  const tenantPrefix = context.tenantId ? `${context.tenantId}:` : '';
+  return `${tenantPrefix}${context.requestName}:${stableStringify(context.request)}`;
 }

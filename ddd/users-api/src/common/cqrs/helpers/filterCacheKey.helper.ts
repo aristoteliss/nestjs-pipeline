@@ -16,27 +16,45 @@
  * ----------------------------
  */
 
+import {
+  type IPipelineContext,
+  PIPELINE_TENANT_ID,
+} from '@nestjs-pipeline/core';
 import { TenantSchemaContext } from '@persistence/tenant-schema.context';
 
 /**
  * Derives a deterministic cache key from an entity's static `prefixKey` and
  * a set of filter conditions, namespaced by the active tenant schema.
  *
+ * Supports explicit tenant ID or pipeline context:
+ * 1. Explicit `tenantOrContext` string (e.g., `'tenant_a'`)
+ * 2. Pipeline context `ctx.tenantId`
+ * 3. Pipeline context items `ctx.items.get(PIPELINE_TENANT_ID)`
+ * 4. Ambient ALS fallback `TenantSchemaContext.currentSchema`
+ *
  * Keys are sorted alphabetically so `{ email, _department }` and
  * `{ _department, email }` produce the same string.
  *
  * @example
- * filterCacheKey(User, { _id: '123' })
+ * filterCacheKey(User, { _id: '123' }, ctx)
  * // → "tenant:user:_id:123"
  *
- * filterCacheKey(User, { email: 'a@b.com', _department: 'eng' })
- * // → "tenant:user:_department:eng:email:a@b.com"
+ * filterCacheKey(User, { email: 'a@b.com', _department: 'eng' }, 'tenant_b')
+ * // → "tenant_b:user:_department:eng:email:a@b.com"
  */
 export function filterCacheKey(
   entity: { prefixKey: string },
   conditions: Record<string, unknown>,
+  tenantOrContext?: string | IPipelineContext,
 ): string {
-  const schema = TenantSchemaContext.currentSchema;
+  const schema =
+    typeof tenantOrContext === 'string'
+      ? tenantOrContext
+      : (tenantOrContext?.tenantId ??
+        (tenantOrContext?.items?.get(PIPELINE_TENANT_ID) as
+          | string
+          | undefined) ??
+        TenantSchemaContext.currentSchema);
   const segments = Object.entries(conditions)
     .filter(([, v]) => v !== undefined && v !== null)
     .sort(([a], [b]) => a.localeCompare(b))

@@ -206,4 +206,19 @@ export interface PipelineModuleOptions {
    * ```
    */
   correlationIdRunner?: <T>(correlationId: string, fn: () => T) => T;
+
+  /**
+   * Optional factory that resolves the active tenant ID for each pipeline execution.
+   *
+   * When configured, called before behaviors execute to populate `context.tenantId`
+   * and `context.items.get(PIPELINE_TENANT_ID)`.
+   *
+   * @example
+   * ```ts
+   * PipelineModule.forRoot({
+   *   tenantIdFactory: () => TenantSchemaContext.currentSchema,
+   * })
+   * ```
+   */
+  tenantIdFactory?: () => string | undefined;
 }

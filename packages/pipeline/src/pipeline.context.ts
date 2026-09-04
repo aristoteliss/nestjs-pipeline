@@ -18,10 +18,12 @@
 
 import { Type } from '@nestjs/common';
 import {
+  PIPELINE_TENANT_ID,
   pipelineStore,
   SET_CORRELATION_ID,
   SET_ORIGINAL_CORRELATION_ID,
   SET_RESPONSE,
+  SET_TENANT_ID,
 } from './constants/pipeline-context.constants';
 import { getBehaviorId } from './decorators/pipeline.decorator';
 import { IPipelineBehavior } from './interfaces/pipeline.behavior.interface';
@@ -75,6 +77,29 @@ export abstract class BasePipelineContext<
     this._originalCorrelationId = value;
   }
 
+  /** Backing field for `tenantId`. */
+  private _tenantId: string | undefined = undefined;
+
+  /**
+   * Active tenant identifier for multi-tenant pipeline executions.
+   */
+  get tenantId(): string | undefined {
+    return this._tenantId;
+  }
+
+  /**
+   * Symbol-keyed setter — only callable by code that imports {@link SET_TENANT_ID}.
+   * Synchronizes `context.tenantId` and `context.items.get(PIPELINE_TENANT_ID)`.
+   */
+  [SET_TENANT_ID](value: string | undefined): void {
+    this._tenantId = value;
+    if (value !== undefined) {
+      this.items.set(PIPELINE_TENANT_ID, value);
+    } else {
+      this.items.delete(PIPELINE_TENANT_ID);
+    }
+  }
+
   abstract readonly request: TRequest;
   abstract readonly requestType: Type<TRequest>;
   abstract readonly requestName: string;
@@ -114,10 +139,14 @@ export abstract class BasePipelineContext<
     this.startedAt = new Date();
     this.items = new Map();
 
-    // Inherit correlationId from parent pipeline context (saga / nested command)
+    // Inherit correlationId and tenantId from parent pipeline context (saga / nested command)
     const parent = pipelineStore.getStore();
     if (parent?.correlationId) {
       this._correlationId = parent.correlationId;
+    }
+    if (parent?.tenantId) {
+      this._tenantId = parent.tenantId;
+      this.items.set(PIPELINE_TENANT_ID, parent.tenantId);
     }
   }
 

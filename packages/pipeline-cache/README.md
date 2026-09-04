@@ -228,7 +228,7 @@ key factory, or downstream handler are always propagated unchanged.
 
 ### Cache keys
 
-The default key is `` `${requestName}:${stableStringify(request)}` ``, where
+The default key is `` `${requestName}:${stableStringify(request)}` `` (prefixed with `` `${context.tenantId}:` `` when `context.tenantId` is defined), where
 `stableStringify` sorts object keys recursively so structurally equal payloads
 always map to the same entry. It accepts `null`, booleans, finite numbers,
 strings, arrays, record-like objects, and valid dates (converted to ISO strings).
@@ -240,9 +240,10 @@ the supported domain when needed.
 Cache hits return before the handler runs. If a handler performs entity-level
 authorization or response-field filtering after loading data, the cache key
 **must** include every security dimension that can change that result (for
-example tenant ID, principal ID, roles, or a permission-version token). The
-default key contains only the request type and payload; it is safe only for
-results that are identical across principals and tenants.
+example principal ID, roles, or a permission-version token). The default key
+contains the tenant ID (when present on the context), request type, and payload;
+it is safe across tenants, but custom key factories should be used for user-scoped
+or permission-scoped responses.
 
 ### Options resolution
 

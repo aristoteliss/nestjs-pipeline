@@ -1,4 +1,7 @@
-import type { IPipelineContext } from '@nestjs-pipeline/core';
+import {
+  type IPipelineContext,
+  PIPELINE_TENANT_ID,
+} from '@nestjs-pipeline/core';
 import { TenantSchemaContext } from '@persistence/tenant-schema.context';
 import { describe, expect, it } from 'vitest';
 import { createRoleIdempotencyKey } from '../../../roles/cqrs/commands/create-role.handler';
@@ -23,6 +26,18 @@ describe('create idempotency security scope', () => {
       expect(key('tenant_a', 'alice')).toContain(`tenant_a:alice:${kind}:`);
       expect(key('tenant_a', 'alice')).not.toBe(key('tenant_a', 'bob'));
       expect(key('tenant_a', 'alice')).not.toBe(key('tenant_b', 'alice'));
+
+      const explicitCtxKey = factory({
+        tenantId: 'tenant_explicit',
+        request: { ...payload, sessionUser: { id: 'alice' } },
+      } as unknown as IPipelineContext);
+      expect(explicitCtxKey).toContain(`tenant_explicit:alice:${kind}:`);
+
+      const itemCtxKey = factory({
+        items: new Map([[PIPELINE_TENANT_ID, 'tenant_item']]),
+        request: { ...payload, sessionUser: { id: 'alice' } },
+      } as unknown as IPipelineContext);
+      expect(itemCtxKey).toContain(`tenant_item:alice:${kind}:`);
     },
   );
 });

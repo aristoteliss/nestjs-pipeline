@@ -24,6 +24,7 @@ import { CaslBehavior } from '@nestjs-pipeline/casl';
 import {
   type IPipelineContext,
   LoggingBehavior,
+  PIPELINE_TENANT_ID,
   UsePipeline,
 } from '@nestjs-pipeline/core';
 import {
@@ -42,7 +43,11 @@ import { CreateUserCommand } from './create-user.command';
 
 export function createUserIdempotencyKey(ctx: IPipelineContext): string {
   const request = ctx.request as CreateUserCommand;
-  return `${TenantSchemaContext.currentSchema}:${request.sessionUser?.id ?? 'anonymous'}:user.create:${request.email}`;
+  const tenantId =
+    ctx.tenantId ??
+    (ctx.items?.get(PIPELINE_TENANT_ID) as string | undefined) ??
+    TenantSchemaContext.currentSchema;
+  return `${tenantId}:${request.sessionUser?.id ?? 'anonymous'}:user.create:${request.email}`;
 }
 
 @CommandHandler(CreateUserCommand)
@@ -60,22 +65,19 @@ export function createUserIdempotencyKey(ctx: IPipelineContext): string {
       rules: [{ action: APP_ACTIONS.CREATE, subject: APP_SUBJECTS.USER }],
     },
   ],
-  // Gate user registration behind the 'user-registration' feature flag. When
-  // disabled, this handler never runs and FeatureDisabledError is thrown.
   [FeatureFlagBehavior, { flag: 'user-registration' }],
-  // Throttle registrations per email to 5 / 60s (module default limiter). A 6th
-  // attempt throws RateLimitExceededError → HTTP 429 (see RateLimitExceededFilter).
   [
     RateLimitBehavior,
     {
-      keyFactory: (ctx: IPipelineContext) =>
-        `${TenantSchemaContext.currentSchema}:${(ctx.request as CreateUserCommand).email}`,
+      keyFactory: (ctx: IPipelineContext) => {
+        const tenantId =
+          ctx.tenantId ??
+          (ctx.items?.get(PIPELINE_TENANT_ID) as string | undefined) ??
+          TenantSchemaContext.currentSchema;
+        return `${tenantId}:${(ctx.request as CreateUserCommand).email}`;
+      },
     },
   ],
-  // Make registration idempotent per tenant, principal, and email: a retried POST
-  // with the same email replays the first response instead of creating a second
-  // user. Reusing the email with a DIFFERENT payload yields HTTP 422; a
-  // still-in-flight duplicate yields HTTP 409 (see IdempotencyConflictFilter).
   [
     IdempotencyBehavior,
     {

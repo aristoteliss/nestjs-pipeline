@@ -45,6 +45,14 @@ export interface IPipelineContext<TRequest = unknown, TResponse = unknown> {
    */
   readonly originalCorrelationId: string;
 
+  /**
+   * Active tenant identifier for multi-tenant pipeline executions.
+   *
+   * Populated before behavior execution via `PipelineModuleOptions.tenantIdFactory`,
+   * inherited from parent context, or mirrored from `context.items.get(PIPELINE_TENANT_ID)`.
+   */
+  readonly tenantId?: string;
+
   /** The command/query/event instance with all its property values. */
   readonly request: TRequest;
 

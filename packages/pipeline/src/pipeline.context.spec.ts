@@ -18,10 +18,12 @@
 
 import { describe, expect, it } from 'vitest';
 import {
+  PIPELINE_TENANT_ID,
   pipelineStore,
   SET_CORRELATION_ID,
   SET_ORIGINAL_CORRELATION_ID,
   SET_RESPONSE,
+  SET_TENANT_ID,
 } from './constants/pipeline-context.constants';
 import { PIPELINE_BEHAVIOR_ID } from './decorators/pipeline.decorator';
 import { PipelineHandlerMeta } from './interfaces/pipeline-handler-meta.interface';
@@ -132,6 +134,54 @@ describe('PipelineContext', () => {
     });
 
     expect(childCtx!.correlationId).toBe('');
+  });
+
+  it('tenantId defaults to undefined', () => {
+    const ctx = new PipelineContext(new FakeCommand('x'), buildMeta());
+    expect(ctx.tenantId).toBeUndefined();
+    expect(ctx.items.get(PIPELINE_TENANT_ID)).toBeUndefined();
+  });
+
+  it('sets tenantId via SET_TENANT_ID and syncs to items[PIPELINE_TENANT_ID]', () => {
+    const ctx = new PipelineContext(new FakeCommand('x'), buildMeta());
+    ctx[SET_TENANT_ID]('tenant-123');
+
+    expect(ctx.tenantId).toBe('tenant-123');
+    expect(ctx.items.get(PIPELINE_TENANT_ID)).toBe('tenant-123');
+    expect(() => {
+      (ctx as unknown as { tenantId: string }).tenantId = 'other';
+    }).toThrow();
+  });
+
+  it('inherits tenantId from parent pipeline store', () => {
+    const parentCtx = new PipelineContext(
+      new FakeCommand('parent'),
+      buildMeta(),
+    );
+    parentCtx[SET_TENANT_ID]('tenant-parent');
+
+    let childCtx: PipelineContext | undefined;
+    pipelineStore.run(parentCtx, () => {
+      childCtx = new PipelineContext(new FakeCommand('child'), buildMeta());
+    });
+
+    expect(childCtx!.tenantId).toBe('tenant-parent');
+    expect(childCtx!.items.get(PIPELINE_TENANT_ID)).toBe('tenant-parent');
+  });
+
+  it('does not set tenantId when parent tenantId is undefined', () => {
+    const parentCtx = new PipelineContext(
+      new FakeCommand('parent'),
+      buildMeta(),
+    );
+
+    let childCtx: PipelineContext | undefined;
+    pipelineStore.run(parentCtx, () => {
+      childCtx = new PipelineContext(new FakeCommand('child'), buildMeta());
+    });
+
+    expect(childCtx!.tenantId).toBeUndefined();
+    expect(childCtx!.items.get(PIPELINE_TENANT_ID)).toBeUndefined();
   });
 });
 

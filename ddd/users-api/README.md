@@ -291,7 +291,7 @@ Global and per-handler examples exercise:
 - `@nestjs-pipeline/idempotency` — atomic duplicate exclusion and replay
 - `@nestjs-pipeline/ddd-core` — entities, outcomes, events, and repository helpers
 
-The application also has its own tenant-aware DDD repository cache so user/role write invalidation has a single clear target.
+The application also has its own tenant-aware DDD repository cache so user/role write invalidation has a single clear target. In addition, `ObservabilityModule` configures `tenantIdFactory` so that the active tenant schema is explicitly conveyed through `IPipelineContext.tenantId`, allowing command handlers, rate limiters, and idempotency key factories to access the tenant cleanly from context without direct ambient coupling.
 
 ## Tests
 

@@ -125,4 +125,10 @@ describe('defaultCacheKey', () => {
 
     expect(a).not.toBe(b);
   });
+
+  it('prefixes with tenantId when present on context', () => {
+    const key = defaultCacheKey(makeContext({ tenantId: 'tenant_a' }));
+
+    expect(key).toBe('tenant_a:GetUserQuery:{"userId":"42"}');
+  });
 });

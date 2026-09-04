@@ -157,6 +157,8 @@ import { TraceBehavior } from '@nestjs-pipeline/opentelemetry';
       // Bridge correlation IDs from @nestjs-pipeline/correlation into the pipeline
       correlationIdFactory: getCorrelationId,
       correlationIdRunner: runWithCorrelationId,
+      // Eagerly resolve tenant ID per pipeline execution (optional)
+      // tenantIdFactory: () => TenantContext.currentTenant,
       globalBehaviors: {
         scope: 'all',                // 'commands' | 'queries' | 'events' | 'all'
         before: [
@@ -696,7 +698,7 @@ export class SyncScheduler {
 
 ### Nested Commands (Sagas)
 
-Sagas do **not** need `@UsePipeline`. Commands emitted by a saga flow through the `CommandBus` and hit the target handler's pipeline automatically. The child pipeline inherits the parent's `correlationId` via `AsyncLocalStorage`:
+Sagas do **not** need `@UsePipeline`. Commands emitted by a saga flow through the `CommandBus` and hit the target handler's pipeline automatically. The child pipeline inherits the parent's `correlationId` and `tenantId` via `AsyncLocalStorage`:
 
 ```typescript
 // Saga — no @UsePipeline needed
@@ -707,7 +709,7 @@ export class OrderSagas {
     events$.pipe(
       ofType(OrderCreatedEvent),
       map((event) => new SendOrderConfirmationCommand({ orderId: event.orderId })),
-      // ↑ This command inherits the correlationId from the parent pipeline context
+      // ↑ This command inherits correlationId & tenantId from the parent pipeline context
     );
 }
 ```
@@ -796,6 +798,7 @@ Every behavior receives `IPipelineContext`:
 |---|---|---|
 | `correlationId` | `string` | Immutable ID fixed before the behavior chain starts |
 | `originalCorrelationId` | `string` | Immutable snapshot of the initial correlation ID |
+| `tenantId` | `string \| undefined` | Active tenant identifier (inherited from parent context or resolved via `tenantIdFactory`) |
 | `request` | `TRequest` | The command / query / event instance |
 | `requestType` | `Type<TRequest>` | Class constructor (e.g. `CreateUserCommand`) |
 | `requestName` | `string` | Class name string (e.g. `"CreateUserCommand"`) |
@@ -804,7 +807,7 @@ Every behavior receives `IPipelineContext`:
 | `requestKind` | `'command' \| 'query' \| 'event' \| 'unknown'` | Auto-detected from `@nestjs/cqrs` metadata |
 | `startedAt` | `Date` | UTC timestamp of pipeline start |
 | `response` | `TResponse \| undefined` | Set after `next()` returns; `undefined` before handler runs |
-| `items` | `Map<string, unknown>` | Shared bag for inter-behavior communication |
+| `items` | `Map<string \| symbol, unknown>` | Shared bag for inter-behavior communication |
 
 ### Using `items` for Inter-Behavior Communication
 

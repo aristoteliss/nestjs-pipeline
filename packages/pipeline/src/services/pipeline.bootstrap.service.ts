@@ -34,6 +34,7 @@ import {
   SET_CORRELATION_ID,
   SET_ORIGINAL_CORRELATION_ID,
   SET_RESPONSE,
+  SET_TENANT_ID,
 } from '../constants/pipeline-context.constants';
 import {
   getBehaviorId,
@@ -299,6 +300,7 @@ export class PipelineBootstrapService implements OnApplicationBootstrap {
     const moduleRef = this.moduleRef;
     const correlationIdFactory = this.options?.correlationIdFactory;
     const correlationIdRunner = this.options?.correlationIdRunner;
+    const tenantIdFactory = this.options?.tenantIdFactory;
 
     // 3. Replace method — closure captures pre-resolved singleton behaviors and
     //    metadata. Dynamic behavior slots are resolved inside each invocation.
@@ -352,16 +354,18 @@ export class PipelineBootstrapService implements OnApplicationBootstrap {
         localBehaviors = singletonBehaviors;
       }
 
-      // Eagerly resolve correlationId BEFORE any behavior runs.
-      // Priority: parent context (saga) > correlationIdFactory > uuidv7()
       if (!context.correlationId) {
         context[SET_CORRELATION_ID](correlationIdFactory?.() ?? uuidv7());
       }
-
-      // Lock the original value — immutable from this point forward.
       context[SET_ORIGINAL_CORRELATION_ID](context.correlationId);
 
-      // Build chain: behavior[0] → behavior[1] → ... → originalMethod
+      if (!context.tenantId && tenantIdFactory) {
+        const resolvedTenantId = tenantIdFactory();
+        if (resolvedTenantId !== undefined) {
+          context[SET_TENANT_ID](resolvedTenantId);
+        }
+      }
+
       // biome-ignore lint/complexity/noUselessThisAlias: Use `this` so the correct instance is called for both singletons (captured instance === this) and scoped handlers (per-request instance).
       const self = this;
       let chain: NextDelegate = async () => {

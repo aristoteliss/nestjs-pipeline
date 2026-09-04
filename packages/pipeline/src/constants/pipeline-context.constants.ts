@@ -55,3 +55,23 @@ export const SET_CORRELATION_ID: unique symbol = Symbol(
 export const SET_ORIGINAL_CORRELATION_ID: unique symbol = Symbol(
   'PipelineContext.setOriginalCorrelationId',
 );
+
+/**
+ * Symbol-keyed setter for `tenantId`. Only code that imports this symbol
+ * can write to `context.tenantId`.
+ *
+ * @internal — used exclusively by {@link PipelineBootstrapService}.
+ */
+export const SET_TENANT_ID: unique symbol = Symbol(
+  'PipelineContext.setTenantId',
+);
+
+/**
+ * Unique symbol key used on `context.items` for explicit tenant ID storage.
+ *
+ * @example
+ * ```ts
+ * const tenantId = context.items.get(PIPELINE_TENANT_ID) as string | undefined;
+ * ```
+ */
+export const PIPELINE_TENANT_ID: unique symbol = Symbol('PIPELINE_TENANT_ID');
