@@ -26,6 +26,11 @@ import { UserDeletedEvent } from '../events/user-deleted.event';
 import { UserUpdatedEvent } from '../events/user-updated.event';
 import { UserCreateOutcome } from '../outcomes/user-create.outcome';
 import { UserUpdateOutcome } from '../outcomes/user-update.outcome';
+import {
+  EmptyUserUpdateException,
+  InvalidDepartmentException,
+  InvalidUsernameException,
+} from './errors';
 
 export interface UserSnapshot extends Partial<RootEntitySnapshot> {
   readonly username: string;
@@ -55,16 +60,8 @@ export class User extends CacheableEntity<UserSnapshot, User> {
 
   private constructor(snapshot: UserSnapshot) {
     super(User, snapshot);
-    this._username = User.normalizeWithMinLength(
-      snapshot,
-      'username',
-      USERNAME_MIN_LENGTH,
-    );
-    this._department = User.normalizeOptionalWithMinLength(
-      snapshot,
-      'department',
-      DEPARTMENT_MIN_LENGTH,
-    );
+    this._username = User.normalizeUsername(snapshot.username);
+    this._department = User.normalizeDepartment(snapshot.department);
     this.email = snapshot.email;
   }
 
@@ -74,16 +71,8 @@ export class User extends CacheableEntity<UserSnapshot, User> {
     department?: string | null,
   ): UserCreateOutcome {
     const user = new User({
-      username: User.normalizeWithMinLength(
-        { username },
-        'username',
-        USERNAME_MIN_LENGTH,
-      ),
-      department: User.normalizeOptionalWithMinLength(
-        { department },
-        'department',
-        DEPARTMENT_MIN_LENGTH,
-      ),
+      username: User.normalizeUsername(username),
+      department: User.normalizeDepartment(department),
       email,
     });
 
@@ -95,54 +84,34 @@ export class User extends CacheableEntity<UserSnapshot, User> {
   static fromJSON(snapshot: UserSnapshot): User {
     return new User({
       id: User.normalizeId(snapshot.id),
-      username: User.normalizeWithMinLength(
-        snapshot,
-        'username',
-        USERNAME_MIN_LENGTH,
-      ),
+      username: User.normalizeUsername(snapshot.username),
       email: snapshot.email,
-      department: User.normalizeOptionalWithMinLength(
-        snapshot,
-        'department',
-        DEPARTMENT_MIN_LENGTH,
-      ),
+      department: User.normalizeDepartment(snapshot.department),
       createdAt: User.normalizeDate(snapshot.createdAt),
       updatedAt: User.normalizeDate(snapshot.updatedAt),
     });
   }
 
-  private static normalizeWithMinLength<T extends object>(
-    obj: T,
-    key: keyof T,
-    minLength: number,
-  ): string {
-    const text = obj[key] as string;
-    const trimmed = text?.trim();
-    if (!trimmed || trimmed.length < minLength) {
-      throw new Error(
-        `${String(key)} must be at least ${minLength} characters.`,
-      );
+  private static normalizeUsername(username: string): string {
+    const trimmed = username?.trim();
+    if (!trimmed || trimmed.length < USERNAME_MIN_LENGTH) {
+      throw new InvalidUsernameException(USERNAME_MIN_LENGTH, username);
     }
     return trimmed;
   }
 
-  private static normalizeOptionalWithMinLength<T extends object>(
-    obj: T,
-    key: keyof T,
-    minLength: number,
+  private static normalizeDepartment(
+    department?: string | null,
   ): string | null {
-    const text = obj[key] as string | null | undefined;
-    if (text === null || text === undefined) {
+    if (department === null || department === undefined) {
       return null;
     }
-    const trimmed = text.trim();
+    const trimmed = department.trim();
     if (trimmed.length === 0) {
       return null;
     }
-    if (trimmed.length < minLength) {
-      throw new Error(
-        `${String(key)} must be at least ${minLength} characters.`,
-      );
+    if (trimmed.length < DEPARTMENT_MIN_LENGTH) {
+      throw new InvalidDepartmentException(DEPARTMENT_MIN_LENGTH, department);
     }
     return trimmed;
   }
@@ -161,21 +130,13 @@ export class User extends CacheableEntity<UserSnapshot, User> {
     department?: string | null;
   }): UserUpdateOutcome {
     if (fields.username === undefined && fields.department === undefined) {
-      throw new Error('At least one user field must be supplied for update.');
+      throw new EmptyUserUpdateException();
     }
     if (fields.username !== undefined && fields.username !== null) {
-      this._username = User.normalizeWithMinLength(
-        { username: fields.username },
-        'username',
-        USERNAME_MIN_LENGTH,
-      );
+      this._username = User.normalizeUsername(fields.username);
     }
     if (fields.department !== undefined) {
-      this._department = User.normalizeOptionalWithMinLength(
-        { department: fields.department },
-        'department',
-        DEPARTMENT_MIN_LENGTH,
-      );
+      this._department = User.normalizeDepartment(fields.department);
     }
     return new UserUpdateOutcome(this, [new UserUpdatedEvent(this)]);
   }
