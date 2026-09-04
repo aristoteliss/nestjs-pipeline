@@ -37,11 +37,11 @@
     ],
     "peerDependencyRules": {
       "ignoreMissing": [
-        "*"
-      ],
-      "allowedVersions": {
-        "*": "*"
-      }
+        "@keyv/memcache",
+        "@keyv/postgres",
+        "@keyv/redis",
+        "@keyv/sqlite"
+      ]
     }
   },
   "overrides": {

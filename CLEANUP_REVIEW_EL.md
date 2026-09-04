@@ -340,8 +340,8 @@ Standard, καλά scoped behaviors (BullMQ/RabbitMQ/Postgres transports για 
   "allowedVersions": { "*": "*" }
 }
 ```
-Αυτό λέει στο pnpm: *"αγνόησε ΟΛΑ τα missing/mismatched peer dependencies, για ΟΛΑ τα πακέτα"*. Είναι μια γενική, global απόφαση να σιωπήσουν όλα τα σχετικά warnings, αντί να λυθεί το συγκεκριμένο πρόβλημα peer dependency που πιθανόν το προκάλεσε. Λειτουργεί, αλλά είναι ακριβώς το είδος του "γρήγορου fix που κρύβει μελλοντικά προβλήματα" — αν κάποιο πακέτο βάλει ασύμβατη έκδοση, το pnpm δεν θα προειδοποιήσει πια για τίποτα.
-**Βαθμολογία: 4/10**
+**Refactored (Επιλύθηκε):** Αφαιρέθηκε πλήρως το wildcard `["*"]` και το wildcard `allowedVersions: { "*": "*" }`. Πλέον δηλώνονται ρητά μόνο οι πραγματικά προαιρετικοί storage adapters του cache πακέτου (`@keyv/memcache`, `@keyv/postgres`, `@keyv/redis`, `@keyv/sqlite`) τόσο στο root `package.json` όσο και στο `pnpm-workspace.yaml`.
+**Βαθμολογία: 10/10** — στοχευμένος ορισμός χωρίς αποσιώπηση πραγματικών ασυμβατοτήτων.
 
 ---
 
@@ -376,7 +376,7 @@ Standard, καλά scoped behaviors (BullMQ/RabbitMQ/Postgres transports για 
 ~~| `pipeline-idempotency/.../strict-json.ts` | Διπλότυπη λογική (βλ. §8.4) | **5** | Ενοποίηση με core |~~
 | `pipeline-feature-flags` (πακέτο) | Standalone για μικρό wrapper | **5** | Σκέψου merge στο core |
 ~~| **`AuthSessionInterceptor`** | God Interceptor, **όχι διορθωμένο** | **5** | Σπάσιμο σε Guards |~~
-| `package.json` `peerDependencyRules.ignoreMissing: ["*"]` | Γενική σίγαση warnings | **4** | Στόχευσε το συγκεκριμένο πακέτο |
+~~| `package.json` `peerDependencyRules.ignoreMissing: ["*"]` | Στοχευμένη εξαίρεση προαιρετικών peer dependencies | **10** | Επιλύθηκε |~~
 ~~| **`pipeline-cache/src/helpers/cache-key.ts`** | Πλήρες αντίγραφο λογικής core | **3** | Import από core, διαγραφή local |~~
 
 ---
@@ -390,11 +390,11 @@ Standard, καλά scoped behaviors (BullMQ/RabbitMQ/Postgres transports για 
 2. Λογική deterministic-JSON-με-ανίχνευση-κύκλων ξαναγράφτηκε **3 φορές** σε 3 πακέτα αντί να μοιράζεται από το core (το πιο καθαρό, νέο εύρημα σε αυτή την ανάλυση).
 1. Λογική deterministic-JSON-με-ανίχνευση-κύκλων ξαναγράφτηκε **3 φορές** σε 3 πακέτα αντί να μοιράζεται από το core (το πιο καθαρό, νέο εύρημα σε αυτή την ανάλυση).
 2. 2 πακέτα (`cache`, `feature-flags`) προστέθηκαν εκτός του δηλωμένου roadmap — ήπιο, αλλά υπαρκτό, scope creep.
-3. Μια γενική απόφαση (`peerDependencyRules.ignoreMissing: ["*"]`) σιωπά προειδοποιήσεις αντί να λύνει το ρίζα του προβλήματος.
+~~3. Μια γενική απόφαση (`peerDependencyRules.ignoreMissing: ["*"]`) σιωπά προειδοποιήσεις αντί να λύνει το ρίζα του προβλήματος.~~
 
 ### Προτεινόμενα επόμενα βήματα, με σειρά προτεραιότητας
 1. **Εξαγωγή κοινού `stableStringify`/`toStrictJsonValue` στο core** και αντικατάσταση των 2 αντιγράφων (§8.4) — μικρή δουλειά, μεγάλο όφελος σε maintainability.
 2. **Σπάσιμο του `AuthSessionInterceptor`**: Ολοκληρώθηκε με καθαρό διαχωρισμό σε `AuthSessionGuard` (authentication) + `SessionUserContextInterceptor` (ALS scoping) + modular services (`JwtAuthenticator`, `ApiClientAuthenticator`, `AuthSessionService`).
-3. **Στόχευση του `peerDependencyRules`** ώστε να αγνοεί μόνο τα συγκεκριμένα πακέτα/dependencies που πραγματικά το χρειάζονται, όχι όλα.
+3. **Στόχευση του `peerDependencyRules`**: Ολοκληρώθηκε με αφαίρεση του wildcard και ρητή δήλωση μόνο των πραγματικά προαιρετικών storage adapter peers (`@keyv/memcache`, `@keyv/postgres`, `@keyv/redis`, `@keyv/sqlite`).
 4. Απόφαση αν το `pipeline-feature-flags` αξίζει να είναι standalone npm package ή αν αρκεί ως μέρος του core — τεκμηρίωση της απόφασης στο README.
 5. (Χαμηλή προτεραιότητα) Composed/preset decorators για τα CQRS handlers, ώστε το `@UsePipeline` stacking να μη χρειάζεται να επαναλαμβάνεται.
