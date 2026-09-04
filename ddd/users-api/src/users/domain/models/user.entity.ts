@@ -65,6 +65,24 @@ export class User extends CacheableEntity<UserSnapshot, User> {
     this.email = snapshot.email;
   }
 
+  /**
+   * Factory method to create a new User aggregate.
+   *
+   * Enforces business invariants on username and department, and records a {@link UserCreatedEvent}.
+   *
+   * @param username - Unique user display name (minimum 3 non-whitespace characters).
+   * @param email - User's email address.
+   * @param department - Optional department assignment (minimum 3 characters if provided).
+   * @returns A {@link UserCreateOutcome} containing the new User entity and initial domain events.
+   * @throws {InvalidUsernameException} If the username is empty, whitespace, or fewer than 3 characters.
+   * @throws {InvalidDepartmentException} If the department is provided but fewer than 3 characters.
+   *
+   * @example
+   * ```ts
+   * const outcome = User.create('john_doe', 'john@example.com', 'Engineering');
+   * const user = outcome.entity;
+   * ```
+   */
   static create(
     username: string,
     email: string,
@@ -81,6 +99,19 @@ export class User extends CacheableEntity<UserSnapshot, User> {
     return new UserCreateOutcome(user, events);
   }
 
+  /**
+   * Reconstitutes an existing User entity from a persisted snapshot.
+   *
+   * @param snapshot - Persisted entity state snapshot.
+   * @returns Rehydrated User aggregate instance.
+   * @throws {InvalidUsernameException} If the snapshot username violates domain invariants.
+   * @throws {InvalidDepartmentException} If the snapshot department violates domain invariants.
+   *
+   * @example
+   * ```ts
+   * const user = User.fromJSON(storedSnapshot);
+   * ```
+   */
   static fromJSON(snapshot: UserSnapshot): User {
     return new User({
       id: User.normalizeId(snapshot.id),
@@ -92,6 +123,13 @@ export class User extends CacheableEntity<UserSnapshot, User> {
     });
   }
 
+  /**
+   * Validates and trims the username invariant.
+   *
+   * @param username - Raw username input.
+   * @returns Trimmed valid username.
+   * @throws {InvalidUsernameException} When username is missing or shorter than minimum allowed length.
+   */
   private static normalizeUsername(username: string): string {
     const trimmed = username?.trim();
     if (!trimmed || trimmed.length < USERNAME_MIN_LENGTH) {
@@ -100,6 +138,13 @@ export class User extends CacheableEntity<UserSnapshot, User> {
     return trimmed;
   }
 
+  /**
+   * Validates and trims the optional department invariant.
+   *
+   * @param department - Raw department input.
+   * @returns Trimmed valid department, or null if empty/omitted.
+   * @throws {InvalidDepartmentException} When department is provided but shorter than minimum length.
+   */
   private static normalizeDepartment(
     department?: string | null,
   ): string | null {
@@ -116,14 +161,30 @@ export class User extends CacheableEntity<UserSnapshot, User> {
     return trimmed;
   }
 
+  /** Gets the normalized username. */
   get username(): string {
     return this._username;
   }
 
+  /** Gets the normalized department, or null if unassigned. */
   get department(): string | null {
     return this._department;
   }
 
+  /**
+   * Updates mutable user fields and records a {@link UserUpdatedEvent}.
+   *
+   * @param fields - Object containing fields to update (`username` and/or `department`).
+   * @returns A {@link UserUpdateOutcome} containing the mutated User entity and updated domain event.
+   * @throws {EmptyUserUpdateException} When no updatable fields are provided.
+   * @throws {InvalidUsernameException} When the new username violates validation rules.
+   * @throws {InvalidDepartmentException} When the new department violates validation rules.
+   *
+   * @example
+   * ```ts
+   * const outcome = user.update({ department: 'Marketing' });
+   * ```
+   */
   @Mutate()
   update(fields: {
     username?: string | null;
@@ -141,11 +202,26 @@ export class User extends CacheableEntity<UserSnapshot, User> {
     return new UserUpdateOutcome(this, [new UserUpdatedEvent(this)]);
   }
 
+  /**
+   * Marks the user as deleted and records a {@link UserDeletedEvent}.
+   *
+   * @returns A {@link UserUpdateOutcome} containing the entity and deletion domain event.
+   *
+   * @example
+   * ```ts
+   * const outcome = user.delete();
+   * ```
+   */
   @Mutate()
   delete(): UserUpdateOutcome {
     return new UserUpdateOutcome(this, [new UserDeletedEvent(this)]);
   }
 
+  /**
+   * Serializes the entity state into a frozen plain object snapshot.
+   *
+   * @returns Immutable snapshot of all entity fields.
+   */
   toJSON(): RootEntitySnapshot & UserSnapshot {
     return this.freezeState({
       id: this.id,
@@ -157,6 +233,7 @@ export class User extends CacheableEntity<UserSnapshot, User> {
     });
   }
 
+  /** Lifecycle hook invoked after mutation. */
   afterUpdate(): void {
     // No side effects needed on update for User, but this method must be implemented
   }

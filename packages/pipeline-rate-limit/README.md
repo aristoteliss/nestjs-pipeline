@@ -253,7 +253,8 @@ plain `Error`** when the backing store itself fails (e.g. Redis unreachable). Th
 | `RateLimitModuleOptions` / `RateLimitModuleAsyncOptions` | Interface | Module registration options |
 | `buildRateLimitKey` | Function | Resolves the bucket key from a context + options |
 | `RATE_LIMITER` / `RATE_LIMIT_DEFAULT_OPTIONS` | Token | Injection tokens |
-| `RATE_LIMIT_ITEM` / `RATE_LIMIT_KEY_ITEM` | Const | `context.items` keys set per request |
+| `RATE_LIMIT_ITEM` / `RATE_LIMIT_KEY_ITEM` | Symbol | `context.items` exported unique Symbol keys set per request |
+
 
 ---
 

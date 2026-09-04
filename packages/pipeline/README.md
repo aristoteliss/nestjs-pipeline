@@ -272,7 +272,7 @@ Every behavior receives `IPipelineContext`:
 | `requestKind` | `'command' \| 'query' \| 'event' \| 'unknown'` | Auto-detected from `@nestjs/cqrs` metadata |
 | `startedAt` | `Date` | UTC timestamp of pipeline start |
 | `response` | `TResponse \| undefined` | Set after `next()` returns; `undefined` before the handler runs |
-| `items` | `Map<string, unknown>` | Shared bag for inter-behavior communication |
+| `items` | `Map<string \| symbol, unknown>` | Shared bag for inter-behavior communication |
 
 ### Behavior Options
 
@@ -301,24 +301,31 @@ properties are not shallow-merged.
 
 ### Inter-Behavior Communication
 
-Use `context.items` to pass data between behaviors in the same pipeline execution:
+Use `context.items` to pass data between behaviors in the same pipeline execution.
+
+> [!TIP]
+> **Avoid Magic Strings:** Use exported `unique symbol` constants rather than raw string keys. Symbols prevent accidental key collisions between distinct packages, libraries, or customized behaviors.
 
 ```typescript
+// Define a shared symbol token in your package or tokens file
+export const CURRENT_USER_ID_ITEM = Symbol('CURRENT_USER_ID_ITEM');
+
 // AuthBehavior (runs first)
 async handle(context: IPipelineContext, next: NextDelegate): Promise<any> {
   const userId = await this.authService.getCurrentUserId();
-  context.items.set('currentUserId', userId);
+  context.items.set(CURRENT_USER_ID_ITEM, userId);
   return next();
 }
 
 // AuditBehavior (runs later in the chain)
 async handle(context: IPipelineContext, next: NextDelegate): Promise<any> {
   const result = await next();
-  const userId = context.items.get('currentUserId');
+  const userId = context.items.get(CURRENT_USER_ID_ITEM);
   await this.auditService.log({ userId, action: context.requestName });
   return result;
 }
 ```
+
 
 ---
 
@@ -774,6 +781,11 @@ orderCreated = (events$: Observable<any>): Observable<ICommand> =>
 | `PipelineHandlerMeta` | Interface | Pre-computed handler metadata |
 | `PIPELINE_BEHAVIOR_ID` | Symbol | Custom deduplication key for behaviors |
 | `PipelineBehaviorEntry` | Type | `Type \| [Type, Record<string, unknown>]` |
+| `stableStringify` | Function | Deterministic JSON serialization with sorted keys and cycle detection |
+| `toStrictJsonValue` | Function | Normalizes arbitrary values into strictly typed JSON domain |
+| `StrictJsonValue` | Type | Strict JSON-compatible recursive type definition |
+| `safeSanitize` | Function | Deeply redacts sensitive keys and strips unsupported types |
+
 
 **`PipelineModuleOptions` fields:**
 

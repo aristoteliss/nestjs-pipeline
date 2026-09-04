@@ -101,9 +101,10 @@ A per-handler `prebuiltAbility` bypasses provider-based ability construction.
 
 Injection tokens: `CASL_ROLE_PROVIDER`, `CASL_USER_CONTEXT_RESOLVER`,
 `CASL_USER_CAPABILITY_PROVIDER`, `CASL_SUBJECT_CONTEXT_PATHS`,
-`CASL_FIELDS_FROM_REQUEST`, `CASL_BEHAVIOR_LOGGER`, `ENTITY_AUTHORIZER`. Plus two string keys for the
-items bag: `CASL_USER_CONTEXT_KEY` (`'casl:user'`, the input user context) and
-`CASL_ABILITY_KEY` (`'casl:ability'`, the stored output ability).
+`CASL_FIELDS_FROM_REQUEST`, `CASL_BEHAVIOR_LOGGER`, `ENTITY_AUTHORIZER`. Plus two unique `Symbol` keys for the
+items bag: `CASL_USER_CONTEXT_KEY` (the input user context) and
+`CASL_ABILITY_KEY` (the stored output ability).
+
 
 Types: `Capability`, `CapabilityString`, `RoleDefinition`, `UserCapabilities`,
 `CaslUserContext`, `AbilityRequirement`, and the CASL aliases `AppAbility`

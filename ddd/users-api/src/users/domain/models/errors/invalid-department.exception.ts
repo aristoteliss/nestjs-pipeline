@@ -21,11 +21,28 @@ import { BadRequestException } from '@nestjs/common/exceptions';
 /**
  * Domain exception thrown when a user's department violates business constraints
  * (e.g. non-empty but shorter than the required minimum length).
+ *
+ * Extends NestJS {@link BadRequestException} to ensure standard HTTP 400 responses
+ * while maintaining domain model integrity.
+ *
+ * @example
+ * ```ts
+ * if (department.length < 3) {
+ *   throw new InvalidDepartmentException(3, department);
+ * }
+ * ```
  */
 export class InvalidDepartmentException extends BadRequestException {
   readonly minLength: number;
   readonly actualValue?: string | null;
 
+  /**
+   * Creates a new {@link InvalidDepartmentException}.
+   *
+   * @param minLength - Minimum character length constraint (default: 3).
+   * @param actualValue - The invalid department string that caused the failure.
+   * @param message - Optional custom error message override.
+   */
   constructor(minLength = 3, actualValue?: string | null, message?: string) {
     const msg =
       message ?? `department must be at least ${minLength} characters.`;

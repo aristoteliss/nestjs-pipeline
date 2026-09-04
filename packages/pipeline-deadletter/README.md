@@ -291,7 +291,8 @@ happen first; only the final failure reaches the dead-letter capture attempt.
 | `createDeadLetterTableSql` | Function | `CREATE TABLE` DDL for the Postgres transport |
 | `buildDeadLetterRecord` | Function | Builds a record from a context + error |
 | `DEAD_LETTER_TRANSPORT` / `DEAD_LETTER_DEFAULT_OPTIONS` | Token | Injection tokens |
-| `DEAD_LETTER_ITEM` | Const | `context.items` key set after the capture attempt |
+| `DEAD_LETTER_ITEM` | Symbol | `context.items` exported unique Symbol key set after the capture attempt |
+
 
 ---
 

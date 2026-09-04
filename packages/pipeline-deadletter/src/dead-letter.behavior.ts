@@ -37,8 +37,16 @@ import { buildDeadLetterRecord } from './helpers/build-record';
 import type { DeadLetterBehaviorOptions } from './interfaces/dead-letter-options.interface';
 import type { DeadLetterTransport } from './interfaces/dead-letter-transport.interface';
 
-/** Item key set to whether the selected dead-letter transport delivery succeeded. */
-export const DEAD_LETTER_ITEM = 'dead-letter.captured';
+/**
+ * Unique symbol key set on `context.items` to `true` or `false` recording whether
+ * delivery to the dead-letter transport succeeded.
+ *
+ * @example
+ * ```ts
+ * const delivered = context.items.get(DEAD_LETTER_ITEM) === true;
+ * ```
+ */
+export const DEAD_LETTER_ITEM = Symbol('DEAD_LETTER_ITEM');
 
 /**
  * Pipeline behavior that forwards **failed** requests to a dead-letter sink.

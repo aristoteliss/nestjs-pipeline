@@ -170,7 +170,20 @@ All commands and queries in `users-api` are strongly-typed, self-validating, and
   - Generated classes expose `['~standard']`, allowing them to be passed directly to NestJS 12 `@Body({ schema: CommandClass })` validation pipes.
   - Static `parse()` and `safeParse()` methods are available directly on each command and query.
 
+### Domain Models & Typed Exceptions
+
+The `User` aggregate entity follows strict Domain-Driven Design (DDD) encapsulation, inheriting identity and lifecycle behavior from `CacheableEntity` (`@nestjs-pipeline/ddd-core`):
+
+- **Encapsulated Invariant Enforcement**: All entity state is private; modifications occur solely through factory and domain mutation methods (`User.create()`, `user.update()`, `user.delete()`). Invariants for `username` (minimum 3 characters, trimmed) and `department` (trimmed, minimum 3 characters when provided) are checked synchronously upon instantiation and update.
+- **Typed Domain Exception Taxonomy**: Generic `new Error` throws have been completely eliminated in favor of dedicated, strongly-typed domain exceptions extending NestJS `BadRequestException` (`@users/domain/models/errors`):
+  - `InvalidUsernameException`: Thrown when a username is empty, whitespace-only, or fewer than 3 characters. Records `minLength` and the offending `actualValue`.
+  - `InvalidDepartmentException`: Thrown when a department string is provided but shorter than 3 characters.
+  - `EmptyUserUpdateException`: Thrown when an update payload contains neither a new `username` nor a `department`.
+  - `UniqueEmailException`: Thrown when an email collision is detected within the active tenant during entity persistence.
+- **Clean HTTP Serialization**: Because domain exceptions extend `BadRequestException`, NestJS exception filters automatically serialize them into standard HTTP 400 Bad Request JSON responses with descriptive error messages, maintaining clean architectural boundaries.
+
 ---
+
 
 ### Practical Examples
 

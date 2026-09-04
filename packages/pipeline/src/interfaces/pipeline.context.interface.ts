@@ -73,8 +73,20 @@ export interface IPipelineContext<TRequest = unknown, TResponse = unknown> {
    */
   readonly response: TResponse | undefined;
 
-  /** Bag for sharing arbitrary data between behaviors in the same execution. */
-  readonly items: Map<string, unknown>;
+  /**
+   * Bag for sharing arbitrary data between behaviors in the same execution.
+   *
+   * Keys can be strings or exported `unique symbol` constants. Exported symbols
+   * are strongly recommended to prevent collision between behaviors or third-party packages.
+   *
+   * @example
+   * ```ts
+   * export const MY_ITEM = Symbol('MY_ITEM');
+   * context.items.set(MY_ITEM, customData);
+   * const val = context.items.get(MY_ITEM);
+   * ```
+   */
+  readonly items: Map<string | symbol, unknown>;
 
   /**
    * Retrieve options passed to a specific behavior via @UsePipeline([Behavior, opts]).

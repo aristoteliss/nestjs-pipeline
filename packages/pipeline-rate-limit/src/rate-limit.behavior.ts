@@ -38,10 +38,25 @@ import type {
   RateLimiterResLike,
 } from './interfaces/rate-limiter.interface';
 
-/** Item key set on the pipeline context with the result of a rate-limit check. */
-export const RATE_LIMIT_ITEM = 'rate-limit.result';
-/** Item key set on the pipeline context with the resolved bucket key. */
-export const RATE_LIMIT_KEY_ITEM = 'rate-limit.key';
+/**
+ * Unique symbol key set on `context.items` containing the result of a rate-limit check (or rejection payload).
+ *
+ * @example
+ * ```ts
+ * const result = context.items.get(RATE_LIMIT_ITEM);
+ * ```
+ */
+export const RATE_LIMIT_ITEM = Symbol('RATE_LIMIT_ITEM');
+
+/**
+ * Unique symbol key set on `context.items` containing the resolved rate limit bucket key string.
+ *
+ * @example
+ * ```ts
+ * const key = context.items.get(RATE_LIMIT_KEY_ITEM) as string | undefined;
+ * ```
+ */
+export const RATE_LIMIT_KEY_ITEM = Symbol('RATE_LIMIT_KEY_ITEM');
 
 /** Whether a rejection value is a `rate-limiter-flexible` result (a limit hit). */
 function isRateLimiterRes(value: unknown): value is RateLimiterResLike {

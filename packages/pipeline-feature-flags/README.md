@@ -275,7 +275,8 @@ export class AppModule {}
 | `FEATURE_FLAGS_CLIENT` | Token | OpenFeature `Client` provider |
 | `FEATURE_FLAGS_DEFAULT_OPTIONS` | Token | Module-wide default behavior options |
 | `FEATURE_FLAGS_DEFAULT_CONTEXT` | Token | Module-wide default evaluation context |
-| `FEATURE_FLAG_ITEM` / `FEATURE_FLAG_KEY_ITEM` | Const | `context.items` keys for the resolved value / key |
+| `FEATURE_FLAG_ITEM` / `FEATURE_FLAG_KEY_ITEM` | Symbol | `context.items` exported unique Symbol keys for the resolved value / key |
+
 
 ---
 

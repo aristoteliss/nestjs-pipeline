@@ -21,11 +21,28 @@ import { BadRequestException } from '@nestjs/common/exceptions';
 /**
  * Domain exception thrown when a user's username violates business constraints
  * (e.g. empty, whitespace-only, or shorter than the required minimum length).
+ *
+ * Extends NestJS {@link BadRequestException} to ensure standard HTTP 400 responses
+ * while maintaining domain model integrity.
+ *
+ * @example
+ * ```ts
+ * if (username.length < 3) {
+ *   throw new InvalidUsernameException(3, username);
+ * }
+ * ```
  */
 export class InvalidUsernameException extends BadRequestException {
   readonly minLength: number;
   readonly actualValue?: string | null;
 
+  /**
+   * Creates a new {@link InvalidUsernameException}.
+   *
+   * @param minLength - Minimum character length constraint (default: 3).
+   * @param actualValue - The invalid username string that caused the failure.
+   * @param message - Optional custom error message override.
+   */
   constructor(minLength = 3, actualValue?: string | null, message?: string) {
     const msg = message ?? `username must be at least ${minLength} characters.`;
     super(msg);

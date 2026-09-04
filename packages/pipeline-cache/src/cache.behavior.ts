@@ -34,10 +34,25 @@ import { CACHE_DEFAULT_OPTIONS, PIPELINE_CACHE } from './constants/tokens';
 import { defaultCacheKey } from './helpers/cache-key';
 import type { CacheBehaviorOptions } from './interfaces/cache-options.interface';
 
-/** Item key set on the pipeline context recording whether the request hit the cache. */
-export const CACHE_HIT_ITEM = 'cache.hit';
-/** Item key set on the pipeline context recording the resolved cache key. */
-export const CACHE_KEY_ITEM = 'cache.key';
+/**
+ * Unique symbol key set on `context.items` recording whether the request was served from cache (`true` on hit).
+ *
+ * @example
+ * ```ts
+ * const isHit = context.items.get(CACHE_HIT_ITEM) === true;
+ * ```
+ */
+export const CACHE_HIT_ITEM = Symbol('CACHE_HIT_ITEM');
+
+/**
+ * Unique symbol key set on `context.items` recording the resolved cache key string.
+ *
+ * @example
+ * ```ts
+ * const key = context.items.get(CACHE_KEY_ITEM) as string | undefined;
+ * ```
+ */
+export const CACHE_KEY_ITEM = Symbol('CACHE_KEY_ITEM');
 
 const DEFAULT_KINDS: Array<IPipelineContext['requestKind']> = ['query'];
 

@@ -256,12 +256,13 @@ Effective options for a handler are resolved as:
 
 The behavior records diagnostics on `context.items`:
 
-| Item key | Type | Meaning |
-| -------- | ---- | ------- |
-| `cache.hit` | `boolean` | Whether the request was served from cache. |
-| `cache.key` | `string` | The resolved cache key. |
+| Item Token | Type | Meaning |
+| ---------- | ---- | ------- |
+| `CACHE_HIT_ITEM` | `boolean` | Whether the request was served from cache. |
+| `CACHE_KEY_ITEM` | `string` | The resolved cache key. |
 
-Exported as `CACHE_HIT_ITEM` and `CACHE_KEY_ITEM`.
+Exported as unique `Symbol` constants (`CACHE_HIT_ITEM` and `CACHE_KEY_ITEM`) to prevent key collisions in `context.items`.
+
 
 ---
 

@@ -20,13 +20,15 @@ import { AsyncLocalStorage } from 'node:async_hooks';
 import { pipelineStore } from '@nestjs-pipeline/core';
 
 /**
- * Legacy pipeline-context item for an abort signal.
+ * Legacy pipeline-context symbol key for an abort signal.
  *
  * @deprecated Use {@link getResilienceAbortSignal}. A pipeline context is shared
  * by overlapping aggressive-timeout attempts, so an item on it cannot identify
  * the calling attempt reliably.
  */
-export const RESILIENCE_ABORT_SIGNAL_ITEM = 'resilience.abortSignal';
+export const RESILIENCE_ABORT_SIGNAL_ITEM = Symbol(
+  'RESILIENCE_ABORT_SIGNAL_ITEM',
+);
 
 const resilienceAttemptStore = new AsyncLocalStorage<AbortSignal>();
 
@@ -45,6 +47,12 @@ export function runWithResilienceAbortSignal<T>(
  * This is primarily useful with cooperative timeouts: pass the signal to APIs
  * that support cancellation (fetch, database clients, SDK calls, etc.) so the
  * work can stop when Cockatiel requests cancellation.
+ *
+ * @example
+ * ```ts
+ * const signal = getResilienceAbortSignal();
+ * const response = await fetch('https://api.example.com/data', { signal });
+ * ```
  */
 export function getResilienceAbortSignal(): AbortSignal | undefined {
   return (

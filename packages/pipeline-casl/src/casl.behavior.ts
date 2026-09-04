@@ -515,7 +515,7 @@ export class CaslBehavior implements IPipelineBehavior {
       if (!user && requirements && requirements.length > 0) {
         this.logger.warn?.(
           'Authorization required but no user context found. ' +
-            `Set "${CASL_USER_CONTEXT_KEY}" in context.items or provide a CASL_USER_CONTEXT_RESOLVER.`,
+            `Set "${CASL_USER_CONTEXT_KEY.toString()}" in context.items or provide a CASL_USER_CONTEXT_RESOLVER.`,
         );
         throw new ForbiddenException(
           'Access denied — authentication required.',

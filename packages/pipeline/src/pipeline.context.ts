@@ -83,7 +83,11 @@ export abstract class BasePipelineContext<
   abstract readonly requestKind: 'command' | 'query' | 'event' | 'unknown';
 
   readonly startedAt: Date;
-  readonly items: Map<string, unknown>;
+  /**
+   * Bag for sharing arbitrary data between behaviors in the same execution.
+   * Supports string and unique symbol keys.
+   */
+  readonly items: Map<string | symbol, unknown>;
 
   /** Backing field for `response` — only writable via `[SET_RESPONSE]()`. */
   private _response: TResponse | undefined = undefined;

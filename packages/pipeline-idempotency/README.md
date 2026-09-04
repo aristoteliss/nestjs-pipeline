@@ -283,7 +283,7 @@ its TTL from overwriting or releasing a newer claim.
 For each in-scope request `IdempotencyBehavior`:
 
 1. derives the key via `keyFactory`; if none, the handler runs normally;
-2. exposes the key on the context as `IDEMPOTENCY_KEY_ITEM` (`'idempotency.key'`);
+2. exposes the key on the context as `IDEMPOTENCY_KEY_ITEM` (`Symbol`);
 3. atomically claims the key (`status: 'in_progress'`);
 4. **claimed** → runs the handler, stores the `completed` record with the
    response, and returns it;
@@ -292,8 +292,9 @@ For each in-scope request `IdempotencyBehavior`:
      the atomic claim once;
    - still `in_progress` → throws `IdempotencyConflictError` (`409`);
    - `completed`, same request type and payload → **replays** the stored response (handler does
-     not run) and sets `IDEMPOTENCY_REPLAYED_ITEM` (`'idempotency.replayed'`) to
+     not run) and sets `IDEMPOTENCY_REPLAYED_ITEM` (`Symbol`) to
      `true`;
+
    - `completed`, different request type or payload → throws
      `IdempotencyConflictError` (`422`).
 
@@ -380,7 +381,8 @@ Response body:
 **Behavior**
 
 - `IdempotencyBehavior` — the pipeline behavior.
-- `IDEMPOTENCY_KEY_ITEM`, `IDEMPOTENCY_REPLAYED_ITEM` — context item keys.
+- `IDEMPOTENCY_KEY_ITEM`, `IDEMPOTENCY_REPLAYED_ITEM`, `IDEMPOTENCY_OWNERSHIP_LOST_ITEM` — exported unique `Symbol` context item keys.
+
 
 **Stores**
 

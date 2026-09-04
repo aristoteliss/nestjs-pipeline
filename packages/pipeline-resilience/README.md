@@ -407,7 +407,13 @@ The declarative configuration object (see [Configuration](#configuration)): `ret
 
 Low-level helper that composes a cockatiel `IPolicy` (or `null` when nothing is configured) from `ResilienceBehaviorOptions`. Exposed for advanced/testing scenarios.
 
+### Context Helpers & Tokens
+
+- `getResilienceAbortSignal()` — returns the active attempt's `AbortSignal` for cooperative timeouts.
+- `RESILIENCE_ABORT_SIGNAL_ITEM` — exported unique `Symbol` context key for the abort signal.
+
 ### Re-exported from cockatiel
+
 
 Errors: `BrokenCircuitError`, `BulkheadRejectedError`, `IsolatedCircuitError`, `TaskCancelledError`. Guards: `isBrokenCircuitError`, `isBulkheadRejectedError`, `isIsolatedCircuitError`, `isTaskCancelledError`. Enum: `CircuitState`.
 

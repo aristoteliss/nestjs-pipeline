@@ -58,17 +58,27 @@ export const CASL_FIELDS_FROM_REQUEST = Symbol('CASL_FIELDS_FROM_REQUEST');
 export const CASL_BEHAVIOR_LOGGER = Symbol('CASL_BEHAVIOR_LOGGER');
 
 /**
- * Key used in `context.items` to store/retrieve the {@link CaslUserContext}.
+ * Unique symbol key used in `context.items` to store/retrieve the {@link CaslUserContext}.
  * If no {@link IUserContextResolver} is registered, the behavior looks up
  * this key directly in the items bag.
+ *
+ * @example
+ * ```ts
+ * context.items.set(CASL_USER_CONTEXT_KEY, { id: 'usr_1', roles: ['admin'] });
+ * ```
  */
-export const CASL_USER_CONTEXT_KEY = 'casl:user';
+export const CASL_USER_CONTEXT_KEY = Symbol('CASL_USER_CONTEXT_KEY');
 
 /**
- * Key used in `context.items` to store the resolved CASL ability after
+ * Unique symbol key used in `context.items` to store the resolved CASL ability after
  * the behavior runs. Downstream behaviors or handlers can retrieve it.
+ *
+ * @example
+ * ```ts
+ * const ability = context.items.get(CASL_ABILITY_KEY) as AppAbility | undefined;
+ * ```
  */
-export const CASL_ABILITY_KEY = 'casl:ability';
+export const CASL_ABILITY_KEY = Symbol('CASL_ABILITY_KEY');
 
 /**
  * Built-in CASL keyword subjects.

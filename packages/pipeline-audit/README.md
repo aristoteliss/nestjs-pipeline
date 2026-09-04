@@ -336,7 +336,8 @@ governed by `failOpen`.
 |---|---|---|
 | `AuditBehavior` | class | The pipeline behavior |
 | `AuditModule` | class | `forRoot` / `forRootAsync` registration |
-| `AUDIT_RECORD_ITEM` | const | `context.items` key holding the produced record |
+| `AUDIT_RECORD_ITEM` | symbol | `context.items` exported unique Symbol key holding the produced record |
+
 | `AUDIT_SINK` / `AUDIT_DEFAULT_OPTIONS` | token | DI tokens |
 | `LogAuditSink` | class | Default zero-dep sink |
 | `PostgresAuditSink` | class | Postgres drop-in sink |

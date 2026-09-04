@@ -47,21 +47,40 @@ import type {
 } from './interfaces/idempotency-record.interface';
 import type { IdempotencyStore } from './interfaces/idempotency-store.interface';
 
-/** Item key set on the pipeline context holding the active idempotency key. */
-export const IDEMPOTENCY_KEY_ITEM = 'idempotency.key';
+/**
+ * Unique symbol key set on `context.items` holding the active idempotency key string.
+ *
+ * @example
+ * ```ts
+ * const key = context.items.get(IDEMPOTENCY_KEY_ITEM) as string | undefined;
+ * ```
+ */
+export const IDEMPOTENCY_KEY_ITEM = Symbol('IDEMPOTENCY_KEY_ITEM');
 
 /**
- * Item key set on the pipeline context to `true` when the response was replayed
+ * Unique symbol key set on `context.items` to `true` when the response was replayed
  * from a previously-stored record (the handler did not run this time).
+ *
+ * @example
+ * ```ts
+ * const wasReplayed = context.items.get(IDEMPOTENCY_REPLAYED_ITEM) === true;
+ * ```
  */
-export const IDEMPOTENCY_REPLAYED_ITEM = 'idempotency.replayed';
+export const IDEMPOTENCY_REPLAYED_ITEM = Symbol('IDEMPOTENCY_REPLAYED_ITEM');
 
 /**
- * Item key set to `true` when a handler completed after its claim had expired or
- * been replaced. The successful handler result is returned, but this execution
- * is not allowed to overwrite the newer owner's replay state.
+ * Unique symbol key set on `context.items` to `true` when a handler completed after
+ * its claim had expired or been replaced. The successful handler result is returned,
+ * but this execution is not allowed to overwrite the newer owner's replay state.
+ *
+ * @example
+ * ```ts
+ * const ownershipLost = context.items.get(IDEMPOTENCY_OWNERSHIP_LOST_ITEM) === true;
+ * ```
  */
-export const IDEMPOTENCY_OWNERSHIP_LOST_ITEM = 'idempotency.ownershipLost';
+export const IDEMPOTENCY_OWNERSHIP_LOST_ITEM = Symbol(
+  'IDEMPOTENCY_OWNERSHIP_LOST_ITEM',
+);
 
 const DEFAULT_SCOPE: IdempotencyRequestKind[] = ['command'];
 

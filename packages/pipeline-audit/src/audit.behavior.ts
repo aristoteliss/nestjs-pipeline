@@ -35,8 +35,15 @@ import type { AuditBehaviorOptions } from './interfaces/audit-options.interface'
 import type { AuditRecord } from './interfaces/audit-record.interface';
 import type { AuditSink } from './interfaces/audit-sink.interface';
 
-/** Item key set on the pipeline context holding the produced {@link AuditRecord}. */
-export const AUDIT_RECORD_ITEM = 'audit.record';
+/**
+ * Unique symbol key used on `context.items` to store or retrieve the produced {@link AuditRecord}.
+ *
+ * @example
+ * ```ts
+ * const record = context.items.get(AUDIT_RECORD_ITEM) as AuditRecord | undefined;
+ * ```
+ */
+export const AUDIT_RECORD_ITEM = Symbol('AUDIT_RECORD_ITEM');
 
 /**
  * Pipeline behavior that writes an {@link AuditRecord} for every audited
