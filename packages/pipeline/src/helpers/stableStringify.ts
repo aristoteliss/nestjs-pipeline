@@ -16,14 +16,45 @@
  * ----------------------------
  */
 
-import type { JsonValue } from '../interfaces/idempotency-record.interface';
+/**
+ * A strictly JSON-serializable value (primitives, arrays, and plain records).
+ */
+export type StrictJsonValue =
+  | null
+  | boolean
+  | number
+  | string
+  | StrictJsonValue[]
+  | { [key: string]: StrictJsonValue };
 
 /**
- * Converts a value to the portable JSON domain used for fingerprints and
- * idempotency response snapshots. Dates are the sole non-JSON value with an
- * explicit conversion; every other lossy JSON.stringify case is rejected.
+ * Normalizes a value to the strict, portable JSON domain used for deterministic
+ * hashing, idempotency fingerprints, and cache key generation.
+ *
+ * Enforces strict JSON boundaries:
+ * - Primitives (`string`, `boolean`, `null`, finite `number`) are preserved.
+ * - Dates are explicitly converted to ISO-8601 strings (`.toISOString()`).
+ * - Custom objects with `.toJSON()` methods are evaluated.
+ * - Object keys are optionally sorted recursively for deterministic serialization.
+ * - Unsupported types (non-finite numbers, `Map`, `Set`, `Error`, `RegExp`,
+ *   binary buffers, promises, symbols, and sparse arrays) throw a {@link TypeError}.
+ * - Cyclic references are detected via a `WeakSet` and throw a {@link TypeError}.
+ *
+ * @param value The value to normalize.
+ * @param sortKeys Whether to sort object keys recursively in lexicographical order.
+ * @returns The strictly normalized JSON-compatible value.
+ * @throws {TypeError} If the value contains cycles or elements outside the JSON domain.
+ *
+ * @example
+ * ```ts
+ * const normalized = toStrictJsonValue({ b: 2, a: 1 }, true);
+ * // → { a: 1, b: 2 }
+ * ```
  */
-export function toStrictJsonValue(value: unknown, sortKeys = false): JsonValue {
+export function toStrictJsonValue(
+  value: unknown,
+  sortKeys = false,
+): StrictJsonValue {
   return normalize(value, new WeakSet<object>(), sortKeys);
 }
 
@@ -31,7 +62,7 @@ function normalize(
   value: unknown,
   ancestors: WeakSet<object>,
   sortKeys: boolean,
-): JsonValue {
+): StrictJsonValue {
   if (
     value === null ||
     typeof value === 'string' ||
@@ -64,7 +95,7 @@ function normalize(
 
   if (isUnsupportedObject(value)) {
     throw new TypeError(
-      `${value.constructor.name || 'Object'} is outside the supported JSON domain.`,
+      `${value.constructor?.name || 'Object'} is outside the supported JSON domain.`,
     );
   }
 
@@ -87,7 +118,7 @@ function normalize(
   ancestors.add(value);
   try {
     if (Array.isArray(value)) {
-      const result: JsonValue[] = [];
+      const result: StrictJsonValue[] = [];
       for (let index = 0; index < value.length; index += 1) {
         if (!(index in value)) {
           throw new TypeError('Sparse arrays are not JSON-serializable.');
@@ -97,14 +128,11 @@ function normalize(
       return result;
     }
 
-    // CQRS requests and response DTOs are commonly class instances. Their own
-    // enumerable string properties are treated as a JSON record, while native
-    // collection/binary/error objects are rejected above.
     const source = value as Record<string, unknown>;
     const keys = Object.keys(source);
     if (sortKeys) keys.sort();
 
-    const result: { [key: string]: JsonValue } = Object.create(null);
+    const result: { [key: string]: StrictJsonValue } = Object.create(null);
     for (const key of keys) {
       result[key] = normalize(source[key], ancestors, sortKeys);
     }
@@ -126,4 +154,31 @@ function isUnsupportedObject(value: object): boolean {
     ArrayBuffer.isView(value) ||
     value instanceof Promise
   );
+}
+
+/**
+ * Deterministically serializes a value to a JSON string with lexicographically
+ * sorted object keys.
+ *
+ * Guarantees that structurally equal payloads produce byte-identical JSON strings
+ * regardless of property insertion order.
+ *
+ * @param value The value to serialize.
+ * @returns The deterministic JSON string representation.
+ * @throws {TypeError} If the value is cyclic, contains non-serializable types, or cannot be represented in JSON.
+ *
+ * @example
+ * ```ts
+ * stableStringify({ z: 1, a: 2 });
+ * // → '{"a":2,"z":1}'
+ * ```
+ */
+export function stableStringify(value: unknown): string {
+  try {
+    return JSON.stringify(toStrictJsonValue(value, true));
+  } catch {
+    throw new TypeError(
+      'stableStringify requires an acyclic JSON-serializable value.',
+    );
+  }
 }

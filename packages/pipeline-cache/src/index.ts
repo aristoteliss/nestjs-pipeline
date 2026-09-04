@@ -16,6 +16,7 @@
  * ----------------------------
  */
 
+export { stableStringify } from '@nestjs-pipeline/core';
 export {
   CACHE_HIT_ITEM,
   CACHE_KEY_ITEM,
@@ -24,7 +25,7 @@ export {
 export { CacheModule } from './cache.module';
 export { CACHE_DEFAULT_OPTIONS, PIPELINE_CACHE } from './constants/tokens';
 export { buildCache, buildKeyv } from './helpers/cache-factory';
-export { defaultCacheKey, stableStringify } from './helpers/cache-key';
+export { defaultCacheKey } from './helpers/cache-key';
 export type {
   CacheBehaviorOptions,
   CacheCondition,

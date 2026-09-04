@@ -224,7 +224,7 @@
 ~~| `users-api/src/common/cqrs/helpers/createExecute.helper.ts` | Meta-programming class factory με Object.defineProperty | **2/10** | **Διαγραφή & χρήση καθαρών TypeScript DTO classes** |~~
 | `users-api/src/users/cqrs/queries/user-read-authorization.helper.ts` | Procedural CASL helper με άμεση ρίψη ForbiddenException | **3/10** | **Μετατροπή σε καθαρό domain/policy service** |
 | `users-api/src/roles/cqrs/role-authorization.helper.ts` | Procedural role authorization helper | **3/10** | **Ενοποίηση με το policy layer** |
-| `pipeline-audit/src/helpers/redact.ts` | 151 γραμμές deep cloning/masking (διπλότυπο) | **3/10** | **Αντικατάσταση με το `safeSanitize` του core package** |
+~~| `pipeline-audit/src/helpers/redact.ts` | 151 γραμμές deep cloning/masking (διπλότυπο) | **3/10** | **Αντικατάσταση με το `safeSanitize` του core package** |~~
 | Handlers `@UsePipeline` Decorator Stacking | 6-8 behaviors ανά handler με inline key factories | **4/10** | **Ομαδοποίηση σε custom composed decorators ή presets** |
 | `users-api/src/common/cqrs/helpers/filterCacheKey.helper.ts` | Cache key generator string interpolation | **5/10** | **Απλοποίηση & standard formatting** |
 | `packages/pipeline-feature-flags` | Standalone πακέτο για 150 γραμμές wrapper | **5/10** | **Διατήρηση ή συγχώνευση στο core** |
@@ -257,7 +257,7 @@
    - Αφαίρεση της λογικής CASL serialization από τον interceptor.
 
 ### Βήμα 2: Αφαίρεση Διπλότυπου Κώδικα (Βαθμοί 3 - 5)
-1. **Ενοποίηση Sanitization**: Διαγραφή του `packages/pipeline-audit/src/helpers/redact.ts` και επαναχρησιμοποίηση του `safeSanitize` από το `@nestjs-pipeline/core`.
+~~1. **Ενοποίηση Sanitization**: Διαγραφή του `packages/pipeline-audit/src/helpers/redact.ts` και επαναχρησιμοποίηση του `safeSanitize` από το `@nestjs-pipeline/core`.~~
 2. **Απλοποίηση Procedural CASL Helpers**: Μεταφορά των `assertUserPermission` και `authorizeUserRead` σε ένα καθαρό Domain/Application Policy object χωρίς εξάρτηση από HTTP `ForbiddenException`.
 
 ### Βήμα 3: Μείωση του Decorator Overload

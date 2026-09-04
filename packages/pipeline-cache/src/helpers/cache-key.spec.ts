@@ -16,9 +16,9 @@
  * ----------------------------
  */
 
-import type { IPipelineContext } from '@nestjs-pipeline/core';
+import { type IPipelineContext, stableStringify } from '@nestjs-pipeline/core';
 import { describe, expect, it } from 'vitest';
-import { defaultCacheKey, stableStringify } from './cache-key';
+import { defaultCacheKey } from './cache-key';
 
 describe('stableStringify', () => {
   it('produces identical output regardless of key insertion order', () => {

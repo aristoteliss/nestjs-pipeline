@@ -7,18 +7,18 @@
  * License, or (at your option) any later version.
  */
 
+import { toStrictJsonValue } from '@nestjs-pipeline/core';
 import type {
   IdempotencyRecord,
   JsonValue,
 } from '../interfaces/idempotency-record.interface';
-import { toStrictJsonValue } from './strict-json';
 
 /** Convert a replay value to the representation shared by durable stores. */
 export function toJsonSnapshot(value: unknown): JsonValue | undefined {
   if (value === undefined) return undefined;
 
   try {
-    return toStrictJsonValue(value);
+    return toStrictJsonValue(value) as JsonValue;
   } catch {
     throw new TypeError(
       'Idempotency responses must be acyclic JSON-serializable values.',

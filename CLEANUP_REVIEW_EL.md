@@ -373,11 +373,11 @@ Standard, καλά scoped behaviors (BullMQ/RabbitMQ/Postgres transports για 
 ~~| `users-api/.../createExecute.helper.ts` | Zod→Class factory | **6** | Αντικαταστάθηκε με createCommand/createQuery στο @nestjs-pipeline/zod |~~
 | `pipeline-cache` (πακέτο) | Εκτός roadmap + διπλότυπο key helper | **6** | Refactor το cache-key.ts |
 | `is-transient-persistence-error.ts` | Error classifier | **6** | Μικρό cleanup |
-| `pipeline-idempotency/.../strict-json.ts` | Διπλότυπη λογική (βλ. §8.4) | **5** | Ενοποίηση με core |
+~~| `pipeline-idempotency/.../strict-json.ts` | Διπλότυπη λογική (βλ. §8.4) | **5** | Ενοποίηση με core |~~
 | `pipeline-feature-flags` (πακέτο) | Standalone για μικρό wrapper | **5** | Σκέψου merge στο core |
 ~~| **`AuthSessionInterceptor`** | God Interceptor, **όχι διορθωμένο** | **5** | Σπάσιμο σε Guards |~~
 | `package.json` `peerDependencyRules.ignoreMissing: ["*"]` | Γενική σίγαση warnings | **4** | Στόχευσε το συγκεκριμένο πακέτο |
-| **`pipeline-cache/src/helpers/cache-key.ts`** | Πλήρες αντίγραφο λογικής core | **3** | Import από core, διαγραφή local |
+~~| **`pipeline-cache/src/helpers/cache-key.ts`** | Πλήρες αντίγραφο λογικής core | **3** | Import από core, διαγραφή local |~~
 
 ---
 

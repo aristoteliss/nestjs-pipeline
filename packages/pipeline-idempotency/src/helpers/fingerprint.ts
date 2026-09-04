@@ -17,7 +17,7 @@
  */
 
 import { createHash } from 'node:crypto';
-import { toStrictJsonValue } from './strict-json';
+import { stableStringify } from '@nestjs-pipeline/core';
 
 /**
  * Produces a stable SHA-256 hex digest of an acyclic JSON-serializable value,
@@ -27,19 +27,4 @@ import { toStrictJsonValue } from './strict-json';
  */
 export function fingerprintValue(value: unknown): string {
   return createHash('sha256').update(stableStringify(value)).digest('hex');
-}
-
-/**
- * `JSON.stringify` with deterministically ordered object keys. Unsupported
- * values fail with a deliberate TypeError instead of returning `undefined` or
- * overflowing while traversing a cycle.
- */
-export function stableStringify(value: unknown): string {
-  try {
-    return JSON.stringify(toStrictJsonValue(value, true));
-  } catch {
-    throw new TypeError(
-      'stableStringify requires an acyclic JSON-serializable value.',
-    );
-  }
 }
