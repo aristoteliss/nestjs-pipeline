@@ -16,24 +16,23 @@
  * ----------------------------
  */
 
-import { RootDomainOutcome } from '../domain/outcomes/root-domain.outcome';
 import { ICache } from './cache.interface';
 import { ICommandRepository } from './command-repository.interface';
 
 /**
  * Base class for write-side (command) repositories.
  *
- * Persists a domain outcome via the abstract {@link save} method and receives an
+ * Persists an entity or aggregate state via the abstract {@link save} method and receives an
  * {@link ICache} instance. Subclasses annotate `save()` with the `@Cache` decorator
  * to perform automatic write-through caching or cache eviction upon mutation.
  *
- * @typeParam TDomainOutcome - The outcome type accepted by {@link save}.
+ * @typeParam TEntity - The aggregate entity type accepted by {@link save}.
  * @typeParam TResult - The persisted result type returned by {@link save}.
  *
  * @example Creating a command repository with @Cache
  * ```typescript
  * @Injectable()
- * export class CreateUserCommandRepository extends CommandRepository<UserCreateOutcome, UserSnapshot> {
+ * export class CreateUserCommandRepository extends CommandRepository<User, UserSnapshot> {
  *   constructor(
  *     @Inject(CACHE_TOKEN) protected readonly cache: ICache<UserSnapshot>,
  *     @Inject(MIKRO_ORM_CLIENT) private readonly store: MikroOrmStore,
@@ -41,22 +40,23 @@ import { ICommandRepository } from './command-repository.interface';
  *     super(cache);
  *   }
  *
- *   @Cache<UserCreateOutcome, UserSnapshot>(
- *     (outcome) => filterCacheKey('user', { id: outcome.entity.id }),
+ *   @Cache<User, UserSnapshot>(
+ *     (user) => filterCacheKey(User.aggregateName, { id: user.id }),
  *   )
- *   async save(outcome: UserCreateOutcome): Promise<UserSnapshot> {
- *     const user = await this.store.em.upsert(User, outcome.entity);
- *     return user.toJSON();
+ *   async save(user: User): Promise<UserSnapshot> {
+ *     const created = await this.store.em.upsert(User, user);
+ *     return created.toJSON();
  *   }
  * }
  * ```
  */
 export abstract class CommandRepository<
-  TDomainOutcome = RootDomainOutcome,
+  TEntity = unknown,
   TResult = unknown | null,
-> implements ICommandRepository<TDomainOutcome, TResult>
+  TCache = any,
+> implements ICommandRepository<TEntity, TResult>
 {
-  constructor(protected readonly cache: ICache<TResult>) {}
+  constructor(protected readonly cache: ICache<TCache>) {}
 
-  abstract save(domainOutcome: TDomainOutcome): Promise<TResult | null>;
+  abstract save(entity: TEntity): Promise<TResult | null>;
 }

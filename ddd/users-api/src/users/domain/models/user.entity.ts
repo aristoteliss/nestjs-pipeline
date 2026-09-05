@@ -24,8 +24,6 @@ import {
 import { UserCreatedEvent } from '../events/user-created.event';
 import { UserDeletedEvent } from '../events/user-deleted.event';
 import { UserUpdatedEvent } from '../events/user-updated.event';
-import { UserCreateOutcome } from '../outcomes/user-create.outcome';
-import { UserUpdateOutcome } from '../outcomes/user-update.outcome';
 import {
   EmptyUserUpdateException,
   InvalidDepartmentException,
@@ -44,12 +42,12 @@ const DEPARTMENT_MIN_LENGTH = 3;
 /**
  * User domain entity following Clean Architecture / DDD principles.
  *
- * Inherits shared identity/lifecycle behavior from RootEntity.
+ * Inherits shared identity, lifecycle timestamps, and event buffering from {@link RootEntity}.
  *
  * - State is private; mutated only through domain methods.
- * - `User.create()` is the only entry point for new users.
- * - `User.fromJson()` rebuilds the entity from persisted snapshot data.
- * - `rename()` enforces the username business rule and updates `updatedAt`.
+ * - `User.create()` is the only factory for creating new users and recording {@link UserCreatedEvent}.
+ * - `User.fromJSON()` reconstitutes the entity from persisted snapshot data without firing events.
+ * - `update()` and `delete()` enforce domain rules, update timestamps, and record domain events.
  */
 export class User extends RootEntity<UserSnapshot> {
   /** Canonical logical aggregate name used for cache namespacing and event topics. */
@@ -80,30 +78,29 @@ export class User extends RootEntity<UserSnapshot> {
    * @param username - Unique user display name (minimum 3 non-whitespace characters).
    * @param email - User's email address.
    * @param department - Optional department assignment (minimum 3 characters if provided).
-   * @returns A {@link UserCreateOutcome} containing the new User entity and initial domain events.
+   * @returns The created {@link User} aggregate with buffered uncommitted domain events.
    * @throws {InvalidUsernameException} If the username is empty, whitespace, or fewer than 3 characters.
    * @throws {InvalidDepartmentException} If the department is provided but fewer than 3 characters.
    *
    * @example
    * ```ts
-   * const outcome = User.create('john_doe', 'john@example.com', 'Engineering');
-   * const user = outcome.entity;
+   * const user = User.create('john_doe', 'john@example.com', 'Engineering');
    * ```
    */
   static create(
     username: string,
     email: string,
     department?: string | null,
-  ): UserCreateOutcome {
+  ): User {
     const user = new User({
       username: User.normalizeUsername(username),
       department: User.normalizeDepartment(department),
       email,
     });
 
-    const events = [new UserCreatedEvent(user)];
+    user.apply(new UserCreatedEvent(user));
 
-    return new UserCreateOutcome(user, events);
+    return user;
   }
 
   /**
@@ -188,21 +185,21 @@ export class User extends RootEntity<UserSnapshot> {
    * Updates mutable user fields and records a {@link UserUpdatedEvent}.
    *
    * @param fields - Object containing fields to update (`username` and/or `department`).
-   * @returns A {@link UserUpdateOutcome} containing the mutated User entity and updated domain event.
+   * @returns The mutated User entity instance (`this`).
    * @throws {EmptyUserUpdateException} When no updatable fields are provided.
    * @throws {InvalidUsernameException} When the new username violates validation rules.
    * @throws {InvalidDepartmentException} When the new department violates validation rules.
    *
    * @example
    * ```ts
-   * const outcome = user.update({ department: 'Marketing' });
+   * user.update({ department: 'Marketing' });
    * ```
    */
   @Mutate()
   update(fields: {
     username?: string | null;
     department?: string | null;
-  }): UserUpdateOutcome {
+  }): this {
     if (fields.username === undefined && fields.department === undefined) {
       throw new EmptyUserUpdateException();
     }
@@ -212,22 +209,24 @@ export class User extends RootEntity<UserSnapshot> {
     if (fields.department !== undefined) {
       this._department = User.normalizeDepartment(fields.department);
     }
-    return new UserUpdateOutcome(this, [new UserUpdatedEvent(this)]);
+    this.apply(new UserUpdatedEvent(this));
+    return this;
   }
 
   /**
    * Marks the user as deleted and records a {@link UserDeletedEvent}.
    *
-   * @returns A {@link UserUpdateOutcome} containing the entity and deletion domain event.
+   * @returns The deleted User entity instance (`this`).
    *
    * @example
    * ```ts
-   * const outcome = user.delete();
+   * user.delete();
    * ```
    */
   @Mutate()
-  delete(): UserUpdateOutcome {
-    return new UserUpdateOutcome(this, [new UserDeletedEvent(this)]);
+  delete(): this {
+    this.apply(new UserDeletedEvent(this));
+    return this;
   }
 
   /**

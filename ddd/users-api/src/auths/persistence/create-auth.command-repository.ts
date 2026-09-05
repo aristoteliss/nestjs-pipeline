@@ -22,10 +22,12 @@ import { Cache, CommandRepository, ICache } from '@nestjs-pipeline/ddd-core';
 import { CACHE_TOKEN } from '@persistence/cache/memory.cache';
 import { MIKRO_ORM_CLIENT, MikroOrmStore } from '@persistence/mikro-orm.store';
 import { Auth, AuthSnapshot } from '../domain/models/auth.entity';
-import { AuthCreateOutcome } from '../domain/outcomes/auth-create.outcome';
 
 @Injectable()
-export class CreateAuthCommandRepository extends CommandRepository<AuthCreateOutcome> {
+export class CreateAuthCommandRepository extends CommandRepository<
+  Auth,
+  AuthSnapshot
+> {
   constructor(
     @Inject(CACHE_TOKEN) protected readonly cache: ICache<AuthSnapshot>,
     @Inject(MIKRO_ORM_CLIENT) private readonly store: MikroOrmStore,
@@ -33,14 +35,12 @@ export class CreateAuthCommandRepository extends CommandRepository<AuthCreateOut
     super(cache);
   }
 
-  @Cache((outcome) =>
-    filterCacheKey(Auth.aggregateName, { id: outcome.entity.id }),
+  @Cache<Auth, AuthSnapshot>((auth) =>
+    filterCacheKey(Auth.aggregateName, { id: auth.id }),
   )
-  async save(domainOutcome: AuthCreateOutcome): Promise<AuthSnapshot> {
-    const { entity } = domainOutcome;
+  async save(auth: Auth): Promise<AuthSnapshot> {
+    const persisted = await this.store.em.upsert(Auth, auth);
 
-    const auth = await this.store.em.upsert(Auth, entity);
-
-    return auth.toJSON();
+    return persisted.toJSON();
   }
 }

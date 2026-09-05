@@ -24,10 +24,12 @@ import { CACHE_TOKEN } from '@persistence/cache/memory.cache';
 import { MIKRO_ORM_CLIENT, MikroOrmStore } from '@persistence/mikro-orm.store';
 import { UniqueRoleNameException } from '../domain/models/errors/role-name.exception';
 import { Role, RoleSnapshot } from '../domain/models/role.entity';
-import { RoleUpdateOutcome } from '../domain/outcomes/role-update.outcome';
 
 @Injectable()
-export class UpdateRoleCommandRepository extends CommandRepository<RoleUpdateOutcome> {
+export class UpdateRoleCommandRepository extends CommandRepository<
+  Role,
+  RoleSnapshot
+> {
   constructor(
     @Inject(CACHE_TOKEN) protected readonly cache: ICache<RoleSnapshot>,
     @Inject(MIKRO_ORM_CLIENT) private readonly store: MikroOrmStore,
@@ -35,16 +37,14 @@ export class UpdateRoleCommandRepository extends CommandRepository<RoleUpdateOut
     super(cache);
   }
 
-  @Cache((outcome) =>
-    filterCacheKey(Role.aggregateName, { id: outcome.entity.id }),
+  @Cache<Role, RoleSnapshot>((role) =>
+    filterCacheKey(Role.aggregateName, { id: role.id }),
   )
-  async save(domainOutcome: RoleUpdateOutcome): Promise<RoleSnapshot> {
-    const { entity } = domainOutcome;
-
+  async save(role: Role): Promise<RoleSnapshot> {
     try {
-      const role = await this.store.em.upsert(Role, entity);
+      const updated = await this.store.em.upsert(Role, role);
 
-      return role.toJSON();
+      return updated.toJSON();
     } catch (err: unknown) {
       if (
         err instanceof UniqueConstraintViolationException ||
@@ -57,7 +57,7 @@ export class UpdateRoleCommandRepository extends CommandRepository<RoleUpdateOut
             err.message.includes('unique') ||
             err.message.includes('SQLITE_CONSTRAINT_UNIQUE')))
       ) {
-        throw new UniqueRoleNameException(entity);
+        throw new UniqueRoleNameException(role);
       }
       throw err;
     }

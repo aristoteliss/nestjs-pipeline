@@ -17,6 +17,7 @@
  */
 
 import { EntitySchema } from '@mikro-orm/core';
+import { AggregateRoot } from '@nestjs/cqrs';
 import { UnixTimestampType } from '@nestjs-pipeline/ddd-core';
 import { User } from '../../users/domain/models/user.entity';
 
@@ -28,7 +29,7 @@ import { User } from '../../users/domain/models/user.entity';
  * to access state exclusively through public getters and setters without requiring
  * private field `@ts-expect-error` bypasses or breaking domain encapsulation.
  */
-export const UserSchema = new EntitySchema<User>({
+export const UserSchema = new EntitySchema<User, AggregateRoot>({
   class: User,
   tableName: 'users',
   properties: {

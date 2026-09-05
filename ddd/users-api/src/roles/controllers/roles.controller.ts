@@ -34,9 +34,7 @@ import { DeleteRoleCommand } from '../cqrs/commands/delete-role.command';
 import { UpdateRoleCommand } from '../cqrs/commands/update-role.command';
 import { GetRoleQuery } from '../cqrs/queries/get-role.query';
 import { GetRolesQuery } from '../cqrs/queries/get-roles.query';
-import type { RoleSnapshot } from '../domain/models/role.entity';
-import { RoleCreateOutcome } from '../domain/outcomes/role-create.outcome';
-import { RoleUpdateOutcome } from '../domain/outcomes/role-update.outcome';
+import type { Role, RoleSnapshot } from '../domain/models/role.entity';
 import {
   type CreateRoleDto,
   CreateRoleDtoSchema,
@@ -85,11 +83,10 @@ export class RolesController {
   async createRole(
     @Body(new ZodPipe(CreateRoleDtoSchema)) dto: CreateRoleDto,
   ): Promise<RoleResponseDto> {
-    const outcome = await this.commandBus.execute<
-      CreateRoleCommand,
-      RoleCreateOutcome
-    >(CreateRoleMapper.map(dto));
-    return toRoleResponseDto(outcome.entity);
+    const role = await this.commandBus.execute<CreateRoleCommand, Role>(
+      CreateRoleMapper.map(dto),
+    );
+    return toRoleResponseDto(role);
   }
 
   @Patch(':id')
@@ -98,11 +95,10 @@ export class RolesController {
     @Param('id', new ZodPipe<RoleIdDto, string>(RoleIdDtoSchema)) id: RoleIdDto,
     @Body(new ZodPipe(UpdateRoleDtoSchema)) dto: UpdateRoleDto,
   ): Promise<RoleResponseDto> {
-    const outcome = await this.commandBus.execute<
-      UpdateRoleCommand,
-      RoleUpdateOutcome
-    >(UpdateRoleMapper.map(id, dto));
-    return toRoleResponseDto(outcome.entity);
+    const role = await this.commandBus.execute<UpdateRoleCommand, Role>(
+      UpdateRoleMapper.map(id, dto),
+    );
+    return toRoleResponseDto(role);
   }
 
   @Delete(':id')
@@ -110,7 +106,7 @@ export class RolesController {
   async deleteRole(
     @Param('id', new ZodPipe<RoleIdDto, string>(RoleIdDtoSchema)) id: RoleIdDto,
   ): Promise<void> {
-    await this.commandBus.execute<DeleteRoleCommand, RoleUpdateOutcome>(
+    await this.commandBus.execute<DeleteRoleCommand, Role>(
       new DeleteRoleCommand({ id }),
     );
   }

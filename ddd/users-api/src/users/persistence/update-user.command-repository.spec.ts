@@ -10,8 +10,8 @@ describe('UpdateUserCommandRepository', () => {
       set: vi.fn().mockRejectedValue(new Error('cache set failed')),
       delete: vi.fn().mockRejectedValue(new Error('cache delete failed')),
     };
-    const user = User.create('Alice', 'alice@example.test').entity;
-    const outcome = user.update({ username: 'Alicia' });
+    const user = User.create('Alice', 'alice@example.test');
+    user.update({ username: 'Alicia' });
     const upsert = vi.fn().mockResolvedValue(user);
     const store = {
       get em() {
@@ -20,7 +20,7 @@ describe('UpdateUserCommandRepository', () => {
     };
     const repository = new UpdateUserCommandRepository(cache, store as never);
 
-    await expect(repository.save(outcome)).resolves.toEqual(user.toJSON());
+    await expect(repository.save(user)).resolves.toEqual(user.toJSON());
     expect(upsert).toHaveBeenCalledWith(User, user);
     expect(cache.delete).toHaveBeenCalledWith(
       'tenant:user:email:alice@example.test',
@@ -40,7 +40,7 @@ describe('UpdateUserCommandRepository', () => {
       set: vi.fn(),
       delete: vi.fn(),
     };
-    const user = User.create('Alice', 'alice@example.test').entity;
+    const user = User.create('Alice', 'alice@example.test');
     const failure = new Error('database failed');
     const upsert = vi.fn().mockRejectedValue(failure);
     const store = {
@@ -50,9 +50,8 @@ describe('UpdateUserCommandRepository', () => {
     };
     const repository = new UpdateUserCommandRepository(cache, store as never);
 
-    await expect(
-      repository.save(user.update({ username: 'Alicia' })),
-    ).rejects.toBe(failure);
+    user.update({ username: 'Alicia' });
+    await expect(repository.save(user)).rejects.toBe(failure);
     expect(cache.delete).not.toHaveBeenCalled();
     expect(cache.set).not.toHaveBeenCalled();
   });

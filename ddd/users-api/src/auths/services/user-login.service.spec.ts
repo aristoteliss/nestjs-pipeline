@@ -36,7 +36,7 @@ describe('UserLoginService', () => {
   it('binds issued access tokens to the active tenant', async () => {
     process.env.JWT_SECRET = 'tenant-bound-token-secret';
     delete process.env.JWT_ALGORITHMS;
-    const user = User.create('Alice', 'alice@example.test').entity;
+    const user = User.create('Alice', 'alice@example.test');
     const tenantContext = new TenantSchemaContext();
     const service = new UserLoginService(
       {
@@ -65,7 +65,7 @@ describe('UserLoginService', () => {
       { find: vi.fn() } as never,
       new TenantSchemaContext(),
     );
-    const user = User.create('Alice', 'alice@example.test').entity;
+    const user = User.create('Alice', 'alice@example.test');
 
     await expect(service.signToken(user)).rejects.toThrow(
       'JWT_ALGORITHMS must include HS256',

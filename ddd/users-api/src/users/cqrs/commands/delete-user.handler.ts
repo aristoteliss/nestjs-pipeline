@@ -31,7 +31,6 @@ import {
 import { ResilienceBehavior } from '@nestjs-pipeline/resilience';
 import { isTransientPersistenceError } from '@persistence/is-transient-persistence-error';
 import { User } from '../../domain/models/user.entity';
-import { UserUpdateOutcome } from '../../domain/outcomes/user-update.outcome';
 import {
   COMMAND_REPOSITORY,
   QUERY_REPOSITORY,
@@ -105,20 +104,20 @@ import { DeleteUserCommand } from './delete-user.command';
 )
 export class DeleteUserHandler extends CommandBaseHandler<
   DeleteUserCommand,
-  UserUpdateOutcome
+  User
 > {
   constructor(
     @Inject(QUERY_REPOSITORY.getUser)
     private readonly queryRepository: IQueryRepository<GetUserQuery, User>,
     @Inject(COMMAND_REPOSITORY.deleteUser)
-    private readonly commandRepository: ICommandRepository<UserUpdateOutcome>,
+    private readonly commandRepository: ICommandRepository<User, null>,
     private readonly authorizer: CaslAuthorizer,
     protected readonly eventBus: EventBus,
   ) {
     super(eventBus);
   }
 
-  async handle(command: DeleteUserCommand): Promise<UserUpdateOutcome> {
+  async handle(command: DeleteUserCommand): Promise<User> {
     const { id } = command;
 
     const query = new GetUserQuery({ userId: id }, { hydrate: true });
@@ -130,10 +129,10 @@ export class DeleteUserHandler extends CommandBaseHandler<
 
     this.authorizer.authorize('delete', user);
 
-    const outcome = user.delete();
+    user.delete();
 
-    await this.commandRepository.save(outcome);
+    await this.commandRepository.save(user);
 
-    return outcome;
+    return user;
   }
 }

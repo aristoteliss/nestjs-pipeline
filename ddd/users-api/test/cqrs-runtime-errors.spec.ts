@@ -266,13 +266,11 @@ describe('CQRS Commands & Queries Runtime Error Taxonomy', () => {
       it('catches UniqueEmailException on unique collision and maps to Conflict (409)', async () => {
         const authorizer = createMockAuthorizer(true);
         const commandRepo = {
-          save: vi
-            .fn()
-            .mockRejectedValue(
-              new UniqueEmailException({
-                email: 'duplicate@example.test',
-              } as any),
-            ),
+          save: vi.fn().mockRejectedValue(
+            new UniqueEmailException({
+              email: 'duplicate@example.test',
+            } as any),
+          ),
         };
         const handler = new CreateUserHandler(
           commandRepo as any,
@@ -330,7 +328,7 @@ describe('CQRS Commands & Queries Runtime Error Taxonomy', () => {
 
       it('catches EmptyUserUpdateException when neither username nor department is passed (400)', async () => {
         const authorizer = createMockAuthorizer(true);
-        const existingUser = User.create('Alice', 'alice@example.test').entity;
+        const existingUser = User.create('Alice', 'alice@example.test');
         const queryRepo = { find: vi.fn().mockResolvedValue(existingUser) };
         const commandRepo = { save: vi.fn() };
         const handler = new UpdateUserHandler(
@@ -369,7 +367,7 @@ describe('CQRS Commands & Queries Runtime Error Taxonomy', () => {
 
       it('catches UnauthorizedActionException during update (403)', async () => {
         const authorizer = createMockAuthorizer(false);
-        const existingUser = User.create('Alice', 'alice@example.test').entity;
+        const existingUser = User.create('Alice', 'alice@example.test');
         const queryRepo = { find: vi.fn().mockResolvedValue(existingUser) };
         const commandRepo = { save: vi.fn() };
         const handler = new UpdateUserHandler(
@@ -413,7 +411,7 @@ describe('CQRS Commands & Queries Runtime Error Taxonomy', () => {
 
       it('catches UnauthorizedActionException when unauthorized to delete (403)', async () => {
         const authorizer = createMockAuthorizer(false);
-        const existingUser = User.create('Alice', 'alice@example.test').entity;
+        const existingUser = User.create('Alice', 'alice@example.test');
         const queryRepo = { find: vi.fn().mockResolvedValue(existingUser) };
         const commandRepo = { save: vi.fn() };
         const handler = new DeleteUserHandler(
@@ -449,7 +447,7 @@ describe('CQRS Commands & Queries Runtime Error Taxonomy', () => {
       });
 
       it('GetUsersQuery returns array of user entities (200)', async () => {
-        const existingUser = User.create('Alice', 'alice@example.test').entity;
+        const existingUser = User.create('Alice', 'alice@example.test');
         const authorizer = createMockAuthorizer(true);
         const queryRepo = { find: vi.fn().mockResolvedValue([existingUser]) };
         const handler = new GetUsersHandler(queryRepo as any, authorizer);
@@ -572,7 +570,7 @@ describe('CQRS Commands & Queries Runtime Error Taxonomy', () => {
 
       it('catches UniqueRoleNameException when renaming to an existing name (409)', async () => {
         const authorizer = createMockAuthorizer(true);
-        const existingRole = Role.create('Editor').entity;
+        const existingRole = Role.create('Editor');
         const queryRepo = { find: vi.fn().mockResolvedValue(existingRole) };
         const commandRepo = {
           save: vi
@@ -635,7 +633,7 @@ describe('CQRS Commands & Queries Runtime Error Taxonomy', () => {
       });
 
       it('GetRolesQuery returns role entity listing (200)', async () => {
-        const role = Role.create('Support').entity;
+        const role = Role.create('Support');
         const authorizer = createMockAuthorizer(true);
         const queryRepo = { find: vi.fn().mockResolvedValue([role]) };
         const handler = new GetRolesHandler(queryRepo as any, authorizer);

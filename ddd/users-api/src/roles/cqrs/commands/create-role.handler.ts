@@ -33,8 +33,7 @@ import {
 import { FeatureFlagBehavior } from '@nestjs-pipeline/feature-flags';
 import { IdempotencyBehavior } from '@nestjs-pipeline/idempotency';
 import { UniqueRoleNameException } from '../../domain/models/errors/role-name.exception';
-import { Role } from '../../domain/models/role.entity';
-import { RoleCreateOutcome } from '../../domain/outcomes/role-create.outcome';
+import { Role, type RoleSnapshot } from '../../domain/models/role.entity';
 import { COMMAND_REPOSITORY } from '../../persistence/repository.tokens';
 import { CreateRoleCommand } from './create-role.command';
 
@@ -74,25 +73,25 @@ export function createRoleIdempotencyKey(ctx: IPipelineContext): string {
 )
 export class CreateRoleHandler extends CommandBaseHandler<
   CreateRoleCommand,
-  RoleCreateOutcome
+  Role
 > {
   constructor(
     @Inject(COMMAND_REPOSITORY.createRole)
-    private readonly commandRepository: ICommandRepository<RoleCreateOutcome>,
+    private readonly commandRepository: ICommandRepository<Role, RoleSnapshot>,
     private readonly authorizer: CaslAuthorizer,
     protected readonly eventBus: EventBus,
   ) {
     super(eventBus);
   }
 
-  async handle(command: CreateRoleCommand): Promise<RoleCreateOutcome> {
+  async handle(command: CreateRoleCommand): Promise<Role> {
     const { name } = command;
 
-    const outcome = Role.create(name);
-    this.authorizer.authorize('create', outcome.entity, ['name']);
+    const role = Role.create(name);
+    this.authorizer.authorize('create', role, ['name']);
 
-    await this.commandRepository.save(outcome);
+    await this.commandRepository.save(role);
 
-    return outcome;
+    return role;
   }
 }

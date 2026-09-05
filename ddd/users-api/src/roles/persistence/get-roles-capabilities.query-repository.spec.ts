@@ -7,7 +7,7 @@ import { GetRolesCapabilitiesQueryRepository } from './get-roles-capabilities.qu
 
 describe('GetRolesCapabilitiesQueryRepository', () => {
   it('hydrates roles with schema-aware entity operations instead of raw SQL', async () => {
-    const role = Role.create('admin').entity;
+    const role = Role.create('admin');
     const capability = Capability.create('read', 'User');
     const find = vi.fn(async (entity: unknown) => {
       if (entity === Role) return [role];
@@ -42,7 +42,7 @@ describe('GetRolesCapabilitiesQueryRepository', () => {
   });
 
   it('returns all role definitions when names are omitted', async () => {
-    const role = Role.create('viewer').entity;
+    const role = Role.create('viewer');
     const find = vi.fn(async (entity: unknown) => {
       if (entity === Role) return [role];
       return [];

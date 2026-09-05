@@ -34,7 +34,6 @@ import { MetricsBehavior } from '@nestjs-pipeline/opentelemetry';
 import { RateLimitBehavior } from '@nestjs-pipeline/rate-limit';
 import { TenantSchemaContext } from '@persistence/tenant-schema.context';
 import { Auth, AuthSnapshot } from '../../domain/models/auth.entity';
-import { AuthCreateOutcome } from '../../domain/outcomes/auth-create.outcome';
 import { COMMAND_REPOSITORY } from '../../persistence/repository.tokens';
 import { UserLoginService } from '../../services/user-login.service';
 import { CreateAuthCommand } from './create-auth.command';
@@ -73,10 +72,7 @@ export class CreateAuthHandler extends CommandBaseHandler<
     protected readonly eventBus: EventBus,
     private readonly userLoginService: UserLoginService,
     @Inject(COMMAND_REPOSITORY.createAuth)
-    private readonly commandRepository: ICommandRepository<
-      AuthCreateOutcome,
-      AuthSnapshot
-    >,
+    private readonly commandRepository: ICommandRepository<Auth, AuthSnapshot>,
     private readonly tenantSchemaContext: TenantSchemaContext,
   ) {
     super(eventBus);
@@ -91,9 +87,10 @@ export class CreateAuthHandler extends CommandBaseHandler<
 
     const authResult = await this.userLoginService.signToken(verifiedUser);
 
-    const outcome = Auth.create(authResult.userId, authResult.accessToken);
+    const auth = Auth.create(authResult.userId, authResult.accessToken);
 
-    await this.commandRepository.save(outcome);
+    await this.commandRepository.save(auth);
+    this.commit(auth);
 
     return {
       id: authResult.userId,

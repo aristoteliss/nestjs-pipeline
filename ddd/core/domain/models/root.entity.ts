@@ -16,19 +16,22 @@
  * ----------------------------
  */
 
+import { AggregateRoot } from '@nestjs/cqrs';
 import { isUuidV7, uuidv7 } from '@nestjs-pipeline/core';
 import { RootEntitySnapshot } from '../interfaces/root-entity-snapshot.interface';
 
 /**
  * Abstract base entity for DDD domain aggregates and entities.
  *
- * Provides core identity and lifecycle mechanics:
+ * Inherits from `@nestjs/cqrs` {@link AggregateRoot} to manage domain events
+ * internally:
+ * - **Domain Event Recording**: Call `this.apply(new SomeEvent(this))` to buffer uncommitted events.
  * - **UUID v7 Identity**: Automatically generates time-ordered UUID v7 identifiers for new instances.
  * - **Lifecycle Timestamps**: Enforces invariant-checked `createdAt` and `updatedAt` tracking.
  * - **Accessor-Driven Persistence**: Exposes typed getters and setters (`id`, `createdAt`, `updatedAt`)
  *   compatible with MikroORM `accessor: true` mapping without breaking encapsulation.
  * - **Polymorphic Rehydration**: Static `RootEntity.from()` transparently handles instances, plain snapshots,
- *   or nullish database results.
+ *   or nullish database results without re-triggering creation events.
  * - **Mutation Tracking**: Automatically updates `updatedAt` on `@Mutate()`-decorated methods
  *   and triggers the `afterUpdate()` lifecycle hook.
  *
@@ -50,7 +53,9 @@ import { RootEntitySnapshot } from '../interfaces/root-entity-snapshot.interface
  *   }
  *
  *   static create(username: string, email: string): User {
- *     return new User({ username, email });
+ *     const user = new User({ username, email });
+ *     user.apply(new UserCreatedEvent(user));
+ *     return user;
  *   }
  *
  *   static fromJSON(snapshot: UserSnapshot): User {
@@ -58,8 +63,10 @@ import { RootEntitySnapshot } from '../interfaces/root-entity-snapshot.interface
  *   }
  *
  *   @Mutate()
- *   rename(newUsername: string): void {
+ *   rename(newUsername: string): this {
  *     this._username = newUsername;
+ *     this.apply(new UserRenamedEvent(this));
+ *     return this;
  *   }
  *
  *   afterUpdate(): void {
@@ -78,7 +85,10 @@ import { RootEntitySnapshot } from '../interfaces/root-entity-snapshot.interface
  * }
  * ```
  */
-export abstract class RootEntity<TSnapshot extends Partial<RootEntitySnapshot>>
+export abstract class RootEntity<
+    TSnapshot extends Partial<RootEntitySnapshot> = RootEntitySnapshot,
+  >
+  extends AggregateRoot
   implements RootEntitySnapshot
 {
   private _id: string;
@@ -86,6 +96,7 @@ export abstract class RootEntity<TSnapshot extends Partial<RootEntitySnapshot>>
   private _updatedAt: Date;
 
   constructor(snapshot?: Partial<RootEntitySnapshot>) {
+    super();
     const id = snapshot?.id;
     const createdAt = snapshot?.createdAt;
     const updatedAt = snapshot?.updatedAt;

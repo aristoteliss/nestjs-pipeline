@@ -8,7 +8,7 @@ import { UpdateRoleCommand } from './update-role.command';
 import { UpdateRoleHandler } from './update-role.handler';
 
 function createCachedRoleFixture() {
-  const role = Role.create('admin').entity;
+  const role = Role.create('admin');
   const snapshot = role.toJSON();
   const cache: ICache<Role> = {
     get: vi.fn().mockResolvedValue(snapshot as unknown as Role),
@@ -46,13 +46,13 @@ describe('role command cache hydration', () => {
       { publishAll: vi.fn() } as never,
     );
 
-    const outcome = await handler.handle(
+    const result = await handler.handle(
       new UpdateRoleCommand({ id: role.id, name: 'editor' }),
     );
 
-    expect(outcome.entity).toBeInstanceOf(Role);
-    expect(outcome.entity.name).toBe('editor');
-    expect(save).toHaveBeenCalledWith(outcome);
+    expect(result).toBeInstanceOf(Role);
+    expect(result.name).toBe('editor');
+    expect(save).toHaveBeenCalledWith(result);
     expect(cache.get).toHaveBeenCalledWith(`tenant:role:id:${role.id}`);
     expect(findOne).not.toHaveBeenCalled();
   });
@@ -67,12 +67,10 @@ describe('role command cache hydration', () => {
       { publishAll: vi.fn() } as never,
     );
 
-    const outcome = await handler.handle(
-      new DeleteRoleCommand({ id: role.id }),
-    );
+    const result = await handler.handle(new DeleteRoleCommand({ id: role.id }));
 
-    expect(outcome.entity).toBeInstanceOf(Role);
-    expect(save).toHaveBeenCalledWith(outcome);
+    expect(result).toBeInstanceOf(Role);
+    expect(save).toHaveBeenCalledWith(result);
     expect(cache.get).toHaveBeenCalledWith(`tenant:role:id:${role.id}`);
     expect(findOne).not.toHaveBeenCalled();
   });

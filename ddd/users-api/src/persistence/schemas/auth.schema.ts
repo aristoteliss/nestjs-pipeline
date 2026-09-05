@@ -17,10 +17,10 @@
  */
 
 import { EntitySchema } from '@mikro-orm/core';
-import { UnixTimestampType } from '@nestjs-pipeline/ddd-core';
+import { AggregateRoot, UnixTimestampType } from '@nestjs-pipeline/ddd-core';
 import { Auth } from '../../auths/domain/models/auth.entity';
 
-export const AuthSchema = new EntitySchema<Auth>({
+export const AuthSchema = new EntitySchema<Auth, AggregateRoot>({
   class: Auth,
   tableName: 'auth',
   properties: {

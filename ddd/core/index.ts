@@ -16,6 +16,7 @@
  * ----------------------------
  */
 
+export { AggregateRoot, IEvent } from '@nestjs/cqrs';
 export * from './application/command-base.handler';
 export * from './domain/decorators/Mutate';
 export * from './domain/events/domain.event';

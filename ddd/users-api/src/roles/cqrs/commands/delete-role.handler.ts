@@ -31,7 +31,6 @@ import {
 import { ResilienceBehavior } from '@nestjs-pipeline/resilience';
 import { isTransientPersistenceError } from '@persistence/is-transient-persistence-error';
 import { Role } from '../../domain/models/role.entity';
-import { RoleUpdateOutcome } from '../../domain/outcomes/role-update.outcome';
 import {
   COMMAND_REPOSITORY,
   QUERY_REPOSITORY,
@@ -76,7 +75,7 @@ import { DeleteRoleCommand } from './delete-role.command';
 )
 export class DeleteRoleHandler extends CommandBaseHandler<
   DeleteRoleCommand,
-  RoleUpdateOutcome
+  Role
 > {
   constructor(
     @Inject(QUERY_REPOSITORY.getRole)
@@ -85,14 +84,14 @@ export class DeleteRoleHandler extends CommandBaseHandler<
       Role | null
     >,
     @Inject(COMMAND_REPOSITORY.deleteRole)
-    private readonly commandRepository: ICommandRepository<RoleUpdateOutcome>,
+    private readonly commandRepository: ICommandRepository<Role, null>,
     private readonly authorizer: CaslAuthorizer,
     protected readonly eventBus: EventBus,
   ) {
     super(eventBus);
   }
 
-  async handle(command: DeleteRoleCommand): Promise<RoleUpdateOutcome> {
+  async handle(command: DeleteRoleCommand): Promise<Role> {
     const { id } = command;
 
     const query = new GetRoleQuery({ roleId: id }, { hydrate: true });
@@ -104,10 +103,10 @@ export class DeleteRoleHandler extends CommandBaseHandler<
 
     this.authorizer.authorize('delete', role);
 
-    const outcome = role.delete();
+    role.delete();
 
-    await this.commandRepository.save(outcome);
+    await this.commandRepository.save(role);
 
-    return outcome;
+    return role;
   }
 }

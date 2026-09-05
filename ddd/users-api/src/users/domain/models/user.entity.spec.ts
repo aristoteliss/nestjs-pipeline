@@ -18,6 +18,8 @@
 
 import { uuidv7 } from '@nestjs-pipeline/core';
 import { describe, expect, it } from 'vitest';
+import { UserCreatedEvent } from '../events/user-created.event';
+import { UserUpdatedEvent } from '../events/user-updated.event';
 import {
   EmptyUserUpdateException,
   InvalidDepartmentException,
@@ -28,21 +30,23 @@ import { User } from './user.entity';
 describe('User domain entity', () => {
   describe('validation on create', () => {
     it('creates a valid user with username, email, and optional department', () => {
-      const outcome = User.create('Alice', 'alice@example.test', 'Engineering');
-      expect(outcome.entity.username).toBe('Alice');
-      expect(outcome.entity.email).toBe('alice@example.test');
-      expect(outcome.entity.department).toBe('Engineering');
+      const user = User.create('Alice', 'alice@example.test', 'Engineering');
+      expect(user.username).toBe('Alice');
+      expect(user.email).toBe('alice@example.test');
+      expect(user.department).toBe('Engineering');
+      expect(user.getUncommittedEvents()).toHaveLength(1);
+      expect(user.getUncommittedEvents()[0]).toBeInstanceOf(UserCreatedEvent);
     });
 
     it('creates a valid user with null or omitted department', () => {
-      const outcome1 = User.create('Alice', 'alice@example.test');
-      expect(outcome1.entity.department).toBeNull();
+      const user1 = User.create('Alice', 'alice@example.test');
+      expect(user1.department).toBeNull();
 
-      const outcome2 = User.create('Alice', 'alice@example.test', null);
-      expect(outcome2.entity.department).toBeNull();
+      const user2 = User.create('Alice', 'alice@example.test', null);
+      expect(user2.department).toBeNull();
 
-      const outcome3 = User.create('Alice', 'alice@example.test', '   ');
-      expect(outcome3.entity.department).toBeNull();
+      const user3 = User.create('Alice', 'alice@example.test', '   ');
+      expect(user3.department).toBeNull();
     });
 
     it('throws InvalidUsernameException when username is empty or whitespace', () => {
@@ -83,7 +87,7 @@ describe('User domain entity', () => {
 
   describe('User update', () => {
     it('rejects a domain-level no-op with EmptyUserUpdateException without changing updatedAt', () => {
-      const user = User.create('Alice', 'alice@example.test').entity;
+      const user = User.create('Alice', 'alice@example.test');
       const before = user.updatedAt;
 
       expect(() => user.update({})).toThrow(EmptyUserUpdateException);
@@ -92,25 +96,27 @@ describe('User domain entity', () => {
     });
 
     it('updates username and department when valid fields are supplied', () => {
-      const user = User.create('Alice', 'alice@example.test').entity;
-      const outcome = user.update({
+      const user = User.create('Alice', 'alice@example.test');
+      const updatedUser = user.update({
         username: 'Bob',
         department: 'Operations',
       });
 
-      expect(outcome.entity.username).toBe('Bob');
-      expect(outcome.entity.department).toBe('Operations');
+      expect(updatedUser.username).toBe('Bob');
+      expect(updatedUser.department).toBe('Operations');
+      expect(user.getUncommittedEvents()).toHaveLength(2);
+      expect(user.getUncommittedEvents()[1]).toBeInstanceOf(UserUpdatedEvent);
     });
 
     it('throws InvalidUsernameException when updating to an invalid username', () => {
-      const user = User.create('Alice', 'alice@example.test').entity;
+      const user = User.create('Alice', 'alice@example.test');
       expect(() => user.update({ username: 'ab' })).toThrow(
         InvalidUsernameException,
       );
     });
 
     it('throws InvalidDepartmentException when updating to an invalid department', () => {
-      const user = User.create('Alice', 'alice@example.test').entity;
+      const user = User.create('Alice', 'alice@example.test');
       expect(() => user.update({ department: 'ab' })).toThrow(
         InvalidDepartmentException,
       );

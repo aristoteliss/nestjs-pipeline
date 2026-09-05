@@ -278,20 +278,23 @@ The service-locator anti-pattern (`RootEntity.authorize()`) has been replaced by
 
 ```typescript
 @CommandHandler(CreateUserCommand)
-export class CreateUserHandler {
+export class CreateUserHandler extends CommandBaseHandler<CreateUserCommand, User> {
   constructor(
-    private readonly commandRepository: ICommandRepository<UserCreateOutcome>,
+    private readonly commandRepository: ICommandRepository<User, UserSnapshot>,
     private readonly authorizer: CaslAuthorizer,
-  ) {}
+    protected readonly eventBus: EventBus,
+  ) {
+    super(eventBus);
+  }
 
-  async handle(command: CreateUserCommand): Promise<UserCreateOutcome> {
-    const outcome = User.create(command.username, command.email, command.department);
+  async handle(command: CreateUserCommand): Promise<User> {
+    const user = User.create(command.username, command.email, command.department);
 
     // Enforce authorization against the active principal's ability
-    this.authorizer.authorize('create', outcome.entity, ['username', 'email', 'department']);
+    this.authorizer.authorize('create', user, ['username', 'email', 'department']);
 
-    await this.commandRepository.save(outcome);
-    return outcome;
+    await this.commandRepository.save(user);
+    return user;
   }
 }
 ```
@@ -375,24 +378,24 @@ export class CreateUserCommand extends createCommand(CreateUserSchema, BaseComma
   [RateLimitBehavior, { keyFactory: (ctx) => `${ctx.tenantId}:${ctx.request.email}` }],
   [IdempotencyBehavior, { keyFactory: createUserIdempotencyKey }],
 )
-export class CreateUserHandler extends CommandBaseHandler<CreateUserCommand, UserCreateOutcome> {
+export class CreateUserHandler extends CommandBaseHandler<CreateUserCommand, User> {
   constructor(
     @Inject(COMMAND_REPOSITORY.createUser)
-    private readonly commandRepository: ICommandRepository<UserCreateOutcome>,
+    private readonly commandRepository: ICommandRepository<User, UserSnapshot>,
     private readonly authorizer: CaslAuthorizer,
     protected readonly eventBus: EventBus,
   ) {
     super(eventBus);
   }
 
-  async handle(command: CreateUserCommand): Promise<UserCreateOutcome> {
-    const outcome = User.create(command.username, command.email, command.department);
+  async handle(command: CreateUserCommand): Promise<User> {
+    const user = User.create(command.username, command.email, command.department);
 
     // Entity-level and field-level permission check
-    this.authorizer.authorize('create', outcome.entity, ['username', 'email', 'department']);
+    this.authorizer.authorize('create', user, ['username', 'email', 'department']);
 
-    await this.commandRepository.save(outcome);
-    return outcome;
+    await this.commandRepository.save(user);
+    return user;
   }
 }
 ```

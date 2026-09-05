@@ -17,37 +17,33 @@
  */
 
 import { describe, expect, it, vi } from 'vitest';
-import { RootDomainOutcome } from '../../domain/outcomes/root-domain.outcome';
 import type { ICache } from '../cache.interface';
 import { Cache } from './Cache';
 
-class MockOutcome extends RootDomainOutcome<{ id: string }> {
-  // biome-ignore lint/complexity/noUselessConstructor: public constructor exposing protected base constructor
-  constructor(entity: { id: string }) {
-    super(entity);
-  }
+interface MockEntity {
+  id: string;
 }
 
 class TestCommandRepo {
   constructor(public cache?: ICache) {}
 
-  @Cache({
-    setKey: (outcome) => `mock:${outcome.entity.id}`,
-    deleteKeys: (outcome) => [`mock:${outcome.entity.id}`],
+  @Cache<MockEntity, { id: string }>({
+    setKey: (entity) => `mock:${entity.id}`,
+    deleteKeys: (entity) => [`mock:${entity.id}`],
   })
-  async save(outcome: MockOutcome): Promise<{ id: string } | null> {
-    if (outcome.entity.id === 'delete-me') {
+  async save(entity: MockEntity): Promise<{ id: string } | null> {
+    if (entity.id === 'delete-me') {
       return null;
     }
-    return { id: outcome.entity.id };
+    return { id: entity.id };
   }
 }
 
 class BooleanCommandRepo {
   constructor(public cache?: ICache) {}
 
-  @Cache<MockOutcome, boolean>((outcome) => `mock:${outcome.entity.id}`)
-  async save(_outcome: MockOutcome): Promise<boolean | null> {
+  @Cache<MockEntity, boolean>((entity) => `mock:${entity.id}`)
+  async save(_entity: MockEntity): Promise<boolean | null> {
     return false;
   }
 }
@@ -55,22 +51,22 @@ class BooleanCommandRepo {
 class VoidCommandRepo {
   constructor(public cache?: ICache<void>) {}
 
-  @Cache<MockOutcome, void>({
-    deleteKeys: (outcome) => [`mock:${outcome.entity.id}`],
+  @Cache<MockEntity, void>({
+    deleteKeys: (entity) => [`mock:${entity.id}`],
   })
-  async save(_outcome: MockOutcome): Promise<void> {}
+  async save(_entity: MockEntity): Promise<void> {}
 }
 
 class SecondaryInvalidationRepo {
   constructor(public cache?: ICache) {}
 
-  @Cache<MockOutcome, { id: string }>(
-    (outcome) => `user:${outcome.entity.id}`,
+  @Cache<MockEntity, { id: string }>(
+    (entity) => `user:${entity.id}`,
     null,
-    (outcome) => [`email:${outcome.entity.id}`],
+    (entity) => [`email:${entity.id}`],
   )
-  async save(outcome: MockOutcome): Promise<{ id: string }> {
-    return { id: outcome.entity.id };
+  async save(entity: MockEntity): Promise<{ id: string }> {
+    return { id: entity.id };
   }
 }
 
@@ -85,13 +81,13 @@ describe('@Cache decorator on CommandRepository.save', () => {
 
   it('passes through when repository has no cache attached', async () => {
     const repo = new TestCommandRepo(undefined);
-    const outcome = new MockOutcome({ id: 'u1' });
+    const entity: MockEntity = { id: 'u1' };
 
-    const result = await repo.save(outcome);
+    const result = await repo.save(entity);
     expect(result).toEqual({ id: 'u1' });
   });
 
-  it('writes saved entity result to cache using outcome entity id', async () => {
+  it('writes saved entity result to cache using entity id', async () => {
     const mockCache: ICache = {
       get: vi.fn(),
       set: vi.fn(),
@@ -99,9 +95,9 @@ describe('@Cache decorator on CommandRepository.save', () => {
     };
 
     const repo = new TestCommandRepo(mockCache);
-    const outcome = new MockOutcome({ id: 'u1' });
+    const entity: MockEntity = { id: 'u1' };
 
-    const result = await repo.save(outcome);
+    const result = await repo.save(entity);
 
     expect(result).toEqual({ id: 'u1' });
     expect(mockCache.set).toHaveBeenCalledWith('mock:u1', { id: 'u1' });
@@ -115,11 +111,11 @@ describe('@Cache decorator on CommandRepository.save', () => {
     };
 
     const repo = new TestCommandRepo(mockCache);
-    const outcome = new MockOutcome({
+    const entity: MockEntity = {
       id: 'delete-me',
-    });
+    };
 
-    const result = await repo.save(outcome);
+    const result = await repo.save(entity);
 
     expect(result).toBeNull();
     expect(mockCache.delete).toHaveBeenCalledWith('mock:delete-me');
@@ -133,9 +129,9 @@ describe('@Cache decorator on CommandRepository.save', () => {
       delete: vi.fn(),
     };
     const repo = new BooleanCommandRepo(mockCache);
-    const outcome = new MockOutcome({ id: 'u1' });
+    const entity: MockEntity = { id: 'u1' };
 
-    const result = await repo.save(outcome);
+    const result = await repo.save(entity);
 
     expect(result).toBe(false);
     expect(mockCache.set).toHaveBeenCalledWith('mock:u1', false);
@@ -149,9 +145,9 @@ describe('@Cache decorator on CommandRepository.save', () => {
       delete: vi.fn(),
     };
     const repo = new VoidCommandRepo(mockCache);
-    const outcome = new MockOutcome({ id: 'u1' });
+    const entity: MockEntity = { id: 'u1' };
 
-    const result = await repo.save(outcome);
+    const result = await repo.save(entity);
 
     expect(result).toBeUndefined();
     expect(mockCache.delete).toHaveBeenCalledWith('mock:u1');
@@ -165,9 +161,9 @@ describe('@Cache decorator on CommandRepository.save', () => {
       delete: vi.fn(),
     };
     const repo = new SecondaryInvalidationRepo(cache);
-    const outcome = new MockOutcome({ id: 'u1' });
+    const entity: MockEntity = { id: 'u1' };
 
-    await repo.save(outcome);
+    await repo.save(entity);
 
     expect(cache.delete).toHaveBeenCalledWith('email:u1');
     expect(cache.set).toHaveBeenCalledWith('user:u1', { id: 'u1' });

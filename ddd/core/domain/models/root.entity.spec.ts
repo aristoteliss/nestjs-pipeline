@@ -182,4 +182,20 @@ describe('RootEntity', () => {
       expect(TestEntity.from(undefined)).toBeNull();
     });
   });
+
+  describe('AggregateRoot event lifecycle', () => {
+    it('buffers uncommitted events recorded with apply() and flushes with uncommit()', () => {
+      const entity = new TestEntity({ name: 'Alpha' });
+      expect(entity.getUncommittedEvents()).toEqual([]);
+
+      const mockEvent = { id: uuidv7(), type: 'TestEvent' };
+      entity.apply(mockEvent);
+
+      expect(entity.getUncommittedEvents()).toHaveLength(1);
+      expect(entity.getUncommittedEvents()[0]).toBe(mockEvent);
+
+      entity.uncommit();
+      expect(entity.getUncommittedEvents()).toEqual([]);
+    });
+  });
 });

@@ -18,7 +18,6 @@
 
 import { RootEntity, RootEntitySnapshot } from '@nestjs-pipeline/ddd-core';
 import { CreatedAuthEvent } from '../events/create-auth.event';
-import { AuthCreateOutcome } from '../outcomes/auth-create.outcome';
 
 export interface AuthSnapshot extends Partial<RootEntitySnapshot> {
   readonly userId: string;
@@ -43,9 +42,10 @@ export class Auth extends RootEntity<AuthSnapshot> {
     this.token = snapshot.token;
   }
 
-  static create(userId: string, token: string): AuthCreateOutcome {
+  static create(userId: string, token: string): Auth {
     const auth = new Auth({ userId, token });
-    return new AuthCreateOutcome(auth, [new CreatedAuthEvent(auth)]);
+    auth.apply(new CreatedAuthEvent(auth));
+    return auth;
   }
 
   static fromJSON(snapshot: AuthSnapshot): Auth {

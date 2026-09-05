@@ -34,8 +34,7 @@ import { FeatureFlagBehavior } from '@nestjs-pipeline/feature-flags';
 import { IdempotencyBehavior } from '@nestjs-pipeline/idempotency';
 import { RateLimitBehavior } from '@nestjs-pipeline/rate-limit';
 import { UniqueEmailException } from '../../domain/models/errors/email.exception';
-import { User } from '../../domain/models/user.entity';
-import { UserCreateOutcome } from '../../domain/outcomes/user-create.outcome';
+import { User, type UserSnapshot } from '../../domain/models/user.entity';
 import { COMMAND_REPOSITORY } from '../../persistence/repository.tokens';
 import { CreateUserCommand } from './create-user.command';
 
@@ -81,29 +80,29 @@ export function createUserIdempotencyKey(ctx: IPipelineContext): string {
 )
 export class CreateUserHandler extends CommandBaseHandler<
   CreateUserCommand,
-  UserCreateOutcome
+  User
 > {
   constructor(
     @Inject(COMMAND_REPOSITORY.createUser)
-    private readonly commandRepository: ICommandRepository<UserCreateOutcome>,
+    private readonly commandRepository: ICommandRepository<User, UserSnapshot>,
     private readonly authorizer: CaslAuthorizer,
     protected readonly eventBus: EventBus,
   ) {
     super(eventBus);
   }
 
-  async handle(command: CreateUserCommand): Promise<UserCreateOutcome> {
+  async handle(command: CreateUserCommand): Promise<User> {
     const { username, email, department } = command;
 
-    const outcome = User.create(username, email, department);
-    this.authorizer.authorize('create', outcome.entity, [
+    const user = User.create(username, email, department);
+    this.authorizer.authorize('create', user, [
       'username',
       'email',
       ...(department !== undefined ? ['department'] : []),
     ]);
 
-    await this.commandRepository.save(outcome);
+    await this.commandRepository.save(user);
 
-    return outcome;
+    return user;
   }
 }

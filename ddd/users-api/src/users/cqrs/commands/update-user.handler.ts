@@ -26,8 +26,7 @@ import {
   ICommandRepository,
   IQueryRepository,
 } from '@nestjs-pipeline/ddd-core';
-import { User } from '../../domain/models/user.entity';
-import { UserUpdateOutcome } from '../../domain/outcomes/user-update.outcome';
+import { User, type UserSnapshot } from '../../domain/models/user.entity';
 import {
   COMMAND_REPOSITORY,
   QUERY_REPOSITORY,
@@ -48,20 +47,20 @@ import { UpdateUserCommand } from './update-user.command';
 )
 export class UpdateUserHandler extends CommandBaseHandler<
   UpdateUserCommand,
-  UserUpdateOutcome
+  User
 > {
   constructor(
     @Inject(QUERY_REPOSITORY.getUser)
     private readonly queryRepository: IQueryRepository<GetUserQuery, User>,
     @Inject(COMMAND_REPOSITORY.updateUser)
-    private readonly commandRepository: ICommandRepository<UserUpdateOutcome>,
+    private readonly commandRepository: ICommandRepository<User, UserSnapshot>,
     private readonly authorizer: CaslAuthorizer,
     protected readonly eventBus: EventBus,
   ) {
     super(eventBus);
   }
 
-  async handle(command: UpdateUserCommand): Promise<UserUpdateOutcome> {
+  async handle(command: UpdateUserCommand): Promise<User> {
     const { id, username, department } = command;
 
     const query = new GetUserQuery({ userId: id }, { hydrate: true });
@@ -76,10 +75,10 @@ export class UpdateUserHandler extends CommandBaseHandler<
       .map(([field]) => field);
     this.authorizer.authorize('update', user, changedFields);
 
-    const outcome = user.update({ username, department });
+    user.update({ username, department });
 
-    await this.commandRepository.save(outcome);
+    await this.commandRepository.save(user);
 
-    return outcome;
+    return user;
   }
 }

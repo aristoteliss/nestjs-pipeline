@@ -10,8 +10,8 @@ describe('CreateUserCommandRepository', () => {
       set: vi.fn(),
       delete: vi.fn(),
     };
-    const outcome = User.create('Alice', 'alice@example.test', 'engineering');
-    const create = vi.fn().mockReturnValue(outcome.entity);
+    const user = User.create('Alice', 'alice@example.test', 'engineering');
+    const create = vi.fn().mockReturnValue(user);
     const persist = vi.fn();
     const flush = vi.fn().mockResolvedValue(undefined);
     const store = {
@@ -21,15 +21,12 @@ describe('CreateUserCommandRepository', () => {
     };
     const repository = new CreateUserCommandRepository(cache, store as never);
 
-    const result = await repository.save(outcome);
+    const result = await repository.save(user);
 
-    expect(create).toHaveBeenCalledWith(User, outcome.entity);
-    expect(persist).toHaveBeenCalledWith(outcome.entity);
+    expect(create).toHaveBeenCalledWith(User, user);
+    expect(persist).toHaveBeenCalledWith(user);
     expect(flush).toHaveBeenCalledOnce();
-    expect(cache.set).toHaveBeenCalledWith(
-      `tenant:user:id:${outcome.entity.id}`,
-      result,
-    );
+    expect(cache.set).toHaveBeenCalledWith(`tenant:user:id:${user.id}`, result);
   });
 
   it('translates database unique constraint violations into UniqueEmailException', async () => {
@@ -38,11 +35,11 @@ describe('CreateUserCommandRepository', () => {
       set: vi.fn(),
       delete: vi.fn(),
     };
-    const outcome = User.create('Alice', 'alice@example.test', 'engineering');
+    const user = User.create('Alice', 'alice@example.test', 'engineering');
     const store = {
       get em() {
         return {
-          create: vi.fn().mockReturnValue(outcome.entity),
+          create: vi.fn().mockReturnValue(user),
           persist: vi.fn(),
           flush: vi
             .fn()
@@ -52,7 +49,7 @@ describe('CreateUserCommandRepository', () => {
     };
     const repository = new CreateUserCommandRepository(cache, store as never);
 
-    await expect(repository.save(outcome)).rejects.toThrow(
+    await expect(repository.save(user)).rejects.toThrow(
       'Email alice@example.test already exists',
     );
   });

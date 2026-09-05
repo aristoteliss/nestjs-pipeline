@@ -17,10 +17,10 @@
  */
 
 import { EntitySchema } from '@mikro-orm/core';
-import { UnixTimestampType } from '@nestjs-pipeline/ddd-core';
+import { AggregateRoot, UnixTimestampType } from '@nestjs-pipeline/ddd-core';
 import { Capability } from '../../roles/domain/models/capability.entity';
 
-export const CapabilitySchema = new EntitySchema<Capability>({
+export const CapabilitySchema = new EntitySchema<Capability, AggregateRoot>({
   class: Capability,
   tableName: 'capabilities',
   properties: {

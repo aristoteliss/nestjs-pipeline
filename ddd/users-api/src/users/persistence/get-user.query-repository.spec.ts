@@ -7,11 +7,7 @@ import { GetUserQueryRepository } from './get-user.query-repository';
 
 describe('GetUserQueryRepository cache policy', () => {
   it('preserves hydration metadata through global payload validation', async () => {
-    const persisted = User.create(
-      'Alice',
-      'alice@example.test',
-      'engineering',
-    ).entity;
+    const persisted = User.create('Alice', 'alice@example.test', 'engineering');
     const cache: ICache<User> = {
       get: vi.fn().mockResolvedValue(persisted.toJSON()),
       set: vi.fn(),
@@ -41,11 +37,7 @@ describe('GetUserQueryRepository cache policy', () => {
       set: vi.fn(),
       delete: vi.fn(),
     };
-    const persisted = User.create(
-      'Alice',
-      'alice@example.test',
-      'engineering',
-    ).entity;
+    const persisted = User.create('Alice', 'alice@example.test', 'engineering');
     const findOne = vi.fn().mockResolvedValue(persisted);
     const store = {
       get em() {

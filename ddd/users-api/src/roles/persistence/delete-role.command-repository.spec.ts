@@ -17,9 +17,10 @@ describe('DeleteRoleCommandRepository', () => {
       },
     };
     const repository = new DeleteRoleCommandRepository(cache, store as never);
-    const role = Role.create('admin').entity;
+    const role = Role.create('admin');
 
-    const result = await repository.save(role.delete());
+    role.delete();
+    const result = await repository.save(role);
 
     expect(result).toBeNull();
     expect(nativeDelete).toHaveBeenCalledWith(Role, { id: role.id });

@@ -8,13 +8,13 @@ This package provides the foundational building blocks for implementing a Clean 
 
 ### Domain Primitives
 
-- **`RootEntity<TSnapshot>`** — Abstract base entity with UUID v7 identity, immutable `createdAt`/`updatedAt` timestamps, accessor mappings (`id`, `createdAt`, `updatedAt`), polymorphic snapshot rehydration via `RootEntity.from()`, and mutation tracking via `onUpdate()`.
+- **`RootEntity<TSnapshot>`** — Abstract base aggregate entity extending `@nestjs/cqrs` `AggregateRoot`. Provides internal uncommitted domain event management (`this.apply(event)`), UUID v7 identity, immutable `createdAt`/`updatedAt` timestamps, accessor mappings (`id`, `createdAt`, `updatedAt`), polymorphic snapshot rehydration via `RootEntity.from()`, and mutation tracking via `onUpdate()`.
 - **`RootEntitySnapshot`** — Interface defining the serialized state contract (`id`, `createdAt`, `updatedAt`).
 - **`DomainException`** — Abstract base class for domain invariant failures. Pure TypeScript error class completely decoupled from HTTP status codes and framework decorators.
-- **`DomainEvent`** — Abstract base class for domain events carrying a unique UUID v7 `id`.
+- **`DomainEvent`** — Abstract base class for domain events carrying a unique UUID v7 `id` and implementing `@nestjs/cqrs` `IEvent`.
 - **`RootDomainEvent<TEntity>`** — Domain event carrying a typed reference to the originating entity.
-- **`DomainOutcome`** — Base outcome class bundling domain events produced by an operation.
-- **`RootDomainOutcome<TEntity>`** — Outcome pairing an entity with its domain events, enabling `const { entity, events } = outcome` destructuring.
+- **`CommandBaseHandler<TCommand, TResult>`** — Abstract base handler for CQRS commands. Executes the `@UsePipeline` chain, automatically dispatches uncommitted domain events via `this.eventBus.publishAll()` when an `AggregateRoot` is returned from `handle()`, and provides `protected commit(aggregate: AggregateRoot)` for custom return types.
+- **`DomainOutcome` / `RootDomainOutcome<TEntity>`** — *(Deprecated)* Legacy wrappers for bundling events with entities. Modern domain aggregates manage uncommitted events internally via `this.apply(event)`.
 - **`@Mutate()`** — Method decorator that automatically triggers `onUpdate()` after the decorated method executes, updating `updatedAt`.
 - **`UnixTimestampType`** — Custom MikroORM `Type<Date, number>` mapping JavaScript `Date` instances to Unix timestamps (ms) in integer database columns.
 - **`Method`** — Utility type for extracting method signatures.
@@ -22,12 +22,13 @@ This package provides the foundational building blocks for implementing a Clean 
 ### Persistence Abstractions
 
 - **`ICache<T>`** — Interface for cache providers defining `get`, `set` (with optional options), and `delete`.
-- **`CommandRepository<TOutcome, TResult>`** — Abstract base for write repositories. Injects an `ICache` instance; concrete classes implement `save(outcome)`.
+- **`ICommandRepository<TEntity, TResult>`** — Interface defining the contract `save(entity: TEntity): Promise<TResult | null>`.
+- **`CommandRepository<TEntity, TResult, TCache>`** — Abstract base for write repositories. Injects an `ICache` instance; concrete classes implement `save(entity: TEntity)`.
 - **`QueryRepository<TQuery, TResult>`** — Abstract base for read repositories. Injects an `ICache` instance; concrete classes implement `find(query)`.
 - **`@Cache()`** — Method decorator for `save()` in command repositories:
-  - **Write-Through**: Automatically caches the returned result under the key derived by `setKeyFn`.
+  - **Write-Through**: Automatically caches the returned result under the key derived by `setKeyFn` (operating directly on `entity: TEntity`).
   - **Eviction**: Evicts keys derived by `deleteKeysFn` when `save()` yields `null` or `undefined` (e.g. on entity deletion).
-  - **Secondary Invalidation**: Evicts auxiliary keys derived by `invalidateKeysFn` on successful writes.
+  - **Secondary Invalidation**: Evicts auxiliary keys derived by `invalidateKeysFn` on successful writes before setting new values.
   - **Best-Effort**: Cache write/delete errors are caught and swallowed so a committed database transaction is never converted into an application error.
 - **`@FromCache()`** — Method decorator for `find()` in query repositories:
   - **Read-Through**: Checks the cache first via `keyFn`; on a cache hit returns the cached value (optionally rehydrating with `hydrateFn`).
@@ -54,10 +55,12 @@ This package is a workspace dependency:
 
 ### 1. Defining a Domain Entity with Invariants and RootEntity
 
-Domain aggregates remain pure DDD models. They encapsulate business rules and invariants, throwing framework-agnostic `DomainException`s:
+Domain aggregates extend `RootEntity` (which extends `@nestjs/cqrs` `AggregateRoot`). They record uncommitted domain events via `this.apply(event)` and enforce business rules through framework-agnostic `DomainException`s:
 
 ```typescript
 import { RootEntity, Mutate, type RootEntitySnapshot, DomainException } from '@nestjs-pipeline/ddd-core';
+import { UserCreatedEvent } from './user-created.event';
+import { UserRenamedEvent } from './user-renamed.event';
 
 export class InvalidUsernameException extends DomainException {
   readonly minLength: number;
@@ -88,8 +91,11 @@ export class User extends RootEntity<UserSnapshot> {
     this._department = snapshot.department ?? null;
   }
 
+  // Factory recording the creation event internally
   static create(username: string, email: string, department?: string | null): User {
-    return new User({ username, email, department });
+    const user = new User({ username, email, department });
+    user.apply(new UserCreatedEvent(user));
+    return user;
   }
 
   static fromJSON(snapshot: UserSnapshot): User {
@@ -119,13 +125,10 @@ export class User extends RootEntity<UserSnapshot> {
   }
 
   @Mutate()
-  updateProfile(username?: string, department?: string | null): void {
-    if (username !== undefined) this.username = username;
-    if (department !== undefined) this.department = department;
-  }
-
-  afterUpdate(): void {
-    // Optional hook executed after every @Mutate() invocation
+  rename(newUsername: string): this {
+    this.username = newUsername;
+    this.apply(new UserRenamedEvent(this));
+    return this;
   }
 
   toJSON(): RootEntitySnapshot & UserSnapshot {
@@ -143,84 +146,115 @@ export class User extends RootEntity<UserSnapshot> {
 
 ---
 
-### 2. Defining Domain Events and Outcomes
+### 2. Defining Domain Events
 
-Mutations bundle the aggregate state with emitted domain events:
+Domain events extend `RootDomainEvent<TEntity>` (which implements `@nestjs/cqrs` `IEvent`) carrying a unique UUID v7 identifier and a typed reference to the originating aggregate:
 
 ```typescript
-import { RootDomainEvent, RootDomainOutcome, DomainEvent } from '@nestjs-pipeline/ddd-core';
+import { RootDomainEvent } from '@nestjs-pipeline/ddd-core';
 import { User } from './user.entity';
 
-// 1. Domain Event
 export class UserCreatedEvent extends RootDomainEvent<User> {
   constructor(entity: User) {
     super(entity);
   }
 }
 
-// 2. Domain Outcome
-export class UserCreateOutcome extends RootDomainOutcome<User> {
-  constructor(entity: User, events: DomainEvent[] = [new UserCreatedEvent(entity)]) {
-    super(entity, events);
+export class UserRenamedEvent extends RootDomainEvent<User> {
+  constructor(entity: User) {
+    super(entity);
   }
 }
-
-// 3. Usage inside Aggregate Factory or Handler
-const user = User.create('alice', 'alice@example.com');
-const outcome = new UserCreateOutcome(user);
-const { entity, events } = outcome;
 ```
 
 ---
 
-### 3. Write-Side Command Repository with `@Cache()`
+### 3. CQRS Command Handler with `CommandBaseHandler`
 
-Command repositories handle persistence and declarative cache updates or evictions without polluting domain entities:
+Command handlers extend `CommandBaseHandler`. When `handle()` returns an `AggregateRoot`, `CommandBaseHandler` automatically publishes all uncommitted events to the NestJS `EventBus` and calls `aggregate.uncommit()`:
+
+```typescript
+import { CommandHandler, EventBus } from '@nestjs/cqrs';
+import { CommandBaseHandler, ICommandRepository } from '@nestjs-pipeline/ddd-core';
+import { LoggingBehavior, UsePipeline } from '@nestjs-pipeline/core';
+import { User, UserSnapshot } from './user.entity';
+import { CreateUserCommand } from './create-user.command';
+
+@CommandHandler(CreateUserCommand)
+@UsePipeline([LoggingBehavior, { requestResponseLogLevel: 'log' }])
+export class CreateUserHandler extends CommandBaseHandler<CreateUserCommand, User> {
+  constructor(
+    private readonly commandRepository: ICommandRepository<User, UserSnapshot>,
+    protected readonly eventBus: EventBus,
+  ) {
+    super(eventBus);
+  }
+
+  async handle(command: CreateUserCommand): Promise<User> {
+    // 1. Create domain entity (internally applies UserCreatedEvent)
+    const user = User.create(command.username, command.email, command.department);
+
+    // 2. Persist entity state directly (no wrapper outcomes)
+    await this.commandRepository.save(user);
+
+    // 3. Return aggregate root:
+    // CommandBaseHandler automatically calls eventBus.publishAll() and uncommit()!
+    return user;
+  }
+}
+```
+
+> [!NOTE]
+> If your handler returns a non-aggregate result (e.g. a DTO or session token), you can use the protected `this.commit(aggregate)` helper to manually dispatch uncommitted events to the `EventBus` before returning.
+
+---
+
+### 4. Write-Side Command Repository with `@Cache()`
+
+Command repositories receive and persist domain entities directly via `save(entity: TEntity)`. The `@Cache` decorator synchronizes caches declaratively using the pure entity:
 
 ```typescript
 import { Injectable } from '@nestjs/common';
 import { CommandRepository, Cache, ICache } from '@nestjs-pipeline/ddd-core';
 import { User, UserSnapshot } from './user.entity';
-import { UserCreateOutcome } from './user-create.outcome';
-import { UserUpdateOutcome } from './user-update.outcome';
 
-// Write-through caching on creation/update (positional syntax)
+// Write-through caching on creation / update (positional syntax)
 @Injectable()
-export class CreateUserCommandRepository extends CommandRepository<UserCreateOutcome, UserSnapshot> {
+export class CreateUserCommandRepository extends CommandRepository<User, UserSnapshot> {
   constructor(protected readonly cache: ICache<UserSnapshot>, private readonly ormStore: any) {
     super(cache);
   }
 
-  @Cache<UserCreateOutcome, UserSnapshot>(
+  @Cache<User, UserSnapshot>(
     // setKey: writes result into cache under this key
-    (outcome) => `tenant:user:id:${outcome.entity.id}`,
+    (user) => `tenant:user:id:${user.id}`,
     // deleteKeys: null (not a deletion)
     null,
     // invalidateKeys: secondary lookup keys to evict (e.g. by email)
-    (outcome) => [`tenant:user:email:${outcome.entity.email}`],
+    (user) => [`tenant:user:email:${user.email}`],
   )
-  async save(outcome: UserCreateOutcome): Promise<UserSnapshot> {
-    const user = await this.ormStore.em.upsert(User, outcome.entity);
-    return user.toJSON();
+  async save(user: User): Promise<UserSnapshot> {
+    const persisted = await this.ormStore.em.upsert(User, user);
+    return persisted.toJSON();
   }
 }
 
 // Eviction on deletion (options object syntax)
 @Injectable()
-export class DeleteUserCommandRepository extends CommandRepository<UserUpdateOutcome, null> {
+export class DeleteUserCommandRepository extends CommandRepository<User, null> {
   constructor(protected readonly cache: ICache<UserSnapshot>, private readonly ormStore: any) {
     super(cache);
   }
 
-  @Cache<UserUpdateOutcome, null>({
+  @Cache<User, null>({
     // deleteKeys: evict all primary and secondary cache keys
-    deleteKeys: (outcome) => [
-      `tenant:user:id:${outcome.entity.id}`,
-      `tenant:user:email:${outcome.entity.email}`,
+    deleteKeys: (user) => [
+      `tenant:user:id:${user.id}`,
+      `tenant:user:email:${user.email}`,
     ],
   })
-  async save(outcome: UserUpdateOutcome): Promise<null> {
-    await this.ormStore.em.nativeDelete(User, outcome.entity.id);
+  async save(user: User): Promise<null> {
+    await this.ormStore.em.nativeDelete(User, user.id);
     return null;
   }
 }

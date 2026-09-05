@@ -9,7 +9,7 @@ import { GetUserCapabilitiesQueryRepository } from './get-user-capabilities.quer
 
 describe('GetUserCapabilitiesQueryRepository', () => {
   it('uses schema-aware entity operations instead of raw SQL', async () => {
-    const role = Role.create('admin').entity;
+    const role = Role.create('admin');
     const additional = Capability.create('read', 'User');
     const denied = Capability.create('delete', 'User', null, true);
     const find = vi.fn(async (entity: unknown) => {

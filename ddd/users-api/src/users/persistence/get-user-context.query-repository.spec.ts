@@ -5,11 +5,7 @@ import { GetUserContextQueryRepository } from './get-user-context.query-reposito
 
 describe('GetUserContextQueryRepository', () => {
   it('reads current authorization context from persistence on every lookup', async () => {
-    const user = User.create(
-      'Alice',
-      'alice@example.test',
-      'engineering',
-    ).entity;
+    const user = User.create('Alice', 'alice@example.test', 'engineering');
     const findOne = vi.fn().mockResolvedValue(user);
     const repository = new GetUserContextQueryRepository(
       {

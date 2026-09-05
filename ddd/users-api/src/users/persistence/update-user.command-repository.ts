@@ -22,10 +22,12 @@ import { Cache, CommandRepository, ICache } from '@nestjs-pipeline/ddd-core';
 import { CACHE_TOKEN } from '@persistence/cache/memory.cache';
 import { MIKRO_ORM_CLIENT, MikroOrmStore } from '@persistence/mikro-orm.store';
 import { User, UserSnapshot } from '../domain/models/user.entity';
-import { UserUpdateOutcome } from '../domain/outcomes/user-update.outcome';
 
 @Injectable()
-export class UpdateUserCommandRepository extends CommandRepository<UserUpdateOutcome> {
+export class UpdateUserCommandRepository extends CommandRepository<
+  User,
+  UserSnapshot
+> {
   constructor(
     @Inject(CACHE_TOKEN) protected readonly cache: ICache<UserSnapshot>,
     @Inject(MIKRO_ORM_CLIENT) private readonly store: MikroOrmStore,
@@ -33,18 +35,14 @@ export class UpdateUserCommandRepository extends CommandRepository<UserUpdateOut
     super(cache);
   }
 
-  @Cache<UserUpdateOutcome, UserSnapshot>(
-    (outcome) => filterCacheKey(User.aggregateName, { id: outcome.entity.id }),
+  @Cache<User, UserSnapshot>(
+    (user) => filterCacheKey(User.aggregateName, { id: user.id }),
     null,
-    (outcome) => [
-      filterCacheKey(User.aggregateName, { email: outcome.entity.email }),
-    ],
+    (user) => [filterCacheKey(User.aggregateName, { email: user.email })],
   )
-  async save(domainOutcome: UserUpdateOutcome): Promise<UserSnapshot> {
-    const { entity } = domainOutcome;
+  async save(user: User): Promise<UserSnapshot> {
+    const updated = await this.store.em.upsert(User, user);
 
-    const user = await this.store.em.upsert(User, entity);
-
-    return user.toJSON();
+    return updated.toJSON();
   }
 }

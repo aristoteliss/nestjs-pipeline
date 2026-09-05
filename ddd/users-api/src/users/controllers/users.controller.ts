@@ -34,9 +34,7 @@ import { DeleteUserCommand } from '../cqrs/commands/delete-user.command';
 import { UpdateUserCommand } from '../cqrs/commands/update-user.command';
 import { GetUserQuery } from '../cqrs/queries/get-user.query';
 import { GetUsersQuery } from '../cqrs/queries/get-users.query';
-import type { UserSnapshot } from '../domain/models/user.entity';
-import { UserCreateOutcome } from '../domain/outcomes/user-create.outcome';
-import { UserUpdateOutcome } from '../domain/outcomes/user-update.outcome';
+import type { User, UserSnapshot } from '../domain/models/user.entity';
 import {
   type CreateUserDto,
   CreateUserDtoSchema,
@@ -87,12 +85,11 @@ export class UsersController {
   async createUser(
     @Body(new ZodPipe(CreateUserDtoSchema)) dto: CreateUserDto,
   ): Promise<UserResponseDto> {
-    const outcome = await this.commandBus.execute<
-      CreateUserCommand,
-      UserCreateOutcome
-    >(CreateUserMapper.map(dto));
+    const user = await this.commandBus.execute<CreateUserCommand, User>(
+      CreateUserMapper.map(dto),
+    );
 
-    return toResponseDto(outcome.entity);
+    return toResponseDto(user);
   }
 
   @Patch(':id')
@@ -101,12 +98,11 @@ export class UsersController {
     @Param('id', new ZodPipe<UserIdDto, string>(UserIdDtoSchema)) id: UserIdDto,
     @Body(new ZodPipe(UpdateUserDtoSchema)) dto: UpdateUserDto,
   ): Promise<UserResponseDto> {
-    const outcome = await this.commandBus.execute<
-      UpdateUserCommand,
-      UserUpdateOutcome
-    >(UpdateUserMapper.map(id, dto));
+    const user = await this.commandBus.execute<UpdateUserCommand, User>(
+      UpdateUserMapper.map(id, dto),
+    );
 
-    return toResponseDto(outcome.entity);
+    return toResponseDto(user);
   }
 
   @Delete(':id')
@@ -114,7 +110,7 @@ export class UsersController {
   async deleteUser(
     @Param('id', new ZodPipe<UserIdDto, string>(UserIdDtoSchema)) id: UserIdDto,
   ): Promise<void> {
-    await this.commandBus.execute<DeleteUserCommand, UserUpdateOutcome>(
+    await this.commandBus.execute<DeleteUserCommand, User>(
       new DeleteUserCommand({ id }),
     );
   }

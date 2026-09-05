@@ -27,8 +27,7 @@ import {
   IQueryRepository,
 } from '@nestjs-pipeline/ddd-core';
 import { UniqueRoleNameException } from '../../domain/models/errors/role-name.exception';
-import { Role } from '../../domain/models/role.entity';
-import { RoleUpdateOutcome } from '../../domain/outcomes/role-update.outcome';
+import { Role, type RoleSnapshot } from '../../domain/models/role.entity';
 import {
   COMMAND_REPOSITORY,
   QUERY_REPOSITORY,
@@ -55,7 +54,7 @@ import { UpdateRoleCommand } from './update-role.command';
 )
 export class UpdateRoleHandler extends CommandBaseHandler<
   UpdateRoleCommand,
-  RoleUpdateOutcome
+  Role
 > {
   constructor(
     @Inject(QUERY_REPOSITORY.getRole)
@@ -64,14 +63,14 @@ export class UpdateRoleHandler extends CommandBaseHandler<
       Role | null
     >,
     @Inject(COMMAND_REPOSITORY.updateRole)
-    private readonly commandRepository: ICommandRepository<RoleUpdateOutcome>,
+    private readonly commandRepository: ICommandRepository<Role, RoleSnapshot>,
     private readonly authorizer: CaslAuthorizer,
     protected readonly eventBus: EventBus,
   ) {
     super(eventBus);
   }
 
-  async handle(command: UpdateRoleCommand): Promise<RoleUpdateOutcome> {
+  async handle(command: UpdateRoleCommand): Promise<Role> {
     const { id, name } = command;
 
     const query = new GetRoleQuery({ roleId: id }, { hydrate: true });
@@ -83,10 +82,10 @@ export class UpdateRoleHandler extends CommandBaseHandler<
 
     this.authorizer.authorize('update', role, ['name']);
 
-    const outcome = role.rename(name);
+    role.rename(name);
 
-    await this.commandRepository.save(outcome);
+    await this.commandRepository.save(role);
 
-    return outcome;
+    return role;
   }
 }

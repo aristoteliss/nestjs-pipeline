@@ -24,8 +24,8 @@ import { DomainOutcome } from './domain.outcome';
 /**
  * A {@link DomainOutcome} that also exposes the aggregate root it produced.
  *
- * Returned by command handlers so the base handler can publish the collected
- * domain events while callers still get access to the resulting entity.
+ * @deprecated Repositories now persist entities directly via `save(entity)`. Aggregates manage
+ * their own domain events internally via `apply()` and command handlers return the aggregate entity.
  *
  * @typeParam T - The entity (aggregate root) type carried by the outcome.
  */

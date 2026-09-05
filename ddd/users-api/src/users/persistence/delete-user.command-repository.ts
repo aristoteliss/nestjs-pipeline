@@ -22,10 +22,9 @@ import { Cache, CommandRepository, ICache } from '@nestjs-pipeline/ddd-core';
 import { CACHE_TOKEN } from '@persistence/cache/memory.cache';
 import { MIKRO_ORM_CLIENT, MikroOrmStore } from '@persistence/mikro-orm.store';
 import { User, UserSnapshot } from '../domain/models/user.entity';
-import { UserUpdateOutcome } from '../domain/outcomes/user-update.outcome';
 
 @Injectable()
-export class DeleteUserCommandRepository extends CommandRepository<UserUpdateOutcome> {
+export class DeleteUserCommandRepository extends CommandRepository<User, null> {
   constructor(
     @Inject(CACHE_TOKEN) protected readonly cache: ICache<UserSnapshot>,
     @Inject(MIKRO_ORM_CLIENT) private readonly store: MikroOrmStore,
@@ -33,16 +32,15 @@ export class DeleteUserCommandRepository extends CommandRepository<UserUpdateOut
     super(cache);
   }
 
-  @Cache<UserUpdateOutcome, UserSnapshot>(null, (outcome) => [
-    filterCacheKey(User.aggregateName, { id: outcome.entity.id }),
-    filterCacheKey(User.aggregateName, { email: outcome.entity.email }),
+  @Cache<User, null>(null, (user) => [
+    filterCacheKey(User.aggregateName, { id: user.id }),
+    filterCacheKey(User.aggregateName, { email: user.email }),
   ])
-  async save(domainOutcome: UserUpdateOutcome): Promise<null> {
-    const { entity } = domainOutcome;
+  async save(user: User): Promise<null> {
     // ON DELETE CASCADE on junction tables (user_roles,
     // user_additional_capabilities, user_denied_capabilities) handles
     // relation cleanup automatically — a single delete is sufficient.
-    await this.store.em.nativeDelete(User, entity.id);
+    await this.store.em.nativeDelete(User, user.id);
 
     return null;
   }

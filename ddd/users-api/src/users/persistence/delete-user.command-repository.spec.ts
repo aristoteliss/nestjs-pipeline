@@ -17,13 +17,10 @@ describe('DeleteUserCommandRepository', () => {
       },
     };
     const repository = new DeleteUserCommandRepository(cache, store as never);
-    const user = User.create(
-      'Alice',
-      'alice@example.test',
-      'engineering',
-    ).entity;
+    const user = User.create('Alice', 'alice@example.test', 'engineering');
 
-    const result = await repository.save(user.delete());
+    user.delete();
+    const result = await repository.save(user);
 
     expect(result).toBeNull();
     expect(nativeDelete).toHaveBeenCalledWith(User, user.id);
@@ -48,9 +45,10 @@ describe('DeleteUserCommandRepository', () => {
       },
     };
     const repository = new DeleteUserCommandRepository(cache, store as never);
-    const user = User.create('Alice', 'alice@example.test').entity;
+    const user = User.create('Alice', 'alice@example.test');
+    user.delete();
 
-    await expect(repository.save(user.delete())).rejects.toBe(failure);
+    await expect(repository.save(user)).rejects.toBe(failure);
 
     expect(cache.delete).not.toHaveBeenCalled();
     expect(cache.set).not.toHaveBeenCalled();

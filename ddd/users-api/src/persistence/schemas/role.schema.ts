@@ -17,7 +17,7 @@
  */
 
 import { EntitySchema } from '@mikro-orm/core';
-import { UnixTimestampType } from '@nestjs-pipeline/ddd-core';
+import { AggregateRoot, UnixTimestampType } from '@nestjs-pipeline/ddd-core';
 import { Role } from '../../roles/domain/models/role.entity';
 
 /**
@@ -27,7 +27,7 @@ import { Role } from '../../roles/domain/models/role.entity';
  * (`id`, `createdAt`, `updatedAt`, `name`). This allows MikroORM to interact with the
  * aggregate through public getters and setters without violating domain boundary encapsulation.
  */
-export const RoleSchema = new EntitySchema<Role>({
+export const RoleSchema = new EntitySchema<Role, AggregateRoot>({
   class: Role,
   tableName: 'roles',
   properties: {

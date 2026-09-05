@@ -1475,7 +1475,7 @@ nestjs-pipeline/
             ├── auths/            # Auth CRUD + user-context resolver
             └── users/
                 ├── cqrs/         # Commands, queries, events
-                ├── domain/       # User entity, domain events, outcomes
+                ├── domain/       # User entity, domain events
                 └── persistence/  # Repositories
 ```
 

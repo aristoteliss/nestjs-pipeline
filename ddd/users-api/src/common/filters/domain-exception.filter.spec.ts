@@ -27,7 +27,7 @@ describe('DomainExceptionFilter', () => {
   const filter = new DomainExceptionFilter();
 
   it('maps UniqueEmailException to HTTP 409 Conflict', () => {
-    const user = User.create('Alice', 'alice@example.test').entity;
+    const user = User.create('Alice', 'alice@example.test');
     const error = new UniqueEmailException(user);
     const response = { status: vi.fn(), json: vi.fn() };
     response.status.mockReturnValue(response);

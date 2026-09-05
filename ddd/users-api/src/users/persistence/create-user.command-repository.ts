@@ -24,10 +24,12 @@ import { CACHE_TOKEN } from '@persistence/cache/memory.cache';
 import { MIKRO_ORM_CLIENT, MikroOrmStore } from '@persistence/mikro-orm.store';
 import { UniqueEmailException } from '../domain/models/errors/email.exception';
 import { User, UserSnapshot } from '../domain/models/user.entity';
-import { UserCreateOutcome } from '../domain/outcomes/user-create.outcome';
 
 @Injectable()
-export class CreateUserCommandRepository extends CommandRepository<UserCreateOutcome> {
+export class CreateUserCommandRepository extends CommandRepository<
+  User,
+  UserSnapshot
+> {
   constructor(
     @Inject(CACHE_TOKEN) protected readonly cache: ICache<UserSnapshot>,
     @Inject(MIKRO_ORM_CLIENT) private readonly store: MikroOrmStore,
@@ -35,19 +37,18 @@ export class CreateUserCommandRepository extends CommandRepository<UserCreateOut
     super(cache);
   }
 
-  @Cache((outcome) =>
-    filterCacheKey(User.aggregateName, { id: outcome.entity.id }),
+  @Cache<User, UserSnapshot>((user) =>
+    filterCacheKey(User.aggregateName, { id: user.id }),
   )
-  async save(domainOutcome: UserCreateOutcome): Promise<UserSnapshot> {
-    const { entity } = domainOutcome;
+  async save(user: User): Promise<UserSnapshot> {
     const em = this.store.em;
 
     try {
-      const user = em.create(User, entity);
-      em.persist(user);
+      const persistedUser = em.create(User, user);
+      em.persist(persistedUser);
       await em.flush();
 
-      return user.toJSON();
+      return persistedUser.toJSON();
     } catch (err: unknown) {
       if (
         err instanceof UniqueConstraintViolationException ||
@@ -60,7 +61,7 @@ export class CreateUserCommandRepository extends CommandRepository<UserCreateOut
             err.message.includes('unique') ||
             err.message.includes('SQLITE_CONSTRAINT_UNIQUE')))
       ) {
-        throw new UniqueEmailException(entity);
+        throw new UniqueEmailException(user);
       }
       throw err;
     }
