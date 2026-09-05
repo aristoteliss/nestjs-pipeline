@@ -17,8 +17,8 @@
  */
 
 import {
-  CacheableEntity,
   Mutate,
+  RootEntity,
   type RootEntitySnapshot,
 } from '@nestjs-pipeline/ddd-core';
 import { RoleCreatedEvent } from '../events/role-created.event';
@@ -43,13 +43,11 @@ const ROLE_NAME_MIN_LENGTH = 3;
  * - `Role.fromJson()` rebuilds the entity from persisted snapshot data.
  * - `rename()` enforces the role-name business rule and updates `updatedAt`.
  */
-export class Role extends CacheableEntity<RoleSnapshot, Role> {
-  static readonly prefixKey = 'role:';
-
+export class Role extends RootEntity<RoleSnapshot> {
   private _name: string;
 
   constructor(snapshot?: RoleSnapshot) {
-    super(Role, snapshot);
+    super(snapshot);
     if (!snapshot) {
       this._name = '';
       return;

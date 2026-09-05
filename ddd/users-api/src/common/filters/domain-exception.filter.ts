@@ -48,9 +48,31 @@ type HttpResponse = {
  * Global API-layer exception filter that catches framework-agnostic {@link DomainException}s
  * thrown from the domain layer and translates them into standard HTTP error responses:
  *
- * - {@link UniqueEmailException} & {@link UniqueRoleNameException} &rarr; 409 Conflict
- * - {@link InvalidUsernameException} & {@link InvalidDepartmentException} &rarr; 422 Unprocessable Entity
- * - {@link EmptyUserUpdateException} & unclassified {@link DomainException} &rarr; 400 Bad Request
+ * | Domain Exception | HTTP Status | Reason |
+ * |---|---|---|
+ * | {@link UniqueEmailException} | 409 Conflict | Duplicate email detected across tenant users |
+ * | {@link UniqueRoleNameException} | 409 Conflict | Duplicate role name detected across tenant roles |
+ * | {@link InvalidUsernameException} | 422 Unprocessable Entity | Username shorter than minimum length or invalid characters |
+ * | {@link InvalidDepartmentException} | 422 Unprocessable Entity | Department string provided but below length threshold |
+ * | {@link EmptyUserUpdateException} | 400 Bad Request | Update mutation called with no updated fields |
+ * | Unclassified {@link DomainException} | 400 Bad Request | Generic domain invariant failure |
+ *
+ * @example Registering globally in bootstrap:
+ * ```typescript
+ * const app = await NestFactory.create(AppModule);
+ * app.useGlobalFilters(new DomainExceptionFilter());
+ * ```
+ *
+ * @example Sample 422 Unprocessable Entity payload:
+ * ```json
+ * {
+ *   "statusCode": 422,
+ *   "error": "Unprocessable Entity",
+ *   "message": "Username must be at least 3 characters, received: \"a\".",
+ *   "minLength": 3,
+ *   "actualValue": "a"
+ * }
+ * ```
  */
 @Catch(DomainException)
 export class DomainExceptionFilter implements ExceptionFilter {

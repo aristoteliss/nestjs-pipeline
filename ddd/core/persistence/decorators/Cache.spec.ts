@@ -21,9 +21,9 @@ import { RootDomainOutcome } from '../../domain/outcomes/root-domain.outcome';
 import type { ICache } from '../cache.interface';
 import { Cache } from './Cache';
 
-class MockOutcome extends RootDomainOutcome<{ cacheKey: string; id: string }> {
+class MockOutcome extends RootDomainOutcome<{ id: string }> {
   // biome-ignore lint/complexity/noUselessConstructor: public constructor exposing protected base constructor
-  constructor(entity: { cacheKey: string; id: string }) {
+  constructor(entity: { id: string }) {
     super(entity);
   }
 }
@@ -60,7 +60,7 @@ class SecondaryInvalidationRepo {
   constructor(public cache?: ICache) {}
 
   @Cache<MockOutcome, { id: string }>(
-    (outcome) => outcome.entity.cacheKey,
+    (outcome) => `user:${outcome.entity.id}`,
     null,
     (outcome) => [`email:${outcome.entity.id}`],
   )
@@ -72,13 +72,13 @@ class SecondaryInvalidationRepo {
 describe('@Cache decorator on CommandRepository.save', () => {
   it('passes through when repository has no cache attached', async () => {
     const repo = new TestCommandRepo(undefined);
-    const outcome = new MockOutcome({ id: 'u1', cacheKey: 'user:u1' });
+    const outcome = new MockOutcome({ id: 'u1' });
 
     const result = await repo.save(outcome);
     expect(result).toEqual({ id: 'u1' });
   });
 
-  it('writes saved entity result to cache using outcome entity cacheKey', async () => {
+  it('writes saved entity result to cache using outcome entity id', async () => {
     const mockCache: ICache = {
       get: vi.fn(),
       set: vi.fn(),
@@ -86,12 +86,12 @@ describe('@Cache decorator on CommandRepository.save', () => {
     };
 
     const repo = new TestCommandRepo(mockCache);
-    const outcome = new MockOutcome({ id: 'u1', cacheKey: 'user:u1' });
+    const outcome = new MockOutcome({ id: 'u1' });
 
     const result = await repo.save(outcome);
 
     expect(result).toEqual({ id: 'u1' });
-    expect(mockCache.set).toHaveBeenCalledWith('user:u1', { id: 'u1' });
+    expect(mockCache.set).toHaveBeenCalledWith('u1', { id: 'u1' });
   });
 
   it('evicts cache key when save returns null (e.g. deletion)', async () => {
@@ -104,13 +104,12 @@ describe('@Cache decorator on CommandRepository.save', () => {
     const repo = new TestCommandRepo(mockCache);
     const outcome = new MockOutcome({
       id: 'delete-me',
-      cacheKey: 'user:delete-me',
     });
 
     const result = await repo.save(outcome);
 
     expect(result).toBeNull();
-    expect(mockCache.delete).toHaveBeenCalledWith('user:delete-me');
+    expect(mockCache.delete).toHaveBeenCalledWith('delete-me');
     expect(mockCache.set).not.toHaveBeenCalled();
   });
 
@@ -121,12 +120,12 @@ describe('@Cache decorator on CommandRepository.save', () => {
       delete: vi.fn(),
     };
     const repo = new BooleanCommandRepo(mockCache);
-    const outcome = new MockOutcome({ id: 'u1', cacheKey: 'user:u1' });
+    const outcome = new MockOutcome({ id: 'u1' });
 
     const result = await repo.save(outcome);
 
     expect(result).toBe(false);
-    expect(mockCache.set).toHaveBeenCalledWith('user:u1', false);
+    expect(mockCache.set).toHaveBeenCalledWith('u1', false);
     expect(mockCache.delete).not.toHaveBeenCalled();
   });
 
@@ -137,12 +136,12 @@ describe('@Cache decorator on CommandRepository.save', () => {
       delete: vi.fn(),
     };
     const repo = new VoidCommandRepo(mockCache);
-    const outcome = new MockOutcome({ id: 'u1', cacheKey: 'user:u1' });
+    const outcome = new MockOutcome({ id: 'u1' });
 
     const result = await repo.save(outcome);
 
     expect(result).toBeUndefined();
-    expect(mockCache.delete).toHaveBeenCalledWith('user:u1');
+    expect(mockCache.delete).toHaveBeenCalledWith('u1');
     expect(mockCache.set).not.toHaveBeenCalled();
   });
 
@@ -153,7 +152,7 @@ describe('@Cache decorator on CommandRepository.save', () => {
       delete: vi.fn(),
     };
     const repo = new SecondaryInvalidationRepo(cache);
-    const outcome = new MockOutcome({ id: 'u1', cacheKey: 'user:u1' });
+    const outcome = new MockOutcome({ id: 'u1' });
 
     await repo.save(outcome);
 

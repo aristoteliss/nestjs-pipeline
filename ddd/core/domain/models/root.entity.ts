@@ -20,12 +20,63 @@ import { isUuidV7, uuidv7 } from '@nestjs-pipeline/core';
 import { RootEntitySnapshot } from '../interfaces/root-entity-snapshot.interface';
 
 /**
- * Base entity for shared identity and lifecycle behavior.
+ * Abstract base entity for DDD domain aggregates and entities.
  *
- * - Handles UUID v7 identity and root date invariants.
- * - Exposes immutable id, createdAt, and updatedAt getters and accessors.
- * - Exposes onUpdate/afterUpdate hooks for mutation tracking.
- * - Requires child entities to provide JSON serialization.
+ * Provides core identity and lifecycle mechanics:
+ * - **UUID v7 Identity**: Automatically generates time-ordered UUID v7 identifiers for new instances.
+ * - **Lifecycle Timestamps**: Enforces invariant-checked `createdAt` and `updatedAt` tracking.
+ * - **Accessor-Driven Persistence**: Exposes typed getters and setters (`id`, `createdAt`, `updatedAt`)
+ *   compatible with MikroORM `accessor: true` mapping without breaking encapsulation.
+ * - **Polymorphic Rehydration**: Static `RootEntity.from()` transparently handles instances, plain snapshots,
+ *   or nullish database results.
+ * - **Mutation Tracking**: Automatically updates `updatedAt` on `@Mutate()`-decorated methods
+ *   and triggers the `afterUpdate()` lifecycle hook.
+ *
+ * @example Defining a domain aggregate
+ * ```typescript
+ * interface UserSnapshot extends Partial<RootEntitySnapshot> {
+ *   readonly username: string;
+ *   readonly email: string;
+ * }
+ *
+ * export class User extends RootEntity<UserSnapshot> {
+ *   private _username: string;
+ *   readonly email: string;
+ *
+ *   private constructor(snapshot: UserSnapshot) {
+ *     super(snapshot);
+ *     this._username = snapshot.username!;
+ *     this.email = snapshot.email!;
+ *   }
+ *
+ *   static create(username: string, email: string): User {
+ *     return new User({ username, email });
+ *   }
+ *
+ *   static fromJSON(snapshot: UserSnapshot): User {
+ *     return new User(snapshot);
+ *   }
+ *
+ *   @Mutate()
+ *   rename(newUsername: string): void {
+ *     this._username = newUsername;
+ *   }
+ *
+ *   afterUpdate(): void {
+ *     // Aggregate domain side-effects or event recordings
+ *   }
+ *
+ *   toJSON(): RootEntitySnapshot & UserSnapshot {
+ *     return this.freezeState({
+ *       id: this.id,
+ *       username: this._username,
+ *       email: this.email,
+ *       createdAt: this.createdAt,
+ *       updatedAt: this.updatedAt,
+ *     });
+ *   }
+ * }
+ * ```
  */
 export abstract class RootEntity<TSnapshot extends Partial<RootEntitySnapshot>>
   implements RootEntitySnapshot

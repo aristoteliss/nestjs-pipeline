@@ -170,23 +170,121 @@ All commands and queries in `users-api` are strongly-typed, self-validating, and
   - Generated classes expose `['~standard']`, allowing them to be passed directly to NestJS 12 `@Body({ schema: CommandClass })` validation pipes.
   - Static `parse()` and `safeParse()` methods are available directly on each command and query.
 
-### Domain Models & Typed Exceptions
+### MikroORM Entity Schemas & Clean Property Accessors (`accessor: true`)
 
-The `User` aggregate entity follows strict Domain-Driven Design (DDD) encapsulation, inheriting identity and lifecycle behavior from `CacheableEntity` (`@nestjs-pipeline/ddd-core`):
+Persistence schemas map domain aggregate state to relational tables without compromising encapsulation or relying on TypeScript casting workarounds:
 
-- **Encapsulated Invariant Enforcement**: All entity state is private; modifications occur solely through factory and domain mutation methods (`User.create()`, `user.update()`, `user.delete()`). Invariants for `username` (minimum 3 characters, trimmed) and `department` (trimmed, minimum 3 characters when provided) are checked synchronously upon instantiation and update.
-- **Typed Domain Exception Taxonomy**: Generic `new Error` throws have been completely eliminated in favor of dedicated, strongly-typed domain exceptions extending `DomainException` (`@nestjs-pipeline/ddd-core`):
-  - `InvalidUsernameException`: Thrown when a username is empty, whitespace-only, or fewer than 3 characters. Records `minLength` and the offending `actualValue`.
-  - `InvalidDepartmentException`: Thrown when a department string is provided but shorter than 3 characters.
-  - `EmptyUserUpdateException`: Thrown when an update payload contains neither a new `username` nor a `department`.
-  - `UniqueEmailException`: Thrown when an email collision is detected within the active tenant during entity persistence.
-- **Clean HTTP Serialization via API Filter**: Domain exceptions remain strictly framework-agnostic and free of HTTP status codes or `@nestjs/common` dependencies. At the presentation boundary, NestJS `DomainExceptionFilter` translates them into standard HTTP responses:
-  - Uniqueness collisions (`UniqueEmailException`, `UniqueRoleNameException`) map to `HTTP 409 Conflict`.
-  - Invariant validation failures (`InvalidUsernameException`, `InvalidDepartmentException`) map to `HTTP 422 Unprocessable Entity`.
-  - Empty update mutations (`EmptyUserUpdateException`) and general domain failures map to `HTTP 400 Bad Request`.
+- **Elimination of `@ts-expect-error` / `@ts-ignore`**: Entities store core attributes in private fields (`_id`, `_createdAt`, `_updatedAt`, `_username`, `_department`). Official MikroORM `accessor: true` properties instruct the ORM to read and write values exclusively through public TypeScript getters and setters:
+  ```typescript
+  export const UserSchema = new EntitySchema<User>({
+    class: User,
+    tableName: 'users',
+    properties: {
+      id: { type: 'string', primary: true, fieldName: 'id', accessor: true },
+      createdAt: { type: UnixTimestampType, fieldName: 'created_at', accessor: true },
+      updatedAt: { type: UnixTimestampType, fieldName: 'updated_at', accessor: true },
+      username: { type: 'string', fieldName: 'username', accessor: true },
+      department: { type: 'string', fieldName: 'department', nullable: true, accessor: true },
+      email: { type: 'string', unique: true },
+    },
+  });
+  ```
+- **Encapsulated Invariant Guarding**: When MikroORM rehydrates or modifies properties, setters invoke the aggregate's domain validation routines, ensuring invalid state can never enter memory from the database.
 
 ---
 
+### Decoupled Caching Architecture & Key Templates
+
+Caching metadata is completely removed from domain entities (`CacheableEntity` and `ICacheKey` are obsolete). Caching is strictly an infrastructure/CQRS pipeline concern:
+
+- **Tenant-Namespaced Key Derivation (`filterCacheKey`)**:
+  Generates deterministic, tenant-isolated cache keys by combining active tenant schema, resource name, and sorted lookup conditions:
+  ```typescript
+  // Single identifier lookup
+  filterCacheKey('user', { id: '123' }, ctx)
+  // → "tenant_a:user:id:123"
+
+  // Composite conditions (keys are sorted alphabetically for determinism)
+  filterCacheKey('user', { email: 'alice@example.com', department: 'sales' }, 'tenant_b')
+  // → "tenant_b:user:department:sales:email:alice@example.com"
+  ```
+- **CQRS Handler Templates (`cacheKeyTemplate`)**:
+  Allows query and command handlers to declaratively define cache patterns parameterized from request DTO fields:
+  ```typescript
+  const getKey = cacheKeyTemplate('user:{userId}');
+  getKey(new GetUserQuery({ userId: 'usr_123' }))
+  // → "tenant:user:usr_123"
+  ```
+- **Write-Through & Automatic Eviction (`@Cache`, `@FromCache`)**:
+  - `@Cache`: Attached to write repository `save()` methods. On create/update, results are stored in the cache. On deletion (`save()` returns `null`), all matching primary and secondary keys are evicted. Operations are fail-safe and best-effort.
+  - `@FromCache`: Attached to query repository `find()` methods. Serves hits from cache and automatically stores non-nullish database results. Supports optional entity rehydration.
+
+---
+
+### Domain Models & Invariant Enforcement
+
+The `User` and `Role` aggregate entities inherit identity and lifecycle behavior from `RootEntity` (`@nestjs-pipeline/ddd-core`):
+
+- **Encapsulated Invariant Enforcement**: State modifications occur exclusively through factory and domain mutation methods (`User.create()`, `user.update()`). Invariants for `username` (minimum 3 characters, trimmed) and `department` (trimmed, minimum 3 characters when provided) are checked synchronously upon instantiation and update.
+- **Framework-Agnostic Domain Exceptions**: Entities throw typed domain exceptions extending `DomainException` (`@nestjs-pipeline/ddd-core`), completely decoupled from HTTP status codes and `@nestjs/common`.
+
+---
+
+### CQRS Runtime Error Taxonomy & HTTP Status Code Mapping
+
+The application enforces a consistent error taxonomy across all 8 commands and 7 queries:
+
+| HTTP Status | Error Type | Exception Class / Source | Trigger Scenario |
+|---|---|---|---|
+| **400 Bad Request** | Validation Error | `ZodValidationError` | Inbound payload fails Zod schema validation (e.g. invalid email format) |
+| **400 Bad Request** | Domain Error | `EmptyUserUpdateException` | Update payload contains no fields to modify (`username` and `department` absent) |
+| **401 Unauthorized** | Authentication Failure | `UnauthorizedException` | Missing token, expired Bearer JWT, invalid API key, or missing server JWT key |
+| **403 Forbidden** | Authorization Failure | `UnauthorizedActionException` | Caller lacks CASL permissions to perform action on subject or specific fields |
+| **404 Not Found** | Resource Missing | `UserNotFoundException`, `RoleNotFoundException` | Target aggregate does not exist in the active tenant database |
+| **409 Conflict** | Uniqueness Collision | `UniqueEmailException`, `UniqueRoleNameException` | Email or role name already exists in the active tenant schema |
+| **422 Unprocessable Entity** | Invariant Violation | `InvalidUsernameException`, `InvalidDepartmentException` | Username or department string fails domain aggregate invariants (< 3 characters) |
+
+#### Global API Mapping (`DomainExceptionFilter`)
+
+The `DomainExceptionFilter` intercepts all domain exceptions at the presentation boundary and serializes them into structured JSON error payloads:
+
+```json
+{
+  "statusCode": 422,
+  "error": "Unprocessable Entity",
+  "message": "Username must be at least 3 characters, received: \"ab\".",
+  "minLength": 3,
+  "actualValue": "ab"
+}
+```
+
+---
+
+### Injectable CASL Authorization (`CaslAuthorizer`)
+
+The service-locator anti-pattern (`RootEntity.authorize()`) has been replaced by the standalone, injectable `CaslAuthorizer` service:
+
+```typescript
+@CommandHandler(CreateUserCommand)
+export class CreateUserHandler {
+  constructor(
+    private readonly commandRepository: ICommandRepository<UserCreateOutcome>,
+    private readonly authorizer: CaslAuthorizer,
+  ) {}
+
+  async handle(command: CreateUserCommand): Promise<UserCreateOutcome> {
+    const outcome = User.create(command.username, command.email, command.department);
+
+    // Enforce authorization against the active principal's ability
+    this.authorizer.authorize('create', outcome.entity, ['username', 'email', 'department']);
+
+    await this.commandRepository.save(outcome);
+    return outcome;
+  }
+}
+```
+
+---
 
 ### Practical Examples
 
@@ -199,7 +297,7 @@ curl -X POST http://localhost:3000/auth/login \
   -H "x-tenant-schema: tenant" \
   -H "Content-Type: application/json" \
   -d '{
-    "email": "alice@example.test",
+    "email": "alice+tenant@seed.local",
     "code": "123456"
   }'
 ```
@@ -207,7 +305,7 @@ curl -X POST http://localhost:3000/auth/login \
 Response:
 ```json
 {
-  "userId": "usr_alice_123",
+  "userId": "019488e0-0000-7000-8000-000000000001",
   "accessToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ...",
   "userCapabilities": {
     "roles": ["admin"]
@@ -227,7 +325,7 @@ curl http://localhost:3000/users \
 
 #### 3. Machine-to-Machine Integration via API Credentials
 
-Automated scripts, microservices, and external systems authenticate with static API credentials:
+Automated scripts and background services authenticate using static API credentials:
 
 ```bash
 curl http://localhost:3000/users \
@@ -236,29 +334,113 @@ curl http://localhost:3000/users \
   -H "x-api-key: secret-api-key-999"
 ```
 
-Configure authorized clients in your `.env` file as a JSON array:
+Configure authorized clients in `.env` as a JSON array:
 
 ```env
 API_CLIENTS='[{"id":"reporting-service","key":"secret-api-key-999","tenants":["tenant"],"capabilities":{"roles":["reporter"]}}]'
 ```
 
-#### 4. Consuming Current User in Downstream Handlers
+#### 4. Defining & Executing a CQRS Command with Pipeline Behaviors
 
-Any CQRS command/query handler, service, or pipeline behavior accesses the authenticated caller via the request-scoped store without passing user parameters down the stack:
+Commands use `createCommand()` to guarantee Zod schema enforcement, idempotency, and audit logging:
 
-```ts
+```typescript
+// 1. Command Definition (createCommand)
+export const CreateUserSchema = z.object({
+  username: z.string().min(3).max(50),
+  email: z.string().email(),
+  department: z.string().min(3).max(50).optional(),
+});
+
+export class CreateUserCommand extends createCommand(CreateUserSchema, BaseCommand) {}
+
+// 2. Command Handler with Pipeline Behaviors
+@CommandHandler(CreateUserCommand)
+@UsePipeline(
+  [LoggingBehavior, { requestResponseLogLevel: 'log' }],
+  [CaslBehavior, { rules: [{ action: APP_ACTIONS.CREATE, subject: APP_SUBJECTS.USER }] }],
+  [FeatureFlagBehavior, { flag: 'user-registration' }],
+  [RateLimitBehavior, { keyFactory: (ctx) => `${ctx.tenantId}:${ctx.request.email}` }],
+  [IdempotencyBehavior, { keyFactory: createUserIdempotencyKey }],
+)
+export class CreateUserHandler extends CommandBaseHandler<CreateUserCommand, UserCreateOutcome> {
+  constructor(
+    @Inject(COMMAND_REPOSITORY.createUser)
+    private readonly commandRepository: ICommandRepository<UserCreateOutcome>,
+    private readonly authorizer: CaslAuthorizer,
+    protected readonly eventBus: EventBus,
+  ) {
+    super(eventBus);
+  }
+
+  async handle(command: CreateUserCommand): Promise<UserCreateOutcome> {
+    const outcome = User.create(command.username, command.email, command.department);
+
+    // Entity-level and field-level permission check
+    this.authorizer.authorize('create', outcome.entity, ['username', 'email', 'department']);
+
+    await this.commandRepository.save(outcome);
+    return outcome;
+  }
+}
+```
+
+#### 5. Executing a CQRS Query with Read-Through Caching
+
+Queries use `createQuery()` with read-through caching in the repository:
+
+```typescript
+// 1. Query Definition (createQuery)
+export const GetUserSchema = z.object({
+  userId: z.string().uuid().optional(),
+  email: z.string().email().optional(),
+});
+
+export class GetUserQuery extends createQuery(GetUserSchema, BaseQuery) {}
+
+// 2. Query Repository with @FromCache
+@Injectable()
+export class GetUserQueryRepository extends QueryRepository<GetUserQuery, User | null> {
+  @FromCache<GetUserQuery, User>(
+    (q) => filterCacheKey('user', q.userId ? { id: q.userId } : { email: q.email }),
+    (cached) => User.fromJSON(cached as UserSnapshot),
+  )
+  async find(query: GetUserQuery): Promise<User | null> {
+    return this.store.em.findOne(User, query.userId ? { id: query.userId } : { email: query.email });
+  }
+}
+
+// 3. Query Handler with CASL
+@QueryHandler(GetUserQuery)
+@UsePipeline([CaslBehavior, { rules: [{ action: APP_ACTIONS.READ, subject: APP_SUBJECTS.USER }] }])
+export class GetUserHandler implements IQueryHandler<GetUserQuery, UserSnapshot | null> {
+  constructor(
+    @Inject(QUERY_REPOSITORY.getUser) private readonly queryRepository: IQueryRepository<GetUserQuery, User | null>,
+    private readonly authorizer: CaslAuthorizer,
+  ) {}
+
+  async execute(query: GetUserQuery): Promise<UserSnapshot | null> {
+    const user = User.from(await this.queryRepository.find(query));
+    return user ? this.authorizer.authorize<UserSnapshot>('read', user) : null;
+  }
+}
+```
+
+#### 6. Accessing the Authenticated Principal Anywhere
+
+Downstream services, processors, and handlers access the current user via `sessionUserStore`:
+
+```typescript
 import { getSessionUserFromStore } from '@common/context/session-user.store';
 
 @CommandHandler(DeleteUserCommand)
 export class DeleteUserHandler {
   async handle(command: DeleteUserCommand) {
     const actor = getSessionUserFromStore();
-    console.log('Action performed by user:', actor?.id, 'in tenant:', actor?.tenant);
+    console.log('User action executed by:', actor?.id, 'in tenant:', actor?.tenant);
   }
 }
 ```
-
----
 
 ### Environment Variables Reference
 

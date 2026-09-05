@@ -17,10 +17,17 @@
  */
 
 import { EntitySchema } from '@mikro-orm/core';
-import { ICacheKey, UnixTimestampType } from '@nestjs-pipeline/ddd-core';
+import { UnixTimestampType } from '@nestjs-pipeline/ddd-core';
 import { Role } from '../../roles/domain/models/role.entity';
 
-export const RoleSchema = new EntitySchema<Role, ICacheKey>({
+/**
+ * MikroORM EntitySchema for the {@link Role} aggregate root.
+ *
+ * Employs official MikroORM `accessor: true` mappings for encapsulated properties
+ * (`id`, `createdAt`, `updatedAt`, `name`). This allows MikroORM to interact with the
+ * aggregate through public getters and setters without violating domain boundary encapsulation.
+ */
+export const RoleSchema = new EntitySchema<Role>({
   class: Role,
   tableName: 'roles',
   properties: {

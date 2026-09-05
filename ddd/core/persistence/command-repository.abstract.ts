@@ -24,11 +24,32 @@ import { ICommandRepository } from './command-repository.interface';
  * Base class for write-side (command) repositories.
  *
  * Persists a domain outcome via the abstract {@link save} method and receives an
- * {@link ICache} so subclasses (typically through the `@Cache` decorator) can
- * keep the cache in sync on writes.
+ * {@link ICache} instance. Subclasses annotate `save()` with the `@Cache` decorator
+ * to perform automatic write-through caching or cache eviction upon mutation.
  *
  * @typeParam TDomainOutcome - The outcome type accepted by {@link save}.
- * @typeParam TResult - The persisted result type.
+ * @typeParam TResult - The persisted result type returned by {@link save}.
+ *
+ * @example Creating a command repository with @Cache
+ * ```typescript
+ * @Injectable()
+ * export class CreateUserCommandRepository extends CommandRepository<UserCreateOutcome, UserSnapshot> {
+ *   constructor(
+ *     @Inject(CACHE_TOKEN) protected readonly cache: ICache<UserSnapshot>,
+ *     @Inject(MIKRO_ORM_CLIENT) private readonly store: MikroOrmStore,
+ *   ) {
+ *     super(cache);
+ *   }
+ *
+ *   @Cache<UserCreateOutcome, UserSnapshot>(
+ *     (outcome) => filterCacheKey('user', { id: outcome.entity.id }),
+ *   )
+ *   async save(outcome: UserCreateOutcome): Promise<UserSnapshot> {
+ *     const user = await this.store.em.upsert(User, outcome.entity);
+ *     return user.toJSON();
+ *   }
+ * }
+ * ```
  */
 export abstract class CommandRepository<
   TDomainOutcome = RootDomainOutcome,

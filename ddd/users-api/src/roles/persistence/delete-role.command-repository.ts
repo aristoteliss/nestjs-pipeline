@@ -34,7 +34,7 @@ export class DeleteRoleCommandRepository extends CommandRepository<RoleUpdateOut
   }
 
   @Cache<RoleUpdateOutcome, RoleSnapshot>(null, (outcome) => [
-    filterCacheKey(Role, { id: outcome.entity.id }),
+    filterCacheKey('role', { id: outcome.entity.id }),
   ])
   async save(domainOutcome: RoleUpdateOutcome): Promise<null> {
     const { entity } = domainOutcome;

@@ -52,7 +52,7 @@ export class GetUserQueryRepository extends QueryRepository<
     // department cannot be invalidated from the post-update entity because the
     // previous department is no longer available. Keep stable id/email lookups
     // cached, but execute mutable department-filtered lookups directly.
-    (q) => (q.department ? null : filterCacheKey(User, buildConditions(q))),
+    (q) => (q.department ? null : filterCacheKey('user', buildConditions(q))),
     (cached) => User.fromJSON(cached as UserSnapshot),
   )
   async find(query: GetUserQuery): Promise<User | null> {

@@ -24,11 +24,32 @@ import { IQueryRepository } from './query-repository.interface';
  * Base class for read-side (query) repositories.
  *
  * Resolves a query via the abstract {@link find} method and receives an
- * {@link ICache} so subclasses (typically through the `@FromCache` decorator) can
- * serve reads from cache.
+ * {@link ICache} instance. Subclasses annotate `find()` with the `@FromCache` decorator
+ * to serve cached results, bypass cache, or rehydrate snapshots into domain entities.
  *
  * @typeParam TQuery - The query/options type accepted by {@link find}.
  * @typeParam TResult - The result type returned by {@link find}.
+ *
+ * @example Creating a query repository with @FromCache
+ * ```typescript
+ * @Injectable()
+ * export class GetUserQueryRepository extends QueryRepository<GetUserQuery, User | null> {
+ *   constructor(
+ *     @Inject(CACHE_TOKEN) protected readonly cache: ICache<User>,
+ *     @Inject(MIKRO_ORM_CLIENT) private readonly store: MikroOrmStore,
+ *   ) {
+ *     super(cache);
+ *   }
+ *
+ *   @FromCache<GetUserQuery, User>(
+ *     (query) => filterCacheKey('user', { id: query.userId }),
+ *     (cached) => User.fromJSON(cached as UserSnapshot),
+ *   )
+ *   async find(query: GetUserQuery): Promise<User | null> {
+ *     return this.store.em.findOne(User, { id: query.userId });
+ *   }
+ * }
+ * ```
  */
 export abstract class QueryRepository<TQuery = IQueryOptions, TResult = unknown>
   implements IQueryRepository<TQuery, TResult>

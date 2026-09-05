@@ -19,19 +19,17 @@
 import { type IPipelineContext, pipelineStore } from '@nestjs-pipeline/core';
 import { DEFAULT_TENANT_SCHEMA } from '@persistence/postgres-options';
 import { describe, expect, it } from 'vitest';
-import { filterCacheKey } from './filterCacheKey.helper';
+import { cacheKeyTemplate, filterCacheKey } from './filterCacheKey.helper';
 
 describe('filterCacheKey', () => {
-  const entity = { prefixKey: 'user:' };
-
-  it('generates a deterministic key with sorted keys', () => {
+  it('generates a deterministic key with sorted keys using resource string', () => {
     const key1 = filterCacheKey(
-      entity,
+      'user',
       { email: 'test@example.com', department: 'engineering' },
       'tenant_test',
     );
     const key2 = filterCacheKey(
-      entity,
+      'user',
       { department: 'engineering', email: 'test@example.com' },
       'tenant_test',
     );
@@ -44,7 +42,7 @@ describe('filterCacheKey', () => {
 
   it('filters out undefined and null values', () => {
     const key = filterCacheKey(
-      entity,
+      'user',
       { id: '123', missing: undefined, empty: null },
       'tenant_test',
     );
@@ -53,7 +51,7 @@ describe('filterCacheKey', () => {
   });
 
   it('resolves tenant from explicit string parameter', () => {
-    const key = filterCacheKey(entity, { id: '1' }, 'tenant_explicit');
+    const key = filterCacheKey('user', { id: '1' }, 'tenant_explicit');
     expect(key).toBe('tenant_explicit:user:id:1');
   });
 
@@ -62,7 +60,7 @@ describe('filterCacheKey', () => {
       tenantId: 'tenant_from_ctx',
     } as unknown as IPipelineContext;
 
-    const key = filterCacheKey(entity, { id: '1' }, ctx);
+    const key = filterCacheKey('user', { id: '1' }, ctx);
     expect(key).toBe('tenant_from_ctx:user:id:1');
   });
 
@@ -70,14 +68,37 @@ describe('filterCacheKey', () => {
     pipelineStore.run(
       { tenantId: 'tenant_ambient' } as unknown as IPipelineContext,
       () => {
-        const key = filterCacheKey(entity, { id: '1' });
+        const key = filterCacheKey('user', { id: '1' });
         expect(key).toBe('tenant_ambient:user:id:1');
       },
     );
   });
 
   it('falls back to DEFAULT_TENANT_SCHEMA when no tenant is available', () => {
-    const key = filterCacheKey(entity, { id: '1' });
+    const key = filterCacheKey('user', { id: '1' });
     expect(key).toBe(`${DEFAULT_TENANT_SCHEMA}:user:id:1`);
+  });
+
+  it('maintains backwards compatibility with { prefixKey } objects', () => {
+    const legacy = { prefixKey: 'user:' };
+    const key = filterCacheKey(legacy, { id: '1' }, 'tenant_compat');
+    expect(key).toBe('tenant_compat:user:id:1');
+  });
+});
+
+describe('cacheKeyTemplate', () => {
+  it('interpolates payload parameters into the template string', () => {
+    const template = cacheKeyTemplate('user:{userId}', 'tenant_test');
+    expect(template({ userId: 'u-123' })).toBe('tenant_test:user:u-123');
+  });
+
+  it('resolves parameters from IPipelineContext request and tenantId', () => {
+    const ctx = {
+      tenantId: 'tenant_ctx',
+      request: { userId: 'u-999' },
+    } as unknown as IPipelineContext;
+
+    const template = cacheKeyTemplate('user:{userId}');
+    expect(template(ctx)).toBe('tenant_ctx:user:u-999');
   });
 });

@@ -22,17 +22,32 @@ import { QueryRepository } from '../query-repository.abstract';
 /**
  * Read-through cache decorator for a {@link QueryRepository} `find` method.
  *
- * Derives a cache key from the query via `keyFn`; on a hit it returns the cached
- * value (optionally re-hydrated with `hydrateFn` when `query.hydrate` is set), and
- * on a miss (`null` or `undefined`) it runs the original method. Only non-nullish
- * results are stored, preventing an unbounded negative cache from hiding records
- * created later. If the repository has no cache, or `keyFn` returns `null`, the
- * call passes straight through. Cache errors propagate (fail-closed), including
- * a set failure after the database read has completed; use a fail-open cache
- * adapter when different read-side availability semantics are required.
+ * Provides declarative read-through caching for query operations:
+ * - **Key derivation**: Generates a cache key via `keyFn`. If `keyFn` returns `null`, caching is skipped.
+ * - **Negative caching prevention**: Only non-nullish database results are saved into the cache, preventing
+ *   stale negative results from hiding newly-created entities.
+ * - **Rehydration**: If `query.hydrate` is enabled, cached JSON snapshots are rehydrated into rich domain
+ *   entities using `hydrateFn`.
+ * - **Fail-closed policy**: Cache errors on read/set propagate to maintain strong consistency guarantees
+ *   at the repository boundary.
  *
- * @param keyFn - Builds the cache key from the query, or returns `null` to skip caching.
- * @param hydrateFn - Optional transform applied to cached values when `query.hydrate` is true.
+ * @param keyFn - Builds the cache key from the query, or returns `null` to bypass the cache.
+ * @param hydrateFn - Optional rehydration function transforming cached snapshot JSON into entity instances.
+ *
+ * @example Read-through caching with entity rehydration
+ * ```typescript
+ * @Injectable()
+ * export class GetUserQueryRepository extends QueryRepository<GetUserQuery, User | null> {
+ *   @FromCache<GetUserQuery, User>(
+ *     (query) => filterCacheKey('user', { id: query.userId }),
+ *     (cached) => User.fromJSON(cached as UserSnapshot),
+ *   )
+ *   async find(query: GetUserQuery): Promise<User | null> {
+ *     const user = await this.store.em.findOne(User, { id: query.userId });
+ *     return user;
+ *   }
+ * }
+ * ```
  */
 export function FromCache<
   TQuery extends IQueryOptions = IQueryOptions,

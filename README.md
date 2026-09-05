@@ -1243,9 +1243,9 @@ The `@nestjs-pipeline/ddd-core` package (`ddd/core/`) provides the foundational 
 
 | Export                | Description                                                                           |
 |-----------------------|-----------------------------------------------------------------------------------------|
-| `RootEntity`          | Abstract base entity with UUID v7 identity, `createdAt`/`updatedAt` lifecycle, and mutation tracking |
-| `CacheableEntity`     | Extends `RootEntity` — adds `cacheKey` (`<prefixKey><id>`) used by `@Cache`/`@FromCache` decorators |
+| `RootEntity`          | Abstract base entity with UUID v7 identity, `createdAt`/`updatedAt` lifecycle, accessor mappings, and mutation tracking |
 | `RootEntitySnapshot`  | Interface for serializing/rehydrating entities                                        |
+| `DomainException`     | Abstract base class for framework-agnostic domain invariant exceptions                  |
 | `DomainEvent`         | Abstract base class for domain events (carries a UUID v7 `id`)                        |
 | `RootDomainEvent`     | Domain event that carries a reference to the originating entity                       |
 | `DomainOutcome`       | Base outcome class — bundles domain events produced by an operation                   |
@@ -1254,14 +1254,14 @@ The `@nestjs-pipeline/ddd-core` package (`ddd/core/`) provides the foundational 
 | `ICache<T>`           | Interface for cache providers (`get`, `set`, `delete`)                                |
 | `CommandRepository`   | Abstract base for write repositories — holds an `ICache` and defines `save(outcome)` |
 | `QueryRepository`     | Abstract base for read repositories — holds an `ICache` and defines `find(query)`    |
-| `@Cache()`            | Decorator for `save()` — write-through cache on successful writes, evict on delete   |
-| `@FromCache()`        | Decorator for `find()` — read-through cache with optional hydration function         |
+| `@Cache()`            | Decorator for `save()` — write-through cache on writes, evict on delete, decoupled key derivations |
+| `@FromCache()`        | Decorator for `find()` — read-through cache with fail-closed semantics and optional hydration |
 | `Method`              | Utility type for extracting method signatures                                         |
 
 Import them in your domain layer:
 
 ```typescript
-import { CacheableEntity, RootDomainEvent, RootDomainOutcome, Mutate } from '@nestjs-pipeline/ddd-core';
+import { RootEntity, RootDomainEvent, RootDomainOutcome, Mutate, DomainException } from '@nestjs-pipeline/ddd-core';
 ```
 
 ### `ddd/users-api` — Full Working Application
@@ -1336,22 +1336,26 @@ ADAPTER=fastify pnpm start
 **What it demonstrates:**
 
 - Global + per-handler pipeline behaviors
+- Decoupled domain invariants with framework-agnostic `DomainException` & presentation-boundary `DomainExceptionFilter` (mapping to 400, 409, 422)
+- Injectable `CaslAuthorizer` (`IEntityAuthorizer`) in CQRS command and query handlers, replacing static entity authorizer anti-patterns
 - Per-handler CASL authorization with inline `rules` on `CaslBehaviorOptions` and `CaslBehavior`
 - MikroORM-backed CASL providers (roles, capabilities, user context)
+- Official MikroORM `accessor: true` entity schemas bridging private aggregate fields to public accessors without TypeScript bypasses
+- Decoupled CQRS caching architecture with tenant-isolated key derivation (`filterCacheKey`, `cacheKeyTemplate`)
 - Versioned database migrations with tracking (`mikro_orm_migrations` table)
-- Zod-parsed/validated commands and queries via `createCommand()` and `createQuery()`
+- Zod-parsed/validated commands and queries via `createCommand()` and `createQuery()` implementing NestJS 12 Standard Schema (`['~standard']`)
 - Controller-level `ZodPipe` validation
 - Zod transform mappers (DTO → Command mapping)
-- OpenTelemetry tracing with `TraceBehavior`
-- Command- and event-scoped `DeadLetterBehavior` sending failed executions to a BullMQ `dead-letters` queue for inspection and replay (restricted to command and event failures, excluding read queries and validation errors, with `UserCreatedHandler` opting into `{ rethrow: false }` only after successful delivery); transport failures are logged and preserve the original handler error
+- OpenTelemetry tracing with `TraceBehavior` and metrics with `MetricsBehavior`
+- Command- and event-scoped `DeadLetterBehavior` sending failed executions to a BullMQ `dead-letters` queue for inspection and replay (restricted to mutating command and event failures, excluding read queries and validation errors, with `UserCreatedHandler` opting into `{ rethrow: false }` only after successful delivery); transport failures are logged and preserve the original handler error
 - Per-handler `RateLimitBehavior` throttling `CreateUserHandler` to 5 registrations / 60s per email (in-memory limiter), with `RateLimitExceededFilter` mapping breaches to HTTP 429 + `Retry-After`
 - Per-handler `AuditBehavior` recording the sensitive `user.delete` action (actor, outcome, duration, redacted payload) to the default `LogAuditSink`, with the actor resolved from the request-scoped session
 - Per-handler `IdempotencyBehavior` atomically excluding concurrent duplicates for `CreateUserHandler` per tenant + principal + email and replaying completed successful responses; with the default `releaseOnError: true`, a failed execution releases the key so a later retry may execute again. `IdempotencyConflictFilter` maps in-flight duplicates to HTTP 409 and payload-mismatched key reuse to HTTP 422
-- DDD-style `User` entity built on `ddd-core` primitives (`CacheableEntity`, `RootDomainEvent`, `RootDomainOutcome`)
-- MikroORM (libSQL driver) persistence with a normalized schema
+- DDD-style `User` and `Role` entities built on `ddd-core` primitives (`RootEntity`, `RootDomainEvent`, `RootDomainOutcome`)
+- MikroORM (libSQL and PostgreSQL drivers) persistence with multi-tenant database/schema isolation
 - Pluggable `ICache<T>` — `MikroOrmCache` (MikroORM-backed, TTL-aware) or `MemoryCache` swapped via a single provider token
-- Correlation ID propagation across handlers and events
-- Express and Fastify adapter support
+- Correlation ID propagation across HTTP middleware, handlers, processors, and events
+- Express and Fastify adapter support with secure session cookie and Bearer/API-key authentication
 
 ---
 

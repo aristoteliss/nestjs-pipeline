@@ -4,30 +4,41 @@ Reusable Domain-Driven Design primitives for NestJS applications using `@nestjs-
 
 ## Overview
 
-This package provides the foundational building blocks for implementing a DDD domain layer:
+This package provides the foundational building blocks for implementing a Clean Architecture / DDD domain and persistence layer:
 
-- **`RootEntity`** — Abstract base entity with UUID v7 identity, `createdAt`/`updatedAt` lifecycle, polymorphic snapshot rehydration via `RootEntity.from()`, and mutation tracking via `onUpdate()`.
-- **`CacheableEntity`** — Extends `RootEntity` with a `cacheKey` property (`<prefixKey><id>`) used by `@Cache` and `@FromCache` decorators. Also provides `fromStringify()` for deserializing cached JSON.
-- **`RootEntitySnapshot`** — Interface defining the shape of a serialized entity (`id`, `createdAt`, `updatedAt`).
-- **`DomainEvent`** — Abstract base class for domain events. Each event carries a unique UUID v7 `id`.
-- **`RootDomainEvent`** — Domain event that carries a typed reference to the originating entity.
-- **`DomainOutcome`** — Base outcome class that bundles domain events produced by an operation.
-- **`RootDomainOutcome`** — Outcome that pairs an entity with its domain events, enabling `const { entity, events } = ...` destructuring.
+### Domain Primitives
+
+- **`RootEntity<TSnapshot>`** — Abstract base entity with UUID v7 identity, immutable `createdAt`/`updatedAt` timestamps, accessor mappings (`id`, `createdAt`, `updatedAt`), polymorphic snapshot rehydration via `RootEntity.from()`, and mutation tracking via `onUpdate()`.
+- **`RootEntitySnapshot`** — Interface defining the serialized state contract (`id`, `createdAt`, `updatedAt`).
+- **`DomainException`** — Abstract base class for domain invariant failures. Pure TypeScript error class completely decoupled from HTTP status codes and framework decorators.
+- **`DomainEvent`** — Abstract base class for domain events carrying a unique UUID v7 `id`.
+- **`RootDomainEvent<TEntity>`** — Domain event carrying a typed reference to the originating entity.
+- **`DomainOutcome`** — Base outcome class bundling domain events produced by an operation.
+- **`RootDomainOutcome<TEntity>`** — Outcome pairing an entity with its domain events, enabling `const { entity, events } = outcome` destructuring.
+- **`@Mutate()`** — Method decorator that automatically triggers `onUpdate()` after the decorated method executes, updating `updatedAt`.
 - **`UnixTimestampType`** — Custom MikroORM `Type<Date, number>` mapping JavaScript `Date` instances to Unix timestamps (ms) in integer database columns.
-- **`@Mutate()`** — Method decorator that calls `onUpdate()` after the decorated method executes, updating `updatedAt` automatically.
 - **`Method`** — Utility type for extracting method signatures.
 
-### Persistence abstractions
+### Persistence Abstractions
 
-- **`ICache<T>`** — Interface for cache providers. Implementations must supply `get`, `set` (with optional options), and `delete`.
-- **`CommandRepository<TOutcome, TResult>`** — Abstract base for write repositories. Receives an `ICache` instance; concrete classes implement `save(outcome)`.
-- **`QueryRepository<TQuery, TResult>`** — Abstract base for read repositories. Receives an `ICache` instance; concrete classes implement `find(query)`.
-- **`@Cache()`** — Method decorator for `save()` in command repositories. After a successful write it upserts the result into the cache via `set()`; if the result is `null` or `undefined` (e.g. a delete), it evicts all related keys via `delete()`. Cache operations are **best-effort**: a failure is swallowed so a committed DB write is never turned into an error.
-- **`@FromCache()`** — Method decorator for `find()` in query repositories. On every call it checks the cache first; on a miss it executes the query and stores **non-nullish** results only (preventing unbounded negative caching). Accepts a key function and an optional hydration function. Cache reads and writes are **fail-closed**: their errors propagate, including a cache-set failure after a successful database read. This differs intentionally from the write-side `@Cache()` policy, where the database mutation has already committed and cache maintenance is best-effort.
+- **`ICache<T>`** — Interface for cache providers defining `get`, `set` (with optional options), and `delete`.
+- **`CommandRepository<TOutcome, TResult>`** — Abstract base for write repositories. Injects an `ICache` instance; concrete classes implement `save(outcome)`.
+- **`QueryRepository<TQuery, TResult>`** — Abstract base for read repositories. Injects an `ICache` instance; concrete classes implement `find(query)`.
+- **`@Cache()`** — Method decorator for `save()` in command repositories:
+  - **Write-Through**: Automatically caches the returned result under the key derived by `setKeyFn`.
+  - **Eviction**: Evicts keys derived by `deleteKeysFn` when `save()` yields `null` or `undefined` (e.g. on entity deletion).
+  - **Secondary Invalidation**: Evicts auxiliary keys derived by `invalidateKeysFn` on successful writes.
+  - **Best-Effort**: Cache write/delete errors are caught and swallowed so a committed database transaction is never converted into an application error.
+- **`@FromCache()`** — Method decorator for `find()` in query repositories:
+  - **Read-Through**: Checks the cache first via `keyFn`; on a cache hit returns the cached value (optionally rehydrating with `hydrateFn`).
+  - **Bounded Negative Cache**: Stores **only non-nullish** results to prevent negative caching of uncreated records.
+  - **Fail-Closed**: Cache errors propagate to enforce strong consistency at the query boundary.
+
+---
 
 ## Installation
 
-This package is a workspace dependency. Add it to your `package.json`:
+This package is a workspace dependency:
 
 ```json
 {
@@ -37,137 +48,244 @@ This package is a workspace dependency. Add it to your `package.json`:
 }
 ```
 
-## Usage
+---
 
-### Define a domain entity
+## Usage Guide & Practical Examples
+
+### 1. Defining a Domain Entity with Invariants and RootEntity
+
+Domain aggregates remain pure DDD models. They encapsulate business rules and invariants, throwing framework-agnostic `DomainException`s:
 
 ```typescript
-import { CacheableEntity, Mutate, type RootEntitySnapshot } from '@nestjs-pipeline/ddd-core';
+import { RootEntity, Mutate, type RootEntitySnapshot, DomainException } from '@nestjs-pipeline/ddd-core';
+
+export class InvalidUsernameException extends DomainException {
+  readonly minLength: number;
+  readonly actualValue: string;
+
+  constructor(actualValue: string, minLength = 3) {
+    super(`Username must be at least ${minLength} characters, received: "${actualValue}".`);
+    this.minLength = minLength;
+    this.actualValue = actualValue;
+  }
+}
 
 export interface UserSnapshot extends Partial<RootEntitySnapshot> {
   readonly username: string;
   readonly email: string;
+  readonly department?: string | null;
 }
 
-export class User extends CacheableEntity<UserSnapshot, User> {
-  static readonly prefixKey = 'user:';
-
+export class User extends RootEntity<UserSnapshot> {
   private _username: string;
   readonly email: string;
+  private _department?: string | null;
 
   private constructor(snapshot: UserSnapshot) {
-    super(User, snapshot);
-    this._username = snapshot.username!;
-    this.email = snapshot.email!;
+    super(snapshot);
+    this._username = User.validateUsername(snapshot.username);
+    this.email = snapshot.email;
+    this._department = snapshot.department ?? null;
   }
 
-  static create(username: string, email: string): User {
-    return new User({ username, email });
+  static create(username: string, email: string, department?: string | null): User {
+    return new User({ username, email, department });
   }
 
   static fromJSON(snapshot: UserSnapshot): User {
     return new User(snapshot);
   }
 
+  private static validateUsername(value?: string): string {
+    const trimmed = (value ?? '').trim();
+    if (trimmed.length < 3) {
+      throw new InvalidUsernameException(trimmed);
+    }
+    return trimmed;
+  }
+
+  get username(): string {
+    return this._username;
+  }
+  set username(val: string) {
+    this._username = User.validateUsername(val);
+  }
+
+  get department(): string | null | undefined {
+    return this._department;
+  }
+  set department(val: string | null | undefined) {
+    this._department = val?.trim() || null;
+  }
+
   @Mutate()
-  rename(username: string): void {
-    this._username = username;
+  updateProfile(username?: string, department?: string | null): void {
+    if (username !== undefined) this.username = username;
+    if (department !== undefined) this.department = department;
+  }
+
+  afterUpdate(): void {
+    // Optional hook executed after every @Mutate() invocation
   }
 
   toJSON(): RootEntitySnapshot & UserSnapshot {
     return this.freezeState({
       id: this.id,
-      username: this._username,
+      username: this.username,
       email: this.email,
+      department: this.department,
       createdAt: this.createdAt,
       updatedAt: this.updatedAt,
     });
   }
-
-  afterUpdate(): void {
-    // Hook called after each @Mutate() update
-  }
 }
 ```
 
-### Define domain events
+---
+
+### 2. Defining Domain Events and Outcomes
+
+Mutations bundle the aggregate state with emitted domain events:
 
 ```typescript
-import { RootDomainEvent } from '@nestjs-pipeline/ddd-core';
+import { RootDomainEvent, RootDomainOutcome, DomainEvent } from '@nestjs-pipeline/ddd-core';
 import { User } from './user.entity';
 
+// 1. Domain Event
 export class UserCreatedEvent extends RootDomainEvent<User> {
   constructor(entity: User) {
     super(entity);
   }
 }
-```
 
-### Use outcomes to bundle entity + events
-
-```typescript
-import { RootDomainOutcome, DomainEvent } from '@nestjs-pipeline/ddd-core';
-import { User } from './user.entity';
-
+// 2. Domain Outcome
 export class UserCreateOutcome extends RootDomainOutcome<User> {
-  constructor(entity: User, events: Array<DomainEvent>) {
+  constructor(entity: User, events: DomainEvent[] = [new UserCreatedEvent(entity)]) {
     super(entity, events);
   }
 }
 
-// In your entity factory:
-const outcome = new UserCreateOutcome(user, [new UserCreatedEvent(user)]);
+// 3. Usage inside Aggregate Factory or Handler
+const user = User.create('alice', 'alice@example.com');
+const outcome = new UserCreateOutcome(user);
 const { entity, events } = outcome;
 ```
 
-### Implement a command repository with write-through cache
+---
+
+### 3. Write-Side Command Repository with `@Cache()`
+
+Command repositories handle persistence and declarative cache updates or evictions without polluting domain entities:
 
 ```typescript
+import { Injectable } from '@nestjs/common';
 import { CommandRepository, Cache, ICache } from '@nestjs-pipeline/ddd-core';
+import { User, UserSnapshot } from './user.entity';
+import { UserCreateOutcome } from './user-create.outcome';
+import { UserUpdateOutcome } from './user-update.outcome';
 
-export class CreateUserCommandRepository extends CommandRepository<UserCreateOutcome> {
-  constructor(protected readonly cache: ICache<UserSnapshot>, private readonly client: Client) {
+// Write-through caching on creation/update
+@Injectable()
+export class CreateUserCommandRepository extends CommandRepository<UserCreateOutcome, UserSnapshot> {
+  constructor(protected readonly cache: ICache<UserSnapshot>, private readonly ormStore: any) {
     super(cache);
   }
 
-  @Cache()
+  @Cache<UserCreateOutcome, UserSnapshot>(
+    // setKeyFn: writes result into cache under this key
+    (outcome) => `user:id:${outcome.entity.id}`,
+    // deleteKeysFn: null (not a deletion)
+    null,
+    // invalidateKeysFn: secondary lookup keys to evict (e.g. by email)
+    (outcome) => [`user:email:${outcome.entity.email}`],
+  )
   async save(outcome: UserCreateOutcome): Promise<UserSnapshot> {
-    const snapshot = outcome.entity.toJSON();
-    // persist to DB ...
-    return snapshot;
+    const user = await this.ormStore.em.upsert(User, outcome.entity);
+    return user.toJSON();
+  }
+}
+
+// Eviction on deletion
+@Injectable()
+export class DeleteUserCommandRepository extends CommandRepository<UserUpdateOutcome, null> {
+  constructor(protected readonly cache: ICache<UserSnapshot>, private readonly ormStore: any) {
+    super(cache);
+  }
+
+  @Cache<UserUpdateOutcome, null>(
+    // setKeyFn: null (no new entry written)
+    null,
+    // deleteKeysFn: evict all primary and secondary cache keys
+    (outcome) => [
+      `user:id:${outcome.entity.id}`,
+      `user:email:${outcome.entity.email}`,
+    ],
+  )
+  async save(outcome: UserUpdateOutcome): Promise<null> {
+    await this.ormStore.em.nativeDelete(User, outcome.entity.id);
+    return null;
   }
 }
 ```
 
-### Implement a query repository with read-through cache
+---
+
+### 4. Read-Side Query Repository with `@FromCache()`
+
+Query repositories handle read-through caching and optional snapshot rehydration:
 
 ```typescript
+import { Injectable } from '@nestjs/common';
 import { QueryRepository, FromCache, ICache } from '@nestjs-pipeline/ddd-core';
+import { User, UserSnapshot } from './user.entity';
 
-export class GetUserQueryRepository extends QueryRepository<GetUserQuery, User> {
-  constructor(protected readonly cache: ICache<User>, private readonly client: Client) {
+export interface GetUserQuery {
+  readonly userId?: string;
+  readonly email?: string;
+  readonly hydrate?: boolean;
+}
+
+@Injectable()
+export class GetUserQueryRepository extends QueryRepository<GetUserQuery, User | null> {
+  constructor(protected readonly cache: ICache<User>, private readonly ormStore: any) {
     super(cache);
   }
 
-  @FromCache(
-    (q) => `${User.prefixKey}${q.userId}`,
+  @FromCache<GetUserQuery, User>(
+    // keyFn: derive cache key from query params, or return null to bypass
+    (q) => (q.userId ? `user:id:${q.userId}` : q.email ? `user:email:${q.email}` : null),
+    // hydrateFn: transforms cached snapshot into a rich domain entity instance
     (cached) => User.fromJSON(cached as UserSnapshot),
   )
-  async find(query: GetUserQuery): Promise<User> {
-    // fetch from DB and reconstruct entity ...
+  async find(query: GetUserQuery): Promise<User | null> {
+    const where = query.userId ? { id: query.userId } : { email: query.email };
+    const user = await this.ormStore.em.findOne(User, where);
+    return user;
   }
 }
 ```
 
-### Provide an ICache implementation
+---
 
-Two implementations are available in `ddd-users-api` as reference:
+## Cache Implementations
 
-| Class         | Backed by          | TTL support |
-|---------------|--------------------|-------------|
-| `MikroOrmCache` | MikroORM (libSQL) | Yes         |
-| `MemoryCache` | In-process `Map`   | No          |
+`@nestjs-pipeline/ddd-core` defines the `ICache<T>` interface. Concrete implementations can be backed by any store:
+
+```typescript
+export interface ICache<T = unknown> {
+  get(key: string): Promise<T | null>;
+  set(key: string, value: T, options?: { ttl?: number }): Promise<void>;
+  delete(key: string): Promise<void>;
+}
+```
+
+In `ddd/users-api`, two production-ready implementations are provided:
+- **`MikroOrmCache`**: Database-backed cache entity (`CacheEntry`) storing JSON payloads and Unix expiration timestamps.
+- **`MemoryCache`**: Lightweight in-memory `Map` cache suitable for local testing.
+
+---
 
 ## Peer Dependencies
 
 - `@nestjs-pipeline/core` (workspace)
+- `@mikro-orm/core` (optional, for `UnixTimestampType` integration)

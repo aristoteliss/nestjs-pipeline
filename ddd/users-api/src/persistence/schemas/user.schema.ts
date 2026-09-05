@@ -17,10 +17,18 @@
  */
 
 import { EntitySchema } from '@mikro-orm/core';
-import { ICacheKey, UnixTimestampType } from '@nestjs-pipeline/ddd-core';
+import { UnixTimestampType } from '@nestjs-pipeline/ddd-core';
 import { User } from '../../users/domain/models/user.entity';
 
-export const UserSchema = new EntitySchema<User, ICacheKey>({
+/**
+ * MikroORM EntitySchema for the {@link User} aggregate root.
+ *
+ * Employs official MikroORM `accessor: true` mappings for encapsulated properties
+ * (`id`, `createdAt`, `updatedAt`, `username`, `department`). This allows MikroORM
+ * to access state exclusively through public getters and setters without requiring
+ * private field `@ts-expect-error` bypasses or breaking domain encapsulation.
+ */
+export const UserSchema = new EntitySchema<User>({
   class: User,
   tableName: 'users',
   properties: {

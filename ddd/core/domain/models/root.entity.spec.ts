@@ -26,17 +26,12 @@ interface TestSnapshot extends Partial<RootEntitySnapshot> {
 }
 
 class TestEntity extends RootEntity<TestSnapshot> {
-  prefixKey = 'test:';
   name: string;
   afterUpdateHook = vi.fn();
 
   constructor(snapshot?: Partial<TestSnapshot>) {
     super(snapshot);
     this.name = snapshot?.name ?? 'default';
-  }
-
-  get cacheKey(): string {
-    return `${this.prefixKey}${this.id}`;
   }
 
   triggerUpdate(): void {
@@ -68,7 +63,6 @@ describe('RootEntity', () => {
     expect(entity.id).toBeDefined();
     expect(entity.createdAt).toBeInstanceOf(Date);
     expect(entity.updatedAt).toBeInstanceOf(Date);
-    expect(entity.cacheKey).toBe(`test:${entity.id}`);
   });
 
   it('rehydrates an entity when id, createdAt, and updatedAt are provided together', () => {
@@ -99,7 +93,6 @@ describe('RootEntity', () => {
     });
 
     expect(entity.id).toBe(id);
-    expect(entity.cacheKey).toBe(`test:${id}`);
   });
 
   it('throws when only partial rehydration fields are provided', () => {
