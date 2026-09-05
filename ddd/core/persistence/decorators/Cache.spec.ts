@@ -31,7 +31,10 @@ class MockOutcome extends RootDomainOutcome<{ id: string }> {
 class TestCommandRepo {
   constructor(public cache?: ICache) {}
 
-  @Cache()
+  @Cache({
+    setKey: (outcome) => `mock:${outcome.entity.id}`,
+    deleteKeys: (outcome) => [`mock:${outcome.entity.id}`],
+  })
   async save(outcome: MockOutcome): Promise<{ id: string } | null> {
     if (outcome.entity.id === 'delete-me') {
       return null;
@@ -43,7 +46,7 @@ class TestCommandRepo {
 class BooleanCommandRepo {
   constructor(public cache?: ICache) {}
 
-  @Cache<MockOutcome, boolean>()
+  @Cache<MockOutcome, boolean>((outcome) => `mock:${outcome.entity.id}`)
   async save(_outcome: MockOutcome): Promise<boolean | null> {
     return false;
   }
@@ -52,7 +55,9 @@ class BooleanCommandRepo {
 class VoidCommandRepo {
   constructor(public cache?: ICache<void>) {}
 
-  @Cache<MockOutcome, void>()
+  @Cache<MockOutcome, void>({
+    deleteKeys: (outcome) => [`mock:${outcome.entity.id}`],
+  })
   async save(_outcome: MockOutcome): Promise<void> {}
 }
 
@@ -70,6 +75,14 @@ class SecondaryInvalidationRepo {
 }
 
 describe('@Cache decorator on CommandRepository.save', () => {
+  it('throws an error if instantiated without any key derivation function', () => {
+    expect(() => {
+      Cache(null, null, null);
+    }).toThrow(
+      '@Cache decorator requires at least one of setKey, deleteKeys, or invalidateKeys to be specified.',
+    );
+  });
+
   it('passes through when repository has no cache attached', async () => {
     const repo = new TestCommandRepo(undefined);
     const outcome = new MockOutcome({ id: 'u1' });
@@ -91,7 +104,7 @@ describe('@Cache decorator on CommandRepository.save', () => {
     const result = await repo.save(outcome);
 
     expect(result).toEqual({ id: 'u1' });
-    expect(mockCache.set).toHaveBeenCalledWith('u1', { id: 'u1' });
+    expect(mockCache.set).toHaveBeenCalledWith('mock:u1', { id: 'u1' });
   });
 
   it('evicts cache key when save returns null (e.g. deletion)', async () => {
@@ -109,7 +122,7 @@ describe('@Cache decorator on CommandRepository.save', () => {
     const result = await repo.save(outcome);
 
     expect(result).toBeNull();
-    expect(mockCache.delete).toHaveBeenCalledWith('delete-me');
+    expect(mockCache.delete).toHaveBeenCalledWith('mock:delete-me');
     expect(mockCache.set).not.toHaveBeenCalled();
   });
 
@@ -125,7 +138,7 @@ describe('@Cache decorator on CommandRepository.save', () => {
     const result = await repo.save(outcome);
 
     expect(result).toBe(false);
-    expect(mockCache.set).toHaveBeenCalledWith('u1', false);
+    expect(mockCache.set).toHaveBeenCalledWith('mock:u1', false);
     expect(mockCache.delete).not.toHaveBeenCalled();
   });
 
@@ -141,7 +154,7 @@ describe('@Cache decorator on CommandRepository.save', () => {
     const result = await repo.save(outcome);
 
     expect(result).toBeUndefined();
-    expect(mockCache.delete).toHaveBeenCalledWith('u1');
+    expect(mockCache.delete).toHaveBeenCalledWith('mock:u1');
     expect(mockCache.set).not.toHaveBeenCalled();
   });
 

@@ -84,6 +84,80 @@ describe('filterCacheKey', () => {
     const key = filterCacheKey(legacy, { id: '1' }, 'tenant_compat');
     expect(key).toBe('tenant_compat:user:id:1');
   });
+
+  it('resolves prefix from static aggregateName on entity classes', () => {
+    class MockAggregate {
+      static readonly aggregateName = 'user';
+    }
+    const key = filterCacheKey(MockAggregate, { id: '42' }, 'tenant_agg');
+    expect(key).toBe('tenant_agg:user:id:42');
+  });
+
+  it('escapes colons in primitive values to prevent key collision attacks', () => {
+    const keyWithColonValue = filterCacheKey('x', { a: 'hello:b:world' }, 't1');
+    const keyWithSeparateProps = filterCacheKey(
+      'x',
+      { a: 'hello', b: 'world' },
+      't1',
+    );
+
+    expect(keyWithColonValue).toBe('t1:x:a:hello\\:b\\:world');
+    expect(keyWithSeparateProps).toBe('t1:x:a:hello:b:world');
+    expect(keyWithColonValue).not.toBe(keyWithSeparateProps);
+  });
+
+  it('deterministically serializes nested objects without [object Object]', () => {
+    const key1 = filterCacheKey(
+      'deployment',
+      {
+        compose: {
+          service: 'postgres',
+          file: '/app/docker-compose.yml',
+        },
+      },
+      't1',
+    );
+
+    const key2 = filterCacheKey(
+      'deployment',
+      {
+        compose: {
+          file: '/app/docker-compose.yml',
+          service: 'postgres',
+        },
+      },
+      't1',
+    );
+
+    expect(key1).not.toContain('[object Object]');
+    expect(key1).toBe(
+      't1:deployment:compose:{"file":"/app/docker-compose.yml","service":"postgres"}',
+    );
+    expect(key1).toBe(key2);
+  });
+
+  it('throws an error if resourceOrEntity has neither aggregateName nor prefixKey', () => {
+    class UnnamedClass {}
+    expect(() => {
+      filterCacheKey(UnnamedClass as never, { id: '1' }, 't1');
+    }).toThrow(
+      'Cannot resolve cache key prefix: resourceOrEntity must be a string or declare a static aggregateName or prefixKey.',
+    );
+  });
+
+  it('throws in production mode if tenant context is missing', () => {
+    const prevEnv = process.env.NODE_ENV;
+    try {
+      process.env.NODE_ENV = 'production';
+      expect(() => {
+        filterCacheKey('user', { id: '1' });
+      }).toThrow(
+        'Missing tenant context: cannot derive cache key without an explicit tenant in production mode.',
+      );
+    } finally {
+      process.env.NODE_ENV = prevEnv;
+    }
+  });
 });
 
 describe('cacheKeyTemplate', () => {
@@ -100,5 +174,23 @@ describe('cacheKeyTemplate', () => {
 
     const template = cacheKeyTemplate('user:{userId}');
     expect(template(ctx)).toBe('tenant_ctx:user:u-999');
+  });
+
+  it('throws an error when a required placeholder is missing or nullish', () => {
+    const template = cacheKeyTemplate('user:{userId}', 'tenant_test');
+    expect(() => template({})).toThrow(
+      'Cannot resolve cache key template: missing required placeholder "userId".',
+    );
+    expect(() => template({ userId: null })).toThrow(
+      'Cannot resolve cache key template: missing required placeholder "userId".',
+    );
+  });
+
+  it('supports optional placeholders marked with ?', () => {
+    const template = cacheKeyTemplate('user:{userId}:{roleId?}', 'tenant_test');
+    expect(template({ userId: 'u-123' })).toBe('tenant_test:user:u-123:');
+    expect(template({ userId: 'u-123', roleId: 'admin' })).toBe(
+      'tenant_test:user:u-123:admin',
+    );
   });
 });

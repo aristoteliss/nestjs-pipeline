@@ -41,7 +41,7 @@ export class GetRoleQueryRepository extends QueryRepository<
   }
 
   @FromCache<GetRoleQuery, Role>(
-    (q) => filterCacheKey('role', buildConditions(q)),
+    (q) => filterCacheKey(Role.aggregateName, buildConditions(q)),
     (cached) => Role.fromJSON(cached as RoleSnapshot),
   )
   async find(query: GetRoleQuery): Promise<Role | null> {

@@ -20,67 +20,154 @@ import { type IPipelineContext, pipelineStore } from '@nestjs-pipeline/core';
 import { DEFAULT_TENANT_SCHEMA } from '@persistence/postgres-options';
 
 /**
- * Derives a deterministic cache key from a resource name (or entity type) and
+ * Types supported as cache key resource specifiers:
+ * - A raw resource string (e.g., `'user'` or `'user:'`)
+ * - An entity constructor declaring `static readonly aggregateName = 'user'`
+ * - An object declaring `prefixKey`
+ */
+export type CacheResourceSpecifier =
+  | string
+  | { aggregateName?: string; prefixKey?: string };
+
+/**
+ * Deterministically sorts object keys recursively to ensure identical JSON serialization
+ * regardless of key insertion order.
+ */
+function sortKeysRecursively(val: unknown): unknown {
+  if (val === null || typeof val !== 'object') {
+    return val;
+  }
+  if (Array.isArray(val)) {
+    return val.map(sortKeysRecursively);
+  }
+  return Object.keys(val as Record<string, unknown>)
+    .sort()
+    .reduce(
+      (acc, key) => {
+        acc[key] = sortKeysRecursively((val as Record<string, unknown>)[key]);
+        return acc;
+      },
+      {} as Record<string, unknown>,
+    );
+}
+
+/**
+ * Serializes an individual filter condition value into a canonical, collision-safe string.
+ *
+ * - Nested objects and arrays are serialized using recursively key-sorted canonical JSON,
+ *   preventing ambiguous `[object Object]` representations.
+ * - Primitive values (strings, numbers, booleans) have colons (`:`) and backslashes (`\`) escaped
+ *   so that values containing delimiters cannot collide with key/value boundaries.
+ */
+function canonicalizeValue(val: unknown): string {
+  if (val === null || val === undefined) {
+    return '';
+  }
+  if (typeof val === 'object') {
+    return JSON.stringify(sortKeysRecursively(val));
+  }
+  // Escape backslash and colon to prevent delimiter injection and key collision
+  return String(val).replace(/([\\:])/g, '\\$1');
+}
+
+/**
+ * Resolves the active tenant schema from explicit arguments, pipeline context,
+ * or ambient AsyncLocalStorage.
+ *
+ * Enforces fail-safe isolation in production (`NODE_ENV === 'production'`) by requiring
+ * an explicit tenant context and refusing silent fallback to default schema.
+ */
+function resolveTenantSchema(
+  tenantOrContext?: string | IPipelineContext,
+): string {
+  let schema =
+    typeof tenantOrContext === 'string'
+      ? tenantOrContext
+      : (tenantOrContext?.tenantId ?? pipelineStore.getStore()?.tenantId);
+
+  if (!schema) {
+    if (process.env.NODE_ENV === 'production') {
+      throw new Error(
+        'Missing tenant context: cannot derive cache key without an explicit tenant in production mode.',
+      );
+    }
+    schema = DEFAULT_TENANT_SCHEMA;
+  }
+
+  return schema;
+}
+
+/**
+ * Derives a deterministic, collision-safe cache key from a resource name (or entity type) and
  * a set of filter conditions, namespaced by the active tenant schema.
  *
- * Domain aggregates remain pure DDD — they do not declare `prefixKey` or `cacheKey`.
+ * Domain aggregates remain pure DDD — they declare only a canonical logical `aggregateName`
+ * (e.g., `User.aggregateName = 'user'`) without knowledge of caching or infrastructure.
  *
- * Supports explicit tenant ID or pipeline context:
- * 1. Explicit `tenantOrContext` string (e.g., `'tenant_a'`)
- * 2. Pipeline context `ctx.tenantId`
- * 3. Ambient pipelineStore `pipelineStore.getStore()?.tenantId`
- * 4. Default tenant fallback `DEFAULT_TENANT_SCHEMA` ('tenant')
+ * Features:
+ * - **Canonical sorting**: Keys are sorted alphabetically (`{ email, id }` produces the same key as `{ id, email }`).
+ * - **Delimiter escaping**: Primitive values containing `:` or `\` are escaped to prevent delimiter injection collisions.
+ * - **Deterministic object serialization**: Nested objects/composite identities are canonically serialized without `[object Object]`.
+ * - **Fail-safe resource prefixes**: Rejects fragile constructor names subject to minification/mangling.
  *
- * Keys are sorted alphabetically so `{ email, department }` and
- * `{ department, email }` produce the same string.
- *
- * @example Single property lookup
+ * @example Single property lookup with entity class
  * ```typescript
- * filterCacheKey('user', { id: '123' }, ctx)
+ * filterCacheKey(User, { id: '123' }, ctx)
  * // → "tenant:user:id:123"
  * ```
  *
- * @example Composite condition with alphabetical sorting
+ * @example Composite filter with escaped delimiters
  * ```typescript
- * filterCacheKey('user', { email: 'a@b.com', department: 'eng' }, 'tenant_b')
- * // → "tenant_b:user:department:eng:email:a@b.com"
+ * filterCacheKey('user', { a: 'hello:b:world' })
+ * // → "tenant:user:a:hello\:b\:world"
  * ```
  *
- * @example Inside a QueryRepository @FromCache decorator
+ * @example Nested composite identity without [object Object]
  * ```typescript
- * @FromCache<GetUserQuery, User>(
- *   (q) => filterCacheKey('user', { id: q.userId }),
- *   (cached) => User.fromJSON(cached as UserSnapshot),
- * )
- * async find(query: GetUserQuery): Promise<User | null> { ... }
+ * filterCacheKey('deployment', { compose: { service: 'web', file: 'docker-compose.yml' } })
+ * // → 'tenant:deployment:compose:{"file":"docker-compose.yml","service":"web"}'
  * ```
  */
 export function filterCacheKey(
-  resourceOrEntity: string | { prefixKey?: string; name?: string },
+  resourceOrEntity: CacheResourceSpecifier,
   conditions: Record<string, unknown>,
   tenantOrContext?: string | IPipelineContext,
 ): string {
-  const schema =
-    typeof tenantOrContext === 'string'
-      ? tenantOrContext
-      : (tenantOrContext?.tenantId ??
-        pipelineStore.getStore()?.tenantId ??
-        DEFAULT_TENANT_SCHEMA);
+  const schema = resolveTenantSchema(tenantOrContext);
 
-  const prefix =
-    typeof resourceOrEntity === 'string'
-      ? resourceOrEntity.endsWith(':')
-        ? resourceOrEntity
-        : `${resourceOrEntity}:`
-      : (resourceOrEntity.prefixKey ??
-        (resourceOrEntity.name
-          ? `${resourceOrEntity.name.toLowerCase()}:`
-          : ''));
+  let prefix: string;
+  if (typeof resourceOrEntity === 'string') {
+    prefix = resourceOrEntity.endsWith(':')
+      ? resourceOrEntity
+      : `${resourceOrEntity}:`;
+  } else if (
+    resourceOrEntity &&
+    (typeof resourceOrEntity === 'object' ||
+      typeof resourceOrEntity === 'function')
+  ) {
+    if (resourceOrEntity.aggregateName) {
+      prefix = resourceOrEntity.aggregateName.endsWith(':')
+        ? resourceOrEntity.aggregateName
+        : `${resourceOrEntity.aggregateName}:`;
+    } else if (resourceOrEntity.prefixKey) {
+      prefix = resourceOrEntity.prefixKey.endsWith(':')
+        ? resourceOrEntity.prefixKey
+        : `${resourceOrEntity.prefixKey}:`;
+    } else {
+      throw new Error(
+        'Cannot resolve cache key prefix: resourceOrEntity must be a string or declare a static aggregateName or prefixKey.',
+      );
+    }
+  } else {
+    throw new Error(
+      'Cannot resolve cache key prefix: resourceOrEntity must be a string or declare a static aggregateName or prefixKey.',
+    );
+  }
 
   const segments = Object.entries(conditions)
     .filter(([, v]) => v !== undefined && v !== null)
     .sort(([a], [b]) => a.localeCompare(b))
-    .map(([k, v]) => `${k}:${v}`)
+    .map(([k, v]) => `${k}:${canonicalizeValue(v)}`)
     .join(':');
 
   return `${schema}:${prefix}${segments}`;
@@ -90,23 +177,20 @@ export function filterCacheKey(
  * Resolves a template string (e.g. 'user:{userId}' or 'role:id:{id}') against a query/command payload,
  * namespaced by the active tenant schema.
  *
- * Useful for declarative CQRS pipeline behavior caching (`CacheBehavior`) or handler-level cache resolution.
+ * - Required placeholders `{prop}`: Throws a descriptive `Error` if the property is missing or nullish.
+ * - Optional placeholders `{prop?}`: Resolves to an empty string if the property is missing or nullish.
  *
- * @example Pipeline behavior caching on query handler
- * ```typescript
- * @QueryHandler(GetUserQuery)
- * @UsePipeline([
- *   CacheBehavior,
- *   { keyFactory: cacheKeyTemplate('user:{userId}') },
- * ])
- * export class GetUserHandler implements IQueryHandler<GetUserQuery, UserSnapshot> { ... }
- * ```
- *
- * @example Direct invocation with query object
+ * @example Required placeholder (throws if userId is missing)
  * ```typescript
  * const getKey = cacheKeyTemplate('user:{userId}');
- * getKey(new GetUserQuery({ userId: '123' }))
- * // → "tenant:user:123"
+ * getKey({ userId: '123' }); // → "tenant:user:123"
+ * getKey({}); // Throws Error: Cannot resolve cache key template: missing required placeholder "userId"
+ * ```
+ *
+ * @example Optional placeholder
+ * ```typescript
+ * const getKey = cacheKeyTemplate('user:{userId}:{scope?}');
+ * getKey({ userId: '123' }); // → "tenant:user:123:"
  * ```
  */
 export function cacheKeyTemplate<T = Record<string, unknown>>(
@@ -120,18 +204,23 @@ export function cacheKeyTemplate<T = Record<string, unknown>>(
         : undefined;
     const data = (ctx ? ctx.request : source) as Record<string, unknown>;
 
-    const schema =
-      typeof tenantOrContext === 'string'
-        ? tenantOrContext
-        : (tenantOrContext?.tenantId ??
-          ctx?.tenantId ??
-          pipelineStore.getStore()?.tenantId ??
-          DEFAULT_TENANT_SCHEMA);
+    const schema = resolveTenantSchema(tenantOrContext ?? ctx);
 
-    const resolved = template.replace(/\{(\w+)\}/g, (_, prop) => {
-      const val = data?.[prop];
-      return val !== undefined && val !== null ? String(val) : '';
-    });
+    const resolved = template.replace(
+      /\{(\w+)(\?)?\}/g,
+      (_, prop, optional) => {
+        const val = data?.[prop];
+        if (val !== undefined && val !== null) {
+          return canonicalizeValue(val);
+        }
+        if (optional) {
+          return '';
+        }
+        throw new Error(
+          `Cannot resolve cache key template: missing required placeholder "${prop}".`,
+        );
+      },
+    );
 
     const prefix = schema ? `${schema}:` : '';
     return `${prefix}${resolved}`;

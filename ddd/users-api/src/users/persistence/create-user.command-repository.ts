@@ -33,7 +33,9 @@ export class CreateUserCommandRepository extends CommandRepository<UserCreateOut
     super(cache);
   }
 
-  @Cache((outcome) => filterCacheKey('user', { id: outcome.entity.id }))
+  @Cache((outcome) =>
+    filterCacheKey(User.aggregateName, { id: outcome.entity.id }),
+  )
   async save(domainOutcome: UserCreateOutcome): Promise<UserSnapshot> {
     const { entity } = domainOutcome;
     const em = this.store.em;

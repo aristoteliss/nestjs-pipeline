@@ -16,6 +16,7 @@
  * ----------------------------
  */
 
+import { filterCacheKey } from '@common/cqrs/helpers/filterCacheKey.helper';
 import { Inject, Injectable } from '@nestjs/common';
 import { Cache, CommandRepository, ICache } from '@nestjs-pipeline/ddd-core';
 import { CACHE_TOKEN } from '@persistence/cache/memory.cache';
@@ -32,7 +33,9 @@ export class CreateAuthCommandRepository extends CommandRepository<AuthCreateOut
     super(cache);
   }
 
-  @Cache()
+  @Cache((outcome) =>
+    filterCacheKey(Auth.aggregateName, { id: outcome.entity.id }),
+  )
   async save(domainOutcome: AuthCreateOutcome): Promise<AuthSnapshot> {
     const { entity } = domainOutcome;
 

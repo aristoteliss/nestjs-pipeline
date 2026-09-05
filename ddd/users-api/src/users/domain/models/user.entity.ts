@@ -52,6 +52,9 @@ const DEPARTMENT_MIN_LENGTH = 3;
  * - `rename()` enforces the username business rule and updates `updatedAt`.
  */
 export class User extends RootEntity<UserSnapshot> {
+  /** Canonical logical aggregate name used for cache namespacing and event topics. */
+  public static readonly aggregateName = 'user';
+
   private _username: string;
   private _department: string | null;
   readonly email: string;

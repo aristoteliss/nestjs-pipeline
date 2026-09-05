@@ -34,9 +34,11 @@ export class UpdateUserCommandRepository extends CommandRepository<UserUpdateOut
   }
 
   @Cache<UserUpdateOutcome, UserSnapshot>(
-    (outcome) => filterCacheKey('user', { id: outcome.entity.id }),
+    (outcome) => filterCacheKey(User.aggregateName, { id: outcome.entity.id }),
     null,
-    (outcome) => [filterCacheKey('user', { email: outcome.entity.email })],
+    (outcome) => [
+      filterCacheKey(User.aggregateName, { email: outcome.entity.email }),
+    ],
   )
   async save(domainOutcome: UserUpdateOutcome): Promise<UserSnapshot> {
     const { entity } = domainOutcome;

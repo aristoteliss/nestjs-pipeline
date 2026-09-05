@@ -184,7 +184,7 @@ import { User, UserSnapshot } from './user.entity';
 import { UserCreateOutcome } from './user-create.outcome';
 import { UserUpdateOutcome } from './user-update.outcome';
 
-// Write-through caching on creation/update
+// Write-through caching on creation/update (positional syntax)
 @Injectable()
 export class CreateUserCommandRepository extends CommandRepository<UserCreateOutcome, UserSnapshot> {
   constructor(protected readonly cache: ICache<UserSnapshot>, private readonly ormStore: any) {
@@ -192,12 +192,12 @@ export class CreateUserCommandRepository extends CommandRepository<UserCreateOut
   }
 
   @Cache<UserCreateOutcome, UserSnapshot>(
-    // setKeyFn: writes result into cache under this key
-    (outcome) => `user:id:${outcome.entity.id}`,
-    // deleteKeysFn: null (not a deletion)
+    // setKey: writes result into cache under this key
+    (outcome) => `tenant:user:id:${outcome.entity.id}`,
+    // deleteKeys: null (not a deletion)
     null,
-    // invalidateKeysFn: secondary lookup keys to evict (e.g. by email)
-    (outcome) => [`user:email:${outcome.entity.email}`],
+    // invalidateKeys: secondary lookup keys to evict (e.g. by email)
+    (outcome) => [`tenant:user:email:${outcome.entity.email}`],
   )
   async save(outcome: UserCreateOutcome): Promise<UserSnapshot> {
     const user = await this.ormStore.em.upsert(User, outcome.entity);
@@ -205,22 +205,20 @@ export class CreateUserCommandRepository extends CommandRepository<UserCreateOut
   }
 }
 
-// Eviction on deletion
+// Eviction on deletion (options object syntax)
 @Injectable()
 export class DeleteUserCommandRepository extends CommandRepository<UserUpdateOutcome, null> {
   constructor(protected readonly cache: ICache<UserSnapshot>, private readonly ormStore: any) {
     super(cache);
   }
 
-  @Cache<UserUpdateOutcome, null>(
-    // setKeyFn: null (no new entry written)
-    null,
-    // deleteKeysFn: evict all primary and secondary cache keys
-    (outcome) => [
-      `user:id:${outcome.entity.id}`,
-      `user:email:${outcome.entity.email}`,
+  @Cache<UserUpdateOutcome, null>({
+    // deleteKeys: evict all primary and secondary cache keys
+    deleteKeys: (outcome) => [
+      `tenant:user:id:${outcome.entity.id}`,
+      `tenant:user:email:${outcome.entity.email}`,
     ],
-  )
+  })
   async save(outcome: UserUpdateOutcome): Promise<null> {
     await this.ormStore.em.nativeDelete(User, outcome.entity.id);
     return null;

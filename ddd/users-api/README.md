@@ -195,28 +195,40 @@ Persistence schemas map domain aggregate state to relational tables without comp
 
 ### Decoupled Caching Architecture & Key Templates
 
-Caching metadata is completely removed from domain entities (`CacheableEntity` and `ICacheKey` are obsolete). Caching is strictly an infrastructure/CQRS pipeline concern:
+Caching metadata is completely removed from domain entities (`CacheableEntity` and `ICacheKey` are obsolete). Domain entities declare only a canonical logical identity (e.g. `User.aggregateName = 'user'`), keeping domain aggregates pure DDD while caching remains strictly an infrastructure/CQRS pipeline concern:
 
-- **Tenant-Namespaced Key Derivation (`filterCacheKey`)**:
-  Generates deterministic, tenant-isolated cache keys by combining active tenant schema, resource name, and sorted lookup conditions:
+- **Collision-Safe & Canonical Key Derivation (`filterCacheKey`)**:
+  Generates deterministic, tenant-isolated cache keys by combining active tenant schema, aggregate name, and canonically sorted filter conditions:
+  - **Deterministic Object Serialization**: Nested composite identities/objects are recursively key-sorted and JSON-serialized (preventing `[object Object]` bugs).
+  - **Delimiter Escaping**: Primitive values containing `:` or `\` are escaped to prevent delimiter injection and key collision attacks (`{ a: 'hello:b:world' }` vs `{ a: 'hello', b: 'world' }`).
+  - **Production Multi-Tenant Protection**: Refuses silent default schema fallback when running in `NODE_ENV === 'production'`; throws fail-safe if tenant context is missing.
   ```typescript
-  // Single identifier lookup
-  filterCacheKey('user', { id: '123' }, ctx)
+  // Single identifier lookup using entity class
+  filterCacheKey(User, { id: '123' }, ctx)
   // → "tenant_a:user:id:123"
 
-  // Composite conditions (keys are sorted alphabetically for determinism)
-  filterCacheKey('user', { email: 'alice@example.com', department: 'sales' }, 'tenant_b')
+  // Composite conditions with delimiter escaping
+  filterCacheKey(User.aggregateName, { email: 'alice@example.com', department: 'sales' }, 'tenant_b')
   // → "tenant_b:user:department:sales:email:alice@example.com"
+
+  // Nested composite identities
+  filterCacheKey('deployment', { compose: { service: 'postgres', file: 'docker-compose.yml' } })
+  // → 'tenant:deployment:compose:{"file":"docker-compose.yml","service":"postgres"}'
   ```
-- **CQRS Handler Templates (`cacheKeyTemplate`)**:
+- **Fail-Fast CQRS Handler Templates (`cacheKeyTemplate`)**:
   Allows query and command handlers to declaratively define cache patterns parameterized from request DTO fields:
+  - Required placeholders `{prop}`: Throws an explicit error if missing or nullish (prevents silent collisions on truncated keys like `tenant:user:`).
+  - Optional placeholders `{prop?}`: Resolves to an empty string if omitted.
   ```typescript
   const getKey = cacheKeyTemplate('user:{userId}');
   getKey(new GetUserQuery({ userId: 'usr_123' }))
   // → "tenant:user:usr_123"
+
+  // Missing required placeholder throws:
+  getKey({}) // Error: Cannot resolve cache key template: missing required placeholder "userId"
   ```
 - **Write-Through & Automatic Eviction (`@Cache`, `@FromCache`)**:
-  - `@Cache`: Attached to write repository `save()` methods. On create/update, results are stored in the cache. On deletion (`save()` returns `null`), all matching primary and secondary keys are evicted. Operations are fail-safe and best-effort.
+  - `@Cache`: Attached to write repository `save()` methods. Requires explicit key derivations or options (`setKey`, `deleteKeys`, `invalidateKeys`) eliminating unsafe defaults. On create/update, results are stored in the cache. On deletion (`save()` returns `null`), all matching primary and secondary keys are evicted. Operations are fail-safe and best-effort.
   - `@FromCache`: Attached to query repository `find()` methods. Serves hits from cache and automatically stores non-nullish database results. Supports optional entity rehydration.
 
 ---
@@ -402,7 +414,7 @@ export class GetUserQuery extends createQuery(GetUserSchema, BaseQuery) {}
 @Injectable()
 export class GetUserQueryRepository extends QueryRepository<GetUserQuery, User | null> {
   @FromCache<GetUserQuery, User>(
-    (q) => filterCacheKey('user', q.userId ? { id: q.userId } : { email: q.email }),
+    (q) => filterCacheKey(User.aggregateName, q.userId ? { id: q.userId } : { email: q.email }),
     (cached) => User.fromJSON(cached as UserSnapshot),
   )
   async find(query: GetUserQuery): Promise<User | null> {

@@ -1254,7 +1254,7 @@ The `@nestjs-pipeline/ddd-core` package (`ddd/core/`) provides the foundational 
 | `ICache<T>`           | Interface for cache providers (`get`, `set`, `delete`)                                |
 | `CommandRepository`   | Abstract base for write repositories — holds an `ICache` and defines `save(outcome)` |
 | `QueryRepository`     | Abstract base for read repositories — holds an `ICache` and defines `find(query)`    |
-| `@Cache()`            | Decorator for `save()` — write-through cache on writes, evict on delete, decoupled key derivations |
+| `@Cache()`            | Decorator for `save()` — write-through cache on writes, evict on delete, explicit key derivations |
 | `@FromCache()`        | Decorator for `find()` — read-through cache with fail-closed semantics and optional hydration |
 | `Method`              | Utility type for extracting method signatures                                         |
 
@@ -1308,7 +1308,7 @@ curl -X POST http://localhost:3000/users \
   -d '{"name": "Aristotelis", "email": "aristotelis@example.com"}'
 
 # Get all users
-curl http://localhost:3000/users \
+curl -X GET http://localhost:3000/users \
   -H 'x-tenant-schema: tenant' \
   -H "Authorization: Bearer $TOKEN"
 
@@ -1324,8 +1324,8 @@ curl -X PATCH http://localhost:3000/users/<id> \
   -H "Authorization: Bearer $TOKEN" \
   -d '{"name": "NewName"}'
 
-# Delete
-curl -X DELETE http://localhost:3000/users/<id> \
+# Delete a user
+curl -X DELETE http://localhost:3000/users/<user-id> \
   -H 'x-tenant-schema: tenant' \
   -H "Authorization: Bearer $TOKEN"
 
@@ -1341,7 +1341,7 @@ ADAPTER=fastify pnpm start
 - Per-handler CASL authorization with inline `rules` on `CaslBehaviorOptions` and `CaslBehavior`
 - MikroORM-backed CASL providers (roles, capabilities, user context)
 - Official MikroORM `accessor: true` entity schemas bridging private aggregate fields to public accessors without TypeScript bypasses
-- Decoupled CQRS caching architecture with tenant-isolated key derivation (`filterCacheKey`, `cacheKeyTemplate`)
+- Decoupled CQRS caching architecture with collision-safe key derivation (`filterCacheKey`), fail-fast handler templates (`cacheKeyTemplate`), and static aggregate naming (`User.aggregateName`)
 - Versioned database migrations with tracking (`mikro_orm_migrations` table)
 - Zod-parsed/validated commands and queries via `createCommand()` and `createQuery()` implementing NestJS 12 Standard Schema (`['~standard']`)
 - Controller-level `ZodPipe` validation

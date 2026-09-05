@@ -33,7 +33,9 @@ export class UpdateRoleCommandRepository extends CommandRepository<RoleUpdateOut
     super(cache);
   }
 
-  @Cache((outcome) => filterCacheKey('role', { id: outcome.entity.id }))
+  @Cache((outcome) =>
+    filterCacheKey(Role.aggregateName, { id: outcome.entity.id }),
+  )
   async save(domainOutcome: RoleUpdateOutcome): Promise<RoleSnapshot> {
     const { entity } = domainOutcome;
 

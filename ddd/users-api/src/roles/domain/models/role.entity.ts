@@ -44,6 +44,9 @@ const ROLE_NAME_MIN_LENGTH = 3;
  * - `rename()` enforces the role-name business rule and updates `updatedAt`.
  */
 export class Role extends RootEntity<RoleSnapshot> {
+  /** Canonical logical aggregate name used for cache namespacing and event topics. */
+  public static readonly aggregateName = 'role';
+
   private _name: string;
 
   constructor(snapshot?: RoleSnapshot) {

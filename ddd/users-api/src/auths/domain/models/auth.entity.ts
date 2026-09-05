@@ -26,7 +26,8 @@ export interface AuthSnapshot extends Partial<RootEntitySnapshot> {
 }
 
 export class Auth extends RootEntity<AuthSnapshot> {
-  static readonly prefixKey = 'auth:';
+  /** Canonical logical aggregate name used for cache namespacing and event topics. */
+  public static readonly aggregateName = 'auth';
 
   readonly userId: string;
   readonly token: string;
