@@ -1,9 +1,8 @@
-import { BadRequestException } from '@nestjs/common/exceptions';
+import { DomainException } from '@nestjs-pipeline/ddd-core';
 import { Role } from '../role.entity';
 
-export class UniqueRoleNameException extends BadRequestException {
+export class UniqueRoleNameException extends DomainException {
   readonly role?: Role | string;
-  readonly optionalParams?: unknown;
 
   constructor(role?: Role | string, message?: string) {
     const roleName = typeof role === 'string' ? role : role?.name;
@@ -13,7 +12,7 @@ export class UniqueRoleNameException extends BadRequestException {
         ? `Role with name "${roleName}" already exists`
         : 'Role name must be unique');
     super(msg);
+    this.name = 'UniqueRoleNameException';
     this.role = role;
-    this.optionalParams = role;
   }
 }

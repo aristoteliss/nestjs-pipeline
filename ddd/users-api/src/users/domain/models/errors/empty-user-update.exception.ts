@@ -16,13 +16,12 @@
  * ----------------------------
  */
 
-import { BadRequestException } from '@nestjs/common/exceptions';
+import { DomainException } from '@nestjs-pipeline/ddd-core';
 
 /**
  * Domain exception thrown when an update mutation is invoked without any modifying fields.
  *
- * Extends NestJS {@link BadRequestException} to ensure standard HTTP 400 responses
- * while maintaining domain model integrity.
+ * Extends {@link DomainException} to remain decoupled from web frameworks and HTTP.
  *
  * @example
  * ```ts
@@ -31,7 +30,7 @@ import { BadRequestException } from '@nestjs/common/exceptions';
  * }
  * ```
  */
-export class EmptyUserUpdateException extends BadRequestException {
+export class EmptyUserUpdateException extends DomainException {
   /**
    * Creates a new {@link EmptyUserUpdateException}.
    *

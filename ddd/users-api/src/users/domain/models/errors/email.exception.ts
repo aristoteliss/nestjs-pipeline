@@ -1,11 +1,11 @@
-import { BadRequestException } from '@nestjs/common/exceptions';
+import { DomainException } from '@nestjs-pipeline/ddd-core';
 import { User } from '../user.entity';
 
 /**
  * Domain exception thrown when attempting to persist a user with an email address
  * that already belongs to another user in the same tenant.
  *
- * Extends NestJS {@link BadRequestException} to return a standard HTTP 400 response.
+ * Extends {@link DomainException} to remain decoupled from web frameworks and HTTP.
  *
  * @example
  * ```ts
@@ -14,9 +14,8 @@ import { User } from '../user.entity';
  * }
  * ```
  */
-export class UniqueEmailException extends BadRequestException {
+export class UniqueEmailException extends DomainException {
   readonly user: User;
-  readonly optionalParams?: unknown;
 
   /**
    * Creates a new {@link UniqueEmailException}.
@@ -29,6 +28,5 @@ export class UniqueEmailException extends BadRequestException {
     super(msg);
     this.name = 'UniqueEmailException';
     this.user = user;
-    this.optionalParams = user;
   }
 }

@@ -19,6 +19,7 @@ import { RateLimitExceededFilter } from '@nestjs-pipeline/rate-limit';
 import { ZodValidationFilter } from '@nestjs-pipeline/zod';
 import { NativeLogger } from 'nestjs-pino';
 import { AppModule } from './app.module';
+import { DomainExceptionFilter } from './common/filters/domain-exception.filter';
 import { FeatureDisabledFilter } from './common/filters/feature-disabled.filter';
 import { UnauthorizedActionFilter } from './common/filters/unauthorized-action.filter';
 
@@ -59,6 +60,7 @@ export async function bootstrap(): Promise<void> {
     new RateLimitExceededFilter(),
     new IdempotencyConflictFilter(),
     new UnauthorizedActionFilter(),
+    new DomainExceptionFilter(),
   );
 
   await app.listen(3000, '0.0.0.0');

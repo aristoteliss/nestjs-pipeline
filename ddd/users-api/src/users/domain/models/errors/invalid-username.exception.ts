@@ -16,14 +16,13 @@
  * ----------------------------
  */
 
-import { BadRequestException } from '@nestjs/common/exceptions';
+import { DomainException } from '@nestjs-pipeline/ddd-core';
 
 /**
  * Domain exception thrown when a user's username violates business constraints
  * (e.g. empty, whitespace-only, or shorter than the required minimum length).
  *
- * Extends NestJS {@link BadRequestException} to ensure standard HTTP 400 responses
- * while maintaining domain model integrity.
+ * Extends {@link DomainException} to remain decoupled from web frameworks and HTTP.
  *
  * @example
  * ```ts
@@ -32,7 +31,7 @@ import { BadRequestException } from '@nestjs/common/exceptions';
  * }
  * ```
  */
-export class InvalidUsernameException extends BadRequestException {
+export class InvalidUsernameException extends DomainException {
   readonly minLength: number;
   readonly actualValue?: string | null;
 

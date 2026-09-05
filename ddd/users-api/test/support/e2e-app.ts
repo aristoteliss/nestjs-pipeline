@@ -181,6 +181,9 @@ export async function bootstrapE2E(options?: E2EOptions): Promise<E2EContext> {
   const { UnauthorizedActionFilter } = await import(
     '../../src/common/filters/unauthorized-action.filter'
   );
+  const { DomainExceptionFilter } = await import(
+    '../../src/common/filters/domain-exception.filter'
+  );
 
   const moduleRef = await Test.createTestingModule({
     imports: [AppModule],
@@ -228,6 +231,7 @@ export async function bootstrapE2E(options?: E2EOptions): Promise<E2EContext> {
     new RateLimitExceededFilter(),
     new IdempotencyConflictFilter(),
     new UnauthorizedActionFilter(),
+    new DomainExceptionFilter(),
   );
   await app.init();
 

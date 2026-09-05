@@ -209,7 +209,7 @@ describe('roles-api (e2e)', () => {
       expect(res.body).toMatchObject({ id: created.body.id, name: renamed });
     });
 
-    it('rejects renaming a role to an already existing name (400)', async () => {
+    it('rejects renaming a role to an already existing name (409)', async () => {
       const existingName = newRoleName();
       await createRole(admin, existingName);
 
@@ -219,7 +219,7 @@ describe('roles-api (e2e)', () => {
         .patch(`/roles/${toRename.body.id}`)
         .send({ name: existingName });
 
-      expect(res.status).toBe(400);
+      expect(res.status).toBe(409);
     });
 
     it('returns 404 when updating an unknown role UUID', async () => {
