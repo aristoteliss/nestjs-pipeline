@@ -31,4 +31,29 @@ describe('CreateUserCommandRepository', () => {
       result,
     );
   });
+
+  it('translates database unique constraint violations into UniqueEmailException', async () => {
+    const cache: ICache<UserSnapshot> = {
+      get: vi.fn(),
+      set: vi.fn(),
+      delete: vi.fn(),
+    };
+    const outcome = User.create('Alice', 'alice@example.test', 'engineering');
+    const store = {
+      get em() {
+        return {
+          create: vi.fn().mockReturnValue(outcome.entity),
+          persist: vi.fn(),
+          flush: vi
+            .fn()
+            .mockRejectedValue({ code: 'SQLITE_CONSTRAINT_UNIQUE' }),
+        };
+      },
+    };
+    const repository = new CreateUserCommandRepository(cache, store as never);
+
+    await expect(repository.save(outcome)).rejects.toThrow(
+      'Email alice@example.test already exists',
+    );
+  });
 });

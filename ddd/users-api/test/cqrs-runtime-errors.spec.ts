@@ -266,7 +266,13 @@ describe('CQRS Commands & Queries Runtime Error Taxonomy', () => {
       it('catches UniqueEmailException on unique collision and maps to Conflict (409)', async () => {
         const authorizer = createMockAuthorizer(true);
         const commandRepo = {
-          save: vi.fn().mockRejectedValue({ code: 'SQLITE_CONSTRAINT_UNIQUE' }),
+          save: vi
+            .fn()
+            .mockRejectedValue(
+              new UniqueEmailException({
+                email: 'duplicate@example.test',
+              } as any),
+            ),
         };
         const handler = new CreateUserHandler(
           commandRepo as any,
@@ -491,7 +497,11 @@ describe('CQRS Commands & Queries Runtime Error Taxonomy', () => {
       it('catches UniqueRoleNameException on duplicate creation (409)', async () => {
         const authorizer = createMockAuthorizer(true);
         const commandRepo = {
-          save: vi.fn().mockRejectedValue({ code: 'SQLITE_CONSTRAINT_UNIQUE' }),
+          save: vi
+            .fn()
+            .mockRejectedValue(
+              new UniqueRoleNameException({ name: 'Admin' } as any),
+            ),
         };
         const handler = new CreateRoleHandler(
           commandRepo as any,
@@ -567,7 +577,9 @@ describe('CQRS Commands & Queries Runtime Error Taxonomy', () => {
         const commandRepo = {
           save: vi
             .fn()
-            .mockRejectedValue(new Error('SQLITE_CONSTRAINT_UNIQUE')),
+            .mockRejectedValue(
+              new UniqueRoleNameException({ name: 'Viewer' } as any),
+            ),
         };
         const handler = new UpdateRoleHandler(
           queryRepo as any,

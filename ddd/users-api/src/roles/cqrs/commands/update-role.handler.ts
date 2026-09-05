@@ -17,7 +17,6 @@
  */
 
 import { APP_ACTIONS, APP_SUBJECTS } from '@common/constants';
-import { UniqueConstraintViolationException } from '@mikro-orm/core';
 import { Inject, NotFoundException, Scope } from '@nestjs/common';
 import { CommandHandler, EventBus } from '@nestjs/cqrs';
 import { CaslAuthorizer, CaslBehavior } from '@nestjs-pipeline/casl';
@@ -86,20 +85,7 @@ export class UpdateRoleHandler extends CommandBaseHandler<
 
     const outcome = role.rename(name);
 
-    try {
-      await this.commandRepository.save(outcome);
-    } catch (error: unknown) {
-      if (
-        error instanceof UniqueConstraintViolationException ||
-        (error instanceof Error &&
-          (error.message.includes('UNIQUE') ||
-            error.message.includes('unique') ||
-            error.message.includes('SQLITE_CONSTRAINT_UNIQUE')))
-      ) {
-        throw new UniqueRoleNameException(outcome.entity);
-      }
-      throw error;
-    }
+    await this.commandRepository.save(outcome);
 
     return outcome;
   }

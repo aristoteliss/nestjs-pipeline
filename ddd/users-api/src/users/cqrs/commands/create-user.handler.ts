@@ -18,7 +18,6 @@
 
 import { APP_ACTIONS, APP_SUBJECTS } from '@common/constants';
 import { getSessionUserFromStore } from '@common/context/session-user.store';
-import { UniqueConstraintViolationException } from '@mikro-orm/core';
 import { Inject } from '@nestjs/common';
 import { CommandHandler, EventBus } from '@nestjs/cqrs';
 import { CaslAuthorizer, CaslBehavior } from '@nestjs-pipeline/casl';
@@ -103,20 +102,7 @@ export class CreateUserHandler extends CommandBaseHandler<
       ...(department !== undefined ? ['department'] : []),
     ]);
 
-    try {
-      await this.commandRepository.save(outcome);
-    } catch (err: unknown) {
-      if (
-        err instanceof UniqueConstraintViolationException ||
-        (typeof err === 'object' &&
-          err !== null &&
-          'code' in err &&
-          err.code === 'SQLITE_CONSTRAINT_UNIQUE')
-      ) {
-        throw new UniqueEmailException(outcome.entity);
-      }
-      throw err;
-    }
+    await this.commandRepository.save(outcome);
 
     return outcome;
   }

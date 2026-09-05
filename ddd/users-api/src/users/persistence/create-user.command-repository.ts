@@ -17,10 +17,12 @@
  */
 
 import { filterCacheKey } from '@common/cqrs/helpers/filterCacheKey.helper';
+import { UniqueConstraintViolationException } from '@mikro-orm/core';
 import { Inject, Injectable } from '@nestjs/common';
 import { Cache, CommandRepository, ICache } from '@nestjs-pipeline/ddd-core';
 import { CACHE_TOKEN } from '@persistence/cache/memory.cache';
 import { MIKRO_ORM_CLIENT, MikroOrmStore } from '@persistence/mikro-orm.store';
+import { UniqueEmailException } from '../domain/models/errors/email.exception';
 import { User, UserSnapshot } from '../domain/models/user.entity';
 import { UserCreateOutcome } from '../domain/outcomes/user-create.outcome';
 
@@ -40,10 +42,27 @@ export class CreateUserCommandRepository extends CommandRepository<UserCreateOut
     const { entity } = domainOutcome;
     const em = this.store.em;
 
-    const user = em.create(User, entity);
-    em.persist(user);
-    await em.flush();
+    try {
+      const user = em.create(User, entity);
+      em.persist(user);
+      await em.flush();
 
-    return user.toJSON();
+      return user.toJSON();
+    } catch (err: unknown) {
+      if (
+        err instanceof UniqueConstraintViolationException ||
+        (typeof err === 'object' &&
+          err !== null &&
+          'code' in err &&
+          err.code === 'SQLITE_CONSTRAINT_UNIQUE') ||
+        (err instanceof Error &&
+          (err.message.includes('UNIQUE') ||
+            err.message.includes('unique') ||
+            err.message.includes('SQLITE_CONSTRAINT_UNIQUE')))
+      ) {
+        throw new UniqueEmailException(entity);
+      }
+      throw err;
+    }
   }
 }
