@@ -39,6 +39,8 @@ import { User } from '../domain/models/user.entity';
  * configuration used by `CaslBehavior` for instance-level subject checks.
  *
  * REQUEST-scoped so it can access the current HTTP request.
+ * ΑΤΤENTION: This class is not a singleton for example, you will see warning logs
+ * in the console, which are expected and not a problem
  */
 @Injectable({ scope: Scope.REQUEST })
 export class GetUserContextQueryRepository implements IUserContextResolver {
