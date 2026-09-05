@@ -127,6 +127,20 @@ describe('users-api (e2e)', () => {
       expect(res.body.department).toBeNull();
     });
 
+    it('rejects duplicate email persistence with UniqueEmailException (409)', async () => {
+      const email = newEmail();
+      const first = await createUser(admin, { email, name: 'First User' });
+      expect(first.status).toBe(201);
+
+      const conflict = await createUser(admin, { email, name: 'Second User' });
+      expect(conflict.status).toBe(409);
+      expect(conflict.body).toMatchObject({
+        statusCode: 409,
+        error: 'Conflict',
+        message: `Email ${email} already exists`,
+      });
+    });
+
     it('rejects an invalid payload at the Zod boundary (400)', async () => {
       const res = await createUser(admin, {
         email: 'not-an-email',
@@ -288,6 +302,22 @@ describe('users-api (e2e)', () => {
         .send({ name: 'no' }); // shorter than the 3-char minimum
 
       expect(res.status).toBe(400);
+    });
+
+    it('rejects an empty update payload with EmptyUserUpdateException (400)', async () => {
+      const created = await createUser(admin, {
+        email: newEmail(),
+        name: 'Empty Edward',
+      });
+
+      const res = await as(admin).patch(`/users/${created.body.id}`).send({});
+
+      expect(res.status).toBe(400);
+      expect(res.body).toMatchObject({
+        statusCode: 400,
+        error: 'Bad Request',
+        message: 'At least one user field must be supplied for update.',
+      });
     });
   });
 

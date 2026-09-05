@@ -93,6 +93,27 @@ describe('roles-api (e2e)', () => {
       expect(duplicate.body).toEqual(first.body);
     });
 
+    it('rejects creating a role with an existing name by a different principal with UniqueRoleNameException (409)', async () => {
+      const name = newRoleName();
+      const first = await createRole(admin, name);
+      expect(first.status).toBe(201);
+
+      const secondAdmin = JSON.stringify({
+        id: 'admin-2',
+        email: 'admin2@acme.test',
+        department: 'platform',
+        capabilities: { roles: [], additionalCapabilities: ['all|manage|*'] },
+      });
+
+      const conflict = await createRole(secondAdmin, name);
+      expect(conflict.status).toBe(409);
+      expect(conflict.body).toMatchObject({
+        statusCode: 409,
+        error: 'Conflict',
+        message: `Role with name "${name}" already exists`,
+      });
+    });
+
     it('rejects a name shorter than the minimum of 3 characters (400)', async () => {
       const res = await createRole(admin, 'ab');
 
