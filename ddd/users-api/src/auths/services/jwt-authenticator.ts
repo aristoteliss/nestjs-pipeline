@@ -68,6 +68,8 @@ export class JwtAuthenticator {
   private cachedPublicKeyAlg?: string;
   private cachedSecretRaw?: string;
 
+  constructor(private readonly tenantSchemaContext: TenantSchemaContext) {}
+
   /**
    * Parses and validates a Bearer JWT from the `Authorization` header.
    *
@@ -151,7 +153,7 @@ export class JwtAuthenticator {
         throw new UnauthorizedException('Token is missing its tenant claim');
       }
 
-      if (payload.tenant !== TenantSchemaContext.currentSchema) {
+      if (payload.tenant !== this.tenantSchemaContext.schema) {
         throw new UnauthorizedException(
           'Credential tenant does not match the selected tenant',
         );

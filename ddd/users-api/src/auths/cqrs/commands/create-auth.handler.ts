@@ -24,7 +24,6 @@ import { AUDIT_SEVERITY, AuditBehavior } from '@nestjs-pipeline/audit';
 import {
   type IPipelineContext,
   LoggingBehavior,
-  PIPELINE_TENANT_ID,
   UsePipeline,
 } from '@nestjs-pipeline/core';
 import {
@@ -48,10 +47,7 @@ import { CreateAuthCommand } from './create-auth.command';
     RateLimitBehavior,
     {
       keyFactory: (ctx: IPipelineContext) => {
-        const tenantId =
-          ctx.tenantId ??
-          (ctx.items?.get(PIPELINE_TENANT_ID) as string | undefined) ??
-          TenantSchemaContext.currentSchema;
+        const tenantId = ctx.tenantId ?? 'default';
         return `${tenantId}:auth:login:${(ctx.request as CreateAuthCommand).email}`;
       },
     },
@@ -81,6 +77,7 @@ export class CreateAuthHandler extends CommandBaseHandler<
       AuthCreateOutcome,
       AuthSnapshot
     >,
+    private readonly tenantSchemaContext: TenantSchemaContext,
   ) {
     super(eventBus);
   }
@@ -100,7 +97,7 @@ export class CreateAuthHandler extends CommandBaseHandler<
 
     return {
       id: authResult.userId,
-      tenant: TenantSchemaContext.currentSchema,
+      tenant: this.tenantSchemaContext.schema,
       email,
       department: verifiedUser.department,
       capabilities: authResult.userCapabilities,

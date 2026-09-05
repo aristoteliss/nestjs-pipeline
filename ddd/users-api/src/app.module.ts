@@ -27,7 +27,6 @@ import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { CqrsModule } from '@nestjs/cqrs';
 import { CaslModule } from '@nestjs-pipeline/casl';
 import { HttpCorrelationMiddleware } from '@nestjs-pipeline/correlation';
-import { DddCoreModule } from '@nestjs-pipeline/ddd-core';
 import { TenantSchemaMiddleware } from '@persistence/middlewares/tenant-schema.middleware';
 import { PersistenceModule } from '@persistence/persistence.module';
 import { AuthsModule } from './auths/auths.module';
@@ -48,7 +47,6 @@ import { UsersModule } from './users/users.module';
  * - {@link ObservabilityModule}: Structured logging (Pino), OpenTelemetry tracing & metrics, global pipeline behaviors, and audit logging.
  * - {@link ReliabilityModule}: BullMQ queue engine, dead-letter storage, rate limiting, distributed idempotency, resilience policies, caching, and feature flags.
  * - {@link CaslModule}: Dynamic role-based and attribute-based access control with database query providers.
- * - {@link DddCoreModule}: Domain-driven design entity authorizer binding.
  * - {@link PersistenceModule}: MikroORM database connection, entity repositories, and tenant schema manager.
  * - Domain Feature Modules: {@link UsersModule}, {@link RolesModule}, {@link AuthsModule}.
  */
@@ -66,7 +64,6 @@ import { UsersModule } from './users/users.module';
         User: ['username', 'department', 'email'],
       },
     }),
-    DddCoreModule,
     PersistenceModule,
     UsersModule,
     RolesModule,

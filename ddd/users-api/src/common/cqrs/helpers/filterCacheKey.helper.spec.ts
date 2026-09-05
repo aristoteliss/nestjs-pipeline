@@ -16,17 +16,13 @@
  * ----------------------------
  */
 
-import {
-  type IPipelineContext,
-  PIPELINE_TENANT_ID,
-} from '@nestjs-pipeline/core';
-import { TenantSchemaContext } from '@persistence/tenant-schema.context';
+import { type IPipelineContext, pipelineStore } from '@nestjs-pipeline/core';
+import { DEFAULT_TENANT_SCHEMA } from '@persistence/postgres-options';
 import { describe, expect, it } from 'vitest';
 import { filterCacheKey } from './filterCacheKey.helper';
 
 describe('filterCacheKey', () => {
   const entity = { prefixKey: 'user:' };
-  const tenantContext = new TenantSchemaContext();
 
   it('generates a deterministic key with sorted keys', () => {
     const key1 = filterCacheKey(
@@ -70,29 +66,18 @@ describe('filterCacheKey', () => {
     expect(key).toBe('tenant_from_ctx:user:id:1');
   });
 
-  it('resolves tenant from pipeline context items[PIPELINE_TENANT_ID]', () => {
-    const ctx = {
-      items: new Map([[PIPELINE_TENANT_ID, 'tenant_from_items']]),
-    } as unknown as IPipelineContext;
-
-    const key = filterCacheKey(entity, { id: '1' }, ctx);
-    expect(key).toBe('tenant_from_items:user:id:1');
+  it('falls back to ambient pipelineStore when tenantOrContext is omitted', () => {
+    pipelineStore.run(
+      { tenantId: 'tenant_ambient' } as unknown as IPipelineContext,
+      () => {
+        const key = filterCacheKey(entity, { id: '1' });
+        expect(key).toBe('tenant_ambient:user:id:1');
+      },
+    );
   });
 
-  it('falls back to ambient TenantSchemaContext when tenantOrContext is omitted', () => {
-    tenantContext.run('tenant_ambient', () => {
-      const key = filterCacheKey(entity, { id: '1' });
-      expect(key).toBe('tenant_ambient:user:id:1');
-    });
-  });
-
-  it('falls back to ambient TenantSchemaContext when ctx has no tenantId or items', () => {
-    tenantContext.run('tenant_ambient', () => {
-      const ctx = {
-        items: new Map(),
-      } as unknown as IPipelineContext;
-      const key = filterCacheKey(entity, { id: '1' }, ctx);
-      expect(key).toBe('tenant_ambient:user:id:1');
-    });
+  it('falls back to DEFAULT_TENANT_SCHEMA when no tenant is available', () => {
+    const key = filterCacheKey(entity, { id: '1' });
+    expect(key).toBe(`${DEFAULT_TENANT_SCHEMA}:user:id:1`);
   });
 });

@@ -16,9 +16,8 @@
  * ----------------------------
  */
 
-import { getSessionUserFromStore } from '@common/context/session-user.store';
-import { SessionUser } from '@common/types/SessionUser';
-import { IQueryOptions } from '@nestjs-pipeline/ddd-core/application/query.options';
+import type { SessionUser } from '@common/types/SessionUser';
+import type { IQueryOptions } from '@nestjs-pipeline/ddd-core/application/query.options';
 
 export abstract class BaseQuery implements IQueryOptions {
   public declare readonly hydrate?: boolean;
@@ -28,15 +27,15 @@ export abstract class BaseQuery implements IQueryOptions {
     // Query options and authentication context are pipeline metadata rather
     // than request payload. Keep them non-enumerable so payload validation and
     // cache-key serialization do not strip or include them.
-    Object.defineProperties(this, {
-      hydrate: {
-        value: options?.hydrate ?? false,
-        enumerable: false,
-      },
-      sessionUser: {
-        value: sessionUser ?? getSessionUserFromStore(),
-        enumerable: false,
-      },
+    Object.defineProperty(this, 'hydrate', {
+      value: options?.hydrate ?? false,
+      enumerable: false,
     });
+    if (sessionUser !== undefined) {
+      Object.defineProperty(this, 'sessionUser', {
+        value: sessionUser,
+        enumerable: false,
+      });
+    }
   }
 }

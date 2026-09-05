@@ -20,12 +20,17 @@ import {
   ClassProvider,
   ExistingProvider,
   FactoryProvider,
+  InjectionToken,
   LoggerService,
   LogLevel,
+  ModuleMetadata,
+  OptionalFactoryDependency,
+  Provider,
   Type,
   ValueProvider,
 } from '@nestjs/common';
 import { LOGGING_BEHAVIOR_LOGGER } from '../behaviors/logging.behavior';
+import { PipelineBehaviorEntry } from '../decorators/pipeline.decorator';
 import { IPipelineBehavior } from '../interfaces/pipeline.behavior.interface';
 import { GlobalBehaviorsOptions } from './global-behaviors.options';
 
@@ -215,10 +220,33 @@ export interface PipelineModuleOptions {
    *
    * @example
    * ```ts
-   * PipelineModule.forRoot({
-   *   tenantIdFactory: () => TenantSchemaContext.currentSchema,
+   * PipelineModule.forRootAsync({
+   *   inject: [TenantSchemaContext],
+   *   useFactory: (tenantContext: TenantSchemaContext) => ({
+   *     tenantIdFactory: () => tenantContext.schema,
+   *   }),
    * })
    * ```
    */
   tenantIdFactory?: () => string | undefined;
+}
+
+/** Factory interface for classes that provide pipeline module options asynchronously. */
+export interface PipelineOptionsFactory {
+  createPipelineOptions():
+    | Promise<PipelineModuleOptions>
+    | PipelineModuleOptions;
+}
+
+/** Options for configuring `PipelineModule.forRootAsync`. */
+export interface PipelineModuleAsyncOptions
+  extends Pick<ModuleMetadata, 'imports'> {
+  useExisting?: Type<PipelineOptionsFactory>;
+  useClass?: Type<PipelineOptionsFactory>;
+  useFactory?: (
+    ...args: never[]
+  ) => Promise<PipelineModuleOptions> | PipelineModuleOptions;
+  inject?: (InjectionToken | OptionalFactoryDependency)[];
+  behaviors?: (Type<IPipelineBehavior> | PipelineBehaviorEntry)[];
+  extraProviders?: Provider[];
 }

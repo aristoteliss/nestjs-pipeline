@@ -68,6 +68,7 @@ export class UserLoginService {
     private readonly queryBus: QueryBus,
     @Inject(EXT_USER_QUERY_REPOSITORY.getUser)
     private readonly queryRepository: IQueryRepository<GetUserQuery, User>,
+    private readonly tenantSchemaContext: TenantSchemaContext,
   ) {}
 
   /**
@@ -138,7 +139,7 @@ export class UserLoginService {
 
     const issuer = process.env.JWT_ISSUER;
     const audience = process.env.JWT_AUDIENCE;
-    const tenant = TenantSchemaContext.currentSchema;
+    const tenant = this.tenantSchemaContext.schema;
 
     const userCapabilities = await this.queryBus.execute<
       GetUserCapabilitiesQuery,

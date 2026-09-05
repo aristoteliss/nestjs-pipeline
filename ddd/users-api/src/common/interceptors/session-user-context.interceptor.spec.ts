@@ -84,7 +84,7 @@ describe('SessionUserContextInterceptor', () => {
               observations.push({
                 tenant: 'tenant_a',
                 userId: getSessionUserFromStore()?.id ?? 'none',
-                schema: TenantSchemaContext.currentSchema,
+                schema: tenantSchemaContext.schema,
               });
               resolve('result-a');
             }, 20);
@@ -100,7 +100,7 @@ describe('SessionUserContextInterceptor', () => {
               observations.push({
                 tenant: 'tenant_b',
                 userId: getSessionUserFromStore()?.id ?? 'none',
-                schema: TenantSchemaContext.currentSchema,
+                schema: tenantSchemaContext.schema,
               });
               resolve('result-b');
             }, 5);

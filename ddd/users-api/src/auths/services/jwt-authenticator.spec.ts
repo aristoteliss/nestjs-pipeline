@@ -45,6 +45,8 @@ afterEach(() => {
 });
 
 describe('JwtAuthenticator', () => {
+  const tenantContext = new TenantSchemaContext();
+
   it('authenticates an asymmetric RS256 token with SPKI public key', async () => {
     const { privateKey, publicKey } = generateKeyPairSync('rsa', {
       modulusLength: 2048,
@@ -54,7 +56,7 @@ describe('JwtAuthenticator', () => {
     delete process.env.JWT_SECRET;
 
     const token = await new SignJWT({
-      tenant: TenantSchemaContext.currentSchema,
+      tenant: tenantContext.schema,
       email: 'asymm@example.test',
       roles: ['admin'],
     })
@@ -63,7 +65,7 @@ describe('JwtAuthenticator', () => {
       .setExpirationTime('1h')
       .sign(privateKey);
 
-    const authenticator = new JwtAuthenticator();
+    const authenticator = new JwtAuthenticator(tenantContext);
     const user = await authenticator.authenticate({
       headers: { authorization: `Bearer ${token}` },
     });
@@ -71,7 +73,7 @@ describe('JwtAuthenticator', () => {
     expect(user).toMatchObject({
       id: 'user-asymm',
       email: 'asymm@example.test',
-      tenant: TenantSchemaContext.currentSchema,
+      tenant: tenantContext.schema,
       capabilities: { roles: ['admin'] },
     });
   });
@@ -81,7 +83,7 @@ describe('JwtAuthenticator', () => {
     delete process.env.JWT_PUBLIC_KEY;
 
     const token = await new SignJWT({
-      tenant: TenantSchemaContext.currentSchema,
+      tenant: tenantContext.schema,
       roles: [],
     })
       .setProtectedHeader({ alg: 'HS256' })
@@ -89,7 +91,7 @@ describe('JwtAuthenticator', () => {
       .setExpirationTime('1h')
       .sign(new TextEncoder().encode(process.env.JWT_SECRET));
 
-    const authenticator = new JwtAuthenticator();
+    const authenticator = new JwtAuthenticator(tenantContext);
     const user = await authenticator.authenticate({
       headers: { authorization: `bearer ${token}` },
     });
@@ -106,7 +108,7 @@ describe('JwtAuthenticator', () => {
     delete process.env.JWT_SECRET;
 
     const token1 = await new SignJWT({
-      tenant: TenantSchemaContext.currentSchema,
+      tenant: tenantContext.schema,
       roles: [],
     })
       .setProtectedHeader({ alg: 'RS256' })
@@ -115,7 +117,7 @@ describe('JwtAuthenticator', () => {
       .sign(privateKey);
 
     const token2 = await new SignJWT({
-      tenant: TenantSchemaContext.currentSchema,
+      tenant: tenantContext.schema,
       roles: [],
     })
       .setProtectedHeader({ alg: 'RS256' })
@@ -123,7 +125,7 @@ describe('JwtAuthenticator', () => {
       .setExpirationTime('1h')
       .sign(privateKey);
 
-    const authenticator = new JwtAuthenticator();
+    const authenticator = new JwtAuthenticator(tenantContext);
     const importSpy = vi.spyOn(
       authenticator as unknown as { importPublicKey: () => unknown },
       'importPublicKey',
@@ -148,7 +150,7 @@ describe('JwtAuthenticator', () => {
     delete process.env.JWT_SECRET;
     delete process.env.JWT_PUBLIC_KEY;
 
-    const authenticator = new JwtAuthenticator();
+    const authenticator = new JwtAuthenticator(tenantContext);
 
     await expect(
       authenticator.authenticate({
@@ -162,7 +164,7 @@ describe('JwtAuthenticator', () => {
     delete process.env.JWT_PUBLIC_KEY;
 
     const token = await new SignJWT({
-      tenant: TenantSchemaContext.currentSchema,
+      tenant: tenantContext.schema,
       roles: [],
     })
       .setProtectedHeader({ alg: 'HS256' })
@@ -170,7 +172,7 @@ describe('JwtAuthenticator', () => {
       .setExpirationTime('-1h')
       .sign(new TextEncoder().encode(process.env.JWT_SECRET));
 
-    const authenticator = new JwtAuthenticator();
+    const authenticator = new JwtAuthenticator(tenantContext);
 
     await expect(
       authenticator.authenticate({
@@ -192,7 +194,7 @@ describe('JwtAuthenticator', () => {
       .setExpirationTime('1h')
       .sign(new TextEncoder().encode(process.env.JWT_SECRET));
 
-    const authenticator = new JwtAuthenticator();
+    const authenticator = new JwtAuthenticator(tenantContext);
 
     await expect(
       authenticator.authenticate({
@@ -202,7 +204,7 @@ describe('JwtAuthenticator', () => {
   });
 
   it('returns undefined when no authorization header is present', async () => {
-    const authenticator = new JwtAuthenticator();
+    const authenticator = new JwtAuthenticator(tenantContext);
     await expect(
       authenticator.authenticate({ headers: {} }),
     ).resolves.toBeUndefined();

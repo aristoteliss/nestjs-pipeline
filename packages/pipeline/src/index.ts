@@ -33,7 +33,9 @@ export type {
   GlobalBehaviorScope,
   GlobalBehaviorsOptions,
   PipelineLoggerProvider,
+  PipelineModuleAsyncOptions,
   PipelineModuleOptions,
+  PipelineOptionsFactory,
 } from './options';
 export * from './pipeline.context';
 export * from './pipeline.module';

@@ -178,7 +178,7 @@ describe('Users API Pipeline Behaviors Specification', () => {
       const behaviorOptions = new Map();
       behaviorOptions.set(RateLimitBehavior, {
         keyFactory: (ctx: IPipelineContext) =>
-          `${TenantSchemaContext.currentSchema}:auth:login:${(ctx.request as any).email}`,
+          `${ctx.tenantId ?? 'default'}:auth:login:${(ctx.request as any).email}`,
       });
 
       const ctx = createContext({
@@ -203,11 +203,12 @@ describe('Users API Pipeline Behaviors Specification', () => {
     it('isolates login rate limit buckets across tenants', async () => {
       const limiter = new RateLimiterMemory({ points: 1, duration: 60 });
       const rateLimitBehavior = new RateLimitBehavior(limiter);
+      const tenantContext = new TenantSchemaContext();
 
       const behaviorOptions = new Map();
       behaviorOptions.set(RateLimitBehavior, {
         keyFactory: (ctx: IPipelineContext) =>
-          `${TenantSchemaContext.currentSchema}:auth:login:${(ctx.request as any).email}`,
+          `${ctx.tenantId ?? tenantContext.schema}:auth:login:${(ctx.request as any).email}`,
       });
 
       const ctx = createContext({
@@ -216,7 +217,6 @@ describe('Users API Pipeline Behaviors Specification', () => {
       });
 
       const next = vi.fn().mockResolvedValue({ token: 'abc' });
-      const tenantContext = new TenantSchemaContext();
 
       await tenantContext.run('tenant_a', () =>
         rateLimitBehavior.handle(ctx, next),

@@ -54,6 +54,7 @@ export class RequestPrincipalResolver {
   constructor(
     private readonly jwtAuthenticator: JwtAuthenticator,
     private readonly apiClientAuthenticator: ApiClientAuthenticator,
+    private readonly tenantSchemaContext: TenantSchemaContext,
   ) {}
 
   /**
@@ -94,7 +95,7 @@ export class RequestPrincipalResolver {
    * Validates that the tenant declared in credentials matches the active request schema.
    *
    * @param credentialTenant - Tenant schema identifier extracted from credentials.
-   * @throws {@link UnauthorizedException} If `credentialTenant` does not match {@link TenantSchemaContext.currentSchema}.
+   * @throws {@link UnauthorizedException} If `credentialTenant` does not match the active tenant schema.
    *
    * @example
    * ```ts
@@ -102,7 +103,7 @@ export class RequestPrincipalResolver {
    * ```
    */
   assertCurrentTenant(credentialTenant: string): void {
-    if (credentialTenant !== TenantSchemaContext.currentSchema) {
+    if (credentialTenant !== this.tenantSchemaContext.schema) {
       throw new UnauthorizedException(
         'Credential tenant does not match the selected tenant',
       );

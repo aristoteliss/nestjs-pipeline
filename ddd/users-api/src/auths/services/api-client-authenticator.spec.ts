@@ -29,17 +29,19 @@ afterEach(() => {
 });
 
 describe('ApiClientAuthenticator', () => {
+  const tenantContext = new TenantSchemaContext();
+
   it('authenticates valid credentials for matching tenant', () => {
     process.env.API_CLIENTS = JSON.stringify([
       {
         id: 'svc-1',
         key: 'secret-key-12345',
-        tenant: TenantSchemaContext.currentSchema,
+        tenant: tenantContext.schema,
         capabilities: { roles: ['service-role'] },
       },
     ]);
 
-    const authenticator = new ApiClientAuthenticator();
+    const authenticator = new ApiClientAuthenticator(tenantContext);
     const user = authenticator.authenticate({
       headers: {
         [AUTH_HEADERS.API_ID]: 'svc-1',
@@ -49,7 +51,7 @@ describe('ApiClientAuthenticator', () => {
 
     expect(user).toEqual({
       id: 'svc-1',
-      tenant: TenantSchemaContext.currentSchema,
+      tenant: tenantContext.schema,
       capabilities: { roles: ['service-role'] },
     });
   });
@@ -59,11 +61,11 @@ describe('ApiClientAuthenticator', () => {
       {
         id: 'svc-1',
         key: 'secret-key-12345',
-        tenant: TenantSchemaContext.currentSchema,
+        tenant: tenantContext.schema,
       },
     ]);
 
-    const authenticator = new ApiClientAuthenticator();
+    const authenticator = new ApiClientAuthenticator(tenantContext);
     expect(() =>
       authenticator.authenticate({
         headers: { [AUTH_HEADERS.API_ID]: 'svc-1' },
@@ -76,11 +78,11 @@ describe('ApiClientAuthenticator', () => {
       {
         id: 'svc-1',
         key: 'long-configured-key-value',
-        tenant: TenantSchemaContext.currentSchema,
+        tenant: tenantContext.schema,
       },
     ]);
 
-    const authenticator = new ApiClientAuthenticator();
+    const authenticator = new ApiClientAuthenticator(tenantContext);
     expect(() =>
       authenticator.authenticate({
         headers: {
@@ -100,7 +102,7 @@ describe('ApiClientAuthenticator', () => {
       },
     ]);
 
-    const authenticator = new ApiClientAuthenticator();
+    const authenticator = new ApiClientAuthenticator(tenantContext);
     expect(() =>
       authenticator.authenticate({
         headers: {
@@ -112,7 +114,7 @@ describe('ApiClientAuthenticator', () => {
   });
 
   it('returns undefined when x-api-id is not provided', () => {
-    const authenticator = new ApiClientAuthenticator();
+    const authenticator = new ApiClientAuthenticator(tenantContext);
     expect(authenticator.authenticate({ headers: {} })).toBeUndefined();
   });
 });

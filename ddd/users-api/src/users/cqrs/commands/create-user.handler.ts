@@ -17,6 +17,7 @@
  */
 
 import { APP_ACTIONS, APP_SUBJECTS } from '@common/constants';
+import { getSessionUserFromStore } from '@common/context/session-user.store';
 import { UniqueConstraintViolationException } from '@mikro-orm/core';
 import { Inject } from '@nestjs/common';
 import { CommandHandler, EventBus } from '@nestjs/cqrs';
@@ -24,7 +25,6 @@ import { CaslAuthorizer, CaslBehavior } from '@nestjs-pipeline/casl';
 import {
   type IPipelineContext,
   LoggingBehavior,
-  PIPELINE_TENANT_ID,
   UsePipeline,
 } from '@nestjs-pipeline/core';
 import {
@@ -34,7 +34,6 @@ import {
 import { FeatureFlagBehavior } from '@nestjs-pipeline/feature-flags';
 import { IdempotencyBehavior } from '@nestjs-pipeline/idempotency';
 import { RateLimitBehavior } from '@nestjs-pipeline/rate-limit';
-import { TenantSchemaContext } from '@persistence/tenant-schema.context';
 import { UniqueEmailException } from '../../domain/models/errors/email.exception';
 import { User } from '../../domain/models/user.entity';
 import { UserCreateOutcome } from '../../domain/outcomes/user-create.outcome';
@@ -43,11 +42,10 @@ import { CreateUserCommand } from './create-user.command';
 
 export function createUserIdempotencyKey(ctx: IPipelineContext): string {
   const request = ctx.request as CreateUserCommand;
-  const tenantId =
-    ctx.tenantId ??
-    (ctx.items?.get(PIPELINE_TENANT_ID) as string | undefined) ??
-    TenantSchemaContext.currentSchema;
-  return `${tenantId}:${request.sessionUser?.id ?? 'anonymous'}:user.create:${request.email}`;
+  const tenantId = ctx.tenantId ?? 'default';
+  const actorId =
+    request.sessionUser?.id ?? getSessionUserFromStore()?.id ?? 'anonymous';
+  return `${tenantId}:${actorId}:user.create:${request.email}`;
 }
 
 @CommandHandler(CreateUserCommand)
@@ -70,10 +68,7 @@ export function createUserIdempotencyKey(ctx: IPipelineContext): string {
     RateLimitBehavior,
     {
       keyFactory: (ctx: IPipelineContext) => {
-        const tenantId =
-          ctx.tenantId ??
-          (ctx.items?.get(PIPELINE_TENANT_ID) as string | undefined) ??
-          TenantSchemaContext.currentSchema;
+        const tenantId = ctx.tenantId ?? 'default';
         return `${tenantId}:${(ctx.request as CreateUserCommand).email}`;
       },
     },

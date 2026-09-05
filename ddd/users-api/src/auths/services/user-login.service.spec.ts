@@ -37,6 +37,7 @@ describe('UserLoginService', () => {
     process.env.JWT_SECRET = 'tenant-bound-token-secret';
     delete process.env.JWT_ALGORITHMS;
     const user = User.create('Alice', 'alice@example.test').entity;
+    const tenantContext = new TenantSchemaContext();
     const service = new UserLoginService(
       {
         execute: vi.fn().mockResolvedValue({
@@ -46,9 +47,10 @@ describe('UserLoginService', () => {
         }),
       } as never,
       { find: vi.fn() } as never,
+      tenantContext,
     );
 
-    const result = await new TenantSchemaContext().run('tenant_a', () =>
+    const result = await tenantContext.run('tenant_a', () =>
       service.signToken(user),
     );
 
@@ -61,6 +63,7 @@ describe('UserLoginService', () => {
     const service = new UserLoginService(
       { execute: vi.fn() } as never,
       { find: vi.fn() } as never,
+      new TenantSchemaContext(),
     );
     const user = User.create('Alice', 'alice@example.test').entity;
 

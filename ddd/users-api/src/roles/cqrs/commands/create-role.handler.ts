@@ -17,6 +17,7 @@
  */
 
 import { APP_ACTIONS, APP_SUBJECTS } from '@common/constants';
+import { getSessionUserFromStore } from '@common/context/session-user.store';
 import { UniqueConstraintViolationException } from '@mikro-orm/core';
 import { Inject } from '@nestjs/common';
 import { CommandHandler, EventBus } from '@nestjs/cqrs';
@@ -24,7 +25,6 @@ import { CaslAuthorizer, CaslBehavior } from '@nestjs-pipeline/casl';
 import {
   type IPipelineContext,
   LoggingBehavior,
-  PIPELINE_TENANT_ID,
   UsePipeline,
 } from '@nestjs-pipeline/core';
 import {
@@ -33,7 +33,6 @@ import {
 } from '@nestjs-pipeline/ddd-core';
 import { FeatureFlagBehavior } from '@nestjs-pipeline/feature-flags';
 import { IdempotencyBehavior } from '@nestjs-pipeline/idempotency';
-import { TenantSchemaContext } from '@persistence/tenant-schema.context';
 import { UniqueRoleNameException } from '../../domain/models/errors/role-name.exception';
 import { Role } from '../../domain/models/role.entity';
 import { RoleCreateOutcome } from '../../domain/outcomes/role-create.outcome';
@@ -42,11 +41,10 @@ import { CreateRoleCommand } from './create-role.command';
 
 export function createRoleIdempotencyKey(ctx: IPipelineContext): string {
   const request = ctx.request as CreateRoleCommand;
-  const tenantId =
-    ctx.tenantId ??
-    (ctx.items?.get(PIPELINE_TENANT_ID) as string | undefined) ??
-    TenantSchemaContext.currentSchema;
-  return `${tenantId}:${request.sessionUser?.id ?? 'anonymous'}:role.create:${request.name}`;
+  const tenantId = ctx.tenantId ?? 'default';
+  const actorId =
+    request.sessionUser?.id ?? getSessionUserFromStore()?.id ?? 'anonymous';
+  return `${tenantId}:${actorId}:role.create:${request.name}`;
 }
 
 @CommandHandler(CreateRoleCommand)

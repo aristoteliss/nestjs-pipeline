@@ -16,11 +16,8 @@
  * ----------------------------
  */
 
-import {
-  type IPipelineContext,
-  PIPELINE_TENANT_ID,
-} from '@nestjs-pipeline/core';
-import { TenantSchemaContext } from '@persistence/tenant-schema.context';
+import { type IPipelineContext, pipelineStore } from '@nestjs-pipeline/core';
+import { DEFAULT_TENANT_SCHEMA } from '@persistence/postgres-options';
 
 /**
  * Derives a deterministic cache key from an entity's static `prefixKey` and
@@ -29,8 +26,8 @@ import { TenantSchemaContext } from '@persistence/tenant-schema.context';
  * Supports explicit tenant ID or pipeline context:
  * 1. Explicit `tenantOrContext` string (e.g., `'tenant_a'`)
  * 2. Pipeline context `ctx.tenantId`
- * 3. Pipeline context items `ctx.items.get(PIPELINE_TENANT_ID)`
- * 4. Ambient ALS fallback `TenantSchemaContext.currentSchema`
+ * 3. Ambient pipelineStore `pipelineStore.getStore()?.tenantId`
+ * 4. Default tenant fallback `DEFAULT_TENANT_SCHEMA` ('tenant')
  *
  * Keys are sorted alphabetically so `{ email, _department }` and
  * `{ _department, email }` produce the same string.
@@ -51,10 +48,8 @@ export function filterCacheKey(
     typeof tenantOrContext === 'string'
       ? tenantOrContext
       : (tenantOrContext?.tenantId ??
-        (tenantOrContext?.items?.get(PIPELINE_TENANT_ID) as
-          | string
-          | undefined) ??
-        TenantSchemaContext.currentSchema);
+        pipelineStore.getStore()?.tenantId ??
+        DEFAULT_TENANT_SCHEMA);
   const segments = Object.entries(conditions)
     .filter(([, v]) => v !== undefined && v !== null)
     .sort(([a], [b]) => a.localeCompare(b))

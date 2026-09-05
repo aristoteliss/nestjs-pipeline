@@ -17,7 +17,11 @@
  */
 
 import type { ArgumentsHost } from '@nestjs/common';
-import { UnauthorizedActionException } from '@nestjs-pipeline/ddd-core';
+import {
+  buildAbility,
+  CaslAuthorizer,
+  UnauthorizedActionException,
+} from '@nestjs-pipeline/casl';
 import { describe, expect, it, vi } from 'vitest';
 import { UnauthorizedActionFilter } from './unauthorized-action.filter';
 
@@ -52,6 +56,41 @@ describe('UnauthorizedActionFilter', () => {
         error: 'Forbidden',
         action: 'delete',
         subject: 'User',
+      }),
+    );
+  });
+
+  it('catches exception thrown directly by CaslAuthorizer', () => {
+    const filter = new UnauthorizedActionFilter();
+    const authorizer = new CaslAuthorizer(buildAbility([])); // empty permissions
+
+    let caughtException: unknown;
+    try {
+      authorizer.authorize('delete', { id: '456' });
+    } catch (err) {
+      caughtException = err;
+    }
+
+    expect(caughtException).toBeInstanceOf(UnauthorizedActionException);
+
+    const statusFn = vi.fn().mockReturnThis();
+    const jsonFn = vi.fn();
+    const host = {
+      switchToHttp: () => ({
+        getResponse: () => ({
+          status: statusFn,
+          json: jsonFn,
+        }),
+      }),
+    } as unknown as ArgumentsHost;
+
+    filter.catch(caughtException as UnauthorizedActionException, host);
+    expect(statusFn).toHaveBeenCalledWith(403);
+    expect(jsonFn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        statusCode: 403,
+        error: 'Forbidden',
+        action: 'delete',
       }),
     );
   });

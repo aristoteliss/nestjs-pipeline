@@ -6,7 +6,6 @@
   },
   "include": [
     "index.ts",
-    "ddd-core.module.ts",
     "application/**/*.ts",
     "domain/**/*.ts",
     "persistence/**/*.ts",

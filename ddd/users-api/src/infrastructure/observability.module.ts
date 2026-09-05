@@ -88,48 +88,60 @@ import { LoggerModule, NativeLogger } from 'nestjs-pino';
         }),
       },
     }),
-    PipelineModule.forRoot({
-      correlationIdFactory: getCorrelationId,
-      correlationIdRunner: runWithCorrelationId,
-      tenantIdFactory: () => TenantSchemaContext.currentSchema,
-      globalBehaviors: [
+    PipelineModule.forRootAsync({
+      inject: [TenantSchemaContext],
+      behaviors: [
+        LoggingBehavior,
+        ZodValidationBehavior,
+        TraceBehavior,
+        MetricsBehavior,
+        DeadLetterBehavior,
+      ],
+      extraProviders: [
         {
-          scope: 'all',
-          before: [LoggingBehavior, ZodValidationBehavior],
-          after: [
-            [TraceBehavior, { tracerName: 'users-api' }],
-            [MetricsBehavior, { meterName: 'users-api' }],
-          ],
-        },
-        {
-          scope: 'commands',
-          before: [
-            [
-              DeadLetterBehavior,
-              {
-                captureKinds: ['command'],
-                ignoreErrors: [ZodValidationError],
-              },
-            ],
-          ],
-        },
-        {
-          scope: 'events',
-          before: [
-            [
-              DeadLetterBehavior,
-              {
-                captureKinds: ['event'],
-                ignoreErrors: [ZodValidationError],
-              },
-            ],
-          ],
+          provide: LOGGING_BEHAVIOR_LOGGER,
+          useExisting: NativeLogger,
         },
       ],
-      loggerProvider: {
-        provide: LOGGING_BEHAVIOR_LOGGER,
-        useExisting: NativeLogger,
-      },
+      useFactory: (tenantContext: TenantSchemaContext) => ({
+        correlationIdFactory: getCorrelationId,
+        correlationIdRunner: runWithCorrelationId,
+        tenantIdFactory: () => tenantContext.schema,
+        globalBehaviors: [
+          {
+            scope: 'all',
+            before: [LoggingBehavior, ZodValidationBehavior],
+            after: [
+              [TraceBehavior, { tracerName: 'users-api' }],
+              [MetricsBehavior, { meterName: 'users-api' }],
+            ],
+          },
+          {
+            scope: 'commands',
+            before: [
+              [
+                DeadLetterBehavior,
+                {
+                  captureKinds: ['command'],
+                  ignoreErrors: [ZodValidationError],
+                },
+              ],
+            ],
+          },
+          {
+            scope: 'events',
+            before: [
+              [
+                DeadLetterBehavior,
+                {
+                  captureKinds: ['event'],
+                  ignoreErrors: [ZodValidationError],
+                },
+              ],
+            ],
+          },
+        ],
+      }),
     }),
     AuditModule.forRoot(),
   ],

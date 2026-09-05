@@ -19,12 +19,13 @@
 import { APP_ACTIONS, APP_SUBJECTS } from '@common/constants';
 import { Inject } from '@nestjs/common';
 import { type IQueryHandler, QueryHandler } from '@nestjs/cqrs';
-import { CaslAuthorizer, CaslBehavior } from '@nestjs-pipeline/casl';
-import { UsePipeline } from '@nestjs-pipeline/core';
 import {
-  IQueryRepository,
+  CaslAuthorizer,
+  CaslBehavior,
   UnauthorizedActionException,
-} from '@nestjs-pipeline/ddd-core';
+} from '@nestjs-pipeline/casl';
+import { UsePipeline } from '@nestjs-pipeline/core';
+import type { IQueryRepository } from '@nestjs-pipeline/ddd-core';
 import { Role, type RoleSnapshot } from '../../domain/models/role.entity';
 import { QUERY_REPOSITORY } from '../../persistence/repository.tokens';
 import { GetRolesQuery } from './get-roles.query';

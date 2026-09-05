@@ -16,13 +16,15 @@
  * ----------------------------
  */
 
-import { DynamicModule, Global, Module, Type } from '@nestjs/common';
+import { DynamicModule, Global, Module, Provider, Type } from '@nestjs/common';
 import { LOGGING_BEHAVIOR_LOGGER } from './behaviors/logging.behavior';
 import { PipelineBehaviorEntry } from './decorators/pipeline.decorator';
 import { IPipelineBehavior } from './interfaces/pipeline.behavior.interface';
 import {
   PIPELINE_MODULE_OPTIONS,
+  PipelineModuleAsyncOptions,
   PipelineModuleOptions,
+  PipelineOptionsFactory,
 } from './options/pipeline-module.options';
 import { PipelineBootstrapService } from './services/pipeline.bootstrap.service';
 
@@ -30,7 +32,9 @@ import { PipelineBootstrapService } from './services/pipeline.bootstrap.service'
 export {
   GlobalBehaviorScope,
   GlobalBehaviorsOptions,
+  PipelineModuleAsyncOptions,
   PipelineModuleOptions,
+  PipelineOptionsFactory,
 } from './options';
 
 /**
@@ -147,6 +151,95 @@ export class PipelineModule {
         ...behaviors,
         ...(options.loggerProvider ? [LOGGING_BEHAVIOR_LOGGER] : []),
       ],
+    };
+  }
+
+  /**
+   * Registers the pipeline module asynchronously, allowing options to be provided
+   * via an injected factory provider (e.g. from another module or async configuration).
+   *
+   * @param options - Async factory, its injected providers, behaviors, and optional imports.
+   * @returns The configured global {@link DynamicModule}.
+   *
+   * @example
+   * ```ts
+   * PipelineModule.forRootAsync({
+   *   imports: [PersistenceModule],
+   *   inject: [TenantSchemaContext],
+   *   behaviors: [LoggingBehavior, ZodValidationBehavior],
+   *   useFactory: (tenantContext: TenantSchemaContext) => ({
+   *     tenantIdFactory: () => tenantContext.schema,
+   *     globalBehaviors: [{ scope: 'all', before: [LoggingBehavior] }],
+   *   }),
+   * })
+   * ```
+   */
+  static forRootAsync(options: PipelineModuleAsyncOptions): DynamicModule {
+    const behaviors = extractBehaviorTypes(options.behaviors ?? []);
+    const asyncProviders = PipelineModule.createAsyncProviders(options);
+
+    return {
+      module: PipelineModule,
+      global: true,
+      imports: options.imports ?? [],
+      providers: [
+        ...asyncProviders,
+        PipelineBootstrapService,
+        ...behaviors,
+        ...(options.extraProviders ?? []),
+      ],
+      exports: [
+        ...behaviors,
+        PipelineBootstrapService,
+        ...(options.extraProviders
+          ? options.extraProviders
+              .map((p) =>
+                typeof p === 'object' && p !== null && 'provide' in p
+                  ? p.provide
+                  : p,
+              )
+              .filter(Boolean)
+          : []),
+      ],
+    };
+  }
+
+  private static createAsyncProviders(
+    options: PipelineModuleAsyncOptions,
+  ): Provider[] {
+    if (options.useExisting || options.useFactory) {
+      return [PipelineModule.createAsyncOptionsProvider(options)];
+    }
+    if (options.useClass) {
+      return [
+        PipelineModule.createAsyncOptionsProvider(options),
+        {
+          provide: options.useClass,
+          useClass: options.useClass,
+        },
+      ];
+    }
+    return [];
+  }
+
+  private static createAsyncOptionsProvider(
+    options: PipelineModuleAsyncOptions,
+  ): Provider {
+    if (options.useFactory) {
+      return {
+        provide: PIPELINE_MODULE_OPTIONS,
+        useFactory: options.useFactory,
+        inject: options.inject ?? [],
+      };
+    }
+    const inject = [
+      (options.useClass || options.useExisting) as Type<PipelineOptionsFactory>,
+    ];
+    return {
+      provide: PIPELINE_MODULE_OPTIONS,
+      useFactory: async (optionsFactory: PipelineOptionsFactory) =>
+        optionsFactory.createPipelineOptions(),
+      inject,
     };
   }
 

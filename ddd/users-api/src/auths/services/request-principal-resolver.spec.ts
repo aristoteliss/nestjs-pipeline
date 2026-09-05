@@ -29,21 +29,27 @@ afterEach(() => {
 });
 
 describe('RequestPrincipalResolver', () => {
+  const tenantContext = new TenantSchemaContext();
+
   it('uses session cookie fast-path without invoking authenticators', async () => {
     const existingUser = {
       id: 'cookie-user-1',
-      tenant: TenantSchemaContext.currentSchema,
+      tenant: tenantContext.schema,
     };
     const session = {
       user: existingUser,
     } as unknown as Session<SessionData>;
 
-    const jwtAuth = new JwtAuthenticator();
-    const apiClientAuth = new ApiClientAuthenticator();
+    const jwtAuth = new JwtAuthenticator(tenantContext);
+    const apiClientAuth = new ApiClientAuthenticator(tenantContext);
     const jwtSpy = vi.spyOn(jwtAuth, 'authenticate');
     const apiSpy = vi.spyOn(apiClientAuth, 'authenticate');
 
-    const resolver = new RequestPrincipalResolver(jwtAuth, apiClientAuth);
+    const resolver = new RequestPrincipalResolver(
+      jwtAuth,
+      apiClientAuth,
+      tenantContext,
+    );
     const user = await resolver.resolvePrincipal({ headers: {}, session });
 
     expect(user).toEqual(existingUser);
@@ -61,8 +67,9 @@ describe('RequestPrincipalResolver', () => {
     } as unknown as Session<SessionData>;
 
     const resolver = new RequestPrincipalResolver(
-      new JwtAuthenticator(),
-      new ApiClientAuthenticator(),
+      new JwtAuthenticator(tenantContext),
+      new ApiClientAuthenticator(tenantContext),
+      tenantContext,
     );
 
     await expect(
@@ -73,16 +80,20 @@ describe('RequestPrincipalResolver', () => {
   it('delegates to JwtAuthenticator when authorization header is provided', async () => {
     const jwtUser = {
       id: 'jwt-user-1',
-      tenant: TenantSchemaContext.currentSchema,
+      tenant: tenantContext.schema,
     };
     const session = {} as unknown as Session<SessionData>;
     const req = { headers: { authorization: 'Bearer token' }, session };
 
-    const jwtAuth = new JwtAuthenticator();
-    const apiClientAuth = new ApiClientAuthenticator();
+    const jwtAuth = new JwtAuthenticator(tenantContext);
+    const apiClientAuth = new ApiClientAuthenticator(tenantContext);
     vi.spyOn(jwtAuth, 'authenticate').mockResolvedValue(jwtUser);
 
-    const resolver = new RequestPrincipalResolver(jwtAuth, apiClientAuth);
+    const resolver = new RequestPrincipalResolver(
+      jwtAuth,
+      apiClientAuth,
+      tenantContext,
+    );
     const user = await resolver.resolvePrincipal(req);
 
     expect(user).toEqual(jwtUser);
@@ -92,17 +103,21 @@ describe('RequestPrincipalResolver', () => {
   it('delegates to ApiClientAuthenticator when x-api-id is provided', async () => {
     const apiUser = {
       id: 'client-1',
-      tenant: TenantSchemaContext.currentSchema,
+      tenant: tenantContext.schema,
     };
     const session = {} as unknown as Session<SessionData>;
     const req = { headers: { 'x-api-id': 'client-1' }, session };
 
-    const jwtAuth = new JwtAuthenticator();
-    const apiClientAuth = new ApiClientAuthenticator();
+    const jwtAuth = new JwtAuthenticator(tenantContext);
+    const apiClientAuth = new ApiClientAuthenticator(tenantContext);
     vi.spyOn(jwtAuth, 'authenticate').mockResolvedValue(undefined);
     vi.spyOn(apiClientAuth, 'authenticate').mockReturnValue(apiUser);
 
-    const resolver = new RequestPrincipalResolver(jwtAuth, apiClientAuth);
+    const resolver = new RequestPrincipalResolver(
+      jwtAuth,
+      apiClientAuth,
+      tenantContext,
+    );
     const user = await resolver.resolvePrincipal(req);
 
     expect(user).toEqual(apiUser);
@@ -113,8 +128,9 @@ describe('RequestPrincipalResolver', () => {
     const req = { headers: {}, session };
 
     const resolver = new RequestPrincipalResolver(
-      new JwtAuthenticator(),
-      new ApiClientAuthenticator(),
+      new JwtAuthenticator(tenantContext),
+      new ApiClientAuthenticator(tenantContext),
+      tenantContext,
     );
     const user = await resolver.resolvePrincipal(req);
 

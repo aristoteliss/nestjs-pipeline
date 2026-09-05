@@ -35,6 +35,7 @@ export class UserUpdatedHandler implements IEventHandler<UserUpdatedEvent> {
   constructor(
     @InjectQueue(BATCH_UPDATE_USERS_QUEUE)
     private readonly batchUpdateQueue: Queue<BatchUpdateUserItem[]>,
+    private readonly tenantSchemaContext: TenantSchemaContext,
   ) {}
 
   async handle(event: UserUpdatedEvent): Promise<void> {
@@ -42,7 +43,7 @@ export class UserUpdatedHandler implements IEventHandler<UserUpdatedEvent> {
       entity: { id: userId, username },
     } = event;
     const correlationId = getCorrelationId();
-    const tenant = TenantSchemaContext.currentSchema;
+    const tenant = this.tenantSchemaContext.schema;
 
     this.logger.log(
       `📬 [${correlationId}] UserUpdated — id: ${userId}, username: ${username}, tenant: ${tenant}`,

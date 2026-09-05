@@ -216,3 +216,49 @@ describe('PipelineModule.forFeature', () => {
     expect(mod.exports).toEqual([]);
   });
 });
+
+// ── forRootAsync ─────────────────────────────────────────────
+
+describe('PipelineModule.forRootAsync', () => {
+  it('registers with useFactory and inject', () => {
+    const mod = PipelineModule.forRootAsync({
+      inject: ['CUSTOM_SERVICE'],
+      behaviors: [AlphaBehavior],
+      useFactory: (service: string) => ({
+        tenantIdFactory: () => `${service}:tenant`,
+      }),
+    });
+
+    expect(mod.module).toBe(PipelineModule);
+    expect(mod.global).toBe(true);
+    expect(mod.providers).toContain(AlphaBehavior);
+    expect(mod.providers).toContain(PipelineBootstrapService);
+    expect(mod.exports).toContain(AlphaBehavior);
+    expect(mod.exports).toContain(PipelineBootstrapService);
+
+    const optionsProvider = mod.providers?.find(
+      (p: any) => p && p.provide === PIPELINE_MODULE_OPTIONS,
+    ) as any;
+    expect(optionsProvider).toBeDefined();
+    expect(optionsProvider.inject).toEqual(['CUSTOM_SERVICE']);
+  });
+
+  it('registers with useClass', () => {
+    class ConfigService {
+      createPipelineOptions() {
+        return { tenantIdFactory: () => 'class-tenant' };
+      }
+    }
+
+    const mod = PipelineModule.forRootAsync({
+      useClass: ConfigService,
+    });
+
+    expect(mod.module).toBe(PipelineModule);
+    expect(mod.providers).toContain(PipelineBootstrapService);
+    expect(mod.providers).toContainEqual({
+      provide: ConfigService,
+      useClass: ConfigService,
+    });
+  });
+});

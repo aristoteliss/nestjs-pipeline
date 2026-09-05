@@ -42,6 +42,8 @@ import { TenantSchemaMiddleware } from '../src/persistence/middlewares/tenant-sc
 
 @Controller('test-auth')
 class TestAuthController {
+  constructor(private readonly tenantContext: TenantSchemaContext) {}
+
   @Get('principal')
   async getPrincipal() {
     await Promise.resolve();
@@ -54,7 +56,7 @@ class TestAuthController {
     await new Promise((resolve) => setTimeout(resolve, delay));
     return {
       user: getSessionUserFromStore(),
-      schema: TenantSchemaContext.currentSchema,
+      schema: this.tenantContext.schema,
     };
   }
 }

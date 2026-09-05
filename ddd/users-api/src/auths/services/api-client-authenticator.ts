@@ -60,6 +60,8 @@ export class ApiClientAuthenticator {
     { key: string; tenants: Set<string>; capabilities?: UserCapabilities }
   >;
 
+  constructor(private readonly tenantSchemaContext: TenantSchemaContext) {}
+
   /**
    * Verifies API credentials provided in `x-api-id` and `x-api-key` request headers.
    *
@@ -93,7 +95,7 @@ export class ApiClientAuthenticator {
       !client ||
       !apiKey ||
       !this.timingSafeEqualString(apiKey, client.key) ||
-      !client.tenants.has(TenantSchemaContext.currentSchema)
+      !client.tenants.has(this.tenantSchemaContext.schema)
     ) {
       this.logger.warn(
         `Rejected API client "${apiId}": missing, invalid, or tenant-mismatched credentials`,
@@ -101,7 +103,7 @@ export class ApiClientAuthenticator {
       throw new UnauthorizedException('Invalid API credentials');
     }
 
-    const tenant = TenantSchemaContext.currentSchema;
+    const tenant = this.tenantSchemaContext.schema;
     this.logger.debug(
       `Authenticated API client ${apiId} from x-api-id/x-api-key headers`,
     );

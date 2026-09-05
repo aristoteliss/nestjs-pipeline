@@ -22,7 +22,7 @@ import {
   type ExceptionFilter,
   HttpStatus,
 } from '@nestjs/common';
-import { UnauthorizedActionException } from '@nestjs-pipeline/ddd-core';
+import { UnauthorizedActionException } from '@nestjs-pipeline/casl';
 
 type ErrorResponseBody = {
   statusCode: number;
