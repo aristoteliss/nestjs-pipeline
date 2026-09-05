@@ -166,6 +166,11 @@ string. Lossy native JSON cases such as `Map`, `Set`, `RegExp`, `Error`, binary
 views, non-finite numbers, nested `undefined`, functions, symbols (including
 symbol-keyed properties), bigint, and cycles are rejected. A top-level
 `undefined` is retained only for successful void handlers.
+Custom objects may define `toJSON()` as their public serialization contract.
+The returned representation is validated recursively; internal fields excluded
+by `toJSON()` (such as NestJS aggregate event symbols) are not serialized or
+validated. Unsupported values and cycles exposed by that representation still
+fail validation.
 The initial caller receives the original handler value; subsequent callers
 receive its JSON snapshot (for example, a `Date` replays as an ISO string).
 

@@ -235,6 +235,13 @@ Caching metadata is completely removed from domain entities (`CacheableEntity` a
 
 ### Domain Models & Invariant Enforcement
 
+Create-user and create-role handlers persist and return the aggregate.
+`CommandBaseHandler.execute()` publishes and clears its buffered domain events.
+Idempotency serializes the aggregate through `toJSON()`, validating the public
+snapshot rather than its internal NestJS symbol fields. Completed replays return
+plain snapshots without repeating persistence or event publication. The HTTP
+response mappers accept both aggregates and snapshots.
+
 The `User` and `Role` aggregate entities inherit identity and lifecycle behavior from `RootEntity` (`@nestjs-pipeline/ddd-core`):
 
 - **Encapsulated Invariant Enforcement**: State modifications occur exclusively through factory and domain mutation methods (`User.create()`, `user.update()`). Invariants for `username` (minimum 3 characters, trimmed) and `department` (trimmed, minimum 3 characters when provided) are checked synchronously upon instantiation and update.

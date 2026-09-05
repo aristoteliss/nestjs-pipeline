@@ -94,6 +94,37 @@ describe('stableStringify and toStrictJsonValue', () => {
     );
   });
 
+  it('validates the public toJSON snapshot instead of internal symbol state', () => {
+    const internal = Symbol('aggregate-events');
+    const aggregate = {
+      [internal]: [] as unknown[],
+      toJSON: () => ({ z: 2, a: { value: 1 } }),
+    };
+    aggregate[internal].push(aggregate);
+
+    expect(toStrictJsonValue(aggregate)).toEqual({ z: 2, a: { value: 1 } });
+    expect(stableStringify(aggregate)).toBe('{"a":{"value":1},"z":2}');
+  });
+
+  it.each([
+    { value: Symbol('unsupported') },
+    { [Symbol('unsupported')]: 'hidden' },
+    { value: undefined },
+    { value: new Map() },
+  ])('rejects unsupported values exposed by toJSON: %s', (snapshot) => {
+    expect(() => toStrictJsonValue({ toJSON: () => snapshot })).toThrow(
+      TypeError,
+    );
+  });
+
+  it('rejects toJSON snapshots referencing their source object', () => {
+    const aggregate = {
+      [Symbol('internal')]: true,
+      toJSON: (): unknown => ({ aggregate }),
+    };
+    expect(() => toStrictJsonValue(aggregate)).toThrow(/Cyclic/);
+  });
+
   it('rejects values outside the supported JSON domain', () => {
     const cyclic: Record<string, unknown> = {};
     cyclic.self = cyclic;

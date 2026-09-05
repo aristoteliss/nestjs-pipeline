@@ -34,7 +34,8 @@ export type StrictJsonValue =
  * Enforces strict JSON boundaries:
  * - Primitives (`string`, `boolean`, `null`, finite `number`) are preserved.
  * - Dates are explicitly converted to ISO-8601 strings (`.toISOString()`).
- * - Custom objects with `.toJSON()` methods are evaluated.
+ * - Custom objects with `.toJSON()` methods are validated through their returned
+ *   representation; internal fields excluded by that method are not inspected.
  * - Object keys are optionally sorted recursively for deterministic serialization.
  * - Unsupported types (non-finite numbers, `Map`, `Set`, `Error`, `RegExp`,
  *   binary buffers, promises, symbols, and sparse arrays) throw a {@link TypeError}.
@@ -99,12 +100,6 @@ function normalize(
     );
   }
 
-  if (Object.getOwnPropertySymbols(value).length > 0) {
-    throw new TypeError(
-      'Symbol-keyed properties are outside the supported JSON domain.',
-    );
-  }
-
   const toJSON = (value as { toJSON?: unknown }).toJSON;
   if (typeof toJSON === 'function') {
     ancestors.add(value);
@@ -113,6 +108,12 @@ function normalize(
     } finally {
       ancestors.delete(value);
     }
+  }
+
+  if (Object.getOwnPropertySymbols(value).length > 0) {
+    throw new TypeError(
+      'Symbol-keyed properties are outside the supported JSON domain.',
+    );
   }
 
   ancestors.add(value);
