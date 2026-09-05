@@ -1490,8 +1490,13 @@ pnpm install
 # Build all packages
 pnpm build
 
-# Run all tests
+# Run builds, unit/integration tests, and real-Redis E2E (Docker required)
 pnpm test
+
+# Run individual stages
+pnpm test:unit
+pnpm test:build
+pnpm test:e2e
 
 # Type-check all packages
 pnpm lint

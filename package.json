@@ -6,7 +6,10 @@
   "license": "SEE LICENSE IN LICENSE",
   "scripts": {
     "build": "pnpm -r build",
-    "test": "pnpm -r test",
+    "test": "node scripts/test-suite.mjs",
+    "test:unit": "pnpm -r --no-bail test",
+    "test:build": "pnpm -r --no-bail build",
+    "test:e2e": "pnpm --filter @nestjs-pipeline/ddd-users-api test:e2e",
     "lint": "pnpm -r lint",
     "clean": "pnpm -r clean",
     "rebuild": "pnpm -r clean && pnpm -r build",

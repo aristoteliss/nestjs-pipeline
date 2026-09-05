@@ -495,8 +495,21 @@ The application also has its own tenant-aware DDD repository cache so user/role 
 
 ## Tests
 
+From the repository root, `pnpm test` runs the workspace build (including this
+application's TypeScript checks), all unit/integration tests, and this application's
+existing E2E suite. All three stages run even if an earlier stage fails; the final
+summary reports each result and the command exits unsuccessfully if any stage fails.
+
+E2E tests require a running Docker-compatible container runtime. Testcontainers
+starts a disposable real Redis instance; infrastructure failures fail the suite
+rather than skipping tests. Workspace packages must be built before running E2E
+independently.
+
+To run individual checks from this directory:
+
 ```bash
 pnpm test
+pnpm build
 pnpm test:e2e
 ```
 
