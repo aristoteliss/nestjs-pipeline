@@ -38,10 +38,14 @@ export function Cache<
   TResult = unknown | null,
 >(
   setKeyFn: ((domainOutcome: TDomainOutcome) => string) | null = (outcome) =>
-    outcome.entity.cacheKey,
+    (outcome.entity as unknown as { cacheKey?: string }).cacheKey ??
+    outcome.entity.id,
   deleteKeysFn: ((domainOutcome: TDomainOutcome) => string[]) | null = (
     outcome,
-  ) => [outcome.entity.cacheKey],
+  ) => [
+    (outcome.entity as unknown as { cacheKey?: string }).cacheKey ??
+      outcome.entity.id,
+  ],
   invalidateKeysFn: ((domainOutcome: TDomainOutcome) => string[]) | null = null,
 ): MethodDecorator {
   return (

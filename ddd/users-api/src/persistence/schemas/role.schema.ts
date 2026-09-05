@@ -17,19 +17,24 @@
  */
 
 import { EntitySchema } from '@mikro-orm/core';
-import { UnixTimestampType } from '@nestjs-pipeline/ddd-core';
+import { ICacheKey, UnixTimestampType } from '@nestjs-pipeline/ddd-core';
 import { Role } from '../../roles/domain/models/role.entity';
 
-export const RoleSchema = new EntitySchema<Role>({
-  // @ts-expect-error MikroORM requires a public constructor
+export const RoleSchema = new EntitySchema<Role, ICacheKey>({
   class: Role,
   tableName: 'roles',
   properties: {
-    // @ts-expect-error Maps to private property from RootEntity
-    _id: { type: 'string', primary: true, fieldName: 'id' },
-    _createdAt: { type: UnixTimestampType, fieldName: 'created_at' },
-    _updatedAt: { type: UnixTimestampType, fieldName: 'updated_at' },
-    _name: { type: 'string', fieldName: 'name', unique: true },
-    prefixKey: { type: 'string', persist: false },
+    id: { type: 'string', primary: true, fieldName: 'id', accessor: true },
+    createdAt: {
+      type: UnixTimestampType,
+      fieldName: 'created_at',
+      accessor: true,
+    },
+    updatedAt: {
+      type: UnixTimestampType,
+      fieldName: 'updated_at',
+      accessor: true,
+    },
+    name: { type: 'string', fieldName: 'name', unique: true, accessor: true },
   },
 });

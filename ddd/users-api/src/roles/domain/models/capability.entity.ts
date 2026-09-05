@@ -28,7 +28,7 @@ export interface CapabilitySnapshot extends Partial<RootEntitySnapshot> {
 }
 
 export class Capability extends RootEntity<CapabilitySnapshot> {
-  readonly prefixKey = 'capability:';
+  static readonly prefixKey = 'capability:';
 
   readonly action: string;
   readonly subject: string;
@@ -37,18 +37,23 @@ export class Capability extends RootEntity<CapabilitySnapshot> {
   readonly reason?: string | null;
   readonly fields?: string | null;
 
-  private constructor(snapshot: CapabilitySnapshot) {
+  constructor(snapshot?: CapabilitySnapshot) {
     super(snapshot);
+    if (!snapshot) {
+      this.action = '';
+      this.subject = '';
+      this.conditions = null;
+      this.inverted = false;
+      this.reason = null;
+      this.fields = null;
+      return;
+    }
     this.action = snapshot.action;
     this.subject = snapshot.subject;
     this.conditions = snapshot.conditions;
     this.inverted = snapshot.inverted ?? false;
     this.reason = snapshot.reason;
     this.fields = snapshot.fields;
-  }
-
-  get cacheKey(): string {
-    return `${this.prefixKey}${this.id}`;
   }
 
   static create(

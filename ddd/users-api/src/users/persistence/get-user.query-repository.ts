@@ -27,10 +27,10 @@ import { User, UserSnapshot } from '../domain/models/user.entity';
 
 function buildConditions(query: GetUserQuery): Record<string, unknown> {
   const conditions: Record<string, unknown> = query.userId
-    ? { _id: query.userId }
+    ? { id: query.userId }
     : { email: query.email };
 
-  if (query.department) conditions._department = query.department;
+  if (query.department) conditions.department = query.department;
 
   return conditions;
 }

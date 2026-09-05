@@ -34,7 +34,7 @@ export class DeleteUserCommandRepository extends CommandRepository<UserUpdateOut
   }
 
   @Cache<UserUpdateOutcome, UserSnapshot>(null, (outcome) => [
-    filterCacheKey(User, { _id: outcome.entity.id }),
+    filterCacheKey(User, { id: outcome.entity.id }),
     filterCacheKey(User, { email: outcome.entity.email }),
   ])
   async save(domainOutcome: UserUpdateOutcome): Promise<null> {

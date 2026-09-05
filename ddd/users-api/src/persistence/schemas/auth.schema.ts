@@ -21,16 +21,21 @@ import { UnixTimestampType } from '@nestjs-pipeline/ddd-core';
 import { Auth } from '../../auths/domain/models/auth.entity';
 
 export const AuthSchema = new EntitySchema<Auth>({
-  // @ts-expect-error MikroORM requires a public constructor
   class: Auth,
   tableName: 'auth',
   properties: {
-    // @ts-expect-error Maps to private property from RootEntity
-    _id: { type: 'string', primary: true, fieldName: 'id' },
-    _createdAt: { type: UnixTimestampType, fieldName: 'created_at' },
-    _updatedAt: { type: UnixTimestampType, fieldName: 'updated_at' },
+    id: { type: 'string', primary: true, fieldName: 'id', accessor: true },
+    createdAt: {
+      type: UnixTimestampType,
+      fieldName: 'created_at',
+      accessor: true,
+    },
+    updatedAt: {
+      type: UnixTimestampType,
+      fieldName: 'updated_at',
+      accessor: true,
+    },
     userId: { type: 'string', fieldName: 'user_id' },
     token: { type: 'string' },
-    prefixKey: { type: 'string', persist: false },
   },
 });

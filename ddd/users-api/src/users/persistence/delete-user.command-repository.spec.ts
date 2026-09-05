@@ -28,7 +28,7 @@ describe('DeleteUserCommandRepository', () => {
     expect(result).toBeNull();
     expect(nativeDelete).toHaveBeenCalledWith(User, user.id);
     expect(cache.set).not.toHaveBeenCalled();
-    expect(cache.delete).toHaveBeenCalledWith(`tenant:user:_id:${user.id}`);
+    expect(cache.delete).toHaveBeenCalledWith(`tenant:user:id:${user.id}`);
     expect(cache.delete).toHaveBeenCalledWith(
       'tenant:user:email:alice@example.test',
     );

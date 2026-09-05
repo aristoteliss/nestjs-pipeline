@@ -17,25 +17,24 @@
  */
 
 import { isUuidV7, uuidv7 } from '@nestjs-pipeline/core';
-import { ICacheKey } from '../interfaces/cache-key.interface';
 import { RootEntitySnapshot } from '../interfaces/root-entity-snapshot.interface';
 
 /**
  * Base entity for shared identity and lifecycle behavior.
  *
  * - Handles UUID v7 identity and root date invariants.
- * - Exposes immutable id, createdAt, and updatedAt getters.
+ * - Exposes immutable id, createdAt, and updatedAt getters and accessors.
  * - Exposes onUpdate/afterUpdate hooks for mutation tracking.
  * - Requires child entities to provide JSON serialization.
  */
 export abstract class RootEntity<TSnapshot extends Partial<RootEntitySnapshot>>
-  implements RootEntitySnapshot, ICacheKey
+  implements RootEntitySnapshot
 {
-  private readonly _id: string;
-  private readonly _createdAt: Date;
+  private _id: string;
+  private _createdAt: Date;
   private _updatedAt: Date;
 
-  protected constructor(snapshot?: Partial<RootEntitySnapshot>) {
+  constructor(snapshot?: Partial<RootEntitySnapshot>) {
     const id = snapshot?.id;
     const createdAt = snapshot?.createdAt;
     const updatedAt = snapshot?.updatedAt;
@@ -66,9 +65,6 @@ export abstract class RootEntity<TSnapshot extends Partial<RootEntitySnapshot>>
     this._createdAt = now;
     this._updatedAt = now;
   }
-
-  abstract prefixKey: string;
-  abstract cacheKey: string;
 
   protected static normalizeId(id?: string): string {
     if (typeof id !== 'string' || !isUuidV7(id)) {
@@ -127,11 +123,22 @@ export abstract class RootEntity<TSnapshot extends Partial<RootEntitySnapshot>>
   get id(): string {
     return this._id;
   }
+  set id(value: string) {
+    this._id = RootEntity.normalizeId(value);
+  }
+
   get createdAt(): Date {
     return new Date(this._createdAt);
   }
+  set createdAt(value: Date | string) {
+    this._createdAt = RootEntity.normalizeDate(value);
+  }
+
   get updatedAt(): Date {
     return new Date(this._updatedAt);
+  }
+  set updatedAt(value: Date | string) {
+    this._updatedAt = RootEntity.normalizeDate(value);
   }
 
   protected onUpdate(): void {

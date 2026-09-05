@@ -37,21 +37,19 @@ export abstract class CacheableEntity<
   extends RootEntity<TSnapshot>
   implements ICacheKey
 {
-  readonly prefixKey: string;
-
-  protected constructor(
-    ctor: {
+  constructor(
+    _ctor?: {
       readonly prefixKey: string;
       fromJSON(snapshot: TSnapshot): TEntity;
     },
     snapshot?: Partial<RootEntitySnapshot>,
   ) {
     super(snapshot);
-    this.prefixKey = ctor.prefixKey;
   }
 
   get cacheKey(): string {
-    return `${this.prefixKey}${this.id}`;
+    const prefix = (this.constructor as { prefixKey?: string }).prefixKey ?? '';
+    return `${prefix}${this.id}`;
   }
 
   static fromStringify<S, E>(data: string, fromJSON: (snapshot: S) => E): E {

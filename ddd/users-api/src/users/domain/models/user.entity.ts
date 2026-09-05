@@ -58,8 +58,14 @@ export class User extends CacheableEntity<UserSnapshot, User> {
   private _department: string | null;
   readonly email: string;
 
-  private constructor(snapshot: UserSnapshot) {
+  constructor(snapshot?: UserSnapshot) {
     super(User, snapshot);
+    if (!snapshot) {
+      this._username = '';
+      this._department = null;
+      this.email = '';
+      return;
+    }
     this._username = User.normalizeUsername(snapshot.username);
     this._department = User.normalizeDepartment(snapshot.department);
     this.email = snapshot.email;
@@ -165,10 +171,16 @@ export class User extends CacheableEntity<UserSnapshot, User> {
   get username(): string {
     return this._username;
   }
+  set username(value: string) {
+    this._username = value;
+  }
 
   /** Gets the normalized department, or null if unassigned. */
   get department(): string | null {
     return this._department;
+  }
+  set department(value: string | null) {
+    this._department = value;
   }
 
   /**

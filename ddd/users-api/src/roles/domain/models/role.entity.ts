@@ -48,8 +48,12 @@ export class Role extends CacheableEntity<RoleSnapshot, Role> {
 
   private _name: string;
 
-  private constructor(snapshot: RoleSnapshot) {
+  constructor(snapshot?: RoleSnapshot) {
     super(Role, snapshot);
+    if (!snapshot) {
+      this._name = '';
+      return;
+    }
     this._name = Role.normalizeName(snapshot.name);
   }
 
@@ -84,6 +88,9 @@ export class Role extends CacheableEntity<RoleSnapshot, Role> {
 
   get name(): string {
     return this._name;
+  }
+  set name(value: string) {
+    this._name = value;
   }
 
   @Mutate()

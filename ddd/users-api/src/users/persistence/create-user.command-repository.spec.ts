@@ -27,7 +27,7 @@ describe('CreateUserCommandRepository', () => {
     expect(persist).toHaveBeenCalledWith(outcome.entity);
     expect(flush).toHaveBeenCalledOnce();
     expect(cache.set).toHaveBeenCalledWith(
-      `tenant:user:_id:${outcome.entity.id}`,
+      `tenant:user:id:${outcome.entity.id}`,
       result,
     );
   });

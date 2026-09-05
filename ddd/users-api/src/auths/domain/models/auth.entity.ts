@@ -26,19 +26,20 @@ export interface AuthSnapshot extends Partial<RootEntitySnapshot> {
 }
 
 export class Auth extends RootEntity<AuthSnapshot> {
-  readonly prefixKey = 'auth:';
+  static readonly prefixKey = 'auth:';
 
   readonly userId: string;
   readonly token: string;
 
-  private constructor(snapshot: AuthSnapshot) {
+  constructor(snapshot?: AuthSnapshot) {
     super(snapshot);
+    if (!snapshot) {
+      this.userId = '';
+      this.token = '';
+      return;
+    }
     this.userId = snapshot.userId;
     this.token = snapshot.token;
-  }
-
-  get cacheKey(): string {
-    return `${this.prefixKey}${this.id}`;
   }
 
   static create(userId: string, token: string): AuthCreateOutcome {

@@ -17,21 +17,31 @@
  */
 
 import { EntitySchema } from '@mikro-orm/core';
-import { UnixTimestampType } from '@nestjs-pipeline/ddd-core';
+import { ICacheKey, UnixTimestampType } from '@nestjs-pipeline/ddd-core';
 import { User } from '../../users/domain/models/user.entity';
 
-export const UserSchema = new EntitySchema<User>({
-  // @ts-expect-error MikroORM requires a public constructor
+export const UserSchema = new EntitySchema<User, ICacheKey>({
   class: User,
   tableName: 'users',
   properties: {
-    // @ts-expect-error Maps to private property from RootEntity
-    _id: { type: 'string', primary: true, fieldName: 'id' },
-    _createdAt: { type: UnixTimestampType, fieldName: 'created_at' },
-    _updatedAt: { type: UnixTimestampType, fieldName: 'updated_at' },
-    _username: { type: 'string', fieldName: 'username' },
-    _department: { type: 'string', fieldName: 'department', nullable: true },
+    id: { type: 'string', primary: true, fieldName: 'id', accessor: true },
+    createdAt: {
+      type: UnixTimestampType,
+      fieldName: 'created_at',
+      accessor: true,
+    },
+    updatedAt: {
+      type: UnixTimestampType,
+      fieldName: 'updated_at',
+      accessor: true,
+    },
+    username: { type: 'string', fieldName: 'username', accessor: true },
+    department: {
+      type: 'string',
+      fieldName: 'department',
+      nullable: true,
+      accessor: true,
+    },
     email: { type: 'string', unique: true },
-    prefixKey: { type: 'string', persist: false },
   },
 });

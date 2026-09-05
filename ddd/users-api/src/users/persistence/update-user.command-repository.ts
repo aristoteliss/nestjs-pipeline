@@ -34,7 +34,7 @@ export class UpdateUserCommandRepository extends CommandRepository<UserUpdateOut
   }
 
   @Cache<UserUpdateOutcome, UserSnapshot>(
-    (outcome) => filterCacheKey(User, { _id: outcome.entity.id }),
+    (outcome) => filterCacheKey(User, { id: outcome.entity.id }),
     null,
     (outcome) => [filterCacheKey(User, { email: outcome.entity.email })],
   )

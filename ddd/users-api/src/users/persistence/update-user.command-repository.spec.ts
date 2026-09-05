@@ -26,7 +26,7 @@ describe('UpdateUserCommandRepository', () => {
       'tenant:user:email:alice@example.test',
     );
     expect(cache.set).toHaveBeenCalledWith(
-      `tenant:user:_id:${user.id}`,
+      `tenant:user:id:${user.id}`,
       user.toJSON(),
     );
     expect(upsert.mock.invocationCallOrder[0]).toBeLessThan(
