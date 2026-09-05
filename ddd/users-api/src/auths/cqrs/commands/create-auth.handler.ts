@@ -35,7 +35,7 @@ import { RateLimitBehavior } from '@nestjs-pipeline/rate-limit';
 import { TenantSchemaContext } from '@persistence/tenant-schema.context';
 import { Auth, AuthSnapshot } from '../../domain/models/auth.entity';
 import { AuthCreateOutcome } from '../../domain/outcomes/auth-create.outcome';
-import { COMMAND_REPOSITORY } from '../../repositories/repository.tokens';
+import { COMMAND_REPOSITORY } from '../../persistence/repository.tokens';
 import { UserLoginService } from '../../services/user-login.service';
 import { CreateAuthCommand } from './create-auth.command';
 

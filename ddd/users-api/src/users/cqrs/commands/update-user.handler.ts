@@ -31,7 +31,7 @@ import { UserUpdateOutcome } from '../../domain/outcomes/user-update.outcome';
 import {
   COMMAND_REPOSITORY,
   QUERY_REPOSITORY,
-} from '../../repositories/repository.tokens';
+} from '../../persistence/repository.tokens';
 import { GetUserQuery } from '../queries/get-user.query';
 import { UpdateUserCommand } from './update-user.command';
 

@@ -35,7 +35,7 @@ import { SignJWT } from 'jose';
 import { TenantSchemaContext } from '../../persistence/tenant-schema.context';
 import { GetUserQuery } from '../../users/cqrs/queries/get-user.query';
 import { User } from '../../users/domain/models/user.entity';
-import { EXT_USER_QUERY_REPOSITORY } from '../../users/repositories/repository.tokens';
+import { EXT_USER_QUERY_REPOSITORY } from '../../users/persistence/repository.tokens';
 import { GetUserCapabilitiesQuery } from '../cqrs/queries/get-user-capabilities.query';
 
 export interface AuthResult {
@@ -65,9 +65,11 @@ export interface AuthResult {
 @Injectable()
 export class UserLoginService {
   constructor(
+    @Inject(QueryBus)
     private readonly queryBus: QueryBus,
     @Inject(EXT_USER_QUERY_REPOSITORY.getUser)
     private readonly queryRepository: IQueryRepository<GetUserQuery, User>,
+    @Inject(TenantSchemaContext)
     private readonly tenantSchemaContext: TenantSchemaContext,
   ) {}
 

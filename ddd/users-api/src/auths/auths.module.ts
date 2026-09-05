@@ -18,18 +18,18 @@
 
 import { Module } from '@nestjs/common';
 import { GetUserQueryRepository } from '../users/persistence/get-user.query-repository';
-import { EXT_USER_QUERY_REPOSITORY } from '../users/repositories/repository.tokens';
+import { EXT_USER_QUERY_REPOSITORY } from '../users/persistence/repository.tokens';
 import { AuthsController } from './controllers/auths.controller';
 import { CreateAuthHandler } from './cqrs/commands/create-auth.handler';
 import { DeleteAuthHandler } from './cqrs/commands/delete-auth.handler';
 import { CreatedAuthHandler } from './cqrs/events/auth-login.handler';
 import { GetUserCapabilitiesHandler } from './cqrs/queries/get-user-capabilities.handler';
-import { CreateAuthCommandRepository } from './repositories/create-auth.command-repository';
-import { GetUserCapabilitiesQueryRepository } from './repositories/get-user-capabilities.query-repository';
+import { CreateAuthCommandRepository } from './persistence/create-auth.command-repository';
+import { GetUserCapabilitiesQueryRepository } from './persistence/get-user-capabilities.query-repository';
 import {
   COMMAND_REPOSITORY,
   QUERY_REPOSITORY,
-} from './repositories/repository.tokens';
+} from './persistence/repository.tokens';
 import { ApiClientAuthenticator } from './services/api-client-authenticator';
 import { JwtAuthenticator } from './services/jwt-authenticator';
 import { RequestPrincipalResolver } from './services/request-principal-resolver';

@@ -30,7 +30,7 @@ import { HttpCorrelationMiddleware } from '@nestjs-pipeline/correlation';
 import { TenantSchemaMiddleware } from '@persistence/middlewares/tenant-schema.middleware';
 import { PersistenceModule } from '@persistence/persistence.module';
 import { AuthsModule } from './auths/auths.module';
-import { GetUserCapabilitiesQueryRepository } from './auths/repositories/get-user-capabilities.query-repository';
+import { GetUserCapabilitiesQueryRepository } from './auths/persistence/get-user-capabilities.query-repository';
 import { ObservabilityModule, ReliabilityModule } from './infrastructure';
 import { GetRolesCapabilitiesQueryRepository } from './roles/persistence/get-roles-capabilities.query-repository';
 import { RolesModule } from './roles/roles.module';

@@ -27,7 +27,7 @@ import {
 import { UsePipeline } from '@nestjs-pipeline/core';
 import type { IQueryRepository } from '@nestjs-pipeline/ddd-core';
 import { User, type UserSnapshot } from '../../domain/models/user.entity';
-import { QUERY_REPOSITORY } from '../../repositories/repository.tokens';
+import { QUERY_REPOSITORY } from '../../persistence/repository.tokens';
 import { GetUsersQuery } from './get-users.query';
 
 @QueryHandler(GetUsersQuery)

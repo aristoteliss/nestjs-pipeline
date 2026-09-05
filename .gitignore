@@ -11,6 +11,7 @@ build/
 .cache/
 ddd/users-api/src/persistence/*.db
 ddd/users-api/src/persistence/*.db-*
+ddd/users-api/src/persistence/migrations/.snapshot*
 
 # Coverage
 coverage/

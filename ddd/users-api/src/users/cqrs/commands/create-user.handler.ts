@@ -37,7 +37,7 @@ import { RateLimitBehavior } from '@nestjs-pipeline/rate-limit';
 import { UniqueEmailException } from '../../domain/models/errors/email.exception';
 import { User } from '../../domain/models/user.entity';
 import { UserCreateOutcome } from '../../domain/outcomes/user-create.outcome';
-import { COMMAND_REPOSITORY } from '../../repositories/repository.tokens';
+import { COMMAND_REPOSITORY } from '../../persistence/repository.tokens';
 import { CreateUserCommand } from './create-user.command';
 
 export function createUserIdempotencyKey(ctx: IPipelineContext): string {

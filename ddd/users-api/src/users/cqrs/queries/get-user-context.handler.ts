@@ -20,7 +20,7 @@ import { Inject } from '@nestjs/common';
 import { type IQueryHandler, QueryHandler } from '@nestjs/cqrs';
 import type { CaslUserContext } from '@nestjs-pipeline/casl';
 import { IQueryRepository } from '@nestjs-pipeline/ddd-core';
-import { QUERY_REPOSITORY } from '../../repositories/repository.tokens';
+import { QUERY_REPOSITORY } from '../../persistence/repository.tokens';
 import { GetUserContextQuery } from './get-user-context.query';
 
 @QueryHandler(GetUserContextQuery)

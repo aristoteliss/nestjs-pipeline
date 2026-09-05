@@ -19,7 +19,7 @@
 import { BullModule } from '@nestjs/bullmq';
 import { Module } from '@nestjs/common';
 import { LoggerModule } from 'nestjs-pino';
-import { GetUserCapabilitiesQueryRepository } from '../auths/repositories/get-user-capabilities.query-repository';
+import { GetUserCapabilitiesQueryRepository } from '../auths/persistence/get-user-capabilities.query-repository';
 import { UsersController } from './controllers/users.controller';
 import { CreateUserHandler } from './cqrs/commands/create-user.handler';
 import { DeleteUserHandler } from './cqrs/commands/delete-user.handler';
@@ -29,7 +29,7 @@ import { UserDeletedHandler } from './cqrs/events/user-deleted.handler';
 import { UserUpdatedHandler } from './cqrs/events/user-updated.handler';
 import { GetUserHandler } from './cqrs/queries/get-user.handler';
 import { GetUserContextHandler } from './cqrs/queries/get-user-context.handler';
-import { GetUsersHandler } from './cqrs/queries/get-uses.handler';
+import { GetUsersHandler } from './cqrs/queries/get-users.handler';
 import {
   BATCH_UPDATE_USERS_QUEUE,
   BatchUpdateUsersProcessor,
@@ -43,11 +43,11 @@ import { DeleteUserCommandRepository } from './persistence/delete-user.command-r
 import { GetUserQueryRepository } from './persistence/get-user.query-repository';
 import { GetUserContextQueryRepository } from './persistence/get-user-context.query-repository';
 import { GetUsersQueryRepository } from './persistence/get-users.query-repository';
-import { UpdateUserCommandRepository } from './persistence/update-user.command-repository';
 import {
   COMMAND_REPOSITORY,
   QUERY_REPOSITORY,
-} from './repositories/repository.tokens';
+} from './persistence/repository.tokens';
+import { UpdateUserCommandRepository } from './persistence/update-user.command-repository';
 
 @Module({
   imports: [
