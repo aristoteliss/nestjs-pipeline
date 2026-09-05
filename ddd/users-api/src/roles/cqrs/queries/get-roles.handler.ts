@@ -19,7 +19,7 @@
 import { APP_ACTIONS, APP_SUBJECTS } from '@common/constants';
 import { Inject } from '@nestjs/common';
 import { type IQueryHandler, QueryHandler } from '@nestjs/cqrs';
-import { CaslBehavior } from '@nestjs-pipeline/casl';
+import { CaslAuthorizer, CaslBehavior } from '@nestjs-pipeline/casl';
 import { UsePipeline } from '@nestjs-pipeline/core';
 import {
   IQueryRepository,
@@ -42,6 +42,7 @@ export class GetRolesHandler
   constructor(
     @Inject(QUERY_REPOSITORY.getRoles)
     private readonly queryRepository: IQueryRepository<GetRolesQuery, Role[]>,
+    private readonly authorizer: CaslAuthorizer,
   ) {}
 
   async execute(query: GetRolesQuery): Promise<RoleSnapshot[]> {
@@ -51,7 +52,7 @@ export class GetRolesHandler
       const role = Role.from(raw);
       if (!role) continue;
       try {
-        result.push(role.authorize('read') as RoleSnapshot);
+        result.push(this.authorizer.authorize('read', role) as RoleSnapshot);
       } catch (err) {
         if (!(err instanceof UnauthorizedActionException)) {
           throw err;

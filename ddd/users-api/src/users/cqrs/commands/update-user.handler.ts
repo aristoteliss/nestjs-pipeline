@@ -19,7 +19,7 @@
 import { APP_ACTIONS, APP_SUBJECTS } from '@common/constants';
 import { Inject, NotFoundException, Scope } from '@nestjs/common';
 import { CommandHandler, EventBus } from '@nestjs/cqrs';
-import { CaslBehavior } from '@nestjs-pipeline/casl';
+import { CaslAuthorizer, CaslBehavior } from '@nestjs-pipeline/casl';
 import { LoggingBehavior, UsePipeline } from '@nestjs-pipeline/core';
 import {
   CommandBaseHandler,
@@ -55,6 +55,7 @@ export class UpdateUserHandler extends CommandBaseHandler<
     private readonly queryRepository: IQueryRepository<GetUserQuery, User>,
     @Inject(COMMAND_REPOSITORY.updateUser)
     private readonly commandRepository: ICommandRepository<UserUpdateOutcome>,
+    private readonly authorizer: CaslAuthorizer,
     protected readonly eventBus: EventBus,
   ) {
     super(eventBus);
@@ -73,7 +74,7 @@ export class UpdateUserHandler extends CommandBaseHandler<
     const changedFields = Object.entries({ username, department })
       .filter(([, value]) => value !== undefined)
       .map(([field]) => field);
-    user.authorize('update', changedFields);
+    this.authorizer.authorize('update', user, changedFields);
 
     const outcome = user.update({ username, department });
 

@@ -1,5 +1,5 @@
-import { type ICache, RootEntity } from '@nestjs-pipeline/ddd-core';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { type ICache } from '@nestjs-pipeline/ddd-core';
+import { describe, expect, it, vi } from 'vitest';
 import { Role } from '../../domain/models/role.entity';
 import { GetRoleQueryRepository } from '../../persistence/get-role.query-repository';
 import { DeleteRoleCommand } from './delete-role.command';
@@ -31,13 +31,10 @@ function createCachedRoleFixture() {
 }
 
 describe('role command cache hydration', () => {
-  beforeEach(() => {
-    RootEntity.defaultAuthorizer = { can: () => true };
-  });
-
-  afterEach(() => {
-    RootEntity.defaultAuthorizer = undefined;
-  });
+  const authorizer = {
+    authorize: vi.fn(),
+    can: vi.fn(() => true),
+  } as never;
 
   it('hydrates a cached role snapshot before updating it', async () => {
     const { role, cache, findOne, queryRepository } = createCachedRoleFixture();
@@ -45,6 +42,7 @@ describe('role command cache hydration', () => {
     const handler = new UpdateRoleHandler(
       queryRepository,
       { save } as never,
+      authorizer,
       { publishAll: vi.fn() } as never,
     );
 
@@ -65,6 +63,7 @@ describe('role command cache hydration', () => {
     const handler = new DeleteRoleHandler(
       queryRepository,
       { save } as never,
+      authorizer,
       { publishAll: vi.fn() } as never,
     );
 

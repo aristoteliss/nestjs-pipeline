@@ -24,13 +24,13 @@ import {
 } from '@nestjs/common';
 import { QueryBus } from '@nestjs/cqrs';
 import {
-  Capability,
-  CapabilityString,
+  type Capability,
+  type CapabilityString,
   normalizeCapability,
   serializeCapability,
   type UserCapabilities,
 } from '@nestjs-pipeline/casl';
-import { IQueryRepository } from '@nestjs-pipeline/ddd-core';
+import type { IQueryRepository } from '@nestjs-pipeline/ddd-core';
 import { SignJWT } from 'jose';
 import { TenantSchemaContext } from '../../persistence/tenant-schema.context';
 import { GetUserQuery } from '../../users/cqrs/queries/get-user.query';

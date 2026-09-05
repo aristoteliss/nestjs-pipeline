@@ -21,7 +21,7 @@ import { getSessionUserFromStore } from '@common/context/session-user.store';
 import { Inject, NotFoundException } from '@nestjs/common';
 import { CommandHandler, EventBus } from '@nestjs/cqrs';
 import { AUDIT_SEVERITY, AuditBehavior } from '@nestjs-pipeline/audit';
-import { CaslBehavior } from '@nestjs-pipeline/casl';
+import { CaslAuthorizer, CaslBehavior } from '@nestjs-pipeline/casl';
 import { LoggingBehavior, UsePipeline } from '@nestjs-pipeline/core';
 import {
   CommandBaseHandler,
@@ -86,6 +86,7 @@ export class DeleteRoleHandler extends CommandBaseHandler<
     >,
     @Inject(COMMAND_REPOSITORY.deleteRole)
     private readonly commandRepository: ICommandRepository<RoleUpdateOutcome>,
+    private readonly authorizer: CaslAuthorizer,
     protected readonly eventBus: EventBus,
   ) {
     super(eventBus);
@@ -101,7 +102,7 @@ export class DeleteRoleHandler extends CommandBaseHandler<
       throw new NotFoundException('Role not found');
     }
 
-    role.authorize('delete');
+    this.authorizer.authorize('delete', role);
 
     const outcome = role.delete();
 

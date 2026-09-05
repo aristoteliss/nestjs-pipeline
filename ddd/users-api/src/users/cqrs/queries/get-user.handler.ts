@@ -19,7 +19,7 @@
 import { APP_ACTIONS, APP_SUBJECTS } from '@common/constants';
 import { Inject } from '@nestjs/common';
 import { type IQueryHandler, QueryHandler } from '@nestjs/cqrs';
-import { CaslBehavior } from '@nestjs-pipeline/casl';
+import { CaslAuthorizer, CaslBehavior } from '@nestjs-pipeline/casl';
 import { UsePipeline } from '@nestjs-pipeline/core';
 import { IQueryRepository } from '@nestjs-pipeline/ddd-core';
 import { User, type UserSnapshot } from '../../domain/models/user.entity';
@@ -42,10 +42,11 @@ export class GetUserHandler
       GetUserQuery,
       User | UserSnapshot | null
     >,
+    private readonly authorizer: CaslAuthorizer,
   ) {}
 
   async execute(query: GetUserQuery): Promise<UserSnapshot | null> {
     const user = User.from(await this.queryRepository.find(query));
-    return user ? (user.authorize('read') as UserSnapshot) : null;
+    return user ? this.authorizer.authorize<UserSnapshot>('read', user) : null;
   }
 }

@@ -35,6 +35,10 @@ export {
   type CaslAction,
   type CaslSubject,
 } from './constants/tokens';
+export {
+  type UnauthorizedActionDetails,
+  UnauthorizedActionException,
+} from './exceptions/unauthorized-action.exception';
 // Helpers
 export {
   capabilitiesToRawRules,
@@ -45,6 +49,7 @@ export {
   serializeCapability,
 } from './helpers/capability.helpers';
 export {
+  CaslAuthorizer,
   CaslEntityAuthorizer,
   getCaslAbility,
 } from './helpers/entity-authorization.helper';

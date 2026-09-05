@@ -20,7 +20,7 @@ import { APP_ACTIONS, APP_SUBJECTS } from '@common/constants';
 import { UniqueConstraintViolationException } from '@mikro-orm/core';
 import { Inject } from '@nestjs/common';
 import { CommandHandler, EventBus } from '@nestjs/cqrs';
-import { CaslBehavior } from '@nestjs-pipeline/casl';
+import { CaslAuthorizer, CaslBehavior } from '@nestjs-pipeline/casl';
 import {
   type IPipelineContext,
   LoggingBehavior,
@@ -82,6 +82,7 @@ export class CreateRoleHandler extends CommandBaseHandler<
   constructor(
     @Inject(COMMAND_REPOSITORY.createRole)
     private readonly commandRepository: ICommandRepository<RoleCreateOutcome>,
+    private readonly authorizer: CaslAuthorizer,
     protected readonly eventBus: EventBus,
   ) {
     super(eventBus);
@@ -91,7 +92,7 @@ export class CreateRoleHandler extends CommandBaseHandler<
     const { name } = command;
 
     const outcome = Role.create(name);
-    outcome.entity.authorize('create', ['name']);
+    this.authorizer.authorize('create', outcome.entity, ['name']);
 
     try {
       await this.commandRepository.save(outcome);

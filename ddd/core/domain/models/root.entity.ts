@@ -17,11 +17,6 @@
  */
 
 import { isUuidV7, uuidv7 } from '@nestjs-pipeline/core';
-import { UnauthorizedActionException } from '../exceptions/unauthorized-action.exception';
-import type {
-  IAuthorizeEntity,
-  IEntityAuthorizer,
-} from '../interfaces/authorize-entity.interface';
 import { ICacheKey } from '../interfaces/cache-key.interface';
 import { RootEntitySnapshot } from '../interfaces/root-entity-snapshot.interface';
 
@@ -32,13 +27,10 @@ import { RootEntitySnapshot } from '../interfaces/root-entity-snapshot.interface
  * - Exposes immutable id, createdAt, and updatedAt getters.
  * - Exposes onUpdate/afterUpdate hooks for mutation tracking.
  * - Requires child entities to provide JSON serialization.
- * - Provides generic `authorize()` supporting ABAC & field-level rules.
  */
 export abstract class RootEntity<TSnapshot extends Partial<RootEntitySnapshot>>
-  implements RootEntitySnapshot, ICacheKey, IAuthorizeEntity<TSnapshot>
+  implements RootEntitySnapshot, ICacheKey
 {
-  static defaultAuthorizer?: IEntityAuthorizer;
-
   private readonly _id: string;
   private readonly _createdAt: Date;
   private _updatedAt: Date;
@@ -154,72 +146,4 @@ export abstract class RootEntity<TSnapshot extends Partial<RootEntitySnapshot>>
   abstract afterUpdate(): void;
 
   abstract toJSON(): RootEntitySnapshot & TSnapshot;
-
-  /**
-   * Generic entity authorization method.
-   *
-   * Evaluates the requested action and fields against the given or default authorizer.
-   *
-   * @throws {UnauthorizedActionException} when access is forbidden.
-   */
-  authorize(
-    action: 'create' | 'read' | 'update' | 'delete' | string,
-    fields?: (keyof TSnapshot | string)[],
-    authorizer?: IEntityAuthorizer,
-  ): Partial<TSnapshot> {
-    const auth = authorizer ?? RootEntity.defaultAuthorizer;
-    if (!auth) {
-      throw new Error(
-        'No entity authorizer configured. Register an IEntityAuthorizer provider (e.g. CaslModule) or pass an authorizer to authorize().',
-      );
-    }
-
-    const snapshot = this.toJSON();
-    const subjectType = this.constructor.name;
-
-    const snapshotRecord = snapshot as unknown as Record<string, unknown>;
-
-    if (action === 'read') {
-      if (!auth.can('read', subjectType, snapshotRecord)) {
-        throw new UnauthorizedActionException({
-          action: 'read',
-          subject: subjectType,
-          entityId: this.id,
-          reason: `Access denied: insufficient permissions to read ${subjectType}.`,
-        });
-      }
-
-      const result: Record<string, unknown> = {};
-      for (const [key, value] of Object.entries(snapshot)) {
-        if (auth.can('read', subjectType, snapshotRecord, key)) {
-          result[key] = value;
-        }
-      }
-      return result as unknown as Partial<TSnapshot>;
-    }
-
-    if (fields && fields.length > 0) {
-      for (const field of fields) {
-        const fieldStr = String(field);
-        if (!auth.can(action, subjectType, snapshotRecord, fieldStr)) {
-          throw new UnauthorizedActionException({
-            action,
-            subject: subjectType,
-            entityId: this.id,
-            fields: [fieldStr],
-            reason: `Access denied: insufficient permissions to ${action} ${subjectType} field "${fieldStr}".`,
-          });
-        }
-      }
-    } else if (!auth.can(action, subjectType, snapshotRecord)) {
-      throw new UnauthorizedActionException({
-        action,
-        subject: subjectType,
-        entityId: this.id,
-        reason: `Access denied: insufficient permissions to ${action} ${subjectType}.`,
-      });
-    }
-
-    return snapshot;
-  }
 }

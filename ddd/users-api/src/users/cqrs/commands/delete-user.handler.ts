@@ -21,7 +21,7 @@ import { getSessionUserFromStore } from '@common/context/session-user.store';
 import { Inject, NotFoundException } from '@nestjs/common';
 import { CommandHandler, EventBus } from '@nestjs/cqrs';
 import { AUDIT_SEVERITY, AuditBehavior } from '@nestjs-pipeline/audit';
-import { CaslBehavior } from '@nestjs-pipeline/casl';
+import { CaslAuthorizer, CaslBehavior } from '@nestjs-pipeline/casl';
 import { LoggingBehavior, UsePipeline } from '@nestjs-pipeline/core';
 import {
   CommandBaseHandler,
@@ -112,6 +112,7 @@ export class DeleteUserHandler extends CommandBaseHandler<
     private readonly queryRepository: IQueryRepository<GetUserQuery, User>,
     @Inject(COMMAND_REPOSITORY.deleteUser)
     private readonly commandRepository: ICommandRepository<UserUpdateOutcome>,
+    private readonly authorizer: CaslAuthorizer,
     protected readonly eventBus: EventBus,
   ) {
     super(eventBus);
@@ -127,7 +128,7 @@ export class DeleteUserHandler extends CommandBaseHandler<
       throw new NotFoundException('User not found');
     }
 
-    user.authorize('delete');
+    this.authorizer.authorize('delete', user);
 
     const outcome = user.delete();
 

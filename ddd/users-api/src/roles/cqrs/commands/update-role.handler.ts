@@ -20,7 +20,7 @@ import { APP_ACTIONS, APP_SUBJECTS } from '@common/constants';
 import { UniqueConstraintViolationException } from '@mikro-orm/core';
 import { Inject, NotFoundException, Scope } from '@nestjs/common';
 import { CommandHandler, EventBus } from '@nestjs/cqrs';
-import { CaslBehavior } from '@nestjs-pipeline/casl';
+import { CaslAuthorizer, CaslBehavior } from '@nestjs-pipeline/casl';
 import { LoggingBehavior, UsePipeline } from '@nestjs-pipeline/core';
 import {
   CommandBaseHandler,
@@ -66,6 +66,7 @@ export class UpdateRoleHandler extends CommandBaseHandler<
     >,
     @Inject(COMMAND_REPOSITORY.updateRole)
     private readonly commandRepository: ICommandRepository<RoleUpdateOutcome>,
+    private readonly authorizer: CaslAuthorizer,
     protected readonly eventBus: EventBus,
   ) {
     super(eventBus);
@@ -81,7 +82,7 @@ export class UpdateRoleHandler extends CommandBaseHandler<
       throw new NotFoundException('Role not found');
     }
 
-    role.authorize('update', ['name']);
+    this.authorizer.authorize('update', role, ['name']);
 
     const outcome = role.rename(name);
 

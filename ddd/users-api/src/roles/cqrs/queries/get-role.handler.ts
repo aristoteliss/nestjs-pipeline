@@ -19,7 +19,7 @@
 import { APP_ACTIONS, APP_SUBJECTS } from '@common/constants';
 import { Inject } from '@nestjs/common';
 import { type IQueryHandler, QueryHandler } from '@nestjs/cqrs';
-import { CaslBehavior } from '@nestjs-pipeline/casl';
+import { CaslAuthorizer, CaslBehavior } from '@nestjs-pipeline/casl';
 import { LoggingBehavior, UsePipeline } from '@nestjs-pipeline/core';
 import { IQueryRepository } from '@nestjs-pipeline/ddd-core';
 import { Role, type RoleSnapshot } from '../../domain/models/role.entity';
@@ -45,10 +45,11 @@ export class GetRoleHandler
       GetRoleQuery,
       Role | RoleSnapshot | null
     >,
+    private readonly authorizer: CaslAuthorizer,
   ) {}
 
   async execute(query: GetRoleQuery): Promise<RoleSnapshot | null> {
     const role = Role.from(await this.queryRepository.find(query));
-    return role ? (role.authorize('read') as RoleSnapshot) : null;
+    return role ? this.authorizer.authorize<RoleSnapshot>('read', role) : null;
   }
 }
