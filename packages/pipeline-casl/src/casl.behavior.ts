@@ -88,15 +88,20 @@ export interface CaslBehaviorOptions {
    * class UpdateProjectHandler { ... }
    * ```
    *
-   * @example Delete with ownership — only delete own draft comments
+   * @example Persisted delete with ownership — verify the loaded entity
    * ```ts
    * // Capability: Comment|delete|{"authorId":"${user.id}","status":"draft"}
    * @CommandHandler(DeleteCommentCommand)
    * @UsePipeline([CaslBehavior, {
-   *   subjectFromRequest: 'Comment',
    *   rules: [{ action: 'delete', subject: 'Comment' }],
    * }])
-   * class DeleteCommentHandler { ... }
+   * class DeleteCommentHandler {
+   *   async execute(command: DeleteCommentCommand) {
+   *     const comment = await this.comments.find(command.id);
+   *     comment.authorize('delete');
+   *     await this.comments.delete(comment);
+   *   }
+   * }
    * ```
    *
    * @example Multiple subjects — instance-level checks on several types at once
@@ -430,15 +435,20 @@ export interface CaslBehaviorOptions {
  *   }
  * }
  *
- * // ── 9. Delete with ownership conditions ──────────────────────────────
+ * // ── 9. Persisted delete with ownership conditions ────────────────────
  * // Capability: Comment|delete|{"authorId":"${user.id}","status":"draft"}
- * // Only delete own draft comments.
+ * // Use a type-level precheck, then authorize the database-loaded comment.
  * @CommandHandler(DeleteCommentCommand)
  * @UsePipeline([CaslBehavior, {
- *   subjectFromRequest: 'Comment',
  *   rules: [{ action: 'delete', subject: 'Comment' }],
  * }])
- * class DeleteCommentHandler { ... }
+ * class DeleteCommentHandler {
+ *   async execute(command: DeleteCommentCommand) {
+ *     const comment = await this.comments.find(command.id);
+ *     comment.authorize('delete');
+ *     await this.comments.delete(comment);
+ *   }
+ * }
  *
  * // ── 10. Event with authorization (restrict who can trigger) ──────────
  * @UsePipeline([CaslBehavior, {
@@ -494,27 +504,31 @@ export class CaslBehavior implements IPipelineBehavior {
       return next();
     }
 
-    // Resolve user context
-    const user = await this.resolveUser(context);
-
-    if (!user && requirements && requirements.length > 0) {
-      this.logger.warn?.(
-        'Authorization required but no user context found. ' +
-          `Set "${CASL_USER_CONTEXT_KEY}" in context.items or provide a CASL_USER_CONTEXT_RESOLVER.`,
-      );
-      throw new ForbiddenException('Access denied — authentication required.');
-    }
-
-    // Build or use prebuilt ability
+    // A prebuilt ability is already complete authorization state and must not
+    // trigger user/provider resolution.
     let ability: AppAbility;
-
     if (options?.prebuiltAbility) {
       ability = options.prebuiltAbility;
-    } else if (user) {
-      ability = await this.buildAbilityForUser(user);
     } else {
-      // No user, no requirements — pass through
-      return next();
+      const user = await this.resolveUser(context);
+
+      if (!user && requirements && requirements.length > 0) {
+        this.logger.warn?.(
+          'Authorization required but no user context found. ' +
+            `Set "${CASL_USER_CONTEXT_KEY.toString()}" in context.items or provide a CASL_USER_CONTEXT_RESOLVER.`,
+        );
+        throw new ForbiddenException(
+          'Access denied — authentication required.',
+        );
+      }
+
+      if (user) {
+        ability = await this.buildAbilityForUser(user);
+      } else {
+        // skipCheck promises downstream consumers an ability even for a
+        // genuinely public anonymous request. An empty ability grants nothing.
+        ability = buildAbility([]);
+      }
     }
 
     // Store ability for downstream consumers

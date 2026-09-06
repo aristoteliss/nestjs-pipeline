@@ -16,20 +16,34 @@
  * ----------------------------
  */
 
-import { UniqueConstraintViolationException } from '@mikro-orm/core';
+import { APP_ACTIONS, APP_SUBJECTS } from '@common/constants';
+import { getSessionUserFromStore } from '@common/context/session-user.store';
 import { Inject } from '@nestjs/common';
 import { CommandHandler, EventBus } from '@nestjs/cqrs';
-import { CaslBehavior } from '@nestjs-pipeline/casl';
-import { LoggingBehavior, UsePipeline } from '@nestjs-pipeline/core';
+import { CaslAuthorizer, CaslBehavior } from '@nestjs-pipeline/casl';
+import {
+  type IPipelineContext,
+  LoggingBehavior,
+  UsePipeline,
+} from '@nestjs-pipeline/core';
 import {
   CommandBaseHandler,
   ICommandRepository,
 } from '@nestjs-pipeline/ddd-core';
+import { FeatureFlagBehavior } from '@nestjs-pipeline/feature-flags';
+import { IdempotencyBehavior } from '@nestjs-pipeline/idempotency';
 import { UniqueRoleNameException } from '../../domain/models/errors/role-name.exception';
-import { Role } from '../../domain/models/role.entity';
-import { RoleCreateOutcome } from '../../domain/outcomes/role-create.outcome';
+import { Role, type RoleSnapshot } from '../../domain/models/role.entity';
 import { COMMAND_REPOSITORY } from '../../persistence/repository.tokens';
 import { CreateRoleCommand } from './create-role.command';
+
+export function createRoleIdempotencyKey(ctx: IPipelineContext): string {
+  const request = ctx.request as CreateRoleCommand;
+  const tenantId = ctx.tenantId ?? 'default';
+  const actorId =
+    request.sessionUser?.id ?? getSessionUserFromStore()?.id ?? 'anonymous';
+  return `${tenantId}:${actorId}:role.create:${request.name}`;
+}
 
 @CommandHandler(CreateRoleCommand)
 @UsePipeline(
@@ -43,43 +57,41 @@ import { CreateRoleCommand } from './create-role.command';
   [
     CaslBehavior,
     {
-      subjectFromRequest: 'Role',
       rules: [
-        { action: 'create', subject: 'Role' },
-        { action: 'read', subject: 'User' },
+        { action: APP_ACTIONS.CREATE, subject: APP_SUBJECTS.ROLE },
+        { action: APP_ACTIONS.READ, subject: APP_SUBJECTS.USER },
       ],
+    },
+  ],
+  [FeatureFlagBehavior, { flag: 'role-creation' }],
+  [
+    IdempotencyBehavior,
+    {
+      keyFactory: createRoleIdempotencyKey,
     },
   ],
 )
 export class CreateRoleHandler extends CommandBaseHandler<
   CreateRoleCommand,
-  RoleCreateOutcome
+  Role
 > {
   constructor(
     @Inject(COMMAND_REPOSITORY.createRole)
-    private readonly commandRepository: ICommandRepository<RoleCreateOutcome>,
+    private readonly commandRepository: ICommandRepository<Role, RoleSnapshot>,
+    private readonly authorizer: CaslAuthorizer,
     protected readonly eventBus: EventBus,
   ) {
     super(eventBus);
   }
 
-  async handle(command: CreateRoleCommand): Promise<RoleCreateOutcome> {
+  async handle(command: CreateRoleCommand): Promise<Role> {
     const { name } = command;
 
-    const outcome = Role.create(name);
+    const role = Role.create(name);
+    this.authorizer.authorize('create', role, ['name']);
 
-    try {
-      await this.commandRepository.save(outcome);
-    } catch (err: any) {
-      if (
-        err instanceof UniqueConstraintViolationException ||
-        err?.code === 'SQLITE_CONSTRAINT_UNIQUE'
-      ) {
-        throw new UniqueRoleNameException(outcome.entity);
-      }
-      throw err;
-    }
+    await this.commandRepository.save(role);
 
-    return outcome;
+    return role;
   }
 }

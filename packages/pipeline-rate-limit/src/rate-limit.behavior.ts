@@ -28,7 +28,6 @@ import {
   type IPipelineContext,
   LOGGING_BEHAVIOR_LOGGER,
   type NextDelegate,
-  untyped,
 } from '@nestjs-pipeline/core';
 import { RATE_LIMIT_DEFAULT_OPTIONS, RATE_LIMITER } from './constants/tokens';
 import { RateLimitExceededError } from './errors/rate-limit-exceeded.error';
@@ -39,10 +38,25 @@ import type {
   RateLimiterResLike,
 } from './interfaces/rate-limiter.interface';
 
-/** Item key set on the pipeline context with the result of a rate-limit check. */
-export const RATE_LIMIT_ITEM = 'rate-limit.result';
-/** Item key set on the pipeline context with the resolved bucket key. */
-export const RATE_LIMIT_KEY_ITEM = 'rate-limit.key';
+/**
+ * Unique symbol key set on `context.items` containing the result of a rate-limit check (or rejection payload).
+ *
+ * @example
+ * ```ts
+ * const result = context.items.get(RATE_LIMIT_ITEM);
+ * ```
+ */
+export const RATE_LIMIT_ITEM = Symbol('RATE_LIMIT_ITEM');
+
+/**
+ * Unique symbol key set on `context.items` containing the resolved rate limit bucket key string.
+ *
+ * @example
+ * ```ts
+ * const key = context.items.get(RATE_LIMIT_KEY_ITEM) as string | undefined;
+ * ```
+ */
+export const RATE_LIMIT_KEY_ITEM = Symbol('RATE_LIMIT_KEY_ITEM');
 
 /** Whether a rejection value is a `rate-limiter-flexible` result (a limit hit). */
 function isRateLimiterRes(value: unknown): value is RateLimiterResLike {
@@ -62,16 +76,20 @@ function isRateLimiterRes(value: unknown): value is RateLimiterResLike {
  * {@link RateLimitExceededError} (map to HTTP 429 with
  * {@link RateLimitExceededFilter}); otherwise the handler proceeds.
  *
+ * `context.request` is the CQRS command/query/event, not an Express/Fastify
+ * request. Transport metadata needed for keying should be copied into the CQRS
+ * request or written to `context.items` by an earlier behavior.
+ *
  * Backend-agnostic: it depends only on {@link RateLimiterLike}, so any
  * `rate-limiter-flexible` backend (memory, Redis/Valkey, Mongo, SQL) is a
  * one-line swap in {@link RateLimitModule.forRoot}.
  *
- * @example Per-handler limit, keyed by caller
+ * @example Per-handler limit, keyed by caller data carried by the command
  * ```ts
  * @CommandHandler(CreateUserCommand)
  * @UsePipeline([
  *   RateLimitBehavior,
- *   { points: 1, keyFactory: (ctx) => `${ctx.requestName}:${ctx.request.ip}` },
+ *   { points: 1, keyFactory: (ctx) => `${ctx.requestName}:${ctx.request.clientIp}` },
  * ])
  * export class CreateUserHandler {}
  * ```
@@ -99,11 +117,6 @@ export class RateLimitBehavior implements IPipelineBehavior {
     }
 
     this.logger = logger;
-    if (typeof untyped(this.logger).setContext === 'function') {
-      (
-        this.logger as LoggerService & { setContext(context: string): void }
-      ).setContext(RateLimitBehavior.name);
-    }
   }
 
   async handle(
@@ -114,6 +127,9 @@ export class RateLimitBehavior implements IPipelineBehavior {
     const limiter = options.limiter ?? this.limiter;
     const key = buildRateLimitKey(context, options);
     const points = options.points ?? 1;
+    if (!Number.isSafeInteger(points) || points <= 0) {
+      throw new TypeError('Rate-limit points must be a positive safe integer.');
+    }
 
     context.items.set(RATE_LIMIT_KEY_ITEM, key);
 
@@ -152,6 +168,7 @@ export class RateLimitBehavior implements IPipelineBehavior {
       this.logger.warn?.(
         `Rate limiter store error for ${context.requestName} ` +
           `(key: ${key}); failing open: ${message}`,
+        RateLimitBehavior.name,
       );
       return next();
     }
@@ -159,6 +176,7 @@ export class RateLimitBehavior implements IPipelineBehavior {
     this.logger.error?.(
       `Rate limiter store error for ${context.requestName} ` +
         `(key: ${key}); failing closed: ${message}`,
+      RateLimitBehavior.name,
     );
     throw error;
   }

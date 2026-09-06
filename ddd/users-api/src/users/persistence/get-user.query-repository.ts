@@ -27,10 +27,10 @@ import { User, UserSnapshot } from '../domain/models/user.entity';
 
 function buildConditions(query: GetUserQuery): Record<string, unknown> {
   const conditions: Record<string, unknown> = query.userId
-    ? { _id: query.userId }
+    ? { id: query.userId }
     : { email: query.email };
 
-  if (query.department) conditions._department = query.department;
+  if (query.department) conditions.department = query.department;
 
   return conditions;
 }
@@ -48,7 +48,14 @@ export class GetUserQueryRepository extends QueryRepository<
   }
 
   @FromCache<GetUserQuery, User>(
-    (q) => filterCacheKey(User, buildConditions(q)),
+    // `department` is mutable. A cached composite lookup containing the old
+    // department cannot be invalidated from the post-update entity because the
+    // previous department is no longer available. Keep stable id/email lookups
+    // cached, but execute mutable department-filtered lookups directly.
+    (q) =>
+      q.department
+        ? null
+        : filterCacheKey(User.aggregateName, buildConditions(q)),
     (cached) => User.fromJSON(cached as UserSnapshot),
   )
   async find(query: GetUserQuery): Promise<User | null> {

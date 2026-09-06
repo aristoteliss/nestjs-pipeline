@@ -28,17 +28,35 @@ import {
   type IPipelineContext,
   LOGGING_BEHAVIOR_LOGGER,
   type NextDelegate,
-  untyped,
 } from '@nestjs-pipeline/core';
 import type { Cache } from 'cache-manager';
+import {
+  CacheManagerAdapter,
+  type IPipelineCache,
+} from './adapters/cache-manager.adapter';
 import { CACHE_DEFAULT_OPTIONS, PIPELINE_CACHE } from './constants/tokens';
 import { defaultCacheKey } from './helpers/cache-key';
 import type { CacheBehaviorOptions } from './interfaces/cache-options.interface';
 
-/** Item key set on the pipeline context recording whether the request hit the cache. */
-export const CACHE_HIT_ITEM = 'cache.hit';
-/** Item key set on the pipeline context recording the resolved cache key. */
-export const CACHE_KEY_ITEM = 'cache.key';
+/**
+ * Unique symbol key set on `context.items` recording whether the request was served from cache (`true` on hit).
+ *
+ * @example
+ * ```ts
+ * const isHit = context.items.get(CACHE_HIT_ITEM) === true;
+ * ```
+ */
+export const CACHE_HIT_ITEM = Symbol('CACHE_HIT_ITEM');
+
+/**
+ * Unique symbol key set on `context.items` recording the resolved cache key string.
+ *
+ * @example
+ * ```ts
+ * const key = context.items.get(CACHE_KEY_ITEM) as string | undefined;
+ * ```
+ */
+export const CACHE_KEY_ITEM = Symbol('CACHE_KEY_ITEM');
 
 const DEFAULT_KINDS: Array<IPipelineContext['requestKind']> = ['query'];
 
@@ -53,16 +71,23 @@ const DEFAULT_KINDS: Array<IPipelineContext['requestKind']> = ['query'];
  *    shallow-merged on top of the defaults (handler keys win).
  *
  * Only `query` requests are cached by default; commands and events pass through
- * untouched. `null` / `undefined` results are never written to the cache.
+ * untouched. On a cache miss, `null` / `undefined` results are not written.
+ * Cache hits return the value from the single explicit lookup. This behavior
+ * intentionally does not use `cache-manager.wrap()` because its background
+ * refresh callback would re-enter every downstream pipeline behavior.
+ * Store errors fail open by default: read failures bypass caching for that
+ * execution, and write failures return the successful handler result. Set
+ * `failOpen: false` to propagate store failures instead.
  */
 @Injectable()
 export class CacheBehavior implements IPipelineBehavior {
   private readonly logger: LoggerService;
   private readonly defaults: CacheBehaviorOptions;
+  private readonly cacheAdapter: IPipelineCache;
 
   constructor(
     @Inject(PIPELINE_CACHE)
-    private readonly cache: Cache,
+    cache: Cache | IPipelineCache,
     @Optional()
     @Inject(CACHE_DEFAULT_OPTIONS)
     defaults?: CacheBehaviorOptions,
@@ -71,6 +96,10 @@ export class CacheBehavior implements IPipelineBehavior {
     logger?: LoggerService,
   ) {
     this.defaults = defaults ?? {};
+    this.cacheAdapter =
+      cache instanceof CacheManagerAdapter
+        ? cache
+        : new CacheManagerAdapter(cache as Cache);
 
     if (!logger) {
       this.logger = new Logger(CacheBehavior.name, { timestamp: true });
@@ -78,11 +107,6 @@ export class CacheBehavior implements IPipelineBehavior {
     }
 
     this.logger = logger;
-    if (typeof untyped(this.logger).setContext === 'function') {
-      (
-        this.logger as LoggerService & { setContext(context: string): void }
-      ).setContext(CacheBehavior.name);
-    }
   }
 
   async handle(
@@ -98,22 +122,66 @@ export class CacheBehavior implements IPipelineBehavior {
     const key = (options.key ?? defaultCacheKey)(context);
     context.items.set(CACHE_KEY_ITEM, key);
 
-    const cached = await this.cache.get(key);
+    let cached: unknown;
+    try {
+      cached = await this.cacheAdapter.get(key);
+    } catch (error) {
+      this.handleStoreError('read', context, key, error, options);
+      context.items.set(CACHE_HIT_ITEM, false);
+      return next();
+    }
     if (cached !== undefined && cached !== null) {
       context.items.set(CACHE_HIT_ITEM, true);
-      this.logger.debug?.(`Cache hit for ${context.requestName} (${key})`);
+      this.logger.debug?.(
+        `Cache hit for ${context.requestName} (${key})`,
+        CacheBehavior.name,
+      );
       return cached;
     }
 
     context.items.set(CACHE_HIT_ITEM, false);
-    this.logger.debug?.(`Cache miss for ${context.requestName} (${key})`);
+    this.logger.debug?.(
+      `Cache miss for ${context.requestName} (${key})`,
+      CacheBehavior.name,
+    );
 
     const result = await next();
     if (result !== undefined && result !== null) {
-      await this.cache.set(key, result, options.ttl);
+      try {
+        await this.cacheAdapter.set(key, result, options.ttl);
+      } catch (error) {
+        this.handleStoreError('write', context, key, error, options);
+      }
     }
 
     return result;
+  }
+
+  /** Logs a store failure and either bypasses it or propagates it. */
+  private handleStoreError(
+    operation: 'read' | 'write',
+    context: IPipelineContext,
+    key: string,
+    error: unknown,
+    options: CacheBehaviorOptions,
+  ): void {
+    const message = error instanceof Error ? error.message : String(error);
+
+    if (options.failOpen ?? true) {
+      this.logger.warn?.(
+        `Cache ${operation} error for ${context.requestName} ` +
+          `(key: ${key}); failing open: ${message}`,
+        CacheBehavior.name,
+      );
+      return;
+    }
+
+    this.logger.error?.(
+      `Cache ${operation} error for ${context.requestName} ` +
+        `(key: ${key}); failing closed: ${message}`,
+      CacheBehavior.name,
+    );
+    throw error;
   }
 
   /** Shallow-merges per-handler options over the application defaults. */

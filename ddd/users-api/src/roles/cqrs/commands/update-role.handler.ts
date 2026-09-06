@@ -16,10 +16,10 @@
  * ----------------------------
  */
 
-import { UniqueConstraintViolationException } from '@mikro-orm/core';
+import { APP_ACTIONS, APP_SUBJECTS } from '@common/constants';
 import { Inject, NotFoundException, Scope } from '@nestjs/common';
 import { CommandHandler, EventBus } from '@nestjs/cqrs';
-import { CaslBehavior } from '@nestjs-pipeline/casl';
+import { CaslAuthorizer, CaslBehavior } from '@nestjs-pipeline/casl';
 import { LoggingBehavior, UsePipeline } from '@nestjs-pipeline/core';
 import {
   CommandBaseHandler,
@@ -27,8 +27,7 @@ import {
   IQueryRepository,
 } from '@nestjs-pipeline/ddd-core';
 import { UniqueRoleNameException } from '../../domain/models/errors/role-name.exception';
-import { Role } from '../../domain/models/role.entity';
-import { RoleUpdateOutcome } from '../../domain/outcomes/role-update.outcome';
+import { Role, type RoleSnapshot } from '../../domain/models/role.entity';
 import {
   COMMAND_REPOSITORY,
   QUERY_REPOSITORY,
@@ -43,59 +42,50 @@ import { UpdateRoleCommand } from './update-role.command';
     LoggingBehavior,
     {
       requestResponseLogLevel: 'log',
-      errorLogLevelMap: { [UniqueRoleNameException.name]: 'warn' },
+      mapLogLevel: new Map([[UniqueRoleNameException, 'warn']]),
     },
   ],
   [
     CaslBehavior,
     {
-      subjectFromRequest: 'Role',
-      rules: [{ action: 'update', subject: 'Role' }],
+      rules: [{ action: APP_ACTIONS.UPDATE, subject: APP_SUBJECTS.ROLE }],
     },
   ],
 )
 export class UpdateRoleHandler extends CommandBaseHandler<
   UpdateRoleCommand,
-  RoleUpdateOutcome
+  Role
 > {
   constructor(
     @Inject(QUERY_REPOSITORY.getRole)
-    private readonly queryRepository: IQueryRepository<GetRoleQuery, Role>,
+    private readonly queryRepository: IQueryRepository<
+      GetRoleQuery,
+      Role | null
+    >,
     @Inject(COMMAND_REPOSITORY.updateRole)
-    private readonly commandRepository: ICommandRepository<RoleUpdateOutcome>,
+    private readonly commandRepository: ICommandRepository<Role, RoleSnapshot>,
+    private readonly authorizer: CaslAuthorizer,
     protected readonly eventBus: EventBus,
   ) {
     super(eventBus);
   }
 
-  async handle(command: UpdateRoleCommand): Promise<RoleUpdateOutcome> {
+  async handle(command: UpdateRoleCommand): Promise<Role> {
     const { id, name } = command;
 
-    const query = new GetRoleQuery({ roleId: id });
-
-    const role = await this.queryRepository.find(query);
+    const query = new GetRoleQuery({ roleId: id }, { hydrate: true });
+    const role = Role.from(await this.queryRepository.find(query));
 
     if (!role) {
       throw new NotFoundException('Role not found');
     }
 
-    const outcome = role.rename(name);
+    this.authorizer.authorize('update', role, ['name']);
 
-    try {
-      await this.commandRepository.save(outcome);
-    } catch (error: unknown) {
-      if (
-        error instanceof UniqueConstraintViolationException ||
-        (error instanceof Error &&
-          (error.message.includes('UNIQUE') ||
-            error.message.includes('unique') ||
-            error.message.includes('SQLITE_CONSTRAINT_UNIQUE')))
-      ) {
-        throw new UniqueRoleNameException(outcome.entity);
-      }
-      throw error;
-    }
+    role.rename(name);
 
-    return outcome;
+    await this.commandRepository.save(role);
+
+    return role;
   }
 }

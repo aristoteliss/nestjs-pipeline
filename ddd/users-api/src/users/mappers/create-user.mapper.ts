@@ -22,10 +22,11 @@ import { CreateUserDtoSchema } from '../dtos/create-user.dto';
 
 export const CreateUserMapper = createMapper(
   CreateUserDtoSchema.transform(
-    ({ name, email, department }) => new CreateUserCommand({
-      username: name,
-      email,
-      department
-    }),
+    ({ name, email, department }) =>
+      new CreateUserCommand({
+        username: name,
+        email,
+        department,
+      }),
   ),
 );

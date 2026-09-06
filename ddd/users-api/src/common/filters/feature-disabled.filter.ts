@@ -32,7 +32,9 @@ type ErrorResponseBody = {
 };
 
 type HttpResponse = {
-  status(code: number): { json(body: ErrorResponseBody): void };
+  status(code: number): HttpResponse;
+  json?(body: ErrorResponseBody): unknown;
+  send?(body: ErrorResponseBody): unknown;
 };
 
 /**
@@ -44,12 +46,18 @@ type HttpResponse = {
 export class FeatureDisabledFilter implements ExceptionFilter {
   catch(exception: FeatureDisabledError, host: ArgumentsHost): void {
     const response = host.switchToHttp().getResponse<HttpResponse>();
-
-    response.status(HttpStatus.FORBIDDEN).json({
+    const body: ErrorResponseBody = {
       statusCode: HttpStatus.FORBIDDEN,
       error: 'Forbidden',
       message: exception.message,
       flag: exception.flag,
-    });
+    };
+
+    response.status(HttpStatus.FORBIDDEN);
+    if (typeof response.json === 'function') {
+      response.json(body);
+      return;
+    }
+    response.send?.(body);
   }
 }

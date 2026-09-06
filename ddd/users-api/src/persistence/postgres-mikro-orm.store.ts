@@ -17,10 +17,7 @@
  */
 
 import { MikroORM } from '@mikro-orm/core';
-import {
-  EntityManager,
-  SqlEntityManager,
-} from '@mikro-orm/postgresql';
+import { EntityManager, SqlEntityManager } from '@mikro-orm/postgresql';
 import {
   Inject,
   Injectable,
@@ -43,7 +40,7 @@ export class PostgresMikroOrmStore implements OnModuleInit, OnModuleDestroy {
   constructor(
     @Inject(TenantSchemaContext)
     private readonly tenantSchemaContext: TenantSchemaContext,
-  ) { }
+  ) {}
 
   async onModuleInit(): Promise<void> {
     this.orm = await MikroORM.init(createPostgresOrmOptions());
@@ -56,15 +53,72 @@ export class PostgresMikroOrmStore implements OnModuleInit, OnModuleDestroy {
     }
   }
 
+  /**
+   * Returns a request-bound or transactional EntityManager if available in the current context,
+   * or a newly forked EntityManager instance scoped to the tenant schema.
+   *
+   * @note Each direct call to this getter without an active RequestContext creates a NEW
+   * EntityManager fork with an isolated Unit of Work. For operations requiring a shared
+   * Unit of Work or atomic transaction across multiple repositories/queries, use
+   * {@link withFork} or {@link transactional}.
+   */
   get em(): EntityManager {
+    const contextEm = this.orm.em.getContext(false) as
+      | EntityManager
+      | undefined;
+    if (
+      contextEm &&
+      contextEm !== this.orm.em &&
+      contextEm.getDriver() === this.orm.em.getDriver() &&
+      contextEm.schema === this.tenantSchemaContext.schema
+    ) {
+      return contextEm;
+    }
     return this.orm.em.fork({
+      disableContextResolution: true,
       schema: this.tenantSchemaContext.schema,
     }) as EntityManager;
   }
 
   get sem(): SqlEntityManager {
+    const contextEm = this.orm.em.getContext(false) as
+      | SqlEntityManager
+      | undefined;
+    if (
+      contextEm &&
+      contextEm !== this.orm.em &&
+      contextEm.getDriver() === this.orm.em.getDriver() &&
+      contextEm.schema === this.tenantSchemaContext.schema
+    ) {
+      return contextEm;
+    }
     return this.orm.em.fork({
+      disableContextResolution: true,
       schema: this.tenantSchemaContext.schema,
     }) as SqlEntityManager;
+  }
+
+  /**
+   * Executes an operation within an explicit, shared Unit of Work (EntityManager fork).
+   * Ensures that all operations within the callback share the same identity map and change set.
+   */
+  async withFork<T>(cb: (em: EntityManager) => Promise<T>): Promise<T> {
+    const fork = this.orm.em.fork({
+      disableContextResolution: true,
+      schema: this.tenantSchemaContext.schema,
+    }) as EntityManager;
+    return cb(fork);
+  }
+
+  /**
+   * Executes an operation within an atomic database transaction using a dedicated fork.
+   * Automatically commits on success and rolls back on failure.
+   */
+  async transactional<T>(cb: (em: EntityManager) => Promise<T>): Promise<T> {
+    const fork = this.orm.em.fork({
+      disableContextResolution: true,
+      schema: this.tenantSchemaContext.schema,
+    }) as EntityManager;
+    return fork.transactional(cb);
   }
 }

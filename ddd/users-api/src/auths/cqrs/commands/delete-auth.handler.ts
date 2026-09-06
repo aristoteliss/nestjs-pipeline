@@ -21,7 +21,8 @@ import { DeleteAuthCommand } from './delete-auth.command';
 
 @CommandHandler(DeleteAuthCommand)
 export class DeleteAuthHandler
-  implements ICommandHandler<DeleteAuthCommand, void> {
+  implements ICommandHandler<DeleteAuthCommand, void>
+{
   async execute(_command: DeleteAuthCommand): Promise<void> {
     // Session clearing is performed by the controller after this command resolves.
     // Add audit logging or logout-triggered side effects here if needed.

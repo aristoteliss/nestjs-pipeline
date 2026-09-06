@@ -28,7 +28,6 @@ import {
   type IPipelineContext,
   LOGGING_BEHAVIOR_LOGGER,
   type NextDelegate,
-  untyped,
 } from '@nestjs-pipeline/core';
 import type { Client, EvaluationContext } from '@openfeature/server-sdk';
 import {
@@ -40,10 +39,25 @@ import { FeatureDisabledError } from './errors/feature-disabled.error';
 import { buildEvaluationContext } from './helpers/evaluation-context';
 import type { FeatureFlagBehaviorOptions } from './interfaces/feature-flags-options.interface';
 
-/** Item key set on the pipeline context recording the resolved flag value. */
-export const FEATURE_FLAG_ITEM = 'feature-flag.enabled';
-/** Item key set on the pipeline context recording the evaluated flag key. */
-export const FEATURE_FLAG_KEY_ITEM = 'feature-flag.key';
+/**
+ * Unique symbol key set on `context.items` recording the resolved boolean evaluation of the feature flag.
+ *
+ * @example
+ * ```ts
+ * const isEnabled = context.items.get(FEATURE_FLAG_ITEM) === true;
+ * ```
+ */
+export const FEATURE_FLAG_ITEM = Symbol('FEATURE_FLAG_ITEM');
+
+/**
+ * Unique symbol key set on `context.items` recording the evaluated feature flag key string.
+ *
+ * @example
+ * ```ts
+ * const flagKey = context.items.get(FEATURE_FLAG_KEY_ITEM) as string | undefined;
+ * ```
+ */
+export const FEATURE_FLAG_KEY_ITEM = Symbol('FEATURE_FLAG_KEY_ITEM');
 
 /**
  * Pipeline behavior that gates a handler behind an OpenFeature boolean flag.
@@ -93,11 +107,6 @@ export class FeatureFlagBehavior implements IPipelineBehavior {
     }
 
     this.logger = logger;
-    if (typeof untyped(this.logger).setContext === 'function') {
-      (
-        this.logger as LoggerService & { setContext(context: string): void }
-      ).setContext(FeatureFlagBehavior.name);
-    }
   }
 
   async handle(
@@ -127,12 +136,14 @@ export class FeatureFlagBehavior implements IPipelineBehavior {
     if (enabled) {
       this.logger.debug?.(
         `Feature "${options.flag}" enabled for ${context.requestName}`,
+        FeatureFlagBehavior.name,
       );
       return next();
     }
 
     this.logger.debug?.(
       `Feature "${options.flag}" disabled for ${context.requestName}`,
+      FeatureFlagBehavior.name,
     );
 
     if (options.fallback) {

@@ -37,9 +37,9 @@ import type {
  * export class PgUserContextResolver implements IUserContextResolver {
  *   constructor(private readonly pool: Pool) {}
  *
- *   async resolve(context: IPipelineContext): Promise<CaslUserContext | undefined> {
+ *   async resolve(context: IPipelineContext): Promise<CaslUserContext | null> {
  *     const jwt = context.items.get('jwt') as { sub: string } | undefined;
- *     if (!jwt) return undefined;
+ *     if (!jwt) return null;
  *
  *     const { rows } = await this.pool.query(
  *       'SELECT id, tenant_id AS "tenantId", department FROM users WHERE id = $1',

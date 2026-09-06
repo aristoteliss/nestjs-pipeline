@@ -17,12 +17,12 @@
  */
 
 import { BaseCommand } from '@common/cqrs/commands/base.command';
-import { createExecuteClass } from '@common/cqrs/helpers/createExecute.helper';
+import { createCommand } from '@nestjs-pipeline/zod';
 import { z } from 'zod';
 
-export class CreateRoleCommand extends createExecuteClass(
+export class CreateRoleCommand extends createCommand(
   z.object({
-    name: z.string().min(3),
+    name: z.string().trim().min(3),
   }),
   BaseCommand,
-) { }
+) {}

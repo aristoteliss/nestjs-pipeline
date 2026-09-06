@@ -81,6 +81,24 @@ describe('RateLimitBehavior', () => {
     consume.mockReset();
   });
 
+  it('does not mutate a shared logger and supplies its context per call', async () => {
+    consume.mockRejectedValue(new Error('store unavailable'));
+    const logger = {
+      warn: vi.fn(),
+      error: vi.fn(),
+      setContext: vi.fn(),
+    };
+    const behavior = new RateLimitBehavior(limiter, undefined, logger as never);
+
+    await behavior.handle(makeCtx(), vi.fn().mockResolvedValue('ok'));
+
+    expect(logger.setContext).not.toHaveBeenCalled();
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining('failing open'),
+      RateLimitBehavior.name,
+    );
+  });
+
   it('consumes 1 point by default, keyed by requestName, and proceeds', async () => {
     consume.mockResolvedValue(okRes());
     const behavior = new RateLimitBehavior(limiter);
@@ -111,6 +129,20 @@ describe('RateLimitBehavior', () => {
 
     expect(consume).toHaveBeenCalledWith('api:CreateUserCommand:10.0.0.1', 5);
   });
+
+  it.each([0, -1, 1.5, Number.MAX_SAFE_INTEGER + 1])(
+    'rejects invalid point cost %s before consuming',
+    async (points) => {
+      const behavior = new RateLimitBehavior(limiter);
+      const next = vi.fn();
+
+      await expect(
+        behavior.handle(withOptions(makeCtx(), { points }), next),
+      ).rejects.toThrow('positive safe integer');
+      expect(consume).not.toHaveBeenCalled();
+      expect(next).not.toHaveBeenCalled();
+    },
+  );
 
   it('throws RateLimitExceededError when the limiter rejects with a result', async () => {
     consume.mockRejectedValue(

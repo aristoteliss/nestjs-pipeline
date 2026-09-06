@@ -16,7 +16,21 @@
  * ----------------------------
  */
 
-import { LogLevel, Provider, Type } from '@nestjs/common';
+import {
+  ClassProvider,
+  ExistingProvider,
+  FactoryProvider,
+  InjectionToken,
+  LoggerService,
+  LogLevel,
+  ModuleMetadata,
+  OptionalFactoryDependency,
+  Provider,
+  Type,
+  ValueProvider,
+} from '@nestjs/common';
+import { LOGGING_BEHAVIOR_LOGGER } from '../behaviors/logging.behavior';
+import { PipelineBehaviorEntry } from '../decorators/pipeline.decorator';
 import { IPipelineBehavior } from '../interfaces/pipeline.behavior.interface';
 import { GlobalBehaviorsOptions } from './global-behaviors.options';
 
@@ -26,6 +40,21 @@ import { GlobalBehaviorsOptions } from './global-behaviors.options';
  */
 export const PIPELINE_MODULE_OPTIONS = Symbol('PIPELINE_MODULE_OPTIONS');
 
+/** A Nest provider that is guaranteed to bind the pipeline logger token. */
+export type PipelineLoggerProvider =
+  | (Omit<ClassProvider<LoggerService>, 'provide'> & {
+      provide: typeof LOGGING_BEHAVIOR_LOGGER;
+    })
+  | (Omit<ValueProvider<LoggerService>, 'provide'> & {
+      provide: typeof LOGGING_BEHAVIOR_LOGGER;
+    })
+  | (Omit<FactoryProvider<LoggerService>, 'provide'> & {
+      provide: typeof LOGGING_BEHAVIOR_LOGGER;
+    })
+  | (Omit<ExistingProvider, 'provide'> & {
+      provide: typeof LOGGING_BEHAVIOR_LOGGER;
+    });
+
 /**
  * Configuration options for {@link PipelineModule.forRoot}.
  */
@@ -34,7 +63,9 @@ export interface PipelineModuleOptions {
    * Global behaviors applied to all Commands, Queries, and/or Events.
    * These are merged with handler-specific @UsePipeline behaviors.
    *
-   * Execution order: `[before] → [@UsePipeline behaviors] → [after] → handler`
+   * Execution order: `[before] → [@UsePipeline behaviors] → [after] → handler`.
+   * A same-class handler declaration overrides options without relocating the
+   * behavior from its global position.
    *
    * @example
    * ```ts
@@ -46,7 +77,7 @@ export interface PipelineModuleOptions {
    * // Apply only to commands, with options
    * globalBehaviors: [{
    *   scope: 'commands',
-   *   before: [[MetricsBehavior, { prefix: 'cmd' }]],
+   *   before: [[MetricsBehavior, { meterName: 'cmd' }]],
    *   after:  [AuditBehavior],
    * }]
    * ```
@@ -57,7 +88,9 @@ export interface PipelineModuleOptions {
    * Behavior classes to register in the DI container.
    *
    * Every class listed here becomes available for injection and can be
-   * referenced in handler-level `@UsePipeline(...)` decorators.
+   * referenced in handler-level `@UsePipeline(...)` decorators. Listing a
+   * behavior here only registers its provider; it does **not** make the
+   * behavior execute globally. Use `globalBehaviors` for global execution.
    * Global behaviors specified in `globalBehaviors` are registered
    * automatically — you do not need to duplicate them here.
    *
@@ -101,7 +134,6 @@ export interface PipelineModuleOptions {
    */
   bootstrapLogLevel?: LogLevel | 'none';
 
-
   /**
    * @example
    * ```ts
@@ -110,30 +142,32 @@ export interface PipelineModuleOptions {
    *   loggerProvider: { provide: LOGGING_BEHAVIOR_LOGGER, useExisting: MyLogger },
    * })
    * ```
-  * Optional custom logger provider token for `LOGGING_BEHAVIOR_LOGGER`.
-  *
-  * If provided, will be registered in the DI container and exported.
-  * This allows using a custom logger (and DI binding) for pipeline logging
-  * instead of the default (e.g., integrate with nestjs-pino or custom logger).
-  *
-  * **Note:** The logger must implement all methods from `LoggerService` (log, debug, verbose, warn, error, fatal),
-  * or support the NestJS log level mapping (e.g., 'log' → 'info', 'verbose' → 'trace', etc.).
-  *
-  * Example:
-  * ```ts
-  * PipelineModule.forRoot({
-  *   loggerProvider: { provide: LOGGING_BEHAVIOR_LOGGER, useExisting: MyLogger },
-  * })
-  * ```
+   * Optional custom logger provider token for `LOGGING_BEHAVIOR_LOGGER`.
+   *
+   * If provided, will be registered in the DI container and exported.
+   * This allows using a custom logger (and DI binding) for pipeline logging
+   * instead of the default (e.g., integrate with nestjs-pino or custom logger).
+   *
+   * **Note:** The logger must implement all methods from `LoggerService` (log, debug, verbose, warn, error, fatal),
+   * or support the NestJS log level mapping (e.g., 'log' → 'info', 'verbose' → 'trace', etc.).
+   *
+   * Example:
+   * ```ts
+   * PipelineModule.forRoot({
+   *   loggerProvider: { provide: LOGGING_BEHAVIOR_LOGGER, useExisting: MyLogger },
+   * })
+   * ```
    */
-  loggerProvider?: Provider;
+  loggerProvider?: PipelineLoggerProvider;
 
   /**
-   * Optional factory that provides a correlation ID for each pipeline run.
+   * Optional factory that provides a correlation ID for a root pipeline run.
    *
-   * When set, the factory is called before any behavior executes.
-   * If it returns a string, that becomes the pipeline's `correlationId`.
-   * If it returns `undefined` (or is not set), a `uuidv7()` fallback is generated.
+   * Correlation IDs are resolved before any behavior executes in this order:
+   * inherited parent pipeline ID → `correlationIdFactory` result → `uuidv7()`.
+   * Therefore the factory is not called for a nested pipeline invocation that
+   * already inherited its parent's correlation ID. If the factory is called and
+   * returns `undefined`, a `uuidv7()` fallback is generated.
    *
    * Integrates with `@nestjs-pipeline/correlation` — pass `getCorrelationId`
    * to bridge HTTP / message-queue correlation IDs into the pipeline:
@@ -177,4 +211,42 @@ export interface PipelineModuleOptions {
    * ```
    */
   correlationIdRunner?: <T>(correlationId: string, fn: () => T) => T;
+
+  /**
+   * Optional factory that resolves the active tenant ID for each pipeline execution.
+   *
+   * When configured, called before behaviors execute to populate `context.tenantId`
+   * and `context.items.get(PIPELINE_TENANT_ID)`.
+   *
+   * @example
+   * ```ts
+   * PipelineModule.forRootAsync({
+   *   inject: [TenantSchemaContext],
+   *   useFactory: (tenantContext: TenantSchemaContext) => ({
+   *     tenantIdFactory: () => tenantContext.schema,
+   *   }),
+   * })
+   * ```
+   */
+  tenantIdFactory?: () => string | undefined;
+}
+
+/** Factory interface for classes that provide pipeline module options asynchronously. */
+export interface PipelineOptionsFactory {
+  createPipelineOptions():
+    | Promise<PipelineModuleOptions>
+    | PipelineModuleOptions;
+}
+
+/** Options for configuring `PipelineModule.forRootAsync`. */
+export interface PipelineModuleAsyncOptions
+  extends Pick<ModuleMetadata, 'imports'> {
+  useExisting?: Type<PipelineOptionsFactory>;
+  useClass?: Type<PipelineOptionsFactory>;
+  useFactory?: (
+    ...args: never[]
+  ) => Promise<PipelineModuleOptions> | PipelineModuleOptions;
+  inject?: (InjectionToken | OptionalFactoryDependency)[];
+  behaviors?: (Type<IPipelineBehavior> | PipelineBehaviorEntry)[];
+  extraProviders?: Provider[];
 }

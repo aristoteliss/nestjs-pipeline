@@ -5,7 +5,8 @@
 
 Pipeline behaviors for **NestJS CQRS** — wrap every command, query, and event handler with reusable cross-cutting concerns using a clean middleware-like chain.
 
-No additional runtime dependencies beyond NestJS itself. Works with Express and Fastify.
+Its peer contract also includes the standard NestJS runtime peers
+`reflect-metadata` and `rxjs`. Works with Express and Fastify.
 
 ---
 
@@ -83,12 +84,14 @@ import { PipelineModule, LoggingBehavior } from '@nestjs-pipeline/core';
       // Bridge correlation IDs from @nestjs-pipeline/correlation (optional)
       // correlationIdFactory: getCorrelationId,
       // correlationIdRunner: runWithCorrelationId,
+      // Eagerly resolve tenant ID per pipeline execution (optional)
+      // tenantIdFactory: () => TenantContext.currentTenant,
     }),
   ],
 })
 export class AppModule {}
 
-// ── Style 2: Simple array ──
+// ── Style 2: Simple array (DI registration only) ──
 
 @Module({
   imports: [
@@ -97,6 +100,10 @@ export class AppModule {}
   ],
 })
 export class AppModule {}
+
+// The array form is equivalent to { behaviors: [...] }:
+// it registers providers for @UsePipeline references, but does not make those
+// behaviors execute globally. Use globalBehaviors for global execution.
 
 // ── Style 3: With correlation ID bridge ──
 
@@ -117,7 +124,7 @@ export class AppModule {}
 
 ### forFeature()
 
-Register behaviors owned by a specific feature module:
+Register feature-owned behaviors application-wide:
 
 ```typescript
 import { Module } from '@nestjs/common';
@@ -129,7 +136,11 @@ import { PipelineModule } from '@nestjs-pipeline/core';
 export class AuditModule {}
 ```
 
-This makes `AuditBehavior` and `CachingBehavior` available for `@UsePipeline()` references within that module hierarchy.
+`PipelineModule` is global, and pipeline behavior lookup spans the application
+graph. Once `AuditModule` is imported, `AuditBehavior` and `CachingBehavior` are
+therefore available to `@UsePipeline()` references in any module. `forFeature()`
+is an organizational registration API; it does not provide feature-local DI
+isolation.
 
 ---
 
@@ -253,8 +264,9 @@ Every behavior receives `IPipelineContext`:
 
 | Property | Type | Description |
 |---|---|---|
-| `correlationId` | `string` | Mutable correlation ID — behaviors may override it |
+| `correlationId` | `string` | Immutable ID fixed before the behavior chain starts |
 | `originalCorrelationId` | `string` | Immutable snapshot of the initial correlation ID |
+| `tenantId` | `string \| undefined` | Active tenant identifier (inherited from parent context or resolved via `tenantIdFactory`) |
 | `request` | `TRequest` | The command / query / event instance |
 | `requestType` | `Type<TRequest>` | Class constructor (e.g. `CreateUserCommand`) |
 | `requestName` | `string` | Class name string (e.g. `"CreateUserCommand"`) |
@@ -263,7 +275,7 @@ Every behavior receives `IPipelineContext`:
 | `requestKind` | `'command' \| 'query' \| 'event' \| 'unknown'` | Auto-detected from `@nestjs/cqrs` metadata |
 | `startedAt` | `Date` | UTC timestamp of pipeline start |
 | `response` | `TResponse \| undefined` | Set after `next()` returns; `undefined` before the handler runs |
-| `items` | `Map<string, unknown>` | Shared bag for inter-behavior communication |
+| `items` | `Map<string \| symbol, unknown>` | Shared bag for inter-behavior communication |
 
 ### Behavior Options
 
@@ -285,28 +297,38 @@ async handle(context: IPipelineContext, next: NextDelegate): Promise<any> {
 }
 ```
 
-Options set at the global level via `globalBehaviors` are merged with handler-level options. Handler-level options win on conflict.
+Global and handler option **maps** are combined. When the same behavior appears
+at both levels, the handler-level options record replaces the global options
+record while the behavior retains its global chain position; individual
+properties are not shallow-merged.
 
 ### Inter-Behavior Communication
 
-Use `context.items` to pass data between behaviors in the same pipeline execution:
+Use `context.items` to pass data between behaviors in the same pipeline execution.
+
+> [!TIP]
+> **Avoid Magic Strings:** Use exported `unique symbol` constants rather than raw string keys. Symbols prevent accidental key collisions between distinct packages, libraries, or customized behaviors.
 
 ```typescript
+// Define a shared symbol token in your package or tokens file
+export const CURRENT_USER_ID_ITEM = Symbol('CURRENT_USER_ID_ITEM');
+
 // AuthBehavior (runs first)
 async handle(context: IPipelineContext, next: NextDelegate): Promise<any> {
   const userId = await this.authService.getCurrentUserId();
-  context.items.set('currentUserId', userId);
+  context.items.set(CURRENT_USER_ID_ITEM, userId);
   return next();
 }
 
 // AuditBehavior (runs later in the chain)
 async handle(context: IPipelineContext, next: NextDelegate): Promise<any> {
   const result = await next();
-  const userId = context.items.get('currentUserId');
+  const userId = context.items.get(CURRENT_USER_ID_ITEM);
   await this.auditService.log({ userId, action: context.requestName });
   return result;
 }
 ```
+
 
 ---
 
@@ -375,7 +397,9 @@ PipelineModule.forRoot({
 
 ### Deduplication
 
-When the same behavior class appears in both global and handler-level configurations, the **handler-level entry wins** (including its options). Global duplicates are deduplicated:
+When the same behavior class appears in both global and handler-level
+configurations, the handler's complete options record wins while the behavior
+retains its global chain position. Global duplicates are deduplicated:
 
 ```typescript
 // Global: LoggingBehavior with default options
@@ -383,13 +407,22 @@ PipelineModule.forRoot({
   globalBehaviors: { scope: 'all', before: [LoggingBehavior] },
 })
 
-// Handler: LoggingBehavior with custom options → global entry is dropped
+// Handler: overrides options without relocating the global behavior
 @CommandHandler(CreateUserCommand)
 @UsePipeline([LoggingBehavior, { requestResponseLogLevel: 'log' }])
 export class CreateUserHandler { /* ... */ }
 
-// Effective chain: [LoggingBehavior (handler opts)] → handler
+// Effective chain: [LoggingBehavior at global-before position (handler opts)] → handler
 ```
+
+Place mandatory authentication/authorization behaviors in global `before`.
+Their position remains outside handler-level cache/idempotency behaviors that
+can return without invoking `next()`.
+
+This only protects authorization performed by the outer behavior. If the
+handler later performs entity-level checks or response-field filtering, cache
+and idempotency keys must be partitioned by the applicable tenant, principal,
+and permission scope because a short-circuit hit does not execute the handler.
 
 ---
 
@@ -551,6 +584,10 @@ PipelineModule.forRoot({
 
 `correlationIdFactory` **reads** the current correlation ID (e.g. set by HTTP middleware or `@WithCorrelation`).  
 `correlationIdRunner` **writes** the pipeline's resolved correlation ID back into the correlation store so that `getCorrelationId()` returns it throughout the entire handler chain — including event handlers dispatched via `eventBus.publish()`.
+
+The resolved ID is immutable during execution. This keeps
+`context.correlationId`, nested pipeline inheritance, and the configured
+correlation store on one value.
 
 Or supply any custom factory/runner:
 
@@ -716,9 +753,10 @@ orderCreated = (events$: Observable<any>): Observable<ICommand> =>
 
 1. `PipelineBootstrapService` runs at `OnApplicationBootstrap`.
 2. Discovers all CQRS handlers via `@nestjs/cqrs` `ExplorerService` (commands, queries, events).
-3. For each handler with `@UsePipeline` or matching global behaviors: pre-resolves behavior instances, builds metadata, wraps the `execute()` / `handle()` method.
-4. Everything is computed once at startup — zero reflection or DI lookups at request time.
-5. Supports singleton and request-scoped handlers (`Scope.REQUEST`, `Scope.TRANSIENT`).
+3. For each handler with `@UsePipeline` or matching global behaviors: computes effective behavior/handler metadata, resolves singleton behavior instances, and wraps the `execute()` / `handle()` method. Behaviors that cannot be resolved as singletons are marked for dynamic resolution.
+4. Request-independent metadata is computed once at startup. The common all-singleton path reuses pre-resolved behavior instances with no per-request reflection/behavior DI lookup; request-scoped/transient behaviors are resolved per invocation with `moduleRef.resolve()` and the applicable Nest context ID.
+5. Supports singleton handlers on Nest CQRS 10; request-scoped/transient
+   handlers (`Scope.REQUEST`, `Scope.TRANSIENT`) require Nest CQRS 11+.
 
 ---
 
@@ -742,22 +780,29 @@ orderCreated = (events$: Observable<any>): Observable<ICommand> =>
 | `PipelineModuleOptions` | Interface | Options for `PipelineModule.forRoot()` |
 | `GlobalBehaviorsOptions` | Interface | Global behavior configuration |
 | `GlobalBehaviorScope` | Type | `'commands' \| 'queries' \| 'events' \| 'all'` |
-| `PIPELINE_MODULE_OPTIONS` | Symbol | DI token for module options |
 | `PipelineBootstrapService` | Class | Scans and wraps handlers at bootstrap |
 | `PipelineHandlerMeta` | Interface | Pre-computed handler metadata |
 | `PIPELINE_BEHAVIOR_ID` | Symbol | Custom deduplication key for behaviors |
+| `PIPELINE_TENANT_ID` | Symbol | Key symbol for tenant ID in `context.items` |
+| `SET_TENANT_ID` | Symbol | Symbol setter for `tenantId` and items sync |
 | `PipelineBehaviorEntry` | Type | `Type \| [Type, Record<string, unknown>]` |
+| `stableStringify` | Function | Deterministic JSON serialization with sorted keys and cycle detection |
+| `toStrictJsonValue` | Function | Normalizes arbitrary values into strictly typed JSON domain |
+| `StrictJsonValue` | Type | Strict JSON-compatible recursive type definition |
+| `safeSanitize` | Function | Deeply redacts sensitive keys and strips unsupported types |
+
 
 **`PipelineModuleOptions` fields:**
 
 | Field | Type | Description |
 |---|---|---|
-| `behaviors` | `Type[]` | Behavior classes to register in DI |
-| `globalBehaviors` | `GlobalBehaviorsOptions \| GlobalBehaviorsOptions[]` | Auto-wrap all handlers |
-| `correlationIdFactory` | `() => string \| undefined` | Read the current correlation ID (e.g. `getCorrelationId`) |
+| `behaviors` | `Type[]` | Behavior classes to register in DI; registration alone does not execute them globally |
+| `globalBehaviors` | `GlobalBehaviorsOptions \| GlobalBehaviorsOptions[]` | Auto-wrap matching handlers |
+| `correlationIdFactory` | `() => string \| undefined` | Read an external correlation ID for a root run after parent inheritance is checked (e.g. `getCorrelationId`) |
 | `correlationIdRunner` | `<T>(id: string, fn: () => T) => T` | Wrap each pipeline invocation in a correlation context (e.g. `runWithCorrelationId`) |
+| `tenantIdFactory` | `() => string \| undefined` | Eagerly resolve tenant ID per pipeline execution (e.g. from async storage context) |
 | `bootstrapLogLevel` | `LogLevel \| 'none'` | Log level for bootstrap messages (default `'debug'`) |
-| `loggerProvider` | `Provider` | Custom DI provider bound to `LOGGING_BEHAVIOR_LOGGER` (registered and exported) |
+| `loggerProvider` | `PipelineLoggerProvider` | Custom DI provider whose `provide` token must be `LOGGING_BEHAVIOR_LOGGER` (registered and exported) |
 
 ---
 

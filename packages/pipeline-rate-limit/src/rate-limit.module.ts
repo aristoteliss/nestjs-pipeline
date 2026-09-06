@@ -57,7 +57,6 @@ import { RateLimitBehavior } from './rate-limit.behavior';
  * ```
  */
 @Module({})
-// biome-ignore lint/complexity/noStaticOnlyClass: static-only configuration class
 export class RateLimitModule {
   /**
    * Registers the behavior with a ready-made limiter instance.

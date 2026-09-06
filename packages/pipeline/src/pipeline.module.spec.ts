@@ -18,6 +18,7 @@
 
 import { Injectable } from '@nestjs/common';
 import { describe, expect, it } from 'vitest';
+import { LOGGING_BEHAVIOR_LOGGER } from './behaviors/logging.behavior';
 import {
   IPipelineBehavior,
   NextDelegate,
@@ -171,15 +172,38 @@ describe('PipelineModule.forRoot', () => {
     expect(mod.module).toBe(PipelineModule);
     expect(mod.providers).toBeDefined();
   });
+
+  it('registers and exports a logger provider bound to the logger token', () => {
+    const provider = {
+      provide: LOGGING_BEHAVIOR_LOGGER,
+      useValue: { log() {} },
+    };
+    const mod = PipelineModule.forRoot({ loggerProvider: provider });
+
+    expect(mod.providers).toContain(provider);
+    expect(mod.exports).toContain(LOGGING_BEHAVIOR_LOGGER);
+  });
+
+  it('rejects a logger provider bound to another token at runtime', () => {
+    expect(() =>
+      PipelineModule.forRoot({
+        loggerProvider: {
+          provide: Symbol('wrong'),
+          useValue: { log() {} },
+        },
+      } as unknown as Parameters<typeof PipelineModule.forRoot>[0]),
+    ).toThrow(/LOGGING_BEHAVIOR_LOGGER/);
+  });
 });
 
 // ── forFeature ──────────────────────────────────────────────
 
 describe('PipelineModule.forFeature', () => {
-  it('registers and exports the provided behaviors', () => {
+  it('registers and exports the provided behaviors application-wide', () => {
     const mod = PipelineModule.forFeature([AlphaBehavior, BetaBehavior]);
 
     expect(mod.module).toBe(PipelineModule);
+    expect(mod.global).toBe(true);
     expect(mod.providers).toContain(AlphaBehavior);
     expect(mod.providers).toContain(BetaBehavior);
     expect(mod.exports).toContain(AlphaBehavior);
@@ -190,5 +214,51 @@ describe('PipelineModule.forFeature', () => {
     const mod = PipelineModule.forFeature([]);
     expect(mod.providers).toEqual([]);
     expect(mod.exports).toEqual([]);
+  });
+});
+
+// ── forRootAsync ─────────────────────────────────────────────
+
+describe('PipelineModule.forRootAsync', () => {
+  it('registers with useFactory and inject', () => {
+    const mod = PipelineModule.forRootAsync({
+      inject: ['CUSTOM_SERVICE'],
+      behaviors: [AlphaBehavior],
+      useFactory: (service: string) => ({
+        tenantIdFactory: () => `${service}:tenant`,
+      }),
+    });
+
+    expect(mod.module).toBe(PipelineModule);
+    expect(mod.global).toBe(true);
+    expect(mod.providers).toContain(AlphaBehavior);
+    expect(mod.providers).toContain(PipelineBootstrapService);
+    expect(mod.exports).toContain(AlphaBehavior);
+    expect(mod.exports).toContain(PipelineBootstrapService);
+
+    const optionsProvider = mod.providers?.find(
+      (p: any) => p && p.provide === PIPELINE_MODULE_OPTIONS,
+    ) as any;
+    expect(optionsProvider).toBeDefined();
+    expect(optionsProvider.inject).toEqual(['CUSTOM_SERVICE']);
+  });
+
+  it('registers with useClass', () => {
+    class ConfigService {
+      createPipelineOptions() {
+        return { tenantIdFactory: () => 'class-tenant' };
+      }
+    }
+
+    const mod = PipelineModule.forRootAsync({
+      useClass: ConfigService,
+    });
+
+    expect(mod.module).toBe(PipelineModule);
+    expect(mod.providers).toContain(PipelineBootstrapService);
+    expect(mod.providers).toContainEqual({
+      provide: ConfigService,
+      useClass: ConfigService,
+    });
   });
 });

@@ -20,8 +20,10 @@ import { Type } from '@nestjs/common';
 import { IPipelineContext } from '@nestjs-pipeline/core';
 import { describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
+import { createCommand, createZodRequest } from './create-zod-request';
 import { ZodValidationError } from './errors/zod-validation.error';
 import {
+  getRawInput,
   ZOD_SCHEMA_KEY,
   ZodValidationBehavior,
 } from './zod-validation.behavior';
@@ -31,7 +33,7 @@ import {
 // ---------------------------------------------------------------------------
 
 function makeRequestType(schema?: z.ZodType): Type {
-  const cls = class { };
+  const cls = class {};
   if (schema) (cls as any)[ZOD_SCHEMA_KEY] = schema;
   return cls as unknown as Type;
 }
@@ -45,7 +47,7 @@ function createMockContext(
     request: {},
     requestType: makeRequestType(),
     requestName: 'MockRequest',
-    handlerType: class MockHandler { } as Type,
+    handlerType: class MockHandler {} as Type,
     handlerName: 'MockHandler',
     requestKind: 'command',
     startedAt: new Date(),
@@ -113,6 +115,43 @@ describe('ZodValidationBehavior', () => {
       await behavior.handle(ctx, next);
 
       expect(reqObj).toEqual({ count: 42, role: 'user' });
+    });
+
+    it('supports async refinements and transforms', async () => {
+      const asyncSchema = z
+        .object({ username: z.string() })
+        .refine(async ({ username }) => username !== 'taken')
+        .transform(async ({ username }) => ({
+          username: username.toUpperCase(),
+        }));
+      const reqType = makeRequestType(asyncSchema);
+      const reqObj = { username: 'alice' };
+      const ctx = createMockContext({ request: reqObj, requestType: reqType });
+
+      await behavior.handle(ctx, vi.fn().mockResolvedValue('ok'));
+
+      expect(reqObj).toEqual({ username: 'ALICE' });
+    });
+
+    it('applies an own __proto__ key without changing the request prototype', async () => {
+      const protoSchema = z
+        .object({})
+        .transform(() => JSON.parse('{"__proto__":{"admin":true}}'));
+      const reqType = makeRequestType(protoSchema);
+      const reqObj = JSON.parse('{"__proto__":{"admin":true}}') as Record<
+        string,
+        unknown
+      >;
+      const originalPrototype = Object.getPrototypeOf(reqObj);
+
+      await behavior.handle(
+        createMockContext({ request: reqObj, requestType: reqType }),
+        vi.fn().mockResolvedValue('ok'),
+      );
+
+      expect(Object.getPrototypeOf(reqObj)).toBe(originalPrototype);
+      expect(Object.hasOwn(reqObj, '__proto__')).toBe(true);
+      expect(Reflect.get(reqObj, '__proto__')).toEqual({ admin: true });
     });
   });
 
@@ -197,6 +236,128 @@ describe('ZodValidationBehavior', () => {
         ZodValidationError,
       );
       expect(next).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('createZodRequest transforms and mutation tracking (Item 12)', () => {
+    it('handles string -> number transform without re-parse error in the pipeline', async () => {
+      const transformSchema = z.object({
+        amount: z.string().transform((val) => Number(val)),
+      });
+      class AmountCommand extends createCommand(transformSchema) {}
+
+      const cmd = new AmountCommand({ amount: '42' });
+      expect(cmd.amount).toBe(42);
+
+      const ctx = createMockContext({
+        request: cmd,
+        requestType: AmountCommand as unknown as Type,
+      });
+      const next = vi.fn().mockResolvedValue({ success: true });
+
+      const result = await behavior.handle(ctx, next);
+      expect(next).toHaveBeenCalledOnce();
+      expect(result).toEqual({ success: true });
+      expect(cmd.amount).toBe(42);
+    });
+
+    it('does NOT re-run non-idempotent transforms twice', async () => {
+      const tagSchema = z.object({
+        tag: z.string().transform((val) => val + '!'),
+      });
+      class TagCommand extends createCommand(tagSchema) {}
+
+      const cmd = new TagCommand({ tag: 'hello' });
+      expect(cmd.tag).toBe('hello!');
+
+      const ctx = createMockContext({
+        request: cmd,
+        requestType: TagCommand as unknown as Type,
+      });
+      const next = vi.fn().mockResolvedValue('done');
+
+      await behavior.handle(ctx, next);
+      expect(cmd.tag).toBe('hello!');
+    });
+
+    it('re-validates and fails if instance was mutated into an invalid state', async () => {
+      const schema = z.object({
+        name: z.string().min(3),
+      });
+      class UserCommand extends createCommand(schema) {}
+
+      const cmd = new UserCommand({ name: 'Alice' });
+      expect(cmd.name).toBe('Alice');
+
+      // Mutate to an invalid value
+      (cmd as any).name = 'ab';
+
+      const ctx = createMockContext({
+        request: cmd,
+        requestType: UserCommand as unknown as Type,
+      });
+      const next = vi.fn();
+
+      await expect(behavior.handle(ctx, next)).rejects.toThrow(
+        ZodValidationError,
+      );
+      expect(next).not.toHaveBeenCalled();
+    });
+
+    it('re-validates successfully if instance was mutated into a valid state', async () => {
+      const schema = z.object({
+        name: z.string().min(3),
+      });
+      class UserCommand extends createCommand(schema) {}
+
+      const cmd = new UserCommand({ name: 'Alice' });
+      (cmd as any).name = 'Bob';
+
+      const ctx = createMockContext({
+        request: cmd,
+        requestType: UserCommand as unknown as Type,
+      });
+      const next = vi.fn().mockResolvedValue('ok');
+
+      await behavior.handle(ctx, next);
+      expect(next).toHaveBeenCalledOnce();
+      expect(cmd.name).toBe('Bob');
+    });
+
+    it('preserves raw input accessible via getRawInput', () => {
+      const transformSchema = z.object({
+        amount: z.string().transform((val) => Number(val)),
+      });
+      class AmountCommand extends createCommand(transformSchema) {}
+
+      const cmd = new AmountCommand({ amount: '123' });
+      expect(cmd.amount).toBe(123);
+      expect(getRawInput(cmd)).toEqual({ amount: '123' });
+    });
+
+    it('preserves base class properties when request passes through behavior', async () => {
+      class BaseClass {
+        readonly meta = 'base-metadata';
+      }
+      const schema = z.object({
+        title: z.string(),
+      });
+      class CommandWithBase extends createZodRequest(schema, BaseClass) {}
+
+      const cmd = new CommandWithBase({ title: 'Important' });
+      expect(cmd.meta).toBe('base-metadata');
+      expect(cmd.title).toBe('Important');
+
+      const ctx = createMockContext({
+        request: cmd,
+        requestType: CommandWithBase as unknown as Type,
+      });
+      const next = vi.fn().mockResolvedValue('ok');
+
+      await behavior.handle(ctx, next);
+      expect(next).toHaveBeenCalledOnce();
+      expect(cmd.meta).toBe('base-metadata');
+      expect(cmd.title).toBe('Important');
     });
   });
 });

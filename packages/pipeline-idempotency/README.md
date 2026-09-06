@@ -3,9 +3,9 @@
 [![npm version](https://img.shields.io/npm/v/@nestjs-pipeline/idempotency.svg)](https://www.npmjs.com/package/@nestjs-pipeline/idempotency)
 [![License](https://img.shields.io/npm/l/@nestjs-pipeline/idempotency.svg)](https://www.npmjs.com/package/@nestjs-pipeline/idempotency)
 
-Idempotency behavior for `@nestjs-pipeline/core` — runs each command **at most once per idempotency key** within a TTL window, and **replays the stored response** on duplicates. The classic safety net for retried `POST`s, double-clicks, at-least-once message delivery, and flaky network retries.
+Idempotency behavior for `@nestjs-pipeline/core` — atomically deduplicates concurrent requests sharing an idempotency key and **replays the stored response** after a successful execution. With the default `releaseOnError: true`, failed executions release the key so a later retry may execute the handler again.
 
-Store-agnostic: it depends only on a tiny `IdempotencyStore` interface. A zero-dependency **in-memory** store is the default; **Redis** and **Postgres** are genuine drop-ins for multi-instance deployments, and your own store is a one-line swap — handlers never change.
+Store-agnostic: it depends only on a tiny `IdempotencyStore` interface. A zero-dependency **in-memory** store is the default; **Redis** and **Postgres** are drop-ins for multi-instance deployments. Replay responses use one shared JSON-snapshot contract across every bundled store.
 
 ---
 
@@ -31,17 +31,21 @@ Store-agnostic: it depends only on a tiny `IdempotencyStore` interface. A zero-d
 
 ## Why a behavior (vs. hand-rolling)
 
-"Exactly-once" is a classic cross-cutting concern: the same "have I already done
+Idempotency is a classic cross-cutting concern: the same "have I already done
 this?" check is needed on every state-changing handler that a client might retry.
 Inlining it couples each handler to your dedupe storage and is easy to get subtly
 wrong (races between the check and the write, never replaying the original
 response, leaking partial writes after a crash). This behavior centralizes it:
 
-- **At-most-once** — the key is claimed **atomically** before the handler runs
-  (`SET NX` on Redis, `INSERT … ON CONFLICT DO NOTHING` on Postgres), so two
-  concurrent duplicates can never both execute.
-- **Response replay** — the first call's response is stored and returned verbatim
-  to later duplicates; the handler does not run again.
+- **Atomic exclusion** — the key is claimed **atomically** before the handler runs
+  (`SET NX` on Redis, a conditional upsert on Postgres), so two concurrent
+  duplicates cannot both execute while the claim is live.
+- **Response replay** — after a successful execution, the response is stored and
+  returned to later duplicates without running the handler again while the record
+  remains live.
+- **Failure policy** — handler failures release the key by default
+  (`releaseOnError: true`), allowing a later retry to execute again. Set
+  `releaseOnError: false` when retaining the failed claim is preferable.
 - **In-flight protection** — a duplicate that arrives while the original is still
   running gets a `409 Conflict` instead of racing it.
 - **Payload safety** — an optional fingerprint rejects a key reused with a
@@ -94,24 +98,45 @@ import {
 export class AppModule {}
 ```
 
-Then opt a command in and tell the behavior how to derive its key — typically an
-`Idempotency-Key` header your controller stashes on the context:
+Then opt a command in and tell the behavior how to derive its key. A controller
+can copy the `Idempotency-Key` header into the CQRS command before dispatch:
 
 ```typescript
+class CreatePaymentCommand {
+  constructor(
+    readonly payment: PaymentInput,
+    readonly idempotencyKey?: string,
+  ) {}
+}
+
+// In the controller:
+commandBus.execute(new CreatePaymentCommand(body, idempotencyKeyHeader));
+
 @CommandHandler(CreatePaymentCommand)
 @UsePipeline([
   IdempotencyBehavior,
   {
-    keyFactory: (ctx) => ctx.items.get('idempotencyKey') as string | undefined,
+    keyFactory: (ctx) =>
+      (ctx.request as CreatePaymentCommand).idempotencyKey,
     ttl: 86_400_000, // 24h (default)
   },
 ])
 export class CreatePaymentHandler {
   async execute(command: CreatePaymentCommand) {
-    /* charged at most once per key */
+    /* concurrent duplicates are excluded; successful responses are replayed */
   }
 }
 ```
+
+Alternatively, an earlier pipeline behavior can place transport metadata in
+`context.items`. A controller cannot mutate the `PipelineContext` directly
+because core creates it later when the CQRS handler executes.
+
+Completed records replay before the handler runs. If the handler performs
+entity-level authorization or result filtering, derive a namespaced key that
+includes the tenant and principal/security scope, for example
+`` `${tenantId}:${principalId}:${clientKey}` ``. A client-supplied key by itself
+must never be shared across security principals.
 
 ---
 
@@ -124,8 +149,9 @@ interface IdempotencyRecord {
   key: string;                          // the idempotency key
   status: 'in_progress' | 'completed';  // lifecycle state
   requestName: string;                  // e.g. 'CreatePaymentCommand'
+  claimId?: string;                     // unique owner token for in-progress record
   fingerprint?: string;                 // hash of the original payload
-  response?: unknown;                   // captured once completed (for replay)
+  response?: JsonValue;                 // JSON snapshot captured for replay
   createdAt: string;                    // ISO-8601, when first claimed
   completedAt?: string;                 // ISO-8601, when the handler finished
 }
@@ -133,6 +159,20 @@ interface IdempotencyRecord {
 
 The record is created as `in_progress` the instant the key is claimed, then
 flipped to `completed` with the captured `response` when the handler succeeds.
+Handler responses used with idempotency must be in the strict portable JSON
+domain: `null`, booleans, finite numbers, strings, arrays, and record-like
+objects containing only those values. `Date` is explicitly converted to an ISO
+string. Lossy native JSON cases such as `Map`, `Set`, `RegExp`, `Error`, binary
+views, non-finite numbers, nested `undefined`, functions, symbols (including
+symbol-keyed properties), bigint, and cycles are rejected. A top-level
+`undefined` is retained only for successful void handlers.
+Custom objects may define `toJSON()` as their public serialization contract.
+The returned representation is validated recursively; internal fields excluded
+by `toJSON()` (such as NestJS aggregate event symbols) are not serialized or
+validated. Unsupported values and cycles exposed by that representation still
+fail validation.
+The initial caller receives the original handler value; subsequent callers
+receive its JSON snapshot (for example, a `Date` replays as an ISO string).
 
 ---
 
@@ -185,7 +225,8 @@ IdempotencyModule.forRootAsync({
 `PostgresIdempotencyStore` — backed by a `pg` `Pool`/`Client`. No extra
 infrastructure if you already run Postgres. Create the table once with
 `createIdempotencyTableSql()`; claims are atomic via
-`INSERT … ON CONFLICT (key) DO NOTHING`.
+conditional `INSERT … ON CONFLICT (key) DO UPDATE`: live rows are left
+untouched, while expired rows are replaced by the new claim in one statement.
 
 ```typescript
 import { Pool } from 'pg';
@@ -206,8 +247,9 @@ IdempotencyModule.forRootAsync({
 
 ### Custom store
 
-Implement the four-method `IdempotencyStore` interface to back idempotency with
-anything — DynamoDB, Memcached, an HTTP service:
+Implement the six-method `IdempotencyStore` interface to back idempotency with
+anything — DynamoDB, Memcached, an HTTP service. The two owner-aware operations
+must be atomic; a read followed by a separate write/delete is not sufficient:
 
 ```typescript
 interface IdempotencyStore {
@@ -218,12 +260,26 @@ interface IdempotencyStore {
     record: IdempotencyRecord,
     ttlMs: number,
   ): MaybePromise<boolean>;
+  /** Complete only while `claimId` still owns the live in-progress record. */
+  completeIfOwned(
+    key: string,
+    claimId: string,
+    record: IdempotencyRecord,
+    ttlMs: number,
+  ): MaybePromise<boolean>;
+  /** Delete only while `claimId` still owns the live record. */
+  deleteIfOwned(key: string, claimId: string): MaybePromise<boolean>;
+  /** Unconditional administrative overwrite. */
   set(key: string, record: IdempotencyRecord, ttlMs: number): MaybePromise<void>;
+  /** Unconditional administrative delete. */
   delete(key: string): MaybePromise<void>;
 }
 ```
 
-`setIfAbsent` **must** be atomic for the guarantee to hold under concurrency.
+`setIfAbsent`, `completeIfOwned`, and `deleteIfOwned` **must** each be atomic.
+The built-in memory, Redis, and Postgres stores implement those guarantees using
+a unique `claimId` per in-progress record, preventing an execution that outlives
+its TTL from overwriting or releasing a newer claim.
 
 ---
 
@@ -232,20 +288,25 @@ interface IdempotencyStore {
 For each in-scope request `IdempotencyBehavior`:
 
 1. derives the key via `keyFactory`; if none, the handler runs normally;
-2. exposes the key on the context as `IDEMPOTENCY_KEY_ITEM` (`'idempotency.key'`);
+2. exposes the key on the context as `IDEMPOTENCY_KEY_ITEM` (`Symbol`);
 3. atomically claims the key (`status: 'in_progress'`);
 4. **claimed** → runs the handler, stores the `completed` record with the
    response, and returns it;
 5. **not claimed** → looks at the existing record:
+   - no live record (it expired/disappeared between claim and read) → retries
+     the atomic claim once;
    - still `in_progress` → throws `IdempotencyConflictError` (`409`);
-   - `completed`, same payload → **replays** the stored response (handler does
-     not run) and sets `IDEMPOTENCY_REPLAYED_ITEM` (`'idempotency.replayed'`) to
+   - `completed`, same request type and payload → **replays** the stored response (handler does
+     not run) and sets `IDEMPOTENCY_REPLAYED_ITEM` (`Symbol`) to
      `true`;
-   - `completed`, different payload → throws `IdempotencyConflictError` (`422`).
+
+   - `completed`, different request type or payload → throws
+     `IdempotencyConflictError` (`422`).
 
 If the handler throws and `releaseOnError` is `true` (default), the key is
-released so the client can safely retry; the original error is re-thrown
-unchanged either way.
+released so the client can retry and the handler may execute again. The handler
+error is re-thrown after the cleanup attempt. If cleanup itself fails, that
+cleanup failure is logged and the handler error is still re-thrown.
 
 ---
 
@@ -257,7 +318,7 @@ Options are read per-handler from `@UsePipeline` and merged over module-wide
 | Option           | Type                                            | Default        | Description                                                                       |
 | ---------------- | ----------------------------------------------- | -------------- | --------------------------------------------------------------------------------- |
 | `keyFactory`     | `(ctx) => string \| undefined`                  | —              | Derives the idempotency key. Without one (or when it returns `undefined`) the handler runs normally. |
-| `ttl`            | `number`                                        | `86_400_000`   | How long a key is remembered, in ms (24h). After this it may be reused.            |
+| `ttl`            | positive safe integer                           | `86_400_000`   | Claim lifetime in ms (24h). Successful completion restarts this TTL for the replay record. |
 | `scope`          | `('command' \| 'query' \| 'event' \| 'unknown')[]` | `['command']`  | Which request kinds the policy applies to.                                         |
 | `fingerprint`    | `boolean`                                        | `true`         | Reject a key reused with a different payload (`422`).                              |
 | `releaseOnError` | `boolean`                                        | `true`         | Release the key when the handler throws, so retries can re-run.                    |
@@ -266,11 +327,22 @@ Options are read per-handler from `@UsePipeline` and merged over module-wide
 
 ## Fingerprinting & key reuse
 
-With `fingerprint: true` (default) the behavior stores a stable SHA-256 hash of
+An idempotency key is isolated to the request type that first claimed it; reuse
+by another command/query/event type is rejected with `422` even when the payload
+hash matches. With `fingerprint: true` (default) the behavior also stores a stable SHA-256 hash of
 the request payload (object keys sorted, so property order doesn't matter). If a
 later request reuses the key with a **different** body, it is rejected with a
 `422` `key_reuse` conflict — catching client bugs and replay attacks where the
 same key is sent with new data.
+
+When fingerprinting is enabled, a live legacy record that has no fingerprint
+is rejected as unverifiable `key_reuse`; it is never replayed. Disable
+fingerprinting deliberately during a compatibility window if legacy replay is
+required.
+
+Fingerprinting uses the same strict JSON domain as response snapshots, so
+values that native `JSON.stringify()` would silently collapse or discard are
+rejected before a key is claimed.
 
 Disable it (`fingerprint: false`) when your key already fully identifies the
 payload, or expose `fingerprintValue` to compute a hash yourself.
@@ -314,7 +386,8 @@ Response body:
 **Behavior**
 
 - `IdempotencyBehavior` — the pipeline behavior.
-- `IDEMPOTENCY_KEY_ITEM`, `IDEMPOTENCY_REPLAYED_ITEM` — context item keys.
+- `IDEMPOTENCY_KEY_ITEM`, `IDEMPOTENCY_REPLAYED_ITEM`, `IDEMPOTENCY_OWNERSHIP_LOST_ITEM` — exported unique `Symbol` context item keys.
+
 
 **Stores**
 

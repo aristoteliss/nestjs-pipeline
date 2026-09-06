@@ -16,11 +16,15 @@
  * ----------------------------
  */
 
-import { ForbiddenError, subject as caslSubject } from '@casl/ability';
-import { ForbiddenException } from '@nestjs/common';
+import { subject as caslSubject } from '@casl/ability';
+import { Injectable, Optional } from '@nestjs/common';
 import { type IPipelineContext, pipelineStore } from '@nestjs-pipeline/core';
 import { CASL_ABILITY_KEY } from '../constants/tokens';
-import type { AppAbility } from '../types/casl.types';
+import { UnauthorizedActionException } from '../exceptions/unauthorized-action.exception';
+import type { IEntityAuthorizer } from '../interfaces/entity-authorizer.interface';
+import { buildBypassAbility } from '../services/ability.factory';
+import type { AppAbility, CaslUserContext } from '../types/casl.types';
+import { projectReadableFields } from './read-projection.helper';
 
 /**
  * Retrieve the {@link AppAbility} that {@link CaslBehavior} stored for the
@@ -47,82 +51,275 @@ export function getCaslAbility(
   return ctx?.items.get(CASL_ABILITY_KEY) as AppAbility | undefined;
 }
 
-/**
- * A single entity-level permission requirement evaluated against a concrete,
- * already-loaded domain entity (not the request payload).
- */
-export interface EntityPermissionCheck {
-  /** The action to check (e.g. `'update'`, `'delete'`). */
-  action: string;
-  /** The subject type the entity represents (e.g. `'User'`). */
-  subject: string;
+export interface CaslAuthorizerOptions {
   /**
-   * The loaded entity instance (or its snapshot). Its attributes are matched
-   * against the capability conditions — this is what makes
-   * ownership/department/tenant rules actually enforceable.
+   * If true, this authorizer operates in explicit bypass mode, allowing all
+   * actions and returning entity snapshots without evaluation.
+   *
+   * Must only be enabled for trusted/internal system flows where authorization
+   * is handled externally or deliberately bypassed.
+   *
+   * @default false
    */
-  entity: Record<string, unknown>;
-  /**
-   * Optional field names being mutated. When provided, each field is checked
-   * individually so field-level grants/denials (e.g. allow `username`, deny
-   * `salary`) are honoured.
-   */
-  fields?: string[];
+  bypass?: boolean;
+}
+
+export interface CaslBypassContext {
+  bypass: true;
 }
 
 /**
- * Assert that the given ability permits an action against a concrete entity
- * instance, throwing a NestJS {@link ForbiddenException} otherwise.
+ * Pluggable authorizer service backed by CASL.
  *
- * This is the recommended second phase of CASL authorization for mutations:
- *
- * 1. {@link CaslBehavior} performs the cheap type-level / request-payload check
- *    before the handler runs (fail fast, no DB round-trip).
- * 2. The handler loads the target entity and calls
- *    {@link assertEntityPermission} so conditions that depend on the entity's
- *    persisted attributes are enforced.
- *
- * @example Supervisor may only update users in their own department
- * ```ts
- * const ability = getCaslAbility();
- * if (ability) {
- *   assertEntityPermission(ability, {
- *     action: 'update',
- *     subject: 'User',
- *     entity: user.toJSON(),
- *     fields: changedFields,
- *   });
- * }
- * ```
- *
- * @throws {ForbiddenException} When the ability denies the action (optionally
- *         for a specific field) on the entity.
+ * Exposes generic `authorize()` and `can()` methods usable both inside pipeline
+ * behaviors (with string subjects) and inside application command/query handlers
+ * (with loaded entity instances).
  */
-export function assertEntityPermission(
-  ability: AppAbility,
-  check: EntityPermissionCheck,
-): void {
-  const typedSubject = caslSubject(
-    check.subject,
-    { ...check.entity },
-  ) as unknown as string;
+@Injectable()
+export class CaslAuthorizer implements IEntityAuthorizer {
+  private readonly ability?: AppAbility;
+  private readonly bypass: boolean;
 
-  const guard = ForbiddenError.from(ability);
+  constructor(
+    @Optional() abilityOrOptions?: AppAbility | CaslAuthorizerOptions,
+    @Optional() options?: CaslAuthorizerOptions,
+  ) {
+    if (
+      abilityOrOptions &&
+      typeof (abilityOrOptions as AppAbility).can !== 'function' &&
+      typeof abilityOrOptions === 'object' &&
+      'bypass' in abilityOrOptions
+    ) {
+      this.ability = undefined;
+      this.bypass = !!(abilityOrOptions as CaslAuthorizerOptions).bypass;
+    } else {
+      this.ability = abilityOrOptions as AppAbility | undefined;
+      this.bypass = !!options?.bypass;
+    }
+  }
 
-  try {
-    if (check.fields && check.fields.length > 0) {
-      for (const field of check.fields) {
-        guard.throwUnlessCan(check.action, typedSubject, field);
+  /**
+   * Create an authorizer instance that explicitly bypasses all authorization checks.
+   * Use only for trusted or internal flows.
+   */
+  static bypass(): CaslAuthorizer {
+    return new CaslAuthorizer(buildBypassAbility(), { bypass: true });
+  }
+
+  /**
+   * Evaluates permissions and returns the authorized subject or masked snapshot,
+   * or throws an {@link UnauthorizedActionException} if access is forbidden.
+   */
+  authorize<T = unknown>(
+    action: string,
+    subject: object | string,
+    fields?: string[],
+  ): T;
+  authorize<T = unknown>(
+    actorOrAbility:
+      | CaslUserContext
+      | AppAbility
+      | CaslBypassContext
+      | undefined,
+    action: string,
+    subject: object | string,
+    fields?: string[],
+  ): T;
+  authorize<T = unknown>(...args: unknown[]): T {
+    let ability: AppAbility | undefined;
+    let action: string;
+    let subject: object | string;
+    let fields: string[] | undefined;
+    let explicitBypass = false;
+
+    const isActorOrAbilitySignature =
+      args.length >= 4 ||
+      (args.length === 3 &&
+        typeof args[0] !== 'string' &&
+        typeof args[1] === 'string');
+
+    if (isActorOrAbilitySignature) {
+      // (actorOrAbility, action, subject, fields?)
+      const [actorOrAbility, act, subj, flds] = args;
+      action = act as string;
+      subject = subj as object | string;
+      fields = flds as string[] | undefined;
+
+      if (
+        actorOrAbility &&
+        typeof (actorOrAbility as AppAbility).can === 'function'
+      ) {
+        ability = actorOrAbility as AppAbility;
+      } else if (
+        actorOrAbility &&
+        typeof actorOrAbility === 'object' &&
+        (actorOrAbility as CaslBypassContext).bypass === true
+      ) {
+        explicitBypass = true;
+      } else {
+        ability = this.ability ?? getCaslAbility();
       }
     } else {
-      guard.throwUnlessCan(check.action, typedSubject);
+      // (action, subject, fields?)
+      const [act, subj, flds] = args;
+      action = act as string;
+      subject = subj as object | string;
+      fields = flds as string[] | undefined;
+      ability = this.ability ?? getCaslAbility();
     }
-  } catch (error: unknown) {
-    if (error instanceof ForbiddenError) {
-      throw new ForbiddenException(
-        'Access denied — insufficient permissions.',
-      );
+
+    if (this.bypass || explicitBypass) {
+      return (
+        typeof (subject as { toJSON?: () => unknown })?.toJSON === 'function'
+          ? (subject as { toJSON: () => unknown }).toJSON()
+          : subject
+      ) as T;
     }
-    throw error;
+
+    if (!ability) {
+      const { subjectType, entityId } = this.resolveSubjectInfo(subject);
+      throw new UnauthorizedActionException({
+        action,
+        subject: subjectType,
+        entityId,
+        reason: `Access denied: insufficient permissions to ${action} ${subjectType} (no authorization ability present in context).`,
+      });
+    }
+
+    const { subjectType, entityRecord, entityId, typedSubject } =
+      this.resolveSubjectInfo(subject);
+
+    if (action === 'read') {
+      if (!ability.can('read', typedSubject)) {
+        throw new UnauthorizedActionException({
+          action: 'read',
+          subject: subjectType,
+          entityId,
+          reason: `Access denied: insufficient permissions to read ${subjectType}.`,
+        });
+      }
+
+      if (entityRecord) {
+        return projectReadableFields(ability, typedSubject, entityRecord) as T;
+      }
+
+      return (entityRecord ?? subject) as T;
+    }
+
+    if (fields && fields.length > 0) {
+      for (const field of fields) {
+        const fieldStr = String(field);
+        if (!ability.can(action, typedSubject, fieldStr)) {
+          throw new UnauthorizedActionException({
+            action,
+            subject: subjectType,
+            entityId,
+            fields: [fieldStr],
+            reason: `Access denied: insufficient permissions to ${action} ${subjectType} field "${fieldStr}".`,
+          });
+        }
+      }
+    } else if (!ability.can(action, typedSubject)) {
+      throw new UnauthorizedActionException({
+        action,
+        subject: subjectType,
+        entityId,
+        reason: `Access denied: insufficient permissions to ${action} ${subjectType}.`,
+      });
+    }
+
+    return (entityRecord ?? subject) as T;
+  }
+
+  /**
+   * Check whether the action is permitted on the given subject/field.
+   */
+  can(action: string, subject: object | string, field?: string): boolean;
+  can(
+    action: string,
+    subject: string,
+    entity: Record<string, unknown>,
+    field?: string,
+  ): boolean;
+  can(...args: unknown[]): boolean {
+    if (this.bypass) return true;
+
+    const ability = this.ability ?? getCaslAbility();
+    if (!ability) return false;
+
+    if (
+      args.length >= 3 &&
+      typeof args[1] === 'string' &&
+      typeof args[2] === 'object' &&
+      args[2] !== null
+    ) {
+      // Legacy 4-arg signature from IEntityAuthorizer: can(action, subjectStr, entityRecord, field?)
+      const [action, subjectStr, entityRecord, field] = args as [
+        string,
+        string,
+        Record<string, unknown>,
+        string?,
+      ];
+      const typed = caslSubject(subjectStr, {
+        ...entityRecord,
+      }) as unknown as string;
+      return field
+        ? ability.can(action, typed, field)
+        : ability.can(action, typed);
+    }
+
+    const [action, subject, field] = args as [string, object | string, string?];
+    const { typedSubject } = this.resolveSubjectInfo(subject);
+    return field
+      ? ability.can(action, typedSubject, field)
+      : ability.can(action, typedSubject);
+  }
+
+  private resolveSubjectInfo(subject: object | string): {
+    subjectType: string;
+    entityRecord?: Record<string, unknown>;
+    entityId?: string | number;
+    typedSubject: string;
+  } {
+    if (typeof subject === 'string') {
+      return {
+        subjectType: subject,
+        typedSubject: subject,
+      };
+    }
+
+    const subjectType =
+      subject.constructor?.name && subject.constructor.name !== 'Object'
+        ? subject.constructor.name
+        : 'Object';
+
+    const entityRecord: Record<string, unknown> =
+      typeof (subject as { toJSON?: () => unknown }).toJSON === 'function'
+        ? ((subject as { toJSON: () => unknown }).toJSON() as Record<
+            string,
+            unknown
+          >)
+        : (subject as Record<string, unknown>);
+
+    const entityId =
+      (subject as { id?: string | number }).id ??
+      (entityRecord?.id as string | number | undefined);
+
+    const typedSubject = caslSubject(subjectType, {
+      ...entityRecord,
+    }) as unknown as string;
+
+    return {
+      subjectType,
+      entityRecord,
+      entityId,
+      typedSubject,
+    };
   }
 }
+
+/**
+ * Backward compatibility alias for {@link CaslAuthorizer}.
+ */
+export const CaslEntityAuthorizer = CaslAuthorizer;
+export type CaslEntityAuthorizer = CaslAuthorizer;

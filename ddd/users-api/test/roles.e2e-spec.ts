@@ -83,13 +83,35 @@ describe('roles-api (e2e)', () => {
       expect(res.body.id.length).toBeGreaterThan(0);
     });
 
-    it('rejects a duplicate role name with 400', async () => {
+    it('replays a duplicate role create for the same principal', async () => {
       const name = newRoleName();
       const first = await createRole(admin, name);
       expect(first.status).toBe(201);
 
       const duplicate = await createRole(admin, name);
-      expect(duplicate.status).toBe(400);
+      expect(duplicate.status).toBe(201);
+      expect(duplicate.body).toEqual(first.body);
+    });
+
+    it('rejects creating a role with an existing name by a different principal with UniqueRoleNameException (409)', async () => {
+      const name = newRoleName();
+      const first = await createRole(admin, name);
+      expect(first.status).toBe(201);
+
+      const secondAdmin = JSON.stringify({
+        id: 'admin-2',
+        email: 'admin2@acme.test',
+        department: 'platform',
+        capabilities: { roles: [], additionalCapabilities: ['all|manage|*'] },
+      });
+
+      const conflict = await createRole(secondAdmin, name);
+      expect(conflict.status).toBe(409);
+      expect(conflict.body).toMatchObject({
+        statusCode: 409,
+        error: 'Conflict',
+        message: `Role with name "${name}" already exists`,
+      });
     });
 
     it('rejects a name shorter than the minimum of 3 characters (400)', async () => {
@@ -208,7 +230,7 @@ describe('roles-api (e2e)', () => {
       expect(res.body).toMatchObject({ id: created.body.id, name: renamed });
     });
 
-    it('rejects renaming a role to an already existing name (400)', async () => {
+    it('rejects renaming a role to an already existing name (409)', async () => {
       const existingName = newRoleName();
       await createRole(admin, existingName);
 
@@ -218,7 +240,7 @@ describe('roles-api (e2e)', () => {
         .patch(`/roles/${toRename.body.id}`)
         .send({ name: existingName });
 
-      expect(res.status).toBe(400);
+      expect(res.status).toBe(409);
     });
 
     it('returns 404 when updating an unknown role UUID', async () => {

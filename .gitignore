@@ -9,6 +9,9 @@ node_modules/
 dist/
 build/
 .cache/
+ddd/users-api/src/persistence/*.db
+ddd/users-api/src/persistence/*.db-*
+ddd/users-api/src/persistence/migrations/.snapshot*
 
 # Coverage
 coverage/
@@ -25,6 +28,11 @@ Thumbs.db
 
 # TypeScript
 *.tsbuildinfo
+
+# Generated only during package tarball creation
+packages/*/.package-licenses.generated
+packages/*/LICENSE
+packages/*/COMMERCIAL_LICENSE.txt
 
 # Editor
 .vscode/settings.json

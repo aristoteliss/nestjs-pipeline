@@ -47,8 +47,8 @@ export interface AuditError {
 }
 
 /**
- * A single audit-trail entry — the serializable, JSON-friendly snapshot of one
- * pipeline operation (who did what, when, with what outcome), forwarded to an
+ * A single audit-trail entry for one pipeline operation (who did what, when,
+ * and with what outcome), forwarded to an
  * {@link AuditSink}.
  *
  * Unlike a dead letter (failures only), an audit record is written for **both**
@@ -60,6 +60,8 @@ export interface AuditRecord {
   id: string;
   /** Correlation ID of the pipeline run (for cross-system tracing). */
   correlationId: string;
+  /** Active tenant identifier if execution occurred within a multi-tenant context. */
+  tenantId?: string;
   /** Logical action name, e.g. `user.create`. Defaults to the request name. */
   action: string;
   /** Severity of the action. Defaults to `'medium'` (`'low'` for queries). */

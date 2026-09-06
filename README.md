@@ -11,12 +11,19 @@ HTTP Request
 ```
 
 > **Same-class override:** if a handler's `@UsePipeline` declares the same
-> behavior class as a global `before`/`after` entry, the handler's entry replaces
-> the global one for that handler — the behavior runs **once**, using the
-> handler's options. This lets a handler tune (e.g.) `LoggingBehavior` without it
-> executing twice.
+> behavior class as a global `before`/`after` entry, the behavior runs **once at
+> its global chain position**, using the handler's options. Preserving position
+> keeps global security guards outside cache/idempotency behaviors that may
+> short-circuit without calling `next()`.
+>
+> Global type-level guards do not replace entity checks or field filtering
+> performed inside a handler. Because cache/idempotency hits skip that handler,
+> their keys must include the relevant tenant, principal, and permission scope
+> whenever results depend on those checks.
 
-Zero additional runtime dependencies beyond NestJS itself. Works with Express and Fastify.
+The core package adds no runtime dependencies beyond NestJS itself. Add-on packages
+use their own declared integrations (Zod, OpenTelemetry, CASL, OpenFeature, etc.).
+Works with Express and Fastify.
 
 ---
 
@@ -76,16 +83,16 @@ Zero additional runtime dependencies beyond NestJS itself. Works with Express an
 |---|---|
 | [`@nestjs-pipeline/core`](packages/pipeline) | Pipeline engine, `@UsePipeline` decorator, `PipelineModule`, `LoggingBehavior` |
 | [`@nestjs-pipeline/correlation`](packages/pipeline-correlation) | Standalone correlation ID propagation — HTTP middleware, `@WithCorrelation`, `runWithCorrelationId`, `getCorrelationId` |
-| [`@nestjs-pipeline/zod`](packages/pipeline-zod) | Zod v4 validation behavior, `ZodPipe`, `ZodValidationFilter`, `ZodValidationError` |
+| [`@nestjs-pipeline/zod`](packages/pipeline-zod) | Zod v4 validation/parsing behavior that applies successful parsed object output to the request, plus `ZodPipe`, `ZodValidationFilter`, `ZodValidationError` |
 | [`@nestjs-pipeline/opentelemetry`](packages/pipeline-opentelemetry) | OpenTelemetry tracing & metrics behaviors — spans plus duration/throughput/error instruments for every pipeline invocation |
 | [`@nestjs-pipeline/casl`](packages/pipeline-casl) | CASL ABAC authorization behavior — role-based capability trees, condition interpolation, inline `rules` on `CaslBehaviorOptions` |
 | [`@nestjs-pipeline/resilience`](packages/pipeline-resilience) | Resilience & transient-fault-handling behavior — retry, circuit breaker, timeout, bulkhead, fallback (powered by cockatiel) |
 | [`@nestjs-pipeline/cache`](packages/pipeline-cache) | Read-through caching behavior for queries — pluggable stores (memory, redis, memcache, sqlite, postgres) via cache-manager v7 on keyv |
-| [`@nestjs-pipeline/feature-flags`](packages/pipeline-feature-flags) | Feature-flag gating behavior — provider-agnostic via OpenFeature (Unleash default, Flagsmith/LaunchDarkly drop-in) |
-| [`@nestjs-pipeline/deadletter`](packages/pipeline-deadletter) | Dead-letter capture behavior for failed requests — transport-agnostic (BullMQ default, RabbitMQ/Postgres drop-in) |
+| [`@nestjs-pipeline/feature-flags`](packages/pipeline-feature-flags) | Feature-flag gating behavior — provider-agnostic via OpenFeature (Unleash shown in examples; Flagsmith/LaunchDarkly are drop-in alternatives) |
+| [`@nestjs-pipeline/deadletter`](packages/pipeline-deadletter) | Dead-letter capture-attempt behavior for failed requests — transport-agnostic with bundled BullMQ, RabbitMQ, and Postgres transports |
 | [`@nestjs-pipeline/rate-limit`](packages/pipeline-rate-limit) | Rate-limiting behavior — backend-agnostic via rate-limiter-flexible (memory, Redis/Valkey, Mongo, SQL), HTTP 429 filter |
 | [`@nestjs-pipeline/audit`](packages/pipeline-audit) | Audit-trail behavior — records who/what/outcome/duration to a pluggable `AuditSink` (console default, Postgres drop-in), with payload redaction |
-| [`@nestjs-pipeline/idempotency`](packages/pipeline-idempotency) | Idempotency behavior — at-most-once command execution per key with response replay, via a pluggable store (in-memory default, Redis/Postgres drop-in) |
+| [`@nestjs-pipeline/idempotency`](packages/pipeline-idempotency) | Idempotency behavior — atomic concurrent duplicate exclusion and successful-response replay per key; failed executions are retryable by default, via a pluggable store (in-memory default, Redis/Postgres drop-in) |
 
 > Add-on packages live in `packages/pipeline-<name>/` and peer-depend on `@nestjs-pipeline/core`.
 
@@ -93,11 +100,11 @@ Zero additional runtime dependencies beyond NestJS itself. Works with Express an
 
 | Package | Version |
 |---|---|
-| `@nestjs-pipeline/core` | `0.1.18` |
-| `@nestjs-pipeline/correlation` | `0.1.8` |
-| `@nestjs-pipeline/zod` | `0.1.6` |
-| `@nestjs-pipeline/opentelemetry` | `0.2.0` |
-| `@nestjs-pipeline/casl` | `0.1.1` |
+| `@nestjs-pipeline/core` | `0.1.19` |
+| `@nestjs-pipeline/correlation` | `0.1.9` |
+| `@nestjs-pipeline/zod` | `0.1.7` |
+| `@nestjs-pipeline/opentelemetry` | `0.1.9` |
+| `@nestjs-pipeline/casl` | `0.1.2` |
 | `@nestjs-pipeline/resilience` | `0.1.0` |
 | `@nestjs-pipeline/cache` | `0.1.0` |
 | `@nestjs-pipeline/feature-flags` | `0.1.0` |
@@ -126,6 +133,7 @@ pnpm add @nestjs-pipeline/deadletter bullmq        # dead-letter failed requests
 pnpm add @nestjs-pipeline/rate-limit rate-limiter-flexible  # rate limiting (memory, Redis/Valkey, Mongo, SQL backends)
 pnpm add @nestjs-pipeline/audit   # audit trail (console default; + optional pg for Postgres)
 pnpm add @nestjs-pipeline/idempotency   # idempotent commands (in-memory default; + optional redis/pg)
+pnpm add @nestjs-pipeline/feature-flags @openfeature/server-sdk  # feature flags (provider adapters optional)
 
 # Optional: pino logger integration
 pnpm add nestjs-pino pino-http pino-pretty
@@ -149,12 +157,16 @@ import { TraceBehavior } from '@nestjs-pipeline/opentelemetry';
       // Bridge correlation IDs from @nestjs-pipeline/correlation into the pipeline
       correlationIdFactory: getCorrelationId,
       correlationIdRunner: runWithCorrelationId,
+      // Eagerly resolve tenant ID per pipeline execution (optional)
+      // tenantIdFactory: () => TenantContext.currentTenant,
       globalBehaviors: {
         scope: 'all',                // 'commands' | 'queries' | 'events' | 'all'
-        before: [LoggingBehavior],   // runs first (outermost)
+        before: [
+          LoggingBehavior,          // outermost; may observe raw input
+          ZodValidationBehavior,     // normalizes before handler policies
+        ],
         after: [                     // runs closest to the handler
           [TraceBehavior, { tracerName: 'my-service' }],
-          ZodValidationBehavior,
         ],
       },
     }),
@@ -171,31 +183,17 @@ export class AppModule implements NestModule {
 
 ```typescript
 // create-user.command.ts
+import { createCommand } from '@nestjs-pipeline/zod';
 import { z } from 'zod';
-import { ZodValidationError } from '@nestjs-pipeline/zod';
 
 // 1. Define the schema
 const schema = z.object({
   username: z.string().min(4),
-  email: z.email(),
+  email: z.string().email(),
 });
 
-// 2. Build a helper that creates a self-validating class
-function createRequest<T extends z.ZodRawShape>(s: z.ZodObject<T>) {
-  type Input = z.infer<z.ZodObject<T>>;
-  return class {
-    static readonly _zodSchema = s;                  // ZodValidationBehavior reads this
-    constructor(input: Input) {
-      const result = s.safeParse(input);
-      if (!result.success) throw new ZodValidationError(result.error);
-      Object.assign(this, result.data);
-    }
-  };
-}
-
-// 3. Create the command — fully typed, self-validating
-export interface CreateUserCommand extends z.infer<typeof schema> {}
-export class CreateUserCommand extends createRequest(schema) {}
+// 2. Create the command — fully typed, self-validating, Standard Schema compatible
+export class CreateUserCommand extends createCommand(schema) {}
 
 // Usage:
 // const cmd = new CreateUserCommand({ username: 'jane', email: 'jane@example.com' });
@@ -239,6 +237,11 @@ export class CreateUserHandler implements ICommandHandler<CreateUserCommand> {
   }
 }
 ```
+
+This constructor helper is intentionally synchronous and therefore requires a
+synchronous schema. If the schema uses async refinements or transforms, validate
+with `safeParseAsync()` in `ZodValidationBehavior`/`ZodPipe` instead of doing it
+in a JavaScript constructor.
 
 ### 5. Wire Up the Controller
 
@@ -492,8 +495,7 @@ export class RetryBehavior implements IPipelineBehavior {
 PipelineModule.forRoot({
   globalBehaviors: {
     scope: 'all',
-    before: [MetricsBehavior, LoggingBehavior],
-    after:  [ZodValidationBehavior],
+    before: [MetricsBehavior, LoggingBehavior, ZodValidationBehavior],
   },
 })
 
@@ -522,12 +524,17 @@ PipelineModule.forRoot({
 )
 export class CreateUserHandler { /* ... */ }
 
-// ── Feature module: register behaviors owned by a specific module ──
+// ── Feature module: register feature-owned behaviors application-wide ──
 @Module({
   imports: [PipelineModule.forFeature([AuditBehavior, CachingBehavior])],
 })
 export class AuditModule {}
 ```
+
+`PipelineModule` is global, so `forFeature()` records where behavior providers
+are owned but does not isolate them to that feature's module hierarchy. Once the
+feature is imported, the registered behaviors are discoverable by
+`@UsePipeline()` throughout the application.
 
 ---
 
@@ -542,9 +549,11 @@ export class AuditModule {}
 ```
 
 1. **`PipelineBootstrapService`** scans all CQRS handlers at startup via `@nestjs/cqrs` `ExplorerService`.
-2. For each handler it pre-resolves behavior instances, metadata, and builds the chain once — zero reflection or DI lookups at request time.
-3. Per invocation: creates a `PipelineContext`, resolves correlation ID, runs the chain inside `AsyncLocalStorage` for nested propagation.
-4. Supports **singleton** and **request-scoped** handlers (`Scope.REQUEST`, `Scope.TRANSIENT`).
+2. For each matching handler it precomputes request-independent metadata and resolves singleton behavior instances. Behaviors that cannot be resolved as singletons are marked for per-invocation resolution.
+3. Per invocation: creates a `PipelineContext`, resolves any dynamic/request-scoped/transient behaviors with the applicable Nest context ID, resolves correlation ID, and runs the chain inside `AsyncLocalStorage` for nested propagation.
+4. The common all-singleton path reuses the pre-resolved instances with no request-time reflection or behavior DI lookup; scoped/dynamic behaviors intentionally use request-time DI resolution.
+5. Supports **singleton** handlers on Nest CQRS 10. Request-scoped/transient
+   handlers (`Scope.REQUEST`, `Scope.TRANSIENT`) require Nest CQRS 11+.
 
 ### Execution Order
 
@@ -557,7 +566,9 @@ export class AuditModule {}
 
 ### Deduplication
 
-When both global and handler-level configurations include the same behavior class, the **handler-level entry wins** (including its options). Global duplicates are deduplicated automatically.
+When both global and handler-level configurations include the same behavior
+class, the handler's complete options record wins while the behavior retains
+its global chain position. Global duplicates are deduplicated automatically.
 
 ```typescript
 // Global config
@@ -576,10 +587,13 @@ PipelineModule.forRoot({
 export class CreateUserHandler { /* ... */ }
 
 // Effective chain for CreateUserHandler:
-//   [LoggingBehavior (handler opts)] → handler
-// NOT:
-//   [LoggingBehavior (global)] → [LoggingBehavior (handler)] → handler
+//   [LoggingBehavior at global-before position, using handler opts] → handler
 ```
+
+Configure mandatory authentication/authorization behaviors in global `before`.
+Core preserves that outer position even when a handler redeclares the behavior
+to provide rules or other options, preventing inner cache/idempotency hits from
+bypassing the guard.
 
 ---
 
@@ -684,7 +698,7 @@ export class SyncScheduler {
 
 ### Nested Commands (Sagas)
 
-Sagas do **not** need `@UsePipeline`. Commands emitted by a saga flow through the `CommandBus` and hit the target handler's pipeline automatically. The child pipeline inherits the parent's `correlationId` via `AsyncLocalStorage`:
+Sagas do **not** need `@UsePipeline`. Commands emitted by a saga flow through the `CommandBus` and hit the target handler's pipeline automatically. The child pipeline inherits the parent's `correlationId` and `tenantId` via `AsyncLocalStorage`:
 
 ```typescript
 // Saga — no @UsePipeline needed
@@ -695,7 +709,7 @@ export class OrderSagas {
     events$.pipe(
       ofType(OrderCreatedEvent),
       map((event) => new SendOrderConfirmationCommand({ orderId: event.orderId })),
-      // ↑ This command inherits the correlationId from the parent pipeline context
+      // ↑ This command inherits correlationId & tenantId from the parent pipeline context
     );
 }
 ```
@@ -782,8 +796,9 @@ Every behavior receives `IPipelineContext`:
 
 | Property | Type | Description |
 |---|---|---|
-| `correlationId` | `string` | Mutable correlation ID — behaviors may override it |
+| `correlationId` | `string` | Immutable ID fixed before the behavior chain starts |
 | `originalCorrelationId` | `string` | Immutable snapshot of the initial correlation ID |
+| `tenantId` | `string \| undefined` | Active tenant identifier (inherited from parent context or resolved via `tenantIdFactory`) |
 | `request` | `TRequest` | The command / query / event instance |
 | `requestType` | `Type<TRequest>` | Class constructor (e.g. `CreateUserCommand`) |
 | `requestName` | `string` | Class name string (e.g. `"CreateUserCommand"`) |
@@ -792,7 +807,7 @@ Every behavior receives `IPipelineContext`:
 | `requestKind` | `'command' \| 'query' \| 'event' \| 'unknown'` | Auto-detected from `@nestjs/cqrs` metadata |
 | `startedAt` | `Date` | UTC timestamp of pipeline start |
 | `response` | `TResponse \| undefined` | Set after `next()` returns; `undefined` before handler runs |
-| `items` | `Map<string, any>` | Shared bag for inter-behavior communication |
+| `items` | `Map<string \| symbol, unknown>` | Shared bag for inter-behavior communication |
 
 ### Using `items` for Inter-Behavior Communication
 
@@ -861,6 +876,11 @@ PipelineModule.forRoot({
   },
 })
 ```
+
+When the same behavior has options at both global and handler level, the handler
+entry replaces its **whole options record** while the behavior retains its
+global chain position. The core does not shallow-merge individual properties
+inside those two records.
 
 ---
 
@@ -944,7 +964,7 @@ export class CreateUserHandler { /* ... */ }
 @UsePipeline([LoggingBehavior, { metricLogLevel: 'none', requestResponseLogLevel: 'none' }])
 ```
 
-`LoggingBehavior` logs under the **handler's** context, not its own — it calls `setContext(context.handlerName)` on the injected logger before logging, so the bracketed tag below is the handler name. With `excludeRequestObj: false, excludeResponseObj: false`:
+`LoggingBehavior` logs under the **handler's** context, not its own. The handler name is passed with each log call, so a singleton logger is never mutated and concurrent handlers cannot overwrite one another's context. With `excludeRequestObj: false, excludeResponseObj: false`:
 
 **Output example** (on success):
 
@@ -968,35 +988,43 @@ Comprehensive Zod v4 integration at every layer of a NestJS CQRS application.
 
 ### Pipeline-Level Validation
 
-Register `ZodValidationBehavior` globally. It auto-validates any request class that has a static `_zodSchema` property (set automatically by the `createRequest()` helper):
+Register `ZodValidationBehavior` globally. It parses any request class that has a
+static `_zodSchema` property (set automatically by `createCommand()`, `createQuery()`, or `createZodRequest()`):
 
 ```typescript
 // app.module.ts
 PipelineModule.forRoot({
   globalBehaviors: {
     scope: 'all',
-    after: [ZodValidationBehavior],  // validates before the handler runs
+    before: [ZodValidationBehavior], // normalizes before per-handler behaviors
   },
 })
 
 // create-user.command.ts
+import { createCommand } from '@nestjs-pipeline/zod';
 import { z } from 'zod';
 
 const schema = z.object({
   username: z.string().min(4),
-  email: z.email(),
+  email: z.string().email(),
 });
 
-export interface CreateUserCommand extends z.infer<typeof schema> {}
-export class CreateUserCommand extends createRequest(schema) {}
-//                                       ↑ attaches schema as static _zodSchema
+// Generates self-validating class with static _zodSchema, ~standard (NestJS 12), and static parse()/safeParse()
+export class CreateUserCommand extends createCommand(schema) {}
+//                                       ↑ attaches schema as static _zodSchema, sets requestKind: 'command'
 ```
 
-If validation fails, `ZodValidationBehavior` throws a `ZodValidationError` with structured details from `ZodError.flatten()`.
+If parsing fails, `ZodValidationBehavior` throws a `ZodValidationError` with
+structured details from `ZodError.flatten()`. On successful object output, it
+updates the existing request object to match the parsed data before the next
+behavior/handler runs: keys omitted by the parsed result are removed and parsed,
+coerced, transformed, or defaulted values are assigned to that same request.
+The behavior uses Zod's async parser, so asynchronous refinements and
+transforms are supported.
 
 ### Controller-Level Validation with ZodPipe
 
-`ZodPipe` validates `@Body()`, `@Param()`, `@Query()` values against a Zod schema — including transform schemas:
+`ZodPipe` asynchronously validates `@Body()`, `@Param()`, `@Query()` values against a Zod schema — including synchronous or asynchronous transform/refinement schemas. NestJS awaits the pipe's promise automatically:
 
 ```typescript
 import { z } from 'zod';
@@ -1100,7 +1128,7 @@ async function bootstrap() {
 
 ### Attaching Schemas to Plain Event Classes
 
-Event classes that don't use `createRequest()` can still be validated by attaching the schema manually:
+Event classes that don't use `createZodRequest()` can still be parsed/validated by attaching the schema manually:
 
 ```typescript
 import { ZOD_SCHEMA_KEY } from '@nestjs-pipeline/zod';
@@ -1191,7 +1219,12 @@ Metric attributes are intentionally **low-cardinality** (no `correlation_id`/`st
 
 ### No SDK? No Problem.
 
-If the OpenTelemetry SDK is not initialized, both behaviors degrade gracefully — `TraceBehavior` passes through without spans, `MetricsBehavior` records to a no-op meter. A warning is logged once at startup:
+If the OpenTelemetry SDK is not initialized, both behaviors remain safe:
+`TraceBehavior` passes through without spans, while `MetricsBehavior` still does
+its normal timing and metric-recording calls against a no-op meter, so recordings
+are discarded. Telemetry unavailability does not make either behavior throw, but
+the metrics path is not a literal zero-overhead path. A warning is logged once at
+startup:
 
 ```
 [Nest] WARN [TraceBehavior] OpenTelemetry SDK is NOT initialized — TraceBehavior will pass through without tracing.
@@ -1210,9 +1243,9 @@ The `@nestjs-pipeline/ddd-core` package (`ddd/core/`) provides the foundational 
 
 | Export                | Description                                                                           |
 |-----------------------|-----------------------------------------------------------------------------------------|
-| `RootEntity`          | Abstract base entity with UUID v7 identity, `createdAt`/`updatedAt` lifecycle, and mutation tracking |
-| `CacheableEntity`     | Extends `RootEntity` — adds `cacheKey` (`<prefixKey><id>`) used by `@Cache`/`@FromCache` decorators |
+| `RootEntity`          | Abstract base entity with UUID v7 identity, `createdAt`/`updatedAt` lifecycle, accessor mappings, and mutation tracking |
 | `RootEntitySnapshot`  | Interface for serializing/rehydrating entities                                        |
+| `DomainException`     | Abstract base class for framework-agnostic domain invariant exceptions                  |
 | `DomainEvent`         | Abstract base class for domain events (carries a UUID v7 `id`)                        |
 | `RootDomainEvent`     | Domain event that carries a reference to the originating entity                       |
 | `DomainOutcome`       | Base outcome class — bundles domain events produced by an operation                   |
@@ -1221,14 +1254,14 @@ The `@nestjs-pipeline/ddd-core` package (`ddd/core/`) provides the foundational 
 | `ICache<T>`           | Interface for cache providers (`get`, `set`, `delete`)                                |
 | `CommandRepository`   | Abstract base for write repositories — holds an `ICache` and defines `save(outcome)` |
 | `QueryRepository`     | Abstract base for read repositories — holds an `ICache` and defines `find(query)`    |
-| `@Cache()`            | Decorator for `save()` — write-through cache on successful writes, evict on delete   |
-| `@FromCache()`        | Decorator for `find()` — read-through cache with optional hydration function         |
+| `@Cache()`            | Decorator for `save()` — write-through cache on writes, evict on delete, explicit key derivations |
+| `@FromCache()`        | Decorator for `find()` — read-through cache with fail-closed semantics and optional hydration |
 | `Method`              | Utility type for extracting method signatures                                         |
 
 Import them in your domain layer:
 
 ```typescript
-import { CacheableEntity, RootDomainEvent, RootDomainOutcome, Mutate } from '@nestjs-pipeline/ddd-core';
+import { RootEntity, RootDomainEvent, RootDomainOutcome, Mutate, DomainException } from '@nestjs-pipeline/ddd-core';
 ```
 
 ### `ddd/users-api` — Full Working Application
@@ -1241,38 +1274,60 @@ pnpm install
 pnpm build              # build workspace dependencies
 cp .env.example .env    # create local environment file (edit as needed)
 pnpm db:migrate         # apply schema + data migrations (idempotent)
-pnpm dev                # start with tsx (hot-reload)
+pnpm dev                # start with ts-node (watch mode)
 ```
 
 Configure the database via environment variables (defaults to a local file):
 
 | Variable             | Default         | Description                          |
 |----------------------|-----------------|--------------------------------------|
-| `DATABASE_URL` | `file:src/persistence/local.db` | libSQL database URL (file or remote) |
+| `DATABASE_URL` | `file:src/persistence/local.db` | libSQL URL, used unchanged for one tenant |
+| `SQLITE_TENANTS` | _(none)_ | Additional libSQL tenant names; local files get a tenant suffix |
+| `SQLITE_DATABASE_TEMPLATE` | _(none)_ | URL containing `{tenant}`; required for multiple remote tenants |
 | `AUTH_TOKEN`   | _(none)_        | Auth token for libSQL remote databases (e.g. Turso) |
+
+Both persistence engines require `x-tenant-schema` on routed HTTP requests.
+PostgreSQL selects a schema; libSQL selects the corresponding database.
 
 **CRUD operations:**
 
 ```bash
+# Log in as the seeded admin, then copy `token` from the JSON response.
+curl -X POST http://localhost:3000/auth/login \
+  -H 'Content-Type: application/json' \
+  -H 'x-tenant-schema: tenant' \
+  -d '{"email":"alice+tenant@seed.local","code":"secret-code"}'
+export TOKEN='<token from login response>'
+
 # Create a user
 curl -X POST http://localhost:3000/users \
   -H 'Content-Type: application/json' \
+  -H 'x-tenant-schema: tenant' \
+  -H "Authorization: Bearer $TOKEN" \
   -H 'x-correlation-id: demo-123' \
   -d '{"name": "Aristotelis", "email": "aristotelis@example.com"}'
 
 # Get all users
-curl http://localhost:3000/users
+curl -X GET http://localhost:3000/users \
+  -H 'x-tenant-schema: tenant' \
+  -H "Authorization: Bearer $TOKEN"
 
 # Get by ID
-curl http://localhost:3000/users/<id>
+curl http://localhost:3000/users/<id> \
+  -H 'x-tenant-schema: tenant' \
+  -H "Authorization: Bearer $TOKEN"
 
 # Update
 curl -X PATCH http://localhost:3000/users/<id> \
   -H 'Content-Type: application/json' \
+  -H 'x-tenant-schema: tenant' \
+  -H "Authorization: Bearer $TOKEN" \
   -d '{"name": "NewName"}'
 
-# Delete
-curl -X DELETE http://localhost:3000/users/<id>
+# Delete a user
+curl -X DELETE http://localhost:3000/users/<user-id> \
+  -H 'x-tenant-schema: tenant' \
+  -H "Authorization: Bearer $TOKEN"
 
 # Run with Fastify adapter
 ADAPTER=fastify pnpm start
@@ -1281,22 +1336,26 @@ ADAPTER=fastify pnpm start
 **What it demonstrates:**
 
 - Global + per-handler pipeline behaviors
+- Decoupled domain invariants with framework-agnostic `DomainException` & presentation-boundary `DomainExceptionFilter` (mapping to 400, 409, 422)
+- Injectable `CaslAuthorizer` (`IEntityAuthorizer`) in CQRS command and query handlers, replacing static entity authorizer anti-patterns
 - Per-handler CASL authorization with inline `rules` on `CaslBehaviorOptions` and `CaslBehavior`
 - MikroORM-backed CASL providers (roles, capabilities, user context)
+- Official MikroORM `accessor: true` entity schemas bridging private aggregate fields to public accessors without TypeScript bypasses
+- Decoupled CQRS caching architecture with collision-safe key derivation (`filterCacheKey`), fail-fast handler templates (`cacheKeyTemplate`), and static aggregate naming (`User.aggregateName`)
 - Versioned database migrations with tracking (`mikro_orm_migrations` table)
-- Zod-validated commands, queries, and events via `createExecuteClass()`
+- Zod-parsed/validated commands and queries via `createCommand()` and `createQuery()` implementing NestJS 12 Standard Schema (`['~standard']`)
 - Controller-level `ZodPipe` validation
 - Zod transform mappers (DTO → Command mapping)
-- OpenTelemetry tracing with `TraceBehavior`
-- Global `DeadLetterBehavior` capturing failed commands/queries/events to a BullMQ `dead-letters` queue for inspection and replay (with `UserCreatedHandler` opting into `{ rethrow: false }` for fire-and-forget side effects)
+- OpenTelemetry tracing with `TraceBehavior` and metrics with `MetricsBehavior`
+- Command- and event-scoped `DeadLetterBehavior` sending failed executions to a BullMQ `dead-letters` queue for inspection and replay (restricted to mutating command and event failures, excluding read queries and validation errors, with `UserCreatedHandler` opting into `{ rethrow: false }` only after successful delivery); transport failures are logged and preserve the original handler error
 - Per-handler `RateLimitBehavior` throttling `CreateUserHandler` to 5 registrations / 60s per email (in-memory limiter), with `RateLimitExceededFilter` mapping breaches to HTTP 429 + `Retry-After`
 - Per-handler `AuditBehavior` recording the sensitive `user.delete` action (actor, outcome, duration, redacted payload) to the default `LogAuditSink`, with the actor resolved from the request-scoped session
-- Per-handler `IdempotencyBehavior` making `CreateUserHandler` idempotent per email (in-memory store default) — a retried POST replays the first response instead of creating a duplicate, with `IdempotencyConflictFilter` mapping in-flight duplicates to HTTP 409 and payload-mismatched key reuse to HTTP 422
-- DDD-style `User` entity built on `ddd-core` primitives (`CacheableEntity`, `RootDomainEvent`, `RootDomainOutcome`)
-- MikroORM (libSQL driver) persistence with a normalized schema
+- Per-handler `IdempotencyBehavior` atomically excluding concurrent duplicates for `CreateUserHandler` per tenant + principal + email and replaying completed successful responses; with the default `releaseOnError: true`, a failed execution releases the key so a later retry may execute again. `IdempotencyConflictFilter` maps in-flight duplicates to HTTP 409 and payload-mismatched key reuse to HTTP 422
+- DDD-style `User` and `Role` entities built on `ddd-core` primitives (`RootEntity`, `RootDomainEvent`, `RootDomainOutcome`)
+- MikroORM (libSQL and PostgreSQL drivers) persistence with multi-tenant database/schema isolation
 - Pluggable `ICache<T>` — `MikroOrmCache` (MikroORM-backed, TTL-aware) or `MemoryCache` swapped via a single provider token
-- Correlation ID propagation across handlers and events
-- Express and Fastify adapter support
+- Correlation ID propagation across HTTP middleware, handlers, processors, and events
+- Express and Fastify adapter support with secure session cookie and Bearer/API-key authentication
 
 ---
 
@@ -1331,7 +1390,7 @@ nestjs-pipeline/
 │   │       ├── errors/           # ZodValidationError
 │   │       ├── filters/          # ZodValidationFilter
 │   │       ├── pipes/            # ZodPipe
-│   │       └── zod-validation.behavior.ts
+│   │       └── zod-validation.behavior.ts  # parse/validate and apply successful object output
 │   ├── pipeline-casl/            # @nestjs-pipeline/casl
 │   │   └── src/
 │   │       ├── constants/        # Injection tokens
@@ -1372,8 +1431,8 @@ nestjs-pipeline/
 │   │       ├── constants/        # DEAD_LETTER_TRANSPORT, DEAD_LETTER_DEFAULT_OPTIONS tokens
 │   │       ├── helpers/          # buildDeadLetterRecord
 │   │       ├── interfaces/       # DeadLetterTransport, DeadLetterRecord, options types
-│   │       ├── transports/       # BullMQ (default), RabbitMQ, Postgres drop-in transports
-│   │       ├── dead-letter.behavior.ts   # DeadLetterBehavior (capture failed requests)
+│   │       ├── transports/       # BullMQ, RabbitMQ, Postgres bundled transports
+│   │       ├── dead-letter.behavior.ts   # DeadLetterBehavior (capture/send attempt for failed requests)
 │   │       └── dead-letter.module.ts
 │   ├── pipeline-rate-limit/      # @nestjs-pipeline/rate-limit
 │   │   └── src/
@@ -1400,7 +1459,7 @@ nestjs-pipeline/
 │           ├── helpers/          # fingerprintValue (stable payload hash)
 │           ├── interfaces/       # IdempotencyStore, IdempotencyRecord, options types
 │           ├── stores/           # Memory (default), Redis, Postgres drop-in stores
-│           ├── idempotency.behavior.ts   # IdempotencyBehavior (at-most-once + replay)
+│           ├── idempotency.behavior.ts   # IdempotencyBehavior (concurrent exclusion + successful replay)
 │           └── idempotency.module.ts
 └── ddd/
     ├── core/                     # @nestjs-pipeline/ddd-core — reusable DDD primitives
@@ -1416,7 +1475,7 @@ nestjs-pipeline/
             ├── auths/            # Auth CRUD + user-context resolver
             └── users/
                 ├── cqrs/         # Commands, queries, events
-                ├── domain/       # User entity, domain events, outcomes
+                ├── domain/       # User entity, domain events
                 └── persistence/  # Repositories
 ```
 
@@ -1431,8 +1490,13 @@ pnpm install
 # Build all packages
 pnpm build
 
-# Run all tests
+# Run builds, unit/integration tests, and Redis/PostgreSQL E2E (Docker required)
 pnpm test
+
+# Run individual stages
+pnpm test:unit
+pnpm test:build
+pnpm test:e2e
 
 # Type-check all packages
 pnpm lint
@@ -1453,7 +1517,10 @@ pnpm clean
    ```json
    {
      "peerDependencies": {
-       "@nestjs-pipeline/core": "*"
+       "@nestjs-pipeline/core": "^0.1.19"
+     },
+     "devDependencies": {
+       "@nestjs-pipeline/core": "workspace:*"
      }
    }
    ```

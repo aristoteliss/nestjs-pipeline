@@ -3,7 +3,7 @@
 [![npm version](https://img.shields.io/npm/v/@nestjs-pipeline/audit.svg)](https://www.npmjs.com/package/@nestjs-pipeline/audit)
 [![License](https://img.shields.io/npm/l/@nestjs-pipeline/audit.svg)](https://www.npmjs.com/package/@nestjs-pipeline/audit)
 
-Audit-trail behavior for `@nestjs-pipeline/core` — records **who did what, when, and with what outcome** for every command, query, and event handler, and forwards a serializable record to a pluggable **audit sink**.
+Audit-trail behavior for `@nestjs-pipeline/core` — records **who did what, when, and with what outcome** for every command, query, and event handler, and forwards the record to a pluggable **audit sink**. Captured application values must satisfy that sink's serialization requirements.
 
 Sink-agnostic: it depends only on a tiny `AuditSink` interface. A zero-dependency **console** sink is the default; **Postgres** is a genuine drop-in, and your own sink (event store, Kafka, HTTP collector, …) is a one-line swap — handlers never change. Records are written on **both success and failure**, sensitive payload fields are **redacted** by default, and the actor can be resolved from the pipeline context.
 
@@ -37,7 +37,8 @@ your audit storage and is easy to get wrong (forgetting failures, leaking
 passwords, missing the actor). This behavior centralizes it:
 
 - **Success *and* failure** — denied/rejected attempts are audited too (the part
-  most hand-rolled trails miss), then the error is re-thrown unchanged.
+  most hand-rolled trails miss). With the default `failOpen: true`, a handler
+  failure is re-thrown unchanged even if the audit sink also fails.
 - **Redaction built in** — `password`, `token`, `secret`, … are masked before
   anything is stored.
 - **Actor resolution** — pull the acting principal from `context.items` populated
@@ -210,7 +211,11 @@ AuditModule.forRoot({ sink: new KafkaAuditSink(producer) });
 ## Behavior
 
 `AuditBehavior` times the handler, builds an `AuditRecord`, and writes it to the
-sink — then returns the response (success) or re-throws (failure), unchanged.
+sink. On success it returns the handler response after the sink write. On handler
+failure it attempts to write the failure record and then re-throws the original
+handler error when the sink write succeeds or `failOpen: true` suppresses a sink
+failure. If the sink throws while `failOpen: false`, that sink error propagates;
+on the handler-failure path it can therefore replace the original handler error.
 The produced record is also stashed on `context.items` under `AUDIT_RECORD_ITEM`
 for any later behavior to read.
 
@@ -252,7 +257,7 @@ defaults passed to `AuditModule.forRoot({ defaults })`:
 | `redact` | `(value) => unknown` | — | Full custom redactor (replaces key-masking) |
 | `metadata` | `(ctx) => object` | — | Extra metadata merged into the record |
 | `includeStack` | `boolean` | `true` | Include the error stack on failure records |
-| `failOpen` | `boolean` | `true` | Continue if the sink throws, vs. surface the error |
+| `failOpen` | `boolean` | `true` | Log/ignore sink failures (`true`) or propagate the sink error (`false`) |
 
 ---
 
@@ -274,8 +279,17 @@ with `'[REDACTED]'`. The built-in `DEFAULT_REDACT_KEYS` cover common secrets
 }])
 ```
 
-`Date`, `Buffer`, and other non-plain objects are passed through untouched, and
-cyclic references are rendered as `'[Circular]'`.
+Non-plain values are cloned rather than returned by reference. `Map` entries,
+`Set` values, and enumerable `Error` properties are traversed recursively, so a
+sensitive string key such as `token` is masked there as well. Dates, regular
+expressions, buffers, array buffers, and typed views retain their value in the
+clone. Cyclic references are rendered as `'[Circular]'`.
+
+The bundled JSON sinks encode values that native `JSON.stringify()` would
+collapse using tagged objects such as `{ "$type": "Map", "entries": [...] }`,
+`{ "$type": "Set", "values": [...] }`, and explicit `RegExp`, `Error`, binary,
+non-finite-number, and array-hole representations. The console and Postgres
+sinks therefore preserve the same information after redaction.
 
 ---
 
@@ -304,10 +318,12 @@ context.items.set('currentUserId', user.id);
 
 When the **sink itself** throws (e.g. the audit DB is down):
 
-- **`failOpen: true`** (default) — the failure is logged as a warning and the
-  request continues. Favors availability.
-- **`failOpen: false`** — the sink error is surfaced, failing the request. Favors
-  a **guaranteed** audit trail (no action without a recorded audit).
+- **`failOpen: true`** (default) — the failure is logged as a warning and ignored.
+  A successful handler still returns its response, and if the handler had failed,
+  its original error remains the error seen by the caller. Favors availability.
+- **`failOpen: false`** — the sink error is propagated, failing the request. If
+  the handler had already failed, the sink write happens in that error path, so
+  the sink error replaces the handler error. Favors a fail-closed audit policy.
 
 Building the record never throws into your request; only the sink write is
 governed by `failOpen`.
@@ -320,7 +336,8 @@ governed by `failOpen`.
 |---|---|---|
 | `AuditBehavior` | class | The pipeline behavior |
 | `AuditModule` | class | `forRoot` / `forRootAsync` registration |
-| `AUDIT_RECORD_ITEM` | const | `context.items` key holding the produced record |
+| `AUDIT_RECORD_ITEM` | symbol | `context.items` exported unique Symbol key holding the produced record |
+
 | `AUDIT_SINK` / `AUDIT_DEFAULT_OPTIONS` | token | DI tokens |
 | `LogAuditSink` | class | Default zero-dep sink |
 | `PostgresAuditSink` | class | Postgres drop-in sink |

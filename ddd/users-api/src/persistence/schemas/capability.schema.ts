@@ -1,5 +1,5 @@
 /*
-* Copyright (C) 2026-present Aristotelis
+ * Copyright (C) 2026-present Aristotelis
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
@@ -14,21 +14,27 @@
  * See COMMERCIAL_LICENSE.txt in this repository for the tiered
  * revenue-based terms, or contact: aristotelis@ik.me
  * ----------------------------
-*/
+ */
 
 import { EntitySchema } from '@mikro-orm/core';
-import { UnixTimestampType } from '@nestjs-pipeline/ddd-core';
+import { AggregateRoot, UnixTimestampType } from '@nestjs-pipeline/ddd-core';
 import { Capability } from '../../roles/domain/models/capability.entity';
 
-export const CapabilitySchema = new EntitySchema<Capability>({
-  // @ts-expect-error MikroORM requires a public constructor
+export const CapabilitySchema = new EntitySchema<Capability, AggregateRoot>({
   class: Capability,
   tableName: 'capabilities',
   properties: {
-    // @ts-expect-error Maps to private property from RootEntity
-    _id: { type: 'string', primary: true, fieldName: 'id' },
-    _createdAt: { type: UnixTimestampType, fieldName: 'created_at' },
-    _updatedAt: { type: UnixTimestampType, fieldName: 'updated_at' },
+    id: { type: 'string', primary: true, fieldName: 'id', accessor: true },
+    createdAt: {
+      type: UnixTimestampType,
+      fieldName: 'created_at',
+      accessor: true,
+    },
+    updatedAt: {
+      type: UnixTimestampType,
+      fieldName: 'updated_at',
+      accessor: true,
+    },
     action: { type: 'string' },
     subject: { type: 'string' },
     conditions: { type: 'string', nullable: true },

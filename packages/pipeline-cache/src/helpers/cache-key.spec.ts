@@ -16,9 +16,9 @@
  * ----------------------------
  */
 
-import type { IPipelineContext } from '@nestjs-pipeline/core';
+import { type IPipelineContext, stableStringify } from '@nestjs-pipeline/core';
 import { describe, expect, it } from 'vitest';
-import { defaultCacheKey, stableStringify } from './cache-key';
+import { defaultCacheKey } from './cache-key';
 
 describe('stableStringify', () => {
   it('produces identical output regardless of key insertion order', () => {
@@ -45,6 +45,46 @@ describe('stableStringify', () => {
     expect(stableStringify(42)).toBe('42');
     expect(stableStringify('hi')).toBe('"hi"');
     expect(stableStringify(null)).toBe('null');
+  });
+
+  it('rejects values that cannot be represented as JSON', () => {
+    const cyclic: Record<string, unknown> = {};
+    cyclic.self = cyclic;
+
+    expect(() => stableStringify(undefined)).toThrow(/JSON-serializable/);
+    expect(() => stableStringify(1n)).toThrow(/JSON-serializable/);
+    expect(() => stableStringify(cyclic)).toThrow(/JSON-serializable/);
+    expect(() => stableStringify({ filter: new Map([['id', 1]]) })).toThrow(
+      /JSON-serializable/,
+    );
+    expect(() => stableStringify({ filter: new Set([1]) })).toThrow(
+      /JSON-serializable/,
+    );
+    expect(() => stableStringify({ filter: /active/ })).toThrow(
+      /JSON-serializable/,
+    );
+    expect(() => stableStringify({ error: new Error('failure') })).toThrow(
+      /JSON-serializable/,
+    );
+    expect(() => stableStringify({ value: Number.NaN })).toThrow(
+      /JSON-serializable/,
+    );
+    expect(() => stableStringify({ value: Number.POSITIVE_INFINITY })).toThrow(
+      /JSON-serializable/,
+    );
+    expect(() => stableStringify({ bytes: new Uint8Array([1, 2]) })).toThrow(
+      /JSON-serializable/,
+    );
+    expect(() => stableStringify(new Array(1))).toThrow(/JSON-serializable/);
+    expect(() =>
+      stableStringify({ id: 1, [Symbol('scope')]: 'private' }),
+    ).toThrow(/JSON-serializable/);
+  });
+
+  it('serializes dates explicitly as ISO strings', () => {
+    expect(stableStringify({ at: new Date('2026-01-01T00:00:00.000Z') })).toBe(
+      '{"at":"2026-01-01T00:00:00.000Z"}',
+    );
   });
 });
 
@@ -84,5 +124,11 @@ describe('defaultCacheKey', () => {
     const b = defaultCacheKey(makeContext({ requestName: 'GetUsersQuery' }));
 
     expect(a).not.toBe(b);
+  });
+
+  it('prefixes with tenantId when present on context', () => {
+    const key = defaultCacheKey(makeContext({ tenantId: 'tenant_a' }));
+
+    expect(key).toBe('tenant_a:GetUserQuery:{"userId":"42"}');
   });
 });

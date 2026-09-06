@@ -16,8 +16,7 @@
  * ----------------------------
  */
 
-import { MikroORM } from '@mikro-orm/libsql';
-import { EntityManager, SqlEntityManager } from '@mikro-orm/libsql';
+import { EntityManager, MikroORM, SqlEntityManager } from '@mikro-orm/libsql';
 import {
   BadRequestException,
   Inject,
@@ -53,23 +52,23 @@ export class MikroOrmStore implements OnModuleInit, OnModuleDestroy {
   constructor(
     @Inject(TenantSchemaContext)
     private readonly tenantSchemaContext: TenantSchemaContext,
-  ) { }
+  ) {}
 
   async onModuleInit(): Promise<void> {
     for (const tenant of resolveLibsqlTenants()) {
       const dbName = resolveLibsqlDbUrl(tenant);
       const orm = await MikroORM.init(createLibsqlOrmOptions(dbName));
       this.orms.set(tenant, orm);
-      this.logger.log(`MikroORM initialized for tenant "${tenant}" (${dbName})`);
+      this.logger.log(
+        `MikroORM initialized for tenant "${tenant}" (${dbName})`,
+      );
     }
 
     this.orm = this.orms.get(resolveDefaultSchema()) as MikroORM;
   }
 
   async onModuleDestroy(): Promise<void> {
-    await Promise.all(
-      Array.from(this.orms.values()).map((orm) => orm.close()),
-    );
+    await Promise.all(Array.from(this.orms.values()).map((orm) => orm.close()));
     this.orms.clear();
   }
 
@@ -83,11 +82,60 @@ export class MikroOrmStore implements OnModuleInit, OnModuleDestroy {
     return orm;
   }
 
+  /**
+   * Returns a request-bound or transactional EntityManager if available in the current context,
+   * or a newly forked EntityManager instance.
+   *
+   * @note Each direct call to this getter without an active RequestContext creates a NEW
+   * EntityManager fork with an isolated Unit of Work. For operations requiring a shared
+   * Unit of Work or atomic transaction across multiple repositories/queries, use
+   * {@link withFork} or {@link transactional}.
+   */
   get em(): EntityManager {
-    return this.resolveOrm().em.fork() as EntityManager;
+    const orm = this.resolveOrm();
+    const contextEm = orm.em.getContext(false) as EntityManager | undefined;
+    if (
+      contextEm &&
+      contextEm !== orm.em &&
+      contextEm.getDriver() === orm.em.getDriver()
+    ) {
+      return contextEm;
+    }
+    return orm.em.fork({ disableContextResolution: true }) as EntityManager;
   }
 
   get sem(): SqlEntityManager {
-    return this.resolveOrm().em.fork() as SqlEntityManager;
+    const orm = this.resolveOrm();
+    const contextEm = orm.em.getContext(false) as SqlEntityManager | undefined;
+    if (
+      contextEm &&
+      contextEm !== orm.em &&
+      contextEm.getDriver() === orm.em.getDriver()
+    ) {
+      return contextEm;
+    }
+    return orm.em.fork({ disableContextResolution: true }) as SqlEntityManager;
+  }
+
+  /**
+   * Executes an operation within an explicit, shared Unit of Work (EntityManager fork).
+   * Ensures that all operations within the callback share the same identity map and change set.
+   */
+  async withFork<T>(cb: (em: EntityManager) => Promise<T>): Promise<T> {
+    const fork = this.resolveOrm().em.fork({
+      disableContextResolution: true,
+    }) as EntityManager;
+    return cb(fork);
+  }
+
+  /**
+   * Executes an operation within an atomic database transaction using a dedicated fork.
+   * Automatically commits on success and rolls back on failure.
+   */
+  async transactional<T>(cb: (em: EntityManager) => Promise<T>): Promise<T> {
+    const fork = this.resolveOrm().em.fork({
+      disableContextResolution: true,
+    }) as EntityManager;
+    return fork.transactional(cb);
   }
 }

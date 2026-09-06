@@ -18,10 +18,15 @@
 
 import { Type } from '@nestjs/common';
 import {
+  PIPELINE_TENANT_ID,
   pipelineStore,
+  SET_CORRELATION_ID,
   SET_ORIGINAL_CORRELATION_ID,
   SET_RESPONSE,
+  SET_TENANT_ID,
 } from './constants/pipeline-context.constants';
+import { getBehaviorId } from './decorators/pipeline.decorator';
+import { IPipelineBehavior } from './interfaces/pipeline.behavior.interface';
 import { IPipelineContext } from './interfaces/pipeline.context.interface';
 import { PipelineHandlerMeta } from './interfaces/pipeline-handler-meta.interface';
 import { untyped } from './types/safe-typing';
@@ -40,15 +45,25 @@ import { untyped } from './types/safe-typing';
 export abstract class BasePipelineContext<
   TRequest = unknown,
   TResponse = unknown,
-> implements IPipelineContext<TRequest, TResponse> {
-  correlationId: string;
+> implements IPipelineContext<TRequest, TResponse>
+{
+  private _correlationId = '';
+
+  get correlationId(): string {
+    return this._correlationId;
+  }
+
+  /** @internal Assigns the ID before the behavior chain starts. */
+  [SET_CORRELATION_ID](value: string): void {
+    this._correlationId = value;
+  }
 
   /** Backing field for `originalCorrelationId`. */
   private _originalCorrelationId = '';
 
   /**
    * The immutable correlation ID assigned when the pipeline was created.
-   * Preserved even if a behavior later overrides `correlationId`.
+   * Alias for the initially assigned correlation ID.
    */
   get originalCorrelationId(): string {
     return this._originalCorrelationId;
@@ -62,6 +77,29 @@ export abstract class BasePipelineContext<
     this._originalCorrelationId = value;
   }
 
+  /** Backing field for `tenantId`. */
+  private _tenantId: string | undefined = undefined;
+
+  /**
+   * Active tenant identifier for multi-tenant pipeline executions.
+   */
+  get tenantId(): string | undefined {
+    return this._tenantId;
+  }
+
+  /**
+   * Symbol-keyed setter — only callable by code that imports {@link SET_TENANT_ID}.
+   * Synchronizes `context.tenantId` and `context.items.get(PIPELINE_TENANT_ID)`.
+   */
+  [SET_TENANT_ID](value: string | undefined): void {
+    this._tenantId = value;
+    if (value !== undefined) {
+      this.items.set(PIPELINE_TENANT_ID, value);
+    } else {
+      this.items.delete(PIPELINE_TENANT_ID);
+    }
+  }
+
   abstract readonly request: TRequest;
   abstract readonly requestType: Type<TRequest>;
   abstract readonly requestName: string;
@@ -70,7 +108,11 @@ export abstract class BasePipelineContext<
   abstract readonly requestKind: 'command' | 'query' | 'event' | 'unknown';
 
   readonly startedAt: Date;
-  readonly items: Map<string, unknown>;
+  /**
+   * Bag for sharing arbitrary data between behaviors in the same execution.
+   * Supports string and unique symbol keys.
+   */
+  readonly items: Map<string | symbol, unknown>;
 
   /** Backing field for `response` — only writable via `[SET_RESPONSE]()`. */
   private _response: TResponse | undefined = undefined;
@@ -94,14 +136,17 @@ export abstract class BasePipelineContext<
     | undefined;
 
   constructor() {
-    this.correlationId = '';
     this.startedAt = new Date();
     this.items = new Map();
 
-    // Inherit correlationId from parent pipeline context (saga / nested command)
+    // Inherit correlationId and tenantId from parent pipeline context (saga / nested command)
     const parent = pipelineStore.getStore();
     if (parent?.correlationId) {
-      this.correlationId = parent.correlationId;
+      this._correlationId = parent.correlationId;
+    }
+    if (parent?.tenantId) {
+      this._tenantId = parent.tenantId;
+      this.items.set(PIPELINE_TENANT_ID, parent.tenantId);
     }
   }
 
@@ -111,7 +156,9 @@ export abstract class BasePipelineContext<
   getBehaviorOptions<T = Record<string, unknown>>(
     behaviorType: Type,
   ): T | undefined {
-    return this.behaviorOptionsMap?.get(behaviorType.name) as T | undefined;
+    return this.behaviorOptionsMap?.get(
+      getBehaviorId(behaviorType as Type<IPipelineBehavior>),
+    ) as T | undefined;
   }
 }
 

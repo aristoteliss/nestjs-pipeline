@@ -22,18 +22,111 @@ import { QueryRepository } from '../query-repository.abstract';
 /**
  * Read-through cache decorator for a {@link QueryRepository} `find` method.
  *
- * Derives a cache key from the query via `keyFn`; on a hit it returns the cached
- * value (optionally re-hydrated with `hydrateFn` when `query.hydrate` is set), and
- * on a miss it runs the original method and stores the result. If the repository
- * has no cache, or `keyFn` returns `null`, the call passes straight through.
+ * Provides declarative read-through caching for query operations:
+ * - **Key derivation**: Generates a cache key via `keyFn`. If `keyFn` returns `null`, caching is skipped.
+ * - **Negative caching prevention**: Only non-nullish database results are saved into the cache, preventing
+ *   stale negative results from hiding newly-created entities.
+ * - **Rehydration**: If `query.hydrate` is enabled, cached JSON snapshots are rehydrated into rich domain
+ *   entities using `hydrateFn`.
+ * - **Fail-closed policy**: Cache errors on read/set propagate to maintain strong consistency guarantees
+ *   at the repository boundary.
  *
- * @param keyFn - Builds the cache key from the query, or returns `null` to skip caching.
- * @param hydrateFn - Optional transform applied to cached values when `query.hydrate` is true.
+ * @param keyFn - Builds the cache key from the query, or returns `null` to bypass the cache.
+ * @param hydrateFn - Optional rehydration function transforming cached snapshot JSON into entity instances.
+ *
+ * @example Read-through caching with entity rehydration
+ * ```typescript
+ * @Injectable()
+ * export class GetUserQueryRepository extends QueryRepository<GetUserQuery, User | null> {
+ *   @FromCache<GetUserQuery, User>(
+ *     (query) => filterCacheKey('user', { id: query.userId }),
+ *     (cached) => User.fromJSON(cached as UserSnapshot),
+ *   )
+ *   async find(query: GetUserQuery): Promise<User | null> {
+ *     const user = await this.store.em.findOne(User, { id: query.userId });
+ *     return user;
+ *   }
+ * }
+ * ```
  */
-export function FromCache<TQuery extends IQueryOptions = IQueryOptions, TResult = unknown>(
-  keyFn: (query: TQuery) => string | null,
-  hydrateFn?: (cached: unknown) => TResult,
+export interface FromCacheOptions<TQuery = unknown, TResult = unknown> {
+  keyFn?: ((query: TQuery) => string | null) | null;
+  hydrateFn?: ((cached: unknown) => TResult) | null;
+  ttl?: number;
+  isNewer?: (cached: unknown, incoming: unknown) => boolean;
+}
+
+/**
+ * Checks whether a cached entry is strictly newer than an incoming database result
+ * based on explicit version properties, generation counters, or updatedAt timestamps.
+ */
+export function isCacheNewer(cached: unknown, incoming: unknown): boolean {
+  if (
+    !cached ||
+    typeof cached !== 'object' ||
+    !incoming ||
+    typeof incoming !== 'object'
+  ) {
+    return false;
+  }
+  const c = cached as Record<string, any>;
+  const inc = incoming as Record<string, any>;
+
+  if (typeof c.version === 'number' && typeof inc.version === 'number') {
+    return c.version > inc.version;
+  }
+
+  if (typeof c.__gen === 'number' && typeof inc.__gen === 'number') {
+    return c.__gen > inc.__gen;
+  }
+
+  if (c.updatedAt !== undefined && inc.updatedAt !== undefined) {
+    const cTime =
+      c.updatedAt instanceof Date
+        ? c.updatedAt.getTime()
+        : new Date(c.updatedAt).getTime();
+    const incTime =
+      inc.updatedAt instanceof Date
+        ? inc.updatedAt.getTime()
+        : new Date(inc.updatedAt).getTime();
+    if (!isNaN(cTime) && !isNaN(incTime)) {
+      return cTime > incTime;
+    }
+  }
+
+  return false;
+}
+
+export function FromCache<
+  TQuery extends IQueryOptions = IQueryOptions,
+  TResult = unknown,
+>(
+  keyFnOrOptions:
+    | ((query: TQuery) => string | null)
+    | FromCacheOptions<TQuery, TResult>,
+  hydrateFnOrOptions?:
+    | ((cached: unknown) => TResult)
+    | FromCacheOptions<TQuery, TResult>,
+  extraOptions?: FromCacheOptions<TQuery, TResult>,
 ): MethodDecorator {
+  let resolvedKeyFn: (query: TQuery) => string | null;
+  let resolvedHydrateFn: ((cached: unknown) => TResult) | undefined;
+  let resolvedOptions: FromCacheOptions<TQuery, TResult> | undefined;
+
+  if (typeof keyFnOrOptions === 'function') {
+    resolvedKeyFn = keyFnOrOptions;
+    if (typeof hydrateFnOrOptions === 'function') {
+      resolvedHydrateFn = hydrateFnOrOptions;
+      resolvedOptions = extraOptions;
+    } else {
+      resolvedOptions = hydrateFnOrOptions;
+    }
+  } else {
+    resolvedKeyFn = keyFnOrOptions.keyFn!;
+    resolvedHydrateFn = keyFnOrOptions.hydrateFn ?? undefined;
+    resolvedOptions = keyFnOrOptions;
+  }
+
   return (
     _target: object,
     _propertyKey: string | symbol,
@@ -49,19 +142,39 @@ export function FromCache<TQuery extends IQueryOptions = IQueryOptions, TResult 
         return original.call(this, query);
       }
 
-      const key = keyFn(query);
+      const key = resolvedKeyFn(query);
 
-      if (key) {
+      if (key !== null) {
         const cached = await this.cache.get(key);
-        if (cached) {
-          return query.hydrate && hydrateFn ? hydrateFn(cached) : cached;
+        if (cached !== null && cached !== undefined) {
+          return query.hydrate && resolvedHydrateFn
+            ? resolvedHydrateFn(cached)
+            : cached;
         }
       }
 
       const result = await original.call(this, query);
 
-      if (key) {
-        await this.cache.set(key, result);
+      if (key !== null && result !== null && result !== undefined) {
+        const current = await this.cache.get(key);
+        const newerCheck = resolvedOptions?.isNewer ?? isCacheNewer;
+        if (
+          current !== null &&
+          current !== undefined &&
+          newerCheck(current, result)
+        ) {
+          return result;
+        }
+
+        const setOptions =
+          resolvedOptions?.ttl !== undefined
+            ? { ttl: resolvedOptions.ttl }
+            : undefined;
+        if (setOptions) {
+          await this.cache.set(key, result, setOptions);
+        } else {
+          await this.cache.set(key, result);
+        }
       }
 
       return result;

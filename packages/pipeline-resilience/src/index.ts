@@ -34,6 +34,10 @@ export {
   buildResiliencePolicy,
   type PolicyBuildContext,
 } from './helpers/policy-factory';
+export {
+  getResilienceAbortSignal,
+  RESILIENCE_ABORT_SIGNAL_ITEM,
+} from './helpers/resilience-context';
 export type {
   BreakerStrategy,
   BulkheadOptions,

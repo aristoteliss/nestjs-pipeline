@@ -16,6 +16,7 @@
  * ----------------------------
  */
 
+export { stableStringify } from '@nestjs-pipeline/core';
 export {
   DEFAULT_IDEMPOTENCY_TTL_MS,
   IDEMPOTENCY_DEFAULT_OPTIONS,
@@ -26,12 +27,10 @@ export {
   type IdempotencyConflictReason,
 } from './errors/idempotency-conflict.error';
 export { IdempotencyConflictFilter } from './filters/idempotency-conflict.filter';
-export {
-  fingerprintValue,
-  stableStringify,
-} from './helpers/fingerprint';
+export { fingerprintValue } from './helpers/fingerprint';
 export {
   IDEMPOTENCY_KEY_ITEM,
+  IDEMPOTENCY_OWNERSHIP_LOST_ITEM,
   IDEMPOTENCY_REPLAYED_ITEM,
   IdempotencyBehavior,
 } from './idempotency.behavior';
@@ -46,12 +45,16 @@ export type {
   IdempotencyRecord,
   IdempotencyRequestKind,
   IdempotencyStatus,
+  JsonValue,
 } from './interfaces/idempotency-record.interface';
 export type {
   IdempotencyStore,
   MaybePromise,
 } from './interfaces/idempotency-store.interface';
-export { MemoryIdempotencyStore } from './stores/memory.store';
+export {
+  MemoryIdempotencyStore,
+  type MemoryIdempotencyStoreOptions,
+} from './stores/memory.store';
 export {
   createIdempotencyTableSql,
   PostgresIdempotencyStore,

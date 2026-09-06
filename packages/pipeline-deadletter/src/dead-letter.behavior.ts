@@ -28,7 +28,6 @@ import {
   type IPipelineContext,
   LOGGING_BEHAVIOR_LOGGER,
   type NextDelegate,
-  untyped,
 } from '@nestjs-pipeline/core';
 import {
   DEAD_LETTER_DEFAULT_OPTIONS,
@@ -38,25 +37,33 @@ import { buildDeadLetterRecord } from './helpers/build-record';
 import type { DeadLetterBehaviorOptions } from './interfaces/dead-letter-options.interface';
 import type { DeadLetterTransport } from './interfaces/dead-letter-transport.interface';
 
-/** Item key set on the pipeline context when a request is dead-lettered. */
-export const DEAD_LETTER_ITEM = 'dead-letter.captured';
+/**
+ * Unique symbol key set on `context.items` to `true` or `false` recording whether
+ * delivery to the dead-letter transport succeeded.
+ *
+ * @example
+ * ```ts
+ * const delivered = context.items.get(DEAD_LETTER_ITEM) === true;
+ * ```
+ */
+export const DEAD_LETTER_ITEM = Symbol('DEAD_LETTER_ITEM');
 
 /**
  * Pipeline behavior that forwards **failed** requests to a dead-letter sink.
  *
  * When the wrapped handler (and anything nested inside it, such as
- * `ResilienceBehavior` retries) throws, this behavior captures a serializable
+ * `ResilienceBehavior` retries) throws, this behavior captures a
  * {@link DeadLetterRecord} and hands it to the configured
  * {@link DeadLetterTransport}, then — by default — re-throws so the caller still
- * sees the failure.
+ * sees the failure. Payload and metadata must be serializable by that transport.
  *
  * Transport-agnostic by design: it depends only on {@link DeadLetterTransport},
  * so the backend (BullMQ, RabbitMQ, Postgres, …) is a one-line swap in
  * {@link DeadLetterModule.forRoot}.
  *
  * **Ordering:** place this **outside** retry behaviors so it only fires once
- * retries are exhausted, e.g. global `before: [DeadLetterBehavior]` with
- * `ResilienceBehavior` nested closer to the handler.
+ * retries are exhausted, but **inside** request validation behaviors so expected
+ * client validation errors are not dead-lettered.
  *
  * @example Fire-and-forget event — capture and swallow
  * ```ts
@@ -88,11 +95,6 @@ export class DeadLetterBehavior implements IPipelineBehavior {
     }
 
     this.logger = logger;
-    if (typeof untyped(this.logger).setContext === 'function') {
-      (
-        this.logger as LoggerService & { setContext(context: string): void }
-      ).setContext(DeadLetterBehavior.name);
-    }
   }
 
   async handle(
@@ -103,51 +105,81 @@ export class DeadLetterBehavior implements IPipelineBehavior {
       return await next();
     } catch (error) {
       const options = this.resolveOptions(context);
+      const shouldCapture = this.shouldCapture(context, options, error);
+      let captured = false;
 
-      if (this.shouldCapture(context, options)) {
-        await this.capture(context, error, options);
-        context.items.set(DEAD_LETTER_ITEM, true);
+      if (shouldCapture) {
+        captured = await this.capture(context, error, options);
+        context.items.set(DEAD_LETTER_ITEM, captured);
       }
 
-      if (options.rethrow ?? true) throw error;
+      // Excluding a request kind or ignoring an error means this behavior is inactive
+      // for that failure; it must not silently swallow an error it did not capture.
+      if ((options.rethrow ?? true) || !shouldCapture || !captured) throw error;
 
       this.logger.warn?.(
         `Dead-lettered and swallowed ${context.requestName} ` +
           `(correlationId: ${context.correlationId})`,
+        DeadLetterBehavior.name,
       );
       return undefined;
     }
   }
 
-  /** Forwards the failed request to the transport, never masking the original error. */
+  /** Forwards the failed request and reports whether transport delivery succeeded. */
   private async capture(
     context: IPipelineContext,
     error: unknown,
     options: DeadLetterBehaviorOptions,
-  ): Promise<void> {
+  ): Promise<boolean> {
     try {
       const record = buildDeadLetterRecord(context, error, options);
       await this.transport.send(record);
       this.logger.warn?.(
         `Dead-lettered ${context.requestKind} ${context.requestName} ` +
           `(correlationId: ${context.correlationId})`,
+        DeadLetterBehavior.name,
       );
+      return true;
     } catch (transportError) {
       // The sink failing must never hide the real handler error: log and move on.
       this.logger.error?.(
         `Failed to dead-letter ${context.requestName}: ` +
           `${transportError instanceof Error ? transportError.message : transportError}`,
+        DeadLetterBehavior.name,
       );
+      return false;
     }
   }
 
-  /** Whether this request kind is configured to be captured. */
+  /** Whether this request kind and error are configured to be captured. */
   private shouldCapture(
     context: IPipelineContext,
     options: DeadLetterBehaviorOptions,
+    error: unknown,
   ): boolean {
-    if (!options.captureKinds) return true;
-    return options.captureKinds.includes(context.requestKind);
+    if (
+      options.captureKinds &&
+      !options.captureKinds.includes(context.requestKind)
+    ) {
+      return false;
+    }
+
+    if (options.ignoreErrors) {
+      if (typeof options.ignoreErrors === 'function') {
+        if (options.ignoreErrors(error, context)) {
+          return false;
+        }
+      } else if (Array.isArray(options.ignoreErrors)) {
+        for (const target of options.ignoreErrors) {
+          if (typeof target === 'function' && error instanceof target) {
+            return false;
+          }
+        }
+      }
+    }
+
+    return true;
   }
 
   /** Shallow-merges per-handler options over the module defaults. */

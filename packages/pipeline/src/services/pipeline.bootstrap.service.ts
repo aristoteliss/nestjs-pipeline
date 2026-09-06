@@ -22,16 +22,20 @@ import {
   Logger,
   LogLevel,
   OnApplicationBootstrap,
+  OnModuleDestroy,
   Optional,
   Type,
 } from '@nestjs/common';
-import { ContextIdFactory, ModuleRef } from '@nestjs/core';
+import { type ContextId, ContextIdFactory, ModuleRef } from '@nestjs/core';
 import { InstanceWrapper } from '@nestjs/core/injector/instance-wrapper';
+import * as cqrs from '@nestjs/cqrs';
 import { ExplorerService } from '@nestjs/cqrs/dist/services/explorer.service';
 import {
   pipelineStore,
+  SET_CORRELATION_ID,
   SET_ORIGINAL_CORRELATION_ID,
   SET_RESPONSE,
+  SET_TENANT_ID,
 } from '../constants/pipeline-context.constants';
 import {
   getBehaviorId,
@@ -52,16 +56,56 @@ import {
 import { PipelineContext } from '../pipeline.context';
 import { untyped } from '../types/safe-typing';
 
+type CqrsWithOptionalAsyncContext = {
+  AsyncContext?: {
+    of?(target: object): { id: ContextId } | undefined;
+  };
+};
+
+type PipelineRunner = (self: unknown, request: unknown) => Promise<unknown>;
+
+interface PrototypeMethodEntry {
+  originalMethod: Function;
+  runners: Map<PipelineBootstrapService, PipelineRunner>;
+}
+
+const prototypeRegistry = new WeakMap<
+  object,
+  Map<string | symbol, PrototypeMethodEntry>
+>();
+const instanceRunnerMap = new WeakMap<object, PipelineRunner>();
+
+/**
+ * Reads the CQRS async context when the installed CQRS version supports it.
+ * `AsyncContext` was added after CQRS 10, which remains a supported peer.
+ *
+ * @internal Exported only so the compatibility branch can be unit tested.
+ */
+export function getAttachedCqrsContextId(
+  target: object,
+  cqrsModule: unknown = cqrs,
+): ContextId | undefined {
+  const asyncContext = (cqrsModule as CqrsWithOptionalAsyncContext)
+    .AsyncContext;
+  return typeof asyncContext?.of === 'function'
+    ? asyncContext.of(target)?.id
+    : undefined;
+}
+
 /**
  * At application bootstrap, this service:
  * 1. Discovers all CQRS handlers via ExplorerService (commands, queries, events)
  * 2. Finds handlers decorated with @UsePipeline(...) or matched by global behaviors
- * 3. Pre-resolves all behavior instances and handler metadata
- * 4. Wraps their execution method with the declared behavior chain
+ * 3. Precomputes handler metadata and resolves singleton behavior instances
+ * 4. Wraps each matching handler method with the effective behavior chain
  *
- * Everything that can be computed once (behavior instances, request kind,
- * handler name, behavior options) is resolved at bootstrap and captured
- * in a closure — zero reflection or DI lookups at request time.
+ * Request-independent metadata (request kind, handler name, behavior options and
+ * effective behavior types) is computed once and captured in the wrapper closure.
+ * Singleton behaviors are also resolved once at bootstrap and reused. Behaviors
+ * that cannot be resolved as singletons are marked dynamic and resolved with
+ * `moduleRef.resolve()` for each invocation using the applicable Nest context ID.
+ * Therefore the common all-singleton path avoids runtime reflection and DI
+ * lookups, while request-scoped/transient behaviors retain their Nest lifecycle.
  *
  * Supports:
  *   - Command handlers  → wraps `execute(command)`
@@ -70,11 +114,14 @@ import { untyped } from '../types/safe-typing';
  *   - Scoped handlers   → wraps `prototype[method]` so per-request instances inherit it
  */
 @Injectable()
-export class PipelineBootstrapService implements OnApplicationBootstrap {
+export class PipelineBootstrapService
+  implements OnApplicationBootstrap, OnModuleDestroy
+{
   private readonly logger = new Logger(PipelineBootstrapService.name, {
     timestamp: true,
   });
   private bootstrapLogLevel!: LogLevel | 'none';
+  private readonly unwrappers: Array<() => void> = [];
 
   constructor(
     private readonly moduleRef: ModuleRef,
@@ -101,11 +148,28 @@ export class PipelineBootstrapService implements OnApplicationBootstrap {
     }
   }
 
+  onModuleDestroy() {
+    while (this.unwrappers.length > 0) {
+      const unwrap = this.unwrappers.pop();
+      try {
+        unwrap?.();
+      } catch (error) {
+        this.logger.warn(
+          `Failed to unwrap pipeline handler during module destroy: ${error}`,
+        );
+      }
+    }
+  }
+
   /**
-   * Checks if the handler is decorated with @UsePipeline and/or has matching
-   * global behaviors, then wraps its method with the combined behavior chain.
+   * Checks whether the handler declares pipeline behaviors and/or matches global
+   * behavior configuration, precomputes the effective chain, then wraps the
+   * handler method. Singleton behaviors are captured at bootstrap; any dynamic
+   * behavior slots are resolved per invocation with the active Nest context ID.
    *
-   * Effective order: `[globalBefore] → [@UsePipeline] → [globalAfter] → handler`
+   * Effective order: `[globalBefore] → [@UsePipeline] → [globalAfter] → handler`.
+   * A handler declaration of an already-global behavior overrides its options
+   * without relocating it, preserving security-sensitive outer guards.
    *
    * @param wrapper     - The NestJS InstanceWrapper for this provider
    * @param requestKind - Handler kind from ExplorerService categorization
@@ -123,8 +187,11 @@ export class PipelineBootstrapService implements OnApplicationBootstrap {
       (wrapper.metatype as Type) ?? (wrapper.instance?.constructor as Type);
     if (!handlerType) return;
 
-    // Scope.DEFAULT = 0 (falsy), Scope.REQUEST = 2, Scope.TRANSIENT = 1 (truthy)
-    const isScoped = !!untyped(wrapper).scope;
+    // Match Nest CQRS' own handler-resolution decision. A DEFAULT-scoped
+    // handler becomes contextual when any dependency in its tree is
+    // request-scoped (scope bubbling), even though wrapper.scope remains
+    // Scope.DEFAULT.
+    const isScoped = !wrapper.isDependencyTreeStatic();
 
     // For singleton handlers, verify the instance exists
     const instance = isScoped ? undefined : wrapper.instance;
@@ -144,9 +211,10 @@ export class PipelineBootstrapService implements OnApplicationBootstrap {
 
     if (!hasHandlerBehaviors && !hasGlobalBehaviors) return;
 
-    // Handler behaviors override global behaviors of the same class.
-    // Any global (before/after) entry whose class also appears in the handler
-    // declaration is dropped — only the handler's entry (with handler options) runs.
+    // Handler declarations override options for a global behavior of the same
+    // class, but must not relocate it. A global security guard configured in
+    // `before` must remain outside handler-level cache/idempotency behaviors
+    // that can short-circuit without calling next().
     //
     // getBehaviorId() is used instead of reference equality (fails across monorepo
     // double-module loads) or plain .name (collides for different classes that share
@@ -155,32 +223,53 @@ export class PipelineBootstrapService implements OnApplicationBootstrap {
     const handlerBehaviorIds = new Set<string>(
       (handlerBehaviorTypes ?? []).map(getBehaviorId),
     );
-    const filteredBeforeTypes = beforeTypes.filter(
-      (t) => !handlerBehaviorIds.has(getBehaviorId(t)),
+    const globalBehaviorIds = new Set(
+      [...beforeTypes, ...afterTypes].map(getBehaviorId),
     );
-    const filteredAfterTypes = afterTypes.filter(
-      (t) => !handlerBehaviorIds.has(getBehaviorId(t)),
+    const handlerOnlyTypes = (handlerBehaviorTypes ?? []).filter(
+      (type) => !globalBehaviorIds.has(getBehaviorId(type)),
     );
 
-    // Effective order: filteredGlobalBefore → handlerBehaviors → filteredGlobalAfter
+    // Effective order: globalBefore → non-global handler behaviors → globalAfter.
+    // Matching handler entries supply options at their original global position.
     const behaviorTypes: Type<IPipelineBehavior>[] = [
-      ...filteredBeforeTypes,
-      ...(handlerBehaviorTypes ?? []),
-      ...filteredAfterTypes,
+      ...beforeTypes,
+      ...handlerOnlyTypes,
+      ...afterTypes,
     ];
 
     // For scoped handlers, wrap the prototype so every per-request instance
     // gets the pipelined method. For singletons, wrap the instance directly.
     const target = isScoped ? handlerType.prototype : instance;
-    const originalMethod = target[methodName];
-    if (typeof originalMethod !== 'function') return;
+    let originalMethod: Function;
+    let methodMap: Map<string | symbol, PrototypeMethodEntry> | undefined;
+    let entry: PrototypeMethodEntry | undefined;
 
-    // Guard against double-wrapping (e.g. HMR re-bootstrap)
-    if (untyped(originalMethod).__pipelined) return;
+    if (isScoped) {
+      methodMap = prototypeRegistry.get(target);
+      if (!methodMap) {
+        methodMap = new Map();
+        prototypeRegistry.set(target, methodMap);
+      }
+      entry = methodMap.get(methodName);
+      if (entry) {
+        if (entry.runners.has(this)) return;
+        originalMethod = entry.originalMethod;
+      } else {
+        originalMethod = target[methodName];
+        if (typeof originalMethod !== 'function') return;
+        if (untyped(originalMethod).__pipelined) return;
+      }
+    } else {
+      originalMethod = target[methodName];
+      if (typeof originalMethod !== 'function') return;
+      if (untyped(originalMethod).__pipelined) return;
+    }
 
     // ── Pre-resolve everything at bootstrap ──
 
-    // 1. Resolve behavior instances once (singletons — no per-request DI lookups)
+    // 1. Resolve singleton behavior instances once. Behaviors that are scoped
+    //    (or otherwise unavailable through moduleRef.get) are resolved per run.
     const resolvedBehaviors = new Map<number, IPipelineBehavior>();
     const dynamicIndices = new Set<number>();
 
@@ -191,7 +280,7 @@ export class PipelineBootstrapService implements OnApplicationBootstrap {
       try {
         instance = this.moduleRef.get(BehaviorClass, { strict: false });
       } catch {
-        // Fallback for request-scoped providers (rare)
+        // Request-scoped/transient provider: resolve with a context ID per invocation.
         this.logger.warn(
           `${BehaviorClass.name} could not be resolved as singleton — will resolve per-request`,
         );
@@ -210,12 +299,20 @@ export class PipelineBootstrapService implements OnApplicationBootstrap {
     }
 
     // 2. Build handler metadata (kind, name, options) — computed once
-    //    Merge global options with handler-specific options (handler wins on conflict)
+    //    Merge global options with handler-specific options (handler wins on conflict).
+    //    Any global-option entry whose behavior is overridden at handler level must be
+    //    removed first — a bare @UsePipeline(Behavior) intentionally carries no options,
+    //    so the spread below wouldn't overwrite the global entry without this deletion.
     const handlerOptions: Map<string, Record<string, unknown>> | undefined =
       Reflect.getMetadata(PIPELINE_BEHAVIORS_OPTIONS_METADATA, handlerType);
 
+    const filteredGlobalOptions = new Map(globalOptions);
+    for (const id of handlerBehaviorIds) {
+      filteredGlobalOptions.delete(id);
+    }
+
     const mergedOptions = new Map<string, Record<string, unknown>>([
-      ...globalOptions,
+      ...filteredGlobalOptions,
       ...(handlerOptions ?? []),
     ]);
 
@@ -252,29 +349,37 @@ export class PipelineBootstrapService implements OnApplicationBootstrap {
     const moduleRef = this.moduleRef;
     const correlationIdFactory = this.options?.correlationIdFactory;
     const correlationIdRunner = this.options?.correlationIdRunner;
+    const tenantIdFactory = this.options?.tenantIdFactory;
 
-    // 3. Replace method — closure captures pre-resolved behaviors and meta.
-    //    For scoped handlers the prototype is patched, so every per-request
-    //    instance created by the DI container inherits the pipelined method.
-    target[methodName] = async function pipelinedMethod(
-      this: unknown,
+    // 3. Construct runner and replace method.
+    //    Dynamic behavior slots are resolved inside each invocation.
+    //    For scoped handlers the prototype is patched via a dispatcher that routes
+    //    to the active application runner and restores on OnModuleDestroy.
+    const runner: PipelineRunner = async (
+      self: unknown,
       request: unknown,
-    ): Promise<unknown> {
+    ): Promise<unknown> => {
       const context = new PipelineContext(request, meta);
 
       // Build per-invocation array — singleton slots reused, request-scoped freshly resolved.
-      // The captured `behaviors` array is never mutated; request-scoped instances
+      // The captured singleton instances are never mutated; dynamic instances
       // are local to this invocation, preventing cross-request state leaks.
       let localBehaviors: IPipelineBehavior[];
       if (dynamicIndices.size > 0) {
-        // For request-scoped handlers (`isScoped === true`), `this` is the per-request instance
-        // created by Nest's DI and tagged with `REQUEST_CONTEXT_ID`, returning the cached ID.
-        // For singleton handlers, `this` lacks the `REQUEST_CONTEXT_ID` tag, so
-        // `ContextIdFactory.getByRequest(this)` defaults to `ContextIdFactory.create()`, producing
-        // a fresh `ContextId` for each dispatch (`request` fallback used if `this` is undefined).
-        const contextId = ContextIdFactory.getByRequest(
-          (this ?? request) as Record<string, unknown>,
-        );
+        // CQRS request-scoped handlers are resolved by CommandBus/QueryBus/EventBus
+        // with an AsyncContext attached to the command/query/event. Reuse that
+        // exact context id for dynamic behaviors so handler and behaviors share
+        // request-scoped dependencies (transactions, tenant context, etc.).
+        const cqrsContextId =
+          request && typeof request === 'object'
+            ? getAttachedCqrsContextId(request)
+            : undefined;
+        const contextId =
+          cqrsContextId ??
+          ContextIdFactory.getByRequest(
+            (self ?? request) as Record<string, unknown>,
+          );
+
         localBehaviors = await Promise.all(
           behaviorTypes.map((BehaviorClass, i) => {
             if (dynamicIndices.has(i)) {
@@ -298,18 +403,18 @@ export class PipelineBootstrapService implements OnApplicationBootstrap {
         localBehaviors = singletonBehaviors;
       }
 
-      // Eagerly resolve correlationId BEFORE any behavior runs.
-      // Priority: parent context (saga) > correlationIdFactory > uuidv7()
       if (!context.correlationId) {
-        context.correlationId = correlationIdFactory?.() ?? uuidv7();
+        context[SET_CORRELATION_ID](correlationIdFactory?.() ?? uuidv7());
       }
-
-      // Lock the original value — immutable from this point forward.
       context[SET_ORIGINAL_CORRELATION_ID](context.correlationId);
 
-      // Build chain: behavior[0] → behavior[1] → ... → originalMethod
-      // biome-ignore lint/complexity/noUselessThisAlias: Use `this` so the correct instance is called for both singletons (captured instance === this) and scoped handlers (per-request instance).
-      const self = this;
+      if (!context.tenantId && tenantIdFactory) {
+        const resolvedTenantId = tenantIdFactory();
+        if (resolvedTenantId !== undefined) {
+          context[SET_TENANT_ID](resolvedTenantId);
+        }
+      }
+
       let chain: NextDelegate = async () => {
         const result = await originalMethod.call(self, request);
         context[SET_RESPONSE](result);
@@ -333,8 +438,113 @@ export class PipelineBootstrapService implements OnApplicationBootstrap {
       return runChain();
     };
 
-    // Mark as pipelined to prevent double-wrapping on HMR re-bootstrap
-    untyped(target[methodName]).__pipelined = true;
+    if (isScoped) {
+      if (!entry) {
+        entry = {
+          originalMethod,
+          runners: new Map(),
+        };
+        methodMap!.set(methodName, entry);
+
+        const currentTarget = target;
+        const currentMethodName = methodName;
+        const fallbackMethod = originalMethod;
+
+        const pipelinedDispatcher = async function (
+          this: unknown,
+          request: unknown,
+        ): Promise<unknown> {
+          const map = prototypeRegistry.get(currentTarget);
+          const currentEntry = map?.get(currentMethodName);
+          if (!currentEntry || currentEntry.runners.size === 0) {
+            return fallbackMethod.call(this, request);
+          }
+
+          let activeRunner =
+            this && typeof this === 'object'
+              ? instanceRunnerMap.get(this)
+              : undefined;
+
+          if (!activeRunner) {
+            const allRunners = Array.from(currentEntry.runners.values());
+            activeRunner = allRunners[allRunners.length - 1];
+          }
+
+          return activeRunner(this, request);
+        };
+
+        untyped(pipelinedDispatcher).__pipelined = true;
+        target[methodName] = pipelinedDispatcher;
+      }
+
+      entry.runners.set(this, runner);
+
+      const origGetInstance = wrapper.getInstanceByContextId;
+      const origSetInstance = wrapper.setInstanceByContextId;
+
+      if (typeof origGetInstance === 'function') {
+        wrapper.getInstanceByContextId = function (
+          this: InstanceWrapper,
+          contextId: ContextId,
+          inquirerId?: string,
+        ) {
+          const host = origGetInstance.call(this, contextId, inquirerId);
+          if (host && host.instance && typeof host.instance === 'object') {
+            instanceRunnerMap.set(host.instance, runner);
+          }
+          return host;
+        };
+      }
+
+      if (typeof origSetInstance === 'function') {
+        wrapper.setInstanceByContextId = function (
+          this: InstanceWrapper,
+          contextId: ContextId,
+          value: Parameters<InstanceWrapper['setInstanceByContextId']>[1],
+          inquirerId?: string,
+        ) {
+          origSetInstance.call(this, contextId, value, inquirerId);
+          if (value && value.instance && typeof value.instance === 'object') {
+            instanceRunnerMap.set(value.instance, runner);
+          }
+        };
+      }
+
+      this.unwrappers.push(() => {
+        if (typeof origGetInstance === 'function') {
+          wrapper.getInstanceByContextId = origGetInstance;
+        }
+        if (typeof origSetInstance === 'function') {
+          wrapper.setInstanceByContextId = origSetInstance;
+        }
+
+        const map = prototypeRegistry.get(target);
+        const currentEntry = map?.get(methodName);
+        if (currentEntry) {
+          currentEntry.runners.delete(this);
+          if (currentEntry.runners.size === 0) {
+            target[methodName] = currentEntry.originalMethod;
+            delete untyped(target[methodName]).__pipelined;
+            map?.delete(methodName);
+          }
+        }
+      });
+    } else {
+      const pipelinedMethod = async function (
+        this: unknown,
+        request: unknown,
+      ): Promise<unknown> {
+        return runner(this, request);
+      };
+
+      untyped(pipelinedMethod).__pipelined = true;
+      target[methodName] = pipelinedMethod;
+
+      this.unwrappers.push(() => {
+        target[methodName] = originalMethod;
+        delete untyped(target[methodName]).__pipelined;
+      });
+    }
   }
 
   // ── Global behavior resolution ──
@@ -368,16 +578,32 @@ export class PipelineBootstrapService implements OnApplicationBootstrap {
     const beforeTypes: Type<IPipelineBehavior>[] = [];
     const afterTypes: Type<IPipelineBehavior>[] = [];
 
+    // Deduplicate across all matching configs and both chain positions. The
+    // first occurrence determines placement; later tuples may still override
+    // its options without causing the behavior to run more than once.
+    const globalIds = new Set<string>();
+
     const parseEntries = (
       entries: PipelineBehaviorEntry[],
-    ): Type<IPipelineBehavior>[] =>
-      entries.map((entry) => {
+      seenIds: Set<string>,
+    ): Type<IPipelineBehavior>[] => {
+      const types: Type<IPipelineBehavior>[] = [];
+      for (const entry of entries) {
+        const type = Array.isArray(entry) ? entry[0] : entry;
+        const id = getBehaviorId(type);
         if (Array.isArray(entry)) {
-          globalOptions.set(getBehaviorId(entry[0]), entry[1]);
-          return entry[0];
+          // Later matching configuration supplies the effective options.
+          globalOptions.set(id, entry[1]);
         }
-        return entry;
-      });
+        // A bare duplicate only ensures inclusion. It must not erase options
+        // supplied by a tuple in another matching global configuration.
+        if (!seenIds.has(id)) {
+          seenIds.add(id);
+          types.push(type);
+        }
+      }
+      return types;
+    };
 
     for (const config of configs) {
       const scope = config.scope ?? 'all';
@@ -387,8 +613,8 @@ export class PipelineBootstrapService implements OnApplicationBootstrap {
       if (scope === 'queries' && requestKind !== 'query') continue;
       if (scope === 'events' && requestKind !== 'event') continue;
 
-      beforeTypes.push(...parseEntries(config.before ?? []));
-      afterTypes.push(...parseEntries(config.after ?? []));
+      beforeTypes.push(...parseEntries(config.before ?? [], globalIds));
+      afterTypes.push(...parseEntries(config.after ?? [], globalIds));
     }
 
     return { beforeTypes, afterTypes, globalOptions };

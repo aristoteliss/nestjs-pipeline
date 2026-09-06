@@ -28,11 +28,14 @@ import { LoginMapper } from '../mappers/login.mapper';
 
 @Controller('auth')
 export class AuthsController {
-  constructor(private readonly commandBus: CommandBus) { }
+  constructor(private readonly commandBus: CommandBus) {}
 
   /**
    * Authenticates a user and creates the Auth domain aggregate.
-   * On success, populates the secure session cookie and returns the auth response.
+   * On success, returns a bearer token in the auth response. When the Fastify
+   * adapter has decorated the request with `@fastify/secure-session`, it also
+   * populates the secure session cookie. Express intentionally has no session
+   * object in this sample, so callers use the returned bearer token there.
    */
   @Post('login')
   @HttpCode(200)
@@ -45,23 +48,30 @@ export class AuthsController {
       SessionUser & { token: string }
     >(LoginMapper.map(dto));
 
-    req.session?.set('user', {
-      id: sessionData.id,
-      email: sessionData.email,
-      department: sessionData.department,
-      capabilities: sessionData.capabilities,
-    });
+    if (req.session) {
+      req.session.user = {
+        id: sessionData.id,
+        tenant: sessionData.tenant,
+        email: sessionData.email,
+        department: sessionData.department,
+        capabilities: sessionData.capabilities,
+        expiresAt: sessionData.expiresAt,
+        exp: sessionData.exp,
+      };
+    }
 
     return sessionData;
   }
 
   /**
-   * Clears the current session cookie, logging the user out.
+   * Clears the current Fastify secure-session cookie when present. Under
+   * Express there is no server session to delete; clients discard their bearer
+   * token.
    */
   @Post('logout')
   @HttpCode(204)
   async logout(@Req() req: { session?: Session<SessionData> }): Promise<void> {
-    const sessionUser = req.session?.get('user');
+    const sessionUser = req.session?.user;
 
     await this.commandBus.execute(new DeleteAuthCommand(sessionUser));
 

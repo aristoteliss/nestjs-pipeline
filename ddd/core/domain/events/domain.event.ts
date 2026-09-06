@@ -16,6 +16,7 @@
  * ----------------------------
  */
 
+import type { IEvent } from '@nestjs/cqrs';
 import { uuidv7 } from '@nestjs-pipeline/core';
 
 /**
@@ -25,7 +26,7 @@ import { uuidv7 } from '@nestjs-pipeline/core';
  * unless one is supplied. Concrete events extend this to describe something that
  * has happened in the domain.
  */
-export abstract class DomainEvent {
+export abstract class DomainEvent implements IEvent {
   public readonly id: string;
 
   protected constructor(id?: string) {

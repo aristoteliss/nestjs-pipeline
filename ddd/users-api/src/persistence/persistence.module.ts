@@ -24,12 +24,16 @@ import { MIKRO_ORM_CLIENT, MikroOrmStore } from './mikro-orm.store';
 import { PostgresMikroOrmStore } from './postgres-mikro-orm.store';
 import { TenantSchemaContext } from './tenant-schema.context';
 
+const isPostgres = process.env.DB_ENGINE === 'postgres';
+const SelectedMikroOrmStore = isPostgres
+  ? PostgresMikroOrmStore
+  : MikroOrmStore;
+
 @Global()
 @Module({
   providers: [
     TenantSchemaContext,
-    MikroOrmStore,
-    PostgresMikroOrmStore,
+    SelectedMikroOrmStore,
     {
       provide: TenantSchemaMiddleware,
       useFactory: (tenantSchemaContext: TenantSchemaContext) =>
@@ -38,14 +42,15 @@ import { TenantSchemaContext } from './tenant-schema.context';
     },
     {
       provide: MIKRO_ORM_CLIENT,
-      useFactory: (
-        sqliteStore: MikroOrmStore,
-        postgresStore: PostgresMikroOrmStore,
-      ) => (process.env.DB_ENGINE === 'postgres' ? postgresStore : sqliteStore),
-      inject: [MikroOrmStore, PostgresMikroOrmStore],
+      useExisting: SelectedMikroOrmStore,
     },
     { provide: CACHE_TOKEN, useClass: MikroOrmCache },
   ],
-  exports: [MIKRO_ORM_CLIENT, CACHE_TOKEN, TenantSchemaContext, TenantSchemaMiddleware],
+  exports: [
+    MIKRO_ORM_CLIENT,
+    CACHE_TOKEN,
+    TenantSchemaContext,
+    TenantSchemaMiddleware,
+  ],
 })
-export class PersistenceModule { }
+export class PersistenceModule {}

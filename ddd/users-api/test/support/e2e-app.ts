@@ -41,6 +41,7 @@ export const E2E_API_CLIENTS = [
     id: 'api-admin-client',
     name: 'Admin Client',
     key: 'admin-secret-key-12345',
+    tenants: ['tenant', 'tenant_a', 'tenant_b'],
     capabilities: {
       roles: [],
       additionalCapabilities: ['all|manage|*'],
@@ -50,6 +51,7 @@ export const E2E_API_CLIENTS = [
     id: 'api-read-only-client',
     name: 'Read Only Client',
     key: 'readonly-secret-key-12345',
+    tenants: ['tenant', 'tenant_a', 'tenant_b'],
     capabilities: {
       roles: [],
       additionalCapabilities: ['User|read|*', 'Role|read|*'],
@@ -77,20 +79,18 @@ export async function createTestJwt(options?: {
   roles?: string[];
   additionalCapabilities?: string[];
   deniedCapabilities?: string[];
+  tenant?: string;
   secret?: string;
   expiresIn?: string | number;
 }): Promise<string> {
   const secret = new TextEncoder().encode(options?.secret ?? E2E_JWT_SECRET);
   const jwt = new SignJWT({
+    tenant: options?.tenant ?? 'tenant',
     email: options?.email ?? 'jwt-user@acme.test',
     department: options?.department ?? 'engineering',
-    capabilities: {
-      roles: options?.roles ?? [],
-      additionalCapabilities: options?.additionalCapabilities ?? [
-        'all|manage|*',
-      ],
-      deniedCapabilities: options?.deniedCapabilities ?? [],
-    },
+    roles: options?.roles ?? [],
+    additionalCapabilities: options?.additionalCapabilities ?? ['all|manage|*'],
+    deniedCapabilities: options?.deniedCapabilities ?? [],
   })
     .setProtectedHeader({ alg: 'HS256' })
     .setSubject(options?.sub ?? 'jwt-user-1')
@@ -145,22 +145,9 @@ export async function bootstrapE2E(options?: E2EOptions): Promise<E2EContext> {
     options?.apiClients ?? E2E_API_CLIENTS,
   );
 
-  // 1. Create the schema in the exact database file(s) the app will open.
-  const { MikroORM, SchemaGenerator } = await import('@mikro-orm/libsql');
-  const { createLibsqlOrmOptions, resolveLibsqlDbUrl, resolveLibsqlTenants } =
-    await import('@persistence/libsql-options');
-
-  const tenants = resolveLibsqlTenants();
-  for (const tenant of tenants) {
-    const baseOptions = createLibsqlOrmOptions(resolveLibsqlDbUrl(tenant));
-    const orm = await MikroORM.init({
-      ...baseOptions,
-      // MikroORM 7 requires the schema generator to be registered explicitly.
-      extensions: [...(baseOptions.extensions ?? []), SchemaGenerator],
-    });
-    await orm.schema.create();
-    await orm.close();
-  }
+  // 1. Run migrations to establish the exact production database schema and seed data.
+  const { migrate } = await import('@persistence/migrate');
+  await migrate();
 
   // 2. Build the Nest application. The production AuthSessionInterceptor reads
   //    the authenticated principal from `req.session.get('user')`. We feed that
@@ -177,6 +164,12 @@ export async function bootstrapE2E(options?: E2EOptions): Promise<E2EContext> {
   const { AppModule } = await import('../../src/app.module');
   const { FeatureDisabledFilter } = await import(
     '../../src/common/filters/feature-disabled.filter'
+  );
+  const { UnauthorizedActionFilter } = await import(
+    '../../src/common/filters/unauthorized-action.filter'
+  );
+  const { DomainExceptionFilter } = await import(
+    '../../src/common/filters/domain-exception.filter'
   );
 
   const moduleRef = await Test.createTestingModule({
@@ -197,9 +190,14 @@ export async function bootstrapE2E(options?: E2EOptions): Promise<E2EContext> {
     ) => {
       const raw = req.headers['x-test-user'];
       const header = Array.isArray(raw) ? raw[0] : raw;
-      const user = header ? JSON.parse(header) : undefined;
+      const parsedUser = header ? JSON.parse(header) : undefined;
+      const rawTenant = req.headers['x-tenant-schema'];
+      const tenant = Array.isArray(rawTenant) ? rawTenant[0] : rawTenant;
+      const user = parsedUser
+        ? { ...parsedUser, tenant: parsedUser.tenant ?? tenant }
+        : undefined;
       const store: Record<string, unknown> = user ? { user } : {};
-      req.session = {
+      const sessionObj = {
         get: (key: string) => store[key],
         set: (key: string, value: unknown) => {
           store[key] = value;
@@ -210,6 +208,22 @@ export async function bootstrapE2E(options?: E2EOptions): Promise<E2EContext> {
           }
         },
       };
+      req.session = new Proxy(sessionObj, {
+        get(target: any, prop: string) {
+          if (prop in target) {
+            return target[prop];
+          }
+          return store[prop];
+        },
+        set(target: any, prop: string, value: unknown) {
+          if (prop in target) {
+            target[prop] = value;
+            return true;
+          }
+          store[prop] = value;
+          return true;
+        },
+      });
       next();
     },
   );
@@ -219,27 +233,10 @@ export async function bootstrapE2E(options?: E2EOptions): Promise<E2EContext> {
     new FeatureDisabledFilter(),
     new RateLimitExceededFilter(),
     new IdempotencyConflictFilter(),
+    new UnauthorizedActionFilter(),
+    new DomainExceptionFilter(),
   );
   await app.init();
-
-  // MikroORM derives each entity's `validateProps` while the metadata is
-  // synced. When the sources are compiled with SWC, the EntitySchema scalar
-  // `kind` is resolved early enough that the timestamp columns (mapped as
-  // `number` but holding `Date` values that MikroORM coerces on write) land in
-  // `validateProps`, making the unit-of-work throw a spurious "wrong property
-  // type" error before the value is converted. Under the production toolchain
-  // the same props are computed before their `kind` is set, so the list stays
-  // empty and the write succeeds. Clear it here so the test toolchain matches
-  // production runtime behaviour without touching application code.
-  const { MIKRO_ORM_CLIENT } = await import('@persistence/mikro-orm.store');
-  const store = app.get<{
-    orm: {
-      getMetadata(): { getAll(): Map<unknown, { validateProps: unknown[] }> };
-    };
-  }>(MIKRO_ORM_CLIENT);
-  for (const meta of store.orm.getMetadata().getAll().values()) {
-    meta.validateProps = [];
-  }
 
   const close = async (): Promise<void> => {
     await app.close();

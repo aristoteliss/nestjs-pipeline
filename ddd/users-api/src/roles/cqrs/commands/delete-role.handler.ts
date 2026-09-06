@@ -16,17 +16,21 @@
  * ----------------------------
  */
 
+import { APP_ACTIONS, APP_SUBJECTS, AUDIT_ACTIONS } from '@common/constants';
+import { getSessionUserFromStore } from '@common/context/session-user.store';
 import { Inject, NotFoundException } from '@nestjs/common';
 import { CommandHandler, EventBus } from '@nestjs/cqrs';
-import { CaslBehavior } from '@nestjs-pipeline/casl';
+import { AUDIT_SEVERITY, AuditBehavior } from '@nestjs-pipeline/audit';
+import { CaslAuthorizer, CaslBehavior } from '@nestjs-pipeline/casl';
 import { LoggingBehavior, UsePipeline } from '@nestjs-pipeline/core';
 import {
   CommandBaseHandler,
   ICommandRepository,
   IQueryRepository,
 } from '@nestjs-pipeline/ddd-core';
+import { ResilienceBehavior } from '@nestjs-pipeline/resilience';
+import { isTransientPersistenceError } from '@persistence/is-transient-persistence-error';
 import { Role } from '../../domain/models/role.entity';
-import { RoleUpdateOutcome } from '../../domain/outcomes/role-update.outcome';
 import {
   COMMAND_REPOSITORY,
   QUERY_REPOSITORY,
@@ -40,40 +44,69 @@ import { DeleteRoleCommand } from './delete-role.command';
   [
     CaslBehavior,
     {
-      subjectFromRequest: 'Role',
-      rules: [{ action: 'delete', subject: 'Role' }],
+      rules: [{ action: APP_ACTIONS.DELETE, subject: APP_SUBJECTS.ROLE }],
+    },
+  ],
+  // Resilience policy for transient faults during role deletion
+  [
+    ResilienceBehavior,
+    {
+      handle: isTransientPersistenceError,
+      retry: {
+        maxAttempts: 3,
+        backoff: { type: 'exponential', initialDelay: 100, maxDelay: 2_000 },
+      },
+    },
+  ],
+  // Audit the sensitive role deletion action
+  [
+    AuditBehavior,
+    {
+      action: AUDIT_ACTIONS.ROLE_DELETE,
+      severity: AUDIT_SEVERITY.HIGH,
+      actor: () => {
+        const sessionUser = getSessionUserFromStore();
+        return sessionUser
+          ? { id: sessionUser.id, email: sessionUser.email ?? undefined }
+          : undefined;
+      },
     },
   ],
 )
 export class DeleteRoleHandler extends CommandBaseHandler<
   DeleteRoleCommand,
-  RoleUpdateOutcome
+  Role
 > {
   constructor(
     @Inject(QUERY_REPOSITORY.getRole)
-    private readonly queryRepository: IQueryRepository<GetRoleQuery, Role>,
+    private readonly queryRepository: IQueryRepository<
+      GetRoleQuery,
+      Role | null
+    >,
     @Inject(COMMAND_REPOSITORY.deleteRole)
-    private readonly commandRepository: ICommandRepository<RoleUpdateOutcome>,
+    private readonly commandRepository: ICommandRepository<Role, null>,
+    private readonly authorizer: CaslAuthorizer,
     protected readonly eventBus: EventBus,
   ) {
     super(eventBus);
   }
 
-  async handle(command: DeleteRoleCommand): Promise<RoleUpdateOutcome> {
+  async handle(command: DeleteRoleCommand): Promise<Role> {
     const { id } = command;
 
-    const query = new GetRoleQuery({ roleId: id });
-
-    const role = await this.queryRepository.find(query);
+    const query = new GetRoleQuery({ roleId: id }, { hydrate: true });
+    const role = Role.from(await this.queryRepository.find(query));
 
     if (!role) {
       throw new NotFoundException('Role not found');
     }
 
-    const outcome = role.delete();
+    this.authorizer.authorize('delete', role);
 
-    await this.commandRepository.save(outcome);
+    role.delete();
 
-    return outcome;
+    await this.commandRepository.save(role);
+
+    return role;
   }
 }

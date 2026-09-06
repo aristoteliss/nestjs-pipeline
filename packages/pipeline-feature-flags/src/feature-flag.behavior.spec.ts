@@ -37,9 +37,9 @@ function makeCtx(overrides: Partial<IPipelineContext> = {}): IPipelineContext {
     correlationId: 'corr-123',
     originalCorrelationId: 'corr-123',
     request: { id: 1 },
-    requestType: class TestCommand { },
+    requestType: class TestCommand {},
     requestName: 'TestCommand',
-    handlerType: class TestHandler { },
+    handlerType: class TestHandler {},
     handlerName: 'TestHandler',
     requestKind: 'command',
     startedAt: new Date('2026-01-01T00:00:00.000Z'),
@@ -65,6 +65,26 @@ function withOptions(
 describe('FeatureFlagBehavior', () => {
   beforeEach(() => {
     getBooleanValue.mockReset();
+  });
+
+  it('does not mutate a shared logger and supplies its context per call', async () => {
+    getBooleanValue.mockResolvedValue(true);
+    const logger = { debug: vi.fn(), setContext: vi.fn() };
+    const behavior = new FeatureFlagBehavior(
+      client,
+      undefined,
+      undefined,
+      logger as never,
+    );
+    const ctx = withOptions(makeCtx(), { flag: 'new-checkout' });
+
+    await behavior.handle(ctx, vi.fn().mockResolvedValue('ok'));
+
+    expect(logger.setContext).not.toHaveBeenCalled();
+    expect(logger.debug).toHaveBeenCalledWith(
+      expect.stringContaining('enabled'),
+      FeatureFlagBehavior.name,
+    );
   });
 
   it('passes through without evaluating when no flag is configured', async () => {

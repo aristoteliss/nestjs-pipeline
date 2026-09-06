@@ -97,8 +97,8 @@ export interface AuditBehaviorOptions {
    */
   includeStack?: boolean;
   /**
-   * When the sink itself throws (e.g. the audit DB is down), allow the request
-   * to continue (`true`, default) or surface the sink error (`false`).
+   * When record construction (actor/metadata/redactor factories) or the sink itself throws,
+   * allow the request to continue (`true`, default) or surface the audit error (`false`).
    * Fail-open favors availability; fail-closed favors a guaranteed audit trail.
    */
   failOpen?: boolean;

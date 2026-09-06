@@ -17,18 +17,21 @@
  */
 
 import { BaseCommand } from '@common/cqrs/commands/base.command';
-import { createExecuteClass } from '@common/cqrs/helpers/createExecute.helper';
+import { createCommand } from '@nestjs-pipeline/zod';
 import { z } from 'zod';
 
-export class UpdateUserCommand extends createExecuteClass(
+export class UpdateUserCommand extends createCommand(
   z
     .object({
       id: z.uuid(),
       username: z.string().trim().min(3).optional(),
       department: z.string().trim().min(3).nullable().optional(),
     })
-    .refine((data) => data.username !== undefined || data.department !== undefined, {
-      message: 'At least one of username or department must be provided',
-    }),
+    .refine(
+      (data) => data.username !== undefined || data.department !== undefined,
+      {
+        message: 'At least one of username or department must be provided',
+      },
+    ),
   BaseCommand,
-) { }
+) {}

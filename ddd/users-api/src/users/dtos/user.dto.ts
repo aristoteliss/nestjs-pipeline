@@ -16,29 +16,36 @@
  * ----------------------------
  */
 
-import { InternalServerErrorException, NotFoundException } from '@nestjs/common';
+import {
+  InternalServerErrorException,
+  NotFoundException,
+} from '@nestjs/common';
 import { z } from 'zod';
 import type { User, UserSnapshot } from '../domain/models/user.entity';
 
 export const UserResponseDtoSchema = z
   .object({
-    id: z.string(),
-    email: z.string(),
-    username: z.string(),
+    id: z.string().optional(),
+    email: z.string().optional(),
+    username: z.string().optional(),
+    name: z.string().optional(),
     department: z.string().nullable().optional(),
   })
-  .transform(({ id, email, username, department }) => ({
-    id,
-    email,
-    name: username,
-    department: department ?? null,
+  .transform(({ id, email, username, name, department }) => ({
+    ...(id !== undefined ? { id } : {}),
+    ...(email !== undefined ? { email } : {}),
+    ...(username !== undefined || name !== undefined
+      ? { name: username ?? name }
+      : {}),
+    ...(department !== undefined ? { department: department ?? null } : {}),
   }));
 
 export type UserResponseDto = z.output<typeof UserResponseDtoSchema>;
 
-export function toResponseDto(user: User | UserSnapshot): UserResponseDto {
-  if (!user)
-    throw new NotFoundException('User not found');
+export function toResponseDto(
+  user: User | UserSnapshot | null,
+): UserResponseDto {
+  if (!user) throw new NotFoundException('User not found');
 
   const plain =
     'toJSON' in user && typeof user.toJSON === 'function'
