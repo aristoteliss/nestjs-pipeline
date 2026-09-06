@@ -26,9 +26,7 @@ export class RoleUpdatedHandler implements IEventHandler<RoleUpdatedEvent> {
   private readonly logger = new Logger(RoleUpdatedHandler.name);
 
   async handle(event: RoleUpdatedEvent): Promise<void> {
-    const {
-      entity: { id: roleId, name },
-    } = event;
+    const { id: roleId, name } = event.payload;
     const correlationId = getCorrelationId();
 
     this.logger.log(

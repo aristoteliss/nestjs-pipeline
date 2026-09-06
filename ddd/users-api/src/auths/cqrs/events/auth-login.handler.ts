@@ -26,11 +26,11 @@ export class CreatedAuthHandler implements IEventHandler<CreatedAuthEvent> {
   private readonly logger = new Logger(CreatedAuthHandler.name);
 
   async handle(event: CreatedAuthEvent): Promise<void> {
-    const { entity } = event;
+    const { payload } = event;
     const correlationId = getCorrelationId();
 
     this.logger.log(
-      `AuthLogin [${correlationId}] authId: ${entity.id}, userId: ${entity.userId}`,
+      `AuthLogin [${correlationId}] authId: ${payload.id}, userId: ${payload.userId}`,
     );
   }
 }

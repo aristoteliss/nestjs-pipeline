@@ -39,9 +39,7 @@ export class UserUpdatedHandler implements IEventHandler<UserUpdatedEvent> {
   ) {}
 
   async handle(event: UserUpdatedEvent): Promise<void> {
-    const {
-      entity: { id: userId, username },
-    } = event;
+    const { id: userId, username } = event.payload;
     const correlationId = getCorrelationId();
     const tenant = this.tenantSchemaContext.schema;
 
