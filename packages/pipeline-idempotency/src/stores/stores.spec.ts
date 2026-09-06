@@ -172,7 +172,7 @@ describe('MemoryIdempotencyStore', () => {
     }
   });
 
-  it('bounds capacity and handles sustained cardinality without unbounded memory growth', () => {
+  it('bounds capacity and handles sustained cardinality without unbounded memory growth when expired entries are pruned', () => {
     const maxEntries = 25;
     const store = new MemoryIdempotencyStore({
       maxEntries,
@@ -180,16 +180,59 @@ describe('MemoryIdempotencyStore', () => {
     });
     try {
       for (let i = 0; i < 100; i++) {
+        // Advance time so older entries expire and get cleaned up on ensureCapacity
+        vi.advanceTimersByTime(100);
         store.setIfAbsent(
           `cardinality-${i}`,
           record({ key: `cardinality-${i}` }),
-          60_000,
+          500,
         );
       }
-      expect(store.size).toBe(maxEntries);
+      expect(store.size).toBeLessThanOrEqual(maxEntries);
     } finally {
       store.destroy();
     }
+  });
+
+  it('does not evict active in-progress claims when reaching capacity, preventing duplicate execution', () => {
+    const store = new MemoryIdempotencyStore({ maxEntries: 1, cleanupIntervalMs: 0 });
+    const claimA = record({ key: 'claim-a', claimId: 'owner-a', status: 'in_progress' });
+    const claimB = record({ key: 'claim-b', claimId: 'owner-b', status: 'in_progress' });
+
+    expect(store.setIfAbsent('claim-a', claimA, 10_000)).toBe(true);
+
+    // Adding claim-b when capacity 1 is full of unexpired claim-a must reject and NOT evict claim-a
+    expect(() => store.setIfAbsent('claim-b', claimB, 10_000)).toThrow(
+      /capacity .* reached: cannot evict active or unexpired claims/,
+    );
+
+    // Claim A is still alive and owned
+    expect(store.get('claim-a')).toBeDefined();
+    // A duplicate claim A is rejected (not allowed to execute again)
+    expect(store.setIfAbsent('claim-a', claimA, 10_000)).toBe(false);
+  });
+
+  it('does not evict completed unexpired claims when reaching capacity, preserving idempotency', () => {
+    const store = new MemoryIdempotencyStore({ maxEntries: 1, cleanupIntervalMs: 0 });
+    const claimA = record({ key: 'claim-a', claimId: 'owner-a', status: 'in_progress' });
+    store.setIfAbsent('claim-a', claimA, 10_000);
+    store.completeIfOwned(
+      'claim-a',
+      'owner-a',
+      { ...claimA, status: 'completed', response: 'ok' },
+      10_000,
+    );
+
+    const claimB = record({ key: 'claim-b', claimId: 'owner-b', status: 'in_progress' });
+    // Attempting to claim B cannot evict completed unexpired claim A
+    expect(() => store.setIfAbsent('claim-b', claimB, 10_000)).toThrow(
+      /capacity .* reached: cannot evict active or unexpired claims/,
+    );
+
+    // Claim A still returns the completed record
+    expect(store.get('claim-a')?.status).toBe('completed');
+    // New duplicate claim A is rejected so it cannot execute twice
+    expect(store.setIfAbsent('claim-a', claimA, 10_000)).toBe(false);
   });
 
   it('purges expired entries first before evicting live entries when reaching maxEntries', () => {
