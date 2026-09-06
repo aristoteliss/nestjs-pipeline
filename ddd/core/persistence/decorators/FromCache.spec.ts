@@ -128,10 +128,11 @@ describe('@FromCache decorator on QueryRepository.find', () => {
 
     expect(result).toEqual({ id: '40', name: 'User 40' });
     expect(repo.dbFetchCount).toBe(1);
-    expect(mockCache.set).toHaveBeenCalledWith('user:40', {
-      id: '40',
-      name: 'User 40',
-    });
+    expect(mockCache.set).toHaveBeenCalledWith(
+      'user:40',
+      { id: '40', name: 'User 40' },
+      expect.objectContaining({ isNewer: expect.any(Function) }),
+    );
   });
 
   it('returns a cached falsy value without executing the repository method', async () => {
@@ -177,7 +178,11 @@ describe('@FromCache decorator on QueryRepository.find', () => {
 
     expect(result).toEqual(persisted);
     expect(repo.dbFetchCount).toBe(1);
-    expect(mockCache.set).toHaveBeenCalledWith('user:70', persisted);
+    expect(mockCache.set).toHaveBeenCalledWith(
+      'user:70',
+      persisted,
+      expect.objectContaining({ isNewer: expect.any(Function) }),
+    );
   });
 });
 
@@ -245,9 +250,9 @@ describe('@FromCache with options and concurrency checks', () => {
 
     expect(res).toEqual({ id: '80', version: 1 });
     expect(mockCache.set).toHaveBeenCalledWith(
-      'user:80',
-      { id: '80', version: 1 },
-      { ttl: 3000 },
+       'user:80',
+       { id: '80', version: 1 },
+       expect.objectContaining({ ttl: 3000, isNewer: expect.any(Function) }),
     );
   });
 

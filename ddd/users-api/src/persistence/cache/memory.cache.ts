@@ -17,13 +17,11 @@
  */
 
 import { Injectable } from '@nestjs/common';
-import { ICache } from '@nestjs-pipeline/ddd-core';
+import { CacheSetOptions, ICache } from '@nestjs-pipeline/ddd-core';
 
 export const CACHE_TOKEN = Symbol('MemoryCache');
 
-export interface MemoryCacheSetOptions {
-  ttl?: number;
-}
+export type MemoryCacheSetOptions = CacheSetOptions;
 
 @Injectable()
 export class MemoryCache<T> implements ICache<T> {
@@ -39,6 +37,15 @@ export class MemoryCache<T> implements ICache<T> {
     value: T,
     options?: MemoryCacheSetOptions,
   ): Promise<void> {
+    const existing = this.store.get(key);
+    if (existing) {
+      if (existing.expiresAt !== undefined && Date.now() > existing.expiresAt) {
+        this.store.delete(key);
+      } else if (options?.isNewer && options.isNewer(existing.value, value)) {
+        return;
+      }
+    }
+
     const ttl = options?.ttl ?? this.defaultTtlMs;
     const expiresAt = ttl > 0 ? Date.now() + ttl : undefined;
     this.store.set(key, { value, expiresAt });
