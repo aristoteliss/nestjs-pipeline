@@ -336,4 +336,76 @@ describe('DeadLetterBehavior', () => {
       password: '[REDACTED]',
     });
   });
+
+  it('merges module default ignoreErrors with handler ignoreErrors arrays', async () => {
+    class DefaultIgnoredError extends Error {}
+    class HandlerIgnoredError extends Error {}
+    class OtherError extends Error {}
+
+    const behavior = new DeadLetterBehavior(transport, {
+      ignoreErrors: [DefaultIgnoredError],
+    });
+
+    // Handler adds HandlerIgnoredError
+    const ctx = withOptions(makeCtx(), {
+      ignoreErrors: [HandlerIgnoredError],
+    });
+
+    // 1. DefaultIgnoredError must still be ignored
+    await expect(
+      behavior.handle(
+        ctx,
+        vi.fn().mockRejectedValue(new DefaultIgnoredError('skip default')),
+      ),
+    ).rejects.toThrow('skip default');
+    expect(send).not.toHaveBeenCalled();
+
+    // 2. HandlerIgnoredError must also be ignored
+    await expect(
+      behavior.handle(
+        ctx,
+        vi.fn().mockRejectedValue(new HandlerIgnoredError('skip handler')),
+      ),
+    ).rejects.toThrow('skip handler');
+    expect(send).not.toHaveBeenCalled();
+
+    // 3. OtherError must NOT be ignored
+    await expect(
+      behavior.handle(
+        ctx,
+        vi.fn().mockRejectedValue(new OtherError('capture me')),
+      ),
+    ).rejects.toThrow('capture me');
+    expect(send).toHaveBeenCalledTimes(1);
+  });
+
+  it('merges module default redactKeys with handler redactKeys', async () => {
+    const behavior = new DeadLetterBehavior(transport, {
+      redactKeys: ['secretKey'],
+    });
+    const ctx = withOptions(
+      makeCtx({
+        request: {
+          secretKey: 'top-secret',
+          pin: '1234',
+          publicField: 'visible',
+        },
+      }),
+      {
+        redactKeys: ['pin'],
+      },
+    );
+
+    await expect(
+      behavior.handle(ctx, vi.fn().mockRejectedValue(new Error('crash'))),
+    ).rejects.toThrow('crash');
+
+    expect(send).toHaveBeenCalledTimes(1);
+    const captured = send.mock.calls[0][0] as DeadLetterRecord;
+    expect(captured.payload).toEqual({
+      secretKey: '[REDACTED]',
+      pin: '[REDACTED]',
+      publicField: 'visible',
+    });
+  });
 });

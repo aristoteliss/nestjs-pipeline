@@ -212,15 +212,24 @@ For each request, `DeadLetterBehavior` runs the handler and, **only on failure**
 ## Configuration
 
 Per-handler options via `@UsePipeline([DeadLetterBehavior, options])`, merged
-over module-wide `defaults` (handler wins):
+over module-wide `defaults`:
 
 | Option | Type | Default | Description |
 |---|---|---|---|
 | `rethrow` | `boolean` | `true` | Re-throw after capture. `false` swallows only after successful transport delivery. |
 | `includeStack` | `boolean` | `true` | Include the error stack in the record. |
 | `captureKinds` | `('command'\|'query'\|'event'\|'unknown')[]` | all | Restrict which request kinds are captured. |
-| `ignoreErrors` | `Type[] \| ((err, ctx) => boolean)` | — | Error classes or predicate function to skip from dead-letter capture. |
+| `ignoreErrors` | `Type[] \| ((err, ctx) => boolean)` | — | Error classes or predicate function to skip from dead-letter capture. Combines intelligently when defined at both module and handler level. |
 | `metadata` | `(ctx) => Record<string, unknown>` | — | Extra request-aware metadata to attach. |
+| `redact` | `(payload: unknown) => unknown` | — | Custom redactor function taking precedence over `redactKeys`. |
+| `redactKeys` | `string[]` | `DEFAULT_REDACT_KEYS` | Field names to mask with `[REDACTED]` in the captured payload. Case-insensitive matching. Merged as a Set union with module defaults. |
+
+### Smart Options Merging
+
+When both module-wide `defaults` and per-handler options define settings:
+- **`ignoreErrors` is additive**: If both module defaults and handler options define error filters, they are combined — arrays of error classes are concatenated, predicate functions are chained with logical OR (`defaultFilter(err, ctx) || handlerFilter(err, ctx)`), and combinations of class arrays and functions evaluate both.
+- **`redactKeys` is a union**: Extra keys configured on a handler are unioned with `defaults.redactKeys` without duplicates.
+- **Scalar options** (`rethrow`, `includeStack`, `captureKinds`, `metadata`, `redact`): The per-handler value overrides the module default.
 
 Module-wide defaults:
 
@@ -231,6 +240,7 @@ DeadLetterModule.forRoot({
     includeStack: false,
     captureKinds: ['command', 'event'],
     ignoreErrors: [ZodValidationError],
+    redactKeys: ['bankAccount', 'securityAnswer'],
   },
 });
 ```
@@ -307,13 +317,14 @@ The chain becomes `Logging → ZodValidation → DeadLetterBehavior → Resilien
 | `DeadLetterModule` | Class | `forRoot(options)` / `forRootAsync(options)` |
 | `DeadLetterTransport` | Interface | One-method sink: `send(record)` |
 | `DeadLetterRecord` | Interface | Serializable failed-request snapshot |
-| `DeadLetterBehaviorOptions` | Interface | `{ rethrow?, includeStack?, captureKinds?, ignoreErrors?, metadata? }` |
+| `DeadLetterBehaviorOptions` | Interface | `{ rethrow?, includeStack?, captureKinds?, ignoreErrors?, metadata?, redact?, redactKeys? }` |
 | `DeadLetterModuleOptions` / `DeadLetterModuleAsyncOptions` | Interface | Module registration options |
 | `BullMqDeadLetterTransport` | Class | Adds a job to a BullMQ queue |
 | `RabbitMqDeadLetterTransport` | Class | Publishes a persistent AMQP message |
 | `PostgresDeadLetterTransport` | Class | Inserts a row via `pg` |
 | `createDeadLetterTableSql` | Function | `CREATE TABLE` DDL for the Postgres transport |
 | `buildDeadLetterRecord` | Function | Builds a record from a context + error |
+| `DEFAULT_REDACT_KEYS` | Constant | Default list of sensitive keys masked with `[REDACTED]` |
 | `DEAD_LETTER_TRANSPORT` / `DEAD_LETTER_DEFAULT_OPTIONS` | Token | Injection tokens |
 | `DEAD_LETTER_ITEM` | Symbol | `context.items` exported unique Symbol key set after the capture attempt |
 
