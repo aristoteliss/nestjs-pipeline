@@ -26,9 +26,7 @@ export class RoleDeletedHandler implements IEventHandler<RoleDeletedEvent> {
   private readonly logger = new Logger(RoleDeletedHandler.name);
 
   async handle(event: RoleDeletedEvent): Promise<void> {
-    const {
-      entity: { id: roleId, name },
-    } = event;
+    const { id: roleId, name } = event.payload;
     const correlationId = getCorrelationId();
 
     this.logger.log(

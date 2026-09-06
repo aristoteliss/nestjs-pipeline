@@ -26,9 +26,7 @@ export class UserDeletedHandler implements IEventHandler<UserDeletedEvent> {
   private readonly logger = new Logger(UserDeletedHandler.name);
 
   async handle(event: UserDeletedEvent): Promise<void> {
-    const {
-      entity: { id: userId, username },
-    } = event;
+    const { id: userId, username } = event.payload;
 
     const correlationId = getCorrelationId();
 
