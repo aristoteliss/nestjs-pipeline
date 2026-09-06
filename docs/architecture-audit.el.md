@@ -1,0 +1,93 @@
+# Αρχιτεκτονικό Audit — Clean Architecture / DDD / CQRS / NestJS Pipeline
+
+> Snapshot: `master` @ `ea72fecc3be83c85aa14e7c3ff50288a2fa5a6b9` — 2026-09-06
+>
+> Το repository είναι το τελικό source of truth. Το audit βασίζεται στις δηλωμένες αποφάσεις των root/DDD READMEs και στον πραγματικό κώδικα των `packages/*`, `ddd/core` και `ddd/users-api`.
+
+## Τι θεωρείται «σωστή αρχιτεκτονική» σε αυτό το repo
+
+Το repo δεν εφαρμόζει generic Clean Architecture κατά γράμμα· έχει συγκεκριμένες, σκόπιμες επιλογές:
+
+1. Τα `@CommandHandler`, `@QueryHandler` και `@EventsHandler` πρέπει να κρατούν κυρίως business/application orchestration. Logging, metrics, tracing, validation, audit, rate limiting, retries, feature flags, dead-letter και idempotency ανήκουν στα pipeline behaviors.
+2. Τα CQRS handlers δεν γνωρίζουν ORM/database clients. Εξαρτώνται από `ICommandRepository` / `IQueryRepository` μέσω injection tokens. ORM code ζει στα persistence adapters.
+3. Entity-level authorization και response field filtering **μένουν μέσα στο application path/handler**. Το type-level `CaslBehavior` δεν τα αντικαθιστά.
+4. Επειδή cache/idempotency μπορούν να κάνουν short-circuit πριν τρέξει ο handler, keys για protected αποτελέσματα πρέπει να περιέχουν όλα τα security dimensions που επηρεάζουν το αποτέλεσμα: tenant, principal και permission scope.
+5. Τα domain invariants και mutations ανήκουν στα aggregates. Application code χρησιμοποιεί factories/domain methods (`create`, `update`, `rename`, `delete`) και όχι setters.
+6. Domain errors είναι framework-agnostic (`DomainException`, `OptimisticLockError`) και μετατρέπονται σε HTTP στο presentation boundary (`DomainExceptionFilter`).
+7. `CommandBaseHandler` είναι η canonical command lifecycle abstraction για aggregate events. Όταν επιστρέφεται aggregate γίνεται auto-commit· όταν επιστρέφεται custom DTO επιτρέπεται explicit `commit(aggregate)`.
+8. Το in-memory Nest CQRS `EventBus` **δεν** παρέχει transactional-outbox guarantee. Αυτό είναι συνειδητό, τεκμηριωμένο trade-off και όχι bug από μόνο του.
+9. Το `ddd-core` επιτρέπεται να εξαρτάται από Nest CQRS primitives (`AggregateRoot`, `EventBus`) — είναι σκόπιμη απόφαση του repo.
+
+## Πίνακας ευρημάτων
+
+| ID | Κατηγορία | Σοβαρότητα | Βεβαιότητα | Αρχείο / σημείο | Κανόνας repo που επηρεάζεται | Εύρημα | Προτεινόμενη διόρθωση |
+|---|---|---:|---:|---|---|---|---|
+| A-01 | Confirmed violation | **High** | High | `ddd/users-api/src/users/cqrs/commands/update-user.handler.ts`, `delete-user.handler.ts`, `roles/cqrs/commands/update-role.handler.ts`, `delete-role.handler.ts` | Application/CQRS layer χωρίς HTTP semantics· framework-agnostic errors + presentation filter | Οι handlers κάνουν import και throw `NotFoundException` από `@nestjs/common`. Το use case πλέον γνωρίζει HTTP/Nest presentation semantics. | Εισαγωγή application/domain error π.χ. `UserNotFoundException` / `RoleNotFoundException` (ή κοινό `EntityNotFoundError`) και mapping σε HTTP 404 σε presentation filter. |
+| A-02 | Confirmed violation | **High** | High | `ddd/users-api/src/auths/services/user-login.service.ts` | Application service εξαρτάται προς τα μέσα/ports, όχι προς configuration/crypto/persistence implementations | Η κλάση δηλώνεται ως “Application service” αλλά διαβάζει `process.env`, υπογράφει JWT με `jose`, εξαρτάται από `TenantSchemaContext` που βρίσκεται στο persistence layer και πετά Nest HTTP exceptions. Έχει ταυτόχρονα orchestration και infrastructure responsibilities. | Σπάσιμο σε ports: `LoginCredentialVerifier`, `AccessTokenIssuer`, `TenantContextReader`, configuration abstraction. Οι adapters (`jose`, env/config, tenant context) να ζουν στο infrastructure/composition layer. Το application service να ενορχηστρώνει interfaces και application errors. |
+| A-03 | Confirmed violation | **High** | High | `ddd/users-api/src/users/cqrs/events/user-created.handler.ts`, `user-updated.handler.ts` | Application/event handlers δεν εξαρτώνται από concrete infrastructure | Οι event handlers injectάρουν απευθείας `@nestjs/bullmq`/`bullmq` `Queue` και imports από job processors. Το CQRS application layer γνωρίζει συγκεκριμένο broker/queue implementation. | Ορισμός application ports, π.χ. `WelcomeNotificationPort` και `UserBatchUpdatePort`. BullMQ adapters στο `jobs`/`infrastructure` υλοποιούν τα ports. Οι event handlers injectάρουν μόνο τα ports. |
+| A-04 | Confirmed violation | **Medium** | High | `auths/cqrs/events/auth-login.handler.ts`, `roles/cqrs/events/role-{created,updated,deleted}.handler.ts`, `users/cqrs/events/user-{created,updated,deleted}.handler.ts` | Cross-cutting concerns μέσω pipeline, όχι μέσα σε handlers | Πολλοί event handlers κάνουν manual `Logger` + `getCorrelationId()`. Ο `RoleCreatedHandler` είναι ουσιαστικά μόνο observational logging, δηλαδή ακριβώς το είδος επαναλαμβανόμενου non-business code που το pipeline υπάρχει για να αφαιρεί. | Για observability χρησιμοποίησε `LoggingBehavior`/global logging. Για business/audit trail χρησιμοποίησε `AuditBehavior` ή dedicated audit port. Μην δημιουργούνται CQRS event handlers μόνο για log output. |
+| A-05 | Confirmed violation | **Medium** | High | `users/cqrs/events/user-created.handler.ts`, `user-updated.handler.ts`, `auths/cqrs/commands/create-auth.handler.ts`, `auths/services/user-login.service.ts` | Inner/application layer δεν κάνει import από persistence implementation namespace | Application code εξαρτάται απευθείας από `@persistence/tenant-schema.context` / `../../persistence/tenant-schema.context`. | Μετακίνηση του tenant execution context σε neutral application/context port ή expose μόνο interface/token από inner layer. Η persistence implementation να συνδέεται στο composition root. |
+| A-06 | Confirmed violation | **Medium** | High | `users/cqrs/commands/delete-user.handler.ts`, `roles/cqrs/commands/delete-role.handler.ts`, `persistence/is-transient-persistence-error.ts` | Persistence-specific concerns δεν πρέπει να διαρρέουν στον CQRS handler· presentation semantics δεν πρέπει να διαρρέουν στο persistence policy | Delete handlers εισάγουν `isTransientPersistenceError` από `@persistence`. Ο ίδιος predicate γνωρίζει `HttpException` για να αποφασίσει retry. Έτσι CQRS → persistence και persistence → HTTP semantics δημιουργούν διπλή διαρροή boundaries. | Μεταφορά transient-error classification στο reliability/infrastructure layer και configuration του `ResilienceBehavior` από composition/module defaults. Αν χρειάζεται port, χρησιμοποίησε framework-neutral `isTransientError(error)` policy. |
+| A-07 | Confirmed documentation/security violation | **High** | High | `ddd/users-api/README.md` § “Pipeline Caching with CacheBehavior” | Cache hit που παρακάμπτει handler-level entity/field authorization πρέπει να έχει tenant + principal + permission scope | Το παράδειγμα `GetRolesHandler` κάνει field/entity authorization μέσα στον handler αλλά το cache key είναι μόνο ``${tenant}:roles:all``. Σε hit ο handler δεν τρέχει, άρα response ήδη φιλτραρισμένο για έναν principal μπορεί να επαναχρησιμοποιηθεί για άλλον principal του ίδιου tenant. Αυτό αντιφάσκει ευθέως με root/core/cache README. | Διόρθωση example key ώστε να περιλαμβάνει principal + capability/permission version/scope, ή cache μόνο authorization-independent raw data πριν από field filtering. Προτίμηση σε repository cache για raw aggregate data όταν το response είναι principal-specific. |
+| A-08 | Architectural hardening | **Medium** | High | `packages/pipeline-cache/src/helpers/cache-key.ts` | Secure short-circuit keys | Το `defaultCacheKey()` περιλαμβάνει tenant (όταν υπάρχει), request name και payload, αλλά όχι principal/permission scope. Τα docs σωστά προειδοποιούν ότι δεν είναι ασφαλές για user/permission-scoped responses, όμως το default παραμένει εύκολο footgun. | Διατήρηση του generic default αν θεωρείται API contract, αλλά πρόσθεσε runtime/dev warning όταν συνδυάζεται με auth behavior χωρίς explicit key, helper `securityScopedCacheKey()`, και tests/examples που κάνουν ασφαλές το happy path. |
+| A-09 | Architectural hardening | **Medium** | Medium-High | `users/cqrs/commands/create-user.handler.ts`, `roles/cqrs/commands/create-role.handler.ts`, `auths/cqrs/commands/create-auth.handler.ts` | Tenant isolation / fail-safe context | Idempotency/rate-limit key factories χρησιμοποιούν `ctx.tenantId ?? 'default'`. Αν λείψει tenant context σε multi-tenant production flow, διαφορετικά tenants μπορούν να πέσουν στο ίδιο namespace. Το repo ήδη ακολουθεί fail-fast λογική σε tenant-aware repository cache. | Central helper `requireTenantId(ctx)` για security-sensitive keys. Allow `'default'` μόνο σε explicit single-tenant/dev mode. |
+| A-10 | Architectural smell | **Medium** | Medium | `auths/cqrs/commands/delete-auth.handler.ts`, `auths/domain/models/auth.entity.ts` | Domain intent μέσω aggregate methods/factories· canonical command lifecycle | Το logout δημιουργεί synthetic `new Auth({ userId, token: '' })` απλώς για να καλέσει generic `ICommandRepository.save()`. Δεν εκφράζεται domain operation `revoke/delete`, παρακάμπτεται factory/event semantics και ο handler δεν χρησιμοποιεί `CommandBaseHandler`. | Είτε πρόσθεσε `Auth.revoke()`/domain event και canonical aggregate flow, είτε χρησιμοποίησε ειδικό application port `AuthRevocationRepository.revokeByUserId()` αν η ανάκληση είναι persistence use case χωρίς aggregate lifecycle. Μην χρησιμοποιείται sentinel empty token ως command. |
+| A-11 | Architectural hardening | **Low-Medium** | Medium | `users/domain/models/user.entity.ts`, `roles/domain/models/role.entity.ts`, `auths/domain/models/auth.entity.ts` | “Factories are the only creation path” / invariants/events | Τα docs δηλώνουν `User.create()`/`Role.create()` ως μοναδικό creation path, αλλά οι constructors είναι public και επιτρέπουν application code να δημιουργήσει aggregate χωρίς creation event (και για no-arg ακόμη και προσωρινά invalid empty state). Το A-10 αποδεικνύει ότι αυτό ήδη συμβαίνει στο `Auth`. | Αν το ORM το επιτρέπει, κάνε constructors private/protected και explicit rehydration factory. Αν απαιτεί public constructor, βάλε ισχυρό agent/lint rule: application code δεν κάνει `new Aggregate(...)`; μόνο persistence/hydration adapters επιτρέπονται. |
+| A-12 | Confirmed documentation inconsistency | **Low** | High | `ddd/core/README.md` optimistic-lock repository example | Framework-agnostic domain/application errors | Το example χρησιμοποιεί Nest `ConflictException` μέσα σε repository, ενώ το πραγματικό users-api έχει `OptimisticLockError` και `DomainExceptionFilter`. Το documentation διδάσκει παλιό/αντίθετο pattern. | Αντικατάσταση `ConflictException` με `OptimisticLockError` (ή framework-neutral persistence/application error) και mapping στο presentation boundary. |
+| A-13 | Maintenance debt | **Low** | High | `packages/pipeline/src/constants/cqrs-metadata.constants.ts` | Minimize private framework coupling | Το αρχείο re-exportάρει private `@nestjs/cqrs/dist/decorators/constants`, αλλά δεν υπάρχει άλλος usage στο repo. Είναι νεκρή private-API dependency. | Διαγραφή του αρχείου/export αν όντως δεν χρησιμοποιείται externally. Μην προσθέτονται νέες εξαρτήσεις σε Nest internal constants χωρίς compatibility tests/justification. |
+| A-14 | Accepted technical risk — όχι violation | **Medium risk** | High | `packages/pipeline/src/services/pipeline.bootstrap.service.ts` | Repo-specific pipeline implementation | Το core χρησιμοποιεί `ExplorerService` από `@nestjs/cqrs/dist/...` και `InstanceWrapper` από Nest internals. Αυτό είναι εύθραυστο σε framework upgrades, αλλά είναι **ρητά τεκμηριωμένη τρέχουσα αρχιτεκτονική απόφαση** του pipeline bootstrap και όχι παράβαση του repo contract. | Μην το “διορθώσει” agent αυθαίρετα. Κάθε αλλαγή απαιτεί compatibility tests για υποστηριζόμενες Nest major versions και ADR/README update. Προτιμήστε public APIs όταν/αν γίνουν διαθέσιμα. |
+| A-15 | Accepted technical risk — όχι violation | **Medium risk** | High | `ddd/core/application/command-base.handler.ts` | Event publication semantics | Τα domain events δημοσιεύονται in-memory μετά το repository save χωρίς transactional outbox. Υπάρχει παράθυρο απώλειας event σε crash. Το ίδιο το code comment το δηλώνει. | Μην προστεθεί outbox “για καθαρότητα”. Πρόσθεσέ το μόνο σε use cases που απαιτούν durable at-least-once delivery και τότε ως ξεχωριστή αρχιτεκτονική απόφαση. |
+
+## Επιβεβαιωμένα σημεία που **συμμορφώνονται** με την αρχιτεκτονική
+
+Αυτά είναι canonical patterns που οι agents πρέπει να αντιγράφουν:
+
+- **Zero ORM leakage στους CQRS handlers:** το scan για `MIKRO_ORM_CLIENT` / `EntityManager` δείχνει χρήση στα persistence repositories/stores και όχι στους business command/query handlers.
+- **Repository boundaries:** `CreateUserHandler`, `UpdateUserHandler`, `GetUserHandler`, `GetUsersHandler` injectάρουν `ICommandRepository` / `IQueryRepository` μέσω tokens.
+- **Business mutations:** `User.create/update/delete` και `Role.create/rename/delete` συγκεντρώνουν invariants και domain events. Οι command handlers χρησιμοποιούν αυτές τις methods αντί για direct setters.
+- **Entity/field authorization στο σωστό σημείο:** `GetUserHandler` και `GetUsersHandler` εφαρμόζουν `CaslAuthorizer` πάνω στα πραγματικά aggregates/results, ενώ το `CaslBehavior` κρατά type-level access control.
+- **Framework-neutral domain error example:** `UniqueEmailException extends DomainException` και το `DomainExceptionFilter` κάνει HTTP mapping στο boundary.
+- **Command event lifecycle:** `CreateUserHandler`, user/role update/delete handlers και `CreateAuthHandler` χρησιμοποιούν `CommandBaseHandler`; το `CreateAuthHandler` κάνει explicit `commit(auth)` επειδή επιστρέφει custom session DTO αντί για aggregate.
+- **Cross-cutting concerns στα command handlers:** logging, metrics, audit, feature flags, rate limiting, resilience και idempotency εφαρμόζονται μέσω `@UsePipeline`, όχι με επαναλαμβανόμενο imperative code.
+- **Controller boundary:** οι controllers στέλνουν commands/queries μέσω buses και κρατούν HTTP/session mapping στο presentation layer.
+
+## Προτεραιότητα διορθώσεων
+
+1. **P0 / security-doc correctness:** A-07 — διόρθωση unsafe cache example πριν αντιγραφεί από agent/developer.
+2. **P1 / layer boundaries:** A-01, A-02, A-03, A-05, A-06.
+3. **P1 / pipeline intent:** A-04 — αφαίρεση manual observability από event handlers.
+4. **P2 / isolation hardening:** A-08, A-09.
+5. **P2 / DDD expressiveness:** A-10, A-11.
+6. **P3 / docs/maintenance:** A-12, A-13.
+7. **Do not auto-fix:** A-14, A-15 — είναι τεκμηριωμένα trade-offs και χρειάζονται ξεχωριστή αρχιτεκτονική απόφαση.
+
+## Review checklist για μελλοντικό PR
+
+- [ ] Κανένας CQRS handler/application service δεν injectάρει ORM, DB client, BullMQ queue ή concrete persistence context.
+- [ ] Κανένας CQRS handler/application service δεν πετά Nest `HttpException` subclasses για business/application outcomes.
+- [ ] Logging/tracing/metrics/audit/rate-limit/retry/idempotency/feature flags είναι behaviors ή infrastructure concerns.
+- [ ] Entity-level authorization και field filtering παραμένουν μετά τη φόρτωση του aggregate/result.
+- [ ] Cache/idempotency keys είναι partitioned από tenant + principal + permission scope όταν handler-level authorization επηρεάζει το αποτέλεσμα.
+- [ ] Multi-tenant security keys δεν κάνουν silent fallback σε shared `'default'` namespace σε production.
+- [ ] Application code μεταβάλλει aggregates μόνο μέσω domain methods/factories.
+- [ ] Commands/queries χρησιμοποιούν τις repo base abstractions και Zod schemas όπου αυτό είναι το υπάρχον pattern.
+- [ ] Persistence implementation details βρίσκονται σε persistence/infrastructure adapters και συνδέονται στο composition root.
+- [ ] HTTP mapping γίνεται σε controllers/pipes/filters/interceptors, όχι στο domain/application layer.
+- [ ] Νέα durable integration events δεν θεωρούν λανθασμένα ότι το in-memory `EventBus` είναι transactional outbox.
+
+## Source-of-truth αρχεία που πρέπει να διαβάζονται πριν από αρχιτεκτονική αλλαγή
+
+- `README.md`
+- `packages/pipeline/README.md`
+- `packages/pipeline-cache/README.md`
+- `ddd/core/README.md`
+- `ddd/users-api/README.md`
+- `ddd/core/application/command-base.handler.ts`
+- `ddd/users-api/src/common/filters/domain-exception.filter.ts`
+- `ddd/users-api/src/users/cqrs/commands/create-user.handler.ts`
+- `ddd/users-api/src/users/cqrs/queries/get-user.handler.ts`
+- `ddd/users-api/src/users/cqrs/queries/get-users.handler.ts`
+- `ddd/users-api/src/users/domain/models/user.entity.ts`
+- `ddd/users-api/src/roles/domain/models/role.entity.ts`
+
+Το companion agent skill βρίσκεται στο `.agents/skills/nestjs-pipeline-architecture/SKILL.md` και το root `AGENTS.md` απαιτεί να χρησιμοποιείται σε architecture-affecting changes.
