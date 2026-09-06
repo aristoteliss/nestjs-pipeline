@@ -16,6 +16,7 @@
  * ----------------------------
  */
 
+import { AsyncLocalStorage } from 'node:async_hooks';
 import type { Cache } from 'cache-manager';
 
 /**
@@ -30,64 +31,56 @@ export interface IPipelineCache {
  * Adapter wrapping a cache-manager Cache instance to reliably expose backend
  * store errors that cache-manager would otherwise swallow in get().
  */
-export class CacheManagerAdapter implements IPipelineCache {
+export class CacheManagerAdapter {
+  // cache-manager emits errors in the originating operation's async context.
+  // A key alone cannot identify concurrent reads, writes, or fallback lookups.
+  private readonly operation = new AsyncLocalStorage<{
+    key: string;
+    kind: 'get' | 'set';
+    error?: unknown;
+  }>();
+
   constructor(private readonly cache: Cache) {
-    if (cache && Array.isArray(cache.stores)) {
-      for (const store of cache.stores) {
-        if (store && typeof store === 'object' && 'throwOnErrors' in store) {
-          store.throwOnErrors = true;
-        }
-      }
+    for (const store of cache.stores ?? []) {
+      if ('throwOnErrors' in store) store.throwOnErrors = true;
+    }
+    const emitter = cache as unknown as {
+      on?: (event: string, listener: (event: unknown) => void) => void;
+    };
+    emitter.on?.('get', (event) => this.captureError('get', event));
+    emitter.on?.('set', (event) => this.captureError('set', event));
+    emitter.on?.('error', (event) => this.captureError(undefined, event));
+  }
+
+  private captureError(kind: 'get' | 'set' | undefined, event: unknown): void {
+    const operation = this.operation.getStore();
+    if (!operation || (kind && operation.kind !== kind)) return;
+    if (
+      event &&
+      typeof event === 'object' &&
+      'key' in event &&
+      event.key === operation.key &&
+      'error' in event
+    ) {
+      operation.error = event.error;
     }
   }
 
   async get(key: string): Promise<unknown> {
-    let storeError: unknown = undefined;
-    const onGet = (event: { key?: string; error?: unknown }) => {
-      if (event && event.key === key && event.error) {
-        storeError = event.error;
-      }
-    };
-
-    if (typeof this.cache.on === 'function') {
-      this.cache.on('get', onGet);
-    }
-
-    try {
-      const result = await this.cache.get(key);
-      if (storeError !== undefined) {
-        throw storeError;
-      }
-      return result;
-    } finally {
-      if (typeof this.cache.off === 'function') {
-        this.cache.off('get', onGet);
-      }
-    }
+    return this.operation.run({ key, kind: 'get' }, async () => {
+      const value = await this.cache.get(key);
+      const error = this.operation.getStore()?.error;
+      if (value === undefined && error !== undefined) throw error;
+      return value;
+    });
   }
 
   async set(key: string, value: unknown, ttl?: number): Promise<unknown> {
-    let storeError: unknown = undefined;
-    const onSet = (event: { key?: string; error?: unknown }) => {
-      if (event && event.key === key && event.error) {
-        storeError = event.error;
-      }
-    };
-
-    if (typeof this.cache.on === 'function') {
-      this.cache.on('set', onSet);
-    }
-
-    try {
+    return this.operation.run({ key, kind: 'set' }, async () => {
       const result = await this.cache.set(key, value, ttl);
-      if (storeError !== undefined) {
-        throw storeError;
-      }
+      const error = this.operation.getStore()?.error;
+      if (error !== undefined) throw error;
       return result;
-    } finally {
-      if (typeof this.cache.off === 'function') {
-        this.cache.off('set', onSet);
-      }
-    }
+    });
   }
 }
