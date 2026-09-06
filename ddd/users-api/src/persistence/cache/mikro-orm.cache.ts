@@ -16,14 +16,12 @@
  * ----------------------------
  */
 
-import { Inject, Injectable } from '@nestjs/common';
-import { ICache } from '@nestjs-pipeline/ddd-core';
+import { CacheSetOptions, ICache } from '@nestjs-pipeline/ddd-core';
+import { Inject, Injectable, Optional } from '@nestjs/common';
 import { MIKRO_ORM_CLIENT, MikroOrmStore } from '../mikro-orm.store';
 import { CacheEntry } from './cache.entity';
 
-export interface CacheSetOptions {
-  ttl?: number;
-}
+export type { CacheSetOptions };
 
 /**
  * MikroOrmCache is the PRIMARY cache implementation for this app.
@@ -31,9 +29,14 @@ export interface CacheSetOptions {
  */
 @Injectable()
 export class MikroOrmCache<T> implements ICache<T> {
+  private readonly defaultTtlMs: number;
+
   constructor(
     @Inject(MIKRO_ORM_CLIENT) private readonly store: MikroOrmStore,
-  ) {}
+    @Optional() options?: { defaultTtlMs?: number },
+  ) {
+    this.defaultTtlMs = options?.defaultTtlMs ?? 60_000;
+  }
 
   /**
    * Get a value from the cache by key. Handles TTL expiry and lazy eviction.
@@ -52,10 +55,57 @@ export class MikroOrmCache<T> implements ICache<T> {
   }
 
   /**
-   * Set a value in the cache, with optional TTL (time-to-live).
+   * Set a value in the cache, with optional TTL (time-to-live) and conditional newer check.
    */
   async set(key: string, value: T, options?: CacheSetOptions): Promise<void> {
-    const expiresAt = options?.ttl != null ? Date.now() + options.ttl : null;
+    const ttl = options?.ttl ?? this.defaultTtlMs;
+    const expiresAt = ttl > 0 ? Date.now() + ttl : null;
+
+    if (options?.isNewer) {
+      await this.store.transactional(async (em) => {
+        // Compare-and-swap the exact state we inspected. A competing write makes
+        // nativeUpdate affect zero rows, so retry against the newly stored value.
+        for (;;) {
+          const existing = await em.findOne(
+            CacheEntry,
+            { key },
+            { refresh: true },
+          );
+          if (!existing) {
+            await em.upsert(
+              CacheEntry,
+              {
+                key,
+                value: JSON.stringify(value),
+                expiresAt,
+              },
+              { onConflictAction: 'ignore' },
+            );
+            continue;
+          }
+          if (existing.expiresAt === null || existing.expiresAt >= Date.now()) {
+            let parsed: unknown;
+            try {
+              parsed = JSON.parse(existing.value);
+            } catch {
+              /* Replace corrupt data. */
+            }
+            if (parsed !== undefined && options.isNewer!(parsed, value)) return;
+          }
+          const affected = await em.nativeUpdate(
+            CacheEntry,
+            {
+              key,
+              value: existing.value,
+              expiresAt: existing.expiresAt,
+            },
+            { value: JSON.stringify(value), expiresAt },
+          );
+          if (affected > 0) return;
+        }
+      });
+      return;
+    }
 
     await this.store.em.upsert(CacheEntry, {
       key,

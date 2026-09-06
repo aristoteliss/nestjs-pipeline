@@ -166,15 +166,11 @@ export function FromCache<
           return result;
         }
 
-        const setOptions =
-          resolvedOptions?.ttl !== undefined
-            ? { ttl: resolvedOptions.ttl }
-            : undefined;
-        if (setOptions) {
-          await this.cache.set(key, result, setOptions);
-        } else {
-          await this.cache.set(key, result);
-        }
+        const setOptions = {
+          ttl: resolvedOptions?.ttl,
+          isNewer: newerCheck,
+        };
+        await this.cache.set(key, result, setOptions);
       }
 
       return result;

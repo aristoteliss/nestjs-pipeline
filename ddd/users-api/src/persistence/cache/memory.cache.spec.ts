@@ -64,4 +64,59 @@ describe('MemoryCache', () => {
 
     expect(await cache.get('key1')).toBeUndefined();
   });
+
+  it('rejects stale write when isNewer indicates cached entry is newer', async () => {
+    const cache = new MemoryCache<{ id: string; version: number }>();
+    await cache.set('user:1', { id: '1', version: 2 });
+
+    await cache.set(
+      'user:1',
+      { id: '1', version: 1 },
+      {
+        isNewer: (cached, incoming) =>
+          (cached as any).version > (incoming as any).version,
+      },
+    );
+
+    const current = await cache.get('user:1');
+    expect(current).toEqual({ id: '1', version: 2 });
+  });
+
+  it('allows write when incoming is newer than cached', async () => {
+    const cache = new MemoryCache<{ id: string; version: number }>();
+    await cache.set('user:1', { id: '1', version: 1 });
+
+    await cache.set(
+      'user:1',
+      { id: '1', version: 2 },
+      {
+        isNewer: (cached, incoming) =>
+          (cached as any).version > (incoming as any).version,
+      },
+    );
+
+    const current = await cache.get('user:1');
+    expect(current).toEqual({ id: '1', version: 2 });
+  });
+
+  it('overwrites expired entry even if expired value had higher version', async () => {
+    const cache = new MemoryCache<{ id: string; version: number }>({
+      defaultTtlMs: 5_000,
+    });
+    await cache.set('user:1', { id: '1', version: 5 });
+
+    vi.advanceTimersByTime(5_001);
+
+    await cache.set(
+      'user:1',
+      { id: '1', version: 1 },
+      {
+        isNewer: (cached, incoming) =>
+          (cached as any).version > (incoming as any).version,
+      },
+    );
+
+    const current = await cache.get('user:1');
+    expect(current).toEqual({ id: '1', version: 1 });
+  });
 });
