@@ -42,6 +42,9 @@ import { User } from '../domain/models/user.entity';
  * ΑΤΤENTION: This class is not a singleton for example, you will see warning logs
  * in the console, which are expected and not a problem
  */
+const UUID_REGEX =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 @Injectable({ scope: Scope.REQUEST })
 export class GetUserContextQueryRepository implements IUserContextResolver {
   constructor(
@@ -58,21 +61,33 @@ export class GetUserContextQueryRepository implements IUserContextResolver {
       ) ??
       (getSessionUserFromStore() as unknown as CaslUserContext | undefined);
 
-    if (!rawUser) return null;
+    if (!rawUser || !rawUser.id) return null;
 
+    const id = String(rawUser.id);
+    const user = await this.store.em.findOne(User, { id });
+    if (user) {
+      return {
+        id: user.id,
+        department: (user.department as string | null) ?? null,
+        ...(rawUser.capabilities ? { capabilities: rawUser.capabilities } : {}),
+      } as CaslUserContext;
+    }
+
+    // A database user (UUID) that was not found in persistence is considered inactive/deleted
+    if (UUID_REGEX.test(id)) {
+      return null;
+    }
+
+    // Non-database machine, test, or administrative principals with explicit capabilities
     if (rawUser.capabilities) {
       return {
-        id: rawUser.id,
-        department: rawUser.department,
+        id,
+        department: (rawUser.department as string | null) ?? null,
         capabilities: rawUser.capabilities,
       } as CaslUserContext;
     }
 
-    if (!rawUser.id) return null;
-
-    return this.find(
-      new GetUserContextQuery({ userId: String(rawUser.id) }),
-    ) as Promise<CaslUserContext | null>;
+    return null;
   }
 
   private resolveUserContextFromRequest(

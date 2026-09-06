@@ -16,15 +16,26 @@
  * ----------------------------
  */
 
+import { Inject } from '@nestjs/common';
 import { CommandHandler, ICommandHandler } from '@nestjs/cqrs';
+import type { ICommandRepository } from '@nestjs-pipeline/ddd-core';
+import { Auth } from '../../domain/models/auth.entity';
+import { COMMAND_REPOSITORY } from '../../persistence/repository.tokens';
 import { DeleteAuthCommand } from './delete-auth.command';
 
 @CommandHandler(DeleteAuthCommand)
 export class DeleteAuthHandler
   implements ICommandHandler<DeleteAuthCommand, void>
 {
-  async execute(_command: DeleteAuthCommand): Promise<void> {
-    // Session clearing is performed by the controller after this command resolves.
-    // Add audit logging or logout-triggered side effects here if needed.
+  constructor(
+    @Inject(COMMAND_REPOSITORY.deleteAuth)
+    private readonly commandRepository: ICommandRepository<Auth, null>,
+  ) {}
+
+  async execute(command: DeleteAuthCommand): Promise<void> {
+    const userId = command.sessionUser?.id;
+    if (userId) {
+      await this.commandRepository.save(new Auth({ userId, token: '' }));
+    }
   }
 }

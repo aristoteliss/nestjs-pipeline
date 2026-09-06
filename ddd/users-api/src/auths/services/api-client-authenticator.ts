@@ -18,16 +18,11 @@
 
 import { createHash, timingSafeEqual } from 'node:crypto';
 import { Injectable, Logger, UnauthorizedException } from '@nestjs/common';
-import {
-  type Capability,
-  type CapabilityString,
-  normalizeCapability,
-  serializeCapability,
-  type UserCapabilities,
-} from '@nestjs-pipeline/casl';
+import type { UserCapabilities } from '@nestjs-pipeline/casl';
 import { TenantSchemaContext } from '@persistence/tenant-schema.context';
 import { AUTH_HEADERS } from '../../common/constants/auth-headers.constants';
 import type { SessionUser } from '../../common/types/SessionUser';
+import { CapabilityCodec } from './capability-codec';
 
 /**
  * Authenticates machine-to-machine HTTP requests presenting `x-api-id` and `x-api-key` headers.
@@ -148,7 +143,9 @@ export class ApiClientAuthenticator {
             clients.set(entry.id, {
               key: entry.key,
               tenants,
-              capabilities: this.compactUserCapabilities(entry.capabilities),
+              capabilities: CapabilityCodec.compactUserCapabilities(
+                entry.capabilities,
+              ),
             });
           }
         }
@@ -174,59 +171,5 @@ export class ApiClientAuthenticator {
   ): string | undefined {
     const single = Array.isArray(value) ? value[0] : value;
     return typeof single === 'string' && single.length > 0 ? single : undefined;
-  }
-
-  private compactUserCapabilities(
-    input: unknown,
-  ): UserCapabilities | undefined {
-    if (!input || typeof input !== 'object') return undefined;
-
-    const raw = input as {
-      roles?: string[] | unknown;
-      additionalCapabilities?: Array<Capability | CapabilityString | unknown>;
-      deniedCapabilities?: Array<Capability | CapabilityString | unknown>;
-    };
-
-    const roles = Array.isArray(raw.roles)
-      ? raw.roles.filter((r): r is string => typeof r === 'string')
-      : [];
-
-    const additionalCapabilities = this.toCompactCapabilitiesArray(
-      raw.additionalCapabilities,
-    );
-    const deniedCapabilities = this.toCompactCapabilitiesArray(
-      raw.deniedCapabilities,
-    );
-
-    if (roles.length === 0 && !additionalCapabilities && !deniedCapabilities) {
-      return undefined;
-    }
-
-    return {
-      roles,
-      additionalCapabilities,
-      deniedCapabilities,
-    };
-  }
-
-  private toCompactCapabilitiesArray(
-    input: unknown,
-  ): CapabilityString[] | undefined {
-    if (!Array.isArray(input)) return undefined;
-
-    const compact = input
-      .map((cap) => {
-        if (typeof cap === 'string' || (cap && typeof cap === 'object')) {
-          return serializeCapability(
-            normalizeCapability(cap as Capability | CapabilityString),
-          );
-        }
-        throw new TypeError(
-          'Capabilities must be compact strings or capability objects.',
-        );
-      })
-      .filter((cap): cap is CapabilityString => typeof cap === 'string');
-
-    return compact.length > 0 ? compact : undefined;
   }
 }

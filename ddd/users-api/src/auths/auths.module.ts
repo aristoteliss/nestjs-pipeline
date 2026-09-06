@@ -25,6 +25,8 @@ import { DeleteAuthHandler } from './cqrs/commands/delete-auth.handler';
 import { CreatedAuthHandler } from './cqrs/events/auth-login.handler';
 import { GetUserCapabilitiesHandler } from './cqrs/queries/get-user-capabilities.handler';
 import { CreateAuthCommandRepository } from './persistence/create-auth.command-repository';
+import { DeleteAuthCommandRepository } from './persistence/delete-auth.command-repository';
+import { FindAuthQueryRepository } from './persistence/find-auth.query-repository';
 import { GetUserCapabilitiesQueryRepository } from './persistence/get-user-capabilities.query-repository';
 import {
   COMMAND_REPOSITORY,
@@ -47,11 +49,19 @@ import { UserLoginService } from './services/user-login.service';
       provide: QUERY_REPOSITORY.getUserCapabilities,
       useClass: GetUserCapabilitiesQueryRepository,
     },
+    {
+      provide: QUERY_REPOSITORY.findAuth,
+      useClass: FindAuthQueryRepository,
+    },
 
     // Repositories (Command)
     {
       provide: COMMAND_REPOSITORY.createAuth,
       useClass: CreateAuthCommandRepository,
+    },
+    {
+      provide: COMMAND_REPOSITORY.deleteAuth,
+      useClass: DeleteAuthCommandRepository,
     },
 
     UserLoginService,

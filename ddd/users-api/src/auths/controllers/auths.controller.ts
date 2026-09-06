@@ -70,8 +70,10 @@ export class AuthsController {
    */
   @Post('logout')
   @HttpCode(204)
-  async logout(@Req() req: { session?: Session<SessionData> }): Promise<void> {
-    const sessionUser = req.session?.user;
+  async logout(
+    @Req() req: { session?: Session<SessionData>; sessionUser?: SessionUser },
+  ): Promise<void> {
+    const sessionUser = req.session?.user ?? req.sessionUser;
 
     await this.commandBus.execute(new DeleteAuthCommand(sessionUser));
 

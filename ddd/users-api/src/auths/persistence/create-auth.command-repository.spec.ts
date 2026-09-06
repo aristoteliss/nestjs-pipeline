@@ -40,10 +40,7 @@ describe('CreateAuthCommandRepository', () => {
     const result = await repository.save(auth);
 
     expect(upsert).toHaveBeenCalledWith(Auth, auth);
-    expect(cache.set).toHaveBeenCalledWith(
-      `tenant:auth:id:${auth.id}`,
-      result,
-    );
+    expect(cache.set).toHaveBeenCalledWith(`tenant:auth:id:${auth.id}`, result);
     expect(result).toEqual(auth.toJSON());
   });
 });

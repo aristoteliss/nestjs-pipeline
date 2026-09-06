@@ -23,4 +23,5 @@ export const COMMAND_REPOSITORY = {
 
 export const QUERY_REPOSITORY = {
   getUserCapabilities: Symbol('getUserCapabilities'),
+  findAuth: Symbol('findAuth'),
 } as const;

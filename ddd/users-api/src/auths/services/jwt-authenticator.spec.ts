@@ -16,9 +16,9 @@
  * ----------------------------
  */
 
-import { generateKeyPairSync } from 'node:crypto';
 import { TenantSchemaContext } from '@persistence/tenant-schema.context';
 import { exportSPKI, SignJWT } from 'jose';
+import { generateKeyPairSync } from 'node:crypto';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { JwtAuthenticator } from './jwt-authenticator';
 
@@ -231,5 +231,68 @@ describe('JwtAuthenticator', () => {
 
     expect(user?.exp).toBe(expTime);
     expect(user?.expiresAt).toBe(expTime * 1000);
+  });
+
+  it('rejects a token when authQueryRepository reports it as revoked / session ended', async () => {
+    process.env.JWT_SECRET = 'revocation-secret';
+    delete process.env.JWT_PUBLIC_KEY;
+
+    const token = await new SignJWT({
+      tenant: tenantContext.schema,
+      roles: [],
+    })
+      .setProtectedHeader({ alg: 'HS256' })
+      .setSubject('user-revoked')
+      .setExpirationTime('1h')
+      .sign(new TextEncoder().encode(process.env.JWT_SECRET));
+
+    const mockAuthQueryRepository = {
+      find: vi.fn().mockResolvedValue(null),
+    };
+
+    const authenticator = new JwtAuthenticator(
+      tenantContext,
+      mockAuthQueryRepository as any,
+    );
+
+    await expect(
+      authenticator.authenticate({
+        headers: { authorization: `Bearer ${token}` },
+      }),
+    ).rejects.toThrow('Token has been revoked or session has ended');
+
+    expect(mockAuthQueryRepository.find).toHaveBeenCalledOnce();
+  });
+
+  it('accepts a token when authQueryRepository confirms active Auth persistence', async () => {
+    process.env.JWT_SECRET = 'active-auth-secret';
+    delete process.env.JWT_PUBLIC_KEY;
+
+    const token = await new SignJWT({
+      tenant: tenantContext.schema,
+      roles: ['user'],
+    })
+      .setProtectedHeader({ alg: 'HS256' })
+      .setSubject('user-active')
+      .setExpirationTime('1h')
+      .sign(new TextEncoder().encode(process.env.JWT_SECRET));
+
+    const mockAuthQueryRepository = {
+      find: vi
+        .fn()
+        .mockResolvedValue({ id: 'auth-1', userId: 'user-active', token }),
+    };
+
+    const authenticator = new JwtAuthenticator(
+      tenantContext,
+      mockAuthQueryRepository as any,
+    );
+
+    const user = await authenticator.authenticate({
+      headers: { authorization: `Bearer ${token}` },
+    });
+
+    expect(user?.id).toBe('user-active');
+    expect(mockAuthQueryRepository.find).toHaveBeenCalledOnce();
   });
 });
