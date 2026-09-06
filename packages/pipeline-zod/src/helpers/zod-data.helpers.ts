@@ -84,6 +84,23 @@ export function cloneData<T>(data: T): T {
   if (data instanceof Date) {
     return new Date(data.getTime()) as unknown as T;
   }
+  if (data instanceof RegExp) {
+    return new RegExp(data.source, data.flags) as unknown as T;
+  }
+  if (data instanceof Map) {
+    const copy = new Map();
+    for (const [k, v] of data.entries()) {
+      copy.set(cloneData(k), cloneData(v));
+    }
+    return copy as unknown as T;
+  }
+  if (data instanceof Set) {
+    const copy = new Set();
+    for (const v of data.values()) {
+      copy.add(cloneData(v));
+    }
+    return copy as unknown as T;
+  }
   if (Array.isArray(data)) {
     return data.map(cloneData) as unknown as T;
   }
@@ -107,8 +124,41 @@ export function deepEqual(a: unknown, b: unknown): boolean {
   ) {
     return false;
   }
+  if (Object.prototype.toString.call(a) !== Object.prototype.toString.call(b)) {
+    return false;
+  }
   if (a instanceof Date && b instanceof Date) {
-    return a.getTime() === b.getTime();
+    return Object.is(a.getTime(), b.getTime());
+  }
+  if (a instanceof RegExp && b instanceof RegExp) {
+    return a.source === b.source && a.flags === b.flags;
+  }
+  if (a instanceof Map && b instanceof Map) {
+    if (a.size !== b.size) return false;
+    const remaining = [...b.entries()];
+    for (const [key, value] of a) {
+      const index = remaining.findIndex(
+        ([otherKey, otherValue]) =>
+          deepEqual(key, otherKey) && deepEqual(value, otherValue),
+      );
+      if (index < 0) return false;
+      remaining.splice(index, 1);
+    }
+    return true;
+  }
+  if (a instanceof Set && b instanceof Set) {
+    if (a.size !== b.size) return false;
+    for (const aItem of a) {
+      let found = false;
+      for (const bItem of b) {
+        if (deepEqual(aItem, bItem)) {
+          found = true;
+          break;
+        }
+      }
+      if (!found) return false;
+    }
+    return true;
   }
   if (Array.isArray(a) !== Array.isArray(b)) {
     return false;
