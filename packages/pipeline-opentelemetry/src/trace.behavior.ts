@@ -45,23 +45,49 @@ export interface TraceBehaviorOptions {
    * Defaults to 'nestjs-pipeline'.
    */
   tracerName?: string;
+  /**
+   * Explicit override for SDK readiness. If defined, overrides the automatic readiness probe.
+   */
+  enabled?: boolean;
 }
 
 const TRACER_NAME = 'nestjs-pipeline';
 
 /**
- * Returns a real Tracer only when the OTel SDK is properly initialized.
+ * Returns whether a real, non-noop OpenTelemetry TracerProvider is active.
  *
  * `trace.getTracer()` NEVER throws and NEVER returns undefined — when the SDK is
- * absent it silently returns a NoopTracer that discards all spans. We detect this
- * by checking whether ProxyTracerProvider (set by NodeSDK) has a real delegate,
- * and return undefined ourselves so callers can skip span creation entirely.
+ * absent it silently returns a NoopTracer that discards all spans. In `@opentelemetry/api`,
+ * `trace.getTracerProvider()` returns a `ProxyTracerProvider` whose default delegate is
+ * `NoopTracerProvider`. We detect this by inspecting whether a real delegate is registered
+ * and return false so callers can skip span creation entirely.
  */
-function isSdkInitialized(): boolean {
+export function isSdkInitialized(): boolean {
   const provider = untyped(trace.getTracerProvider());
-  if (typeof provider?.getDelegate !== 'function') return false;
-  const delegate = provider.getDelegate();
-  return !!delegate && typeof delegate.getTracer === 'function';
+  if (!provider || typeof provider.getTracer !== 'function') {
+    return false;
+  }
+
+  if (provider.constructor?.name === 'NoopTracerProvider') {
+    return false;
+  }
+
+  if (typeof provider.getDelegate === 'function') {
+    if (typeof provider.getDelegateTracer === 'function') {
+      const delegateTracer = provider.getDelegateTracer('probe');
+      if (!delegateTracer || delegateTracer.constructor?.name === 'NoopTracer') {
+        return false;
+      }
+    }
+
+    const delegate = provider.getDelegate();
+    if (!delegate || delegate.constructor?.name === 'NoopTracerProvider') {
+      return false;
+    }
+    return typeof delegate.getTracer === 'function';
+  }
+
+  return true;
 }
 
 /**
@@ -115,14 +141,14 @@ export class TraceBehavior implements IPipelineBehavior, OnModuleInit {
     context: IPipelineContext,
     next: NextDelegate,
   ): Promise<unknown> {
-    // sdkReady is false when SDK was not initialized — skip span creation entirely.
-    // trace.getTracer() would NOT throw here, but would silently discard all spans.
-    if (!this.sdkReady) {
+    const options =
+      context.getBehaviorOptions<TraceBehaviorOptions>(TraceBehavior);
+
+    const isReady = options?.enabled ?? this.sdkReady;
+    if (!isReady) {
       return next();
     }
 
-    const options =
-      context.getBehaviorOptions<TraceBehaviorOptions>(TraceBehavior);
     // Per-handler tracerName wins; falls back to the package default.
     const tracer = trace.getTracer(options?.tracerName ?? TRACER_NAME);
     const spanName = `${context.requestKind}.${context.requestName}`;

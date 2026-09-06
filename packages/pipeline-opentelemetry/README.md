@@ -350,8 +350,19 @@ If no `tracerName` is provided (neither globally nor per-handler), the default i
 
 If the OpenTelemetry SDK is **not** initialized (e.g. in development or test environments), both behaviors degrade safely: they do not export telemetry and do not throw because telemetry is unavailable.
 
-- `TraceBehavior` detects the missing tracer provider at module init and **passes through** without creating spans.
+- `TraceBehavior` detects the missing tracer provider at module init via `isSdkInitialized()` and **passes through** without creating spans.
 - `MetricsBehavior` still performs its normal timing and metric-recording calls, but they target a **no-op meter**, so recordings are silently discarded. This is safe without a metrics pipeline, but it is not a literal zero-overhead path.
+
+### How `isSdkInitialized()` Works
+
+In `@opentelemetry/api`, `trace.getTracer()` **never** throws and **never** returns `undefined`. When the SDK is absent, it silently returns a `NoopTracer` that discards all spans. Furthermore, `trace.getTracerProvider()` returns a `ProxyTracerProvider` whose default delegate is `NoopTracerProvider`.
+
+`isSdkInitialized()` inspects whether a real delegate is registered on the provider:
+1. Returns `false` if the provider or its delegate is a `NoopTracerProvider`.
+2. Probes `provider.getDelegateTracer('probe')` and returns `false` if it yields a `NoopTracer`.
+3. Returns `true` only when a real, active tracer provider is registered.
+
+You can also explicitly override this check per handler or globally using the `enabled?: boolean` option in `TraceBehaviorOptions`.
 
 A warning is logged once at startup for each:
 
@@ -476,7 +487,8 @@ pipeline.handler.invocations{...,outcome="success"} counter   → request & erro
 | Export | Type | Description |
 |---|---|---|
 | `TraceBehavior` | Class | Pipeline behavior — creates OTel spans per handler invocation |
-| `TraceBehaviorOptions` | Interface | `{ tracerName?: string }` — configure the tracer name |
+| `TraceBehaviorOptions` | Interface | `{ tracerName?: string, enabled?: boolean }` — configure the tracer name or override SDK readiness |
+| `isSdkInitialized` | Function | Detects whether an active, non-noop OpenTelemetry `TracerProvider` is registered |
 | `MetricsBehavior` | Class | Pipeline behavior — records duration histogram & invocation counter per handler |
 | `MetricsBehaviorOptions` | Interface | `{ meterName?: string }` — configure the meter name |
 

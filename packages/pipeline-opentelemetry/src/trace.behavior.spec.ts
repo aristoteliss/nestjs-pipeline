@@ -56,7 +56,9 @@ const mockTracer = {
  */
 function initializedProvider() {
   return {
+    getTracer: () => mockTracer,
     getDelegate: () => ({ getTracer: () => mockTracer }),
+    getDelegateTracer: () => mockTracer,
   };
 }
 
@@ -131,6 +133,7 @@ describe('TraceBehavior', () => {
 
     it('sets sdkReady=false when getDelegate exists but returns null', () => {
       vi.mocked(trace.getTracerProvider).mockReturnValue({
+        getTracer: () => mockTracer,
         getDelegate: () => null,
       } as any);
 
@@ -141,7 +144,45 @@ describe('TraceBehavior', () => {
 
     it('sets sdkReady=false when getDelegate returns an object without getTracer', () => {
       vi.mocked(trace.getTracerProvider).mockReturnValue({
+        getTracer: () => mockTracer,
         getDelegate: () => ({ getTracer: 'not-a-function' }),
+      } as any);
+
+      behavior.onModuleInit();
+
+      expect((behavior as any).sdkReady).toBe(false);
+    });
+
+    it('sets sdkReady=false when delegate is NoopTracerProvider', () => {
+      vi.mocked(trace.getTracerProvider).mockReturnValue({
+        getTracer: () => mockTracer,
+        getDelegate: () => ({
+          constructor: { name: 'NoopTracerProvider' },
+          getTracer: () => mockTracer,
+        }),
+      } as any);
+
+      behavior.onModuleInit();
+
+      expect((behavior as any).sdkReady).toBe(false);
+    });
+
+    it('sets sdkReady=false when provider itself is NoopTracerProvider', () => {
+      vi.mocked(trace.getTracerProvider).mockReturnValue({
+        constructor: { name: 'NoopTracerProvider' },
+        getTracer: () => mockTracer,
+      } as any);
+
+      behavior.onModuleInit();
+
+      expect((behavior as any).sdkReady).toBe(false);
+    });
+
+    it('sets sdkReady=false when proxy getDelegateTracer returns undefined', () => {
+      vi.mocked(trace.getTracerProvider).mockReturnValue({
+        getTracer: () => mockTracer,
+        getDelegate: () => ({ getTracer: () => mockTracer }),
+        getDelegateTracer: () => undefined,
       } as any);
 
       behavior.onModuleInit();
