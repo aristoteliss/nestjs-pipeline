@@ -29,17 +29,42 @@ export function projectReadableFields(
 ): Record<string, unknown> {
   const ancestors = new WeakSet<object>();
 
-  // A parent grant applies to its subtree, but a higher-priority descendant
-  // rule can restrict it. Conditions always use the original, complete subject.
+  // Evaluate full field paths using CASL. Conditions use the complete subject.
   function ruleFor(paths: string[], inherited: ReadRule): ReadRule {
-    let rule = inherited;
+    let rule: ReadRule = null;
     for (const field of paths) {
       const candidate = ability.relevantRuleFor('read', typedSubject, field);
-      if (candidate && (!rule || candidate.priority < rule.priority)) {
-        rule = candidate;
+      if (candidate) {
+        if (candidate.inverted) {
+          if (!rule || !rule.inverted || candidate.priority < rule.priority) {
+            rule = candidate;
+          }
+        } else if (!rule || (!rule.inverted && candidate.priority < rule.priority)) {
+          rule = candidate;
+        }
       }
     }
-    return rule;
+
+    // A direct leaf denial always takes precedence over an inherited grant.
+    if (rule?.inverted) {
+      return rule;
+    }
+
+    // Parent denials can mask containers unless explicitly overridden.
+    if (inherited?.inverted && (!rule || inherited.priority < rule.priority)) {
+      return inherited;
+    }
+
+    if (rule) {
+      return rule;
+    }
+
+    // Inherit parent grant for descendants that are not explicitly denied.
+    if (inherited && !inherited.inverted) {
+      return inherited;
+    }
+
+    return null;
   }
 
   function project(

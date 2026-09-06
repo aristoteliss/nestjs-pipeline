@@ -18,6 +18,11 @@
 
 import { subject as caslSubject, ForbiddenError } from '@casl/ability';
 import {
+  IPipelineBehavior,
+  IPipelineContext,
+  NextDelegate,
+} from '@nestjs-pipeline/core';
+import {
   ForbiddenException,
   Inject,
   Injectable,
@@ -25,11 +30,6 @@ import {
   LoggerService,
   Optional,
 } from '@nestjs/common';
-import {
-  IPipelineBehavior,
-  IPipelineContext,
-  NextDelegate,
-} from '@nestjs-pipeline/core';
 import {
   CASL_ABILITY_KEY,
   CASL_BEHAVIOR_LOGGER,
@@ -150,6 +150,12 @@ export interface CaslBehaviorOptions {
    * Important: this option does not grant access by itself. It only tells
    * CaslBehavior which fields to validate. Actual permissions still come
    * from capabilities/rules in the built ability.
+   *
+   * Note on validation vs inspection: `fieldsFromRequest` is an inspection list,
+   * not an input schema allowlist that strips or drops unlisted keys. Unlisted keys
+   * are skipped by CASL checks. To prevent unauthorized fields from bypassing checks,
+   * ensure all candidate mutable fields accepted by the command are listed here,
+   * while relying on input validation (e.g. Zod schema validation) for schema enforcement.
    *
    * When configured, each present field (value !== undefined) is checked with
    * `throwUnlessCan(action, subject, field)`.

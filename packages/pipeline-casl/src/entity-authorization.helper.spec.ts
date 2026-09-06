@@ -643,9 +643,9 @@ describe('nested read projection', () => {
     });
   });
 
-  it('preserves whole-object grants while applying more recent nested restrictions', () => {
+  it('supports explicit descendant wildcards with nested restrictions', () => {
     const ability = buildAbilityFromRules([
-      { action: 'read', subject: 'Account', fields: ['profile'] },
+      { action: 'read', subject: 'Account', fields: ['profile.**'] },
       {
         action: 'read',
         subject: 'Account',
@@ -677,7 +677,7 @@ describe('nested read projection', () => {
     expect(result).not.toHaveProperty('profile');
   });
 
-  it('respects CASL rule order when a later rule restores subtree access', () => {
+  it('does not let a parent grant override a denied leaf', () => {
     const ability = buildAbilityFromRules([
       {
         action: 'read',
@@ -688,8 +688,13 @@ describe('nested read projection', () => {
       { action: 'read', subject: 'Account', fields: ['profile'] },
     ]);
     const account = new Account();
-    expect(new CaslAuthorizer(ability).authorize('read', account)).toEqual({
-      profile: account.profile,
+    const authorizer = new CaslAuthorizer(ability);
+    expect(authorizer.can('read', account, 'profile.secret')).toBe(false);
+    expect(authorizer.authorize('read', account)).toEqual({
+      profile: {
+        name: 'Alice',
+        address: { city: 'Athens', pin: '1234' },
+      },
     });
   });
 
