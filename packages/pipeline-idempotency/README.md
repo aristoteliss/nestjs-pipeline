@@ -183,13 +183,18 @@ without touching any handler.
 
 ### Memory (default)
 
-`MemoryIdempotencyStore` — zero dependencies, a `Map` with per-entry TTL. Perfect
-for a single instance, tests, or local development. State is **not** shared across
-processes, so use Redis or Postgres for multi-instance deployments.
+`MemoryIdempotencyStore` — zero dependencies, a `Map` with per-entry TTL, bounded capacity, and periodic cleanup. Perfect for a single instance, tests, or local development. State is **not** shared across processes, so use Redis or Postgres for multi-instance deployments.
 
 ```typescript
 IdempotencyModule.forRoot(); // memory store, 24h default TTL
 ```
+
+Configurable options via `new MemoryIdempotencyStore(options)`:
+- `maxEntries` (`number`, default `10_000`): Maximum live entries stored before capacity enforcement.
+- `cleanupIntervalMs` (`number`, default `30_000`): Periodic timer interval for evicting expired entries.
+
+> [!IMPORTANT]
+> **Active Claim Eviction Protection**: Unlike LRU caches that silently drop arbitrary entries when full, `MemoryIdempotencyStore` **refuses to evict active or unexpired claims**. When capacity is reached, it first purges expired entries. If capacity remains exhausted, it throws an explicit error (`MemoryIdempotencyStore capacity reached: cannot evict active or unexpired claims`), preventing concurrent race conditions and ensuring strict idempotency invariants are never compromised.
 
 ### Redis (drop-in)
 
@@ -410,7 +415,8 @@ Response body:
 
 - `IdempotencyStore`, `IdempotencyRecord`, `IdempotencyStatus`,
   `IdempotencyRequestKind`, `IdempotencyBehaviorOptions`, `IdempotencyKeyFactory`,
-  `IdempotencyModuleOptions`, `IdempotencyModuleAsyncOptions`, `MaybePromise`.
+  `IdempotencyModuleOptions`, `IdempotencyModuleAsyncOptions`,
+  `MemoryIdempotencyStoreOptions`, `MaybePromise`.
 
 ---
 

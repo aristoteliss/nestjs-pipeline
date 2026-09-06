@@ -97,13 +97,10 @@ export class MemoryIdempotencyStore implements IdempotencyStore {
       return;
     }
     this.cleanupExpired();
-    while (this.entries.size >= this.maxEntries && this.entries.size > 0) {
-      const oldestKey = this.entries.keys().next().value;
-      if (oldestKey !== undefined) {
-        this.entries.delete(oldestKey);
-      } else {
-        break;
-      }
+    if (this.entries.size >= this.maxEntries) {
+      throw new Error(
+        `MemoryIdempotencyStore capacity (${this.maxEntries}) reached: cannot evict active or unexpired claims.`,
+      );
     }
   }
 
