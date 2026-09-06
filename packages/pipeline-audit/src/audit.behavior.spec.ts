@@ -260,6 +260,31 @@ describe('AuditBehavior', () => {
     expect(lastRecord().outcome).toBe('success');
   });
 
+  it('attaches recordError as cause when failOpen=false and primary error is extensible', async () => {
+    const sinkError = new Error('sink recording failed');
+    write.mockRejectedValueOnce(sinkError);
+    const behavior = new AuditBehavior(sink);
+    const ctx = withOptions(makeCtx(), { failOpen: false });
+
+    const standardError = new Error('primary handler error');
+    const next = vi.fn().mockRejectedValue(standardError);
+
+    await expect(behavior.handle(ctx, next)).rejects.toBe(standardError);
+    expect((standardError as any).cause).toBe(sinkError);
+  });
+
+  it('does not throw TypeError when setting cause on a frozen or non-extensible Error', async () => {
+    const sinkError = new Error('sink recording failed');
+    write.mockRejectedValueOnce(sinkError);
+    const behavior = new AuditBehavior(sink);
+    const ctx = withOptions(makeCtx(), { failOpen: false });
+
+    const frozenError = Object.freeze(new Error('primary handler error'));
+    const next = vi.fn().mockRejectedValue(frozenError);
+
+    await expect(behavior.handle(ctx, next)).rejects.toBe(frozenError);
+  });
+
   it('merges handler options over module defaults (handler wins)', async () => {
     const behavior = new AuditBehavior(sink, { severity: 'low', action: 'x' });
     const ctx = withOptions(makeCtx(), { severity: 'critical' });
