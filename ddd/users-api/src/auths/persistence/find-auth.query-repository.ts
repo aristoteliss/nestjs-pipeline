@@ -17,8 +17,8 @@
  */
 
 import { FilterQuery } from '@mikro-orm/core';
-import { ICache, QueryRepository } from '@nestjs-pipeline/ddd-core';
 import { Inject, Injectable } from '@nestjs/common';
+import { ICache, QueryRepository } from '@nestjs-pipeline/ddd-core';
 import { CACHE_TOKEN } from '@persistence/cache/memory.cache';
 import { MIKRO_ORM_CLIENT, MikroOrmStore } from '@persistence/mikro-orm.store';
 import { FindAuthQuery } from '../cqrs/queries/find-auth.query';

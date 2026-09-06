@@ -16,7 +16,6 @@
  * ----------------------------
  */
 
-import type { IQueryRepository } from '@nestjs-pipeline/ddd-core';
 import {
   Inject,
   Injectable,
@@ -24,6 +23,7 @@ import {
   Optional,
   UnauthorizedException,
 } from '@nestjs/common';
+import type { IQueryRepository } from '@nestjs-pipeline/ddd-core';
 import { TenantSchemaContext } from '@persistence/tenant-schema.context';
 import { importSPKI, jwtVerify } from 'jose';
 import type { SessionUser } from '../../common/types/SessionUser';

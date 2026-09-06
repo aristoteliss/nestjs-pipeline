@@ -209,15 +209,15 @@ export async function bootstrapE2E(options?: E2EOptions): Promise<E2EContext> {
         },
       };
       req.session = new Proxy(sessionObj, {
-        get(target: any, prop: string) {
+        get(target, prop: string) {
           if (prop in target) {
-            return target[prop];
+            return Reflect.get(target, prop);
           }
           return store[prop];
         },
-        set(target: any, prop: string, value: unknown) {
+        set(target, prop: string, value: unknown) {
           if (prop in target) {
-            target[prop] = value;
+            Reflect.set(target, prop, value);
             return true;
           }
           store[prop] = value;

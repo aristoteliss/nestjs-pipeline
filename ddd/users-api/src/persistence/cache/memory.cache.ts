@@ -41,7 +41,7 @@ export class MemoryCache<T> implements ICache<T> {
     if (existing) {
       if (existing.expiresAt !== undefined && Date.now() > existing.expiresAt) {
         this.store.delete(key);
-      } else if (options?.isNewer && options.isNewer(existing.value, value)) {
+      } else if (options?.isNewer?.(existing.value, value)) {
         return;
       }
     }

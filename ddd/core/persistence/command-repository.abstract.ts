@@ -53,7 +53,7 @@ import { ICommandRepository } from './command-repository.interface';
 export abstract class CommandRepository<
   TEntity = unknown,
   TResult = unknown | null,
-  TCache = any,
+  TCache = unknown,
 > implements ICommandRepository<TEntity, TResult>
 {
   constructor(protected readonly cache: ICache<TCache>) {}

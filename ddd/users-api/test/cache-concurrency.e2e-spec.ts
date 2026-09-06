@@ -1,8 +1,8 @@
 import { EntityManager, MikroORM } from '@mikro-orm/postgresql';
 import { GenericContainer, Wait } from 'testcontainers';
 import { expect, it } from 'vitest';
-import { MikroOrmCache } from '../src/persistence/cache/mikro-orm.cache';
 import { CacheEntry } from '../src/persistence/cache/cache.entity';
+import { MikroOrmCache } from '../src/persistence/cache/mikro-orm.cache';
 import { MikroOrmStore } from '../src/persistence/mikro-orm.store';
 import { CacheSchema } from '../src/persistence/schemas/cache.schema';
 

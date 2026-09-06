@@ -16,9 +16,9 @@
  * ----------------------------
  */
 
+import { generateKeyPairSync } from 'node:crypto';
 import { TenantSchemaContext } from '@persistence/tenant-schema.context';
 import { exportSPKI, SignJWT } from 'jose';
-import { generateKeyPairSync } from 'node:crypto';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { JwtAuthenticator } from './jwt-authenticator';
 

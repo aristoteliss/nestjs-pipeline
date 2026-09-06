@@ -16,13 +16,13 @@
  * ----------------------------
  */
 
-import { describe, expect, it, vi } from 'vitest';
-import type { Queue } from 'bullmq';
 import type { TenantSchemaContext } from '@persistence/tenant-schema.context';
-import { UserCreatedHandler } from './user-created.handler';
-import { User } from '../../domain/models/user.entity';
+import type { Queue } from 'bullmq';
+import { describe, expect, it, vi } from 'vitest';
 import { UserCreatedEvent } from '../../domain/events/user-created.event';
+import { User } from '../../domain/models/user.entity';
 import type { WelcomeEmailJobData } from '../../jobs/send-welcome-email.processor';
+import { UserCreatedHandler } from './user-created.handler';
 
 describe('UserCreatedHandler', () => {
   it('reads user details from immutable event.payload and enqueues welcome email', async () => {

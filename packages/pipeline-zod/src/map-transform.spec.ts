@@ -1,6 +1,7 @@
-import { z } from 'zod';
 import { it } from 'vitest';
+import { z } from 'zod';
 import { createCommand, ZodValidationBehavior } from './index';
+
 it('accepts unchanged transform with object Map keys', async () => {
   const C = createCommand(
     z.object({ value: z.string().transform((s) => new Map([[{ id: 1 }, s]])) }),

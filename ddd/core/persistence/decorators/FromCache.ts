@@ -69,8 +69,8 @@ export function isCacheNewer(cached: unknown, incoming: unknown): boolean {
   ) {
     return false;
   }
-  const c = cached as Record<string, any>;
-  const inc = incoming as Record<string, any>;
+  const c = cached as Record<string, unknown>;
+  const inc = incoming as Record<string, unknown>;
 
   if (typeof c.version === 'number' && typeof inc.version === 'number') {
     return c.version > inc.version;
@@ -84,12 +84,12 @@ export function isCacheNewer(cached: unknown, incoming: unknown): boolean {
     const cTime =
       c.updatedAt instanceof Date
         ? c.updatedAt.getTime()
-        : new Date(c.updatedAt).getTime();
+        : new Date(c.updatedAt as string | number).getTime();
     const incTime =
       inc.updatedAt instanceof Date
         ? inc.updatedAt.getTime()
-        : new Date(inc.updatedAt).getTime();
-    if (!isNaN(cTime) && !isNaN(incTime)) {
+        : new Date(inc.updatedAt as string | number).getTime();
+    if (!Number.isNaN(cTime) && !Number.isNaN(incTime)) {
       return cTime > incTime;
     }
   }
@@ -109,7 +109,7 @@ export function FromCache<
     | FromCacheOptions<TQuery, TResult>,
   extraOptions?: FromCacheOptions<TQuery, TResult>,
 ): MethodDecorator {
-  let resolvedKeyFn: (query: TQuery) => string | null;
+  let resolvedKeyFn: FromCacheOptions<TQuery, TResult>['keyFn'];
   let resolvedHydrateFn: ((cached: unknown) => TResult) | undefined;
   let resolvedOptions: FromCacheOptions<TQuery, TResult> | undefined;
 
@@ -122,7 +122,7 @@ export function FromCache<
       resolvedOptions = hydrateFnOrOptions;
     }
   } else {
-    resolvedKeyFn = keyFnOrOptions.keyFn!;
+    resolvedKeyFn = keyFnOrOptions.keyFn;
     resolvedHydrateFn = keyFnOrOptions.hydrateFn ?? undefined;
     resolvedOptions = keyFnOrOptions;
   }
@@ -142,6 +142,7 @@ export function FromCache<
         return original.call(this, query);
       }
 
+      if (!resolvedKeyFn) throw new TypeError('FromCache requires a keyFn');
       const key = resolvedKeyFn(query);
 
       if (key !== null) {

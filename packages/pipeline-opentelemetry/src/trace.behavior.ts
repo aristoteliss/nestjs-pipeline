@@ -75,7 +75,10 @@ export function isSdkInitialized(): boolean {
   if (typeof provider.getDelegate === 'function') {
     if (typeof provider.getDelegateTracer === 'function') {
       const delegateTracer = provider.getDelegateTracer('probe');
-      if (!delegateTracer || delegateTracer.constructor?.name === 'NoopTracer') {
+      if (
+        !delegateTracer ||
+        delegateTracer.constructor?.name === 'NoopTracer'
+      ) {
         return false;
       }
     }

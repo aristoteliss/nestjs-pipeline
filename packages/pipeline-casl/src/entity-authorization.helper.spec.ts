@@ -473,18 +473,15 @@ describe('CaslAuthorizer / CaslEntityAuthorizer', () => {
     it('correctly dispatches custom non-standard actions with 3-arg signature (e.g. publish, Article, fields)', () => {
       const publisherRole: RoleDefinition = {
         name: 'publisher',
-        capabilities: [
-          'Article|publish|*|title',
-          '!Article|publish|*|body',
-        ],
+        capabilities: ['Article|publish|*|title', '!Article|publish|*|body'],
       };
       const ability = buildAbility([publisherRole]);
       const authorizer = new CaslAuthorizer(ability);
 
       // Custom action 'publish' with allowed field 'title'
-      expect(
-        authorizer.authorize('publish', 'Article', ['title']),
-      ).toBe('Article');
+      expect(authorizer.authorize('publish', 'Article', ['title'])).toBe(
+        'Article',
+      );
 
       // Custom action 'publish' with forbidden field 'body'
       expect(() =>
@@ -499,9 +496,9 @@ describe('CaslAuthorizer / CaslEntityAuthorizer', () => {
       const archivistAbility = buildAbility([customRole]);
       const archivistAuthorizer = new CaslAuthorizer(archivistAbility);
 
-      expect(
-        archivistAuthorizer.authorize('archive', 'Document'),
-      ).toBe('Document');
+      expect(archivistAuthorizer.authorize('archive', 'Document')).toBe(
+        'Document',
+      );
     });
 
     it('supports buildBypassAbility() for unrestricted operations', () => {

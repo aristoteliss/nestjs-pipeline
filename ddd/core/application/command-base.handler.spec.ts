@@ -159,7 +159,9 @@ describe('CommandBaseHandler', () => {
     expect(result).toEqual({ success: true });
     expect(eventBus.publishAll).toHaveBeenCalledTimes(1);
     expect(eventBus.publishAll).toHaveBeenCalledWith(
-      expect.arrayContaining([expect.objectContaining({ orderId: 'custom-101' })]),
+      expect.arrayContaining([
+        expect.objectContaining({ orderId: 'custom-101' }),
+      ]),
     );
   });
 

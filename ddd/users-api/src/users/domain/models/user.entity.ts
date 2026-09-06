@@ -228,8 +228,8 @@ export class User extends RootEntity<UserSnapshot> {
     if (nextUsername !== undefined) {
       this._username = nextUsername;
     }
-    if (fields.department !== undefined) {
-      this._department = nextDepartment!;
+    if (nextDepartment !== undefined) {
+      this._department = nextDepartment;
     }
     this.apply(new UserUpdatedEvent(this));
     return this;
