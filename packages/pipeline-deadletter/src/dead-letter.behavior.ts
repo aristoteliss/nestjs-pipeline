@@ -182,11 +182,74 @@ export class DeadLetterBehavior implements IPipelineBehavior {
     return true;
   }
 
-  /** Shallow-merges per-handler options over the module defaults. */
+  /** Merges per-handler options over the module defaults. */
   private resolveOptions(context: IPipelineContext): DeadLetterBehaviorOptions {
     const handlerOptions =
       context.getBehaviorOptions<DeadLetterBehaviorOptions>(DeadLetterBehavior);
     if (!handlerOptions) return this.defaults;
-    return { ...this.defaults, ...handlerOptions };
+
+    const merged: DeadLetterBehaviorOptions = {
+      ...this.defaults,
+      ...handlerOptions,
+    };
+
+    if (this.defaults.ignoreErrors && handlerOptions.ignoreErrors) {
+      if (
+        Array.isArray(this.defaults.ignoreErrors) &&
+        Array.isArray(handlerOptions.ignoreErrors)
+      ) {
+        merged.ignoreErrors = [
+          ...this.defaults.ignoreErrors,
+          ...handlerOptions.ignoreErrors,
+        ];
+      } else if (
+        typeof this.defaults.ignoreErrors === 'function' &&
+        typeof handlerOptions.ignoreErrors === 'function'
+      ) {
+        const defaultFilter = this.defaults.ignoreErrors;
+        const handlerFilter = handlerOptions.ignoreErrors;
+        merged.ignoreErrors = (err, ctx) =>
+          defaultFilter(err, ctx) || handlerFilter(err, ctx);
+      } else if (
+        Array.isArray(this.defaults.ignoreErrors) &&
+        typeof handlerOptions.ignoreErrors === 'function'
+      ) {
+        const defaultTypes = this.defaults.ignoreErrors;
+        const handlerFilter = handlerOptions.ignoreErrors;
+        merged.ignoreErrors = (err, ctx) => {
+          for (const target of defaultTypes) {
+            if (typeof target === 'function' && err instanceof target) {
+              return true;
+            }
+          }
+          return handlerFilter(err, ctx);
+        };
+      } else if (
+        typeof this.defaults.ignoreErrors === 'function' &&
+        Array.isArray(handlerOptions.ignoreErrors)
+      ) {
+        const defaultFilter = this.defaults.ignoreErrors;
+        const handlerTypes = handlerOptions.ignoreErrors;
+        merged.ignoreErrors = (err, ctx) => {
+          if (defaultFilter(err, ctx)) {
+            return true;
+          }
+          for (const target of handlerTypes) {
+            if (typeof target === 'function' && err instanceof target) {
+              return true;
+            }
+          }
+          return false;
+        };
+      }
+    }
+
+    if (this.defaults.redactKeys && handlerOptions.redactKeys) {
+      merged.redactKeys = Array.from(
+        new Set([...this.defaults.redactKeys, ...handlerOptions.redactKeys]),
+      );
+    }
+
+    return merged;
   }
 }
