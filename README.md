@@ -1337,6 +1337,9 @@ ADAPTER=fastify pnpm start
 
 - Global + per-handler pipeline behaviors
 - Decoupled domain invariants with framework-agnostic `DomainException` & presentation-boundary `DomainExceptionFilter` (mapping to 400, 409, 422)
+- Clean Architecture persistence repository boundaries: CQRS handlers inject exclusively `ICommandRepository` and `IQueryRepository`, completely decoupled from ORM/database client classes (zero `MIKRO_ORM_CLIENT` leakage in handlers)
+- Persistent token revocation on logout via `DeleteAuthCommandRepository` and active user verification in `GetUserContextQueryRepository`
+- Optimistic locking with aggregate `version` tracking on `User` and `Role` entities, with `OptimisticLockError` mapped to HTTP 409 Conflict
 - Injectable `CaslAuthorizer` (`IEntityAuthorizer`) in CQRS command and query handlers, replacing static entity authorizer anti-patterns
 - Per-handler CASL authorization with inline `rules` on `CaslBehaviorOptions` and `CaslBehavior`
 - MikroORM-backed CASL providers (roles, capabilities, user context)
