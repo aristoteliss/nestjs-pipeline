@@ -105,7 +105,7 @@ curl http://localhost:3000/users \
   -H 'Authorization: Bearer <token>'
 ```
 
-`POST /auth/login` returns a bearer token. With Fastify + `SESSION_SECRET`, it also populates `@fastify/secure-session`. Express intentionally uses bearer/API credentials only.
+`POST /auth/login` returns the authenticated principal profile and a signed bearer token. With Fastify + `SESSION_SECRET` (64-character hex string representing a 32-byte key), it also populates `@fastify/secure-session`. Express intentionally uses bearer/API credentials only.
 
 ## Authentication & Context Scoping Architecture
 
@@ -121,9 +121,10 @@ TenantSchemaMiddleware
 AuthSessionGuard (APP_GUARD)
   ├─ 1. Check Fastify session cookie (req.session?.user)
   ├─ 2. Parse & verify Bearer JWT (JwtAuthenticator)
-  └─ 3. Verify API-client credentials (ApiClientAuthenticator)
+  ├─ 3. Verify API-client credentials (ApiClientAuthenticator)
   │
-  ▼ Sets req.sessionUser = principal (or throws 401 Unauthorized immediately)
+  ▼ Sets req.sessionUser = principal (or undefined for anonymous callers;
+    throws 401 if credentials are provided but invalid, expired, or tenant-mismatched)
 SessionUserContextInterceptor (APP_INTERCEPTOR)
   │
   ▼ sessionUserStore.run(req.sessionUser, () => next.handle())
@@ -135,9 +136,20 @@ Downstream Pipeline (Controllers → CQRS Bus → CASL → Audit → DB)
 1. **`AuthSessionGuard` (`APP_GUARD`)**: Decides **who you are**. It executes early in the NestJS request lifecycle (before interceptors, pipes, or route handlers) and delegates credential resolution to:
    - **`JwtAuthenticator`**: Parses `Authorization: Bearer <token>` (case-insensitively, accepting `Bearer` or `bearer`). Supports both symmetric (`JWT_SECRET`) and asymmetric (`JWT_PUBLIC_KEY`) keys. Asymmetric SPKI keys are memoized upon first parse to eliminate repetitive ASN.1 DER parsing. Validates tenant alignment and maps CASL capabilities.
    - **`ApiClientAuthenticator`**: Authenticates machine-to-machine callers using `x-api-id` and `x-api-key` headers against configured `API_CLIENTS`. Uses constant-time fixed-length SHA-256 digest comparison (`timingSafeEqual`) to prevent timing side-channel leaks. Operates completely statelessly.
-   - **`RequestPrincipalResolver`**: Lean orchestrator coordinating priority resolution (Cookie $\rightarrow$ JWT $\rightarrow$ API Key $\rightarrow$ Anonymous).
+   - **`RequestPrincipalResolver`**: Lean orchestrator coordinating priority resolution (Cookie $\rightarrow$ JWT $\rightarrow$ API Key $\rightarrow$ Anonymous fallback).
+
+   *Note on Anonymous Access*: `AuthSessionGuard` does **not** reject unauthenticated requests; it resolves the caller to `undefined` (anonymous) and permits the request to continue. Rejections (HTTP 401 Unauthorized) only occur when credentials are provided but fail verification (e.g. expired JWT, invalid API key, or tenant mismatch). Downstream pipeline behaviors, such as `CaslBehavior` and `CaslAuthorizer`, enforce endpoint authorization and reject unauthorized callers with HTTP 403 Forbidden.
 2. **`SessionUserContextInterceptor` (`APP_INTERCEPTOR`)**: Decides **the execution scope**. A single-responsibility interceptor that reads `req.sessionUser` (populated by the guard) and invokes `sessionUserStore.run(req.sessionUser, () => next.handle())`. In NestJS 11.2.1, `InterceptorsConsumer` binds stream continuations using `defer(AsyncResource.bind(...))`, guaranteeing that the `AsyncLocalStorage` context established by `run()` persists across all downstream asynchronous operations, CQRS handlers, and pipeline behaviors without cross-request context bleeding.
 3. **`UserLoginService`**: Dedicated application service responsible solely for user login credential verification (`POST /auth/login`) and signing new tenant-bound access tokens.
+4. **`DeleteAuthCommandRepository`**: Dedicated command repository implementing `ICommandRepository<Auth, null>`. Deletes persisted auth tokens and clears cache upon `POST /auth/logout`.
+5. **`GetUserContextQueryRepository`**: Implements `IUserContextResolver` for `CaslModule`. Verifies active status of database users (preventing deleted users from executing operations with stale tokens) and dynamically synchronizes their department, while permitting authenticated machine and test principals.
+
+### Clean Architecture & Persistence Repository Boundaries
+
+Handlers belong strictly to the application/CQRS orchestration layer. In compliance with Clean Architecture:
+- **Zero ORM Leakage in Handlers**: Handlers **must never** inject ORM or database clients directly (`@Inject(MIKRO_ORM_CLIENT) private readonly store: MikroOrmStore` is strictly forbidden in CQRS handlers).
+- **Interface-Driven Decoupling**: Handlers only inject command or query repositories through typed interfaces (`ICommandRepository<TEntity, TSnapshot>`, `IQueryRepository<TQuery, TResult>`) via injection tokens defined in `repository.tokens.ts`.
+- **Encapsulated Data Access**: All database operations (such as MikroORM `em.findOne`, `em.nativeUpdate`, `em.nativeDelete`, transactions) are encapsulated within persistence repository classes (e.g. `CreateUserCommandRepository`, `DeleteAuthCommandRepository`, `GetUserQueryRepository`).
 
 ### Modular Composition Root & Clean Infrastructure Modules
 
@@ -194,7 +206,7 @@ Persistence schemas map domain aggregate state to relational tables without comp
     },
   });
   ```
-- **Encapsulated Invariant Guarding**: When MikroORM rehydrates or modifies properties, setters invoke the aggregate's domain validation routines, ensuring invalid state can never enter memory from the database.
+- **Accessors vs. Domain Mutation**: Property setters exist strictly as accessors for MikroORM persistence mapping and rehydration. Application code **must not** modify domain state by invoking setters directly, because setters bypass the `@Mutate()` lifecycle decorator and do not publish domain events. Domain state mutations must always occur via explicit domain methods (`user.update()`, `role.rename()`) and factories (`User.create()`, `Role.create()`). During ORM hydration, property setters invoke static normalization routines to ensure invalid state cannot be loaded into memory.
 
 ---
 
@@ -262,11 +274,25 @@ The application enforces a consistent error taxonomy across all 8 commands and 7
 |---|---|---|---|
 | **400 Bad Request** | Validation Error | `ZodValidationError` | Inbound payload fails Zod schema validation (e.g. invalid email format) |
 | **400 Bad Request** | Domain Error | `EmptyUserUpdateException` | Update payload contains no fields to modify (`username` and `department` absent) |
-| **401 Unauthorized** | Authentication Failure | `UnauthorizedException` | Missing token, expired Bearer JWT, invalid API key, or missing server JWT key |
+| **401 Unauthorized** | Authentication Failure | `UnauthorizedException` | Expired Bearer JWT, invalid API key, tenant mismatch, or invalid credentials on `/auth/login` |
 | **403 Forbidden** | Authorization Failure | `UnauthorizedActionException` | Caller lacks CASL permissions to perform action on subject or specific fields |
 | **404 Not Found** | Resource Missing | `UserNotFoundException`, `RoleNotFoundException` | Target aggregate does not exist in the active tenant database |
 | **409 Conflict** | Uniqueness Collision | `UniqueEmailException`, `UniqueRoleNameException` | Email or role name already exists in the active tenant schema |
+| **409 Conflict** | Concurrency Error | `OptimisticLockError` | Stale version or concurrent update on `User` or `Role` aggregate |
 | **422 Unprocessable Entity** | Invariant Violation | `InvalidUsernameException`, `InvalidDepartmentException` | Username or department string fails domain aggregate invariants (< 3 characters) |
+
+#### Optimistic Locking & Versioning
+
+Domain aggregates (`User`, `Role`) inherit automatic version tracking from `RootEntity`. Each entity initializes `version: 1` on creation, and every state mutation decorated with `@Mutate()` automatically increments `version`.
+- Write repositories (`UpdateUserCommandRepository`, `UpdateRoleCommandRepository`) execute atomic conditional updates:
+  ```typescript
+  await this.store.em.nativeUpdate(
+    User,
+    { id: user.id, version: user.getExpectedVersion() },
+    { ...changes, version: user.version },
+  );
+  ```
+- If the affected rows are 0 and the record exists, an `OptimisticLockError` is thrown, preventing lost updates or resurrecting deleted aggregates. `DomainExceptionFilter` intercepts this and returns HTTP 409 Conflict.
 
 #### Global API Mapping (`DomainExceptionFilter`)
 
@@ -317,7 +343,7 @@ export class CreateUserHandler extends CommandBaseHandler<CreateUserCommand, Use
 
 #### 1. User Login & Token Issuance
 
-Users authenticate via `POST /auth/login` using their email and temporary login code:
+Users authenticate via `POST /auth/login` using their email and temporary login code (a simplified demo mechanism simulating OTP/login code via `AUTH_LOGIN_CODE`):
 
 ```bash
 curl -X POST http://localhost:3000/auth/login \
@@ -332,11 +358,18 @@ curl -X POST http://localhost:3000/auth/login \
 Response:
 ```json
 {
-  "userId": "019488e0-0000-7000-8000-000000000001",
-  "accessToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ...",
-  "userCapabilities": {
-    "roles": ["admin"]
-  }
+  "id": "019488e0-0000-7000-8000-000000000001",
+  "tenant": "tenant",
+  "email": "alice+tenant@seed.local",
+  "department": null,
+  "capabilities": {
+    "roles": ["admin"],
+    "additionalCapabilities": [],
+    "deniedCapabilities": []
+  },
+  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ...",
+  "expiresAt": 1741258800000,
+  "exp": 1741258800
 }
 ```
 
@@ -469,6 +502,61 @@ export class DeleteUserHandler {
 }
 ```
 
+#### 7. User Logout & Persistent Token Revocation
+
+Logging out revokes persistent tokens and clears the active session cookie:
+
+```bash
+curl -X POST http://localhost:3000/auth/logout \
+  -H "x-tenant-schema: tenant" \
+  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ..."
+```
+
+Under the hood:
+1. `AuthsController.logout` triggers `DeleteAuthCommand`.
+2. `DeleteAuthHandler` invokes `DeleteAuthCommandRepository.save(new Auth({ userId, token: '' }))`.
+3. The command repository executes `store.em.nativeDelete(Auth, { userId })` and evicts cache entries for that user's auth records.
+4. Subsequent requests using the revoked token are rejected.
+
+#### 8. Pipeline Caching with CacheBehavior
+
+While entity query repositories use `@FromCache`, CQRS query handlers can also declaratively cache aggregate query results using `CacheBehavior` from `@nestjs-pipeline/cache`:
+
+```typescript
+import { QueryHandler, type IQueryHandler } from '@nestjs/cqrs';
+import { UsePipeline } from '@nestjs-pipeline/core';
+import { CacheBehavior } from '@nestjs-pipeline/cache';
+import { CaslBehavior } from '@nestjs-pipeline/casl';
+import { GetRolesQuery } from './get-roles.query';
+
+@QueryHandler(GetRolesQuery)
+@UsePipeline(
+  [
+    CaslBehavior,
+    { rules: [{ action: 'read', subject: 'Role' }] },
+  ],
+  [
+    CacheBehavior,
+    {
+      ttl: 30_000, // 30-second cache TTL
+      key: (ctx) => `${ctx.tenantId ?? 'default'}:roles:all`,
+    },
+  ],
+)
+export class GetRolesHandler implements IQueryHandler<GetRolesQuery, RoleSnapshot[]> {
+  constructor(
+    @Inject(QUERY_REPOSITORY.getRoles)
+    private readonly queryRepository: IQueryRepository<GetRolesQuery, Role[]>,
+    private readonly authorizer: CaslAuthorizer,
+  ) {}
+
+  async execute(query: GetRolesQuery): Promise<RoleSnapshot[]> {
+    const roles = await this.queryRepository.find(query);
+    return roles.map((role) => this.authorizer.authorize('read', role));
+  }
+}
+```
+
 ### Environment Variables Reference
 
 | Variable | Required | Description | Example |
@@ -480,8 +568,8 @@ export class DeleteUserHandler {
 | `JWT_AUDIENCE` | Optional | Expected `aud` claim | `nestjs-pipeline` |
 | `JWT_ALGORITHMS` | Optional | Comma-separated list of allowed algorithms | `HS256,RS256` |
 | `API_CLIENTS` | Optional | JSON array of authorized API client identities | `[{"id":"svc","key":"k","tenants":["tenant"]}]` |
-| `AUTH_LOGIN_CODE` | Required for login | One-time code verified during `POST /auth/login` | `123456` |
-| `SESSION_SECRET` | Fastify only | 32-byte secret for Fastify secure-session cookies | `at-least-32-characters-secret-string!` |
+| `AUTH_LOGIN_CODE` | Required for login | Static verification code for `POST /auth/login` (simplified demo mechanism simulating OTP/login code) | `123456` |
+| `SESSION_SECRET` | Fastify only | 64-character hex string (32 bytes) for `@fastify/secure-session` cookies | `0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef` |
 
 *\* Note: At least one of `JWT_SECRET` or `JWT_PUBLIC_KEY` must be set if Bearer token authentication is enabled.*
 
