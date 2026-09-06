@@ -17,6 +17,7 @@
  */
 
 import { filterCacheKey } from '@common/cqrs/helpers/filterCacheKey.helper';
+import { OptimisticLockError } from '@mikro-orm/core';
 import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { Cache, CommandRepository, ICache } from '@nestjs-pipeline/ddd-core';
 import { CACHE_TOKEN } from '@persistence/cache/memory.cache';
@@ -43,15 +44,29 @@ export class UpdateUserCommandRepository extends CommandRepository<
   async save(user: User): Promise<UserSnapshot> {
     const affected = await this.store.em.nativeUpdate(
       User,
-      { id: user.id },
+      { id: user.id, version: user.getExpectedVersion() },
       {
         username: user.username,
         department: user.department ?? null,
         updatedAt: user.updatedAt,
+        version: user.version,
       },
     );
 
     if (affected === 0) {
+      const exists = await this.store.em.findOne(
+        User,
+        { id: user.id },
+        { refresh: true },
+      );
+      if (exists) {
+        throw OptimisticLockError.lockFailedVersionMismatch(
+          user,
+          user.getExpectedVersion(),
+          exists.version,
+        );
+      }
+
       throw new NotFoundException('User not found');
     }
 

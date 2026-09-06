@@ -44,6 +44,13 @@ export const UserSchema = new EntitySchema<User, AggregateRoot>({
       fieldName: 'updated_at',
       accessor: true,
     },
+    version: {
+      type: 'number',
+      fieldName: 'version',
+      default: 1,
+      accessor: true,
+      version: true,
+    },
     username: { type: 'string', fieldName: 'username', accessor: true },
     department: {
       type: 'string',

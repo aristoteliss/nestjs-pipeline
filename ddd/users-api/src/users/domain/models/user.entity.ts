@@ -124,6 +124,7 @@ export class User extends RootEntity<UserSnapshot> {
       department: User.normalizeDepartment(snapshot.department),
       createdAt: User.normalizeDate(snapshot.createdAt),
       updatedAt: User.normalizeDate(snapshot.updatedAt),
+      version: snapshot.version ?? 1,
     });
   }
 
@@ -179,6 +180,17 @@ export class User extends RootEntity<UserSnapshot> {
   }
   set department(value: string | null) {
     this._department = User.normalizeDepartment(value);
+  }
+
+  /** Gets the entity version for optimistic concurrency control. */
+  get version(): number {
+    return this._version;
+  }
+  set version(value: number) {
+    if (typeof value === 'number' && Number.isInteger(value) && value > 0) {
+      this._version = value;
+      this._persistedVersion = value;
+    }
   }
 
   /**
@@ -252,6 +264,7 @@ export class User extends RootEntity<UserSnapshot> {
       email: this.email,
       createdAt: this.createdAt,
       updatedAt: this.updatedAt,
+      version: this.version,
     });
   }
 

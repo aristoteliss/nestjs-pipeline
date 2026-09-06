@@ -16,6 +16,7 @@
  * ----------------------------
  */
 
+import { OptimisticLockError } from '@mikro-orm/core';
 import { NotFoundException } from '@nestjs/common';
 import type { ICache } from '@nestjs-pipeline/ddd-core';
 import { describe, expect, it, vi } from 'vitest';
@@ -45,17 +46,18 @@ describe('UpdateRoleCommandRepository', () => {
 
     expect(nativeUpdate).toHaveBeenCalledWith(
       Role,
-      { id: role.id },
+      { id: role.id, version: 1 },
       {
         name: 'publisher',
         updatedAt: role.updatedAt,
+        version: 2,
       },
     );
     expect(cache.set).toHaveBeenCalledWith(`tenant:role:id:${role.id}`, result);
     expect(result).toEqual(role.toJSON());
   });
 
-  it('throws NotFoundException and does not touch cache when affected rows is 0 (concurrent delete)', async () => {
+  it('throws NotFoundException and does not touch cache when affected rows is 0 and role does not exist (concurrent delete)', async () => {
     const cache: ICache<RoleSnapshot> = {
       get: vi.fn(),
       set: vi.fn(),
@@ -65,14 +67,47 @@ describe('UpdateRoleCommandRepository', () => {
     role.rename('publisher');
 
     const nativeUpdate = vi.fn().mockResolvedValue(0);
+    const findOne = vi.fn().mockResolvedValue(null);
     const store = {
       get em() {
-        return { nativeUpdate };
+        return { nativeUpdate, findOne };
       },
     };
     const repository = new UpdateRoleCommandRepository(cache, store as never);
 
     await expect(repository.save(role)).rejects.toThrow(NotFoundException);
+    expect(findOne).toHaveBeenCalledWith(
+      Role,
+      { id: role.id },
+      { refresh: true },
+    );
+    expect(cache.set).not.toHaveBeenCalled();
+  });
+
+  it('throws OptimisticLockError and does not touch cache when affected rows is 0 and role exists (concurrent update)', async () => {
+    const cache: ICache<RoleSnapshot> = {
+      get: vi.fn(),
+      set: vi.fn(),
+      delete: vi.fn(),
+    };
+    const role = Role.create('editor');
+    role.rename('publisher');
+
+    const nativeUpdate = vi.fn().mockResolvedValue(0);
+    const findOne = vi.fn().mockResolvedValue({ id: role.id, version: 2 });
+    const store = {
+      get em() {
+        return { nativeUpdate, findOne };
+      },
+    };
+    const repository = new UpdateRoleCommandRepository(cache, store as never);
+
+    await expect(repository.save(role)).rejects.toThrow(OptimisticLockError);
+    expect(findOne).toHaveBeenCalledWith(
+      Role,
+      { id: role.id },
+      { refresh: true },
+    );
     expect(cache.set).not.toHaveBeenCalled();
   });
 

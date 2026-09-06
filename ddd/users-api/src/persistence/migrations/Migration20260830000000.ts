@@ -89,6 +89,7 @@ export class Migration20260830000000 extends Migration {
       id varchar(64) not null,
       created_at bigint not null,
       updated_at bigint not null,
+      version int not null default 1,
       username varchar(255) not null,
       department varchar(255) null,
       email varchar(320) not null,
@@ -110,6 +111,7 @@ export class Migration20260830000000 extends Migration {
       id varchar(64) not null,
       created_at bigint not null,
       updated_at bigint not null,
+      version int not null default 1,
       name varchar(128) not null,
       primary key (id)
     );`);

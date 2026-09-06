@@ -42,6 +42,13 @@ export const RoleSchema = new EntitySchema<Role, AggregateRoot>({
       fieldName: 'updated_at',
       accessor: true,
     },
+    version: {
+      type: 'number',
+      fieldName: 'version',
+      default: 1,
+      accessor: true,
+      version: true,
+    },
     name: { type: 'string', fieldName: 'name', unique: true, accessor: true },
   },
 });

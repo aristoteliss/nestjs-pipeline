@@ -16,8 +16,8 @@
  * ----------------------------
  */
 
-import { AggregateRoot } from '@nestjs/cqrs';
 import { isUuidV7, uuidv7 } from '@nestjs-pipeline/core';
+import { AggregateRoot } from '@nestjs/cqrs';
 import { RootEntitySnapshot } from '../interfaces/root-entity-snapshot.interface';
 
 /**
@@ -30,9 +30,11 @@ import { RootEntitySnapshot } from '../interfaces/root-entity-snapshot.interface
  * - **Lifecycle Timestamps**: Enforces invariant-checked `createdAt` and `updatedAt` tracking.
  * - **Accessor-Driven Persistence**: Exposes typed getters and setters (`id`, `createdAt`, `updatedAt`)
  *   compatible with MikroORM `accessor: true` mapping without breaking encapsulation.
+ * - **Optimistic Concurrency Control**: Tracks integer aggregate versioning (`_version`, {@link getExpectedVersion}),
+ *   incremented automatically on mutations to prevent concurrent lost updates.
  * - **Polymorphic Rehydration**: Static `RootEntity.from()` transparently handles instances, plain snapshots,
- *   or nullish database results without re-triggering creation events.
- * - **Mutation Tracking**: Automatically updates `updatedAt` on `@Mutate()`-decorated methods
+ *   or nullish database results while enforcing strict aggregate type safety (throws `TypeError` on incompatible aggregates).
+ * - **Mutation Tracking**: Automatically updates `updatedAt`, increments `_version` on `@Mutate()`-decorated methods,
  *   and triggers the `afterUpdate()` lifecycle hook.
  *
  * @example Defining a domain aggregate
@@ -40,6 +42,7 @@ import { RootEntitySnapshot } from '../interfaces/root-entity-snapshot.interface
  * interface UserSnapshot extends Partial<RootEntitySnapshot> {
  *   readonly username: string;
  *   readonly email: string;
+ *   readonly version?: number;
  * }
  *
  * export class User extends RootEntity<UserSnapshot> {
@@ -80,6 +83,7 @@ import { RootEntitySnapshot } from '../interfaces/root-entity-snapshot.interface
  *       email: this.email,
  *       createdAt: this.createdAt,
  *       updatedAt: this.updatedAt,
+ *       version: this._version,
  *     });
  *   }
  * }
@@ -94,12 +98,21 @@ export abstract class RootEntity<
   private _id: string;
   private _createdAt: Date;
   private _updatedAt: Date;
+  protected _version: number;
+  protected _persistedVersion: number;
 
   constructor(snapshot?: Partial<RootEntitySnapshot>) {
     super();
     const id = snapshot?.id;
     const createdAt = snapshot?.createdAt;
     const updatedAt = snapshot?.updatedAt;
+    const version = snapshot?.version;
+
+    this._version =
+      typeof version === 'number' && Number.isInteger(version) && version > 0
+        ? version
+        : 1;
+    this._persistedVersion = this._version;
 
     if (
       id !== undefined &&
@@ -218,7 +231,12 @@ export abstract class RootEntity<
     this._updatedAt = RootEntity.normalizeDate(value);
   }
 
+  getExpectedVersion(): number {
+    return this._persistedVersion;
+  }
+
   protected onUpdate(): void {
+    this._version += 1;
     this._updatedAt = new Date();
     this.afterUpdate();
   }

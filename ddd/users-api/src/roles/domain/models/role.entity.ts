@@ -73,6 +73,7 @@ export class Role extends RootEntity<RoleSnapshot> {
       name: Role.normalizeName(snapshot.name),
       createdAt: Role.normalizeDate(snapshot.createdAt),
       updatedAt: Role.normalizeDate(snapshot.updatedAt),
+      version: snapshot.version ?? 1,
     });
   }
 
@@ -95,6 +96,17 @@ export class Role extends RootEntity<RoleSnapshot> {
     this._name = Role.normalizeName(value);
   }
 
+  /** Gets the entity version for optimistic concurrency control. */
+  get version(): number {
+    return this._version;
+  }
+  set version(value: number) {
+    if (typeof value === 'number' && Number.isInteger(value) && value > 0) {
+      this._version = value;
+      this._persistedVersion = value;
+    }
+  }
+
   @Mutate()
   rename(name: string): this {
     this._name = Role.normalizeName(name);
@@ -114,6 +126,7 @@ export class Role extends RootEntity<RoleSnapshot> {
       name: this._name,
       createdAt: this.createdAt,
       updatedAt: this.updatedAt,
+      version: this.version,
     });
   }
 

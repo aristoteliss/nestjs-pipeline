@@ -29,6 +29,10 @@ class TestEntity extends RootEntity<TestSnapshot> {
   name: string;
   afterUpdateHook = vi.fn();
 
+  get version(): number {
+    return this._version;
+  }
+
   constructor(snapshot?: Partial<TestSnapshot>) {
     super(snapshot);
     this.name = snapshot?.name ?? 'default';
@@ -159,9 +163,12 @@ describe('RootEntity', () => {
     ).toThrowError('Date must be a valid non-empty date.');
   });
 
-  it('updates updatedAt and calls afterUpdate hook on mutation', () => {
+  it('updates updatedAt, increments version, and calls afterUpdate hook on mutation', () => {
     const entity = new TestEntity({ name: 'Initial' });
     const initialUpdatedAt = entity.updatedAt;
+
+    expect(entity.version).toBe(1);
+    expect(entity.getExpectedVersion()).toBe(1);
 
     entity.triggerUpdate();
 
@@ -169,6 +176,30 @@ describe('RootEntity', () => {
     expect(entity.updatedAt.getTime()).toBeGreaterThanOrEqual(
       initialUpdatedAt.getTime(),
     );
+    expect(entity.version).toBe(2);
+    expect(entity.getExpectedVersion()).toBe(1);
+
+    entity.triggerUpdate();
+    expect(entity.version).toBe(3);
+    expect(entity.getExpectedVersion()).toBe(1);
+  });
+
+  it('preserves rehydrated version in expectedVersion across mutations', () => {
+    const id = uuidv7();
+    const entity = new TestEntity({
+      id,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      version: 5,
+      name: 'Rehydrated',
+    });
+
+    expect(entity.version).toBe(5);
+    expect(entity.getExpectedVersion()).toBe(5);
+
+    entity.triggerUpdate();
+    expect(entity.version).toBe(6);
+    expect(entity.getExpectedVersion()).toBe(5);
   });
 
   it('serializes state with toJSON', () => {
