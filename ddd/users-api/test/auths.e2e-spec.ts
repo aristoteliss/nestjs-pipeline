@@ -210,6 +210,69 @@ describe('auths-api (e2e)', () => {
       expect(after.status).toBe(401);
     });
 
+    it('revokes only the specific session bearer token on logout leaving other sessions active', async () => {
+      const email = newEmail();
+      const created = await seedUser(email, 'Multi Session User');
+      expect(created.status).toBe(201);
+
+      const { MIKRO_ORM_CLIENT } = await import(
+        '../../src/persistence/mikro-orm.store'
+      );
+      const { UserRole } = await import(
+        '../../src/persistence/entities/user-role.entity'
+      );
+      const { Auth } = await import(
+        '../../src/auths/domain/models/auth.entity'
+      );
+      await ctx.app.get(MIKRO_ORM_CLIENT).em.upsert(UserRole, {
+        userId: created.body.id,
+        roleId: '019de10c-b680-7000-8000-000000000001',
+      });
+
+      // Session 1 login
+      const login1 = await login({ email, code: E2E_LOGIN_CODE });
+      expect(login1.status).toBe(200);
+      const token1 = login1.body.token;
+
+      // Ensure distinct token issuance
+      await new Promise((r) => setTimeout(r, 20));
+
+      // Session 2 login
+      const login2 = await login({ email, code: E2E_LOGIN_CODE });
+      expect(login2.status).toBe(200);
+      const token2 = login2.body.token;
+
+      expect(token1).not.toBe(token2);
+
+      // Logout session 1 with bearer token1
+      const logoutRes = await request(http)
+        .post('/auth/logout')
+        .set('x-tenant-schema', 'tenant')
+        .set('authorization', `Bearer ${token1}`);
+      expect(logoutRes.status).toBe(204);
+
+      // Session 1 token is now rejected
+      const after1 = await request(http)
+        .get(`/users/${created.body.id}`)
+        .set('x-tenant-schema', 'tenant')
+        .set('authorization', `Bearer ${token1}`);
+      expect(after1.status).toBe(401);
+
+      // Session 2 token remains active and valid
+      const after2 = await request(http)
+        .get(`/users/${created.body.id}`)
+        .set('x-tenant-schema', 'tenant')
+        .set('authorization', `Bearer ${token2}`);
+      expect(after2.status).toBe(200);
+
+      // Verify in persistence that token1 record was removed but token2 persists
+      const store = ctx.app.get(MIKRO_ORM_CLIENT);
+      const auth1 = await store.em.findOne(Auth, { token: token1 });
+      const auth2 = await store.em.findOne(Auth, { token: token2 });
+      expect(auth1).toBeNull();
+      expect(auth2).not.toBeNull();
+    });
+
     it('is a no-op for an anonymous caller (204)', async () => {
       const res = await request(http)
         .post('/auth/logout')

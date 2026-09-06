@@ -71,4 +71,36 @@ describe('UserLoginService', () => {
       'JWT_ALGORITHMS must include HS256',
     );
   });
+
+  it('issues unique tokens with distinct jti claims even for subsequent calls in the same second', async () => {
+    process.env.JWT_SECRET = 'tenant-bound-token-secret';
+    delete process.env.JWT_ALGORITHMS;
+    const user = User.create('Alice', 'alice@example.test');
+    const tenantContext = new TenantSchemaContext();
+    const service = new UserLoginService(
+      {
+        execute: vi.fn().mockResolvedValue({
+          roles: [],
+          additionalCapabilities: [],
+          deniedCapabilities: [],
+        }),
+      } as never,
+      { find: vi.fn() } as never,
+      tenantContext,
+    );
+
+    const result1 = await tenantContext.run('tenant_a', () =>
+      service.signToken(user),
+    );
+    const result2 = await tenantContext.run('tenant_a', () =>
+      service.signToken(user),
+    );
+
+    expect(result1.accessToken).not.toBe(result2.accessToken);
+    const payload1 = decodeJwt(result1.accessToken);
+    const payload2 = decodeJwt(result2.accessToken);
+    expect(payload1.jti).toBeDefined();
+    expect(payload2.jti).toBeDefined();
+    expect(payload1.jti).not.toBe(payload2.jti);
+  });
 });

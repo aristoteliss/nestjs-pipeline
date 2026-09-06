@@ -64,18 +64,31 @@ export class AuthsController {
   }
 
   /**
-   * Clears the current Fastify secure-session cookie when present. Under
-   * Express there is no server session to delete; clients discard their bearer
-   * token.
+   * Logs out the current session.
+   *
+   * Extracts the active Bearer token from the `Authorization` header when present,
+   * dispatches `DeleteAuthCommand` to query and revoke the persistent auth aggregate by
+   * primary key and invalidate session cache, and clears the Fastify secure-session cookie.
    */
   @Post('logout')
   @HttpCode(204)
   async logout(
-    @Req() req: { session?: Session<SessionData>; sessionUser?: SessionUser },
+    @Req()
+    req: {
+      session?: Session<SessionData>;
+      sessionUser?: SessionUser;
+      headers?: Record<string, string | string[] | undefined>;
+    },
   ): Promise<void> {
     const sessionUser = req.session?.user ?? req.sessionUser;
+    const authHeader = req.headers?.authorization;
+    const token =
+      typeof authHeader === 'string' &&
+      authHeader.toLowerCase().startsWith('bearer ')
+        ? authHeader.slice(7).trim()
+        : undefined;
 
-    await this.commandBus.execute(new DeleteAuthCommand(sessionUser));
+    await this.commandBus.execute(new DeleteAuthCommand(sessionUser, token));
 
     req.session?.delete();
   }

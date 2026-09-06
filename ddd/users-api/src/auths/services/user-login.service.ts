@@ -16,6 +16,8 @@
  * ----------------------------
  */
 
+import type { UserCapabilities } from '@nestjs-pipeline/casl';
+import type { IQueryRepository } from '@nestjs-pipeline/ddd-core';
 import {
   Inject,
   Injectable,
@@ -23,9 +25,8 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { QueryBus } from '@nestjs/cqrs';
-import type { UserCapabilities } from '@nestjs-pipeline/casl';
-import type { IQueryRepository } from '@nestjs-pipeline/ddd-core';
 import { SignJWT } from 'jose';
+import { randomUUID } from 'node:crypto';
 import { TenantSchemaContext } from '../../persistence/tenant-schema.context';
 import { GetUserQuery } from '../../users/cqrs/queries/get-user.query';
 import { User } from '../../users/domain/models/user.entity';
@@ -163,7 +164,8 @@ export class UserLoginService {
       .setProtectedHeader({ alg: 'HS256', typ: 'JWT' })
       .setSubject(user.id)
       .setIssuedAt(nowSeconds)
-      .setExpirationTime(expSeconds);
+      .setExpirationTime(expSeconds)
+      .setJti(randomUUID());
 
     if (issuer) {
       jwt.setIssuer(issuer);

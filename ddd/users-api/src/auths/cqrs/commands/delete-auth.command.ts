@@ -17,5 +17,19 @@
  */
 
 import { BaseCommand } from '@common/cqrs/commands/base.command';
+import type { SessionUser } from '@common/types/SessionUser';
 
-export class DeleteAuthCommand extends BaseCommand {}
+/**
+ * Command requesting revocation of an authenticated session.
+ *
+ * Transports the calling session user and optional bearer token string so that
+ * the handler can retrieve and delete the exact persistent `Auth` aggregate.
+ */
+export class DeleteAuthCommand extends BaseCommand {
+  public readonly token?: string;
+
+  constructor(sessionUser?: SessionUser, token?: string) {
+    super(sessionUser);
+    this.token = token;
+  }
+}
