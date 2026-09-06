@@ -1,3 +1,4 @@
+import { OptimisticLockError } from '@mikro-orm/core';
 import type { ArgumentsHost } from '@nestjs/common';
 import { DomainException } from '@nestjs-pipeline/ddd-core';
 import { describe, expect, it, vi } from 'vitest';
@@ -57,6 +58,23 @@ describe('DomainExceptionFilter', () => {
       statusCode: 409,
       error: 'Conflict',
       message: 'Role with name "Admin" already exists',
+    });
+  });
+
+  it('maps OptimisticLockError to HTTP 409 Conflict', () => {
+    const error = new OptimisticLockError(
+      'The optimistic lock on entity User failed',
+    );
+    const response = { status: vi.fn(), json: vi.fn() };
+    response.status.mockReturnValue(response);
+
+    filter.catch(error, makeHost(response));
+
+    expect(response.status).toHaveBeenCalledWith(409);
+    expect(response.json).toHaveBeenCalledWith({
+      statusCode: 409,
+      error: 'Conflict',
+      message: error.message,
     });
   });
 

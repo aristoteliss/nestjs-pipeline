@@ -16,6 +16,7 @@
  * ----------------------------
  */
 
+import { OptimisticLockError } from '@mikro-orm/core';
 import {
   type ArgumentsHost,
   Catch,
@@ -78,9 +79,12 @@ type HttpResponse = {
  * }
  * ```
  */
-@Catch(DomainException)
+@Catch(DomainException, OptimisticLockError)
 export class DomainExceptionFilter implements ExceptionFilter {
-  catch(exception: DomainException, host: ArgumentsHost): void {
+  catch(
+    exception: DomainException | OptimisticLockError,
+    host: ArgumentsHost,
+  ): void {
     const response = host.switchToHttp().getResponse<HttpResponse>();
     const { statusCode, error, extra } = this.resolveHttpError(exception);
 
@@ -99,11 +103,18 @@ export class DomainExceptionFilter implements ExceptionFilter {
     response.send?.(body);
   }
 
-  private resolveHttpError(exception: DomainException): {
+  private resolveHttpError(exception: DomainException | OptimisticLockError): {
     statusCode: number;
     error: string;
     extra?: Record<string, unknown>;
   } {
+    if (exception instanceof OptimisticLockError) {
+      return {
+        statusCode: HttpStatus.CONFLICT,
+        error: 'Conflict',
+      };
+    }
+
     if (
       exception instanceof UniqueEmailException ||
       exception instanceof UniqueRoleNameException

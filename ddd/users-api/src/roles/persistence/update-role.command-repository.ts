@@ -17,7 +17,10 @@
  */
 
 import { filterCacheKey } from '@common/cqrs/helpers/filterCacheKey.helper';
-import { UniqueConstraintViolationException } from '@mikro-orm/core';
+import {
+  OptimisticLockError,
+  UniqueConstraintViolationException,
+} from '@mikro-orm/core';
 import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { Cache, CommandRepository, ICache } from '@nestjs-pipeline/ddd-core';
 import { CACHE_TOKEN } from '@persistence/cache/memory.cache';
@@ -44,14 +47,28 @@ export class UpdateRoleCommandRepository extends CommandRepository<
     try {
       const affected = await this.store.em.nativeUpdate(
         Role,
-        { id: role.id },
+        { id: role.id, version: role.getExpectedVersion() },
         {
           name: role.name,
           updatedAt: role.updatedAt,
+          version: role.version,
         },
       );
 
       if (affected === 0) {
+        const exists = await this.store.em.findOne(
+          Role,
+          { id: role.id },
+          { refresh: true },
+        );
+        if (exists) {
+          throw OptimisticLockError.lockFailedVersionMismatch(
+            role,
+            role.getExpectedVersion(),
+            exists.version,
+          );
+        }
+
         throw new NotFoundException('Role not found');
       }
 
