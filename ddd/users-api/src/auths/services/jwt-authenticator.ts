@@ -16,17 +16,21 @@
  * ----------------------------
  */
 
-import { Injectable, Logger, UnauthorizedException } from '@nestjs/common';
+import type { IQueryRepository } from '@nestjs-pipeline/ddd-core';
 import {
-  type Capability,
-  type CapabilityString,
-  normalizeCapability,
-  serializeCapability,
-  type UserCapabilities,
-} from '@nestjs-pipeline/casl';
+  Inject,
+  Injectable,
+  Logger,
+  Optional,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { TenantSchemaContext } from '@persistence/tenant-schema.context';
 import { importSPKI, jwtVerify } from 'jose';
 import type { SessionUser } from '../../common/types/SessionUser';
+import { FindAuthQuery } from '../cqrs/queries/find-auth.query';
+import type { Auth } from '../domain/models/auth.entity';
+import { QUERY_REPOSITORY } from '../persistence/repository.tokens';
+import { CapabilityCodec } from './capability-codec';
 
 /**
  * Verifies Bearer JSON Web Tokens presented in the `Authorization` request header.
@@ -68,7 +72,15 @@ export class JwtAuthenticator {
   private cachedPublicKeyAlg?: string;
   private cachedSecretRaw?: string;
 
-  constructor(private readonly tenantSchemaContext: TenantSchemaContext) {}
+  constructor(
+    private readonly tenantSchemaContext: TenantSchemaContext,
+    @Optional()
+    @Inject(QUERY_REPOSITORY.findAuth)
+    private readonly authQueryRepository?: IQueryRepository<
+      FindAuthQuery,
+      Auth | null
+    >,
+  ) {}
 
   /**
    * Parses and validates a Bearer JWT from the `Authorization` header.
@@ -159,6 +171,17 @@ export class JwtAuthenticator {
         );
       }
 
+      if (this.authQueryRepository) {
+        const activeAuth = await this.authQueryRepository.find(
+          new FindAuthQuery({ userId: payload.sub, token }),
+        );
+        if (!activeAuth) {
+          throw new UnauthorizedException(
+            'Token has been revoked or session has ended',
+          );
+        }
+      }
+
       const user: SessionUser = {
         id: payload.sub,
         tenant: payload.tenant,
@@ -170,15 +193,7 @@ export class JwtAuthenticator {
         expiresAt:
           typeof payload.exp === 'number' ? payload.exp * 1000 : undefined,
         exp: typeof payload.exp === 'number' ? payload.exp : undefined,
-        capabilities: this.compactUserCapabilities({
-          roles: Array.isArray(payload.roles) ? payload.roles : undefined,
-          additionalCapabilities: Array.isArray(payload.additionalCapabilities)
-            ? payload.additionalCapabilities
-            : undefined,
-          deniedCapabilities: Array.isArray(payload.deniedCapabilities)
-            ? payload.deniedCapabilities
-            : undefined,
-        }),
+        capabilities: CapabilityCodec.compactUserCapabilities(payload),
       };
 
       this.logger.debug(`Authenticated user ${user.id} from Bearer token`);
@@ -261,59 +276,5 @@ export class JwtAuthenticator {
   ): string | undefined {
     const single = Array.isArray(value) ? value[0] : value;
     return typeof single === 'string' && single.length > 0 ? single : undefined;
-  }
-
-  private compactUserCapabilities(
-    input: unknown,
-  ): UserCapabilities | undefined {
-    if (!input || typeof input !== 'object') return undefined;
-
-    const raw = input as {
-      roles?: string[] | unknown;
-      additionalCapabilities?: Array<Capability | CapabilityString | unknown>;
-      deniedCapabilities?: Array<Capability | CapabilityString | unknown>;
-    };
-
-    const roles = Array.isArray(raw.roles)
-      ? raw.roles.filter((r): r is string => typeof r === 'string')
-      : [];
-
-    const additionalCapabilities = this.toCompactCapabilitiesArray(
-      raw.additionalCapabilities,
-    );
-    const deniedCapabilities = this.toCompactCapabilitiesArray(
-      raw.deniedCapabilities,
-    );
-
-    if (roles.length === 0 && !additionalCapabilities && !deniedCapabilities) {
-      return undefined;
-    }
-
-    return {
-      roles,
-      additionalCapabilities,
-      deniedCapabilities,
-    };
-  }
-
-  private toCompactCapabilitiesArray(
-    input: unknown,
-  ): CapabilityString[] | undefined {
-    if (!Array.isArray(input)) return undefined;
-
-    const compact = input
-      .map((cap) => {
-        if (typeof cap === 'string' || (cap && typeof cap === 'object')) {
-          return serializeCapability(
-            normalizeCapability(cap as Capability | CapabilityString),
-          );
-        }
-        throw new TypeError(
-          'Capabilities must be compact strings or capability objects.',
-        );
-      })
-      .filter((cap): cap is CapabilityString => typeof cap === 'string');
-
-    return compact.length > 0 ? compact : undefined;
   }
 }

@@ -16,12 +16,14 @@
  * ----------------------------
  */
 
-export const COMMAND_REPOSITORY = {
-  createAuth: Symbol('createAuth'),
-  deleteAuth: Symbol('deleteAuth'),
-} as const;
+import { BaseQuery } from '@common/cqrs/queries/base.query';
+import { createQuery } from '@nestjs-pipeline/zod';
+import { z } from 'zod';
 
-export const QUERY_REPOSITORY = {
-  getUserCapabilities: Symbol('getUserCapabilities'),
-  findAuth: Symbol('findAuth'),
-} as const;
+export class FindAuthQuery extends createQuery(
+  z.object({
+    userId: z.union([z.string().min(1), z.number()]),
+    token: z.string().optional(),
+  }),
+  BaseQuery,
+) {}

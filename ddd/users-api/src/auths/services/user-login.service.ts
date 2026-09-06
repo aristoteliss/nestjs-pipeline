@@ -23,13 +23,7 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { QueryBus } from '@nestjs/cqrs';
-import {
-  type Capability,
-  type CapabilityString,
-  normalizeCapability,
-  serializeCapability,
-  type UserCapabilities,
-} from '@nestjs-pipeline/casl';
+import type { UserCapabilities } from '@nestjs-pipeline/casl';
 import type { IQueryRepository } from '@nestjs-pipeline/ddd-core';
 import { SignJWT } from 'jose';
 import { TenantSchemaContext } from '../../persistence/tenant-schema.context';
@@ -37,6 +31,7 @@ import { GetUserQuery } from '../../users/cqrs/queries/get-user.query';
 import { User } from '../../users/domain/models/user.entity';
 import { EXT_USER_QUERY_REPOSITORY } from '../../users/persistence/repository.tokens';
 import { GetUserCapabilitiesQuery } from '../cqrs/queries/get-user-capabilities.query';
+import { CapabilityCodec } from './capability-codec';
 
 export interface AuthResult {
   userId: string;
@@ -150,11 +145,6 @@ export class UserLoginService {
       UserCapabilities
     >(new GetUserCapabilitiesQuery({ userId: user.id }));
 
-    const toCompact = (
-      caps: Array<Capability | CapabilityString> | undefined,
-    ): CapabilityString[] =>
-      (caps ?? []).map((cap) => serializeCapability(normalizeCapability(cap)));
-
     const nowSeconds = Math.floor(Date.now() / 1000);
     const expSeconds = nowSeconds + 3600; // 1 hour
 
@@ -163,10 +153,12 @@ export class UserLoginService {
       email: user.email,
       department: user.department,
       roles: userCapabilities.roles,
-      additionalCapabilities: toCompact(
+      additionalCapabilities: CapabilityCodec.toCompact(
         userCapabilities.additionalCapabilities,
       ),
-      deniedCapabilities: toCompact(userCapabilities.deniedCapabilities),
+      deniedCapabilities: CapabilityCodec.toCompact(
+        userCapabilities.deniedCapabilities,
+      ),
     })
       .setProtectedHeader({ alg: 'HS256', typ: 'JWT' })
       .setSubject(user.id)

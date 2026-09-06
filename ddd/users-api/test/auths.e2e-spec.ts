@@ -138,6 +138,78 @@ describe('auths-api (e2e)', () => {
       expect(res.status).toBe(204);
     });
 
+    it('deletes persistent auth records on logout for authenticated user (204)', async () => {
+      const email = newEmail();
+      const created = await seedUser(email, 'Logout Lisa');
+      expect(created.status).toBe(201);
+
+      const loginRes = await login({ email, code: E2E_LOGIN_CODE });
+      expect(loginRes.status).toBe(200);
+      const token = loginRes.body.token;
+
+      // Logout with the bearer token
+      const logoutRes = await request(http)
+        .post('/auth/logout')
+        .set('x-tenant-schema', 'tenant')
+        .set('authorization', `Bearer ${token}`);
+      expect(logoutRes.status).toBe(204);
+
+      // Verify token record in database was deleted
+      const { Auth } = await import(
+        '../../src/auths/domain/models/auth.entity'
+      );
+      const { MIKRO_ORM_CLIENT } = await import(
+        '../../src/persistence/mikro-orm.store'
+      );
+      const store = ctx.app.get(MIKRO_ORM_CLIENT);
+      const authRecord = await store.em.findOne(Auth, {
+        userId: created.body.id,
+      });
+      expect(authRecord).toBeNull();
+    });
+
+    it('rejects a logged-out bearer token on protected endpoints (401)', async () => {
+      const email = newEmail();
+      const created = await seedUser(email, 'Logout Protected');
+      expect(created.status).toBe(201);
+
+      const { MIKRO_ORM_CLIENT } = await import(
+        '../../src/persistence/mikro-orm.store'
+      );
+      const { UserRole } = await import(
+        '../../src/persistence/entities/user-role.entity'
+      );
+      await ctx.app.get(MIKRO_ORM_CLIENT).em.upsert(UserRole, {
+        userId: created.body.id,
+        roleId: '019de10c-b680-7000-8000-000000000001',
+      });
+
+      const loginRes = await login({ email, code: E2E_LOGIN_CODE });
+      expect(loginRes.status).toBe(200);
+      const token = loginRes.body.token;
+
+      // Token works before logout
+      const before = await request(http)
+        .get(`/users/${created.body.id}`)
+        .set('x-tenant-schema', 'tenant')
+        .set('authorization', `Bearer ${token}`);
+      expect(before.status).toBe(200);
+
+      // Logout with the bearer token
+      const logoutRes = await request(http)
+        .post('/auth/logout')
+        .set('x-tenant-schema', 'tenant')
+        .set('authorization', `Bearer ${token}`);
+      expect(logoutRes.status).toBe(204);
+
+      // Token is rejected after logout
+      const after = await request(http)
+        .get(`/users/${created.body.id}`)
+        .set('x-tenant-schema', 'tenant')
+        .set('authorization', `Bearer ${token}`);
+      expect(after.status).toBe(401);
+    });
+
     it('is a no-op for an anonymous caller (204)', async () => {
       const res = await request(http)
         .post('/auth/logout')

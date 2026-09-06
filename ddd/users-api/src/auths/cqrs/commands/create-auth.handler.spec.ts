@@ -39,13 +39,19 @@ describe('CreateAuthHandler', () => {
       signToken: vi.fn().mockResolvedValue({
         userId: 'user-1',
         accessToken: 'signed-token-123',
-        userCapabilities: { roles: ['admin'], additionalCapabilities: [], deniedCapabilities: [] },
+        userCapabilities: {
+          roles: ['admin'],
+          additionalCapabilities: [],
+          deniedCapabilities: [],
+        },
       }),
     };
 
     const save = vi.fn().mockResolvedValue({ id: 'auth-id' });
     const commandRepository = { save };
-    const tenantSchemaContext = { schema: 'tenant_alpha' } as TenantSchemaContext;
+    const tenantSchemaContext = {
+      schema: 'tenant_alpha',
+    } as TenantSchemaContext;
 
     const handler = new CreateAuthHandler(
       eventBus,
@@ -61,7 +67,10 @@ describe('CreateAuthHandler', () => {
 
     const result = await handler.execute(command);
 
-    expect(userLoginService.authenticate).toHaveBeenCalledWith('alice@example.test', '123456');
+    expect(userLoginService.authenticate).toHaveBeenCalledWith(
+      'alice@example.test',
+      '123456',
+    );
     expect(userLoginService.signToken).toHaveBeenCalled();
     expect(save).toHaveBeenCalledWith(expect.any(Auth));
 
@@ -81,7 +90,11 @@ describe('CreateAuthHandler', () => {
       tenant: 'tenant_alpha',
       email: 'alice@example.test',
       department: 'Engineering',
-      capabilities: { roles: ['admin'], additionalCapabilities: [], deniedCapabilities: [] },
+      capabilities: {
+        roles: ['admin'],
+        additionalCapabilities: [],
+        deniedCapabilities: [],
+      },
       token: 'signed-token-123',
     });
   });
