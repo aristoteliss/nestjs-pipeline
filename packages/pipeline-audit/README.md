@@ -214,8 +214,9 @@ AuditModule.forRoot({ sink: new KafkaAuditSink(producer) });
 sink. On success it returns the handler response after the sink write. On handler
 failure it attempts to write the failure record and then re-throws the original
 handler error when the sink write succeeds or `failOpen: true` suppresses a sink
-failure. If the sink throws while `failOpen: false`, that sink error propagates;
-on the handler-failure path it can therefore replace the original handler error.
+failure. If the sink throws while `failOpen: false`:
+- on the success path, the sink error propagates, failing the request;
+- on the handler-failure path, `AuditBehavior` preserves the original handler error and attaches the sink error as `error.cause` (safely checking `Object.isExtensible`), ensuring the root cause is never hidden while recording the sink failure.
 The produced record is also stashed on `context.items` under `AUDIT_RECORD_ITEM`
 for any later behavior to read.
 
@@ -321,9 +322,9 @@ When the **sink itself** throws (e.g. the audit DB is down):
 - **`failOpen: true`** (default) — the failure is logged as a warning and ignored.
   A successful handler still returns its response, and if the handler had failed,
   its original error remains the error seen by the caller. Favors availability.
-- **`failOpen: false`** — the sink error is propagated, failing the request. If
-  the handler had already failed, the sink write happens in that error path, so
-  the sink error replaces the handler error. Favors a fail-closed audit policy.
+- **`failOpen: false`** — strictly enforces audit persistence:
+  - If the handler succeeded, the sink error is propagated, rejecting the request because the required audit trail could not be recorded.
+  - If the handler had already failed, `AuditBehavior` re-throws the original handler error and attaches the sink recording error as `error.cause` (guarded with `Object.isExtensible(error)`), preserving both the business failure and the audit failure details without masking the root exception.
 
 Building the record never throws into your request; only the sink write is
 governed by `failOpen`.

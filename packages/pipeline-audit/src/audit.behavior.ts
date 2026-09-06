@@ -141,7 +141,13 @@ export class AuditBehavior implements IPipelineBehavior {
           recordError instanceof Error &&
           !(error as { cause?: unknown }).cause
         ) {
-          (error as { cause?: unknown }).cause = recordError;
+          try {
+            if (Object.isExtensible(error)) {
+              (error as { cause?: unknown }).cause = recordError;
+            }
+          } catch {
+            // Intentionally ignored: error may be non-extensible or frozen
+          }
         }
       }
       throw error;
