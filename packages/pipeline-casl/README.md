@@ -876,8 +876,9 @@ For example, a read grant plus a denial for `profile.secret` retains the other
 profile fields while removing `secret`. An explicit grant for `profile.name`
 can expose that leaf without granting the entire profile.
 
-In read projections, grants or denials on an object field apply to its subtree;
-more recent matching CASL rules take precedence. Conditions are evaluated against
+In read projections, every leaf requires a matching CASL field grant. A grant
+for `profile` alone does not grant `profile.secret`; use explicit leaf paths or
+`profile.**` to allow descendants. Container denials also mask their descendants. Conditions are evaluated against
 the complete original entity, including fields that will be hidden. Named array
 paths such as `contacts.secret` apply to every element; indexed paths such as
 `contacts.0.secret` select individual elements. Masked array elements become
