@@ -15,3 +15,10 @@ allowBuilds:
 
 onlyBuiltDependencies:
   - esbuild
+
+peerDependencyRules:
+  ignoreMissing:
+    - '@keyv/memcache'
+    - '@keyv/postgres'
+    - '@keyv/redis'
+    - '@keyv/sqlite'

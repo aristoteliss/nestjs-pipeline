@@ -41,11 +41,10 @@ export class GetRoleQueryRepository extends QueryRepository<
   }
 
   @FromCache<GetRoleQuery, Role>(
-    (q) => filterCacheKey(Role, buildConditions(q)),
+    (q) => filterCacheKey(Role.aggregateName, buildConditions(q)),
     (cached) => Role.fromJSON(cached as RoleSnapshot),
   )
   async find(query: GetRoleQuery): Promise<Role | null> {
-
     const role = await this.store.em.findOne(Role, buildConditions(query));
 
     return role;

@@ -29,13 +29,13 @@ import {
   type IPipelineContext,
   LOGGING_BEHAVIOR_LOGGER,
   type NextDelegate,
-  untyped,
 } from '@nestjs-pipeline/core';
 import { RESILIENCE_DEFAULT_OPTIONS } from './constants/tokens';
 import {
   type AnyPolicy,
   buildResiliencePolicy,
 } from './helpers/policy-factory';
+import { runWithResilienceAbortSignal } from './helpers/resilience-context';
 import type { ResilienceBehaviorOptions } from './interfaces/resilience-options.interface';
 
 /**
@@ -43,7 +43,8 @@ import type { ResilienceBehaviorOptions } from './interfaces/resilience-options.
  * cockatiel resilience policy (retry, circuit breaker, timeout, bulkhead,
  * fallback) for transient-fault handling.
  *
- * Resolution of the effective options for a handler:
+ * Resolution of the effective options for a handler where this behavior is
+ * attached:
  * 1. Application-wide defaults bound to {@link RESILIENCE_DEFAULT_OPTIONS}
  *    (via {@link ResilienceModule.forRoot}).
  * 2. Per-handler options from `@UsePipeline([ResilienceBehavior, { ... }])`,
@@ -51,13 +52,13 @@ import type { ResilienceBehaviorOptions } from './interfaces/resilience-options.
  *
  * Policies are built **lazily on first invocation and cached per handler**, so
  * stateful layers (circuit breaker, bulkhead) correctly share state across
- * every request to that handler. When no options resolve, the behavior is a
- * zero-overhead pass-through.
+ * every request to that handler. When no options resolve, the behavior caches
+ * that result and passes subsequent invocations directly to `next()` without
+ * constructing or executing a cockatiel policy.
  */
 @Injectable()
 export class ResilienceBehavior implements IPipelineBehavior {
   private readonly logger: LoggerService;
-  private readonly logContext: string | undefined;
   /**
    * Per-handler policy cache. `null` means "resolved, but nothing configured"
    * (pass-through), distinct from `undefined` ("not yet resolved").
@@ -78,12 +79,6 @@ export class ResilienceBehavior implements IPipelineBehavior {
     }
 
     this.logger = logger;
-    this.logContext = ResilienceBehavior.name;
-    if (typeof untyped(this.logger).setContext === 'function') {
-      (
-        this.logger as LoggerService & { setContext(context: string): void }
-      ).setContext(this.logContext);
-    }
   }
 
   async handle(
@@ -92,7 +87,14 @@ export class ResilienceBehavior implements IPipelineBehavior {
   ): Promise<unknown> {
     const policy = this.resolvePolicy(context);
     if (!policy) return next();
-    return policy.execute(() => next());
+
+    return policy.execute((policyContext) => {
+      // Cockatiel supplies the effective AbortSignal (including timeout
+      // cancellation) to each execute callback. Bind it to this attempt's async
+      // execution so an aggressive timeout followed by a retry cannot replace
+      // the signal still observed by work from the timed-out attempt.
+      return runWithResilienceAbortSignal(policyContext.signal, next);
+    });
   }
 
   /** Resolves (and caches) the composed policy for the handler in `context`. */
@@ -106,10 +108,10 @@ export class ResilienceBehavior implements IPipelineBehavior {
 
     const policy = effective
       ? buildResiliencePolicy(effective, {
-        logger: this.logger,
-        requestName: context.requestName,
-        handlerName: context.handlerName,
-      })
+          logger: this.logger,
+          requestName: context.requestName,
+          handlerName: context.handlerName,
+        })
       : null;
 
     this.policyCache.set(context.handlerType, policy);

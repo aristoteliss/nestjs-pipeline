@@ -137,13 +137,20 @@ describe('addCorrelationId', () => {
       TypeError,
     );
     expect(() => addCorrelationId([{ id: 1 }, { id: 2 }] as any)).toThrow(
-      /received an array/,
+      /plain object/,
     );
   });
 
   it('throws TypeError for empty array', () => {
     expect(() => addCorrelationId([] as any)).toThrow(TypeError);
   });
+
+  it.each([new Date(), new Map(), new Set(), new (class Payload {})()])(
+    'rejects non-plain object payloads',
+    (value) => {
+      expect(() => addCorrelationId(value as never)).toThrow(/plain object/);
+    },
+  );
 });
 
 describe('correlationHeaders', () => {

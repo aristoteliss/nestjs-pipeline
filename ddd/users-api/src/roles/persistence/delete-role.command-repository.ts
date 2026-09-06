@@ -16,19 +16,15 @@
  * ----------------------------
  */
 
+import { filterCacheKey } from '@common/cqrs/helpers/filterCacheKey.helper';
 import { Inject, Injectable } from '@nestjs/common';
-import {
-  Cache,
-  CommandRepository,
-  ICache,
-} from '@nestjs-pipeline/ddd-core';
+import { Cache, CommandRepository, ICache } from '@nestjs-pipeline/ddd-core';
 import { CACHE_TOKEN } from '@persistence/cache/memory.cache';
 import { MIKRO_ORM_CLIENT, MikroOrmStore } from '@persistence/mikro-orm.store';
 import { Role, RoleSnapshot } from '../domain/models/role.entity';
-import { RoleUpdateOutcome } from '../domain/outcomes/role-update.outcome';
 
 @Injectable()
-export class DeleteRoleCommandRepository extends CommandRepository<RoleUpdateOutcome> {
+export class DeleteRoleCommandRepository extends CommandRepository<Role, null> {
   constructor(
     @Inject(CACHE_TOKEN) protected readonly cache: ICache<RoleSnapshot>,
     @Inject(MIKRO_ORM_CLIENT) private readonly store: MikroOrmStore,
@@ -36,12 +32,12 @@ export class DeleteRoleCommandRepository extends CommandRepository<RoleUpdateOut
     super(cache);
   }
 
-  @Cache()
-  async save(domainOutcome: RoleUpdateOutcome): Promise<number> {
-    const { entity } = domainOutcome;
+  @Cache<Role, null>(null, (role) => [
+    filterCacheKey(Role.aggregateName, { id: role.id }),
+  ])
+  async save(role: Role): Promise<null> {
+    await this.store.em.nativeDelete(Role, { id: role.id });
 
-    const result = await this.store.em.nativeDelete(Role, { id: entity.id });
-
-    return result;
+    return null;
   }
 }

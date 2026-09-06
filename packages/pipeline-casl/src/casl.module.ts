@@ -32,6 +32,8 @@ import {
   CASL_USER_CAPABILITY_PROVIDER,
   CASL_USER_CONTEXT_RESOLVER,
 } from './constants/tokens';
+import { CaslAuthorizer } from './helpers/entity-authorization.helper';
+import { ENTITY_AUTHORIZER } from './interfaces/entity-authorizer.interface';
 import type {
   IRoleProvider,
   IUserCapabilityProvider,
@@ -47,52 +49,54 @@ export interface CaslModuleOptions {
    * Use `useClass`, `useExisting`, or `useFactory`.
    */
   roleProvider:
-  | Type<IRoleProvider>
-  | { useClass: Type<IRoleProvider> }
-  | { useExisting: Type<IRoleProvider> }
-  | {
-    useFactory: (
-      ...args: never[]
-    ) => IRoleProvider | Promise<IRoleProvider>;
-    inject?: InjectionToken[];
-  };
+    | Type<IRoleProvider>
+    | { useClass: Type<IRoleProvider> }
+    | { useExisting: Type<IRoleProvider> }
+    | {
+        useFactory: (
+          ...args: never[]
+        ) => IRoleProvider | Promise<IRoleProvider>;
+        inject?: InjectionToken[];
+      };
 
   /**
    * Optional user context resolver.
    * Extracts the current user from the pipeline context items bag.
    */
   userContextResolver?:
-  | Type<IUserContextResolver>
-  | { useClass: Type<IUserContextResolver> }
-  | { useExisting: Type<IUserContextResolver> }
-  | {
-    useFactory: (
-      ...args: never[]
-    ) => IUserContextResolver | Promise<IUserContextResolver>;
-    inject?: InjectionToken[];
-  };
+    | Type<IUserContextResolver>
+    | { useClass: Type<IUserContextResolver> }
+    | { useExisting: Type<IUserContextResolver> }
+    | {
+        useFactory: (
+          ...args: never[]
+        ) => IUserContextResolver | Promise<IUserContextResolver>;
+        inject?: InjectionToken[];
+      };
 
   /**
-   * Per-user capability provider.
+   * Optional per-user capability provider.
    *
-   * **Required at runtime** for handlers that use `CaslBehaviorOptions.rules` —
-   * if not registered, those handlers will throw an `Error` because user
-   * roles cannot be determined.  Only omit this if every handler uses
-   * `CaslBehaviorOptions.prebuiltAbility` or `skipCheck: true`.
+   * CaslBehavior first uses a valid `capabilities` bag already attached to the
+   * resolved user context (for example from a verified JWT/session). If no such
+   * bag is present, this provider supplies the user's role names plus any
+   * additional/denied capabilities. `CaslBehaviorOptions.prebuiltAbility` also
+   * bypasses provider-based ability construction.
    *
-   * Provides the current user's role names plus any per-user additional
-   * and denied capabilities.
+   * Therefore this provider is required only when a handler needs CaslBehavior
+   * to build an ability for a user that does not already carry capabilities and
+   * no prebuilt ability is supplied.
    */
   userCapabilityProvider?:
-  | Type<IUserCapabilityProvider>
-  | { useClass: Type<IUserCapabilityProvider> }
-  | { useExisting: Type<IUserCapabilityProvider> }
-  | {
-    useFactory: (
-      ...args: never[]
-    ) => IUserCapabilityProvider | Promise<IUserCapabilityProvider>;
-    inject?: InjectionToken[];
-  };
+    | Type<IUserCapabilityProvider>
+    | { useClass: Type<IUserCapabilityProvider> }
+    | { useExisting: Type<IUserCapabilityProvider> }
+    | {
+        useFactory: (
+          ...args: never[]
+        ) => IUserCapabilityProvider | Promise<IUserCapabilityProvider>;
+        inject?: InjectionToken[];
+      };
 
   /**
    * Global default request paths used by CaslBehavior to extract contextual
@@ -154,6 +158,7 @@ function toProvider(
  *       roleProvider: YamlRoleProvider,
  *       userContextResolver: JwtUserContextResolver,
  *       userCapabilityProvider: DatabaseUserCapabilityProvider,
+ *       subjectContextPaths: [],
  *     }),
  *     PipelineModule.forRoot({
  *       globalBehaviors: {
@@ -268,6 +273,7 @@ function toProvider(
  *         useFactory: (pool: Pool) => new PgUserCapabilityProvider(pool),
  *         inject: [Pool],
  *       },
+ *       subjectContextPaths: [],
  *     }),
  *     PipelineModule.forRoot({
  *       globalBehaviors: {
@@ -281,7 +287,6 @@ function toProvider(
  * ```
  */
 @Module({})
-// biome-ignore lint/complexity/noStaticOnlyClass: static-only class
 export class CaslModule {
   /**
    * Configures the CASL authorization module.
@@ -296,7 +301,14 @@ export class CaslModule {
    * @returns The configured {@link DynamicModule}.
    */
   static forRoot(options: CaslModuleOptions): DynamicModule {
-    const providers: Provider[] = [CaslBehavior];
+    const providers: Provider[] = [
+      CaslBehavior,
+      CaslAuthorizer,
+      {
+        provide: ENTITY_AUTHORIZER,
+        useExisting: CaslAuthorizer,
+      },
+    ];
 
     providers.push({
       provide: CASL_SUBJECT_CONTEXT_PATHS,
@@ -329,6 +341,8 @@ export class CaslModule {
       providers,
       exports: [
         CaslBehavior,
+        CaslAuthorizer,
+        ENTITY_AUTHORIZER,
         CASL_FIELDS_FROM_REQUEST,
         CASL_ROLE_PROVIDER,
         CASL_SUBJECT_CONTEXT_PATHS,

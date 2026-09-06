@@ -18,6 +18,7 @@
  */
 
 import { AsyncLocalStorage } from 'node:async_hooks';
+import { DEFAULT_CORRELATION_HEADER } from './constants/correlation.constants';
 import { uuidv7 } from './helpers/uuidv7';
 
 /**
@@ -28,27 +29,28 @@ import { uuidv7 } from './helpers/uuidv7';
  *   (default `x-correlation-id`) and calls `correlationStore.run()`.
  * - **Non-HTTP** (Bull, RabbitMQ, WebSocket, cron, etc.) — use
  *   {@link runWithCorrelationId} in your processor / handler.
+ * - **Pipeline integration** — configure the core module's
+ *   `correlationIdRunner` with {@link runWithCorrelationId} when pipeline runs
+ *   should also populate this store.
  *
  * **How it is consumed:**
- * The pipeline bootstrap service reads `correlationStore.getStore()` when a
- * command, query, or event handler is invoked. If a value exists it becomes
- * the `correlationId` for that pipeline run; otherwise a `uuidv7()`
- * fallback is generated (timestamp-sortable UUID per RFC 9562).
+ * Call {@link getCorrelationId} to read the current store. If no store value is
+ * active, an optional registered fallback is consulted and then a `uuidv7()` is
+ * generated (timestamp-sortable UUID per RFC 9562).
  *
  * Uses Node.js built-in `AsyncLocalStorage` — zero external dependencies.
  *
  * @example
  * ```ts
- * // Read the current correlation ID anywhere in the call stack
+ * // Read the raw store value without generating a fallback ID
  * const id = correlationStore.getStore(); // string | undefined
  * ```
  */
 export const correlationStore = new AsyncLocalStorage<string>();
 
 /**
- * Optional fallback function registered by higher-level packages
- * (e.g. `@nestjs-pipeline/core`) to provide additional correlation ID
- * resolution (e.g. reading from a parent pipeline context).
+ * Optional fallback function used by {@link getCorrelationId} when no
+ * correlation store is active.
  *
  * @internal
  */
@@ -57,9 +59,9 @@ let _correlationFallback: (() => string | undefined) | undefined;
 /**
  * Register a fallback function for {@link getCorrelationId}.
  *
- * Called by `@nestjs-pipeline/core` to wire in the `pipelineStore` fallback
- * so that `getCorrelationId()` can read from a parent pipeline context
- * when no explicit correlation store is active.
+ * The fallback is consulted only when `correlationStore.getStore()` returns no
+ * value. Consumers that need another ambient correlation source can register it
+ * here.
  *
  * @param fn - Fallback that returns a correlation ID or `undefined`.
  *
@@ -77,8 +79,8 @@ export function setCorrelationFallback(fn: () => string | undefined): void {
  * into any CQRS commands or queries dispatched inside the callback.
  *
  * If `correlationId` is falsy (`undefined` or empty), the id is resolved via
- * {@link getCorrelationId} (parent context, or a generated `uuidv7()`), and `fn`
- * always executes inside a populated correlation store.
+ * {@link getCorrelationId} (active fallback source, or a generated `uuidv7()`),
+ * and `fn` always executes inside a populated correlation store.
  *
  * @example
  * ```ts
@@ -111,7 +113,7 @@ export function setCorrelationFallback(fn: () => string | undefined): void {
  * }
  * ```
  *
- * @param correlationId - The correlation ID to propagate. If falsy, falls back to {@link getCorrelationId} (parent context or `uuidv7()`).
+ * @param correlationId - The correlation ID to propagate. If falsy, falls back to {@link getCorrelationId}.
  * @param fn - The callback to execute within the correlation context.
  */
 export function runWithCorrelationId<T>(
@@ -123,15 +125,17 @@ export function runWithCorrelationId<T>(
 }
 
 /**
- * Read the current correlation ID from the async-local context.
+ * Read the current correlation ID.
  *
- * Works inside:
- * - HTTP requests (after {@link HttpCorrelationMiddleware})
- * - Methods decorated with {@link WithCorrelation}
- * - Callbacks passed to {@link runWithCorrelationId}
- * - CQRS handlers wrapped by the pipeline (via `context.correlationId`)
+ * Resolution order:
+ * 1. the active {@link correlationStore};
+ * 2. the fallback registered with {@link setCorrelationFallback};
+ * 3. a newly generated UUIDv7.
  *
- * Returns a UUIDv7 string when called outside any correlation context.
+ * Therefore this function always returns a string, even when called outside an
+ * existing correlation context. Pipeline handlers participate in this store
+ * when the core module is configured with `correlationIdRunner:
+ * runWithCorrelationId`.
  *
  * @publicApi
  *
@@ -184,10 +188,7 @@ export type WithCorrelationId<T = Record<string, unknown>> = T & {
  *
  * Both default to the `'correlationId'` key, so they work together out of the box.
  *
- * @throws {TypeError} If `data` is an array. Spreading an array into an object
- * destroys its structure (indices become string keys, `length` is lost) and
- * breaks the serialization contract on the consumer side. Wrap the array
- * first: `addCorrelationId({ items: myArray })`.
+ * @throws {TypeError} If `data` is not a plain object.
  *
  * @example
  * ```ts
@@ -220,11 +221,14 @@ export type WithCorrelationId<T = Record<string, unknown>> = T & {
 export function addCorrelationId<T extends Record<string, unknown>>(
   data: T,
 ): WithCorrelationId<T> {
-  if (Array.isArray(data)) {
+  const prototype =
+    data !== null && typeof data === 'object'
+      ? Object.getPrototypeOf(data)
+      : undefined;
+  if (prototype !== Object.prototype && prototype !== null) {
     throw new TypeError(
-      'addCorrelationId(data) received an array. Spreading an array into an object ' +
-      'destroys its structure and breaks the serialization contract. ' +
-      'Wrap it first: addCorrelationId({ items: myArray })',
+      'addCorrelationId(data) requires a plain object payload. ' +
+        'Wrap arrays and class instances in a plain object first.',
     );
   }
   return { ...data, correlationId: getCorrelationId() };
@@ -268,7 +272,7 @@ export function addCorrelationId<T extends Record<string, unknown>>(
  * ```
  */
 export function correlationHeaders(
-  key = 'x-correlation-id',
+  key = DEFAULT_CORRELATION_HEADER,
 ): Record<string, string> {
   return { [key]: getCorrelationId() };
 }

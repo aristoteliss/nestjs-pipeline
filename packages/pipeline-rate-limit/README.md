@@ -67,22 +67,31 @@ import { RateLimiterMemory } from 'rate-limiter-flexible';
       // 10 points per second, shared default for every handler
       limiter: new RateLimiterMemory({ points: 10, duration: 1 }),
     }),
+    // Register the behavior provider so handlers/globalBehaviors can reference it.
     PipelineModule.forRoot({ behaviors: [RateLimitBehavior] }),
   ],
 })
 export class AppModule {}
 ```
 
-Opt a handler in per-handler (or rely on the global registration above):
+The `behaviors` entry above registers `RateLimitBehavior` with Nest DI; it does
+**not** make rate limiting execute globally. Opt a handler in per-handler, or put
+`RateLimitBehavior` under `globalBehaviors` if you want it applied to a global
+scope:
 
 ```typescript
 @CommandHandler(CreateUserCommand)
 @UsePipeline([
   RateLimitBehavior,
-  { points: 1, keyFactory: (ctx) => `${ctx.requestName}:${ctx.request.ip}` },
+  { points: 1, keyFactory: (ctx) => `${ctx.requestName}:${ctx.request.clientIp}` },
 ])
 export class CreateUserHandler implements ICommandHandler<CreateUserCommand> {}
 ```
+
+`IPipelineContext.request` is the CQRS command/query/event, not an Express or
+Fastify request. If a transport value such as an IP address is part of the
+policy, copy it into the command/query at the transport boundary (or place it in
+`context.items` from an upstream behavior) before `RateLimitBehavior` runs.
 
 ---
 
@@ -149,8 +158,8 @@ module-wide `defaults` (handler wins):
 
 | Option | Type | Default | Description |
 |---|---|---|---|
-| `points` | `number` | `1` | Cost of this request. |
-| `keyFactory` | `(ctx) => string` | `ctx.requestName` | Builds the bucket key. |
+| `points` | `number` | `1` | Positive safe-integer cost of this request. |
+| `keyFactory` | `(ctx) => string` | `ctx.requestName` | Builds the bucket key from CQRS request/context data. |
 | `keyPrefix` | `string` | — | Prepended as `"<prefix>:<key>"`. |
 | `limiter` | `RateLimiterLike` | injected | Per-handler limiter override (stricter/looser policy). |
 | `failOpen` | `boolean` | `true` | On a **store** error, allow (`true`) or reject (`false`). |
@@ -169,18 +178,21 @@ RateLimitModule.forRoot({
 ## Keying strategy
 
 The **key** is the rate-limit bucket. The default (`ctx.requestName`) gives one
-shared bucket per request type. For per-caller limits, combine the request with a
-stable caller id:
+shared bucket per request type. For per-caller limits, use stable data already
+carried by the CQRS request or written to `context.items` by an earlier behavior:
 
 ```typescript
-// Per IP
-{ keyFactory: (ctx) => `${ctx.requestName}:${ctx.request.ip}` }
+// Transport layer copied the client IP into the command/query.
+{ keyFactory: (ctx) => `${ctx.requestName}:${ctx.request.clientIp}` }
 
-// Per authenticated user
+// Request carries the authenticated principal resolved by your application.
 { keyFactory: (ctx) => `${ctx.requestName}:${ctx.request.sessionUser.id}` }
 
-// Per tenant
+// Request carries the selected tenant.
 { keyFactory: (ctx) => `${ctx.requestName}:${ctx.request.tenantId}` }
+
+// Or consume metadata populated by an upstream pipeline behavior.
+{ keyFactory: (ctx) => `${ctx.requestName}:${ctx.items.get('callerId')}` }
 ```
 
 ---
@@ -241,7 +253,8 @@ plain `Error`** when the backing store itself fails (e.g. Redis unreachable). Th
 | `RateLimitModuleOptions` / `RateLimitModuleAsyncOptions` | Interface | Module registration options |
 | `buildRateLimitKey` | Function | Resolves the bucket key from a context + options |
 | `RATE_LIMITER` / `RATE_LIMIT_DEFAULT_OPTIONS` | Token | Injection tokens |
-| `RATE_LIMIT_ITEM` / `RATE_LIMIT_KEY_ITEM` | Const | `context.items` keys set per request |
+| `RATE_LIMIT_ITEM` / `RATE_LIMIT_KEY_ITEM` | Symbol | `context.items` exported unique Symbol keys set per request |
+
 
 ---
 

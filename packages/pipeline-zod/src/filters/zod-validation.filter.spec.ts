@@ -16,8 +16,8 @@
  * ----------------------------
  */
 
-import { HttpStatus } from '@nestjs/common';
-import { describe, expect, it } from 'vitest';
+import { type ArgumentsHost, HttpStatus } from '@nestjs/common';
+import { describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
 import { ZodValidationError } from '../errors/zod-validation.error';
 import { ZodValidationFilter } from './zod-validation.filter';
@@ -27,13 +27,16 @@ import { ZodValidationFilter } from './zod-validation.filter';
 // ---------------------------------------------------------------------------
 
 function createMockHost(cb: (body: any) => void) {
+  const res = {
+    status: (code: number) => {
+      (res as any)._code = code;
+      return res;
+    },
+    json: (body: any) => cb({ code: (res as any)._code, ...body }),
+  };
   return {
     switchToHttp: () => ({
-      getResponse: () => ({
-        status: (code: number) => ({
-          json: (body: any) => cb({ code, ...body }),
-        }),
-      }),
+      getResponse: () => res,
     }),
   } as any;
 }
@@ -115,5 +118,28 @@ describe('ZodValidationFilter', () => {
       }),
     );
     expect(response.statusCode).toBe(HttpStatus.BAD_REQUEST);
+  });
+
+  it('uses Fastify send() when json() is unavailable', () => {
+    const error = makeError(z.string(), 42);
+    const send = vi.fn();
+    const response = {
+      status: vi.fn(),
+      send,
+    };
+    response.status.mockReturnValue(response);
+    const host = {
+      switchToHttp: () => ({ getResponse: () => response }),
+    } as unknown as ArgumentsHost;
+
+    filter.catch(error, host);
+
+    expect(response.status).toHaveBeenCalledWith(HttpStatus.BAD_REQUEST);
+    expect(send).toHaveBeenCalledWith({
+      statusCode: HttpStatus.BAD_REQUEST,
+      error: 'Bad Request',
+      message: 'Validation failed',
+      details: error.details,
+    });
   });
 });

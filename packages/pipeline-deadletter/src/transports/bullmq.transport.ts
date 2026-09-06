@@ -48,11 +48,13 @@ const DEFAULT_JOB_OPTIONS = {
 };
 
 /**
- * {@link DeadLetterTransport} backed by a **BullMQ** queue (the default).
+ * Bundled {@link DeadLetterTransport} backed by a **BullMQ** queue.
  *
  * Each dead letter is added as a job; a worker (or Bull Board) can then inspect,
  * alert on, or replay it. The constructor takes any object matching
- * {@link BullMqQueueLike}, so a real `bullmq` `Queue` works directly.
+ * {@link BullMqQueueLike}, so a real `bullmq` `Queue` works directly. The module
+ * does not select this transport implicitly; pass an instance to
+ * `DeadLetterModule.forRoot()` (or construct one in `forRootAsync()`).
  *
  * @example
  * ```ts

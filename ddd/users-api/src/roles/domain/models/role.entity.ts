@@ -17,15 +17,14 @@
  */
 
 import {
-  CacheableEntity,
   Mutate,
+  RootEntity,
   type RootEntitySnapshot,
 } from '@nestjs-pipeline/ddd-core';
 import { RoleCreatedEvent } from '../events/role-created.event';
 import { RoleDeletedEvent } from '../events/role-deleted.event';
 import { RoleUpdatedEvent } from '../events/role-updated.event';
-import { RoleCreateOutcome } from '../outcomes/role-create.outcome';
-import { RoleUpdateOutcome } from '../outcomes/role-update.outcome';
+import { InvalidRoleNameException } from './errors/role-name.exception';
 
 export interface RoleSnapshot extends Partial<RootEntitySnapshot> {
   readonly name: string;
@@ -36,31 +35,36 @@ const ROLE_NAME_MIN_LENGTH = 3;
 /**
  * Role domain entity following Clean Architecture / DDD principles.
  *
- * Inherits shared identity/lifecycle behavior from RootEntity.
+ * Inherits shared identity, lifecycle timestamps, and event buffering from {@link RootEntity}.
  *
  * - State is private; mutated only through domain methods.
- * - `Role.create()` is the only entry point for new roles.
- * - `Role.fromJson()` rebuilds the entity from persisted snapshot data.
- * - `rename()` enforces the role-name business rule and updates `updatedAt`.
+ * - `Role.create()` is the only factory for creating new roles and recording {@link RoleCreatedEvent}.
+ * - `Role.fromJSON()` rebuilds the entity from persisted snapshot data.
+ * - `rename()` and `delete()` enforce domain rules and record domain events.
  */
-export class Role extends CacheableEntity<RoleSnapshot, Role> {
-  static readonly prefixKey = 'role:';
+export class Role extends RootEntity<RoleSnapshot> {
+  /** Canonical logical aggregate name used for cache namespacing and event topics. */
+  public static readonly aggregateName = 'role';
 
   private _name: string;
 
-  private constructor(snapshot: RoleSnapshot) {
-    super(Role, snapshot);
+  constructor(snapshot?: RoleSnapshot) {
+    super(snapshot);
+    if (!snapshot) {
+      this._name = '';
+      return;
+    }
     this._name = Role.normalizeName(snapshot.name);
   }
 
-  static create(name: string): RoleCreateOutcome {
+  static create(name: string): Role {
     const role = new Role({
       name: Role.normalizeName(name),
     });
 
-    const events = [new RoleCreatedEvent(role)];
+    role.apply(new RoleCreatedEvent(role));
 
-    return new RoleCreateOutcome(role, events);
+    return role;
   }
 
   static fromJSON(snapshot: RoleSnapshot): Role {
@@ -75,7 +79,9 @@ export class Role extends CacheableEntity<RoleSnapshot, Role> {
   private static normalizeName(name: string): string {
     const trimmed = name?.trim();
     if (!trimmed || trimmed.length < ROLE_NAME_MIN_LENGTH) {
-      throw new Error(
+      throw new InvalidRoleNameException(
+        ROLE_NAME_MIN_LENGTH,
+        name,
         `Role name must be at least ${ROLE_NAME_MIN_LENGTH} characters.`,
       );
     }
@@ -85,16 +91,21 @@ export class Role extends CacheableEntity<RoleSnapshot, Role> {
   get name(): string {
     return this._name;
   }
-
-  @Mutate()
-  rename(name: string): RoleUpdateOutcome {
-    this._name = Role.normalizeName(name);
-    return new RoleUpdateOutcome(this, [new RoleUpdatedEvent(this)]);
+  set name(value: string) {
+    this._name = Role.normalizeName(value);
   }
 
   @Mutate()
-  delete(): RoleUpdateOutcome {
-    return new RoleUpdateOutcome(this, [new RoleDeletedEvent(this)]);
+  rename(name: string): this {
+    this._name = Role.normalizeName(name);
+    this.apply(new RoleUpdatedEvent(this));
+    return this;
+  }
+
+  @Mutate()
+  delete(): this {
+    this.apply(new RoleDeletedEvent(this));
+    return this;
   }
 
   toJSON(): RootEntitySnapshot & RoleSnapshot {
@@ -110,4 +121,3 @@ export class Role extends CacheableEntity<RoleSnapshot, Role> {
     // No side effects needed on update for Role, but this method must be implemented
   }
 }
-

@@ -18,7 +18,7 @@
 
 import { Migrator } from '@mikro-orm/migrations';
 import { PostgreSqlDriver } from '@mikro-orm/postgresql';
-import { BadRequestException } from '@nestjs/common';
+import { resolveLibsqlTenants } from './libsql-options';
 import { AuthSchema } from './schemas/auth.schema';
 import { CacheSchema } from './schemas/cache.schema';
 import { CapabilitySchema } from './schemas/capability.schema';
@@ -28,24 +28,26 @@ import { UserSchema } from './schemas/user.schema';
 import { UserAdditionalCapabilitySchema } from './schemas/user-additional-capability.schema';
 import { UserDeniedCapabilitySchema } from './schemas/user-denied-capability.schema';
 import { UserRoleSchema } from './schemas/user-role.schema';
+import { normalizeSchemaName } from './tenant-options';
 
-export const DEFAULT_TENANT_SCHEMA = 'tenant';
-const SCHEMA_NAME_REGEX = /^[a-zA-Z_][a-zA-Z0-9_]*$/;
+export { DEFAULT_TENANT_SCHEMA, normalizeSchemaName } from './tenant-options';
 
-/**
- * Returns a valid PostgreSQL schema name for tenant routing.
- */
-export function normalizeSchemaName(value?: string | null): string {
-  const candidate = (value ?? '').trim();
-  if (!candidate) {
-    return process.env.DB_DEFAULT_SCHEMA ?? DEFAULT_TENANT_SCHEMA;
+/** Returns the tenant schemas this process is configured to serve. */
+export function resolveAllowedTenantSchemas(): Set<string> {
+  if (process.env.DB_ENGINE !== 'postgres') {
+    return new Set(resolveLibsqlTenants().map(normalizeSchemaName));
   }
 
-  if (!SCHEMA_NAME_REGEX.test(candidate)) {
-    throw new BadRequestException(`Invalid schema name: ${candidate}`);
-  }
+  const configured = process.env.TENANT_SCHEMAS;
+  const values = (configured?.split(',') ?? [process.env.DB_DEFAULT_SCHEMA])
+    .map((value) => value?.trim())
+    .filter((value): value is string => Boolean(value));
 
-  return candidate;
+  return new Set(
+    (values.length > 0 ? values : [undefined]).map((value) =>
+      normalizeSchemaName(value),
+    ),
+  );
 }
 
 export function createPostgresOrmOptions(schema?: string) {
@@ -76,6 +78,7 @@ export function createPostgresOrmOptions(schema?: string) {
     ],
     extensions: [Migrator],
     migrations: {
+      schema: normalizeSchemaName(schema),
       path: 'dist/persistence/migrations',
       pathTs: 'src/persistence/migrations',
       glob: '!(*.d).{js,ts}',

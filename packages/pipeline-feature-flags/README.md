@@ -80,7 +80,7 @@ import { UnleashProvider } from '@openfeature/unleash-provider';
     FeatureFlagsModule.forRoot({
       provider: new UnleashProvider({
         url: 'https://unleash.example.com/api',
-        appName: 'users-api',
+        appName: 'my-app',
         token: process.env.UNLEASH_TOKEN!,
       }),
       // Static context merged into every evaluation:
@@ -188,7 +188,7 @@ The base context is derived from the pipeline request:
 
 | Key | Value |
 |---|---|
-| `targetingKey` | `context.correlationId` _(stable per-request id for sticky/gradual rollouts)_ |
+| `targetingKey` | `context.correlationId` _(stable only within one request; override with user/account/device identity for sticky rollouts)_ |
 | `pipeline.request.kind` | `command` \| `query` \| `event` |
 | `pipeline.request.name` | `NewCheckoutCommand` |
 | `pipeline.handler.name` | `NewCheckoutHandler` |
@@ -275,7 +275,8 @@ export class AppModule {}
 | `FEATURE_FLAGS_CLIENT` | Token | OpenFeature `Client` provider |
 | `FEATURE_FLAGS_DEFAULT_OPTIONS` | Token | Module-wide default behavior options |
 | `FEATURE_FLAGS_DEFAULT_CONTEXT` | Token | Module-wide default evaluation context |
-| `FEATURE_FLAG_ITEM` / `FEATURE_FLAG_KEY_ITEM` | Const | `context.items` keys for the resolved value / key |
+| `FEATURE_FLAG_ITEM` / `FEATURE_FLAG_KEY_ITEM` | Symbol | `context.items` exported unique Symbol keys for the resolved value / key |
+
 
 ---
 

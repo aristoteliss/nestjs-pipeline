@@ -32,9 +32,9 @@ function makeCtx(
     correlationId: 'test-corr-id',
     originalCorrelationId: 'test-corr-id',
     request: {},
-    requestType: class TestRequest { },
+    requestType: class TestRequest {},
     requestName: 'TestCommand',
-    handlerType: overrides.handlerType ?? class TestHandler { },
+    handlerType: overrides.handlerType ?? class TestHandler {},
     handlerName: 'TestHandler',
     requestKind: 'command',
     startedAt: new Date('2026-01-01T00:00:00.000Z'),
@@ -52,6 +52,36 @@ describe('ResilienceBehavior', () => {
 
   beforeEach(() => {
     behavior = new ResilienceBehavior();
+  });
+
+  it('does not mutate a shared logger and supplies its context per call', async () => {
+    const logger = {
+      debug: vi.fn(),
+      warn: vi.fn(),
+      log: vi.fn(),
+      setContext: vi.fn(),
+    };
+    const sharedLoggerBehavior = new ResilienceBehavior(
+      undefined,
+      logger as never,
+    );
+    const next = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('transient'))
+      .mockResolvedValueOnce('ok');
+
+    await sharedLoggerBehavior.handle(
+      makeCtx({
+        retry: { maxAttempts: 1, backoff: { type: 'constant', delay: 0 } },
+      }),
+      next,
+    );
+
+    expect(logger.setContext).not.toHaveBeenCalled();
+    expect(logger.debug).toHaveBeenCalledWith(
+      expect.stringContaining('[resilience] retrying'),
+      ResilienceBehavior.name,
+    );
   });
 
   it('passes through when no options are configured', async () => {

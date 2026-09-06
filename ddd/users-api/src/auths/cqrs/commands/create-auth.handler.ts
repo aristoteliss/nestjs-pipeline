@@ -16,34 +16,64 @@
  * ----------------------------
  */
 
+import { AUDIT_ACTIONS } from '@common/constants';
 import { SessionUser } from '@common/types/SessionUser';
 import { Inject } from '@nestjs/common';
 import { CommandHandler, EventBus } from '@nestjs/cqrs';
-import { LoggingBehavior, UsePipeline } from '@nestjs-pipeline/core';
+import { AUDIT_SEVERITY, AuditBehavior } from '@nestjs-pipeline/audit';
+import {
+  type IPipelineContext,
+  LoggingBehavior,
+  UsePipeline,
+} from '@nestjs-pipeline/core';
 import {
   CommandBaseHandler,
   ICommandRepository,
 } from '@nestjs-pipeline/ddd-core';
+import { MetricsBehavior } from '@nestjs-pipeline/opentelemetry';
+import { RateLimitBehavior } from '@nestjs-pipeline/rate-limit';
+import { TenantSchemaContext } from '@persistence/tenant-schema.context';
 import { Auth, AuthSnapshot } from '../../domain/models/auth.entity';
-import { AuthCreateOutcome } from '../../domain/outcomes/auth-create.outcome';
-import { COMMAND_REPOSITORY } from '../../repositories/repository.tokens';
-import { AuthService } from '../../services/auth.service';
+import { COMMAND_REPOSITORY } from '../../persistence/repository.tokens';
+import { UserLoginService } from '../../services/user-login.service';
 import { CreateAuthCommand } from './create-auth.command';
 
 @CommandHandler(CreateAuthCommand)
-@UsePipeline([LoggingBehavior, { requestResponseLogLevel: 'log' }])
+@UsePipeline(
+  [LoggingBehavior, { requestResponseLogLevel: 'log' }],
+  [MetricsBehavior, { meterName: 'users-api.auth' }],
+  [
+    RateLimitBehavior,
+    {
+      keyFactory: (ctx: IPipelineContext) => {
+        const tenantId = ctx.tenantId ?? 'default';
+        return `${tenantId}:auth:login:${(ctx.request as CreateAuthCommand).email}`;
+      },
+    },
+  ],
+  [
+    AuditBehavior,
+    {
+      action: AUDIT_ACTIONS.AUTH_LOGIN,
+      severity: AUDIT_SEVERITY.MEDIUM,
+      redactKeys: ['code'],
+      actor: (ctx: IPipelineContext) => {
+        const req = ctx.request as CreateAuthCommand;
+        return { id: req?.email ?? 'anonymous', email: req?.email };
+      },
+    },
+  ],
+)
 export class CreateAuthHandler extends CommandBaseHandler<
   CreateAuthCommand,
   SessionUser
 > {
   constructor(
     protected readonly eventBus: EventBus,
-    private readonly authService: AuthService,
+    private readonly userLoginService: UserLoginService,
     @Inject(COMMAND_REPOSITORY.createAuth)
-    private readonly commandRepository: ICommandRepository<
-      AuthCreateOutcome,
-      AuthSnapshot
-    >,
+    private readonly commandRepository: ICommandRepository<Auth, AuthSnapshot>,
+    private readonly tenantSchemaContext: TenantSchemaContext,
   ) {
     super(eventBus);
   }
@@ -53,23 +83,24 @@ export class CreateAuthHandler extends CommandBaseHandler<
   ): Promise<SessionUser & { token: string }> {
     const { email, code } = command;
 
-    const verifiedUser = await this.authService.authenticate(email, code);
+    const verifiedUser = await this.userLoginService.authenticate(email, code);
 
-    const authResult = await this.authService.signToken(verifiedUser);
+    const authResult = await this.userLoginService.signToken(verifiedUser);
 
-    const outcome = Auth.create(
-      authResult.userId,
-      authResult.accessToken,
-    );
+    const auth = Auth.create(authResult.userId, authResult.accessToken);
 
-    await this.commandRepository.save(outcome);
+    await this.commandRepository.save(auth);
+    this.commit(auth);
 
     return {
       id: authResult.userId,
+      tenant: this.tenantSchemaContext.schema,
       email,
       department: verifiedUser.department,
       capabilities: authResult.userCapabilities,
       token: authResult.accessToken,
+      expiresAt: authResult.expiresAt,
+      exp: authResult.exp,
     };
   }
 }

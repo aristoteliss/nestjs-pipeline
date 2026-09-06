@@ -35,11 +35,11 @@ import { IPipelineContext } from '../interfaces/pipeline.context.interface';
 /**
  * Injection token for providing a custom {@link LoggerService} to {@link LoggingBehavior}.
  *
- * The provided logger must either implement all methods from {@link LoggerService}
- * (log, debug, verbose, warn, error, fatal),
- * or support the NestJS log level mapping (e.g., 'log' → 'info', 'verbose' → 'trace', etc.).
- * If you use a logger like nestjs-pino's Logger, ensure it is compatible or that your
- * pipeline version includes the mapping logic.
+ * The behavior dispatches through NestJS {@link LoggerService} method names
+ * (`log`, `debug`, `verbose`, `warn`, `error`, `fatal`) according to the
+ * configured {@link LogLevel}. A custom logger therefore needs to expose those
+ * Nest-compatible methods (directly or through an adapter such as nestjs-pino's
+ * Nest logger integration).
  *
  * @example
  * ```ts
@@ -135,11 +135,6 @@ export interface LoggingBehaviorOptions {
   logFormat?: 'text' | 'structured';
 }
 
-/** A {@link LoggerService} that also supports NestJS's per-instance `setContext`. */
-interface ContextLogger extends LoggerService {
-  setContext(context: string): void;
-}
-
 /**
  * Structural type for errors/exceptions that carry extra, loggable context
  * via an `optionalParams` property, in addition to the standard `message`
@@ -166,7 +161,6 @@ interface ErrorWithOptionalParams {
 @Injectable()
 export class LoggingBehavior implements IPipelineBehavior {
   private readonly logger: LoggerService;
-  private readonly hasSetContext: boolean;
 
   constructor(
     @Optional()
@@ -174,8 +168,6 @@ export class LoggingBehavior implements IPipelineBehavior {
     logger?: LoggerService,
   ) {
     this.logger = logger ?? new Logger(LoggingBehavior.name);
-    this.hasSetContext =
-      typeof (this.logger as ContextLogger).setContext === 'function';
   }
 
   /**
@@ -239,10 +231,6 @@ export class LoggingBehavior implements IPipelineBehavior {
     const logFormat = options?.logFormat ?? 'text';
     const structured = logFormat === 'structured';
 
-    if (this.hasSetContext) {
-      (this.logger as ContextLogger).setContext(context.handlerName);
-    }
-
     const requestPayload = excludeRequestObj
       ? '[exclude request obj]'
       : structured
@@ -271,13 +259,13 @@ export class LoggingBehavior implements IPipelineBehavior {
         metricLogLevel,
         structured
           ? {
-            msg: metricMsg,
-            correlationId: context.correlationId,
-            requestKind: context.requestKind,
-            requestName: context.requestName,
-            handlerName: context.handlerName,
-            durationMs: Number(duration),
-          }
+              msg: metricMsg,
+              correlationId: context.correlationId,
+              requestKind: context.requestKind,
+              requestName: context.requestName,
+              handlerName: context.handlerName,
+              durationMs: Number(duration),
+            }
           : metricMsg,
         context.handlerName,
       );
@@ -294,9 +282,9 @@ export class LoggingBehavior implements IPipelineBehavior {
         requestResponseLogLevel,
         structured
           ? {
-            msg: `Response ← ${context.handlerName}`,
-            response: responsePayload,
-          }
+              msg: `Response ← ${context.handlerName}`,
+              response: responsePayload,
+            }
           : `Response: ${responsePayload}`,
         context.handlerName,
       );

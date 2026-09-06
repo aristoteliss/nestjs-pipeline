@@ -18,7 +18,6 @@
 
 import { LibSqlDriver } from '@mikro-orm/libsql';
 import { Migrator } from '@mikro-orm/migrations';
-import { DEFAULT_TENANT_SCHEMA } from './postgres-options';
 import { AuthSchema } from './schemas/auth.schema';
 import { CacheSchema } from './schemas/cache.schema';
 import { CapabilitySchema } from './schemas/capability.schema';
@@ -28,6 +27,7 @@ import { UserSchema } from './schemas/user.schema';
 import { UserAdditionalCapabilitySchema } from './schemas/user-additional-capability.schema';
 import { UserDeniedCapabilitySchema } from './schemas/user-denied-capability.schema';
 import { UserRoleSchema } from './schemas/user-role.schema';
+import { normalizeSchemaName } from './tenant-options';
 
 export const DEFAULT_SQLITE_DATABASE_URL = 'file:src/persistence/local.db';
 
@@ -35,20 +35,34 @@ export const DEFAULT_SQLITE_DATABASE_URL = 'file:src/persistence/local.db';
  * Returns the configured default tenant schema name.
  */
 export function resolveDefaultSchema(): string {
-  return process.env.DB_DEFAULT_SCHEMA ?? DEFAULT_TENANT_SCHEMA;
+  return normalizeSchemaName();
 }
 
 /**
  * Resolves the SQLite database URL for a given tenant schema.
  *
- * Each tenant gets its own database file derived from `DATABASE_URL` by
- * inserting `-<schema>` before the file extension
- * (e.g. `file:src/persistence/local.db` -> `file:src/persistence/local-tenant_a.db`).
- * The base `DATABASE_URL` file itself is only used as a naming template and is
- * never opened directly.
+ * `SQLITE_DATABASE_TEMPLATE` (when set) must contain `{tenant}` and is used for
+ * every tenant. Without a template, a single tenant uses `DATABASE_URL`
+ * unchanged. Multiple local `file:` tenants get a filename suffix; multiple
+ * remote tenants require an explicit template so a hostname is never mutated.
  */
 export function resolveLibsqlDbUrl(schema: string): string {
+  const template = process.env.SQLITE_DATABASE_TEMPLATE;
+  if (template !== undefined) {
+    if (!template.includes('{tenant}')) {
+      throw new Error('SQLITE_DATABASE_TEMPLATE must contain {tenant}.');
+    }
+    return template.replaceAll('{tenant}', schema);
+  }
+
   const base = process.env.DATABASE_URL ?? DEFAULT_SQLITE_DATABASE_URL;
+  if (resolveLibsqlTenants().length === 1) return base;
+
+  if (!base.startsWith('file:')) {
+    throw new Error(
+      'Multiple remote libSQL tenants require SQLITE_DATABASE_TEMPLATE with {tenant}.',
+    );
+  }
 
   const slashIndex = base.lastIndexOf('/');
   const dotIndex = base.lastIndexOf('.');
@@ -69,7 +83,9 @@ export function resolveLibsqlTenants(): string[] {
     .map((value) => value.trim())
     .filter(Boolean);
 
-  return Array.from(new Set([resolveDefaultSchema(), ...configured]));
+  return Array.from(
+    new Set([resolveDefaultSchema(), ...configured.map(normalizeSchemaName)]),
+  );
 }
 
 export function createLibsqlOrmOptions(

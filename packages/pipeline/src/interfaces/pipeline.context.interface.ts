@@ -27,22 +27,31 @@ import { Type } from '@nestjs/common';
  */
 export interface IPipelineContext<TRequest = unknown, TResponse = unknown> {
   /**
-   * Correlation ID for distributed tracing. Mutable — behaviors may override it.
+   * Immutable correlation ID for distributed tracing.
    *
    * Resolution order (before any behavior runs):
    * 1. Inherited from parent pipeline (saga / nested command via AsyncLocalStorage)
    * 2. `correlationIdFactory` — user-supplied factory from module options
    * 3. Auto-generated `uuidv7()` (timestamp-sortable UUID)
    *
-   * Use {@link originalCorrelationId} to access the initial value even after override.
+   * It is fixed before the behavior chain starts so the context and any configured
+   * correlation async-local store cannot diverge.
    */
-  correlationId: string;
+  readonly correlationId: string;
 
   /**
    * The immutable correlation ID assigned when the pipeline was created.
-   * Preserved even if a behavior later overrides {@link correlationId}.
+   * Alias for the initially assigned correlation ID, retained for compatibility.
    */
   readonly originalCorrelationId: string;
+
+  /**
+   * Active tenant identifier for multi-tenant pipeline executions.
+   *
+   * Populated before behavior execution via `PipelineModuleOptions.tenantIdFactory`,
+   * inherited from parent context, or mirrored from `context.items.get(PIPELINE_TENANT_ID)`.
+   */
+  readonly tenantId?: string;
 
   /** The command/query/event instance with all its property values. */
   readonly request: TRequest;
@@ -72,8 +81,20 @@ export interface IPipelineContext<TRequest = unknown, TResponse = unknown> {
    */
   readonly response: TResponse | undefined;
 
-  /** Bag for sharing arbitrary data between behaviors in the same execution. */
-  readonly items: Map<string, unknown>;
+  /**
+   * Bag for sharing arbitrary data between behaviors in the same execution.
+   *
+   * Keys can be strings or exported `unique symbol` constants. Exported symbols
+   * are strongly recommended to prevent collision between behaviors or third-party packages.
+   *
+   * @example
+   * ```ts
+   * export const MY_ITEM = Symbol('MY_ITEM');
+   * context.items.set(MY_ITEM, customData);
+   * const val = context.items.get(MY_ITEM);
+   * ```
+   */
+  readonly items: Map<string | symbol, unknown>;
 
   /**
    * Retrieve options passed to a specific behavior via @UsePipeline([Behavior, opts]).

@@ -21,16 +21,37 @@ import { ICache } from '@nestjs-pipeline/ddd-core';
 
 export const CACHE_TOKEN = Symbol('MemoryCache');
 
+export interface MemoryCacheSetOptions {
+  ttl?: number;
+}
+
 @Injectable()
 export class MemoryCache<T> implements ICache<T> {
-  private store: Map<string, T> = new Map();
+  private store: Map<string, { value: T; expiresAt?: number }> = new Map();
+  private readonly defaultTtlMs: number;
 
-  async set(key: string, value: T): Promise<void> {
-    this.store.set(key, value);
+  constructor(options?: { defaultTtlMs?: number }) {
+    this.defaultTtlMs = options?.defaultTtlMs ?? 60_000;
+  }
+
+  async set(
+    key: string,
+    value: T,
+    options?: MemoryCacheSetOptions,
+  ): Promise<void> {
+    const ttl = options?.ttl ?? this.defaultTtlMs;
+    const expiresAt = ttl > 0 ? Date.now() + ttl : undefined;
+    this.store.set(key, { value, expiresAt });
   }
 
   async get(key: string): Promise<T | undefined> {
-    return this.store.get(key);
+    const entry = this.store.get(key);
+    if (!entry) return undefined;
+    if (entry.expiresAt !== undefined && Date.now() > entry.expiresAt) {
+      this.store.delete(key);
+      return undefined;
+    }
+    return entry.value;
   }
 
   async delete(key: string): Promise<void> {

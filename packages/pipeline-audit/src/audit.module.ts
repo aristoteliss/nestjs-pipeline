@@ -59,7 +59,6 @@ import { LogAuditSink } from './sinks/log.sink';
  * ```
  */
 @Module({})
-// biome-ignore lint/complexity/noStaticOnlyClass: static-only configuration class
 export class AuditModule {
   /**
    * Registers the behavior with a ready-made sink (defaults to

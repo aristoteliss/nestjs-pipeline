@@ -71,7 +71,7 @@ const sdk = new NodeSDK({
   traceExporter: new OTLPTraceExporter({
     url: process.env.OTEL_EXPORTER_OTLP_ENDPOINT || 'http://localhost:4318/v1/traces',
   }),
-  serviceName: 'users-api',
+  serviceName: 'my-service',
 });
 
 sdk.start();
@@ -106,7 +106,7 @@ import { TraceBehavior } from '@nestjs-pipeline/opentelemetry';
       globalBehaviors: {
         scope: 'all',
         before: [LoggingBehavior],
-        after: [[TraceBehavior, { tracerName: 'users-api' }]],
+        after: [[TraceBehavior, { tracerName: 'my-service' }]],
       },
     }),
   ],
@@ -193,8 +193,8 @@ import { TraceBehavior, MetricsBehavior } from '@nestjs-pipeline/opentelemetry';
         scope: 'all',
         before: [LoggingBehavior],
         after: [
-          [TraceBehavior, { tracerName: 'users-api' }],
-          [MetricsBehavior, { meterName: 'users-api' }],
+          [TraceBehavior, { tracerName: 'my-service' }],
+          [MetricsBehavior, { meterName: 'my-service' }],
         ],
       },
     }),
@@ -214,7 +214,7 @@ import { OTLPMetricExporter } from '@opentelemetry/exporter-metrics-otlp-http';
 import { PeriodicExportingMetricReader } from '@opentelemetry/sdk-metrics';
 
 const sdk = new NodeSDK({
-  serviceName: 'users-api',
+  serviceName: 'my-service',
   traceExporter: new OTLPTraceExporter({
     url: 'http://localhost:4318/v1/traces',
   }),
@@ -316,7 +316,7 @@ Set the tracer name when registering globally — this appears in your APM tool:
 PipelineModule.forRoot({
   globalBehaviors: {
     scope: 'all',
-    after: [[TraceBehavior, { tracerName: 'users-api' }]],
+    after: [[TraceBehavior, { tracerName: 'my-service' }]],
   },
 })
 ```
@@ -348,15 +348,15 @@ If no `tracerName` is provided (neither globally nor per-handler), the default i
 
 ## No SDK? No Problem.
 
-If the OpenTelemetry SDK is **not** initialized (e.g. in development or test environments), both behaviors degrade gracefully — no overhead, no errors, no thrown exceptions:
+If the OpenTelemetry SDK is **not** initialized (e.g. in development or test environments), both behaviors degrade safely: they do not export telemetry and do not throw because telemetry is unavailable.
 
 - `TraceBehavior` detects the missing tracer provider at module init and **passes through** without creating spans.
-- `MetricsBehavior` records to a **no-op meter** (recordings are silently discarded), so it keeps working without a metrics pipeline.
+- `MetricsBehavior` still performs its normal timing and metric-recording calls, but they target a **no-op meter**, so recordings are silently discarded. This is safe without a metrics pipeline, but it is not a literal zero-overhead path.
 
 A warning is logged once at startup for each:
 
 ```
-[Nest] WARN [TraceBehavior] OpenTelemetry SDK is NOT initialized — TraceBehavior will pass through without tracing. Ensure your tracing bootstrap runs BEFORE NestFactory.create() (import "./tracing" as the first line of main.ts, or use --require ./tracing.js).
+[Nest] WARN [TraceBehavior] OpenTelemetry SDK is NOT initialized — TraceBehavior will pass through without tracing. Ensure your tracing bootstrap runs BEFORE NestFactory.create() (initialize it in a bootstrap module or use --require ./tracing.js).
 [Nest] WARN [MetricsBehavior] OpenTelemetry metrics SDK is NOT initialized — MetricsBehavior will record to a no-op meter (metrics discarded). Register a MeterProvider with a reader/exporter to export pipeline metrics.
 ```
 
@@ -380,7 +380,7 @@ import { PeriodicExportingMetricReader } from '@opentelemetry/sdk-metrics';
 import { getNodeAutoInstrumentations } from '@opentelemetry/auto-instrumentations-node';
 
 const sdk = new NodeSDK({
-  serviceName: 'users-api',
+  serviceName: 'my-service',
   traceExporter: new OTLPTraceExporter({
     url: 'http://localhost:4318/v1/traces',
   }),
@@ -420,11 +420,10 @@ import { ZodValidationBehavior } from '@nestjs-pipeline/zod';
     PipelineModule.forRoot({
       globalBehaviors: {
         scope: 'all',
-        before: [LoggingBehavior],
+        before: [LoggingBehavior, ZodValidationBehavior],
         after: [
-          [TraceBehavior, { tracerName: 'users-api' }],
-          [MetricsBehavior, { meterName: 'users-api' }],
-          ZodValidationBehavior,
+          [TraceBehavior, { tracerName: 'my-service' }],
+          [MetricsBehavior, { meterName: 'my-service' }],
         ],
       },
     }),
@@ -445,7 +444,7 @@ export class CreateUserHandler implements ICommandHandler<CreateUserCommand> {
     // 1. Logged   (global LoggingBehavior + handler override)
     // 2. Traced   (global TraceBehavior → span: command.CreateUserCommand)
     // 3. Measured (global MetricsBehavior → duration histogram + invocation counter)
-    // 4. Validated (global ZodValidationBehavior → checks _zodSchema)
+    // 4. Parsed/validated (global ZodValidationBehavior → applies successful schema output to the request)
     return this.userRepository.create(command.username, command.email);
   }
 }
@@ -454,7 +453,7 @@ export class CreateUserHandler implements ICommandHandler<CreateUserCommand> {
 **Result in your APM tool (e.g. SigNoz, Jaeger):**
 
 ```
-Trace: users-api
+Trace: my-service
 └── command.CreateUserCommand (12.34ms) [OK]
     ├── pipeline.request.kind = "command"
     ├── pipeline.request.name = "CreateUserCommand"
@@ -463,7 +462,7 @@ Trace: users-api
     └── pipeline.started_at = "2026-03-01T12:00:00.000Z"
 ```
 
-**Plus metrics** (same handler) on the `users-api` meter:
+**Plus metrics** (same handler) on the `my-service` meter:
 
 ```
 pipeline.handler.duration{...,outcome="success"}     histogram → p50/p95/p99 latency
@@ -488,4 +487,3 @@ pipeline.handler.invocations{...,outcome="success"} counter   → request & erro
 Dual-licensed under **AGPLv3** and a **Commercial License**. See the root [`LICENSE`](../../LICENSE) and [`COMMERCIAL_LICENSE.txt`](../../COMMERCIAL_LICENSE.txt) for details.
 
 Contact: **aristotelis@ik.me**
-

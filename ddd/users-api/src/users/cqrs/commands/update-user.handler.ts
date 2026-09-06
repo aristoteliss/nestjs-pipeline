@@ -16,102 +16,69 @@
  * ----------------------------
  */
 
-import { Inject, NotFoundException, Optional, Scope } from '@nestjs/common';
+import { APP_ACTIONS, APP_SUBJECTS } from '@common/constants';
+import { Inject, NotFoundException, Scope } from '@nestjs/common';
 import { CommandHandler, EventBus } from '@nestjs/cqrs';
-import { PIPELINE_CACHE } from '@nestjs-pipeline/cache';
-import {
-  assertEntityPermission,
-  CaslBehavior,
-  getCaslAbility,
-} from '@nestjs-pipeline/casl';
+import { CaslAuthorizer, CaslBehavior } from '@nestjs-pipeline/casl';
 import { LoggingBehavior, UsePipeline } from '@nestjs-pipeline/core';
 import {
   CommandBaseHandler,
   ICommandRepository,
   IQueryRepository,
 } from '@nestjs-pipeline/ddd-core';
-import { TenantSchemaContext } from '@persistence/tenant-schema.context';
-import { User } from '../../domain/models/user.entity';
-import { UserUpdateOutcome } from '../../domain/outcomes/user-update.outcome';
+import { User, type UserSnapshot } from '../../domain/models/user.entity';
 import {
   COMMAND_REPOSITORY,
   QUERY_REPOSITORY,
-} from '../../repositories/repository.tokens';
+} from '../../persistence/repository.tokens';
 import { GetUserQuery } from '../queries/get-user.query';
 import { UpdateUserCommand } from './update-user.command';
 
 // Example of using request-scoped handler if needed for per-request dependencies
 @CommandHandler(UpdateUserCommand, { scope: Scope.REQUEST })
-@UsePipeline([LoggingBehavior, { requestResponseLogLevel: 'log' }],
+@UsePipeline(
+  [LoggingBehavior, { requestResponseLogLevel: 'log' }],
   [
     CaslBehavior,
     {
-      subjectFromRequest: 'User',
-      rules: [{ action: 'update', subject: 'User' }],
+      rules: [{ action: APP_ACTIONS.UPDATE, subject: APP_SUBJECTS.USER }],
     },
   ],
 )
 export class UpdateUserHandler extends CommandBaseHandler<
   UpdateUserCommand,
-  UserUpdateOutcome
+  User
 > {
   constructor(
     @Inject(QUERY_REPOSITORY.getUser)
     private readonly queryRepository: IQueryRepository<GetUserQuery, User>,
     @Inject(COMMAND_REPOSITORY.updateUser)
-    private readonly commandRepository: ICommandRepository<UserUpdateOutcome>,
-    @Optional()
-    @Inject(PIPELINE_CACHE)
-    private readonly pipelineCache: { delete?: (key: string) => Promise<unknown> } | null,
+    private readonly commandRepository: ICommandRepository<User, UserSnapshot>,
+    private readonly authorizer: CaslAuthorizer,
     protected readonly eventBus: EventBus,
   ) {
     super(eventBus);
   }
 
-  async handle(command: UpdateUserCommand): Promise<UserUpdateOutcome> {
+  async handle(command: UpdateUserCommand): Promise<User> {
     const { id, username, department } = command;
 
     const query = new GetUserQuery({ userId: id }, { hydrate: true });
-
-    const user = await this.queryRepository.find(query);
+    const user = User.from(await this.queryRepository.find(query));
 
     if (!user) {
       throw new NotFoundException('User not found');
     }
 
-    // Entity-level authorization against the loaded target user. Conditions
-    // like "User|update|{department: <mine>}" depend on the target's persisted
-    // attributes, which the command payload does not carry, so they are
-    // re-checked here against the real entity and the fields being changed.
-    const ability = getCaslAbility();
-    if (ability) {
-      const changedFields = Object.entries({ username, department })
-        .filter(([, value]) => value !== undefined)
-        .map(([field]) => field);
+    const changedFields = Object.entries({ username, department })
+      .filter(([, value]) => value !== undefined)
+      .map(([field]) => field);
+    this.authorizer.authorize('update', user, changedFields);
 
-      assertEntityPermission(ability, {
-        action: 'update',
-        subject: 'User',
-        entity: user.toJSON() as unknown as Record<string, unknown>,
-        fields: changedFields,
-      });
-    }
+    user.update({ username, department });
 
-    const outcome = user.update({ username, department });
+    await this.commandRepository.save(user);
 
-    await this.commandRepository.save(outcome);
-
-    // Evict Redis cache entry for GetUserQuery
-    if (this.pipelineCache) {
-      const cacheKey = `${TenantSchemaContext.currentSchema}:GetUserQuery:${id}`;
-      const c = this.pipelineCache as Record<string, unknown>;
-      if (typeof c.del === 'function') {
-        await (c.del as (k: string) => Promise<unknown>)(cacheKey);
-      } else if (typeof c.delete === 'function') {
-        await (c.delete as (k: string) => Promise<unknown>)(cacheKey);
-      }
-    }
-
-    return outcome;
+    return user;
   }
 }

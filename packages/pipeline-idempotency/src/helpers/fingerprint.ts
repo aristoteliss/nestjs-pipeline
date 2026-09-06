@@ -17,39 +17,14 @@
  */
 
 import { createHash } from 'node:crypto';
+import { stableStringify } from '@nestjs-pipeline/core';
 
 /**
- * Produces a stable SHA-256 hex digest of an arbitrary value, with object keys
- * sorted so semantically-equal payloads hash identically regardless of property
- * order. Used to detect an idempotency key being reused with a different body.
+ * Produces a stable SHA-256 hex digest of an acyclic JSON-serializable value,
+ * with object keys sorted so semantically-equal payloads hash identically
+ * regardless of property order. Used to detect an idempotency key being reused
+ * with a different body.
  */
 export function fingerprintValue(value: unknown): string {
   return createHash('sha256').update(stableStringify(value)).digest('hex');
-}
-
-/** `JSON.stringify` with deterministically ordered object keys. */
-export function stableStringify(value: unknown): string {
-  return JSON.stringify(normalize(value));
-}
-
-function normalize(value: unknown): unknown {
-  if (value === null || typeof value !== 'object') {
-    return value;
-  }
-
-  if (Array.isArray(value)) {
-    return value.map(normalize);
-  }
-
-  // Preserve non-plain objects (Date, Buffer, …) via their own serialization.
-  const proto = Object.getPrototypeOf(value);
-  if (proto !== Object.prototype && proto !== null) {
-    return value;
-  }
-
-  const sorted: Record<string, unknown> = {};
-  for (const key of Object.keys(value as Record<string, unknown>).sort()) {
-    sorted[key] = normalize((value as Record<string, unknown>)[key]);
-  }
-  return sorted;
 }

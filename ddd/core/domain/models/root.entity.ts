@@ -16,25 +16,87 @@
  * ----------------------------
  */
 
+import { AggregateRoot } from '@nestjs/cqrs';
 import { isUuidV7, uuidv7 } from '@nestjs-pipeline/core';
-import { ICacheKey } from '../interfaces/cache-key.interface';
 import { RootEntitySnapshot } from '../interfaces/root-entity-snapshot.interface';
 
 /**
- * Base entity for shared identity and lifecycle behavior.
+ * Abstract base entity for DDD domain aggregates and entities.
  *
- * - Handles UUID v7 identity and root date invariants.
- * - Exposes immutable id, createdAt, and updatedAt getters.
- * - Exposes onUpdate/afterUpdate hooks for mutation tracking.
- * - Requires child entities to provide JSON serialization.
+ * Inherits from `@nestjs/cqrs` {@link AggregateRoot} to manage domain events
+ * internally:
+ * - **Domain Event Recording**: Call `this.apply(new SomeEvent(this))` to buffer uncommitted events.
+ * - **UUID v7 Identity**: Automatically generates time-ordered UUID v7 identifiers for new instances.
+ * - **Lifecycle Timestamps**: Enforces invariant-checked `createdAt` and `updatedAt` tracking.
+ * - **Accessor-Driven Persistence**: Exposes typed getters and setters (`id`, `createdAt`, `updatedAt`)
+ *   compatible with MikroORM `accessor: true` mapping without breaking encapsulation.
+ * - **Polymorphic Rehydration**: Static `RootEntity.from()` transparently handles instances, plain snapshots,
+ *   or nullish database results without re-triggering creation events.
+ * - **Mutation Tracking**: Automatically updates `updatedAt` on `@Mutate()`-decorated methods
+ *   and triggers the `afterUpdate()` lifecycle hook.
+ *
+ * @example Defining a domain aggregate
+ * ```typescript
+ * interface UserSnapshot extends Partial<RootEntitySnapshot> {
+ *   readonly username: string;
+ *   readonly email: string;
+ * }
+ *
+ * export class User extends RootEntity<UserSnapshot> {
+ *   private _username: string;
+ *   readonly email: string;
+ *
+ *   private constructor(snapshot: UserSnapshot) {
+ *     super(snapshot);
+ *     this._username = snapshot.username!;
+ *     this.email = snapshot.email!;
+ *   }
+ *
+ *   static create(username: string, email: string): User {
+ *     const user = new User({ username, email });
+ *     user.apply(new UserCreatedEvent(user));
+ *     return user;
+ *   }
+ *
+ *   static fromJSON(snapshot: UserSnapshot): User {
+ *     return new User(snapshot);
+ *   }
+ *
+ *   @Mutate()
+ *   rename(newUsername: string): this {
+ *     this._username = newUsername;
+ *     this.apply(new UserRenamedEvent(this));
+ *     return this;
+ *   }
+ *
+ *   afterUpdate(): void {
+ *     // Aggregate domain side-effects or event recordings
+ *   }
+ *
+ *   toJSON(): RootEntitySnapshot & UserSnapshot {
+ *     return this.freezeState({
+ *       id: this.id,
+ *       username: this._username,
+ *       email: this.email,
+ *       createdAt: this.createdAt,
+ *       updatedAt: this.updatedAt,
+ *     });
+ *   }
+ * }
+ * ```
  */
-export abstract class RootEntity<TSnapshot extends Partial<RootEntitySnapshot>>
-  implements RootEntitySnapshot, ICacheKey {
-  private readonly _id: string;
-  private readonly _createdAt: Date;
+export abstract class RootEntity<
+    TSnapshot extends Partial<RootEntitySnapshot> = RootEntitySnapshot,
+  >
+  extends AggregateRoot
+  implements RootEntitySnapshot
+{
+  private _id: string;
+  private _createdAt: Date;
   private _updatedAt: Date;
 
-  protected constructor(snapshot?: Partial<RootEntitySnapshot>) {
+  constructor(snapshot?: Partial<RootEntitySnapshot>) {
+    super();
     const id = snapshot?.id;
     const createdAt = snapshot?.createdAt;
     const updatedAt = snapshot?.updatedAt;
@@ -66,14 +128,11 @@ export abstract class RootEntity<TSnapshot extends Partial<RootEntitySnapshot>>
     this._updatedAt = now;
   }
 
-  abstract prefixKey: string;
-  abstract cacheKey: string;
-
   protected static normalizeId(id?: string): string {
     if (typeof id !== 'string' || !isUuidV7(id)) {
       throw new Error('id must be a valid UUID v7.');
     }
-    return id;
+    return id.trim();
   }
 
   protected static normalizeDate(value?: Date | string): Date {
@@ -92,14 +151,71 @@ export abstract class RootEntity<TSnapshot extends Partial<RootEntitySnapshot>>
     return parsed;
   }
 
+  /**
+   * Rehydrates or returns an already-hydrated entity instance.
+   *
+   * If `candidate` is already an instance of the target entity class, it is returned as-is.
+   * If `candidate` is an instance of an incompatible `RootEntity`, a `TypeError` is thrown.
+   * Otherwise, if `candidate` is a snapshot object, it is rehydrated via the class's `fromJSON()` factory.
+   */
+  static from<
+    T extends RootEntity<TSnapshot>,
+    TSnapshot extends Partial<RootEntitySnapshot>,
+  >(
+    this:
+      | { fromJSON(snapshot: TSnapshot): T }
+      | (abstract new (
+          ...args: unknown[]
+        ) => T),
+    candidate: T | TSnapshot | null | undefined,
+  ): T | null {
+    if (candidate === null || candidate === undefined) {
+      return null;
+    }
+    // biome-ignore lint/complexity/noThisInStatic: Polymorphic static rehydration
+    const targetClass = this as unknown as Function;
+    if (typeof targetClass === 'function') {
+      if (candidate instanceof targetClass) {
+        return candidate as T;
+      }
+      if (candidate instanceof RootEntity) {
+        const expectedName = targetClass.name || 'TargetEntity';
+        const actualName =
+          (candidate.constructor as Function)?.name || 'RootEntity';
+        throw new TypeError(
+          `Cannot rehydrate entity: expected instance of ${expectedName}, received incompatible aggregate ${actualName}.`,
+        );
+      }
+    } else if (candidate instanceof RootEntity) {
+      return candidate as T;
+    }
+    // biome-ignore lint/complexity/noThisInStatic: Polymorphic static rehydration
+    const ctor = this as unknown as { fromJSON(snapshot: TSnapshot): T };
+    if (typeof ctor.fromJSON === 'function') {
+      return ctor.fromJSON(candidate as TSnapshot);
+    }
+    throw new Error('Cannot rehydrate entity: missing fromJSON factory.');
+  }
+
   get id(): string {
     return this._id;
   }
+  set id(value: string) {
+    this._id = RootEntity.normalizeId(value);
+  }
+
   get createdAt(): Date {
     return new Date(this._createdAt);
   }
+  set createdAt(value: Date | string) {
+    this._createdAt = RootEntity.normalizeDate(value);
+  }
+
   get updatedAt(): Date {
     return new Date(this._updatedAt);
+  }
+  set updatedAt(value: Date | string) {
+    this._updatedAt = RootEntity.normalizeDate(value);
   }
 
   protected onUpdate(): void {

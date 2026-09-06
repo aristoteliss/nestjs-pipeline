@@ -37,7 +37,7 @@ Caching behavior for `@nestjs-pipeline/core`, powered by [cache-manager](https:/
 
 ## Why
 
-Read-heavy queries often hit the same data repeatedly. `@nestjs-pipeline/cache` adds a transparent caching layer to your CQRS pipeline without coupling the caching logic to your business code. It is a thin, type-safe behavior over [cache-manager](https://github.com/jaredwray/cacheable) v7 + [Keyv](https://keyv.org/), so you get tiered caches, background refresh, and a consistent interface across every supported backend.
+Read-heavy queries often hit the same data repeatedly. `@nestjs-pipeline/cache` adds a transparent caching layer to your CQRS pipeline without coupling the caching logic to your business code. It is a thin, type-safe behavior over [cache-manager](https://github.com/jaredwray/cacheable) v7 + [Keyv](https://keyv.org/), so you get tiered caches and a consistent interface across every supported backend.
 
 ---
 
@@ -79,6 +79,7 @@ import { CacheModule, CacheBehavior } from '@nestjs-pipeline/cache';
   imports: [
     // In-memory cache with a 30s default TTL
     CacheModule.forRoot({ ttl: 30_000 }),
+    // Make CacheBehavior available to @UsePipeline/globalBehaviors.
     PipelineModule.forRoot({ behaviors: [CacheBehavior] }),
   ],
 })
@@ -87,7 +88,7 @@ export class AppModule {}
 
 ### 2. Attach the behavior
 
-Attach it globally (as above, via `PipelineModule`) or per handler with `@UsePipeline`.
+The `behaviors` option above registers `CacheBehavior` with Nest DI; it does not execute it globally. Attach it per handler with `@UsePipeline`, or put it in `globalBehaviors` if you want it to run for a global scope.
 
 ### 3. Configure per handler
 
@@ -204,14 +205,45 @@ CacheModule.forRoot({ cache: createCache({ stores: [new Keyv()] }) });
 ### What gets cached
 
 Only **query** requests are cached by default — commands and events always pass
-through untouched. Override this with the `kinds` option. `null` and `undefined`
-results are never written to the cache.
+through untouched. Override this with the `kinds` option. On a cache miss,
+`null` and `undefined` results are not written. A hit returns the value from
+that lookup directly. `CacheBehavior` does not use `cache-manager.wrap()` or
+background refresh because a refresh callback would re-run every behavior and
+side effect nested after the cache behavior.
+
+### Store errors
+
+`CacheBehavior` owns a consistent failure policy independently of the injected
+`cache-manager` or custom cache implementation. By default, `failOpen: true`:
+
+- a thrown cache read is logged, recorded as `cache.hit = false`, and bypasses
+  both the cache lookup and write for that execution;
+- a thrown cache write is logged and the successful handler result is returned.
+
+Set `failOpen: false` to log and propagate either store error. This strict mode
+can turn a successful downstream handler execution into a rejected request when
+the subsequent cache write fails, so it is best suited to cases where cache
+availability is part of the operation's contract. Errors from the condition,
+key factory, or downstream handler are always propagated unchanged.
 
 ### Cache keys
 
-The default key is `` `${requestName}:${stableStringify(request)}` ``, where
+The default key is `` `${requestName}:${stableStringify(request)}` `` (prefixed with `` `${context.tenantId}:` `` when `context.tenantId` is defined), where
 `stableStringify` sorts object keys recursively so structurally equal payloads
-always map to the same entry. Provide a `key` factory to customize it.
+always map to the same entry. It accepts `null`, booleans, finite numbers,
+strings, arrays, record-like objects, and valid dates (converted to ISO strings).
+Lossy native JSON cases such as `Map`, `Set`, `RegExp`, `Error`, binary values,
+non-finite numbers, `undefined`, bigint, functions, symbols, and cycles are
+rejected instead of risking a collision. Provide a `key` factory to customize
+the supported domain when needed.
+
+Cache hits return before the handler runs. If a handler performs entity-level
+authorization or response-field filtering after loading data, the cache key
+**must** include every security dimension that can change that result (for
+example principal ID, roles, or a permission-version token). The default key
+contains the tenant ID (when present on the context), request type, and payload;
+it is safe across tenants, but custom key factories should be used for user-scoped
+or permission-scoped responses.
 
 ### Options resolution
 
@@ -225,12 +257,13 @@ Effective options for a handler are resolved as:
 
 The behavior records diagnostics on `context.items`:
 
-| Item key | Type | Meaning |
-| -------- | ---- | ------- |
-| `cache.hit` | `boolean` | Whether the request was served from cache. |
-| `cache.key` | `string` | The resolved cache key. |
+| Item Token | Type | Meaning |
+| ---------- | ---- | ------- |
+| `CACHE_HIT_ITEM` | `boolean` | Whether the request was served from cache. |
+| `CACHE_KEY_ITEM` | `string` | The resolved cache key. |
 
-Exported as `CACHE_HIT_ITEM` and `CACHE_KEY_ITEM`.
+Exported as unique `Symbol` constants (`CACHE_HIT_ITEM` and `CACHE_KEY_ITEM`) to prevent key collisions in `context.items`.
+
 
 ---
 
@@ -244,7 +277,7 @@ Exported as `CACHE_HIT_ITEM` and `CACHE_KEY_ITEM`.
 | `stores` | `Keyv[]` | Pre-built Keyv stores (tiered). |
 | `store` | `CacheStoreConfig \| CacheStoreConfig[]` | Declarative store(s). |
 | `ttl` | `number` | Default TTL (ms) for stores and handlers. |
-| `refreshThreshold` | `number` | Background-refresh threshold (ms). |
+| `refreshThreshold` | `number` | Deprecated compatibility option forwarded to `cache-manager`; `CacheBehavior` does not call `wrap()`, so it does not trigger background refresh. |
 | `nonBlocking` | `boolean` | Optimize multi-store reads/writes. |
 | `defaults` | `CacheBehaviorOptions` | Default per-handler options. |
 
@@ -256,6 +289,7 @@ Exported as `CACHE_HIT_ITEM` and `CACHE_KEY_ITEM`.
 | `ttl` | `number` | module `ttl` | TTL (ms) for entries written by this handler. |
 | `key` | `(context) => string` | `requestName:stableStringify(request)` | Custom cache-key factory. |
 | `condition` | `(context) => boolean` | _always_ | Gate whether a request is cached. |
+| `failOpen` | `boolean` | `true` | Log and bypass thrown cache read/write errors; set `false` to propagate them. |
 
 `CacheStoreConfig` (declarative store):
 
@@ -271,9 +305,7 @@ Exported as `CACHE_HIT_ITEM` and `CACHE_KEY_ITEM`.
 
 ## Custom Logger
 
-The behavior emits `debug` cache hit/miss lines through the logger bound to
-`LOGGING_BEHAVIOR_LOGGER` (the same token used by the core `LoggingBehavior`).
-If none is bound, a standard NestJS `Logger` is used. No extra wiring needed.
+`CacheBehavior` emits `debug` cache hit/miss lines and `warn`/`error` store-failure lines through the logger injected with `LOGGING_BEHAVIOR_LOGGER`, falling back to a standard NestJS `Logger` when that token is not bound. `CacheModule.forRoot` uses its own static NestJS `Logger` for the startup store-initialization message.
 
 ---
 

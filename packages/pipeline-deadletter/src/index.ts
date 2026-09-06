@@ -26,6 +26,11 @@ export {
 } from './dead-letter.behavior';
 export { DeadLetterModule } from './dead-letter.module';
 export { buildDeadLetterRecord } from './helpers/build-record';
+export {
+  DEFAULT_REDACT_KEYS,
+  REDACTED,
+  redactValue,
+} from '@nestjs-pipeline/core';
 export type {
   DeadLetterBehaviorOptions,
   DeadLetterMetadataFactory,
@@ -50,7 +55,7 @@ export {
   type PostgresQueryableLike,
 } from './transports/postgres.transport';
 export {
-  type RabbitMqChannelLike,
+  type RabbitMqConfirmChannelLike,
   RabbitMqDeadLetterTransport,
   type RabbitMqDeadLetterTransportOptions,
 } from './transports/rabbitmq.transport';

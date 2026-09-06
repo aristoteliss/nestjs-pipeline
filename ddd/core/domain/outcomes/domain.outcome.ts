@@ -21,9 +21,8 @@ import { DomainEvent } from '../events/domain.event';
 /**
  * Base class for the result of a domain operation.
  *
- * Collects the {@link DomainEvent}s raised while producing the outcome. The
- * command base handler publishes these events automatically after the handler
- * returns.
+ * @deprecated Aggregates should extend `RootEntity` (which inherits from `@nestjs/cqrs` `AggregateRoot`)
+ * and manage events internally via `this.apply(event)`. Repositories accept pure entities via `save(entity)`.
  */
 export abstract class DomainOutcome {
   public readonly events: Array<DomainEvent>;

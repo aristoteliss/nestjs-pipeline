@@ -52,6 +52,26 @@ describe('redactValue', () => {
     });
   });
 
+  it('redacts enumerable properties on CQRS-style class instances', () => {
+    class LoginCommand {
+      constructor(
+        readonly email: string,
+        readonly password: string,
+        readonly nested: { token: string },
+      ) {}
+    }
+
+    const result = redactValue(
+      new LoginCommand('user@example.test', 'secret', { token: 'jwt' }),
+    );
+
+    expect(result).toEqual({
+      email: 'user@example.test',
+      password: REDACTED,
+      nested: { token: REDACTED },
+    });
+  });
+
   it('returns primitives unchanged', () => {
     expect(redactValue('plain')).toBe('plain');
     expect(redactValue(42)).toBe(42);
@@ -76,12 +96,60 @@ describe('redactValue', () => {
     expect(result).toEqual({ password: 'kept', email: REDACTED });
   });
 
-  it('preserves non-plain objects (e.g. Date) verbatim', () => {
+  it('deep-clones non-plain objects such as Date', () => {
     const date = new Date('2026-01-01T00:00:00.000Z');
 
     const result = redactValue({ when: date }) as { when: Date };
 
-    expect(result.when).toBe(date);
+    expect(result.when).not.toBe(date);
+    expect(result.when).toEqual(date);
+  });
+
+  it('preserves repeated references that are not cyclic', () => {
+    const shared = { password: 'secret', value: 1 };
+    const result = redactValue({ first: shared, second: shared }) as {
+      first: Record<string, unknown>;
+      second: Record<string, unknown>;
+    };
+
+    expect(result.first).toEqual({ password: REDACTED, value: 1 });
+    expect(result.second).toEqual({ password: REDACTED, value: 1 });
+  });
+
+  it('does not misclassify a repeated non-plain object as circular', () => {
+    const date = new Date('2026-01-01T00:00:00.000Z');
+    const result = redactValue({ first: date, second: date }) as {
+      first: unknown;
+      second: unknown;
+    };
+
+    expect(result.first).toEqual(date);
+    expect(result.second).toEqual(date);
+    expect(result.first).not.toBe(date);
+    expect(result.second).not.toBe(date);
+  });
+
+  it('redacts sensitive Map entries and Error properties', () => {
+    const map = new Map<string, unknown>([
+      ['token', 'map-secret'],
+      ['profile', { password: 'nested-secret', name: 'Ada' }],
+    ]);
+    const error = new Error('failure') as Error & { token: string };
+    error.token = 'error-secret';
+
+    const result = redactValue({ map, error }) as {
+      map: Map<string, unknown>;
+      error: Error & { token: string };
+    };
+
+    expect(result.map).not.toBe(map);
+    expect(result.map.get('token')).toBe(REDACTED);
+    expect(result.map.get('profile')).toEqual({
+      password: REDACTED,
+      name: 'Ada',
+    });
+    expect(result.error).not.toBe(error);
+    expect(result.error.token).toBe(REDACTED);
   });
 
   it('guards against cyclic references', () => {
@@ -92,6 +160,44 @@ describe('redactValue', () => {
 
     expect(result.name).toBe('jane');
     expect(result.self).toBe('[Circular]');
+  });
+
+  it('preserves and redacts an own __proto__ property as ordinary data', () => {
+    const input = { name: 'jane' } as Record<string, unknown>;
+    Object.defineProperty(input, '__proto__', {
+      enumerable: true,
+      value: { password: 'secret' },
+    });
+
+    const result = redactValue(input) as Record<string, unknown>;
+
+    expect(Object.getPrototypeOf(result)).toBe(Object.prototype);
+    expect(Object.getOwnPropertyDescriptor(result, '__proto__')).toBeDefined();
+    expect(Reflect.get(result, '__proto__')).toEqual({ password: REDACTED });
+  });
+
+  it('preserves an Error own __proto__ property without changing its prototype', () => {
+    const error = new Error('failure');
+    Object.defineProperty(error, '__proto__', {
+      enumerable: true,
+      value: { token: 'secret' },
+    });
+
+    const result = redactValue(error) as Error & Record<string, unknown>;
+
+    expect(Object.getPrototypeOf(result)).toBe(Error.prototype);
+    expect(Object.hasOwn(result, '__proto__')).toBe(true);
+    expect(Reflect.get(result, '__proto__')).toEqual({ token: REDACTED });
+  });
+
+  it('preserves enumerable symbol-keyed own properties', () => {
+    const scope = Symbol('scope');
+    const input = { id: 1, [scope]: { token: 'secret' } };
+
+    const result = redactValue(input) as Record<PropertyKey, unknown>;
+
+    expect(Object.getOwnPropertySymbols(result)).toEqual([scope]);
+    expect(result[scope]).toEqual({ token: REDACTED });
   });
 
   it('exposes a stable set of default keys', () => {

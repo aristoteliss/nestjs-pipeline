@@ -1,6 +1,6 @@
 # @nestjs-pipeline/zod
 
-Zod v4 validation integration for `@nestjs-pipeline/core` — validate commands, queries, and events at the pipeline boundary, controller params/body with `ZodPipe`, and catch validation errors with `ZodValidationFilter`.
+Zod v4 validation and parsing integration for `@nestjs-pipeline/core` — parse commands, queries, and events at the pipeline boundary, validate/transform controller params and bodies with `ZodPipe`, and catch validation errors with `ZodValidationFilter`.
 
 ---
 
@@ -12,7 +12,11 @@ Zod v4 validation integration for `@nestjs-pipeline/core` — validate commands,
   - [Per-Handler Registration](#per-handler-registration)
   - [How It Works](#how-it-works)
 - [Creating Validated Commands, Queries, and Events](#creating-validated-commands-queries-and-events)
-  - [The createRequest() Pattern](#the-createrequest-pattern)
+  - [createCommand() and createQuery() Factories](#createcommand-and-createquery-factories)
+  - [Extending Base Classes (BaseCommand, BaseQuery)](#extending-base-classes-basecommand-basequery)
+  - [Standard Schema & NestJS 12 Integration](#standard-schema--nestjs-12-integration)
+  - [Static parse() and safeParse()](#static-parse-and-safeparse)
+  - [Type Inference Helpers (InferInput, InferOutput)](#type-inference-helpers-inferinput-inferoutput)
   - [Attaching Schemas Manually](#attaching-schemas-manually)
 - [ZodPipe](#zodpipe)
   - [Body Validation](#body-validation)
@@ -42,11 +46,16 @@ pnpm add @nestjs-pipeline/core @nestjs/common
 
 ## ZodValidationBehavior
 
-A pipeline behavior that validates the incoming request against a Zod schema when one is attached to the request class via the `_zodSchema` static property.
+A pipeline behavior that parses the incoming request against a Zod schema when one is attached to the request class via the `_zodSchema` static property. When parsing succeeds with an object result, the existing request object is updated in place to match the parsed data before the next behavior/handler runs.
 
 ### Global Registration
 
-Register once — every command, query, and event with a `_zodSchema` property is automatically validated:
+Register once — every command, query, and event with a `_zodSchema` property is automatically parsed:
+
+Place validation in global `before` ahead of behaviors whose authorization,
+rate-limit, cache, or idempotency decisions depend on request values. Global
+`after` behaviors run after handler-specific behaviors, so validation there
+would expose raw input to those policies.
 
 ```typescript
 import { Module } from '@nestjs/common';
@@ -60,7 +69,7 @@ import { ZodValidationBehavior } from '@nestjs-pipeline/zod';
     PipelineModule.forRoot({
       globalBehaviors: {
         scope: 'all',
-        after: [ZodValidationBehavior],
+        before: [ZodValidationBehavior],
       },
     }),
   ],
@@ -70,7 +79,7 @@ export class AppModule {}
 
 ### Per-Handler Registration
 
-Use `@UsePipeline` to add validation to specific handlers only:
+Use `@UsePipeline` to add validation/parsing to specific handlers only:
 
 ```typescript
 import { CommandHandler, ICommandHandler } from '@nestjs/cqrs';
@@ -81,8 +90,9 @@ import { ZodValidationBehavior } from '@nestjs-pipeline/zod';
 @UsePipeline(ZodValidationBehavior)
 export class CreateUserHandler implements ICommandHandler<CreateUserCommand> {
   async execute(command: CreateUserCommand): Promise<User> {
-    // If command has _zodSchema and validation fails, ZodValidationError is thrown
-    // before this code runs
+    // If command has _zodSchema and parsing fails, ZodValidationError is thrown
+    // before this code runs. Successful plain-object output has already been copied
+    // back onto this same command object.
     return this.userRepository.create(command);
   }
 }
@@ -91,58 +101,54 @@ export class CreateUserHandler implements ICommandHandler<CreateUserCommand> {
 ### How It Works
 
 1. `ZodValidationBehavior` reads `context.requestType._zodSchema` (a `ZodType`).
-2. If a schema exists, it runs `schema.safeParse(context.request)`.
+2. If a schema exists, it awaits `schema.safeParseAsync(context.request)`.
 3. On failure, it throws `ZodValidationError` with structured details.
-4. If no schema is present (e.g. a plain event class), it's a no-op — just calls `next()`.
+4. On success, if both `result.data` and the request are objects, it mutates the existing request object to match `result.data`: request keys omitted by the parsed result are deleted, then parsed/coerced/defaulted values are assigned.
+5. If no schema is present (e.g. a plain event class), it's a no-op — just calls `next()`.
+
+This means transforms, coercions, defaults, and object-key stripping performed by the schema are visible to later behaviors and to the handler; the behavior is not validation-only.
+
+Async refinements and transforms are supported by both `ZodValidationBehavior`
+and `ZodPipe`. Consequently, `ZodPipe.transform()` returns a promise (which
+NestJS pipes await automatically). The synchronous class constructors generated by
+`createCommand()` and `createQuery()` use `safeParse()` during construction and
+therefore validate synchronously.
 
 ---
 
 ## Creating Validated Commands, Queries, and Events
 
-### The createRequest() Pattern
+### createCommand() and createQuery() Factories
 
-Build self-validating command/query/event classes using a `createRequest()` helper that attaches the Zod schema automatically:
+Instead of writing repetitive boilerplate classes with manual constructor validation, `@nestjs-pipeline/zod` provides first-class `createCommand()` and `createQuery()` factory functions.
 
-```typescript
-// helpers/createRequest.ts
-import { ZodObject, ZodRawShape, z } from 'zod';
-import { ZodValidationError } from '@nestjs-pipeline/zod';
-
-export function createRequest<T extends ZodRawShape>(schema: ZodObject<T>) {
-  type Input = z.infer<ZodObject<T>>;
-  return class {
-    static readonly _zodSchema = schema;  // ZodValidationBehavior reads this
-
-    constructor(input: Input) {
-      const result = schema.safeParse(input);
-      if (!result.success) throw new ZodValidationError(result.error);
-      Object.assign(this, result.data);   // typed properties
-    }
-  };
-}
-```
+These factories automatically:
+- Attach the Zod schema as static `_zodSchema` (for `ZodValidationBehavior`) and `schema`.
+- Tag the generated class with `requestKind = 'command'` or `requestKind = 'query'`.
+- Forward the **Standard Schema specification** (`~standard`) for native NestJS 12 `StandardSchemaValidationPipe` compatibility.
+- Provide static `parse()` and `safeParse()` methods on the class.
+- Safely assign properties using `[[DefineOwnProperty]]` (`Object.defineProperty`), guaranteeing that own enumerable properties are created without being shadowed by prototype getters, preserving clean JSON serialization and idempotency fingerprints.
 
 **Usage — Command:**
 
 ```typescript
 // create-user.command.ts
+import { createCommand } from '@nestjs-pipeline/zod';
 import { z } from 'zod';
-import { createRequest } from './helpers/createRequest';
 
 const schema = z.object({
   username: z.string().min(4),
-  email: z.email(),
+  email: z.string().email(),
 });
 
-export interface CreateUserCommand extends z.infer<typeof schema> {}
-export class CreateUserCommand extends createRequest(schema) {}
+export class CreateUserCommand extends createCommand(schema) {}
 
 // Auto-validates at construction time:
 const cmd = new CreateUserCommand({ username: 'jane', email: 'jane@example.com' });
 cmd.username // → 'jane'
 cmd.email    // → 'jane@example.com'
 
-// Throws ZodValidationError:
+// Throws ZodValidationError on invalid input:
 new CreateUserCommand({ username: 'ab', email: 'not-an-email' });
 ```
 
@@ -150,37 +156,93 @@ new CreateUserCommand({ username: 'ab', email: 'not-an-email' });
 
 ```typescript
 // get-user.query.ts
+import { createQuery } from '@nestjs-pipeline/zod';
 import { z } from 'zod';
-import { createRequest } from './helpers/createRequest';
 
 const schema = z.object({
-  userId: z.uuid(),
+  userId: z.string().uuid(),
 });
 
-export interface GetUserQuery extends z.infer<typeof schema> {}
-export class GetUserQuery extends createRequest(schema) {}
+export class GetUserQuery extends createQuery(schema) {}
 ```
 
-**Usage — Event:**
+### Extending Base Classes (BaseCommand, BaseQuery)
+
+Both `createCommand()` and `createQuery()` accept an optional base class as the second argument. Constructor arguments of the base class are forwarded transparently via `super(...baseArgs)`:
 
 ```typescript
-// user-created.event.ts
-import { z } from 'zod';
-import { createRequest } from './helpers/createRequest';
+// Base command with ambient session user
+export abstract class BaseCommand {
+  constructor(public readonly sessionUser?: SessionUser) {}
+}
 
-const schema = z.object({
-  userId: z.uuid(),
-  username: z.string().min(1),
-  email: z.email(),
+const CreateUserSchema = z.object({
+  name: z.string().min(2),
+  email: z.string().email(),
 });
 
-export interface UserCreatedEvent extends z.infer<typeof schema> {}
-export class UserCreatedEvent extends createRequest(schema) {}
+export class CreateUserCommand extends createCommand(CreateUserSchema, BaseCommand) {}
+
+// Construct with payload and optional base class arguments:
+const cmd = new CreateUserCommand(
+  { name: 'Alice', email: 'alice@example.com' },
+  sessionUser, // forwarded to BaseCommand constructor
+);
+
+expect(cmd.name).toBe('Alice');
+expect(cmd.sessionUser).toBe(sessionUser);
+expect(cmd instanceof BaseCommand).toBe(true);
+expect(cmd instanceof CreateUserCommand).toBe(true);
+```
+
+### Standard Schema & NestJS 12 Integration
+
+Every class produced by `createCommand()`, `createQuery()`, or `createZodRequest()` attaches the [Standard Schema](https://standard-schema.dev/) symbol property (`'~standard'`).
+
+This allows passing the Command or Query class directly to NestJS 12 controllers using the built-in `StandardSchemaValidationPipe` or `@Body()`:
+
+```typescript
+// NestJS 12 Controller:
+@Post()
+create(@Body({ schema: CreateUserCommand }) body: CreateUserCommand) {
+  return this.commandBus.execute(body);
+}
+```
+
+### Static parse() and safeParse()
+
+Every generated class exposes ergonomic static parsing methods that polymorphically construct the subclass:
+
+```typescript
+// Returns an instance of CreateUserCommand or throws ZodValidationError:
+const cmd = CreateUserCommand.parse(rawInput, sessionUser);
+
+// Returns standard Zod SafeParseReturnType without throwing:
+const result = CreateUserCommand.safeParse(rawInput);
+if (result.success) {
+  console.log('Valid data:', result.data);
+} else {
+  console.error('Validation issues:', result.error.issues);
+}
+```
+
+### Type Inference Helpers (InferInput, InferOutput)
+
+Easily infer TypeScript types directly from the command/query class without re-exporting or importing the raw schema:
+
+```typescript
+import { CreateUserCommand, type InferInput, type InferOutput } from './create-user.command';
+
+// Input type (what the constructor or API endpoint accepts):
+type CreateUserDto = InferInput<typeof CreateUserCommand>;
+
+// Output type (the transformed/parsed instance payload):
+type CreateUserPayload = InferOutput<typeof CreateUserCommand>;
 ```
 
 ### Attaching Schemas Manually
 
-For event classes (or any class) that don't use `createRequest()`, attach the schema with `ZOD_SCHEMA_KEY`:
+For event classes (or any class) that don't use `createZodRequest()`, attach the schema with `ZOD_SCHEMA_KEY`:
 
 ```typescript
 import { ZOD_SCHEMA_KEY } from '@nestjs-pipeline/zod';
@@ -371,8 +433,7 @@ import { ZodValidationBehavior } from '@nestjs-pipeline/zod';
     PipelineModule.forRoot({
       globalBehaviors: {
         scope: 'all',
-        before: [LoggingBehavior],
-        after: [ZodValidationBehavior],
+        before: [LoggingBehavior, ZodValidationBehavior],
       },
     }),
     UsersModule,
@@ -392,22 +453,22 @@ async function bootstrap() {
 bootstrap();
 
 // ── create-user.command.ts ──
+import { createCommand } from '@nestjs-pipeline/zod';
 import { z } from 'zod';
 
 const schema = z.object({
   username: z.string().min(4),
-  email: z.email(),
+  email: z.string().email(),
 });
 
-export interface CreateUserCommand extends z.infer<typeof schema> {}
-export class CreateUserCommand extends createRequest(schema) {}
+export class CreateUserCommand extends createCommand(schema) {}
 
 // ── create-user.dto.ts ──
 import { z } from 'zod';
 
 export const CreateUserDtoSchema = z.object({
   name: z.string().min(5),
-  email: z.email(),
+  email: z.string().email(),
 });
 export type CreateUserDto = z.infer<typeof CreateUserDtoSchema>;
 
@@ -460,10 +521,15 @@ export class UsersController {
 
 | Export | Type | Description |
 |---|---|---|
-| `ZodValidationBehavior` | Class | Pipeline behavior — validates request against `_zodSchema` |
+| `createCommand(schema, Base?)` | Function | Generates a validated CQRS Command class tagged with `requestKind: 'command'`, `~standard`, and static `parse()`/`safeParse()` |
+| `createQuery(schema, Base?)` | Function | Generates a validated CQRS Query class tagged with `requestKind: 'query'`, `~standard`, and static `parse()`/`safeParse()` |
+| `createZodRequest(schema, Base?)` | Function | Generic factory generating a validated Request class with `~standard` forwarding and static parsers |
+| `type InferInput<T>` | Type | Extracts the input DTO type accepted by a generated command/query class |
+| `type InferOutput<T>` | Type | Extracts the parsed/transformed output payload of a generated command/query class |
+| `ZodValidationBehavior` | Class | Pipeline behavior — parses `_zodSchema` and applies successful plain-object output to the existing request |
 | `ZodValidationError` | Class | Error with `details` from `ZodError.flatten()` |
 | `ZodValidationFilter` | Class | Exception filter — catches `ZodValidationError` → HTTP 400 |
-| `ZodPipe` | Class | NestJS pipe — validates params/body/query against Zod schema |
+| `ZodPipe` | Class | Async NestJS pipe — validates params/body/query against synchronous or asynchronous Zod schemas |
 | `ZOD_SCHEMA_KEY` | `'_zodSchema'` | Key for attaching schemas to request classes |
 | `ZOD_SCHEMA` | `'_zodSchema'` | **Deprecated** — alias for `ZOD_SCHEMA_KEY`; use `ZOD_SCHEMA_KEY` instead |
 

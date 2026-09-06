@@ -16,7 +16,16 @@
  * ----------------------------
  */
 
-import { ForbiddenException, Injectable, type NestMiddleware } from '@nestjs/common';
+import { AUTH_HEADERS } from '@common/constants/auth-headers.constants';
+import {
+  ForbiddenException,
+  Injectable,
+  type NestMiddleware,
+} from '@nestjs/common';
+import {
+  normalizeSchemaName,
+  resolveAllowedTenantSchemas,
+} from '../postgres-options';
 import { TenantSchemaContext } from '../tenant-schema.context';
 
 @Injectable()
@@ -25,14 +34,14 @@ import { TenantSchemaContext } from '../tenant-schema.context';
  * inside the tenant async context used by persistence components.
  */
 export class TenantSchemaMiddleware implements NestMiddleware {
-  constructor(private readonly tenantSchemaContext: TenantSchemaContext) { }
+  constructor(private readonly tenantSchemaContext: TenantSchemaContext) {}
 
   use(
     request: { headers?: Record<string, string | string[] | undefined> },
     _response: unknown,
     next: () => void,
   ): void {
-    const rawHeaderValue = request.headers?.['x-tenant-schema'];
+    const rawHeaderValue = request.headers?.[AUTH_HEADERS.TENANT_SCHEMA];
     const headerValue = Array.isArray(rawHeaderValue)
       ? rawHeaderValue[0]
       : rawHeaderValue;
@@ -43,7 +52,12 @@ export class TenantSchemaMiddleware implements NestMiddleware {
       );
     }
 
-    this.tenantSchemaContext.run(headerValue, () => {
+    const schema = normalizeSchemaName(headerValue);
+    if (!resolveAllowedTenantSchemas().has(schema)) {
+      throw new ForbiddenException('Unknown tenant context.');
+    }
+
+    this.tenantSchemaContext.run(schema, () => {
       next();
     });
   }

@@ -71,13 +71,18 @@ function createAdapterStore(config: CacheStoreConfig): KeyvStoreAdapter {
 /** Build a single `Keyv` instance from a declarative store configuration. */
 export function buildKeyv(config: CacheStoreConfig): Keyv {
   if (config.type === 'memory') {
-    return new Keyv({ namespace: config.namespace, ttl: config.ttl });
+    return new Keyv({
+      namespace: config.namespace,
+      ttl: config.ttl,
+      throwOnErrors: true,
+    });
   }
 
   return new Keyv({
     store: createAdapterStore(config),
     namespace: config.namespace,
     ttl: config.ttl,
+    throwOnErrors: true,
   });
 }
 
@@ -88,26 +93,38 @@ export function buildKeyv(config: CacheStoreConfig): Keyv {
  * store when nothing is provided.
  */
 export function buildCache(options: CacheModuleOptions): Cache {
+  let cache: Cache;
+
   if (options.cache) {
-    return options.cache;
-  }
-
-  let stores: Keyv[];
-  if (options.stores && options.stores.length > 0) {
-    stores = options.stores;
-  } else if (options.store) {
-    const configs = Array.isArray(options.store)
-      ? options.store
-      : [options.store];
-    stores = configs.map(buildKeyv);
+    cache = options.cache;
   } else {
-    stores = [new Keyv()];
+    let stores: Keyv[];
+    if (options.stores && options.stores.length > 0) {
+      stores = options.stores;
+    } else if (options.store) {
+      const configs = Array.isArray(options.store)
+        ? options.store
+        : [options.store];
+      stores = configs.map(buildKeyv);
+    } else {
+      stores = [new Keyv({ throwOnErrors: true })];
+    }
+
+    cache = createCache({
+      stores,
+      ttl: options.ttl,
+      refreshThreshold: options.refreshThreshold,
+      nonBlocking: options.nonBlocking,
+    });
   }
 
-  return createCache({
-    stores,
-    ttl: options.ttl,
-    refreshThreshold: options.refreshThreshold,
-    nonBlocking: options.nonBlocking,
-  });
+  if (cache && Array.isArray(cache.stores)) {
+    for (const store of cache.stores) {
+      if (store && typeof store === 'object' && 'throwOnErrors' in store) {
+        store.throwOnErrors = true;
+      }
+    }
+  }
+
+  return cache;
 }

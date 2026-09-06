@@ -18,18 +18,13 @@
 
 import { filterCacheKey } from '@common/cqrs/helpers/filterCacheKey.helper';
 import { Inject, Injectable } from '@nestjs/common';
-import {
-  Cache,
-  CommandRepository,
-  ICache,
-} from '@nestjs-pipeline/ddd-core';
+import { Cache, CommandRepository, ICache } from '@nestjs-pipeline/ddd-core';
 import { CACHE_TOKEN } from '@persistence/cache/memory.cache';
 import { MIKRO_ORM_CLIENT, MikroOrmStore } from '@persistence/mikro-orm.store';
 import { User, UserSnapshot } from '../domain/models/user.entity';
-import { UserUpdateOutcome } from '../domain/outcomes/user-update.outcome';
 
 @Injectable()
-export class DeleteUserCommandRepository extends CommandRepository<UserUpdateOutcome> {
+export class DeleteUserCommandRepository extends CommandRepository<User, null> {
   constructor(
     @Inject(CACHE_TOKEN) protected readonly cache: ICache<UserSnapshot>,
     @Inject(MIKRO_ORM_CLIENT) private readonly store: MikroOrmStore,
@@ -37,32 +32,16 @@ export class DeleteUserCommandRepository extends CommandRepository<UserUpdateOut
     super(cache);
   }
 
-  @Cache()
-  async save(domainOutcome: UserUpdateOutcome): Promise<number> {
-    const { entity } = domainOutcome;
+  @Cache<User, null>(null, (user) => [
+    filterCacheKey(User.aggregateName, { id: user.id }),
+    filterCacheKey(User.aggregateName, { email: user.email }),
+  ])
+  async save(user: User): Promise<null> {
+    // ON DELETE CASCADE on junction tables (user_roles,
+    // user_additional_capabilities, user_denied_capabilities) handles
+    // relation cleanup automatically — a single delete is sufficient.
+    await this.store.em.nativeDelete(User, user.id);
 
-    // Invalidate in-memory cache
-    await this.cache?.delete(filterCacheKey(User, { _id: entity.id }));
-    if (entity.email) {
-      await this.cache?.delete(filterCacheKey(User, { email: entity.email }));
-    }
-
-    // Clean up junction tables first to prevent foreign key constraint violations
-    await this.store.em.execute(
-      'DELETE FROM user_roles WHERE user_id = ?',
-      [entity.id],
-    );
-    await this.store.em.execute(
-      'DELETE FROM user_additional_capabilities WHERE user_id = ?',
-      [entity.id],
-    );
-    await this.store.em.execute(
-      'DELETE FROM user_denied_capabilities WHERE user_id = ?',
-      [entity.id],
-    );
-
-    const result = await this.store.em.nativeDelete(User, entity.id);
-
-    return result;
+    return null;
   }
 }

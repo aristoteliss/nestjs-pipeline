@@ -66,6 +66,26 @@ describe('AuditBehavior', () => {
     write.mockReset();
   });
 
+  it('does not mutate a shared logger and supplies its context per call', async () => {
+    const logger = {
+      warn: vi.fn(),
+      error: vi.fn(),
+      setContext: vi.fn(),
+    };
+    const failingSink: AuditSink = {
+      write: vi.fn().mockRejectedValue(new Error('sink unavailable')),
+    };
+    const behavior = new AuditBehavior(failingSink, undefined, logger as never);
+
+    await behavior.handle(makeCtx(), vi.fn().mockResolvedValue('ok'));
+
+    expect(logger.setContext).not.toHaveBeenCalled();
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining('failing open'),
+      AuditBehavior.name,
+    );
+  });
+
   it('writes a success record with redacted payload and passes the response through', async () => {
     const behavior = new AuditBehavior(sink);
     const next = vi.fn().mockResolvedValue({ id: 'u1' });
@@ -109,6 +129,19 @@ describe('AuditBehavior', () => {
     });
     expect(record.error?.stack).toBeTypeOf('string');
     expect(ctx.items.get(AUDIT_RECORD_ITEM)).toBe(record);
+  });
+
+  it('records throw undefined as a failure', async () => {
+    const behavior = new AuditBehavior(sink);
+
+    await expect(
+      behavior.handle(makeCtx(), vi.fn().mockRejectedValue(undefined)),
+    ).rejects.toBeUndefined();
+
+    expect(lastRecord()).toMatchObject({
+      outcome: 'failure',
+      error: { name: 'unknown', message: 'undefined' },
+    });
   });
 
   it('captures the response when captureResponse=true', async () => {
@@ -213,6 +246,20 @@ describe('AuditBehavior', () => {
     ).rejects.toBe(sinkError);
   });
 
+  it('does not turn a successful handler into a failure audit when a fail-closed sink throws', async () => {
+    const sinkError = new Error('audit db down');
+    write.mockRejectedValueOnce(sinkError);
+    const behavior = new AuditBehavior(sink);
+    const ctx = withOptions(makeCtx(), { failOpen: false });
+    const next = vi.fn().mockResolvedValue('ok');
+
+    await expect(behavior.handle(ctx, next)).rejects.toBe(sinkError);
+
+    expect(next).toHaveBeenCalledTimes(1);
+    expect(write).toHaveBeenCalledTimes(1);
+    expect(lastRecord().outcome).toBe('success');
+  });
+
   it('merges handler options over module defaults (handler wins)', async () => {
     const behavior = new AuditBehavior(sink, { severity: 'low', action: 'x' });
     const ctx = withOptions(makeCtx(), { severity: 'critical' });
@@ -222,5 +269,85 @@ describe('AuditBehavior', () => {
     const record = lastRecord();
     expect(record.severity).toBe('critical');
     expect(record.action).toBe('x');
+  });
+
+  describe('record-construction failure and factory validation guarantees', () => {
+    it('fails closed when failOpen=false and actor factory throws', async () => {
+      const actorError = new Error(
+        'failed to resolve actor from identity provider',
+      );
+      const behavior = new AuditBehavior(sink);
+      const ctx = withOptions(makeCtx(), {
+        failOpen: false,
+        actor: () => {
+          throw actorError;
+        },
+      });
+
+      await expect(
+        behavior.handle(ctx, vi.fn().mockResolvedValue('ok')),
+      ).rejects.toBe(actorError);
+      expect(write).not.toHaveBeenCalled();
+    });
+
+    it('fails closed when failOpen=false and metadata factory throws', async () => {
+      const metaError = new Error('metadata extraction failed');
+      const behavior = new AuditBehavior(sink);
+      const ctx = withOptions(makeCtx(), {
+        failOpen: false,
+        metadata: () => {
+          throw metaError;
+        },
+      });
+
+      await expect(
+        behavior.handle(ctx, vi.fn().mockResolvedValue('ok')),
+      ).rejects.toBe(metaError);
+      expect(write).not.toHaveBeenCalled();
+    });
+
+    it('fails closed when failOpen=false and custom redactor throws', async () => {
+      const redactorError = new Error('redaction error');
+      const behavior = new AuditBehavior(sink);
+      const ctx = withOptions(makeCtx(), {
+        failOpen: false,
+        redact: () => {
+          throw redactorError;
+        },
+      });
+
+      await expect(
+        behavior.handle(ctx, vi.fn().mockResolvedValue('ok')),
+      ).rejects.toBe(redactorError);
+      expect(write).not.toHaveBeenCalled();
+    });
+
+    it('fails open when failOpen=true (default) and actor factory throws', async () => {
+      const behavior = new AuditBehavior(sink);
+      const ctx = withOptions(makeCtx(), {
+        actor: () => {
+          throw new Error('failed to resolve actor');
+        },
+      });
+
+      const result = await behavior.handle(
+        ctx,
+        vi.fn().mockResolvedValue('ok'),
+      );
+      expect(result).toBe('ok');
+      expect(write).not.toHaveBeenCalled();
+    });
+
+    it('validates that factory options are functions before execution when failOpen=false', async () => {
+      const behavior = new AuditBehavior(sink);
+      const ctx = withOptions(makeCtx(), {
+        failOpen: false,
+        actor: 'not-a-function' as any,
+      });
+
+      await expect(
+        behavior.handle(ctx, vi.fn().mockResolvedValue('ok')),
+      ).rejects.toThrow(TypeError);
+    });
   });
 });

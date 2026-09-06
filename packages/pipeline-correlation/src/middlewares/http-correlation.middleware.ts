@@ -19,21 +19,28 @@
 
 import { IncomingMessage, ServerResponse } from 'node:http';
 import { Inject, Injectable, NestMiddleware, Optional } from '@nestjs/common';
+import { DEFAULT_CORRELATION_HEADER } from '../constants/correlation.constants';
 import { correlationStore, getCorrelationId } from '../correlation.store';
 import {
   CORRELATION_OPTIONS,
   CorrelationOptions,
 } from '../options/correlation.options';
 
+const HTTP_FIELD_NAME = /^[!#$%&'*+\-.^_`|~0-9A-Za-z]+$/;
+
 /**
  * NestJS middleware that extracts a correlation ID from the incoming HTTP
- * request header and stores it in {@link correlationStore}.
+ * request header and stores it in {@link correlationStore} for the remainder of
+ * the request callback.
  *
- * The header name defaults to `x-correlation-id` and can be customized via
- * the `CORRELATION_OPTIONS` token or `correlation: { header: 'x-request-id' }`
- * in `PipelineModule.forRoot`.
+ * The header name defaults to `x-correlation-id`. Applications that need a
+ * different header can bind {@link CORRELATION_OPTIONS} with a string `header`.
+ * The middleware itself must be registered explicitly with Nest's
+ * `MiddlewareConsumer`; it is not installed by `PipelineModule`.
  *
- * Applied automatically unless `correlation: { header: false }` is set.
+ * If `header` is omitted or is any non-string value (including `false`), the
+ * current implementation uses the default `x-correlation-id` header. A false
+ * value does not disable a middleware instance that the application registered.
  */
 @Injectable()
 export class HttpCorrelationMiddleware implements NestMiddleware {
@@ -45,7 +52,11 @@ export class HttpCorrelationMiddleware implements NestMiddleware {
     options?: CorrelationOptions,
   ) {
     const h = options?.header;
-    this.header = typeof h === 'string' ? h : 'x-correlation-id';
+    if (typeof h === 'string' && !HTTP_FIELD_NAME.test(h)) {
+      throw new TypeError(`Invalid correlation HTTP header name: "${h}".`);
+    }
+    this.header =
+      typeof h === 'string' ? h.toLowerCase() : DEFAULT_CORRELATION_HEADER;
   }
 
   use(req: IncomingMessage, res: ServerResponse, next: () => void): void {

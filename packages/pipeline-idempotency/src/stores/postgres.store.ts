@@ -16,7 +16,10 @@
  * ----------------------------
  */
 
-import type { IdempotencyRecord } from '../interfaces/idempotency-record.interface';
+import type {
+  IdempotencyRecord,
+  JsonValue,
+} from '../interfaces/idempotency-record.interface';
 import type { IdempotencyStore } from '../interfaces/idempotency-store.interface';
 
 /** A single returned row, keyed by column name. */
@@ -62,7 +65,11 @@ function assertSafeTable(table: string): string {
 }
 
 /**
- * SQL to create the idempotency table. Run once in a migration.
+ * SQL to create/upgrade the idempotency table. Run once in a migration.
+ *
+ * `claim_id` is added with `IF NOT EXISTS` as well so installations created by
+ * an older package version can adopt owner-aware completion without dropping
+ * existing records.
  *
  * @param table - Table name (validated). Default `'idempotency_keys'`.
  */
@@ -72,12 +79,14 @@ export function createIdempotencyTableSql(table = 'idempotency_keys'): string {
   key           TEXT        PRIMARY KEY,
   status        TEXT        NOT NULL,
   request_name  TEXT        NOT NULL,
+  claim_id      TEXT,
   fingerprint   TEXT,
   response      JSONB,
   created_at    TIMESTAMPTZ NOT NULL,
   completed_at  TIMESTAMPTZ,
   expires_at    TIMESTAMPTZ NOT NULL
 );
+ALTER TABLE ${name} ADD COLUMN IF NOT EXISTS claim_id TEXT;
 CREATE INDEX IF NOT EXISTS ${indexName(name)} ON ${name} (expires_at);`;
 }
 
@@ -96,8 +105,11 @@ function mapRow(key: string, row: PostgresRowLike): IdempotencyRecord {
     key,
     status: row.status as IdempotencyRecord['status'],
     requestName: row.request_name as string,
+    claimId: (row.claim_id as string | null) ?? undefined,
     fingerprint: (row.fingerprint as string | null) ?? undefined,
-    response: row.response ?? undefined,
+    // SQL NULL → has_response=false → undefined (no response stored).
+    // JSONB null → has_response=true, row.response=null → null (explicit null).
+    response: row.has_response ? (row.response as JsonValue) : undefined,
     createdAt: toIso(row.created_at),
     completedAt: row.completed_at ? toIso(row.completed_at) : undefined,
   };
@@ -108,9 +120,11 @@ function mapRow(key: string, row: PostgresRowLike): IdempotencyRecord {
  * replacement that shares state across instances without a separate Redis.
  *
  * Create the table once with {@link createIdempotencyTableSql}. Atomicity of
- * {@link setIfAbsent} comes from `INSERT … ON CONFLICT (key) DO NOTHING`: a CTE
- * first purges an expired row for the key, then the insert claims it only if no
- * live row exists. The table name is validated as a plain SQL identifier (it is
+ * {@link setIfAbsent} comes from a conditional `INSERT … ON CONFLICT … DO
+ * UPDATE`: an absent key is inserted, an expired key is atomically replaced,
+ * and a live conflict is left untouched. Completion/release also compare
+ * `claim_id` in the same SQL statement, so a stale execution cannot mutate a
+ * newer claim. The table name is validated as a plain SQL identifier (it is
  * interpolated, not parameterized); all values are passed as bound parameters.
  *
  * @example
@@ -133,7 +147,9 @@ export class PostgresIdempotencyStore implements IdempotencyStore {
 
   async get(key: string): Promise<IdempotencyRecord | undefined> {
     const result = await this.db.query(
-      `SELECT status, request_name, fingerprint, response, created_at, completed_at
+      `SELECT status, request_name, claim_id, fingerprint, response,
+              response IS NOT NULL AS has_response,
+              created_at, completed_at
          FROM ${this.table}
         WHERE key = $1 AND expires_at > now()`,
       [key],
@@ -148,15 +164,70 @@ export class PostgresIdempotencyStore implements IdempotencyStore {
     ttlMs: number,
   ): Promise<boolean> {
     const result = await this.db.query(
-      `WITH purged AS (
-         DELETE FROM ${this.table} WHERE key = $1 AND expires_at <= now()
-       )
-       INSERT INTO ${this.table}
-         (key, status, request_name, fingerprint, response, created_at, completed_at, expires_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-       ON CONFLICT (key) DO NOTHING
+      `INSERT INTO ${this.table} AS current_record
+         (key, status, request_name, claim_id, fingerprint, response, created_at, completed_at, expires_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+       ON CONFLICT (key) DO UPDATE SET
+         status = EXCLUDED.status,
+         request_name = EXCLUDED.request_name,
+         claim_id = EXCLUDED.claim_id,
+         fingerprint = EXCLUDED.fingerprint,
+         response = EXCLUDED.response,
+         created_at = EXCLUDED.created_at,
+         completed_at = EXCLUDED.completed_at,
+         expires_at = EXCLUDED.expires_at
+       WHERE current_record.expires_at <= now()
        RETURNING key`,
       this.toValues(key, record, ttlMs),
+    );
+    return result.rows.length > 0;
+  }
+
+  async completeIfOwned(
+    key: string,
+    claimId: string,
+    record: IdempotencyRecord,
+    ttlMs: number,
+  ): Promise<boolean> {
+    const result = await this.db.query(
+      `UPDATE ${this.table}
+          SET status = $3,
+              request_name = $4,
+              claim_id = $5,
+              fingerprint = $6,
+              response = $7,
+              created_at = $8,
+              completed_at = $9,
+              expires_at = $10
+        WHERE key = $1
+          AND claim_id = $2
+          AND status = 'in_progress'
+          AND expires_at > now()
+        RETURNING key`,
+      [
+        key,
+        claimId,
+        record.status,
+        record.requestName,
+        record.claimId ?? null,
+        record.fingerprint ?? null,
+        record.response === undefined ? null : JSON.stringify(record.response),
+        record.createdAt,
+        record.completedAt ?? null,
+        new Date(Date.now() + ttlMs).toISOString(),
+      ],
+    );
+    return result.rows.length > 0;
+  }
+
+  async deleteIfOwned(key: string, claimId: string): Promise<boolean> {
+    const result = await this.db.query(
+      `DELETE FROM ${this.table}
+        WHERE key = $1
+          AND claim_id = $2
+          AND expires_at > now()
+        RETURNING key`,
+      [key, claimId],
     );
     return result.rows.length > 0;
   }
@@ -168,11 +239,15 @@ export class PostgresIdempotencyStore implements IdempotencyStore {
   ): Promise<void> {
     await this.db.query(
       `INSERT INTO ${this.table}
-         (key, status, request_name, fingerprint, response, created_at, completed_at, expires_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+         (key, status, request_name, claim_id, fingerprint, response, created_at, completed_at, expires_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
        ON CONFLICT (key) DO UPDATE SET
          status = EXCLUDED.status,
+         request_name = EXCLUDED.request_name,
+         claim_id = EXCLUDED.claim_id,
+         fingerprint = EXCLUDED.fingerprint,
          response = EXCLUDED.response,
+         created_at = EXCLUDED.created_at,
          completed_at = EXCLUDED.completed_at,
          expires_at = EXCLUDED.expires_at`,
       this.toValues(key, record, ttlMs),
@@ -192,6 +267,7 @@ export class PostgresIdempotencyStore implements IdempotencyStore {
       key,
       record.status,
       record.requestName,
+      record.claimId ?? null,
       record.fingerprint ?? null,
       record.response === undefined ? null : JSON.stringify(record.response),
       record.createdAt,

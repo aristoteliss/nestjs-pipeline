@@ -16,14 +16,18 @@
  * ----------------------------
  */
 
-import { getSessionUserFromStore } from '@common/context/session-user.store';
-import { SessionUser } from '@common/types/SessionUser';
-import { ICommand } from '@nestjs/cqrs';
+import type { SessionUser } from '@common/types/SessionUser';
+import type { ICommand } from '@nestjs/cqrs';
 
 export abstract class BaseCommand implements ICommand {
-  public readonly sessionUser?: SessionUser;
+  public declare readonly sessionUser?: SessionUser;
 
   constructor(sessionUser?: SessionUser) {
-    this.sessionUser = sessionUser ?? getSessionUserFromStore();
+    if (sessionUser !== undefined) {
+      Object.defineProperty(this, 'sessionUser', {
+        value: sessionUser,
+        enumerable: false,
+      });
+    }
   }
 }

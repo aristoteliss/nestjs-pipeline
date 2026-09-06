@@ -26,10 +26,11 @@ import type { IdempotencyRequestKind } from './idempotency-record.interface';
 import type { IdempotencyStore } from './idempotency-store.interface';
 
 /**
- * Derives the idempotency key for a request from the pipeline context — e.g. an
- * `Idempotency-Key` header stashed on `context.items` by a controller, or a
- * natural key from the command payload. Return `undefined` to skip
- * deduplication for this request.
+ * Derives the idempotency key for a request from the pipeline context. A common
+ * HTTP pattern is to copy the `Idempotency-Key` header into the CQRS command at
+ * the controller boundary and read it from `context.request`. An upstream
+ * behavior may alternatively place application metadata in `context.items`.
+ * Return `undefined` to skip deduplication for this request.
  */
 export type IdempotencyKeyFactory = (
   context: IPipelineContext,
@@ -40,13 +41,16 @@ export interface IdempotencyBehaviorOptions {
   /**
    * Derives the idempotency key from the request/context. **Required** for the
    * behavior to do anything — without a key (or when it returns `undefined`)
-   * the handler runs normally.
+   * the handler runs normally. Include tenant/principal ownership whenever a
+   * replay would otherwise bypass handler-level authorization.
    */
   keyFactory?: IdempotencyKeyFactory;
 
   /**
    * How long a key is remembered, in milliseconds. After this window the key
-   * may be reused and a fresh execution occurs. Default `86_400_000` (24h).
+   * may be reused and a fresh execution occurs. Successful completion restarts
+   * the TTL for the replay record. Must be a positive safe integer. Default
+   * `86_400_000` (24h).
    */
   ttl?: number;
 
@@ -95,7 +99,7 @@ export interface IdempotencyModuleAsyncOptions
   useFactory: (
     ...args: never[]
   ) => IdempotencyStore | Promise<IdempotencyStore>;
-  /** Providers injected into `useFactory`. */
+  /** Providers injected into {@link useFactory}. */
   inject?: Array<InjectionToken | OptionalFactoryDependency>;
   /** Module-wide default options merged under each handler's options. */
   defaults?: IdempotencyBehaviorOptions;

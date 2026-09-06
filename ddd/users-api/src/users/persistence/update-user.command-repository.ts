@@ -17,19 +17,17 @@
  */
 
 import { filterCacheKey } from '@common/cqrs/helpers/filterCacheKey.helper';
-import { Inject, Injectable } from '@nestjs/common';
-import {
-  Cache,
-  CommandRepository,
-  ICache,
-} from '@nestjs-pipeline/ddd-core';
+import { Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { Cache, CommandRepository, ICache } from '@nestjs-pipeline/ddd-core';
 import { CACHE_TOKEN } from '@persistence/cache/memory.cache';
 import { MIKRO_ORM_CLIENT, MikroOrmStore } from '@persistence/mikro-orm.store';
 import { User, UserSnapshot } from '../domain/models/user.entity';
-import { UserUpdateOutcome } from '../domain/outcomes/user-update.outcome';
 
 @Injectable()
-export class UpdateUserCommandRepository extends CommandRepository<UserUpdateOutcome> {
+export class UpdateUserCommandRepository extends CommandRepository<
+  User,
+  UserSnapshot
+> {
   constructor(
     @Inject(CACHE_TOKEN) protected readonly cache: ICache<UserSnapshot>,
     @Inject(MIKRO_ORM_CLIENT) private readonly store: MikroOrmStore,
@@ -37,16 +35,25 @@ export class UpdateUserCommandRepository extends CommandRepository<UserUpdateOut
     super(cache);
   }
 
-  @Cache()
-  async save(domainOutcome: UserUpdateOutcome): Promise<UserSnapshot> {
-    const { entity } = domainOutcome;
+  @Cache<User, UserSnapshot>(
+    (user) => filterCacheKey(User.aggregateName, { id: user.id }),
+    null,
+    (user) => [filterCacheKey(User.aggregateName, { email: user.email })],
+  )
+  async save(user: User): Promise<UserSnapshot> {
+    const affected = await this.store.em.nativeUpdate(
+      User,
+      { id: user.id },
+      {
+        username: user.username,
+        department: user.department ?? null,
+        updatedAt: user.updatedAt,
+      },
+    );
 
-    await this.cache?.delete(filterCacheKey(User, { _id: entity.id }));
-    if (entity.email) {
-      await this.cache?.delete(filterCacheKey(User, { email: entity.email }));
+    if (affected === 0) {
+      throw new NotFoundException('User not found');
     }
-
-    const user = await this.store.em.upsert(User, entity);
 
     return user.toJSON();
   }

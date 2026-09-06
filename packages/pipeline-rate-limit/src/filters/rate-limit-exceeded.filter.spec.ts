@@ -36,17 +36,20 @@ const error = new RateLimitExceededError({
 });
 
 describe('RateLimitExceededFilter', () => {
-  it('responds 429 with a JSON body and a Fastify-style Retry-After header', () => {
-    const json = vi.fn();
-    const status = vi.fn().mockReturnValue({ json });
-    const header = vi.fn();
-    const response = { status, header };
+  it('responds 429 with a Fastify send body and Retry-After header', () => {
+    const send = vi.fn();
+    const response = {
+      status: vi.fn(),
+      header: vi.fn(),
+      send,
+    };
+    response.status.mockReturnValue(response);
 
     new RateLimitExceededFilter().catch(error, makeHost(response));
 
-    expect(header).toHaveBeenCalledWith('Retry-After', '3');
-    expect(status).toHaveBeenCalledWith(429);
-    expect(json).toHaveBeenCalledWith({
+    expect(response.header).toHaveBeenCalledWith('Retry-After', '3');
+    expect(response.status).toHaveBeenCalledWith(429);
+    expect(send).toHaveBeenCalledWith({
       statusCode: 429,
       error: 'Too Many Requests',
       message: error.message,
@@ -54,15 +57,24 @@ describe('RateLimitExceededFilter', () => {
     });
   });
 
-  it('falls back to an Express-style setHeader', () => {
+  it('falls back to an Express-style setHeader and json response', () => {
     const json = vi.fn();
-    const status = vi.fn().mockReturnValue({ json });
-    const setHeader = vi.fn();
-    const response = { status, setHeader };
+    const response = {
+      status: vi.fn(),
+      setHeader: vi.fn(),
+      json,
+    };
+    response.status.mockReturnValue(response);
 
     new RateLimitExceededFilter().catch(error, makeHost(response));
 
-    expect(setHeader).toHaveBeenCalledWith('Retry-After', '3');
-    expect(status).toHaveBeenCalledWith(429);
+    expect(response.setHeader).toHaveBeenCalledWith('Retry-After', '3');
+    expect(response.status).toHaveBeenCalledWith(429);
+    expect(json).toHaveBeenCalledWith({
+      statusCode: 429,
+      error: 'Too Many Requests',
+      message: error.message,
+      retryAfter: 3,
+    });
   });
 });

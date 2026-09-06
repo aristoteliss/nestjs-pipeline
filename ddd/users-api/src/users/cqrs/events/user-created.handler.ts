@@ -48,14 +48,15 @@ export class UserCreatedHandler implements IEventHandler<UserCreatedEvent> {
   constructor(
     @InjectQueue(WELCOME_EMAIL_QUEUE)
     private readonly welcomeEmailQueue: Queue<WelcomeEmailJobData>,
-  ) { }
+    private readonly tenantSchemaContext: TenantSchemaContext,
+  ) {}
 
   async handle(event: UserCreatedEvent): Promise<void> {
     const {
       entity: { id: userId, username, email },
     } = event;
     const correlationId = getCorrelationId();
-    const tenant = TenantSchemaContext.currentSchema;
+    const tenant = this.tenantSchemaContext.schema;
 
     this.logger.log(
       `📬 [${correlationId}] UserCreated — id: ${userId}, username: ${username}, email: ${email}, tenant: ${tenant}`,

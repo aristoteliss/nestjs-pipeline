@@ -18,7 +18,6 @@
 
 import { RootEntity, RootEntitySnapshot } from '@nestjs-pipeline/ddd-core';
 import { CreatedAuthEvent } from '../events/create-auth.event';
-import { AuthCreateOutcome } from '../outcomes/auth-create.outcome';
 
 export interface AuthSnapshot extends Partial<RootEntitySnapshot> {
   readonly userId: string;
@@ -26,27 +25,27 @@ export interface AuthSnapshot extends Partial<RootEntitySnapshot> {
 }
 
 export class Auth extends RootEntity<AuthSnapshot> {
-  readonly prefixKey = 'auth:';
+  /** Canonical logical aggregate name used for cache namespacing and event topics. */
+  public static readonly aggregateName = 'auth';
 
   readonly userId: string;
   readonly token: string;
 
-  private constructor(snapshot: AuthSnapshot) {
+  constructor(snapshot?: AuthSnapshot) {
     super(snapshot);
+    if (!snapshot) {
+      this.userId = '';
+      this.token = '';
+      return;
+    }
     this.userId = snapshot.userId;
     this.token = snapshot.token;
   }
 
-  get cacheKey(): string {
-    return `${this.prefixKey}${this.id}`;
-  }
-
-  static create(
-    userId: string,
-    token: string,
-  ): AuthCreateOutcome {
+  static create(userId: string, token: string): Auth {
     const auth = new Auth({ userId, token });
-    return new AuthCreateOutcome(auth, [new CreatedAuthEvent(auth)]);
+    auth.apply(new CreatedAuthEvent(auth));
+    return auth;
   }
 
   static fromJSON(snapshot: AuthSnapshot): Auth {
@@ -69,6 +68,5 @@ export class Auth extends RootEntity<AuthSnapshot> {
     });
   }
 
-  afterUpdate(): void { }
+  afterUpdate(): void {}
 }
-

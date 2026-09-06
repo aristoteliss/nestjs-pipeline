@@ -1,7 +1,7 @@
 {
   "name": "@nestjs-pipeline/zod",
-  "version": "0.1.6",
-  "description": "Zod validation behavior for @nestjs-pipeline/core",
+  "version": "0.1.7",
+  "description": "Zod validation/parsing behavior for @nestjs-pipeline/core that applies successful parsed object output to the existing request",
   "author": "Aristotelis <aristotelis@ik.me>",
   "license": "SEE LICENSE IN LICENSE",
   "repository": {
@@ -30,18 +30,20 @@
     "rebuild": "pnpm run clean && pnpm run build",
     "lint": "tsc --noEmit",
     "test": "vitest run",
+    "prepack": "node ../../scripts/package-licenses.mjs prepare",
+    "postpack": "node ../../scripts/package-licenses.mjs cleanup",
     "prepublishOnly": "pnpm run build"
   },
   "peerDependencies": {
-    "@nestjs-pipeline/core": "*",
-    "@nestjs/common": ">=10",
+    "@nestjs-pipeline/core": "^0.1.19",
+    "@nestjs/common": "^10.0.0 || ^11.0.0",
     "zod": "^4.0.0"
   },
   "devDependencies": {
     "@nestjs-pipeline/core": "workspace:*",
-    "@nestjs/common": "^11.1.24",
+    "@nestjs/common": "^11.2.1",
     "reflect-metadata": "^0.2.2",
-    "vitest": "^4.1.7",
+    "vitest": "^4.1.11",
     "zod": "^4.4.3"
   }
 }

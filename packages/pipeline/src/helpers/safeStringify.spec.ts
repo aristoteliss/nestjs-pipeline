@@ -28,7 +28,11 @@ describe('safeStringify', () => {
   });
 
   it('excludes keys at all nesting levels', () => {
-    const obj = { a: 1, nested: { secret: 'hidden', b: 2 }, arr: [{ password: 'x', c: 3 }] };
+    const obj = {
+      a: 1,
+      nested: { secret: 'hidden', b: 2 },
+      arr: [{ password: 'x', c: 3 }],
+    };
     const exclude = new Set(['secret', 'password']);
     const result = safeStringify(obj, exclude);
     expect(result).toBe('{"a":1,"nested":{"b":2},"arr":[{"c":3}]}');
@@ -48,6 +52,17 @@ describe('safeStringify', () => {
     expect(safeStringify('text')).toBe('"text"');
     expect(safeStringify(null)).toBe('null');
     expect(safeStringify(true)).toBe('true');
+    expect(safeStringify(undefined)).toBe('undefined');
+  });
+
+  it('serializes an own __proto__ property as data', () => {
+    const input = { value: 1 } as Record<string, unknown>;
+    Object.defineProperty(input, '__proto__', {
+      enumerable: true,
+      value: { safe: true },
+    });
+
+    expect(safeStringify(input)).toBe('{"value":1,"__proto__":{"safe":true}}');
   });
 
   it('handles circular references gracefully', () => {
@@ -68,6 +83,29 @@ describe('safeStringify', () => {
     const result = safeStringify(a);
     expect(result).toContain('[Circular]');
     expect(() => JSON.parse(result)).not.toThrow();
+  });
+
+  it('does not misclassify a repeated non-circular object reference as circular', () => {
+    const shared = { id: 'shared' };
+    const result = safeStringify({ first: shared, second: shared });
+
+    expect(result).toBe('{"first":{"id":"shared"},"second":{"id":"shared"}}');
+  });
+
+  it('handles self-referential Map and Set values without recursing forever', () => {
+    const map = new Map<string, unknown>();
+    map.set('self', map);
+    const set = new Set<unknown>();
+    set.add(set);
+
+    expect(safeStringify(map)).toBe('{"self":"[Circular]"}');
+    expect(safeStringify(set)).toBe('["[Circular]"]');
+  });
+
+  it('does not throw when sanitizing an invalid Date', () => {
+    const invalid = new Date('not-a-date');
+    expect(() => safeStringify({ invalid })).not.toThrow();
+    expect(safeStringify({ invalid })).toBe('{"invalid":"[Invalid Date]"}');
   });
 
   it('supports indentation', () => {

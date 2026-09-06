@@ -16,12 +16,17 @@
  * ----------------------------
  */
 
+import { APP_ACTIONS, APP_SUBJECTS } from '@common/constants';
 import { Inject } from '@nestjs/common';
 import { type IQueryHandler, QueryHandler } from '@nestjs/cqrs';
-import { CaslBehavior } from '@nestjs-pipeline/casl';
+import {
+  CaslAuthorizer,
+  CaslBehavior,
+  UnauthorizedActionException,
+} from '@nestjs-pipeline/casl';
 import { UsePipeline } from '@nestjs-pipeline/core';
-import { IQueryRepository } from '@nestjs-pipeline/ddd-core';
-import type { Role } from '../../domain/models/role.entity';
+import type { IQueryRepository } from '@nestjs-pipeline/ddd-core';
+import { Role, type RoleSnapshot } from '../../domain/models/role.entity';
 import { QUERY_REPOSITORY } from '../../persistence/repository.tokens';
 import { GetRolesQuery } from './get-roles.query';
 
@@ -29,17 +34,32 @@ import { GetRolesQuery } from './get-roles.query';
 @UsePipeline([
   CaslBehavior,
   {
-    subjectFromRequest: 'Role',
-    rules: [{ action: 'read', subject: 'Role' }],
+    rules: [{ action: APP_ACTIONS.READ, subject: APP_SUBJECTS.ROLE }],
   },
 ])
-export class GetRolesHandler implements IQueryHandler<GetRolesQuery, Role[]> {
+export class GetRolesHandler
+  implements IQueryHandler<GetRolesQuery, RoleSnapshot[]>
+{
   constructor(
     @Inject(QUERY_REPOSITORY.getRoles)
     private readonly queryRepository: IQueryRepository<GetRolesQuery, Role[]>,
-  ) { }
+    private readonly authorizer: CaslAuthorizer,
+  ) {}
 
-  async execute(query: GetRolesQuery): Promise<Role[]> {
-    return await this.queryRepository.find(query);
+  async execute(query: GetRolesQuery): Promise<RoleSnapshot[]> {
+    const rawRoles = await this.queryRepository.find(query);
+    const result: RoleSnapshot[] = [];
+    for (const raw of rawRoles) {
+      const role = Role.from(raw);
+      if (!role) continue;
+      try {
+        result.push(this.authorizer.authorize('read', role) as RoleSnapshot);
+      } catch (err) {
+        if (!(err instanceof UnauthorizedActionException)) {
+          throw err;
+        }
+      }
+    }
+    return result;
   }
 }

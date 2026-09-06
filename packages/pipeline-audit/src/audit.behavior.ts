@@ -28,7 +28,6 @@ import {
   type IPipelineContext,
   LOGGING_BEHAVIOR_LOGGER,
   type NextDelegate,
-  untyped,
 } from '@nestjs-pipeline/core';
 import { AUDIT_DEFAULT_OPTIONS, AUDIT_SINK } from './constants/tokens';
 import { buildAuditRecord } from './helpers/build-record';
@@ -36,22 +35,30 @@ import type { AuditBehaviorOptions } from './interfaces/audit-options.interface'
 import type { AuditRecord } from './interfaces/audit-record.interface';
 import type { AuditSink } from './interfaces/audit-sink.interface';
 
-/** Item key set on the pipeline context holding the produced {@link AuditRecord}. */
-export const AUDIT_RECORD_ITEM = 'audit.record';
+/**
+ * Unique symbol key used on `context.items` to store or retrieve the produced {@link AuditRecord}.
+ *
+ * @example
+ * ```ts
+ * const record = context.items.get(AUDIT_RECORD_ITEM) as AuditRecord | undefined;
+ * ```
+ */
+export const AUDIT_RECORD_ITEM = Symbol('AUDIT_RECORD_ITEM');
 
 /**
  * Pipeline behavior that writes an {@link AuditRecord} for every audited
  * request — **on both success and failure** — to a pluggable {@link AuditSink}.
  *
  * For each run it times the handler, resolves the actor and action, redacts the
- * payload (and optionally the response), then forwards the record. On failure it
- * records the error and **re-throws**, so the audit trail captures denied and
- * rejected attempts too — exactly what security/compliance audits need.
+ * payload (and optionally the response), then forwards the record. Handler
+ * failures are recorded before propagation. With the default `failOpen: true`,
+ * sink failures are logged and the original handler result/error is preserved;
+ * with `failOpen: false`, a sink failure is propagated and can replace a handler
+ * error that was being audited.
  *
  * Sink-agnostic by design: it depends only on {@link AuditSink}, so the backend
  * (console, Postgres, an event store, …) is a one-line swap in
- * {@link AuditModule.forRoot}. Sink failures never break the request unless
- * `failOpen: false`.
+ * {@link AuditModule.forRoot}. Record-building failures are logged and ignored.
  *
  * **Ordering:** place this near the **outside** of the chain (e.g. global
  * `before`) so the duration covers the whole handler, and after any auth
@@ -92,11 +99,6 @@ export class AuditBehavior implements IPipelineBehavior {
     }
 
     this.logger = logger;
-    if (typeof untyped(this.logger).setContext === 'function') {
-      (
-        this.logger as LoggerService & { setContext(context: string): void }
-      ).setContext(AuditBehavior.name);
-    }
   }
 
   async handle(
@@ -109,29 +111,51 @@ export class AuditBehavior implements IPipelineBehavior {
       return next();
     }
 
+    const failOpen = options.failOpen ?? true;
+    this.validateFactories(options, failOpen);
+
     const startedAt = new Date();
     const start = performance.now();
 
+    let response: unknown;
     try {
-      const response = await next();
-      await this.record({
-        context,
-        options,
-        response,
-        durationMs: performance.now() - start,
-        startedAt: startedAt.toISOString(),
-      });
-      return response;
+      response = await next();
     } catch (error) {
-      await this.record({
-        context,
-        options,
-        error,
-        durationMs: performance.now() - start,
-        startedAt: startedAt.toISOString(),
-      });
+      try {
+        await this.record({
+          context,
+          options,
+          error,
+          failed: true,
+          durationMs: performance.now() - start,
+          startedAt: startedAt.toISOString(),
+        });
+      } catch (recordError) {
+        this.logger.error?.(
+          `Audit recording also failed after request error: ${recordError instanceof Error ? recordError.message : recordError}`,
+          AuditBehavior.name,
+        );
+        if (
+          !failOpen &&
+          error instanceof Error &&
+          recordError instanceof Error &&
+          !(error as { cause?: unknown }).cause
+        ) {
+          (error as { cause?: unknown }).cause = recordError;
+        }
+      }
       throw error;
     }
+
+    await this.record({
+      context,
+      options,
+      response,
+      failed: false,
+      durationMs: performance.now() - start,
+      startedAt: startedAt.toISOString(),
+    });
+    return response;
   }
 
   /** Build the record, forward it to the sink, and stash it on the context. */
@@ -140,19 +164,25 @@ export class AuditBehavior implements IPipelineBehavior {
     options: AuditBehaviorOptions;
     response?: unknown;
     error?: unknown;
+    failed: boolean;
     durationMs: number;
     startedAt: string;
   }): Promise<void> {
+    const failOpen = input.options.failOpen ?? true;
     let record: AuditRecord;
     try {
       record = buildAuditRecord(input);
     } catch (buildError) {
-      // Building the record must never break the request.
-      this.logger.error?.(
+      const message =
         `Failed to build audit record for ${input.context.requestName}: ` +
-          `${buildError instanceof Error ? buildError.message : buildError}`,
-      );
-      return;
+        `${buildError instanceof Error ? buildError.message : buildError}`;
+
+      if (failOpen) {
+        this.logger.warn?.(`${message}; failing open`, AuditBehavior.name);
+        return;
+      }
+      this.logger.error?.(`${message}; failing closed`, AuditBehavior.name);
+      throw buildError;
     }
 
     input.context.items.set(AUDIT_RECORD_ITEM, record);
@@ -165,12 +195,75 @@ export class AuditBehavior implements IPipelineBehavior {
         `(correlationId: ${record.correlationId}): ` +
         `${sinkError instanceof Error ? sinkError.message : sinkError}`;
 
-      if (input.options.failOpen ?? true) {
-        this.logger.warn?.(`${message}; failing open`);
+      if (failOpen) {
+        this.logger.warn?.(`${message}; failing open`, AuditBehavior.name);
         return;
       }
-      this.logger.error?.(`${message}; failing closed`);
+      this.logger.error?.(`${message}; failing closed`, AuditBehavior.name);
       throw sinkError;
+    }
+  }
+
+  /** Validates configured factory options before request execution. */
+  private validateFactories(
+    options: AuditBehaviorOptions,
+    failOpen: boolean,
+  ): void {
+    if (options.actor !== undefined && typeof options.actor !== 'function') {
+      const error = new TypeError(
+        `Invalid audit actor factory: expected a function, received ${typeof options.actor}`,
+      );
+      if (failOpen) {
+        this.logger.warn?.(
+          `${error.message}; failing open`,
+          AuditBehavior.name,
+        );
+      } else {
+        this.logger.error?.(
+          `${error.message}; failing closed`,
+          AuditBehavior.name,
+        );
+        throw error;
+      }
+    }
+
+    if (
+      options.metadata !== undefined &&
+      typeof options.metadata !== 'function'
+    ) {
+      const error = new TypeError(
+        `Invalid audit metadata factory: expected a function, received ${typeof options.metadata}`,
+      );
+      if (failOpen) {
+        this.logger.warn?.(
+          `${error.message}; failing open`,
+          AuditBehavior.name,
+        );
+      } else {
+        this.logger.error?.(
+          `${error.message}; failing closed`,
+          AuditBehavior.name,
+        );
+        throw error;
+      }
+    }
+
+    if (options.redact !== undefined && typeof options.redact !== 'function') {
+      const error = new TypeError(
+        `Invalid audit redactor: expected a function, received ${typeof options.redact}`,
+      );
+      if (failOpen) {
+        this.logger.warn?.(
+          `${error.message}; failing open`,
+          AuditBehavior.name,
+        );
+      } else {
+        this.logger.error?.(
+          `${error.message}; failing closed`,
+          AuditBehavior.name,
+        );
+        throw error;
+      }
     }
   }
 

@@ -52,10 +52,13 @@ export function getBehaviorId(cls: Type<IPipelineBehavior>): string {
 }
 
 /**
- * Static registry populated at decoration time.
- * Maps handler class name → Map<behaviorName, options>.
+ * Legacy diagnostic registry populated at decoration time.
+ * Maps handler class name → Map<behaviorName, options>. It is not used for
+ * pipeline execution; bootstrap reads reflection metadata from discovered CQRS
+ * handlers. Class-name collisions can overwrite entries, so consumers must not
+ * treat this map as authoritative.
  *
- * Available immediately after module load — no runtime scanning needed.
+ * @deprecated Read handler reflection metadata directly when possible.
  */
 export const PIPELINE_OPTIONS_REGISTRY = new Map<
   string,
@@ -78,7 +81,7 @@ export function clearPipelineOptionsRegistry(): void {
 /**
  * A pipeline behavior entry can be either:
  * - A behavior class: `LoggingBehavior`
- * - A tuple of behavior class and options: `[AuditBehavior, { title: '...', message: '...' }]`
+ * - A tuple of behavior class and options: `[AuditBehavior, { action: 'user.create', severity: 'high' }]`
  */
 export type PipelineBehaviorEntry =
   | Type<IPipelineBehavior>
@@ -99,7 +102,7 @@ export type PipelineBehaviorEntry =
  * @example
  * ```ts
  * @CommandHandler(CreateUserCommand)
- * @UsePipeline(LoggingBehavior, [AuditBehavior, { title: 'User Created', message: '...' }])
+ * @UsePipeline(LoggingBehavior, [AuditBehavior, { action: 'user.create', severity: 'high' }])
  * export class CreateUserHandler implements ICommandHandler<CreateUserCommand> { ... }
  *
  * @EventsHandler(OrderCreatedEvent)

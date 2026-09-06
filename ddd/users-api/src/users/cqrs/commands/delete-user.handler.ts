@@ -16,12 +16,12 @@
  * ----------------------------
  */
 
+import { APP_ACTIONS, APP_SUBJECTS, AUDIT_ACTIONS } from '@common/constants';
 import { getSessionUserFromStore } from '@common/context/session-user.store';
-import { Inject, NotFoundException, Optional } from '@nestjs/common';
+import { Inject, NotFoundException } from '@nestjs/common';
 import { CommandHandler, EventBus } from '@nestjs/cqrs';
-import { AuditBehavior } from '@nestjs-pipeline/audit';
-import { PIPELINE_CACHE } from '@nestjs-pipeline/cache';
-import { CaslBehavior } from '@nestjs-pipeline/casl';
+import { AUDIT_SEVERITY, AuditBehavior } from '@nestjs-pipeline/audit';
+import { CaslAuthorizer, CaslBehavior } from '@nestjs-pipeline/casl';
 import { LoggingBehavior, UsePipeline } from '@nestjs-pipeline/core';
 import {
   CommandBaseHandler,
@@ -29,13 +29,12 @@ import {
   IQueryRepository,
 } from '@nestjs-pipeline/ddd-core';
 import { ResilienceBehavior } from '@nestjs-pipeline/resilience';
-import { TenantSchemaContext } from '@persistence/tenant-schema.context';
+import { isTransientPersistenceError } from '@persistence/is-transient-persistence-error';
 import { User } from '../../domain/models/user.entity';
-import { UserUpdateOutcome } from '../../domain/outcomes/user-update.outcome';
 import {
   COMMAND_REPOSITORY,
   QUERY_REPOSITORY,
-} from '../../repositories/repository.tokens';
+} from '../../persistence/repository.tokens';
 import { GetUserQuery } from '../queries/get-user.query';
 import { DeleteUserCommand } from './delete-user.command';
 
@@ -45,24 +44,23 @@ import { DeleteUserCommand } from './delete-user.command';
   [
     CaslBehavior,
     {
-      subjectFromRequest: 'User',
-      rules: [{ action: 'delete', subject: 'User' }],
+      rules: [{ action: APP_ACTIONS.DELETE, subject: APP_SUBJECTS.USER }],
     },
   ],
   /**
    * Wrap the delete in a resilience policy for transient-fault handling.
    *
    * Effective composition (outermost → innermost):
-   *   retry → circuitBreaker → timeout → handler
+   *   retry → circuitBreaker → handler
    *
-   * - timeout:        abort the DB read/write if it hangs past 3s.
    * - retry:          up to 3 attempts with decorrelated-jitter exponential
    *                   backoff — but only for transient errors (see `handle`).
    * - circuitBreaker: after 5 consecutive failures, fail fast for 10s to give a
    *                   struggling database time to recover.
    *
-   * `handle` excludes the domain "user not found" case so a genuinely missing
-   * user is NOT retried and does NOT trip the breaker.
+   * `handle` accepts only known transient persistence/network failures, so
+   * deterministic HTTP/domain failures are not retried or counted by the
+   * circuit breaker.
    *
    * Note: retry/circuit events are already logged by ResilienceBehavior through
    * the injected logger (nestjs-pino via LOGGING_BEHAVIOR_LOGGER). The
@@ -72,8 +70,7 @@ import { DeleteUserCommand } from './delete-user.command';
   [
     ResilienceBehavior,
     {
-      handle: (error: unknown) => !(error instanceof NotFoundException),
-      timeout: { duration: 3_000 },
+      handle: isTransientPersistenceError,
       retry: {
         maxAttempts: 3,
         backoff: { type: 'exponential', initialDelay: 100, maxDelay: 2_000 },
@@ -89,13 +86,13 @@ import { DeleteUserCommand } from './delete-user.command';
    * the outcome (success OR failure), the duration, and a redacted snapshot of
    * the request — to the configured AuditSink (LogAuditSink by default; see
    * app.module.ts). The actor is resolved from the request-scoped session store
-   * populated by AuthSessionInterceptor.
+   * populated by SessionUserContextInterceptor.
    */
   [
     AuditBehavior,
     {
-      action: 'user.delete',
-      severity: 'high',
+      action: AUDIT_ACTIONS.USER_DELETE,
+      severity: AUDIT_SEVERITY.HIGH,
       actor: () => {
         const sessionUser = getSessionUserFromStore();
         return sessionUser
@@ -107,47 +104,35 @@ import { DeleteUserCommand } from './delete-user.command';
 )
 export class DeleteUserHandler extends CommandBaseHandler<
   DeleteUserCommand,
-  UserUpdateOutcome
+  User
 > {
   constructor(
     @Inject(QUERY_REPOSITORY.getUser)
     private readonly queryRepository: IQueryRepository<GetUserQuery, User>,
     @Inject(COMMAND_REPOSITORY.deleteUser)
-    private readonly commandRepository: ICommandRepository<UserUpdateOutcome>,
-    @Optional()
-    @Inject(PIPELINE_CACHE)
-    private readonly pipelineCache: { delete?: (key: string) => Promise<unknown> } | null,
+    private readonly commandRepository: ICommandRepository<User, null>,
+    private readonly authorizer: CaslAuthorizer,
     protected readonly eventBus: EventBus,
   ) {
     super(eventBus);
   }
 
-  async handle(command: DeleteUserCommand): Promise<UserUpdateOutcome> {
+  async handle(command: DeleteUserCommand): Promise<User> {
     const { id } = command;
 
     const query = new GetUserQuery({ userId: id }, { hydrate: true });
-
-    const user = await this.queryRepository.find(query);
+    const user = User.from(await this.queryRepository.find(query));
 
     if (!user) {
       throw new NotFoundException('User not found');
     }
 
-    const outcome = user.delete();
+    this.authorizer.authorize('delete', user);
 
-    await this.commandRepository.save(outcome);
+    user.delete();
 
-    // Evict Redis cache entry for GetUserQuery
-    if (this.pipelineCache) {
-      const cacheKey = `${TenantSchemaContext.currentSchema}:GetUserQuery:${id}`;
-      const c = this.pipelineCache as Record<string, unknown>;
-      if (typeof c.del === 'function') {
-        await (c.del as (k: string) => Promise<unknown>)(cacheKey);
-      } else if (typeof c.delete === 'function') {
-        await (c.delete as (k: string) => Promise<unknown>)(cacheKey);
-      }
-    }
+    await this.commandRepository.save(user);
 
-    return outcome;
+    return user;
   }
 }

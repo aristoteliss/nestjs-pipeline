@@ -25,11 +25,27 @@ import {
 } from '@nestjs-pipeline/core';
 import { ZodType } from 'zod';
 import { ZodValidationError } from './errors/zod-validation.error';
+import {
+  cloneData,
+  getRawInput,
+  getValidatedData,
+  hasBeenMutated,
+  setValidatedData,
+  ZOD_RAW_INPUT_KEY,
+  ZOD_VALIDATED_DATA_KEY,
+} from './helpers/zod-data.helpers';
+
+export {
+  getRawInput,
+  getValidatedData,
+  ZOD_RAW_INPUT_KEY,
+  ZOD_VALIDATED_DATA_KEY,
+};
 
 /**
  * Conventional property key used to attach a Zod schema to a command, query, or event class.
  *
- * Classes built with `createRequest()` automatically receive this property, so
+ * Classes built with `createCommand()`, `createQuery()`, or `createZodRequest()` automatically receive this property, so
  * {@link ZodValidationBehavior} can introspect and validate without extra wiring.
  *
  * For manually-written event classes you can attach the schema yourself:
@@ -61,16 +77,28 @@ export const ZOD_SCHEMA_KEY = '_zodSchema' as const;
 /** @deprecated Use {@link ZOD_SCHEMA_KEY} instead. */
 export const ZOD_SCHEMA = ZOD_SCHEMA_KEY;
 
+/** Whether a parsed value can safely be applied to an existing request instance. */
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  const prototype = Object.getPrototypeOf(value);
+  return prototype === Object.prototype || prototype === null;
+}
+
 /**
- * Pipeline behavior that validates the incoming request (command, query, or event)
- * against a Zod schema when one is attached to the request class via the `_zodSchema`
- * static property (set automatically by `createRequest()`).
+ * Pipeline behavior that parses the incoming request (command, query, or event)
+ * with a Zod schema when one is attached to the request class via the `_zodSchema`
+ * static property (set automatically by `createCommand()`, `createQuery()`, or `createZodRequest()`).
  *
  * **How it works:**
  * - If `context.requestType._zodSchema` is a `ZodType`, the behavior runs
- *   `schema.safeParse(context.request)`.
+ *   `schema.safeParseAsync(context.request)`.
  * - On failure it throws {@link ZodValidationError} — catch it with an
  *   `ExceptionFilter` to map it to an HTTP 400.
+ * - On success, the parsed result must be a plain object because pipeline
+ *   request identity is preserved in-place. Keys omitted by the schema are
+ *   deleted and parsed/coerced/defaulted values are assigned before the handler
+ *   runs. A top-level transform to an array, primitive, Date, or other
+ *   non-record shape is rejected rather than corrupting the request instance.
  * - If no schema is attached (e.g. a plain event class), the behavior is a transparent
  *   no-op and simply calls `next()`.
  *
@@ -86,7 +114,7 @@ export const ZOD_SCHEMA = ZOD_SCHEMA_KEY;
  *
  * **Registration — per handler only:**
  * ```ts
- * @UsePipeline([ZodValidationBehavior])
+ * @UsePipeline(ZodValidationBehavior)
  * export class CreateUserHandler implements ICommandHandler<CreateUserCommand> { ... }
  * ```
  */
@@ -101,24 +129,76 @@ export class ZodValidationBehavior implements IPipelineBehavior {
       | undefined;
 
     if (schema) {
-      const result = schema.safeParse(context.request);
-      if (!result.success) {
-        throw new ZodValidationError(result.error);
+      if (!context.request || typeof context.request !== 'object') {
+        throw new TypeError(
+          'ZodValidationBehavior requires the pipeline request to be an object when a schema is attached.',
+        );
       }
-      if (
-        result.data &&
-        typeof result.data === 'object' &&
-        context.request &&
-        typeof context.request === 'object'
-      ) {
-        for (const key of Object.keys(context.request)) {
-          if (!(key in result.data))
-            delete (context.request as unknown as Record<string, unknown>)[key];
+
+      const validatedSnapshot = getValidatedData(context.request);
+
+      const isAlreadyValidated =
+        !!validatedSnapshot &&
+        !hasBeenMutated(
+          context.request as Record<string, unknown>,
+          validatedSnapshot,
+        );
+
+      if (!isAlreadyValidated) {
+        const result = await schema.safeParseAsync(context.request);
+        if (!result.success) {
+          throw new ZodValidationError(result.error);
         }
-        Object.assign(context.request, result.data);
+
+        if (!isPlainObject(result.data)) {
+          throw new TypeError(
+            'ZodValidationBehavior requires the top-level parsed output to be a plain object so it can be applied to the existing pipeline request instance.',
+          );
+        }
+
+        const baseKeys = validatedSnapshot
+          ? new Set(
+              Object.keys(validatedSnapshot).filter(
+                (k) =>
+                  Object.getOwnPropertyDescriptor(result.data, k) === undefined,
+              ),
+            )
+          : new Set<string>();
+
+        for (const key of Object.keys(context.request)) {
+          if (
+            Object.getOwnPropertyDescriptor(result.data, key) === undefined &&
+            !baseKeys.has(key)
+          ) {
+            delete (context.request as unknown as Record<string, unknown>)[key];
+          }
+        }
+        defineEnumerableDataProperties(context.request, result.data);
+
+        const newSnapshot: Record<string, unknown> = {};
+        for (const key of Object.keys(context.request)) {
+          newSnapshot[key] = cloneData(
+            (context.request as Record<string, unknown>)[key],
+          );
+        }
+        setValidatedData(context.request, newSnapshot);
       }
     }
 
     return next();
+  }
+}
+
+function defineEnumerableDataProperties(
+  target: object,
+  source: Record<string, unknown>,
+): void {
+  for (const key of Object.keys(source)) {
+    Object.defineProperty(target, key, {
+      value: source[key],
+      writable: true,
+      enumerable: true,
+      configurable: true,
+    });
   }
 }

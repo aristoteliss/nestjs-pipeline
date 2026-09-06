@@ -18,17 +18,21 @@
 
 import { describe, expect, it } from 'vitest';
 import {
+  PIPELINE_TENANT_ID,
   pipelineStore,
+  SET_CORRELATION_ID,
   SET_ORIGINAL_CORRELATION_ID,
   SET_RESPONSE,
+  SET_TENANT_ID,
 } from './constants/pipeline-context.constants';
+import { PIPELINE_BEHAVIOR_ID } from './decorators/pipeline.decorator';
 import { PipelineHandlerMeta } from './interfaces/pipeline-handler-meta.interface';
 import { PipelineContext } from './pipeline.context';
 
 // ── Helpers ─────────────────────────────────────────────────
 
 class FakeCommand {
-  constructor(public readonly name: string) { }
+  constructor(public readonly name: string) {}
 }
 
 class FakeHandler {
@@ -85,15 +89,15 @@ describe('PipelineContext', () => {
     expect(ctx.response).toEqual({ result: 42 });
   });
 
-  it('originalCorrelationId is set via SET_ORIGINAL_CORRELATION_ID and is immutable to re-writes', () => {
+  it('sets correlationId only through the internal setter before execution', () => {
     const ctx = new PipelineContext(new FakeCommand('x'), buildMeta());
-    ctx.correlationId = 'first';
+    ctx[SET_CORRELATION_ID]('first');
     ctx[SET_ORIGINAL_CORRELATION_ID]('first');
 
-    // Change the mutable correlationId
-    ctx.correlationId = 'second';
-
-    expect(ctx.correlationId).toBe('second');
+    expect(() => {
+      (ctx as unknown as { correlationId: string }).correlationId = 'second';
+    }).toThrow();
+    expect(ctx.correlationId).toBe('first');
     expect(ctx.originalCorrelationId).toBe('first');
   });
 
@@ -107,7 +111,7 @@ describe('PipelineContext', () => {
       new FakeCommand('parent'),
       buildMeta(),
     );
-    parentCtx.correlationId = 'parent-corr-id';
+    parentCtx[SET_CORRELATION_ID]('parent-corr-id');
 
     let childCtx: PipelineContext | undefined;
     pipelineStore.run(parentCtx, () => {
@@ -122,7 +126,7 @@ describe('PipelineContext', () => {
       new FakeCommand('parent'),
       buildMeta(),
     );
-    parentCtx.correlationId = '';
+    parentCtx[SET_CORRELATION_ID]('');
 
     let childCtx: PipelineContext | undefined;
     pipelineStore.run(parentCtx, () => {
@@ -131,10 +135,58 @@ describe('PipelineContext', () => {
 
     expect(childCtx!.correlationId).toBe('');
   });
+
+  it('tenantId defaults to undefined', () => {
+    const ctx = new PipelineContext(new FakeCommand('x'), buildMeta());
+    expect(ctx.tenantId).toBeUndefined();
+    expect(ctx.items.get(PIPELINE_TENANT_ID)).toBeUndefined();
+  });
+
+  it('sets tenantId via SET_TENANT_ID and syncs to items[PIPELINE_TENANT_ID]', () => {
+    const ctx = new PipelineContext(new FakeCommand('x'), buildMeta());
+    ctx[SET_TENANT_ID]('tenant-123');
+
+    expect(ctx.tenantId).toBe('tenant-123');
+    expect(ctx.items.get(PIPELINE_TENANT_ID)).toBe('tenant-123');
+    expect(() => {
+      (ctx as unknown as { tenantId: string }).tenantId = 'other';
+    }).toThrow();
+  });
+
+  it('inherits tenantId from parent pipeline store', () => {
+    const parentCtx = new PipelineContext(
+      new FakeCommand('parent'),
+      buildMeta(),
+    );
+    parentCtx[SET_TENANT_ID]('tenant-parent');
+
+    let childCtx: PipelineContext | undefined;
+    pipelineStore.run(parentCtx, () => {
+      childCtx = new PipelineContext(new FakeCommand('child'), buildMeta());
+    });
+
+    expect(childCtx!.tenantId).toBe('tenant-parent');
+    expect(childCtx!.items.get(PIPELINE_TENANT_ID)).toBe('tenant-parent');
+  });
+
+  it('does not set tenantId when parent tenantId is undefined', () => {
+    const parentCtx = new PipelineContext(
+      new FakeCommand('parent'),
+      buildMeta(),
+    );
+
+    let childCtx: PipelineContext | undefined;
+    pipelineStore.run(parentCtx, () => {
+      childCtx = new PipelineContext(new FakeCommand('child'), buildMeta());
+    });
+
+    expect(childCtx!.tenantId).toBeUndefined();
+    expect(childCtx!.items.get(PIPELINE_TENANT_ID)).toBeUndefined();
+  });
 });
 
 describe('PipelineContext.getBehaviorOptions', () => {
-  class SomeBehavior { }
+  class SomeBehavior {}
 
   it('returns undefined when no options map exists', () => {
     const ctx = new PipelineContext(
@@ -162,5 +214,23 @@ describe('PipelineContext.getBehaviorOptions', () => {
       buildMeta({ behaviorOptions: opts }),
     );
     expect(ctx.getBehaviorOptions(SomeBehavior)).toEqual({ level: 'debug' });
+  });
+
+  it('uses PIPELINE_BEHAVIOR_ID when a behavior defines a custom identity', () => {
+    class CustomIdBehavior {
+      static readonly [PIPELINE_BEHAVIOR_ID] = 'pkg:custom-behavior';
+    }
+
+    const opts = new Map<string, Record<string, any>>([
+      ['pkg:custom-behavior', { level: 'trace' }],
+    ]);
+    const ctx = new PipelineContext(
+      new FakeCommand('x'),
+      buildMeta({ behaviorOptions: opts }),
+    );
+
+    expect(ctx.getBehaviorOptions(CustomIdBehavior)).toEqual({
+      level: 'trace',
+    });
   });
 });

@@ -17,14 +17,27 @@
  */
 
 export * from './behaviors/logging.behavior';
-export * from './constants/pipeline-context.constants';
+export {
+  PIPELINE_TENANT_ID,
+  pipelineStore,
+  SET_TENANT_ID,
+} from './constants/pipeline-context.constants';
 export * from './decorators';
+export * from './helpers/safeStringify';
+export * from './helpers/stableStringify';
 export { isUuidV7, uuidv7 } from './helpers/uuidv7';
 export * from './interfaces/pipeline.behavior.interface';
 export * from './interfaces/pipeline.context.interface';
 export * from './interfaces/pipeline-handler-meta.interface';
-export * from './options';
+export type {
+  GlobalBehaviorScope,
+  GlobalBehaviorsOptions,
+  PipelineLoggerProvider,
+  PipelineModuleAsyncOptions,
+  PipelineModuleOptions,
+  PipelineOptionsFactory,
+} from './options';
 export * from './pipeline.context';
 export * from './pipeline.module';
-export * from './services/pipeline.bootstrap.service';
+export { PipelineBootstrapService } from './services/pipeline.bootstrap.service';
 export { untyped } from './types/safe-typing';

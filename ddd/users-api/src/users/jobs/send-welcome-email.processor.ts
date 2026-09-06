@@ -53,7 +53,7 @@ export class SendWelcomeEmailProcessor extends WorkerHost {
 
       this.logger.log(
         `📧 Sending welcome email to ${job.data.email} ` +
-        `(user: ${job.data.username}, tenant: ${this.tenantContext.schema}, correlationId: ${correlationId})`,
+          `(user: ${job.data.username}, tenant: ${this.tenantContext.schema}, correlationId: ${correlationId})`,
       );
 
       // Simulate email sending delay

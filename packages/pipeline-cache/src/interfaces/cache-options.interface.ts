@@ -78,10 +78,19 @@ export interface CacheBehaviorOptions {
   /**
    * Custom cache-key factory. Defaults to
    * `` `${requestName}:${stableStringify(request)}` ``.
+   * Include tenant/principal/permission scope whenever the response depends on
+   * handler-level authorization or field filtering, because hits skip the handler.
    */
   key?: CacheKeyFactory;
   /** Optional predicate gating whether a given request is cached. */
   condition?: CacheCondition;
+  /**
+   * When a cache read or write throws, bypass the cache and continue (`true`,
+   * default) or propagate the store error (`false`). A failed read bypasses the
+   * write for that execution. This option does not catch key, condition, or
+   * downstream handler errors.
+   */
+  failOpen?: boolean;
 }
 
 /**
@@ -100,8 +109,10 @@ export interface CacheModuleOptions {
   /** Default time-to-live (milliseconds) applied across stores and handlers. */
   ttl?: number;
   /**
-   * If the remaining TTL is below this threshold (milliseconds) the value is
-   * refreshed asynchronously in the background. Forwarded to `cache-manager`.
+   * Forwarded to `cache-manager` for compatibility. `CacheBehavior` does not
+   * call `wrap()`, so this does not trigger background refresh in a pipeline.
+   *
+   * @deprecated Background refresh can re-enter downstream pipeline behaviors.
    */
   refreshThreshold?: number;
   /** Forwarded to `cache-manager`; optimizes behavior across multiple stores. */

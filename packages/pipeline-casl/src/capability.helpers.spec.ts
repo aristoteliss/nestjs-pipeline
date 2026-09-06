@@ -17,6 +17,7 @@
  */
 
 /** biome-ignore-all lint/suspicious/noTemplateCurlyInString: false possitive */
+import { subject } from '@casl/ability';
 import { describe, expect, it } from 'vitest';
 import {
   capabilitiesToRawRules,
@@ -26,6 +27,7 @@ import {
   parseCapabilityString,
   serializeCapability,
 } from './helpers/capability.helpers';
+import { buildAbilityFromRules } from './services/ability.factory';
 import type { Capability, CaslUserContext } from './types/casl.types';
 
 describe('capability.helpers', () => {
@@ -80,11 +82,26 @@ describe('capability.helpers', () => {
       expect(() => parseCapabilityString('Post||*')).toThrow('missing action');
     });
 
+    it('should reject undocumented trailing segments', () => {
+      expect(() =>
+        parseCapabilityString('Post|read|*|title|reason|ignored'),
+      ).toThrow('too many segments');
+    });
+
     it('should throw on malformed conditions JSON', () => {
       expect(() => parseCapabilityString('Post|read|{invalid json}')).toThrow(
         'Invalid conditions JSON',
       );
     });
+
+    it.each(['null', 'false', '0', '""', '[]', '[{"tenantId":"x"}]'])(
+      'should reject non-object conditions JSON: %s',
+      (conditions) => {
+        expect(() =>
+          parseCapabilityString(`Post|update|${conditions}`),
+        ).toThrow('must be a JSON object');
+      },
+    );
 
     it('should parse fields from 4th segment', () => {
       const result = parseCapabilityString('Post|update|*|title,body');
@@ -123,13 +140,165 @@ describe('capability.helpers', () => {
       const cap: Capability = { subject: 'Post', action: 'read' };
       expect(normalizeCapability(cap)).toBe(cap);
     });
+
+    it('should reject invalid object-form conditions at runtime', () => {
+      expect(() =>
+        normalizeCapability({
+          subject: 'Post',
+          action: 'update',
+          conditions: null,
+        } as unknown as Capability),
+      ).toThrow('must be a JSON object');
+    });
+
+    it.each([new Map(), new Set(), new Date(), /pattern/])(
+      'should reject non-plain condition objects: %s',
+      (conditions) => {
+        expect(() =>
+          normalizeCapability({
+            subject: 'Post',
+            action: 'update',
+            conditions,
+          } as unknown as Capability),
+        ).toThrow('must be a JSON object');
+      },
+    );
   });
 
   describe('serializeCapability', () => {
+    it('refuses to turn an owner restriction into an unrestricted grant', () => {
+      const capability: Capability = {
+        subject: 'User',
+        action: 'read',
+        conditions: { ownerId: undefined },
+      };
+      const ability = buildAbilityFromRules([capabilityToRawRule(capability)]);
+      expect(
+        ability.can(
+          'read',
+          subject('User', { ownerId: 'someone-else' }) as unknown as string,
+        ),
+      ).toBe(false);
+      expect(() => serializeCapability(capability)).toThrow(TypeError);
+    });
+
+    it.each([
+      ['undefined', undefined],
+      ['function', () => true],
+      ['symbol', Symbol('owner')],
+      ['NaN', Number.NaN],
+      ['Infinity', Number.POSITIVE_INFINITY],
+      ['bigint', 1n],
+      ['Date', new Date('2026-01-01')],
+      ['RegExp', /owner/],
+      ['Map', new Map()],
+      ['Set', new Set()],
+      ['sparse array', new Array(1)],
+      ['undefined in array', [undefined]],
+      ['toJSON override', { ownerId: 'alice', toJSON: () => ({}) }],
+      ['symbol key', { [Symbol('owner')]: 'alice' }],
+    ])('rejects lossy nested conditions: %s', (_label, value) => {
+      expect(() =>
+        serializeCapability({
+          subject: 'User',
+          action: 'read',
+          conditions: { nested: value },
+        }),
+      ).toThrow('must be a JSON object');
+    });
+
+    it('preserves authorization decisions for supported nested JSON conditions', () => {
+      const capability: Capability = {
+        subject: 'User',
+        action: 'read',
+        conditions: {
+          ownerId: 'alice',
+          status: { $in: ['active', 'pending'] },
+        },
+      };
+      const decoded = parseCapabilityString(serializeCapability(capability));
+      expect(decoded).toEqual(capability);
+      const before = buildAbilityFromRules([capabilityToRawRule(capability)]);
+      const after = buildAbilityFromRules([capabilityToRawRule(decoded)]);
+      for (const [ownerId, status, allowed] of [
+        ['alice', 'active', true],
+        ['alice', 'closed', false],
+        ['bob', 'active', false],
+      ] as const) {
+        const entity = subject('User', {
+          ownerId,
+          status,
+        }) as unknown as string;
+        expect(before.can('read', entity)).toBe(allowed);
+        expect(after.can('read', entity)).toBe(allowed);
+      }
+    });
+
+    it('rejects cycles but permits repeated references to JSON data', () => {
+      const shared = { ownerId: 'alice' };
+      const capability: Capability = {
+        subject: 'User',
+        action: 'read',
+        conditions: { $or: [shared, shared] },
+      };
+      expect(parseCapabilityString(serializeCapability(capability))).toEqual(
+        capability,
+      );
+      const cyclic: Record<string, unknown> = {};
+      cyclic.self = cyclic;
+      expect(() =>
+        serializeCapability({ ...capability, conditions: cyclic }),
+      ).toThrow(TypeError);
+    });
+
+    it('rejects accessors without evaluating their changing values', () => {
+      let reads = 0;
+      const conditions = {
+        get ownerId() {
+          reads += 1;
+          return reads === 1 ? 'alice' : undefined;
+        },
+      };
+      expect(() =>
+        serializeCapability({ subject: 'User', action: 'read', conditions }),
+      ).toThrow(TypeError);
+      expect(reads).toBe(0);
+    });
+
+    it('rejects non-enumerable restrictions and extra array properties', () => {
+      const hidden = Object.defineProperty({}, 'ownerId', { value: 'alice' });
+      const array = Object.assign(['alice'], { ownerId: 'bob' });
+      for (const conditions of [hidden, { owners: array }]) {
+        expect(() =>
+          serializeCapability({ subject: 'User', action: 'read', conditions }),
+        ).toThrow(TypeError);
+      }
+    });
+
     it('should serialize basic capability', () => {
       expect(serializeCapability({ subject: 'Post', action: 'read' })).toBe(
         'Post|read|*',
       );
+    });
+
+    it('should fail closed for malformed runtime conditions', () => {
+      expect(() =>
+        serializeCapability({
+          subject: 'Post',
+          action: 'update',
+          conditions: [],
+        } as unknown as Capability),
+      ).toThrow('must be a JSON object');
+    });
+
+    it('should reject recursively non-JSON condition values', () => {
+      expect(() =>
+        serializeCapability({
+          subject: 'Post',
+          action: 'update',
+          conditions: { nested: new Map() },
+        } as unknown as Capability),
+      ).toThrow('must be a JSON object');
     });
 
     it('should serialize "manage" directly', () => {
@@ -154,7 +323,7 @@ describe('capability.helpers', () => {
       ).toBe('!Post|delete|*');
     });
 
-    it('should serialize conditions as JSON', () => {
+    it('should keep ordinary conditions readable as JSON', () => {
       expect(
         serializeCapability({
           subject: 'Post',
@@ -195,14 +364,53 @@ describe('capability.helpers', () => {
       const original = 'Post|update|{"authorId":"${id}"}';
       const parsed = parseCapabilityString(original);
       const serialized = serializeCapability(parsed);
-      expect(serialized).toBe(original);
+      expect(parseCapabilityString(serialized)).toEqual(parsed);
     });
 
     it('should roundtrip parse → serialize with fields', () => {
       const original = 'Post|update|{"authorId":"${id}"}|title,body';
       const parsed = parseCapabilityString(original);
       const serialized = serializeCapability(parsed);
-      expect(serialized).toBe(original);
+      expect(parseCapabilityString(serialized)).toEqual(parsed);
+    });
+
+    it('roundtrips a condition containing the segment delimiter', () => {
+      const capability: Capability = {
+        subject: 'Post',
+        action: 'read',
+        conditions: { code: 'a|b' },
+      };
+
+      expect(parseCapabilityString(serializeCapability(capability))).toEqual(
+        capability,
+      );
+    });
+
+    it('roundtrips delimiter-bearing segments, empty fields, and reason', () => {
+      const capabilities: Capability[] = [
+        { subject: 'A|B', action: 'read' },
+        { subject: '!Post', action: 'read|own' },
+        { subject: 'Post', action: 'read', fields: ['first,last', '*'] },
+        { subject: ' Post ', action: '~read', fields: [] },
+        {
+          subject: 'Post',
+          action: 'delete',
+          inverted: true,
+          reason: 'tenant|policy',
+        },
+        {
+          subject: 'Post',
+          action: 'read',
+          conditions: {},
+          reason: '*',
+        },
+      ];
+
+      for (const capability of capabilities) {
+        expect(parseCapabilityString(serializeCapability(capability))).toEqual(
+          capability,
+        );
+      }
     });
   });
 
@@ -240,12 +448,14 @@ describe('capability.helpers', () => {
       expect(result).toEqual({ tenantId: 'abc' });
     });
 
-    it('should interpolate placeholders with any leading root segment', () => {
-      const result = interpolateConditions(
-        { tenantId: '${principal.tenantId}' },
-        user,
-      );
-      expect(result).toEqual({ tenantId: 'abc' });
+    it('should reject unknown leading root segments', () => {
+      expect(() =>
+        interpolateConditions({ tenantId: '${principal.tenantId}' }, user),
+      ).toThrow('principal.tenantId');
+
+      expect(() =>
+        interpolateConditions({ authorId: '${typo.foo.id}' }, user),
+      ).toThrow('typo.foo.id');
     });
 
     it('should interpolate nested placeholders with a prefixed root segment', () => {
@@ -264,6 +474,25 @@ describe('capability.helpers', () => {
       expect(result).toEqual({ status: true, count: 5, tags: ['a', 'b'] });
     });
 
+    it('should interpolate placeholders recursively inside arrays', () => {
+      const result = interpolateConditions(
+        {
+          tenantId: {
+            $in: ['${user.tenantId}', 'public'],
+            $nin: ['blocked-${id}'],
+          },
+        },
+        user,
+      );
+
+      expect(result).toEqual({
+        tenantId: {
+          $in: ['abc', 'public'],
+          $nin: ['blocked-42'],
+        },
+      });
+    });
+
     it('should throw when a placeholder cannot be resolved', () => {
       expect(() =>
         interpolateConditions({ department: '${department}' }, user),
@@ -274,6 +503,26 @@ describe('capability.helpers', () => {
       expect(() =>
         interpolateConditions({ prefix: 'team-${department}' }, user),
       ).toThrow('department');
+    });
+
+    it('preserves an own __proto__ condition as ordinary data', () => {
+      const conditions = JSON.parse(
+        '{"__proto__":{"tenantId":"${user.tenantId}"}}',
+      ) as Record<string, unknown>;
+      const result = interpolateConditions(conditions, user);
+
+      expect(Object.getPrototypeOf(result)).toBe(Object.prototype);
+      expect(Object.hasOwn(result, '__proto__')).toBe(true);
+      expect(Reflect.get(result, '__proto__')).toEqual({ tenantId: 'abc' });
+    });
+
+    it('does not resolve inherited placeholder properties', () => {
+      expect(() =>
+        interpolateConditions({ value: '${constructor}' }, user),
+      ).toThrow('constructor');
+      expect(() =>
+        interpolateConditions({ value: '${toString}' }, user),
+      ).toThrow('toString');
     });
   });
 

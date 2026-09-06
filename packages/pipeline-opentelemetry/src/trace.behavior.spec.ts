@@ -101,6 +101,24 @@ describe('TraceBehavior', () => {
     vi.mocked(trace.getTracer).mockReturnValue(mockTracer as any);
   });
 
+  it('does not mutate a shared logger and supplies its context per call', () => {
+    const logger = {
+      warn: vi.fn(),
+      log: vi.fn(),
+      setContext: vi.fn(),
+    };
+    vi.mocked(trace.getTracerProvider).mockReturnValue({} as any);
+    const sharedLoggerBehavior = new TraceBehavior(logger as never);
+
+    sharedLoggerBehavior.onModuleInit();
+
+    expect(logger.setContext).not.toHaveBeenCalled();
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining('SDK is NOT initialized'),
+      TraceBehavior.name,
+    );
+  });
+
   // ────────────────────────────────────────────────────────────────────────────
   describe('onModuleInit() — SDK detection via isSdkInitialized()', () => {
     it('sets sdkReady=false when provider has no getDelegate property', () => {
@@ -296,7 +314,13 @@ describe('TraceBehavior', () => {
 
       expect(mockTracer.startActiveSpan).toHaveBeenCalledWith(
         'event.UserCreatedEvent',
-        expect.anything(),
+        expect.objectContaining({
+          kind: SpanKind.INTERNAL,
+          attributes: expect.objectContaining({
+            'pipeline.request.kind': 'event',
+            'pipeline.request.name': 'UserCreatedEvent',
+          }),
+        }),
         expect.any(Function),
       );
       expect(mockSpan.setStatus).toHaveBeenCalledWith({

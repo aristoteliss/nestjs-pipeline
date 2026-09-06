@@ -16,44 +16,37 @@
  * ----------------------------
  */
 
+import { APP_ACTIONS, APP_SUBJECTS } from '@common/constants';
 import { Inject } from '@nestjs/common';
 import { type IQueryHandler, QueryHandler } from '@nestjs/cqrs';
-import { CacheBehavior } from '@nestjs-pipeline/cache';
-import { CaslBehavior } from '@nestjs-pipeline/casl';
-import { type IPipelineContext, UsePipeline } from '@nestjs-pipeline/core';
+import { CaslAuthorizer, CaslBehavior } from '@nestjs-pipeline/casl';
+import { UsePipeline } from '@nestjs-pipeline/core';
 import { IQueryRepository } from '@nestjs-pipeline/ddd-core';
-import { TenantSchemaContext } from '@persistence/tenant-schema.context';
-import type { User } from '../../domain/models/user.entity';
-import { QUERY_REPOSITORY } from '../../repositories/repository.tokens';
+import { User, type UserSnapshot } from '../../domain/models/user.entity';
+import { QUERY_REPOSITORY } from '../../persistence/repository.tokens';
 import { GetUserQuery } from './get-user.query';
 
 @QueryHandler(GetUserQuery)
-@UsePipeline(
-  [
-    CaslBehavior,
-    {
-      subjectFromRequest: 'User',
-      rules: [{ action: 'read', subject: 'User' }],
-    },
-  ],
-  [
-    CacheBehavior,
-    {
-      ttl: 60_000,
-      key: (ctx: IPipelineContext) => {
-        const req = ctx.request as GetUserQuery;
-        return `${TenantSchemaContext.currentSchema}:GetUserQuery:${req.userId ?? req.email}`;
-      },
-    },
-  ],
-)
-export class GetUserHandler implements IQueryHandler<GetUserQuery, User> {
+@UsePipeline([
+  CaslBehavior,
+  {
+    rules: [{ action: APP_ACTIONS.READ, subject: APP_SUBJECTS.USER }],
+  },
+])
+export class GetUserHandler
+  implements IQueryHandler<GetUserQuery, UserSnapshot | null>
+{
   constructor(
     @Inject(QUERY_REPOSITORY.getUser)
-    private readonly queryRepository: IQueryRepository<GetUserQuery, User>,
-  ) { }
+    private readonly queryRepository: IQueryRepository<
+      GetUserQuery,
+      User | UserSnapshot | null
+    >,
+    private readonly authorizer: CaslAuthorizer,
+  ) {}
 
-  async execute(query: GetUserQuery): Promise<User> {
-    return await this.queryRepository.find(query);
+  async execute(query: GetUserQuery): Promise<UserSnapshot | null> {
+    const user = User.from(await this.queryRepository.find(query));
+    return user ? this.authorizer.authorize<UserSnapshot>('read', user) : null;
   }
 }

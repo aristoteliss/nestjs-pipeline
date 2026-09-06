@@ -19,7 +19,7 @@
 import { z } from 'zod';
 
 export const CreateRoleDtoSchema = z.object({
-  name: z.string().min(3),
+  name: z.string().trim().min(3),
 });
 
 export type CreateRoleDto = z.infer<typeof CreateRoleDtoSchema>;

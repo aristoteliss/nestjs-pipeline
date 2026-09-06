@@ -16,6 +16,7 @@
  * ----------------------------
  */
 
+import { randomUUID } from 'node:crypto';
 import {
   Inject,
   Injectable,
@@ -37,37 +38,73 @@ import {
 } from './constants/tokens';
 import { IdempotencyConflictError } from './errors/idempotency-conflict.error';
 import { fingerprintValue } from './helpers/fingerprint';
+import { toJsonSnapshot } from './helpers/json-snapshot';
 import type { IdempotencyBehaviorOptions } from './interfaces/idempotency-options.interface';
 import type {
   IdempotencyRecord,
   IdempotencyRequestKind,
+  JsonValue,
 } from './interfaces/idempotency-record.interface';
 import type { IdempotencyStore } from './interfaces/idempotency-store.interface';
 
-/** Item key set on the pipeline context holding the active idempotency key. */
-export const IDEMPOTENCY_KEY_ITEM = 'idempotency.key';
+/**
+ * Unique symbol key set on `context.items` holding the active idempotency key string.
+ *
+ * @example
+ * ```ts
+ * const key = context.items.get(IDEMPOTENCY_KEY_ITEM) as string | undefined;
+ * ```
+ */
+export const IDEMPOTENCY_KEY_ITEM = Symbol('IDEMPOTENCY_KEY_ITEM');
 
 /**
- * Item key set on the pipeline context to `true` when the response was replayed
+ * Unique symbol key set on `context.items` to `true` when the response was replayed
  * from a previously-stored record (the handler did not run this time).
+ *
+ * @example
+ * ```ts
+ * const wasReplayed = context.items.get(IDEMPOTENCY_REPLAYED_ITEM) === true;
+ * ```
  */
-export const IDEMPOTENCY_REPLAYED_ITEM = 'idempotency.replayed';
+export const IDEMPOTENCY_REPLAYED_ITEM = Symbol('IDEMPOTENCY_REPLAYED_ITEM');
+
+/**
+ * Unique symbol key set on `context.items` to `true` when a handler completed after
+ * its claim had expired or been replaced. The successful handler result is returned,
+ * but this execution is not allowed to overwrite the newer owner's replay state.
+ *
+ * @example
+ * ```ts
+ * const ownershipLost = context.items.get(IDEMPOTENCY_OWNERSHIP_LOST_ITEM) === true;
+ * ```
+ */
+export const IDEMPOTENCY_OWNERSHIP_LOST_ITEM = Symbol(
+  'IDEMPOTENCY_OWNERSHIP_LOST_ITEM',
+);
 
 const DEFAULT_SCOPE: IdempotencyRequestKind[] = ['command'];
 
 /**
- * Pipeline behavior that makes a handler **idempotent**: each distinct
- * idempotency key runs the handler at most once within a TTL window, and any
- * duplicate request **replays the stored response** instead of executing again.
+ * Pipeline behavior that deduplicates concurrent requests sharing an
+ * idempotency key and replays the stored response after a successful execution.
  *
  * For each in-scope request it derives a key
  * ({@link IdempotencyBehaviorOptions.keyFactory}), then atomically claims it in
  * a pluggable {@link IdempotencyStore}:
  *
- * - **first time** → claim, run the handler, store the response, return it;
+ * - **first claim** → run the handler and store the completed response;
  * - **duplicate, completed** → return the stored response (no re-execution);
  * - **duplicate, in progress** → throw {@link IdempotencyConflictError} (`409`);
  * - **key reused with a different payload** → throw it as `key_reuse` (`422`).
+ *
+ * Each claim carries a unique owner token. Completion and release compare that
+ * token atomically, so an execution that outlives its TTL cannot overwrite or
+ * delete a newer claim after the key is reclaimed.
+ *
+ * When the handler throws, `releaseOnError` controls whether the key remains
+ * claimed. It defaults to `true`, so failed executions release the key and a
+ * later retry may execute the handler again. Set it to `false` when retaining
+ * the claim after a failure is preferable to retryability.
  *
  * Store-agnostic by design: memory (default), Redis, Postgres, or your own are
  * one-line swaps in {@link IdempotencyModule.forRoot}. When no key is produced,
@@ -98,19 +135,20 @@ export class IdempotencyBehavior implements IPipelineBehavior {
     @Inject(LOGGING_BEHAVIOR_LOGGER)
     logger?: LoggerService,
   ) {
+    const candidate = untyped(this.store);
+    if (
+      typeof candidate.completeIfOwned !== 'function' ||
+      typeof candidate.deleteIfOwned !== 'function'
+    ) {
+      throw new TypeError(
+        'The configured IdempotencyStore is missing required methods. ' +
+          'IdempotencyStore requires atomic completeIfOwned() and deleteIfOwned() operations.',
+      );
+    }
+
     this.defaults = defaults ?? {};
-
-    if (!logger) {
-      this.logger = new Logger(IdempotencyBehavior.name, { timestamp: true });
-      return;
-    }
-
-    this.logger = logger;
-    if (typeof untyped(this.logger).setContext === 'function') {
-      (
-        this.logger as LoggerService & { setContext(context: string): void }
-      ).setContext(IdempotencyBehavior.name);
-    }
+    this.logger =
+      logger ?? new Logger(IdempotencyBehavior.name, { timestamp: true });
   }
 
   async handle(
@@ -132,43 +170,90 @@ export class IdempotencyBehavior implements IPipelineBehavior {
     context.items.set(IDEMPOTENCY_KEY_ITEM, key);
 
     const ttl = options.ttl ?? DEFAULT_IDEMPOTENCY_TTL_MS;
+    if (!Number.isSafeInteger(ttl) || ttl <= 0) {
+      throw new TypeError(
+        'Idempotency ttl must be a positive safe integer in milliseconds.',
+      );
+    }
     const fingerprint =
       (options.fingerprint ?? true)
         ? fingerprintValue(context.request)
         : undefined;
+    const claimId = randomUUID();
 
     const claim: IdempotencyRecord = {
       key,
       status: 'in_progress',
       requestName: context.requestName,
+      claimId,
       fingerprint,
       createdAt: new Date().toISOString(),
     };
 
-    const claimed = await this.store.setIfAbsent(key, claim, ttl);
+    let claimed = await this.store.setIfAbsent(key, claim, ttl);
     if (!claimed) {
-      return this.replayOrConflict(context, key, fingerprint);
+      const existing = await this.store.get(key);
+
+      if (existing) {
+        return this.replayOrConflict(context, key, fingerprint, existing);
+      }
+
+      // The record disappeared or expired after the failed claim. Give this
+      // request one bounded opportunity to claim the now-available key instead
+      // of reporting a false in-progress conflict.
+      claimed = await this.store.setIfAbsent(key, claim, ttl);
+      if (!claimed) {
+        return this.replayOrConflict(context, key, fingerprint);
+      }
     }
 
+    let response: unknown;
     try {
-      const response = await next();
-      await this.store.set(
-        key,
-        {
-          ...claim,
-          status: 'completed',
-          response,
-          completedAt: new Date().toISOString(),
-        },
-        ttl,
-      );
-      return response;
+      response = await next();
     } catch (error) {
       if (options.releaseOnError ?? true) {
-        await this.release(key);
+        await this.release(key, claimId);
       }
       throw error;
     }
+
+    let responseSnapshot: JsonValue | undefined;
+    try {
+      responseSnapshot = toJsonSnapshot(response);
+    } catch (error) {
+      // The handler has already completed, but an unusable response must not
+      // leave a permanently in-progress claim. Surface the contract violation
+      // after releasing this execution's claim.
+      await this.release(key, claimId);
+      throw error;
+    }
+
+    // The handler has already succeeded. Completion must be conditional on
+    // still owning the claim; a stale execution must never overwrite a newer
+    // execution that reclaimed the key after this claim's TTL elapsed.
+    const completed = await this.store.completeIfOwned(
+      key,
+      claimId,
+      {
+        ...claim,
+        status: 'completed',
+        response: responseSnapshot,
+        completedAt: new Date().toISOString(),
+      },
+      ttl,
+    );
+
+    if (!completed) {
+      context.items.set(IDEMPOTENCY_OWNERSHIP_LOST_ITEM, true);
+      this.logger.error?.(
+        `Idempotency claim ownership was lost after ${context.requestName} ` +
+          `completed successfully (key: ${key}). The successful result is being ` +
+          'returned, but this execution did not overwrite the newer claim.',
+        IdempotencyBehavior.name,
+      );
+    }
+
+    return response;
   }
 
   /**
@@ -179,11 +264,14 @@ export class IdempotencyBehavior implements IPipelineBehavior {
     context: IPipelineContext,
     key: string,
     fingerprint: string | undefined,
+    knownExisting?: IdempotencyRecord,
   ): Promise<unknown> {
-    const existing = await this.store.get(key);
+    const existing = knownExisting ?? (await this.store.get(key));
 
-    // Raced/expired between claim and read — treat as an in-progress duplicate.
-    if (!existing || existing.status === 'in_progress') {
+    // A second failed claim followed by another disappearing record indicates
+    // repeated contention. The retry is deliberately bounded to avoid a hot
+    // loop if a backend is unstable or claims are being rapidly replaced.
+    if (!existing) {
       throw new IdempotencyConflictError({
         key,
         requestName: context.requestName,
@@ -191,11 +279,7 @@ export class IdempotencyBehavior implements IPipelineBehavior {
       });
     }
 
-    if (
-      fingerprint &&
-      existing.fingerprint &&
-      existing.fingerprint !== fingerprint
-    ) {
+    if (existing.requestName !== context.requestName) {
       throw new IdempotencyConflictError({
         key,
         requestName: context.requestName,
@@ -203,21 +287,45 @@ export class IdempotencyBehavior implements IPipelineBehavior {
       });
     }
 
+    // When fingerprinting is enabled, a legacy record without a fingerprint
+    // cannot prove that it belongs to the same payload. Fail closed instead of
+    // replaying an unverifiable response during rolling/config migrations.
+    if (fingerprint && existing.fingerprint !== fingerprint) {
+      throw new IdempotencyConflictError({
+        key,
+        requestName: context.requestName,
+        reason: 'key_reuse',
+      });
+    }
+
+    if (existing.status === 'in_progress') {
+      throw new IdempotencyConflictError({
+        key,
+        requestName: context.requestName,
+        reason: 'in_progress',
+      });
+    }
+
     context.items.set(IDEMPOTENCY_REPLAYED_ITEM, true);
     this.logger.debug?.(
       `Replaying idempotent response for ${context.requestName} (key: ${key})`,
+      IdempotencyBehavior.name,
     );
     return existing.response;
   }
 
-  /** Release a claimed key after a failure; never let cleanup break the throw. */
-  private async release(key: string): Promise<void> {
+  /**
+   * Release a failed execution's claim only if it still owns the key; never let
+   * cleanup break propagation of the original handler error.
+   */
+  private async release(key: string, claimId: string): Promise<void> {
     try {
-      await this.store.delete(key);
+      await this.store.deleteIfOwned(key, claimId);
     } catch (error) {
       this.logger.warn?.(
         `Failed to release idempotency key "${key}": ` +
           `${error instanceof Error ? error.message : error}`,
+        IdempotencyBehavior.name,
       );
     }
   }

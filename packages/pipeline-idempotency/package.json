@@ -1,7 +1,7 @@
 {
   "name": "@nestjs-pipeline/idempotency",
   "version": "0.1.0",
-  "description": "Idempotency behavior for the NestJS pipeline — runs each command at most once per idempotency key (TTL window) and replays the stored response on duplicates, via a pluggable store (in-memory default, Redis/Postgres drop-in).",
+  "description": "Idempotency behavior for the NestJS pipeline — atomically excludes concurrent duplicates and replays stored successful responses per idempotency key, via a pluggable store (in-memory default, Redis/Postgres drop-in).",
   "author": "Aristotelis <aristotelis@ik.me>",
   "license": "SEE LICENSE IN LICENSE",
   "keywords": [
@@ -11,7 +11,6 @@
     "idempotency",
     "idempotent",
     "deduplication",
-    "exactly-once",
     "retry-safe",
     "behavior"
   ],
@@ -42,17 +41,20 @@
     "lint": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
+    "prepack": "node ../../scripts/package-licenses.mjs prepare",
+    "postpack": "node ../../scripts/package-licenses.mjs cleanup",
     "prepublishOnly": "pnpm run rebuild"
   },
   "peerDependencies": {
-    "@nestjs-pipeline/core": "*",
+    "@nestjs-pipeline/core": "^0.1.19",
     "@nestjs/common": "^10.0.0 || ^11.0.0",
     "reflect-metadata": "^0.1.13 || ^0.2.0"
   },
   "devDependencies": {
-    "@nestjs/common": "^11.1.24",
-    "@vitest/coverage-v8": "^4.1.7",
+    "@nestjs-pipeline/core": "workspace:*",
+    "@nestjs/common": "^11.2.1",
+    "@vitest/coverage-v8": "^4.1.11",
     "reflect-metadata": "^0.2.2",
-    "vitest": "^4.1.7"
+    "vitest": "^4.1.11"
   }
 }

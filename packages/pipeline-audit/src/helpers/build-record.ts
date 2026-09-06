@@ -36,6 +36,8 @@ export interface BuildAuditRecordInput {
   response?: unknown;
   /** The thrown value, if the handler failed. */
   error?: unknown;
+  /** Explicit execution state; thrown `undefined` is still a failure. */
+  failed: boolean;
   /** Wall-clock duration in milliseconds. */
   durationMs: number;
   /** ISO-8601 start timestamp. */
@@ -43,18 +45,23 @@ export interface BuildAuditRecordInput {
 }
 
 /**
- * Build a serializable {@link AuditRecord} from a completed pipeline run.
+ * Build an {@link AuditRecord} from a completed pipeline run.
  *
  * Applies redaction to the payload/response, resolves the actor, severity, and
- * action, and normalizes non-`Error` throws to a well-formed error shape.
+ * action, and normalizes non-`Error` throws to a well-formed error shape. Atomic
+ * values are retained, so captured values must still satisfy the selected
+ * sink's serialization requirements.
  */
 export function buildAuditRecord(input: BuildAuditRecordInput): AuditRecord {
-  const { context, options, response, error, durationMs, startedAt } = input;
-  const failed = error !== undefined;
+  const { context, options, response, error, failed, durationMs, startedAt } =
+    input;
+
+  const userMetadata = options.metadata?.(context);
 
   const record: AuditRecord = {
     id: randomUUID(),
     correlationId: context.correlationId,
+    tenantId: context.tenantId,
     action: options.action ?? context.requestName,
     severity: resolveSeverity(context, options),
     outcome: failed ? 'failure' : 'success',
@@ -64,7 +71,13 @@ export function buildAuditRecord(input: BuildAuditRecordInput): AuditRecord {
     handlerName: context.handlerName,
     durationMs,
     timestamp: startedAt,
-    metadata: options.metadata?.(context),
+    metadata:
+      userMetadata || context.tenantId
+        ? {
+            ...(userMetadata ?? {}),
+            ...(context.tenantId ? { tenantId: context.tenantId } : {}),
+          }
+        : undefined,
   };
 
   if (options.captureRequest ?? true) {

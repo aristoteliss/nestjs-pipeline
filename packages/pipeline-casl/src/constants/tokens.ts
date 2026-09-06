@@ -58,14 +58,52 @@ export const CASL_FIELDS_FROM_REQUEST = Symbol('CASL_FIELDS_FROM_REQUEST');
 export const CASL_BEHAVIOR_LOGGER = Symbol('CASL_BEHAVIOR_LOGGER');
 
 /**
- * Key used in `context.items` to store/retrieve the {@link CaslUserContext}.
+ * Unique symbol key used in `context.items` to store/retrieve the {@link CaslUserContext}.
  * If no {@link IUserContextResolver} is registered, the behavior looks up
  * this key directly in the items bag.
+ *
+ * @example
+ * ```ts
+ * context.items.set(CASL_USER_CONTEXT_KEY, { id: 'usr_1', roles: ['admin'] });
+ * ```
  */
-export const CASL_USER_CONTEXT_KEY = 'casl:user';
+export const CASL_USER_CONTEXT_KEY = Symbol('CASL_USER_CONTEXT_KEY');
 
 /**
- * Key used in `context.items` to store the resolved CASL ability after
+ * Unique symbol key used in `context.items` to store the resolved CASL ability after
  * the behavior runs. Downstream behaviors or handlers can retrieve it.
+ *
+ * @example
+ * ```ts
+ * const ability = context.items.get(CASL_ABILITY_KEY) as AppAbility | undefined;
+ * ```
  */
-export const CASL_ABILITY_KEY = 'casl:ability';
+export const CASL_ABILITY_KEY = Symbol('CASL_ABILITY_KEY');
+
+/**
+ * Built-in CASL keyword subjects.
+ */
+export const CASL_SUBJECTS = {
+  /** Wildcard subject matching any entity type. */
+  ALL: 'all',
+} as const;
+
+export type CaslSubject = (typeof CASL_SUBJECTS)[keyof typeof CASL_SUBJECTS];
+
+/**
+ * Standard CASL actions, including built-in wildcard and standard CRUD verbs.
+ */
+export const CASL_ACTIONS = {
+  /** Built-in CASL wildcard action matching any operation. */
+  MANAGE: 'manage',
+  /** Standard CRUD create action. */
+  CREATE: 'create',
+  /** Standard CRUD read/retrieve action. */
+  READ: 'read',
+  /** Standard CRUD update action. */
+  UPDATE: 'update',
+  /** Standard CRUD delete action. */
+  DELETE: 'delete',
+} as const;
+
+export type CaslAction = (typeof CASL_ACTIONS)[keyof typeof CASL_ACTIONS];

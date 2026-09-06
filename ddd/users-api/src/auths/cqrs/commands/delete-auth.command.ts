@@ -18,4 +18,4 @@
 
 import { BaseCommand } from '@common/cqrs/commands/base.command';
 
-export class DeleteAuthCommand extends BaseCommand { }
+export class DeleteAuthCommand extends BaseCommand {}

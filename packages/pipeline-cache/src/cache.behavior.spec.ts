@@ -37,9 +37,9 @@ function makeCtx(
     correlationId: 'test-corr-id',
     originalCorrelationId: 'test-corr-id',
     request: { id: 1 },
-    requestType: class TestRequest { },
+    requestType: class TestRequest {},
     requestName: 'GetUserQuery',
-    handlerType: overrides.handlerType ?? class TestHandler { },
+    handlerType: overrides.handlerType ?? class TestHandler {},
     handlerName: 'GetUserHandler',
     requestKind: 'query',
     startedAt: new Date('2026-01-01T00:00:00.000Z'),
@@ -65,6 +65,26 @@ describe('CacheBehavior', () => {
     behavior = new CacheBehavior(cache);
   });
 
+  it('does not mutate a shared logger and supplies its context per call', async () => {
+    const logger = { debug: vi.fn(), setContext: vi.fn() };
+    const sharedLoggerBehavior = new CacheBehavior(
+      cache,
+      undefined,
+      logger as never,
+    );
+
+    await sharedLoggerBehavior.handle(
+      makeCtx(),
+      vi.fn().mockResolvedValue('value'),
+    );
+
+    expect(logger.setContext).not.toHaveBeenCalled();
+    expect(logger.debug).toHaveBeenCalledWith(
+      expect.stringContaining('Cache miss'),
+      CacheBehavior.name,
+    );
+  });
+
   it('caches the result on a miss and serves it on the next hit', async () => {
     const next = vi.fn().mockResolvedValue({ name: 'Ada' });
 
@@ -74,6 +94,158 @@ describe('CacheBehavior', () => {
     expect(first).toEqual({ name: 'Ada' });
     expect(second).toEqual({ name: 'Ada' });
     expect(next).toHaveBeenCalledTimes(1);
+  });
+
+  it('fails open on a cache read error by default', async () => {
+    const storeError = new Error('redis unavailable');
+    const get = vi.fn().mockRejectedValue(storeError);
+    const set = vi.fn();
+    const logger = { warn: vi.fn(), error: vi.fn() };
+    const cacheBehavior = new CacheBehavior(
+      { get, set } as unknown as Cache,
+      undefined,
+      logger as never,
+    );
+    const context = makeCtx();
+    const next = vi.fn().mockResolvedValue('database result');
+
+    await expect(cacheBehavior.handle(context, next)).resolves.toBe(
+      'database result',
+    );
+    expect(context.items.get(CACHE_HIT_ITEM)).toBe(false);
+    expect(next).toHaveBeenCalledOnce();
+    expect(set).not.toHaveBeenCalled();
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining('Cache read error'),
+      CacheBehavior.name,
+    );
+    expect(logger.error).not.toHaveBeenCalled();
+  });
+
+  it('fails open on a cache write error by default', async () => {
+    const storeError = new Error('redis unavailable');
+    const logger = { warn: vi.fn(), error: vi.fn() };
+    const cacheBehavior = new CacheBehavior(
+      {
+        get: vi.fn().mockResolvedValue(undefined),
+        set: vi.fn().mockRejectedValue(storeError),
+      } as unknown as Cache,
+      undefined,
+      logger as never,
+    );
+    const next = vi.fn().mockResolvedValue('database result');
+
+    await expect(cacheBehavior.handle(makeCtx(), next)).resolves.toBe(
+      'database result',
+    );
+    expect(next).toHaveBeenCalledOnce();
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining('Cache write error'),
+      CacheBehavior.name,
+    );
+    expect(logger.error).not.toHaveBeenCalled();
+  });
+
+  it('fails closed on a cache read error when configured', async () => {
+    const storeError = new Error('redis unavailable');
+    const logger = { warn: vi.fn(), error: vi.fn() };
+    const cacheBehavior = new CacheBehavior(
+      { get: vi.fn().mockRejectedValue(storeError) } as unknown as Cache,
+      undefined,
+      logger as never,
+    );
+    const next = vi.fn();
+
+    await expect(
+      cacheBehavior.handle(makeCtx({ failOpen: false }), next),
+    ).rejects.toBe(storeError);
+    expect(next).not.toHaveBeenCalled();
+    expect(logger.error).toHaveBeenCalledWith(
+      expect.stringContaining('Cache read error'),
+      CacheBehavior.name,
+    );
+    expect(logger.warn).not.toHaveBeenCalled();
+  });
+
+  it('fails closed after a cache write error when configured', async () => {
+    const storeError = new Error('redis unavailable');
+    const logger = { warn: vi.fn(), error: vi.fn() };
+    const cacheBehavior = new CacheBehavior(
+      {
+        get: vi.fn().mockResolvedValue(undefined),
+        set: vi.fn().mockRejectedValue(storeError),
+      } as unknown as Cache,
+      undefined,
+      logger as never,
+    );
+    const next = vi.fn().mockResolvedValue('database result');
+
+    await expect(
+      cacheBehavior.handle(makeCtx({ failOpen: false }), next),
+    ).rejects.toBe(storeError);
+    expect(next).toHaveBeenCalledOnce();
+    expect(logger.error).toHaveBeenCalledWith(
+      expect.stringContaining('Cache write error'),
+      CacheBehavior.name,
+    );
+    expect(logger.warn).not.toHaveBeenCalled();
+  });
+
+  it('never treats a downstream handler error as a cache-store error', async () => {
+    const handlerError = new Error('database failed');
+    const logger = { warn: vi.fn(), error: vi.fn() };
+    const cacheBehavior = new CacheBehavior(
+      {
+        get: vi.fn().mockResolvedValue(undefined),
+        set: vi.fn(),
+      } as unknown as Cache,
+      undefined,
+      logger as never,
+    );
+
+    await expect(
+      cacheBehavior.handle(makeCtx(), vi.fn().mockRejectedValue(handlerError)),
+    ).rejects.toBe(handlerError);
+    expect(logger.warn).not.toHaveBeenCalled();
+    expect(logger.error).not.toHaveBeenCalled();
+  });
+
+  it('fails closed on read error when backed by real cache-manager with failOpen: false', async () => {
+    const storeError = new Error('store read failed');
+    const store = {
+      get: vi.fn().mockRejectedValue(storeError),
+      set: vi.fn(),
+      delete: vi.fn(),
+      clear: vi.fn(),
+    };
+    const keyv = new Keyv({ store, throwOnErrors: true });
+    const realCache = createCache({ stores: [keyv] });
+    const cacheBehavior = new CacheBehavior(realCache);
+    const next = vi.fn().mockResolvedValue('value');
+
+    await expect(
+      cacheBehavior.handle(makeCtx({ failOpen: false }), next),
+    ).rejects.toThrow('store read failed');
+    expect(next).not.toHaveBeenCalled();
+  });
+
+  it('fails open on read error when backed by real cache-manager with default options', async () => {
+    const storeError = new Error('store read failed');
+    const store = {
+      get: vi.fn().mockRejectedValue(storeError),
+      set: vi.fn(),
+      delete: vi.fn(),
+      clear: vi.fn(),
+    };
+    const keyv = new Keyv({ store, throwOnErrors: true });
+    const realCache = createCache({ stores: [keyv] });
+    const cacheBehavior = new CacheBehavior(realCache);
+    const next = vi.fn().mockResolvedValue('fallback value');
+
+    await expect(cacheBehavior.handle(makeCtx(), next)).resolves.toBe(
+      'fallback value',
+    );
+    expect(next).toHaveBeenCalledOnce();
   });
 
   it('records hit / miss and the resolved key on the context items', async () => {
@@ -87,6 +259,21 @@ describe('CacheBehavior', () => {
     const hitCtx = makeCtx();
     await behavior.handle(hitCtx, next);
     expect(hitCtx.items.get(CACHE_HIT_ITEM)).toBe(true);
+  });
+
+  it('returns the value from the confirmed lookup without re-entering downstream behaviors', async () => {
+    const next = vi.fn().mockResolvedValue('fresh');
+    const cacheWithWrap = {
+      get: vi.fn().mockResolvedValue('stale'),
+      wrap: vi.fn(),
+    } as unknown as Cache;
+    const cacheBehavior = new CacheBehavior(cacheWithWrap);
+
+    const result = await cacheBehavior.handle(makeCtx({ ttl: 500 }), next);
+
+    expect(result).toBe('stale');
+    expect(next).not.toHaveBeenCalled();
+    expect(cacheWithWrap.wrap).not.toHaveBeenCalled();
   });
 
   it('passes through non-query requests by default', async () => {
@@ -117,6 +304,28 @@ describe('CacheBehavior', () => {
 
     expect(ctx.items.get(CACHE_KEY_ITEM)).toBe('fixed-key');
     expect(await cache.get('fixed-key')).toBe('value');
+  });
+
+  it('partitions handler-authorized results by principal when the key is scoped', async () => {
+    const options: CacheBehaviorOptions = {
+      key: (ctx) => `${ctx.items.get('principalId')}:${ctx.requestName}:1`,
+    };
+    const alice = makeCtx(options);
+    alice.items.set('principalId', 'alice');
+    const bob = makeCtx(options);
+    bob.items.set('principalId', 'bob');
+    const next = vi
+      .fn()
+      .mockResolvedValueOnce({ email: 'alice@example.test' })
+      .mockResolvedValueOnce({ email: 'bob@example.test' });
+
+    expect(await behavior.handle(alice, next)).toEqual({
+      email: 'alice@example.test',
+    });
+    expect(await behavior.handle(bob, next)).toEqual({
+      email: 'bob@example.test',
+    });
+    expect(next).toHaveBeenCalledTimes(2);
   });
 
   it('skips caching when the condition returns false', async () => {

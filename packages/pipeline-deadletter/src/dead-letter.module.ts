@@ -31,10 +31,11 @@ import type {
  * NestJS module that wires a {@link DeadLetterTransport} into the
  * {@link DeadLetterBehavior} and binds optional module-wide default options.
  *
- * The transport is the only backend-specific piece, so BullMQ, RabbitMQ, and
- * Postgres are interchangeable drop-ins — handler code never changes.
+ * The transport is the only backend-specific piece, so the bundled BullMQ,
+ * RabbitMQ, and Postgres transports are interchangeable drop-ins — handler code
+ * never changes. `forRoot()` requires a transport; none is selected implicitly.
  *
- * @example BullMQ (default) — synchronous transport
+ * @example BullMQ — synchronous transport
  * ```ts
  * import { DeadLetterModule, BullMqDeadLetterTransport } from '@nestjs-pipeline/deadletter';
  * import { Queue } from 'bullmq';
@@ -63,7 +64,7 @@ import type {
  * ```ts
  * DeadLetterModule.forRootAsync({
  *   inject: [AMQP_CHANNEL],
- *   useFactory: (channel: Channel) =>
+ *   useFactory: (channel: ConfirmChannel) =>
  *     new RabbitMqDeadLetterTransport(channel, { routingKey: 'dead-letters' }),
  * });
  * ```
@@ -78,7 +79,6 @@ import type {
  * ```
  */
 @Module({})
-// biome-ignore lint/complexity/noStaticOnlyClass: static-only configuration class
 export class DeadLetterModule {
   /**
    * Registers the behavior with a ready-made transport instance.

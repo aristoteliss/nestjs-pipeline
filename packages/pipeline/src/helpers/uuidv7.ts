@@ -45,9 +45,9 @@ const UUID_V7_REGEX =
  * - 2-bit variant: `10` (RFC 9562)
  * - 62-bit `rand_b`: cryptographic random
  *
- * IDs are monotonically sortable by creation time when compared
- * lexicographically, making them ideal for correlation IDs and
- * database primary keys.
+ * IDs are timestamp-sortable when compared lexicographically. IDs generated
+ * in different milliseconds sort by creation timestamp; IDs generated within
+ * the same millisecond contain random bits and are not monotonic.
  *
  * Zero external dependencies — uses Node.js built-in `crypto.randomBytes()`.
  */

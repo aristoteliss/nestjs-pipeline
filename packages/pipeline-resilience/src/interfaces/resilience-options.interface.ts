@@ -45,18 +45,22 @@ export type RetryBackoff =
    * (`initialDelay: 128`, `maxDelay: 30_000`, `exponent: 2`).
    */
   | {
-    type: 'exponential';
-    initialDelay?: number;
-    maxDelay?: number;
-    exponent?: number;
-    jitter?: JitterStrategy;
-  }
+      type: 'exponential';
+      initialDelay?: number;
+      maxDelay?: number;
+      exponent?: number;
+      jitter?: JitterStrategy;
+    }
   /** Walk through an explicit list of delays (ms); the last value repeats. */
   | { type: 'iterable'; delays: number[] };
 
 /** Retry configuration — re-runs the handler on a handled failure. */
 export interface RetryOptions {
-  /** Maximum number of attempts before giving up (e.g. `3`). */
+  /**
+   * Maximum number of retry attempts after the initial call (e.g. `3` allows
+   * the original execution plus up to three retries), matching Cockatiel's
+   * `retry(..., { maxAttempts })` semantics.
+   */
   maxAttempts: number;
   /** Delay strategy between attempts. Defaults to no delay. */
   backoff?: RetryBackoff;
@@ -71,21 +75,21 @@ export type BreakerStrategy =
    * rolling `duration` (ms) window. `minimumRps` avoids tripping under low load.
    */
   | {
-    type: 'sampling';
-    threshold: number;
-    duration: number;
-    minimumRps?: number;
-  }
+      type: 'sampling';
+      threshold: number;
+      duration: number;
+      minimumRps?: number;
+    }
   /**
    * Open when the failure proportion exceeds `threshold` (0–1) over the last
    * `size` calls (count-based sliding window).
    */
   | {
-    type: 'count';
-    threshold: number;
-    size: number;
-    minimumNumberOfCalls?: number;
-  };
+      type: 'count';
+      threshold: number;
+      size: number;
+      minimumNumberOfCalls?: number;
+    };
 
 /** Circuit breaker configuration. */
 export interface CircuitBreakerOptions {
@@ -98,7 +102,7 @@ export interface CircuitBreakerOptions {
   breaker: BreakerStrategy;
 }
 
-/** Timeout configuration — aborts a handler that runs too long. */
+/** Timeout configuration. Underlying work stops only when it cooperates with the abort signal. */
 export interface TimeoutOptions {
   /** Duration in milliseconds after which the call times out. */
   duration: number;

@@ -32,24 +32,32 @@ type ErrorResponseBody = {
 };
 
 type HttpResponse = {
-  status(code: number): { json(body: ErrorResponseBody): void };
+  status(code: number): HttpResponse;
+  json?(body: ErrorResponseBody): unknown;
+  send?(body: ErrorResponseBody): unknown;
 };
 
 /**
- * Catches {@link ZodValidationError} thrown by both `createRequest()` constructors
- * and {@link ZodValidationBehavior} at the pipeline boundary, mapping them to HTTP 400.
+ * Catches {@link ZodValidationError} thrown by `createCommand()`, `createQuery()`,
+ * or `createZodRequest()` constructors and {@link ZodValidationBehavior} at the pipeline boundary, mapping them to HTTP 400.
  */
 @Catch(ZodValidationError)
 export class ZodValidationFilter implements ExceptionFilter {
   catch(exception: ZodValidationError, host: ArgumentsHost): void {
     const ctx = host.switchToHttp();
     const response = ctx.getResponse<HttpResponse>();
-
-    response.status(HttpStatus.BAD_REQUEST).json({
+    const body: ErrorResponseBody = {
       statusCode: HttpStatus.BAD_REQUEST,
       error: 'Bad Request',
       message: exception.message,
       details: exception.details,
-    });
+    };
+
+    response.status(HttpStatus.BAD_REQUEST);
+    if (typeof response.json === 'function') {
+      response.json(body);
+      return;
+    }
+    response.send?.(body);
   }
 }

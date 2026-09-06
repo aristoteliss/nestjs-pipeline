@@ -36,10 +36,10 @@ import { bootstrapE2E, type E2EContext } from './support/e2e-app';
  *         - LoggingBehavior (tracing + audit log)
  *         - CaslBehavior (RBAC + ABAC authorization)
  *         - FeatureFlagBehavior (kill-switch gating)
- *         - IdempotencyBehavior (duplicate detection per email)
+ *         - IdempotencyBehavior (duplicate detection per tenant/principal/email)
  *         - RateLimitBehavior (5 req / 60s per email)
- *         - CacheBehavior (Redis read-through cache for single-user GET)
- *         - ResilienceBehavior (retry / circuit-breaker / timeout on delete)
+ *         - tenant-aware DDD repository read-through cache
+ *         - ResilienceBehavior (retry / circuit-breaker on delete)
  *         - AuditBehavior (action logging on delete)
  *     → DDD Command / Query Handlers
  *     → MikroORM + libSQL persistence
@@ -109,7 +109,10 @@ describe('users-api (e2e)', () => {
       const rawEmail = `Upper.${Date.now()}-${emailSeq++}@Acme.Test`;
       const expectedEmail = rawEmail.toLowerCase();
 
-      const res = await createUser(admin, { email: rawEmail, name: 'Case Sensitive Carl' });
+      const res = await createUser(admin, {
+        email: rawEmail,
+        name: 'Case Sensitive Carl',
+      });
 
       expect(res.status).toBe(201);
       expect(res.body.email).toBe(expectedEmail);
@@ -122,6 +125,27 @@ describe('users-api (e2e)', () => {
 
       expect(res.status).toBe(201);
       expect(res.body.department).toBeNull();
+    });
+
+    it('rejects duplicate email persistence with UniqueEmailException (409)', async () => {
+      const email = newEmail();
+      const first = await createUser(admin, { email, name: 'First User' });
+      expect(first.status).toBe(201);
+
+      const secondAdmin = JSON.stringify({
+        id: 'admin-2',
+        email: 'admin2@acme.test',
+        department: 'platform',
+        capabilities: { roles: [], additionalCapabilities: ['all|manage|*'] },
+      });
+
+      const conflict = await createUser(secondAdmin, { email, name: 'Second User' });
+      expect(conflict.status).toBe(409);
+      expect(conflict.body).toMatchObject({
+        statusCode: 409,
+        error: 'Conflict',
+        message: `Email ${email} already exists`,
+      });
     });
 
     it('rejects an invalid payload at the Zod boundary (400)', async () => {
@@ -285,6 +309,20 @@ describe('users-api (e2e)', () => {
         .send({ name: 'no' }); // shorter than the 3-char minimum
 
       expect(res.status).toBe(400);
+    });
+
+    it('rejects an empty update payload with EmptyUserUpdateException (400)', async () => {
+      const created = await createUser(admin, {
+        email: newEmail(),
+        name: 'Empty Edward',
+      });
+
+      const res = await as(admin).patch(`/users/${created.body.id}`).send({});
+
+      expect(res.status).toBe(400);
+      expect(res.body).toMatchObject({
+        formErrors: ['At least one mutable field must be supplied.'],
+      });
     });
   });
 

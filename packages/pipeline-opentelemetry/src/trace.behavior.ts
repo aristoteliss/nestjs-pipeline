@@ -75,7 +75,7 @@ function isSdkInitialized(): boolean {
 @Injectable()
 export class TraceBehavior implements IPipelineBehavior, OnModuleInit {
   private readonly logger: LoggerService;
-  private readonly context: string | undefined;
+  private readonly context: string;
   /** false = SDK not initialized; handle() will pass through without tracing. */
   private sdkReady = false;
 
@@ -84,18 +84,13 @@ export class TraceBehavior implements IPipelineBehavior, OnModuleInit {
     @Inject(LOGGING_BEHAVIOR_LOGGER)
     logger?: LoggerService,
   ) {
+    this.context = TraceBehavior.name;
     if (!logger) {
-      this.logger = new Logger(TraceBehavior.name, { timestamp: true });
+      this.logger = new Logger(this.context, { timestamp: true });
       return;
     }
 
     this.logger = logger;
-    this.context = TraceBehavior.name;
-    if (typeof untyped(this.logger).setContext === 'function') {
-      (
-        this.logger as LoggerService & { setContext(context: string): void }
-      ).setContext(this.context);
-    }
   }
 
   onModuleInit(): void {
@@ -105,7 +100,7 @@ export class TraceBehavior implements IPipelineBehavior, OnModuleInit {
       this.logger.warn(
         'OpenTelemetry SDK is NOT initialized — TraceBehavior will pass through without tracing. ' +
           'Ensure your tracing bootstrap runs BEFORE NestFactory.create() ' +
-          '(import "./tracing" as the first line of main.ts, or use --require ./tracing.js).',
+          '(initialize it in a bootstrap module or use --require ./tracing.js).',
         this.context,
       );
     } else {

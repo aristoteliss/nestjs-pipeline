@@ -16,7 +16,6 @@
  * ----------------------------
  */
 
-
 import { getSessionUserFromStore } from '@common/context/session-user.store';
 import { Inject, Injectable, Optional, Scope } from '@nestjs/common';
 import type {
@@ -26,8 +25,6 @@ import type {
 } from '@nestjs-pipeline/casl';
 import { CASL_SUBJECT_CONTEXT_PATHS } from '@nestjs-pipeline/casl';
 import type { IPipelineContext } from '@nestjs-pipeline/core';
-import { FromCache, ICache, QueryRepository } from '@nestjs-pipeline/ddd-core';
-import { CACHE_TOKEN } from '@persistence/cache/memory.cache';
 import { MIKRO_ORM_CLIENT, MikroOrmStore } from '@persistence/mikro-orm.store';
 import { GetUserContextQuery } from '../cqrs/queries/get-user-context.query';
 import { User } from '../domain/models/user.entity';
@@ -42,27 +39,24 @@ import { User } from '../domain/models/user.entity';
  * configuration used by `CaslBehavior` for instance-level subject checks.
  *
  * REQUEST-scoped so it can access the current HTTP request.
+ * ΑΤΤENTION: This class is not a singleton for example, you will see warning logs
+ * in the console, which are expected and not a problem
  */
 @Injectable({ scope: Scope.REQUEST })
-export class GetUserContextQueryRepository
-  extends QueryRepository<GetUserContextQuery, CaslUserContext | null>
-  implements IUserContextResolver {
+export class GetUserContextQueryRepository implements IUserContextResolver {
   constructor(
-    @Inject(CACHE_TOKEN)
-    protected readonly cache: ICache<CaslUserContext | null>,
     @Inject(MIKRO_ORM_CLIENT) private readonly store: MikroOrmStore,
     @Optional()
     @Inject(CASL_SUBJECT_CONTEXT_PATHS)
     private readonly subjectContextPaths?: CaslBehaviorOptions['subjectContextPaths'],
-  ) {
-    super(cache);
-  }
+  ) {}
 
   async resolve(context: IPipelineContext): Promise<CaslUserContext | null> {
     const rawUser =
       this.resolveUserContextFromRequest(
         context.request as Record<string, unknown> | undefined,
-      ) ?? (getSessionUserFromStore() as unknown as CaslUserContext | undefined);
+      ) ??
+      (getSessionUserFromStore() as unknown as CaslUserContext | undefined);
 
     if (!rawUser) return null;
 
@@ -118,9 +112,6 @@ export class GetUserContextQueryRepository
     return current as Record<string, unknown>;
   }
 
-  @FromCache<GetUserContextQuery, CaslUserContext | undefined>(
-    (q) => `user:context:${q.userId}`,
-  )
   async find(query: GetUserContextQuery): Promise<CaslUserContext | null> {
     const { userId } = query;
 

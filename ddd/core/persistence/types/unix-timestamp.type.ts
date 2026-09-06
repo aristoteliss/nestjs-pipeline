@@ -1,27 +1,47 @@
-import { Platform, TransformContext, Type } from '@mikro-orm/core';
+import {
+  type EntityProperty,
+  Platform,
+  type TransformContext,
+  Type,
+} from '@mikro-orm/core';
 
 export class UnixTimestampType extends Type<Date, number> {
   convertToDatabaseValue(
-    value: Date | undefined | null,
+    value: Date | number | string | bigint | undefined | null,
     _platform?: Platform,
     _context?: TransformContext,
-  ): any {
-    if (value == null) return value;
+  ): number {
+    if (value == null) return value as unknown as number;
     if (value instanceof Date) return value.getTime();
     if (typeof value === 'number') return value;
-    return new Date(value).getTime();
+    if (typeof value === 'bigint') return Number(value);
+    if (typeof value === 'string') {
+      const numeric = Number(value);
+      return Number.isNaN(numeric) ? new Date(value).getTime() : numeric;
+    }
+    return new Date(value as unknown as string).getTime();
   }
 
   convertToJSValue(
-    value: number | undefined | null,
+    value: number | string | bigint | Date | undefined | null,
     _platform?: Platform,
     _context?: TransformContext,
-  ): any {
-    if (value == null) return value;
-    return new Date(value);
+  ): Date {
+    if (value == null) return value as unknown as Date;
+    if (value instanceof Date) return value;
+    if (typeof value === 'number') return new Date(value);
+    if (typeof value === 'bigint') return new Date(Number(value));
+    if (typeof value === 'string') {
+      const numeric = Number(value);
+      return new Date(Number.isNaN(numeric) ? value : numeric);
+    }
+    return new Date(value as unknown as number);
   }
 
-  getColumnType() {
-    return 'number';
+  getColumnType(
+    prop: EntityProperty = {} as EntityProperty,
+    platform?: Platform,
+  ): string {
+    return platform ? platform.getBigIntTypeDeclarationSQL(prop) : 'bigint';
   }
 }

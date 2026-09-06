@@ -24,8 +24,9 @@ import type { EvaluationContextFactory } from '../interfaces/feature-flags-optio
  * Derives a base OpenFeature {@link EvaluationContext} from the live pipeline
  * request so flag targeting rules can key off it out of the box.
  *
- * `targetingKey` defaults to the request's correlation id (a stable per-request
- * identifier) — providers like Unleash use it for sticky/gradual rollouts.
+ * `targetingKey` defaults to the request's correlation id, which is stable only
+ * for that request. Override it with user/account/device identity when rollout
+ * assignment must remain sticky across later requests.
  */
 export function baseEvaluationContext(
   context: IPipelineContext,

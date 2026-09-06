@@ -1,433 +1,528 @@
 # @nestjs-pipeline/ddd-users-api
 
-A complete NestJS application demonstrating `@nestjs-pipeline` with Domain-Driven Design.
+Disposable reference application demonstrating the `@nestjs-pipeline/*` packages with NestJS CQRS, MikroORM, CASL, Zod, caching, tracing, rate limiting, audit, idempotency, feature flags, resilience, correlation IDs, and dead-letter handling.
 
+This directory is a **demo**, not a migration-compatibility target. Its database history may be reset whenever the sample schema changes. Do not use its migration files as an upgrade path for a real application.
 
-## Overview
+## Fresh setup
 
-This sample builds on `@nestjs-pipeline/ddd-core` to show a full CQRS + DDD stack, with **MikroORM as the persistence and cache layer**.
-
-- **Domain layer** — `User` and `Role` entities extending `CacheableEntity`, domain events, and outcomes.
-- **CQRS layer** — Command/query handlers with `@UsePipeline` behaviors, validated via `createExecuteClass()` and Zod schemas.
-- **Persistence** — Dual-engine support: **libSQL** (SQLite) for local development and **PostgreSQL** for production multi-tenant deployments. Conditional routing via `MIKRO_ORM_CLIENT` provider.
-- **Multi-tenant routing** — When `DB_ENGINE=postgres`, tenant schema is resolved per-request from the `x-tenant-schema` header and isolated via PostgreSQL schema-per-tenant pattern. Domain entities remain tenant-agnostic (no embedded `tenantId`).
-- **Caching** — **MikroOrmCache** (MikroORM-backed, TTL-aware) configured via `CACHE_TOKEN` in `PersistenceModule`.
-- **Authorization** — ABAC via `@nestjs-pipeline/casl`. Per-handler `CaslBehavior` with MikroORM-backed role/capability providers, explicit `subjectContextPaths`, global `defaultFieldsFromRequest`, condition interpolation, and inline `rules` on `CaslBehaviorOptions`.
-- **Event handlers** — React to domain events, enqueue background jobs via BullMQ.
-- **Controllers** — REST endpoints with `ZodPipe` validation and correlation ID propagation.
-- **Logging** — `nestjs-pino` logger wired into both `LoggingBehavior` and `TraceBehavior` via DI tokens.
-
-## Getting Started
+Start from an empty database/schema:
 
 ```bash
 cd ddd/users-api
 pnpm install
-pnpm build              # build workspace dependencies
-cp .env.example .env    # create local environment file (edit as needed)
-pnpm db:migrate         # apply schema + data migrations (idempotent)
-pnpm dev                # start with tsx (hot-reload)
+pnpm build
+cp .env.example .env
+pnpm db:migrate
+pnpm dev
 ```
 
-### Environment variables
+`db:migrate` applies the single current initial migration. That migration creates the complete schema and inserts the demo seed in one pass.
 
-| Variable             | Default        | Description                          |
-|----------------------|----------------|--------------------------------------|
-| `DB_ENGINE`          | `libsql`       | Persistence engine: `libsql` (SQLite) or `postgres` |
-| `DATABASE_URL`       | `file:src/persistence/local.db` | SQLite database URL (only used when `DB_ENGINE=libsql`); base/template — a `-<tenant>` suffix is inserted per tenant; supports local file or remote libSQL endpoint |
-| `AUTH_TOKEN`         | _(none)_       | Auth token for remote libSQL databases (only used when `DB_ENGINE=libsql`) |
-| `DATABASE_HOST`      | `127.0.0.1`    | PostgreSQL host (only used when `DB_ENGINE=postgres`) |
-| `DATABASE_PORT`      | `5432`         | PostgreSQL port (only used when `DB_ENGINE=postgres`) |
-| `DATABASE_NAME`      | `nestjs_pipeline` | PostgreSQL database name (only used when `DB_ENGINE=postgres`) |
-| `DATABASE_USER`      | `postgres`     | PostgreSQL database user (only used when `DB_ENGINE=postgres`) |
-| `DATABASE_PASSWORD`  | `postgres`     | PostgreSQL database password (only used when `DB_ENGINE=postgres`) |
-| `DB_DEFAULT_SCHEMA`  | `tenant` | Default schema name for the default tenant (used by both engines) |
-| `SQLITE_TENANTS`     | _(none)_       | Comma-separated libSQL tenant list initialized at startup (only used when `DB_ENGINE=libsql`) |
-| `TENANT_SCHEMAS`     | _(none)_       | Comma-separated list of tenant schema names for migrations (e.g. `tenant_a,tenant_b`); if set, `migrate` and `revert` commands process all listed schemas |
-| `AUTH_LOGIN_CODE`    | _(none)_       | Code required for the login endpoint |
-| `JWT_SECRET`         | _(none)_       | Secret key used for JWT token signing |
-| `SESSION_SECRET`     | _(none)_       | 32-byte hex string for `@fastify/secure-session` (required when `ADAPTER=fastify`) |
-| `ADAPTER`            | _(none)_       | Set to `fastify` to use Fastify adapter; omit for Express |
-| `REDIS_HOST`         | `localhost`    | Redis host for BullMQ job queues |
-| `REDIS_PORT`         | `6379`         | Redis port for BullMQ job queues |
-| `OTEL_SERVICE_NAME`  | _(none)_       | OpenTelemetry service name |
-| `OTEL_EXPORTER_OTLP_ENDPOINT` | _(none)_ | OpenTelemetry OTLP collector endpoint |
+If the demo schema changes, delete the local demo database (or drop/recreate the PostgreSQL tenant schema) and run `pnpm db:migrate` again. There is intentionally no compatibility migration chain for older versions of this sample.
 
-### Dual-engine architecture
+## Persistence modes
 
-**libSQL (SQLite)** — Default for local development:
-- Uses separate database files per tenant (`local-tenant_a.db`, `local-tenant_b.db`)
-- No schema isolation; each file is independent
-- Loaded by `MikroOrmStore` when `DB_ENGINE !== 'postgres'`
+### libSQL / SQLite
 
-**PostgreSQL** — For production multi-tenant deployments:
-- One database, multiple schemas (one per tenant)
-- Request middleware extracts `x-tenant-schema` header and sets tenant context
-- `AppModule` binds the DI-provided `TenantSchemaMiddleware` handler in `configure()`
-- `PostgresMikroOrmStore` forks EntityManager with the tenant schema
-- Domain entities remain tenant-agnostic; schema routing is transparent to business logic
+Default local configuration:
 
-## Project structure
-
-```
-src/
-├── app.module.ts              # Root module — wires Pipeline, CASL, Persistence, Users, Roles
-├── main.ts                    # Bootstrap (Express/Fastify)
-├── tracing.ts                 # OpenTelemetry SDK setup
-│
-├── common/                    # Shared helpers (aliased as @common/*)
-│   ├── cqrs/helpers/
-│   │   ├── createExecute.helper.ts   # Zod-validated Command/Query class factory
-│   └── mappers/
-│       └── create-mapper.helper.ts   # DTO → Command mapper factory
-│
-├── persistence/               # Global persistence layer (aliased as @persistence/*)
-│   ├── persistence.module.ts  # @Global() — provides MIKRO_ORM_CLIENT, CACHE_TOKEN; routes to libSQL or PostgreSQL
-│   ├── libsql-options.ts      # MikroORM config factory for SQLite (libSQL)
-│   ├── postgres-options.ts    # MikroORM config factory for PostgreSQL + schema validation
-│   ├── mikro-orm.store.ts     # SQLite client wrapper (uses libsql-options.ts)
-│   ├── postgres-mikro-orm.store.ts # PostgreSQL client wrapper with tenant schema routing
-│   ├── tenant-schema.context.ts # AsyncLocalStorage for per-request tenant schema isolation
-│   ├── migrations/            # Native MikroORM migration classes
-│   ├── middlewares/
-│   │   └── tenant-schema.middleware.ts # Express middleware to extract x-tenant-schema header
-│   ├── migrate.ts             # CLI runner for schema + seed migrations
-│   ├── revert.ts              # CLI runner to revert migrations
-│   ├── store.interface.ts
-│   ├── memory-store.ts
-│   └── cache/
-│       ├── memory.cache.ts    # In-process ICache<T> (CACHE_TOKEN)
-│       └── mikro-orm.cache.ts # MikroORM-backed ICache<T> (default)
-│
-├── users/                     # Users bounded context
-│   ├── users.module.ts
-│   ├── controllers/           # REST endpoints
-│   ├── cqrs/
-│   │   ├── commands/          # CreateUser, UpdateUser, DeleteUser
-│   │   ├── events/            # UserCreated, UserUpdated, UserDeleted
-│   │   └── queries/           # GetUser, GetUsers, GetUserContext
-│   ├── domain/                # User entity, events, outcomes
-│   ├── dtos/                  # Zod-validated DTOs
-│   ├── jobs/                  # BullMQ processors
-│   ├── mappers/               # DTO → Command mappers
-│   ├── persistence/           # Command + Query repositories
-│   │   └── get-user-context.query-repository.ts        # implements IUserContextResolver
-│   └── repositories/         # Repository DI tokens
-│
-└── roles/                     # Roles bounded context
-    ├── roles.module.ts
-    ├── controllers/           # REST endpoints
-    ├── cqrs/
-    │   ├── commands/          # CreateRole, UpdateRole, DeleteRole
-    │   ├── events/            # RoleCreated, RoleUpdated, RoleDeleted
-    │   └── queries/           # GetRole, GetRoles, GetRolesCapabilities
-    ├── domain/                # Role entity, events, outcomes
-    ├── dtos/                  # Zod-validated DTOs
-    ├── mappers/               # DTO → Command mappers
-    └── persistence/           # Command + Query repositories + tokens
-        └── get-roles-capabilities.query-repository.ts  # implements IRoleProvider
+```env
+DB_ENGINE=libsql
+DATABASE_URL=file:src/persistence/local.db
+DB_DEFAULT_SCHEMA=tenant
 ```
 
-> The `auths/` bounded context (`auths.module.ts`, `controllers/`, `cqrs/`, `domain/`,
-> `dtos/`, `mappers/`, `repositories/`, `services/`) provides authentication/session
-> handling. `auths/repositories/get-user-capabilities.query-repository.ts` implements
-> `IUserCapabilityProvider`, and `auths/cqrs/queries/` holds `GetUserCapabilities`.
-> A global `AuthSessionInterceptor` (`common/interceptors/`) is wired as an
-> `APP_INTERCEPTOR` in `app.module.ts`.
+A single tenant uses `DATABASE_URL` unchanged. For multiple local tenants, set `SQLITE_TENANTS`; derived files get a tenant suffix. Multiple remote libSQL tenants require `SQLITE_DATABASE_TEMPLATE` containing `{tenant}`.
 
-### Path aliases
+### PostgreSQL
 
-TypeScript path aliases keep imports clean and decouple modules from relative path depth:
+Set `DB_ENGINE=postgres` and configure the PostgreSQL environment variables. Each tenant uses a separate schema. `TENANT_SCHEMAS` controls which schemas are migrated by the CLI.
 
-| Alias             | Maps to           |
-|-------------------|-------------------|
-| `@common/*`       | `./src/common/*`  |
-| `@persistence/*`  | `./src/persistence/*` |
+The PostgreSQL options set both the ORM `schema` and `migrations.schema` to the
+selected tenant. MikroORM uses the latter to scope unqualified migration SQL
+through the transaction's `search_path` and keep migration history per tenant.
+This applies to both migration and rollback.
 
-## Migrations
+Both engines use the `x-tenant-schema` request header to select the active tenant.
 
-Database schema is managed by native MikroORM migrations in `src/persistence/migrations`.
+## Current schema
 
-### libSQL (SQLite) mode (default)
+The fresh initial migration creates:
 
-- **Migrations are NOT run on startup** — apply them explicitly with `pnpm db:migrate` (runs `orm.migrator.up()` via `src/persistence/migrate.ts`). `MikroOrmStore.onModuleInit()` only initializes the ORM per tenant.
-- **Multiple databases** — Update `DATABASE_URL` to point to different files, or run migrations separately for each file.
-- **CLI** — Use `pnpm db:migrate` to apply pending migrations (runs against current `DATABASE_URL`).
+- `users`
+- `auth`
+- `roles`
+- `capabilities`
+- `role_capabilities`
+- `user_roles`
+- `user_additional_capabilities`
+- `user_denied_capabilities`
+- `cache`
 
-### PostgreSQL mode
+`capabilities.inverted` is created as a boolean from the beginning. There is no smallint-to-boolean compatibility conversion.
 
-When `DB_ENGINE=postgres`, schema-per-tenant routing is enabled:
+The MikroORM entity metadata and migration schema are expected to describe the same current database contract. In particular, user email is unique in both paths.
 
-- **Per-request isolation** — `TenantSchemaMiddleware` extracts `x-tenant-schema` header and stores it in `TenantSchemaContext` (via `AsyncLocalStorage`).
-- **EntityManager forking** — `PostgresMikroOrmStore.em` forks the connection with the tenant schema, so all queries are automatically scoped.
-- **Domain entities** — Remain tenant-agnostic; no `tenantId` field (schema isolation is transparent).
-- **Migrations** — run explicitly via `pnpm db:migrate` (optionally `TENANT_SCHEMAS=tenant_a,tenant_b`); they are not executed at application boot.
-- **CLI multi-tenant** — Use `TENANT_SCHEMAS=tenant_a,tenant_b pnpm db:migrate` to run migrations across multiple schemas.
+## Seed data
 
-### Migration and seed files
+The initial migration inserts **8 users, 5 roles, and 14 capabilities**. Seed names/emails include the tenant token so separate tenant databases/schemas stay easy to inspect.
 
-- **New migrations** — Create migration classes in `src/persistence/migrations` (or generate via MikroORM CLI).
-- **Seed data** — Stored as data migrations (e.g., `Migration20260501010000.ts`) and applied with `pnpm db:migrate`.
-- **Idempotent** — All migrations use `if not exists` clauses and `upsert` logic to safely re-run.
+| User | Roles | Purpose |
+|---|---|---|
+| Alice | `admin` | Unrestricted `all/manage` example |
+| Bob | `user-manager` | Department-scoped management with role-level denials |
+| Carol | `self` | Self-read and username-only self-update |
+| Dave | `viewer` | Plain read-only viewer; **no create override** |
+| Eve | `viewer` + `self` | Multi-role ability merge |
+| Frank | `support-agent` | Department-scoped support permissions |
+| Grace | `user-manager` | Demonstrates a **per-user denial** overriding role permissions |
+| Vince | `viewer` | Demonstrates a **per-user additional grant** (`User/create`) |
 
-## Logging
+CASL condition placeholders in the seed use only the supported flat user context forms:
 
-This sample uses `nestjs-pino` as the application logger and forwards it to pipeline libraries:
+```text
+${user.id}
+${user.department}
+```
 
-- `LOGGING_BEHAVIOR_LOGGER` → `NativeLogger` from `nestjs-pino`
+The seed intentionally demonstrates both override directions:
 
-This gives one consistent logger for HTTP logs, pipeline request/response logs, and tracing startup diagnostics.
+- `user_additional_capabilities`: Vince receives `User/create` in addition to `viewer`.
+- `user_denied_capabilities`: Grace receives an explicit `User/read` denial; the CASL package forces capabilities from the denied collection to inverted rules.
 
-## Database schema
+## Running requests
 
-### `users` table
+The sample supports Express by default and Fastify with `ADAPTER=fastify`.
 
-| Column       | Type    | Description                      |
-|--------------|---------|----------------------------------|
-| `id`         | TEXT PK | UUID v7 identifier               |
-| `username`   | TEXT    | Normalized username              |
-| `email`      | TEXT    | Email address                    |
-| `department` | TEXT    | Department name (nullable)       |
-| `created_at` | INTEGER | Creation timestamp (Unix ms)     |
-| `updated_at` | INTEGER | Last-updated timestamp (Unix ms) |
+Every routed request needs `x-tenant-schema`. Protected routes additionally need a bearer JWT, API credentials, or (Fastify only) the secure-session cookie.
 
-### `cache` table
-
-| Column       | Type    | Description                                          |
-|--------------|---------|------------------------------------------------------|
-| `key`        | TEXT PK | Cache key (e.g. `user:<id>`)                         |
-| `value`      | TEXT    | JSON-serialized cached value                         |
-| `expires_at` | INTEGER | Expiry timestamp (Unix ms); `NULL` means no expiry   |
-
-### `roles` table
-
-| Column       | Type    | Description                      |
-|--------------|---------|----------------------------------|
-| `id`         | TEXT PK | UUID v7 identifier               |
-| `name`       | TEXT    | Unique role name                 |
-| `created_at` | INTEGER | Creation timestamp (Unix ms)     |
-| `updated_at` | INTEGER | Last-updated timestamp (Unix ms) |
-
-### CASL authorization tables
-
-| Table                            | Description                                    |
-|----------------------------------|------------------------------------------------|
-| `capabilities`                   | Permission definitions (subject, action, conditions, fields, inverted) |
-| `roles`                          | Named roles (`admin`, `viewer`, …)             |
-| `role_capabilities`              | Junction: role → capability                    |
-| `user_roles`                     | Junction: user → role                          |
-| `user_additional_capabilities`   | Per-user extra capabilities                    |
-| `user_denied_capabilities`       | Per-user denied capabilities                   |
-
-All tables are created via versioned migrations (see [Migrations](#migrations)).
-
-### PostgreSQL Schema-per-tenant pattern
-
-Tenant isolation is achieved via PostgreSQL schemas, not by embedding `tenantId` in tables. This keeps domain entities clean and simplifies backoffice queries.
+Example shape:
 
 ```bash
-# Create schemas for each tenant
-psql -U postgres -d nestjs_pipeline -c "create schema if not exists tenant_acme;"
-psql -U postgres -d nestjs_pipeline -c "create schema if not exists tenant_globex;"
-
-# Migrate both tenants
-TENANT_SCHEMAS=tenant_acme,tenant_globex pnpm db:migrate
-```
-
-**Request routing** — Client sends `x-tenant-schema` header:
-
-```bash
-# Route to tenant_acme
 curl http://localhost:3000/users \
-  -H 'x-tenant-schema: tenant_acme' \
-  -H 'Authorization: Bearer <token>'
-
-# Route to tenant_globex (same table structure, different schema)
-curl http://localhost:3000/users \
-  -H 'x-tenant-schema: tenant_globex' \
+  -H 'x-tenant-schema: tenant' \
   -H 'Authorization: Bearer <token>'
 ```
 
-**Backoffice cross-tenant reads** — Use a DB-level union view:
+`POST /auth/login` returns a bearer token. With Fastify + `SESSION_SECRET`, it also populates `@fastify/secure-session`. Express intentionally uses bearer/API credentials only.
 
-```sql
-create or replace view backoffice_users as
-select 'tenant_acme'::text as tenant_schema, id, username, email, department, created_at
-from tenant_acme.users
-union all
-select 'tenant_globex'::text as tenant_schema, id, username, email, department, created_at
-from tenant_globex.users;
+## Authentication & Context Scoping Architecture
 
--- Keyset paging example
-select * from backoffice_users
-where (created_at, id, tenant_schema) < ($1, $2, $3)
-order by created_at desc, id desc, tenant_schema desc
-limit 50;
+Authentication and request-scoped context management follow a strict separation of concerns between NestJS Guards and Interceptors:
+
+```text
+Incoming HTTP Request
+         │
+         ▼
+TenantSchemaMiddleware
+         │ (Validates x-tenant-schema header, enters TenantSchemaContext)
+         ▼
+AuthSessionGuard (APP_GUARD)
+  ├─ 1. Check Fastify session cookie (req.session?.user)
+  ├─ 2. Parse & verify Bearer JWT (JwtAuthenticator)
+  └─ 3. Verify API-client credentials (ApiClientAuthenticator)
+  │
+  ▼ Sets req.sessionUser = principal (or throws 401 Unauthorized immediately)
+SessionUserContextInterceptor (APP_INTERCEPTOR)
+  │
+  ▼ sessionUserStore.run(req.sessionUser, () => next.handle())
+Downstream Pipeline (Controllers → CQRS Bus → CASL → Audit → DB)
 ```
 
-## Authorization (CASL)
+### Architecture Components
 
-Uses `@nestjs-pipeline/casl` for attribute-based access control with roles.
+1. **`AuthSessionGuard` (`APP_GUARD`)**: Decides **who you are**. It executes early in the NestJS request lifecycle (before interceptors, pipes, or route handlers) and delegates credential resolution to:
+   - **`JwtAuthenticator`**: Parses `Authorization: Bearer <token>` (case-insensitively, accepting `Bearer` or `bearer`). Supports both symmetric (`JWT_SECRET`) and asymmetric (`JWT_PUBLIC_KEY`) keys. Asymmetric SPKI keys are memoized upon first parse to eliminate repetitive ASN.1 DER parsing. Validates tenant alignment and maps CASL capabilities.
+   - **`ApiClientAuthenticator`**: Authenticates machine-to-machine callers using `x-api-id` and `x-api-key` headers against configured `API_CLIENTS`. Uses constant-time fixed-length SHA-256 digest comparison (`timingSafeEqual`) to prevent timing side-channel leaks. Operates completely statelessly.
+   - **`RequestPrincipalResolver`**: Lean orchestrator coordinating priority resolution (Cookie $\rightarrow$ JWT $\rightarrow$ API Key $\rightarrow$ Anonymous).
+2. **`SessionUserContextInterceptor` (`APP_INTERCEPTOR`)**: Decides **the execution scope**. A single-responsibility interceptor that reads `req.sessionUser` (populated by the guard) and invokes `sessionUserStore.run(req.sessionUser, () => next.handle())`. In NestJS 11.2.1, `InterceptorsConsumer` binds stream continuations using `defer(AsyncResource.bind(...))`, guaranteeing that the `AsyncLocalStorage` context established by `run()` persists across all downstream asynchronous operations, CQRS handlers, and pipeline behaviors without cross-request context bleeding.
+3. **`UserLoginService`**: Dedicated application service responsible solely for user login credential verification (`POST /auth/login`) and signing new tenant-bound access tokens.
 
-### Architecture
+### Modular Composition Root & Clean Infrastructure Modules
 
-All three CASL provider interfaces are implemented as proper `QueryRepository` subclasses with `@FromCache` decorators, following the same DDD pattern as the rest of the application:
+To maintain clear architectural boundaries and keep the root composition module maintainable, `AppModule` is decomposed into cohesive infrastructure modules:
 
-- **`GetRolesCapabilitiesQueryRepository`** (`roles/persistence/`) — implements `IRoleProvider`. Loads role → capability definitions from the `roles` / `role_capabilities` / `capabilities` tables. Extends `QueryRepository<GetRolesCapabilitiesQuery, RoleDefinition[]>`.
-- **`GetUserContextQueryRepository`** (`users/persistence/`) — implements `IUserContextResolver`. Reads the current user from the configured CASL `subjectContextPaths` (in this app: `sessionUser`) and fetches department from the `users` table when capability data is not already embedded in the session/JWT. REQUEST-scoped. Extends `QueryRepository<GetUserContextQuery, CaslUserContext | null>`.
-- **`GetUserCapabilitiesQueryRepository`** (`auths/repositories/`) — implements `IUserCapabilityProvider`. Returns the user's assigned roles plus any per-user additional/denied capabilities. Extends `QueryRepository<GetUserCapabilitiesQuery, UserCapabilities>`.
+- **`ObservabilityModule` (`@common/observability/observability.module.ts`)**:
+  - Bundles HTTP correlation middleware (`HttpCorrelationMiddleware`), OpenTelemetry tracing, and metric collection.
+  - Configures global pipeline behaviors for tracing (`TraceBehavior`) and latency/throughput metrics (`MetricsBehavior`).
+- **`ReliabilityModule` (`@common/reliability/reliability.module.ts`)**:
+  - Manages failure isolation and transport resilience.
+  - Provides BullMQ-backed dead-letter capture (`DeadLetterBehavior`) scoped to commands and events (excluding read queries and validation errors) with automatic fallback to structured log auditing when Redis/BullMQ is unavailable.
+  - Integrates in-memory and distributed rate-limiting infrastructure (`RateLimitBehavior`).
+  - Swappable caching providers (`MikroOrmCache` vs `MemoryCache`).
+- **`AppModule` (`src/app.module.ts`)**:
+  - Lean composition root (under 90 lines) importing domain feature modules (`UsersModule`, `RolesModule`, `AuthsModule`), persistence (`MikroOrmModule`), and infrastructure modules (`ObservabilityModule`, `ReliabilityModule`).
+  - Avoids leaking configuration noise or implementation details into business domain layers.
 
-Each has a corresponding Zod-validated query class (via `createExecuteClass()`) and a `@QueryHandler` in its module's `cqrs/queries/` directory.
+### CQRS Commands & Queries with Zod and Base Classes
 
-### Per-handler (not global)
+All commands and queries in `users-api` are strongly-typed, self-validating, and inherit from the standard base classes using `@nestjs-pipeline/zod`:
 
-CASL is attached per-handler via `@UsePipeline`. The app also defines global CASL defaults in `AppModule`:
+- **Commands (100% inherit from `BaseCommand`)**:
+  ```typescript
+  export class CreateUserCommand extends createCommand(CreateUserSchema, BaseCommand) {}
+  ```
+  - Automatically tagged with `requestKind: 'command'`.
+  - Inherits `sessionUser` resolution (ambient ALS store fallback) without polluting JSON payload serialization or idempotency keys (`sessionUser` is non-enumerable).
+- **Queries (100% inherit from `BaseQuery`)**:
+  ```typescript
+  export class GetUserQuery extends createQuery(GetUserSchema, BaseQuery) {}
+  ```
+  - Automatically tagged with `requestKind: 'query'`.
+  - Implements `IQueryOptions` (`hydrate`, `sessionUser`), keeping cache keys deterministic.
+- **NestJS 12 Standard Schema**:
+  - Generated classes expose `['~standard']`, allowing them to be passed directly to NestJS 12 `@Body({ schema: CommandClass })` validation pipes.
+  - Static `parse()` and `safeParse()` methods are available directly on each command and query.
 
-- `subjectContextPaths: ['sessionUser']`
-- `defaultFieldsFromRequest: { User: ['username', 'department', 'email'] }`
+### MikroORM Entity Schemas & Clean Property Accessors (`accessor: true`)
 
-These defaults mean handlers do not need to repeat nested user/session lookup or common field-level update checks unless they want to override them.
+Persistence schemas map domain aggregate state to relational tables without compromising encapsulation or relying on TypeScript casting workarounds:
 
-For example, `CreateRoleHandler` requires multiple capabilities declared inline via `rules`:
+- **Elimination of `@ts-expect-error` / `@ts-ignore`**: Entities store core attributes in private fields (`_id`, `_createdAt`, `_updatedAt`, `_username`, `_department`). Official MikroORM `accessor: true` properties instruct the ORM to read and write values exclusively through public TypeScript getters and setters:
+  ```typescript
+  export const UserSchema = new EntitySchema<User>({
+    class: User,
+    tableName: 'users',
+    properties: {
+      id: { type: 'string', primary: true, fieldName: 'id', accessor: true },
+      createdAt: { type: UnixTimestampType, fieldName: 'created_at', accessor: true },
+      updatedAt: { type: UnixTimestampType, fieldName: 'updated_at', accessor: true },
+      username: { type: 'string', fieldName: 'username', accessor: true },
+      department: { type: 'string', fieldName: 'department', nullable: true, accessor: true },
+      email: { type: 'string', unique: true },
+    },
+  });
+  ```
+- **Encapsulated Invariant Guarding**: When MikroORM rehydrates or modifies properties, setters invoke the aggregate's domain validation routines, ensuring invalid state can never enter memory from the database.
 
-```ts
-export class CreateRoleCommand extends createExecuteClass(...) {}
+---
 
-@CommandHandler(CreateRoleCommand)
+### Decoupled Caching Architecture & Key Templates
+
+Caching metadata is completely removed from domain entities (`CacheableEntity` and `ICacheKey` are obsolete). Domain entities declare only a canonical logical identity (e.g. `User.aggregateName = 'user'`), keeping domain aggregates pure DDD while caching remains strictly an infrastructure/CQRS pipeline concern:
+
+- **Collision-Safe & Canonical Key Derivation (`filterCacheKey`)**:
+  Generates deterministic, tenant-isolated cache keys by combining active tenant schema, aggregate name, and canonically sorted filter conditions:
+  - **Deterministic Object Serialization**: Nested composite identities/objects are recursively key-sorted and JSON-serialized (preventing `[object Object]` bugs).
+  - **Delimiter Escaping**: Primitive values containing `:` or `\` are escaped to prevent delimiter injection and key collision attacks (`{ a: 'hello:b:world' }` vs `{ a: 'hello', b: 'world' }`).
+  - **Production Multi-Tenant Protection**: Refuses silent default schema fallback when running in `NODE_ENV === 'production'`; throws fail-safe if tenant context is missing.
+  ```typescript
+  // Single identifier lookup using entity class
+  filterCacheKey(User, { id: '123' }, ctx)
+  // → "tenant_a:user:id:123"
+
+  // Composite conditions with delimiter escaping
+  filterCacheKey(User.aggregateName, { email: 'alice@example.com', department: 'sales' }, 'tenant_b')
+  // → "tenant_b:user:department:sales:email:alice@example.com"
+
+  // Nested composite identities
+  filterCacheKey('deployment', { compose: { service: 'postgres', file: 'docker-compose.yml' } })
+  // → 'tenant:deployment:compose:{"file":"docker-compose.yml","service":"postgres"}'
+  ```
+- **Fail-Fast CQRS Handler Templates (`cacheKeyTemplate`)**:
+  Allows query and command handlers to declaratively define cache patterns parameterized from request DTO fields:
+  - Required placeholders `{prop}`: Throws an explicit error if missing or nullish (prevents silent collisions on truncated keys like `tenant:user:`).
+  - Optional placeholders `{prop?}`: Resolves to an empty string if omitted.
+  ```typescript
+  const getKey = cacheKeyTemplate('user:{userId}');
+  getKey(new GetUserQuery({ userId: 'usr_123' }))
+  // → "tenant:user:usr_123"
+
+  // Missing required placeholder throws:
+  getKey({}) // Error: Cannot resolve cache key template: missing required placeholder "userId"
+  ```
+- **Write-Through & Automatic Eviction (`@Cache`, `@FromCache`)**:
+  - `@Cache`: Attached to write repository `save()` methods. Requires explicit key derivations or options (`setKey`, `deleteKeys`, `invalidateKeys`) eliminating unsafe defaults. On create/update, results are stored in the cache. On deletion (`save()` returns `null`), all matching primary and secondary keys are evicted. Operations are fail-safe and best-effort.
+  - `@FromCache`: Attached to query repository `find()` methods. Serves hits from cache and automatically stores non-nullish database results. Supports optional entity rehydration.
+
+---
+
+### Domain Models & Invariant Enforcement
+
+Create-user and create-role handlers persist and return the aggregate.
+`CommandBaseHandler.execute()` publishes and clears its buffered domain events.
+Idempotency serializes the aggregate through `toJSON()`, validating the public
+snapshot rather than its internal NestJS symbol fields. Completed replays return
+plain snapshots without repeating persistence or event publication. The HTTP
+response mappers accept both aggregates and snapshots.
+
+The `User` and `Role` aggregate entities inherit identity and lifecycle behavior from `RootEntity` (`@nestjs-pipeline/ddd-core`):
+
+- **Encapsulated Invariant Enforcement**: State modifications occur exclusively through factory and domain mutation methods (`User.create()`, `user.update()`). Invariants for `username` (minimum 3 characters, trimmed) and `department` (trimmed, minimum 3 characters when provided) are checked synchronously upon instantiation and update.
+- **Framework-Agnostic Domain Exceptions**: Entities throw typed domain exceptions extending `DomainException` (`@nestjs-pipeline/ddd-core`), completely decoupled from HTTP status codes and `@nestjs/common`.
+
+---
+
+### CQRS Runtime Error Taxonomy & HTTP Status Code Mapping
+
+The application enforces a consistent error taxonomy across all 8 commands and 7 queries:
+
+| HTTP Status | Error Type | Exception Class / Source | Trigger Scenario |
+|---|---|---|---|
+| **400 Bad Request** | Validation Error | `ZodValidationError` | Inbound payload fails Zod schema validation (e.g. invalid email format) |
+| **400 Bad Request** | Domain Error | `EmptyUserUpdateException` | Update payload contains no fields to modify (`username` and `department` absent) |
+| **401 Unauthorized** | Authentication Failure | `UnauthorizedException` | Missing token, expired Bearer JWT, invalid API key, or missing server JWT key |
+| **403 Forbidden** | Authorization Failure | `UnauthorizedActionException` | Caller lacks CASL permissions to perform action on subject or specific fields |
+| **404 Not Found** | Resource Missing | `UserNotFoundException`, `RoleNotFoundException` | Target aggregate does not exist in the active tenant database |
+| **409 Conflict** | Uniqueness Collision | `UniqueEmailException`, `UniqueRoleNameException` | Email or role name already exists in the active tenant schema |
+| **422 Unprocessable Entity** | Invariant Violation | `InvalidUsernameException`, `InvalidDepartmentException` | Username or department string fails domain aggregate invariants (< 3 characters) |
+
+#### Global API Mapping (`DomainExceptionFilter`)
+
+The `DomainExceptionFilter` intercepts all domain exceptions at the presentation boundary and serializes them into structured JSON error payloads:
+
+```json
+{
+  "statusCode": 422,
+  "error": "Unprocessable Entity",
+  "message": "Username must be at least 3 characters, received: \"ab\".",
+  "minLength": 3,
+  "actualValue": "ab"
+}
+```
+
+---
+
+### Injectable CASL Authorization (`CaslAuthorizer`)
+
+The service-locator anti-pattern (`RootEntity.authorize()`) has been replaced by the standalone, injectable `CaslAuthorizer` service:
+
+```typescript
+@CommandHandler(CreateUserCommand)
+export class CreateUserHandler extends CommandBaseHandler<CreateUserCommand, User> {
+  constructor(
+    private readonly commandRepository: ICommandRepository<User, UserSnapshot>,
+    private readonly authorizer: CaslAuthorizer,
+    protected readonly eventBus: EventBus,
+  ) {
+    super(eventBus);
+  }
+
+  async handle(command: CreateUserCommand): Promise<User> {
+    const user = User.create(command.username, command.email, command.department);
+
+    // Enforce authorization against the active principal's ability
+    this.authorizer.authorize('create', user, ['username', 'email', 'department']);
+
+    await this.commandRepository.save(user);
+    return user;
+  }
+}
+```
+
+---
+
+### Practical Examples
+
+#### 1. User Login & Token Issuance
+
+Users authenticate via `POST /auth/login` using their email and temporary login code:
+
+```bash
+curl -X POST http://localhost:3000/auth/login \
+  -H "x-tenant-schema: tenant" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "alice+tenant@seed.local",
+    "code": "123456"
+  }'
+```
+
+Response:
+```json
+{
+  "userId": "019488e0-0000-7000-8000-000000000001",
+  "accessToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ...",
+  "userCapabilities": {
+    "roles": ["admin"]
+  }
+}
+```
+
+#### 2. Calling Endpoints with a Bearer JWT
+
+Present the issued token in the standard `Authorization` header:
+
+```bash
+curl http://localhost:3000/users \
+  -H "x-tenant-schema: tenant" \
+  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ..."
+```
+
+#### 3. Machine-to-Machine Integration via API Credentials
+
+Automated scripts and background services authenticate using static API credentials:
+
+```bash
+curl http://localhost:3000/users \
+  -H "x-tenant-schema: tenant" \
+  -H "x-api-id: reporting-service" \
+  -H "x-api-key: secret-api-key-999"
+```
+
+Configure authorized clients in `.env` as a JSON array:
+
+```env
+API_CLIENTS='[{"id":"reporting-service","key":"secret-api-key-999","tenants":["tenant"],"capabilities":{"roles":["reporter"]}}]'
+```
+
+#### 4. Defining & Executing a CQRS Command with Pipeline Behaviors
+
+Commands use `createCommand()` to guarantee Zod schema enforcement, idempotency, and audit logging:
+
+```typescript
+// 1. Command Definition (createCommand)
+export const CreateUserSchema = z.object({
+  username: z.string().min(3).max(50),
+  email: z.string().email(),
+  department: z.string().min(3).max(50).optional(),
+});
+
+export class CreateUserCommand extends createCommand(CreateUserSchema, BaseCommand) {}
+
+// 2. Command Handler with Pipeline Behaviors
+@CommandHandler(CreateUserCommand)
 @UsePipeline(
   [LoggingBehavior, { requestResponseLogLevel: 'log' }],
-  [CaslBehavior, {
-    subjectFromRequest: 'Role',
-    rules: [
-      { action: 'create', subject: 'Role' },
-      { action: 'read', subject: 'User' },
-    ],
-  }],
+  [CaslBehavior, { rules: [{ action: APP_ACTIONS.CREATE, subject: APP_SUBJECTS.USER }] }],
+  [FeatureFlagBehavior, { flag: 'user-registration' }],
+  [RateLimitBehavior, { keyFactory: (ctx) => `${ctx.tenantId}:${ctx.request.email}` }],
+  [IdempotencyBehavior, { keyFactory: createUserIdempotencyKey }],
 )
-export class CreateRoleHandler extends CommandBaseHandler<...> { ... }
+export class CreateUserHandler extends CommandBaseHandler<CreateUserCommand, User> {
+  constructor(
+    @Inject(COMMAND_REPOSITORY.createUser)
+    private readonly commandRepository: ICommandRepository<User, UserSnapshot>,
+    private readonly authorizer: CaslAuthorizer,
+    protected readonly eventBus: EventBus,
+  ) {
+    super(eventBus);
+  }
+
+  async handle(command: CreateUserCommand): Promise<User> {
+    const user = User.create(command.username, command.email, command.department);
+
+    // Entity-level and field-level permission check
+    this.authorizer.authorize('create', user, ['username', 'email', 'department']);
+
+    await this.commandRepository.save(user);
+    return user;
+  }
+}
 ```
 
-The `[LoggingBehavior, { requestResponseLogLevel: 'log' }]` entry here re-declares a behavior that is also registered globally in `AppModule`. Because the pipeline applies a **same-class override**, the handler's entry replaces the global `LoggingBehavior` for this handler (running once, at the `log` level) rather than running twice.
+#### 5. Executing a CQRS Query with Read-Through Caching
 
-Other handlers remain unaffected. To extend authorization to more commands/queries, add `[CaslBehavior, { rules: [...] }]` to their `@UsePipeline`.
+Queries use `createQuery()` with read-through caching in the repository:
 
-### Testing authorization
+```typescript
+// 1. Query Definition (createQuery)
+export const GetUserSchema = z.object({
+  userId: z.string().uuid().optional(),
+  email: z.string().email().optional(),
+});
 
-Authenticate with a Bearer JWT or a secure session cookie. The request user is
-stored under `sessionUser`, which is also the configured CASL subject-context path.
+export class GetUserQuery extends createQuery(GetUserSchema, BaseQuery) {}
+
+// 2. Query Repository with @FromCache
+@Injectable()
+export class GetUserQueryRepository extends QueryRepository<GetUserQuery, User | null> {
+  @FromCache<GetUserQuery, User>(
+    (q) => filterCacheKey(User.aggregateName, q.userId ? { id: q.userId } : { email: q.email }),
+    (cached) => User.fromJSON(cached as UserSnapshot),
+  )
+  async find(query: GetUserQuery): Promise<User | null> {
+    return this.store.em.findOne(User, query.userId ? { id: query.userId } : { email: query.email });
+  }
+}
+
+// 3. Query Handler with CASL
+@QueryHandler(GetUserQuery)
+@UsePipeline([CaslBehavior, { rules: [{ action: APP_ACTIONS.READ, subject: APP_SUBJECTS.USER }] }])
+export class GetUserHandler implements IQueryHandler<GetUserQuery, UserSnapshot | null> {
+  constructor(
+    @Inject(QUERY_REPOSITORY.getUser) private readonly queryRepository: IQueryRepository<GetUserQuery, User | null>,
+    private readonly authorizer: CaslAuthorizer,
+  ) {}
+
+  async execute(query: GetUserQuery): Promise<UserSnapshot | null> {
+    const user = User.from(await this.queryRepository.find(query));
+    return user ? this.authorizer.authorize<UserSnapshot>('read', user) : null;
+  }
+}
+```
+
+#### 6. Accessing the Authenticated Principal Anywhere
+
+Downstream services, processors, and handlers access the current user via `sessionUserStore`:
+
+```typescript
+import { getSessionUserFromStore } from '@common/context/session-user.store';
+
+@CommandHandler(DeleteUserCommand)
+export class DeleteUserHandler {
+  async handle(command: DeleteUserCommand) {
+    const actor = getSessionUserFromStore();
+    console.log('User action executed by:', actor?.id, 'in tenant:', actor?.tenant);
+  }
+}
+```
+
+### Environment Variables Reference
+
+| Variable | Required | Description | Example |
+|---|---|---|---|
+| `JWT_SECRET` | Optional* | HMAC secret used to sign and verify local tokens | `super-secret-key-at-least-32-chars-long` |
+| `JWT_PUBLIC_KEY` | Optional* | RSA/ECDSA SPKI public key (PEM) for verifying external asymmetric tokens | `-----BEGIN PUBLIC KEY-----\nMIIBIj...\n-----END PUBLIC KEY-----` |
+| `JWT_PUBLIC_KEY_ALG` | Optional | Algorithm for `JWT_PUBLIC_KEY` (default: `RS256`) | `RS256` |
+| `JWT_ISSUER` | Optional | Expected `iss` claim | `users-api` |
+| `JWT_AUDIENCE` | Optional | Expected `aud` claim | `nestjs-pipeline` |
+| `JWT_ALGORITHMS` | Optional | Comma-separated list of allowed algorithms | `HS256,RS256` |
+| `API_CLIENTS` | Optional | JSON array of authorized API client identities | `[{"id":"svc","key":"k","tenants":["tenant"]}]` |
+| `AUTH_LOGIN_CODE` | Required for login | One-time code verified during `POST /auth/login` | `123456` |
+| `SESSION_SECRET` | Fastify only | 32-byte secret for Fastify secure-session cookies | `at-least-32-characters-secret-string!` |
+
+*\* Note: At least one of `JWT_SECRET` or `JWT_PUBLIC_KEY` must be set if Bearer token authentication is enabled.*
+
+## Pipeline composition demonstrated
+
+Global and per-handler examples exercise:
+
+- `@nestjs-pipeline/core` — pipeline execution and logging
+- `@nestjs-pipeline/correlation` — HTTP and async correlation propagation
+- `@nestjs-pipeline/zod` — request parsing/validation
+- `@nestjs-pipeline/opentelemetry` — trace and metrics behaviors
+- `@nestjs-pipeline/casl` — ABAC authorization
+- `@nestjs-pipeline/resilience` — retry/circuit-breaker/timeout policies
+- `@nestjs-pipeline/cache` — cache behavior infrastructure
+- `@nestjs-pipeline/feature-flags` — OpenFeature gating
+- `@nestjs-pipeline/deadletter` — failed-request capture
+- `@nestjs-pipeline/rate-limit` — `rate-limiter-flexible` integration
+- `@nestjs-pipeline/audit` — redacted audit records
+- `@nestjs-pipeline/idempotency` — atomic duplicate exclusion and replay
+- `@nestjs-pipeline/ddd-core` — entities, outcomes, events, and repository helpers
+
+The application also has its own tenant-aware DDD repository cache so user/role write invalidation has a single clear target. In addition, `ObservabilityModule` configures `tenantIdFactory` so that the active tenant schema is explicitly conveyed through `IPipelineContext.tenantId`, allowing command handlers, rate limiters, and idempotency key factories to access the tenant cleanly from context without direct ambient coupling.
+
+## Tests
+
+From the repository root, `pnpm test` runs the workspace build (including this
+application's TypeScript checks), all unit/integration tests, and this application's
+existing E2E suite. All three stages run even if an earlier stage fails; the final
+summary reports each result and the command exits unsuccessfully if any stage fails.
+
+E2E tests require a running Docker-compatible container runtime. Testcontainers
+starts disposable Redis and PostgreSQL instances; infrastructure failures fail the suite
+rather than skipping tests. Workspace packages must be built before running E2E
+independently.
+
+To run individual checks from this directory:
 
 ```bash
-# Apply migrations (schema + seed data)
-pnpm db:migrate
-
-# Obtain a token first (example login endpoint may vary by environment)
-# Then call protected routes with Authorization: Bearer <token>
-
-# Admin (alice) — allowed to create users
-curl -X POST http://localhost:3000/users \
-  -H 'Content-Type: application/json' \
-  -H 'Authorization: Bearer <alice-token>' \
-  -d '{"name":"New User","email":"new@acme.io"}'
-
-# Viewer (dave) — should be denied (no User|create capability)
-curl -X POST http://localhost:3000/users \
-  -H 'Content-Type: application/json' \
-  -H 'Authorization: Bearer <dave-token>' \
-  -d '{"name":"New User","email":"new@acme.io"}'
-
-# No credentials — ForbiddenException (authentication required)
-curl -X POST http://localhost:3000/users \
-  -H 'Content-Type: application/json' \
-  -d '{"name":"New User","email":"new@acme.io"}'
+pnpm test
+pnpm build
+pnpm test:e2e
 ```
 
-### Seed data
-
-Run `pnpm db:migrate` to apply schema and seed data migrations. The demo data includes 7 users, 5 roles, 13 capabilities, and per-user overrides exercising:
-
-| Scenario                    | User    | Role(s)                  | Notes                                           |
-|-----------------------------|---------|--------------------------|--------------------------------------------------|
-| Unrestricted admin          | Alice   | `admin`                  | `all|manage|*`                                    |
-| Department-scoped manager   | Bob     | `user-manager`           | Can manage users in own department, cannot delete or update email |
-| Self only           | Carol   | `self`           | Can read own profile and update only own username |
-| Read-only viewer            | Dave    | `viewer`                 | Field-restricted read + per-user `User|create`; cannot self-update |
-| Multi-role merge            | Eve     | `viewer` + `self`| Combined: read all + update own                   |
-| Department-scoped agent     | Frank   | `support-agent`          | Scoped read + field-restricted update + no delete |
-| Manager with denial         | Grace   | `user-manager`           | Same as Bob; email denial is now role-level       |
-
-## Caching
-
-
-### `MikroOrmCache<T>` — MikroORM-backed cache (default)
-
-Implements `ICache<T>` using MikroORM as the primary cache store. Entries are stored in the `cache` table.
-
-- **TTL**: pass `{ ttl: <ms> }` as the third argument to `set()`. Expired entries are filtered on `get()` (lazy eviction).
-- **No expiry**: omit `options` or leave `ttl` undefined.
-
-### `MemoryCache<T>` — In-process cache (alternative)
-
-Simple `Map`-backed implementation, useful for local development or testing. Switch to it in `PersistenceModule` by swapping the provider:
-
-```ts
-// persistence.module.ts
-{ provide: CACHE_TOKEN, useClass: MemoryCache }
-```
-
-### `@Cache()` — Command-side write-through
-
-Applied to `save()` in command repositories. After a successful write it upserts the result into the cache; if the result is `null` (delete), it evicts the entry.
-
-### `@FromCache()` — Query-side read-through
-
-Applied to `find()` in query repositories. Checks the cache first; on a miss it calls the database and populates the cache. Accepts a key function and an optional hydration function to reconstruct the domain entity from the cached value.
-
-## What it demonstrates
-
-- Two bounded contexts (`users/`, `roles/`) with independent modules, controllers, CQRS layers, and persistence
-- Shared infrastructure via `@Global()` `PersistenceModule` and `common/` helpers with `@common/*` / `@persistence/*` path aliases
-- Global + per-handler pipeline behaviors
-- Per-handler CASL authorization with inline `rules` on `CaslBehaviorOptions` and `CaslBehavior`
-- CASL providers (`IRoleProvider`, `IUserContextResolver`, `IUserCapabilityProvider`) implemented as `QueryRepository` subclasses with `@FromCache` decorators
-- Zod-validated commands, queries, and events via `createExecuteClass()`
-- Controller-level `ZodPipe` validation
-- OpenTelemetry tracing with `TraceBehavior` and metrics with `MetricsBehavior`
-- Global `DeadLetterBehavior` capturing failed commands/queries/events to a BullMQ `dead-letters` queue for inspection and replay (with `UserCreatedHandler` opting into `{ rethrow: false }` for fire-and-forget side effects)
-- Per-handler `RateLimitBehavior` throttling `CreateUserHandler` to 5 registrations / 60s per email (in-memory limiter), with `RateLimitExceededFilter` mapping breaches to HTTP 429 + `Retry-After`
-- Per-handler `AuditBehavior` recording the sensitive `user.delete` action (actor, outcome, duration, redacted payload) to the default `LogAuditSink`, with the actor resolved from the request-scoped session
-- Per-handler `IdempotencyBehavior` making `CreateUserHandler` idempotent per email (in-memory store default) — a retried POST replays the first response instead of creating a duplicate, with `IdempotencyConflictFilter` mapping in-flight duplicates to HTTP 409 and payload-mismatched key reuse to HTTP 422
-- Feature gating with `FeatureFlagBehavior` (`@openfeature/server-sdk`)
-- DDD-style entities built on `ddd-core` primitives (`CacheableEntity`, `RootDomainEvent`, `RootDomainOutcome`)
-- Native MikroORM migrations applied via `pnpm db:migrate` (not at startup)
-- **Dual-engine persistence architecture**
-  - libSQL (SQLite) by default — multi-database files per tenant
-  - PostgreSQL with schema-per-tenant isolation — domain entities remain tenant-agnostic
-  - Conditional routing via `MIKRO_ORM_CLIENT` DI token based on `DB_ENGINE` environment variable
-- **Multi-tenant request isolation** — `TenantSchemaContext` + `AsyncLocalStorage` for per-request schema routing (PostgreSQL)
-- Pluggable `ICache<T>` — swap `MikroOrmCache` ↔ `MemoryCache` via a single provider token
-- Correlation ID propagation across handlers and events
-- Express and Fastify adapter support
-- BullMQ background job processing
-
-## Dependencies
-
-- `@nestjs-pipeline/audit` (`workspace:*`)
-- `@nestjs-pipeline/cache` (`workspace:*`)
-- `@nestjs-pipeline/casl` (`workspace:*`)
-- `@nestjs-pipeline/core` (`workspace:*`)
-- `@nestjs-pipeline/correlation` (`workspace:*`)
-- `@nestjs-pipeline/ddd-core` (`workspace:*`)
-- `@nestjs-pipeline/deadletter` (`workspace:*`)
-- `@nestjs-pipeline/feature-flags` (`workspace:*`)
-- `@nestjs-pipeline/idempotency` (`workspace:*`)
-- `@nestjs-pipeline/opentelemetry` (`workspace:*`)
-- `@nestjs-pipeline/rate-limit` (`workspace:*`)
-- `@nestjs-pipeline/resilience` (`workspace:*`)
-- `@nestjs-pipeline/zod` (`workspace:*`)
-- `@casl/ability`
-- `@libsql/client`
-- `@mikro-orm/libsql`
-- `@mikro-orm/postgresql`
-- `nestjs-pino`
-- `pino-http`
-- `pino-pretty`
-
+The HTTP e2e harness creates disposable tenant databases directly from the current MikroORM metadata. The PostgreSQL migration E2E runs the real migration against two tenant schemas and verifies seed data, independent migration history, repeat execution, rollback, and preservation of the other tenant and public tables. The sample does not test upgrades from historical migration states.

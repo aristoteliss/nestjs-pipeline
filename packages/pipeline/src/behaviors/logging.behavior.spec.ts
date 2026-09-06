@@ -31,9 +31,9 @@ function createMockContext(
     correlationId: 'test-corr-id',
     originalCorrelationId: 'test-corr-id',
     request: { name: 'MockCommand' },
-    requestType: class MockCommand { } as Type,
+    requestType: class MockCommand {} as Type,
     requestName: 'MockCommand',
-    handlerType: class MockHandler { } as Type,
+    handlerType: class MockHandler {} as Type,
     handlerName: 'MockHandler',
     requestKind: 'command',
     startedAt: new Date(),
@@ -59,6 +59,44 @@ describe('LoggingBehavior', () => {
 
     expect(next).toHaveBeenCalledOnce();
     expect(result).toEqual({ id: 1 });
+  });
+
+  it('passes handler context per log call without mutating a shared logger', async () => {
+    const logger = {
+      log: vi.fn(),
+      debug: vi.fn(),
+      warn: vi.fn(),
+      error: vi.fn(),
+      verbose: vi.fn(),
+      fatal: vi.fn(),
+      setContext: vi.fn(),
+    };
+    const sharedBehavior = new LoggingBehavior(logger);
+    let releaseFirst!: () => void;
+    const firstPending = new Promise<void>((resolve) => {
+      releaseFirst = resolve;
+    });
+
+    const first = sharedBehavior.handle(
+      createMockContext({ handlerName: 'FirstHandler' }),
+      vi.fn().mockImplementation(() => firstPending.then(() => 'first')),
+    );
+    await sharedBehavior.handle(
+      createMockContext({ handlerName: 'SecondHandler' }),
+      vi.fn().mockResolvedValue('second'),
+    );
+    releaseFirst();
+    await first;
+
+    expect(logger.setContext).not.toHaveBeenCalled();
+    expect(logger.log).toHaveBeenCalledWith(
+      expect.stringContaining('FirstHandler completed'),
+      'FirstHandler',
+    );
+    expect(logger.log).toHaveBeenCalledWith(
+      expect.stringContaining('SecondHandler completed'),
+      'SecondHandler',
+    );
   });
 
   it('re-throws errors from next()', async () => {
@@ -189,7 +227,10 @@ describe('LoggingBehavior', () => {
     });
 
     // Success structured logging
-    await loggingBehavior.handle(ctx, vi.fn().mockResolvedValue({ status: 'ok' }));
+    await loggingBehavior.handle(
+      ctx,
+      vi.fn().mockResolvedValue({ status: 'ok' }),
+    );
 
     expect(mockLogger.debug).toHaveBeenCalledWith(
       {

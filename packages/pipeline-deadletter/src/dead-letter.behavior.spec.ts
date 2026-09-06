@@ -65,6 +65,29 @@ describe('DeadLetterBehavior', () => {
     send.mockReset();
   });
 
+  it('does not mutate a shared logger and supplies its context per call', async () => {
+    const logger = {
+      warn: vi.fn(),
+      error: vi.fn(),
+      setContext: vi.fn(),
+    };
+    const behavior = new DeadLetterBehavior(
+      transport,
+      undefined,
+      logger as never,
+    );
+
+    await expect(
+      behavior.handle(makeCtx(), vi.fn().mockRejectedValue(new Error('boom'))),
+    ).rejects.toThrow('boom');
+
+    expect(logger.setContext).not.toHaveBeenCalled();
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining('Dead-lettered command TestCommand'),
+      DeadLetterBehavior.name,
+    );
+  });
+
   it('passes through and never touches the transport on success', async () => {
     const behavior = new DeadLetterBehavior(transport);
     const next = vi.fn().mockResolvedValue('ok');
@@ -155,6 +178,97 @@ describe('DeadLetterBehavior', () => {
     expect(ctx.items.get(DEAD_LETTER_ITEM)).toBeUndefined();
   });
 
+  it('does not swallow an excluded request kind when rethrow=false', async () => {
+    const behavior = new DeadLetterBehavior(transport);
+    const ctx = withOptions(makeCtx({ requestKind: 'query' }), {
+      captureKinds: ['event'],
+      rethrow: false,
+    });
+
+    await expect(
+      behavior.handle(
+        ctx,
+        vi.fn().mockRejectedValue(new Error('not captured')),
+      ),
+    ).rejects.toThrow('not captured');
+
+    expect(send).not.toHaveBeenCalled();
+    expect(ctx.items.get(DEAD_LETTER_ITEM)).toBeUndefined();
+  });
+
+  it('skips capture when error matches ignoreErrors class array', async () => {
+    class CustomValidationError extends Error {}
+    const behavior = new DeadLetterBehavior(transport);
+    const ctx = withOptions(makeCtx(), {
+      ignoreErrors: [CustomValidationError],
+    });
+
+    await expect(
+      behavior.handle(
+        ctx,
+        vi.fn().mockRejectedValue(new CustomValidationError('invalid')),
+      ),
+    ).rejects.toThrow('invalid');
+
+    expect(send).not.toHaveBeenCalled();
+    expect(ctx.items.get(DEAD_LETTER_ITEM)).toBeUndefined();
+  });
+
+  it('captures error when ignoreErrors class array does not match', async () => {
+    class CustomValidationError extends Error {}
+    const behavior = new DeadLetterBehavior(transport);
+    const ctx = withOptions(makeCtx(), {
+      ignoreErrors: [CustomValidationError],
+    });
+
+    await expect(
+      behavior.handle(
+        ctx,
+        vi.fn().mockRejectedValue(new Error('system crash')),
+      ),
+    ).rejects.toThrow('system crash');
+
+    expect(send).toHaveBeenCalledTimes(1);
+    expect(ctx.items.get(DEAD_LETTER_ITEM)).toBe(true);
+  });
+
+  it('skips capture when error matches ignoreErrors predicate', async () => {
+    const behavior = new DeadLetterBehavior(transport);
+    const ctx = withOptions(makeCtx(), {
+      ignoreErrors: (err) =>
+        err instanceof Error && err.message.startsWith('VALIDATION:'),
+    });
+
+    await expect(
+      behavior.handle(
+        ctx,
+        vi.fn().mockRejectedValue(new Error('VALIDATION: bad input')),
+      ),
+    ).rejects.toThrow('VALIDATION: bad input');
+
+    expect(send).not.toHaveBeenCalled();
+    expect(ctx.items.get(DEAD_LETTER_ITEM)).toBeUndefined();
+  });
+
+  it('does not swallow an ignored error when rethrow=false', async () => {
+    class IgnoredError extends Error {}
+    const behavior = new DeadLetterBehavior(transport);
+    const ctx = withOptions(makeCtx(), {
+      ignoreErrors: [IgnoredError],
+      rethrow: false,
+    });
+
+    await expect(
+      behavior.handle(
+        ctx,
+        vi.fn().mockRejectedValue(new IgnoredError('skip me')),
+      ),
+    ).rejects.toThrow('skip me');
+
+    expect(send).not.toHaveBeenCalled();
+    expect(ctx.items.get(DEAD_LETTER_ITEM)).toBeUndefined();
+  });
+
   it('attaches metadata from the factory', async () => {
     const behavior = new DeadLetterBehavior(transport);
     const ctx = withOptions(makeCtx(), {
@@ -179,6 +293,18 @@ describe('DeadLetterBehavior', () => {
     ).rejects.toBe(original);
   });
 
+  it('rethrows the original error when delivery fails despite rethrow=false', async () => {
+    send.mockRejectedValue(new Error('sink down'));
+    const behavior = new DeadLetterBehavior(transport);
+    const original = new Error('original');
+    const ctx = withOptions(makeCtx(), { rethrow: false });
+
+    await expect(
+      behavior.handle(ctx, vi.fn().mockRejectedValue(original)),
+    ).rejects.toBe(original);
+    expect(ctx.items.get(DEAD_LETTER_ITEM)).toBe(false);
+  });
+
   it('merges module defaults under per-handler options (handler wins)', async () => {
     const behavior = new DeadLetterBehavior(transport, { rethrow: false });
     // Handler overrides rethrow back to true.
@@ -188,5 +314,26 @@ describe('DeadLetterBehavior', () => {
       behavior.handle(ctx, vi.fn().mockRejectedValue(new Error('x'))),
     ).rejects.toThrow('x');
     expect(send).toHaveBeenCalledTimes(1);
+  });
+
+  it('redacts sensitive fields in captured payload using options.redactKeys', async () => {
+    const behavior = new DeadLetterBehavior(transport, {
+      redactKeys: ['code'],
+    });
+    const ctx = makeCtx({
+      request: { email: 'alice@test.io', code: '123456', password: 'plain' },
+    });
+
+    await expect(
+      behavior.handle(ctx, vi.fn().mockRejectedValue(new Error('crash'))),
+    ).rejects.toThrow('crash');
+
+    expect(send).toHaveBeenCalledTimes(1);
+    const captured = send.mock.calls[0][0] as DeadLetterRecord;
+    expect(captured.payload).toEqual({
+      email: 'alice@test.io',
+      code: '[REDACTED]',
+      password: '[REDACTED]',
+    });
   });
 });

@@ -20,6 +20,7 @@ import type {
   InjectionToken,
   ModuleMetadata,
   OptionalFactoryDependency,
+  Type,
 } from '@nestjs/common';
 import type { IPipelineContext } from '@nestjs-pipeline/core';
 import type {
@@ -46,10 +47,10 @@ export interface DeadLetterBehaviorOptions {
   /**
    * Whether to re-throw the original error after dead-lettering.
    *
-   * - `true` (default) — capture **and** propagate; the caller still sees the
+   * - `true` (default) — propagate after the capture decision; the caller sees the
    *   failure (HTTP 5xx, command rejection, …). Use for commands/queries.
-   * - `false` — capture and **swallow**; the pipeline resolves to `undefined`.
-   *   Use for fire-and-forget event handlers that must not crash on failure.
+   * - `false` — swallow only when this request kind is selected for capture;
+   *   the pipeline resolves to `undefined`. Use for fire-and-forget events.
    */
   rethrow?: boolean;
 
@@ -65,8 +66,29 @@ export interface DeadLetterBehaviorOptions {
    */
   captureKinds?: DeadLetterRequestKind[];
 
+  /**
+   * Filter predicate or error types to ignore.
+   * Matching errors are re-thrown without being sent to the dead-letter transport.
+   * Useful for ignoring expected client validation errors (e.g. ZodValidationError).
+   */
+  ignoreErrors?:
+    | Array<Type<unknown> | (abstract new (...args: never[]) => unknown)>
+    | ((error: unknown, context: IPipelineContext) => boolean);
+
   /** Produce extra metadata to merge into the dead-letter record. */
   metadata?: DeadLetterMetadataFactory;
+
+  /**
+   * Custom redactor function for the captured request payload.
+   * When supplied, takes precedence over {@link redactKeys}.
+   */
+  redact?: (payload: unknown) => unknown;
+
+  /**
+   * Field names to mask with `[REDACTED]` in the captured request payload.
+   * Case-insensitive matching. Merged on top of {@link DEFAULT_REDACT_KEYS}.
+   */
+  redactKeys?: string[];
 }
 
 /**

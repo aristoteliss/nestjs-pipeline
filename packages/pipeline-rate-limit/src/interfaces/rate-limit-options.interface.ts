@@ -32,7 +32,7 @@ export type RateLimitKeyFactory = (context: IPipelineContext) => string;
 
 /** Per-handler (and module-default) options for {@link RateLimitBehavior}. */
 export interface RateLimitBehaviorOptions {
-  /** Points this request costs. Default `1`. */
+  /** Positive safe-integer points this request costs. Default `1`. */
   points?: number;
   /**
    * Builds the bucket key. Default: `context.requestName` (one bucket per

@@ -53,9 +53,7 @@ describe('multi-tenancy (e2e)', () => {
 
   describe('Tenant Header Enforcement (TenantSchemaMiddleware)', () => {
     it('rejects GET /users when x-tenant-schema is missing (403)', async () => {
-      const res = await request(http)
-        .get('/users')
-        .set('x-test-user', admin);
+      const res = await request(http).get('/users').set('x-test-user', admin);
 
       expect(res.status).toBe(403);
       expect(res.body).toMatchObject({
@@ -139,7 +137,11 @@ describe('multi-tenancy (e2e)', () => {
         .set('x-test-user', admin);
 
       expect(getResA.status).toBe(200);
-      expect(getResA.body).toMatchObject({ id: userAId, email, name: 'Tenant A User' });
+      expect(getResA.body).toMatchObject({
+        id: userAId,
+        email,
+        name: 'Tenant A User',
+      });
 
       // 3. Fetching the same user ID in tenant_b must return 404 (no cache bleed)
       const getResB = await request(http)
@@ -191,7 +193,9 @@ describe('multi-tenancy (e2e)', () => {
 
       expect(listResAAfter.status).toBe(200);
       expect(
-        listResAAfter.body.users.some((u: { id: string }) => u.id === createResB.body.id),
+        listResAAfter.body.users.some(
+          (u: { id: string }) => u.id === createResB.body.id,
+        ),
       ).toBe(false);
     });
 

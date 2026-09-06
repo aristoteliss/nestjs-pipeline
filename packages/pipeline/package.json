@@ -1,6 +1,6 @@
 {
   "name": "@nestjs-pipeline/core",
-  "version": "0.1.18",
+  "version": "0.1.19",
   "description": "NestJS CQRS pipeline behavior base library",
   "author": "Aristotelis <aristotelis@ik.me>",
   "license": "SEE LICENSE IN LICENSE",
@@ -31,6 +31,8 @@
     "lint": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
+    "prepack": "node ../../scripts/package-licenses.mjs prepare",
+    "postpack": "node ../../scripts/package-licenses.mjs cleanup",
     "prepublishOnly": "pnpm run build"
   },
   "peerDependencies": {
@@ -41,13 +43,13 @@
     "rxjs": "^7.0.0"
   },
   "devDependencies": {
-    "@nestjs/common": "^11.1.24",
-    "@nestjs/core": "^11.1.24",
+    "@nestjs/common": "^11.2.1",
+    "@nestjs/core": "^11.2.1",
     "@nestjs/cqrs": "^11.0.3",
-    "@types/node": "^25.9.1",
-    "@vitest/coverage-v8": "^4.1.7",
+    "@types/node": "^26.2.0",
+    "@vitest/coverage-v8": "^4.1.11",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.2",
-    "vitest": "^4.1.7"
+    "vitest": "^4.1.11"
   }
 }

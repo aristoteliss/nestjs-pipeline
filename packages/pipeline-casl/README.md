@@ -5,7 +5,7 @@ CASL authorization behavior for `@nestjs-pipeline/core` — ABAC (Attribute-Base
 ## Features
 
 - **ABAC + Roles**: Define roles with predefined capability sets, plus per-user overrides
-- **Capability tree strings**: Compact `subject|action|conditions[|fields]` format for JWT/cookie transport
+- **Capability tree strings**: Compact `subject|action|conditions[|fields[|reason]]` format for JWT/cookie transport
 - **Condition interpolation**: Template placeholders (`${id}`, `{{ tenantId }}`, `{{ tenantSchema }}`) resolved against user context
 - **Pluggable providers**: Bring your own role provider (DB, YAML, static) and user capability provider
 - **Pipeline integration**: Works as a `@UsePipeline` behavior on commands, queries, and events
@@ -53,8 +53,13 @@ moving parts fall into seven groups.
 | `roleProvider` | yes | `IRoleProvider` as a class, or `{ useClass }` / `{ useExisting }` / `{ useFactory, inject }`. |
 | `subjectContextPaths` | yes | Default request dot-paths used to merge session/user payload for instance-level checks. |
 | `userContextResolver` | no | `IUserContextResolver` used to resolve the user from the items bag (instead of the `CASL_USER_CONTEXT_KEY` lookup). |
-| `userCapabilityProvider` | no\* | `IUserCapabilityProvider`. \*Required at runtime for any handler that declares `rules`, since it maps the user to their roles/overrides. |
+| `userCapabilityProvider` | no* | `IUserCapabilityProvider`. *Used when the resolved user does not already carry a valid `capabilities` bag and no `prebuiltAbility` is supplied; it maps the user to roles/overrides. |
 | `defaultFieldsFromRequest` | no | Default `fieldsFromRequest` configuration applied per subject. |
+
+When building an ability for a resolved user, `CaslBehavior` first checks for a
+valid `user.capabilities` bag (for example capabilities embedded in a verified
+JWT/session). Only when that is absent does it call `userCapabilityProvider`.
+A per-handler `prebuiltAbility` bypasses provider-based ability construction.
 
 ### Providers & interfaces
 
@@ -69,35 +74,37 @@ moving parts fall into seven groups.
 
 | Export | Signature | Purpose |
 |--------|-----------|---------|
-| `buildAbility` | `(roles, user?, additional?, denied?)` | Merges role + additional + denied capabilities, interpolates conditions against `user`, and globally re-orders so every deny lands after every allow. |
+| `buildAbility` | `(roles, user?, additional?, denied?)` | Merges role + additional + denied capabilities, forcibly inverts every entry in `denied`, interpolates conditions against `user`, and globally re-orders so every deny lands after every allow. |
 | `buildAbilityFromRules` | `(rules: AppRawRule[])` | Builds an ability from pre-computed raw rules **as-is** (no re-ordering). Ideal for rebuilding from a JWT/cache. |
 
 ### Capability helpers
 
 | Export | Purpose |
 |--------|---------|
-| `parseCapabilityString` | `CapabilityString` → `Capability`. |
+| `parseCapabilityString` | `CapabilityString` → `Capability`; rejects conditions unless they are a non-null, non-array JSON object. |
 | `serializeCapability` | `Capability` → compact `CapabilityString` (e.g. for JWT claims). |
-| `normalizeCapability` | Accept either form and return a `Capability`. |
+| `normalizeCapability` | Accept either form, runtime-validate it, and return a `Capability`. |
 | `capabilityToRawRule` | `Capability` → `AppRawRule`, interpolating conditions if a user is supplied. |
 | `capabilitiesToRawRules` | Array of capabilities/strings → ordered `AppRawRule[]` (allows then denies within the list). |
-| `interpolateConditions` | Resolve `${...}` / `{{ ... }}` placeholders against the user context. **Fails closed** — throws on an unresolved placeholder. |
+| `interpolateConditions` | Recursively resolve `${id}` / `${user.id}` and `{{ ... }}` placeholders, including inside arrays. Only the explicit `user.` alias is stripped. **Fails closed** — throws on an unresolved placeholder. |
 
 ### Runtime access helpers
 
 | Export | Purpose |
 |--------|---------|
 | `getCaslAbility(context?)` | Read the resolved `AppAbility` from the ambient pipeline store (or an explicit context). |
-| `assertEntityPermission(ability, check)` | Second-phase, entity-level check against a loaded entity; throws NestJS `ForbiddenException` on failure. |
-| `EntityPermissionCheck` | The `{ action, subject, entity, fields? }` shape consumed by `assertEntityPermission`. |
+| `CaslEntityAuthorizer` | Generic authorizer adapter for entity instances and field-level permissions backed by CASL. |
+| `ENTITY_AUTHORIZER` | Injection token (`Symbol.for('ENTITY_AUTHORIZER')`) for entity authorizer DI providers. |
+| `IEntityAuthorizer` | Interface for pluggable entity-level authorization checks. |
 
 ### Tokens & types
 
 Injection tokens: `CASL_ROLE_PROVIDER`, `CASL_USER_CONTEXT_RESOLVER`,
 `CASL_USER_CAPABILITY_PROVIDER`, `CASL_SUBJECT_CONTEXT_PATHS`,
-`CASL_FIELDS_FROM_REQUEST`, `CASL_BEHAVIOR_LOGGER`. Plus two string keys for the
-items bag: `CASL_USER_CONTEXT_KEY` (`'casl:user'`, the input user context) and
-`CASL_ABILITY_KEY` (`'casl:ability'`, the stored output ability).
+`CASL_FIELDS_FROM_REQUEST`, `CASL_BEHAVIOR_LOGGER`, `ENTITY_AUTHORIZER`. Plus two unique `Symbol` keys for the
+items bag: `CASL_USER_CONTEXT_KEY` (the input user context) and
+`CASL_ABILITY_KEY` (the stored output ability).
+
 
 Types: `Capability`, `CapabilityString`, `RoleDefinition`, `UserCapabilities`,
 `CaslUserContext`, `AbilityRequirement`, and the CASL aliases `AppAbility`
@@ -210,6 +217,11 @@ import { PipelineModule } from '@nestjs-pipeline/core';
 })
 export class AppModule {}
 ```
+
+Keep `CaslBehavior` in global `before` as shown. Authorization must run outside
+cache/idempotency behaviors that may return a stored response without invoking
+the rest of the chain. Redeclaring `CaslBehavior` on a handler to supply rules
+overrides its options without moving it from this global position.
 
 `subjectContextPaths` is explicit and required at module registration. CASL does
 not assume a built-in request path such as `sessionUser`.
@@ -407,7 +419,7 @@ read from the same configured path.
 ## Capability String Format
 
 ```
-[!]subject|action|conditions[|fields]
+[!]subject|action|conditions[|fields[|reason]]
 ```
 
 | Part       | Description                            | Default/Wildcard       |
@@ -416,7 +428,20 @@ read from the same configured path.
 | `action`   | Verb (e.g., `read`, `create`)          | `manage` → any action  |
 | `conditions` | MongoDB-style JSON conditions        | `*` → none             |
 | `fields`   | Comma-separated field names            | omitted or `*` → all   |
+| `reason`   | Human-readable rule reason              | omitted                |
 | `!` prefix | Inverted (deny) rule                   | —                      |
+
+Segments that contain reserved delimiters (and unsafe field arrays) are encoded
+as `~` followed by base64url JSON. `parseCapabilityString()` and
+`serializeCapability()` handle this automatically and round-trip `reason` too.
+
+Capability conditions must contain lossless JSON data: null, booleans, strings,
+finite numbers, dense arrays, and plain objects with enumerable data properties.
+`serializeCapability()` rejects nested `undefined`, functions, symbols, non-finite
+numbers, bigint, cycles, accessors, and non-JSON objects such as `Date`, `Map`, and
+`RegExp`. It does not invoke `toJSON()` hooks. Restrictions must never disappear
+or change meaning while being encoded into a token; for example,
+`{ ownerId: undefined }` throws instead of becoming an unrestricted `{}` condition.
 
 ### Examples
 
@@ -444,7 +469,7 @@ export class DbUserCapabilityProvider implements IUserCapabilityProvider {
     return {
       roles: userRecord.roles,                     // ['author']
       additionalCapabilities: userRecord.extraCaps, // e.g., ['User|invite|*']
-      deniedCapabilities: userRecord.deniedCaps,    // e.g., ['!Post|delete|*']
+      deniedCapabilities: userRecord.deniedCaps,    // e.g., ['Post|delete|*']; container forces denial
     };
   }
 }
@@ -452,8 +477,14 @@ export class DbUserCapabilityProvider implements IUserCapabilityProvider {
 
 ### PostgreSQL-backed providers
 
+Persistence representation is application-specific. The example below uses
+PostgreSQL-native `jsonb` and `text[]` columns, but providers may instead parse
+serialized JSON/delimited text into `conditions` objects and `fields` arrays.
+The sample application does that to keep one MikroORM model portable across libSQL and
+PostgreSQL.
+
 <details>
-<summary>Suggested relational schema</summary>
+<summary>Example PostgreSQL-native relational schema</summary>
 
 ```sql
 -- Central entity: every permission is a Capability row
@@ -648,9 +679,10 @@ export class YamlRoleProvider implements IRoleProvider {
         useFactory: () => new YamlRoleProvider('./config/roles.yml'),
       },
       userContextResolver: JwtUserContextResolver,
-      // Required at runtime — without this, handlers with rules will throw.
-      // Implement IUserCapabilityProvider to map the current user to their role names.
+      // Used when the resolved user does not already carry a valid capabilities bag.
+      // Implement IUserCapabilityProvider to map that user to their role names.
       userCapabilityProvider: YamlUserCapabilityProvider,
+      subjectContextPaths: [],
     }),
     PipelineModule.forRoot({
       globalBehaviors: { scope: 'all', before: [CaslBehavior] },
@@ -678,6 +710,7 @@ export class AppModule {}
         useFactory: (pool: Pool) => new PgUserCapabilityProvider(pool),
         inject: [Pool],
       },
+      subjectContextPaths: [],
     }),
     PipelineModule.forRoot({
       globalBehaviors: { scope: 'all', before: [CaslBehavior] },
@@ -711,24 +744,14 @@ if (ability?.can('publish', 'Post')) {
 `CaslBehavior` runs *before* the handler, so it can only evaluate conditions
 against the incoming request payload. Conditions that depend on the **persisted**
 state of the target entity (e.g. "a supervisor may only update users in their own
-department") must be re-checked after the entity is loaded. Use
-`assertEntityPermission()` for that second phase:
+department") must be re-checked after the entity is loaded:
 
 ```ts
-import { assertEntityPermission, getCaslAbility } from '@nestjs-pipeline/casl';
-
 async handle(command: UpdateUserCommand) {
   const user = await this.repo.find(command.id);
 
-  const ability = getCaslAbility();
-  if (ability) {
-    assertEntityPermission(ability, {
-      action: 'update',
-      subject: 'User',
-      entity: user.toJSON(),       // real, persisted attributes
-      fields: ['username'],        // only the fields being changed
-    });
-  }
+  // Authorize directly on the entity using CASL authorizer
+  user.authorize('update', ['username']);
 
   // ...apply the update
 }
@@ -751,8 +774,17 @@ Extra, self-contained examples for common needs beyond the Quick Start.
 
 ### Field-level partial updates
 
-Allow a user to change some columns but not others. The capability lists the
-permitted fields; `fieldsFromRequest` tells CASL which changed fields to verify.
+Allow a user to change some columns but not others. The capability defines the
+permitted fields; `fieldsFromRequest` defines the **inspection list** — which payload
+fields CASL must verify against the user's ability.
+
+> [!WARNING]
+> `fieldsFromRequest` is **not** an input schema allowlist that strips or rejects
+> unlisted keys. Unlisted keys are simply skipped by CASL. To ensure unauthorized
+> properties (like `department` or `email`) cannot bypass permission checks, you
+> must include **all candidate mutable fields** accepted by the command in
+> `fieldsFromRequest`, while relying on input validation (e.g. Zod schema strict mode)
+> for payload schema allowlisting.
 
 ```ts
 // Role capability — may update users in own tenant, but only name & username:
@@ -760,7 +792,9 @@ permitted fields; `fieldsFromRequest` tells CASL which changed fields to verify.
 @CommandHandler(UpdateUserCommand)
 @UsePipeline([CaslBehavior, {
   subjectFromRequest: 'User',
-  fieldsFromRequest: ['name', 'username'], // department/email would be rejected
+  // List ALL mutable candidate fields to inspect. If the request contains
+  // department or email, CASL checks permission for each and rejects unauthorized fields.
+  fieldsFromRequest: ['name', 'username', 'department', 'email'],
   rules: [{ action: 'update', subject: 'User' }],
 }])
 class UpdateUserHandler { /* ... */ }
@@ -837,10 +871,23 @@ ability.can('delete', 'Post');   // false (deny applied after any allow)
 
 ### Two-phase entity authorization
 
+`CaslAuthorizer.authorize('read', entity)` recursively masks the entity's snapshot.
+For example, a read grant plus a denial for `profile.secret` retains the other
+profile fields while removing `secret`. An explicit grant for `profile.name`
+can expose that leaf without granting the entire profile.
+
+In read projections, grants or denials on an object field apply to its subtree;
+more recent matching CASL rules take precedence. Conditions are evaluated against
+the complete original entity, including fields that will be hidden. Named array
+paths such as `contacts.secret` apply to every element; indexed paths such as
+`contacts.0.secret` select individual elements. Masked array elements become
+`null` to preserve positions, and containers with no readable content are omitted.
+Nested `toJSON()` snapshots are also projected without mutating the source.
+Cyclic snapshots and branches exceeding 1,024 array path aliases are rejected.
+
 `CaslBehavior` can only see the request payload. For rules that depend on the
-**persisted** entity, re-check after loading it (see
-[Accessing the Ability Downstream](#accessing-the-ability-downstream) above for
-the full `assertEntityPermission` example).
+**persisted** entity, re-check after loading it via `entity.authorize(action, fields?)` (see
+[Accessing the Ability Downstream](#accessing-the-ability-downstream) above).
 
 ## License
 

@@ -16,7 +16,7 @@
  * ----------------------------
  */
 
-import { type DynamicModule, Module } from '@nestjs/common';
+import { type DynamicModule, Logger, Module } from '@nestjs/common';
 import { CacheBehavior } from './cache.behavior';
 import { CACHE_DEFAULT_OPTIONS, PIPELINE_CACHE } from './constants/tokens';
 import { buildCache } from './helpers/cache-factory';
@@ -69,8 +69,9 @@ import type {
  * ```
  */
 @Module({})
-// biome-ignore lint/complexity/noStaticOnlyClass: static-only configuration class
 export class CacheModule {
+  private static readonly logger = new Logger(CacheModule.name);
+
   /**
    * Registers the cache behavior, builds the cache instance, and binds optional
    * application-wide defaults.
@@ -84,6 +85,18 @@ export class CacheModule {
       ...(options.ttl !== undefined ? { ttl: options.ttl } : {}),
       ...options.defaults,
     };
+
+    const storeType = options.cache
+      ? 'custom-cache'
+      : options.stores && options.stores.length > 0
+        ? 'custom-stores'
+        : options.store
+          ? Array.isArray(options.store)
+            ? options.store.map((s) => s.type).join(', ')
+            : options.store.type
+          : 'memory';
+
+    CacheModule.logger.log(`Initialized cache with [${storeType}] store`);
 
     return {
       module: CacheModule,
