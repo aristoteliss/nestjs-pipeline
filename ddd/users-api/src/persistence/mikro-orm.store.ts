@@ -92,29 +92,89 @@ export class MikroOrmStore implements OnModuleInit, OnModuleDestroy {
    * {@link withFork} or {@link transactional}.
    */
   get em(): EntityManager {
+    const schema = this.tenantSchemaContext.schema;
     const orm = this.resolveOrm();
-    const contextEm = orm.em.getContext(false) as EntityManager | undefined;
+    let contextEm: EntityManager | undefined;
+    try {
+      contextEm = orm.em.getContext(false) as EntityManager | undefined;
+    } catch {
+      contextEm = undefined;
+    }
+
+    const isTenantMatch =
+      (contextEm as any)?.__tenant === undefined ||
+      (contextEm as any)?.__tenant === schema;
+    const isSchemaMatch =
+      contextEm?.schema === undefined || contextEm.schema === schema;
+    const isConfigMatch =
+      !(orm as any).config ||
+      !(contextEm as any)?.config ||
+      (contextEm as any).config === (orm as any).config;
+    const isDriverMatch =
+      !orm.em.getDriver ||
+      !contextEm?.getDriver ||
+      contextEm.getDriver() === orm.em.getDriver();
+
     if (
       contextEm &&
       contextEm !== orm.em &&
-      contextEm.getDriver() === orm.em.getDriver()
+      isDriverMatch &&
+      isConfigMatch &&
+      isSchemaMatch &&
+      isTenantMatch
     ) {
+      if ((contextEm as any).__tenant === undefined) {
+        (contextEm as any).__tenant = schema;
+      }
       return contextEm;
     }
-    return orm.em.fork({ disableContextResolution: true }) as EntityManager;
+
+    const fork = orm.em.fork({ disableContextResolution: true }) as EntityManager;
+    (fork as any).__tenant = schema;
+    return fork;
   }
 
   get sem(): SqlEntityManager {
+    const schema = this.tenantSchemaContext.schema;
     const orm = this.resolveOrm();
-    const contextEm = orm.em.getContext(false) as SqlEntityManager | undefined;
+    let contextEm: SqlEntityManager | undefined;
+    try {
+      contextEm = orm.em.getContext(false) as SqlEntityManager | undefined;
+    } catch {
+      contextEm = undefined;
+    }
+
+    const isTenantMatch =
+      (contextEm as any)?.__tenant === undefined ||
+      (contextEm as any)?.__tenant === schema;
+    const isSchemaMatch =
+      contextEm?.schema === undefined || contextEm.schema === schema;
+    const isConfigMatch =
+      !(orm as any).config ||
+      !(contextEm as any)?.config ||
+      (contextEm as any).config === (orm as any).config;
+    const isDriverMatch =
+      !orm.em.getDriver ||
+      !contextEm?.getDriver ||
+      contextEm.getDriver() === orm.em.getDriver();
+
     if (
       contextEm &&
       contextEm !== orm.em &&
-      contextEm.getDriver() === orm.em.getDriver()
+      isDriverMatch &&
+      isConfigMatch &&
+      isSchemaMatch &&
+      isTenantMatch
     ) {
+      if ((contextEm as any).__tenant === undefined) {
+        (contextEm as any).__tenant = schema;
+      }
       return contextEm;
     }
-    return orm.em.fork({ disableContextResolution: true }) as SqlEntityManager;
+
+    const fork = orm.em.fork({ disableContextResolution: true }) as SqlEntityManager;
+    (fork as any).__tenant = schema;
+    return fork;
   }
 
   /**
@@ -122,9 +182,11 @@ export class MikroOrmStore implements OnModuleInit, OnModuleDestroy {
    * Ensures that all operations within the callback share the same identity map and change set.
    */
   async withFork<T>(cb: (em: EntityManager) => Promise<T>): Promise<T> {
+    const schema = this.tenantSchemaContext.schema;
     const fork = this.resolveOrm().em.fork({
       disableContextResolution: true,
     }) as EntityManager;
+    (fork as any).__tenant = schema;
     return cb(fork);
   }
 
@@ -133,9 +195,11 @@ export class MikroOrmStore implements OnModuleInit, OnModuleDestroy {
    * Automatically commits on success and rolls back on failure.
    */
   async transactional<T>(cb: (em: EntityManager) => Promise<T>): Promise<T> {
+    const schema = this.tenantSchemaContext.schema;
     const fork = this.resolveOrm().em.fork({
       disableContextResolution: true,
     }) as EntityManager;
+    (fork as any).__tenant = schema;
     return fork.transactional(cb);
   }
 }

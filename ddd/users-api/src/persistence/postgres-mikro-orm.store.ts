@@ -63,39 +63,93 @@ export class PostgresMikroOrmStore implements OnModuleInit, OnModuleDestroy {
    * {@link withFork} or {@link transactional}.
    */
   get em(): EntityManager {
-    const contextEm = this.orm.em.getContext(false) as
-      | EntityManager
-      | undefined;
+    const schema = this.tenantSchemaContext.schema;
+    let contextEm: EntityManager | undefined;
+    try {
+      contextEm = this.orm.em.getContext(false) as EntityManager | undefined;
+    } catch {
+      contextEm = undefined;
+    }
+
+    const isTenantMatch =
+      (contextEm as any)?.__tenant === undefined ||
+      (contextEm as any)?.__tenant === schema;
+    const isSchemaMatch =
+      contextEm?.schema === undefined || contextEm.schema === schema;
+    const isConfigMatch =
+      !(this.orm as any).config ||
+      !(contextEm as any)?.config ||
+      (contextEm as any).config === (this.orm as any).config;
+    const isDriverMatch =
+      !this.orm.em.getDriver ||
+      !contextEm?.getDriver ||
+      contextEm.getDriver() === this.orm.em.getDriver();
+
     if (
       contextEm &&
       contextEm !== this.orm.em &&
-      contextEm.getDriver() === this.orm.em.getDriver() &&
-      contextEm.schema === this.tenantSchemaContext.schema
+      isDriverMatch &&
+      isConfigMatch &&
+      isSchemaMatch &&
+      isTenantMatch
     ) {
+      if ((contextEm as any).__tenant === undefined) {
+        (contextEm as any).__tenant = schema;
+      }
       return contextEm;
     }
-    return this.orm.em.fork({
+
+    const fork = this.orm.em.fork({
       disableContextResolution: true,
-      schema: this.tenantSchemaContext.schema,
+      schema,
     }) as EntityManager;
+    (fork as any).__tenant = schema;
+    return fork;
   }
 
   get sem(): SqlEntityManager {
-    const contextEm = this.orm.em.getContext(false) as
-      | SqlEntityManager
-      | undefined;
+    const schema = this.tenantSchemaContext.schema;
+    let contextEm: SqlEntityManager | undefined;
+    try {
+      contextEm = this.orm.em.getContext(false) as SqlEntityManager | undefined;
+    } catch {
+      contextEm = undefined;
+    }
+
+    const isTenantMatch =
+      (contextEm as any)?.__tenant === undefined ||
+      (contextEm as any)?.__tenant === schema;
+    const isSchemaMatch =
+      contextEm?.schema === undefined || contextEm.schema === schema;
+    const isConfigMatch =
+      !(this.orm as any).config ||
+      !(contextEm as any)?.config ||
+      (contextEm as any).config === (this.orm as any).config;
+    const isDriverMatch =
+      !this.orm.em.getDriver ||
+      !contextEm?.getDriver ||
+      contextEm.getDriver() === this.orm.em.getDriver();
+
     if (
       contextEm &&
       contextEm !== this.orm.em &&
-      contextEm.getDriver() === this.orm.em.getDriver() &&
-      contextEm.schema === this.tenantSchemaContext.schema
+      isDriverMatch &&
+      isConfigMatch &&
+      isSchemaMatch &&
+      isTenantMatch
     ) {
+      if ((contextEm as any).__tenant === undefined) {
+        (contextEm as any).__tenant = schema;
+      }
       return contextEm;
     }
-    return this.orm.em.fork({
+
+    const fork = this.orm.em.fork({
       disableContextResolution: true,
-      schema: this.tenantSchemaContext.schema,
+      schema,
     }) as SqlEntityManager;
+    (fork as any).__tenant = schema;
+    return fork;
   }
 
   /**
@@ -103,10 +157,12 @@ export class PostgresMikroOrmStore implements OnModuleInit, OnModuleDestroy {
    * Ensures that all operations within the callback share the same identity map and change set.
    */
   async withFork<T>(cb: (em: EntityManager) => Promise<T>): Promise<T> {
+    const schema = this.tenantSchemaContext.schema;
     const fork = this.orm.em.fork({
       disableContextResolution: true,
-      schema: this.tenantSchemaContext.schema,
+      schema,
     }) as EntityManager;
+    (fork as any).__tenant = schema;
     return cb(fork);
   }
 
@@ -115,10 +171,12 @@ export class PostgresMikroOrmStore implements OnModuleInit, OnModuleDestroy {
    * Automatically commits on success and rolls back on failure.
    */
   async transactional<T>(cb: (em: EntityManager) => Promise<T>): Promise<T> {
+    const schema = this.tenantSchemaContext.schema;
     const fork = this.orm.em.fork({
       disableContextResolution: true,
-      schema: this.tenantSchemaContext.schema,
+      schema,
     }) as EntityManager;
+    (fork as any).__tenant = schema;
     return fork.transactional(cb);
   }
 }
