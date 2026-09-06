@@ -16,8 +16,8 @@
  * ----------------------------
  */
 
-import { Type } from '@nestjs/common';
 import { IPipelineContext } from '@nestjs-pipeline/core';
+import { Type } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
 import { createCommand, createZodRequest } from './create-zod-request';
@@ -358,6 +358,33 @@ describe('ZodValidationBehavior', () => {
       expect(next).toHaveBeenCalledOnce();
       expect(cmd.meta).toBe('base-metadata');
       expect(cmd.title).toBe('Important');
+    });
+
+    it('handles string -> Map transform without false-positive mutation on repeated behavior passes', async () => {
+      const mapSchema = z.object({
+        tags: z.string().transform((val) => new Map([[val, true]])),
+      });
+      const requestType = makeRequestType(mapSchema);
+      const req = { tags: 'admin' };
+
+      const ctx = createMockContext({
+        request: req,
+        requestType,
+      });
+
+      const next1 = vi.fn().mockResolvedValue('first');
+      await behavior.handle(ctx, next1);
+      expect(next1).toHaveBeenCalledOnce();
+      expect(req.tags).toBeInstanceOf(Map);
+      expect((req.tags as unknown as Map<string, boolean>).get('admin')).toBe(
+        true,
+      );
+
+      // Second pass with the same request should recognize validated snapshot and NOT re-parse
+      const next2 = vi.fn().mockResolvedValue('second');
+      const result2 = await behavior.handle(ctx, next2);
+      expect(next2).toHaveBeenCalledOnce();
+      expect(result2).toBe('second');
     });
   });
 });
