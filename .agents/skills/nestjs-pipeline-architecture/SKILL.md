@@ -11,7 +11,6 @@ This repository is authoritative. Before changing architecture-sensitive code, i
 - `packages/pipeline-cache/README.md`
 - `ddd/core/README.md`
 - `ddd/users-api/README.md`
-- `docs/architecture-audit.el.md`
 
 If generic Clean Architecture / DDD / CQRS advice conflicts with this repository, follow the repository.
 
@@ -310,5 +309,3 @@ Do not copy these patterns into new code:
 - CQRS handlers importing `@persistence/is-transient-persistence-error`
 - tenant-only pipeline cache keys for responses filtered by principal permissions
 - synthetic `new Auth({ userId, token: '' })` used as a delete command payload
-
-See `docs/architecture-audit.el.md` for details, severity, and remediation guidance.

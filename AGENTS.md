@@ -20,8 +20,6 @@ This requirement applies to changes involving:
 - queues, background jobs, external services, or infrastructure adapters
 - application services or composition-root/module wiring
 
-Also review `docs/architecture-audit.el.md` before copying or extending an existing pattern. It records known violations, accepted trade-offs, and canonical examples.
-
 ## Source of truth
 
 The repository's current code and documentation are authoritative. Generic Clean Architecture, DDD, CQRS, NestJS, or TypeScript guidance is secondary. If external advice conflicts with an intentional repository decision, follow the repository and document any proposed architectural change explicitly.
@@ -44,6 +42,5 @@ The repository's current code and documentation are authoritative. Generic Clean
 For architecture-sensitive work:
 
 - compare the implementation with the positive examples listed in the architecture skill;
-- ensure no known anti-pattern from `docs/architecture-audit.el.md` was copied;
 - run the narrowest relevant typecheck/tests plus any affected package tests;
 - update architecture documentation when a deliberate repository decision changes.

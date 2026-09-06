@@ -16,8 +16,7 @@
  * ----------------------------
  */
 
-import type { UserCapabilities } from '@nestjs-pipeline/casl';
-import type { IQueryRepository } from '@nestjs-pipeline/ddd-core';
+import { randomUUID } from 'node:crypto';
 import {
   Inject,
   Injectable,
@@ -25,8 +24,9 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { QueryBus } from '@nestjs/cqrs';
+import type { UserCapabilities } from '@nestjs-pipeline/casl';
+import type { IQueryRepository } from '@nestjs-pipeline/ddd-core';
 import { SignJWT } from 'jose';
-import { randomUUID } from 'node:crypto';
 import { TenantSchemaContext } from '../../persistence/tenant-schema.context';
 import { GetUserQuery } from '../../users/cqrs/queries/get-user.query';
 import { User } from '../../users/domain/models/user.entity';
