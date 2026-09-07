@@ -4,6 +4,7 @@
  */
 
 import { getSessionUserFromStore } from '@common/context/session-user.store';
+import type { PrincipalType } from '@common/types/SessionUser';
 import { Inject, Injectable, Optional } from '@nestjs/common';
 import { QueryBus } from '@nestjs/cqrs';
 import {
@@ -15,20 +16,18 @@ import {
 import type { IPipelineContext } from '@nestjs-pipeline/core';
 import { GetUserContextQuery } from '../cqrs/queries/get-user-context.query';
 
-const UUID_REGEX =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+type TypedCaslPrincipal = CaslUserContext & {
+  principalType?: PrincipalType;
+};
 
 /**
- * Application service that resolves the CASL principal from pipeline/session
- * context and delegates database-user lookup through CQRS.
+ * Application service that resolves CASL principals using an explicit identity
+ * discriminator supplied by the authentication boundary.
  *
- * This class is intentionally singleton: all request state arrives through the
- * `IPipelineContext` argument or AsyncLocalStorage; no Nest request-scoped
- * injection is required. Persistence lookup stays behind `GetUserContextQuery`.
- *
- * The legacy UUID-vs-machine classification is retained here temporarily so
- * finding #8 remains an SRP/scoping refactor only; Architecture.md finding #9
- * replaces that heuristic with an explicit principal discriminator.
+ * `user` principals must still exist in persistence; `service` principals are
+ * accepted only when they carry explicit capabilities. ID syntax is irrelevant:
+ * a UUID-looking service id remains a service and a non-UUID user id remains a
+ * database user.
  */
 @Injectable()
 export class CaslUserContextResolver implements IUserContextResolver {
@@ -41,34 +40,32 @@ export class CaslUserContextResolver implements IUserContextResolver {
   ) {}
 
   async resolve(context: IPipelineContext): Promise<CaslUserContext | null> {
-    const rawUser =
+    const rawUser = (
       this.resolveUserContextFromRequest(
         context.request as Record<string, unknown> | undefined,
       ) ??
-      (getSessionUserFromStore() as unknown as CaslUserContext | undefined);
+      (getSessionUserFromStore() as unknown as CaslUserContext | undefined)
+    ) as TypedCaslPrincipal | undefined;
 
-    if (!rawUser?.id) return null;
+    if (!rawUser?.id || !rawUser.principalType) return null;
 
     const id = String(rawUser.id);
-    const persisted = await this.queryBus.execute<
-      GetUserContextQuery,
-      CaslUserContext | null
-    >(new GetUserContextQuery({ userId: id }));
 
-    if (persisted) {
+    if (rawUser.principalType === 'user') {
+      const persisted = await this.queryBus.execute<
+        GetUserContextQuery,
+        CaslUserContext | null
+      >(new GetUserContextQuery({ userId: id }));
+
+      if (!persisted) return null;
+
       return {
         ...persisted,
         ...(rawUser.capabilities ? { capabilities: rawUser.capabilities } : {}),
       } as CaslUserContext;
     }
 
-    // Kept only for behavioral compatibility until finding #9 introduces an
-    // explicit principal discriminator.
-    if (UUID_REGEX.test(id)) {
-      return null;
-    }
-
-    if (rawUser.capabilities) {
+    if (rawUser.principalType === 'service' && rawUser.capabilities) {
       return {
         id,
         department: (rawUser.department as string | null) ?? null,
