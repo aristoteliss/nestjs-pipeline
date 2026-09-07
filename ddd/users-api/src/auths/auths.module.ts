@@ -19,11 +19,17 @@
 import { Module } from '@nestjs/common';
 import { GetUserQueryRepository } from '../users/persistence/get-user.query-repository';
 import { EXT_USER_QUERY_REPOSITORY } from '../users/persistence/repository.tokens';
+import {
+  ACCESS_TOKEN_ISSUER,
+  LOGIN_CODE_VERIFIER,
+} from './application/authentication.ports';
 import { AuthsController } from './controllers/auths.controller';
 import { CreateAuthHandler } from './cqrs/commands/create-auth.handler';
 import { DeleteAuthHandler } from './cqrs/commands/delete-auth.handler';
 import { CreatedAuthHandler } from './cqrs/events/auth-login.handler';
 import { GetUserCapabilitiesHandler } from './cqrs/queries/get-user-capabilities.handler';
+import { EnvLoginCodeVerifier } from './infrastructure/env-login-code.verifier';
+import { JoseAccessTokenIssuer } from './infrastructure/jose-access-token.issuer';
 import { CreateAuthCommandRepository } from './persistence/create-auth.command-repository';
 import { DeleteAuthCommandRepository } from './persistence/delete-auth.command-repository';
 import { FindAuthQueryRepository } from './persistence/find-auth.query-repository';
@@ -63,6 +69,12 @@ import { UserLoginService } from './services/user-login.service';
       provide: COMMAND_REPOSITORY.deleteAuth,
       useClass: DeleteAuthCommandRepository,
     },
+
+    // Authentication infrastructure adapters exposed through application ports.
+    EnvLoginCodeVerifier,
+    JoseAccessTokenIssuer,
+    { provide: LOGIN_CODE_VERIFIER, useExisting: EnvLoginCodeVerifier },
+    { provide: ACCESS_TOKEN_ISSUER, useExisting: JoseAccessTokenIssuer },
 
     UserLoginService,
     JwtAuthenticator,
