@@ -26,28 +26,36 @@ import { UserAdditionalCapability } from '@persistence/entities/user-additional-
 import { UserDeniedCapability } from '@persistence/entities/user-denied-capability.entity';
 import { UserRole } from '@persistence/entities/user-role.entity';
 import { MIKRO_ORM_CLIENT, MikroOrmStore } from '@persistence/mikro-orm.store';
+import type { IUserCapabilityReader } from '../application/ports/user-capability-reader.port';
 import { Capability } from '../../roles/domain/models/capability.entity';
 import { Role } from '../../roles/domain/models/role.entity';
 import { GetUserCapabilitiesQuery } from '../cqrs/queries/get-user-capabilities.query';
 
+/**
+ * Infrastructure adapter shared by CASL, CQRS query handling, and the narrow
+ * authentication capability-reader port. All three views resolve the same
+ * tenant-scoped capability data without nesting QueryBus calls in commands.
+ */
 @Injectable()
 export class GetUserCapabilitiesQueryRepository
-  implements IUserCapabilityProvider
+  implements IUserCapabilityProvider, IUserCapabilityReader
 {
   constructor(
     @Inject(MIKRO_ORM_CLIENT) private readonly store: MikroOrmStore,
   ) {}
 
+  async getCapabilities(userId: string): Promise<UserCapabilities> {
+    return this.find(new GetUserCapabilitiesQuery({ userId }));
+  }
+
   async getUserCapabilities(user: CaslUserContext): Promise<UserCapabilities> {
-    return this.find(new GetUserCapabilitiesQuery({ userId: user.id }));
+    return this.getCapabilities(String(user.id));
   }
 
   async find(query: GetUserCapabilitiesQuery): Promise<UserCapabilities> {
     const userId = String(query.userId);
     const em = this.store.em;
 
-    // Use entity operations so a PostgreSQL EntityManager fork applies its
-    // tenant schema. Raw execute() SQL would use the connection search_path.
     const [userRoles, additionalLinks, deniedLinks] = await Promise.all([
       em.find(UserRole, { userId }),
       em.find(UserAdditionalCapability, { userId }),
