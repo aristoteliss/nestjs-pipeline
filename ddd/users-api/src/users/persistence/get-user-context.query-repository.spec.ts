@@ -23,9 +23,8 @@ describe('GetUserContextQueryRepository', () => {
     expect(findOne).toHaveBeenCalledTimes(2);
   });
 
-  it('resolve returns null when user does not exist in persistence (deleted user revocation)', async () => {
-    const deletedUserId = '019de10c-b680-7000-8000-000000000099';
-    const findOne = vi.fn().mockResolvedValue(null);
+  it('rejects missing explicit principal classification', async () => {
+    const findOne = vi.fn();
     const repository = new GetUserContextQueryRepository(
       {
         get em() {
@@ -35,23 +34,54 @@ describe('GetUserContextQueryRepository', () => {
       ['sessionUser'],
     );
 
-    const context = {
+    const result = await repository.resolve({
       request: {
         sessionUser: {
-          id: deletedUserId,
-          department: 'stale-department',
+          id: '019de10c-b680-7000-8000-000000000099',
           capabilities: { roles: ['admin'] },
         },
       },
-    } as any;
-
-    const result = await repository.resolve(context);
+    } as any);
 
     expect(result).toBeNull();
-    expect(findOne).toHaveBeenCalledWith(User, { id: deletedUserId });
+    expect(findOne).not.toHaveBeenCalled();
   });
 
-  it('resolve supports non-database machine and test principals with capabilities', async () => {
+  it('treats a UUID-looking service id as a service when explicitly classified', async () => {
+    const findOne = vi.fn();
+    const repository = new GetUserContextQueryRepository(
+      {
+        get em() {
+          return { findOne };
+        },
+      } as never,
+      ['sessionUser'],
+    );
+    const capabilities = {
+      roles: [],
+      additionalCapabilities: ['all|manage|*'],
+    };
+
+    const result = await repository.resolve({
+      request: {
+        sessionUser: {
+          id: '019de10c-b680-7000-8000-000000000099',
+          principalType: 'service',
+          department: 'platform',
+          capabilities,
+        },
+      },
+    } as any);
+
+    expect(result).toEqual({
+      id: '019de10c-b680-7000-8000-000000000099',
+      department: 'platform',
+      capabilities,
+    });
+    expect(findOne).not.toHaveBeenCalled();
+  });
+
+  it('treats a human-readable user id as a database user when explicitly classified', async () => {
     const findOne = vi.fn().mockResolvedValue(null);
     const repository = new GetUserContextQueryRepository(
       {
@@ -62,26 +92,21 @@ describe('GetUserContextQueryRepository', () => {
       ['sessionUser'],
     );
 
-    const context = {
+    const result = await repository.resolve({
       request: {
         sessionUser: {
-          id: 'admin-1',
-          department: 'platform',
-          capabilities: { roles: [], additionalCapabilities: ['all|manage|*'] },
+          id: 'human-readable-user-id',
+          principalType: 'user',
+          capabilities: { roles: ['admin'] },
         },
       },
-    } as any;
+    } as any);
 
-    const result = await repository.resolve(context);
-
-    expect(result).toEqual({
-      id: 'admin-1',
-      department: 'platform',
-      capabilities: { roles: [], additionalCapabilities: ['all|manage|*'] },
-    });
+    expect(result).toBeNull();
+    expect(findOne).toHaveBeenCalledWith(User, { id: 'human-readable-user-id' });
   });
 
-  it('resolve synchronizes current department from persistence and preserves capabilities', async () => {
+  it('synchronizes current department for user principals and preserves capabilities', async () => {
     const persistedUser = User.create('Bob', 'bob@example.test', 'Executive');
     const findOne = vi.fn().mockResolvedValue(persistedUser);
     const repository = new GetUserContextQueryRepository(
@@ -93,21 +118,20 @@ describe('GetUserContextQueryRepository', () => {
       ['sessionUser'],
     );
 
-    const context = {
+    const result = await repository.resolve({
       request: {
         sessionUser: {
           id: persistedUser.id,
-          department: 'old-engineering', // stale department in token
+          principalType: 'user',
+          department: 'old-engineering',
           capabilities: { roles: ['manager'] },
         },
       },
-    } as any;
-
-    const result = await repository.resolve(context);
+    } as any);
 
     expect(result).toEqual({
       id: persistedUser.id,
-      department: 'Executive', // updated from persistence
+      department: 'Executive',
       capabilities: { roles: ['manager'] },
     });
   });
