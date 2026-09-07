@@ -18,6 +18,10 @@
 
 import { randomUUID } from 'node:crypto';
 import {
+  type ITenantContext,
+  TENANT_CONTEXT,
+} from '@common/context/tenant-context.port';
+import {
   Inject,
   Injectable,
   InternalServerErrorException,
@@ -27,7 +31,6 @@ import { QueryBus } from '@nestjs/cqrs';
 import type { UserCapabilities } from '@nestjs-pipeline/casl';
 import type { IQueryRepository } from '@nestjs-pipeline/ddd-core';
 import { SignJWT } from 'jose';
-import { TenantSchemaContext } from '../../persistence/tenant-schema.context';
 import { GetUserQuery } from '../../users/cqrs/queries/get-user.query';
 import { User } from '../../users/domain/models/user.entity';
 import { EXT_USER_QUERY_REPOSITORY } from '../../users/persistence/repository.tokens';
@@ -45,20 +48,15 @@ export interface AuthResult {
 /**
  * Application service responsible for user login verification and access token issuance.
  *
+ * Tenant identity is consumed through the application-facing {@link ITenantContext}
+ * port. The concrete AsyncLocalStorage/schema implementation remains an
+ * infrastructure concern bound by `PersistenceModule`.
+ *
  * Encapsulates the `POST /auth/login` workflow:
  * 1. Validates the temporary login code against `AUTH_LOGIN_CODE`.
  * 2. Fetches user account details from the tenant database via {@link GetUserQuery}.
  * 3. Resolves CASL user permissions and role capabilities via {@link GetUserCapabilitiesQuery}.
  * 4. Signs an HMAC access token bound to the current tenant schema.
- *
- * @example
- * ```bash
- * # Initiating login
- * curl -X POST https://api.example.com/auth/login \
- *   -H "x-tenant-schema: tenant_a" \
- *   -H "Content-Type: application/json" \
- *   -d '{"email":"alice@example.test","code":"123456"}'
- * ```
  */
 @Injectable()
 export class UserLoginService {
@@ -67,24 +65,11 @@ export class UserLoginService {
     private readonly queryBus: QueryBus,
     @Inject(EXT_USER_QUERY_REPOSITORY.getUser)
     private readonly queryRepository: IQueryRepository<GetUserQuery, User>,
-    @Inject(TenantSchemaContext)
-    private readonly tenantSchemaContext: TenantSchemaContext,
+    @Inject(TENANT_CONTEXT)
+    private readonly tenantContext: ITenantContext,
   ) {}
 
-  /**
-   * Verifies login credentials (email and one-time login code) against database records.
-   *
-   * @param email - User email address.
-   * @param code - Login code provided by caller.
-   * @returns The resolved {@link User} entity upon successful verification.
-   * @throws {@link InternalServerErrorException} If `AUTH_LOGIN_CODE` is not configured on the server.
-   * @throws {@link UnauthorizedException} If the code does not match or the user does not exist.
-   *
-   * @example
-   * ```ts
-   * const user = await loginService.authenticate('alice@example.test', '123456');
-   * ```
-   */
+  /** Verifies login credentials against the configured login code and tenant user repository. */
   async authenticate(email: string, code: string): Promise<User> {
     const expectedCode = process.env.AUTH_LOGIN_CODE;
     if (!expectedCode) {
@@ -106,23 +91,7 @@ export class UserLoginService {
     return user;
   }
 
-  /**
-   * Signs and issues a JWT access token for an authenticated user.
-   *
-   * Embeds the active tenant schema, user identity, and compact serialized CASL capabilities
-   * (overrides and denials) directly in token claims, while role-level capabilities are resolved
-   * dynamically server-side from the `roles` claim.
-   *
-   * @param user - The authenticated domain {@link User} entity.
-   * @returns An {@link AuthResult} containing userId, resolved capabilities, and the signed JWT string.
-   * @throws {@link InternalServerErrorException} If `JWT_SECRET` is missing or `JWT_ALGORITHMS` excludes HS256.
-   *
-   * @example
-   * ```ts
-   * const result = await loginService.signToken(user);
-   * console.log(result.accessToken);
-   * ```
-   */
+  /** Signs and issues a JWT access token for an authenticated user. */
   async signToken(user: User): Promise<AuthResult> {
     const jwtSecret = process.env.JWT_SECRET;
     if (!jwtSecret) {
@@ -139,7 +108,7 @@ export class UserLoginService {
 
     const issuer = process.env.JWT_ISSUER;
     const audience = process.env.JWT_AUDIENCE;
-    const tenant = this.tenantSchemaContext.schema;
+    const tenant = this.tenantContext.schema;
 
     const userCapabilities = await this.queryBus.execute<
       GetUserCapabilitiesQuery,
@@ -147,7 +116,7 @@ export class UserLoginService {
     >(new GetUserCapabilitiesQuery({ userId: user.id }));
 
     const nowSeconds = Math.floor(Date.now() / 1000);
-    const expSeconds = nowSeconds + 3600; // 1 hour
+    const expSeconds = nowSeconds + 3600;
 
     const jwt = new SignJWT({
       tenant,
@@ -167,13 +136,8 @@ export class UserLoginService {
       .setExpirationTime(expSeconds)
       .setJti(randomUUID());
 
-    if (issuer) {
-      jwt.setIssuer(issuer);
-    }
-
-    if (audience) {
-      jwt.setAudience(audience);
-    }
+    if (issuer) jwt.setIssuer(issuer);
+    if (audience) jwt.setAudience(audience);
 
     const accessToken = await jwt.sign(new TextEncoder().encode(jwtSecret));
 
