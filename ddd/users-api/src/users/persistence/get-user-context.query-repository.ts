@@ -17,6 +17,7 @@
  */
 
 import { getSessionUserFromStore } from '@common/context/session-user.store';
+import type { PrincipalType } from '@common/types/SessionUser';
 import { Inject, Injectable, Optional, Scope } from '@nestjs/common';
 import type {
   CaslBehaviorOptions,
@@ -29,22 +30,18 @@ import { MIKRO_ORM_CLIENT, MikroOrmStore } from '@persistence/mikro-orm.store';
 import { GetUserContextQuery } from '../cqrs/queries/get-user-context.query';
 import { User } from '../domain/models/user.entity';
 
+type TypedPrincipal = CaslUserContext & { principalType?: PrincipalType };
+
 /**
  * Resolves the CASL user context from the HTTP request.
  *
  * Reads the current user from the configured CASL `subjectContextPaths`
  * (for example `sessionUser` in this sample app) or the active `sessionUserStore`.
- *
- * This keeps user-context resolution aligned with the same request path
- * configuration used by `CaslBehavior` for instance-level subject checks.
+ * Principal identity is classified explicitly by `principalType`; ID syntax is
+ * never used to decide whether a principal is a database user or a service.
  *
  * REQUEST-scoped so it can access the current HTTP request.
- * ΑΤΤENTION: This class is not a singleton for example, you will see warning logs
- * in the console, which are expected and not a problem
  */
-const UUID_REGEX =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
 @Injectable({ scope: Scope.REQUEST })
 export class GetUserContextQueryRepository implements IUserContextResolver {
   constructor(
@@ -55,31 +52,19 @@ export class GetUserContextQueryRepository implements IUserContextResolver {
   ) {}
 
   async resolve(context: IPipelineContext): Promise<CaslUserContext | null> {
-    const rawUser =
+    const rawUser = (
       this.resolveUserContextFromRequest(
         context.request as Record<string, unknown> | undefined,
       ) ??
-      (getSessionUserFromStore() as unknown as CaslUserContext | undefined);
+      (getSessionUserFromStore() as unknown as CaslUserContext | undefined)
+    ) as TypedPrincipal | undefined;
 
-    if (!rawUser?.id) return null;
+    if (!rawUser?.id || !rawUser.principalType) return null;
 
     const id = String(rawUser.id);
-    const user = await this.store.em.findOne(User, { id });
-    if (user) {
-      return {
-        id: user.id,
-        department: (user.department as string | null) ?? null,
-        ...(rawUser.capabilities ? { capabilities: rawUser.capabilities } : {}),
-      } as CaslUserContext;
-    }
 
-    // A database user (UUID) that was not found in persistence is considered inactive/deleted
-    if (UUID_REGEX.test(id)) {
-      return null;
-    }
-
-    // Non-database machine, test, or administrative principals with explicit capabilities
-    if (rawUser.capabilities) {
+    if (rawUser.principalType === 'service') {
+      if (!rawUser.capabilities) return null;
       return {
         id,
         department: (rawUser.department as string | null) ?? null,
@@ -87,7 +72,14 @@ export class GetUserContextQueryRepository implements IUserContextResolver {
       } as CaslUserContext;
     }
 
-    return null;
+    const user = await this.store.em.findOne(User, { id });
+    if (!user) return null;
+
+    return {
+      id: user.id,
+      department: (user.department as string | null) ?? null,
+      ...(rawUser.capabilities ? { capabilities: rawUser.capabilities } : {}),
+    } as CaslUserContext;
   }
 
   private resolveUserContextFromRequest(
@@ -129,9 +121,7 @@ export class GetUserContextQueryRepository implements IUserContextResolver {
 
   async find(query: GetUserContextQuery): Promise<CaslUserContext | null> {
     const { userId } = query;
-
     const user = await this.store.em.findOne(User, { id: userId });
-
     if (!user) return null;
 
     return {
