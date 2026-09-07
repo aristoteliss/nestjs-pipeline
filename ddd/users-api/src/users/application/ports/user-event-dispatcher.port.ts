@@ -8,7 +8,6 @@ export interface WelcomeEmailDispatch {
   username: string;
   email: string;
   tenant?: string;
-  correlationId: string;
 }
 
 export interface UserBatchDispatchItem {
@@ -25,8 +24,5 @@ export interface IWelcomeEmailDispatcher {
 
 /** Application port for scheduling user batch work. */
 export interface IUserBatchDispatcher {
-  enqueueUserBatch(
-    items: readonly UserBatchDispatchItem[],
-    correlationId: string,
-  ): Promise<void>;
+  enqueueUserBatch(items: readonly UserBatchDispatchItem[]): Promise<void>;
 }
