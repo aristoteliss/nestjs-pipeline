@@ -27,14 +27,16 @@ import {
   InternalServerErrorException,
   UnauthorizedException,
 } from '@nestjs/common';
-import { QueryBus } from '@nestjs/cqrs';
 import type { UserCapabilities } from '@nestjs-pipeline/casl';
 import type { IQueryRepository } from '@nestjs-pipeline/ddd-core';
 import { SignJWT } from 'jose';
 import { GetUserQuery } from '../../users/cqrs/queries/get-user.query';
 import { User } from '../../users/domain/models/user.entity';
 import { EXT_USER_QUERY_REPOSITORY } from '../../users/persistence/repository.tokens';
-import { GetUserCapabilitiesQuery } from '../cqrs/queries/get-user-capabilities.query';
+import {
+  type IUserCapabilityReader,
+  USER_CAPABILITY_READER,
+} from '../application/ports/user-capability-reader.port';
 import { CapabilityCodec } from './capability-codec';
 
 export interface AuthResult {
@@ -46,25 +48,19 @@ export interface AuthResult {
 }
 
 /**
- * Application service responsible for user login verification and access token issuance.
+ * Application service responsible for credential verification and token issuance.
  *
- * Tenant identity is consumed through the application-facing {@link ITenantContext}
- * port. The concrete AsyncLocalStorage/schema implementation remains an
- * infrastructure concern bound by `PersistenceModule`.
- *
- * Encapsulates the `POST /auth/login` workflow:
- * 1. Validates the temporary login code against `AUTH_LOGIN_CODE`.
- * 2. Fetches user account details from the tenant database via {@link GetUserQuery}.
- * 3. Resolves CASL user permissions and role capabilities via {@link GetUserCapabilitiesQuery}.
- * 4. Signs an HMAC access token bound to the current tenant schema.
+ * Capability data is loaded through the narrow {@link IUserCapabilityReader}
+ * port. The login command path therefore does not dispatch a nested QueryBus
+ * request or execute query-side pipeline behaviors while issuing a token.
  */
 @Injectable()
 export class UserLoginService {
   constructor(
-    @Inject(QueryBus)
-    private readonly queryBus: QueryBus,
     @Inject(EXT_USER_QUERY_REPOSITORY.getUser)
     private readonly queryRepository: IQueryRepository<GetUserQuery, User>,
+    @Inject(USER_CAPABILITY_READER)
+    private readonly capabilityReader: IUserCapabilityReader,
     @Inject(TENANT_CONTEXT)
     private readonly tenantContext: ITenantContext,
   ) {}
@@ -83,11 +79,9 @@ export class UserLoginService {
     }
 
     const user = await this.queryRepository.find(new GetUserQuery({ email }));
-
     if (!user) {
       throw new UnauthorizedException('Invalid credentials');
     }
-
     return user;
   }
 
@@ -109,15 +103,10 @@ export class UserLoginService {
     const issuer = process.env.JWT_ISSUER;
     const audience = process.env.JWT_AUDIENCE;
     const tenant = this.tenantContext.schema;
-
-    const userCapabilities = await this.queryBus.execute<
-      GetUserCapabilitiesQuery,
-      UserCapabilities
-    >(new GetUserCapabilitiesQuery({ userId: user.id }));
+    const userCapabilities = await this.capabilityReader.getCapabilities(user.id);
 
     const nowSeconds = Math.floor(Date.now() / 1000);
     const expSeconds = nowSeconds + 3600;
-
     const jwt = new SignJWT({
       tenant,
       email: user.email,
@@ -140,7 +129,6 @@ export class UserLoginService {
     if (audience) jwt.setAudience(audience);
 
     const accessToken = await jwt.sign(new TextEncoder().encode(jwtSecret));
-
     return {
       userId: user.id,
       userCapabilities,
