@@ -16,38 +16,31 @@
  * ----------------------------
  */
 
-import { InjectQueue } from '@nestjs/bullmq';
-import { Logger } from '@nestjs/common';
+import { Inject, Logger } from '@nestjs/common';
 import { EventsHandler, type IEventHandler } from '@nestjs/cqrs';
 import { UsePipeline } from '@nestjs-pipeline/core';
-import {
-  addCorrelationId,
-  getCorrelationId,
-} from '@nestjs-pipeline/correlation';
+import { getCorrelationId } from '@nestjs-pipeline/correlation';
 import { DeadLetterBehavior } from '@nestjs-pipeline/deadletter';
 import { TenantSchemaContext } from '@persistence/tenant-schema.context';
-import type { Queue } from 'bullmq';
-import { UserCreatedEvent } from '../../domain/events/user-created.event';
 import {
-  WELCOME_EMAIL_QUEUE,
-  type WelcomeEmailJobData,
-} from '../../jobs/send-welcome-email.processor';
+  type IWelcomeEmailDispatcher,
+  WELCOME_EMAIL_DISPATCHER,
+} from '../../application/ports/user-event-dispatcher.port';
+import { UserCreatedEvent } from '../../domain/events/user-created.event';
 
 @EventsHandler(UserCreatedEvent)
 /**
- * Fire-and-forget side effect: if enqueuing the welcome email fails, the
- * failure is dead-lettered (captured to the 'dead-letters' queue for replay)
- * but NOT re-thrown, so a transient email/queue outage never surfaces as an
- * unhandled rejection from the event bus. `{ rethrow: false }` overrides the
- * global DeadLetterBehavior's default re-throw for this handler only.
+ * Fire-and-forget side effect: if scheduling the welcome email fails, the
+ * failure is dead-lettered but NOT re-thrown, so a transient delivery outage
+ * never surfaces as an unhandled rejection from the event bus.
  */
 @UsePipeline([DeadLetterBehavior, { rethrow: false }])
 export class UserCreatedHandler implements IEventHandler<UserCreatedEvent> {
   private readonly logger = new Logger(UserCreatedHandler.name);
 
   constructor(
-    @InjectQueue(WELCOME_EMAIL_QUEUE)
-    private readonly welcomeEmailQueue: Queue<WelcomeEmailJobData>,
+    @Inject(WELCOME_EMAIL_DISPATCHER)
+    private readonly welcomeEmailDispatcher: IWelcomeEmailDispatcher,
     private readonly tenantSchemaContext: TenantSchemaContext,
   ) {}
 
@@ -60,11 +53,13 @@ export class UserCreatedHandler implements IEventHandler<UserCreatedEvent> {
       `📬 [${correlationId}] UserCreated — id: ${userId}, username: ${username}, email: ${email}, tenant: ${tenant}`,
     );
 
-    // addCorrelationId stamps the current correlationId into the job data — works with any queue
-    await this.welcomeEmailQueue.add(
-      'send',
-      addCorrelationId({ userId, username, email, tenant }),
-    );
+    await this.welcomeEmailDispatcher.enqueueWelcomeEmail({
+      userId,
+      username,
+      email,
+      tenant,
+      correlationId,
+    });
 
     this.logger.log(
       `📤 [${correlationId}] Enqueued welcome email job for ${email}`,
