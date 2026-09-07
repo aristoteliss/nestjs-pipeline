@@ -35,28 +35,8 @@ import { CapabilityCodec } from './capability-codec';
 /**
  * Verifies Bearer JSON Web Tokens presented in the `Authorization` request header.
  *
- * Supports both symmetric HMAC secrets (`JWT_SECRET`) and asymmetric RSA/ECDSA public keys (`JWT_PUBLIC_KEY`).
- * Public SPKI keys are parsed and memoized as WebCrypto `CryptoKey` objects on first use to avoid repeated ASN.1
- * parsing on every HTTP request. Token claims (`sub`, `tenant`, `roles`, `additionalCapabilities`,
- * `deniedCapabilities`) are validated and converted into a compacted {@link SessionUser} structure.
- *
- * @example
- * ```bash
- * # Request with Bearer token
- * curl https://api.example.com/users \
- *   -H "x-tenant-schema: tenant_a" \
- *   -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
- * ```
- *
- * @example
- * ```env
- * # Environment configuration (.env)
- * JWT_SECRET="super-secret-symmetric-key-at-least-32-chars"
- * JWT_PUBLIC_KEY="-----BEGIN PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8A...\n-----END PUBLIC KEY-----"
- * JWT_PUBLIC_KEY_ALG="RS256"
- * JWT_ISSUER="users-api"
- * JWT_AUDIENCE="nestjs-pipeline"
- * ```
+ * Successful Bearer authentication emits `principalType: 'user'`; downstream
+ * authorization never infers user identity from the token subject format.
  */
 @Injectable()
 export class JwtAuthenticator {
@@ -82,24 +62,6 @@ export class JwtAuthenticator {
     >,
   ) {}
 
-  /**
-   * Parses and validates a Bearer JWT from the `Authorization` header.
-   *
-   * Scheme matching is case-insensitive (accepts both `Bearer <token>` and `bearer <token>`).
-   *
-   * @param req - Request object containing incoming HTTP headers.
-   * @returns The authenticated {@link SessionUser} if the token is valid, or `undefined` if no Bearer token was provided.
-   * @throws {@link UnauthorizedException} If the token is empty, expired, has an invalid signature,
-   *         misses required claims, targets a different tenant, or if no server-side keys are configured.
-   *
-   * @example
-   * ```ts
-   * const principal = await jwtAuthenticator.authenticate({
-   *   headers: { authorization: 'Bearer eyJhbGci...' },
-   * });
-   * // returns: { id: 'usr_123', tenant: 'tenant_a', email: 'alice@example.com', capabilities: { roles: ['admin'] } }
-   * ```
-   */
   async authenticate(req: {
     headers?: Record<string, string | string[] | undefined>;
   }): Promise<SessionUser | undefined> {
@@ -184,6 +146,7 @@ export class JwtAuthenticator {
 
       const user: SessionUser = {
         id: payload.sub,
+        principalType: 'user',
         tenant: payload.tenant,
         email: typeof payload.email === 'string' ? payload.email : undefined,
         department:
@@ -209,10 +172,6 @@ export class JwtAuthenticator {
     }
   }
 
-  /**
-   * Imports an SPKI PEM-encoded public key into a WebCrypto `CryptoKey`.
-   * Isolated as a protected method for unit testability and caching verification.
-   */
   protected async importPublicKey(
     spki: string,
     alg: string,
