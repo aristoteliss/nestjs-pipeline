@@ -1,21 +1,9 @@
 /*
  * Copyright (C) 2026-present Aristotelis
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Affero General Public License as
- * published by the Free Software Foundation, either version 3 of the
- * License, or (at your option) any later version.
- *
- * --- COMMERCIAL EXCEPTION ---
- * Alternatively, a Commercial License is available for individuals or
- * organizations that require proprietary use without the AGPLv3
- * copyleft restrictions.
- *
- * See COMMERCIAL_LICENSE.txt in this repository for the tiered
- * revenue-based terms, or contact: aristotelis@ik.me
- * ----------------------------
+ * See repository license for full terms.
  */
 
+import { requireTenantId } from '@common/cqrs/helpers/requireTenantId.helper';
 import { AUDIT_ACTIONS } from '@common/constants';
 import { SessionUser } from '@common/types/SessionUser';
 import { Inject } from '@nestjs/common';
@@ -38,19 +26,17 @@ import { COMMAND_REPOSITORY } from '../../persistence/repository.tokens';
 import { UserLoginService } from '../../services/user-login.service';
 import { CreateAuthCommand } from './create-auth.command';
 
+/** Builds the tenant/email partition used by login rate limiting. */
+export function createAuthRateLimitKey(ctx: IPipelineContext): string {
+  const tenantId = requireTenantId(ctx, 'authentication rate limiting');
+  return `${tenantId}:auth:login:${(ctx.request as CreateAuthCommand).email}`;
+}
+
 @CommandHandler(CreateAuthCommand)
 @UsePipeline(
   [LoggingBehavior, { requestResponseLogLevel: 'log' }],
   [MetricsBehavior, { meterName: 'users-api.auth' }],
-  [
-    RateLimitBehavior,
-    {
-      keyFactory: (ctx: IPipelineContext) => {
-        const tenantId = ctx.tenantId ?? 'default';
-        return `${tenantId}:auth:login:${(ctx.request as CreateAuthCommand).email}`;
-      },
-    },
-  ],
+  [RateLimitBehavior, { keyFactory: createAuthRateLimitKey }],
   [
     AuditBehavior,
     {
@@ -82,11 +68,8 @@ export class CreateAuthHandler extends CommandBaseHandler<
     command: CreateAuthCommand,
   ): Promise<SessionUser & { token: string }> {
     const { email, code } = command;
-
     const verifiedUser = await this.userLoginService.authenticate(email, code);
-
     const authResult = await this.userLoginService.signToken(verifiedUser);
-
     const auth = Auth.create(authResult.userId, authResult.accessToken);
 
     await this.commandRepository.save(auth);

@@ -1,21 +1,9 @@
 /*
  * Copyright (C) 2026-present Aristotelis
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Affero General Public License as
- * published by the Free Software Foundation, either version 3 of the
- * License, or (at your option) any later version.
- *
- * --- COMMERCIAL EXCEPTION ---
- * Alternatively, a Commercial License is available for individuals or
- * organizations that require proprietary use without the AGPLv3
- * copyleft restrictions.
- *
- * See COMMERCIAL_LICENSE.txt in this repository for the tiered
- * revenue-based terms, or contact: aristotelis@ik.me
- * ----------------------------
+ * See repository license for full terms.
  */
 
+import { requireTenantId } from '@common/cqrs/helpers/requireTenantId.helper';
 import { APP_ACTIONS, APP_SUBJECTS } from '@common/constants';
 import { getSessionUserFromStore } from '@common/context/session-user.store';
 import { Inject } from '@nestjs/common';
@@ -37,9 +25,10 @@ import { Role, type RoleSnapshot } from '../../domain/models/role.entity';
 import { COMMAND_REPOSITORY } from '../../persistence/repository.tokens';
 import { CreateRoleCommand } from './create-role.command';
 
+/** Builds a tenant/principal/name-scoped idempotency key and fails closed without tenant context. */
 export function createRoleIdempotencyKey(ctx: IPipelineContext): string {
   const request = ctx.request as CreateRoleCommand;
-  const tenantId = ctx.tenantId ?? 'default';
+  const tenantId = requireTenantId(ctx, 'role creation idempotency');
   const actorId =
     request.sessionUser?.id ?? getSessionUserFromStore()?.id ?? 'anonymous';
   return `${tenantId}:${actorId}:role.create:${request.name}`;
@@ -64,12 +53,7 @@ export function createRoleIdempotencyKey(ctx: IPipelineContext): string {
     },
   ],
   [FeatureFlagBehavior, { flag: 'role-creation' }],
-  [
-    IdempotencyBehavior,
-    {
-      keyFactory: createRoleIdempotencyKey,
-    },
-  ],
+  [IdempotencyBehavior, { keyFactory: createRoleIdempotencyKey }],
 )
 export class CreateRoleHandler extends CommandBaseHandler<
   CreateRoleCommand,
@@ -85,13 +69,9 @@ export class CreateRoleHandler extends CommandBaseHandler<
   }
 
   async handle(command: CreateRoleCommand): Promise<Role> {
-    const { name } = command;
-
-    const role = Role.create(name);
+    const role = Role.create(command.name);
     this.authorizer.authorize('create', role, ['name']);
-
     await this.commandRepository.save(role);
-
     return role;
   }
 }
