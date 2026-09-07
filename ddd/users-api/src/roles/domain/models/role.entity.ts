@@ -5,15 +5,6 @@
  * it under the terms of the GNU Affero General Public License as
  * published by the Free Software Foundation, either version 3 of the
  * License, or (at your option) any later version.
- *
- * --- COMMERCIAL EXCEPTION ---
- * Alternatively, a Commercial License is available for individuals or
- * organizations that require proprietary use without the AGPLv3
- * copyleft restrictions.
- *
- * See COMMERCIAL_LICENSE.txt in this repository for the tiered
- * revenue-based terms, or contact: aristotelis@ik.me
- * ----------------------------
  */
 
 import {
@@ -33,37 +24,21 @@ export interface RoleSnapshot extends Partial<RootEntitySnapshot> {
 const ROLE_NAME_MIN_LENGTH = 3;
 
 /**
- * Role domain entity following Clean Architecture / DDD principles.
- *
- * Inherits shared identity, lifecycle timestamps, and event buffering from {@link RootEntity}.
- *
- * - State is private; mutated only through domain methods.
- * - `Role.create()` is the only factory for creating new roles and recording {@link RoleCreatedEvent}.
- * - `Role.fromJSON()` rebuilds the entity from persisted snapshot data.
- * - `rename()` and `delete()` enforce domain rules and record domain events.
+ * Role domain aggregate. New instances must be created through `Role.create()`;
+ * persisted state must be reconstructed through `Role.fromJSON()`.
  */
 export class Role extends RootEntity<RoleSnapshot> {
-  /** Canonical logical aggregate name used for cache namespacing and event topics. */
   public static readonly aggregateName = 'role';
-
   private _name: string;
 
-  constructor(snapshot?: RoleSnapshot) {
+  private constructor(snapshot: RoleSnapshot) {
     super(snapshot);
-    if (!snapshot) {
-      this._name = '';
-      return;
-    }
     this._name = Role.normalizeName(snapshot.name);
   }
 
   static create(name: string): Role {
-    const role = new Role({
-      name: Role.normalizeName(name),
-    });
-
+    const role = new Role({ name: Role.normalizeName(name) });
     role.apply(new RoleCreatedEvent(role));
-
     return role;
   }
 
@@ -96,7 +71,6 @@ export class Role extends RootEntity<RoleSnapshot> {
     this._name = Role.normalizeName(value);
   }
 
-  /** Gets the entity version for optimistic concurrency control. */
   get version(): number {
     return this._version;
   }
@@ -130,7 +104,5 @@ export class Role extends RootEntity<RoleSnapshot> {
     });
   }
 
-  afterUpdate(): void {
-    // No side effects needed on update for Role, but this method must be implemented
-  }
+  afterUpdate(): void {}
 }
