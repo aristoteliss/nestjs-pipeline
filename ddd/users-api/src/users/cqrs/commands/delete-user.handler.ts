@@ -1,4 +1,5 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
+import { isTransientTechnicalError } from '@common/cqrs/resilience/is-transient-technical-error';
 import { APP_ACTIONS, APP_SUBJECTS, AUDIT_ACTIONS } from '@common/constants';
 import { getSessionUserFromStore } from '@common/context/session-user.store';
 import { Inject } from '@nestjs/common';
@@ -12,7 +13,6 @@ import {
   IWriteSideAggregateRepository,
 } from '@nestjs-pipeline/ddd-core';
 import { ResilienceBehavior } from '@nestjs-pipeline/resilience';
-import { isTransientPersistenceError } from '@persistence/is-transient-persistence-error';
 import { User, type UserSnapshot } from '../../domain/models/user.entity';
 import { COMMAND_REPOSITORY } from '../../persistence/repository.tokens';
 import { DeleteUserCommand } from './delete-user.command';
@@ -27,7 +27,7 @@ import { DeleteUserCommand } from './delete-user.command';
   [
     ResilienceBehavior,
     {
-      handle: isTransientPersistenceError,
+      handle: isTransientTechnicalError,
       retry: {
         maxAttempts: 3,
         backoff: { type: 'exponential', initialDelay: 100, maxDelay: 2_000 },
@@ -72,6 +72,7 @@ export class DeleteUserHandler extends CommandBaseHandler<
   /**
    * Loads authoritative write-side state and expresses absence as a framework-neutral
    * application error before authorization and domain deletion are attempted.
+   * Transient technical retries are selected by a neutral CQRS resilience policy.
    */
   async handle(command: DeleteUserCommand): Promise<User> {
     const snapshot = await this.commandRepository.findById(command.id);
