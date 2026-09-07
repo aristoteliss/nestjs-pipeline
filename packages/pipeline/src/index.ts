@@ -18,6 +18,7 @@
 
 export * from './behaviors/logging.behavior';
 export {
+  PIPELINE_SECURITY_SCOPE,
   PIPELINE_TENANT_ID,
   pipelineStore,
   SET_TENANT_ID,
