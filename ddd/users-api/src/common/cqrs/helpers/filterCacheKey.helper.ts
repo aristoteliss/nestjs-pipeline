@@ -16,7 +16,11 @@
  * ----------------------------
  */
 
-import { type IPipelineContext, pipelineStore } from '@nestjs-pipeline/core';
+import {
+  type IPipelineContext,
+  pipelineStore,
+  stableStringify,
+} from '@nestjs-pipeline/core';
 import { DEFAULT_TENANT_SCHEMA } from '@persistence/postgres-options';
 
 /**
@@ -30,43 +34,22 @@ export type CacheResourceSpecifier =
   | { aggregateName?: string; prefixKey?: string };
 
 /**
- * Deterministically sorts object keys recursively to ensure identical JSON serialization
- * regardless of key insertion order.
- */
-function sortKeysRecursively(val: unknown): unknown {
-  if (val === null || typeof val !== 'object') {
-    return val;
-  }
-  if (Array.isArray(val)) {
-    return val.map(sortKeysRecursively);
-  }
-  return Object.keys(val as Record<string, unknown>)
-    .sort()
-    .reduce(
-      (acc, key) => {
-        acc[key] = sortKeysRecursively((val as Record<string, unknown>)[key]);
-        return acc;
-      },
-      {} as Record<string, unknown>,
-    );
-}
-
-/**
- * Serializes an individual filter condition value into a canonical, collision-safe string.
+ * Serializes one filter value into the cache-key segment format.
  *
- * - Nested objects and arrays are serialized using recursively key-sorted canonical JSON,
- *   preventing ambiguous `[object Object]` representations.
- * - Primitive values (strings, numbers, booleans) have colons (`:`) and backslashes (`\`) escaped
- *   so that values containing delimiters cannot collide with key/value boundaries.
+ * Nested JSON values delegate to the core {@link stableStringify} implementation,
+ * so deterministic recursive ordering has one canonical implementation across
+ * pipeline cache, idempotency and DDD repository cache keys.
+ *
+ * Primitive values keep delimiter escaping local to this key format because `:`
+ * and `\\` are structural characters in repository cache keys.
  */
 function canonicalizeValue(val: unknown): string {
   if (val === null || val === undefined) {
     return '';
   }
   if (typeof val === 'object') {
-    return JSON.stringify(sortKeysRecursively(val));
+    return stableStringify(val);
   }
-  // Escape backslash and colon to prevent delimiter injection and key collision
   return String(val).replace(/([\\:])/g, '\\$1');
 }
 
@@ -105,28 +88,10 @@ function resolveTenantSchema(
  * (e.g., `User.aggregateName = 'user'`) without knowledge of caching or infrastructure.
  *
  * Features:
- * - **Canonical sorting**: Keys are sorted alphabetically (`{ email, id }` produces the same key as `{ id, email }`).
- * - **Delimiter escaping**: Primitive values containing `:` or `\` are escaped to prevent delimiter injection collisions.
- * - **Deterministic object serialization**: Nested objects/composite identities are canonically serialized without `[object Object]`.
- * - **Fail-safe resource prefixes**: Rejects fragile constructor names subject to minification/mangling.
- *
- * @example Single property lookup with entity class
- * ```typescript
- * filterCacheKey(User, { id: '123' }, ctx)
- * // → "tenant:user:id:123"
- * ```
- *
- * @example Composite filter with escaped delimiters
- * ```typescript
- * filterCacheKey('user', { a: 'hello:b:world' })
- * // → "tenant:user:a:hello\:b\:world"
- * ```
- *
- * @example Nested composite identity without [object Object]
- * ```typescript
- * filterCacheKey('deployment', { compose: { service: 'web', file: 'docker-compose.yml' } })
- * // → 'tenant:deployment:compose:{"file":"docker-compose.yml","service":"web"}'
- * ```
+ * - **Canonical sorting**: top-level filter keys are sorted alphabetically.
+ * - **Delimiter escaping**: primitive values containing `:` or `\\` are escaped.
+ * - **Deterministic object serialization**: nested JSON values use core `stableStringify`.
+ * - **Fail-safe resource prefixes**: fragile constructor names are rejected.
  */
 export function filterCacheKey(
   resourceOrEntity: CacheResourceSpecifier,
@@ -174,24 +139,12 @@ export function filterCacheKey(
 }
 
 /**
- * Resolves a template string (e.g. 'user:{userId}' or 'role:id:{id}') against a query/command payload,
+ * Resolves a template string (e.g. `user:{userId}`) against a query/command payload,
  * namespaced by the active tenant schema.
  *
- * - Required placeholders `{prop}`: Throws a descriptive `Error` if the property is missing or nullish.
- * - Optional placeholders `{prop?}`: Resolves to an empty string if the property is missing or nullish.
- *
- * @example Required placeholder (throws if userId is missing)
- * ```typescript
- * const getKey = cacheKeyTemplate('user:{userId}');
- * getKey({ userId: '123' }); // → "tenant:user:123"
- * getKey({}); // Throws Error: Cannot resolve cache key template: missing required placeholder "userId"
- * ```
- *
- * @example Optional placeholder
- * ```typescript
- * const getKey = cacheKeyTemplate('user:{userId}:{scope?}');
- * getKey({ userId: '123' }); // → "tenant:user:123:"
- * ```
+ * Required placeholders throw when absent; optional `{prop?}` placeholders resolve
+ * to an empty string. Object placeholder values use the same canonical serializer
+ * as `filterCacheKey`.
  */
 export function cacheKeyTemplate<T = Record<string, unknown>>(
   template: string,
@@ -203,7 +156,6 @@ export function cacheKeyTemplate<T = Record<string, unknown>>(
         ? (source as IPipelineContext)
         : undefined;
     const data = (ctx ? ctx.request : source) as Record<string, unknown>;
-
     const schema = resolveTenantSchema(tenantOrContext ?? ctx);
 
     const resolved = template.replace(
@@ -222,7 +174,6 @@ export function cacheKeyTemplate<T = Record<string, unknown>>(
       },
     );
 
-    const prefix = schema ? `${schema}:` : '';
-    return `${prefix}${resolved}`;
+    return `${schema}:${resolved}`;
   };
 }
