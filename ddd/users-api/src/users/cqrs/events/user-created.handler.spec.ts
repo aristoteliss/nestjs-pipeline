@@ -24,7 +24,7 @@ import { User } from '../../domain/models/user.entity';
 import { UserCreatedHandler } from './user-created.handler';
 
 describe('UserCreatedHandler', () => {
-  it('reads immutable event.payload and dispatches the welcome-email application intent', async () => {
+  it('dispatches only application data; logging/correlation are cross-cutting concerns', async () => {
     const enqueueWelcomeEmail = vi.fn().mockResolvedValue(undefined);
     const dispatcher = { enqueueWelcomeEmail } as IWelcomeEmailDispatcher;
     const tenantContext = {
@@ -38,15 +38,12 @@ describe('UserCreatedHandler', () => {
     await handler.handle(event);
 
     expect(enqueueWelcomeEmail).toHaveBeenCalledTimes(1);
-    expect(enqueueWelcomeEmail).toHaveBeenCalledWith(
-      expect.objectContaining({
-        userId: user.id,
-        username: 'john_doe',
-        email: 'john@example.com',
-        tenant: 'tenant_alpha',
-        correlationId: expect.any(String),
-      }),
-    );
+    expect(enqueueWelcomeEmail).toHaveBeenCalledWith({
+      userId: user.id,
+      username: 'john_doe',
+      email: 'john@example.com',
+      tenant: 'tenant_alpha',
+    });
   });
 
   it('isolates handler execution from subsequent in-memory aggregate mutations', async () => {
@@ -67,13 +64,11 @@ describe('UserCreatedHandler', () => {
 
     await handler.handle(event);
 
-    expect(enqueueWelcomeEmail).toHaveBeenCalledWith(
-      expect.objectContaining({
-        userId: user.id,
-        username: 'alice_original',
-        email: 'alice@example.com',
-        tenant: 'tenant_beta',
-      }),
-    );
+    expect(enqueueWelcomeEmail).toHaveBeenCalledWith({
+      userId: user.id,
+      username: 'alice_original',
+      email: 'alice@example.com',
+      tenant: 'tenant_beta',
+    });
   });
 });
