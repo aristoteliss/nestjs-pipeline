@@ -1,0 +1,27 @@
+name: Temporary architecture issue 3 verification
+
+on:
+  push:
+    branches:
+      - tmp/architecture-issue-3-tenant-context
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.15.1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Typecheck users-api
+        run: pnpm --filter @nestjs-pipeline/ddd-users-api typecheck
+      - name: Unit regression
+        run: pnpm --filter @nestjs-pipeline/ddd-users-api exec vitest run src/common/context/tenant-context.boundary.spec.ts
+      - name: E2E regression
+        run: pnpm --filter @nestjs-pipeline/ddd-users-api exec vitest run --config vitest.config.e2e.ts test/tenant-context-port.e2e-spec.ts
