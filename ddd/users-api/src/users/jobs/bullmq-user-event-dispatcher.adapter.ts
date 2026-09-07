@@ -1,6 +1,7 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 import { InjectQueue } from '@nestjs/bullmq';
 import { Injectable } from '@nestjs/common';
+import { addCorrelationId, getCorrelationId } from '@nestjs-pipeline/correlation';
 import type { JobsOptions, Queue } from 'bullmq';
 import type {
   IUserBatchDispatcher,
@@ -17,7 +18,11 @@ import {
   type WelcomeEmailJobData,
 } from './send-welcome-email.processor';
 
-/** BullMQ infrastructure adapter for user-event application dispatch ports. */
+/**
+ * BullMQ infrastructure adapter for user-event application dispatch ports.
+ * Queue correlation metadata is derived from the current correlation store here,
+ * not carried as an application-handler concern.
+ */
 @Injectable()
 export class BullMqUserEventDispatcher
   implements IWelcomeEmailDispatcher, IUserBatchDispatcher
@@ -30,18 +35,18 @@ export class BullMqUserEventDispatcher
   ) {}
 
   async enqueueWelcomeEmail(message: WelcomeEmailDispatch): Promise<void> {
-    const { correlationId, ...payload } = message;
-    await this.welcomeEmailQueue.add('send', { ...payload, correlationId });
+    await this.welcomeEmailQueue.add('send', addCorrelationId(message));
   }
 
   async enqueueUserBatch(
     items: readonly UserBatchDispatchItem[],
-    correlationId: string,
   ): Promise<void> {
     await this.batchUpdateQueue.add(
       'batch-update',
       items.map((item) => ({ ...item })),
-      { correlationId } as JobsOptions & { correlationId: string },
+      { correlationId: getCorrelationId() } as JobsOptions & {
+        correlationId: string;
+      },
     );
   }
 }
