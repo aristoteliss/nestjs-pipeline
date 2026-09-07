@@ -1,4 +1,5 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
+import { isTransientTechnicalError } from '@common/cqrs/resilience/is-transient-technical-error';
 import { APP_ACTIONS, APP_SUBJECTS, AUDIT_ACTIONS } from '@common/constants';
 import { getSessionUserFromStore } from '@common/context/session-user.store';
 import { Inject } from '@nestjs/common';
@@ -12,7 +13,6 @@ import {
   IWriteSideAggregateRepository,
 } from '@nestjs-pipeline/ddd-core';
 import { ResilienceBehavior } from '@nestjs-pipeline/resilience';
-import { isTransientPersistenceError } from '@persistence/is-transient-persistence-error';
 import { Role, type RoleSnapshot } from '../../domain/models/role.entity';
 import { COMMAND_REPOSITORY } from '../../persistence/repository.tokens';
 import { DeleteRoleCommand } from './delete-role.command';
@@ -27,7 +27,7 @@ import { DeleteRoleCommand } from './delete-role.command';
   [
     ResilienceBehavior,
     {
-      handle: isTransientPersistenceError,
+      handle: isTransientTechnicalError,
       retry: {
         maxAttempts: 3,
         backoff: { type: 'exponential', initialDelay: 100, maxDelay: 2_000 },
@@ -65,7 +65,10 @@ export class DeleteRoleHandler extends CommandBaseHandler<
     super(eventBus);
   }
 
-  /** Loads authoritative write-side state and keeps not-found semantics transport-neutral. */
+  /**
+   * Loads authoritative write-side state, keeps not-found semantics transport-neutral,
+   * and delegates transient retry classification to the neutral CQRS resilience policy.
+   */
   async handle(command: DeleteRoleCommand): Promise<Role> {
     const snapshot = await this.commandRepository.findById(command.id);
     const role = snapshot ? Role.fromJSON(snapshot) : null;
