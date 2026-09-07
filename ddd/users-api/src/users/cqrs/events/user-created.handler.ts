@@ -16,8 +16,12 @@
  * ----------------------------
  */
 
+import {
+  type ITenantContext,
+  TENANT_CONTEXT,
+} from '@common/context/tenant-context.port';
 import { InjectQueue } from '@nestjs/bullmq';
-import { Logger } from '@nestjs/common';
+import { Inject, Logger } from '@nestjs/common';
 import { EventsHandler, type IEventHandler } from '@nestjs/cqrs';
 import { UsePipeline } from '@nestjs-pipeline/core';
 import {
@@ -25,7 +29,6 @@ import {
   getCorrelationId,
 } from '@nestjs-pipeline/correlation';
 import { DeadLetterBehavior } from '@nestjs-pipeline/deadletter';
-import { TenantSchemaContext } from '@persistence/tenant-schema.context';
 import type { Queue } from 'bullmq';
 import { UserCreatedEvent } from '../../domain/events/user-created.event';
 import {
@@ -35,11 +38,9 @@ import {
 
 @EventsHandler(UserCreatedEvent)
 /**
- * Fire-and-forget side effect: if enqueuing the welcome email fails, the
- * failure is dead-lettered (captured to the 'dead-letters' queue for replay)
- * but NOT re-thrown, so a transient email/queue outage never surfaces as an
- * unhandled rejection from the event bus. `{ rethrow: false }` overrides the
- * global DeadLetterBehavior's default re-throw for this handler only.
+ * Fire-and-forget welcome-email reaction. Tenant identity is consumed through
+ * the application tenant-context port; queue delivery remains a separate
+ * infrastructure-boundary concern tracked independently in Architecture.md.
  */
 @UsePipeline([DeadLetterBehavior, { rethrow: false }])
 export class UserCreatedHandler implements IEventHandler<UserCreatedEvent> {
@@ -48,19 +49,19 @@ export class UserCreatedHandler implements IEventHandler<UserCreatedEvent> {
   constructor(
     @InjectQueue(WELCOME_EMAIL_QUEUE)
     private readonly welcomeEmailQueue: Queue<WelcomeEmailJobData>,
-    private readonly tenantSchemaContext: TenantSchemaContext,
+    @Inject(TENANT_CONTEXT)
+    private readonly tenantContext: ITenantContext,
   ) {}
 
   async handle(event: UserCreatedEvent): Promise<void> {
     const { id: userId, username, email } = event.payload;
     const correlationId = getCorrelationId();
-    const tenant = this.tenantSchemaContext.schema;
+    const tenant = this.tenantContext.schema;
 
     this.logger.log(
       `📬 [${correlationId}] UserCreated — id: ${userId}, username: ${username}, email: ${email}, tenant: ${tenant}`,
     );
 
-    // addCorrelationId stamps the current correlationId into the job data — works with any queue
     await this.welcomeEmailQueue.add(
       'send',
       addCorrelationId({ userId, username, email, tenant }),
