@@ -40,53 +40,27 @@ const USERNAME_MIN_LENGTH = 3;
 const DEPARTMENT_MIN_LENGTH = 3;
 
 /**
- * User domain entity following Clean Architecture / DDD principles.
+ * User domain aggregate.
  *
- * Inherits shared identity, lifecycle timestamps, and event buffering from {@link RootEntity}.
- *
- * - State is private; mutated only through domain methods.
- * - `User.create()` is the only factory for creating new users and recording {@link UserCreatedEvent}.
- * - `User.fromJSON()` reconstitutes the entity from persisted snapshot data without firing events.
- * - `update()` and `delete()` enforce domain rules, update timestamps, and record domain events.
+ * Construction is deliberately restricted to the semantic factories:
+ * `User.create()` for a new aggregate and `User.fromJSON()` for rehydration.
+ * Callers cannot manufacture an empty/permissive User instance and bypass the
+ * creation/rehydration invariants.
  */
 export class User extends RootEntity<UserSnapshot> {
-  /** Canonical logical aggregate name used for cache namespacing and event topics. */
   public static readonly aggregateName = 'user';
 
   private _username: string;
   private _department: string | null;
   readonly email: string;
 
-  constructor(snapshot?: UserSnapshot) {
+  private constructor(snapshot: UserSnapshot) {
     super(snapshot);
-    if (!snapshot) {
-      this._username = '';
-      this._department = null;
-      this.email = '';
-      return;
-    }
     this._username = User.normalizeUsername(snapshot.username);
     this._department = User.normalizeDepartment(snapshot.department);
     this.email = snapshot.email;
   }
 
-  /**
-   * Factory method to create a new User aggregate.
-   *
-   * Enforces business invariants on username and department, and records a {@link UserCreatedEvent}.
-   *
-   * @param username - Unique user display name (minimum 3 non-whitespace characters).
-   * @param email - User's email address.
-   * @param department - Optional department assignment (minimum 3 characters if provided).
-   * @returns The created {@link User} aggregate with buffered uncommitted domain events.
-   * @throws {InvalidUsernameException} If the username is empty, whitespace, or fewer than 3 characters.
-   * @throws {InvalidDepartmentException} If the department is provided but fewer than 3 characters.
-   *
-   * @example
-   * ```ts
-   * const user = User.create('john_doe', 'john@example.com', 'Engineering');
-   * ```
-   */
   static create(
     username: string,
     email: string,
@@ -97,25 +71,10 @@ export class User extends RootEntity<UserSnapshot> {
       department: User.normalizeDepartment(department),
       email,
     });
-
     user.apply(new UserCreatedEvent(user));
-
     return user;
   }
 
-  /**
-   * Reconstitutes an existing User entity from a persisted snapshot.
-   *
-   * @param snapshot - Persisted entity state snapshot.
-   * @returns Rehydrated User aggregate instance.
-   * @throws {InvalidUsernameException} If the snapshot username violates domain invariants.
-   * @throws {InvalidDepartmentException} If the snapshot department violates domain invariants.
-   *
-   * @example
-   * ```ts
-   * const user = User.fromJSON(storedSnapshot);
-   * ```
-   */
   static fromJSON(snapshot: UserSnapshot): User {
     return new User({
       id: User.normalizeId(snapshot.id),
@@ -128,13 +87,6 @@ export class User extends RootEntity<UserSnapshot> {
     });
   }
 
-  /**
-   * Validates and trims the username invariant.
-   *
-   * @param username - Raw username input.
-   * @returns Trimmed valid username.
-   * @throws {InvalidUsernameException} When username is missing or shorter than minimum allowed length.
-   */
   private static normalizeUsername(username: string): string {
     const trimmed = username?.trim();
     if (!trimmed || trimmed.length < USERNAME_MIN_LENGTH) {
@@ -143,30 +95,18 @@ export class User extends RootEntity<UserSnapshot> {
     return trimmed;
   }
 
-  /**
-   * Validates and trims the optional department invariant.
-   *
-   * @param department - Raw department input.
-   * @returns Trimmed valid department, or null if empty/omitted.
-   * @throws {InvalidDepartmentException} When department is provided but shorter than minimum length.
-   */
   private static normalizeDepartment(
     department?: string | null,
   ): string | null {
-    if (department === null || department === undefined) {
-      return null;
-    }
+    if (department === null || department === undefined) return null;
     const trimmed = department.trim();
-    if (trimmed.length === 0) {
-      return null;
-    }
+    if (trimmed.length === 0) return null;
     if (trimmed.length < DEPARTMENT_MIN_LENGTH) {
       throw new InvalidDepartmentException(DEPARTMENT_MIN_LENGTH, department);
     }
     return trimmed;
   }
 
-  /** Gets the normalized username. */
   get username(): string {
     return this._username;
   }
@@ -174,7 +114,6 @@ export class User extends RootEntity<UserSnapshot> {
     this._username = User.normalizeUsername(value);
   }
 
-  /** Gets the normalized department, or null if unassigned. */
   get department(): string | null {
     return this._department;
   }
@@ -182,7 +121,6 @@ export class User extends RootEntity<UserSnapshot> {
     this._department = User.normalizeDepartment(value);
   }
 
-  /** Gets the entity version for optimistic concurrency control. */
   get version(): number {
     return this._version;
   }
@@ -193,20 +131,6 @@ export class User extends RootEntity<UserSnapshot> {
     }
   }
 
-  /**
-   * Updates mutable user fields and records a {@link UserUpdatedEvent}.
-   *
-   * @param fields - Object containing fields to update (`username` and/or `department`).
-   * @returns The mutated User entity instance (`this`).
-   * @throws {EmptyUserUpdateException} When no updatable fields are provided.
-   * @throws {InvalidUsernameException} When the new username violates validation rules.
-   * @throws {InvalidDepartmentException} When the new department violates validation rules.
-   *
-   * @example
-   * ```ts
-   * user.update({ department: 'Marketing' });
-   * ```
-   */
   @Mutate()
   update(fields: {
     username?: string | null;
@@ -219,43 +143,23 @@ export class User extends RootEntity<UserSnapshot> {
       fields.username !== undefined && fields.username !== null
         ? User.normalizeUsername(fields.username)
         : undefined;
-
     const nextDepartment =
       fields.department !== undefined
         ? User.normalizeDepartment(fields.department)
         : undefined;
 
-    if (nextUsername !== undefined) {
-      this._username = nextUsername;
-    }
-    if (nextDepartment !== undefined) {
-      this._department = nextDepartment;
-    }
+    if (nextUsername !== undefined) this._username = nextUsername;
+    if (nextDepartment !== undefined) this._department = nextDepartment;
     this.apply(new UserUpdatedEvent(this));
     return this;
   }
 
-  /**
-   * Marks the user as deleted and records a {@link UserDeletedEvent}.
-   *
-   * @returns The deleted User entity instance (`this`).
-   *
-   * @example
-   * ```ts
-   * user.delete();
-   * ```
-   */
   @Mutate()
   delete(): this {
     this.apply(new UserDeletedEvent(this));
     return this;
   }
 
-  /**
-   * Serializes the entity state into a frozen plain object snapshot.
-   *
-   * @returns Immutable snapshot of all entity fields.
-   */
   toJSON(): RootEntitySnapshot & UserSnapshot {
     return this.freezeState({
       id: this.id,
@@ -268,8 +172,5 @@ export class User extends RootEntity<UserSnapshot> {
     });
   }
 
-  /** Lifecycle hook invoked after mutation. */
-  afterUpdate(): void {
-    // No side effects needed on update for User, but this method must be implemented
-  }
+  afterUpdate(): void {}
 }
