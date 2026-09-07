@@ -17,35 +17,20 @@
  */
 
 import { createHash, timingSafeEqual } from 'node:crypto';
-import { Injectable, Logger, UnauthorizedException } from '@nestjs/common';
+import {
+  type ITenantContext,
+  TENANT_CONTEXT,
+} from '@common/context/tenant-context.port';
+import { Inject, Injectable, Logger, UnauthorizedException } from '@nestjs/common';
 import type { UserCapabilities } from '@nestjs-pipeline/casl';
-import { TenantSchemaContext } from '@persistence/tenant-schema.context';
 import { AUTH_HEADERS } from '../../common/constants/auth-headers.constants';
 import type { SessionUser } from '../../common/types/SessionUser';
 import { CapabilityCodec } from './capability-codec';
 
 /**
- * Authenticates machine-to-machine HTTP requests presenting `x-api-id` and `x-api-key` headers.
- *
- * This service operates completely statelessly without touching database tables or session cookies.
- * Configured API clients are loaded from the `API_CLIENTS` environment variable as a JSON array.
- * Key comparisons are performed in constant time by comparing SHA-256 fixed-length digests, preventing
- * timing side-channel attacks that could leak secret key lengths or character prefixes.
- *
- * @example
- * ```bash
- * # Calling a protected endpoint with API credentials
- * curl https://api.example.com/users \
- *   -H "x-tenant-schema: tenant_a" \
- *   -H "x-api-id: reporting-service" \
- *   -H "x-api-key: secret-api-key-999"
- * ```
- *
- * @example
- * ```env
- * # Environment configuration (.env)
- * API_CLIENTS='[{"id":"reporting-service","key":"secret-api-key-999","tenants":["tenant_a","tenant_b"],"capabilities":{"roles":["reporter"]}}]'
- * ```
+ * Authenticates machine-to-machine HTTP requests presenting API credentials.
+ * Tenant authorization is evaluated through the application-facing tenant
+ * context port rather than a persistence implementation.
  */
 @Injectable()
 export class ApiClientAuthenticator {
@@ -55,28 +40,12 @@ export class ApiClientAuthenticator {
     { key: string; tenants: Set<string>; capabilities?: UserCapabilities }
   >;
 
-  constructor(private readonly tenantSchemaContext: TenantSchemaContext) {}
+  constructor(
+    @Inject(TENANT_CONTEXT)
+    private readonly tenantContext: ITenantContext,
+  ) {}
 
-  /**
-   * Verifies API credentials provided in `x-api-id` and `x-api-key` request headers.
-   *
-   * @param req - Request object containing incoming HTTP headers.
-   * @returns The resolved {@link SessionUser} principal if valid credentials match the active tenant,
-   *          or `undefined` if no `x-api-id` header was provided.
-   * @throws {@link UnauthorizedException} If `x-api-id` is present but credentials are invalid,
-   *         the API key is incorrect, or the client is not authorized for the active tenant schema.
-   *
-   * @example
-   * ```ts
-   * const principal = authenticator.authenticate({
-   *   headers: {
-   *     'x-api-id': 'reporting-service',
-   *     'x-api-key': 'secret-api-key-999',
-   *   },
-   * });
-   * // returns: { id: 'reporting-service', tenant: 'tenant_a', capabilities: { roles: ['reporter'] } }
-   * ```
-   */
+  /** Verifies API credentials and returns the tenant-bound machine principal. */
   authenticate(req: {
     headers?: Record<string, string | string[] | undefined>;
   }): SessionUser | undefined {
@@ -90,7 +59,7 @@ export class ApiClientAuthenticator {
       !client ||
       !apiKey ||
       !this.timingSafeEqualString(apiKey, client.key) ||
-      !client.tenants.has(this.tenantSchemaContext.schema)
+      !client.tenants.has(this.tenantContext.schema)
     ) {
       this.logger.warn(
         `Rejected API client "${apiId}": missing, invalid, or tenant-mismatched credentials`,
@@ -98,7 +67,7 @@ export class ApiClientAuthenticator {
       throw new UnauthorizedException('Invalid API credentials');
     }
 
-    const tenant = this.tenantSchemaContext.schema;
+    const tenant = this.tenantContext.schema;
     this.logger.debug(
       `Authenticated API client ${apiId} from x-api-id/x-api-key headers`,
     );
