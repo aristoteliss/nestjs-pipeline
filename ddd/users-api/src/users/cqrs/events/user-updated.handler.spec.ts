@@ -17,37 +17,30 @@
  */
 
 import type { TenantSchemaContext } from '@persistence/tenant-schema.context';
-import type { Queue } from 'bullmq';
 import { describe, expect, it, vi } from 'vitest';
+import type { IUserBatchDispatcher } from '../../application/ports/user-event-dispatcher.port';
 import { UserUpdatedEvent } from '../../domain/events/user-updated.event';
 import { User } from '../../domain/models/user.entity';
-import type { BatchUpdateUserItem } from '../../jobs/batch-update-users.processor';
 import { UserUpdatedHandler } from './user-updated.handler';
 
 describe('UserUpdatedHandler', () => {
-  it('reads user details from immutable event.payload and enqueues batch update', async () => {
-    const queueAddMock = vi.fn().mockResolvedValue({ id: 'job-update-1' });
-    const mockQueue = {
-      add: queueAddMock,
-    } as unknown as Queue<BatchUpdateUserItem[]>;
-
+  it('reads immutable event.payload and dispatches batch work through the application port', async () => {
+    const enqueueUserBatch = vi.fn().mockResolvedValue(undefined);
+    const dispatcher = { enqueueUserBatch } as IUserBatchDispatcher;
     const tenantContext = {
       schema: 'tenant_gamma',
     } as unknown as TenantSchemaContext;
-
-    const handler = new UserUpdatedHandler(mockQueue, tenantContext);
+    const handler = new UserUpdatedHandler(dispatcher, tenantContext);
 
     const user = User.create('john_doe', 'john@example.com');
     user.commit();
-
     user.update({ username: 'john_renamed' });
     const [event] = user.getUncommittedEvents() as [UserUpdatedEvent];
 
     await handler.handle(event);
 
-    expect(queueAddMock).toHaveBeenCalledTimes(1);
-    expect(queueAddMock).toHaveBeenCalledWith(
-      'batch-update',
+    expect(enqueueUserBatch).toHaveBeenCalledTimes(1);
+    expect(enqueueUserBatch).toHaveBeenCalledWith(
       [
         {
           userId: user.id,
@@ -55,7 +48,7 @@ describe('UserUpdatedHandler', () => {
           tenant: 'tenant_gamma',
         },
       ],
-      expect.anything(),
+      expect.any(String),
     );
   });
 });
