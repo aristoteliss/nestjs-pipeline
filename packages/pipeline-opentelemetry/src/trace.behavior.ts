@@ -16,23 +16,15 @@
  * ----------------------------
  */
 
+import { Injectable } from '@nestjs/common';
 import {
-  Inject,
-  Injectable,
-  Logger,
-  LoggerService,
-  OnModuleInit,
-  Optional,
-} from '@nestjs/common';
-import {
-  IPipelineBehavior,
-  IPipelineContext,
-  LOGGING_BEHAVIOR_LOGGER,
-  NextDelegate,
+  type IPipelineBehavior,
+  type IPipelineContext,
+  type NextDelegate,
   untyped,
 } from '@nestjs-pipeline/core';
 import {
-  Attributes,
+  type Attributes,
   SpanKind,
   SpanStatusCode,
   trace,
@@ -40,106 +32,29 @@ import {
 
 /** Options for the TraceBehavior. */
 export interface TraceBehaviorOptions {
-  /**
-   * Name of the tracer shown in your APM tool (e.g. SigNoz / Datadog).
-   * Defaults to 'nestjs-pipeline'.
-   */
+  /** Tracer name shown in the configured OpenTelemetry backend. */
   tracerName?: string;
-  /**
-   * Explicit override for SDK readiness. If defined, overrides the automatic readiness probe.
-   */
+  /** Explicitly disable tracing for this handler. Defaults to true. */
   enabled?: boolean;
 }
 
 const TRACER_NAME = 'nestjs-pipeline';
 
 /**
- * Returns whether a real, non-noop OpenTelemetry TracerProvider is active.
+ * Pipeline behavior that wraps a handler in an OpenTelemetry span.
  *
- * `trace.getTracer()` NEVER throws and NEVER returns undefined — when the SDK is
- * absent it silently returns a NoopTracer that discards all spans. In `@opentelemetry/api`,
- * `trace.getTracerProvider()` returns a `ProxyTracerProvider` whose default delegate is
- * `NoopTracerProvider`. We detect this by inspecting whether a real delegate is registered
- * and return false so callers can skip span creation entirely.
- */
-export function isSdkInitialized(): boolean {
-  const provider = untyped(trace.getTracerProvider());
-  if (!provider || typeof provider.getTracer !== 'function') {
-    return false;
-  }
-
-  if (provider.constructor?.name === 'NoopTracerProvider') {
-    return false;
-  }
-
-  if (typeof provider.getDelegate === 'function') {
-    if (typeof provider.getDelegateTracer === 'function') {
-      const delegateTracer = provider.getDelegateTracer('probe');
-      if (
-        !delegateTracer ||
-        delegateTracer.constructor?.name === 'NoopTracer'
-      ) {
-        return false;
-      }
-    }
-
-    const delegate = provider.getDelegate();
-    if (!delegate || delegate.constructor?.name === 'NoopTracerProvider') {
-      return false;
-    }
-    return typeof delegate.getTracer === 'function';
-  }
-
-  return true;
-}
-
-/**
- * Pipeline behavior that wraps each handler in an OpenTelemetry span.
+ * The behavior deliberately does not inspect provider implementation details to
+ * decide whether an SDK is installed. The OpenTelemetry API contract already
+ * supplies a no-op tracer/provider when no SDK is registered, so calling
+ * `trace.getTracer()` is safe before bootstrap and simply discards spans.
  *
- * On module init it checks whether an OTel SDK/tracer provider is active. If the
- * SDK is not initialized, the behavior logs a warning and passes through without
- * tracing so handlers still run. Uses the logger bound to
- * `LOGGING_BEHAVIOR_LOGGER` (e.g. nestjs-pino) when provided.
+ * This avoids coupling to private/de facto implementation details such as
+ * `constructor.name`, `ProxyTracerProvider.getDelegate()`, or `NoopTracer` class
+ * names. Consumers that want zero tracing calls for a handler can set
+ * `enabled: false` explicitly.
  */
 @Injectable()
-export class TraceBehavior implements IPipelineBehavior, OnModuleInit {
-  private readonly logger: LoggerService;
-  private readonly context: string;
-  /** false = SDK not initialized; handle() will pass through without tracing. */
-  private sdkReady = false;
-
-  constructor(
-    @Optional()
-    @Inject(LOGGING_BEHAVIOR_LOGGER)
-    logger?: LoggerService,
-  ) {
-    this.context = TraceBehavior.name;
-    if (!logger) {
-      this.logger = new Logger(this.context, { timestamp: true });
-      return;
-    }
-
-    this.logger = logger;
-  }
-
-  onModuleInit(): void {
-    this.sdkReady = isSdkInitialized();
-
-    if (!this.sdkReady) {
-      this.logger.warn(
-        'OpenTelemetry SDK is NOT initialized — TraceBehavior will pass through without tracing. ' +
-          'Ensure your tracing bootstrap runs BEFORE NestFactory.create() ' +
-          '(initialize it in a bootstrap module or use --require ./tracing.js).',
-        this.context,
-      );
-    } else {
-      this.logger.log(
-        'OpenTelemetry tracer provider is active — spans will be emitted.',
-        this.context,
-      );
-    }
-  }
-
+export class TraceBehavior implements IPipelineBehavior {
   async handle(
     context: IPipelineContext,
     next: NextDelegate,
@@ -147,12 +62,12 @@ export class TraceBehavior implements IPipelineBehavior, OnModuleInit {
     const options =
       context.getBehaviorOptions<TraceBehaviorOptions>(TraceBehavior);
 
-    const isReady = options?.enabled ?? this.sdkReady;
-    if (!isReady) {
+    if (options?.enabled === false) {
       return next();
     }
 
-    // Per-handler tracerName wins; falls back to the package default.
+    // OpenTelemetry guarantees this is a no-op tracer when no SDK/provider is
+    // registered, so no readiness heuristic is required.
     const tracer = trace.getTracer(options?.tracerName ?? TRACER_NAME);
     const spanName = `${context.requestKind}.${context.requestName}`;
 
