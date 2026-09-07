@@ -16,10 +16,9 @@
  * ----------------------------
  */
 
-import { Inject, Logger } from '@nestjs/common';
+import { Inject } from '@nestjs/common';
 import { EventsHandler, type IEventHandler } from '@nestjs/cqrs';
-import { UsePipeline } from '@nestjs-pipeline/core';
-import { getCorrelationId } from '@nestjs-pipeline/correlation';
+import { LoggingBehavior, UsePipeline } from '@nestjs-pipeline/core';
 import { DeadLetterBehavior } from '@nestjs-pipeline/deadletter';
 import { TenantSchemaContext } from '@persistence/tenant-schema.context';
 import {
@@ -30,14 +29,15 @@ import { UserCreatedEvent } from '../../domain/events/user-created.event';
 
 @EventsHandler(UserCreatedEvent)
 /**
- * Fire-and-forget side effect: if scheduling the welcome email fails, the
- * failure is dead-lettered but NOT re-thrown, so a transient delivery outage
- * never surfaces as an unhandled rejection from the event bus.
+ * Schedules the welcome-email side effect through the application port.
+ * Cross-cutting request/event logging is supplied by {@link LoggingBehavior};
+ * delivery failures are dead-lettered without being re-thrown.
  */
-@UsePipeline([DeadLetterBehavior, { rethrow: false }])
+@UsePipeline(
+  [LoggingBehavior, { requestResponseLogLevel: 'log' }],
+  [DeadLetterBehavior, { rethrow: false }],
+)
 export class UserCreatedHandler implements IEventHandler<UserCreatedEvent> {
-  private readonly logger = new Logger(UserCreatedHandler.name);
-
   constructor(
     @Inject(WELCOME_EMAIL_DISPATCHER)
     private readonly welcomeEmailDispatcher: IWelcomeEmailDispatcher,
@@ -46,23 +46,13 @@ export class UserCreatedHandler implements IEventHandler<UserCreatedEvent> {
 
   async handle(event: UserCreatedEvent): Promise<void> {
     const { id: userId, username, email } = event.payload;
-    const correlationId = getCorrelationId();
     const tenant = this.tenantSchemaContext.schema;
-
-    this.logger.log(
-      `📬 [${correlationId}] UserCreated — id: ${userId}, username: ${username}, email: ${email}, tenant: ${tenant}`,
-    );
 
     await this.welcomeEmailDispatcher.enqueueWelcomeEmail({
       userId,
       username,
       email,
       tenant,
-      correlationId,
     });
-
-    this.logger.log(
-      `📤 [${correlationId}] Enqueued welcome email job for ${email}`,
-    );
   }
 }
