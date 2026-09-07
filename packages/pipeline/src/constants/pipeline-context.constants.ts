@@ -31,12 +31,7 @@ import { IPipelineContext } from '../interfaces/pipeline.context.interface';
  */
 export const pipelineStore = new AsyncLocalStorage<IPipelineContext>();
 
-/**
- * Symbol-keyed setter for `response`. Only code that imports this symbol
- * can write to `context.response` — keeping it readonly for behaviors.
- *
- * @internal — used exclusively by {@link PipelineBootstrapService}.
- */
+/** Symbol-keyed setter for `response`. @internal */
 export const SET_RESPONSE: unique symbol = Symbol(
   'PipelineContext.setResponse',
 );
@@ -46,32 +41,32 @@ export const SET_CORRELATION_ID: unique symbol = Symbol(
   'PipelineContext.setCorrelationId',
 );
 
-/**
- * Symbol-keyed setter for `originalCorrelationId`. Only code that imports
- * this symbol can write — making the field effectively immutable to behaviors.
- *
- * @internal — used exclusively by {@link PipelineBootstrapService}.
- */
+/** Symbol-keyed setter for `originalCorrelationId`. @internal */
 export const SET_ORIGINAL_CORRELATION_ID: unique symbol = Symbol(
   'PipelineContext.setOriginalCorrelationId',
 );
 
-/**
- * Symbol-keyed setter for `tenantId`. Only code that imports this symbol
- * can write to `context.tenantId`.
- *
- * @internal — used exclusively by {@link PipelineBootstrapService}.
- */
+/** Symbol-keyed setter for `tenantId`. @internal */
 export const SET_TENANT_ID: unique symbol = Symbol(
   'PipelineContext.setTenantId',
 );
 
 /**
  * Unique symbol key used on `context.items` for explicit tenant ID storage.
- *
- * @example
- * ```ts
- * const tenantId = context.items.get(PIPELINE_TENANT_ID) as string | undefined;
- * ```
  */
 export const PIPELINE_TENANT_ID: unique symbol = Symbol('PIPELINE_TENANT_ID');
+
+/**
+ * Neutral authorization/security scope for downstream short-circuit behaviors.
+ *
+ * Authentication/authorization behaviors should populate this item before cache
+ * or idempotency behaviors execute. The value must be deterministic JSON data
+ * representing every security dimension that can alter a response (for example
+ * principal identity and effective authorization rules).
+ *
+ * Consumers intentionally live in core so cache, CASL, or another authorization
+ * package do not need to depend on each other.
+ */
+export const PIPELINE_SECURITY_SCOPE: unique symbol = Symbol(
+  'PIPELINE_SECURITY_SCOPE',
+);
