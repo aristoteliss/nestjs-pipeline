@@ -1,91 +1,36 @@
-/*
- * Copyright (C) 2026-present Aristotelis
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Affero General Public License as
- * published by the Free Software Foundation, either version 3 of the
- * License, or (at your option) any later version.
- *
- * --- COMMERCIAL EXCEPTION ---
- * Alternatively, a Commercial License is available for individuals or
- * organizations that require proprietary use without the AGPLv3
- * copyleft restrictions.
- *
- * See COMMERCIAL_LICENSE.txt in this repository for the tiered
- * revenue-based terms, or contact: aristotelis@ik.me
- * ----------------------------
- */
-
+/* Copyright (C) 2026-present Aristotelis — see repository license. */
 import { APP_ACTIONS, APP_SUBJECTS } from '@common/constants';
 import { Inject, NotFoundException, Scope } from '@nestjs/common';
 import { CommandHandler, EventBus } from '@nestjs/cqrs';
 import { CaslAuthorizer, CaslBehavior } from '@nestjs-pipeline/casl';
 import { LoggingBehavior, UsePipeline } from '@nestjs-pipeline/core';
-import {
-  CommandBaseHandler,
-  ICommandRepository,
-  IQueryRepository,
-} from '@nestjs-pipeline/ddd-core';
+import { CommandBaseHandler, IWriteSideAggregateRepository } from '@nestjs-pipeline/ddd-core';
 import { UniqueRoleNameException } from '../../domain/models/errors/role-name.exception';
 import { Role, type RoleSnapshot } from '../../domain/models/role.entity';
-import {
-  COMMAND_REPOSITORY,
-  QUERY_REPOSITORY,
-} from '../../persistence/repository.tokens';
-import { GetRoleQuery } from '../queries/get-role.query';
+import { COMMAND_REPOSITORY } from '../../persistence/repository.tokens';
 import { UpdateRoleCommand } from './update-role.command';
 
-// Example of using request-scoped handler if needed for per-request dependencies
 @CommandHandler(UpdateRoleCommand, { scope: Scope.REQUEST })
 @UsePipeline(
-  [
-    LoggingBehavior,
-    {
-      requestResponseLogLevel: 'log',
-      mapLogLevel: new Map([[UniqueRoleNameException, 'warn']]),
-    },
-  ],
-  [
-    CaslBehavior,
-    {
-      rules: [{ action: APP_ACTIONS.UPDATE, subject: APP_SUBJECTS.ROLE }],
-    },
-  ],
+  [LoggingBehavior, { requestResponseLogLevel: 'log', mapLogLevel: new Map([[UniqueRoleNameException, 'warn']]) }],
+  [CaslBehavior, { rules: [{ action: APP_ACTIONS.UPDATE, subject: APP_SUBJECTS.ROLE }] }],
 )
-export class UpdateRoleHandler extends CommandBaseHandler<
-  UpdateRoleCommand,
-  Role
-> {
+export class UpdateRoleHandler extends CommandBaseHandler<UpdateRoleCommand, Role> {
   constructor(
-    @Inject(QUERY_REPOSITORY.getRole)
-    private readonly queryRepository: IQueryRepository<
-      GetRoleQuery,
-      Role | null
-    >,
     @Inject(COMMAND_REPOSITORY.updateRole)
-    private readonly commandRepository: ICommandRepository<Role, RoleSnapshot>,
+    private readonly commandRepository: IWriteSideAggregateRepository<Role, RoleSnapshot, RoleSnapshot>,
     private readonly authorizer: CaslAuthorizer,
     protected readonly eventBus: EventBus,
-  ) {
-    super(eventBus);
-  }
+  ) { super(eventBus); }
 
+  /** Loads the authoritative write-side snapshot before applying a rename. */
   async handle(command: UpdateRoleCommand): Promise<Role> {
-    const { id, name } = command;
-
-    const query = new GetRoleQuery({ roleId: id }, { hydrate: true });
-    const role = Role.from(await this.queryRepository.find(query));
-
-    if (!role) {
-      throw new NotFoundException('Role not found');
-    }
-
+    const snapshot = await this.commandRepository.findById(command.id);
+    const role = snapshot ? Role.fromJSON(snapshot) : null;
+    if (!role) throw new NotFoundException('Role not found');
     this.authorizer.authorize('update', role, ['name']);
-
-    role.rename(name);
-
+    role.rename(command.name);
     await this.commandRepository.save(role);
-
     return role;
   }
 }

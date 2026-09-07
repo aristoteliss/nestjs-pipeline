@@ -29,6 +29,7 @@ export * from './domain/outcomes/root-domain.outcome';
 export * from './persistence/cache.interface';
 export * from './persistence/command-repository.abstract';
 export * from './persistence/command-repository.interface';
+export * from './persistence/write-side-aggregate-repository.interface';
 export * from './persistence/decorators/Cache';
 export * from './persistence/decorators/FromCache';
 export * from './persistence/query-repository.abstract';

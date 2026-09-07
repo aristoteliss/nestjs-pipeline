@@ -1,84 +1,40 @@
-/*
- * Copyright (C) 2026-present Aristotelis
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Affero General Public License as
- * published by the Free Software Foundation, either version 3 of the
- * License, or (at your option) any later version.
- *
- * --- COMMERCIAL EXCEPTION ---
- * Alternatively, a Commercial License is available for individuals or
- * organizations that require proprietary use without the AGPLv3
- * copyleft restrictions.
- *
- * See COMMERCIAL_LICENSE.txt in this repository for the tiered
- * revenue-based terms, or contact: aristotelis@ik.me
- * ----------------------------
- */
-
+/* Copyright (C) 2026-present Aristotelis — see repository license. */
 import { APP_ACTIONS, APP_SUBJECTS } from '@common/constants';
 import { Inject, NotFoundException, Scope } from '@nestjs/common';
 import { CommandHandler, EventBus } from '@nestjs/cqrs';
 import { CaslAuthorizer, CaslBehavior } from '@nestjs-pipeline/casl';
 import { LoggingBehavior, UsePipeline } from '@nestjs-pipeline/core';
-import {
-  CommandBaseHandler,
-  ICommandRepository,
-  IQueryRepository,
-} from '@nestjs-pipeline/ddd-core';
+import { CommandBaseHandler, IWriteSideAggregateRepository } from '@nestjs-pipeline/ddd-core';
 import { User, type UserSnapshot } from '../../domain/models/user.entity';
-import {
-  COMMAND_REPOSITORY,
-  QUERY_REPOSITORY,
-} from '../../persistence/repository.tokens';
-import { GetUserQuery } from '../queries/get-user.query';
+import { COMMAND_REPOSITORY } from '../../persistence/repository.tokens';
 import { UpdateUserCommand } from './update-user.command';
 
-// Example of using request-scoped handler if needed for per-request dependencies
 @CommandHandler(UpdateUserCommand, { scope: Scope.REQUEST })
 @UsePipeline(
   [LoggingBehavior, { requestResponseLogLevel: 'log' }],
-  [
-    CaslBehavior,
-    {
-      rules: [{ action: APP_ACTIONS.UPDATE, subject: APP_SUBJECTS.USER }],
-    },
-  ],
+  [CaslBehavior, { rules: [{ action: APP_ACTIONS.UPDATE, subject: APP_SUBJECTS.USER }] }],
 )
-export class UpdateUserHandler extends CommandBaseHandler<
-  UpdateUserCommand,
-  User
-> {
+export class UpdateUserHandler extends CommandBaseHandler<UpdateUserCommand, User> {
   constructor(
-    @Inject(QUERY_REPOSITORY.getUser)
-    private readonly queryRepository: IQueryRepository<GetUserQuery, User>,
     @Inject(COMMAND_REPOSITORY.updateUser)
-    private readonly commandRepository: ICommandRepository<User, UserSnapshot>,
+    private readonly commandRepository: IWriteSideAggregateRepository<User, UserSnapshot, UserSnapshot>,
     private readonly authorizer: CaslAuthorizer,
     protected readonly eventBus: EventBus,
-  ) {
-    super(eventBus);
-  }
+  ) { super(eventBus); }
 
+  /** Loads the authoritative write-side snapshot before applying a mutation. */
   async handle(command: UpdateUserCommand): Promise<User> {
     const { id, username, department } = command;
-
-    const query = new GetUserQuery({ userId: id }, { hydrate: true });
-    const user = User.from(await this.queryRepository.find(query));
-
-    if (!user) {
-      throw new NotFoundException('User not found');
-    }
+    const snapshot = await this.commandRepository.findById(id);
+    const user = snapshot ? User.fromJSON(snapshot) : null;
+    if (!user) throw new NotFoundException('User not found');
 
     const changedFields = Object.entries({ username, department })
       .filter(([, value]) => value !== undefined)
       .map(([field]) => field);
     this.authorizer.authorize('update', user, changedFields);
-
     user.update({ username, department });
-
     await this.commandRepository.save(user);
-
     return user;
   }
 }
