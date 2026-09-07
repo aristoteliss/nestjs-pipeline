@@ -16,13 +16,7 @@
  * ----------------------------
  */
 
-import {
-  Inject,
-  Injectable,
-  Logger,
-  Optional,
-  UnauthorizedException,
-} from '@nestjs/common';
+import { Inject, Injectable, Logger, UnauthorizedException } from '@nestjs/common';
 import type { IQueryRepository } from '@nestjs-pipeline/ddd-core';
 import { TenantSchemaContext } from '@persistence/tenant-schema.context';
 import { importSPKI, jwtVerify } from 'jose';
@@ -39,6 +33,8 @@ import { CapabilityCodec } from './capability-codec';
  * Public SPKI keys are parsed and memoized as WebCrypto `CryptoKey` objects on first use to avoid repeated ASN.1
  * parsing on every HTTP request. Token claims (`sub`, `tenant`, `roles`, `additionalCapabilities`,
  * `deniedCapabilities`) are validated and converted into a compacted {@link SessionUser} structure.
+ * Every successfully verified token must also resolve to an active persisted Auth record; the revocation
+ * repository is a required dependency so the application cannot silently disable durable revocation checks.
  *
  * @example
  * ```bash
@@ -74,9 +70,8 @@ export class JwtAuthenticator {
 
   constructor(
     private readonly tenantSchemaContext: TenantSchemaContext,
-    @Optional()
     @Inject(QUERY_REPOSITORY.findAuth)
-    private readonly authQueryRepository?: IQueryRepository<
+    private readonly authQueryRepository: IQueryRepository<
       FindAuthQuery,
       Auth | null
     >,
@@ -88,9 +83,10 @@ export class JwtAuthenticator {
    * Scheme matching is case-insensitive (accepts both `Bearer <token>` and `bearer <token>`).
    *
    * @param req - Request object containing incoming HTTP headers.
-   * @returns The authenticated {@link SessionUser} if the token is valid, or `undefined` if no Bearer token was provided.
+   * @returns The authenticated {@link SessionUser} if the token is valid and its Auth record is active,
+   *          or `undefined` if no Bearer token was provided.
    * @throws {@link UnauthorizedException} If the token is empty, expired, has an invalid signature,
-   *         misses required claims, targets a different tenant, or if no server-side keys are configured.
+   *         misses required claims, targets a different tenant, is revoked, or if no server-side keys are configured.
    *
    * @example
    * ```ts
@@ -171,15 +167,13 @@ export class JwtAuthenticator {
         );
       }
 
-      if (this.authQueryRepository) {
-        const activeAuth = await this.authQueryRepository.find(
-          new FindAuthQuery({ userId: payload.sub, token }),
+      const activeAuth = await this.authQueryRepository.find(
+        new FindAuthQuery({ userId: payload.sub, token }),
+      );
+      if (!activeAuth) {
+        throw new UnauthorizedException(
+          'Token has been revoked or session has ended',
         );
-        if (!activeAuth) {
-          throw new UnauthorizedException(
-            'Token has been revoked or session has ended',
-          );
-        }
       }
 
       const user: SessionUser = {
