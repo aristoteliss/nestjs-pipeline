@@ -10,8 +10,12 @@ export type PrincipalType = 'user' | 'service';
 
 export type SessionUser = {
   id: string;
-  /** Distinguishes persisted human users from service/machine principals. */
-  principalType: PrincipalType;
+  /**
+   * Explicit principal discriminator. Low-level credential verifiers may omit
+   * it for compatibility; `RequestPrincipalResolver` must set it before the
+   * principal enters application authorization/session context.
+   */
+  principalType?: PrincipalType;
   tenant: string;
   email?: string | null;
   department?: string | null;
