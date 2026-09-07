@@ -47,6 +47,7 @@ const DEPARTMENT_MIN_LENGTH = 3;
  * - State is private; mutated only through domain methods.
  * - `User.create()` is the only factory for creating new users and recording {@link UserCreatedEvent}.
  * - `User.fromJSON()` reconstitutes the entity from persisted snapshot data without firing events.
+ * - Direct construction is intentionally unavailable outside the aggregate; callers use the factories above.
  * - `update()` and `delete()` enforce domain rules, update timestamps, and record domain events.
  */
 export class User extends RootEntity<UserSnapshot> {
@@ -57,7 +58,7 @@ export class User extends RootEntity<UserSnapshot> {
   private _department: string | null;
   readonly email: string;
 
-  constructor(snapshot?: UserSnapshot) {
+  private constructor(snapshot?: UserSnapshot) {
     super(snapshot);
     if (!snapshot) {
       this._username = '';
