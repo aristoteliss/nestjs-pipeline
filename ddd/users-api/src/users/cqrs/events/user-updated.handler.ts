@@ -16,9 +16,9 @@
  * ----------------------------
  */
 
-import { Inject, Logger } from '@nestjs/common';
+import { Inject } from '@nestjs/common';
 import { EventsHandler, type IEventHandler } from '@nestjs/cqrs';
-import { getCorrelationId } from '@nestjs-pipeline/correlation';
+import { LoggingBehavior, UsePipeline } from '@nestjs-pipeline/core';
 import { TenantSchemaContext } from '@persistence/tenant-schema.context';
 import {
   type IUserBatchDispatcher,
@@ -27,31 +27,24 @@ import {
 import { UserUpdatedEvent } from '../../domain/events/user-updated.event';
 
 @EventsHandler(UserUpdatedEvent)
+@UsePipeline([LoggingBehavior, { requestResponseLogLevel: 'log' }])
 export class UserUpdatedHandler implements IEventHandler<UserUpdatedEvent> {
-  private readonly logger = new Logger(UserUpdatedHandler.name);
-
   constructor(
     @Inject(USER_BATCH_DISPATCHER)
     private readonly batchDispatcher: IUserBatchDispatcher,
     private readonly tenantSchemaContext: TenantSchemaContext,
   ) {}
 
+  /**
+   * Dispatches batch-update intent while logging/correlation remain pipeline and
+   * infrastructure concerns rather than application-handler responsibilities.
+   */
   async handle(event: UserUpdatedEvent): Promise<void> {
     const { id: userId, username } = event.payload;
-    const correlationId = getCorrelationId();
     const tenant = this.tenantSchemaContext.schema;
 
-    this.logger.log(
-      `📬 [${correlationId}] UserUpdated — id: ${userId}, username: ${username}, tenant: ${tenant}`,
-    );
-
-    await this.batchDispatcher.enqueueUserBatch(
-      [{ userId, username, tenant }],
-      correlationId,
-    );
-
-    this.logger.log(
-      `📤 [${correlationId}] Enqueued batch-update job for user ${userId}`,
-    );
+    await this.batchDispatcher.enqueueUserBatch([
+      { userId, username, tenant },
+    ]);
   }
 }
