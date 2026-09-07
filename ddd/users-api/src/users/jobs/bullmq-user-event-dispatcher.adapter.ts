@@ -1,7 +1,6 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 import { InjectQueue } from '@nestjs/bullmq';
 import { Injectable } from '@nestjs/common';
-import { addCorrelationId } from '@nestjs-pipeline/correlation';
 import type { JobsOptions, Queue } from 'bullmq';
 import type {
   IUserBatchDispatcher,
@@ -32,10 +31,7 @@ export class BullMqUserEventDispatcher
 
   async enqueueWelcomeEmail(message: WelcomeEmailDispatch): Promise<void> {
     const { correlationId, ...payload } = message;
-    await this.welcomeEmailQueue.add(
-      'send',
-      addCorrelationId(payload, correlationId),
-    );
+    await this.welcomeEmailQueue.add('send', { ...payload, correlationId });
   }
 
   async enqueueUserBatch(
