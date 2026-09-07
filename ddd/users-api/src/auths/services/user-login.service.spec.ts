@@ -19,11 +19,18 @@
 import { TenantSchemaContext } from '@persistence/tenant-schema.context';
 import { decodeJwt } from 'jose';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { GetUserCapabilitiesQuery } from '../cqrs/queries/get-user-capabilities.query';
 import { User } from '../../users/domain/models/user.entity';
 import { UserLoginService } from './user-login.service';
 
 const originalJwtSecret = process.env.JWT_SECRET;
 const originalJwtAlgorithms = process.env.JWT_ALGORITHMS;
+
+const capabilities = {
+  roles: [],
+  additionalCapabilities: [],
+  deniedCapabilities: [],
+};
 
 afterEach(() => {
   if (originalJwtSecret === undefined) delete process.env.JWT_SECRET;
@@ -33,19 +40,32 @@ afterEach(() => {
 });
 
 describe('UserLoginService', () => {
+  it('loads capabilities through the query-repository port without a nested QueryBus', async () => {
+    process.env.JWT_SECRET = 'tenant-bound-token-secret';
+    delete process.env.JWT_ALGORITHMS;
+    const user = User.create('Alice', 'alice@example.test');
+    const capabilitiesRepository = { find: vi.fn().mockResolvedValue(capabilities) };
+    const service = new UserLoginService(
+      capabilitiesRepository as never,
+      { find: vi.fn() } as never,
+      new TenantSchemaContext(),
+    );
+
+    await service.signToken(user);
+
+    expect(capabilitiesRepository.find).toHaveBeenCalledWith(
+      expect.any(GetUserCapabilitiesQuery),
+    );
+    expect(capabilitiesRepository.find.mock.calls[0][0].userId).toBe(user.id);
+  });
+
   it('binds issued access tokens to the active tenant', async () => {
     process.env.JWT_SECRET = 'tenant-bound-token-secret';
     delete process.env.JWT_ALGORITHMS;
     const user = User.create('Alice', 'alice@example.test');
     const tenantContext = new TenantSchemaContext();
     const service = new UserLoginService(
-      {
-        execute: vi.fn().mockResolvedValue({
-          roles: [],
-          additionalCapabilities: [],
-          deniedCapabilities: [],
-        }),
-      } as never,
+      { find: vi.fn().mockResolvedValue(capabilities) } as never,
       { find: vi.fn() } as never,
       tenantContext,
     );
@@ -61,7 +81,7 @@ describe('UserLoginService', () => {
     process.env.JWT_SECRET = 'tenant-bound-token-secret';
     process.env.JWT_ALGORITHMS = 'RS256';
     const service = new UserLoginService(
-      { execute: vi.fn() } as never,
+      { find: vi.fn() } as never,
       { find: vi.fn() } as never,
       new TenantSchemaContext(),
     );
@@ -78,13 +98,7 @@ describe('UserLoginService', () => {
     const user = User.create('Alice', 'alice@example.test');
     const tenantContext = new TenantSchemaContext();
     const service = new UserLoginService(
-      {
-        execute: vi.fn().mockResolvedValue({
-          roles: [],
-          additionalCapabilities: [],
-          deniedCapabilities: [],
-        }),
-      } as never,
+      { find: vi.fn().mockResolvedValue(capabilities) } as never,
       { find: vi.fn() } as never,
       tenantContext,
     );
