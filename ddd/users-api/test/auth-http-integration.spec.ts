@@ -34,11 +34,16 @@ import { Test } from '@nestjs/testing';
 import { TenantSchemaContext } from '@persistence/tenant-schema.context';
 import { SignJWT } from 'jose';
 import request from 'supertest';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
+import { QUERY_REPOSITORY } from '../src/auths/persistence/repository.tokens';
 import { ApiClientAuthenticator } from '../src/auths/services/api-client-authenticator';
 import { JwtAuthenticator } from '../src/auths/services/jwt-authenticator';
 import { RequestPrincipalResolver } from '../src/auths/services/request-principal-resolver';
 import { TenantSchemaMiddleware } from '../src/persistence/middlewares/tenant-schema.middleware';
+
+const authRepository = {
+  find: vi.fn().mockResolvedValue({ id: 'active-auth' }),
+};
 
 @Controller('test-auth')
 class TestAuthController {
@@ -66,6 +71,7 @@ class TestAuthController {
   providers: [
     TenantSchemaContext,
     TenantSchemaMiddleware,
+    { provide: QUERY_REPOSITORY.findAuth, useValue: authRepository },
     JwtAuthenticator,
     ApiClientAuthenticator,
     RequestPrincipalResolver,
@@ -111,7 +117,8 @@ describe('HTTP Authentication Integration (Real Nest App Pipeline)', () => {
     await app?.close();
   });
 
-  it('1. Valid Bearer JWT -> 200 with principal resolved inside controller', async () => {
+  it('1. Valid Bearer JWT -> 200 with principal resolved inside controller and durable Auth lookup', async () => {
+    authRepository.find.mockClear();
     const token = await new SignJWT({
       tenant: 'tenant_a',
       email: 'bearer-user@acme.test',
@@ -134,6 +141,7 @@ describe('HTTP Authentication Integration (Real Nest App Pipeline)', () => {
       tenant: 'tenant_a',
       capabilities: { roles: ['editor'] },
     });
+    expect(authRepository.find).toHaveBeenCalledOnce();
   });
 
   it('2. Expired or malformed Bearer JWT -> 401 Unauthorized', async () => {
@@ -214,7 +222,6 @@ describe('HTTP Authentication Integration (Real Nest App Pipeline)', () => {
       .setExpirationTime('1h')
       .sign(new TextEncoder().encode(jwtSecret));
 
-    // Request A starts first and delays 25ms, Request B starts second and delays 5ms
     const reqA = request(app.getHttpServer())
       .get('/test-auth/concurrent?delay=25')
       .set(AUTH_HEADERS.TENANT_SCHEMA, 'tenant_a')
