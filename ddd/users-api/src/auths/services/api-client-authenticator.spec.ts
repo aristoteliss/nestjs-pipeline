@@ -31,7 +31,7 @@ afterEach(() => {
 describe('ApiClientAuthenticator', () => {
   const tenantContext = new TenantSchemaContext();
 
-  it('authenticates valid credentials for matching tenant', () => {
+  it('authenticates valid credentials for matching tenant as an explicit service principal', () => {
     process.env.API_CLIENTS = JSON.stringify([
       {
         id: 'svc-1',
@@ -51,6 +51,7 @@ describe('ApiClientAuthenticator', () => {
 
     expect(user).toEqual({
       id: 'svc-1',
+      principalType: 'service',
       tenant: tenantContext.schema,
       capabilities: { roles: ['service-role'] },
     });
