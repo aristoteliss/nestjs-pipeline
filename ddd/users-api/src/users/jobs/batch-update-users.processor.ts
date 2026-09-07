@@ -34,6 +34,33 @@ export interface BatchUpdateUserItem {
   tenant?: string;
 }
 
+/**
+ * Raised when one batch attempts to cross tenant boundaries.
+ *
+ * A BullMQ job is one tenant-scoped unit of work. Mixing tenant identities in
+ * one payload would otherwise select the first item's schema for every item.
+ */
+export class MixedTenantBatchError extends Error {
+  constructor(readonly tenants: readonly (string | undefined)[]) {
+    super('Batch update payload must contain users from exactly one tenant.');
+    this.name = MixedTenantBatchError.name;
+  }
+}
+
+/**
+ * Resolves the tenant for a batch and rejects mixed-tenant payloads before any
+ * tenant context is entered or work is performed.
+ */
+export function resolveBatchTenant(
+  items: readonly BatchUpdateUserItem[],
+): string | undefined {
+  const tenant = items[0]?.tenant;
+  if (items.some((item) => item.tenant !== tenant)) {
+    throw new MixedTenantBatchError([...new Set(items.map((item) => item.tenant))]);
+  }
+  return tenant;
+}
+
 @Processor(BATCH_UPDATE_USERS_QUEUE)
 export class BatchUpdateUsersProcessor extends WorkerHost {
   private readonly logger = new Logger(BatchUpdateUsersProcessor.name);
@@ -48,7 +75,9 @@ export class BatchUpdateUsersProcessor extends WorkerHost {
     _token?: string,
   ): Promise<void> {
     const items = job.data;
-    const tenant = items[0]?.tenant;
+    // Validate the entire payload before choosing a schema. Never infer tenant
+    // ownership from only the first item in a multi-tenant batch.
+    const tenant = resolveBatchTenant(items);
 
     return this.tenantContext.run(tenant, async () => {
       const correlationId = getCorrelationId();
