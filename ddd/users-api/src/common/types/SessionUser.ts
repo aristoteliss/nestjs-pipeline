@@ -1,25 +1,17 @@
 /*
  * Copyright (C) 2026-present Aristotelis
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Affero General Public License as
- * published by the Free Software Foundation, either version 3 of the
- * License, or (at your option) any later version.
- *
- * --- COMMERCIAL EXCEPTION ---
- * Alternatively, a Commercial License is available for individuals or
- * organizations that require proprietary use without the AGPLv3
- * copyleft restrictions.
- *
- * See COMMERCIAL_LICENSE.txt in this repository for the tiered
- * revenue-based terms, or contact: aristotelis@ik.me
- * ----------------------------
+ * See repository license for full terms.
  */
 
 import type { UserCapabilities } from '@nestjs-pipeline/casl';
 
+/** Explicit identity kind used by authorization; never infer it from ID shape. */
+export type PrincipalType = 'user' | 'service';
+
 export type SessionUser = {
   id: string;
+  /** Distinguishes persisted human users from service/machine principals. */
+  principalType: PrincipalType;
   tenant: string;
   email?: string | null;
   department?: string | null;
