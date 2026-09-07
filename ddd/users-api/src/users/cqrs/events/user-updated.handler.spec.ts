@@ -24,7 +24,7 @@ import { User } from '../../domain/models/user.entity';
 import { UserUpdatedHandler } from './user-updated.handler';
 
 describe('UserUpdatedHandler', () => {
-  it('reads immutable event.payload and dispatches batch work through the application port', async () => {
+  it('dispatches only application data; logging/correlation are cross-cutting concerns', async () => {
     const enqueueUserBatch = vi.fn().mockResolvedValue(undefined);
     const dispatcher = { enqueueUserBatch } as IUserBatchDispatcher;
     const tenantContext = {
@@ -40,15 +40,12 @@ describe('UserUpdatedHandler', () => {
     await handler.handle(event);
 
     expect(enqueueUserBatch).toHaveBeenCalledTimes(1);
-    expect(enqueueUserBatch).toHaveBeenCalledWith(
-      [
-        {
-          userId: user.id,
-          username: 'john_renamed',
-          tenant: 'tenant_gamma',
-        },
-      ],
-      expect.any(String),
-    );
+    expect(enqueueUserBatch).toHaveBeenCalledWith([
+      {
+        userId: user.id,
+        username: 'john_renamed',
+        tenant: 'tenant_gamma',
+      },
+    ]);
   });
 });
