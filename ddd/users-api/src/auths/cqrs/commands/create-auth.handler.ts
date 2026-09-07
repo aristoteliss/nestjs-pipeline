@@ -77,6 +77,7 @@ export class CreateAuthHandler extends CommandBaseHandler<
 
     return {
       id: authResult.userId,
+      principalType: 'user',
       tenant: this.tenantSchemaContext.schema,
       email,
       department: verifiedUser.department,
