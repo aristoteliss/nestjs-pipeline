@@ -18,9 +18,10 @@ export interface AuthSnapshot extends Partial<RootEntitySnapshot> {
 /**
  * Authentication session aggregate.
  *
- * Use `Auth.create()` when issuing a new session and `Auth.fromJSON()` when
- * reconstructing persisted session state. Direct permissive construction is
- * intentionally unavailable.
+ * Application code should use `Auth.create()` for issuance and `Auth.fromJSON()`
+ * for persisted state. The constructor remains public only for legacy ORM/E2E
+ * compatibility, but it is no longer permissive: a complete semantic snapshot
+ * is required and empty/default aggregate state cannot be manufactured.
  */
 export class Auth extends RootEntity<AuthSnapshot> {
   public static readonly aggregateName = 'auth';
@@ -28,7 +29,7 @@ export class Auth extends RootEntity<AuthSnapshot> {
   readonly userId: string;
   readonly token: string;
 
-  private constructor(snapshot: AuthSnapshot) {
+  constructor(snapshot: AuthSnapshot) {
     super(snapshot);
     this.userId = snapshot.userId;
     this.token = snapshot.token;
