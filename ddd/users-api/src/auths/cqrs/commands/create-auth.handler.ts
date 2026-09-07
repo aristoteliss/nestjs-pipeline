@@ -5,6 +5,10 @@
 
 import { requireTenantId } from '@common/cqrs/helpers/requireTenantId.helper';
 import { AUDIT_ACTIONS } from '@common/constants';
+import {
+  type ITenantContext,
+  TENANT_CONTEXT,
+} from '@common/context/tenant-context.port';
 import { SessionUser } from '@common/types/SessionUser';
 import { Inject } from '@nestjs/common';
 import { CommandHandler, EventBus } from '@nestjs/cqrs';
@@ -20,7 +24,6 @@ import {
 } from '@nestjs-pipeline/ddd-core';
 import { MetricsBehavior } from '@nestjs-pipeline/opentelemetry';
 import { RateLimitBehavior } from '@nestjs-pipeline/rate-limit';
-import { TenantSchemaContext } from '@persistence/tenant-schema.context';
 import { Auth, AuthSnapshot } from '../../domain/models/auth.entity';
 import { COMMAND_REPOSITORY } from '../../persistence/repository.tokens';
 import { UserLoginService } from '../../services/user-login.service';
@@ -59,7 +62,8 @@ export class CreateAuthHandler extends CommandBaseHandler<
     private readonly userLoginService: UserLoginService,
     @Inject(COMMAND_REPOSITORY.createAuth)
     private readonly commandRepository: ICommandRepository<Auth, AuthSnapshot>,
-    private readonly tenantSchemaContext: TenantSchemaContext,
+    @Inject(TENANT_CONTEXT)
+    private readonly tenantContext: ITenantContext,
   ) {
     super(eventBus);
   }
@@ -77,7 +81,7 @@ export class CreateAuthHandler extends CommandBaseHandler<
 
     return {
       id: authResult.userId,
-      tenant: this.tenantSchemaContext.schema,
+      tenant: this.tenantContext.schema,
       email,
       department: verifiedUser.department,
       capabilities: authResult.userCapabilities,
