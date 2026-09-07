@@ -16,6 +16,7 @@
  * ----------------------------
  */
 
+import { createHash } from 'node:crypto';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -27,8 +28,8 @@ import {
 import { SignJWT } from 'jose';
 
 /**
- * The login code the e2e auth flow accepts (see `AUTH_LOGIN_CODE`). The login
- * DTO caps the code at six characters, so keep this short.
+ * The login code the e2e auth flow presents. Production-style verification uses
+ * its SHA-256 digest rather than exposing the plaintext as server configuration.
  */
 export const E2E_LOGIN_CODE = '424242';
 
@@ -138,8 +139,12 @@ export async function bootstrapE2E(options?: E2EOptions): Promise<E2EContext> {
   process.env.DB_DEFAULT_SCHEMA = tenantList[0] ?? 'tenant';
   process.env.SQLITE_TENANTS = tenantList.join(',');
 
-  // Credentials the auth use case reads at request time.
-  process.env.AUTH_LOGIN_CODE = E2E_LOGIN_CODE;
+  // Credentials the auth use case reads at request time. Exercise the same
+  // production-safe hashed login-code path used by deployed configuration.
+  delete process.env.AUTH_LOGIN_CODE;
+  process.env.AUTH_LOGIN_CODE_SHA256 = createHash('sha256')
+    .update(E2E_LOGIN_CODE, 'utf8')
+    .digest('hex');
   process.env.JWT_SECRET = E2E_JWT_SECRET;
   process.env.API_CLIENTS = JSON.stringify(
     options?.apiClients ?? E2E_API_CLIENTS,
