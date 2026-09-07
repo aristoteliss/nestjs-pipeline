@@ -18,8 +18,18 @@
 
 import type { UserCapabilities } from '@nestjs-pipeline/casl';
 
+/** Explicit principal classification. Authorization must never infer this from the id format. */
+export type PrincipalType = 'user' | 'service';
+
 export type SessionUser = {
   id: string;
+  /**
+   * Authentication-source classification consumed by authorization.
+   *
+   * Kept optional at the transport/session boundary so stale serialized sessions
+   * can still be deserialized. Authorization fails closed when the value is absent.
+   */
+  principalType?: PrincipalType;
   tenant: string;
   email?: string | null;
   department?: string | null;
