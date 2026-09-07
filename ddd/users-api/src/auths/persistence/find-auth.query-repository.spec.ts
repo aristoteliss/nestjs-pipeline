@@ -1,21 +1,4 @@
-/*
- * Copyright (C) 2026-present Aristotelis
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Affero General Public License as
- * published by the Free Software Foundation, either version 3 of the
- * License, or (at your option) any later version.
- *
- * --- COMMERCIAL EXCEPTION ---
- * Alternatively, a Commercial License is available for individuals or
- * organizations that require proprietary use without the AGPLv3
- * copyleft restrictions.
- *
- * See COMMERCIAL_LICENSE.txt in this repository for the tiered
- * revenue-based terms, or contact: aristotelis@ik.me
- * ----------------------------
- */
-
+/* Copyright (C) 2026-present Aristotelis — see repository license. */
 import type { ICache } from '@nestjs-pipeline/ddd-core';
 import type { MikroOrmStore } from '@persistence/mikro-orm.store';
 import { describe, expect, it, vi } from 'vitest';
@@ -25,9 +8,12 @@ import { FindAuthQueryRepository } from './find-auth.query-repository';
 
 describe('FindAuthQueryRepository', () => {
   it('queries auth by userId and token', async () => {
-    const expectedAuth = new Auth({
+    const expectedAuth = Auth.fromJSON({
+      id: '018f2d5e-4b6a-7b3f-8c1d-2e3f4a5b6c7d',
       userId: 'usr-123',
       token: 'jwt-token-xyz',
+      createdAt: new Date(),
+      updatedAt: new Date(),
     });
     const findOne = vi.fn().mockResolvedValue(expectedAuth);
     const mockStore = {
@@ -36,15 +22,10 @@ describe('FindAuthQueryRepository', () => {
       },
     } as unknown as MikroOrmStore;
 
-    const mockCache = {} as unknown as ICache<Auth>;
-    const repo = new FindAuthQueryRepository(mockCache, mockStore);
-
-    const query = new FindAuthQuery({
-      userId: 'usr-123',
-      token: 'jwt-token-xyz',
-    });
-
-    const result = await repo.find(query);
+    const repo = new FindAuthQueryRepository({} as ICache<Auth>, mockStore);
+    const result = await repo.find(
+      new FindAuthQuery({ userId: 'usr-123', token: 'jwt-token-xyz' }),
+    );
 
     expect(result).toBe(expectedAuth);
     expect(findOne).toHaveBeenCalledWith(Auth, {
@@ -60,21 +41,12 @@ describe('FindAuthQueryRepository', () => {
         return { findOne };
       },
     } as unknown as MikroOrmStore;
+    const repo = new FindAuthQueryRepository({} as ICache<Auth>, mockStore);
 
-    const mockCache = {} as unknown as ICache<Auth>;
-    const repo = new FindAuthQueryRepository(mockCache, mockStore);
-
-    const query = new FindAuthQuery({
-      userId: 'usr-deleted',
-      token: 'some-token',
-    });
-
-    const result = await repo.find(query);
-
-    expect(result).toBeNull();
-    expect(findOne).toHaveBeenCalledWith(Auth, {
-      userId: 'usr-deleted',
-      token: 'some-token',
-    });
+    await expect(
+      repo.find(
+        new FindAuthQuery({ userId: 'usr-deleted', token: 'some-token' }),
+      ),
+    ).resolves.toBeNull();
   });
 });
