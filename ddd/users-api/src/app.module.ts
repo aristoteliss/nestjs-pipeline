@@ -34,7 +34,7 @@ import { GetUserCapabilitiesQueryRepository } from './auths/persistence/get-user
 import { ObservabilityModule, ReliabilityModule } from './infrastructure';
 import { GetRolesCapabilitiesQueryRepository } from './roles/persistence/get-roles-capabilities.query-repository';
 import { RolesModule } from './roles/roles.module';
-import { GetUserContextQueryRepository } from './users/persistence/get-user-context.query-repository';
+import { CaslUserContextResolver } from './users/persistence/casl-user-context.resolver';
 import { UsersModule } from './users/users.module';
 
 /**
@@ -46,7 +46,7 @@ import { UsersModule } from './users/users.module';
  * ### Architectural Layout
  * - {@link ObservabilityModule}: Structured logging (Pino), OpenTelemetry tracing & metrics, global pipeline behaviors, and audit logging.
  * - {@link ReliabilityModule}: BullMQ queue engine, dead-letter storage, rate limiting, distributed idempotency, resilience policies, caching, and feature flags.
- * - {@link CaslModule}: Dynamic role-based and attribute-based access control with database query providers.
+ * - {@link CaslModule}: Dynamic role-based and attribute-based access control with dedicated request user-context resolution.
  * - {@link PersistenceModule}: MikroORM database connection, entity repositories, and tenant schema manager.
  * - Domain Feature Modules: {@link UsersModule}, {@link RolesModule}, {@link AuthsModule}.
  */
@@ -57,7 +57,7 @@ import { UsersModule } from './users/users.module';
     ReliabilityModule,
     CaslModule.forRoot({
       roleProvider: GetRolesCapabilitiesQueryRepository,
-      userContextResolver: GetUserContextQueryRepository,
+      userContextResolver: CaslUserContextResolver,
       userCapabilityProvider: GetUserCapabilitiesQueryRepository,
       subjectContextPaths: ['sessionUser'],
       defaultFieldsFromRequest: {
