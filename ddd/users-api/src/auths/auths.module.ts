@@ -19,6 +19,7 @@
 import { Module } from '@nestjs/common';
 import { GetUserQueryRepository } from '../users/persistence/get-user.query-repository';
 import { EXT_USER_QUERY_REPOSITORY } from '../users/persistence/repository.tokens';
+import { USER_CAPABILITY_READER } from './application/ports/user-capability-reader.port';
 import { AuthsController } from './controllers/auths.controller';
 import { CreateAuthHandler } from './cqrs/commands/create-auth.handler';
 import { DeleteAuthHandler } from './cqrs/commands/delete-auth.handler';
@@ -40,21 +41,23 @@ import { UserLoginService } from './services/user-login.service';
 @Module({
   controllers: [AuthsController],
   providers: [
-    // Repositories (Query)
     {
       provide: EXT_USER_QUERY_REPOSITORY.getUser,
       useClass: GetUserQueryRepository,
     },
+    GetUserCapabilitiesQueryRepository,
     {
       provide: QUERY_REPOSITORY.getUserCapabilities,
-      useClass: GetUserCapabilitiesQueryRepository,
+      useExisting: GetUserCapabilitiesQueryRepository,
+    },
+    {
+      provide: USER_CAPABILITY_READER,
+      useExisting: GetUserCapabilitiesQueryRepository,
     },
     {
       provide: QUERY_REPOSITORY.findAuth,
       useClass: FindAuthQueryRepository,
     },
-
-    // Repositories (Command)
     {
       provide: COMMAND_REPOSITORY.createAuth,
       useClass: CreateAuthCommandRepository,
@@ -63,20 +66,13 @@ import { UserLoginService } from './services/user-login.service';
       provide: COMMAND_REPOSITORY.deleteAuth,
       useClass: DeleteAuthCommandRepository,
     },
-
     UserLoginService,
     JwtAuthenticator,
     ApiClientAuthenticator,
     RequestPrincipalResolver,
-
-    // Commands
     CreateAuthHandler,
     DeleteAuthHandler,
-
-    // Queries
     GetUserCapabilitiesHandler,
-
-    // Events
     CreatedAuthHandler,
   ],
   exports: [
