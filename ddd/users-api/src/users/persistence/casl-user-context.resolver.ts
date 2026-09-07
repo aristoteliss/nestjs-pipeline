@@ -11,17 +11,14 @@ import type { IPipelineContext } from '@nestjs-pipeline/core';
 import { MIKRO_ORM_CLIENT, MikroOrmStore } from '@persistence/mikro-orm.store';
 import { User } from '../domain/models/user.entity';
 
-const UUID_REGEX =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
 /**
  * Request-scoped CASL adapter that resolves the authenticated principal and
  * refreshes persisted user attributes used by authorization.
  *
- * Persistence-query responsibilities live in `GetUserContextQueryRepository`;
- * this adapter exists only for the CASL request/session resolution contract.
- * The UUID classification is intentionally preserved here and is addressed by
- * architecture issue #9 independently.
+ * Principal classification is explicit. User principals are always checked
+ * against persistence regardless of identifier syntax. Service principals are
+ * never looked up as users and may rely on capabilities issued by their
+ * authenticator. Missing principal classification fails closed.
  */
 @Injectable({ scope: Scope.REQUEST })
 export class CaslUserContextResolver implements IUserContextResolver {
@@ -41,27 +38,26 @@ export class CaslUserContextResolver implements IUserContextResolver {
 
     if (!rawUser?.id) return null;
 
-    const id = String(rawUser.id);
-    const user = await this.store.em.findOne(User, { id });
-    if (user) {
+    const principalType = (rawUser as { principalType?: unknown }).principalType;
+    if (principalType === 'service') {
+      if (!rawUser.capabilities) return null;
       return {
-        id: user.id,
-        department: (user.department as string | null) ?? null,
-        ...(rawUser.capabilities ? { capabilities: rawUser.capabilities } : {}),
-      } as CaslUserContext;
-    }
-
-    if (UUID_REGEX.test(id)) return null;
-
-    if (rawUser.capabilities) {
-      return {
-        id,
+        id: String(rawUser.id),
         department: (rawUser.department as string | null) ?? null,
         capabilities: rawUser.capabilities,
       } as CaslUserContext;
     }
 
-    return null;
+    if (principalType !== 'user') return null;
+
+    const user = await this.store.em.findOne(User, { id: String(rawUser.id) });
+    if (!user) return null;
+
+    return {
+      id: user.id,
+      department: (user.department as string | null) ?? null,
+      ...(rawUser.capabilities ? { capabilities: rawUser.capabilities } : {}),
+    } as CaslUserContext;
   }
 
   private resolveUserContextFromRequest(
