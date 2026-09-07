@@ -26,16 +26,9 @@ import {
 } from '@testcontainers/redis';
 import { SignJWT } from 'jose';
 
-/**
- * The login code the e2e auth flow accepts (see `AUTH_LOGIN_CODE`). The login
- * DTO caps the code at six characters, so keep this short.
- */
 export const E2E_LOGIN_CODE = '424242';
-
-/** The symmetric secret used to sign and verify e2e session JWTs. */
 export const E2E_JWT_SECRET = 'e2e-jwt-secret-please-do-not-use-in-prod';
 
-/** Default API clients for API Key authentication tests. */
 export const E2E_API_CLIENTS = [
   {
     id: 'api-admin-client',
@@ -69,9 +62,7 @@ export interface E2EContext {
   close: () => Promise<void>;
 }
 
-/**
- * Helper to generate signed JWTs for Bearer authentication tests.
- */
+/** Helper to generate signed JWTs for Bearer authentication tests. */
 export async function createTestJwt(options?: {
   sub?: string;
   email?: string;
@@ -96,71 +87,47 @@ export async function createTestJwt(options?: {
     .setSubject(options?.sub ?? 'jwt-user-1')
     .setIssuedAt();
 
-  if (options?.expiresIn !== undefined) {
-    jwt.setExpirationTime(options.expiresIn);
-  } else {
-    jwt.setExpirationTime('2h');
-  }
+  if (options?.expiresIn !== undefined) jwt.setExpirationTime(options.expiresIn);
+  else jwt.setExpirationTime('2h');
 
   return await jwt.sign(secret);
 }
 
 /**
- * Boots the real {@link AppModule} for functional testing against disposable
- * infrastructure:
+ * Boots the real AppModule against disposable libSQL + Redis infrastructure.
  *
- * - a throwaway libSQL database file (schema created from the entity metadata),
- * - a disposable Redis instance started with Testcontainers (BullMQ queues +
- *   the cache behavior connect to it).
- *
- * The authenticated principal is supplied through the `x-test-user` request
- * header, which a small middleware turns into a session the production
- * authentication interceptor reads; every other layer runs as in production.
- *
- * Environment variables are configured **before** `AppModule` is imported,
- * because several modules (`BullModule`, `CacheModule`) read connection details
- * at module-evaluation time. All imports are therefore dynamic.
+ * `x-test-user` represents a synthetic external/test principal. For backwards
+ * compatibility with existing E2E fixtures the shim assigns
+ * `principalType: 'service'` when the fixture does not provide one explicitly;
+ * production authentication never relies on this default.
  */
 export async function bootstrapE2E(options?: E2EOptions): Promise<E2EContext> {
   const redis: StartedRedisContainer = await new RedisContainer(
     'redis:7-alpine',
   ).start();
-
   const dir = mkdtempSync(join(tmpdir(), 'users-api-e2e-'));
 
-  process.env.NODE_ENV = 'production'; // quiet logs + disable MikroORM SQL debug
+  process.env.NODE_ENV = 'production';
   process.env.REDIS_HOST = redis.getHost();
   process.env.REDIS_PORT = String(redis.getMappedPort(6379));
   process.env.DATABASE_URL = `file:${join(dir, 'e2e.db')}`;
   process.env.DB_ENGINE = 'libsql';
-  // Configure tenant schemas.
   const tenantList = options?.tenants ?? ['tenant', 'tenant_a', 'tenant_b'];
   process.env.DB_DEFAULT_SCHEMA = tenantList[0] ?? 'tenant';
   process.env.SQLITE_TENANTS = tenantList.join(',');
-
-  // Credentials the auth use case reads at request time.
   process.env.AUTH_LOGIN_CODE = E2E_LOGIN_CODE;
   process.env.JWT_SECRET = E2E_JWT_SECRET;
   process.env.API_CLIENTS = JSON.stringify(
     options?.apiClients ?? E2E_API_CLIENTS,
   );
 
-  // 1. Run migrations to establish the exact production database schema and seed data.
   const { migrate } = await import('@persistence/migrate');
   await migrate();
 
-  // 2. Build the Nest application. The production AuthSessionInterceptor reads
-  //    the authenticated principal from `req.session.get('user')`. We feed that
-  //    session from the `x-test-user` header (see below) so the request flows
-  //    through the real authentication + authorization pipeline unchanged.
   const { Test } = await import('@nestjs/testing');
   const { ZodValidationFilter } = await import('@nestjs-pipeline/zod');
-  const { RateLimitExceededFilter } = await import(
-    '@nestjs-pipeline/rate-limit'
-  );
-  const { IdempotencyConflictFilter } = await import(
-    '@nestjs-pipeline/idempotency'
-  );
+  const { RateLimitExceededFilter } = await import('@nestjs-pipeline/rate-limit');
+  const { IdempotencyConflictFilter } = await import('@nestjs-pipeline/idempotency');
   const { AppModule } = await import('../../src/app.module');
   const { FeatureDisabledFilter } = await import(
     '../../src/common/filters/feature-disabled.filter'
@@ -172,13 +139,9 @@ export async function bootstrapE2E(options?: E2EOptions): Promise<E2EContext> {
     '../../src/common/filters/domain-exception.filter'
   );
 
-  const moduleRef = await Test.createTestingModule({
-    imports: [AppModule],
-  }).compile();
-
+  const moduleRef = await Test.createTestingModule({ imports: [AppModule] }).compile();
   const app = moduleRef.createNestApplication();
 
-  // Inject a Fastify-secure-session-compatible shim from the test header.
   app.use(
     (
       req: {
@@ -194,7 +157,11 @@ export async function bootstrapE2E(options?: E2EOptions): Promise<E2EContext> {
       const rawTenant = req.headers['x-tenant-schema'];
       const tenant = Array.isArray(rawTenant) ? rawTenant[0] : rawTenant;
       const user = parsedUser
-        ? { ...parsedUser, tenant: parsedUser.tenant ?? tenant }
+        ? {
+            ...parsedUser,
+            tenant: parsedUser.tenant ?? tenant,
+            principalType: parsedUser.principalType ?? 'service',
+          }
         : undefined;
       const store: Record<string, unknown> = user ? { user } : {};
       const sessionObj = {
@@ -203,16 +170,12 @@ export async function bootstrapE2E(options?: E2EOptions): Promise<E2EContext> {
           store[key] = value;
         },
         delete: () => {
-          for (const key of Object.keys(store)) {
-            delete store[key];
-          }
+          for (const key of Object.keys(store)) delete store[key];
         },
       };
       req.session = new Proxy(sessionObj, {
         get(target, prop: string) {
-          if (prop in target) {
-            return Reflect.get(target, prop);
-          }
+          if (prop in target) return Reflect.get(target, prop);
           return store[prop];
         },
         set(target, prop: string, value: unknown) {
