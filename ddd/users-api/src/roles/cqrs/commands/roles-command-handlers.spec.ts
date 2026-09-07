@@ -1,6 +1,9 @@
 import type { EventBus } from '@nestjs/cqrs';
 import type { CaslAuthorizer } from '@nestjs-pipeline/casl';
-import type { IWriteSideAggregateRepository } from '@nestjs-pipeline/ddd-core';
+import {
+  EntityNotFoundException,
+  type IWriteSideAggregateRepository,
+} from '@nestjs-pipeline/ddd-core';
 import { describe, expect, it, vi } from 'vitest';
 import { Role, type RoleSnapshot } from '../../domain/models/role.entity';
 import { DeleteRoleCommand } from './delete-role.command';
@@ -18,14 +21,42 @@ describe('Roles CQRS write-side hydration', () => {
     const repository = {
       findById: vi.fn().mockResolvedValue(existing.toJSON()),
       save: vi.fn().mockResolvedValue(existing.toJSON()),
-    } as unknown as IWriteSideAggregateRepository<Role, RoleSnapshot, RoleSnapshot>;
+    } as unknown as IWriteSideAggregateRepository<
+      Role,
+      RoleSnapshot,
+      RoleSnapshot
+    >;
     const handler = new UpdateRoleHandler(repository, authorizer, eventBus);
 
-    const result = await handler.execute(new UpdateRoleCommand({ id: existing.id, name: 'publisher' }));
+    const result = await handler.execute(
+      new UpdateRoleCommand({ id: existing.id, name: 'publisher' }),
+    );
 
     expect(repository.findById).toHaveBeenCalledWith(existing.id);
     expect(result.name).toBe('publisher');
     expect(repository.save).toHaveBeenCalledWith(result);
+  });
+
+  it('UpdateRoleHandler reports absence with a framework-neutral exception', async () => {
+    const repository = {
+      findById: vi.fn().mockResolvedValue(null),
+      save: vi.fn(),
+    } as unknown as IWriteSideAggregateRepository<
+      Role,
+      RoleSnapshot,
+      RoleSnapshot
+    >;
+    const handler = new UpdateRoleHandler(repository, authorizer, eventBus);
+
+    await expect(
+      handler.execute(
+        new UpdateRoleCommand({
+          id: '019488e0-0000-7000-8000-000000000002',
+          name: 'publisher',
+        }),
+      ),
+    ).rejects.toBeInstanceOf(EntityNotFoundException);
+    expect(repository.save).not.toHaveBeenCalled();
   });
 
   it('DeleteRoleHandler hydrates from authoritative command persistence', async () => {
@@ -37,7 +68,9 @@ describe('Roles CQRS write-side hydration', () => {
     } as unknown as IWriteSideAggregateRepository<Role, RoleSnapshot, null>;
     const handler = new DeleteRoleHandler(repository, authorizer, eventBus);
 
-    const result = await handler.execute(new DeleteRoleCommand({ id: existing.id }));
+    const result = await handler.execute(
+      new DeleteRoleCommand({ id: existing.id }),
+    );
 
     expect(repository.findById).toHaveBeenCalledWith(existing.id);
     expect(repository.save).toHaveBeenCalledWith(result);

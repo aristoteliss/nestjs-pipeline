@@ -23,7 +23,10 @@ import {
   type ExceptionFilter,
   HttpStatus,
 } from '@nestjs/common';
-import { DomainException } from '@nestjs-pipeline/ddd-core';
+import {
+  DomainException,
+  EntityNotFoundException,
+} from '@nestjs-pipeline/ddd-core';
 import {
   InvalidRoleNameException,
   UniqueRoleNameException,
@@ -49,35 +52,21 @@ type HttpResponse = {
 };
 
 /**
- * Global API-layer exception filter that catches framework-agnostic {@link DomainException}s
- * thrown from the domain layer and translates them into standard HTTP error responses:
+ * API-layer mapper from framework-neutral domain/application failures to HTTP.
  *
- * | Domain Exception | HTTP Status | Reason |
+ * | Domain/Application Exception | HTTP Status | Reason |
  * |---|---|---|
+ * | {@link EntityNotFoundException} | 404 Not Found | Required aggregate/entity does not exist |
  * | {@link UniqueEmailException} | 409 Conflict | Duplicate email detected across tenant users |
  * | {@link UniqueRoleNameException} | 409 Conflict | Duplicate role name detected across tenant roles |
- * | {@link InvalidRoleNameException} | 422 Unprocessable Entity | Role name shorter than minimum length or invalid characters |
- * | {@link InvalidUsernameException} | 422 Unprocessable Entity | Username shorter than minimum length or invalid characters |
- * | {@link InvalidDepartmentException} | 422 Unprocessable Entity | Department string provided but below length threshold |
- * | {@link EmptyUserUpdateException} | 400 Bad Request | Update mutation called with no updated fields |
- * | Unclassified {@link DomainException} | 400 Bad Request | Generic domain invariant failure |
+ * | {@link InvalidRoleNameException} | 422 Unprocessable Entity | Invalid role name |
+ * | {@link InvalidUsernameException} | 422 Unprocessable Entity | Invalid username |
+ * | {@link InvalidDepartmentException} | 422 Unprocessable Entity | Invalid department |
+ * | {@link EmptyUserUpdateException} | 400 Bad Request | No mutable fields supplied |
+ * | Unclassified {@link DomainException} | 400 Bad Request | Generic invariant failure |
  *
- * @example Registering globally in bootstrap:
- * ```typescript
- * const app = await NestFactory.create(AppModule);
- * app.useGlobalFilters(new DomainExceptionFilter());
- * ```
- *
- * @example Sample 422 Unprocessable Entity payload:
- * ```json
- * {
- *   "statusCode": 422,
- *   "error": "Unprocessable Entity",
- *   "message": "Username must be at least 3 characters, received: \"a\".",
- *   "minLength": 3,
- *   "actualValue": "a"
- * }
- * ```
+ * Application and persistence code must not throw Nest HTTP exceptions to obtain
+ * these responses; this filter is the presentation boundary responsible for mapping.
  */
 @Catch(DomainException, OptimisticLockError)
 export class DomainExceptionFilter implements ExceptionFilter {
@@ -109,20 +98,18 @@ export class DomainExceptionFilter implements ExceptionFilter {
     extra?: Record<string, unknown>;
   } {
     if (exception instanceof OptimisticLockError) {
-      return {
-        statusCode: HttpStatus.CONFLICT,
-        error: 'Conflict',
-      };
+      return { statusCode: HttpStatus.CONFLICT, error: 'Conflict' };
+    }
+
+    if (exception instanceof EntityNotFoundException) {
+      return { statusCode: HttpStatus.NOT_FOUND, error: 'Not Found' };
     }
 
     if (
       exception instanceof UniqueEmailException ||
       exception instanceof UniqueRoleNameException
     ) {
-      return {
-        statusCode: HttpStatus.CONFLICT,
-        error: 'Conflict',
-      };
+      return { statusCode: HttpStatus.CONFLICT, error: 'Conflict' };
     }
 
     if (
@@ -141,15 +128,9 @@ export class DomainExceptionFilter implements ExceptionFilter {
     }
 
     if (exception instanceof EmptyUserUpdateException) {
-      return {
-        statusCode: HttpStatus.BAD_REQUEST,
-        error: 'Bad Request',
-      };
+      return { statusCode: HttpStatus.BAD_REQUEST, error: 'Bad Request' };
     }
 
-    return {
-      statusCode: HttpStatus.BAD_REQUEST,
-      error: 'Bad Request',
-    };
+    return { statusCode: HttpStatus.BAD_REQUEST, error: 'Bad Request' };
   }
 }

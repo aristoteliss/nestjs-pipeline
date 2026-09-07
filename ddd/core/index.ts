@@ -22,6 +22,7 @@ export * from './domain/decorators/Mutate';
 export * from './domain/events/domain.event';
 export * from './domain/events/root-domain.event';
 export * from './domain/exceptions/domain.exception';
+export * from './domain/exceptions/entity-not-found.exception';
 export * from './domain/interfaces/root-entity-snapshot.interface';
 export * from './domain/models/root.entity';
 export * from './domain/outcomes/domain.outcome';

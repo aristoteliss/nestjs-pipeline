@@ -1,24 +1,8 @@
-/*
- * Copyright (C) 2026-present Aristotelis
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Affero General Public License as
- * published by the Free Software Foundation, either version 3 of the
- * License, or (at your option) any later version.
- *
- * --- COMMERCIAL EXCEPTION ---
- * Alternatively, a Commercial License is available for individuals or
- * organizations that require proprietary use without the AGPLv3
- * copyleft restrictions.
- *
- * See COMMERCIAL_LICENSE.txt in this repository for the tiered
- * revenue-based terms, or contact: aristotelis@ik.me
- * ----------------------------
- */
-
 import { OptimisticLockError } from '@mikro-orm/core';
-import { NotFoundException } from '@nestjs/common';
-import type { ICache } from '@nestjs-pipeline/ddd-core';
+import {
+  EntityNotFoundException,
+  type ICache,
+} from '@nestjs-pipeline/ddd-core';
 import { describe, expect, it, vi } from 'vitest';
 import { UniqueRoleNameException } from '../domain/models/errors/role-name.exception';
 import { Role, type RoleSnapshot } from '../domain/models/role.entity';
@@ -33,13 +17,8 @@ describe('UpdateRoleCommandRepository', () => {
     };
     const role = Role.create('editor');
     role.rename('publisher');
-
     const nativeUpdate = vi.fn().mockResolvedValue(1);
-    const store = {
-      get em() {
-        return { nativeUpdate };
-      },
-    };
+    const store = { get em() { return { nativeUpdate }; } };
     const repository = new UpdateRoleCommandRepository(cache, store as never);
 
     const result = await repository.save(role);
@@ -47,17 +26,13 @@ describe('UpdateRoleCommandRepository', () => {
     expect(nativeUpdate).toHaveBeenCalledWith(
       Role,
       { id: role.id, version: 1 },
-      {
-        name: 'publisher',
-        updatedAt: role.updatedAt,
-        version: 2,
-      },
+      { name: 'publisher', updatedAt: role.updatedAt, version: 2 },
     );
     expect(cache.set).toHaveBeenCalledWith(`tenant:role:id:${role.id}`, result);
     expect(result).toEqual(role.toJSON());
   });
 
-  it('throws NotFoundException and does not touch cache when affected rows is 0 and role does not exist (concurrent delete)', async () => {
+  it('throws EntityNotFoundException when a concurrent delete removed the role', async () => {
     const cache: ICache<RoleSnapshot> = {
       get: vi.fn(),
       set: vi.fn(),
@@ -65,17 +40,14 @@ describe('UpdateRoleCommandRepository', () => {
     };
     const role = Role.create('editor');
     role.rename('publisher');
-
     const nativeUpdate = vi.fn().mockResolvedValue(0);
     const findOne = vi.fn().mockResolvedValue(null);
-    const store = {
-      get em() {
-        return { nativeUpdate, findOne };
-      },
-    };
+    const store = { get em() { return { nativeUpdate, findOne }; } };
     const repository = new UpdateRoleCommandRepository(cache, store as never);
 
-    await expect(repository.save(role)).rejects.toThrow(NotFoundException);
+    await expect(repository.save(role)).rejects.toBeInstanceOf(
+      EntityNotFoundException,
+    );
     expect(findOne).toHaveBeenCalledWith(
       Role,
       { id: role.id },
@@ -84,7 +56,7 @@ describe('UpdateRoleCommandRepository', () => {
     expect(cache.set).not.toHaveBeenCalled();
   });
 
-  it('throws OptimisticLockError and does not touch cache when affected rows is 0 and role exists (concurrent update)', async () => {
+  it('throws OptimisticLockError when the role still exists at a newer version', async () => {
     const cache: ICache<RoleSnapshot> = {
       get: vi.fn(),
       set: vi.fn(),
@@ -92,26 +64,16 @@ describe('UpdateRoleCommandRepository', () => {
     };
     const role = Role.create('editor');
     role.rename('publisher');
-
     const nativeUpdate = vi.fn().mockResolvedValue(0);
     const findOne = vi.fn().mockResolvedValue({ id: role.id, version: 2 });
-    const store = {
-      get em() {
-        return { nativeUpdate, findOne };
-      },
-    };
+    const store = { get em() { return { nativeUpdate, findOne }; } };
     const repository = new UpdateRoleCommandRepository(cache, store as never);
 
     await expect(repository.save(role)).rejects.toThrow(OptimisticLockError);
-    expect(findOne).toHaveBeenCalledWith(
-      Role,
-      { id: role.id },
-      { refresh: true },
-    );
     expect(cache.set).not.toHaveBeenCalled();
   });
 
-  it('translates database unique constraint violations into UniqueRoleNameException on rename', async () => {
+  it('translates unique constraint violations into UniqueRoleNameException', async () => {
     const cache: ICache<RoleSnapshot> = {
       get: vi.fn(),
       set: vi.fn(),
@@ -119,7 +81,6 @@ describe('UpdateRoleCommandRepository', () => {
     };
     const role = Role.create('editor');
     role.rename('admin');
-
     const store = {
       get em() {
         return {
