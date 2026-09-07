@@ -4,4 +4,9 @@
 
 Database lookup is delegated through `GetUserContextQuery`. The corresponding `GetUserContextQueryRepository` remains a persistence-only read adapter and must not parse request/session data or implement `IUserContextResolver`.
 
-The UUID-based user-vs-machine compatibility rule is intentionally isolated in the resolver until Architecture.md finding #9 replaces it with an explicit principal discriminator.
+Authorization classifies principals with the explicit `principalType` supplied by the authentication boundary:
+
+- `user` — must resolve to an active persisted user through `GetUserContextQuery`;
+- `service` — may use explicit service capabilities without a user-row lookup.
+
+Never infer principal type from UUID syntax, prefixes, string length, or another identifier-format heuristic. A UUID-looking service id remains a service; a human-readable user id remains a user.
