@@ -17,72 +17,57 @@
  */
 
 import type { TenantSchemaContext } from '@persistence/tenant-schema.context';
-import type { Queue } from 'bullmq';
 import { describe, expect, it, vi } from 'vitest';
+import type { IWelcomeEmailDispatcher } from '../../application/ports/user-event-dispatcher.port';
 import { UserCreatedEvent } from '../../domain/events/user-created.event';
 import { User } from '../../domain/models/user.entity';
-import type { WelcomeEmailJobData } from '../../jobs/send-welcome-email.processor';
 import { UserCreatedHandler } from './user-created.handler';
 
 describe('UserCreatedHandler', () => {
-  it('reads user details from immutable event.payload and enqueues welcome email', async () => {
-    const queueAddMock = vi.fn().mockResolvedValue({ id: 'job-1' });
-    const mockQueue = {
-      add: queueAddMock,
-    } as unknown as Queue<WelcomeEmailJobData>;
-
+  it('reads immutable event.payload and dispatches the welcome-email application intent', async () => {
+    const enqueueWelcomeEmail = vi.fn().mockResolvedValue(undefined);
+    const dispatcher = { enqueueWelcomeEmail } as IWelcomeEmailDispatcher;
     const tenantContext = {
       schema: 'tenant_alpha',
     } as unknown as TenantSchemaContext;
-
-    const handler = new UserCreatedHandler(mockQueue, tenantContext);
+    const handler = new UserCreatedHandler(dispatcher, tenantContext);
 
     const user = User.create('john_doe', 'john@example.com', 'Engineering');
     const [event] = user.getUncommittedEvents() as [UserCreatedEvent];
 
     await handler.handle(event);
 
-    expect(queueAddMock).toHaveBeenCalledTimes(1);
-    expect(queueAddMock).toHaveBeenCalledWith(
-      'send',
+    expect(enqueueWelcomeEmail).toHaveBeenCalledTimes(1);
+    expect(enqueueWelcomeEmail).toHaveBeenCalledWith(
       expect.objectContaining({
         userId: user.id,
         username: 'john_doe',
         email: 'john@example.com',
         tenant: 'tenant_alpha',
+        correlationId: expect.any(String),
       }),
     );
   });
 
   it('isolates handler execution from subsequent in-memory aggregate mutations', async () => {
-    const queueAddMock = vi.fn().mockResolvedValue({ id: 'job-2' });
-    const mockQueue = {
-      add: queueAddMock,
-    } as unknown as Queue<WelcomeEmailJobData>;
-
+    const enqueueWelcomeEmail = vi.fn().mockResolvedValue(undefined);
+    const dispatcher = { enqueueWelcomeEmail } as IWelcomeEmailDispatcher;
     const tenantContext = {
       schema: 'tenant_beta',
     } as unknown as TenantSchemaContext;
-
-    const handler = new UserCreatedHandler(mockQueue, tenantContext);
+    const handler = new UserCreatedHandler(dispatcher, tenantContext);
 
     const user = User.create('alice_original', 'alice@example.com');
     const [event] = user.getUncommittedEvents() as [UserCreatedEvent];
-
-    // Mutate the aggregate entity after event generation
     user.update({ username: 'alice_mutated' });
 
-    // The entity has mutated username
     expect(user.username).toBe('alice_mutated');
     expect(event.entity.username).toBe('alice_mutated');
-
-    // But event.payload must retain the immutable snapshot at creation time
     expect(event.payload.username).toBe('alice_original');
 
     await handler.handle(event);
 
-    expect(queueAddMock).toHaveBeenCalledWith(
-      'send',
+    expect(enqueueWelcomeEmail).toHaveBeenCalledWith(
       expect.objectContaining({
         userId: user.id,
         username: 'alice_original',
