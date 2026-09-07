@@ -1,71 +1,93 @@
 import type { QueryBus } from '@nestjs/cqrs';
-import type { CaslUserContext } from '@nestjs-pipeline/casl';
 import type { IPipelineContext } from '@nestjs-pipeline/core';
 import { describe, expect, it, vi } from 'vitest';
 import { CaslUserContextResolver } from './casl-user-context.resolver';
 
-describe('CaslUserContextResolver', () => {
-  it('delegates database-user lookup through QueryBus and preserves resolved capabilities', async () => {
+function context(sessionUser: Record<string, unknown>): IPipelineContext {
+  return { request: { sessionUser } } as unknown as IPipelineContext;
+}
+
+describe('CaslUserContextResolver principal discriminator', () => {
+  it('looks up an explicit user principal regardless of whether its id is a UUID', async () => {
     const execute = vi.fn().mockResolvedValue({
-      id: '019488e0-0000-7000-8000-000000000001',
+      id: 'human-readable-user-id',
       department: 'engineering',
-    } satisfies CaslUserContext);
+    });
     const resolver = new CaslUserContextResolver(
       { execute } as unknown as QueryBus,
       ['sessionUser'],
     );
-    const raw = {
-      id: '019488e0-0000-7000-8000-000000000001',
-      capabilities: { roles: ['admin'] },
-    };
-    const context = {
-      request: { sessionUser: raw },
-    } as unknown as IPipelineContext;
 
-    await expect(resolver.resolve(context)).resolves.toMatchObject({
-      id: raw.id,
-      department: 'engineering',
-      capabilities: raw.capabilities,
-    });
+    const result = await resolver.resolve(
+      context({
+        id: 'human-readable-user-id',
+        principalType: 'user',
+        capabilities: { roles: ['member'] },
+      }),
+    );
+
     expect(execute).toHaveBeenCalledOnce();
+    expect(result).toMatchObject({
+      id: 'human-readable-user-id',
+      department: 'engineering',
+    });
   });
 
-  it('keeps non-database capability principals compatible without request scope', async () => {
+  it('accepts an explicit service principal even when its id looks like a UUID', async () => {
+    const execute = vi.fn();
+    const resolver = new CaslUserContextResolver(
+      { execute } as unknown as QueryBus,
+      ['sessionUser'],
+    );
+    const id = '019488e0-0000-7000-8000-000000000001';
+
+    const result = await resolver.resolve(
+      context({
+        id,
+        principalType: 'service',
+        department: 'platform',
+        capabilities: { roles: [], additionalCapabilities: ['all|manage|*'] },
+      }),
+    );
+
+    expect(execute).not.toHaveBeenCalled();
+    expect(result).toMatchObject({ id, department: 'platform' });
+  });
+
+  it('rejects a missing persisted user even when the id is not a UUID', async () => {
     const execute = vi.fn().mockResolvedValue(null);
     const resolver = new CaslUserContextResolver(
       { execute } as unknown as QueryBus,
       ['sessionUser'],
     );
-    const context = {
-      request: {
-        sessionUser: {
-          id: 'service-admin',
-          department: 'platform',
-          capabilities: { roles: [], additionalCapabilities: ['all|manage|*'] },
-        },
-      },
-    } as unknown as IPipelineContext;
 
-    await expect(resolver.resolve(context)).resolves.toMatchObject({
-      id: 'service-admin',
-      department: 'platform',
-    });
+    await expect(
+      resolver.resolve(
+        context({
+          id: 'plain-user-id',
+          principalType: 'user',
+          capabilities: { roles: ['admin'] },
+        }),
+      ),
+    ).resolves.toBeNull();
+    expect(execute).toHaveBeenCalledOnce();
   });
 
-  it('rejects a missing persisted UUID principal exactly as before finding #9', async () => {
+  it('rejects principals without an explicit discriminator', async () => {
+    const execute = vi.fn();
     const resolver = new CaslUserContextResolver(
-      { execute: vi.fn().mockResolvedValue(null) } as unknown as QueryBus,
+      { execute } as unknown as QueryBus,
       ['sessionUser'],
     );
-    const context = {
-      request: {
-        sessionUser: {
-          id: '019488e0-0000-7000-8000-000000000001',
-          capabilities: { roles: ['admin'] },
-        },
-      },
-    } as unknown as IPipelineContext;
 
-    await expect(resolver.resolve(context)).resolves.toBeNull();
+    await expect(
+      resolver.resolve(
+        context({
+          id: 'service-without-type',
+          capabilities: { roles: ['admin'] },
+        }),
+      ),
+    ).resolves.toBeNull();
+    expect(execute).not.toHaveBeenCalled();
   });
 });
