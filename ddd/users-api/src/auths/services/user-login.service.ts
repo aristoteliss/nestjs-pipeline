@@ -16,23 +16,21 @@
  * ----------------------------
  */
 
-import { randomUUID } from 'node:crypto';
-import {
-  Inject,
-  Injectable,
-  InternalServerErrorException,
-  UnauthorizedException,
-} from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import type { UserCapabilities } from '@nestjs-pipeline/casl';
 import type { IQueryRepository } from '@nestjs-pipeline/ddd-core';
-import { SignJWT } from 'jose';
-import { TenantSchemaContext } from '../../persistence/tenant-schema.context';
 import { GetUserQuery } from '../../users/cqrs/queries/get-user.query';
 import { User } from '../../users/domain/models/user.entity';
 import { EXT_USER_QUERY_REPOSITORY } from '../../users/persistence/repository.tokens';
+import {
+  ACCESS_TOKEN_ISSUER,
+  type IAccessTokenIssuer,
+  type ILoginCodeVerifier,
+  LOGIN_CODE_VERIFIER,
+} from '../application/authentication.ports';
 import { GetUserCapabilitiesQuery } from '../cqrs/queries/get-user-capabilities.query';
+import { InvalidLoginCredentialsException } from '../domain/errors/authentication.exception';
 import { QUERY_REPOSITORY } from '../persistence/repository.tokens';
-import { CapabilityCodec } from './capability-codec';
 
 export interface AuthResult {
   userId: string;
@@ -43,26 +41,17 @@ export interface AuthResult {
 }
 
 /**
- * Application service responsible for user login verification and access token issuance.
+ * Application service responsible for the login use-case orchestration.
  *
- * Encapsulates the `POST /auth/login` workflow:
- * 1. Validates the temporary login code against `AUTH_LOGIN_CODE`.
- * 2. Fetches user account details from the tenant database via {@link GetUserQuery}.
- * 3. Resolves CASL user permissions through the injected capabilities query repository.
- * 4. Signs an HMAC access token bound to the current tenant schema.
+ * It resolves users and capabilities through query ports, verifies credentials
+ * through {@link ILoginCodeVerifier}, and delegates token materialization to
+ * {@link IAccessTokenIssuer}. Environment access, cryptography/JWT details,
+ * tenant infrastructure and HTTP exception mapping therefore remain outside the
+ * application service.
  *
- * The service deliberately does not dispatch a nested `QueryBus` request while
- * executing the login command. Both this application service and the standalone
- * {@link GetUserCapabilitiesQuery} handler reuse the same query-repository port.
- *
- * @example
- * ```bash
- * # Initiating login
- * curl -X POST https://api.example.com/auth/login \
- *   -H "x-tenant-schema: tenant_a" \
- *   -H "Content-Type: application/json" \
- *   -d '{"email":"alice@example.test","code":"123456"}'
- * ```
+ * The service also preserves the architecture issue #4 fix: capability lookup
+ * uses the repository port directly and never dispatches a nested `QueryBus`
+ * while the login command is executing.
  */
 @Injectable()
 export class UserLoginService {
@@ -74,122 +63,44 @@ export class UserLoginService {
     >,
     @Inject(EXT_USER_QUERY_REPOSITORY.getUser)
     private readonly queryRepository: IQueryRepository<GetUserQuery, User>,
-    @Inject(TenantSchemaContext)
-    private readonly tenantSchemaContext: TenantSchemaContext,
+    @Inject(LOGIN_CODE_VERIFIER)
+    private readonly loginCodeVerifier: ILoginCodeVerifier,
+    @Inject(ACCESS_TOKEN_ISSUER)
+    private readonly accessTokenIssuer: IAccessTokenIssuer,
   ) {}
 
   /**
-   * Verifies login credentials (email and one-time login code) against database records.
+   * Verifies the supplied credential through the application port and resolves
+   * the user from the active tenant's query repository.
    *
-   * @param email - User email address.
-   * @param code - Login code provided by caller.
-   * @returns The resolved {@link User} entity upon successful verification.
-   * @throws {@link InternalServerErrorException} If `AUTH_LOGIN_CODE` is not configured on the server.
-   * @throws {@link UnauthorizedException} If the code does not match or the user does not exist.
-   *
-   * @example
-   * ```ts
-   * const user = await loginService.authenticate('alice@example.test', '123456');
-   * ```
+   * @throws {InvalidLoginCredentialsException} when no matching user exists.
    */
   async authenticate(email: string, code: string): Promise<User> {
-    const expectedCode = process.env.AUTH_LOGIN_CODE;
-    if (!expectedCode) {
-      throw new InternalServerErrorException(
-        'AUTH_LOGIN_CODE is not configured',
-      );
-    }
-
-    if (code !== expectedCode) {
-      throw new UnauthorizedException('Invalid code');
-    }
-
+    await this.loginCodeVerifier.verify(code);
     const user = await this.queryRepository.find(new GetUserQuery({ email }));
-
     if (!user) {
-      throw new UnauthorizedException('Invalid credentials');
+      throw new InvalidLoginCredentialsException();
     }
-
     return user;
   }
 
   /**
-   * Signs and issues a JWT access token for an authenticated user.
-   *
-   * Embeds the active tenant schema, user identity, and compact serialized CASL capabilities
-   * (overrides and denials) directly in token claims, while role-level capabilities are resolved
-   * dynamically server-side from the `roles` claim. Capabilities are loaded directly through the
-   * injected query-repository port rather than dispatching a nested query bus request.
-   *
-   * @param user - The authenticated domain {@link User} entity.
-   * @returns An {@link AuthResult} containing userId, resolved capabilities, and the signed JWT string.
-   * @throws {@link InternalServerErrorException} If `JWT_SECRET` is missing or `JWT_ALGORITHMS` excludes HS256.
-   *
-   * @example
-   * ```ts
-   * const result = await loginService.signToken(user);
-   * console.log(result.accessToken);
-   * ```
+   * Resolves the user's current capabilities and delegates access-token issuance
+   * to the configured infrastructure adapter.
    */
   async signToken(user: User): Promise<AuthResult> {
-    const jwtSecret = process.env.JWT_SECRET;
-    if (!jwtSecret) {
-      throw new InternalServerErrorException('JWT_SECRET is not configured');
-    }
-    const configuredAlgorithms = process.env.JWT_ALGORITHMS?.split(',').map(
-      (algorithm) => algorithm.trim(),
-    );
-    if (configuredAlgorithms && !configuredAlgorithms.includes('HS256')) {
-      throw new InternalServerErrorException(
-        'JWT_ALGORITHMS must include HS256 for locally issued login tokens',
-      );
-    }
-
-    const issuer = process.env.JWT_ISSUER;
-    const audience = process.env.JWT_AUDIENCE;
-    const tenant = this.tenantSchemaContext.schema;
-
     const userCapabilities = await this.capabilitiesRepository.find(
       new GetUserCapabilitiesQuery({ userId: user.id }),
     );
-
-    const nowSeconds = Math.floor(Date.now() / 1000);
-    const expSeconds = nowSeconds + 3600; // 1 hour
-
-    const jwt = new SignJWT({
-      tenant,
-      email: user.email,
-      department: user.department,
-      roles: userCapabilities.roles,
-      additionalCapabilities: CapabilityCodec.toCompact(
-        userCapabilities.additionalCapabilities,
-      ),
-      deniedCapabilities: CapabilityCodec.toCompact(
-        userCapabilities.deniedCapabilities,
-      ),
-    })
-      .setProtectedHeader({ alg: 'HS256', typ: 'JWT' })
-      .setSubject(user.id)
-      .setIssuedAt(nowSeconds)
-      .setExpirationTime(expSeconds)
-      .setJti(randomUUID());
-
-    if (issuer) {
-      jwt.setIssuer(issuer);
-    }
-
-    if (audience) {
-      jwt.setAudience(audience);
-    }
-
-    const accessToken = await jwt.sign(new TextEncoder().encode(jwtSecret));
+    const token = await this.accessTokenIssuer.issue({
+      user,
+      capabilities: userCapabilities,
+    });
 
     return {
       userId: user.id,
       userCapabilities,
-      accessToken,
-      expiresAt: expSeconds * 1000,
-      exp: expSeconds,
+      ...token,
     };
   }
 }
