@@ -17,8 +17,11 @@
  */
 
 import type { Session } from '@fastify/secure-session';
-import { Injectable, UnauthorizedException } from '@nestjs/common';
-import { TenantSchemaContext } from '@persistence/tenant-schema.context';
+import {
+  type ITenantContext,
+  TENANT_CONTEXT,
+} from '@common/context/tenant-context.port';
+import { Inject, Injectable, UnauthorizedException } from '@nestjs/common';
 import type { SessionData, SessionUser } from '../../common/types/SessionUser';
 import { ApiClientAuthenticator } from './api-client-authenticator';
 import { JwtAuthenticator } from './jwt-authenticator';
@@ -30,47 +33,20 @@ export type AuthenticatedRequest = {
 };
 
 /**
- * Orchestrates inbound authentication across multiple authentication mechanisms.
- *
- * Evaluation follows strict priority:
- * 1. Fastify session cookie (`req.session?.user`) — fast path for web browser sessions.
- * 2. Bearer JWT header (`Authorization: Bearer <token>`) via {@link JwtAuthenticator}.
- * 3. Machine API client credentials (`x-api-id` / `x-api-key`) via {@link ApiClientAuthenticator}.
- * 4. Anonymous caller fallback (returns `undefined`).
- *
- * Injected by {@link AuthSessionGuard} to authenticate callers early in the NestJS request lifecycle.
- *
- * @example
- * ```ts
- * // Typical usage inside a guard
- * const principal = await principalResolver.resolvePrincipal(req);
- * if (principal) {
- *   req.sessionUser = principal;
- * }
- * ```
+ * Orchestrates inbound authentication across session, JWT and API-client mechanisms.
+ * Tenant matching is performed through {@link ITenantContext}, keeping this
+ * application service independent from the persistence implementation.
  */
 @Injectable()
 export class RequestPrincipalResolver {
   constructor(
     private readonly jwtAuthenticator: JwtAuthenticator,
     private readonly apiClientAuthenticator: ApiClientAuthenticator,
-    private readonly tenantSchemaContext: TenantSchemaContext,
+    @Inject(TENANT_CONTEXT)
+    private readonly tenantContext: ITenantContext,
   ) {}
 
-  /**
-   * Resolves the authenticated {@link SessionUser} principal for the incoming request.
-   *
-   * @param req - Incoming HTTP request containing optional session cookie or headers.
-   * @returns The resolved {@link SessionUser}, or `undefined` for anonymous requests.
-   * @throws {@link UnauthorizedException} If credentials are supplied but expired, malformed,
-   *         or belong to a tenant different from the currently active tenant schema.
-   *
-   * @example
-   * ```ts
-   * const user = await resolver.resolvePrincipal(req);
-   * console.log(user?.id, user?.tenant);
-   * ```
-   */
+  /** Resolves the authenticated principal for the incoming request. */
   async resolvePrincipal(
     req: AuthenticatedRequest,
   ): Promise<SessionUser | undefined> {
@@ -103,19 +79,9 @@ export class RequestPrincipalResolver {
     return this.apiClientAuthenticator.authenticate(req);
   }
 
-  /**
-   * Validates that the tenant declared in credentials matches the active request schema.
-   *
-   * @param credentialTenant - Tenant schema identifier extracted from credentials.
-   * @throws {@link UnauthorizedException} If `credentialTenant` does not match the active tenant schema.
-   *
-   * @example
-   * ```ts
-   * resolver.assertCurrentTenant('tenant_a'); // Passes if active schema is 'tenant_a', throws 401 otherwise
-   * ```
-   */
+  /** Ensures the credential tenant matches the active execution tenant. */
   assertCurrentTenant(credentialTenant: string): void {
-    if (credentialTenant !== this.tenantSchemaContext.schema) {
+    if (credentialTenant !== this.tenantContext.schema) {
       throw new UnauthorizedException(
         'Credential tenant does not match the selected tenant',
       );
