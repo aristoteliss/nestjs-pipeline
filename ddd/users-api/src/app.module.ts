@@ -34,7 +34,7 @@ import { GetUserCapabilitiesQueryRepository } from './auths/persistence/get-user
 import { ObservabilityModule, ReliabilityModule } from './infrastructure';
 import { GetRolesCapabilitiesQueryRepository } from './roles/persistence/get-roles-capabilities.query-repository';
 import { RolesModule } from './roles/roles.module';
-import { GetUserContextQueryRepository } from './users/persistence/get-user-context.query-repository';
+import { CaslUserContextResolver } from './users/services/casl-user-context.resolver';
 import { UsersModule } from './users/users.module';
 
 /**
@@ -43,12 +43,8 @@ import { UsersModule } from './users/users.module';
  * Orchestrates cross-cutting infrastructure concerns (Observability, Reliability, Persistence,
  * CASL Authorization, CQRS) alongside business domain modules (Users, Roles, Auths).
  *
- * ### Architectural Layout
- * - {@link ObservabilityModule}: Structured logging (Pino), OpenTelemetry tracing & metrics, global pipeline behaviors, and audit logging.
- * - {@link ReliabilityModule}: BullMQ queue engine, dead-letter storage, rate limiting, distributed idempotency, resilience policies, caching, and feature flags.
- * - {@link CaslModule}: Dynamic role-based and attribute-based access control with database query providers.
- * - {@link PersistenceModule}: MikroORM database connection, entity repositories, and tenant schema manager.
- * - Domain Feature Modules: {@link UsersModule}, {@link RolesModule}, {@link AuthsModule}.
+ * CASL principal resolution is an application service (`CaslUserContextResolver`);
+ * persistence lookup remains behind `GetUserContextQuery` and its repository.
  */
 @Module({
   imports: [
@@ -57,7 +53,7 @@ import { UsersModule } from './users/users.module';
     ReliabilityModule,
     CaslModule.forRoot({
       roleProvider: GetRolesCapabilitiesQueryRepository,
-      userContextResolver: GetUserContextQueryRepository,
+      userContextResolver: CaslUserContextResolver,
       userCapabilityProvider: GetUserCapabilitiesQueryRepository,
       subjectContextPaths: ['sessionUser'],
       defaultFieldsFromRequest: {
