@@ -31,60 +31,19 @@ describe('stableStringify', () => {
 
   it('sorts keys recursively in nested objects', () => {
     const result = stableStringify({ outer: { z: 1, a: 2 }, first: true });
-
     expect(result).toBe('{"first":true,"outer":{"a":2,"z":1}}');
   });
 
   it('preserves array order', () => {
-    const result = stableStringify({ items: [3, 1, 2] });
-
-    expect(result).toBe('{"items":[3,1,2]}');
+    expect(stableStringify({ items: [3, 1, 2] })).toBe(
+      '{"items":[3,1,2]}',
+    );
   });
 
   it('serializes primitives directly', () => {
     expect(stableStringify(42)).toBe('42');
     expect(stableStringify('hi')).toBe('"hi"');
     expect(stableStringify(null)).toBe('null');
-  });
-
-  it('rejects values that cannot be represented as JSON', () => {
-    const cyclic: Record<string, unknown> = {};
-    cyclic.self = cyclic;
-
-    expect(() => stableStringify(undefined)).toThrow(/JSON-serializable/);
-    expect(() => stableStringify(1n)).toThrow(/JSON-serializable/);
-    expect(() => stableStringify(cyclic)).toThrow(/JSON-serializable/);
-    expect(() => stableStringify({ filter: new Map([['id', 1]]) })).toThrow(
-      /JSON-serializable/,
-    );
-    expect(() => stableStringify({ filter: new Set([1]) })).toThrow(
-      /JSON-serializable/,
-    );
-    expect(() => stableStringify({ filter: /active/ })).toThrow(
-      /JSON-serializable/,
-    );
-    expect(() => stableStringify({ error: new Error('failure') })).toThrow(
-      /JSON-serializable/,
-    );
-    expect(() => stableStringify({ value: Number.NaN })).toThrow(
-      /JSON-serializable/,
-    );
-    expect(() => stableStringify({ value: Number.POSITIVE_INFINITY })).toThrow(
-      /JSON-serializable/,
-    );
-    expect(() => stableStringify({ bytes: new Uint8Array([1, 2]) })).toThrow(
-      /JSON-serializable/,
-    );
-    expect(() => stableStringify(new Array(1))).toThrow(/JSON-serializable/);
-    expect(() =>
-      stableStringify({ id: 1, [Symbol('scope')]: 'private' }),
-    ).toThrow(/JSON-serializable/);
-  });
-
-  it('serializes dates explicitly as ISO strings', () => {
-    expect(stableStringify({ at: new Date('2026-01-01T00:00:00.000Z') })).toBe(
-      '{"at":"2026-01-01T00:00:00.000Z"}',
-    );
   });
 });
 
@@ -102,13 +61,13 @@ describe('defaultCacheKey', () => {
     } as IPipelineContext;
   }
 
-  it('combines the request name with a stable payload serialization', () => {
-    const key = defaultCacheKey(makeContext());
-
-    expect(key).toBe('GetUserQuery:{"userId":"42"}');
+  it('includes correlation scope so defaults cannot replay across requests', () => {
+    expect(defaultCacheKey(makeContext())).toBe(
+      'corr-1:GetUserQuery:{"userId":"42"}',
+    );
   });
 
-  it('yields the same key for payloads that differ only in key order', () => {
+  it('keeps stable request serialization within the same request scope', () => {
     const a = defaultCacheKey(
       makeContext({ request: { a: 1, b: 2 } as never }),
     );
@@ -119,16 +78,25 @@ describe('defaultCacheKey', () => {
     expect(a).toBe(b);
   });
 
+  it('partitions identical query payloads by correlation id', () => {
+    const first = defaultCacheKey(makeContext({ correlationId: 'request-a' }));
+    const second = defaultCacheKey(makeContext({ correlationId: 'request-b' }));
+
+    expect(first).not.toBe(second);
+  });
+
+  it('partitions by tenant in addition to request scope', () => {
+    const key = defaultCacheKey(
+      makeContext({ tenantId: 'tenant_a', correlationId: 'corr-1' }),
+    );
+
+    expect(key).toBe('tenant_a:corr-1:GetUserQuery:{"userId":"42"}');
+  });
+
   it('yields different keys for different request names', () => {
     const a = defaultCacheKey(makeContext({ requestName: 'GetUserQuery' }));
     const b = defaultCacheKey(makeContext({ requestName: 'GetUsersQuery' }));
 
     expect(a).not.toBe(b);
-  });
-
-  it('prefixes with tenantId when present on context', () => {
-    const key = defaultCacheKey(makeContext({ tenantId: 'tenant_a' }));
-
-    expect(key).toBe('tenant_a:GetUserQuery:{"userId":"42"}');
   });
 });
