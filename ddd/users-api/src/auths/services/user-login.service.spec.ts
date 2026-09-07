@@ -1,19 +1,6 @@
 /*
  * Copyright (C) 2026-present Aristotelis
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Affero General Public License as
- * published by the Free Software Foundation, either version 3 of the
- * License, or (at your option) any later version.
- *
- * --- COMMERCIAL EXCEPTION ---
- * Alternatively, a Commercial License is available for individuals or
- * organizations that require proprietary use without the AGPLv3
- * copyleft restrictions.
- *
- * See COMMERCIAL_LICENSE.txt in this repository for the tiered
- * revenue-based terms, or contact: aristotelis@ik.me
- * ----------------------------
+ * See repository license for full terms.
  */
 
 import { TenantSchemaContext } from '@persistence/tenant-schema.context';
@@ -32,21 +19,22 @@ afterEach(() => {
   else process.env.JWT_ALGORITHMS = originalJwtAlgorithms;
 });
 
+const emptyCapabilities = {
+  roles: [],
+  additionalCapabilities: [],
+  deniedCapabilities: [],
+};
+
 describe('UserLoginService', () => {
-  it('binds issued access tokens to the active tenant', async () => {
+  it('binds issued access tokens to the active tenant through the capability reader port', async () => {
     process.env.JWT_SECRET = 'tenant-bound-token-secret';
     delete process.env.JWT_ALGORITHMS;
     const user = User.create('Alice', 'alice@example.test');
     const tenantContext = new TenantSchemaContext();
+    const getCapabilities = vi.fn().mockResolvedValue(emptyCapabilities);
     const service = new UserLoginService(
-      {
-        execute: vi.fn().mockResolvedValue({
-          roles: [],
-          additionalCapabilities: [],
-          deniedCapabilities: [],
-        }),
-      } as never,
       { find: vi.fn() } as never,
+      { getCapabilities } as never,
       tenantContext,
     );
 
@@ -54,15 +42,17 @@ describe('UserLoginService', () => {
       service.signToken(user),
     );
 
+    expect(getCapabilities).toHaveBeenCalledWith(user.id);
     expect(decodeJwt(result.accessToken).tenant).toBe('tenant_a');
   });
 
-  it('rejects local token issuance when HS256 is excluded', async () => {
+  it('rejects local token issuance when HS256 is excluded before capability lookup', async () => {
     process.env.JWT_SECRET = 'tenant-bound-token-secret';
     process.env.JWT_ALGORITHMS = 'RS256';
+    const getCapabilities = vi.fn();
     const service = new UserLoginService(
-      { execute: vi.fn() } as never,
       { find: vi.fn() } as never,
+      { getCapabilities } as never,
       new TenantSchemaContext(),
     );
     const user = User.create('Alice', 'alice@example.test');
@@ -70,22 +60,17 @@ describe('UserLoginService', () => {
     await expect(service.signToken(user)).rejects.toThrow(
       'JWT_ALGORITHMS must include HS256',
     );
+    expect(getCapabilities).not.toHaveBeenCalled();
   });
 
-  it('issues unique tokens with distinct jti claims even for subsequent calls in the same second', async () => {
+  it('issues unique tokens with distinct jti claims without dispatching QueryBus work', async () => {
     process.env.JWT_SECRET = 'tenant-bound-token-secret';
     delete process.env.JWT_ALGORITHMS;
     const user = User.create('Alice', 'alice@example.test');
     const tenantContext = new TenantSchemaContext();
     const service = new UserLoginService(
-      {
-        execute: vi.fn().mockResolvedValue({
-          roles: [],
-          additionalCapabilities: [],
-          deniedCapabilities: [],
-        }),
-      } as never,
       { find: vi.fn() } as never,
+      { getCapabilities: vi.fn().mockResolvedValue(emptyCapabilities) } as never,
       tenantContext,
     );
 
