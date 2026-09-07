@@ -28,6 +28,10 @@ import {
   EntityNotFoundException,
 } from '@nestjs-pipeline/ddd-core';
 import {
+  AuthConfigurationException,
+  InvalidLoginCredentialsException,
+} from '../../auths/domain/errors/authentication.exception';
+import {
   InvalidRoleNameException,
   UniqueRoleNameException,
 } from '../../roles/domain/models/errors/role-name.exception';
@@ -54,19 +58,10 @@ type HttpResponse = {
 /**
  * API-layer mapper from framework-neutral domain/application failures to HTTP.
  *
- * | Domain/Application Exception | HTTP Status | Reason |
- * |---|---|---|
- * | {@link EntityNotFoundException} | 404 Not Found | Required aggregate/entity does not exist |
- * | {@link UniqueEmailException} | 409 Conflict | Duplicate email detected across tenant users |
- * | {@link UniqueRoleNameException} | 409 Conflict | Duplicate role name detected across tenant roles |
- * | {@link InvalidRoleNameException} | 422 Unprocessable Entity | Invalid role name |
- * | {@link InvalidUsernameException} | 422 Unprocessable Entity | Invalid username |
- * | {@link InvalidDepartmentException} | 422 Unprocessable Entity | Invalid department |
- * | {@link EmptyUserUpdateException} | 400 Bad Request | No mutable fields supplied |
- * | Unclassified {@link DomainException} | 400 Bad Request | Generic invariant failure |
- *
- * Application and persistence code must not throw Nest HTTP exceptions to obtain
- * these responses; this filter is the presentation boundary responsible for mapping.
+ * Authentication failures remain framework-neutral below this presentation
+ * boundary: invalid credentials map to 401, while invalid server-side auth
+ * configuration maps to 500 without forcing Nest exceptions into application
+ * services or infrastructure ports.
  */
 @Catch(DomainException, OptimisticLockError)
 export class DomainExceptionFilter implements ExceptionFilter {
@@ -99,6 +94,17 @@ export class DomainExceptionFilter implements ExceptionFilter {
   } {
     if (exception instanceof OptimisticLockError) {
       return { statusCode: HttpStatus.CONFLICT, error: 'Conflict' };
+    }
+
+    if (exception instanceof InvalidLoginCredentialsException) {
+      return { statusCode: HttpStatus.UNAUTHORIZED, error: 'Unauthorized' };
+    }
+
+    if (exception instanceof AuthConfigurationException) {
+      return {
+        statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
+        error: 'Internal Server Error',
+      };
     }
 
     if (exception instanceof EntityNotFoundException) {
