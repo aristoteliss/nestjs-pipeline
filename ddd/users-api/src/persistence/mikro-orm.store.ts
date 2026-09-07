@@ -25,6 +25,7 @@ import {
   OnModuleDestroy,
   OnModuleInit,
 } from '@nestjs/common';
+import { EntityManagerTenantRegistry } from './entity-manager-tenant.registry';
 import {
   createLibsqlOrmOptions,
   resolveDefaultSchema,
@@ -47,6 +48,7 @@ export const MIKRO_ORM_CLIENT = Symbol('MIKRO_ORM_CLIENT');
 export class MikroOrmStore implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(MikroOrmStore.name);
   private readonly orms = new Map<string, MikroORM>();
+  private readonly entityManagerTenants = new EntityManagerTenantRegistry();
   public orm!: MikroORM;
 
   constructor(
@@ -82,14 +84,45 @@ export class MikroOrmStore implements OnModuleInit, OnModuleDestroy {
     return orm;
   }
 
+  private canReuseContextManager(
+    contextEm: EntityManager | SqlEntityManager | undefined,
+    orm: MikroORM,
+    schema: string,
+  ): boolean {
+    const isTenantMatch = this.entityManagerTenants.matches(contextEm, schema);
+    const isSchemaMatch =
+      contextEm?.schema === undefined || contextEm.schema === schema;
+    const isConfigMatch =
+      !orm.config || !contextEm?.config || contextEm.config === orm.config;
+    const isDriverMatch =
+      !orm.em.getDriver ||
+      !contextEm?.getDriver ||
+      contextEm.getDriver() === orm.em.getDriver();
+
+    return Boolean(
+      contextEm &&
+        contextEm !== orm.em &&
+        isDriverMatch &&
+        isConfigMatch &&
+        isSchemaMatch &&
+        isTenantMatch,
+    );
+  }
+
+  private markTenant<T extends EntityManager | SqlEntityManager>(
+    manager: T,
+    schema: string,
+  ): T {
+    this.entityManagerTenants.mark(manager, schema);
+    return manager;
+  }
+
   /**
    * Returns a request-bound or transactional EntityManager if available in the current context,
    * or a newly forked EntityManager instance.
    *
-   * @note Each direct call to this getter without an active RequestContext creates a NEW
-   * EntityManager fork with an isolated Unit of Work. For operations requiring a shared
-   * Unit of Work or atomic transaction across multiple repositories/queries, use
-   * {@link withFork} or {@link transactional}.
+   * Tenant ownership metadata is tracked externally in a WeakMap; MikroORM
+   * EntityManager instances are never monkey-patched with private properties.
    */
   get em(): EntityManager {
     const schema = this.tenantSchemaContext.schema;
@@ -101,43 +134,17 @@ export class MikroOrmStore implements OnModuleInit, OnModuleDestroy {
       contextEm = undefined;
     }
 
-    const isTenantMatch =
-      (contextEm as typeof contextEm & { __tenant?: string })?.__tenant ===
-        undefined ||
-      (contextEm as typeof contextEm & { __tenant?: string })?.__tenant ===
-        schema;
-    const isSchemaMatch =
-      contextEm?.schema === undefined || contextEm.schema === schema;
-    const isConfigMatch =
-      !orm.config || !contextEm?.config || contextEm.config === orm.config;
-    const isDriverMatch =
-      !orm.em.getDriver ||
-      !contextEm?.getDriver ||
-      contextEm.getDriver() === orm.em.getDriver();
-
-    if (
-      contextEm &&
-      contextEm !== orm.em &&
-      isDriverMatch &&
-      isConfigMatch &&
-      isSchemaMatch &&
-      isTenantMatch
-    ) {
-      if (
-        (contextEm as typeof contextEm & { __tenant?: string }).__tenant ===
-        undefined
-      ) {
-        (contextEm as typeof contextEm & { __tenant?: string }).__tenant =
-          schema;
+    if (this.canReuseContextManager(contextEm, orm, schema)) {
+      if (this.entityManagerTenants.get(contextEm) === undefined) {
+        this.entityManagerTenants.mark(contextEm as EntityManager, schema);
       }
-      return contextEm;
+      return contextEm as EntityManager;
     }
 
-    const fork = orm.em.fork({
-      disableContextResolution: true,
-    }) as EntityManager;
-    (fork as typeof fork & { __tenant?: string }).__tenant = schema;
-    return fork;
+    return this.markTenant(
+      orm.em.fork({ disableContextResolution: true }) as EntityManager,
+      schema,
+    );
   }
 
   get sem(): SqlEntityManager {
@@ -150,68 +157,36 @@ export class MikroOrmStore implements OnModuleInit, OnModuleDestroy {
       contextEm = undefined;
     }
 
-    const isTenantMatch =
-      (contextEm as typeof contextEm & { __tenant?: string })?.__tenant ===
-        undefined ||
-      (contextEm as typeof contextEm & { __tenant?: string })?.__tenant ===
-        schema;
-    const isSchemaMatch =
-      contextEm?.schema === undefined || contextEm.schema === schema;
-    const isConfigMatch =
-      !orm.config || !contextEm?.config || contextEm.config === orm.config;
-    const isDriverMatch =
-      !orm.em.getDriver ||
-      !contextEm?.getDriver ||
-      contextEm.getDriver() === orm.em.getDriver();
-
-    if (
-      contextEm &&
-      contextEm !== orm.em &&
-      isDriverMatch &&
-      isConfigMatch &&
-      isSchemaMatch &&
-      isTenantMatch
-    ) {
-      if (
-        (contextEm as typeof contextEm & { __tenant?: string }).__tenant ===
-        undefined
-      ) {
-        (contextEm as typeof contextEm & { __tenant?: string }).__tenant =
-          schema;
+    if (this.canReuseContextManager(contextEm, orm, schema)) {
+      if (this.entityManagerTenants.get(contextEm) === undefined) {
+        this.entityManagerTenants.mark(contextEm as SqlEntityManager, schema);
       }
-      return contextEm;
+      return contextEm as SqlEntityManager;
     }
 
-    const fork = orm.em.fork({
-      disableContextResolution: true,
-    }) as SqlEntityManager;
-    (fork as typeof fork & { __tenant?: string }).__tenant = schema;
-    return fork;
+    return this.markTenant(
+      orm.em.fork({ disableContextResolution: true }) as SqlEntityManager,
+      schema,
+    );
   }
 
-  /**
-   * Executes an operation within an explicit, shared Unit of Work (EntityManager fork).
-   * Ensures that all operations within the callback share the same identity map and change set.
-   */
+  /** Executes an operation within an explicit, shared Unit of Work. */
   async withFork<T>(cb: (em: EntityManager) => Promise<T>): Promise<T> {
     const schema = this.tenantSchemaContext.schema;
-    const fork = this.resolveOrm().em.fork({
-      disableContextResolution: true,
-    }) as EntityManager;
-    (fork as typeof fork & { __tenant?: string }).__tenant = schema;
+    const fork = this.markTenant(
+      this.resolveOrm().em.fork({ disableContextResolution: true }) as EntityManager,
+      schema,
+    );
     return cb(fork);
   }
 
-  /**
-   * Executes an operation within an atomic database transaction using a dedicated fork.
-   * Automatically commits on success and rolls back on failure.
-   */
+  /** Executes an operation within an atomic database transaction. */
   async transactional<T>(cb: (em: EntityManager) => Promise<T>): Promise<T> {
     const schema = this.tenantSchemaContext.schema;
-    const fork = this.resolveOrm().em.fork({
-      disableContextResolution: true,
-    }) as EntityManager;
-    (fork as typeof fork & { __tenant?: string }).__tenant = schema;
+    const fork = this.markTenant(
+      this.resolveOrm().em.fork({ disableContextResolution: true }) as EntityManager,
+      schema,
+    );
     return fork.transactional(cb);
   }
 }
