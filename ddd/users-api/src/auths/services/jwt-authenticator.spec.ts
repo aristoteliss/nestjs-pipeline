@@ -35,6 +35,19 @@ const originalEnv = new Map<string, string | undefined>(
   ENV_KEYS.map((key) => [key, process.env[key]]),
 );
 
+function activeAuthRepository() {
+  return {
+    find: vi.fn().mockResolvedValue({ id: 'auth-active' }),
+  };
+}
+
+function createAuthenticator(
+  tenantContext: TenantSchemaContext,
+  repository = activeAuthRepository(),
+): JwtAuthenticator {
+  return new JwtAuthenticator(tenantContext, repository as any);
+}
+
 afterEach(() => {
   vi.restoreAllMocks();
   for (const key of ENV_KEYS) {
@@ -47,7 +60,7 @@ afterEach(() => {
 describe('JwtAuthenticator', () => {
   const tenantContext = new TenantSchemaContext();
 
-  it('authenticates an asymmetric RS256 token with SPKI public key', async () => {
+  it('authenticates an asymmetric RS256 token with SPKI public key and active Auth persistence', async () => {
     const { privateKey, publicKey } = generateKeyPairSync('rsa', {
       modulusLength: 2048,
     });
@@ -65,7 +78,8 @@ describe('JwtAuthenticator', () => {
       .setExpirationTime('1h')
       .sign(privateKey);
 
-    const authenticator = new JwtAuthenticator(tenantContext);
+    const repository = activeAuthRepository();
+    const authenticator = createAuthenticator(tenantContext, repository);
     const user = await authenticator.authenticate({
       headers: { authorization: `Bearer ${token}` },
     });
@@ -76,6 +90,7 @@ describe('JwtAuthenticator', () => {
       tenant: tenantContext.schema,
       capabilities: { roles: ['admin'] },
     });
+    expect(repository.find).toHaveBeenCalledOnce();
   });
 
   it('authenticates case-insensitively with lower-case "bearer"', async () => {
@@ -91,15 +106,14 @@ describe('JwtAuthenticator', () => {
       .setExpirationTime('1h')
       .sign(new TextEncoder().encode(process.env.JWT_SECRET));
 
-    const authenticator = new JwtAuthenticator(tenantContext);
-    const user = await authenticator.authenticate({
+    const user = await createAuthenticator(tenantContext).authenticate({
       headers: { authorization: `bearer ${token}` },
     });
 
     expect(user?.id).toBe('user-lowercase-bearer');
   });
 
-  it('genuinely memoizes parsed SPKI public keys across consecutive calls (real spy test)', async () => {
+  it('genuinely memoizes parsed SPKI public keys across consecutive calls', async () => {
     const { privateKey, publicKey } = generateKeyPairSync('rsa', {
       modulusLength: 2048,
     });
@@ -107,38 +121,29 @@ describe('JwtAuthenticator', () => {
     process.env.JWT_PUBLIC_KEY_ALG = 'RS256';
     delete process.env.JWT_SECRET;
 
-    const token1 = await new SignJWT({
-      tenant: tenantContext.schema,
-      roles: [],
-    })
+    const token1 = await new SignJWT({ tenant: tenantContext.schema, roles: [] })
       .setProtectedHeader({ alg: 'RS256' })
       .setSubject('user-req-1')
       .setExpirationTime('1h')
       .sign(privateKey);
-
-    const token2 = await new SignJWT({
-      tenant: tenantContext.schema,
-      roles: [],
-    })
+    const token2 = await new SignJWT({ tenant: tenantContext.schema, roles: [] })
       .setProtectedHeader({ alg: 'RS256' })
       .setSubject('user-req-2')
       .setExpirationTime('1h')
       .sign(privateKey);
 
-    const authenticator = new JwtAuthenticator(tenantContext);
+    const authenticator = createAuthenticator(tenantContext);
     const importSpy = vi.spyOn(
       authenticator as unknown as { importPublicKey: () => unknown },
       'importPublicKey',
     );
 
-    // Request 1: Must parse SPKI key
     const res1 = await authenticator.authenticate({
       headers: { authorization: `Bearer ${token1}` },
     });
     expect(res1?.id).toBe('user-req-1');
     expect(importSpy).toHaveBeenCalledTimes(1);
 
-    // Request 2: Must reuse cached key candidates, NOT call importPublicKey again
     const res2 = await authenticator.authenticate({
       headers: { authorization: `Bearer ${token2}` },
     });
@@ -150,10 +155,8 @@ describe('JwtAuthenticator', () => {
     delete process.env.JWT_SECRET;
     delete process.env.JWT_PUBLIC_KEY;
 
-    const authenticator = new JwtAuthenticator(tenantContext);
-
     await expect(
-      authenticator.authenticate({
+      createAuthenticator(tenantContext).authenticate({
         headers: { authorization: 'Bearer arbitrary-token' },
       }),
     ).rejects.toThrow('JWT authentication is not configured');
@@ -163,19 +166,14 @@ describe('JwtAuthenticator', () => {
     process.env.JWT_SECRET = 'expired-secret';
     delete process.env.JWT_PUBLIC_KEY;
 
-    const token = await new SignJWT({
-      tenant: tenantContext.schema,
-      roles: [],
-    })
+    const token = await new SignJWT({ tenant: tenantContext.schema, roles: [] })
       .setProtectedHeader({ alg: 'HS256' })
       .setSubject('expired-user')
       .setExpirationTime('-1h')
       .sign(new TextEncoder().encode(process.env.JWT_SECRET));
 
-    const authenticator = new JwtAuthenticator(tenantContext);
-
     await expect(
-      authenticator.authenticate({
+      createAuthenticator(tenantContext).authenticate({
         headers: { authorization: `Bearer ${token}` },
       }),
     ).rejects.toThrow('Invalid or expired token');
@@ -185,28 +183,22 @@ describe('JwtAuthenticator', () => {
     process.env.JWT_SECRET = 'tenant-secret';
     delete process.env.JWT_PUBLIC_KEY;
 
-    const token = await new SignJWT({
-      tenant: 'foreign-tenant-xyz',
-      roles: [],
-    })
+    const token = await new SignJWT({ tenant: 'foreign-tenant-xyz', roles: [] })
       .setProtectedHeader({ alg: 'HS256' })
       .setSubject('user-wrong-tenant')
       .setExpirationTime('1h')
       .sign(new TextEncoder().encode(process.env.JWT_SECRET));
 
-    const authenticator = new JwtAuthenticator(tenantContext);
-
     await expect(
-      authenticator.authenticate({
+      createAuthenticator(tenantContext).authenticate({
         headers: { authorization: `Bearer ${token}` },
       }),
     ).rejects.toThrow('Credential tenant does not match the selected tenant');
   });
 
   it('returns undefined when no authorization header is present', async () => {
-    const authenticator = new JwtAuthenticator(tenantContext);
     await expect(
-      authenticator.authenticate({ headers: {} }),
+      createAuthenticator(tenantContext).authenticate({ headers: {} }),
     ).resolves.toBeUndefined();
   });
 
@@ -214,18 +206,14 @@ describe('JwtAuthenticator', () => {
     process.env.JWT_SECRET = 'exp-secret';
     delete process.env.JWT_PUBLIC_KEY;
 
-    const expTime = Math.floor(Date.now() / 1000) + 1800; // 30 minutes in future
-    const token = await new SignJWT({
-      tenant: tenantContext.schema,
-      roles: [],
-    })
+    const expTime = Math.floor(Date.now() / 1000) + 1800;
+    const token = await new SignJWT({ tenant: tenantContext.schema, roles: [] })
       .setProtectedHeader({ alg: 'HS256' })
       .setSubject('user-exp-check')
       .setExpirationTime(expTime)
       .sign(new TextEncoder().encode(process.env.JWT_SECRET));
 
-    const authenticator = new JwtAuthenticator(tenantContext);
-    const user = await authenticator.authenticate({
+    const user = await createAuthenticator(tenantContext).authenticate({
       headers: { authorization: `Bearer ${token}` },
     });
 
@@ -237,31 +225,21 @@ describe('JwtAuthenticator', () => {
     process.env.JWT_SECRET = 'revocation-secret';
     delete process.env.JWT_PUBLIC_KEY;
 
-    const token = await new SignJWT({
-      tenant: tenantContext.schema,
-      roles: [],
-    })
+    const token = await new SignJWT({ tenant: tenantContext.schema, roles: [] })
       .setProtectedHeader({ alg: 'HS256' })
       .setSubject('user-revoked')
       .setExpirationTime('1h')
       .sign(new TextEncoder().encode(process.env.JWT_SECRET));
 
-    const mockAuthQueryRepository = {
-      find: vi.fn().mockResolvedValue(null),
-    };
-
-    const authenticator = new JwtAuthenticator(
-      tenantContext,
-      mockAuthQueryRepository as any,
-    );
+    const repository = { find: vi.fn().mockResolvedValue(null) };
 
     await expect(
-      authenticator.authenticate({
+      createAuthenticator(tenantContext, repository).authenticate({
         headers: { authorization: `Bearer ${token}` },
       }),
     ).rejects.toThrow('Token has been revoked or session has ended');
 
-    expect(mockAuthQueryRepository.find).toHaveBeenCalledOnce();
+    expect(repository.find).toHaveBeenCalledOnce();
   });
 
   it('accepts a token when authQueryRepository confirms active Auth persistence', async () => {
@@ -277,22 +255,17 @@ describe('JwtAuthenticator', () => {
       .setExpirationTime('1h')
       .sign(new TextEncoder().encode(process.env.JWT_SECRET));
 
-    const mockAuthQueryRepository = {
+    const repository = {
       find: vi
         .fn()
         .mockResolvedValue({ id: 'auth-1', userId: 'user-active', token }),
     };
 
-    const authenticator = new JwtAuthenticator(
-      tenantContext,
-      mockAuthQueryRepository as any,
-    );
-
-    const user = await authenticator.authenticate({
+    const user = await createAuthenticator(tenantContext, repository).authenticate({
       headers: { authorization: `Bearer ${token}` },
     });
 
     expect(user?.id).toBe('user-active');
-    expect(mockAuthQueryRepository.find).toHaveBeenCalledOnce();
+    expect(repository.find).toHaveBeenCalledOnce();
   });
 });
