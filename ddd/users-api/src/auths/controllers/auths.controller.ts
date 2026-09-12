@@ -25,10 +25,14 @@ import { CreateAuthCommand } from '../cqrs/commands/create-auth.command';
 import { DeleteAuthCommand } from '../cqrs/commands/delete-auth.command';
 import { LoginDto, LoginDtoSchema } from '../dtos/login.dto';
 import { LoginMapper } from '../mappers/login.mapper';
+import { UserLoginService } from '../services/user-login.service';
 
 @Controller('auth')
 export class AuthsController {
-  constructor(private readonly commandBus: CommandBus) {}
+  constructor(
+    private readonly commandBus: CommandBus,
+    private readonly userLoginService: UserLoginService,
+  ) {}
 
   /**
    * Authenticates a user and creates the Auth domain aggregate.
@@ -58,6 +62,7 @@ export class AuthsController {
         expiresAt: sessionData.expiresAt,
         exp: sessionData.exp,
       };
+      req.session.token = sessionData.token;
     }
 
     return sessionData;
@@ -66,9 +71,9 @@ export class AuthsController {
   /**
    * Logs out the current session.
    *
-   * Extracts the active Bearer token from the `Authorization` header when present,
-   * dispatches `DeleteAuthCommand` to query and revoke the persistent auth aggregate by
-   * primary key and invalidate session cache, and clears the Fastify secure-session cookie.
+   * Accepts raw session and headers, delegates extraction of userId and token
+   * to the authentication service, dispatches `DeleteAuthCommand` to revoke
+   * the persistent auth aggregate and evict cache, and clears the session cookie.
    */
   @Post('logout')
   @HttpCode(204)
@@ -76,20 +81,18 @@ export class AuthsController {
     @Req()
     req: {
       session?: Session<SessionData>;
-      sessionUser?: SessionUser;
       headers?: Record<string, string | string[] | undefined>;
     },
   ): Promise<void> {
-    const sessionUser = req.session?.user ?? req.sessionUser;
-    const authHeader = req.headers?.authorization;
-    const token =
-      typeof authHeader === 'string' &&
-      authHeader.toLowerCase().startsWith('bearer ')
-        ? authHeader.slice(7).trim()
-        : undefined;
+    const { userId, token } = await this.userLoginService.extractCredentials(
+      req.session,
+      req.headers,
+    );
 
-    await this.commandBus.execute(new DeleteAuthCommand(sessionUser, token));
+    if (userId && token) {
+      await this.commandBus.execute(new DeleteAuthCommand({ userId, token }));
+    }
 
-    req.session?.delete();
+    req.session?.delete?.();
   }
 }

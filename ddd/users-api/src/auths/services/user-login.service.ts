@@ -17,6 +17,7 @@
  */
 
 import { randomUUID } from 'node:crypto';
+import type { Session } from '@fastify/secure-session';
 import {
   Inject,
   Injectable,
@@ -27,12 +28,14 @@ import { QueryBus } from '@nestjs/cqrs';
 import type { UserCapabilities } from '@nestjs-pipeline/casl';
 import type { IQueryRepository } from '@nestjs-pipeline/ddd-core';
 import { SignJWT } from 'jose';
+import type { SessionData } from '../../common/types/SessionUser';
 import { TenantSchemaContext } from '../../persistence/tenant-schema.context';
 import { GetUserQuery } from '../../users/cqrs/queries/get-user.query';
 import { User } from '../../users/domain/models/user.entity';
 import { EXT_USER_QUERY_REPOSITORY } from '../../users/persistence/repository.tokens';
 import { GetUserCapabilitiesQuery } from '../cqrs/queries/get-user-capabilities.query';
 import { CapabilityCodec } from './capability-codec';
+import { JwtAuthenticator } from './jwt-authenticator';
 
 export interface AuthResult {
   userId: string;
@@ -69,7 +72,58 @@ export class UserLoginService {
     private readonly queryRepository: IQueryRepository<GetUserQuery, User>,
     @Inject(TenantSchemaContext)
     private readonly tenantSchemaContext: TenantSchemaContext,
+    private readonly jwtAuthenticator: JwtAuthenticator,
   ) {}
+
+  /**
+   * Extracts credentials (userId and optional bearer token) from session and/or request headers.
+   *
+   * Delegates token extraction and token-subject resolution to {@link JwtAuthenticator},
+   * preserving abstraction boundaries.
+   *
+   * @returns An object containing the resolved `userId` and `token`.
+   */
+  async extractCredentials(
+    sessionOrReq?:
+      | Session<SessionData>
+      | {
+          session?: Session<SessionData>;
+          headers?: Record<string, string | string[] | undefined>;
+        },
+    headersParam?: Record<string, string | string[] | undefined>,
+  ): Promise<{ userId?: string; token?: string }> {
+    let session: Session<SessionData> | undefined;
+    let headers: Record<string, string | string[] | undefined> | undefined;
+
+    if (
+      sessionOrReq &&
+      typeof sessionOrReq === 'object' &&
+      ('headers' in sessionOrReq || 'session' in sessionOrReq) &&
+      !('get' in sessionOrReq && 'set' in sessionOrReq)
+    ) {
+      const req = sessionOrReq as {
+        session?: Session<SessionData>;
+        headers?: Record<string, string | string[] | undefined>;
+      };
+      session = req.session;
+      headers = req.headers;
+    } else {
+      session = sessionOrReq as Session<SessionData> | undefined;
+      headers = headersParam;
+    }
+
+    const token =
+      this.jwtAuthenticator.extractToken(headers) ??
+      session?.token ??
+      session?.get?.('token');
+    let userId = session?.user?.id;
+
+    if (!userId && headers) {
+      userId = await this.jwtAuthenticator.extractUserId(headers);
+    }
+
+    return { userId, token };
+  }
 
   /**
    * Verifies login credentials (email and one-time login code) against database records.

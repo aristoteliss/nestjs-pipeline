@@ -2,6 +2,7 @@ import type { IPipelineContext } from '@nestjs-pipeline/core';
 import { describe, expect, it } from 'vitest';
 import { createRoleIdempotencyKey } from '../../../roles/cqrs/commands/create-role.handler';
 import { createUserIdempotencyKey } from '../../../users/cqrs/commands/create-user.handler';
+import { MissingTenantContextError } from './requireTenantId.helper';
 
 describe('create idempotency security scope', () => {
   it.each([
@@ -20,10 +21,11 @@ describe('create idempotency security scope', () => {
       expect(key('tenant_a', 'alice')).not.toBe(key('tenant_a', 'bob'));
       expect(key('tenant_a', 'alice')).not.toBe(key('tenant_b', 'alice'));
 
-      const defaultCtxKey = factory({
-        request: { ...payload, sessionUser: { id: 'alice' } },
-      } as unknown as IPipelineContext);
-      expect(defaultCtxKey).toContain(`default:alice:${kind}:`);
+      expect(() =>
+        factory({
+          request: { ...payload, sessionUser: { id: 'alice' } },
+        } as unknown as IPipelineContext),
+      ).toThrow(MissingTenantContextError);
     },
   );
 });

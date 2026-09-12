@@ -16,11 +16,13 @@ function collectTypeScriptFiles(root: string): string[] {
 describe('pipeline private CQRS metadata boundary', () => {
   it('does not depend on private decorator metadata constants', () => {
     const srcRoot = join(__dirname, '..');
-    const offenders = collectTypeScriptFiles(srcRoot).filter((path) =>
-      readFileSync(path, 'utf8').includes(
-        '@nestjs/cqrs/dist/decorators/constants',
-      ),
-    );
+    const offenders = collectTypeScriptFiles(srcRoot)
+      .filter((path) => path !== __filename)
+      .filter((path) =>
+        readFileSync(path, 'utf8').includes(
+          '@nestjs/cqrs/dist/decorators/constants',
+        ),
+      );
 
     expect(offenders).toEqual([]);
   });

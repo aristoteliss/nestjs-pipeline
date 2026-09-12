@@ -38,10 +38,10 @@ export class FindAuthQueryRepository extends QueryRepository<
 
   async find(query: FindAuthQuery): Promise<Auth | null> {
     const userId = String(query.userId);
-    const filter: Record<string, unknown> = { userId };
-    if (query.token) {
-      filter.token = query.token;
-    }
+    const filter: Record<string, unknown> = {
+      userId,
+      token: query.token,
+    };
 
     return this.store.em.findOne(Auth, filter as FilterQuery<Auth>);
   }

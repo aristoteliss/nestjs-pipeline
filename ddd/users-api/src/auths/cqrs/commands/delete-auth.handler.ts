@@ -44,23 +44,17 @@ export class DeleteAuthHandler
   constructor(
     @Optional()
     @Inject(COMMAND_REPOSITORY.deleteAuth)
-    private readonly commandRepository?: ICommandRepository<Auth, null>,
-    @Optional()
+    private readonly commandRepository: ICommandRepository<Auth, null>,
     @Inject(QUERY_REPOSITORY.findAuth)
-    private readonly queryRepository?: IQueryRepository<
+    private readonly queryRepository: IQueryRepository<
       FindAuthQuery,
       Auth | null
     >,
   ) {}
 
   async execute(command: DeleteAuthCommand): Promise<void> {
-    const userId = command.sessionUser?.id;
-    if (!userId || !this.commandRepository) {
-      return;
-    }
-
-    const auth = await this.queryRepository?.find(
-      new FindAuthQuery({ userId, token: command.token }),
+    const auth = await this.queryRepository.find(
+      new FindAuthQuery({ userId: command.userId, token: command.token }),
     );
 
     if (auth) {

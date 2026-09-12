@@ -16,7 +16,6 @@
  * ----------------------------
  */
 
-import type { SessionUser } from '@common/types/SessionUser';
 import type {
   ICommandRepository,
   IQueryRepository,
@@ -40,11 +39,10 @@ describe('DeleteAuthHandler', () => {
     };
 
     const handler = new DeleteAuthHandler(mockCommandRepo, mockQueryRepo);
-    const sessionUser: SessionUser = {
-      id: 'usr-123',
-      tenant: 'tenant_test',
-    };
-    const command = new DeleteAuthCommand(sessionUser, 'jwt-token-xyz');
+    const command = new DeleteAuthCommand({
+      userId: 'usr-123',
+      token: 'jwt-token-xyz',
+    });
 
     await handler.execute(command);
 
@@ -64,11 +62,10 @@ describe('DeleteAuthHandler', () => {
     };
 
     const handler = new DeleteAuthHandler(mockCommandRepo, mockQueryRepo);
-    const sessionUser: SessionUser = {
-      id: 'usr-123',
-      tenant: 'tenant_test',
-    };
-    const command = new DeleteAuthCommand(sessionUser, 'expired-token');
+    const command = new DeleteAuthCommand({
+      userId: 'usr-123',
+      token: 'expired-token',
+    });
 
     await handler.execute(command);
 
@@ -76,20 +73,35 @@ describe('DeleteAuthHandler', () => {
     expect(save).not.toHaveBeenCalled();
   });
 
-  it('safely completes without error when sessionUser is undefined in command', async () => {
+  it('throws validation error when userId or token is missing in command payload', () => {
+    expect(() => new DeleteAuthCommand({} as any)).toThrow();
+    expect(() => new DeleteAuthCommand({ userId: 'usr-1' } as any)).toThrow();
+    expect(() => new DeleteAuthCommand({ token: 'tok-1' } as any)).toThrow();
+  });
+
+  it('deletes auth record when userId and token are passed in command payload', async () => {
+    const existingAuth = Auth.create('usr-456', 'jwt-token-direct');
     const save = vi.fn().mockResolvedValue(null);
     const mockCommandRepo: ICommandRepository<Auth, null> = { save };
-    const find = vi.fn().mockResolvedValue(null);
+    const find = vi.fn().mockResolvedValue(existingAuth);
     const mockQueryRepo: IQueryRepository<FindAuthQuery, Auth | null> = {
       find,
     };
 
     const handler = new DeleteAuthHandler(mockCommandRepo, mockQueryRepo);
-    const command = new DeleteAuthCommand(undefined);
+    const command = new DeleteAuthCommand({
+      userId: 'usr-456',
+      token: 'jwt-token-direct',
+    });
+
+    expect(command.userId).toBe('usr-456');
+    expect(command.token).toBe('jwt-token-direct');
 
     await handler.execute(command);
 
-    expect(find).not.toHaveBeenCalled();
-    expect(save).not.toHaveBeenCalled();
+    expect(find).toHaveBeenCalledWith(
+      expect.objectContaining({ userId: 'usr-456', token: 'jwt-token-direct' }),
+    );
+    expect(save).toHaveBeenCalledWith(existingAuth);
   });
 });

@@ -168,6 +168,37 @@ describe('auths-api (e2e)', () => {
       expect(authRecord).toBeNull();
     });
 
+    it('deletes persistent auth record on cookie session logout without authorization header (204)', async () => {
+      const email = newEmail();
+      const created = await seedUser(email, 'Cookie Logout User');
+      expect(created.status).toBe(201);
+
+      const loginRes = await login({ email, code: E2E_LOGIN_CODE });
+      expect(loginRes.status).toBe(200);
+      const token = loginRes.body.token;
+
+      // Logout with simulated cookie session (user + token on session, no Authorization header)
+      const logoutRes = await request(http)
+        .post('/auth/logout')
+        .set('x-tenant-schema', 'tenant')
+        .set('x-test-user', JSON.stringify({ id: created.body.id, email }))
+        .set('x-test-token', token);
+      expect(logoutRes.status).toBe(204);
+
+      // Verify token record in database was deleted
+      const { Auth } = await import(
+        '../../src/auths/domain/models/auth.entity'
+      );
+      const { MIKRO_ORM_CLIENT } = await import(
+        '../../src/persistence/mikro-orm.store'
+      );
+      const store = ctx.app.get(MIKRO_ORM_CLIENT);
+      const authRecord = await store.em.findOne(Auth, {
+        userId: created.body.id,
+      });
+      expect(authRecord).toBeNull();
+    });
+
     it('rejects a logged-out bearer token on protected endpoints (401)', async () => {
       const email = newEmail();
       const created = await seedUser(email, 'Logout Protected');
