@@ -740,8 +740,14 @@ describe('CQRS Commands & Queries Runtime Error Taxonomy', () => {
 
     describe('DeleteAuthCommand & Handler', () => {
       it('processes session deletion safely (204)', async () => {
-        const handler = new DeleteAuthHandler();
-        const command = new DeleteAuthCommand();
+        const handler = new DeleteAuthHandler(
+          { save: vi.fn().mockResolvedValue(null) } as any,
+          { find: vi.fn().mockResolvedValue(null) } as any,
+        );
+        const command = new DeleteAuthCommand({
+          userId: 'usr-1',
+          token: 'token-1',
+        });
         const result = await handler.execute(command);
 
         expect(result).toBeUndefined();

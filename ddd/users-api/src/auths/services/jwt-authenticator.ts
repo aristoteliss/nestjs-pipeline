@@ -25,7 +25,7 @@ import {
 } from '@nestjs/common';
 import type { IQueryRepository } from '@nestjs-pipeline/ddd-core';
 import { TenantSchemaContext } from '@persistence/tenant-schema.context';
-import { importSPKI, jwtVerify } from 'jose';
+import { decodeJwt, importSPKI, jwtVerify } from 'jose';
 import type { SessionUser } from '../../common/types/SessionUser';
 import { FindAuthQuery } from '../cqrs/queries/find-auth.query';
 import type { Auth } from '../domain/models/auth.entity';
@@ -81,6 +81,66 @@ export class JwtAuthenticator {
       Auth | null
     >,
   ) {}
+
+  /**
+   * Extracts a Bearer token from the `Authorization` request header.
+   *
+   * @param headers - Request headers object containing optional `authorization` header.
+   * @returns The trimmed Bearer token if present and non-empty, or `undefined`.
+   */
+  extractToken(
+    headers?: Record<string, string | string[] | undefined>,
+  ): string | undefined {
+    const authHeader = this.firstHeaderValue(headers?.authorization);
+    if (!authHeader) return undefined;
+
+    const match = authHeader.match(/^[Bb]earer\s+(.+)$/);
+    if (!match) return undefined;
+
+    const token = match[1].trim();
+    return token.length > 0 ? token : undefined;
+  }
+
+  /**
+   * Reads the subject (`sub`) claim directly from a JWT string without cryptographic verification.
+   *
+   * @param token - Raw JWT string.
+   * @returns The token subject if present and non-empty, or `undefined`.
+   */
+  extractUserIdFromToken(token: string): string | undefined {
+    try {
+      const decoded = decodeJwt(token);
+      return typeof decoded.sub === 'string' && decoded.sub.trim().length > 0
+        ? decoded.sub.trim()
+        : undefined;
+    } catch {
+      return undefined;
+    }
+  }
+
+  /**
+   * Extracts the user ID from the request `Authorization` Bearer token.
+   *
+   * First attempts cryptographic verification via {@link authenticate}. If verification fails
+   * (e.g. expired token during logout), falls back to decoding the token claims directly.
+   *
+   * @param headers - Request headers containing the `authorization` header.
+   * @returns The resolved user ID if present, or `undefined`.
+   */
+  async extractUserId(
+    headers?: Record<string, string | string[] | undefined>,
+  ): Promise<string | undefined> {
+    const token = this.extractToken(headers);
+    if (!token) return undefined;
+
+    try {
+      const user = await this.authenticate({ headers });
+      if (user?.id) return user.id;
+    } catch {
+      return this.extractUserIdFromToken(token);
+    }
+    return undefined;
+  }
 
   /**
    * Parses and validates a Bearer JWT from the `Authorization` header.

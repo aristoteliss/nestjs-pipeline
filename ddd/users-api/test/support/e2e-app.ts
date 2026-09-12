@@ -196,7 +196,12 @@ export async function bootstrapE2E(options?: E2EOptions): Promise<E2EContext> {
       const user = parsedUser
         ? { ...parsedUser, tenant: parsedUser.tenant ?? tenant }
         : undefined;
-      const store: Record<string, unknown> = user ? { user } : {};
+      const rawToken = req.headers['x-test-token'];
+      const token = Array.isArray(rawToken) ? rawToken[0] : rawToken;
+      const store: Record<string, unknown> = {
+        ...(user ? { user } : {}),
+        ...(token ? { token } : {}),
+      };
       const sessionObj = {
         get: (key: string) => store[key],
         set: (key: string, value: unknown) => {

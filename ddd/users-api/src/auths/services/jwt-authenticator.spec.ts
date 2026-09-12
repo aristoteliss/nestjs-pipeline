@@ -295,4 +295,97 @@ describe('JwtAuthenticator', () => {
     expect(user?.id).toBe('user-active');
     expect(mockAuthQueryRepository.find).toHaveBeenCalledOnce();
   });
+
+  describe('extractToken', () => {
+    it('extracts token from authorization header with Bearer scheme', () => {
+      const authenticator = new JwtAuthenticator(tenantContext);
+      expect(
+        authenticator.extractToken({
+          authorization: 'Bearer token-123-abc',
+        }),
+      ).toBe('token-123-abc');
+      expect(
+        authenticator.extractToken({
+          authorization: 'bearer token-456-def',
+        }),
+      ).toBe('token-456-def');
+    });
+
+    it('returns undefined when authorization header is missing or not bearer', () => {
+      const authenticator = new JwtAuthenticator(tenantContext);
+      expect(authenticator.extractToken(undefined)).toBeUndefined();
+      expect(authenticator.extractToken({})).toBeUndefined();
+      expect(
+        authenticator.extractToken({ authorization: 'Basic dXNlcjpwYXNz' }),
+      ).toBeUndefined();
+      expect(
+        authenticator.extractToken({ authorization: 'Bearer ' }),
+      ).toBeUndefined();
+    });
+  });
+
+  describe('extractUserIdFromToken', () => {
+    it('decodes subject claim from valid JWT string', async () => {
+      const token = await new SignJWT({})
+        .setProtectedHeader({ alg: 'HS256' })
+        .setSubject('user-sub-999')
+        .sign(new TextEncoder().encode('secret'));
+
+      const authenticator = new JwtAuthenticator(tenantContext);
+      expect(authenticator.extractUserIdFromToken(token)).toBe('user-sub-999');
+    });
+
+    it('returns undefined for invalid or empty token', () => {
+      const authenticator = new JwtAuthenticator(tenantContext);
+      expect(authenticator.extractUserIdFromToken('invalid')).toBeUndefined();
+      expect(authenticator.extractUserIdFromToken('')).toBeUndefined();
+    });
+  });
+
+  describe('extractUserId', () => {
+    it('resolves userId from Authorization header with valid token', async () => {
+      process.env.JWT_SECRET = 'active-auth-secret';
+      delete process.env.JWT_PUBLIC_KEY;
+
+      const token = await new SignJWT({
+        tenant: tenantContext.schema,
+      })
+        .setProtectedHeader({ alg: 'HS256' })
+        .setSubject('user-resolved')
+        .setExpirationTime('1h')
+        .sign(new TextEncoder().encode(process.env.JWT_SECRET));
+
+      const authenticator = new JwtAuthenticator(tenantContext);
+      const userId = await authenticator.extractUserId({
+        authorization: `Bearer ${token}`,
+      });
+
+      expect(userId).toBe('user-resolved');
+    });
+
+    it('falls back to decoding claim if full verification fails on expired token', async () => {
+      process.env.JWT_SECRET = 'active-auth-secret';
+      delete process.env.JWT_PUBLIC_KEY;
+
+      const token = await new SignJWT({
+        tenant: tenantContext.schema,
+      })
+        .setProtectedHeader({ alg: 'HS256' })
+        .setSubject('user-expired')
+        .setExpirationTime('0s') // expired immediately
+        .sign(new TextEncoder().encode(process.env.JWT_SECRET));
+
+      const authenticator = new JwtAuthenticator(tenantContext);
+      const userId = await authenticator.extractUserId({
+        authorization: `Bearer ${token}`,
+      });
+
+      expect(userId).toBe('user-expired');
+    });
+
+    it('returns undefined when no token is present', async () => {
+      const authenticator = new JwtAuthenticator(tenantContext);
+      expect(await authenticator.extractUserId({})).toBeUndefined();
+    });
+  });
 });

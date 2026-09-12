@@ -25,10 +25,14 @@ import { CreateAuthCommand } from '../cqrs/commands/create-auth.command';
 import { DeleteAuthCommand } from '../cqrs/commands/delete-auth.command';
 import { LoginDto, LoginDtoSchema } from '../dtos/login.dto';
 import { LoginMapper } from '../mappers/login.mapper';
+import { UserLoginService } from '../services/user-login.service';
 
 @Controller('auth')
 export class AuthsController {
-  constructor(private readonly commandBus: CommandBus) {}
+  constructor(
+    private readonly commandBus: CommandBus,
+    private readonly userLoginService: UserLoginService,
+  ) {}
 
   /**
    * Authenticates a user and creates the Auth domain aggregate.
@@ -58,25 +62,37 @@ export class AuthsController {
         expiresAt: sessionData.expiresAt,
         exp: sessionData.exp,
       };
+      req.session.token = sessionData.token;
     }
 
     return sessionData;
   }
 
   /**
-   * Clears the current Fastify secure-session cookie when present. Under
-   * Express there is no server session to delete; clients discard their bearer
-   * token.
+   * Logs out the current session.
+   *
+   * Accepts raw session and headers, delegates extraction of userId and token
+   * to the authentication service, dispatches `DeleteAuthCommand` to revoke
+   * the persistent auth aggregate and evict cache, and clears the session cookie.
    */
   @Post('logout')
   @HttpCode(204)
   async logout(
-    @Req() req: { session?: Session<SessionData>; sessionUser?: SessionUser },
+    @Req()
+    req: {
+      session?: Session<SessionData>;
+      headers?: Record<string, string | string[] | undefined>;
+    },
   ): Promise<void> {
-    const sessionUser = req.session?.user ?? req.sessionUser;
+    const { userId, token } = await this.userLoginService.extractCredentials(
+      req.session,
+      req.headers,
+    );
 
-    await this.commandBus.execute(new DeleteAuthCommand(sessionUser));
+    if (userId && token) {
+      await this.commandBus.execute(new DeleteAuthCommand({ userId, token }));
+    }
 
-    req.session?.delete();
+    req.session?.delete?.();
   }
 }
