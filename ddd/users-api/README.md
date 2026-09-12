@@ -140,9 +140,11 @@ Downstream Pipeline (Controllers → CQRS Bus → CASL → Audit → DB)
 
    *Note on Anonymous Access*: `AuthSessionGuard` does **not** reject unauthenticated requests; it resolves the caller to `undefined` (anonymous) and permits the request to continue. Rejections (HTTP 401 Unauthorized) only occur when credentials are provided but fail verification (e.g. expired JWT, invalid API key, or tenant mismatch). Downstream pipeline behaviors, such as `CaslBehavior` and `CaslAuthorizer`, enforce endpoint authorization and reject unauthorized callers with HTTP 403 Forbidden.
 2. **`SessionUserContextInterceptor` (`APP_INTERCEPTOR`)**: Decides **the execution scope**. A single-responsibility interceptor that reads `req.sessionUser` (populated by the guard) and invokes `sessionUserStore.run(req.sessionUser, () => next.handle())`. In NestJS 11.2.1, `InterceptorsConsumer` binds stream continuations using `defer(AsyncResource.bind(...))`, guaranteeing that the `AsyncLocalStorage` context established by `run()` persists across all downstream asynchronous operations, CQRS handlers, and pipeline behaviors without cross-request context bleeding.
-3. **`UserLoginService`**: Dedicated application service responsible solely for user login credential verification (`POST /auth/login`) and signing new tenant-bound access tokens.
-4. **`DeleteAuthCommandRepository`**: Dedicated command repository implementing `ICommandRepository<Auth, null>`. Deletes the exact persistent auth aggregate by primary key `id` and evicts the corresponding session cache entry upon `POST /auth/logout`.
-5. **`GetUserContextQueryRepository`**: Implements `IUserContextResolver` for `CaslModule`. Verifies active status of database users (preventing deleted users from executing operations with stale tokens) and dynamically synchronizes their department, while permitting authenticated machine and test principals.
+3. **`SessionService`**: Dedicated presentation-layer service encapsulating all `@fastify/secure-session` cookie operations: saving authenticated sessions on login (`saveSession`), clearing cookies safely on logout or expiration (`clearSession`), extracting session credentials (`getCredentials`), and validating timestamp/JWT expiration (`isExpired`).
+4. **`UserLoginService`**: Dedicated application service responsible solely for user login credential verification (`POST /auth/login`) and signing new tenant-bound access tokens, completely decoupled from HTTP cookies and session storage.
+5. **`toSessionRes` Mapper**: Clean presentation mapper converting internal `CreateAuthResult` application results into public `SessionResponse` HTTP response contracts.
+6. **`DeleteAuthCommandRepository`**: Dedicated command repository implementing `ICommandRepository<Auth, null>`. Deletes the exact persistent auth aggregate by primary key `id` and evicts the corresponding session cache entry upon `POST /auth/logout`.
+7. **`GetUserContextQueryRepository`**: Implements `IUserContextResolver` for `CaslModule`. Verifies active status of database users (preventing deleted users from executing operations with stale tokens) and dynamically synchronizes their department, while permitting authenticated machine and test principals.
 
 ### Clean Architecture & Persistence Repository Boundaries
 
@@ -513,7 +515,7 @@ curl -X POST http://localhost:3000/auth/logout \
 ```
 
 Under the hood:
-1. `AuthsController.logout` extracts the Bearer token from the `Authorization` header and dispatches `new DeleteAuthCommand(sessionUser, token)`.
+1. `AuthsController.logout` extracts credentials (`userId` and `token`) from request session (via `SessionService`) and headers, delegates cookie clearing to `SessionService.clearSession(req.session)`, and dispatches `new DeleteAuthCommand({ userId, token })`.
 2. `DeleteAuthHandler` queries the real persisted aggregate via `QUERY_REPOSITORY.findAuth` (`new FindAuthQuery({ userId, token })`) and calls `DeleteAuthCommandRepository.save(auth)`.
 3. `DeleteAuthCommandRepository` deletes by primary key (`store.em.nativeDelete(Auth, { id: auth.id })`) and evicts the exact cache key (`auth:id:<auth.id>`) via `@Cache`.
 4. The specific session token is revoked while other concurrent sessions for the user remain active; subsequent requests using the revoked token receive `401 Unauthorized`.

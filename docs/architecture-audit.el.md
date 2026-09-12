@@ -14,7 +14,7 @@
 4. Επειδή cache/idempotency μπορούν να κάνουν short-circuit πριν τρέξει ο handler, keys για protected αποτελέσματα πρέπει να περιέχουν όλα τα security dimensions που επηρεάζουν το αποτέλεσμα: tenant, principal και permission scope.
 5. Τα domain invariants και mutations ανήκουν στα aggregates. Application code χρησιμοποιεί factories/domain methods (`create`, `update`, `rename`, `delete`) και όχι setters.
 6. Domain errors είναι framework-agnostic (`DomainException`, `OptimisticLockError`) και μετατρέπονται σε HTTP στο presentation boundary (`DomainExceptionFilter`).
-7. `CommandBaseHandler` είναι η canonical command lifecycle abstraction για aggregate events. Όταν επιστρέφεται aggregate γίνεται auto-commit· όταν επιστρέφεται custom DTO επιτρέπεται explicit `commit(aggregate)`.
+7. `CommandBaseHandler` είναι η canonical command lifecycle abstraction για aggregate events. Τα command handlers επιστρέφουν `AggregateRoot` ώστε το `execute()` να εκτελεί αυτόματα το commit/publish των domain events. Δεν γίνεται ποτέ χειροκίνητο commit/publish μέσα στους handlers.
 8. Το in-memory Nest CQRS `EventBus` **δεν** παρέχει transactional-outbox guarantee. Αυτό είναι συνειδητό, τεκμηριωμένο trade-off και όχι bug από μόνο του.
 9. Το `ddd-core` επιτρέπεται να εξαρτάται από Nest CQRS primitives (`AggregateRoot`, `EventBus`) — είναι σκόπιμη απόφαση του repo.
 
@@ -47,9 +47,9 @@
 - **Business mutations:** `User.create/update/delete` και `Role.create/rename/delete` συγκεντρώνουν invariants και domain events. Οι command handlers χρησιμοποιούν αυτές τις methods αντί για direct setters.
 - **Entity/field authorization στο σωστό σημείο:** `GetUserHandler` και `GetUsersHandler` εφαρμόζουν `CaslAuthorizer` πάνω στα πραγματικά aggregates/results, ενώ το `CaslBehavior` κρατά type-level access control.
 - **Framework-neutral domain error example:** `UniqueEmailException extends DomainException` και το `DomainExceptionFilter` κάνει HTTP mapping στο boundary.
-- **Command event lifecycle:** `CreateUserHandler`, user/role update/delete handlers και `CreateAuthHandler` χρησιμοποιούν `CommandBaseHandler`; το `CreateAuthHandler` κάνει explicit `commit(auth)` επειδή επιστρέφει custom session DTO αντί για aggregate.
+- **Command event lifecycle:** Όλα τα command handlers (`CreateUserHandler`, user/role update/delete handlers, `CreateAuthHandler`) επεκτείνουν το `CommandBaseHandler` και επιστρέφουν `AggregateRoot` (ή application result με `aggregate: AggregateRoot`), επιτρέποντας στο `CommandBaseHandler.execute()` να δημοσιεύει και να εκκαθαρίζει αυτόματα τα domain events χωρίς χειροκίνητο commit.
 - **Cross-cutting concerns στα command handlers:** logging, metrics, audit, feature flags, rate limiting, resilience και idempotency εφαρμόζονται μέσω `@UsePipeline`, όχι με επαναλαμβανόμενο imperative code.
-- **Controller boundary:** οι controllers στέλνουν commands/queries μέσω buses και κρατούν HTTP/session mapping στο presentation layer.
+- **Controller boundary & Session separation:** οι controllers στέλνουν commands/queries μέσω buses και κρατούν HTTP/session mapping στο presentation layer (`SessionService` για cookie management και pure mappers όπως `toSessionRes`).
 
 ## Προτεραιότητα διορθώσεων
 

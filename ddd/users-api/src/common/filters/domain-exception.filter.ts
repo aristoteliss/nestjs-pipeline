@@ -67,6 +67,23 @@ type HttpResponse = {
  *
  * Application and persistence code must not throw Nest HTTP exceptions to obtain
  * these responses; this filter is the presentation boundary responsible for mapping.
+ *
+ * @example Registering globally in bootstrap:
+ * ```typescript
+ * const app = await NestFactory.create(AppModule);
+ * app.useGlobalFilters(new DomainExceptionFilter());
+ * ```
+ *
+ * @example Sample 422 Unprocessable Entity payload:
+ * ```json
+ * {
+ *   "statusCode": 422,
+ *   "error": "Unprocessable Entity",
+ *   "message": "Username must be at least 3 characters, received: \"a\".",
+ *   "minLength": 3,
+ *   "actualValue": "a"
+ * }
+ * ```
  */
 @Catch(DomainException, OptimisticLockError)
 export class DomainExceptionFilter implements ExceptionFilter {

@@ -18,11 +18,12 @@
 
 import { describe, expect, it, vi } from 'vitest';
 import { DeleteAuthCommand } from '../cqrs/commands/delete-auth.command';
+import { Auth } from '../domain/models/auth.entity';
 import { AuthsController } from './auths.controller';
 
 describe('AuthsController', () => {
   describe('logout', () => {
-    it('passes raw session and headers to userLoginService.extractCredentials, dispatches DeleteAuthCommand, and deletes session', async () => {
+    it('passes raw session and headers to userLoginService.extractCredentials, dispatches DeleteAuthCommand, and clears session via sessionService', async () => {
       const mockCommandBus = {
         execute: vi.fn().mockResolvedValue(undefined),
       };
@@ -32,16 +33,18 @@ describe('AuthsController', () => {
           token: 'token-abc',
         }),
       };
+      const mockSessionService = {
+        saveSession: vi.fn(),
+        clearSession: vi.fn(),
+      };
 
       const controller = new AuthsController(
         mockCommandBus as never,
         mockUserLoginService as never,
+        mockSessionService as never,
       );
 
-      const sessionDelete = vi.fn();
-      const mockSession = {
-        delete: sessionDelete,
-      };
+      const mockSession = { id: 'sess-1' };
       const mockHeaders = {
         authorization: 'Bearer token-abc',
       };
@@ -60,7 +63,7 @@ describe('AuthsController', () => {
       expect(dispatchedCommand).toBeInstanceOf(DeleteAuthCommand);
       expect(dispatchedCommand.userId).toBe('user-xyz');
       expect(dispatchedCommand.token).toBe('token-abc');
-      expect(sessionDelete).toHaveBeenCalledOnce();
+      expect(mockSessionService.clearSession).toHaveBeenCalledWith(mockSession);
     });
 
     it('safely handles missing session without throwing', async () => {
@@ -73,10 +76,15 @@ describe('AuthsController', () => {
           token: 'token-header-only',
         }),
       };
+      const mockSessionService = {
+        saveSession: vi.fn(),
+        clearSession: vi.fn(),
+      };
 
       const controller = new AuthsController(
         mockCommandBus as never,
         mockUserLoginService as never,
+        mockSessionService as never,
       );
 
       await controller.logout({
@@ -88,6 +96,7 @@ describe('AuthsController', () => {
         { authorization: 'Bearer token-header-only' },
       );
       expect(mockCommandBus.execute).toHaveBeenCalledOnce();
+      expect(mockSessionService.clearSession).toHaveBeenCalledWith(undefined);
     });
 
     it('does not dispatch DeleteAuthCommand when no credentials are found (anonymous logout)', async () => {
@@ -100,23 +109,28 @@ describe('AuthsController', () => {
           token: undefined,
         }),
       };
+      const mockSessionService = {
+        saveSession: vi.fn(),
+        clearSession: vi.fn(),
+      };
 
       const controller = new AuthsController(
         mockCommandBus as never,
         mockUserLoginService as never,
+        mockSessionService as never,
       );
 
-      const sessionDelete = vi.fn();
+      const mockSession = { id: 'sess-anon' };
       await controller.logout({
-        session: { delete: sessionDelete } as never,
+        session: mockSession as never,
       });
 
       expect(mockUserLoginService.extractCredentials).toHaveBeenCalledWith(
-        { delete: sessionDelete },
+        mockSession,
         undefined,
       );
       expect(mockCommandBus.execute).not.toHaveBeenCalled();
-      expect(sessionDelete).toHaveBeenCalledOnce();
+      expect(mockSessionService.clearSession).toHaveBeenCalledWith(mockSession);
     });
 
     it('handles cookie-only session logout when token is stored on session', async () => {
@@ -129,17 +143,20 @@ describe('AuthsController', () => {
           token: 'token-from-cookie',
         }),
       };
+      const mockSessionService = {
+        saveSession: vi.fn(),
+        clearSession: vi.fn(),
+      };
 
       const controller = new AuthsController(
         mockCommandBus as never,
         mockUserLoginService as never,
+        mockSessionService as never,
       );
 
-      const sessionDelete = vi.fn();
       const mockSession = {
         user: { id: 'user-cookie-1', tenant: 'tenant_a' },
         token: 'token-from-cookie',
-        delete: sessionDelete,
       };
 
       await controller.logout({
@@ -156,10 +173,10 @@ describe('AuthsController', () => {
           token: 'token-from-cookie',
         }),
       );
-      expect(sessionDelete).toHaveBeenCalledOnce();
+      expect(mockSessionService.clearSession).toHaveBeenCalledWith(mockSession);
     });
 
-    it('safely completes when session exists but has no delete method', async () => {
+    it('safely completes when session exists', async () => {
       const mockCommandBus = {
         execute: vi.fn().mockResolvedValue(undefined),
       };
@@ -169,24 +186,31 @@ describe('AuthsController', () => {
           token: 'token-1',
         }),
       };
+      const mockSessionService = {
+        saveSession: vi.fn(),
+        clearSession: vi.fn(),
+      };
 
       const controller = new AuthsController(
         mockCommandBus as never,
         mockUserLoginService as never,
+        mockSessionService as never,
       );
 
-      // Session without a delete method
       const mockSession = {};
       await expect(
         controller.logout({ session: mockSession as never }),
       ).resolves.toBeUndefined();
       expect(mockCommandBus.execute).toHaveBeenCalledOnce();
+      expect(mockSessionService.clearSession).toHaveBeenCalledWith(mockSession);
     });
   });
 
   describe('login', () => {
-    it('executes CreateAuthCommand and updates session when present', async () => {
-      const sessionResult = {
+    it('executes CreateAuthCommand and updates session via sessionService.saveSession', async () => {
+      const auth = Auth.create('usr-1', 'token-new');
+      const createAuthResult = {
+        aggregate: auth,
         id: 'usr-1',
         tenant: 'tenant_a',
         email: 'user@example.test',
@@ -197,15 +221,20 @@ describe('AuthsController', () => {
         exp: 12345,
       };
       const mockCommandBus = {
-        execute: vi.fn().mockResolvedValue(sessionResult),
+        execute: vi.fn().mockResolvedValue(createAuthResult),
       };
       const mockUserLoginService = {
         extractCredentials: vi.fn(),
+      };
+      const mockSessionService = {
+        saveSession: vi.fn(),
+        clearSession: vi.fn(),
       };
 
       const controller = new AuthsController(
         mockCommandBus as never,
         mockUserLoginService as never,
+        mockSessionService as never,
       );
 
       const mockSession: Record<string, unknown> = {};
@@ -214,17 +243,20 @@ describe('AuthsController', () => {
         { session: mockSession as never },
       );
 
-      expect(result).toEqual(sessionResult);
-      expect(mockSession.user).toEqual({
+      expect(result).toEqual({
         id: 'usr-1',
         tenant: 'tenant_a',
         email: 'user@example.test',
         department: 'sales',
         capabilities: { roles: [] },
+        token: 'token-new',
         expiresAt: 12345678,
         exp: 12345,
       });
-      expect(mockSession.token).toBe('token-new');
+      expect(mockSessionService.saveSession).toHaveBeenCalledWith(
+        mockSession,
+        result,
+      );
     });
   });
 });

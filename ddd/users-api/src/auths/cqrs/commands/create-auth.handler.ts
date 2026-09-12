@@ -3,9 +3,8 @@
  * See repository license for full terms.
  */
 
-import { requireTenantId } from '@common/cqrs/helpers/requireTenantId.helper';
 import { AUDIT_ACTIONS } from '@common/constants';
-import { SessionUser } from '@common/types/SessionUser';
+import { requireTenantId } from '@common/cqrs/helpers/requireTenantId.helper';
 import { Inject } from '@nestjs/common';
 import { CommandHandler, EventBus } from '@nestjs/cqrs';
 import { AUDIT_SEVERITY, AuditBehavior } from '@nestjs-pipeline/audit';
@@ -24,6 +23,7 @@ import { TenantSchemaContext } from '@persistence/tenant-schema.context';
 import { Auth, AuthSnapshot } from '../../domain/models/auth.entity';
 import { COMMAND_REPOSITORY } from '../../persistence/repository.tokens';
 import { UserLoginService } from '../../services/user-login.service';
+import { CreateAuthResult } from '../results/create-auth.result';
 import { CreateAuthCommand } from './create-auth.command';
 
 /** Builds the tenant/email partition used by login rate limiting. */
@@ -52,7 +52,7 @@ export function createAuthRateLimitKey(ctx: IPipelineContext): string {
 )
 export class CreateAuthHandler extends CommandBaseHandler<
   CreateAuthCommand,
-  SessionUser
+  CreateAuthResult
 > {
   constructor(
     protected readonly eventBus: EventBus,
@@ -64,18 +64,16 @@ export class CreateAuthHandler extends CommandBaseHandler<
     super(eventBus);
   }
 
-  async handle(
-    command: CreateAuthCommand,
-  ): Promise<SessionUser & { token: string }> {
+  async handle(command: CreateAuthCommand): Promise<CreateAuthResult> {
     const { email, code } = command;
     const verifiedUser = await this.userLoginService.authenticate(email, code);
     const authResult = await this.userLoginService.signToken(verifiedUser);
     const auth = Auth.create(authResult.userId, authResult.accessToken);
 
     await this.commandRepository.save(auth);
-    this.commit(auth);
 
     return {
+      aggregate: auth,
       id: authResult.userId,
       tenant: this.tenantSchemaContext.schema,
       email,

@@ -16,7 +16,7 @@
  * ----------------------------
  */
 
-import { Inject, Optional } from '@nestjs/common';
+import { Inject } from '@nestjs/common';
 import { CommandHandler, ICommandHandler } from '@nestjs/cqrs';
 import type {
   ICommandRepository,
@@ -42,7 +42,6 @@ export class DeleteAuthHandler
   implements ICommandHandler<DeleteAuthCommand, void>
 {
   constructor(
-    @Optional()
     @Inject(COMMAND_REPOSITORY.deleteAuth)
     private readonly commandRepository: ICommandRepository<Auth, null>,
     @Inject(QUERY_REPOSITORY.findAuth)

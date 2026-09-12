@@ -36,6 +36,7 @@ import { EXT_USER_QUERY_REPOSITORY } from '../../users/persistence/repository.to
 import { GetUserCapabilitiesQuery } from '../cqrs/queries/get-user-capabilities.query';
 import { CapabilityCodec } from './capability-codec';
 import { JwtAuthenticator } from './jwt-authenticator';
+import { SessionService } from './session.service';
 
 export interface AuthResult {
   userId: string;
@@ -73,15 +74,21 @@ export class UserLoginService {
     @Inject(TenantSchemaContext)
     private readonly tenantSchemaContext: TenantSchemaContext,
     private readonly jwtAuthenticator: JwtAuthenticator,
+    private readonly sessionService: SessionService = new SessionService(),
   ) {}
 
   /**
    * Extracts credentials (userId and optional bearer token) from session and/or request headers.
    *
    * Delegates token extraction and token-subject resolution to {@link JwtAuthenticator},
-   * preserving abstraction boundaries.
+   * and session credential extraction to {@link SessionService}.
    *
    * @returns An object containing the resolved `userId` and `token`.
+   *
+   * @example
+   * ```typescript
+   * const { userId, token } = await this.userLoginService.extractCredentials(req.session, req.headers);
+   * ```
    */
   async extractCredentials(
     sessionOrReq?:
@@ -112,11 +119,10 @@ export class UserLoginService {
       headers = headersParam;
     }
 
+    const sessionCreds = this.sessionService.getCredentials(session);
     const token =
-      this.jwtAuthenticator.extractToken(headers) ??
-      session?.token ??
-      session?.get?.('token');
-    let userId = session?.user?.id;
+      this.jwtAuthenticator.extractToken(headers) ?? sessionCreds.token;
+    let userId = sessionCreds.userId;
 
     if (!userId && headers) {
       userId = await this.jwtAuthenticator.extractUserId(headers);

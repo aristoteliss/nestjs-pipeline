@@ -113,11 +113,9 @@ Do not instantiate aggregates in application code with `new Aggregate(snapshot)`
 
 For aggregate-changing commands, prefer the repository's `CommandBaseHandler` pattern.
 
-If the handler returns the aggregate, let `CommandBaseHandler.execute()` publish buffered aggregate events automatically.
+Handlers must return the aggregate root (or an application result containing `aggregate: AggregateRoot`) so `CommandBaseHandler.execute()` publishes buffered aggregate events automatically and clears uncommitted events.
 
-If the handler returns a custom DTO/session result, call `this.commit(aggregate)` explicitly after persistence.
-
-Do not publish the same aggregate events manually and also return the aggregate, or they may be duplicated.
+Never publish or commit domain events manually inside command handlers. Presentation-specific transformations (such as mapping to response DTOs or session cookies) belong in the controller/presentation layer via dedicated mappers (e.g. `toSessionRes(result)`), while cookie lifecycle operations belong in `SessionService`.
 
 ### 7. Keep entity-level authorization in the application path
 

@@ -92,6 +92,24 @@ function resolveTenantSchema(
  * - **Delimiter escaping**: primitive values containing `:` or `\\` are escaped.
  * - **Deterministic object serialization**: nested JSON values use core `stableStringify`.
  * - **Fail-safe resource prefixes**: fragile constructor names are rejected.
+ *
+ * @example Single property lookup with entity class
+ * ```typescript
+ * filterCacheKey(User, { id: '123' }, ctx)
+ * // → "tenant:user:id:123"
+ * ```
+ *
+ * @example Composite filter with escaped delimiters
+ * ```typescript
+ * filterCacheKey('user', { a: 'hello:b:world' }, 'tenant')
+ * // → "tenant:user:a:hello\:b\:world"
+ * ```
+ *
+ * @example Nested composite identity without [object Object]
+ * ```typescript
+ * filterCacheKey('deployment', { compose: { service: 'web', file: 'docker-compose.yml' } }, 'tenant')
+ * // → 'tenant:deployment:compose:{"file":"docker-compose.yml","service":"web"}'
+ * ```
  */
 export function filterCacheKey(
   resourceOrEntity: CacheResourceSpecifier,
@@ -145,6 +163,19 @@ export function filterCacheKey(
  * Required placeholders throw when absent; optional `{prop?}` placeholders resolve
  * to an empty string. Object placeholder values use the same canonical serializer
  * as `filterCacheKey`.
+ *
+ * @example Required placeholder (throws if userId is missing)
+ * ```typescript
+ * const getKey = cacheKeyTemplate('user:{userId}', 'tenant');
+ * getKey({ userId: '123' }); // → "tenant:user:123"
+ * getKey({}); // Throws Error: Cannot resolve cache key template: missing required placeholder "userId".
+ * ```
+ *
+ * @example Optional placeholder
+ * ```typescript
+ * const getKey = cacheKeyTemplate('user:{userId}:{scope?}', 'tenant');
+ * getKey({ userId: '123' }); // → "tenant:user:123:"
+ * ```
  */
 export function cacheKeyTemplate<T = Record<string, unknown>>(
   template: string,

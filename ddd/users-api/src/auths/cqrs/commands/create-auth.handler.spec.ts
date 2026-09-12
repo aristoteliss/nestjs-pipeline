@@ -25,7 +25,7 @@ import { CreateAuthCommand } from './create-auth.command';
 import { CreateAuthHandler } from './create-auth.handler';
 
 describe('CreateAuthHandler', () => {
-  it('authenticates, signs token, persists Auth entity, and publishes event via this.commit(auth)', async () => {
+  it('authenticates, signs token, persists Auth entity, and publishes event via CommandBaseHandler', async () => {
     const eventBus = {
       publishAll: vi.fn(),
     } as unknown as EventBus;
@@ -78,14 +78,15 @@ describe('CreateAuthHandler', () => {
     expect(savedAuth.userId).toBe('user-1');
     expect(savedAuth.token).toBe('signed-token-123');
 
-    // Verify this.commit(auth) published CreatedAuthEvent and uncommitted
+    // Verify CommandBaseHandler.execute() published CreatedAuthEvent and cleared uncommitted events
     expect(eventBus.publishAll).toHaveBeenCalledTimes(1);
     expect(eventBus.publishAll).toHaveBeenCalledWith(
       expect.arrayContaining([expect.any(CreatedAuthEvent)]),
     );
     expect(savedAuth.getUncommittedEvents()).toHaveLength(0);
 
-    expect(result).toEqual({
+    expect(result.aggregate).toBeInstanceOf(Auth);
+    expect(result).toMatchObject({
       id: 'user-1',
       tenant: 'tenant_alpha',
       email: 'alice@example.test',

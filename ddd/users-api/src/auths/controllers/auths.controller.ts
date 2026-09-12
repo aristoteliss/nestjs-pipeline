@@ -16,15 +16,19 @@
  * ----------------------------
  */
 
-import { SessionData, SessionUser } from '@common/types/SessionUser';
+import { SessionData } from '@common/types/SessionUser';
 import { Session } from '@fastify/secure-session';
 import { Body, Controller, HttpCode, Post, Req } from '@nestjs/common';
 import { CommandBus } from '@nestjs/cqrs';
 import { ZodPipe } from '@nestjs-pipeline/zod';
 import { CreateAuthCommand } from '../cqrs/commands/create-auth.command';
 import { DeleteAuthCommand } from '../cqrs/commands/delete-auth.command';
+import { CreateAuthResult } from '../cqrs/results/create-auth.result';
 import { LoginDto, LoginDtoSchema } from '../dtos/login.dto';
 import { LoginMapper } from '../mappers/login.mapper';
+import { toSessionRes } from '../mappers/session.mapper';
+import { SessionResponse } from '../responses/session.res';
+import { SessionService } from '../services/session.service';
 import { UserLoginService } from '../services/user-login.service';
 
 @Controller('auth')
@@ -32,6 +36,7 @@ export class AuthsController {
   constructor(
     private readonly commandBus: CommandBus,
     private readonly userLoginService: UserLoginService,
+    private readonly sessionService: SessionService,
   ) {}
 
   /**
@@ -46,26 +51,17 @@ export class AuthsController {
   async login(
     @Body(new ZodPipe(LoginDtoSchema)) dto: LoginDto,
     @Req() req: { session?: Session<SessionData> },
-  ): Promise<SessionUser> {
-    const sessionData = await this.commandBus.execute<
+  ): Promise<SessionResponse> {
+    const result = await this.commandBus.execute<
       CreateAuthCommand,
-      SessionUser & { token: string }
+      CreateAuthResult
     >(LoginMapper.map(dto));
 
-    if (req.session) {
-      req.session.user = {
-        id: sessionData.id,
-        tenant: sessionData.tenant,
-        email: sessionData.email,
-        department: sessionData.department,
-        capabilities: sessionData.capabilities,
-        expiresAt: sessionData.expiresAt,
-        exp: sessionData.exp,
-      };
-      req.session.token = sessionData.token;
-    }
+    const sessionRes = toSessionRes(result);
 
-    return sessionData;
+    this.sessionService.saveSession(req.session, sessionRes);
+
+    return sessionRes;
   }
 
   /**
@@ -93,6 +89,6 @@ export class AuthsController {
       await this.commandBus.execute(new DeleteAuthCommand({ userId, token }));
     }
 
-    req.session?.delete?.();
+    this.sessionService.clearSession(req.session);
   }
 }
