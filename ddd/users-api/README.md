@@ -542,7 +542,9 @@ import { GetRolesQuery } from './get-roles.query';
     CacheBehavior,
     {
       ttl: 30_000, // 30-second cache TTL
-      key: (ctx) => `${ctx.tenantId ?? 'default'}:roles:all`,
+      // Built-in defaultCacheKey is request-scoped via context.correlationId.
+      // Do NOT use an unpartitioned shared key (e.g. `${tenantId}:roles:all`)
+      // when the handler performs entity-level or field-level authorization.
     },
   ],
 )
@@ -559,6 +561,13 @@ export class GetRolesHandler implements IQueryHandler<GetRolesQuery, RoleSnapsho
   }
 }
 ```
+
+> [!WARNING]
+> **Authorization & Cache Security Scope**:
+> When a query handler executes entity-level or field-level authorization (such as `this.authorizer.authorize('read', role)`), cached responses must never be shared across principals using an unpartitioned cache key.
+>
+> The built-in `defaultCacheKey()` is safe by default because it is request-scoped via `context.correlationId`. If cross-request shared caching is intentionally required, the explicit `key` factory must include every dimension that influences the authorized response (`tenantId`, principal ID, role/capability scope) and must fail closed on missing tenant context (never falling back to `'default'`).
+
 
 ### Environment Variables Reference
 
