@@ -30,4 +30,20 @@ export abstract class BaseCommand implements ICommand {
       });
     }
   }
+
+  /**
+   * Returns the names of all payload fields explicitly provided in this command,
+   * excluding identifier and metadata keys.
+   *
+   * @param exclude - Array of property keys to exclude (defaults to `['id']`).
+   * @returns Array of field names targeted for mutation.
+   */
+  getUpdateFields(exclude: string[] = ['id']): string[] {
+    const excluded = new Set(exclude);
+    return Object.keys(this).filter(
+      (key) =>
+        !excluded.has(key) &&
+        (this as Record<string, unknown>)[key] !== undefined,
+    );
+  }
 }
