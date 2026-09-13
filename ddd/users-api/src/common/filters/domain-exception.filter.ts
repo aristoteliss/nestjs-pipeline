@@ -28,6 +28,10 @@ import {
   EntityNotFoundException,
 } from '@nestjs-pipeline/ddd-core';
 import {
+  AuthConfigurationException,
+  InvalidLoginCredentialsException,
+} from '../../auths/domain/errors/authentication.exception';
+import {
   InvalidRoleNameException,
   UniqueRoleNameException,
 } from '../../roles/domain/models/errors/role-name.exception';
@@ -116,6 +120,17 @@ export class DomainExceptionFilter implements ExceptionFilter {
   } {
     if (exception instanceof OptimisticLockError) {
       return { statusCode: HttpStatus.CONFLICT, error: 'Conflict' };
+    }
+
+    if (exception instanceof InvalidLoginCredentialsException) {
+      return { statusCode: HttpStatus.UNAUTHORIZED, error: 'Unauthorized' };
+    }
+
+    if (exception instanceof AuthConfigurationException) {
+      return {
+        statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
+        error: 'Internal Server Error',
+      };
     }
 
     if (exception instanceof EntityNotFoundException) {

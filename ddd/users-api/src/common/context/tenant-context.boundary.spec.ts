@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 
 const applicationFiles = [
   '../../auths/cqrs/commands/create-auth.handler.ts',
-  '../../auths/services/user-login.service.ts',
+  '../../auths/infrastructure/jose-access-token.issuer.ts',
   '../../auths/services/jwt-authenticator.ts',
   '../../auths/services/api-client-authenticator.ts',
   '../../auths/services/request-principal-resolver.ts',
@@ -24,4 +24,13 @@ describe('application tenant-context boundary', () => {
       expect(source).toContain('TENANT_CONTEXT');
     },
   );
+
+  it('user-login.service.ts does not depend on persistence tenant context', () => {
+    const source = readFileSync(
+      resolve(__dirname, '../../auths/services/user-login.service.ts'),
+      'utf8',
+    );
+    expect(source).not.toContain('@persistence/tenant-schema.context');
+    expect(source).not.toContain('../../persistence/tenant-schema.context');
+  });
 });
