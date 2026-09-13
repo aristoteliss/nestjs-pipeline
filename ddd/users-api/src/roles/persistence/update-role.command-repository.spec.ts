@@ -243,7 +243,9 @@ describe('decorated versioned update lifecycle', () => {
   it('loads authoritative snapshots through the write-side reader', async () => {
     const { em, role, repository } = setup();
     em.findOne.mockResolvedValue(role);
-    await expect(repository.findById(role.id)).resolves.toEqual(role.toJSON());
+    const result = await repository.findById(role.id);
+    expect(result).toBeInstanceOf(Role);
+    expect(result?.id).toBe(role.id);
     expect(em.findOne).toHaveBeenCalledWith(
       Role,
       { id: role.id },

@@ -25,12 +25,8 @@ import type { ICommandRepository } from './command-repository.interface';
  * result cache. Adapters backed by an ORM identity map should force a refresh so
  * optimistic-concurrency checks are based on current persisted state.
  */
-export interface IWriteSideAggregateRepository<
-  TEntity,
-  TSnapshot,
-  TResult = unknown,
-  TId = string,
-> extends ICommandRepository<TEntity, TResult> {
-  /** Loads the current authoritative snapshot for a mutating command. */
-  findById(id: TId): Promise<TSnapshot | null>;
+export interface IWriteSideAggregateRepository<TEntity, TId = string>
+  extends ICommandRepository<TEntity, unknown> {
+  /** Loads the current authoritative aggregate for a mutating command. */
+  findById(id: TId): Promise<TEntity | null>;
 }

@@ -29,9 +29,15 @@ describe('CreateUserCommandRepository', () => {
       toCacheSnapshot(result),
       expect.objectContaining({ isNewer: expect.any(Function) }),
     );
-    expect(cache.delete).toHaveBeenCalledWith(
+    expect(cache.set).toHaveBeenCalledWith(
       'tenant:user:email:alice@example.test',
+      expect.objectContaining({
+        __cacheBarrier: true,
+        reason: 'invalidated',
+      }),
+      { ttl: 0 },
     );
+    expect(cache.delete).not.toHaveBeenCalled();
     expect((user as any)._persistedVersion).toBe(1);
   });
 

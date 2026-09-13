@@ -4,32 +4,26 @@ import { Inject, Injectable } from '@nestjs/common';
 import {
   AcknowledgePersisted,
   Cache,
-  CommandRepository,
   ICache,
-  IWriteSideAggregateRepository,
   MapPersistenceErrors,
   optimisticUpdate,
 } from '@nestjs-pipeline/ddd-core';
 import { CACHE_TOKEN } from '@persistence/cache/memory.cache';
 import { MIKRO_ORM_CLIENT, MikroOrmStore } from '@persistence/mikro-orm.store';
+import { MikroOrmWriteSideCommandRepository } from '@persistence/mikro-orm-write-side.command-repository';
 import { User, UserSnapshot } from '../domain/models/user.entity';
 
 @Injectable()
-export class UpdateUserCommandRepository
-  extends CommandRepository<User, UserSnapshot>
-  implements IWriteSideAggregateRepository<User, UserSnapshot, UserSnapshot>
-{
+export class UpdateUserCommandRepository extends MikroOrmWriteSideCommandRepository<
+  UserSnapshot,
+  User,
+  UserSnapshot
+> {
   constructor(
-    @Inject(CACHE_TOKEN) protected readonly cache: ICache<UserSnapshot>,
-    @Inject(MIKRO_ORM_CLIENT) private readonly store: MikroOrmStore,
+    @Inject(CACHE_TOKEN) cache: ICache<UserSnapshot>,
+    @Inject(MIKRO_ORM_CLIENT) store: MikroOrmStore,
   ) {
-    super(cache);
-  }
-
-  /** Reads directly from primary persistence; command hydration never uses read-side cache. */
-  async findById(id: string): Promise<UserSnapshot | null> {
-    const user = await this.store.em.findOne(User, { id }, { refresh: true });
-    return user?.toJSON() ?? null;
+    super(cache, store, User, User.aggregateName, User.fromJSON);
   }
 
   @Cache<User, UserSnapshot>(

@@ -31,9 +31,10 @@ describe('DeleteAuthCommandRepository', () => {
       },
     } as unknown as MikroOrmStore;
 
-    const cacheDelete = vi.fn().mockResolvedValue(undefined);
+    const cacheSet = vi.fn().mockResolvedValue(undefined);
     const mockCache = {
-      delete: cacheDelete,
+      set: cacheSet,
+      delete: vi.fn(),
     } as unknown as ICache<AuthSnapshot>;
 
     const repo = new DeleteAuthCommandRepository(mockCache, mockStore);
@@ -52,8 +53,13 @@ describe('DeleteAuthCommandRepository', () => {
     expect(nativeDelete).toHaveBeenCalledWith(Auth, {
       id: '018f2d5e-4b6a-7b3f-8c1d-2e3f4a5b6c7d',
     });
-    expect(cacheDelete).toHaveBeenCalledWith(
+    expect(cacheSet).toHaveBeenCalledWith(
       expect.stringContaining(`auth:id:${auth.id}`),
+      expect.objectContaining({
+        __cacheBarrier: true,
+        reason: 'deleted',
+      }),
+      { ttl: 0 },
     );
   });
 });

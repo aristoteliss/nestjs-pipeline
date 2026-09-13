@@ -4,39 +4,26 @@ import { OptimisticLockError } from '@mikro-orm/core';
 import { Inject, Injectable } from '@nestjs/common';
 import {
   Cache,
-  CommandRepository,
   EntityNotFoundException,
   ICache,
-  IWriteSideAggregateRepository,
 } from '@nestjs-pipeline/ddd-core';
 import { CACHE_TOKEN } from '@persistence/cache/memory.cache';
 import { mapPersistenceError } from '@persistence/is-transient-persistence-error';
 import { MIKRO_ORM_CLIENT, MikroOrmStore } from '@persistence/mikro-orm.store';
+import { MikroOrmWriteSideCommandRepository } from '@persistence/mikro-orm-write-side.command-repository';
 import { Role, RoleSnapshot } from '../domain/models/role.entity';
 
 @Injectable()
-export class DeleteRoleCommandRepository
-  extends CommandRepository<Role, null>
-  implements IWriteSideAggregateRepository<Role, RoleSnapshot, null>
-{
+export class DeleteRoleCommandRepository extends MikroOrmWriteSideCommandRepository<
+  RoleSnapshot,
+  Role,
+  null
+> {
   constructor(
-    @Inject(CACHE_TOKEN) protected readonly cache: ICache<RoleSnapshot>,
-    @Inject(MIKRO_ORM_CLIENT) private readonly store: MikroOrmStore,
+    @Inject(CACHE_TOKEN) cache: ICache<RoleSnapshot>,
+    @Inject(MIKRO_ORM_CLIENT) store: MikroOrmStore,
   ) {
-    super(cache);
-  }
-
-  /**
-   * Reads directly from primary persistence and translates retryable driver
-   * failures into the application-neutral transient-operation signal.
-   */
-  async findById(id: string): Promise<RoleSnapshot | null> {
-    try {
-      const role = await this.store.em.findOne(Role, { id }, { refresh: true });
-      return role?.toJSON() ?? null;
-    } catch (error) {
-      throw mapPersistenceError(error, `loading Role ${id}`);
-    }
+    super(cache, store, Role, Role.aggregateName, Role.fromJSON);
   }
 
   @Cache<Role, null>(null, (role) => [

@@ -122,8 +122,15 @@ describe('@Cache decorator on CommandRepository.save', () => {
     const result = await repo.save(entity);
 
     expect(result).toBeNull();
-    expect(mockCache.delete).toHaveBeenCalledWith('mock:delete-me');
-    expect(mockCache.set).not.toHaveBeenCalled();
+    expect(mockCache.set).toHaveBeenCalledWith(
+      'mock:delete-me',
+      expect.objectContaining({
+        __cacheBarrier: true,
+        reason: 'deleted',
+      }),
+      { ttl: 0 },
+    );
+    expect(mockCache.delete).not.toHaveBeenCalled();
   });
 
   it('caches and returns a valid falsy result instead of treating it as deletion', async () => {
@@ -158,8 +165,15 @@ describe('@Cache decorator on CommandRepository.save', () => {
     const result = await repo.save(entity);
 
     expect(result).toBeUndefined();
-    expect(mockCache.delete).toHaveBeenCalledWith('mock:u1');
-    expect(mockCache.set).not.toHaveBeenCalled();
+    expect(mockCache.set).toHaveBeenCalledWith(
+      'mock:u1',
+      expect.objectContaining({
+        __cacheBarrier: true,
+        reason: 'deleted',
+      }),
+      { ttl: 0 },
+    );
+    expect(mockCache.delete).not.toHaveBeenCalled();
   });
 
   it('evicts secondary keys after a successful save before caching the result', async () => {
@@ -173,15 +187,22 @@ describe('@Cache decorator on CommandRepository.save', () => {
 
     await repo.save(entity);
 
-    expect(cache.delete).toHaveBeenCalledWith('email:u1');
-    expect(cache.set).toHaveBeenCalledWith(
+    expect(cache.set).toHaveBeenNthCalledWith(
+      1,
+      'email:u1',
+      expect.objectContaining({
+        __cacheBarrier: true,
+        reason: 'invalidated',
+      }),
+      { ttl: 0 },
+    );
+    expect(cache.set).toHaveBeenNthCalledWith(
+      2,
       'user:u1',
       { id: 'u1' },
       expect.objectContaining({ isNewer: expect.any(Function) }),
     );
-    expect(vi.mocked(cache.delete).mock.invocationCallOrder[0]).toBeLessThan(
-      vi.mocked(cache.set).mock.invocationCallOrder[0],
-    );
+    expect(cache.delete).not.toHaveBeenCalled();
   });
 
   it('does not fail save if deleteKeys or invalidateKeys callbacks throw', async () => {

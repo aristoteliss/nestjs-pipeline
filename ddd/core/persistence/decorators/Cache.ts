@@ -18,6 +18,7 @@
 
 import { Logger } from '@nestjs/common';
 import type { CommandRepository } from '../command-repository.abstract';
+import { createCacheMutationBarrier } from '../helpers/cache-barrier.helper';
 import { toCacheSnapshot } from '../helpers/cache-snapshot.helper';
 import { isCacheNewer } from '../helpers/cache-version.helper';
 
@@ -169,10 +170,11 @@ export function Cache<TEntity = unknown, TResult = unknown | null>(
             }
             for (const key of deleteKeys) {
               try {
-                await this.cache.delete(key);
+                const barrier = createCacheMutationBarrier('deleted', entity);
+                await this.cache.set(key, barrier as never, { ttl: 0 });
               } catch (err) {
                 logger.warn(
-                  `Failed deleting cache key "${key}": ${err instanceof Error ? err.message : String(err)}`,
+                  `Failed installing deletion barrier for key "${key}": ${err instanceof Error ? err.message : String(err)}`,
                 );
               }
             }
@@ -191,10 +193,11 @@ export function Cache<TEntity = unknown, TResult = unknown | null>(
           }
           for (const key of invalidateKeys) {
             try {
-              await this.cache.delete(key);
+              const barrier = createCacheMutationBarrier('invalidated', entity);
+              await this.cache.set(key, barrier as never, { ttl: 0 });
             } catch (err) {
               logger.warn(
-                `Failed invalidating cache key "${key}": ${err instanceof Error ? err.message : String(err)}`,
+                `Failed installing invalidation barrier for key "${key}": ${err instanceof Error ? err.message : String(err)}`,
               );
             }
           }

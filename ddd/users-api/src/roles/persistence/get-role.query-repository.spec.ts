@@ -40,4 +40,31 @@ describe('GetRoleQueryRepository cache hydration', () => {
     expect(cache.get).toHaveBeenCalledWith(`tenant:role:id:${role.id}`);
     expect(findOne).not.toHaveBeenCalled();
   });
+
+  it('caches snapshot and returns domain aggregate on cache miss', async () => {
+    const role = Role.create('editor');
+    const cache: ICache<RoleSnapshot> = {
+      get: vi.fn().mockResolvedValue(undefined),
+      set: vi.fn(),
+      delete: vi.fn(),
+    };
+    const findOne = vi.fn().mockResolvedValue(role);
+    const store = {
+      get em() {
+        return { findOne };
+      },
+    };
+    const queryRepository = new GetRoleQueryRepository(cache, store as never);
+
+    const result = await queryRepository.find(
+      new GetRoleQuery({ roleId: role.id }),
+    );
+
+    expect(result).toBe(role);
+    expect(cache.set).toHaveBeenCalledWith(
+      `tenant:role:id:${role.id}`,
+      role.toJSON(),
+      expect.objectContaining({ isNewer: expect.any(Function) }),
+    );
+  });
 });

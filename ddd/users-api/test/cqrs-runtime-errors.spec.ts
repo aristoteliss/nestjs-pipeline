@@ -332,7 +332,7 @@ describe('CQRS Commands & Queries Runtime Error Taxonomy', () => {
         const authorizer = createMockAuthorizer(true);
         const existingUser = User.create('Alice', 'alice@example.test');
         const commandRepo = {
-          findById: vi.fn().mockResolvedValue(existingUser.toJSON()),
+          findById: vi.fn().mockResolvedValue(existingUser),
           save: vi.fn(),
         };
         const handler = new UpdateUserHandler(
@@ -372,7 +372,7 @@ describe('CQRS Commands & Queries Runtime Error Taxonomy', () => {
         const authorizer = createMockAuthorizer(false);
         const existingUser = User.create('Alice', 'alice@example.test');
         const commandRepo = {
-          findById: vi.fn().mockResolvedValue(existingUser.toJSON()),
+          findById: vi.fn().mockResolvedValue(existingUser),
           save: vi.fn(),
         };
         const handler = new UpdateUserHandler(
@@ -418,7 +418,7 @@ describe('CQRS Commands & Queries Runtime Error Taxonomy', () => {
         const authorizer = createMockAuthorizer(false);
         const existingUser = User.create('Alice', 'alice@example.test');
         const commandRepo = {
-          findById: vi.fn().mockResolvedValue(existingUser.toJSON()),
+          findById: vi.fn().mockResolvedValue(existingUser),
           save: vi.fn(),
         };
         const handler = new DeleteUserHandler(
@@ -579,7 +579,7 @@ describe('CQRS Commands & Queries Runtime Error Taxonomy', () => {
         const authorizer = createMockAuthorizer(true);
         const existingRole = Role.create('Editor');
         const commandRepo = {
-          findById: vi.fn().mockResolvedValue(existingRole.toJSON()),
+          findById: vi.fn().mockResolvedValue(existingRole),
           save: vi
             .fn()
             .mockRejectedValue(

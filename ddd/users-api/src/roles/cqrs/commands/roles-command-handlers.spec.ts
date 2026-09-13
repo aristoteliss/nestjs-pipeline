@@ -5,7 +5,7 @@ import {
   type IWriteSideAggregateRepository,
 } from '@nestjs-pipeline/ddd-core';
 import { describe, expect, it, vi } from 'vitest';
-import { Role, type RoleSnapshot } from '../../domain/models/role.entity';
+import { Role } from '../../domain/models/role.entity';
 import { DeleteRoleCommand } from './delete-role.command';
 import { DeleteRoleHandler } from './delete-role.handler';
 import { UpdateRoleCommand } from './update-role.command';
@@ -19,13 +19,9 @@ describe('Roles CQRS write-side hydration', () => {
     const existing = Role.create('editor');
     existing.uncommit();
     const repository = {
-      findById: vi.fn().mockResolvedValue(existing.toJSON()),
+      findById: vi.fn().mockResolvedValue(existing),
       save: vi.fn().mockResolvedValue(existing.toJSON()),
-    } as unknown as IWriteSideAggregateRepository<
-      Role,
-      RoleSnapshot,
-      RoleSnapshot
-    >;
+    } as unknown as IWriteSideAggregateRepository<Role>;
     const handler = new UpdateRoleHandler(repository, authorizer, eventBus);
 
     const result = await handler.execute(
@@ -41,11 +37,7 @@ describe('Roles CQRS write-side hydration', () => {
     const repository = {
       findById: vi.fn().mockResolvedValue(null),
       save: vi.fn(),
-    } as unknown as IWriteSideAggregateRepository<
-      Role,
-      RoleSnapshot,
-      RoleSnapshot
-    >;
+    } as unknown as IWriteSideAggregateRepository<Role>;
     const handler = new UpdateRoleHandler(repository, authorizer, eventBus);
 
     await expect(
@@ -63,9 +55,9 @@ describe('Roles CQRS write-side hydration', () => {
     const existing = Role.create('viewer');
     existing.uncommit();
     const repository = {
-      findById: vi.fn().mockResolvedValue(existing.toJSON()),
+      findById: vi.fn().mockResolvedValue(existing),
       save: vi.fn().mockResolvedValue(null),
-    } as unknown as IWriteSideAggregateRepository<Role, RoleSnapshot, null>;
+    } as unknown as IWriteSideAggregateRepository<Role>;
     const handler = new DeleteRoleHandler(repository, authorizer, eventBus);
 
     const result = await handler.execute(

@@ -10,7 +10,7 @@ import {
   IWriteSideAggregateRepository,
 } from '@nestjs-pipeline/ddd-core';
 import { UniqueRoleNameException } from '../../domain/models/errors/role-name.exception';
-import { Role, type RoleSnapshot } from '../../domain/models/role.entity';
+import type { Role } from '../../domain/models/role.entity';
 import { COMMAND_REPOSITORY } from '../../persistence/repository.tokens';
 import { UpdateRoleCommand } from './update-role.command';
 
@@ -34,11 +34,7 @@ export class UpdateRoleHandler extends CommandBaseHandler<
 > {
   constructor(
     @Inject(COMMAND_REPOSITORY.updateRole)
-    private readonly commandRepository: IWriteSideAggregateRepository<
-      Role,
-      RoleSnapshot,
-      RoleSnapshot
-    >,
+    private readonly commandRepository: IWriteSideAggregateRepository<Role>,
     private readonly authorizer: CaslAuthorizer,
     protected readonly eventBus: EventBus,
   ) {
@@ -47,8 +43,7 @@ export class UpdateRoleHandler extends CommandBaseHandler<
 
   /** Loads authoritative write-side state and keeps not-found semantics transport-neutral. */
   async handle(command: UpdateRoleCommand): Promise<Role> {
-    const snapshot = await this.commandRepository.findById(command.id);
-    const role = snapshot ? Role.fromJSON(snapshot) : null;
+    const role = await this.commandRepository.findById(command.id);
     if (!role) {
       throw new EntityNotFoundException('Role', command.id);
     }

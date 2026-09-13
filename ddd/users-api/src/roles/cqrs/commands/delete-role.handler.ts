@@ -13,7 +13,7 @@ import {
   IWriteSideAggregateRepository,
 } from '@nestjs-pipeline/ddd-core';
 import { ResilienceBehavior } from '@nestjs-pipeline/resilience';
-import { Role, type RoleSnapshot } from '../../domain/models/role.entity';
+import type { Role } from '../../domain/models/role.entity';
 import { COMMAND_REPOSITORY } from '../../persistence/repository.tokens';
 import { DeleteRoleCommand } from './delete-role.command';
 
@@ -27,22 +27,29 @@ import { DeleteRoleCommand } from './delete-role.command';
   [
     ResilienceBehavior,
     {
-      handle: isTransientOperationError,
       retry: {
         maxAttempts: 3,
-        backoff: { type: 'exponential', initialDelay: 100, maxDelay: 2_000 },
+        backoff: 'exponential',
+        initialDelayMs: 25,
+        maxDelayMs: 100,
+        isRetryable: isTransientOperationError,
       },
     },
   ],
   [
     AuditBehavior,
     {
-      action: AUDIT_ACTIONS.ROLE_DELETE,
+      action: AUDIT_ACTIONS.DELETE_ROLE,
       severity: AUDIT_SEVERITY.HIGH,
-      actor: () => {
-        const sessionUser = getSessionUserFromStore();
-        return sessionUser
-          ? { id: sessionUser.id, email: sessionUser.email ?? undefined }
+      metadataFactory: (ctx) => {
+        const cmd = ctx.request as DeleteRoleCommand;
+        const actor = getSessionUserFromStore();
+        return cmd && actor
+          ? {
+              targetRoleId: cmd.id,
+              deletedByUserId: actor.id,
+              deletedByEmail: actor.email,
+            }
           : undefined;
       },
     },
@@ -54,11 +61,7 @@ export class DeleteRoleHandler extends CommandBaseHandler<
 > {
   constructor(
     @Inject(COMMAND_REPOSITORY.deleteRole)
-    private readonly commandRepository: IWriteSideAggregateRepository<
-      Role,
-      RoleSnapshot,
-      null
-    >,
+    private readonly commandRepository: IWriteSideAggregateRepository<Role>,
     private readonly authorizer: CaslAuthorizer,
     protected readonly eventBus: EventBus,
   ) {
@@ -71,8 +74,7 @@ export class DeleteRoleHandler extends CommandBaseHandler<
    * this handler does not inspect persistence-specific driver codes.
    */
   async handle(command: DeleteRoleCommand): Promise<Role> {
-    const snapshot = await this.commandRepository.findById(command.id);
-    const role = snapshot ? Role.fromJSON(snapshot) : null;
+    const role = await this.commandRepository.findById(command.id);
     if (!role) {
       throw new EntityNotFoundException('Role', command.id);
     }
