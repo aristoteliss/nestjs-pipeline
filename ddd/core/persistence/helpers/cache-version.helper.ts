@@ -16,6 +16,8 @@
  * ----------------------------
  */
 
+import { isCacheMutationBarrier } from './cache-barrier.helper';
+
 /**
  * Checks whether a cached snapshot or record is strictly newer than an incoming
  * record based on explicit version numbers, generation counters, or updatedAt timestamps.
@@ -44,7 +46,9 @@ export function isCacheNewer(cached: unknown, incoming: unknown): boolean {
     !cached ||
     typeof cached !== 'object' ||
     !incoming ||
-    typeof incoming !== 'object'
+    typeof incoming !== 'object' ||
+    isCacheMutationBarrier(cached) ||
+    isCacheMutationBarrier(incoming)
   ) {
     return false;
   }

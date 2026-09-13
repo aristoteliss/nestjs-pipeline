@@ -2,7 +2,7 @@
 
 Mutation commands must hydrate aggregates from authoritative persistence, never from CQRS read-side caches.
 
-`UpdateUserHandler`, `DeleteUserHandler`, `UpdateRoleHandler`, and `DeleteRoleHandler` therefore depend on `IWriteSideAggregateRepository`. Its `findById()` operation is implemented by command repositories with MikroORM `refresh: true`, bypassing both `@FromCache` and the ORM identity map before domain mutation and optimistic-concurrency checks.
+`UpdateUserHandler`, `DeleteUserHandler`, `UpdateRoleHandler`, and `DeleteRoleHandler` therefore depend on `IWriteSideAggregateRepository<TEntity>`. Its `findById()` operation is implemented via `MikroOrmWriteSideCommandRepository` with MikroORM `{ refresh: true }` and `mapPersistenceError(...)`, bypassing both `@FromCache` and the ORM identity map before domain mutation and optimistic-concurrency checks. Command handlers receive the fully rehydrated domain aggregate (`Promise<TEntity | null>`) directly, without importing snapshot types or calling `fromJSON()` manually.
 
 Read/query handlers remain free to use `IQueryRepository` and `@FromCache`. Do not reintroduce `GetUserQuery`, `GetRoleQuery`, `QueryBus`, or `IQueryRepository` into mutation handlers merely to load an aggregate.
 
@@ -16,12 +16,14 @@ When a contextual EntityManager is reused, the store validates driver/config/sch
 
 When adding a command that mutates an existing aggregate:
 
-1. expose authoritative loading through the command/write-side repository port;
-2. rehydrate through the aggregate's `fromJSON()` factory;
-3. authorize against that aggregate;
-4. mutate only through domain methods;
-5. save through the same write-side repository;
-6. add unit coverage proving the handler calls the write-side loader and E2E coverage that pre-warms a stale read cache before the mutation.
+1. extend `MikroOrmWriteSideCommandRepository<TEntity, TSnapshot, TResult>` (providing `hydrateFn: (s) => TEntity.fromJSON(s)`);
+2. inject `IWriteSideAggregateRepository<TEntity>` into the command handler;
+3. load the aggregate authoritatively via `await this.repository.findById(id)`;
+4. verify presence or throw `EntityNotFoundException`;
+5. authorize against that aggregate;
+6. mutate only through domain methods;
+7. save through the same write-side repository;
+8. add unit coverage proving the handler calls the write-side loader and E2E coverage that pre-warms a stale read cache before the mutation.
 
 ## Decorated persistence lifecycle
 
@@ -77,5 +79,15 @@ and Biome plugin tests live in `ddd/core/persistence`.
 - **Identity Map Isolation**: All cache entry lookups in `MikroOrmCache.get()` use `{ disableIdentityMap: true }`. Because cache rows represent ephemeral infrastructure state rather than unit-of-work domain entities, bypassing the identity map ensures reads always reflect fresh persistence state regardless of request-scoped EntityManager reuse.
 - **CAS-Safe Lazy Expiration**: To eliminate race conditions where an expired reader deletes a newly written fresh key from a concurrent writer, expired deletions are conditional: `nativeDelete(CacheEntry, { key: entry.key, value: entry.value, expiresAt: entry.expiresAt })`. If affected rows is 0 (indicating a competing write updated the value or timestamp), `MikroOrmCache` re-reads fresh state and returns the fresh replacement if still live.
 - **Fail-Closed Deserialization**: Cache reading enforces fail-closed semantics: corrupted JSON payloads throw `SyntaxError` rather than being swallowed into a false cache miss.
+
+### 7. Anti-Resurrection Protocol & Mutation Barriers
+- **Stale Resurrection Problem**: When a record is deleted or updated in the database and evicted from cache, an in-flight, slow database read that started *before* the mutation could complete *after* the mutation, repopulating the cache with deleted/stale data ("cache resurrection").
+- **Mutation Barriers**: On entity deletion (`deleteKeys`) and secondary invalidation (`invalidateKeys`), `@Cache` does not merely delete keys; it installs a `CacheMutationBarrier` sentinel (`{ __cacheBarrier: true, token: uuidv7(), reason: 'deleted' | 'invalidated', createdAt: ... }`) with `ttl: 0`.
+- **Read-Through Barrier Coordination**: `@FromCache` verifies cache state both before querying the database and after receiving database rows:
+  - If a barrier is present pre-fetch or installed during an in-flight DB read, `@FromCache` never caches stale DB data.
+  - It tracks barrier tokens to detect ABA sequences (e.g. Delete -> Recreate -> Delete).
+  - It retries queries boundedly (`MAX_BARRIER_RETRIES = 2`) against primary persistence, ensuring queries converge on authoritative state without resurrecting deleted entities or outdated snapshots.
+- **E2E Conformance**: The anti-resurrection guarantees across concurrent deletes, updates, secondary keys, create races, and ABA sequences are guarded by `test/cache-stale-resurrection.e2e-spec.ts`.
+
 
 

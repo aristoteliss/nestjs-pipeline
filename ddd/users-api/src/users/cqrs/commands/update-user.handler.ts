@@ -9,7 +9,7 @@ import {
   EntityNotFoundException,
   IWriteSideAggregateRepository,
 } from '@nestjs-pipeline/ddd-core';
-import { User, type UserSnapshot } from '../../domain/models/user.entity';
+import type { User } from '../../domain/models/user.entity';
 import { COMMAND_REPOSITORY } from '../../persistence/repository.tokens';
 import { UpdateUserCommand } from './update-user.command';
 
@@ -27,11 +27,7 @@ export class UpdateUserHandler extends CommandBaseHandler<
 > {
   constructor(
     @Inject(COMMAND_REPOSITORY.updateUser)
-    private readonly commandRepository: IWriteSideAggregateRepository<
-      User,
-      UserSnapshot,
-      UserSnapshot
-    >,
+    private readonly commandRepository: IWriteSideAggregateRepository<User>,
     private readonly authorizer: CaslAuthorizer,
     protected readonly eventBus: EventBus,
   ) {
@@ -44,8 +40,7 @@ export class UpdateUserHandler extends CommandBaseHandler<
    */
   async handle(command: UpdateUserCommand): Promise<User> {
     const { id, username, department } = command;
-    const snapshot = await this.commandRepository.findById(id);
-    const user = snapshot ? User.fromJSON(snapshot) : null;
+    const user = await this.commandRepository.findById(id);
     if (!user) {
       throw new EntityNotFoundException('User', id);
     }

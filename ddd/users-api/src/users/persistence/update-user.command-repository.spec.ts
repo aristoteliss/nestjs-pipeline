@@ -36,14 +36,20 @@ describe('UpdateUserCommandRepository', () => {
         version: 2,
       },
     );
-    expect(cache.delete).toHaveBeenCalledWith(
+    expect(cache.set).toHaveBeenCalledWith(
       'tenant:user:email:alice@example.test',
+      expect.objectContaining({
+        __cacheBarrier: true,
+        reason: 'invalidated',
+      }),
+      { ttl: 0 },
     );
     expect(cache.set).toHaveBeenCalledWith(
       `tenant:user:id:${user.id}`,
       toCacheSnapshot(user.toJSON()),
       expect.objectContaining({ isNewer: expect.any(Function) }),
     );
+    expect(cache.delete).not.toHaveBeenCalled();
   });
 
   it('throws EntityNotFoundException when a concurrent delete removed the user', async () => {

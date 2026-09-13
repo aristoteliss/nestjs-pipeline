@@ -5,7 +5,7 @@ import {
   type IWriteSideAggregateRepository,
 } from '@nestjs-pipeline/ddd-core';
 import { describe, expect, it, vi } from 'vitest';
-import { User, type UserSnapshot } from '../../domain/models/user.entity';
+import { User } from '../../domain/models/user.entity';
 import { DeleteUserCommand } from './delete-user.command';
 import { DeleteUserHandler } from './delete-user.handler';
 import { UpdateUserCommand } from './update-user.command';
@@ -19,13 +19,9 @@ describe('Users CQRS write-side hydration', () => {
     const existing = User.create('Alice', 'alice@example.test', 'Engineering');
     existing.uncommit();
     const repository = {
-      findById: vi.fn().mockResolvedValue(existing.toJSON()),
+      findById: vi.fn().mockResolvedValue(existing),
       save: vi.fn().mockResolvedValue(existing.toJSON()),
-    } as unknown as IWriteSideAggregateRepository<
-      User,
-      UserSnapshot,
-      UserSnapshot
-    >;
+    } as unknown as IWriteSideAggregateRepository<User>;
     const handler = new UpdateUserHandler(repository, authorizer, eventBus);
 
     const result = await handler.execute(
@@ -41,11 +37,7 @@ describe('Users CQRS write-side hydration', () => {
     const repository = {
       findById: vi.fn().mockResolvedValue(null),
       save: vi.fn(),
-    } as unknown as IWriteSideAggregateRepository<
-      User,
-      UserSnapshot,
-      UserSnapshot
-    >;
+    } as unknown as IWriteSideAggregateRepository<User>;
     const handler = new UpdateUserHandler(repository, authorizer, eventBus);
 
     await expect(
@@ -63,9 +55,9 @@ describe('Users CQRS write-side hydration', () => {
     const existing = User.create('Bob', 'bob@example.test');
     existing.uncommit();
     const repository = {
-      findById: vi.fn().mockResolvedValue(existing.toJSON()),
+      findById: vi.fn().mockResolvedValue(existing),
       save: vi.fn().mockResolvedValue(null),
-    } as unknown as IWriteSideAggregateRepository<User, UserSnapshot, null>;
+    } as unknown as IWriteSideAggregateRepository<User>;
     const handler = new DeleteUserHandler(repository, authorizer, eventBus);
 
     const result = await handler.execute(

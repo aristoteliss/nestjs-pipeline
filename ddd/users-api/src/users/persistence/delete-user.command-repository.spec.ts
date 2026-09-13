@@ -32,11 +32,23 @@ describe('DeleteUserCommandRepository', () => {
       id: user.id,
       version: user.getExpectedVersion(),
     });
-    expect(cache.set).not.toHaveBeenCalled();
-    expect(cache.delete).toHaveBeenCalledWith(`tenant:user:id:${user.id}`);
-    expect(cache.delete).toHaveBeenCalledWith(
-      'tenant:user:email:alice@example.test',
+    expect(cache.set).toHaveBeenCalledWith(
+      `tenant:user:id:${user.id}`,
+      expect.objectContaining({
+        __cacheBarrier: true,
+        reason: 'deleted',
+      }),
+      { ttl: 0 },
     );
+    expect(cache.set).toHaveBeenCalledWith(
+      'tenant:user:email:alice@example.test',
+      expect.objectContaining({
+        __cacheBarrier: true,
+        reason: 'deleted',
+      }),
+      { ttl: 0 },
+    );
+    expect(cache.delete).not.toHaveBeenCalled();
   });
 
   it('throws OptimisticLockError when the user exists at a newer version and does not evict cache', async () => {

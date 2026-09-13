@@ -4,32 +4,27 @@ import { Inject, Injectable } from '@nestjs/common';
 import {
   AcknowledgePersisted,
   Cache,
-  CommandRepository,
   ICache,
-  IWriteSideAggregateRepository,
   MapPersistenceErrors,
   optimisticUpdate,
 } from '@nestjs-pipeline/ddd-core';
 import { CACHE_TOKEN } from '@persistence/cache/memory.cache';
 import { MIKRO_ORM_CLIENT, MikroOrmStore } from '@persistence/mikro-orm.store';
+import { MikroOrmWriteSideCommandRepository } from '@persistence/mikro-orm-write-side.command-repository';
 import { UniqueRoleNameException } from '../domain/models/errors/role-name.exception';
 import { Role, RoleSnapshot } from '../domain/models/role.entity';
 
 @Injectable()
-export class UpdateRoleCommandRepository
-  extends CommandRepository<Role, RoleSnapshot>
-  implements IWriteSideAggregateRepository<Role, RoleSnapshot, RoleSnapshot>
-{
+export class UpdateRoleCommandRepository extends MikroOrmWriteSideCommandRepository<
+  RoleSnapshot,
+  Role,
+  RoleSnapshot
+> {
   constructor(
-    @Inject(CACHE_TOKEN) protected readonly cache: ICache<RoleSnapshot>,
-    @Inject(MIKRO_ORM_CLIENT) private readonly store: MikroOrmStore,
+    @Inject(CACHE_TOKEN) cache: ICache<RoleSnapshot>,
+    @Inject(MIKRO_ORM_CLIENT) store: MikroOrmStore,
   ) {
-    super(cache);
-  }
-
-  async findById(id: string): Promise<RoleSnapshot | null> {
-    const role = await this.store.em.findOne(Role, { id }, { refresh: true });
-    return role?.toJSON() ?? null;
+    super(cache, store, Role, Role.aggregateName, Role.fromJSON);
   }
 
   @Cache<Role, RoleSnapshot>((role) =>

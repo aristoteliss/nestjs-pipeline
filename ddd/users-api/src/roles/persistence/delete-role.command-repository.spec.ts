@@ -32,8 +32,15 @@ describe('DeleteRoleCommandRepository', () => {
       id: role.id,
       version: role.getExpectedVersion(),
     });
-    expect(cache.set).not.toHaveBeenCalled();
-    expect(cache.delete).toHaveBeenCalledWith(`tenant:role:id:${role.id}`);
+    expect(cache.set).toHaveBeenCalledWith(
+      `tenant:role:id:${role.id}`,
+      expect.objectContaining({
+        __cacheBarrier: true,
+        reason: 'deleted',
+      }),
+      { ttl: 0 },
+    );
+    expect(cache.delete).not.toHaveBeenCalled();
   });
 
   it('throws OptimisticLockError when the role exists at a newer version and does not evict cache', async () => {

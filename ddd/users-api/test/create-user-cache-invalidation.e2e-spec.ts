@@ -1,5 +1,5 @@
 import type { Server } from 'node:http';
-import type { ICache } from '@nestjs-pipeline/ddd-core';
+import { type ICache, isCacheMutationBarrier } from '@nestjs-pipeline/ddd-core';
 import { CACHE_TOKEN } from '@persistence/cache/memory.cache';
 import request from 'supertest';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -39,6 +39,11 @@ describe('create-user secondary cache invalidation (e2e)', () => {
       .send({ email, name: 'Fresh User' });
 
     expect(response.status).toBe(201);
-    expect(await cache.get(key)).toBeUndefined();
+    const cached = await cache.get(key);
+    expect(cached).not.toEqual(expect.objectContaining({ username: 'stale' }));
+    expect(isCacheMutationBarrier(cached)).toBe(true);
+    if (isCacheMutationBarrier(cached)) {
+      expect(cached.reason).toBe('invalidated');
+    }
   });
 });

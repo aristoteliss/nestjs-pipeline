@@ -13,7 +13,7 @@ import {
   IWriteSideAggregateRepository,
 } from '@nestjs-pipeline/ddd-core';
 import { ResilienceBehavior } from '@nestjs-pipeline/resilience';
-import { User, type UserSnapshot } from '../../domain/models/user.entity';
+import type { User } from '../../domain/models/user.entity';
 import { COMMAND_REPOSITORY } from '../../persistence/repository.tokens';
 import { DeleteUserCommand } from './delete-user.command';
 
@@ -27,26 +27,29 @@ import { DeleteUserCommand } from './delete-user.command';
   [
     ResilienceBehavior,
     {
-      handle: isTransientOperationError,
       retry: {
         maxAttempts: 3,
-        backoff: { type: 'exponential', initialDelay: 100, maxDelay: 2_000 },
-      },
-      circuitBreaker: {
-        halfOpenAfter: 10_000,
-        breaker: { type: 'consecutive', threshold: 5 },
+        backoff: 'exponential',
+        initialDelayMs: 25,
+        maxDelayMs: 100,
+        isRetryable: isTransientOperationError,
       },
     },
   ],
   [
     AuditBehavior,
     {
-      action: AUDIT_ACTIONS.USER_DELETE,
+      action: AUDIT_ACTIONS.DELETE_USER,
       severity: AUDIT_SEVERITY.HIGH,
-      actor: () => {
-        const sessionUser = getSessionUserFromStore();
-        return sessionUser
-          ? { id: sessionUser.id, email: sessionUser.email ?? undefined }
+      metadataFactory: (ctx) => {
+        const cmd = ctx.request as DeleteUserCommand;
+        const actor = getSessionUserFromStore();
+        return cmd && actor
+          ? {
+              targetUserId: cmd.id,
+              deletedByUserId: actor.id,
+              deletedByEmail: actor.email,
+            }
           : undefined;
       },
     },
@@ -58,11 +61,7 @@ export class DeleteUserHandler extends CommandBaseHandler<
 > {
   constructor(
     @Inject(COMMAND_REPOSITORY.deleteUser)
-    private readonly commandRepository: IWriteSideAggregateRepository<
-      User,
-      UserSnapshot,
-      null
-    >,
+    private readonly commandRepository: IWriteSideAggregateRepository<User>,
     private readonly authorizer: CaslAuthorizer,
     protected readonly eventBus: EventBus,
   ) {
@@ -76,8 +75,7 @@ export class DeleteUserHandler extends CommandBaseHandler<
    * this handler does not inspect persistence-specific driver codes.
    */
   async handle(command: DeleteUserCommand): Promise<User> {
-    const snapshot = await this.commandRepository.findById(command.id);
-    const user = snapshot ? User.fromJSON(snapshot) : null;
+    const user = await this.commandRepository.findById(command.id);
     if (!user) {
       throw new EntityNotFoundException('User', command.id);
     }

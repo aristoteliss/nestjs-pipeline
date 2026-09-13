@@ -1,0 +1,358 @@
+/*
+ * Copyright (C) 2026-present Aristotelis
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as
+ * published by the Free Software Foundation, either version 3 of the
+ * License, or (at your option) any later version.
+ *
+ * --- COMMERCIAL EXCEPTION ---
+ * Alternatively, a Commercial License is available for individuals or
+ * organizations that require proprietary use without the AGPLv3
+ * copyleft restrictions.
+ *
+ * See COMMERCIAL_LICENSE.txt in this repository for the tiered
+ * revenue-based terms, or contact: aristotelis@ik.me
+ * ----------------------------
+ */
+
+import type { Server } from 'node:http';
+import { EntityManager } from '@mikro-orm/core';
+import { uuidv7 } from '@nestjs-pipeline/core';
+import {
+  createCacheMutationBarrier,
+  type ICache,
+  isCacheMutationBarrier,
+} from '@nestjs-pipeline/ddd-core';
+import { CACHE_TOKEN } from '@persistence/cache/memory.cache';
+import request from 'supertest';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import {
+  User,
+  type UserSnapshot,
+} from '../src/users/domain/models/user.entity';
+import { bootstrapE2E, type E2EContext } from './support/e2e-app';
+
+describe('Cache Mutation Barriers & Anti-Resurrection (e2e)', () => {
+  let ctx: E2EContext;
+  let http: Server;
+  const admin = JSON.stringify({
+    id: 'admin-resurrection',
+    email: 'admin-resurrection@acme.test',
+    department: 'platform',
+    capabilities: { roles: [], additionalCapabilities: ['all|manage|*'] },
+  });
+
+  beforeAll(async () => {
+    ctx = await bootstrapE2E();
+    http = ctx.app.getHttpServer() as Server;
+  });
+
+  afterAll(async () => {
+    await ctx?.close();
+  });
+
+  type FindOneEntityName = Parameters<
+    typeof EntityManager.prototype.findOne
+  >[0];
+  type FindOneFilter = Parameters<typeof EntityManager.prototype.findOne>[1];
+
+  it('scenario 1: concurrent delete vs in-flight reader prevents deleted entity resurrection in cache', async () => {
+    const email = `del-race-${Date.now()}@acme.test`;
+    const createRes = await request(http)
+      .post('/users')
+      .set('x-tenant-schema', 'tenant')
+      .set('x-test-user', admin)
+      .send({ email, name: 'To Be Deleted' });
+
+    expect(createRes.status).toBe(201);
+    const userId = createRes.body.id;
+    const cacheKey = `tenant:user:id:${userId}`;
+    const cache = ctx.app.get<ICache<unknown>>(CACHE_TOKEN);
+
+    // Evict so next read-through must query the database
+    await cache.delete(cacheKey);
+
+    // Intercept findOne so that while the query is in flight, a DELETE command executes
+    const origFindOne = EntityManager.prototype.findOne;
+    let hookTriggered = false;
+
+    try {
+      EntityManager.prototype.findOne = async function (
+        this: EntityManager,
+        entityName: FindOneEntityName,
+        where: FindOneFilter,
+        ...rest: unknown[]
+      ) {
+        const result = await origFindOne.call(
+          this,
+          entityName as never,
+          where as never,
+          ...(rest as [never]),
+        );
+        if (
+          !hookTriggered &&
+          entityName === User &&
+          typeof where === 'object' &&
+          where !== null &&
+          (where as Record<string, unknown>).id === userId &&
+          result !== null
+        ) {
+          hookTriggered = true;
+          // Concurrently delete the user while reader has already loaded the stale entity
+          const delRes = await request(http)
+            .delete(`/users/${userId}`)
+            .set('x-tenant-schema', 'tenant')
+            .set('x-test-user', admin);
+          expect(delRes.status).toBe(204);
+        }
+        return result;
+      };
+
+      // In-flight read executes
+      const readRes = await request(http)
+        .get(`/users/${userId}`)
+        .set('x-tenant-schema', 'tenant')
+        .set('x-test-user', admin);
+
+      // The reader detected the concurrent deletion barrier, retried, and saw null -> 404
+      expect(readRes.status).toBe(404);
+    } finally {
+      EntityManager.prototype.findOne = origFindOne;
+    }
+
+    // Crucial check: the cache must NOT contain the resurrected User snapshot!
+    const cachedEntry = await cache.get(cacheKey);
+    if (isCacheMutationBarrier(cachedEntry)) {
+      // If an entry is present, it MUST be a mutation barrier, never a resurrected snapshot
+      expect(cachedEntry.reason).toBe('deleted');
+    }
+
+    // Subsequent GET requests continue to return 404
+    const subsequentRead = await request(http)
+      .get(`/users/${userId}`)
+      .set('x-tenant-schema', 'tenant')
+      .set('x-test-user', admin);
+    expect(subsequentRead.status).toBe(404);
+  });
+
+  it('scenario 2: concurrent update vs in-flight reader prevents stale v1 from regressing cache', async () => {
+    const email = `upd-race-${Date.now()}@acme.test`;
+    const createRes = await request(http)
+      .post('/users')
+      .set('x-tenant-schema', 'tenant')
+      .set('x-test-user', admin)
+      .send({ email, name: 'Version 1 User' });
+
+    expect(createRes.status).toBe(201);
+    const userId = createRes.body.id;
+    const cacheKey = `tenant:user:id:${userId}`;
+    const cache = ctx.app.get<ICache<unknown>>(CACHE_TOKEN);
+
+    // Evict so next read-through must query the database
+    await cache.delete(cacheKey);
+
+    const origFindOne = EntityManager.prototype.findOne;
+    let hookTriggered = false;
+
+    try {
+      EntityManager.prototype.findOne = async function (
+        this: EntityManager,
+        entityName: FindOneEntityName,
+        where: FindOneFilter,
+        ...rest: unknown[]
+      ) {
+        const result = await origFindOne.call(
+          this,
+          entityName as never,
+          where as never,
+          ...(rest as [never]),
+        );
+        if (
+          !hookTriggered &&
+          entityName === User &&
+          typeof where === 'object' &&
+          where !== null &&
+          (where as Record<string, unknown>).id === userId &&
+          result !== null
+        ) {
+          hookTriggered = true;
+          // Concurrently update to version 2 while reader loaded version 1
+          const updateRes = await request(http)
+            .patch(`/users/${userId}`)
+            .set('x-tenant-schema', 'tenant')
+            .set('x-test-user', admin)
+            .send({ name: 'Version 2 User' });
+          expect(updateRes.status).toBe(200);
+        }
+        return result;
+      };
+
+      const readRes = await request(http)
+        .get(`/users/${userId}`)
+        .set('x-tenant-schema', 'tenant')
+        .set('x-test-user', admin);
+
+      expect(readRes.status).toBe(200);
+      // Reader must have received version 2 (via CAS comparison or retry), never stale version 1!
+      expect(readRes.body.name).toBe('Version 2 User');
+    } finally {
+      EntityManager.prototype.findOne = origFindOne;
+    }
+
+    // Cache must contain version 2, never version 1
+    const cachedEntry = (await cache.get(cacheKey)) as UserSnapshot;
+    expect(cachedEntry).toBeDefined();
+    expect(cachedEntry.version).toBe(2);
+    expect(cachedEntry.username).toBe('Version 2 User');
+  });
+
+  it('scenario 3: mutation barrier is installed on secondary keys after delete', async () => {
+    const email = `barrier-sec-${Date.now()}@acme.test`;
+    const createRes = await request(http)
+      .post('/users')
+      .set('x-tenant-schema', 'tenant')
+      .set('x-test-user', admin)
+      .send({ email, name: 'Secondary Key User' });
+
+    expect(createRes.status).toBe(201);
+    const userId = createRes.body.id;
+    const emailKey = `tenant:user:email:${email}`;
+    const cache = ctx.app.get<ICache<unknown>>(CACHE_TOKEN);
+
+    // Perform deletion
+    const delRes = await request(http)
+      .delete(`/users/${userId}`)
+      .set('x-tenant-schema', 'tenant')
+      .set('x-test-user', admin);
+    expect(delRes.status).toBe(204);
+
+    // Email secondary key must have an invalidation/deletion barrier
+    const cachedEmail = await cache.get(emailKey);
+    if (isCacheMutationBarrier(cachedEmail)) {
+      expect(cachedEmail.reason).toBe('deleted');
+    }
+  });
+
+  it('scenario 4: concurrent create race returns fresh snapshot instead of caching null', async () => {
+    const email = `create-race-${Date.now()}@acme.test`;
+    const syntheticId = uuidv7();
+    const cacheKey = `tenant:user:id:${syntheticId}`;
+    const cache = ctx.app.get<ICache<unknown>>(CACHE_TOKEN);
+
+    const origFindOne = EntityManager.prototype.findOne;
+    let hookTriggered = false;
+
+    try {
+      EntityManager.prototype.findOne = async function (
+        this: EntityManager,
+        entityName: FindOneEntityName,
+        where: FindOneFilter,
+        ...rest: unknown[]
+      ) {
+        const result = await origFindOne.call(
+          this,
+          entityName as never,
+          where as never,
+          ...(rest as [never]),
+        );
+        if (
+          !hookTriggered &&
+          entityName === User &&
+          typeof where === 'object' &&
+          where !== null &&
+          (where as Record<string, unknown>).id === syntheticId &&
+          result === null
+        ) {
+          hookTriggered = true;
+          // Concurrently seed the cache with the newly created entity snapshot
+          await cache.set(cacheKey, {
+            id: syntheticId,
+            username: 'Concurrent Created User',
+            email,
+            version: 1,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+          });
+        }
+        return result;
+      };
+
+      const readRes = await request(http)
+        .get(`/users/${syntheticId}`)
+        .set('x-tenant-schema', 'tenant')
+        .set('x-test-user', admin);
+
+      // Even though DB returned null to the query, the post-DB cache check detected
+      // the concurrent creation and returned 200 with the hydrated user!
+      expect(readRes.status).toBe(200);
+      expect(readRes.body.id).toBe(syntheticId);
+      expect(readRes.body.name).toBe('Concurrent Created User');
+    } finally {
+      EntityManager.prototype.findOne = origFindOne;
+    }
+
+    // Cache was NOT overwritten with null!
+    const cachedAfter = (await cache.get(cacheKey)) as UserSnapshot | undefined;
+    expect(cachedAfter).toBeDefined();
+    expect(cachedAfter?.username).toBe('Concurrent Created User');
+  });
+
+  it('scenario 5: ABA sequence with changing barrier tokens rejects stale snapshot', async () => {
+    const userId = uuidv7();
+    const cacheKey = `tenant:user:id:${userId}`;
+    const cache = ctx.app.get<ICache<unknown>>(CACHE_TOKEN);
+
+    // Initial barrier B1 installed in cache
+    const barrier1 = createCacheMutationBarrier('deleted', { id: userId });
+    await cache.set(cacheKey, barrier1, { ttl: 0 });
+
+    const origFindOne = EntityManager.prototype.findOne;
+    let hookTriggered = false;
+
+    try {
+      EntityManager.prototype.findOne = async function (
+        this: EntityManager,
+        entityName: FindOneEntityName,
+        where: FindOneFilter,
+        ...rest: unknown[]
+      ) {
+        const result = await origFindOne.call(
+          this,
+          entityName as never,
+          where as never,
+          ...(rest as [never]),
+        );
+        if (
+          !hookTriggered &&
+          entityName === User &&
+          typeof where === 'object' &&
+          where !== null &&
+          (where as Record<string, unknown>).id === userId
+        ) {
+          hookTriggered = true;
+          // While reader was running, ABA occurred: a new barrier B2 with different token is installed
+          const barrier2 = createCacheMutationBarrier('deleted', {
+            id: userId,
+          });
+          await cache.set(cacheKey, barrier2, { ttl: 0 });
+        }
+        return result;
+      };
+
+      const readRes = await request(http)
+        .get(`/users/${userId}`)
+        .set('x-tenant-schema', 'tenant')
+        .set('x-test-user', admin);
+
+      // User does not exist in DB -> 404
+      expect(readRes.status).toBe(404);
+    } finally {
+      EntityManager.prototype.findOne = origFindOne;
+    }
+
+    // Read did not overwrite barrier with null
+    const cachedAfter = await cache.get(cacheKey);
+    expect(isCacheMutationBarrier(cachedAfter)).toBe(true);
+  });
+});

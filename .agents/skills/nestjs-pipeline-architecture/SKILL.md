@@ -219,6 +219,7 @@ Query repositories and decorators:
 - `@FromCache<TQuery, TResult>` accepts 2 generic parameters. On cache miss, it extracts a detached snapshot (`toCacheSnapshot()`, `serializeFn`, or `result.toJSON()`).
 - Query repositories configure `@FromCache({ alwaysHydrate: true, ... })` and return strictly `Promise<TEntity | null>`, eliminating ambiguous union types (`User | UserSnapshot`). Decoration-time validation ensures `alwaysHydrate: true` requires `hydrateFn`.
 - Strong consistency on concurrent reads: If an in-flight query races with a concurrent write that updates the cache, `@FromCache` detects the newer cached version (`newerCheck(current, snapshot)`) and returns the hydrated newer version to the reader rather than returning stale database data or corrupting cache.
+- Anti-resurrection protection: `@FromCache` coordinates pre- and post-DB barrier validation. When a deletion or secondary key invalidation occurs, `@Cache` writes a `CacheMutationBarrier` sentinel. If `@FromCache` encounters a barrier before DB execution, or if a barrier is installed while the DB query is running, it refuses to cache stale DB data, checks barrier token consistency (detecting ABA sequences), and boundedly retries (`MAX_BARRIER_RETRIES = 2`), preventing race conditions from resurrecting deleted or superseded records.
 - Cache adapters (`ICache<TSnapshot>`) store strictly serializable snapshots, never live domain aggregates. `MemoryCache` enforces deep detachment parity with database caches via JSON cloning on `set()` and `get()`.
 - `MikroOrmCache` executes queries outside the identity map (`{ disableIdentityMap: true }`) and uses conditional CAS deletion on expired keys (`{ key, value, expiresAt }`) to prevent concurrent fresh writes from being purged by an expired reader.
 
@@ -235,7 +236,7 @@ Repository-level read-through cache (`@FromCache`) is a good fit for authorizati
 
 Command handlers should express the use case in a small sequence:
 
-1. load required aggregate(s) through repository interfaces;
+1. load required aggregate(s) through `IWriteSideAggregateRepository<TEntity, TId = string>` (which returns `Promise<TEntity | null>` directly, using `{ refresh: true }` and `mapPersistenceError`);
 2. fail with framework-neutral application/domain errors if preconditions are not met;
 3. authorize against the real aggregate if required;
 4. call aggregate domain methods;
@@ -263,7 +264,7 @@ Do not throw HTTP exceptions from repositories.
 
 On command repository `save()` operations, apply method decorators in strictly outermost-to-innermost order:
 
-1. `@Cache(...)`: Write-through cache synchronization / invalidation after durable write & acknowledgment. Serializes through `toCacheSnapshot()` and protects against race conditions via CAS comparison (`isCacheNewer`), ensuring late-finishing writes cannot overwrite newer cached versions.
+1. `@Cache(...)`: Write-through cache synchronization / invalidation after durable write & acknowledgment. Serializes through `toCacheSnapshot()` and protects against race conditions via CAS comparison (`isCacheNewer`), ensuring late-finishing writes cannot overwrite newer cached versions. On entity deletions (`deleteKeys`) and secondary invalidations (`invalidateKeys`), installs an atomic `CacheMutationBarrier` sentinel (`{ ttl: 0, reason: 'deleted' | 'invalidated', token: uuidv7() }`) so concurrent in-flight queries cannot resurrect stale snapshots.
 2. `@AcknowledgePersisted({ entity: ([arg]) => arg })`: Captures entry version, updates `aggregate.acknowledgePersisted(version)` only after the persistence promise resolves.
 3. `@MapPersistenceErrors({ entity, unique: [...] })`: Translates known driver constraint errors (PostgreSQL 23505 and SQLite column matches) into domain exceptions before throwing.
 
@@ -306,6 +307,7 @@ Before finalizing an architecture-sensitive change, verify:
 - [ ] Missing tenant context cannot merge security-sensitive operations into a shared namespace.
 - [ ] Aggregate mutations use domain methods/factories, not setters/synthetic snapshots.
 - [ ] Command event publication follows `CommandBaseHandler` semantics.
+- [ ] Mutating command handlers inject `IWriteSideAggregateRepository<TEntity>` and work strictly with domain aggregates, never snapshots.
 - [ ] Query handlers do not perform writes.
 - [ ] Controllers remain presentation adapters.
 - [ ] Event handlers do not exist only for observability logging.
@@ -313,6 +315,7 @@ Before finalizing an architecture-sensitive change, verify:
 - [ ] Persistence write methods follow `@Cache` -> `@AcknowledgePersisted` -> `@MapPersistenceErrors` decorator order.
 - [ ] Entity updates use `optimisticUpdate()` and reject active outer transactions (`em.isInTransaction()`).
 - [ ] Entity deletes condition on `{ id, version: aggregate.getExpectedVersion() }` and assert affected rows.
+- [ ] Cache mutations install mutation barriers to prevent stale reader resurrection.
 - [ ] Tests cover the relevant architectural boundary, persistence lifecycle, and security behavior.
 - [ ] `pnpm lint:persistence` passes with zero diagnostics.
 

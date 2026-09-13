@@ -17,6 +17,7 @@
  */
 
 import { IQueryOptions } from '../../application/query.options';
+import { isCacheMutationBarrier } from '../helpers/cache-barrier.helper';
 import { toCacheSnapshot } from '../helpers/cache-snapshot.helper';
 import { isCacheNewer } from '../helpers/cache-version.helper';
 import { QueryRepository } from '../query-repository.abstract';
@@ -137,6 +138,8 @@ export function FromCache<
     throw new TypeError('FromCache: alwaysHydrate requires a hydrateFn');
   }
 
+  const MAX_BARRIER_RETRIES = 2;
+
   return (
     _target: object,
     _propertyKey: string | symbol,
@@ -155,49 +158,125 @@ export function FromCache<
       if (!resolvedKeyFn) throw new TypeError('FromCache requires a keyFn');
       const key = resolvedKeyFn(query);
 
-      if (key !== null) {
-        const cached = await this.cache.get(key);
-        if (cached !== null && cached !== undefined) {
-          if (
-            resolvedHydrateFn &&
-            (resolvedOptions?.alwaysHydrate || query.hydrate)
-          ) {
-            return resolvedHydrateFn(cached);
-          }
-          return cached as unknown as TResult;
-        }
+      if (key === null) {
+        return original.call(this, query);
       }
 
-      const result = await original.call(this, query);
+      const hydrateCached = (cachedValue: unknown): TResult => {
+        if (
+          resolvedHydrateFn &&
+          (resolvedOptions?.alwaysHydrate || query.hydrate)
+        ) {
+          return resolvedHydrateFn(cachedValue);
+        }
+        return cachedValue as unknown as TResult;
+      };
 
-      if (key !== null && result !== null && result !== undefined) {
-        const snapshot = toCacheSnapshot(result, resolvedOptions?.serializeFn);
+      let attempt = 0;
+      while (attempt <= MAX_BARRIER_RETRIES) {
+        // 1. Initial Cache Check
+        const initial = await this.cache.get(key);
+        let initialBarrierToken: string | undefined;
 
+        if (initial !== null && initial !== undefined) {
+          if (isCacheMutationBarrier(initial)) {
+            // Barrier observed: bypass cached value and record token to verify if mutation occurs during DB read
+            initialBarrierToken = initial.token;
+          } else {
+            // Normal snapshot cache hit
+            return hydrateCached(initial);
+          }
+        }
+
+        // 2. Authoritative DB Read
+        const result = await original.call(this, query);
+
+        // 3. Post-DB Cache Check (MANDATORY for all DB results, even null!)
         const current = await this.cache.get(key);
-        const newerCheck = resolvedOptions?.isNewer ?? isCacheNewer;
 
+        // Case A: Post-DB cache has a normal snapshot
         if (
           current !== null &&
           current !== undefined &&
-          newerCheck(current, snapshot)
+          !isCacheMutationBarrier(current)
         ) {
-          if (
-            resolvedHydrateFn &&
-            (resolvedOptions?.alwaysHydrate || query.hydrate)
-          ) {
-            return resolvedHydrateFn(current);
+          // Concurrent create: DB was null, but creator committed and cached a normal snapshot
+          if (result === null || result === undefined) {
+            return hydrateCached(current);
           }
-          return current as unknown as TResult;
+
+          // Both DB and cache have data: compare snapshots
+          const snapshot = toCacheSnapshot(
+            result,
+            resolvedOptions?.serializeFn,
+          );
+          const newerCheck = resolvedOptions?.isNewer ?? isCacheNewer;
+
+          if (newerCheck(current, snapshot)) {
+            return hydrateCached(current);
+          }
+
+          // DB snapshot is newer or equal: CAS-safe set
+          const setOptions = {
+            ttl: resolvedOptions?.ttl,
+            isNewer: newerCheck,
+          };
+          await this.cache.set(key, snapshot, setOptions);
+          return result;
         }
 
+        // Case B: Post-DB cache has a mutation barrier
+        if (
+          current !== null &&
+          current !== undefined &&
+          isCacheMutationBarrier(current)
+        ) {
+          if (
+            initialBarrierToken !== undefined &&
+            current.token === initialBarrierToken
+          ) {
+            // Same barrier observed before and after DB read.
+            // No mutation occurred while DB was in flight; DB result is authoritative relative to this barrier.
+            if (result !== null && result !== undefined) {
+              const snapshot = toCacheSnapshot(
+                result,
+                resolvedOptions?.serializeFn,
+              );
+              await this.cache.set(key, snapshot, {
+                ttl: resolvedOptions?.ttl,
+                isNewer: resolvedOptions?.isNewer ?? isCacheNewer,
+              });
+            }
+            return result;
+          }
+
+          // Different barrier, or barrier appeared while DB query was in flight!
+          // Stale result detected: do NOT cache result!
+          if (attempt < MAX_BARRIER_RETRIES) {
+            attempt++;
+            continue; // Retry authoritative DB read
+          }
+
+          // Bounded retries exhausted: return authoritative DB result without caching
+          return result;
+        }
+
+        // Case C: Post-DB cache is a MISS (null/undefined)
+        if (result === null || result === undefined) {
+          return result;
+        }
+
+        // DB returned non-null result and cache is miss: populate cache
+        const snapshot = toCacheSnapshot(result, resolvedOptions?.serializeFn);
         const setOptions = {
           ttl: resolvedOptions?.ttl,
-          isNewer: newerCheck,
+          isNewer: resolvedOptions?.isNewer ?? isCacheNewer,
         };
         await this.cache.set(key, snapshot, setOptions);
+        return result;
       }
 
-      return result;
+      return original.call(this, query);
     };
   };
 }

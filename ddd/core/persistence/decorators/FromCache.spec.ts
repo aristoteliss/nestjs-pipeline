@@ -19,6 +19,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { IQueryOptions } from '../../application/query.options';
 import type { ICache } from '../cache.interface';
+import { createCacheMutationBarrier } from '../helpers/cache-barrier.helper';
 import { FromCache, isCacheNewer } from './FromCache';
 
 interface GetUserQuery extends IQueryOptions {
@@ -429,5 +430,253 @@ describe('@FromCache with options and concurrency checks', () => {
       { transformed: 'HELLO' },
       expect.any(Object),
     );
+  });
+
+  describe('Mutation Barrier Protocol (Anti-Resurrection)', () => {
+    it('bypasses existing barrier on initial check and replaces it with fresh DB snapshot', async () => {
+      const barrier = createCacheMutationBarrier('invalidated', { id: 'u1' });
+      const cacheMap = new Map<string, any>();
+      cacheMap.set('user:u1', barrier);
+
+      const mockCache: ICache = {
+        get: vi
+          .fn()
+          .mockImplementation(async (key: string) => cacheMap.get(key)),
+        set: vi.fn().mockImplementation(async (key: string, val: any) => {
+          cacheMap.set(key, val);
+        }),
+        delete: vi.fn().mockImplementation(async (key: string) => {
+          cacheMap.delete(key);
+        }),
+      };
+
+      const repo = new TestQueryRepo(mockCache);
+      const result = await repo.find({ userId: 'u1' });
+
+      expect(repo.dbFetchCount).toBe(1);
+      expect(result).toEqual({ id: 'u1', name: 'User u1' });
+      expect(mockCache.set).toHaveBeenCalledWith(
+        'user:u1',
+        { id: 'u1', name: 'User u1' },
+        expect.any(Object),
+      );
+      expect(cacheMap.get('user:u1')).toEqual({ id: 'u1', name: 'User u1' });
+    });
+
+    it('retries when delete barrier appears during DB read and does not cache stale snapshot if DB returns null', async () => {
+      let cacheValue: any;
+
+      const mockCache: ICache = {
+        get: vi.fn().mockImplementation(async () => cacheValue),
+        set: vi.fn().mockImplementation(async (_key, val) => {
+          cacheValue = val;
+        }),
+        delete: vi.fn(),
+      };
+
+      class DeletableQueryRepo {
+        public dbFetchCount = 0;
+        constructor(public cache?: ICache) {}
+
+        @FromCache<GetUserQuery, { id: string; name: string } | null>(
+          (q) => `user:${q.userId}`,
+          (cached: any) => cached,
+        )
+        async find(
+          query: GetUserQuery,
+        ): Promise<{ id: string; name: string } | null> {
+          this.dbFetchCount++;
+          if (this.dbFetchCount === 1) {
+            // Simulate concurrent delete while DB query was in-flight
+            cacheValue = createCacheMutationBarrier('deleted', {
+              id: query.userId,
+            });
+            return { id: query.userId, name: 'Stale User' };
+          }
+          // Second call (retry) finds entity deleted in DB
+          return null;
+        }
+      }
+
+      const repo = new DeletableQueryRepo(mockCache);
+      const result = await repo.find({ userId: 'u1' });
+
+      expect(result).toBeNull();
+      expect(repo.dbFetchCount).toBe(2);
+      // Stale snapshot must NEVER have been written to cache
+      expect(mockCache.set).not.toHaveBeenCalled();
+      // Barrier remains in cache
+      expect(cacheValue.__cacheBarrier).toBe(true);
+    });
+
+    it('retries when invalidation barrier appears during DB read and caches fresh v2 result', async () => {
+      let cacheValue: any;
+
+      const mockCache: ICache = {
+        get: vi.fn().mockImplementation(async () => cacheValue),
+        set: vi.fn().mockImplementation(async (_key, val) => {
+          cacheValue = val;
+        }),
+        delete: vi.fn(),
+      };
+
+      class VersionedQueryRepo {
+        public dbFetchCount = 0;
+        constructor(public cache?: ICache) {}
+
+        @FromCache<GetUserQuery, { id: string; version: number }>(
+          (q) => `user:${q.userId}`,
+          (c: any) => c,
+        )
+        async find(
+          query: GetUserQuery,
+        ): Promise<{ id: string; version: number }> {
+          this.dbFetchCount++;
+          if (this.dbFetchCount === 1) {
+            // Mutation barrier occurs during v1 read
+            cacheValue = createCacheMutationBarrier('invalidated', {
+              id: query.userId,
+            });
+            return { id: query.userId, version: 1 };
+          }
+          // Second attempt reads authoritative v2
+          return { id: query.userId, version: 2 };
+        }
+      }
+
+      const repo = new VersionedQueryRepo(mockCache);
+      const result = await repo.find({ userId: 'u1' });
+
+      expect(result).toEqual({ id: 'u1', version: 2 });
+      expect(repo.dbFetchCount).toBe(2);
+      expect(mockCache.set).toHaveBeenCalledWith(
+        'user:u1',
+        { id: 'u1', version: 2 },
+        expect.any(Object),
+      );
+    });
+
+    it('handles concurrent create where DB returns null but post-DB check sees committed snapshot', async () => {
+      let cacheValue: any;
+
+      const mockCache: ICache = {
+        get: vi.fn().mockImplementation(async () => cacheValue),
+        set: vi.fn().mockImplementation(async (_key, val) => {
+          cacheValue = val;
+        }),
+        delete: vi.fn(),
+      };
+
+      class CreateRaceRepo {
+        public dbFetchCount = 0;
+        constructor(public cache?: ICache) {}
+
+        @FromCache<GetUserQuery, { id: string; name: string } | null>({
+          keyFn: (q) => `user:${q.userId}`,
+          alwaysHydrate: true,
+          hydrateFn: (c: any) => ({ ...c, hydrated: true }),
+        })
+        async find(
+          query: GetUserQuery,
+        ): Promise<{ id: string; name: string } | null> {
+          this.dbFetchCount++;
+          // Concurrently, a creator commits and puts snapshot in cache
+          cacheValue = { id: query.userId, name: 'Created User', version: 1 };
+          // But our read started before commit and returned null
+          return null;
+        }
+      }
+
+      const repo = new CreateRaceRepo(mockCache);
+      const result = await repo.find({ userId: 'u1' });
+
+      expect(repo.dbFetchCount).toBe(1);
+      expect(result).toEqual({
+        id: 'u1',
+        name: 'Created User',
+        version: 1,
+        hydrated: true,
+      });
+      // Cache was NOT overwritten with null
+      expect(mockCache.set).not.toHaveBeenCalled();
+    });
+
+    it('rejects stale read when ABA mutation barrier token changes between initial and post-DB checks', async () => {
+      const b1 = createCacheMutationBarrier('deleted', { id: 'u1' });
+      const b2 = createCacheMutationBarrier('invalidated', { id: 'u1' });
+      let cacheValue: any = b1;
+
+      const mockCache: ICache = {
+        get: vi.fn().mockImplementation(async () => cacheValue),
+        set: vi.fn().mockImplementation(async (_key, val) => {
+          cacheValue = val;
+        }),
+        delete: vi.fn(),
+      };
+
+      class AbaQueryRepo {
+        public dbFetchCount = 0;
+        constructor(public cache?: ICache) {}
+
+        @FromCache<GetUserQuery, { id: string; version: number }>(
+          (q) => `user:${q.userId}`,
+          (c: any) => c,
+        )
+        async find(
+          query: GetUserQuery,
+        ): Promise<{ id: string; version: number }> {
+          this.dbFetchCount++;
+          if (this.dbFetchCount === 1) {
+            // While DB read is running, ABA occurs: cache barrier changes to b2
+            cacheValue = b2;
+            return { id: query.userId, version: 1 };
+          }
+          return { id: query.userId, version: 2 };
+        }
+      }
+
+      const repo = new AbaQueryRepo(mockCache);
+      const result = await repo.find({ userId: 'u1' });
+
+      expect(repo.dbFetchCount).toBe(2);
+      expect(result).toEqual({ id: 'u1', version: 2 });
+    });
+
+    it('terminates bounded retries and returns DB result without caching when barriers mutate continuously', async () => {
+      const mockCache: ICache = {
+        get: vi.fn().mockImplementation(async () => {
+          // Generate a new barrier token on every get call
+          return createCacheMutationBarrier('invalidated', { id: 'u1' });
+        }),
+        set: vi.fn(),
+        delete: vi.fn(),
+      };
+
+      class FastMutationRepo {
+        public dbFetchCount = 0;
+        constructor(public cache?: ICache) {}
+
+        @FromCache<GetUserQuery, { id: string; version: number }>(
+          (q) => `user:${q.userId}`,
+          (c: any) => c,
+        )
+        async find(
+          query: GetUserQuery,
+        ): Promise<{ id: string; version: number }> {
+          this.dbFetchCount++;
+          return { id: query.userId, version: this.dbFetchCount };
+        }
+      }
+
+      const repo = new FastMutationRepo(mockCache);
+      const result = await repo.find({ userId: 'u1' });
+
+      // MAX_BARRIER_RETRIES = 2 -> attempts 0, 1, 2 -> 3 db fetches total
+      expect(repo.dbFetchCount).toBe(3);
+      // Returns final DB result
+      expect(result).toEqual({ id: 'u1', version: 3 });
+      // Does NOT write to cache because barrier was active and changing
+      expect(mockCache.set).not.toHaveBeenCalled();
+    });
   });
 });
