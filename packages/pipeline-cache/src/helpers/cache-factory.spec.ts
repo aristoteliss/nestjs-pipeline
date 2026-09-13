@@ -30,6 +30,7 @@ describe('cache-factory', () => {
         ttl: 5000,
       });
       expect(keyv).toBeInstanceOf(Keyv);
+      expect(keyv.throwOnErrors).toBe(true);
     });
 
     it('creates adapter Keyv stores when configured', () => {
@@ -62,10 +63,26 @@ describe('cache-factory', () => {
       expect(cache).toBe(preBuilt);
     });
 
-    it('builds cache with custom pre-built Keyv stores', () => {
-      const customKeyv = new Keyv({ namespace: 'custom' });
+    it('does not mutate stores owned by a pre-built cache', () => {
+      const customKeyv = new Keyv({ throwOnErrors: false });
+      const preBuilt = createCache({ stores: [customKeyv] });
+
+      const cache = buildCache({ cache: preBuilt });
+
+      expect(cache).toBe(preBuilt);
+      expect(customKeyv.throwOnErrors).toBe(false);
+    });
+
+    it('builds cache with custom pre-built Keyv stores without changing their error policy', () => {
+      const customKeyv = new Keyv({
+        namespace: 'custom',
+        throwOnErrors: false,
+      });
+
       const cache = buildCache({ stores: [customKeyv] });
+
       expect(cache).toBeDefined();
+      expect(customKeyv.throwOnErrors).toBe(false);
     });
 
     it('builds cache with declarative memory store config', () => {
@@ -74,11 +91,13 @@ describe('cache-factory', () => {
         ttl: 10000,
       });
       expect(cache).toBeDefined();
+      expect(cache.stores[0]?.throwOnErrors).toBe(true);
     });
 
     it('builds default in-memory cache when options are empty', () => {
       const cache = buildCache({});
       expect(cache).toBeDefined();
+      expect(cache.stores[0]?.throwOnErrors).toBe(true);
     });
   });
 });
