@@ -17,7 +17,53 @@
  */
 
 import { IQueryOptions } from '../../application/query.options';
+import { toCacheSnapshot } from '../helpers/cache-snapshot.helper';
+import { isCacheNewer } from '../helpers/cache-version.helper';
 import { QueryRepository } from '../query-repository.abstract';
+
+export { isCacheNewer };
+
+/**
+ * Options for configuring read-through caching and rehydration via {@link FromCache}.
+ */
+export interface FromCacheOptions<TQuery = unknown, TResult = unknown> {
+  /**
+   * Function deriving the cache key from query options.
+   * If `null` or returns `null`, caching is skipped for the invocation.
+   */
+  keyFn?: ((query: TQuery) => string | null) | null;
+
+  /**
+   * Function to rehydrate a raw cached snapshot back into a domain entity.
+   */
+  hydrateFn?: ((cached: unknown) => TResult) | null;
+
+  /**
+   * Optional serializer function to convert a domain entity or complex result into
+   * a pure, detached snapshot for storage in cache.
+   * If omitted, {@link toCacheSnapshot} automatically extracts a snapshot via
+   * `result.toJSON()` or deep JSON cloning.
+   */
+  serializeFn?: ((result: TResult) => unknown) | null;
+
+  /**
+   * If `true`, cached entries are always rehydrated via `hydrateFn` regardless of whether
+   * `query.hydrate` is explicitly set. If `false` or omitted, hydration occurs only when `query.hydrate` is truthy.
+   * Requires a valid `hydrateFn` to be configured at decoration time.
+   */
+  alwaysHydrate?: boolean;
+
+  /**
+   * Optional time-to-live in milliseconds for cached entries.
+   */
+  ttl?: number;
+
+  /**
+   * Optional version comparator for stale-read prevention during concurrent cache population.
+   * Defaults to {@link isCacheNewer}.
+   */
+  isNewer?: (cached: unknown, incoming: unknown) => boolean;
+}
 
 /**
  * Read-through cache decorator for a {@link QueryRepository} `find` method.
@@ -29,8 +75,9 @@ import { QueryRepository } from '../query-repository.abstract';
  * - **Deterministic rehydration**: When `alwaysHydrate: true` is configured, automatically rehydrates cached snapshots
  *   into domain entities via `hydrateFn`, ensuring the repository always returns `Promise<TEntity | null>`.
  *   If omitted, rehydrates conditionally when `query.hydrate` is truthy.
- * - **Negative caching prevention**: Only non-nullish database results are saved into the cache, preventing
- *   stale negative results from hiding newly-created entities.
+ * - **Strong consistency on concurrent writes**: If a concurrent mutation updates and caches a newer snapshot
+ *   while the database fetch was in-flight, the decorator returns the newer cached snapshot (hydrated if requested)
+ *   rather than returning stale database data or corrupting the cache.
  * - **Fail-closed policy**: Cache errors on read/set propagate to maintain strong consistency guarantees
  *   at the repository boundary.
  *
@@ -55,74 +102,7 @@ import { QueryRepository } from '../query-repository.abstract';
  *   }
  * }
  * ```
- *
- * @example Legacy positional argument signature
- * ```typescript
- * @FromCache<GetUserQuery, User | null>(
- *   (query) => filterCacheKey('user', { id: query.userId }),
- *   (cached) => User.fromJSON(cached as UserSnapshot),
- * )
- * ```
  */
-export interface FromCacheOptions<TQuery = unknown, TResult = unknown> {
-  keyFn?: ((query: TQuery) => string | null) | null;
-  hydrateFn?: ((cached: unknown) => TResult) | null;
-  /**
-   * Optional serializer function to convert a domain entity or complex result into
-   * a pure, detached snapshot for storage in cache.
-   * If omitted and the result has a `toJSON()` method, `result.toJSON()` is used automatically.
-   */
-  serializeFn?: ((result: TResult) => unknown) | null;
-  /**
-   * If `true`, cached entries are always rehydrated via `hydrateFn` regardless of whether
-   * `query.hydrate` is explicitly set. If `false` or omitted, hydration occurs only when `query.hydrate` is truthy.
-   */
-  alwaysHydrate?: boolean;
-  ttl?: number;
-  isNewer?: (cached: unknown, incoming: unknown) => boolean;
-}
-
-/**
- * Checks whether a cached entry is strictly newer than an incoming database result
- * based on explicit version properties, generation counters, or updatedAt timestamps.
- */
-export function isCacheNewer(cached: unknown, incoming: unknown): boolean {
-  if (
-    !cached ||
-    typeof cached !== 'object' ||
-    !incoming ||
-    typeof incoming !== 'object'
-  ) {
-    return false;
-  }
-  const c = cached as Record<string, unknown>;
-  const inc = incoming as Record<string, unknown>;
-
-  if (typeof c.version === 'number' && typeof inc.version === 'number') {
-    return c.version > inc.version;
-  }
-
-  if (typeof c.__gen === 'number' && typeof inc.__gen === 'number') {
-    return c.__gen > inc.__gen;
-  }
-
-  if (c.updatedAt !== undefined && inc.updatedAt !== undefined) {
-    const cTime =
-      c.updatedAt instanceof Date
-        ? c.updatedAt.getTime()
-        : new Date(c.updatedAt as string | number).getTime();
-    const incTime =
-      inc.updatedAt instanceof Date
-        ? inc.updatedAt.getTime()
-        : new Date(inc.updatedAt as string | number).getTime();
-    if (!Number.isNaN(cTime) && !Number.isNaN(incTime)) {
-      return cTime > incTime;
-    }
-  }
-
-  return false;
-}
-
 export function FromCache<
   TQuery extends IQueryOptions = IQueryOptions,
   TResult = unknown,
@@ -151,6 +131,10 @@ export function FromCache<
     resolvedKeyFn = keyFnOrOptions.keyFn;
     resolvedHydrateFn = keyFnOrOptions.hydrateFn ?? undefined;
     resolvedOptions = keyFnOrOptions;
+  }
+
+  if (resolvedOptions?.alwaysHydrate && !resolvedHydrateFn) {
+    throw new TypeError('FromCache: alwaysHydrate requires a hydrateFn');
   }
 
   return (
@@ -187,21 +171,24 @@ export function FromCache<
       const result = await original.call(this, query);
 
       if (key !== null && result !== null && result !== undefined) {
+        const snapshot = toCacheSnapshot(result, resolvedOptions?.serializeFn);
+
         const current = await this.cache.get(key);
         const newerCheck = resolvedOptions?.isNewer ?? isCacheNewer;
+
         if (
           current !== null &&
           current !== undefined &&
-          newerCheck(current, result)
+          newerCheck(current, snapshot)
         ) {
-          return result;
+          if (
+            resolvedHydrateFn &&
+            (resolvedOptions?.alwaysHydrate || query.hydrate)
+          ) {
+            return resolvedHydrateFn(current);
+          }
+          return current as unknown as TResult;
         }
-
-        const snapshot = resolvedOptions?.serializeFn
-          ? resolvedOptions.serializeFn(result)
-          : typeof (result as { toJSON?: unknown })?.toJSON === 'function'
-            ? (result as unknown as { toJSON: () => unknown }).toJSON()
-            : result;
 
         const setOptions = {
           ttl: resolvedOptions?.ttl,

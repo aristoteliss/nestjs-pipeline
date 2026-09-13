@@ -260,7 +260,7 @@ describe('@FromCache with options and concurrency checks', () => {
     );
   });
 
-  it('does not overwrite cache if cached version is newer than database result (stale read-through)', async () => {
+  it('returns newer cached version when concurrent write occurred during database fetch (strong consistency)', async () => {
     const mockCache: ICache = {
       get: vi
         .fn()
@@ -272,7 +272,95 @@ describe('@FromCache with options and concurrency checks', () => {
     const repo = new VersionedQueryRepo(mockCache, { id: '80', version: 1 });
     const res = await repo.find({ userId: '80' });
 
-    expect(res).toEqual({ id: '80', version: 1 });
+    // Strong consistency: caller receives the fresher version 2, and cache is NOT overwritten with stale version 1
+    expect(res).toEqual({ id: '80', version: 2 });
+    expect(mockCache.set).not.toHaveBeenCalled();
+  });
+
+  it('rehydrates newer cached snapshot when concurrent write occurs and alwaysHydrate is true', async () => {
+    class HydratedQueryRepo {
+      constructor(public cache?: ICache) {}
+
+      @FromCache<
+        { userId: string },
+        { id: string; version: number; hydrated: boolean }
+      >({
+        keyFn: (q) => `user:${q.userId}`,
+        hydrateFn: (cached: any) => ({ ...cached, hydrated: true }),
+        alwaysHydrate: true,
+      })
+      async find(_query: {
+        userId: string;
+      }): Promise<{ id: string; version: number; hydrated: boolean }> {
+        return { id: '80', version: 1, hydrated: true };
+      }
+    }
+
+    const mockCache: ICache = {
+      get: vi
+        .fn()
+        .mockResolvedValueOnce(undefined) // cache miss
+        .mockResolvedValueOnce({ id: '80', version: 2 }), // concurrent write v2
+      set: vi.fn(),
+      delete: vi.fn(),
+    };
+
+    const repo = new HydratedQueryRepo(mockCache);
+    const result = await repo.find({ userId: '80' });
+
+    expect(result).toEqual({ id: '80', version: 2, hydrated: true });
+    expect(mockCache.set).not.toHaveBeenCalled();
+  });
+
+  it('throws TypeError at decoration time when alwaysHydrate is true without hydrateFn', () => {
+    expect(() => {
+      class _InvalidRepo {
+        @FromCache({
+          keyFn: () => 'key',
+          alwaysHydrate: true,
+        })
+        async find() {}
+      }
+    }).toThrow(new TypeError('FromCache: alwaysHydrate requires a hydrateFn'));
+  });
+
+  it('compares cached snapshot against incoming snapshot when serializeFn alters structure', async () => {
+    class DomainEntity {
+      constructor(
+        public readonly id: string,
+        public readonly sequence: number,
+      ) {}
+    }
+
+    class TransformedRepo {
+      constructor(public cache?: ICache) {}
+
+      @FromCache<{ id: string }, DomainEntity>({
+        keyFn: (q) => `transformed:${q.id}`,
+        serializeFn: (entity) => ({ id: entity.id, version: entity.sequence }),
+        hydrateFn: (snap: any) => new DomainEntity(snap.id, snap.version),
+        alwaysHydrate: true,
+      })
+      async find(q: { id: string }): Promise<DomainEntity> {
+        return new DomainEntity(q.id, 1);
+      }
+    }
+
+    const mockCache: ICache = {
+      get: vi
+        .fn()
+        .mockResolvedValueOnce(undefined) // cache miss
+        .mockResolvedValueOnce({ id: 't1', version: 3 }), // concurrent cached snapshot with version 3
+      set: vi.fn(),
+      delete: vi.fn(),
+    };
+
+    const repo = new TransformedRepo(mockCache);
+    const result = await repo.find({ id: 't1' });
+
+    // Comparison compared cached snapshot (version 3) with serialized snapshot (version 1)
+    expect(result).toBeInstanceOf(DomainEntity);
+    expect(result.sequence).toBe(3);
     expect(mockCache.set).not.toHaveBeenCalled();
   });
 

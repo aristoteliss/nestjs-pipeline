@@ -100,7 +100,11 @@ describe('@Cache decorator on CommandRepository.save', () => {
     const result = await repo.save(entity);
 
     expect(result).toEqual({ id: 'u1' });
-    expect(mockCache.set).toHaveBeenCalledWith('mock:u1', { id: 'u1' });
+    expect(mockCache.set).toHaveBeenCalledWith(
+      'mock:u1',
+      { id: 'u1' },
+      expect.objectContaining({ isNewer: expect.any(Function) }),
+    );
   });
 
   it('evicts cache key when save returns null (e.g. deletion)', async () => {
@@ -134,7 +138,11 @@ describe('@Cache decorator on CommandRepository.save', () => {
     const result = await repo.save(entity);
 
     expect(result).toBe(false);
-    expect(mockCache.set).toHaveBeenCalledWith('mock:u1', false);
+    expect(mockCache.set).toHaveBeenCalledWith(
+      'mock:u1',
+      false,
+      expect.objectContaining({ isNewer: expect.any(Function) }),
+    );
     expect(mockCache.delete).not.toHaveBeenCalled();
   });
 
@@ -166,7 +174,11 @@ describe('@Cache decorator on CommandRepository.save', () => {
     await repo.save(entity);
 
     expect(cache.delete).toHaveBeenCalledWith('email:u1');
-    expect(cache.set).toHaveBeenCalledWith('user:u1', { id: 'u1' });
+    expect(cache.set).toHaveBeenCalledWith(
+      'user:u1',
+      { id: 'u1' },
+      expect.objectContaining({ isNewer: expect.any(Function) }),
+    );
     expect(vi.mocked(cache.delete).mock.invocationCallOrder[0]).toBeLessThan(
       vi.mocked(cache.set).mock.invocationCallOrder[0],
     );
@@ -233,5 +245,128 @@ describe('@Cache decorator on CommandRepository.save', () => {
     const result = await repo.save({ id: 'ok' });
     expect(result).toEqual({ id: 'ok' });
     expect(cache.set).not.toHaveBeenCalled();
+  });
+
+  it('passes configured ttl and custom isNewer options to cache.set', async () => {
+    const customIsNewer = vi.fn().mockReturnValue(true);
+    class OptionsRepo {
+      constructor(public cache?: ICache) {}
+
+      @Cache<MockEntity, { id: string }>({
+        setKey: (entity) => `opt:${entity.id}`,
+        ttl: 5000,
+        isNewer: customIsNewer,
+      })
+      async save(entity: MockEntity): Promise<{ id: string }> {
+        return { id: entity.id };
+      }
+    }
+
+    const mockCache: ICache = {
+      get: vi.fn(),
+      set: vi.fn(),
+      delete: vi.fn(),
+    };
+    const repo = new OptionsRepo(mockCache);
+    await repo.save({ id: 'item1' });
+
+    expect(mockCache.set).toHaveBeenCalledWith(
+      'opt:item1',
+      { id: 'item1' },
+      {
+        ttl: 5000,
+        isNewer: customIsNewer,
+      },
+    );
+  });
+
+  it('converts live entity to snapshot via toJSON() before caching', async () => {
+    class LiveUser {
+      constructor(
+        public readonly id: string,
+        public readonly name: string,
+      ) {}
+
+      toJSON() {
+        return { id: this.id, name: this.name, isSnapshot: true };
+      }
+    }
+
+    class AggregateRepo {
+      constructor(public cache?: ICache) {}
+
+      @Cache<LiveUser, LiveUser>((user) => `user:${user.id}`)
+      async save(user: LiveUser): Promise<LiveUser> {
+        return user;
+      }
+    }
+
+    const mockCache: ICache = {
+      get: vi.fn(),
+      set: vi.fn(),
+      delete: vi.fn(),
+    };
+    const repo = new AggregateRepo(mockCache);
+    const liveUser = new LiveUser('u123', 'Alice');
+    const result = await repo.save(liveUser);
+
+    expect(result).toBe(liveUser);
+    expect(mockCache.set).toHaveBeenCalledWith(
+      'user:u123',
+      { id: 'u123', name: 'Alice', isSnapshot: true },
+      expect.objectContaining({ isNewer: expect.any(Function) }),
+    );
+  });
+
+  it('prevents older write-through from overwriting newer cached version (CAS protection)', async () => {
+    // Simulated stateful cache implementing isNewer CAS logic
+    const store = new Map<string, unknown>();
+    const casCache: ICache = {
+      get: vi.fn(async (key: string) => store.get(key)),
+      set: vi.fn(async (key: string, value: unknown, options) => {
+        const existing = store.get(key);
+        if (existing && options?.isNewer?.(existing, value)) {
+          return; // Skip stale write
+        }
+        store.set(key, value);
+      }),
+      delete: vi.fn(async (key: string) => {
+        store.delete(key);
+      }),
+    };
+
+    interface VersionedEntity {
+      id: string;
+      version: number;
+    }
+
+    class VersionedEntityRepo {
+      constructor(public cache?: ICache) {}
+
+      @Cache<VersionedEntity, { id: string; version: number }>(
+        (e) => `entity:${e.id}`,
+      )
+      async save(
+        entity: VersionedEntity,
+      ): Promise<{ id: string; version: number }> {
+        return { id: entity.id, version: entity.version };
+      }
+    }
+
+    const repo = new VersionedEntityRepo(casCache);
+
+    // Initial write at version 1
+    await repo.save({ id: 'e1', version: 1 });
+    expect(store.get('entity:e1')).toEqual({ id: 'e1', version: 1 });
+
+    // Command B commits and caches version 3
+    await repo.save({ id: 'e1', version: 3 });
+    expect(store.get('entity:e1')).toEqual({ id: 'e1', version: 3 });
+
+    // Command A delayed write-through completes with version 2
+    await repo.save({ id: 'e1', version: 2 });
+
+    // The cache MUST NOT have been overwritten by stale version 2; it stays version 3!
+    expect(store.get('entity:e1')).toEqual({ id: 'e1', version: 3 });
   });
 });

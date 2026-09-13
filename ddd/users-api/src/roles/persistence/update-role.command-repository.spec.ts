@@ -2,6 +2,7 @@ import { OptimisticLockError } from '@mikro-orm/core';
 import {
   EntityNotFoundException,
   type ICache,
+  toCacheSnapshot,
 } from '@nestjs-pipeline/ddd-core';
 import { describe, expect, it, vi } from 'vitest';
 import { UniqueRoleNameException } from '../domain/models/errors/role-name.exception';
@@ -32,7 +33,11 @@ describe('UpdateRoleCommandRepository', () => {
       { id: role.id, version: 1 },
       { name: 'publisher', updatedAt: role.updatedAt, version: 2 },
     );
-    expect(cache.set).toHaveBeenCalledWith(`tenant:role:id:${role.id}`, result);
+    expect(cache.set).toHaveBeenCalledWith(
+      `tenant:role:id:${role.id}`,
+      toCacheSnapshot(result),
+      expect.objectContaining({ isNewer: expect.any(Function) }),
+    );
     expect(result).toEqual(role.toJSON());
   });
 
@@ -178,7 +183,11 @@ describe('decorated versioned update lifecycle', () => {
     expect(role.version).toBe(3);
     expect(role.getExpectedVersion()).toBe(2);
     expect(result).toEqual(written);
-    expect(cache.set).toHaveBeenCalledWith(expect.any(String), written);
+    expect(cache.set).toHaveBeenCalledWith(
+      expect.any(String),
+      toCacheSnapshot(written),
+      expect.objectContaining({ isNewer: expect.any(Function) }),
+    );
   });
 
   it('does not turn cache failure into failed persistence or undo acknowledgment', async () => {

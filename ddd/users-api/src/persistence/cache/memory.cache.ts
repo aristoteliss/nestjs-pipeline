@@ -30,6 +30,19 @@ function detach<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T;
 }
 
+/**
+ * In-memory implementation of {@link ICache} maintaining deep detachment parity
+ * with database/network caches via JSON cloning on both `set()` and `get()`.
+ *
+ * Guarantees ownership isolation so caller mutations never bleed into or mutate cached state.
+ *
+ * @example Usage with versioned snapshot
+ * ```typescript
+ * const cache = new MemoryCache<UserSnapshot>({ defaultTtlMs: 30_000 });
+ * await cache.set('user:1', { id: '1', version: 2 });
+ * const snapshot = await cache.get('user:1');
+ * ```
+ */
 @Injectable()
 export class MemoryCache<T> implements ICache<T> {
   private store: Map<string, { value: T; expiresAt?: number }> = new Map();
@@ -39,6 +52,14 @@ export class MemoryCache<T> implements ICache<T> {
     this.defaultTtlMs = options?.defaultTtlMs ?? 60_000;
   }
 
+  /**
+   * Stores a value in memory, cloning it via JSON round-trip to guarantee detachment.
+   * Enforces TTL expiration and optional atomic CAS stale-write protection (`isNewer`).
+   *
+   * @param key - Unique cache key.
+   * @param value - Value or snapshot to store (detached on write).
+   * @param options - Cache options including TTL and atomic version comparator.
+   */
   async set(
     key: string,
     value: T,
@@ -58,6 +79,12 @@ export class MemoryCache<T> implements ICache<T> {
     this.store.set(key, { value: detach(value), expiresAt });
   }
 
+  /**
+   * Retrieves a cached value, checking TTL and returning a detached clone.
+   *
+   * @param key - Cache key to retrieve.
+   * @returns Cloned snapshot if found and live; `undefined` if missing or expired.
+   */
   async get(key: string): Promise<T | undefined> {
     const entry = this.store.get(key);
     if (!entry) return undefined;
@@ -68,6 +95,11 @@ export class MemoryCache<T> implements ICache<T> {
     return detach(entry.value);
   }
 
+  /**
+   * Explicitly evicts a key from memory.
+   *
+   * @param key - Cache key to evict.
+   */
   async delete(key: string): Promise<void> {
     this.store.delete(key);
   }
