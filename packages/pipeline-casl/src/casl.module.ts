@@ -303,7 +303,10 @@ export class CaslModule {
   static forRoot(options: CaslModuleOptions): DynamicModule {
     const providers: Provider[] = [
       CaslBehavior,
-      CaslAuthorizer,
+      {
+        provide: CaslAuthorizer,
+        useFactory: () => new CaslAuthorizer(),
+      },
       {
         provide: ENTITY_AUTHORIZER,
         useExisting: CaslAuthorizer,

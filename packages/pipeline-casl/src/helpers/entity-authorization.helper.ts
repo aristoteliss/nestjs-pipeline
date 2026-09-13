@@ -15,9 +15,8 @@
  * revenue-based terms, or contact: aristotelis@ik.me
  * ----------------------------
  */
-
 import { subject as caslSubject } from '@casl/ability';
-import { Injectable, Optional } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { type IPipelineContext, pipelineStore } from '@nestjs-pipeline/core';
 import { CASL_ABILITY_KEY } from '../constants/tokens';
 import { UnauthorizedActionException } from '../exceptions/unauthorized-action.exception';
@@ -74,24 +73,62 @@ export interface CaslBypassContext {
  * Exposes generic `authorize()` and `can()` methods usable both inside pipeline
  * behaviors (with string subjects) and inside application command/query handlers
  * (with loaded entity instances).
+ *
+ * For normal pipelined handlers, prefer the short form: `CaslBehavior` builds
+ * the request ability once, stores it in the pipeline context, and
+ * `CaslAuthorizer` reads that same ability from the ambient pipeline store when
+ * the handler performs its persisted-entity check.
+ *
+ * @example Persisted-entity authorization after loading from a repository
+ * ```ts
+ * const user = await this.users.findById(query.id);
+ * const visibleUser = this.authorizer.authorize<UserDto>('read', user);
+ * return visibleUser;
+ * ```
+ *
+ * @example Explicit ability outside the ambient pipeline context
+ * ```ts
+ * const ability = buildAbility(roles, currentUser);
+ * this.authorizer.authorize(ability, 'update', loadedUser, ['displayName']);
+ * ```
+ *
+ * @example Trusted internal bypass (make bypass explicit at the call site)
+ * ```ts
+ * this.authorizer.authorize({ bypass: true }, 'read', internalSnapshot);
+ * ```
+ *
+ * Passing only a {@link CaslUserContext} in the historical four-argument
+ * overload does **not** build an ability from that actor. Role/capability lookup
+ * is application-specific and cannot be inferred by this package. That legacy
+ * overload is retained for compatibility but is deprecated; use the ambient
+ * request ability or pass an explicit {@link AppAbility} instead.
  */
 @Injectable()
 export class CaslAuthorizer implements IEntityAuthorizer {
   private readonly ability?: AppAbility;
   private readonly bypass: boolean;
 
+  /**
+   * Inject pre-built permissions (e.g. from the active execution context).
+   * If omitted, {@link authorize} falls back to the current ambient ability
+   * stored by `CaslBehavior`.
+   */
+  constructor(ability?: AppAbility, options?: { bypass?: boolean });
+  /**
+   * Convenience overload: pass only `{ bypass: true }` to disable authorization checks.
+   */
+  constructor(options?: { bypass?: boolean });
   constructor(
-    @Optional() abilityOrOptions?: AppAbility | CaslAuthorizerOptions,
-    @Optional() options?: CaslAuthorizerOptions,
+    abilityOrOptions?: AppAbility | { bypass?: boolean },
+    options?: { bypass?: boolean },
   ) {
     if (
       abilityOrOptions &&
-      typeof (abilityOrOptions as AppAbility).can !== 'function' &&
       typeof abilityOrOptions === 'object' &&
-      'bypass' in abilityOrOptions
+      !('can' in abilityOrOptions)
     ) {
       this.ability = undefined;
-      this.bypass = !!(abilityOrOptions as CaslAuthorizerOptions).bypass;
+      this.bypass = !!abilityOrOptions.bypass;
     } else {
       this.ability = abilityOrOptions as AppAbility | undefined;
       this.bypass = !!options?.bypass;
@@ -107,20 +144,38 @@ export class CaslAuthorizer implements IEntityAuthorizer {
   }
 
   /**
-   * Evaluates permissions and returns the authorized subject or masked snapshot,
-   * or throws an {@link UnauthorizedActionException} if access is forbidden.
+   * Evaluates permissions using the injected/ambient request ability and returns
+   * the authorized subject or masked snapshot, or throws an
+   * {@link UnauthorizedActionException} if access is forbidden.
    */
   authorize<T = unknown>(
     action: string,
     subject: object | string,
     fields?: string[],
   ): T;
+  /**
+   * Evaluates permissions with an explicit pre-built ability or explicit bypass
+   * context. This is the preferred four-argument form when no ambient pipeline
+   * ability is available.
+   */
   authorize<T = unknown>(
-    actorOrAbility:
-      | CaslUserContext
-      | AppAbility
-      | CaslBypassContext
-      | undefined,
+    abilityOrBypass: AppAbility | CaslBypassContext | undefined,
+    action: string,
+    subject: object | string,
+    fields?: string[],
+  ): T;
+  /**
+   * Historical actor-first signature.
+   *
+   * The actor value is **not** converted into an ability; the authorizer still
+   * uses its injected ability or the ability already stored by `CaslBehavior`.
+   *
+   * @deprecated Pass a pre-built `AppAbility`, or use
+   * `authorize(action, subject, fields?)` inside a pipelined handler so the
+   * ambient ability created by `CaslBehavior` is reused.
+   */
+  authorize<T = unknown>(
+    actor: CaslUserContext,
     action: string,
     subject: object | string,
     fields?: string[],
@@ -157,6 +212,9 @@ export class CaslAuthorizer implements IEntityAuthorizer {
       ) {
         explicitBypass = true;
       } else {
+        // Compatibility path for the historical CaslUserContext-first overload:
+        // an actor alone cannot define application role/capability rules, so use
+        // the ability already injected/stored by CaslBehavior.
         ability = this.ability ?? getCaslAbility();
       }
     } else {
@@ -292,7 +350,7 @@ export class CaslAuthorizer implements IEntityAuthorizer {
         }
         const authorized =
           actorOrAbility !== undefined
-            ? this.authorize<T>(actorOrAbility, action, item)
+            ? this.authorize<T>(actorOrAbility as never, action, item)
             : this.authorize<T>(action, item);
         results.push(authorized);
       } catch (err) {
