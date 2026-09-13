@@ -28,18 +28,28 @@ import { UserRole } from '@persistence/entities/user-role.entity';
 import { MIKRO_ORM_CLIENT, MikroOrmStore } from '@persistence/mikro-orm.store';
 import { Capability } from '../../roles/domain/models/capability.entity';
 import { Role } from '../../roles/domain/models/role.entity';
+import type { IUserCapabilityReader } from '../application/ports/user-capability-reader.port';
 import { GetUserCapabilitiesQuery } from '../cqrs/queries/get-user-capabilities.query';
 
+/**
+ * Infrastructure adapter shared by CASL, CQRS query handling, and the narrow
+ * authentication capability-reader port. All three views resolve the same
+ * tenant-scoped capability data without nesting QueryBus calls in commands.
+ */
 @Injectable()
 export class GetUserCapabilitiesQueryRepository
-  implements IUserCapabilityProvider
+  implements IUserCapabilityProvider, IUserCapabilityReader
 {
   constructor(
     @Inject(MIKRO_ORM_CLIENT) private readonly store: MikroOrmStore,
   ) {}
 
+  async getCapabilities(userId: string): Promise<UserCapabilities> {
+    return this.find(new GetUserCapabilitiesQuery({ userId }));
+  }
+
   async getUserCapabilities(user: CaslUserContext): Promise<UserCapabilities> {
-    return this.find(new GetUserCapabilitiesQuery({ userId: user.id }));
+    return this.getCapabilities(String(user.id));
   }
 
   async find(query: GetUserCapabilitiesQuery): Promise<UserCapabilities> {

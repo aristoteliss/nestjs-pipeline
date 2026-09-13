@@ -40,6 +40,7 @@ import { ApiClientAuthenticator } from '../src/auths/services/api-client-authent
 import { JwtAuthenticator } from '../src/auths/services/jwt-authenticator';
 import { RequestPrincipalResolver } from '../src/auths/services/request-principal-resolver';
 import { SessionService } from '../src/auths/services/session.service';
+import { TENANT_CONTEXT } from '../src/common/context/tenant-context.port';
 import { TenantSchemaMiddleware } from '../src/persistence/middlewares/tenant-schema.middleware';
 
 @Controller('test-auth')
@@ -74,6 +75,10 @@ class TestAuthController {
   controllers: [TestAuthController],
   providers: [
     TenantSchemaContext,
+    {
+      provide: TENANT_CONTEXT,
+      useExisting: TenantSchemaContext,
+    },
     TenantSchemaMiddleware,
     SessionService,
     JwtAuthenticator,

@@ -16,6 +16,7 @@
  * ----------------------------
  */
 
+import { TENANT_CONTEXT } from '@common/context/tenant-context.port';
 import { Global, Module } from '@nestjs/common';
 import { CACHE_TOKEN } from './cache/memory.cache';
 import { MikroOrmCache } from './cache/mikro-orm.cache';
@@ -33,6 +34,10 @@ const SelectedMikroOrmStore = isPostgres
 @Module({
   providers: [
     TenantSchemaContext,
+    {
+      provide: TENANT_CONTEXT,
+      useExisting: TenantSchemaContext,
+    },
     SelectedMikroOrmStore,
     {
       provide: TenantSchemaMiddleware,
@@ -49,6 +54,7 @@ const SelectedMikroOrmStore = isPostgres
   exports: [
     MIKRO_ORM_CLIENT,
     CACHE_TOKEN,
+    TENANT_CONTEXT,
     TenantSchemaContext,
     TenantSchemaMiddleware,
   ],

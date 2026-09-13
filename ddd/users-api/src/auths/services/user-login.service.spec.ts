@@ -32,25 +32,26 @@ afterEach(() => {
   else process.env.JWT_ALGORITHMS = originalJwtAlgorithms;
 });
 
+const emptyCapabilities = {
+  roles: [],
+  additionalCapabilities: [],
+  deniedCapabilities: [],
+};
+
 describe('UserLoginService', () => {
-  it('binds issued access tokens to the active tenant', async () => {
+  it('binds issued access tokens to the active tenant through the capability reader port', async () => {
     process.env.JWT_SECRET = 'tenant-bound-token-secret';
     delete process.env.JWT_ALGORITHMS;
     const user = User.create('Alice', 'alice@example.test');
     const tenantContext = new TenantSchemaContext();
+    const getCapabilities = vi.fn().mockResolvedValue(emptyCapabilities);
     const mockJwtAuthenticator = {
       extractToken: vi.fn(),
       extractUserId: vi.fn(),
     };
     const service = new UserLoginService(
-      {
-        execute: vi.fn().mockResolvedValue({
-          roles: [],
-          additionalCapabilities: [],
-          deniedCapabilities: [],
-        }),
-      } as never,
       { find: vi.fn() } as never,
+      { getCapabilities } as never,
       tenantContext,
       mockJwtAuthenticator as never,
     );
@@ -59,19 +60,21 @@ describe('UserLoginService', () => {
       service.signToken(user),
     );
 
+    expect(getCapabilities).toHaveBeenCalledWith(user.id);
     expect(decodeJwt(result.accessToken).tenant).toBe('tenant_a');
   });
 
-  it('rejects local token issuance when HS256 is excluded', async () => {
+  it('rejects local token issuance when HS256 is excluded before capability lookup', async () => {
     process.env.JWT_SECRET = 'tenant-bound-token-secret';
     process.env.JWT_ALGORITHMS = 'RS256';
+    const getCapabilities = vi.fn();
     const mockJwtAuthenticator = {
       extractToken: vi.fn(),
       extractUserId: vi.fn(),
     };
     const service = new UserLoginService(
-      { execute: vi.fn() } as never,
       { find: vi.fn() } as never,
+      { getCapabilities } as never,
       new TenantSchemaContext(),
       mockJwtAuthenticator as never,
     );
@@ -80,6 +83,7 @@ describe('UserLoginService', () => {
     await expect(service.signToken(user)).rejects.toThrow(
       'JWT_ALGORITHMS must include HS256',
     );
+    expect(getCapabilities).not.toHaveBeenCalled();
   });
 
   it('issues unique tokens with distinct jti claims even for subsequent calls in the same second', async () => {
@@ -92,14 +96,10 @@ describe('UserLoginService', () => {
       extractUserId: vi.fn(),
     };
     const service = new UserLoginService(
-      {
-        execute: vi.fn().mockResolvedValue({
-          roles: [],
-          additionalCapabilities: [],
-          deniedCapabilities: [],
-        }),
-      } as never,
       { find: vi.fn() } as never,
+      {
+        getCapabilities: vi.fn().mockResolvedValue(emptyCapabilities),
+      } as never,
       tenantContext,
       mockJwtAuthenticator as never,
     );
@@ -126,8 +126,8 @@ describe('UserLoginService', () => {
         extractUserId: vi.fn(),
       };
       const service = new UserLoginService(
-        { execute: vi.fn() } as never,
         { find: vi.fn() } as never,
+        { getCapabilities: vi.fn() } as never,
         new TenantSchemaContext(),
         mockJwtAuthenticator as never,
       );
@@ -156,8 +156,8 @@ describe('UserLoginService', () => {
         extractUserId: vi.fn().mockResolvedValue('usr-from-jwt'),
       };
       const service = new UserLoginService(
-        { execute: vi.fn() } as never,
         { find: vi.fn() } as never,
+        { getCapabilities: vi.fn() } as never,
         new TenantSchemaContext(),
         mockJwtAuthenticator as never,
       );
@@ -179,8 +179,8 @@ describe('UserLoginService', () => {
         extractUserId: vi.fn().mockResolvedValue('req-user-id'),
       };
       const service = new UserLoginService(
-        { execute: vi.fn() } as never,
         { find: vi.fn() } as never,
+        { getCapabilities: vi.fn() } as never,
         new TenantSchemaContext(),
         mockJwtAuthenticator as never,
       );
@@ -203,8 +203,8 @@ describe('UserLoginService', () => {
         extractUserId: vi.fn(),
       };
       const service = new UserLoginService(
-        { execute: vi.fn() } as never,
         { find: vi.fn() } as never,
+        { getCapabilities: vi.fn() } as never,
         new TenantSchemaContext(),
         mockJwtAuthenticator as never,
       );
@@ -228,8 +228,8 @@ describe('UserLoginService', () => {
         extractUserId: vi.fn(),
       };
       const service = new UserLoginService(
-        { execute: vi.fn() } as never,
         { find: vi.fn() } as never,
+        { getCapabilities: vi.fn() } as never,
         new TenantSchemaContext(),
         mockJwtAuthenticator as never,
       );
@@ -255,8 +255,8 @@ describe('UserLoginService', () => {
         extractUserId: vi.fn().mockResolvedValue(undefined),
       };
       const service = new UserLoginService(
-        { execute: vi.fn() } as never,
         { find: vi.fn() } as never,
+        { getCapabilities: vi.fn() } as never,
         new TenantSchemaContext(),
         mockJwtAuthenticator as never,
       );

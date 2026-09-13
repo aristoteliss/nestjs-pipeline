@@ -6,6 +6,14 @@ Mutation commands must hydrate aggregates from authoritative persistence, never 
 
 Read/query handlers remain free to use `IQueryRepository` and `@FromCache`. Do not reintroduce `GetUserQuery`, `GetRoleQuery`, `QueryBus`, or `IQueryRepository` into mutation handlers merely to load an aggregate.
 
+## Tenant-bound EntityManager metadata
+
+`MikroOrmStore` and `PostgresMikroOrmStore` associate request/transaction EntityManager instances with the active tenant through `EntityManagerTenantRegistry`, an internal `WeakMap<object, string>`.
+
+Do not attach application-owned properties such as `__tenant` to MikroORM EntityManager instances. Third-party runtime objects are not extension points; mutating them creates hidden coupling to undocumented implementation details and can collide with future library changes. Tenant ownership metadata must remain external to MikroORM objects.
+
+When a contextual EntityManager is reused, the store validates driver/config/schema compatibility plus the registry tenant. Fresh forks are registered immediately and remain otherwise untouched.
+
 When adding a command that mutates an existing aggregate:
 
 1. expose authoritative loading through the command/write-side repository port;
