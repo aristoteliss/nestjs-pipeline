@@ -16,17 +16,22 @@
  * ----------------------------
  */
 
-import type { SessionUser } from '@common/types/SessionUser';
-import type { IQueryOptions } from '@nestjs-pipeline/ddd-core/application/query.options';
+import type { IQueryOptions } from './query.options';
 
-export abstract class BaseQuery implements IQueryOptions {
+/**
+ * Base class for application CQRS queries.
+ *
+ * Query options and authentication context are pipeline metadata rather than request
+ * payload. Keeps them non-enumerable so payload validation and cache-key serialization
+ * do not strip or include them.
+ */
+export abstract class BaseQuery<TSessionUser = unknown>
+  implements IQueryOptions
+{
   public declare readonly hydrate?: boolean;
-  public declare readonly sessionUser?: SessionUser;
+  public declare readonly sessionUser?: TSessionUser;
 
-  constructor(options?: Partial<IQueryOptions>, sessionUser?: SessionUser) {
-    // Query options and authentication context are pipeline metadata rather
-    // than request payload. Keep them non-enumerable so payload validation and
-    // cache-key serialization do not strip or include them.
+  constructor(options?: Partial<IQueryOptions>, sessionUser?: TSessionUser) {
     Object.defineProperty(this, 'hydrate', {
       value: options?.hydrate ?? false,
       enumerable: false,

@@ -17,9 +17,12 @@
  */
 
 import { type IPipelineContext, pipelineStore } from '@nestjs-pipeline/core';
-import { cacheKeyTemplate, filterCacheKey } from '@nestjs-pipeline/ddd-core';
-import { DEFAULT_TENANT_SCHEMA } from '@persistence/postgres-options';
 import { describe, expect, it } from 'vitest';
+import {
+  cacheKeyTemplate,
+  DEFAULT_TENANT_SCHEMA,
+  filterCacheKey,
+} from './filter-cache-key.helper';
 
 describe('filterCacheKey', () => {
   it('generates a deterministic key with sorted keys using resource string', () => {

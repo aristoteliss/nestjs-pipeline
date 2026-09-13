@@ -18,7 +18,7 @@
 
 import type { Server } from 'node:http';
 import type { ICache } from '@nestjs-pipeline/ddd-core';
-import { CACHE_TOKEN } from '@persistence/cache/memory.cache';
+import { CACHE_TOKEN } from '@nestjs-pipeline/ddd-core';
 import request from 'supertest';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { UserSnapshot } from '../src/users/domain/models/user.entity';

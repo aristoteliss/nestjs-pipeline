@@ -1,9 +1,9 @@
-import { TransientOperationError } from '@common/resilience/transient-operation.error';
 import {
   ConflictException,
   ForbiddenException,
   NotFoundException,
 } from '@nestjs/common';
+import { TransientOperationError } from '@nestjs-pipeline/ddd-core';
 import { describe, expect, it } from 'vitest';
 import {
   isTransientPersistenceError,

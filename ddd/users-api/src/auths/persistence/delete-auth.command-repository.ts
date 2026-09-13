@@ -16,14 +16,14 @@
  * ----------------------------
  */
 
-import { filterCacheKey } from '@common/cqrs/helpers/filterCacheKey.helper';
 import { Inject, Injectable } from '@nestjs/common';
 import {
+  CACHE_TOKEN,
   Cache,
   CommandRepository,
+  filterCacheKey,
   type ICache,
 } from '@nestjs-pipeline/ddd-core';
-import { CACHE_TOKEN } from '@persistence/cache/memory.cache';
 import { MIKRO_ORM_CLIENT, MikroOrmStore } from '@persistence/mikro-orm.store';
 import { Auth, type AuthSnapshot } from '../domain/models/auth.entity';
 

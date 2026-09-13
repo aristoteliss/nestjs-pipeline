@@ -1,7 +1,6 @@
 import type { ICache } from '@nestjs-pipeline/ddd-core';
-import { CACHE_TOKEN } from '@persistence/cache/memory.cache';
+import { CACHE_TOKEN, filterCacheKey } from '@nestjs-pipeline/ddd-core';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { filterCacheKey } from '../src/common/cqrs/helpers/filterCacheKey.helper';
 import { bootstrapE2E, type E2EContext } from './support/e2e-app';
 
 /** E2E regression coverage for Architecture.md finding #16. */

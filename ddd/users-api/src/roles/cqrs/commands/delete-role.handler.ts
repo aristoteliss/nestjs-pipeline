@@ -1,7 +1,6 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 import { APP_ACTIONS, APP_SUBJECTS, AUDIT_ACTIONS } from '@common/constants';
 import { getSessionUserFromStore } from '@common/context/session-user.store';
-import { isTransientOperationError } from '@common/resilience/transient-operation.error';
 import { Inject } from '@nestjs/common';
 import { CommandHandler, EventBus } from '@nestjs/cqrs';
 import { AUDIT_SEVERITY, AuditBehavior } from '@nestjs-pipeline/audit';
@@ -15,6 +14,7 @@ import {
   CommandBaseHandler,
   EntityNotFoundException,
   IWriteSideAggregateRepository,
+  isTransientOperationError,
 } from '@nestjs-pipeline/ddd-core';
 import { ResilienceBehavior } from '@nestjs-pipeline/resilience';
 import type { Role } from '../../domain/models/role.entity';

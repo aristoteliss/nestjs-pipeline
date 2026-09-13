@@ -16,11 +16,10 @@
  * ----------------------------
  */
 
-import { ICache } from '@nestjs-pipeline/ddd-core';
+import { ICache, MemoryCache } from '@nestjs-pipeline/ddd-core';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { User, UserSnapshot } from '../../users/domain/models/user.entity';
 import { CacheEntry } from './cache.entity';
-import { MemoryCache } from './memory.cache';
 import { MikroOrmCache } from './mikro-orm.cache';
 
 /**

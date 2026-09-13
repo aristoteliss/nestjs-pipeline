@@ -16,8 +16,8 @@
  * ----------------------------
  */
 
-import { BaseQuery } from '@common/cqrs/queries/base.query';
 import { EmailSchema } from '@common/validation/email.schema';
+import { BaseQuery } from '@nestjs-pipeline/ddd-core';
 import { createQuery } from '@nestjs-pipeline/zod';
 import { z } from 'zod';
 

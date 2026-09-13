@@ -1,8 +1,8 @@
-import { TransientOperationError } from '@common/resilience/transient-operation.error';
 import { OptimisticLockError } from '@mikro-orm/core';
 import {
   EntityNotFoundException,
   type ICache,
+  TransientOperationError,
 } from '@nestjs-pipeline/ddd-core';
 import { describe, expect, it, vi } from 'vitest';
 import { User, type UserSnapshot } from '../domain/models/user.entity';

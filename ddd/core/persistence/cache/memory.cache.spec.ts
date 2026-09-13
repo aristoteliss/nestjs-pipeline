@@ -16,8 +16,8 @@
  * ----------------------------
  */
 
-import { MemoryCache } from '@nestjs-pipeline/ddd-core';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { MemoryCache } from './memory.cache';
 
 describe('MemoryCache', () => {
   beforeEach(() => {

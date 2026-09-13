@@ -7,7 +7,7 @@
  * License, or (at your option) any later version.
  */
 
-import { TransientOperationError } from '@common/resilience/transient-operation.error';
+import { TransientOperationError } from '@nestjs-pipeline/ddd-core';
 
 export { TransientOperationError };
 

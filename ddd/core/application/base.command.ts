@@ -16,13 +16,19 @@
  * ----------------------------
  */
 
-import type { SessionUser } from '@common/types/SessionUser';
 import type { ICommand } from '@nestjs/cqrs';
 
-export abstract class BaseCommand implements ICommand {
-  public declare readonly sessionUser?: SessionUser;
+/**
+ * Base class for application CQRS commands.
+ *
+ * Encapsulates non-enumerable session/authentication metadata and provides
+ * dynamic introspection of payload fields targeted for update via {@link getUpdateFields}.
+ */
+// biome-ignore lint/suspicious/noExplicitAny: generic session user default
+export abstract class BaseCommand<TSessionUser = any> implements ICommand {
+  public declare readonly sessionUser?: TSessionUser;
 
-  constructor(sessionUser?: SessionUser) {
+  constructor(sessionUser?: TSessionUser) {
     if (sessionUser !== undefined) {
       Object.defineProperty(this, 'sessionUser', {
         value: sessionUser,

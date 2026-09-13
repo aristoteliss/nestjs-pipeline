@@ -16,16 +16,16 @@
  * ----------------------------
  */
 
-import { filterCacheKey } from '@common/cqrs/helpers/filterCacheKey.helper';
 import { Inject, Injectable } from '@nestjs/common';
 import {
   AcknowledgePersisted,
+  CACHE_TOKEN,
   Cache,
   CommandRepository,
+  filterCacheKey,
   ICache,
   MapPersistenceErrors,
 } from '@nestjs-pipeline/ddd-core';
-import { CACHE_TOKEN } from '@persistence/cache/memory.cache';
 import { MIKRO_ORM_CLIENT, MikroOrmStore } from '@persistence/mikro-orm.store';
 import { UniqueEmailException } from '../domain/models/errors/email.exception';
 import { User, UserSnapshot } from '../domain/models/user.entity';
