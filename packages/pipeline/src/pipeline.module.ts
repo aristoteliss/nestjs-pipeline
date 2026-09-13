@@ -35,6 +35,7 @@ export {
   PipelineModuleAsyncOptions,
   PipelineModuleOptions,
   PipelineOptionsFactory,
+  PipelineRuntimeOptions,
 } from './options';
 
 /**
@@ -158,6 +159,12 @@ export class PipelineModule {
    * Registers the pipeline module asynchronously, allowing options to be provided
    * via an injected factory provider (e.g. from another module or async configuration).
    *
+   * Provider-graph concerns must be known before the async factory executes.
+   * `behaviors` has always been a static `forRootAsync` field; `loggerProvider`
+   * can now be declared there as well. For backward compatibility, factories
+   * still return the full {@link PipelineModuleOptions} type, but provider-graph
+   * fields returned by the factory cannot retroactively register Nest providers.
+   *
    * @param options - Async factory, its injected providers, behaviors, and optional imports.
    * @returns The configured global {@link DynamicModule}.
    *
@@ -167,6 +174,10 @@ export class PipelineModule {
    *   imports: [PersistenceModule],
    *   inject: [TenantSchemaContext],
    *   behaviors: [LoggingBehavior, ZodValidationBehavior],
+   *   loggerProvider: {
+   *     provide: LOGGING_BEHAVIOR_LOGGER,
+   *     useExisting: MyLogger,
+   *   },
    *   useFactory: (tenantContext: TenantSchemaContext) => ({
    *     tenantIdFactory: () => tenantContext.schema,
    *     globalBehaviors: [{ scope: 'all', before: [LoggingBehavior] }],
@@ -175,6 +186,15 @@ export class PipelineModule {
    * ```
    */
   static forRootAsync(options: PipelineModuleAsyncOptions): DynamicModule {
+    if (
+      options.loggerProvider &&
+      options.loggerProvider.provide !== LOGGING_BEHAVIOR_LOGGER
+    ) {
+      throw new TypeError(
+        'loggerProvider must bind the LOGGING_BEHAVIOR_LOGGER token.',
+      );
+    }
+
     const behaviors = extractBehaviorTypes(options.behaviors ?? []);
     const asyncProviders = PipelineModule.createAsyncProviders(options);
 
@@ -187,6 +207,7 @@ export class PipelineModule {
         PipelineBootstrapService,
         ...behaviors,
         ...(options.extraProviders ?? []),
+        ...(options.loggerProvider ? [options.loggerProvider] : []),
       ],
       exports: [
         ...behaviors,
@@ -200,6 +221,7 @@ export class PipelineModule {
               )
               .filter(Boolean)
           : []),
+        ...(options.loggerProvider ? [LOGGING_BEHAVIOR_LOGGER] : []),
       ],
     };
   }
