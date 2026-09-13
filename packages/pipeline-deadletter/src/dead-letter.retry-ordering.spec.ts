@@ -1,0 +1,91 @@
+/*
+ * Copyright (C) 2026-present Aristotelis
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as
+ * published by the Free Software Foundation, either version 3 of the
+ * License, or (at your option) any later version.
+ *
+ * --- COMMERCIAL EXCEPTION ---
+ * Alternatively, a Commercial License is available for individuals or
+ * organizations that require proprietary use without the AGPLv3
+ * copyleft restrictions.
+ *
+ * See COMMERCIAL_LICENSE.txt in this repository for the tiered
+ * revenue-based terms, or contact: aristotelis@ik.me
+ * ----------------------------
+ */
+
+import type { IPipelineContext } from '@nestjs-pipeline/core';
+import { describe, expect, it, vi } from 'vitest';
+import { DeadLetterBehavior } from './dead-letter.behavior';
+import type { DeadLetterTransport } from './interfaces/dead-letter-transport.interface';
+
+function context(): IPipelineContext {
+  return {
+    correlationId: 'corr-1',
+    originalCorrelationId: 'corr-1',
+    request: { id: 1 },
+    requestType: class TestCommand {},
+    requestName: 'TestCommand',
+    handlerType: class TestHandler {},
+    handlerName: 'TestHandler',
+    requestKind: 'command',
+    startedAt: new Date('2026-01-01T00:00:00.000Z'),
+    response: undefined,
+    items: new Map(),
+    getBehaviorOptions: vi.fn().mockReturnValue(undefined),
+  } as unknown as IPipelineContext;
+}
+
+function transport(): DeadLetterTransport & { send: ReturnType<typeof vi.fn> } {
+  return {
+    send: vi.fn().mockResolvedValue(undefined),
+  } as unknown as DeadLetterTransport & {
+    send: ReturnType<typeof vi.fn>;
+  };
+}
+
+describe('DeadLetterBehavior retry ordering', () => {
+  it('dead-letters once when retries happen downstream and are exhausted', async () => {
+    const sink = transport();
+    const behavior = new DeadLetterBehavior(sink);
+    let attempts = 0;
+
+    const retryingNext = async (): Promise<never> => {
+      let lastError: Error | undefined;
+      while (attempts < 3) {
+        attempts += 1;
+        try {
+          throw new Error(`attempt-${attempts}`);
+        } catch (error) {
+          lastError = error as Error;
+        }
+      }
+      throw lastError;
+    };
+
+    await expect(behavior.handle(context(), retryingNext)).rejects.toThrow(
+      'attempt-3',
+    );
+
+    expect(attempts).toBe(3);
+    expect(sink.send).toHaveBeenCalledTimes(1);
+  });
+
+  it('documents why placing dead-letter inside a retry loop captures every attempt', async () => {
+    const sink = transport();
+    const behavior = new DeadLetterBehavior(sink);
+    const ctx = context();
+
+    for (let attempt = 1; attempt <= 3; attempt += 1) {
+      await expect(
+        behavior.handle(ctx, async () => {
+          throw new Error(`attempt-${attempt}`);
+        }),
+      ).rejects.toThrow(`attempt-${attempt}`);
+    }
+
+    expect(sink.send).toHaveBeenCalledTimes(3);
+  });
+});
