@@ -23,6 +23,7 @@ import {
   FEATURE_FLAGS_CLIENT,
   FEATURE_FLAGS_DEFAULT_CONTEXT,
   FEATURE_FLAGS_DEFAULT_OPTIONS,
+  FEATURE_FLAGS_TARGETING_KEY_FACTORY,
 } from './constants/tokens';
 import { FeatureFlagBehavior } from './feature-flag.behavior';
 import { FeatureFlagsModule } from './feature-flags.module';
@@ -120,6 +121,7 @@ describe('FeatureFlagsModule.forRoot', () => {
       FEATURE_FLAGS_CLIENT,
       FEATURE_FLAGS_DEFAULT_OPTIONS,
       FEATURE_FLAGS_DEFAULT_CONTEXT,
+      FEATURE_FLAGS_TARGETING_KEY_FACTORY,
     ]);
   });
 });

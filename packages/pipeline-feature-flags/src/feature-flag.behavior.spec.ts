@@ -20,17 +20,19 @@ import type { IPipelineContext } from '@nestjs-pipeline/core';
 import type { Client, EvaluationContext } from '@openfeature/server-sdk';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { FeatureDisabledError } from './errors/feature-disabled.error';
+import { FeatureFlagEvaluationError } from './errors/feature-flag-evaluation.error';
 import {
+  FEATURE_FLAG_DECISION_ITEM,
   FEATURE_FLAG_ITEM,
   FEATURE_FLAG_KEY_ITEM,
   FeatureFlagBehavior,
 } from './feature-flag.behavior';
 import type { FeatureFlagBehaviorOptions } from './interfaces/feature-flags-options.interface';
 
-// ─── Doubles ──────────────────────────────────────────────────────────────────
+// ─── OpenFeature client double ────────────────────────────────────────────────
 
-const getBooleanValue = vi.fn();
-const client = { getBooleanValue } as unknown as Client;
+const getBooleanDetails = vi.fn();
+const client = { getBooleanDetails } as unknown as Client;
 
 function makeCtx(overrides: Partial<IPipelineContext> = {}): IPipelineContext {
   return {
@@ -60,15 +62,14 @@ function withOptions(
   return ctx;
 }
 
-// ─── Tests ────────────────────────────────────────────────────────────────────
-
 describe('FeatureFlagBehavior', () => {
-  beforeEach(() => {
-    getBooleanValue.mockReset();
-  });
+  beforeEach(() => getBooleanDetails.mockReset());
 
   it('does not mutate a shared logger and supplies its context per call', async () => {
-    getBooleanValue.mockResolvedValue(true);
+    getBooleanDetails.mockResolvedValue({
+      flagKey: 'new-checkout',
+      value: true,
+    });
     const logger = { debug: vi.fn(), setContext: vi.fn() };
     const behavior = new FeatureFlagBehavior(
       client,
@@ -95,11 +96,14 @@ describe('FeatureFlagBehavior', () => {
 
     expect(result).toBe('handler-result');
     expect(next).toHaveBeenCalledTimes(1);
-    expect(getBooleanValue).not.toHaveBeenCalled();
+    expect(getBooleanDetails).not.toHaveBeenCalled();
   });
 
-  it('runs the handler when the flag is enabled and records context items', async () => {
-    getBooleanValue.mockResolvedValue(true);
+  it('runs the handler when the flag is enabled and preserves original context items', async () => {
+    getBooleanDetails.mockResolvedValue({
+      flagKey: 'new-checkout',
+      value: true,
+    });
     const behavior = new FeatureFlagBehavior(client);
     const ctx = withOptions(makeCtx(), { flag: 'new-checkout' });
     const next = vi.fn().mockResolvedValue('ok');
@@ -112,35 +116,43 @@ describe('FeatureFlagBehavior', () => {
     expect(ctx.items.get(FEATURE_FLAG_ITEM)).toBe(true);
   });
 
-  it('evaluates with defaultValue=false (fail-closed) and the request targeting context', async () => {
-    getBooleanValue.mockResolvedValue(true);
-    const behavior = new FeatureFlagBehavior(client);
+  it('evaluates fail-closed by default without using correlationId as targetingKey', async () => {
+    getBooleanDetails.mockResolvedValue({
+      flagKey: 'thing',
+      value: true,
+      reason: 'STATIC',
+    });
     const ctx = withOptions(
       makeCtx({ requestKind: 'query', requestName: 'GetThingQuery' }),
       { flag: 'thing' },
     );
 
-    await behavior.handle(ctx, vi.fn().mockResolvedValue(null));
+    await new FeatureFlagBehavior(client).handle(
+      ctx,
+      vi.fn().mockResolvedValue(null),
+    );
 
-    expect(getBooleanValue).toHaveBeenCalledWith('thing', false, {
-      targetingKey: 'corr-123',
+    expect(getBooleanDetails).toHaveBeenCalledWith('thing', false, {
       'pipeline.request.kind': 'query',
       'pipeline.request.name': 'GetThingQuery',
       'pipeline.handler.name': 'TestHandler',
+      'pipeline.correlation_id': 'corr-123',
     });
   });
 
   it('honors a custom defaultValue', async () => {
-    getBooleanValue.mockResolvedValue(true);
-    const behavior = new FeatureFlagBehavior(client);
+    getBooleanDetails.mockResolvedValue({ flagKey: 'beta', value: true });
     const ctx = withOptions(makeCtx(), {
       flag: 'beta',
       defaultValue: true,
     });
 
-    await behavior.handle(ctx, vi.fn().mockResolvedValue(null));
+    await new FeatureFlagBehavior(client).handle(
+      ctx,
+      vi.fn().mockResolvedValue(null),
+    );
 
-    expect(getBooleanValue).toHaveBeenCalledWith(
+    expect(getBooleanDetails).toHaveBeenCalledWith(
       'beta',
       true,
       expect.any(Object),
@@ -148,29 +160,34 @@ describe('FeatureFlagBehavior', () => {
   });
 
   it('throws FeatureDisabledError when disabled and no fallback is set', async () => {
-    getBooleanValue.mockResolvedValue(false);
-    const behavior = new FeatureFlagBehavior(client);
+    getBooleanDetails.mockResolvedValue({
+      flagKey: 'new-checkout',
+      value: false,
+    });
     const ctx = withOptions(makeCtx(), { flag: 'new-checkout' });
     const next = vi.fn();
 
-    await expect(behavior.handle(ctx, next)).rejects.toBeInstanceOf(
-      FeatureDisabledError,
-    );
-    await expect(behavior.handle(ctx, next)).rejects.toMatchObject({
+    await expect(
+      new FeatureFlagBehavior(client).handle(ctx, next),
+    ).rejects.toMatchObject({
       flag: 'new-checkout',
       requestName: 'TestCommand',
     });
     expect(next).not.toHaveBeenCalled();
   });
 
-  it('returns the fallback (request-aware) when disabled', async () => {
-    getBooleanValue.mockResolvedValue(false);
-    const behavior = new FeatureFlagBehavior(client);
-    const fallback = vi.fn((c: IPipelineContext) => `legacy:${c.requestName}`);
+  it('returns a request-aware fallback when disabled', async () => {
+    getBooleanDetails.mockResolvedValue({
+      flagKey: 'new-checkout',
+      value: false,
+    });
+    const fallback = vi.fn(
+      (ctx: IPipelineContext) => `legacy:${ctx.requestName}`,
+    );
     const ctx = withOptions(makeCtx(), { flag: 'new-checkout', fallback });
     const next = vi.fn();
 
-    const result = await behavior.handle(ctx, next);
+    const result = await new FeatureFlagBehavior(client).handle(ctx, next);
 
     expect(result).toBe('legacy:TestCommand');
     expect(fallback).toHaveBeenCalledWith(ctx);
@@ -178,26 +195,28 @@ describe('FeatureFlagBehavior', () => {
   });
 
   it('merges module defaults under per-handler options (handler wins)', async () => {
-    getBooleanValue.mockResolvedValue(true);
+    getBooleanDetails.mockResolvedValue({
+      flagKey: 'handler-flag',
+      value: true,
+    });
     const defaults: FeatureFlagBehaviorOptions = {
       flag: 'default-flag',
       defaultValue: true,
     };
     const behavior = new FeatureFlagBehavior(client, defaults);
-    // Handler overrides the flag but inherits defaultValue=true.
     const ctx = withOptions(makeCtx(), { flag: 'handler-flag' });
 
     await behavior.handle(ctx, vi.fn().mockResolvedValue(null));
 
-    expect(getBooleanValue).toHaveBeenCalledWith(
+    expect(getBooleanDetails).toHaveBeenCalledWith(
       'handler-flag',
       true,
       expect.any(Object),
     );
   });
 
-  it('merges module-wide and handler targeting context (handler wins)', async () => {
-    getBooleanValue.mockResolvedValue(true);
+  it('merges module-wide and handler evaluation context (handler wins)', async () => {
+    getBooleanDetails.mockResolvedValue({ flagKey: 'f', value: true });
     const moduleContext: EvaluationContext = {
       environment: 'prod',
       region: 'eu',
@@ -210,14 +229,152 @@ describe('FeatureFlagBehavior', () => {
 
     await behavior.handle(ctx, vi.fn().mockResolvedValue(null));
 
-    expect(getBooleanValue).toHaveBeenCalledWith('f', false, {
-      targetingKey: 'corr-123',
+    expect(getBooleanDetails).toHaveBeenCalledWith('f', false, {
       'pipeline.request.kind': 'command',
       'pipeline.request.name': 'TestCommand',
       'pipeline.handler.name': 'TestHandler',
+      'pipeline.correlation_id': 'corr-123',
       environment: 'prod',
       region: 'us',
       tenant: 'acme',
+    });
+  });
+
+  it('uses a stable module targeting key and records detailed decision metadata', async () => {
+    getBooleanDetails.mockResolvedValue({
+      flagKey: 'checkout',
+      value: true,
+      variant: 'treatment',
+      reason: 'TARGETING_MATCH',
+    });
+    const moduleContext: EvaluationContext = { environment: 'prod' };
+    const ctx = withOptions(makeCtx(), {
+      flag: 'checkout',
+      allowedVariants: ['treatment'],
+    });
+    const behavior = new FeatureFlagBehavior(
+      client,
+      undefined,
+      moduleContext,
+      undefined,
+      () => 'user-42',
+    );
+
+    await behavior.handle(ctx, vi.fn().mockResolvedValue('ok'));
+
+    expect(getBooleanDetails).toHaveBeenCalledWith(
+      'checkout',
+      false,
+      expect.objectContaining({
+        targetingKey: 'user-42',
+        environment: 'prod',
+      }),
+    );
+    expect(ctx.items.get(FEATURE_FLAG_ITEM)).toBe(true);
+    expect(ctx.items.get(FEATURE_FLAG_KEY_ITEM)).toBe('checkout');
+    expect(ctx.items.get(FEATURE_FLAG_DECISION_ITEM)).toMatchObject({
+      flagKey: 'checkout',
+      value: true,
+      enabled: true,
+      variant: 'treatment',
+      reason: 'TARGETING_MATCH',
+      targetingKey: 'user-42',
+    });
+  });
+
+  it('handler targeting key overrides the module targeting key', async () => {
+    getBooleanDetails.mockResolvedValue({ flagKey: 'f', value: true });
+    const ctx = withOptions(makeCtx(), {
+      flag: 'f',
+      targetingKeyFactory: () => 'account-7',
+    });
+    const behavior = new FeatureFlagBehavior(
+      client,
+      undefined,
+      undefined,
+      undefined,
+      () => 'module-user',
+    );
+
+    await behavior.handle(ctx, vi.fn().mockResolvedValue(null));
+
+    expect(getBooleanDetails).toHaveBeenCalledWith(
+      'f',
+      false,
+      expect.objectContaining({ targetingKey: 'account-7' }),
+    );
+  });
+
+  it('blocks an enabled flag when its provider variant is not allowed', async () => {
+    getBooleanDetails.mockResolvedValue({
+      flagKey: 'checkout',
+      value: true,
+      variant: 'control',
+    });
+    const ctx = withOptions(makeCtx(), {
+      flag: 'checkout',
+      allowedVariants: ['treatment'],
+    });
+
+    await expect(
+      new FeatureFlagBehavior(client).handle(ctx, vi.fn()),
+    ).rejects.toBeInstanceOf(FeatureDisabledError);
+    expect(ctx.items.get(FEATURE_FLAG_DECISION_ITEM)).toMatchObject({
+      value: true,
+      enabled: false,
+      variant: 'control',
+    });
+  });
+
+  it('surfaces provider-reported failures when errorPolicy=throw', async () => {
+    getBooleanDetails.mockResolvedValue({
+      flagKey: 'checkout',
+      value: false,
+      reason: 'ERROR',
+      errorCode: 'PROVIDER_NOT_READY',
+      errorMessage: 'warming up',
+    });
+    const ctx = withOptions(makeCtx(), {
+      flag: 'checkout',
+      errorPolicy: 'throw',
+    });
+
+    await expect(
+      new FeatureFlagBehavior(client).handle(ctx, vi.fn()),
+    ).rejects.toBeInstanceOf(FeatureFlagEvaluationError);
+  });
+
+  it('surfaces thrown provider failures when errorPolicy=throw', async () => {
+    getBooleanDetails.mockRejectedValueOnce(new Error('provider offline'));
+    const ctx = withOptions(makeCtx(), {
+      flag: 'checkout',
+      errorPolicy: 'throw',
+    });
+
+    await expect(
+      new FeatureFlagBehavior(client).handle(ctx, vi.fn()),
+    ).rejects.toMatchObject({
+      name: 'FeatureFlagEvaluationError',
+      providerMessage: 'provider offline',
+    });
+  });
+
+  it('uses the default value when provider evaluation throws and policy is use-default', async () => {
+    getBooleanDetails.mockRejectedValueOnce(new Error('provider offline'));
+    const fallback = vi.fn().mockReturnValue('legacy');
+    const ctx = withOptions(makeCtx(), {
+      flag: 'checkout',
+      defaultValue: false,
+      fallback,
+    });
+
+    const result = await new FeatureFlagBehavior(client).handle(ctx, vi.fn());
+
+    expect(result).toBe('legacy');
+    expect(ctx.items.get(FEATURE_FLAG_DECISION_ITEM)).toMatchObject({
+      enabled: false,
+      reason: 'ERROR',
+      errorMessage: 'provider offline',
     });
   });
 });

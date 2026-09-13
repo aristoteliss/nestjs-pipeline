@@ -22,6 +22,7 @@ import {
   FEATURE_FLAGS_CLIENT,
   FEATURE_FLAGS_DEFAULT_CONTEXT,
   FEATURE_FLAGS_DEFAULT_OPTIONS,
+  FEATURE_FLAGS_TARGETING_KEY_FACTORY,
 } from './constants/tokens';
 import { FeatureFlagBehavior } from './feature-flag.behavior';
 import type {
@@ -39,6 +40,10 @@ import type {
  * touching handler code. If neither a `client` nor `provider` is supplied,
  * the module uses OpenFeature's ambient client.
  *
+ * For percentage rollouts, provide a stable {@link FeatureFlagsModuleOptions.targetingKeyFactory}
+ * such as user/account/device ID. Correlation ID is intentionally not used as
+ * the rollout identity because it normally changes on every request.
+ *
  * @example Unleash provider, per-handler gating
  * ```ts
  * import { FeatureFlagsModule, FeatureFlagBehavior } from '@nestjs-pipeline/feature-flags';
@@ -53,6 +58,8 @@ import type {
  *         token: process.env.UNLEASH_TOKEN!,
  *       }),
  *       context: { environment: process.env.NODE_ENV ?? 'development' },
+ *       targetingKeyFactory: (ctx) =>
+ *         ctx.items.get('userId') as string | undefined,
  *     }),
  *     PipelineModule.forRoot({ behaviors: [FeatureFlagBehavior] }),
  *   ],
@@ -62,6 +69,15 @@ import type {
  * @CommandHandler(NewCheckoutCommand)
  * @UsePipeline([FeatureFlagBehavior, { flag: 'new-checkout' }])
  * export class NewCheckoutHandler implements ICommandHandler<NewCheckoutCommand> {}
+ * ```
+ *
+ * @example Sticky rollout scoped to an account instead of an individual user
+ * ```ts
+ * FeatureFlagsModule.forRoot({
+ *   provider: myProvider,
+ *   targetingKeyFactory: (ctx) =>
+ *     ctx.items.get('accountId') as string | undefined,
+ * });
  * ```
  *
  * @example Flagsmith — drop-in replacement (only the provider changes)
@@ -78,9 +94,10 @@ export class FeatureFlagsModule {
   /**
    * Registers the feature-flag behavior, resolves the OpenFeature client
    * (registering the provider when supplied), and binds optional
-   * application-wide defaults.
+   * application-wide defaults, targeting context, and stable targeting-key
+   * resolver.
    *
-   * @param options - Provider/client, targeting context, and default options.
+   * @param options - Provider/client, targeting context, rollout identity, and default options.
    * @returns The configured global {@link DynamicModule}.
    */
   static forRoot(options: FeatureFlagsModuleOptions = {}): DynamicModule {
@@ -103,12 +120,17 @@ export class FeatureFlagsModule {
           provide: FEATURE_FLAGS_DEFAULT_CONTEXT,
           useValue: options.context,
         },
+        {
+          provide: FEATURE_FLAGS_TARGETING_KEY_FACTORY,
+          useValue: options.targetingKeyFactory,
+        },
       ],
       exports: [
         FeatureFlagBehavior,
         FEATURE_FLAGS_CLIENT,
         FEATURE_FLAGS_DEFAULT_OPTIONS,
         FEATURE_FLAGS_DEFAULT_CONTEXT,
+        FEATURE_FLAGS_TARGETING_KEY_FACTORY,
       ],
     };
   }
