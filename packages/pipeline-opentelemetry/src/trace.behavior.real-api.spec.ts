@@ -16,139 +16,89 @@
  * ----------------------------
  */
 
-import { IPipelineContext } from '@nestjs-pipeline/core';
+import type { IPipelineContext } from '@nestjs-pipeline/core';
 import { trace } from '@opentelemetry/api';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { isSdkInitialized, TraceBehavior } from './trace.behavior';
+import { TraceBehavior } from './trace.behavior';
+
+function makeCtx(options?: { enabled?: boolean }): IPipelineContext {
+  return {
+    correlationId: 'real-api-correlation',
+    originalCorrelationId: 'real-api-correlation',
+    request: { id: '1' },
+    requestType: class RealApiQuery {},
+    requestName: 'RealApiQuery',
+    handlerType: class RealApiHandler {},
+    handlerName: 'RealApiHandler',
+    requestKind: 'query',
+    startedAt: new Date(),
+    response: undefined,
+    items: new Map(),
+    getBehaviorOptions: vi.fn().mockReturnValue(options),
+  } as unknown as IPipelineContext;
+}
 
 describe('TraceBehavior (real OpenTelemetry API)', () => {
-  beforeEach(() => {
-    // Reset global tracer provider to uninitialized ProxyTracerProvider
-    trace.disable();
-  });
+  beforeEach(() => trace.disable());
+  afterEach(() => trace.disable());
 
-  afterEach(() => {
-    trace.disable();
-  });
-
-  it('detects uninitialized SDK in clean process (does not treat default NoopTracerProvider as active)', () => {
-    // In a clean process, trace.getTracerProvider() has a NoopTracerProvider delegate
-    expect(isSdkInitialized()).toBe(false);
-
-    const logger = {
-      warn: vi.fn(),
-      log: vi.fn(),
-    };
-    const behavior = new TraceBehavior(logger as never);
-    behavior.onModuleInit();
-
-    expect((behavior as any).sdkReady).toBe(false);
-    expect(logger.warn).toHaveBeenCalledWith(
-      expect.stringContaining('OpenTelemetry SDK is NOT initialized'),
-      TraceBehavior.name,
-    );
-    expect(logger.log).not.toHaveBeenCalled();
-  });
-
-  it('passes through execution when SDK is not initialized', async () => {
-    const behavior = new TraceBehavior();
-    behavior.onModuleInit();
-
+  it('executes successfully through the API-provided no-op tracer when no SDK is registered', async () => {
     const next = vi.fn().mockResolvedValue('pipeline-output');
-    const ctx = {
-      requestKind: 'command',
-      requestName: 'CreateUserCommand',
-      handlerName: 'CreateUserHandler',
-      correlationId: 'test-corr-id',
-      startedAt: new Date(),
-      getBehaviorOptions: vi.fn().mockReturnValue(undefined),
-    } as unknown as IPipelineContext;
 
-    const result = await behavior.handle(ctx, next);
-    expect(result).toBe('pipeline-output');
+    await expect(new TraceBehavior().handle(makeCtx(), next)).resolves.toBe(
+      'pipeline-output',
+    );
     expect(next).toHaveBeenCalledOnce();
   });
 
-  it('detects real initialized TracerProvider as active and emits spans', async () => {
-    const activeSpanMock = {
+  it('preserves handler errors when the global tracer is a no-op', async () => {
+    const failure = new Error('real-api failure');
+
+    await expect(
+      new TraceBehavior().handle(makeCtx(), async () => {
+        throw failure;
+      }),
+    ).rejects.toBe(failure);
+  });
+
+  it('uses an installed global TracerProvider without readiness probing', async () => {
+    const span = {
       setStatus: vi.fn(),
       end: vi.fn(),
       recordException: vi.fn(),
     };
-    const realTracer = {
+    const tracer = {
       startActiveSpan: vi.fn(
-        (_name: string, _opts: any, fn: (span: any) => any) =>
-          fn(activeSpanMock),
+        (_name: string, _opts: any, fn: (activeSpan: any) => any) => fn(span),
       ),
     };
-    const realProvider = {
-      getTracer: vi.fn().mockReturnValue(realTracer),
-    };
-
-    trace.setGlobalTracerProvider(realProvider as any);
-
-    expect(isSdkInitialized()).toBe(true);
-
-    const logger = {
-      warn: vi.fn(),
-      log: vi.fn(),
-    };
-    const behavior = new TraceBehavior(logger as never);
-    behavior.onModuleInit();
-
-    expect((behavior as any).sdkReady).toBe(true);
-    expect(logger.log).toHaveBeenCalledWith(
-      expect.stringContaining('OpenTelemetry tracer provider is active'),
-      TraceBehavior.name,
-    );
-    expect(logger.warn).not.toHaveBeenCalled();
+    const provider = { getTracer: vi.fn().mockReturnValue(tracer) };
+    trace.setGlobalTracerProvider(provider as any);
 
     const next = vi.fn().mockResolvedValue('success');
-    const ctx = {
-      requestKind: 'command',
-      requestName: 'CreateUserCommand',
-      handlerName: 'CreateUserHandler',
-      correlationId: 'real-corr-id',
-      startedAt: new Date(),
-      getBehaviorOptions: vi.fn().mockReturnValue(undefined),
-    } as unknown as IPipelineContext;
+    await expect(new TraceBehavior().handle(makeCtx(), next)).resolves.toBe(
+      'success',
+    );
 
-    const result = await behavior.handle(ctx, next);
-    expect(result).toBe('success');
-    expect(realTracer.startActiveSpan).toHaveBeenCalledWith(
-      'command.CreateUserCommand',
+    expect(provider.getTracer).toHaveBeenCalled();
+    expect(tracer.startActiveSpan).toHaveBeenCalledWith(
+      'query.RealApiQuery',
       expect.anything(),
       expect.any(Function),
     );
-    expect(activeSpanMock.end).toHaveBeenCalledOnce();
+    expect(span.end).toHaveBeenCalledOnce();
   });
 
-  it('respects per-handler enabled: false override even when SDK is initialized', async () => {
-    const realTracer = {
-      startActiveSpan: vi.fn(),
-    };
-    const realProvider = {
-      getTracer: vi.fn().mockReturnValue(realTracer),
-    };
-    trace.setGlobalTracerProvider(realProvider as any);
-
-    const behavior = new TraceBehavior();
-    behavior.onModuleInit();
-    expect((behavior as any).sdkReady).toBe(true);
-
+  it('respects enabled:false even when a global TracerProvider is installed', async () => {
+    const tracer = { startActiveSpan: vi.fn() };
+    trace.setGlobalTracerProvider({ getTracer: () => tracer } as any);
     const next = vi.fn().mockResolvedValue('bypassed');
-    const ctx = {
-      requestKind: 'query',
-      requestName: 'GetUserQuery',
-      handlerName: 'GetUserHandler',
-      correlationId: 'bypassed-corr-id',
-      startedAt: new Date(),
-      getBehaviorOptions: vi.fn().mockReturnValue({ enabled: false }),
-    } as unknown as IPipelineContext;
 
-    const result = await behavior.handle(ctx, next);
-    expect(result).toBe('bypassed');
-    expect(realTracer.startActiveSpan).not.toHaveBeenCalled();
+    await expect(
+      new TraceBehavior().handle(makeCtx({ enabled: false }), next),
+    ).resolves.toBe('bypassed');
+
+    expect(tracer.startActiveSpan).not.toHaveBeenCalled();
     expect(next).toHaveBeenCalledOnce();
   });
 });
