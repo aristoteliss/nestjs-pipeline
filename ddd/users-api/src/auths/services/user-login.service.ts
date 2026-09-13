@@ -16,28 +16,23 @@
  * ----------------------------
  */
 
-import { randomUUID } from 'node:crypto';
 import type { Session } from '@fastify/secure-session';
-import {
-  Inject,
-  Injectable,
-  InternalServerErrorException,
-  UnauthorizedException,
-} from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import type { UserCapabilities } from '@nestjs-pipeline/casl';
 import type { IQueryRepository } from '@nestjs-pipeline/ddd-core';
-import { SignJWT } from 'jose';
-import {
-  type ITenantContext,
-  TENANT_CONTEXT,
-} from '../../common/context/tenant-context.port';
 import type { SessionData } from '../../common/types/SessionUser';
 import { GetUserQuery } from '../../users/cqrs/queries/get-user.query';
 import { User } from '../../users/domain/models/user.entity';
 import { EXT_USER_QUERY_REPOSITORY } from '../../users/persistence/repository.tokens';
+import {
+  ACCESS_TOKEN_ISSUER,
+  type IAccessTokenIssuer,
+  type ILoginCodeVerifier,
+  LOGIN_CODE_VERIFIER,
+} from '../application/authentication.ports';
 import { GetUserCapabilitiesQuery } from '../cqrs/queries/get-user-capabilities.query';
+import { InvalidLoginCredentialsException } from '../domain/errors/authentication.exception';
 import { QUERY_REPOSITORY } from '../persistence/repository.tokens';
-import { CapabilityCodec } from './capability-codec';
 import { JwtAuthenticator } from './jwt-authenticator';
 import { SessionService } from './session.service';
 
@@ -53,10 +48,13 @@ export interface AuthResult {
  * Application service responsible for user login verification and access token issuance.
  *
  * Encapsulates the `POST /auth/login` workflow:
- * 1. Validates the temporary login code against `AUTH_LOGIN_CODE`.
+ * 1. Validates the temporary login code via {@link ILoginCodeVerifier}.
  * 2. Fetches user account details from the tenant database via {@link GetUserQuery}.
- * 3. Resolves CASL user permissions and role capabilities via {@link IUserCapabilityReader}.
- * 4. Signs an HMAC access token bound to the current tenant schema via {@link ITenantContext}.
+ * 3. Resolves CASL user permissions and role capabilities via {@link IQueryRepository}.
+ * 4. Signs an access token via {@link IAccessTokenIssuer}.
+ *
+ * Infrastructure details like cryptography, JWT libraries, and environment variables
+ * remain cleanly behind application ports.
  *
  * @example
  * ```bash
@@ -77,8 +75,10 @@ export class UserLoginService {
       GetUserCapabilitiesQuery,
       UserCapabilities
     >,
-    @Inject(TENANT_CONTEXT)
-    private readonly tenantContext: ITenantContext,
+    @Inject(LOGIN_CODE_VERIFIER)
+    private readonly loginCodeVerifier: ILoginCodeVerifier,
+    @Inject(ACCESS_TOKEN_ISSUER)
+    private readonly accessTokenIssuer: IAccessTokenIssuer,
     private readonly jwtAuthenticator: JwtAuthenticator,
     private readonly sessionService: SessionService = new SessionService(),
   ) {}
@@ -143,8 +143,7 @@ export class UserLoginService {
    * @param email - User email address.
    * @param code - Login code provided by caller.
    * @returns The resolved {@link User} entity upon successful verification.
-   * @throws {@link InternalServerErrorException} If `AUTH_LOGIN_CODE` is not configured on the server.
-   * @throws {@link UnauthorizedException} If the code does not match or the user does not exist.
+   * @throws {@link InvalidLoginCredentialsException} If the code does not match or the user does not exist.
    *
    * @example
    * ```ts
@@ -152,21 +151,12 @@ export class UserLoginService {
    * ```
    */
   async authenticate(email: string, code: string): Promise<User> {
-    const expectedCode = process.env.AUTH_LOGIN_CODE;
-    if (!expectedCode) {
-      throw new InternalServerErrorException(
-        'AUTH_LOGIN_CODE is not configured',
-      );
-    }
-
-    if (code !== expectedCode) {
-      throw new UnauthorizedException('Invalid code');
-    }
+    await this.loginCodeVerifier.verify(code);
 
     const user = await this.queryRepository.find(new GetUserQuery({ email }));
 
     if (!user) {
-      throw new UnauthorizedException('Invalid credentials');
+      throw new InvalidLoginCredentialsException();
     }
 
     return user;
@@ -175,13 +165,11 @@ export class UserLoginService {
   /**
    * Signs and issues a JWT access token for an authenticated user.
    *
-   * Embeds the active tenant schema, user identity, and compact serialized CASL capabilities
-   * (overrides and denials) directly in token claims, while role-level capabilities are resolved
-   * dynamically server-side from the `roles` claim.
+   * Resolves user capabilities directly through repository port and delegates
+   * token generation to {@link IAccessTokenIssuer}.
    *
    * @param user - The authenticated domain {@link User} entity.
    * @returns An {@link AuthResult} containing userId, resolved capabilities, and the signed JWT string.
-   * @throws {@link InternalServerErrorException} If `JWT_SECRET` is missing or `JWT_ALGORITHMS` excludes HS256.
    *
    * @example
    * ```ts
@@ -190,64 +178,19 @@ export class UserLoginService {
    * ```
    */
   async signToken(user: User): Promise<AuthResult> {
-    const jwtSecret = process.env.JWT_SECRET;
-    if (!jwtSecret) {
-      throw new InternalServerErrorException('JWT_SECRET is not configured');
-    }
-    const configuredAlgorithms = process.env.JWT_ALGORITHMS?.split(',').map(
-      (algorithm) => algorithm.trim(),
-    );
-    if (configuredAlgorithms && !configuredAlgorithms.includes('HS256')) {
-      throw new InternalServerErrorException(
-        'JWT_ALGORITHMS must include HS256 for locally issued login tokens',
-      );
-    }
-
-    const issuer = process.env.JWT_ISSUER;
-    const audience = process.env.JWT_AUDIENCE;
-    const tenant = this.tenantContext.schema;
-
     const userCapabilities = await this.capabilityRepository.find(
       new GetUserCapabilitiesQuery({ userId: user.id }),
     );
 
-    const nowSeconds = Math.floor(Date.now() / 1000);
-    const expSeconds = nowSeconds + 3600; // 1 hour
-
-    const jwt = new SignJWT({
-      tenant,
-      email: user.email,
-      department: user.department,
-      roles: userCapabilities.roles,
-      additionalCapabilities: CapabilityCodec.toCompact(
-        userCapabilities.additionalCapabilities,
-      ),
-      deniedCapabilities: CapabilityCodec.toCompact(
-        userCapabilities.deniedCapabilities,
-      ),
-    })
-      .setProtectedHeader({ alg: 'HS256', typ: 'JWT' })
-      .setSubject(user.id)
-      .setIssuedAt(nowSeconds)
-      .setExpirationTime(expSeconds)
-      .setJti(randomUUID());
-
-    if (issuer) {
-      jwt.setIssuer(issuer);
-    }
-
-    if (audience) {
-      jwt.setAudience(audience);
-    }
-
-    const accessToken = await jwt.sign(new TextEncoder().encode(jwtSecret));
+    const token = await this.accessTokenIssuer.issue({
+      user,
+      capabilities: userCapabilities,
+    });
 
     return {
       userId: user.id,
       userCapabilities,
-      accessToken,
-      expiresAt: expSeconds * 1000,
-      exp: expSeconds,
+      ...token,
     };
   }
 }

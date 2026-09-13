@@ -1,7 +1,14 @@
 {
   "$schema": "https://biomejs.dev/schemas/2.5.10/schema.json",
   "files": {
-    "includes": ["**", "!!**/dist", "!!**/coverage", "!!**/.turbo"]
+    "includes": [
+      "**",
+      "!!**/dist",
+      "!!**/coverage",
+      "!!**/.turbo",
+      "!!**/.snapshot-*.json",
+      "!!**/*.db"
+    ]
   },
   "formatter": {
     "indentStyle": "space",
