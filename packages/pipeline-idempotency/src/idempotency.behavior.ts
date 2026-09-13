@@ -36,6 +36,7 @@ import {
   IDEMPOTENCY_DEFAULT_OPTIONS,
   IDEMPOTENCY_STORE,
 } from './constants/tokens';
+import { IdempotencyCompletionError } from './errors/idempotency-completion.error';
 import { IdempotencyConflictError } from './errors/idempotency-conflict.error';
 import { fingerprintValue } from './helpers/fingerprint';
 import { toJsonSnapshot } from './helpers/json-snapshot';
@@ -231,17 +232,29 @@ export class IdempotencyBehavior implements IPipelineBehavior {
     // The handler has already succeeded. Completion must be conditional on
     // still owning the claim; a stale execution must never overwrite a newer
     // execution that reclaimed the key after this claim's TTL elapsed.
-    const completed = await this.store.completeIfOwned(
-      key,
-      claimId,
-      {
-        ...claim,
-        status: 'completed',
-        response: responseSnapshot,
-        completedAt: new Date().toISOString(),
-      },
-      ttl,
-    );
+    let completed: boolean;
+    try {
+      completed = await this.store.completeIfOwned(
+        key,
+        claimId,
+        {
+          ...claim,
+          status: 'completed',
+          response: responseSnapshot,
+          completedAt: new Date().toISOString(),
+        },
+        ttl,
+      );
+    } catch (cause) {
+      this.logger.error?.(
+        `Idempotency completion persistence failed after ${context.requestName} ` +
+          `executed successfully (key: ${key}). Retrying the business request may ` +
+          'repeat side effects.',
+        cause instanceof Error ? cause.stack : undefined,
+        IdempotencyBehavior.name,
+      );
+      throw new IdempotencyCompletionError(key, claimId, cause);
+    }
 
     if (!completed) {
       context.items.set(IDEMPOTENCY_OWNERSHIP_LOST_ITEM, true);
