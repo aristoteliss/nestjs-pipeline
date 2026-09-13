@@ -17,6 +17,11 @@
  */
 
 export {
+  DEFAULT_REDACT_KEYS,
+  REDACTED,
+  redactValue,
+} from '@nestjs-pipeline/core';
+export {
   DEAD_LETTER_DEFAULT_OPTIONS,
   DEAD_LETTER_TRANSPORT,
 } from './constants/tokens';
@@ -26,11 +31,6 @@ export {
 } from './dead-letter.behavior';
 export { DeadLetterModule } from './dead-letter.module';
 export { buildDeadLetterRecord } from './helpers/build-record';
-export {
-  DEFAULT_REDACT_KEYS,
-  REDACTED,
-  redactValue,
-} from '@nestjs-pipeline/core';
 export type {
   DeadLetterBehaviorOptions,
   DeadLetterMetadataFactory,

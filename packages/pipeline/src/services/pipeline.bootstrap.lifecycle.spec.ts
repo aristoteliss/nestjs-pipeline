@@ -23,8 +23,8 @@ import type {
   NextDelegate,
 } from '../interfaces/pipeline.behavior.interface';
 import type { IPipelineContext } from '../interfaces/pipeline.context.interface';
-import { PipelineBootstrapService } from './pipeline.bootstrap.service';
 import { untyped } from '../types/safe-typing';
+import { PipelineBootstrapService } from './pipeline.bootstrap.service';
 
 class LifecycleCommand {
   constructor(public readonly value: string) {}
@@ -63,10 +63,8 @@ function makeScopedWrapper(handlerType: any) {
     scope: 2,
     values,
     isDependencyTreeStatic: vi.fn(() => false),
-    getInstanceByContextId: vi.fn(function (contextId: any) {
-      return values.get(contextId);
-    }),
-    setInstanceByContextId: vi.fn(function (contextId: any, value: any) {
+    getInstanceByContextId: vi.fn((contextId: any) => values.get(contextId)),
+    setInstanceByContextId: vi.fn((contextId: any, value: any) => {
       values.set(contextId, value);
     }),
   };
@@ -112,7 +110,9 @@ describe('PipelineBootstrapService Lifecycle & OnModuleDestroy', () => {
     // App 1 instance execution
     const instance1 = new ScopedLifecycleHandler();
     wrapper1.setInstanceByContextId('ctx-1', { instance: instance1 });
-    const result1: any = await instance1.execute(new LifecycleCommand('test-1'));
+    const result1: any = await instance1.execute(
+      new LifecycleCommand('test-1'),
+    );
     expect(result1.ok).toBe(true);
 
     // --- App 1 Destroy ---
@@ -150,7 +150,9 @@ describe('PipelineBootstrapService Lifecycle & OnModuleDestroy', () => {
     // App 2 instance execution should use BehaviorB and moduleRef2
     const instance2 = new ScopedLifecycleHandler();
     wrapper2.setInstanceByContextId('ctx-2', { instance: instance2 });
-    const result2: any = await instance2.execute(new LifecycleCommand('test-2'));
+    const result2: any = await instance2.execute(
+      new LifecycleCommand('test-2'),
+    );
     expect(result2.ok).toBe(true);
 
     // moduleRef1 must NOT have been called by App 2

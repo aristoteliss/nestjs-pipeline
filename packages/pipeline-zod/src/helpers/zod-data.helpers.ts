@@ -169,7 +169,7 @@ export function deepEqual(a: unknown, b: unknown): boolean {
     return false;
   }
   for (const key of keysA) {
-    if (!Object.prototype.hasOwnProperty.call(b, key)) {
+    if (Object.getOwnPropertyDescriptor(b, key) === undefined) {
       return false;
     }
     if (
@@ -195,7 +195,7 @@ export function hasBeenMutated(
   const snapKeys = Object.keys(snapshot);
   if (reqKeys.length !== snapKeys.length) return true;
   for (const key of snapKeys) {
-    if (!Object.prototype.hasOwnProperty.call(request, key)) {
+    if (Object.getOwnPropertyDescriptor(request, key) === undefined) {
       return true;
     }
     if (!deepEqual(request[key], snapshot[key])) {

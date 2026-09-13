@@ -36,10 +36,13 @@ export function projectReadableFields(
       const candidate = ability.relevantRuleFor('read', typedSubject, field);
       if (candidate) {
         if (candidate.inverted) {
-          if (!rule || !rule.inverted || candidate.priority < rule.priority) {
+          if (!rule?.inverted || candidate.priority < rule.priority) {
             rule = candidate;
           }
-        } else if (!rule || (!rule.inverted && candidate.priority < rule.priority)) {
+        } else if (
+          !rule ||
+          (!rule.inverted && candidate.priority < rule.priority)
+        ) {
           rule = candidate;
         }
       }

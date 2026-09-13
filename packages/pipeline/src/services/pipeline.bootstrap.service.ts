@@ -65,7 +65,7 @@ type CqrsWithOptionalAsyncContext = {
 type PipelineRunner = (self: unknown, request: unknown) => Promise<unknown>;
 
 interface PrototypeMethodEntry {
-  originalMethod: Function;
+  originalMethod: (this: unknown, request: unknown) => unknown;
   runners: Map<PipelineBootstrapService, PipelineRunner>;
 }
 
@@ -241,7 +241,7 @@ export class PipelineBootstrapService
     // For scoped handlers, wrap the prototype so every per-request instance
     // gets the pipelined method. For singletons, wrap the instance directly.
     const target = isScoped ? handlerType.prototype : instance;
-    let originalMethod: Function;
+    let originalMethod: (this: unknown, request: unknown) => unknown;
     let methodMap: Map<string | symbol, PrototypeMethodEntry> | undefined;
     let entry: PrototypeMethodEntry | undefined;
 
@@ -444,7 +444,9 @@ export class PipelineBootstrapService
           originalMethod,
           runners: new Map(),
         };
-        methodMap!.set(methodName, entry);
+        if (!methodMap)
+          throw new Error('Scoped pipeline method registry is missing');
+        methodMap.set(methodName, entry);
 
         const currentTarget = target;
         const currentMethodName = methodName;
@@ -489,7 +491,7 @@ export class PipelineBootstrapService
           inquirerId?: string,
         ) {
           const host = origGetInstance.call(this, contextId, inquirerId);
-          if (host && host.instance && typeof host.instance === 'object') {
+          if (host?.instance && typeof host.instance === 'object') {
             instanceRunnerMap.set(host.instance, runner);
           }
           return host;
@@ -504,7 +506,7 @@ export class PipelineBootstrapService
           inquirerId?: string,
         ) {
           origSetInstance.call(this, contextId, value, inquirerId);
-          if (value && value.instance && typeof value.instance === 'object') {
+          if (value?.instance && typeof value.instance === 'object') {
             instanceRunnerMap.set(value.instance, runner);
           }
         };

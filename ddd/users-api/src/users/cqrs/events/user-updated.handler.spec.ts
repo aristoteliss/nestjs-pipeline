@@ -16,13 +16,13 @@
  * ----------------------------
  */
 
-import { describe, expect, it, vi } from 'vitest';
-import type { Queue } from 'bullmq';
 import type { TenantSchemaContext } from '@persistence/tenant-schema.context';
-import { UserUpdatedHandler } from './user-updated.handler';
-import { User } from '../../domain/models/user.entity';
+import type { Queue } from 'bullmq';
+import { describe, expect, it, vi } from 'vitest';
 import { UserUpdatedEvent } from '../../domain/events/user-updated.event';
+import { User } from '../../domain/models/user.entity';
 import type { BatchUpdateUserItem } from '../../jobs/batch-update-users.processor';
+import { UserUpdatedHandler } from './user-updated.handler';
 
 describe('UserUpdatedHandler', () => {
   it('reads user details from immutable event.payload and enqueues batch update', async () => {

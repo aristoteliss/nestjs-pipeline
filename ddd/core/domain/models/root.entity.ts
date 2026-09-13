@@ -16,8 +16,8 @@
  * ----------------------------
  */
 
-import { isUuidV7, uuidv7 } from '@nestjs-pipeline/core';
 import { AggregateRoot } from '@nestjs/cqrs';
+import { isUuidV7, uuidv7 } from '@nestjs-pipeline/core';
 import { RootEntitySnapshot } from '../interfaces/root-entity-snapshot.interface';
 
 /**
@@ -186,15 +186,14 @@ export abstract class RootEntity<
       return null;
     }
     // biome-ignore lint/complexity/noThisInStatic: Polymorphic static rehydration
-    const targetClass = this as unknown as Function;
+    const targetClass = this as unknown as abstract new (...args: never[]) => T;
     if (typeof targetClass === 'function') {
       if (candidate instanceof targetClass) {
         return candidate as T;
       }
       if (candidate instanceof RootEntity) {
         const expectedName = targetClass.name || 'TargetEntity';
-        const actualName =
-          (candidate.constructor as Function)?.name || 'RootEntity';
+        const actualName = candidate.constructor?.name || 'RootEntity';
         throw new TypeError(
           `Cannot rehydrate entity: expected instance of ${expectedName}, received incompatible aggregate ${actualName}.`,
         );

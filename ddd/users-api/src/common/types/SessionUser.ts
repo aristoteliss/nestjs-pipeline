@@ -31,12 +31,14 @@ export type SessionUser = {
 /** Shape of the Fastify secure-session data store. */
 export interface SessionData {
   user?: SessionUser;
+  token?: string;
   api?: { id: string; tenant: string };
 }
 
 declare module '@fastify/secure-session' {
   interface SessionData {
     user?: SessionUser;
+    token?: string;
     api?: { id: string; tenant: string };
   }
 }

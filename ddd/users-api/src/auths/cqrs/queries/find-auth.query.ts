@@ -23,7 +23,7 @@ import { z } from 'zod';
 export class FindAuthQuery extends createQuery(
   z.object({
     userId: z.union([z.string().min(1), z.number()]),
-    token: z.string().optional(),
+    token: z.string().min(1),
   }),
   BaseQuery,
 ) {}

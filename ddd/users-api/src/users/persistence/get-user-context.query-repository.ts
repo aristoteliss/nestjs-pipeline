@@ -61,7 +61,7 @@ export class GetUserContextQueryRepository implements IUserContextResolver {
       ) ??
       (getSessionUserFromStore() as unknown as CaslUserContext | undefined);
 
-    if (!rawUser || !rawUser.id) return null;
+    if (!rawUser?.id) return null;
 
     const id = String(rawUser.id);
     const user = await this.store.em.findOne(User, { id });

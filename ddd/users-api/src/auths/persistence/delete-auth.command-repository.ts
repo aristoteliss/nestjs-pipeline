@@ -27,6 +27,12 @@ import { CACHE_TOKEN } from '@persistence/cache/memory.cache';
 import { MIKRO_ORM_CLIENT, MikroOrmStore } from '@persistence/mikro-orm.store';
 import { Auth, type AuthSnapshot } from '../domain/models/auth.entity';
 
+/**
+ * Command repository for revoking persistent authentication aggregates.
+ *
+ * Deletes the `Auth` entity by primary key (`{ id: auth.id }`) and evicts
+ * its corresponding cache entry (`auth:id:<auth.id>`) via the `@Cache` decorator.
+ */
 @Injectable()
 export class DeleteAuthCommandRepository extends CommandRepository<Auth, null> {
   constructor(
@@ -40,7 +46,7 @@ export class DeleteAuthCommandRepository extends CommandRepository<Auth, null> {
     filterCacheKey(Auth.aggregateName, { id: auth.id }),
   ])
   async save(auth: Auth): Promise<null> {
-    await this.store.em.nativeDelete(Auth, { userId: auth.userId });
+    await this.store.em.nativeDelete(Auth, { id: auth.id });
     return null;
   }
 }

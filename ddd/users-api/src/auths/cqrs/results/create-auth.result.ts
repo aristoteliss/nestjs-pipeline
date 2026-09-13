@@ -16,18 +16,23 @@
  * ----------------------------
  */
 
-import { DomainEvent } from '../events/domain.event';
+import type { UserCapabilities } from '@nestjs-pipeline/casl';
+import type { Auth } from '../../domain/models/auth.entity';
 
 /**
- * Base class for the result of a domain operation.
+ * Application result produced by {@link CreateAuthHandler}.
  *
- * @deprecated Aggregates should extend `RootEntity` (which inherits from `@nestjs/cqrs` `AggregateRoot`)
- * and manage events internally via `this.apply(event)`. Repositories accept pure entities via `save(entity)`.
+ * Carries the newly persisted {@link Auth} aggregate root along with
+ * authenticated identity and capability metadata needed by downstream callers.
  */
-export abstract class DomainOutcome {
-  public readonly events: Array<DomainEvent>;
-
-  protected constructor(events?: Array<DomainEvent>) {
-    this.events = events ?? [];
-  }
+export interface CreateAuthResult {
+  readonly aggregate: Auth;
+  readonly id: string;
+  readonly tenant: string;
+  readonly email: string;
+  readonly department?: string | null;
+  readonly capabilities?: UserCapabilities;
+  readonly token: string;
+  readonly expiresAt?: number;
+  readonly exp?: number;
 }

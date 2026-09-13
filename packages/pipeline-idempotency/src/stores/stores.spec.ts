@@ -195,9 +195,20 @@ describe('MemoryIdempotencyStore', () => {
   });
 
   it('does not evict active in-progress claims when reaching capacity, preventing duplicate execution', () => {
-    const store = new MemoryIdempotencyStore({ maxEntries: 1, cleanupIntervalMs: 0 });
-    const claimA = record({ key: 'claim-a', claimId: 'owner-a', status: 'in_progress' });
-    const claimB = record({ key: 'claim-b', claimId: 'owner-b', status: 'in_progress' });
+    const store = new MemoryIdempotencyStore({
+      maxEntries: 1,
+      cleanupIntervalMs: 0,
+    });
+    const claimA = record({
+      key: 'claim-a',
+      claimId: 'owner-a',
+      status: 'in_progress',
+    });
+    const claimB = record({
+      key: 'claim-b',
+      claimId: 'owner-b',
+      status: 'in_progress',
+    });
 
     expect(store.setIfAbsent('claim-a', claimA, 10_000)).toBe(true);
 
@@ -213,8 +224,15 @@ describe('MemoryIdempotencyStore', () => {
   });
 
   it('does not evict completed unexpired claims when reaching capacity, preserving idempotency', () => {
-    const store = new MemoryIdempotencyStore({ maxEntries: 1, cleanupIntervalMs: 0 });
-    const claimA = record({ key: 'claim-a', claimId: 'owner-a', status: 'in_progress' });
+    const store = new MemoryIdempotencyStore({
+      maxEntries: 1,
+      cleanupIntervalMs: 0,
+    });
+    const claimA = record({
+      key: 'claim-a',
+      claimId: 'owner-a',
+      status: 'in_progress',
+    });
     store.setIfAbsent('claim-a', claimA, 10_000);
     store.completeIfOwned(
       'claim-a',
@@ -223,7 +241,11 @@ describe('MemoryIdempotencyStore', () => {
       10_000,
     );
 
-    const claimB = record({ key: 'claim-b', claimId: 'owner-b', status: 'in_progress' });
+    const claimB = record({
+      key: 'claim-b',
+      claimId: 'owner-b',
+      status: 'in_progress',
+    });
     // Attempting to claim B cannot evict completed unexpired claim A
     expect(() => store.setIfAbsent('claim-b', claimB, 10_000)).toThrow(
       /capacity .* reached: cannot evict active or unexpired claims/,

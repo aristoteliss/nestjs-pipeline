@@ -35,6 +35,7 @@ import {
 import { ApiClientAuthenticator } from './services/api-client-authenticator';
 import { JwtAuthenticator } from './services/jwt-authenticator';
 import { RequestPrincipalResolver } from './services/request-principal-resolver';
+import { SessionService } from './services/session.service';
 import { UserLoginService } from './services/user-login.service';
 
 @Module({
@@ -64,6 +65,7 @@ import { UserLoginService } from './services/user-login.service';
       useClass: DeleteAuthCommandRepository,
     },
 
+    SessionService,
     UserLoginService,
     JwtAuthenticator,
     ApiClientAuthenticator,
@@ -80,6 +82,7 @@ import { UserLoginService } from './services/user-login.service';
     CreatedAuthHandler,
   ],
   exports: [
+    SessionService,
     UserLoginService,
     RequestPrincipalResolver,
     JwtAuthenticator,

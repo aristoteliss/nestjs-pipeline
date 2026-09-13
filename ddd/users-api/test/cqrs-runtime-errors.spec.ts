@@ -27,6 +27,7 @@ import {
   CaslAuthorizer,
   UnauthorizedActionException,
 } from '@nestjs-pipeline/casl';
+import { EntityNotFoundException } from '@nestjs-pipeline/ddd-core';
 import { ZodValidationError, ZodValidationFilter } from '@nestjs-pipeline/zod';
 import { describe, expect, it, vi } from 'vitest';
 // Auths CQRS & Services
@@ -305,12 +306,13 @@ describe('CQRS Commands & Queries Runtime Error Taxonomy', () => {
     });
 
     describe('UpdateUserCommand & Handler', () => {
-      it('catches NotFoundException when user does not exist (404)', async () => {
+      it('catches EntityNotFoundException when user does not exist (404)', async () => {
         const authorizer = createMockAuthorizer(true);
-        const queryRepo = { find: vi.fn().mockResolvedValue(null) };
-        const commandRepo = { save: vi.fn() };
+        const commandRepo = {
+          findById: vi.fn().mockResolvedValue(null),
+          save: vi.fn(),
+        };
         const handler = new UpdateUserHandler(
-          queryRepo as any,
           commandRepo as any,
           authorizer,
           eventBus,
@@ -322,17 +324,18 @@ describe('CQRS Commands & Queries Runtime Error Taxonomy', () => {
         });
 
         await expect(handler.handle(command)).rejects.toThrow(
-          NotFoundException,
+          EntityNotFoundException,
         );
       });
 
       it('catches EmptyUserUpdateException when neither username nor department is passed (400)', async () => {
         const authorizer = createMockAuthorizer(true);
         const existingUser = User.create('Alice', 'alice@example.test');
-        const queryRepo = { find: vi.fn().mockResolvedValue(existingUser) };
-        const commandRepo = { save: vi.fn() };
+        const commandRepo = {
+          findById: vi.fn().mockResolvedValue(existingUser.toJSON()),
+          save: vi.fn(),
+        };
         const handler = new UpdateUserHandler(
-          queryRepo as any,
           commandRepo as any,
           authorizer,
           eventBus,
@@ -368,10 +371,11 @@ describe('CQRS Commands & Queries Runtime Error Taxonomy', () => {
       it('catches UnauthorizedActionException during update (403)', async () => {
         const authorizer = createMockAuthorizer(false);
         const existingUser = User.create('Alice', 'alice@example.test');
-        const queryRepo = { find: vi.fn().mockResolvedValue(existingUser) };
-        const commandRepo = { save: vi.fn() };
+        const commandRepo = {
+          findById: vi.fn().mockResolvedValue(existingUser.toJSON()),
+          save: vi.fn(),
+        };
         const handler = new UpdateUserHandler(
-          queryRepo as any,
           commandRepo as any,
           authorizer,
           eventBus,
@@ -389,12 +393,13 @@ describe('CQRS Commands & Queries Runtime Error Taxonomy', () => {
     });
 
     describe('DeleteUserCommand & Handler', () => {
-      it('catches NotFoundException when deleting non-existent user (404)', async () => {
+      it('catches EntityNotFoundException when deleting non-existent user (404)', async () => {
         const authorizer = createMockAuthorizer(true);
-        const queryRepo = { find: vi.fn().mockResolvedValue(null) };
-        const commandRepo = { save: vi.fn() };
+        const commandRepo = {
+          findById: vi.fn().mockResolvedValue(null),
+          save: vi.fn(),
+        };
         const handler = new DeleteUserHandler(
-          queryRepo as any,
           commandRepo as any,
           authorizer,
           eventBus,
@@ -405,17 +410,18 @@ describe('CQRS Commands & Queries Runtime Error Taxonomy', () => {
         });
 
         await expect(handler.handle(command)).rejects.toThrow(
-          NotFoundException,
+          EntityNotFoundException,
         );
       });
 
       it('catches UnauthorizedActionException when unauthorized to delete (403)', async () => {
         const authorizer = createMockAuthorizer(false);
         const existingUser = User.create('Alice', 'alice@example.test');
-        const queryRepo = { find: vi.fn().mockResolvedValue(existingUser) };
-        const commandRepo = { save: vi.fn() };
+        const commandRepo = {
+          findById: vi.fn().mockResolvedValue(existingUser.toJSON()),
+          save: vi.fn(),
+        };
         const handler = new DeleteUserHandler(
-          queryRepo as any,
           commandRepo as any,
           authorizer,
           eventBus,
@@ -547,12 +553,13 @@ describe('CQRS Commands & Queries Runtime Error Taxonomy', () => {
     });
 
     describe('UpdateRoleCommand & Handler', () => {
-      it('catches NotFoundException when updating non-existent role (404)', async () => {
+      it('catches EntityNotFoundException when updating non-existent role (404)', async () => {
         const authorizer = createMockAuthorizer(true);
-        const queryRepo = { find: vi.fn().mockResolvedValue(null) };
-        const commandRepo = { save: vi.fn() };
+        const commandRepo = {
+          findById: vi.fn().mockResolvedValue(null),
+          save: vi.fn(),
+        };
         const handler = new UpdateRoleHandler(
-          queryRepo as any,
           commandRepo as any,
           authorizer,
           eventBus,
@@ -564,15 +571,15 @@ describe('CQRS Commands & Queries Runtime Error Taxonomy', () => {
         });
 
         await expect(handler.handle(command)).rejects.toThrow(
-          NotFoundException,
+          EntityNotFoundException,
         );
       });
 
       it('catches UniqueRoleNameException when renaming to an existing name (409)', async () => {
         const authorizer = createMockAuthorizer(true);
         const existingRole = Role.create('Editor');
-        const queryRepo = { find: vi.fn().mockResolvedValue(existingRole) };
         const commandRepo = {
+          findById: vi.fn().mockResolvedValue(existingRole.toJSON()),
           save: vi
             .fn()
             .mockRejectedValue(
@@ -580,7 +587,6 @@ describe('CQRS Commands & Queries Runtime Error Taxonomy', () => {
             ),
         };
         const handler = new UpdateRoleHandler(
-          queryRepo as any,
           commandRepo as any,
           authorizer,
           eventBus,
@@ -598,12 +604,13 @@ describe('CQRS Commands & Queries Runtime Error Taxonomy', () => {
     });
 
     describe('DeleteRoleCommand & Handler', () => {
-      it('catches NotFoundException when deleting non-existent role (404)', async () => {
+      it('catches EntityNotFoundException when deleting non-existent role (404)', async () => {
         const authorizer = createMockAuthorizer(true);
-        const queryRepo = { find: vi.fn().mockResolvedValue(null) };
-        const commandRepo = { save: vi.fn() };
+        const commandRepo = {
+          findById: vi.fn().mockResolvedValue(null),
+          save: vi.fn(),
+        };
         const handler = new DeleteRoleHandler(
-          queryRepo as any,
           commandRepo as any,
           authorizer,
           eventBus,
@@ -614,7 +621,7 @@ describe('CQRS Commands & Queries Runtime Error Taxonomy', () => {
         });
 
         await expect(handler.handle(command)).rejects.toThrow(
-          NotFoundException,
+          EntityNotFoundException,
         );
       });
     });
@@ -740,8 +747,14 @@ describe('CQRS Commands & Queries Runtime Error Taxonomy', () => {
 
     describe('DeleteAuthCommand & Handler', () => {
       it('processes session deletion safely (204)', async () => {
-        const handler = new DeleteAuthHandler();
-        const command = new DeleteAuthCommand();
+        const handler = new DeleteAuthHandler(
+          { save: vi.fn().mockResolvedValue(null) } as any,
+          { find: vi.fn().mockResolvedValue(null) } as any,
+        );
+        const command = new DeleteAuthCommand({
+          userId: 'usr-1',
+          token: 'token-1',
+        });
         const result = await handler.execute(command);
 
         expect(result).toBeUndefined();

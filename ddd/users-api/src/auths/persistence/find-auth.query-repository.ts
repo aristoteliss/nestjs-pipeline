@@ -17,8 +17,8 @@
  */
 
 import { FilterQuery } from '@mikro-orm/core';
-import { ICache, QueryRepository } from '@nestjs-pipeline/ddd-core';
 import { Inject, Injectable } from '@nestjs/common';
+import { ICache, QueryRepository } from '@nestjs-pipeline/ddd-core';
 import { CACHE_TOKEN } from '@persistence/cache/memory.cache';
 import { MIKRO_ORM_CLIENT, MikroOrmStore } from '@persistence/mikro-orm.store';
 import { FindAuthQuery } from '../cqrs/queries/find-auth.query';
@@ -38,10 +38,10 @@ export class FindAuthQueryRepository extends QueryRepository<
 
   async find(query: FindAuthQuery): Promise<Auth | null> {
     const userId = String(query.userId);
-    const filter: Record<string, unknown> = { userId };
-    if (query.token) {
-      filter.token = query.token;
-    }
+    const filter: Record<string, unknown> = {
+      userId,
+      token: query.token,
+    };
 
     return this.store.em.findOne(Auth, filter as FilterQuery<Auth>);
   }
