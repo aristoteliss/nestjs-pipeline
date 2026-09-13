@@ -25,6 +25,7 @@ import {
 } from '@nestjs-pipeline/core';
 import { ZodType } from 'zod';
 import { ZodValidationError } from './errors/zod-validation.error';
+import { assertPlainRequestOutput } from './helpers/request-output';
 import {
   cloneData,
   getRawInput,
@@ -76,13 +77,6 @@ export const ZOD_SCHEMA_KEY = '_zodSchema' as const;
 
 /** @deprecated Use {@link ZOD_SCHEMA_KEY} instead. */
 export const ZOD_SCHEMA = ZOD_SCHEMA_KEY;
-
-/** Whether a parsed value can safely be applied to an existing request instance. */
-function isPlainObject(value: unknown): value is Record<string, unknown> {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
-  const prototype = Object.getPrototypeOf(value);
-  return prototype === Object.prototype || prototype === null;
-}
 
 /**
  * Pipeline behavior that parses the incoming request (command, query, or event)
@@ -150,11 +144,7 @@ export class ZodValidationBehavior implements IPipelineBehavior {
           throw new ZodValidationError(result.error);
         }
 
-        if (!isPlainObject(result.data)) {
-          throw new TypeError(
-            'ZodValidationBehavior requires the top-level parsed output to be a plain object so it can be applied to the existing pipeline request instance.',
-          );
-        }
+        assertPlainRequestOutput(result.data, 'behavior');
 
         const baseKeys = validatedSnapshot
           ? new Set(

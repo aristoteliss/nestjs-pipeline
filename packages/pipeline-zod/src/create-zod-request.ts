@@ -18,6 +18,7 @@
 
 import type { ZodTypeAny, z } from 'zod';
 import { ZodValidationError } from './errors/zod-validation.error';
+import { assertPlainRequestOutput } from './helpers/request-output';
 import {
   cloneData,
   setRawInput,
@@ -25,7 +26,8 @@ import {
 } from './helpers/zod-data.helpers';
 import { ZOD_SCHEMA_KEY } from './zod-validation.behavior';
 
-type AbstractConstructor<T = object> = abstract new (...args: never[]) => T;
+// biome-ignore lint/suspicious/noExplicitAny: constructor parameter covariance requires any[]
+type AbstractConstructor<T = any> = abstract new (...args: any[]) => T;
 
 /**
  * Extracts the input type of a command or query class generated from a Zod schema.
@@ -122,18 +124,17 @@ export function createZodRequest<
         throw new ZodValidationError(result.error);
       }
 
+      assertPlainRequestOutput(result.data, 'constructor');
       setRawInput(this, input);
 
-      if (result.data && typeof result.data === 'object') {
-        for (const [key, value] of Object.entries(result.data)) {
-          if (value !== undefined) {
-            Object.defineProperty(this, key, {
-              value,
-              writable: true,
-              enumerable: true,
-              configurable: true,
-            });
-          }
+      for (const [key, value] of Object.entries(result.data)) {
+        if (value !== undefined) {
+          Object.defineProperty(this, key, {
+            value,
+            writable: true,
+            enumerable: true,
+            configurable: true,
+          });
         }
       }
 
