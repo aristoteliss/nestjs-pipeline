@@ -184,6 +184,40 @@ describe('RootEntity', () => {
     expect(entity.getExpectedVersion()).toBe(1);
   });
 
+  it('advances expectedVersion baseline when acknowledgePersisted is called without emitting events or bumping version', () => {
+    const entity = new TestEntity({ name: 'Alpha' });
+    entity.triggerUpdate();
+    expect(entity.version).toBe(2);
+    expect(entity.getExpectedVersion()).toBe(1);
+
+    entity.acknowledgePersisted(2);
+    expect(entity.version).toBe(2);
+    expect(entity.getExpectedVersion()).toBe(2);
+    expect(entity.getUncommittedEvents()).toEqual([]);
+
+    // Successive mutation now compares against the acknowledged version 2
+    entity.triggerUpdate();
+    expect(entity.version).toBe(3);
+    expect(entity.getExpectedVersion()).toBe(2);
+
+    // Default version argument uses current _version
+    entity.markPersisted();
+    expect(entity.getExpectedVersion()).toBe(3);
+  });
+
+  it('throws error when acknowledgePersisted is called with non-positive integer', () => {
+    const entity = new TestEntity({ name: 'Alpha' });
+    expect(() => entity.acknowledgePersisted(0)).toThrow(
+      'Persisted version must be a positive integer.',
+    );
+    expect(() => entity.acknowledgePersisted(-1)).toThrow(
+      'Persisted version must be a positive integer.',
+    );
+    expect(() => entity.acknowledgePersisted(1.5)).toThrow(
+      'Persisted version must be a positive integer.',
+    );
+  });
+
   it('preserves rehydrated version in expectedVersion across mutations', () => {
     const id = uuidv7();
     const entity = new TestEntity({

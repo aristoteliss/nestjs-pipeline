@@ -1,13 +1,14 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 import { filterCacheKey } from '@common/cqrs/helpers/filterCacheKey.helper';
-import { OptimisticLockError } from '@mikro-orm/core';
 import { Inject, Injectable } from '@nestjs/common';
 import {
+  AcknowledgePersisted,
   Cache,
   CommandRepository,
-  EntityNotFoundException,
   ICache,
   IWriteSideAggregateRepository,
+  MapPersistenceErrors,
+  optimisticUpdate,
 } from '@nestjs-pipeline/ddd-core';
 import { CACHE_TOKEN } from '@persistence/cache/memory.cache';
 import { MIKRO_ORM_CLIENT, MikroOrmStore } from '@persistence/mikro-orm.store';
@@ -36,32 +37,24 @@ export class UpdateUserCommandRepository
     null,
     (user) => [filterCacheKey(User.aggregateName, { email: user.email })],
   )
+  @AcknowledgePersisted<[User]>({ entity: ([user]) => user })
+  @MapPersistenceErrors<[User], User>({
+    entity: ([user]) => user,
+    unique: [],
+  })
   async save(user: User): Promise<UserSnapshot> {
-    const affected = await this.store.em.nativeUpdate(
+    const snapshot = user.toJSON();
+    await optimisticUpdate(
+      this.store.em,
       User,
-      { id: user.id, version: user.getExpectedVersion() },
+      user,
       {
-        username: user.username,
-        department: user.department ?? null,
-        updatedAt: user.updatedAt,
-        version: user.version,
+        username: snapshot.username,
+        department: snapshot.department ?? null,
+        updatedAt: snapshot.updatedAt,
       },
+      'User',
     );
-    if (affected === 0) {
-      const exists = await this.store.em.findOne(
-        User,
-        { id: user.id },
-        { refresh: true },
-      );
-      if (exists) {
-        throw OptimisticLockError.lockFailedVersionMismatch(
-          user,
-          user.getExpectedVersion(),
-          exists.version,
-        );
-      }
-      throw new EntityNotFoundException('User', user.id);
-    }
-    return user.toJSON();
+    return snapshot;
   }
 }

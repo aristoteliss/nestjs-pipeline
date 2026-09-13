@@ -42,5 +42,6 @@ describe('CreateAuthCommandRepository', () => {
     expect(upsert).toHaveBeenCalledWith(Auth, auth);
     expect(cache.set).toHaveBeenCalledWith(`tenant:auth:id:${auth.id}`, result);
     expect(result).toEqual(auth.toJSON());
+    expect((auth as any)._persistedVersion).toBe(1);
   });
 });

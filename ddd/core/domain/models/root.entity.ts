@@ -230,8 +230,90 @@ export abstract class RootEntity<
     this._updatedAt = RootEntity.normalizeDate(value);
   }
 
+  /**
+   * Returns the expected persistence version baseline (`_persistedVersion`).
+   *
+   * This baseline represents the last confirmed durable version successfully written
+   * to persistent storage. Persistence adapters use this value in version predicates
+   * (e.g. `WHERE id = ? AND version = expectedVersion`) to detect concurrent updates.
+   *
+   * @returns The positive integer version expected in persistent storage.
+   *
+   * @example
+   * ```typescript
+   * const expected = user.getExpectedVersion(); // e.g. 1
+   * await em.nativeUpdate(User, { id: user.id, version: expected }, { ...data, version: user.version });
+   * ```
+   */
   getExpectedVersion(): number {
     return this._persistedVersion;
+  }
+
+  /**
+   * Acknowledges that a version has been successfully persisted to durable storage.
+   * Advances the expected version baseline (`_persistedVersion`) to match the version
+   * actually written (by default `this._version`), without recording a domain event
+   * or advancing the in-memory version.
+   *
+   * This method is owned by persistence repositories and is typically invoked
+   * automatically by the `@AcknowledgePersisted` method decorator upon successful
+   * write resolution. Application code must never call this method directly; state
+   * mutations belong in domain methods.
+   *
+   * @param version Optional specific version that was persisted. If omitted,
+   *                `this._version` is used. Must be a positive integer (> 0).
+   * @throws {Error} If `version` is provided but is not a positive integer.
+   *
+   * @example Manual invocation in a custom persistence repository
+   * ```typescript
+   * async save(user: User): Promise<UserSnapshot> {
+   *   const snapshot = user.toJSON();
+   *   await this.db.update(user.id, snapshot);
+   *   user.acknowledgePersisted(); // advances _persistedVersion to user.version
+   *   return snapshot;
+   * }
+   * ```
+   *
+   * @example Declarative invocation via `@AcknowledgePersisted` (recommended)
+   * ```typescript
+   * @AcknowledgePersisted<[User]>({ entity: ([user]) => user })
+   * async save(user: User): Promise<UserSnapshot> {
+   *   // Decorator captures user.version before execution and calls
+   *   // user.acknowledgePersisted() when the returned promise resolves.
+   *   return snapshot;
+   * }
+   * ```
+   */
+  acknowledgePersisted(version?: number): void {
+    if (typeof version === 'number') {
+      if (!Number.isInteger(version) || version <= 0) {
+        throw new Error('Persisted version must be a positive integer.');
+      }
+      this._persistedVersion = version;
+      if (this._version < version) {
+        this._version = version;
+      }
+      return;
+    }
+    this._persistedVersion = this._version;
+  }
+
+  /**
+   * Alias for {@link acknowledgePersisted}.
+   *
+   * Advances the expected persistence version baseline (`_persistedVersion`) to match
+   * the version written to durable storage.
+   *
+   * @param version Optional specific version that was persisted.
+   * @see {@link acknowledgePersisted}
+   *
+   * @example
+   * ```typescript
+   * user.markPersisted(); // advances _persistedVersion to user.version
+   * ```
+   */
+  markPersisted(version?: number): void {
+    this.acknowledgePersisted(version);
   }
 
   protected onUpdate(): void {

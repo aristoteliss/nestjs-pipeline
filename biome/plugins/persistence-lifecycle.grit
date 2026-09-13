@@ -1,0 +1,54 @@
+engine biome(1.0)
+language js(typescript)
+
+pattern persisted_method($modifiers, $body) {
+  JsMethodClassMember(modifiers=$modifiers, body=$body) as $method where {
+    or {
+      $body <: contains JsCallExpression(callee=`optimisticUpdate`),
+      and {
+        $method <: JsMethodClassMember(name=`save`),
+        $method <: within JsClassDeclaration(id=r"^Update.*CommandRepository$")
+      }
+    }
+  }
+}
+
+or {
+  JsNamedImportSpecifier(name=$name) as $import where {
+    $name <: r"^(?:Cache|AcknowledgePersisted|MapPersistenceErrors|optimisticUpdate)$",
+    $import <: within JsImportNamedClause(source=$source) ,
+    $source <: r".*@nestjs-pipeline/ddd-core.*",
+    register_diagnostic(span=$import, message="Use canonical persistence API names so the structural lifecycle rules can check their usage.", severity="error")
+  },
+  persisted_method(modifiers=$modifiers, body=$body) as $method where {
+    not $modifiers <: [
+      JsDecorator(expression=JsCallExpression(callee=`Cache`)),
+
+      JsDecorator(expression=JsCallExpression(callee=`AcknowledgePersisted`)),
+
+      JsDecorator(expression=JsCallExpression(callee=`MapPersistenceErrors`))
+    ],
+    register_diagnostic(span=$method, message="Persistence lifecycle requires @Cache, @AcknowledgePersisted, @MapPersistenceErrors in that order, once each.", severity="error")
+  },
+  persisted_method(modifiers=$modifiers, body=$body) as $method where {
+    not $body <: contains JsAwaitExpression(argument=JsCallExpression(callee=`optimisticUpdate`)),
+    register_diagnostic(span=$method, message="Persisted methods must await optimisticUpdate().", severity="error")
+  },
+  JsCallExpression(callee=`optimisticUpdate`) as $call where {
+    $call <: within JsMethodClassMember() ,
+    not $call <: within JsAwaitExpression(argument=$call) ,
+    register_diagnostic(span=$call, message="Await optimisticUpdate() before acknowledging or caching persistence.", severity="error")
+  },
+  persisted_method(modifiers=$modifiers, body=$body) as $method where {
+    $body <: contains or {
+      `$entity.acknowledgePersisted($...)`,
+      `$entity.markPersisted($...)`
+    },
+    register_diagnostic(span=$method, message="Use @AcknowledgePersisted instead of manual acknowledgment.", severity="error")
+  },
+  JsClassDeclaration(id=$id, members=$members) as $class where {
+    $id <: r"^Update.*CommandRepository$",
+    not $members <: contains JsMethodClassMember(name=`save`),
+    register_diagnostic(span=$class, message="The migrated repository must declare its decorated save().", severity="error")
+  }
+}

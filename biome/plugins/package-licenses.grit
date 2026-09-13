@@ -1,0 +1,7 @@
+engine biome(1.0)
+language js(typescript)
+
+JsImportNamedClause(source=$source) as $clause where {
+  $source <: r".*@nestjs/.*/(?:internal|private|router-execution-context).*",
+  register_diagnostic(span=$clause, message="Do not import private NestJS framework internals; use public framework APIs to maintain license and library compatibility.", severity="error")
+}

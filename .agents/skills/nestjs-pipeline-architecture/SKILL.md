@@ -250,6 +250,24 @@ Repositories are responsible for persistence mechanics such as:
 
 Do not throw HTTP exceptions from repositories.
 
+### Persistence lifecycle decorators
+
+On command repository `save()` operations, apply method decorators in strictly outermost-to-innermost order:
+
+1. `@Cache(...)`: Read-through cache synchronization / invalidation after durable write & acknowledgment.
+2. `@AcknowledgePersisted({ entity: ([arg]) => arg })`: Captures entry version, updates `aggregate.acknowledgePersisted(version)` only after the persistence promise resolves.
+3. `@MapPersistenceErrors({ entity, unique: [...] })`: Translates known driver constraint errors (PostgreSQL 23505 and SQLite column matches) into domain exceptions before throwing.
+
+### Optimistic updates and conditional deletes
+
+- **Updates**: Use `optimisticUpdate(em, entityType, aggregate, data, entityName)` for update repositories.
+  - Updates are conditioned on `WHERE id = ? AND version = aggregate.getExpectedVersion()`, updating `version` to `aggregate.version`.
+  - Rejects outer transactions (`em.isInTransaction()`) because external transactions require commit-time acknowledgment and cache eviction.
+  - On 0 affected rows, runs a refreshed diagnostic read: raises `EntityNotFoundException` if entity is gone, or `OptimisticLockError` if version mismatch.
+- **Deletes**: Execute conditional `nativeDelete(entityType, { id: aggregate.id, version: aggregate.getExpectedVersion() })`.
+  - On 0 affected rows, perform a refreshed existence check to raise `EntityNotFoundException` or `OptimisticLockError`.
+- **Lint Enforcement**: Structural correctness is checked by Biome Grit plugins (`biome/plugins/persistence-lifecycle.grit`). Run `pnpm lint:persistence` to verify.
+
 ## Domain model rules
 
 Domain models must remain free from:
@@ -283,7 +301,11 @@ Before finalizing an architecture-sensitive change, verify:
 - [ ] Controllers remain presentation adapters.
 - [ ] Event handlers do not exist only for observability logging.
 - [ ] New infrastructure dependency is introduced through a port unless it is clearly a composition/presentation adapter.
-- [ ] Tests cover the relevant architectural boundary and security behavior.
+- [ ] Persistence write methods follow `@Cache` -> `@AcknowledgePersisted` -> `@MapPersistenceErrors` decorator order.
+- [ ] Entity updates use `optimisticUpdate()` and reject active outer transactions (`em.isInTransaction()`).
+- [ ] Entity deletes condition on `{ id, version: aggregate.getExpectedVersion() }` and assert affected rows.
+- [ ] Tests cover the relevant architectural boundary, persistence lifecycle, and security behavior.
+- [ ] `pnpm lint:persistence` passes with zero diagnostics.
 
 ## Positive examples to copy
 
@@ -291,6 +313,9 @@ Prefer adapting these files rather than inventing a new pattern:
 
 - Command + pipeline + domain mutation: `ddd/users-api/src/users/cqrs/commands/create-user.handler.ts`
 - Command update flow: `ddd/users-api/src/users/cqrs/commands/update-user.handler.ts` (authoritative pattern: loads via write-side repository `findById`, throws framework-neutral `EntityNotFoundException` on absence, authorizes aggregate, calls domain update method, persists, and auto-publishes events via `CommandBaseHandler`)
+- Update repository with lifecycle decorators: `ddd/users-api/src/roles/persistence/update-role.command-repository.ts` and `ddd/users-api/src/users/persistence/update-user.command-repository.ts`
+- Create repository with lifecycle decorators: `ddd/users-api/src/users/persistence/create-user.command-repository.ts`
+- Conditional delete repository: `ddd/users-api/src/users/persistence/delete-user.command-repository.ts`
 - Authorized single query: `ddd/users-api/src/users/cqrs/queries/get-user.handler.ts`
 - Authorized collection query: `ddd/users-api/src/users/cqrs/queries/get-users.handler.ts`
 - Domain aggregate: `ddd/users-api/src/users/domain/models/user.entity.ts`
@@ -313,3 +338,8 @@ Never introduce or re-introduce these patterns:
 - Defaulting missing tenant context to `'default'` instead of failing closed with `MissingTenantContextError`
 - Synthetic `new Auth({ userId, token: '' })` snapshots used as command payloads (pass explicit scalar parameters `{ userId, token }`)
 - Legacy `DomainOutcome` wrappers (aggregates manage domain events internally via `this.apply(event)`)
+- Inverting persistence decorator order (must be `@Cache` -> `@AcknowledgePersisted` -> `@MapPersistenceErrors`)
+- Calling `aggregate.acknowledgePersisted()` manually inside repositories instead of using `@AcknowledgePersisted`
+- Calling `optimisticUpdate` inside an active transaction without an explicit commit-hook contract
+- Unchecked deletes using only `{ id }` without checking `aggregate.getExpectedVersion()` and affected rows
+- Manual try/catch blocks in command repositories for constraint mapping when `@MapPersistenceErrors` can be used declarative
