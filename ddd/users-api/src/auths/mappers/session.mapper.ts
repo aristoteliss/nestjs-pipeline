@@ -35,6 +35,7 @@ import type { SessionResponse } from '../responses/session.res';
 export function toSessionRes(result: CreateAuthResult): SessionResponse {
   return {
     id: result.id,
+    principalType: result.principalType,
     tenant: result.tenant,
     email: result.email,
     department: result.department ?? null,

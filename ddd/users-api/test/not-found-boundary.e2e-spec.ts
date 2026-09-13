@@ -29,8 +29,9 @@ describe('framework-neutral not-found boundary (e2e)', () => {
   });
 
   it('maps an unknown user update to the existing HTTP 404 contract', async () => {
-    const response = await authed(request(http).patch(`/users/${randomUUID()}`))
-      .send({ name: 'Missing User' });
+    const response = await authed(
+      request(http).patch(`/users/${randomUUID()}`),
+    ).send({ name: 'Missing User' });
 
     expect(response.status).toBe(404);
     expect(response.body).toMatchObject({
@@ -41,7 +42,9 @@ describe('framework-neutral not-found boundary (e2e)', () => {
   });
 
   it('maps an unknown role delete to the existing HTTP 404 contract', async () => {
-    const response = await authed(request(http).delete(`/roles/${randomUUID()}`));
+    const response = await authed(
+      request(http).delete(`/roles/${randomUUID()}`),
+    );
 
     expect(response.status).toBe(404);
     expect(response.body).toMatchObject({

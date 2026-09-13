@@ -18,7 +18,11 @@ describe('UpdateRoleCommandRepository', () => {
     const role = Role.create('editor');
     role.rename('publisher');
     const nativeUpdate = vi.fn().mockResolvedValue(1);
-    const store = { get em() { return { nativeUpdate }; } };
+    const store = {
+      get em() {
+        return { nativeUpdate };
+      },
+    };
     const repository = new UpdateRoleCommandRepository(cache, store as never);
 
     const result = await repository.save(role);
@@ -42,7 +46,11 @@ describe('UpdateRoleCommandRepository', () => {
     role.rename('publisher');
     const nativeUpdate = vi.fn().mockResolvedValue(0);
     const findOne = vi.fn().mockResolvedValue(null);
-    const store = { get em() { return { nativeUpdate, findOne }; } };
+    const store = {
+      get em() {
+        return { nativeUpdate, findOne };
+      },
+    };
     const repository = new UpdateRoleCommandRepository(cache, store as never);
 
     await expect(repository.save(role)).rejects.toBeInstanceOf(
@@ -66,7 +74,11 @@ describe('UpdateRoleCommandRepository', () => {
     role.rename('publisher');
     const nativeUpdate = vi.fn().mockResolvedValue(0);
     const findOne = vi.fn().mockResolvedValue({ id: role.id, version: 2 });
-    const store = { get em() { return { nativeUpdate, findOne }; } };
+    const store = {
+      get em() {
+        return { nativeUpdate, findOne };
+      },
+    };
     const repository = new UpdateRoleCommandRepository(cache, store as never);
 
     await expect(repository.save(role)).rejects.toThrow(OptimisticLockError);

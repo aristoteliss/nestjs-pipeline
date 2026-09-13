@@ -1,8 +1,8 @@
 import type { Server } from 'node:http';
-import request from 'supertest';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { ICache } from '@nestjs-pipeline/ddd-core';
 import { CACHE_TOKEN } from '@persistence/cache/memory.cache';
+import request from 'supertest';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { UserSnapshot } from '../src/users/domain/models/user.entity';
 import { bootstrapE2E, type E2EContext } from './support/e2e-app';
 
@@ -10,10 +10,20 @@ import { bootstrapE2E, type E2EContext } from './support/e2e-app';
 describe('create-user secondary cache invalidation (e2e)', () => {
   let ctx: E2EContext;
   let http: Server;
-  const admin = JSON.stringify({ id: 'admin-cache', email: 'admin@acme.test', department: 'platform', capabilities: { roles: [], additionalCapabilities: ['all|manage|*'] } });
+  const admin = JSON.stringify({
+    id: 'admin-cache',
+    email: 'admin@acme.test',
+    department: 'platform',
+    capabilities: { roles: [], additionalCapabilities: ['all|manage|*'] },
+  });
 
-  beforeAll(async () => { ctx = await bootstrapE2E(); http = ctx.app.getHttpServer() as Server; });
-  afterAll(async () => { await ctx?.close(); });
+  beforeAll(async () => {
+    ctx = await bootstrapE2E();
+    http = ctx.app.getHttpServer() as Server;
+  });
+  afterAll(async () => {
+    await ctx?.close();
+  });
 
   it('removes a stale email cache entry after creating that email', async () => {
     const email = `cache-create-${Date.now()}@acme.test`;

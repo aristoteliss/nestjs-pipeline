@@ -1,3 +1,12 @@
+/*
+ * Copyright (C) 2026-present Aristotelis
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as
+ * published by the Free Software Foundation, either version 3 of the
+ * License, or (at your option) any later version.
+ */
+
 import { describe, expect, it, vi } from 'vitest';
 import { GetUserContextQuery } from '../cqrs/queries/get-user-context.query';
 import { User } from '../domain/models/user.entity';
@@ -7,108 +16,42 @@ describe('GetUserContextQueryRepository', () => {
   it('reads current authorization context from persistence on every lookup', async () => {
     const user = User.create('Alice', 'alice@example.test', 'engineering');
     const findOne = vi.fn().mockResolvedValue(user);
-    const repository = new GetUserContextQueryRepository(
-      {
-        get em() {
-          return { findOne };
-        },
-      } as never,
-      undefined,
-    );
+    const repository = new GetUserContextQueryRepository({
+      get em() {
+        return { findOne };
+      },
+    } as never);
     const query = new GetUserContextQuery({ userId: user.id });
 
-    await repository.find(query);
-    await repository.find(query);
+    const first = await repository.find(query);
+    const second = await repository.find(query);
 
     expect(findOne).toHaveBeenCalledTimes(2);
-  });
-
-  it('resolve returns null when user does not exist in persistence (deleted user revocation)', async () => {
-    const deletedUserId = '019de10c-b680-7000-8000-000000000099';
-    const findOne = vi.fn().mockResolvedValue(null);
-    const repository = new GetUserContextQueryRepository(
-      {
-        get em() {
-          return { findOne };
-        },
-      } as never,
-      ['sessionUser'],
-    );
-
-    const context = {
-      request: {
-        sessionUser: {
-          id: deletedUserId,
-          department: 'stale-department',
-          capabilities: { roles: ['admin'] },
-        },
-      },
-    } as any;
-
-    const result = await repository.resolve(context);
-
-    expect(result).toBeNull();
-    expect(findOne).toHaveBeenCalledWith(User, { id: deletedUserId });
-  });
-
-  it('resolve supports non-database machine and test principals with capabilities', async () => {
-    const findOne = vi.fn().mockResolvedValue(null);
-    const repository = new GetUserContextQueryRepository(
-      {
-        get em() {
-          return { findOne };
-        },
-      } as never,
-      ['sessionUser'],
-    );
-
-    const context = {
-      request: {
-        sessionUser: {
-          id: 'admin-1',
-          department: 'platform',
-          capabilities: { roles: [], additionalCapabilities: ['all|manage|*'] },
-        },
-      },
-    } as any;
-
-    const result = await repository.resolve(context);
-
-    expect(result).toEqual({
-      id: 'admin-1',
-      department: 'platform',
-      capabilities: { roles: [], additionalCapabilities: ['all|manage|*'] },
+    expect(findOne).toHaveBeenCalledWith(User, { id: user.id });
+    expect(first).toEqual({
+      id: user.id,
+      department: 'engineering',
+    });
+    expect(second).toEqual({
+      id: user.id,
+      department: 'engineering',
     });
   });
 
-  it('resolve synchronizes current department from persistence and preserves capabilities', async () => {
-    const persistedUser = User.create('Bob', 'bob@example.test', 'Executive');
-    const findOne = vi.fn().mockResolvedValue(persistedUser);
-    const repository = new GetUserContextQueryRepository(
-      {
-        get em() {
-          return { findOne };
-        },
-      } as never,
-      ['sessionUser'],
-    );
-
-    const context = {
-      request: {
-        sessionUser: {
-          id: persistedUser.id,
-          department: 'old-engineering', // stale department in token
-          capabilities: { roles: ['manager'] },
-        },
+  it('returns null when the persisted user no longer exists', async () => {
+    const findOne = vi.fn().mockResolvedValue(null);
+    const repository = new GetUserContextQueryRepository({
+      get em() {
+        return { findOne };
       },
-    } as any;
+    } as never);
 
-    const result = await repository.resolve(context);
-
-    expect(result).toEqual({
-      id: persistedUser.id,
-      department: 'Executive', // updated from persistence
-      capabilities: { roles: ['manager'] },
-    });
+    await expect(
+      repository.find(
+        new GetUserContextQuery({
+          userId: '019de10c-b680-7000-8000-000000000099',
+        }),
+      ),
+    ).resolves.toBeNull();
   });
 });

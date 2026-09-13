@@ -212,6 +212,7 @@ describe('AuthsController', () => {
       const createAuthResult = {
         aggregate: auth,
         id: 'usr-1',
+        principalType: 'user' as const,
         tenant: 'tenant_a',
         email: 'user@example.test',
         department: 'sales',
@@ -245,6 +246,7 @@ describe('AuthsController', () => {
 
       expect(result).toEqual({
         id: 'usr-1',
+        principalType: 'user',
         tenant: 'tenant_a',
         email: 'user@example.test',
         department: 'sales',

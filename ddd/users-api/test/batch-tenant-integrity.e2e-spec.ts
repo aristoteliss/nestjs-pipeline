@@ -1,9 +1,9 @@
 import type { Job } from 'bullmq';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
+  type BatchUpdateUserItem,
   BatchUpdateUsersProcessor,
   MixedTenantBatchError,
-  type BatchUpdateUserItem,
 } from '../src/users/jobs/batch-update-users.processor';
 import { bootstrapE2E, type E2EContext } from './support/e2e-app';
 

@@ -39,6 +39,8 @@ import { CapabilityCodec } from './capability-codec';
  * Public SPKI keys are parsed and memoized as WebCrypto `CryptoKey` objects on first use to avoid repeated ASN.1
  * parsing on every HTTP request. Token claims (`sub`, `tenant`, `roles`, `additionalCapabilities`,
  * `deniedCapabilities`) are validated and converted into a compacted {@link SessionUser} structure.
+ * Successful Bearer authentication explicitly marks the principal as `user`; authorization never infers
+ * human identity from the syntax of the JWT subject.
  *
  * @example
  * ```bash
@@ -148,7 +150,8 @@ export class JwtAuthenticator {
    * Scheme matching is case-insensitive (accepts both `Bearer <token>` and `bearer <token>`).
    *
    * @param req - Request object containing incoming HTTP headers.
-   * @returns The authenticated {@link SessionUser} if the token is valid, or `undefined` if no Bearer token was provided.
+   * @returns The authenticated {@link SessionUser} with `principalType: 'user'` if the token is valid,
+   *          or `undefined` if no Bearer token was provided.
    * @throws {@link UnauthorizedException} If the token is empty, expired, has an invalid signature,
    *         misses required claims, targets a different tenant, or if no server-side keys are configured.
    *
@@ -157,7 +160,7 @@ export class JwtAuthenticator {
    * const principal = await jwtAuthenticator.authenticate({
    *   headers: { authorization: 'Bearer eyJhbGci...' },
    * });
-   * // returns: { id: 'usr_123', tenant: 'tenant_a', email: 'alice@example.com', capabilities: { roles: ['admin'] } }
+   * // returns: { id: 'usr_123', principalType: 'user', tenant: 'tenant_a', email: 'alice@example.com', capabilities: { roles: ['admin'] } }
    * ```
    */
   async authenticate(req: {
@@ -244,6 +247,7 @@ export class JwtAuthenticator {
 
       const user: SessionUser = {
         id: payload.sub,
+        principalType: 'user',
         tenant: payload.tenant,
         email: typeof payload.email === 'string' ? payload.email : undefined,
         department:

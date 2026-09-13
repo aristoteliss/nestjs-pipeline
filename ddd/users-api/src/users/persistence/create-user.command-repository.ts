@@ -26,11 +26,16 @@ import { UniqueEmailException } from '../domain/models/errors/email.exception';
 import { User, UserSnapshot } from '../domain/models/user.entity';
 
 @Injectable()
-export class CreateUserCommandRepository extends CommandRepository<User, UserSnapshot> {
+export class CreateUserCommandRepository extends CommandRepository<
+  User,
+  UserSnapshot
+> {
   constructor(
     @Inject(CACHE_TOKEN) protected readonly cache: ICache<UserSnapshot>,
     @Inject(MIKRO_ORM_CLIENT) private readonly store: MikroOrmStore,
-  ) { super(cache); }
+  ) {
+    super(cache);
+  }
 
   /**
    * Persists a new user, caches the canonical id lookup and invalidates the
@@ -52,8 +57,14 @@ export class CreateUserCommandRepository extends CommandRepository<User, UserSna
     } catch (err: unknown) {
       if (
         err instanceof UniqueConstraintViolationException ||
-        (typeof err === 'object' && err !== null && 'code' in err && err.code === 'SQLITE_CONSTRAINT_UNIQUE') ||
-        (err instanceof Error && (err.message.includes('UNIQUE') || err.message.includes('unique') || err.message.includes('SQLITE_CONSTRAINT_UNIQUE')))
+        (typeof err === 'object' &&
+          err !== null &&
+          'code' in err &&
+          err.code === 'SQLITE_CONSTRAINT_UNIQUE') ||
+        (err instanceof Error &&
+          (err.message.includes('UNIQUE') ||
+            err.message.includes('unique') ||
+            err.message.includes('SQLITE_CONSTRAINT_UNIQUE')))
       ) {
         throw new UniqueEmailException(user);
       }

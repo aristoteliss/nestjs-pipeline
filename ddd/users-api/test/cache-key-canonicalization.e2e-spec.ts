@@ -32,6 +32,8 @@ describe('canonical repository cache keys (e2e)', () => {
 
     expect(firstKey).toBe(secondKey);
     await cache.set(firstKey, { marker: 'canonical' });
-    await expect(cache.get(secondKey)).resolves.toEqual({ marker: 'canonical' });
+    await expect(cache.get(secondKey)).resolves.toEqual({
+      marker: 'canonical',
+    });
   });
 });

@@ -3,9 +3,9 @@
  * See repository license for full terms.
  */
 
-import { requireTenantId } from '@common/cqrs/helpers/requireTenantId.helper';
 import { APP_ACTIONS, APP_SUBJECTS } from '@common/constants';
 import { getSessionUserFromStore } from '@common/context/session-user.store';
+import { requireTenantId } from '@common/cqrs/helpers/requireTenantId.helper';
 import { Inject } from '@nestjs/common';
 import { CommandHandler, EventBus } from '@nestjs/cqrs';
 import { CaslAuthorizer, CaslBehavior } from '@nestjs-pipeline/casl';

@@ -53,6 +53,7 @@ describe('SessionService', () => {
 
       expect(setMock).toHaveBeenCalledWith('user', {
         id: 'user-1',
+        principalType: 'user',
         tenant: 'tenant_alpha',
         email: 'user@example.test',
         department: 'Engineering',
@@ -78,6 +79,7 @@ describe('SessionService', () => {
 
       expect(setMock).toHaveBeenCalledWith('user', {
         id: 'user-2',
+        principalType: 'user',
         tenant: 'tenant_beta',
         email: 'user2@example.test',
         department: undefined,
