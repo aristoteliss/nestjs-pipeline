@@ -41,10 +41,10 @@ describe('baseEvaluationContext', () => {
     const ctx = baseEvaluationContext(makeContext());
 
     expect(ctx).toEqual({
-      targetingKey: 'corr-123',
       'pipeline.request.kind': 'command',
       'pipeline.request.name': 'CreateUserCommand',
       'pipeline.handler.name': 'CreateUserHandler',
+      'pipeline.correlation_id': 'corr-123',
     });
   });
 });
@@ -60,7 +60,7 @@ describe('buildEvaluationContext', () => {
     const ctx = buildEvaluationContext(makeContext(), { tier: 'premium' });
 
     expect(ctx.tier).toBe('premium');
-    expect(ctx.targetingKey).toBe('corr-123');
+    expect(ctx['pipeline.correlation_id']).toBe('corr-123');
   });
 
   it('lets the handler context win over the module context', () => {

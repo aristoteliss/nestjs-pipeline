@@ -38,3 +38,12 @@ export const FEATURE_FLAGS_DEFAULT_OPTIONS = Symbol(
 export const FEATURE_FLAGS_DEFAULT_CONTEXT = Symbol(
   'FEATURE_FLAGS_DEFAULT_CONTEXT',
 );
+
+/**
+ * Injection token holding the module-wide stable targeting-key resolver used
+ * for percentage rollouts / sticky targeting. Applications typically return a
+ * user, account, device, or tenant identifier from this factory.
+ */
+export const FEATURE_FLAGS_TARGETING_KEY_FACTORY = Symbol(
+  'FEATURE_FLAGS_TARGETING_KEY_FACTORY',
+);

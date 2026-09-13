@@ -34,13 +34,23 @@ import {
   FEATURE_FLAGS_CLIENT,
   FEATURE_FLAGS_DEFAULT_CONTEXT,
   FEATURE_FLAGS_DEFAULT_OPTIONS,
+  FEATURE_FLAGS_TARGETING_KEY_FACTORY,
 } from './constants/tokens';
 import { FeatureDisabledError } from './errors/feature-disabled.error';
+import { FeatureFlagEvaluationError } from './errors/feature-flag-evaluation.error';
 import { buildEvaluationContext } from './helpers/evaluation-context';
-import type { FeatureFlagBehaviorOptions } from './interfaces/feature-flags-options.interface';
+import type {
+  FeatureFlagBehaviorOptions,
+  FeatureFlagDecision,
+  TargetingKeyFactory,
+} from './interfaces/feature-flags-options.interface';
 
 /**
- * Unique symbol key set on `context.items` recording the resolved boolean evaluation of the feature flag.
+ * Unique symbol key set on `context.items` recording the final boolean gate
+ * decision (`true` means the handler was allowed to execute).
+ *
+ * Kept for backward compatibility with the original package API. For richer
+ * provider details use {@link FEATURE_FLAG_DECISION_ITEM}.
  *
  * @example
  * ```ts
@@ -50,7 +60,8 @@ import type { FeatureFlagBehaviorOptions } from './interfaces/feature-flags-opti
 export const FEATURE_FLAG_ITEM = Symbol('FEATURE_FLAG_ITEM');
 
 /**
- * Unique symbol key set on `context.items` recording the evaluated feature flag key string.
+ * Unique symbol key set on `context.items` recording the evaluated feature flag
+ * key string.
  *
  * @example
  * ```ts
@@ -60,11 +71,43 @@ export const FEATURE_FLAG_ITEM = Symbol('FEATURE_FLAG_ITEM');
 export const FEATURE_FLAG_KEY_ITEM = Symbol('FEATURE_FLAG_KEY_ITEM');
 
 /**
+ * Unique symbol key set on `context.items` with the full
+ * {@link FeatureFlagDecision}: raw boolean value, final enabled decision,
+ * provider variant/reason/error metadata, and targeting key when available.
+ *
+ * This lets audit/logging/telemetry behaviors inspect the exact decision without
+ * evaluating the flag a second time.
+ *
+ * @example
+ * ```ts
+ * const decision = context.items.get(FEATURE_FLAG_DECISION_ITEM) as
+ *   | FeatureFlagDecision
+ *   | undefined;
+ *
+ * if (decision?.variant === 'treatment-a') {
+ *   // enrich telemetry/audit metadata
+ * }
+ * ```
+ */
+export const FEATURE_FLAG_DECISION_ITEM = Symbol('FEATURE_FLAG_DECISION_ITEM');
+
+/** Minimal OpenFeature boolean detail shape used by the behavior. */
+interface BooleanEvaluationDetails {
+  value: boolean;
+  variant?: string;
+  reason?: string;
+  errorCode?: unknown;
+  errorMessage?: string;
+}
+
+/**
  * Pipeline behavior that gates a handler behind an OpenFeature boolean flag.
  *
  * Provider-agnostic by design: it talks only to the OpenFeature {@link Client},
  * so the backing provider (Unleash, Flagsmith, LaunchDarkly, a local file, …) is
  * a drop-in swap configured once in {@link FeatureFlagsModule.forRoot}.
+ * OpenFeature remains the feature-flag abstraction; this behavior adds only the
+ * pipeline-specific semantics that an application repeatedly needs.
  *
  * Resolution of the effective options for a handler:
  * 1. Application-wide defaults bound to {@link FEATURE_FLAGS_DEFAULT_OPTIONS}
@@ -73,13 +116,56 @@ export const FEATURE_FLAG_KEY_ITEM = Symbol('FEATURE_FLAG_KEY_ITEM');
  *    shallow-merged on top of the defaults (handler keys win).
  *
  * Behavior:
- * - No `flag` configured → pass through (the handler always runs).
- * - Flag **enabled** → run the handler.
- * - Flag **disabled** → return `fallback(context)` if provided, otherwise throw
- *   {@link FeatureDisabledError}.
+ * - No `flag` configured → transparent pass-through.
+ * - Flag evaluates `true` and optional `allowedVariants` accepts the provider
+ *   variant → run the handler.
+ * - Final gate disabled → return `fallback(context)` when provided, otherwise
+ *   throw {@link FeatureDisabledError}.
+ * - Provider evaluation error → use the configured `defaultValue` by default,
+ *   or throw {@link FeatureFlagEvaluationError} with `errorPolicy: 'throw'`.
  *
- * Evaluation is **fail-closed**: if the provider errors or the key is unknown,
- * the configured `defaultValue` (default `false`) is used.
+ * ### Stable rollout identity
+ *
+ * Percentage/gradual rollouts should use a stable user/account/device/tenant
+ * identity through `targetingKeyFactory`. Correlation IDs are intentionally not
+ * used automatically because they normally change on every request; using one
+ * as the OpenFeature targeting key makes the same user jump between rollout
+ * cohorts.
+ *
+ * @example Simple gate
+ * ```ts
+ * @CommandHandler(NewCheckoutCommand)
+ * @UsePipeline([FeatureFlagBehavior, { flag: 'new-checkout' }])
+ * export class NewCheckoutHandler {}
+ * ```
+ *
+ * @example Sticky user rollout with graceful fallback
+ * ```ts
+ * @QueryHandler(GetRecommendationsQuery)
+ * @UsePipeline([FeatureFlagBehavior, {
+ *   flag: 'recommendations-v2',
+ *   targetingKeyFactory: (ctx) =>
+ *     ctx.items.get('currentUserId') as string | undefined,
+ *   fallback: () => [],
+ * }])
+ * export class GetRecommendationsHandler {}
+ * ```
+ *
+ * @example Run only for one experiment variant
+ * ```ts
+ * @UsePipeline([FeatureFlagBehavior, {
+ *   flag: 'checkout-experiment',
+ *   allowedVariants: ['treatment-a'],
+ * }])
+ * ```
+ *
+ * @example Make flag-provider failure visible instead of using the default
+ * ```ts
+ * @UsePipeline([FeatureFlagBehavior, {
+ *   flag: 'critical-kill-switch',
+ *   errorPolicy: 'throw',
+ * }])
+ * ```
  */
 @Injectable()
 export class FeatureFlagBehavior implements IPipelineBehavior {
@@ -98,15 +184,13 @@ export class FeatureFlagBehavior implements IPipelineBehavior {
     @Optional()
     @Inject(LOGGING_BEHAVIOR_LOGGER)
     logger?: LoggerService,
+    @Optional()
+    @Inject(FEATURE_FLAGS_TARGETING_KEY_FACTORY)
+    private readonly moduleTargetingKeyFactory?: TargetingKeyFactory,
   ) {
     this.defaults = defaults ?? {};
-
-    if (!logger) {
-      this.logger = new Logger(FeatureFlagBehavior.name, { timestamp: true });
-      return;
-    }
-
-    this.logger = logger;
+    this.logger =
+      logger ?? new Logger(FeatureFlagBehavior.name, { timestamp: true });
   }
 
   async handle(
@@ -118,39 +202,119 @@ export class FeatureFlagBehavior implements IPipelineBehavior {
     // No flag to gate on — behave as a transparent pass-through.
     if (!options.flag) return next();
 
-    const evalContext = buildEvaluationContext(
+    const targetingKeyFactory =
+      options.targetingKeyFactory ?? this.moduleTargetingKeyFactory;
+    const evaluationContext = buildEvaluationContext(
       context,
       this.moduleContext,
       options.context,
+      targetingKeyFactory,
     );
+    const defaultValue = options.defaultValue ?? false;
 
-    const enabled = await this.client.getBooleanValue(
+    const details = await this.evaluate(
       options.flag,
-      options.defaultValue ?? false,
-      evalContext,
+      defaultValue,
+      evaluationContext,
+      options.errorPolicy ?? 'use-default',
+      context.requestName,
     );
 
+    // A boolean true is necessary but, when allowedVariants is configured, not
+    // sufficient: the provider must also resolve one of the selected variants.
+    const variantAllowed =
+      !options.allowedVariants?.length ||
+      (!!details.variant && options.allowedVariants.includes(details.variant));
+    const enabled = details.value && variantAllowed;
+
+    const decision: FeatureFlagDecision = {
+      flagKey: options.flag,
+      value: details.value,
+      enabled,
+      ...(details.variant ? { variant: details.variant } : {}),
+      ...(details.reason ? { reason: details.reason } : {}),
+      ...(details.errorCode !== undefined
+        ? { errorCode: String(details.errorCode) }
+        : {}),
+      ...(details.errorMessage ? { errorMessage: details.errorMessage } : {}),
+      ...(evaluationContext.targetingKey
+        ? { targetingKey: evaluationContext.targetingKey }
+        : {}),
+    };
+
+    // Preserve the original two context items and add the richer decision item.
     context.items.set(FEATURE_FLAG_KEY_ITEM, options.flag);
     context.items.set(FEATURE_FLAG_ITEM, enabled);
+    context.items.set(FEATURE_FLAG_DECISION_ITEM, decision);
+
+    const variantSuffix = details.variant ? ` variant=${details.variant}` : '';
+    const reasonSuffix = details.reason ? ` reason=${details.reason}` : '';
 
     if (enabled) {
       this.logger.debug?.(
-        `Feature "${options.flag}" enabled for ${context.requestName}`,
+        `Feature "${options.flag}" enabled for ${context.requestName}${variantSuffix}${reasonSuffix}`,
         FeatureFlagBehavior.name,
       );
       return next();
     }
 
     this.logger.debug?.(
-      `Feature "${options.flag}" disabled for ${context.requestName}`,
+      `Feature "${options.flag}" disabled for ${context.requestName}${variantSuffix}${reasonSuffix}`,
       FeatureFlagBehavior.name,
     );
 
-    if (options.fallback) {
-      return options.fallback(context);
+    if (options.fallback) return options.fallback(context);
+    throw new FeatureDisabledError(options.flag, context.requestName);
+  }
+
+  /**
+   * Uses OpenFeature's detailed evaluation API so variant/reason/error metadata
+   * is available to the pipeline. Thrown provider errors and provider-reported
+   * error details follow the configured policy consistently.
+   */
+  private async evaluate(
+    flag: string,
+    defaultValue: boolean,
+    evaluationContext: EvaluationContext,
+    errorPolicy: 'use-default' | 'throw',
+    requestName: string,
+  ): Promise<BooleanEvaluationDetails> {
+    let details: BooleanEvaluationDetails;
+
+    try {
+      details = (await this.client.getBooleanDetails(
+        flag,
+        defaultValue,
+        evaluationContext,
+      )) as BooleanEvaluationDetails;
+    } catch (error) {
+      const providerMessage =
+        error instanceof Error ? error.message : String(error);
+      if (errorPolicy === 'throw') {
+        throw new FeatureFlagEvaluationError(
+          flag,
+          requestName,
+          undefined,
+          providerMessage,
+        );
+      }
+      return {
+        value: defaultValue,
+        reason: 'ERROR',
+        errorMessage: providerMessage,
+      };
     }
 
-    throw new FeatureDisabledError(options.flag, context.requestName);
+    if (errorPolicy === 'throw' && details.errorCode !== undefined) {
+      throw new FeatureFlagEvaluationError(
+        flag,
+        requestName,
+        String(details.errorCode),
+        details.errorMessage,
+      );
+    }
+
+    return details;
   }
 
   /** Shallow-merges per-handler options over the application defaults. */
@@ -161,7 +325,8 @@ export class FeatureFlagBehavior implements IPipelineBehavior {
       context.getBehaviorOptions<FeatureFlagBehaviorOptions>(
         FeatureFlagBehavior,
       );
-    if (!handlerOptions) return this.defaults;
-    return { ...this.defaults, ...handlerOptions };
+    return handlerOptions
+      ? { ...this.defaults, ...handlerOptions }
+      : this.defaults;
   }
 }
