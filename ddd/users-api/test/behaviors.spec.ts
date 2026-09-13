@@ -94,9 +94,11 @@ describe('Users API Pipeline Behaviors Specification', () => {
     it('records duration histogram and invocation counter for handler executions', async () => {
       const mockDuration = { record: vi.fn() };
       const mockInvocations = { add: vi.fn() };
+      const mockActive = { add: vi.fn() };
       const mockMeter = {
         createHistogram: vi.fn().mockReturnValue(mockDuration),
         createCounter: vi.fn().mockReturnValue(mockInvocations),
+        createUpDownCounter: vi.fn().mockReturnValue(mockActive),
       };
 
       vi.spyOn(metrics, 'getMeter').mockReturnValue(mockMeter as any);
@@ -137,9 +139,11 @@ describe('Users API Pipeline Behaviors Specification', () => {
     it('records outcome=failure with error.type on failure', async () => {
       const mockDuration = { record: vi.fn() };
       const mockInvocations = { add: vi.fn() };
+      const mockActive = { add: vi.fn() };
       const mockMeter = {
         createHistogram: vi.fn().mockReturnValue(mockDuration),
         createCounter: vi.fn().mockReturnValue(mockInvocations),
+        createUpDownCounter: vi.fn().mockReturnValue(mockActive),
       };
 
       vi.spyOn(metrics, 'getMeter').mockReturnValue(mockMeter as any);
@@ -470,7 +474,11 @@ describe('Users API Pipeline Behaviors Specification', () => {
       behaviorOptions.set(ResilienceBehavior, {
         handle: (err: unknown) => !(err instanceof NotFoundException),
         timeout: { duration: 3_000 },
-        retry: { maxAttempts: 3, backoff: { type: 'fixed', delay: 10 } },
+        retry: {
+          maxAttempts: 3,
+          replaySafe: true,
+          backoff: { type: 'fixed', delay: 10 },
+        },
       });
 
       const ctx = createContext({
@@ -500,7 +508,7 @@ describe('Users API Pipeline Behaviors Specification', () => {
       const behaviorOptions = new Map();
       behaviorOptions.set(ResilienceBehavior, {
         handle: (err: unknown) => !(err instanceof NotFoundException),
-        retry: { maxAttempts: 3 },
+        retry: { maxAttempts: 3, replaySafe: true },
       });
 
       const ctx = createContext({

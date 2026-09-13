@@ -78,7 +78,12 @@ describe('ResilienceBehavior cooperative timeout', () => {
     const behavior = new ResilienceBehavior();
     const ctx = makeCtx();
     vi.mocked(ctx.getBehaviorOptions).mockReturnValue({
-      retry: { maxAttempts: 1, backoff: { type: 'constant', delay: 0 } },
+      retry: {
+        maxAttempts: 1,
+        replaySafe: true,
+        backoff: { type: 'constant', delay: 0 },
+      },
+      handleAllErrors: true,
       timeout: { duration: 500, strategy: 'aggressive' },
     });
 

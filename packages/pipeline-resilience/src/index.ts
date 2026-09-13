@@ -30,6 +30,7 @@ export {
   TaskCancelledError,
 } from 'cockatiel';
 export { RESILIENCE_DEFAULT_OPTIONS } from './constants/tokens';
+export { ResilienceConfigurationError } from './errors/resilience-configuration.error';
 export {
   buildResiliencePolicy,
   type PolicyBuildContext,

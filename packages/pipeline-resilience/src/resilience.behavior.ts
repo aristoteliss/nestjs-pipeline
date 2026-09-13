@@ -31,6 +31,7 @@ import {
   type NextDelegate,
 } from '@nestjs-pipeline/core';
 import { RESILIENCE_DEFAULT_OPTIONS } from './constants/tokens';
+import { ResilienceConfigurationError } from './errors/resilience-configuration.error';
 import {
   type AnyPolicy,
   buildResiliencePolicy,
@@ -55,6 +56,20 @@ import type { ResilienceBehaviorOptions } from './interfaces/resilience-options.
  * every request to that handler. When no options resolve, the behavior caches
  * that result and passes subsequent invocations directly to `next()` without
  * constructing or executing a cockatiel policy.
+ *
+ * ### Replay / error-classification safety
+ *
+ * A handler-level retry calls `next()` again, which means the complete
+ * downstream pipeline and handler are replayed. To avoid accidental duplicate
+ * side effects, command/event retries must explicitly set
+ * `retry.replaySafe: true`. Retry/circuit-breaker/fallback configurations must
+ * also define which errors are transient via `handle(error)`, unless the caller
+ * intentionally opts into `handleAllErrors: true`.
+ *
+ * Timeout and bulkhead-only policies do not require an error classifier because
+ * they do not decide which application errors are retryable/circuit failures.
+ * A custom pre-built Cockatiel `policy` also bypasses the declarative safety
+ * checks because the caller owns its semantics directly.
  */
 @Injectable()
 export class ResilienceBehavior implements IPipelineBehavior {
@@ -97,7 +112,7 @@ export class ResilienceBehavior implements IPipelineBehavior {
     });
   }
 
-  /** Resolves (and caches) the composed policy for the handler in `context`. */
+  /** Resolves, validates, and caches the composed policy for the handler in `context`. */
   private resolvePolicy(context: IPipelineContext): AnyPolicy | null {
     const cached = this.policyCache.get(context.handlerType);
     if (cached !== undefined) return cached;
@@ -105,6 +120,8 @@ export class ResilienceBehavior implements IPipelineBehavior {
     const handlerOptions =
       context.getBehaviorOptions<ResilienceBehaviorOptions>(ResilienceBehavior);
     const effective = this.mergeOptions(this.defaultOptions, handlerOptions);
+
+    this.assertSafeConfiguration(context, effective);
 
     const policy = effective
       ? buildResiliencePolicy(effective, {
@@ -116,6 +133,46 @@ export class ResilienceBehavior implements IPipelineBehavior {
 
     this.policyCache.set(context.handlerType, policy);
     return policy;
+  }
+
+  /**
+   * Rejects ambiguous whole-handler resilience configurations before Cockatiel
+   * policy creation. This turns replay/error-classification assumptions into an
+   * explicit application decision instead of a hidden default.
+   */
+  private assertSafeConfiguration(
+    context: IPipelineContext,
+    options: ResilienceBehaviorOptions | undefined,
+  ): void {
+    if (!options || options.policy) return;
+
+    const classifiesErrors =
+      typeof options.handle === 'function' ||
+      options.handleAllErrors === true ||
+      typeof (options.retry as { isRetryable?: unknown } | undefined)
+        ?.isRetryable === 'function';
+    const needsErrorClassification =
+      !!options.retry || !!options.circuitBreaker || !!options.fallback;
+
+    if (needsErrorClassification && !classifiesErrors) {
+      throw new ResilienceConfigurationError(
+        context.requestName,
+        context.requestKind,
+        'retry, circuitBreaker and fallback require handle(error) or explicit handleAllErrors: true',
+      );
+    }
+
+    if (
+      options.retry &&
+      context.requestKind !== 'query' &&
+      options.retry.replaySafe !== true
+    ) {
+      throw new ResilienceConfigurationError(
+        context.requestName,
+        context.requestKind,
+        'retry replays downstream work; commands/events must set retry.replaySafe: true after verifying side effects are idempotent or transactional',
+      );
+    }
   }
 
   /** Shallow-merges per-handler options over the application defaults. */
