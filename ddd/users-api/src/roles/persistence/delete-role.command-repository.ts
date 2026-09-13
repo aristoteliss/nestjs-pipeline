@@ -1,9 +1,11 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 import { filterCacheKey } from '@common/cqrs/helpers/filterCacheKey.helper';
+import { OptimisticLockError } from '@mikro-orm/core';
 import { Inject, Injectable } from '@nestjs/common';
 import {
   Cache,
   CommandRepository,
+  EntityNotFoundException,
   ICache,
   IWriteSideAggregateRepository,
 } from '@nestjs-pipeline/ddd-core';
@@ -42,9 +44,33 @@ export class DeleteRoleCommandRepository
   ])
   async save(role: Role): Promise<null> {
     try {
-      await this.store.em.nativeDelete(Role, { id: role.id });
+      const affected = await this.store.em.nativeDelete(Role, {
+        id: role.id,
+        version: role.getExpectedVersion(),
+      });
+      if (affected === 0) {
+        const exists = await this.store.em.findOne(
+          Role,
+          { id: role.id },
+          { refresh: true },
+        );
+        if (exists) {
+          throw OptimisticLockError.lockFailedVersionMismatch(
+            role,
+            role.getExpectedVersion(),
+            exists.version,
+          );
+        }
+        throw new EntityNotFoundException('Role', role.id);
+      }
       return null;
     } catch (error) {
+      if (
+        error instanceof OptimisticLockError ||
+        error instanceof EntityNotFoundException
+      ) {
+        throw error;
+      }
       throw mapPersistenceError(error, `deleting Role ${role.id}`);
     }
   }

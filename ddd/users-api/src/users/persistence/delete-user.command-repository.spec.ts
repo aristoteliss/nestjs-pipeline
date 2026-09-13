@@ -1,5 +1,9 @@
 import { TransientOperationError } from '@common/resilience/transient-operation.error';
-import type { ICache } from '@nestjs-pipeline/ddd-core';
+import { OptimisticLockError } from '@mikro-orm/core';
+import {
+  EntityNotFoundException,
+  type ICache,
+} from '@nestjs-pipeline/ddd-core';
 import { describe, expect, it, vi } from 'vitest';
 import { User, type UserSnapshot } from '../domain/models/user.entity';
 import { DeleteUserCommandRepository } from './delete-user.command-repository';
@@ -24,12 +28,71 @@ describe('DeleteUserCommandRepository', () => {
     const result = await repository.save(user);
 
     expect(result).toBeNull();
-    expect(nativeDelete).toHaveBeenCalledWith(User, user.id);
+    expect(nativeDelete).toHaveBeenCalledWith(User, {
+      id: user.id,
+      version: user.getExpectedVersion(),
+    });
     expect(cache.set).not.toHaveBeenCalled();
     expect(cache.delete).toHaveBeenCalledWith(`tenant:user:id:${user.id}`);
     expect(cache.delete).toHaveBeenCalledWith(
       'tenant:user:email:alice@example.test',
     );
+  });
+
+  it('throws OptimisticLockError when the user exists at a newer version and does not evict cache', async () => {
+    const cache: ICache<UserSnapshot> = {
+      get: vi.fn(),
+      set: vi.fn(),
+      delete: vi.fn(),
+    };
+    const user = User.create('Alice', 'alice@example.test');
+    const nativeDelete = vi.fn().mockResolvedValue(0);
+    const findOne = vi.fn().mockResolvedValue({ id: user.id, version: 2 });
+    const store = {
+      get em() {
+        return { nativeDelete, findOne };
+      },
+    };
+    const repository = new DeleteUserCommandRepository(cache, store as never);
+
+    user.delete();
+    await expect(repository.save(user)).rejects.toThrow(OptimisticLockError);
+    expect(findOne).toHaveBeenCalledWith(
+      User,
+      { id: user.id },
+      { refresh: true },
+    );
+    expect(cache.delete).not.toHaveBeenCalled();
+    expect(cache.set).not.toHaveBeenCalled();
+  });
+
+  it('throws EntityNotFoundException when a concurrent delete already removed the user and does not evict cache', async () => {
+    const cache: ICache<UserSnapshot> = {
+      get: vi.fn(),
+      set: vi.fn(),
+      delete: vi.fn(),
+    };
+    const user = User.create('Alice', 'alice@example.test');
+    const nativeDelete = vi.fn().mockResolvedValue(0);
+    const findOne = vi.fn().mockResolvedValue(null);
+    const store = {
+      get em() {
+        return { nativeDelete, findOne };
+      },
+    };
+    const repository = new DeleteUserCommandRepository(cache, store as never);
+
+    user.delete();
+    await expect(repository.save(user)).rejects.toBeInstanceOf(
+      EntityNotFoundException,
+    );
+    expect(findOne).toHaveBeenCalledWith(
+      User,
+      { id: user.id },
+      { refresh: true },
+    );
+    expect(cache.delete).not.toHaveBeenCalled();
+    expect(cache.set).not.toHaveBeenCalled();
   });
 
   it('does not evict cache when the database delete fails', async () => {
