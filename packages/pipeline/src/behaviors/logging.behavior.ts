@@ -25,7 +25,12 @@ import {
   LogLevel,
   Optional,
 } from '@nestjs/common';
-import { safeSanitize, safeStringify } from '../helpers/safeStringify';
+import {
+  DEFAULT_REDACT_KEYS,
+  type SanitizeOptions,
+  safeSanitize,
+  safeStringify,
+} from '../helpers/safeStringify';
 import {
   IPipelineBehavior,
   NextDelegate,
@@ -110,6 +115,45 @@ export interface LoggingBehaviorOptions {
   excludeKeys?: string[];
 
   /**
+   * Additional keys or dot-paths to mask with `[REDACTED]` when request/response
+   * payload logging is enabled. Unlike {@link excludeKeys}, redacted properties
+   * stay in the payload so its shape remains visible.
+   *
+   * This option is additive and has no effect unless configured.
+   *
+   * @example
+   * ```ts
+   * @UsePipeline([LoggingBehavior, {
+   *   excludeRequestObj: false,
+   *   redactKeys: ['profile.email', 'payment.cardToken'],
+   * }])
+   * ```
+   */
+  redactKeys?: string[];
+
+  /**
+   * When `true`, masks the core {@link DEFAULT_REDACT_KEYS} (password, token,
+   * authorization, cookie, API keys, card data, etc.) in request/response
+   * payload logs. Custom {@link redactKeys} are merged on top.
+   *
+   * The default is deliberately `false` so upgrading the package does not alter
+   * existing log payloads or snapshot tests. New applications that opt into
+   * payload logging should normally enable this setting.
+   *
+   * @default false
+   *
+   * @example Recommended payload logging configuration
+   * ```ts
+   * @UsePipeline([LoggingBehavior, {
+   *   excludeRequestObj: false,
+   *   excludeResponseObj: false,
+   *   redactSensitiveKeys: true,
+   * }])
+   * ```
+   */
+  redactSensitiveKeys?: boolean;
+
+  /**
    * If true, omits the request payload from logs entirely, logging the
    * placeholder `'[exclude request obj]'` instead.
    * Default: true.
@@ -152,11 +196,12 @@ interface ErrorWithOptionalParams {
  * Emits the incoming request, a completion metric (duration), and the response,
  * each at a configurable log level (see `LoggingBehaviorOptions`). Request and
  * response payloads are excluded by default and can be opted in, with key-based
- * redaction. If the wrapped handler throws, the error is logged — including its
- * stack trace and, when present, the error's `optionalParams` (see
- * {@link ErrorWithOptionalParams}) — and then re-thrown unchanged. Uses the
- * logger bound to `LOGGING_BEHAVIOR_LOGGER` (e.g. nestjs-pino) when provided,
- * otherwise falls back to the Nest `Logger`.
+ * exclusion/redaction. Existing payload output is unchanged unless the new
+ * redaction options are explicitly configured. If the wrapped handler throws,
+ * the error is logged — including its stack trace and, when present, the error's
+ * `optionalParams` (see {@link ErrorWithOptionalParams}) — and then re-thrown
+ * unchanged. Uses the logger bound to `LOGGING_BEHAVIOR_LOGGER` (e.g.
+ * nestjs-pino) when provided, otherwise falls back to the Nest `Logger`.
  */
 @Injectable()
 export class LoggingBehavior implements IPipelineBehavior {
@@ -226,6 +271,7 @@ export class LoggingBehavior implements IPipelineBehavior {
     const excludeKeys = options?.excludeKeys
       ? new Set<string>(options.excludeKeys)
       : new Set<string>();
+    const sanitizeOptions = this.buildSanitizeOptions(options, excludeKeys);
     const excludeRequestObj = options?.excludeRequestObj ?? true;
     const excludeResponseObj = options?.excludeResponseObj ?? true;
     const logFormat = options?.logFormat ?? 'text';
@@ -234,8 +280,8 @@ export class LoggingBehavior implements IPipelineBehavior {
     const requestPayload = excludeRequestObj
       ? '[exclude request obj]'
       : structured
-        ? safeSanitize(context.request, excludeKeys)
-        : safeStringify(context.request, excludeKeys);
+        ? safeSanitize(context.request, sanitizeOptions)
+        : safeStringify(context.request, sanitizeOptions);
 
     this.log(
       requestResponseLogLevel,
@@ -274,8 +320,8 @@ export class LoggingBehavior implements IPipelineBehavior {
         ? '[exclude response obj]'
         : result != null
           ? structured
-            ? safeSanitize(result, excludeKeys)
-            : safeStringify(result, excludeKeys)
+            ? safeSanitize(result, sanitizeOptions)
+            : safeStringify(result, sanitizeOptions)
           : '(void)';
 
       this.log(
@@ -333,6 +379,28 @@ export class LoggingBehavior implements IPipelineBehavior {
 
       throw error;
     }
+  }
+
+  /**
+   * Keeps the historical `Set<string>` sanitizer input when no redaction option
+   * is enabled, preserving existing request/response log output exactly. When a
+   * caller opts into redaction, returns the richer sanitizer configuration.
+   */
+  private buildSanitizeOptions(
+    options: LoggingBehaviorOptions | undefined,
+    excludeKeys: Set<string>,
+  ): Set<string> | SanitizeOptions {
+    const redactKeys = [
+      ...(options?.redactSensitiveKeys ? DEFAULT_REDACT_KEYS : []),
+      ...(options?.redactKeys ?? []),
+    ];
+
+    if (redactKeys.length === 0) return excludeKeys;
+
+    return {
+      excludeKeys,
+      redactKeys,
+    };
   }
 
   /**
