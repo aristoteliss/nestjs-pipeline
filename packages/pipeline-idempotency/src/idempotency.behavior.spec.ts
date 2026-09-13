@@ -18,6 +18,7 @@
 
 import type { IPipelineContext } from '@nestjs-pipeline/core';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { IdempotencyCompletionError } from './errors/idempotency-completion.error';
 import { IdempotencyConflictError } from './errors/idempotency-conflict.error';
 import { fingerprintValue } from './helpers/fingerprint';
 import {
@@ -428,7 +429,13 @@ describe('IdempotencyBehavior', () => {
 
     await expect(
       behavior.handle(withOptions(makeCtx(), byKey), next),
-    ).rejects.toBe(persistenceError);
+    ).rejects.toSatisfy(
+      (err: unknown) =>
+        err instanceof IdempotencyCompletionError &&
+        err.key === 'o1' &&
+        err.executionSucceeded === true &&
+        err.cause === persistenceError,
+    );
 
     expect(next).toHaveBeenCalledTimes(1);
     expect(mockStore.deleteIfOwned).not.toHaveBeenCalled();

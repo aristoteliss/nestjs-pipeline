@@ -22,6 +22,7 @@ export {
   IDEMPOTENCY_DEFAULT_OPTIONS,
   IDEMPOTENCY_STORE,
 } from './constants/tokens';
+export { IdempotencyCompletionError } from './errors/idempotency-completion.error';
 export {
   IdempotencyConflictError,
   type IdempotencyConflictReason,
