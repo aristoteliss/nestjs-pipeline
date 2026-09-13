@@ -19,10 +19,9 @@
 import type { IPipelineContext } from '@nestjs-pipeline/core';
 import { TaskCancelledError } from 'cockatiel';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { ResilienceConfigurationError } from './errors/resilience-configuration.error';
 import type { ResilienceBehaviorOptions } from './interfaces/resilience-options.interface';
 import { ResilienceBehavior } from './resilience.behavior';
-
-// ─── Context factory ──────────────────────────────────────────────────────────
 
 function makeCtx(
   options?: ResilienceBehaviorOptions,
@@ -44,8 +43,6 @@ function makeCtx(
     ...overrides,
   } as unknown as IPipelineContext;
 }
-
-// ─── Tests ────────────────────────────────────────────────────────────────────
 
 describe('ResilienceBehavior', () => {
   let behavior: ResilienceBehavior;
@@ -72,7 +69,12 @@ describe('ResilienceBehavior', () => {
 
     await sharedLoggerBehavior.handle(
       makeCtx({
-        retry: { maxAttempts: 1, backoff: { type: 'constant', delay: 0 } },
+        retry: {
+          maxAttempts: 1,
+          replaySafe: true,
+          backoff: { type: 'constant', delay: 0 },
+        },
+        handleAllErrors: true,
       }),
       next,
     );
@@ -92,7 +94,7 @@ describe('ResilienceBehavior', () => {
     expect(next).toHaveBeenCalledTimes(1);
   });
 
-  it('retries a transient failure and then succeeds', async () => {
+  it('retries a replay-safe transient command failure and then succeeds', async () => {
     const next = vi
       .fn()
       .mockRejectedValueOnce(new Error('boom'))
@@ -100,7 +102,12 @@ describe('ResilienceBehavior', () => {
 
     const result = await behavior.handle(
       makeCtx({
-        retry: { maxAttempts: 3, backoff: { type: 'constant', delay: 0 } },
+        retry: {
+          maxAttempts: 3,
+          replaySafe: true,
+          backoff: { type: 'constant', delay: 0 },
+        },
+        handleAllErrors: true,
       }),
       next,
     );
@@ -115,7 +122,12 @@ describe('ResilienceBehavior', () => {
     await expect(
       behavior.handle(
         makeCtx({
-          retry: { maxAttempts: 2, backoff: { type: 'constant', delay: 0 } },
+          retry: {
+            maxAttempts: 2,
+            replaySafe: true,
+            backoff: { type: 'constant', delay: 0 },
+          },
+          handleAllErrors: true,
         }),
         next,
       ),
@@ -125,11 +137,11 @@ describe('ResilienceBehavior', () => {
     expect(next).toHaveBeenCalledTimes(3);
   });
 
-  it('returns the fallback value when the handler fails', async () => {
+  it('returns the fallback value when broad fallback handling is explicitly selected', async () => {
     const next = vi.fn().mockRejectedValue(new Error('down'));
 
     const result = await behavior.handle(
-      makeCtx({ fallback: { value: 'default' } }),
+      makeCtx({ fallback: { value: 'default' }, handleAllErrors: true }),
       next,
     );
 
@@ -141,7 +153,7 @@ describe('ResilienceBehavior', () => {
     const factory = vi.fn().mockReturnValue('made');
 
     const result = await behavior.handle(
-      makeCtx({ fallback: { factory } }),
+      makeCtx({ fallback: { factory }, handleAllErrors: true }),
       next,
     );
 
@@ -162,21 +174,23 @@ describe('ResilienceBehavior', () => {
     ).rejects.toBeInstanceOf(TaskCancelledError);
   });
 
-  it('only honours errors accepted by the handle predicate', async () => {
+  it('only honors errors accepted by the handle predicate', async () => {
     const next = vi.fn().mockRejectedValue(new Error('do-not-retry'));
     const handle = vi.fn().mockReturnValue(false);
 
     await expect(
       behavior.handle(
-        makeCtx({
-          retry: { maxAttempts: 5, backoff: { type: 'constant', delay: 0 } },
-          handle,
-        }),
+        makeCtx(
+          {
+            retry: { maxAttempts: 5, backoff: { type: 'constant', delay: 0 } },
+            handle,
+          },
+          { requestKind: 'query', requestName: 'GetThingQuery' },
+        ),
         next,
       ),
     ).rejects.toThrow('do-not-retry');
 
-    // Not retried because the predicate rejected the error.
     expect(next).toHaveBeenCalledTimes(1);
   });
 
@@ -189,7 +203,12 @@ describe('ResilienceBehavior', () => {
 
     await behavior.handle(
       makeCtx({
-        retry: { maxAttempts: 2, backoff: { type: 'constant', delay: 0 } },
+        retry: {
+          maxAttempts: 2,
+          replaySafe: true,
+          backoff: { type: 'constant', delay: 0 },
+        },
+        handleAllErrors: true,
         telemetry: { onRetry },
       }),
       next,
@@ -202,33 +221,135 @@ describe('ResilienceBehavior', () => {
   });
 
   it('builds the policy once per handler and caches it', async () => {
-    const ctx = makeCtx({ fallback: { value: 'x' } });
+    const ctx = makeCtx({
+      fallback: { value: 'x' },
+      handleAllErrors: true,
+    });
     const next = vi.fn().mockResolvedValue('ok');
 
     await behavior.handle(ctx, next);
     await behavior.handle(ctx, next);
 
-    // getBehaviorOptions is only consulted on the first (uncached) resolution.
     expect(ctx.getBehaviorOptions).toHaveBeenCalledTimes(1);
   });
 
   it('merges per-handler options over application defaults', async () => {
     const withDefaults = new ResilienceBehavior({
-      retry: { maxAttempts: 5, backoff: { type: 'constant', delay: 0 } },
+      retry: {
+        maxAttempts: 5,
+        replaySafe: true,
+        backoff: { type: 'constant', delay: 0 },
+      },
+      handleAllErrors: true,
     });
 
-    // Handler overrides retry with a fallback-only config (retry dropped).
     const next = vi.fn().mockRejectedValue(new Error('boom'));
     const result = await withDefaults.handle(
       makeCtx({
-        retry: { maxAttempts: 1, backoff: { type: 'constant', delay: 0 } },
+        retry: {
+          maxAttempts: 1,
+          replaySafe: true,
+          backoff: { type: 'constant', delay: 0 },
+        },
         fallback: { value: 'fb' },
       }),
       next,
     );
 
     expect(result).toBe('fb');
-    // 1 initial + 1 retry from the overridden maxAttempts.
     expect(next).toHaveBeenCalledTimes(2);
+  });
+
+  describe('configuration safety', () => {
+    it('rejects retry/fallback/breaker policies without an error classifier', async () => {
+      await expect(
+        behavior.handle(
+          makeCtx(
+            { retry: { maxAttempts: 1, replaySafe: true } },
+            { requestKind: 'query', requestName: 'GetThingQuery' },
+          ),
+          vi.fn(),
+        ),
+      ).rejects.toBeInstanceOf(ResilienceConfigurationError);
+
+      await expect(
+        behavior.handle(
+          makeCtx(
+            { fallback: { value: 'x' } },
+            { handlerType: class Other {} },
+          ),
+          vi.fn(),
+        ),
+      ).rejects.toBeInstanceOf(ResilienceConfigurationError);
+    });
+
+    it('rejects command retry unless replay safety is explicitly acknowledged', async () => {
+      await expect(
+        behavior.handle(
+          makeCtx({ retry: { maxAttempts: 2 }, handleAllErrors: true }),
+          vi.fn(),
+        ),
+      ).rejects.toMatchObject({
+        name: 'ResilienceConfigurationError',
+        requestKind: 'command',
+      });
+    });
+
+    it('allows query retry with a classifier without replaySafe', async () => {
+      const next = vi
+        .fn()
+        .mockRejectedValueOnce(new Error('transient'))
+        .mockResolvedValueOnce('ok');
+
+      const result = await behavior.handle(
+        makeCtx(
+          {
+            retry: { maxAttempts: 2, backoff: { type: 'constant', delay: 0 } },
+            handle: (error) =>
+              error instanceof Error && error.message === 'transient',
+          },
+          { requestKind: 'query', requestName: 'GetThingQuery' },
+        ),
+        next,
+      );
+
+      expect(result).toBe('ok');
+      expect(next).toHaveBeenCalledTimes(2);
+    });
+
+    it('allows command retry after replaySafe acknowledgement', async () => {
+      const next = vi
+        .fn()
+        .mockRejectedValueOnce(new Error('transient'))
+        .mockResolvedValueOnce('ok');
+
+      const result = await behavior.handle(
+        makeCtx({
+          retry: {
+            maxAttempts: 1,
+            replaySafe: true,
+            backoff: { type: 'constant', delay: 0 },
+          },
+          handleAllErrors: true,
+        }),
+        next,
+      );
+
+      expect(result).toBe('ok');
+      expect(next).toHaveBeenCalledTimes(2);
+    });
+
+    it('keeps timeout usable without an error classifier', async () => {
+      const next = vi.fn(
+        () => new Promise((resolve) => setTimeout(() => resolve('late'), 50)),
+      );
+
+      await expect(
+        behavior.handle(
+          makeCtx({ timeout: { duration: 5, strategy: 'aggressive' } }),
+          next,
+        ),
+      ).rejects.toBeInstanceOf(TaskCancelledError);
+    });
   });
 });

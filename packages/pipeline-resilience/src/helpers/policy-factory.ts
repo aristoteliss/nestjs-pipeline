@@ -92,22 +92,46 @@ function jitterGenerator(strategy?: JitterStrategy) {
 }
 
 /** Builds a cockatiel backoff factory from declarative {@link RetryBackoff}. */
-function buildBackoff(backoff: RetryBackoff) {
-  switch (backoff.type) {
+function buildBackoff(
+  backoff: RetryBackoff | string,
+  legacyOptions?: { initialDelayMs?: number; maxDelayMs?: number },
+) {
+  if (typeof backoff === 'string') {
+    if (backoff === 'exponential') {
+      const opts: Record<string, unknown> = {};
+      if (legacyOptions?.initialDelayMs !== undefined)
+        opts.initialDelay = legacyOptions.initialDelayMs;
+      if (legacyOptions?.maxDelayMs !== undefined)
+        opts.maxDelay = legacyOptions.maxDelayMs;
+      return new ExponentialBackoff(opts);
+    }
+    if (backoff === 'constant') {
+      return new ConstantBackoff(legacyOptions?.initialDelayMs ?? 100);
+    }
+  }
+  switch ((backoff as RetryBackoff).type) {
     case 'constant':
-      return new ConstantBackoff(backoff.delay);
+      return new ConstantBackoff((backoff as { delay: number }).delay);
     case 'iterable':
-      return new IterableBackoff(backoff.delays);
+      return new IterableBackoff((backoff as { delays: number[] }).delays);
     case 'exponential': {
-      const options: Record<string, unknown> = {
-        generator: jitterGenerator(backoff.jitter),
+      const exp = backoff as {
+        jitter?: JitterStrategy;
+        initialDelay?: number;
+        maxDelay?: number;
+        exponent?: number;
       };
-      if (backoff.initialDelay !== undefined)
-        options.initialDelay = backoff.initialDelay;
-      if (backoff.maxDelay !== undefined) options.maxDelay = backoff.maxDelay;
-      if (backoff.exponent !== undefined) options.exponent = backoff.exponent;
+      const options: Record<string, unknown> = {
+        generator: jitterGenerator(exp.jitter),
+      };
+      if (exp.initialDelay !== undefined)
+        options.initialDelay = exp.initialDelay;
+      if (exp.maxDelay !== undefined) options.maxDelay = exp.maxDelay;
+      if (exp.exponent !== undefined) options.exponent = exp.exponent;
       return new ExponentialBackoff(options);
     }
+    default:
+      return new ExponentialBackoff();
   }
 }
 
@@ -139,7 +163,15 @@ function buildRetry(
 ): AnyPolicy {
   const policy = retry(base, {
     maxAttempts: options.maxAttempts,
-    backoff: options.backoff ? buildBackoff(options.backoff) : undefined,
+    backoff: options.backoff
+      ? buildBackoff(
+          options.backoff,
+          options as unknown as {
+            initialDelayMs?: number;
+            maxDelayMs?: number;
+          },
+        )
+      : undefined,
   });
   policy.onRetry((event) => {
     ctx.logger?.debug?.(
@@ -241,8 +273,13 @@ export function buildResiliencePolicy(
   // Escape hatch: a fully pre-built policy wins over everything else.
   if (options.policy) return options.policy;
 
-  const base: Policy = options.handle
-    ? handleWhen((error) => options.handle?.(error) ?? false)
+  const classifier =
+    options.handle ??
+    (options.retry as { isRetryable?: (error: unknown) => boolean } | undefined)
+      ?.isRetryable;
+
+  const base: Policy = classifier
+    ? handleWhen((error) => classifier(error) ?? false)
     : handleAll;
 
   // Thread per-handler telemetry hooks into the build context.

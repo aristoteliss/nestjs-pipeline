@@ -54,7 +54,7 @@ export type RetryBackoff =
   /** Walk through an explicit list of delays (ms); the last value repeats. */
   | { type: 'iterable'; delays: number[] };
 
-/** Retry configuration — re-runs the handler on a handled failure. */
+/** Retry configuration — re-runs all downstream pipeline work on a handled failure. */
 export interface RetryOptions {
   /**
    * Maximum number of retry attempts after the initial call (e.g. `3` allows
@@ -62,8 +62,35 @@ export interface RetryOptions {
    * `retry(..., { maxAttempts })` semantics.
    */
   maxAttempts: number;
+
   /** Delay strategy between attempts. Defaults to no delay. */
   backoff?: RetryBackoff;
+
+  /**
+   * Explicit acknowledgement that replaying the handler/downstream behaviors is
+   * safe. Required for `command` and `event` retries because those request kinds
+   * commonly perform side effects.
+   *
+   * Queries do not require this acknowledgement.
+   *
+   * Set this only when the operation is genuinely replay-safe — for example the
+   * side effect is protected by a downstream idempotency key, transaction, or
+   * otherwise repeatable contract. `@nestjs-pipeline/idempotency` does not make
+   * arbitrary external effects exactly-once by itself.
+   *
+   * @example Replay-safe command retry
+   * ```ts
+   * @UsePipeline([ResilienceBehavior, {
+   *   retry: {
+   *     maxAttempts: 2,
+   *     replaySafe: true,
+   *     backoff: { type: 'exponential', maxDelay: 1_000 },
+   *   },
+   *   handle: (error) => error instanceof TransientGatewayError,
+   * }])
+   * ```
+   */
+  replaySafe?: boolean;
 }
 
 /** Circuit breaker strategy controlling when the circuit opens. */
@@ -157,34 +184,87 @@ export interface ResilienceTelemetry {
  * Supply via `@UsePipeline([ResilienceBehavior, { ... }])` for a handler, or via
  * `ResilienceModule.forRoot({ ... })` as application-wide defaults.
  *
- * @example
+ * ### Safety model
+ *
+ * Handler-level resilience wraps `next()`. A retry therefore replays everything
+ * downstream of this behavior, including the handler itself. Because that can
+ * repeat side effects, the package makes the dangerous choices explicit:
+ *
+ * - timeout / bulkhead may be configured without an error classifier;
+ * - retry / circuit-breaker / fallback require `handle(error)` unless
+ *   `handleAllErrors: true` is explicitly selected;
+ * - retries for commands/events additionally require `retry.replaySafe: true`.
+ *
+ * For most network/database retries, prefer placing resilience in the
+ * infrastructure adapter behind an application port so only the remote call is
+ * repeated instead of the whole command handler.
+ *
+ * @example Query retry with an explicit transient-error classifier
  * ```ts
- * @CommandHandler(ChargeCardCommand)
+ * @QueryHandler(GetCatalogQuery)
  * @UsePipeline([ResilienceBehavior, {
  *   retry: { maxAttempts: 3, backoff: { type: 'exponential' } },
- *   circuitBreaker: { halfOpenAfter: 10_000, breaker: { type: 'consecutive', threshold: 5 } },
+ *   circuitBreaker: {
+ *     halfOpenAfter: 10_000,
+ *     breaker: { type: 'consecutive', threshold: 5 },
+ *   },
  *   timeout: { duration: 2_000 },
+ *   handle: (error) => error instanceof CatalogUnavailableError,
  * }])
- * export class ChargeCardHandler implements ICommandHandler<ChargeCardCommand> {}
+ * export class GetCatalogHandler implements IQueryHandler<GetCatalogQuery> {}
+ * ```
+ *
+ * @example Command timeout without retry
+ * ```ts
+ * @CommandHandler(RebuildProjectionCommand)
+ * @UsePipeline([ResilienceBehavior, {
+ *   timeout: { duration: 30_000, strategy: 'cooperative' },
+ * }])
+ * export class RebuildProjectionHandler {}
+ * ```
+ *
+ * @example Deliberately broad migration / test policy
+ * ```ts
+ * @UsePipeline([ResilienceBehavior, {
+ *   fallback: { value: [] },
+ *   handleAllErrors: true,
+ * }])
  * ```
  */
 export interface ResilienceBehaviorOptions {
   /** Retry policy. */
   retry?: RetryOptions;
+
   /** Circuit breaker policy. Reused across invocations to preserve state. */
   circuitBreaker?: CircuitBreakerOptions;
+
   /** Bulkhead (concurrency limiter) policy. Reused across invocations. */
   bulkhead?: BulkheadOptions;
+
   /** Timeout policy. */
   timeout?: TimeoutOptions;
+
   /** Fallback policy. */
   fallback?: FallbackOptions;
+
   /**
    * Predicate selecting which thrown errors are treated as *handled* failures
-   * (eligible for retry / fallback / tripping the breaker). Defaults to
-   * handling **all** errors. Return `true` to handle the error.
+   * (eligible for retry / fallback / tripping the breaker). Return `true` only
+   * for failures that really are safe for the configured policy.
+   *
+   * Unlike the historical behavior, declarative retry/fallback/breaker policies
+   * no longer silently default to all errors. Use {@link handleAllErrors} only
+   * when that broad behavior is intentional.
    */
   handle?: (error: unknown) => boolean;
+
+  /**
+   * Explicitly opt into Cockatiel's `handleAll` semantics when no classifier is
+   * supplied. Prefer {@link handle} in production so validation, authorization,
+   * domain and programmer errors do not accidentally affect retry/circuit health.
+   */
+  handleAllErrors?: boolean;
+
   /**
    * Override the composition order of the configured layers. Only the listed,
    * configured layers are wrapped; unlisted layers are skipped. The first entry
@@ -193,11 +273,15 @@ export interface ResilienceBehaviorOptions {
    * @default ['fallback', 'retry', 'circuitBreaker', 'bulkhead', 'timeout']
    */
   order?: ResilienceLayer[];
+
   /** Optional telemetry hooks. */
   telemetry?: ResilienceTelemetry;
+
   /**
    * Escape hatch: provide a fully pre-built cockatiel `IPolicy`. When set, all
    * declarative options above are ignored and this policy is used verbatim.
+   * Declarative safety validation is skipped because the caller owns the policy
+   * semantics directly.
    */
   policy?: IPolicy;
 }

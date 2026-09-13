@@ -31,12 +31,15 @@ import { DeleteRoleCommand } from './delete-role.command';
   [
     ResilienceBehavior,
     {
+      handle: isTransientOperationError,
       retry: {
         maxAttempts: 3,
-        backoff: 'exponential',
-        initialDelayMs: 25,
-        maxDelayMs: 100,
-        isRetryable: isTransientOperationError,
+        replaySafe: true,
+        backoff: {
+          type: 'exponential',
+          initialDelay: 25,
+          maxDelay: 100,
+        },
       },
     },
   ],
