@@ -231,6 +231,23 @@ export interface PipelineModuleOptions {
   tenantIdFactory?: () => string | undefined;
 }
 
+/**
+ * Runtime-safe subset of {@link PipelineModuleOptions}.
+ *
+ * This type is additive documentation for consumers that want to make the
+ * distinction explicit in their own code. `forRootAsync()` intentionally keeps
+ * accepting {@link PipelineModuleOptions} from factories for backward
+ * compatibility.
+ *
+ * Nest cannot retroactively add providers after an async options factory has
+ * executed, so `behaviors` and `loggerProvider` should be declared statically on
+ * {@link PipelineModuleAsyncOptions} when using async configuration.
+ */
+export type PipelineRuntimeOptions = Omit<
+  PipelineModuleOptions,
+  'behaviors' | 'loggerProvider'
+>;
+
 /** Factory interface for classes that provide pipeline module options asynchronously. */
 export interface PipelineOptionsFactory {
   createPipelineOptions():
@@ -247,6 +264,36 @@ export interface PipelineModuleAsyncOptions
     ...args: never[]
   ) => Promise<PipelineModuleOptions> | PipelineModuleOptions;
   inject?: (InjectionToken | OptionalFactoryDependency)[];
+
+  /**
+   * Behavior classes to register statically in the Nest DI graph before the
+   * async options factory executes.
+   *
+   * The historical tuple form (`[Behavior, options]`) remains accepted for
+   * backward compatibility. Only the behavior class is used for provider
+   * registration; tuple options are not applied from this field. Put execution
+   * options in `globalBehaviors` or `@UsePipeline(...)` instead.
+   *
+   * @example
+   * ```ts
+   * PipelineModule.forRootAsync({
+   *   behaviors: [LoggingBehavior, AuditBehavior],
+   *   useFactory: async () => ({
+   *     globalBehaviors: { before: [LoggingBehavior] },
+   *   }),
+   * })
+   * ```
+   */
   behaviors?: (Type<IPipelineBehavior> | PipelineBehaviorEntry)[];
+
+  /**
+   * Optional static logger provider for async configuration.
+   *
+   * This is additive to the original async API. Prefer declaring the logger
+   * here because an async factory result cannot alter Nest's already-built
+   * provider graph.
+   */
+  loggerProvider?: PipelineLoggerProvider;
+
   extraProviders?: Provider[];
 }
