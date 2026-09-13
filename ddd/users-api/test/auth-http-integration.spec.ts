@@ -36,6 +36,7 @@ import { TenantSchemaContext } from '@persistence/tenant-schema.context';
 import { SignJWT } from 'jose';
 import request from 'supertest';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { QUERY_REPOSITORY } from '../src/auths/persistence/repository.tokens';
 import { ApiClientAuthenticator } from '../src/auths/services/api-client-authenticator';
 import { JwtAuthenticator } from '../src/auths/services/jwt-authenticator';
 import { RequestPrincipalResolver } from '../src/auths/services/request-principal-resolver';
@@ -81,6 +82,12 @@ class TestAuthController {
     },
     TenantSchemaMiddleware,
     SessionService,
+    {
+      provide: QUERY_REPOSITORY.findAuth,
+      useValue: {
+        find: async () => ({ id: 'mock-auth-id' }),
+      },
+    },
     JwtAuthenticator,
     ApiClientAuthenticator,
     RequestPrincipalResolver,
