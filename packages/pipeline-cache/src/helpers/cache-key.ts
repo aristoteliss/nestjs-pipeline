@@ -19,10 +19,21 @@
 import { type IPipelineContext, stableStringify } from '@nestjs-pipeline/core';
 
 /**
- * Default cache-key factory: combines the optional tenant ID, request name,
- * and a stable serialization of the request payload.
+ * Security-safe default cache-key factory.
+ *
+ * The built-in key is request-scoped through `correlationId`, preventing a
+ * cached response from one authenticated request from being replayed into a
+ * different principal/permission context. Tenant ID, request name, and stable
+ * request serialization are retained for observability and collision safety.
+ *
+ * Applications that intentionally want cross-request/shared caching must supply
+ * an explicit `CacheBehaviorOptions.key` that includes every authorization
+ * dimension capable of changing the result (for example tenant, principal and
+ * permission/role scope).
  */
 export function defaultCacheKey(context: IPipelineContext): string {
   const tenantPrefix = context.tenantId ? `${context.tenantId}:` : '';
-  return `${tenantPrefix}${context.requestName}:${stableStringify(context.request)}`;
+  return `${tenantPrefix}${context.correlationId}:${context.requestName}:${stableStringify(
+    context.request,
+  )}`;
 }

@@ -102,13 +102,13 @@ describe('defaultCacheKey', () => {
     } as IPipelineContext;
   }
 
-  it('combines the request name with a stable payload serialization', () => {
-    const key = defaultCacheKey(makeContext());
-
-    expect(key).toBe('GetUserQuery:{"userId":"42"}');
+  it('includes correlation scope so defaults cannot replay across requests', () => {
+    expect(defaultCacheKey(makeContext())).toBe(
+      'corr-1:GetUserQuery:{"userId":"42"}',
+    );
   });
 
-  it('yields the same key for payloads that differ only in key order', () => {
+  it('keeps stable request serialization within the same request scope', () => {
     const a = defaultCacheKey(
       makeContext({ request: { a: 1, b: 2 } as never }),
     );
@@ -119,6 +119,13 @@ describe('defaultCacheKey', () => {
     expect(a).toBe(b);
   });
 
+  it('partitions identical query payloads by correlation id', () => {
+    const first = defaultCacheKey(makeContext({ correlationId: 'request-a' }));
+    const second = defaultCacheKey(makeContext({ correlationId: 'request-b' }));
+
+    expect(first).not.toBe(second);
+  });
+
   it('yields different keys for different request names', () => {
     const a = defaultCacheKey(makeContext({ requestName: 'GetUserQuery' }));
     const b = defaultCacheKey(makeContext({ requestName: 'GetUsersQuery' }));
@@ -126,9 +133,11 @@ describe('defaultCacheKey', () => {
     expect(a).not.toBe(b);
   });
 
-  it('prefixes with tenantId when present on context', () => {
-    const key = defaultCacheKey(makeContext({ tenantId: 'tenant_a' }));
+  it('partitions by tenant in addition to request scope', () => {
+    const key = defaultCacheKey(
+      makeContext({ tenantId: 'tenant_a', correlationId: 'corr-1' }),
+    );
 
-    expect(key).toBe('tenant_a:GetUserQuery:{"userId":"42"}');
+    expect(key).toBe('tenant_a:corr-1:GetUserQuery:{"userId":"42"}');
   });
 });
