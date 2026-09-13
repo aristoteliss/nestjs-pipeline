@@ -17,45 +17,35 @@
  */
 
 import type { ITenantContext } from '@common/context/tenant-context.port';
-import type { Queue } from 'bullmq';
 import { describe, expect, it, vi } from 'vitest';
+import type { IUserBatchDispatcher } from '../../application/ports/user-event-dispatcher.port';
 import { UserUpdatedEvent } from '../../domain/events/user-updated.event';
 import { User } from '../../domain/models/user.entity';
-import type { BatchUpdateUserItem } from '../../jobs/batch-update-users.processor';
 import { UserUpdatedHandler } from './user-updated.handler';
 
 describe('UserUpdatedHandler', () => {
-  it('reads user details from immutable event.payload and enqueues batch update', async () => {
-    const queueAddMock = vi.fn().mockResolvedValue({ id: 'job-update-1' });
-    const mockQueue = {
-      add: queueAddMock,
-    } as unknown as Queue<BatchUpdateUserItem[]>;
-
-    const tenantContext: ITenantContext = {
+  it('dispatches only application data; logging/correlation are cross-cutting concerns', async () => {
+    const enqueueUserBatch = vi.fn().mockResolvedValue(undefined);
+    const dispatcher = { enqueueUserBatch } as IUserBatchDispatcher;
+    const tenantContext = {
       schema: 'tenant_gamma',
-    };
-
-    const handler = new UserUpdatedHandler(mockQueue, tenantContext);
+    } as unknown as ITenantContext;
+    const handler = new UserUpdatedHandler(dispatcher, tenantContext);
 
     const user = User.create('john_doe', 'john@example.com');
     user.commit();
-
     user.update({ username: 'john_renamed' });
     const [event] = user.getUncommittedEvents() as [UserUpdatedEvent];
 
     await handler.handle(event);
 
-    expect(queueAddMock).toHaveBeenCalledTimes(1);
-    expect(queueAddMock).toHaveBeenCalledWith(
-      'batch-update',
-      [
-        {
-          userId: user.id,
-          username: 'john_renamed',
-          tenant: 'tenant_gamma',
-        },
-      ],
-      expect.anything(),
-    );
+    expect(enqueueUserBatch).toHaveBeenCalledTimes(1);
+    expect(enqueueUserBatch).toHaveBeenCalledWith([
+      {
+        userId: user.id,
+        username: 'john_renamed',
+        tenant: 'tenant_gamma',
+      },
+    ]);
   });
 });

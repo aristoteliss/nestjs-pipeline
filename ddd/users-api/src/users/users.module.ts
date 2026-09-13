@@ -20,6 +20,10 @@ import { BullModule } from '@nestjs/bullmq';
 import { Module } from '@nestjs/common';
 import { LoggerModule } from 'nestjs-pino';
 import { GetUserCapabilitiesQueryRepository } from '../auths/persistence/get-user-capabilities.query-repository';
+import {
+  USER_BATCH_DISPATCHER,
+  WELCOME_EMAIL_DISPATCHER,
+} from './application/ports/user-event-dispatcher.port';
 import { UsersController } from './controllers/users.controller';
 import { CreateUserHandler } from './cqrs/commands/create-user.handler';
 import { DeleteUserHandler } from './cqrs/commands/delete-user.handler';
@@ -34,6 +38,7 @@ import {
   BATCH_UPDATE_USERS_QUEUE,
   BatchUpdateUsersProcessor,
 } from './jobs/batch-update-users.processor';
+import { BullMqUserEventDispatcher } from './jobs/bullmq-user-event-dispatcher.adapter';
 import {
   SendWelcomeEmailProcessor,
   WELCOME_EMAIL_QUEUE,
@@ -97,6 +102,17 @@ import { UpdateUserCommandRepository } from './persistence/update-user.command-r
     UserCreatedHandler,
     UserUpdatedHandler,
     UserDeletedHandler,
+
+    // Infrastructure adapters for application event-dispatch ports
+    BullMqUserEventDispatcher,
+    {
+      provide: WELCOME_EMAIL_DISPATCHER,
+      useExisting: BullMqUserEventDispatcher,
+    },
+    {
+      provide: USER_BATCH_DISPATCHER,
+      useExisting: BullMqUserEventDispatcher,
+    },
 
     // Job Processors
     SendWelcomeEmailProcessor,
