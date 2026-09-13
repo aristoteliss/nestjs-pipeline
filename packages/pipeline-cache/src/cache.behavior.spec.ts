@@ -254,7 +254,9 @@ describe('CacheBehavior', () => {
     const missCtx = makeCtx();
     await behavior.handle(missCtx, next);
     expect(missCtx.items.get(CACHE_HIT_ITEM)).toBe(false);
-    expect(missCtx.items.get(CACHE_KEY_ITEM)).toBe('GetUserQuery:{"id":1}');
+    expect(missCtx.items.get(CACHE_KEY_ITEM)).toBe(
+      'test-corr-id:GetUserQuery:{"id":1}',
+    );
 
     const hitCtx = makeCtx();
     await behavior.handle(hitCtx, next);

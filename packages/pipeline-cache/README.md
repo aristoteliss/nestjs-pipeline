@@ -228,7 +228,7 @@ key factory, or downstream handler are always propagated unchanged.
 
 ### Cache keys
 
-The default key is `` `${requestName}:${stableStringify(request)}` `` (prefixed with `` `${context.tenantId}:` `` when `context.tenantId` is defined), where
+The default key is `` `${context.correlationId}:${requestName}:${stableStringify(request)}` `` (prefixed with `` `${context.tenantId}:` `` when `context.tenantId` is defined), where
 `stableStringify` sorts object keys recursively so structurally equal payloads
 always map to the same entry. It accepts `null`, booleans, finite numbers,
 strings, arrays, record-like objects, and valid dates (converted to ISO strings).
@@ -237,13 +237,13 @@ non-finite numbers, `undefined`, bigint, functions, symbols, and cycles are
 rejected instead of risking a collision. Provide a `key` factory to customize
 the supported domain when needed.
 
-Cache hits return before the handler runs. If a handler performs entity-level
-authorization or response-field filtering after loading data, the cache key
-**must** include every security dimension that can change that result (for
-example principal ID, roles, or a permission-version token). The default key
-contains the tenant ID (when present on the context), request type, and payload;
-it is safe across tenants, but custom key factories should be used for user-scoped
-or permission-scoped responses.
+By default, the cache key is request-scoped via `context.correlationId` to
+prevent cached query responses from one principal/request from inadvertently
+replaying into a different authorization context. Cache hits return before the
+handler runs. If an application requires cross-request / shared caching, provide
+an explicit `key` factory in `CacheBehaviorOptions.key` that includes every
+dimension capable of changing the returned data or authorization outcome (such as
+tenant, principal ID, and effective role/permission scope).
 
 ### Options resolution
 

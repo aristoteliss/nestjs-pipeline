@@ -6,19 +6,19 @@
 export const WELCOME_EMAIL_DISPATCHER = Symbol('WELCOME_EMAIL_DISPATCHER');
 export const USER_BATCH_DISPATCHER = Symbol('USER_BATCH_DISPATCHER');
 
-export interface WelcomeEmailDispatch {
+export type WelcomeEmailDispatch = {
   userId: string;
   username: string;
   email: string;
   tenant?: string;
-}
+};
 
-export interface UserBatchDispatchItem {
+export type UserBatchDispatchItem = {
   userId: string;
   username?: string;
   email?: string;
   tenant?: string;
-}
+};
 
 /** Application port for scheduling the welcome-email side effect. */
 export interface IWelcomeEmailDispatcher {
