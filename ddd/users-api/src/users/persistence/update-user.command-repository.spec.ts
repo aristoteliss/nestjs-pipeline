@@ -17,7 +17,11 @@ describe('UpdateUserCommandRepository', () => {
     const user = User.create('Alice', 'alice@example.test');
     user.update({ username: 'Alicia' });
     const nativeUpdate = vi.fn().mockResolvedValue(1);
-    const store = { get em() { return { nativeUpdate }; } };
+    const store = {
+      get em() {
+        return { nativeUpdate };
+      },
+    };
     const repository = new UpdateUserCommandRepository(cache, store as never);
 
     await expect(repository.save(user)).resolves.toEqual(user.toJSON());
@@ -49,7 +53,11 @@ describe('UpdateUserCommandRepository', () => {
     const user = User.create('Alice', 'alice@example.test');
     const nativeUpdate = vi.fn().mockResolvedValue(0);
     const findOne = vi.fn().mockResolvedValue(null);
-    const store = { get em() { return { nativeUpdate, findOne }; } };
+    const store = {
+      get em() {
+        return { nativeUpdate, findOne };
+      },
+    };
     const repository = new UpdateUserCommandRepository(cache, store as never);
 
     user.update({ username: 'Alicia' });
@@ -74,7 +82,11 @@ describe('UpdateUserCommandRepository', () => {
     const user = User.create('Alice', 'alice@example.test');
     const nativeUpdate = vi.fn().mockResolvedValue(0);
     const findOne = vi.fn().mockResolvedValue({ id: user.id, version: 2 });
-    const store = { get em() { return { nativeUpdate, findOne }; } };
+    const store = {
+      get em() {
+        return { nativeUpdate, findOne };
+      },
+    };
     const repository = new UpdateUserCommandRepository(cache, store as never);
 
     user.update({ username: 'Alicia' });
@@ -92,7 +104,11 @@ describe('UpdateUserCommandRepository', () => {
     const user = User.create('Alice', 'alice@example.test');
     const failure = new Error('database failed');
     const nativeUpdate = vi.fn().mockRejectedValue(failure);
-    const store = { get em() { return { nativeUpdate }; } };
+    const store = {
+      get em() {
+        return { nativeUpdate };
+      },
+    };
     const repository = new UpdateUserCommandRepository(cache, store as never);
 
     user.update({ username: 'Alicia' });

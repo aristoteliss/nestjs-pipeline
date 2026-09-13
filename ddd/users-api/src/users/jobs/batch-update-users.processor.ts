@@ -56,7 +56,9 @@ export function resolveBatchTenant(
 ): string | undefined {
   const tenant = items[0]?.tenant;
   if (items.some((item) => item.tenant !== tenant)) {
-    throw new MixedTenantBatchError([...new Set(items.map((item) => item.tenant))]);
+    throw new MixedTenantBatchError([
+      ...new Set(items.map((item) => item.tenant)),
+    ]);
   }
   return tenant;
 }

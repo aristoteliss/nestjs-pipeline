@@ -16,6 +16,7 @@
  * ----------------------------
  */
 
+import type { PrincipalType } from '@common/types/SessionUser';
 import type { UserCapabilities } from '@nestjs-pipeline/casl';
 import type { Auth } from '../../domain/models/auth.entity';
 
@@ -28,6 +29,7 @@ import type { Auth } from '../../domain/models/auth.entity';
 export interface CreateAuthResult {
   readonly aggregate: Auth;
   readonly id: string;
+  readonly principalType?: PrincipalType;
   readonly tenant: string;
   readonly email: string;
   readonly department?: string | null;

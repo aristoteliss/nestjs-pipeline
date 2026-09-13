@@ -51,6 +51,7 @@ export class SessionService {
 
     session.set('user', {
       id: data.id,
+      principalType: data.principalType ?? 'user',
       tenant: data.tenant,
       email: data.email,
       department: data.department ?? undefined,

@@ -194,7 +194,16 @@ export async function bootstrapE2E(options?: E2EOptions): Promise<E2EContext> {
       const rawTenant = req.headers['x-tenant-schema'];
       const tenant = Array.isArray(rawTenant) ? rawTenant[0] : rawTenant;
       const user = parsedUser
-        ? { ...parsedUser, tenant: parsedUser.tenant ?? tenant }
+        ? {
+            ...parsedUser,
+            tenant: parsedUser.tenant ?? tenant,
+            principalType:
+              parsedUser.principalType !== undefined
+                ? parsedUser.principalType
+                : parsedUser.capabilities
+                  ? 'service'
+                  : 'user',
+          }
         : undefined;
       const rawToken = req.headers['x-test-token'];
       const token = Array.isArray(rawToken) ? rawToken[0] : rawToken;

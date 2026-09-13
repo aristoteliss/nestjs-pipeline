@@ -22,7 +22,11 @@ describe('filterCacheKey core canonical serialization', () => {
 
   it('inherits the core strict JSON boundary for unsupported object values', () => {
     expect(() =>
-      filterCacheKey('deployment', { compose: new Map([['a', 1]]) }, 'tenant_a'),
+      filterCacheKey(
+        'deployment',
+        { compose: new Map([['a', 1]]) },
+        'tenant_a',
+      ),
     ).toThrow('stableStringify requires an acyclic JSON-serializable value.');
   });
 });

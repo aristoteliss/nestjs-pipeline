@@ -16,6 +16,7 @@
  * ----------------------------
  */
 
+import type { PrincipalType } from '@common/types/SessionUser';
 import type { UserCapabilities } from '@nestjs-pipeline/casl';
 
 /**
@@ -23,6 +24,7 @@ import type { UserCapabilities } from '@nestjs-pipeline/casl';
  */
 export class SessionResponse {
   id!: string;
+  principalType?: PrincipalType;
   tenant!: string;
   email!: string;
   department?: string | null;

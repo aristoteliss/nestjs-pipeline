@@ -51,6 +51,7 @@ describe('ApiClientAuthenticator', () => {
 
     expect(user).toEqual({
       id: 'svc-1',
+      principalType: 'service',
       tenant: tenantContext.schema,
       capabilities: { roles: ['service-role'] },
     });

@@ -31,6 +31,8 @@ import { CapabilityCodec } from './capability-codec';
  * Configured API clients are loaded from the `API_CLIENTS` environment variable as a JSON array.
  * Key comparisons are performed in constant time by comparing SHA-256 fixed-length digests, preventing
  * timing side-channel attacks that could leak secret key lengths or character prefixes.
+ * Successful authentication explicitly marks the principal as `service`; authorization never infers
+ * machine identity from the syntax of the API client id.
  *
  * @example
  * ```bash
@@ -61,7 +63,7 @@ export class ApiClientAuthenticator {
    * Verifies API credentials provided in `x-api-id` and `x-api-key` request headers.
    *
    * @param req - Request object containing incoming HTTP headers.
-   * @returns The resolved {@link SessionUser} principal if valid credentials match the active tenant,
+   * @returns The resolved {@link SessionUser} service principal if valid credentials match the active tenant,
    *          or `undefined` if no `x-api-id` header was provided.
    * @throws {@link UnauthorizedException} If `x-api-id` is present but credentials are invalid,
    *         the API key is incorrect, or the client is not authorized for the active tenant schema.
@@ -74,7 +76,7 @@ export class ApiClientAuthenticator {
    *     'x-api-key': 'secret-api-key-999',
    *   },
    * });
-   * // returns: { id: 'reporting-service', tenant: 'tenant_a', capabilities: { roles: ['reporter'] } }
+   * // returns: { id: 'reporting-service', principalType: 'service', tenant: 'tenant_a', capabilities: { roles: ['reporter'] } }
    * ```
    */
   authenticate(req: {
@@ -103,7 +105,12 @@ export class ApiClientAuthenticator {
       `Authenticated API client ${apiId} from x-api-id/x-api-key headers`,
     );
 
-    return { id: apiId, tenant, capabilities: client.capabilities };
+    return {
+      id: apiId,
+      principalType: 'service',
+      tenant,
+      capabilities: client.capabilities,
+    };
   }
 
   private getApiClients(): Map<

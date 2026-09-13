@@ -13,7 +13,10 @@ import {
   createRoleIdempotencyKey,
 } from '../src/roles/cqrs/commands/create-role.handler';
 import { RoleCreatedEvent } from '../src/roles/domain/events/role-created.event';
-import { Role, type RoleSnapshot } from '../src/roles/domain/models/role.entity';
+import {
+  Role,
+  type RoleSnapshot,
+} from '../src/roles/domain/models/role.entity';
 import { toRoleResponseDto } from '../src/roles/dtos/role.dto';
 import { CreateUserCommand } from '../src/users/cqrs/commands/create-user.command';
 import {
@@ -21,7 +24,10 @@ import {
   createUserIdempotencyKey,
 } from '../src/users/cqrs/commands/create-user.handler';
 import { UserCreatedEvent } from '../src/users/domain/events/user-created.event';
-import { User, type UserSnapshot } from '../src/users/domain/models/user.entity';
+import {
+  User,
+  type UserSnapshot,
+} from '../src/users/domain/models/user.entity';
 import { toResponseDto } from '../src/users/dtos/user.dto';
 
 function tenantContext<T>(context: PipelineContext<T>): PipelineContext<T> {

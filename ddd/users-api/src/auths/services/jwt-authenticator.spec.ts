@@ -72,6 +72,7 @@ describe('JwtAuthenticator', () => {
 
     expect(user).toMatchObject({
       id: 'user-asymm',
+      principalType: 'user',
       email: 'asymm@example.test',
       tenant: tenantContext.schema,
       capabilities: { roles: ['admin'] },
@@ -97,6 +98,7 @@ describe('JwtAuthenticator', () => {
     });
 
     expect(user?.id).toBe('user-lowercase-bearer');
+    expect(user?.principalType).toBe('user');
   });
 
   it('genuinely memoizes parsed SPKI public keys across consecutive calls (real spy test)', async () => {
