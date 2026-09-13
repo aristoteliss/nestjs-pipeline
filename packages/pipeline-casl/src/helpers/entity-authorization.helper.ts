@@ -232,6 +232,79 @@ export class CaslAuthorizer implements IEntityAuthorizer {
   }
 
   /**
+   * Filters a collection of subjects, evaluating permissions for each item.
+   * Authorized subjects are projected with readable fields and returned.
+   * Unauthorized items, null, or undefined values are silently omitted.
+   *
+   * @param action - The action to authorize (e.g. 'read').
+   * @param subjects - The iterable collection of entities/subjects to filter.
+   * @returns An array of authorized subjects or projected snapshots.
+   */
+  filter<T = unknown>(
+    action: string,
+    subjects: Iterable<object | null | undefined>,
+  ): T[];
+  filter<T = unknown>(
+    actorOrAbility:
+      | CaslUserContext
+      | AppAbility
+      | CaslBypassContext
+      | undefined,
+    action: string,
+    subjects: Iterable<object | null | undefined>,
+  ): T[];
+  filter<T = unknown>(...args: unknown[]): T[] {
+    let actorOrAbility:
+      | CaslUserContext
+      | AppAbility
+      | CaslBypassContext
+      | undefined;
+    let action: string;
+    let subjects: Iterable<object | null | undefined>;
+
+    const isActorOrAbilitySignature =
+      args.length >= 3 ||
+      (args.length === 2 &&
+        typeof args[0] !== 'string' &&
+        typeof args[1] === 'string');
+
+    if (isActorOrAbilitySignature) {
+      actorOrAbility = args[0] as
+        | CaslUserContext
+        | AppAbility
+        | CaslBypassContext
+        | undefined;
+      action = args[1] as string;
+      subjects = (args[2] as Iterable<object | null | undefined>) ?? [];
+    } else {
+      action = args[0] as string;
+      subjects = (args[1] as Iterable<object | null | undefined>) ?? [];
+    }
+
+    if (!subjects) return [];
+
+    const results: T[] = [];
+    for (const item of subjects) {
+      if (!item) continue;
+      try {
+        if (actorOrAbility === undefined && !this.can(action, item)) {
+          continue;
+        }
+        const authorized =
+          actorOrAbility !== undefined
+            ? this.authorize<T>(actorOrAbility, action, item)
+            : this.authorize<T>(action, item);
+        results.push(authorized);
+      } catch (err) {
+        if (!(err instanceof UnauthorizedActionException)) {
+          throw err;
+        }
+      }
+    }
+    return results;
+  }
+
+  /**
    * Check whether the action is permitted on the given subject/field.
    */
   can(action: string, subject: object | string, field?: string): boolean;

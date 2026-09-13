@@ -557,6 +557,84 @@ describe('CaslAuthorizer / CaslEntityAuthorizer', () => {
     });
   });
 
+  describe('filter()', () => {
+    it('returns empty array when input is empty or null', () => {
+      const ability = buildAbility([supervisorRole], supervisor);
+      const authorizer = new CaslAuthorizer(ability);
+
+      expect(authorizer.filter('read', [])).toEqual([]);
+      expect(authorizer.filter('read', [null, undefined])).toEqual([]);
+    });
+
+    it('filters out forbidden entities and projects readable fields on allowed entities', () => {
+      const ability = buildAbility([supervisorRole], supervisor);
+      const authorizer = new CaslAuthorizer(ability);
+
+      const userEng1 = new User(1, 'engineering', 'alice');
+      const userMkt = new User(2, 'marketing', 'bob');
+      const userEng2 = new User(3, 'engineering', 'charlie');
+
+      const results = authorizer.filter<Record<string, unknown>>('read', [
+        userEng1,
+        userMkt,
+        null,
+        userEng2,
+      ]);
+
+      expect(results).toHaveLength(2);
+      expect(results[0]).toEqual({
+        id: 1,
+        department: 'engineering',
+        username: 'alice',
+      });
+      expect(results[1]).toEqual({
+        id: 3,
+        department: 'engineering',
+        username: 'charlie',
+      });
+    });
+
+    it('returns all items when authorizer is in bypass mode', () => {
+      const bypassAuthorizer = CaslAuthorizer.bypass();
+      const user1 = new User(1, 'engineering', 'alice');
+      const user2 = new User(2, 'marketing', 'bob');
+
+      const results = bypassAuthorizer.filter<Record<string, unknown>>('read', [
+        user1,
+        user2,
+      ]);
+
+      expect(results).toHaveLength(2);
+      expect(results[0]).toEqual({
+        id: 1,
+        department: 'engineering',
+        username: 'alice',
+      });
+      expect(results[1]).toEqual({
+        id: 2,
+        department: 'marketing',
+        username: 'bob',
+      });
+    });
+
+    it('supports 3-arg signature with explicit ability: filter(ability, action, subjects)', () => {
+      const ability = buildAbility([supervisorRole], supervisor);
+      const authorizer = new CaslAuthorizer();
+
+      const userEng = new User(1, 'engineering', 'alice');
+      const userMkt = new User(2, 'marketing', 'bob');
+
+      const results = authorizer.filter<Record<string, unknown>>(
+        ability,
+        'read',
+        [userEng, userMkt],
+      );
+
+      expect(results).toHaveLength(1);
+      expect(results[0].username).toBe('alice');
+    });
+  });
+
   describe('UnauthorizedActionException', () => {
     it('generates default message with id and fields when reason is omitted', () => {
       const err = new UnauthorizedActionException({

@@ -94,7 +94,7 @@ describe('UsersController', () => {
     } as unknown as QueryBus;
 
     const controller = new UsersController(commandBus, queryBus);
-    const result = await controller.getUsers({} as Request);
+    const result = await controller.getUsers();
 
     expect(queryBus.execute).toHaveBeenCalledWith(expect.any(GetUsersQuery));
     expect(result.users).toHaveLength(1);
