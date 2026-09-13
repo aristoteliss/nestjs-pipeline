@@ -16,7 +16,7 @@
  * ----------------------------
  */
 
-import type { TenantSchemaContext } from '@persistence/tenant-schema.context';
+import type { ITenantContext } from '@common/context/tenant-context.port';
 import type { Queue } from 'bullmq';
 import { describe, expect, it, vi } from 'vitest';
 import { UserUpdatedEvent } from '../../domain/events/user-updated.event';
@@ -31,9 +31,9 @@ describe('UserUpdatedHandler', () => {
       add: queueAddMock,
     } as unknown as Queue<BatchUpdateUserItem[]>;
 
-    const tenantContext = {
+    const tenantContext: ITenantContext = {
       schema: 'tenant_gamma',
-    } as unknown as TenantSchemaContext;
+    };
 
     const handler = new UserUpdatedHandler(mockQueue, tenantContext);
 

@@ -16,8 +16,12 @@
  * ----------------------------
  */
 
+import {
+  type ITenantContext,
+  TENANT_CONTEXT,
+} from '@common/context/tenant-context.port';
 import { InjectQueue } from '@nestjs/bullmq';
-import { Logger } from '@nestjs/common';
+import { Inject, Logger } from '@nestjs/common';
 import { EventsHandler, type IEventHandler } from '@nestjs/cqrs';
 import { UsePipeline } from '@nestjs-pipeline/core';
 import {
@@ -25,7 +29,6 @@ import {
   getCorrelationId,
 } from '@nestjs-pipeline/correlation';
 import { DeadLetterBehavior } from '@nestjs-pipeline/deadletter';
-import { TenantSchemaContext } from '@persistence/tenant-schema.context';
 import type { Queue } from 'bullmq';
 import { UserCreatedEvent } from '../../domain/events/user-created.event';
 import {
@@ -48,13 +51,14 @@ export class UserCreatedHandler implements IEventHandler<UserCreatedEvent> {
   constructor(
     @InjectQueue(WELCOME_EMAIL_QUEUE)
     private readonly welcomeEmailQueue: Queue<WelcomeEmailJobData>,
-    private readonly tenantSchemaContext: TenantSchemaContext,
+    @Inject(TENANT_CONTEXT)
+    private readonly tenantContext: ITenantContext,
   ) {}
 
   async handle(event: UserCreatedEvent): Promise<void> {
     const { id: userId, username, email } = event.payload;
     const correlationId = getCorrelationId();
-    const tenant = this.tenantSchemaContext.schema;
+    const tenant = this.tenantContext.schema;
 
     this.logger.log(
       `📬 [${correlationId}] UserCreated — id: ${userId}, username: ${username}, email: ${email}, tenant: ${tenant}`,

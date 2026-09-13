@@ -42,6 +42,7 @@ describe('MikroOrmStore', () => {
     const em = store.em;
     expect(em).toBe(contextEm);
     expect(rootEm.fork).not.toHaveBeenCalled();
+    expect((contextEm as any).__tenant).toBeUndefined();
   });
 
   it('forks a new EntityManager when no contextual EntityManager is active', () => {
@@ -59,6 +60,7 @@ describe('MikroOrmStore', () => {
     const em = store.em;
     expect(em).toBe(forkedEm);
     expect(rootEm.fork).toHaveBeenCalled();
+    expect((forkedEm as any).__tenant).toBeUndefined();
   });
 
   it('withFork provides a dedicated fork to callback and returns result', async () => {
@@ -74,6 +76,7 @@ describe('MikroOrmStore', () => {
 
     const result = await store.withFork(async (em) => {
       expect(em).toBe(forkedEm);
+      expect((em as any).__tenant).toBeUndefined();
       return 'fork-result';
     });
 
@@ -120,6 +123,7 @@ describe('MikroOrmStore', () => {
     expect(() => store.em).not.toThrow();
     expect(store.em).toBe(forkedEm);
     expect(rootEm.fork).toHaveBeenCalled();
+    expect((forkedEm as any).__tenant).toBeUndefined();
   });
 
   it('rejects context-bound EntityManager from another tenant and forks dedicated instance', () => {
@@ -127,7 +131,6 @@ describe('MikroOrmStore', () => {
     const contextEmTenantB = {
       id: 'context-em-b',
       getDriver: () => driver,
-      __tenant: 'tenant_b',
     };
     const forkedEmTenantA = { id: 'forked-em-a' };
     const rootEm = {
@@ -140,11 +143,12 @@ describe('MikroOrmStore', () => {
 
     const store = new MikroOrmStore(mockTenantContext); // tenant_a
     (store as any).orms.set('tenant_a', mockOrm);
+    (store as any).entityManagerTenants.mark(contextEmTenantB, 'tenant_b');
 
     const em = store.em;
     expect(em).toBe(forkedEmTenantA);
     expect(rootEm.fork).toHaveBeenCalled();
-    expect((forkedEmTenantA as any).__tenant).toBe('tenant_a');
+    expect((forkedEmTenantA as any).__tenant).toBeUndefined();
   });
 
   it('rejects context-bound EntityManager from another ORM instance with mismatched config', () => {

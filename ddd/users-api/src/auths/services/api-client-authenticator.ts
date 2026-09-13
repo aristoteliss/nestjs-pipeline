@@ -17,10 +17,18 @@
  */
 
 import { createHash, timingSafeEqual } from 'node:crypto';
-import { Injectable, Logger, UnauthorizedException } from '@nestjs/common';
+import {
+  Inject,
+  Injectable,
+  Logger,
+  UnauthorizedException,
+} from '@nestjs/common';
 import type { UserCapabilities } from '@nestjs-pipeline/casl';
-import { TenantSchemaContext } from '@persistence/tenant-schema.context';
 import { AUTH_HEADERS } from '../../common/constants/auth-headers.constants';
+import {
+  type ITenantContext,
+  TENANT_CONTEXT,
+} from '../../common/context/tenant-context.port';
 import type { SessionUser } from '../../common/types/SessionUser';
 import { CapabilityCodec } from './capability-codec';
 
@@ -57,7 +65,10 @@ export class ApiClientAuthenticator {
     { key: string; tenants: Set<string>; capabilities?: UserCapabilities }
   >;
 
-  constructor(private readonly tenantSchemaContext: TenantSchemaContext) {}
+  constructor(
+    @Inject(TENANT_CONTEXT)
+    private readonly tenantContext: ITenantContext,
+  ) {}
 
   /**
    * Verifies API credentials provided in `x-api-id` and `x-api-key` request headers.
@@ -92,7 +103,7 @@ export class ApiClientAuthenticator {
       !client ||
       !apiKey ||
       !this.timingSafeEqualString(apiKey, client.key) ||
-      !client.tenants.has(this.tenantSchemaContext.schema)
+      !client.tenants.has(this.tenantContext.schema)
     ) {
       this.logger.warn(
         `Rejected API client "${apiId}": missing, invalid, or tenant-mismatched credentials`,
@@ -100,7 +111,7 @@ export class ApiClientAuthenticator {
       throw new UnauthorizedException('Invalid API credentials');
     }
 
-    const tenant = this.tenantSchemaContext.schema;
+    const tenant = this.tenantContext.schema;
     this.logger.debug(
       `Authenticated API client ${apiId} from x-api-id/x-api-key headers`,
     );

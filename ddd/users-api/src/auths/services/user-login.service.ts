@@ -24,16 +24,21 @@ import {
   InternalServerErrorException,
   UnauthorizedException,
 } from '@nestjs/common';
-import { QueryBus } from '@nestjs/cqrs';
 import type { UserCapabilities } from '@nestjs-pipeline/casl';
 import type { IQueryRepository } from '@nestjs-pipeline/ddd-core';
 import { SignJWT } from 'jose';
+import {
+  type ITenantContext,
+  TENANT_CONTEXT,
+} from '../../common/context/tenant-context.port';
 import type { SessionData } from '../../common/types/SessionUser';
-import { TenantSchemaContext } from '../../persistence/tenant-schema.context';
 import { GetUserQuery } from '../../users/cqrs/queries/get-user.query';
 import { User } from '../../users/domain/models/user.entity';
 import { EXT_USER_QUERY_REPOSITORY } from '../../users/persistence/repository.tokens';
-import { GetUserCapabilitiesQuery } from '../cqrs/queries/get-user-capabilities.query';
+import {
+  type IUserCapabilityReader,
+  USER_CAPABILITY_READER,
+} from '../application/ports/user-capability-reader.port';
 import { CapabilityCodec } from './capability-codec';
 import { JwtAuthenticator } from './jwt-authenticator';
 import { SessionService } from './session.service';
@@ -52,8 +57,8 @@ export interface AuthResult {
  * Encapsulates the `POST /auth/login` workflow:
  * 1. Validates the temporary login code against `AUTH_LOGIN_CODE`.
  * 2. Fetches user account details from the tenant database via {@link GetUserQuery}.
- * 3. Resolves CASL user permissions and role capabilities via {@link GetUserCapabilitiesQuery}.
- * 4. Signs an HMAC access token bound to the current tenant schema.
+ * 3. Resolves CASL user permissions and role capabilities via {@link IUserCapabilityReader}.
+ * 4. Signs an HMAC access token bound to the current tenant schema via {@link ITenantContext}.
  *
  * @example
  * ```bash
@@ -67,12 +72,12 @@ export interface AuthResult {
 @Injectable()
 export class UserLoginService {
   constructor(
-    @Inject(QueryBus)
-    private readonly queryBus: QueryBus,
     @Inject(EXT_USER_QUERY_REPOSITORY.getUser)
     private readonly queryRepository: IQueryRepository<GetUserQuery, User>,
-    @Inject(TenantSchemaContext)
-    private readonly tenantSchemaContext: TenantSchemaContext,
+    @Inject(USER_CAPABILITY_READER)
+    private readonly capabilityReader: IUserCapabilityReader,
+    @Inject(TENANT_CONTEXT)
+    private readonly tenantContext: ITenantContext,
     private readonly jwtAuthenticator: JwtAuthenticator,
     private readonly sessionService: SessionService = new SessionService(),
   ) {}
@@ -199,12 +204,11 @@ export class UserLoginService {
 
     const issuer = process.env.JWT_ISSUER;
     const audience = process.env.JWT_AUDIENCE;
-    const tenant = this.tenantSchemaContext.schema;
+    const tenant = this.tenantContext.schema;
 
-    const userCapabilities = await this.queryBus.execute<
-      GetUserCapabilitiesQuery,
-      UserCapabilities
-    >(new GetUserCapabilitiesQuery({ userId: user.id }));
+    const userCapabilities = await this.capabilityReader.getCapabilities(
+      user.id,
+    );
 
     const nowSeconds = Math.floor(Date.now() / 1000);
     const expSeconds = nowSeconds + 3600; // 1 hour

@@ -17,8 +17,11 @@
  */
 
 import type { Session } from '@fastify/secure-session';
-import { Injectable, UnauthorizedException } from '@nestjs/common';
-import { TenantSchemaContext } from '@persistence/tenant-schema.context';
+import { Inject, Injectable, UnauthorizedException } from '@nestjs/common';
+import {
+  type ITenantContext,
+  TENANT_CONTEXT,
+} from '../../common/context/tenant-context.port';
 import type { SessionData, SessionUser } from '../../common/types/SessionUser';
 import { ApiClientAuthenticator } from './api-client-authenticator';
 import { JwtAuthenticator } from './jwt-authenticator';
@@ -39,7 +42,7 @@ export type AuthenticatedRequest = {
  * 3. Basic API client credentials (`Authorization: Basic <credentials>`) — for machine-to-machine integrations.
  *
  * Rejects requests with HTTP 401 Unauthorized if credentials belong to a tenant other than
- * the active request schema context (`TenantSchemaContext`).
+ * the active request schema context (`ITenantContext`).
  *
  * @example
  * ```ts
@@ -55,7 +58,8 @@ export class RequestPrincipalResolver {
   constructor(
     private readonly jwtAuthenticator: JwtAuthenticator,
     private readonly apiClientAuthenticator: ApiClientAuthenticator,
-    private readonly tenantSchemaContext: TenantSchemaContext,
+    @Inject(TENANT_CONTEXT)
+    private readonly tenantContext: ITenantContext,
     private readonly sessionService: SessionService = new SessionService(),
   ) {}
 
@@ -106,7 +110,7 @@ export class RequestPrincipalResolver {
    * ```
    */
   assertCurrentTenant(credentialTenant: string): void {
-    if (credentialTenant !== this.tenantSchemaContext.schema) {
+    if (credentialTenant !== this.tenantContext.schema) {
       throw new UnauthorizedException(
         'Credential tenant does not match the selected tenant',
       );

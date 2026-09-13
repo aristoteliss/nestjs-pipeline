@@ -16,7 +16,7 @@
  * ----------------------------
  */
 
-import type { TenantSchemaContext } from '@persistence/tenant-schema.context';
+import type { ITenantContext } from '@common/context/tenant-context.port';
 import type { Queue } from 'bullmq';
 import { describe, expect, it, vi } from 'vitest';
 import { UserCreatedEvent } from '../../domain/events/user-created.event';
@@ -31,9 +31,9 @@ describe('UserCreatedHandler', () => {
       add: queueAddMock,
     } as unknown as Queue<WelcomeEmailJobData>;
 
-    const tenantContext = {
+    const tenantContext: ITenantContext = {
       schema: 'tenant_alpha',
-    } as unknown as TenantSchemaContext;
+    };
 
     const handler = new UserCreatedHandler(mockQueue, tenantContext);
 
@@ -60,9 +60,9 @@ describe('UserCreatedHandler', () => {
       add: queueAddMock,
     } as unknown as Queue<WelcomeEmailJobData>;
 
-    const tenantContext = {
+    const tenantContext: ITenantContext = {
       schema: 'tenant_beta',
-    } as unknown as TenantSchemaContext;
+    };
 
     const handler = new UserCreatedHandler(mockQueue, tenantContext);
 

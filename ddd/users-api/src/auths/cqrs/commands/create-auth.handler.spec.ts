@@ -16,8 +16,8 @@
  * ----------------------------
  */
 
+import type { ITenantContext } from '@common/context/tenant-context.port';
 import type { EventBus } from '@nestjs/cqrs';
-import { TenantSchemaContext } from '@persistence/tenant-schema.context';
 import { describe, expect, it, vi } from 'vitest';
 import { CreatedAuthEvent } from '../../domain/events/create-auth.event';
 import { Auth } from '../../domain/models/auth.entity';
@@ -49,15 +49,15 @@ describe('CreateAuthHandler', () => {
 
     const save = vi.fn().mockResolvedValue({ id: 'auth-id' });
     const commandRepository = { save };
-    const tenantSchemaContext = {
+    const tenantContext: ITenantContext = {
       schema: 'tenant_alpha',
-    } as TenantSchemaContext;
+    };
 
     const handler = new CreateAuthHandler(
       eventBus,
       userLoginService as never,
       commandRepository as never,
-      tenantSchemaContext,
+      tenantContext,
     );
 
     const command = new CreateAuthCommand({

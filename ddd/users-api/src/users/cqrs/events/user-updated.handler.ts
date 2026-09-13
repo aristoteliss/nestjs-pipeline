@@ -16,11 +16,14 @@
  * ----------------------------
  */
 
+import {
+  type ITenantContext,
+  TENANT_CONTEXT,
+} from '@common/context/tenant-context.port';
 import { InjectQueue } from '@nestjs/bullmq';
-import { Logger } from '@nestjs/common';
+import { Inject, Logger } from '@nestjs/common';
 import { EventsHandler, type IEventHandler } from '@nestjs/cqrs';
 import { getCorrelationId } from '@nestjs-pipeline/correlation';
-import { TenantSchemaContext } from '@persistence/tenant-schema.context';
 import type { JobsOptions, Queue } from 'bullmq';
 import { UserUpdatedEvent } from '../../domain/events/user-updated.event';
 import {
@@ -35,13 +38,14 @@ export class UserUpdatedHandler implements IEventHandler<UserUpdatedEvent> {
   constructor(
     @InjectQueue(BATCH_UPDATE_USERS_QUEUE)
     private readonly batchUpdateQueue: Queue<BatchUpdateUserItem[]>,
-    private readonly tenantSchemaContext: TenantSchemaContext,
+    @Inject(TENANT_CONTEXT)
+    private readonly tenantContext: ITenantContext,
   ) {}
 
   async handle(event: UserUpdatedEvent): Promise<void> {
     const { id: userId, username } = event.payload;
     const correlationId = getCorrelationId();
-    const tenant = this.tenantSchemaContext.schema;
+    const tenant = this.tenantContext.schema;
 
     this.logger.log(
       `📬 [${correlationId}] UserUpdated — id: ${userId}, username: ${username}, tenant: ${tenant}`,

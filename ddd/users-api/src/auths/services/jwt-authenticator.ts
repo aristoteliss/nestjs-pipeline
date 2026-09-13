@@ -24,8 +24,11 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import type { IQueryRepository } from '@nestjs-pipeline/ddd-core';
-import { TenantSchemaContext } from '@persistence/tenant-schema.context';
 import { decodeJwt, importSPKI, jwtVerify } from 'jose';
+import {
+  type ITenantContext,
+  TENANT_CONTEXT,
+} from '../../common/context/tenant-context.port';
 import type { SessionUser } from '../../common/types/SessionUser';
 import { FindAuthQuery } from '../cqrs/queries/find-auth.query';
 import type { Auth } from '../domain/models/auth.entity';
@@ -75,7 +78,8 @@ export class JwtAuthenticator {
   private cachedSecretRaw?: string;
 
   constructor(
-    private readonly tenantSchemaContext: TenantSchemaContext,
+    @Inject(TENANT_CONTEXT)
+    private readonly tenantContext: ITenantContext,
     @Optional()
     @Inject(QUERY_REPOSITORY.findAuth)
     private readonly authQueryRepository?: IQueryRepository<
@@ -228,7 +232,7 @@ export class JwtAuthenticator {
         throw new UnauthorizedException('Token is missing its tenant claim');
       }
 
-      if (payload.tenant !== this.tenantSchemaContext.schema) {
+      if (payload.tenant !== this.tenantContext.schema) {
         throw new UnauthorizedException(
           'Credential tenant does not match the selected tenant',
         );
