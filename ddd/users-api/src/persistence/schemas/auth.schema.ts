@@ -28,6 +28,7 @@ import { Auth } from '../../auths/domain/models/auth.entity';
  * application/domain callers cannot bypass `Auth.create()` / `Auth.fromJSON()`.
  */
 export const AuthSchema = new EntitySchema<Auth, AggregateRoot>({
+  // biome-ignore lint/suspicious/noExplicitAny: MikroORM schema requires a public constructor; Auth hides its constructor to enforce domain invariants.
   class: Auth as any,
   tableName: 'auth',
   properties: {

@@ -34,6 +34,7 @@ import { User } from '../../users/domain/models/user.entity';
  * still cannot instantiate the aggregate directly.
  */
 export const UserSchema = new EntitySchema<User, AggregateRoot>({
+  // biome-ignore lint/suspicious/noExplicitAny: MikroORM schema requires a public constructor; User hides its constructor to enforce domain invariants.
   class: User as any,
   tableName: 'users',
   properties: {
