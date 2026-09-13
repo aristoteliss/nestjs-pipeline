@@ -20,11 +20,11 @@ import type { Server } from 'node:http';
 import { EntityManager } from '@mikro-orm/core';
 import { uuidv7 } from '@nestjs-pipeline/core';
 import {
+  CACHE_TOKEN,
   createCacheMutationBarrier,
   type ICache,
   isCacheMutationBarrier,
 } from '@nestjs-pipeline/ddd-core';
-import { CACHE_TOKEN } from '@persistence/cache/memory.cache';
 import request from 'supertest';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {

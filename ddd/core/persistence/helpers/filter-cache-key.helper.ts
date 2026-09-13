@@ -21,7 +21,8 @@ import {
   pipelineStore,
   stableStringify,
 } from '@nestjs-pipeline/core';
-import { DEFAULT_TENANT_SCHEMA } from '@persistence/postgres-options';
+
+export const DEFAULT_TENANT_SCHEMA = process.env.DB_DEFAULT_SCHEMA || 'tenant';
 
 /**
  * Types supported as cache key resource specifiers:
@@ -163,19 +164,6 @@ export function filterCacheKey(
  * Required placeholders throw when absent; optional `{prop?}` placeholders resolve
  * to an empty string. Object placeholder values use the same canonical serializer
  * as `filterCacheKey`.
- *
- * @example Required placeholder (throws if userId is missing)
- * ```typescript
- * const getKey = cacheKeyTemplate('user:{userId}', 'tenant');
- * getKey({ userId: '123' }); // → "tenant:user:123"
- * getKey({}); // Throws Error: Cannot resolve cache key template: missing required placeholder "userId".
- * ```
- *
- * @example Optional placeholder
- * ```typescript
- * const getKey = cacheKeyTemplate('user:{userId}:{scope?}', 'tenant');
- * getKey({ userId: '123' }); // → "tenant:user:123:"
- * ```
  */
 export function cacheKeyTemplate<T = Record<string, unknown>>(
   template: string,

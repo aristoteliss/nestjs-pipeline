@@ -17,14 +17,19 @@
  */
 
 export { AggregateRoot, IEvent } from '@nestjs/cqrs';
+export * from './application/base.command';
+export * from './application/base.query';
 export * from './application/command-base.handler';
+export * from './application/query.options';
 export * from './domain/decorators/Mutate';
 export * from './domain/events/domain.event';
 export * from './domain/events/root-domain.event';
 export * from './domain/exceptions/domain.exception';
 export * from './domain/exceptions/entity-not-found.exception';
+export * from './domain/exceptions/transient-operation.error';
 export * from './domain/interfaces/root-entity-snapshot.interface';
 export * from './domain/models/root.entity';
+export * from './persistence/cache/memory.cache';
 export * from './persistence/cache.interface';
 export * from './persistence/command-repository.abstract';
 export * from './persistence/command-repository.interface';
@@ -35,6 +40,7 @@ export * from './persistence/decorators/map-persistence-errors.decorator';
 export * from './persistence/helpers/cache-barrier.helper';
 export * from './persistence/helpers/cache-snapshot.helper';
 export * from './persistence/helpers/cache-version.helper';
+export * from './persistence/helpers/filter-cache-key.helper';
 export * from './persistence/optimistic-update';
 export * from './persistence/query-repository.abstract';
 export * from './persistence/query-repository.interface';

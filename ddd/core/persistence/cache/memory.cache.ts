@@ -16,8 +16,7 @@
  * ----------------------------
  */
 
-import { Injectable } from '@nestjs/common';
-import { CacheSetOptions, ICache } from '@nestjs-pipeline/ddd-core';
+import type { CacheSetOptions, ICache } from '../cache.interface';
 
 export const CACHE_TOKEN = Symbol('MemoryCache');
 
@@ -43,7 +42,6 @@ function detach<T>(value: T): T {
  * const snapshot = await cache.get('user:1');
  * ```
  */
-@Injectable()
 export class MemoryCache<T> implements ICache<T> {
   private store: Map<string, { value: T; expiresAt?: number }> = new Map();
   private readonly defaultTtlMs: number;
@@ -102,5 +100,19 @@ export class MemoryCache<T> implements ICache<T> {
    */
   async delete(key: string): Promise<void> {
     this.store.delete(key);
+  }
+
+  /**
+   * Purges all keys from the in-memory cache.
+   */
+  async clear(): Promise<void> {
+    this.store.clear();
+  }
+
+  /**
+   * Current number of keys in the in-memory cache.
+   */
+  get size(): number {
+    return this.store.size;
   }
 }

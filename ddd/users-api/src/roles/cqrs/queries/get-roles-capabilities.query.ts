@@ -16,7 +16,7 @@
  * ----------------------------
  */
 
-import { BaseQuery } from '@common/cqrs/queries/base.query';
+import { BaseQuery } from '@nestjs-pipeline/ddd-core';
 import { createQuery } from '@nestjs-pipeline/zod';
 import { z } from 'zod';
 

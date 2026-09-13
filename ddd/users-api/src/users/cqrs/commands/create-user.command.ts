@@ -16,8 +16,8 @@
  * ----------------------------
  */
 
-import { BaseCommand } from '@common/cqrs/commands/base.command';
 import { EmailSchema } from '@common/validation/email.schema';
+import { BaseCommand } from '@nestjs-pipeline/ddd-core';
 import { createCommand } from '@nestjs-pipeline/zod';
 import { z } from 'zod';
 

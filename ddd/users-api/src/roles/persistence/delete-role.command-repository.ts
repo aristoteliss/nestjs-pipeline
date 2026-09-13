@@ -1,13 +1,14 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
-import { filterCacheKey } from '@common/cqrs/helpers/filterCacheKey.helper';
+
 import { OptimisticLockError } from '@mikro-orm/core';
 import { Inject, Injectable } from '@nestjs/common';
 import {
+  CACHE_TOKEN,
   Cache,
   EntityNotFoundException,
+  filterCacheKey,
   ICache,
 } from '@nestjs-pipeline/ddd-core';
-import { CACHE_TOKEN } from '@persistence/cache/memory.cache';
 import { mapPersistenceError } from '@persistence/is-transient-persistence-error';
 import { MIKRO_ORM_CLIENT, MikroOrmStore } from '@persistence/mikro-orm.store';
 import { MikroOrmWriteSideCommandRepository } from '@persistence/mikro-orm-write-side.command-repository';

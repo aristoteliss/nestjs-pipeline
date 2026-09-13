@@ -1,5 +1,5 @@
+import { filterCacheKey } from '@nestjs-pipeline/ddd-core';
 import { describe, expect, it } from 'vitest';
-import { filterCacheKey } from './filterCacheKey.helper';
 
 describe('filterCacheKey core canonical serialization', () => {
   it('keeps nested key output stable regardless of object insertion order', () => {
