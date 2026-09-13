@@ -23,6 +23,10 @@
  * transports (Bull, RabbitMQ, etc.), use `runWithCorrelationId()` directly in
  * your processor/handler.
  *
+ * All incoming-ID hardening options are opt-in so existing applications keep
+ * the exact historical behavior after upgrading: by default a non-empty header
+ * value is accepted and echoed unchanged.
+ *
  * @example
  * ```ts
  * // Custom header name (bind CORRELATION_OPTIONS to this value)
@@ -31,6 +35,20 @@
  * // `false` is accepted by the public type for compatibility, but the current
  * // middleware treats every non-string value as the default header name.
  * { header: false } // uses 'x-correlation-id'; it does not disable middleware
+ * ```
+ *
+ * @example Harden untrusted public HTTP input without forcing UUID format
+ * ```ts
+ * {
+ *   maxLength: 128,
+ *   trimIncoming: true,
+ *   validateIncoming: (id) => /^[A-Za-z0-9._~:/+-]+$/.test(id),
+ * }
+ * ```
+ *
+ * @example Ignore client IDs completely and always generate/use the local ID
+ * ```ts
+ * { acceptIncoming: false }
  * ```
  */
 export interface CorrelationOptions {
@@ -44,6 +62,51 @@ export interface CorrelationOptions {
    * @default 'x-correlation-id'
    */
   header?: string | false;
+
+  /**
+   * Whether a non-empty incoming correlation ID may be used.
+   * Set to `false` when correlation IDs are internal-only and should never be
+   * controlled by the HTTP client.
+   *
+   * @default true
+   */
+  acceptIncoming?: boolean;
+
+  /**
+   * Trim surrounding whitespace before optional length/custom validation and
+   * before storing/echoing the ID. Disabled by default to preserve the exact
+   * historical header value.
+   *
+   * @default false
+   */
+  trimIncoming?: boolean;
+
+  /**
+   * Optional maximum accepted incoming correlation-ID length. Values longer
+   * than this are discarded and replaced by the locally resolved/generated ID.
+   * When omitted, no new length restriction is applied.
+   *
+   * @example
+   * ```ts
+   * { maxLength: 128 }
+   * ```
+   */
+  maxLength?: number;
+
+  /**
+   * Optional application-specific validation predicate for incoming IDs.
+   * Returning `false` (or throwing) rejects the incoming value and falls back to
+   * the local correlation ID. No built-in UUID/character-format restriction is
+   * imposed, so W3C/custom identifiers remain usable.
+   *
+   * @example
+   * ```ts
+   * {
+   *   validateIncoming: (id) => /^[A-Za-z0-9._-]+$/.test(id),
+   * }
+   * ```
+   */
+  validateIncoming?: (correlationId: string) => boolean;
 }
 
 /**

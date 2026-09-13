@@ -41,10 +41,19 @@ const HTTP_FIELD_NAME = /^[!#$%&'*+\-.^_`|~0-9A-Za-z]+$/;
  * If `header` is omitted or is any non-string value (including `false`), the
  * current implementation uses the default `x-correlation-id` header. A false
  * value does not disable a middleware instance that the application registered.
+ *
+ * Incoming-ID hardening is opt-in. Without the new options, a non-empty incoming
+ * ID is preserved exactly as before. Public-facing applications can additionally
+ * set `acceptIncoming`, `trimIncoming`, `maxLength`, and/or `validateIncoming`
+ * without imposing a package-wide UUID format.
  */
 @Injectable()
 export class HttpCorrelationMiddleware implements NestMiddleware {
   private readonly header: string;
+  private readonly acceptIncoming: boolean;
+  private readonly trimIncoming: boolean;
+  private readonly maxLength?: number;
+  private readonly validateIncoming?: (correlationId: string) => boolean;
 
   constructor(
     @Optional()
@@ -55,19 +64,61 @@ export class HttpCorrelationMiddleware implements NestMiddleware {
     if (typeof h === 'string' && !HTTP_FIELD_NAME.test(h)) {
       throw new TypeError(`Invalid correlation HTTP header name: "${h}".`);
     }
+
+    if (
+      options?.maxLength !== undefined &&
+      (!Number.isSafeInteger(options.maxLength) || options.maxLength <= 0)
+    ) {
+      throw new TypeError(
+        'Correlation maxLength must be a positive safe integer when provided.',
+      );
+    }
+
     this.header =
       typeof h === 'string' ? h.toLowerCase() : DEFAULT_CORRELATION_HEADER;
+    this.acceptIncoming = options?.acceptIncoming ?? true;
+    this.trimIncoming = options?.trimIncoming ?? false;
+    this.maxLength = options?.maxLength;
+    this.validateIncoming = options?.validateIncoming;
   }
 
   use(req: IncomingMessage, res: ServerResponse, next: () => void): void {
     const raw = req.headers?.[this.header];
-    const correlationId =
-      (Array.isArray(raw) ? raw[0] : raw) || getCorrelationId();
+    const candidate = Array.isArray(raw) ? raw[0] : raw;
+    const correlationId = this.resolveIncoming(candidate) ?? getCorrelationId();
 
     if (typeof res?.setHeader === 'function') {
       res.setHeader(this.header, correlationId);
     }
 
     correlationStore.run(correlationId, next);
+  }
+
+  /**
+   * Applies only explicitly configured incoming-ID restrictions. With default
+   * options this returns the original non-empty header value unchanged, matching
+   * the package's historical behavior exactly.
+   */
+  private resolveIncoming(raw: string | undefined): string | undefined {
+    if (!this.acceptIncoming || typeof raw !== 'string' || raw.length === 0) {
+      return undefined;
+    }
+
+    const value = this.trimIncoming ? raw.trim() : raw;
+    if (value.length === 0) return undefined;
+
+    if (this.maxLength !== undefined && value.length > this.maxLength) {
+      return undefined;
+    }
+
+    if (this.validateIncoming) {
+      try {
+        if (!this.validateIncoming(value)) return undefined;
+      } catch {
+        return undefined;
+      }
+    }
+
+    return value;
   }
 }
