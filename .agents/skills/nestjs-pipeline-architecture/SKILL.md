@@ -213,11 +213,18 @@ Do not use the unused CQRS metadata re-export as a precedent for more `@nestjs/c
 
 Queries should be side-effect free from the business perspective.
 
+Query repositories and decorators:
+
+- `QueryRepository<TQuery, TResult>` accepts exactly 2 generic parameters: the query input type and the domain aggregate output type.
+- `@FromCache<TQuery, TResult>` accepts 2 generic parameters. On cache miss, it extracts a detached snapshot (`serializeFn` or `result.toJSON()`).
+- Query repositories configure `@FromCache({ alwaysHydrate: true, ... })` and return strictly `Promise<TEntity | null>`, eliminating ambiguous union types (`User | UserSnapshot`).
+- Cache adapters (`ICache<TSnapshot>`) store strictly serializable snapshots, never live domain aggregates. `MemoryCache` enforces deep detachment parity with database caches via JSON cloning on `set()` and `get()`.
+
 Query handlers:
 
-- depend on `IQueryRepository`
-- perform authorization/filtering after loading when required
-- return snapshots/read models
+- depend on `IQueryRepository<TQuery, TEntity | null>`
+- perform authorization/filtering after loading using `CaslAuthorizer`
+- return secure snapshots/read models to presentation (e.g. `UserSnapshot | null`)
 - must not mutate aggregates or persist writes
 
 Repository-level read-through cache (`@FromCache`) is a good fit for authorization-independent aggregate data. Pipeline cache is appropriate only when its key safely partitions all dimensions of the final response.

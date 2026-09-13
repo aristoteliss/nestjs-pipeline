@@ -22,7 +22,7 @@ import { ICache, QueryRepository } from '@nestjs-pipeline/ddd-core';
 import { CACHE_TOKEN } from '@persistence/cache/memory.cache';
 import { MIKRO_ORM_CLIENT, MikroOrmStore } from '@persistence/mikro-orm.store';
 import { FindAuthQuery } from '../cqrs/queries/find-auth.query';
-import { Auth } from '../domain/models/auth.entity';
+import { Auth, type AuthSnapshot } from '../domain/models/auth.entity';
 
 @Injectable()
 export class FindAuthQueryRepository extends QueryRepository<
@@ -30,7 +30,7 @@ export class FindAuthQueryRepository extends QueryRepository<
   Auth | null
 > {
   constructor(
-    @Inject(CACHE_TOKEN) protected readonly cache: ICache<Auth>,
+    @Inject(CACHE_TOKEN) protected readonly cache: ICache<AuthSnapshot>,
     @Inject(MIKRO_ORM_CLIENT) private readonly store: MikroOrmStore,
   ) {
     super(cache);

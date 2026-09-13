@@ -6,12 +6,12 @@
  */
 export interface PersistedAggregate {
   /** The current in-memory aggregate version. */
-  readonly version: number;
+  readonly version?: number;
   /**
    * Advances the persisted version baseline (`_persistedVersion`) to match
    * the durable version written to persistent storage.
    */
-  acknowledgePersisted(version: number): void;
+  acknowledgePersisted(version?: number): void;
 }
 
 /**

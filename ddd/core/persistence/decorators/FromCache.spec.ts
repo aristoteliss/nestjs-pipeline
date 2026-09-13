@@ -275,4 +275,71 @@ describe('@FromCache with options and concurrency checks', () => {
     expect(res).toEqual({ id: '80', version: 1 });
     expect(mockCache.set).not.toHaveBeenCalled();
   });
+
+  it('automatically extracts snapshot via toJSON() on cache miss', async () => {
+    class EntityResult {
+      constructor(
+        public readonly id: string,
+        public readonly name: string,
+      ) {}
+      toJSON() {
+        return { id: this.id, name: this.name, isSnapshot: true };
+      }
+    }
+
+    class EntityQueryRepo {
+      constructor(public cache?: ICache) {}
+
+      @FromCache<{ id: string }, EntityResult>({
+        keyFn: (q) => `entity:${q.id}`,
+      })
+      async find(query: { id: string }): Promise<EntityResult> {
+        return new EntityResult(query.id, `Entity ${query.id}`);
+      }
+    }
+
+    const mockCache: ICache = {
+      get: vi.fn().mockResolvedValue(undefined),
+      set: vi.fn(),
+      delete: vi.fn(),
+    };
+    const repo = new EntityQueryRepo(mockCache);
+    const result = await repo.find({ id: '99' });
+
+    expect(result).toBeInstanceOf(EntityResult);
+    expect(mockCache.set).toHaveBeenCalledWith(
+      'entity:99',
+      { id: '99', name: 'Entity 99', isSnapshot: true },
+      expect.any(Object),
+    );
+  });
+
+  it('uses custom serializeFn on cache miss when configured', async () => {
+    class CustomRepo {
+      constructor(public cache?: ICache) {}
+
+      @FromCache<{ id: string }, { raw: string }>({
+        keyFn: (q) => `custom:${q.id}`,
+        serializeFn: (res) => ({ transformed: res.raw.toUpperCase() }),
+      })
+      async find(_query: { id: string }): Promise<{ raw: string }> {
+        return { raw: 'hello' };
+      }
+    }
+
+    const mockCache: ICache = {
+      get: vi.fn().mockResolvedValue(undefined),
+      set: vi.fn(),
+      delete: vi.fn(),
+    };
+    const repo = new CustomRepo(mockCache);
+    const result = await repo.find({ id: '1' });
+
+    expect(result).toEqual({ raw: 'hello' });
+    expect(mockCache.set).toHaveBeenCalledWith(
+      'custom:1',
+      { transformed: 'HELLO' },
+      expect.any(Object),
+    );
+  });
 });

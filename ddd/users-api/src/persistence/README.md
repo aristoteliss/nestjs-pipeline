@@ -67,3 +67,9 @@ The real libSQL regression suites are `test/role-update-lifecycle.spec.ts` and
 `test/user-update-lifecycle.spec.ts`: repeated saves, stale writers, real
 unique-constraint translation, and rejection of outer transactions. Shared unit
 and Biome plugin tests live in `ddd/core/persistence`.
+
+### 5. Cache Isolation Parity and Representation Contracts
+- **Snapshot Storage Contract**: Cache adapters and repositories inject `ICache<TSnapshot>` (e.g. `ICache<UserSnapshot>`, `ICache<RoleSnapshot>`). Caches store exclusively JSON-serializable snapshots, never live domain aggregates.
+- **Isolation Parity (`MemoryCache` vs `MikroOrmCache`)**: `MemoryCache` enforces deep detachment parity with database/network caches (`MikroOrmCache`) by cloning payloads on both `set()` and `get()` through a JSON round-trip. Any mutation on an aggregate returned to a caller or handler cannot bleed back into or corrupt cached entries. Conformance is guarded by `test/persistence/cache/cache-adapter-conformance.spec.ts`.
+- **Query Repository Contract (`alwaysHydrate: true`)**: Query repositories (`GetUserQueryRepository`, `GetRoleQueryRepository`) configure `@FromCache({ alwaysHydrate: true, ... })` and return strictly `Promise<User | null>` and `Promise<Role | null>`. This eliminates ambiguous union types (`User | UserSnapshot`) from query handlers (`GetUserHandler`, `GetRoleHandler`), allowing handlers to operate cleanly on domain aggregates before CASL authorization and response projection.
+

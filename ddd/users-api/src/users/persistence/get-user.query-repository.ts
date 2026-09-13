@@ -41,23 +41,24 @@ export class GetUserQueryRepository extends QueryRepository<
   User | null
 > {
   constructor(
-    @Inject(CACHE_TOKEN) protected readonly cache: ICache<User>,
+    @Inject(CACHE_TOKEN) protected readonly cache: ICache<UserSnapshot>,
     @Inject(MIKRO_ORM_CLIENT) private readonly store: MikroOrmStore,
   ) {
     super(cache);
   }
 
-  @FromCache<GetUserQuery, User>(
+  @FromCache<GetUserQuery, User | null>({
     // `department` is mutable. A cached composite lookup containing the old
     // department cannot be invalidated from the post-update entity because the
     // previous department is no longer available. Keep stable id/email lookups
     // cached, but execute mutable department-filtered lookups directly.
-    (q) =>
+    keyFn: (q) =>
       q.department
         ? null
         : filterCacheKey(User.aggregateName, buildConditions(q)),
-    (cached) => User.fromJSON(cached as UserSnapshot),
-  )
+    hydrateFn: (cached) => User.fromJSON(cached as UserSnapshot),
+    alwaysHydrate: true,
+  })
   async find(query: GetUserQuery): Promise<User | null> {
     const conditions = buildConditions(query);
 

@@ -20,7 +20,7 @@ import type { ICache } from '@nestjs-pipeline/ddd-core';
 import type { MikroOrmStore } from '@persistence/mikro-orm.store';
 import { describe, expect, it, vi } from 'vitest';
 import { FindAuthQuery } from '../cqrs/queries/find-auth.query';
-import { Auth } from '../domain/models/auth.entity';
+import { Auth, type AuthSnapshot } from '../domain/models/auth.entity';
 import { FindAuthQueryRepository } from './find-auth.query-repository';
 
 describe('FindAuthQueryRepository', () => {
@@ -33,7 +33,7 @@ describe('FindAuthQueryRepository', () => {
       },
     } as unknown as MikroOrmStore;
 
-    const mockCache = {} as unknown as ICache<Auth>;
+    const mockCache = {} as unknown as ICache<AuthSnapshot>;
     const repo = new FindAuthQueryRepository(mockCache, mockStore);
 
     const query = new FindAuthQuery({
@@ -58,7 +58,7 @@ describe('FindAuthQueryRepository', () => {
       },
     } as unknown as MikroOrmStore;
 
-    const mockCache = {} as unknown as ICache<Auth>;
+    const mockCache = {} as unknown as ICache<AuthSnapshot>;
     const repo = new FindAuthQueryRepository(mockCache, mockStore);
 
     const query = new FindAuthQuery({
