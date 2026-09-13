@@ -20,58 +20,43 @@ import {
   type ITenantContext,
   TENANT_CONTEXT,
 } from '@common/context/tenant-context.port';
-import { InjectQueue } from '@nestjs/bullmq';
-import { Inject, Logger } from '@nestjs/common';
+import { Inject } from '@nestjs/common';
 import { EventsHandler, type IEventHandler } from '@nestjs/cqrs';
-import { UsePipeline } from '@nestjs-pipeline/core';
-import {
-  addCorrelationId,
-  getCorrelationId,
-} from '@nestjs-pipeline/correlation';
+import { LoggingBehavior, UsePipeline } from '@nestjs-pipeline/core';
 import { DeadLetterBehavior } from '@nestjs-pipeline/deadletter';
-import type { Queue } from 'bullmq';
-import { UserCreatedEvent } from '../../domain/events/user-created.event';
 import {
-  WELCOME_EMAIL_QUEUE,
-  type WelcomeEmailJobData,
-} from '../../jobs/send-welcome-email.processor';
+  type IWelcomeEmailDispatcher,
+  WELCOME_EMAIL_DISPATCHER,
+} from '../../application/ports/user-event-dispatcher.port';
+import { UserCreatedEvent } from '../../domain/events/user-created.event';
 
 @EventsHandler(UserCreatedEvent)
 /**
- * Fire-and-forget side effect: if enqueuing the welcome email fails, the
- * failure is dead-lettered (captured to the 'dead-letters' queue for replay)
- * but NOT re-thrown, so a transient email/queue outage never surfaces as an
- * unhandled rejection from the event bus. `{ rethrow: false }` overrides the
- * global DeadLetterBehavior's default re-throw for this handler only.
+ * Schedules the welcome-email side effect through the application port.
+ * Cross-cutting request/event logging is supplied by {@link LoggingBehavior};
+ * delivery failures are dead-lettered without being re-thrown.
  */
-@UsePipeline([DeadLetterBehavior, { rethrow: false }])
+@UsePipeline(
+  [LoggingBehavior, { requestResponseLogLevel: 'log' }],
+  [DeadLetterBehavior, { rethrow: false }],
+)
 export class UserCreatedHandler implements IEventHandler<UserCreatedEvent> {
-  private readonly logger = new Logger(UserCreatedHandler.name);
-
   constructor(
-    @InjectQueue(WELCOME_EMAIL_QUEUE)
-    private readonly welcomeEmailQueue: Queue<WelcomeEmailJobData>,
+    @Inject(WELCOME_EMAIL_DISPATCHER)
+    private readonly welcomeEmailDispatcher: IWelcomeEmailDispatcher,
     @Inject(TENANT_CONTEXT)
     private readonly tenantContext: ITenantContext,
   ) {}
 
   async handle(event: UserCreatedEvent): Promise<void> {
     const { id: userId, username, email } = event.payload;
-    const correlationId = getCorrelationId();
     const tenant = this.tenantContext.schema;
 
-    this.logger.log(
-      `📬 [${correlationId}] UserCreated — id: ${userId}, username: ${username}, email: ${email}, tenant: ${tenant}`,
-    );
-
-    // addCorrelationId stamps the current correlationId into the job data — works with any queue
-    await this.welcomeEmailQueue.add(
-      'send',
-      addCorrelationId({ userId, username, email, tenant }),
-    );
-
-    this.logger.log(
-      `📤 [${correlationId}] Enqueued welcome email job for ${email}`,
-    );
+    await this.welcomeEmailDispatcher.enqueueWelcomeEmail({
+      userId,
+      username,
+      email,
+      tenant,
+    });
   }
 }
