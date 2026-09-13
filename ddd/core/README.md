@@ -35,6 +35,9 @@ This package provides the foundational building blocks for implementing a Clean 
   - **Read-Through**: Checks the cache first via `keyFn`; on a cache hit returns the cached value (optionally rehydrating with `hydrateFn`).
   - **Bounded Negative Cache**: Stores **only non-nullish** results to prevent negative caching of uncreated records.
   - **Fail-Closed**: Cache errors propagate to enforce strong consistency at the query boundary.
+- **`@AcknowledgePersisted()`** — Method decorator for `save()` in command repositories: captures the aggregate's expected version before write execution and automatically calls `entity.acknowledgePersisted(version)` upon successful persistence.
+- **`@MapPersistenceErrors()`** — Method decorator for persistence operations: maps identifiable database driver unique constraint failures (PostgreSQL `23505` and SQLite unique constraints) to application-owned domain exceptions.
+- **`optimisticUpdate()`** — Infrastructure helper for MikroORM version-conditioned updates (`WHERE id = ? AND version = expectedVersion`). Inspects affected rows, performs diagnostic existence checks on zero affected rows, and raises `EntityNotFoundException` or `OptimisticLockError`. Explicitly rejects execution inside active outer transactions.
 
 ---
 
@@ -235,68 +238,149 @@ export class CreateUserHandler extends CommandBaseHandler<CreateUserCommand, Use
 
 ---
 
-### 4. Write-Side Command Repository with Optimistic Locking and `@Cache()`
+### 4. Write-Side Command Repositories with Lifecycle Decorators
 
-Command repositories receive and persist domain entities directly via `save(entity: TEntity)`. The `@Cache` decorator synchronizes caches declaratively using the pure entity:
+Command repositories receive and persist domain entities directly via `save(entity: TEntity)`.
 
+The lifecycle decorators (`@Cache`, `@AcknowledgePersisted`, and `@MapPersistenceErrors`) synchronize caches, advance version baselines, and map driver constraints declaratively:
+
+#### Creation Repository (`CreateUserCommandRepository`)
 ```typescript
 import { Injectable } from '@nestjs/common';
-import { CommandRepository, Cache, ICache, OptimisticLockError } from '@nestjs-pipeline/ddd-core';
+import {
+  CommandRepository,
+  Cache,
+  AcknowledgePersisted,
+  MapPersistenceErrors,
+  ICache,
+} from '@nestjs-pipeline/ddd-core';
 import { User, UserSnapshot } from './user.entity';
+import { UniqueEmailException } from './errors/email.exception';
 
-// Write-through caching with optimistic locking (positional syntax)
 @Injectable()
-export class UpdateUserCommandRepository extends CommandRepository<User, UserSnapshot> {
-  constructor(protected readonly cache: ICache<UserSnapshot>, private readonly ormStore: any) {
+export class CreateUserCommandRepository extends CommandRepository<User, UserSnapshot> {
+  constructor(protected readonly cache: ICache<UserSnapshot>, private readonly store: any) {
     super(cache);
   }
 
   @Cache<User, UserSnapshot>(
-    // setKey: writes result into cache under this key
+    // setKey: caches the newly created aggregate by id
     (user) => `tenant:user:id:${user.id}`,
-    // deleteKeys: null (not a deletion)
+    null,
+    // invalidateKeys: invalidates secondary email lookup so stale/negative cache cannot hide the new record
+    (user) => [`tenant:user:email:${user.email}`],
+  )
+  @AcknowledgePersisted<[User]>({ entity: ([user]) => user })
+  @MapPersistenceErrors<[User], User>({
+    entity: ([user]) => user,
+    unique: [
+      {
+        constraint: 'users_email_unique',
+        columns: 'users.email',
+        error: (user) => new UniqueEmailException(user),
+      },
+    ],
+  })
+  async save(user: User): Promise<UserSnapshot> {
+    const em = this.store.em;
+    const persisted = em.create(User, user);
+    em.persist(persisted);
+    await em.flush();
+    return persisted.toJSON();
+  }
+}
+```
+
+#### Update Repository (`UpdateUserCommandRepository`)
+```typescript
+import { Injectable } from '@nestjs/common';
+import {
+  CommandRepository,
+  Cache,
+  AcknowledgePersisted,
+  MapPersistenceErrors,
+  optimisticUpdate,
+  ICache,
+} from '@nestjs-pipeline/ddd-core';
+import { User, UserSnapshot } from './user.entity';
+
+@Injectable()
+export class UpdateUserCommandRepository extends CommandRepository<User, UserSnapshot> {
+  constructor(protected readonly cache: ICache<UserSnapshot>, private readonly store: any) {
+    super(cache);
+  }
+
+  @Cache<User, UserSnapshot>(
+    // setKey: writes updated snapshot into cache
+    (user) => `tenant:user:id:${user.id}`,
     null,
     // invalidateKeys: secondary lookup keys to evict (e.g. by email)
     (user) => [`tenant:user:email:${user.email}`],
   )
+  @AcknowledgePersisted<[User]>({ entity: ([user]) => user })
+  @MapPersistenceErrors<[User], User>({
+    entity: ([user]) => user,
+    unique: [],
+  })
   async save(user: User): Promise<UserSnapshot> {
-    const em = this.ormStore.getEntityManager();
-    const expectedVersion = user.getExpectedVersion();
-
-    // Enforce optimistic locking against concurrent writes
-    const affected = await em.nativeUpdate(
+    const snapshot = user.toJSON();
+    await optimisticUpdate(
+      this.store.em,
+      User,
+      user,
+      {
+        username: snapshot.username,
+        department: snapshot.department ?? null,
+        updatedAt: snapshot.updatedAt,
+      },
       'User',
-      { id: user.id, version: expectedVersion },
-      { ...user.toJSON() },
     );
-
-    if (affected === 0) {
-      throw new OptimisticLockError(
-        `Optimistic lock failure: User ${user.id} was modified concurrently (expected version ${expectedVersion}).`,
-      );
-    }
-
-    return user.toJSON();
+    return snapshot;
   }
 }
+```
 
-// Eviction on deletion (options object syntax)
+#### Deletion Repository (`DeleteUserCommandRepository`)
+```typescript
+import { Injectable } from '@nestjs/common';
+import {
+  CommandRepository,
+  Cache,
+  EntityNotFoundException,
+  ICache,
+} from '@nestjs-pipeline/ddd-core';
+import { OptimisticLockError } from '@mikro-orm/core';
+import { User } from './user.entity';
+
 @Injectable()
 export class DeleteUserCommandRepository extends CommandRepository<User, null> {
-  constructor(protected readonly cache: ICache<UserSnapshot>, private readonly ormStore: any) {
+  constructor(protected readonly cache: ICache<unknown>, private readonly store: any) {
     super(cache);
   }
 
   @Cache<User, null>({
-    // deleteKeys: evict all primary and secondary cache keys
+    // deleteKeys: evicts primary and secondary lookup cache keys
     deleteKeys: (user) => [
       `tenant:user:id:${user.id}`,
       `tenant:user:email:${user.email}`,
     ],
   })
   async save(user: User): Promise<null> {
-    const em = this.ormStore.getEntityManager();
-    await em.nativeDelete('User', { id: user.id });
+    const affected = await this.store.em.nativeDelete(User, {
+      id: user.id,
+      version: user.getExpectedVersion(),
+    });
+    if (affected === 0) {
+      const exists = await this.store.em.findOne(User, { id: user.id }, { refresh: true });
+      if (exists) {
+        throw OptimisticLockError.lockFailedVersionMismatch(
+          user,
+          user.getExpectedVersion(),
+          exists.version,
+        );
+      }
+      throw new EntityNotFoundException('User', user.id);
+    }
     return null;
   }
 }
@@ -373,4 +457,104 @@ In `ddd/users-api`, two production-ready implementations are provided:
 ## Peer Dependencies
 
 - `@nestjs-pipeline/core` (workspace)
-- `@mikro-orm/core` (optional, for `UnixTimestampType` integration)
+- `@mikro-orm/core` (declared dependency, used by persistence helpers and `UnixTimestampType`)
+
+
+## Decorated versioned updates
+
+Reusable persistence decorators and the MikroORM update helper are exported from
+`@nestjs-pipeline/ddd-core`. Concrete repositories retain their own `save()` logic:
+
+```ts
+import {
+  AcknowledgePersisted,
+  Cache,
+  MapPersistenceErrors,
+  optimisticUpdate,
+} from '@nestjs-pipeline/ddd-core';
+```
+
+Apply decorators in this order (outermost first):
+
+1. `@Cache(...)`: best-effort cache maintenance after acknowledgment.
+2. `@AcknowledgePersisted({ entity: ([aggregate]) => aggregate })`: explicitly
+   select the aggregate from the arguments, capture its entry version, and
+   acknowledge that version only after the wrapped method succeeds.
+3. `@MapPersistenceErrors({ entity, unique: [...] })`: translate identified
+   constraint failures from the persistence operation. Each unique mapping
+   supplies a PostgreSQL constraint name, SQLite column identity, and an
+   application-owned error factory. Unidentified failures retain their identity.
+
+`optimisticUpdate(em, entityType, aggregate, data, entityName)` constructs one
+version-conditional update, verifies the affected row count, and raises
+`EntityNotFoundException` or MikroORM `OptimisticLockError` when appropriate.
+It remains an explicit helper because it executes SQL, rather than wrapping
+arbitrary repository logic. It does not cache, acknowledge, or publish events.
+This helper is MikroORM-specific infrastructure within this Nest-oriented support
+package; the decorators do not depend on application models or configuration.
+
+The acknowledgment decorator requires that the method write the entry version
+and that successful resolution mean committed persistence. Capture the return
+snapshot before awaiting the helper. `optimisticUpdate` rejects an active outer
+transaction before writing. Supporting outer transactions requires commit hooks
+for acknowledgment and cache maintenance; decorators alone cannot make several
+writes atomic. Event publication remains with `CommandBaseHandler`.
+
+See the [role repository](../users-api/src/roles/persistence/update-role.command-repository.ts)
+and [user repository](../users-api/src/users/persistence/update-user.command-repository.ts)
+for concrete examples. Constraint names, writable fields, cache keys, and domain
+error factories belong to the application, not these shared mechanisms.
+
+
+### Persistence contracts and tests
+
+The decorators use explicit `entity` selectors over the argument tuple. They
+preserve the method receiver, arguments, result, and unrelated failure identity.
+`AcknowledgePersisted` captures the version before invoking the method, waits for
+its returned promise, and acknowledges once on success. It does not acknowledge
+on a rejected write. Concurrent calls on different aggregates do not share state;
+concurrent writes of the same aggregate instance are not a supported transaction
+or serialization mechanism.
+
+`MapPersistenceErrors` translates only a configured, identifiable unique
+constraint. It recognizes PostgreSQL code `23505` plus a matching constraint name,
+or the preserved PostgreSQL/SQLite diagnostic text for that constraint. A generic
+`SQLITE_CONSTRAINT_UNIQUE` without column identity is insufficient. Its mapping
+factory receives the selected aggregate; all unmatched failures are rethrown
+unchanged. Diagnostic-text matching is a driver compatibility seam, covered by
+unit tests and actual libSQL tests in users-api.
+
+`optimisticUpdate` uses `getExpectedVersion()` in the WHERE clause and the current
+aggregate version in SET (overriding any version supplied in `data`). It never
+mutates `data` or acknowledges the aggregate. One affected row means success;
+zero triggers a refreshed existence check to distinguish not-found from version
+conflict. Unexpected row counts and driver/read failures reject the operation.
+The follow-up existence read is diagnostic and is not an atomic observation with
+the failed update. No HTTP exceptions, cache behavior, or events are introduced.
+
+Run `pnpm --filter @nestjs-pipeline/ddd-core test` for shared unit tests, including:
+
+- `acknowledge-persisted.decorator.spec.ts`: argument selection, receiver/result
+  preservation, pending operations, overlapping calls, and failure behavior.
+- `map-persistence-errors.decorator.spec.ts`: configured constraint selection,
+  error identity, ambiguous/prefix/composite constraint rejection, and success.
+- `optimistic-update.spec.ts`: version predicates, row-count outcomes, driver
+  failures, captured identity, and transaction rejection.
+- `biome-persistence-plugin.spec.ts`: invokes the real Biome CLI in temporary
+  fixtures using the root plugin registration; validates positive and negative
+  cases rather than duplicating the rule logic in TypeScript.
+- `biome-general-plugins.spec.ts`: validates package license boundaries, standalone
+  package isolation from application modules, and prevention of committed focused tests (`.only`).
+
+The application libSQL tests ([role](../users-api/test/role-update-lifecycle.spec.ts)
+and [user](../users-api/test/user-update-lifecycle.spec.ts))
+exercise actual ORM writes and real constraint diagnostics. Run users-api tests
+with `pnpm --filter @nestjs-pipeline/ddd-users-api test`.
+
+The lifecycle lint is implemented solely in the
+[Grit plugin](../../biome/plugins/persistence-lifecycle.grit), configured by
+`biome.json`. `pnpm lint:persistence` calls Biome directly. Its current pattern
+uses canonical API names and the three-decorator order above; aliases are
+rejected explicitly. The plugin is a structural guard, not transaction analysis.
+Complementary plugins (`package-licenses.grit`, `verify-package-licenses.grit`,
+`test-suite.grit`) enforce packaging and test isolation across the workspace.

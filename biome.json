@@ -75,5 +75,28 @@
         }
       }
     }
+  ],
+  "plugins": [
+    {
+      "path": "./biome/plugins/persistence-lifecycle.grit",
+      "includes": [
+        "**/persistence/**/*.ts",
+        "**/persistence/*.ts",
+        "!**/*.spec.ts",
+        "!**/*.test.ts"
+      ]
+    },
+    {
+      "path": "./biome/plugins/test-suite.grit",
+      "includes": ["**/*.spec.ts", "**/*.test.ts"]
+    },
+    {
+      "path": "./biome/plugins/verify-package-licenses.grit",
+      "includes": ["**/packages/**/*.ts"]
+    },
+    {
+      "path": "./biome/plugins/package-licenses.grit",
+      "includes": ["**/packages/**/*.ts"]
+    }
   ]
 }

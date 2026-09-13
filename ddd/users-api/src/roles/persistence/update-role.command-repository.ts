@@ -1,16 +1,14 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 import { filterCacheKey } from '@common/cqrs/helpers/filterCacheKey.helper';
-import {
-  OptimisticLockError,
-  UniqueConstraintViolationException,
-} from '@mikro-orm/core';
 import { Inject, Injectable } from '@nestjs/common';
 import {
+  AcknowledgePersisted,
   Cache,
   CommandRepository,
-  EntityNotFoundException,
   ICache,
   IWriteSideAggregateRepository,
+  MapPersistenceErrors,
+  optimisticUpdate,
 } from '@nestjs-pipeline/ddd-core';
 import { CACHE_TOKEN } from '@persistence/cache/memory.cache';
 import { MIKRO_ORM_CLIENT, MikroOrmStore } from '@persistence/mikro-orm.store';
@@ -29,7 +27,6 @@ export class UpdateRoleCommandRepository
     super(cache);
   }
 
-  /** Reads directly from primary persistence; command hydration never uses read-side cache. */
   async findById(id: string): Promise<RoleSnapshot | null> {
     const role = await this.store.em.findOne(Role, { id }, { refresh: true });
     return role?.toJSON() ?? null;
@@ -38,48 +35,29 @@ export class UpdateRoleCommandRepository
   @Cache<Role, RoleSnapshot>((role) =>
     filterCacheKey(Role.aggregateName, { id: role.id }),
   )
+  @AcknowledgePersisted<[Role]>({ entity: ([role]) => role })
+  @MapPersistenceErrors<[Role], Role>({
+    entity: ([role]) => role,
+    unique: [
+      {
+        constraint: 'roles_name_unique',
+        columns: 'roles.name',
+        error: (role) => new UniqueRoleNameException(role),
+      },
+    ],
+  })
   async save(role: Role): Promise<RoleSnapshot> {
-    try {
-      const affected = await this.store.em.nativeUpdate(
-        Role,
-        { id: role.id, version: role.getExpectedVersion() },
-        {
-          name: role.name,
-          updatedAt: role.updatedAt,
-          version: role.version,
-        },
-      );
-      if (affected === 0) {
-        const exists = await this.store.em.findOne(
-          Role,
-          { id: role.id },
-          { refresh: true },
-        );
-        if (exists) {
-          throw OptimisticLockError.lockFailedVersionMismatch(
-            role,
-            role.getExpectedVersion(),
-            exists.version,
-          );
-        }
-        throw new EntityNotFoundException('Role', role.id);
-      }
-      return role.toJSON();
-    } catch (err: unknown) {
-      if (
-        err instanceof UniqueConstraintViolationException ||
-        (typeof err === 'object' &&
-          err !== null &&
-          'code' in err &&
-          err.code === 'SQLITE_CONSTRAINT_UNIQUE') ||
-        (err instanceof Error &&
-          (err.message.includes('UNIQUE') ||
-            err.message.includes('unique') ||
-            err.message.includes('SQLITE_CONSTRAINT_UNIQUE')))
-      ) {
-        throw new UniqueRoleNameException(role);
-      }
-      throw err;
-    }
+    const snapshot = role.toJSON();
+    await optimisticUpdate(
+      this.store.em,
+      Role,
+      role,
+      {
+        name: snapshot.name,
+        updatedAt: snapshot.updatedAt,
+      },
+      'Role',
+    );
+    return snapshot;
   }
 }

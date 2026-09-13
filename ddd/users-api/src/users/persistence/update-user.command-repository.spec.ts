@@ -115,5 +115,42 @@ describe('UpdateUserCommandRepository', () => {
     await expect(repository.save(user)).rejects.toBe(failure);
     expect(cache.delete).not.toHaveBeenCalled();
     expect(cache.set).not.toHaveBeenCalled();
+    expect(user.getExpectedVersion()).toBe(1);
+  });
+
+  it('advances expectedVersion baseline allowing successive mutations and saves on the same instance', async () => {
+    const cache: ICache<UserSnapshot> = {
+      get: vi.fn(),
+      set: vi.fn(),
+      delete: vi.fn(),
+    };
+    const user = User.create('Alice', 'alice@example.test');
+    user.update({ username: 'Alicia' }); // version becomes 2, expected is 1
+    const nativeUpdate = vi.fn().mockResolvedValue(1);
+    const store = {
+      get em() {
+        return { nativeUpdate };
+      },
+    };
+    const repository = new UpdateUserCommandRepository(cache, store as never);
+
+    await repository.save(user);
+    expect(user.getExpectedVersion()).toBe(2);
+
+    // Second mutation on the same in-memory instance
+    user.update({ username: 'Alicia II' }); // version becomes 3, expected is 2
+    await repository.save(user);
+
+    expect(nativeUpdate).toHaveBeenLastCalledWith(
+      User,
+      { id: user.id, version: 2 },
+      {
+        username: 'Alicia II',
+        department: null,
+        updatedAt: user.updatedAt,
+        version: 3,
+      },
+    );
+    expect(user.getExpectedVersion()).toBe(3);
   });
 });

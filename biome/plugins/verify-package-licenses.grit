@@ -1,0 +1,7 @@
+engine biome(1.0)
+language js(typescript)
+
+JsImportNamedClause(source=$source) as $clause where {
+  $source <: r".*(?:\.\./\.\./ddd|@nestjs-pipeline/ddd-).*",
+  register_diagnostic(span=$clause, message="Standalone pipeline packages cannot depend on ddd application modules; preserve standalone package license boundaries.", severity="error")
+}

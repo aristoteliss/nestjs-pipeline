@@ -17,9 +17,14 @@
  */
 
 import { filterCacheKey } from '@common/cqrs/helpers/filterCacheKey.helper';
-import { UniqueConstraintViolationException } from '@mikro-orm/core';
 import { Inject, Injectable } from '@nestjs/common';
-import { Cache, CommandRepository, ICache } from '@nestjs-pipeline/ddd-core';
+import {
+  AcknowledgePersisted,
+  Cache,
+  CommandRepository,
+  ICache,
+  MapPersistenceErrors,
+} from '@nestjs-pipeline/ddd-core';
 import { CACHE_TOKEN } from '@persistence/cache/memory.cache';
 import { MIKRO_ORM_CLIENT, MikroOrmStore } from '@persistence/mikro-orm.store';
 import { UniqueEmailException } from '../domain/models/errors/email.exception';
@@ -47,28 +52,22 @@ export class CreateUserCommandRepository extends CommandRepository<
     null,
     (user) => [filterCacheKey(User.aggregateName, { email: user.email })],
   )
+  @AcknowledgePersisted<[User]>({ entity: ([user]) => user })
+  @MapPersistenceErrors<[User], User>({
+    entity: ([user]) => user,
+    unique: [
+      {
+        constraint: 'users_email_unique',
+        columns: 'users.email',
+        error: (user) => new UniqueEmailException(user),
+      },
+    ],
+  })
   async save(user: User): Promise<UserSnapshot> {
     const em = this.store.em;
-    try {
-      const persistedUser = em.create(User, user);
-      em.persist(persistedUser);
-      await em.flush();
-      return persistedUser.toJSON();
-    } catch (err: unknown) {
-      if (
-        err instanceof UniqueConstraintViolationException ||
-        (typeof err === 'object' &&
-          err !== null &&
-          'code' in err &&
-          err.code === 'SQLITE_CONSTRAINT_UNIQUE') ||
-        (err instanceof Error &&
-          (err.message.includes('UNIQUE') ||
-            err.message.includes('unique') ||
-            err.message.includes('SQLITE_CONSTRAINT_UNIQUE')))
-      ) {
-        throw new UniqueEmailException(user);
-      }
-      throw err;
-    }
+    const persistedUser = em.create(User, user);
+    em.persist(persistedUser);
+    await em.flush();
+    return persistedUser.toJSON();
   }
 }

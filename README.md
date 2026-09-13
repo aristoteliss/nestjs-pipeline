@@ -1498,15 +1498,24 @@ pnpm test:unit
 pnpm test:build
 pnpm test:e2e
 
-# Type-check all packages
+# Persistence Grit checks and package typechecks
 pnpm lint
 
-# Format / lint with Biome
-pnpm biome check .
+# Format / lint with Biome (including Grit persistence rules)
+pnpm check
+
+# Run only persistence plugin diagnostics
+pnpm lint:persistence
 
 # Clean build artifacts
 pnpm clean
 ```
+
+Persistence lifecycle lint rules are native [Biome Grit plugins](biome/plugins/README.md)
+registered in `biome.json`. They run through Biome CLI/editor checks and before
+`test:unit`; there is no standalone JavaScript persistence linter. Shared decorator
+and optimistic-update contracts/tests are documented in
+[`ddd/core`](ddd/core/README.md#decorated-versioned-updates).
 
 ## Adding a New Behavior Package
 
