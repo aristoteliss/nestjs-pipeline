@@ -87,10 +87,10 @@ Use framework-neutral domain/application errors and map them to HTTP in controll
 
 Canonical repository pattern:
 
-- domain/application throws `DomainException`, `OptimisticLockError`, or another framework-neutral error
-- `DomainExceptionFilter` (or a dedicated presentation filter) maps it to HTTP
+- domain/application throws `DomainException`, `OptimisticLockError`, `EntityNotFoundException`, or another framework-neutral error
+- `DomainExceptionFilter` (or a dedicated presentation filter) maps it to HTTP (e.g. `OptimisticLockError` → HTTP 409, `EntityNotFoundException` → HTTP 404, `DomainException` → HTTP 422/400)
 
-Do not move presentation exceptions inward for convenience.
+Repositories report persistence and application semantics; presentation filters translate those semantics for the active transport. Never throw HTTP exceptions inward for convenience.
 
 ### 5. Keep domain invariants and mutations inside aggregates
 
@@ -148,7 +148,9 @@ Never use a tenant-only cache key for a principal-specific or permission-filtere
 
 The generic default cache key is safe only for results that are not principal/permission-specific. Use an explicit key for protected responses.
 
-For multi-tenant security-sensitive keys, fail closed when tenant identity is required. Do not silently collapse missing tenant context into a shared `'default'` namespace unless the flow is explicitly single-tenant/dev-only.
+For multi-tenant security-sensitive keys, fail closed when tenant identity is required. Do not silently collapse missing tenant context into a shared `'default'` namespace unless the flow is explicitly single-tenant/dev-only. Throw `MissingTenantContextError` rather than substituting fallback defaults.
+
+When authorization/roles can vary while the principal ID remains stable, either incorporate an authorization version/fingerprint in the key or invalidate all affected principal-scoped entries when roles change.
 
 ### 9. Keep controllers as presentation adapters
 
@@ -288,22 +290,26 @@ Before finalizing an architecture-sensitive change, verify:
 Prefer adapting these files rather than inventing a new pattern:
 
 - Command + pipeline + domain mutation: `ddd/users-api/src/users/cqrs/commands/create-user.handler.ts`
-- Command update flow: `ddd/users-api/src/users/cqrs/commands/update-user.handler.ts` (copy repository/domain/authorization flow, but do **not** copy its current `NotFoundException` boundary leak)
+- Command update flow: `ddd/users-api/src/users/cqrs/commands/update-user.handler.ts` (authoritative pattern: loads via write-side repository `findById`, throws framework-neutral `EntityNotFoundException` on absence, authorizes aggregate, calls domain update method, persists, and auto-publishes events via `CommandBaseHandler`)
 - Authorized single query: `ddd/users-api/src/users/cqrs/queries/get-user.handler.ts`
 - Authorized collection query: `ddd/users-api/src/users/cqrs/queries/get-users.handler.ts`
 - Domain aggregate: `ddd/users-api/src/users/domain/models/user.entity.ts`
 - Framework-neutral domain error: `ddd/users-api/src/users/domain/models/errors/email.exception.ts`
 - HTTP mapping boundary: `ddd/users-api/src/common/filters/domain-exception.filter.ts`
 - Command lifecycle: `ddd/core/application/command-base.handler.ts`
+- Session cookie management: `ddd/users-api/src/auths/services/session.service.ts`
+- User context resolution & principal discriminator: `ddd/users-api/src/users/persistence/casl-user-context.resolver.ts`
 
-## Known anti-patterns currently present
+## Architectural anti-patterns to avoid
 
-Do not copy these patterns into new code:
+Never introduce or re-introduce these patterns:
 
-- Nest `NotFoundException` in update/delete command handlers
-- `UserLoginService` reading env, signing JWTs, throwing HTTP exceptions, and importing persistence tenant context as one application service
-- CQRS event handlers injecting BullMQ queues directly
-- event handlers that only call `Logger`/`getCorrelationId()`
-- CQRS handlers importing `@persistence/is-transient-persistence-error`
-- tenant-only pipeline cache keys for responses filtered by principal permissions
-- synthetic `new Auth({ userId, token: '' })` used as a delete command payload
+- Nest HTTP exceptions (`NotFoundException`, `ConflictException`) in command or query handlers (use `EntityNotFoundException`, `OptimisticLockError`, or `DomainException` instead)
+- Merging session cookie logic, credential validation, and JWT operations into a single application service (use `SessionService` for presentation cookies and `UserLoginService` for domain login)
+- CQRS event handlers injecting BullMQ queues directly without application ports
+- Event handlers that only call `Logger`/`getCorrelationId()` without performing meaningful domain work
+- CQRS handlers importing persistence-specific error classifiers (e.g. `@persistence/is-transient-persistence-error`)
+- Tenant-only pipeline cache keys for responses filtered by principal permissions
+- Defaulting missing tenant context to `'default'` instead of failing closed with `MissingTenantContextError`
+- Synthetic `new Auth({ userId, token: '' })` snapshots used as command payloads (pass explicit scalar parameters `{ userId, token }`)
+- Legacy `DomainOutcome` wrappers (aggregates manage domain events internally via `this.apply(event)`)
