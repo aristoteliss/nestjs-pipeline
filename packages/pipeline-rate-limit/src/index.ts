@@ -23,6 +23,11 @@ export {
 export { RateLimitExceededError } from './errors/rate-limit-exceeded.error';
 export { RateLimitExceededFilter } from './filters/rate-limit-exceeded.filter';
 export { buildRateLimitKey } from './helpers/build-key';
+export {
+  createPartitionedRateLimitKeyFactory,
+  type PartitionedRateLimitKeyOptions,
+  type RateLimitPartitionFactory,
+} from './helpers/partitioned-key';
 export type {
   RateLimitBehaviorOptions,
   RateLimitKeyFactory,
