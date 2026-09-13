@@ -5,7 +5,10 @@
 
 import { createHash, timingSafeEqual } from 'node:crypto';
 import { Injectable } from '@nestjs/common';
-import type { ILoginCodeVerifier } from '../application/authentication.ports';
+import type {
+  ILoginCodeVerifier,
+  LoginCredentialVerification,
+} from '../application/authentication.ports';
 import {
   AuthConfigurationException,
   InvalidLoginCredentialsException,
@@ -20,7 +23,9 @@ import {
  */
 @Injectable()
 export class EnvLoginCodeVerifier implements ILoginCodeVerifier {
-  verify(code: string): void {
+  verify(credentials: LoginCredentialVerification | string): void {
+    const code =
+      typeof credentials === 'string' ? credentials : credentials.code;
     const configuredDigest =
       process.env.AUTH_LOGIN_CODE_SHA256?.trim().toLowerCase();
     const legacyPlaintext = process.env.AUTH_LOGIN_CODE;

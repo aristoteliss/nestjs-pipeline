@@ -28,15 +28,15 @@ import { LoginDto, LoginDtoSchema } from '../dtos/login.dto';
 import { LoginMapper } from '../mappers/login.mapper';
 import { toSessionRes } from '../mappers/session.mapper';
 import { SessionResponse } from '../responses/session.res';
+import { JwtAuthenticator } from '../services/jwt-authenticator';
 import { SessionService } from '../services/session.service';
-import { UserLoginService } from '../services/user-login.service';
 
 @Controller('auth')
 export class AuthsController {
   constructor(
     private readonly commandBus: CommandBus,
-    private readonly userLoginService: UserLoginService,
     private readonly sessionService: SessionService,
+    private readonly jwtAuthenticator: JwtAuthenticator,
   ) {}
 
   /**
@@ -67,9 +67,9 @@ export class AuthsController {
   /**
    * Logs out the current session.
    *
-   * Accepts raw session and headers, delegates extraction of userId and token
-   * to the authentication service, dispatches `DeleteAuthCommand` to revoke
-   * the persistent auth aggregate and evict cache, and clears the session cookie.
+   * Resolves presentation credentials directly from the cookie session and/or
+   * Authorization header, dispatches `DeleteAuthCommand` to revoke the persistent
+   * auth aggregate and evict cache, and clears the session cookie.
    */
   @Post('logout')
   @HttpCode(204)
@@ -80,10 +80,14 @@ export class AuthsController {
       headers?: Record<string, string | string[] | undefined>;
     },
   ): Promise<void> {
-    const { userId, token } = await this.userLoginService.extractCredentials(
-      req.session,
-      req.headers,
-    );
+    const sessionCreds = this.sessionService.getCredentials(req.session);
+    const token =
+      this.jwtAuthenticator.extractToken(req.headers) ?? sessionCreds.token;
+    let userId = sessionCreds.userId;
+
+    if (!userId && req.headers) {
+      userId = await this.jwtAuthenticator.extractUserId(req.headers);
+    }
 
     if (userId && token) {
       await this.commandBus.execute(new DeleteAuthCommand({ userId, token }));

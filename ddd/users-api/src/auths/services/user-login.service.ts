@@ -16,11 +16,9 @@
  * ----------------------------
  */
 
-import type { Session } from '@fastify/secure-session';
 import { Inject, Injectable } from '@nestjs/common';
 import type { UserCapabilities } from '@nestjs-pipeline/casl';
 import type { IQueryRepository } from '@nestjs-pipeline/ddd-core';
-import type { SessionData } from '../../common/types/SessionUser';
 import { GetUserQuery } from '../../users/cqrs/queries/get-user.query';
 import { User } from '../../users/domain/models/user.entity';
 import { EXT_USER_QUERY_REPOSITORY } from '../../users/persistence/repository.tokens';
@@ -33,8 +31,6 @@ import {
 import { GetUserCapabilitiesQuery } from '../cqrs/queries/get-user-capabilities.query';
 import { InvalidLoginCredentialsException } from '../domain/errors/authentication.exception';
 import { QUERY_REPOSITORY } from '../persistence/repository.tokens';
-import { JwtAuthenticator } from './jwt-authenticator';
-import { SessionService } from './session.service';
 
 export interface AuthResult {
   userId: string;
@@ -48,8 +44,8 @@ export interface AuthResult {
  * Application service responsible for user login verification and access token issuance.
  *
  * Encapsulates the `POST /auth/login` workflow:
- * 1. Validates the temporary login code via {@link ILoginCodeVerifier}.
- * 2. Fetches user account details from the tenant database via {@link GetUserQuery}.
+ * 1. Fetches user account details from the tenant database via {@link GetUserQuery}.
+ * 2. Validates the temporary login code via {@link ILoginCodeVerifier} with user context.
  * 3. Resolves CASL user permissions and role capabilities via {@link IQueryRepository}.
  * 4. Signs an access token via {@link IAccessTokenIssuer}.
  *
@@ -79,66 +75,13 @@ export class UserLoginService {
     private readonly loginCodeVerifier: ILoginCodeVerifier,
     @Inject(ACCESS_TOKEN_ISSUER)
     private readonly accessTokenIssuer: IAccessTokenIssuer,
-    private readonly jwtAuthenticator: JwtAuthenticator,
-    private readonly sessionService: SessionService = new SessionService(),
   ) {}
 
   /**
-   * Extracts credentials (userId and optional bearer token) from session and/or request headers.
-   *
-   * Delegates token extraction and token-subject resolution to {@link JwtAuthenticator},
-   * and session credential extraction to {@link SessionService}.
-   *
-   * @returns An object containing the resolved `userId` and `token`.
-   *
-   * @example
-   * ```typescript
-   * const { userId, token } = await this.userLoginService.extractCredentials(req.session, req.headers);
-   * ```
-   */
-  async extractCredentials(
-    sessionOrReq?:
-      | Session<SessionData>
-      | {
-          session?: Session<SessionData>;
-          headers?: Record<string, string | string[] | undefined>;
-        },
-    headersParam?: Record<string, string | string[] | undefined>,
-  ): Promise<{ userId?: string; token?: string }> {
-    let session: Session<SessionData> | undefined;
-    let headers: Record<string, string | string[] | undefined> | undefined;
-
-    if (
-      sessionOrReq &&
-      typeof sessionOrReq === 'object' &&
-      ('headers' in sessionOrReq || 'session' in sessionOrReq) &&
-      !('get' in sessionOrReq && 'set' in sessionOrReq)
-    ) {
-      const req = sessionOrReq as {
-        session?: Session<SessionData>;
-        headers?: Record<string, string | string[] | undefined>;
-      };
-      session = req.session;
-      headers = req.headers;
-    } else {
-      session = sessionOrReq as Session<SessionData> | undefined;
-      headers = headersParam;
-    }
-
-    const sessionCreds = this.sessionService.getCredentials(session);
-    const token =
-      this.jwtAuthenticator.extractToken(headers) ?? sessionCreds.token;
-    let userId = sessionCreds.userId;
-
-    if (!userId && headers) {
-      userId = await this.jwtAuthenticator.extractUserId(headers);
-    }
-
-    return { userId, token };
-  }
-
-  /**
    * Verifies login credentials (email and one-time login code) against database records.
+   *
+   * Resolves the user identity through the query repository first and then delegates
+   * credential verification to {@link ILoginCodeVerifier} with caller user context.
    *
    * @param email - User email address.
    * @param code - Login code provided by caller.
@@ -151,13 +94,13 @@ export class UserLoginService {
    * ```
    */
   async authenticate(email: string, code: string): Promise<User> {
-    await this.loginCodeVerifier.verify(code);
-
     const user = await this.queryRepository.find(new GetUserQuery({ email }));
 
     if (!user) {
       throw new InvalidLoginCredentialsException();
     }
+
+    await this.loginCodeVerifier.verify({ userId: user.id, code });
 
     return user;
   }

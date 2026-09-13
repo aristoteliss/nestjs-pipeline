@@ -31,7 +31,13 @@ describe('authentication infrastructure adapters', () => {
 
     const verifier = new EnvLoginCodeVerifier();
     expect(() => verifier.verify('424242')).not.toThrow();
+    expect(() =>
+      verifier.verify({ userId: 'user-1', code: '424242' }),
+    ).not.toThrow();
     expect(() => verifier.verify('000000')).toThrow(
+      InvalidLoginCredentialsException,
+    );
+    expect(() => verifier.verify({ userId: 'user-1', code: '000000' })).toThrow(
       InvalidLoginCredentialsException,
     );
   });

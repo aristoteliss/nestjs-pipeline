@@ -23,25 +23,27 @@ import { AuthsController } from './auths.controller';
 
 describe('AuthsController', () => {
   describe('logout', () => {
-    it('passes raw session and headers to userLoginService.extractCredentials, dispatches DeleteAuthCommand, and clears session via sessionService', async () => {
+    it('extracts credentials directly via SessionService and JwtAuthenticator, dispatches DeleteAuthCommand, and clears session', async () => {
       const mockCommandBus = {
         execute: vi.fn().mockResolvedValue(undefined),
-      };
-      const mockUserLoginService = {
-        extractCredentials: vi.fn().mockResolvedValue({
-          userId: 'user-xyz',
-          token: 'token-abc',
-        }),
       };
       const mockSessionService = {
         saveSession: vi.fn(),
         clearSession: vi.fn(),
+        getCredentials: vi.fn().mockReturnValue({
+          userId: 'user-xyz',
+          token: undefined,
+        }),
+      };
+      const mockJwtAuthenticator = {
+        extractToken: vi.fn().mockReturnValue('token-abc'),
+        extractUserId: vi.fn(),
       };
 
       const controller = new AuthsController(
         mockCommandBus as never,
-        mockUserLoginService as never,
         mockSessionService as never,
+        mockJwtAuthenticator as never,
       );
 
       const mockSession = { id: 'sess-1' };
@@ -54,8 +56,10 @@ describe('AuthsController', () => {
         headers: mockHeaders,
       });
 
-      expect(mockUserLoginService.extractCredentials).toHaveBeenCalledWith(
+      expect(mockSessionService.getCredentials).toHaveBeenCalledWith(
         mockSession,
+      );
+      expect(mockJwtAuthenticator.extractToken).toHaveBeenCalledWith(
         mockHeaders,
       );
       expect(mockCommandBus.execute).toHaveBeenCalledOnce();
@@ -66,36 +70,42 @@ describe('AuthsController', () => {
       expect(mockSessionService.clearSession).toHaveBeenCalledWith(mockSession);
     });
 
-    it('safely handles missing session without throwing', async () => {
+    it('extracts userId from JwtAuthenticator when session is absent', async () => {
       const mockCommandBus = {
         execute: vi.fn().mockResolvedValue(undefined),
-      };
-      const mockUserLoginService = {
-        extractCredentials: vi.fn().mockResolvedValue({
-          userId: 'user-header-only',
-          token: 'token-header-only',
-        }),
       };
       const mockSessionService = {
         saveSession: vi.fn(),
         clearSession: vi.fn(),
+        getCredentials: vi.fn().mockReturnValue({}),
+      };
+      const mockJwtAuthenticator = {
+        extractToken: vi.fn().mockReturnValue('token-header-only'),
+        extractUserId: vi.fn().mockResolvedValue('user-header-only'),
       };
 
       const controller = new AuthsController(
         mockCommandBus as never,
-        mockUserLoginService as never,
         mockSessionService as never,
+        mockJwtAuthenticator as never,
       );
+
+      const mockHeaders = { authorization: 'Bearer token-header-only' };
 
       await controller.logout({
-        headers: { authorization: 'Bearer token-header-only' },
+        headers: mockHeaders,
       });
 
-      expect(mockUserLoginService.extractCredentials).toHaveBeenCalledWith(
-        undefined,
-        { authorization: 'Bearer token-header-only' },
+      expect(mockJwtAuthenticator.extractToken).toHaveBeenCalledWith(
+        mockHeaders,
+      );
+      expect(mockJwtAuthenticator.extractUserId).toHaveBeenCalledWith(
+        mockHeaders,
       );
       expect(mockCommandBus.execute).toHaveBeenCalledOnce();
+      const dispatchedCommand = mockCommandBus.execute.mock.calls[0][0];
+      expect(dispatchedCommand.userId).toBe('user-header-only');
+      expect(dispatchedCommand.token).toBe('token-header-only');
       expect(mockSessionService.clearSession).toHaveBeenCalledWith(undefined);
     });
 
@@ -103,21 +113,20 @@ describe('AuthsController', () => {
       const mockCommandBus = {
         execute: vi.fn(),
       };
-      const mockUserLoginService = {
-        extractCredentials: vi.fn().mockResolvedValue({
-          userId: undefined,
-          token: undefined,
-        }),
-      };
       const mockSessionService = {
         saveSession: vi.fn(),
         clearSession: vi.fn(),
+        getCredentials: vi.fn().mockReturnValue({}),
+      };
+      const mockJwtAuthenticator = {
+        extractToken: vi.fn().mockReturnValue(undefined),
+        extractUserId: vi.fn().mockResolvedValue(undefined),
       };
 
       const controller = new AuthsController(
         mockCommandBus as never,
-        mockUserLoginService as never,
         mockSessionService as never,
+        mockJwtAuthenticator as never,
       );
 
       const mockSession = { id: 'sess-anon' };
@@ -125,10 +134,6 @@ describe('AuthsController', () => {
         session: mockSession as never,
       });
 
-      expect(mockUserLoginService.extractCredentials).toHaveBeenCalledWith(
-        mockSession,
-        undefined,
-      );
       expect(mockCommandBus.execute).not.toHaveBeenCalled();
       expect(mockSessionService.clearSession).toHaveBeenCalledWith(mockSession);
     });
@@ -137,21 +142,23 @@ describe('AuthsController', () => {
       const mockCommandBus = {
         execute: vi.fn().mockResolvedValue(undefined),
       };
-      const mockUserLoginService = {
-        extractCredentials: vi.fn().mockResolvedValue({
+      const mockSessionService = {
+        saveSession: vi.fn(),
+        clearSession: vi.fn(),
+        getCredentials: vi.fn().mockReturnValue({
           userId: 'user-cookie-1',
           token: 'token-from-cookie',
         }),
       };
-      const mockSessionService = {
-        saveSession: vi.fn(),
-        clearSession: vi.fn(),
+      const mockJwtAuthenticator = {
+        extractToken: vi.fn().mockReturnValue(undefined),
+        extractUserId: vi.fn(),
       };
 
       const controller = new AuthsController(
         mockCommandBus as never,
-        mockUserLoginService as never,
         mockSessionService as never,
+        mockJwtAuthenticator as never,
       );
 
       const mockSession = {
@@ -163,9 +170,8 @@ describe('AuthsController', () => {
         session: mockSession as never,
       });
 
-      expect(mockUserLoginService.extractCredentials).toHaveBeenCalledWith(
+      expect(mockSessionService.getCredentials).toHaveBeenCalledWith(
         mockSession,
-        undefined,
       );
       expect(mockCommandBus.execute).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -173,35 +179,6 @@ describe('AuthsController', () => {
           token: 'token-from-cookie',
         }),
       );
-      expect(mockSessionService.clearSession).toHaveBeenCalledWith(mockSession);
-    });
-
-    it('safely completes when session exists', async () => {
-      const mockCommandBus = {
-        execute: vi.fn().mockResolvedValue(undefined),
-      };
-      const mockUserLoginService = {
-        extractCredentials: vi.fn().mockResolvedValue({
-          userId: 'user-1',
-          token: 'token-1',
-        }),
-      };
-      const mockSessionService = {
-        saveSession: vi.fn(),
-        clearSession: vi.fn(),
-      };
-
-      const controller = new AuthsController(
-        mockCommandBus as never,
-        mockUserLoginService as never,
-        mockSessionService as never,
-      );
-
-      const mockSession = {};
-      await expect(
-        controller.logout({ session: mockSession as never }),
-      ).resolves.toBeUndefined();
-      expect(mockCommandBus.execute).toHaveBeenCalledOnce();
       expect(mockSessionService.clearSession).toHaveBeenCalledWith(mockSession);
     });
   });
@@ -224,18 +201,19 @@ describe('AuthsController', () => {
       const mockCommandBus = {
         execute: vi.fn().mockResolvedValue(createAuthResult),
       };
-      const mockUserLoginService = {
-        extractCredentials: vi.fn(),
-      };
       const mockSessionService = {
         saveSession: vi.fn(),
         clearSession: vi.fn(),
       };
+      const mockJwtAuthenticator = {
+        extractToken: vi.fn(),
+        extractUserId: vi.fn(),
+      };
 
       const controller = new AuthsController(
         mockCommandBus as never,
-        mockUserLoginService as never,
         mockSessionService as never,
+        mockJwtAuthenticator as never,
       );
 
       const mockSession: Record<string, unknown> = {};

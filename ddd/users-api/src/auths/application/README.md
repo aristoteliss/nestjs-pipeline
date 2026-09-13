@@ -1,6 +1,8 @@
 # Authentication application boundary
 
-`UserLoginService` is application orchestration only. It resolves users and capabilities through query-repository ports, verifies the presented login credential through `LOGIN_CODE_VERIFIER`, and delegates token creation to `ACCESS_TOKEN_ISSUER`. It must not read environment variables, call `jose`/`node:crypto`, depend on a concrete persistence tenant context, or throw Nest HTTP exceptions.
+`UserLoginService` is application orchestration only. It resolves users and capabilities through query-repository ports, verifies the presented login credential through `LOGIN_CODE_VERIFIER` (with user identity context), and delegates token creation to `ACCESS_TOKEN_ISSUER`. It must not read environment variables, call `jose`/`node:crypto`, depend on a concrete persistence tenant context, or throw Nest HTTP exceptions.
+
+Session cookies, request headers, and token extraction belong strictly to the presentation boundary (`AuthsController`, `SessionService`, `JwtAuthenticator`). `UserLoginService` maintains no dependency on `@fastify/secure-session`, cookie lifecycles, or HTTP transport details.
 
 The sample application provides two infrastructure adapters. `EnvLoginCodeVerifier` prefers `AUTH_LOGIN_CODE_SHA256` and performs fixed-length SHA-256 digest comparison with `timingSafeEqual`; plaintext `AUTH_LOGIN_CODE` exists only as non-production demo compatibility and is rejected in production. `JoseAccessTokenIssuer` owns environment/JWT/tenant-specific token materialization.
 
