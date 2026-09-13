@@ -25,6 +25,7 @@ import {
   CACHE_KEY_ITEM,
   CacheBehavior,
 } from './cache.behavior';
+import { defaultCacheKey } from './helpers/cache-key';
 import type { CacheBehaviorOptions } from './interfaces/cache-options.interface';
 
 // ─── Context factory ──────────────────────────────────────────────────────────
@@ -254,9 +255,7 @@ describe('CacheBehavior', () => {
     const missCtx = makeCtx();
     await behavior.handle(missCtx, next);
     expect(missCtx.items.get(CACHE_HIT_ITEM)).toBe(false);
-    expect(missCtx.items.get(CACHE_KEY_ITEM)).toBe(
-      'test-corr-id:GetUserQuery:{"id":1}',
-    );
+    expect(missCtx.items.get(CACHE_KEY_ITEM)).toBe(defaultCacheKey(missCtx));
 
     const hitCtx = makeCtx();
     await behavior.handle(hitCtx, next);

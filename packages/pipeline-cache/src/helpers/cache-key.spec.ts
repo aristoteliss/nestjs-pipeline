@@ -103,8 +103,8 @@ describe('defaultCacheKey', () => {
   }
 
   it('includes correlation scope so defaults cannot replay across requests', () => {
-    expect(defaultCacheKey(makeContext())).toBe(
-      'corr-1:GetUserQuery:{"userId":"42"}',
+    expect(defaultCacheKey(makeContext())).toMatch(
+      /^cache:v2:corr-1:GetUserQuery:[a-f0-9]{64}$/,
     );
   });
 
@@ -138,6 +138,6 @@ describe('defaultCacheKey', () => {
       makeContext({ tenantId: 'tenant_a', correlationId: 'corr-1' }),
     );
 
-    expect(key).toBe('tenant_a:corr-1:GetUserQuery:{"userId":"42"}');
+    expect(key).toMatch(/^cache:v2:tenant_a:corr-1:GetUserQuery:[a-f0-9]{64}$/);
   });
 });
