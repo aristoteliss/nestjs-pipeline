@@ -45,10 +45,7 @@ export class UpdateUserHandler extends CommandBaseHandler<
       throw new EntityNotFoundException('User', id);
     }
 
-    const changedFields = Object.entries({ username, department })
-      .filter(([, value]) => value !== undefined)
-      .map(([field]) => field);
-    this.authorizer.authorize('update', user, changedFields);
+    this.authorizer.authorize('update', user, command.getUpdateFields());
     user.update({ username, department });
     await this.commandRepository.save(user);
     return user;
