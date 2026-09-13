@@ -20,7 +20,6 @@ import {
   Inject,
   Injectable,
   Logger,
-  Optional,
   UnauthorizedException,
 } from '@nestjs/common';
 import type { IQueryRepository } from '@nestjs-pipeline/ddd-core';
@@ -41,7 +40,8 @@ import { CapabilityCodec } from './capability-codec';
  * Supports both symmetric HMAC secrets (`JWT_SECRET`) and asymmetric RSA/ECDSA public keys (`JWT_PUBLIC_KEY`).
  * Public SPKI keys are parsed and memoized as WebCrypto `CryptoKey` objects on first use to avoid repeated ASN.1
  * parsing on every HTTP request. Token claims (`sub`, `tenant`, `roles`, `additionalCapabilities`,
- * `deniedCapabilities`) are validated and converted into a compacted {@link SessionUser} structure.
+ * `deniedCapabilities`) are validated, and token revocation is strictly verified against durable storage
+ * via `QUERY_REPOSITORY.findAuth`. Tokens missing from durable storage or revoked result in `UnauthorizedException`.
  * Successful Bearer authentication explicitly marks the principal as `user`; authorization never infers
  * human identity from the syntax of the JWT subject.
  *
@@ -80,9 +80,8 @@ export class JwtAuthenticator {
   constructor(
     @Inject(TENANT_CONTEXT)
     private readonly tenantContext: ITenantContext,
-    @Optional()
     @Inject(QUERY_REPOSITORY.findAuth)
-    private readonly authQueryRepository?: IQueryRepository<
+    private readonly authQueryRepository: IQueryRepository<
       FindAuthQuery,
       Auth | null
     >,
@@ -238,15 +237,13 @@ export class JwtAuthenticator {
         );
       }
 
-      if (this.authQueryRepository) {
-        const activeAuth = await this.authQueryRepository.find(
-          new FindAuthQuery({ userId: payload.sub, token }),
+      const activeAuth = await this.authQueryRepository.find(
+        new FindAuthQuery({ userId: payload.sub, token }),
+      );
+      if (!activeAuth) {
+        throw new UnauthorizedException(
+          'Token has been revoked or session has ended',
         );
-        if (!activeAuth) {
-          throw new UnauthorizedException(
-            'Token has been revoked or session has ended',
-          );
-        }
       }
 
       const user: SessionUser = {
