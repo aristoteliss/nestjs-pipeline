@@ -24,34 +24,60 @@ import { QueryRepository } from '../query-repository.abstract';
  *
  * Provides declarative read-through caching for query operations:
  * - **Key derivation**: Generates a cache key via `keyFn`. If `keyFn` returns `null`, caching is skipped.
+ * - **Snapshot storage contract**: Stores strictly serializable snapshots in the cache, never live domain aggregates.
+ *   On cache miss, automatically extracts a snapshot via `serializeFn` or `result.toJSON()`.
+ * - **Deterministic rehydration**: When `alwaysHydrate: true` is configured, automatically rehydrates cached snapshots
+ *   into domain entities via `hydrateFn`, ensuring the repository always returns `Promise<TEntity | null>`.
+ *   If omitted, rehydrates conditionally when `query.hydrate` is truthy.
  * - **Negative caching prevention**: Only non-nullish database results are saved into the cache, preventing
  *   stale negative results from hiding newly-created entities.
- * - **Rehydration**: If `query.hydrate` is enabled, cached JSON snapshots are rehydrated into rich domain
- *   entities using `hydrateFn`.
  * - **Fail-closed policy**: Cache errors on read/set propagate to maintain strong consistency guarantees
  *   at the repository boundary.
  *
- * @param keyFn - Builds the cache key from the query, or returns `null` to bypass the cache.
- * @param hydrateFn - Optional rehydration function transforming cached snapshot JSON into entity instances.
- *
- * @example Read-through caching with entity rehydration
+ * @example Usage with options object and alwaysHydrate (recommended)
  * ```typescript
  * @Injectable()
  * export class GetUserQueryRepository extends QueryRepository<GetUserQuery, User | null> {
- *   @FromCache<GetUserQuery, User>(
- *     (query) => filterCacheKey('user', { id: query.userId }),
- *     (cached) => User.fromJSON(cached as UserSnapshot),
- *   )
+ *   constructor(
+ *     @Inject(CACHE_TOKEN) protected readonly cache: ICache<UserSnapshot>,
+ *     @Inject(MIKRO_ORM_CLIENT) private readonly store: MikroOrmStore,
+ *   ) {
+ *     super(cache);
+ *   }
+ *
+ *   @FromCache<GetUserQuery, User | null>({
+ *     keyFn: (query) => filterCacheKey('user', { id: query.userId }),
+ *     hydrateFn: (cached) => User.fromJSON(cached as UserSnapshot),
+ *     alwaysHydrate: true,
+ *   })
  *   async find(query: GetUserQuery): Promise<User | null> {
- *     const user = await this.store.em.findOne(User, { id: query.userId });
- *     return user;
+ *     return this.store.em.findOne(User, { id: query.userId });
  *   }
  * }
+ * ```
+ *
+ * @example Legacy positional argument signature
+ * ```typescript
+ * @FromCache<GetUserQuery, User | null>(
+ *   (query) => filterCacheKey('user', { id: query.userId }),
+ *   (cached) => User.fromJSON(cached as UserSnapshot),
+ * )
  * ```
  */
 export interface FromCacheOptions<TQuery = unknown, TResult = unknown> {
   keyFn?: ((query: TQuery) => string | null) | null;
   hydrateFn?: ((cached: unknown) => TResult) | null;
+  /**
+   * Optional serializer function to convert a domain entity or complex result into
+   * a pure, detached snapshot for storage in cache.
+   * If omitted and the result has a `toJSON()` method, `result.toJSON()` is used automatically.
+   */
+  serializeFn?: ((result: TResult) => unknown) | null;
+  /**
+   * If `true`, cached entries are always rehydrated via `hydrateFn` regardless of whether
+   * `query.hydrate` is explicitly set. If `false` or omitted, hydration occurs only when `query.hydrate` is truthy.
+   */
+  alwaysHydrate?: boolean;
   ttl?: number;
   isNewer?: (cached: unknown, incoming: unknown) => boolean;
 }
@@ -109,7 +135,7 @@ export function FromCache<
     | FromCacheOptions<TQuery, TResult>,
   extraOptions?: FromCacheOptions<TQuery, TResult>,
 ): MethodDecorator {
-  let resolvedKeyFn: FromCacheOptions<TQuery, TResult>['keyFn'];
+  let resolvedKeyFn: FromCacheOptions<TQuery, TResult>['keyFn'] | undefined;
   let resolvedHydrateFn: ((cached: unknown) => TResult) | undefined;
   let resolvedOptions: FromCacheOptions<TQuery, TResult> | undefined;
 
@@ -148,9 +174,13 @@ export function FromCache<
       if (key !== null) {
         const cached = await this.cache.get(key);
         if (cached !== null && cached !== undefined) {
-          return query.hydrate && resolvedHydrateFn
-            ? resolvedHydrateFn(cached)
-            : cached;
+          if (
+            resolvedHydrateFn &&
+            (resolvedOptions?.alwaysHydrate || query.hydrate)
+          ) {
+            return resolvedHydrateFn(cached);
+          }
+          return cached as unknown as TResult;
         }
       }
 
@@ -167,11 +197,17 @@ export function FromCache<
           return result;
         }
 
+        const snapshot = resolvedOptions?.serializeFn
+          ? resolvedOptions.serializeFn(result)
+          : typeof (result as { toJSON?: unknown })?.toJSON === 'function'
+            ? (result as unknown as { toJSON: () => unknown }).toJSON()
+            : result;
+
         const setOptions = {
           ttl: resolvedOptions?.ttl,
           isNewer: newerCheck,
         };
-        await this.cache.set(key, result, setOptions);
+        await this.cache.set(key, snapshot, setOptions);
       }
 
       return result;

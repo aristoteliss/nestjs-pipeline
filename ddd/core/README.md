@@ -32,7 +32,8 @@ This package provides the foundational building blocks for implementing a Clean 
   - **Secondary Invalidation**: Evicts auxiliary keys derived by `invalidateKeysFn` on successful writes before setting new values.
   - **Best-Effort**: Cache write/delete errors are caught and swallowed so a committed database transaction is never converted into an application error.
 - **`@FromCache()`** — Method decorator for `find()` in query repositories:
-  - **Read-Through**: Checks the cache first via `keyFn`; on a cache hit returns the cached value (optionally rehydrating with `hydrateFn`).
+  - **Read-Through**: Checks the cache first via `keyFn`; on a cache hit returns the cached value (or automatically rehydrates it into a domain entity if `alwaysHydrate: true` or `query.hydrate` is enabled).
+  - **Snapshot Storage Contract**: Stores strictly detached, serializable snapshots (`TSnapshot`), extracting them on cache miss via custom `serializeFn` or automatic `result.toJSON()`. Never caches live aggregate instances.
   - **Bounded Negative Cache**: Stores **only non-nullish** results to prevent negative caching of uncreated records.
   - **Fail-Closed**: Cache errors propagate to enforce strong consistency at the query boundary.
 - **`@AcknowledgePersisted()`** — Method decorator for `save()` in command repositories: captures the aggregate's expected version before write execution and automatically calls `entity.acknowledgePersisted(version)` upon successful persistence.
@@ -400,30 +401,34 @@ import { User, UserSnapshot } from './user.entity';
 export interface GetUserQuery {
   readonly userId?: string;
   readonly email?: string;
-  readonly hydrate?: boolean;
 }
 
 @Injectable()
-export class GetUserQueryRepository extends QueryRepository<GetUserQuery, User | UserSnapshot | null> {
+export class GetUserQueryRepository extends QueryRepository<GetUserQuery, User | null> {
   constructor(protected readonly cache: ICache<UserSnapshot>, private readonly ormStore: any) {
     super(cache);
   }
 
-  @FromCache<GetUserQuery, User | UserSnapshot>(
+  @FromCache<GetUserQuery, User | null>({
     // keyFn: derive cache key from query params, or return null to bypass
-    (q) => (q.userId ? `user:id:${q.userId}` : q.email ? `user:email:${q.email}` : null),
-    // hydrateFn: safely transforms cached snapshot into a domain entity via RootEntity.from()
-    (cached) => User.from(cached as UserSnapshot),
-  )
-  async find(query: GetUserQuery): Promise<User | UserSnapshot | null> {
+    keyFn: (q) => (q.userId ? `user:id:${q.userId}` : q.email ? `user:email:${q.email}` : null),
+    // hydrateFn: safely transforms cached snapshot into a domain entity via User.fromJSON()
+    hydrateFn: (cached) => User.fromJSON(cached as UserSnapshot),
+    // alwaysHydrate: guarantees the query repository always yields a domain aggregate instance
+    alwaysHydrate: true,
+  })
+  async find(query: GetUserQuery): Promise<User | null> {
     const em = this.ormStore.getEntityManager();
     const where = query.userId ? { id: query.userId } : { email: query.email };
-    const user = await em.findOne('User', where);
-    if (!user) return null;
-    return query.hydrate ? User.from(user) : user.toJSON();
+    return em.findOne('User', where);
   }
 }
 ```
+
+#### Snapshot Storage and Ownership Contract
+- **Snapshot Storage Contract**: `@FromCache` ensures that the cache layer (`ICache<TSnapshot>`) stores and returns **only snapshots**, never mutable aggregate instances. On a cache miss, if `find()` returns an aggregate, `@FromCache` automatically extracts its serializable snapshot via `serializeFn` or the entity's `toJSON()` method before saving to cache.
+- **Unambiguous Return Contract (`alwaysHydrate: true`)**: With `alwaysHydrate: true`, `@FromCache` guarantees that `find()` always returns a fully rehydrated domain aggregate (`Promise<User | null>`), eliminating ambiguous union types (`User | UserSnapshot`) from query handlers and callers. Handlers can safely perform authorization and domain calculations on real entities before projecting to response DTOs.
+- **Dynamic Hydration Mode**: If `alwaysHydrate` is omitted, `@FromCache` respects `query.hydrate`: if `query.hydrate` is true, it rehydrates with `hydrateFn`; if false/omitted, it returns the raw `TSnapshot`.
 
 > [!NOTE]
 > `RootEntity.from()` validates aggregate prototype identity at runtime. Attempting to rehydrate a snapshot with an incompatible aggregate class throws an informative `TypeError`, preventing prototype contamination.

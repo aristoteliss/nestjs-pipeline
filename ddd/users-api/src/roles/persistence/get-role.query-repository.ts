@@ -34,16 +34,17 @@ export class GetRoleQueryRepository extends QueryRepository<
   Role | null
 > {
   constructor(
-    @Inject(CACHE_TOKEN) protected readonly cache: ICache<Role>,
+    @Inject(CACHE_TOKEN) protected readonly cache: ICache<RoleSnapshot>,
     @Inject(MIKRO_ORM_CLIENT) private readonly store: MikroOrmStore,
   ) {
     super(cache);
   }
 
-  @FromCache<GetRoleQuery, Role>(
-    (q) => filterCacheKey(Role.aggregateName, buildConditions(q)),
-    (cached) => Role.fromJSON(cached as RoleSnapshot),
-  )
+  @FromCache<GetRoleQuery, Role | null>({
+    keyFn: (q) => filterCacheKey(Role.aggregateName, buildConditions(q)),
+    hydrateFn: (cached) => Role.fromJSON(cached as RoleSnapshot),
+    alwaysHydrate: true,
+  })
   async find(query: GetRoleQuery): Promise<Role | null> {
     const role = await this.store.em.findOne(Role, buildConditions(query));
 

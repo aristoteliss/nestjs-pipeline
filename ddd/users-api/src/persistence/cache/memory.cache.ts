@@ -23,6 +23,13 @@ export const CACHE_TOKEN = Symbol('MemoryCache');
 
 export type MemoryCacheSetOptions = CacheSetOptions;
 
+function detach<T>(value: T): T {
+  if (value === undefined || value === null || typeof value !== 'object') {
+    return value;
+  }
+  return JSON.parse(JSON.stringify(value)) as T;
+}
+
 @Injectable()
 export class MemoryCache<T> implements ICache<T> {
   private store: Map<string, { value: T; expiresAt?: number }> = new Map();
@@ -48,7 +55,7 @@ export class MemoryCache<T> implements ICache<T> {
 
     const ttl = options?.ttl ?? this.defaultTtlMs;
     const expiresAt = ttl > 0 ? Date.now() + ttl : undefined;
-    this.store.set(key, { value, expiresAt });
+    this.store.set(key, { value: detach(value), expiresAt });
   }
 
   async get(key: string): Promise<T | undefined> {
@@ -58,7 +65,7 @@ export class MemoryCache<T> implements ICache<T> {
       this.store.delete(key);
       return undefined;
     }
-    return entry.value;
+    return detach(entry.value);
   }
 
   async delete(key: string): Promise<void> {

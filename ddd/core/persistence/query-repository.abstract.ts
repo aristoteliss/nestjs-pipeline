@@ -35,16 +35,17 @@ import { IQueryRepository } from './query-repository.interface';
  * @Injectable()
  * export class GetUserQueryRepository extends QueryRepository<GetUserQuery, User | null> {
  *   constructor(
- *     @Inject(CACHE_TOKEN) protected readonly cache: ICache<User>,
+ *     @Inject(CACHE_TOKEN) protected readonly cache: ICache<UserSnapshot>,
  *     @Inject(MIKRO_ORM_CLIENT) private readonly store: MikroOrmStore,
  *   ) {
  *     super(cache);
  *   }
  *
- *   @FromCache<GetUserQuery, User>(
- *     (query) => filterCacheKey('user', { id: query.userId }),
- *     (cached) => User.fromJSON(cached as UserSnapshot),
- *   )
+ *   @FromCache<GetUserQuery, User | null>({
+ *     keyFn: (query) => filterCacheKey('user', { id: query.userId }),
+ *     hydrateFn: (cached) => User.fromJSON(cached as UserSnapshot),
+ *     alwaysHydrate: true,
+ *   })
  *   async find(query: GetUserQuery): Promise<User | null> {
  *     return this.store.em.findOne(User, { id: query.userId });
  *   }
@@ -54,7 +55,7 @@ import { IQueryRepository } from './query-repository.interface';
 export abstract class QueryRepository<TQuery = IQueryOptions, TResult = unknown>
   implements IQueryRepository<TQuery, TResult>
 {
-  constructor(protected readonly cache: ICache<TResult>) {}
+  constructor(protected readonly cache: ICache<unknown>) {}
 
   abstract find(query: TQuery): Promise<TResult>;
 }
