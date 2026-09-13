@@ -25,10 +25,7 @@ import { FindAuthQueryRepository } from './find-auth.query-repository';
 
 describe('FindAuthQueryRepository', () => {
   it('queries auth by userId and token', async () => {
-    const expectedAuth = new Auth({
-      userId: 'usr-123',
-      token: 'jwt-token-xyz',
-    });
+    const expectedAuth = Auth.create('usr-123', 'jwt-token-xyz');
     const findOne = vi.fn().mockResolvedValue(expectedAuth);
     const mockStore = {
       get em() {

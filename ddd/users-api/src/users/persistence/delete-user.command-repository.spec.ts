@@ -1,3 +1,4 @@
+import { TransientOperationError } from '@common/resilience/transient-operation.error';
 import type { ICache } from '@nestjs-pipeline/ddd-core';
 import { describe, expect, it, vi } from 'vitest';
 import { User, type UserSnapshot } from '../domain/models/user.entity';
@@ -52,5 +53,31 @@ describe('DeleteUserCommandRepository', () => {
 
     expect(cache.delete).not.toHaveBeenCalled();
     expect(cache.set).not.toHaveBeenCalled();
+  });
+
+  it('translates transient database failures into TransientOperationError', async () => {
+    const cache: ICache<UserSnapshot> = {
+      get: vi.fn(),
+      set: vi.fn(),
+      delete: vi.fn(),
+    };
+    const transientError = Object.assign(new Error('serialization failure'), {
+      code: '40001',
+    });
+    const nativeDelete = vi.fn().mockRejectedValue(transientError);
+    const store = {
+      get em() {
+        return { nativeDelete };
+      },
+    };
+    const repository = new DeleteUserCommandRepository(cache, store as never);
+    const user = User.create('Alice', 'alice@example.test');
+    user.delete();
+
+    await expect(repository.save(user)).rejects.toSatisfy(
+      (err: unknown) =>
+        err instanceof TransientOperationError &&
+        (err as Error & { cause?: unknown }).cause === transientError,
+    );
   });
 });

@@ -40,6 +40,7 @@ const ROLE_NAME_MIN_LENGTH = 3;
  * - State is private; mutated only through domain methods.
  * - `Role.create()` is the only factory for creating new roles and recording {@link RoleCreatedEvent}.
  * - `Role.fromJSON()` rebuilds the entity from persisted snapshot data.
+ * - Direct construction is intentionally unavailable outside the aggregate; callers use the factories above.
  * - `rename()` and `delete()` enforce domain rules and record domain events.
  */
 export class Role extends RootEntity<RoleSnapshot> {
@@ -48,7 +49,7 @@ export class Role extends RootEntity<RoleSnapshot> {
 
   private _name: string;
 
-  constructor(snapshot?: RoleSnapshot) {
+  private constructor(snapshot?: RoleSnapshot) {
     super(snapshot);
     if (!snapshot) {
       this._name = '';

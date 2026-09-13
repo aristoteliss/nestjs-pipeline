@@ -38,7 +38,7 @@ describe('DeleteAuthCommandRepository', () => {
 
     const repo = new DeleteAuthCommandRepository(mockCache, mockStore);
     const now = new Date();
-    const auth = new Auth({
+    const auth = Auth.fromJSON({
       id: '018f2d5e-4b6a-7b3f-8c1d-2e3f4a5b6c7d',
       userId: 'usr-123',
       token: 'jwt-xyz',
