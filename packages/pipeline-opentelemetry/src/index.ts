@@ -18,9 +18,18 @@
 
 export {
   MetricsBehavior,
-  MetricsBehaviorOptions,
+  type MetricsBehaviorOptions,
 } from './metrics.behavior';
 export {
+  addPipelineTelemetryAttributes,
+  buildMetricAttributes,
+  buildTraceAttributes,
+  getPipelineTelemetryAttributes,
+  PIPELINE_OTEL_ATTRIBUTES,
+  PIPELINE_TELEMETRY_ATTRIBUTES,
+  type PipelineTelemetryAttributeFactory,
+} from './telemetry-attributes';
+export {
   TraceBehavior,
-  TraceBehaviorOptions,
+  type TraceBehaviorOptions,
 } from './trace.behavior';

@@ -19,112 +19,148 @@
 import {
   Inject,
   Injectable,
-  Logger,
-  LoggerService,
-  OnModuleInit,
+  type LoggerService,
   Optional,
 } from '@nestjs/common';
 import {
-  IPipelineBehavior,
-  IPipelineContext,
+  type IPipelineBehavior,
+  type IPipelineContext,
   LOGGING_BEHAVIOR_LOGGER,
-  NextDelegate,
+  type NextDelegate,
 } from '@nestjs-pipeline/core';
-import { Attributes, Counter, Histogram, metrics } from '@opentelemetry/api';
+import {
+  type Attributes,
+  type Counter,
+  type Histogram,
+  metrics,
+  type UpDownCounter,
+} from '@opentelemetry/api';
+import {
+  buildMetricAttributes,
+  getPipelineTelemetryAttributes,
+  PIPELINE_OTEL_ATTRIBUTES,
+  type PipelineTelemetryAttributeFactory,
+} from './telemetry-attributes';
 
 /** Options for the {@link MetricsBehavior}. */
 export interface MetricsBehaviorOptions {
   /**
    * Name of the OpenTelemetry meter the instruments are created on (shown in
    * your metrics backend, e.g. Prometheus / SigNoz / Datadog).
-   * Defaults to 'nestjs-pipeline'.
+   *
+   * @default 'nestjs-pipeline'
    */
   meterName?: string;
+
+  /**
+   * Explicitly disable metrics for this handler while keeping the behavior
+   * registered globally.
+   *
+   * @default true
+   */
+  enabled?: boolean;
+
+  /**
+   * Additional request-aware metric attributes. Factory failures are ignored so
+   * telemetry cannot make the business request fail.
+   *
+   * **Cardinality rule:** metric attributes should normally be bounded values
+   * such as region, deployment, plan, operation category, or feature name. Do
+   * not put correlation IDs, user IDs, order IDs, email addresses, or arbitrary
+   * request values into metric labels.
+   *
+   * @example Safe bounded labels
+   * ```ts
+   * @UsePipeline([MetricsBehavior, {
+   *   attributeFactory: (ctx) => ({
+   *     'app.region': process.env.REGION ?? 'unknown',
+   *     'app.tenant_tier': ctx.items.get('tenantTier') as string,
+   *   }),
+   * }])
+   * ```
+   */
+  attributeFactory?: PipelineTelemetryAttributeFactory;
+
+  /**
+   * Include the request-local attribute bag populated through
+   * `addPipelineTelemetryAttributes()` in metric labels.
+   *
+   * This is disabled by default because request-local bags may contain
+   * correlation IDs, user IDs or other unbounded values. Enable it only when
+   * your application controls that bag and guarantees bounded cardinality.
+   *
+   * @default false
+   */
+  includeContextAttributes?: boolean;
 }
 
 const METER_NAME = 'nestjs-pipeline';
 
 /** Histogram (milliseconds) of handler execution time. */
 const DURATION_METRIC = 'pipeline.handler.duration';
-/** Counter of handler invocations, split by `outcome`. */
+/** Counter of handler invocations, split by outcome. */
 const INVOCATION_METRIC = 'pipeline.handler.invocations';
+/** Up/down counter tracking currently executing pipeline handlers. */
+const ACTIVE_METRIC = 'pipeline.handler.active';
 
 /** Cached instruments for a single meter. */
 interface MeterInstruments {
   duration: Histogram;
   invocations: Counter;
-}
-
-/**
- * Best-effort check for whether a real OpenTelemetry metrics SDK
- * (MeterProvider + reader) is registered.
- *
- * Unlike tracing, the Metrics API exposes no ProxyMeterProvider, so when nothing
- * is set up `metrics.getMeterProvider()` returns the built-in NoopMeterProvider.
- * Recording to a no-op meter is always safe — this is used ONLY to emit a helpful
- * startup hint, never to gate recording.
- */
-function isMetricsSdkInitialized(): boolean {
-  const provider = metrics.getMeterProvider();
-  return provider?.constructor?.name !== 'NoopMeterProvider';
+  active?: UpDownCounter;
 }
 
 /**
  * Pipeline behavior that records OpenTelemetry **metrics** for every handler it
  * wraps, complementing {@link TraceBehavior}'s spans:
  *
- * - `pipeline.handler.duration` — a histogram (ms) of handler execution time.
- * - `pipeline.handler.invocations` — a counter incremented once per call.
+ * - `pipeline.handler.duration` — histogram (ms) of handler execution time;
+ * - `pipeline.handler.invocations` — counter incremented once per completed call;
+ * - `pipeline.handler.active` — current in-flight handler count.
  *
- * Both instruments are tagged with `pipeline.request.kind`,
- * `pipeline.request.name`, `pipeline.handler.name`, and an `outcome` of
- * `success` or `failure` (plus `error.type` on failures), so you can derive
- * throughput, error-rate, and latency percentiles per handler.
+ * The default label set is deliberately low-cardinality:
+ * `pipeline.request.kind`, `pipeline.request.name`, and
+ * `pipeline.handler.name`, plus outcome/error information when the call ends.
+ * The historical `outcome` label is retained for dashboard compatibility while
+ * `pipeline.outcome` is also emitted as the package's namespaced semantic key.
  *
- * The OTel **Metrics API** is used directly. When no OpenTelemetry SDK /
- * metric reader is registered, the API returns a no-op meter and every
- * recording is silently discarded — so attaching this behavior is safe even
- * without a metrics pipeline configured. Uses the logger bound to
- * `LOGGING_BEHAVIOR_LOGGER` (e.g. nestjs-pino) when provided.
+ * The OTel **Metrics API** is used directly. When no OpenTelemetry SDK / metric
+ * reader is registered, the API returns no-op instruments and recordings are
+ * discarded. The behavior therefore does not inspect provider implementation
+ * details (`constructor.name`, private delegates, etc.) and does not need a
+ * readiness heuristic.
+ *
+ * Instrument creation/recording and custom enrichment are best-effort: telemetry
+ * must not replace a successful business result or the original business error.
+ * The optional shared Nest logger constructor is retained for compatibility and
+ * is used only to report genuine instrumentation failures.
+ *
+ * @example Global application metrics
+ * ```ts
+ * PipelineModule.forRoot({
+ *   globalBehaviors: {
+ *     scope: 'all',
+ *     after: [MetricsBehavior],
+ *   },
+ * });
+ * ```
+ *
+ * @example Disable a very hot handler
+ * ```ts
+ * @UsePipeline([MetricsBehavior, { enabled: false }])
+ * export class HealthCheckHandler {}
+ * ```
  */
 @Injectable()
-export class MetricsBehavior implements IPipelineBehavior, OnModuleInit {
-  private readonly logger: LoggerService;
-  private readonly context: string;
+export class MetricsBehavior implements IPipelineBehavior {
   /** Lazily-created instruments, keyed by meter name. */
   private readonly instruments = new Map<string, MeterInstruments>();
 
   constructor(
     @Optional()
     @Inject(LOGGING_BEHAVIOR_LOGGER)
-    logger?: LoggerService,
-  ) {
-    this.context = MetricsBehavior.name;
-    if (!logger) {
-      this.logger = new Logger(this.context, { timestamp: true });
-      return;
-    }
-
-    this.logger = logger;
-  }
-
-  onModuleInit(): void {
-    // Recording is always safe (a no-op meter just discards), so we never gate
-    // handle() on this — we only surface a hint so a missing SDK isn't silent.
-    if (isMetricsSdkInitialized()) {
-      this.logger.log(
-        'OpenTelemetry meter provider is active — pipeline metrics will be exported.',
-        this.context,
-      );
-    } else {
-      this.logger.warn(
-        'OpenTelemetry metrics SDK is NOT initialized — MetricsBehavior will record ' +
-          'to a no-op meter (metrics discarded). Register a MeterProvider with a ' +
-          'reader/exporter to export pipeline metrics.',
-        this.context,
-      );
-    }
-  }
+    private readonly logger?: LoggerService,
+  ) {}
 
   async handle(
     context: IPipelineContext,
@@ -132,45 +168,112 @@ export class MetricsBehavior implements IPipelineBehavior, OnModuleInit {
   ): Promise<unknown> {
     const options =
       context.getBehaviorOptions<MetricsBehaviorOptions>(MetricsBehavior);
-    // Per-handler meterName wins; falls back to the package default.
-    const { duration, invocations } = this.getInstruments(
-      options?.meterName ?? METER_NAME,
-    );
+    if (options?.enabled === false) return next();
 
-    const baseAttributes: Attributes = {
-      'pipeline.request.kind': context.requestKind,
-      'pipeline.request.name': context.requestName,
-      'pipeline.handler.name': context.handlerName,
-    };
+    let instruments: MeterInstruments;
+    try {
+      instruments = this.getInstruments(options?.meterName ?? METER_NAME);
+    } catch (error) {
+      // OpenTelemetry setup must never prevent the handler from running.
+      this.logger?.warn?.(
+        `Failed to create OpenTelemetry pipeline metrics; failing open: ${error instanceof Error ? error.message : error}`,
+        MetricsBehavior.name,
+      );
+      return next();
+    }
 
+    const activeAttributes = buildMetricAttributes(context);
+    this.safeAdd(instruments.active, 1, activeAttributes);
     const startedAt = performance.now();
 
     try {
       const result = await next();
-      this.record(duration, invocations, performance.now() - startedAt, {
-        ...baseAttributes,
-        outcome: 'success',
-      });
+      const attributes = await this.resolveFinalAttributes(
+        context,
+        options,
+        'success',
+      );
+      this.record(instruments, performance.now() - startedAt, attributes);
       return result;
-    } catch (err: unknown) {
-      this.record(duration, invocations, performance.now() - startedAt, {
-        ...baseAttributes,
-        outcome: 'failure',
-        'error.type': err instanceof Error ? err.name : 'unknown',
-      });
-      throw err;
+    } catch (error) {
+      const attributes = await this.resolveFinalAttributes(
+        context,
+        options,
+        'failure',
+        error,
+      );
+      this.record(instruments, performance.now() - startedAt, attributes);
+      throw error;
+    } finally {
+      this.safeAdd(instruments.active, -1, activeAttributes);
     }
   }
 
-  /** Records the duration and increments the invocation counter. */
+  /** Builds the final metric label set after handler execution. */
+  private async resolveFinalAttributes(
+    context: IPipelineContext,
+    options: MetricsBehaviorOptions | undefined,
+    outcome: 'success' | 'failure',
+    error?: unknown,
+  ): Promise<Attributes> {
+    const base: Attributes = {
+      ...buildMetricAttributes(context),
+      // Preserve the original public metric label while also exposing the
+      // namespaced pipeline semantic attribute used by traces/new dashboards.
+      outcome,
+      [PIPELINE_OTEL_ATTRIBUTES.OUTCOME]: outcome,
+      ...(outcome === 'failure'
+        ? {
+            [PIPELINE_OTEL_ATTRIBUTES.ERROR_TYPE]:
+              error instanceof Error ? error.name : 'unknown',
+          }
+        : {}),
+      ...(options?.includeContextAttributes
+        ? getPipelineTelemetryAttributes(context)
+        : {}),
+    };
+
+    if (!options?.attributeFactory) return base;
+    try {
+      return { ...base, ...(await options.attributeFactory(context)) };
+    } catch {
+      return base;
+    }
+  }
+
+  /** Records duration + invocation count without changing business semantics. */
   private record(
-    duration: Histogram,
-    invocations: Counter,
+    instruments: MeterInstruments,
     elapsedMs: number,
     attributes: Attributes,
   ): void {
-    duration.record(elapsedMs, attributes);
-    invocations.add(1, attributes);
+    try {
+      instruments.duration.record(elapsedMs, attributes);
+      instruments.invocations.add(1, attributes);
+    } catch (error) {
+      // Observability must not replace the business result/error.
+      this.logger?.debug?.(
+        `Failed to record OpenTelemetry pipeline metrics: ${error instanceof Error ? error.message : error}`,
+        MetricsBehavior.name,
+      );
+    }
+  }
+
+  /** Best-effort increment/decrement for the in-flight counter. */
+  private safeAdd(
+    counter: UpDownCounter | undefined,
+    value: number,
+    attributes: Attributes,
+  ): void {
+    if (!counter) return;
+    try {
+      counter.add(value, attributes);
+    } catch (error) {
+      this.logger?.debug?.(
+        `Failed to update OpenTelemetry in-flight metric: ${error instanceof Error ? error.message : error}`,
+        MetricsBehavior.name,
+      );
+    }
   }
 
   /** Resolves (and caches) the instruments for the given meter name. */
@@ -186,6 +289,9 @@ export class MetricsBehavior implements IPipelineBehavior, OnModuleInit {
       }),
       invocations: meter.createCounter(INVOCATION_METRIC, {
         description: 'Number of pipeline handler invocations',
+      }),
+      active: meter.createUpDownCounter?.(ACTIVE_METRIC, {
+        description: 'Number of in-flight pipeline handler executions',
       }),
     };
 

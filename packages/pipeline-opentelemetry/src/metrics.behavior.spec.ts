@@ -16,21 +16,20 @@
  * ----------------------------
  */
 
-import { IPipelineContext } from '@nestjs-pipeline/core';
+import type { IPipelineContext } from '@nestjs-pipeline/core';
 import { metrics } from '@opentelemetry/api';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { MetricsBehavior } from './metrics.behavior';
+import { addPipelineTelemetryAttributes } from './telemetry-attributes';
 
 // ─── Mock the OTel metrics API surface ───────────────────────────────────────
-// We preserve the rest of the API and stub only meter acquisition.
+// Preserve the rest of the public API and stub only meter acquisition. The
+// implementation intentionally does not inspect provider implementation details.
 vi.mock('@opentelemetry/api', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@opentelemetry/api')>();
   return {
     ...actual,
-    metrics: {
-      getMeter: vi.fn(),
-      getMeterProvider: vi.fn(),
-    },
+    metrics: { getMeter: vi.fn() },
   };
 });
 
@@ -38,10 +37,12 @@ vi.mock('@opentelemetry/api', async (importOriginal) => {
 
 const mockDuration = { record: vi.fn() };
 const mockInvocations = { add: vi.fn() };
+const mockActive = { add: vi.fn() };
 
 const mockMeter = {
   createHistogram: vi.fn(() => mockDuration),
   createCounter: vi.fn(() => mockInvocations),
+  createUpDownCounter: vi.fn(() => mockActive),
 };
 
 // ─── Context factory ──────────────────────────────────────────────────────────
@@ -74,30 +75,34 @@ describe('MetricsBehavior', () => {
 
     mockDuration.record.mockReset();
     mockInvocations.add.mockReset();
+    mockActive.add.mockReset();
     mockMeter.createHistogram.mockClear().mockReturnValue(mockDuration);
     mockMeter.createCounter.mockClear().mockReturnValue(mockInvocations);
+    mockMeter.createUpDownCounter.mockClear().mockReturnValue(mockActive);
 
     vi.mocked(metrics.getMeter)
       .mockReset()
-      .mockReturnValue(mockMeter as any);
+      .mockReturnValue(mockMeter as never);
   });
 
-  it('does not mutate a shared logger and supplies its context per call', () => {
+  it('keeps the optional shared logger constructor and never mutates its context', async () => {
     const logger = {
       warn: vi.fn(),
-      log: vi.fn(),
+      debug: vi.fn(),
       setContext: vi.fn(),
     };
-    vi.mocked(metrics.getMeterProvider).mockReturnValue({
-      constructor: { name: 'NoopMeterProvider' },
-    } as never);
-    const sharedLoggerBehavior = new MetricsBehavior(logger as never);
+    vi.mocked(metrics.getMeter).mockImplementation(() => {
+      throw new Error('meter unavailable');
+    });
+    const next = vi.fn().mockResolvedValue('ok');
 
-    sharedLoggerBehavior.onModuleInit();
+    await expect(
+      new MetricsBehavior(logger as never).handle(makeCtx(), next),
+    ).resolves.toBe('ok');
 
     expect(logger.setContext).not.toHaveBeenCalled();
     expect(logger.warn).toHaveBeenCalledWith(
-      expect.stringContaining('SDK is NOT initialized'),
+      expect.stringContaining('failing open'),
       MetricsBehavior.name,
     );
   });
@@ -112,14 +117,14 @@ describe('MetricsBehavior', () => {
     const ctx = makeCtx();
     vi.mocked(ctx.getBehaviorOptions).mockReturnValue({
       meterName: 'my-service',
-    } as any);
+    } as never);
 
     await behavior.handle(ctx, vi.fn().mockResolvedValue(null));
 
     expect(metrics.getMeter).toHaveBeenCalledWith('my-service');
   });
 
-  it('creates the duration histogram and invocation counter instruments', async () => {
+  it('creates duration, invocation, and in-flight instruments', async () => {
     await behavior.handle(makeCtx(), vi.fn().mockResolvedValue(null));
 
     expect(mockMeter.createHistogram).toHaveBeenCalledWith(
@@ -130,9 +135,13 @@ describe('MetricsBehavior', () => {
       'pipeline.handler.invocations',
       expect.any(Object),
     );
+    expect(mockMeter.createUpDownCounter).toHaveBeenCalledWith(
+      'pipeline.handler.active',
+      expect.any(Object),
+    );
   });
 
-  it('records duration and increments the counter with outcome=success on success', async () => {
+  it('records duration and increments the counter with the historical outcome label on success', async () => {
     const next = vi.fn().mockResolvedValue({ ok: true });
 
     const result = await behavior.handle(
@@ -141,45 +150,63 @@ describe('MetricsBehavior', () => {
     );
 
     expect(result).toEqual({ ok: true });
-
-    const expectedAttrs = {
-      'pipeline.request.kind': 'query',
-      'pipeline.request.name': 'GetUserQuery',
-      'pipeline.handler.name': 'TestHandler',
-      outcome: 'success',
-    };
-
     expect(mockDuration.record).toHaveBeenCalledTimes(1);
     expect(mockDuration.record).toHaveBeenCalledWith(
       expect.any(Number),
-      expectedAttrs,
+      expect.objectContaining({
+        'pipeline.request.kind': 'query',
+        'pipeline.request.name': 'GetUserQuery',
+        'pipeline.handler.name': 'TestHandler',
+        outcome: 'success',
+        'pipeline.outcome': 'success',
+      }),
     );
-    expect(mockInvocations.add).toHaveBeenCalledWith(1, expectedAttrs);
+    expect(mockInvocations.add).toHaveBeenCalledWith(
+      1,
+      expect.objectContaining({
+        outcome: 'success',
+        'pipeline.outcome': 'success',
+      }),
+    );
   });
 
-  it('records outcome=failure with error.type and re-throws on error', async () => {
-    // NB: subclassing Error does NOT change `.name` unless set explicitly,
-    // so the behavior reports `err.name` — here we set it to exercise that.
-    class CustomError extends Error {
-      override name = 'CustomError';
-    }
-    const next = vi.fn().mockRejectedValue(new CustomError('boom'));
+  it('tracks in-flight concurrency around the handler call', async () => {
+    await behavior.handle(makeCtx(), vi.fn().mockResolvedValue(null));
 
-    await expect(behavior.handle(makeCtx(), next)).rejects.toThrow('boom');
-
-    const expectedAttrs = {
+    const attrs = {
       'pipeline.request.kind': 'command',
       'pipeline.request.name': 'TestCommand',
       'pipeline.handler.name': 'TestHandler',
-      outcome: 'failure',
-      'error.type': 'CustomError',
     };
+    expect(mockActive.add).toHaveBeenNthCalledWith(1, 1, attrs);
+    expect(mockActive.add).toHaveBeenLastCalledWith(-1, attrs);
+  });
+
+  it('records outcome=failure with error.type and re-throws the original error', async () => {
+    class CustomError extends Error {
+      override name = 'CustomError';
+    }
+    const error = new CustomError('boom');
+    const next = vi.fn().mockRejectedValue(error);
+
+    await expect(behavior.handle(makeCtx(), next)).rejects.toBe(error);
 
     expect(mockDuration.record).toHaveBeenCalledWith(
       expect.any(Number),
-      expectedAttrs,
+      expect.objectContaining({
+        outcome: 'failure',
+        'pipeline.outcome': 'failure',
+        'error.type': 'CustomError',
+      }),
     );
-    expect(mockInvocations.add).toHaveBeenCalledWith(1, expectedAttrs);
+    expect(mockInvocations.add).toHaveBeenCalledWith(
+      1,
+      expect.objectContaining({
+        outcome: 'failure',
+        'error.type': 'CustomError',
+      }),
+    );
+    expect(mockActive.add).toHaveBeenLastCalledWith(-1, expect.any(Object));
   });
 
   it('records a non-negative duration in milliseconds', async () => {
@@ -196,9 +223,97 @@ describe('MetricsBehavior', () => {
     await behavior.handle(makeCtx(), next);
     await behavior.handle(makeCtx(), next);
 
-    // Meter resolved each call, but instruments built only once per meter.
+    // Meter is resolved each call, but instruments are built only once per name.
     expect(mockMeter.createHistogram).toHaveBeenCalledTimes(1);
     expect(mockMeter.createCounter).toHaveBeenCalledTimes(1);
+    expect(mockMeter.createUpDownCounter).toHaveBeenCalledTimes(1);
     expect(mockDuration.record).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not include request-local attributes in metric labels by default', async () => {
+    const ctx = makeCtx();
+    addPipelineTelemetryAttributes(ctx, { 'user.id': 'user-123' });
+
+    await behavior.handle(ctx, vi.fn().mockResolvedValue(null));
+
+    expect(mockDuration.record).toHaveBeenCalledWith(
+      expect.any(Number),
+      expect.not.objectContaining({ 'user.id': 'user-123' }),
+    );
+  });
+
+  it('can explicitly include a controlled request-local attribute bag', async () => {
+    const ctx = makeCtx();
+    addPipelineTelemetryAttributes(ctx, { 'app.tenant_tier': 'pro' });
+    vi.mocked(ctx.getBehaviorOptions).mockReturnValue({
+      includeContextAttributes: true,
+    } as never);
+
+    await behavior.handle(ctx, vi.fn().mockResolvedValue(null));
+
+    expect(mockDuration.record).toHaveBeenCalledWith(
+      expect.any(Number),
+      expect.objectContaining({ 'app.tenant_tier': 'pro' }),
+    );
+  });
+
+  it('merges request-aware custom low-cardinality attributes', async () => {
+    const ctx = makeCtx();
+    vi.mocked(ctx.getBehaviorOptions).mockReturnValue({
+      attributeFactory: () => ({ 'app.region': 'eu-west' }),
+    } as never);
+
+    await behavior.handle(ctx, vi.fn().mockResolvedValue(null));
+
+    expect(mockDuration.record).toHaveBeenCalledWith(
+      expect.any(Number),
+      expect.objectContaining({ 'app.region': 'eu-west' }),
+    );
+  });
+
+  it('ignores custom attribute-factory failures', async () => {
+    const ctx = makeCtx();
+    vi.mocked(ctx.getBehaviorOptions).mockReturnValue({
+      attributeFactory: () => {
+        throw new Error('enrichment failed');
+      },
+    } as never);
+
+    await expect(
+      behavior.handle(ctx, vi.fn().mockResolvedValue('ok')),
+    ).resolves.toBe('ok');
+  });
+
+  it('fails open when meter creation fails', async () => {
+    vi.mocked(metrics.getMeter).mockImplementation(() => {
+      throw new Error('otel broken');
+    });
+    const next = vi.fn().mockResolvedValue('business-result');
+
+    await expect(behavior.handle(makeCtx(), next)).resolves.toBe(
+      'business-result',
+    );
+    expect(next).toHaveBeenCalledOnce();
+  });
+
+  it('does not replace the business result when metric recording throws', async () => {
+    mockDuration.record.mockImplementation(() => {
+      throw new Error('exporter problem');
+    });
+
+    await expect(
+      behavior.handle(makeCtx(), vi.fn().mockResolvedValue('business-result')),
+    ).resolves.toBe('business-result');
+  });
+
+  it('can disable metrics per handler', async () => {
+    const ctx = makeCtx();
+    vi.mocked(ctx.getBehaviorOptions).mockReturnValue({
+      enabled: false,
+    } as never);
+    const next = vi.fn().mockResolvedValue('ok');
+
+    await expect(behavior.handle(ctx, next)).resolves.toBe('ok');
+    expect(metrics.getMeter).not.toHaveBeenCalled();
   });
 });
