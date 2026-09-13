@@ -41,10 +41,7 @@ describe('CreateRoleCommandRepository', () => {
     const result = await repository.save(role);
 
     expect(upsert).toHaveBeenCalledWith(Role, role);
-    expect(cache.set).toHaveBeenCalledWith(
-      `tenant:role:id:${role.id}`,
-      result,
-    );
+    expect(cache.set).toHaveBeenCalledWith(`tenant:role:id:${role.id}`, result);
     expect(result).toEqual(role.toJSON());
   });
 
@@ -66,6 +63,8 @@ describe('CreateRoleCommandRepository', () => {
     };
     const repository = new CreateRoleCommandRepository(cache, store as never);
 
-    await expect(repository.save(role)).rejects.toThrow(UniqueRoleNameException);
+    await expect(repository.save(role)).rejects.toThrow(
+      UniqueRoleNameException,
+    );
   });
 });

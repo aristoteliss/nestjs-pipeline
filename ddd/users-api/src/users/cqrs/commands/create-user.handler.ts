@@ -1,21 +1,9 @@
 /*
  * Copyright (C) 2026-present Aristotelis
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Affero General Public License as
- * published by the Free Software Foundation, either version 3 of the
- * License, or (at your option) any later version.
- *
- * --- COMMERCIAL EXCEPTION ---
- * Alternatively, a Commercial License is available for individuals or
- * organizations that require proprietary use without the AGPLv3
- * copyleft restrictions.
- *
- * See COMMERCIAL_LICENSE.txt in this repository for the tiered
- * revenue-based terms, or contact: aristotelis@ik.me
- * ----------------------------
+ * See repository license for full terms.
  */
 
+import { requireTenantId } from '@common/cqrs/helpers/requireTenantId.helper';
 import { APP_ACTIONS, APP_SUBJECTS } from '@common/constants';
 import { getSessionUserFromStore } from '@common/context/session-user.store';
 import { Inject } from '@nestjs/common';
@@ -38,12 +26,19 @@ import { User, type UserSnapshot } from '../../domain/models/user.entity';
 import { COMMAND_REPOSITORY } from '../../persistence/repository.tokens';
 import { CreateUserCommand } from './create-user.command';
 
+/** Builds a tenant/principal/email-scoped idempotency key and fails closed without tenant context. */
 export function createUserIdempotencyKey(ctx: IPipelineContext): string {
   const request = ctx.request as CreateUserCommand;
-  const tenantId = ctx.tenantId ?? 'default';
+  const tenantId = requireTenantId(ctx, 'user creation idempotency');
   const actorId =
     request.sessionUser?.id ?? getSessionUserFromStore()?.id ?? 'anonymous';
   return `${tenantId}:${actorId}:user.create:${request.email}`;
+}
+
+/** Builds the tenant/email partition used by the user-creation rate limiter. */
+export function createUserRateLimitKey(ctx: IPipelineContext): string {
+  const tenantId = requireTenantId(ctx, 'user creation rate limiting');
+  return `${tenantId}:${(ctx.request as CreateUserCommand).email}`;
 }
 
 @CommandHandler(CreateUserCommand)
@@ -62,21 +57,8 @@ export function createUserIdempotencyKey(ctx: IPipelineContext): string {
     },
   ],
   [FeatureFlagBehavior, { flag: 'user-registration' }],
-  [
-    RateLimitBehavior,
-    {
-      keyFactory: (ctx: IPipelineContext) => {
-        const tenantId = ctx.tenantId ?? 'default';
-        return `${tenantId}:${(ctx.request as CreateUserCommand).email}`;
-      },
-    },
-  ],
-  [
-    IdempotencyBehavior,
-    {
-      keyFactory: createUserIdempotencyKey,
-    },
-  ],
+  [RateLimitBehavior, { keyFactory: createUserRateLimitKey }],
+  [IdempotencyBehavior, { keyFactory: createUserIdempotencyKey }],
 )
 export class CreateUserHandler extends CommandBaseHandler<
   CreateUserCommand,
@@ -93,16 +75,13 @@ export class CreateUserHandler extends CommandBaseHandler<
 
   async handle(command: CreateUserCommand): Promise<User> {
     const { username, email, department } = command;
-
     const user = User.create(username, email, department);
     this.authorizer.authorize('create', user, [
       'username',
       'email',
       ...(department !== undefined ? ['department'] : []),
     ]);
-
     await this.commandRepository.save(user);
-
     return user;
   }
 }

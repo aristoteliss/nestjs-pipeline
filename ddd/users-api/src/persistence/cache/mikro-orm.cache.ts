@@ -16,8 +16,8 @@
  * ----------------------------
  */
 
-import { CacheSetOptions, ICache } from '@nestjs-pipeline/ddd-core';
 import { Inject, Injectable, Optional } from '@nestjs/common';
+import { CacheSetOptions, ICache } from '@nestjs-pipeline/ddd-core';
 import { MIKRO_ORM_CLIENT, MikroOrmStore } from '../mikro-orm.store';
 import { CacheEntry } from './cache.entity';
 
@@ -61,7 +61,8 @@ export class MikroOrmCache<T> implements ICache<T> {
     const ttl = options?.ttl ?? this.defaultTtlMs;
     const expiresAt = ttl > 0 ? Date.now() + ttl : null;
 
-    if (options?.isNewer) {
+    const isNewer = options?.isNewer;
+    if (isNewer) {
       await this.store.transactional(async (em) => {
         // Compare-and-swap the exact state we inspected. A competing write makes
         // nativeUpdate affect zero rows, so retry against the newly stored value.
@@ -90,7 +91,7 @@ export class MikroOrmCache<T> implements ICache<T> {
             } catch {
               /* Replace corrupt data. */
             }
-            if (parsed !== undefined && options.isNewer!(parsed, value)) return;
+            if (parsed !== undefined && isNewer(parsed, value)) return;
           }
           const affected = await em.nativeUpdate(
             CacheEntry,

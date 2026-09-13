@@ -202,7 +202,9 @@ describe('isCacheNewer helper', () => {
     const older = new Date('2026-01-01T00:00:00Z');
     const newer = new Date('2026-01-02T00:00:00Z');
     expect(isCacheNewer({ updatedAt: newer }, { updatedAt: older })).toBe(true);
-    expect(isCacheNewer({ updatedAt: older }, { updatedAt: newer })).toBe(false);
+    expect(isCacheNewer({ updatedAt: older }, { updatedAt: newer })).toBe(
+      false,
+    );
     expect(
       isCacheNewer(
         { updatedAt: '2026-01-02T00:00:00Z' },
@@ -232,7 +234,9 @@ class VersionedQueryRepo {
     keyFn: (q) => `user:${q.userId}`,
     ttl: 3000,
   })
-  async find(query: { userId: string }): Promise<{ id: string; version: number }> {
+  async find(_query: {
+    userId: string;
+  }): Promise<{ id: string; version: number }> {
     this.dbFetchCount++;
     return this.dbResult;
   }
@@ -250,9 +254,9 @@ describe('@FromCache with options and concurrency checks', () => {
 
     expect(res).toEqual({ id: '80', version: 1 });
     expect(mockCache.set).toHaveBeenCalledWith(
-       'user:80',
-       { id: '80', version: 1 },
-       expect.objectContaining({ ttl: 3000, isNewer: expect.any(Function) }),
+      'user:80',
+      { id: '80', version: 1 },
+      expect.objectContaining({ ttl: 3000, isNewer: expect.any(Function) }),
     );
   });
 

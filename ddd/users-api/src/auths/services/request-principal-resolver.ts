@@ -22,6 +22,7 @@ import { TenantSchemaContext } from '@persistence/tenant-schema.context';
 import type { SessionData, SessionUser } from '../../common/types/SessionUser';
 import { ApiClientAuthenticator } from './api-client-authenticator';
 import { JwtAuthenticator } from './jwt-authenticator';
+import { SessionService } from './session.service';
 
 export type AuthenticatedRequest = {
   headers?: Record<string, string | string[] | undefined>;
@@ -30,15 +31,15 @@ export type AuthenticatedRequest = {
 };
 
 /**
- * Orchestrates inbound authentication across multiple authentication mechanisms.
+ * Resolves the authenticated principal (`SessionUser`) for incoming HTTP requests.
  *
- * Evaluation follows strict priority:
+ * Implements a multi-tier credential resolution strategy across transport formats:
  * 1. Fastify session cookie (`req.session?.user`) — fast path for web browser sessions.
- * 2. Bearer JWT header (`Authorization: Bearer <token>`) via {@link JwtAuthenticator}.
- * 3. Machine API client credentials (`x-api-id` / `x-api-key`) via {@link ApiClientAuthenticator}.
- * 4. Anonymous caller fallback (returns `undefined`).
+ * 2. Bearer JWT header (`Authorization: Bearer <token>`) — for SPAs, mobile apps, and microservices.
+ * 3. Basic API client credentials (`Authorization: Basic <credentials>`) — for machine-to-machine integrations.
  *
- * Injected by {@link AuthSessionGuard} to authenticate callers early in the NestJS request lifecycle.
+ * Rejects requests with HTTP 401 Unauthorized if credentials belong to a tenant other than
+ * the active request schema context (`TenantSchemaContext`).
  *
  * @example
  * ```ts
@@ -55,6 +56,7 @@ export class RequestPrincipalResolver {
     private readonly jwtAuthenticator: JwtAuthenticator,
     private readonly apiClientAuthenticator: ApiClientAuthenticator,
     private readonly tenantSchemaContext: TenantSchemaContext,
+    private readonly sessionService: SessionService = new SessionService(),
   ) {}
 
   /**
@@ -76,19 +78,8 @@ export class RequestPrincipalResolver {
   ): Promise<SessionUser | undefined> {
     const existingUser = req.session?.user;
     if (existingUser) {
-      const now = Date.now();
-      const isExpired =
-        (typeof existingUser.expiresAt === 'number' &&
-          existingUser.expiresAt <= now) ||
-        (typeof existingUser.exp === 'number' &&
-          existingUser.exp * 1000 <= now);
-
-      if (isExpired) {
-        if (typeof req.session?.delete === 'function') {
-          req.session.delete();
-        } else if (req.session) {
-          delete req.session.user;
-        }
+      if (this.sessionService.isExpired(existingUser)) {
+        this.sessionService.clearSession(req.session);
       } else {
         this.assertCurrentTenant(existingUser.tenant);
         return existingUser;

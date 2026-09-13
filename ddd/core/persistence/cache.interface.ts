@@ -26,4 +26,3 @@ export interface ICache<T = unknown> {
   set(key: string, value: T, options?: CacheSetOptions): Promise<void>;
   delete(key: string): Promise<void>;
 }
-

@@ -16,15 +16,21 @@
  * ----------------------------
  */
 
+import type { ICommandRepository } from './command-repository.interface';
+
 /**
- * NestJS CQRS metadata keys re-exported from `@nestjs/cqrs` internal constants.
+ * Write-side repository contract for commands that mutate an existing aggregate.
  *
- * These are the keys set by `@CommandHandler`, `@QueryHandler`, and
- * `@EventsHandler` decorators. This module is internal — the pipeline discovers
- * handlers via `ExplorerService.explore()` rather than reading these keys directly.
+ * `findById()` must read authoritative persistence and must not use a read-side
+ * result cache. Adapters backed by an ORM identity map should force a refresh so
+ * optimistic-concurrency checks are based on current persisted state.
  */
-export {
-  COMMAND_HANDLER_METADATA,
-  EVENTS_HANDLER_METADATA,
-  QUERY_HANDLER_METADATA,
-} from '@nestjs/cqrs/dist/decorators/constants';
+export interface IWriteSideAggregateRepository<
+  TEntity,
+  TSnapshot,
+  TResult = unknown,
+  TId = string,
+> extends ICommandRepository<TEntity, TResult> {
+  /** Loads the current authoritative snapshot for a mutating command. */
+  findById(id: TId): Promise<TSnapshot | null>;
+}

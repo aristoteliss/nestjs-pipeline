@@ -28,6 +28,7 @@ import {
   Module,
   type NestModule,
   Query,
+  Req,
 } from '@nestjs/common';
 import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { Test } from '@nestjs/testing';
@@ -38,6 +39,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { ApiClientAuthenticator } from '../src/auths/services/api-client-authenticator';
 import { JwtAuthenticator } from '../src/auths/services/jwt-authenticator';
 import { RequestPrincipalResolver } from '../src/auths/services/request-principal-resolver';
+import { SessionService } from '../src/auths/services/session.service';
 import { TenantSchemaMiddleware } from '../src/persistence/middlewares/tenant-schema.middleware';
 
 @Controller('test-auth')
@@ -59,6 +61,13 @@ class TestAuthController {
       schema: this.tenantContext.schema,
     };
   }
+  @Get('session-status')
+  async getSessionStatus(@Req() req: { sessionDeleted?: boolean }) {
+    return {
+      sessionDeleted: req.sessionDeleted ?? false,
+      user: getSessionUserFromStore() ?? { anonymous: true },
+    };
+  }
 }
 
 @Module({
@@ -66,6 +75,7 @@ class TestAuthController {
   providers: [
     TenantSchemaContext,
     TenantSchemaMiddleware,
+    SessionService,
     JwtAuthenticator,
     ApiClientAuthenticator,
     RequestPrincipalResolver,
@@ -77,7 +87,35 @@ class TestAuthModule implements NestModule {
   constructor(private readonly tenantMiddleware: TenantSchemaMiddleware) {}
   configure(consumer: MiddlewareConsumer) {
     consumer
-      .apply(this.tenantMiddleware.use.bind(this.tenantMiddleware))
+      .apply(
+        (
+          req: {
+            headers: Record<string, string | undefined>;
+            session?: {
+              user?: unknown;
+              token?: string;
+              delete?: () => void;
+            };
+            sessionDeleted?: boolean;
+          },
+          _res: unknown,
+          next: () => void,
+        ) => {
+          if (req.headers['x-test-session-user']) {
+            req.session = {
+              user: JSON.parse(req.headers['x-test-session-user'] as string),
+              token: req.headers['x-test-session-token'] as string | undefined,
+              delete: () => {
+                req.sessionDeleted = true;
+                delete req.session?.user;
+                delete req.session?.token;
+              },
+            };
+          }
+          next();
+        },
+        this.tenantMiddleware.use.bind(this.tenantMiddleware),
+      )
       .forRoutes('*');
   }
 }
@@ -245,5 +283,88 @@ describe('HTTP Authentication Integration (Real Nest App Pipeline)', () => {
       }),
       schema: 'tenant_b',
     });
+  });
+
+  it('7. Valid session cookie -> 200 with principal resolved inside controller via SessionService cookie fast-path', async () => {
+    const sessionUser = {
+      id: 'user-cookie-fastpath',
+      tenant: 'tenant_a',
+      email: 'cookie@example.test',
+    };
+
+    const res = await request(app.getHttpServer())
+      .get('/test-auth/principal')
+      .set(AUTH_HEADERS.TENANT_SCHEMA, 'tenant_a')
+      .set('x-test-session-user', JSON.stringify(sessionUser));
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({
+      id: 'user-cookie-fastpath',
+      tenant: 'tenant_a',
+      email: 'cookie@example.test',
+    });
+  });
+
+  it('8. Expired session cookie -> clears session via SessionService and resolves to anonymous', async () => {
+    const expiredUser = {
+      id: 'user-cookie-expired',
+      tenant: 'tenant_a',
+      email: 'expired@example.test',
+      expiresAt: Date.now() - 5000,
+    };
+
+    const res = await request(app.getHttpServer())
+      .get('/test-auth/session-status')
+      .set(AUTH_HEADERS.TENANT_SCHEMA, 'tenant_a')
+      .set('x-test-session-user', JSON.stringify(expiredUser));
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({
+      sessionDeleted: true,
+      user: { anonymous: true },
+    });
+  });
+
+  it('9. Expired session cookie + valid Bearer JWT -> clears expired session and falls through to JWT principal', async () => {
+    const expiredUser = {
+      id: 'user-cookie-expired',
+      tenant: 'tenant_a',
+      expiresAt: Date.now() - 5000,
+    };
+
+    const token = await new SignJWT({
+      tenant: 'tenant_a',
+      roles: ['editor'],
+    })
+      .setProtectedHeader({ alg: 'HS256' })
+      .setSubject('user-jwt-fallback')
+      .setExpirationTime('1h')
+      .sign(new TextEncoder().encode(jwtSecret));
+
+    const res = await request(app.getHttpServer())
+      .get('/test-auth/principal')
+      .set(AUTH_HEADERS.TENANT_SCHEMA, 'tenant_a')
+      .set('x-test-session-user', JSON.stringify(expiredUser))
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({
+      id: 'user-jwt-fallback',
+      tenant: 'tenant_a',
+    });
+  });
+
+  it('10. Session cookie with tenant mismatch -> 401 Unauthorized', async () => {
+    const mismatchedUser = {
+      id: 'user-mismatched',
+      tenant: 'tenant_b',
+    };
+
+    const res = await request(app.getHttpServer())
+      .get('/test-auth/principal')
+      .set(AUTH_HEADERS.TENANT_SCHEMA, 'tenant_a')
+      .set('x-test-session-user', JSON.stringify(mismatchedUser));
+
+    expect(res.status).toBe(401);
   });
 });

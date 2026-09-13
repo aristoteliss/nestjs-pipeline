@@ -22,20 +22,18 @@ import {
   type ICommand,
   type ICommandHandler,
 } from '@nestjs/cqrs';
-import { DomainOutcome } from '../domain/outcomes/domain.outcome';
 
 /**
  * Base class for all CQRS command handlers.
  *
  * Wraps every concrete command handler with shared lifecycle behavior:
  * 1. Executes command logic via the abstract {@link handle} method.
- * 2. If the result is an {@link AggregateRoot}, its buffered uncommitted domain events
- *    are automatically published to the {@link EventBus} and cleared via {@link commit}.
- * 3. Supports manual event publication via {@link commit} for handlers returning custom DTOs.
- * 4. Retains legacy support for {@link DomainOutcome}.
+ * 2. If the result is an {@link AggregateRoot} (or an object containing `aggregate: AggregateRoot`),
+ *    its buffered uncommitted domain events are automatically published to the {@link EventBus}
+ *    and cleared via {@link commit}.
  *
  * @typeParam TCommand - The concrete command type this handler processes.
- * @typeParam TResult - The handler's return type (e.g. aggregate entity or DTO).
+ * @typeParam TResult - The handler's return type (e.g. aggregate entity or result carrying aggregate).
  *
  * @example Returning aggregate root directly (auto-published)
  * ```typescript
@@ -57,14 +55,29 @@ import { DomainOutcome } from '../domain/outcomes/domain.outcome';
  * }
  * ```
  *
- * @example Returning a custom DTO using manual commit()
+ * @example Returning an application result carrying an AggregateRoot (auto-published)
  * ```typescript
- *   async handle(command: CreateAuthCommand): Promise<SessionUser> {
+ * @CommandHandler(CreateAuthCommand)
+ * export class CreateAuthHandler extends CommandBaseHandler<CreateAuthCommand, CreateAuthResult> {
+ *   constructor(
+ *     @Inject(COMMAND_REPOSITORY.createAuth)
+ *     private readonly commandRepository: ICommandRepository<Auth, null>,
+ *     protected readonly eventBus: EventBus,
+ *   ) {
+ *     super(eventBus);
+ *   }
+ *
+ *   async handle(command: CreateAuthCommand): Promise<CreateAuthResult> {
  *     const auth = Auth.create(userId, token);
  *     await this.commandRepository.save(auth);
- *     this.commit(auth); // explicit publish and uncommit
- *     return { id: userId, token };
+ *     return {
+ *       aggregate: auth, // execute() automatically detects aggregate and publishes events
+ *       id: userId,
+ *       tenant: tenant,
+ *       token,
+ *     };
  *   }
+ * }
  * ```
  */
 export abstract class CommandBaseHandler<
@@ -108,7 +121,7 @@ export abstract class CommandBaseHandler<
    * Nest `ICommandHandler` entry point invoked by the `CommandBus`.
    *
    * Delegates to {@link handle} and automatically publishes any uncommitted domain
-   * events if the result is an {@link AggregateRoot} (or legacy {@link DomainOutcome}).
+   * events if the result is an {@link AggregateRoot} (or an object containing `aggregate: AggregateRoot`).
    *
    * @param command - The command dispatched through the `CommandBus`.
    * @returns The result produced by {@link handle}.
@@ -118,8 +131,14 @@ export abstract class CommandBaseHandler<
 
     if (commandResult instanceof AggregateRoot) {
       this.commit(commandResult);
-    } else if (commandResult instanceof DomainOutcome) {
-      this.eventBus.publishAll(commandResult.events);
+    } else if (
+      commandResult &&
+      typeof commandResult === 'object' &&
+      'aggregate' in commandResult &&
+      (commandResult as { aggregate: unknown }).aggregate instanceof
+        AggregateRoot
+    ) {
+      this.commit((commandResult as { aggregate: AggregateRoot }).aggregate);
     }
 
     return commandResult;

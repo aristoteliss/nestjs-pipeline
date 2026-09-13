@@ -16,8 +16,8 @@
  * ----------------------------
  */
 
-import { IPipelineContext } from '@nestjs-pipeline/core';
 import { Type } from '@nestjs/common';
+import { IPipelineContext } from '@nestjs-pipeline/core';
 import { describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
 import { createCommand, createZodRequest } from './create-zod-request';
@@ -263,7 +263,7 @@ describe('ZodValidationBehavior', () => {
 
     it('does NOT re-run non-idempotent transforms twice', async () => {
       const tagSchema = z.object({
-        tag: z.string().transform((val) => val + '!'),
+        tag: z.string().transform((val) => `${val}!`),
       });
       class TagCommand extends createCommand(tagSchema) {}
 

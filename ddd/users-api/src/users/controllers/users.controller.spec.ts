@@ -41,7 +41,9 @@ describe('UsersController', () => {
       department: 'Engineering',
     });
 
-    expect(commandBus.execute).toHaveBeenCalledWith(expect.any(CreateUserCommand));
+    expect(commandBus.execute).toHaveBeenCalledWith(
+      expect.any(CreateUserCommand),
+    );
     expect(result).toEqual({
       id: user.id,
       name: 'Alice',
@@ -64,7 +66,9 @@ describe('UsersController', () => {
       name: 'Alicia',
     });
 
-    expect(commandBus.execute).toHaveBeenCalledWith(expect.any(UpdateUserCommand));
+    expect(commandBus.execute).toHaveBeenCalledWith(
+      expect.any(UpdateUserCommand),
+    );
     expect(result.name).toBe('Alicia');
   });
 
@@ -77,7 +81,9 @@ describe('UsersController', () => {
     const controller = new UsersController(commandBus, queryBus);
     await controller.deleteUser('019488e0-0000-7000-8000-000000000001');
 
-    expect(commandBus.execute).toHaveBeenCalledWith(expect.any(DeleteUserCommand));
+    expect(commandBus.execute).toHaveBeenCalledWith(
+      expect.any(DeleteUserCommand),
+    );
   });
 
   it('fetches user list via GetUsersQuery', async () => {

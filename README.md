@@ -1248,8 +1248,6 @@ The `@nestjs-pipeline/ddd-core` package (`ddd/core/`) provides the foundational 
 | `DomainException`     | Abstract base class for framework-agnostic domain invariant exceptions                  |
 | `DomainEvent`         | Abstract base class for domain events (carries a UUID v7 `id`)                        |
 | `RootDomainEvent`     | Domain event that carries a reference to the originating entity                       |
-| `DomainOutcome`       | Base outcome class — bundles domain events produced by an operation                   |
-| `RootDomainOutcome`   | Outcome that pairs an entity with its domain events                                   |
 | `Mutate`              | Decorator that calls `onUpdate()` after a method executes                             |
 | `ICache<T>`           | Interface for cache providers (`get`, `set`, `delete`)                                |
 | `CommandRepository`   | Abstract base for write repositories — holds an `ICache` and defines `save(outcome)` |
@@ -1261,7 +1259,7 @@ The `@nestjs-pipeline/ddd-core` package (`ddd/core/`) provides the foundational 
 Import them in your domain layer:
 
 ```typescript
-import { RootEntity, RootDomainEvent, RootDomainOutcome, Mutate, DomainException } from '@nestjs-pipeline/ddd-core';
+import { RootEntity, RootDomainEvent, Mutate, DomainException } from '@nestjs-pipeline/ddd-core';
 ```
 
 ### `ddd/users-api` — Full Working Application
@@ -1354,7 +1352,7 @@ ADAPTER=fastify pnpm start
 - Per-handler `RateLimitBehavior` throttling `CreateUserHandler` to 5 registrations / 60s per email (in-memory limiter), with `RateLimitExceededFilter` mapping breaches to HTTP 429 + `Retry-After`
 - Per-handler `AuditBehavior` recording the sensitive `user.delete` action (actor, outcome, duration, redacted payload) to the default `LogAuditSink`, with the actor resolved from the request-scoped session
 - Per-handler `IdempotencyBehavior` atomically excluding concurrent duplicates for `CreateUserHandler` per tenant + principal + email and replaying completed successful responses; with the default `releaseOnError: true`, a failed execution releases the key so a later retry may execute again. `IdempotencyConflictFilter` maps in-flight duplicates to HTTP 409 and payload-mismatched key reuse to HTTP 422
-- DDD-style `User` and `Role` entities built on `ddd-core` primitives (`RootEntity`, `RootDomainEvent`, `RootDomainOutcome`)
+- DDD-style `User` and `Role` entities built on `ddd-core` primitives (`RootEntity`, `RootDomainEvent`)
 - MikroORM (libSQL and PostgreSQL drivers) persistence with multi-tenant database/schema isolation
 - Pluggable `ICache<T>` — `MikroOrmCache` (MikroORM-backed, TTL-aware) or `MemoryCache` swapped via a single provider token
 - Correlation ID propagation across HTTP middleware, handlers, processors, and events
@@ -1469,8 +1467,7 @@ nestjs-pipeline/
     │   └── domain/
     │       ├── events/            # DomainEvent, RootDomainEvent
     │       ├── interfaces/        # RootEntitySnapshot
-    │       ├── models/            # RootEntity
-    │       └── outcomes/          # DomainOutcome, RootDomainOutcome
+    │       └── models/            # RootEntity
     └── users-api/                # Full working example using ddd-core + casl
         └── src/
             ├── persistence/      # MikroOrmStore, MikroOrmCache, schemas/, migrate.ts

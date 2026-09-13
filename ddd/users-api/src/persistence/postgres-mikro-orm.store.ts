@@ -72,14 +72,16 @@ export class PostgresMikroOrmStore implements OnModuleInit, OnModuleDestroy {
     }
 
     const isTenantMatch =
-      (contextEm as any)?.__tenant === undefined ||
-      (contextEm as any)?.__tenant === schema;
+      (contextEm as typeof contextEm & { __tenant?: string })?.__tenant ===
+        undefined ||
+      (contextEm as typeof contextEm & { __tenant?: string })?.__tenant ===
+        schema;
     const isSchemaMatch =
       contextEm?.schema === undefined || contextEm.schema === schema;
     const isConfigMatch =
-      !(this.orm as any).config ||
-      !(contextEm as any)?.config ||
-      (contextEm as any).config === (this.orm as any).config;
+      !this.orm.config ||
+      !contextEm?.config ||
+      contextEm.config === this.orm.config;
     const isDriverMatch =
       !this.orm.em.getDriver ||
       !contextEm?.getDriver ||
@@ -93,8 +95,12 @@ export class PostgresMikroOrmStore implements OnModuleInit, OnModuleDestroy {
       isSchemaMatch &&
       isTenantMatch
     ) {
-      if ((contextEm as any).__tenant === undefined) {
-        (contextEm as any).__tenant = schema;
+      if (
+        (contextEm as typeof contextEm & { __tenant?: string }).__tenant ===
+        undefined
+      ) {
+        (contextEm as typeof contextEm & { __tenant?: string }).__tenant =
+          schema;
       }
       return contextEm;
     }
@@ -103,7 +109,7 @@ export class PostgresMikroOrmStore implements OnModuleInit, OnModuleDestroy {
       disableContextResolution: true,
       schema,
     }) as EntityManager;
-    (fork as any).__tenant = schema;
+    (fork as typeof fork & { __tenant?: string }).__tenant = schema;
     return fork;
   }
 
@@ -117,14 +123,16 @@ export class PostgresMikroOrmStore implements OnModuleInit, OnModuleDestroy {
     }
 
     const isTenantMatch =
-      (contextEm as any)?.__tenant === undefined ||
-      (contextEm as any)?.__tenant === schema;
+      (contextEm as typeof contextEm & { __tenant?: string })?.__tenant ===
+        undefined ||
+      (contextEm as typeof contextEm & { __tenant?: string })?.__tenant ===
+        schema;
     const isSchemaMatch =
       contextEm?.schema === undefined || contextEm.schema === schema;
     const isConfigMatch =
-      !(this.orm as any).config ||
-      !(contextEm as any)?.config ||
-      (contextEm as any).config === (this.orm as any).config;
+      !this.orm.config ||
+      !contextEm?.config ||
+      contextEm.config === this.orm.config;
     const isDriverMatch =
       !this.orm.em.getDriver ||
       !contextEm?.getDriver ||
@@ -138,8 +146,12 @@ export class PostgresMikroOrmStore implements OnModuleInit, OnModuleDestroy {
       isSchemaMatch &&
       isTenantMatch
     ) {
-      if ((contextEm as any).__tenant === undefined) {
-        (contextEm as any).__tenant = schema;
+      if (
+        (contextEm as typeof contextEm & { __tenant?: string }).__tenant ===
+        undefined
+      ) {
+        (contextEm as typeof contextEm & { __tenant?: string }).__tenant =
+          schema;
       }
       return contextEm;
     }
@@ -148,7 +160,7 @@ export class PostgresMikroOrmStore implements OnModuleInit, OnModuleDestroy {
       disableContextResolution: true,
       schema,
     }) as SqlEntityManager;
-    (fork as any).__tenant = schema;
+    (fork as typeof fork & { __tenant?: string }).__tenant = schema;
     return fork;
   }
 
@@ -162,7 +174,7 @@ export class PostgresMikroOrmStore implements OnModuleInit, OnModuleDestroy {
       disableContextResolution: true,
       schema,
     }) as EntityManager;
-    (fork as any).__tenant = schema;
+    (fork as typeof fork & { __tenant?: string }).__tenant = schema;
     return cb(fork);
   }
 
@@ -176,7 +188,7 @@ export class PostgresMikroOrmStore implements OnModuleInit, OnModuleDestroy {
       disableContextResolution: true,
       schema,
     }) as EntityManager;
-    (fork as any).__tenant = schema;
+    (fork as typeof fork & { __tenant?: string }).__tenant = schema;
     return fork.transactional(cb);
   }
 }

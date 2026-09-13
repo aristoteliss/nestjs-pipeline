@@ -14,8 +14,7 @@ This package provides the foundational building blocks for implementing a Clean 
 - **`DomainEvent`** — Abstract base class for domain events carrying a unique UUID v7 `id` and implementing `@nestjs/cqrs` `IEvent`.
 - **`RootDomainEvent<TEntity, TPayload>`** — Domain event carrying a typed reference to the originating entity (`event.entity`) and an immutable, deeply cloned and frozen state snapshot (`event.payload`) created via `deepCloneAndFreeze()` to protect asynchronous event consumers from subsequent in-memory aggregate mutations.
 - **`deepCloneAndFreeze<T>()`** — Deeply clones and recursively freezes any value (objects, arrays, `Date` with mutation guards, `Map`, `Set`, `RegExp`), safely handling circular references via a `WeakMap`.
-- **`CommandBaseHandler<TCommand, TResult>`** — Abstract base handler for CQRS commands. Executes the `@UsePipeline` chain, automatically dispatches uncommitted domain events via `this.eventBus.publishAll()` when an `AggregateRoot` is returned from `handle()`, and provides `protected commit(aggregate: AggregateRoot)` for custom return types.
-- **`DomainOutcome` / `RootDomainOutcome<TEntity>`** — *(Deprecated)* Legacy wrappers for bundling events with entities. Modern domain aggregates manage uncommitted events internally via `this.apply(event)`.
+- **`CommandBaseHandler<TCommand, TResult>`** — Abstract base handler for CQRS commands. Executes the `@UsePipeline` chain, and automatically dispatches uncommitted domain events via `this.eventBus.publishAll()` and clears them when an `AggregateRoot` is returned from `handle()`. Command handlers return aggregates so event publication is never performed manually.
 - **`@Mutate()`** — Method decorator that automatically triggers `onUpdate()` after the decorated method executes, incrementing `version` and updating `updatedAt`.
 - **`UnixTimestampType`** — Custom MikroORM `Type<Date, number>` mapping JavaScript `Date` instances to Unix timestamps (ms) in 64-bit `bigint` SQL database columns (`platform.getBigIntTypeDeclarationSQL()`) to eliminate integer overflow.
 - **`Method`** — Utility type for extracting method signatures.
@@ -231,8 +230,8 @@ export class CreateUserHandler extends CommandBaseHandler<CreateUserCommand, Use
 }
 ```
 
-> [!NOTE]
-> If your handler returns a non-aggregate result (e.g. a DTO or session token), you can use the protected `this.commit(aggregate)` helper to manually dispatch uncommitted events to the `EventBus` before returning.
+> [!IMPORTANT]
+> Command handlers must return the `AggregateRoot` (or an application result containing `aggregate: AggregateRoot`). Event publishing is handled automatically by `CommandBaseHandler.execute()` upon completion—never publish or commit domain events manually inside handlers. Presentation-specific transformations (such as mapping to response DTOs or session cookies) belong in the controller layer via dedicated mappers (e.g. `toSessionRes(result)`).
 
 ---
 
@@ -241,8 +240,8 @@ export class CreateUserHandler extends CommandBaseHandler<CreateUserCommand, Use
 Command repositories receive and persist domain entities directly via `save(entity: TEntity)`. The `@Cache` decorator synchronizes caches declaratively using the pure entity:
 
 ```typescript
-import { ConflictException, Injectable } from '@nestjs/common';
-import { CommandRepository, Cache, ICache } from '@nestjs-pipeline/ddd-core';
+import { Injectable } from '@nestjs/common';
+import { CommandRepository, Cache, ICache, OptimisticLockError } from '@nestjs-pipeline/ddd-core';
 import { User, UserSnapshot } from './user.entity';
 
 // Write-through caching with optimistic locking (positional syntax)
@@ -272,7 +271,7 @@ export class UpdateUserCommandRepository extends CommandRepository<User, UserSna
     );
 
     if (affected === 0) {
-      throw new ConflictException(
+      throw new OptimisticLockError(
         `Optimistic lock failure: User ${user.id} was modified concurrently (expected version ${expectedVersion}).`,
       );
     }

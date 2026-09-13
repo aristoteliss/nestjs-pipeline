@@ -1,23 +1,10 @@
 /*
  * Copyright (C) 2026-present Aristotelis
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Affero General Public License as
- * published by the Free Software Foundation, either version 3 of the
- * License, or (at your option) any later version.
- *
- * --- COMMERCIAL EXCEPTION ---
- * Alternatively, a Commercial License is available for individuals or
- * organizations that require proprietary use without the AGPLv3
- * copyleft restrictions.
- *
- * See COMMERCIAL_LICENSE.txt in this repository for the tiered
- * revenue-based terms, or contact: aristotelis@ik.me
- * ----------------------------
+ * See repository license for full terms.
  */
 
 import { AUDIT_ACTIONS } from '@common/constants';
-import { SessionUser } from '@common/types/SessionUser';
+import { requireTenantId } from '@common/cqrs/helpers/requireTenantId.helper';
 import { Inject } from '@nestjs/common';
 import { CommandHandler, EventBus } from '@nestjs/cqrs';
 import { AUDIT_SEVERITY, AuditBehavior } from '@nestjs-pipeline/audit';
@@ -36,21 +23,20 @@ import { TenantSchemaContext } from '@persistence/tenant-schema.context';
 import { Auth, AuthSnapshot } from '../../domain/models/auth.entity';
 import { COMMAND_REPOSITORY } from '../../persistence/repository.tokens';
 import { UserLoginService } from '../../services/user-login.service';
+import { CreateAuthResult } from '../results/create-auth.result';
 import { CreateAuthCommand } from './create-auth.command';
+
+/** Builds the tenant/email partition used by login rate limiting. */
+export function createAuthRateLimitKey(ctx: IPipelineContext): string {
+  const tenantId = requireTenantId(ctx, 'authentication rate limiting');
+  return `${tenantId}:auth:login:${(ctx.request as CreateAuthCommand).email}`;
+}
 
 @CommandHandler(CreateAuthCommand)
 @UsePipeline(
   [LoggingBehavior, { requestResponseLogLevel: 'log' }],
   [MetricsBehavior, { meterName: 'users-api.auth' }],
-  [
-    RateLimitBehavior,
-    {
-      keyFactory: (ctx: IPipelineContext) => {
-        const tenantId = ctx.tenantId ?? 'default';
-        return `${tenantId}:auth:login:${(ctx.request as CreateAuthCommand).email}`;
-      },
-    },
-  ],
+  [RateLimitBehavior, { keyFactory: createAuthRateLimitKey }],
   [
     AuditBehavior,
     {
@@ -66,7 +52,7 @@ import { CreateAuthCommand } from './create-auth.command';
 )
 export class CreateAuthHandler extends CommandBaseHandler<
   CreateAuthCommand,
-  SessionUser
+  CreateAuthResult
 > {
   constructor(
     protected readonly eventBus: EventBus,
@@ -78,21 +64,16 @@ export class CreateAuthHandler extends CommandBaseHandler<
     super(eventBus);
   }
 
-  async handle(
-    command: CreateAuthCommand,
-  ): Promise<SessionUser & { token: string }> {
+  async handle(command: CreateAuthCommand): Promise<CreateAuthResult> {
     const { email, code } = command;
-
     const verifiedUser = await this.userLoginService.authenticate(email, code);
-
     const authResult = await this.userLoginService.signToken(verifiedUser);
-
     const auth = Auth.create(authResult.userId, authResult.accessToken);
 
     await this.commandRepository.save(auth);
-    this.commit(auth);
 
     return {
+      aggregate: auth,
       id: authResult.userId,
       tenant: this.tenantSchemaContext.schema,
       email,

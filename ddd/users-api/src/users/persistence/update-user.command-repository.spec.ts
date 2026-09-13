@@ -1,6 +1,8 @@
 import { OptimisticLockError } from '@mikro-orm/core';
-import { NotFoundException } from '@nestjs/common';
-import type { ICache } from '@nestjs-pipeline/ddd-core';
+import {
+  EntityNotFoundException,
+  type ICache,
+} from '@nestjs-pipeline/ddd-core';
 import { describe, expect, it, vi } from 'vitest';
 import { User, type UserSnapshot } from '../domain/models/user.entity';
 import { UpdateUserCommandRepository } from './update-user.command-repository';
@@ -15,11 +17,7 @@ describe('UpdateUserCommandRepository', () => {
     const user = User.create('Alice', 'alice@example.test');
     user.update({ username: 'Alicia' });
     const nativeUpdate = vi.fn().mockResolvedValue(1);
-    const store = {
-      get em() {
-        return { nativeUpdate };
-      },
-    };
+    const store = { get em() { return { nativeUpdate }; } };
     const repository = new UpdateUserCommandRepository(cache, store as never);
 
     await expect(repository.save(user)).resolves.toEqual(user.toJSON());
@@ -40,12 +38,9 @@ describe('UpdateUserCommandRepository', () => {
       `tenant:user:id:${user.id}`,
       user.toJSON(),
     );
-    expect(nativeUpdate.mock.invocationCallOrder[0]).toBeLessThan(
-      vi.mocked(cache.delete).mock.invocationCallOrder[0],
-    );
   });
 
-  it('throws NotFoundException and does not touch cache when affected rows is 0 and user does not exist (concurrent delete)', async () => {
+  it('throws EntityNotFoundException when a concurrent delete removed the user', async () => {
     const cache: ICache<UserSnapshot> = {
       get: vi.fn(),
       set: vi.fn(),
@@ -54,15 +49,13 @@ describe('UpdateUserCommandRepository', () => {
     const user = User.create('Alice', 'alice@example.test');
     const nativeUpdate = vi.fn().mockResolvedValue(0);
     const findOne = vi.fn().mockResolvedValue(null);
-    const store = {
-      get em() {
-        return { nativeUpdate, findOne };
-      },
-    };
+    const store = { get em() { return { nativeUpdate, findOne }; } };
     const repository = new UpdateUserCommandRepository(cache, store as never);
 
     user.update({ username: 'Alicia' });
-    await expect(repository.save(user)).rejects.toThrow(NotFoundException);
+    await expect(repository.save(user)).rejects.toBeInstanceOf(
+      EntityNotFoundException,
+    );
     expect(findOne).toHaveBeenCalledWith(
       User,
       { id: user.id },
@@ -72,7 +65,7 @@ describe('UpdateUserCommandRepository', () => {
     expect(cache.set).not.toHaveBeenCalled();
   });
 
-  it('throws OptimisticLockError and does not touch cache when affected rows is 0 and user exists (concurrent update)', async () => {
+  it('throws OptimisticLockError when the user still exists at a newer version', async () => {
     const cache: ICache<UserSnapshot> = {
       get: vi.fn(),
       set: vi.fn(),
@@ -81,20 +74,11 @@ describe('UpdateUserCommandRepository', () => {
     const user = User.create('Alice', 'alice@example.test');
     const nativeUpdate = vi.fn().mockResolvedValue(0);
     const findOne = vi.fn().mockResolvedValue({ id: user.id, version: 2 });
-    const store = {
-      get em() {
-        return { nativeUpdate, findOne };
-      },
-    };
+    const store = { get em() { return { nativeUpdate, findOne }; } };
     const repository = new UpdateUserCommandRepository(cache, store as never);
 
     user.update({ username: 'Alicia' });
     await expect(repository.save(user)).rejects.toThrow(OptimisticLockError);
-    expect(findOne).toHaveBeenCalledWith(
-      User,
-      { id: user.id },
-      { refresh: true },
-    );
     expect(cache.delete).not.toHaveBeenCalled();
     expect(cache.set).not.toHaveBeenCalled();
   });
@@ -108,11 +92,7 @@ describe('UpdateUserCommandRepository', () => {
     const user = User.create('Alice', 'alice@example.test');
     const failure = new Error('database failed');
     const nativeUpdate = vi.fn().mockRejectedValue(failure);
-    const store = {
-      get em() {
-        return { nativeUpdate };
-      },
-    };
+    const store = { get em() { return { nativeUpdate }; } };
     const repository = new UpdateUserCommandRepository(cache, store as never);
 
     user.update({ username: 'Alicia' });

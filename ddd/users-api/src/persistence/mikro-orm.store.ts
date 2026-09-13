@@ -102,14 +102,14 @@ export class MikroOrmStore implements OnModuleInit, OnModuleDestroy {
     }
 
     const isTenantMatch =
-      (contextEm as any)?.__tenant === undefined ||
-      (contextEm as any)?.__tenant === schema;
+      (contextEm as typeof contextEm & { __tenant?: string })?.__tenant ===
+        undefined ||
+      (contextEm as typeof contextEm & { __tenant?: string })?.__tenant ===
+        schema;
     const isSchemaMatch =
       contextEm?.schema === undefined || contextEm.schema === schema;
     const isConfigMatch =
-      !(orm as any).config ||
-      !(contextEm as any)?.config ||
-      (contextEm as any).config === (orm as any).config;
+      !orm.config || !contextEm?.config || contextEm.config === orm.config;
     const isDriverMatch =
       !orm.em.getDriver ||
       !contextEm?.getDriver ||
@@ -123,14 +123,20 @@ export class MikroOrmStore implements OnModuleInit, OnModuleDestroy {
       isSchemaMatch &&
       isTenantMatch
     ) {
-      if ((contextEm as any).__tenant === undefined) {
-        (contextEm as any).__tenant = schema;
+      if (
+        (contextEm as typeof contextEm & { __tenant?: string }).__tenant ===
+        undefined
+      ) {
+        (contextEm as typeof contextEm & { __tenant?: string }).__tenant =
+          schema;
       }
       return contextEm;
     }
 
-    const fork = orm.em.fork({ disableContextResolution: true }) as EntityManager;
-    (fork as any).__tenant = schema;
+    const fork = orm.em.fork({
+      disableContextResolution: true,
+    }) as EntityManager;
+    (fork as typeof fork & { __tenant?: string }).__tenant = schema;
     return fork;
   }
 
@@ -145,14 +151,14 @@ export class MikroOrmStore implements OnModuleInit, OnModuleDestroy {
     }
 
     const isTenantMatch =
-      (contextEm as any)?.__tenant === undefined ||
-      (contextEm as any)?.__tenant === schema;
+      (contextEm as typeof contextEm & { __tenant?: string })?.__tenant ===
+        undefined ||
+      (contextEm as typeof contextEm & { __tenant?: string })?.__tenant ===
+        schema;
     const isSchemaMatch =
       contextEm?.schema === undefined || contextEm.schema === schema;
     const isConfigMatch =
-      !(orm as any).config ||
-      !(contextEm as any)?.config ||
-      (contextEm as any).config === (orm as any).config;
+      !orm.config || !contextEm?.config || contextEm.config === orm.config;
     const isDriverMatch =
       !orm.em.getDriver ||
       !contextEm?.getDriver ||
@@ -166,14 +172,20 @@ export class MikroOrmStore implements OnModuleInit, OnModuleDestroy {
       isSchemaMatch &&
       isTenantMatch
     ) {
-      if ((contextEm as any).__tenant === undefined) {
-        (contextEm as any).__tenant = schema;
+      if (
+        (contextEm as typeof contextEm & { __tenant?: string }).__tenant ===
+        undefined
+      ) {
+        (contextEm as typeof contextEm & { __tenant?: string }).__tenant =
+          schema;
       }
       return contextEm;
     }
 
-    const fork = orm.em.fork({ disableContextResolution: true }) as SqlEntityManager;
-    (fork as any).__tenant = schema;
+    const fork = orm.em.fork({
+      disableContextResolution: true,
+    }) as SqlEntityManager;
+    (fork as typeof fork & { __tenant?: string }).__tenant = schema;
     return fork;
   }
 
@@ -186,7 +198,7 @@ export class MikroOrmStore implements OnModuleInit, OnModuleDestroy {
     const fork = this.resolveOrm().em.fork({
       disableContextResolution: true,
     }) as EntityManager;
-    (fork as any).__tenant = schema;
+    (fork as typeof fork & { __tenant?: string }).__tenant = schema;
     return cb(fork);
   }
 
@@ -199,7 +211,7 @@ export class MikroOrmStore implements OnModuleInit, OnModuleDestroy {
     const fork = this.resolveOrm().em.fork({
       disableContextResolution: true,
     }) as EntityManager;
-    (fork as any).__tenant = schema;
+    (fork as typeof fork & { __tenant?: string }).__tenant = schema;
     return fork.transactional(cb);
   }
 }

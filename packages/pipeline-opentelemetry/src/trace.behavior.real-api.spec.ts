@@ -77,7 +77,8 @@ describe('TraceBehavior (real OpenTelemetry API)', () => {
     };
     const realTracer = {
       startActiveSpan: vi.fn(
-        (name: string, opts: any, fn: (span: any) => any) => fn(activeSpanMock),
+        (_name: string, _opts: any, fn: (span: any) => any) =>
+          fn(activeSpanMock),
       ),
     };
     const realProvider = {
@@ -151,4 +152,3 @@ describe('TraceBehavior (real OpenTelemetry API)', () => {
     expect(next).toHaveBeenCalledOnce();
   });
 });
-

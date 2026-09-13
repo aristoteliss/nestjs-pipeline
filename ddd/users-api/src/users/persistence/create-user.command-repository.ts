@@ -26,40 +26,34 @@ import { UniqueEmailException } from '../domain/models/errors/email.exception';
 import { User, UserSnapshot } from '../domain/models/user.entity';
 
 @Injectable()
-export class CreateUserCommandRepository extends CommandRepository<
-  User,
-  UserSnapshot
-> {
+export class CreateUserCommandRepository extends CommandRepository<User, UserSnapshot> {
   constructor(
     @Inject(CACHE_TOKEN) protected readonly cache: ICache<UserSnapshot>,
     @Inject(MIKRO_ORM_CLIENT) private readonly store: MikroOrmStore,
-  ) {
-    super(cache);
-  }
+  ) { super(cache); }
 
-  @Cache<User, UserSnapshot>((user) =>
-    filterCacheKey(User.aggregateName, { id: user.id }),
+  /**
+   * Persists a new user, caches the canonical id lookup and invalidates the
+   * secondary email lookup so a previous negative/stale cache entry cannot hide
+   * the newly-created aggregate.
+   */
+  @Cache<User, UserSnapshot>(
+    (user) => filterCacheKey(User.aggregateName, { id: user.id }),
+    null,
+    (user) => [filterCacheKey(User.aggregateName, { email: user.email })],
   )
   async save(user: User): Promise<UserSnapshot> {
     const em = this.store.em;
-
     try {
       const persistedUser = em.create(User, user);
       em.persist(persistedUser);
       await em.flush();
-
       return persistedUser.toJSON();
     } catch (err: unknown) {
       if (
         err instanceof UniqueConstraintViolationException ||
-        (typeof err === 'object' &&
-          err !== null &&
-          'code' in err &&
-          err.code === 'SQLITE_CONSTRAINT_UNIQUE') ||
-        (err instanceof Error &&
-          (err.message.includes('UNIQUE') ||
-            err.message.includes('unique') ||
-            err.message.includes('SQLITE_CONSTRAINT_UNIQUE')))
+        (typeof err === 'object' && err !== null && 'code' in err && err.code === 'SQLITE_CONSTRAINT_UNIQUE') ||
+        (err instanceof Error && (err.message.includes('UNIQUE') || err.message.includes('unique') || err.message.includes('SQLITE_CONSTRAINT_UNIQUE')))
       ) {
         throw new UniqueEmailException(user);
       }
