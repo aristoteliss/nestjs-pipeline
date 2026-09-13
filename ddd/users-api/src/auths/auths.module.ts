@@ -19,7 +19,6 @@
 import { Module } from '@nestjs/common';
 import { GetUserQueryRepository } from '../users/persistence/get-user.query-repository';
 import { EXT_USER_QUERY_REPOSITORY } from '../users/persistence/repository.tokens';
-import { USER_CAPABILITY_READER } from './application/ports/user-capability-reader.port';
 import { AuthsController } from './controllers/auths.controller';
 import { CreateAuthHandler } from './cqrs/commands/create-auth.handler';
 import { DeleteAuthHandler } from './cqrs/commands/delete-auth.handler';
@@ -47,14 +46,9 @@ import { UserLoginService } from './services/user-login.service';
       provide: EXT_USER_QUERY_REPOSITORY.getUser,
       useClass: GetUserQueryRepository,
     },
-    GetUserCapabilitiesQueryRepository,
     {
       provide: QUERY_REPOSITORY.getUserCapabilities,
-      useExisting: GetUserCapabilitiesQueryRepository,
-    },
-    {
-      provide: USER_CAPABILITY_READER,
-      useExisting: GetUserCapabilitiesQueryRepository,
+      useClass: GetUserCapabilitiesQueryRepository,
     },
     {
       provide: QUERY_REPOSITORY.findAuth,

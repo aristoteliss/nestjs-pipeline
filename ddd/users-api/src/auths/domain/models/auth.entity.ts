@@ -24,6 +24,13 @@ export interface AuthSnapshot extends Partial<RootEntitySnapshot> {
   readonly token: string;
 }
 
+/**
+ * Persisted authentication aggregate.
+ *
+ * New instances are created with {@link Auth.create}; persisted snapshots are
+ * reconstituted with {@link Auth.fromJSON}. Direct construction is intentionally
+ * unavailable outside the aggregate boundary.
+ */
 export class Auth extends RootEntity<AuthSnapshot> {
   /** Canonical logical aggregate name used for cache namespacing and event topics. */
   public static readonly aggregateName = 'auth';
@@ -31,7 +38,7 @@ export class Auth extends RootEntity<AuthSnapshot> {
   readonly userId: string;
   readonly token: string;
 
-  constructor(snapshot?: AuthSnapshot) {
+  private constructor(snapshot?: AuthSnapshot) {
     super(snapshot);
     if (!snapshot) {
       this.userId = '';

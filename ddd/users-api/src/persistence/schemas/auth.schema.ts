@@ -20,8 +20,15 @@ import { EntitySchema } from '@mikro-orm/core';
 import { AggregateRoot, UnixTimestampType } from '@nestjs-pipeline/ddd-core';
 import { Auth } from '../../auths/domain/models/auth.entity';
 
+/**
+ * MikroORM EntitySchema for the {@link Auth} aggregate.
+ *
+ * The explicit `any` cast is the MikroORM v7 compatibility escape hatch for
+ * aggregates with private constructors. It remains confined to persistence so
+ * application/domain callers cannot bypass `Auth.create()` / `Auth.fromJSON()`.
+ */
 export const AuthSchema = new EntitySchema<Auth, AggregateRoot>({
-  class: Auth,
+  class: Auth as any,
   tableName: 'auth',
   properties: {
     id: { type: 'string', primary: true, fieldName: 'id', accessor: true },

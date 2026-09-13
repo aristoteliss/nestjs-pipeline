@@ -511,7 +511,7 @@ describe('users-api (e2e)', () => {
       );
       await ctx.app
         .get(MIKRO_ORM_CLIENT)
-        .em.upsert(Auth, new Auth({ userId: created.body.id, token: userJwt }));
+        .em.upsert(Auth, Auth.create(created.body.id, userJwt));
 
       // Before deletion, the user can successfully access protected endpoints
       const preDelete = await request(http)

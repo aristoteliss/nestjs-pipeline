@@ -8,6 +8,7 @@ import {
   IWriteSideAggregateRepository,
 } from '@nestjs-pipeline/ddd-core';
 import { CACHE_TOKEN } from '@persistence/cache/memory.cache';
+import { mapPersistenceError } from '@persistence/is-transient-persistence-error';
 import { MIKRO_ORM_CLIENT, MikroOrmStore } from '@persistence/mikro-orm.store';
 import { User, UserSnapshot } from '../domain/models/user.entity';
 
@@ -23,10 +24,17 @@ export class DeleteUserCommandRepository
     super(cache);
   }
 
-  /** Reads directly from primary persistence; command hydration never uses read-side cache. */
+  /**
+   * Reads directly from primary persistence and translates retryable driver
+   * failures into the application-neutral transient-operation signal.
+   */
   async findById(id: string): Promise<UserSnapshot | null> {
-    const user = await this.store.em.findOne(User, { id }, { refresh: true });
-    return user?.toJSON() ?? null;
+    try {
+      const user = await this.store.em.findOne(User, { id }, { refresh: true });
+      return user?.toJSON() ?? null;
+    } catch (error) {
+      throw mapPersistenceError(error, `loading User ${id}`);
+    }
   }
 
   @Cache<User, null>(null, (user) => [
@@ -34,7 +42,11 @@ export class DeleteUserCommandRepository
     filterCacheKey(User.aggregateName, { email: user.email }),
   ])
   async save(user: User): Promise<null> {
-    await this.store.em.nativeDelete(User, user.id);
-    return null;
+    try {
+      await this.store.em.nativeDelete(User, user.id);
+      return null;
+    } catch (error) {
+      throw mapPersistenceError(error, `deleting User ${user.id}`);
+    }
   }
 }

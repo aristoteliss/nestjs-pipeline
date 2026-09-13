@@ -7,7 +7,7 @@
  * License, or (at your option) any later version.
  */
 
-import { HttpException } from '@nestjs/common';
+import { TransientOperationError } from '@common/resilience/transient-operation.error';
 
 const TRANSIENT_CODES = new Set([
   '40001', // PostgreSQL serialization failure
@@ -26,9 +26,12 @@ const TRANSIENT_CODES = new Set([
   'SQLITE_LOCKED',
 ]);
 
-/** True only for persistence/network failures that are reasonable to retry. */
+/**
+ * Persistence-adapter classifier for driver/network failures that are reasonable
+ * to retry. This function is infrastructure-only; application handlers consume
+ * {@link TransientOperationError} instead of importing this classifier.
+ */
 export function isTransientPersistenceError(error: unknown): boolean {
-  if (error instanceof HttpException) return false;
   if (!error || typeof error !== 'object') return false;
 
   const candidate = error as {
@@ -55,4 +58,20 @@ export function isTransientPersistenceError(error: unknown): boolean {
   return candidate.cause !== undefined
     ? isTransientPersistenceError(candidate.cause)
     : false;
+}
+
+/**
+ * Translates persistence-specific transient failures into the neutral application
+ * retry signal. Non-transient failures are returned unchanged.
+ */
+export function mapPersistenceError(
+  error: unknown,
+  operation: string,
+): unknown {
+  return isTransientPersistenceError(error)
+    ? new TransientOperationError(
+        `Transient persistence failure while ${operation}.`,
+        { cause: error },
+      )
+    : error;
 }

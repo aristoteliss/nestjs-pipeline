@@ -8,6 +8,7 @@ import {
   IWriteSideAggregateRepository,
 } from '@nestjs-pipeline/ddd-core';
 import { CACHE_TOKEN } from '@persistence/cache/memory.cache';
+import { mapPersistenceError } from '@persistence/is-transient-persistence-error';
 import { MIKRO_ORM_CLIENT, MikroOrmStore } from '@persistence/mikro-orm.store';
 import { Role, RoleSnapshot } from '../domain/models/role.entity';
 
@@ -23,17 +24,28 @@ export class DeleteRoleCommandRepository
     super(cache);
   }
 
-  /** Reads directly from primary persistence; command hydration never uses read-side cache. */
+  /**
+   * Reads directly from primary persistence and translates retryable driver
+   * failures into the application-neutral transient-operation signal.
+   */
   async findById(id: string): Promise<RoleSnapshot | null> {
-    const role = await this.store.em.findOne(Role, { id }, { refresh: true });
-    return role?.toJSON() ?? null;
+    try {
+      const role = await this.store.em.findOne(Role, { id }, { refresh: true });
+      return role?.toJSON() ?? null;
+    } catch (error) {
+      throw mapPersistenceError(error, `loading Role ${id}`);
+    }
   }
 
   @Cache<Role, null>(null, (role) => [
     filterCacheKey(Role.aggregateName, { id: role.id }),
   ])
   async save(role: Role): Promise<null> {
-    await this.store.em.nativeDelete(Role, { id: role.id });
-    return null;
+    try {
+      await this.store.em.nativeDelete(Role, { id: role.id });
+      return null;
+    } catch (error) {
+      throw mapPersistenceError(error, `deleting Role ${role.id}`);
+    }
   }
 }

@@ -35,10 +35,8 @@ import type { SessionData } from '../../common/types/SessionUser';
 import { GetUserQuery } from '../../users/cqrs/queries/get-user.query';
 import { User } from '../../users/domain/models/user.entity';
 import { EXT_USER_QUERY_REPOSITORY } from '../../users/persistence/repository.tokens';
-import {
-  type IUserCapabilityReader,
-  USER_CAPABILITY_READER,
-} from '../application/ports/user-capability-reader.port';
+import { GetUserCapabilitiesQuery } from '../cqrs/queries/get-user-capabilities.query';
+import { QUERY_REPOSITORY } from '../persistence/repository.tokens';
 import { CapabilityCodec } from './capability-codec';
 import { JwtAuthenticator } from './jwt-authenticator';
 import { SessionService } from './session.service';
@@ -74,8 +72,11 @@ export class UserLoginService {
   constructor(
     @Inject(EXT_USER_QUERY_REPOSITORY.getUser)
     private readonly queryRepository: IQueryRepository<GetUserQuery, User>,
-    @Inject(USER_CAPABILITY_READER)
-    private readonly capabilityReader: IUserCapabilityReader,
+    @Inject(QUERY_REPOSITORY.getUserCapabilities)
+    private readonly capabilityRepository: IQueryRepository<
+      GetUserCapabilitiesQuery,
+      UserCapabilities
+    >,
     @Inject(TENANT_CONTEXT)
     private readonly tenantContext: ITenantContext,
     private readonly jwtAuthenticator: JwtAuthenticator,
@@ -206,8 +207,8 @@ export class UserLoginService {
     const audience = process.env.JWT_AUDIENCE;
     const tenant = this.tenantContext.schema;
 
-    const userCapabilities = await this.capabilityReader.getCapabilities(
-      user.id,
+    const userCapabilities = await this.capabilityRepository.find(
+      new GetUserCapabilitiesQuery({ userId: user.id }),
     );
 
     const nowSeconds = Math.floor(Date.now() / 1000);

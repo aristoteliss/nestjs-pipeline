@@ -22,34 +22,30 @@ import type {
   IUserCapabilityProvider,
   UserCapabilities,
 } from '@nestjs-pipeline/casl';
+import type { IQueryRepository } from '@nestjs-pipeline/ddd-core';
 import { UserAdditionalCapability } from '@persistence/entities/user-additional-capability.entity';
 import { UserDeniedCapability } from '@persistence/entities/user-denied-capability.entity';
 import { UserRole } from '@persistence/entities/user-role.entity';
 import { MIKRO_ORM_CLIENT, MikroOrmStore } from '@persistence/mikro-orm.store';
 import { Capability } from '../../roles/domain/models/capability.entity';
 import { Role } from '../../roles/domain/models/role.entity';
-import type { IUserCapabilityReader } from '../application/ports/user-capability-reader.port';
 import { GetUserCapabilitiesQuery } from '../cqrs/queries/get-user-capabilities.query';
 
 /**
- * Infrastructure adapter shared by CASL, CQRS query handling, and the narrow
- * authentication capability-reader port. All three views resolve the same
- * tenant-scoped capability data without nesting QueryBus calls in commands.
+ * Query repository and CASL capability provider resolving user permissions and roles.
  */
 @Injectable()
 export class GetUserCapabilitiesQueryRepository
-  implements IUserCapabilityProvider, IUserCapabilityReader
+  implements
+    IQueryRepository<GetUserCapabilitiesQuery, UserCapabilities>,
+    IUserCapabilityProvider
 {
   constructor(
     @Inject(MIKRO_ORM_CLIENT) private readonly store: MikroOrmStore,
   ) {}
 
-  async getCapabilities(userId: string): Promise<UserCapabilities> {
-    return this.find(new GetUserCapabilitiesQuery({ userId }));
-  }
-
   async getUserCapabilities(user: CaslUserContext): Promise<UserCapabilities> {
-    return this.getCapabilities(String(user.id));
+    return this.find(new GetUserCapabilitiesQuery({ userId: String(user.id) }));
   }
 
   async find(query: GetUserCapabilitiesQuery): Promise<UserCapabilities> {
