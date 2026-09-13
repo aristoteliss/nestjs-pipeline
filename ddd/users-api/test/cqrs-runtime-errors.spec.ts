@@ -91,6 +91,7 @@ function createMockEventBus(): EventBus {
 
 function createMockAuthorizer(allow = true): CaslAuthorizer {
   return {
+    can: vi.fn(() => allow),
     authorize: vi.fn((action: string, subject: unknown) => {
       if (!allow) {
         throw new UnauthorizedActionException(
@@ -100,6 +101,14 @@ function createMockAuthorizer(allow = true): CaslAuthorizer {
         );
       }
       return subject;
+    }),
+    filter: vi.fn((_action: string, subjects: Iterable<unknown>) => {
+      if (!allow) return [];
+      const res: unknown[] = [];
+      for (const item of subjects) {
+        if (item) res.push(item);
+      }
+      return res;
     }),
   } as unknown as CaslAuthorizer;
 }

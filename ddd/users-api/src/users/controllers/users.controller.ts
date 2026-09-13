@@ -25,7 +25,6 @@ import {
   Param,
   Patch,
   Post,
-  Req,
 } from '@nestjs/common';
 import { CommandBus, QueryBus } from '@nestjs/cqrs';
 import { ZodPipe } from '@nestjs-pipeline/zod';
@@ -57,9 +56,7 @@ export class UsersController {
 
   @Get()
   @HttpCode(200)
-  async getUsers(
-    @Req() _request: Request,
-  ): Promise<{ users: UserResponseDto[] }> {
+  async getUsers(): Promise<{ users: UserResponseDto[] }> {
     const users = await this.queryBus.execute<GetUsersQuery, UserSnapshot[]>(
       new GetUsersQuery({}),
     );

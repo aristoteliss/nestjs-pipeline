@@ -9,6 +9,8 @@
 
 import { TransientOperationError } from '@common/resilience/transient-operation.error';
 
+export { TransientOperationError };
+
 const TRANSIENT_CODES = new Set([
   '40001', // PostgreSQL serialization failure
   '40P01', // PostgreSQL deadlock

@@ -6,7 +6,11 @@ import { Inject } from '@nestjs/common';
 import { CommandHandler, EventBus } from '@nestjs/cqrs';
 import { AUDIT_SEVERITY, AuditBehavior } from '@nestjs-pipeline/audit';
 import { CaslAuthorizer, CaslBehavior } from '@nestjs-pipeline/casl';
-import { LoggingBehavior, UsePipeline } from '@nestjs-pipeline/core';
+import {
+  type IPipelineContext,
+  LoggingBehavior,
+  UsePipeline,
+} from '@nestjs-pipeline/core';
 import {
   CommandBaseHandler,
   EntityNotFoundException,
@@ -39,9 +43,9 @@ import { DeleteRoleCommand } from './delete-role.command';
   [
     AuditBehavior,
     {
-      action: AUDIT_ACTIONS.DELETE_ROLE,
+      action: AUDIT_ACTIONS.ROLE_DELETE,
       severity: AUDIT_SEVERITY.HIGH,
-      metadataFactory: (ctx) => {
+      metadataFactory: (ctx: IPipelineContext) => {
         const cmd = ctx.request as DeleteRoleCommand;
         const actor = getSessionUserFromStore();
         return cmd && actor
