@@ -31,6 +31,7 @@ import { Role } from '../../roles/domain/models/role.entity';
  * hides its constructor. The escape hatch remains confined to persistence.
  */
 export const RoleSchema = new EntitySchema<Role, AggregateRoot>({
+  // biome-ignore lint/suspicious/noExplicitAny: MikroORM schema requires a public constructor; Role hides its constructor to enforce domain invariants.
   class: Role as any,
   tableName: 'roles',
   properties: {
