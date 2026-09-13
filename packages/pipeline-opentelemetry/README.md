@@ -8,7 +8,7 @@ OpenTelemetry **tracing & metrics** behaviors for `@nestjs-pipeline/core` — au
 - **`TraceBehavior`** — wraps each handler in an OTel span (via the Trace API).
 - **`MetricsBehavior`** — records a latency histogram and an invocation counter (via the Metrics API).
 
-Both are no-op-safe: if the matching SDK isn't initialized, they pass through / record to a no-op meter without errors.
+Both are no-op-safe: if the matching SDK isn't initialized, the OpenTelemetry API supplies no-op telemetry implementations, so handlers continue normally and telemetry is silently discarded.
 
 ---
 
@@ -60,7 +60,7 @@ pnpm add @opentelemetry/sdk-node @opentelemetry/exporter-trace-otlp-http
 
 ### 1. Initialize the OTel SDK
 
-The SDK **must** be started before `NestFactory.create()`. The simplest approach is a dedicated `tracing.ts` file imported as the first line of `main.ts`:
+The SDK **must** be started before `NestFactory.create()` if you want telemetry to be exported. The simplest approach is a dedicated `tracing.ts` file imported as the first line of `main.ts`:
 
 ```typescript
 // tracing.ts
@@ -114,7 +114,7 @@ import { TraceBehavior } from '@nestjs-pipeline/opentelemetry';
 export class AppModule {}
 ```
 
-That's it — every command, query, and event handler now emits OTel spans automatically.
+That's it — every command, query, and event handler now emits OTel spans automatically when a tracer provider is installed; otherwise the Trace API uses its no-op tracer.
 
 ---
 
@@ -286,18 +286,16 @@ histogram_quantile(
 
 ### Custom Logger
 
-`TraceBehavior` accepts a custom Nest `LoggerService` via the `LOGGING_BEHAVIOR_LOGGER` token.
-This is useful when your app uses `nestjs-pino`.
+`MetricsBehavior` accepts a custom Nest `LoggerService` via the `LOGGING_BEHAVIOR_LOGGER` token so its startup SDK hint can use your application's logger. `TraceBehavior` has no startup readiness logger because it relies directly on the OpenTelemetry Trace API's no-op semantics.
 
 ```typescript
 import { Module } from '@nestjs/common';
 import { NativeLogger } from 'nestjs-pino';
 import { LOGGING_BEHAVIOR_LOGGER } from '@nestjs-pipeline/core';
-import { TraceBehavior, MetricsBehavior } from '@nestjs-pipeline/opentelemetry';
+import { MetricsBehavior } from '@nestjs-pipeline/opentelemetry';
 
 @Module({
   providers: [
-    TraceBehavior,
     MetricsBehavior,
     { provide: LOGGING_BEHAVIOR_LOGGER, useExisting: NativeLogger },
   ],
@@ -305,8 +303,7 @@ import { TraceBehavior, MetricsBehavior } from '@nestjs-pipeline/opentelemetry';
 export class AppModule {}
 ```
 
-Both behaviors only emit `warn`/`log` messages at startup; how those map to your
-transport (e.g. pino levels) is handled entirely by the injected logger.
+`MetricsBehavior` emits its startup `warn`/`log` hint through the injected logger; how that maps to your transport (e.g. pino levels) is handled entirely by the logger implementation.
 
 ### Global Tracer Name
 
@@ -348,33 +345,24 @@ If no `tracerName` is provided (neither globally nor per-handler), the default i
 
 ## No SDK? No Problem.
 
-If the OpenTelemetry SDK is **not** initialized (e.g. in development or test environments), both behaviors degrade safely: they do not export telemetry and do not throw because telemetry is unavailable.
+If the OpenTelemetry SDK is **not** initialized (for example in development or tests), both behaviors remain safe because the OpenTelemetry API provides no-op implementations.
 
-- `TraceBehavior` detects the missing tracer provider at module init via `isSdkInitialized()` and **passes through** without creating spans.
-- `MetricsBehavior` still performs its normal timing and metric-recording calls, but they target a **no-op meter**, so recordings are silently discarded. This is safe without a metrics pipeline, but it is not a literal zero-overhead path.
+- `TraceBehavior` always calls the public Trace API. Without a registered tracer provider, `trace.getTracer()` returns the API's no-op tracer; span operations are discarded and the wrapped handler still executes normally.
+- `MetricsBehavior` performs its normal timing and metric-recording calls against a no-op meter, so recordings are silently discarded. It keeps a best-effort startup hint for missing metrics configuration, but that hint never gates request handling.
 
-### How `isSdkInitialized()` Works
+`TraceBehavior` deliberately does **not** inspect provider implementation details such as `ProxyTracerProvider.getDelegate()`, `getDelegateTracer()`, or `constructor.name`. Those are implementation details rather than the public readiness contract and can change across OpenTelemetry versions.
 
-In `@opentelemetry/api`, `trace.getTracer()` **never** throws and **never** returns `undefined`. When the SDK is absent, it silently returns a `NoopTracer` that discards all spans. Furthermore, `trace.getTracerProvider()` returns a `ProxyTracerProvider` whose default delegate is `NoopTracerProvider`.
+If you want to skip even the no-op Trace API calls for a particular handler, set `enabled: false` in `TraceBehaviorOptions`.
 
-`isSdkInitialized()` inspects whether a real delegate is registered on the provider:
-1. Returns `false` if the provider or its delegate is a `NoopTracerProvider`.
-2. Probes `provider.getDelegateTracer('probe')` and returns `false` if it yields a `NoopTracer`.
-3. Returns `true` only when a real, active tracer provider is registered.
-
-You can also explicitly override this check per handler or globally using the `enabled?: boolean` option in `TraceBehaviorOptions`.
-
-A warning is logged once at startup for each:
+`MetricsBehavior` can still log its startup hint:
 
 ```
-[Nest] WARN [TraceBehavior] OpenTelemetry SDK is NOT initialized — TraceBehavior will pass through without tracing. Ensure your tracing bootstrap runs BEFORE NestFactory.create() (initialize it in a bootstrap module or use --require ./tracing.js).
 [Nest] WARN [MetricsBehavior] OpenTelemetry metrics SDK is NOT initialized — MetricsBehavior will record to a no-op meter (metrics discarded). Register a MeterProvider with a reader/exporter to export pipeline metrics.
 ```
 
-When the SDK IS active:
+When a metrics provider is active:
 
 ```
-[Nest] LOG [TraceBehavior] OpenTelemetry tracer provider is active — spans will be emitted.
 [Nest] LOG [MetricsBehavior] OpenTelemetry meter provider is active — pipeline metrics will be exported.
 ```
 
@@ -486,9 +474,8 @@ pipeline.handler.invocations{...,outcome="success"} counter   → request & erro
 
 | Export | Type | Description |
 |---|---|---|
-| `TraceBehavior` | Class | Pipeline behavior — creates OTel spans per handler invocation |
-| `TraceBehaviorOptions` | Interface | `{ tracerName?: string, enabled?: boolean }` — configure the tracer name or override SDK readiness |
-| `isSdkInitialized` | Function | Detects whether an active, non-noop OpenTelemetry `TracerProvider` is registered |
+| `TraceBehavior` | Class | Pipeline behavior — creates OTel spans per handler invocation; uses the API no-op tracer when no SDK is registered |
+| `TraceBehaviorOptions` | Interface | `{ tracerName?: string, enabled?: boolean }` — configure the tracer name or explicitly disable tracing for a handler |
 | `MetricsBehavior` | Class | Pipeline behavior — records duration histogram & invocation counter per handler |
 | `MetricsBehaviorOptions` | Interface | `{ meterName?: string }` — configure the meter name |
 
@@ -497,5 +484,3 @@ pipeline.handler.invocations{...,outcome="success"} counter   → request & erro
 ## License
 
 Dual-licensed under **AGPLv3** and a **Commercial License**. See the root [`LICENSE`](../../LICENSE) and [`COMMERCIAL_LICENSE.txt`](../../COMMERCIAL_LICENSE.txt) for details.
-
-Contact: **aristotelis@ik.me**

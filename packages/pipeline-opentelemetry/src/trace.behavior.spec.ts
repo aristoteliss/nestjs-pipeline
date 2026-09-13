@@ -16,26 +16,21 @@
  * ----------------------------
  */
 
-import { IPipelineContext } from '@nestjs-pipeline/core';
+import type { IPipelineContext } from '@nestjs-pipeline/core';
 import { SpanKind, SpanStatusCode, trace } from '@opentelemetry/api';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { TraceBehavior } from './trace.behavior';
 
-// ─── Mock the entire OTel API surface ────────────────────────────────────────
-// We preserve real enum values (SpanStatusCode, SpanKind, …) via importOriginal
-// and stub only the tracer-provider / tracer acquisition path.
 vi.mock('@opentelemetry/api', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@opentelemetry/api')>();
   return {
     ...actual,
     trace: {
-      getTracerProvider: vi.fn(),
+      ...actual.trace,
       getTracer: vi.fn(),
     },
   };
 });
-
-// ─── Span / Tracer doubles ────────────────────────────────────────────────────
 
 const mockSpan = {
   setStatus: vi.fn(),
@@ -44,25 +39,10 @@ const mockSpan = {
 };
 
 const mockTracer = {
-  // Always invokes the callback synchronously so tests stay async-free.
   startActiveSpan: vi.fn((_name: string, _opts: any, cb: (span: any) => any) =>
     cb(mockSpan),
   ),
 };
-
-/**
- * Returns a TracerProvider mock that passes the isSdkInitialized() probe:
- * has getDelegate() → returns an object with getTracer.
- */
-function initializedProvider() {
-  return {
-    getTracer: () => mockTracer,
-    getDelegate: () => ({ getTracer: () => mockTracer }),
-    getDelegateTracer: () => mockTracer,
-  };
-}
-
-// ─── Context factory ──────────────────────────────────────────────────────────
 
 function makeCtx(overrides: Partial<IPipelineContext> = {}): IPipelineContext {
   return {
@@ -82,291 +62,155 @@ function makeCtx(overrides: Partial<IPipelineContext> = {}): IPipelineContext {
   } as unknown as IPipelineContext;
 }
 
-// ─── Tests ────────────────────────────────────────────────────────────────────
-
 describe('TraceBehavior', () => {
   let behavior: TraceBehavior;
 
   beforeEach(() => {
     behavior = new TraceBehavior();
-
-    // Reset span & tracer mocks between tests.
+    vi.mocked(trace.getTracer).mockReset();
     mockSpan.setStatus.mockReset();
     mockSpan.recordException.mockReset();
     mockSpan.end.mockReset();
-
     mockTracer.startActiveSpan.mockReset();
     mockTracer.startActiveSpan.mockImplementation(
       (_name: string, _opts: any, cb: (span: any) => any) => cb(mockSpan),
     );
-
     vi.mocked(trace.getTracer).mockReturnValue(mockTracer as any);
   });
 
-  it('does not mutate a shared logger and supplies its context per call', () => {
-    const logger = {
-      warn: vi.fn(),
-      log: vi.fn(),
-      setContext: vi.fn(),
-    };
-    vi.mocked(trace.getTracerProvider).mockReturnValue({} as any);
-    const sharedLoggerBehavior = new TraceBehavior(logger as never);
+  it('uses the default tracer name when no options are provided', async () => {
+    await behavior.handle(makeCtx(), vi.fn().mockResolvedValue(null));
+    expect(trace.getTracer).toHaveBeenCalledWith('nestjs-pipeline');
+  });
 
-    sharedLoggerBehavior.onModuleInit();
+  it('uses the custom tracerName from behavior options', async () => {
+    const ctx = makeCtx();
+    vi.mocked(ctx.getBehaviorOptions).mockReturnValue({
+      tracerName: 'my-service',
+    } as any);
 
-    expect(logger.setContext).not.toHaveBeenCalled();
-    expect(logger.warn).toHaveBeenCalledWith(
-      expect.stringContaining('SDK is NOT initialized'),
-      TraceBehavior.name,
+    await behavior.handle(ctx, vi.fn().mockResolvedValue(null));
+    expect(trace.getTracer).toHaveBeenCalledWith('my-service');
+  });
+
+  it('bypasses all tracing calls when enabled is false', async () => {
+    const ctx = makeCtx();
+    vi.mocked(ctx.getBehaviorOptions).mockReturnValue({
+      enabled: false,
+    } as any);
+    const next = vi.fn().mockResolvedValue('bypassed');
+
+    await expect(behavior.handle(ctx, next)).resolves.toBe('bypassed');
+    expect(trace.getTracer).not.toHaveBeenCalled();
+    expect(mockTracer.startActiveSpan).not.toHaveBeenCalled();
+    expect(next).toHaveBeenCalledOnce();
+  });
+
+  it('creates a span named "{requestKind}.{requestName}"', async () => {
+    const ctx = makeCtx({
+      requestKind: 'query',
+      requestName: 'GetUserQuery',
+    });
+
+    await behavior.handle(ctx, vi.fn().mockResolvedValue(null));
+
+    expect(mockTracer.startActiveSpan).toHaveBeenCalledWith(
+      'query.GetUserQuery',
+      expect.objectContaining({ kind: SpanKind.INTERNAL }),
+      expect.any(Function),
     );
   });
 
-  // ────────────────────────────────────────────────────────────────────────────
-  describe('onModuleInit() — SDK detection via isSdkInitialized()', () => {
-    it('sets sdkReady=false when provider has no getDelegate property', () => {
-      vi.mocked(trace.getTracerProvider).mockReturnValue({} as any);
-
-      behavior.onModuleInit();
-
-      expect((behavior as any).sdkReady).toBe(false);
+  it('sets the correct pipeline attributes on the span', async () => {
+    const startedAt = new Date('2026-03-01T10:00:00.000Z');
+    const ctx = makeCtx({
+      requestKind: 'command',
+      requestName: 'CreateUserCommand',
+      handlerName: 'CreateUserHandler',
+      correlationId: 'corr-abc',
+      startedAt,
     });
 
-    it('sets sdkReady=false when getDelegate exists but returns null', () => {
-      vi.mocked(trace.getTracerProvider).mockReturnValue({
-        getTracer: () => mockTracer,
-        getDelegate: () => null,
-      } as any);
+    await behavior.handle(ctx, vi.fn().mockResolvedValue(null));
 
-      behavior.onModuleInit();
-
-      expect((behavior as any).sdkReady).toBe(false);
-    });
-
-    it('sets sdkReady=false when getDelegate returns an object without getTracer', () => {
-      vi.mocked(trace.getTracerProvider).mockReturnValue({
-        getTracer: () => mockTracer,
-        getDelegate: () => ({ getTracer: 'not-a-function' }),
-      } as any);
-
-      behavior.onModuleInit();
-
-      expect((behavior as any).sdkReady).toBe(false);
-    });
-
-    it('sets sdkReady=false when delegate is NoopTracerProvider', () => {
-      vi.mocked(trace.getTracerProvider).mockReturnValue({
-        getTracer: () => mockTracer,
-        getDelegate: () => ({
-          constructor: { name: 'NoopTracerProvider' },
-          getTracer: () => mockTracer,
-        }),
-      } as any);
-
-      behavior.onModuleInit();
-
-      expect((behavior as any).sdkReady).toBe(false);
-    });
-
-    it('sets sdkReady=false when provider itself is NoopTracerProvider', () => {
-      vi.mocked(trace.getTracerProvider).mockReturnValue({
-        constructor: { name: 'NoopTracerProvider' },
-        getTracer: () => mockTracer,
-      } as any);
-
-      behavior.onModuleInit();
-
-      expect((behavior as any).sdkReady).toBe(false);
-    });
-
-    it('sets sdkReady=false when proxy getDelegateTracer returns undefined', () => {
-      vi.mocked(trace.getTracerProvider).mockReturnValue({
-        getTracer: () => mockTracer,
-        getDelegate: () => ({ getTracer: () => mockTracer }),
-        getDelegateTracer: () => undefined,
-      } as any);
-
-      behavior.onModuleInit();
-
-      expect((behavior as any).sdkReady).toBe(false);
-    });
-
-    it('sets sdkReady=true when provider has a delegate with getTracer function', () => {
-      vi.mocked(trace.getTracerProvider).mockReturnValue(
-        initializedProvider() as any,
-      );
-
-      behavior.onModuleInit();
-
-      expect((behavior as any).sdkReady).toBe(true);
+    const [[, spanOpts]] = vi.mocked(mockTracer.startActiveSpan).mock.calls;
+    expect(spanOpts.attributes).toMatchObject({
+      'pipeline.request.kind': 'command',
+      'pipeline.request.name': 'CreateUserCommand',
+      'pipeline.handler.name': 'CreateUserHandler',
+      'pipeline.correlation_id': 'corr-abc',
+      'pipeline.started_at': startedAt.toISOString(),
     });
   });
 
-  // ────────────────────────────────────────────────────────────────────────────
-  describe('handle() — SDK not initialized (pass-through mode)', () => {
-    beforeEach(() => {
-      vi.mocked(trace.getTracerProvider).mockReturnValue({} as any);
-      behavior.onModuleInit(); // sdkReady = false
+  it('sets OK status, returns the result, and ends the span on success', async () => {
+    const next = vi.fn().mockResolvedValue('result-value');
+
+    const result = await behavior.handle(makeCtx(), next);
+
+    expect(result).toBe('result-value');
+    expect(mockSpan.setStatus).toHaveBeenCalledWith({
+      code: SpanStatusCode.OK,
     });
+    expect(mockSpan.end).toHaveBeenCalledOnce();
+    expect(mockSpan.recordException).not.toHaveBeenCalled();
+  });
 
-    it('calls next() and returns its result without touching the tracer', async () => {
-      const next = vi.fn().mockResolvedValue({ ok: true });
+  it('records exception, sets ERROR status, ends the span, and rethrows on failure', async () => {
+    const error = new Error('handler exploded');
 
-      const result = await behavior.handle(makeCtx(), next);
+    await expect(
+      behavior.handle(makeCtx(), vi.fn().mockRejectedValue(error)),
+    ).rejects.toThrow('handler exploded');
 
-      expect(result).toEqual({ ok: true });
-      expect(next).toHaveBeenCalledOnce();
-      expect(trace.getTracer).not.toHaveBeenCalled();
-      expect(mockTracer.startActiveSpan).not.toHaveBeenCalled();
+    expect(mockSpan.recordException).toHaveBeenCalledWith(error);
+    expect(mockSpan.setStatus).toHaveBeenCalledWith({
+      code: SpanStatusCode.ERROR,
+      message: 'handler exploded',
     });
+    expect(mockSpan.end).toHaveBeenCalledOnce();
+  });
 
-    it('propagates a rejection from next() without span side-effects', async () => {
-      const next = vi.fn().mockRejectedValue(new Error('downstream failure'));
+  it('always ends the span from the finally path', async () => {
+    await expect(
+      behavior.handle(makeCtx(), vi.fn().mockRejectedValue(new Error('fail'))),
+    ).rejects.toThrow('fail');
 
-      await expect(behavior.handle(makeCtx(), next)).rejects.toThrow(
-        'downstream failure',
-      );
+    expect(mockSpan.end).toHaveBeenCalledTimes(1);
+  });
 
-      expect(mockSpan.end).not.toHaveBeenCalled();
+  it('preserves an empty Error message in span status', async () => {
+    await expect(
+      behavior.handle(makeCtx(), vi.fn().mockRejectedValue(new Error())),
+    ).rejects.toThrow();
+
+    expect(mockSpan.setStatus).toHaveBeenCalledWith({
+      code: SpanStatusCode.ERROR,
+      message: '',
     });
   });
 
-  // ────────────────────────────────────────────────────────────────────────────
-  describe('handle() — SDK initialized (tracing mode)', () => {
-    beforeEach(() => {
-      vi.mocked(trace.getTracerProvider).mockReturnValue(
-        initializedProvider() as any,
-      );
-      behavior.onModuleInit(); // sdkReady = true
+  it('works for event handlers', async () => {
+    const ctx = makeCtx({
+      requestKind: 'event',
+      requestName: 'UserCreatedEvent',
     });
 
-    it('uses the default tracer name "nestjs-pipeline" when no options are provided', async () => {
-      await behavior.handle(makeCtx(), vi.fn().mockResolvedValue(null));
+    await behavior.handle(ctx, vi.fn().mockResolvedValue(undefined));
 
-      expect(trace.getTracer).toHaveBeenCalledWith('nestjs-pipeline');
-    });
-
-    it('uses the custom tracerName from getBehaviorOptions when provided', async () => {
-      const ctx = makeCtx();
-      vi.mocked(ctx.getBehaviorOptions).mockReturnValue({
-        tracerName: 'my-service',
-      } as any);
-
-      await behavior.handle(ctx, vi.fn().mockResolvedValue(null));
-
-      expect(trace.getTracer).toHaveBeenCalledWith('my-service');
-    });
-
-    it('creates a span named "{requestKind}.{requestName}"', async () => {
-      const ctx = makeCtx({
-        requestKind: 'query',
-        requestName: 'GetUserQuery',
-      });
-
-      await behavior.handle(ctx, vi.fn().mockResolvedValue(null));
-
-      expect(mockTracer.startActiveSpan).toHaveBeenCalledWith(
-        'query.GetUserQuery',
-        expect.objectContaining({ kind: SpanKind.INTERNAL }),
-        expect.any(Function),
-      );
-    });
-
-    it('sets the correct pipeline attributes on the span', async () => {
-      const startedAt = new Date('2026-03-01T10:00:00.000Z');
-      const ctx = makeCtx({
-        requestKind: 'command',
-        requestName: 'CreateUserCommand',
-        handlerName: 'CreateUserHandler',
-        correlationId: 'corr-abc',
-        startedAt,
-      });
-
-      await behavior.handle(ctx, vi.fn().mockResolvedValue(null));
-
-      const [[, spanOpts]] = vi.mocked(mockTracer.startActiveSpan).mock.calls;
-      expect(spanOpts.attributes).toMatchObject({
-        'pipeline.request.kind': 'command',
-        'pipeline.request.name': 'CreateUserCommand',
-        'pipeline.handler.name': 'CreateUserHandler',
-        'pipeline.correlation_id': 'corr-abc',
-        'pipeline.started_at': startedAt.toISOString(),
-      });
-    });
-
-    it('sets OK status, returns the result, and ends the span on success', async () => {
-      const next = vi.fn().mockResolvedValue('result-value');
-
-      const result = await behavior.handle(makeCtx(), next);
-
-      expect(result).toBe('result-value');
-      expect(mockSpan.setStatus).toHaveBeenCalledWith({
-        code: SpanStatusCode.OK,
-      });
-      expect(mockSpan.end).toHaveBeenCalledOnce();
-      expect(mockSpan.recordException).not.toHaveBeenCalled();
-    });
-
-    it('records exception, sets ERROR status, ends the span, and rethrows on failure', async () => {
-      const error = new Error('handler exploded');
-      const next = vi.fn().mockRejectedValue(error);
-
-      await expect(behavior.handle(makeCtx(), next)).rejects.toThrow(
-        'handler exploded',
-      );
-
-      expect(mockSpan.recordException).toHaveBeenCalledWith(error);
-      expect(mockSpan.setStatus).toHaveBeenCalledWith({
-        code: SpanStatusCode.ERROR,
-        message: 'handler exploded',
-      });
-      expect(mockSpan.end).toHaveBeenCalledOnce();
-    });
-
-    it('always ends the span in the finally block (even on throw)', async () => {
-      const next = vi.fn().mockRejectedValue(new Error('fail'));
-
-      await expect(behavior.handle(makeCtx(), next)).rejects.toThrow();
-
-      // end() must be called exactly once regardless of the error path.
-      expect(mockSpan.end).toHaveBeenCalledTimes(1);
-    });
-
-    it('handles an error without a message (err.message is empty string)', async () => {
-      // new Error() sets .message to '' — the behavior passes err?.message as-is.
-      const error = new Error();
-      const next = vi.fn().mockRejectedValue(error);
-
-      await expect(behavior.handle(makeCtx(), next)).rejects.toThrow();
-
-      expect(mockSpan.setStatus).toHaveBeenCalledWith({
-        code: SpanStatusCode.ERROR,
-        message: '',
-      });
-    });
-
-    it('works for event handlers (requestKind="event")', async () => {
-      const ctx = makeCtx({
-        requestKind: 'event',
-        requestName: 'UserCreatedEvent',
-      });
-      const next = vi.fn().mockResolvedValue(undefined);
-
-      await behavior.handle(ctx, next);
-
-      expect(mockTracer.startActiveSpan).toHaveBeenCalledWith(
-        'event.UserCreatedEvent',
-        expect.objectContaining({
-          kind: SpanKind.INTERNAL,
-          attributes: expect.objectContaining({
-            'pipeline.request.kind': 'event',
-            'pipeline.request.name': 'UserCreatedEvent',
-          }),
+    expect(mockTracer.startActiveSpan).toHaveBeenCalledWith(
+      'event.UserCreatedEvent',
+      expect.objectContaining({
+        kind: SpanKind.INTERNAL,
+        attributes: expect.objectContaining({
+          'pipeline.request.kind': 'event',
+          'pipeline.request.name': 'UserCreatedEvent',
         }),
-        expect.any(Function),
-      );
-      expect(mockSpan.setStatus).toHaveBeenCalledWith({
-        code: SpanStatusCode.OK,
-      });
+      }),
+      expect.any(Function),
+    );
+    expect(mockSpan.setStatus).toHaveBeenCalledWith({
+      code: SpanStatusCode.OK,
     });
   });
 });
