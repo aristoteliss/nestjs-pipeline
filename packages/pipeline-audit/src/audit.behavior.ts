@@ -52,13 +52,17 @@ export const AUDIT_RECORD_ITEM = Symbol('AUDIT_RECORD_ITEM');
  * For each run it times the handler, resolves the actor and action, redacts the
  * payload (and optionally the response), then forwards the record. Handler
  * failures are recorded before propagation. With the default `failOpen: true`,
- * sink failures are logged and the original handler result/error is preserved;
- * with `failOpen: false`, a sink failure is propagated and can replace a handler
- * error that was being audited.
+ * sink failures are logged and the original handler result/error is preserved.
+ * With `failOpen: false`, a sink/build failure on the **success path** fails the
+ * request. If the handler already failed, the original handler error remains the
+ * error seen by the caller; when possible the audit failure is attached as
+ * `error.cause` so the secondary durability problem is still observable without
+ * hiding the business/application root cause.
  *
  * Sink-agnostic by design: it depends only on {@link AuditSink}, so the backend
  * (console, Postgres, an event store, …) is a one-line swap in
- * {@link AuditModule.forRoot}. Record-building failures are logged and ignored.
+ * {@link AuditModule.forRoot}. Record-building failures are logged and ignored
+ * in fail-open mode, or propagated according to the same fail-closed semantics.
  *
  * **Ordering:** place this near the **outside** of the chain (e.g. global
  * `before`) so the duration covers the whole handler, and after any auth
@@ -74,6 +78,16 @@ export const AUDIT_RECORD_ITEM = Symbol('AUDIT_RECORD_ITEM');
  *   actor: (c) => ({ id: c.items.get('currentUserId') }),
  * }])
  * export class DeleteUserHandler {}
+ * ```
+ *
+ * @example Compliance-sensitive fail-closed auditing
+ * ```ts
+ * @UsePipeline([AuditBehavior, {
+ *   action: 'payment.refund',
+ *   failOpen: false,
+ *   includeResponse: false,
+ * }])
+ * export class RefundPaymentHandler {}
  * ```
  */
 @Injectable()
@@ -138,12 +152,15 @@ export class AuditBehavior implements IPipelineBehavior {
         if (
           !failOpen &&
           error instanceof Error &&
-          recordError instanceof Error &&
           !(error as { cause?: unknown }).cause
         ) {
+          const causeError =
+            recordError instanceof Error
+              ? recordError
+              : new Error(String(recordError));
           try {
             if (Object.isExtensible(error)) {
-              (error as { cause?: unknown }).cause = recordError;
+              (error as { cause?: unknown }).cause = causeError;
             }
           } catch {
             // Intentionally ignored: error may be non-extensible or frozen
