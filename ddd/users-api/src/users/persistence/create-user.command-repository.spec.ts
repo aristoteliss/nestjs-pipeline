@@ -1,4 +1,4 @@
-import type { ICache } from '@nestjs-pipeline/ddd-core';
+import { type ICache, toCacheSnapshot } from '@nestjs-pipeline/ddd-core';
 import { describe, expect, it, vi } from 'vitest';
 import { UniqueEmailException } from '../domain/models/errors/email.exception';
 import { User, type UserSnapshot } from '../domain/models/user.entity';
@@ -24,7 +24,11 @@ describe('CreateUserCommandRepository', () => {
 
     const result = await repository.save(user);
 
-    expect(cache.set).toHaveBeenCalledWith(`tenant:user:id:${user.id}`, result);
+    expect(cache.set).toHaveBeenCalledWith(
+      `tenant:user:id:${user.id}`,
+      toCacheSnapshot(result),
+      expect.objectContaining({ isNewer: expect.any(Function) }),
+    );
     expect(cache.delete).toHaveBeenCalledWith(
       'tenant:user:email:alice@example.test',
     );

@@ -82,9 +82,86 @@ describe('MikroOrmCache', () => {
     const result = await cache.get('expired-key');
 
     expect(result).toBeUndefined();
+    expect(mockEm.findOne).toHaveBeenCalledWith(
+      CacheEntry,
+      { key: 'expired-key' },
+      { disableIdentityMap: true },
+    );
     expect(mockEm.nativeDelete).toHaveBeenCalledWith(CacheEntry, {
       key: 'expired-key',
+      value: expiredEntry.value,
+      expiresAt: expiredEntry.expiresAt,
     });
+  });
+
+  it('bypasses identity map and returns parsed value on cache hit', async () => {
+    const liveEntry = new CacheEntry();
+    liveEntry.key = 'live-key';
+    liveEntry.value = JSON.stringify({ name: 'Live', score: 100 });
+    liveEntry.expiresAt = Date.now() + 60_000;
+
+    const mockEm: any = {
+      findOne: vi.fn().mockResolvedValue(liveEntry),
+    };
+    const mockStore: any = { em: mockEm };
+
+    const cache = new MikroOrmCache<{ name: string; score: number }>(mockStore);
+    const result = await cache.get('live-key');
+
+    expect(result).toEqual({ name: 'Live', score: 100 });
+    expect(mockEm.findOne).toHaveBeenCalledWith(
+      CacheEntry,
+      { key: 'live-key' },
+      { disableIdentityMap: true },
+    );
+  });
+
+  it('re-reads and returns fresh replacement when concurrent write raced during lazy eviction', async () => {
+    const expiredEntry = new CacheEntry();
+    expiredEntry.key = 'race-key';
+    expiredEntry.value = JSON.stringify({ version: 1 });
+    expiredEntry.expiresAt = Date.now() - 1000;
+
+    const freshEntry = new CacheEntry();
+    freshEntry.key = 'race-key';
+    freshEntry.value = JSON.stringify({ version: 2 });
+    freshEntry.expiresAt = Date.now() + 60_000;
+
+    const mockEm: any = {
+      findOne: vi
+        .fn()
+        .mockResolvedValueOnce(expiredEntry) // first read finds expired entry
+        .mockResolvedValueOnce(freshEntry), // re-read after affected === 0 finds fresh entry
+      nativeDelete: vi.fn().mockResolvedValue(0), // nativeDelete affects 0 rows because fresh write altered value/expiresAt
+    };
+    const mockStore: any = { em: mockEm };
+
+    const cache = new MikroOrmCache<{ version: number }>(mockStore);
+    const result = await cache.get('race-key');
+
+    // Reader did NOT delete fresh entry, lost CAS delete, re-read and returned fresh value
+    expect(result).toEqual({ version: 2 });
+    expect(mockEm.nativeDelete).toHaveBeenCalledWith(CacheEntry, {
+      key: 'race-key',
+      value: expiredEntry.value,
+      expiresAt: expiredEntry.expiresAt,
+    });
+    expect(mockEm.findOne).toHaveBeenCalledTimes(2);
+  });
+
+  it('throws and fails closed when cached JSON payload is corrupt', async () => {
+    const corruptEntry = new CacheEntry();
+    corruptEntry.key = 'corrupt-key';
+    corruptEntry.value = 'invalid-json{{{';
+    corruptEntry.expiresAt = Date.now() + 60_000;
+
+    const mockEm: any = {
+      findOne: vi.fn().mockResolvedValue(corruptEntry),
+    };
+    const mockStore: any = { em: mockEm };
+
+    const cache = new MikroOrmCache(mockStore);
+    await expect(cache.get('corrupt-key')).rejects.toThrow(SyntaxError);
   });
 
   it('rejects stale write atomically when isNewer indicates cached entry is newer', async () => {

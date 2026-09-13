@@ -32,6 +32,8 @@ export * from './persistence/decorators/acknowledge-persisted.decorator';
 export * from './persistence/decorators/Cache';
 export * from './persistence/decorators/FromCache';
 export * from './persistence/decorators/map-persistence-errors.decorator';
+export * from './persistence/helpers/cache-snapshot.helper';
+export * from './persistence/helpers/cache-version.helper';
 export * from './persistence/optimistic-update';
 export * from './persistence/query-repository.abstract';
 export * from './persistence/query-repository.interface';

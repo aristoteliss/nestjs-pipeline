@@ -216,9 +216,11 @@ Queries should be side-effect free from the business perspective.
 Query repositories and decorators:
 
 - `QueryRepository<TQuery, TResult>` accepts exactly 2 generic parameters: the query input type and the domain aggregate output type.
-- `@FromCache<TQuery, TResult>` accepts 2 generic parameters. On cache miss, it extracts a detached snapshot (`serializeFn` or `result.toJSON()`).
-- Query repositories configure `@FromCache({ alwaysHydrate: true, ... })` and return strictly `Promise<TEntity | null>`, eliminating ambiguous union types (`User | UserSnapshot`).
+- `@FromCache<TQuery, TResult>` accepts 2 generic parameters. On cache miss, it extracts a detached snapshot (`toCacheSnapshot()`, `serializeFn`, or `result.toJSON()`).
+- Query repositories configure `@FromCache({ alwaysHydrate: true, ... })` and return strictly `Promise<TEntity | null>`, eliminating ambiguous union types (`User | UserSnapshot`). Decoration-time validation ensures `alwaysHydrate: true` requires `hydrateFn`.
+- Strong consistency on concurrent reads: If an in-flight query races with a concurrent write that updates the cache, `@FromCache` detects the newer cached version (`newerCheck(current, snapshot)`) and returns the hydrated newer version to the reader rather than returning stale database data or corrupting cache.
 - Cache adapters (`ICache<TSnapshot>`) store strictly serializable snapshots, never live domain aggregates. `MemoryCache` enforces deep detachment parity with database caches via JSON cloning on `set()` and `get()`.
+- `MikroOrmCache` executes queries outside the identity map (`{ disableIdentityMap: true }`) and uses conditional CAS deletion on expired keys (`{ key, value, expiresAt }`) to prevent concurrent fresh writes from being purged by an expired reader.
 
 Query handlers:
 
@@ -261,7 +263,7 @@ Do not throw HTTP exceptions from repositories.
 
 On command repository `save()` operations, apply method decorators in strictly outermost-to-innermost order:
 
-1. `@Cache(...)`: Read-through cache synchronization / invalidation after durable write & acknowledgment.
+1. `@Cache(...)`: Write-through cache synchronization / invalidation after durable write & acknowledgment. Serializes through `toCacheSnapshot()` and protects against race conditions via CAS comparison (`isCacheNewer`), ensuring late-finishing writes cannot overwrite newer cached versions.
 2. `@AcknowledgePersisted({ entity: ([arg]) => arg })`: Captures entry version, updates `aggregate.acknowledgePersisted(version)` only after the persistence promise resolves.
 3. `@MapPersistenceErrors({ entity, unique: [...] })`: Translates known driver constraint errors (PostgreSQL 23505 and SQLite column matches) into domain exceptions before throwing.
 

@@ -2,6 +2,7 @@ import { OptimisticLockError } from '@mikro-orm/core';
 import {
   EntityNotFoundException,
   type ICache,
+  toCacheSnapshot,
 } from '@nestjs-pipeline/ddd-core';
 import { describe, expect, it, vi } from 'vitest';
 import { User, type UserSnapshot } from '../domain/models/user.entity';
@@ -40,7 +41,8 @@ describe('UpdateUserCommandRepository', () => {
     );
     expect(cache.set).toHaveBeenCalledWith(
       `tenant:user:id:${user.id}`,
-      user.toJSON(),
+      toCacheSnapshot(user.toJSON()),
+      expect.objectContaining({ isNewer: expect.any(Function) }),
     );
   });
 

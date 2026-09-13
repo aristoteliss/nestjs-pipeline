@@ -16,7 +16,7 @@
  * ----------------------------
  */
 
-import type { ICache } from '@nestjs-pipeline/ddd-core';
+import { type ICache, toCacheSnapshot } from '@nestjs-pipeline/ddd-core';
 import { describe, expect, it, vi } from 'vitest';
 import { Auth, type AuthSnapshot } from '../domain/models/auth.entity';
 import { CreateAuthCommandRepository } from './create-auth.command-repository';
@@ -40,7 +40,11 @@ describe('CreateAuthCommandRepository', () => {
     const result = await repository.save(auth);
 
     expect(upsert).toHaveBeenCalledWith(Auth, auth);
-    expect(cache.set).toHaveBeenCalledWith(`tenant:auth:id:${auth.id}`, result);
+    expect(cache.set).toHaveBeenCalledWith(
+      `tenant:auth:id:${auth.id}`,
+      toCacheSnapshot(result),
+      expect.objectContaining({ isNewer: expect.any(Function) }),
+    );
     expect(result).toEqual(auth.toJSON());
     expect((auth as any)._persistedVersion).toBe(1);
   });

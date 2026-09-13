@@ -1,5 +1,5 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
-import type { ICache } from '@nestjs-pipeline/ddd-core';
+import { type ICache, toCacheSnapshot } from '@nestjs-pipeline/ddd-core';
 import { describe, expect, it, vi } from 'vitest';
 import { UniqueRoleNameException } from '../domain/models/errors/role-name.exception';
 import { Role, type RoleSnapshot } from '../domain/models/role.entity';
@@ -24,7 +24,11 @@ describe('CreateRoleCommandRepository', () => {
     const result = await repository.save(role);
 
     expect(upsert).toHaveBeenCalledWith(Role, role);
-    expect(cache.set).toHaveBeenCalledWith(`tenant:role:id:${role.id}`, result);
+    expect(cache.set).toHaveBeenCalledWith(
+      `tenant:role:id:${role.id}`,
+      toCacheSnapshot(result),
+      expect.objectContaining({ isNewer: expect.any(Function) }),
+    );
     expect(result).toEqual(role.toJSON());
     expect((role as any)._persistedVersion).toBe(1);
   });

@@ -56,8 +56,13 @@ function createStatefulMikroOrmStore(): any {
       return 1;
     }),
     nativeDelete: vi.fn().mockImplementation(async (_entity, where) => {
-      const existed = table.delete(where.key);
-      return existed ? 1 : 0;
+      const entry = table.get(where.key);
+      if (!entry) return 0;
+      if (where.value !== undefined && entry.value !== where.value) return 0;
+      if (where.expiresAt !== undefined && entry.expiresAt !== where.expiresAt)
+        return 0;
+      table.delete(where.key);
+      return 1;
     }),
   };
 

@@ -18,6 +18,8 @@
 
 import { Logger } from '@nestjs/common';
 import type { CommandRepository } from '../command-repository.abstract';
+import { toCacheSnapshot } from '../helpers/cache-snapshot.helper';
+import { isCacheNewer } from '../helpers/cache-version.helper';
 
 const logger = new Logger('CacheDecorator');
 
@@ -40,6 +42,18 @@ export interface CacheOptions<TEntity = unknown> {
    * Optional secondary keys to evict on every successful save before writing the new entry.
    */
   invalidateKeys?: ((entity: TEntity) => string[]) | null;
+
+  /**
+   * Optional time-to-live in milliseconds for the write-through cache entry.
+   */
+  ttl?: number;
+
+  /**
+   * Optional version comparison function for CAS-safe write-through caching.
+   * If omitted, defaults to {@link isCacheNewer} which compares `version`, `__gen`, or `updatedAt`.
+   * Pass `null` to explicitly disable CAS.
+   */
+  isNewer?: ((cached: unknown, incoming: unknown) => boolean) | null;
 }
 
 /**
@@ -84,19 +98,30 @@ export function Cache<TEntity = unknown, TResult = unknown | null>(
   let resolvedSetKey: ((entity: TEntity) => string) | null = null;
   let resolvedDeleteKeys: ((entity: TEntity) => string[]) | null = null;
   let resolvedInvalidateKeys: ((entity: TEntity) => string[]) | null = null;
+  let resolvedTtl: number | undefined;
+  let resolvedIsNewer:
+    | ((cached: unknown, incoming: unknown) => boolean)
+    | undefined = isCacheNewer;
 
   if (typeof setKeyOrOptions === 'function') {
     resolvedSetKey = setKeyOrOptions;
     resolvedDeleteKeys = deleteKeysFn ?? null;
     resolvedInvalidateKeys = invalidateKeysFn ?? null;
+    resolvedIsNewer = isCacheNewer;
   } else if (setKeyOrOptions && typeof setKeyOrOptions === 'object') {
     resolvedSetKey = setKeyOrOptions.setKey ?? null;
     resolvedDeleteKeys = setKeyOrOptions.deleteKeys ?? null;
     resolvedInvalidateKeys = setKeyOrOptions.invalidateKeys ?? null;
+    resolvedTtl = setKeyOrOptions.ttl;
+    resolvedIsNewer =
+      setKeyOrOptions.isNewer === null
+        ? undefined
+        : (setKeyOrOptions.isNewer ?? isCacheNewer);
   } else if (setKeyOrOptions === null) {
     resolvedSetKey = null;
     resolvedDeleteKeys = deleteKeysFn ?? null;
     resolvedInvalidateKeys = invalidateKeysFn ?? null;
+    resolvedIsNewer = isCacheNewer;
   } else {
     throw new Error(
       '@Cache decorator requires an explicit key derivation function or options object.',
@@ -186,7 +211,12 @@ export function Cache<TEntity = unknown, TResult = unknown | null>(
           }
           if (setKey) {
             try {
-              await this.cache.set(setKey, result);
+              const snapshot = toCacheSnapshot(result);
+              const setOptions = {
+                ttl: resolvedTtl,
+                isNewer: resolvedIsNewer,
+              };
+              await this.cache.set(setKey, snapshot, setOptions);
             } catch (err) {
               logger.warn(
                 `Failed setting cache key "${setKey}": ${err instanceof Error ? err.message : String(err)}`,

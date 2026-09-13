@@ -39,23 +39,73 @@ export class MikroOrmCache<T> implements ICache<T> {
   }
 
   /**
-   * Get a value from the cache by key. Handles TTL expiry and lazy eviction.
+   * Get a value from the cache by key. Handles TTL expiry and CAS-safe lazy eviction.
+   * Reads bypass the MikroORM identity map to guarantee fresh persistence state.
    */
   async get(key: string): Promise<T | undefined> {
-    const entry = await this.store.em.findOne(CacheEntry, { key });
+    const entry = await this.findEntry(key);
 
     if (!entry) return undefined;
 
-    if (entry.expiresAt !== null && entry.expiresAt < Date.now()) {
-      await this.store.em.nativeDelete(CacheEntry, { key });
-      return undefined;
+    if (this.isExpired(entry)) {
+      return this.evictExpiredEntry(entry);
     }
 
-    return JSON.parse(entry.value) as T;
+    return this.parseValue(entry.value);
+  }
+
+  private async findEntry(key: string): Promise<CacheEntry | null> {
+    return this.store.em.findOne(
+      CacheEntry,
+      { key },
+      { disableIdentityMap: true },
+    );
+  }
+
+  private isExpired(entry: CacheEntry): boolean {
+    return entry.expiresAt !== null && entry.expiresAt < Date.now();
+  }
+
+  private async evictExpiredEntry(entry: CacheEntry): Promise<T | undefined> {
+    const affected = await this.store.em.nativeDelete(CacheEntry, {
+      key: entry.key,
+      value: entry.value,
+      expiresAt: entry.expiresAt,
+    });
+
+    if (affected === 0) {
+      const fresh = await this.findEntry(entry.key);
+
+      if (fresh && !this.isExpired(fresh)) {
+        return this.parseValue(fresh.value);
+      }
+    }
+
+    return undefined;
+  }
+
+  private parseValue(raw: string): T {
+    return JSON.parse(raw) as T;
   }
 
   /**
-   * Set a value in the cache, with optional TTL (time-to-live) and conditional newer check.
+   * Stores a value in the relational cache table with transactional CAS concurrency safety.
+   *
+   * When `options.isNewer` is configured, executes a CAS loop comparing the incoming snapshot
+   * against the current persisted entry. If the existing cached entry is newer, the write is
+   * skipped without regressing the cache.
+   *
+   * @example
+   * ```typescript
+   * await cache.set('user:1', userSnapshot, {
+   *   ttl: 60_000,
+   *   isNewer: isCacheNewer,
+   * });
+   * ```
+   *
+   * @param key - Unique cache key.
+   * @param value - Snapshot value to serialize and persist.
+   * @param options - Cache options including TTL and atomic version comparator.
    */
   async set(key: string, value: T, options?: CacheSetOptions): Promise<void> {
     const ttl = options?.ttl ?? this.defaultTtlMs;
@@ -115,6 +165,16 @@ export class MikroOrmCache<T> implements ICache<T> {
     });
   }
 
+  /**
+   * Explicitly evicts a key from the database cache table.
+   *
+   * @example
+   * ```typescript
+   * await cache.delete('user:1');
+   * ```
+   *
+   * @param key - Cache key to evict.
+   */
   async delete(key: string): Promise<void> {
     await this.store.em.nativeDelete(CacheEntry, { key });
   }
