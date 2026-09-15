@@ -1,3 +1,4 @@
+/* Copyright (C) 2026-present Aristotelis — see repository license. */
 import type { ICache } from '@nestjs-pipeline/ddd-core';
 import { CACHE_TOKEN, filterCacheKey } from '@nestjs-pipeline/ddd-core';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';

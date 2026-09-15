@@ -1,7 +1,4 @@
-/*
- * Copyright (C) 2026-present Aristotelis
- * See repository license for full terms.
- */
+/* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 export const WELCOME_EMAIL_DISPATCHER = Symbol('WELCOME_EMAIL_DISPATCHER');
 export const USER_BATCH_DISPATCHER = Symbol('USER_BATCH_DISPATCHER');

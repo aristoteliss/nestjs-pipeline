@@ -1,3 +1,4 @@
+/* Copyright (C) 2026-present Aristotelis — see repository license. */
 import { OptimisticLockError } from '@mikro-orm/core';
 import type { ArgumentsHost } from '@nestjs/common';
 import { DomainException } from '@nestjs-pipeline/ddd-core';

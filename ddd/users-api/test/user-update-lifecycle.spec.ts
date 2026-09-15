@@ -1,3 +1,4 @@
+/* Copyright (C) 2026-present Aristotelis — see repository license. */
 import { OptimisticLockError } from '@mikro-orm/core';
 import { MikroORM } from '@mikro-orm/libsql';
 import type { ICache } from '@nestjs-pipeline/ddd-core';

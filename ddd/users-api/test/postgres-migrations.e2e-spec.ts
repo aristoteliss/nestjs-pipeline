@@ -1,3 +1,4 @@
+/* Copyright (C) 2026-present Aristotelis — see repository license. */
 import { MikroORM } from '@mikro-orm/postgresql';
 import { Migration20260830000000 } from '@persistence/migrations/Migration20260830000000';
 import { createPostgresOrmOptions } from '@persistence/postgres-options';

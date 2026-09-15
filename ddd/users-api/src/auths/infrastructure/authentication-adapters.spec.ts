@@ -1,7 +1,4 @@
-/*
- * Copyright (C) 2026-present Aristotelis
- * See repository license for full terms.
- */
+/* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { createHash } from 'node:crypto';
 import { decodeJwt } from 'jose';

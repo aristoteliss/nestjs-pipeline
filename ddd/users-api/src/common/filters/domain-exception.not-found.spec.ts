@@ -1,3 +1,4 @@
+/* Copyright (C) 2026-present Aristotelis — see repository license. */
 import type { ArgumentsHost } from '@nestjs/common';
 import { EntityNotFoundException } from '@nestjs-pipeline/ddd-core';
 import { describe, expect, it, vi } from 'vitest';

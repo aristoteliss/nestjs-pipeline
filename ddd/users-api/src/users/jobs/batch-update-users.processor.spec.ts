@@ -1,3 +1,4 @@
+/* Copyright (C) 2026-present Aristotelis — see repository license. */
 import type { TenantSchemaContext } from '@persistence/tenant-schema.context';
 import type { Job } from 'bullmq';
 import { describe, expect, it, vi } from 'vitest';

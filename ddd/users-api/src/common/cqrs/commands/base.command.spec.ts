@@ -1,3 +1,4 @@
+/* Copyright (C) 2026-present Aristotelis — see repository license. */
 import { fingerprintValue } from '@nestjs-pipeline/idempotency';
 import { describe, expect, it } from 'vitest';
 import { CreateUserCommand } from '../../../users/cqrs/commands/create-user.command';

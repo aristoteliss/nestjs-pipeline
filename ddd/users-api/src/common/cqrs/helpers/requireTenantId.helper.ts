@@ -1,3 +1,4 @@
+/* Copyright (C) 2026-present Aristotelis — see repository license. */
 import type { IPipelineContext } from '@nestjs-pipeline/core';
 
 /**

@@ -1,3 +1,4 @@
+/* Copyright (C) 2026-present Aristotelis — see repository license. */
 import { type EntityManager, OptimisticLockError } from '@mikro-orm/core';
 import { describe, expect, it, vi } from 'vitest';
 import { EntityNotFoundException } from '../domain/exceptions/entity-not-found.exception';

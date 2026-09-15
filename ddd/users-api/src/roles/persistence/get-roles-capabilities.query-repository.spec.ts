@@ -1,3 +1,4 @@
+/* Copyright (C) 2026-present Aristotelis — see repository license. */
 import { RoleCapability } from '@persistence/entities/role-capability.entity';
 import { describe, expect, it, vi } from 'vitest';
 import { GetRolesCapabilitiesQuery } from '../cqrs/queries/get-roles-capabilities.query';

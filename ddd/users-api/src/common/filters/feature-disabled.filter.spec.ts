@@ -1,3 +1,4 @@
+/* Copyright (C) 2026-present Aristotelis — see repository license. */
 import type { ArgumentsHost } from '@nestjs/common';
 import { FeatureDisabledError } from '@nestjs-pipeline/feature-flags';
 import { describe, expect, it, vi } from 'vitest';

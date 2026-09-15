@@ -1,20 +1,4 @@
-/*
- * Copyright (C) 2026-present Aristotelis
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Affero General Public License as
- * published by the Free Software Foundation, either version 3 of the
- * License, or (at your option) any later version.
- *
- * --- COMMERCIAL EXCEPTION ---
- * Alternatively, a Commercial License is available for individuals or
- * organizations that require proprietary use without the AGPLv3
- * copyleft restrictions.
- *
- * See COMMERCIAL_LICENSE.txt in this repository for the tiered
- * revenue-based terms, or contact: aristotelis@ik.me
- * ----------------------------
- */
+/* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 /**
  * Integration tests for CaslBehavior.handle() — the full pipeline path.
@@ -156,7 +140,7 @@ function makeContext<T>(
   user?: CaslUserContext,
   behaviorOptions?: CaslBehaviorOptions,
 ): IPipelineContext<T> {
-  const items = new Map<string, unknown>();
+  const items = new Map<string | symbol, unknown>();
   if (user) {
     items.set(CASL_USER_CONTEXT_KEY, user);
   }

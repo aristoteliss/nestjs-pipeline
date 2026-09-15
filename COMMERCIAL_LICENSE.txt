@@ -28,7 +28,7 @@ d) Tier 4: Gross revenue exceeding $50,000,000 USD
 3. REPORTING AND REMITTANCE
 - Fees are calculated annually and must be remitted to the Licensor within ninety (90) days following the close of Your fiscal year.
 - You must maintain adequate records to verify your gross revenue tier.
-- To remit payment or register for Tier 1, You must contact the Licensor at [Insert Contact Info].
+- To remit payment or register for Tier 1, You must contact the Licensor at aristotelis@ik.me.
 
 4. NO WARRANTY
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE LICENSOR BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE.

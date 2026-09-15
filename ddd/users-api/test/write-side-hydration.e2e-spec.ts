@@ -1,3 +1,4 @@
+/* Copyright (C) 2026-present Aristotelis — see repository license. */
 import type { Server } from 'node:http';
 import {
   MIKRO_ORM_CLIENT,

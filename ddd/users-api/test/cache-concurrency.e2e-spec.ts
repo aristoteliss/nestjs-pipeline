@@ -1,3 +1,4 @@
+/* Copyright (C) 2026-present Aristotelis — see repository license. */
 import { EntityManager, MikroORM } from '@mikro-orm/postgresql';
 import { GenericContainer, Wait } from 'testcontainers';
 import { expect, it } from 'vitest';
