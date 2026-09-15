@@ -1,3 +1,4 @@
+/* Copyright (C) 2026-present Aristotelis — see repository license. */
 import { RequestContext } from '@mikro-orm/core';
 import { MikroORM } from '@mikro-orm/libsql';
 import { MikroORM as PostgresORM } from '@mikro-orm/postgresql';

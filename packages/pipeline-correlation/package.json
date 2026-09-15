@@ -33,8 +33,10 @@
     "test:watch": "vitest",
     "prepublishOnly": "pnpm run build"
   },
+  "dependencies": {
+    "@nestjs-pipeline/core": "workspace:^"
+  },
   "peerDependencies": {
-    "@nestjs-pipeline/core": "^0.1.19",
     "@nestjs/common": "^10.0.0 || ^11.0.0"
   },
   "devDependencies": {

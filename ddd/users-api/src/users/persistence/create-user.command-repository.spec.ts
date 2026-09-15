@@ -1,3 +1,4 @@
+/* Copyright (C) 2026-present Aristotelis — see repository license. */
 import { type ICache, toCacheSnapshot } from '@nestjs-pipeline/ddd-core';
 import { describe, expect, it, vi } from 'vitest';
 import { UniqueEmailException } from '../domain/models/errors/email.exception';

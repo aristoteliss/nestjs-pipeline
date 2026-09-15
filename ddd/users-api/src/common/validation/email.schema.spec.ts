@@ -1,3 +1,4 @@
+/* Copyright (C) 2026-present Aristotelis — see repository license. */
 import { describe, expect, it } from 'vitest';
 import { CreateAuthCommand } from '../../auths/cqrs/commands/create-auth.command';
 import { LoginDtoSchema } from '../../auths/dtos/login.dto';

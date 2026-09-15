@@ -1,20 +1,4 @@
-/*
- * Copyright (C) 2026-present Aristotelis
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Affero General Public License as
- * published by the Free Software Foundation, either version 3 of the
- * License, or (at your option) any later version.
- *
- * --- COMMERCIAL EXCEPTION ---
- * Alternatively, a Commercial License is available for individuals or
- * organizations that require proprietary use without the AGPLv3
- * copyleft restrictions.
- *
- * See COMMERCIAL_LICENSE.txt in this repository for the tiered
- * revenue-based terms, or contact: aristotelis@ik.me
- * ----------------------------
- */
+/* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { IncomingMessage, ServerResponse } from 'node:http';
 import { describe, expect, it, vi } from 'vitest';
@@ -114,7 +98,7 @@ describe('HttpCorrelationMiddleware incoming ID compatibility and validation', (
 
   it('supports custom validation without requiring UUID format', () => {
     const middleware = new HttpCorrelationMiddleware({
-      validateIncoming: (value) => value.startsWith('trusted:'),
+      validateIncoming: (value: string) => value.startsWith('trusted:'),
     } as never);
 
     expect(run(middleware, 'trusted:abc').id).toBe('trusted:abc');

@@ -1,3 +1,4 @@
+/* Copyright (C) 2026-present Aristotelis — see repository license. */
 import { OptimisticLockError } from '@mikro-orm/core';
 import {
   EntityNotFoundException,

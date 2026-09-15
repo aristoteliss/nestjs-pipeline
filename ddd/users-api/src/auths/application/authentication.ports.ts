@@ -1,7 +1,4 @@
-/*
- * Copyright (C) 2026-present Aristotelis
- * See repository license for full terms.
- */
+/* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import type { UserCapabilities } from '@nestjs-pipeline/casl';
 import type { User } from '../../users/domain/models/user.entity';

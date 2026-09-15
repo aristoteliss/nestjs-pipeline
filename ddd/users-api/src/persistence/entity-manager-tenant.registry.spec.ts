@@ -1,7 +1,4 @@
-/*
- * Copyright (C) 2026-present Aristotelis
- * See repository license for full terms.
- */
+/* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { describe, expect, it } from 'vitest';
 import { EntityManagerTenantRegistry } from './entity-manager-tenant.registry';

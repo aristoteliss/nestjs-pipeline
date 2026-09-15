@@ -1,3 +1,4 @@
+/* Copyright (C) 2026-present Aristotelis — see repository license. */
 import { UserAdditionalCapability } from '@persistence/entities/user-additional-capability.entity';
 import { UserDeniedCapability } from '@persistence/entities/user-denied-capability.entity';
 import { UserRole } from '@persistence/entities/user-role.entity';

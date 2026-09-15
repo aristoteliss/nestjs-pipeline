@@ -1,3 +1,4 @@
+/* Copyright (C) 2026-present Aristotelis — see repository license. */
 import { SYSTEM_ROLES } from '@common/constants';
 import { MikroORM } from '@mikro-orm/libsql';
 import { createLibsqlOrmOptions } from '@persistence/libsql-options';

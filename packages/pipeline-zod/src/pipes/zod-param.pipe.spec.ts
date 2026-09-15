@@ -1,20 +1,4 @@
-/*
- * Copyright (C) 2026-present Aristotelis
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Affero General Public License as
- * published by the Free Software Foundation, either version 3 of the
- * License, or (at your option) any later version.
- *
- * --- COMMERCIAL EXCEPTION ---
- * Alternatively, a Commercial License is available for individuals or
- * organizations that require proprietary use without the AGPLv3
- * copyleft restrictions.
- *
- * See COMMERCIAL_LICENSE.txt in this repository for the tiered
- * revenue-based terms, or contact: aristotelis@ik.me
- * ----------------------------
- */
+/* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { BadRequestException } from '@nestjs/common';
 import { describe, expect, it } from 'vitest';
@@ -67,7 +51,7 @@ describe('ZodPipe', () => {
   describe('invalid input', () => {
     it('throws BadRequestException when validation fails', async () => {
       const pipe = new ZodPipe(z.object({ foo: z.string() }));
-      await expect(pipe.transform({ foo: 123 })).rejects.toThrow(
+      await expect(pipe.transform({ foo: 123 } as never)).rejects.toThrow(
         BadRequestException,
       );
     });
@@ -75,7 +59,7 @@ describe('ZodPipe', () => {
     it('thrown error carries flattened Zod details', async () => {
       const pipe = new ZodPipe(z.object({ foo: z.string() }));
       try {
-        await pipe.transform({ foo: 123 });
+        await pipe.transform({ foo: 123 } as never);
         expect.unreachable('should have thrown');
       } catch (e: any) {
         expect(e).toBeInstanceOf(BadRequestException);
@@ -88,12 +72,16 @@ describe('ZodPipe', () => {
 
     it('throws for missing required fields', async () => {
       const pipe = new ZodPipe(z.object({ name: z.string(), age: z.number() }));
-      await expect(pipe.transform({})).rejects.toThrow(BadRequestException);
+      await expect(pipe.transform({} as never)).rejects.toThrow(
+        BadRequestException,
+      );
     });
 
     it('throws for completely wrong type (e.g. null)', async () => {
       const pipe = new ZodPipe(z.string());
-      await expect(pipe.transform(null)).rejects.toThrow(BadRequestException);
+      await expect(pipe.transform(null as never)).rejects.toThrow(
+        BadRequestException,
+      );
     });
   });
 

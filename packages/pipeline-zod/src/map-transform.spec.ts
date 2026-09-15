@@ -1,3 +1,4 @@
+/* Copyright (C) 2026-present Aristotelis — see repository license. */
 import { it } from 'vitest';
 import { z } from 'zod';
 import { createCommand, ZodValidationBehavior } from './index';

@@ -1,3 +1,4 @@
+/* Copyright (C) 2026-present Aristotelis — see repository license. */
 import { describe, expect, it } from 'vitest';
 import { DomainException } from './domain.exception';
 

@@ -1,3 +1,4 @@
+/* Copyright (C) 2026-present Aristotelis — see repository license. */
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
   type ITenantContext,

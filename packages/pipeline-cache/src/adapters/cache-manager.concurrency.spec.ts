@@ -1,3 +1,4 @@
+/* Copyright (C) 2026-present Aristotelis — see repository license. */
 import { createCache } from 'cache-manager';
 import { Keyv } from 'keyv';
 import { expect, it } from 'vitest';

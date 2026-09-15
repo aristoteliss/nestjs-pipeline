@@ -13,7 +13,8 @@
     "lint": "pnpm lint:persistence && pnpm -r lint",
     "clean": "pnpm -r clean",
     "rebuild": "pnpm -r clean && pnpm -r build",
-    "publish:all": "pnpm -r publish --access public",
+    "copy-licenses": "node -e \"const fs=require('fs'),path=require('path'),dirs=fs.readdirSync('packages').filter(d=>fs.existsSync(path.join('packages',d,'package.json')));for(const d of dirs){fs.copyFileSync('LICENSE',path.join('packages',d,'LICENSE'));fs.copyFileSync('COMMERCIAL_LICENSE.txt',path.join('packages',d,'COMMERCIAL_LICENSE.txt'));}\"",
+    "publish:all": "pnpm copy-licenses && pnpm -r publish --access public",
     "check": "biome check .",
     "format": "biome check --write .",
     "lint:persistence": "biome lint --only=plugin ."

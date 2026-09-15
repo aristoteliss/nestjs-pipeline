@@ -1,3 +1,4 @@
+/* Copyright (C) 2026-present Aristotelis — see repository license. */
 import { DomainException } from '@nestjs-pipeline/ddd-core';
 import { User } from '../user.entity';
 
