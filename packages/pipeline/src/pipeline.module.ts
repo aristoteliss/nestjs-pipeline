@@ -7,6 +7,7 @@ import { IPipelineBehavior } from './interfaces/pipeline.behavior.interface';
 import {
   PIPELINE_MODULE_OPTIONS,
   PipelineModuleAsyncOptions,
+  PipelineModuleFeatureOptions,
   PipelineModuleOptions,
   PipelineOptionsFactory,
 } from './options/pipeline-module.options';
@@ -17,6 +18,7 @@ export {
   GlobalBehaviorScope,
   GlobalBehaviorsOptions,
   PipelineModuleAsyncOptions,
+  PipelineModuleFeatureOptions,
   PipelineModuleOptions,
   PipelineOptionsFactory,
   PipelineRuntimeOptions,
@@ -259,6 +261,10 @@ export class PipelineModule {
    * Once the importing feature module is part of the application graph, these
    * behaviors can be referenced by handlers in any module.
    *
+   * Use `{ imports, behaviors }` when behaviors inject dependencies exported
+   * by other modules. Providers in the importing parent module are not visible
+   * automatically. Runtime configuration remains owned by `forRoot()`.
+   *
    * @example
    * ```ts
    * @Module({
@@ -267,10 +273,17 @@ export class PipelineModule {
    * export class AuditLogModule {}
    * ```
    */
-  static forFeature(behaviors: Type<IPipelineBehavior>[]): DynamicModule {
+  static forFeature(
+    options: Type<IPipelineBehavior>[] | PipelineModuleFeatureOptions,
+  ): DynamicModule {
+    const { behaviors, imports } = Array.isArray(options)
+      ? { behaviors: options, imports: undefined }
+      : options;
+
     return {
       global: true,
       module: PipelineModule,
+      ...(imports ? { imports } : {}),
       providers: [...behaviors],
       exports: [...behaviors],
     };

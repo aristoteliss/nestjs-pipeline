@@ -194,6 +194,29 @@ describe('PipelineModule.forFeature', () => {
     expect(mod.exports).toContain(BetaBehavior);
   });
 
+  it('accepts object registration with dependency imports without root providers', () => {
+    const dependencyModule = { module: class DependencyModule {} };
+    const mod = PipelineModule.forFeature({
+      imports: [dependencyModule],
+      behaviors: [AlphaBehavior, BetaBehavior],
+    });
+
+    expect(mod.module).toBe(PipelineModule);
+    expect(mod.global).toBe(true);
+    expect(mod.imports).toEqual([dependencyModule]);
+    expect(mod.providers).toEqual([AlphaBehavior, BetaBehavior]);
+    expect(mod.exports).toEqual([AlphaBehavior, BetaBehavior]);
+    expect(mod.providers).not.toContain(PipelineBootstrapService);
+    expect(mod.exports).not.toContain(PIPELINE_MODULE_OPTIONS);
+  });
+
+  it('supports object registration without imports and with no behaviors', () => {
+    const mod = PipelineModule.forFeature({ behaviors: [] });
+    expect(mod.providers).toEqual([]);
+    expect(mod.exports).toEqual([]);
+    expect(mod.imports).toBeUndefined();
+  });
+
   it('returns an empty set when no behaviors are given', () => {
     const mod = PipelineModule.forFeature([]);
     expect(mod.providers).toEqual([]);

@@ -142,6 +142,37 @@ therefore available to `@UsePipeline()` references in any module. `forFeature()`
 is an organizational registration API; it does not provide feature-local DI
 isolation.
 
+When a behavior injects services from another module, use the object form:
+
+```typescript
+@Module({
+  providers: [AuditService],
+  exports: [AuditService],
+})
+export class AuditDependenciesModule {}
+
+@Module({
+  imports: [
+    PipelineModule.forFeature({
+      imports: [AuditDependenciesModule],
+      behaviors: [AuditBehavior], // injects AuditService
+    }),
+  ],
+})
+export class AuditModule {}
+```
+
+Dependency modules must export the providers the behaviors inject. Merely putting
+those providers in the parent `AuditModule` does not make them visible inside
+`PipelineModule`. The array form remains supported for behaviors whose dependencies
+are already available (for example, from global modules).
+
+`PipelineModuleFeatureOptions` configures DI registration only. Register
+`forRoot()` or `forRootAsync()` once to initialize the pipeline. Configure behavior
+execution options with `@UsePipeline([AuditBehavior, { ... }])` or root
+`globalBehaviors`; registering a behavior with `forFeature()` does not automatically
+execute it for every handler.
+
 ---
 
 ## The @UsePipeline Decorator

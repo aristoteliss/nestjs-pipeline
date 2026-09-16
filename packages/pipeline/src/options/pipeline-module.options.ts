@@ -39,6 +39,17 @@ export type PipelineLoggerProvider =
       provide: typeof LOGGING_BEHAVIOR_LOGGER;
     });
 
+/** DI registration options for `PipelineModule.forFeature()`. */
+export interface PipelineModuleFeatureOptions
+  extends Pick<ModuleMetadata, 'imports'> {
+  /**
+   * Behavior providers to register and export application-wide.
+   * Dependencies must be exported by the modules listed in `imports`.
+   * Execution options belong in `@UsePipeline(...)` or root `globalBehaviors`.
+   */
+  behaviors: Type<IPipelineBehavior>[];
+}
+
 /**
  * Configuration options for {@link PipelineModule.forRoot}.
  */
