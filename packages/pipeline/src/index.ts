@@ -18,6 +18,7 @@ export type {
   GlobalBehaviorsOptions,
   PipelineLoggerProvider,
   PipelineModuleAsyncOptions,
+  PipelineModuleFeatureOptions,
   PipelineModuleOptions,
   PipelineOptionsFactory,
 } from './options';
