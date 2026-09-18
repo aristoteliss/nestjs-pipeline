@@ -1,5 +1,6 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
+import { type IPipelineContext, pipelineStore } from '@nestjs-pipeline/core';
 import type { ICache } from '@nestjs-pipeline/ddd-core';
 import type { MikroOrmStore } from '@persistence/mikro-orm.store';
 import { describe, expect, it, vi } from 'vitest';
@@ -31,7 +32,10 @@ describe('DeleteAuthCommandRepository', () => {
       updatedAt: now,
     });
 
-    const result = await repo.save(auth);
+    const result = await pipelineStore.run(
+      { tenantId: 'tenant' } as unknown as IPipelineContext,
+      () => repo.save(auth),
+    );
 
     expect(result).toBeNull();
     expect(nativeDelete).toHaveBeenCalledWith(Auth, {

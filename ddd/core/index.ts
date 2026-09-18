@@ -10,6 +10,7 @@ export * from './domain/events/domain.event';
 export * from './domain/events/root-domain.event';
 export * from './domain/exceptions/domain.exception';
 export * from './domain/exceptions/entity-not-found.exception';
+export * from './domain/exceptions/missing-tenant-context.exception';
 export * from './domain/exceptions/transient-operation.error';
 export * from './domain/interfaces/root-entity-snapshot.interface';
 export * from './domain/models/root.entity';

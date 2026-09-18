@@ -135,3 +135,212 @@ describe('Biome Grit package-licenses plugin', () => {
     );
   });
 });
+
+describe('Biome Grit transport-neutral-errors plugin', () => {
+  it('accepts framework-neutral errors in a behavior package', () => {
+    const source = `
+      import { Injectable } from '@nestjs/common';
+      import { UnauthorizedActionException } from './errors';
+      @Injectable()
+      export class MyBehavior {
+        deny() { throw new UnauthorizedActionException({ action: 'read' }); }
+      }
+    `;
+    expect(
+      lintFixture('packages/my-lib/src/my.behavior.ts', source),
+    ).toMatchObject({
+      status: 0,
+    });
+  });
+
+  it('rejects importing a Nest HTTP exception into a behavior package', () => {
+    const source = `
+      import { ForbiddenException, Injectable } from '@nestjs/common';
+      @Injectable()
+      export class MyBehavior {}
+    `;
+    const result = lintFixture(
+      'packages/my-lib/src/importing.behavior.ts',
+      source,
+    );
+    expect(result.status).toBe(1);
+    expect(result.diagnostics).toContain(
+      'Do not import NestJS HTTP exceptions into domain, application or pipeline-behavior code',
+    );
+  });
+
+  it('rejects an aliased Nest HTTP exception import, not only the shorthand form', () => {
+    const source = `
+      import { NotFoundException as Missing } from '@nestjs/common';
+      export const raise = () => { throw new Missing('gone'); };
+    `;
+    expect(
+      lintFixture('packages/my-lib/src/aliased.behavior.ts', source).status,
+    ).toBe(1);
+  });
+
+  it('rejects constructing a Nest HTTP exception in ddd/core', () => {
+    const source = `
+      export function guard() { throw new ConflictException('duplicate'); }
+    `;
+    const result = lintFixture('ddd/core/domain/guard.ts', source);
+    expect(result.status).toBe(1);
+    expect(result.diagnostics).toContain(
+      'Do not construct NestJS HTTP exceptions',
+    );
+  });
+
+  it('allows HTTP exceptions in presentation adapters, whose job is transport mapping', () => {
+    const source = `
+      import { BadRequestException } from '@nestjs/common';
+      export class MyPipe {
+        transform() { throw new BadRequestException('bad'); }
+      }
+    `;
+    expect(
+      lintFixture('packages/my-lib/src/pipes/my.pipe.ts', source),
+    ).toMatchObject({ status: 0 });
+  });
+});
+
+describe('Biome Grit handler-boundaries plugin', () => {
+  it('accepts repository interfaces injected through tokens', () => {
+    const source = `
+      import { Inject } from '@nestjs/common';
+      import { ICommandRepository } from '@nestjs-pipeline/ddd-core';
+      export class CreateUserHandler {
+        constructor(@Inject('REPO') private readonly repo: ICommandRepository) {}
+      }
+    `;
+    expect(
+      lintFixture(
+        'ddd/users-api/src/users/cqrs/commands/create.handler.ts',
+        source,
+      ),
+    ).toMatchObject({ status: 0 });
+  });
+
+  it('rejects an ORM import inside a CQRS handler', () => {
+    const source = `
+      import { EntityManager } from '@mikro-orm/core';
+      export class LeakyHandler { constructor(private readonly em: EntityManager) {} }
+    `;
+    const result = lintFixture(
+      'ddd/users-api/src/users/cqrs/commands/leaky.handler.ts',
+      source,
+    );
+    expect(result.status).toBe(1);
+    expect(result.diagnostics).toContain(
+      'CQRS handlers and application services must not import the ORM',
+    );
+  });
+
+  it('rejects a concrete persistence store token inside a CQRS handler', () => {
+    const source = `
+      import { MIKRO_ORM_CLIENT } from '../../../persistence/mikro-orm.store';
+      export const token = MIKRO_ORM_CLIENT;
+    `;
+    expect(
+      lintFixture(
+        'ddd/users-api/src/users/cqrs/queries/leaky.handler.ts',
+        source,
+      ).status,
+    ).toBe(1);
+  });
+
+  it('allows the same ORM import inside a persistence adapter', () => {
+    const source = `
+      import { EntityManager } from '@mikro-orm/core';
+      export class UserRepository { constructor(private readonly em: EntityManager) {} }
+    `;
+    expect(
+      lintFixture(
+        'ddd/users-api/src/users/persistence/user.repository.ts',
+        source,
+      ),
+    ).toMatchObject({ status: 0 });
+  });
+});
+
+describe('Biome Grit core-environment plugin', () => {
+  it('rejects a process.env read in ddd/core', () => {
+    const source = `
+      export const SCHEMA = process.env.DB_DEFAULT_SCHEMA || 'tenant';
+    `;
+    const result = lintFixture(
+      'ddd/core/persistence/helpers/key.helper.ts',
+      source,
+    );
+    expect(result.status).toBe(1);
+    expect(result.diagnostics).toContain(
+      'Do not read process.env in shared library or DDD core code',
+    );
+  });
+
+  it('rejects a process.env read in a published package', () => {
+    expect(
+      lintFixture(
+        'packages/my-lib/src/config.ts',
+        `export const url = process.env.REDIS_URL;`,
+      ).status,
+    ).toBe(1);
+  });
+
+  it('ignores process.env appearing only in a JSDoc example', () => {
+    const source = `
+      /**
+       * @example
+       * \`\`\`ts
+       * const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+       * \`\`\`
+       */
+      export const helper = () => 1;
+    `;
+    expect(
+      lintFixture('packages/my-lib/src/documented.ts', source),
+    ).toMatchObject({ status: 0 });
+  });
+});
+
+describe('Biome Grit event-handler-substance plugin', () => {
+  it('reports a log-only event handler, at warn so a showcase does not fail the build', () => {
+    const source = `
+      import { EventsHandler } from '@nestjs/cqrs';
+      import { getCorrelationId } from '@nestjs-pipeline/correlation';
+      @EventsHandler(UserDeletedEvent)
+      export class UserDeletedHandler {
+        private readonly logger = new Logger('x');
+        async handle(event: UserDeletedEvent): Promise<void> {
+          this.logger.log(\`deleted \${getCorrelationId()}\`);
+        }
+      }
+    `;
+    const result = lintFixture(
+      'ddd/users-api/src/users/cqrs/events/log-only.handler.ts',
+      source,
+    );
+    expect(result.diagnostics).toContain('only produces observability output');
+    expect(result.status).toBe(0);
+  });
+
+  it('accepts an event handler that awaits real work', () => {
+    const source = `
+      import { EventsHandler } from '@nestjs/cqrs';
+      @EventsHandler(UserCreatedEvent)
+      export class UserCreatedHandler {
+        private readonly logger = new Logger('x');
+        async handle(event: UserCreatedEvent): Promise<void> {
+          this.logger.log('dispatching');
+          await this.dispatcher.enqueueWelcomeEmail(event.payload);
+        }
+      }
+    `;
+    const result = lintFixture(
+      'ddd/users-api/src/users/cqrs/events/real-work.handler.ts',
+      source,
+    );
+    expect(result.diagnostics).not.toContain(
+      'only produces observability output',
+    );
+  });
+});

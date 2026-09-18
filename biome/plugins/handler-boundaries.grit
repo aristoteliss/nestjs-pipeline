@@ -1,0 +1,36 @@
+engine biome(1.0)
+language js(typescript)
+
+// AGENTS.md rule 1 / SKILL.md rule 2: CQRS handlers and application services depend
+// on repository and application interfaces plus injection tokens — never on ORM
+// clients, entity managers, concrete persistence stores or raw SQL. Persistence
+// mechanics belong in the repository adapters under `persistence/`.
+//
+// Scoped in biome.json to `**/cqrs/**` and `**/application/**` so repository
+// implementations, schemas and migrations remain free to use the ORM directly.
+
+// Note: `message=` accepts only string literals, so the diagnostic text is
+// repeated per rule rather than shared through a pattern.
+
+pattern infrastructure_token() {
+  r"^(?:MIKRO_ORM_CLIENT|MikroOrmStore|PostgresMikroOrmStore|EntityManager|MikroORM|EntityRepository)$"
+}
+
+or {
+  JsImportNamedClause(source=$source) as $clause where {
+    $source <: r".*@mikro-orm/.*",
+    register_diagnostic(span=$clause, message="CQRS handlers and application services must not import the ORM. Inject an ICommandRepository / IQueryRepository / IWriteSideAggregateRepository through its injection token, or define an application port, and bind the concrete implementation in the composition root.", severity="error")
+  },
+  JsImportNamedClause(source=$source) as $clause where {
+    $source <: r".*(?:mikro-orm\.store|postgres-mikro-orm\.store|memory-store|entity-manager-tenant\.registry).*",
+    register_diagnostic(span=$clause, message="CQRS handlers and application services must not import a concrete persistence store. Inject a repository interface through its injection token, or define an application port, and bind the concrete implementation in the composition root.", severity="error")
+  },
+  JsShorthandNamedImportSpecifier(local_name=$name) as $import where {
+    $name <: infrastructure_token(),
+    register_diagnostic(span=$import, message="CQRS handlers and application services must not depend on ORM or persistence implementations. Inject a repository interface through its injection token, or define an application port, and bind the concrete implementation in the composition root.", severity="error")
+  },
+  JsNamedImportSpecifier(name=$name) as $import where {
+    $name <: infrastructure_token(),
+    register_diagnostic(span=$import, message="CQRS handlers and application services must not depend on ORM or persistence implementations. Inject a repository interface through its injection token, or define an application port, and bind the concrete implementation in the composition root.", severity="error")
+  }
+}

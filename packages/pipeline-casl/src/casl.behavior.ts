@@ -2,7 +2,6 @@
 
 import { subject as caslSubject, ForbiddenError } from '@casl/ability';
 import {
-  ForbiddenException,
   Inject,
   Injectable,
   Logger,
@@ -24,6 +23,7 @@ import {
   CASL_USER_CONTEXT_KEY,
   CASL_USER_CONTEXT_RESOLVER,
 } from './constants/tokens';
+import { UnauthorizedActionException } from './exceptions/unauthorized-action.exception';
 import type {
   IRoleProvider,
   IUserCapabilityProvider,
@@ -220,8 +220,9 @@ export interface CaslBehaviorOptions {
   /**
    * Inline permission requirements checked by the behavior.
    *
-   * All requirements must pass (AND logic). If any fails, a
-   * `ForbiddenException` is thrown.
+   * All requirements must pass (AND logic). If any fails, a transport-neutral
+   * {@link UnauthorizedActionException} is thrown; map it to HTTP 403 at the
+   * presentation boundary with an exception filter.
    *
    * @example Single requirement
    * ```ts
@@ -257,7 +258,7 @@ export interface CaslBehaviorOptions {
  * 3. Optionally loads per-user overrides from {@link IUserCapabilityProvider}
  * 4. Builds a CASL `MongoAbility` instance
  * 5. Reads `rules` from {@link CaslBehaviorOptions}
- * 6. Checks each requirement against the ability — throws `ForbiddenException` on failure
+ * 6. Checks each requirement against the ability — throws {@link UnauthorizedActionException} on failure
  * 7. Stores the ability in `context.items` under {@link CASL_ABILITY_KEY} for downstream use
  *
  * **Registration — globally:**
@@ -507,9 +508,11 @@ export class CaslBehavior implements IPipelineBehavior {
           'Authorization required but no user context found. ' +
             `Set "${CASL_USER_CONTEXT_KEY.toString()}" in context.items or provide a CASL_USER_CONTEXT_RESOLVER.`,
         );
-        throw new ForbiddenException(
-          'Access denied — authentication required.',
-        );
+        throw new UnauthorizedActionException({
+          action: requirements[0].action,
+          subject: requirements[0].subject,
+          reason: 'Access denied — authentication required.',
+        });
       }
 
       if (user) {
@@ -694,9 +697,12 @@ export class CaslBehavior implements IPipelineBehavior {
             `Authorization failed: ${error.message} ` +
               `(action=${req.action}, subject=${req.subject}${req.field ? `, field=${req.field}` : ''})`,
           );
-          throw new ForbiddenException(
-            'Access denied — insufficient permissions.',
-          );
+          throw new UnauthorizedActionException({
+            action: req.action,
+            subject: req.subject,
+            ...(req.field ? { fields: [req.field] } : {}),
+            reason: 'Access denied — insufficient permissions.',
+          });
         }
         throw error;
       }

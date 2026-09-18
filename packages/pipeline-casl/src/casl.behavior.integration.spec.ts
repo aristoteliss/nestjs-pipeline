@@ -9,13 +9,13 @@
 /** biome-ignore-all lint/suspicious/noTemplateCurlyInString: false positive */
 
 import { createMongoAbility } from '@casl/ability';
-import type { Type } from '@nestjs/common';
-import { ForbiddenException } from '@nestjs/common';
+import { HttpException, type Type } from '@nestjs/common';
 import type { IPipelineContext } from '@nestjs-pipeline/core';
 import { describe, expect, it } from 'vitest';
 import type { CaslBehaviorOptions } from './casl.behavior';
 import { CaslBehavior } from './casl.behavior';
 import { CASL_ABILITY_KEY, CASL_USER_CONTEXT_KEY } from './constants/tokens';
+import { UnauthorizedActionException } from './exceptions/unauthorized-action.exception';
 import type {
   IRoleProvider,
   IUserCapabilityProvider,
@@ -322,18 +322,34 @@ describe('CaslBehavior.handle() integration', () => {
   });
 
   describe('authentication required', () => {
-    it('should throw ForbiddenException when no user context', async () => {
+    it('should throw a transport-neutral UnauthorizedActionException when no user context', async () => {
       const behavior = createBehavior(allRoles, userCapProvider);
       const ctx = makeContext(GetPostQuery, new GetPostQuery('1'), undefined, {
         rules: [{ action: 'read', subject: 'Post' }],
       });
       // No user set in items
       await expect(behavior.handle(ctx, nextDelegate)).rejects.toThrow(
-        ForbiddenException,
+        UnauthorizedActionException,
       );
       await expect(behavior.handle(ctx, nextDelegate)).rejects.toThrow(
         'Access denied — authentication required',
       );
+    });
+
+    it('never throws a NestJS HttpException, so non-HTTP transports can map denials themselves', async () => {
+      const behavior = createBehavior(allRoles, userCapProvider);
+      const ctx = makeContext(GetPostQuery, new GetPostQuery('1'), undefined, {
+        rules: [{ action: 'read', subject: 'Post' }],
+      });
+
+      const error = await behavior
+        .handle(ctx, nextDelegate)
+        .then(() => undefined)
+        .catch((thrown: unknown) => thrown);
+
+      expect(error).toBeInstanceOf(UnauthorizedActionException);
+      expect(error).not.toBeInstanceOf(HttpException);
+      expect((error as { getStatus?: unknown }).getStatus).toBeUndefined();
     });
   });
 
@@ -423,7 +439,7 @@ describe('CaslBehavior.handle() integration', () => {
       );
 
       await expect(behavior.handle(ctx, nextDelegate)).rejects.toThrow(
-        ForbiddenException,
+        UnauthorizedActionException,
       );
       await expect(behavior.handle(ctx, nextDelegate)).rejects.toThrow(
         'Access denied — insufficient permissions',
@@ -463,7 +479,7 @@ describe('CaslBehavior.handle() integration', () => {
       );
 
       await expect(behavior.handle(ctx, nextDelegate)).rejects.toThrow(
-        ForbiddenException,
+        UnauthorizedActionException,
       );
     });
   });
@@ -614,7 +630,7 @@ describe('CaslBehavior.handle() integration', () => {
       );
 
       await expect(behavior.handle(ctx, nextDelegate)).rejects.toThrow(
-        ForbiddenException,
+        UnauthorizedActionException,
       );
     });
 
@@ -723,7 +739,7 @@ describe('CaslBehavior.handle() integration', () => {
       );
 
       await expect(behavior.handle(ctx, nextDelegate)).rejects.toThrow(
-        ForbiddenException,
+        UnauthorizedActionException,
       );
     });
 
@@ -793,7 +809,7 @@ describe('CaslBehavior.handle() integration', () => {
       });
 
       await expect(behavior.handle(ctx, nextDelegate)).rejects.toThrow(
-        ForbiddenException,
+        UnauthorizedActionException,
       );
     });
 
@@ -812,7 +828,7 @@ describe('CaslBehavior.handle() integration', () => {
       });
 
       await expect(behavior.handle(ctx, nextDelegate)).rejects.toThrow(
-        ForbiddenException,
+        UnauthorizedActionException,
       );
     });
   });
@@ -891,7 +907,7 @@ describe('CaslBehavior.handle() integration', () => {
       );
 
       await expect(behavior.handle(ctx, nextDelegate)).rejects.toThrow(
-        ForbiddenException,
+        UnauthorizedActionException,
       );
     });
   });
@@ -935,7 +951,7 @@ describe('CaslBehavior.handle() integration', () => {
       });
 
       await expect(behavior.handle(ctx, nextDelegate)).rejects.toThrow(
-        ForbiddenException,
+        UnauthorizedActionException,
       );
     });
   });
@@ -1061,7 +1077,7 @@ describe('CaslBehavior.handle() integration', () => {
       );
 
       await expect(behavior.handle(ctx, nextDelegate)).rejects.toThrow(
-        ForbiddenException,
+        UnauthorizedActionException,
       );
     });
   });
@@ -1090,7 +1106,7 @@ describe('CaslBehavior.handle() integration', () => {
       });
 
       await expect(behavior.handle(ctx, nextDelegate)).rejects.toThrow(
-        ForbiddenException,
+        UnauthorizedActionException,
       );
     });
 
@@ -1103,7 +1119,7 @@ describe('CaslBehavior.handle() integration', () => {
       });
 
       await expect(behavior.handle(ctx, nextDelegate)).rejects.toThrow(
-        ForbiddenException,
+        UnauthorizedActionException,
       );
     });
   });
@@ -1166,7 +1182,7 @@ describe('CaslBehavior.handle() integration', () => {
       );
 
       await expect(behavior.handle(ctx, nextDelegate)).rejects.toThrow(
-        ForbiddenException,
+        UnauthorizedActionException,
       );
     });
 
@@ -1187,7 +1203,7 @@ describe('CaslBehavior.handle() integration', () => {
       );
 
       await expect(behavior.handle(ctx, nextDelegate)).rejects.toThrow(
-        ForbiddenException,
+        UnauthorizedActionException,
       );
     });
   });
@@ -1211,7 +1227,7 @@ describe('CaslBehavior.handle() integration', () => {
 
       // Viewer cannot create posts
       await expect(behavior.handle(ctx, nextDelegate)).rejects.toThrow(
-        ForbiddenException,
+        UnauthorizedActionException,
       );
     });
 
@@ -1240,7 +1256,7 @@ describe('CaslBehavior.handle() integration', () => {
 
       // Viewer can read Post but NOT create
       await expect(behavior.handle(ctx, nextDelegate)).rejects.toThrow(
-        ForbiddenException,
+        UnauthorizedActionException,
       );
     });
 
@@ -1282,7 +1298,7 @@ describe('CaslBehavior.handle() integration', () => {
       );
 
       await expect(behavior.handle(ctx, nextDelegate)).rejects.toThrow(
-        ForbiddenException,
+        UnauthorizedActionException,
       );
     });
 
@@ -1344,7 +1360,7 @@ describe('CaslBehavior.handle() pre-resolved capabilities', () => {
     });
 
     await expect(behavior.handle(ctx, nextDelegate)).rejects.toThrow(
-      ForbiddenException,
+      UnauthorizedActionException,
     );
   });
 
@@ -1366,7 +1382,7 @@ describe('CaslBehavior.handle() pre-resolved capabilities', () => {
     });
 
     await expect(behavior.handle(ctx, nextDelegate)).rejects.toThrow(
-      ForbiddenException,
+      UnauthorizedActionException,
     );
   });
 });

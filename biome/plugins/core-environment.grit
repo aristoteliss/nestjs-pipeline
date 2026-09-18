@@ -1,0 +1,23 @@
+engine biome(1.0)
+language js(typescript)
+
+// SKILL.md rule 10: environment variables are acceptable in bootstrap,
+// infrastructure and configuration modules — not as hidden dependencies inside
+// shared domain, application or library code.
+//
+// A `process.env` read in a shared helper is worse than one in a module: it is
+// invisible at the call site, it cannot be overridden by any later configuration
+// when evaluated at module load, and it makes behavior depend on how the process
+// happened to be started. Where such a value changes a security decision — for
+// example which tenant namespace a cache key lands in — a missing variable turns
+// into a silent isolation failure rather than a startup error.
+//
+// Configuration that application logic needs belongs behind an application port
+// or a module option resolved in the composition root. Scoped in biome.json to
+// the published packages and the shared DDD core.
+
+JsStaticMemberExpression(object=$object, member=$member) as $access where {
+  $object <: `process`,
+  $member <: `env`,
+  register_diagnostic(span=$access, message="Do not read process.env in shared library or DDD core code. Resolve configuration in the composition root and pass it in through a module option or an application port, so the dependency is visible and overridable. Where the value guards tenant or principal isolation, fail closed on absence instead of substituting a default.", severity="error")
+}

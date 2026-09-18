@@ -71,7 +71,9 @@ Other corrections: domain code is not completely Nest-independent (`RootEntity` 
 
 Severity describes practical impact, not architectural purity. “Mandatory” below means necessary to meet the stated contract, not permission to alter production source as part of this review.
 
-### A-01 — Delete must validate the version that was loaded and authorized
+### ~~A-01 — Delete must validate the version that was loaded and authorized~~
+
+> **Resolved.** Verified at commit `ba0b57d`. Delete repositories condition on `{ id, version: getExpectedVersion() }` and inspect affected rows. See [Claude.Review.md](Claude.Review.md#6-status-of-the-earlier-reviews).
 
 **High · Correctness / concurrency · `ddd/users-api` · Mandatory**
 
@@ -89,7 +91,9 @@ Keep ORM details inside repositories. No new application port is necessary. Dete
 
 **Risk/benefit:** preserve the intentional error mapping and retry behavior while preventing stale authorization decisions from silently deleting newer state.
 
-### A-02 — A successful update must acknowledge the persisted version
+### ~~A-02 — A successful update must acknowledge the persisted version~~
+
+> **Resolved.** Verified at commit `ba0b57d`. `@AcknowledgePersisted` captures the version before the await and advances the baseline only on resolution. See [Claude.Review.md](Claude.Review.md#6-status-of-the-earlier-reviews).
 
 **Medium · Aggregate lifecycle / correctness · `ddd-core`, `ddd/users-api` · Mandatory for reusable save semantics**
 
@@ -105,7 +109,9 @@ The version baseline is initialized during construction, but successful native u
 
 **Risk/benefit:** an acknowledgment called too early could hide a conflict. Correct ownership makes aggregate reuse predictable without replacing the repository abstraction.
 
-### A-03 — Define a snapshot and ownership contract for repository caching
+### ~~A-03 — Define a snapshot and ownership contract for repository caching~~
+
+> **Resolved.** Verified at commit `ba0b57d`. `toCacheSnapshot`, `MemoryCache` JSON detachment on both `set` and `get`, and `alwaysHydrate` + `hydrateFn` enforcement. See [Claude.Review.md](Claude.Review.md#6-status-of-the-earlier-reviews).
 
 **Medium · Representation / test fidelity · `ddd-core`, `ddd/users-api` · Strongly recommended**
 
@@ -127,7 +133,9 @@ Keep this change scoped to `ddd-core` repository caching; the separately publish
 
 **Risk/benefit:** serialization can change intentionally supported values; specify the domain before enforcing it. The benefit is predictable cached state and tests that exercise production representation semantics.
 
-### A-04 — Make CASL denial errors transport-neutral consistently
+### ~~A-04 — Make CASL denial errors transport-neutral consistently~~
+
+> **Fixed 2026-09-18.** Verified at commit `ba0b57d`. Both `CaslBehavior` throw sites now raise `UnauthorizedActionException`, the same family `CaslAuthorizer` uses. See [Claude.Review.md](Claude.Review.md#113-f-01--casl-denials-are-transport-neutral).
 
 **Medium · Public error API · `pipeline-casl` · Strongly recommended**
 

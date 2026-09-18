@@ -1,4 +1,5 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
+import { type IPipelineContext, pipelineStore } from '@nestjs-pipeline/core';
 import { type ICache, toCacheSnapshot } from '@nestjs-pipeline/ddd-core';
 import { describe, expect, it, vi } from 'vitest';
 import { UniqueRoleNameException } from '../domain/models/errors/role-name.exception';
@@ -21,7 +22,10 @@ describe('CreateRoleCommandRepository', () => {
     };
     const repository = new CreateRoleCommandRepository(cache, store as never);
 
-    const result = await repository.save(role);
+    const result = await pipelineStore.run(
+      { tenantId: 'tenant' } as unknown as IPipelineContext,
+      () => repository.save(role),
+    );
 
     expect(upsert).toHaveBeenCalledWith(Role, role);
     expect(cache.set).toHaveBeenCalledWith(

@@ -50,8 +50,16 @@ function matchesUniqueConstraint(
  * - **PostgreSQL**: Matches driver error code `23505` with `constraint === mapping.constraint`,
  *   or driver message containing `violates unique constraint "${mapping.constraint}"`.
  * - **SQLite / libSQL**: Matches driver message lines containing `UNIQUE constraint failed: ${mapping.columns}`.
- * - **Passthrough**: Any error not matching the configured constraints is rethrown with its original
- *   identity, class, and stack trace completely preserved.
+ * - **Residual translation**: Any error not matching a configured constraint is passed to the
+ *   optional `otherwise` translator, which is the declarative place to convert driver/network
+ *   failures into the neutral {@link TransientOperationError} retry signal.
+ * - **Passthrough**: Without `otherwise` — or when `otherwise` returns the error unchanged — the
+ *   error is rethrown with its original identity, class, and stack trace completely preserved.
+ *
+ * Using `otherwise` removes the need for a manual `try`/`catch` inside `save()`. Hand-written
+ * blocks are rejected by `biome/plugins/persistence-lifecycle.grit`, because they place error
+ * translation inside the transaction boundary where the ordering relative to `@AcknowledgePersisted`
+ * and `@Cache` is no longer expressed by the decorator stack.
  *
  * ### Canonical Decorator Ordering
  * Always stack decorators in this outermost-to-innermost order:
@@ -92,6 +100,23 @@ export function MapPersistenceErrors<
 >(options: {
   entity: (args: TArgs) => TEntity;
   unique: readonly UniqueConstraintMapping<TEntity>[];
+  /**
+   * Optional translator applied to any error that did not match a unique constraint
+   * mapping. Return the error unchanged to preserve its identity, or return a
+   * replacement to express it in application terms.
+   *
+   * The canonical use is transient-failure classification, so that retry policies
+   * consume `TransientOperationError` rather than driver codes:
+   *
+   * ```typescript
+   * otherwise: (error, user) => mapPersistenceError(error, `deleting User ${user.id}`),
+   * ```
+   *
+   * Deliberate domain errors thrown inside the method (`OptimisticLockError`,
+   * `EntityNotFoundException`) also pass through this hook. `mapPersistenceError`
+   * returns non-transient errors unchanged, so no explicit re-throw guard is needed.
+   */
+  otherwise?: (error: unknown, entity: TEntity) => unknown;
 }) {
   return <TResult>(
     _target: object,
@@ -109,6 +134,8 @@ export function MapPersistenceErrors<
           matchesUniqueConstraint(error, candidate),
         );
         if (mapping) throw mapping.error(options.entity(args));
+        if (options.otherwise)
+          throw options.otherwise(error, options.entity(args));
         throw error;
       }
     };

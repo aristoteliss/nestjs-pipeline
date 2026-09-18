@@ -132,7 +132,10 @@ graph TD
 
 ---
 
-### Finding 1: Direct `HttpException` (`ForbiddenException`) Thrown Inside Pipeline Behavior
+### ~~Finding 1: Direct `HttpException` (`ForbiddenException`) Thrown Inside Pipeline Behavior~~
+
+> **Fixed 2026-09-18.** Verified at commit `ba0b57d`. `CaslBehavior` now throws `UnauthorizedActionException`; `transport-neutral-errors.grit` prevents regression. See [Claude.Review.md](Claude.Review.md#113-f-01--casl-denials-are-transport-neutral).
+
 - **Severity**: **Critical**
 - **Category**: Leaky Abstraction / Architecture Violation
 - **Package**: `@nestjs-pipeline/casl`
@@ -185,7 +188,10 @@ At the presentation boundary (HTTP), [unauthorized-action.filter.ts](file:///hom
 
 ---
 
-### Finding 2: Unconditional Deletion Without Optimistic Lock Concurrency Check
+### ~~Finding 2: Unconditional Deletion Without Optimistic Lock Concurrency Check~~
+
+> **Resolved.** Verified at commit `ba0b57d`. Delete repositories condition on `{ id, version: getExpectedVersion() }` and inspect affected rows. See [Claude.Review.md](Claude.Review.md#6-status-of-the-earlier-reviews).
+
 - **Severity**: **High**
 - **Category**: Correctness / Concurrency
 - **Package**: `@nestjs-pipeline/ddd-users-api`

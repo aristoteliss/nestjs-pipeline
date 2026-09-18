@@ -8,6 +8,7 @@ import {
   EntityNotFoundException,
   filterCacheKey,
   ICache,
+  MapPersistenceErrors,
 } from '@nestjs-pipeline/ddd-core';
 import { mapPersistenceError } from '@persistence/is-transient-persistence-error';
 import { MIKRO_ORM_CLIENT, MikroOrmStore } from '@persistence/mikro-orm.store';
@@ -31,36 +32,32 @@ export class DeleteUserCommandRepository extends MikroOrmWriteSideCommandReposit
     filterCacheKey(User.aggregateName, { id: user.id }),
     filterCacheKey(User.aggregateName, { email: user.email }),
   ])
+  @MapPersistenceErrors<[User], User>({
+    entity: ([user]) => user,
+    unique: [],
+    otherwise: (error, user) =>
+      mapPersistenceError(error, `deleting User ${user.id}`),
+  })
   async save(user: User): Promise<null> {
-    try {
-      const affected = await this.store.em.nativeDelete(User, {
-        id: user.id,
-        version: user.getExpectedVersion(),
-      });
-      if (affected === 0) {
-        const exists = await this.store.em.findOne(
-          User,
-          { id: user.id },
-          { refresh: true },
+    const affected = await this.store.em.nativeDelete(User, {
+      id: user.id,
+      version: user.getExpectedVersion(),
+    });
+    if (affected === 0) {
+      const exists = await this.store.em.findOne(
+        User,
+        { id: user.id },
+        { refresh: true },
+      );
+      if (exists) {
+        throw OptimisticLockError.lockFailedVersionMismatch(
+          user,
+          user.getExpectedVersion(),
+          exists.version,
         );
-        if (exists) {
-          throw OptimisticLockError.lockFailedVersionMismatch(
-            user,
-            user.getExpectedVersion(),
-            exists.version,
-          );
-        }
-        throw new EntityNotFoundException('User', user.id);
       }
-      return null;
-    } catch (error) {
-      if (
-        error instanceof OptimisticLockError ||
-        error instanceof EntityNotFoundException
-      ) {
-        throw error;
-      }
-      throw mapPersistenceError(error, `deleting User ${user.id}`);
+      throw new EntityNotFoundException('User', user.id);
     }
+    return null;
   }
 }

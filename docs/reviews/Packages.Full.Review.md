@@ -145,7 +145,9 @@ These capabilities should not be proposed again as if missing. Finish their exec
 
 ## 5. Findings, current status, and implementation proposals
 
-### F01 — CASL compiled-provider construction regression — resolved
+### ~~F01 — CASL compiled-provider construction regression — resolved~~
+
+> **Resolved.** Verified at commit `ba0b57d`. Already marked resolved by that review. See [Claude.Review.md](Claude.Review.md#6-status-of-the-earlier-reviews).
 
 **Status:** resolved and reverified against the final baseline. **Original priority:** P0.
 
@@ -392,7 +394,9 @@ Expiry is created using application `Date.now() + ttlMs`, but validity is checke
 
 The existing owner-sensitive SQL is worth preserving. This change corrects expiry policy; it does not replace conditional updates with read-then-write logic.
 
-### F14 — CASL uses two denial error families
+### ~~F14 — CASL uses two denial error families~~
+
+> **Fixed 2026-09-18.** Verified at commit `ba0b57d`. The package now has one denial family: `UnauthorizedActionException`. See [Claude.Review.md](Claude.Review.md#113-f-01--casl-denials-are-transport-neutral).
 
 **Priority:** P1 architecture/transport consistency. **Evidence:** confirmed by inspection.
 
