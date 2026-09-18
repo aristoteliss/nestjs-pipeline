@@ -1,12 +1,9 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { BullModule, getQueueToken } from '@nestjs/bullmq';
-import {
-  ForbiddenException,
-  Module,
-  UnauthorizedException,
-} from '@nestjs/common';
+import { Module, UnauthorizedException } from '@nestjs/common';
 import { CacheModule } from '@nestjs-pipeline/cache';
+import { UnauthorizedActionException } from '@nestjs-pipeline/casl';
 import {
   BullMqDeadLetterTransport,
   DeadLetterModule,
@@ -73,7 +70,7 @@ import { RateLimiterMemory } from 'rate-limiter-flexible';
         ignoreErrors: [
           ZodValidationError,
           UnauthorizedException,
-          ForbiddenException,
+          UnauthorizedActionException,
         ],
         redactKeys: ['code'],
       },

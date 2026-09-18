@@ -96,7 +96,10 @@ Per `Intstractions.md` and repository guidelines, the following patterns are del
 
 ---
 
-### Finding 1: Direct `HttpException` (`ForbiddenException`) Thrown in `CaslBehavior`
+### ~~Finding 1: Direct `HttpException` (`ForbiddenException`) Thrown in `CaslBehavior`~~
+
+> **Fixed 2026-09-18.** Verified at commit `ba0b57d`. `CaslBehavior` now throws `UnauthorizedActionException`; `transport-neutral-errors.grit` prevents regression. See [Claude.Review.md](Claude.Review.md#113-f-01--casl-denials-are-transport-neutral).
+
 - **Severity**: **CRITICAL**
 - **Category**: Leaky Abstraction / Architecture Violation
 - **Package**: `@nestjs-pipeline/casl`
@@ -140,7 +143,10 @@ throw new UnauthorizedActionException(
 
 ---
 
-### Finding 2: Unconditional Deletion Without Optimistic Lock Check
+### ~~Finding 2: Unconditional Deletion Without Optimistic Lock Check~~
+
+> **Resolved.** Verified at commit `ba0b57d`. Delete repositories condition on `{ id, version: getExpectedVersion() }` and inspect affected rows. See [Claude.Review.md](Claude.Review.md#6-status-of-the-earlier-reviews).
+
 - **Severity**: **HIGH**
 - **Category**: Correctness / Concurrency / Lost Updates
 - **Package**: `@nestjs-pipeline/ddd-users-api`
@@ -197,7 +203,10 @@ async save(user: User): Promise<null> {
 
 ---
 
-### Finding 3: Stale `_persistedVersion` Baseline After Successful Save
+### ~~Finding 3: Stale `_persistedVersion` Baseline After Successful Save~~
+
+> **Resolved.** Verified at commit `ba0b57d`. `@AcknowledgePersisted` captures the version before the await and advances the baseline only on resolution. See [Claude.Review.md](Claude.Review.md#6-status-of-the-earlier-reviews).
+
 - **Severity**: **HIGH**
 - **Category**: Correctness / Aggregate Lifecycle / Concurrency
 - **Package**: `@nestjs-pipeline/ddd-core` & `@nestjs-pipeline/ddd-users-api`

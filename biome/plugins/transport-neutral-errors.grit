@@ -1,0 +1,40 @@
+engine biome(1.0)
+language js(typescript)
+
+// AGENTS.md rule 2 / SKILL.md rule 4: domain, application and pipeline-behavior
+// code must not express business outcomes as NestJS HTTP exceptions. Behavior
+// packages are transport-agnostic — a handler running over a message broker, a
+// BullMQ worker or a CLI cannot interpret an object carrying getStatus() === 403,
+// and a dead-letter transport cannot distinguish an authorization denial from an
+// infrastructure failure. Throw a framework-neutral error and map it in a
+// presentation filter instead.
+//
+// Presentation adapters (controllers, filters, guards, interceptors, pipes,
+// middlewares, responses, bootstrap) are legitimately allowed to use them and are
+// excluded through the `includes` list in biome.json.
+//
+// Note: `message=` accepts only string literals, so the diagnostic text is
+// repeated per rule rather than shared through a pattern.
+
+pattern nest_http_exception() {
+  r"^(?:HttpException|BadRequestException|UnauthorizedException|NotFoundException|ForbiddenException|NotAcceptableException|RequestTimeoutException|ConflictException|GoneException|HttpVersionNotSupportedException|PayloadTooLargeException|UnsupportedMediaTypeException|UnprocessableEntityException|InternalServerErrorException|NotImplementedException|ImATeapotException|MethodNotAllowedException|BadGatewayException|ServiceUnavailableException|GatewayTimeoutException|PreconditionFailedException)$"
+}
+
+or {
+  JsShorthandNamedImportSpecifier(local_name=$name) as $import where {
+    $name <: nest_http_exception(),
+    $import <: within JsImportNamedClause(source=$source) ,
+    $source <: r".*@nestjs/common.*",
+    register_diagnostic(span=$import, message="Do not import NestJS HTTP exceptions into domain, application or pipeline-behavior code. Throw a framework-neutral error (DomainException, EntityNotFoundException, UnauthorizedActionException, TransientOperationError) and map it to HTTP in a presentation filter such as DomainExceptionFilter.", severity="error")
+  },
+  JsNamedImportSpecifier(name=$name) as $import where {
+    $name <: nest_http_exception(),
+    $import <: within JsImportNamedClause(source=$source) ,
+    $source <: r".*@nestjs/common.*",
+    register_diagnostic(span=$import, message="Do not import NestJS HTTP exceptions into domain, application or pipeline-behavior code. Throw a framework-neutral error (DomainException, EntityNotFoundException, UnauthorizedActionException, TransientOperationError) and map it to HTTP in a presentation filter such as DomainExceptionFilter.", severity="error")
+  },
+  JsNewExpression(callee=$callee) as $expression where {
+    $callee <: nest_http_exception(),
+    register_diagnostic(span=$expression, message="Do not construct NestJS HTTP exceptions in domain, application or pipeline-behavior code. Throw a framework-neutral error (DomainException, EntityNotFoundException, UnauthorizedActionException, TransientOperationError) and map it to HTTP in a presentation filter such as DomainExceptionFilter.", severity="error")
+  }
+}

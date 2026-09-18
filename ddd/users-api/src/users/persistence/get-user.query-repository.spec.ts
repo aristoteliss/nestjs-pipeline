@@ -1,4 +1,5 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
+import { type IPipelineContext, pipelineStore } from '@nestjs-pipeline/core';
 import type { ICache } from '@nestjs-pipeline/ddd-core';
 import { ZodValidationBehavior } from '@nestjs-pipeline/zod';
 import { describe, expect, it, vi } from 'vitest';
@@ -25,7 +26,10 @@ describe('GetUserQueryRepository cache policy', () => {
       } as never,
       async () => undefined,
     );
-    const result = await repository.find(query);
+    const result = await pipelineStore.run(
+      { tenantId: 'tenant' } as unknown as IPipelineContext,
+      () => repository.find(query),
+    );
 
     expect(query.hydrate).toBe(true);
     expect(result).toBeInstanceOf(User);
@@ -74,7 +78,10 @@ describe('GetUserQueryRepository cache policy', () => {
     const repository = new GetUserQueryRepository(cache, store as never);
     const query = new GetUserQuery({ userId: persisted.id });
 
-    const result = await repository.find(query);
+    const result = await pipelineStore.run(
+      { tenantId: 'tenant' } as unknown as IPipelineContext,
+      () => repository.find(query),
+    );
 
     expect(result).toBe(persisted);
     expect(cache.set).toHaveBeenCalledWith(
@@ -96,7 +103,10 @@ describe('GetUserQueryRepository cache policy', () => {
     const repository = new GetUserQueryRepository(cache, store as never);
     const query = new GetUserQuery({ userId: persisted.id });
 
-    const result = await repository.find(query);
+    const result = await pipelineStore.run(
+      { tenantId: 'tenant' } as unknown as IPipelineContext,
+      () => repository.find(query),
+    );
 
     // With alwaysHydrate: true, cache hit returns hydrated User aggregate
     expect(result).toBeInstanceOf(User);

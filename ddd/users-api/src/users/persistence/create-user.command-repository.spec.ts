@@ -1,4 +1,5 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
+import { type IPipelineContext, pipelineStore } from '@nestjs-pipeline/core';
 import { type ICache, toCacheSnapshot } from '@nestjs-pipeline/ddd-core';
 import { describe, expect, it, vi } from 'vitest';
 import { UniqueEmailException } from '../domain/models/errors/email.exception';
@@ -23,7 +24,10 @@ describe('CreateUserCommandRepository', () => {
     };
     const repository = new CreateUserCommandRepository(cache, store as never);
 
-    const result = await repository.save(user);
+    const result = await pipelineStore.run(
+      { tenantId: 'tenant' } as unknown as IPipelineContext,
+      () => repository.save(user),
+    );
 
     expect(cache.set).toHaveBeenCalledWith(
       `tenant:user:id:${user.id}`,

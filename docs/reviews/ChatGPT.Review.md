@@ -102,7 +102,9 @@ The old audit entry describing mutation commands loading through cached query re
 
 ---
 
-# 3. Finding F-01 — `UserLoginService` is an application-layer boundary collapse
+# ~~3. Finding F-01 — `UserLoginService` is an application-layer boundary collapse~~
+
+> **Resolved.** Verified at commit `ba0b57d`. `SessionService` owns cookies; `UserLoginService` depends on `ILoginCodeVerifier` and `IAccessTokenIssuer` ports. See [Claude.Review.md](Claude.Review.md#6-status-of-the-earlier-reviews).
 
 **Severity:** HIGH  
 **Category:** Clean Architecture / Application Architecture / Authentication  
@@ -280,7 +282,9 @@ This change removes the repository's largest concentration of architectural coup
 
 ---
 
-# 4. Finding F-02 — CQRS event handlers are acting as BullMQ/infrastructure adapters
+# ~~4. Finding F-02 — CQRS event handlers are acting as BullMQ/infrastructure adapters~~
+
+> **Resolved.** Verified at commit `ba0b57d`. Handlers inject `IWelcomeEmailDispatcher` / `IUserBatchDispatcher`; `BullMqUserEventDispatcher` is the adapter. See [Claude.Review.md](Claude.Review.md#6-status-of-the-earlier-reviews).
 
 **Severity:** HIGH  
 **Category:** Ports & Adapters / Messaging / Clean Architecture  
@@ -530,7 +534,9 @@ The real defect is the hidden publication trigger, not the EventBus itself.
 
 ---
 
-# 7. Finding F-05 — successful optimistic saves do not advance the aggregate's persistence baseline
+# ~~7. Finding F-05 — successful optimistic saves do not advance the aggregate's persistence baseline~~
+
+> **Resolved.** Verified at commit `ba0b57d`. `@AcknowledgePersisted` captures the version before the await and advances the baseline only on resolution. See [Claude.Review.md](Claude.Review.md#6-status-of-the-earlier-reviews).
 
 **Severity:** HIGH/MEDIUM  
 **Category:** Correctness / Aggregate lifecycle / Persistence  
@@ -624,7 +630,9 @@ Also verify failed saves do **not** advance the baseline.
 
 ---
 
-# 8. Finding F-06 — direct ORM hydration forces aggregates to expose invalid public construction paths
+# ~~8. Finding F-06 — direct ORM hydration forces aggregates to expose invalid public construction paths~~
+
+> **Resolved.** Verified at commit `ba0b57d`. `IWriteSideAggregateRepository<TEntity>` returns rehydrated aggregates; command handlers never see snapshots. See [Claude.Review.md](Claude.Review.md#6-status-of-the-earlier-reviews).
 
 **Severity:** MEDIUM/HIGH  
 **Category:** DDD / Domain invariants / Persistence leakage  
@@ -712,7 +720,9 @@ For a repository positioning the example as a Clean Architecture / DDD reference
 
 ---
 
-# 9. Finding F-07 — `GetUserContextQueryRepository` combines three unrelated responsibilities
+# ~~9. Finding F-07 — `GetUserContextQueryRepository` combines three unrelated responsibilities~~
+
+> **Resolved.** Verified at commit `ba0b57d`. Split: the repository is persistence-only, `CaslUserContextResolver` owns request/session extraction, and principal type is explicit rather than inferred from ID shape. See [Claude.Review.md](Claude.Review.md#6-status-of-the-earlier-reviews).
 
 **Severity:** MEDIUM/HIGH  
 **Category:** SRP / Security / Identity modeling  
@@ -777,7 +787,9 @@ No UUID heuristic is required.
 
 ---
 
-# 10. Finding F-08 — retry policy leaks persistence implementation inward
+# ~~10. Finding F-08 — retry policy leaks persistence implementation inward~~
+
+> **Resolved.** Verified at commit `ba0b57d`. `TransientOperationError` / `isTransientOperationError` live in `ddd-core`; handlers no longer import driver classifiers. See [Claude.Review.md](Claude.Review.md#6-status-of-the-earlier-reviews).
 
 **Severity:** MEDIUM  
 **Category:** Dependency inversion / Reliability  
@@ -1039,7 +1051,9 @@ That would have caught multiple current findings immediately.
 
 ---
 
-# 14. Finding F-12 — OpenTelemetry readiness detection relies on implementation details
+# ~~14. Finding F-12 — OpenTelemetry readiness detection relies on implementation details~~
+
+> **Resolved.** Verified at commit `ba0b57d`. `TraceBehavior` documents that it relies on the OTel API's no-op tracer contract instead of inspecting `ProxyTracerProvider` internals. See [Claude.Review.md](Claude.Review.md#6-status-of-the-earlier-reviews).
 
 **Severity:** LOW/MEDIUM  
 **Category:** Observability / Third-party compatibility  

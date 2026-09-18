@@ -1,0 +1,46 @@
+engine biome(1.0)
+language js(typescript)
+
+// SKILL.md event-handling rules: use event handlers for meaningful reactions to
+// domain events, not merely to print logs. The anti-pattern list names it
+// directly — "Event handlers that only call Logger/getCorrelationId() without
+// performing meaningful domain work".
+//
+// Such a handler is not free. It is a DI provider, it is discovered and wrapped
+// by PipelineBootstrapService, it allocates a PipelineContext per event and it
+// runs the entire global behavior chain — including an OpenTelemetry span — to
+// produce a line that LoggingBehavior already emits for every pipelined handler.
+//
+// Detection: an @EventsHandler class whose handle() logs or reads the correlation
+// ID but never awaits anything. A handler performing real work dispatches to an
+// application port, a repository or a bus, and therefore awaits. The heuristic is
+// deliberately narrow so a handler doing genuine work is not flagged merely for
+// logging alongside it.
+//
+// Severity is `warn`, not `error`, because `ddd/users-api` is a showcase: several
+// of its event handlers exist to demonstrate that domain events reach handlers and
+// that the correlation ID survives the hop, which is illustrative rather than
+// production code. The diagnostic keeps that trade-off visible without blocking the
+// build. Raise it to `error` in a real application, where a handler that only logs
+// is pure overhead — a DI provider, a PipelineContext allocation and an
+// OpenTelemetry span per event, for a line the global behaviors already emit.
+//
+// Note on the anchor: Biome attaches class decorators as siblings of the class
+// inside the enclosing JsExport node, not as children of JsClassDeclaration, so
+// the export is the node that sees both the decorator and the method body.
+
+pattern observability_only_call() {
+  or {
+    `$_.logger.$_($...)`,
+    `console.$_($...)`,
+    JsCallExpression(callee=`getCorrelationId`)
+  }
+}
+
+JsExport() as $export where {
+  $export <: contains JsDecorator(expression=JsCallExpression(callee=`EventsHandler`)),
+  $export <: contains JsMethodClassMember(name=`handle`, body=$body),
+  $body <: contains observability_only_call(),
+  not $body <: contains JsAwaitExpression(),
+  register_diagnostic(span=$export, message="This @EventsHandler only produces observability output: it logs or reads the correlation ID and never awaits any work. LoggingBehavior and TraceBehavior already cover every pipelined handler. Acceptable as showcase code; in a real application give it a reaction through an application port, or delete it and let the global behaviors report the event.", severity="warn")
+}

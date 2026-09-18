@@ -1,4 +1,5 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
+import { type IPipelineContext, pipelineStore } from '@nestjs-pipeline/core';
 import { type ICache } from '@nestjs-pipeline/ddd-core';
 import { describe, expect, it, vi } from 'vitest';
 import { GetRoleQuery } from '../cqrs/queries/get-role.query';
@@ -32,8 +33,9 @@ describe('GetRoleQueryRepository cache hydration', () => {
   it('hydrates a cached role snapshot for GetRoleQuery by default', async () => {
     const { role, cache, findOne, queryRepository } = createCachedRoleFixture();
 
-    const result = await queryRepository.find(
-      new GetRoleQuery({ roleId: role.id }),
+    const result = await pipelineStore.run(
+      { tenantId: 'tenant' } as unknown as IPipelineContext,
+      () => queryRepository.find(new GetRoleQuery({ roleId: role.id })),
     );
 
     expect(result).toBeInstanceOf(Role);
@@ -57,8 +59,9 @@ describe('GetRoleQueryRepository cache hydration', () => {
     };
     const queryRepository = new GetRoleQueryRepository(cache, store as never);
 
-    const result = await queryRepository.find(
-      new GetRoleQuery({ roleId: role.id }),
+    const result = await pipelineStore.run(
+      { tenantId: 'tenant' } as unknown as IPipelineContext,
+      () => queryRepository.find(new GetRoleQuery({ roleId: role.id })),
     );
 
     expect(result).toBe(role);

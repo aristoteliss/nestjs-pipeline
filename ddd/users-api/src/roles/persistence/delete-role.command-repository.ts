@@ -8,6 +8,7 @@ import {
   EntityNotFoundException,
   filterCacheKey,
   ICache,
+  MapPersistenceErrors,
 } from '@nestjs-pipeline/ddd-core';
 import { mapPersistenceError } from '@persistence/is-transient-persistence-error';
 import { MIKRO_ORM_CLIENT, MikroOrmStore } from '@persistence/mikro-orm.store';
@@ -30,36 +31,32 @@ export class DeleteRoleCommandRepository extends MikroOrmWriteSideCommandReposit
   @Cache<Role, null>(null, (role) => [
     filterCacheKey(Role.aggregateName, { id: role.id }),
   ])
+  @MapPersistenceErrors<[Role], Role>({
+    entity: ([role]) => role,
+    unique: [],
+    otherwise: (error, role) =>
+      mapPersistenceError(error, `deleting Role ${role.id}`),
+  })
   async save(role: Role): Promise<null> {
-    try {
-      const affected = await this.store.em.nativeDelete(Role, {
-        id: role.id,
-        version: role.getExpectedVersion(),
-      });
-      if (affected === 0) {
-        const exists = await this.store.em.findOne(
-          Role,
-          { id: role.id },
-          { refresh: true },
+    const affected = await this.store.em.nativeDelete(Role, {
+      id: role.id,
+      version: role.getExpectedVersion(),
+    });
+    if (affected === 0) {
+      const exists = await this.store.em.findOne(
+        Role,
+        { id: role.id },
+        { refresh: true },
+      );
+      if (exists) {
+        throw OptimisticLockError.lockFailedVersionMismatch(
+          role,
+          role.getExpectedVersion(),
+          exists.version,
         );
-        if (exists) {
-          throw OptimisticLockError.lockFailedVersionMismatch(
-            role,
-            role.getExpectedVersion(),
-            exists.version,
-          );
-        }
-        throw new EntityNotFoundException('Role', role.id);
       }
-      return null;
-    } catch (error) {
-      if (
-        error instanceof OptimisticLockError ||
-        error instanceof EntityNotFoundException
-      ) {
-        throw error;
-      }
-      throw mapPersistenceError(error, `deleting Role ${role.id}`);
+      throw new EntityNotFoundException('Role', role.id);
     }
+    return null;
   }
 }

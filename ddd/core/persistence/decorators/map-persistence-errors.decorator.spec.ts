@@ -95,3 +95,93 @@ describe('MapPersistenceErrors', () => {
     expect(() => decorate({}, 'value', {})).toThrow(TypeError);
   });
 });
+
+/**
+ * `otherwise` is the declarative replacement for the hand-rolled try/catch that
+ * delete command repositories used to translate transient driver failures. It runs
+ * only for errors no unique-constraint mapping claimed.
+ */
+describe('MapPersistenceErrors otherwise translator', () => {
+  function setupOtherwise(
+    failure: unknown,
+    translate: (error: unknown, entity: { id: string }) => unknown,
+  ) {
+    const entity = { id: 'entity-1' };
+    const otherwise = vi.fn(translate);
+    const constraintError = new Error('name already exists');
+    const errorFactory = vi.fn().mockReturnValue(constraintError);
+
+    class Writer {
+      readonly result = { saved: true };
+      @MapPersistenceErrors<[typeof entity], typeof entity>({
+        entity: ([value]) => value,
+        unique: [
+          {
+            constraint: 'items_name_unique',
+            columns: 'items.name',
+            error: errorFactory,
+          },
+        ],
+        otherwise,
+      })
+      async write(_value: typeof entity) {
+        if (failure !== undefined) throw failure;
+        return this.result;
+      }
+    }
+
+    const writer = new Writer();
+    return {
+      writer,
+      entity,
+      otherwise,
+      errorFactory,
+      constraintError,
+      run: () => writer.write(entity),
+    };
+  }
+
+  it('translates an unmatched failure and throws the replacement', async () => {
+    const replacement = new Error('Transient persistence failure.');
+    const failure = { code: 'ECONNRESET' };
+    const { run, entity, otherwise } = setupOtherwise(
+      failure,
+      () => replacement,
+    );
+
+    await expect(run()).rejects.toBe(replacement);
+    expect(otherwise).toHaveBeenCalledExactlyOnceWith(failure, entity);
+  });
+
+  it('preserves error identity when the translator returns the error unchanged', async () => {
+    // This is the `mapPersistenceError` contract: non-transient failures pass
+    // through, so repositories need no explicit re-throw guard for the domain
+    // errors they raise deliberately (OptimisticLockError, EntityNotFound…).
+    const failure = new Error('deliberate domain failure');
+    const { run, otherwise } = setupOtherwise(failure, (error) => error);
+
+    await expect(run()).rejects.toBe(failure);
+    expect(otherwise).toHaveBeenCalledOnce();
+  });
+
+  it('does not run when a unique constraint already claimed the failure', async () => {
+    const { run, otherwise, constraintError, errorFactory } = setupOtherwise(
+      { code: '23505', constraint: 'items_name_unique' },
+      () => new Error('should not be reached'),
+    );
+
+    await expect(run()).rejects.toBe(constraintError);
+    expect(errorFactory).toHaveBeenCalledOnce();
+    expect(otherwise).not.toHaveBeenCalled();
+  });
+
+  it('does not run on success', async () => {
+    const { writer, run, otherwise } = setupOtherwise(
+      undefined,
+      (error) => error,
+    );
+
+    expect(await run()).toBe(writer.result);
+    expect(otherwise).not.toHaveBeenCalled();
+  });
+});

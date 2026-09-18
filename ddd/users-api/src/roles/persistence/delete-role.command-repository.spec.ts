@@ -1,5 +1,7 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
+
 import { OptimisticLockError } from '@mikro-orm/core';
+import { type IPipelineContext, pipelineStore } from '@nestjs-pipeline/core';
 import {
   EntityNotFoundException,
   type ICache,
@@ -26,7 +28,10 @@ describe('DeleteRoleCommandRepository', () => {
     const role = Role.create('admin');
 
     role.delete();
-    const result = await repository.save(role);
+    const result = await pipelineStore.run(
+      { tenantId: 'tenant' } as unknown as IPipelineContext,
+      () => repository.save(role),
+    );
 
     expect(result).toBeNull();
     expect(nativeDelete).toHaveBeenCalledWith(Role, {

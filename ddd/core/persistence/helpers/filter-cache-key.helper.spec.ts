@@ -2,11 +2,8 @@
 
 import { type IPipelineContext, pipelineStore } from '@nestjs-pipeline/core';
 import { describe, expect, it } from 'vitest';
-import {
-  cacheKeyTemplate,
-  DEFAULT_TENANT_SCHEMA,
-  filterCacheKey,
-} from './filter-cache-key.helper';
+import { MissingTenantContextError } from '../../domain/exceptions/missing-tenant-context.exception';
+import { cacheKeyTemplate, filterCacheKey } from './filter-cache-key.helper';
 
 describe('filterCacheKey', () => {
   it('generates a deterministic key with sorted keys using resource string', () => {
@@ -61,9 +58,10 @@ describe('filterCacheKey', () => {
     );
   });
 
-  it('falls back to DEFAULT_TENANT_SCHEMA when no tenant is available', () => {
-    const key = filterCacheKey('user', { id: '1' });
-    expect(key).toBe(`${DEFAULT_TENANT_SCHEMA}:user:id:1`);
+  it('fails closed when no tenant is available, rather than sharing a namespace', () => {
+    expect(() => filterCacheKey('user', { id: '1' })).toThrow(
+      MissingTenantContextError,
+    );
   });
 
   it('maintains backwards compatibility with { prefixKey } objects', () => {
@@ -132,19 +130,22 @@ describe('filterCacheKey', () => {
     );
   });
 
-  it('throws in production mode if tenant context is missing', () => {
-    const prevEnv = process.env.NODE_ENV;
-    try {
-      process.env.NODE_ENV = 'production';
-      expect(() => {
-        filterCacheKey('user', { id: '1' });
-      }).toThrow(
-        'Missing tenant context: cannot derive cache key without an explicit tenant in production mode.',
-      );
-    } finally {
-      process.env.NODE_ENV = prevEnv;
-    }
-  });
+  it.each(['production', 'staging', 'test', 'development', undefined])(
+    'fails closed regardless of NODE_ENV (%s), because tenant isolation cannot depend on how the process was started',
+    (environment) => {
+      const previous = process.env.NODE_ENV;
+      try {
+        if (environment === undefined) delete process.env.NODE_ENV;
+        else process.env.NODE_ENV = environment;
+
+        expect(() => filterCacheKey('user', { id: '1' })).toThrow(
+          MissingTenantContextError,
+        );
+      } finally {
+        process.env.NODE_ENV = previous;
+      }
+    },
+  );
 });
 
 describe('cacheKeyTemplate', () => {

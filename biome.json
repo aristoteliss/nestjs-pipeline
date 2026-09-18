@@ -97,6 +97,50 @@
     {
       "path": "./biome/plugins/package-licenses.grit",
       "includes": ["**/packages/**/*.ts"]
+    },
+    {
+      "path": "./biome/plugins/transport-neutral-errors.grit",
+      "includes": [
+        "**/packages/*/src/**/*.ts",
+        "**/ddd/core/**/*.ts",
+        "**/ddd/*/src/**/cqrs/**/*.ts",
+        "**/ddd/*/src/**/domain/**/*.ts",
+        "**/ddd/*/src/**/application/**/*.ts",
+        "!**/controllers/**",
+        "!**/filters/**",
+        "!**/guards/**",
+        "!**/interceptors/**",
+        "!**/middlewares/**",
+        "!**/pipes/**",
+        "!**/*.spec.ts",
+        "!**/*.test.ts"
+      ]
+    },
+    {
+      "path": "./biome/plugins/handler-boundaries.grit",
+      "includes": [
+        "**/ddd/*/src/**/cqrs/**/*.ts",
+        "**/ddd/*/src/**/application/**/*.ts",
+        "!**/*.spec.ts",
+        "!**/*.test.ts"
+      ]
+    },
+    {
+      "path": "./biome/plugins/event-handler-substance.grit",
+      "includes": [
+        "**/ddd/*/src/**/events/**/*.ts",
+        "!**/*.spec.ts",
+        "!**/*.test.ts"
+      ]
+    },
+    {
+      "path": "./biome/plugins/core-environment.grit",
+      "includes": [
+        "**/packages/*/src/**/*.ts",
+        "**/ddd/core/**/*.ts",
+        "!**/*.spec.ts",
+        "!**/*.test.ts"
+      ]
     }
   ]
 }

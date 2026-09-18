@@ -5,8 +5,7 @@ import {
   pipelineStore,
   stableStringify,
 } from '@nestjs-pipeline/core';
-
-export const DEFAULT_TENANT_SCHEMA = process.env.DB_DEFAULT_SCHEMA || 'tenant';
+import { MissingTenantContextError } from '../../domain/exceptions/missing-tenant-context.exception';
 
 /**
  * Types supported as cache key resource specifiers:
@@ -42,24 +41,25 @@ function canonicalizeValue(val: unknown): string {
  * Resolves the active tenant schema from explicit arguments, pipeline context,
  * or ambient AsyncLocalStorage.
  *
- * Enforces fail-safe isolation in production (`NODE_ENV === 'production'`) by requiring
- * an explicit tenant context and refusing silent fallback to default schema.
+ * Fails closed in every environment. An earlier revision substituted a shared
+ * default namespace outside `NODE_ENV === 'production'`, which left the guard
+ * disabled wherever `NODE_ENV` was unset, `'staging'` or `'test'` — environments
+ * that routinely hold real tenant data, and containers that simply forgot to set
+ * the variable. Tenant isolation cannot be conditional on how the process was
+ * started, so the fallback is gone.
+ *
+ * @throws {MissingTenantContextError} When no tenant can be resolved.
  */
 function resolveTenantSchema(
   tenantOrContext?: string | IPipelineContext,
 ): string {
-  let schema =
+  const schema =
     typeof tenantOrContext === 'string'
       ? tenantOrContext
       : (tenantOrContext?.tenantId ?? pipelineStore.getStore()?.tenantId);
 
   if (!schema) {
-    if (process.env.NODE_ENV === 'production') {
-      throw new Error(
-        'Missing tenant context: cannot derive cache key without an explicit tenant in production mode.',
-      );
-    }
-    schema = DEFAULT_TENANT_SCHEMA;
+    throw new MissingTenantContextError('cache key derivation');
   }
 
   return schema;

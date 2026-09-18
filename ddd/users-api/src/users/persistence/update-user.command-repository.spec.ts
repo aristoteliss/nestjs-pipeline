@@ -1,5 +1,7 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
+
 import { OptimisticLockError } from '@mikro-orm/core';
+import { type IPipelineContext, pipelineStore } from '@nestjs-pipeline/core';
 import {
   EntityNotFoundException,
   type ICache,
@@ -26,7 +28,12 @@ describe('UpdateUserCommandRepository', () => {
     };
     const repository = new UpdateUserCommandRepository(cache, store as never);
 
-    await expect(repository.save(user)).resolves.toEqual(user.toJSON());
+    await expect(
+      pipelineStore.run(
+        { tenantId: 'tenant' } as unknown as IPipelineContext,
+        () => repository.save(user),
+      ),
+    ).resolves.toEqual(user.toJSON());
     expect(nativeUpdate).toHaveBeenCalledWith(
       User,
       { id: user.id, version: 1 },

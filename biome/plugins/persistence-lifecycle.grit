@@ -50,5 +50,14 @@ or {
     $id <: r"^Update.*CommandRepository$",
     not $members <: contains JsMethodClassMember(name=`save`),
     register_diagnostic(span=$class, message="The migrated repository must declare its decorated save().", severity="error")
+  },
+  JsMethodClassMember(name=`save`, body=$body) as $method where {
+    $method <: within JsClassDeclaration(id=$id) ,
+    $id <: r".*CommandRepository$",
+    $body <: contains or {
+      JsTryStatement(),
+      JsTryFinallyStatement()
+    },
+    register_diagnostic(span=$method, message="Do not hand-roll error translation inside save(). A try/catch here runs inside the write boundary, so its ordering relative to @AcknowledgePersisted and @Cache is no longer expressed by the decorator stack. Map constraint violations with @MapPersistenceErrors({ unique: [...] }) and transient driver failures with its `otherwise` translator.", severity="error")
   }
 }

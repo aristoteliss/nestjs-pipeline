@@ -160,4 +160,41 @@ describe('Biome Grit persistence lifecycle plugin', () => {
       ).status,
     ).toBe(0);
   });
+
+  it('rejects hand-rolled error translation inside a command repository save()', () => {
+    // A try/catch here runs inside the write boundary, so its ordering relative
+    // to @AcknowledgePersisted and @Cache stops being expressed by the decorator
+    // stack. Constraint mapping belongs in @MapPersistenceErrors, and transient
+    // classification in its `otherwise` translator.
+    const source = `
+class DeleteUserCommandRepository {
+  async save(user) {
+    try {
+      return await this.store.em.nativeDelete(User, { id: user.id });
+    } catch (error) {
+      throw mapPersistenceError(error, 'deleting User');
+    }
+  }
+}`;
+    const result = lint(source);
+    expect(result.status).toBe(1);
+    expect(result.diagnostics).toContain(
+      'Do not hand-roll error translation inside save()',
+    );
+  });
+
+  it('allows try/catch outside save(), such as load-path error translation', () => {
+    const source = `
+class DeleteUserCommandRepository {
+  async findById(id) {
+    try {
+      return await this.store.em.findOne(User, { id }, { refresh: true });
+    } catch (error) {
+      throw mapPersistenceError(error, 'loading User');
+    }
+  }
+  async save(user) { return null; }
+}`;
+    expect(lint(source).status).toBe(0);
+  });
 });
