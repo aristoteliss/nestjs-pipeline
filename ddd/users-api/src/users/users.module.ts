@@ -40,8 +40,14 @@ import { UpdateUserCommandRepository } from './persistence/update-user.command-r
 @Module({
   imports: [
     LoggerModule,
-    BullModule.registerQueue({ name: WELCOME_EMAIL_QUEUE }),
-    BullModule.registerQueue({ name: BATCH_UPDATE_USERS_QUEUE }),
+    BullModule.registerQueue({
+      name: WELCOME_EMAIL_QUEUE,
+      forceDisconnectOnShutdown: true,
+    }),
+    BullModule.registerQueue({
+      name: BATCH_UPDATE_USERS_QUEUE,
+      forceDisconnectOnShutdown: true,
+    }),
   ],
   controllers: [UsersController],
   providers: [

@@ -1,7 +1,7 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { Processor, WorkerHost } from '@nestjs/bullmq';
-import { Logger } from '@nestjs/common';
+import { Logger, OnModuleDestroy } from '@nestjs/common';
 import {
   getCorrelationId,
   WithCorrelation,
@@ -61,11 +61,22 @@ export function resolveBatchTenant(
 }
 
 @Processor(BATCH_UPDATE_USERS_QUEUE)
-export class BatchUpdateUsersProcessor extends WorkerHost {
+export class BatchUpdateUsersProcessor
+  extends WorkerHost
+  implements OnModuleDestroy
+{
   private readonly logger = new Logger(BatchUpdateUsersProcessor.name);
 
   constructor(private readonly tenantContext: TenantSchemaContext) {
     super();
+  }
+
+  async onModuleDestroy(): Promise<void> {
+    try {
+      await this.worker.close(true);
+    } catch {
+      // Worker was not initialized or already closed.
+    }
   }
 
   @WithCorrelation({ path: 'data.correlationId' })

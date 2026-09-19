@@ -62,7 +62,12 @@ import { RateLimiterMemory } from 'rate-limiter-flexible';
       },
     }),
     DeadLetterModule.forRootAsync({
-      imports: [BullModule.registerQueue({ name: 'dead-letters' })],
+      imports: [
+        BullModule.registerQueue({
+          name: 'dead-letters',
+          forceDisconnectOnShutdown: true,
+        }),
+      ],
       inject: [getQueueToken('dead-letters')],
       useFactory: (queue: Queue) => new BullMqDeadLetterTransport(queue),
       defaults: {
