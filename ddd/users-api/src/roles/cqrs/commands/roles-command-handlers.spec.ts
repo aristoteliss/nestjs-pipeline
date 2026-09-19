@@ -1,10 +1,12 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
+
+import { sessionUserStore } from '@common/context/session-user.store';
 import type { EventBus } from '@nestjs/cqrs';
+import { AuditBehavior } from '@nestjs-pipeline/audit';
 import type { CaslAuthorizer } from '@nestjs-pipeline/casl';
-import {
-  EntityNotFoundException,
-  type IWriteSideAggregateRepository,
-} from '@nestjs-pipeline/ddd-core';
+import { PIPELINE_BEHAVIORS_OPTIONS_METADATA } from '@nestjs-pipeline/core';
+import { type IWriteSideAggregateRepository } from '@nestjs-pipeline/ddd-core/application';
+import { EntityNotFoundException } from '@nestjs-pipeline/ddd-core/domain';
 import { describe, expect, it, vi } from 'vitest';
 import { Role } from '../../domain/models/role.entity';
 import { DeleteRoleCommand } from './delete-role.command';
@@ -67,5 +69,40 @@ describe('Roles CQRS write-side hydration', () => {
 
     expect(repository.findById).toHaveBeenCalledWith(existing.id);
     expect(repository.save).toHaveBeenCalledWith(result);
+  });
+
+  it('DeleteRoleHandler metadataFactory builds audit metadata', () => {
+    const optionsMap = Reflect.getMetadata(
+      PIPELINE_BEHAVIORS_OPTIONS_METADATA,
+      DeleteRoleHandler,
+    );
+    const auditOptions = optionsMap?.get(AuditBehavior);
+    expect(auditOptions?.metadataFactory).toBeDefined();
+
+    const cmd = new DeleteRoleCommand({
+      id: '019488e0-0000-7000-8000-000000000001',
+    });
+    const ctx = { request: cmd } as any;
+
+    sessionUserStore.run(
+      {
+        id: 'admin-1',
+        email: 'admin@test.com',
+        tenant: 'tenant_a',
+        department: 'Eng',
+        capabilities: { roles: ['admin'] },
+      },
+      () => {
+        const metadata = auditOptions.metadataFactory(ctx);
+        expect(metadata).toEqual({
+          targetRoleId: '019488e0-0000-7000-8000-000000000001',
+          deletedByUserId: 'admin-1',
+          deletedByEmail: 'admin@test.com',
+        });
+      },
+    );
+
+    // When session user is missing, returns undefined
+    expect(auditOptions.metadataFactory(ctx)).toBeUndefined();
   });
 });

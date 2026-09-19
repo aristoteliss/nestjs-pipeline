@@ -339,7 +339,6 @@ Exported as unique `Symbol` constants (`CACHE_HIT_ITEM` and `CACHE_KEY_ITEM`) to
 | `stores` | `Keyv[]` | Pre-built Keyv stores (tiered). |
 | `store` | `CacheStoreConfig \| CacheStoreConfig[]` | Declarative store(s). |
 | `ttl` | `number` | Default TTL (ms) for stores and handlers. |
-| `refreshThreshold` | `number` | Deprecated compatibility option forwarded to `cache-manager`; `CacheBehavior` does not call `wrap()`, so it does not trigger background refresh. |
 | `nonBlocking` | `boolean` | Optimize multi-store reads/writes. |
 | `defaults` | `CacheBehaviorOptions` | Default per-handler options. |
 

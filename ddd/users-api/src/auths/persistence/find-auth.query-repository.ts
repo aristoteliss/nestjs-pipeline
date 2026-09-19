@@ -2,11 +2,11 @@
 
 import { FilterQuery } from '@mikro-orm/core';
 import { Inject, Injectable } from '@nestjs/common';
+import { ICache } from '@nestjs-pipeline/ddd-core/application';
 import {
   CACHE_TOKEN,
-  ICache,
   QueryRepository,
-} from '@nestjs-pipeline/ddd-core';
+} from '@nestjs-pipeline/ddd-core/persistence';
 import { MIKRO_ORM_CLIENT, MikroOrmStore } from '@persistence/mikro-orm.store';
 import { FindAuthQuery } from '../cqrs/queries/find-auth.query';
 import { Auth, type AuthSnapshot } from '../domain/models/auth.entity';

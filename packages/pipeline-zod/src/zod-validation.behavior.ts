@@ -9,7 +9,10 @@ import {
 } from '@nestjs-pipeline/core';
 import { ZodType } from 'zod';
 import { ZodValidationError } from './errors/zod-validation.error';
-import { assertPlainRequestOutput } from './helpers/request-output';
+import {
+  assertPlainRequestOutput,
+  defineEnumerableDataProperties,
+} from './helpers/request-output';
 import {
   cloneData,
   getRawInput,
@@ -157,19 +160,5 @@ export class ZodValidationBehavior implements IPipelineBehavior {
     }
 
     return next();
-  }
-}
-
-function defineEnumerableDataProperties(
-  target: object,
-  source: Record<string, unknown>,
-): void {
-  for (const key of Object.keys(source)) {
-    Object.defineProperty(target, key, {
-      value: source[key],
-      writable: true,
-      enumerable: true,
-      configurable: true,
-    });
   }
 }

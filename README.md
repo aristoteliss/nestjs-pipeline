@@ -1023,7 +1023,9 @@ const schema = z.object({
   email: z.string().email(),
 });
 
-// Generates self-validating class with static _zodSchema, ~standard (NestJS 12), and static parse()/safeParse()
+// Generates a self-validating class with static _zodSchema,
+// Standard Schema (~standard) metadata, and static parse()/safeParse().
+// This repository currently supports/tests NestJS 11.
 export class CreateUserCommand extends createCommand(schema) {}
 //                                       ↑ attaches schema as static _zodSchema, sets requestKind: 'command'
 ```
@@ -1251,29 +1253,36 @@ startup:
 
 The `ddd/` directory demonstrates Domain-Driven Design with `@nestjs-pipeline`.
 
-### `ddd/core` — Reusable DDD Primitives
+### `ddd/core` — Nest-oriented DDD support for the sample application
 
-The `@nestjs-pipeline/ddd-core` package (`ddd/core/`) provides the foundational building blocks for any domain layer:
+The private `@nestjs-pipeline/ddd-core` workspace package provides three explicit entry points:
 
-| Export                | Description                                                                           |
-|-----------------------|-----------------------------------------------------------------------------------------|
-| `RootEntity`          | Abstract base entity with UUID v7 identity, `createdAt`/`updatedAt` lifecycle, accessor mappings, and mutation tracking |
-| `RootEntitySnapshot`  | Interface for serializing/rehydrating entities                                        |
-| `DomainException`     | Abstract base class for framework-agnostic domain invariant exceptions                  |
-| `DomainEvent`         | Abstract base class for domain events (carries a UUID v7 `id`)                        |
-| `RootDomainEvent`     | Domain event that carries a reference to the originating entity                       |
-| `Mutate`              | Decorator that calls `onUpdate()` after a method executes                             |
-| `ICache<T>`           | Interface for cache providers (`get`, `set`, `delete`)                                |
-| `CommandRepository`   | Abstract base for write repositories — holds an `ICache` and defines `save(entity)` |
-| `QueryRepository`     | Abstract base for read repositories — holds an `ICache` and defines `find(query)`    |
-| `@Cache()`            | Decorator for `save()` — write-through cache on writes, evict on delete, explicit key derivations |
-| `@FromCache()`        | Decorator for `find()` — read-through cache with fail-closed semantics and optional hydration |
-| `Method`              | Utility type for extracting method signatures                                         |
+- `/domain` — aggregate/event/error primitives;
+- `/application` — CQRS base classes and repository/cache ports;
+- `/persistence` — persistence decorators/adapters/helpers.
 
-Import them in your domain layer:
+Domain and application code should use the narrow entry points rather than the compatibility root barrel.
+
+| Export                | Layer          | Description                                                                           |
+|-----------------------|----------------|-----------------------------------------------------------------------------------------|
+| `RootEntity`          | `/domain`      | Abstract base entity with UUID v7 identity, `createdAt`/`updatedAt` lifecycle, accessor mappings, and mutation tracking |
+| `RootEntitySnapshot`  | `/domain`      | Interface for serializing/rehydrating entities                                        |
+| `DomainException`     | `/domain`      | Abstract base class for framework-agnostic domain invariant exceptions                  |
+| `DomainEvent`         | `/domain`      | Abstract base class for domain events (carries a UUID v7 `id`)                        |
+| `RootDomainEvent`     | `/domain`      | Domain event with detached immutable payload and event-time aggregate ID/version       |
+| `Mutate`              | `/domain`      | Decorator that calls `onUpdate()` after a method executes                             |
+| `CommandBaseHandler`  | `/application` | Base CQRS command handler that dispatches and clears uncommitted events                 |
+| `ICommandRepository`  | `/application` | Port for write repositories                                                            |
+| `IQueryRepository`    | `/application` | Port for read repositories                                                             |
+| `ICache<T>`           | `/application` | Interface for cache providers (`get`, `set`, `delete`)                                |
+| `@Cache()`            | `/persistence` | Decorator for `save()` — write-through cache on writes, evict on delete, explicit keys |
+| `@FromCache()`        | `/persistence` | Decorator for `find()` — read-through cache with fail-closed semantics and hydration   |
+| `UnixTimestampType`   | `/persistence` | Custom MikroORM Type mapping Date to 64-bit bigint unix timestamp                       |
+
+Import domain primitives in your domain layer:
 
 ```typescript
-import { RootEntity, RootDomainEvent, Mutate, DomainException } from '@nestjs-pipeline/ddd-core';
+import { RootEntity, RootDomainEvent, Mutate, DomainException } from '@nestjs-pipeline/ddd-core/domain';
 ```
 
 ### `ddd/users-api` — Full Working Application
@@ -1351,14 +1360,14 @@ ADAPTER=fastify pnpm start
 - Decoupled domain invariants with framework-agnostic `DomainException` & presentation-boundary `DomainExceptionFilter` (mapping to 400, 409, 422)
 - Clean Architecture persistence repository boundaries: CQRS handlers inject exclusively `ICommandRepository` and `IQueryRepository`, completely decoupled from ORM/database client classes (zero `MIKRO_ORM_CLIENT` leakage in handlers)
 - Persistent token revocation on logout via `DeleteAuthCommandRepository`, active user verification in `CaslUserContextResolver`, and explicit principal classification
-- Optimistic locking with aggregate `version` tracking on `User` and `Role` entities, with `OptimisticLockError` mapped to HTTP 409 Conflict
+- Optimistic concurrency with aggregate version tracking on `User` and `Role` entities. Persistence adapters translate driver/ORM conflict diagnostics into the transport-neutral `ConcurrencyConflictError`; the HTTP presentation filter maps that error to `409 Conflict`.
 - Injectable `CaslAuthorizer` (`IEntityAuthorizer`) in CQRS command and query handlers, replacing static entity authorizer anti-patterns
 - Per-handler CASL authorization with inline `rules` on `CaslBehaviorOptions` and `CaslBehavior`
 - MikroORM-backed CASL providers (roles, capabilities, user context)
 - Official MikroORM `accessor: true` entity schemas bridging private aggregate fields to public accessors without TypeScript bypasses
 - Decoupled CQRS caching architecture with collision-safe key derivation (`filterCacheKey`), fail-fast handler templates (`cacheKeyTemplate`), and static aggregate naming (`User.aggregateName`)
 - Versioned database migrations with tracking (`mikro_orm_migrations` table)
-- Zod-parsed/validated commands and queries via `createCommand()` and `createQuery()` implementing NestJS 12 Standard Schema (`['~standard']`)
+- Zod-parsed/validated commands and queries via `createCommand()` and `createQuery()` exposing Standard Schema (`['~standard']`) metadata
 - Controller-level `ZodPipe` validation
 - Zod transform mappers (DTO → Command mapping)
 - OpenTelemetry tracing with `TraceBehavior` and metrics with `MetricsBehavior`

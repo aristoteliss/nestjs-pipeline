@@ -1,13 +1,13 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { Inject, Injectable } from '@nestjs/common';
+import { type ICache } from '@nestjs-pipeline/ddd-core/application';
 import {
   CACHE_TOKEN,
   Cache,
   CommandRepository,
   filterCacheKey,
-  type ICache,
-} from '@nestjs-pipeline/ddd-core';
+} from '@nestjs-pipeline/ddd-core/persistence';
 import { MIKRO_ORM_CLIENT, MikroOrmStore } from '@persistence/mikro-orm.store';
 import { Auth, type AuthSnapshot } from '../domain/models/auth.entity';
 

@@ -2,6 +2,8 @@
 
 CASL authorization behavior for `@nestjs-pipeline/core` — ABAC (Attribute-Based Access Control) with role-based capability trees.
 
+Requires `@casl/ability` 7 (`^7.0.0`).
+
 ## Features
 
 - **ABAC + Roles**: Define roles with predefined capability sets, plus per-user overrides
@@ -95,7 +97,18 @@ A per-handler `prebuiltAbility` bypasses provider-based ability construction.
 | `getCaslAbility(context?)` | Read the resolved `AppAbility` from the ambient pipeline store (or an explicit context). |
 | `CaslAuthorizer` | Generic authorizer adapter for entity instances and field-level permissions backed by CASL. |
 | `ENTITY_AUTHORIZER` | Injection token (`Symbol.for('ENTITY_AUTHORIZER')`) for entity authorizer DI providers. |
-| `IEntityAuthorizer` | Interface for pluggable entity-level authorization checks. |
+| `IEntityAuthorizer` | Interface for pluggable checks: `can(action, subject, field?)`, where `subject` is an entity instance or a subject type string. |
+
+`CaslAuthorizer.can(action, subject, field?)` returns a boolean. Pass the loaded
+entity instance to evaluate record-dependent conditions, and optionally a field
+name for a field-level check. A subject type string is suitable for type-level
+checks. Without a configured or ambient ability, the result is `false` unless
+explicit bypass is enabled.
+
+```typescript
+const canRename = authorizer.can('update', loadedUser, 'username');
+const canCreate = authorizer.can('create', 'User');
+```
 
 ### Tokens & types
 

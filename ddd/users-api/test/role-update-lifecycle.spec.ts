@@ -1,8 +1,8 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { MikroORM } from '@mikro-orm/libsql';
-import type { ICache } from '@nestjs-pipeline/ddd-core';
-import { ConcurrencyConflictError } from '@nestjs-pipeline/ddd-core';
+import type { ICache } from '@nestjs-pipeline/ddd-core/application';
+import { ConcurrencyConflictError } from '@nestjs-pipeline/ddd-core/domain';
 import { createLibsqlOrmOptions } from '@persistence/libsql-options';
 import { Migration20260830000000 } from '@persistence/migrations/Migration20260830000000';
 import type { MikroOrmStore } from '@persistence/mikro-orm.store';

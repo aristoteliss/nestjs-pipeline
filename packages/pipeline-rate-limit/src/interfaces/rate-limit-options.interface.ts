@@ -14,13 +14,29 @@ import type { RateLimiterLike } from './rate-limiter.interface';
  */
 export type RateLimitKeyFactory = (context: IPipelineContext) => string;
 
-/** Per-handler (and module-default) options for {@link RateLimitBehavior}. */
+/**
+ * Per-handler (and module-default) options for {@link RateLimitBehavior}.
+ *
+ * @example Tenant + caller scoped limit
+ * ```ts
+ * const perUser = createPartitionedRateLimitKeyFactory(
+ *   (ctx) => ctx.items.get('userId') as string | undefined,
+ * );
+ *
+ * @UsePipeline([RateLimitBehavior, {
+ *   keyFactory: perUser,
+ *   points: 1,
+ * }])
+ * export class CreateOrderHandler {}
+ * ```
+ */
 export interface RateLimitBehaviorOptions {
   /** Positive safe-integer points this request costs. Default `1`. */
   points?: number;
   /**
-   * Builds the bucket key. Default: `context.requestName` (one bucket per
-   * request type). Combine with a user/tenant id for per-caller limits.
+   * Builds the bucket key. Required whenever the behavior executes; there is
+   * no implicit shared bucket. Prefer `createPartitionedRateLimitKeyFactory`
+   * for tenant/caller-aware limits.
    */
   keyFactory?: RateLimitKeyFactory;
   /** Optional prefix prepended to the key as `"<prefix>:<key>"`. */
@@ -39,7 +55,17 @@ export interface RateLimitBehaviorOptions {
   failOpen?: boolean;
 }
 
-/** Options for {@link RateLimitModule.forRoot}. */
+/**
+ * Options for {@link RateLimitModule.forRoot}.
+ *
+ * @example Single-process limiter with handler-specific keys
+ * ```ts
+ * RateLimitModule.forRoot({
+ *   limiter: new RateLimiterMemory({ points: 20, duration: 60 }),
+ *   defaults: { failOpen: true },
+ * });
+ * ```
+ */
 export interface RateLimitModuleOptions {
   /** The limiter instance every handler shares by default. */
   limiter: RateLimiterLike;
@@ -47,7 +73,18 @@ export interface RateLimitModuleOptions {
   defaults?: RateLimitBehaviorOptions;
 }
 
-/** Options for {@link RateLimitModule.forRootAsync}. */
+/**
+ * Options for {@link RateLimitModule.forRootAsync}.
+ *
+ * @example Build a distributed limiter from an injected Redis client
+ * ```ts
+ * RateLimitModule.forRootAsync({
+ *   inject: [REDIS],
+ *   useFactory: (redis) =>
+ *     new RateLimiterRedis({ storeClient: redis, points: 100, duration: 60 }),
+ * });
+ * ```
+ */
 export interface RateLimitModuleAsyncOptions
   extends Pick<ModuleMetadata, 'imports'> {
   /** Factory that builds the limiter from injected dependencies. */

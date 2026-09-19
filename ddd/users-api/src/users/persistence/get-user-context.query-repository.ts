@@ -2,7 +2,7 @@
 
 import { Inject, Injectable } from '@nestjs/common';
 import type { CaslUserContext } from '@nestjs-pipeline/casl';
-import type { IQueryRepository } from '@nestjs-pipeline/ddd-core';
+import type { IQueryRepository } from '@nestjs-pipeline/ddd-core/application';
 import { MIKRO_ORM_CLIENT, MikroOrmStore } from '@persistence/mikro-orm.store';
 import { GetUserContextQuery } from '../cqrs/queries/get-user-context.query';
 import { User } from '../domain/models/user.entity';

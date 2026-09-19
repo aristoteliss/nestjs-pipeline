@@ -1,7 +1,7 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { Inject, Injectable, Optional } from '@nestjs/common';
-import { CacheSetOptions, ICache } from '@nestjs-pipeline/ddd-core';
+import { CacheSetOptions, ICache } from '@nestjs-pipeline/ddd-core/application';
 import { MIKRO_ORM_CLIENT, MikroOrmStore } from '../mikro-orm.store';
 import { CacheEntry } from './cache.entity';
 

@@ -1,7 +1,7 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import type { IEvent } from '@nestjs/cqrs';
-import { uuidv7 } from '@nestjs-pipeline/core';
+import { uuidv7 } from '../utils/uuidv7';
+import type { IEvent } from './event.interface';
 
 /**
  * Base class for all domain events.

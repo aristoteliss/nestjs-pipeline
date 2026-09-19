@@ -21,7 +21,21 @@ import {
   type PipelineTelemetryAttributeFactory,
 } from './telemetry-attributes';
 
-/** Options for the {@link TraceBehavior}. */
+/**
+ * Per-handler tracing options for {@link TraceBehavior}.
+ *
+ * @example Service-specific tracing
+ * ```ts
+ * @UsePipeline([TraceBehavior, {
+ *   tracerName: 'users-api',
+ *   spanName: (ctx) => `${ctx.requestKind}.${ctx.requestName}`,
+ *   attributeFactory: (ctx) => ({
+ *     'app.tenant': ctx.tenantId ?? 'unknown',
+ *   }),
+ * }])
+ * export class GetUserHandler {}
+ * ```
+ */
 export interface TraceBehaviorOptions {
   /**
    * Name of the OpenTelemetry tracer used to create spans.

@@ -6,9 +6,9 @@ import { CaslAuthorizer, CaslBehavior } from '@nestjs-pipeline/casl';
 import { LoggingBehavior, UsePipeline } from '@nestjs-pipeline/core';
 import {
   CommandBaseHandler,
-  EntityNotFoundException,
   IWriteSideAggregateRepository,
-} from '@nestjs-pipeline/ddd-core';
+} from '@nestjs-pipeline/ddd-core/application';
+import { EntityNotFoundException } from '@nestjs-pipeline/ddd-core/domain';
 import type { User } from '../../domain/models/user.entity';
 import { COMMAND_REPOSITORY } from '../../persistence/repository.tokens';
 import { UpdateUserCommand } from './update-user.command';
@@ -34,10 +34,6 @@ export class UpdateUserHandler extends CommandBaseHandler<
     super(eventBus);
   }
 
-  /**
-   * Loads authoritative write-side state, rejects absence with a framework-neutral
-   * application error, authorizes the real aggregate, then applies the mutation.
-   */
   async handle(command: UpdateUserCommand): Promise<User> {
     const { id, username, department } = command;
     const user = await this.commandRepository.findById(id);

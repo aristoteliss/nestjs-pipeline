@@ -5,7 +5,7 @@ import { Inject } from '@nestjs/common';
 import { type IQueryHandler, QueryHandler } from '@nestjs/cqrs';
 import { CaslAuthorizer, CaslBehavior } from '@nestjs-pipeline/casl';
 import { UsePipeline } from '@nestjs-pipeline/core';
-import type { IQueryRepository } from '@nestjs-pipeline/ddd-core';
+import type { IQueryRepository } from '@nestjs-pipeline/ddd-core/application';
 import { User, type UserSnapshot } from '../../domain/models/user.entity';
 import { QUERY_REPOSITORY } from '../../persistence/repository.tokens';
 import { GetUsersQuery } from './get-users.query';

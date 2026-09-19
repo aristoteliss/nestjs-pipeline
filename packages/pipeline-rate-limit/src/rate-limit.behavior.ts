@@ -68,13 +68,14 @@ function isRateLimiterRes(value: unknown): value is RateLimiterResLike {
  * `rate-limiter-flexible` backend (memory, Redis/Valkey, Mongo, SQL) is a
  * one-line swap in {@link RateLimitModule.forRoot}.
  *
- * @example Per-handler limit, keyed by caller data carried by the command
+ * @example Per-handler limit, partitioned by tenant and authenticated caller
  * ```ts
+ * const perUser = createPartitionedRateLimitKeyFactory(
+ *   (ctx) => ctx.items.get('userId') as string | undefined,
+ * );
+ *
  * @CommandHandler(CreateUserCommand)
- * @UsePipeline([
- *   RateLimitBehavior,
- *   { points: 1, keyFactory: (ctx) => `${ctx.requestName}:${ctx.request.clientIp}` },
- * ])
+ * @UsePipeline([RateLimitBehavior, { points: 1, keyFactory: perUser }])
  * export class CreateUserHandler {}
  * ```
  */

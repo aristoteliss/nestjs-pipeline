@@ -392,4 +392,91 @@ describe('DeadLetterBehavior', () => {
       publicField: 'visible',
     });
   });
+
+  describe('ignoreErrors merge combinations', () => {
+    class ErrorA extends Error {}
+    class ErrorB extends Error {}
+    class ErrorC extends Error {}
+
+    it('merges when both defaults and handler use filter functions', async () => {
+      const behavior = new DeadLetterBehavior(transport, {
+        ignoreErrors: (err) => err instanceof ErrorA,
+      });
+      const ctx = withOptions(makeCtx(), {
+        ignoreErrors: (err) => err instanceof ErrorB,
+      });
+
+      // ErrorA ignored by default filter
+      await expect(
+        behavior.handle(ctx, vi.fn().mockRejectedValue(new ErrorA('a'))),
+      ).rejects.toThrow('a');
+      expect(send).not.toHaveBeenCalled();
+
+      // ErrorB ignored by handler filter
+      await expect(
+        behavior.handle(ctx, vi.fn().mockRejectedValue(new ErrorB('b'))),
+      ).rejects.toThrow('b');
+      expect(send).not.toHaveBeenCalled();
+
+      // ErrorC captured
+      await expect(
+        behavior.handle(ctx, vi.fn().mockRejectedValue(new ErrorC('c'))),
+      ).rejects.toThrow('c');
+      expect(send).toHaveBeenCalledTimes(1);
+    });
+
+    it('merges when defaults is an array and handler is a filter function', async () => {
+      const behavior = new DeadLetterBehavior(transport, {
+        ignoreErrors: [ErrorA],
+      });
+      const ctx = withOptions(makeCtx(), {
+        ignoreErrors: (err) => err instanceof ErrorB,
+      });
+
+      // ErrorA ignored via default array
+      await expect(
+        behavior.handle(ctx, vi.fn().mockRejectedValue(new ErrorA('a'))),
+      ).rejects.toThrow('a');
+      expect(send).not.toHaveBeenCalled();
+
+      // ErrorB ignored via handler filter
+      await expect(
+        behavior.handle(ctx, vi.fn().mockRejectedValue(new ErrorB('b'))),
+      ).rejects.toThrow('b');
+      expect(send).not.toHaveBeenCalled();
+
+      // ErrorC captured
+      await expect(
+        behavior.handle(ctx, vi.fn().mockRejectedValue(new ErrorC('c'))),
+      ).rejects.toThrow('c');
+      expect(send).toHaveBeenCalledTimes(1);
+    });
+
+    it('merges when defaults is a filter function and handler is an array', async () => {
+      const behavior = new DeadLetterBehavior(transport, {
+        ignoreErrors: (err) => err instanceof ErrorA,
+      });
+      const ctx = withOptions(makeCtx(), {
+        ignoreErrors: [ErrorB],
+      });
+
+      // ErrorA ignored via default filter
+      await expect(
+        behavior.handle(ctx, vi.fn().mockRejectedValue(new ErrorA('a'))),
+      ).rejects.toThrow('a');
+      expect(send).not.toHaveBeenCalled();
+
+      // ErrorB ignored via handler array
+      await expect(
+        behavior.handle(ctx, vi.fn().mockRejectedValue(new ErrorB('b'))),
+      ).rejects.toThrow('b');
+      expect(send).not.toHaveBeenCalled();
+
+      // ErrorC captured
+      await expect(
+        behavior.handle(ctx, vi.fn().mockRejectedValue(new ErrorC('c'))),
+      ).rejects.toThrow('c');
+      expect(send).toHaveBeenCalledTimes(1);
+    });
+  });
 });

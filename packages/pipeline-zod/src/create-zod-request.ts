@@ -2,7 +2,10 @@
 
 import type { ZodTypeAny, z } from 'zod';
 import { ZodValidationError } from './errors/zod-validation.error';
-import { assertPlainRequestOutput } from './helpers/request-output';
+import {
+  assertPlainRequestOutput,
+  defineEnumerableDataProperties,
+} from './helpers/request-output';
 import {
   cloneData,
   setRawInput,
@@ -11,17 +14,11 @@ import {
 import { ZOD_SCHEMA_KEY } from './zod-validation.behavior';
 
 /**
- * Constructor shape a generated request may extend.
+ * Constructor shape accepted as the optional base class for generated requests.
  *
- * The instance type defaults to `object`, not `any`. With `any`, the generated
- * class's instance was `any & z.output<TSchema>` — which collapses to `any` —
- * so every property check on the result disappeared whenever no base class was
- * supplied. `new Request({ name: 'x' }).nonexistentMethod()` compiled cleanly
- * under strict TypeScript.
- *
- * The parameter list stays `any[]` on purpose: constructor parameter positions
- * are checked bivariantly, and narrowing them here would reject legitimate base
- * classes such as `BaseCommand`.
+ * The instance side defaults to `object` so generated request properties remain
+ * strongly typed. Constructor arguments stay unconstrained to support base
+ * classes such as `BaseCommand` and `BaseQuery`.
  */
 // biome-ignore lint/suspicious/noExplicitAny: constructor parameter covariance requires any[]
 type AbstractConstructor<T = object> = abstract new (...args: any[]) => T;
@@ -60,14 +57,17 @@ export type ZodRequestClass<
     ...baseArgs: ConstructorParameters<TBase>
   ): InstanceType<TBase> & z.output<TSchema>;
   /**
-   * Validates asynchronously, then constructs the instance.
+   * Validates asynchronously, then constructs the request instance.
    *
-   * The constructor is synchronous by design, which makes it unusable with a
-   * schema containing an async refinement or transform: Zod throws
-   * "Encountered Promise during synchronous parse". The documented advice was to
-   * validate in `ZodValidationBehavior` or `ZodPipe` instead — but those run
-   * after construction, so for a generated request class there was no way to
-   * construct one at all. This is that missing path.
+   * Use this for schemas with async refinements/transforms. The normal
+   * constructor and {@link parse} are synchronous and therefore require a
+   * synchronously parseable schema.
+   *
+   * @example
+   * ```ts
+   * const command = await CreateUserCommand.parseAsync(input);
+   * await commandBus.execute(command);
+   * ```
    */
   parseAsync(
     input: z.input<TSchema>,
@@ -99,13 +99,13 @@ function isPreValidated(value: unknown): value is PreValidated {
  *
  * Compatible with NestJS CQRS, Standard Schema, and `@nestjs-pipeline/zod`:
  * - Attaches the schema as static `_zodSchema` (`ZOD_SCHEMA_KEY`) and `schema`.
- * - Forwards Standard Schema specification (`~standard`) for native NestJS 12 `StandardSchemaValidationPipe` support.
+ * - Forwards Standard Schema specification (`~standard`) for schema interoperability.
  * - Provides static `parse()` and `safeParse()` directly on the class.
  * - Inherits from an optional base class (e.g. `BaseCommand`, `BaseQuery`) preserving prototype,
  *   instanceof checks, and constructor arguments.
  * - Validates input and applies transformations (e.g. email trimming / lowercasing) on construction,
  *   throwing {@link ZodValidationError} on invalid payload.
- * - Safely assigns transformed output properties onto the instance without leaking `undefined` keys.
+ * - Safely assigns transformed output properties onto the instance including own keys whose parsed value is `undefined`.
  *
  * @example Defining a Command with BaseCommand
  * ```ts
@@ -189,16 +189,7 @@ export function createZodRequest<
 
       setRawInput(this, rawInput);
 
-      for (const [key, value] of Object.entries(data)) {
-        if (value !== undefined) {
-          Object.defineProperty(this, key, {
-            value,
-            writable: true,
-            enumerable: true,
-            configurable: true,
-          });
-        }
-      }
+      defineEnumerableDataProperties(this, data);
 
       const snapshot: Record<string, unknown> = {};
       for (const key of Object.keys(this)) {

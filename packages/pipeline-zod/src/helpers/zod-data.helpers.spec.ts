@@ -118,6 +118,23 @@ describe('zod-data.helpers', () => {
 
       expect(hasBeenMutated(request, snapshot)).toBe(false);
     });
+
+    it('returns true when request is missing a property present in snapshot', () => {
+      const snapshot = { a: 1, b: 2 };
+      const request = { a: 1, c: 2 }; // same key length, different keys
+      expect(hasBeenMutated(request, snapshot)).toBe(true);
+    });
+
+    it('returns false in deepEqual when objects have different keys despite same length', () => {
+      expect(deepEqual({ a: 1, b: 2 }, { a: 1, c: 2 })).toBe(false);
+    });
+
+    it('returns false in deepEqual when comparing array with object having same keys', () => {
+      const arr = ['a'];
+      const obj = { 0: 'a' };
+      expect(deepEqual(arr, obj)).toBe(false);
+      expect(deepEqual(obj, arr)).toBe(false);
+    });
   });
 
   describe('cloneData', () => {

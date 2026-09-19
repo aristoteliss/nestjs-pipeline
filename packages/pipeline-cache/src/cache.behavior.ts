@@ -62,6 +62,18 @@ const DEFAULT_KINDS: Array<IPipelineContext['requestKind']> = ['query'];
  * Store errors fail open by default: read failures bypass caching for that
  * execution, and write failures return the successful handler result. Set
  * `failOpen: false` to propagate store failures instead.
+ *
+ * @example Principal/permission-scoped query cache
+ * ```ts
+ * const userCacheKey = createPartitionedCacheKeyFactory({
+ *   principal: (ctx) => ctx.items.get('userId') as string | undefined,
+ *   scope: (ctx) => ctx.items.get('capabilityVersion') as string | undefined,
+ * });
+ *
+ * @QueryHandler(GetUsersQuery)
+ * @UsePipeline([CacheBehavior, { key: userCacheKey, ttl: 30_000 }])
+ * export class GetUsersHandler {}
+ * ```
  */
 @Injectable()
 export class CacheBehavior implements IPipelineBehavior {

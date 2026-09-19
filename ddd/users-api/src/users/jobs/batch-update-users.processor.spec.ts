@@ -38,6 +38,7 @@ describe('BatchUpdateUsersProcessor tenant isolation', () => {
     } as unknown as TenantSchemaContext;
     const processor = new BatchUpdateUsersProcessor(tenantContext);
     let observed: string | undefined;
+    // biome-ignore lint/complexity/useLiteralKeys: for testing
     vi.spyOn(processor['logger'], 'log').mockImplementation((message) => {
       observed ??= String(message);
     });

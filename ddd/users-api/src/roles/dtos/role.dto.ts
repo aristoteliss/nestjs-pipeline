@@ -7,6 +7,12 @@ import {
 import { z } from 'zod';
 import type { Role, RoleSnapshot } from '../domain/models/role.entity';
 
+/**
+ * Public role response shape. Undefined fields are omitted from serialized output.
+ *
+ * @example
+ * `{ "id": "019...", "name": "manager" }`
+ */
 export const RoleResponseDtoSchema = z
   .object({
     id: z.string().optional(),

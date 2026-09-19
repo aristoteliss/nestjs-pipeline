@@ -66,6 +66,12 @@ export interface FromCacheOptions<TQuery = unknown, TResult = unknown> {
  * - **Fail-closed policy**: Cache errors on read/set propagate to maintain strong consistency guarantees
  *   at the repository boundary.
  *
+ * Use `alwaysHydrate: true` for repositories whose public contract returns
+ * domain aggregates; cached snapshots are then never leaked to callers.
+ *
+ * @throws {TypeError} At decoration time when `alwaysHydrate: true` has no `hydrateFn`,
+ * or at runtime when no key function was configured.
+ *
  * @example Usage with options object and alwaysHydrate (recommended)
  * ```typescript
  * @Injectable()

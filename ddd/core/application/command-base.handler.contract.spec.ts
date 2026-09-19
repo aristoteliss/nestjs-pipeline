@@ -12,8 +12,8 @@
  * depend on it.
  */
 
-import { AggregateRoot } from '@nestjs/cqrs';
 import { describe, expect, it, vi } from 'vitest';
+import { AggregateRoot } from '../domain/models/aggregate-root';
 import { CommandBaseHandler } from './command-base.handler';
 
 class ThingCreated {

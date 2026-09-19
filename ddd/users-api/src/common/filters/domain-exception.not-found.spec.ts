@@ -1,6 +1,6 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 import type { ArgumentsHost } from '@nestjs/common';
-import { EntityNotFoundException } from '@nestjs-pipeline/ddd-core';
+import { EntityNotFoundException } from '@nestjs-pipeline/ddd-core/domain';
 import { describe, expect, it, vi } from 'vitest';
 import { DomainExceptionFilter } from './domain-exception.filter';
 

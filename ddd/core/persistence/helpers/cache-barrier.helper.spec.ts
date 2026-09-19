@@ -47,4 +47,12 @@ describe('cache-barrier.helper', () => {
     expect(isCacheMutationBarrier({ id: '1', version: 2 })).toBe(false);
     expect(isCacheMutationBarrier({ __deleted: true })).toBe(false);
   });
+
+  it('extracts version from _version when version property is absent', () => {
+    const barrier = createCacheMutationBarrier('invalidated', {
+      id: 'usr-42',
+      _version: 5,
+    });
+    expect(barrier.version).toBe(5);
+  });
 });

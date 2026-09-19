@@ -1,11 +1,11 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { type IPipelineContext, pipelineStore } from '@nestjs-pipeline/core';
+import { MissingTenantContextError } from '@nestjs-pipeline/ddd-core/domain';
 import {
   cacheKeyTemplate,
   filterCacheKey,
-  MissingTenantContextError,
-} from '@nestjs-pipeline/ddd-core';
+} from '@nestjs-pipeline/ddd-core/persistence';
 import { describe, expect, it } from 'vitest';
 
 describe('filterCacheKey', () => {

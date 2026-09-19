@@ -39,6 +39,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
 
 import { UniqueRoleNameException } from '../src/roles/domain/models/errors/role-name.exception';
+import { Role } from '../src/roles/domain/models/role.entity';
 
 // ─── Pipeline Context Helper ──────────────────────────────────────────────────
 
@@ -590,14 +591,21 @@ describe('Users API Pipeline Behaviors Specification', () => {
   // ─── 9. CaslBehavior ──────────────────────────────────────────────────────
   describe('CaslBehavior (@nestjs-pipeline/casl)', () => {
     it('verifies entity-level authorization with CaslAuthorizer', () => {
+      const role = Role.create('manager');
+      const otherRole = Role.create('admin');
       const ability = buildAbilityFromRules([
-        { action: 'update', subject: 'Role', fields: ['name'] },
+        {
+          action: 'update',
+          subject: 'Role',
+          conditions: { id: role.id },
+          fields: ['name'],
+        },
       ]);
       const authorizer = new CaslAuthorizer(ability);
 
-      expect(
-        authorizer.can('update', 'Role', { id: '1', name: 'manager' }, 'name'),
-      ).toBe(true);
+      expect(authorizer.can('update', role, 'name')).toBe(true);
+      expect(authorizer.can('update', role, 'id')).toBe(false);
+      expect(authorizer.can('update', otherRole, 'name')).toBe(false);
     });
   });
 

@@ -2,6 +2,10 @@
 
 import { z } from 'zod';
 
+/**
+ * Mutable user fields accepted by update requests.
+ * At least one field must be present; `department: null` clears the department.
+ */
 export const UpdateUserDtoShape = {
   name: z.string().trim().min(3).optional(),
   department: z.string().trim().min(3).nullable().optional(),

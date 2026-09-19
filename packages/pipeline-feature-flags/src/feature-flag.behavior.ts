@@ -33,8 +33,9 @@ import type {
  * Unique symbol key set on `context.items` recording the final boolean gate
  * decision (`true` means the handler was allowed to execute).
  *
- * Kept for backward compatibility with the original package API. For richer
- * provider details use {@link FEATURE_FLAG_DECISION_ITEM}.
+ * Use this when only the final gate result is needed. For provider variant,
+ * reason, error metadata, and targeting identity use
+ * {@link FEATURE_FLAG_DECISION_ITEM}.
  *
  * @example
  * ```ts
@@ -224,10 +225,8 @@ export class FeatureFlagBehavior implements IPipelineBehavior {
         : {}),
     };
 
-    // Published before the error policy is applied. With errorPolicy: 'throw'
-    // the evaluation used to throw from inside evaluate(), so the decision item
-    // was never written — leaving an outer audit or telemetry behavior blind in
-    // exactly the case it most needs to record.
+    // Publish the decision before applying the throw policy so outer audit and
+    // telemetry behaviors can observe provider failures.
     context.items.set(FEATURE_FLAG_KEY_ITEM, options.flag);
     context.items.set(FEATURE_FLAG_ITEM, enabled);
     context.items.set(FEATURE_FLAG_DECISION_ITEM, decision);
@@ -263,14 +262,11 @@ export class FeatureFlagBehavior implements IPipelineBehavior {
   }
 
   /**
-   * Uses OpenFeature's detailed evaluation API so variant/reason/error metadata
-   * is available to the pipeline.
+   * Resolves OpenFeature details without applying the handler's error policy.
    *
-   * This never throws. A provider failure is normalized into usable details plus
-   * a `failure` descriptor, so the caller can publish the decision record first
-   * and apply the error policy afterwards. Throwing from here meant the most
-   * operationally interesting outcome — evaluation failed — was the one case
-   * that produced no inspectable record at all.
+   * Provider failures are normalized into a decision plus a `failure`
+   * descriptor so the caller can publish telemetry/audit state before deciding
+   * whether to use the default value or throw.
    */
   private async evaluate(
     flag: string,

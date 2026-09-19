@@ -58,15 +58,17 @@ function digestRequest(request: unknown): string {
  * Builds a cache key that partitions every dimension capable of changing an
  * authorized response.
  *
- * `CacheBehavior` has no default key on purpose. The previous default included
- * `context.correlationId`, which is unique per request — so the cache wrote an
- * entry for every query and could never read one back. It cost two round-trips
- * and unbounded store growth while delivering no hits at all, and it only looked
- * safe: a client can supply its own correlation ID, and nested executions
- * deliberately inherit one, so it never was an authorization boundary either.
+ * The key includes tenant, principal, optional permission scope, request type,
+ * and a SHA-256 digest of the request payload. This keeps raw request data out
+ * of cache key listings while preventing authorized responses from being shared
+ * across callers with different security context.
  *
- * Requiring an explicit factory turns that into a decision made once, in the
- * open, instead of a silent default that is either useless or unsafe.
+ * Use this helper when a cache hit can bypass authorization or response
+ * filtering performed inside the handler.
+ *
+ * @param options - Resolvers and fail-closed requirements for key partitioning.
+ * @returns A `CacheKeyFactory` suitable for `CacheBehaviorOptions.key`.
+ * @throws {MissingCachePartitionError} When a required tenant or principal is absent.
  *
  * @example Per principal, tenant-aware, invalidated when roles change
  * ```ts

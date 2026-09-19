@@ -11,7 +11,7 @@ import {
   CaslAuthorizer,
   UnauthorizedActionException,
 } from '@nestjs-pipeline/casl';
-import { EntityNotFoundException } from '@nestjs-pipeline/ddd-core';
+import { EntityNotFoundException } from '@nestjs-pipeline/ddd-core/domain';
 import { ZodValidationError, ZodValidationFilter } from '@nestjs-pipeline/zod';
 import { describe, expect, it, vi } from 'vitest';
 // Auths CQRS & Services

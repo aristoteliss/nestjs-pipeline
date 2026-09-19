@@ -65,6 +65,13 @@ describe('ddd-core entry points', () => {
     expect(loaded.filter((m) => m.includes('@mikro-orm'))).toEqual([]);
   });
 
+  it('does not load @nestjs through the domain entry point', () => {
+    const loaded = loadedModules('dist/domain/index.js');
+
+    expect(loaded.length).toBeGreaterThan(0);
+    expect(loaded.filter((m) => m.includes('@nestjs'))).toEqual([]);
+  });
+
   it('does not load MikroORM through the application entry point', () => {
     // Repository ports live here, so a CQRS handler needs nothing else.
     const loaded = loadedModules('dist/application/index.js');
@@ -81,6 +88,7 @@ describe('ddd-core entry points', () => {
     expect(domain.MissingTenantContextError).toBeTypeOf('function');
     expect(domain.TransientOperationError).toBeTypeOf('function');
     expect(domain.RootEntity).toBeTypeOf('function');
+    expect(domain.AggregateRoot).toBeTypeOf('function');
   });
 
   it('exposes the repository ports from the application entry point', async () => {

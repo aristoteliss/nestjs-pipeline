@@ -14,7 +14,7 @@ Zod v4 validation and parsing integration for `@nestjs-pipeline/core` — parse 
 - [Creating Validated Commands, Queries, and Events](#creating-validated-commands-queries-and-events)
   - [createCommand() and createQuery() Factories](#createcommand-and-createquery-factories)
   - [Extending Base Classes (BaseCommand, BaseQuery)](#extending-base-classes-basecommand-basequery)
-  - [Standard Schema & NestJS 12 Integration](#standard-schema--nestjs-12-integration)
+  - [Standard Schema Metadata](#standard-schema-metadata)
   - [Static parse() and safeParse()](#static-parse-and-safeparse)
   - [Type Inference Helpers (InferInput, InferOutput)](#type-inference-helpers-inferinput-inferoutput)
   - [Attaching Schemas Manually](#attaching-schemas-manually)
@@ -146,7 +146,7 @@ Instead of writing repetitive boilerplate classes with manual constructor valida
 These factories automatically:
 - Attach the Zod schema as static `_zodSchema` (for `ZodValidationBehavior`) and `schema`.
 - Tag the generated class with `requestKind = 'command'` or `requestKind = 'query'`.
-- Forward the **Standard Schema specification** (`~standard`) for native NestJS 12 `StandardSchemaValidationPipe` compatibility.
+- Forward the **Standard Schema specification** (`~standard`) for schema interoperability.
 - Provide static `parse()` and `safeParse()` methods on the class.
 - Safely assign properties using `[[DefineOwnProperty]]` (`Object.defineProperty`), guaranteeing that own enumerable properties are created without being shadowed by prototype getters, preserving clean JSON serialization and idempotency fingerprints.
 
@@ -216,19 +216,11 @@ expect(cmd instanceof BaseCommand).toBe(true);
 expect(cmd instanceof CreateUserCommand).toBe(true);
 ```
 
-### Standard Schema & NestJS 12 Integration
+### Standard Schema Metadata
 
-Every class produced by `createCommand()`, `createQuery()`, or `createZodRequest()` attaches the [Standard Schema](https://standard-schema.dev/) symbol property (`'~standard'`).
+Every class produced by `createCommand()`, `createQuery()`, or `createZodRequest()` forwards the schema's [Standard Schema](https://standard-schema.dev/) (`~standard`) metadata.
 
-This allows passing the Command or Query class directly to NestJS 12 controllers using the built-in `StandardSchemaValidationPipe` or `@Body()`:
-
-```typescript
-// NestJS 12 Controller:
-@Post()
-create(@Body({ schema: CreateUserCommand }) body: CreateUserCommand) {
-  return this.commandBus.execute(body);
-}
-```
+That metadata is intentionally framework-interoperable. The currently declared and tested Nest peer for `@nestjs-pipeline/zod` is **NestJS 11**. Do not treat the presence of Standard Schema metadata as a claim that this package currently supports NestJS 12. Expand the peer range only after the packed compatibility matrix covers that major.
 
 ### Static parse() and safeParse()
 
@@ -552,7 +544,6 @@ export class UsersController {
 | `ZodValidationFilter` | Class | Exception filter — catches `ZodValidationError` → HTTP 400 |
 | `ZodPipe` | Class | Async NestJS pipe — validates params/body/query against synchronous or asynchronous Zod schemas |
 | `ZOD_SCHEMA_KEY` | `'_zodSchema'` | Key for attaching schemas to request classes |
-| `ZOD_SCHEMA` | `'_zodSchema'` | **Deprecated** — alias for `ZOD_SCHEMA_KEY`; use `ZOD_SCHEMA_KEY` instead |
 
 ---
 
@@ -561,3 +552,12 @@ export class UsersController {
 Dual-licensed under **AGPLv3** and a **Commercial License**. See the root [`LICENSE`](../../LICENSE) and [`COMMERCIAL_LICENSE.txt`](../../COMMERCIAL_LICENSE.txt) for details.
 
 Contact: **aristotelis@ik.me**
+
+## Property-presence correction
+
+Generated construction (including `parseAsync`) and behavior revalidation preserve
+all own enumerable keys returned by Zod, including explicit `undefined` values.
+An omitted optional key remains absent. Earlier constructors dropped explicit
+`undefined` keys; consumers using `Object.hasOwn`, `Object.keys`, or fingerprints
+must account for this observable correction. Base-class fields and prototypes are
+preserved; JSON serialization still follows its own undefined-value rules.

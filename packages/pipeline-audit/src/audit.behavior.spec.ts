@@ -379,14 +379,51 @@ describe('AuditBehavior', () => {
 
     it('validates that factory options are functions before execution when failOpen=false', async () => {
       const behavior = new AuditBehavior(sink);
-      const ctx = withOptions(makeCtx(), {
+      const ctxActor = withOptions(makeCtx(), {
         failOpen: false,
         actor: 'not-a-function' as any,
       });
-
       await expect(
-        behavior.handle(ctx, vi.fn().mockResolvedValue('ok')),
-      ).rejects.toThrow(TypeError);
+        behavior.handle(ctxActor, vi.fn().mockResolvedValue('ok')),
+      ).rejects.toThrow(/Invalid audit actor factory/);
+
+      const ctxMeta = withOptions(makeCtx(), {
+        failOpen: false,
+        metadata: 'not-a-function' as any,
+      });
+      await expect(
+        behavior.handle(ctxMeta, vi.fn().mockResolvedValue('ok')),
+      ).rejects.toThrow(/Invalid audit metadata factory/);
+
+      const ctxRedact = withOptions(makeCtx(), {
+        failOpen: false,
+        redact: 'not-a-function' as any,
+      });
+      await expect(
+        behavior.handle(ctxRedact, vi.fn().mockResolvedValue('ok')),
+      ).rejects.toThrow(/Invalid audit redactor/);
+    });
+
+    it('warns and continues when factory options are invalid and failOpen=true', async () => {
+      const logger = { warn: vi.fn(), error: vi.fn(), log: vi.fn() };
+      const behavior = new AuditBehavior(sink, undefined, logger as any);
+
+      const ctx = withOptions(makeCtx(), {
+        failOpen: true,
+        actor: 'not-a-function' as any,
+        metadata: 123 as any,
+        redact: true as any,
+      });
+
+      const result = await behavior.handle(
+        ctx,
+        vi.fn().mockResolvedValue('ok'),
+      );
+      expect(result).toBe('ok');
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining('failing open'),
+        'AuditBehavior',
+      );
     });
   });
 });

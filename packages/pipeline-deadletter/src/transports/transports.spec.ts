@@ -222,4 +222,29 @@ describe('PostgresDeadLetterTransport', () => {
       /Invalid dead-letter table name/,
     );
   });
+
+  it('inserts null metadata when metadata is undefined in Postgres record', async () => {
+    const query = vi.fn().mockResolvedValue({ rowCount: 1 });
+    const recordWithoutMeta: DeadLetterRecord = {
+      ...record,
+      metadata: undefined,
+    };
+    await new PostgresDeadLetterTransport({ query }).send(recordWithoutMeta);
+
+    const [, values] = query.mock.calls[0];
+    expect(values[6]).toBeNull();
+  });
+
+  it('rejects when RabbitMQ channel reports backpressure without EventEmitter methods', async () => {
+    const channel = {
+      publish: vi.fn().mockReturnValue(false),
+      waitForConfirms: vi.fn().mockResolvedValue(undefined),
+      // no once or removeListener
+    };
+
+    const transport = new RabbitMqDeadLetterTransport(channel as any);
+    await expect(transport.send(record)).rejects.toThrow(
+      /RabbitMQ channel reported backpressure but does not expose EventEmitter lifecycle methods/,
+    );
+  });
 });

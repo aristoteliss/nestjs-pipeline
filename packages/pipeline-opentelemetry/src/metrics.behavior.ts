@@ -26,7 +26,21 @@ import {
   type PipelineTelemetryAttributeFactory,
 } from './telemetry-attributes';
 
-/** Options for the {@link MetricsBehavior}. */
+/**
+ * Per-handler metrics options for {@link MetricsBehavior}.
+ *
+ * Keep metric attributes low-cardinality; use traces/logs for per-user/request
+ * identifiers.
+ *
+ * @example
+ * ```ts
+ * @UsePipeline([MetricsBehavior, {
+ *   meterName: 'users-api.auth',
+ *   attributeFactory: () => ({ 'app.operation': 'login' }),
+ * }])
+ * export class CreateAuthHandler {}
+ * ```
+ */
 export interface MetricsBehaviorOptions {
   /**
    * Name of the OpenTelemetry meter the instruments are created on (shown in
@@ -105,8 +119,8 @@ interface MeterInstruments {
  * The default label set is deliberately low-cardinality:
  * `pipeline.request.kind`, `pipeline.request.name`, and
  * `pipeline.handler.name`, plus outcome/error information when the call ends.
- * The historical `outcome` label is retained for dashboard compatibility while
- * `pipeline.outcome` is also emitted as the package's namespaced semantic key.
+ * Both `outcome` and the namespaced `pipeline.outcome` attribute are emitted
+ * for completed calls.
  *
  * The OTel **Metrics API** is used directly. When no OpenTelemetry SDK / metric
  * reader is registered, the API returns no-op instruments and recordings are
@@ -219,8 +233,7 @@ export class MetricsBehavior implements IPipelineBehavior {
   ): Promise<Attributes> {
     const base: Attributes = {
       ...buildMetricAttributes(context),
-      // Preserve the original public metric label while also exposing the
-      // namespaced pipeline semantic attribute used by traces/new dashboards.
+      // Emit both the short outcome label and the namespaced pipeline semantic key.
       outcome,
       [PIPELINE_OTEL_ATTRIBUTES.OUTCOME]: outcome,
       ...(outcome === 'failure'

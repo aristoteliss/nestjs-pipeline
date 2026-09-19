@@ -24,10 +24,24 @@ This requirement applies to changes involving:
 
 The repository's current code and documentation are authoritative. Generic Clean Architecture, DDD, CQRS, NestJS, or TypeScript guidance is secondary. If external advice conflicts with an intentional repository decision, follow the repository and document any proposed architectural change explicitly.
 
+## Documentation and comment policy
+
+Documentation describes the current repository contract: what exists, how to use it, what callers can expect, and any current caveats. Do not document review history, refactor history, removed behavior, or "before vs now" narratives.
+
+- `AGENTS.md` and architecture skills contain generic repository/architecture instructions, not package tutorials or change history.
+- Every published npm package and major runnable/core area that needs consumer guidance must have a README covering purpose, installation/setup, public API, configuration, expected behavior, caveats, and practical examples.
+- READMEs are current-state manuals. Prefer "use X when..." and "X behaves..." over migration narratives such as "previously", "used to", "now", "after the fix", or descriptions of removed implementations.
+- Exported library functions/classes/types that are intended for reuse outside their file/module should have concise API documentation when the signature alone is insufficient. Document purpose, parameters/type parameters, return value, observable behavior, errors/caveats, and a short example when usage is not obvious. Do not explain implementation mechanics.
+- HTTP/API DTOs and response models may include third-party-facing field/validation guidance and examples.
+- CQRS handlers and ordinary domain entities should not carry tutorial-style JSDoc or narrative comments. Their names, types, domain methods, and tests should explain the flow. Keep comments only for a genuinely non-obvious invariant or constraint that cannot be made clear in code.
+- Internal code comments are reserved for helpers, low-level/core mechanisms, interoperability constraints, protocol requirements, concurrency/security invariants, or similarly non-obvious behavior. Keep them short; paragraph-sized comments inside ordinary application code are a smell and usually belong in a README or API doc.
+- Comments must never describe a past code state or justify a completed change. Git history owns history.
+- License headers, deprecation notices, generated-code markers, lint suppressions with a real reason, and externally required protocol notes are exempt from the brevity rule.
+
 ## Non-negotiable repository rules
 
 1. CQRS handlers depend on repository/application interfaces and injection tokens, not ORM/database clients or concrete infrastructure implementations.
-2. Domain/application code must not use Nest HTTP exceptions for business/application outcomes; map framework-neutral errors at the presentation boundary (e.g. `DomainException`, `EntityNotFoundException`, `OptimisticLockError` mapped in `DomainExceptionFilter`).
+2. Domain/application code must not use Nest HTTP exceptions for business/application outcomes; map framework-neutral errors at the presentation boundary (e.g. `DomainException`, `EntityNotFoundException`, `ConcurrencyConflictError` mapped in `DomainExceptionFilter`).
 3. Keep repeated cross-cutting concerns in pipeline behaviors when the repository provides one; handlers should remain business-focused.
 4. Keep entity-level authorization and field filtering in the application path after the real aggregate/result is available.
 5. Cache/idempotency short-circuit keys must include tenant, principal, and permission scope whenever those dimensions can change the final authorized response. Fail closed when required security context is absent; never silently fall back to shared `'default'` namespaces.
@@ -38,7 +52,7 @@ The repository's current code and documentation are authoritative. Generic Clean
 10. Do not assume Nest's in-memory EventBus is a transactional outbox. Durable delivery requires an explicit architecture decision.
 11. Persistence write operations (`save()`) must use declarative lifecycle decorators in canonical outermost-to-innermost order: `@Cache(...)` -> `@AcknowledgePersisted(...)` -> `@MapPersistenceErrors(...)`.
 12. Aggregate persistence acknowledgment (`acknowledgePersisted()`) must occur only after durable persistence succeeds (handled automatically by `@AcknowledgePersisted`); never advance the persisted version baseline on failed writes or uncommitted transactions.
-13. Entity updates must use version-conditioned writes (`optimisticUpdate()`) requiring autocommit (`em.isInTransaction()` rejects outer transactions) and matching `WHERE id = ? AND version = expectedVersion`. Entity deletions must condition on `{ id, version: aggregate.getExpectedVersion() }` and inspect affected rows to distinguish missing entities (`EntityNotFoundException`) from concurrency conflicts (`OptimisticLockError`).
+13. Entity updates must use version-conditioned writes (`optimisticUpdate()`) requiring autocommit (`em.isInTransaction()` rejects outer transactions) and matching `WHERE id = ? AND version = expectedVersion`. Entity deletions must condition on `{ id, version: aggregate.getExpectedVersion() }` and inspect affected rows to distinguish missing entities (`EntityNotFoundException`) from concurrency conflicts (`ConcurrencyConflictError`). Persistence adapters translate ORM/driver version-conflict signals at this boundary; application/domain code must not depend on MikroORM error classes. `DomainExceptionFilter` maps `ConcurrencyConflictError` to HTTP 409. Unique-constraint and other database errors retain their own mappings.
 14. Persistence lifecycle structure and standalone package isolation are guarded by Biome Grit plugins (`biome/plugins/persistence-lifecycle.grit`, `package-licenses.grit`, `verify-package-licenses.grit`, `test-suite.grit`); verify with `pnpm lint:persistence` and `pnpm check`.
 15. Repository cache adapters (`ICache<TSnapshot>`) store strictly serializable snapshots, never live domain aggregates. `MemoryCache` enforces deep detachment parity with external caches via JSON cloning on `set()` and `get()`. Query repositories use `@FromCache({ alwaysHydrate: true, ... })` and return strictly domain aggregates (`Promise<User | null>`), requiring `hydrateFn` at decoration time and eliminating ambiguous union types (`User | UserSnapshot`) from query handlers.
 16. Cache writes and reads must maintain strict concurrency safety: `@Cache` write-through operations use CAS version comparisons (`isCacheNewer`) so late-finishing writes cannot regress cache state; `@FromCache` returns the newer cached snapshot when concurrent mutations race with database reads; and `MikroOrmCache` bypasses the identity map (`disableIdentityMap: true`) and uses conditional CAS deletion on expired entries to prevent deleting concurrent fresh writes.

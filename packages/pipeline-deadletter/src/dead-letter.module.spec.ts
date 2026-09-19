@@ -52,4 +52,20 @@ describe('DeadLetterModule', () => {
     ) as any;
     expect(transportProvider?.useFactory).toBe(factory);
   });
+
+  it('defaults options.defaults to empty object when omitted', () => {
+    const syncMod = DeadLetterModule.forRoot({ transport: mockTransport });
+    const syncDefaults = syncMod.providers?.find(
+      (p: any) => p.provide === DEAD_LETTER_DEFAULT_OPTIONS,
+    ) as any;
+    expect(syncDefaults?.useValue).toEqual({});
+
+    const asyncMod = DeadLetterModule.forRootAsync({
+      useFactory: () => mockTransport,
+    });
+    const asyncDefaults = asyncMod.providers?.find(
+      (p: any) => p.provide === DEAD_LETTER_DEFAULT_OPTIONS,
+    ) as any;
+    expect(asyncDefaults?.useValue).toEqual({});
+  });
 });

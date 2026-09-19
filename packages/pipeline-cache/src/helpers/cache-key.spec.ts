@@ -137,6 +137,18 @@ describe('createPartitionedCacheKeyFactory', () => {
         publicKey(makeContext({ tenantId: undefined, items: new Map() })),
       ).toBe(publicKey(makeContext({ tenantId: undefined, items: new Map() })));
     });
+
+    it('handles falsy principal when requirePrincipal is false', () => {
+      const unauthKey = createPartitionedCacheKeyFactory({
+        principal: () => undefined,
+        requirePrincipal: false,
+        requireTenant: false,
+      });
+
+      expect(
+        unauthKey(makeContext({ tenantId: undefined, items: new Map() })),
+      ).toContain('cache:v3:\\-:\\-:\\-:GetUserQuery');
+    });
   });
 
   describe('delimiter safety', () => {
