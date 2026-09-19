@@ -22,7 +22,7 @@ This package provides the foundational building blocks for implementing a Clean 
 - **`DomainEvent`** — Abstract base class for domain events carrying a unique UUID v7 `id` and implementing `@nestjs/cqrs` `IEvent`.
 - **`RootDomainEvent<TEntity, TPayload>`** — Domain event carrying event-time `aggregateId`/`aggregateVersion` and an immutable, deeply cloned and frozen state snapshot (`event.payload`) created via `deepCloneAndFreeze()` to protect asynchronous event consumers from subsequent in-memory aggregate mutations.
 - **`deepCloneAndFreeze<T>()`** — Deeply clones and recursively freezes any value (objects, arrays, `Date` with mutation guards, `Map`, `Set`, `RegExp`), safely handling circular references via a `WeakMap`.
-- **`CommandBaseHandler<TCommand, TResult>`** — Abstract base handler for CQRS commands. Executes the `@UsePipeline` chain, and automatically dispatches uncommitted domain events via `this.eventBus.publishAll()` and clears them when an `AggregateRoot` is returned from `handle()`. Command handlers return aggregates so event publication is never performed manually.
+- **`CommandBaseHandler<TCommand, TResult>`** — Abstract base handler for CQRS commands. Calls `handle()`, then publishes and clears buffered domain events from a returned `AggregateRoot` or result containing `aggregate: AggregateRoot`. Pipeline behaviors are applied by the pipeline integration; event publication is owned by `execute()`.
 - **`@Mutate()`** — Method decorator that automatically triggers `onUpdate()` after the decorated method executes, incrementing `version` and updating `updatedAt`.
 - **`UnixTimestampType`** — Custom MikroORM `Type<Date, number>` mapping JavaScript `Date` instances to Unix timestamps (ms) in 64-bit `bigint` SQL database columns (`platform.getBigIntTypeDeclarationSQL()`) to eliminate integer overflow.
 - **`Method`** — Utility type for extracting method signatures.
@@ -229,6 +229,15 @@ Use the compiled sample handlers as the canonical examples:
 - [UpdateUserHandler](../users-api/src/users/cqrs/commands/update-user.handler.ts)
   loads through `IWriteSideAggregateRepository.findById()`, authorizes the real
   aggregate, and mutates it through its domain method.
+
+`handle()` returns either the aggregate or an application result containing it,
+for example `{ aggregate: user, success: true }`. `execute()` returns that result
+unchanged and publishes buffered events once after successful handling. A rejected
+`handle()` does not publish events. If `EventBus.publishAll()` throws synchronously,
+the error propagates and the aggregate's buffered events remain uncleared.
+
+Publication uses the in-memory Nest EventBus. Persistence and event delivery are
+not atomic; durable delivery requires an explicit outbox architecture.
 
 Do not publish events manually or put response/session mapping in these handlers.
 

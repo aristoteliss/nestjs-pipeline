@@ -81,4 +81,33 @@ describe('HttpCorrelationMiddleware', () => {
       );
     },
   );
+
+  it('extracts the first value when header is an array of strings', () => {
+    const middleware = new HttpCorrelationMiddleware();
+    const req = {
+      headers: { 'x-correlation-id': ['first-id', 'second-id'] },
+    } as unknown as IncomingMessage;
+
+    let captured: string | undefined;
+    middleware.use(req, fakeResponse, () => {
+      captured = correlationStore.getStore();
+    });
+
+    expect(captured).toBe('first-id');
+  });
+
+  it('ignores empty whitespace-only headers when trimIncoming is true', () => {
+    const middleware = new HttpCorrelationMiddleware({ trimIncoming: true });
+    const req = fakeRequest({ 'x-correlation-id': '   \t  ' });
+
+    let captured: string | undefined;
+    middleware.use(req, fakeResponse, () => {
+      captured = correlationStore.getStore();
+    });
+
+    // Should generate a fresh correlation id, not keep whitespace
+    expect(captured).toBeDefined();
+    expect(captured?.trim()).not.toBe('');
+    expect(captured).not.toBe('   \t  ');
+  });
 });

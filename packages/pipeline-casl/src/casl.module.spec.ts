@@ -69,4 +69,23 @@ describe('CaslModule.forRoot', () => {
     ) as any;
     expect(capProvider?.useClass).toBe(MockCapabilityProvider);
   });
+
+  it('instantiates CaslAuthorizer from provider factory and handles empty provider options', () => {
+    const dynamicModule = CaslModule.forRoot({
+      roleProvider: {} as any,
+    });
+
+    const authorizerProvider = dynamicModule.providers?.find(
+      (p: any) => p.provide === CaslAuthorizer,
+    ) as any;
+    expect(authorizerProvider?.useFactory).toBeDefined();
+    const instance = authorizerProvider.useFactory();
+    expect(instance).toBeInstanceOf(CaslAuthorizer);
+
+    // Empty provider option is ignored
+    const roleProvider = dynamicModule.providers?.find(
+      (p: any) => p.provide === CASL_ROLE_PROVIDER,
+    );
+    expect(roleProvider).toBeUndefined();
+  });
 });

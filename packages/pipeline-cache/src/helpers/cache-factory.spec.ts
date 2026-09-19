@@ -30,6 +30,12 @@ describe('cache-factory', () => {
         url: 'memcache://localhost:11211',
       });
       expect(memcacheKeyv).toBeInstanceOf(Keyv);
+
+      const postgresKeyv = buildKeyv({
+        type: 'postgres',
+        url: 'postgresql://localhost:5432/db',
+      });
+      expect(postgresKeyv).toBeInstanceOf(Keyv);
     });
 
     describe('adapter load diagnostics', () => {

@@ -146,6 +146,15 @@ describe('filterCacheKey', () => {
       }
     },
   );
+
+  it('throws when resourceOrEntity is neither a string nor an object with aggregateName or prefixKey', () => {
+    expect(() =>
+      filterCacheKey(123 as any, { id: '1' }, 'tenant_test'),
+    ).toThrow(/Cannot resolve cache key prefix/);
+    expect(() => filterCacheKey({} as any, { id: '1' }, 'tenant_test')).toThrow(
+      /Cannot resolve cache key prefix/,
+    );
+  });
 });
 
 describe('cacheKeyTemplate', () => {

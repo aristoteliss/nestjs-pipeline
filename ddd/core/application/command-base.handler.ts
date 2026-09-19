@@ -14,7 +14,7 @@ import {
  * 1. Executes command logic via the abstract {@link handle} method.
  * 2. If the result is an {@link AggregateRoot} (or an object containing `aggregate: AggregateRoot`),
  *    its buffered uncommitted domain events are automatically published to the {@link EventBus}
- *    and cleared via {@link commit}.
+ *    and cleared after publication.
  *
  * @typeParam TCommand - The concrete command type this handler processes.
  * @typeParam TResult - The handler's return type (e.g. aggregate entity or result carrying aggregate).
@@ -90,34 +90,13 @@ export abstract class CommandBaseHandler<
   abstract handle(command: TCommand): Promise<TResult>;
 
   /**
-   * Publishes uncommitted domain events of the aggregate to the EventBus and clears them.
-   *
-   * @deprecated Not an application extension point. `execute()` calls this once
-   * per command; calling it from a handler publishes the same events twice, or
-   * publishes them before the surrounding command has finished.
-   *
-   * **Delivery Guarantees**:
-   * Events are dispatched via NestJS CQRS in-memory {@link EventBus}. There is no distributed
-   * transaction or transactional outbox guarantee between repository persistence and event delivery.
-   * In the event of an unhandled crash or process kill immediately following database commit but
-   * prior to event handling, published events may be lost. For workflows requiring guaranteed
-   * at-least-once delivery, an outbox table or message broker pattern should be used.
-   *
-   * @param aggregate - The aggregate root whose uncommitted events should be dispatched.
-   */
-  protected commit(aggregate: AggregateRoot): void {
-    const events = [...aggregate.getUncommittedEvents()];
-    if (events.length > 0) {
-      this.eventBus.publishAll(events);
-      aggregate.uncommit();
-    }
-  }
-
-  /**
    * Nest `ICommandHandler` entry point invoked by the `CommandBus`.
    *
    * Delegates to {@link handle} and automatically publishes any uncommitted domain
    * events if the result is an {@link AggregateRoot} (or an object containing `aggregate: AggregateRoot`).
+   *
+   * Persistence and in-memory EventBus publication are not atomic. A crash after
+   * persistence can lose events; durable delivery requires an explicit outbox.
    *
    * @param command - The command dispatched through the `CommandBus`.
    * @returns The result produced by {@link handle}.
@@ -125,16 +104,22 @@ export abstract class CommandBaseHandler<
   async execute(command: ICommand): Promise<TResult> {
     const commandResult = await this.handle(command as TCommand);
 
-    if (commandResult instanceof AggregateRoot) {
-      this.commit(commandResult);
-    } else if (
-      commandResult &&
-      typeof commandResult === 'object' &&
-      'aggregate' in commandResult &&
-      (commandResult as { aggregate: unknown }).aggregate instanceof
-        AggregateRoot
-    ) {
-      this.commit((commandResult as { aggregate: AggregateRoot }).aggregate);
+    const aggregate =
+      commandResult instanceof AggregateRoot
+        ? commandResult
+        : commandResult &&
+            typeof commandResult === 'object' &&
+            'aggregate' in commandResult &&
+            commandResult.aggregate instanceof AggregateRoot
+          ? commandResult.aggregate
+          : undefined;
+
+    if (aggregate) {
+      const events = [...aggregate.getUncommittedEvents()];
+      if (events.length > 0) {
+        this.eventBus.publishAll(events);
+        aggregate.uncommit();
+      }
     }
 
     return commandResult;

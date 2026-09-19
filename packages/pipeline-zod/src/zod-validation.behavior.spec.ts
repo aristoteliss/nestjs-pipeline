@@ -99,7 +99,7 @@ describe('ZodValidationBehavior', () => {
     expect(revalidated).toBeInstanceOf(Base);
   });
 
-  describe('when no ZOD_SCHEMA is attached to the request type', () => {
+  describe('when no ZOD_SCHEMA_KEY is attached to the request type', () => {
     it('calls next() transparently and returns its result', async () => {
       const ctx = createMockContext();
       const next = vi.fn().mockResolvedValue({ ok: true });
@@ -118,7 +118,7 @@ describe('ZodValidationBehavior', () => {
     });
   });
 
-  describe('when ZOD_SCHEMA is attached and the request is valid', () => {
+  describe('when ZOD_SCHEMA_KEY is attached and the request is valid', () => {
     const schema = z.object({
       username: z.string().min(4),
       email: z.string().email(),
@@ -189,7 +189,7 @@ describe('ZodValidationBehavior', () => {
     });
   });
 
-  describe('when ZOD_SCHEMA is attached and the request is invalid', () => {
+  describe('when ZOD_SCHEMA_KEY is attached and the request is invalid', () => {
     const schema = z.object({
       username: z.string().min(4),
       email: z.string().email(),
@@ -241,7 +241,7 @@ describe('ZodValidationBehavior', () => {
     });
     const eventType = makeRequestType(eventSchema);
 
-    it('validates events that have ZOD_SCHEMA attached', async () => {
+    it('validates events that have ZOD_SCHEMA_KEY attached', async () => {
       const validEvent = {
         userId: '018e0d5c-4ef6-7000-b7c8-a1e6bc5c9e70',
         username: 'Bob',
@@ -257,7 +257,7 @@ describe('ZodValidationBehavior', () => {
       expect(next).toHaveBeenCalledOnce();
     });
 
-    it('rejects invalid events that have ZOD_SCHEMA attached', async () => {
+    it('rejects invalid events that have ZOD_SCHEMA_KEY attached', async () => {
       const invalidEvent = { userId: 'not-a-uuid', username: '' };
       const ctx = createMockContext({
         request: invalidEvent,

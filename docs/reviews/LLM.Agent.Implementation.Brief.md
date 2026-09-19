@@ -1,375 +1,500 @@
-# LLM Agent Implementation Brief — Final Remaining Work
+# LLM Agent Implementation Brief
 
-**Branch:** review/remaining-findings  
-**Companion review:** docs/reviews/Final.Review.md  
-**Purpose:** execute the remaining verified work without reopening resolved findings or making architecture decisions on behalf of the repository owner.
+**Review source of truth:** `docs/reviews/Final.Review.md`
 
-This is an implementation contract, not a new review. The current code plus AGENTS.md and .agents/skills/nestjs-pipeline-architecture/SKILL.md remain authoritative. Historical review files have been consolidated into Final.Review.md and should not be used as competing sources of truth.
+This file is the executable implementation companion to the Final Review. It translates approved findings into implementation steps; it does not redefine review conclusions or authorize decision-gated work. The current code, AGENTS.md, and `.agents/skills/nestjs-pipeline-architecture/SKILL.md` remain authoritative for runtime and architecture contracts.
 
-At the reviewed head there is no separate instructions.md file. The historical docs/reviews/Intstractions.md was review-process guidance and is consumed by this brief. Do not recreate it. For implementation, obey AGENTS.md, the architecture SKILL, this brief, and the current code.
+## E-01 — Automatic packed-consumer verification
 
----
+The owner-approved scope is one release script plus the existing small core/CASL fixtures, with support for CASL 7 only. Do not introduce manually maintained package/import lists or a CASL 6 compatibility matrix.
 
-## 1. Mission
+`pnpm test:release` rebuilds, copies licenses, and runs `integration/packages/release.mjs`. The script discovers non-private packages from manifests, packs and inspects their exact name/version set, installs tarballs into an isolated temporary consumer, and generates static imports for TypeScript compilation and Node runtime loading.
 
-Implement only the executable findings in Final.Review.md Table 1:
+Required external peers are derived from manifests at the versions installed in the workspace lockfile graph. Optional backends remain optional. Core request-scope and two-application lifecycle checks and the CASL authorization fixture must pass. Keep all verification code private; do not add production test seams.
 
-- **E-01** — complete packed-consumer coverage for every published package.
-- **E-02** — reconcile the authoritative agent instructions with the current ConcurrencyConflictError contract.
+See `integration/packages/README.md` for setup, behavior, and coverage limits. CASL advertises `@casl/ability ^7.0.0`; this excludes consumers requiring CASL 6 and is an owner-approved compatibility change.
 
-Do not implement Table 2 decisions until the repository owner explicitly chooses an outcome:
+## E-02 — Authoritative concurrency-error guidance
 
-- **D-01** — transactional outbox / durable event delivery.
-- **D-02** — whether ddd-core remains private Nest-oriented support or becomes framework-neutral reusable code.
-- **D-03** — whether strict aggregate encapsulation justifies persistence records/mappers.
+AGENTS.md and the architecture skill must describe the current contract:
 
-After E-01 and E-02, run the complete verification gate. Do not mark V-01 or the branch fully verified merely because source inspection looks correct.
+- Persistence adapters may observe ORM/driver-specific conflict signals; repository helpers surface version conflicts as framework-neutral `ConcurrencyConflictError`.
+- Domain/application code stays independent of MikroORM error classes.
+- Presentation maps `ConcurrencyConflictError` to HTTP 409.
+- Missing rows remain `EntityNotFoundException`.
+- Unique-constraint and other database errors retain their separate mappings.
 
----
+No production error behavior changes are required.
 
-## 2. Mandatory pre-work
+## Verification
 
-Before editing any file:
+Run `pnpm check`, `pnpm lint:persistence`, and `pnpm test:release` for the implementation. Verify failure detection with temporary mutations, removing them afterward. Run `pnpm verify:all` for full verification, including non-skipped Docker/Testcontainers E2E. Do not close V-01 based only on source inspection or the owner's report of a green baseline.
 
-1. Read AGENTS.md completely.
-2. Read .agents/skills/nestjs-pipeline-architecture/SKILL.md completely.
-3. Read docs/reviews/Final.Review.md completely.
-4. Inspect the closest current implementation before changing it.
-5. Treat current repository code as authoritative when old terminology conflicts with it.
-6. Do not use a historical review as a reason to revert a later accepted repository decision.
+D-01 through D-03 remain decision-gated. The CASL compatibility decision does not authorize changes to them.
 
-The following current repository decisions are fixed for this work:
 
-- @nestjs-pipeline/core remains intentionally Nest CQRS-specific.
-- Existing private Nest CQRS bootstrap integration is an accepted managed risk.
-- Domain/application outcomes remain transport-neutral.
-- Entity-level authorization remains after the real aggregate/result is loaded.
-- Cache/idempotency security keys fail closed when required context is missing.
-- CommandBaseHandler owns aggregate event publication.
-- Nest in-memory EventBus is not claimed to be an outbox.
-- Persistence save decorator order remains @Cache -> @AcknowledgePersisted -> @MapPersistenceErrors.
-- Updates/deletes remain version-conditioned.
-- Cache mutation barriers and CAS behavior remain intact.
-- No production export, option, parameter, mutable global, or branch may be introduced solely for a test.
-- ddd-core layered entry points remain /domain, /application, and /persistence; the root barrel is compatibility-only.
-- RootDomainEvent does not expose a live entity reference.
-- Zod constructor/behavior property-presence semantics remain aligned, including explicit undefined own properties.
-- The example log-only event handlers remain an accepted showcase trade-off; do not delete them under this brief.
+# 3. Simplification implementation track — S-01 through S-17
 
-If an implementation path would violate one of these, stop that path and choose a compliant implementation. Do not reinterpret the task into an architecture rewrite.
+**Status: IMPLEMENTABLE, SUBJECT TO THE ORDER AND SAFETY CONSTRAINTS BELOW.**
 
----
+**Detailed evidence and rationale:** `docs/reviews/Final.Review.md`, section **Detailed simplification review — S-01 through S-17**.
 
-# 3. E-01 — Complete packed-consumer verification for all published packages
+This track is not permission to reduce features. Its objective is to make the normal users-api-style application surface smaller and safer while preserving the existing low-level APIs as explicit escape hatches.
 
-## 3.1 Problem statement
 
-The current release path does three different things:
+## 3.0 Breaking-change classification
 
-1. integration/packages/pack-all.mjs packs every non-private package.
-2. integration/packages/inspect-tarballs.mjs inspects every produced archive.
-3. integration/packages/casl-matrix.mjs installs and executes only packed core and packed CASL.
+| ID | Breaking classification | Migration rule |
+|---|---|---|
+| S-01 | **Non-breaking / additive.** | Existing handlers are unchanged; only handlers using `@SkipPipeline` get new behavior. |
+| S-02 | **Non-breaking / additive.** | Keep raw `[Behavior, options]` tuples working indefinitely unless a separate breaking decision is made. |
+| S-03 | **Non-breaking / additive.** | Add `@PersistedWrite` first and migrate users-api. Do not remove low-level persistence decorators as part of this item. |
+| S-04 | **Potential public source break.** | Add behavior and migrate handlers first. Removing `CommandBaseHandler` requires an intentional breaking cleanup/deprecation step. |
+| S-05 | **Non-breaking.** | Abstract hook becoming a default no-op remains override-compatible. |
+| S-06 | **Non-breaking / additive.** | Helper must preserve exact current optimistic-delete outcomes. |
+| S-07 | **Operational/data-key breaking risk.** | A new canonical key format may create fresh limiter/idempotency namespaces. Preserve/version existing key format or explicitly accept the reset. |
+| S-08 | **Users-api module composition break only.** | If any consumer imports `ReliabilityModule` for its cache re-export, it must import/configure cache directly. Standalone cache package is unchanged. |
+| S-09 | **Potential behavior/config break.** | Compare effective LoggingBehavior options per handler before/after; do not accidentally change log level/volume. |
+| S-10 | **Non-breaking only if observability contract is preserved.** | Keep current attribute names/values and compatibility item symbols during migration. Removing symbols or renaming attributes is a separate breaking change. |
+| S-11 | **Non-breaking / additive.** | Existing async configuration forms must remain valid; new static-global form is optional. |
+| S-12 | **Non-breaking if defaults are optional.** | Keep current constructors and full `@FromCache` configuration valid. |
+| S-13 | **Behavioral break for stacked decorators.** | One existing `@UsePipeline` call is unchanged. Explicitly test/document the new compose-vs-overwrite behavior for multiple decorators. |
+| S-14 | **Public API/source breaking only for the narrow symbols actually removed/moved.** | Do not use users-api usage as deletion evidence. Retain coherent helpers/builders/adapters; perform true compatibility/implementation cleanup in one intentional breaking release or keep deprecation aliases. |
+| S-15 | **Additive first; later strictness can be behavior-breaking.** | Introduce diagnostics/contracts compatibly. If a formerly accepted deterministic misconfiguration becomes a bootstrap error, document that policy change and provide a warning/compatibility phase if required. |
+| S-16 | **Non-breaking / additive.** | Keep raw `context.items`; typed tokens/accessors layer on top. |
+| S-17 | **Non-breaking / additive.** | Presets expand to existing pipeline entries; keep `@UsePipeline` available. |
 
-That means ten published packages are archive-inspected but are never proven to install, type-resolve, and runtime-load outside the monorepo from their actual tgz artifacts.
 
-This is a release-confidence defect, not a package-runtime defect already proven in those packages.
+The implementation agent must optimize for:
 
-## 3.2 Current exact evidence
+- one obvious normal path;
+- typed declarative intent;
+- safe defaults;
+- first-class per-handler exceptions;
+- no duplicated security-sensitive key mechanics;
+- no behavior/persistence ordering knowledge required in ordinary application code;
+- unchanged advanced capability.
 
-Inspect before editing:
+Do not combine this work with D-01, D-02 or D-03.
 
-- package.json: test:release and verify:all scripts.
-- integration/packages/pack-all.mjs.
-- integration/packages/inspect-tarballs.mjs.
-- integration/packages/casl-matrix.mjs.
-- integration/packages/consumer/tsconfig.json.
-- integration/packages/consumer/src/smoke.ts.
-- integration/packages/consumer/src/two-app-lifecycle.ts.
-- integration/packages/consumer/src/casl-smoke.ts.
-- packages/*/package.json for current peer contracts.
+## 3.1 S-01 — Generic per-handler global-behavior opt-out
 
-Current published packages expected by the gate:
+Add a core decorator named `SkipPipeline` unless an existing naming convention discovered during implementation strongly requires an equivalent name.
 
-- @nestjs-pipeline/core
-- @nestjs-pipeline/audit
-- @nestjs-pipeline/cache
-- @nestjs-pipeline/casl
-- @nestjs-pipeline/correlation
-- @nestjs-pipeline/deadletter
-- @nestjs-pipeline/feature-flags
-- @nestjs-pipeline/idempotency
-- @nestjs-pipeline/opentelemetry
-- @nestjs-pipeline/rate-limit
-- @nestjs-pipeline/resilience
-- @nestjs-pipeline/zod
+Required contract:
 
-Do not hard-code the count as the only discovery mechanism. The repository may gain another non-private package later.
+```ts
+@CommandHandler(InternalRebuildCommand)
+@SkipPipeline(AuditBehavior)
+export class InternalRebuildHandler {}
+```
 
-## 3.3 Required design
+Implementation requirements:
 
-Keep all release-test code under integration/packages or another private test-only location. Do not add public package APIs to make the fixture convenient.
+1. Store skipped behavior identities in dedicated metadata.
+2. Identity must use the same `getBehaviorId()` / `PIPELINE_BEHAVIOR_ID` rules as normal deduplication.
+3. Remove skipped global behaviors before behavior resolution/DI lookup.
+4. Skipping one behavior must not relocate or reorder the remaining chain.
+5. A class that both skips and locally declares the same behavior is contradictory configuration; fail at bootstrap with a useful error rather than making decorator order decide.
+6. Support command, query and event handlers.
+7. Support singleton and scoped handlers.
+8. Export the decorator as application API; do not expose additional internal skip metadata unless needed for advanced tooling.
 
-The gate must derive the publishable package set from packages/*/package.json:
+Do not implement behavior-specific `enabled:false` across every package as the generic mechanism. Existing behavior-specific enable flags may remain.
 
-- include directories with package.json and private !== true;
-- use each manifest's package name and version as identity;
-- map each package to exactly one produced tgz;
-- fail on missing or duplicate tarball matches;
-- fail if a new published package exists but is not exercised.
+## 3.2 S-02 — Typed intent entries with required handler intent
 
-The isolated consumer must not be a member of the monorepo workspace. Preserve the existing explicit empty pnpm-workspace.yaml isolation or an equivalent mechanism.
+Add tiny package-owned builders that return the existing `PipelineBehaviorEntry` tuple shape. Do not introduce a second runtime or a central addon-aware policy object.
 
-The consumer dependency graph must install the packed tgz for every @nestjs-pipeline package rather than resolving one of them from the workspace.
+Important distinction:
 
-### Required external peers in the all-package consumer
+- **module-default option types may remain partial**, because a module can provide shared fragments;
+- **explicit handler-intent builders should make activation fields required** when the behavior would otherwise be inactive or unsafe.
 
-Provide only the package family's real required external peers, using versions inside currently advertised ranges. At the reviewed state this includes the relevant subset of:
+Examples of the target contract:
 
-- @nestjs/common ^11
-- @nestjs/core ^11
-- @nestjs/cqrs ^11
-- reflect-metadata
-- rxjs ^7
-- cache-manager ^7
-- keyv ^5
-- @casl/ability
-- @openfeature/server-sdk
-- @opentelemetry/api
-- cockatiel
-- zod ^4
+```ts
+@UsePipeline(
+  authorize({ action: 'create', subject: 'User' }),
+  featureFlag({ flag: 'user-registration' }),
+  rateLimit({ keyFactory: perUserKey, points: 1 }),
+  idempotent({ keyFactory: createUserKey }),
+  cache({ key: userCacheKey, ttl: 30_000 }),
+)
+```
 
-Do not install optional cache backend peers merely to make import succeed unless the public root entry point genuinely requires them. Optional peers must remain optional. If importing the public package unexpectedly requires an optional backend, treat that as a real package defect rather than masking it by installing every optional dependency.
+The exact helper names may differ, but require:
 
-### CASL matrix
+- cache handler intent to supply a key unless the caller explicitly chooses an advanced “inherit module key” form;
+- rate-limit handler intent to supply a key factory unless explicitly inheriting a complete module policy;
+- idempotency handler intent to supply a key factory unless explicitly inheriting a complete module policy;
+- feature-flag handler intent to supply a flag;
+- resilience builder types to keep replay/error-classification safety visible;
+- options to stay tied to their owning behavior type at compile time.
 
-Preserve explicit packed-CASL testing for both advertised ability ranges:
+Raw `[Behavior, options]` tuples remain the advanced/custom behavior escape hatch.
 
-- @casl/ability ^6.0.0
-- @casl/ability ^7.0.0
+## 3.3 S-03 — Composite persistence lifecycle decorator
 
-The all-package smoke can use one current supported CASL version. The separate CASL matrix must still prove both major ranges.
+Introduce a high-level persistence decorator, recommended name `PersistedWrite`.
 
-### Core lifecycle smoke
+It must compose the current low-level lifecycle rather than replace its implementations.
 
-Preserve the existing packed-core behavioral verification:
+Normal contract:
 
-- boot a real Nest application context;
-- dispatch through CommandBus;
-- prove a request-scoped behavior executes;
-- boot two independent application contexts;
-- prove their wrappers/behavior state do not leak;
-- close one application and prove the second still works.
+```ts
+@PersistedWrite<User, UserSnapshot>({
+  cache: {
+    setKey: (user) => filterCacheKey(User, { id: user.id }),
+    invalidateKeys: (user) => [
+      filterCacheKey(User, { email: user.email }),
+    ],
+  },
+  unique: [
+    {
+      constraint: 'users_email_unique',
+      columns: 'users.email',
+      error: (user) => new UniqueEmailException(user),
+    },
+  ],
+})
+async save(user: User): Promise<UserSnapshot> {
+  // persistence only
+}
+```
 
-Do not replace these with import-only checks.
+Required semantics:
 
-## 3.4 Public-entry-point compile smoke
+1. Default entity extraction is the first method argument.
+2. Allow custom extraction for non-standard signatures.
+3. Internally preserve canonical ordering:
+   - persistence error translation around the database call;
+   - acknowledgment only after successful persistence;
+   - cache maintenance after successful acknowledgment.
+4. If no unique/residual error mapping is configured, do not install a semantic no-op mapper.
+5. Preserve cache barrier, CAS, TTL, serializer and existing best-effort/fail behavior exactly.
+6. Preserve the low-level `@Cache`, `@AcknowledgePersisted`, and `@MapPersistenceErrors` exports.
+7. Migrate users-api repositories only after decorator contract tests pass.
 
-Add a consumer source file dedicated to package-surface verification, for example:
+This simplification does not authorize externally managed transaction semantics. The current autocommit/commit-hook caveat remains.
 
-integration/packages/consumer/src/all-packages-smoke.ts
+## 3.4 S-04 — Domain-event publication behavior
 
-The exact filename is flexible; its behavior is not.
+Replace normal users-api dependence on `CommandBaseHandler` with one command pipeline behavior that publishes aggregate buffered events after successful handler execution.
 
-It must import each package only through its supported public package entry point. Do not reach into dist/, src/, or private subpaths to make the test pass.
+Recommended name: `PublishDomainEventsBehavior`.
 
-TypeScript compilation must therefore prove:
+The behavior must recognize the same result shapes as current `CommandBaseHandler`:
 
-- package exports resolve from the tgz;
-- declaration files resolve;
-- required transitive @nestjs-pipeline peers resolve to packed artifacts;
-- public exported symbols are consumable from outside the workspace.
+- an `AggregateRoot`;
+- an object with `aggregate: AggregateRoot`.
 
-Use small representative imports rather than copying package internals. Prefer stable public values/classes/types documented in each package README.
+Required equivalence:
 
-Avoid a test that imports only types if the runtime package could still fail to load.
+- handler failure -> publish nothing;
+- successful aggregate-bearing result -> publish the same buffered events;
+- clear/uncommit according to current successful publication behavior;
+- publication failure remains a post-persistence application failure exactly as currently documented;
+- non-aggregate result -> no-op.
 
-## 3.5 Runtime load smoke
+Register it once as the innermost global command behavior so publication occurs at the same logical point as the current base-class implementation before outer behavior unwind observes completion.
 
-After compiling the isolated consumer, execute the all-package smoke with Node.
+After equivalence tests pass, migrate users-api command handlers to ordinary `ICommandHandler` classes and remove:
 
-The runtime smoke must cause every published package public entry point to be loaded. It does not need to bootstrap every behavior with a live Redis/Postgres/OpenTelemetry provider; those are covered by package/application tests. The purpose here is artifact and dependency correctness.
+- `extends CommandBaseHandler`;
+- `EventBus` constructor injection used only by the base class;
+- `super(eventBus)`;
+- `handle()` indirection when `execute()` is sufficient.
 
-Acceptable examples:
+Keep `CommandBaseHandler` temporarily only if compatibility policy requires it; otherwise remove it in the same intentional breaking cleanup. This work does **not** change the D-01 in-memory/non-atomic event-delivery contract.
 
-- instantiate an in-memory or no-backend behavior when construction requires no external service;
-- reference a public class/function/token so the package module is evaluated;
-- construct simple documented helpers;
-- for provider-heavy packages, loading the public entry point plus a minimal no-I/O construction path is sufficient.
+## 3.5 S-05 — Default no-op `afterUpdate`
 
-The runtime smoke must fail if an export points to a missing file, if a required dependency is absent, if a workspace-only resolution was accidentally relied upon, or if the compiled JS cannot be loaded.
+Change `RootEntity.afterUpdate()` from abstract to an overridable default no-op hook.
 
-Do not swallow import errors.
+Then remove empty overrides from current aggregates.
 
-## 3.6 Tarball assertions
+Do not alter:
 
-Retain the existing checks in inspect-tarballs.mjs:
+- `@Mutate()` timing;
+- version increment;
+- updatedAt update;
+- event recording.
 
-- package/package.json exists;
-- LICENSE exists;
-- COMMERCIAL_LICENSE.txt exists;
-- runtime JS exists under dist;
-- declarations exist under dist;
-- no spec/test files ship;
-- no unresolved workspace: protocol remains;
-- no private ddd workspace dependency is published.
+## 3.6 S-06 — `optimisticDelete`
 
-Strengthen package-set completeness if needed:
+Add `optimisticDelete` beside `optimisticUpdate`.
 
-- compare the discovered non-private package names with the tgz manifests;
-- require exact set equality, not merely "at least 12 tarballs";
-- fail on unexpected duplicate package names or missing expected packages.
+It must own the repeated current algorithm:
 
-Do not depend only on filename conventions when package/package.json inside the archive gives a stronger identity.
+1. reject unsupported external transaction mode consistently with update semantics if required by the contract;
+2. delete by `id + expectedVersion`;
+3. exactly one affected row -> success;
+4. zero -> refreshed lookup;
+5. absent -> `EntityNotFoundException`;
+6. present -> `ConcurrencyConflictError`;
+7. unexpected affected row count -> invariant error.
 
-## 3.7 Suggested implementation structure
+Migrate User/Role delete repositories and keep direct delete available for non-versioned/specialized adapters.
 
-Prefer one clear orchestration path instead of accumulating loosely related scripts.
+## 3.7 S-07 — Safe partition helpers
 
-A compliant structure could be:
+Do not let users-api manually compose tenant-sensitive key strings when a package helper can own the mechanics.
 
-- pack-all.mjs — cleanly packs every publishable package.
-- inspect-tarballs.mjs — validates archive contents and returns/proves exact package set.
-- consumer-matrix.mjs — creates isolated consumers and executes:
-  - all-package compile/runtime smoke,
-  - packed-core lifecycle smoke,
-  - CASL v6 smoke,
-  - CASL v7 smoke.
-- package.json test:release — rebuild -> copy licenses -> pack -> inspect -> consumer matrix.
+### Rate limiting
 
-Renaming casl-matrix.mjs is optional. If it is renamed, update package.json atomically and do not leave dead scripts.
+Migrate current manual users-api factories to `createPartitionedRateLimitKeyFactory` where semantics match.
 
-Avoid creating a general-purpose release framework. This repository needs a small deterministic fixture.
+### Idempotency
 
-## 3.8 Tests and negative checks
+Add a symmetric helper, recommended shape:
 
-The implementation must itself be regression-resistant.
+```ts
+createPartitionedIdempotencyKeyFactory({
+  principal: (ctx) => ...,
+  key: (ctx) => ...,
+  // tenant required by default
+})
+```
 
-At minimum, prove locally by temporary mutation or focused test logic that the gate fails when:
+The exact shape may differ, but must:
 
-- one expected package tgz is missing;
-- a package manifest inside a tgz retains a workspace: dependency;
-- a public entry point cannot be runtime-loaded;
-- a required external peer is omitted;
-- one published package is added to packages/ but not exercised by the consumer gate.
+- fail closed on required tenant/principal absence;
+- escape/join segments through core canonical helpers;
+- keep business-operation identity explicit;
+- compose with existing request fingerprint validation rather than replacing it.
 
-Do not retain destructive temporary mutations. They are validation techniques only.
+Do not invent an automatic "hash the whole command and call it idempotency" default; identical request bodies can still represent intentionally distinct business operations.
 
-## 3.9 E-01 acceptance criteria
+## 3.8 S-08 — Remove unused users-api pipeline-cache wiring
 
-E-01 is complete only when all are true:
+Current users-api production code configures `CacheModule.forRoot` but has no `CacheBehavior` / `PIPELINE_CACHE` consumer. Repository caching is a separate ddd-core concern.
 
-- every current non-private package is packed;
-- exact package/tarball set is checked;
-- every packed @nestjs-pipeline package is installed from its tgz in an isolated consumer;
-- consumer TypeScript compiles using the public package entry points;
-- Node runtime loads every package public entry point;
-- packed-core behavior/lifecycle smoke still passes;
-- CASL v6 and v7 packed-consumer smokes both pass;
-- optional peers are not accidentally made mandatory;
-- no production package source was widened for the tests;
-- pnpm test:release passes from a clean build.
+Remove from users-api:
 
-## 3.10 E-01 prohibited shortcuts
+- `CacheModule.forRoot(...)`;
+- its `ReliabilityModule` export/import if no other production consumer appears during implementation.
 
-Do not:
+Do not remove or weaken the standalone `@nestjs-pipeline/cache` package.
 
-- point TypeScript paths back to packages/*/src;
-- add the isolated consumer to the workspace;
-- import packages from ../../packages;
-- use workspace:* in the consumer;
-- install every optional backend merely to hide a root-entry-point bug;
-- add public test hooks to any package;
-- reduce the check to tar tf/package.json inspection;
-- mark a package covered merely because users-api depends on it in the monorepo.
+If an implementation agent finds a real current production consumer introduced after the review baseline, re-evaluate this item instead of deleting active wiring.
 
----
+## 3.9 S-09 — Logging defaults and logger binding
 
-# 4. E-02 — Reconcile AGENTS.md and architecture SKILL with ConcurrencyConflictError
+In users-api composition:
 
-## 4.1 Problem statement
+1. Set the common `requestResponseLogLevel:'log'` once on global `LoggingBehavior`.
+2. Remove identical per-handler logging tuples.
+3. Keep handler-level deltas such as unique-error `mapLogLevel`; rely on the existing shallow global+handler option merge.
+4. Bind `NativeLogger` with the dedicated `loggerProvider` option rather than `extraProviders`.
 
-The implementation and public documentation now use ConcurrencyConflictError as the framework-neutral application/domain error for version-conditioned write conflicts.
+Do not remove `extraProviders` solely because the sample no longer needs it; public-surface cleanup belongs to S-14.
 
-The mandatory agent instruction files still use the old OptimisticLockError name.
+## 3.10 S-10 — Core observation bag; remove TelemetryBridgeBehavior
 
-Because AGENTS.md and SKILL.md are read before architecture-sensitive changes, this drift is operationally dangerous: a later agent can follow the instructions and reintroduce the stale contract.
+Create a tiny core-owned, telemetry-provider-neutral observation/attribute mechanism.
 
-## 4.2 Current authoritative implementation
+Required properties:
 
-Inspect and preserve:
+- addon behaviors can append semantic observations using only their existing core dependency;
+- values are stored per `IPipelineContext`;
+- OpenTelemetry trace behavior consumes them automatically;
+- MetricsBehavior preserves its existing low-cardinality default and must not blindly copy unbounded request-local identifiers;
+- addon packages must not gain an OpenTelemetry dependency;
+- failures to add/export observations must never change business outcome.
 
-- ddd/core/persistence/optimistic-update.ts
-  - imports ConcurrencyConflictError;
-  - throws EntityNotFoundException when the refreshed row is absent;
-  - throws ConcurrencyConflictError when the row exists at a different version.
-- ddd/users-api/src/users/persistence/delete-user.command-repository.ts
-  - same missing-vs-version-conflict distinction.
-- ddd/users-api/src/roles/persistence/delete-role.command-repository.ts
-  - same distinction.
-- ddd/users-api/src/common/filters/domain-exception.filter.ts
-  - maps ConcurrencyConflictError to HTTP 409.
-- ddd/core/README.md and root README.md
-  - already describe ConcurrencyConflictError.
+Migrate current feature-flag/cache/idempotency/rate-limit/dead-letter observation writes and delete users-api `TelemetryBridgeBehavior` once equivalent trace attributes are proven.
 
-Do not alter these production semantics as part of E-02.
+Do not expose raw security-sensitive keys (cache/idempotency/rate-limit keys) as default telemetry attributes.
 
-## 4.3 Required edits
+## 3.11 S-11 — Async static global behaviors
 
-Update AGENTS.md current-contract references:
+The current async module must know provider-graph classes before `useFactory` runs. Preserve that invariant.
 
-- rule 2 example;
-- rule 13 update/delete conflict wording.
+Simplify configuration by allowing static `globalBehaviors` on `PipelineModuleAsyncOptions` so those classes can be registered before factory execution.
 
-Update .agents/skills/nestjs-pipeline-architecture/SKILL.md current-contract references:
+The async factory should then normally return dynamic values only:
 
-- transport-neutral error canonical pattern;
-- HTTP mapping example;
-- optimistic update zero-row behavior;
-- conditional delete zero-row behavior;
-- architecture anti-pattern guidance.
+- tenant factory;
+- correlation factory/runner;
+- dynamic runtime defaults if genuinely required.
 
-Use ConcurrencyConflictError wherever the text describes the current repository's application/domain conflict type.
+Define deterministic merge rules if both static and factory global behavior configs are supplied. Prefer rejecting ambiguous duplicate placement rather than silently moving a security behavior.
 
-If OptimisticLockError is ever mentioned for historical or ORM-specific explanation, it must be clearly identified as low-level/historical and must not be presented as the error handlers/applications should throw or catch. The simplest correct result is no stale OptimisticLockError reference in these two instruction files.
+## 3.12 S-12 — Repository-level cache hydration defaults
 
-## 4.4 Required wording semantics
+Allow `QueryRepository` to own default snapshot hydration/serialization policy.
 
-The guidance must communicate the boundary, not merely rename a token:
+Normal aggregate repository configuration should specify the hydrator once, then cached methods specify keys/TTL.
 
-- persistence adapters may observe ORM/driver-specific conflict signals;
-- repository/persistence helpers translate version conflicts to ConcurrencyConflictError;
-- application/domain-facing code remains independent of MikroORM error classes;
-- presentation filters map ConcurrencyConflictError to HTTP 409;
-- absence remains EntityNotFoundException.
+Requirements:
 
-Do not imply that all database errors become ConcurrencyConflictError.
+- current full `@FromCache({...})` remains supported;
+- method-level options override repository defaults;
+- aggregate-returning repository contracts must never leak cached raw snapshots;
+- current mutation-barrier/CAS logic remains unchanged.
 
-Do not change unique-constraint mapping semantics.
+## 3.13 S-13 — Composable pipeline metadata
 
-## 4.5 Guard against future drift
+Implement only when needed for standalone policy decorators or multiple `UsePipeline` decorators.
 
-Add the smallest appropriate regression guard if one naturally fits existing architecture-instruction checks.
+Centralize metadata mutation so decorators:
 
-Preferred order:
+- deduplicate using `BehaviorId`;
+- preserve deterministic source order;
+- merge behavior options under documented rules;
+- do not accidentally overwrite previous pipeline metadata.
 
-1. If an existing documentation/search guard already validates canonical terminology, extend it.
-2. Otherwise, a simple private repository test/script that checks only authoritative instruction text is acceptable.
-3. Do not add production code.
-4. Do not add a complex Markdown parser for one word.
+Do not change the semantics of one existing `@UsePipeline(...)` call.
 
-A guard is useful but not mandatory if current repository conventions do not test instruction prose. The required acceptance condition is the instruction consistency itself.
+## 3.14 S-14 — Narrow only true accidental public surface
 
-## 4.6 E-02 acceptance criteria
+Do **not** prune public APIs because `ddd/users-api` does not use them. The sample is an ergonomics specimen, not an external-consumer census.
 
-- AGENTS.md contains no stale current-contract OptimisticLockError instruction.
-- SKILL.md contains no stale current-contract OptimisticLockError instruction.
-- Both documents name ConcurrencyConflictError consistently with current code.
-- EntityNotFoundException remains the missing-row outcome.
-- No production behavior changes.
-- ddd/core and users-api typechecks/tests remain green.
-- pnpm check and pnpm lint:persistence remain green.
+High-confidence cleanup remains:
 
----
+- deprecate/remove `originalCorrelationId` / `SET_ORIGINAL_CORRELATION_ID` when compatibility policy allows;
+- converge tenant access on `context.tenantId`, with an explicit migration for `PIPELINE_TENANT_ID`;
+- stop root/DynamicModule export of `PipelineBootstrapService`;
+- use the public `CaslAuthorizerOptions` type consistently instead of maintaining a duplicate inline shape;
+- remove repository-local semantic no-op decorator usage.
+
+Retain unless a **specific API-quality problem** is demonstrated:
+
+- `cacheKeyTemplate` — useful declarative/fail-fast key derivation;
+- `RootEntity.from(...)` — useful polymorphic rehydration/type safety;
+- `buildCache` / `buildKeyv`;
+- audit/dead-letter record builders;
+- resilience policy builder/context;
+- feature evaluation helpers;
+- public Zod raw/validated-data inspection helpers;
+- useful convenience re-exports such as package-local `stableStringify` / `uuidv7`;
+- addon context observation symbols;
+- provider/store/transport interfaces and bundled adapters.
+
+If discoverability becomes noisy, an `advanced` subpath may be considered, but moving public imports is still a compatibility change and must not be justified solely by sample usage.
+
+## 3.15 S-15 — Bootstrap diagnostics and package-owned behavior contracts
+
+Move deterministic policy mistakes from “first production request” to application bootstrap wherever possible.
+
+Core must remain addon-agnostic. Define a small optional behavior contract/validator mechanism that an addon can expose without core importing that addon. The validator should be able to inspect:
+
+- handler type/name;
+- request kind;
+- whether the behavior came from a global declaration, a handler declaration, or both;
+- the effective handler/global behavior options visible to core;
+- effective relative behavior order when an ordering constraint is declared.
+
+Built-in diagnostics should cover at least:
+
+- explicit CacheBehavior intent with no effective key;
+- explicit RateLimitBehavior intent with no effective key factory;
+- explicit IdempotencyBehavior intent that the developer expects to deduplicate but has no effective key factory;
+- explicit FeatureFlagBehavior intent with no flag;
+- contradictory `@SkipPipeline(Behavior)` plus local re-add;
+- deterministic resilience safety violations that can be known from request kind/options;
+- hard framework-owned ordering constraints introduced by built-ins.
+
+Nuance: a globally installed behavior may intentionally be passive for handlers that do not opt into handler-specific options. Do not turn that pattern into an error. The validator needs declaration-source information so “global available, handler did not opt in” differs from “handler explicitly declared policy but forgot the activation field”.
+
+Error messages must name:
+
+1. handler;
+2. behavior;
+3. invalid/missing field or ordering;
+4. one concrete remediation.
+
+Do not silently auto-sort arbitrary custom behaviors. The framework may own hard safety edges for its own built-ins; semantic ordering of custom behaviors remains explicit.
+
+## 3.16 S-16 — Typed pipeline context items
+
+Keep `IPipelineContext.items` as the low-level interoperability bag, but add a typed layer so normal application/package code stops using magic strings and casts.
+
+Recommended conceptual API:
+
+```ts
+const CURRENT_USER_ID = createPipelineItem<string>('currentUserId');
+
+setPipelineItem(ctx, CURRENT_USER_ID, user.id);
+const userId = getPipelineItem(ctx, CURRENT_USER_ID);      // string | undefined
+const required = requirePipelineItem(ctx, CURRENT_USER_ID); // string or actionable error
+```
+
+Requirements:
+
+- token identity is collision-safe;
+- the value type travels with the token at compile time;
+- `requirePipelineItem` fails with a message that identifies the missing item;
+- built-in exported item constants can adopt the typed token shape without changing their identity semantics;
+- raw `context.items.get/set` remains supported;
+- do not create a central global registry or DI system.
+
+Use typed accessors in new package examples and in safe key/actor/targeting factories where practical.
+
+## 3.17 S-17 — Reusable pipeline presets / composed decorators
+
+After S-13 provides safe metadata composition, add a small generic primitive for applications to define named recurring policy bundles once.
+
+Target use case:
+
+```ts
+export const AuditedWrite = createPipelinePreset(
+  rateLimit({ keyFactory: perUserWriteKey }),
+  audit({ severity: 'medium' }),
+);
+
+@CommandHandler(UpdateUserCommand)
+@AuditedWrite()
+@UsePipeline(idempotent({ keyFactory: updateUserKey }))
+export class UpdateUserHandler {}
+```
+
+The exact API may differ. Required properties:
+
+- preset expansion is ordinary pipeline metadata, not a second runtime;
+- ordering is deterministic and inspectable;
+- typed intent entries work inside presets;
+- handler entries can extend/override under the same merge rules;
+- bootstrap diagnostics see the expanded effective chain;
+- app teams can own domain-specific presets;
+- do **not** add a core `@Policies({...})` object that directly depends on every addon.
+
+Raw `@UsePipeline` remains the escape hatch and the clearest option for one-off chains.
+
+# 4. Simplification verification and migration discipline
+
+Implement the track in small commits in this order unless a dependency requires a minor adjustment:
+
+1. S-01;
+2. S-02 typed intent declarations;
+3. S-15 bootstrap diagnostics/behavior contracts;
+4. S-16 typed pipeline items;
+5. S-09 users-api cleanup;
+6. S-08;
+7. S-05/S-06;
+8. S-03;
+9. S-07;
+10. S-13 when required for safe metadata composition;
+11. S-17 reusable app-owned presets;
+12. S-10;
+13. S-04;
+14. S-11;
+15. S-12;
+16. S-14 as a narrow intentional compatibility cleanup.
+
+For every step:
+
+- preserve current behavior with focused before/after tests;
+- update users-api to demonstrate the simpler normal path, but never use lack of sample usage as evidence that an externally useful public API is dead;
+- keep one advanced escape-hatch test;
+- run package/unit checks for touched packages;
+- run the relevant users-api E2E suites;
+- run `pnpm check`, `pnpm lint:persistence`, and `pnpm test:release`;
+- run `pnpm verify:all` before claiming the complete simplification track is done.
+
+Do not interpret fewer lines as success if safety decisions become implicit. The acceptance test is that a users-api developer needs less framework implementation knowledge while all current capabilities remain available.
+
 
 # 5. D-01 — Durable domain-event delivery / transactional outbox
 
@@ -640,159 +765,3 @@ A compliant migration should separate:
 Do not use synthetic domain instances merely to satisfy repository APIs.
 
 ---
-
-# 8. Full-scan regression checklist for the implementation agent
-
-While implementing E-01/E-02, do not intentionally reopen unrelated areas. Before completion, run focused searches/inspection for:
-
-- Nest HTTP exceptions under domain/application/CQRS business paths;
-- ORM imports under domain/application/CQRS handlers;
-- BullMQ/JWT concrete dependencies in application services instead of ports;
-- process.env hidden in domain/application/package core logic;
-- bare @nestjs-pipeline/ddd-core imports in users-api production code;
-- persistence imports from domain/application/CQRS paths;
-- event.entity reads or a public RootDomainEvent.entity field;
-- production comments/API mentioning "for testability", "test-only seam", or equivalent retained test surface;
-- command repositories with manual persistence try/catch where declarative mapping applies;
-- save decorator order drift;
-- missing version predicates on update/delete;
-- direct aggregate setters used by application code;
-- pipeline cache/idempotency keys that omit security partitions for protected results;
-- stale OptimisticLockError current-contract instructions.
-
-A search hit is not automatically a defect. Evaluate layer and intent before changing anything. For example, presentation pipes/filters may legitimately use HTTP exceptions and infrastructure adapters may legitimately read environment variables.
-
----
-
-# 9. Verification sequence
-
-Run narrow checks after each task, then the complete gate once.
-
-## After E-02
-
-At minimum:
-
-- verify no stale OptimisticLockError current-contract text remains in AGENTS.md or SKILL.md;
-- pnpm check;
-- pnpm lint:persistence.
-
-Because E-02 is documentation-only, do not manufacture a production test change merely for churn.
-
-## During E-01
-
-Iterate with:
-
-- pnpm test:build or pnpm rebuild as required by the release fixture;
-- pnpm test:release.
-
-When changing release scripts, execute them from a clean state at least once.
-
-## Final mandatory gate
-
-Run:
-
-pnpm verify:all
-
-This must exercise:
-
-- lint;
-- persistence/architecture plugins;
-- all workspace unit tests;
-- all builds;
-- clean packed release gate;
-- isolated packed consumers;
-- CASL peer matrix;
-- Docker/Testcontainers E2E.
-
-Do not replace pnpm verify:all with a set of narrower commands and then claim equivalent final verification unless every subcommand is demonstrably identical.
-
-## Docker/Testcontainers requirement
-
-The E2E phase is not optional for final closure.
-
-Confirm that PostgreSQL and Redis Testcontainers tests actually execute. A skipped suite because Docker is unavailable does not close V-01.
-
-Capture evidence tied to the exact final commit:
-
-- CI status/workflow, or
-- retained local command output in an appropriate review/evidence location if this branch intentionally has no CI.
-
-Do not put transient machine paths, secrets, JWTs, connection strings, or credentials into the evidence.
-
----
-
-# 10. Commit structure
-
-Keep changes reviewable.
-
-Recommended sequence:
-
-1. fix(docs): align agent concurrency error contract
-   - AGENTS.md
-   - SKILL.md
-   - optional minimal documentation guard only if justified
-
-2. test(release): install and smoke every packed package
-   - integration/packages/*
-   - package.json if orchestration script changes
-
-3. docs(reviews): close executable findings and record final verification evidence
-   - Final.Review.md
-   - this brief only if implementation facts/paths changed materially
-
-Do not mix D-01/D-02/D-03 architecture implementation into these commits.
-
----
-
-# 11. Definition of done for this branch
-
-The branch is ready for owner review when:
-
-- E-01 is fully implemented;
-- E-02 is fully implemented;
-- D-01/D-02/D-03 are untouched unless explicit owner decisions were supplied after this brief;
-- pnpm verify:all passes on the exact final commit;
-- Docker-backed E2E is not skipped;
-- release consumer testing covers every published package tgz;
-- CASL 6 and 7 matrix remains green;
-- no stale OptimisticLockError current-contract instruction remains;
-- no new production test seam exists;
-- Final.Review.md is updated so Table 1 rows are closed with concrete commit/test evidence;
-- Table 2 records owner decisions if any were made, otherwise remains decision-gated;
-- Table 3 V-01 is closed only with independent execution evidence.
-
----
-
-# 12. Stop conditions
-
-Stop implementation and request an owner decision rather than guessing if any change would require:
-
-- introducing a transactional outbox;
-- changing event-delivery guarantees;
-- publishing/splitting ddd-core;
-- replacing Nest AggregateRoot in domain entities;
-- removing hydration setters by introducing persistence records;
-- changing supported Nest major versions;
-- changing cache/idempotency security partition semantics;
-- changing public package compatibility ranges beyond what is needed to make declared current ranges truthful.
-
-For E-01 and E-02, no such owner decision should be necessary.
-
----
-
-# 13. Final agent handoff format
-
-When the implementation agent finishes, report:
-
-- exact commits created;
-- files changed for E-01;
-- files changed for E-02;
-- how every packed package is proven to install/typecheck/runtime-load;
-- CASL 6 and 7 results;
-- pnpm verify:all result;
-- Docker/Testcontainers E2E file/test counts;
-- any skipped test — if any are skipped, state that final verification is not closed;
-- whether D-01/D-02/D-03 were left untouched;
-- any new finding discovered during implementation, with exact file/line evidence.
-
-Do not report "all good" without the command/evidence details above.

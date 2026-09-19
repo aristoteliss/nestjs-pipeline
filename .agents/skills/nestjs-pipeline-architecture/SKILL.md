@@ -282,6 +282,8 @@ On command repository `save()` operations, apply method decorators in strictly o
 
 ### Optimistic updates and conditional deletes
 
+Persistence adapters may observe ORM/driver-specific conflict signals. Repository helpers surface version conflicts as framework-neutral `ConcurrencyConflictError`, keeping application/domain code independent of MikroORM error classes. Presentation maps this error to HTTP 409. Missing rows remain `EntityNotFoundException`; unique-constraint and other database errors retain their separate mappings.
+
 - **Updates**: Use `optimisticUpdate(em, entityType, aggregate, data, entityName)` for update repositories.
   - Updates are conditioned on `WHERE id = ? AND version = aggregate.getExpectedVersion()`, updating `version` to `aggregate.version`.
   - Rejects outer transactions (`em.isInTransaction()`) because external transactions require commit-time acknowledgment and cache eviction.

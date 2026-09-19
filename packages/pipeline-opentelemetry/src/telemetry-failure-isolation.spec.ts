@@ -137,6 +137,20 @@ describe('TraceBehavior failure isolation', () => {
     );
     expect(next).toHaveBeenCalledTimes(1);
   });
+
+  it('runs untraced when startActiveSpan throws before invoking the callback', async () => {
+    const next = vi.fn().mockResolvedValue('value');
+    vi.spyOn(trace, 'getTracer').mockReturnValue({
+      startActiveSpan: vi.fn().mockImplementation(() => {
+        throw new Error('startActiveSpan synchronous failure');
+      }),
+    } as never);
+
+    const behavior = new TraceBehavior();
+    const result = await behavior.handle(makeContext(), next);
+    expect(result).toBe('value');
+    expect(next).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe('MetricsBehavior failure isolation', () => {
@@ -229,5 +243,59 @@ describe('MetricsBehavior failure isolation', () => {
 
     await expect(behavior.handle(makeContext(), next)).resolves.toBe('value');
     expect(next).toHaveBeenCalledTimes(1);
+  });
+
+  it('handles non-Error thrown during instrument creation', async () => {
+    vi.spyOn(metrics, 'getMeter').mockImplementation(() => {
+      throw 'meter string error';
+    });
+    const next = vi.fn().mockResolvedValue('value');
+
+    await expect(behavior.handle(makeContext(), next)).resolves.toBe('value');
+    expect(next).toHaveBeenCalledTimes(1);
+  });
+
+  it('handles non-Error thrown by downstream handler and logs string instrument failure', async () => {
+    const debugLog = vi.fn();
+    const workingLogger = {
+      debug: debugLog,
+      warn: vi.fn(),
+      log: vi.fn(),
+      error: vi.fn(),
+    };
+    const loggingBehavior = new MetricsBehavior(workingLogger as never);
+
+    vi.spyOn(metrics, 'getMeter').mockReturnValue({
+      createHistogram: () => ({
+        record: () => {
+          throw 'record string error';
+        },
+      }),
+      createCounter: () => ({
+        add: () => {
+          throw 'counter add string error';
+        },
+      }),
+      createUpDownCounter: () => ({
+        add: () => {
+          throw 'updown add string error';
+        },
+      }),
+    } as never);
+
+    const next = vi.fn().mockRejectedValue('business string error');
+
+    await expect(loggingBehavior.handle(makeContext(), next)).rejects.toBe(
+      'business string error',
+    );
+    expect(next).toHaveBeenCalledTimes(1);
+    expect(debugLog).toHaveBeenCalledWith(
+      expect.stringContaining('record string error'),
+      MetricsBehavior.name,
+    );
+    expect(debugLog).toHaveBeenCalledWith(
+      expect.stringContaining('updown add string error'),
+      MetricsBehavior.name,
+    );
   });
 });

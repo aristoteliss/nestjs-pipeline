@@ -294,41 +294,12 @@ export class CaslAuthorizer implements IEntityAuthorizer {
   /**
    * Check whether the action is permitted on the given subject/field.
    */
-  can(action: string, subject: object | string, field?: string): boolean;
-  can(
-    action: string,
-    subject: string,
-    entity: Record<string, unknown>,
-    field?: string,
-  ): boolean;
-  can(...args: unknown[]): boolean {
+  can(action: string, subject: object | string, field?: string): boolean {
     if (this.bypass) return true;
 
     const ability = this.ability ?? getCaslAbility();
     if (!ability) return false;
 
-    if (
-      args.length >= 3 &&
-      typeof args[1] === 'string' &&
-      typeof args[2] === 'object' &&
-      args[2] !== null
-    ) {
-      // Deprecated IEntityAuthorizer signature: can(action, subject, entity, field?)
-      const [action, subjectStr, entityRecord, field] = args as [
-        string,
-        string,
-        Record<string, unknown>,
-        string?,
-      ];
-      const typed = caslSubject(subjectStr, {
-        ...entityRecord,
-      }) as unknown as string;
-      return field
-        ? ability.can(action, typed, field)
-        : ability.can(action, typed);
-    }
-
-    const [action, subject, field] = args as [string, object | string, string?];
     const { typedSubject } = this.resolveSubjectInfo(subject);
     return field
       ? ability.can(action, typedSubject, field)

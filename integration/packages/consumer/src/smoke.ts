@@ -26,7 +26,7 @@ class MarkerBehavior implements IPipelineBehavior {
     next: NextDelegate,
   ): Promise<unknown> {
     context.items.set('packed-consumer', true);
-    return next();
+    return `behavior:${await next()}`;
   }
 }
 
@@ -57,7 +57,7 @@ async function run() {
       .get(CommandBus)
       .execute(new SmokeCommand('packed'));
 
-    if (result !== 'ok:packed') {
+    if (result !== 'behavior:ok:packed') {
       throw new Error(`Unexpected packed-consumer result: ${String(result)}`);
     }
   } finally {

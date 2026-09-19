@@ -281,4 +281,34 @@ describe('RootEntity', () => {
       expect(entity.getUncommittedEvents()).toEqual([]);
     });
   });
+
+  describe('property setters and persistence acknowledgment', () => {
+    it('sets and normalizes id, createdAt, and updatedAt', () => {
+      const entity = new TestEntity({ name: 'Alpha' });
+      const newId = uuidv7();
+      entity.id = newId;
+      expect(entity.id).toBe(newId);
+
+      const d = new Date('2026-01-01T00:00:00.000Z');
+      entity.createdAt = d;
+      expect(entity.createdAt).toEqual(d);
+      entity.createdAt = '2026-02-01T00:00:00.000Z';
+      expect(entity.createdAt).toEqual(new Date('2026-02-01T00:00:00.000Z'));
+
+      entity.updatedAt = d;
+      expect(entity.updatedAt).toEqual(d);
+      entity.updatedAt = '2026-03-01T00:00:00.000Z';
+      expect(entity.updatedAt).toEqual(new Date('2026-03-01T00:00:00.000Z'));
+    });
+
+    it('advances current version when acknowledged version exceeds current version', () => {
+      const entity = new TestEntity({ name: 'Alpha' });
+      expect(entity.version).toBe(1);
+      expect(entity.getExpectedVersion()).toBe(1);
+
+      entity.acknowledgePersisted(5);
+      expect(entity.getExpectedVersion()).toBe(5);
+      expect(entity.version).toBe(5);
+    });
+  });
 });

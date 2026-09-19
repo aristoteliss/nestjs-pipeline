@@ -9,6 +9,7 @@ import {
   CaslAuthorizer,
   getCaslAbility,
 } from './helpers/entity-authorization.helper';
+import type { IEntityAuthorizer } from './interfaces/entity-authorizer.interface';
 import {
   buildAbility,
   buildAbilityFromRules,
@@ -87,68 +88,39 @@ describe('CaslAuthorizer', () => {
     it('returns false when no ability is available (default deny)', () => {
       const authorizer = new CaslAuthorizer();
       expect(authorizer.can('update', 'User')).toBe(false);
-      expect(authorizer.can('update', 'User', { id: 1 })).toBe(false);
-      expect(authorizer.can('update', 'User', { id: 1 }, 'username')).toBe(
-        false,
-      );
+      expect(
+        authorizer.can('update', new User(1, 'engineering', 'alice')),
+      ).toBe(false);
+      expect(
+        authorizer.can(
+          'update',
+          new User(1, 'engineering', 'alice'),
+          'username',
+        ),
+      ).toBe(false);
     });
 
     it('returns true when explicit bypass is configured on authorizer', () => {
       const bypassAuthorizer = CaslAuthorizer.bypass();
       expect(bypassAuthorizer.can('update', 'User')).toBe(true);
-      expect(bypassAuthorizer.can('update', 'User', { id: 1 })).toBe(true);
       expect(
-        bypassAuthorizer.can('update', 'User', { id: 1 }, 'username'),
+        bypassAuthorizer.can('update', new User(1, 'engineering', 'alice')),
+      ).toBe(true);
+      expect(
+        bypassAuthorizer.can(
+          'update',
+          new User(1, 'engineering', 'alice'),
+          'username',
+        ),
       ).toBe(true);
 
       const bypassOptionsAuthorizer = new CaslAuthorizer({ bypass: true });
       expect(bypassOptionsAuthorizer.can('update', 'User')).toBe(true);
     });
 
-    it('supports 4-arg legacy signature: can(action, subjectStr, entityRecord, field?)', () => {
-      const ability = buildAbility([supervisorRole], supervisor);
-      const authorizer = new CaslAuthorizer(ability);
-
-      // Allowed field
-      expect(
-        authorizer.can(
-          'update',
-          'User',
-          { id: 2, department: 'engineering', username: 'bob' },
-          'username',
-        ),
-      ).toBe(true);
-
-      // Forbidden field
-      expect(
-        authorizer.can(
-          'update',
-          'User',
-          { id: 2, department: 'engineering' },
-          'department',
-        ),
-      ).toBe(false);
-
-      // Without field parameter: allowed
-      expect(
-        authorizer.can('update', 'User', {
-          id: 2,
-          department: 'engineering',
-        }),
-      ).toBe(true);
-
-      // Without field parameter: denied (wrong department)
-      expect(
-        authorizer.can('update', 'User', {
-          id: 3,
-          department: 'marketing',
-        }),
-      ).toBe(false);
-    });
-
     it('supports 3-arg signature: can(action, entity, field)', () => {
       const ability = buildAbility([supervisorRole], supervisor);
-      const authorizer = new CaslAuthorizer(ability);
+      const authorizer: IEntityAuthorizer = new CaslAuthorizer(ability);
       const user = new User(2, 'engineering', 'alice');
 
       expect(authorizer.can('update', user, 'username')).toBe(true);
@@ -197,8 +169,7 @@ describe('CaslAuthorizer', () => {
         expect(
           authorizer.can(
             'update',
-            'User',
-            { id: 2, department: 'engineering' },
+            new User(2, 'engineering', 'alice'),
             'username',
           ),
         ).toBe(true);
@@ -206,8 +177,7 @@ describe('CaslAuthorizer', () => {
         expect(
           authorizer.can(
             'update',
-            'User',
-            { id: 3, department: 'marketing' },
+            new User(3, 'marketing', 'carol'),
             'username',
           ),
         ).toBe(false);
@@ -636,6 +606,18 @@ describe('CaslAuthorizer', () => {
       expect(results).toHaveLength(1);
       expect(results[0].username).toBe('alice');
     });
+
+    it('re-throws non-UnauthorizedActionException error from authorize', () => {
+      const ability = buildAbility([supervisorRole], supervisor);
+      const authorizer = new CaslAuthorizer(ability);
+      vi.spyOn(authorizer, 'authorize').mockImplementation(() => {
+        throw new TypeError('Unexpected failure');
+      });
+
+      expect(() =>
+        authorizer.filter('read', [new User(1, 'engineering', 'alice')]),
+      ).toThrow(TypeError);
+    });
   });
 
   describe('UnauthorizedActionException', () => {
@@ -866,5 +848,23 @@ describe('nested read projection', () => {
       Record<string, unknown>
     >('read', account);
     expect(result.groups).toEqual([{ members: [{ name: 'Alice' }] }]);
+  });
+
+  it('throws TypeError when array path aliases exceed limit', () => {
+    let deeplyNested: any = [1];
+    for (let i = 10; i >= 0; i--) {
+      const arr = new Array(i + 1);
+      arr[i] = deeplyNested;
+      deeplyNested = arr;
+    }
+    const account = Object.assign(new Account(), {
+      matrix: deeplyNested,
+    });
+    const ability = buildAbilityFromRules([
+      { action: 'read', subject: 'Account' },
+    ]);
+    expect(() =>
+      new CaslAuthorizer(ability).authorize('read', account),
+    ).toThrow(/Authorization snapshot has too many array path aliases/);
   });
 });

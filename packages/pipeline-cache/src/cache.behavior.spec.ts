@@ -4,6 +4,7 @@ import type { IPipelineContext } from '@nestjs-pipeline/core';
 import { type Cache, createCache } from 'cache-manager';
 import { Keyv } from 'keyv';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { CacheManagerAdapter } from './adapters/cache-manager.adapter';
 import {
   CACHE_HIT_ITEM,
   CACHE_KEY_ITEM,
@@ -386,5 +387,46 @@ describe('CacheBehavior', () => {
     );
 
     expect(next).toHaveBeenCalledTimes(2);
+  });
+
+  it('accepts an already constructed CacheManagerAdapter instance', async () => {
+    const adapter = new CacheManagerAdapter({
+      get: vi.fn().mockResolvedValue('adapter-val'),
+      set: vi.fn(),
+    } as unknown as Cache);
+    const customBehavior = new CacheBehavior(adapter);
+    const next = vi.fn();
+    const res = await customBehavior.handle(makeCtx(), next);
+    expect(res).toBe('adapter-val');
+    expect(next).not.toHaveBeenCalled();
+  });
+
+  it('handles non-Error store failure (string error) when failing open and failing closed', async () => {
+    const logger = { warn: vi.fn(), error: vi.fn() };
+    const customBehavior = new CacheBehavior(
+      {
+        get: vi.fn().mockRejectedValue('redis string failure'),
+      } as unknown as Cache,
+      undefined,
+      logger as never,
+    );
+    const next = vi.fn().mockResolvedValue('fresh');
+
+    // failOpen: true
+    const res = await customBehavior.handle(makeCtx({ failOpen: true }), next);
+    expect(res).toBe('fresh');
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining('failing open: redis string failure'),
+      CacheBehavior.name,
+    );
+
+    // failOpen: false
+    await expect(
+      customBehavior.handle(makeCtx({ failOpen: false }), next),
+    ).rejects.toBe('redis string failure');
+    expect(logger.error).toHaveBeenCalledWith(
+      expect.stringContaining('failing closed: redis string failure'),
+      CacheBehavior.name,
+    );
   });
 });
