@@ -69,6 +69,11 @@ when evaluated at module load, cannot be overridden by any later configuration. 
 value guards tenant or principal isolation, a missing variable must fail closed rather than
 substitute a default. JSDoc examples are unaffected — Grit matches syntax, not comments.
 
+### 9. `aggregate-identity.grit`
+Enforces `AGENTS.md` rule 6 / `SKILL.md` rule 5 across `cqrs/`, `application/`, `controllers/`, `services/`, `mappers/`, and `jobs/`:
+- Forbids direct property assignment to aggregate hydration setters (`id`, `createdAt`, `updatedAt`, `version`, `username`, `department`, `name`).
+- Protects the D-03 pragmatic mapping trade-off: setters exist solely for MikroORM `accessor: true` hydration. Application code must mutate aggregates through domain methods and factories.
+
 ---
 
 ## Manifest guard (not a Grit plugin)

@@ -159,6 +159,8 @@
       "path": "./biome/plugins/aggregate-identity.grit",
       "includes": [
         "**/ddd/*/src/**/cqrs/**/*.ts",
+        "**/ddd/*/src/**/application/**/*.ts",
+        "**/ddd/core/application/**/*.ts",
         "**/ddd/*/src/**/controllers/**/*.ts",
         "**/ddd/*/src/**/services/**/*.ts",
         "**/ddd/*/src/**/mappers/**/*.ts",
