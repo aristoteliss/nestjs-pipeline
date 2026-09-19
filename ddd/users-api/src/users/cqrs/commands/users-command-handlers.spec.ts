@@ -1,10 +1,8 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 import type { EventBus } from '@nestjs/cqrs';
 import type { CaslAuthorizer } from '@nestjs-pipeline/casl';
-import {
-  EntityNotFoundException,
-  type IWriteSideAggregateRepository,
-} from '@nestjs-pipeline/ddd-core';
+import { type IWriteSideAggregateRepository } from '@nestjs-pipeline/ddd-core/application';
+import { EntityNotFoundException } from '@nestjs-pipeline/ddd-core/domain';
 import { describe, expect, it, vi } from 'vitest';
 import { User } from '../../domain/models/user.entity';
 import { DeleteUserCommand } from './delete-user.command';

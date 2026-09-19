@@ -12,10 +12,12 @@ import {
 } from '@nestjs-pipeline/core';
 import {
   CommandBaseHandler,
-  EntityNotFoundException,
   IWriteSideAggregateRepository,
+} from '@nestjs-pipeline/ddd-core/application';
+import {
+  EntityNotFoundException,
   isTransientOperationError,
-} from '@nestjs-pipeline/ddd-core';
+} from '@nestjs-pipeline/ddd-core/domain';
 import { ResilienceBehavior } from '@nestjs-pipeline/resilience';
 import type { Role } from '../../domain/models/role.entity';
 import { COMMAND_REPOSITORY } from '../../persistence/repository.tokens';
@@ -28,10 +30,6 @@ import { DeleteRoleCommand } from './delete-role.command';
     CaslBehavior,
     { rules: [{ action: APP_ACTIONS.DELETE, subject: APP_SUBJECTS.ROLE }] },
   ],
-  // AuditBehavior sits outside ResilienceBehavior on purpose: it writes one
-  // record per invocation, so inside the retry a delete that failed twice
-  // before succeeding produced three records for one logical operation, with
-  // a duration measuring a single attempt.
   [
     AuditBehavior,
     {
@@ -79,11 +77,6 @@ export class DeleteRoleHandler extends CommandBaseHandler<
     super(eventBus);
   }
 
-  /**
-   * Loads authoritative write-side state and keeps not-found semantics transport-neutral.
-   * Retryability is supplied by the repository through `TransientOperationError`;
-   * this handler does not inspect persistence-specific driver codes.
-   */
   async handle(command: DeleteRoleCommand): Promise<Role> {
     const role = await this.commandRepository.findById(command.id);
     if (!role) {

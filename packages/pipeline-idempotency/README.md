@@ -362,10 +362,10 @@ later request reuses the key with a **different** body, it is rejected with a
 `422` `key_reuse` conflict — catching client bugs and replay attacks where the
 same key is sent with new data.
 
-When fingerprinting is enabled, a live legacy record that has no fingerprint
-is rejected as unverifiable `key_reuse`; it is never replayed. Disable
-fingerprinting deliberately during a compatibility window if legacy replay is
-required.
+When fingerprinting is enabled, any stored record without a fingerprint is
+unverifiable and is rejected as `key_reuse`; it is never replayed. Disable
+fingerprinting only when the storage contract intentionally permits
+fingerprintless records.
 
 Fingerprinting uses the same strict JSON domain as response snapshots, so
 values that native `JSON.stringify()` would silently collapse or discard are

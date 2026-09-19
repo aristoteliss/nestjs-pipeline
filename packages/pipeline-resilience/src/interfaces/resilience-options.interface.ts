@@ -218,7 +218,7 @@ export interface ResilienceTelemetry {
  * export class RebuildProjectionHandler {}
  * ```
  *
- * @example Deliberately broad migration / test policy
+ * @example Deliberately broad fallback policy
  * ```ts
  * @UsePipeline([ResilienceBehavior, {
  *   fallback: { value: [] },
@@ -247,9 +247,9 @@ export interface ResilienceBehaviorOptions {
    * (eligible for retry / fallback / tripping the breaker). Return `true` only
    * for failures that really are safe for the configured policy.
    *
-   * Unlike the historical behavior, declarative retry/fallback/breaker policies
-   * no longer silently default to all errors. Use {@link handleAllErrors} only
-   * when that broad behavior is intentional.
+   * Declarative retry/fallback/breaker policies require an explicit classifier.
+   * Use {@link handleAllErrors} only when handling every thrown error is
+   * intentionally part of the policy.
    */
   handle?: (error: unknown) => boolean;
 

@@ -6,9 +6,9 @@ import { CaslAuthorizer, CaslBehavior } from '@nestjs-pipeline/casl';
 import { LoggingBehavior, UsePipeline } from '@nestjs-pipeline/core';
 import {
   CommandBaseHandler,
-  EntityNotFoundException,
   IWriteSideAggregateRepository,
-} from '@nestjs-pipeline/ddd-core';
+} from '@nestjs-pipeline/ddd-core/application';
+import { EntityNotFoundException } from '@nestjs-pipeline/ddd-core/domain';
 import { UniqueRoleNameException } from '../../domain/models/errors/role-name.exception';
 import type { Role } from '../../domain/models/role.entity';
 import { COMMAND_REPOSITORY } from '../../persistence/repository.tokens';
@@ -41,7 +41,6 @@ export class UpdateRoleHandler extends CommandBaseHandler<
     super(eventBus);
   }
 
-  /** Loads authoritative write-side state and keeps not-found semantics transport-neutral. */
   async handle(command: UpdateRoleCommand): Promise<Role> {
     const role = await this.commandRepository.findById(command.id);
     if (!role) {

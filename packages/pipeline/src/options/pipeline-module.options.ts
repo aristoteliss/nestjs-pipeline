@@ -39,7 +39,25 @@ export type PipelineLoggerProvider =
       provide: typeof LOGGING_BEHAVIOR_LOGGER;
     });
 
-/** DI registration options for `PipelineModule.forFeature()`. */
+/**
+ * DI registration options for `PipelineModule.forFeature()`.
+ *
+ * Use this in a feature module that owns custom behavior providers while the
+ * root application owns global pipeline configuration.
+ *
+ * @example
+ * ```ts
+ * @Module({
+ *   imports: [
+ *     PipelineModule.forFeature({
+ *       imports: [BillingInfrastructureModule],
+ *       behaviors: [BillingTelemetryBehavior],
+ *     }),
+ *   ],
+ * })
+ * export class BillingModule {}
+ * ```
+ */
 export interface PipelineModuleFeatureOptions
   extends Pick<ModuleMetadata, 'imports'> {
   /**
@@ -130,27 +148,19 @@ export interface PipelineModuleOptions {
   bootstrapLogLevel?: LogLevel | 'none';
 
   /**
+   * Optional Nest provider that binds {@link LOGGING_BEHAVIOR_LOGGER}.
+   *
+   * Use this to route pipeline logging through an application logger such as
+   * nestjs-pino. The bound value must satisfy Nest's `LoggerService` contract.
+   *
    * @example
    * ```ts
-   * // Use a custom logger provider for pipeline logging
    * PipelineModule.forRoot({
-   *   loggerProvider: { provide: LOGGING_BEHAVIOR_LOGGER, useExisting: MyLogger },
-   * })
-   * ```
-   * Optional custom logger provider token for `LOGGING_BEHAVIOR_LOGGER`.
-   *
-   * If provided, will be registered in the DI container and exported.
-   * This allows using a custom logger (and DI binding) for pipeline logging
-   * instead of the default (e.g., integrate with nestjs-pino or custom logger).
-   *
-   * **Note:** The logger must implement all methods from `LoggerService` (log, debug, verbose, warn, error, fatal),
-   * or support the NestJS log level mapping (e.g., 'log' → 'info', 'verbose' → 'trace', etc.).
-   *
-   * Example:
-   * ```ts
-   * PipelineModule.forRoot({
-   *   loggerProvider: { provide: LOGGING_BEHAVIOR_LOGGER, useExisting: MyLogger },
-   * })
+   *   loggerProvider: {
+   *     provide: LOGGING_BEHAVIOR_LOGGER,
+   *     useExisting: NativeLogger,
+   *   },
+   * });
    * ```
    */
   loggerProvider?: PipelineLoggerProvider;
@@ -246,7 +256,35 @@ export interface PipelineOptionsFactory {
     | PipelineRuntimeOptions;
 }
 
-/** Options for configuring `PipelineModule.forRootAsync`. */
+/**
+ * Options for configuring `PipelineModule.forRootAsync`.
+ *
+ * Provider-graph settings such as `behaviors`, `loggerProvider`, and
+ * `extraProviders` are declared on this object. Runtime settings such as
+ * correlation, tenant resolution, and global behavior composition are returned
+ * by `useFactory` / `PipelineOptionsFactory`.
+ *
+ * @example Async composition with tenant and correlation context
+ * ```ts
+ * PipelineModule.forRootAsync({
+ *   inject: [TenantSchemaContext],
+ *   behaviors: [LoggingBehavior, ZodValidationBehavior, TraceBehavior],
+ *   useFactory: (tenant: TenantSchemaContext) => ({
+ *     correlationIdFactory: getCorrelationId,
+ *     correlationIdRunner: runWithCorrelationId,
+ *     tenantIdFactory: () => tenant.schema,
+ *     globalBehaviors: {
+ *       scope: 'all',
+ *       before: [
+ *         LoggingBehavior,
+ *         [TraceBehavior, { tracerName: 'users-api' }],
+ *         ZodValidationBehavior,
+ *       ],
+ *     },
+ *   }),
+ * });
+ * ```
+ */
 export interface PipelineModuleAsyncOptions
   extends Pick<ModuleMetadata, 'imports'> {
   useExisting?: Type<PipelineOptionsFactory>;
@@ -260,10 +298,9 @@ export interface PipelineModuleAsyncOptions
    * Behavior classes to register statically in the Nest DI graph before the
    * async options factory executes.
    *
-   * The historical tuple form (`[Behavior, options]`) remains accepted for
-   * backward compatibility. Only the behavior class is used for provider
-   * registration; tuple options are not applied from this field. Put execution
-   * options in `globalBehaviors` or `@UsePipeline(...)` instead.
+   * Tuple entries are accepted for type compatibility, but only the behavior
+   * class participates in provider registration. Put execution options in
+   * `globalBehaviors` or `@UsePipeline(...)`.
    *
    * @example
    * ```ts
@@ -280,11 +317,20 @@ export interface PipelineModuleAsyncOptions
   /**
    * Optional static logger provider for async configuration.
    *
-   * This is additive to the original async API. Prefer declaring the logger
-   * here because an async factory result cannot alter Nest's already-built
-   * provider graph.
+   * Declare it here because the async factory returns runtime configuration and
+   * cannot alter Nest's already-built provider graph.
    */
   loggerProvider?: PipelineLoggerProvider;
 
+  /**
+   * Additional providers required by registered behaviors or custom factories.
+   *
+   * @example Bind the shared pipeline logger to an application logger
+   * ```ts
+   * extraProviders: [
+   *   { provide: LOGGING_BEHAVIOR_LOGGER, useExisting: NativeLogger },
+   * ]
+   * ```
+   */
   extraProviders?: Provider[];
 }

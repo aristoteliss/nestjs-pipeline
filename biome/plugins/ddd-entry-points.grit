@@ -1,0 +1,12 @@
+engine biome(1.0)
+language js(typescript)
+
+// The compatibility root stays available, but internal application code must
+// state the dependency layer. Persistence adapters may use /persistence.
+JsImportNamedClause(source=$source) as $clause where {
+  $source <: or {
+    "'@nestjs-pipeline/ddd-core'",
+    "\"@nestjs-pipeline/ddd-core\""
+  },
+  register_diagnostic(span=$clause, message="Do not use the ddd-core root barrel inside users-api production code. Import /domain, /application, or /persistence according to the dependency role.", severity="error")
+}

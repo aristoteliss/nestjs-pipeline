@@ -10,7 +10,7 @@ import {
   ConcurrencyConflictError,
   DomainException,
   EntityNotFoundException,
-} from '@nestjs-pipeline/ddd-core';
+} from '@nestjs-pipeline/ddd-core/domain';
 import {
   AuthConfigurationException,
   InvalidLoginCredentialsException,

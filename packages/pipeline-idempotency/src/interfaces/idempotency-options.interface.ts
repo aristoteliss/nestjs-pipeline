@@ -20,7 +20,21 @@ export type IdempotencyKeyFactory = (
   context: IPipelineContext,
 ) => string | undefined;
 
-/** Per-handler idempotency options, mergeable over module-wide defaults. */
+/**
+ * Per-handler idempotency options, shallow-merged over module-wide defaults.
+ *
+ * @example Tenant/principal-scoped command idempotency
+ * ```ts
+ * @UsePipeline([IdempotencyBehavior, {
+ *   keyFactory: (ctx) => {
+ *     const command = ctx.request as CreateUserCommand;
+ *     return `${ctx.tenantId}:${command.sessionUser?.id}:user.create:${command.email}`;
+ *   },
+ *   ttl: 24 * 60 * 60 * 1000,
+ * }])
+ * export class CreateUserHandler {}
+ * ```
+ */
 export interface IdempotencyBehaviorOptions {
   /**
    * Derives the idempotency key from the request/context. **Required** for the
@@ -60,7 +74,23 @@ export interface IdempotencyBehaviorOptions {
   releaseOnError?: boolean;
 }
 
-/** Options for {@link IdempotencyModule.forRoot}. */
+/**
+ * Options for {@link IdempotencyModule.forRoot}.
+ *
+ * @example Local/single-process setup
+ * ```ts
+ * IdempotencyModule.forRoot({
+ *   defaults: { fingerprint: true, releaseOnError: true },
+ * });
+ * ```
+ *
+ * @example Shared Redis store
+ * ```ts
+ * IdempotencyModule.forRoot({
+ *   store: new RedisIdempotencyStore(redisClient),
+ * });
+ * ```
+ */
 export interface IdempotencyModuleOptions {
   /**
    * The idempotency store. Pass a bundled store
@@ -76,6 +106,14 @@ export interface IdempotencyModuleOptions {
 /**
  * Options for {@link IdempotencyModule.forRootAsync} — build the store from
  * injected dependencies (e.g. a DI-managed Redis client or pg `Pool`).
+ *
+ * @example
+ * ```ts
+ * IdempotencyModule.forRootAsync({
+ *   inject: [PG_POOL],
+ *   useFactory: (pool) => new PostgresIdempotencyStore(pool),
+ * });
+ * ```
  */
 export interface IdempotencyModuleAsyncOptions
   extends Pick<ModuleMetadata, 'imports'> {

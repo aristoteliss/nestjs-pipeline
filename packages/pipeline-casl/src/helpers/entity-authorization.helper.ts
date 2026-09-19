@@ -99,11 +99,10 @@ function isBypassContext(value: unknown): value is CaslBypassContext {
  * this.authorizer.authorize({ bypass: true }, 'read', internalSnapshot);
  * ```
  *
- * There is no actor-first form. Role/capability lookup is application-specific,
- * so this package cannot build an ability from an actor value; the removed
- * overload silently used the ambient ability instead, and its three-argument
- * shape was indistinguishable from `(action, subject, fields)`. Pass an explicit
- * {@link AppAbility}, or rely on the ambient ability that `CaslBehavior` stores.
+ * Role/capability lookup is application-specific, so authorizer calls accept
+ * either the ambient ability prepared by `CaslBehavior` or an explicit
+ * {@link AppAbility}/{@link CaslBypassContext}. Actor objects are not converted
+ * into abilities implicitly.
  */
 @Injectable()
 export class CaslAuthorizer implements IEntityAuthorizer {
@@ -251,14 +250,13 @@ export class CaslAuthorizer implements IEntityAuthorizer {
     subjects: Iterable<object | null | undefined>,
   ): T[];
   filter<T = unknown>(...args: unknown[]): T[] {
-    // Same dispatch hazard as authorize(): the actor-first form shared an arity
-    // and first-argument type with the short form, so it was silently misread.
+    // Explicit-ability calls are distinguished by a non-string first argument.
     const explicitFirst = typeof args[0] !== 'string';
 
     if (explicitFirst && !isAppAbility(args[0]) && !isBypassContext(args[0])) {
       throw new TypeError(
         'CaslAuthorizer.filter() expects either (action, subjects) or ' +
-          '(ability | { bypass: true }, action, subjects). The actor-first form was removed.',
+          '(ability | { bypass: true }, action, subjects). Actor-first calls are unsupported.',
       );
     }
 
@@ -315,7 +313,7 @@ export class CaslAuthorizer implements IEntityAuthorizer {
       typeof args[2] === 'object' &&
       args[2] !== null
     ) {
-      // Legacy 4-arg signature from IEntityAuthorizer: can(action, subjectStr, entityRecord, field?)
+      // Deprecated IEntityAuthorizer signature: can(action, subject, entity, field?)
       const [action, subjectStr, entityRecord, field] = args as [
         string,
         string,
@@ -338,19 +336,11 @@ export class CaslAuthorizer implements IEntityAuthorizer {
   }
 
   /**
-   * Resolves the two supported call shapes into one normalized form.
+   * Normalizes the ambient-ability and explicit-ability call shapes.
    *
-   * A deprecated actor-first overload used to exist alongside these. It could
-   * not be dispatched reliably: `authorize('actor-1', 'read', entity)` matched
-   * the same arity and first-argument type as `authorize(action, subject,
-   * fields)`, so it was silently read as action `'actor-1'` on subject
-   * `'read'` — a wrong permission check rather than a visible error. It also
-   * could not do what its name implied, because an actor value cannot be turned
-   * into an ability without application role data.
-   *
-   * Anything that is neither of the two supported shapes is rejected here rather
-   * than guessed at, because guessing wrong in an authorization primitive
-   * produces a denial that looks like a permissions-configuration problem.
+   * Unsupported argument shapes are rejected rather than inferred because an
+   * ambiguous authorization call must never be converted into a different
+   * permission check.
    */
   private normalizeAuthorizeArguments(args: unknown[]): {
     ability?: AppAbility;

@@ -69,7 +69,7 @@ export const AUDIT_RECORD_ITEM = Symbol('AUDIT_RECORD_ITEM');
  * @UsePipeline([AuditBehavior, {
  *   action: 'payment.refund',
  *   failOpen: false,
- *   includeResponse: false,
+ *   captureResponse: false,
  * }])
  * export class RefundPaymentHandler {}
  * ```

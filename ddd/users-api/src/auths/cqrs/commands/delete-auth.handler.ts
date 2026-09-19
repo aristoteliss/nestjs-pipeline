@@ -5,7 +5,7 @@ import { CommandHandler, ICommandHandler } from '@nestjs/cqrs';
 import type {
   ICommandRepository,
   IQueryRepository,
-} from '@nestjs-pipeline/ddd-core';
+} from '@nestjs-pipeline/ddd-core/application';
 import { Auth } from '../../domain/models/auth.entity';
 import {
   COMMAND_REPOSITORY,
@@ -14,13 +14,6 @@ import {
 import { FindAuthQuery } from '../queries/find-auth.query';
 import { DeleteAuthCommand } from './delete-auth.command';
 
-/**
- * Command handler that revokes an active authenticated session on logout.
- *
- * Looks up the actual persistent `Auth` aggregate via `QUERY_REPOSITORY.findAuth`
- * using the caller's user ID and token, then passes the aggregate to
- * `COMMAND_REPOSITORY.deleteAuth` for primary-key deletion and cache eviction.
- */
 @CommandHandler(DeleteAuthCommand)
 export class DeleteAuthHandler
   implements ICommandHandler<DeleteAuthCommand, void>

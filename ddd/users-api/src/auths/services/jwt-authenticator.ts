@@ -6,7 +6,7 @@ import {
   Logger,
   UnauthorizedException,
 } from '@nestjs/common';
-import type { IQueryRepository } from '@nestjs-pipeline/ddd-core';
+import type { IQueryRepository } from '@nestjs-pipeline/ddd-core/application';
 import { decodeJwt, importSPKI, jwtVerify } from 'jose';
 import {
   type ITenantContext,
@@ -258,17 +258,6 @@ export class JwtAuthenticator {
     }
   }
 
-  /**
-   * Imports an SPKI PEM-encoded public key into a WebCrypto `CryptoKey`.
-   * Isolated as a protected method for unit testability and caching verification.
-   */
-  protected async importPublicKey(
-    spki: string,
-    alg: string,
-  ): Promise<Uint8Array | CryptoKey> {
-    return importSPKI(spki, alg);
-  }
-
   private async getJwtVerificationCandidates() {
     const publicKey = process.env.JWT_PUBLIC_KEY;
     const publicKeyAlg = process.env.JWT_PUBLIC_KEY_ALG ?? 'RS256';
@@ -293,7 +282,7 @@ export class JwtAuthenticator {
       const normalizedKey = publicKey.replace(/\\n/g, '\n');
       try {
         candidates.push({
-          key: await this.importPublicKey(normalizedKey, publicKeyAlg),
+          key: await importSPKI(normalizedKey, publicKeyAlg),
           defaultAlgorithm: publicKeyAlg,
           symmetric: false,
         });

@@ -1,12 +1,12 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { type IPipelineContext, pipelineStore } from '@nestjs-pipeline/core';
+import { type ICache } from '@nestjs-pipeline/ddd-core/application';
 import {
   ConcurrencyConflictError,
   EntityNotFoundException,
-  type ICache,
-  toCacheSnapshot,
-} from '@nestjs-pipeline/ddd-core';
+} from '@nestjs-pipeline/ddd-core/domain';
+import { toCacheSnapshot } from '@nestjs-pipeline/ddd-core/persistence';
 import { describe, expect, it, vi } from 'vitest';
 import { UniqueRoleNameException } from '../domain/models/errors/role-name.exception';
 import { Role, type RoleSnapshot } from '../domain/models/role.entity';

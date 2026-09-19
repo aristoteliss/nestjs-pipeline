@@ -19,8 +19,8 @@ const base = createMapper(
     .transform(({ id, name, department }) => {
       return new UpdateUserCommand({
         id,
-        username: name,
-        department: department,
+        ...(name !== undefined ? { username: name } : {}),
+        ...(department !== undefined ? { department } : {}),
       });
     }),
 );

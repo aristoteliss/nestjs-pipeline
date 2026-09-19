@@ -33,11 +33,11 @@ describe('DomainEvent & RootDomainEvent', () => {
     expect(event.id).toBe(customId);
   });
 
-  it('RootDomainEvent carries attached entity and captures immutable payload', () => {
+  it('RootDomainEvent captures a detached payload without retaining the entity', () => {
     const entity = { id: 'user-1', name: 'Alice' };
     const event = new UserCreatedEvent(entity);
 
-    expect(event.entity).toBe(entity);
+    expect('entity' in event).toBe(false);
     expect(event.id).toBeDefined();
     expect(event.payload).toEqual({ id: 'user-1', name: 'Alice' });
     expect(Object.isFrozen(event.payload)).toBe(true);
@@ -245,10 +245,9 @@ describe('DomainEvent & RootDomainEvent', () => {
 /**
  * An event states something that already happened, so what a consumer reads
  * from it must not change afterwards. `payload` is deep-frozen for that reason;
- * `entity` is the live aggregate and is deprecated in favour of the frozen
- * payload and the immutable identity scalars.
+ * consumers receive only the frozen payload and event-time identity scalars.
  */
-describe('RootDomainEvent aggregate reference', () => {
+describe('RootDomainEvent event-time state', () => {
   class Thing extends RootEntity<{ id: string; label: string }> {
     private _label: string;
 
@@ -270,6 +269,7 @@ describe('RootDomainEvent aggregate reference', () => {
 
     rename(label: string) {
       this._label = label;
+      this.onUpdate();
     }
 
     afterUpdate(): void {}
@@ -300,22 +300,20 @@ describe('RootDomainEvent aggregate reference', () => {
     expect((event.payload as { label: string }).label).toBe('before');
   });
 
-  it('exposes immutable identity scalars so consumers need not touch the aggregate', () => {
-    const thing = new Thing({ label: 'x' });
-    const event = new ThingRenamed(thing);
-
-    expect(event.aggregateId).toBe(thing.id);
-    expect(event.aggregateVersion).toBe(thing.version);
-  });
-
-  it('leaves the aggregate live and mutable, as the command handler still needs it', () => {
-    // Freezing it would break the instance the handler is still working with,
-    // which is why the reference is deprecated rather than frozen.
+  it('retains event-time metadata while the aggregate continues its lifecycle', () => {
     const thing = new Thing({ label: 'before' });
     const event = new ThingRenamed(thing);
+    const id = thing.id;
+    const version = thing.version;
 
-    expect(Object.isFrozen(event.entity)).toBe(false);
-    expect(() => thing.rename('after')).not.toThrow();
-    expect(event.entity).toBe(thing);
+    expect(Object.isFrozen(thing)).toBe(false);
+    thing.rename('after');
+
+    expect(thing.label).toBe('after');
+    expect(thing.version).toBe(version + 1);
+    expect(event.aggregateId).toBe(id);
+    expect(event.aggregateVersion).toBe(version);
+    expect(event.payload).toMatchObject({ id, version, label: 'before' });
+    expect('entity' in event).toBe(false);
   });
 });

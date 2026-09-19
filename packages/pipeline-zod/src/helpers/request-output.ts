@@ -27,3 +27,18 @@ export function assertPlainRequestOutput(
     `${source === 'constructor' ? 'createZodRequest' : 'ZodValidationBehavior'} requires the top-level parsed output to be a plain object so it can be applied to the existing pipeline request instance.`,
   );
 }
+
+/** Applies every parsed own enumerable key, including explicit undefined. */
+export function defineEnumerableDataProperties(
+  target: object,
+  source: Record<string, unknown>,
+): void {
+  for (const key of Object.keys(source)) {
+    Object.defineProperty(target, key, {
+      value: source[key],
+      writable: true,
+      enumerable: true,
+      configurable: true,
+    });
+  }
+}

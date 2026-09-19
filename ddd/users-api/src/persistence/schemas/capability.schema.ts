@@ -1,7 +1,8 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { EntitySchema } from '@mikro-orm/core';
-import { AggregateRoot, UnixTimestampType } from '@nestjs-pipeline/ddd-core';
+import { AggregateRoot } from '@nestjs/cqrs';
+import { UnixTimestampType } from '@nestjs-pipeline/ddd-core/persistence';
 import { Capability } from '../../roles/domain/models/capability.entity';
 
 export const CapabilitySchema = new EntitySchema<Capability, AggregateRoot>({

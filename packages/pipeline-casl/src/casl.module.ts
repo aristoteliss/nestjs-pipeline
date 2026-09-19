@@ -25,7 +25,21 @@ import type {
 } from './interfaces/providers.interface';
 
 /**
- * Options for configuring the CASL pipeline module.
+ * Options for configuring the CASL authorization providers used by
+ * {@link CaslBehavior} and {@link CaslAuthorizer}.
+ *
+ * @example Database-backed roles with request user context
+ * ```ts
+ * CaslModule.forRoot({
+ *   roleProvider: GetRolesCapabilitiesQueryRepository,
+ *   userContextResolver: CaslUserContextResolver,
+ *   userCapabilityProvider: GetUserCapabilitiesQueryRepository,
+ *   subjectContextPaths: ['sessionUser'],
+ *   defaultFieldsFromRequest: {
+ *     User: ['username', 'department', 'email'],
+ *   },
+ * });
+ * ```
  */
 export interface CaslModuleOptions {
   /**
@@ -44,8 +58,10 @@ export interface CaslModuleOptions {
       };
 
   /**
-   * Optional user context resolver.
-   * Extracts the current user from the pipeline context items bag.
+   * Optional resolver for the current authorization principal.
+   * Use it when the principal is stored in an application-specific session,
+   * AsyncLocalStorage context, or request object rather than directly in the
+   * standard pipeline items bag.
    */
   userContextResolver?:
     | Type<IUserContextResolver>
@@ -87,6 +103,11 @@ export interface CaslModuleOptions {
    * session/user fields for instance-level checks.
    *
    * This avoids repeating `subjectContextPaths` in every handler.
+   *
+   * @example
+   * ```ts
+   * subjectContextPaths: ['sessionUser']
+   * ```
    */
   subjectContextPaths: string[];
 
@@ -95,6 +116,14 @@ export interface CaslModuleOptions {
    *
    * This is used when a handler does not provide
    * `CaslBehaviorOptions.fieldsFromRequest`.
+   *
+   * @example
+   * ```ts
+   * defaultFieldsFromRequest: {
+   *   User: ['username', 'department', 'email'],
+   *   Role: ['name'],
+   * }
+   * ```
    */
   defaultFieldsFromRequest?: CaslBehaviorOptions['fieldsFromRequest'];
 }

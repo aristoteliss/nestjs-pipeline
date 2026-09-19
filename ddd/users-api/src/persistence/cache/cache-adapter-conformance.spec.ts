@@ -1,6 +1,7 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import { ICache, MemoryCache } from '@nestjs-pipeline/ddd-core';
+import { ICache } from '@nestjs-pipeline/ddd-core/application';
+import { MemoryCache } from '@nestjs-pipeline/ddd-core/persistence';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { User, UserSnapshot } from '../../users/domain/models/user.entity';
 import { CacheEntry } from './cache.entity';

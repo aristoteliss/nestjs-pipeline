@@ -1,7 +1,8 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { EntitySchema } from '@mikro-orm/core';
-import { AggregateRoot, UnixTimestampType } from '@nestjs-pipeline/ddd-core';
+import { AggregateRoot } from '@nestjs/cqrs';
+import { UnixTimestampType } from '@nestjs-pipeline/ddd-core/persistence';
 import { Role } from '../../roles/domain/models/role.entity';
 
 /**

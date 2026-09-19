@@ -50,6 +50,19 @@ type ErrorClass = abstract new (...args: never[]) => Error;
  * `'verbose'` → `trace`, `'debug'` → `debug`, `'log'` → `info`, `'warn'` → `warn`,
  * `'error'` → `error`, `'fatal'` → `fatal`.
  * Use `'none'` to suppress a message entirely.
+ *
+ * @example Structured application logging with safe payload visibility
+ * ```ts
+ * @UsePipeline([LoggingBehavior, {
+ *   logFormat: 'structured',
+ *   requestResponseLogLevel: 'debug',
+ *   excludeRequestObj: false,
+ *   excludeResponseObj: true,
+ *   redactKeys: ['code'],
+ *   mapLogLevel: new Map([[UniqueEmailException, 'warn']]),
+ * }])
+ * export class CreateUserHandler {}
+ * ```
  */
 export interface LoggingBehaviorOptions {
   /**
@@ -120,13 +133,9 @@ export interface LoggingBehaviorOptions {
    * cookie, API keys, card data, etc.) in request/response payload logs. Custom
    * {@link redactKeys} are merged on top.
    *
-   * Defaults to `true`. It was previously `false` so that upgrading would not
-   * alter existing log payloads or snapshot tests — which weighed a hypothetical
-   * snapshot against credentials in logs. Payloads are excluded by default
-   * anyway, so the cost of this default falls only on callers who deliberately
-   * enabled payload logging, and for them masking is what they want.
-   *
-   * Set it to `false` to log raw payloads, and own that decision explicitly.
+   * Defaults to `true`. Set it to `false` only when raw payload logging is an
+   * explicit application requirement and the caller owns the resulting exposure
+   * risk.
    *
    * @default true
    *

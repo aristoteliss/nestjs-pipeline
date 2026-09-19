@@ -31,6 +31,20 @@ export type AuditRedactor = (value: unknown) => unknown;
  *
  * Supplied per handler via `@UsePipeline([AuditBehavior, { ... }])`,
  * shallow-merged over the module-wide defaults (handler keys win).
+ *
+ * @example Audit a sensitive login command
+ * ```ts
+ * @UsePipeline([AuditBehavior, {
+ *   action: 'auth.login',
+ *   severity: 'medium',
+ *   redactKeys: ['code'],
+ *   actor: (ctx) => {
+ *     const command = ctx.request as LoginCommand;
+ *     return { id: command.email, email: command.email };
+ *   },
+ * }])
+ * export class LoginHandler {}
+ * ```
  */
 export interface AuditBehaviorOptions {
   /**
@@ -88,7 +102,16 @@ export interface AuditBehaviorOptions {
   failOpen?: boolean;
 }
 
-/** Options for {@link AuditModule.forRoot}. */
+/**
+ * Options for {@link AuditModule.forRoot}.
+ *
+ * @example Use the default log sink
+ * ```ts
+ * AuditModule.forRoot({
+ *   defaults: { captureRequest: true, captureResponse: false },
+ * });
+ * ```
+ */
 export interface AuditModuleOptions {
   /**
    * The audit sink. Pass a bundled sink ({@link LogAuditSink},
@@ -103,6 +126,14 @@ export interface AuditModuleOptions {
 /**
  * Options for {@link AuditModule.forRootAsync} — build the sink from injected
  * dependencies (e.g. a DI-managed pg `Pool` or Kafka producer).
+ *
+ * @example
+ * ```ts
+ * AuditModule.forRootAsync({
+ *   inject: [PG_POOL],
+ *   useFactory: (pool) => new PostgresAuditSink(pool),
+ * });
+ * ```
  */
 export interface AuditModuleAsyncOptions
   extends Pick<ModuleMetadata, 'imports'> {

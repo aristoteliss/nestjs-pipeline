@@ -2,7 +2,7 @@
 
 import { EntitySchema } from '@mikro-orm/core';
 import { AggregateRoot } from '@nestjs/cqrs';
-import { UnixTimestampType } from '@nestjs-pipeline/ddd-core';
+import { UnixTimestampType } from '@nestjs-pipeline/ddd-core/persistence';
 import { User } from '../../users/domain/models/user.entity';
 
 /**

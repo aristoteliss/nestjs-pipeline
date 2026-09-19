@@ -2,9 +2,18 @@
 
 import { generateKeyPairSync } from 'node:crypto';
 import { TenantSchemaContext } from '@persistence/tenant-schema.context';
-import { exportSPKI, SignJWT } from 'jose';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { exportSPKI, importSPKI, SignJWT } from 'jose';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { JwtAuthenticator } from './jwt-authenticator';
+
+vi.mock('jose', async (importOriginal) => {
+  const real = await importOriginal<typeof import('jose')>();
+  return { ...real, importSPKI: vi.fn(real.importSPKI) };
+});
+
+beforeEach(() => {
+  vi.mocked(importSPKI).mockClear();
+});
 
 const ENV_KEYS = [
   'JWT_SECRET',
@@ -94,7 +103,7 @@ describe('JwtAuthenticator', () => {
     expect(user?.principalType).toBe('user');
   });
 
-  it('genuinely memoizes parsed SPKI public keys across consecutive calls (real spy test)', async () => {
+  it('reuses unchanged SPKI candidates and rebuilds them when the key rotates', async () => {
     const { privateKey, publicKey } = generateKeyPairSync('rsa', {
       modulusLength: 2048,
     });
@@ -124,24 +133,42 @@ describe('JwtAuthenticator', () => {
       tenantContext,
       defaultAuthRepo as never,
     );
-    const importSpy = vi.spyOn(
-      authenticator as unknown as { importPublicKey: () => unknown },
-      'importPublicKey',
-    );
-
     // Request 1: Must parse SPKI key
     const res1 = await authenticator.authenticate({
       headers: { authorization: `Bearer ${token1}` },
     });
     expect(res1?.id).toBe('user-req-1');
-    expect(importSpy).toHaveBeenCalledTimes(1);
+    expect(importSPKI).toHaveBeenCalledTimes(1);
 
-    // Request 2: Must reuse cached key candidates, NOT call importPublicKey again
+    // Request 2: Must reuse cached key candidates, reuse the imported SPKI key
     const res2 = await authenticator.authenticate({
       headers: { authorization: `Bearer ${token2}` },
     });
     expect(res2?.id).toBe('user-req-2');
-    expect(importSpy).toHaveBeenCalledTimes(1);
+    expect(importSPKI).toHaveBeenCalledTimes(1);
+
+    const rotated = generateKeyPairSync('rsa', { modulusLength: 2048 });
+    process.env.JWT_PUBLIC_KEY = await exportSPKI(rotated.publicKey);
+    const rotatedToken = await new SignJWT({
+      tenant: tenantContext.schema,
+      roles: [],
+    })
+      .setProtectedHeader({ alg: 'RS256' })
+      .setSubject('user-rotated')
+      .setExpirationTime('1h')
+      .sign(rotated.privateKey);
+    await expect(
+      authenticator.authenticate({
+        headers: { authorization: `Bearer ${rotatedToken}` },
+      }),
+    ).resolves.toMatchObject({ id: 'user-rotated' });
+    expect(importSPKI).toHaveBeenCalledTimes(2);
+    await expect(
+      authenticator.authenticate({
+        headers: { authorization: `Bearer ${token1}` },
+      }),
+    ).rejects.toThrow('Invalid or expired token');
+    expect(importSPKI).toHaveBeenCalledTimes(2);
   });
 
   it('rejects when Bearer token is provided but no server keys are configured', async () => {

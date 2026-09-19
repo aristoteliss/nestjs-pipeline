@@ -7,6 +7,8 @@
       "!!**/coverage",
       "!!**/.turbo",
       "!!**/.claude",
+      "!!**/.tmp",
+      "!!**/.vscode",
       "!!**/.snapshot-*.json",
       "!!**/*.db"
     ]
@@ -148,6 +150,7 @@
       "includes": [
         "**/ddd/*/src/**/cqrs/**/*.ts",
         "**/ddd/*/src/**/domain/**/*.ts",
+        "**/ddd/*/src/**/application/**/*.ts",
         "!**/*.spec.ts",
         "!**/*.test.ts"
       ]
@@ -160,6 +163,14 @@
         "**/ddd/*/src/**/services/**/*.ts",
         "**/ddd/*/src/**/mappers/**/*.ts",
         "**/ddd/*/src/**/jobs/**/*.ts",
+        "!**/*.spec.ts",
+        "!**/*.test.ts"
+      ]
+    },
+    {
+      "path": "./biome/plugins/ddd-entry-points.grit",
+      "includes": [
+        "**/ddd/users-api/src/**/*.ts",
         "!**/*.spec.ts",
         "!**/*.test.ts"
       ]

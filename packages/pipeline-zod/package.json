@@ -30,7 +30,7 @@
     "rebuild": "pnpm run clean && pnpm run build",
     "lint": "tsc --noEmit",
     "test": "vitest run",
-    "prepublishOnly": "pnpm run build"
+    "prepublishOnly": "pnpm run rebuild"
   },
   "peerDependencies": {
     "@nestjs-pipeline/core": "workspace:^",

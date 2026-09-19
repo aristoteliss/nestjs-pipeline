@@ -65,18 +65,8 @@ import {
  * ```
  */
 /**
- * Results from which buffered aggregate events can be published.
- *
- * Publication depends on the shape of what `handle()` returns, so the shape is a
- * constraint rather than a convention. A handler that mutated an aggregate and
- * then returned a DTO used to compile cleanly and silently drop every domain
- * event it had raised — no error, no warning, and no failing test unless someone
- * had thought to assert on the event.
- *
- * Both accepted shapes are kept: the aggregate itself, or an application result
- * carrying it under `aggregate`. A command that changes several aggregates needs
- * an explicit result type designed for that; do not widen this one until such a
- * command actually exists.
+ * Result shapes that allow `CommandBaseHandler` to publish buffered aggregate events.
+ * Return either the aggregate itself or an application result with an `aggregate` field.
  */
 export type AggregateBearingResult =
   | AggregateRoot

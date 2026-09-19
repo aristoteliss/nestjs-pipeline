@@ -14,6 +14,18 @@ This repository is authoritative. Before changing architecture-sensitive code, i
 
 If generic Clean Architecture / DDD / CQRS advice conflicts with this repository, follow the repository.
 
+## Documentation discipline
+
+Keep architecture documentation focused on the repository as it exists.
+
+- Put generic agent/architecture rules in `AGENTS.md` and this skill.
+- Put package and consumer usage in the nearest README. Published packages and major core/runnable areas should document their public API, setup, options, behavior, caveats, and realistic examples.
+- Public reusable library functions/classes/types should have concise contract JSDoc when needed: purpose, inputs, output, observable errors/caveats, and example usage when non-obvious. Do not narrate the implementation.
+- API-facing DTOs may document validation, field meaning, example payloads, and consumer expectations.
+- Handlers and ordinary domain entities should be self-explanatory and normally have no narrative JSDoc. A short comment is acceptable only for a non-obvious invariant, security/concurrency constraint, or external protocol requirement.
+- Do not leave review conclusions, refactor rationale, migration history, or "previously/now/used to" explanations in source comments or normal READMEs. Git history records changes.
+- If a source comment needs a paragraph to explain ordinary application flow, simplify the code or move durable consumer guidance to the appropriate README.
+
 ## Core architecture rules
 
 ### 1. Keep CQRS handlers business-focused
@@ -87,8 +99,8 @@ Use framework-neutral domain/application errors and map them to HTTP in controll
 
 Canonical repository pattern:
 
-- domain/application throws `DomainException`, `OptimisticLockError`, `EntityNotFoundException`, or another framework-neutral error
-- `DomainExceptionFilter` (or a dedicated presentation filter) maps it to HTTP (e.g. `OptimisticLockError` → HTTP 409, `EntityNotFoundException` → HTTP 404, `DomainException` → HTTP 422/400)
+- domain/application throws `DomainException`, `ConcurrencyConflictError`, `EntityNotFoundException`, or another framework-neutral error
+- `DomainExceptionFilter` (or a dedicated presentation filter) maps it to HTTP (e.g. `ConcurrencyConflictError` → HTTP 409, `EntityNotFoundException` → HTTP 404, `DomainException` → HTTP 422/400)
 
 Repositories report persistence and application semantics; presentation filters translate those semantics for the active transport. Never throw HTTP exceptions inward for convenience.
 
@@ -273,9 +285,9 @@ On command repository `save()` operations, apply method decorators in strictly o
 - **Updates**: Use `optimisticUpdate(em, entityType, aggregate, data, entityName)` for update repositories.
   - Updates are conditioned on `WHERE id = ? AND version = aggregate.getExpectedVersion()`, updating `version` to `aggregate.version`.
   - Rejects outer transactions (`em.isInTransaction()`) because external transactions require commit-time acknowledgment and cache eviction.
-  - On 0 affected rows, runs a refreshed diagnostic read: raises `EntityNotFoundException` if entity is gone, or `OptimisticLockError` if version mismatch.
+  - On 0 affected rows, runs a refreshed diagnostic read: raises `EntityNotFoundException` if entity is gone, or `ConcurrencyConflictError` if version mismatch.
 - **Deletes**: Execute conditional `nativeDelete(entityType, { id: aggregate.id, version: aggregate.getExpectedVersion() })`.
-  - On 0 affected rows, perform a refreshed existence check to raise `EntityNotFoundException` or `OptimisticLockError`.
+  - On 0 affected rows, perform a refreshed existence check to raise `EntityNotFoundException` or `ConcurrencyConflictError`.
 - **Lint Enforcement**: Structural correctness is checked by Biome Grit plugins (`biome/plugins/persistence-lifecycle.grit`). Run `pnpm lint:persistence` to verify.
 
 ## Domain model rules
@@ -375,7 +387,7 @@ Prefer adapting these files rather than inventing a new pattern:
 
 Never introduce or re-introduce these patterns:
 
-- Nest HTTP exceptions (`NotFoundException`, `ConflictException`) in command or query handlers (use `EntityNotFoundException`, `OptimisticLockError`, or `DomainException` instead)
+- Nest HTTP exceptions (`NotFoundException`, `ConflictException`) in command or query handlers (use `EntityNotFoundException`, `ConcurrencyConflictError`, or `DomainException` instead)
 - Merging session cookie logic, credential validation, and JWT operations into a single application service (use `SessionService` for presentation cookies and `UserLoginService` for domain login)
 - CQRS event handlers injecting BullMQ queues directly without application ports
 - Event handlers that only call `Logger`/`getCorrelationId()` without performing meaningful domain work

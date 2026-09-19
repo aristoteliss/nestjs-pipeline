@@ -64,4 +64,12 @@ describe('BaseCommand', () => {
     const cmd = new TestUpdateCommand({ id: '1' });
     expect(cmd.getUpdateFields(['name', 'nonexistent'])).toEqual([]);
   });
+
+  it('serializes via toJSON omitting undefined fields', () => {
+    const cmd = new TestUpdateCommand(
+      { id: '1', name: 'Alice', age: undefined },
+      { id: 'actor-1', tenant: 'tenant' },
+    );
+    expect(cmd.toJSON()).toEqual({ id: '1', name: 'Alice' });
+  });
 });

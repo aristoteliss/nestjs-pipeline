@@ -49,6 +49,56 @@ function createMockContext(
 describe('ZodValidationBehavior', () => {
   const behavior = new ZodValidationBehavior();
 
+  it('preserves constructor own keys, undefined transforms, defaults and base fields during revalidation', async () => {
+    class Base {
+      readonly baseMarker = 'retained';
+    }
+    const transform = vi.fn(
+      ({ name, count }: { name: string; count: number }) => ({
+        name: name.trim(),
+        count,
+        optionalValue: undefined,
+      }),
+    );
+    class Request extends createZodRequest(
+      z
+        .object({
+          name: z.string(),
+          count: z.number().default(3),
+        })
+        .transform(transform),
+      Base,
+    ) {}
+    const constructed = new Request({ name: ' Ada ' });
+    const revalidated = new Request({ name: ' Ada ' });
+    revalidated.name = ' Grace ';
+    transform.mockClear();
+    const next = vi.fn(async () => revalidated);
+    await expect(
+      behavior.handle(
+        createMockContext({
+          request: revalidated,
+          requestType: Request,
+        }),
+        next,
+      ),
+    ).resolves.toBe(revalidated);
+    expect(transform).toHaveBeenCalledOnce();
+    expect(next).toHaveBeenCalledOnce();
+    expect(Object.keys(revalidated).sort()).toEqual(
+      Object.keys(constructed).sort(),
+    );
+    expect(Object.hasOwn(constructed, 'optionalValue')).toBe(true);
+    expect(Object.hasOwn(revalidated, 'optionalValue')).toBe(true);
+    expect(revalidated).toMatchObject({
+      name: 'Grace',
+      count: 3,
+      baseMarker: 'retained',
+    });
+    expect(revalidated).toBeInstanceOf(Request);
+    expect(revalidated).toBeInstanceOf(Base);
+  });
+
   describe('when no ZOD_SCHEMA is attached to the request type', () => {
     it('calls next() transparently and returns its result', async () => {
       const ctx = createMockContext();

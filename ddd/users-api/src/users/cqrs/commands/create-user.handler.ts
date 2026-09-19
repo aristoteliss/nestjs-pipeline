@@ -14,7 +14,7 @@ import {
 import {
   CommandBaseHandler,
   ICommandRepository,
-} from '@nestjs-pipeline/ddd-core';
+} from '@nestjs-pipeline/ddd-core/application';
 import { FeatureFlagBehavior } from '@nestjs-pipeline/feature-flags';
 import { IdempotencyBehavior } from '@nestjs-pipeline/idempotency';
 import { RateLimitBehavior } from '@nestjs-pipeline/rate-limit';
@@ -23,7 +23,6 @@ import { User, type UserSnapshot } from '../../domain/models/user.entity';
 import { COMMAND_REPOSITORY } from '../../persistence/repository.tokens';
 import { CreateUserCommand } from './create-user.command';
 
-/** Builds a tenant/principal/email-scoped idempotency key and fails closed without tenant context. */
 export function createUserIdempotencyKey(ctx: IPipelineContext): string {
   const request = ctx.request as CreateUserCommand;
   const tenantId = requireTenantId(ctx, 'user creation idempotency');
@@ -32,7 +31,6 @@ export function createUserIdempotencyKey(ctx: IPipelineContext): string {
   return `${tenantId}:${actorId}:user.create:${request.email}`;
 }
 
-/** Builds the tenant/email partition used by the user-creation rate limiter. */
 export function createUserRateLimitKey(ctx: IPipelineContext): string {
   const tenantId = requireTenantId(ctx, 'user creation rate limiting');
   return `${tenantId}:${(ctx.request as CreateUserCommand).email}`;

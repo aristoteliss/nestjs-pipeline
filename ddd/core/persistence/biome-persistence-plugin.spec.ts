@@ -16,7 +16,7 @@ const repositoryPath =
   'ddd/users-api/src/roles/persistence/update-role.command-repository.ts';
 const current = readFileSync(resolve(root, repositoryPath), 'utf8');
 const valid = `
-import { Cache, AcknowledgePersisted, MapPersistenceErrors, optimisticUpdate } from '@nestjs-pipeline/ddd-core';
+import { Cache, AcknowledgePersisted, MapPersistenceErrors, optimisticUpdate } from '@nestjs-pipeline/ddd-core/persistence';
 class UpdateRoleCommandRepository {
   @Cache(key)
   @AcknowledgePersisted(options)

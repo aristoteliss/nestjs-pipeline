@@ -26,6 +26,16 @@ export type DeadLetterMetadataFactory = (
  * Supplied per handler via
  * `@UsePipeline([DeadLetterBehavior, { ... }])`, shallow-merged over the
  * module-wide defaults (handler keys win).
+ *
+ * @example Fire-and-forget event capture
+ * ```ts
+ * @UsePipeline([DeadLetterBehavior, {
+ *   captureKinds: ['event'],
+ *   rethrow: false,
+ *   redactKeys: ['token'],
+ * }])
+ * export class UserCreatedHandler {}
+ * ```
  */
 export interface DeadLetterBehaviorOptions {
   /**
@@ -77,6 +87,17 @@ export interface DeadLetterBehaviorOptions {
 
 /**
  * Options for {@link DeadLetterModule.forRoot}.
+ *
+ * @example
+ * ```ts
+ * DeadLetterModule.forRoot({
+ *   transport: new PostgresDeadLetterTransport(pool),
+ *   defaults: {
+ *     captureKinds: ['command', 'event'],
+ *     redactKeys: ['code'],
+ *   },
+ * });
+ * ```
  */
 export interface DeadLetterModuleOptions {
   /**
@@ -93,6 +114,15 @@ export interface DeadLetterModuleOptions {
  * Options for {@link DeadLetterModule.forRootAsync} — build the transport from
  * injected dependencies (e.g. a `@InjectQueue()` BullMQ queue, an AMQP channel,
  * or a pg `Pool`).
+ *
+ * @example BullMQ transport from Nest DI
+ * ```ts
+ * DeadLetterModule.forRootAsync({
+ *   imports: [BullModule.registerQueue({ name: 'dead-letters' })],
+ *   inject: [getQueueToken('dead-letters')],
+ *   useFactory: (queue) => new BullMqDeadLetterTransport(queue),
+ * });
+ * ```
  */
 export interface DeadLetterModuleAsyncOptions
   extends Pick<ModuleMetadata, 'imports'> {

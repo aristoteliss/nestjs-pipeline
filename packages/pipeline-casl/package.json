@@ -31,7 +31,7 @@
     "lint": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "prepublishOnly": "pnpm run build"
+    "prepublishOnly": "pnpm run rebuild"
   },
   "peerDependencies": {
     "@casl/ability": "^6.0.0 || ^7.0.0",

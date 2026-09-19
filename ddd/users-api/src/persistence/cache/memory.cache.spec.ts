@@ -1,6 +1,6 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import { MemoryCache } from '@nestjs-pipeline/ddd-core';
+import { MemoryCache } from '@nestjs-pipeline/ddd-core/persistence';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 describe('MemoryCache', () => {

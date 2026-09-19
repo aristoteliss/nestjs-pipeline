@@ -3,7 +3,7 @@
 import type {
   ICommandRepository,
   IQueryRepository,
-} from '@nestjs-pipeline/ddd-core';
+} from '@nestjs-pipeline/ddd-core/application';
 import { describe, expect, it, vi } from 'vitest';
 import { Auth } from '../../domain/models/auth.entity';
 import { FindAuthQuery } from '../queries/find-auth.query';

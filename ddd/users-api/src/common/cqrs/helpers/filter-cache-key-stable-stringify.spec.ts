@@ -1,5 +1,5 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
-import { filterCacheKey } from '@nestjs-pipeline/ddd-core';
+import { filterCacheKey } from '@nestjs-pipeline/ddd-core/persistence';
 import { describe, expect, it } from 'vitest';
 
 describe('filterCacheKey core canonical serialization', () => {

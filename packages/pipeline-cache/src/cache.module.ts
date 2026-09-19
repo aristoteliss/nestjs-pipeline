@@ -19,7 +19,11 @@ import type {
  *
  * @example In-memory cache (default), per-handler configuration
  * ```ts
- * import { CacheModule, CacheBehavior } from '@nestjs-pipeline/cache';
+ * import {
+ *   CacheBehavior,
+ *   CacheModule,
+ *   createPartitionedCacheKeyFactory,
+ * } from '@nestjs-pipeline/cache';
  *
  * @Module({
  *   imports: [
@@ -29,8 +33,13 @@ import type {
  * })
  * export class AppModule {}
  *
+ * const userQueryKey = createPartitionedCacheKeyFactory({
+ *   principal: (ctx) => ctx.items.get('userId') as string | undefined,
+ *   scope: (ctx) => ctx.items.get('capabilityVersion') as string | undefined,
+ * });
+ *
  * @QueryHandler(GetUserQuery)
- * @UsePipeline([CacheBehavior, { ttl: 60_000 }])
+ * @UsePipeline([CacheBehavior, { key: userQueryKey, ttl: 60_000 }])
  * export class GetUserHandler implements IQueryHandler<GetUserQuery> {}
  * ```
  *

@@ -20,9 +20,7 @@ import { ResilienceBehavior } from './resilience.behavior';
  * @Module({
  *   imports: [
  *     ResilienceModule.forRoot({
- *       // Defaults used by every handler because the behavior is attached globally below
  *       timeout: { duration: 5_000 },
- *       retry: { maxAttempts: 3, backoff: { type: 'exponential' } },
  *     }),
  *     PipelineModule.forRoot({
  *       globalBehaviors: { scope: 'all', after: [ResilienceBehavior] },
@@ -44,8 +42,16 @@ import { ResilienceBehavior } from './resilience.behavior';
  *
  * @CommandHandler(ChargeCardCommand)
  * @UsePipeline([ResilienceBehavior, {
- *   retry: { maxAttempts: 3, backoff: { type: 'exponential' } },
- *   circuitBreaker: { halfOpenAfter: 10_000, breaker: { type: 'consecutive', threshold: 5 } },
+ *   retry: {
+ *     maxAttempts: 3,
+ *     replaySafe: true,
+ *     backoff: { type: 'exponential' },
+ *   },
+ *   circuitBreaker: {
+ *     halfOpenAfter: 10_000,
+ *     breaker: { type: 'consecutive', threshold: 5 },
+ *   },
+ *   handle: (error) => error instanceof TransientPaymentError,
  * }])
  * export class ChargeCardHandler implements ICommandHandler<ChargeCardCommand> {}
  * ```

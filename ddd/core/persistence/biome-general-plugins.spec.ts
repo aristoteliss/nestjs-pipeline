@@ -207,7 +207,7 @@ describe('Biome Grit handler-boundaries plugin', () => {
   it('accepts repository interfaces injected through tokens', () => {
     const source = `
       import { Inject } from '@nestjs/common';
-      import { ICommandRepository } from '@nestjs-pipeline/ddd-core';
+      import { ICommandRepository } from '@nestjs-pipeline/ddd-core/application';
       export class CreateUserHandler {
         constructor(@Inject('REPO') private readonly repo: ICommandRepository) {}
       }
@@ -343,4 +343,48 @@ describe('Biome Grit event-handler-substance plugin', () => {
       'only produces observability output',
     );
   });
+});
+
+describe('Biome Grit ddd entry-point boundaries', () => {
+  it.each([
+    'domain/models',
+    'cqrs/commands',
+    'application',
+    'persistence',
+    'services',
+  ])('rejects the root barrel in production %s code', (layer) => {
+    const result = lintFixture(
+      `ddd/users-api/src/users/${layer}/root.ts`,
+      `import { RootEntity } from '@nestjs-pipeline/ddd-core';`,
+    );
+    expect(result.status).toBe(1);
+    expect(result.diagnostics).toContain('Do not use the ddd-core root barrel');
+  });
+
+  it.each([
+    ['domain/models', 'domain', 'RootEntity'],
+    ['cqrs/commands', 'application', 'ICommandRepository'],
+    ['persistence', 'persistence', 'QueryRepository'],
+  ])('accepts %s dependencies from /%s', (layer, entry, symbol) => {
+    expect(
+      lintFixture(
+        `ddd/users-api/src/users/${layer}/allowed.ts`,
+        `import { ${symbol} } from '@nestjs-pipeline/ddd-core/${entry}';`,
+      ).status,
+    ).toBe(0);
+  });
+
+  it.each(['domain/models', 'cqrs/queries', 'application'])(
+    'rejects persistence dependencies in %s',
+    (layer) => {
+      const result = lintFixture(
+        `ddd/users-api/src/users/${layer}/leak.ts`,
+        `import { QueryRepository } from '@nestjs-pipeline/ddd-core/persistence';`,
+      );
+      expect(result.status).toBe(1);
+      expect(result.diagnostics).toContain(
+        'must not import @nestjs-pipeline/ddd-core/persistence',
+      );
+    },
+  );
 });

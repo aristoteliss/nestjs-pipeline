@@ -38,27 +38,21 @@ export const PIPELINE_BEHAVIOR_ID = Symbol.for(
 export type BehaviorId = string | Type<IPipelineBehavior>;
 
 /**
- * Returns the deduplication key for a behavior class.
+ * Returns the identity used to deduplicate a behavior and resolve its options.
  *
- * The default is the constructor reference. Class names are not unique: two
- * modules can each export a `LoggingBehavior`, and keying on the name made the
- * pipeline treat them as the same behavior — running only one of them and
- * applying the other's options. When one of the two is a security guard, that is
- * a guard silently dropped from the chain.
+ * By default the constructor reference is the identity. A behavior that must be
+ * recognized across multiple loaded copies of the same package can opt into a
+ * stable string identity through {@link PIPELINE_BEHAVIOR_ID}.
  *
- * A class that genuinely needs to be recognized across two loaded copies of its
- * own package — a monorepo double-load, or two versions resolved side by side —
- * opts in by declaring a stable string:
+ * @param cls - Behavior class whose identity should be resolved.
+ * @returns The constructor reference or the behavior's explicit stable id.
  *
+ * @example Stable identity across duplicated package copies
  * ```ts
- * class LoggingBehavior {
+ * export class LoggingBehavior implements IPipelineBehavior {
  *   static readonly [PIPELINE_BEHAVIOR_ID] = 'my-package:LoggingBehavior';
  * }
  * ```
- *
- * The key symbol is registered through `Symbol.for`, so two copies of this
- * package agree on it; a plain `Symbol()` would not, which would have defeated
- * the very cross-copy case the opt-in exists for.
  */
 export function getBehaviorId(cls: Type<IPipelineBehavior>): BehaviorId {
   return (untyped(cls)[PIPELINE_BEHAVIOR_ID] as string | undefined) ?? cls;
@@ -74,16 +68,20 @@ export type PipelineBehaviorEntry =
   | [Type<IPipelineBehavior>, Record<string, unknown>];
 
 /**
- * Decorator applied to a @CommandHandler, @QueryHandler, OR @EventsHandler class
- * to declare which pipeline behaviors wrap its execution, and in what order.
+ * Declares handler-specific pipeline behaviors for a Nest CQRS command, query,
+ * or event handler.
  *
- * Behaviors execute left-to-right: the first one listed is the outermost wrapper.
- * Options can be passed to individual behaviors using the tuple form.
+ * Behaviors execute left-to-right: the first entry is the outermost wrapper.
+ * Pass a behavior class for defaults, or `[Behavior, options]` for per-handler
+ * options. If the same behavior is also global, it runs once at the global
+ * position and the handler options override the matching global option keys.
  *
- * NOTE on Sagas: Sagas are NOT decorated with @UsePipeline because they are
- * reactive stream factories (events$ => Observable<ICommand>), not per-request
- * handlers. Commands emitted by sagas will flow through the CommandBus and
- * hit the pipeline of the target command handler automatically.
+ * Sagas are stream factories rather than per-request handlers and are not
+ * decorated with `@UsePipeline`; commands emitted by a saga are wrapped when
+ * they reach their command handler.
+ *
+ * @param entries - Behavior classes or `[Behavior, options]` tuples in execution order.
+ * @returns A class decorator for a CQRS handler.
  *
  * @example
  * ```ts
@@ -94,6 +92,16 @@ export type PipelineBehaviorEntry =
  * @EventsHandler(OrderCreatedEvent)
  * @UsePipeline(LoggingBehavior)
  * export class OrderCreatedHandler implements IEventHandler<OrderCreatedEvent> { ... }
+ * ```
+ *
+ * @example Security/reliability composition
+ * ```ts
+ * @UsePipeline(
+ *   CaslBehavior,
+ *   [RateLimitBehavior, { keyFactory: perUserRateLimitKey }],
+ *   [IdempotencyBehavior, { keyFactory: createUserIdempotencyKey }],
+ * )
+ * export class CreateUserHandler {}
  * ```
  */
 export function UsePipeline(

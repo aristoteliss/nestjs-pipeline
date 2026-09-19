@@ -15,11 +15,6 @@ import {
 import { UserCreatedEvent } from '../../domain/events/user-created.event';
 
 @EventsHandler(UserCreatedEvent)
-/**
- * Schedules the welcome-email side effect through the application port.
- * Cross-cutting request/event logging is supplied by {@link LoggingBehavior};
- * delivery failures are dead-lettered without being re-thrown.
- */
 @UsePipeline(
   [LoggingBehavior, { requestResponseLogLevel: 'log' }],
   [DeadLetterBehavior, { rethrow: false }],

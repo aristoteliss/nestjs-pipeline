@@ -3,12 +3,12 @@
 import type { Server } from 'node:http';
 import { EntityManager } from '@mikro-orm/core';
 import { uuidv7 } from '@nestjs-pipeline/core';
+import { type ICache } from '@nestjs-pipeline/ddd-core/application';
 import {
   CACHE_TOKEN,
   createCacheMutationBarrier,
-  type ICache,
   isCacheMutationBarrier,
-} from '@nestjs-pipeline/ddd-core';
+} from '@nestjs-pipeline/ddd-core/persistence';
 import request from 'supertest';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {

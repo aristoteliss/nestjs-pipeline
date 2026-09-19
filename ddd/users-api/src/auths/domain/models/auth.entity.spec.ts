@@ -21,7 +21,7 @@ describe('Auth domain entity', () => {
       const events = auth.getUncommittedEvents();
       expect(events).toHaveLength(1);
       expect(events[0]).toBeInstanceOf(CreatedAuthEvent);
-      expect((events[0] as CreatedAuthEvent).entity).toBe(auth);
+      expect((events[0] as CreatedAuthEvent).aggregateId).toBe(auth.id);
     });
   });
 
