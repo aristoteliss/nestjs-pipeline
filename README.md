@@ -1516,6 +1516,9 @@ pnpm build
 # Run persistence lint and workspace unit/integration tests (no build or E2E)
 pnpm test
 
+# Run workspace tests with coverage
+pnpm test:coverage
+
 # Run individual stages
 pnpm test:unit
 pnpm test:build
@@ -1533,6 +1536,8 @@ pnpm lint:persistence
 # Clean build artifacts
 pnpm clean
 ```
+
+`pnpm test:coverage` runs each workspace’s existing test script sequentially with Vitest coverage. It prints test results and a coverage summary per workspace, and writes `coverage/coverage-summary.json` in each workspace. Reports cover the same tests selected by each workspace’s Vitest configuration; E2E tests run separately. All workspaces run even if one fails, and any failure makes the command fail. `pnpm test:review` is an alias for this command. There is no combined monorepo coverage total.
 
 Persistence lifecycle lint rules are native [Biome Grit plugins](biome/plugins/README.md)
 registered in `biome.json`. They run through Biome CLI/editor checks and before

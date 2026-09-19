@@ -699,7 +699,7 @@ Do not hide @nestjs/cqrs behind a broad "mediator" interface if the only consume
 
 1. Direct mapping (`accessor: true`) is retained in MikroORM EntitySchemas for zero-boilerplate simplicity (no persistence records or mappers).
 2. Hydration setters on `RootEntity`, `User`, and `Role` are strictly annotated with `@internal` and `@deprecated` JSDoc tags.
-3. Build-time enforcement is active via `biome/plugins/aggregate-identity.grit`, rejecting any direct setter assignments across `cqrs/`, `application/`, `controllers/`, `services/`, `mappers/`, and `jobs/`.
+3. A syntax-only guard is active via `biome/plugins/aggregate-identity.grit`, rejecting dot/literal-bracket assignments and updates to known hydration properties on receivers named `user`, `role`, `aggregate`, or `entity` across `cqrs/`, `application/`, `controllers/`, `services/`, `mappers/`, and `jobs/`. This naming convention does not resolve types, aliases, dynamic keys, destructuring, or reflective writes; it is not complete encapsulation enforcement.
 4. Domain invariants, versioning, and event tracking are preserved by requiring mutations to go exclusively through domain methods and factories.
 
 ## 7.4 If owner chooses STRICT ENCAPSULATION

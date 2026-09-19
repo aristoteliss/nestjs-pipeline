@@ -391,6 +391,72 @@ describe('Biome Grit ddd entry-point boundaries', () => {
 
 describe('Biome Grit aggregate-identity setter guard plugin', () => {
   it.each([
+    "role['name'] = 'Admin';",
+    'role["name"] = "Admin";',
+    "role.name += '!';",
+    'user.version += 1;',
+    'user.version -= 1;',
+    'user.version *= 2;',
+    'user.version /= 2;',
+    'user.version %= 2;',
+    'user.version **= 2;',
+    'user.version <<= 1;',
+    'user.version >>= 1;',
+    'user.version >>>= 1;',
+    'user.version &= 1;',
+    'user.version |= 1;',
+    'user.version ^= 1;',
+    "role.name ||= 'Admin';",
+    "role.name &&= 'Admin';",
+    "role.name ??= 'Admin';",
+    'user.version++;',
+    '--user.version;',
+    "entity['version']++;",
+    "++aggregate['version'];",
+  ])('rejects aggregate mutation syntax: %s', (code) => {
+    const result = lintFixture(
+      'ddd/users-api/src/users/application/mutation.ts',
+      `export function mutate(user: any, role: any, entity: any, aggregate: any) { ${code} }`,
+    );
+    expect(result.status).toBe(1);
+    expect(result.diagnostics).toContain(
+      'Do not assign aggregate properties directly via setters',
+    );
+  });
+
+  it.each([
+    "dto.name = 'display';",
+    "dto['name'] += '!';",
+    'snapshot.version++;',
+    "response.username = 'alice';",
+    "command.department = 'Engineering';",
+    "user.displayName = 'Alice';",
+    "role.description = 'Manager';",
+    "this.name = 'CustomError';",
+  ])('allows unrelated writes: %s', (code) => {
+    expect(
+      lintFixture(
+        'ddd/users-api/src/users/application/dto-mapping.ts',
+        `export function map(dto: any, snapshot: any, response: any, command: any, user: any, role: any) { ${code} }`,
+      ).status,
+    ).toBe(0);
+  });
+
+  // These cases document the syntax-only boundary rather than type enforcement.
+  it.each([
+    "const loaded = role; loaded.name = 'Admin';",
+    "const key = 'name'; role[key] = 'Admin';",
+    "Object.assign(role, { name: 'Admin' });",
+  ])('does not resolve aliases, computed keys or reflection: %s', (code) => {
+    expect(
+      lintFixture(
+        'ddd/users-api/src/users/application/limitations.ts',
+        `export function mutate(role: any) { ${code} }`,
+      ).status,
+    ).toBe(0);
+  });
+
+  it.each([
     ['id', "user.id = '018f2d5a-6b8c-7e3f-9a1b-2c3d4e5f6a7b';"],
     ['createdAt', 'user.createdAt = new Date();'],
     ['updatedAt', 'user.updatedAt = new Date();'],

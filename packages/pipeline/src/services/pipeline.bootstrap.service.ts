@@ -238,7 +238,9 @@ export class PipelineBootstrapService
     const hasGlobalBehaviors =
       effectiveBeforeTypes.length > 0 || effectiveAfterTypes.length > 0;
 
-    if (!hasHandlerBehaviors && !hasGlobalBehaviors) return;
+    const hasPipeline = Boolean(hasHandlerBehaviors || hasGlobalBehaviors);
+    // Scoped prototypes are shared across applications, including those with no behaviors.
+    if (!hasPipeline && !isScoped) return;
 
     // Handler declarations override options for a global behavior of the same
     // class, but must not relocate it. A global security guard configured in
@@ -411,6 +413,8 @@ export class PipelineBootstrapService
       self: unknown,
       request: unknown,
     ): Promise<unknown> => {
+      if (!hasPipeline) return originalMethod.call(self, request);
+
       const context = new PipelineContext(request, meta);
 
       // Build per-invocation array — singleton slots reused, request-scoped freshly resolved.

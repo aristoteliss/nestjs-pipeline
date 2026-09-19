@@ -1,23 +1,18 @@
 engine biome(1.0)
 language js(typescript)
 
-// `RootEntity` and concrete aggregate classes (`User`, `Role`) expose public
-// setters for hydration properties (`id`, `createdAt`, `updatedAt`, `version`,
-// `username`, `department`, `name`). They exist so MikroORM's `accessor: true`
-// mapping can hydrate private backing fields without `@ts-expect-error` or
-// boilerplate persistence records/mappers.
-//
-// Under D-03, this rule enforces strict domain encapsulation at build time:
-// application and presentation code must go through factories and domain
-// methods. Direct property assignment is forbidden.
-//
-// Scoped in biome.json to the layers that must not mutate aggregates directly:
-// cqrs, controllers, services, mappers, jobs, application. The persistence and
-// domain trees are excluded: the ORM hydrates through these setters, and the
-// aggregate itself owns its internal lifecycle via `onUpdate()`.
-
-`$aggregate.$property = $value` as $assignment where {
-  not $aggregate <: `this`,
-  $property <: r"^(?:id|createdAt|updatedAt|version|username|department|name)$",
-  register_diagnostic(span=$assignment, message="Do not assign aggregate properties directly via setters. These setters exist only for MikroORM hydration; application code creates aggregates through factories (e.g. User.create) and mutates them through domain methods (e.g. user.rename), which maintain aggregate invariants, versioning, and event tracking.", severity="error")
+// Matches receiver/property names, not TypeScript types or aliases.
+// Domain, persistence and test files are excluded in biome.json.
+or {
+  JsAssignmentExpression(left=$target),
+  JsPreUpdateExpression(operand=$target),
+  JsPostUpdateExpression(operand=$target)
+} as $mutation where {
+  $target <: or {
+    JsStaticMemberAssignment(object=$aggregate, member=$property),
+    JsComputedMemberAssignment(object=$aggregate, member=$property)
+  },
+  $aggregate <: r"^(?:user|role|aggregate|entity)$",
+  $property <: r"^[\"']?(?:id|createdAt|updatedAt|version|username|department|name)[\"']?$",
+  register_diagnostic(span=$mutation, message="Do not assign aggregate properties directly via setters. Use domain methods or factories. For a DTO, use a DTO-specific receiver name.", severity="error")
 }

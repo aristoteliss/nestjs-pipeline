@@ -71,8 +71,10 @@ substitute a default. JSDoc examples are unaffected — Grit matches syntax, not
 
 ### 9. `aggregate-identity.grit`
 Enforces `AGENTS.md` rule 6 / `SKILL.md` rule 5 across `cqrs/`, `application/`, `controllers/`, `services/`, `mappers/`, and `jobs/`:
-- Forbids direct property assignment to aggregate hydration setters (`id`, `createdAt`, `updatedAt`, `version`, `username`, `department`, `name`).
-- Protects the D-03 pragmatic mapping trade-off: setters exist solely for MikroORM `accessor: true` hydration. Application code must mutate aggregates through domain methods and factories.
+- Rejects writes to known hydration properties (`id`, `createdAt`, `updatedAt`, `version`, `username`, `department`, `name`) on receivers named exactly `user`, `role`, `aggregate`, or `entity`.
+- Covers dot access, literal bracket access, simple and compound assignments, and prefix/postfix increment/decrement. DTO receivers such as `dto`, `response`, or `snapshot` are unaffected.
+- This is a **syntax-only naming convention**, not a type-aware guarantee. Aliases, other receiver names, nested receivers, dynamic keys, destructuring and reflective writes are outside its coverage. A DTO named `user` or `role` also matches: give DTOs descriptive names (such as `userDto`). Domain methods/factories remain the required mutation path regardless of lint coverage.
+- Domain and persistence hydration, tests, and `this` writes are outside the guard's scope. The two receiver/property expressions in the rule are the only lists to maintain when conventions change.
 
 ---
 
