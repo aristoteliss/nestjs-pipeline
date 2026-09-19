@@ -148,7 +148,18 @@ export type FallbackOptions =
  */
 export interface ResilienceTelemetry {
   /** Fired before each retry, with the upcoming attempt number and delay (ms). */
-  onRetry?(event: { attempt: number; delay: number }): void;
+  onRetry?(event: {
+    attempt: number;
+    delay: number;
+    /**
+     * The request that triggered this retry.
+     *
+     * A policy is cached per handler, so a handler registered for several event
+     * types shares one policy; without this the consumer could not tell which
+     * event is actually retrying.
+     */
+    requestName?: string;
+  }): void;
   /** Fired when the circuit breaker opens (trips). */
   onCircuitOpen?(): void;
   /** Fired when the circuit breaker closes (recovers). */

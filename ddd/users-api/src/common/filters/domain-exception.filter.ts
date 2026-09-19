@@ -1,6 +1,5 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import { OptimisticLockError } from '@mikro-orm/core';
 import {
   type ArgumentsHost,
   Catch,
@@ -8,6 +7,7 @@ import {
   HttpStatus,
 } from '@nestjs/common';
 import {
+  ConcurrencyConflictError,
   DomainException,
   EntityNotFoundException,
 } from '@nestjs-pipeline/ddd-core';
@@ -44,6 +44,7 @@ type HttpResponse = {
  *
  * | Domain/Application Exception | HTTP Status | Reason |
  * |---|---|---|
+ * | {@link ConcurrencyConflictError} | 409 Conflict | A version-conditioned write lost a race |
  * | {@link EntityNotFoundException} | 404 Not Found | Required aggregate/entity does not exist |
  * | {@link UniqueEmailException} | 409 Conflict | Duplicate email detected across tenant users |
  * | {@link UniqueRoleNameException} | 409 Conflict | Duplicate role name detected across tenant roles |
@@ -73,12 +74,9 @@ type HttpResponse = {
  * }
  * ```
  */
-@Catch(DomainException, OptimisticLockError)
+@Catch(DomainException)
 export class DomainExceptionFilter implements ExceptionFilter {
-  catch(
-    exception: DomainException | OptimisticLockError,
-    host: ArgumentsHost,
-  ): void {
+  catch(exception: DomainException, host: ArgumentsHost): void {
     const response = host.switchToHttp().getResponse<HttpResponse>();
     const { statusCode, error, extra } = this.resolveHttpError(exception);
 
@@ -97,12 +95,12 @@ export class DomainExceptionFilter implements ExceptionFilter {
     response.send?.(body);
   }
 
-  private resolveHttpError(exception: DomainException | OptimisticLockError): {
+  private resolveHttpError(exception: DomainException): {
     statusCode: number;
     error: string;
     extra?: Record<string, unknown>;
   } {
-    if (exception instanceof OptimisticLockError) {
+    if (exception instanceof ConcurrencyConflictError) {
       return { statusCode: HttpStatus.CONFLICT, error: 'Conflict' };
     }
 

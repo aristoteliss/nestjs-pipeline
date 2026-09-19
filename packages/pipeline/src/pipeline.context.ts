@@ -9,7 +9,10 @@ import {
   SET_RESPONSE,
   SET_TENANT_ID,
 } from './constants/pipeline-context.constants';
-import { getBehaviorId } from './decorators/pipeline.decorator';
+import {
+  type BehaviorId,
+  getBehaviorId,
+} from './decorators/pipeline.decorator';
 import { IPipelineBehavior } from './interfaces/pipeline.behavior.interface';
 import { IPipelineContext } from './interfaces/pipeline.context.interface';
 import { PipelineHandlerMeta } from './interfaces/pipeline-handler-meta.interface';
@@ -116,7 +119,7 @@ export abstract class BasePipelineContext<
 
   /** Behavior options map — populated from @UsePipeline metadata. */
   protected abstract readonly behaviorOptionsMap:
-    | Map<string, Record<string, unknown>>
+    | Map<BehaviorId, Record<string, unknown>>
     | undefined;
 
   constructor() {
@@ -161,7 +164,7 @@ export class PipelineContext<
   readonly requestKind: 'command' | 'query' | 'event' | 'unknown';
 
   protected readonly behaviorOptionsMap:
-    | Map<string, Record<string, unknown>>
+    | Map<BehaviorId, Record<string, unknown>>
     | undefined;
 
   constructor(

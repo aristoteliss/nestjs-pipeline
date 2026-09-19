@@ -1,7 +1,8 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
-import { OptimisticLockError } from '@mikro-orm/core';
+
 import { MikroORM } from '@mikro-orm/libsql';
 import type { ICache } from '@nestjs-pipeline/ddd-core';
+import { ConcurrencyConflictError } from '@nestjs-pipeline/ddd-core';
 import { createLibsqlOrmOptions } from '@persistence/libsql-options';
 import { Migration20260830000000 } from '@persistence/migrations/Migration20260830000000';
 import type { MikroOrmStore } from '@persistence/mikro-orm.store';
@@ -63,7 +64,7 @@ describe('versioned user updates with real MikroORM persistence', () => {
 
     stale.update({ username: 'alice-stale' });
     await expect(repository.save(stale)).rejects.toBeInstanceOf(
-      OptimisticLockError,
+      ConcurrencyConflictError,
     );
     expect(stale.getExpectedVersion()).toBe(1);
 

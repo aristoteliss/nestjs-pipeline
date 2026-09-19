@@ -19,7 +19,6 @@ import {
   type IPipelineCache,
 } from './adapters/cache-manager.adapter';
 import { CACHE_DEFAULT_OPTIONS, PIPELINE_CACHE } from './constants/tokens';
-import { defaultCacheKey } from './helpers/cache-key';
 import type { CacheBehaviorOptions } from './interfaces/cache-options.interface';
 
 /**
@@ -54,7 +53,8 @@ const DEFAULT_KINDS: Array<IPipelineContext['requestKind']> = ['query'];
  * 2. Per-handler options from `@UsePipeline([CacheBehavior, { ... }])`,
  *    shallow-merged on top of the defaults (handler keys win).
  *
- * Only `query` requests are cached by default; commands and events pass through
+ * A `key` factory is required — see {@link createPartitionedCacheKeyFactory}. Only
+ * `query` requests are cached by default; commands and events pass through
  * untouched. On a cache miss, `null` / `undefined` results are not written.
  * Cache hits return the value from the single explicit lookup. This behavior
  * intentionally does not use `cache-manager.wrap()` because its background
@@ -103,7 +103,16 @@ export class CacheBehavior implements IPipelineBehavior {
     if (!kinds.includes(context.requestKind)) return next();
     if (options.condition && !options.condition(context)) return next();
 
-    const key = (options.key ?? defaultCacheKey)(context);
+    if (!options.key) {
+      throw new TypeError(
+        `CacheBehavior on ${context.handlerName} requires an explicit \`key\` factory. ` +
+          'A cache hit returns without running the handler, so the key must partition ' +
+          'every dimension that can change the authorized response: tenant, principal, ' +
+          'permission scope and request payload. Use createPartitionedCacheKeyFactory(...).',
+      );
+    }
+
+    const key = options.key(context);
     context.items.set(CACHE_KEY_ITEM, key);
 
     let cached: unknown;

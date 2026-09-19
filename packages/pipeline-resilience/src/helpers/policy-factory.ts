@@ -38,6 +38,7 @@ import type {
   RetryOptions,
   TimeoutOptions,
 } from '../interfaces/resilience-options.interface';
+import { getResilienceRequestLabels } from './resilience-context';
 
 /** Default outermost → innermost composition order of the resilience layers. */
 const DEFAULT_ORDER: readonly ResilienceLayer[] = [
@@ -53,12 +54,32 @@ const LOG_CONTEXT = 'ResilienceBehavior';
 /** Any composed cockatiel policy (allowing a fallback's alternate return). */
 export type AnyPolicy = IPolicy<IDefaultPolicyContext, unknown>;
 
-/** Contextual metadata used to enrich telemetry/log messages. */
+/**
+ * Contextual metadata used to enrich telemetry/log messages.
+ *
+ * `requestName` and `handlerName` are build-time fallbacks only. A policy is
+ * built once per handler and reused, so the live values are read from the
+ * request-scoped store at emit time; baking the first request's name in made a
+ * multi-event handler report the wrong event forever.
+ */
 export interface PolicyBuildContext {
   logger?: LoggerService;
   requestName: string;
   handlerName: string;
   telemetry?: ResilienceTelemetry;
+}
+
+/** Resolves the live request labels, falling back to the build-time values. */
+function labels(ctx: PolicyBuildContext): {
+  requestName: string;
+  handlerName: string;
+} {
+  return (
+    getResilienceRequestLabels() ?? {
+      requestName: ctx.requestName,
+      handlerName: ctx.handlerName,
+    }
+  );
 }
 
 /** Maps a {@link JitterStrategy} to its cockatiel generator function. */
@@ -76,46 +97,22 @@ function jitterGenerator(strategy?: JitterStrategy) {
 }
 
 /** Builds a cockatiel backoff factory from declarative {@link RetryBackoff}. */
-function buildBackoff(
-  backoff: RetryBackoff | string,
-  legacyOptions?: { initialDelayMs?: number; maxDelayMs?: number },
-) {
-  if (typeof backoff === 'string') {
-    if (backoff === 'exponential') {
-      const opts: Record<string, unknown> = {};
-      if (legacyOptions?.initialDelayMs !== undefined)
-        opts.initialDelay = legacyOptions.initialDelayMs;
-      if (legacyOptions?.maxDelayMs !== undefined)
-        opts.maxDelay = legacyOptions.maxDelayMs;
-      return new ExponentialBackoff(opts);
-    }
-    if (backoff === 'constant') {
-      return new ConstantBackoff(legacyOptions?.initialDelayMs ?? 100);
-    }
-  }
-  switch ((backoff as RetryBackoff).type) {
+function buildBackoff(backoff: RetryBackoff) {
+  switch (backoff.type) {
     case 'constant':
-      return new ConstantBackoff((backoff as { delay: number }).delay);
+      return new ConstantBackoff(backoff.delay);
     case 'iterable':
-      return new IterableBackoff((backoff as { delays: number[] }).delays);
+      return new IterableBackoff(backoff.delays);
     case 'exponential': {
-      const exp = backoff as {
-        jitter?: JitterStrategy;
-        initialDelay?: number;
-        maxDelay?: number;
-        exponent?: number;
-      };
       const options: Record<string, unknown> = {
-        generator: jitterGenerator(exp.jitter),
+        generator: jitterGenerator(backoff.jitter),
       };
-      if (exp.initialDelay !== undefined)
-        options.initialDelay = exp.initialDelay;
-      if (exp.maxDelay !== undefined) options.maxDelay = exp.maxDelay;
-      if (exp.exponent !== undefined) options.exponent = exp.exponent;
+      if (backoff.initialDelay !== undefined)
+        options.initialDelay = backoff.initialDelay;
+      if (backoff.maxDelay !== undefined) options.maxDelay = backoff.maxDelay;
+      if (backoff.exponent !== undefined) options.exponent = backoff.exponent;
       return new ExponentialBackoff(options);
     }
-    default:
-      return new ExponentialBackoff();
   }
 }
 
@@ -147,23 +144,20 @@ function buildRetry(
 ): AnyPolicy {
   const policy = retry(base, {
     maxAttempts: options.maxAttempts,
-    backoff: options.backoff
-      ? buildBackoff(
-          options.backoff,
-          options as unknown as {
-            initialDelayMs?: number;
-            maxDelayMs?: number;
-          },
-        )
-      : undefined,
+    backoff: options.backoff ? buildBackoff(options.backoff) : undefined,
   });
   policy.onRetry((event) => {
+    const { requestName, handlerName } = labels(ctx);
     ctx.logger?.debug?.(
-      `[resilience] retrying ${ctx.requestName} → ${ctx.handlerName} ` +
+      `[resilience] retrying ${requestName} → ${handlerName} ` +
         `(attempt ${event.attempt}, delay ${event.delay}ms)`,
       LOG_CONTEXT,
     );
-    ctx.telemetry?.onRetry?.({ attempt: event.attempt, delay: event.delay });
+    ctx.telemetry?.onRetry?.({
+      attempt: event.attempt,
+      delay: event.delay,
+      requestName,
+    });
   });
   return policy;
 }
@@ -179,21 +173,21 @@ function buildCircuitBreaker(
   });
   policy.onBreak(() => {
     ctx.logger?.warn?.(
-      `[resilience] circuit OPEN for ${ctx.handlerName}`,
+      `[resilience] circuit OPEN for ${labels(ctx).handlerName}`,
       LOG_CONTEXT,
     );
     ctx.telemetry?.onCircuitOpen?.();
   });
   policy.onReset(() => {
     ctx.logger?.log?.(
-      `[resilience] circuit CLOSED for ${ctx.handlerName}`,
+      `[resilience] circuit CLOSED for ${labels(ctx).handlerName}`,
       LOG_CONTEXT,
     );
     ctx.telemetry?.onCircuitClose?.();
   });
   policy.onHalfOpen(() => {
     ctx.logger?.debug?.(
-      `[resilience] circuit HALF-OPEN for ${ctx.handlerName}`,
+      `[resilience] circuit HALF-OPEN for ${labels(ctx).handlerName}`,
       LOG_CONTEXT,
     );
     ctx.telemetry?.onCircuitHalfOpen?.();
@@ -208,7 +202,7 @@ function buildBulkhead(
   const policy = bulkhead(options.limit, options.queue ?? 0);
   policy.onReject(() => {
     ctx.logger?.warn?.(
-      `[resilience] bulkhead rejected ${ctx.handlerName} ` +
+      `[resilience] bulkhead rejected ${labels(ctx).handlerName} ` +
         `(limit ${options.limit}, queue ${options.queue ?? 0})`,
       LOG_CONTEXT,
     );
@@ -228,7 +222,7 @@ function buildTimeout(
   const policy = timeout(options.duration, strategy);
   policy.onTimeout(() => {
     ctx.logger?.warn?.(
-      `[resilience] timeout after ${options.duration}ms for ${ctx.handlerName}`,
+      `[resilience] timeout after ${options.duration}ms for ${labels(ctx).handlerName}`,
       LOG_CONTEXT,
     );
     ctx.telemetry?.onTimeout?.();
@@ -257,13 +251,8 @@ export function buildResiliencePolicy(
   // Escape hatch: a fully pre-built policy wins over everything else.
   if (options.policy) return options.policy;
 
-  const classifier =
-    options.handle ??
-    (options.retry as { isRetryable?: (error: unknown) => boolean } | undefined)
-      ?.isRetryable;
-
-  const base: Policy = classifier
-    ? handleWhen((error) => classifier(error) ?? false)
+  const base: Policy = options.handle
+    ? handleWhen((error) => options.handle?.(error) ?? false)
     : handleAll;
 
   // Thread per-handler telemetry hooks into the build context.

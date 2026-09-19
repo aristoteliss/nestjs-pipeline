@@ -10,7 +10,6 @@ import {
 import { AuthsController } from './controllers/auths.controller';
 import { CreateAuthHandler } from './cqrs/commands/create-auth.handler';
 import { DeleteAuthHandler } from './cqrs/commands/delete-auth.handler';
-import { CreatedAuthHandler } from './cqrs/events/auth-login.handler';
 import { GetUserCapabilitiesHandler } from './cqrs/queries/get-user-capabilities.handler';
 import { EnvLoginCodeVerifier } from './infrastructure/env-login-code.verifier';
 import { JoseAccessTokenIssuer } from './infrastructure/jose-access-token.issuer';
@@ -73,9 +72,6 @@ import { UserLoginService } from './services/user-login.service';
 
     // Queries
     GetUserCapabilitiesHandler,
-
-    // Events
-    CreatedAuthHandler,
   ],
   exports: [
     SessionService,

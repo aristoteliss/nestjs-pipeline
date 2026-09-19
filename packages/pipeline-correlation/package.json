@@ -35,7 +35,7 @@
   },
   "peerDependencies": {
     "@nestjs-pipeline/core": "workspace:^",
-    "@nestjs/common": "^10.0.0 || ^11.0.0"
+    "@nestjs/common": "^11.0.0"
   },
   "devDependencies": {
     "@nestjs-pipeline/core": "workspace:*",

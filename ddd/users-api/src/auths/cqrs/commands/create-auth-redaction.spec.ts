@@ -6,6 +6,7 @@ import {
   REDACTED,
 } from '@nestjs-pipeline/audit';
 import {
+  type BehaviorId,
   getBehaviorId,
   type IPipelineContext,
   LoggingBehavior,
@@ -19,7 +20,7 @@ describe('CreateAuthHandler secret redaction', () => {
   const options = Reflect.getMetadata(
     PIPELINE_BEHAVIORS_OPTIONS_METADATA,
     CreateAuthHandler,
-  ) as Map<string, Record<string, unknown>>;
+  ) as Map<BehaviorId, Record<string, unknown>>;
 
   it('keeps request logging payloads excluded', () => {
     const logging = options.get(getBehaviorId(LoggingBehavior));

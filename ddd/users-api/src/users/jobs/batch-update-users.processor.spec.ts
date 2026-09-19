@@ -4,6 +4,7 @@ import type { Job } from 'bullmq';
 import { describe, expect, it, vi } from 'vitest';
 import {
   type BatchUpdateUserItem,
+  type BatchUpdateUsersJobData,
   BatchUpdateUsersProcessor,
   MixedTenantBatchError,
   resolveBatchTenant,
@@ -24,11 +25,31 @@ describe('BatchUpdateUsersProcessor tenant isolation', () => {
 
     await expect(
       processor.process({
-        data,
-        opts: { correlationId: 'corr-mixed' },
-      } as unknown as Job<BatchUpdateUserItem[]>),
+        data: { items: data, correlationId: 'corr-mixed' },
+      } as unknown as Job<BatchUpdateUsersJobData>),
     ).rejects.toBeInstanceOf(MixedTenantBatchError);
     expect(run).not.toHaveBeenCalled();
+  });
+
+  it('reads the correlation ID from the payload and runs the batch under it', async () => {
+    const tenantContext = {
+      run: (_tenant: string | undefined, fn: () => unknown) => fn(),
+      schema: 'tenant_a',
+    } as unknown as TenantSchemaContext;
+    const processor = new BatchUpdateUsersProcessor(tenantContext);
+    let observed: string | undefined;
+    vi.spyOn(processor['logger'], 'log').mockImplementation((message) => {
+      observed ??= String(message);
+    });
+
+    await processor.process({
+      data: {
+        items: [{ userId: 'user-a', tenant: 'tenant_a' }],
+        correlationId: 'corr-payload',
+      },
+    } as unknown as Job<BatchUpdateUsersJobData>);
+
+    expect(observed).toContain('corr-payload');
   });
 
   it('resolves a homogeneous tenant without changing the payload contract', () => {

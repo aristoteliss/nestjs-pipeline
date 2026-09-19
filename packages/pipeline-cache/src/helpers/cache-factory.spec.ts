@@ -1,5 +1,6 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
+import Module from 'node:module';
 import { createCache } from 'cache-manager';
 import { Keyv } from 'keyv';
 import { describe, expect, it } from 'vitest';
@@ -31,12 +32,103 @@ describe('cache-factory', () => {
       expect(memcacheKeyv).toBeInstanceOf(Keyv);
     });
 
-    it('throws descriptive error when optional adapter is missing', () => {
-      expect(() =>
-        buildKeyv({ type: 'sqlite', url: 'sqlite://cache.sqlite' }),
-      ).toThrowError(
-        /\[pipeline-cache\] The optional '@keyv\/sqlite' package is required/,
-      );
+    describe('adapter load diagnostics', () => {
+      /**
+       * Each failure keeps its own diagnosis. Telling someone to install a
+       * package they already have sends them in the wrong direction; the three
+       * causes — unresolvable, present-but-unbuilt, and broken-for-another-reason
+       * — need different actions.
+       *
+       * The cases are injected rather than inferred from whichever optional
+       * adapters happen to be installed in the developer's workspace, which is
+       * what made the previous test assert the wrong diagnosis on a machine where
+       * `@keyv/sqlite` resolved but its native binding did not.
+       */
+      function loadWith(failure: Error): () => unknown {
+        const resolve = Module._resolveFilename;
+        const load = Module._load;
+        Module._load = ((request: string, ...rest: unknown[]) => {
+          if (request === '@keyv/sqlite') throw failure;
+          return (load as never as (...a: unknown[]) => unknown)(
+            request,
+            ...rest,
+          );
+        }) as never;
+        return () => {
+          Module._load = load;
+          Module._resolveFilename = resolve;
+        };
+      }
+
+      it('tells the user to install an adapter that cannot be resolved', () => {
+        const notFound = Object.assign(
+          new Error("Cannot find module '@keyv/sqlite'"),
+          { code: 'MODULE_NOT_FOUND' },
+        );
+        const restore = loadWith(notFound);
+
+        try {
+          expect(() =>
+            buildKeyv({ type: 'sqlite', url: 'sqlite://cache.sqlite' }),
+          ).toThrowError(/The optional '@keyv\/sqlite' package is required/);
+        } finally {
+          restore();
+        }
+      });
+
+      it('tells the user to rebuild an adapter whose native binding failed', () => {
+        const restore = loadWith(
+          new Error('Could not locate the bindings file. Tried: ...'),
+        );
+
+        try {
+          expect(() =>
+            buildKeyv({ type: 'sqlite', url: 'sqlite://cache.sqlite' }),
+          ).toThrowError(
+            /installed but its native binding could not be loaded/,
+          );
+        } finally {
+          restore();
+        }
+      });
+
+      it('rethrows any other load failure untouched', () => {
+        // A missing transitive dependency, a broken export, an initialization
+        // error: the adapter's own message is the accurate one.
+        const transitive = Object.assign(
+          new Error("Cannot find module 'some-transitive-dep'"),
+          { code: 'MODULE_NOT_FOUND' },
+        );
+        const restore = loadWith(transitive);
+
+        try {
+          expect(() =>
+            buildKeyv({ type: 'sqlite', url: 'sqlite://cache.sqlite' }),
+          ).toThrowError(transitive);
+        } finally {
+          restore();
+        }
+      });
+
+      it('preserves the original failure as the cause', () => {
+        const notFound = Object.assign(
+          new Error("Cannot find module '@keyv/sqlite'"),
+          { code: 'MODULE_NOT_FOUND' },
+        );
+        const restore = loadWith(notFound);
+
+        try {
+          let thrown: unknown;
+          try {
+            buildKeyv({ type: 'sqlite', url: 'sqlite://cache.sqlite' });
+          } catch (error) {
+            thrown = error;
+          }
+          expect((thrown as { cause?: unknown }).cause).toBe(notFound);
+        } finally {
+          restore();
+        }
+      });
     });
   });
 

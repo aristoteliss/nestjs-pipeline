@@ -9,7 +9,15 @@ import {
   SET_RESPONSE,
   SET_TENANT_ID,
 } from './constants/pipeline-context.constants';
-import { PIPELINE_BEHAVIOR_ID } from './decorators/pipeline.decorator';
+import {
+  type BehaviorId,
+  PIPELINE_BEHAVIOR_ID,
+} from './decorators/pipeline.decorator';
+import type {
+  IPipelineBehavior,
+  NextDelegate,
+} from './interfaces/pipeline.behavior.interface';
+import type { IPipelineContext } from './interfaces/pipeline.context.interface';
 import { PipelineHandlerMeta } from './interfaces/pipeline-handler-meta.interface';
 import { PipelineContext } from './pipeline.context';
 
@@ -170,7 +178,11 @@ describe('PipelineContext', () => {
 });
 
 describe('PipelineContext.getBehaviorOptions', () => {
-  class SomeBehavior {}
+  class SomeBehavior implements IPipelineBehavior {
+    async handle(_ctx: IPipelineContext, next: NextDelegate) {
+      return next();
+    }
+  }
 
   it('returns undefined when no options map exists', () => {
     const ctx = new PipelineContext(
@@ -190,8 +202,8 @@ describe('PipelineContext.getBehaviorOptions', () => {
   });
 
   it('returns options for a registered behavior', () => {
-    const opts = new Map<string, Record<string, any>>([
-      ['SomeBehavior', { level: 'debug' }],
+    const opts = new Map<BehaviorId, Record<string, any>>([
+      [SomeBehavior, { level: 'debug' }],
     ]);
     const ctx = new PipelineContext(
       new FakeCommand('x'),

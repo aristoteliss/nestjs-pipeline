@@ -1,10 +1,10 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import { OptimisticLockError } from '@mikro-orm/core';
 import { Inject, Injectable } from '@nestjs/common';
 import {
   CACHE_TOKEN,
   Cache,
+  ConcurrencyConflictError,
   EntityNotFoundException,
   filterCacheKey,
   ICache,
@@ -49,8 +49,9 @@ export class DeleteRoleCommandRepository extends MikroOrmWriteSideCommandReposit
         { refresh: true },
       );
       if (exists) {
-        throw OptimisticLockError.lockFailedVersionMismatch(
-          role,
+        throw new ConcurrencyConflictError(
+          'Role',
+          role.id,
           role.getExpectedVersion(),
           exists.version,
         );

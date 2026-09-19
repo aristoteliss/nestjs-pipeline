@@ -1,8 +1,9 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import { OptimisticLockError } from '@mikro-orm/core';
 import { type IPipelineContext, pipelineStore } from '@nestjs-pipeline/core';
 import {
+  ConcurrencyConflictError,
+  DEFAULT_BARRIER_TTL_MS,
   EntityNotFoundException,
   type ICache,
   TransientOperationError,
@@ -44,7 +45,7 @@ describe('DeleteUserCommandRepository', () => {
         __cacheBarrier: true,
         reason: 'deleted',
       }),
-      { ttl: 0 },
+      { ttl: DEFAULT_BARRIER_TTL_MS },
     );
     expect(cache.set).toHaveBeenCalledWith(
       'tenant:user:email:alice@example.test',
@@ -52,12 +53,12 @@ describe('DeleteUserCommandRepository', () => {
         __cacheBarrier: true,
         reason: 'deleted',
       }),
-      { ttl: 0 },
+      { ttl: DEFAULT_BARRIER_TTL_MS },
     );
     expect(cache.delete).not.toHaveBeenCalled();
   });
 
-  it('throws OptimisticLockError when the user exists at a newer version and does not evict cache', async () => {
+  it('throws ConcurrencyConflictError when the user exists at a newer version and does not evict cache', async () => {
     const cache: ICache<UserSnapshot> = {
       get: vi.fn(),
       set: vi.fn(),
@@ -74,7 +75,9 @@ describe('DeleteUserCommandRepository', () => {
     const repository = new DeleteUserCommandRepository(cache, store as never);
 
     user.delete();
-    await expect(repository.save(user)).rejects.toThrow(OptimisticLockError);
+    await expect(repository.save(user)).rejects.toThrow(
+      ConcurrencyConflictError,
+    );
     expect(findOne).toHaveBeenCalledWith(
       User,
       { id: user.id },

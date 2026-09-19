@@ -3,8 +3,6 @@
 export {
   createCommand,
   createQuery,
-  createZodCommand,
-  createZodQuery,
   createZodRequest,
   type InferInput,
   type InferOutput,
@@ -19,7 +17,6 @@ export {
   getRawInput,
   getValidatedData,
   ZOD_RAW_INPUT_KEY,
-  ZOD_SCHEMA,
   ZOD_SCHEMA_KEY,
   ZOD_VALIDATED_DATA_KEY,
   ZodValidationBehavior,

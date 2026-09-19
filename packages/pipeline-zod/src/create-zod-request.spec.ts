@@ -207,7 +207,6 @@ describe('createZodRequest', () => {
     class TestCommand extends createCommand(commandSchema, MyBaseCommand) {}
 
     expect(TestCommand.requestKind).toBe('command');
-    expect(TestCommand.$kind).toBe('command');
     expect(TestCommand[ZOD_SCHEMA_KEY]).toBe(commandSchema);
 
     const cmd = new TestCommand({ title: 'Task 1' }, { id: 'user_1' });
@@ -229,7 +228,6 @@ describe('createZodRequest', () => {
     class TestQuery extends createQuery(querySchema, MyBaseQuery) {}
 
     expect(TestQuery.requestKind).toBe('query');
-    expect(TestQuery.$kind).toBe('query');
     expect(TestQuery[ZOD_SCHEMA_KEY]).toBe(querySchema);
 
     const qry = new TestQuery(

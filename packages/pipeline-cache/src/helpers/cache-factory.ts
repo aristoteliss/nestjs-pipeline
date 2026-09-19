@@ -18,17 +18,36 @@ const ADAPTER_PACKAGES: Record<Exclude<CacheStoreType, 'memory'>, string> = {
   postgres: '@keyv/postgres',
 };
 
-/** Whether a CommonJS load error means the requested adapter package itself is missing. */
+/**
+ * Whether the requested adapter package itself could not be resolved.
+ *
+ * Only a resolution failure *for that exact package* counts. A `MODULE_NOT_FOUND`
+ * naming some other module means the adapter is installed but one of its own
+ * dependencies is not, and a native binding failure means it is installed but
+ * did not build — telling the user to install a package they already have sends
+ * them in the wrong direction.
+ */
 function isRequestedModuleMissing(error: unknown, pkg: string): boolean {
   if (!(error instanceof Error)) return false;
-  const code = (error as Error & { code?: unknown }).code;
-  if (code === 'MODULE_NOT_FOUND') {
-    return (
-      error.message.includes(`Cannot find module '${pkg}'`) ||
-      error.message.includes(`Cannot find module "${pkg}"`)
-    );
+  if ((error as Error & { code?: unknown }).code !== 'MODULE_NOT_FOUND') {
+    return false;
   }
-  return error.message.includes('bindings file');
+  return (
+    error.message.includes(`Cannot find module '${pkg}'`) ||
+    error.message.includes(`Cannot find module "${pkg}"`)
+  );
+}
+
+/** Whether the adapter is present but its native binary is missing or unusable. */
+function isNativeBindingFailure(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+  return (
+    error.message.includes('bindings file') ||
+    error.message.includes(
+      'was compiled against a different Node.js version',
+    ) ||
+    error.message.includes('invalid ELF header')
+  );
 }
 
 /**
@@ -36,23 +55,36 @@ function isRequestedModuleMissing(error: unknown, pkg: string): boolean {
  * optional peer dependencies, so they are only required when the matching store
  * type is actually requested.
  *
- * Only an actual missing adapter package is translated into the friendly install
- * message. Errors thrown while loading an installed adapter — including a
- * missing transitive dependency or adapter initialization error — are re-thrown
- * unchanged so production diagnostics retain the real root cause.
+ * Each failure keeps its own diagnosis, and every wrapper preserves `cause`:
+ *
+ * - the package cannot be resolved  → install it;
+ * - the package loaded but its native binary did not → rebuild it;
+ * - anything else → rethrown untouched, so the real root cause survives.
  */
 function requireAdapter(pkg: string): AdapterConstructor {
   let mod: { default?: AdapterConstructor } | AdapterConstructor;
   try {
     mod = require(pkg) as { default?: AdapterConstructor } | AdapterConstructor;
   } catch (error) {
-    if (!isRequestedModuleMissing(error, pkg)) throw error;
+    if (isRequestedModuleMissing(error, pkg)) {
+      throw new Error(
+        `[pipeline-cache] The optional '${pkg}' package is required for this store type. Install it with: pnpm add ${pkg}`,
+        { cause: error },
+      );
+    }
 
-    const wrapped = new Error(
-      `[pipeline-cache] The optional '${pkg}' package is required for this store type. Install it with: pnpm add ${pkg}`,
-    );
-    (wrapped as Error & { cause?: unknown }).cause = error;
-    throw wrapped;
+    if (isNativeBindingFailure(error)) {
+      throw new Error(
+        `[pipeline-cache] '${pkg}' is installed but its native binding could not be loaded. ` +
+          `Rebuild it for this Node.js version (for example: pnpm rebuild ${pkg}); reinstalling the package alone will not help.`,
+        { cause: error },
+      );
+    }
+
+    // An installed adapter that failed for any other reason — a missing
+    // transitive dependency, a broken export, an initialization error. Its own
+    // message is the accurate one.
+    throw error;
   }
   return (
     (mod as { default?: AdapterConstructor }).default ??

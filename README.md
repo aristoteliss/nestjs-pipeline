@@ -119,6 +119,10 @@ Works with Express and Fastify.
 
 ### 1. Install
 
+Requires **Nest 11** (`@nestjs/common`, `@nestjs/core`) and **`@nestjs/cqrs` 11**.
+Nest 10 is not supported: request-scoped and transient handlers are resolved
+through `AsyncContext`, which `@nestjs/cqrs` only exposes from version 11.
+
 ```bash
 pnpm add @nestjs-pipeline/core @nestjs/common @nestjs/core @nestjs/cqrs reflect-metadata rxjs
 
@@ -239,8 +243,17 @@ export class CreateUserHandler implements ICommandHandler<CreateUserCommand> {
 ```
 
 This constructor helper is intentionally synchronous and therefore requires a
-synchronous schema. If the schema uses async refinements or transforms, validate
-with `safeParseAsync()` in `ZodValidationBehavior`/`ZodPipe` instead of doing it
+synchronous schema. For a schema with async refinements or transforms, build the
+instance with the generated `parseAsync()` static instead — the behavior and the
+pipe both run *after* construction, so they cannot rescue a constructor that
+cannot complete:
+
+```typescript
+const command = await CreateUserCommand.parseAsync({ email, age });
+```
+
+You can also validate raw input up front with `safeParseAsync()` in
+`ZodValidationBehavior`/`ZodPipe` rather than doing it
 in a JavaScript constructor.
 
 ### 5. Wire Up the Controller
@@ -552,8 +565,9 @@ feature is imported, the registered behaviors are discoverable by
 2. For each matching handler it precomputes request-independent metadata and resolves singleton behavior instances. Behaviors that cannot be resolved as singletons are marked for per-invocation resolution.
 3. Per invocation: creates a `PipelineContext`, resolves any dynamic/request-scoped/transient behaviors with the applicable Nest context ID, resolves correlation ID, and runs the chain inside `AsyncLocalStorage` for nested propagation.
 4. The common all-singleton path reuses the pre-resolved instances with no request-time reflection or behavior DI lookup; scoped/dynamic behaviors intentionally use request-time DI resolution.
-5. Supports **singleton** handlers on Nest CQRS 10. Request-scoped/transient
-   handlers (`Scope.REQUEST`, `Scope.TRANSIENT`) require Nest CQRS 11+.
+5. Requires Nest and Nest CQRS 11. Request-scoped and transient handlers
+   (`Scope.REQUEST`, `Scope.TRANSIENT`) rely on `AsyncContext`, which earlier
+   CQRS versions do not provide.
 
 ### Execution Order
 
@@ -1250,7 +1264,7 @@ The `@nestjs-pipeline/ddd-core` package (`ddd/core/`) provides the foundational 
 | `RootDomainEvent`     | Domain event that carries a reference to the originating entity                       |
 | `Mutate`              | Decorator that calls `onUpdate()` after a method executes                             |
 | `ICache<T>`           | Interface for cache providers (`get`, `set`, `delete`)                                |
-| `CommandRepository`   | Abstract base for write repositories — holds an `ICache` and defines `save(outcome)` |
+| `CommandRepository`   | Abstract base for write repositories — holds an `ICache` and defines `save(entity)` |
 | `QueryRepository`     | Abstract base for read repositories — holds an `ICache` and defines `find(query)`    |
 | `@Cache()`            | Decorator for `save()` — write-through cache on writes, evict on delete, explicit key derivations |
 | `@FromCache()`        | Decorator for `find()` — read-through cache with fail-closed semantics and optional hydration |
@@ -1490,7 +1504,7 @@ pnpm install
 # Build all packages
 pnpm build
 
-# Run builds, unit/integration tests, and Redis/PostgreSQL E2E (Docker required)
+# Run persistence lint and workspace unit/integration tests (no build or E2E)
 pnpm test
 
 # Run individual stages
@@ -1526,7 +1540,7 @@ and optimistic-update contracts/tests are documented in
    ```json
    {
      "peerDependencies": {
-       "@nestjs-pipeline/core": "^0.1.19"
+       "@nestjs-pipeline/core": "workspace:^"
      },
      "devDependencies": {
        "@nestjs-pipeline/core": "workspace:*"

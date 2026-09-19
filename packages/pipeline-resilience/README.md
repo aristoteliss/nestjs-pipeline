@@ -108,7 +108,8 @@ import { ResilienceBehavior } from '@nestjs-pipeline/resilience';
 @UsePipeline([
   ResilienceBehavior,
   {
-    retry: { maxAttempts: 3, backoff: { type: 'exponential' } },
+    handle: (error) => error instanceof TransientError,
+    retry: { maxAttempts: 3, replaySafe: true, backoff: { type: 'exponential' } },
     circuitBreaker: {
       halfOpenAfter: 10_000,
       breaker: { type: 'consecutive', threshold: 5 },
@@ -160,11 +161,20 @@ For each handler where `ResilienceBehavior` is attached, the effective options a
 
 ### Retry
 
-Re-runs the handler on a handled failure.
+Re-runs all downstream behaviors and the handler on a handled failure. Commands
+and events require `retry.replaySafe: true`; queries do not. This is an explicit
+acknowledgment, not an idempotency mechanism. The command examples below assume
+that the external operation deduplicates a stable operation ID. If that is not
+true, retry only the replay-safe infrastructure operation instead.
+
+`TransientError` in these fragments is an application-defined error translated
+by an infrastructure adapter; define the classifier for your actual dependency.
 
 ```typescript
 {
+  handle: (error) => error instanceof TransientError,
   retry: {
+    replaySafe: true, // only when all downstream side effects tolerate replay
     maxAttempts: 3, // retry attempts after the initial call (up to 4 executions total)
     backoff: { type: 'exponential', initialDelay: 128, maxDelay: 30_000, jitter: 'decorrelated' },
   },
@@ -187,6 +197,7 @@ Stops calling a failing dependency to let it recover. Reused across invocations 
 
 ```typescript
 {
+  handle: (error) => error instanceof TransientError,
   circuitBreaker: {
     halfOpenAfter: 10_000, // ms open before a trial call
     breaker: { type: 'consecutive', threshold: 5 },
@@ -235,19 +246,21 @@ When the limit (and optional `queue`) is exhausted, calls are rejected with `Bul
 Substitutes a value when execution fails (after all inner layers are exhausted).
 
 ```typescript
-{ fallback: { value: { status: 'degraded' } } }
+{ handle: (error) => error instanceof TransientError, fallback: { value: { status: 'degraded' } } }
 // or lazily:
-{ fallback: { factory: () => buildDefaultResponse() } }
+{ handle: (error) => error instanceof TransientError, fallback: { factory: () => buildDefaultResponse() } }
 ```
 
 ### Error selection (`handle`)
 
-By default **all** errors are handled (eligible for retry/fallback and counted by the breaker). Narrow this with a predicate:
+Retry, circuit breaker, and fallback require an explicit `handle` predicate or
+`handleAllErrors: true`. Configuration is rejected when neither is supplied.
+Prefer a predicate selecting only transient infrastructure errors:
 
 ```typescript
 {
   handle: (error) => error instanceof TransientDbError,
-  retry: { maxAttempts: 3 },
+  retry: { maxAttempts: 3, replaySafe: true },
 }
 ```
 
@@ -257,7 +270,8 @@ Override the composition order. Only listed *and* configured layers are wrapped:
 
 ```typescript
 {
-  retry: { maxAttempts: 3 },
+  handle: (error) => error instanceof TransientError,
+  retry: { maxAttempts: 3, replaySafe: true },
   timeout: { duration: 1_000 },
   order: ['retry', 'timeout'], // retry wraps timeout
 }
@@ -269,7 +283,8 @@ Observe policy events (fired per handler, since policies are cached):
 
 ```typescript
 {
-  retry: { maxAttempts: 3 },
+  handle: (error) => error instanceof TransientError,
+  retry: { maxAttempts: 3, replaySafe: true },
   circuitBreaker: { halfOpenAfter: 5_000, breaker: { type: 'consecutive', threshold: 3 } },
   telemetry: {
     onRetry: ({ attempt, delay }) => metrics.increment('retry', { attempt }),
@@ -365,6 +380,7 @@ import { ResilienceBehavior } from '@nestjs-pipeline/resilience';
     // Only retry transient infrastructure errors.
     handle: (error) => error instanceof TransientError,
     retry: {
+      replaySafe: true,
       maxAttempts: 4,
       backoff: { type: 'exponential', initialDelay: 200, maxDelay: 5_000 },
     },

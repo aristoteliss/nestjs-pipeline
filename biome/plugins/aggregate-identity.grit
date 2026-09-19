@@ -1,0 +1,24 @@
+engine biome(1.0)
+language js(typescript)
+
+// `RootEntity` exposes public setters for `id`, `createdAt` and `updatedAt`.
+// They exist so MikroORM's `accessor: true` mapping can hydrate private backing
+// fields without `@ts-expect-error`, which `ddd/users-api/README.md` documents as
+// a deliberate trade-off for this sample.
+//
+// The cost of that trade-off is that aggregate identity is assignable from
+// anywhere. Removing the setters would mean introducing persistence records and
+// explicit mappers — worthwhile only if strict domain encapsulation becomes a
+// goal of the sample, which the consolidating review concluded it is not. Until
+// then the setters stay and this rule carries the other half of the bargain:
+// application and presentation code must go through factories and domain
+// methods.
+//
+// Scoped in biome.json to the layers that must not assign identity. The
+// persistence and domain trees are excluded: the ORM hydrates through these
+// setters, and the aggregate itself owns its timestamps via `onUpdate()`.
+
+`$aggregate.$property = $value` as $assignment where {
+  $property <: r"^(?:id|createdAt|updatedAt)$",
+  register_diagnostic(span=$assignment, message="Do not assign aggregate identity or lifecycle timestamps. These setters exist only for MikroORM hydration; application code creates aggregates through factories (User.create) and changes them through domain methods (user.update), which maintain the version and updatedAt invariants.", severity="error")
+}

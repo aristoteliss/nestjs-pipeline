@@ -60,10 +60,12 @@ export interface CacheBehaviorOptions {
   /** Time-to-live (milliseconds) for entries written by this handler. */
   ttl?: number;
   /**
-   * Custom cache-key factory. Defaults to
-   * `` `${requestName}:${stableStringify(request)}` ``.
-   * Include tenant/principal/permission scope whenever the response depends on
-   * handler-level authorization or field filtering, because hits skip the handler.
+   * Cache-key factory. **Required** when this behavior runs — there is no default.
+   *
+   * A cache hit returns without executing the handler, so the key must partition
+   * every dimension that can change the authorized response: tenant, principal,
+   * permission scope and request payload. Use `createPartitionedCacheKeyFactory`
+   * rather than composing one by hand.
    */
   key?: CacheKeyFactory;
   /** Optional predicate gating whether a given request is cached. */

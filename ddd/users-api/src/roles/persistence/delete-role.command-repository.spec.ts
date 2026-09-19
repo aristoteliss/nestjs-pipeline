@@ -1,8 +1,9 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import { OptimisticLockError } from '@mikro-orm/core';
 import { type IPipelineContext, pipelineStore } from '@nestjs-pipeline/core';
 import {
+  ConcurrencyConflictError,
+  DEFAULT_BARRIER_TTL_MS,
   EntityNotFoundException,
   type ICache,
   TransientOperationError,
@@ -44,12 +45,12 @@ describe('DeleteRoleCommandRepository', () => {
         __cacheBarrier: true,
         reason: 'deleted',
       }),
-      { ttl: 0 },
+      { ttl: DEFAULT_BARRIER_TTL_MS },
     );
     expect(cache.delete).not.toHaveBeenCalled();
   });
 
-  it('throws OptimisticLockError when the role exists at a newer version and does not evict cache', async () => {
+  it('throws ConcurrencyConflictError when the role exists at a newer version and does not evict cache', async () => {
     const cache: ICache<RoleSnapshot> = {
       get: vi.fn(),
       set: vi.fn(),
@@ -66,7 +67,9 @@ describe('DeleteRoleCommandRepository', () => {
     const repository = new DeleteRoleCommandRepository(cache, store as never);
 
     role.delete();
-    await expect(repository.save(role)).rejects.toThrow(OptimisticLockError);
+    await expect(repository.save(role)).rejects.toThrow(
+      ConcurrencyConflictError,
+    );
     expect(findOne).toHaveBeenCalledWith(
       Role,
       { id: role.id },

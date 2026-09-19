@@ -9,6 +9,7 @@ import {
 } from '@nestjs-pipeline/core';
 import {
   type Attributes,
+  type Span,
   SpanKind,
   SpanStatusCode,
   trace,
@@ -102,6 +103,23 @@ export interface TraceBehaviorOptions {
 const TRACER_NAME = 'nestjs-pipeline';
 
 /**
+ * Runs an instrumentation step and discards any failure.
+ *
+ * Observability must never change the observed outcome. The OpenTelemetry error
+ * handling specification expects conforming implementations not to throw during
+ * normal operation, but the span object here is supplied by whatever provider
+ * the application registered, and the extension points around it are
+ * user-supplied.
+ */
+function safely(operation: () => unknown): void {
+  try {
+    operation();
+  } catch {
+    // Intentionally ignored: see above.
+  }
+}
+
+/**
  * Pipeline behavior that wraps a handler in an OpenTelemetry span.
  *
  * The behavior deliberately does not inspect provider implementation details to
@@ -150,72 +168,114 @@ export class TraceBehavior implements IPipelineBehavior {
       return next();
     }
 
-    // OpenTelemetry guarantees this is a no-op tracer when no SDK/provider is
-    // registered, so no readiness heuristic is required.
-    const tracer = trace.getTracer(options?.tracerName ?? TRACER_NAME);
-    const spanName = this.resolveSpanName(context, options?.spanName);
-    const initialAttributes = await this.resolveAttributes(context, options);
+    // The business execution is created at most once and shared. Instrumentation
+    // may fail at any point — including after the span callback has already
+    // invoked the handler — and must never cause a second execution.
+    let business: Promise<unknown> | undefined;
+    const runOnce = (): Promise<unknown> => {
+      business ??= next();
+      return business;
+    };
 
-    return tracer.startActiveSpan(
-      spanName,
-      {
-        kind: SpanKind.INTERNAL,
-        attributes: initialAttributes,
-      },
-      async (span) => {
-        try {
-          const result = await next();
+    let tracer: ReturnType<typeof trace.getTracer>;
+    let spanName: string;
+    let initialAttributes: Attributes;
+    try {
+      // OpenTelemetry guarantees this is a no-op tracer when no SDK/provider is
+      // registered, so no readiness heuristic is required.
+      tracer = trace.getTracer(options?.tracerName ?? TRACER_NAME);
+      spanName = this.resolveSpanName(context, options?.spanName);
+      initialAttributes = await this.resolveAttributes(context, options);
+    } catch {
+      // Tracing could not even be set up. Run the request untraced rather than
+      // failing it.
+      return runOnce();
+    }
 
-          // Downstream behaviors/handler may add request-local attributes after
-          // the span was created; apply them again before finalizing the span.
-          if (
-            options?.includeContextAttributes !== false &&
-            typeof span.setAttributes === 'function'
-          ) {
-            span.setAttributes(getPipelineTelemetryAttributes(context));
+    try {
+      return await tracer.startActiveSpan(
+        spanName,
+        { kind: SpanKind.INTERNAL, attributes: initialAttributes },
+        async (span) => {
+          try {
+            const result = await runOnce();
+            // Annotation runs after the business call has already succeeded, so
+            // every step is guarded: a throw here previously fell into the catch
+            // below and was re-thrown as though the handler itself had failed.
+            this.annotateSuccess(span, context, options);
+            return result;
+          } catch (error) {
+            this.annotateFailure(span, context, options, error);
+            throw error;
+          } finally {
+            // span.end() in an unguarded finally replaced the business error
+            // with the instrumentation error.
+            safely(() => span.end());
           }
-          if (typeof span.setAttribute === 'function') {
-            span.setAttribute(PIPELINE_OTEL_ATTRIBUTES.OUTCOME, 'success');
-          }
-          span.setStatus({ code: SpanStatusCode.OK });
-          return result;
-        } catch (error) {
-          if (
-            options?.includeContextAttributes !== false &&
-            typeof span.setAttributes === 'function'
-          ) {
-            span.setAttributes(getPipelineTelemetryAttributes(context));
-          }
-          if (typeof span.setAttribute === 'function') {
-            span.setAttribute(PIPELINE_OTEL_ATTRIBUTES.OUTCOME, 'failure');
-            span.setAttribute(
-              PIPELINE_OTEL_ATTRIBUTES.ERROR_TYPE,
-              error instanceof Error ? error.name : 'unknown',
-            );
-          }
+        },
+      );
+    } catch (error) {
+      // startActiveSpan may fail after its callback already ran the handler.
+      // Returning the existing promise preserves the single execution; calling
+      // next() again could repeat a successful mutation.
+      if (business !== undefined) throw error;
+      return runOnce();
+    }
+  }
 
-          if (
-            options?.recordException !== false &&
-            typeof span.recordException === 'function'
-          ) {
-            const err = untyped(error);
-            if (error instanceof Error || typeof error === 'string') {
-              span.recordException(error);
-            } else {
-              span.recordException(err as never);
-            }
-          }
+  /** Applies success annotations; every span call is individually guarded. */
+  private annotateSuccess(
+    span: Span,
+    context: IPipelineContext,
+    options?: TraceBehaviorOptions,
+  ): void {
+    if (options?.includeContextAttributes !== false) {
+      safely(() =>
+        span.setAttributes?.(getPipelineTelemetryAttributes(context)),
+      );
+    }
+    safely(() =>
+      span.setAttribute?.(PIPELINE_OTEL_ATTRIBUTES.OUTCOME, 'success'),
+    );
+    safely(() => span.setStatus?.({ code: SpanStatusCode.OK }));
+  }
 
-          const err = untyped(error);
-          span.setStatus({
-            code: SpanStatusCode.ERROR,
-            message: typeof err?.message === 'string' ? err.message : '',
-          });
-          throw error;
-        } finally {
-          span.end();
+  /** Applies failure annotations; every span call is individually guarded. */
+  private annotateFailure(
+    span: Span,
+    context: IPipelineContext,
+    options: TraceBehaviorOptions | undefined,
+    error: unknown,
+  ): void {
+    if (options?.includeContextAttributes !== false) {
+      safely(() =>
+        span.setAttributes?.(getPipelineTelemetryAttributes(context)),
+      );
+    }
+    safely(() => {
+      span.setAttribute?.(PIPELINE_OTEL_ATTRIBUTES.OUTCOME, 'failure');
+      span.setAttribute?.(
+        PIPELINE_OTEL_ATTRIBUTES.ERROR_TYPE,
+        error instanceof Error ? error.name : 'unknown',
+      );
+    });
+
+    if (options?.recordException !== false) {
+      safely(() => {
+        if (error instanceof Error || typeof error === 'string') {
+          span.recordException?.(error);
+        } else {
+          span.recordException?.(untyped(error) as never);
         }
-      },
+      });
+    }
+
+    const err = untyped(error);
+    safely(() =>
+      span.setStatus?.({
+        code: SpanStatusCode.ERROR,
+        message: typeof err?.message === 'string' ? err.message : '',
+      }),
     );
   }
 

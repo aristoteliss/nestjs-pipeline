@@ -20,9 +20,6 @@ importers:
 
   ddd/core:
     dependencies:
-      '@mikro-orm/core':
-        specifier: ^7.1.13
-        version: 7.1.13
       '@nestjs-pipeline/core':
         specifier: workspace:*
         version: link:../../packages/pipeline
@@ -39,6 +36,9 @@ importers:
       '@biomejs/biome':
         specifier: ^2.5.10
         version: 2.5.10
+      '@mikro-orm/core':
+        specifier: ^7.1.13
+        version: 7.1.13
       tsx:
         specifier: ^4.23.12
         version: 4.23.12

@@ -161,9 +161,15 @@ function isUnsupportedObject(value: object): boolean {
 export function stableStringify(value: unknown): string {
   try {
     return JSON.stringify(toStrictJsonValue(value, true));
-  } catch {
+  } catch (cause) {
+    // `toStrictJsonValue` reports precisely what went wrong — a cycle, a
+    // symbol-keyed property, a Map, a non-finite number. Discarding that left an
+    // operator with a generic message and no way to tell which field or which
+    // constraint broke, on a function that underpins cache keys, idempotency
+    // fingerprints and repository key derivation.
     throw new TypeError(
       'stableStringify requires an acyclic JSON-serializable value.',
+      { cause },
     );
   }
 }

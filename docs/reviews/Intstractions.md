@@ -262,6 +262,8 @@ Analyze whether each package has a clear reason to exist.
 
 Tests
 
+Production code must never exist only to serve tests. Treat as a defect any export, parameter, option, branch, or retained state that was added or widened so a test could reach it: an internal function exported for a spec to import, a dependency parameter whose only non-default value comes from a test, a flag only a test sets, or process-global state nothing but a test reads. These make the signature of production code answer to the test rather than the problem, and they overstate coverage — a unit test calling an exported internal proves the internal works, not that any real caller uses it correctly. Report each instance, and say how the same behavior should be covered through the surface real callers use.
+
 Review the test architecture as well.
 
 Look for:

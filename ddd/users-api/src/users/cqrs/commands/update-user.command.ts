@@ -18,4 +18,13 @@ export class UpdateUserCommand extends createCommand(
       },
     ),
   BaseCommand,
-) {}
+) {
+  /**
+   * Fields governed by field-level authorization.
+   *
+   * Declared rather than derived from the schema: a new schema property must be
+   * added here before CASL is asked about it, so widening the authorization
+   * surface is a deliberate edit and shows up in review.
+   */
+  static readonly MUTABLE_FIELDS = ['username', 'department'] as const;
+}

@@ -1,10 +1,10 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import { OptimisticLockError } from '@mikro-orm/core';
 import { Inject, Injectable } from '@nestjs/common';
 import {
   CACHE_TOKEN,
   Cache,
+  ConcurrencyConflictError,
   EntityNotFoundException,
   filterCacheKey,
   ICache,
@@ -50,8 +50,9 @@ export class DeleteUserCommandRepository extends MikroOrmWriteSideCommandReposit
         { refresh: true },
       );
       if (exists) {
-        throw OptimisticLockError.lockFailedVersionMismatch(
-          user,
+        throw new ConcurrencyConflictError(
+          'User',
+          user.id,
           user.getExpectedVersion(),
           exists.version,
         );

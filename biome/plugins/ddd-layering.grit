@@ -1,0 +1,25 @@
+engine biome(1.0)
+language js(typescript)
+
+// `@nestjs-pipeline/ddd-core` exposes three entry points — `/domain`,
+// `/application` and `/persistence` — so the layering is expressed by the import
+// itself rather than only by convention.
+//
+// Domain and CQRS code may not reach the persistence entry point. It is the only
+// one that touches MikroORM, and a handler that imports from it has taken a
+// dependency on the adapter instead of the port. Repository contracts
+// (`ICommandRepository`, `IQueryRepository`, `IWriteSideAggregateRepository`) are
+// exported from `/application` precisely so handlers never need to.
+//
+// The convenience root barrel also re-exports persistence. Migrating the
+// existing call sites onto the layered entry points is a separate change; until
+// then, flagging every one of them would add ~50 warnings that nobody acts on,
+// which trains people to ignore the output. The hard boundary below is what
+// actually has to hold.
+//
+// Scoped in biome.json to `**/cqrs/**` and `**/domain/**`.
+
+JsImportNamedClause(source=$source) as $clause where {
+  $source <: r".*@nestjs-pipeline/ddd-core/persistence.*",
+  register_diagnostic(span=$clause, message="Domain and CQRS code must not import @nestjs-pipeline/ddd-core/persistence. That entry point holds the MikroORM adapters; depend on the repository ports exported from @nestjs-pipeline/ddd-core/application instead.", severity="error")
+}

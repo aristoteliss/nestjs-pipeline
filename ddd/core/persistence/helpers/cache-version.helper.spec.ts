@@ -95,3 +95,43 @@ describe('isCacheNewer', () => {
     });
   });
 });
+
+/**
+ * Barrier precedence is the writer-side half of the anti-resurrection design.
+ * The reader-side checks in `@FromCache` never engage against a plain snapshot,
+ * so if a write-through may overwrite a barrier the whole mechanism has a hole:
+ * a delete installs a barrier, a slower concurrent update writes its snapshot
+ * over it, and every later read sees an ordinary hit for a row that is gone.
+ */
+describe('isCacheNewer barrier precedence', () => {
+  const barrier = (createdAt: number) => ({
+    __cacheBarrier: true as const,
+    token: `t-${createdAt}`,
+    reason: 'deleted' as const,
+    createdAt,
+  });
+
+  it('keeps a barrier in place against any snapshot, however high its version', () => {
+    expect(isCacheNewer(barrier(1_000), { version: 999_999 })).toBe(true);
+    expect(isCacheNewer(barrier(1_000), { __gen: 999_999 })).toBe(true);
+    expect(
+      isCacheNewer(barrier(1_000), { updatedAt: new Date('2099-01-01') }),
+    ).toBe(true);
+  });
+
+  it('lets a barrier overwrite a cached snapshot', () => {
+    expect(isCacheNewer({ version: 5 }, barrier(1_000))).toBe(false);
+  });
+
+  it('lets a later barrier supersede an earlier one', () => {
+    expect(isCacheNewer(barrier(1_000), barrier(2_000))).toBe(false);
+  });
+
+  it('keeps the existing barrier when a stale one arrives late', () => {
+    expect(isCacheNewer(barrier(2_000), barrier(1_000))).toBe(true);
+  });
+
+  it('keeps the existing barrier for an identical timestamp', () => {
+    expect(isCacheNewer(barrier(1_000), barrier(1_000))).toBe(true);
+  });
+});

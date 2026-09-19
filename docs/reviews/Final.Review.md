@@ -1,5 +1,10 @@
 # Consolidated Architecture & Code Review: `nestjs-pipeline`
 
+> Historical review: findings and proposed snippets describe the snapshot listed
+> below, not the current API. Use canonical package READMEs and source for usage;
+> current dispositions are tracked in [Telikos.Pinakas.md](Telikos.Pinakas.md).
+> Documentation drift is tracked under row 35.
+
 **Document Version:** 1.0 (Final Synthesis)  
 **Date:** September 2026  
 **Target:** `nestjs-pipeline` monorepo (`@nestjs-pipeline/*`, `@nestjs-pipeline/ddd-core`, `@nestjs-pipeline/ddd-users-api`)  

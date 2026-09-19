@@ -28,9 +28,18 @@ describe('Documentation Cache Security Contract (Finding #20)', () => {
     );
   });
 
-  it('documents security scope and request-scoped default cache key contract', () => {
+  it('documents the partitioned cache key contract', () => {
     expect(readmeContent).toContain('Authorization & Cache Security Scope');
-    expect(readmeContent).toContain('defaultCacheKey');
-    expect(readmeContent).toContain('correlationId');
+    expect(readmeContent).toContain('createPartitionedCacheKeyFactory');
+    expect(readmeContent).toContain('MissingCachePartitionError');
+  });
+
+  it('no longer presents a correlation-scoped key as safe by default', () => {
+    // The removed default keyed on correlationId: it could never produce a hit,
+    // and a client can supply its own correlation ID, so it was not an
+    // authorization boundary either.
+    expect(readmeContent).not.toMatch(
+      /`defaultCacheKey\(\)` is safe by default/,
+    );
   });
 });

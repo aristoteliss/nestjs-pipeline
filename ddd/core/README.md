@@ -1,6 +1,8 @@
 # @nestjs-pipeline/ddd-core
 
-Reusable Domain-Driven Design primitives for NestJS applications using `@nestjs-pipeline`.
+Private, Nest-oriented DDD support for the sample applications. Domain, application,
+and MikroORM persistence entry points are provided separately; this is not a
+framework-neutral or independently published domain library.
 
 ## Overview
 
@@ -8,7 +10,7 @@ This package provides the foundational building blocks for implementing a Clean 
 
 ### Domain Primitives
 
-- **`RootEntity<TSnapshot>`** — Abstract base aggregate entity extending `@nestjs/cqrs` `AggregateRoot`. Provides internal uncommitted domain event management (`this.apply(event)`), UUID v7 identity, immutable `createdAt`/`updatedAt` timestamps, accessor mappings (`id`, `createdAt`, `updatedAt`), optimistic concurrency version tracking (`version`, `getExpectedVersion()`), polymorphic snapshot rehydration via `RootEntity.from()` with strict aggregate type safety (throws `TypeError` on incompatible aggregates), and mutation tracking via `onUpdate()`.
+- **`RootEntity<TSnapshot>`** — Abstract base aggregate entity extending `@nestjs/cqrs` `AggregateRoot`. Provides internal uncommitted domain event management (`this.apply(event)`), UUID v7 identity, detached `Date` reads for `createdAt`/`updatedAt` with public setters reserved for persistence hydration, accessor mappings (`id`, `createdAt`, `updatedAt`), optimistic concurrency version tracking (`version`, `getExpectedVersion()`), polymorphic snapshot rehydration via `RootEntity.from()` with strict aggregate type safety (throws `TypeError` on incompatible aggregates), and mutation tracking via `onUpdate()`.
 - **`RootEntitySnapshot`** — Interface defining the serialized state contract (`id`, `createdAt`, `updatedAt`, and optional `version`).
 - **`DomainException`** — Abstract base class for domain invariant failures. Pure TypeScript error class completely decoupled from HTTP status codes and framework decorators.
 - **`DomainEvent`** — Abstract base class for domain events carrying a unique UUID v7 `id` and implementing `@nestjs/cqrs` `IEvent`.
@@ -27,26 +29,26 @@ This package provides the foundational building blocks for implementing a Clean 
 - **`toCacheSnapshot(value, serializeFn?)`** — Shared serialization boundary extracting a pure, detached snapshot via `serializeFn`, `value.toJSON()`, or deep JSON cloning. Guarantees live aggregate references never leak into cache storage.
 - **`ICommandRepository<TEntity, TResult>`** — Interface defining the contract `save(entity: TEntity): Promise<TResult | null>`.
 - **`IWriteSideAggregateRepository<TEntity, TId = string>`** — Single-entity generic interface for write-side repositories extending `ICommandRepository<TEntity, unknown>`, defining `findById(id: TId): Promise<TEntity | null>`. Guarantees command handlers load rehydrated domain aggregates directly from authoritative persistence (`{ refresh: true }`) without leaking snapshot types or ORM clients into handlers.
-- **`CacheMutationBarrier`** — Sentinel record (`{ __cacheBarrier: true, token: string, reason: 'deleted' | 'invalidated', createdAt: number }`) installed in cache during mutations with `ttl: 0` to prevent concurrent in-flight queries from repopulating the cache with stale/resurrected state.
+- **`CacheMutationBarrier`** — Sentinel record (`{ __cacheBarrier: true, token: string, reason: 'deleted' | 'invalidated', createdAt: number }`) installed in cache during mutations with a finite `barrierTtl` (60 seconds by default) to prevent concurrent in-flight queries from repopulating the cache with stale/resurrected state.
 - **`createCacheMutationBarrier(reason, entity?)`** / **`isCacheMutationBarrier(value)`** — Helper factory and type guard for mutation barriers.
 - **`CommandRepository<TEntity, TResult, TCache>`** — Abstract base for write repositories. Injects an `ICache` instance; concrete classes implement `save(entity: TEntity)`.
 - **`QueryRepository<TQuery, TResult>`** — Abstract base for read repositories. Injects an `ICache` instance; concrete classes implement `find(query)`.
 - **`@Cache()`** — Method decorator for `save()` in command repositories:
   - **CAS-Safe Write-Through**: Automatically converts the returned result to a snapshot via `toCacheSnapshot()` and writes to cache using `isCacheNewer` CAS comparator to prevent late-finishing writes from overwriting newer cache entries.
-  - **Anti-Resurrection Eviction**: Installs a `CacheMutationBarrier` sentinel with `{ ttl: 0 }` for keys derived by `deleteKeysFn` when `save()` yields `null` or `undefined` (e.g. on entity deletion).
-  - **Secondary Invalidation**: Installs a `CacheMutationBarrier` sentinel with `{ ttl: 0 }` for auxiliary keys derived by `invalidateKeysFn` on successful writes before setting new values.
+  - **Anti-Resurrection Eviction**: Installs a `CacheMutationBarrier` sentinel with the configured `barrierTtl` for keys derived by `deleteKeys` when `save()` yields `null` or `undefined` (e.g. on entity deletion).
+  - **Secondary Invalidation**: Installs a `CacheMutationBarrier` sentinel with the configured `barrierTtl` for auxiliary keys derived by `invalidateKeys` on successful writes before setting new values.
   - **Best-Effort**: Cache write/delete errors are caught and swallowed so a committed database transaction is never converted into an application error.
 - **`@FromCache()`** — Method decorator for `find()` in query repositories:
   - **Read-Through**: Checks the cache first via `keyFn`; on a cache hit returns the cached value (or automatically rehydrates it into a domain entity if `alwaysHydrate: true` or `query.hydrate` is enabled).
-  - **Anti-Resurrection Coordination**: Coordinates pre- and post-DB barrier validation. When a mutation barrier is detected, it prevents caching stale DB results, verifies barrier token continuity (detecting ABA sequence mutations), and retries boundedly (`MAX_BARRIER_RETRIES = 2`) to ensure queries never resurrect deleted or superseded records.
+  - **Anti-Resurrection Coordination**: Coordinates pre- and post-DB barrier validation. When a mutation barrier is detected, it prevents caching stale DB results, verifies barrier token continuity (detecting ABA sequence mutations), and retries boundedly (`MAX_BARRIER_RETRIES = 2`) to reject stale reads while the mutation barrier is retained.
   - **Enforceable Invariants**: Validates at decoration time that `alwaysHydrate: true` requires a `hydrateFn`, throwing `TypeError` immediately if omitted.
   - **Snapshot Storage Contract**: Stores strictly detached, serializable snapshots (`TSnapshot`), extracting them on cache miss via custom `serializeFn` or `toCacheSnapshot()`. Never caches live aggregate instances.
   - **Strong Consistency on Concurrent Writes**: If a concurrent command writes and caches a newer snapshot during an in-flight DB fetch, `@FromCache` compares snapshots (`newerCheck(current, snapshot)`) and returns the fresher cached snapshot (rehydrated if requested) rather than stale DB data or overwriting cache.
   - **Bounded Negative Cache**: Stores **only non-nullish** results to prevent negative caching of uncreated records.
   - **Fail-Closed**: Cache errors propagate to enforce strong consistency at the query boundary.
-- **`@AcknowledgePersisted()`** — Method decorator for `save()` in command repositories: captures the aggregate's expected version before write execution and automatically calls `entity.acknowledgePersisted(version)` upon successful persistence.
+- **`@AcknowledgePersisted()`** — Method decorator for `save()` in command repositories: captures the aggregate's current entry version before write execution and automatically calls `entity.acknowledgePersisted(version)` upon successful persistence.
 - **`@MapPersistenceErrors()`** — Method decorator for persistence operations: maps identifiable database driver unique constraint failures (PostgreSQL `23505` and SQLite unique constraints) to application-owned domain exceptions.
-- **`optimisticUpdate()`** — Infrastructure helper for MikroORM version-conditioned updates (`WHERE id = ? AND version = expectedVersion`). Inspects affected rows, performs diagnostic existence checks on zero affected rows, and raises `EntityNotFoundException` or `OptimisticLockError`. Explicitly rejects execution inside active outer transactions.
+- **`optimisticUpdate()`** — Infrastructure helper for MikroORM version-conditioned updates (`WHERE id = ? AND version = expectedVersion`). Inspects affected rows, performs diagnostic existence checks on zero affected rows, and raises `EntityNotFoundException` or `ConcurrencyConflictError`. Explicitly rejects execution inside active outer transactions.
 
 ---
 
@@ -169,7 +171,9 @@ export class User extends RootEntity<UserSnapshot> {
 
 Domain events extend `RootDomainEvent<TEntity, TPayload>` (which implements `@nestjs/cqrs` `IEvent`). They carry a unique UUID v7 identifier, a typed reference to the originating aggregate (`event.entity`), and a deeply cloned, recursively frozen state snapshot (`event.payload`) created via `deepCloneAndFreeze()`.
 
-This ensures asynchronous event handlers never suffer from race conditions caused by subsequent in-memory mutations on the entity instance:
+Consumers reading `event.payload` observe the captured snapshot despite later
+aggregate mutations. `event.entity` is a live aggregate reference and does not
+provide that guarantee. Snapshot isolation does not make event delivery durable:
 
 ```typescript
 import { RootDomainEvent } from '@nestjs-pipeline/ddd-core';
@@ -209,239 +213,43 @@ export class SendWelcomeEmailHandler implements IEventHandler<UserCreatedEvent> 
 
 ### 3. CQRS Command Handler with `CommandBaseHandler`
 
-Command handlers extend `CommandBaseHandler`. When `handle()` returns an `AggregateRoot`, `CommandBaseHandler` automatically publishes all uncommitted events to the NestJS `EventBus` and calls `aggregate.uncommit()`:
+Use the compiled sample handlers as the canonical examples:
 
-```typescript
-import { CommandHandler, EventBus } from '@nestjs/cqrs';
-import { CommandBaseHandler, ICommandRepository } from '@nestjs-pipeline/ddd-core';
-import { LoggingBehavior, UsePipeline } from '@nestjs-pipeline/core';
-import { User, UserSnapshot } from './user.entity';
-import { CreateUserCommand } from './create-user.command';
+- [CreateUserHandler](../users-api/src/users/cqrs/commands/create-user.handler.ts)
+  injects an application repository port, authorizes the aggregate, persists it,
+  and returns it. `CommandBaseHandler.execute()` publishes buffered events.
+- [UpdateUserHandler](../users-api/src/users/cqrs/commands/update-user.handler.ts)
+  loads through `IWriteSideAggregateRepository.findById()`, authorizes the real
+  aggregate, and mutates it through its domain method.
 
-@CommandHandler(CreateUserCommand)
-@UsePipeline([LoggingBehavior, { requestResponseLogLevel: 'log' }])
-export class CreateUserHandler extends CommandBaseHandler<CreateUserCommand, User> {
-  constructor(
-    private readonly commandRepository: ICommandRepository<User, UserSnapshot>,
-    protected readonly eventBus: EventBus,
-  ) {
-    super(eventBus);
-  }
-
-  async handle(command: CreateUserCommand): Promise<User> {
-    // 1. Create domain entity (internally applies UserCreatedEvent)
-    const user = User.create(command.username, command.email, command.department);
-
-    // 2. Persist entity state directly (no wrapper outcomes)
-    await this.commandRepository.save(user);
-
-    // 3. Return aggregate root:
-    // CommandBaseHandler automatically calls eventBus.publishAll() and uncommit()!
-    return user;
-  }
-}
-```
-
-> [!IMPORTANT]
-> Command handlers must return the `AggregateRoot` (or an application result containing `aggregate: AggregateRoot`). Event publishing is handled automatically by `CommandBaseHandler.execute()` upon completion—never publish or commit domain events manually inside handlers. Presentation-specific transformations (such as mapping to response DTOs or session cookies) belong in the controller layer via dedicated mappers (e.g. `toSessionRes(result)`).
-
----
+Do not publish events manually or put response/session mapping in these handlers.
 
 ### 4. Write-Side Command Repositories with Lifecycle Decorators
 
-Command repositories receive and persist domain entities directly via `save(entity: TEntity)`.
+The canonical outermost-to-innermost order is `@Cache(...)` →
+`@AcknowledgePersisted(...)` → `@MapPersistenceErrors(...)`:
 
-The lifecycle decorators (`@Cache`, `@AcknowledgePersisted`, and `@MapPersistenceErrors`) synchronize caches, advance version baselines, and map driver constraints declaratively:
+- [Creation repository](../users-api/src/users/persistence/create-user.command-repository.ts)
+- [Update repository](../users-api/src/users/persistence/update-user.command-repository.ts)
+- [Deletion repository](../users-api/src/users/persistence/delete-user.command-repository.ts)
 
-#### Creation Repository (`CreateUserCommandRepository`)
-```typescript
-import { Injectable } from '@nestjs/common';
-import {
-  CommandRepository,
-  Cache,
-  AcknowledgePersisted,
-  MapPersistenceErrors,
-  ICache,
-} from '@nestjs-pipeline/ddd-core';
-import { User, UserSnapshot } from './user.entity';
-import { UniqueEmailException } from './errors/email.exception';
-
-@Injectable()
-export class CreateUserCommandRepository extends CommandRepository<User, UserSnapshot> {
-  constructor(protected readonly cache: ICache<UserSnapshot>, private readonly store: any) {
-    super(cache);
-  }
-
-  @Cache<User, UserSnapshot>(
-    // setKey: caches the newly created aggregate by id
-    (user) => `tenant:user:id:${user.id}`,
-    null,
-    // invalidateKeys: invalidates secondary email lookup so stale/negative cache cannot hide the new record
-    (user) => [`tenant:user:email:${user.email}`],
-  )
-  @AcknowledgePersisted<[User]>({ entity: ([user]) => user })
-  @MapPersistenceErrors<[User], User>({
-    entity: ([user]) => user,
-    unique: [
-      {
-        constraint: 'users_email_unique',
-        columns: 'users.email',
-        error: (user) => new UniqueEmailException(user),
-      },
-    ],
-  })
-  async save(user: User): Promise<UserSnapshot> {
-    const em = this.store.em;
-    const persisted = em.create(User, user);
-    em.persist(persisted);
-    await em.flush();
-    return persisted.toJSON();
-  }
-}
-```
-
-#### Update Repository (`UpdateUserCommandRepository`)
-```typescript
-import { Injectable } from '@nestjs/common';
-import {
-  CommandRepository,
-  Cache,
-  AcknowledgePersisted,
-  MapPersistenceErrors,
-  optimisticUpdate,
-  ICache,
-} from '@nestjs-pipeline/ddd-core';
-import { User, UserSnapshot } from './user.entity';
-
-@Injectable()
-export class UpdateUserCommandRepository extends CommandRepository<User, UserSnapshot> {
-  constructor(protected readonly cache: ICache<UserSnapshot>, private readonly store: any) {
-    super(cache);
-  }
-
-  @Cache<User, UserSnapshot>(
-    // setKey: writes updated snapshot into cache
-    (user) => `tenant:user:id:${user.id}`,
-    null,
-    // invalidateKeys: secondary lookup keys to evict (e.g. by email)
-    (user) => [`tenant:user:email:${user.email}`],
-  )
-  @AcknowledgePersisted<[User]>({ entity: ([user]) => user })
-  @MapPersistenceErrors<[User], User>({
-    entity: ([user]) => user,
-    unique: [],
-  })
-  async save(user: User): Promise<UserSnapshot> {
-    const snapshot = user.toJSON();
-    await optimisticUpdate(
-      this.store.em,
-      User,
-      user,
-      {
-        username: snapshot.username,
-        department: snapshot.department ?? null,
-        updatedAt: snapshot.updatedAt,
-      },
-      'User',
-    );
-    return snapshot;
-  }
-}
-```
-
-#### Deletion Repository (`DeleteUserCommandRepository`)
-```typescript
-import { Injectable } from '@nestjs/common';
-import {
-  CommandRepository,
-  Cache,
-  EntityNotFoundException,
-  ICache,
-} from '@nestjs-pipeline/ddd-core';
-import { OptimisticLockError } from '@mikro-orm/core';
-import { User } from './user.entity';
-
-@Injectable()
-export class DeleteUserCommandRepository extends CommandRepository<User, null> {
-  constructor(protected readonly cache: ICache<unknown>, private readonly store: any) {
-    super(cache);
-  }
-
-  @Cache<User, null>({
-    // deleteKeys: evicts primary and secondary lookup cache keys
-    deleteKeys: (user) => [
-      `tenant:user:id:${user.id}`,
-      `tenant:user:email:${user.email}`,
-    ],
-  })
-  async save(user: User): Promise<null> {
-    const affected = await this.store.em.nativeDelete(User, {
-      id: user.id,
-      version: user.getExpectedVersion(),
-    });
-    if (affected === 0) {
-      const exists = await this.store.em.findOne(User, { id: user.id }, { refresh: true });
-      if (exists) {
-        throw OptimisticLockError.lockFailedVersionMismatch(
-          user,
-          user.getExpectedVersion(),
-          exists.version,
-        );
-      }
-      throw new EntityNotFoundException('User', user.id);
-    }
-    return null;
-  }
-}
-```
-
----
+These source examples compile with the application build. Updates use
+`optimisticUpdate`; deletes condition on ID and expected version and distinguish
+missing records from concurrency conflicts. Successful write resolution must
+mean durable persistence before acknowledgment and cache maintenance run.
 
 ### 5. Read-Side Query Repository with `@FromCache()`
 
-Query repositories handle read-through caching and optional snapshot rehydration:
+[GetUserQueryRepository](../users-api/src/users/persistence/get-user.query-repository.ts)
+returns `Promise<User | null>` and configures `alwaysHydrate: true` with a
+`hydrateFn`. Its cache stores detached serializable snapshots, not aggregates.
+[GetUserHandler](../users-api/src/users/cqrs/queries/get-user.handler.ts) authorizes
+and filters the loaded aggregate before returning a response.
 
-```typescript
-import { Injectable } from '@nestjs/common';
-import { QueryRepository, FromCache, ICache } from '@nestjs-pipeline/ddd-core';
-import { User, UserSnapshot } from './user.entity';
-
-export interface GetUserQuery {
-  readonly userId?: string;
-  readonly email?: string;
-}
-
-@Injectable()
-export class GetUserQueryRepository extends QueryRepository<GetUserQuery, User | null> {
-  constructor(protected readonly cache: ICache<UserSnapshot>, private readonly ormStore: any) {
-    super(cache);
-  }
-
-  @FromCache<GetUserQuery, User | null>({
-    // keyFn: derive cache key from query params, or return null to bypass
-    keyFn: (q) => (q.userId ? `user:id:${q.userId}` : q.email ? `user:email:${q.email}` : null),
-    // hydrateFn: safely transforms cached snapshot into a domain entity via User.fromJSON()
-    hydrateFn: (cached) => User.fromJSON(cached as UserSnapshot),
-    // alwaysHydrate: guarantees the query repository always yields a domain aggregate instance
-    alwaysHydrate: true,
-  })
-  async find(query: GetUserQuery): Promise<User | null> {
-    const em = this.ormStore.getEntityManager();
-    const where = query.userId ? { id: query.userId } : { email: query.email };
-    return em.findOne('User', where);
-  }
-}
-```
-
-#### Snapshot Storage and Ownership Contract
-- **Snapshot Storage Contract**: `@FromCache` ensures that the cache layer (`ICache<TSnapshot>`) stores and returns **only snapshots**, never mutable aggregate instances. On a cache miss, if `find()` returns an aggregate, `@FromCache` automatically extracts its serializable snapshot via `serializeFn` or the entity's `toJSON()` method before saving to cache.
-- **Unambiguous Return Contract (`alwaysHydrate: true`)**: With `alwaysHydrate: true`, `@FromCache` guarantees that `find()` always returns a fully rehydrated domain aggregate (`Promise<User | null>`), eliminating ambiguous union types (`User | UserSnapshot`) from query handlers and callers. Handlers can safely perform authorization and domain calculations on real entities before projecting to response DTOs.
-- **Dynamic Hydration Mode**: If `alwaysHydrate` is omitted, `@FromCache` respects `query.hydrate`: if `query.hydrate` is true, it rehydrates with `hydrateFn`; if false/omitted, it returns the raw `TSnapshot`.
-
-> [!NOTE]
-> `RootEntity.from()` validates aggregate prototype identity at runtime. Attempting to rehydrate a snapshot with an incompatible aggregate class throws an informative `TypeError`, preventing prototype contamination.
-
----
+Cache mutation barriers protect against stale in-flight reads while retained.
+`@Cache` uses a finite `barrierTtl` (60 seconds by default); size it above the
+maximum in-flight read duration. This is a bounded race-protection window, not
+an indefinite tombstone or a durable consistency protocol.
 
 ## Cache Implementations & Options
 
@@ -461,7 +269,7 @@ export interface ICache<T = unknown> {
 }
 ```
 
-In `ddd/users-api`, two production-ready implementations are provided:
+The sample uses two cache implementations:
 - **`MikroOrmCache`**: Database-backed cache entity (`CacheEntry`) storing JSON payloads and Unix expiration timestamps, supporting atomic `isNewer` comparison against existing records.
 - **`MemoryCache`**: Lightweight in-process `Map` cache with TTL and atomic `isNewer` protection, suitable for unit tests and local development.
 
@@ -470,7 +278,9 @@ In `ddd/users-api`, two production-ready implementations are provided:
 ## Peer Dependencies
 
 - `@nestjs-pipeline/core` (workspace)
-- `@mikro-orm/core` (declared dependency, used by persistence helpers and `UnixTimestampType`)
+- `@mikro-orm/core` is an optional peer required by persistence helpers and `UnixTimestampType`.
+  Import `@nestjs-pipeline/ddd-core/domain` or `/application` to avoid loading
+  the persistence entry point; the root barrel also exports persistence.
 
 
 ## Decorated versioned updates
@@ -500,7 +310,7 @@ Apply decorators in this order (outermost first):
 
 `optimisticUpdate(em, entityType, aggregate, data, entityName)` constructs one
 version-conditional update, verifies the affected row count, and raises
-`EntityNotFoundException` or MikroORM `OptimisticLockError` when appropriate.
+`EntityNotFoundException` or framework-neutral `ConcurrencyConflictError` when appropriate.
 It remains an explicit helper because it executes SQL, rather than wrapping
 arbitrary repository logic. It does not cache, acknowledge, or publish events.
 This helper is MikroORM-specific infrastructure within this Nest-oriented support

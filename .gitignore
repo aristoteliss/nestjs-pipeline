@@ -39,3 +39,6 @@ packages/*/COMMERCIAL_LICENSE.txt
 .idea/
 *.swp
 *.swo
+
+# AI assistant workspace (local settings, not part of the project)
+.claude/

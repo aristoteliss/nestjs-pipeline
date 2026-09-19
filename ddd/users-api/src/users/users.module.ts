@@ -13,7 +13,6 @@ import { CreateUserHandler } from './cqrs/commands/create-user.handler';
 import { DeleteUserHandler } from './cqrs/commands/delete-user.handler';
 import { UpdateUserHandler } from './cqrs/commands/update-user.handler';
 import { UserCreatedHandler } from './cqrs/events/user-created.handler';
-import { UserDeletedHandler } from './cqrs/events/user-deleted.handler';
 import { UserUpdatedHandler } from './cqrs/events/user-updated.handler';
 import { GetUserHandler } from './cqrs/queries/get-user.handler';
 import { GetUserContextHandler } from './cqrs/queries/get-user-context.handler';
@@ -85,7 +84,6 @@ import { UpdateUserCommandRepository } from './persistence/update-user.command-r
     // Events
     UserCreatedHandler,
     UserUpdatedHandler,
-    UserDeletedHandler,
 
     // Infrastructure adapters for application event-dispatch ports
     BullMqUserEventDispatcher,

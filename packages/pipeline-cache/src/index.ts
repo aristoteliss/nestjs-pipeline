@@ -12,8 +12,15 @@ export {
 } from './cache.behavior';
 export { CacheModule } from './cache.module';
 export { CACHE_DEFAULT_OPTIONS, PIPELINE_CACHE } from './constants/tokens';
+export {
+  type CachePartitionDimension,
+  MissingCachePartitionError,
+} from './errors/missing-partition.error';
 export { buildCache, buildKeyv } from './helpers/cache-factory';
-export { defaultCacheKey } from './helpers/cache-key';
+export {
+  createPartitionedCacheKeyFactory,
+  type PartitionedCacheKeyOptions,
+} from './helpers/cache-key';
 export type {
   CacheBehaviorOptions,
   CacheCondition,

@@ -45,7 +45,11 @@ export class UpdateUserHandler extends CommandBaseHandler<
       throw new EntityNotFoundException('User', id);
     }
 
-    this.authorizer.authorize('update', user, command.getUpdateFields());
+    this.authorizer.authorize(
+      'update',
+      user,
+      command.getUpdateFields(UpdateUserCommand.MUTABLE_FIELDS),
+    );
     user.update({ username, department });
     await this.commandRepository.save(user);
     return user;

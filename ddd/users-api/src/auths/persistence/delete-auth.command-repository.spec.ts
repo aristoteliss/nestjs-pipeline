@@ -1,7 +1,7 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { type IPipelineContext, pipelineStore } from '@nestjs-pipeline/core';
-import type { ICache } from '@nestjs-pipeline/ddd-core';
+import { DEFAULT_BARRIER_TTL_MS, type ICache } from '@nestjs-pipeline/ddd-core';
 import type { MikroOrmStore } from '@persistence/mikro-orm.store';
 import { describe, expect, it, vi } from 'vitest';
 import { Auth, type AuthSnapshot } from '../domain/models/auth.entity';
@@ -47,7 +47,7 @@ describe('DeleteAuthCommandRepository', () => {
         __cacheBarrier: true,
         reason: 'deleted',
       }),
-      { ttl: 0 },
+      { ttl: DEFAULT_BARRIER_TTL_MS },
     );
   });
 });

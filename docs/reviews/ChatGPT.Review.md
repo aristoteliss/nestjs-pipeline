@@ -1,5 +1,10 @@
 # `nestjs-pipeline` Architecture & Code Review
 
+> Historical review: findings and proposed snippets describe the snapshot listed
+> below, not the current API. Use canonical package READMEs and source for usage;
+> current dispositions are tracked in [Telikos.Pinakas.md](Telikos.Pinakas.md).
+> Documentation drift is tracked under row 35.
+
 **Reviewed snapshot:** `master` @ `ae9f82002e96f291f5fa89331697cb42d15a4764`  
 **Primary lenses:** DDD, Clean Architecture, CQRS, dependency direction, abstraction quality, package boundaries, correctness, maintainability, tests, framework coupling, and long-term evolution.
 

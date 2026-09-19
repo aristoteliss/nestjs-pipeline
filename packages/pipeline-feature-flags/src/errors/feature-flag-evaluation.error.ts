@@ -9,11 +9,19 @@ export class FeatureFlagEvaluationError extends Error {
     public readonly requestName: string,
     public readonly errorCode?: string,
     public readonly providerMessage?: string,
+    /**
+     * The provider error, when one was thrown.
+     *
+     * Reducing it to a message lost the stack and any provider-specific fields,
+     * which is what an operator needs when a flag backend starts failing.
+     */
+    options?: { cause?: unknown },
   ) {
     super(
       `Feature flag "${flag}" could not be evaluated for ${requestName}` +
         (errorCode ? ` (${errorCode})` : '') +
         (providerMessage ? `: ${providerMessage}` : ''),
+      options?.cause !== undefined ? { cause: options.cause } : undefined,
     );
   }
 }

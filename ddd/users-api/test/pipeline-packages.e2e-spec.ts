@@ -517,13 +517,16 @@ describe('pipeline-packages (e2e)', () => {
       ]);
       const matchingJob = jobs.find(
         (j) =>
-          Array.isArray(j.data) &&
-          j.data.some(
+          Array.isArray(j.data?.items) &&
+          j.data.items.some(
             (item: { userId: string }) => item.userId === created.body.id,
           ),
       );
 
       expect(matchingJob).toBeDefined();
+      expect(matchingJob?.data).toMatchObject({
+        correlationId: customCorrId,
+      });
     });
   });
 

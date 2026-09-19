@@ -1,5 +1,10 @@
 # nestjs-pipeline: full package review and implementation blueprint
 
+> Historical review: findings and proposed snippets describe the snapshot listed
+> below, not the current API. Use canonical package READMEs and source for usage;
+> current dispositions are tracked in [Telikos.Pinakas.md](Telikos.Pinakas.md).
+> Documentation drift is tracked under row 35.
+
 **Reviewed:** 2026-09-16  
 **Final baseline:** `db2c2a66692d0d574a5990455d6d8564177f3104`  
 **Scope:** all 12 reusable packages under `packages/*`  

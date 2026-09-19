@@ -47,7 +47,11 @@ export class UpdateRoleHandler extends CommandBaseHandler<
     if (!role) {
       throw new EntityNotFoundException('Role', command.id);
     }
-    this.authorizer.authorize('update', role, command.getUpdateFields());
+    this.authorizer.authorize(
+      'update',
+      role,
+      command.getUpdateFields(UpdateRoleCommand.MUTABLE_FIELDS),
+    );
     role.rename(command.name);
     await this.commandRepository.save(role);
     return role;

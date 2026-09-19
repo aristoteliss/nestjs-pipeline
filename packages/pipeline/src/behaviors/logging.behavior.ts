@@ -116,22 +116,25 @@ export interface LoggingBehaviorOptions {
   redactKeys?: string[];
 
   /**
-   * When `true`, masks the core {@link DEFAULT_REDACT_KEYS} (password, token,
-   * authorization, cookie, API keys, card data, etc.) in request/response
-   * payload logs. Custom {@link redactKeys} are merged on top.
+   * Masks the core {@link DEFAULT_REDACT_KEYS} (password, token, authorization,
+   * cookie, API keys, card data, etc.) in request/response payload logs. Custom
+   * {@link redactKeys} are merged on top.
    *
-   * The default is deliberately `false` so upgrading the package does not alter
-   * existing log payloads or snapshot tests. New applications that opt into
-   * payload logging should normally enable this setting.
+   * Defaults to `true`. It was previously `false` so that upgrading would not
+   * alter existing log payloads or snapshot tests — which weighed a hypothetical
+   * snapshot against credentials in logs. Payloads are excluded by default
+   * anyway, so the cost of this default falls only on callers who deliberately
+   * enabled payload logging, and for them masking is what they want.
    *
-   * @default false
+   * Set it to `false` to log raw payloads, and own that decision explicitly.
    *
-   * @example Recommended payload logging configuration
+   * @default true
+   *
+   * @example Opting out, deliberately
    * ```ts
    * @UsePipeline([LoggingBehavior, {
    *   excludeRequestObj: false,
-   *   excludeResponseObj: false,
-   *   redactSensitiveKeys: true,
+   *   redactSensitiveKeys: false,
    * }])
    * ```
    */
@@ -366,16 +369,17 @@ export class LoggingBehavior implements IPipelineBehavior {
   }
 
   /**
-   * Keeps the historical `Set<string>` sanitizer input when no redaction option
-   * is enabled, preserving existing request/response log output exactly. When a
-   * caller opts into redaction, returns the richer sanitizer configuration.
+   * Builds the sanitizer configuration for payload logging.
+   *
+   * Sensitive keys are masked unless the caller explicitly opted out, in which
+   * case the plain exclusion set is used and payloads are logged verbatim.
    */
   private buildSanitizeOptions(
     options: LoggingBehaviorOptions | undefined,
     excludeKeys: Set<string>,
   ): Set<string> | SanitizeOptions {
     const redactKeys = [
-      ...(options?.redactSensitiveKeys ? DEFAULT_REDACT_KEYS : []),
+      ...(options?.redactSensitiveKeys === false ? [] : DEFAULT_REDACT_KEYS),
       ...(options?.redactKeys ?? []),
     ];
 

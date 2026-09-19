@@ -34,6 +34,13 @@ addPipelineTelemetryAttributes(context, {
 
 For package-to-package integration, keep add-ons independent: they should expose decisions through `PipelineContext`; the application (or a small integration behavior) can translate those decisions into telemetry attributes. Do not make cache/idempotency/feature-flag packages depend on OpenTelemetry.
 
+This means installing the add-ons produces no feature, cache, idempotency,
+rate-limit or dead-letter attributes on its own — the application supplies the
+join. `ddd/users-api/src/infrastructure/behaviors/telemetry-bridge.behavior.ts`
+is a complete reference implementation: register it inside `TraceBehavior` and
+outside the add-ons, annotate on unwind, write nothing for an item that is
+absent, and keep unbounded values such as cache keys out of the attributes.
+
 ## Metrics and cardinality
 
 The package records:

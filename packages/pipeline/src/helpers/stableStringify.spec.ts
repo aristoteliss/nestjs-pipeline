@@ -161,3 +161,56 @@ describe('stableStringify and toStrictJsonValue', () => {
     expect(Object.keys(sorted)).toEqual(['a', 'z']);
   });
 });
+
+/**
+ * `toStrictJsonValue` reports precisely what it rejected. `stableStringify`
+ * caught those errors and replaced them with one generic message, so an operator
+ * debugging a failed cache key or idempotency fingerprint learned nothing about
+ * which field or which constraint had broken.
+ */
+describe('stableStringify failure diagnostics', () => {
+  it.each([
+    [
+      'a cycle',
+      () => {
+        const a: Record<string, unknown> = {};
+        a.self = a;
+        return a;
+      },
+      'Cyclic',
+    ],
+    ['a Map', () => new Map([['a', 1]]), 'supported JSON domain'],
+    [
+      'a non-finite number',
+      () => ({ n: Number.POSITIVE_INFINITY }),
+      'Non-finite',
+    ],
+    [
+      'a symbol-keyed property',
+      () => ({ [Symbol('s')]: 1, a: 1 }),
+      'Symbol-keyed',
+    ],
+  ])(
+    'preserves the precise reason for %s as the cause',
+    (_label, build, expected) => {
+      let thrown: unknown;
+      try {
+        stableStringify(build());
+      } catch (error) {
+        thrown = error;
+      }
+
+      expect(thrown).toBeInstanceOf(TypeError);
+      expect((thrown as Error).message).toContain('acyclic JSON-serializable');
+      const cause = (thrown as { cause?: unknown }).cause;
+      expect(cause).toBeInstanceOf(TypeError);
+      expect((cause as Error).message).toContain(expected);
+    },
+  );
+
+  it('keeps successful output byte-identical', () => {
+    expect(stableStringify({ z: 1, a: { d: 4, c: 3 } })).toBe(
+      '{"a":{"c":3,"d":4},"z":1}',
+    );
+  });
+});

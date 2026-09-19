@@ -267,6 +267,28 @@ describe('ResilienceBehavior', () => {
       ).rejects.toBeInstanceOf(ResilienceConfigurationError);
     });
 
+    it('does not accept retry.isRetryable as the error classifier', async () => {
+      // It used to be resolved as the classifier for the whole policy, so a
+      // predicate named for retries also decided which errors opened the
+      // circuit breaker and which ones the fallback swallowed. `handle` is now
+      // the only classifier, and its absence fails loudly instead.
+      await expect(
+        behavior.handle(
+          makeCtx(
+            {
+              retry: {
+                maxAttempts: 1,
+                replaySafe: true,
+                isRetryable: () => true,
+              },
+            } as ResilienceBehaviorOptions,
+            { requestKind: 'query', requestName: 'GetThingQuery' },
+          ),
+          vi.fn(),
+        ),
+      ).rejects.toBeInstanceOf(ResilienceConfigurationError);
+    });
+
     it('rejects command retry unless replay safety is explicitly acknowledged', async () => {
       await expect(
         behavior.handle(
@@ -335,5 +357,56 @@ describe('ResilienceBehavior', () => {
         ),
       ).rejects.toBeInstanceOf(TaskCancelledError);
     });
+  });
+});
+
+/**
+ * A policy is cached per handler so that circuit-breaker and bulkhead state is
+ * shared across invocations — which is correct. Baking the *first* request's
+ * name into the policy's telemetry callbacks was not: an event handler
+ * registered for several event types then reported the first type forever,
+ * pointing operators at the wrong event during a retry storm.
+ */
+describe('ResilienceBehavior telemetry labels across request types', () => {
+  it('reports the request that is actually retrying, not the first one seen', async () => {
+    const retries: Array<string | undefined> = [];
+    const handlerType = class MultiEventHandler {};
+
+    const behavior = new ResilienceBehavior({
+      handle: () => true,
+      retry: {
+        maxAttempts: 2,
+        replaySafe: true,
+        backoff: { type: 'constant', delay: 0 },
+      },
+      telemetry: {
+        onRetry: (event) => retries.push(event.requestName),
+      },
+    });
+
+    const run = async (requestName: string) => {
+      let attempts = 0;
+      await behavior
+        .handle(
+          {
+            requestName,
+            handlerName: 'MultiEventHandler',
+            handlerType,
+            requestKind: 'event',
+            getBehaviorOptions: () => undefined,
+          } as never,
+          async () => {
+            attempts += 1;
+            if (attempts === 1) throw new Error('transient');
+            return 'ok';
+          },
+        )
+        .catch(() => undefined);
+    };
+
+    await run('OrderPlacedEvent');
+    await run('OrderCancelledEvent');
+
+    expect(retries).toEqual(['OrderPlacedEvent', 'OrderCancelledEvent']);
   });
 });

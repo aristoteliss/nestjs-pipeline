@@ -155,37 +155,65 @@ describe('IdempotencyBehavior', () => {
     expect(replay).toEqual({ completedAt: completedAt.toISOString() });
   });
 
-  it('rejects a non-JSON response and releases the owned claim', async () => {
+  it('retains the owned claim when a successful response cannot be serialized', async () => {
+    // The handler already succeeded, so its side effects have happened. An
+    // earlier revision deleted the claim here, which let the very next retry
+    // repeat them immediately.
     const behavior = new IdempotencyBehavior(store);
 
-    await expect(
-      behavior.handle(
-        withOptions(makeCtx(), byKey),
-        vi.fn().mockResolvedValue(123n),
-      ),
-    ).rejects.toThrow(/JSON-serializable/);
-    expect(await store.get('o1')).toBeUndefined();
+    const error = await behavior
+      .handle(withOptions(makeCtx(), byKey), vi.fn().mockResolvedValue(123n))
+      .then(() => undefined)
+      .catch((thrown: unknown) => thrown);
+
+    expect(error).toBeInstanceOf(IdempotencyCompletionError);
+    expect(error).toMatchObject({
+      executionSucceeded: true,
+      phase: 'snapshot',
+    });
+    expect((error as IdempotencyCompletionError).cause).toBeInstanceOf(
+      TypeError,
+    );
+
+    const retained = await store.get('o1');
+    expect(retained).toMatchObject({ status: 'in_progress' });
   });
 
-  it('rejects responses that native JSON would silently corrupt', async () => {
+  it('blocks an immediate retry after an unserializable success', async () => {
     const behavior = new IdempotencyBehavior(store);
+    const next = vi.fn().mockResolvedValue(123n);
 
     await expect(
-      behavior.handle(
-        withOptions(makeCtx(), byKey),
-        vi.fn().mockResolvedValue(new Map([['id', 1]])),
-      ),
-    ).rejects.toThrow(/JSON-serializable/);
-    expect(await store.get('o1')).toBeUndefined();
+      behavior.handle(withOptions(makeCtx(), byKey), next),
+    ).rejects.toBeInstanceOf(IdempotencyCompletionError);
 
+    // The retry must not reach the handler again while the claim is live.
     await expect(
-      behavior.handle(
-        withOptions(makeCtx(), byKey),
-        vi.fn().mockResolvedValue(new Array(1)),
-      ),
-    ).rejects.toThrow(/JSON-serializable/);
-    expect(await store.get('o1')).toBeUndefined();
+      behavior.handle(withOptions(makeCtx(), byKey), next),
+    ).rejects.toBeInstanceOf(IdempotencyConflictError);
+    expect(next).toHaveBeenCalledTimes(1);
   });
+
+  it.each([
+    ['a Map', () => new Map([['id', 1]])],
+    ['a sparse array', () => new Array(1)],
+  ])(
+    'treats %s that native JSON would silently corrupt as a snapshot failure',
+    async (_label, makeResponse) => {
+      const behavior = new IdempotencyBehavior(store);
+
+      const error = await behavior
+        .handle(
+          withOptions(makeCtx(), byKey),
+          vi.fn().mockResolvedValue(makeResponse()),
+        )
+        .then(() => undefined)
+        .catch((thrown: unknown) => thrown);
+
+      expect(error).toMatchObject({ phase: 'snapshot' });
+      expect(await store.get('o1')).toMatchObject({ status: 'in_progress' });
+    },
+  );
 
   it('rejects reuse of a key by a different request type', async () => {
     const behavior = new IdempotencyBehavior(store);

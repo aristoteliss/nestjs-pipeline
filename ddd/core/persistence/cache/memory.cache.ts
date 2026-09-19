@@ -6,6 +6,12 @@ export const CACHE_TOKEN = Symbol('MemoryCache');
 
 export type MemoryCacheSetOptions = CacheSetOptions;
 
+/**
+ * Upper bound on retained keys. Generous enough not to interfere with normal
+ * repository caching, low enough that a leak cannot consume the heap.
+ */
+export const DEFAULT_MAX_ENTRIES = 10_000;
+
 function detach<T>(value: T): T {
   if (value === undefined || value === null || typeof value !== 'object') {
     return value;
@@ -29,9 +35,35 @@ function detach<T>(value: T): T {
 export class MemoryCache<T> implements ICache<T> {
   private store: Map<string, { value: T; expiresAt?: number }> = new Map();
   private readonly defaultTtlMs: number;
+  private readonly maxEntries: number;
 
-  constructor(options?: { defaultTtlMs?: number }) {
+  constructor(options?: { defaultTtlMs?: number; maxEntries?: number }) {
     this.defaultTtlMs = options?.defaultTtlMs ?? 60_000;
+    this.maxEntries = options?.maxEntries ?? DEFAULT_MAX_ENTRIES;
+  }
+
+  /**
+   * Drops expired entries, then the oldest surviving ones until the store fits.
+   *
+   * Entries were previously only removed when their own key was read again, so a
+   * workload that never re-reads a key — a stream of deletions, each leaving a
+   * mutation barrier — grew the map without bound for the lifetime of the
+   * process. `Map` preserves insertion order, so the oldest keys come first.
+   */
+  private evict(): void {
+    if (this.store.size <= this.maxEntries) return;
+
+    const now = Date.now();
+    for (const [key, entry] of this.store) {
+      if (entry.expiresAt !== undefined && now > entry.expiresAt) {
+        this.store.delete(key);
+      }
+    }
+
+    for (const key of this.store.keys()) {
+      if (this.store.size <= this.maxEntries) break;
+      this.store.delete(key);
+    }
   }
 
   /**
@@ -59,6 +91,7 @@ export class MemoryCache<T> implements ICache<T> {
     const ttl = options?.ttl ?? this.defaultTtlMs;
     const expiresAt = ttl > 0 ? Date.now() + ttl : undefined;
     this.store.set(key, { value: detach(value), expiresAt });
+    this.evict();
   }
 
   /**

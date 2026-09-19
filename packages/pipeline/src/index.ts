@@ -7,6 +7,11 @@ export {
   SET_TENANT_ID,
 } from './constants/pipeline-context.constants';
 export * from './decorators';
+export {
+  ABSENT_SEGMENT,
+  escapeKeySegment,
+  joinKeySegments,
+} from './helpers/key-segment';
 export * from './helpers/safeStringify';
 export * from './helpers/stableStringify';
 export { isUuidV7, uuidv7 } from './helpers/uuidv7';

@@ -404,6 +404,53 @@ describe('PostgresIdempotencyStore', () => {
     expect(values[3]).toBe('replacement-owner');
   });
 
+  describe('lease clock', () => {
+    /**
+     * Expiry used to be computed from the application clock
+     * (`Date.now() + ttlMs`) and compared against the database clock (SQL
+     * `now()`). When the application ran behind the database, a claim was born
+     * already expired and a second execution could take the key while the first
+     * handler was still running — the exact double execution the store exists to
+     * prevent. Running ahead silently extended every lease instead.
+     */
+    it('derives the claim expiry from the database clock, not the application clock', async () => {
+      const query = vi.fn().mockResolvedValue({ rows: [{ key: 'k1' }] });
+      const store = new PostgresIdempotencyStore({ query });
+
+      await store.setIfAbsent('k1', record(), 5000);
+
+      const [sql, values] = query.mock.calls[0];
+      expect(sql).toContain("now() + ($9 || ' milliseconds')::interval");
+      expect(values[8]).toBe('5000');
+      // No application timestamp is sent for the lease.
+      expect(values).not.toContain(new Date(Date.now() + 5000).toISOString());
+    });
+
+    it('derives the completion expiry from the database clock too', async () => {
+      const query = vi.fn().mockResolvedValue({ rows: [{ key: 'k1' }] });
+      const store = new PostgresIdempotencyStore({ query });
+
+      await store.completeIfOwned('k1', 'owner', record(), 5000);
+
+      const [sql, values] = query.mock.calls[0];
+      expect(sql).toContain("now() + ($10 || ' milliseconds')::interval");
+      expect(values[9]).toBe('5000');
+    });
+
+    it.each([0, -1, 1.5, Number.NaN, Number.MAX_SAFE_INTEGER + 1])(
+      'rejects a TTL of %s rather than interpolating it into an interval',
+      async (ttl) => {
+        const store = new PostgresIdempotencyStore({
+          query: vi.fn().mockResolvedValue({ rows: [] }),
+        });
+
+        await expect(
+          store.setIfAbsent('k1', record(), ttl as number),
+        ).rejects.toThrow(TypeError);
+      },
+    );
+  });
+
   it('reports a lost claim when no row is returned', async () => {
     const db: PostgresQueryableLike = {
       query: vi.fn().mockResolvedValue({ rows: [] }),

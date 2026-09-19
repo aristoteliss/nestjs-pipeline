@@ -115,15 +115,12 @@ describe('Biome Grit persistence lifecycle plugin', () => {
     ).toContain('Await optimisticUpdate()');
   });
 
-  it.each(['acknowledgePersisted', 'markPersisted'])(
-    'rejects manual %s',
-    (method) => {
-      expect(
-        lint(valid.replace('return role;', `role.${method}(2); return role;`))
-          .diagnostics,
-      ).toContain('instead of manual acknowledgment');
-    },
-  );
+  it.each(['acknowledgePersisted'])('rejects manual %s', (method) => {
+    expect(
+      lint(valid.replace('return role;', `role.${method}(2); return role;`))
+        .diagnostics,
+    ).toContain('instead of manual acknowledgment');
+  });
 
   it('rejects removal of the migrated save method', () => {
     expect(lint('class UpdateRoleCommandRepository {}').diagnostics).toContain(

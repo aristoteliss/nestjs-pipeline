@@ -119,6 +119,30 @@ function mapRow(key: string, row: PostgresRowLike): IdempotencyRecord {
  * const store = new PostgresIdempotencyStore(pool);
  * ```
  */
+/**
+ * Validates the lease TTL that is interpolated into a PostgreSQL interval.
+ *
+ * Lease expiry is computed by the database (`now() + ttl`) and compared against
+ * the database clock. It used to be computed from the application clock
+ * (`Date.now() + ttlMs`) while being *checked* with SQL `now()`, so the two
+ * clocks had to agree. They frequently do not: an application running behind the
+ * database created claims that were already expired, letting a second execution
+ * reclaim the key while the first handler was still running — the exact double
+ * execution the store exists to prevent. An application ahead of the database
+ * silently extended every lease instead.
+ *
+ * The value is returned as a string because it is concatenated into an interval
+ * literal, so it is validated rather than trusted.
+ */
+function assertLeaseTtl(ttlMs: number): string {
+  if (!Number.isSafeInteger(ttlMs) || ttlMs <= 0) {
+    throw new TypeError(
+      `Idempotency lease TTL must be a positive safe integer in milliseconds, received ${ttlMs}.`,
+    );
+  }
+  return String(ttlMs);
+}
+
 export class PostgresIdempotencyStore implements IdempotencyStore {
   private readonly table: string;
 
@@ -150,7 +174,7 @@ export class PostgresIdempotencyStore implements IdempotencyStore {
     const result = await this.db.query(
       `INSERT INTO ${this.table} AS current_record
          (key, status, request_name, claim_id, fingerprint, response, created_at, completed_at, expires_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, now() + ($9 || ' milliseconds')::interval)
        ON CONFLICT (key) DO UPDATE SET
          status = EXCLUDED.status,
          request_name = EXCLUDED.request_name,
@@ -182,7 +206,7 @@ export class PostgresIdempotencyStore implements IdempotencyStore {
               response = $7,
               created_at = $8,
               completed_at = $9,
-              expires_at = $10
+              expires_at = now() + ($10 || ' milliseconds')::interval
         WHERE key = $1
           AND claim_id = $2
           AND status = 'in_progress'
@@ -198,7 +222,7 @@ export class PostgresIdempotencyStore implements IdempotencyStore {
         record.response === undefined ? null : JSON.stringify(record.response),
         record.createdAt,
         record.completedAt ?? null,
-        new Date(Date.now() + ttlMs).toISOString(),
+        assertLeaseTtl(ttlMs),
       ],
     );
     return result.rows.length > 0;
@@ -256,7 +280,7 @@ export class PostgresIdempotencyStore implements IdempotencyStore {
       record.response === undefined ? null : JSON.stringify(record.response),
       record.createdAt,
       record.completedAt ?? null,
-      new Date(Date.now() + ttlMs).toISOString(),
+      assertLeaseTtl(ttlMs),
     ];
   }
 }

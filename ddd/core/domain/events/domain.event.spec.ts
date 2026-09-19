@@ -1,6 +1,7 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { describe, expect, it } from 'vitest';
+import { RootEntity } from '../models/root.entity';
 import { DomainEvent } from './domain.event';
 import { RootDomainEvent } from './root-domain.event';
 
@@ -238,5 +239,83 @@ describe('DomainEvent & RootDomainEvent', () => {
     expect(event.payload.name).toBe('cycle');
     expect(event.payload.self).toBe(event.payload);
     expect(Object.isFrozen(event.payload)).toBe(true);
+  });
+});
+
+/**
+ * An event states something that already happened, so what a consumer reads
+ * from it must not change afterwards. `payload` is deep-frozen for that reason;
+ * `entity` is the live aggregate and is deprecated in favour of the frozen
+ * payload and the immutable identity scalars.
+ */
+describe('RootDomainEvent aggregate reference', () => {
+  class Thing extends RootEntity<{ id: string; label: string }> {
+    private _label: string;
+
+    constructor(
+      snapshot: { id?: string; label: string } & Record<string, unknown>,
+    ) {
+      super(snapshot as never);
+      this._label = snapshot.label;
+    }
+
+    get label() {
+      return this._label;
+    }
+
+    /** Concrete aggregates declare this accessor for the ORM; mirror them. */
+    get version(): number {
+      return this._version;
+    }
+
+    rename(label: string) {
+      this._label = label;
+    }
+
+    afterUpdate(): void {}
+
+    toJSON() {
+      return this.freezeState({
+        id: this.id,
+        label: this._label,
+        createdAt: this.createdAt,
+        updatedAt: this.updatedAt,
+        version: this.version,
+      }) as never;
+    }
+  }
+
+  class ThingRenamed extends RootDomainEvent<Thing> {
+    constructor(thing: Thing) {
+      super(thing);
+    }
+  }
+
+  it('keeps the payload at the state that raised the event', () => {
+    const thing = new Thing({ label: 'before' });
+    const event = new ThingRenamed(thing);
+
+    thing.rename('after');
+
+    expect((event.payload as { label: string }).label).toBe('before');
+  });
+
+  it('exposes immutable identity scalars so consumers need not touch the aggregate', () => {
+    const thing = new Thing({ label: 'x' });
+    const event = new ThingRenamed(thing);
+
+    expect(event.aggregateId).toBe(thing.id);
+    expect(event.aggregateVersion).toBe(thing.version);
+  });
+
+  it('leaves the aggregate live and mutable, as the command handler still needs it', () => {
+    // Freezing it would break the instance the handler is still working with,
+    // which is why the reference is deprecated rather than frozen.
+    const thing = new Thing({ label: 'before' });
+    const event = new ThingRenamed(thing);
+
+    expect(Object.isFrozen(event.entity)).toBe(false);
+    expect(() => thing.rename('after')).not.toThrow();
+    expect(event.entity).toBe(thing);
   });
 });

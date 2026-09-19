@@ -1,6 +1,7 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import type { IPipelineContext } from '@nestjs-pipeline/core';
+import { type IPipelineContext, joinKeySegments } from '@nestjs-pipeline/core';
+import { MissingRateLimitPartitionError } from '../errors/missing-partition.error';
 import type { RateLimitKeyFactory } from '../interfaces/rate-limit-options.interface';
 
 /**
@@ -17,21 +18,35 @@ export type RateLimitPartitionFactory = (
 /** Options for {@link createPartitionedRateLimitKeyFactory}. */
 export interface PartitionedRateLimitKeyOptions {
   /**
-   * Include `context.tenantId` before the caller partition when one is present.
-   * This prevents the same user/account identifier in two tenants from sharing
-   * a limiter bucket accidentally.
+   * Include `context.tenantId` before the caller partition.
+   *
+   * This prevents the same user/account identifier in two tenants from sharing a
+   * limiter bucket accidentally.
    *
    * @default true
    */
   includeTenant?: boolean;
 
   /**
+   * Whether a missing tenant is an error rather than an omitted segment.
+   *
+   * `includeTenant` answers "should the tenant be part of the key"; this answers
+   * "may it be absent". They were previously one flag, which meant
+   * `includeTenant: true` silently degraded to a tenant-less key whenever tenant
+   * context was missing — the isolation domain simply disappeared from the key.
+   *
+   * Defaults to the value of `includeTenant`: asking for tenant partitioning
+   * implies that a missing tenant is a configuration failure, not a shrug.
+   */
+  requireTenant?: boolean;
+
+  /**
    * Behavior when the partition factory cannot resolve a non-empty identity.
    *
    * - `throw` — fail before consuming the limiter (recommended for per-caller
    *   security limits because silently falling back could merge callers).
-   * - `request` — fall back to the package's historical request-level bucket,
-   *   `context.requestName`.
+   * - `request` — fall back to a bucket shared by every caller of this request
+   *   within the same tenant partition.
    *
    * @default 'throw'
    */
@@ -39,53 +54,36 @@ export interface PartitionedRateLimitKeyOptions {
 }
 
 /**
- * Creates a reusable {@link RateLimitKeyFactory} for per-caller limits without
- * changing the package's existing default key behavior.
+ * Creates a {@link RateLimitKeyFactory} for per-caller limits.
  *
- * `RateLimitBehavior` intentionally keeps `context.requestName` as its default
- * bucket so upgrading this package remains backward-compatible. Applications
- * that actually mean "N requests per user/account" can opt into this helper and
- * make the partition explicit instead of repeatedly hand-building string keys.
+ * Segments are escaped and joined through the core key helper, so two different
+ * tuples can never collapse into one bucket. Previously the parts were joined
+ * with a raw `:`, which made tenant `a:b` + principal `c` indistinguishable from
+ * tenant `a` + principal `b:c` — two unrelated callers sharing one quota.
  *
- * The produced key is:
- *
- * - `<tenantId>:<partition>:<requestName>` when tenant inclusion is enabled and
- *   a tenant exists;
- * - `<partition>:<requestName>` otherwise.
- *
+ * The produced key is `<tenantId>:<partition>:<requestName>` when tenant
+ * inclusion is enabled, `<partition>:<requestName>` otherwise.
  * `RateLimitBehaviorOptions.keyPrefix` is still applied afterwards by
  * `buildRateLimitKey()`, so environment/service prefixes remain orthogonal.
  *
- * @example Per authenticated user, tenant-aware by default
+ * @example Per authenticated user, tenant-aware and fail-closed by default
  * ```ts
  * const perUserKey = createPartitionedRateLimitKeyFactory((ctx) =>
  *   ctx.items.get('currentUserId') as string | undefined,
  * );
  *
- * @UsePipeline([RateLimitBehavior, {
- *   keyFactory: perUserKey,
- *   keyPrefix: 'write-api',
- * }])
+ * @UsePipeline([RateLimitBehavior, { keyFactory: perUserKey, keyPrefix: 'write-api' }])
  * export class CreateOrderHandler {}
  * ```
  *
- * For tenant `acme`, user `u-123`, and `CreateOrderCommand`, the final key is
- * `write-api:acme:u-123:CreateOrderCommand`.
+ * @example Single-tenant deployment — say so explicitly
+ * ```ts
+ * createPartitionedRateLimitKeyFactory(readUserId, { includeTenant: false });
+ * ```
  *
  * @example Account-wide bucket shared by every user in the account
  * ```ts
- * const perAccountKey = createPartitionedRateLimitKeyFactory(
- *   (ctx) => ctx.items.get('accountId') as string | undefined,
- *   { includeTenant: false },
- * );
- * ```
- *
- * @example Optional identity with historical request-bucket fallback
- * ```ts
- * const keyFactory = createPartitionedRateLimitKeyFactory(
- *   (ctx) => ctx.items.get('apiClientId') as string | undefined,
- *   { onMissingPartition: 'request' },
- * );
+ * createPartitionedRateLimitKeyFactory(readAccountId, { includeTenant: true });
  * ```
  */
 export function createPartitionedRateLimitKeyFactory(
@@ -93,23 +91,42 @@ export function createPartitionedRateLimitKeyFactory(
   options: PartitionedRateLimitKeyOptions = {},
 ): RateLimitKeyFactory {
   const includeTenant = options.includeTenant ?? true;
+  const requireTenant = options.requireTenant ?? includeTenant;
   const onMissingPartition = options.onMissingPartition ?? 'throw';
 
   return (context) => {
+    if (requireTenant && !context.tenantId) {
+      throw new MissingRateLimitPartitionError(
+        context.requestName,
+        'tenant',
+        'Set a tenantIdFactory on PipelineModule, or pass requireTenant: false ' +
+          'for a single-tenant deployment.',
+      );
+    }
+
     const resolved = partitionFactory(context);
     const partition = typeof resolved === 'string' ? resolved.trim() : '';
 
     if (!partition) {
-      if (onMissingPartition === 'request') return context.requestName;
-      throw new TypeError(
-        `Rate-limit partition factory returned no identity for ${context.requestName}. ` +
-          "Return a stable caller/account identifier or configure onMissingPartition: 'request'.",
-      );
+      if (onMissingPartition === 'throw') {
+        throw new MissingRateLimitPartitionError(
+          context.requestName,
+          'caller',
+          "Return a stable caller/account identifier, or configure onMissingPartition: 'request'.",
+        );
+      }
+      // Shared bucket, but still inside the tenant partition when one is used,
+      // so an anonymous caller in one tenant cannot exhaust another tenant's quota.
+      return joinKeySegments([
+        ...(includeTenant ? [context.tenantId] : []),
+        context.requestName,
+      ]);
     }
 
-    const parts: string[] = [];
-    if (includeTenant && context.tenantId) parts.push(context.tenantId);
-    parts.push(partition, context.requestName);
-    return parts.join(':');
+    return joinKeySegments([
+      ...(includeTenant ? [context.tenantId] : []),
+      partition,
+      context.requestName,
+    ]);
   };
 }

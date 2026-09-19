@@ -215,7 +215,10 @@ class VersionedQueryRepo {
     },
   ) {}
 
-  @FromCache<{ userId: string }, { id: string; version: number }>({
+  @FromCache<
+    { userId: string } & IQueryOptions,
+    { id: string; version: number }
+  >({
     keyFn: (q) => `user:${q.userId}`,
     ttl: 3000,
   })
@@ -267,7 +270,7 @@ describe('@FromCache with options and concurrency checks', () => {
       constructor(public cache?: ICache) {}
 
       @FromCache<
-        { userId: string },
+        { userId: string } & IQueryOptions,
         { id: string; version: number; hydrated: boolean }
       >({
         keyFn: (q) => `user:${q.userId}`,
@@ -299,13 +302,14 @@ describe('@FromCache with options and concurrency checks', () => {
 
   it('throws TypeError at decoration time when alwaysHydrate is true without hydrateFn', () => {
     expect(() => {
-      class _InvalidRepo {
+      class InvalidRepo {
         @FromCache({
           keyFn: () => 'key',
           alwaysHydrate: true,
         })
         async find() {}
       }
+      return InvalidRepo;
     }).toThrow(new TypeError('FromCache: alwaysHydrate requires a hydrateFn'));
   });
 
@@ -320,7 +324,7 @@ describe('@FromCache with options and concurrency checks', () => {
     class TransformedRepo {
       constructor(public cache?: ICache) {}
 
-      @FromCache<{ id: string }, DomainEntity>({
+      @FromCache<{ id: string } & IQueryOptions, DomainEntity>({
         keyFn: (q) => `transformed:${q.id}`,
         serializeFn: (entity) => ({ id: entity.id, version: entity.sequence }),
         hydrateFn: (snap: any) => new DomainEntity(snap.id, snap.version),
@@ -363,7 +367,7 @@ describe('@FromCache with options and concurrency checks', () => {
     class EntityQueryRepo {
       constructor(public cache?: ICache) {}
 
-      @FromCache<{ id: string }, EntityResult>({
+      @FromCache<{ id: string } & IQueryOptions, EntityResult>({
         keyFn: (q) => `entity:${q.id}`,
       })
       async find(query: { id: string }): Promise<EntityResult> {
@@ -391,7 +395,7 @@ describe('@FromCache with options and concurrency checks', () => {
     class CustomRepo {
       constructor(public cache?: ICache) {}
 
-      @FromCache<{ id: string }, { raw: string }>({
+      @FromCache<{ id: string } & IQueryOptions, { raw: string }>({
         keyFn: (q) => `custom:${q.id}`,
         serializeFn: (res) => ({ transformed: res.raw.toUpperCase() }),
       })

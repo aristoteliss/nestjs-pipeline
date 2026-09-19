@@ -9,7 +9,9 @@ import { DomainEvent } from './domain.event';
  * along with an immutable state payload snapshot captured at event creation time.
  *
  * Capturing an immutable snapshot protects asynchronous event consumers from
- * subsequent in-memory mutations on the aggregate root instance.
+ * subsequent in-memory mutations on the aggregate root instance. That protection
+ * only applies to what a consumer reads from {@link RootDomainEvent.payload};
+ * {@link RootDomainEvent.entity} remains the live aggregate and is deprecated.
  *
  * @typeParam T - The entity (aggregate root) type attached to the event.
  * @typeParam TPayload - The snapshot payload type.
@@ -155,12 +157,48 @@ export class RootDomainEvent<
   T = RootEntity<Partial<RootEntitySnapshot>>,
   TPayload = InferPayload<T>,
 > extends DomainEvent {
+  /**
+   * The originating aggregate instance — **live and mutable**.
+   *
+   * @deprecated Read {@link payload}, or {@link aggregateId} /
+   * {@link aggregateVersion}, instead.
+   *
+   * An event is a statement about something that already happened, so its
+   * contents should not change afterwards. `payload` is deep-frozen for exactly
+   * that reason. This reference is not: an asynchronous consumer reading
+   * `event.entity` observes whatever state the aggregate has reached by the time
+   * the handler runs, not the state that produced the event — and can mutate it
+   * from outside a command handler.
+   *
+   * The reference is kept rather than removed, and the aggregate is deliberately
+   * *not* frozen: freezing it would break the legitimate lifecycle of the
+   * instance the command handler is still working with, and handing back a
+   * frozen plain snapshot typed as the aggregate would be worse still.
+   */
   public readonly entity: T;
+
+  /** Deep-frozen state captured when the event was raised. */
   public readonly payload: Readonly<TPayload>;
+
+  /**
+   * Identity of the aggregate that raised the event.
+   *
+   * An immutable scalar, so a consumer that only needs to know *which* aggregate
+   * changed has no reason to reach for the live instance.
+   */
+  public readonly aggregateId?: string;
+
+  /** Aggregate version at the moment the event was raised. */
+  public readonly aggregateVersion?: number;
 
   protected constructor(entity: T, payload?: TPayload) {
     super();
     this.entity = entity;
+
+    const source = entity as { id?: unknown; version?: unknown } | undefined;
+    this.aggregateId = typeof source?.id === 'string' ? source.id : undefined;
+    this.aggregateVersion =
+      typeof source?.version === 'number' ? source.version : undefined;
     let rawPayload: unknown;
     if (payload !== undefined) {
       rawPayload = payload;

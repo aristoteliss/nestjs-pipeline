@@ -25,9 +25,16 @@ export class CacheManagerAdapter {
   }>();
 
   constructor(private readonly cache: Cache) {
-    for (const store of cache.stores ?? []) {
-      if ('throwOnErrors' in store) store.throwOnErrors = true;
-    }
+    // The store's error behavior is deliberately left alone. `buildCache()` sets
+    // `throwOnErrors` only on the Keyv instances this package creates; a cache or
+    // store handed in by the application belongs to the application, which may be
+    // sharing it with another subsystem. Mutating it here contradicted that
+    // documented ownership contract and changed a shared object's semantics as a
+    // side effect of module initialization.
+    //
+    // Caller-owned stores that swallow backend errors simply produce a cache miss
+    // rather than a thrown error; the event listeners below still surface
+    // whatever the store does report.
     const emitter = cache as unknown as {
       on?: (event: string, listener: (event: unknown) => void) => void;
     };

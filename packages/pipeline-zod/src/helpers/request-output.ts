@@ -20,7 +20,7 @@ export function isPlainRequestOutput(
  */
 export function assertPlainRequestOutput(
   value: unknown,
-  source: 'constructor' | 'behavior',
+  source: 'constructor' | 'parseAsync' | 'behavior',
 ): asserts value is Record<string, unknown> {
   if (isPlainRequestOutput(value)) return;
   throw new TypeError(
