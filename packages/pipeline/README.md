@@ -533,6 +533,7 @@ export class InternalRebuildHandler implements ICommandHandler<InternalRebuildCo
 ```
 
 Key rules:
+- **All behaviors skipped:** The handler runs without creating a new pipeline context. Request-scoped handlers remain isolated when multiple Nest applications share the same handler class, including across application startup and shutdown order.
 - **No relocation:** Skipping one behavior does not shift or reorder the remaining behaviors.
 - **Fail-fast on contradiction:** Declaring both `@SkipPipeline(B)` and `@UsePipeline(B)` (or providing options for `B`) is contradictory configuration and causes bootstrap to fail immediately with an explicit error.
 - **Handler types:** Supported on command, query, and event handlers across singleton and request-scoped lifecycles.

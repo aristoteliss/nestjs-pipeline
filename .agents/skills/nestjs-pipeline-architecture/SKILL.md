@@ -117,7 +117,7 @@ Canonical examples:
 - `role.rename(...)`
 - `role.delete()`
 
-Do not mutate aggregate state from application code using public setters even if a setter exists for hydration/compatibility reasons. Under D-03, aggregate hydration setters (`id`, `createdAt`, `updatedAt`, `version`, `username`, `department`, `name`) exist strictly for MikroORM `accessor: true` hydration and are marked `@internal`/`@deprecated`. Direct assignments in application/CQRS/controllers/services code are forbidden at build time by `biome/plugins/aggregate-identity.grit`.
+Do not mutate aggregate state from application code using public setters even if a setter exists for hydration/compatibility reasons. Aggregate hydration setters (`id`, `createdAt`, `updatedAt`, `version`, `username`, `department`, `name`) exist strictly for MikroORM `accessor: true` hydration and are marked `@internal`/`@deprecated`. `biome/plugins/aggregate-identity.grit` checks known hydration properties on receivers named `user`, `role`, `aggregate`, or `entity` in application layers, including literal bracket writes, compound assignments and updates. It is a syntax-only naming convention: types, aliases, dynamic keys, destructuring and reflection are outside its coverage. Domain-method mutation remains mandatory regardless of lint coverage.
 
 Do not instantiate aggregates in application code with `new Aggregate(snapshot)` merely to trigger a repository operation. Prefer a real domain operation or an explicit application port whose name expresses the intent.
 
@@ -290,7 +290,7 @@ Persistence adapters may observe ORM/driver-specific conflict signals. Repositor
   - On 0 affected rows, runs a refreshed diagnostic read: raises `EntityNotFoundException` if entity is gone, or `ConcurrencyConflictError` if version mismatch.
 - **Deletes**: Execute conditional `nativeDelete(entityType, { id: aggregate.id, version: aggregate.getExpectedVersion() })`.
   - On 0 affected rows, perform a refreshed existence check to raise `EntityNotFoundException` or `ConcurrencyConflictError`.
-- **Lint Enforcement**: Structural correctness and aggregate encapsulation are checked by Biome Grit plugins (`biome/plugins/persistence-lifecycle.grit`, `aggregate-identity.grit`). Run `pnpm lint:persistence` and `pnpm check` to verify.
+- **Lint Enforcement**: Persistence structure and conventional aggregate setter writes are checked by Biome Grit plugins (`biome/plugins/persistence-lifecycle.grit`, `aggregate-identity.grit`). Run `pnpm lint:persistence` and `pnpm check` to verify.
 
 ## Domain model rules
 
