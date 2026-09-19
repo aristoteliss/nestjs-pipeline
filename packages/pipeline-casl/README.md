@@ -29,6 +29,8 @@ moving parts fall into seven groups.
 |--------|------|---------|
 | `CaslBehavior` | class | The pipeline behavior. Resolves the user, builds their ability, stores it on the pipeline context, and enforces the handler's `rules`. |
 | `CaslBehaviorOptions` | interface | Per-handler options passed as the second tuple element of `@UsePipeline([CaslBehavior, { ... }])`. |
+| `authorize` | function | Returns `[CaslBehavior, options]`; requires a permission rule or explicit bypass. |
+| `AuthorizeOptions` | type | Input options for the `authorize(...)` intent builder. |
 
 `CaslBehaviorOptions` fields:
 
@@ -241,30 +243,29 @@ not assume a built-in request path such as `sessionUser`.
 
 ### 3. Declare rules on handlers
 
-Permission requirements are declared inline via `CaslBehaviorOptions.rules` on
-the handler's `@UsePipeline`. This keeps rules co-located with the handler.
+Permission requirements can be declared using the typed `authorize(...)` intent builder or directly via `[CaslBehavior, { ... }]` on the handler's `@UsePipeline`. The builder requires a permission rule or explicit bypass.
 
 ```ts
-import { CaslBehavior } from '@nestjs-pipeline/casl';
+import { authorize } from '@nestjs-pipeline/casl';
 
 // Simple command — user must be able to create Posts
 @CommandHandler(CreatePostCommand)
-@UsePipeline([CaslBehavior, {
-  rules: [{ action: 'create', subject: 'Post' }],
-}])
+@UsePipeline(authorize({ action: 'create', subject: 'Post' }))
 class CreatePostHandler implements ICommandHandler<CreatePostCommand> {
   async execute(command: CreatePostCommand) { /* ... */ }
 }
 
-// Simple query — user must be able to read Posts
+// Simple query — user must be able to read Posts (options object)
 @QueryHandler(GetPostQuery)
-@UsePipeline([CaslBehavior, {
-  rules: [{ action: 'read', subject: 'Post' }],
-}])
+@UsePipeline(authorize({ action: 'read', subject: 'Post' }))
 class GetPostHandler implements IQueryHandler<GetPostQuery> {
   async execute(query: GetPostQuery) { /* ... */ }
 }
 ```
+
+> **Escape hatch:** The raw tuple form `@UsePipeline([CaslBehavior, { rules: [{ action: 'create', subject: 'Post' }] }])` remains fully supported.
+
+`authorize` accepts one `{ action, subject, field? }` requirement or a non-empty `rules` list. Every rule must pass. Check multiple fields with separate rules using `field`. A `prebuiltAbility` supplies permissions but still needs requirements; use `{ skipCheck: true }` explicitly when only building/storing the ability.
 
 <details>
 <summary>Complex rules examples</summary>

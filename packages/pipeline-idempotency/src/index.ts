@@ -17,6 +17,10 @@ export {
 export { IdempotencyConflictFilter } from './filters/idempotency-conflict.filter';
 export { fingerprintValue } from './helpers/fingerprint';
 export {
+  type IdempotencyIntentOptions,
+  idempotent,
+} from './helpers/idempotency.intent';
+export {
   IDEMPOTENCY_KEY_ITEM,
   IDEMPOTENCY_OWNERSHIP_LOST_ITEM,
   IDEMPOTENCY_REPLAYED_ITEM,

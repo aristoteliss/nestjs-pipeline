@@ -1,0 +1,43 @@
+/* Copyright (C) 2026-present Aristotelis — see repository license. */
+
+import {
+  getBehaviorId,
+  PIPELINE_BEHAVIORS_OPTIONS_METADATA,
+  UsePipeline,
+} from '@nestjs-pipeline/core';
+import { describe, expect, expectTypeOf, it } from 'vitest';
+import { RateLimitBehavior } from '../rate-limit.behavior';
+import { type RateLimitIntentOptions, rateLimit } from './rate-limit.intent';
+
+describe('rateLimit intent', () => {
+  it('preserves the key factory in handler metadata', () => {
+    const factory = () => 'tenant:principal:operation';
+    @UsePipeline(rateLimit({ keyFactory: factory }))
+    class Handler {}
+    const options = Reflect.getMetadata(
+      PIPELINE_BEHAVIORS_OPTIONS_METADATA,
+      Handler,
+    );
+    expect(options.get(getBehaviorId(RateLimitBehavior))).toEqual({
+      keyFactory: factory,
+    });
+  });
+
+  it('leaves the module key unset when inheritance is explicit', () => {
+    expect(rateLimit({ inheritModuleKey: true })[1]).toEqual({});
+  });
+
+  it('requires a factory or explicit inheritance at compile time', () => {
+    expectTypeOf<object>().not.toExtend<RateLimitIntentOptions>();
+    expectTypeOf<{
+      keyFactory: string;
+    }>().not.toExtend<RateLimitIntentOptions>();
+    expectTypeOf<{
+      inheritModuleKey: false;
+    }>().not.toExtend<RateLimitIntentOptions>();
+    expectTypeOf<{
+      keyFactory: () => string;
+      inheritModuleKey: true;
+    }>().not.toExtend<RateLimitIntentOptions>();
+  });
+});

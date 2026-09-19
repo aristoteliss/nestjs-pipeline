@@ -99,10 +99,10 @@ The handler still performs entity and field authorization on cache misses.
 ```ts
 import { QueryHandler, type IQueryHandler } from '@nestjs/cqrs';
 import { UsePipeline } from '@nestjs-pipeline/core';
-import { CacheBehavior, createPartitionedCacheKeyFactory } from '@nestjs-pipeline/cache';
+import { cache, createPartitionedCacheKeyFactory } from '@nestjs-pipeline/cache';
 
 @QueryHandler(GetUserQuery)
-@UsePipeline([CacheBehavior, {
+@UsePipeline(cache({
   ttl: 60_000,
   key: createPartitionedCacheKeyFactory({
     principal: (ctx) => ctx.items.get('currentUserId') as string | undefined,
@@ -114,13 +114,16 @@ import { CacheBehavior, createPartitionedCacheKeyFactory } from '@nestjs-pipelin
       return scope;
     },
   }),
-}])
+}))
 export class GetUserHandler implements IQueryHandler<GetUserQuery> {
   async execute(query: GetUserQuery) {
     // ...expensive read; result cached for 60s
   }
 }
 ```
+
+> Use `cache({ inheritModuleKey: true })` only when the module supplies the key factory.
+> The raw tuple form `@UsePipeline([CacheBehavior, { ... }])` remains supported as an escape hatch.
 
 ---
 
@@ -376,6 +379,7 @@ Exported as unique `Symbol` constants (`CACHE_HIT_ITEM` and `CACHE_KEY_ITEM`) to
 import {
   CacheModule,
   CacheBehavior,
+  cache,
   CACHE_DEFAULT_OPTIONS,
   PIPELINE_CACHE,
   CACHE_HIT_ITEM,
@@ -387,6 +391,7 @@ import {
   stableStringify,
   type CacheModuleOptions,
   type CacheBehaviorOptions,
+  type CacheIntentOptions,
   type CacheStoreConfig,
   type CacheStoreType,
   type CacheKeyFactory,

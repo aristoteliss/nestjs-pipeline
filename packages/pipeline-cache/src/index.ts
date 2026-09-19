@@ -16,6 +16,10 @@ export {
   type CachePartitionDimension,
   MissingCachePartitionError,
 } from './errors/missing-partition.error';
+export {
+  type CacheIntentOptions,
+  cache,
+} from './helpers/cache.intent';
 export { buildCache, buildKeyv } from './helpers/cache-factory';
 export {
   createPartitionedCacheKeyFactory,

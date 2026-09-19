@@ -668,7 +668,7 @@ export class PipelineBootstrapService
         const id = getBehaviorId(type);
         if (Array.isArray(entry)) {
           // Later matching configuration supplies the effective options.
-          globalOptions.set(id, entry[1]);
+          globalOptions.set(id, entry[1] as Record<string, unknown>);
         }
         // A bare duplicate only ensures inclusion. It must not erase options
         // supplied by a tuple in another matching global configuration.

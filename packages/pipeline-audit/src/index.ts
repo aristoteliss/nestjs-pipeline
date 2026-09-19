@@ -12,6 +12,10 @@ export {
   AUDIT_SEVERITY,
   AUDIT_SINK,
 } from './constants/tokens';
+export {
+  type AuditIntentOptions,
+  audit,
+} from './helpers/audit.intent';
 export type { BuildAuditRecordInput } from './helpers/build-record';
 export { buildAuditRecord } from './helpers/build-record';
 export {

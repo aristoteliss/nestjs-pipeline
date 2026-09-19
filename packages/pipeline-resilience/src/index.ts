@@ -19,6 +19,10 @@ export {
   buildResiliencePolicy,
   type PolicyBuildContext,
 } from './helpers/policy-factory';
+export {
+  type ResilienceIntentOptions,
+  resilience,
+} from './helpers/resilience.intent';
 export { getResilienceAbortSignal } from './helpers/resilience-context';
 export type {
   BreakerStrategy,

@@ -1,6 +1,6 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import { describe, expect, it } from 'vitest';
+import { describe, expect, expectTypeOf, it } from 'vitest';
 import {
   type BehaviorId,
   getBehaviorId,
@@ -8,6 +8,7 @@ import {
   PIPELINE_BEHAVIORS_METADATA,
   PIPELINE_BEHAVIORS_OPTIONS_METADATA,
   PIPELINE_SKIPPED_BEHAVIORS_METADATA,
+  type PipelineBehaviorEntry,
   SkipPipeline,
   UsePipeline,
 } from '../decorators/pipeline.decorator';
@@ -229,4 +230,23 @@ describe('@SkipPipeline decorator', () => {
     );
     expect(skipped).toEqual([BehaviorB, BehaviorA]);
   });
+});
+
+it('rejects primitive options while accepting typed interfaces', () => {
+  interface Options {
+    action: string;
+  }
+  expectTypeOf<[typeof BehaviorA, Options]>().toExtend<PipelineBehaviorEntry>();
+  expectTypeOf<
+    [typeof BehaviorA, number]
+  >().not.toExtend<PipelineBehaviorEntry>();
+  expectTypeOf<
+    [typeof BehaviorA, string]
+  >().not.toExtend<PipelineBehaviorEntry>();
+  expectTypeOf<
+    [typeof BehaviorA, null]
+  >().not.toExtend<PipelineBehaviorEntry>();
+  expectTypeOf<
+    [typeof BehaviorA, undefined]
+  >().not.toExtend<PipelineBehaviorEntry>();
 });
