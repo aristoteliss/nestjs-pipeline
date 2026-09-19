@@ -362,3 +362,96 @@ describe('FeatureFlagBehavior', () => {
     });
   });
 });
+
+/**
+ * With `errorPolicy: 'throw'` the evaluation used to throw from inside
+ * `evaluate()`, before `handle()` wrote `FEATURE_FLAG_DECISION_ITEM`. An outer
+ * audit or telemetry behavior was therefore blind in exactly the case it most
+ * needs to record, and the provider error was reduced to a message.
+ */
+describe('FeatureFlagBehavior decision record on evaluation failure', () => {
+  const flag = 'checkout-v2';
+
+  function contextFor(errorPolicy: 'throw' | 'use-default') {
+    const items = new Map<string | symbol, unknown>();
+    return {
+      items,
+      requestName: 'CheckoutCommand',
+      handlerName: 'CheckoutHandler',
+      requestKind: 'command',
+      request: {},
+      getBehaviorOptions: () => ({ flag, errorPolicy }),
+    } as unknown as IPipelineContext;
+  }
+
+  it('publishes the decision before throwing, and preserves the provider cause', async () => {
+    const providerError = new Error('flag backend unreachable');
+    const behavior = new FeatureFlagBehavior({
+      getBooleanDetails: vi.fn().mockRejectedValue(providerError),
+    } as never);
+    const context = contextFor('throw');
+
+    const thrown = await behavior
+      .handle(context, vi.fn())
+      .then(() => undefined)
+      .catch((error: unknown) => error);
+
+    expect(thrown).toBeInstanceOf(FeatureFlagEvaluationError);
+    expect((thrown as FeatureFlagEvaluationError).cause).toBe(providerError);
+
+    const decision = context.items.get(FEATURE_FLAG_DECISION_ITEM);
+    expect(decision).toMatchObject({
+      flagKey: flag,
+      enabled: false,
+      reason: 'ERROR',
+      errorMessage: 'flag backend unreachable',
+    });
+  });
+
+  it('publishes the decision for a provider-reported error code too', async () => {
+    const behavior = new FeatureFlagBehavior({
+      getBooleanDetails: vi.fn().mockResolvedValue({
+        value: false,
+        reason: 'ERROR',
+        errorCode: 'PROVIDER_NOT_READY',
+        errorMessage: 'not ready',
+      }),
+    } as never);
+    const context = contextFor('throw');
+
+    await expect(behavior.handle(context, vi.fn())).rejects.toBeInstanceOf(
+      FeatureFlagEvaluationError,
+    );
+    expect(context.items.get(FEATURE_FLAG_DECISION_ITEM)).toMatchObject({
+      errorCode: 'PROVIDER_NOT_READY',
+    });
+  });
+
+  it('never runs the handler under the strict policy', async () => {
+    const next = vi.fn();
+    const behavior = new FeatureFlagBehavior({
+      getBooleanDetails: vi.fn().mockRejectedValue(new Error('down')),
+    } as never);
+
+    await expect(
+      behavior.handle(contextFor('throw'), next),
+    ).rejects.toBeInstanceOf(FeatureFlagEvaluationError);
+    expect(next).not.toHaveBeenCalled();
+  });
+
+  it('still recovers with the default value under use-default', async () => {
+    const next = vi.fn().mockResolvedValue('ran');
+    const behavior = new FeatureFlagBehavior({
+      getBooleanDetails: vi.fn().mockRejectedValue(new Error('down')),
+    } as never);
+    const context = contextFor('use-default');
+
+    await expect(behavior.handle(context, next)).rejects.toBeInstanceOf(
+      FeatureDisabledError,
+    );
+    expect(context.items.get(FEATURE_FLAG_DECISION_ITEM)).toMatchObject({
+      enabled: false,
+      reason: 'ERROR',
+    });
+  });
+});

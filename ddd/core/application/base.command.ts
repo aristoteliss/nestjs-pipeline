@@ -5,8 +5,9 @@ import type { ICommand } from '@nestjs/cqrs';
 /**
  * Base class for application CQRS commands.
  *
- * Encapsulates non-enumerable session/authentication metadata and provides
- * dynamic introspection of payload fields targeted for update via {@link getUpdateFields}.
+ * Encapsulates non-enumerable session/authentication metadata and reports which
+ * of a declared set of fields this command actually carries, via
+ * {@link getUpdateFields}.
  */
 // biome-ignore lint/suspicious/noExplicitAny: generic session user default
 export abstract class BaseCommand<TSessionUser = any> implements ICommand {
@@ -22,18 +23,25 @@ export abstract class BaseCommand<TSessionUser = any> implements ICommand {
   }
 
   /**
-   * Returns the names of all payload fields explicitly provided in this command,
-   * excluding identifier and metadata keys.
+   * Returns which of `mutableFields` this command actually carries.
    *
-   * @param exclude - Array of property keys to exclude (defaults to `['id']`).
-   * @returns Array of field names targeted for mutation.
+   * The caller states the field set. It used to be derived from
+   * `Object.keys(this)` minus an exclude list, which meant the field-level
+   * authorization surface was whatever the schema happened to contain: adding a
+   * property to a command's Zod schema silently added a field that CASL was
+   * asked to authorize, and removing one silently stopped a check without any
+   * rule changing. Declaring the set makes that an edit someone has to make.
+   *
+   * A field is reported only when its value is not `undefined`, so an optional
+   * property the caller omitted is not authorized as if it were being written.
+   * `null` counts as provided — clearing a field is a mutation.
+   *
+   * @param mutableFields - The fields subject to field-level authorization.
+   * @returns Those of them present on this command.
    */
-  getUpdateFields(exclude: string[] = ['id']): string[] {
-    const excluded = new Set(exclude);
-    return Object.keys(this).filter(
-      (key) =>
-        !excluded.has(key) &&
-        (this as Record<string, unknown>)[key] !== undefined,
+  getUpdateFields(mutableFields: readonly string[]): string[] {
+    return mutableFields.filter(
+      (field) => (this as Record<string, unknown>)[field] !== undefined,
     );
   }
 }

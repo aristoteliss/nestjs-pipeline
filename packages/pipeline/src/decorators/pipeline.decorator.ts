@@ -25,41 +25,43 @@ export const PIPELINE_BEHAVIORS_OPTIONS_METADATA = Symbol(
  *
  * When absent, `cls.name` is used as the fallback identity.
  */
-export const PIPELINE_BEHAVIOR_ID = Symbol('PIPELINE_BEHAVIOR_ID');
+export const PIPELINE_BEHAVIOR_ID = Symbol.for(
+  '@nestjs-pipeline/core:PIPELINE_BEHAVIOR_ID',
+);
 
 /**
- * Returns the stable deduplication key for a behavior class.
- * Prefers the explicit `PIPELINE_BEHAVIOR_ID` symbol, falls back to `cls.name`.
- */
-export function getBehaviorId(cls: Type<IPipelineBehavior>): string {
-  return (untyped(cls)[PIPELINE_BEHAVIOR_ID] as string) ?? cls.name;
-}
-
-/**
- * Legacy diagnostic registry populated at decoration time.
- * Maps handler class name → Map<behaviorName, options>. It is not used for
- * pipeline execution; bootstrap reads reflection metadata from discovered CQRS
- * handlers. Class-name collisions can overwrite entries, so consumers must not
- * treat this map as authoritative.
+ * Identity of a behavior for deduplication and option lookup.
  *
- * @deprecated Read handler reflection metadata directly when possible.
+ * Either the constructor itself — the default, and exact — or the string a class
+ * opted into through {@link PIPELINE_BEHAVIOR_ID}.
  */
-export const PIPELINE_OPTIONS_REGISTRY = new Map<
-  string,
-  Map<string, Record<string, unknown>>
->();
+export type BehaviorId = string | Type<IPipelineBehavior>;
 
 /**
- * Clears the static options registry. Useful in test teardown to prevent
- * stale entries from leaking across test suites (watch mode, module reloads).
+ * Returns the deduplication key for a behavior class.
  *
- * @example
+ * The default is the constructor reference. Class names are not unique: two
+ * modules can each export a `LoggingBehavior`, and keying on the name made the
+ * pipeline treat them as the same behavior — running only one of them and
+ * applying the other's options. When one of the two is a security guard, that is
+ * a guard silently dropped from the chain.
+ *
+ * A class that genuinely needs to be recognized across two loaded copies of its
+ * own package — a monorepo double-load, or two versions resolved side by side —
+ * opts in by declaring a stable string:
+ *
  * ```ts
- * afterEach(() => clearPipelineOptionsRegistry());
+ * class LoggingBehavior {
+ *   static readonly [PIPELINE_BEHAVIOR_ID] = 'my-package:LoggingBehavior';
+ * }
  * ```
+ *
+ * The key symbol is registered through `Symbol.for`, so two copies of this
+ * package agree on it; a plain `Symbol()` would not, which would have defeated
+ * the very cross-copy case the opt-in exists for.
  */
-export function clearPipelineOptionsRegistry(): void {
-  PIPELINE_OPTIONS_REGISTRY.clear();
+export function getBehaviorId(cls: Type<IPipelineBehavior>): BehaviorId {
+  return (untyped(cls)[PIPELINE_BEHAVIOR_ID] as string | undefined) ?? cls;
 }
 
 /**
@@ -99,7 +101,7 @@ export function UsePipeline(
 ): ClassDecorator {
   return (target) => {
     const behaviors: Type<IPipelineBehavior>[] = [];
-    const options = new Map<string, Record<string, unknown>>();
+    const options = new Map<BehaviorId, Record<string, unknown>>();
 
     for (const entry of entries) {
       if (Array.isArray(entry)) {
@@ -116,9 +118,5 @@ export function UsePipeline(
       options,
       target,
     );
-
-    if (options.size > 0) {
-      PIPELINE_OPTIONS_REGISTRY.set(target.name, options);
-    }
   };
 }

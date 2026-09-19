@@ -92,13 +92,29 @@ The `behaviors` option above registers `CacheBehavior` with Nest DI; it does not
 
 ### 3. Configure per handler
 
+This protected-query fragment assumes an outer context resolver supplies
+`tenantId`, `currentUserId`, and `capabilityVersion` before caching runs.
+The handler still performs entity and field authorization on cache misses.
+
 ```ts
 import { QueryHandler, type IQueryHandler } from '@nestjs/cqrs';
 import { UsePipeline } from '@nestjs-pipeline/core';
-import { CacheBehavior } from '@nestjs-pipeline/cache';
+import { CacheBehavior, createPartitionedCacheKeyFactory } from '@nestjs-pipeline/cache';
 
 @QueryHandler(GetUserQuery)
-@UsePipeline([CacheBehavior, { ttl: 60_000 }])
+@UsePipeline([CacheBehavior, {
+  ttl: 60_000,
+  key: createPartitionedCacheKeyFactory({
+    principal: (ctx) => ctx.items.get('currentUserId') as string | undefined,
+    scope: (ctx) => {
+      const scope = ctx.items.get('capabilityVersion');
+      if (typeof scope !== 'string' || !scope.trim()) {
+        throw new Error('Missing capability version');
+      }
+      return scope;
+    },
+  }),
+}])
 export class GetUserHandler implements IQueryHandler<GetUserQuery> {
   async execute(query: GetUserQuery) {
     // ...expensive read; result cached for 60s
@@ -213,6 +229,11 @@ side effect nested after the cache behavior.
 
 ### Store errors
 
+Declaratively created stores use `throwOnErrors: true`. Pre-built `cache` and
+`stores` remain caller-owned and are passed through without changing their error
+settings. The behavior can handle only failures those implementations surface;
+it cannot detect backend errors they swallow.
+
 `CacheBehavior` owns a consistent failure policy independently of the injected
 `cache-manager` or custom cache implementation. By default, `failOpen: true`:
 
@@ -228,22 +249,63 @@ key factory, or downstream handler are always propagated unchanged.
 
 ### Cache keys
 
-The default key is `` `${context.correlationId}:${requestName}:${stableStringify(request)}` `` (prefixed with `` `${context.tenantId}:` `` when `context.tenantId` is defined), where
-`stableStringify` sorts object keys recursively so structurally equal payloads
-always map to the same entry. It accepts `null`, booleans, finite numbers,
-strings, arrays, record-like objects, and valid dates (converted to ISO strings).
-Lossy native JSON cases such as `Map`, `Set`, `RegExp`, `Error`, binary values,
-non-finite numbers, `undefined`, bigint, functions, symbols, and cycles are
-rejected instead of risking a collision. Provide a `key` factory to customize
-the supported domain when needed.
+The helper emits `cache:v3:<tenant>:<principal>:<scope>:<requestName>:<sha256>`,
+with escaped segments and the absent-segment encoding supplied by core
+`joinKeySegments`. Treat the generated key as opaque. Changing from older
+formats causes a cold cache; let old entries expire or remove their namespace.
 
-By default, the cache key is request-scoped via `context.correlationId` to
-prevent cached query responses from one principal/request from inadvertently
-replaying into a different authorization context. Cache hits return before the
-handler runs. If an application requires cross-request / shared caching, provide
-an explicit `key` factory in `CacheBehaviorOptions.key` that includes every
-dimension capable of changing the returned data or authorization outcome (such as
-tenant, principal ID, and effective role/permission scope).
+`key` is **required**. There is deliberately no default.
+
+The previous default embedded `context.correlationId`, which is unique per
+request. That made the cache write an entry for every query and never read one
+back — two extra round-trips and unbounded store growth for a zero percent hit
+rate. It was not an authorization boundary either: a client can send its own
+correlation ID, and nested executions deliberately inherit one.
+
+Use `createPartitionedCacheKeyFactory`. It partitions every dimension that can
+change an authorized response, escapes each segment so `a:b` + `c` cannot collide
+with `a` + `b:c`, and fails closed with `MissingCachePartitionError` when a
+required dimension is absent:
+
+```typescript
+import { createPartitionedCacheKeyFactory } from '@nestjs-pipeline/cache';
+
+@UsePipeline([CacheBehavior, {
+  key: createPartitionedCacheKeyFactory({
+    principal: (ctx) => ctx.items.get('currentUserId') as string | undefined,
+    // Include a role-set hash or capability version, otherwise a principal whose
+    // permissions were revoked keeps reading the old response until it expires.
+    scope: (ctx) => ctx.items.get('capabilityVersion') as string | undefined,
+  }),
+}])
+export class GetUsersHandler {}
+```
+
+For genuinely public responses that are identical for every caller:
+
+```typescript
+createPartitionedCacheKeyFactory({
+  principal: () => 'public',
+  requirePrincipal: false,
+  requireTenant: false,
+});
+```
+
+The request payload is included as a SHA-256 digest, so secrets and search terms
+stay out of Redis key listings. The digest is built with `stableStringify`, which
+sorts object keys recursively so structurally equal payloads map to the same
+entry. It accepts `null`, booleans, finite numbers, strings, arrays, record-like
+objects, and valid dates (converted to ISO strings). Lossy native JSON cases such
+as `Map`, `Set`, `RegExp`, `Error`, binary values, non-finite numbers,
+`undefined`, bigint, functions, symbols, and cycles are rejected instead of
+risking a collision.
+
+Because a cache hit returns before the handler runs, it also skips whatever
+entity-level authorization and field filtering the handler performs. That is why
+tenant and principal are required by the helper by default. The `scope` resolver
+is optional in the API; supply and validate a permission fingerprint whenever
+authorization changes can change the response. Missing scope is not rejected by
+the helper.
 
 ### Options resolution
 
@@ -287,7 +349,7 @@ Exported as unique `Symbol` constants (`CACHE_HIT_ITEM` and `CACHE_KEY_ITEM`) to
 | ----- | ---- | ------- | ----------- |
 | `kinds` | `Array<'command' \| 'query' \| 'event' \| 'unknown'>` | `['query']` | Request kinds eligible for caching. |
 | `ttl` | `number` | module `ttl` | TTL (ms) for entries written by this handler. |
-| `key` | `(context) => string` | `requestName:stableStringify(request)` | Custom cache-key factory. |
+| `key` | `(context) => string` | Required | Explicit cache-key factory; use `createPartitionedCacheKeyFactory` for protected responses. |
 | `condition` | `(context) => boolean` | _always_ | Gate whether a request is cached. |
 | `failOpen` | `boolean` | `true` | Log and bypass thrown cache read/write errors; set `false` to propagate them. |
 
@@ -321,7 +383,8 @@ import {
   CACHE_KEY_ITEM,
   buildCache,
   buildKeyv,
-  defaultCacheKey,
+  createPartitionedCacheKeyFactory,
+  MissingCachePartitionError,
   stableStringify,
   type CacheModuleOptions,
   type CacheBehaviorOptions,
@@ -329,6 +392,7 @@ import {
   type CacheStoreType,
   type CacheKeyFactory,
   type CacheCondition,
+  type PartitionedCacheKeyOptions,
 } from '@nestjs-pipeline/cache';
 ```
 

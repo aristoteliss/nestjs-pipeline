@@ -12,7 +12,7 @@ import {
 } from '@nestjs/common';
 import { type ContextId, ContextIdFactory, ModuleRef } from '@nestjs/core';
 import { InstanceWrapper } from '@nestjs/core/injector/instance-wrapper';
-import * as cqrs from '@nestjs/cqrs';
+import { AsyncContext } from '@nestjs/cqrs';
 import { ExplorerService } from '@nestjs/cqrs/dist/services/explorer.service';
 import {
   pipelineStore,
@@ -22,6 +22,7 @@ import {
   SET_TENANT_ID,
 } from '../constants/pipeline-context.constants';
 import {
+  type BehaviorId,
   getBehaviorId,
   PIPELINE_BEHAVIORS_METADATA,
   PIPELINE_BEHAVIORS_OPTIONS_METADATA,
@@ -40,12 +41,6 @@ import {
 import { PipelineContext } from '../pipeline.context';
 import { untyped } from '../types/safe-typing';
 
-type CqrsWithOptionalAsyncContext = {
-  AsyncContext?: {
-    of?(target: object): { id: ContextId } | undefined;
-  };
-};
-
 type PipelineRunner = (self: unknown, request: unknown) => Promise<unknown>;
 
 interface PrototypeMethodEntry {
@@ -60,21 +55,14 @@ const prototypeRegistry = new WeakMap<
 const instanceRunnerMap = new WeakMap<object, PipelineRunner>();
 
 /**
- * Reads the CQRS async context when the installed CQRS version supports it.
- * `AsyncContext` was added after CQRS 10, which remains a supported peer.
+ * Logger for the shared prototype dispatcher.
  *
- * @internal Exported only so the compatibility branch can be unit tested.
+ * The dispatcher is installed on a prototype and outlives any single
+ * `PipelineBootstrapService`, so it cannot use that instance's logger.
  */
-export function getAttachedCqrsContextId(
-  target: object,
-  cqrsModule: unknown = cqrs,
-): ContextId | undefined {
-  const asyncContext = (cqrsModule as CqrsWithOptionalAsyncContext)
-    .AsyncContext;
-  return typeof asyncContext?.of === 'function'
-    ? asyncContext.of(target)?.id
-    : undefined;
-}
+const bootstrapLogger = new Logger('PipelineBootstrapService', {
+  timestamp: true,
+});
 
 /**
  * At application bootstrap, this service:
@@ -97,6 +85,30 @@ export function getAttachedCqrsContextId(
  *   - Event handlers    → wraps `handle(event)`
  *   - Scoped handlers   → wraps `prototype[method]` so per-request instances inherit it
  */
+/**
+ * Whether a `moduleRef.get()` failure means "this provider is scoped" rather
+ * than "this provider does not exist".
+ *
+ * Nest raises `InvalidClassScopeException` for the first and
+ * `UnknownElementException` for the second. Both are internal classes, so they
+ * are recognized structurally — by class name, with a message fallback — rather
+ * than imported across the private-API boundary this package otherwise keeps to
+ * `ExplorerService`.
+ *
+ * Anything unrecognized is treated as a real failure, because the safe direction
+ * here is to fail the bootstrap: deferring an unknown error to per-request
+ * resolution turns a startup problem into a runtime one.
+ */
+function isScopedProviderError(error: unknown): boolean {
+  if (!error || typeof error !== 'object') return false;
+  if (error.constructor?.name === 'InvalidClassScopeException') return true;
+  const message = (error as { message?: unknown }).message;
+  return (
+    typeof message === 'string' &&
+    message.includes('is marked as a scoped provider')
+  );
+}
+
 @Injectable()
 export class PipelineBootstrapService
   implements OnApplicationBootstrap, OnModuleDestroy
@@ -200,14 +212,13 @@ export class PipelineBootstrapService
     // `before` must remain outside handler-level cache/idempotency behaviors
     // that can short-circuit without calling next().
     //
-    // getBehaviorId() is used instead of reference equality (fails across monorepo
-    // double-module loads) or plain .name (collides for different classes that share
-    // a name). Developers can set a static [PIPELINE_BEHAVIOR_ID] on their class
-    // for a guaranteed unique identity; otherwise .name is the fallback.
-    const handlerBehaviorIds = new Set<string>(
-      (handlerBehaviorTypes ?? []).map(getBehaviorId),
-    );
-    const globalBehaviorIds = new Set(
+    // Identity defaults to the constructor reference, which is exact. Keying on
+    // the class name made two unrelated classes that happen to share a name —
+    // easily one per module — collapse into a single behavior, running only one
+    // of them and applying the other's options. A class that must be recognized
+    // across two loaded copies of its own package opts into a stable string via
+    // the [PIPELINE_BEHAVIOR_ID] static.
+    const globalBehaviorIds = new Set<BehaviorId>(
       [...beforeTypes, ...afterTypes].map(getBehaviorId),
     );
     const handlerOnlyTypes = (handlerBehaviorTypes ?? []).filter(
@@ -263,7 +274,20 @@ export class PipelineBootstrapService
 
       try {
         instance = this.moduleRef.get(BehaviorClass, { strict: false });
-      } catch {
+      } catch (error) {
+        if (!isScopedProviderError(error)) {
+          // Every lookup failure used to be reclassified as a scoping problem, so
+          // an unregistered behavior survived bootstrap and failed on the first
+          // request instead — far from the module that forgot to provide it.
+          throw new Error(
+            `${BehaviorClass.name} could not be resolved from the Nest container. ` +
+              'Register it as a provider — in PipelineModule.forRoot({ behaviors }), ' +
+              'PipelineModule.forFeature([...]), or any module that is part of the ' +
+              'application graph. This is a registration failure, not a scoping one.',
+            { cause: error },
+          );
+        }
+
         // Request-scoped/transient provider: resolve with a context ID per invocation.
         this.logger.warn(
           `${BehaviorClass.name} could not be resolved as singleton — will resolve per-request`,
@@ -282,23 +306,34 @@ export class PipelineBootstrapService
       resolvedBehaviors.set(i, instance);
     }
 
-    // 2. Build handler metadata (kind, name, options) — computed once
-    //    Merge global options with handler-specific options (handler wins on conflict).
-    //    Any global-option entry whose behavior is overridden at handler level must be
-    //    removed first — a bare @UsePipeline(Behavior) intentionally carries no options,
-    //    so the spread below wouldn't overwrite the global entry without this deletion.
-    const handlerOptions: Map<string, Record<string, unknown>> | undefined =
+    // 2. Build handler metadata (kind, name, options) — computed once.
+    //    A handler inherits its behavior's global options and patches the fields
+    //    it names, field by field: `{ ...global, ...handler }`.
+    //
+    //    Both halves of that were once wrong. A bare `@UsePipeline(Behavior)`
+    //    cleared the global options, so redeclaring a globally configured
+    //    behavior — the natural way to say "yes, this handler too" — silently
+    //    reverted it to package defaults. And a handler tuple replaced the global
+    //    object wholesale, so with TraceBehavior configured globally as
+    //    `[TraceBehavior, { tracerName: 'users-api', recordRequest: true }]`,
+    //    narrowing one field meant restating every other one or losing it.
+    //
+    //    The merge is one level deep. A nested object such as `retry` is a value
+    //    like any other: naming it replaces it entirely, which keeps "what does
+    //    this handler run with" answerable by reading two objects instead of
+    //    walking a tree. To run a behavior on package defaults despite a global
+    //    configuration, state those values explicitly — inheritance no longer has
+    //    an off switch, because a silent one is what caused the first bug.
+    const handlerOptions: Map<BehaviorId, Record<string, unknown>> | undefined =
       Reflect.getMetadata(PIPELINE_BEHAVIORS_OPTIONS_METADATA, handlerType);
 
-    const filteredGlobalOptions = new Map(globalOptions);
-    for (const id of handlerBehaviorIds) {
-      filteredGlobalOptions.delete(id);
+    const mergedOptions = new Map<BehaviorId, Record<string, unknown>>(
+      globalOptions,
+    );
+    for (const [id, options] of handlerOptions ?? []) {
+      const inherited = mergedOptions.get(id);
+      mergedOptions.set(id, inherited ? { ...inherited, ...options } : options);
     }
-
-    const mergedOptions = new Map<string, Record<string, unknown>>([
-      ...filteredGlobalOptions,
-      ...(handlerOptions ?? []),
-    ]);
 
     const meta: PipelineHandlerMeta = {
       handlerType,
@@ -356,7 +391,7 @@ export class PipelineBootstrapService
         // request-scoped dependencies (transactions, tenant context, etc.).
         const cqrsContextId =
           request && typeof request === 'object'
-            ? getAttachedCqrsContextId(request)
+            ? AsyncContext.of(request)?.id
             : undefined;
         const contextId =
           cqrsContextId ??
@@ -446,17 +481,34 @@ export class PipelineBootstrapService
             return fallbackMethod.call(this, request);
           }
 
-          let activeRunner =
+          const activeRunner =
             this && typeof this === 'object'
               ? instanceRunnerMap.get(this)
               : undefined;
 
-          if (!activeRunner) {
-            const allRunners = Array.from(currentEntry.runners.values());
-            activeRunner = allRunners[allRunners.length - 1];
+          if (activeRunner) return activeRunner(this, request);
+
+          // The prototype is shared by every application in the process. With a
+          // single application there is exactly one runner and no ambiguity, so
+          // an instance created outside the patched Nest context still gets its
+          // pipeline.
+          const allRunners = Array.from(currentEntry.runners.values());
+          if (allRunners.length === 1) {
+            return allRunners[0](this, request);
           }
 
-          return activeRunner(this, request);
+          // With several applications, the previous "most recently registered
+          // wins" rule could run a request in application A through application
+          // B's chain — B's global behaviors, tenant factory and correlation
+          // runner. Running unwrapped loses the pipeline for this call instead
+          // of applying an unrelated one, and the warning makes it diagnosable
+          // rather than silent.
+          bootstrapLogger.warn(
+            `${String(currentMethodName)}() ran without its pipeline: ${allRunners.length} ` +
+              'applications share this handler prototype and the instance is not ' +
+              'registered to any of them, so the correct chain cannot be identified.',
+          );
+          return fallbackMethod.call(this, request);
         };
 
         untyped(pipelinedDispatcher).__pipelined = true;
@@ -546,12 +598,12 @@ export class PipelineBootstrapService
   private resolveGlobalBehaviors(requestKind: 'command' | 'query' | 'event'): {
     beforeTypes: Type<IPipelineBehavior>[];
     afterTypes: Type<IPipelineBehavior>[];
-    globalOptions: Map<string, Record<string, unknown>>;
+    globalOptions: Map<BehaviorId, Record<string, unknown>>;
   } {
     const empty = {
       beforeTypes: [] as Type<IPipelineBehavior>[],
       afterTypes: [] as Type<IPipelineBehavior>[],
-      globalOptions: new Map<string, Record<string, unknown>>(),
+      globalOptions: new Map<BehaviorId, Record<string, unknown>>(),
     };
 
     const raw = this.options?.globalBehaviors;
@@ -560,18 +612,18 @@ export class PipelineBootstrapService
     const configs = Array.isArray(raw) ? raw : [raw];
     if (configs.length === 0) return empty;
 
-    const globalOptions = new Map<string, Record<string, unknown>>();
+    const globalOptions = new Map<BehaviorId, Record<string, unknown>>();
     const beforeTypes: Type<IPipelineBehavior>[] = [];
     const afterTypes: Type<IPipelineBehavior>[] = [];
 
     // Deduplicate across all matching configs and both chain positions. The
     // first occurrence determines placement; later tuples may still override
     // its options without causing the behavior to run more than once.
-    const globalIds = new Set<string>();
+    const globalIds = new Set<BehaviorId>();
 
     const parseEntries = (
       entries: PipelineBehaviorEntry[],
-      seenIds: Set<string>,
+      seenIds: Set<BehaviorId>,
     ): Type<IPipelineBehavior>[] => {
       const types: Type<IPipelineBehavior>[] = [];
       for (const entry of entries) {

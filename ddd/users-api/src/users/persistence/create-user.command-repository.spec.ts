@@ -1,6 +1,10 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 import { type IPipelineContext, pipelineStore } from '@nestjs-pipeline/core';
-import { type ICache, toCacheSnapshot } from '@nestjs-pipeline/ddd-core';
+import {
+  DEFAULT_BARRIER_TTL_MS,
+  type ICache,
+  toCacheSnapshot,
+} from '@nestjs-pipeline/ddd-core';
 import { describe, expect, it, vi } from 'vitest';
 import { UniqueEmailException } from '../domain/models/errors/email.exception';
 import { User, type UserSnapshot } from '../domain/models/user.entity';
@@ -40,7 +44,7 @@ describe('CreateUserCommandRepository', () => {
         __cacheBarrier: true,
         reason: 'invalidated',
       }),
-      { ttl: 0 },
+      { ttl: DEFAULT_BARRIER_TTL_MS },
     );
     expect(cache.delete).not.toHaveBeenCalled();
     expect((user as any)._persistedVersion).toBe(1);

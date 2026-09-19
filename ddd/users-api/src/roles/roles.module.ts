@@ -5,9 +5,6 @@ import { RolesController } from './controllers/roles.controller';
 import { CreateRoleHandler } from './cqrs/commands/create-role.handler';
 import { DeleteRoleHandler } from './cqrs/commands/delete-role.handler';
 import { UpdateRoleHandler } from './cqrs/commands/update-role.handler';
-import { RoleCreatedHandler } from './cqrs/events/role-created.handler';
-import { RoleDeletedHandler } from './cqrs/events/role-deleted.handler';
-import { RoleUpdatedHandler } from './cqrs/events/role-updated.handler';
 import { GetRoleHandler } from './cqrs/queries/get-role.handler';
 import { GetRolesHandler } from './cqrs/queries/get-roles.handler';
 import { GetRolesCapabilitiesHandler } from './cqrs/queries/get-roles-capabilities.handler';
@@ -56,11 +53,6 @@ import { UpdateRoleCommandRepository } from './persistence/update-role.command-r
     CreateRoleHandler,
     UpdateRoleHandler,
     DeleteRoleHandler,
-
-    // Events
-    RoleCreatedHandler,
-    RoleUpdatedHandler,
-    RoleDeletedHandler,
   ],
 })
 export class RolesModule {}

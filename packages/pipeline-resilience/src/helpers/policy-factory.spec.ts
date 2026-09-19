@@ -54,7 +54,12 @@ describe('buildResiliencePolicy', () => {
 
       expect(result).toBe('success');
       expect(attempts).toBe(2);
-      expect(onRetry).toHaveBeenCalledWith({ attempt: 1, delay: 10 });
+      expect(onRetry).toHaveBeenCalledWith({
+        attempt: 1,
+        delay: 10,
+        // Falls back to the build-time name outside a behavior execution.
+        requestName: 'TestCommand',
+      });
     });
 
     it('builds retry with iterable backoff', async () => {

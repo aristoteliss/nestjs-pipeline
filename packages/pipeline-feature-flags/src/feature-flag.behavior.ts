@@ -196,12 +196,10 @@ export class FeatureFlagBehavior implements IPipelineBehavior {
     );
     const defaultValue = options.defaultValue ?? false;
 
-    const details = await this.evaluate(
+    const { details, failure } = await this.evaluate(
       options.flag,
       defaultValue,
       evaluationContext,
-      options.errorPolicy ?? 'use-default',
-      context.requestName,
     );
 
     // A boolean true is necessary but, when allowedVariants is configured, not
@@ -226,10 +224,23 @@ export class FeatureFlagBehavior implements IPipelineBehavior {
         : {}),
     };
 
-    // Preserve the original two context items and add the richer decision item.
+    // Published before the error policy is applied. With errorPolicy: 'throw'
+    // the evaluation used to throw from inside evaluate(), so the decision item
+    // was never written — leaving an outer audit or telemetry behavior blind in
+    // exactly the case it most needs to record.
     context.items.set(FEATURE_FLAG_KEY_ITEM, options.flag);
     context.items.set(FEATURE_FLAG_ITEM, enabled);
     context.items.set(FEATURE_FLAG_DECISION_ITEM, decision);
+
+    if (failure && (options.errorPolicy ?? 'use-default') === 'throw') {
+      throw new FeatureFlagEvaluationError(
+        options.flag,
+        context.requestName,
+        failure.errorCode,
+        failure.message,
+        { cause: failure.cause },
+      );
+    }
 
     const variantSuffix = details.variant ? ` variant=${details.variant}` : '';
     const reasonSuffix = details.reason ? ` reason=${details.reason}` : '';
@@ -253,16 +264,22 @@ export class FeatureFlagBehavior implements IPipelineBehavior {
 
   /**
    * Uses OpenFeature's detailed evaluation API so variant/reason/error metadata
-   * is available to the pipeline. Thrown provider errors and provider-reported
-   * error details follow the configured policy consistently.
+   * is available to the pipeline.
+   *
+   * This never throws. A provider failure is normalized into usable details plus
+   * a `failure` descriptor, so the caller can publish the decision record first
+   * and apply the error policy afterwards. Throwing from here meant the most
+   * operationally interesting outcome — evaluation failed — was the one case
+   * that produced no inspectable record at all.
    */
   private async evaluate(
     flag: string,
     defaultValue: boolean,
     evaluationContext: EvaluationContext,
-    errorPolicy: 'use-default' | 'throw',
-    requestName: string,
-  ): Promise<BooleanEvaluationDetails> {
+  ): Promise<{
+    details: BooleanEvaluationDetails;
+    failure?: { message: string; errorCode?: string; cause?: unknown };
+  }> {
     let details: BooleanEvaluationDetails;
 
     try {
@@ -272,33 +289,30 @@ export class FeatureFlagBehavior implements IPipelineBehavior {
         evaluationContext,
       )) as BooleanEvaluationDetails;
     } catch (error) {
-      const providerMessage =
-        error instanceof Error ? error.message : String(error);
-      if (errorPolicy === 'throw') {
-        throw new FeatureFlagEvaluationError(
-          flag,
-          requestName,
-          undefined,
-          providerMessage,
-        );
-      }
+      const message = error instanceof Error ? error.message : String(error);
       return {
-        value: defaultValue,
-        reason: 'ERROR',
-        errorMessage: providerMessage,
+        details: {
+          value: defaultValue,
+          reason: 'ERROR',
+          errorMessage: message,
+        },
+        failure: { message, cause: error },
       };
     }
 
-    if (errorPolicy === 'throw' && details.errorCode !== undefined) {
-      throw new FeatureFlagEvaluationError(
-        flag,
-        requestName,
-        String(details.errorCode),
-        details.errorMessage,
-      );
+    // A provider that reports an error in its details rather than throwing is
+    // the same outcome from the application's point of view.
+    if (details.errorCode !== undefined) {
+      return {
+        details,
+        failure: {
+          message: details.errorMessage ?? String(details.errorCode),
+          errorCode: String(details.errorCode),
+        },
+      };
     }
 
-    return details;
+    return { details };
   }
 
   /** Shallow-merges per-handler options over the application defaults. */

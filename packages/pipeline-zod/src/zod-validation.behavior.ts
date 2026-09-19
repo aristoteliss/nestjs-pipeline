@@ -59,9 +59,6 @@ export {
  */
 export const ZOD_SCHEMA_KEY = '_zodSchema' as const;
 
-/** @deprecated Use {@link ZOD_SCHEMA_KEY} instead. */
-export const ZOD_SCHEMA = ZOD_SCHEMA_KEY;
-
 /**
  * Pipeline behavior that parses the incoming request (command, query, or event)
  * with a Zod schema when one is attached to the request class via the `_zodSchema`

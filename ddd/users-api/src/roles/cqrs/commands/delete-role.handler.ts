@@ -28,21 +28,10 @@ import { DeleteRoleCommand } from './delete-role.command';
     CaslBehavior,
     { rules: [{ action: APP_ACTIONS.DELETE, subject: APP_SUBJECTS.ROLE }] },
   ],
-  [
-    ResilienceBehavior,
-    {
-      handle: isTransientOperationError,
-      retry: {
-        maxAttempts: 3,
-        replaySafe: true,
-        backoff: {
-          type: 'exponential',
-          initialDelay: 25,
-          maxDelay: 100,
-        },
-      },
-    },
-  ],
+  // AuditBehavior sits outside ResilienceBehavior on purpose: it writes one
+  // record per invocation, so inside the retry a delete that failed twice
+  // before succeeding produced three records for one logical operation, with
+  // a duration measuring a single attempt.
   [
     AuditBehavior,
     {
@@ -58,6 +47,21 @@ import { DeleteRoleCommand } from './delete-role.command';
               deletedByEmail: actor.email,
             }
           : undefined;
+      },
+    },
+  ],
+  [
+    ResilienceBehavior,
+    {
+      handle: isTransientOperationError,
+      retry: {
+        maxAttempts: 3,
+        replaySafe: true,
+        backoff: {
+          type: 'exponential',
+          initialDelay: 25,
+          maxDelay: 100,
+        },
       },
     },
   ],

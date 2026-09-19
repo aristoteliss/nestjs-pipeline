@@ -1,8 +1,8 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import { OptimisticLockError } from '@mikro-orm/core';
 import { type IPipelineContext, pipelineStore } from '@nestjs-pipeline/core';
 import {
+  ConcurrencyConflictError,
   EntityNotFoundException,
   type ICache,
   toCacheSnapshot,
@@ -75,7 +75,7 @@ describe('UpdateRoleCommandRepository', () => {
     expect(cache.set).not.toHaveBeenCalled();
   });
 
-  it('throws OptimisticLockError when the role still exists at a newer version', async () => {
+  it('throws ConcurrencyConflictError when the role still exists at a newer version', async () => {
     const cache: ICache<RoleSnapshot> = {
       get: vi.fn(),
       set: vi.fn(),
@@ -92,7 +92,9 @@ describe('UpdateRoleCommandRepository', () => {
     };
     const repository = new UpdateRoleCommandRepository(cache, store as never);
 
-    await expect(repository.save(role)).rejects.toThrow(OptimisticLockError);
+    await expect(repository.save(role)).rejects.toThrow(
+      ConcurrencyConflictError,
+    );
     expect(cache.set).not.toHaveBeenCalled();
   });
 

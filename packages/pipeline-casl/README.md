@@ -93,7 +93,7 @@ A per-handler `prebuiltAbility` bypasses provider-based ability construction.
 | Export | Purpose |
 |--------|---------|
 | `getCaslAbility(context?)` | Read the resolved `AppAbility` from the ambient pipeline store (or an explicit context). |
-| `CaslEntityAuthorizer` | Generic authorizer adapter for entity instances and field-level permissions backed by CASL. |
+| `CaslAuthorizer` | Generic authorizer adapter for entity instances and field-level permissions backed by CASL. |
 | `ENTITY_AUTHORIZER` | Injection token (`Symbol.for('ENTITY_AUTHORIZER')`) for entity authorizer DI providers. |
 | `IEntityAuthorizer` | Interface for pluggable entity-level authorization checks. |
 

@@ -343,6 +343,14 @@ If no `tracerName` is provided (neither globally nor per-handler), the default i
 
 ---
 
+## Instrumentation failure boundaries
+
+Span enrichment, status, exception recording, span completion, metric recording,
+and diagnostic logging are best-effort. Failures in these guarded operations
+do not replace the handler result or its original error. This describes the
+package call boundaries; it does not guarantee exporter delivery or protect
+against arbitrary asynchronous failures inside an SDK.
+
 ## No SDK? No Problem.
 
 If the OpenTelemetry SDK is **not** initialized (for example in development or tests), both behaviors remain safe because the OpenTelemetry API provides no-op implementations.

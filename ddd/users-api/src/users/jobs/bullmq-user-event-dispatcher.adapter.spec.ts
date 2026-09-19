@@ -30,7 +30,7 @@ describe('BullMqUserEventDispatcher', () => {
     });
   });
 
-  it('adds correlation metadata to user-batch BullMQ job options', async () => {
+  it('stamps the batch correlation ID into the payload, not into JobsOptions', async () => {
     const batchAdd = vi.fn().mockResolvedValue({ id: 'batch-1' });
     const adapter = new BullMqUserEventDispatcher(
       { add: vi.fn() } as never,
@@ -43,10 +43,28 @@ describe('BullMqUserEventDispatcher', () => {
       ]),
     );
 
-    expect(batchAdd).toHaveBeenCalledWith(
-      'batch-update',
-      [{ userId: 'user-1', username: 'Alice', tenant: 'tenant_a' }],
-      { correlationId: 'corr-2' },
+    // The ID used to be passed as a JobsOptions field BullMQ does not declare.
+    // It survived only because BullMQ happens to persist unknown options, which
+    // nothing in its contract promises. Both queues now use the one documented
+    // mechanism, and `add` is called with no options argument at all.
+    expect(batchAdd).toHaveBeenCalledWith('batch-update', {
+      items: [{ userId: 'user-1', username: 'Alice', tenant: 'tenant_a' }],
+      correlationId: 'corr-2',
+    });
+    expect(batchAdd.mock.calls[0]).toHaveLength(2);
+  });
+
+  it('copies the batch items rather than enqueuing the caller array', async () => {
+    const batchAdd = vi.fn().mockResolvedValue({ id: 'batch-2' });
+    const adapter = new BullMqUserEventDispatcher(
+      { add: vi.fn() } as never,
+      { add: batchAdd } as never,
     );
+    const item = { userId: 'user-1', tenant: 'tenant_a' };
+
+    await adapter.enqueueUserBatch([item]);
+
+    expect(batchAdd.mock.calls[0][1].items[0]).not.toBe(item);
+    expect(batchAdd.mock.calls[0][1].items[0]).toEqual(item);
   });
 });

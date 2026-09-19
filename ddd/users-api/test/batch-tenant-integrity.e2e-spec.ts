@@ -3,6 +3,7 @@ import type { Job } from 'bullmq';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
   type BatchUpdateUserItem,
+  type BatchUpdateUsersJobData,
   BatchUpdateUsersProcessor,
   MixedTenantBatchError,
 } from '../src/users/jobs/batch-update-users.processor';
@@ -30,9 +31,8 @@ describe('batch user update tenant integrity (e2e)', () => {
 
     await expect(
       processor.process({
-        data,
-        opts: { correlationId: 'e2e-mixed-tenant-batch' },
-      } as Job<BatchUpdateUserItem[]>),
+        data: { items: data, correlationId: 'e2e-mixed-tenant-batch' },
+      } as Job<BatchUpdateUsersJobData>),
     ).rejects.toBeInstanceOf(MixedTenantBatchError);
   });
 });

@@ -64,9 +64,27 @@ import {
  * }
  * ```
  */
+/**
+ * Results from which buffered aggregate events can be published.
+ *
+ * Publication depends on the shape of what `handle()` returns, so the shape is a
+ * constraint rather than a convention. A handler that mutated an aggregate and
+ * then returned a DTO used to compile cleanly and silently drop every domain
+ * event it had raised — no error, no warning, and no failing test unless someone
+ * had thought to assert on the event.
+ *
+ * Both accepted shapes are kept: the aggregate itself, or an application result
+ * carrying it under `aggregate`. A command that changes several aggregates needs
+ * an explicit result type designed for that; do not widen this one until such a
+ * command actually exists.
+ */
+export type AggregateBearingResult =
+  | AggregateRoot
+  | { readonly aggregate: AggregateRoot };
+
 export abstract class CommandBaseHandler<
   TCommand extends ICommand = ICommand,
-  TResult = unknown,
+  TResult extends AggregateBearingResult = AggregateBearingResult,
 > implements ICommandHandler<ICommand, TResult>
 {
   protected constructor(protected readonly eventBus: EventBus) {}
@@ -83,6 +101,10 @@ export abstract class CommandBaseHandler<
 
   /**
    * Publishes uncommitted domain events of the aggregate to the EventBus and clears them.
+   *
+   * @deprecated Not an application extension point. `execute()` calls this once
+   * per command; calling it from a handler publishes the same events twice, or
+   * publishes them before the surrounding command has finished.
    *
    * **Delivery Guarantees**:
    * Events are dispatched via NestJS CQRS in-memory {@link EventBus}. There is no distributed

@@ -227,16 +227,12 @@ export interface PipelineModuleOptions {
 }
 
 /**
- * Runtime-safe subset of {@link PipelineModuleOptions}.
+ * Runtime-safe subset of {@link PipelineModuleOptions}: everything an async
+ * factory can still influence once Nest has built the provider graph.
  *
- * This type is additive documentation for consumers that want to make the
- * distinction explicit in their own code. `forRootAsync()` intentionally keeps
- * accepting {@link PipelineModuleOptions} from factories for backward
- * compatibility.
- *
- * Nest cannot retroactively add providers after an async options factory has
- * executed, so `behaviors` and `loggerProvider` should be declared statically on
- * {@link PipelineModuleAsyncOptions} when using async configuration.
+ * `behaviors` and `loggerProvider` are excluded because they are provider-graph
+ * concerns. They belong on the {@link PipelineModuleAsyncOptions} call itself,
+ * which is evaluated before the factory runs.
  */
 export type PipelineRuntimeOptions = Omit<
   PipelineModuleOptions,
@@ -246,8 +242,8 @@ export type PipelineRuntimeOptions = Omit<
 /** Factory interface for classes that provide pipeline module options asynchronously. */
 export interface PipelineOptionsFactory {
   createPipelineOptions():
-    | Promise<PipelineModuleOptions>
-    | PipelineModuleOptions;
+    | Promise<PipelineRuntimeOptions>
+    | PipelineRuntimeOptions;
 }
 
 /** Options for configuring `PipelineModule.forRootAsync`. */
@@ -257,7 +253,7 @@ export interface PipelineModuleAsyncOptions
   useClass?: Type<PipelineOptionsFactory>;
   useFactory?: (
     ...args: never[]
-  ) => Promise<PipelineModuleOptions> | PipelineModuleOptions;
+  ) => Promise<PipelineRuntimeOptions> | PipelineRuntimeOptions;
   inject?: (InjectionToken | OptionalFactoryDependency)[];
 
   /**

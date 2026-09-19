@@ -1,8 +1,9 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import { OptimisticLockError } from '@mikro-orm/core';
 import { type IPipelineContext, pipelineStore } from '@nestjs-pipeline/core';
 import {
+  ConcurrencyConflictError,
+  DEFAULT_BARRIER_TTL_MS,
   EntityNotFoundException,
   type ICache,
   toCacheSnapshot,
@@ -50,7 +51,7 @@ describe('UpdateUserCommandRepository', () => {
         __cacheBarrier: true,
         reason: 'invalidated',
       }),
-      { ttl: 0 },
+      { ttl: DEFAULT_BARRIER_TTL_MS },
     );
     expect(cache.set).toHaveBeenCalledWith(
       `tenant:user:id:${user.id}`,
@@ -89,7 +90,7 @@ describe('UpdateUserCommandRepository', () => {
     expect(cache.set).not.toHaveBeenCalled();
   });
 
-  it('throws OptimisticLockError when the user still exists at a newer version', async () => {
+  it('throws ConcurrencyConflictError when the user still exists at a newer version', async () => {
     const cache: ICache<UserSnapshot> = {
       get: vi.fn(),
       set: vi.fn(),
@@ -106,7 +107,9 @@ describe('UpdateUserCommandRepository', () => {
     const repository = new UpdateUserCommandRepository(cache, store as never);
 
     user.update({ username: 'Alicia' });
-    await expect(repository.save(user)).rejects.toThrow(OptimisticLockError);
+    await expect(repository.save(user)).rejects.toThrow(
+      ConcurrencyConflictError,
+    );
     expect(cache.delete).not.toHaveBeenCalled();
     expect(cache.set).not.toHaveBeenCalled();
   });

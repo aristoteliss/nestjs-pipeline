@@ -1,127 +1,180 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import { type IPipelineContext, stableStringify } from '@nestjs-pipeline/core';
+import type { IPipelineContext } from '@nestjs-pipeline/core';
 import { describe, expect, it } from 'vitest';
-import { defaultCacheKey } from './cache-key';
+import { MissingCachePartitionError } from '../errors/missing-partition.error';
+import { createPartitionedCacheKeyFactory } from './cache-key';
 
-describe('stableStringify', () => {
-  it('produces identical output regardless of key insertion order', () => {
-    const a = stableStringify({ b: 1, a: 2, c: 3 });
-    const b = stableStringify({ c: 3, a: 2, b: 1 });
+function makeContext(
+  overrides: Partial<IPipelineContext> = {},
+): IPipelineContext {
+  return {
+    correlationId: 'corr-1',
+    originalCorrelationId: 'corr-1',
+    tenantId: 'tenant-a',
+    request: { id: 1 },
+    requestType: class GetUserQuery {},
+    requestName: 'GetUserQuery',
+    handlerType: class GetUserHandler {},
+    handlerName: 'GetUserHandler',
+    requestKind: 'query',
+    startedAt: new Date('2026-01-01T00:00:00.000Z'),
+    response: undefined,
+    items: new Map<string | symbol, unknown>([['userId', 'user-7']]),
+    getBehaviorOptions: () => undefined,
+    ...overrides,
+  } as unknown as IPipelineContext;
+}
+
+const readUserId = (ctx: IPipelineContext) =>
+  ctx.items.get('userId') as string | undefined;
+
+const factory = createPartitionedCacheKeyFactory({ principal: readUserId });
+
+describe('createPartitionedCacheKeyFactory', () => {
+  it('produces the same key for the same caller and payload across requests', () => {
+    // The previous default embedded context.correlationId, which is unique per
+    // request. That made every lookup a miss: the cache wrote on every query and
+    // could never read one back. This assertion is the contract that a cache is
+    // actually supposed to have.
+    expect(factory(makeContext({ correlationId: 'request-a' }))).toBe(
+      factory(makeContext({ correlationId: 'request-b' })),
+    );
+  });
+
+  it('is stable regardless of payload property order', () => {
+    expect(factory(makeContext({ request: { a: 1, b: 2 } }))).toBe(
+      factory(makeContext({ request: { b: 2, a: 1 } })),
+    );
+  });
+
+  it('separates different payloads, request names and tenants', () => {
+    expect(factory(makeContext({ request: { id: 1 } }))).not.toBe(
+      factory(makeContext({ request: { id: 2 } })),
+    );
+    expect(factory(makeContext({ requestName: 'GetUserQuery' }))).not.toBe(
+      factory(makeContext({ requestName: 'GetUsersQuery' })),
+    );
+    expect(factory(makeContext({ tenantId: 'tenant-a' }))).not.toBe(
+      factory(makeContext({ tenantId: 'tenant-b' })),
+    );
+  });
+
+  it('separates principals, so one caller cannot replay another authorized response', () => {
+    expect(
+      factory(makeContext({ items: new Map([['userId', 'alice']]) })),
+    ).not.toBe(factory(makeContext({ items: new Map([['userId', 'bob']]) })));
+  });
+
+  it('keeps the payload out of the key', () => {
+    const key = factory(
+      makeContext({ request: { email: 'secret@example.test' } }),
+    );
+
+    expect(key).not.toContain('secret@example.test');
+    expect(key).toMatch(/:[0-9a-f]{64}$/);
+  });
+
+  it('separates permission scopes when a scope resolver is supplied', () => {
+    // Without this, a principal whose roles were revoked keeps reading the
+    // response computed under the old permissions until the entry expires.
+    const scoped = createPartitionedCacheKeyFactory({
+      principal: readUserId,
+      scope: (ctx) => ctx.items.get('capabilityVersion') as string | undefined,
+    });
+
+    const before = scoped(
+      makeContext({
+        items: new Map([
+          ['userId', 'alice'],
+          ['capabilityVersion', 'v1'],
+        ]),
+      }),
+    );
+    const after = scoped(
+      makeContext({
+        items: new Map([
+          ['userId', 'alice'],
+          ['capabilityVersion', 'v2'],
+        ]),
+      }),
+    );
+
+    expect(before).not.toBe(after);
+  });
+
+  it('ignores the correlation ID entirely', () => {
+    const a = factory(makeContext({ correlationId: 'x' }));
+    const b = factory(makeContext({ correlationId: 'y' }));
 
     expect(a).toBe(b);
-    expect(a).toBe('{"a":2,"b":1,"c":3}');
+    expect(a).not.toContain('x');
   });
 
-  it('sorts keys recursively in nested objects', () => {
-    const result = stableStringify({ outer: { z: 1, a: 2 }, first: true });
+  describe('required dimensions', () => {
+    it('fails closed without a tenant', () => {
+      expect(() => factory(makeContext({ tenantId: undefined }))).toThrow(
+        MissingCachePartitionError,
+      );
+    });
 
-    expect(result).toBe('{"first":true,"outer":{"a":2,"z":1}}');
+    it('fails closed without a principal', () => {
+      // A hit skips the handler, and with it the entity-level authorization the
+      // handler performs. An unpartitioned key is a replay channel.
+      expect(() => factory(makeContext({ items: new Map() }))).toThrow(
+        /requires a principal partition/,
+      );
+    });
+
+    it('allows both to be waived for genuinely public responses', () => {
+      const publicKey = createPartitionedCacheKeyFactory({
+        principal: () => 'public',
+        requirePrincipal: false,
+        requireTenant: false,
+      });
+
+      expect(
+        publicKey(makeContext({ tenantId: undefined, items: new Map() })),
+      ).toBe(publicKey(makeContext({ tenantId: undefined, items: new Map() })));
+    });
   });
 
-  it('preserves array order', () => {
-    const result = stableStringify({ items: [3, 1, 2] });
+  describe('delimiter safety', () => {
+    it('keeps a tenant containing a separator distinct from a principal containing one', () => {
+      expect(
+        factory(
+          makeContext({
+            tenantId: 'a:b',
+            items: new Map([['userId', 'c']]),
+          }),
+        ),
+      ).not.toBe(
+        factory(
+          makeContext({
+            tenantId: 'a',
+            items: new Map([['userId', 'b:c']]),
+          }),
+        ),
+      );
+    });
 
-    expect(result).toBe('{"items":[3,1,2]}');
-  });
+    it('distinguishes an absent scope from a literal one', () => {
+      const scoped = createPartitionedCacheKeyFactory({
+        principal: readUserId,
+        scope: (ctx) => ctx.items.get('scope') as string | undefined,
+      });
 
-  it('serializes primitives directly', () => {
-    expect(stableStringify(42)).toBe('42');
-    expect(stableStringify('hi')).toBe('"hi"');
-    expect(stableStringify(null)).toBe('null');
-  });
+      const absent = scoped(makeContext({ items: new Map([['userId', 'a']]) }));
+      const present = scoped(
+        makeContext({
+          items: new Map([
+            ['userId', 'a'],
+            ['scope', 'v1'],
+          ]),
+        }),
+      );
 
-  it('rejects values that cannot be represented as JSON', () => {
-    const cyclic: Record<string, unknown> = {};
-    cyclic.self = cyclic;
-
-    expect(() => stableStringify(undefined)).toThrow(/JSON-serializable/);
-    expect(() => stableStringify(1n)).toThrow(/JSON-serializable/);
-    expect(() => stableStringify(cyclic)).toThrow(/JSON-serializable/);
-    expect(() => stableStringify({ filter: new Map([['id', 1]]) })).toThrow(
-      /JSON-serializable/,
-    );
-    expect(() => stableStringify({ filter: new Set([1]) })).toThrow(
-      /JSON-serializable/,
-    );
-    expect(() => stableStringify({ filter: /active/ })).toThrow(
-      /JSON-serializable/,
-    );
-    expect(() => stableStringify({ error: new Error('failure') })).toThrow(
-      /JSON-serializable/,
-    );
-    expect(() => stableStringify({ value: Number.NaN })).toThrow(
-      /JSON-serializable/,
-    );
-    expect(() => stableStringify({ value: Number.POSITIVE_INFINITY })).toThrow(
-      /JSON-serializable/,
-    );
-    expect(() => stableStringify({ bytes: new Uint8Array([1, 2]) })).toThrow(
-      /JSON-serializable/,
-    );
-    expect(() => stableStringify(new Array(1))).toThrow(/JSON-serializable/);
-    expect(() =>
-      stableStringify({ id: 1, [Symbol('scope')]: 'private' }),
-    ).toThrow(/JSON-serializable/);
-  });
-
-  it('serializes dates explicitly as ISO strings', () => {
-    expect(stableStringify({ at: new Date('2026-01-01T00:00:00.000Z') })).toBe(
-      '{"at":"2026-01-01T00:00:00.000Z"}',
-    );
-  });
-});
-
-describe('defaultCacheKey', () => {
-  function makeContext(
-    overrides: Partial<IPipelineContext> = {},
-  ): IPipelineContext {
-    return {
-      correlationId: 'corr-1',
-      requestKind: 'query',
-      requestName: 'GetUserQuery',
-      handlerName: 'GetUserHandler',
-      request: { userId: '42' },
-      ...overrides,
-    } as IPipelineContext;
-  }
-
-  it('includes correlation scope so defaults cannot replay across requests', () => {
-    expect(defaultCacheKey(makeContext())).toMatch(
-      /^cache:v2:corr-1:GetUserQuery:[a-f0-9]{64}$/,
-    );
-  });
-
-  it('keeps stable request serialization within the same request scope', () => {
-    const a = defaultCacheKey(
-      makeContext({ request: { a: 1, b: 2 } as never }),
-    );
-    const b = defaultCacheKey(
-      makeContext({ request: { b: 2, a: 1 } as never }),
-    );
-
-    expect(a).toBe(b);
-  });
-
-  it('partitions identical query payloads by correlation id', () => {
-    const first = defaultCacheKey(makeContext({ correlationId: 'request-a' }));
-    const second = defaultCacheKey(makeContext({ correlationId: 'request-b' }));
-
-    expect(first).not.toBe(second);
-  });
-
-  it('yields different keys for different request names', () => {
-    const a = defaultCacheKey(makeContext({ requestName: 'GetUserQuery' }));
-    const b = defaultCacheKey(makeContext({ requestName: 'GetUsersQuery' }));
-
-    expect(a).not.toBe(b);
-  });
-
-  it('partitions by tenant in addition to request scope', () => {
-    const key = defaultCacheKey(
-      makeContext({ tenantId: 'tenant_a', correlationId: 'corr-1' }),
-    );
-
-    expect(key).toMatch(/^cache:v2:tenant_a:corr-1:GetUserQuery:[a-f0-9]{64}$/);
+      expect(absent).not.toBe(present);
+    });
   });
 });

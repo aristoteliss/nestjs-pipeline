@@ -45,7 +45,10 @@ Its peer contract also includes the standard NestJS runtime peers
 pnpm add @nestjs-pipeline/core
 ```
 
-**Peer dependencies** (must be installed in your application):
+**Peer dependencies** (must be installed in your application). Nest and
+`@nestjs/cqrs` must both be version 11 — Nest 10 is not supported, because
+request-scoped and transient handlers are resolved through `AsyncContext`,
+which `@nestjs/cqrs` only exposes from version 11:
 
 ```bash
 pnpm add @nestjs/common @nestjs/core @nestjs/cqrs reflect-metadata rxjs
@@ -172,6 +175,35 @@ are already available (for example, from global modules).
 execution options with `@UsePipeline([AuditBehavior, { ... }])` or root
 `globalBehaviors`; registering a behavior with `forFeature()` does not automatically
 execute it for every handler.
+
+### Async registration
+
+Nest builds the provider graph before an async factory runs, so the two
+provider-graph fields — `behaviors` and `loggerProvider` — are declared on the
+`forRootAsync()` call, not returned from the factory. The factory returns
+`PipelineRuntimeOptions`, which is `PipelineModuleOptions` without them:
+
+```typescript
+PipelineModule.forRootAsync({
+  imports: [PersistenceModule],
+  inject: [TenantSchemaContext],
+
+  // Provider graph — evaluated before the factory.
+  behaviors: [LoggingBehavior, ZodValidationBehavior],
+  loggerProvider: { provide: LOGGING_BEHAVIOR_LOGGER, useExisting: MyLogger },
+
+  // Runtime configuration — resolved from injected providers.
+  useFactory: (tenant: TenantSchemaContext) => ({
+    tenantIdFactory: () => tenant.schema,
+    globalBehaviors: [{ scope: 'all', before: [LoggingBehavior] }],
+  }),
+});
+```
+
+Returning either field from the factory raises a `TypeError` at bootstrap. It
+used to be dropped in silence, so an application that moved its behavior list
+into the factory started cleanly with every `@UsePipeline` reference
+unresolvable and failed on the first request instead.
 
 ---
 
@@ -329,9 +361,10 @@ async handle(context: IPipelineContext, next: NextDelegate): Promise<any> {
 ```
 
 Global and handler option **maps** are combined. When the same behavior appears
-at both levels, the handler-level options record replaces the global options
-record while the behavior retains its global chain position; individual
-properties are not shallow-merged.
+at both levels, the handler inherits the global options and patches the fields
+it names — `{ ...global, ...handler }` — while the behavior retains its global
+chain position. The merge is one level deep: naming a nested object such as
+`retry` replaces that object entirely rather than merging into it.
 
 ### Inter-Behavior Communication
 
@@ -445,6 +478,32 @@ export class CreateUserHandler { /* ... */ }
 
 // Effective chain: [LoggingBehavior at global-before position (handler opts)] → handler
 ```
+
+A redeclaration inherits the global options rather than clearing them, so a
+handler only states what differs:
+
+```typescript
+PipelineModule.forRoot({
+  globalBehaviors: {
+    scope: 'all',
+    before: [[TraceBehavior, { tracerName: 'users-api', recordRequest: true }]],
+  },
+})
+
+// Inherits both fields — this is the natural way to say "yes, trace this
+// handler too".
+@UsePipeline(TraceBehavior)
+export class GetUserHandler { /* ... */ }
+
+// Inherits tracerName: 'users-api' and overrides only recordRequest.
+@UsePipeline([TraceBehavior, { recordRequest: false }])
+export class NoisyHandler { /* ... */ }
+```
+
+There is no opt-out token. To run a behavior on the package defaults despite an
+application-wide configuration, state those values explicitly — a handler that
+silently discards application configuration is the failure mode this
+inheritance exists to prevent.
 
 Place mandatory authentication/authorization behaviors in global `before`.
 Their position remains outside handler-level cache/idempotency behaviors that
@@ -786,8 +845,9 @@ orderCreated = (events$: Observable<any>): Observable<ICommand> =>
 2. Discovers all CQRS handlers via `@nestjs/cqrs` `ExplorerService` (commands, queries, events).
 3. For each handler with `@UsePipeline` or matching global behaviors: computes effective behavior/handler metadata, resolves singleton behavior instances, and wraps the `execute()` / `handle()` method. Behaviors that cannot be resolved as singletons are marked for dynamic resolution.
 4. Request-independent metadata is computed once at startup. The common all-singleton path reuses pre-resolved behavior instances with no per-request reflection/behavior DI lookup; request-scoped/transient behaviors are resolved per invocation with `moduleRef.resolve()` and the applicable Nest context ID.
-5. Supports singleton handlers on Nest CQRS 10; request-scoped/transient
-   handlers (`Scope.REQUEST`, `Scope.TRANSIENT`) require Nest CQRS 11+.
+5. Requires Nest and Nest CQRS 11. Request-scoped and transient handlers
+   (`Scope.REQUEST`, `Scope.TRANSIENT`) rely on `AsyncContext`, which earlier
+   CQRS versions do not provide.
 
 ---
 

@@ -20,7 +20,10 @@ import {
   type AnyPolicy,
   buildResiliencePolicy,
 } from './helpers/policy-factory';
-import { runWithResilienceAbortSignal } from './helpers/resilience-context';
+import {
+  runWithResilienceAbortSignal,
+  runWithResilienceRequest,
+} from './helpers/resilience-context';
 import type { ResilienceBehaviorOptions } from './interfaces/resilience-options.interface';
 
 /**
@@ -87,13 +90,20 @@ export class ResilienceBehavior implements IPipelineBehavior {
     const policy = this.resolvePolicy(context);
     if (!policy) return next();
 
-    return policy.execute((policyContext) => {
-      // Cockatiel supplies the effective AbortSignal (including timeout
-      // cancellation) to each execute callback. Bind it to this attempt's async
-      // execution so an aggressive timeout followed by a retry cannot replace
-      // the signal still observed by work from the timed-out attempt.
-      return runWithResilienceAbortSignal(policyContext.signal, next);
-    });
+    // The policy is shared across every request that reaches this handler, so
+    // the request's own labels travel with the execution rather than being
+    // captured when the policy was built.
+    return runWithResilienceRequest(
+      { requestName: context.requestName, handlerName: context.handlerName },
+      () =>
+        policy.execute((policyContext) => {
+          // Cockatiel supplies the effective AbortSignal (including timeout
+          // cancellation) to each execute callback. Bind it to this attempt's
+          // async execution so an aggressive timeout followed by a retry cannot
+          // replace the signal still observed by work from the timed-out attempt.
+          return runWithResilienceAbortSignal(policyContext.signal, next);
+        }),
+    );
   }
 
   /** Resolves, validates, and caches the composed policy for the handler in `context`. */
@@ -131,10 +141,7 @@ export class ResilienceBehavior implements IPipelineBehavior {
     if (!options || options.policy) return;
 
     const classifiesErrors =
-      typeof options.handle === 'function' ||
-      options.handleAllErrors === true ||
-      typeof (options.retry as { isRetryable?: unknown } | undefined)
-        ?.isRetryable === 'function';
+      typeof options.handle === 'function' || options.handleAllErrors === true;
     const needsErrorClassification =
       !!options.retry || !!options.circuitBreaker || !!options.fallback;
 

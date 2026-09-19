@@ -159,7 +159,7 @@ module-wide `defaults` (handler wins):
 | Option | Type | Default | Description |
 |---|---|---|---|
 | `points` | `number` | `1` | Positive safe-integer cost of this request. |
-| `keyFactory` | `(ctx) => string` | `ctx.requestName` | Builds the bucket key from CQRS request/context data. |
+| `keyFactory` | `(ctx) => string` | **required** | Builds the bucket key. No default: see [Keying strategy](#keying-strategy). |
 | `keyPrefix` | `string` | — | Prepended as `"<prefix>:<key>"`. |
 | `limiter` | `RateLimiterLike` | injected | Per-handler limiter override (stricter/looser policy). |
 | `failOpen` | `boolean` | `true` | On a **store** error, allow (`true`) or reject (`false`). |
@@ -177,22 +177,34 @@ RateLimitModule.forRoot({
 
 ## Keying strategy
 
-The **key** is the rate-limit bucket. The default (`ctx.requestName`) gives one
-shared bucket per request type. For per-caller limits, use stable data already
-carried by the CQRS request or written to `context.items` by an earlier behavior:
+The **key** is the rate-limit bucket. `keyFactory` is **required** — there is no
+default. The obvious one, `ctx.requestName`, is a single bucket shared by every
+caller in every tenant, so one abusive client locks out everybody. A limiter whose
+default turns one abuser into a full outage is worse than no limiter, because it
+looks like protection.
+
+For per-caller limits, prefer the built-in factory. It escapes each segment, so
+tenant `a:b` with principal `c` cannot collide with tenant `a` and principal
+`b:c`, and it fails closed when a required dimension is missing:
 
 ```typescript
-// Transport layer copied the client IP into the command/query.
-{ keyFactory: (ctx) => `${ctx.requestName}:${ctx.request.clientIp}` }
+import { createPartitionedRateLimitKeyFactory } from '@nestjs-pipeline/rate-limit';
 
-// Request carries the authenticated principal resolved by your application.
-{ keyFactory: (ctx) => `${ctx.requestName}:${ctx.request.sessionUser.id}` }
+// Per authenticated caller, tenant-aware. Throws MissingRateLimitPartitionError
+// when either the tenant or the caller cannot be resolved.
+{ keyFactory: createPartitionedRateLimitKeyFactory((ctx) => ctx.items.get('callerId') as string) }
 
-// Request carries the selected tenant.
-{ keyFactory: (ctx) => `${ctx.requestName}:${ctx.request.tenantId}` }
+// Single-tenant deployment — state it, rather than letting the tenant vanish.
+{ keyFactory: createPartitionedRateLimitKeyFactory(readCallerId, { includeTenant: false }) }
 
-// Or consume metadata populated by an upstream pipeline behavior.
-{ keyFactory: (ctx) => `${ctx.requestName}:${ctx.items.get('callerId')}` }
+// Anonymous traffic allowed: falls back to a bucket still scoped to the tenant.
+{ keyFactory: createPartitionedRateLimitKeyFactory(readCallerId, { onMissingPartition: 'request' }) }
+```
+
+A deliberately global bucket is still supported; it just has to be written down:
+
+```typescript
+{ keyFactory: (ctx) => ctx.requestName }
 ```
 
 ---

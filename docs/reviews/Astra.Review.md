@@ -1,5 +1,10 @@
 # Astra: consolidated repository review
 
+> Historical review: findings and proposed snippets describe the snapshot listed
+> below, not the current API. Use canonical package READMEs and source for usage;
+> current dispositions are tracked in [Telikos.Pinakas.md](Telikos.Pinakas.md).
+> Documentation drift is tracked under row 35.
+
 **Verified checkout:** `6728f2c547d57cc0cd12241c76e89c4ae2743e84`  
 **Review date:** 2026-09-13  
 **Inputs:** [review instructions](Intstractions.md), [ChatGPT review](ChatGPT.Review.md), [Gemini review](Gemini.Review.md), current source, documentation, and tests.

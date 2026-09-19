@@ -1,6 +1,6 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import { Injectable } from '@nestjs/common';
+import { DynamicModule, Injectable } from '@nestjs/common';
 import { describe, expect, it } from 'vitest';
 import { LOGGING_BEHAVIOR_LOGGER } from './behaviors/logging.behavior';
 import {
@@ -266,6 +266,81 @@ describe('PipelineModule.forRootAsync', () => {
     expect(mod.providers).toContainEqual({
       provide: ConfigService,
       useClass: ConfigService,
+    });
+  });
+
+  describe('provider-graph fields returned from the factory', () => {
+    // Nest builds the provider graph before the factory runs. Returning these
+    // used to register nothing and say nothing, so an application that moved
+    // its behavior list into the factory booted with every @UsePipeline
+    // reference unresolvable and only failed on the first request.
+    function optionsFactoryOf(mod: DynamicModule) {
+      const provider = mod.providers?.find(
+        (p: any) => p && p.provide === PIPELINE_MODULE_OPTIONS,
+      ) as any;
+      return provider.useFactory as (...args: unknown[]) => Promise<unknown>;
+    }
+
+    it.each([
+      ['behaviors', { behaviors: [AlphaBehavior] }],
+      [
+        'loggerProvider',
+        {
+          loggerProvider: {
+            provide: LOGGING_BEHAVIOR_LOGGER,
+            useValue: console,
+          },
+        },
+      ],
+    ])('rejects %s returned from useFactory', async (field, returned) => {
+      const mod = PipelineModule.forRootAsync({
+        useFactory: () => returned as never,
+      });
+
+      await expect(optionsFactoryOf(mod)()).rejects.toThrow(
+        new RegExp(`returned ${field}, which Nest cannot register`),
+      );
+    });
+
+    it('names both fields when a factory returns both', async () => {
+      const mod = PipelineModule.forRootAsync({
+        useFactory: () =>
+          ({
+            behaviors: [AlphaBehavior],
+            loggerProvider: {
+              provide: LOGGING_BEHAVIOR_LOGGER,
+              useValue: console,
+            },
+          }) as never,
+      });
+
+      await expect(optionsFactoryOf(mod)()).rejects.toThrow(
+        /returned behaviors and loggerProvider/,
+      );
+    });
+
+    it('rejects them from a useClass options factory, naming the class', async () => {
+      class ConfigService {
+        createPipelineOptions() {
+          return { behaviors: [AlphaBehavior] } as never;
+        }
+      }
+
+      const mod = PipelineModule.forRootAsync({ useClass: ConfigService });
+
+      await expect(optionsFactoryOf(mod)(new ConfigService())).rejects.toThrow(
+        /ConfigService\.createPipelineOptions\(\) returned behaviors/,
+      );
+    });
+
+    it('passes runtime options through untouched', async () => {
+      const runtime = { tenantIdFactory: () => 'acme' };
+      const mod = PipelineModule.forRootAsync({
+        behaviors: [AlphaBehavior],
+        useFactory: () => runtime,
+      });
+
+      await expect(optionsFactoryOf(mod)()).resolves.toBe(runtime);
     });
   });
 });

@@ -39,7 +39,27 @@ export interface CacheOptions<TEntity = unknown> {
    * Pass `null` to explicitly disable CAS.
    */
   isNewer?: ((cached: unknown, incoming: unknown) => boolean) | null;
+
+  /**
+   * Lifetime in milliseconds of the {@link CacheMutationBarrier} written on
+   * deletions and secondary invalidations.
+   *
+   * A barrier only has to outlive the in-flight work it guards against, so it is
+   * bounded rather than permanent. It previously used `ttl: 0`, which several
+   * adapters — including `MemoryCache` — read as "never expires", leaving one
+   * immortal key behind for every deleted aggregate.
+   *
+   * @default {@link DEFAULT_BARRIER_TTL_MS}
+   */
+  barrierTtl?: number;
 }
+
+/**
+ * Default barrier lifetime: long enough to outlive an in-flight read or write
+ * that started before the mutation, short enough that deleted aggregates do not
+ * accumulate keys indefinitely.
+ */
+export const DEFAULT_BARRIER_TTL_MS = 60_000;
 
 /**
  * Write-through cache decorator for a {@link CommandRepository} `save` method.
@@ -84,6 +104,7 @@ export function Cache<TEntity = unknown, TResult = unknown | null>(
   let resolvedDeleteKeys: ((entity: TEntity) => string[]) | null = null;
   let resolvedInvalidateKeys: ((entity: TEntity) => string[]) | null = null;
   let resolvedTtl: number | undefined;
+  let resolvedBarrierTtl: number = DEFAULT_BARRIER_TTL_MS;
   let resolvedIsNewer:
     | ((cached: unknown, incoming: unknown) => boolean)
     | undefined = isCacheNewer;
@@ -98,6 +119,7 @@ export function Cache<TEntity = unknown, TResult = unknown | null>(
     resolvedDeleteKeys = setKeyOrOptions.deleteKeys ?? null;
     resolvedInvalidateKeys = setKeyOrOptions.invalidateKeys ?? null;
     resolvedTtl = setKeyOrOptions.ttl;
+    resolvedBarrierTtl = setKeyOrOptions.barrierTtl ?? DEFAULT_BARRIER_TTL_MS;
     resolvedIsNewer =
       setKeyOrOptions.isNewer === null
         ? undefined
@@ -155,7 +177,9 @@ export function Cache<TEntity = unknown, TResult = unknown | null>(
             for (const key of deleteKeys) {
               try {
                 const barrier = createCacheMutationBarrier('deleted', entity);
-                await this.cache.set(key, barrier as never, { ttl: 0 });
+                await this.cache.set(key, barrier as never, {
+                  ttl: resolvedBarrierTtl,
+                });
               } catch (err) {
                 logger.warn(
                   `Failed installing deletion barrier for key "${key}": ${err instanceof Error ? err.message : String(err)}`,
@@ -178,7 +202,9 @@ export function Cache<TEntity = unknown, TResult = unknown | null>(
           for (const key of invalidateKeys) {
             try {
               const barrier = createCacheMutationBarrier('invalidated', entity);
-              await this.cache.set(key, barrier as never, { ttl: 0 });
+              await this.cache.set(key, barrier as never, {
+                ttl: resolvedBarrierTtl,
+              });
             } catch (err) {
               logger.warn(
                 `Failed installing invalidation barrier for key "${key}": ${err instanceof Error ? err.message : String(err)}`,

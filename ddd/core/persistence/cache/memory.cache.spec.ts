@@ -104,3 +104,35 @@ describe('MemoryCache', () => {
     expect(current).toEqual({ id: '1', version: 1 });
   });
 });
+
+describe('MemoryCache retention bounds', () => {
+  it('drops expired entries once the store is over its limit', async () => {
+    const cache = new MemoryCache<{ n: number }>({ maxEntries: 3 });
+
+    await cache.set('keep', { n: 0 }, { ttl: 60_000 });
+    await cache.set('a', { n: 1 }, { ttl: 1 });
+    await cache.set('b', { n: 2 }, { ttl: 1 });
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    await cache.set('c', { n: 3 }, { ttl: 60_000 });
+    await cache.set('d', { n: 4 }, { ttl: 60_000 });
+
+    expect(await cache.get('keep')).toEqual({ n: 0 });
+    expect(await cache.get('a')).toBeUndefined();
+    expect(await cache.get('b')).toBeUndefined();
+    expect(cache.size).toBeLessThanOrEqual(3);
+  });
+
+  it('never grows past the limit even when nothing has expired', async () => {
+    // Entries used to be removed only when their own key was read again, so a
+    // stream of deletions — each leaving a mutation barrier nobody re-reads —
+    // grew the map for the lifetime of the process.
+    const cache = new MemoryCache<{ n: number }>({ maxEntries: 5 });
+
+    for (let n = 0; n < 200; n += 1) {
+      await cache.set(`key-${n}`, { n }, { ttl: 600_000 });
+    }
+
+    expect(cache.size).toBeLessThanOrEqual(5);
+    expect(await cache.get('key-199')).toEqual({ n: 199 });
+  });
+});

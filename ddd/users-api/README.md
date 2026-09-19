@@ -180,6 +180,17 @@ All commands and queries in `users-api` are strongly-typed, self-validating, and
   ```
   - Automatically tagged with `requestKind: 'command'`.
   - Inherits `sessionUser` resolution (ambient ALS store fallback) without polluting JSON payload serialization or idempotency keys (`sessionUser` is non-enumerable).
+  - A command subject to field-level authorization declares its surface:
+    ```typescript
+    export class UpdateUserCommand extends createCommand(UpdateUserSchema, BaseCommand) {
+      static readonly MUTABLE_FIELDS = ['username', 'department'] as const;
+    }
+    ```
+    The handler passes it to `command.getUpdateFields(UpdateUserCommand.MUTABLE_FIELDS)`,
+    which returns those of the declared fields the command actually carries.
+    The set used to be derived from `Object.keys(this)` minus `['id']`, so
+    adding a property to the Zod schema silently added a field CASL was asked
+    to authorize. Declaring it makes widening the surface a visible edit.
 - **Queries (100% inherit from `BaseQuery`)**:
   ```typescript
   export class GetUserQuery extends createQuery(GetUserSchema, BaseQuery) {}
@@ -261,6 +272,14 @@ Idempotency serializes the aggregate through `toJSON()`, validating the public
 snapshot rather than its internal NestJS symbol fields. Completed replays return
 plain snapshots without repeating persistence or event publication. The HTTP
 response mappers accept both aggregates and snapshots.
+
+Event handlers are registered only for implemented reactions: user creation
+queues a welcome email and user updates queue batch work through application
+ports. Authentication creation, role lifecycle changes, and user deletion still
+publish domain events, but have no log-only subscribers or placeholder dispatch
+adapters. Logging and audit belong in pipeline behaviors; add a new event
+subscriber when there is a concrete side effect to implement. The in-memory
+EventBus does not provide durable delivery.
 
 The `User` and `Role` aggregate entities inherit identity and lifecycle behavior from `RootEntity` (`@nestjs-pipeline/ddd-core`):
 
@@ -566,7 +585,9 @@ export class GetRolesHandler implements IQueryHandler<GetRolesQuery, RoleSnapsho
 > **Authorization & Cache Security Scope**:
 > When a query handler executes entity-level or field-level authorization (such as `this.authorizer.authorize('read', role)`), cached responses must never be shared across principals using an unpartitioned cache key.
 >
-> The built-in `defaultCacheKey()` is safe by default because it is request-scoped via `context.correlationId`. If cross-request shared caching is intentionally required, the explicit `key` factory must include every dimension that influences the authorized response (`tenantId`, principal ID, role/capability scope) and must fail closed on missing tenant context (never falling back to `'default'`).
+> `CacheBehavior` has no default key: it requires an explicit `key` factory. The earlier default was request-scoped via `context.correlationId`, which made it incapable of ever producing a hit while also not being an authorization boundary — a client can supply its own correlation ID, and nested executions deliberately inherit one.
+>
+> Use `createPartitionedCacheKeyFactory` from `@nestjs-pipeline/cache`. It partitions every dimension that influences the authorized response (`tenantId`, principal ID, role/capability scope, payload digest), escapes each segment so `a:b` + `c` cannot collide with `a` + `b:c`, and fails closed with `MissingCachePartitionError` on missing tenant or principal context — never falling back to `'default'`.
 
 
 ### Environment Variables Reference
@@ -601,16 +622,34 @@ Global and per-handler examples exercise:
 - `@nestjs-pipeline/rate-limit` — `rate-limiter-flexible` integration
 - `@nestjs-pipeline/audit` — redacted audit records
 - `@nestjs-pipeline/idempotency` — atomic duplicate exclusion and replay
-- `@nestjs-pipeline/ddd-core` — entities, outcomes, events, and repository helpers
+- `@nestjs-pipeline/ddd-core` — entities, aggregate-bearing command results, events, and repository helpers
+
+### Telemetry bridge
+
+The add-ons publish their decisions as `context.items` entries and take no
+OpenTelemetry dependency, which is what lets them be installed one at a time.
+Nothing therefore writes those decisions to a span by itself. `ObservabilityModule`
+registers [`TelemetryBridgeBehavior`](src/infrastructure/behaviors/telemetry-bridge.behavior.ts),
+which reads them on unwind and adds `feature_flag.*`, `cache.hit`,
+`idempotency.*`, `rate_limit.remaining_points` and `dead_letter.captured` to the
+request span. It sits inside `TraceBehavior` and outside the add-ons, so every
+inner behavior has published before it reads and the tracer reads the merged bag
+after it returns.
+
+An absent item means the behavior did not run, and nothing is written for it: a
+fabricated `cache.hit=false` would be indistinguishable from a real miss. The
+cache key is deliberately not an attribute — it carries tenant and principal and
+is unbounded.
 
 The application also has its own tenant-aware DDD repository cache so user/role write invalidation has a single clear target. In addition, `ObservabilityModule` configures `tenantIdFactory` so that the active tenant schema is explicitly conveyed through `IPipelineContext.tenantId`, allowing command handlers, rate limiters, and idempotency key factories to access the tenant cleanly from context without direct ambient coupling.
 
 ## Tests
 
-From the repository root, `pnpm test` runs the workspace build (including this
-application's TypeScript checks), all unit/integration tests, and this application's
-existing E2E suite. All three stages run even if an earlier stage fails; the final
-summary reports each result and the command exits unsuccessfully if any stage fails.
+From the repository root, `pnpm test` delegates to `test:unit`: persistence lint
+followed by workspace unit/integration tests. It does not build packages or run
+the separate E2E suite. Run `pnpm test:build` for workspace builds, `pnpm lint`
+for workspace typechecks, and `pnpm test:e2e` for the application E2E suite.
+A failed persistence lint stops `test:unit` before the tests start.
 
 E2E tests require a running Docker-compatible container runtime. Testcontainers
 starts disposable Redis and PostgreSQL instances; infrastructure failures fail the suite

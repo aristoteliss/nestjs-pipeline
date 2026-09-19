@@ -1,11 +1,11 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
-import {
-  type EntityData,
-  type EntityManager,
-  type EntityName,
-  type FilterQuery,
-  OptimisticLockError,
+import type {
+  EntityData,
+  EntityManager,
+  EntityName,
+  FilterQuery,
 } from '@mikro-orm/core';
+import { ConcurrencyConflictError } from '../domain/exceptions/concurrency-conflict.error';
 import { EntityNotFoundException } from '../domain/exceptions/entity-not-found.exception';
 
 /**
@@ -21,7 +21,7 @@ import { EntityNotFoundException } from '../domain/exceptions/entity-not-found.e
  *   - Exactly `1` row affected: Write succeeded; completes cleanly.
  *   - `0` rows affected: Performs a refreshed diagnostic read (`findOne` with `refresh: true`):
  *     - If the entity is absent, throws {@link EntityNotFoundException}.
- *     - If the entity is present, throws {@link OptimisticLockError.lockFailedVersionMismatch}.
+ *     - If the entity is present, throws {@link ConcurrencyConflictError}.
  *   - More than `1` row affected: Throws an `Error` indicating primary-key uniqueness invariant violation.
  *
  * > [!NOTE]
@@ -36,7 +36,7 @@ import { EntityNotFoundException } from '../domain/exceptions/entity-not-found.e
  *
  * @throws {Error} If called within an active transaction (`em.isInTransaction() === true`).
  * @throws {EntityNotFoundException} If 0 rows were updated and the entity cannot be found.
- * @throws {OptimisticLockError} If 0 rows were updated and the entity version has diverged.
+ * @throws {ConcurrencyConflictError} If 0 rows were updated and the entity version has diverged.
  * @throws {Error} If unexpected row count (> 1) was affected.
  *
  * @example Usage in an UpdateCommandRepository
@@ -96,8 +96,9 @@ export async function optimisticUpdate<
       { refresh: true },
     );
     if (!existing) throw new EntityNotFoundException(entityName, id);
-    throw OptimisticLockError.lockFailedVersionMismatch(
-      entity,
+    throw new ConcurrencyConflictError(
+      entityName,
+      id,
       expectedVersion,
       existing.version,
     );

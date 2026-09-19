@@ -6,6 +6,7 @@
       "!!**/dist",
       "!!**/coverage",
       "!!**/.turbo",
+      "!!**/.claude",
       "!!**/.snapshot-*.json",
       "!!**/*.db"
     ]
@@ -56,7 +57,7 @@
       }
     },
     {
-      "includes": ["**/outcomes/**", "**/events/**"],
+      "includes": ["**/events/**"],
       "linter": {
         "rules": {
           "complexity": {
@@ -138,6 +139,27 @@
       "includes": [
         "**/packages/*/src/**/*.ts",
         "**/ddd/core/**/*.ts",
+        "!**/*.spec.ts",
+        "!**/*.test.ts"
+      ]
+    },
+    {
+      "path": "./biome/plugins/ddd-layering.grit",
+      "includes": [
+        "**/ddd/*/src/**/cqrs/**/*.ts",
+        "**/ddd/*/src/**/domain/**/*.ts",
+        "!**/*.spec.ts",
+        "!**/*.test.ts"
+      ]
+    },
+    {
+      "path": "./biome/plugins/aggregate-identity.grit",
+      "includes": [
+        "**/ddd/*/src/**/cqrs/**/*.ts",
+        "**/ddd/*/src/**/controllers/**/*.ts",
+        "**/ddd/*/src/**/services/**/*.ts",
+        "**/ddd/*/src/**/mappers/**/*.ts",
+        "**/ddd/*/src/**/jobs/**/*.ts",
         "!**/*.spec.ts",
         "!**/*.test.ts"
       ]

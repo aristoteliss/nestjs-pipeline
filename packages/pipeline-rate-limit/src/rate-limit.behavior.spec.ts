@@ -40,18 +40,31 @@ function makeCtx(overrides: Partial<IPipelineContext> = {}): IPipelineContext {
     startedAt: new Date('2026-01-01T00:00:00.000Z'),
     response: undefined,
     items: new Map(),
-    getBehaviorOptions: vi.fn().mockReturnValue(undefined),
+    getBehaviorOptions: vi.fn().mockReturnValue({
+      keyFactory: (c: IPipelineContext) => c.requestName,
+    }),
     ...overrides,
   } as unknown as IPipelineContext;
 }
+
+/**
+ * `buildRateLimitKey` now requires an explicit keyFactory, because a
+ * request-name-only bucket is shared by every caller in every tenant. These
+ * tests are about point cost, limiter wiring and failure policy, so they opt
+ * into the global bucket deliberately.
+ */
+const GLOBAL_BUCKET: RateLimitBehaviorOptions = {
+  keyFactory: (ctx) => ctx.requestName,
+};
 
 function withOptions(
   ctx: IPipelineContext,
   options: RateLimitBehaviorOptions,
 ): IPipelineContext {
-  vi.mocked(ctx.getBehaviorOptions).mockReturnValue(
-    options as unknown as ReturnType<IPipelineContext['getBehaviorOptions']>,
-  );
+  vi.mocked(ctx.getBehaviorOptions).mockReturnValue({
+    ...GLOBAL_BUCKET,
+    ...options,
+  } as unknown as ReturnType<IPipelineContext['getBehaviorOptions']>);
   return ctx;
 }
 

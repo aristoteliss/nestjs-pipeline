@@ -1,6 +1,8 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
-import { type EntityManager, OptimisticLockError } from '@mikro-orm/core';
+
+import { type EntityManager } from '@mikro-orm/core';
 import { describe, expect, it, vi } from 'vitest';
+import { ConcurrencyConflictError } from '../domain/exceptions/concurrency-conflict.error';
 import { EntityNotFoundException } from '../domain/exceptions/entity-not-found.exception';
 import { optimisticUpdate } from './optimistic-update';
 
@@ -56,7 +58,7 @@ describe('optimisticUpdate', () => {
       { refresh: true },
     );
     manager.findOne.mockResolvedValue({ version: 5 });
-    await expect(save()).rejects.toBeInstanceOf(OptimisticLockError);
+    await expect(save()).rejects.toBeInstanceOf(ConcurrencyConflictError);
   });
 
   it('retains the original lookup id and expected version across an asynchronous write', async () => {

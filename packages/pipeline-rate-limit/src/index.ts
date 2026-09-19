@@ -4,6 +4,10 @@ export {
   RATE_LIMIT_DEFAULT_OPTIONS,
   RATE_LIMITER,
 } from './constants/tokens';
+export {
+  MissingRateLimitPartitionError,
+  type RateLimitPartitionDimension,
+} from './errors/missing-partition.error';
 export { RateLimitExceededError } from './errors/rate-limit-exceeded.error';
 export { RateLimitExceededFilter } from './filters/rate-limit-exceeded.filter';
 export { buildRateLimitKey } from './helpers/build-key';

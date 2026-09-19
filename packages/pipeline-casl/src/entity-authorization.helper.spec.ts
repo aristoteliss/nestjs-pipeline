@@ -7,7 +7,6 @@ import { CASL_ABILITY_KEY } from './constants/tokens';
 import { UnauthorizedActionException } from './exceptions/unauthorized-action.exception';
 import {
   CaslAuthorizer,
-  CaslEntityAuthorizer,
   getCaslAbility,
 } from './helpers/entity-authorization.helper';
 import {
@@ -83,11 +82,7 @@ describe('getCaslAbility', () => {
   });
 });
 
-describe('CaslAuthorizer / CaslEntityAuthorizer', () => {
-  it('exports CaslEntityAuthorizer as backward compatibility alias', () => {
-    expect(CaslEntityAuthorizer).toBe(CaslAuthorizer);
-  });
-
+describe('CaslAuthorizer', () => {
   describe('can()', () => {
     it('returns false when no ability is available (default deny)', () => {
       const authorizer = new CaslAuthorizer();
@@ -423,28 +418,52 @@ describe('CaslAuthorizer / CaslEntityAuthorizer', () => {
       ).toThrow(UnauthorizedActionException);
     });
 
-    it('supports 4-arg with actor user context falling back to ambient/constructor ability', () => {
+    it('rejects the removed actor-first form instead of guessing at it', () => {
       const ability = buildAbility([supervisorRole], supervisor);
       const authorizer = new CaslAuthorizer(ability);
       const user = new User(2, 'engineering', 'alice');
       const userContext: CaslUserContext = { id: 1, department: 'engineering' };
 
+      // An actor value cannot be converted into an ability, so the form never
+      // did what its name implied. Rejecting it is clearer than silently using
+      // the ambient ability under an actor-shaped call.
       expect(() =>
-        authorizer.authorize(userContext, 'update', user, ['username']),
-      ).not.toThrow();
+        (authorizer.authorize as unknown as (...a: unknown[]) => unknown)(
+          userContext,
+          'update',
+          user,
+          ['username'],
+        ),
+      ).toThrow(TypeError);
+    });
 
-      // With actor string identifier (e.g. 'actor-1')
-      expect(() =>
-        authorizer.authorize('actor-1', 'update', user, ['username']),
-      ).not.toThrow();
+    it('does not misread a three-argument string-actor call as (action, subject, fields)', () => {
+      const ability = buildAbility([supervisorRole], supervisor);
+      const authorizer = new CaslAuthorizer(ability);
+      const user = new User(2, 'engineering', 'alice');
 
-      // With actor user context and empty authorizer (no ability in store -> default deny throws)
-      const emptyAuthorizer = new CaslAuthorizer();
+      // This was the actual defect: 'actor-1' was taken as the action and
+      // 'update' as the subject, so CASL was asked an entirely different
+      // question and answered it — producing a denial that looked like a
+      // permissions-configuration problem.
       expect(() =>
-        emptyAuthorizer.authorize(userContext, 'update', user),
+        (authorizer.authorize as unknown as (...a: unknown[]) => unknown)(
+          'actor-1',
+          'update',
+          user,
+        ),
       ).toThrow(UnauthorizedActionException);
+    });
 
-      // With explicit bypass context -> returns snapshot
+    it('still accepts an explicit ability and an explicit bypass', () => {
+      const ability = buildAbility([supervisorRole], supervisor);
+      const user = new User(2, 'engineering', 'alice');
+      const emptyAuthorizer = new CaslAuthorizer();
+
+      expect(() =>
+        emptyAuthorizer.authorize(ability, 'update', user, ['username']),
+      ).not.toThrow();
+
       expect(
         emptyAuthorizer.authorize({ bypass: true }, 'update', user),
       ).toEqual({

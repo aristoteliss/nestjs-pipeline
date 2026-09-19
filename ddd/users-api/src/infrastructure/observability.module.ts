@@ -14,12 +14,10 @@ import {
 } from '@nestjs-pipeline/correlation';
 import { DeadLetterBehavior } from '@nestjs-pipeline/deadletter';
 import { MetricsBehavior, TraceBehavior } from '@nestjs-pipeline/opentelemetry';
-import {
-  ZodValidationBehavior,
-  ZodValidationError,
-} from '@nestjs-pipeline/zod';
+import { ZodValidationBehavior } from '@nestjs-pipeline/zod';
 import { TenantSchemaContext } from '@persistence/tenant-schema.context';
 import { LoggerModule, NativeLogger } from 'nestjs-pino';
+import { TelemetryBridgeBehavior } from './behaviors/telemetry-bridge.behavior';
 
 /**
  * Infrastructure module that encapsulates all logging, telemetry, compliance auditing,
@@ -92,6 +90,7 @@ export const HTTP_LOG_REDACT_PATHS = [
         ZodValidationBehavior,
         TraceBehavior,
         MetricsBehavior,
+        TelemetryBridgeBehavior,
         DeadLetterBehavior,
       ],
       extraProviders: [
@@ -111,32 +110,25 @@ export const HTTP_LOG_REDACT_PATHS = [
               LoggingBehavior,
               [TraceBehavior, { tracerName: 'users-api' }],
               [MetricsBehavior, { meterName: 'users-api' }],
+              // Inside the tracer, outside the add-ons: it reads their context
+              // items on unwind and TraceBehavior reads the merged bag after.
+              TelemetryBridgeBehavior,
               ZodValidationBehavior,
             ],
           },
+          // No ignoreErrors here. ReliabilityModule already declares the
+          // module-wide list, and validation failures cannot reach this
+          // behavior in any case: scopes compose in declaration order, so the
+          // 'all' block above puts ZodValidationBehavior outside DeadLetter.
+          // Repeating ZodValidationError here read as a safety net that was
+          // doing nothing.
           {
             scope: 'commands',
-            before: [
-              [
-                DeadLetterBehavior,
-                {
-                  captureKinds: ['command'],
-                  ignoreErrors: [ZodValidationError],
-                },
-              ],
-            ],
+            before: [[DeadLetterBehavior, { captureKinds: ['command'] }]],
           },
           {
             scope: 'events',
-            before: [
-              [
-                DeadLetterBehavior,
-                {
-                  captureKinds: ['event'],
-                  ignoreErrors: [ZodValidationError],
-                },
-              ],
-            ],
+            before: [[DeadLetterBehavior, { captureKinds: ['event'] }]],
           },
         ],
       }),

@@ -10,4 +10,7 @@ export class UpdateRoleCommand extends createCommand(
     name: z.string().trim().min(3),
   }),
   BaseCommand,
-) {}
+) {
+  /** Fields governed by field-level authorization. See UpdateUserCommand. */
+  static readonly MUTABLE_FIELDS = ['name'] as const;
+}

@@ -19,6 +19,19 @@ export interface BatchUpdateUserItem {
 }
 
 /**
+ * Batch job payload.
+ *
+ * The items are wrapped in an object so the correlation ID travels in the
+ * payload, the way `@nestjs-pipeline/correlation` prescribes for transports
+ * without headers. `addCorrelationId` refuses a bare array precisely because
+ * there is nowhere on one to put the field.
+ */
+export interface BatchUpdateUsersJobData {
+  items: BatchUpdateUserItem[];
+  correlationId?: string;
+}
+
+/**
  * Raised when one batch attempts to cross tenant boundaries.
  *
  * A BullMQ job is one tenant-scoped unit of work. Mixing tenant identities in
@@ -55,12 +68,12 @@ export class BatchUpdateUsersProcessor extends WorkerHost {
     super();
   }
 
-  @WithCorrelation({ path: 'opts.correlationId' })
+  @WithCorrelation({ path: 'data.correlationId' })
   async process(
-    job: Job<BatchUpdateUserItem[]>,
+    job: Job<BatchUpdateUsersJobData>,
     _token?: string,
   ): Promise<void> {
-    const items = job.data;
+    const items = job.data.items;
     // Validate the entire payload before choosing a schema. Never infer tenant
     // ownership from only the first item in a multi-tenant batch.
     const tenant = resolveBatchTenant(items);

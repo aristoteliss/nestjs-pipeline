@@ -313,6 +313,28 @@ released so the client can retry and the handler may execute again. The handler
 error is re-thrown after the cleanup attempt. If cleanup itself fails, that
 cleanup failure is logged and the handler error is still re-thrown.
 
+### After the handler has already succeeded
+
+Anything that fails once `next()` has resolved is a **finalization** problem, not
+a handler failure: the side effects have happened. Both cases throw
+`IdempotencyCompletionError`, which carries `executionSucceeded: true`, the
+original `cause`, and a `phase`:
+
+| `phase` | Cause | Claim |
+| --- | --- | --- |
+| `snapshot` | The response cannot be serialized into a replayable record — a cycle, a function, a `Map`, a `bigint`. | **Retained** until TTL. |
+| `store` | The record was serializable but the store rejected the write. | **Retained** until TTL. |
+
+The claim is deliberately not released in either case. Releasing it would let the
+very next retry repeat side effects that already ran. Retention is not a
+guarantee against duplicates — it only prevents immediate reentry while the claim
+is live — so treat this error as a reconciliation signal rather than something to
+retry blindly.
+
+Validate the response contract in application tests. Do not loosen serialization
+to make this error go away: a response that cannot be stored cannot be replayed,
+so the next caller would silently get different behavior from the first.
+
 ---
 
 ## Configuration

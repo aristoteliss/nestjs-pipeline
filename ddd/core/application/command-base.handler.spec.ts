@@ -4,7 +4,10 @@ import type { EventBus, ICommand } from '@nestjs/cqrs';
 import { describe, expect, it, vi } from 'vitest';
 import { DomainEvent } from '../domain/events/domain.event';
 import { RootEntity } from '../domain/models/root.entity';
-import { CommandBaseHandler } from './command-base.handler';
+import {
+  type AggregateBearingResult,
+  CommandBaseHandler,
+} from './command-base.handler';
 
 class OrderCreatedEvent extends DomainEvent {
   constructor(public readonly orderId: string) {
@@ -12,7 +15,24 @@ class OrderCreatedEvent extends DomainEvent {
   }
 }
 
-class PlainCommandHandler extends CommandBaseHandler<ICommand, string> {
+/**
+ * `CommandBaseHandler`'s constructor is protected: a concrete handler declares
+ * its own public constructor with `@Inject(EventBus)`. This is the test
+ * equivalent, so the specs build handlers the way an application does instead
+ * of reaching past the modifier.
+ */
+abstract class TestableHandler<
+  TResult extends AggregateBearingResult,
+> extends CommandBaseHandler<ICommand, TResult> {
+  constructor(eventBus: EventBus) {
+    super(eventBus);
+  }
+}
+
+class PlainCommandHandler extends TestableHandler<// @ts-expect-error — the constraint forbids a non-aggregate result. The
+// runtime guard is what this test exercises: JavaScript callers and `as any`
+// still reach it, and it must not publish anything.
+string> {
   async handle(_command: ICommand): Promise<string> {
     return 'non-aggregate-result';
   }
@@ -47,10 +67,7 @@ describe('CommandBaseHandler', () => {
       }
     }
 
-    class AggregateCommandHandler extends CommandBaseHandler<
-      ICommand,
-      TestAggregate
-    > {
+    class AggregateCommandHandler extends TestableHandler<TestAggregate> {
       async handle(_command: ICommand): Promise<TestAggregate> {
         const agg = new TestAggregate();
         agg.apply(new OrderCreatedEvent('agg-101'));
@@ -85,10 +102,10 @@ describe('CommandBaseHandler', () => {
       }
     }
 
-    class ResultWithAggregateCommandHandler extends CommandBaseHandler<
-      ICommand,
-      { aggregate: TestAggregate; meta: string }
-    > {
+    class ResultWithAggregateCommandHandler extends TestableHandler<{
+      aggregate: TestAggregate;
+      meta: string;
+    }> {
       async handle(
         _command: ICommand,
       ): Promise<{ aggregate: TestAggregate; meta: string }> {
@@ -128,10 +145,9 @@ describe('CommandBaseHandler', () => {
       }
     }
 
-    class CustomReturnCommandHandler extends CommandBaseHandler<
-      ICommand,
-      { success: boolean }
-    > {
+    class CustomReturnCommandHandler extends TestableHandler<// @ts-expect-error — as above: a result carrying no aggregate is rejected
+    // by the type, and this asserts the explicit commit() path still works.
+    { success: boolean }> {
       async handle(_command: ICommand): Promise<{ success: boolean }> {
         const agg = new TestAggregate();
         agg.apply(new OrderCreatedEvent('custom-101'));
@@ -168,10 +184,7 @@ describe('CommandBaseHandler', () => {
       }
     }
 
-    class NoEventsCommandHandler extends CommandBaseHandler<
-      ICommand,
-      TestAggregate
-    > {
+    class NoEventsCommandHandler extends TestableHandler<TestAggregate> {
       async handle(_command: ICommand): Promise<TestAggregate> {
         return new TestAggregate();
       }
@@ -188,7 +201,8 @@ describe('CommandBaseHandler', () => {
       publishAll: vi.fn(),
     } as unknown as EventBus;
 
-    class NullCommandHandler extends CommandBaseHandler<ICommand, null> {
+    class NullCommandHandler extends TestableHandler<// @ts-expect-error — as above: null is not an aggregate-bearing result.
+    null> {
       async handle(_command: ICommand): Promise<null> {
         return null;
       }

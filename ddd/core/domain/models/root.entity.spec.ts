@@ -52,6 +52,8 @@ class OtherEntity extends RootEntity<TestSnapshot> {
     this.name = snapshot?.name ?? 'other';
   }
 
+  afterUpdate(): void {}
+
   toJSON(): RootEntitySnapshot & TestSnapshot {
     return this.freezeState({
       id: this.id,
@@ -129,7 +131,9 @@ describe('RootEntity', () => {
       () =>
         new TestEntity({
           id,
-          createdAt: '   ',
+          // A blank string is what a malformed persistence row supplies; the
+          // cast is the point of the test, not an oversight.
+          createdAt: '   ' as unknown as Date,
           updatedAt: new Date(),
         }),
     ).toThrow('Date is empty.');
@@ -185,7 +189,7 @@ describe('RootEntity', () => {
     expect(entity.getExpectedVersion()).toBe(2);
 
     // Default version argument uses current _version
-    entity.markPersisted();
+    entity.acknowledgePersisted();
     expect(entity.getExpectedVersion()).toBe(3);
   });
 

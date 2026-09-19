@@ -1,7 +1,9 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
-import { OptimisticLockError } from '@mikro-orm/core';
 import type { ArgumentsHost } from '@nestjs/common';
-import { DomainException } from '@nestjs-pipeline/ddd-core';
+import {
+  ConcurrencyConflictError,
+  DomainException,
+} from '@nestjs-pipeline/ddd-core';
 import { describe, expect, it, vi } from 'vitest';
 import {
   InvalidRoleNameException,
@@ -62,9 +64,12 @@ describe('DomainExceptionFilter', () => {
     });
   });
 
-  it('maps OptimisticLockError to HTTP 409 Conflict', () => {
-    const error = new OptimisticLockError(
-      'The optimistic lock on entity User failed',
+  it('maps ConcurrencyConflictError to HTTP 409 Conflict', () => {
+    const error = new ConcurrencyConflictError(
+      'User',
+      '019488e0-0000-7000-8000-000000000001',
+      3,
+      4,
     );
     const response = { status: vi.fn(), json: vi.fn() };
     response.status.mockReturnValue(response);

@@ -10,6 +10,7 @@ import {
   PipelineModuleFeatureOptions,
   PipelineModuleOptions,
   PipelineOptionsFactory,
+  PipelineRuntimeOptions,
 } from './options/pipeline-module.options';
 import { PipelineBootstrapService } from './services/pipeline.bootstrap.service';
 
@@ -23,6 +24,33 @@ export {
   PipelineOptionsFactory,
   PipelineRuntimeOptions,
 } from './options';
+
+/**
+ * Rejects provider-graph fields returned from an async options factory.
+ *
+ * Nest builds the provider graph before the factory runs, so `behaviors` and
+ * `loggerProvider` returned from one register nothing. Until now they were
+ * dropped in silence: an application that moved its behavior list into the
+ * factory started up cleanly with every `@UsePipeline` reference unresolvable,
+ * and the first request reported a missing provider instead of a
+ * misconfiguration. Declare them on the `forRootAsync` call itself.
+ */
+function assertRuntimeOptions(
+  options: PipelineRuntimeOptions,
+  source: string,
+): PipelineRuntimeOptions {
+  const declared = ['behaviors', 'loggerProvider'].filter(
+    (field) => (options as Record<string, unknown>)?.[field] !== undefined,
+  );
+  if (declared.length > 0) {
+    throw new TypeError(
+      `${source} returned ${declared.join(' and ')}, which Nest cannot register ` +
+        'after the provider graph is built. Declare them on the ' +
+        'PipelineModule.forRootAsync({ ... }) call instead of returning them.',
+    );
+  }
+  return options;
+}
 
 /**
  * Extracts the behavior class (Type) from each entry,
@@ -145,11 +173,13 @@ export class PipelineModule {
    * Registers the pipeline module asynchronously, allowing options to be provided
    * via an injected factory provider (e.g. from another module or async configuration).
    *
-   * Provider-graph concerns must be known before the async factory executes.
-   * `behaviors` has always been a static `forRootAsync` field; `loggerProvider`
-   * can now be declared there as well. For backward compatibility, factories
-   * still return the full {@link PipelineModuleOptions} type, but provider-graph
-   * fields returned by the factory cannot retroactively register Nest providers.
+   * Provider-graph concerns must be known before the async factory executes,
+   * so `behaviors` and `loggerProvider` are static fields of this call. A
+   * factory returns {@link PipelineRuntimeOptions}, which excludes them: Nest
+   * has already built the provider graph by the time the factory runs, so
+   * returning them there would register nothing. The type rejects it at compile
+   * time, and {@link assertRuntimeOptions} rejects it at bootstrap for callers
+   * who reach this API without the types.
    *
    * @param options - Async factory, its injected providers, behaviors, and optional imports.
    * @returns The configured global {@link DynamicModule}.
@@ -234,9 +264,11 @@ export class PipelineModule {
     options: PipelineModuleAsyncOptions,
   ): Provider {
     if (options.useFactory) {
+      const factory = options.useFactory;
       return {
         provide: PIPELINE_MODULE_OPTIONS,
-        useFactory: options.useFactory,
+        useFactory: async (...args: never[]) =>
+          assertRuntimeOptions(await factory(...args), 'useFactory'),
         inject: options.inject ?? [],
       };
     }
@@ -246,7 +278,10 @@ export class PipelineModule {
     return {
       provide: PIPELINE_MODULE_OPTIONS,
       useFactory: async (optionsFactory: PipelineOptionsFactory) =>
-        optionsFactory.createPipelineOptions(),
+        assertRuntimeOptions(
+          await optionsFactory.createPipelineOptions(),
+          `${optionsFactory.constructor.name}.createPipelineOptions()`,
+        ),
       inject,
     };
   }

@@ -9,10 +9,20 @@ import {
   CACHE_KEY_ITEM,
   CacheBehavior,
 } from './cache.behavior';
-import { defaultCacheKey } from './helpers/cache-key';
+import { createPartitionedCacheKeyFactory } from './helpers/cache-key';
 import type { CacheBehaviorOptions } from './interfaces/cache-options.interface';
 
 // ─── Context factory ──────────────────────────────────────────────────────────
+
+/**
+ * `CacheBehavior` has no default key: the removed one embedded the per-request
+ * correlation ID, so it never produced a hit. These tests exercise caching
+ * mechanics, so they partition by tenant and principal explicitly.
+ */
+const TEST_KEY = createPartitionedCacheKeyFactory({
+  principal: (ctx) => (ctx.items.get('userId') as string | undefined) ?? 'u-1',
+  requireTenant: false,
+});
 
 function makeCtx(
   options?: CacheBehaviorOptions,
@@ -30,7 +40,10 @@ function makeCtx(
     startedAt: new Date('2026-01-01T00:00:00.000Z'),
     response: undefined,
     items: new Map(),
-    getBehaviorOptions: vi.fn().mockReturnValue(options),
+    getBehaviorOptions: vi.fn().mockReturnValue({
+      key: TEST_KEY,
+      ...options,
+    }),
     ...overrides,
   } as unknown as IPipelineContext;
 }
@@ -239,7 +252,7 @@ describe('CacheBehavior', () => {
     const missCtx = makeCtx();
     await behavior.handle(missCtx, next);
     expect(missCtx.items.get(CACHE_HIT_ITEM)).toBe(false);
-    expect(missCtx.items.get(CACHE_KEY_ITEM)).toBe(defaultCacheKey(missCtx));
+    expect(missCtx.items.get(CACHE_KEY_ITEM)).toBe(TEST_KEY(missCtx));
 
     const hitCtx = makeCtx();
     await behavior.handle(hitCtx, next);

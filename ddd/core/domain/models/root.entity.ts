@@ -13,7 +13,8 @@ import { RootEntitySnapshot } from '../interfaces/root-entity-snapshot.interface
  * - **UUID v7 Identity**: Automatically generates time-ordered UUID v7 identifiers for new instances.
  * - **Lifecycle Timestamps**: Enforces invariant-checked `createdAt` and `updatedAt` tracking.
  * - **Accessor-Driven Persistence**: Exposes typed getters and setters (`id`, `createdAt`, `updatedAt`)
- *   compatible with MikroORM `accessor: true` mapping without breaking encapsulation.
+ *   compatible with MikroORM `accessor: true` mapping. Setters are a hydration escape hatch;
+ *   application mutations must use factories/domain methods, not these setters.
  * - **Optimistic Concurrency Control**: Tracks integer aggregate versioning (`_version`, {@link getExpectedVersion}),
  *   incremented automatically on mutations to prevent concurrent lost updates.
  * - **Polymorphic Rehydration**: Static `RootEntity.from()` transparently handles instances, plain snapshots,
@@ -280,24 +281,6 @@ export abstract class RootEntity<
       return;
     }
     this._persistedVersion = this._version;
-  }
-
-  /**
-   * Alias for {@link acknowledgePersisted}.
-   *
-   * Advances the expected persistence version baseline (`_persistedVersion`) to match
-   * the version written to durable storage.
-   *
-   * @param version Optional specific version that was persisted.
-   * @see {@link acknowledgePersisted}
-   *
-   * @example
-   * ```typescript
-   * user.markPersisted(); // advances _persistedVersion to user.version
-   * ```
-   */
-  markPersisted(version?: number): void {
-    this.acknowledgePersisted(version);
   }
 
   protected onUpdate(): void {

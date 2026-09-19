@@ -156,7 +156,7 @@ describe('MapPersistenceErrors otherwise translator', () => {
   it('preserves error identity when the translator returns the error unchanged', async () => {
     // This is the `mapPersistenceError` contract: non-transient failures pass
     // through, so repositories need no explicit re-throw guard for the domain
-    // errors they raise deliberately (OptimisticLockError, EntityNotFound…).
+    // errors they raise deliberately (ConcurrencyConflictError, EntityNotFound…).
     const failure = new Error('deliberate domain failure');
     const { run, otherwise } = setupOtherwise(failure, (error) => error);
 

@@ -47,7 +47,9 @@ describe('LoggingBehavior payload compatibility and redaction', () => {
     expect(logger.log).toHaveBeenCalledTimes(1);
   });
 
-  it('keeps historical payload output when new redaction options are not enabled', async () => {
+  it('masks sensitive fields as soon as payload logging is switched on', async () => {
+    // Enabling payload logging used to print passwords and tokens verbatim,
+    // because redaction was opt-in on top of an opt-in.
     const logger = { debug: vi.fn(), log: vi.fn(), error: vi.fn() };
     const behavior = new LoggingBehavior(logger as never);
 
@@ -61,11 +63,32 @@ describe('LoggingBehavior payload compatibility and redaction', () => {
     );
 
     const requestLine = logger.debug.mock.calls[0][0] as string;
+    expect(requestLine).toContain('user@example.com');
+    expect(requestLine).not.toContain('secret-password');
+    expect(requestLine).not.toContain('secret-token');
+    expect(requestLine).toContain('[REDACTED]');
+  });
+
+  it('logs payloads verbatim only when masking is explicitly disabled', async () => {
+    const logger = { debug: vi.fn(), log: vi.fn(), error: vi.fn() };
+    const behavior = new LoggingBehavior(logger as never);
+
+    await behavior.handle(
+      context({
+        excludeRequestObj: false,
+        excludeResponseObj: true,
+        requestResponseLogLevel: 'debug',
+        redactSensitiveKeys: false,
+      }),
+      vi.fn().mockResolvedValue(undefined),
+    );
+
+    const requestLine = logger.debug.mock.calls[0][0] as string;
     expect(requestLine).toContain('secret-password');
     expect(requestLine).toContain('secret-token');
   });
 
-  it('keeps legacy excludeKeys semantics without enabling redaction', async () => {
+  it('keeps excludeKeys as full omission alongside default masking', async () => {
     const logger = { debug: vi.fn(), log: vi.fn(), error: vi.fn() };
     const behavior = new LoggingBehavior(logger as never);
 
@@ -80,13 +103,15 @@ describe('LoggingBehavior payload compatibility and redaction', () => {
     );
 
     const requestLine = logger.debug.mock.calls[0][0] as string;
+    // Excluded keys disappear entirely; the remaining sensitive key is masked
+    // rather than printed, which is the behavioral change.
     expect(requestLine).not.toContain('secret-password');
     expect(requestLine).not.toContain('remove-me');
-    expect(requestLine).toContain('secret-token');
-    expect(requestLine).not.toContain('[REDACTED]');
+    expect(requestLine).not.toContain('secret-token');
+    expect(requestLine).toContain('[REDACTED]');
   });
 
-  it('keeps legacy structured output shape when only legacy options are used', async () => {
+  it('keeps the structured output shape, with sensitive values masked', async () => {
     const logger = { debug: vi.fn(), log: vi.fn(), error: vi.fn() };
     const behavior = new LoggingBehavior(logger as never);
 
@@ -105,12 +130,12 @@ describe('LoggingBehavior payload compatibility and redaction', () => {
       msg: 'Request → TestHandler',
       request: {
         email: 'user@example.com',
-        nested: { accessToken: 'secret-token', internal: 'remove-me' },
+        nested: { accessToken: '[REDACTED]', internal: 'remove-me' },
       },
     });
     expect(logger.debug.mock.calls[1][0]).toEqual({
       msg: 'Response ← TestHandler',
-      response: { status: 'ok', token: 'legacy-visible' },
+      response: { status: 'ok', token: '[REDACTED]' },
     });
   });
 

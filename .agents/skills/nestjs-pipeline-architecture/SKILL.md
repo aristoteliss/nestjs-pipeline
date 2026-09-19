@@ -294,6 +294,38 @@ Creation factories should record creation events. Rehydration methods must not r
 
 Application code should not bypass factories/domain methods by using public constructors directly.
 
+## No production code for tests
+
+Tests observe the system; they do not get their own API.
+
+Never add or widen any of these because a test needs it:
+
+- an `export` on a function, constant, or type that no non-test module imports;
+- a parameter whose only non-default argument comes from a spec (for example an
+  injectable module/dependency override);
+- an option, flag, or branch that only a test sets;
+- process-global or static state that only a test reads.
+
+Each of these makes the signature or lifetime of production code answer to the
+test rather than to the problem, and it hides how much of the real path is
+actually covered: a unit test calling an exported internal proves the internal
+works, not that anything calls it correctly.
+
+Instead:
+
+- test through the surface real callers use — the bus, the behavior, the
+  repository, the HTTP boundary;
+- to control a dependency at a module boundary, mock the module in the spec
+  (`vi.mock('@nestjs/cqrs', ...)`), which needs no production seam;
+- to reach an integration path that needs a Nest application, put the spec in
+  `ddd/users-api`, never in a published package — a published package must not
+  depend on `@nestjs/testing`;
+- if the behavior genuinely cannot be reached from any real caller, that is dead
+  code: delete it rather than testing it.
+
+A helper extracted for readability and used by production code is fine; what is
+forbidden is surface that exists solely so a test can reach inside.
+
 ## Security checklist before finishing a change
 
 Before finalizing an architecture-sensitive change, verify:
@@ -317,6 +349,8 @@ Before finalizing an architecture-sensitive change, verify:
 - [ ] Entity deletes condition on `{ id, version: aggregate.getExpectedVersion() }` and assert affected rows.
 - [ ] Cache mutations install mutation barriers to prevent stale reader resurrection.
 - [ ] Tests cover the relevant architectural boundary, persistence lifecycle, and security behavior.
+- [ ] No export, parameter, option, or retained state was added or widened only so a test could reach it.
+- [ ] New tests exercise the real call path rather than an internal reached through a test-only export.
 - [ ] `pnpm lint:persistence` passes with zero diagnostics.
 
 ## Positive examples to copy
@@ -355,3 +389,6 @@ Never introduce or re-introduce these patterns:
 - Calling `optimisticUpdate` inside an active transaction without an explicit commit-hook contract
 - Unchecked deletes using only `{ id }` without checking `aggregate.getExpectedVersion()` and affected rows
 - Manual try/catch blocks in command repositories for constraint mapping when `@MapPersistenceErrors` can be used declarative
+- Exporting an internal function, or adding a dependency-injection parameter, so that a spec can call it directly (`@internal Exported for tests`)
+- Process-global registries or counters kept alive only so a test can observe them
+- Depending on `@nestjs/testing` from a published package in order to write an integration test

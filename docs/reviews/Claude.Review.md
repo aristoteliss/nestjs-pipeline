@@ -1,5 +1,10 @@
 # Claude: independent repository review — `nestjs-pipeline`
 
+> Historical review: findings and proposed snippets describe the snapshot listed
+> below, not the current API. Use canonical package READMEs and source for usage;
+> current dispositions are tracked in [Telikos.Pinakas.md](Telikos.Pinakas.md).
+> Documentation drift is tracked under row 35.
+
 Reviewer: Claude (Opus 5)
 Date: 2026-09-18
 Commit reviewed: `ba0b57d` (`develop`, clean tree)

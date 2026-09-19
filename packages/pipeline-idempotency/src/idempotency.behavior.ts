@@ -205,12 +205,20 @@ export class IdempotencyBehavior implements IPipelineBehavior {
     let responseSnapshot: JsonValue | undefined;
     try {
       responseSnapshot = toJsonSnapshot(response);
-    } catch (error) {
-      // The handler has already completed, but an unusable response must not
-      // leave a permanently in-progress claim. Surface the contract violation
-      // after releasing this execution's claim.
-      await this.release(key, claimId);
-      throw error;
+    } catch (cause) {
+      // The handler already succeeded, so its side effects have happened. An
+      // earlier revision released the claim here, which let the very next retry
+      // repeat them immediately. Retain the claim until it expires instead, and
+      // report the failure as a finalization problem rather than a plain
+      // TypeError, so callers can tell it apart from a handler failure.
+      this.logger.error?.(
+        `Idempotency response snapshot failed after ${context.requestName} ` +
+          `executed successfully (key: ${key}). The claim is retained until it ` +
+          'expires; retrying the business request may repeat side effects.',
+        cause instanceof Error ? cause.stack : undefined,
+        IdempotencyBehavior.name,
+      );
+      throw new IdempotencyCompletionError(key, claimId, cause, 'snapshot');
     }
 
     // The handler has already succeeded. Completion must be conditional on
@@ -237,7 +245,7 @@ export class IdempotencyBehavior implements IPipelineBehavior {
         cause instanceof Error ? cause.stack : undefined,
         IdempotencyBehavior.name,
       );
-      throw new IdempotencyCompletionError(key, claimId, cause);
+      throw new IdempotencyCompletionError(key, claimId, cause, 'store');
     }
 
     if (!completed) {

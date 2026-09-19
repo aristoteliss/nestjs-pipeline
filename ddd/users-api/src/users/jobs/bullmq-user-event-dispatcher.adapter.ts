@@ -2,11 +2,8 @@
 
 import { InjectQueue } from '@nestjs/bullmq';
 import { Injectable } from '@nestjs/common';
-import {
-  addCorrelationId,
-  getCorrelationId,
-} from '@nestjs-pipeline/correlation';
-import type { JobsOptions, Queue } from 'bullmq';
+import { addCorrelationId } from '@nestjs-pipeline/correlation';
+import type { Queue } from 'bullmq';
 import type {
   IUserBatchDispatcher,
   IWelcomeEmailDispatcher,
@@ -15,7 +12,7 @@ import type {
 } from '../application/ports/user-event-dispatcher.port';
 import {
   BATCH_UPDATE_USERS_QUEUE,
-  type BatchUpdateUserItem,
+  type BatchUpdateUsersJobData,
 } from './batch-update-users.processor';
 import {
   WELCOME_EMAIL_QUEUE,
@@ -26,6 +23,11 @@ import {
  * BullMQ infrastructure adapter for user-event application dispatch ports.
  * Queue correlation metadata is derived from the current correlation store here,
  * not carried as an application-handler concern.
+ *
+ * Both queues stamp the correlation ID into the job payload with
+ * `addCorrelationId`. The batch queue used to put it on `JobsOptions` instead,
+ * under a field BullMQ does not declare — the ID survived only because BullMQ
+ * happens to persist unknown options, and nothing in its contract says it will.
  */
 @Injectable()
 export class BullMqUserEventDispatcher
@@ -35,7 +37,7 @@ export class BullMqUserEventDispatcher
     @InjectQueue(WELCOME_EMAIL_QUEUE)
     private readonly welcomeEmailQueue: Queue<WelcomeEmailJobData>,
     @InjectQueue(BATCH_UPDATE_USERS_QUEUE)
-    private readonly batchUpdateQueue: Queue<BatchUpdateUserItem[]>,
+    private readonly batchUpdateQueue: Queue<BatchUpdateUsersJobData>,
   ) {}
 
   async enqueueWelcomeEmail(message: WelcomeEmailDispatch): Promise<void> {
@@ -47,10 +49,7 @@ export class BullMqUserEventDispatcher
   ): Promise<void> {
     await this.batchUpdateQueue.add(
       'batch-update',
-      items.map((item) => ({ ...item })),
-      { correlationId: getCorrelationId() } as JobsOptions & {
-        correlationId: string;
-      },
+      addCorrelationId({ items: items.map((item) => ({ ...item })) }),
     );
   }
 }

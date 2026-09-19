@@ -10,7 +10,7 @@ import {
   CASL_USER_CAPABILITY_PROVIDER,
   CASL_USER_CONTEXT_RESOLVER,
 } from './constants/tokens';
-import { CaslEntityAuthorizer } from './helpers/entity-authorization.helper';
+import { CaslAuthorizer } from './helpers/entity-authorization.helper';
 import { ENTITY_AUTHORIZER } from './interfaces/entity-authorizer.interface';
 import { StaticRoleProvider } from './providers/static-role.provider';
 
@@ -32,7 +32,7 @@ describe('CaslModule.forRoot', () => {
     expect(dynamicModule.global).toBe(true);
     expect(dynamicModule.module).toBe(CaslModule);
     expect(dynamicModule.exports).toContain(CaslBehavior);
-    expect(dynamicModule.exports).toContain(CaslEntityAuthorizer);
+    expect(dynamicModule.exports).toContain(CaslAuthorizer);
     expect(dynamicModule.exports).toContain(ENTITY_AUTHORIZER);
     expect(dynamicModule.exports).toContain(CASL_ROLE_PROVIDER);
     expect(dynamicModule.exports).toContain(CASL_SUBJECT_CONTEXT_PATHS);
@@ -42,7 +42,7 @@ describe('CaslModule.forRoot', () => {
     const authProvider = dynamicModule.providers?.find(
       (p: any) => p.provide === ENTITY_AUTHORIZER,
     ) as any;
-    expect(authProvider?.useExisting).toBe(CaslEntityAuthorizer);
+    expect(authProvider?.useExisting).toBe(CaslAuthorizer);
 
     const pathsProvider = dynamicModule.providers?.find(
       (p: any) => p.provide === CASL_SUBJECT_CONTEXT_PATHS,

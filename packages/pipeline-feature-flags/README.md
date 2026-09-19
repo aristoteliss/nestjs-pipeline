@@ -144,9 +144,12 @@ For each request, `FeatureFlagBehavior`:
 1. Resolves effective options (module defaults ← per-handler options).
 2. If **no `flag`** is configured → passes straight through (no-op).
 3. Builds a targeting [context](#targeting-context) from the request.
-4. Evaluates the boolean flag via the OpenFeature client (**fail-closed**: a
-   provider error or unknown key resolves to `defaultValue`, default `false`).
-5. Records `feature-flag.key` and `feature-flag.enabled` on `context.items`.
+4. Evaluates boolean details via OpenFeature. `errorPolicy: 'use-default'` uses
+   `defaultValue` (default `false`); `'throw'` raises `FeatureFlagEvaluationError`.
+   If `allowedVariants` is set, a true value also needs an allowed variant.
+5. Records the value, flag key, and detailed decision under exported Symbol keys
+   in `context.items`: `FEATURE_FLAG_ITEM`, `FEATURE_FLAG_KEY_ITEM`, and
+   `FEATURE_FLAG_DECISION_ITEM`.
 6. **Enabled** → runs the handler. **Disabled** → returns `fallback(context)` if
    set, otherwise throws `FeatureDisabledError`.
 
@@ -164,6 +167,9 @@ Per-handler options via `@UsePipeline([FeatureFlagBehavior, options])`:
 | `defaultValue` | `boolean` | `false` | Value used when evaluation fails / key is unknown. |
 | `fallback` | `(ctx) => unknown \| Promise<unknown>` | — | Returned when disabled, instead of throwing. |
 | `context` | `(ctx) => EvaluationContext` | — | Extra targeting context for this handler. |
+| `targetingKeyFactory` | `(ctx) => string \| undefined` | — | Stable rollout identity; overrides the module resolver. |
+| `allowedVariants` | `readonly string[]` | — | Require a true value and an allowed provider variant. |
+| `errorPolicy` | `use-default` \| `throw` | `use-default` | Use the default value or raise `FeatureFlagEvaluationError` on provider errors. |
 
 ### Module-wide Defaults
 
@@ -181,14 +187,15 @@ FeatureFlagsModule.forRoot({
 Every evaluation receives a context, merged **later-wins**:
 
 ```
-base(request) → module `context` → handler `context(request)`
+base(request) → module `context` → handler `context(request)` → targeting-key factory
 ```
 
 The base context is derived from the pipeline request:
 
 | Key | Value |
 |---|---|
-| `targetingKey` | `context.correlationId` _(stable only within one request; override with user/account/device identity for sticky rollouts)_ |
+| `pipeline.correlation_id` | `context.correlationId` (tracing metadata, not rollout identity) |
+| `pipeline.tenant_id` | `context.tenantId`, when present |
 | `pipeline.request.kind` | `command` \| `query` \| `event` |
 | `pipeline.request.name` | `NewCheckoutCommand` |
 | `pipeline.handler.name` | `NewCheckoutHandler` |
@@ -261,17 +268,84 @@ export class AppModule {}
 
 ---
 
+## Stable rollout identity
+
+Do not use a request correlation ID as `targetingKey` for percentage rollouts. Correlation IDs normally change on every request, so the same user can move between cohorts.
+
+Configure a stable application identity instead:
+
+```ts
+FeatureFlagsModule.forRoot({
+  provider,
+  targetingKeyFactory: (ctx) =>
+    ctx.items.get('accountId') as string | undefined,
+});
+```
+
+A handler can override the module resolver with `targetingKeyFactory`. If no factory produces a value, a `targetingKey` already supplied through module/handler evaluation context is preserved. The package intentionally does not invent a user identity.
+
+## Variant-aware gates
+
+Boolean evaluation can be narrowed to provider variants:
+
+```ts
+@UsePipeline([
+  FeatureFlagBehavior,
+  {
+    flag: 'checkout-v2',
+    allowedVariants: ['treatment'],
+  },
+])
+```
+
+The handler runs only when the flag is `true` and the provider-reported variant is allowed.
+
+## Request-local decision metadata
+
+The behavior evaluates a flag once and stores the result in `PipelineContext.items`:
+
+```ts
+const decision = context.items.get(FEATURE_FLAG_DECISION_ITEM);
+```
+
+`FeatureFlagDecision` includes the flag key, raw value, final enabled decision, variant, resolution reason, provider error information, and targeting key. Audit/telemetry/custom behaviors can consume this without evaluating the flag a second time.
+
+`FEATURE_FLAG_ITEM` and `FEATURE_FLAG_KEY_ITEM` also expose the enabled decision and flag key.
+
+## Provider failure policy
+
+The default `errorPolicy: 'use-default'` follows OpenFeature's default-value availability model. For flags that must not silently fall back, use:
+
+```ts
+{
+  flag: 'high-risk-flow',
+  defaultValue: false,
+  errorPolicy: 'throw',
+}
+```
+
+Provider errors are surfaced as `FeatureFlagEvaluationError`.
+
+## Migration note
+
+The default evaluation context no longer sets `targetingKey` to `context.correlationId`. This is intentional and may change percentage-rollout assignment for applications that relied on the old behavior. Configure a stable user/account/device/tenant identity explicitly when upgrading from correlation-based targeting.
+
+
 ## API Reference
 
 | Export | Type | Description |
 |---|---|---|
 | `FeatureFlagBehavior` | Class | Pipeline behavior — gates a handler behind a boolean flag |
 | `FeatureFlagsModule` | Class | `forRoot(options)` — registers the provider/client and defaults |
-| `FeatureFlagBehaviorOptions` | Interface | `{ flag?, defaultValue?, fallback?, context? }` |
-| `FeatureFlagsModuleOptions` | Interface | `{ client?, provider?, domain?, context?, waitForReady?, defaults? }` |
+| `FeatureFlagBehaviorOptions` | Interface | `Per-handler options listed above, including stable targeting, variants, and error policy` |
+| `FeatureFlagsModuleOptions` | Interface | ``client`, `provider`, `domain`, `context`, `waitForReady`, `defaults`, and `targetingKeyFactory`` |
 | `FeatureDisabledError` | Class | Thrown when a gated flag is disabled and no `fallback` is set |
 | `baseEvaluationContext` | Function | Derives the base targeting context from a pipeline request |
 | `buildEvaluationContext` | Function | Merges base + module + handler targeting context |
+| `FeatureFlagEvaluationError` | Class | Provider evaluation failure under `errorPolicy: 'throw'` |
+| `FeatureFlagDecision` | Interface | Detailed recorded gate decision |
+| `FEATURE_FLAG_DECISION_ITEM` | Symbol | Detailed decision key in `context.items` |
+| `FEATURE_FLAGS_TARGETING_KEY_FACTORY` | Token | Module targeting resolver |
 | `FEATURE_FLAGS_CLIENT` | Token | OpenFeature `Client` provider |
 | `FEATURE_FLAGS_DEFAULT_OPTIONS` | Token | Module-wide default behavior options |
 | `FEATURE_FLAGS_DEFAULT_CONTEXT` | Token | Module-wide default evaluation context |
