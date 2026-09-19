@@ -79,6 +79,8 @@ Do not combine this work with D-01, D-02 or D-03.
 
 ## 3.1 S-01 — Generic per-handler global-behavior opt-out
 
+**Status: RESOLVED / IMPLEMENTED**
+
 Add a core decorator named `SkipPipeline` unless an existing naming convention discovered during implementation strongly requires an equivalent name.
 
 Required contract:

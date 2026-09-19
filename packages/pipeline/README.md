@@ -25,6 +25,7 @@ Its peer contract also includes the standard NestJS runtime peers
 - [Global Behaviors](#global-behaviors)
   - [Scoping](#scoping)
   - [Deduplication](#deduplication)
+  - [Skipping Global Behaviors (@SkipPipeline)](#skipping-global-behaviors-skippipeline)
 - [Built-in LoggingBehavior](#built-in-loggingbehavior)
 - [Correlation IDs](#correlation-ids)
   - [HTTP Requests](#http-requests)
@@ -514,6 +515,28 @@ handler later performs entity-level checks or response-field filtering, cache
 and idempotency keys must be partitioned by the applicable tenant, principal,
 and permission scope because a short-circuit hit does not execute the handler.
 
+### Skipping Global Behaviors (@SkipPipeline)
+
+To completely exclude one or more globally configured behaviors from running on a specific handler, decorate the handler class with `@SkipPipeline`:
+
+```typescript
+import { SkipPipeline } from '@nestjs-pipeline/core';
+
+@CommandHandler(InternalRebuildCommand)
+@SkipPipeline(AuditBehavior)
+export class InternalRebuildHandler implements ICommandHandler<InternalRebuildCommand> {
+  async execute(command: InternalRebuildCommand) {
+    // AuditBehavior does not run.
+    // Remaining global behaviors (e.g. LoggingBehavior) execute in their normal order.
+  }
+}
+```
+
+Key rules:
+- **No relocation:** Skipping one behavior does not shift or reorder the remaining behaviors.
+- **Fail-fast on contradiction:** Declaring both `@SkipPipeline(B)` and `@UsePipeline(B)` (or providing options for `B`) is contradictory configuration and causes bootstrap to fail immediately with an explicit error.
+- **Handler types:** Supported on command, query, and event handlers across singleton and request-scoped lifecycles.
+
 ---
 
 ## Built-in LoggingBehavior
@@ -859,6 +882,7 @@ orderCreated = (events$: Observable<any>): Observable<ICommand> =>
 |---|---|---|
 | `PipelineModule` | Module | `.forRoot()` and `.forFeature()` registration |
 | `UsePipeline` | Decorator | Attach behaviors to CQRS handlers |
+| `SkipPipeline` | Decorator | Exclude global behaviors from a specific CQRS handler |
 | `IPipelineBehavior` | Interface | Behavior contract: `handle(context, next)` |
 | `IPipelineContext` | Interface | Rich execution context |
 | `NextDelegate` | Type | `() => Promise<TResponse>` |
@@ -874,6 +898,7 @@ orderCreated = (events$: Observable<any>): Observable<ICommand> =>
 | `PipelineBootstrapService` | Class | Scans and wraps handlers at bootstrap |
 | `PipelineHandlerMeta` | Interface | Pre-computed handler metadata |
 | `PIPELINE_BEHAVIOR_ID` | Symbol | Custom deduplication key for behaviors |
+| `PIPELINE_SKIPPED_BEHAVIORS_METADATA` | Symbol | Metadata key for skipped behavior classes |
 | `PIPELINE_TENANT_ID` | Symbol | Key symbol for tenant ID in `context.items` |
 | `SET_TENANT_ID` | Symbol | Symbol setter for `tenantId` and items sync |
 | `PipelineBehaviorEntry` | Type | `Type \| [Type, Record<string, unknown>]` |

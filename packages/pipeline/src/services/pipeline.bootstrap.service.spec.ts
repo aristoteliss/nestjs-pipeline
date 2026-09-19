@@ -4,7 +4,11 @@ import { Logger } from '@nestjs/common';
 import { ExplorerService } from '@nestjs/cqrs/dist/services/explorer.service';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { pipelineStore } from '../constants/pipeline-context.constants';
-import { UsePipeline } from '../decorators/pipeline.decorator';
+import {
+  PIPELINE_BEHAVIOR_ID,
+  SkipPipeline,
+  UsePipeline,
+} from '../decorators/pipeline.decorator';
 import {
   IPipelineBehavior,
   NextDelegate,
@@ -1091,6 +1095,183 @@ describe('PipelineBootstrapService', () => {
       expect(warnSpy).not.toHaveBeenCalledWith(
         expect.stringContaining('Wrapping'),
       );
+    });
+  });
+
+  // ─────────────────────────────────────────────────────────────────
+  describe('@SkipPipeline behavior filtering during bootstrap', () => {
+    it('skips a specified global behavior for a command handler while executing remaining global behaviors', async () => {
+      @SkipPipeline(MockBehavior)
+      class SkipCommandHandler {
+        async execute(_command: MockCommand) {
+          return { ok: true, store: pipelineStore.getStore() };
+        }
+      }
+      const handler = new SkipCommandHandler();
+      explorerServiceMock.explore.mockReturnValue({
+        commands: [makeWrapper(handler, SkipCommandHandler)],
+        queries: [],
+        events: [],
+      });
+
+      bootstrap({
+        globalBehaviors: { before: [MockBehavior, SecondMockBehavior] },
+      });
+
+      const result = await handler.execute(new MockCommand(1));
+      expect(result.ok).toBe(true);
+      expect(result.store).toBeDefined();
+      expect(result.store!.items.get('mock')).toBeUndefined();
+      expect(result.store!.items.get('second')).toBe(true);
+      expect(SecondMockBehavior.callCount).toBe(1);
+    });
+
+    it('skips all global behaviors leaving handler completely unwrapped', async () => {
+      @SkipPipeline(MockBehavior)
+      class SkipAllCommandHandler {
+        async execute(_command: MockCommand) {
+          return { ok: true, store: pipelineStore.getStore() };
+        }
+      }
+      const handler = new SkipAllCommandHandler();
+      explorerServiceMock.explore.mockReturnValue({
+        commands: [makeWrapper(handler, SkipAllCommandHandler)],
+        queries: [],
+        events: [],
+      });
+
+      bootstrap({
+        globalBehaviors: { before: [MockBehavior] },
+      });
+
+      const result = await handler.execute(new MockCommand(1));
+      expect(result.ok).toBe(true);
+      expect(result.store).toBeUndefined();
+    });
+
+    it('skips a global behavior for query and event handlers', async () => {
+      @SkipPipeline(MockBehavior)
+      class SkipQueryHandler {
+        async execute(query: MockQuery) {
+          return { id: query.id, store: pipelineStore.getStore() };
+        }
+      }
+
+      @SkipPipeline(MockBehavior)
+      class SkipEventHandler {
+        async handle(event: MockEvent) {
+          return { payload: event.payload, store: pipelineStore.getStore() };
+        }
+      }
+
+      const qHandler = new SkipQueryHandler();
+      const evHandler = new SkipEventHandler();
+      explorerServiceMock.explore.mockReturnValue({
+        commands: [],
+        queries: [makeWrapper(qHandler, SkipQueryHandler)],
+        events: [makeWrapper(evHandler, SkipEventHandler)],
+      });
+
+      bootstrap({
+        globalBehaviors: { before: [MockBehavior, SecondMockBehavior] },
+      });
+
+      const qResult = await qHandler.execute(new MockQuery(42));
+      expect(qResult.store!.items.get('mock')).toBeUndefined();
+      expect(qResult.store!.items.get('second')).toBe(true);
+
+      const evResult = await evHandler.handle(new MockEvent('test'));
+      expect(evResult.store!.items.get('mock')).toBeUndefined();
+      expect(evResult.store!.items.get('second')).toBe(true);
+    });
+
+    it('skips a global behavior for request-scoped handlers', async () => {
+      @SkipPipeline(MockBehavior)
+      class ScopedSkipCommandHandler {
+        async execute(_command: MockCommand) {
+          return { scoped: true, store: pipelineStore.getStore() };
+        }
+      }
+
+      const handler = new ScopedSkipCommandHandler();
+      explorerServiceMock.explore.mockReturnValue({
+        commands: [makeWrapper(handler, ScopedSkipCommandHandler, 2)],
+        queries: [],
+        events: [],
+      });
+
+      bootstrap({
+        globalBehaviors: { before: [MockBehavior, SecondMockBehavior] },
+      });
+
+      const freshInstance = new ScopedSkipCommandHandler();
+      const result = (await freshInstance.execute(new MockCommand(5))) as any;
+      expect(result.scoped).toBe(true);
+      expect(result.store).toBeDefined();
+      expect(result.store.items.get('mock')).toBeUndefined();
+      expect(result.store.items.get('second')).toBe(true);
+    });
+
+    it('throws descriptive error during bootstrap when @SkipPipeline and @UsePipeline contradict', () => {
+      @SkipPipeline(MockBehavior)
+      @UsePipeline(MockBehavior)
+      class ContradictoryHandler {
+        async execute(_command: MockCommand) {
+          return {};
+        }
+      }
+
+      const handler = new ContradictoryHandler();
+      explorerServiceMock.explore.mockReturnValue({
+        commands: [makeWrapper(handler, ContradictoryHandler)],
+        queries: [],
+        events: [],
+      });
+
+      expect(() =>
+        bootstrap({
+          globalBehaviors: { before: [MockBehavior] },
+        }),
+      ).toThrowError(/contradictory pipeline configuration/i);
+    });
+
+    it('skips a behavior identified by PIPELINE_BEHAVIOR_ID', async () => {
+      class CustomSkipBehavior implements IPipelineBehavior {
+        static readonly [PIPELINE_BEHAVIOR_ID] = 'custom:skip-me';
+        async handle(ctx: IPipelineContext, next: NextDelegate) {
+          ctx.items.set('custom', true);
+          return next();
+        }
+      }
+
+      @SkipPipeline(CustomSkipBehavior)
+      class CustomSkipHandler {
+        async execute(_cmd: MockCommand) {
+          return { store: pipelineStore.getStore() };
+        }
+      }
+
+      const handler = new CustomSkipHandler();
+      explorerServiceMock.explore.mockReturnValue({
+        commands: [makeWrapper(handler, CustomSkipHandler)],
+        queries: [],
+        events: [],
+      });
+
+      moduleRefMock.get.mockImplementation((token: any) => {
+        if (token === ExplorerService) return explorerServiceMock;
+        if (token === CustomSkipBehavior) return new CustomSkipBehavior();
+        if (token === SecondMockBehavior) return new SecondMockBehavior();
+        return undefined;
+      });
+
+      bootstrap({
+        globalBehaviors: { before: [CustomSkipBehavior, SecondMockBehavior] },
+      });
+
+      const result = (await handler.execute(new MockCommand(1))) as any;
+      expect(result.store!.items.get('custom')).toBeUndefined();
+      expect(result.store!.items.get('second')).toBe(true);
     });
   });
 });

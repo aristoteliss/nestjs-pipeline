@@ -7,6 +7,8 @@ import {
   PIPELINE_BEHAVIOR_ID,
   PIPELINE_BEHAVIORS_METADATA,
   PIPELINE_BEHAVIORS_OPTIONS_METADATA,
+  PIPELINE_SKIPPED_BEHAVIORS_METADATA,
+  SkipPipeline,
   UsePipeline,
 } from '../decorators/pipeline.decorator';
 import {
@@ -201,5 +203,30 @@ describe('getBehaviorId', () => {
 
   it('returns PIPELINE_BEHAVIOR_ID when defined', () => {
     expect(getBehaviorId(CustomIdBehavior)).toBe('custom:my-behavior');
+  });
+});
+
+describe('@SkipPipeline decorator', () => {
+  it('stores skipped behavior classes in metadata', () => {
+    @SkipPipeline(BehaviorA, BehaviorB)
+    class TestHandler {}
+
+    const skipped = Reflect.getMetadata(
+      PIPELINE_SKIPPED_BEHAVIORS_METADATA,
+      TestHandler,
+    );
+    expect(skipped).toEqual([BehaviorA, BehaviorB]);
+  });
+
+  it('merges multiple @SkipPipeline decorators on the same class', () => {
+    @SkipPipeline(BehaviorA)
+    @SkipPipeline(BehaviorB)
+    class MultiSkipHandler {}
+
+    const skipped = Reflect.getMetadata(
+      PIPELINE_SKIPPED_BEHAVIORS_METADATA,
+      MultiSkipHandler,
+    );
+    expect(skipped).toEqual([BehaviorB, BehaviorA]);
   });
 });

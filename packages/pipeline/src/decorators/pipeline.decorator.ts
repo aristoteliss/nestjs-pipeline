@@ -9,6 +9,9 @@ export const PIPELINE_BEHAVIORS_METADATA = Symbol('PIPELINE_BEHAVIORS');
 export const PIPELINE_BEHAVIORS_OPTIONS_METADATA = Symbol(
   'PIPELINE_BEHAVIORS_OPTIONS',
 );
+export const PIPELINE_SKIPPED_BEHAVIORS_METADATA = Symbol(
+  'PIPELINE_SKIPPED_BEHAVIORS',
+);
 
 /**
  * Optional static property on a behavior class that provides a stable,
@@ -124,6 +127,39 @@ export function UsePipeline(
     Reflect.defineMetadata(
       PIPELINE_BEHAVIORS_OPTIONS_METADATA,
       options,
+      target,
+    );
+  };
+}
+
+/**
+ * Excludes one or more global pipeline behaviors from executing for a specific handler.
+ *
+ * Use this when a global behavior (e.g. AuditBehavior, RateLimitBehavior) should
+ * apply application-wide except to a specific command, query, or event handler.
+ *
+ * If a handler both skips and declares the same behavior (via `@UsePipeline` or options),
+ * pipeline bootstrap fails immediately with an error.
+ *
+ * @param behaviorTypes - Behavior classes to skip.
+ * @returns A class decorator for a CQRS handler.
+ *
+ * @example
+ * ```ts
+ * @CommandHandler(InternalRebuildCommand)
+ * @SkipPipeline(AuditBehavior)
+ * export class InternalRebuildHandler implements ICommandHandler<InternalRebuildCommand> { ... }
+ * ```
+ */
+export function SkipPipeline(
+  ...behaviorTypes: Type<IPipelineBehavior>[]
+): ClassDecorator {
+  return (target) => {
+    const existing: Type<IPipelineBehavior>[] =
+      Reflect.getMetadata(PIPELINE_SKIPPED_BEHAVIORS_METADATA, target) ?? [];
+    Reflect.defineMetadata(
+      PIPELINE_SKIPPED_BEHAVIORS_METADATA,
+      [...existing, ...behaviorTypes],
       target,
     );
   };

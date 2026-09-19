@@ -26,6 +26,7 @@ import {
   getBehaviorId,
   PIPELINE_BEHAVIORS_METADATA,
   PIPELINE_BEHAVIORS_OPTIONS_METADATA,
+  PIPELINE_SKIPPED_BEHAVIORS_METADATA,
   PipelineBehaviorEntry,
 } from '../decorators/pipeline.decorator';
 import { uuidv7 } from '../helpers/uuidv7';
@@ -194,14 +195,48 @@ export class PipelineBootstrapService
     // Handler-specific behaviors from @UsePipeline decorator
     const handlerBehaviorTypes: Type<IPipelineBehavior>[] | undefined =
       Reflect.getMetadata(PIPELINE_BEHAVIORS_METADATA, handlerType);
+    const handlerOptions: Map<BehaviorId, Record<string, unknown>> | undefined =
+      Reflect.getMetadata(PIPELINE_BEHAVIORS_OPTIONS_METADATA, handlerType);
+
+    // Handler-specific behaviors to skip from @SkipPipeline decorator
+    const skippedBehaviorTypes: Type<IPipelineBehavior>[] | undefined =
+      Reflect.getMetadata(PIPELINE_SKIPPED_BEHAVIORS_METADATA, handlerType);
+
+    if (skippedBehaviorTypes && skippedBehaviorTypes.length > 0) {
+      const handlerBehaviorIds = new Set<BehaviorId>(
+        (handlerBehaviorTypes ?? []).map(getBehaviorId),
+      );
+      for (const skippedType of skippedBehaviorTypes) {
+        const id = getBehaviorId(skippedType);
+        if (handlerBehaviorIds.has(id) || handlerOptions?.has(id)) {
+          throw new Error(
+            `Handler ${handlerType.name} has contradictory pipeline configuration: ` +
+              `behavior ${skippedType.name} is declared in both @SkipPipeline and @UsePipeline. ` +
+              `Remove either the @SkipPipeline or the @UsePipeline declaration.`,
+          );
+        }
+      }
+    }
 
     // Global behaviors for this handler kind
     const { beforeTypes, afterTypes, globalOptions } =
       this.resolveGlobalBehaviors(requestKind);
 
+    const skippedBehaviorIds = new Set<BehaviorId>(
+      (skippedBehaviorTypes ?? []).map(getBehaviorId),
+    );
+
+    const effectiveBeforeTypes = beforeTypes.filter(
+      (type) => !skippedBehaviorIds.has(getBehaviorId(type)),
+    );
+    const effectiveAfterTypes = afterTypes.filter(
+      (type) => !skippedBehaviorIds.has(getBehaviorId(type)),
+    );
+
     const hasHandlerBehaviors =
       handlerBehaviorTypes && handlerBehaviorTypes.length > 0;
-    const hasGlobalBehaviors = beforeTypes.length > 0 || afterTypes.length > 0;
+    const hasGlobalBehaviors =
+      effectiveBeforeTypes.length > 0 || effectiveAfterTypes.length > 0;
 
     if (!hasHandlerBehaviors && !hasGlobalBehaviors) return;
 
@@ -217,7 +252,7 @@ export class PipelineBootstrapService
     // across two loaded copies of its own package opts into a stable string via
     // the [PIPELINE_BEHAVIOR_ID] static.
     const globalBehaviorIds = new Set<BehaviorId>(
-      [...beforeTypes, ...afterTypes].map(getBehaviorId),
+      [...effectiveBeforeTypes, ...effectiveAfterTypes].map(getBehaviorId),
     );
     const handlerOnlyTypes = (handlerBehaviorTypes ?? []).filter(
       (type) => !globalBehaviorIds.has(getBehaviorId(type)),
@@ -226,9 +261,9 @@ export class PipelineBootstrapService
     // Effective order: globalBefore → non-global handler behaviors → globalAfter.
     // Matching handler entries supply options at their original global position.
     const behaviorTypes: Type<IPipelineBehavior>[] = [
-      ...beforeTypes,
+      ...effectiveBeforeTypes,
       ...handlerOnlyTypes,
-      ...afterTypes,
+      ...effectiveAfterTypes,
     ];
 
     // For scoped handlers, wrap the prototype so every per-request instance
@@ -322,15 +357,15 @@ export class PipelineBootstrapService
     //    walking a tree. To run a behavior on package defaults despite a global
     //    configuration, state those values explicitly — inheritance no longer has
     //    an off switch, because a silent one is what caused the first bug.
-    const handlerOptions: Map<BehaviorId, Record<string, unknown>> | undefined =
-      Reflect.getMetadata(PIPELINE_BEHAVIORS_OPTIONS_METADATA, handlerType);
-
     const mergedOptions = new Map<BehaviorId, Record<string, unknown>>(
       globalOptions,
     );
     for (const [id, options] of handlerOptions ?? []) {
       const inherited = mergedOptions.get(id);
       mergedOptions.set(id, inherited ? { ...inherited, ...options } : options);
+    }
+    for (const skippedId of skippedBehaviorIds) {
+      mergedOptions.delete(skippedId);
     }
 
     const meta: PipelineHandlerMeta = {
