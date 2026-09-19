@@ -25,6 +25,10 @@ export {
 } from './exceptions/unauthorized-action.exception';
 // Helpers
 export {
+  type AuthorizeOptions,
+  authorize,
+} from './helpers/authorize.intent';
+export {
   capabilitiesToRawRules,
   capabilityToRawRule,
   interpolateConditions,

@@ -225,7 +225,21 @@ export class CreateUserHandler implements ICommandHandler<CreateUserCommand> {
   }
 }
 
-// Tuple form — pass options to specific behaviors
+// Typed intent builder form — type-checked options exported by addon packages
+@CommandHandler(CreateUserCommand)
+@UsePipeline(
+  authorize({ action: 'create', subject: 'User' }),
+  rateLimit({ points: 5, keyFactory: (ctx) => `${ctx.requestName}:${ctx.request.clientIp}` }),
+  idempotent({ keyFactory: (ctx) => ctx.request.idempotencyKey }),
+  audit({ action: 'user.create' }),
+)
+export class CreateUserHandler implements ICommandHandler<CreateUserCommand> {
+  async execute(command: CreateUserCommand): Promise<User> {
+    // your domain logic
+  }
+}
+
+// Tuple form — low-level escape hatch passing options directly to specific behaviors
 @CommandHandler(CreateUserCommand)
 @UsePipeline(
   [LoggingBehavior, { requestResponseLogLevel: 'log' }],

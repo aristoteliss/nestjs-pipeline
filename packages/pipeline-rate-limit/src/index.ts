@@ -16,6 +16,10 @@ export {
   type PartitionedRateLimitKeyOptions,
   type RateLimitPartitionFactory,
 } from './helpers/partitioned-key';
+export {
+  type RateLimitIntentOptions,
+  rateLimit,
+} from './helpers/rate-limit.intent';
 export type {
   RateLimitBehaviorOptions,
   RateLimitKeyFactory,

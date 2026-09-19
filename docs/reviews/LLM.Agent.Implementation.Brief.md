@@ -106,6 +106,8 @@ Do not implement behavior-specific `enabled:false` across every package as the g
 
 ## 3.2 S-02 — Typed intent entries with required handler intent
 
+**Status: RESOLVED / IMPLEMENTED**
+
 Add tiny package-owned builders that return the existing `PipelineBehaviorEntry` tuple shape. Do not introduce a second runtime or a central addon-aware policy object.
 
 Important distinction:

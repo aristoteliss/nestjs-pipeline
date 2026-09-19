@@ -112,21 +112,25 @@ class CreatePaymentCommand {
 // In the controller:
 commandBus.execute(new CreatePaymentCommand(body, idempotencyKeyHeader));
 
+import { idempotent } from '@nestjs-pipeline/idempotency';
+
 @CommandHandler(CreatePaymentCommand)
-@UsePipeline([
-  IdempotencyBehavior,
-  {
+@UsePipeline(
+  idempotent({
     keyFactory: (ctx) =>
       (ctx.request as CreatePaymentCommand).idempotencyKey,
     ttl: 86_400_000, // 24h (default)
-  },
-])
+  }),
+)
 export class CreatePaymentHandler {
   async execute(command: CreatePaymentCommand) {
     /* concurrent duplicates are excluded; successful responses are replayed */
   }
 }
 ```
+
+> Use `idempotent({ inheritModuleKey: true })` only when the module supplies the key factory.
+> The raw tuple form `@UsePipeline([IdempotencyBehavior, { ... }])` remains supported as an escape hatch.
 
 Alternatively, an earlier pipeline behavior can place transport metadata in
 `context.items`. A controller cannot mutate the `PipelineContext` directly
@@ -430,14 +434,15 @@ Response body:
 
 **Helpers & tokens**
 
+- `idempotent(options)` — type-safe intent builder returning `[IdempotencyBehavior, options]` with required key intent.
 - `fingerprintValue(value)`, `stableStringify(value)`.
 - `IDEMPOTENCY_STORE`, `IDEMPOTENCY_DEFAULT_OPTIONS`, `DEFAULT_IDEMPOTENCY_TTL_MS`.
 
 **Types**
 
 - `IdempotencyStore`, `IdempotencyRecord`, `IdempotencyStatus`,
-  `IdempotencyRequestKind`, `IdempotencyBehaviorOptions`, `IdempotencyKeyFactory`,
-  `IdempotencyModuleOptions`, `IdempotencyModuleAsyncOptions`,
+  `IdempotencyRequestKind`, `IdempotencyBehaviorOptions`, `IdempotencyIntentOptions`,
+  `IdempotencyKeyFactory`, `IdempotencyModuleOptions`, `IdempotencyModuleAsyncOptions`,
   `MemoryIdempotencyStoreOptions`, `MaybePromise`.
 
 ---

@@ -102,12 +102,11 @@ Attach `ResilienceBehavior` globally (as above) or to specific handlers. Either 
 ```typescript
 import { CommandHandler, ICommandHandler } from '@nestjs/cqrs';
 import { UsePipeline } from '@nestjs-pipeline/core';
-import { ResilienceBehavior } from '@nestjs-pipeline/resilience';
+import { resilience } from '@nestjs-pipeline/resilience';
 
 @CommandHandler(ChargeCardCommand)
-@UsePipeline([
-  ResilienceBehavior,
-  {
+@UsePipeline(
+  resilience({
     handle: (error) => error instanceof TransientError,
     retry: { maxAttempts: 3, replaySafe: true, backoff: { type: 'exponential' } },
     circuitBreaker: {
@@ -115,14 +114,16 @@ import { ResilienceBehavior } from '@nestjs-pipeline/resilience';
       breaker: { type: 'consecutive', threshold: 5 },
     },
     timeout: { duration: 2_000 },
-  },
-])
+  }),
+)
 export class ChargeCardHandler implements ICommandHandler<ChargeCardCommand> {
   async execute(command: ChargeCardCommand): Promise<Receipt> {
     return this.gateway.charge(command);
   }
 }
 ```
+
+> The raw tuple form `@UsePipeline([ResilienceBehavior, { ... }])` remains supported as an escape hatch.
 
 ---
 
@@ -414,6 +415,10 @@ Returns a global `DynamicModule` that provides `ResilienceBehavior` and binds `d
 ### `ResilienceBehavior`
 
 The pipeline behavior. Resolves and caches a composed cockatiel policy per handler and executes the handler through it.
+
+### `resilience(options)`
+
+Type-safe intent builder returning `[ResilienceBehavior, options]` with compile-time validation ensuring at least one resilience layer/policy is configured. Accepts `ResilienceIntentOptions`.
 
 ### `ResilienceBehaviorOptions`
 

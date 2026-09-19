@@ -225,19 +225,20 @@ Opt in per handler with options:
 ```typescript
 import { CommandHandler } from '@nestjs/cqrs';
 import { UsePipeline } from '@nestjs-pipeline/core';
-import { AuditBehavior } from '@nestjs-pipeline/audit';
+import { audit } from '@nestjs-pipeline/audit';
 
 @CommandHandler(DeleteUserCommand)
-@UsePipeline([
-  AuditBehavior,
-  {
+@UsePipeline(
+  audit({
     action: 'user.delete',
     severity: 'high',
     actor: (c) => ({ id: c.items.get('currentUserId') as string }),
-  },
-])
+  }),
+)
 export class DeleteUserHandler { /* ... */ }
 ```
+
+> The raw tuple form `@UsePipeline([AuditBehavior, { ... }])` remains supported as an escape hatch.
 
 ---
 
@@ -336,6 +337,8 @@ governed by `failOpen`.
 | Export | Kind | Description |
 |---|---|---|
 | `AuditBehavior` | class | The pipeline behavior |
+| `audit` | fn | Type-safe intent builder returning `[AuditBehavior, options]` |
+| `AuditIntentOptions` | type | Options for `audit(...)` |
 | `AuditModule` | class | `forRoot` / `forRootAsync` registration |
 | `AUDIT_RECORD_ITEM` | symbol | `context.items` exported unique Symbol key holding the produced record |
 

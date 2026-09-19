@@ -80,13 +80,17 @@ The `behaviors` entry above registers `RateLimitBehavior` with Nest DI; it does
 scope:
 
 ```typescript
+import { rateLimit } from '@nestjs-pipeline/rate-limit';
+
 @CommandHandler(CreateUserCommand)
-@UsePipeline([
-  RateLimitBehavior,
-  { points: 1, keyFactory: (ctx) => `${ctx.requestName}:${ctx.request.clientIp}` },
-])
+@UsePipeline(
+  rateLimit({ points: 1, keyFactory: (ctx) => `${ctx.requestName}:${ctx.request.clientIp}` }),
+)
 export class CreateUserHandler implements ICommandHandler<CreateUserCommand> {}
 ```
+
+> Use `rateLimit({ inheritModuleKey: true })` only when the module supplies the key factory.
+> The raw tuple form `@UsePipeline([RateLimitBehavior, { ... }])` remains supported as an escape hatch.
 
 `IPipelineContext.request` is the CQRS command/query/event, not an Express or
 Fastify request. If a transport value such as an IP address is part of the
@@ -256,6 +260,8 @@ plain `Error`** when the backing store itself fails (e.g. Redis unreachable). Th
 | Export | Type | Description |
 |---|---|---|
 | `RateLimitBehavior` | Class | Pipeline behavior — consumes points before the handler |
+| `rateLimit` | Function | Type-safe intent builder returning `[RateLimitBehavior, options]` requiring a key or explicit inheritance |
+| `RateLimitIntentOptions` | Type | Options for `rateLimit(...)` with required key intent |
 | `RateLimitModule` | Class | `forRoot(options)` / `forRootAsync(options)` |
 | `RateLimitExceededError` | Class | Thrown when a bucket is exhausted |
 | `RateLimitExceededFilter` | Class | Maps the error to HTTP 429 + `Retry-After` |

@@ -19,6 +19,10 @@ export {
   baseEvaluationContext,
   buildEvaluationContext,
 } from './helpers/evaluation-context';
+export {
+  type FeatureFlagIntentOptions,
+  featureFlag,
+} from './helpers/feature-flag.intent';
 export type {
   EvaluationContextFactory,
   FeatureFallbackFactory,

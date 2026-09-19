@@ -101,10 +101,10 @@ export class AppModule {}
 ```typescript
 import { CommandHandler, ICommandHandler } from '@nestjs/cqrs';
 import { UsePipeline } from '@nestjs-pipeline/core';
-import { FeatureFlagBehavior } from '@nestjs-pipeline/feature-flags';
+import { featureFlag } from '@nestjs-pipeline/feature-flags';
 
 @CommandHandler(NewCheckoutCommand)
-@UsePipeline([FeatureFlagBehavior, { flag: 'new-checkout' }])
+@UsePipeline(featureFlag({ flag: 'new-checkout' }))
 export class NewCheckoutHandler implements ICommandHandler<NewCheckoutCommand> {
   async execute(command: NewCheckoutCommand): Promise<Receipt> {
     // Only runs when the 'new-checkout' flag is enabled for this request.
@@ -112,6 +112,8 @@ export class NewCheckoutHandler implements ICommandHandler<NewCheckoutCommand> {
   }
 }
 ```
+
+> The raw tuple form `@UsePipeline([FeatureFlagBehavior, { flag: 'new-checkout' }])` remains supported as an escape hatch.
 
 When `new-checkout` is **off**, the handler never executes — the behavior throws
 `FeatureDisabledError` (or returns your `fallback`).
@@ -339,6 +341,8 @@ same rollout bucket across requests.
 | Export | Type | Description |
 |---|---|---|
 | `FeatureFlagBehavior` | Class | Pipeline behavior — gates a handler behind a boolean flag |
+| `featureFlag` | Function | Type-safe intent builder returning `[FeatureFlagBehavior, options]` with required `flag` |
+| `FeatureFlagIntentOptions` | Type | Options for `featureFlag(...)` requiring `flag: string` |
 | `FeatureFlagsModule` | Class | `forRoot(options)` — registers the provider/client and defaults |
 | `FeatureFlagBehaviorOptions` | Interface | `Per-handler options listed above, including stable targeting, variants, and error policy` |
 | `FeatureFlagsModuleOptions` | Interface | ``client`, `provider`, `domain`, `context`, `waitForReady`, `defaults`, and `targetingKeyFactory`` |

@@ -62,13 +62,22 @@ export function getBehaviorId(cls: Type<IPipelineBehavior>): BehaviorId {
 }
 
 /**
+ * A tuple of a pipeline behavior class and its options.
+ */
+export type PipelineBehaviorTuple<
+  TBehavior extends IPipelineBehavior = IPipelineBehavior,
+  TOptions extends object = object,
+> = [Type<TBehavior>, TOptions];
+
+/**
  * A pipeline behavior entry can be either:
  * - A behavior class: `LoggingBehavior`
  * - A tuple of behavior class and options: `[AuditBehavior, { action: 'user.create', severity: 'high' }]`
  */
-export type PipelineBehaviorEntry =
-  | Type<IPipelineBehavior>
-  | [Type<IPipelineBehavior>, Record<string, unknown>];
+export type PipelineBehaviorEntry<
+  TBehavior extends IPipelineBehavior = IPipelineBehavior,
+  TOptions extends object = object,
+> = Type<TBehavior> | PipelineBehaviorTuple<TBehavior, TOptions>;
 
 /**
  * Declares handler-specific pipeline behaviors for a Nest CQRS command, query,
@@ -117,7 +126,10 @@ export function UsePipeline(
     for (const entry of entries) {
       if (Array.isArray(entry)) {
         behaviors.push(entry[0]);
-        options.set(getBehaviorId(entry[0]), entry[1]);
+        options.set(
+          getBehaviorId(entry[0]),
+          entry[1] as Record<string, unknown>,
+        );
       } else {
         behaviors.push(entry);
       }
