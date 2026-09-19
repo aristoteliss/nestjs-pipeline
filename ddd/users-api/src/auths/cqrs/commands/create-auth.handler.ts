@@ -17,7 +17,7 @@ import {
 import {
   CommandBaseHandler,
   ICommandRepository,
-} from '@nestjs-pipeline/ddd-core';
+} from '@nestjs-pipeline/ddd-core/application';
 import { MetricsBehavior } from '@nestjs-pipeline/opentelemetry';
 import { RateLimitBehavior } from '@nestjs-pipeline/rate-limit';
 import { Auth, AuthSnapshot } from '../../domain/models/auth.entity';
@@ -26,7 +26,6 @@ import { UserLoginService } from '../../services/user-login.service';
 import { CreateAuthResult } from '../results/create-auth.result';
 import { CreateAuthCommand } from './create-auth.command';
 
-/** Builds the tenant/email partition used by login rate limiting. */
 export function createAuthRateLimitKey(ctx: IPipelineContext): string {
   const tenantId = requireTenantId(ctx, 'authentication rate limiting');
   return `${tenantId}:auth:login:${(ctx.request as CreateAuthCommand).email}`;

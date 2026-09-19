@@ -61,4 +61,21 @@ describe('UnixTimestampType', () => {
       'BIGINT_CUSTOM_SQL',
     );
   });
+
+  it('handles Date instance directly in convertToJSValue', () => {
+    const d = new Date('2026-08-24T12:00:00.000Z');
+    expect(type.convertToJSValue(d)).toBe(d);
+  });
+
+  it('handles non-numeric date string and arbitrary objects in convertToDatabaseValue and convertToJSValue', () => {
+    const isoStr = '2026-08-24T12:00:00.000Z';
+    expect(type.convertToDatabaseValue(isoStr)).toBe(
+      new Date(isoStr).getTime(),
+    );
+
+    const d = new Date('2026-08-24T12:00:00.000Z');
+    const objVal = { toString: () => '2026-08-24T12:00:00.000Z' };
+    expect(type.convertToDatabaseValue(objVal as any)).toBe(d.getTime());
+    expect(type.convertToJSValue(objVal as any)).toEqual(d);
+  });
 });

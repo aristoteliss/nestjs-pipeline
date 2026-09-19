@@ -3,7 +3,7 @@
 import { Inject } from '@nestjs/common';
 import { IQueryHandler, QueryHandler } from '@nestjs/cqrs';
 import { UserCapabilities } from '@nestjs-pipeline/casl';
-import { IQueryRepository } from '@nestjs-pipeline/ddd-core';
+import { IQueryRepository } from '@nestjs-pipeline/ddd-core/application';
 import { QUERY_REPOSITORY } from '../../persistence/repository.tokens';
 import { GetUserCapabilitiesQuery } from './get-user-capabilities.query';
 

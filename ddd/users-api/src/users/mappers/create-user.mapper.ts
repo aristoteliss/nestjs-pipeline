@@ -10,7 +10,7 @@ export const CreateUserMapper = createMapper(
       new CreateUserCommand({
         username: name,
         email,
-        department,
+        ...(department !== undefined ? { department } : {}),
       }),
   ),
 );

@@ -342,5 +342,26 @@ describe('PipelineModule.forRootAsync', () => {
 
       await expect(optionsFactoryOf(mod)()).resolves.toBe(runtime);
     });
+
+    it('handles empty async options without throwing and returns empty providers array', () => {
+      const mod = PipelineModule.forRootAsync({} as any);
+      expect(mod.providers).toBeDefined();
+    });
+  });
+
+  describe('extraProviders export mapping', () => {
+    it('exports tokens from both provider objects and direct constructor classes', () => {
+      class DirectService {}
+      const valueProvider = { provide: 'CUSTOM_TOKEN', useValue: 'val' };
+
+      const mod = PipelineModule.forRootAsync({
+        behaviors: [AlphaBehavior],
+        extraProviders: [DirectService, valueProvider],
+        useFactory: () => ({}),
+      });
+
+      expect(mod.exports).toContain(DirectService);
+      expect(mod.exports).toContain('CUSTOM_TOKEN');
+    });
   });
 });

@@ -222,4 +222,48 @@ describe('RateLimitBehavior', () => {
     );
     expect(next).toHaveBeenCalledTimes(2);
   });
+
+  it('handles non-Error store failure when failing open and failing closed', async () => {
+    consume.mockRejectedValue('redis timeout string');
+    const logger = {
+      warn: vi.fn(),
+      error: vi.fn(),
+    };
+    const behavior = new RateLimitBehavior(limiter, undefined, logger as never);
+    const next = vi.fn().mockResolvedValue('ok');
+
+    // Fail open with string error
+    const openCtx = withOptions(makeCtx(), { failOpen: true });
+    const result = await behavior.handle(openCtx, next);
+    expect(result).toBe('ok');
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining('failing open: redis timeout string'),
+      RateLimitBehavior.name,
+    );
+
+    // Fail closed with string error
+    const closedCtx = withOptions(makeCtx(), { failOpen: false });
+    await expect(behavior.handle(closedCtx, next)).rejects.toBe(
+      'redis timeout string',
+    );
+    expect(logger.error).toHaveBeenCalledWith(
+      expect.stringContaining('failing closed: redis timeout string'),
+      RateLimitBehavior.name,
+    );
+  });
+
+  it('falls back to module defaults when context returns no handler options', async () => {
+    consume.mockResolvedValue(okRes());
+    const behavior = new RateLimitBehavior(limiter, {
+      keyFactory: (c) => `default:${c.requestName}`,
+      points: 4,
+    });
+    const ctx = makeCtx({
+      getBehaviorOptions: vi.fn().mockReturnValue(undefined),
+    });
+
+    await behavior.handle(ctx, vi.fn().mockResolvedValue('ok'));
+
+    expect(consume).toHaveBeenCalledWith('default:CreateUserCommand', 4);
+  });
 });

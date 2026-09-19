@@ -49,13 +49,11 @@ function assertSafeTable(table: string): string {
 }
 
 /**
- * SQL to create/upgrade the idempotency table. Run once in a migration.
- *
- * `claim_id` is added with `IF NOT EXISTS` as well so installations created by
- * an older package version can adopt owner-aware completion without dropping
- * existing records.
+ * SQL for creating the idempotency table and ensuring the owner-token column
+ * exists. Run it from an application migration, not at request time.
  *
  * @param table - Table name (validated). Default `'idempotency_keys'`.
+ * @returns SQL statements required by {@link PostgresIdempotencyStore}.
  */
 export function createIdempotencyTableSql(table = 'idempotency_keys'): string {
   const name = assertSafeTable(table);
@@ -120,19 +118,11 @@ function mapRow(key: string, row: PostgresRowLike): IdempotencyRecord {
  * ```
  */
 /**
- * Validates the lease TTL that is interpolated into a PostgreSQL interval.
+ * Validates a lease TTL before it is interpolated into a PostgreSQL interval.
  *
- * Lease expiry is computed by the database (`now() + ttl`) and compared against
- * the database clock. It used to be computed from the application clock
- * (`Date.now() + ttlMs`) while being *checked* with SQL `now()`, so the two
- * clocks had to agree. They frequently do not: an application running behind the
- * database created claims that were already expired, letting a second execution
- * reclaim the key while the first handler was still running — the exact double
- * execution the store exists to prevent. An application ahead of the database
- * silently extended every lease instead.
- *
- * The value is returned as a string because it is concatenated into an interval
- * literal, so it is validated rather than trusted.
+ * Lease expiry is computed and compared using the database clock. The returned
+ * string is safe to concatenate only because the input is first constrained to a
+ * positive safe integer.
  */
 function assertLeaseTtl(ttlMs: number): string {
   if (!Number.isSafeInteger(ttlMs) || ttlMs <= 0) {

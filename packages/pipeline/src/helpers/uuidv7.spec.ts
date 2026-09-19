@@ -33,4 +33,15 @@ describe('uuidv7', () => {
     const id = uuidv7();
     expect(isUuidV7(`  ${id}\n`)).toBe(true);
   });
+
+  it('returns false for non-string, empty, whitespace-only, and invalid UUID values', () => {
+    expect(isUuidV7(null)).toBe(false);
+    expect(isUuidV7(undefined)).toBe(false);
+    expect(isUuidV7(12345)).toBe(false);
+    expect(isUuidV7({})).toBe(false);
+    expect(isUuidV7('')).toBe(false);
+    expect(isUuidV7('   \t\n  ')).toBe(false);
+    expect(isUuidV7('not-a-uuid')).toBe(false);
+    expect(isUuidV7('00000000-0000-4000-8000-000000000000')).toBe(false); // v4, not v7
+  });
 });

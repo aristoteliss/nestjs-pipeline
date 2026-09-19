@@ -61,4 +61,18 @@ describe('RateLimitExceededFilter', () => {
       retryAfter: 3,
     });
   });
+
+  it('handles response without header or setHeader functions', () => {
+    const send = vi.fn();
+    const response = {
+      status: vi.fn(),
+      send,
+    };
+    response.status.mockReturnValue(response);
+
+    new RateLimitExceededFilter().catch(error, makeHost(response));
+
+    expect(response.status).toHaveBeenCalledWith(429);
+    expect(send).toHaveBeenCalled();
+  });
 });

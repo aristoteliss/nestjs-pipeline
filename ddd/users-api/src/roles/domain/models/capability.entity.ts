@@ -1,6 +1,9 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import { RootEntity, type RootEntitySnapshot } from '@nestjs-pipeline/ddd-core';
+import {
+  RootEntity,
+  type RootEntitySnapshot,
+} from '@nestjs-pipeline/ddd-core/domain';
 
 export interface CapabilitySnapshot extends Partial<RootEntitySnapshot> {
   readonly action: string;

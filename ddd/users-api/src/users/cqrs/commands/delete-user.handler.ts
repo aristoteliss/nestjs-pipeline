@@ -12,10 +12,12 @@ import {
 } from '@nestjs-pipeline/core';
 import {
   CommandBaseHandler,
-  EntityNotFoundException,
   IWriteSideAggregateRepository,
+} from '@nestjs-pipeline/ddd-core/application';
+import {
+  EntityNotFoundException,
   isTransientOperationError,
-} from '@nestjs-pipeline/ddd-core';
+} from '@nestjs-pipeline/ddd-core/domain';
 import { ResilienceBehavior } from '@nestjs-pipeline/resilience';
 import type { User } from '../../domain/models/user.entity';
 import { COMMAND_REPOSITORY } from '../../persistence/repository.tokens';
@@ -28,10 +30,6 @@ import { DeleteUserCommand } from './delete-user.command';
     CaslBehavior,
     { rules: [{ action: APP_ACTIONS.DELETE, subject: APP_SUBJECTS.USER }] },
   ],
-  // AuditBehavior sits outside ResilienceBehavior on purpose: it writes one
-  // record per invocation, so inside the retry a delete that failed twice
-  // before succeeding produced three records for one logical operation, with
-  // a duration measuring a single attempt.
   [
     AuditBehavior,
     {
@@ -79,12 +77,6 @@ export class DeleteUserHandler extends CommandBaseHandler<
     super(eventBus);
   }
 
-  /**
-   * Loads authoritative write-side state and expresses absence as a framework-neutral
-   * application error before authorization and domain deletion are attempted.
-   * Retryability is supplied by the repository through `TransientOperationError`;
-   * this handler does not inspect persistence-specific driver codes.
-   */
   async handle(command: DeleteUserCommand): Promise<User> {
     const user = await this.commandRepository.findById(command.id);
     if (!user) {

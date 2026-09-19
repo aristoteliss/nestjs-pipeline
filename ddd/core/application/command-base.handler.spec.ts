@@ -3,11 +3,14 @@
 import type { EventBus, ICommand } from '@nestjs/cqrs';
 import { describe, expect, it, vi } from 'vitest';
 import { DomainEvent } from '../domain/events/domain.event';
+import { AggregateRoot } from '../domain/models/aggregate-root';
 import { RootEntity } from '../domain/models/root.entity';
 import {
   type AggregateBearingResult,
   CommandBaseHandler,
 } from './command-base.handler';
+
+class BufferedAggregate extends AggregateRoot {}
 
 class OrderCreatedEvent extends DomainEvent {
   constructor(public readonly orderId: string) {
@@ -24,6 +27,7 @@ class OrderCreatedEvent extends DomainEvent {
 abstract class TestableHandler<
   TResult extends AggregateBearingResult,
 > extends CommandBaseHandler<ICommand, TResult> {
+  // biome-ignore lint/complexity/noUselessConstructor: can init test
   constructor(eventBus: EventBus) {
     super(eventBus);
   }
@@ -129,43 +133,45 @@ describe('CommandBaseHandler', () => {
     expect(result.aggregate.getUncommittedEvents()).toHaveLength(0);
   });
 
-  it('publishes uncommitted events via protected commit() helper when returning non-aggregate result', async () => {
-    const eventBus = {
-      publishAll: vi.fn(),
-    } as unknown as EventBus;
+  it('does not publish buffered events when command handling fails', async () => {
+    const aggregate = new BufferedAggregate();
+    const event = new OrderCreatedEvent('failed-command');
+    const failure = new Error('persistence failed');
+    const eventBus = { publishAll: vi.fn() } as unknown as EventBus;
 
-    class TestAggregate extends RootEntity {
-      afterUpdate(): void {}
-      toJSON() {
-        return this.freezeState({
-          id: this.id,
-          createdAt: this.createdAt,
-          updatedAt: this.updatedAt,
-        });
+    class FailingHandler extends TestableHandler<AggregateRoot> {
+      async handle(): Promise<AggregateRoot> {
+        aggregate.apply(event);
+        throw failure;
       }
     }
 
-    class CustomReturnCommandHandler extends TestableHandler<// @ts-expect-error — as above: a result carrying no aggregate is rejected
-    // by the type, and this asserts the explicit commit() path still works.
-    { success: boolean }> {
-      async handle(_command: ICommand): Promise<{ success: boolean }> {
-        const agg = new TestAggregate();
-        agg.apply(new OrderCreatedEvent('custom-101'));
-        this.commit(agg);
-        return { success: true };
-      }
-    }
-
-    const handler = new CustomReturnCommandHandler(eventBus);
-    const result = await handler.execute({} as ICommand);
-
-    expect(result).toEqual({ success: true });
-    expect(eventBus.publishAll).toHaveBeenCalledTimes(1);
-    expect(eventBus.publishAll).toHaveBeenCalledWith(
-      expect.arrayContaining([
-        expect.objectContaining({ orderId: 'custom-101' }),
-      ]),
+    await expect(new FailingHandler(eventBus).execute({})).rejects.toBe(
+      failure,
     );
+    expect(eventBus.publishAll).not.toHaveBeenCalled();
+    expect(aggregate.getUncommittedEvents()).toEqual([event]);
+  });
+
+  it('preserves buffered events when publication throws', async () => {
+    const aggregate = new BufferedAggregate();
+    const event = new OrderCreatedEvent('failed-publication');
+    aggregate.apply(event);
+    const failure = new Error('publication failed');
+    const publishAll = vi.fn(() => {
+      throw failure;
+    });
+    const eventBus = { publishAll } as unknown as EventBus;
+
+    class Handler extends TestableHandler<AggregateRoot> {
+      async handle(): Promise<AggregateRoot> {
+        return aggregate;
+      }
+    }
+
+    await expect(new Handler(eventBus).execute({})).rejects.toBe(failure);
+    expect(publishAll).toHaveBeenCalledExactlyOnceWith([event]);
+    expect(aggregate.getUncommittedEvents()).toEqual([event]);
   });
 
   it('does not publish events when aggregate has no uncommitted events', async () => {

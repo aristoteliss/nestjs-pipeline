@@ -1,8 +1,8 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import type { Server } from 'node:http';
-import type { ICache } from '@nestjs-pipeline/ddd-core';
-import { CACHE_TOKEN } from '@nestjs-pipeline/ddd-core';
+import type { ICache } from '@nestjs-pipeline/ddd-core/application';
+import { CACHE_TOKEN } from '@nestjs-pipeline/ddd-core/persistence';
 import request from 'supertest';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { UserSnapshot } from '../src/users/domain/models/user.entity';

@@ -1,7 +1,7 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import type { IPipelineContext } from '@nestjs-pipeline/core';
-import { TaskCancelledError } from 'cockatiel';
+import { BrokenCircuitError, TaskCancelledError } from 'cockatiel';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ResilienceConfigurationError } from './errors/resilience-configuration.error';
 import type { ResilienceBehaviorOptions } from './interfaces/resilience-options.interface';
@@ -408,5 +408,63 @@ describe('ResilienceBehavior telemetry labels across request types', () => {
     await run('OrderCancelledEvent');
 
     expect(retries).toEqual(['OrderPlacedEvent', 'OrderCancelledEvent']);
+  });
+
+  it('triggers circuit breaker open, half-open and reset lifecycle callbacks', async () => {
+    const onCircuitOpen = vi.fn();
+    const onCircuitHalfOpen = vi.fn();
+    const onCircuitClose = vi.fn();
+    const logger = { log: vi.fn(), warn: vi.fn(), debug: vi.fn() };
+
+    class CircuitHandler {}
+    const resilientBehavior = new ResilienceBehavior(undefined, logger as any);
+
+    const makeCall = async (shouldFail: boolean) => {
+      const ctx = makeCtx(
+        {
+          circuitBreaker: {
+            halfOpenAfter: 15,
+            breaker: { type: 'consecutive', threshold: 2 },
+          },
+          handleAllErrors: true,
+          telemetry: {
+            onCircuitOpen,
+            onCircuitHalfOpen,
+            onCircuitClose,
+          },
+        },
+        { handlerType: CircuitHandler, handlerName: 'CircuitHandler' },
+      );
+
+      return resilientBehavior.handle(ctx, async () => {
+        if (shouldFail) throw new Error('circuit failure');
+        return 'success';
+      });
+    };
+
+    // 1. Fail twice to trip circuit breaker open
+    await expect(makeCall(true)).rejects.toThrow('circuit failure');
+    await expect(makeCall(true)).rejects.toThrow('circuit failure');
+    expect(onCircuitOpen).toHaveBeenCalledTimes(1);
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining('circuit OPEN'),
+      expect.any(String),
+    );
+
+    // 2. Immediate 3rd call rejected by open circuit
+    await expect(makeCall(false)).rejects.toBeInstanceOf(BrokenCircuitError);
+
+    // 3. Wait for half-open cooldown
+    await new Promise((resolve) => setTimeout(resolve, 30));
+
+    // 4. Successful call in half-open state resets the circuit to closed
+    const res = await makeCall(false);
+    expect(res).toBe('success');
+    expect(onCircuitHalfOpen).toHaveBeenCalled();
+    expect(onCircuitClose).toHaveBeenCalledTimes(1);
+    expect(logger.log).toHaveBeenCalledWith(
+      expect.stringContaining('circuit CLOSED'),
+      expect.any(String),
+    );
   });
 });

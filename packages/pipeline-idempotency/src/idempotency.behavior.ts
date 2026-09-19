@@ -206,11 +206,8 @@ export class IdempotencyBehavior implements IPipelineBehavior {
     try {
       responseSnapshot = toJsonSnapshot(response);
     } catch (cause) {
-      // The handler already succeeded, so its side effects have happened. An
-      // earlier revision released the claim here, which let the very next retry
-      // repeat them immediately. Retain the claim until it expires instead, and
-      // report the failure as a finalization problem rather than a plain
-      // TypeError, so callers can tell it apart from a handler failure.
+      // The handler already succeeded, so retain the claim until expiry rather
+      // than allowing an immediate retry to repeat completed side effects.
       this.logger.error?.(
         `Idempotency response snapshot failed after ${context.requestName} ` +
           `executed successfully (key: ${key}). The claim is retained until it ` +
@@ -292,9 +289,7 @@ export class IdempotencyBehavior implements IPipelineBehavior {
       });
     }
 
-    // When fingerprinting is enabled, a legacy record without a fingerprint
-    // cannot prove that it belongs to the same payload. Fail closed instead of
-    // replaying an unverifiable response during rolling/config migrations.
+    // A fingerprinted request never replays a record that cannot prove payload identity.
     if (fingerprint && existing.fingerprint !== fingerprint) {
       throw new IdempotencyConflictError({
         key,

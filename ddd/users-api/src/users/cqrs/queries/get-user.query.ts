@@ -1,7 +1,7 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { EmailSchema } from '@common/validation/email.schema';
-import { BaseQuery } from '@nestjs-pipeline/ddd-core';
+import { BaseQuery } from '@nestjs-pipeline/ddd-core/application';
 import { createQuery } from '@nestjs-pipeline/zod';
 import { z } from 'zod';
 

@@ -1,11 +1,25 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import {
-  AggregateRoot,
-  EventBus,
-  type ICommand,
-  type ICommandHandler,
-} from '@nestjs/cqrs';
+import { EventBus, type ICommand, type ICommandHandler } from '@nestjs/cqrs';
+import { AggregateRoot } from '../domain/models/aggregate-root';
+
+/**
+ * Result shapes that allow `CommandBaseHandler` to publish buffered aggregate events.
+ * Return either the aggregate itself or an application result with an `aggregate` field.
+ */
+export type AggregateBearingResult =
+  | AggregateRoot
+  | { readonly aggregate: AggregateRoot };
+
+function isAggregate(obj: unknown): obj is AggregateRoot {
+  return (
+    obj instanceof AggregateRoot ||
+    (typeof obj === 'object' &&
+      obj !== null &&
+      typeof (obj as AggregateRoot).getUncommittedEvents === 'function' &&
+      typeof (obj as AggregateRoot).uncommit === 'function')
+  );
+}
 
 /**
  * Base class for all CQRS command handlers.
@@ -14,7 +28,7 @@ import {
  * 1. Executes command logic via the abstract {@link handle} method.
  * 2. If the result is an {@link AggregateRoot} (or an object containing `aggregate: AggregateRoot`),
  *    its buffered uncommitted domain events are automatically published to the {@link EventBus}
- *    and cleared via {@link commit}.
+ *    and cleared after publication.
  *
  * @typeParam TCommand - The concrete command type this handler processes.
  * @typeParam TResult - The handler's return type (e.g. aggregate entity or result carrying aggregate).
@@ -64,64 +78,29 @@ import {
  * }
  * ```
  */
-/**
- * Results from which buffered aggregate events can be published.
- *
- * Publication depends on the shape of what `handle()` returns, so the shape is a
- * constraint rather than a convention. A handler that mutated an aggregate and
- * then returned a DTO used to compile cleanly and silently drop every domain
- * event it had raised — no error, no warning, and no failing test unless someone
- * had thought to assert on the event.
- *
- * Both accepted shapes are kept: the aggregate itself, or an application result
- * carrying it under `aggregate`. A command that changes several aggregates needs
- * an explicit result type designed for that; do not widen this one until such a
- * command actually exists.
- */
-export type AggregateBearingResult =
-  | AggregateRoot
-  | { readonly aggregate: AggregateRoot };
-
 export abstract class CommandBaseHandler<
   TCommand extends ICommand = ICommand,
   TResult extends AggregateBearingResult = AggregateBearingResult,
 > implements ICommandHandler<ICommand, TResult>
 {
+  /**
+   * Constructs the handler with an injected Nest CQRS {@link EventBus}.
+   *
+   * @param eventBus - The EventBus used to dispatch domain events.
+   */
   protected constructor(protected readonly eventBus: EventBus) {}
 
   /**
-   * Handles the command and produces a result.
+   * Executes the business logic for the command.
    *
-   * Implemented by each concrete handler with the command-specific logic.
+   * Concrete handlers must implement this method instead of `execute()`.
+   * If the returned result is an {@link AggregateRoot} (or contains an `aggregate` property),
+   * any uncommitted domain events recorded on it will be published automatically.
    *
-   * @param command - The command to process.
-   * @returns The handler result.
+   * @param command - The typed command to process.
+   * @returns The result of the command execution.
    */
   abstract handle(command: TCommand): Promise<TResult>;
-
-  /**
-   * Publishes uncommitted domain events of the aggregate to the EventBus and clears them.
-   *
-   * @deprecated Not an application extension point. `execute()` calls this once
-   * per command; calling it from a handler publishes the same events twice, or
-   * publishes them before the surrounding command has finished.
-   *
-   * **Delivery Guarantees**:
-   * Events are dispatched via NestJS CQRS in-memory {@link EventBus}. There is no distributed
-   * transaction or transactional outbox guarantee between repository persistence and event delivery.
-   * In the event of an unhandled crash or process kill immediately following database commit but
-   * prior to event handling, published events may be lost. For workflows requiring guaranteed
-   * at-least-once delivery, an outbox table or message broker pattern should be used.
-   *
-   * @param aggregate - The aggregate root whose uncommitted events should be dispatched.
-   */
-  protected commit(aggregate: AggregateRoot): void {
-    const events = [...aggregate.getUncommittedEvents()];
-    if (events.length > 0) {
-      this.eventBus.publishAll(events);
-      aggregate.uncommit();
-    }
-  }
 
   /**
    * Nest `ICommandHandler` entry point invoked by the `CommandBus`.
@@ -129,22 +108,30 @@ export abstract class CommandBaseHandler<
    * Delegates to {@link handle} and automatically publishes any uncommitted domain
    * events if the result is an {@link AggregateRoot} (or an object containing `aggregate: AggregateRoot`).
    *
+   * Persistence and in-memory EventBus publication are not atomic. A crash after
+   * persistence can lose events; durable delivery requires an explicit outbox.
+   *
    * @param command - The command dispatched through the `CommandBus`.
    * @returns The result produced by {@link handle}.
    */
   async execute(command: ICommand): Promise<TResult> {
     const commandResult = await this.handle(command as TCommand);
 
-    if (commandResult instanceof AggregateRoot) {
-      this.commit(commandResult);
-    } else if (
-      commandResult &&
-      typeof commandResult === 'object' &&
-      'aggregate' in commandResult &&
-      (commandResult as { aggregate: unknown }).aggregate instanceof
-        AggregateRoot
-    ) {
-      this.commit((commandResult as { aggregate: AggregateRoot }).aggregate);
+    const aggregate = isAggregate(commandResult)
+      ? commandResult
+      : commandResult &&
+          typeof commandResult === 'object' &&
+          'aggregate' in commandResult &&
+          isAggregate(commandResult.aggregate)
+        ? commandResult.aggregate
+        : undefined;
+
+    if (aggregate) {
+      const events = [...aggregate.getUncommittedEvents()];
+      if (events.length > 0) {
+        this.eventBus.publishAll(events);
+        aggregate.uncommit();
+      }
     }
 
     return commandResult;

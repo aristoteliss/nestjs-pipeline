@@ -3,7 +3,7 @@ import type { ArgumentsHost } from '@nestjs/common';
 import {
   ConcurrencyConflictError,
   DomainException,
-} from '@nestjs-pipeline/ddd-core';
+} from '@nestjs-pipeline/ddd-core/domain';
 import { describe, expect, it, vi } from 'vitest';
 import {
   InvalidRoleNameException,

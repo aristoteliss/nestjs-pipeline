@@ -10,6 +10,7 @@
 
 export * from './decorators/Mutate';
 export * from './events/domain.event';
+export * from './events/event.interface';
 export * from './events/root-domain.event';
 export * from './exceptions/concurrency-conflict.error';
 export * from './exceptions/domain.exception';
@@ -17,4 +18,5 @@ export * from './exceptions/entity-not-found.exception';
 export * from './exceptions/missing-tenant-context.exception';
 export * from './exceptions/transient-operation.error';
 export * from './interfaces/root-entity-snapshot.interface';
+export * from './models/aggregate-root';
 export * from './models/root.entity';

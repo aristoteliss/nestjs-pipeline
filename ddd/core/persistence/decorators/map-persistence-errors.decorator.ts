@@ -56,10 +56,10 @@ function matchesUniqueConstraint(
  * - **Passthrough**: Without `otherwise` — or when `otherwise` returns the error unchanged — the
  *   error is rethrown with its original identity, class, and stack trace completely preserved.
  *
- * Using `otherwise` removes the need for a manual `try`/`catch` inside `save()`. Hand-written
- * blocks are rejected by `biome/plugins/persistence-lifecycle.grit`, because they place error
- * translation inside the transaction boundary where the ordering relative to `@AcknowledgePersisted`
- * and `@Cache` is no longer expressed by the decorator stack.
+ * Use `otherwise` for application-level translation of unmatched driver or
+ * network failures. Keep persistence translation in this decorator so the
+ * lifecycle order relative to `@AcknowledgePersisted` and `@Cache` remains
+ * explicit in the decorator stack.
  *
  * ### Canonical Decorator Ordering
  * Always stack decorators in this outermost-to-innermost order:
@@ -112,7 +112,7 @@ export function MapPersistenceErrors<
    * otherwise: (error, user) => mapPersistenceError(error, `deleting User ${user.id}`),
    * ```
    *
-   * Deliberate domain errors thrown inside the method (`OptimisticLockError`,
+   * Deliberate domain errors thrown inside the method (`ConcurrencyConflictError`,
    * `EntityNotFoundException`) also pass through this hook. `mapPersistenceError`
    * returns non-transient errors unchanged, so no explicit re-throw guard is needed.
    */

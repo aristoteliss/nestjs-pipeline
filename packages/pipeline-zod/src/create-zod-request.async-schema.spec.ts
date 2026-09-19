@@ -89,7 +89,7 @@ describe('parseAsync with a synchronous schema', () => {
     const command = await RenameCommand.parseAsync({
       name: 'Ada',
       rawInput: 'attacker-controlled',
-    });
+    } as never);
 
     expect(command.name).toBe('Ada');
   });

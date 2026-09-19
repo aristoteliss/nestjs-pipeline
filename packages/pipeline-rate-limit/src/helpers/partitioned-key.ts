@@ -31,9 +31,7 @@ export interface PartitionedRateLimitKeyOptions {
    * Whether a missing tenant is an error rather than an omitted segment.
    *
    * `includeTenant` answers "should the tenant be part of the key"; this answers
-   * "may it be absent". They were previously one flag, which meant
-   * `includeTenant: true` silently degraded to a tenant-less key whenever tenant
-   * context was missing — the isolation domain simply disappeared from the key.
+   * "may it be absent".
    *
    * Defaults to the value of `includeTenant`: asking for tenant partitioning
    * implies that a missing tenant is a configuration failure, not a shrug.
@@ -56,10 +54,14 @@ export interface PartitionedRateLimitKeyOptions {
 /**
  * Creates a {@link RateLimitKeyFactory} for per-caller limits.
  *
- * Segments are escaped and joined through the core key helper, so two different
- * tuples can never collapse into one bucket. Previously the parts were joined
- * with a raw `:`, which made tenant `a:b` + principal `c` indistinguishable from
- * tenant `a` + principal `b:c` — two unrelated callers sharing one quota.
+ * Segments are escaped and joined through the core key helper so tenant,
+ * caller/account identity, and request name remain distinct even when values
+ * contain separator characters.
+ *
+ * @param partitionFactory - Resolves the stable caller/account identity.
+ * @param options - Tenant and missing-partition policy.
+ * @returns A `RateLimitKeyFactory` suitable for `RateLimitBehaviorOptions.keyFactory`.
+ * @throws {MissingRateLimitPartitionError} When a required tenant or caller partition is absent.
  *
  * The produced key is `<tenantId>:<partition>:<requestName>` when tenant
  * inclusion is enabled, `<partition>:<requestName>` otherwise.

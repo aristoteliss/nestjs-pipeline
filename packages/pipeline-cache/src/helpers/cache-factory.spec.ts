@@ -30,6 +30,12 @@ describe('cache-factory', () => {
         url: 'memcache://localhost:11211',
       });
       expect(memcacheKeyv).toBeInstanceOf(Keyv);
+
+      const postgresKeyv = buildKeyv({
+        type: 'postgres',
+        url: 'postgresql://localhost:5432/db',
+      });
+      expect(postgresKeyv).toBeInstanceOf(Keyv);
     });
 
     describe('adapter load diagnostics', () => {
@@ -45,9 +51,13 @@ describe('cache-factory', () => {
        * `@keyv/sqlite` resolved but its native binding did not.
        */
       function loadWith(failure: Error): () => unknown {
-        const resolve = Module._resolveFilename;
-        const load = Module._load;
-        Module._load = ((request: string, ...rest: unknown[]) => {
+        const NodeModule = Module as unknown as {
+          _resolveFilename: unknown;
+          _load: unknown;
+        };
+        const resolve = NodeModule._resolveFilename;
+        const load = NodeModule._load;
+        NodeModule._load = ((request: string, ...rest: unknown[]) => {
           if (request === '@keyv/sqlite') throw failure;
           return (load as never as (...a: unknown[]) => unknown)(
             request,
@@ -55,8 +65,8 @@ describe('cache-factory', () => {
           );
         }) as never;
         return () => {
-          Module._load = load;
-          Module._resolveFilename = resolve;
+          NodeModule._load = load;
+          NodeModule._resolveFilename = resolve;
         };
       }
 

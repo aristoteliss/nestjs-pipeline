@@ -14,7 +14,7 @@ import {
 import {
   CommandBaseHandler,
   ICommandRepository,
-} from '@nestjs-pipeline/ddd-core';
+} from '@nestjs-pipeline/ddd-core/application';
 import { FeatureFlagBehavior } from '@nestjs-pipeline/feature-flags';
 import { IdempotencyBehavior } from '@nestjs-pipeline/idempotency';
 import { UniqueRoleNameException } from '../../domain/models/errors/role-name.exception';
@@ -22,7 +22,6 @@ import { Role, type RoleSnapshot } from '../../domain/models/role.entity';
 import { COMMAND_REPOSITORY } from '../../persistence/repository.tokens';
 import { CreateRoleCommand } from './create-role.command';
 
-/** Builds a tenant/principal/name-scoped idempotency key and fails closed without tenant context. */
 export function createRoleIdempotencyKey(ctx: IPipelineContext): string {
   const request = ctx.request as CreateRoleCommand;
   const tenantId = requireTenantId(ctx, 'role creation idempotency');

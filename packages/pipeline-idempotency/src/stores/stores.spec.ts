@@ -377,6 +377,29 @@ describe('RedisIdempotencyStore', () => {
     ).toBe(false);
     expect(await store.deleteIfOwned('k1', 'stale-owner')).toBe(false);
   });
+
+  it('supports unconditional set and delete on RedisIdempotencyStore', async () => {
+    const client: RedisClientLike = {
+      get: vi.fn(),
+      set: vi.fn().mockResolvedValue('OK'),
+      del: vi.fn().mockResolvedValue(1),
+      eval: vi.fn(),
+    };
+    const store = new RedisIdempotencyStore(client);
+
+    const r = record();
+    await store.set('k1', r, 3000);
+    expect(client.set).toHaveBeenCalledWith(
+      'idempotency:k1',
+      JSON.stringify(r),
+      {
+        PX: 3000,
+      },
+    );
+
+    await store.delete('k1');
+    expect(client.del).toHaveBeenCalledWith('idempotency:k1');
+  });
 });
 
 // ─── Postgres ────────────────────────────────────────────────────────────────
@@ -553,5 +576,20 @@ describe('PostgresIdempotencyStore', () => {
     expect(
       () => new PostgresIdempotencyStore({ query: vi.fn() }, { table: '1bad' }),
     ).toThrow();
+  });
+
+  it('supports unconditional set and delete on PostgresIdempotencyStore', async () => {
+    const query = vi.fn().mockResolvedValue({ rowCount: 1 });
+    const store = new PostgresIdempotencyStore({ query });
+    await store.set('key1', record(), 5000);
+    expect(query).toHaveBeenCalledWith(
+      expect.stringContaining('ON CONFLICT (key) DO UPDATE SET'),
+      expect.any(Array),
+    );
+    await store.delete('key1');
+    expect(query).toHaveBeenCalledWith(
+      expect.stringContaining('DELETE FROM idempotency_keys WHERE key = $1'),
+      ['key1'],
+    );
   });
 });

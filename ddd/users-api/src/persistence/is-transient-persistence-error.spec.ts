@@ -4,7 +4,7 @@ import {
   ForbiddenException,
   NotFoundException,
 } from '@nestjs/common';
-import { TransientOperationError } from '@nestjs-pipeline/ddd-core';
+import { TransientOperationError } from '@nestjs-pipeline/ddd-core/domain';
 import { describe, expect, it } from 'vitest';
 import {
   isTransientPersistenceError,

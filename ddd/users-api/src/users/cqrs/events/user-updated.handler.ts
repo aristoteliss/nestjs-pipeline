@@ -14,10 +14,6 @@ import {
 import { UserUpdatedEvent } from '../../domain/events/user-updated.event';
 
 @EventsHandler(UserUpdatedEvent)
-/**
- * Enqueues user batch work through the application port.
- * Cross-cutting request/event logging is supplied by {@link LoggingBehavior}.
- */
 @UsePipeline([LoggingBehavior, { requestResponseLogLevel: 'log' }])
 export class UserUpdatedHandler implements IEventHandler<UserUpdatedEvent> {
   constructor(

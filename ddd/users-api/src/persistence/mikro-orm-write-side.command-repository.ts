@@ -2,12 +2,14 @@
 
 import type { EntityName, FilterQuery } from '@mikro-orm/core';
 import {
-  CommandRepository,
   type ICache,
   type IWriteSideAggregateRepository,
+} from '@nestjs-pipeline/ddd-core/application';
+import {
   type RootEntity,
   type RootEntitySnapshot,
-} from '@nestjs-pipeline/ddd-core';
+} from '@nestjs-pipeline/ddd-core/domain';
+import { CommandRepository } from '@nestjs-pipeline/ddd-core/persistence';
 import { mapPersistenceError } from './is-transient-persistence-error';
 import type { MikroOrmStore } from './mikro-orm.store';
 

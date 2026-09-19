@@ -2,13 +2,13 @@
 
 import { FilterQuery } from '@mikro-orm/core';
 import { Inject, Injectable } from '@nestjs/common';
+import { ICache } from '@nestjs-pipeline/ddd-core/application';
 import {
   CACHE_TOKEN,
   FromCache,
   filterCacheKey,
-  ICache,
   QueryRepository,
-} from '@nestjs-pipeline/ddd-core';
+} from '@nestjs-pipeline/ddd-core/persistence';
 import { MIKRO_ORM_CLIENT, MikroOrmStore } from '@persistence/mikro-orm.store';
 import { GetUserQuery } from '../cqrs/queries/get-user.query';
 import { User, UserSnapshot } from '../domain/models/user.entity';

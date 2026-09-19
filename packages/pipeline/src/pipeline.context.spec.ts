@@ -229,4 +229,15 @@ describe('PipelineContext.getBehaviorOptions', () => {
       level: 'trace',
     });
   });
+
+  it('deletes PIPELINE_TENANT_ID when SET_TENANT_ID is called with undefined', () => {
+    const ctx = new PipelineContext(new FakeCommand('x'), buildMeta());
+    ctx[SET_TENANT_ID]('initial-tenant');
+    expect(ctx.tenantId).toBe('initial-tenant');
+    expect(ctx.items.get(PIPELINE_TENANT_ID)).toBe('initial-tenant');
+
+    ctx[SET_TENANT_ID](undefined);
+    expect(ctx.tenantId).toBeUndefined();
+    expect(ctx.items.has(PIPELINE_TENANT_ID)).toBe(false);
+  });
 });

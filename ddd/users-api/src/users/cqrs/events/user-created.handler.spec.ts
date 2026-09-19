@@ -43,7 +43,7 @@ describe('UserCreatedHandler', () => {
     user.update({ username: 'alice_mutated' });
 
     expect(user.username).toBe('alice_mutated');
-    expect(event.entity.username).toBe('alice_mutated');
+    expect('entity' in event).toBe(false);
     expect(event.payload.username).toBe('alice_original');
 
     await handler.handle(event);

@@ -2,7 +2,7 @@
 
 import { TENANT_CONTEXT } from '@common/context/tenant-context.port';
 import { Global, Module } from '@nestjs/common';
-import { CACHE_TOKEN } from '@nestjs-pipeline/ddd-core';
+import { CACHE_TOKEN } from '@nestjs-pipeline/ddd-core/persistence';
 import { MikroOrmCache } from './cache/mikro-orm.cache';
 import { TenantSchemaMiddleware } from './middlewares/tenant-schema.middleware';
 import { MIKRO_ORM_CLIENT, MikroOrmStore } from './mikro-orm.store';

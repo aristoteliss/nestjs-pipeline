@@ -9,7 +9,6 @@
  * only by convention.
  */
 
-export { AggregateRoot, IEvent } from '@nestjs/cqrs';
 export * from './application/index';
 export * from './domain/index';
 export * from './persistence/index';

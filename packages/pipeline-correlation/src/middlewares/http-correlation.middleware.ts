@@ -25,10 +25,30 @@ const HTTP_FIELD_NAME = /^[!#$%&'*+\-.^_`|~0-9A-Za-z]+$/;
  * current implementation uses the default `x-correlation-id` header. A false
  * value does not disable a middleware instance that the application registered.
  *
- * Incoming-ID hardening is opt-in. Without the new options, a non-empty incoming
- * ID is preserved exactly as before. Public-facing applications can additionally
- * set `acceptIncoming`, `trimIncoming`, `maxLength`, and/or `validateIncoming`
+ * Incoming-ID hardening is opt-in. Public-facing applications can set
+ * `acceptIncoming`, `trimIncoming`, `maxLength`, and/or `validateIncoming`
  * without imposing a package-wide UUID format.
+ *
+ * @example Register for all HTTP routes
+ * ```ts
+ * export class AppModule implements NestModule {
+ *   configure(consumer: MiddlewareConsumer) {
+ *     consumer.apply(HttpCorrelationMiddleware).forRoutes('*');
+ *   }
+ * }
+ * ```
+ *
+ * @example Reject oversized/untrusted client IDs
+ * ```ts
+ * {
+ *   provide: CORRELATION_OPTIONS,
+ *   useValue: {
+ *     maxLength: 128,
+ *     trimIncoming: true,
+ *     validateIncoming: (id: string) => /^[A-Za-z0-9._~:/+-]+$/.test(id),
+ *   },
+ * }
+ * ```
  */
 @Injectable()
 export class HttpCorrelationMiddleware implements NestMiddleware {
@@ -77,11 +97,7 @@ export class HttpCorrelationMiddleware implements NestMiddleware {
     correlationStore.run(correlationId, next);
   }
 
-  /**
-   * Applies only explicitly configured incoming-ID restrictions. With default
-   * options this returns the original non-empty header value unchanged, matching
-   * the package's historical behavior exactly.
-   */
+  /** Applies configured validation/normalization to one incoming header value. */
   private resolveIncoming(raw: string | undefined): string | undefined {
     if (!this.acceptIncoming || typeof raw !== 'string' || raw.length === 0) {
       return undefined;

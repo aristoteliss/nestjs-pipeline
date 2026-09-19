@@ -187,25 +187,24 @@ All commands and queries in `users-api` are strongly-typed, self-validating, and
     }
     ```
     The handler passes it to `command.getUpdateFields(UpdateUserCommand.MUTABLE_FIELDS)`,
-    which returns those of the declared fields the command actually carries.
-    The set used to be derived from `Object.keys(this)` minus `['id']`, so
-    adding a property to the Zod schema silently added a field CASL was asked
-    to authorize. Declaring it makes widening the surface a visible edit.
+    which returns only declared mutable fields that are present on the command.
+    Adding a new mutable field therefore requires an explicit change to the
+    authorization surface.
 - **Queries (100% inherit from `BaseQuery`)**:
   ```typescript
   export class GetUserQuery extends createQuery(GetUserSchema, BaseQuery) {}
   ```
   - Automatically tagged with `requestKind: 'query'`.
   - Implements `IQueryOptions` (`hydrate`, `sessionUser`), keeping cache keys deterministic.
-- **NestJS 12 Standard Schema**:
-  - Generated classes expose `['~standard']`, allowing them to be passed directly to NestJS 12 `@Body({ schema: CommandClass })` validation pipes.
+- **Standard Schema Metadata**:
+  - Generated classes expose `['~standard']`, allowing them to provide standard schema metadata for validation pipes.
   - Static `parse()` and `safeParse()` methods are available directly on each command and query.
 
 ### MikroORM Entity Schemas & Clean Property Accessors (`accessor: true`)
 
 Persistence schemas map domain aggregate state to relational tables without compromising encapsulation or relying on TypeScript casting workarounds:
 
-- **Elimination of `@ts-expect-error` / `@ts-ignore`**: Entities store core attributes in private fields (`_id`, `_createdAt`, `_updatedAt`, `_username`, `_department`). Official MikroORM `accessor: true` properties instruct the ORM to read and write values exclusively through public TypeScript getters and setters:
+- **Accessor mapping**: Entities store core attributes in private fields (`_id`, `_createdAt`, `_updatedAt`, `_username`, `_department`). MikroORM `accessor: true` properties read and write through the public TypeScript getters and setters:
   ```typescript
   export const UserSchema = new EntitySchema<User>({
     class: User,

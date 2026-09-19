@@ -11,13 +11,7 @@ language js(typescript)
 // (`ICommandRepository`, `IQueryRepository`, `IWriteSideAggregateRepository`) are
 // exported from `/application` precisely so handlers never need to.
 //
-// The convenience root barrel also re-exports persistence. Migrating the
-// existing call sites onto the layered entry points is a separate change; until
-// then, flagging every one of them would add ~50 warnings that nobody acts on,
-// which trains people to ignore the output. The hard boundary below is what
-// actually has to hold.
-//
-// Scoped in biome.json to `**/cqrs/**` and `**/domain/**`.
+// Scoped to domain, CQRS and application code in biome.json.
 
 JsImportNamedClause(source=$source) as $clause where {
   $source <: r".*@nestjs-pipeline/ddd-core/persistence.*",

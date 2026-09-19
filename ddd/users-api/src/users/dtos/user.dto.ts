@@ -7,6 +7,13 @@ import {
 import { z } from 'zod';
 import type { User, UserSnapshot } from '../domain/models/user.entity';
 
+/**
+ * Public user response shape. `username` is exposed as `name`; omitted fields
+ * stay omitted and an explicit empty department is serialized as `null`.
+ *
+ * @example
+ * `{ "id": "019...", "email": "user@example.com", "name": "Jane Doe", "department": "Support" }`
+ */
 export const UserResponseDtoSchema = z
   .object({
     id: z.string().optional(),

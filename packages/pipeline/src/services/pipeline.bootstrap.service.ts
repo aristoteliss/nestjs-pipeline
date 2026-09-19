@@ -176,9 +176,7 @@ export class PipelineBootstrapService
     requestKind: 'command' | 'query' | 'event',
     methodName: 'execute' | 'handle',
   ): void {
-    // Determine handler class — works for both singleton and scoped handlers.
-    // For scoped handlers (REQUEST / TRANSIENT), wrapper.instance is undefined
-    // at bootstrap time, so we read the class from wrapper.metatype instead.
+    // Scoped handlers may only expose their class through wrapper.metatype at bootstrap.
     const handlerType: Type | undefined =
       (wrapper.metatype as Type) ?? (wrapper.instance?.constructor as Type);
     if (!handlerType) return;

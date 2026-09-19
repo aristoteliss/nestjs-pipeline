@@ -1,6 +1,9 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import { RootEntity, RootEntitySnapshot } from '@nestjs-pipeline/ddd-core';
+import {
+  RootEntity,
+  RootEntitySnapshot,
+} from '@nestjs-pipeline/ddd-core/domain';
 import { CreatedAuthEvent } from '../events/create-auth.event';
 
 export interface AuthSnapshot extends Partial<RootEntitySnapshot> {
@@ -8,15 +11,7 @@ export interface AuthSnapshot extends Partial<RootEntitySnapshot> {
   readonly token: string;
 }
 
-/**
- * Persisted authentication aggregate.
- *
- * New instances are created with {@link Auth.create}; persisted snapshots are
- * reconstituted with {@link Auth.fromJSON}. Direct construction is intentionally
- * unavailable outside the aggregate boundary.
- */
 export class Auth extends RootEntity<AuthSnapshot> {
-  /** Canonical logical aggregate name used for cache namespacing and event topics. */
   public static readonly aggregateName = 'auth';
 
   readonly userId: string;

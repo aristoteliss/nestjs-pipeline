@@ -4,19 +4,27 @@ Private, Nest-oriented DDD support for the sample applications. Domain, applicat
 and MikroORM persistence entry points are provided separately; this is not a
 framework-neutral or independently published domain library.
 
+Internal users-api code imports domain primitives from `/domain`, application
+ports and CQRS support from `/application`, and concrete adapters/decorators from
+`/persistence`. The root export remains a compatibility convenience. Biome rejects
+bare-root imports throughout users-api production code and persistence imports
+from domain, CQRS, and application directories.
+
 ## Overview
 
 This package provides the foundational building blocks for implementing a Clean Architecture / DDD domain and persistence layer:
 
 ### Domain Primitives
 
-- **`RootEntity<TSnapshot>`** — Abstract base aggregate entity extending `@nestjs/cqrs` `AggregateRoot`. Provides internal uncommitted domain event management (`this.apply(event)`), UUID v7 identity, detached `Date` reads for `createdAt`/`updatedAt` with public setters reserved for persistence hydration, accessor mappings (`id`, `createdAt`, `updatedAt`), optimistic concurrency version tracking (`version`, `getExpectedVersion()`), polymorphic snapshot rehydration via `RootEntity.from()` with strict aggregate type safety (throws `TypeError` on incompatible aggregates), and mutation tracking via `onUpdate()`.
+- **`AggregateRoot<EventBase>`** — Abstract base class representing a DDD aggregate root. Owns uncommitted event buffering (`this.apply(event)`), `getUncommittedEvents()`, `uncommit()`, and `loadFromHistory()`. Pure domain primitive completely decoupled from `@nestjs/*`.
+- **`RootEntity<TSnapshot>`** — Abstract base aggregate entity extending domain `AggregateRoot`. Provides UUID v7 identity, detached `Date` reads for `createdAt`/`updatedAt` with public setters reserved for persistence hydration, accessor mappings (`id`, `createdAt`, `updatedAt`), optimistic concurrency version tracking (`version`, `getExpectedVersion()`), polymorphic snapshot rehydration via `RootEntity.from()` with strict aggregate type safety (throws `TypeError` on incompatible aggregates), and mutation tracking via `onUpdate()`.
 - **`RootEntitySnapshot`** — Interface defining the serialized state contract (`id`, `createdAt`, `updatedAt`, and optional `version`).
 - **`DomainException`** — Abstract base class for domain invariant failures. Pure TypeScript error class completely decoupled from HTTP status codes and framework decorators.
-- **`DomainEvent`** — Abstract base class for domain events carrying a unique UUID v7 `id` and implementing `@nestjs/cqrs` `IEvent`.
-- **`RootDomainEvent<TEntity, TPayload>`** — Domain event carrying a typed reference to the originating entity (`event.entity`) and an immutable, deeply cloned and frozen state snapshot (`event.payload`) created via `deepCloneAndFreeze()` to protect asynchronous event consumers from subsequent in-memory aggregate mutations.
+- **`DomainEvent`** — Abstract base class for domain events carrying a unique UUID v7 `id` and implementing `IEvent`.
+- **`IEvent`** — Marker interface for domain events.
+- **`RootDomainEvent<TEntity, TPayload>`** — Domain event carrying event-time `aggregateId`/`aggregateVersion` and an immutable, deeply cloned and frozen state snapshot (`event.payload`) created via `deepCloneAndFreeze()` to protect asynchronous event consumers from subsequent in-memory aggregate mutations.
 - **`deepCloneAndFreeze<T>()`** — Deeply clones and recursively freezes any value (objects, arrays, `Date` with mutation guards, `Map`, `Set`, `RegExp`), safely handling circular references via a `WeakMap`.
-- **`CommandBaseHandler<TCommand, TResult>`** — Abstract base handler for CQRS commands. Executes the `@UsePipeline` chain, and automatically dispatches uncommitted domain events via `this.eventBus.publishAll()` and clears them when an `AggregateRoot` is returned from `handle()`. Command handlers return aggregates so event publication is never performed manually.
+- **`CommandBaseHandler<TCommand, TResult>`** — Abstract base handler for CQRS commands. Calls `handle()`, then publishes and clears buffered domain events from a returned `AggregateRoot` or result containing `aggregate: AggregateRoot`. Pipeline behaviors are applied by the pipeline integration; event publication is owned by `execute()`.
 - **`@Mutate()`** — Method decorator that automatically triggers `onUpdate()` after the decorated method executes, incrementing `version` and updating `updatedAt`.
 - **`UnixTimestampType`** — Custom MikroORM `Type<Date, number>` mapping JavaScript `Date` instances to Unix timestamps (ms) in 64-bit `bigint` SQL database columns (`platform.getBigIntTypeDeclarationSQL()`) to eliminate integer overflow.
 - **`Method`** — Utility type for extracting method signatures.
@@ -70,10 +78,10 @@ This package is a workspace dependency:
 
 ### 1. Defining a Domain Entity with Invariants and RootEntity
 
-Domain aggregates extend `RootEntity` (which extends `@nestjs/cqrs` `AggregateRoot`). They record uncommitted domain events via `this.apply(event)`, manage optimistic locking versions (`this.version`, `this.getExpectedVersion()`), and enforce business rules through framework-agnostic `DomainException`s:
+Domain aggregates extend `RootEntity` (which extends domain `AggregateRoot`). They record uncommitted domain events via `this.apply(event)`, manage optimistic locking versions (`this.version`, `this.getExpectedVersion()`), and enforce business rules through framework-agnostic `DomainException`s:
 
 ```typescript
-import { RootEntity, Mutate, type RootEntitySnapshot, DomainException } from '@nestjs-pipeline/ddd-core';
+import { RootEntity, Mutate, type RootEntitySnapshot, DomainException } from '@nestjs-pipeline/ddd-core/domain';
 import { UserCreatedEvent } from './user-created.event';
 import { UserRenamedEvent } from './user-renamed.event';
 
@@ -169,14 +177,16 @@ export class User extends RootEntity<UserSnapshot> {
 
 ### 2. Defining Domain Events with Immutable Payloads
 
-Domain events extend `RootDomainEvent<TEntity, TPayload>` (which implements `@nestjs/cqrs` `IEvent`). They carry a unique UUID v7 identifier, a typed reference to the originating aggregate (`event.entity`), and a deeply cloned, recursively frozen state snapshot (`event.payload`) created via `deepCloneAndFreeze()`.
+Domain events extend `RootDomainEvent<TEntity, TPayload>` (which implements `IEvent`). They carry a unique UUID v7 identifier, event-time aggregate identity and version (`aggregateId`, `aggregateVersion`), and a deeply cloned, recursively frozen state snapshot (`event.payload`) created via `deepCloneAndFreeze()`.
 
 Consumers reading `event.payload` observe the captured snapshot despite later
-aggregate mutations. `event.entity` is a live aggregate reference and does not
-provide that guarantee. Snapshot isolation does not make event delivery durable:
+aggregate mutations. The originating aggregate is not retained or frozen.
+Use `payload`, `aggregateId`, and `aggregateVersion` when consuming events.
+Constructors accept the aggregate. Snapshot isolation does not make in-memory
+EventBus delivery durable:
 
 ```typescript
-import { RootDomainEvent } from '@nestjs-pipeline/ddd-core';
+import { RootDomainEvent } from '@nestjs-pipeline/ddd-core/domain';
 import { User, type UserSnapshot } from './user.entity';
 
 export class UserCreatedEvent extends RootDomainEvent<User, UserSnapshot> {
@@ -221,6 +231,15 @@ Use the compiled sample handlers as the canonical examples:
 - [UpdateUserHandler](../users-api/src/users/cqrs/commands/update-user.handler.ts)
   loads through `IWriteSideAggregateRepository.findById()`, authorizes the real
   aggregate, and mutates it through its domain method.
+
+`handle()` returns either the aggregate or an application result containing it,
+for example `{ aggregate: user, success: true }`. `execute()` returns that result
+unchanged and publishes buffered events once after successful handling. A rejected
+`handle()` does not publish events. If `EventBus.publishAll()` throws synchronously,
+the error propagates and the aggregate's buffered events remain uncleared.
+
+Publication uses the in-memory Nest EventBus. Persistence and event delivery are
+not atomic; durable delivery requires an explicit outbox architecture.
 
 Do not publish events manually or put response/session mapping in these handlers.
 
@@ -289,12 +308,7 @@ Reusable persistence decorators and the MikroORM update helper are exported from
 `@nestjs-pipeline/ddd-core`. Concrete repositories retain their own `save()` logic:
 
 ```ts
-import {
-  AcknowledgePersisted,
-  Cache,
-  MapPersistenceErrors,
-  optimisticUpdate,
-} from '@nestjs-pipeline/ddd-core';
+import { AcknowledgePersisted, Cache, MapPersistenceErrors, optimisticUpdate } from '@nestjs-pipeline/ddd-core/persistence';
 ```
 
 Apply decorators in this order (outermost first):

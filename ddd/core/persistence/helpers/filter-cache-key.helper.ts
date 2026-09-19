@@ -41,12 +41,8 @@ function canonicalizeValue(val: unknown): string {
  * Resolves the active tenant schema from explicit arguments, pipeline context,
  * or ambient AsyncLocalStorage.
  *
- * Fails closed in every environment. An earlier revision substituted a shared
- * default namespace outside `NODE_ENV === 'production'`, which left the guard
- * disabled wherever `NODE_ENV` was unset, `'staging'` or `'test'` — environments
- * that routinely hold real tenant data, and containers that simply forgot to set
- * the variable. Tenant isolation cannot be conditional on how the process was
- * started, so the fallback is gone.
+ * Fails closed in every environment: tenant-scoped cache keys are never placed
+ * into a shared fallback namespace when tenant context is absent.
  *
  * @throws {MissingTenantContextError} When no tenant can be resolved.
  */
@@ -89,6 +85,12 @@ function resolveTenantSchema(
  * filterCacheKey('user', { a: 'hello:b:world' }, 'tenant')
  * // → "tenant:user:a:hello\:b\:world"
  * ```
+ *
+ * @param resourceOrEntity - Logical resource name or object exposing `aggregateName`/`prefixKey`.
+ * @param conditions - Filter values that identify the cached record/query.
+ * @param tenantOrContext - Explicit tenant id or pipeline context; ambient pipeline context is used when omitted.
+ * @returns A tenant-prefixed deterministic cache key.
+ * @throws {MissingTenantContextError} When tenant identity cannot be resolved.
  *
  * @example Nested composite identity without [object Object]
  * ```typescript
@@ -148,6 +150,19 @@ export function filterCacheKey(
  * Required placeholders throw when absent; optional `{prop?}` placeholders resolve
  * to an empty string. Object placeholder values use the same canonical serializer
  * as `filterCacheKey`.
+ *
+ * @param template - Key template containing required `{prop}` or optional `{prop?}` placeholders.
+ * @param tenantOrContext - Explicit tenant id or context used to namespace produced keys.
+ * @returns A key factory accepting either a request object or `IPipelineContext`.
+ * @throws {MissingTenantContextError} When tenant identity cannot be resolved.
+ * @throws {Error} When a required placeholder is absent.
+ *
+ * @example
+ * ```ts
+ * const byId = cacheKeyTemplate<{ userId: string }>('user:{userId}');
+ * const key = byId({ userId: '019...' });
+ * // tenant-a:user:019...
+ * ```
  */
 export function cacheKeyTemplate<T = Record<string, unknown>>(
   template: string,

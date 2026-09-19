@@ -4,7 +4,13 @@ import type { PrincipalType } from '@common/types/SessionUser';
 import type { UserCapabilities } from '@nestjs-pipeline/casl';
 
 /**
- * HTTP response DTO returned by `POST /auth/login`.
+ * Response returned by `POST /auth/login`.
+ *
+ * `token` is the bearer token for API clients. `expiresAt`/`exp` are Unix
+ * timestamps when present; `capabilities` describes the resolved authorization context.
+ *
+ * @example
+ * `{ "id": "019...", "tenant": "acme", "email": "user@example.com", "token": "eyJ..." }`
  */
 export class SessionResponse {
   id!: string;

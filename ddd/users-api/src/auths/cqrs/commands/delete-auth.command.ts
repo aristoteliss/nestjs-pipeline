@@ -1,6 +1,6 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import { BaseCommand } from '@nestjs-pipeline/ddd-core';
+import { BaseCommand } from '@nestjs-pipeline/ddd-core/application';
 import { createCommand } from '@nestjs-pipeline/zod';
 import { z } from 'zod';
 

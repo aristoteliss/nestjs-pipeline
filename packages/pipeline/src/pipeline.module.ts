@@ -26,14 +26,11 @@ export {
 } from './options';
 
 /**
- * Rejects provider-graph fields returned from an async options factory.
+ * Validates that an async options factory returns runtime-only configuration.
  *
- * Nest builds the provider graph before the factory runs, so `behaviors` and
- * `loggerProvider` returned from one register nothing. Until now they were
- * dropped in silence: an application that moved its behavior list into the
- * factory started up cleanly with every `@UsePipeline` reference unresolvable,
- * and the first request reported a missing provider instead of a
- * misconfiguration. Declare them on the `forRootAsync` call itself.
+ * Nest builds the provider graph before the factory executes, so provider-graph
+ * fields such as `behaviors` and `loggerProvider` must be declared directly on
+ * `PipelineModule.forRootAsync(...)`.
  */
 function assertRuntimeOptions(
   options: PipelineRuntimeOptions,

@@ -44,10 +44,8 @@ export interface CacheOptions<TEntity = unknown> {
    * Lifetime in milliseconds of the {@link CacheMutationBarrier} written on
    * deletions and secondary invalidations.
    *
-   * A barrier only has to outlive the in-flight work it guards against, so it is
-   * bounded rather than permanent. It previously used `ttl: 0`, which several
-   * adapters — including `MemoryCache` — read as "never expires", leaving one
-   * immortal key behind for every deleted aggregate.
+   * A barrier only has to outlive the in-flight reads/writes it guards against,
+   * so configure this above the expected maximum repository operation latency.
    *
    * @default {@link DEFAULT_BARRIER_TTL_MS}
    */
@@ -83,6 +81,11 @@ export const DEFAULT_BARRIER_TTL_MS = 60_000;
  * )
  * async save(user: User): Promise<UserSnapshot> { ... }
  * ```
+ *
+ * Cache maintenance runs only after the wrapped persistence method succeeds and
+ * is best-effort: cache failures are logged rather than converting an already
+ * durable write into an application failure. Pair this decorator with
+ * `@AcknowledgePersisted` and `@MapPersistenceErrors` in the canonical order.
  *
  * @example Options object syntax on eviction / delete
  * ```typescript

@@ -48,7 +48,7 @@ describe('createZodRequest', () => {
     expect(cmd).toBeInstanceOf(TestCommand);
   });
 
-  it('omits undefined optional keys from instance', () => {
+  it('keeps absent optional keys absent', () => {
     class TestCommand extends createZodRequest(testSchema) {}
     const cmd = new TestCommand({
       id: '019728a3-7f4a-7000-8000-000000000000',
@@ -148,7 +148,7 @@ describe('createZodRequest', () => {
     });
   });
 
-  it('forwards Standard Schema specification (~standard) for NestJS 12', () => {
+  it('forwards Standard Schema specification (~standard)', () => {
     class TestCommand extends createCommand(testSchema) {}
     const standard = (TestCommand as unknown as Record<string, unknown>)[
       '~standard'

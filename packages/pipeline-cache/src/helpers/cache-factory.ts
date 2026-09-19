@@ -178,7 +178,6 @@ export function buildCache(options: CacheModuleOptions): Cache {
   return createCache({
     stores,
     ttl: options.ttl,
-    refreshThreshold: options.refreshThreshold,
     nonBlocking: options.nonBlocking,
   });
 }

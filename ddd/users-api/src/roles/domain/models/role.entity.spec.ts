@@ -21,7 +21,7 @@ describe('Role domain entity', () => {
       const events = role.getUncommittedEvents();
       expect(events).toHaveLength(1);
       expect(events[0]).toBeInstanceOf(RoleCreatedEvent);
-      expect((events[0] as RoleCreatedEvent).entity).toBe(role);
+      expect((events[0] as RoleCreatedEvent).aggregateId).toBe(role.id);
     });
 
     it('throws when role name is empty or less than 3 characters', () => {
@@ -51,7 +51,7 @@ describe('Role domain entity', () => {
       expect(events).toHaveLength(2);
       expect(events[0]).toBeInstanceOf(RoleCreatedEvent);
       expect(events[1]).toBeInstanceOf(RoleUpdatedEvent);
-      expect((events[1] as RoleUpdatedEvent).entity).toBe(role);
+      expect((events[1] as RoleUpdatedEvent).aggregateId).toBe(role.id);
     });
 
     it('throws when renaming to invalid name', () => {
@@ -76,7 +76,7 @@ describe('Role domain entity', () => {
       const events = role.getUncommittedEvents();
       expect(events).toHaveLength(2);
       expect(events[1]).toBeInstanceOf(RoleDeletedEvent);
-      expect((events[1] as RoleDeletedEvent).entity).toBe(role);
+      expect((events[1] as RoleDeletedEvent).aggregateId).toBe(role.id);
     });
   });
 

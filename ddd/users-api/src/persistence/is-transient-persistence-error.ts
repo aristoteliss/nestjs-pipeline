@@ -1,6 +1,6 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import { TransientOperationError } from '@nestjs-pipeline/ddd-core';
+import { TransientOperationError } from '@nestjs-pipeline/ddd-core/domain';
 
 export { TransientOperationError };
 

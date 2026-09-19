@@ -8,10 +8,10 @@
  */
 /** biome-ignore-all lint/suspicious/noTemplateCurlyInString: false positive */
 
-import { createMongoAbility } from '@casl/ability';
+import { createMongoAbility, ForbiddenError } from '@casl/ability';
 import { HttpException, type Type } from '@nestjs/common';
 import type { IPipelineContext } from '@nestjs-pipeline/core';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type { CaslBehaviorOptions } from './casl.behavior';
 import { CaslBehavior } from './casl.behavior';
 import { CASL_ABILITY_KEY, CASL_USER_CONTEXT_KEY } from './constants/tokens';
@@ -1384,5 +1384,75 @@ describe('CaslBehavior.handle() pre-resolved capabilities', () => {
     await expect(behavior.handle(ctx, nextDelegate)).rejects.toThrow(
       UnauthorizedActionException,
     );
+  });
+
+  it('checks type-level permission with field restriction and throws UnauthorizedActionException on denied field', async () => {
+    const resolver = resolverFor({
+      id: 'support-1',
+      department: 'support',
+      capabilities: { roles: ['support-agent'] },
+    });
+    const behavior = createBehavior(allRoles, throwingProvider, resolver);
+
+    // Allowed field at type-level
+    const okCtx = makeContext(Object as any, {}, undefined, {
+      rules: [{ action: 'update', subject: 'Ticket', field: 'status' }],
+    });
+    await expect(behavior.handle(okCtx, nextDelegate)).resolves.toBe(
+      'handler-result',
+    );
+
+    // Denied field at type-level
+    const failCtx = makeContext(Object as any, {}, undefined, {
+      rules: [{ action: 'update', subject: 'Ticket', field: 'forbiddenField' }],
+    });
+    await expect(behavior.handle(failCtx, nextDelegate)).rejects.toThrow(
+      UnauthorizedActionException,
+    );
+  });
+
+  it('handles primitive intermediary and primitive leaf in subjectContextPaths safely', async () => {
+    const resolver = resolverFor({
+      id: 'author-1',
+      capabilities: { roles: ['author'] },
+    });
+    const behavior = createBehavior(allRoles, throwingProvider, resolver);
+    const command = {
+      authorId: 'author-1',
+      scalarProp: 'text',
+      child: 'not-an-object',
+    };
+    const ctx = makeContext(Object as any, command, undefined, {
+      subjectFromRequest: 'Post',
+      subjectContextPaths: ['child.deep', 'scalarProp', 'nonexistent'],
+      rules: [{ action: 'update', subject: 'Post' }],
+    });
+
+    const result = await behavior.handle(ctx, nextDelegate);
+    expect(result).toBe('handler-result');
+  });
+
+  it('re-throws non-ForbiddenError encountered during authorization check', async () => {
+    const resolver = resolverFor({
+      id: 'admin-1',
+      capabilities: { roles: ['admin'] },
+    });
+    const behavior = createBehavior(allRoles, throwingProvider, resolver);
+    const customError = new Error('unexpected ability error');
+    const spy = vi.spyOn(ForbiddenError, 'from').mockImplementation(() => {
+      throw customError;
+    });
+
+    const ctx = makeContext(
+      Object as any,
+      {},
+      { id: 'admin-1' },
+      {
+        rules: [{ action: 'read', subject: 'Post' }],
+      },
+    );
+
+    await expect(behavior.handle(ctx, nextDelegate)).rejects.toBe(customError);
+    spy.mockRestore();
   });
 });

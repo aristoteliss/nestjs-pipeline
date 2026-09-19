@@ -9,10 +9,6 @@ export const ENTITY_AUTHORIZER = Symbol.for('ENTITY_AUTHORIZER');
  * Pluggable authorizer contract for entity-level authorization checks.
  */
 export interface IEntityAuthorizer {
-  can(
-    action: string,
-    subject: string,
-    entity: Record<string, unknown>,
-    field?: string,
-  ): boolean;
+  /** Checks an entity instance or subject type, optionally restricted to one field. */
+  can(action: string, subject: object | string, field?: string): boolean;
 }

@@ -190,6 +190,7 @@ describe('stableStringify failure diagnostics', () => {
       () => ({ [Symbol('s')]: 1, a: 1 }),
       'Symbol-keyed',
     ],
+    ['an invalid date', () => new Date(Number.NaN), 'Invalid dates'],
   ])(
     'preserves the precise reason for %s as the cause',
     (_label, build, expected) => {

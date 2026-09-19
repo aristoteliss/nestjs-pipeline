@@ -1,6 +1,6 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 import { type IPipelineContext, pipelineStore } from '@nestjs-pipeline/core';
-import { type ICache } from '@nestjs-pipeline/ddd-core';
+import { type ICache } from '@nestjs-pipeline/ddd-core/application';
 import { describe, expect, it, vi } from 'vitest';
 import { GetRoleQuery } from '../cqrs/queries/get-role.query';
 import { Role, type RoleSnapshot } from '../domain/models/role.entity';

@@ -1,13 +1,15 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { type IPipelineContext, pipelineStore } from '@nestjs-pipeline/core';
+import { type ICache } from '@nestjs-pipeline/ddd-core/application';
 import {
   ConcurrencyConflictError,
-  DEFAULT_BARRIER_TTL_MS,
   EntityNotFoundException,
-  type ICache,
+} from '@nestjs-pipeline/ddd-core/domain';
+import {
+  DEFAULT_BARRIER_TTL_MS,
   toCacheSnapshot,
-} from '@nestjs-pipeline/ddd-core';
+} from '@nestjs-pipeline/ddd-core/persistence';
 import { describe, expect, it, vi } from 'vitest';
 import { User, type UserSnapshot } from '../domain/models/user.entity';
 import { UpdateUserCommandRepository } from './update-user.command-repository';

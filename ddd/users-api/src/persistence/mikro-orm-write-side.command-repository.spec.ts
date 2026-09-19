@@ -1,6 +1,6 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import type { ICache } from '@nestjs-pipeline/ddd-core';
+import type { ICache } from '@nestjs-pipeline/ddd-core/application';
 import { describe, expect, it, vi } from 'vitest';
 import { User, type UserSnapshot } from '../users/domain/models/user.entity';
 import { TransientOperationError } from './is-transient-persistence-error';

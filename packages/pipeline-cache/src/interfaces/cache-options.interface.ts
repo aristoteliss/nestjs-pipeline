@@ -50,6 +50,17 @@ export type CacheCondition = (context: IPipelineContext) => boolean;
 /**
  * Per-handler caching options, supplied through `@UsePipeline([CacheBehavior, options])`
  * and/or as module-wide defaults via {@link CacheModuleOptions.defaults}.
+ *
+ * @example
+ * ```ts
+ * @UsePipeline([CacheBehavior, {
+ *   key: createPartitionedCacheKeyFactory({
+ *     principal: (ctx) => ctx.items.get('userId') as string | undefined,
+ *   }),
+ *   ttl: 60_000,
+ * }])
+ * export class GetUserHandler {}
+ * ```
  */
 export interface CacheBehaviorOptions {
   /**
@@ -84,6 +95,15 @@ export interface CacheBehaviorOptions {
  * three mutually exclusive ways (checked in order): a pre-built `cache`,
  * pre-built `stores`, or declarative `store` configuration. When none are
  * supplied an in-memory store is used.
+ *
+ * @example Redis-backed cache
+ * ```ts
+ * CacheModule.forRoot({
+ *   store: { type: 'redis', url: process.env.REDIS_URL! },
+ *   ttl: 30_000,
+ *   defaults: { failOpen: true },
+ * });
+ * ```
  */
 export interface CacheModuleOptions {
   /** Escape hatch: a fully constructed `cache-manager` instance. */
@@ -94,13 +114,6 @@ export interface CacheModuleOptions {
   store?: CacheStoreConfig | CacheStoreConfig[];
   /** Default time-to-live (milliseconds) applied across stores and handlers. */
   ttl?: number;
-  /**
-   * Forwarded to `cache-manager` for compatibility. `CacheBehavior` does not
-   * call `wrap()`, so this does not trigger background refresh in a pipeline.
-   *
-   * @deprecated Background refresh can re-enter downstream pipeline behaviors.
-   */
-  refreshThreshold?: number;
   /** Forwarded to `cache-manager`; optimizes behavior across multiple stores. */
   nonBlocking?: boolean;
   /** Default per-handler behavior options merged into every pipeline. */

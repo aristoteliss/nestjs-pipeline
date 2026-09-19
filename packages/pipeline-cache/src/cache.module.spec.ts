@@ -52,4 +52,34 @@ describe('CacheModule.forRoot', () => {
 
     logSpy.mockRestore();
   });
+
+  it('logs multiple store types when store option is an array', () => {
+    const logSpy = vi
+      .spyOn(Logger.prototype, 'log')
+      .mockImplementation(() => {});
+
+    CacheModule.forRoot({
+      store: [{ type: 'memory' }, { type: 'memory' }],
+    });
+    expect(logSpy).toHaveBeenCalledWith(
+      expect.stringContaining('Initialized cache with [memory, memory] store'),
+    );
+
+    logSpy.mockRestore();
+  });
+
+  it('logs custom-stores when stores option is provided', () => {
+    const logSpy = vi
+      .spyOn(Logger.prototype, 'log')
+      .mockImplementation(() => {});
+
+    CacheModule.forRoot({
+      stores: [{} as never],
+    });
+    expect(logSpy).toHaveBeenCalledWith(
+      expect.stringContaining('Initialized cache with [custom-stores] store'),
+    );
+
+    logSpy.mockRestore();
+  });
 });

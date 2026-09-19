@@ -1,6 +1,6 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import { DomainException } from '@nestjs-pipeline/ddd-core';
+import { DomainException } from '@nestjs-pipeline/ddd-core/domain';
 
 /**
  * Domain exception thrown when an update mutation is invoked without any modifying fields.

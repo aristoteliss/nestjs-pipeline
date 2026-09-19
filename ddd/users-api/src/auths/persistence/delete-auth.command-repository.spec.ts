@@ -1,7 +1,8 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { type IPipelineContext, pipelineStore } from '@nestjs-pipeline/core';
-import { DEFAULT_BARRIER_TTL_MS, type ICache } from '@nestjs-pipeline/ddd-core';
+import { type ICache } from '@nestjs-pipeline/ddd-core/application';
+import { DEFAULT_BARRIER_TTL_MS } from '@nestjs-pipeline/ddd-core/persistence';
 import type { MikroOrmStore } from '@persistence/mikro-orm.store';
 import { describe, expect, it, vi } from 'vitest';
 import { Auth, type AuthSnapshot } from '../domain/models/auth.entity';

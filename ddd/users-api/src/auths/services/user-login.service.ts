@@ -2,7 +2,7 @@
 
 import { Inject, Injectable } from '@nestjs/common';
 import type { UserCapabilities } from '@nestjs-pipeline/casl';
-import type { IQueryRepository } from '@nestjs-pipeline/ddd-core';
+import type { IQueryRepository } from '@nestjs-pipeline/ddd-core/application';
 import { GetUserQuery } from '../../users/cqrs/queries/get-user.query';
 import { User } from '../../users/domain/models/user.entity';
 import { EXT_USER_QUERY_REPOSITORY } from '../../users/persistence/repository.tokens';

@@ -27,4 +27,22 @@ describe('createZodRequest output shape', () => {
     const request = new Request({ value: '  x  ' });
     expect(request).toMatchObject({ value: 'x', normalized: true });
   });
+  it.each([{}, { optional: undefined }])(
+    'preserves parsed presence for %j in sync and async construction',
+    async (input) => {
+      const Request = createZodRequest(
+        z.object({ optional: z.string().optional() }),
+      );
+      for (const request of [
+        new Request(input),
+        await Request.parseAsync(input),
+      ]) {
+        expect(Object.hasOwn(request, 'optional')).toBe(
+          Object.hasOwn(input, 'optional'),
+        );
+        expect(Object.keys(request)).toEqual(Object.keys(input));
+        expect(request.optional).toBeUndefined();
+      }
+    },
+  );
 });

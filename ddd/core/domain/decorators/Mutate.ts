@@ -3,13 +3,30 @@
 import { Method } from '../../types/Method.type';
 
 /**
- * Method decorator that invokes the entity's `onUpdate()` hook after the
- * decorated method runs.
+ * Marks a domain mutation so the entity's `onUpdate()` lifecycle hook runs
+ * after the mutation succeeds.
  *
- * Works for both synchronous and `Promise`-returning methods: for async methods
- * the hook fires after the promise resolves, and the original return value is
- * preserved. Use it on entity mutation methods to keep update bookkeeping (e.g.
- * timestamps) in one place.
+ * For synchronous methods the hook runs after the method returns. For async
+ * methods it runs only after the returned promise resolves; rejected mutations
+ * do not advance timestamps/version bookkeeping. The original return value is
+ * preserved.
+ *
+ * Use this on domain methods that change aggregate state. Do not use it on
+ * rehydration/setter paths that restore persisted state.
+ *
+ * @returns A method decorator preserving the decorated method's result.
+ *
+ * @example
+ * ```ts
+ * export class User extends RootEntity<UserSnapshot> {
+ *   @Mutate()
+ *   rename(name: string): this {
+ *     this._name = name.trim();
+ *     this.apply(new UserRenamedEvent(this));
+ *     return this;
+ *   }
+ * }
+ * ```
  */
 export function Mutate(): MethodDecorator {
   return (

@@ -23,21 +23,46 @@ export abstract class BaseCommand<TSessionUser = any> implements ICommand {
   }
 
   /**
-   * Returns which of `mutableFields` this command actually carries.
+   * Serializes enumerable command payload fields to a plain object.
    *
-   * The caller states the field set. It used to be derived from
-   * `Object.keys(this)` minus an exclude list, which meant the field-level
-   * authorization surface was whatever the schema happened to contain: adding a
-   * property to a command's Zod schema silently added a field that CASL was
-   * asked to authorize, and removing one silently stopped a check without any
-   * rule changing. Declaring the set makes that an edit someone has to make.
+   * Non-enumerable metadata such as `sessionUser` is excluded, and fields whose
+   * value is `undefined` are omitted. This makes the result suitable for stable
+   * cache/idempotency fingerprinting.
    *
-   * A field is reported only when its value is not `undefined`, so an optional
-   * property the caller omitted is not authorized as if it were being written.
-   * `null` counts as provided — clearing a field is a mutation.
+   * @returns The command payload without pipeline/session metadata.
+   */
+  toJSON(): Record<string, unknown> {
+    const json: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(this)) {
+      if (value !== undefined) {
+        json[key] = value;
+      }
+    }
+    return json;
+  }
+
+  /**
+   * Returns the declared mutable fields that are actually present on this command.
    *
-   * @param mutableFields - The fields subject to field-level authorization.
-   * @returns Those of them present on this command.
+   * A field counts as present when its value is not `undefined`. `null`
+   * therefore counts as an intentional mutation, which is important for nullable
+   * fields such as clearing a department.
+   *
+   * Use this with field-level authorization so the authorization surface is an
+   * explicit list owned by the command type.
+   *
+   * @param mutableFields - Allowed mutable field names for this command.
+   * @returns Only fields present in the current command payload.
+   *
+   * @example
+   * ```ts
+   * export class UpdateUserCommand extends createCommand(UpdateUserSchema, BaseCommand) {
+   *   static readonly MUTABLE_FIELDS = ['username', 'department'] as const;
+   * }
+   *
+   * const fields = command.getUpdateFields(UpdateUserCommand.MUTABLE_FIELDS);
+   * authorizer.authorize('update', user, fields);
+   * ```
    */
   getUpdateFields(mutableFields: readonly string[]): string[] {
     return mutableFields.filter(

@@ -26,7 +26,7 @@ import {
 import {
   isTransientOperationError,
   TransientOperationError,
-} from '@nestjs-pipeline/ddd-core';
+} from '@nestjs-pipeline/ddd-core/domain';
 import { ResilienceBehavior } from '@nestjs-pipeline/resilience';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { DeleteRoleHandler } from '../src/roles/cqrs/commands/delete-role.handler';

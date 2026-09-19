@@ -326,9 +326,12 @@ The default `errorPolicy: 'use-default'` follows OpenFeature's default-value ava
 
 Provider errors are surfaced as `FeatureFlagEvaluationError`.
 
-## Migration note
+## Stable rollout identity
 
-The default evaluation context no longer sets `targetingKey` to `context.correlationId`. This is intentional and may change percentage-rollout assignment for applications that relied on the old behavior. Configure a stable user/account/device/tenant identity explicitly when upgrading from correlation-based targeting.
+The default evaluation context does not derive `targetingKey` from
+`context.correlationId`. Percentage rollouts should configure a stable
+user/account/device/tenant identity explicitly so one subject remains in the
+same rollout bucket across requests.
 
 
 ## API Reference

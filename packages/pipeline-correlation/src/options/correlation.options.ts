@@ -7,9 +7,8 @@
  * transports (Bull, RabbitMQ, etc.), use `runWithCorrelationId()` directly in
  * your processor/handler.
  *
- * All incoming-ID hardening options are opt-in so existing applications keep
- * the exact historical behavior after upgrading: by default a non-empty header
- * value is accepted and echoed unchanged.
+ * Incoming-ID hardening is opt-in. By default a non-empty incoming header value
+ * is accepted and echoed unchanged.
  *
  * @example
  * ```ts
@@ -58,8 +57,7 @@ export interface CorrelationOptions {
 
   /**
    * Trim surrounding whitespace before optional length/custom validation and
-   * before storing/echoing the ID. Disabled by default to preserve the exact
-   * historical header value.
+   * before storing/echoing the ID.
    *
    * @default false
    */

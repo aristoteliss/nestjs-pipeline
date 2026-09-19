@@ -11,7 +11,6 @@ describe('BaseCommand metadata', () => {
       {
         username: 'Ada Lovelace',
         email: 'ada@example.test',
-        department: undefined,
       },
       {
         id: 'actor-1',
@@ -21,6 +20,21 @@ describe('BaseCommand metadata', () => {
     );
 
     expect(Object.keys(command)).not.toContain('sessionUser');
+    expect(fingerprintValue(command)).toBe(
+      fingerprintValue({
+        username: 'Ada Lovelace',
+        email: 'ada@example.test',
+      }),
+    );
+  });
+
+  it('safely fingerprints commands carrying explicit undefined properties', () => {
+    const command = new CreateUserCommand({
+      username: 'Ada Lovelace',
+      email: 'ada@example.test',
+      department: undefined,
+    });
+
     expect(() => fingerprintValue(command)).not.toThrow();
     expect(fingerprintValue(command)).toBe(
       fingerprintValue({

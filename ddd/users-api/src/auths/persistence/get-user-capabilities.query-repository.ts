@@ -6,7 +6,7 @@ import type {
   IUserCapabilityProvider,
   UserCapabilities,
 } from '@nestjs-pipeline/casl';
-import type { IQueryRepository } from '@nestjs-pipeline/ddd-core';
+import type { IQueryRepository } from '@nestjs-pipeline/ddd-core/application';
 import { UserAdditionalCapability } from '@persistence/entities/user-additional-capability.entity';
 import { UserDeniedCapability } from '@persistence/entities/user-denied-capability.entity';
 import { UserRole } from '@persistence/entities/user-role.entity';

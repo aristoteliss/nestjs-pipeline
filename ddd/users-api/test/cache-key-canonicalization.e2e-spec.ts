@@ -1,6 +1,9 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
-import type { ICache } from '@nestjs-pipeline/ddd-core';
-import { CACHE_TOKEN, filterCacheKey } from '@nestjs-pipeline/ddd-core';
+import type { ICache } from '@nestjs-pipeline/ddd-core/application';
+import {
+  CACHE_TOKEN,
+  filterCacheKey,
+} from '@nestjs-pipeline/ddd-core/persistence';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { bootstrapE2E, type E2EContext } from './support/e2e-app';
 

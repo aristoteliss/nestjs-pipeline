@@ -4,7 +4,7 @@ import {
   Mutate,
   RootEntity,
   type RootEntitySnapshot,
-} from '@nestjs-pipeline/ddd-core';
+} from '@nestjs-pipeline/ddd-core/domain';
 import { RoleCreatedEvent } from '../events/role-created.event';
 import { RoleDeletedEvent } from '../events/role-deleted.event';
 import { RoleUpdatedEvent } from '../events/role-updated.event';
@@ -16,19 +16,7 @@ export interface RoleSnapshot extends Partial<RootEntitySnapshot> {
 
 const ROLE_NAME_MIN_LENGTH = 3;
 
-/**
- * Role domain entity following Clean Architecture / DDD principles.
- *
- * Inherits shared identity, lifecycle timestamps, and event buffering from {@link RootEntity}.
- *
- * - State is private; mutated only through domain methods.
- * - `Role.create()` is the only factory for creating new roles and recording {@link RoleCreatedEvent}.
- * - `Role.fromJSON()` rebuilds the entity from persisted snapshot data.
- * - Direct construction is intentionally unavailable outside the aggregate; callers use the factories above.
- * - `rename()` and `delete()` enforce domain rules and record domain events.
- */
 export class Role extends RootEntity<RoleSnapshot> {
-  /** Canonical logical aggregate name used for cache namespacing and event topics. */
   public static readonly aggregateName = 'role';
 
   private _name: string;
@@ -81,7 +69,6 @@ export class Role extends RootEntity<RoleSnapshot> {
     this._name = Role.normalizeName(value);
   }
 
-  /** Gets the entity version for optimistic concurrency control. */
   get version(): number {
     return this._version;
   }
@@ -115,7 +102,5 @@ export class Role extends RootEntity<RoleSnapshot> {
     });
   }
 
-  afterUpdate(): void {
-    // No side effects needed on update for Role, but this method must be implemented
-  }
+  afterUpdate(): void {}
 }

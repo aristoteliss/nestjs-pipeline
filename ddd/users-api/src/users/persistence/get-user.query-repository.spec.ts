@@ -1,6 +1,6 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 import { type IPipelineContext, pipelineStore } from '@nestjs-pipeline/core';
-import type { ICache } from '@nestjs-pipeline/ddd-core';
+import type { ICache } from '@nestjs-pipeline/ddd-core/application';
 import { ZodValidationBehavior } from '@nestjs-pipeline/zod';
 import { describe, expect, it, vi } from 'vitest';
 import { GetUserQuery } from '../cqrs/queries/get-user.query';

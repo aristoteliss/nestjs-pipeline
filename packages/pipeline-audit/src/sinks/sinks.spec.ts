@@ -153,4 +153,34 @@ describe('PostgresAuditSink', () => {
       'CREATE TABLE IF NOT EXISTS audit_log',
     );
   });
+
+  it('serializes tenantId into metadata and handles response, error, and absent actor', async () => {
+    const query = vi.fn().mockResolvedValue(undefined);
+    const sink = new PostgresAuditSink({ query });
+
+    const err = new Error('database connection failed');
+    await sink.write(
+      makeRecord({
+        actor: undefined,
+        payload: undefined,
+        response: { success: true },
+        error: err,
+        tenantId: 'tenant-42',
+        metadata: { env: 'production' },
+      }),
+    );
+
+    const values = query.mock.calls[0][1] as unknown[];
+    expect(values[5]).toBeNull(); // actor
+    expect(values[9]).toBeNull(); // payload
+    expect(JSON.parse(values[10] as string)).toEqual({ success: true }); // response
+    expect(JSON.parse(values[11] as string)).toMatchObject({
+      name: 'Error',
+      message: 'database connection failed',
+    }); // error
+    expect(JSON.parse(values[13] as string)).toEqual({
+      env: 'production',
+      tenantId: 'tenant-42',
+    }); // metadata
+  });
 });

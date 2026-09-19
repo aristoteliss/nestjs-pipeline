@@ -5,7 +5,7 @@ import { Inject } from '@nestjs/common';
 import { type IQueryHandler, QueryHandler } from '@nestjs/cqrs';
 import { CaslAuthorizer, CaslBehavior } from '@nestjs-pipeline/casl';
 import { LoggingBehavior, UsePipeline } from '@nestjs-pipeline/core';
-import { IQueryRepository } from '@nestjs-pipeline/ddd-core';
+import { IQueryRepository } from '@nestjs-pipeline/ddd-core/application';
 import type { Role, RoleSnapshot } from '../../domain/models/role.entity';
 import { QUERY_REPOSITORY } from '../../persistence/repository.tokens';
 import { GetRoleQuery } from './get-role.query';

@@ -82,8 +82,8 @@ export interface FeatureFlagBehaviorOptions {
 
   /**
    * When the flag resolves to disabled, return this value instead of throwing
-   * {@link FeatureDisabledError}. Use it to degrade gracefully (e.g. an empty
-   * list or a "legacy" code path).
+   * {@link FeatureDisabledError}. Use it to degrade gracefully, for example by
+   * returning an empty read model or another explicitly supported fallback.
    */
   fallback?: FeatureFallbackFactory;
 
@@ -160,6 +160,20 @@ export interface FeatureFlagBehaviorOptions {
  * a pre-built `client`, a `provider` instance the module will register, or
  * neither — in which case the ambient OpenFeature default client is used (you
  * register a provider elsewhere via `OpenFeature.setProvider(...)`).
+ *
+ * @example Register a provider with stable rollout identity
+ * ```ts
+ * FeatureFlagsModule.forRoot({
+ *   provider: new InMemoryProvider(flags),
+ *   context: { environment: 'production' },
+ *   targetingKeyFactory: (ctx) =>
+ *     ctx.items.get('accountId') as string | undefined,
+ *   defaults: {
+ *     defaultValue: false,
+ *     errorPolicy: 'use-default',
+ *   },
+ * });
+ * ```
  */
 export interface FeatureFlagsModuleOptions {
   /**

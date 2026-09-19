@@ -1,13 +1,13 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import { AggregateRoot } from '@nestjs/cqrs';
-import { isUuidV7, uuidv7 } from '@nestjs-pipeline/core';
 import { RootEntitySnapshot } from '../interfaces/root-entity-snapshot.interface';
+import { isUuidV7, uuidv7 } from '../utils/uuidv7';
+import { AggregateRoot } from './aggregate-root';
 
 /**
  * Abstract base entity for DDD domain aggregates and entities.
  *
- * Inherits from `@nestjs/cqrs` {@link AggregateRoot} to manage domain events
+ * Inherits from {@link AggregateRoot} to manage domain events
  * internally:
  * - **Domain Event Recording**: Call `this.apply(new SomeEvent(this))` to buffer uncommitted events.
  * - **UUID v7 Identity**: Automatically generates time-ordered UUID v7 identifiers for new instances.

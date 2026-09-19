@@ -68,6 +68,15 @@ describe('createPartitionedRateLimitKeyFactory', () => {
         'tenant-b:CreateOrderCommand',
       );
     });
+
+    it('falls back to request name without tenant when includeTenant is false', () => {
+      const factory = createPartitionedRateLimitKeyFactory(() => undefined, {
+        onMissingPartition: 'request',
+        includeTenant: false,
+      });
+
+      expect(factory(context())).toBe('CreateOrderCommand');
+    });
   });
 
   describe('missing tenant', () => {

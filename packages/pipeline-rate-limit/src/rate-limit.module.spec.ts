@@ -54,4 +54,20 @@ describe('RateLimitModule', () => {
     ) as any;
     expect(limiterProvider?.useFactory).toBe(factory);
   });
+
+  it('provides empty default options when defaults is omitted in forRoot and forRootAsync', () => {
+    const syncModule = RateLimitModule.forRoot({ limiter: mockLimiter });
+    const syncDefaults = syncModule.providers?.find(
+      (p: any) => p.provide === RATE_LIMIT_DEFAULT_OPTIONS,
+    ) as any;
+    expect(syncDefaults?.useValue).toEqual({});
+
+    const asyncModule = RateLimitModule.forRootAsync({
+      useFactory: () => mockLimiter,
+    });
+    const asyncDefaults = asyncModule.providers?.find(
+      (p: any) => p.provide === RATE_LIMIT_DEFAULT_OPTIONS,
+    ) as any;
+    expect(asyncDefaults?.useValue).toEqual({});
+  });
 });

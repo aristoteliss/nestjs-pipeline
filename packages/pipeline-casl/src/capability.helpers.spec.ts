@@ -606,4 +606,44 @@ describe('capability.helpers', () => {
       expect(rules[0].conditions).toEqual({ authorId: 7 });
     });
   });
+
+  describe('encoded segment edge cases', () => {
+    it('throws when decoded text segment is not a string or has invalid JSON', () => {
+      // base64url of "123" is "MTIz", which parses to number 123
+      expect(() => parseCapabilityString('~MTIz|read|*')).toThrow(
+        /Invalid encoded subject in capability string/,
+      );
+      // invalid base64 / json
+      expect(() => parseCapabilityString('~invalid-base64!|read|*')).toThrow(
+        /Invalid encoded subject in capability string/,
+      );
+    });
+
+    it('throws when decoded fields segment is not a string array or has invalid JSON', () => {
+      // base64url of "[123]" is "WzEyM10", which contains non-string items
+      expect(() => parseCapabilityString('Post|read|*|~WzEyM10')).toThrow(
+        /Invalid encoded fields in capability string/,
+      );
+      // base64url of "123" is "MTIz", which is not an array
+      expect(() => parseCapabilityString('Post|read|*|~MTIz')).toThrow(
+        /Invalid encoded fields in capability string/,
+      );
+      // invalid base64 / json
+      expect(() =>
+        parseCapabilityString('Post|read|*|~invalid-base64!'),
+      ).toThrow(/Invalid encoded fields in capability string/);
+    });
+
+    it('throws on non-data / non-enumerable condition array items', () => {
+      const arr = [1];
+      Object.defineProperty(arr, '0', { get: () => 1, enumerable: true });
+      expect(() =>
+        serializeCapability({
+          subject: 'Post',
+          action: 'read',
+          conditions: { list: arr },
+        }),
+      ).toThrow('Capability conditions must be a JSON object.');
+    });
+  });
 });

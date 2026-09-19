@@ -3,6 +3,12 @@
 import { EmailSchema } from '@common/validation/email.schema';
 import { z } from 'zod';
 
+/**
+ * Request body for creating a user.
+ *
+ * @example
+ * `{ "email": "user@example.com", "name": "Jane Doe", "department": "Support" }`
+ */
 export const CreateUserDtoSchema = z.object({
   email: EmailSchema,
   name: z.string().trim().min(3),
