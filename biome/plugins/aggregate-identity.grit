@@ -1,24 +1,23 @@
 engine biome(1.0)
 language js(typescript)
 
-// `RootEntity` exposes public setters for `id`, `createdAt` and `updatedAt`.
-// They exist so MikroORM's `accessor: true` mapping can hydrate private backing
-// fields without `@ts-expect-error`, which `ddd/users-api/README.md` documents as
-// a deliberate trade-off for this sample.
+// `RootEntity` and concrete aggregate classes (`User`, `Role`) expose public
+// setters for hydration properties (`id`, `createdAt`, `updatedAt`, `version`,
+// `username`, `department`, `name`). They exist so MikroORM's `accessor: true`
+// mapping can hydrate private backing fields without `@ts-expect-error` or
+// boilerplate persistence records/mappers.
 //
-// The cost of that trade-off is that aggregate identity is assignable from
-// anywhere. Removing the setters would mean introducing persistence records and
-// explicit mappers — worthwhile only if strict domain encapsulation becomes a
-// goal of the sample, which the consolidating review concluded it is not. Until
-// then the setters stay and this rule carries the other half of the bargain:
+// Under D-03, this rule enforces strict domain encapsulation at build time:
 // application and presentation code must go through factories and domain
-// methods.
+// methods. Direct property assignment is forbidden.
 //
-// Scoped in biome.json to the layers that must not assign identity. The
-// persistence and domain trees are excluded: the ORM hydrates through these
-// setters, and the aggregate itself owns its timestamps via `onUpdate()`.
+// Scoped in biome.json to the layers that must not mutate aggregates directly:
+// cqrs, controllers, services, mappers, jobs, application. The persistence and
+// domain trees are excluded: the ORM hydrates through these setters, and the
+// aggregate itself owns its internal lifecycle via `onUpdate()`.
 
 `$aggregate.$property = $value` as $assignment where {
-  $property <: r"^(?:id|createdAt|updatedAt)$",
-  register_diagnostic(span=$assignment, message="Do not assign aggregate identity or lifecycle timestamps. These setters exist only for MikroORM hydration; application code creates aggregates through factories (User.create) and changes them through domain methods (user.update), which maintain the version and updatedAt invariants.", severity="error")
+  not $aggregate <: `this`,
+  $property <: r"^(?:id|createdAt|updatedAt|version|username|department|name)$",
+  register_diagnostic(span=$assignment, message="Do not assign aggregate properties directly via setters. These setters exist only for MikroORM hydration; application code creates aggregates through factories (e.g. User.create) and mutates them through domain methods (e.g. user.rename), which maintain aggregate invariants, versioning, and event tracking.", severity="error")
 }

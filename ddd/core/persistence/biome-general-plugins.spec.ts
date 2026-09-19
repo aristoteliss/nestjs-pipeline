@@ -388,3 +388,65 @@ describe('Biome Grit ddd entry-point boundaries', () => {
     },
   );
 });
+
+describe('Biome Grit aggregate-identity setter guard plugin', () => {
+  it.each([
+    ['id', "user.id = '018f2d5a-6b8c-7e3f-9a1b-2c3d4e5f6a7b';"],
+    ['createdAt', 'user.createdAt = new Date();'],
+    ['updatedAt', 'user.updatedAt = new Date();'],
+    ['version', 'user.version = 2;'],
+    ['username', "user.username = 'new-username';"],
+    ['department', "user.department = 'Engineering';"],
+    ['name', "role.name = 'Admin';"],
+  ])('rejects direct mutation of %s in cqrs handlers', (_property, code) => {
+    const result = lintFixture(
+      'ddd/users-api/src/users/cqrs/commands/update-user.handler.ts',
+      `export function mutate(user: any, role: any) { ${code} }`,
+    );
+    expect(result.status).toBe(1);
+    expect(result.diagnostics).toContain(
+      'Do not assign aggregate properties directly via setters',
+    );
+  });
+
+  it('accepts domain method calls and factories in cqrs handlers', () => {
+    const result = lintFixture(
+      'ddd/users-api/src/users/cqrs/commands/update-user.handler.ts',
+      `
+      export function execute(user: any) {
+        user.rename('new-username');
+        user.changeDepartment('Engineering');
+      }
+      `,
+    );
+    expect(result.status).toBe(0);
+  });
+
+  it('permits this.name assignment in error constructors', () => {
+    const result = lintFixture(
+      'ddd/users-api/src/users/cqrs/commands/errors/custom.exception.ts',
+      `
+      export class CustomException extends Error {
+        constructor() {
+          super('error');
+          this.name = 'CustomException';
+        }
+      }
+      `,
+    );
+    expect(result.status).toBe(0);
+  });
+
+  it('permits setter hydration inside persistence adapters', () => {
+    const result = lintFixture(
+      'ddd/users-api/src/users/persistence/user.hydrator.ts',
+      `
+      export function hydrate(user: any) {
+        user.id = '018f2d5a-6b8c-7e3f-9a1b-2c3d4e5f6a7b';
+        user.username = 'alice';
+      }
+      `,
+    );
+    expect(result.status).toBe(0);
+  });
+});

@@ -98,6 +98,11 @@ export class User extends RootEntity<UserSnapshot> {
   get username(): string {
     return this._username;
   }
+
+  /**
+   * @internal For MikroORM persistence hydration only.
+   * @deprecated Direct mutation via setter is prohibited. Mutate aggregate state exclusively via domain methods/factories.
+   */
   set username(value: string) {
     this._username = User.normalizeUsername(value);
   }
@@ -105,6 +110,11 @@ export class User extends RootEntity<UserSnapshot> {
   get department(): string | null {
     return this._department;
   }
+
+  /**
+   * @internal For MikroORM persistence hydration only.
+   * @deprecated Direct mutation via setter is prohibited. Mutate aggregate state exclusively via domain methods/factories.
+   */
   set department(value: string | null) {
     this._department = User.normalizeDepartment(value);
   }
@@ -112,6 +122,11 @@ export class User extends RootEntity<UserSnapshot> {
   get version(): number {
     return this._version;
   }
+
+  /**
+   * @internal For MikroORM persistence hydration only.
+   * @deprecated Direct mutation via setter is prohibited. Mutate aggregate state exclusively via domain methods/factories.
+   */
   set version(value: number) {
     if (typeof value === 'number' && Number.isInteger(value) && value > 0) {
       this._version = value;

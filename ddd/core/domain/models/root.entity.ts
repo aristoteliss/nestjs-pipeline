@@ -197,6 +197,11 @@ export abstract class RootEntity<
   get id(): string {
     return this._id;
   }
+
+  /**
+   * @internal For MikroORM persistence hydration only.
+   * @deprecated Direct mutation via setter is prohibited. Mutate aggregate state exclusively via domain methods/factories.
+   */
   set id(value: string) {
     this._id = RootEntity.normalizeId(value);
   }
@@ -204,6 +209,11 @@ export abstract class RootEntity<
   get createdAt(): Date {
     return new Date(this._createdAt);
   }
+
+  /**
+   * @internal For MikroORM persistence hydration only.
+   * @deprecated Direct mutation via setter is prohibited. Mutate aggregate state exclusively via domain methods/factories.
+   */
   set createdAt(value: Date | string) {
     this._createdAt = RootEntity.normalizeDate(value);
   }
@@ -211,6 +221,11 @@ export abstract class RootEntity<
   get updatedAt(): Date {
     return new Date(this._updatedAt);
   }
+
+  /**
+   * @internal For MikroORM persistence hydration only.
+   * @deprecated Direct mutation via setter is prohibited. Mutate aggregate state exclusively via domain methods/factories.
+   */
   set updatedAt(value: Date | string) {
     this._updatedAt = RootEntity.normalizeDate(value);
   }

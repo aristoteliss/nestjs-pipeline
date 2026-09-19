@@ -691,42 +691,14 @@ Do not hide @nestjs/cqrs behind a broad "mediator" interface if the only consume
 
 # 7. D-03 — Strict aggregate encapsulation vs direct MikroORM accessor mapping
 
-**Status: DECISION REQUIRED. DO NOT IMPLEMENT WITHOUT OWNER APPROVAL.**
+**Status: RESOLVED (OWNER APPROVED: RETAIN DIRECT MAPPING WITH STATIC LINTER GUARDS).**
 
-## 7.1 Current contract
+## 7.1 Implemented contract
 
-RootEntity exposes setters for id, createdAt, and updatedAt as persistence hydration escape hatches.
-
-MikroORM EntitySchema maps aggregate accessor properties directly with accessor: true.
-
-Application/domain rules prohibit callers from using those setters for business mutations.
-
-The arrangement is intentionally pragmatic: it keeps the sample small but means the domain class surface is not maximally closed.
-
-## 7.2 Owner decision questions
-
-1. Is strict compile-time encapsulation of hydration state a required teaching/product goal?
-2. Is additional persistence mapper/record boilerplate acceptable in the sample?
-3. Should all mapped aggregates migrate together?
-4. Should persistence records mirror domain snapshots 1:1 or use database-shaped fields?
-5. Who owns date/version conversion?
-6. Should repositories return/hydrate aggregates exclusively through fromJSON?
-7. Is MikroORM identity-map behavior still needed for persistence records?
-8. Is the direct-schema sample simplicity more valuable than setter elimination?
-
-Do not remove setters before answering these.
-
-## 7.3 If owner chooses RETAIN DIRECT MAPPING
-
-No production change.
-
-Preserve:
-
-- setters documented as hydration-only;
-- application guardrails against direct setter mutation;
-- accessor: true schema mapping.
-
-Optionally add a small static guard only if current enforcement is insufficient. Do not create records/mappers anyway.
+1. Direct mapping (`accessor: true`) is retained in MikroORM EntitySchemas for zero-boilerplate simplicity (no persistence records or mappers).
+2. Hydration setters on `RootEntity`, `User`, and `Role` are strictly annotated with `@internal` and `@deprecated` JSDoc tags.
+3. Build-time enforcement is active via `biome/plugins/aggregate-identity.grit`, rejecting any direct setter assignments across `cqrs/`, `application/`, `controllers/`, `services/`, `mappers/`, and `jobs/`.
+4. Domain invariants, versioning, and event tracking are preserved by requiring mutations to go exclusively through domain methods and factories.
 
 ## 7.4 If owner chooses STRICT ENCAPSULATION
 
