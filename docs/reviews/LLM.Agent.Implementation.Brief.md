@@ -29,6 +29,7 @@ Read `AGENTS.md` and the architecture skill before editing. Implement one findin
 | ~~A-04 / U-09~~ | No semantic no-op `@MapPersistenceErrors({ unique: [] })` invocation remains in users-api. |
 | ~~D-02~~ | Resolved: `AggregateRoot` with NestJS 12 semantics is owned in `ddd/core/domain`; the domain entry point loads no `@nestjs/*` and no `@mikro-orm/*`, enforced by `domain-entry-point.spec.ts`. **Do not treat D-02 as an open decision.** |
 | ~~D-03~~ | Resolved: direct `accessor: true` mapping retained, hydration setters annotated `@internal`/`@deprecated`, `biome/plugins/aggregate-identity.grit` rejecting dot and literal-bracket writes, compound assignments and updates on receivers named `user`, `role`, `aggregate`, `entity` in application layers. The guard is syntax- and naming-based only; domain-method mutation stays mandatory outside its coverage. |
+| ~~F-06~~ | Replaced raw tuples with `audit({...})` intent builder, renamed `metadataFactory` to `metadata`, registered trusted session actor factory as `AuditModule.forRoot` defaults (`AUDIT_MODULE_DEFAULTS`), added compile-time tests rejecting unknown options, and verified emitted records in `deletion-audit-records.spec.ts`. |
 
 ---
 
@@ -37,8 +38,8 @@ Read `AGENTS.md` and the architecture skill before editing. Implement one findin
 Implement in this order. Each item must ship with a regression that fails before the fix and passes after it.
 
 ## 2.1 F-06 — Audit options that are silently ignored
-
-**Status: OPEN. Reproduced.** With `metadataFactory`, `buildAuditRecord` emits `metadata: {"tenantId":"t"}` and `actor: undefined`.
+ 
+**Status: CLOSED. Done.** Replaced raw tuples with `audit({...})`, renamed option to `metadata`, added module-wide `AUDIT_MODULE_DEFAULTS` with trusted actor factory, and verified with compile-time guards and runtime emitted-record specs.
 
 `AuditBehaviorOptions` declares `metadata?: AuditMetadataFactory` (`packages/pipeline-audit/src/interfaces/audit-options.interface.ts:92`). `ddd/users-api/src/users/cqrs/commands/delete-user.handler.ts:38` and `ddd/users-api/src/roles/cqrs/commands/delete-role.handler.ts:38` pass `metadataFactory`, so the target id, acting user id and acting email never reach the HIGH-severity audit record.
 
