@@ -15,6 +15,7 @@ import {
   type NextDelegate,
   PIPELINE_BEHAVIOR_CONTRACT,
   type PipelineBehaviorDiagnostic,
+  type PipelineBehaviorOrderRule,
   type PipelineBehaviorValidationContext,
 } from '@nestjs-pipeline/core';
 import type { Cache } from 'cache-manager';
@@ -82,8 +83,19 @@ const DEFAULT_KINDS: Array<IPipelineContext['requestKind']> = ['query'];
 @Injectable()
 export class CacheBehavior implements IPipelineBehavior {
   static readonly [PIPELINE_BEHAVIOR_CONTRACT]: IPipelineBehaviorContract = {
-    order: {
-      after: ['CaslBehavior'],
+    order: (
+      context: PipelineBehaviorValidationContext,
+    ): PipelineBehaviorOrderRule | undefined => {
+      const options = context.effectiveOptions as
+        | CacheBehaviorOptions
+        | undefined;
+      const kinds = options?.kinds ?? DEFAULT_KINDS;
+      if (!kinds.includes(context.requestKind)) {
+        return undefined;
+      }
+      return {
+        after: ['@nestjs-pipeline/casl:CaslBehavior', 'CaslBehavior'],
+      };
     },
     validate: (
       context: PipelineBehaviorValidationContext,
@@ -96,20 +108,26 @@ export class CacheBehavior implements IPipelineBehavior {
         return undefined;
       }
 
-      if (
-        (context.declarationSource === 'handler' ||
-          context.declarationSource === 'both') &&
-        !options?.key
-      ) {
+      if (!options?.key) {
         return [
           {
             handlerName: context.handlerName,
             behaviorName: CacheBehavior.name,
-            message:
-              'Explicit CacheBehavior intent requires an explicit `key` factory',
+            message: 'Active CacheBehavior requires an explicit `key` factory',
             fix:
               'Provide a key factory via createPartitionedCacheKeyFactory(...) or ' +
-              'cacheKeyTemplate(...) in @UsePipeline([CacheBehavior, { key: ... }]).',
+              'cacheKeyTemplate(...) in @UsePipeline([CacheBehavior, { key: ... }]) or CacheModule.forRoot({ defaults: ... }).',
+          },
+        ];
+      }
+
+      if (typeof options.key !== 'function') {
+        return [
+          {
+            handlerName: context.handlerName,
+            behaviorName: CacheBehavior.name,
+            message: `CacheBehavior key factory must be a callable function, received ${typeof options.key}`,
+            fix: 'Pass a valid function (ctx) => string to the key option in @UsePipeline([CacheBehavior, { key: ... }]).',
           },
         ];
       }
@@ -150,7 +168,9 @@ export class CacheBehavior implements IPipelineBehavior {
     context: IPipelineContext,
     next: NextDelegate,
   ): Promise<unknown> {
-    const options = this.resolveOptions(context);
+    const options = this.resolveEffectiveOptions(
+      context.getBehaviorOptions<CacheBehaviorOptions>(CacheBehavior),
+    );
 
     const kinds = options.kinds ?? DEFAULT_KINDS;
     if (!kinds.includes(context.requestKind)) return next();
@@ -230,11 +250,11 @@ export class CacheBehavior implements IPipelineBehavior {
     throw error;
   }
 
-  /** Shallow-merges per-handler options over the application defaults. */
-  private resolveOptions(context: IPipelineContext): CacheBehaviorOptions {
-    const handlerOptions =
-      context.getBehaviorOptions<CacheBehaviorOptions>(CacheBehavior);
-    if (!handlerOptions) return this.defaults;
-    return { ...this.defaults, ...handlerOptions };
+  /** Shallow-merges pipeline-level options over application defaults. */
+  resolveEffectiveOptions(
+    options?: CacheBehaviorOptions,
+  ): CacheBehaviorOptions {
+    if (!options) return this.defaults;
+    return { ...this.defaults, ...options };
   }
 }

@@ -16,6 +16,7 @@ import { UserCreatedHandler } from './cqrs/events/user-created.handler';
 import { UserUpdatedHandler } from './cqrs/events/user-updated.handler';
 import { GetUserHandler } from './cqrs/queries/get-user.handler';
 import { GetUserContextHandler } from './cqrs/queries/get-user-context.handler';
+import { GetUserOverviewHandler } from './cqrs/queries/get-user-overview.handler';
 import { GetUsersHandler } from './cqrs/queries/get-users.handler';
 import {
   BATCH_UPDATE_USERS_QUEUE,
@@ -81,6 +82,7 @@ import { UpdateUserCommandRepository } from './persistence/update-user.command-r
     GetUserHandler,
     GetUsersHandler,
     GetUserContextHandler,
+    GetUserOverviewHandler,
 
     // Commands
     CreateUserHandler,

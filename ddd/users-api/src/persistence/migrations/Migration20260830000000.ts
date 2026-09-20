@@ -139,6 +139,7 @@ export class Migration20260830000000 extends Migration {
       key varchar(255) not null,
       value text not null,
       expires_at bigint null,
+      revision bigint not null default 0,
       primary key (key)
     );`);
     this.addSql('create index cache_expires_at_idx on cache (expires_at);');

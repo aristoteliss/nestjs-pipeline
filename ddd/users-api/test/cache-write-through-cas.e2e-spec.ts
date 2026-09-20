@@ -2,10 +2,16 @@
 
 import type { Server } from 'node:http';
 import type { ICache } from '@nestjs-pipeline/ddd-core/application';
-import { CACHE_TOKEN } from '@nestjs-pipeline/ddd-core/persistence';
+import {
+  CACHE_TOKEN,
+  filterCacheKey,
+} from '@nestjs-pipeline/ddd-core/persistence';
 import request from 'supertest';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import type { UserSnapshot } from '../src/users/domain/models/user.entity';
+import {
+  User,
+  type UserSnapshot,
+} from '../src/users/domain/models/user.entity';
 import { bootstrapE2E, type E2EContext } from './support/e2e-app';
 
 describe('cache write-through CAS & read strong consistency (e2e)', () => {
@@ -39,7 +45,11 @@ describe('cache write-through CAS & read strong consistency (e2e)', () => {
 
     expect(createRes.status).toBe(201);
     const userId = createRes.body.id;
-    const cacheKey = `tenant:user:id:${userId}`;
+    const cacheKey = filterCacheKey(
+      User.aggregateName,
+      { id: userId },
+      'tenant',
+    );
 
     const cache = ctx.app.get<ICache<UserSnapshot>>(CACHE_TOKEN);
     const cachedInitial = await cache.get(cacheKey);

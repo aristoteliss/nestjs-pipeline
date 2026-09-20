@@ -1,5 +1,16 @@
 # @nestjs-pipeline/ddd-users-api
 
+## Scope of this example
+
+This application demonstrates selected library capabilities. Its current call
+sites do not define which package APIs, adapters or future integrations are useful.
+Repository caches serve persistence reads; pipeline caches can serve composed or
+aggregate application query results. Registering a module makes infrastructure
+available but does not demonstrate an active handler policy. See
+[AGENTS.md](../../AGENTS.md) and the
+[architecture skill](../../.agents/skills/nestjs-pipeline-architecture/SKILL.md)
+before changing cache placement or removing a feature based on this example.
+
 Disposable reference application demonstrating the `@nestjs-pipeline/*` packages with NestJS CQRS, MikroORM, CASL, Zod, caching, tracing, rate limiting, audit, idempotency, feature flags, resilience, correlation IDs, and dead-letter handling.
 
 This directory is a **demo**, not a migration-compatibility target. Its database history may be reset whenever the sample schema changes. Do not use its migration files as an upgrade path for a real application.
@@ -560,9 +571,10 @@ import { GetRolesQuery } from './get-roles.query';
     CacheBehavior,
     {
       ttl: 30_000, // 30-second cache TTL
-      // Built-in defaultCacheKey is request-scoped via context.correlationId.
-      // Do NOT use an unpartitioned shared key (e.g. `${tenantId}:roles:all`)
-      // when the handler performs entity-level or field-level authorization.
+      // Safe baseline: do not enable this protected-result cache until the
+      // application supplies a key covering tenant, principal and permissions,
+      // plus an invalidation/freshness policy. Correlation ID is not isolation.
+      condition: () => false,
     },
   ],
 )
@@ -584,7 +596,7 @@ export class GetRolesHandler implements IQueryHandler<GetRolesQuery, RoleSnapsho
 > **Authorization & Cache Security Scope**:
 > When a query handler executes entity-level or field-level authorization (such as `this.authorizer.authorize('read', role)`), cached responses must never be shared across principals using an unpartitioned cache key.
 >
-> `CacheBehavior` has no default key: it requires an explicit `key` factory. The earlier default was request-scoped via `context.correlationId`, which made it incapable of ever producing a hit while also not being an authorization boundary — a client can supply its own correlation ID, and nested executions deliberately inherit one.
+> Correlation IDs may be supplied or reused and do not isolate principals. Before enabling the protected-result example above, provide an explicit `key` factory covering tenant, principal type/ID and effective permissions, and an invalidation/freshness policy. Fail closed on missing required context. A global type-level CASL check alone does not reproduce the handler's entity/field authorization.
 >
 > Use `createPartitionedCacheKeyFactory` from `@nestjs-pipeline/cache`. It partitions every dimension that influences the authorized response (`tenantId`, principal ID, role/capability scope, payload digest), escapes each segment so `a:b` + `c` cannot collide with `a` + `b:c`, and fails closed with `MissingCachePartitionError` on missing tenant or principal context — never falling back to `'default'`.
 

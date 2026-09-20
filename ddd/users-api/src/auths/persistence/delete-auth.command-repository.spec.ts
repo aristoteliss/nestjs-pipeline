@@ -2,7 +2,10 @@
 
 import { type IPipelineContext, pipelineStore } from '@nestjs-pipeline/core';
 import { type ICache } from '@nestjs-pipeline/ddd-core/application';
-import { DEFAULT_BARRIER_TTL_MS } from '@nestjs-pipeline/ddd-core/persistence';
+import {
+  DEFAULT_BARRIER_TTL_MS,
+  filterCacheKey,
+} from '@nestjs-pipeline/ddd-core/persistence';
 import type { MikroOrmStore } from '@persistence/mikro-orm.store';
 import { describe, expect, it, vi } from 'vitest';
 import { Auth, type AuthSnapshot } from '../domain/models/auth.entity';
@@ -38,12 +41,17 @@ describe('DeleteAuthCommandRepository', () => {
       () => repo.save(auth),
     );
 
+    const expectedKey = filterCacheKey(
+      Auth.aggregateName,
+      { id: auth.id },
+      'tenant',
+    );
     expect(result).toBeNull();
     expect(nativeDelete).toHaveBeenCalledWith(Auth, {
       id: '018f2d5e-4b6a-7b3f-8c1d-2e3f4a5b6c7d',
     });
     expect(cacheSet).toHaveBeenCalledWith(
-      expect.stringContaining(`auth:id:${auth.id}`),
+      expectedKey,
       expect.objectContaining({
         __cacheBarrier: true,
         reason: 'deleted',

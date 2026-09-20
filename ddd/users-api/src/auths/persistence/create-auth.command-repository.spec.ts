@@ -2,7 +2,10 @@
 
 import { type IPipelineContext, pipelineStore } from '@nestjs-pipeline/core';
 import { type ICache } from '@nestjs-pipeline/ddd-core/application';
-import { toCacheSnapshot } from '@nestjs-pipeline/ddd-core/persistence';
+import {
+  filterCacheKey,
+  toCacheSnapshot,
+} from '@nestjs-pipeline/ddd-core/persistence';
 import { describe, expect, it, vi } from 'vitest';
 import { Auth, type AuthSnapshot } from '../domain/models/auth.entity';
 import { CreateAuthCommandRepository } from './create-auth.command-repository';
@@ -28,9 +31,14 @@ describe('CreateAuthCommandRepository', () => {
       () => repository.save(auth),
     );
 
+    const expectedKey = filterCacheKey(
+      Auth.aggregateName,
+      { id: auth.id },
+      'tenant',
+    );
     expect(upsert).toHaveBeenCalledWith(Auth, auth);
     expect(cache.set).toHaveBeenCalledWith(
-      `tenant:auth:id:${auth.id}`,
+      expectedKey,
       toCacheSnapshot(result),
       expect.objectContaining({ isNewer: expect.any(Function) }),
     );

@@ -643,8 +643,38 @@ describe('IdempotencyBehavior', () => {
       >
     )[PIPELINE_BEHAVIOR_CONTRACT];
 
-    it('declares ordering after CaslBehavior', () => {
-      expect(contract?.order?.after).toEqual(['CaslBehavior']);
+    it('declares ordering after CaslBehavior for scoped requests', () => {
+      const order =
+        typeof contract?.order === 'function'
+          ? contract.order({
+              handlerType: class CreateOrderHandler {},
+              handlerName: 'CreateOrderHandler',
+              requestKind: 'command',
+              declarationSource: 'handler',
+              effectiveOptions: {},
+              handlerOptions: {},
+              globalOptions: undefined,
+              effectiveBehaviorTypes: [IdempotencyBehavior],
+            })
+          : contract?.order;
+      expect(order?.after).toContain('CaslBehavior');
+    });
+
+    it('skips ordering constraint when request kind is out of scope', () => {
+      const order =
+        typeof contract?.order === 'function'
+          ? contract.order({
+              handlerType: class GetOrderHandler {},
+              handlerName: 'GetOrderHandler',
+              requestKind: 'query',
+              declarationSource: 'handler',
+              effectiveOptions: {},
+              handlerOptions: {},
+              globalOptions: undefined,
+              effectiveBehaviorTypes: [IdempotencyBehavior],
+            })
+          : contract?.order;
+      expect(order).toBeUndefined();
     });
 
     it('returns diagnostic when handler declares intent without keyFactory for command', () => {
@@ -708,6 +738,22 @@ describe('IdempotencyBehavior', () => {
       });
 
       expect(diagnostics).toBeUndefined();
+    });
+
+    it('returns diagnostic when keyFactory is not a callable function', () => {
+      const diagnostics = contract?.validate?.({
+        handlerType: class CreateOrderHandler {},
+        handlerName: 'CreateOrderHandler',
+        requestKind: 'command',
+        declarationSource: 'handler',
+        effectiveOptions: { keyFactory: 'invalid' as never },
+        handlerOptions: { keyFactory: 'invalid' as never },
+        globalOptions: undefined,
+        effectiveBehaviorTypes: [IdempotencyBehavior],
+      });
+
+      expect(diagnostics).toHaveLength(1);
+      expect(diagnostics?.[0].message).toContain('must be a callable function');
     });
   });
 });

@@ -309,7 +309,7 @@ describe('RateLimitBehavior', () => {
       expect(diagnostics).toBeUndefined();
     });
 
-    it('allows passive pass-through when declarationSource is global without handler options', () => {
+    it('returns diagnostic when declarationSource is global without keyFactory', () => {
       const diagnostics = contract?.validate?.({
         handlerType: class CreateUserHandler {},
         handlerName: 'CreateUserHandler',
@@ -321,7 +321,24 @@ describe('RateLimitBehavior', () => {
         effectiveBehaviorTypes: [RateLimitBehavior],
       });
 
-      expect(diagnostics).toBeUndefined();
+      expect(diagnostics).toHaveLength(1);
+      expect(diagnostics?.[0].message).toContain('explicit `keyFactory`');
+    });
+
+    it('returns diagnostic when keyFactory is not a callable function', () => {
+      const diagnostics = contract?.validate?.({
+        handlerType: class CreateUserHandler {},
+        handlerName: 'CreateUserHandler',
+        requestKind: 'command',
+        declarationSource: 'handler',
+        effectiveOptions: { keyFactory: 'not-a-function' as never },
+        handlerOptions: { keyFactory: 'not-a-function' as never },
+        globalOptions: undefined,
+        effectiveBehaviorTypes: [RateLimitBehavior],
+      });
+
+      expect(diagnostics).toHaveLength(1);
+      expect(diagnostics?.[0].message).toContain('must be a callable function');
     });
   });
 });

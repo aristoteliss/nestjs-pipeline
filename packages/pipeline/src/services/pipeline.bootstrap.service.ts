@@ -319,7 +319,7 @@ export class PipelineBootstrapService
       if (untyped(originalMethod).__pipelined) return;
     }
 
-    // ── Pre-resolve everything at bootstrap ──
+    // Pre-resolve everything at bootstrap
 
     // 1. Resolve singleton behavior instances once. Behaviors that are scoped
     //    (or otherwise unavailable through moduleRef.get) are resolved per run.
@@ -402,91 +402,18 @@ export class PipelineBootstrapService
 
     const diagnosticsMode = this.options?.diagnostics ?? 'strict';
     if (diagnostics && diagnosticsMode !== 'off') {
-      for (let i = 0; i < behaviorTypes.length; i++) {
-        const BehaviorClass = behaviorTypes[i];
-        const id = getBehaviorId(BehaviorClass);
-
-        const isHandlerDeclared = (handlerBehaviorTypes ?? []).some(
-          (t) => getBehaviorId(t) === id,
-        );
-        const isGlobalDeclared = globalBehaviorIds.has(id);
-
-        const declarationSource: 'handler' | 'global' | 'both' =
-          isHandlerDeclared && isGlobalDeclared
-            ? 'both'
-            : isHandlerDeclared
-              ? 'handler'
-              : 'global';
-
-        const contract = untyped(BehaviorClass)[PIPELINE_BEHAVIOR_CONTRACT] as
-          | IPipelineBehaviorContract
-          | undefined;
-
-        if (contract) {
-          // 1. Validate Ordering Constraints
-          if (contract.order) {
-            if (contract.order.after) {
-              for (const target of contract.order.after) {
-                const targetIdx = behaviorTypes.findIndex((b) =>
-                  typeof target === 'string'
-                    ? getBehaviorId(b) === target || b.name === target
-                    : b === target ||
-                      getBehaviorId(b) === getBehaviorId(target),
-                );
-                if (targetIdx !== -1 && i <= targetIdx) {
-                  const targetName =
-                    typeof target === 'string' ? target : target.name;
-                  diagnostics.push({
-                    handlerName: handlerType.name,
-                    behaviorName: BehaviorClass.name,
-                    message: `${BehaviorClass.name} is positioned before ${targetName} in the pipeline chain, but must execute after it`,
-                    fix: `Reorder the pipeline behaviors so that ${targetName} runs before ${BehaviorClass.name}.`,
-                  });
-                }
-              }
-            }
-            if (contract.order.before) {
-              for (const target of contract.order.before) {
-                const targetIdx = behaviorTypes.findIndex((b) =>
-                  typeof target === 'string'
-                    ? getBehaviorId(b) === target || b.name === target
-                    : b === target ||
-                      getBehaviorId(b) === getBehaviorId(target),
-                );
-                if (targetIdx !== -1 && i >= targetIdx) {
-                  const targetName =
-                    typeof target === 'string' ? target : target.name;
-                  diagnostics.push({
-                    handlerName: handlerType.name,
-                    behaviorName: BehaviorClass.name,
-                    message: `${BehaviorClass.name} is positioned after ${targetName} in the pipeline chain, but must execute before it`,
-                    fix: `Reorder the pipeline behaviors so that ${BehaviorClass.name} runs before ${targetName}.`,
-                  });
-                }
-              }
-            }
-          }
-
-          // 2. Validate Behavior Options & Intent
-          if (typeof contract.validate === 'function') {
-            const validationCtx: PipelineBehaviorValidationContext = {
-              handlerType,
-              handlerName: handlerType.name,
-              requestKind,
-              declarationSource,
-              effectiveOptions: mergedOptions.get(id),
-              handlerOptions: handlerOptions?.get(id),
-              globalOptions: globalOptions.get(id),
-              effectiveBehaviorTypes: behaviorTypes,
-            };
-
-            const result = contract.validate(validationCtx);
-            if (Array.isArray(result) && result.length > 0) {
-              diagnostics.push(...result);
-            }
-          }
-        }
-      }
+      this.validateBehaviorContracts({
+        handlerType,
+        requestKind,
+        behaviorTypes,
+        resolvedBehaviors,
+        mergedOptions,
+        handlerOptions,
+        globalOptions,
+        handlerBehaviorTypes,
+        globalBehaviorIds,
+        diagnostics,
+      });
     }
 
     if (this.bootstrapLogLevel !== 'none') {
@@ -734,7 +661,152 @@ export class PipelineBootstrapService
     }
   }
 
-  // ── Global behavior resolution ──
+  /**
+   * Validates behavior contracts and ordering rules during bootstrap.
+   */
+  private validateBehaviorContracts(params: {
+    handlerType: Type;
+    requestKind: 'command' | 'query' | 'event';
+    behaviorTypes: Type<IPipelineBehavior>[];
+    resolvedBehaviors: Map<number, IPipelineBehavior>;
+    mergedOptions: Map<BehaviorId, Record<string, unknown>>;
+    handlerOptions?: Map<BehaviorId, Record<string, unknown>>;
+    globalOptions: Map<BehaviorId, Record<string, unknown>>;
+    handlerBehaviorTypes?: Type<IPipelineBehavior>[];
+    globalBehaviorIds: Set<BehaviorId>;
+    diagnostics: PipelineBehaviorDiagnostic[];
+  }): void {
+    const {
+      handlerType,
+      requestKind,
+      behaviorTypes,
+      resolvedBehaviors,
+      mergedOptions,
+      handlerOptions,
+      globalOptions,
+      handlerBehaviorTypes,
+      globalBehaviorIds,
+      diagnostics,
+    } = params;
+
+    for (let i = 0; i < behaviorTypes.length; i++) {
+      const BehaviorClass = behaviorTypes[i];
+      const id = getBehaviorId(BehaviorClass);
+      const instance = resolvedBehaviors.get(i);
+
+      const contract: IPipelineBehaviorContract | undefined =
+        (instance &&
+          (untyped(instance)[PIPELINE_BEHAVIOR_CONTRACT] as
+            | IPipelineBehaviorContract
+            | undefined)) ??
+        (untyped(BehaviorClass)[PIPELINE_BEHAVIOR_CONTRACT] as
+          | IPipelineBehaviorContract
+          | undefined);
+
+      if (!contract) continue;
+
+      const isHandlerDeclared = (handlerBehaviorTypes ?? []).some(
+        (t) => getBehaviorId(t) === id,
+      );
+      const isGlobalDeclared = globalBehaviorIds.has(id);
+      const declarationSource: 'handler' | 'global' | 'both' =
+        isHandlerDeclared && isGlobalDeclared
+          ? 'both'
+          : isHandlerDeclared
+            ? 'handler'
+            : 'global';
+
+      const rawMerged = mergedOptions.get(id);
+      const effectiveOptions =
+        instance &&
+        typeof (instance as unknown as { resolveEffectiveOptions?: unknown })
+          .resolveEffectiveOptions === 'function'
+          ? (
+              instance as unknown as {
+                resolveEffectiveOptions: (
+                  opts?: Record<string, unknown>,
+                ) => Record<string, unknown>;
+              }
+            ).resolveEffectiveOptions(rawMerged)
+          : rawMerged;
+
+      const validationCtx: PipelineBehaviorValidationContext = {
+        handlerType,
+        handlerName: handlerType.name,
+        requestKind,
+        declarationSource,
+        effectiveOptions,
+        handlerOptions: handlerOptions?.get(id),
+        globalOptions: globalOptions.get(id),
+        effectiveBehaviorTypes: behaviorTypes,
+        behaviorInstance: instance,
+      };
+
+      // 1. Validate ordering constraints
+      if (contract.order) {
+        const orderRule =
+          typeof contract.order === 'function'
+            ? contract.order(validationCtx)
+            : contract.order;
+
+        if (orderRule) {
+          const edges: Array<{
+            target: Type<IPipelineBehavior> | string;
+            direction: 'after' | 'before';
+          }> = [];
+
+          if (orderRule.after) {
+            for (const target of orderRule.after) {
+              edges.push({ target, direction: 'after' });
+            }
+          }
+          if (orderRule.before) {
+            for (const target of orderRule.before) {
+              edges.push({ target, direction: 'before' });
+            }
+          }
+
+          for (const { target, direction } of edges) {
+            const targetIdx = behaviorTypes.findIndex((b) =>
+              typeof target === 'string'
+                ? getBehaviorId(b) === target || b.name === target
+                : b === target || getBehaviorId(b) === getBehaviorId(target),
+            );
+
+            if (targetIdx === -1) continue;
+
+            const isViolation =
+              direction === 'after' ? i <= targetIdx : i >= targetIdx;
+            if (isViolation) {
+              const targetName = behaviorTypes[targetIdx].name;
+              diagnostics.push({
+                handlerName: handlerType.name,
+                behaviorName: BehaviorClass.name,
+                message:
+                  direction === 'after'
+                    ? `${BehaviorClass.name} is positioned before ${targetName} in the pipeline chain, but must execute after it`
+                    : `${BehaviorClass.name} is positioned after ${targetName} in the pipeline chain, but must execute before it`,
+                fix:
+                  direction === 'after'
+                    ? `Reorder the pipeline behaviors so that ${targetName} runs before ${BehaviorClass.name}.`
+                    : `Reorder the pipeline behaviors so that ${BehaviorClass.name} runs before ${targetName}.`,
+              });
+            }
+          }
+        }
+      }
+
+      // 2. Validate behavior options and intent
+      if (typeof contract.validate === 'function') {
+        const result = contract.validate(validationCtx);
+        if (Array.isArray(result) && result.length > 0) {
+          diagnostics.push(...result);
+        }
+      }
+    }
+  }
+
+  // Global behavior resolution
 
   /**
    * Resolves global before/after behaviors that match the given handler kind.

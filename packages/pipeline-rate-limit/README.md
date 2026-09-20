@@ -20,6 +20,7 @@ Backend-agnostic: it depends only on a tiny `RateLimiterLike` interface, satisfi
 - [Keying strategy](#keying-strategy)
 - [HTTP 429 filter](#http-429-filter)
 - [Fail-open vs fail-closed](#fail-open-vs-fail-closed)
+- [Behavior Contract & Bootstrap Diagnostics](#behavior-contract--bootstrap-diagnostics)
 - [API Reference](#api-reference)
 - [License](#license)
 
@@ -252,6 +253,18 @@ plain `Error`** when the backing store itself fails (e.g. Redis unreachable). Th
   Favors **availability**: a store outage won't take down your API.
 - `failOpen: false` — propagate the error. Favors **strict protection**: no
   request bypasses the limiter, at the cost of failing when the store is down.
+
+---
+
+## Behavior Contract & Bootstrap Diagnostics
+
+`RateLimitBehavior` implements `@nestjs-pipeline/core` behavior contract diagnostics:
+
+### Validation Invariants
+
+- **Callable key factory required**: Whenever `RateLimitBehavior` is declared on a handler or globally in `PipelineModule.forRoot({ globalBehaviors })`, a callable `keyFactory: (context) => string` (`typeof === 'function'`) must be supplied either via handler options (`rateLimit({ keyFactory })`) or module-wide defaults (`RateLimitModule.forRoot({ defaults: { keyFactory } })`).
+- **Bootstrap enforcement**: Declaring `RateLimitBehavior` without a callable key factory (e.g. passing a string, non-callable, or omitting it when no module default exists) fails fast at application startup with `PipelineConfigurationError` in `strict` diagnostics mode.
+- **Module defaults resolution**: Application-wide defaults supplied to `RateLimitModule.forRoot({ defaults: { ... } })` are merged beneath handler options via `RateLimitBehavior.resolveEffectiveOptions` and evaluated during bootstrap diagnostics.
 
 ---
 

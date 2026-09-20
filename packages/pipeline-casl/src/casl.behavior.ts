@@ -12,6 +12,7 @@ import {
   IPipelineBehavior,
   IPipelineContext,
   NextDelegate,
+  PIPELINE_BEHAVIOR_ID,
 } from '@nestjs-pipeline/core';
 import {
   CASL_ABILITY_KEY,
@@ -448,8 +449,15 @@ export interface CaslBehaviorOptions {
  * class PostPublishedHandler { ... }
  * ```
  */
+/**
+ * Canonical behavior ID for CaslBehavior, used in declarative ordering rules.
+ */
+export const CASL_BEHAVIOR_ID = '@nestjs-pipeline/casl:CaslBehavior';
+
 @Injectable()
 export class CaslBehavior implements IPipelineBehavior {
+  static readonly [PIPELINE_BEHAVIOR_ID] = CASL_BEHAVIOR_ID;
+
   private readonly logger: LoggerService;
 
   constructor(

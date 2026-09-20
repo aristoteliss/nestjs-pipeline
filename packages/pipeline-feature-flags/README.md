@@ -25,6 +25,7 @@ Provider-agnostic by design: it talks only to the **[OpenFeature](https://openfe
   - [Graceful Fallback](#graceful-fallback)
   - [Mapping the Error to HTTP](#mapping-the-error-to-http)
 - [Custom Logger](#custom-logger)
+- [Behavior Contract & Bootstrap Diagnostics](#behavior-contract--bootstrap-diagnostics)
 - [API Reference](#api-reference)
 - [License](#license)
 
@@ -335,6 +336,18 @@ The default evaluation context does not derive `targetingKey` from
 user/account/device/tenant identity explicitly so one subject remains in the
 same rollout bucket across requests.
 
+---
+
+## Behavior Contract & Bootstrap Diagnostics
+
+`FeatureFlagBehavior` implements `@nestjs-pipeline/core` behavior contract diagnostics:
+
+### Validation Invariants
+
+- **Non-empty flag required**: Whenever `FeatureFlagBehavior` is attached to a handler, a non-empty `flag: string` name must be configured via handler options (`featureFlag({ flag: '...' })`) or module-wide defaults (`FeatureFlagsModule.forRoot({ defaults: { flag: '...' } })`). Attaching the behavior without a flag name fails fast at application startup with `PipelineConfigurationError` in `strict` mode.
+- **Module defaults resolution**: Application-wide defaults supplied to `FeatureFlagsModule.forRoot({ defaults: { ... } })` are merged beneath handler options via `FeatureFlagBehavior.resolveEffectiveOptions` and evaluated during bootstrap diagnostics.
+
+---
 
 ## API Reference
 

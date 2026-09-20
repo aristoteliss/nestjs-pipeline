@@ -1,5 +1,17 @@
 # @nestjs-pipeline/cache
 
+## Architectural role
+
+This reusable package caches final application query results, including expensive
+aggregations, read models combining repositories and external-service composition.
+It complements repository snapshot/read-through caches; it is not replaced by
+them just because a particular example currently uses repository caching. Choose
+the layer that owns the result and define its dependencies, security scope and
+freshness. Using both layers is optional, and invalidation is not automatically
+shared. See the
+[architecture skill](../../.agents/skills/nestjs-pipeline-architecture/SKILL.md)
+for layer ownership, invalidation and security rules.
+
 [![npm version](https://img.shields.io/npm/v/@nestjs-pipeline/cache.svg)](https://www.npmjs.com/package/@nestjs-pipeline/cache)
 [![License](https://img.shields.io/npm/l/@nestjs-pipeline/cache.svg)](https://www.npmjs.com/package/@nestjs-pipeline/cache)
 
@@ -29,6 +41,7 @@ Caching behavior for `@nestjs-pipeline/core`, powered by [cache-manager](https:/
   - [Options resolution](#options-resolution)
   - [Context items](#context-items)
 - [Configuration](#configuration)
+- [Behavior Contract & Bootstrap Diagnostics](#behavior-contract--bootstrap-diagnostics)
 - [Custom Logger](#custom-logger)
 - [API Reference](#api-reference)
 - [License](#license)
@@ -264,6 +277,13 @@ request. That made the cache write an entry for every query and never read one
 back — two extra round-trips and unbounded store growth for a zero percent hit
 rate. It was not an authorization boundary either: a client can send its own
 correlation ID, and nested executions deliberately inherit one.
+rate. It was not an authorization boundary either: correlation metadata does not
+establish principal or permission isolation, as correlation IDs may be supplied
+or reused. Cache hits skip the handler, including entity/field checks. For protected
+results, provide an explicit `key` covering tenant, principal type/ID, effective
+permission scope and response dependencies; fail closed if required context is
+missing. Configure invalidation/freshness for that result separately. A type-level
+authorization behavior outside the cache does not reproduce every entity check.
 
 Use `createPartitionedCacheKeyFactory`. It partitions every dimension that can
 change an authorized response, escapes each segment so `a:b` + `c` cannot collide
@@ -364,6 +384,22 @@ Exported as unique `Symbol` constants (`CACHE_HIT_ITEM` and `CACHE_KEY_ITEM`) to
 | `namespace` | `string` | Key prefix for this store. |
 | `ttl` | `number` | Default TTL (ms) for this store. |
 | `options` | `Record<string, unknown>` | Adapter-specific options passed through. |
+
+---
+
+## Behavior Contract & Bootstrap Diagnostics
+
+`CacheBehavior` implements `@nestjs-pipeline/core` behavior contract diagnostics:
+
+### Ordering Constraints
+
+- **Execution order**: Cache lookup must execute **after** CASL authorization (`@nestjs-pipeline/casl:CaslBehavior`) for all active cache request kinds (`kinds: ['query']` by default). This guarantees unauthenticated or unauthorized callers never receive cached responses.
+- **Dynamic evaluation**: The ordering rule evaluates dynamically per handler. For inactive request kinds (e.g. a command handler where cache defaults to queries only), ordering constraints are not enforced.
+
+### Validation Invariants
+
+- **Callable key factory**: Whenever caching is active for a handler's request kind, `key` must be a callable function (`typeof === 'function'`). Strings or non-callable values are rejected fast at bootstrap.
+- **Module defaults**: Application-wide defaults supplied to `CacheModule.forRoot({ defaults: { ... } })` are resolved by `CacheBehavior.resolveEffectiveOptions` and evaluated alongside handler options during bootstrap.
 
 ---
 

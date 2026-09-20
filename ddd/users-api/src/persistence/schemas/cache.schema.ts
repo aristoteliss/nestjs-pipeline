@@ -14,5 +14,6 @@ export const CacheSchema = new EntitySchema<CacheEntry>({
     key: { type: 'string', primary: true },
     value: { type: 'string' },
     expiresAt: { type: 'number', fieldName: 'expires_at', nullable: true },
+    revision: { type: 'bigint', fieldName: 'revision', default: '0' },
   },
 });

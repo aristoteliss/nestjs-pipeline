@@ -1,12 +1,41 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { Logger } from '@nestjs/common';
+import { type ICache, isVersionedCache } from '../cache.interface';
 import type { CommandRepository } from '../command-repository.abstract';
-import { createCacheMutationBarrier } from '../helpers/cache-barrier.helper';
+import {
+  type CacheBarrierReason,
+  createCacheMutationBarrier,
+} from '../helpers/cache-barrier.helper';
 import { toCacheSnapshot } from '../helpers/cache-snapshot.helper';
 import { isCacheNewer } from '../helpers/cache-version.helper';
 
 const logger = new Logger('CacheDecorator');
+
+/**
+ * Evicts one key using the strongest coordination the adapter supports.
+ *
+ * A {@link IVersionedCache} advances the key revision, which already fences any
+ * fill that started before this mutation, so no barrier value is stored: leaving
+ * one behind would make the next read hydrate a sentinel instead of a snapshot.
+ * Unversioned adapters have no revision to compare, so they keep the
+ * {@link CacheMutationBarrier} token protocol that {@link FromCache} reads.
+ */
+async function evictKey(
+  cache: ICache<unknown>,
+  key: string,
+  reason: CacheBarrierReason,
+  entity: unknown,
+  barrierTtl: number,
+): Promise<void> {
+  if (isVersionedCache(cache)) {
+    await cache.invalidate(key);
+    return;
+  }
+
+  const barrier = createCacheMutationBarrier(reason, entity);
+  await cache.set(key, barrier, { ttl: barrierTtl });
+}
 
 /**
  * Options for configuring write-through and eviction caching via {@link Cache}.
@@ -46,6 +75,8 @@ export interface CacheOptions<TEntity = unknown> {
    *
    * A barrier only has to outlive the in-flight reads/writes it guards against,
    * so configure this above the expected maximum repository operation latency.
+   * Ignored by {@link IVersionedCache} adapters, which fence concurrent fills by
+   * revision instead of by barrier token.
    *
    * @default {@link DEFAULT_BARRIER_TTL_MS}
    */
@@ -157,6 +188,26 @@ export function Cache<TEntity = unknown, TResult = unknown | null>(
       this: CommandRepository<TEntity, unknown | null>,
       entity: TEntity,
     ): Promise<TResult | null> {
+      // Observed before persistence so a write-through can tell whether anyone
+      // mutated the key while this write was in flight. A versioned adapter has
+      // no barrier value to outrank a late snapshot, so the revision it hands
+      // out here is what keeps a deleted aggregate from being resurrected.
+      let observedKey: string | undefined;
+      let observedRevision: string | undefined;
+      let observedValue: unknown;
+
+      if (this.cache && resolvedSetKey && isVersionedCache(this.cache)) {
+        try {
+          observedKey = resolvedSetKey(entity);
+          const state = await this.cache.readState(observedKey);
+          observedRevision = state.revision;
+          observedValue = state.status === 'hit' ? state.value : undefined;
+        } catch {
+          observedKey = undefined;
+          observedRevision = undefined;
+        }
+      }
+
       const result = await original.call(this, entity);
 
       if (!this.cache) {
@@ -179,13 +230,16 @@ export function Cache<TEntity = unknown, TResult = unknown | null>(
             }
             for (const key of deleteKeys) {
               try {
-                const barrier = createCacheMutationBarrier('deleted', entity);
-                await this.cache.set(key, barrier as never, {
-                  ttl: resolvedBarrierTtl,
-                });
+                await evictKey(
+                  this.cache,
+                  key,
+                  'deleted',
+                  entity,
+                  resolvedBarrierTtl,
+                );
               } catch (err) {
                 logger.warn(
-                  `Failed installing deletion barrier for key "${key}": ${err instanceof Error ? err.message : String(err)}`,
+                  `Failed evicting deletion key "${key}": ${err instanceof Error ? err.message : String(err)}`,
                 );
               }
             }
@@ -204,13 +258,16 @@ export function Cache<TEntity = unknown, TResult = unknown | null>(
           }
           for (const key of invalidateKeys) {
             try {
-              const barrier = createCacheMutationBarrier('invalidated', entity);
-              await this.cache.set(key, barrier as never, {
-                ttl: resolvedBarrierTtl,
-              });
+              await evictKey(
+                this.cache,
+                key,
+                'invalidated',
+                entity,
+                resolvedBarrierTtl,
+              );
             } catch (err) {
               logger.warn(
-                `Failed installing invalidation barrier for key "${key}": ${err instanceof Error ? err.message : String(err)}`,
+                `Failed invalidating key "${key}": ${err instanceof Error ? err.message : String(err)}`,
               );
             }
           }
@@ -228,11 +285,29 @@ export function Cache<TEntity = unknown, TResult = unknown | null>(
           if (setKey) {
             try {
               const snapshot = toCacheSnapshot(result);
-              const setOptions = {
-                ttl: resolvedTtl,
-                isNewer: resolvedIsNewer,
-              };
-              await this.cache.set(setKey, snapshot, setOptions);
+
+              if (
+                isVersionedCache(this.cache) &&
+                observedRevision !== undefined &&
+                setKey === observedKey
+              ) {
+                // Skip the write-through when the snapshot observed before
+                // persistence is already newer; otherwise commit it only if the
+                // revision still matches, so a concurrent mutation wins.
+                if (!resolvedIsNewer?.(observedValue, snapshot)) {
+                  await this.cache.tryFill(
+                    setKey,
+                    observedRevision,
+                    snapshot as never,
+                    { ttl: resolvedTtl },
+                  );
+                }
+              } else {
+                await this.cache.set(setKey, snapshot, {
+                  ttl: resolvedTtl,
+                  isNewer: resolvedIsNewer,
+                });
+              }
             } catch (err) {
               logger.warn(
                 `Failed setting cache key "${setKey}": ${err instanceof Error ? err.message : String(err)}`,

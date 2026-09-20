@@ -1,5 +1,18 @@
 # @nestjs-pipeline/ddd-core
 
+## Repository reads and cache ownership
+
+Repository caching is an intentional reusable capability, including reads needed
+by commands whose freshness contract permits it. Commands do not need to dispatch
+application queries for repository lookups. The current mutation path deliberately
+loads authoritative aggregates through the write-side repository. Pipeline caching
+remains useful for final composed application results; neither layer replaces the
+other. See the
+[architecture skill](../../.agents/skills/nestjs-pipeline-architecture/SKILL.md)
+for consistency and invalidation
+requirements. Existing barriers/CAS checks are mechanisms to verify, not proof of
+atomic DB/cache consistency or complete anti-resurrection safety.
+
 Private, Nest-oriented DDD support for the sample applications. Domain, application,
 and MikroORM persistence entry points are provided separately; this is not a
 framework-neutral or independently published domain library.
@@ -278,6 +291,7 @@ an indefinite tombstone or a durable consistency protocol.
 export interface CacheSetOptions {
   ttl?: number;
   /** Atomic stale-write check: returns true if incoming data should overwrite cached data. */
+  /** Stale-write check: true means cached data is newer and the incoming value must be skipped. */
   isNewer?: (cached: unknown, incoming: unknown) => boolean;
 }
 

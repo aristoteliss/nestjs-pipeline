@@ -36,6 +36,8 @@ export interface PipelineBehaviorValidationContext {
   globalOptions: Record<string, unknown> | undefined;
   /** Complete ordered list of effective behavior classes active for this handler. */
   effectiveBehaviorTypes: ReadonlyArray<Type<IPipelineBehavior>>;
+  /** The pre-resolved singleton behavior instance, when available during bootstrap. */
+  behaviorInstance?: IPipelineBehavior;
 }
 
 /**
@@ -53,6 +55,25 @@ export interface PipelineBehaviorDiagnostic {
 }
 
 /**
+ * Static ordering constraints relative to other pipeline behaviors.
+ */
+export interface PipelineBehaviorOrderRule {
+  /** This behavior must execute before the specified behaviors. */
+  before?: Array<Type<IPipelineBehavior> | string>;
+  /** This behavior must execute after the specified behaviors. */
+  after?: Array<Type<IPipelineBehavior> | string>;
+}
+
+/**
+ * Ordering specification: either a static rule or a dynamic rule evaluated per handler context.
+ */
+export type PipelineBehaviorOrder =
+  | PipelineBehaviorOrderRule
+  | ((
+      context: PipelineBehaviorValidationContext,
+    ) => PipelineBehaviorOrderRule | undefined);
+
+/**
  * Declarative contract exposed by a behavior class to define ordering constraints
  * and bootstrap-time validation rules.
  */
@@ -60,13 +81,10 @@ export interface IPipelineBehaviorContract {
   /**
    * Relative ordering constraints against other behaviors in the pipeline.
    * Targets can be behavior classes or behavior ID / class names (strings).
+   * Can be a static rule or a function evaluated with the handler context
+   * to restrict constraints to applicable request kinds or configurations.
    */
-  order?: {
-    /** This behavior must execute before the specified behaviors. */
-    before?: Array<Type<IPipelineBehavior> | string>;
-    /** This behavior must execute after the specified behaviors. */
-    after?: Array<Type<IPipelineBehavior> | string>;
-  };
+  order?: PipelineBehaviorOrder;
   /**
    * Validates effective options and declaration sources during bootstrap.
    * Returns an array of diagnostics if deterministic misconfigurations are found.

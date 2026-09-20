@@ -6,8 +6,7 @@ import { uuidv7 } from '@nestjs-pipeline/core';
 import { type ICache } from '@nestjs-pipeline/ddd-core/application';
 import {
   CACHE_TOKEN,
-  createCacheMutationBarrier,
-  isCacheMutationBarrier,
+  filterCacheKey,
 } from '@nestjs-pipeline/ddd-core/persistence';
 import request from 'supertest';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -17,7 +16,11 @@ import {
 } from '../src/users/domain/models/user.entity';
 import { bootstrapE2E, type E2EContext } from './support/e2e-app';
 
-describe('Cache Mutation Barriers & Anti-Resurrection (e2e)', () => {
+/** Resolves the primary user cache key exactly as the repositories derive it. */
+const userIdKey = (id: string) =>
+  filterCacheKey(User.aggregateName, { id }, 'tenant');
+
+describe('Cache Revision Fencing & Anti-Resurrection (e2e)', () => {
   let ctx: E2EContext;
   let http: Server;
   const admin = JSON.stringify({
@@ -51,7 +54,7 @@ describe('Cache Mutation Barriers & Anti-Resurrection (e2e)', () => {
 
     expect(createRes.status).toBe(201);
     const userId = createRes.body.id;
-    const cacheKey = `tenant:user:id:${userId}`;
+    const cacheKey = userIdKey(userId);
     const cache = ctx.app.get<ICache<unknown>>(CACHE_TOKEN);
 
     // Evict so next read-through must query the database
@@ -99,18 +102,15 @@ describe('Cache Mutation Barriers & Anti-Resurrection (e2e)', () => {
         .set('x-tenant-schema', 'tenant')
         .set('x-test-user', admin);
 
-      // The reader detected the concurrent deletion barrier, retried, and saw null -> 404
+      // The delete advanced the key revision, so the reader's fill was fenced;
+      // it retried the authoritative read and saw null -> 404
       expect(readRes.status).toBe(404);
     } finally {
       EntityManager.prototype.findOne = origFindOne;
     }
 
     // Crucial check: the cache must NOT contain the resurrected User snapshot!
-    const cachedEntry = await cache.get(cacheKey);
-    if (isCacheMutationBarrier(cachedEntry)) {
-      // If an entry is present, it MUST be a mutation barrier, never a resurrected snapshot
-      expect(cachedEntry.reason).toBe('deleted');
-    }
+    expect(await cache.get(cacheKey)).toBeUndefined();
 
     // Subsequent GET requests continue to return 404
     const subsequentRead = await request(http)
@@ -130,7 +130,7 @@ describe('Cache Mutation Barriers & Anti-Resurrection (e2e)', () => {
 
     expect(createRes.status).toBe(201);
     const userId = createRes.body.id;
-    const cacheKey = `tenant:user:id:${userId}`;
+    const cacheKey = userIdKey(userId);
     const cache = ctx.app.get<ICache<unknown>>(CACHE_TOKEN);
 
     // Evict so next read-through must query the database
@@ -191,7 +191,7 @@ describe('Cache Mutation Barriers & Anti-Resurrection (e2e)', () => {
     expect(cachedEntry.username).toBe('Version 2 User');
   });
 
-  it('scenario 3: mutation barrier is installed on secondary keys after delete', async () => {
+  it('scenario 3: secondary keys are evicted after delete', async () => {
     const email = `barrier-sec-${Date.now()}@acme.test`;
     const createRes = await request(http)
       .post('/users')
@@ -201,7 +201,7 @@ describe('Cache Mutation Barriers & Anti-Resurrection (e2e)', () => {
 
     expect(createRes.status).toBe(201);
     const userId = createRes.body.id;
-    const emailKey = `tenant:user:email:${email}`;
+    const emailKey = filterCacheKey(User.aggregateName, { email }, 'tenant');
     const cache = ctx.app.get<ICache<unknown>>(CACHE_TOKEN);
 
     // Perform deletion
@@ -211,17 +211,14 @@ describe('Cache Mutation Barriers & Anti-Resurrection (e2e)', () => {
       .set('x-test-user', admin);
     expect(delRes.status).toBe(204);
 
-    // Email secondary key must have an invalidation/deletion barrier
-    const cachedEmail = await cache.get(emailKey);
-    if (isCacheMutationBarrier(cachedEmail)) {
-      expect(cachedEmail.reason).toBe('deleted');
-    }
+    // The email secondary key must no longer resolve to the deleted aggregate
+    expect(await cache.get(emailKey)).toBeUndefined();
   });
 
   it('scenario 4: concurrent create race returns fresh snapshot instead of caching null', async () => {
     const email = `create-race-${Date.now()}@acme.test`;
     const syntheticId = uuidv7();
-    const cacheKey = `tenant:user:id:${syntheticId}`;
+    const cacheKey = userIdKey(syntheticId);
     const cache = ctx.app.get<ICache<unknown>>(CACHE_TOKEN);
 
     const origFindOne = EntityManager.prototype.findOne;
@@ -282,14 +279,13 @@ describe('Cache Mutation Barriers & Anti-Resurrection (e2e)', () => {
     expect(cachedAfter?.username).toBe('Concurrent Created User');
   });
 
-  it('scenario 5: ABA sequence with changing barrier tokens rejects stale snapshot', async () => {
+  it('scenario 5: invalidation during an in-flight read fences the stale fill', async () => {
     const userId = uuidv7();
-    const cacheKey = `tenant:user:id:${userId}`;
+    const cacheKey = userIdKey(userId);
     const cache = ctx.app.get<ICache<unknown>>(CACHE_TOKEN);
 
-    // Initial barrier B1 installed in cache
-    const barrier1 = createCacheMutationBarrier('deleted', { id: userId });
-    await cache.set(cacheKey, barrier1, { ttl: 0 });
+    // Key starts at an advanced revision, as a prior deletion would leave it
+    await cache.delete(cacheKey);
 
     const origFindOne = EntityManager.prototype.findOne;
     let hookTriggered = false;
@@ -315,11 +311,8 @@ describe('Cache Mutation Barriers & Anti-Resurrection (e2e)', () => {
           (where as Record<string, unknown>).id === userId
         ) {
           hookTriggered = true;
-          // While reader was running, ABA occurred: a new barrier B2 with different token is installed
-          const barrier2 = createCacheMutationBarrier('deleted', {
-            id: userId,
-          });
-          await cache.set(cacheKey, barrier2, { ttl: 0 });
+          // A concurrent mutation advances the revision the reader observed
+          await cache.delete(cacheKey);
         }
         return result;
       };
@@ -335,8 +328,7 @@ describe('Cache Mutation Barriers & Anti-Resurrection (e2e)', () => {
       EntityManager.prototype.findOne = origFindOne;
     }
 
-    // Read did not overwrite barrier with null
-    const cachedAfter = await cache.get(cacheKey);
-    expect(isCacheMutationBarrier(cachedAfter)).toBe(true);
+    // The fenced read left no value behind on the key
+    expect(await cache.get(cacheKey)).toBeUndefined();
   });
 });

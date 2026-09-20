@@ -22,26 +22,36 @@ function createStatefulMikroOrmStore(): any {
       copy.key = entry.key;
       copy.value = entry.value;
       copy.expiresAt = entry.expiresAt;
+      copy.revision = entry.revision;
       return copy;
     }),
-    upsert: vi.fn().mockImplementation(async (_entity, data) => {
+    upsert: vi.fn().mockImplementation(async (_entity, data, options) => {
+      if (options?.onConflictAction === 'ignore' && table.has(data.key)) {
+        return;
+      }
       const entry = new CacheEntry();
       entry.key = data.key;
       entry.value = data.value;
       entry.expiresAt = data.expiresAt ?? null;
+      entry.revision = data.revision ?? '1';
       table.set(data.key, entry);
     }),
     nativeUpdate: vi.fn().mockImplementation(async (_entity, where, data) => {
       const entry = table.get(where.key);
       if (!entry) return 0;
+      if (where.revision !== undefined && entry.revision !== where.revision)
+        return 0;
       if (where.value !== undefined && entry.value !== where.value) return 0;
       entry.value = data.value;
       if (data.expiresAt !== undefined) entry.expiresAt = data.expiresAt;
+      if (data.revision !== undefined) entry.revision = data.revision;
       return 1;
     }),
     nativeDelete: vi.fn().mockImplementation(async (_entity, where) => {
       const entry = table.get(where.key);
       if (!entry) return 0;
+      if (where.revision !== undefined && entry.revision !== where.revision)
+        return 0;
       if (where.value !== undefined && entry.value !== where.value) return 0;
       if (where.expiresAt !== undefined && entry.expiresAt !== where.expiresAt)
         return 0;

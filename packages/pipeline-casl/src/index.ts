@@ -1,7 +1,11 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 // Behavior
-export { CaslBehavior, CaslBehaviorOptions } from './casl.behavior';
+export {
+  CASL_BEHAVIOR_ID,
+  CaslBehavior,
+  CaslBehaviorOptions,
+} from './casl.behavior';
 // Module
 export { CaslModule, CaslModuleOptions } from './casl.module';
 // Tokens
