@@ -471,7 +471,6 @@ describe('PipelineBootstrapService Diagnostics', () => {
     });
 
     // CacheBehaviorWithOrder is global without options, handler does not declare options.
-    // Must NOT fail because declarationSource === 'global'.
     expect(() =>
       bootstrap({
         globalBehaviors: [

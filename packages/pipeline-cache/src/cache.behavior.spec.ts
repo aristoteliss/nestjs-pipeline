@@ -16,8 +16,6 @@ import {
 import { createPartitionedCacheKeyFactory } from './helpers/cache-key';
 import type { CacheBehaviorOptions } from './interfaces/cache-options.interface';
 
-// ─── Context factory ──────────────────────────────────────────────────────────
-
 /**
  * `CacheBehavior` has no default key: the removed one embedded the per-request
  * correlation ID, so it never produced a hit. These tests exercise caching
@@ -55,8 +53,6 @@ function makeCtx(
 function makeCache(): Cache {
   return createCache({ stores: [new Keyv()] });
 }
-
-// ─── Tests ────────────────────────────────────────────────────────────────────
 
 describe('CacheBehavior', () => {
   let cache: Cache;

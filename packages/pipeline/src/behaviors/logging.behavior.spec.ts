@@ -249,3 +249,83 @@ describe('LoggingBehavior', () => {
     );
   });
 });
+
+describe('LoggingBehavior failure isolation', () => {
+  it.each(['debug', 'log', 'error'] as const)(
+    'preserves outcomes when logger.%s throws',
+    async (method) => {
+      const failure = new Error('logger unavailable');
+      const logger = {
+        log: vi.fn(),
+        debug: vi.fn(),
+        error: vi.fn(),
+        warn: vi.fn(),
+      };
+      logger[method].mockImplementation(() => {
+        throw failure;
+      });
+      const behavior = new LoggingBehavior(logger);
+      const next = vi.fn().mockResolvedValue('saved');
+      await expect(behavior.handle(createMockContext(), next)).resolves.toBe(
+        'saved',
+      );
+      expect(next).toHaveBeenCalledOnce();
+      const businessError = new Error('business failure');
+      await expect(
+        behavior.handle(createMockContext(), () =>
+          Promise.reject(businessError),
+        ),
+      ).rejects.toBe(businessError);
+    },
+  );
+
+  it('preserves successful results when payload serialization throws', async () => {
+    const payload = Object.defineProperty({}, 'value', {
+      enumerable: true,
+      get() {
+        throw new Error('getter');
+      },
+    });
+    const context = createMockContext({
+      request: payload,
+      getBehaviorOptions: () =>
+        ({ excludeRequestObj: false, excludeResponseObj: false }) as never,
+    });
+    const behavior = new LoggingBehavior({
+      log: vi.fn(),
+      debug: vi.fn(),
+      error: vi.fn(),
+      warn: vi.fn(),
+    });
+    const next = vi.fn().mockResolvedValue(payload);
+    await expect(behavior.handle(context, next)).resolves.toBe(payload);
+    expect(next).toHaveBeenCalledOnce();
+  });
+
+  it.each(['text', 'structured'])(
+    'redacts error optionalParams in %s logs',
+    async (logFormat) => {
+      const logger = {
+        log: vi.fn(),
+        debug: vi.fn(),
+        error: vi.fn(),
+        warn: vi.fn(),
+      };
+      const error = Object.assign(new Error('denied'), {
+        optionalParams: { password: 'secret-value', action: 'read' },
+      });
+      const context = createMockContext({
+        getBehaviorOptions: () => ({ logFormat }) as never,
+      });
+      await expect(
+        new LoggingBehavior(logger).handle(context, () =>
+          Promise.reject(error),
+        ),
+      ).rejects.toBe(error);
+      expect(JSON.stringify(logger.error.mock.calls)).not.toContain(
+        'secret-value',
+      );
+      expect(JSON.stringify(logger.error.mock.calls)).toContain('[REDACTED]');
+    },
+  );
+});

@@ -9,8 +9,6 @@ import type {
   DeadLetterTransport,
 } from './interfaces/dead-letter-transport.interface';
 
-// ─── Doubles ──────────────────────────────────────────────────────────────────
-
 const send = vi.fn();
 const transport: DeadLetterTransport = { send };
 
@@ -41,8 +39,6 @@ function withOptions(
   );
   return ctx;
 }
-
-// ─── Tests ────────────────────────────────────────────────────────────────────
 
 describe('DeadLetterBehavior', () => {
   beforeEach(() => {

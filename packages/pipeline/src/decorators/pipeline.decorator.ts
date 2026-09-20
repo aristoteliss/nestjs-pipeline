@@ -2,8 +2,14 @@
 
 import 'reflect-metadata';
 import { Type } from '@nestjs/common';
+import { normalizeBehaviorEntries } from '../helpers/behavior-entries';
 import { IPipelineBehavior } from '../interfaces/pipeline.behavior.interface';
-import { untyped } from '../types/safe-typing';
+
+export {
+  type BehaviorId,
+  getBehaviorId,
+  PIPELINE_BEHAVIOR_ID,
+} from '../helpers/behavior-id';
 
 export const PIPELINE_BEHAVIORS_METADATA = Symbol('PIPELINE_BEHAVIORS');
 export const PIPELINE_BEHAVIORS_OPTIONS_METADATA = Symbol(
@@ -12,54 +18,6 @@ export const PIPELINE_BEHAVIORS_OPTIONS_METADATA = Symbol(
 export const PIPELINE_SKIPPED_BEHAVIORS_METADATA = Symbol(
   'PIPELINE_SKIPPED_BEHAVIORS',
 );
-
-/**
- * Optional static property on a behavior class that provides a stable,
- * unique identity for deduplication when global and handler behaviors overlap.
- *
- * Use this when two different behavior classes share the same class name
- * (e.g. from different packages) and you need to tell them apart:
- *
- * ```ts
- * export class LoggingBehavior implements IPipelineBehavior {
- *   static readonly [PIPELINE_BEHAVIOR_ID] = 'my-package:LoggingBehavior';
- * }
- * ```
- *
- * When absent, `cls.name` is used as the fallback identity.
- */
-export const PIPELINE_BEHAVIOR_ID = Symbol.for(
-  '@nestjs-pipeline/core:PIPELINE_BEHAVIOR_ID',
-);
-
-/**
- * Identity of a behavior for deduplication and option lookup.
- *
- * Either the constructor itself — the default, and exact — or the string a class
- * opted into through {@link PIPELINE_BEHAVIOR_ID}.
- */
-export type BehaviorId = string | Type<IPipelineBehavior>;
-
-/**
- * Returns the identity used to deduplicate a behavior and resolve its options.
- *
- * By default the constructor reference is the identity. A behavior that must be
- * recognized across multiple loaded copies of the same package can opt into a
- * stable string identity through {@link PIPELINE_BEHAVIOR_ID}.
- *
- * @param cls - Behavior class whose identity should be resolved.
- * @returns The constructor reference or the behavior's explicit stable id.
- *
- * @example Stable identity across duplicated package copies
- * ```ts
- * export class LoggingBehavior implements IPipelineBehavior {
- *   static readonly [PIPELINE_BEHAVIOR_ID] = 'my-package:LoggingBehavior';
- * }
- * ```
- */
-export function getBehaviorId(cls: Type<IPipelineBehavior>): BehaviorId {
-  return (untyped(cls)[PIPELINE_BEHAVIOR_ID] as string | undefined) ?? cls;
-}
 
 /**
  * A tuple of a pipeline behavior class and its options.
@@ -85,7 +43,8 @@ export type PipelineBehaviorEntry<
  *
  * Behaviors execute left-to-right: the first entry is the outermost wrapper.
  * Pass a behavior class for defaults, or `[Behavior, options]` for per-handler
- * options. If the same behavior is also global, it runs once at the global
+ * options. Repeated identities run once at their first position; the last tuple
+ * supplies their options and bare repeats preserve them. If the same behavior is also global, it runs once at the global
  * position and the handler options override the matching global option keys.
  *
  * Sagas are stream factories rather than per-request handlers and are not
@@ -120,20 +79,10 @@ export function UsePipeline(
   ...entries: PipelineBehaviorEntry[]
 ): ClassDecorator {
   return (target) => {
-    const behaviors: Type<IPipelineBehavior>[] = [];
-    const options = new Map<BehaviorId, Record<string, unknown>>();
-
-    for (const entry of entries) {
-      if (Array.isArray(entry)) {
-        behaviors.push(entry[0]);
-        options.set(
-          getBehaviorId(entry[0]),
-          entry[1] as Record<string, unknown>,
-        );
-      } else {
-        behaviors.push(entry);
-      }
-    }
+    const { types: behaviors, options } = normalizeBehaviorEntries(
+      entries,
+      `@UsePipeline on ${target.name}`,
+    );
 
     Reflect.defineMetadata(PIPELINE_BEHAVIORS_METADATA, behaviors, target);
     Reflect.defineMetadata(
@@ -171,7 +120,11 @@ export function SkipPipeline(
       Reflect.getMetadata(PIPELINE_SKIPPED_BEHAVIORS_METADATA, target) ?? [];
     Reflect.defineMetadata(
       PIPELINE_SKIPPED_BEHAVIORS_METADATA,
-      [...existing, ...behaviorTypes],
+      normalizeBehaviorEntries(
+        [...existing, ...behaviorTypes],
+        `@SkipPipeline on ${target.name}`,
+        false,
+      ).types,
       target,
     );
   };

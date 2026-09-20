@@ -19,7 +19,7 @@ export const pipelineStore = new AsyncLocalStorage<IPipelineContext>();
  * Symbol-keyed setter for `response`. Only code that imports this symbol
  * can write to `context.response` — keeping it readonly for behaviors.
  *
- * @internal — used exclusively by {@link PipelineBootstrapService}.
+ * @internal Used by the pipeline runner.
  */
 export const SET_RESPONSE: unique symbol = Symbol(
   'PipelineContext.setResponse',
@@ -34,7 +34,7 @@ export const SET_CORRELATION_ID: unique symbol = Symbol(
  * Symbol-keyed setter for `originalCorrelationId`. Only code that imports
  * this symbol can write — making the field effectively immutable to behaviors.
  *
- * @internal — used exclusively by {@link PipelineBootstrapService}.
+ * @internal Used by the pipeline runner.
  */
 export const SET_ORIGINAL_CORRELATION_ID: unique symbol = Symbol(
   'PipelineContext.setOriginalCorrelationId',
@@ -44,7 +44,7 @@ export const SET_ORIGINAL_CORRELATION_ID: unique symbol = Symbol(
  * Symbol-keyed setter for `tenantId`. Only code that imports this symbol
  * can write to `context.tenantId`.
  *
- * @internal — used exclusively by {@link PipelineBootstrapService}.
+ * @internal Used by the pipeline runner.
  */
 export const SET_TENANT_ID: unique symbol = Symbol(
   'PipelineContext.setTenantId',

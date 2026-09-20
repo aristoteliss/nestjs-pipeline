@@ -17,8 +17,6 @@ import {
 } from './feature-flag.behavior';
 import type { FeatureFlagBehaviorOptions } from './interfaces/feature-flags-options.interface';
 
-// ─── OpenFeature client double ────────────────────────────────────────────────
-
 const getBooleanDetails = vi.fn();
 const client = { getBooleanDetails } as unknown as Client;
 

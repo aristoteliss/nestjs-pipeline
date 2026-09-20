@@ -48,8 +48,6 @@ describe('LoggingBehavior payload compatibility and redaction', () => {
   });
 
   it('masks sensitive fields as soon as payload logging is switched on', async () => {
-    // Enabling payload logging used to print passwords and tokens verbatim,
-    // because redaction was opt-in on top of an opt-in.
     const logger = { debug: vi.fn(), log: vi.fn(), error: vi.fn() };
     const behavior = new LoggingBehavior(logger as never);
 

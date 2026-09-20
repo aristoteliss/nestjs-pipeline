@@ -68,7 +68,6 @@ describe('PipelineBootstrapService Lifecycle & OnModuleDestroy', () => {
   it('restores prototype and avoids stale closures across sequential application lifecycles', async () => {
     const originalProtoExecute = ScopedLifecycleHandler.prototype.execute;
 
-    // --- App 1 Boot ---
     const wrapper1 = makeScopedWrapper(ScopedLifecycleHandler);
     const explorer1 = {
       explore: () => ({ commands: [wrapper1], queries: [], events: [] }),
@@ -99,7 +98,6 @@ describe('PipelineBootstrapService Lifecycle & OnModuleDestroy', () => {
     );
     expect(result1.ok).toBe(true);
 
-    // --- App 1 Destroy ---
     app1Bootstrap.onModuleDestroy();
 
     // Prototype must be restored to the pristine original method
@@ -108,7 +106,6 @@ describe('PipelineBootstrapService Lifecycle & OnModuleDestroy', () => {
       untyped(ScopedLifecycleHandler.prototype.execute).__pipelined,
     ).toBeUndefined();
 
-    // --- App 2 Boot with BehaviorB ---
     const wrapper2 = makeScopedWrapper(ScopedLifecycleHandler);
     const explorer2 = {
       explore: () => ({ commands: [wrapper2], queries: [], events: [] }),
@@ -142,7 +139,6 @@ describe('PipelineBootstrapService Lifecycle & OnModuleDestroy', () => {
     // moduleRef1 must NOT have been called by App 2
     expect(moduleRef1.get).not.toHaveBeenCalledWith(BehaviorB);
 
-    // --- App 2 Destroy ---
     app2Bootstrap.onModuleDestroy();
     expect(ScopedLifecycleHandler.prototype.execute).toBe(originalProtoExecute);
     expect(
@@ -153,7 +149,6 @@ describe('PipelineBootstrapService Lifecycle & OnModuleDestroy', () => {
   it('correctly dispatches concurrent applications with scoped handlers and unregisters cleanly', async () => {
     const originalProtoExecute = ScopedLifecycleHandler.prototype.execute;
 
-    // --- App 1 ---
     const wrapper1 = makeScopedWrapper(ScopedLifecycleHandler);
     const explorer1 = {
       explore: () => ({ commands: [wrapper1], queries: [], events: [] }),
@@ -178,7 +173,6 @@ describe('PipelineBootstrapService Lifecycle & OnModuleDestroy', () => {
     });
     app1.onApplicationBootstrap();
 
-    // --- App 2 Concurrent ---
     const wrapper2 = makeScopedWrapper(ScopedLifecycleHandler);
     const explorer2 = {
       explore: () => ({ commands: [wrapper2], queries: [], events: [] }),

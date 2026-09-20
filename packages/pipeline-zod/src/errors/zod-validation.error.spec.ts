@@ -4,9 +4,7 @@ import { describe, expect, it } from 'vitest';
 import { ZodError, z } from 'zod';
 import { ZodValidationError } from './zod-validation.error';
 
-// ---------------------------------------------------------------------------
 // Tests
-// ---------------------------------------------------------------------------
 
 describe('ZodValidationError', () => {
   // Helper: parse with a schema and return the ZodError

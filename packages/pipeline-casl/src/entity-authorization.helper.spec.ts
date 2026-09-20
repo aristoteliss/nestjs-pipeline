@@ -150,7 +150,6 @@ describe('CaslAuthorizer', () => {
       const authorizer = new CaslAuthorizer(ability);
 
       const plainObj = { id: 2, department: 'engineering' };
-      // plain object has constructor.name === 'Object'
       expect(authorizer.can('update', plainObj)).toBe(false);
 
       const customEntity = new EntityWithoutToJSON(10, 'Some Title');

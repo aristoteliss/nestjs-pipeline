@@ -28,7 +28,7 @@ export interface PipelineBehaviorValidationContext {
    * - `'both'`: declared globally and also customized via `@UsePipeline(...)` on the handler.
    */
   declarationSource: 'handler' | 'global' | 'both';
-  /** The effective merged options for this behavior. */
+  /** Effective options for resolved singletons; raw handler/global options for scoped behaviors. */
   effectiveOptions: Record<string, unknown> | undefined;
   /** Raw options declared on the handler, if any. */
   handlerOptions: Record<string, unknown> | undefined;

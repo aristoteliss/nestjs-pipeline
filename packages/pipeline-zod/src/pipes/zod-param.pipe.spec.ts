@@ -5,9 +5,7 @@ import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import { ZodPipe } from './zod-param.pipe';
 
-// ---------------------------------------------------------------------------
 // Tests
-// ---------------------------------------------------------------------------
 
 describe('ZodPipe', () => {
   describe('valid input', () => {

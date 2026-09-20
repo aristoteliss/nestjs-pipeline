@@ -6,7 +6,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { MetricsBehavior } from './metrics.behavior';
 import { addPipelineTelemetryAttributes } from './telemetry-attributes';
 
-// ─── Mock the OTel metrics API surface ───────────────────────────────────────
 // Preserve the rest of the public API and stub only meter acquisition. The
 // implementation intentionally does not inspect provider implementation details.
 vi.mock('@opentelemetry/api', async (importOriginal) => {
@@ -17,8 +16,6 @@ vi.mock('@opentelemetry/api', async (importOriginal) => {
   };
 });
 
-// ─── Instrument / Meter doubles ──────────────────────────────────────────────
-
 const mockDuration = { record: vi.fn() };
 const mockInvocations = { add: vi.fn() };
 const mockActive = { add: vi.fn() };
@@ -28,8 +25,6 @@ const mockMeter = {
   createCounter: vi.fn(() => mockInvocations),
   createUpDownCounter: vi.fn(() => mockActive),
 };
-
-// ─── Context factory ──────────────────────────────────────────────────────────
 
 function makeCtx(overrides: Partial<IPipelineContext> = {}): IPipelineContext {
   return {
@@ -48,8 +43,6 @@ function makeCtx(overrides: Partial<IPipelineContext> = {}): IPipelineContext {
     ...overrides,
   } as unknown as IPipelineContext;
 }
-
-// ─── Tests ────────────────────────────────────────────────────────────────────
 
 describe('MetricsBehavior', () => {
   let behavior: MetricsBehavior;
