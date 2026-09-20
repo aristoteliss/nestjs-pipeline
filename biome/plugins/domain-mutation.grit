@@ -1,0 +1,18 @@
+engine biome(1.0)
+language js(typescript)
+
+or {
+  JsMethodClassMember(body=$body) as $method where {
+    $body <: contains `this.apply($...)`,
+    register_diagnostic(span=$method, message="Domain events belong in @ApplyMutation({ event }). An event constructed inside the method body snapshots the aggregate before onUpdate(), so it carries the pre-mutation version and updatedAt.", severity="error")
+  },
+  JsMethodClassMember(modifiers=$modifiers, body=$body) as $method where {
+    $modifiers <: contains JsDecorator(expression=JsCallExpression(callee=r"^(?:ApplyMutation|Mutate)$")),
+    $body <: contains `this._$field = $value`,
+    register_diagnostic(span=$method, message="An @ApplyMutation() method returns a field patch instead of assigning backing fields; declare the field with @Mutable() so the decorator normalizes and applies it.", severity="error")
+  },
+  JsDecorator(expression=JsCallExpression(callee=r"^(?:ApplyMutation|Mutate)$", arguments=$args)) as $decorator where {
+    $args <: JsCallArguments(args=[]),
+    register_diagnostic(span=$decorator, message="@ApplyMutation() requires the domain event it records: @ApplyMutation<Entity>({ event: (entity) => new EntityChangedEvent(entity) }).", severity="error")
+  }
+}

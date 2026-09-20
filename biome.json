@@ -170,6 +170,14 @@
       ]
     },
     {
+      "path": "./biome/plugins/domain-mutation.grit",
+      "includes": [
+        "**/ddd/*/src/**/domain/models/**/*.ts",
+        "!**/*.spec.ts",
+        "!**/*.test.ts"
+      ]
+    },
+    {
       "path": "./biome/plugins/ddd-entry-points.grit",
       "includes": [
         "**/ddd/users-api/src/**/*.ts",
