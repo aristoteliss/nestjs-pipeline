@@ -21,7 +21,7 @@ const mockBehaviorInstance = {
   handle: vi.fn((_ctx: unknown, next: () => unknown) => next()),
 };
 
-describe('Pipeline Bootstrap Diagnostics (S-15)', () => {
+describe('Pipeline Bootstrap Diagnostics', () => {
   describe('Safety ordering enforcement', () => {
     @CommandHandler(DummyCommand)
     @UsePipeline(

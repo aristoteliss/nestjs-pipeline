@@ -400,7 +400,6 @@ export class PipelineBootstrapService
       behaviorOptions: mergedOptions.size > 0 ? mergedOptions : undefined,
     };
 
-    // ── Bootstrap Diagnostics & Behavior Contracts Validation (S-15) ──
     const diagnosticsMode = this.options?.diagnostics ?? 'strict';
     if (diagnostics && diagnosticsMode !== 'off') {
       for (let i = 0; i < behaviorTypes.length; i++) {

@@ -24,6 +24,9 @@ Keep architecture documentation focused on the repository as it exists.
 - API-facing DTOs may document validation, field meaning, example payloads, and consumer expectations.
 - Handlers and ordinary domain entities should be self-explanatory and normally have no narrative JSDoc. A short comment is acceptable only for a non-obvious invariant, security/concurrency constraint, or external protocol requirement.
 - Do not leave review conclusions, refactor rationale, migration history, or "previously/now/used to" explanations in source comments or normal READMEs. Git history records changes.
+- **No AI slop, banners, or decorative divider lines**: Never write decorative section headers, ASCII divider lines, or boxed borders (e.g. `// ── ... ──`, `// ===== ... =====`, `/* ──────────────── */`). Write clean, standard code.
+- **No ticket or task identifiers in code or test suites**: Never include task/review IDs (e.g. `(S-15)`, `S-02`, `R-07`, ticket tags) in code comments, test file names, `describe` / `it` blocks, or identifier names. Tests must describe the *actual behavior or invariant*, not the development task that introduced it. Task IDs belong exclusively in external task-tracking/review documents (`docs/reviews/`).
+- **Concise step markers in core logic vs. narrative signposting**: Short, concise step comments in multi-phase core mechanisms or helpers (e.g. `// 1. Validate ordering constraints`, `// 2. Validate behavior options and intent`) are helpful and welcomed. Avoid conversational narrative commentary ("This block validates...", "Here we handle...", "Helper to...") and paragraph-sized inline explanations.
 - If a source comment needs a paragraph to explain ordinary application flow, simplify the code or move durable consumer guidance to the appropriate README.
 
 ## Core architecture rules

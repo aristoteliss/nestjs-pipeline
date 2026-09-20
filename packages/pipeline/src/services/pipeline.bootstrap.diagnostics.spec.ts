@@ -18,10 +18,6 @@ import {
 } from '../interfaces/pipeline-behavior-contract.interface';
 import { PipelineBootstrapService } from './pipeline.bootstrap.service';
 
-// ─────────────────────────────────────────────────────────────────
-// Test Behaviors with Contracts
-// ─────────────────────────────────────────────────────────────────
-
 class AuthBehavior implements IPipelineBehavior {
   async handle(_ctx: IPipelineContext, next: NextDelegate) {
     return next();
@@ -93,10 +89,6 @@ class IdempotencyBehaviorWithValidation implements IPipelineBehavior {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────
-// Handlers
-// ─────────────────────────────────────────────────────────────────
-
 @UsePipeline(
   [CacheBehaviorWithOrder, { key: () => 'valid-key' }],
   AuthBehavior, // ordering violation: Cache is before Auth!
@@ -142,7 +134,7 @@ function makeWrapper(instance: any, metatype: any) {
   };
 }
 
-describe('PipelineBootstrapService S-15 Diagnostics', () => {
+describe('PipelineBootstrapService Diagnostics', () => {
   let moduleRefMock: any;
   let explorerServiceMock: any;
   const bootstrapped: PipelineBootstrapService[] = [];

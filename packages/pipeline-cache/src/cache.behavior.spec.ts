@@ -433,7 +433,7 @@ describe('CacheBehavior', () => {
     );
   });
 
-  describe('PIPELINE_BEHAVIOR_CONTRACT (S-15)', () => {
+  describe('PIPELINE_BEHAVIOR_CONTRACT', () => {
     const contract = CacheBehavior[PIPELINE_BEHAVIOR_CONTRACT];
 
     it('declares order constraint after CaslBehavior', () => {
