@@ -37,6 +37,21 @@ export function sessionAuditActor(): AuditActor {
 }
 
 /**
+ * Actor for a pre-authentication command, where the caller has supplied an
+ * identity but nothing has verified it yet.
+ *
+ * The claimed value is recorded as `claimedEmail`, never as `id`: audit
+ * consumers read `id` as an identified principal, and `authenticated` stays
+ * `false` so such a record cannot pass a filter for trusted activity. An
+ * absent claim is expressed by the field being absent, not by a placeholder.
+ */
+export function claimedIdentityActor(claimedEmail?: string): AuditActor {
+  return claimedEmail
+    ? { ...UNAUTHENTICATED_AUDIT_ACTOR, claimedEmail }
+    : UNAUTHENTICATED_AUDIT_ACTOR;
+}
+
+/**
  * Module-wide audit defaults for the application, merged under each handler's
  * own options.
  *

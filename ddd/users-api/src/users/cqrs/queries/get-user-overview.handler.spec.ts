@@ -57,11 +57,15 @@ function setup(options: {
 
 const readUser = { action: 'read', subject: 'User' } as const;
 const readRole = { action: 'read', subject: 'Role' } as const;
+const readPermissions = {
+  action: 'read',
+  subject: 'UserCapabilities',
+} as const;
 
 describe('GetUserOverviewHandler', () => {
   it('composes profile, roles and capabilities when the viewer may read them', async () => {
     const { user, run } = setup({
-      rules: [readUser, readRole],
+      rules: [readUser, readRole, readPermissions],
       assignments: {
         roles: ['developer', 'operator'],
         additionalCapabilities: ['deploy:staging'],
@@ -99,6 +103,64 @@ describe('GetUserOverviewHandler', () => {
     expect(result).not.toHaveProperty('capabilities');
     expect(capabilities.find).not.toHaveBeenCalled();
     expect(roles.find).not.toHaveBeenCalled();
+  });
+
+  it('withholds roles and capabilities from a viewer granted only the user profile', async () => {
+    const { capabilities, roles, run } = setup({
+      rules: [readUser, readRole],
+      assignments: {
+        roles: ['developer'],
+        additionalCapabilities: ['deploy:prod'],
+      },
+    });
+
+    const result = await run();
+
+    expect(result).not.toHaveProperty('roles');
+    expect(result).not.toHaveProperty('capabilities');
+    expect(capabilities.find).not.toHaveBeenCalled();
+    expect(roles.find).not.toHaveBeenCalled();
+  });
+
+  it('grants permissions of the viewer’s own record when the rule is scoped to that user', async () => {
+    const user = User.create('Bob', 'bob@example.test', 'engineering');
+    const { run } = setup({
+      user,
+      rules: [
+        readUser,
+        readRole,
+        {
+          action: 'read',
+          subject: 'UserCapabilities',
+          conditions: { userId: user.id },
+        },
+      ],
+      assignments: { roles: [], additionalCapabilities: ['deploy:staging'] },
+    });
+
+    await expect(run()).resolves.toMatchObject({
+      capabilities: ['deploy:staging'],
+    });
+  });
+
+  it('withholds permissions of another user when the rule is scoped to the viewer', async () => {
+    const { capabilities, run } = setup({
+      rules: [
+        readUser,
+        readRole,
+        {
+          action: 'read',
+          subject: 'UserCapabilities',
+          conditions: { userId: 'someone-else' },
+        },
+      ],
+      assignments: { roles: [], additionalCapabilities: ['deploy:prod'] },
+    });
+
+    const result = await run();
+
+    expect(result).not.toHaveProperty('capabilities');
+    expect(capabilities.find).not.toHaveBeenCalled();
   });
 
   it('omits fields the viewer cannot read and does not restore them from the aggregate', async () => {
@@ -164,6 +226,7 @@ describe('GetUserOverviewHandler', () => {
       rules: [
         readUser,
         readRole,
+        readPermissions,
         {
           action: 'read',
           subject: 'User',
@@ -193,7 +256,7 @@ describe('GetUserOverviewHandler', () => {
 
   it('omits an assigned role that cannot be loaded instead of trusting a type-level grant', async () => {
     const { run } = setup({
-      rules: [readUser, readRole],
+      rules: [readUser, readRole, readPermissions],
       assignments: {
         roles: ['ghost', 'developer'],
         additionalCapabilities: [],
@@ -226,6 +289,7 @@ describe('GetUserOverviewHandler', () => {
 
     const ability = buildAbilityFromRules([
       { action: 'read', subject: 'User' },
+      { action: 'read', subject: 'UserCapabilities' },
       { action: 'read', subject: 'Role', conditions: { name: 'developer' } },
     ]);
     const authorizer = new CaslAuthorizer(ability);
@@ -266,6 +330,7 @@ describe('GetUserOverviewHandler', () => {
 
     const ability = buildAbilityFromRules([
       { action: 'read', subject: 'User' },
+      { action: 'read', subject: 'UserCapabilities' },
       { action: 'read', subject: 'Role' },
       { action: 'read', subject: 'Role', fields: ['name'], inverted: true },
     ]);
@@ -305,6 +370,7 @@ describe('GetUserOverviewHandler', () => {
 
     const ability = buildAbilityFromRules([
       { action: 'read', subject: 'User' },
+      { action: 'read', subject: 'UserCapabilities' },
       { action: 'read', subject: 'Role' },
       { action: 'read', subject: 'User', fields: ['roles.0'], inverted: true },
     ]);
@@ -340,6 +406,7 @@ describe('GetUserOverviewHandler', () => {
 
     const ability = buildAbilityFromRules([
       { action: 'read', subject: 'User' },
+      { action: 'read', subject: 'UserCapabilities' },
       { action: 'read', subject: 'Role' },
       {
         action: 'read',

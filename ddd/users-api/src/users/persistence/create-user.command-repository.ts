@@ -4,6 +4,7 @@ import { Inject, Injectable } from '@nestjs/common';
 import { ICache } from '@nestjs-pipeline/ddd-core/application';
 import {
   AcknowledgePersisted,
+  assertAutocommit,
   CACHE_TOKEN,
   Cache,
   CommandRepository,
@@ -50,6 +51,7 @@ export class CreateUserCommandRepository extends CommandRepository<
   })
   async save(user: User): Promise<UserSnapshot> {
     const em = this.store.em;
+    assertAutocommit(em, 'createUser');
     const persistedUser = em.create(User, user);
     em.persist(persistedUser);
     await em.flush();

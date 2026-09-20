@@ -4,6 +4,7 @@ import { Inject, Injectable } from '@nestjs/common';
 import { ICache } from '@nestjs-pipeline/ddd-core/application';
 import {
   AcknowledgePersisted,
+  assertAutocommit,
   CACHE_TOKEN,
   Cache,
   CommandRepository,
@@ -44,7 +45,9 @@ export class CreateRoleCommandRepository extends CommandRepository<
     ],
   })
   async save(role: Role): Promise<RoleSnapshot> {
-    const persisted = await this.store.em.upsert(Role, role);
+    const em = this.store.em;
+    assertAutocommit(em, 'createRole');
+    const persisted = await em.upsert(Role, role);
     return persisted.toJSON();
   }
 }

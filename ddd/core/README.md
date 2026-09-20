@@ -45,7 +45,8 @@ This package provides the foundational building blocks for implementing a Clean 
 
 ### Persistence Abstractions
 
-- **`ICache<T>`** — Interface for cache providers defining `get(key): Promise<T | undefined>`, `set(key, value, options?: CacheSetOptions): Promise<void>`, and `delete(key): Promise<void>`.
+- **`ICache<T>`** — Interface for cache providers defining `get(key): Promise<T | undefined>`, `set(key, value, options?: CacheSetOptions): Promise<void>`, and `delete(key): Promise<void>`. Sufficient for `@Cache` write-through; `@FromCache` read-through additionally requires `IVersionedCache`.
+- **`IVersionedCache<T>`** / **`isVersionedCache(cache)`** — The revision-fenced contract (`readState`, `invalidate`, `tryFill`) and its capability guard. `@FromCache` caches only through an adapter that satisfies it.
 - **`CacheSetOptions`** — Options for cache writes: `ttl?: number` and atomic stale-write check `isNewer?: (cached: unknown, incoming: unknown) => boolean`.
 - **`isCacheNewer(cached, incoming)`** — Shared version comparison helper evaluating numeric `version`, sequence `__gen`, or `updatedAt` timestamps. Returns `true` only if `cached` is strictly newer than `incoming`.
 - **`toCacheSnapshot(value, serializeFn?)`** — Shared serialization boundary extracting a pure, detached snapshot via `serializeFn`, `value.toJSON()`, or deep JSON cloning. Guarantees live aggregate references never leak into cache storage.
@@ -62,7 +63,9 @@ This package provides the foundational building blocks for implementing a Clean 
   - **Best-Effort**: Cache write/delete errors are caught and swallowed so a committed database transaction is never converted into an application error.
 - **`@FromCache()`** — Method decorator for `find()` in query repositories:
   - **Read-Through**: Checks the cache first via `keyFn`; on a cache hit returns the cached value (or automatically rehydrates it into a domain entity if `alwaysHydrate: true` or `query.hydrate` is enabled).
-  - **Anti-Resurrection Coordination**: Coordinates pre- and post-DB barrier validation. When a mutation barrier is detected, it prevents caching stale DB results, verifies barrier token continuity (detecting ABA sequence mutations), and retries boundedly (`MAX_BARRIER_RETRIES = 2`) to reject stale reads while the mutation barrier is retained.
+  - **Revision-Fenced Fills**: Requires an adapter implementing `IVersionedCache`. The decorator observes the key's opaque revision before the database read and fills with `tryFill(key, observedRevision, snapshot)`, which commits only if nothing — an invalidation, a delete, a newer write — has advanced the revision in between. A stale snapshot therefore cannot overwrite a deletion barrier. A rejected fill re-reads the key, returns a strictly newer snapshot when one is present, and otherwise retries a bounded number of times before returning the database result uncached.
+  - **Unversioned Adapters Are Bypassed**: An adapter exposing only `get`/`set`/`delete` cannot fence a fill against concurrent invalidation, so `@FromCache` uses neither side of it: no read, no fill, the query goes to the database. Reads are bypassed too because serving entries while skipping fills would still return values written before a mutation. The decorator logs this once per adapter instance. Implement `IVersionedCache` to enable caching; `MemoryCache` and the sample's `MikroOrmCache` both do.
+  - **Barriers and Nulls Are Misses**: A `CacheMutationBarrier` or a stored `null` is never hydrated — neither is a snapshot this decorator would have written.
   - **Enforceable Invariants**: Validates at decoration time that `alwaysHydrate: true` requires a `hydrateFn`, throwing `TypeError` immediately if omitted.
   - **Snapshot Storage Contract**: Stores strictly detached, serializable snapshots (`TSnapshot`), extracting them on cache miss via custom `serializeFn` or `toCacheSnapshot()`. Never caches live aggregate instances.
   - **Strong Consistency on Concurrent Writes**: If a concurrent command writes and caches a newer snapshot during an in-flight DB fetch, `@FromCache` compares snapshots (`newerCheck(current, snapshot)`) and returns the fresher cached snapshot (rehydrated if requested) rather than stale DB data or overwriting cache.
@@ -71,6 +74,8 @@ This package provides the foundational building blocks for implementing a Clean 
 - **`@AcknowledgePersisted()`** — Method decorator for `save()` in command repositories: captures the aggregate's current entry version before write execution and automatically calls `entity.acknowledgePersisted(version)` upon successful persistence.
 - **`@MapPersistenceErrors()`** — Method decorator for persistence operations: maps identifiable database driver unique constraint failures (PostgreSQL `23505` and SQLite unique constraints) to application-owned domain exceptions.
 - **`optimisticUpdate()`** — Infrastructure helper for MikroORM version-conditioned updates (`WHERE id = ? AND version = expectedVersion`). Inspects affected rows, performs diagnostic existence checks on zero affected rows, and raises `EntityNotFoundException` or `ConcurrencyConflictError`. Explicitly rejects execution inside active outer transactions.
+- **`optimisticDelete()`** — The delete counterpart, on `{ id, version: getExpectedVersion() }`, with the same affected-row contract and the same autocommit requirement. Unversioned rows (sessions, tokens) are out of scope: delete those by primary key rather than inventing a version column.
+- **`assertAutocommit()`** — The single transaction-boundary check shared by the update, delete and create paths. Every write whose successful return triggers acknowledgment or cache maintenance calls it before issuing a statement.
 
 ---
 
@@ -282,9 +287,10 @@ The canonical outermost-to-innermost order is `@Cache(...)` →
 - [Deletion repository](../users-api/src/users/persistence/delete-user.command-repository.ts)
 
 These source examples compile with the application build. Updates use
-`optimisticUpdate`; deletes condition on ID and expected version and distinguish
-missing records from concurrency conflicts. Successful write resolution must
-mean durable persistence before acknowledgment and cache maintenance run.
+`optimisticUpdate` and deletes use `optimisticDelete`; both condition on ID and
+expected version and distinguish missing records from concurrency conflicts.
+Successful write resolution must mean durable persistence before acknowledgment
+and cache maintenance run.
 
 ### 5. Read-Side Query Repository with `@FromCache()`
 
@@ -318,9 +324,21 @@ export interface ICache<T = unknown> {
 }
 ```
 
-The sample uses two cache implementations:
+Both bundled implementations also implement `IVersionedCache`:
 - **`MikroOrmCache`**: Database-backed cache entity (`CacheEntry`) storing JSON payloads and Unix expiration timestamps, supporting atomic `isNewer` comparison against existing records.
 - **`MemoryCache`**: Lightweight in-process `Map` cache with TTL and atomic `isNewer` protection, suitable for unit tests and local development.
+
+A custom adapter that implements only `ICache` still works with `@Cache`, but
+`@FromCache` bypasses it entirely, as described above. That is a deliberate
+fail-safe, not a degraded mode: implement `readState`, `invalidate` and `tryFill`
+to get read-through caching.
+
+The revision fence coordinates the cache with itself, not with the database. A
+committed write followed by an unavailable cache — invalidation that fails or
+never runs — leaves the previous entry until it expires, and per-key
+compare-and-set cannot remove that dual-write window. Cache maintenance after a
+commit is best-effort; size TTLs to the staleness the use case tolerates, and read
+with `{ refresh: true }` where a decision must not rest on a cached value.
 
 ---
 
@@ -362,10 +380,17 @@ package; the decorators do not depend on application models or configuration.
 
 The acknowledgment decorator requires that the method write the entry version
 and that successful resolution mean committed persistence. Capture the return
-snapshot before awaiting the helper. `optimisticUpdate` rejects an active outer
-transaction before writing. Supporting outer transactions requires commit hooks
-for acknowledgment and cache maintenance; decorators alone cannot make several
-writes atomic. Event publication remains with `CommandBaseHandler`.
+snapshot before awaiting the helper.
+
+Every path whose successful return is treated as durable enforces the same
+boundary through `assertAutocommit(em, operation)`: `optimisticUpdate`,
+`optimisticDelete`, and the create repositories before their flush or upsert. The
+check runs before any statement, so a rejected operation mutates nothing, leaves
+the aggregate's persisted baseline where it was, and evicts nothing from the
+cache. Supporting outer transactions requires commit hooks for acknowledgment and
+cache maintenance; decorators alone cannot make several writes atomic, and a
+caller must not be able to trigger acknowledgment merely by flushing uncommitted
+work. Event publication remains with `CommandBaseHandler`.
 
 See the [role repository](../users-api/src/roles/persistence/update-role.command-repository.ts)
 and [user repository](../users-api/src/users/persistence/update-user.command-repository.ts)

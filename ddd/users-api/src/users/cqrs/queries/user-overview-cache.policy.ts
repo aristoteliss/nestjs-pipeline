@@ -7,8 +7,8 @@ import {
   createPartitionedCacheKeyFactory,
 } from '@nestjs-pipeline/cache';
 import {
-  CASL_USER_CONTEXT_KEY,
   getCaslAbility,
+  getCaslUserContext,
   hasEntityConditions,
 } from '@nestjs-pipeline/casl';
 import { type IPipelineContext, stableStringify } from '@nestjs-pipeline/core';
@@ -22,13 +22,13 @@ export const OVERVIEW_RESPONSE_POLICY_VERSION = 'v2';
 function resolveViewer(
   context: IPipelineContext,
 ): { id: string; principalType: 'user' | 'service' } | undefined {
-  const viewer = context.items.get(CASL_USER_CONTEXT_KEY) as
-    | { id?: unknown; principalType?: unknown }
-    | undefined;
-  const { principalType } = viewer ?? {};
+  const viewer = getCaslUserContext(context);
+  if (!viewer) return undefined;
+
+  const { principalType } = viewer;
   if (principalType !== 'user' && principalType !== 'service') return undefined;
 
-  const id = viewer?.id === undefined ? '' : String(viewer.id).trim();
+  const id = viewer.id === undefined ? '' : String(viewer.id).trim();
   return id ? { id, principalType } : undefined;
 }
 
@@ -59,8 +59,8 @@ export function resolveOverviewScope(
 
 /**
  * Checks whether the viewer's effective ability has read rules whose conditions
- * depend on the mutable state of the target User or Role entities. Rules for
- * `all` subjects are included by `hasEntityConditions`.
+ * depend on the mutable state of the target User, Role or UserCapabilities
+ * subjects. Rules for `all` subjects are included by `hasEntityConditions`.
  */
 export function hasEntityDependentConditions(
   context: IPipelineContext,
@@ -70,7 +70,7 @@ export function hasEntityDependentConditions(
 
   return hasEntityConditions(
     ability,
-    [APP_SUBJECTS.USER, APP_SUBJECTS.ROLE],
+    [APP_SUBJECTS.USER, APP_SUBJECTS.ROLE, APP_SUBJECTS.USER_CAPABILITIES],
     APP_ACTIONS.READ,
   );
 }

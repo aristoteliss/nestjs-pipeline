@@ -25,6 +25,7 @@ import {
   CASL_USER_CONTEXT_RESOLVER,
 } from './constants/tokens';
 import { UnauthorizedActionException } from './exceptions/unauthorized-action.exception';
+import { getCaslUserContext } from './helpers/entity-authorization.helper';
 import type {
   IRoleProvider,
   IUserCapabilityProvider,
@@ -565,7 +566,7 @@ export class CaslBehavior implements IPipelineBehavior {
     if (this.userContextResolver) {
       return (await this.userContextResolver.resolve(context)) ?? null;
     }
-    return context.items.get(CASL_USER_CONTEXT_KEY) as CaslUserContext | null;
+    return getCaslUserContext(context) ?? null;
   }
 
   private async buildAbilityForUser(

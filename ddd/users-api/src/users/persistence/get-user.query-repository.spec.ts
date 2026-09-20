@@ -1,21 +1,34 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 import { type IPipelineContext, pipelineStore } from '@nestjs-pipeline/core';
 import type { ICache } from '@nestjs-pipeline/ddd-core/application';
-import { filterCacheKey } from '@nestjs-pipeline/ddd-core/persistence';
+import {
+  filterCacheKey,
+  MemoryCache,
+} from '@nestjs-pipeline/ddd-core/persistence';
 import { ZodValidationBehavior } from '@nestjs-pipeline/zod';
 import { describe, expect, it, vi } from 'vitest';
 import { GetUserQuery } from '../cqrs/queries/get-user.query';
 import { User, type UserSnapshot } from '../domain/models/user.entity';
 import { GetUserQueryRepository } from './get-user.query-repository';
 
+/** A real revision-fenced adapter holding `snapshot` under the tenant id key. */
+async function cacheHolding(
+  snapshot?: UserSnapshot,
+): Promise<MemoryCache<UserSnapshot>> {
+  const cache = new MemoryCache<UserSnapshot>({ defaultTtlMs: 60_000 });
+  if (snapshot) {
+    await cache.set(
+      filterCacheKey(User.aggregateName, { id: snapshot.id }, 'tenant'),
+      snapshot,
+    );
+  }
+  return cache;
+}
+
 describe('GetUserQueryRepository cache policy', () => {
   it('preserves hydration metadata through global payload validation', async () => {
     const persisted = User.create('Alice', 'alice@example.test', 'engineering');
-    const cache: ICache<UserSnapshot> = {
-      get: vi.fn().mockResolvedValue(persisted.toJSON()),
-      set: vi.fn(),
-      delete: vi.fn(),
-    };
+    const cache = await cacheHolding(persisted.toJSON());
     const store = { em: { findOne: vi.fn() } };
     const repository = new GetUserQueryRepository(cache, store as never);
     const query = new GetUserQuery({ userId: persisted.id }, { hydrate: true });
@@ -66,11 +79,7 @@ describe('GetUserQueryRepository cache policy', () => {
 
   it('caches a serialized snapshot on cache miss instead of live aggregate instance', async () => {
     const persisted = User.create('Charlie', 'charlie@example.test', 'support');
-    const cache: ICache<UserSnapshot> = {
-      get: vi.fn().mockResolvedValue(undefined),
-      set: vi.fn(),
-      delete: vi.fn(),
-    };
+    const cache = await cacheHolding();
     const store = {
       em: {
         findOne: vi.fn().mockResolvedValue(persisted),
@@ -90,21 +99,14 @@ describe('GetUserQueryRepository cache policy', () => {
       { id: persisted.id },
       'tenant',
     );
-    expect(cache.set).toHaveBeenCalledWith(
-      idKey,
-      persisted.toJSON(),
-      expect.objectContaining({ isNewer: expect.any(Function) }),
-    );
+    const cached = await cache.get(idKey);
+    expect(cached).not.toBeInstanceOf(User);
+    expect(cached).toEqual(JSON.parse(JSON.stringify(persisted.toJSON())));
   });
 
   it('always hydrates on cache hit into domain entity with Date instances', async () => {
     const persisted = User.create('Dana', 'dana@example.test', 'finance');
-    const snapshot = persisted.toJSON();
-    const cache: ICache<UserSnapshot> = {
-      get: vi.fn().mockResolvedValue(snapshot),
-      set: vi.fn(),
-      delete: vi.fn(),
-    };
+    const cache = await cacheHolding(persisted.toJSON());
     const store = { em: { findOne: vi.fn() } };
     const repository = new GetUserQueryRepository(cache, store as never);
     const query = new GetUserQuery({ userId: persisted.id });
@@ -114,8 +116,8 @@ describe('GetUserQueryRepository cache policy', () => {
       () => repository.find(query),
     );
 
-    // With alwaysHydrate: true, cache hit returns hydrated User aggregate
     expect(result).toBeInstanceOf(User);
+    expect(store.em.findOne).not.toHaveBeenCalled();
     expect(result?.id).toBe(persisted.id);
     expect(result?.username).toBe('Dana');
     expect(result?.createdAt).toBeInstanceOf(Date);

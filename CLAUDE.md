@@ -5,7 +5,8 @@ detail belongs in the files it points to.
 
 ## Read before a large task
 
-1. [AGENTS.md](AGENTS.md) — non-negotiable repository rules. It wins over anything here.
+1. [AGENTS.md](AGENTS.md) — working discipline and non-negotiable repository rules. It
+   wins over anything here.
 2. [.agents/skills/nestjs-pipeline-architecture/SKILL.md](.agents/skills/nestjs-pipeline-architecture/SKILL.md)
    — mandatory before touching CQRS handlers, pipeline behaviors, domain models,
    persistence, caching, idempotency, auth, queues, or module wiring.

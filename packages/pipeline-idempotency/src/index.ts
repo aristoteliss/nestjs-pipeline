@@ -14,12 +14,22 @@ export {
   IdempotencyConflictError,
   type IdempotencyConflictReason,
 } from './errors/idempotency-conflict.error';
+export {
+  type IdempotencyPartitionDimension,
+  MissingIdempotencyPartitionError,
+} from './errors/missing-partition.error';
 export { IdempotencyConflictFilter } from './filters/idempotency-conflict.filter';
 export { fingerprintValue } from './helpers/fingerprint';
 export {
   type IdempotencyIntentOptions,
   idempotent,
 } from './helpers/idempotency.intent';
+export {
+  createPartitionedIdempotencyKeyFactory,
+  type IdempotencyOperationFactory,
+  type IdempotencyPrincipalFactory,
+  type PartitionedIdempotencyKeyOptions,
+} from './helpers/partitioned-key';
 export {
   IDEMPOTENCY_KEY_ITEM,
   IDEMPOTENCY_OWNERSHIP_LOST_ITEM,
@@ -32,6 +42,7 @@ export type {
   IdempotencyKeyFactory,
   IdempotencyModuleAsyncOptions,
   IdempotencyModuleOptions,
+  IdempotencyReplayScopeFactory,
 } from './interfaces/idempotency-options.interface';
 export type {
   IdempotencyRecord,

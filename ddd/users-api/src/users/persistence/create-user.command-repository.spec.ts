@@ -129,3 +129,37 @@ describe('CreateUserCommandRepository', () => {
     expect((user as any)._persistedVersion).toBe(1);
   });
 });
+
+describe('CreateUserCommandRepository transaction boundary', () => {
+  it('rejects an externally active transaction before persisting or flushing', async () => {
+    const cache: ICache<UserSnapshot> = {
+      get: vi.fn(),
+      set: vi.fn(),
+      delete: vi.fn(),
+    };
+    const create = vi.fn();
+    const persist = vi.fn();
+    const flush = vi.fn();
+    const store = {
+      get em() {
+        return { create, persist, flush, isInTransaction: () => true };
+      },
+    };
+    const repository = new CreateUserCommandRepository(cache, store as never);
+    const user = User.create('Alice', 'alice@example.test', 'engineering');
+    const expectedBefore = user.getExpectedVersion();
+
+    await expect(
+      pipelineStore.run(
+        { tenantId: 'tenant' } as unknown as IPipelineContext,
+        () => repository.save(user),
+      ),
+    ).rejects.toThrow(/requires autocommit/);
+
+    expect(create).not.toHaveBeenCalled();
+    expect(persist).not.toHaveBeenCalled();
+    expect(flush).not.toHaveBeenCalled();
+    expect(cache.set).not.toHaveBeenCalled();
+    expect(user.getExpectedVersion()).toBe(expectedBefore);
+  });
+});

@@ -24,6 +24,69 @@ This requirement applies to changes involving:
 
 The repository's current code and documentation are authoritative. Generic Clean Architecture, DDD, CQRS, NestJS, or TypeScript guidance is secondary. If external advice conflicts with an intentional repository decision, follow the repository and document any proposed architectural change explicitly.
 
+## Working discipline
+
+These rules bias toward caution over speed. For trivial tasks, use judgment. Where they
+touch library scope, "Library scope and review discipline" below governs.
+
+### Think before coding
+
+Don't assume. Don't hide confusion. Surface tradeoffs. Before implementing:
+
+- State your assumptions explicitly. If uncertain, ask.
+- If multiple interpretations exist, present them; don't pick silently.
+- If a simpler approach exists, say so. Push back when warranted.
+- If something is unclear, stop, name what is confusing, and ask.
+
+### Simplicity first
+
+Write the minimum code that solves the problem. Nothing speculative.
+
+- No features beyond what was asked.
+- No abstractions for single-use code.
+- No flexibility or configurability that wasn't requested.
+- No error handling for impossible scenarios.
+- If you write 200 lines and it could be 50, rewrite it.
+
+Ask: would a senior engineer call this overcomplicated? If yes, simplify.
+
+### Surgical changes
+
+Touch only what you must. Clean up only your own mess. When editing existing code:
+
+- Don't "improve" adjacent code, comments, or formatting.
+- Don't refactor things that aren't broken.
+- Match the existing style, even if you would do it differently.
+- If you notice unrelated dead code, mention it; don't delete it.
+
+When your changes create orphans, remove the imports, variables, and functions that
+*your* changes made unused. Don't remove pre-existing dead code unless asked.
+
+Every changed line should trace directly to the request.
+
+### Goal-driven execution
+
+Define success criteria and loop until they are verified. Turn tasks into verifiable goals:
+
+- "Add validation" → write tests for invalid inputs, then make them pass.
+- "Fix the bug" → write a test that reproduces it, then make it pass.
+- "Refactor X" → ensure tests pass before and after.
+
+For multi-step tasks, state a brief plan with a check per step:
+
+```
+1. [Step] → verify: [check]
+2. [Step] → verify: [check]
+3. [Step] → verify: [check]
+```
+
+Strong success criteria allow independent iteration; weak ones ("make it work") need
+constant clarification.
+
+These rules are working when diffs carry fewer unnecessary changes, fewer rewrites stem
+from overcomplication, and clarifying questions come before implementation rather than
+after mistakes.
+
 ## Repository context files
 
 `CLAUDE.md` (root) holds the durable working instructions for coding agents, and
@@ -83,7 +146,7 @@ Documentation describes the current repository contract: what exists, how to use
 2. Domain/application code must not use Nest HTTP exceptions for business/application outcomes; map framework-neutral errors at the presentation boundary (e.g. `DomainException`, `EntityNotFoundException`, `ConcurrencyConflictError` mapped in `DomainExceptionFilter`).
 3. Keep repeated cross-cutting concerns in pipeline behaviors when the repository provides one; handlers should remain business-focused.
 4. Keep entity-level authorization and field filtering in the application path after the real aggregate/result is available.
-5. Cache/idempotency short-circuit keys must include tenant, principal, and permission scope whenever those dimensions can change the final authorized response. Fail closed when required security context is absent; never silently fall back to shared `'default'` namespaces. A pipeline hit skips the handler's entity/field checks, and an outer type-level CASL check does not reproduce them. Correlation IDs are tracing metadata, not principal or permission boundaries. An idempotency key is an operation identity, not a disposable response-cache key: rotating it on permission changes can let the same effect run again.
+5. Cache/idempotency short-circuit keys must include tenant, principal, and permission scope whenever those dimensions can change the final authorized response. Fail closed when required security context is absent; never silently fall back to shared `'default'` namespaces. A pipeline hit skips the handler's entity/field checks, and an outer type-level CASL check does not reproduce them. Correlation IDs are tracing metadata, not principal or permission boundaries. An idempotency key is an operation identity, not a disposable response-cache key: rotating it on permission changes can let the same effect run again. An idempotent operation may therefore keep a stable key only when replay carries an equivalent fail-closed scope check — a stored authorization digest compared before any completed response is returned, refusing a mismatch and refusing a record that has none. Without that check the key itself is the only guard, and the two safe-looking options are both wrong: binding permissions into the key duplicates the side effect, while replaying across a permission change returns a response the caller is no longer entitled to. Scope equality is valid only for the decisions the captured context represents; an operation whose authorization depends on resource state that changes later needs an explicit replay-authorization hook or must not replay results at all.
 6. Mutate aggregates through factories/domain methods, not direct setters or synthetic snapshots constructed only to trigger persistence. Aggregates inherit from our owned, framework-neutral `AggregateRoot` (NestJS 12 semantics in `@nestjs-pipeline/ddd-core/domain`). Public setters on aggregates exist strictly for MikroORM hydration (`accessor: true`), are annotated `@internal`/`@deprecated`, and `biome/plugins/aggregate-identity.grit` flags syntactic setter writes on receivers named `user`, `role`, `aggregate`, or `entity` in application layers. This naming-based lint guard cannot resolve types, aliases, or dynamic keys; domain-method mutation remains mandatory outside its coverage.
 7. Keep concrete queues, JWT libraries, environment/configuration access, persistence contexts, and similar infrastructure behind application-facing ports when used by application code.
 8. Follow `CommandBaseHandler` event-publication semantics for aggregate-changing commands; do not duplicate event publication.
@@ -96,7 +159,7 @@ Documentation describes the current repository contract: what exists, how to use
 15. Repository cache adapters (`ICache<TSnapshot>`) store strictly serializable snapshots, never live domain aggregates. `MemoryCache` enforces deep detachment parity with external caches via JSON cloning on `set()` and `get()`. Query repositories use `@FromCache({ alwaysHydrate: true, ... })` and return strictly domain aggregates (`Promise<User | null>`), requiring `hydrateFn` at decoration time and eliminating ambiguous union types (`User | UserSnapshot`) from query handlers.
 16. Repository caching (`@FromCache`, persistence `@Cache`, `ICache`) and pipeline caching (`CacheBehavior`) are complementary layers and both are retained: the persistence adapter owns snapshots and repository reads because it knows the affected lookup keys and write lifecycle; the application use case owns composed results because it knows their dependencies, security scope and freshness. Do not move application composition into a repository merely to cache it, and do not require an application query class for every repository lookup. Entity invalidation does not invalidate a composed pipeline result; when both layers serve one flow, define their keys, expiry and dependencies separately.
 17. Cache coordination must protect newer state from stale fills and writes. `@Cache` write-through uses CAS version comparison (`isCacheNewer`), `@FromCache` returns the newer cached snapshot when a mutation races a database read, and `MikroOrmCache` bypasses the identity map (`disableIdentityMap: true`) and deletes expired entries conditionally. Preserve these mechanisms and verify rather than assume them: their presence does not prove safety across the final-check/write gap, expiry/absence ABA, delete/recreate, secondary lookups or retry exhaustion. Per-key atomicity does not make a database commit and a cache mutation one transaction; document stale-read and failed-invalidation behavior instead of promising exactly-once or strong consistency.
-18. Write-side command repositories expose authoritative aggregate loading via `IWriteSideAggregateRepository<TEntity, TId = string>` returning rehydrated domain aggregates (`Promise<TEntity | null>`) directly from primary persistence (`{ refresh: true }`) mapped with `mapPersistenceError(...)`. Command handlers depend exclusively on domain models (`User`, `Role`), never on persistence snapshots (`TSnapshot`). Anti-resurrection uses mutation barriers: `@Cache` installs a `CacheMutationBarrier` token on deletions and secondary key invalidations, and `@FromCache` runs pre/post-DB barrier checks with token validation and bounded retries (`MAX_BARRIER_RETRIES = 2`). Race defects there must be repaired and regression-tested within the abstraction, not treated as evidence that repository caching belongs in another layer.
+18. Write-side command repositories expose authoritative aggregate loading via `IWriteSideAggregateRepository<TEntity, TId = string>` returning rehydrated domain aggregates (`Promise<TEntity | null>`) directly from primary persistence (`{ refresh: true }`) mapped with `mapPersistenceError(...)`. Command handlers depend exclusively on domain models (`User`, `Role`), never on persistence snapshots (`TSnapshot`). Anti-resurrection uses mutation barriers: `@Cache` installs a `CacheMutationBarrier` token on deletions and secondary key invalidations, and `@FromCache` fills only through a revision-fenced `IVersionedCache` (`tryFill` commits only if nothing advanced the key's revision during the database read, with bounded retries); an adapter exposing only `get`/`set` is bypassed for both reads and fills rather than degraded to an unfenced fill. Race defects there must be repaired and regression-tested within the abstraction, not treated as evidence that repository caching belongs in another layer.
 19. Authoritative write-side loading is a freshness policy for mutations, not a ban on cached reads inside commands. Commands may read state, but only through repository/application ports — never ORM clients, never QueryBus dispatch merely to obtain data. A cached repository read is allowed where the use case explicitly tolerates that freshness; it must never replace an authoritative precondition or authorization check, since optimistic version checks guard the write, not an earlier decision or side effect taken on stale state.
 20. Production code must never exist only to serve tests. No export, parameter, option, branch, or piece of retained state may be added or widened because a test needs to reach it. In particular: do not export an internal function so a spec can import it, do not add an injectable-dependency parameter whose only caller-supplied value comes from a test, and do not maintain process-global state that nothing but a test reads. Test the behavior through the surface real callers use; if that is genuinely impossible, the design is what needs changing, not the visibility. Where a module boundary must be crossed, mock the module in the test (`vi.mock`) rather than threading a seam through the signature.
 21. Production and test code must remain strictly free of AI slop, decorative ASCII banners, step-by-step narration, and task/ticket references (e.g. `(S-15)`, `R-07`). Code comments are strictly reserved for non-obvious concurrency, security, or external protocol constraints. Tests describe behaviors and contracts, never ticket numbers.

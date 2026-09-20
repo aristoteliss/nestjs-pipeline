@@ -5,6 +5,7 @@ import { type AuditBehaviorOptions, audit } from '@nestjs-pipeline/audit';
 import { describe, expect, it } from 'vitest';
 import {
   AUDIT_MODULE_DEFAULTS,
+  claimedIdentityActor,
   sessionAuditActor,
   UNAUTHENTICATED_AUDIT_ACTOR,
 } from './audit.options';
@@ -35,6 +36,27 @@ describe('sessionAuditActor', () => {
     expect(actor).toEqual(UNAUTHENTICATED_AUDIT_ACTOR);
     expect(actor.id).toBeUndefined();
     expect(actor.authenticated).toBe(false);
+  });
+
+  it('records a pre-authentication claim without an actor identity', () => {
+    const actor = claimedIdentityActor('attacker@evil.test');
+
+    expect(actor).toEqual({
+      authenticated: false,
+      claimedEmail: 'attacker@evil.test',
+    });
+    expect(actor).not.toHaveProperty('id');
+  });
+
+  it('omits the claim rather than fabricating one when no identity is supplied', () => {
+    expect(claimedIdentityActor(undefined)).toEqual({ authenticated: false });
+    expect(claimedIdentityActor('')).toEqual({ authenticated: false });
+  });
+
+  it('does not mutate the shared unauthenticated actor when adding a claim', () => {
+    claimedIdentityActor('someone@corp.test');
+
+    expect(UNAUTHENTICATED_AUDIT_ACTOR).toEqual({ authenticated: false });
   });
 
   it('provides actor resolver in module defaults', () => {

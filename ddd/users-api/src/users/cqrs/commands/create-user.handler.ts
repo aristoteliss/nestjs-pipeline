@@ -1,8 +1,10 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { APP_ACTIONS, APP_SUBJECTS } from '@common/constants';
-import { getSessionUserFromStore } from '@common/context/session-user.store';
-import { requireTenantId } from '@common/cqrs/helpers/requireTenantId.helper';
+import {
+  operationIdempotencyKeyFactory,
+  replayScopeDigest,
+} from '@common/cqrs/helpers/idempotent-operation.helper';
 import { Inject } from '@nestjs/common';
 import { CommandHandler, EventBus } from '@nestjs/cqrs';
 import { CaslAuthorizer, CaslBehavior } from '@nestjs-pipeline/casl';
@@ -17,24 +19,29 @@ import {
 } from '@nestjs-pipeline/ddd-core/application';
 import { FeatureFlagBehavior } from '@nestjs-pipeline/feature-flags';
 import { IdempotencyBehavior } from '@nestjs-pipeline/idempotency';
-import { RateLimitBehavior } from '@nestjs-pipeline/rate-limit';
+import {
+  createPartitionedRateLimitKeyFactory,
+  RateLimitBehavior,
+} from '@nestjs-pipeline/rate-limit';
 import { UniqueEmailException } from '../../domain/models/errors/email.exception';
 import { User, type UserSnapshot } from '../../domain/models/user.entity';
 import { COMMAND_REPOSITORY } from '../../persistence/repository.tokens';
 import { CreateUserCommand } from './create-user.command';
 
-export function createUserIdempotencyKey(ctx: IPipelineContext): string {
-  const request = ctx.request as CreateUserCommand;
-  const tenantId = requireTenantId(ctx, 'user creation idempotency');
-  const actorId =
-    request.sessionUser?.id ?? getSessionUserFromStore()?.id ?? 'anonymous';
-  return `${tenantId}:${actorId}:user.create:${request.email}`;
+const USER_CREATE_PURPOSE = 'user creation idempotency';
+
+export const createUserIdempotencyKey = operationIdempotencyKeyFactory(
+  'user.create',
+  (ctx) => (ctx.request as CreateUserCommand).email,
+);
+
+export function createUserReplayScope(ctx: IPipelineContext): string {
+  return replayScopeDigest(ctx, USER_CREATE_PURPOSE);
 }
 
-export function createUserRateLimitKey(ctx: IPipelineContext): string {
-  const tenantId = requireTenantId(ctx, 'user creation rate limiting');
-  return `${tenantId}:${(ctx.request as CreateUserCommand).email}`;
-}
+export const createUserRateLimitKey = createPartitionedRateLimitKeyFactory(
+  (ctx) => (ctx.request as CreateUserCommand).email,
+);
 
 @CommandHandler(CreateUserCommand)
 @UsePipeline(
@@ -53,7 +60,13 @@ export function createUserRateLimitKey(ctx: IPipelineContext): string {
   ],
   [FeatureFlagBehavior, { flag: 'user-registration' }],
   [RateLimitBehavior, { keyFactory: createUserRateLimitKey }],
-  [IdempotencyBehavior, { keyFactory: createUserIdempotencyKey }],
+  [
+    IdempotencyBehavior,
+    {
+      keyFactory: createUserIdempotencyKey,
+      replayScopeFactory: createUserReplayScope,
+    },
+  ],
 )
 export class CreateUserHandler extends CommandBaseHandler<
   CreateUserCommand,

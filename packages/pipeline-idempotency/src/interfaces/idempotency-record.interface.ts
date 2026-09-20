@@ -38,6 +38,17 @@ export interface IdempotencyRecord {
    * reused with a *different* body (a client bug or replay attack).
    */
   fingerprint?: string;
+  /**
+   * Digest of the authorization scope the original execution ran under, when the
+   * behavior is configured with a `replayScopeFactory`.
+   *
+   * Replay compares this against the current caller's scope and refuses on a
+   * mismatch, so a response authorized under one set of permissions is never
+   * returned to a caller who no longer holds them. It is deliberately **not**
+   * part of the key: a key that changed with permissions would let the same
+   * side effect execute again.
+   */
+  replayScope?: string;
   /** JSON snapshot of the handler response, captured once completed. */
   response?: JsonValue;
   /** ISO-8601 timestamp the key was first claimed. */

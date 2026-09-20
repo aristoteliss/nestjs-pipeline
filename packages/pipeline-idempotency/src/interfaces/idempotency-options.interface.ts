@@ -10,6 +10,23 @@ import type { IdempotencyRequestKind } from './idempotency-record.interface';
 import type { IdempotencyStore } from './idempotency-store.interface';
 
 /**
+ * Derives the digest of the authorization scope a request runs under.
+ *
+ * Returned value is compared, not interpreted: any deterministic string works,
+ * and it should cover every dimension whose change must stop a stored response
+ * from being replayed — the effective permission rules and the trusted context
+ * their conditions resolve against.
+ *
+ * Throw when the required context is missing rather than returning a placeholder;
+ * the behavior calls this **before** claiming the key, so a throw prevents the
+ * operation from being claimed at all. Returning `undefined` means "this request
+ * has no scope", which cannot be replayed against a record that has one.
+ */
+export type IdempotencyReplayScopeFactory = (
+  context: IPipelineContext,
+) => string | undefined;
+
+/**
  * Derives the idempotency key for a request from the pipeline context. A common
  * HTTP pattern is to copy the `Idempotency-Key` header into the CQRS command at
  * the controller boundary and read it from `context.request`. An upstream
@@ -65,6 +82,23 @@ export interface IdempotencyBehaviorOptions {
    * fully identifies the payload.
    */
   fingerprint?: boolean;
+
+  /**
+   * Binds replay to the caller's authorization scope while keeping the operation
+   * key stable.
+   *
+   * The digest is captured when the key is claimed and stored on the record. A
+   * later duplicate may only replay the stored response when its digest matches;
+   * a mismatch, or a record stored without one, raises
+   * `IdempotencyConflictError` with reason `replay_scope` (`409`). The record is
+   * neither deleted nor re-executed, so a permission change can never cause the
+   * side effect to run twice.
+   *
+   * Configure it for any operation whose response or effect depends on the
+   * caller's permissions. Without it, replay is bound only by the key and the
+   * payload fingerprint.
+   */
+  replayScopeFactory?: IdempotencyReplayScopeFactory;
 
   /**
    * When the handler throws, release the key so the client can safely retry

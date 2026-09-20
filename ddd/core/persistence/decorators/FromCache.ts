@@ -1,5 +1,6 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
+import { Logger } from '@nestjs/common';
 import { IQueryOptions } from '../../application/query.options';
 import { type CacheStateEntry, isVersionedCache } from '../cache.interface';
 import { isCacheMutationBarrier } from '../helpers/cache-barrier.helper';
@@ -8,6 +9,25 @@ import { isCacheNewer } from '../helpers/cache-version.helper';
 import { QueryRepository } from '../query-repository.abstract';
 
 export { isCacheNewer };
+
+const logger = new Logger('FromCacheDecorator');
+
+const warnedUnversionedAdapters = new WeakSet<object>();
+
+/**
+ * Reports an unversioned adapter once per instance: a silent loss of caching is
+ * harder to diagnose than the race the bypass avoids.
+ */
+function warnUnversionedAdapterOnce(cache: object): void {
+  if (warnedUnversionedAdapters.has(cache)) return;
+  warnedUnversionedAdapters.add(cache);
+  logger.warn(
+    `${cache.constructor?.name ?? 'Cache adapter'} implements only get/set/delete, ` +
+      'so @FromCache read-through is disabled for repositories using it. ' +
+      'Implement IVersionedCache (readState/invalidate/tryFill) to enable ' +
+      'revision-fenced caching.',
+  );
+}
 
 /**
  * Options for configuring read-through caching and rehydration via {@link FromCache}.
@@ -135,10 +155,13 @@ export function FromCache<
 
       // A revision-fenced key can still hold a barrier written by an
       // unversioned writer against the same store; it is a sentinel, never a
-      // snapshot, so it counts as a miss rather than something to hydrate.
+      // snapshot, so it counts as a miss rather than something to hydrate. The
+      // same holds for `null`: this decorator never fills one, so a stored null
+      // is a leftover from another writer, not a cached absence.
       const isUsableSnapshot = (state: CacheStateEntry<unknown>): boolean =>
         state.status === 'hit' &&
         state.value !== undefined &&
+        state.value !== null &&
         !isCacheMutationBarrier(state.value);
 
       // 1. Versioned coordination path (capable adapters)
@@ -197,91 +220,16 @@ export function FromCache<
         return original.call(this, query);
       }
 
-      // 2. Legacy fallback path (unversioned get/set adapters)
-      let attempt = 0;
-      while (attempt <= MAX_FILL_RETRIES) {
-        const initial = await this.cache.get(key);
-        let initialBarrierToken: string | undefined;
-
-        if (initial !== null && initial !== undefined) {
-          if (isCacheMutationBarrier(initial)) {
-            initialBarrierToken = initial.token;
-          } else {
-            return hydrateCached(initial);
-          }
-        }
-
-        const result = await original.call(this, query);
-        const current = await this.cache.get(key);
-
-        if (
-          current !== null &&
-          current !== undefined &&
-          !isCacheMutationBarrier(current)
-        ) {
-          if (result === null || result === undefined) {
-            return hydrateCached(current);
-          }
-
-          const snapshot = toCacheSnapshot(
-            result,
-            resolvedOptions?.serializeFn,
-          );
-          const newerCheck = resolvedOptions?.isNewer ?? isCacheNewer;
-
-          if (newerCheck(current, snapshot)) {
-            return hydrateCached(current);
-          }
-
-          await this.cache.set(key, snapshot, {
-            ttl: resolvedOptions?.ttl,
-            isNewer: newerCheck,
-          });
-          return result;
-        }
-
-        if (
-          current !== null &&
-          current !== undefined &&
-          isCacheMutationBarrier(current)
-        ) {
-          if (
-            initialBarrierToken !== undefined &&
-            current.token === initialBarrierToken
-          ) {
-            if (result !== null && result !== undefined) {
-              const snapshot = toCacheSnapshot(
-                result,
-                resolvedOptions?.serializeFn,
-              );
-              await this.cache.set(key, snapshot, {
-                ttl: resolvedOptions?.ttl,
-                isNewer: resolvedOptions?.isNewer ?? isCacheNewer,
-              });
-            }
-            return result;
-          }
-
-          if (attempt < MAX_FILL_RETRIES) {
-            attempt++;
-            continue;
-          }
-
-          return result;
-        }
-
-        if (result === null || result === undefined) {
-          return result;
-        }
-
-        const snapshot = toCacheSnapshot(result, resolvedOptions?.serializeFn);
-        await this.cache.set(key, snapshot, {
-          ttl: resolvedOptions?.ttl,
-          isNewer: resolvedOptions?.isNewer ?? isCacheNewer,
-        });
-        return result;
-      }
-
+      // 2. Unversioned adapter: read-through is bypassed entirely.
+      //
+      // Coordinating a fill with concurrent invalidation needs the revision
+      // fence. With only get/set there is a window between the post-database
+      // read and the write in which a deletion barrier can be installed and
+      // then overwritten by this stale snapshot, resurrecting a deleted entity.
+      // Serving reads while skipping fills does not help either: entries written
+      // before the adapter was swapped would still be returned. So neither side
+      // of the cache is used for this path and the query goes to the database.
+      warnUnversionedAdapterOnce(this.cache);
       return original.call(this, query);
     };
   };
