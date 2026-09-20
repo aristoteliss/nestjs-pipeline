@@ -50,7 +50,7 @@ what the libraries support.
 ## Technology Stack
 
 <!-- context:generated-start technology-stack -->
-- **Languages** (file counts, excluded directories omitted): `.ts` 610, `.md` 51, `.grit` 12, `.py` 3, `.mjs` 1, `.sql` 1
+- **Languages** (file counts, excluded directories omitted): `.ts` 620, `.md` 47, `.grit` 12, `.py` 3, `.mjs` 1, `.sql` 1
 - **Runtime engines** (root `package.json`): `node` >=22.0.0, `pnpm` >=9.0.0
 - **Package manager evidence**: `pnpm-lock.yaml`.
 
@@ -58,7 +58,7 @@ what the libraries support.
 | --- | --- | --- |
 | NestJS runtime — Application framework and DI container | `@nestjs/common`, `@nestjs/core` | `ddd/core/persistence/biome-general-plugins.spec.ts`, `ddd/core/persistence/decorators/Cache.ts` |
 | NestJS CQRS — Command/query/event buses wrapped by the pipeline | `@nestjs/cqrs` | `ddd/core/application/base.command.ts`, `ddd/core/application/command-base.handler.spec.ts` |
-| MikroORM — ORM, unit of work, migrations | `@mikro-orm/core`, `@mikro-orm/nestjs`, `@mikro-orm/migrations` | `ddd/core/persistence/biome-general-plugins.spec.ts`, `ddd/core/persistence/optimistic-update.spec.ts` |
+| MikroORM — ORM, unit of work, migrations | `@mikro-orm/core`, `@mikro-orm/nestjs`, `@mikro-orm/migrations` | `ddd/core/persistence/assert-autocommit.ts`, `ddd/core/persistence/biome-general-plugins.spec.ts` |
 | PostgreSQL — Relational backend and schema-per-tenant access | `pg`, `@mikro-orm/postgresql` | `ddd/users-api/src/persistence/postgres-mikro-orm.store.ts`, `ddd/users-api/src/persistence/postgres-options.ts` |
 | SQLite / libSQL — Local and test persistence backend | `@libsql/client`, `@mikro-orm/sqlite`, `@mikro-orm/libsql` | `ddd/users-api/src/persistence/libsql-options.ts`, `ddd/users-api/src/persistence/migrate.ts` |
 | Redis — Cache and queue backend | `@keyv/redis`, `redis` | `packages/pipeline-idempotency/src/stores/redis.store.ts` |
@@ -66,7 +66,7 @@ what the libraries support.
 | Keyv / cache-manager — Pluggable cache stores | `keyv`, `cache-manager` | `ddd/users-api/test/behavior-composition-contracts.spec.ts`, `packages/pipeline-cache/src/adapters/cache-manager.adapter.ts` |
 | OpenTelemetry — Tracing and metrics | `@opentelemetry/api`, `@opentelemetry/sdk-node` | `ddd/users-api/src/tracing.ts`, `ddd/users-api/test/behaviors.spec.ts` |
 | OpenFeature — Feature-flag evaluation | `@openfeature/server-sdk` | `ddd/users-api/src/infrastructure/reliability.module.ts`, `ddd/users-api/test/behavior-composition-contracts.spec.ts` |
-| CASL — Attribute/role based authorization | `@casl/ability` | `packages/pipeline-casl/src/capability.helpers.spec.ts`, `packages/pipeline-casl/src/casl.behavior.integration.spec.ts` |
+| CASL — Attribute/role based authorization | `@casl/ability` | `ddd/users-api/src/common/constants/casl.constants.ts`, `packages/pipeline-casl/src/capability.helpers.spec.ts` |
 | JOSE — JWT signing and verification | `jose` | `ddd/users-api/src/auths/infrastructure/authentication-adapters.spec.ts`, `ddd/users-api/src/auths/infrastructure/jose-access-token.issuer.ts` |
 | Zod — Schema validation for DTOs and pipeline payloads | `zod` | `ddd/users-api/src/auths/cqrs/commands/create-auth.command.ts`, `ddd/users-api/src/auths/cqrs/commands/delete-auth.command.ts` |
 | Pino — Structured logging | `nestjs-pino`, `pino-http`, `pino-pretty` | `ddd/users-api/src/bootstrap.ts`, `ddd/users-api/src/infrastructure/observability.module.spec.ts` |
@@ -264,8 +264,9 @@ checks in the handler after the aggregate is loaded
   serializable snapshots, never live aggregates; version conflicts surface as
   `ConcurrencyConflictError`.
 - **Failure modes**: stale fill overwriting newer cache state; delete/recreate and
-  expiry/absence ABA resurrecting a deleted snapshot; retry exhaustion
-  (`MAX_BARRIER_RETRIES = 2`); a DB commit and a cache mutation are **not** one transaction.
+  expiry/absence ABA resurrecting a deleted snapshot; fill retry exhaustion; an
+  unversioned adapter, which `@FromCache` bypasses entirely; a DB commit and a cache
+  mutation are **not** one transaction.
 - **Do not change casually**: barrier installation/validation, CAS comparison
   (`isCacheNewer`), `disableIdentityMap` in `MikroOrmCache`, `optimisticUpdate`'s rejection
   of outer transactions. Repair races inside the abstraction, with regression tests.
@@ -326,7 +327,7 @@ environment value is read or reproduced here.
 | --- | --- | --- |
 | NestJS runtime | `ddd/core`, `ddd/users-api`, `packages/pipeline`, `packages/pipeline-audit`, … (+10) | `ddd/core/persistence/biome-general-plugins.spec.ts`, `ddd/core/persistence/decorators/Cache.ts` |
 | NestJS CQRS | `ddd/core`, `ddd/users-api`, `packages/pipeline` | `ddd/core/application/base.command.ts`, `ddd/core/application/command-base.handler.spec.ts` |
-| MikroORM | `ddd/core`, `ddd/users-api` | `ddd/core/persistence/biome-general-plugins.spec.ts`, `ddd/core/persistence/optimistic-update.spec.ts` |
+| MikroORM | `ddd/core`, `ddd/users-api` | `ddd/core/persistence/assert-autocommit.ts`, `ddd/core/persistence/biome-general-plugins.spec.ts` |
 | PostgreSQL | `ddd/users-api` | `ddd/users-api/src/persistence/postgres-mikro-orm.store.ts`, `ddd/users-api/src/persistence/postgres-options.ts` |
 | SQLite / libSQL | `ddd/users-api` | `ddd/users-api/src/persistence/libsql-options.ts`, `ddd/users-api/src/persistence/migrate.ts` |
 | Redis | `ddd/users-api`, `packages/pipeline-cache` | `packages/pipeline-idempotency/src/stores/redis.store.ts` |
@@ -334,7 +335,7 @@ environment value is read or reproduced here.
 | Keyv / cache-manager | `ddd/users-api`, `packages/pipeline-cache` | `ddd/users-api/test/behavior-composition-contracts.spec.ts`, `packages/pipeline-cache/src/adapters/cache-manager.adapter.ts` |
 | OpenTelemetry | `ddd/users-api`, `packages/pipeline-opentelemetry` | `ddd/users-api/src/tracing.ts`, `ddd/users-api/test/behaviors.spec.ts` |
 | OpenFeature | `ddd/users-api`, `packages/pipeline-feature-flags` | `ddd/users-api/src/infrastructure/reliability.module.ts`, `ddd/users-api/test/behavior-composition-contracts.spec.ts` |
-| CASL | `ddd/users-api`, `packages/pipeline-casl` | `packages/pipeline-casl/src/capability.helpers.spec.ts`, `packages/pipeline-casl/src/casl.behavior.integration.spec.ts` |
+| CASL | `ddd/users-api`, `packages/pipeline-casl` | `ddd/users-api/src/common/constants/casl.constants.ts`, `packages/pipeline-casl/src/capability.helpers.spec.ts` |
 | JOSE | `ddd/users-api` | `ddd/users-api/src/auths/infrastructure/authentication-adapters.spec.ts`, `ddd/users-api/src/auths/infrastructure/jose-access-token.issuer.ts` |
 | Zod | `ddd/users-api`, `packages/pipeline-zod` | `ddd/users-api/src/auths/cqrs/commands/create-auth.command.ts`, `ddd/users-api/src/auths/cqrs/commands/delete-auth.command.ts` |
 | Pino | `ddd/users-api` | `ddd/users-api/src/bootstrap.ts`, `ddd/users-api/src/infrastructure/observability.module.spec.ts` |
@@ -572,13 +573,13 @@ secret value.*
 ## Snapshot Metadata
 
 <!-- context:generated-start metadata -->
-- Generated at: 2026-09-20T18:07:28Z
-- Git commit: c6ed1dfd8c82bb1cb8fc6751c9739c02d015c7aa
+- Generated at: 2026-09-21T13:33:24Z
+- Git commit: 3f5951169e232ae89075678d2c77f27cd64e007b
 - Git branch: review/remaining-findings
 - Uncommitted changes when generated: yes
 - Generator: `scripts/update-claude-snapshot.py` version 1.0.0
 - Snapshot status: generated — structural inspection only, no code executed
-- Files inspected: 735
+- Files inspected: 741
 - Included top-level directories: `.agents`, `.claude`, `biome`, `ddd`, `docs`, `integration`, `packages`, `scripts`
 - Excluded directory names: `.cache`, `.git`, `.gradle`, `.idea`, `.mypy_cache`, `.next`, `.nuxt`, `.parcel-cache`, `.pnpm-store`, `.pytest_cache`, `.ruff_cache`, `.svelte-kit`, `.terraform`, `.tmp`, `.tox`, `.turbo`, `.venv`, `.vscode`, `__pycache__`, `bower_components`, `build`, `coverage`, `dist`, `node_modules`, `out`, `target`, `vendor`, `venv`, `virtualenv`
 - Excluded file patterns: `.env`, `.env.*`, `*.env`, `*.pem`, `*.key`, `*.pfx`, `*.p12`, `*.jks`, `*.keystore`, `id_rsa*`, `id_ed25519*`, `*credentials*`, `*.secret`, `secrets.*`

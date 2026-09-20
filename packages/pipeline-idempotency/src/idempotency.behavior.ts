@@ -85,7 +85,12 @@ const DEFAULT_SCOPE: IdempotencyRequestKind[] = ['command'];
  * - **first claim** → run the handler and store the completed response;
  * - **duplicate, completed** → return the stored response (no re-execution);
  * - **duplicate, in progress** → throw {@link IdempotencyConflictError} (`409`);
- * - **key reused with a different payload** → throw it as `key_reuse` (`422`).
+ * - **key reused with a different payload** → throw it as `key_reuse` (`422`);
+ * - **completed under a different authorization scope** → throw it as
+ *   `replay_scope` (`409`), when a
+ *   {@link IdempotencyBehaviorOptions.replayScopeFactory} is configured. The
+ *   record is kept and the handler is not re-executed, so a permission change
+ *   cannot duplicate the effect.
  *
  * Each claim carries a unique owner token. Completion and release compare that
  * token atomically, so an execution that outlives its TTL cannot overwrite or
@@ -232,6 +237,10 @@ export class IdempotencyBehavior implements IPipelineBehavior {
       (options.fingerprint ?? true)
         ? fingerprintValue(context.request)
         : undefined;
+    // Resolved before the claim so a missing authorization context rejects the
+    // operation instead of claiming a key it cannot later prove the scope of.
+    const replayScope = options.replayScopeFactory?.(context);
+    const scopeRequired = options.replayScopeFactory !== undefined;
     const claimId = randomUUID();
 
     const claim: IdempotencyRecord = {
@@ -240,6 +249,7 @@ export class IdempotencyBehavior implements IPipelineBehavior {
       requestName: context.requestName,
       claimId,
       fingerprint,
+      replayScope,
       createdAt: new Date().toISOString(),
     };
 
@@ -248,7 +258,13 @@ export class IdempotencyBehavior implements IPipelineBehavior {
       const existing = await this.store.get(key);
 
       if (existing) {
-        return this.replayOrConflict(context, key, fingerprint, existing);
+        return this.replayOrConflict(
+          context,
+          key,
+          fingerprint,
+          { replayScope, scopeRequired },
+          existing,
+        );
       }
 
       // The record disappeared or expired after the failed claim. Give this
@@ -256,7 +272,10 @@ export class IdempotencyBehavior implements IPipelineBehavior {
       // of reporting a false in-progress conflict.
       claimed = await this.store.setIfAbsent(key, claim, ttl);
       if (!claimed) {
-        return this.replayOrConflict(context, key, fingerprint);
+        return this.replayOrConflict(context, key, fingerprint, {
+          replayScope,
+          scopeRequired,
+        });
       }
     }
 
@@ -334,6 +353,7 @@ export class IdempotencyBehavior implements IPipelineBehavior {
     context: IPipelineContext,
     key: string,
     fingerprint: string | undefined,
+    scope: { replayScope?: string; scopeRequired: boolean },
     knownExisting?: IdempotencyRecord,
   ): Promise<unknown> {
     const existing = knownExisting ?? (await this.store.get(key));
@@ -371,6 +391,27 @@ export class IdempotencyBehavior implements IPipelineBehavior {
         key,
         requestName: context.requestName,
         reason: 'in_progress',
+      });
+    }
+
+    // A completed record may only be replayed to a caller whose authorization
+    // scope matches the one it was produced under. A record stored without a
+    // scope cannot prove that, so it fails closed rather than replaying. The
+    // record is retained: re-executing a completed operation would duplicate it.
+    if (
+      scope.scopeRequired &&
+      (existing.replayScope === undefined ||
+        existing.replayScope !== scope.replayScope)
+    ) {
+      this.logger.warn?.(
+        `Refusing to replay ${context.requestName} (key: ${key}): the stored ` +
+          'response was authorized under a different scope than this caller.',
+        IdempotencyBehavior.name,
+      );
+      throw new IdempotencyConflictError({
+        key,
+        requestName: context.requestName,
+        reason: 'replay_scope',
       });
     }
 

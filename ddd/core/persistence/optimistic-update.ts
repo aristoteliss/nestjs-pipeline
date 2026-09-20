@@ -7,14 +7,15 @@ import type {
 } from '@mikro-orm/core';
 import { ConcurrencyConflictError } from '../domain/exceptions/concurrency-conflict.error';
 import { EntityNotFoundException } from '../domain/exceptions/entity-not-found.exception';
+import { assertAutocommit } from './assert-autocommit';
 
 /**
  * Executes a single, version-conditioned, autocommitted SQL `UPDATE` statement on an aggregate entity.
  *
  * This function handles low-level optimistic locking mechanics for update command repositories:
- * - **Autocommit Enforcement**: Validates that `em` is not currently inside an active transaction.
- *   Throws an `Error` if `em.isInTransaction()` is true, because multi-statement transactions require
- *   commit hooks rather than standalone method decorators to guarantee atomic acknowledgment.
+ * - **Autocommit Enforcement**: Rejects an externally active transaction via
+ *   {@link assertAutocommit}, because multi-statement transactions require commit hooks
+ *   rather than standalone method decorators to guarantee atomic acknowledgment.
  * - **Version-Conditioned Write**: Issues `em.nativeUpdate` with filter `{ id: entity.id, version: entity.getExpectedVersion() }`
  *   and updates fields including `{ version: entity.version }`.
  * - **Affected Row Verification**:
@@ -77,11 +78,7 @@ export async function optimisticUpdate<
   data: EntityData<TEntity>,
   entityName: string,
 ): Promise<void> {
-  if (typeof em.isInTransaction === 'function' && em.isInTransaction()) {
-    throw new Error(
-      'optimisticUpdate requires autocommit; external transactions need commit hooks.',
-    );
-  }
+  assertAutocommit(em, 'optimisticUpdate');
   const id = entity.id;
   const expectedVersion = entity.getExpectedVersion();
   const affected = await em.nativeUpdate(

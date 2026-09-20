@@ -106,6 +106,7 @@ describe('User overview composed query security and caching contracts', () => {
         name: 'admin',
         capabilities: [
           { subject: 'User', action: 'read' },
+          { subject: 'UserCapabilities', action: 'read' },
           { subject: 'Role', action: 'read' },
         ],
       },

@@ -1,11 +1,11 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
+import { claimedIdentityActor } from '@common/audit/audit.options';
 import { AUDIT_ACTIONS } from '@common/constants';
 import {
   type ITenantContext,
   TENANT_CONTEXT,
 } from '@common/context/tenant-context.port';
-import { requireTenantId } from '@common/cqrs/helpers/requireTenantId.helper';
 import { Inject } from '@nestjs/common';
 import { CommandHandler, EventBus } from '@nestjs/cqrs';
 import { AUDIT_SEVERITY, audit } from '@nestjs-pipeline/audit';
@@ -19,17 +19,24 @@ import {
   ICommandRepository,
 } from '@nestjs-pipeline/ddd-core/application';
 import { MetricsBehavior } from '@nestjs-pipeline/opentelemetry';
-import { RateLimitBehavior } from '@nestjs-pipeline/rate-limit';
+import {
+  createPartitionedRateLimitKeyFactory,
+  RateLimitBehavior,
+} from '@nestjs-pipeline/rate-limit';
 import { Auth, AuthSnapshot } from '../../domain/models/auth.entity';
 import { COMMAND_REPOSITORY } from '../../persistence/repository.tokens';
 import { UserLoginService } from '../../services/user-login.service';
 import { CreateAuthResult } from '../results/create-auth.result';
 import { CreateAuthCommand } from './create-auth.command';
 
-export function createAuthRateLimitKey(ctx: IPipelineContext): string {
-  const tenantId = requireTenantId(ctx, 'authentication rate limiting');
-  return `${tenantId}:auth:login:${(ctx.request as CreateAuthCommand).email}`;
-}
+/**
+ * Login attempts are throttled per targeted account within a tenant. The address
+ * is caller-supplied, which is the point: brute force against one account must
+ * share a bucket whoever sends it.
+ */
+export const createAuthRateLimitKey = createPartitionedRateLimitKeyFactory(
+  (ctx) => (ctx.request as CreateAuthCommand).email,
+);
 
 @CommandHandler(CreateAuthCommand)
 @UsePipeline(
@@ -40,10 +47,8 @@ export function createAuthRateLimitKey(ctx: IPipelineContext): string {
     action: AUDIT_ACTIONS.AUTH_LOGIN,
     severity: AUDIT_SEVERITY.MEDIUM,
     redactKeys: ['code'],
-    actor: (ctx: IPipelineContext) => {
-      const req = ctx.request as CreateAuthCommand;
-      return { id: req?.email ?? 'anonymous', email: req?.email };
-    },
+    actor: (ctx: IPipelineContext) =>
+      claimedIdentityActor((ctx.request as CreateAuthCommand)?.email),
   }),
 )
 export class CreateAuthHandler extends CommandBaseHandler<

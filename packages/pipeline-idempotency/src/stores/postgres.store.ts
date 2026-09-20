@@ -63,12 +63,14 @@ export function createIdempotencyTableSql(table = 'idempotency_keys'): string {
   request_name  TEXT        NOT NULL,
   claim_id      TEXT,
   fingerprint   TEXT,
+  replay_scope  TEXT,
   response      JSONB,
   created_at    TIMESTAMPTZ NOT NULL,
   completed_at  TIMESTAMPTZ,
   expires_at    TIMESTAMPTZ NOT NULL
 );
 ALTER TABLE ${name} ADD COLUMN IF NOT EXISTS claim_id TEXT;
+ALTER TABLE ${name} ADD COLUMN IF NOT EXISTS replay_scope TEXT;
 CREATE INDEX IF NOT EXISTS ${indexName(name)} ON ${name} (expires_at);`;
 }
 
@@ -89,6 +91,7 @@ function mapRow(key: string, row: PostgresRowLike): IdempotencyRecord {
     requestName: row.request_name as string,
     claimId: (row.claim_id as string | null) ?? undefined,
     fingerprint: (row.fingerprint as string | null) ?? undefined,
+    replayScope: (row.replay_scope as string | null) ?? undefined,
     // SQL NULL → has_response=false → undefined (no response stored).
     // JSONB null → has_response=true, row.response=null → null (explicit null).
     response: row.has_response ? (row.response as JsonValue) : undefined,
@@ -145,7 +148,7 @@ export class PostgresIdempotencyStore implements IdempotencyStore {
 
   async get(key: string): Promise<IdempotencyRecord | undefined> {
     const result = await this.db.query(
-      `SELECT status, request_name, claim_id, fingerprint, response,
+      `SELECT status, request_name, claim_id, fingerprint, replay_scope, response,
               response IS NOT NULL AS has_response,
               created_at, completed_at
          FROM ${this.table}
@@ -163,13 +166,14 @@ export class PostgresIdempotencyStore implements IdempotencyStore {
   ): Promise<boolean> {
     const result = await this.db.query(
       `INSERT INTO ${this.table} AS current_record
-         (key, status, request_name, claim_id, fingerprint, response, created_at, completed_at, expires_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, now() + ($9 || ' milliseconds')::interval)
+         (key, status, request_name, claim_id, fingerprint, replay_scope, response, created_at, completed_at, expires_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, now() + ($10 || ' milliseconds')::interval)
        ON CONFLICT (key) DO UPDATE SET
          status = EXCLUDED.status,
          request_name = EXCLUDED.request_name,
          claim_id = EXCLUDED.claim_id,
          fingerprint = EXCLUDED.fingerprint,
+         replay_scope = EXCLUDED.replay_scope,
          response = EXCLUDED.response,
          created_at = EXCLUDED.created_at,
          completed_at = EXCLUDED.completed_at,
@@ -193,10 +197,11 @@ export class PostgresIdempotencyStore implements IdempotencyStore {
               request_name = $4,
               claim_id = $5,
               fingerprint = $6,
-              response = $7,
-              created_at = $8,
-              completed_at = $9,
-              expires_at = now() + ($10 || ' milliseconds')::interval
+              replay_scope = $7,
+              response = $8,
+              created_at = $9,
+              completed_at = $10,
+              expires_at = now() + ($11 || ' milliseconds')::interval
         WHERE key = $1
           AND claim_id = $2
           AND status = 'in_progress'
@@ -209,6 +214,7 @@ export class PostgresIdempotencyStore implements IdempotencyStore {
         record.requestName,
         record.claimId ?? null,
         record.fingerprint ?? null,
+        record.replayScope ?? null,
         record.response === undefined ? null : JSON.stringify(record.response),
         record.createdAt,
         record.completedAt ?? null,
@@ -237,13 +243,14 @@ export class PostgresIdempotencyStore implements IdempotencyStore {
   ): Promise<void> {
     await this.db.query(
       `INSERT INTO ${this.table}
-         (key, status, request_name, claim_id, fingerprint, response, created_at, completed_at, expires_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+         (key, status, request_name, claim_id, fingerprint, replay_scope, response, created_at, completed_at, expires_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
        ON CONFLICT (key) DO UPDATE SET
          status = EXCLUDED.status,
          request_name = EXCLUDED.request_name,
          claim_id = EXCLUDED.claim_id,
          fingerprint = EXCLUDED.fingerprint,
+         replay_scope = EXCLUDED.replay_scope,
          response = EXCLUDED.response,
          created_at = EXCLUDED.created_at,
          completed_at = EXCLUDED.completed_at,
@@ -267,6 +274,7 @@ export class PostgresIdempotencyStore implements IdempotencyStore {
       record.requestName,
       record.claimId ?? null,
       record.fingerprint ?? null,
+      record.replayScope ?? null,
       record.response === undefined ? null : JSON.stringify(record.response),
       record.createdAt,
       record.completedAt ?? null,

@@ -1,20 +1,27 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 import { type IPipelineContext, pipelineStore } from '@nestjs-pipeline/core';
-import { type ICache } from '@nestjs-pipeline/ddd-core/application';
-import { filterCacheKey } from '@nestjs-pipeline/ddd-core/persistence';
+import {
+  filterCacheKey,
+  MemoryCache,
+} from '@nestjs-pipeline/ddd-core/persistence';
 import { describe, expect, it, vi } from 'vitest';
 import { GetRoleQuery } from '../cqrs/queries/get-role.query';
 import { Role, type RoleSnapshot } from '../domain/models/role.entity';
 import { GetRoleQueryRepository } from './get-role.query-repository';
 
-function createCachedRoleFixture() {
+const roleKey = (id: string) =>
+  filterCacheKey(Role.aggregateName, { id }, 'tenant');
+
+/** A real revision-fenced adapter, optionally holding `role`'s snapshot. */
+async function cacheHolding(role?: Role): Promise<MemoryCache<RoleSnapshot>> {
+  const cache = new MemoryCache<RoleSnapshot>({ defaultTtlMs: 60_000 });
+  if (role) await cache.set(roleKey(role.id), role.toJSON());
+  return cache;
+}
+
+async function createCachedRoleFixture() {
   const role = Role.create('admin');
-  const snapshot = role.toJSON();
-  const cache: ICache<RoleSnapshot> = {
-    get: vi.fn().mockResolvedValue(snapshot),
-    set: vi.fn(),
-    delete: vi.fn(),
-  };
+  const cache = await cacheHolding(role);
   const findOne = vi.fn();
   const store = {
     get em() {
@@ -32,31 +39,24 @@ function createCachedRoleFixture() {
 
 describe('GetRoleQueryRepository cache hydration', () => {
   it('hydrates a cached role snapshot for GetRoleQuery by default', async () => {
-    const { role, cache, findOne, queryRepository } = createCachedRoleFixture();
+    const { role, cache, findOne, queryRepository } =
+      await createCachedRoleFixture();
+    const readState = vi.spyOn(cache, 'readState');
 
     const result = await pipelineStore.run(
       { tenantId: 'tenant' } as unknown as IPipelineContext,
       () => queryRepository.find(new GetRoleQuery({ roleId: role.id })),
     );
 
-    const expectedKey = filterCacheKey(
-      Role.aggregateName,
-      { id: role.id },
-      'tenant',
-    );
     expect(result).toBeInstanceOf(Role);
     expect(result?.name).toBe('admin');
-    expect(cache.get).toHaveBeenCalledWith(expectedKey);
+    expect(readState).toHaveBeenCalledWith(roleKey(role.id));
     expect(findOne).not.toHaveBeenCalled();
   });
 
   it('caches snapshot and returns domain aggregate on cache miss', async () => {
     const role = Role.create('editor');
-    const cache: ICache<RoleSnapshot> = {
-      get: vi.fn().mockResolvedValue(undefined),
-      set: vi.fn(),
-      delete: vi.fn(),
-    };
+    const cache = await cacheHolding();
     const findOne = vi.fn().mockResolvedValue(role);
     const store = {
       get em() {
@@ -70,16 +70,9 @@ describe('GetRoleQueryRepository cache hydration', () => {
       () => queryRepository.find(new GetRoleQuery({ roleId: role.id })),
     );
 
-    const expectedKey = filterCacheKey(
-      Role.aggregateName,
-      { id: role.id },
-      'tenant',
-    );
     expect(result).toBe(role);
-    expect(cache.set).toHaveBeenCalledWith(
-      expectedKey,
-      role.toJSON(),
-      expect.objectContaining({ isNewer: expect.any(Function) }),
-    );
+    const cached = await cache.get(roleKey(role.id));
+    expect(cached).not.toBeInstanceOf(Role);
+    expect(cached).toEqual(JSON.parse(JSON.stringify(role.toJSON())));
   });
 });

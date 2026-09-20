@@ -437,8 +437,8 @@ describe('PostgresIdempotencyStore', () => {
       await store.setIfAbsent('k1', record(), 5000);
 
       const [sql, values] = query.mock.calls[0];
-      expect(sql).toContain("now() + ($9 || ' milliseconds')::interval");
-      expect(values[8]).toBe('5000');
+      expect(sql).toContain("now() + ($10 || ' milliseconds')::interval");
+      expect(values[9]).toBe('5000');
       // No application timestamp is sent for the lease.
       expect(values).not.toContain(new Date(Date.now() + 5000).toISOString());
     });
@@ -450,8 +450,8 @@ describe('PostgresIdempotencyStore', () => {
       await store.completeIfOwned('k1', 'owner', record(), 5000);
 
       const [sql, values] = query.mock.calls[0];
-      expect(sql).toContain("now() + ($10 || ' milliseconds')::interval");
-      expect(values[9]).toBe('5000');
+      expect(sql).toContain("now() + ($11 || ' milliseconds')::interval");
+      expect(values[10]).toBe('5000');
     });
 
     it.each([0, -1, 1.5, Number.NaN, Number.MAX_SAFE_INTEGER + 1])(
@@ -585,5 +585,87 @@ describe('PostgresIdempotencyStore', () => {
       expect.stringContaining('DELETE FROM idempotency_keys WHERE key = $1'),
       ['key1'],
     );
+  });
+});
+
+describe('Replay scope round-trip across stores', () => {
+  const scoped = record({ replayScope: 'scope-a' });
+
+  it('preserves the scope through a memory claim and completion', async () => {
+    const store = new MemoryIdempotencyStore();
+
+    await store.setIfAbsent('k1', scoped, 5000);
+    expect((await store.get('k1'))?.replayScope).toBe('scope-a');
+
+    await store.completeIfOwned(
+      'k1',
+      'claim-1',
+      { ...scoped, status: 'completed', response: { id: 1 } },
+      5000,
+    );
+    expect((await store.get('k1'))?.replayScope).toBe('scope-a');
+  });
+
+  it('preserves the scope through the Redis serialization', async () => {
+    let written: string | undefined;
+    const client: RedisClientLike = {
+      get: vi.fn().mockImplementation(async () => written),
+      set: vi.fn().mockImplementation(async (_k: string, value: string) => {
+        written = value;
+        return 'OK';
+      }),
+      del: vi.fn(),
+      eval: vi.fn(),
+    };
+    const store = new RedisIdempotencyStore(client);
+
+    await store.setIfAbsent('k1', scoped, 5000);
+
+    expect((await store.get('k1'))?.replayScope).toBe('scope-a');
+  });
+
+  it('binds the scope as its own Postgres column on claim and completion', async () => {
+    const query = vi.fn().mockResolvedValue({ rows: [{ key: 'k1' }] });
+    const store = new PostgresIdempotencyStore({ query });
+
+    await store.setIfAbsent('k1', scoped, 5000);
+    const [claimSql, claimValues] = query.mock.calls[0];
+    expect(claimSql).toContain('replay_scope');
+    expect(claimValues).toContain('scope-a');
+
+    query.mockClear();
+    await store.completeIfOwned('k1', 'claim-1', scoped, 5000);
+    const [completeSql, completeValues] = query.mock.calls[0];
+    expect(completeSql).toContain('replay_scope = $7');
+    expect(completeValues).toContain('scope-a');
+  });
+
+  it('reads the scope column back out of a Postgres row', async () => {
+    const query = vi.fn().mockResolvedValue({
+      rows: [
+        {
+          status: 'completed',
+          request_name: 'CreateOrderCommand',
+          claim_id: 'claim-1',
+          fingerprint: 'fp',
+          replay_scope: 'scope-a',
+          response: { id: 1 },
+          has_response: true,
+          created_at: '2026-01-01T00:00:00.000Z',
+          completed_at: '2026-01-01T00:00:01.000Z',
+        },
+      ],
+    });
+
+    const store = new PostgresIdempotencyStore({ query });
+
+    expect((await store.get('k1'))?.replayScope).toBe('scope-a');
+  });
+
+  it('creates the table with the scope column and adds it to an existing one', () => {
+    const sql = createIdempotencyTableSql();
+
+    expect(sql).toContain('replay_scope  TEXT');
+    expect(sql).toContain('ADD COLUMN IF NOT EXISTS replay_scope TEXT');
   });
 });

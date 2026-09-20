@@ -83,10 +83,7 @@ and Biome plugin tests live in `ddd/core/persistence`.
 ### 7. Anti-Resurrection Protocol & Mutation Barriers
 - **Stale Resurrection Problem**: When a record is deleted or updated in the database and evicted from cache, an in-flight, slow database read that started *before* the mutation could complete *after* the mutation, repopulating the cache with deleted/stale data ("cache resurrection").
 - **Mutation Barriers**: On entity deletion (`deleteKeys`) and secondary invalidation (`invalidateKeys`), `@Cache` does not merely delete keys; it installs a `CacheMutationBarrier` sentinel (`{ __cacheBarrier: true, token: uuidv7(), reason: 'deleted' | 'invalidated', createdAt: ... }`) with `ttl: 0`.
-- **Read-Through Barrier Coordination**: `@FromCache` verifies cache state both before querying the database and after receiving database rows:
-  - If a barrier is present pre-fetch or installed during an in-flight DB read, `@FromCache` never caches stale DB data.
-  - It tracks barrier tokens to detect ABA sequences (e.g. Delete -> Recreate -> Delete).
-  - It retries queries boundedly (`MAX_BARRIER_RETRIES = 2`) against primary persistence, ensuring queries converge on authoritative state without resurrecting deleted entities or outdated snapshots.
+- **Revision-Fenced Read-Through**: `@FromCache` observes the key's revision before the database read and fills with `tryFill`, which commits only if nothing advanced that revision in between. A barrier installed during an in-flight read advances it, so the stale snapshot is rejected rather than written over the barrier; the same fence covers ABA sequences (Delete -> Recreate -> Delete) because every mutation moves the revision. A rejected fill re-reads, returns a strictly newer snapshot if one exists, and retries a bounded number of times before returning the database result uncached. `MikroOrmCache` implements this contract; an adapter that does not is bypassed for both reads and fills.
 - **E2E Conformance**: The anti-resurrection guarantees across concurrent deletes, updates, secondary keys, create races, and ABA sequences are guarded by `test/cache-stale-resurrection.e2e-spec.ts`.
 
 

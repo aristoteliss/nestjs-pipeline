@@ -635,6 +635,143 @@ describe('IdempotencyBehavior', () => {
     expect(ctx.items.has(IDEMPOTENCY_KEY_ITEM)).toBe(false);
   });
 
+  describe('replay scope', () => {
+    const scoped = (scope: string | undefined): IdempotencyBehaviorOptions => ({
+      ...byKey,
+      replayScopeFactory: () => scope,
+    });
+
+    it('captures the scope on the claim and on the completed record', async () => {
+      const behavior = new IdempotencyBehavior(store);
+
+      await behavior.handle(
+        withOptions(makeCtx(), scoped('scope-a')),
+        vi.fn().mockResolvedValue({ id: 'created' }),
+      );
+
+      const record = (await store.get('o1')) as IdempotencyRecord;
+      expect(record.status).toBe('completed');
+      expect(record.replayScope).toBe('scope-a');
+    });
+
+    it('replays to a caller whose scope still matches', async () => {
+      const behavior = new IdempotencyBehavior(store);
+      const next = vi.fn().mockResolvedValue({ id: 'created' });
+
+      await behavior.handle(withOptions(makeCtx(), scoped('scope-a')), next);
+      const replayed = await behavior.handle(
+        withOptions(makeCtx(), scoped('scope-a')),
+        next,
+      );
+
+      expect(replayed).toEqual({ id: 'created' });
+      expect(next).toHaveBeenCalledTimes(1);
+    });
+
+    it('refuses to replay to a caller whose permissions changed, without re-running the handler', async () => {
+      const behavior = new IdempotencyBehavior(store);
+      const next = vi.fn().mockResolvedValue({ id: 'created' });
+
+      await behavior.handle(withOptions(makeCtx(), scoped('scope-a')), next);
+
+      const ctx = withOptions(makeCtx(), scoped('scope-b'));
+      await expect(behavior.handle(ctx, next)).rejects.toMatchObject({
+        reason: 'replay_scope',
+        statusCode: 409,
+      });
+      expect(next).toHaveBeenCalledTimes(1);
+      expect(ctx.items.has(IDEMPOTENCY_REPLAYED_ITEM)).toBe(false);
+    });
+
+    it('keeps the stored record so the operation cannot execute a second time', async () => {
+      const behavior = new IdempotencyBehavior(store);
+      const next = vi.fn().mockResolvedValue({ id: 'created' });
+
+      await behavior.handle(withOptions(makeCtx(), scoped('scope-a')), next);
+      await expect(
+        behavior.handle(withOptions(makeCtx(), scoped('scope-b')), next),
+      ).rejects.toThrow(IdempotencyConflictError);
+
+      const record = (await store.get('o1')) as IdempotencyRecord;
+      expect(record.status).toBe('completed');
+      expect(record.replayScope).toBe('scope-a');
+    });
+
+    it('refuses a record stored without a scope once a scope is required', async () => {
+      const behavior = new IdempotencyBehavior(store);
+      const next = vi.fn().mockResolvedValue({ id: 'created' });
+
+      await behavior.handle(withOptions(makeCtx(), byKey), next);
+      expect(
+        ((await store.get('o1')) as IdempotencyRecord).replayScope,
+      ).toBeUndefined();
+
+      await expect(
+        behavior.handle(withOptions(makeCtx(), scoped('scope-a')), next),
+      ).rejects.toMatchObject({ reason: 'replay_scope' });
+      expect(next).toHaveBeenCalledTimes(1);
+    });
+
+    it('treats a caller with no resolvable scope as unable to replay a scoped record', async () => {
+      const behavior = new IdempotencyBehavior(store);
+      const next = vi.fn().mockResolvedValue({ id: 'created' });
+
+      await behavior.handle(withOptions(makeCtx(), scoped('scope-a')), next);
+
+      await expect(
+        behavior.handle(withOptions(makeCtx(), scoped(undefined)), next),
+      ).rejects.toMatchObject({ reason: 'replay_scope' });
+    });
+
+    it('does not claim the key when the scope factory rejects the request', async () => {
+      const behavior = new IdempotencyBehavior(store);
+      const next = vi.fn();
+
+      await expect(
+        behavior.handle(
+          withOptions(makeCtx(), {
+            ...byKey,
+            replayScopeFactory: () => {
+              throw new Error('missing ability');
+            },
+          }),
+          next,
+        ),
+      ).rejects.toThrow('missing ability');
+
+      expect(next).not.toHaveBeenCalled();
+      expect(await store.get('o1')).toBeUndefined();
+    });
+
+    it('leaves payload fingerprinting as an independent check', async () => {
+      const behavior = new IdempotencyBehavior(store);
+      const next = vi.fn().mockResolvedValue({ id: 'created' });
+
+      await behavior.handle(withOptions(makeCtx(), scoped('scope-a')), next);
+
+      const changedPayload = makeCtx({
+        request: { orderId: 'o1', amount: 999 },
+      });
+      await expect(
+        behavior.handle(withOptions(changedPayload, scoped('scope-a')), next),
+      ).rejects.toMatchObject({ reason: 'key_reuse' });
+    });
+
+    it('ignores scope entirely when no factory is configured', async () => {
+      const behavior = new IdempotencyBehavior(store);
+      const next = vi.fn().mockResolvedValue({ id: 'created' });
+
+      await behavior.handle(withOptions(makeCtx(), byKey), next);
+      const replayed = await behavior.handle(
+        withOptions(makeCtx(), byKey),
+        next,
+      );
+
+      expect(replayed).toEqual({ id: 'created' });
+      expect(next).toHaveBeenCalledTimes(1);
+    });
+  });
+
   describe('PIPELINE_BEHAVIOR_CONTRACT', () => {
     const contract = (
       IdempotencyBehavior as unknown as Record<

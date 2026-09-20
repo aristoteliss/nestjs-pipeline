@@ -1,6 +1,10 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import { APP_ACTIONS, APP_SUBJECTS } from '@common/constants';
+import {
+  APP_ACTIONS,
+  APP_SUBJECTS,
+  userCapabilitiesSubject,
+} from '@common/constants';
 import { Inject } from '@nestjs/common';
 import { type IQueryHandler, QueryHandler } from '@nestjs/cqrs';
 import { CacheBehavior } from '@nestjs-pipeline/cache';
@@ -62,38 +66,44 @@ export class GetUserOverviewHandler
     );
     if (!user) return null;
 
-    const profile = this.authorizer.authorize('read', user, {
-      select: ['id', 'username', 'email', 'department'],
-    });
+    const candidate: UserOverviewDto = {
+      id: user.id,
+      username: user.username,
+      email: user.email,
+      department: user.department,
+      ...(await this.readablePermissions(query.userId)),
+    };
 
-    const includeRoles = this.authorizer.can('read', user, 'roles');
-    const includeCapabilities = this.authorizer.can(
-      'read',
-      user,
-      'capabilities',
-    );
-    if (!includeRoles && !includeCapabilities) {
-      return this.authorizer.project('read', user, profile);
+    return this.authorizer.project<UserOverviewDto>('read', user, candidate);
+  }
+
+  /**
+   * A user's roles and additional capabilities are a separate grant from their
+   * profile, so they are omitted unless the viewer may read this user's
+   * `UserCapabilities`.
+   */
+  private async readablePermissions(
+    userId: string,
+  ): Promise<Pick<UserOverviewDto, 'roles' | 'capabilities'>> {
+    if (
+      !this.authorizer.can(APP_ACTIONS.READ, userCapabilitiesSubject(userId))
+    ) {
+      return {};
     }
 
     const assignments = await this.capabilities.find(
-      new GetUserCapabilitiesQuery({ userId: query.userId }),
+      new GetUserCapabilitiesQuery({ userId }),
     );
 
-    return this.authorizer.project<UserOverviewDto>('read', user, {
-      ...profile,
-      ...(includeRoles && {
-        roles: await this.readableRoleNames(assignments?.roles ?? []),
-      }),
-      ...(includeCapabilities && {
-        capabilities: (assignments?.additionalCapabilities ?? []).map(
-          (capability) =>
-            typeof capability === 'string'
-              ? capability
-              : `${capability.subject}:${capability.action}`,
-        ),
-      }),
-    });
+    return {
+      roles: await this.readableRoleNames(assignments?.roles ?? []),
+      capabilities: (assignments?.additionalCapabilities ?? []).map(
+        (capability) =>
+          typeof capability === 'string'
+            ? capability
+            : `${capability.subject}:${capability.action}`,
+      ),
+    };
   }
 
   private async readableRoleNames(names: string[]): Promise<string[]> {
@@ -106,8 +116,8 @@ export class GetUserOverviewHandler
       const role = byName.get(name);
       return (
         role !== undefined &&
-        this.authorizer.can('read', role) &&
-        this.authorizer.can('read', role, 'name')
+        this.authorizer.can(APP_ACTIONS.READ, role) &&
+        this.authorizer.can(APP_ACTIONS.READ, role, 'name')
       );
     });
   }

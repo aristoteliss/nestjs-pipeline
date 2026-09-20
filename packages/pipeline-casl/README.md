@@ -97,6 +97,7 @@ A per-handler `prebuiltAbility` bypasses provider-based ability construction.
 | Export | Purpose |
 |--------|---------|
 | `getCaslAbility(context?)` | Read the resolved `AppAbility` from the ambient pipeline store (or an explicit context). |
+| `getCaslUserContext(context?)` | Read the `CaslUserContext` that built the request's ability. Derive security-scoped keys (cache partitions, audit actors) from this value so they cannot disagree with the ability they partition. Returns `undefined` when CASL ran anonymously. |
 | `CaslAuthorizer` | Generic authorizer adapter for entity instances and field-level permissions backed by CASL. |
 | `ENTITY_AUTHORIZER` | Injection token (`Symbol.for('ENTITY_AUTHORIZER')`) for entity authorizer DI providers. |
 | `IEntityAuthorizer` | Interface for pluggable checks: `can(action, subject, field?)`, `authorize(...)`, and `project(...)`. |
@@ -107,6 +108,18 @@ entity instance to evaluate record-dependent conditions, and optionally a field
 name for a field-level check. A subject type string is suitable for type-level
 checks. Without a configured or ambient ability, the result is `false` unless
 explicit bypass is enabled.
+
+A subject's type comes from its constructor name, or from the tag CASL's own
+`subject(type, attrs)` sets when the value carries one. Use that form for a
+subject with no class of its own, so its conditions evaluate against its
+attributes instead of a type-level check that ignores them:
+
+```ts
+import { subject } from '@casl/ability';
+
+// Rule: UserCapabilities|read|{"userId":"${user.id}"}
+authorizer.can('read', subject('UserCapabilities', { userId }));
+```
 
 `CaslAuthorizer.authorize(...)` evaluates whole-entity conditions against the
 loaded entity and returns the authorized snapshot with readable fields only, or

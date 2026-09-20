@@ -9,6 +9,7 @@
  * leave this entry point to the adapters.
  */
 
+export * from './assert-autocommit';
 export * from './cache/memory.cache';
 export * from './cache.interface';
 export * from './command-repository.abstract';
@@ -21,6 +22,7 @@ export * from './helpers/cache-barrier.helper';
 export * from './helpers/cache-snapshot.helper';
 export * from './helpers/cache-version.helper';
 export * from './helpers/filter-cache-key.helper';
+export * from './optimistic-delete';
 export * from './optimistic-update';
 export * from './query-repository.abstract';
 export * from './query-repository.interface';

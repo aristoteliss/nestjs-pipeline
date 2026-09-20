@@ -1,4 +1,5 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
+import { sessionUserStore } from '@common/context/session-user.store';
 import type { EventBus } from '@nestjs/cqrs';
 import type { CaslAuthorizer } from '@nestjs-pipeline/casl';
 import { PipelineContext, SET_TENANT_ID } from '@nestjs-pipeline/core';
@@ -36,10 +37,23 @@ function tenantContext<T>(context: PipelineContext<T>): PipelineContext<T> {
   return context;
 }
 
+/**
+ * The operation key and the replay scope are both principal-scoped and fail
+ * closed, so these compositions run as an authenticated principal.
+ */
+function asAuthenticatedPrincipal(): void {
+  sessionUserStore.enterWith({
+    id: 'admin-1',
+    principalType: 'user',
+    tenant: 'tenant',
+  });
+}
+
 describe('Create command idempotency composition', () => {
   it.each([undefined, 'Engineering'])(
     'replays user creation with department %s without another write or event',
     async (department) => {
+      asAuthenticatedPrincipal();
       const save = vi.fn(async (user: User) => user.toJSON());
       const publishAll = vi.fn();
       const handler = new CreateUserHandler(
@@ -94,6 +108,7 @@ describe('Create command idempotency composition', () => {
   );
 
   it('replays role creation without another write or event', async () => {
+    asAuthenticatedPrincipal();
     const save = vi.fn(async (role: Role) => role.toJSON());
     const publishAll = vi.fn();
     const handler = new CreateRoleHandler(

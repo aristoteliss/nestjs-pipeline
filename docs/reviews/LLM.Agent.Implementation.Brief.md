@@ -41,7 +41,7 @@ Implement in this order. Each item must ship with a regression that fails before
 
 ## 2.1 F-06 — Audit options that are silently ignored
  
-**Status: PARTIAL.** The loaded user is authorized and the composed candidate is projected against it; roles are kept only when the loaded `Role` passes `read` and `read name`; the user is loaded with `{ refresh: true }`; the response cache is partitioned by tenant, principal type/ID from the CASL user context, rule digest and policy version, and bypassed for conditional `read` rules on `User`, `Role` or `all`. Still open: an explicit policy for reading another user's additional capabilities, and a freshness regression through a real repository-cache adapter.
+**Status: CLOSED. Done.** Both deletion handlers use the `audit({...})` intent builder with the declared `metadata` option, `AUDIT_MODULE_DEFAULTS` supplies a trusted session actor resolved from the request-scoped session rather than the payload, the option literals use `satisfies AuditBehaviorOptions` so an unknown property is a compile error, and `deletion-audit-records.spec.ts` asserts the emitted record across success, failure and the no-session case.
 
 `AuditBehaviorOptions` declares `metadata?: AuditMetadataFactory` (`packages/pipeline-audit/src/interfaces/audit-options.interface.ts:92`). `ddd/users-api/src/users/cqrs/commands/delete-user.handler.ts:38` and `ddd/users-api/src/roles/cqrs/commands/delete-role.handler.ts:38` pass `metadataFactory`, so the target id, acting user id and acting email never reach the HIGH-severity audit record.
 
@@ -86,58 +86,33 @@ Land this before S-03 and S-04, which touch the same methods.
 
 ## 2.4 N-01 — Composed cached read model without entity or field authorization
 
-**Status: CLOSED. Done.** Primary user read uses authoritative persistence query (`refresh: true`). Loaded aggregate is authorized via `this.authorizer.authorize('read', user)`. Returned DTO fields are projected via `this.authorizer.project<UserOverviewDto>('read', user, candidate)` (preserving authorized nulls, omitting unauthorized fields, and masking unauthorized indexed items). Downstream role queries require `can('read', user, 'roles')` and loaded role aggregate/field authorization (`can('read', role)` and `can('read', role, 'name')`). Capabilities are checked via `can('read', user, 'capabilities')`. Cache policy is isolated into `user-overview-cache.policy.ts`, with cache key partitioned on tenant, principal type/id (`${type}:${id}`), and capability/rule scope digest with policy version `v2`. Entity-dependent rule conditions bypass cache (`condition: false`). Verified by unit tests and integration tests covering multi-principal isolation, capability changes, authoritative loading, and missing-context errors.
+**Status: CLOSED. Done.** The composed candidate is authorized by a single `project('read', user, candidate)` on the loaded aggregate, which performs the entity check and applies field and descendant masks together, so the response cannot be returned without it. Roles and additional capabilities require `read` on the `UserCapabilities` subject, evaluated against the target user's id, and fail closed for a principal granted only the profile; roles are additionally kept only when the loaded `Role` passes `read` and `read name`. The response cache key is partitioned on tenant, principal type/id from the CASL user context, a digest of the effective rules and the policy version, and caching is bypassed for conditional `read` rules on `User`, `Role`, `UserCapabilities` or `all`. The read declares `refresh: true`, and `overview-repository-cache-freshness.spec.ts` drives the real `GetUserQueryRepository` with a real `MemoryCache` to prove a stale cached department cannot decide access.
 
-`ddd/users-api/src/users/cqrs/queries/get-user.handler.ts:32-35` loads the aggregate and returns `this.authorizer.authorize('read', user)`, applying entity and field-level rules. `get-user-overview.handler.ts:83-105` is reachable under the same type-level rule `read User`, loads the same aggregate through the same repository port, and returns `username`, `email` and `department` with no `CaslAuthorizer` call. The result is then cached for 60 seconds, so a hit also skips any future check. This contradicts `AGENTS.md` rule 4 and architecture-skill rule 7 in the handler whose own JSDoc presents it as the exemplary cache consumer.
-
-1. Authorize the loaded aggregate before composing the DTO, exactly as `GetUserHandler` does, and build the returned fields from the authorized projection rather than from the raw aggregate.
-2. Keep the partitioned cache key. Extend its `scope` so it also reflects the viewer's `additionalCapabilities`, not only the sorted role list: a capability change that leaves the role set intact currently keeps serving the previously authorized response until the TTL expires.
-3. Replace the `ctx.items.get('user') as SessionUser | undefined` casts in the key factory with typed accessors once S-16 lands. Until then, make the principal resolution fail closed rather than producing a key with an absent principal.
-4. Add a regression asserting that two principals with different field permissions receive different overview payloads, and that a cache hit never crosses that boundary. Add a second asserting that a capability change invalidates or re-partitions the cached response.
-5. Correct the handler's JSDoc so it stops describing the current shape as optimal usage.
-
-**Acceptance:** every field returned by the overview handler has passed the same entity and field authorization as the equivalent single-aggregate query, and no cached entry can be replayed across a security boundary.
+Response-cache freshness for conditional related resources rests on the bypass rather than on invalidation. That is the documented contract for this handler, not an outstanding item.
 
 ## 2.5 F-04 — Idempotency replay is not bound to the authorization scope
 
-**Status: OPEN.** No `replayScope` exists in the package or the sample. Keys are `tenant:actor:action:business-id` with an `'anonymous'` fallback (`create-user.handler.ts:26-32`, `create-role.handler.ts:23-31`).
+**Status: CLOSED. Done.** The operation key is stable and versioned; replay is bound separately by `replayScopeFactory`, whose digest is resolved before the claim (so absent authorization context rejects the request without claiming a key) and stored as `replayScope` on the record. Memory and Redis round-trip it through their JSON serialization; Postgres carries it as its own column, added to existing tables with `ADD COLUMN IF NOT EXISTS`. A completed record replays only on an exact match — a mismatch, a scope-less record, or a caller with no resolvable scope raises `IdempotencyConflictError` reason `replay_scope` (`409`) and the handler is neither re-executed nor the record deleted. Payload fingerprinting stays independent (`key_reuse`, `422`). In users-api the key is `v1:tenant:principalType:principalId:action:discriminator` from the trusted session, with no `'anonymous'` fallback and no payload identity, and the digest covers the effective ability rules plus the trusted principal and user context. AGENTS.md rule 5 records when a stable key is allowed.
 
-Adding a permission hash to the operation key is **not** an acceptable fix: new permissions would produce a new key and allow the same side effect to run again. Keep the operation identity stable and bind replay separately.
+Scope equality is valid only for the decisions the captured context represents. An operation whose authorization depends on resource state that changes after completion needs an explicit replay-authorization hook, or must not replay results; that limit is documented, not implemented.
 
-1. Add one application helper resolving a trusted authenticated principal from the established request/session context, requiring tenant id, principal type and principal id. Reject absent context for these protected create commands. Do not use request-body identity fields and do not use the string `'anonymous'`.
-2. Encode the stable operation key as a versioned canonical tuple of tenant, principal type and id, action, and the existing operation discriminator. Do not silently redefine the current email/name deduplication lifetime; document that email/name identify a business object rather than a unique client operation. A future client `Idempotency-Key` contract is a separate API decision.
-3. Add an optional `replayScopeFactory` to the generic idempotency behavior and an optional `replayScope` string on stored records. Configure it as mandatory in the protected users-api handlers. Compute a deterministic digest of the effective ability rules and trusted condition context, preserving rule order, field restrictions, inversion and condition value types. Fail before claim acquisition when the required ability or context is missing.
-4. Capture the digest in the owned record and preserve it on completion in the Memory, Redis and PostgreSQL stores. On any path that could return a completed response, compare the stored digest with the current one first. On mismatch, or on a legacy record missing a required digest, throw a framework-neutral replay-scope conflict error. Do not delete the record, return its response, or execute the command again. Keep the existing fingerprint conflict check as an independent check.
-5. Keep current-request CASL before idempotency and entity authorization on first execution. Scope equality is valid only for decisions represented by the captured context; operations whose authorization depends on later-changing resource state need an explicit application replay-authorization hook or must disable result replay.
-6. Update `AGENTS.md` rule 5 to state that an idempotent operation may keep a stable identity only when replay has an equivalent fail-closed scope check, and why changing the operation key on permission change can duplicate side effects.
-7. Test same-principal same-scope replay, changed permissions with an unchanged command, user and service principals with equal ids, missing actor/tenant/ability, legacy scope-less records, and changed payload fingerprints. Assert no side effect on replay-scope mismatch. Round-trip every store so the added field is not dropped by an adapter.
-
-**Migration:** version the new key namespace deliberately. Changing namespaces invalidates existing deduplication claims and may permit re-execution; plan the rollout around the configured TTL or translate existing records where safe.
+**Migration:** the `v1:` key namespace is new, so claims stored under the previous `tenant:actor:action:id` shape no longer match. Existing deduplication windows lapse with the configured TTL, during which a previously completed operation can execute once more. Roll out around the TTL, or translate existing records, rather than treating the namespace change as invisible.
 
 ## 2.6 F-09 + S-06 — Shared optimistic delete and one autocommit contract
 
-**Status: OPEN.** Neither `optimisticDelete` nor `assertAutocommit` exists. `delete-user.command-repository.ts` and `delete-role.command-repository.ts` are identical apart from one secondary cache key line. `optimisticUpdate` rejects an outer transaction (`optimistic-update.ts:80-83`); the delete and create paths do not.
+**Status: CLOSED. Done.** `assertAutocommit(em, operation)` in `ddd-core/persistence` is the single transaction-boundary check, reused by `optimisticUpdate`, the new `optimisticDelete`, and the create repositories before their flush/upsert. It runs before any statement is issued, so a rejected operation writes nothing, leaves `getExpectedVersion()` where it was, and performs no cache eviction or write-through.
 
-1. Add `assertAutocommit(em, operation)` beside the existing optimistic update implementation, using `em.isInTransaction()`. It must fail before executing a database write. Reuse it in update, the new optimistic delete, and create/save methods whose decorators or callers treat a successful return as durable completion.
-2. Add `optimisticDelete` with explicit inputs — EntityManager, entity class, aggregate, expected persisted version, entity label/id accessor. Execute exactly one conditional delete on `{ id, version: aggregate.getExpectedVersion() }`. One affected row is success. Zero triggers a refreshed lookup: absent raises `EntityNotFoundException`, present raises `ConcurrencyConflictError`. An unexpected affected-row count is an invariant error.
-3. Capture the EntityManager once per operation. Do not re-resolve `store.em` midway through delete and existence checking, and do not create an independent fork that escapes the caller's transaction merely to avoid rejecting it.
-4. Keep infrastructure exceptions mapped at the established repository boundary. Avoid double-wrapping. Reuse the existing error mapper; do not introduce a generic CRUD base class or a repository DSL for two methods.
-5. Migrate the User and Role delete repositories. Do not apply a version predicate to unversioned Auth/session rows by inventing fields; document those lifecycle differences. A delete returning null does not require acknowledging a nonexistent new persisted snapshot.
-6. For create paths, reject externally active transactions before flush/upsert when a successful return triggers acknowledgment or publication. Preserve the canonical decorator order. If transaction participation becomes a requirement it needs commit callbacks or unit-of-work semantics; it must not be emulated by early acknowledgment.
-7. Add adapter-backed tests: matching-version deletes; stale-version conflicts; missing row produces not-found; an outer transaction is rejected before mutation; a failed create/update leaves the expected version unchanged; no event publication or invalidation occurs on rejection. Exercise both database engines where available.
+`optimisticDelete(em, entityType, aggregate, entityName)` issues exactly one conditional delete on `{ id, version: getExpectedVersion() }`. One affected row is success; zero runs a single refreshed lookup that raises `EntityNotFoundException` when the row is gone and `ConcurrencyConflictError` when it is present; any other count is an invariant error. The entity manager is captured once by the caller and used for both statements, so the delete and the diagnostic read cannot observe different transactional state. The helper does not cache, acknowledge or publish, and a delete still resolves to `null` — there is no new snapshot to acknowledge.
 
-**Acceptance:** one implementation of versioned delete; every path claiming durable success enforces the same transaction boundary; a caller cannot cause acknowledgment or publication merely by flushing uncommitted work.
+Both User and Role delete repositories are migrated and now differ only in their cache keys. Unversioned Auth/session rows are deliberately out of scope and keep their own lifecycle rather than gaining a synthetic version column.
 
 ## 2.7 F-01 residual — policy for adapters without revisions
 
-**Status: MOSTLY DONE.** `ddd/core/persistence/cache.interface.ts:98-134` defines `IVersionedCache` with `readState`, `tryFill` and an opaque revision; `MemoryCache` and `MikroOrmCache` implement it; `FromCache.ts:144-198` uses revision-fenced fills; filter keys are a SHA-256 canonical `[tenant, resource, normalizedFilter]` tuple preserving value types and failing closed without tenant.
+**Status: CLOSED. Done.** `@FromCache` caches only through an adapter satisfying `isVersionedCache`. An adapter exposing only `get`/`set`/`delete` is bypassed for **both** reads and fills, and the query goes to the database; the decorator logs this once per adapter instance. The unfenced get/set fill path is deleted, so a stale snapshot can no longer overwrite a deletion barrier through it.
 
-What remains is the compatibility clause. `FromCache.ts:200-283` silently falls back to the legacy `get`/`set` path for any adapter lacking the versioned methods, and that path still lets a stale snapshot overwrite a deletion barrier installed between its post-database `get()` (`:215`) and its `set()` (`:236`/`:278`).
+The two alternatives in this section were weighed and rejected. Bypassing fills alone would still serve entries written before a mutation. Rejecting at configuration time would break consumers of `ICache`, a published contract that `@Cache` write-through continues to support. The bypass is non-breaking, removes the race rather than documenting it, and is observable.
 
-1. Decide the policy explicitly: reject an unversioned adapter at configuration time, or bypass both cache reads and fills for the affected repository path. Bypassing fills alone can still serve stale legacy entries.
-2. Implement the chosen policy with a capability check rather than a silent degrade, and document it in `ddd/core/README.md`.
-3. Add an adapter-contract test for "adapter exposes only `get`/`set`" asserting the chosen behavior.
-4. Preserve the existing best-effort semantics documentation: a database commit followed by an unavailable invalidation can leave stale entries until expiry, and per-key CAS cannot remove that dual-write window. Do not add an outbox as part of this fix.
+Migrating the existing decorator and repository specs onto a real versioned adapter exposed one parity gap, now fixed: the versioned path hydrated a stored `null`, where the removed path treated it as a miss. `ddd/core/README.md` documents the policy and keeps the best-effort caveat — a committed write followed by an unavailable cache leaves the previous entry until expiry, and per-key compare-and-set cannot remove that dual-write window.
 
 ## 2.8 F-16 — Dead-letter classification for expected rejections
 
@@ -175,12 +150,12 @@ This is a contract-accuracy fix, not an exploit. Detachment from the aggregate d
 5. Add a shared table-driven suite over both adapters: same ORM and tenant context reused; wrong schema rejected; wrong ORM/config rejected; wrong driver rejected; absent context gets the correct fork; concurrent tenant contexts stay isolated; transaction-context cases so the refactor cannot hide an active transaction from F-09.
 6. Run the existing tenant middleware/store tests and the relevant database E2E. Compare behavior, not private method names.
 
-## 2.11 N-02 … N-06 — Documentation accuracy and hygiene
+## 2.11 N-02, N-04 … N-07 — Documentation accuracy and hygiene
 
 Cheap and independent; land each with its related fix rather than batching them at the end.
 
 - **N-02** — `packages/pipeline-cache/src/helpers/README.md:3` still documents `defaultCacheKey()` as a correlation-scoped safe default. That function no longer exists, and the correlation-based default was removed precisely because it is not an authorization boundary. Rewrite the file around the real contract: there is no default key, an active `CacheBehavior` must declare one, `createPartitionedCacheKeyFactory` fails closed. Then extend `ddd/users-api/test/docs-cache-security.spec.ts` — which currently reads only `ddd/users-api/README.md` — to cover every file documenting cache key security, including package READMEs.
-- **N-03** — `create-auth.handler.ts:42-46` derives the audit actor from `req?.email ?? 'anonymous'`, a caller-supplied body field, so a login attempt is attributed to an unverified identity. Reproduced through the real `CommandBus`: the emitted record carries `actor = {"id":"attacker@evil.test","email":"attacker@evil.test"}` and no `authenticated` field, while F-06 gave every other audited handler `{ authenticated: true | false }` — so login records pass an `authenticated === false` filter as if trusted. Record the claimed identity as a claimed subject (`{ authenticated: false, claimedEmail: … }`) rather than as `actor.id`; `record.payload.email` already carries the attempted address. Add an emitted-record assertion for `CreateAuthHandler`. Detail in `docs/reviews/Audit.Trusted.Actor.Review.md`.
+- **N-03** — **Closed.** `create-auth.handler.ts` records a pre-authentication claim rather than an identity: `claimedIdentityActor()` returns `{ authenticated: false, claimedEmail }`, so the record carries no `id` and cannot pass a filter for authenticated activity, and the `'anonymous'` fallback is gone. `record.payload.email` still carries the attempted address and `code` stays redacted. `login-audit-actor.spec.ts` asserts the emitted record through the real `CommandBus`; `audit.options.spec.ts` covers the absent-claim branch.
 - **N-04** — Remove the review identifiers from test titles: `behavior-composition-contracts.spec.ts:4,73` (`R-07`) and `docs-cache-security.spec.ts:8,14` (`Finding #20`). Rename both suites after the behavior they assert. Then either extend `biome/plugins/test-suite.grit` — which today only rejects `.only`/`fit`/`fdescribe` — to reject identifier patterns in `describe`/`it` strings, or record in `AGENTS.md` that the rule is review-enforced. Do not leave a documented invariant with no owner.
 - **N-05** — Delete the 36 decorative divider comments in `packages/pipeline/src/services/pipeline.bootstrap.service.spec.ts` (20) and the five `packages/pipeline-zod` spec files (16). Use `describe` nesting for structure. If dividers are acceptable in tests, amend `AGENTS.md` instead of leaving the rule contradicted by the tree.
 - **N-06** — `ddd/users-api/src/persistence/cache/mikro-orm.cache.ts:253-257` swallows a `JSON.parse` failure with a bare `catch {}`, which skips the `isNewer` CAS guard and overwrites the entry. Keep the behavior; make it explicit with a named error, one short factual comment stating that an unparsable entry is treated as absent, and a diagnostic so persistent corruption is observable.
@@ -210,7 +185,7 @@ This track is not permission to reduce features. Its objective is to make the no
 | S-04 | **Potential public source break.** | Add the behavior and migrate handlers first. Removing `CommandBaseHandler` requires an intentional breaking cleanup or deprecation step. |
 | S-05 | **Non-breaking.** | An abstract hook becoming a default no-op stays override-compatible. |
 | S-06 | **Non-breaking / additive.** | The helper must preserve exact current optimistic-delete outcomes; see F-09 for the transaction boundary. |
-| S-07 | **Operational/data-key breaking risk.** | A new canonical key format creates fresh limiter and idempotency namespaces. Preserve or version the existing format, or explicitly accept the reset. |
+| ~~S-07~~ | **Done.** | Idempotency keys keep the versioned `v1` layout, and escaping changes only the segments that could collide. Rate-limit keys changed layout; the one-time limiter reset is accepted. |
 | ~~S-08~~ | ~~Users-api module composition break only.~~ | Superseded: a real `CacheBehavior` consumer exists. Do not remove the wiring. |
 | S-09 | **Potential behavior/config break.** | Compare effective `LoggingBehavior` options per handler before and after; do not change log level or volume accidentally. |
 | S-10 | **Non-breaking only if the observability contract is preserved.** | Keep current attribute names/values and compatibility item symbols during migration. Removing symbols or renaming attributes is a separate breaking change. |
@@ -256,23 +231,15 @@ Change `RootEntity.afterUpdate()` from abstract (`root.entity.ts:311`) to an ove
 
 ## 3.4 S-07 — Safe partition helpers
 
-Do not let users-api compose tenant-sensitive key strings by hand when a package helper owns the mechanics.
+**Status: CLOSED. Done.** users-api no longer composes tenant-sensitive key strings by hand.
 
-**Rate limiting.** Migrate the current manual factories (`create-user.handler.ts:34-37`, `create-auth.handler.ts:29-32`) to `createPartitionedRateLimitKeyFactory` where semantics match.
+**Rate limiting.** `createUserRateLimitKey` and `createAuthRateLimitKey` are `createPartitionedRateLimitKeyFactory` instances partitioned by the submitted email. For login that address is caller-supplied on purpose: brute force against one account must share a bucket whoever sends it.
 
-**Idempotency.** Add a symmetric helper:
+**Idempotency.** `createPartitionedIdempotencyKeyFactory({ principal, operation, action?, version?, includeTenant?, requireTenant?, onMissingOperation? })` is the symmetric package helper. It escapes and joins every segment through the core `joinKeySegments`, fails closed with `MissingIdempotencyPartitionError` on a missing tenant or principal, and has no shared fallback. `principal` may return several segments, so users-api passes `[principalType, id]` from the trusted session and a service never shares a user's namespace. `operation` keeps the business identity explicit; an optional client key uses `onMissingOperation: 'skip'`. The behavior's request fingerprint check is unchanged and still composes with it. With the default `'throw'` mode an overload types the factory as `(ctx) => string`.
 
-```ts
-createPartitionedIdempotencyKeyFactory({
-  principal: (ctx) => ...,
-  key: (ctx) => ...,
-  // tenant required by default
-})
-```
+No "hash the whole command" default was added. The `'anonymous'` fallback is gone.
 
-The exact shape may differ but must fail closed on missing tenant or principal, escape and join segments through core canonical helpers, keep business-operation identity explicit, and compose with the existing request fingerprint validation rather than replacing it. Remove the `'anonymous'` fallback as part of this work.
-
-Do not invent an automatic "hash the whole command" idempotency default; identical request bodies can represent intentionally distinct business operations.
+**Key continuity.** The idempotency layout is the same `v1:<tenant>:<principalType>:<principalId>:<action>:<discriminator>` as F-04, and escaping only alters segments containing `:` or `\` — exactly the ones that could previously collide — so ordinary stored claims keep matching. The rate-limit keys do change layout (the request name is appended); that resets in-memory limiter buckets once, which is accepted given their 60-second window.
 
 ## 3.5 S-03 — Composite persistence lifecycle decorator
 
@@ -398,26 +365,25 @@ Implement in small commits in this order unless a dependency requires adjustment
 1. F-06;
 2. F-07;
 3. F-05;
-4. N-01;
-5. N-02, N-04, N-05, N-06;
-6. F-04;
-7. F-09 + S-06;
-8. F-01 residual adapter policy;
-9. F-16;
-10. S-16;
-11. S-09 / A-02 / A-03;
-12. S-05 / A-05;
-13. S-07 / A-07;
-14. S-03;
-15. F-11;
-16. F-14;
-17. S-13, then S-17;
-18. S-10 / A-08;
-19. S-04;
-20. S-11, S-12;
-21. F-15 / S-18;
-22. S-14 / U-01…U-03;
-23. A-09 and the remaining F-17 documentation work, alongside their related fixes.
+4. N-02, N-04, N-05, N-06, N-07;
+5. F-04;
+6. F-09 + S-06;
+7. F-01 residual adapter policy;
+8. F-16;
+9. S-16;
+10. S-09 / A-02 / A-03;
+11. S-05 / A-05;
+12. S-07 / A-07;
+13. S-03;
+14. F-11;
+15. F-14;
+16. S-13, then S-17;
+17. S-10 / A-08;
+18. S-04;
+19. S-11, S-12;
+20. F-15 / S-18;
+21. S-14 / U-01…U-03;
+22. A-09 and the remaining F-17 documentation work, alongside their related fixes.
 
 For every step:
 

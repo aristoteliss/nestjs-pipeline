@@ -22,6 +22,8 @@ Store-agnostic: it depends only on a tiny `IdempotencyStore` interface. A zero-d
   - [Custom store](#custom-store)
 - [Behavior](#behavior)
 - [Configuration](#configuration)
+- [Partitioned keys](#partitioned-keys)
+- [Binding replay to authorization](#binding-replay-to-authorization)
 - [Fingerprinting & key reuse](#fingerprinting--key-reuse)
 - [Conflict handling](#conflict-handling)
 - [Behavior Contract & Bootstrap Diagnostics](#behavior-contract--bootstrap-diagnostics)
@@ -156,6 +158,7 @@ interface IdempotencyRecord {
   requestName: string;                  // e.g. 'CreatePaymentCommand'
   claimId?: string;                     // unique owner token for in-progress record
   fingerprint?: string;                 // hash of the original payload
+  replayScope?: string;                 // authorization scope replay is bound to
   response?: JsonValue;                 // JSON snapshot captured for replay
   createdAt: string;                    // ISO-8601, when first claimed
   completedAt?: string;                 // ISO-8601, when the handler finished
@@ -353,7 +356,102 @@ Options are read per-handler from `@UsePipeline` and merged over module-wide
 | `ttl`            | positive safe integer                           | `86_400_000`   | Claim lifetime in ms (24h). Successful completion restarts this TTL for the replay record. |
 | `scope`          | `('command' \| 'query' \| 'event' \| 'unknown')[]` | `['command']`  | Which request kinds the policy applies to.                                         |
 | `fingerprint`    | `boolean`                                        | `true`         | Reject a key reused with a different payload (`422`).                              |
+| `replayScopeFactory` | `(ctx) => string \| undefined`               | —              | Bind replay to the caller's authorization scope while the key stays stable (`409` on mismatch). |
 | `releaseOnError` | `boolean`                                        | `true`         | Release the key when the handler throws, so retries can re-run.                    |
+
+---
+
+## Partitioned keys
+
+A key is a security boundary: a hit returns a stored response without running
+the handler, so two callers that share a key share a result. Build keys with
+`createPartitionedIdempotencyKeyFactory` rather than by hand:
+
+```typescript
+import { createPartitionedIdempotencyKeyFactory } from '@nestjs-pipeline/idempotency';
+
+const createOrderKey = createPartitionedIdempotencyKeyFactory({
+  version: 'v1',                    // namespace; change only deliberately
+  action: 'order.create',           // defaults to the request name
+  principal: (ctx) => ['user', currentUserId(ctx)],
+  operation: (ctx) => (ctx.request as CreateOrderCommand).externalRef,
+});
+
+@UsePipeline([IdempotencyBehavior, { keyFactory: createOrderKey }])
+export class CreateOrderHandler {}
+```
+
+The key is `[version:]<tenantId>:<principal…>:<action>:<operation>`, and the
+helper guarantees three things a hand-written template does not:
+
+- **Escaping.** Every segment goes through the core key helper, so an email or a
+  composite id containing `:` cannot make two different operations collide.
+- **No shared fallback for the principal.** A missing tenant or principal throws
+  `MissingIdempotencyPartitionError` before anything is claimed. A placeholder
+  such as `'anonymous'` would put every unresolved caller in one namespace, where
+  one caller's completed operation replays to another. Resolve the principal from
+  authenticated context, never from a request body field.
+- **Distinct principal kinds.** `principal` may return several segments, so
+  `['service', id]` and `['user', id]` never share a namespace even when the ids
+  are equal.
+
+A missing operation identity throws by default. For an optional client
+`Idempotency-Key` header, pass `onMissingOperation: 'skip'`: the factory then
+returns `undefined` and the request runs without deduplication — but a missing
+principal still throws.
+
+With the default `'throw'` mode the returned factory is typed
+`(ctx) => string`, since it never produces `undefined`.
+
+Moving an existing hand-built factory onto the helper changes stored keys only
+where a segment contains `:` or `\`, or where the layout itself differs. When
+it does, completed operations become claimable again until their records expire;
+plan the change around the TTL or bump `version` deliberately.
+
+Keep permissions out of the key — see the next section.
+
+---
+
+## Binding replay to authorization
+
+An idempotency key identifies an *operation*, not a response. If permissions are
+folded into the key, a permission change produces a new key and the same side
+effect executes a second time. So the key stays stable and replay is bound
+separately, with `replayScopeFactory`:
+
+```typescript
+@UsePipeline([
+  IdempotencyBehavior,
+  {
+    keyFactory: (ctx) => operationKey(ctx),        // stable operation identity
+    replayScopeFactory: (ctx) => scopeDigest(ctx), // what replay is bound to
+  },
+])
+export class CreatePaymentHandler {}
+```
+
+The digest is captured when the key is claimed and stored on the record. A later
+duplicate replays the stored response only when its digest matches. Otherwise the
+behavior throws `IdempotencyConflictError` with reason `replay_scope` (`409`) and:
+
+- does **not** re-execute the handler — the operation already happened;
+- does **not** delete the record — deleting it would permit re-execution;
+- does **not** return the stored response — the caller's scope no longer matches.
+
+A record stored without a digest is refused the same way once a factory is
+configured, so records written before the policy existed cannot be replayed on
+trust. The factory runs **before** the key is claimed, so throwing on missing
+authorization context rejects the request without claiming anything.
+
+Return a digest covering every dimension that must invalidate replay — the
+effective rules in order, including fields, inversion and condition values, plus
+the trusted context those conditions resolve against. Scope equality only speaks
+for decisions the captured context represents: an operation whose authorization
+depends on resource state that changes later needs its own replay-authorization
+check, or must not replay results at all.
+
+Payload fingerprinting stays an independent check: a changed body is still
+`key_reuse` (`422`), whatever the scope says.
 
 ---
 
@@ -384,7 +482,8 @@ payload, or expose `fingerprintValue` to compute a hash yourself.
 ## Conflict handling
 
 `IdempotencyConflictError` carries `key`, `requestName`, `reason`
-(`'in_progress'` | `'key_reuse'`) and a suggested `statusCode` (`409` / `422`).
+(`'in_progress'` | `'key_reuse'` | `'replay_scope'`) and a suggested
+`statusCode` (`409` / `422`).
 Map it to an HTTP response with the bundled filter (Express **and** Fastify):
 
 ```typescript
@@ -448,10 +547,14 @@ Response body:
 
 - `IdempotencyConflictError` — `{ key, requestName, reason, statusCode }`.
 - `IdempotencyConflictFilter` — maps it to `409` / `422`.
+- `MissingIdempotencyPartitionError` — `{ requestName, dimension, remedy }`, raised
+  by the partitioned key helper when the tenant, principal or operation is missing.
 
 **Helpers & tokens**
 
 - `idempotent(options)` — type-safe intent builder returning `[IdempotencyBehavior, options]` with required key intent.
+- `createPartitionedIdempotencyKeyFactory(options)` — tenant/principal/operation key
+  factory with escaping and fail-closed partitions; see [Partitioned keys](#partitioned-keys).
 - `fingerprintValue(value)`, `stableStringify(value)`.
 - `IDEMPOTENCY_STORE`, `IDEMPOTENCY_DEFAULT_OPTIONS`, `DEFAULT_IDEMPOTENCY_TTL_MS`.
 
@@ -459,7 +562,10 @@ Response body:
 
 - `IdempotencyStore`, `IdempotencyRecord`, `IdempotencyStatus`,
   `IdempotencyRequestKind`, `IdempotencyBehaviorOptions`, `IdempotencyIntentOptions`,
-  `IdempotencyKeyFactory`, `IdempotencyModuleOptions`, `IdempotencyModuleAsyncOptions`,
+  `IdempotencyKeyFactory`, `IdempotencyReplayScopeFactory`,
+  `PartitionedIdempotencyKeyOptions`, `IdempotencyPrincipalFactory`,
+  `IdempotencyOperationFactory`, `IdempotencyPartitionDimension`,
+  `IdempotencyModuleOptions`, `IdempotencyModuleAsyncOptions`,
   `MemoryIdempotencyStoreOptions`, `MaybePromise`.
 
 ---

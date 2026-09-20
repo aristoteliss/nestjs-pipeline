@@ -1,8 +1,10 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { APP_ACTIONS, APP_SUBJECTS } from '@common/constants';
-import { getSessionUserFromStore } from '@common/context/session-user.store';
-import { requireTenantId } from '@common/cqrs/helpers/requireTenantId.helper';
+import {
+  operationIdempotencyKeyFactory,
+  replayScopeDigest,
+} from '@common/cqrs/helpers/idempotent-operation.helper';
 import { Inject } from '@nestjs/common';
 import { CommandHandler, EventBus } from '@nestjs/cqrs';
 import { CaslAuthorizer, CaslBehavior } from '@nestjs-pipeline/casl';
@@ -22,12 +24,15 @@ import { Role, type RoleSnapshot } from '../../domain/models/role.entity';
 import { COMMAND_REPOSITORY } from '../../persistence/repository.tokens';
 import { CreateRoleCommand } from './create-role.command';
 
-export function createRoleIdempotencyKey(ctx: IPipelineContext): string {
-  const request = ctx.request as CreateRoleCommand;
-  const tenantId = requireTenantId(ctx, 'role creation idempotency');
-  const actorId =
-    request.sessionUser?.id ?? getSessionUserFromStore()?.id ?? 'anonymous';
-  return `${tenantId}:${actorId}:role.create:${request.name}`;
+const ROLE_CREATE_PURPOSE = 'role creation idempotency';
+
+export const createRoleIdempotencyKey = operationIdempotencyKeyFactory(
+  'role.create',
+  (ctx) => (ctx.request as CreateRoleCommand).name,
+);
+
+export function createRoleReplayScope(ctx: IPipelineContext): string {
+  return replayScopeDigest(ctx, ROLE_CREATE_PURPOSE);
 }
 
 @CommandHandler(CreateRoleCommand)
@@ -49,7 +54,13 @@ export function createRoleIdempotencyKey(ctx: IPipelineContext): string {
     },
   ],
   [FeatureFlagBehavior, { flag: 'role-creation' }],
-  [IdempotencyBehavior, { keyFactory: createRoleIdempotencyKey }],
+  [
+    IdempotencyBehavior,
+    {
+      keyFactory: createRoleIdempotencyKey,
+      replayScopeFactory: createRoleReplayScope,
+    },
+  ],
 )
 export class CreateRoleHandler extends CommandBaseHandler<
   CreateRoleCommand,

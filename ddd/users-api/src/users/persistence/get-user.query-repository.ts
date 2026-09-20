@@ -36,10 +36,6 @@ export class GetUserQueryRepository extends QueryRepository<
   }
 
   @FromCache<GetUserQuery, User | null>({
-    // `department` is mutable. A cached composite lookup containing the old
-    // department cannot be invalidated from the post-update entity because the
-    // previous department is no longer available. Keep stable id/email lookups
-    // cached, but execute mutable department-filtered lookups directly.
     keyFn: (q) =>
       q.department
         ? null

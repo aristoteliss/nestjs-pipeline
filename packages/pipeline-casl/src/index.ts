@@ -45,6 +45,7 @@ export {
   type CaslAuthorizerOptions,
   type CaslBypassContext,
   getCaslAbility,
+  getCaslUserContext,
   hasEntityConditions,
 } from './helpers/entity-authorization.helper';
 export {

@@ -1,5 +1,8 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
+import { sessionUserStore } from '@common/context/session-user.store';
 import type { IPipelineContext } from '@nestjs-pipeline/core';
+import { MissingIdempotencyPartitionError } from '@nestjs-pipeline/idempotency';
+import { MissingRateLimitPartitionError } from '@nestjs-pipeline/rate-limit';
 import { describe, expect, it } from 'vitest';
 import { CreateAuthCommand } from '../../../auths/cqrs/commands/create-auth.command';
 import { createAuthRateLimitKey } from '../../../auths/cqrs/commands/create-auth.handler';
@@ -10,7 +13,6 @@ import {
   createUserIdempotencyKey,
   createUserRateLimitKey,
 } from '../../../users/cqrs/commands/create-user.handler';
-import { MissingTenantContextError } from './requireTenantId.helper';
 
 function context(request: unknown, tenantId?: string): IPipelineContext {
   return { request, tenantId } as IPipelineContext;
@@ -26,13 +28,21 @@ describe('security-sensitive pipeline key tenant isolation', () => {
       new CreateAuthCommand({ email: 'alice@example.test', code: '424242' }),
     );
 
+    const missingTenant = expect.objectContaining({ dimension: 'tenant' });
+
     for (const invoke of [
       () => createUserIdempotencyKey(user),
-      () => createUserRateLimitKey(user),
       () => createRoleIdempotencyKey(role),
+    ]) {
+      expect(invoke).toThrow(MissingIdempotencyPartitionError);
+      expect(invoke).toThrow(missingTenant);
+    }
+    for (const invoke of [
+      () => createUserRateLimitKey(user),
       () => createAuthRateLimitKey(auth),
     ]) {
-      expect(invoke).toThrow(MissingTenantContextError);
+      expect(invoke).toThrow(MissingRateLimitPartitionError);
+      expect(invoke).toThrow(missingTenant);
     }
   });
 
@@ -44,9 +54,14 @@ describe('security-sensitive pipeline key tenant isolation', () => {
     const tenantA = context(request, 'tenant_a');
     const tenantB = context(request, 'tenant_b');
 
-    expect(createUserIdempotencyKey(tenantA)).not.toBe(
-      createUserIdempotencyKey(tenantB),
-    );
+    // The idempotency key is principal-scoped, so it needs an authenticated one.
+    const idempotencyKey = (ctx: IPipelineContext) =>
+      sessionUserStore.run(
+        { id: 'alice', principalType: 'user', tenant: 'tenant_a' },
+        () => createUserIdempotencyKey(ctx),
+      );
+
+    expect(idempotencyKey(tenantA)).not.toBe(idempotencyKey(tenantB));
     expect(createUserRateLimitKey(tenantA)).not.toBe(
       createUserRateLimitKey(tenantB),
     );

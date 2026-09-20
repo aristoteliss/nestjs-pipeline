@@ -174,3 +174,60 @@ describe('DeleteUserCommandRepository', () => {
     );
   });
 });
+
+describe('DeleteUserCommandRepository transaction boundary', () => {
+  const cache = (): ICache<UserSnapshot> => ({
+    get: vi.fn(),
+    set: vi.fn(),
+    delete: vi.fn(),
+  });
+
+  it('rejects an externally active transaction before deleting or evicting', async () => {
+    const entries = cache();
+    const nativeDelete = vi.fn().mockResolvedValue(1);
+    const store = {
+      get em() {
+        return { nativeDelete, isInTransaction: () => true, findOne: vi.fn() };
+      },
+    };
+    const repository = new DeleteUserCommandRepository(entries, store as never);
+    const user = User.create('Alice', 'alice@example.test', 'engineering');
+    user.delete();
+
+    await expect(
+      pipelineStore.run(
+        { tenantId: 'tenant' } as unknown as IPipelineContext,
+        () => repository.save(user),
+      ),
+    ).rejects.toThrow(/requires autocommit/);
+
+    expect(nativeDelete).not.toHaveBeenCalled();
+    expect(entries.delete).not.toHaveBeenCalled();
+    expect(entries.set).not.toHaveBeenCalled();
+  });
+
+  it('leaves the persisted version baseline untouched when the delete is rejected', async () => {
+    const store = {
+      get em() {
+        return {
+          nativeDelete: vi.fn().mockResolvedValue(1),
+          isInTransaction: () => true,
+          findOne: vi.fn(),
+        };
+      },
+    };
+    const repository = new DeleteUserCommandRepository(cache(), store as never);
+    const user = User.create('Alice', 'alice@example.test', 'engineering');
+    user.delete();
+    const expectedBefore = user.getExpectedVersion();
+
+    await expect(
+      pipelineStore.run(
+        { tenantId: 'tenant' } as unknown as IPipelineContext,
+        () => repository.save(user),
+      ),
+    ).rejects.toThrow();
+
+    expect(user.getExpectedVersion()).toBe(expectedBefore);
+  });
+});

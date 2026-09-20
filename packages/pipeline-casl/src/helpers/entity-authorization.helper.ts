@@ -2,13 +2,14 @@
 import { subject as caslSubject } from '@casl/ability';
 import { Injectable } from '@nestjs/common';
 import { type IPipelineContext, pipelineStore } from '@nestjs-pipeline/core';
-import { CASL_ABILITY_KEY } from '../constants/tokens';
+import { CASL_ABILITY_KEY, CASL_USER_CONTEXT_KEY } from '../constants/tokens';
 import { UnauthorizedActionException } from '../exceptions/unauthorized-action.exception';
 import type { IEntityAuthorizer } from '../interfaces/entity-authorizer.interface';
 import { buildBypassAbility } from '../services/ability.factory';
 import type {
   AppAbility,
   AuthorizerSelectOptions,
+  CaslUserContext,
   Projected,
   SelectedProjection,
 } from '../types/casl.types';
@@ -37,6 +38,27 @@ export function getCaslAbility(
 ): AppAbility | undefined {
   const ctx = context ?? pipelineStore.getStore();
   return ctx?.items.get(CASL_ABILITY_KEY) as AppAbility | undefined;
+}
+
+/**
+ * Retrieve the {@link CaslUserContext} that built the current request's ability.
+ *
+ * This is the identity authorization actually used, which is not necessarily the
+ * one an application stored elsewhere in `context.items`. Security-scoped keys —
+ * cache partitions, audit actors — must derive their principal from this value so
+ * they cannot disagree with the ability they are partitioning.
+ *
+ * Pass the pipeline {@link IPipelineContext} explicitly when you have it,
+ * otherwise the context is read from the ambient pipeline async store.
+ *
+ * @returns The resolved user context, or `undefined` when CASL ran anonymously
+ *          (`skipCheck`, a prebuilt ability, or no resolvable user).
+ */
+export function getCaslUserContext(
+  context?: IPipelineContext,
+): CaslUserContext | undefined {
+  const ctx = context ?? pipelineStore.getStore();
+  return ctx?.items.get(CASL_USER_CONTEXT_KEY) as CaslUserContext | undefined;
 }
 
 export interface CaslAuthorizerOptions {
@@ -497,10 +519,17 @@ export class CaslAuthorizer implements IEntityAuthorizer {
       };
     }
 
+    // A value already tagged by CASL's `subject()` carries its own type; the
+    // constructor of such a plain object is `Object`, which would otherwise
+    // check an unrelated subject type and silently allow or deny.
+    const tagged = (subject as { __caslSubjectType__?: unknown })
+      .__caslSubjectType__;
     const subjectType =
-      subject.constructor?.name && subject.constructor.name !== 'Object'
-        ? subject.constructor.name
-        : 'Object';
+      typeof tagged === 'string' && tagged.length > 0
+        ? tagged
+        : subject.constructor?.name && subject.constructor.name !== 'Object'
+          ? subject.constructor.name
+          : 'Object';
 
     const entityRecord = toSnapshot(subject) as Record<string, unknown>;
 

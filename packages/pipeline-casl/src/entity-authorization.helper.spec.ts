@@ -1,14 +1,16 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 /** biome-ignore-all lint/suspicious/noTemplateCurlyInString: false positive */
+import { subject as caslSubject } from '@casl/ability';
 import { pipelineStore } from '@nestjs-pipeline/core';
 import { describe, expect, expectTypeOf, it, vi } from 'vitest';
-import { CASL_ABILITY_KEY } from './constants/tokens';
+import { CASL_ABILITY_KEY, CASL_USER_CONTEXT_KEY } from './constants/tokens';
 import { UnauthorizedActionException } from './exceptions/unauthorized-action.exception';
 import {
   CaslAuthorizer,
   type CaslAuthorizerOptions,
   getCaslAbility,
+  getCaslUserContext,
   hasEntityConditions,
 } from './helpers/entity-authorization.helper';
 import type { IEntityAuthorizer } from './interfaces/entity-authorizer.interface';
@@ -89,7 +91,74 @@ describe('getCaslAbility', () => {
   });
 });
 
+describe('getCaslUserContext', () => {
+  it('returns undefined when neither context nor ambient store is present', () => {
+    expect(getCaslUserContext()).toBeUndefined();
+  });
+
+  it('returns the user context that built the ability from an explicit context', () => {
+    const items = new Map<unknown, unknown>();
+    items.set(CASL_USER_CONTEXT_KEY, supervisor);
+    const context = { items } as any;
+
+    expect(getCaslUserContext(context)).toBe(supervisor);
+  });
+
+  it('returns the user context from the ambient pipelineStore', () => {
+    const items = new Map<unknown, unknown>();
+    items.set(CASL_USER_CONTEXT_KEY, supervisor);
+    const fakeContext = { items } as any;
+
+    pipelineStore.run(fakeContext, () => {
+      expect(getCaslUserContext()).toBe(supervisor);
+    });
+  });
+});
+
 describe('CaslAuthorizer', () => {
+  describe('subject typing', () => {
+    it('honours the type of a value already tagged by CASL subject()', () => {
+      const ability = buildAbilityFromRules([
+        { action: 'read', subject: 'UserCapabilities' },
+      ]);
+      const authorizer = new CaslAuthorizer(ability);
+
+      expect(
+        authorizer.can(
+          'read',
+          caslSubject('UserCapabilities', { userId: '1' }),
+        ),
+      ).toBe(true);
+      expect(
+        authorizer.can('read', caslSubject('SomethingElse', { userId: '1' })),
+      ).toBe(false);
+    });
+
+    it('evaluates conditions of a tagged subject against its own attributes', () => {
+      const ability = buildAbilityFromRules([
+        {
+          action: 'read',
+          subject: 'UserCapabilities',
+          conditions: { userId: 'self' },
+        },
+      ]);
+      const authorizer = new CaslAuthorizer(ability);
+
+      expect(
+        authorizer.can(
+          'read',
+          caslSubject('UserCapabilities', { userId: 'self' }),
+        ),
+      ).toBe(true);
+      expect(
+        authorizer.can(
+          'read',
+          caslSubject('UserCapabilities', { userId: 'other' }),
+        ),
+      ).toBe(false);
+    });
+  });
+
   describe('can()', () => {
     it('returns false when no ability is available (default deny)', () => {
       const authorizer = new CaslAuthorizer();
