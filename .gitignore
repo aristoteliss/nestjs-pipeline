@@ -41,5 +41,10 @@ packages/*/COMMERCIAL_LICENSE.txt
 *.swp
 *.swo
 
-# AI assistant workspace (local settings, not part of the project)
-.claude/
+# AI assistant workspace: local settings and local state stay out of the project,
+# the shared context-management files are tracked.
+.claude/*
+!.claude/README.md
+!.claude/codebase-map.md
+!.claude/tasks/
+.claude/state/

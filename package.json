@@ -20,7 +20,10 @@
     "publish:all": "pnpm copy-licenses && pnpm -r publish --access public",
     "check": "biome check .",
     "format": "biome check --write .",
-    "lint:persistence": "biome lint --only=plugin ."
+    "lint:persistence": "biome lint --only=plugin .",
+    "context:update": "python3 scripts/update-claude-snapshot.py",
+    "context:check": "python3 scripts/update-claude-snapshot.py --check",
+    "context:validate": "python3 scripts/validate-claude-context.py"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.5.10",
