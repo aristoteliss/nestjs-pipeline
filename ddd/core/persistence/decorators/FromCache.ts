@@ -112,7 +112,7 @@ export function FromCache<
       this: QueryRepository<TQuery, TResult>,
       query: TQuery,
     ): Promise<TResult> {
-      if (!this.cache) {
+      if (!this.cache || query.refresh) {
         return original.call(this, query);
       }
 

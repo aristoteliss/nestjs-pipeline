@@ -50,6 +50,10 @@ export class GetUserQueryRepository extends QueryRepository<
   async find(query: GetUserQuery): Promise<User | null> {
     const conditions = buildConditions(query);
 
-    return this.store.em.findOne(User, conditions as FilterQuery<User>);
+    return this.store.em.findOne(
+      User,
+      conditions as FilterQuery<User>,
+      query.refresh ? { refresh: true } : undefined,
+    );
   }
 }

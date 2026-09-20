@@ -6,6 +6,7 @@ import {
   Delete,
   Get,
   HttpCode,
+  NotFoundException,
   Param,
   Patch,
   Post,
@@ -16,6 +17,8 @@ import { CreateUserCommand } from '../cqrs/commands/create-user.command';
 import { DeleteUserCommand } from '../cqrs/commands/delete-user.command';
 import { UpdateUserCommand } from '../cqrs/commands/update-user.command';
 import { GetUserQuery } from '../cqrs/queries/get-user.query';
+import type { UserOverviewDto } from '../cqrs/queries/get-user-overview.handler';
+import { GetUserOverviewQuery } from '../cqrs/queries/get-user-overview.query';
 import { GetUsersQuery } from '../cqrs/queries/get-users.query';
 import type { User, UserSnapshot } from '../domain/models/user.entity';
 import {
@@ -59,6 +62,23 @@ export class UsersController {
     );
 
     return toResponseDto(user);
+  }
+
+  @Get(':id/overview')
+  @HttpCode(200)
+  async getUserOverview(
+    @Param('id', new ZodPipe<UserIdDto, string>(UserIdDtoSchema)) id: UserIdDto,
+  ): Promise<UserOverviewDto> {
+    const overview = await this.queryBus.execute<
+      GetUserOverviewQuery,
+      UserOverviewDto | null
+    >(new GetUserOverviewQuery({ userId: id }));
+
+    if (!overview) {
+      throw new NotFoundException('User not found');
+    }
+
+    return overview;
   }
 
   @Post()

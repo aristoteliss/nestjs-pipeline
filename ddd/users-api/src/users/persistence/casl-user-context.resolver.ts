@@ -44,6 +44,7 @@ export class CaslUserContextResolver implements IUserContextResolver {
     if (principalType === 'service') {
       if (!rawUser.capabilities) return null;
       return {
+        principalType: 'service',
         id: String(rawUser.id),
         department: (rawUser.department as string | null) ?? null,
         capabilities: rawUser.capabilities,
@@ -56,6 +57,7 @@ export class CaslUserContextResolver implements IUserContextResolver {
     if (!user) return null;
 
     return {
+      principalType: 'user',
       id: user.id,
       department: (user.department as string | null) ?? null,
       ...(rawUser.capabilities ? { capabilities: rawUser.capabilities } : {}),

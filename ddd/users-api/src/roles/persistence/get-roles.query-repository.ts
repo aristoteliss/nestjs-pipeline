@@ -14,7 +14,9 @@ export class GetRolesQueryRepository
     @Inject(MIKRO_ORM_CLIENT) private readonly store: MikroOrmStore,
   ) {}
 
-  async find(_query: GetRolesQuery): Promise<Role[]> {
-    return await this.store.em.find(Role, {});
+  async find(query: GetRolesQuery): Promise<Role[]> {
+    const where =
+      query.names !== undefined ? { name: { $in: query.names } } : {};
+    return await this.store.em.find(Role, where);
   }
 }

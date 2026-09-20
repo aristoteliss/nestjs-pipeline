@@ -45,6 +45,7 @@ export {
   type CaslAuthorizerOptions,
   type CaslBypassContext,
   getCaslAbility,
+  hasEntityConditions,
 } from './helpers/entity-authorization.helper';
 export {
   ENTITY_AUTHORIZER,
@@ -70,9 +71,12 @@ export {
   AbilityRequirement,
   AppAbility,
   AppRawRule,
+  type AuthorizerSelectOptions,
   Capability,
   CapabilityString,
   CaslUserContext,
+  type Projected,
   RoleDefinition,
+  type SelectedProjection,
   UserCapabilities,
 } from './types/casl.types';

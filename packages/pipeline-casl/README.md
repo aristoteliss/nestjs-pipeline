@@ -99,7 +99,8 @@ A per-handler `prebuiltAbility` bypasses provider-based ability construction.
 | `getCaslAbility(context?)` | Read the resolved `AppAbility` from the ambient pipeline store (or an explicit context). |
 | `CaslAuthorizer` | Generic authorizer adapter for entity instances and field-level permissions backed by CASL. |
 | `ENTITY_AUTHORIZER` | Injection token (`Symbol.for('ENTITY_AUTHORIZER')`) for entity authorizer DI providers. |
-| `IEntityAuthorizer` | Interface for pluggable checks: `can(action, subject, field?)`, where `subject` is an entity instance or a subject type string. |
+| `IEntityAuthorizer` | Interface for pluggable checks: `can(action, subject, field?)`, `authorize(...)`, and `project(...)`. |
+| `hasEntityConditions` | Checks whether an `AppAbility` contains conditional rules matching given subjects. |
 
 `CaslAuthorizer.can(action, subject, field?)` returns a boolean. Pass the loaded
 entity instance to evaluate record-dependent conditions, and optionally a field
@@ -107,9 +108,27 @@ name for a field-level check. A subject type string is suitable for type-level
 checks. Without a configured or ambient ability, the result is `false` unless
 explicit bypass is enabled.
 
+`CaslAuthorizer.authorize(...)` evaluates whole-entity conditions and returns
+the authorized snapshot with readable fields only, or throws `UnauthorizedActionException`.
+When passed `{ select: ['fieldA', 'fieldB'] }`, it enforces compile-time field allowlisting,
+omits denied fields, and preserves authorized `null` values.
+
+`CaslAuthorizer.project(action, subject, candidate)` evaluates permissions against an
+authoritative loaded entity `subject` while returning the projected fields of a candidate
+DTO or composite object. Denied fields are omitted and denied array elements (such as `roles.0`)
+are replaced with `null` placeholders. Neither `subject` nor `candidate` is mutated.
+
 ```typescript
 const canRename = authorizer.can('update', loadedUser, 'username');
 const canCreate = authorizer.can('create', 'User');
+
+// Explicit field selection allowlist
+const profile = authorizer.authorize('read', loadedUser, {
+  select: ['username', 'email'],
+});
+
+// Project candidate composite against loaded aggregate
+const overview = authorizer.project<UserOverviewDto>('read', loadedUser, candidate);
 ```
 
 ### Tokens & types

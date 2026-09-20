@@ -524,6 +524,7 @@ export class CaslBehavior implements IPipelineBehavior {
       }
 
       if (user) {
+        context.items.set(CASL_USER_CONTEXT_KEY, user);
         ability = await this.buildAbilityForUser(user);
       } else {
         // skipCheck promises downstream consumers an ability even for a

@@ -92,7 +92,10 @@ class TestAggregate {
     event: (entity) => new RenamedEvent(entity.name, entity.version),
   })
   bogus(): MutationPatch<TestAggregate> {
-    return { applied: [] } as unknown as MutationPatch<TestAggregate>;
+    return {
+      name: 'NewName',
+      applied: [],
+    } as unknown as MutationPatch<TestAggregate>;
   }
 
   @ApplyMutation<TestAggregate>({

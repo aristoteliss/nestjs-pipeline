@@ -26,11 +26,16 @@ export abstract class BaseQuery<TSessionUser = unknown>
   implements IQueryOptions
 {
   public declare readonly hydrate?: boolean;
+  public declare readonly refresh?: boolean;
   public declare readonly sessionUser?: TSessionUser;
 
   constructor(options?: Partial<IQueryOptions>, sessionUser?: TSessionUser) {
     Object.defineProperty(this, 'hydrate', {
       value: options?.hydrate ?? false,
+      enumerable: false,
+    });
+    Object.defineProperty(this, 'refresh', {
+      value: options?.refresh ?? false,
       enumerable: false,
     });
     if (sessionUser !== undefined) {

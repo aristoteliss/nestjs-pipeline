@@ -600,6 +600,29 @@ export class GetRolesHandler implements IQueryHandler<GetRolesQuery, RoleSnapsho
 >
 > Use `createPartitionedCacheKeyFactory` from `@nestjs-pipeline/cache`. It partitions every dimension that influences the authorized response (`tenantId`, principal ID, role/capability scope, payload digest), escapes each segment so `a:b` + `c` cannot collide with `a` + `b:c`, and fails closed with `MissingCachePartitionError` on missing tenant or principal context — never falling back to `'default'`.
 
+#### 9. Composed Read Models & Authoritative Reads
+
+Composed read models such as `GetUserOverviewHandler` aggregate multiple entities (`User`, `Role`) into a unified DTO (`UserOverviewDto`). Composed queries balance performance and security across multiple layers:
+
+- **Authoritative Reads (`refresh: true`)**:
+  When a composed query requires fresh domain state, `BaseQuery` supports `{ refresh: true }`. Repository query decorators (`@FromCache`) inspect `query.refresh` and bypass cached snapshots, executing an authoritative read against persistence with `{ refresh: true }`.
+  ```typescript
+  const user = await this.queryBus.execute<GetUserQuery, User | null>(
+    new GetUserQuery({ userId: query.userId }, { refresh: true }),
+  );
+  ```
+
+- **Entity & Field Authorization on Composed Models**:
+  Type-level pipeline authorization (`CaslBehavior`) guards entry into the query handler, but does not verify loaded entity attributes or field permissions. Composed handlers enforce authorization across each entity:
+  1. Authorize the primary loaded aggregate via `this.authorizer.authorize('read', user)`.
+  2. Verify field-level permissions before reading related records (e.g. `can('read', user, 'roles')`).
+  3. Authorize related entities loaded from persistence (e.g. `can('read', role)` and `can('read', role, 'name')`).
+  4. Project the assembled candidate through `this.authorizer.project<UserOverviewDto>('read', user, candidate)`, ensuring denied fields or indexed collection items are omitted or masked without mutating domain state.
+
+- **Pipeline Cache Eligibility & Entity-Dependent Conditions**:
+  When caching composed query results with `CacheBehavior`:
+  - **Key Partitioning**: Use `createPartitionedCacheKeyFactory` to partition the key by tenant, principal identity (`user:<id>` or `service:<id>`), and a deterministic digest of the caller's effective capabilities and rules.
+  - **Entity-Dependent Conditions**: If the caller's ability contains entity-dependent conditions (such as `{ department: '${user.department}' }`), pipeline-level cache hits would bypass handler-level entity evaluation. Therefore, the cache `condition` evaluates `!hasEntityDependentConditions(context)`, bypassing the cache when entity-dependent conditions are present so that the handler always evaluates loaded-entity attributes.
 
 ### Environment Variables Reference
 

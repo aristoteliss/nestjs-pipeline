@@ -8,6 +8,7 @@ import { UnauthorizedActionException } from './exceptions/unauthorized-action.ex
 import {
   CaslAuthorizer,
   getCaslAbility,
+  hasEntityConditions,
 } from './helpers/entity-authorization.helper';
 import type { IEntityAuthorizer } from './interfaces/entity-authorizer.interface';
 import {
@@ -865,5 +866,246 @@ describe('nested read projection', () => {
     expect(() =>
       new CaslAuthorizer(ability).authorize('read', account),
     ).toThrow(/Authorization snapshot has too many array path aliases/);
+  });
+});
+
+describe('CaslAuthorizer.authorize with select options', () => {
+  class Profile {
+    constructor(
+      public readonly id: string,
+      public readonly username: string,
+      public readonly email: string,
+      public readonly bio: string | null,
+      public readonly secretToken: string,
+      public readonly department: string,
+    ) {}
+
+    toJSON() {
+      return {
+        id: this.id,
+        username: this.username,
+        email: this.email,
+        bio: this.bio,
+        secretToken: this.secretToken,
+        department: this.department,
+      };
+    }
+  }
+
+  it('restricts returned fields to the requested selection allowlist', () => {
+    const ability = buildAbilityFromRules([
+      { action: 'read', subject: 'Profile' },
+    ]);
+    const authorizer = new CaslAuthorizer(ability);
+    const profile = new Profile(
+      'p-1',
+      'alice',
+      'alice@example.com',
+      null,
+      'super-secret',
+      'engineering',
+    );
+
+    const result = authorizer.authorize('read', profile, {
+      select: ['username', 'bio'],
+    });
+
+    expect(result).toEqual({
+      username: 'alice',
+      bio: null,
+    });
+    expect(result).not.toHaveProperty('id');
+    expect(result).not.toHaveProperty('email');
+    expect(result).not.toHaveProperty('secretToken');
+  });
+
+  it('omits fields that are denied by CASL even if included in select', () => {
+    const ability = buildAbilityFromRules([
+      { action: 'read', subject: 'Profile' },
+      { action: 'read', subject: 'Profile', fields: ['email'], inverted: true },
+    ]);
+    const authorizer = new CaslAuthorizer(ability);
+    const profile = new Profile(
+      'p-1',
+      'alice',
+      'alice@example.com',
+      'Software engineer',
+      'super-secret',
+      'engineering',
+    );
+
+    const result = authorizer.authorize('read', profile, {
+      select: ['username', 'email', 'bio'],
+    });
+
+    expect(result).toEqual({
+      username: 'alice',
+      bio: 'Software engineer',
+    });
+    expect(result).not.toHaveProperty('email');
+  });
+
+  it('evaluates instance-level conditions on the full entity before applying selection', () => {
+    const ability = buildAbilityFromRules([
+      {
+        action: 'read',
+        subject: 'Profile',
+        conditions: { department: 'engineering' },
+      },
+    ]);
+    const authorizer = new CaslAuthorizer(ability);
+    const engineeringProfile = new Profile(
+      'p-1',
+      'alice',
+      'alice@example.com',
+      null,
+      'token',
+      'engineering',
+    );
+    const salesProfile = new Profile(
+      'p-2',
+      'bob',
+      'bob@example.com',
+      null,
+      'token',
+      'sales',
+    );
+
+    expect(
+      authorizer.authorize('read', engineeringProfile, {
+        select: ['username'],
+      }),
+    ).toEqual({ username: 'alice' });
+
+    expect(() =>
+      authorizer.authorize('read', salesProfile, { select: ['username'] }),
+    ).toThrow(UnauthorizedActionException);
+  });
+});
+
+describe('CaslAuthorizer.project', () => {
+  class UserEntity {
+    constructor(
+      public readonly id: string,
+      public readonly status: string,
+    ) {}
+
+    toJSON() {
+      return { id: this.id, status: this.status };
+    }
+  }
+
+  it('projects candidate data using subject permissions without mutating inputs', () => {
+    const ability = buildAbilityFromRules([
+      {
+        action: 'read',
+        subject: 'UserEntity',
+        conditions: { status: 'active' },
+      },
+      {
+        action: 'read',
+        subject: 'UserEntity',
+        fields: ['roles.0', 'sensitiveData'],
+        inverted: true,
+      },
+    ]);
+    const authorizer = new CaslAuthorizer(ability);
+    const user = new UserEntity('u-1', 'active');
+    const candidate = {
+      id: 'u-1',
+      roles: ['admin', 'viewer'],
+      sensitiveData: 'classified',
+      profile: { name: 'Alice' },
+    };
+
+    const projected = authorizer.project('read', user, candidate);
+
+    expect(projected).toEqual({
+      id: 'u-1',
+      roles: [null, 'viewer'],
+      profile: { name: 'Alice' },
+    });
+    expect(projected).not.toHaveProperty('sensitiveData');
+
+    expect(candidate.roles[0]).toBe('admin');
+    expect(candidate.sensitiveData).toBe('classified');
+    expect(user.status).toBe('active');
+  });
+
+  it('fails closed when subject condition is not satisfied', () => {
+    const ability = buildAbilityFromRules([
+      {
+        action: 'read',
+        subject: 'UserEntity',
+        conditions: { status: 'active' },
+      },
+    ]);
+    const authorizer = new CaslAuthorizer(ability);
+    const suspendedUser = new UserEntity('u-2', 'suspended');
+    const candidate = { id: 'u-2', roles: ['viewer'] };
+
+    expect(() => authorizer.project('read', suspendedUser, candidate)).toThrow(
+      UnauthorizedActionException,
+    );
+  });
+
+  it('fails closed when ability is absent', () => {
+    const authorizer = new CaslAuthorizer();
+    const user = new UserEntity('u-1', 'active');
+    const candidate = { id: 'u-1', roles: ['viewer'] };
+
+    expect(() => authorizer.project('read', user, candidate)).toThrow(
+      UnauthorizedActionException,
+    );
+  });
+
+  it('returns candidate snapshot in bypass mode', () => {
+    const authorizer = new CaslAuthorizer({ bypass: true });
+    const user = new UserEntity('u-1', 'suspended');
+    const candidate = { id: 'u-1', roles: ['admin'] };
+
+    const result = authorizer.project('read', user, candidate);
+    expect(result).toEqual(candidate);
+  });
+});
+
+describe('hasEntityConditions', () => {
+  it('detects conditions on targeted subjects', () => {
+    const ability = buildAbilityFromRules([
+      {
+        action: 'read',
+        subject: 'User',
+        conditions: { department: 'engineering' },
+      },
+      { action: 'read', subject: 'Role' },
+    ]);
+
+    expect(hasEntityConditions(ability, ['User', 'Role'])).toBe(true);
+  });
+
+  it('detects conditions on global all subject', () => {
+    const ability = buildAbilityFromRules([
+      {
+        action: 'read',
+        subject: 'all',
+        conditions: { isPublic: true },
+      },
+    ]);
+
+    expect(hasEntityConditions(ability, ['User', 'Role'])).toBe(true);
+  });
+
+  it('returns false when targeted rules have no conditions', () => {
+    const ability = buildAbilityFromRules([
+      { action: 'read', subject: 'User' },
+      { action: 'read', subject: 'Role' },
+      {
+        action: 'read',
+        subject: 'Document',
+        conditions: { ownerId: 42 },
+      },
+    ]);
+
+    expect(hasEntityConditions(ability, ['User', 'Role'])).toBe(false);
   });
 });
