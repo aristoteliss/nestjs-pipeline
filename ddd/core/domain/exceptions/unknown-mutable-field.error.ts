@@ -1,7 +1,7 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 /**
- * Raised when a `@Mutate()` method returns a patch key that the aggregate has
+ * Raised when an `@ApplyMutation()` method returns a patch key that the aggregate has
  * not declared with `@Mutable()`.
  *
  * This is a wiring defect, not a domain rule violation: the mutation names a

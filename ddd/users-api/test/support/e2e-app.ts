@@ -242,7 +242,6 @@ export async function bootstrapE2E(options?: E2EOptions): Promise<E2EContext> {
   await app.init();
 
   const close = async (): Promise<void> => {
-    await new Promise((resolve) => setTimeout(resolve, 150));
     await app.close();
     await redis.stop();
     rmSync(dir, { recursive: true, force: true });

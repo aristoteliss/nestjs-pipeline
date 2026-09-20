@@ -38,7 +38,7 @@ type MutableCarrier = {
 /**
  * Declares an aggregate property as mutable through domain methods.
  *
- * `@Mutate()` writes only to fields registered here, so the set of properties a
+ * `@ApplyMutation()` writes only to fields registered here, so the set of properties a
  * mutation may touch is declared once on the field itself instead of being
  * restated in every method that changes it.
  *

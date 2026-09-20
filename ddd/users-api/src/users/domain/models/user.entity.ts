@@ -142,7 +142,7 @@ export class User extends RootEntity<UserSnapshot> {
   }
 
   @ApplyMutation<User>({ event: (user) => new UserUpdatedEvent(user) })
-  update(fields: {
+  protected applyUpdate(fields: {
     username?: string | null;
     department?: string | null;
   }): MutationPatch<User> {
@@ -156,8 +156,21 @@ export class User extends RootEntity<UserSnapshot> {
     };
   }
 
+  update(fields: {
+    username?: string | null;
+    department?: string | null;
+  }): this {
+    this.applyUpdate(fields);
+    return this;
+  }
+
   @ApplyMutation<User>({ event: (user) => new UserDeletedEvent(user) })
-  delete(): MutationPatch<User> {}
+  protected applyDelete(): MutationPatch<User> {}
+
+  delete(): this {
+    this.applyDelete();
+    return this;
+  }
 
   toJSON(): RootEntitySnapshot & UserSnapshot {
     return this.freezeState({

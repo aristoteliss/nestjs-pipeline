@@ -81,20 +81,52 @@ describe('User domain entity', () => {
     });
 
     it('updates username and department when valid fields are supplied', () => {
-      const user = User.create('Alice', 'alice@example.test');
-      user.update({
+      const past = new Date(Date.now() - 60000);
+      const user = User.fromJSON({
+        id: uuidv7(),
+        username: 'Alice',
+        email: 'alice@example.test',
+        department: null,
+        createdAt: past,
+        updatedAt: past,
+        version: 1,
+      });
+
+      const result = user.update({
         username: 'Bob',
         department: 'Operations',
       });
 
+      expect(result).toBe(user);
       expect(user.username).toBe('Bob');
-      expect(user.getUncommittedEvents()).toHaveLength(2);
-      const updateEvent = user.getUncommittedEvents()[1] as UserUpdatedEvent;
-      expect(updateEvent).toBeInstanceOf(UserUpdatedEvent);
+      expect(user.getExpectedVersion()).toBe(1);
       expect(user.version).toBe(2);
+      expect(user.updatedAt.getTime()).toBeGreaterThan(past.getTime());
+
+      expect(user.getUncommittedEvents()).toHaveLength(1);
+      const updateEvent = user.getUncommittedEvents()[0] as UserUpdatedEvent;
+      expect(updateEvent).toBeInstanceOf(UserUpdatedEvent);
       expect(updateEvent.aggregateVersion).toBe(2);
       expect(updateEvent.payload.version).toBe(2);
       expect(updateEvent.payload.updatedAt).toEqual(user.updatedAt);
+    });
+
+    it('preserves earlier event snapshot across consecutive mutations', () => {
+      const user = User.create('Alice', 'alice@example.test');
+      user.update({ username: 'Bob' });
+      user.update({ username: 'Charlie' });
+
+      expect(user.version).toBe(3);
+      expect(user.getExpectedVersion()).toBe(1);
+      const events = user.getUncommittedEvents();
+      expect(events).toHaveLength(3);
+
+      const firstUpdate = events[1] as UserUpdatedEvent;
+      const secondUpdate = events[2] as UserUpdatedEvent;
+      expect(firstUpdate.payload.version).toBe(2);
+      expect(firstUpdate.payload.username).toBe('Bob');
+      expect(secondUpdate.payload.version).toBe(3);
+      expect(secondUpdate.payload.username).toBe('Charlie');
     });
 
     it('throws InvalidUsernameException when updating to an invalid username', () => {
@@ -127,21 +159,31 @@ describe('User domain entity', () => {
 
   describe('delete', () => {
     it('records UserDeletedEvent and increments version', () => {
-      const user = User.create('Alice', 'alice@example.test');
-      const initialUpdatedAt = user.updatedAt;
+      const past = new Date(Date.now() - 60000);
+      const user = User.fromJSON({
+        id: uuidv7(),
+        username: 'Alice',
+        email: 'alice@example.test',
+        department: null,
+        createdAt: past,
+        updatedAt: past,
+        version: 1,
+      });
 
-      user.delete();
+      const result = user.delete();
 
+      expect(result).toBe(user);
       expect(user.version).toBe(2);
-      expect(user.updatedAt.getTime()).toBeGreaterThanOrEqual(
-        initialUpdatedAt.getTime(),
-      );
+      expect(user.getExpectedVersion()).toBe(1);
+      expect(user.updatedAt.getTime()).toBeGreaterThan(past.getTime());
       const events = user.getUncommittedEvents();
-      expect(events).toHaveLength(2);
-      const deleteEvent = events[1] as UserDeletedEvent;
+      expect(events).toHaveLength(1);
+      const deleteEvent = events[0] as UserDeletedEvent;
       expect(deleteEvent).toBeInstanceOf(UserDeletedEvent);
       expect(deleteEvent.aggregateVersion).toBe(2);
       expect(deleteEvent.aggregateId).toBe(user.id);
+      expect(deleteEvent.payload.version).toBe(2);
+      expect(deleteEvent.payload.updatedAt).toEqual(user.updatedAt);
     });
   });
 
