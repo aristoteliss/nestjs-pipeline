@@ -24,6 +24,20 @@ This requirement applies to changes involving:
 
 The repository's current code and documentation are authoritative. Generic Clean Architecture, DDD, CQRS, NestJS, or TypeScript guidance is secondary. If external advice conflicts with an intentional repository decision, follow the repository and document any proposed architectural change explicitly.
 
+## Repository context files
+
+`CLAUDE.md` (root) holds the durable working instructions for coding agents, and
+`.claude/codebase-map.md` is the compact orientation map: repository shape, stack, entry
+points, directory responsibilities, verified commands, critical modules and gotchas.
+Nested `CLAUDE.md` files under `packages/`, `packages/pipeline/`, `ddd/core/` and
+`ddd/users-api/` carry the local rules for those areas.
+
+The map is an index, not an authority: verify any claim against the source before relying
+on it, and prefer the code when they disagree. Regenerate the generated sections with
+`pnpm context:update`, update the human-owned sections by hand, and verify with
+`pnpm context:validate`. Never place secret values in a context or task file.
+`.claude/README.md` documents the whole system.
+
 ## Library scope and review discipline
 
 `packages/*` are reusable libraries for external applications and future use cases;

@@ -82,6 +82,7 @@ Works with Express and Fastify.
 - [DDD Example](#ddd-example)
 - [Repository Structure](#repository-structure)
 - [Development](#development)
+  - [Agent context files](#agent-context-files)
 - [Adding a New Behavior Package](#adding-a-new-behavior-package)
 - [License and Commercial Use](#license-and-commercial-use)
 
@@ -1555,6 +1556,26 @@ registered in `biome.json`. They run through Biome CLI/editor checks and before
 `test:unit`; there is no standalone JavaScript persistence linter. Shared decorator
 and optimistic-update contracts/tests are documented in
 [`ddd/core`](ddd/core/README.md#decorated-versioned-updates).
+
+### Agent context files
+
+`CLAUDE.md` and `.claude/codebase-map.md` give coding agents a compact orientation map of
+the repository. The map's generated sections come from a dependency-free Python script:
+
+```bash
+# Regenerate .claude/codebase-map.md (human-written sections are preserved)
+pnpm context:update
+
+# Fail if the committed map no longer matches the repository
+pnpm context:check
+
+# Structure, required headings, secret scan, size budget, path references, generator run
+pnpm context:validate
+```
+
+The scripts inspect structure only and never execute project code. See
+[`.claude/README.md`](.claude/README.md) for the file layout, the generated/manual section
+split, and the optional pre-compaction hook.
 
 ## Adding a New Behavior Package
 
