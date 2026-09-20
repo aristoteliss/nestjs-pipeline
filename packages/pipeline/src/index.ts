@@ -17,6 +17,7 @@ export * from './helpers/stableStringify';
 export { isUuidV7, uuidv7 } from './helpers/uuidv7';
 export * from './interfaces/pipeline.behavior.interface';
 export * from './interfaces/pipeline.context.interface';
+export * from './interfaces/pipeline-behavior-contract.interface';
 export * from './interfaces/pipeline-handler-meta.interface';
 export type {
   GlobalBehaviorScope,

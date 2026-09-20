@@ -9,9 +9,13 @@ import {
 } from '@nestjs/common';
 import {
   type IPipelineBehavior,
+  type IPipelineBehaviorContract,
   type IPipelineContext,
   LOGGING_BEHAVIOR_LOGGER,
   type NextDelegate,
+  PIPELINE_BEHAVIOR_CONTRACT,
+  type PipelineBehaviorDiagnostic,
+  type PipelineBehaviorValidationContext,
 } from '@nestjs-pipeline/core';
 import { RATE_LIMIT_DEFAULT_OPTIONS, RATE_LIMITER } from './constants/tokens';
 import { RateLimitExceededError } from './errors/rate-limit-exceeded.error';
@@ -81,6 +85,36 @@ function isRateLimiterRes(value: unknown): value is RateLimiterResLike {
  */
 @Injectable()
 export class RateLimitBehavior implements IPipelineBehavior {
+  static readonly [PIPELINE_BEHAVIOR_CONTRACT]: IPipelineBehaviorContract = {
+    validate: (
+      context: PipelineBehaviorValidationContext,
+    ): PipelineBehaviorDiagnostic[] | undefined => {
+      const options = context.effectiveOptions as
+        | RateLimitBehaviorOptions
+        | undefined;
+
+      if (
+        (context.declarationSource === 'handler' ||
+          context.declarationSource === 'both') &&
+        !options?.keyFactory
+      ) {
+        return [
+          {
+            handlerName: context.handlerName,
+            behaviorName: RateLimitBehavior.name,
+            message:
+              'Explicit RateLimitBehavior intent requires an explicit `keyFactory`',
+            fix:
+              'Provide keyFactory in @UsePipeline([RateLimitBehavior, { keyFactory: ... }]) ' +
+              'or use createPartitionedRateLimitKeyFactory(...).',
+          },
+        ];
+      }
+
+      return undefined;
+    },
+  };
+
   private readonly logger: LoggerService;
   private readonly defaults: RateLimitBehaviorOptions;
 

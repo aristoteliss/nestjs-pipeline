@@ -1,6 +1,10 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import type { IPipelineContext } from '@nestjs-pipeline/core';
+import {
+  type IPipelineBehaviorContract,
+  type IPipelineContext,
+  PIPELINE_BEHAVIOR_CONTRACT,
+} from '@nestjs-pipeline/core';
 import type { Client, EvaluationContext } from '@openfeature/server-sdk';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { FeatureDisabledError } from './errors/feature-disabled.error';
@@ -452,6 +456,79 @@ describe('FeatureFlagBehavior decision record on evaluation failure', () => {
     expect(context.items.get(FEATURE_FLAG_DECISION_ITEM)).toMatchObject({
       enabled: false,
       reason: 'ERROR',
+    });
+  });
+
+  describe('PIPELINE_BEHAVIOR_CONTRACT', () => {
+    const contract = (
+      FeatureFlagBehavior as unknown as Record<
+        symbol,
+        IPipelineBehaviorContract
+      >
+    )[PIPELINE_BEHAVIOR_CONTRACT];
+
+    it('returns diagnostic when handler declares intent without a flag name', () => {
+      const diagnostics = contract?.validate?.({
+        handlerType: class TestHandler {},
+        handlerName: 'TestHandler',
+        requestKind: 'command',
+        declarationSource: 'handler',
+        effectiveOptions: {},
+        handlerOptions: {},
+        globalOptions: undefined,
+        effectiveBehaviorTypes: [FeatureFlagBehavior],
+      });
+
+      expect(diagnostics).toHaveLength(1);
+      expect(diagnostics?.[0].behaviorName).toBe('FeatureFlagBehavior');
+      expect(diagnostics?.[0].message).toContain('non-empty `flag` name');
+      expect(diagnostics?.[0].fix).toContain('Provide flag');
+    });
+
+    it('returns diagnostic when flag is an empty whitespace string', () => {
+      const diagnostics = contract?.validate?.({
+        handlerType: class TestHandler {},
+        handlerName: 'TestHandler',
+        requestKind: 'command',
+        declarationSource: 'handler',
+        effectiveOptions: { flag: '   ' },
+        handlerOptions: { flag: '   ' },
+        globalOptions: undefined,
+        effectiveBehaviorTypes: [FeatureFlagBehavior],
+      });
+
+      expect(diagnostics).toHaveLength(1);
+      expect(diagnostics?.[0].behaviorName).toBe('FeatureFlagBehavior');
+    });
+
+    it('does not return diagnostic when flag name is provided', () => {
+      const diagnostics = contract?.validate?.({
+        handlerType: class TestHandler {},
+        handlerName: 'TestHandler',
+        requestKind: 'command',
+        declarationSource: 'handler',
+        effectiveOptions: { flag: 'beta-feature' },
+        handlerOptions: { flag: 'beta-feature' },
+        globalOptions: undefined,
+        effectiveBehaviorTypes: [FeatureFlagBehavior],
+      });
+
+      expect(diagnostics).toBeUndefined();
+    });
+
+    it('allows passive pass-through when declarationSource is global', () => {
+      const diagnostics = contract?.validate?.({
+        handlerType: class TestHandler {},
+        handlerName: 'TestHandler',
+        requestKind: 'command',
+        declarationSource: 'global',
+        effectiveOptions: {},
+        handlerOptions: undefined,
+        globalOptions: {},
+        effectiveBehaviorTypes: [FeatureFlagBehavior],
+      });
+
+      expect(diagnostics).toBeUndefined();
     });
   });
 });

@@ -1,6 +1,10 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import type { IPipelineContext } from '@nestjs-pipeline/core';
+import {
+  type IPipelineBehaviorContract,
+  type IPipelineContext,
+  PIPELINE_BEHAVIOR_CONTRACT,
+} from '@nestjs-pipeline/core';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { IdempotencyCompletionError } from './errors/idempotency-completion.error';
 import { IdempotencyConflictError } from './errors/idempotency-conflict.error';
@@ -629,5 +633,81 @@ describe('IdempotencyBehavior', () => {
     expect(result).toBe('ran');
     expect(next).toHaveBeenCalledTimes(1);
     expect(ctx.items.has(IDEMPOTENCY_KEY_ITEM)).toBe(false);
+  });
+
+  describe('PIPELINE_BEHAVIOR_CONTRACT', () => {
+    const contract = (
+      IdempotencyBehavior as unknown as Record<
+        symbol,
+        IPipelineBehaviorContract
+      >
+    )[PIPELINE_BEHAVIOR_CONTRACT];
+
+    it('declares ordering after CaslBehavior', () => {
+      expect(contract?.order?.after).toEqual(['CaslBehavior']);
+    });
+
+    it('returns diagnostic when handler declares intent without keyFactory for command', () => {
+      const diagnostics = contract?.validate?.({
+        handlerType: class CreateOrderHandler {},
+        handlerName: 'CreateOrderHandler',
+        requestKind: 'command',
+        declarationSource: 'handler',
+        effectiveOptions: {},
+        handlerOptions: {},
+        globalOptions: undefined,
+        effectiveBehaviorTypes: [IdempotencyBehavior],
+      });
+
+      expect(diagnostics).toHaveLength(1);
+      expect(diagnostics?.[0].behaviorName).toBe('IdempotencyBehavior');
+      expect(diagnostics?.[0].message).toContain('explicit `keyFactory`');
+      expect(diagnostics?.[0].fix).toContain('Provide keyFactory');
+    });
+
+    it('does not return diagnostic when keyFactory is provided', () => {
+      const diagnostics = contract?.validate?.({
+        handlerType: class CreateOrderHandler {},
+        handlerName: 'CreateOrderHandler',
+        requestKind: 'command',
+        declarationSource: 'handler',
+        effectiveOptions: { keyFactory: () => 'order-1' },
+        handlerOptions: { keyFactory: () => 'order-1' },
+        globalOptions: undefined,
+        effectiveBehaviorTypes: [IdempotencyBehavior],
+      });
+
+      expect(diagnostics).toBeUndefined();
+    });
+
+    it('does not return diagnostic when request kind is outside of configured scope', () => {
+      const diagnostics = contract?.validate?.({
+        handlerType: class GetOrderHandler {},
+        handlerName: 'GetOrderHandler',
+        requestKind: 'query',
+        declarationSource: 'handler',
+        effectiveOptions: { scope: ['command'] },
+        handlerOptions: { scope: ['command'] },
+        globalOptions: undefined,
+        effectiveBehaviorTypes: [IdempotencyBehavior],
+      });
+
+      expect(diagnostics).toBeUndefined();
+    });
+
+    it('allows passive pass-through when declarationSource is global', () => {
+      const diagnostics = contract?.validate?.({
+        handlerType: class CreateOrderHandler {},
+        handlerName: 'CreateOrderHandler',
+        requestKind: 'command',
+        declarationSource: 'global',
+        effectiveOptions: {},
+        handlerOptions: undefined,
+        globalOptions: {},
+        effectiveBehaviorTypes: [IdempotencyBehavior],
+      });
+
+      expect(diagnostics).toBeUndefined();
+    });
   });
 });

@@ -10,9 +10,13 @@ import {
 } from '@nestjs/common';
 import {
   type IPipelineBehavior,
+  type IPipelineBehaviorContract,
   type IPipelineContext,
   LOGGING_BEHAVIOR_LOGGER,
   type NextDelegate,
+  PIPELINE_BEHAVIOR_CONTRACT,
+  type PipelineBehaviorDiagnostic,
+  type PipelineBehaviorValidationContext,
   untyped,
 } from '@nestjs-pipeline/core';
 import {
@@ -107,6 +111,43 @@ const DEFAULT_SCOPE: IdempotencyRequestKind[] = ['command'];
  */
 @Injectable()
 export class IdempotencyBehavior implements IPipelineBehavior {
+  static readonly [PIPELINE_BEHAVIOR_CONTRACT]: IPipelineBehaviorContract = {
+    order: {
+      after: ['CaslBehavior'],
+    },
+    validate: (
+      context: PipelineBehaviorValidationContext,
+    ): PipelineBehaviorDiagnostic[] | undefined => {
+      const options = context.effectiveOptions as
+        | IdempotencyBehaviorOptions
+        | undefined;
+      const scope = options?.scope ?? DEFAULT_SCOPE;
+      if (!scope.includes(context.requestKind)) {
+        return undefined;
+      }
+
+      if (
+        (context.declarationSource === 'handler' ||
+          context.declarationSource === 'both') &&
+        !options?.keyFactory
+      ) {
+        return [
+          {
+            handlerName: context.handlerName,
+            behaviorName: IdempotencyBehavior.name,
+            message:
+              'Explicit IdempotencyBehavior intent requires an explicit `keyFactory` for deduplication',
+            fix:
+              'Provide keyFactory in @UsePipeline([IdempotencyBehavior, { keyFactory: ... }]) ' +
+              'or use createPartitionedIdempotencyKeyFactory(...).',
+          },
+        ];
+      }
+
+      return undefined;
+    },
+  };
+
   private readonly logger: LoggerService;
   private readonly defaults: IdempotencyBehaviorOptions;
 

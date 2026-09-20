@@ -1,6 +1,10 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import type { IPipelineContext } from '@nestjs-pipeline/core';
+import {
+  type IPipelineBehaviorContract,
+  type IPipelineContext,
+  PIPELINE_BEHAVIOR_CONTRACT,
+} from '@nestjs-pipeline/core';
 import { BrokenCircuitError, TaskCancelledError } from 'cockatiel';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ResilienceConfigurationError } from './errors/resilience-configuration.error';
@@ -466,5 +470,119 @@ describe('ResilienceBehavior telemetry labels across request types', () => {
       expect.stringContaining('circuit CLOSED'),
       expect.any(String),
     );
+  });
+
+  describe('PIPELINE_BEHAVIOR_CONTRACT', () => {
+    const contract = (
+      ResilienceBehavior as unknown as Record<symbol, IPipelineBehaviorContract>
+    )[PIPELINE_BEHAVIOR_CONTRACT];
+
+    it('returns diagnostic when retry/circuitBreaker/fallback lacks error classification', () => {
+      const diagnostics = contract?.validate?.({
+        handlerType: class TestHandler {},
+        handlerName: 'TestHandler',
+        requestKind: 'query',
+        declarationSource: 'handler',
+        effectiveOptions: { retry: { attempts: 2 } },
+        handlerOptions: { retry: { attempts: 2 } },
+        globalOptions: undefined,
+        effectiveBehaviorTypes: [ResilienceBehavior],
+      });
+
+      expect(diagnostics).toHaveLength(1);
+      expect(diagnostics?.[0].behaviorName).toBe('ResilienceBehavior');
+      expect(diagnostics?.[0].message).toContain(
+        'require handle(error) or explicit handleAllErrors',
+      );
+      expect(diagnostics?.[0].fix).toContain('handleAllErrors: true');
+    });
+
+    it('returns diagnostic when retry on command/event lacks replaySafe: true', () => {
+      const diagnostics = contract?.validate?.({
+        handlerType: class TestHandler {},
+        handlerName: 'TestHandler',
+        requestKind: 'command',
+        declarationSource: 'handler',
+        effectiveOptions: { retry: { attempts: 2 }, handleAllErrors: true },
+        handlerOptions: { retry: { attempts: 2 }, handleAllErrors: true },
+        globalOptions: undefined,
+        effectiveBehaviorTypes: [ResilienceBehavior],
+      });
+
+      expect(diagnostics).toHaveLength(1);
+      expect(diagnostics?.[0].behaviorName).toBe('ResilienceBehavior');
+      expect(diagnostics?.[0].message).toContain('retry.replaySafe: true');
+      expect(diagnostics?.[0].fix).toContain('replaySafe: true');
+    });
+
+    it('returns multiple diagnostics when both error classification and replaySafe are missing', () => {
+      const diagnostics = contract?.validate?.({
+        handlerType: class TestHandler {},
+        handlerName: 'TestHandler',
+        requestKind: 'command',
+        declarationSource: 'handler',
+        effectiveOptions: { retry: { attempts: 2 } },
+        handlerOptions: { retry: { attempts: 2 } },
+        globalOptions: undefined,
+        effectiveBehaviorTypes: [ResilienceBehavior],
+      });
+
+      expect(diagnostics).toHaveLength(2);
+    });
+
+    it('does not return diagnostic when query has proper error classification', () => {
+      const diagnostics = contract?.validate?.({
+        handlerType: class TestHandler {},
+        handlerName: 'TestHandler',
+        requestKind: 'query',
+        declarationSource: 'handler',
+        effectiveOptions: { retry: { attempts: 2 }, handleAllErrors: true },
+        handlerOptions: { retry: { attempts: 2 }, handleAllErrors: true },
+        globalOptions: undefined,
+        effectiveBehaviorTypes: [ResilienceBehavior],
+      });
+
+      expect(diagnostics).toBeUndefined();
+    });
+
+    it('does not return diagnostic when command has replaySafe: true and handleAllErrors: true', () => {
+      const diagnostics = contract?.validate?.({
+        handlerType: class TestHandler {},
+        handlerName: 'TestHandler',
+        requestKind: 'command',
+        declarationSource: 'handler',
+        effectiveOptions: {
+          retry: { attempts: 2, replaySafe: true },
+          handleAllErrors: true,
+        },
+        handlerOptions: {
+          retry: { attempts: 2, replaySafe: true },
+          handleAllErrors: true,
+        },
+        globalOptions: undefined,
+        effectiveBehaviorTypes: [ResilienceBehavior],
+      });
+
+      expect(diagnostics).toBeUndefined();
+    });
+
+    it('does not return diagnostic when custom policy object is supplied', () => {
+      const diagnostics = contract?.validate?.({
+        handlerType: class TestHandler {},
+        handlerName: 'TestHandler',
+        requestKind: 'command',
+        declarationSource: 'handler',
+        effectiveOptions: {
+          policy: {} as never,
+        },
+        handlerOptions: {
+          policy: {} as never,
+        },
+        globalOptions: undefined,
+        effectiveBehaviorTypes: [ResilienceBehavior],
+      });
+
+      expect(diagnostics).toBeUndefined();
+    });
   });
 });

@@ -10,9 +10,13 @@ import {
 } from '@nestjs/common';
 import {
   type IPipelineBehavior,
+  type IPipelineBehaviorContract,
   type IPipelineContext,
   LOGGING_BEHAVIOR_LOGGER,
   type NextDelegate,
+  PIPELINE_BEHAVIOR_CONTRACT,
+  type PipelineBehaviorDiagnostic,
+  type PipelineBehaviorValidationContext,
 } from '@nestjs-pipeline/core';
 import { RESILIENCE_DEFAULT_OPTIONS } from './constants/tokens';
 import { ResilienceConfigurationError } from './errors/resilience-configuration.error';
@@ -60,6 +64,50 @@ import type { ResilienceBehaviorOptions } from './interfaces/resilience-options.
  */
 @Injectable()
 export class ResilienceBehavior implements IPipelineBehavior {
+  static readonly [PIPELINE_BEHAVIOR_CONTRACT]: IPipelineBehaviorContract = {
+    validate: (
+      context: PipelineBehaviorValidationContext,
+    ): PipelineBehaviorDiagnostic[] | undefined => {
+      const options = context.effectiveOptions as
+        | ResilienceBehaviorOptions
+        | undefined;
+      if (!options || options.policy) return undefined;
+
+      const diagnostics: PipelineBehaviorDiagnostic[] = [];
+
+      const classifiesErrors =
+        typeof options.handle === 'function' ||
+        options.handleAllErrors === true;
+      const needsErrorClassification =
+        !!options.retry || !!options.circuitBreaker || !!options.fallback;
+
+      if (needsErrorClassification && !classifiesErrors) {
+        diagnostics.push({
+          handlerName: context.handlerName,
+          behaviorName: ResilienceBehavior.name,
+          message:
+            'retry, circuitBreaker and fallback require handle(error) or explicit handleAllErrors: true',
+          fix: 'Specify handle: (err) => boolean or handleAllErrors: true in ResilienceBehavior options.',
+        });
+      }
+
+      if (
+        options.retry &&
+        context.requestKind !== 'query' &&
+        options.retry.replaySafe !== true
+      ) {
+        diagnostics.push({
+          handlerName: context.handlerName,
+          behaviorName: ResilienceBehavior.name,
+          message: `retry on non-query handler (${context.requestKind}) replays downstream work; commands/events must set retry.replaySafe: true`,
+          fix: 'Set retry: { ...retry, replaySafe: true } after verifying handler side effects are idempotent or transactional.',
+        });
+      }
+
+      return diagnostics.length > 0 ? diagnostics : undefined;
+    },
+  };
+
   private readonly logger: LoggerService;
   /**
    * Per-handler policy cache. `null` means "resolved, but nothing configured"

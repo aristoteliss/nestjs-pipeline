@@ -1,6 +1,9 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import type { IPipelineContext } from '@nestjs-pipeline/core';
+import {
+  type IPipelineContext,
+  PIPELINE_BEHAVIOR_CONTRACT,
+} from '@nestjs-pipeline/core';
 import { type Cache, createCache } from 'cache-manager';
 import { Keyv } from 'keyv';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -428,5 +431,76 @@ describe('CacheBehavior', () => {
       expect.stringContaining('failing closed: redis string failure'),
       CacheBehavior.name,
     );
+  });
+
+  describe('PIPELINE_BEHAVIOR_CONTRACT (S-15)', () => {
+    const contract = CacheBehavior[PIPELINE_BEHAVIOR_CONTRACT];
+
+    it('declares order constraint after CaslBehavior', () => {
+      expect(contract?.order?.after).toContain('CaslBehavior');
+    });
+
+    it('returns diagnostic when explicit handler declaration lacks key factory for query', () => {
+      const diagnostics = contract?.validate?.({
+        handlerType: class GetUsersHandler {},
+        handlerName: 'GetUsersHandler',
+        requestKind: 'query',
+        declarationSource: 'handler',
+        effectiveOptions: {},
+        handlerOptions: {},
+        globalOptions: undefined,
+        effectiveBehaviorTypes: [CacheBehavior],
+      });
+
+      expect(diagnostics).toHaveLength(1);
+      expect(diagnostics?.[0].behaviorName).toBe('CacheBehavior');
+      expect(diagnostics?.[0].message).toContain('explicit `key` factory');
+      expect(diagnostics?.[0].fix).toContain('Provide a key factory');
+    });
+
+    it('does not return diagnostic when key factory is provided', () => {
+      const diagnostics = contract?.validate?.({
+        handlerType: class GetUsersHandler {},
+        handlerName: 'GetUsersHandler',
+        requestKind: 'query',
+        declarationSource: 'handler',
+        effectiveOptions: { key: () => 'valid-key' },
+        handlerOptions: { key: () => 'valid-key' },
+        globalOptions: undefined,
+        effectiveBehaviorTypes: [CacheBehavior],
+      });
+
+      expect(diagnostics).toBeUndefined();
+    });
+
+    it('does not return diagnostic for non-query request kinds by default', () => {
+      const diagnostics = contract?.validate?.({
+        handlerType: class CreateUserHandler {},
+        handlerName: 'CreateUserHandler',
+        requestKind: 'command',
+        declarationSource: 'handler',
+        effectiveOptions: {},
+        handlerOptions: {},
+        globalOptions: undefined,
+        effectiveBehaviorTypes: [CacheBehavior],
+      });
+
+      expect(diagnostics).toBeUndefined();
+    });
+
+    it('allows passive pass-through when declarationSource is global', () => {
+      const diagnostics = contract?.validate?.({
+        handlerType: class GetUsersHandler {},
+        handlerName: 'GetUsersHandler',
+        requestKind: 'query',
+        declarationSource: 'global',
+        effectiveOptions: {},
+        handlerOptions: undefined,
+        globalOptions: {},
+        effectiveBehaviorTypes: [CacheBehavior],
+      });
+
+      expect(diagnostics).toBeUndefined();
+    });
   });
 });
