@@ -5,6 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { z } from 'zod';
+import type { RoleReadModel } from '../application/role-read-model';
 import type { Role, RoleSnapshot } from '../domain/models/role.entity';
 
 /**
@@ -26,7 +27,7 @@ export const RoleResponseDtoSchema = z
 export type RoleResponseDto = z.output<typeof RoleResponseDtoSchema>;
 
 export function toRoleResponseDto(
-  role: Role | RoleSnapshot | null,
+  role: Role | RoleSnapshot | RoleReadModel | null,
 ): RoleResponseDto {
   if (!role) {
     throw new NotFoundException('Role not found');

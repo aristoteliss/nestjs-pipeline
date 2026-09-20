@@ -1,24 +1,24 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { APP_ACTIONS, APP_SUBJECTS } from '@common/constants';
+import { readDependsOnEntityState } from '@common/cqrs/helpers/read-freshness.helper';
 import { Inject } from '@nestjs/common';
 import { type IQueryHandler, QueryHandler } from '@nestjs/cqrs';
-import { CaslAuthorizer, CaslBehavior } from '@nestjs-pipeline/casl';
+import { CaslAuthorizer, requires } from '@nestjs-pipeline/casl';
 import { UsePipeline } from '@nestjs-pipeline/core';
 import { IQueryRepository } from '@nestjs-pipeline/ddd-core/application';
-import type { User, UserSnapshot } from '../../domain/models/user.entity';
+import {
+  projectUserRead,
+  type UserReadModel,
+} from '../../application/user-read-model';
+import type { User } from '../../domain/models/user.entity';
 import { QUERY_REPOSITORY } from '../../persistence/repository.tokens';
 import { GetUserQuery } from './get-user.query';
 
 @QueryHandler(GetUserQuery)
-@UsePipeline([
-  CaslBehavior,
-  {
-    rules: [{ action: APP_ACTIONS.READ, subject: APP_SUBJECTS.USER }],
-  },
-])
+@UsePipeline(requires({ action: APP_ACTIONS.READ, subject: APP_SUBJECTS.USER }))
 export class GetUserHandler
-  implements IQueryHandler<GetUserQuery, UserSnapshot | null>
+  implements IQueryHandler<GetUserQuery, UserReadModel | null>
 {
   constructor(
     @Inject(QUERY_REPOSITORY.getUser)
@@ -29,8 +29,20 @@ export class GetUserHandler
     private readonly authorizer: CaslAuthorizer,
   ) {}
 
-  async execute(query: GetUserQuery): Promise<UserSnapshot | null> {
-    const user = await this.queryRepository.find(query);
-    return user ? this.authorizer.authorize<UserSnapshot>('read', user) : null;
+  async execute(query: GetUserQuery): Promise<UserReadModel | null> {
+    const user = await this.queryRepository.find(
+      readDependsOnEntityState(APP_SUBJECTS.USER) && !query.refresh
+        ? new GetUserQuery(
+            {
+              userId: query.userId,
+              email: query.email,
+              department: query.department,
+            },
+            { hydrate: query.hydrate, refresh: true },
+            query.sessionUser,
+          )
+        : query,
+    );
+    return user ? projectUserRead(this.authorizer, user) : null;
   }
 }

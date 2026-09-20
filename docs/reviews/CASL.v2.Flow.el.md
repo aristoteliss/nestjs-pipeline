@@ -252,7 +252,7 @@ await this.commandRepository.save(user);                           // versioned 
 | Αλλαγή δικαιωμάτων, τμήματος ή σβήσιμο χρήστη ισχύει | στο επόμενο αίτημα | στο επόμενο refresh (έως 5 λεπτά) |
 | Ποιος βλέπει τους κανόνες | μόνο ο server | και ο client (το JWT είναι υπογεγραμμένο, όχι κρυπτογραφημένο) |
 
-- **Μεγάλο token:** αν το token ξεπεράσει το `ACCESS_TOKEN_MAX_BYTES` (default 2700· το όριο έχει υπολογιστεί ώστε το τελικό κρυπτογραφημένο cookie του Fastify να μένει κάτω από 4 KB), εκδίδεται **χωρίς** `perms` και για αυτόν τον χρήστη ισχύει ο δρόμος της βάσης. Δεν σπάει τίποτα.
+- **Μεγάλο token:** αν το token ξεπεράσει το `ACCESS_TOKEN_MAX_BYTES` (default 2600· το όριο έχει υπολογιστεί ώστε το τελικό κρυπτογραφημένο cookie του Fastify να μένει κάτω από 4 KB), εκδίδεται **χωρίς** `perms` και για αυτόν τον χρήστη ισχύει ο δρόμος της βάσης. Δεν σπάει τίποτα.
 - **Απενεργοποίηση:** αν γυρίσεις το option σε `false`, τα `perms` των tokens που ήδη κυκλοφορούν αγνοούνται αμέσως.
 
 ## 10. Service client (API key)
@@ -273,3 +273,30 @@ await this.commandRepository.save(user);                           // versioned 
 | Αν οι γραμμές είναι συγχρονισμένες | `permissions:verify` |
 | Την κατάσταση ενός session | `select * from auth where user_id = ?;` (`revoked_at`, `rotated_at`, `version`) |
 | Ποια refresh tokens έχουν ήδη χρησιμοποιηθεί | `select * from auth_consumed_refresh_tokens where auth_id = ? order by consumed_at;` |
+
+## 12. Κατάσταση και ανοιχτά θέματα
+
+Όλες οι φάσεις (0–6) έχουν υλοποιηθεί και γίνει commit στο `feat/casl-v2`. Όλα τα ευρήματα του [CASL.Authorization.Review.md](CASL.Authorization.Review.md) (C-01 έως C-10, D-1, D-2) έχουν κλείσει· η ενότητα 10 εκείνου του εγγράφου δείχνει ποια αλλαγή έκλεισε το καθένα.
+
+### Αποφάσεις που περιμένουν τον owner
+
+| Απόφαση | Λεπτομέρεια |
+| --- | --- |
+| Πρόθεμα routes του auth | Ο controller μετακινήθηκε από `/auth` σε `/auths` (cookie `Path=/auths`), όπως ορίζει το plan. Είτε αλλάζουν τα URLs των clients, είτε το πρόθεμα γυρίζει σε `/auth` μαζί με το path του cookie. |
+| Rebase | Το `feat/casl-v2` δεν έχει γίνει rebase πάνω στο `be606e85`. |
+| Push και pull requests | Δεν έχει γίνει push. Το PR 1 τελειώνει στο `3452bd19`, το PR 2 στο `6fb44bf7`, το PR 3 είναι ό,τι ακολουθεί. |
+
+### Κενά που υπήρχαν ήδη (όχι από το CASL v2)
+
+- Ο `GetRolesCapabilitiesHandler` δεν έχει έλεγχο CASL στο query bus· προστατεύεται μόνο το route του controller.
+- Το `ddd/users-api/test/` έχει 23 type errors· το `test/` είναι εκτός typecheck.
+- Ο generator του codebase map εξακολουθεί να περιλαμβάνει το `packages/_old`.
+- Το `.claude/codebase-map.md` είναι περίπου 50 KB από όριο 64 KB.
+
+### Γνωστά όρια του σχεδιασμού
+
+- Κανένα transaction δεν καλύπτει μαζί τον έλεγχο δικαιωμάτων και ένα μεταγενέστερο write.
+- Ένα access token μετά το logout ισχύει μέχρι το `exp` του (5 λεπτά από προεπιλογή).
+- Όποιος γράφει στο `user_roles` ή σε άλλα δεδομένα δικαιωμάτων χωρίς `UserPermissionsProjector.rebuild` αφήνει απόκλιση μέχρι να τη βρει το `permissions:verify`.
+- Το authorized pagination (φιλτράρισμα σελίδας με κανόνες οντότητας μέσα στο query) είναι ξεχωριστή δουλειά.
+- Με `PERMISSIONS_IN_ACCESS_TOKEN=true`, αλλαγές σε δικαιώματα, τμήμα ή διαγραφή χρήστη ισχύουν από το επόμενο refresh.

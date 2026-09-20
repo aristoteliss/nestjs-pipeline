@@ -170,11 +170,29 @@ Never publish or commit domain events manually inside command handlers. Presenta
 
 `CaslBehavior` handles request/type-level access rules. It does not replace authorization that depends on the actual loaded aggregate or response fields.
 
-After loading/creating the aggregate, use `CaslAuthorizer` for:
+Declare type-level requirements with `requires(...)` in `@UsePipeline`. After
+loading/creating the aggregate, use `CaslAuthorizer`:
 
-- entity-level authorization
-- field-level authorization
-- response field filtering
+- `authorizer.authorize(action, aggregate, fields)` — void permit-or-throw check
+  for writes, with the fields the command accepts, before mutation and save;
+- `authorizer.project('read', aggregate, candidate)` — authorizes the entity and
+  returns only the readable fields of a response or read model;
+- `authorizer.can(...)` — a boolean for optional sections.
+
+A write responds through an authorized read of the result, never with the
+aggregate itself.
+
+Human users' permissions are materialized in `user_permission_rules`, written
+only by `UserPermissionsProjector`: any change to role, capability or
+assignment rows other than a cascading delete must call
+`UserPermissionsProjector.rebuild` for the affected users in the same
+transaction.
+
+Access tokens are short-lived and verified statelessly; the refresh token is
+opaque, stored only as a hash, rotated on every use and delivered only as an
+`HttpOnly` cookie. Permissions reach an access token only through the opt-in
+`PERMISSIONS_IN_ACCESS_TOKEN` copy of `user_permission_rules`, and only an
+authenticator may put `grants` on the session user.
 
 Canonical references:
 
@@ -426,7 +444,7 @@ Prefer adapting these files rather than inventing a new pattern:
 - HTTP mapping boundary: `ddd/users-api/src/common/filters/domain-exception.filter.ts`
 - Command lifecycle: `ddd/core/application/command-base.handler.ts`
 - Session cookie management: `ddd/users-api/src/auths/services/session.service.ts`
-- User context resolution & principal discriminator: `ddd/users-api/src/users/persistence/casl-user-context.resolver.ts`
+- Permission source & principal discriminator: `ddd/users-api/src/auths/persistence/casl-permission.source.ts`
 
 ## Architectural anti-patterns to avoid
 

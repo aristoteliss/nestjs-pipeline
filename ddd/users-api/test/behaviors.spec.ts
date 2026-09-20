@@ -7,7 +7,7 @@ import {
   type AuditSink,
 } from '@nestjs-pipeline/audit';
 import { CacheBehavior } from '@nestjs-pipeline/cache';
-import { buildAbilityFromRules, CaslAuthorizer } from '@nestjs-pipeline/casl';
+import { buildAbility, CaslAuthorizer } from '@nestjs-pipeline/casl';
 import { type IPipelineContext, LoggingBehavior } from '@nestjs-pipeline/core';
 import {
   DeadLetterBehavior,
@@ -592,7 +592,7 @@ describe('Users API Pipeline Behaviors Specification', () => {
     it('verifies entity-level authorization with CaslAuthorizer', () => {
       const role = Role.create('manager');
       const otherRole = Role.create('admin');
-      const ability = buildAbilityFromRules([
+      const ability = buildAbility([
         {
           action: 'update',
           subject: 'Role',

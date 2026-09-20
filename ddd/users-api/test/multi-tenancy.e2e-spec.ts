@@ -20,7 +20,7 @@ describe('multi-tenancy (e2e)', () => {
     id: 'admin-multi-tenant',
     email: 'admin@acme.test',
     department: 'platform',
-    capabilities: { roles: [], additionalCapabilities: ['all|manage|*'] },
+    grants: ['all|manage|*'],
   });
 
   let emailSeq = 0;
@@ -86,9 +86,9 @@ describe('multi-tenancy (e2e)', () => {
       });
     });
 
-    it('rejects POST /auth/login when x-tenant-schema is missing (403)', async () => {
+    it('rejects POST /auths/login when x-tenant-schema is missing (403)', async () => {
       const res = await request(http)
-        .post('/auth/login')
+        .post('/auths/login')
         .send({ email: 'user@acme.test', code: '424242' });
 
       expect(res.status).toBe(403);

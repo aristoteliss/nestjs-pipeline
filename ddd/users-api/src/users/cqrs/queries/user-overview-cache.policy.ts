@@ -8,7 +8,7 @@ import {
 } from '@nestjs-pipeline/cache';
 import {
   getCaslAbility,
-  getCaslUserContext,
+  getCaslPrincipal,
   hasEntityConditions,
 } from '@nestjs-pipeline/casl';
 import { type IPipelineContext, stableStringify } from '@nestjs-pipeline/core';
@@ -17,12 +17,12 @@ import { type IPipelineContext, stableStringify } from '@nestjs-pipeline/core';
  * Local response-policy version prefix. Bumping this invalidates responses
  * cached under previous schema or authorization policies.
  */
-export const OVERVIEW_RESPONSE_POLICY_VERSION = 'v2';
+export const OVERVIEW_RESPONSE_POLICY_VERSION = 'v3';
 
 function resolveViewer(
   context: IPipelineContext,
 ): { id: string; principalType: 'user' | 'service' } | undefined {
-  const viewer = getCaslUserContext(context);
+  const viewer = getCaslPrincipal(context);
   if (!viewer) return undefined;
 
   const { principalType } = viewer;

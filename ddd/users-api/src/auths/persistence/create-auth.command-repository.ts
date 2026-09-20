@@ -24,13 +24,16 @@ export class CreateAuthCommandRepository extends CommandRepository<
     super(cache);
   }
 
+  // Sessions hold refresh-token hashes and are never cached; the key is only invalidated.
   @Cache<Auth, AuthSnapshot>({
-    setKey: (auth) => filterCacheKey(Auth.aggregateName, { id: auth.id }),
+    invalidateKeys: (auth) => [
+      filterCacheKey(Auth.aggregateName, { id: auth.id }),
+    ],
   })
   @AcknowledgePersisted<[Auth]>({ entity: ([auth]) => auth })
   async save(auth: Auth): Promise<AuthSnapshot> {
-    const persisted = await this.store.em.upsert(Auth, auth);
+    await this.store.em.insert(Auth, auth);
 
-    return persisted.toJSON();
+    return auth.toJSON();
   }
 }

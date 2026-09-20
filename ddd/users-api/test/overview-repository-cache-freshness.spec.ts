@@ -1,6 +1,6 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import { buildAbilityFromRules, CaslAuthorizer } from '@nestjs-pipeline/casl';
+import { buildAbility, CaslAuthorizer } from '@nestjs-pipeline/casl';
 import { type IPipelineContext, pipelineStore } from '@nestjs-pipeline/core';
 import { MemoryCache } from '@nestjs-pipeline/ddd-core/persistence';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -53,7 +53,7 @@ describe('User overview repository cache freshness', () => {
   }
 
   function handlerFor(viewerDepartment: string): GetUserOverviewHandler {
-    const ability = buildAbilityFromRules([
+    const ability = buildAbility([
       {
         action: 'read',
         subject: 'User',

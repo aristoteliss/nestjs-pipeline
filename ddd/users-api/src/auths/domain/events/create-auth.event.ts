@@ -1,10 +1,14 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { RootDomainEvent } from '@nestjs-pipeline/ddd-core/domain';
-import { Auth } from '../models/auth.entity';
+import type { Auth } from '../models/auth.entity';
 
-export class CreatedAuthEvent extends RootDomainEvent<Auth> {
+/** A session started. The payload carries no token material. */
+export class CreatedAuthEvent extends RootDomainEvent<
+  Auth,
+  { userId: string; expiresAt: number }
+> {
   constructor(entity: Auth) {
-    super(entity);
+    super(entity, { userId: entity.userId, expiresAt: entity.expiresAt });
   }
 }

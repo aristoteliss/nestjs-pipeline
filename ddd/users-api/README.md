@@ -28,9 +28,17 @@ pnpm db:migrate
 pnpm dev
 ```
 
-`db:migrate` applies the single current initial migration. That migration creates the complete schema and inserts the demo seed in one pass.
+`db:migrate` applies pending migrations for every configured tenant: the initial migration creates the schema and inserts the demo seed; `Migration20260921000000` adds `user_permission_rules` and backfills it from the assignment tables.
 
-If the demo schema changes, delete the local demo database (or drop/recreate the PostgreSQL tenant schema) and run `pnpm db:migrate` again. There is intentionally no compatibility migration chain for older versions of this sample.
+| Command | Purpose |
+| --- | --- |
+| `pnpm db:migrate` | Apply pending migrations in every tenant |
+| `pnpm db:revert` | Revert the last migration in every tenant |
+| `pnpm permissions:rebuild` | Rebuild every user's materialized permission rules in every tenant, one transaction per batch of 500 users |
+| `pnpm permissions:verify` | Print, per tenant, the users whose materialized rules differ from their source tables; exits non-zero on any drift |
+| `pnpm sessions:purge` | Delete expired and long-revoked login sessions (and their refresh-token history) in every tenant |
+
+**Upgrading an existing database** (rollout order): stop or drain the running version → `pnpm db:migrate` (creates and backfills `user_permission_rules`) → `pnpm permissions:verify` must exit 0 → start the new version. If verify reports drift, run `pnpm permissions:rebuild`, verify again, and only then start. Run `permissions:verify` after any seed or bulk import.
 
 ## Persistence modes
 
@@ -70,6 +78,7 @@ The fresh initial migration creates:
 - `user_additional_capabilities`
 - `user_denied_capabilities`
 - `cache`
+- `user_permission_rules` (second migration; see [Permission source](#permission-source))
 
 `capabilities.inverted` is created as a boolean from the beginning. There is no smallint-to-boolean compatibility conversion.
 
@@ -100,7 +109,7 @@ ${user.department}
 The seed intentionally demonstrates both override directions:
 
 - `user_additional_capabilities`: Vince receives `User/create` in addition to `viewer`.
-- `user_denied_capabilities`: Grace receives an explicit `User/read` denial; the CASL package forces capabilities from the denied collection to inverted rules.
+- `user_denied_capabilities`: Grace receives an explicit `User/read` denial; `CaslPermissionSource` forces capabilities from the denied collection to inverted rules.
 
 ## Running requests
 
@@ -116,7 +125,74 @@ curl http://localhost:3000/users \
   -H 'Authorization: Bearer <token>'
 ```
 
-`POST /auth/login` returns the authenticated principal profile and a signed bearer token. With Fastify + `SESSION_SECRET` (64-character hex string representing a 32-byte key), it also populates `@fastify/secure-session`. Express intentionally uses bearer/API credentials only.
+`POST /auths/login` returns the principal profile and a short-lived access token, and sets the refresh token as an `HttpOnly` cookie (see [Authentication](#authentication)). With Fastify + `SESSION_SECRET` (64-character hex string representing a 32-byte key), the access token is also kept in `@fastify/secure-session`.
+
+## Authentication
+
+| Item | Contract |
+| --- | --- |
+| Access token | HS256 JWT, lifetime `ACCESS_TOKEN_TTL_SECONDS` (default 300, 60–3600). Claims: `sub`, `sid` (session id), `tenant`, `principalType: 'user'`, `iat`, `exp`, `jti`, plus `iss`/`aud` when configured. No permission or profile claims. Verified statelessly: no per-request session lookup. |
+| Refresh token | 32 random bytes, base64url. Only its SHA-256 hex digest is stored. The session lifetime `REFRESH_TOKEN_TTL_SECONDS` (default 14 days, minimum 3600) is fixed at login; rotation does not extend it. |
+| Transport | Only as the `refresh_token` cookie: `HttpOnly; Secure; SameSite=Strict; Path=/auths`, on both adapters. Never in a response body and never readable by scripts. |
+| Session | One `auth` row per login, versioned; saves are version-conditioned (`optimisticUpdate`). |
+| Rotation | Every successful `POST /auths/refresh` returns a new access token and sets a new refresh cookie; the presented token becomes the session's previous token and is recorded in `auth_consumed_refresh_tokens`. |
+| Grace window | Presenting the immediately previous token within `REFRESH_REUSE_GRACE_SECONDS` (default 30, 0–120) of its rotation answers 200 with a new access token for the same session, without rotating and without `Set-Cookie`. |
+| Reuse detection | Presenting any earlier token of a session (the previous one after the grace window, or any older generation) revokes the session: 401 `{ "code": "refresh_reused" }`. An unknown, expired or revoked token: 401 `{ "code": "refresh_invalid" }`. |
+| Rate limit | Refresh is throttled per tenant and client IP (never per token). Set `TRUST_PROXY` behind a load balancer; otherwise every client shares the proxy's address and one bucket. |
+| Logout | `POST /auths/logout` revokes the cookie's session, clears the cookie and answers 204, also for a missing or unknown cookie. An access token already issued stays valid until its `exp`. |
+| User deletion | Sessions and their history are deleted by FK cascade; the permission source denies the deleted user on the next request. |
+
+Endpoints (tenant resolution works as for login; `x-tenant-schema` is required):
+
+| Route | Body | Answer |
+| --- | --- | --- |
+| `POST /auths/login` | `{ email, code }` | 200 `{ id, principalType, tenant, email, department, accessToken, accessTokenExpiresAt }` and `Set-Cookie: refresh_token=…` |
+| `POST /auths/refresh` | none; reads the cookie | the same body; `Set-Cookie` only when the token rotated |
+| `POST /auths/logout` | none; reads the cookie | 204, clears the cookie |
+
+`accessTokenExpiresAt` is a Unix timestamp in milliseconds. Send refresh and logout without an `Authorization` header: an expired bearer token is rejected before the route runs.
+
+**CSRF.** `SameSite=Strict` plus a body-less refresh that answers only in the response body (unreadable cross-site) is the protection; no CSRF token is used.
+
+**Client coordination.** Browser clients refresh single-flight: one in-flight refresh shared by every caller, across tabs through the Web Locks API or an equivalent. The grace window only absorbs uncoordinated clients; it is not the coordination mechanism.
+
+```ts
+let inFlight: Promise<string> | undefined;
+
+export function accessToken(): Promise<string> {
+  inFlight ??= navigator.locks
+    .request('auth-refresh', async () => {
+      const res = await fetch('/auths/refresh', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'x-tenant-schema': tenant },
+      });
+      if (!res.ok) throw new Error(`refresh failed: ${res.status}`);
+      return (await res.json()).accessToken as string;
+    })
+    .finally(() => {
+      inFlight = undefined;
+    });
+  return inFlight;
+}
+```
+
+**Session cleanup.** The history table grows by one row per refresh and is deleted with its session. Run `pnpm sessions:purge` on a schedule: it deletes, per tenant and in batches, sessions whose `expires_at` has passed or whose `revoked_at` is older than `REFRESH_TOKEN_TTL_SECONDS`.
+
+### Permissions in the access token (opt-in)
+
+With `PERMISSIONS_IN_ACCESS_TOKEN=true`, login and refresh copy the user's materialized rules into the access token as `perms` (compact capability strings, all direct rules then all inverted, from `user_permission_rules`) together with `department`, the only principal attribute a placeholder reads today (`${user.id}` resolves from `sub`). `JwtAuthenticator` parses them into the session user's `grants` (a malformed entry is a 401), and `CaslPermissionSource` then answers without any query. With the flag off, `perms`/`department` in an already issued token are ignored, so turning it off takes effect immediately.
+
+If the signed token would exceed `ACCESS_TOKEN_MAX_BYTES` (default 2600), it is re-issued without `perms` and `department` and a warning names the user id and rule count (never the token or the rules); that user's requests use the database path. On Fastify the token also sits in the encrypted session cookie: session JSON → nonce + MAC → base64, which also repeats the tenant. The limit budgets that serialized cookie, not the JWS; the cookie-budget e2e test (a 2600-byte token keeps every `Set-Cookie` under 4096 bytes; 2700 did not) is the authority. Lower the limit for long tenant names. Requests authenticated by the Fastify session cookie read permissions from the database; bearer requests use the token path.
+
+| | Database path (default) | Token path |
+| --- | --- | --- |
+| DB reads per request for authorization | 1 parallel round-trip | 0 |
+| Permission change, user deletion, department change | next request | next refresh (≤ `ACCESS_TOKEN_TTL_SECONDS`) |
+| Rule visibility | server only | readable by the client (the JWS is signed, not encrypted) |
+| Token size | small | larger; above `ACCESS_TOKEN_MAX_BYTES` falls back to the database path per user |
+
+**Upgrading.** `Migration20260922000000` recreates `auth`: sessions from earlier versions stored raw access tokens, which cannot be converted, so every user logs in again after `db:migrate`.
 
 ## Authentication & Context Scoping Architecture
 
@@ -145,229 +221,44 @@ Downstream Pipeline (Controllers → CQRS Bus → CASL → Audit → DB)
 ### Architecture Components
 
 1. **`AuthSessionGuard` (`APP_GUARD`)**: Decides **who you are**. It executes early in the NestJS request lifecycle (before interceptors, pipes, or route handlers) and delegates credential resolution to:
-   - **`JwtAuthenticator`**: Parses `Authorization: Bearer <token>` (case-insensitively, accepting `Bearer` or `bearer`). Supports both symmetric (`JWT_SECRET`) and asymmetric (`JWT_PUBLIC_KEY`) keys. Asymmetric SPKI keys are memoized upon first parse to eliminate repetitive ASN.1 DER parsing. Validates tenant alignment, maps CASL capabilities, and explicitly tags the authenticated principal as `principalType: 'user'`.
-   - **`ApiClientAuthenticator`**: Authenticates machine-to-machine callers using `x-api-id` and `x-api-key` headers against configured `API_CLIENTS`. Uses constant-time fixed-length SHA-256 digest comparison (`timingSafeEqual`) to prevent timing side-channel leaks. Operates completely statelessly and explicitly tags the principal as `principalType: 'service'`.
+   - **`JwtAuthenticator`**: Parses `Authorization: Bearer <token>` (case-insensitively, accepting `Bearer` or `bearer`). Supports both symmetric (`JWT_SECRET`) and asymmetric (`JWT_PUBLIC_KEY`) keys. Asymmetric SPKI keys are memoized upon first parse to eliminate repetitive ASN.1 DER parsing. Validates tenant alignment, reads no permissions from the token, and explicitly tags the authenticated principal as `principalType: 'user'`.
+   - **`ApiClientAuthenticator`**: Authenticates machine-to-machine callers using `x-api-id` and `x-api-key` headers against configured `API_CLIENTS`. Uses constant-time fixed-length SHA-256 digest comparison (`timingSafeEqual`) to prevent timing side-channel leaks. Operates completely statelessly, attaches the client's configured rules as `grants`, and explicitly tags the principal as `principalType: 'service'`.
    - **`RequestPrincipalResolver`**: Lean orchestrator coordinating priority resolution (Cookie $\rightarrow$ JWT $\rightarrow$ API Key $\rightarrow$ Anonymous fallback).
 
    *Note on Anonymous Access*: `AuthSessionGuard` does **not** reject unauthenticated requests; it resolves the caller to `undefined` (anonymous) and permits the request to continue. Rejections (HTTP 401 Unauthorized) only occur when credentials are provided but fail verification (e.g. expired JWT, invalid API key, or tenant mismatch). Downstream pipeline behaviors, such as `CaslBehavior` and `CaslAuthorizer`, enforce endpoint authorization and reject unauthorized callers with HTTP 403 Forbidden.
 2. **`SessionUserContextInterceptor` (`APP_INTERCEPTOR`)**: Decides **the execution scope**. A single-responsibility interceptor that reads `req.sessionUser` (populated by the guard) and invokes `sessionUserStore.run(req.sessionUser, () => next.handle())`. In NestJS 11.2.1, `InterceptorsConsumer` binds stream continuations using `defer(AsyncResource.bind(...))`, guaranteeing that the `AsyncLocalStorage` context established by `run()` persists across all downstream asynchronous operations, CQRS handlers, and pipeline behaviors without cross-request context bleeding.
-3. **`SessionService`**: Dedicated presentation-layer service encapsulating all `@fastify/secure-session` cookie operations: saving authenticated sessions on login (`saveSession`), clearing cookies safely on logout or expiration (`clearSession`), extracting session credentials (`getCredentials`), and validating timestamp/JWT expiration (`isExpired`).
-4. **`UserLoginService`**: Dedicated application service responsible solely for user login credential verification (`POST /auth/login`) and signing new tenant-bound access tokens, completely decoupled from HTTP cookies and session storage.
+3. **`SessionService`**: Presentation-layer service for the `@fastify/secure-session` cookie: saving the access token and `{ id, principalType, tenant, exp }` on login and refresh (`saveSession`), clearing it on logout or expiry (`clearSession`), and checking expiry (`isExpired`). The refresh cookie is handled by `controllers/refresh-cookie.ts`.
+4. **`UserLoginService`**: Application service for login credential verification (`POST /auths/login`) and signing access tokens for a session, decoupled from HTTP cookies and session storage.
 5. **`toSessionRes` Mapper**: Clean presentation mapper converting internal `CreateAuthResult` application results into public `SessionResponse` HTTP response contracts.
-6. **`DeleteAuthCommandRepository`**: Dedicated command repository implementing `ICommandRepository<Auth, null>`. Deletes the exact persistent auth aggregate by primary key `id` and evicts the corresponding session cache entry upon `POST /auth/logout`.
-7. **`CaslUserContextResolver`**: Dedicated request-scoped CASL adapter implementing `IUserContextResolver` for `CaslModule`. Resolves the authenticated principal from configured request paths or `sessionUserStore`. Enforces explicit `principalType` classification: verifies active status of database users in persistence (preventing deleted users from executing operations with stale tokens) and dynamically synchronizes their department, while permitting authenticated service principals without redundant user database queries. Unclassified principals fail closed.
-8. **`GetUserContextQueryRepository`**: Persistence-only, singleton-safe CQRS query repository implementing `IQueryRepository<GetUserContextQuery, CaslUserContext | null>` for `GetUserContextHandler`. Decoupled from HTTP requests and session storage.
+6. **Session persistence**: `CreateAuthCommandRepository` inserts a session, `UpdateAuthCommandRepository` saves rotation and revocation version-conditioned, and `AuthSessionsRepository` (`AUTH_SESSIONS` port) finds sessions by refresh-token hash and records rotated-away hashes. Sessions are never cached.
+7. **`CaslPermissionSource`**: Request-scoped `ICaslPermissionSource` bound through `AuthorizationModule` and `CaslModule.forRoot({ imports: [AuthorizationModule], permissionSource: { useExisting: CaslPermissionSource } })`. For a `user` principal it reads the user row (a deleted user is unauthenticated) and the materialized `user_permission_rules` in one parallel round-trip (see [Permission source](#permission-source)); the principal carries `department` for `${user.department}` placeholders. A `service` principal uses its `grants` without touching the users tables. Unclassified principals are unauthenticated.
 
-### Clean Architecture & Persistence Repository Boundaries
+### Authorization
 
-Handlers belong strictly to the application/CQRS orchestration layer. In compliance with Clean Architecture:
-- **Zero ORM Leakage in Handlers**: Handlers **must never** inject ORM or database clients directly (`@Inject(MIKRO_ORM_CLIENT) private readonly store: MikroOrmStore` is strictly forbidden in CQRS handlers).
-- **Interface-Driven Decoupling**: Handlers only inject command or query repositories through typed interfaces (`ICommandRepository<TEntity, TSnapshot>`, `IQueryRepository<TQuery, TResult>`) via injection tokens defined in `repository.tokens.ts`.
-- **Encapsulated Data Access**: All database operations (such as MikroORM `em.findOne`, `em.nativeUpdate`, `em.nativeDelete`, transactions) are encapsulated within persistence repository classes (e.g. `CreateUserCommandRepository`, `DeleteAuthCommandRepository`, `GetUserQueryRepository`).
+Authorization runs in two stages, both through `@nestjs-pipeline/casl`:
 
-### Modular Composition Root & Clean Infrastructure Modules
-
-To maintain clear architectural boundaries and keep the root composition module maintainable, `AppModule` is decomposed into cohesive infrastructure modules:
-
-- **`ObservabilityModule` (`@common/observability/observability.module.ts`)**:
-  - Bundles HTTP correlation middleware (`HttpCorrelationMiddleware`), OpenTelemetry tracing, and metric collection.
-  - Configures global pipeline behaviors for tracing (`TraceBehavior`) and latency/throughput metrics (`MetricsBehavior`).
-- **`ReliabilityModule` (`@common/reliability/reliability.module.ts`)**:
-  - Manages failure isolation and transport resilience.
-  - Provides BullMQ-backed dead-letter capture (`DeadLetterBehavior`) scoped to commands and events. `DEAD_LETTER_DEFAULTS` excludes read queries, expected validation/authentication/authorization and domain rejections, feature-disabled/rate-limit/idempotency conflicts, and post-success `IdempotencyCompletionError`. Unexpected failures, `AuthConfigurationException`, and `MissingTenantContextError` remain capturable. Capture uses automatic fallback to structured log auditing when Redis/BullMQ is unavailable.
-  - Integrates in-memory and distributed rate-limiting infrastructure (`RateLimitBehavior`).
-  - Swappable caching providers (`MikroOrmCache` vs `MemoryCache`).
-- **`AppModule` (`src/app.module.ts`)**:
-  - Lean composition root (under 90 lines) importing domain feature modules (`UsersModule`, `RolesModule`, `AuthsModule`), persistence (`MikroOrmModule`), and infrastructure modules (`ObservabilityModule`, `ReliabilityModule`).
-  - Avoids leaking configuration noise or implementation details into business domain layers.
-
-### CQRS Commands & Queries with Zod and Base Classes
-
-All commands and queries in `users-api` are strongly-typed, self-validating, and inherit from the standard base classes using `@nestjs-pipeline/zod`:
-
-- **Commands (100% inherit from `BaseCommand`)**:
-  ```typescript
-  export class CreateUserCommand extends createCommand(CreateUserSchema, BaseCommand) {}
-  ```
-  - Automatically tagged with `requestKind: 'command'`.
-  - Inherits `sessionUser` resolution (ambient ALS store fallback) without polluting JSON payload serialization or idempotency keys (`sessionUser` is non-enumerable).
-  - A command subject to field-level authorization declares its surface:
-    ```typescript
-    export class UpdateUserCommand extends createCommand(UpdateUserSchema, BaseCommand) {
-      static readonly MUTABLE_FIELDS = ['username', 'department'] as const;
-    }
-    ```
-    The handler passes it to `command.getUpdateFields(UpdateUserCommand.MUTABLE_FIELDS)`,
-    which returns only declared mutable fields that are present on the command.
-    Adding a new mutable field therefore requires an explicit change to the
-    authorization surface.
-- **Queries (100% inherit from `BaseQuery`)**:
-  ```typescript
-  export class GetUserQuery extends createQuery(GetUserSchema, BaseQuery) {}
-  ```
-  - Automatically tagged with `requestKind: 'query'`.
-  - Implements `IQueryOptions` (`hydrate`, `sessionUser`), keeping cache keys deterministic.
-- **Standard Schema Metadata**:
-  - Generated classes expose `['~standard']`, allowing them to provide standard schema metadata for validation pipes.
-  - Static `parse()` and `safeParse()` methods are available directly on each command and query.
-
-### MikroORM Entity Schemas & Clean Property Accessors (`accessor: true`)
-
-Persistence schemas map domain aggregate state to relational tables without compromising encapsulation or relying on TypeScript casting workarounds:
-
-- **Accessor mapping**: Entities store core attributes in private fields (`_id`, `_createdAt`, `_updatedAt`, `_username`, `_department`). MikroORM `accessor: true` properties read and write through the public TypeScript getters and setters:
-  ```typescript
-  export const UserSchema = new EntitySchema<User>({
-    class: User,
-    tableName: 'users',
-    properties: {
-      id: { type: 'string', primary: true, fieldName: 'id', accessor: true },
-      createdAt: { type: UnixTimestampType, fieldName: 'created_at', accessor: true },
-      updatedAt: { type: UnixTimestampType, fieldName: 'updated_at', accessor: true },
-      username: { type: 'string', fieldName: 'username', accessor: true },
-      department: { type: 'string', fieldName: 'department', nullable: true, accessor: true },
-      email: { type: 'string', unique: true },
-    },
-  });
-  ```
-- **Accessors vs. Domain Mutation**: Property setters exist strictly as accessors for MikroORM persistence mapping and rehydration. Application code **must not** modify domain state by invoking setters directly, because setters bypass the `@ApplyMutation()` lifecycle decorator and do not publish domain events. Domain state mutations must always occur via explicit domain methods (`user.update()`, `role.rename()`) and factories (`User.create()`, `Role.create()`). During ORM hydration, property setters invoke static normalization routines to ensure invalid state cannot be loaded into memory.
-
----
-
-### Decoupled Caching Architecture & Key Templates
-
-Caching metadata is completely removed from domain entities (`CacheableEntity` and `ICacheKey` are obsolete). Domain entities declare only a canonical logical identity (e.g. `User.aggregateName = 'user'`), keeping domain aggregates pure DDD while caching remains strictly an infrastructure/CQRS pipeline concern:
-
-- **Collision-Safe & Canonical Key Derivation (`filterCacheKey`)**:
-  Generates deterministic, tenant-isolated cache keys by combining active tenant schema, aggregate name, and canonically sorted filter conditions:
-  - **Deterministic Object Serialization**: Nested composite identities/objects are recursively key-sorted and JSON-serialized (preventing `[object Object]` bugs).
-  - **Delimiter Escaping**: Primitive values containing `:` or `\` are escaped to prevent delimiter injection and key collision attacks (`{ a: 'hello:b:world' }` vs `{ a: 'hello', b: 'world' }`).
-  - **Production Multi-Tenant Protection**: Refuses silent default schema fallback when running in `NODE_ENV === 'production'`; throws fail-safe if tenant context is missing.
-  ```typescript
-  // Single identifier lookup using entity class
-  filterCacheKey(User, { id: '123' }, ctx)
-  // → "tenant_a:user:id:123"
-
-  // Composite conditions with delimiter escaping
-  filterCacheKey(User.aggregateName, { email: 'alice@example.com', department: 'sales' }, 'tenant_b')
-  // → "tenant_b:user:department:sales:email:alice@example.com"
-
-  // Nested composite identities
-  filterCacheKey('deployment', { compose: { service: 'postgres', file: 'docker-compose.yml' } })
-  // → 'tenant:deployment:compose:{"file":"docker-compose.yml","service":"postgres"}'
-  ```
-- **Fail-Fast CQRS Handler Templates (`cacheKeyTemplate`)**:
-  Allows query and command handlers to declaratively define cache patterns parameterized from request DTO fields:
-  - Required placeholders `{prop}`: Throws an explicit error if missing or nullish (prevents silent collisions on truncated keys like `tenant:user:`).
-  - Optional placeholders `{prop?}`: Resolves to an empty string if omitted.
-  ```typescript
-  const getKey = cacheKeyTemplate('user:{userId}');
-  getKey(new GetUserQuery({ userId: 'usr_123' }))
-  // → "tenant:user:usr_123"
-
-  // Missing required placeholder throws:
-  getKey({}) // Error: Cannot resolve cache key template: missing required placeholder "userId"
-  ```
-- **Write-Through & Automatic Eviction (`@Cache`, `@FromCache`)**:
-  - `@Cache`: Attached to write repository `save()` methods. Requires explicit key derivations or options (`setKey`, `deleteKeys`, `invalidateKeys`) eliminating unsafe defaults. On create/update, results are stored in the cache. On deletion (`save()` returns `null`), all matching primary and secondary keys are evicted. Operations are fail-safe and best-effort.
-  - `@FromCache`: Attached to query repository `find()` methods. Serves hits from cache and automatically stores non-nullish database results. Supports optional entity rehydration.
-
----
-
-### Domain Models & Invariant Enforcement
-
-Create-user and create-role handlers persist and return the aggregate.
-`CommandBaseHandler.execute()` publishes and clears its buffered domain events.
-Idempotency serializes the aggregate through `toJSON()`, validating the public
-snapshot rather than its internal NestJS symbol fields. Completed replays return
-plain snapshots without repeating persistence or event publication. The HTTP
-response mappers accept both aggregates and snapshots.
-
-Event handlers are registered only for implemented reactions: user creation
-queues a welcome email and user updates queue batch work through application
-ports. Authentication creation, role lifecycle changes, and user deletion still
-publish domain events, but have no log-only subscribers or placeholder dispatch
-adapters. Logging and audit belong in pipeline behaviors; add a new event
-subscriber when there is a concrete side effect to implement. The in-memory
-EventBus does not provide durable delivery.
-
-The `User` and `Role` aggregate entities inherit identity and lifecycle behavior from `RootEntity` (`@nestjs-pipeline/ddd-core`):
-
-- **Encapsulated Invariant Enforcement**: State modifications occur exclusively through factory and domain mutation methods (`User.create()`, `user.update()`). Invariants for `username` (minimum 3 characters, trimmed) and `department` (trimmed, minimum 3 characters when provided) are checked synchronously upon instantiation and update.
-- **Framework-Agnostic Domain Exceptions**: Entities throw typed domain exceptions extending `DomainException` (`@nestjs-pipeline/ddd-core`), completely decoupled from HTTP status codes and `@nestjs/common`.
-
----
-
-### CQRS Runtime Error Taxonomy & HTTP Status Code Mapping
-
-The application enforces a consistent error taxonomy across all 8 commands and 7 queries:
-
-| HTTP Status | Error Type | Exception Class / Source | Trigger Scenario |
-|---|---|---|---|
-| **400 Bad Request** | Validation Error | `ZodValidationError` | Inbound payload fails Zod schema validation (e.g. invalid email format) |
-| **400 Bad Request** | Domain Error | `EmptyUserUpdateException` | Update payload contains no fields to modify (`username` and `department` absent) |
-| **401 Unauthorized** | Authentication Failure | `UnauthorizedException` | Expired Bearer JWT, invalid API key, tenant mismatch, or invalid credentials on `/auth/login` |
-| **403 Forbidden** | Authorization Failure | `UnauthorizedActionException` | Caller lacks CASL permissions to perform action on subject or specific fields |
-| **404 Not Found** | Resource Missing | `UserNotFoundException`, `RoleNotFoundException` | Target aggregate does not exist in the active tenant database |
-| **409 Conflict** | Uniqueness Collision | `UniqueEmailException`, `UniqueRoleNameException` | Email or role name already exists in the active tenant schema |
-| **409 Conflict** | Concurrency Error | `OptimisticLockError` | Stale version or concurrent update on `User` or `Role` aggregate |
-| **422 Unprocessable Entity** | Invariant Violation | `InvalidUsernameException`, `InvalidDepartmentException` | Username or department string fails domain aggregate invariants (< 3 characters) |
-
-#### Optimistic Locking & Versioning
-
-Domain aggregates (`User`, `Role`) inherit automatic version tracking from `RootEntity`. Each entity initializes `version: 1` on creation, and every state mutation decorated with `@ApplyMutation()` automatically increments `version`.
-- Write repositories (`UpdateUserCommandRepository`, `UpdateRoleCommandRepository`) execute atomic conditional updates:
-  ```typescript
-  await this.store.em.nativeUpdate(
-    User,
-    { id: user.id, version: user.getExpectedVersion() },
-    { ...changes, version: user.version },
-  );
-  ```
-- If the affected rows are 0 and the record exists, an `OptimisticLockError` is thrown, preventing lost updates or resurrecting deleted aggregates. `DomainExceptionFilter` intercepts this and returns HTTP 409 Conflict.
-
-#### Global API Mapping (`DomainExceptionFilter`)
-
-The `DomainExceptionFilter` intercepts all domain exceptions at the presentation boundary and serializes them into structured JSON error payloads:
-
-```json
-{
-  "statusCode": 422,
-  "error": "Unprocessable Entity",
-  "message": "Username must be at least 3 characters, received: \"ab\".",
-  "minLength": 3,
-  "actualValue": "ab"
-}
-```
-
----
-
-### Injectable CASL Authorization (`CaslAuthorizer`)
-
-The service-locator anti-pattern (`RootEntity.authorize()`) has been replaced by the standalone, injectable `CaslAuthorizer` service:
+1. **Type level, before the handler.** Handlers declare requirements with `@UsePipeline(requires({ action, subject }))`. `CaslBehavior` loads the caller through `CaslPermissionSource`, builds the ability (every deny after every allow) and rejects with `UnauthorizedActionException` (HTTP 403 via `UnauthorizedActionFilter`) before cache or idempotency can short-circuit.
+2. **Entity level, in the handler, after the authoritative load.** Commands call `authorizer.authorize(action, aggregate, acceptedFields)`, a void permit-or-throw check, before mutating and saving. Queries return read models built with `authorizer.project('read', entity, candidate)`.
 
 ```typescript
-@CommandHandler(CreateUserCommand)
-export class CreateUserHandler extends CommandBaseHandler<CreateUserCommand, User> {
-  constructor(
-    private readonly commandRepository: ICommandRepository<User, UserSnapshot>,
-    private readonly authorizer: CaslAuthorizer,
-    protected readonly eventBus: EventBus,
-  ) {
-    super(eventBus);
-  }
-
-  async handle(command: CreateUserCommand): Promise<User> {
-    const user = User.create(command.username, command.email, command.department);
-
-    // Enforce authorization against the active principal's ability
-    this.authorizer.authorize('create', user, ['username', 'email', 'department']);
-
+@CommandHandler(UpdateUserCommand)
+@UsePipeline(requires({ action: APP_ACTIONS.UPDATE, subject: APP_SUBJECTS.USER }))
+export class UpdateUserHandler extends CommandBaseHandler<UpdateUserCommand, User> {
+  async handle(command: UpdateUserCommand): Promise<User> {
+    const user = await this.commandRepository.findById(command.id);
+    if (!user) throw new EntityNotFoundException('User', command.id);
+    this.authorizer.authorize('update', user, command.getUpdateFields(UpdateUserCommand.MUTABLE_FIELDS));
+    user.update(command);
     await this.commandRepository.save(user);
     return user;
   }
 }
 ```
+
+- **Read models.** `GetUserHandler`/`GetRoleHandler` return `UserReadModel`/`RoleReadModel` (`Projected<…>`: any field may be absent). Lists filter with `can('read', item)` and project each row; this filters the loaded collection in memory and is not authorized pagination.
+- **Fresh reads under conditional rules.** When the caller's `read` rules for the subject have conditions (`readDependsOnEntityState`), the handler re-issues the query with `refresh: true`, which bypasses the repository cache and asks the ORM for a refreshed row, so a cached snapshot cannot decide access. Unconditional reads may be served from the repository cache.
+- **Write responses.** `POST`/`PATCH` on users and roles answer with a fresh `GetUserQuery`/`GetRoleQuery` for the written id, so the body carries only what the caller may read afterwards. A write-only caller receives `{}` with the normal success status; a committed write is never reported as failed because its result is unreadable. Only `UnauthorizedActionException` is absorbed: any other failure of that read propagates as an error although the write has committed. An idempotent replay re-reads the same way. `DELETE` stays `204`.
+- **Service principals.** Each `API_CLIENTS` entry lists `rules` as compact capability strings (`[!]subject|action[|conditions[|fields[|reason]]]`), parsed at startup; a malformed rule fails boot. Those rules are the client's complete authorization.
 
 ---
 
@@ -375,10 +266,10 @@ export class CreateUserHandler extends CommandBaseHandler<CreateUserCommand, Use
 
 #### 1. User Login & Token Issuance
 
-Users authenticate via `POST /auth/login` using their email and temporary login code (a simplified demo mechanism simulating OTP/login code via `AUTH_LOGIN_CODE`):
+Users authenticate via `POST /auths/login` using their email and temporary login code (a simplified demo mechanism simulating OTP/login code via `AUTH_LOGIN_CODE`):
 
 ```bash
-curl -X POST http://localhost:3000/auth/login \
+curl -X POST http://localhost:3000/auths/login -c cookies.txt \
   -H "x-tenant-schema: tenant" \
   -H "Content-Type: application/json" \
   -d '{
@@ -393,17 +284,14 @@ Response:
   "id": "019488e0-0000-7000-8000-000000000001",
   "tenant": "tenant",
   "email": "alice+tenant@seed.local",
+  "principalType": "user",
   "department": null,
-  "capabilities": {
-    "roles": ["admin"],
-    "additionalCapabilities": [],
-    "deniedCapabilities": []
-  },
-  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ...",
-  "expiresAt": 1741258800000,
-  "exp": 1741258800
+  "accessToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ...",
+  "accessTokenExpiresAt": 1741258800000
 }
 ```
+
+The response also carries `Set-Cookie: refresh_token=…; Path=/auths; HttpOnly; Secure; SameSite=Strict`. Exchange it for a new access token with `curl -X POST http://localhost:3000/auths/refresh -b cookies.txt -c cookies.txt -H "x-tenant-schema: tenant"`.
 
 #### 2. Calling Endpoints with a Bearer JWT
 
@@ -423,13 +311,13 @@ Automated scripts and background services authenticate using static API credenti
 curl http://localhost:3000/users \
   -H "x-tenant-schema: tenant" \
   -H "x-api-id: reporting-service" \
-  -H "x-api-key: secret-api-key-999"
+  -H "x-api-key: <secret>"
 ```
 
 Configure authorized clients in `.env` as a JSON array:
 
 ```env
-API_CLIENTS='[{"id":"reporting-service","key":"secret-api-key-999","tenants":["tenant"],"capabilities":{"roles":["reporter"]}}]'
+API_CLIENTS='[{"id":"reporting-service","key":"<secret>","tenants":["tenant"],"rules":["User|read|*|id,username","Role|read|*"]}]'
 ```
 
 #### 4. Defining & Executing a CQRS Command with Pipeline Behaviors
@@ -450,7 +338,7 @@ export class CreateUserCommand extends createCommand(CreateUserSchema, BaseComma
 @CommandHandler(CreateUserCommand)
 @UsePipeline(
   [LoggingBehavior, { requestResponseLogLevel: 'log' }],
-  [CaslBehavior, { rules: [{ action: APP_ACTIONS.CREATE, subject: APP_SUBJECTS.USER }] }],
+  requires({ action: APP_ACTIONS.CREATE, subject: APP_SUBJECTS.USER }),
   [FeatureFlagBehavior, { flag: 'user-registration' }],
   [RateLimitBehavior, { keyFactory: (ctx) => `${ctx.tenantId}:${ctx.request.email}` }],
   [IdempotencyBehavior, { keyFactory: createUserIdempotencyKey }],
@@ -504,16 +392,16 @@ export class GetUserQueryRepository extends QueryRepository<GetUserQuery, User |
 
 // 3. Query Handler with CASL
 @QueryHandler(GetUserQuery)
-@UsePipeline([CaslBehavior, { rules: [{ action: APP_ACTIONS.READ, subject: APP_SUBJECTS.USER }] }])
-export class GetUserHandler implements IQueryHandler<GetUserQuery, UserSnapshot | null> {
+@UsePipeline(requires({ action: APP_ACTIONS.READ, subject: APP_SUBJECTS.USER }))
+export class GetUserHandler implements IQueryHandler<GetUserQuery, UserReadModel | null> {
   constructor(
     @Inject(QUERY_REPOSITORY.getUser) private readonly queryRepository: IQueryRepository<GetUserQuery, User | null>,
     private readonly authorizer: CaslAuthorizer,
   ) {}
 
-  async execute(query: GetUserQuery): Promise<UserSnapshot | null> {
-    const user = User.from(await this.queryRepository.find(query));
-    return user ? this.authorizer.authorize<UserSnapshot>('read', user) : null;
+  async execute(query: GetUserQuery): Promise<UserReadModel | null> {
+    const user = await this.queryRepository.find(query);
+    return user ? projectUserRead(this.authorizer, user) : null;
   }
 }
 ```
@@ -534,21 +422,19 @@ export class DeleteUserHandler {
 }
 ```
 
-#### 7. User Logout & Persistent Token Revocation
+#### 7. User Logout & Session Revocation
 
-Logging out revokes persistent tokens and clears the active session cookie:
+Logging out revokes the session of the refresh cookie and clears the cookies:
 
 ```bash
-curl -X POST http://localhost:3000/auth/logout \
-  -H "x-tenant-schema: tenant" \
-  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ..."
+curl -X POST http://localhost:3000/auths/logout -b cookies.txt \
+  -H "x-tenant-schema: tenant"
 ```
 
 Under the hood:
-1. `AuthsController.logout` extracts credentials (`userId` and `token`) from request session (via `SessionService`) and headers, delegates cookie clearing to `SessionService.clearSession(req.session)`, and dispatches `new DeleteAuthCommand({ userId, token })`.
-2. `DeleteAuthHandler` queries the real persisted aggregate via `QUERY_REPOSITORY.findAuth` (`new FindAuthQuery({ userId, token })`) and calls `DeleteAuthCommandRepository.save(auth)`.
-3. `DeleteAuthCommandRepository` deletes by primary key (`store.em.nativeDelete(Auth, { id: auth.id })`) and evicts the exact cache key (`auth:id:<auth.id>`) via `@Cache`.
-4. The specific session token is revoked while other concurrent sessions for the user remain active; subsequent requests using the revoked token receive `401 Unauthorized`.
+1. `AuthsController.logout` reads the `refresh_token` cookie and dispatches `new DeleteAuthCommand({ refreshToken })`; it clears the refresh cookie and the Fastify session in every case.
+2. `DeleteAuthHandler` finds the session by the token's hash (`AUTH_SESSIONS`), calls `auth.revoke(now)` and saves it version-conditioned.
+3. Later refreshes with any token of that session answer 401 `refresh_invalid`; other sessions of the user stay active. An access token already issued remains valid until it expires.
 
 #### 8. Pipeline Caching with CacheBehavior
 
@@ -606,9 +492,9 @@ export class GetRolesHandler implements IQueryHandler<GetRolesQuery, RoleSnapsho
 
 - **Authoritative read**: the handler loads the user through the query repository port with `new GetUserQuery({ userId }, { refresh: true })`. `@FromCache` skips the repository snapshot and the ORM reads with `{ refresh: true }`, so the authorization decision does not rely on a possibly stale cached department. This is a fresh read, not a transaction: persistence, the decision and cache maintenance remain separate steps.
 - **Two authorization stages**: `CaslBehavior` checks `read User` at type level. After the load, `project('read', user, candidate)` evaluates conditions and field rules against the persisted user, so the composed response cannot be returned without that entity-level check.
-- **Related resources**: a user's roles and additional capabilities are a separate grant from their profile, carried by the `UserCapabilities` subject. They are read only when `can('read', userCapabilitiesSubject(userId))` allows it, so a rule such as `UserCapabilities|read|{"userId":"${user.id}"}` grants a principal their own permissions without exposing anyone else's. Absent such a grant both fields are omitted and neither port is queried. Each role is additionally loaded through the roles query port and kept only if `can('read', role)` and `can('read', role, 'name')` pass; a role that cannot be loaded is omitted.
+- **Related resources**: a user's roles and additional capabilities are a separate grant from their profile, carried by the `UserCapabilities` subject of the **loaded** user id. They are read only when `can('read', userCapabilitiesSubject(user.id))` allows it, so a rule such as `UserCapabilities|read|{"userId":"${user.id}"}` grants a principal their own permissions without exposing anyone else's. Absent such a grant both fields are omitted and neither port is queried. The loaded assignments are then projected through that subject (`project('read', permissions, { roles, additionalCapabilities })`), so field rules on `UserCapabilities` (`roles`, `additionalCapabilities`, `additionalCapabilities.0.action`) apply; denied capabilities are never part of the candidate, and a masked slot is never rebuilt from the raw assignments. Each remaining role is loaded through the roles query port and kept only if `can('read', role)` and `can('read', role, 'name')` pass; a role that cannot be loaded is omitted.
 - **Final projection**: `project('read', user, candidate)` applies field and descendant rules (`roles.0`, `capabilities.0`) to the composed candidate, masking denied array items with `null`. It does not authorize related records; the steps above do.
-- **Cache partition**: the response cache key contains the tenant, the principal type and ID from the CASL user context that built the ability, a digest of the effective rules, the policy version and the query payload. It fails closed when any of these is missing.
+- **Cache partition**: the response cache key contains the tenant, the principal type and ID from the CASL principal that built the ability (`getCaslPrincipal`), a digest of the effective rules, the policy version and the query payload. It fails closed when any of these is missing.
 - **Cache eligibility**: the response cache is bypassed when the caller has conditional `read` rules for `User`, `Role`, `UserCapabilities` or `all`, because a cache hit would skip evaluating the loaded entities. Unconditional scopes are cached for 60 seconds, so ordinary response content can be stale for that period; authorization for such scopes does not depend on entity state.
 
 ### Environment Variables Reference
@@ -621,11 +507,34 @@ export class GetRolesHandler implements IQueryHandler<GetRolesQuery, RoleSnapsho
 | `JWT_ISSUER` | Optional | Expected `iss` claim | `users-api` |
 | `JWT_AUDIENCE` | Optional | Expected `aud` claim | `nestjs-pipeline` |
 | `JWT_ALGORITHMS` | Optional | Comma-separated list of allowed algorithms | `HS256,RS256` |
-| `API_CLIENTS` | Optional | JSON array of authorized API client identities | `[{"id":"svc","key":"k","tenants":["tenant"]}]` |
-| `AUTH_LOGIN_CODE` | Required for login | Static verification code for `POST /auth/login` (simplified demo mechanism simulating OTP/login code) | `123456` |
+| `API_CLIENTS` | Optional | JSON array of API clients; `rules` are capability strings parsed at startup (a malformed rule fails boot) | `[{"id":"svc","key":"<secret>","tenants":["tenant"],"rules":["User|read|*"]}]` |
+| `ACCESS_TOKEN_TTL_SECONDS` | Optional | Access-token lifetime, 60–3600 (default 300); invalid values fail boot | `300` |
+| `REFRESH_TOKEN_TTL_SECONDS` | Optional | Session lifetime fixed at login, ≥ 3600 (default 1209600) | `1209600` |
+| `REFRESH_REUSE_GRACE_SECONDS` | Optional | Window for the immediately previous refresh token, 0–120 (default 30) | `30` |
+| `TRUST_PROXY` | Optional | Unset: off. Otherwise passed to Express `trust proxy` / Fastify `trustProxy` (`true`, a hop count, or an address list) so `req.ip` is the client | `loopback` |
+| `PERMISSIONS_IN_ACCESS_TOKEN` | Optional | `true` copies the user's rules into access tokens; `false` (default) ignores them | `false` |
+| `ACCESS_TOKEN_MAX_BYTES` | Optional | Largest access token that may carry permissions, 1024–16384 (default 2600) | `2600` |
+| `AUTH_LOGIN_CODE` | Required for login | Static verification code for `POST /auths/login` (simplified demo mechanism simulating OTP/login code) | `123456` |
 | `SESSION_SECRET` | Fastify only | 64-character hex string (32 bytes) for `@fastify/secure-session` cookies | `0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef` |
 
 *\* Note: At least one of `JWT_SECRET` or `JWT_PUBLIC_KEY` must be set if Bearer token authentication is enabled.*
+
+## Permission source
+
+Human users' rules are materialized per rule and per user in `user_permission_rules`:
+
+| Column | Meaning |
+| --- | --- |
+| `user_id`, `position` | Primary key; positions start at 1 per user |
+| `source` | `role`, `additional` or `denied` |
+| `role_id` | Set only for `role` rows |
+| `capability_id` | The capability the rule was copied from |
+| `subject`, `action`, `conditions`, `fields`, `inverted`, `reason` | Copied verbatim from `capabilities`; `${user.<path>}` placeholders stay uninterpolated |
+
+- **Ordering contract.** `UserPermissionsProjector` writes role rules ordered by role **id** (never by name, so a rename changes nothing) and, within a role, by capability id; then additional rules; then denied rules, each by capability id. Denied rows are always `inverted`. `CaslPermissionSource` reads the rows with `ORDER BY inverted, position`, together with the user row, in one parallel round-trip; no cache stands in front of them. `buildAbility` applies every deny after every allow.
+- **Cascades.** `user_id`, `role_id` and `capability_id` reference their tables `ON DELETE CASCADE`. Deleting a user, role or capability removes exactly the rows derived from it in the same statement; an identical rule granted by another role keeps its own row. Cascades can leave gaps in `position`, which is harmless.
+- **Writer rule.** Every other change to `user_roles`, `role_capabilities`, `user_additional_capabilities`, `user_denied_capabilities` or a capability's content must call `UserPermissionsProjector.rebuild(em, affectedUserIds)` **in the same transaction** (the projector is exported by `AuthorizationModule`). No such command exists today; renaming a role changes no rule. A writer that skips the rebuild leaves the table drifted until `permissions:verify` reports it and `permissions:rebuild` repairs it.
+- **Drift check.** `findDrift` compares stored and expected rows as sequences ordered by `inverted, position`, on origin and rule columns only, never on absolute positions.
 
 ## Pipeline composition demonstrated
 

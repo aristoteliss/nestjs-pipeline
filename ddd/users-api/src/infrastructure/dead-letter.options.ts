@@ -16,6 +16,10 @@ import { RateLimitExceededError } from '@nestjs-pipeline/rate-limit';
 import { ZodValidationError } from '@nestjs-pipeline/zod';
 import { InvalidLoginCredentialsException } from '../auths/domain/errors/authentication.exception';
 import {
+  InvalidRefreshTokenError,
+  RefreshTokenReuseError,
+} from '../auths/domain/errors/refresh-token.errors';
+import {
   InvalidRoleNameException,
   UniqueRoleNameException,
 } from '../roles/domain/models/errors/role-name.exception';
@@ -39,6 +43,8 @@ export const EXPECTED_REJECTIONS = [
   UnauthorizedException,
   UnauthorizedActionException,
   InvalidLoginCredentialsException,
+  InvalidRefreshTokenError,
+  RefreshTokenReuseError,
   EntityNotFoundException,
   ConcurrencyConflictError,
   UniqueEmailException,

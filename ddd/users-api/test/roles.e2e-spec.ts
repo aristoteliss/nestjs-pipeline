@@ -18,7 +18,7 @@ describe('roles-api (e2e)', () => {
     id: 'admin-1',
     email: 'admin@acme.test',
     department: 'platform',
-    capabilities: { roles: [], additionalCapabilities: ['all|manage|*'] },
+    grants: ['all|manage|*'],
   });
 
   /** A principal with no capabilities — authenticated but not authorized. */
@@ -26,7 +26,7 @@ describe('roles-api (e2e)', () => {
     id: 'guest-1',
     email: 'guest@acme.test',
     department: 'platform',
-    capabilities: { roles: [] },
+    grants: [],
   });
 
   const as = (user: string) => {
@@ -86,7 +86,7 @@ describe('roles-api (e2e)', () => {
         id: 'admin-2',
         email: 'admin2@acme.test',
         department: 'platform',
-        capabilities: { roles: [], additionalCapabilities: ['all|manage|*'] },
+        grants: ['all|manage|*'],
       });
 
       const conflict = await createRole(secondAdmin, name);

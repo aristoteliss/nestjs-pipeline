@@ -4,16 +4,10 @@ import { BaseCommand } from '@nestjs-pipeline/ddd-core/application';
 import { createCommand } from '@nestjs-pipeline/zod';
 import { z } from 'zod';
 
-/**
- * Command requesting revocation of an authenticated session.
- *
- * Transports the resolved user ID and bearer token string so that
- * the handler can retrieve and delete the exact persistent `Auth` aggregate.
- */
+/** Revokes the session that owns the presented refresh token (logout). */
 export class DeleteAuthCommand extends createCommand(
   z.object({
-    userId: z.string().min(1),
-    token: z.string().min(1),
+    refreshToken: z.string().min(1),
   }),
   BaseCommand,
 ) {}

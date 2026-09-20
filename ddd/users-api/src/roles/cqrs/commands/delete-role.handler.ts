@@ -3,7 +3,7 @@ import { APP_ACTIONS, APP_SUBJECTS, AUDIT_ACTIONS } from '@common/constants';
 import { Inject } from '@nestjs/common';
 import { CommandHandler, EventBus } from '@nestjs/cqrs';
 import { AUDIT_SEVERITY, audit } from '@nestjs-pipeline/audit';
-import { CaslAuthorizer, CaslBehavior } from '@nestjs-pipeline/casl';
+import { CaslAuthorizer, requires } from '@nestjs-pipeline/casl';
 import {
   type IPipelineContext,
   LoggingBehavior,
@@ -25,10 +25,7 @@ import { DeleteRoleCommand } from './delete-role.command';
 @CommandHandler(DeleteRoleCommand)
 @UsePipeline(
   [LoggingBehavior, { requestResponseLogLevel: 'log' }],
-  [
-    CaslBehavior,
-    { rules: [{ action: APP_ACTIONS.DELETE, subject: APP_SUBJECTS.ROLE }] },
-  ],
+  requires({ action: APP_ACTIONS.DELETE, subject: APP_SUBJECTS.ROLE }),
   audit({
     action: AUDIT_ACTIONS.ROLE_DELETE,
     severity: AUDIT_SEVERITY.HIGH,

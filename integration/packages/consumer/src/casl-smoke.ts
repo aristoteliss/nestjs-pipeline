@@ -1,41 +1,59 @@
 import 'reflect-metadata';
-import { buildAbility } from '@nestjs-pipeline/casl';
+import {
+  buildAbility,
+  CaslAuthorizer,
+  parseCapabilityString,
+  serializeCapability,
+  UnauthorizedActionException,
+} from '@nestjs-pipeline/casl';
 
-const adminRole = {
-  name: 'admin',
-  capabilities: ['all|manage|*'],
-};
+const ability = buildAbility(
+  [
+    'Post|read|*',
+    // biome-ignore lint/suspicious/noTemplateCurlyInString: interpolation pattern
+    'Post|update|{"authorId":"${user.id}"}',
+    '!Post|read|*|draftNotes',
+  ],
+  { id: 'author-2' },
+);
+const authorizer = new CaslAuthorizer(ability);
+const own = { __caslSubjectType__: 'Post', id: 'p-1', authorId: 'author-2' };
+const foreign = { __caslSubjectType__: 'Post', id: 'p-2', authorId: 'other' };
 
-const authorRole = {
-  name: 'author',
-  // biome-ignore lint/suspicious/noTemplateCurlyInString: interpolation pattern
-  capabilities: ['Post|read|*', 'Post|update|{"authorId":"${id}"}'],
-};
-
-const adminAbility = buildAbility([adminRole], { id: 1 });
-if (!adminAbility.can('manage', 'all') || !adminAbility.can('read', 'Post')) {
-  throw new Error('Admin ability check failed');
+if (!authorizer.can('read', 'Post') || authorizer.can('delete', 'Post')) {
+  throw new Error('CaslAuthorizer.can check failed');
 }
 
-const authorAbility = buildAbility([authorRole], { id: 2 });
-if (!authorAbility.can('read', 'Post')) {
-  throw new Error('Author ability read failed');
+authorizer.authorize('update', own);
+let denied = false;
+try {
+  authorizer.authorize('update', foreign);
+} catch (error) {
+  denied = error instanceof UnauthorizedActionException;
 }
+if (!denied) {
+  throw new Error('CaslAuthorizer.authorize did not deny a foreign post');
+}
+
+const projected = authorizer.project('read', own, {
+  title: 'Hello',
+  draftNotes: 'secret',
+});
+if (projected.title !== 'Hello' || 'draftNotes' in projected) {
+  throw new Error('CaslAuthorizer.project did not omit a denied field');
+}
+
+const capability = parseCapabilityString(
+  '!Post|update|{"status":"draft"}|title,body|locked',
+);
+const delimited = { ...capability, conditions: { status: 'a|b' } };
 if (
-  !authorAbility.can('update', {
-    __caslSubjectType__: 'Post',
-    authorId: 2,
-  } as never)
+  JSON.stringify(parseCapabilityString(serializeCapability(capability))) !==
+    JSON.stringify(capability) ||
+  JSON.stringify(parseCapabilityString(serializeCapability(delimited))) !==
+    JSON.stringify(delimited)
 ) {
-  throw new Error('Author ability condition check failed');
-}
-if (
-  authorAbility.can('update', {
-    __caslSubjectType__: 'Post',
-    authorId: 999,
-  } as never)
-) {
-  throw new Error('Author ability condition check leaked');
+  throw new Error('Capability string round trip failed');
 }
 
 console.log('CASL smoke contract passed');

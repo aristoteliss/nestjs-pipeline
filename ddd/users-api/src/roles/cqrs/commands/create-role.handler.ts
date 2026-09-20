@@ -7,7 +7,7 @@ import {
 } from '@common/cqrs/helpers/idempotent-operation.helper';
 import { Inject } from '@nestjs/common';
 import { CommandHandler, EventBus } from '@nestjs/cqrs';
-import { CaslAuthorizer, CaslBehavior } from '@nestjs-pipeline/casl';
+import { CaslAuthorizer, requires } from '@nestjs-pipeline/casl';
 import {
   type IPipelineContext,
   LoggingBehavior,
@@ -44,15 +44,10 @@ export function createRoleReplayScope(ctx: IPipelineContext): string {
       mapLogLevel: new Map([[UniqueRoleNameException, 'warn']]),
     },
   ],
-  [
-    CaslBehavior,
-    {
-      rules: [
-        { action: APP_ACTIONS.CREATE, subject: APP_SUBJECTS.ROLE },
-        { action: APP_ACTIONS.READ, subject: APP_SUBJECTS.USER },
-      ],
-    },
-  ],
+  requires(
+    { action: APP_ACTIONS.CREATE, subject: APP_SUBJECTS.ROLE },
+    { action: APP_ACTIONS.READ, subject: APP_SUBJECTS.USER },
+  ),
   [FeatureFlagBehavior, { flag: 'role-creation' }],
   [
     IdempotencyBehavior,

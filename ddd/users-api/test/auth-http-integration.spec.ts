@@ -20,7 +20,6 @@ import { TenantSchemaContext } from '@persistence/tenant-schema.context';
 import { SignJWT } from 'jose';
 import request from 'supertest';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { QUERY_REPOSITORY } from '../src/auths/persistence/repository.tokens';
 import { ApiClientAuthenticator } from '../src/auths/services/api-client-authenticator';
 import { JwtAuthenticator } from '../src/auths/services/jwt-authenticator';
 import { RequestPrincipalResolver } from '../src/auths/services/request-principal-resolver';
@@ -66,12 +65,6 @@ class TestAuthController {
     },
     TenantSchemaMiddleware,
     SessionService,
-    {
-      provide: QUERY_REPOSITORY.findAuth,
-      useValue: {
-        find: async () => ({ id: 'mock-auth-id' }),
-      },
-    },
     JwtAuthenticator,
     ApiClientAuthenticator,
     RequestPrincipalResolver,
@@ -129,7 +122,7 @@ describe('HTTP Authentication Integration (Real Nest App Pipeline)', () => {
         id: 'trusted-client',
         key: 'client-api-key-999',
         tenant: 'tenant_a',
-        capabilities: { roles: ['service-integration'] },
+        rules: ['User|read|*'],
       },
     ]);
 
@@ -164,10 +157,11 @@ describe('HTTP Authentication Integration (Real Nest App Pipeline)', () => {
     expect(res.status).toBe(200);
     expect(res.body).toMatchObject({
       id: 'user-bearer-valid',
-      email: 'bearer-user@acme.test',
+      principalType: 'user',
       tenant: 'tenant_a',
-      capabilities: { roles: ['editor'] },
     });
+    expect(res.body).not.toHaveProperty('email');
+    expect(res.body).not.toHaveProperty('capabilities');
   });
 
   it('2. Expired or malformed Bearer JWT -> 401 Unauthorized', async () => {
@@ -215,7 +209,7 @@ describe('HTTP Authentication Integration (Real Nest App Pipeline)', () => {
     expect(res.body).toMatchObject({
       id: 'trusted-client',
       tenant: 'tenant_a',
-      capabilities: { roles: ['service-integration'] },
+      grants: [{ subject: 'User', action: 'read' }],
     });
   });
 

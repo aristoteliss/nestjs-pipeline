@@ -1,6 +1,6 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import type { UserCapabilities } from '@nestjs-pipeline/casl';
+import type { Capability } from '@nestjs-pipeline/casl';
 
 /** Explicit principal classification. Authorization must never infer this from the id format. */
 export type PrincipalType = 'user' | 'service';
@@ -16,9 +16,12 @@ export type SessionUser = {
    */
   principalType?: PrincipalType;
   tenant: string;
+  /** Login session (`Auth` id) of a user access token. */
+  sid?: string;
   email?: string | null;
   department?: string | null;
-  capabilities?: UserCapabilities;
+  /** Authorization rules attached by the authenticator (service principals). */
+  grants?: Capability[];
   expiresAt?: number;
   exp?: number;
 };

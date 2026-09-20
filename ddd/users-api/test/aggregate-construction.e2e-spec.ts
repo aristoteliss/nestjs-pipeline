@@ -13,7 +13,7 @@ describe('aggregate construction boundary (e2e)', () => {
     id: 'admin-aggregate-construction',
     email: 'admin@aggregate.test',
     department: 'platform',
-    capabilities: { roles: [], additionalCapabilities: ['all|manage|*'] },
+    grants: ['all|manage|*'],
   });
 
   beforeAll(async () => {

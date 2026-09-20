@@ -1,6 +1,6 @@
 {
   "name": "@nestjs-pipeline/resilience",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Resilience and transient-fault-handling behavior (retry, circuit breaker, timeout, bulkhead, fallback) for @nestjs-pipeline/core, powered by cockatiel",
   "author": "Aristotelis <aristotelis@ik.me>",
   "license": "SEE LICENSE IN LICENSE",

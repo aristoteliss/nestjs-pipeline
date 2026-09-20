@@ -96,7 +96,7 @@ Works with Express and Fastify.
 | [`@nestjs-pipeline/correlation`](packages/pipeline-correlation) | Standalone correlation ID propagation — HTTP middleware, `@WithCorrelation`, `runWithCorrelationId`, `getCorrelationId` |
 | [`@nestjs-pipeline/zod`](packages/pipeline-zod) | Zod v4 validation/parsing behavior that applies successful parsed object output to the request, plus `ZodPipe`, `ZodValidationFilter`, `ZodValidationError` |
 | [`@nestjs-pipeline/opentelemetry`](packages/pipeline-opentelemetry) | OpenTelemetry tracing & metrics behaviors — spans plus duration/throughput/error instruments for every pipeline invocation |
-| [`@nestjs-pipeline/casl`](packages/pipeline-casl) | CASL ABAC authorization behavior — role-based capability trees, condition interpolation, inline `rules` on `CaslBehaviorOptions` |
+| [`@nestjs-pipeline/casl`](packages/pipeline-casl) | CASL authorization — type-level `CaslBehavior` fed by an application permission source, plus `CaslAuthorizer` (`can`, `authorize`, `project`) for entity and field checks |
 | [`@nestjs-pipeline/resilience`](packages/pipeline-resilience) | Resilience & transient-fault-handling behavior — retry, circuit breaker, timeout, bulkhead, fallback (powered by cockatiel) |
 | [`@nestjs-pipeline/cache`](packages/pipeline-cache) | Read-through caching behavior for queries — pluggable stores (memory, redis, memcache, sqlite, postgres) via cache-manager v7 on keyv |
 | [`@nestjs-pipeline/feature-flags`](packages/pipeline-feature-flags) | Feature-flag gating behavior — provider-agnostic via OpenFeature (Unleash shown in examples; Flagsmith/LaunchDarkly are drop-in alternatives) |
@@ -111,18 +111,18 @@ Works with Express and Fastify.
 
 | Package | Version |
 |---|---|
-| `@nestjs-pipeline/core` | `0.1.19` |
-| `@nestjs-pipeline/correlation` | `0.1.9` |
-| `@nestjs-pipeline/zod` | `0.1.7` |
-| `@nestjs-pipeline/opentelemetry` | `0.1.9` |
-| `@nestjs-pipeline/casl` | `0.1.2` |
-| `@nestjs-pipeline/resilience` | `0.1.0` |
-| `@nestjs-pipeline/cache` | `0.1.0` |
-| `@nestjs-pipeline/feature-flags` | `0.1.0` |
-| `@nestjs-pipeline/deadletter` | `0.1.0` |
-| `@nestjs-pipeline/rate-limit` | `0.1.0` |
-| `@nestjs-pipeline/audit` | `0.1.0` |
-| `@nestjs-pipeline/idempotency` | `0.1.0` |
+| `@nestjs-pipeline/core` | `0.2.0` |
+| `@nestjs-pipeline/correlation` | `0.2.0` |
+| `@nestjs-pipeline/zod` | `0.2.0` |
+| `@nestjs-pipeline/opentelemetry` | `0.2.0` |
+| `@nestjs-pipeline/casl` | `0.2.0` |
+| `@nestjs-pipeline/resilience` | `0.2.0` |
+| `@nestjs-pipeline/cache` | `0.2.0` |
+| `@nestjs-pipeline/feature-flags` | `0.2.0` |
+| `@nestjs-pipeline/deadletter` | `0.2.0` |
+| `@nestjs-pipeline/rate-limit` | `0.2.0` |
+| `@nestjs-pipeline/audit` | `0.2.0` |
+| `@nestjs-pipeline/idempotency` | `0.2.0` |
 
 ---
 
@@ -1323,12 +1323,13 @@ PostgreSQL selects a schema; libSQL selects the corresponding database.
 **CRUD operations:**
 
 ```bash
-# Log in as the seeded admin, then copy `token` from the JSON response.
-curl -X POST http://localhost:3000/auth/login \
+# Log in as the seeded admin, then copy `accessToken` from the JSON response.
+# The refresh token arrives as an HttpOnly cookie; POST /auths/refresh exchanges it.
+curl -X POST http://localhost:3000/auths/login -c cookies.txt \
   -H 'Content-Type: application/json' \
   -H 'x-tenant-schema: tenant' \
   -d '{"email":"alice+tenant@seed.local","code":"secret-code"}'
-export TOKEN='<token from login response>'
+export TOKEN='<accessToken from login response>'
 
 # Create a user
 curl -X POST http://localhost:3000/users \
@@ -1369,11 +1370,11 @@ ADAPTER=fastify pnpm start
 - Global + per-handler pipeline behaviors
 - Decoupled domain invariants with framework-agnostic `DomainException` & presentation-boundary `DomainExceptionFilter` (mapping to 400, 409, 422)
 - Clean Architecture persistence repository boundaries: CQRS handlers inject exclusively `ICommandRepository` and `IQueryRepository`, completely decoupled from ORM/database client classes (zero `MIKRO_ORM_CLIENT` leakage in handlers)
-- Persistent token revocation on logout via `DeleteAuthCommandRepository`, active user verification in `CaslUserContextResolver`, and explicit principal classification
+- Persistent token revocation on logout via `DeleteAuthCommandRepository`, per-request permission loading in `CaslPermissionSource`, and explicit principal classification
 - Optimistic concurrency with aggregate version tracking on `User` and `Role` entities. Persistence adapters translate driver/ORM conflict diagnostics into the transport-neutral `ConcurrencyConflictError`; the HTTP presentation filter maps that error to `409 Conflict`.
-- Injectable `CaslAuthorizer` (`IEntityAuthorizer`) in CQRS command and query handlers, replacing static entity authorizer anti-patterns
-- Per-handler CASL authorization with inline `rules` on `CaslBehaviorOptions` and `CaslBehavior`
-- MikroORM-backed CASL providers (roles, capabilities, user context)
+- Injectable `CaslAuthorizer` in CQRS command and query handlers: `authorize` before writes, `project` for read models and responses
+- Per-handler CASL requirements declared with `requires(...)`
+- MikroORM-backed CASL permission source (roles, per-user grants and denials)
 - Official MikroORM `accessor: true` entity schemas bridging private aggregate fields to public accessors without TypeScript bypasses
 - Decoupled CQRS caching architecture with collision-safe key derivation (`filterCacheKey`), fail-fast handler templates (`cacheKeyTemplate`), and static aggregate naming (`User.aggregateName`)
 - Decoupled CQRS caching architecture with centralized key derivation (`filterCacheKey`; type/delimiter collision handling requires verification), fail-fast handler templates (`cacheKeyTemplate`), and static aggregate naming (`User.aggregateName`)
@@ -1428,11 +1429,10 @@ nestjs-pipeline/
 │   │       └── zod-validation.behavior.ts  # parse/validate and apply successful object output
 │   ├── pipeline-casl/            # @nestjs-pipeline/casl
 │   │   └── src/
-│   │       ├── constants/        # Injection tokens
-│   │       ├── helpers/          # Capability parsing, interpolation
-│   │       ├── interfaces/       # IRoleProvider, IUserCapabilityProvider, IUserContextResolver
-│   │       ├── providers/        # StaticRoleProvider
-│   │       ├── services/         # buildAbility factory
+│   │       ├── constants/        # Tokens, context keys, CASL_ACTIONS/SUBJECTS
+│   │       ├── errors/           # UnauthorizedActionException
+│   │       ├── helpers/          # Capability codec, buildAbility, projection, CaslAuthorizer, requires()
+│   │       ├── interfaces/       # ICaslPermissionSource, CaslPrincipal
 │   │       ├── casl.behavior.ts
 │   │       └── casl.module.ts
 │   ├── pipeline-opentelemetry/   # @nestjs-pipeline/opentelemetry

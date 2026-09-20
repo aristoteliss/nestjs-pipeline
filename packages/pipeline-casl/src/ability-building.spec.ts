@@ -1,190 +1,233 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-/** biome-ignore-all lint/suspicious/noTemplateCurlyInString: false positive */
-import { describe, expect, it } from 'vitest';
-import { StaticRoleProvider } from './providers/static-role.provider';
+/** biome-ignore-all lint/suspicious/noTemplateCurlyInString: placeholders are data */
+import { readdirSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import type { IPipelineContext } from '@nestjs-pipeline/core';
+import { describe, expect, it, vi } from 'vitest';
 import {
-  buildAbility,
-  buildAbilityFromRules,
-} from './services/ability.factory';
-import type { CaslUserContext, RoleDefinition } from './types/casl.types';
+  CASL_BEHAVIOR_ID,
+  CaslBehavior,
+  type CaslBehaviorOptions,
+} from './casl.behavior';
+import { CASL_ABILITY_KEY, CASL_PRINCIPAL_KEY } from './constants/tokens';
+import { UnauthorizedActionException } from './errors/unauthorized-action.exception';
+import type {
+  CaslAuthorizationInput,
+  ICaslPermissionSource,
+} from './interfaces/permission-source.interface';
+import type { AppAbility, Capability } from './types/casl.types';
 
-const adminRole: RoleDefinition = {
-  name: 'admin',
-  capabilities: ['all|manage|*'],
-};
+function makeContext(options?: CaslBehaviorOptions): IPipelineContext {
+  return {
+    correlationId: 'corr-1',
+    request: {},
+    requestName: 'GetUserQuery',
+    handlerName: 'GetUserHandler',
+    requestKind: 'query',
+    startedAt: new Date(),
+    response: undefined,
+    items: new Map(),
+    getBehaviorOptions: vi.fn().mockReturnValue(options),
+  } as unknown as IPipelineContext;
+}
 
-const authorRole: RoleDefinition = {
-  name: 'author',
-  capabilities: [
-    'Post|read|*',
-    'Post|create|*',
-    'Post|update|{"authorId":"${id}"}',
-    'Post|delete|{"authorId":"${id}"}',
-    'Comment|read|*',
-    'Comment|create|*',
-  ],
-};
+function sourceOf(
+  load: () => Promise<CaslAuthorizationInput | null>,
+): ICaslPermissionSource & { load: ReturnType<typeof vi.fn> } {
+  return { load: vi.fn(load) };
+}
 
-const viewerRole: RoleDefinition = {
-  name: 'viewer',
-  capabilities: ['Post|read|*', 'Comment|read|*'],
-};
+const principal = { id: 'u-1', department: 'engineering' };
 
-describe('buildAbility', () => {
-  const adminUser: CaslUserContext = { id: 1 };
-  const authorUser: CaslUserContext = { id: 2 };
+function run(
+  rules: Capability[],
+  options: CaslBehaviorOptions,
+  context = makeContext(options),
+) {
+  const source = sourceOf(async () => ({ principal, rules }));
+  const next = vi.fn().mockResolvedValue('handled');
+  return {
+    context,
+    next,
+    result: new CaslBehavior(source).handle(context, next),
+  };
+}
 
-  it('should grant admin full access', () => {
-    const ability = buildAbility([adminRole], adminUser);
-    expect(ability.can('read', 'Post')).toBe(true);
-    expect(ability.can('create', 'Post')).toBe(true);
-    expect(ability.can('delete', 'User')).toBe(true);
-    expect(ability.can('manage', 'all')).toBe(true);
+describe('CaslBehavior', () => {
+  it('has the stable identity other packages order against', () => {
+    expect(CASL_BEHAVIOR_ID).toBe('@nestjs-pipeline/casl:CaslBehavior');
+    expect(CaslBehavior.name).toBe('CaslBehavior');
   });
 
-  it('should allow author to read any post', () => {
-    const ability = buildAbility([authorRole], authorUser);
-    expect(ability.can('read', 'Post')).toBe(true);
+  it('calls next without loading permissions when no rules are declared', async () => {
+    const source = sourceOf(async () => null);
+    const next = vi.fn().mockResolvedValue('handled');
+
+    await expect(
+      new CaslBehavior(source).handle(makeContext(undefined), next),
+    ).resolves.toBe('handled');
+    expect(source.load).not.toHaveBeenCalled();
   });
 
-  it('should allow author to create posts', () => {
-    const ability = buildAbility([authorRole], authorUser);
-    expect(ability.can('create', 'Post')).toBe(true);
+  it('requires authentication when the source returns null', async () => {
+    const source = sourceOf(async () => null);
+    const next = vi.fn();
+    const context = makeContext({
+      rules: [{ action: 'read', subject: 'User' }],
+    });
+
+    const error = await new CaslBehavior(source)
+      .handle(context, next)
+      .catch((e: unknown) => e);
+
+    expect(error).toBeInstanceOf(UnauthorizedActionException);
+    expect(error).toMatchObject({
+      action: 'read',
+      subject: 'User',
+      message: 'Access denied — authentication required.',
+    });
+    expect(source.load).toHaveBeenCalledWith(context);
+    expect(next).not.toHaveBeenCalled();
   });
 
-  it('should allow author to update own posts', () => {
-    const ability = buildAbility([authorRole], authorUser);
-    // Type-level check
-    expect(ability.can('update', 'Post')).toBe(true);
-    // Instance-level check — own post
-    expect(
-      ability.can('update', {
-        __caslSubjectType__: 'Post',
-        authorId: 2,
-      } as never),
-    ).toBe(true);
-    // Instance-level check — other's post
-    expect(
-      ability.can('update', {
-        __caslSubjectType__: 'Post',
-        authorId: 99,
-      } as never),
-    ).toBe(false);
-  });
-
-  it('should deny author actions not in role', () => {
-    const ability = buildAbility([authorRole], authorUser);
-    expect(ability.can('delete', 'User')).toBe(false);
-    expect(ability.can('manage', 'all')).toBe(false);
-  });
-
-  it('should allow viewer read-only access', () => {
-    const ability = buildAbility([viewerRole], { id: 3 });
-    expect(ability.can('read', 'Post')).toBe(true);
-    expect(ability.can('read', 'Comment')).toBe(true);
-    expect(ability.can('create', 'Post')).toBe(false);
-    expect(ability.can('update', 'Post')).toBe(false);
-    expect(ability.can('delete', 'Post')).toBe(false);
-  });
-
-  it('should merge multiple roles', () => {
-    const ability = buildAbility([viewerRole, authorRole], authorUser);
-    expect(ability.can('read', 'Post')).toBe(true);
-    expect(ability.can('create', 'Post')).toBe(true);
-    expect(ability.can('create', 'Comment')).toBe(true);
-  });
-
-  it('should keep a deny from one role even when another role grants a broader allow listed later', () => {
-    // Regression: a deny rule contributed by an earlier role must not be
-    // overridden by a broad allow contributed by a role processed afterwards.
-    const restrictedRole: RoleDefinition = {
-      name: 'restricted',
-      capabilities: ['!User|delete|*'],
-    };
-    const powerRole: RoleDefinition = {
-      name: 'power',
-      capabilities: ['User|manage|*'],
-    };
-
-    // Order matters: the deny-bearing role comes first, the broad allow second.
-    const ability = buildAbility([restrictedRole, powerRole], { id: 1 });
-
-    expect(ability.can('read', 'User')).toBe(true);
-    expect(ability.can('update', 'User')).toBe(true);
-    // The deny must win regardless of role ordering.
-    expect(ability.can('delete', 'User')).toBe(false);
-  });
-
-  it('should add per-user additional capabilities', () => {
-    const ability = buildAbility(
-      [viewerRole],
-      { id: 3 },
-      // This viewer also gets special create permission
-      [{ subject: 'Post', action: 'create' }],
-    );
-    expect(ability.can('read', 'Post')).toBe(true);
-    expect(ability.can('create', 'Post')).toBe(true);
-    expect(ability.can('update', 'Post')).toBe(false);
-  });
-
-  it('should apply per-user denied capabilities', () => {
-    const ability = buildAbility(
-      [authorRole],
-      authorUser,
-      undefined,
-      // Deny this author from deleting posts despite role allowing it
+  it('passes a type-level check with a conditional rule', async () => {
+    const { result, next } = run(
       [
         {
-          subject: 'Post',
-          action: 'delete',
-          inverted: true,
-          reason: 'Revoked',
+          subject: 'User',
+          action: 'read',
+          conditions: { department: '${user.department}' },
         },
       ],
+      { rules: [{ action: 'read', subject: 'User' }] },
     );
-    expect(ability.can('read', 'Post')).toBe(true);
-    expect(ability.can('create', 'Post')).toBe(true);
-    // Delete on own post should now be forbidden
-    expect(
-      ability.can('delete', {
-        __caslSubjectType__: 'Post',
-        authorId: 2,
-      } as never),
-    ).toBe(false);
-  });
-});
 
-describe('buildAbilityFromRules', () => {
-  it('should build ability from raw rules', () => {
-    const ability = buildAbilityFromRules([
-      { action: 'read', subject: 'Post' },
-      { action: 'create', subject: 'Comment' },
-    ]);
-    expect(ability.can('read', 'Post')).toBe(true);
-    expect(ability.can('create', 'Comment')).toBe(true);
-    expect(ability.can('delete', 'Post')).toBe(false);
-  });
-});
-
-describe('StaticRoleProvider', () => {
-  const provider = new StaticRoleProvider([adminRole, authorRole, viewerRole]);
-
-  it('should return all roles', () => {
-    const roles = provider.getRoles();
-    expect(roles).toHaveLength(3);
-    expect(roles.map((r) => r.name)).toEqual(['admin', 'author', 'viewer']);
+    await expect(result).resolves.toBe('handled');
+    expect(next).toHaveBeenCalledOnce();
   });
 
-  it('should return roles by names', () => {
-    const roles = provider.getRoles(['admin', 'viewer']);
-    expect(roles).toHaveLength(2);
-    expect(roles.map((r) => r.name)).toEqual(['admin', 'viewer']);
+  it('denies a failing requirement', async () => {
+    const { result, next } = run([{ subject: 'User', action: 'read' }], {
+      rules: [
+        { action: 'read', subject: 'User' },
+        { action: 'delete', subject: 'User' },
+      ],
+    });
+
+    const error = await result.catch((e: unknown) => e);
+
+    expect(error).toBeInstanceOf(UnauthorizedActionException);
+    expect(error).toMatchObject({ action: 'delete', subject: 'User' });
+    expect((error as UnauthorizedActionException).fields).toBeUndefined();
+    expect(next).not.toHaveBeenCalled();
   });
 
-  it('should skip unknown role names', () => {
-    const roles = provider.getRoles(['admin', 'unknown']);
-    expect(roles).toHaveLength(1);
-    expect(roles[0].name).toBe('admin');
+  it('denies a failing field requirement', async () => {
+    const { result } = run(
+      [
+        { subject: 'User', action: 'update' },
+        {
+          subject: 'User',
+          action: 'update',
+          fields: ['department'],
+          inverted: true,
+        },
+      ],
+      { rules: [{ action: 'update', subject: 'User', field: 'department' }] },
+    );
+
+    await expect(result).rejects.toMatchObject({
+      action: 'update',
+      subject: 'User',
+      fields: ['department'],
+    });
+  });
+
+  it('stores the ability and principal in context items', async () => {
+    const { result, context } = run([{ subject: 'User', action: 'read' }], {
+      rules: [{ action: 'read', subject: 'User' }],
+    });
+
+    await result;
+
+    expect(context.items.get(CASL_PRINCIPAL_KEY)).toBe(principal);
+    const ability = context.items.get(CASL_ABILITY_KEY) as AppAbility;
+    expect(ability.can('read', 'User')).toBe(true);
+  });
+
+  it.each([
+    ['first', 0],
+    ['middle', 1],
+    ['last', 2],
+  ])('lets a deny in the %s position win', async (_, position) => {
+    const rules: Capability[] = [
+      { subject: 'all', action: 'manage' },
+      { subject: 'Role', action: 'read' },
+    ];
+    rules.splice(position, 0, {
+      subject: 'User',
+      action: 'delete',
+      inverted: true,
+    });
+    const { result } = run(rules, {
+      rules: [{ action: 'delete', subject: 'User' }],
+    });
+
+    await expect(result).rejects.toBeInstanceOf(UnauthorizedActionException);
+  });
+
+  it('throws for a placeholder the principal cannot resolve', async () => {
+    const { result, next } = run(
+      [
+        {
+          subject: 'User',
+          action: 'read',
+          conditions: { region: '${user.region}' },
+        },
+      ],
+      { rules: [{ action: 'read', subject: 'User' }] },
+    );
+
+    const error = await result.catch((e: unknown) => e);
+
+    expect(error).not.toBeInstanceOf(UnauthorizedActionException);
+    expect((error as Error).message).toContain('region');
+    expect(next).not.toHaveBeenCalled();
+  });
+
+  it('propagates a permission source failure unchanged', async () => {
+    const failure = new Error('database unavailable');
+    const source = sourceOf(async () => {
+      throw failure;
+    });
+
+    await expect(
+      new CaslBehavior(source).handle(
+        makeContext({ rules: [{ action: 'read', subject: 'User' }] }),
+        vi.fn(),
+      ),
+    ).rejects.toBe(failure);
+  });
+
+  it('propagates malformed rule data as its own error, not as a denial', async () => {
+    const { result } = run([{ subject: 'User', action: 'read', fields: [] }], {
+      rules: [{ action: 'read', subject: 'User' }],
+    });
+
+    const error = await result.catch((e: unknown) => e);
+
+    expect(error).toBeInstanceOf(TypeError);
+    expect((error as Error).message).toMatch(/empty fields list/);
+  });
+
+  it('imports nothing from Nest HTTP exceptions', () => {
+    const files = readdirSync(__dirname, { recursive: true, encoding: 'utf8' })
+      .filter((file) => file.endsWith('.ts') && !file.endsWith('.spec.ts'))
+      .map((file) => readFileSync(join(__dirname, file), 'utf8'));
+
+    for (const source of files) {
+      expect(source).not.toMatch(/HttpException|ForbiddenException/);
+    }
   });
 });

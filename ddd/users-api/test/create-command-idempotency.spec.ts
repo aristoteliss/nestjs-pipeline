@@ -1,6 +1,6 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 import { sessionUserStore } from '@common/context/session-user.store';
-import type { EventBus } from '@nestjs/cqrs';
+import type { CommandBus, EventBus, QueryBus } from '@nestjs/cqrs';
 import type { CaslAuthorizer } from '@nestjs-pipeline/casl';
 import { PipelineContext, SET_TENANT_ID } from '@nestjs-pipeline/core';
 import {
@@ -20,11 +20,13 @@ import {
   type RoleSnapshot,
 } from '../src/roles/domain/models/role.entity';
 import { toRoleResponseDto } from '../src/roles/dtos/role.dto';
+import { UsersController } from '../src/users/controllers/users.controller';
 import { CreateUserCommand } from '../src/users/cqrs/commands/create-user.command';
 import {
   CreateUserHandler,
   createUserIdempotencyKey,
 } from '../src/users/cqrs/commands/create-user.handler';
+import { GetUserQuery } from '../src/users/cqrs/queries/get-user.query';
 import { UserCreatedEvent } from '../src/users/domain/events/user-created.event';
 import {
   User,
@@ -106,6 +108,54 @@ describe('Create command idempotency composition', () => {
       expect(aggregate.getUncommittedEvents()).toHaveLength(0);
     },
   );
+
+  it('answers a replayed user creation from a fresh authorized read', async () => {
+    asAuthenticatedPrincipal();
+    const save = vi.fn(async (user: User) => user.toJSON());
+    const publishAll = vi.fn();
+    const handler = new CreateUserHandler(
+      { save },
+      { authorize: vi.fn() } as unknown as CaslAuthorizer,
+      { publishAll } as unknown as EventBus,
+    );
+    const behavior = new IdempotencyBehavior(new MemoryIdempotencyStore(), {
+      keyFactory: createUserIdempotencyKey,
+    });
+    const commandBus = {
+      execute: vi.fn((command: CreateUserCommand) => {
+        const context = tenantContext(
+          new PipelineContext(command, {
+            handlerType: CreateUserHandler,
+            handlerName: 'CreateUserHandler',
+            requestKind: 'command',
+          }),
+        );
+        return behavior.handle(context, () => handler.execute(command));
+      }),
+    } as unknown as CommandBus;
+    const queryBus = {
+      execute: vi.fn(async (query: GetUserQuery) => ({
+        id: query.userId,
+        username: 'Alicia',
+      })),
+    } as unknown as QueryBus;
+    const controller = new UsersController(commandBus, queryBus);
+    const dto = { name: 'Alice', email: 'alice@example.test' };
+
+    const first = await controller.createUser(dto);
+    const replay = await controller.createUser(dto);
+
+    const created = save.mock.calls[0][0];
+    expect(save).toHaveBeenCalledTimes(1);
+    expect(publishAll).toHaveBeenCalledOnce();
+    expect(queryBus.execute).toHaveBeenCalledTimes(2);
+    for (const [query] of vi.mocked(queryBus.execute).mock.calls) {
+      expect(query).toBeInstanceOf(GetUserQuery);
+      expect((query as GetUserQuery).userId).toBe(created.id);
+    }
+    expect(first).toEqual({ id: created.id, name: 'Alicia' });
+    expect(replay).toEqual(first);
+  });
 
   it('replays role creation without another write or event', async () => {
     asAuthenticatedPrincipal();

@@ -16,6 +16,10 @@ import {
   InvalidLoginCredentialsException,
 } from '../../auths/domain/errors/authentication.exception';
 import {
+  InvalidRefreshTokenError,
+  RefreshTokenReuseError,
+} from '../../auths/domain/errors/refresh-token.errors';
+import {
   InvalidRoleNameException,
   UniqueRoleNameException,
 } from '../../roles/domain/models/errors/role-name.exception';
@@ -45,6 +49,8 @@ type HttpResponse = {
  * | Domain/Application Exception | HTTP Status | Reason |
  * |---|---|---|
  * | {@link ConcurrencyConflictError} | 409 Conflict | A version-conditioned write lost a race |
+ * | {@link InvalidRefreshTokenError} | 401 Unauthorized, `code: refresh_invalid` | Unknown, expired or revoked refresh token |
+ * | {@link RefreshTokenReuseError} | 401 Unauthorized, `code: refresh_reused` | A rotated-away refresh token was presented; the session is revoked |
  * | {@link EntityNotFoundException} | 404 Not Found | Required aggregate/entity does not exist |
  * | {@link UniqueEmailException} | 409 Conflict | Duplicate email detected across tenant users |
  * | {@link UniqueRoleNameException} | 409 Conflict | Duplicate role name detected across tenant roles |
@@ -102,6 +108,17 @@ export class DomainExceptionFilter implements ExceptionFilter {
   } {
     if (exception instanceof ConcurrencyConflictError) {
       return { statusCode: HttpStatus.CONFLICT, error: 'Conflict' };
+    }
+
+    if (
+      exception instanceof InvalidRefreshTokenError ||
+      exception instanceof RefreshTokenReuseError
+    ) {
+      return {
+        statusCode: HttpStatus.UNAUTHORIZED,
+        error: 'Unauthorized',
+        extra: { code: exception.code },
+      };
     }
 
     if (exception instanceof InvalidLoginCredentialsException) {

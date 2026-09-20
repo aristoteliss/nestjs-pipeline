@@ -6,12 +6,10 @@ For creation, `CreateUserCommandRepository` writes the canonical `user:id:<id>` 
 
 Update and delete repositories must continue invalidating both id and email keys when their writes can make those cached representations stale. Mutable composite filters such as department are intentionally not cached by the query repository.
 
-## CASL user-context boundary
+## CASL principal boundary
 
-`GetUserContextQueryRepository` is a persistence-only, singleton-safe query repository. It loads authoritative user authorization attributes for `GetUserContextQuery` and does not inspect HTTP requests, sessions, CASL subject paths, or AsyncLocalStorage.
+Principal and rule loading for authorization lives in `src/auths/persistence/casl-permission.source.ts`, a request-scoped adapter bound through `AuthorizationModule`. The query repositories here stay singleton and never inspect sessions or AsyncLocalStorage.
 
-`CaslUserContextResolver` is the dedicated request-scoped adapter registered with `CaslModule`. It resolves the authenticated principal from configured request/session context and refreshes persisted user attributes before authorization. Keeping these responsibilities separate prevents a query repository from becoming request-scoped merely because CASL needs request extraction.
-
-Explicit principal classification (`type: 'user' | 'service'`) is enforced: user principals are always verified against persistence regardless of identifier syntax, while service principals rely on their issued capabilities without querying the user database. Missing principal classification fails closed.
+Explicit principal classification (`principalType: 'user' | 'service'`) is enforced: user principals are always re-read from persistence regardless of identifier syntax, while service principals use the `grants` their authenticator attached without querying the user database. Missing principal classification fails closed.
 
 Any new stable secondary lookup added to `GetUserQueryRepository` must be reviewed against create/update/delete invalidation in the same change, with unit coverage for decorator effects and an E2E regression for the externally observable cache behavior.

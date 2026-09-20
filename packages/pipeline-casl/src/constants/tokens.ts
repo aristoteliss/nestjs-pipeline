@@ -1,68 +1,15 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-/**
- * Injection tokens for the CASL pipeline behavior.
- */
+/** `context.items` key holding the ability `CaslBehavior` built for the execution. */
+export const CASL_ABILITY_KEY = Symbol.for('@nestjs-pipeline/casl:ability');
 
-/**
- * Token for the {@link IUserContextResolver} implementation.
- * Resolves the current user from the pipeline context items.
- */
-export const CASL_USER_CONTEXT_RESOLVER = Symbol('CASL_USER_CONTEXT_RESOLVER');
+/** `context.items` key holding the principal that ability was built for. */
+export const CASL_PRINCIPAL_KEY = Symbol.for('@nestjs-pipeline/casl:principal');
 
-/**
- * Token for the {@link IRoleProvider} implementation.
- * Provides role definitions (from DB, YAML, static config, etc.).
- */
-export const CASL_ROLE_PROVIDER = Symbol('CASL_ROLE_PROVIDER');
-
-/**
- * Token for the optional {@link IUserCapabilityProvider} implementation.
- * Provides per-user capability overrides beyond role-based permissions.
- */
-export const CASL_USER_CAPABILITY_PROVIDER = Symbol(
-  'CASL_USER_CAPABILITY_PROVIDER',
+/** Injection token for the application's {@link ICaslPermissionSource}. */
+export const CASL_PERMISSION_SOURCE = Symbol.for(
+  '@nestjs-pipeline/casl:permission-source',
 );
-
-/**
- * Token for global default request paths used to extract contextual session
- * payload for instance-level subject checks.
- */
-export const CASL_SUBJECT_CONTEXT_PATHS = Symbol('CASL_SUBJECT_CONTEXT_PATHS');
-
-/**
- * Token for global default field extraction/check configuration used during
- * instance-level permission checks.
- */
-export const CASL_FIELDS_FROM_REQUEST = Symbol('CASL_FIELDS_FROM_REQUEST');
-
-/**
- * Token for providing a custom {@link LoggerService} to {@link CaslBehavior}.
- */
-export const CASL_BEHAVIOR_LOGGER = Symbol('CASL_BEHAVIOR_LOGGER');
-
-/**
- * Unique symbol key used in `context.items` to store/retrieve the {@link CaslUserContext}.
- * If no {@link IUserContextResolver} is registered, the behavior looks up
- * this key directly in the items bag.
- *
- * @example
- * ```ts
- * context.items.set(CASL_USER_CONTEXT_KEY, { id: 'usr_1', roles: ['admin'] });
- * ```
- */
-export const CASL_USER_CONTEXT_KEY = Symbol('CASL_USER_CONTEXT_KEY');
-
-/**
- * Unique symbol key used in `context.items` to store the resolved CASL ability after
- * the behavior runs. Downstream behaviors or handlers can retrieve it.
- *
- * @example
- * ```ts
- * const ability = context.items.get(CASL_ABILITY_KEY) as AppAbility | undefined;
- * ```
- */
-export const CASL_ABILITY_KEY = Symbol('CASL_ABILITY_KEY');
 
 /**
  * Built-in CASL keyword subjects.

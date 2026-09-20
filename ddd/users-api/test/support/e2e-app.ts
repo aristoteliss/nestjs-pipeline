@@ -5,6 +5,9 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { INestApplication } from '@nestjs/common';
+import type { NestExpressApplication } from '@nestjs/platform-express';
+import type { NestFastifyApplication } from '@nestjs/platform-fastify';
+import { parseCapabilityString } from '@nestjs-pipeline/casl';
 import {
   RedisContainer,
   type StartedRedisContainer,
@@ -17,6 +20,9 @@ import { SignJWT } from 'jose';
  */
 export const E2E_LOGIN_CODE = '424242';
 
+/** 32-byte hex key for the Fastify secure-session cookie in e2e runs. */
+const E2E_SESSION_SECRET = 'a'.repeat(64);
+
 /** The symmetric secret used to sign and verify e2e session JWTs. */
 export const E2E_JWT_SECRET = 'e2e-jwt-secret-please-do-not-use-in-prod';
 
@@ -27,25 +33,27 @@ export const E2E_API_CLIENTS = [
     name: 'Admin Client',
     key: 'admin-secret-key-12345',
     tenants: ['tenant', 'tenant_a', 'tenant_b'],
-    capabilities: {
-      roles: [],
-      additionalCapabilities: ['all|manage|*'],
-    },
+    rules: ['all|manage|*'],
   },
   {
     id: 'api-read-only-client',
     name: 'Read Only Client',
     key: 'readonly-secret-key-12345',
     tenants: ['tenant', 'tenant_a', 'tenant_b'],
-    capabilities: {
-      roles: [],
-      additionalCapabilities: ['User|read|*', 'Role|read|*'],
-    },
+    rules: ['User|read|*', 'Role|read|*'],
   },
 ];
 
 export interface E2EOptions {
   tenants?: string[];
+  /** HTTP platform to boot; Express by default. */
+  adapter?: 'express' | 'fastify';
+  /** `TRUST_PROXY` for this application; unset by default. */
+  trustProxy?: string;
+  /** `PERMISSIONS_IN_ACCESS_TOKEN` for this application; off by default. */
+  permissionsInAccessToken?: boolean;
+  /** `ACCESS_TOKEN_MAX_BYTES` for this application; the default otherwise. */
+  accessTokenMaxBytes?: number;
   apiClients?: typeof E2E_API_CLIENTS;
 }
 
@@ -61,9 +69,6 @@ export async function createTestJwt(options?: {
   sub?: string;
   email?: string;
   department?: string;
-  roles?: string[];
-  additionalCapabilities?: string[];
-  deniedCapabilities?: string[];
   tenant?: string;
   secret?: string;
   expiresIn?: string | number;
@@ -73,9 +78,6 @@ export async function createTestJwt(options?: {
     tenant: options?.tenant ?? 'tenant',
     email: options?.email ?? 'jwt-user@acme.test',
     department: options?.department ?? 'engineering',
-    roles: options?.roles ?? [],
-    additionalCapabilities: options?.additionalCapabilities ?? ['all|manage|*'],
-    deniedCapabilities: options?.deniedCapabilities ?? [],
   })
     .setProtectedHeader({ alg: 'HS256' })
     .setSubject(options?.sub ?? 'jwt-user-1')
@@ -130,6 +132,16 @@ export async function bootstrapE2E(options?: E2EOptions): Promise<E2EContext> {
     .update(E2E_LOGIN_CODE, 'utf8')
     .digest('hex');
   process.env.JWT_SECRET = E2E_JWT_SECRET;
+  if (options?.trustProxy === undefined) delete process.env.TRUST_PROXY;
+  else process.env.TRUST_PROXY = options.trustProxy;
+  process.env.PERMISSIONS_IN_ACCESS_TOKEN = options?.permissionsInAccessToken
+    ? 'true'
+    : 'false';
+  if (options?.accessTokenMaxBytes === undefined) {
+    delete process.env.ACCESS_TOKEN_MAX_BYTES;
+  } else {
+    process.env.ACCESS_TOKEN_MAX_BYTES = String(options.accessTokenMaxBytes);
+  }
   process.env.API_CLIENTS = JSON.stringify(
     options?.apiClients ?? E2E_API_CLIENTS,
   );
@@ -137,6 +149,16 @@ export async function bootstrapE2E(options?: E2EOptions): Promise<E2EContext> {
   // 1. Run migrations to establish the exact production database schema and seed data.
   const { migrate } = await import('@persistence/migrate');
   await migrate();
+  const { verifyUserPermissions } = await import(
+    '@persistence/verify-user-permissions'
+  );
+  for (const [tenant, drifted] of await verifyUserPermissions()) {
+    if (drifted.length > 0) {
+      throw new Error(
+        `Permission rules drifted after seeding in ${tenant}: ${drifted.join(', ')}`,
+      );
+    }
+  }
 
   // 2. Build the Nest application. The production AuthSessionInterceptor reads
   //    the authenticated principal from `req.session.get('user')`. We feed that
@@ -165,71 +187,53 @@ export async function bootstrapE2E(options?: E2EOptions): Promise<E2EContext> {
     imports: [AppModule],
   }).compile();
 
-  const app = moduleRef.createNestApplication();
+  let app: INestApplication;
+  if (options?.adapter === 'fastify') {
+    const platform = await import('../../src/http-platform');
+    app = moduleRef.createNestApplication<NestFastifyApplication>(
+      platform.createFastifyAdapter(),
+    );
+    await platform.registerSecureSession(
+      app as NestFastifyApplication,
+      E2E_SESSION_SECRET,
+    );
+  } else {
+    const { configureExpress } = await import('../../src/express-platform');
+    app = moduleRef.createNestApplication<NestExpressApplication>();
+    configureExpress(app as NestExpressApplication);
+  }
 
   // Inject a Fastify-secure-session-compatible shim from the test header.
-  app.use(
-    (
-      req: {
-        headers: Record<string, string | string[] | undefined>;
-        session?: unknown;
-      },
-      _res: unknown,
-      next: () => void,
-    ) => {
-      const raw = req.headers['x-test-user'];
-      const header = Array.isArray(raw) ? raw[0] : raw;
-      const parsedUser = header ? JSON.parse(header) : undefined;
-      const rawTenant = req.headers['x-tenant-schema'];
-      const tenant = Array.isArray(rawTenant) ? rawTenant[0] : rawTenant;
-      const user = parsedUser
-        ? {
-            ...parsedUser,
-            tenant: parsedUser.tenant ?? tenant,
-            principalType:
-              parsedUser.principalType !== undefined
-                ? parsedUser.principalType
-                : parsedUser.capabilities
-                  ? 'service'
-                  : 'user',
-          }
-        : undefined;
-      const rawToken = req.headers['x-test-token'];
-      const token = Array.isArray(rawToken) ? rawToken[0] : rawToken;
-      const store: Record<string, unknown> = {
-        ...(user ? { user } : {}),
-        ...(token ? { token } : {}),
-      };
-      const sessionObj = {
-        get: (key: string) => store[key],
-        set: (key: string, value: unknown) => {
-          store[key] = value;
-        },
-        delete: () => {
-          for (const key of Object.keys(store)) {
-            delete store[key];
-          }
-        },
-      };
-      req.session = new Proxy(sessionObj, {
-        get(target, prop: string) {
-          if (prop in target) {
-            return Reflect.get(target, prop);
-          }
-          return store[prop];
-        },
-        set(target, prop: string, value: unknown) {
-          if (prop in target) {
-            Reflect.set(target, prop, value);
-            return true;
-          }
-          store[prop] = value;
-          return true;
-        },
+  if (options?.adapter === 'fastify') {
+    (app as NestFastifyApplication)
+      .getHttpAdapter()
+      .getInstance()
+      .addHook('onRequest', async (req) => {
+        const headers = req.headers as Record<
+          string,
+          string | string[] | undefined
+        >;
+        if (usesTestSession(headers)) {
+          (req as { session?: unknown }).session = testSession(headers);
+        }
       });
-      next();
-    },
-  );
+  } else {
+    app.use(
+      (
+        req: {
+          headers: Record<string, string | string[] | undefined>;
+          session?: unknown;
+        },
+        _res: unknown,
+        next: () => void,
+      ) => {
+        if (usesTestSession(req.headers)) {
+          req.session = testSession(req.headers);
+        }
+        next();
+      },
+    );
+  }
 
   app.useGlobalFilters(
     new ZodValidationFilter(),
@@ -240,12 +244,113 @@ export async function bootstrapE2E(options?: E2EOptions): Promise<E2EContext> {
     new DomainExceptionFilter(),
   );
   await app.init();
+  if (options?.adapter === 'fastify') {
+    await (app as NestFastifyApplication)
+      .getHttpAdapter()
+      .getInstance()
+      .ready();
+  }
 
   const close = async (): Promise<void> => {
+    // Event handlers enqueue BullMQ jobs after the HTTP response; let them reach
+    // Redis before shutdown closes the connection underneath them.
+    await new Promise((resolve) => setTimeout(resolve, 300));
     await app.close();
     await redis.stop();
     rmSync(dir, { recursive: true, force: true });
   };
 
   return { app, close };
+}
+
+/** Requests without test headers keep the adapter's real session handling. */
+function usesTestSession(
+  headers: Record<string, string | string[] | undefined>,
+): boolean {
+  return (
+    headers['x-test-user'] !== undefined ||
+    headers['x-test-token'] !== undefined
+  );
+}
+
+/**
+ * A session object shaped like `@fastify/secure-session`, fed from the
+ * `x-test-user` and `x-test-token` headers. `grants` are capability strings,
+ * parsed the way an authenticator attaches them.
+ */
+function testSession(
+  headers: Record<string, string | string[] | undefined>,
+): unknown {
+  const raw = headers['x-test-user'];
+  const header = Array.isArray(raw) ? raw[0] : raw;
+  const parsedUser = header ? JSON.parse(header) : undefined;
+  const rawTenant = headers['x-tenant-schema'];
+  const tenant = Array.isArray(rawTenant) ? rawTenant[0] : rawTenant;
+  const user = parsedUser
+    ? {
+        ...parsedUser,
+        tenant: parsedUser.tenant ?? tenant,
+        principalType:
+          parsedUser.principalType !== undefined
+            ? parsedUser.principalType
+            : parsedUser.grants
+              ? 'service'
+              : 'user',
+        ...(parsedUser.grants
+          ? { grants: parsedUser.grants.map(parseCapabilityString) }
+          : {}),
+      }
+    : undefined;
+  const rawToken = headers['x-test-token'];
+  const token = Array.isArray(rawToken) ? rawToken[0] : rawToken;
+  const store: Record<string, unknown> = {
+    ...(user ? { user } : {}),
+    ...(token ? { token } : {}),
+  };
+  const sessionObj = {
+    get: (key: string) => store[key],
+    set: (key: string, value: unknown) => {
+      store[key] = value;
+    },
+    delete: () => {
+      for (const key of Object.keys(store)) {
+        delete store[key];
+      }
+    },
+  };
+  return new Proxy(sessionObj, {
+    get(target, prop: string) {
+      if (prop in target) {
+        return Reflect.get(target, prop);
+      }
+      return store[prop];
+    },
+    set(target, prop: string, value: unknown) {
+      if (prop in target) {
+        Reflect.set(target, prop, value);
+        return true;
+      }
+      store[prop] = value;
+      return true;
+    },
+  });
+}
+
+/**
+ * Rebuilds the materialized permission rules of `userIds`, as every writer of
+ * `user_roles` or other permission inputs must, for tests that write those
+ * tables directly.
+ */
+export async function rebuildPermissions(
+  app: INestApplication,
+  userIds: string[],
+): Promise<void> {
+  const { MIKRO_ORM_CLIENT } = await import('@persistence/mikro-orm.store');
+  const { UserPermissionsProjector } = await import(
+    '../../src/auths/persistence/user-permissions.projector'
+  );
+  const projector = app.get(UserPermissionsProjector);
+  await app
+    .get(MIKRO_ORM_CLIENT)
+    .transactional((em: never) => projector.rebuild(em, userIds));
 }

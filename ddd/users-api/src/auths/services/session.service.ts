@@ -14,10 +14,10 @@ import type { SessionResponse } from '../responses/session.res';
 @Injectable()
 export class SessionService {
   /**
-   * Saves authenticated session data and bearer token into the Fastify session cookie.
+   * Saves the access token and `{ id, principalType, tenant, exp }` into the Fastify session cookie.
    *
    * @param session - Active Fastify secure session instance, if present on the request.
-   * @param data - Authenticated user response DTO containing user metadata and token.
+   * @param data - Login or refresh response carrying the access token.
    *
    * @example
    * ```typescript
@@ -35,15 +35,11 @@ export class SessionService {
 
     session.set('user', {
       id: data.id,
-      principalType: data.principalType ?? 'user',
+      principalType: data.principalType,
       tenant: data.tenant,
-      email: data.email,
-      department: data.department ?? undefined,
-      capabilities: data.capabilities,
-      expiresAt: data.expiresAt,
-      exp: data.exp,
+      exp: Math.floor(data.accessTokenExpiresAt / 1000),
     });
-    session.set('token', data.token);
+    session.set('token', data.accessToken);
   }
 
   /**
@@ -67,31 +63,6 @@ export class SessionService {
       delete session.user;
       delete session.token;
     }
-  }
-
-  /**
-   * Extracts credentials (userId and optional bearer token) stored in the active session.
-   *
-   * @param session - Fastify secure session instance to read from.
-   * @returns Resolved `userId` and `token` if stored in the session.
-   *
-   * @example
-   * ```typescript
-   * const { userId, token } = this.sessionService.getCredentials(req.session);
-   * ```
-   */
-  getCredentials(session: Session<SessionData> | undefined): {
-    userId?: string;
-    token?: string;
-  } {
-    if (!session) {
-      return {};
-    }
-
-    const token = session.token ?? session.get?.('token');
-    const userId = session.user?.id;
-
-    return { userId, token };
   }
 
   /**

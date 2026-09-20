@@ -4,9 +4,10 @@ import { sessionUserStore } from '@common/context/session-user.store';
 import type { SessionUser } from '@common/types/SessionUser';
 import type { EventBus } from '@nestjs/cqrs';
 import {
-  buildAbilityFromRules,
+  buildAbility,
   CASL_ABILITY_KEY,
-  CASL_USER_CONTEXT_KEY,
+  CASL_PRINCIPAL_KEY,
+  type Capability,
   type CaslAuthorizer,
 } from '@nestjs-pipeline/casl';
 import { PipelineContext, SET_TENANT_ID } from '@nestjs-pipeline/core';
@@ -25,7 +26,7 @@ import {
 } from '../src/users/cqrs/commands/create-user.handler';
 import { User } from '../src/users/domain/models/user.entity';
 
-type RawRules = Parameters<typeof buildAbilityFromRules>[0];
+type RawRules = Capability[];
 
 const PRINCIPAL: SessionUser = {
   id: 'admin-1',
@@ -73,8 +74,8 @@ describe('Create user replay scope', () => {
       },
     );
     context[SET_TENANT_ID]('tenant');
-    context.items.set(CASL_ABILITY_KEY, buildAbilityFromRules(rules));
-    context.items.set(CASL_USER_CONTEXT_KEY, { id: PRINCIPAL.id });
+    context.items.set(CASL_ABILITY_KEY, buildAbility(rules));
+    context.items.set(CASL_PRINCIPAL_KEY, { id: PRINCIPAL.id });
     return context;
   }
 

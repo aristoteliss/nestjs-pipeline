@@ -2,53 +2,104 @@
 
 import type { Server } from 'node:http';
 import request from 'supertest';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import {
   bootstrapE2E,
   E2E_LOGIN_CODE,
   type E2EContext,
+  rebuildPermissions,
 } from './support/e2e-app';
 
+const ADMIN_ROLE = '019de10c-b680-7000-8000-000000000001';
+
+/** The `refresh_token` Set-Cookie header of a response, if any. */
+function refreshCookie(res: request.Response): string | undefined {
+  const raw = res.headers['set-cookie'] as string[] | string | undefined;
+  const cookies = Array.isArray(raw) ? raw : raw ? [raw] : [];
+  return cookies.find((cookie) => cookie.startsWith('refresh_token='));
+}
+
+/** `refresh_token=<value>` as a request Cookie header. */
+function cookiePair(setCookie: string | undefined): string {
+  if (!setCookie) throw new Error('response set no refresh cookie');
+  return setCookie.split(';')[0];
+}
+
 /**
- * End-to-end tests for the authentication use cases (`/auth/login`,
- * `/auth/logout`).
- *
- * These drive the real login command (code verification -> user lookup -> JWT
- * signing -> session population) over HTTP, asserting the externally observable
- * contract. The `AUTH_LOGIN_CODE` / `JWT_SECRET` the flow reads are provided by
- * the e2e harness, so no production configuration is involved.
+ * The access/refresh contract over HTTP: login returns a short-lived access
+ * token and sets the refresh token as an HttpOnly cookie; refresh rotates it;
+ * logout revokes the session.
  */
-describe('auths-api (e2e)', () => {
+describe.each(['express', 'fastify'] as const)('auths (e2e, %s)', (adapter) => {
   let ctx: E2EContext;
   let http: Server;
 
-  /** An admin principal used only to seed the user that then logs in. */
-  const admin = JSON.stringify({
-    id: 'admin-1',
-    email: 'admin@acme.test',
-    department: 'platform',
-    capabilities: { roles: [], additionalCapabilities: ['all|manage|*'] },
-  });
+  const admin = JSON.stringify({ id: 'admin-1', grants: ['all|manage|*'] });
 
   let emailSeq = 0;
-  const newEmail = () => `auth-${Date.now()}-${emailSeq++}@acme.test`;
+  const newEmail = () =>
+    `auth-${adapter}-${Date.now()}-${emailSeq++}@acme.test`;
 
-  /** Seeds a user with the admin principal so it can subsequently log in. */
-  const seedUser = (email: string, name = 'Login Lena') =>
-    request(http)
+  /** A user who can log in and may list users. */
+  async function seedUser(email: string): Promise<string> {
+    const created = await request(http)
       .post('/users')
       .set('x-tenant-schema', 'tenant')
       .set('x-test-user', admin)
-      .send({ email, name, department: 'engineering' });
+      .send({ email, name: 'Login Lena', department: 'engineering' });
+    expect(created.status).toBe(201);
+    const { MIKRO_ORM_CLIENT } = await import(
+      '../src/persistence/mikro-orm.store'
+    );
+    await ctx.app
+      .get(MIKRO_ORM_CLIENT)
+      .em.execute('insert into user_roles (user_id, role_id) values (?, ?)', [
+        created.body.id,
+        ADMIN_ROLE,
+      ]);
+    await rebuildPermissions(ctx.app, [created.body.id]);
+    return created.body.id;
+  }
 
   const login = (body: Record<string, unknown>) =>
     request(http)
-      .post('/auth/login')
+      .post('/auths/login')
       .set('x-tenant-schema', 'tenant')
       .send(body);
 
+  // Each test refreshes from its own forwarded client address: the refresh
+  // rate limit is keyed on tenant + client IP.
+  const network = adapter === 'express' ? '198.51.100' : '198.51.101';
+  let clientIp = `${network}.1`;
+  let ipSeq = 1;
+  beforeEach(() => {
+    ipSeq += 1;
+    clientIp = `${network}.${ipSeq}`;
+  });
+
+  const refresh = (cookie?: string, fromIp = clientIp) => {
+    const req = request(http)
+      .post('/auths/refresh')
+      .set('x-tenant-schema', 'tenant')
+      .set('x-forwarded-for', fromIp);
+    return cookie ? req.set('Cookie', cookie) : req;
+  };
+
+  const logout = (cookie?: string) => {
+    const req = request(http)
+      .post('/auths/logout')
+      .set('x-tenant-schema', 'tenant');
+    return cookie ? req.set('Cookie', cookie) : req;
+  };
+
+  const listUsers = (accessToken: string) =>
+    request(http)
+      .get('/users')
+      .set('x-tenant-schema', 'tenant')
+      .set('authorization', `Bearer ${accessToken}`);
+
   beforeAll(async () => {
-    ctx = await bootstrapE2E();
+    ctx = await bootstrapE2E({ adapter, trustProxy: 'true' });
     http = ctx.app.getHttpServer() as Server;
   });
 
@@ -56,37 +107,44 @@ describe('auths-api (e2e)', () => {
     await ctx?.close();
   });
 
-  describe('POST /auth/login', () => {
-    it('authenticates an existing user with the valid code (200)', async () => {
+  describe('POST /auths/login', () => {
+    it('returns an access token and sets the refresh token only as a strict HttpOnly cookie', async () => {
       const email = newEmail();
-      const created = await seedUser(email, 'Ada Authenticated');
-      expect(created.status).toBe(201);
+      const userId = await seedUser(email);
 
       const res = await login({ email, code: E2E_LOGIN_CODE });
 
       expect(res.status).toBe(200);
       expect(res.body).toMatchObject({
-        id: created.body.id,
+        id: userId,
+        principalType: 'user',
+        tenant: 'tenant',
         email,
-        department: 'engineering',
+        accessToken: expect.any(String),
+        accessTokenExpiresAt: expect.any(Number),
       });
-      expect(res.body).toHaveProperty('capabilities');
-      expect(typeof res.body.token).toBe('string');
-      expect(res.body.token.length).toBeGreaterThan(0);
+      expect(res.body).not.toHaveProperty('refreshToken');
+      expect(res.body).not.toHaveProperty('token');
+      const cookie = refreshCookie(res) as string;
+      const value = cookiePair(cookie).slice('refresh_token='.length);
+      expect(JSON.stringify(res.body)).not.toContain(value);
+      expect(cookie).toMatch(/;\s*HttpOnly/i);
+      expect(cookie).toMatch(/;\s*Secure/i);
+      expect(cookie).toMatch(/;\s*SameSite=Strict/i);
+      expect(cookie).toMatch(/;\s*Path=\/auths(;|$)/);
     });
 
     it('rejects an unknown email (401)', async () => {
       const res = await login({ email: newEmail(), code: E2E_LOGIN_CODE });
 
       expect(res.status).toBe(401);
+      expect(refreshCookie(res)).toBeUndefined();
     });
 
     it('rejects an invalid code (401)', async () => {
       const email = newEmail();
-      await seedUser(email, 'Wrongcode Wally');
+      await seedUser(email);
 
-      // Well-formed (<=6 chars) but not the configured code, so it reaches the
-      // authentication step and is rejected there rather than at the boundary.
       const res = await login({ email, code: '000000' });
 
       expect(res.status).toBe(401);
@@ -96,7 +154,6 @@ describe('auths-api (e2e)', () => {
       const res = await login({ email: 'not-an-email', code: '' });
 
       expect(res.status).toBe(400);
-      expect(res.body).toHaveProperty('fieldErrors');
       expect(res.body.fieldErrors).toMatchObject({
         email: expect.any(Array),
         code: expect.any(Array),
@@ -105,201 +162,85 @@ describe('auths-api (e2e)', () => {
 
     it('requires a tenant context (403)', async () => {
       const res = await request(http)
-        .post('/auth/login')
+        .post('/auths/login')
         .send({ email: newEmail(), code: E2E_LOGIN_CODE });
 
       expect(res.status).toBe(403);
     });
   });
 
-  describe('POST /auth/logout', () => {
-    it('clears the session and returns no content (204)', async () => {
-      const res = await request(http)
-        .post('/auth/logout')
-        .set('x-tenant-schema', 'tenant')
-        .set('x-test-user', admin);
-
-      expect(res.status).toBe(204);
-    });
-
-    it('deletes persistent auth records on logout for authenticated user (204)', async () => {
+  describe('session lifecycle', () => {
+    it('logs in, calls the API, refreshes, calls again, logs out, and can no longer refresh', async () => {
       const email = newEmail();
-      const created = await seedUser(email, 'Logout Lisa');
-      expect(created.status).toBe(201);
+      await seedUser(email);
 
-      const loginRes = await login({ email, code: E2E_LOGIN_CODE });
-      expect(loginRes.status).toBe(200);
-      const token = loginRes.body.token;
+      const loggedIn = await login({ email, code: E2E_LOGIN_CODE });
+      expect((await listUsers(loggedIn.body.accessToken)).status).toBe(200);
 
-      // Logout with the bearer token
-      const logoutRes = await request(http)
-        .post('/auth/logout')
-        .set('x-tenant-schema', 'tenant')
-        .set('authorization', `Bearer ${token}`);
-      expect(logoutRes.status).toBe(204);
+      const refreshed = await refresh(cookiePair(refreshCookie(loggedIn)));
+      expect(refreshed.status).toBe(200);
+      expect(refreshed.body.accessToken).toEqual(expect.any(String));
+      const rotated = cookiePair(refreshCookie(refreshed));
+      expect(rotated).not.toBe(cookiePair(refreshCookie(loggedIn)));
+      expect((await listUsers(refreshed.body.accessToken)).status).toBe(200);
 
-      // Verify token record in database was deleted
-      const { Auth } = await import(
-        '../../src/auths/domain/models/auth.entity'
-      );
-      const { MIKRO_ORM_CLIENT } = await import(
-        '../../src/persistence/mikro-orm.store'
-      );
-      const store = ctx.app.get(MIKRO_ORM_CLIENT);
-      const authRecord = await store.em.findOne(Auth, {
-        userId: created.body.id,
-      });
-      expect(authRecord).toBeNull();
+      const out = await logout(rotated);
+      expect(out.status).toBe(204);
+      expect(refreshCookie(out)).toMatch(/^refresh_token=;/);
+
+      const afterLogout = await refresh(rotated);
+      expect(afterLogout.status).toBe(401);
+      expect(afterLogout.body.code).toBe('refresh_invalid');
+
+      // An issued access token stays valid until it expires.
+      expect((await listUsers(refreshed.body.accessToken)).status).toBe(200);
     });
 
-    it('deletes persistent auth record on cookie session logout without authorization header (204)', async () => {
+    it('answers a second refresh with the same cookie without rotating again', async () => {
       const email = newEmail();
-      const created = await seedUser(email, 'Cookie Logout User');
-      expect(created.status).toBe(201);
-
-      const loginRes = await login({ email, code: E2E_LOGIN_CODE });
-      expect(loginRes.status).toBe(200);
-      const token = loginRes.body.token;
-
-      // Logout with simulated cookie session (user + token on session, no Authorization header)
-      const logoutRes = await request(http)
-        .post('/auth/logout')
-        .set('x-tenant-schema', 'tenant')
-        .set('x-test-user', JSON.stringify({ id: created.body.id, email }))
-        .set('x-test-token', token);
-      expect(logoutRes.status).toBe(204);
-
-      // Verify token record in database was deleted
-      const { Auth } = await import(
-        '../../src/auths/domain/models/auth.entity'
+      await seedUser(email);
+      const original = cookiePair(
+        refreshCookie(await login({ email, code: E2E_LOGIN_CODE })),
       );
-      const { MIKRO_ORM_CLIENT } = await import(
-        '../../src/persistence/mikro-orm.store'
-      );
-      const store = ctx.app.get(MIKRO_ORM_CLIENT);
-      const authRecord = await store.em.findOne(Auth, {
-        userId: created.body.id,
-      });
-      expect(authRecord).toBeNull();
+
+      const winner = await refresh(original);
+      const loser = await refresh(original);
+
+      expect(winner.status).toBe(200);
+      expect(loser.status).toBe(200);
+      expect(refreshCookie(winner)).toBeDefined();
+      expect(refreshCookie(loser)).toBeUndefined();
+      expect(loser.body.accessToken).toEqual(expect.any(String));
+
+      const next = await refresh(cookiePair(refreshCookie(winner)));
+      expect(next.status).toBe(200);
+      expect(refreshCookie(next)).toBeDefined();
     });
 
-    it('rejects a logged-out bearer token on protected endpoints (401)', async () => {
-      const email = newEmail();
-      const created = await seedUser(email, 'Logout Protected');
-      expect(created.status).toBe(201);
+    it('rejects a missing or unknown refresh cookie (401)', async () => {
+      const missing = await refresh();
+      const unknown = await refresh('refresh_token=never-issued');
 
-      const { MIKRO_ORM_CLIENT } = await import(
-        '../../src/persistence/mikro-orm.store'
-      );
-      const { UserRole } = await import(
-        '../../src/persistence/entities/user-role.entity'
-      );
-      await ctx.app.get(MIKRO_ORM_CLIENT).em.upsert(UserRole, {
-        userId: created.body.id,
-        roleId: '019de10c-b680-7000-8000-000000000001',
-      });
-
-      const loginRes = await login({ email, code: E2E_LOGIN_CODE });
-      expect(loginRes.status).toBe(200);
-      const token = loginRes.body.token;
-
-      // Token works before logout
-      const before = await request(http)
-        .get(`/users/${created.body.id}`)
-        .set('x-tenant-schema', 'tenant')
-        .set('authorization', `Bearer ${token}`);
-      expect(before.status).toBe(200);
-
-      // Logout with the bearer token
-      const logoutRes = await request(http)
-        .post('/auth/logout')
-        .set('x-tenant-schema', 'tenant')
-        .set('authorization', `Bearer ${token}`);
-      expect(logoutRes.status).toBe(204);
-
-      // Token is rejected after logout
-      const after = await request(http)
-        .get(`/users/${created.body.id}`)
-        .set('x-tenant-schema', 'tenant')
-        .set('authorization', `Bearer ${token}`);
-      expect(after.status).toBe(401);
+      expect(missing.status).toBe(401);
+      expect(missing.body.code).toBe('refresh_invalid');
+      expect(unknown.status).toBe(401);
+      expect(unknown.body.code).toBe('refresh_invalid');
     });
 
-    it('revokes only the specific session bearer token on logout leaving other sessions active', async () => {
-      const email = newEmail();
-      const created = await seedUser(email, 'Multi Session User');
-      expect(created.status).toBe(201);
-
-      const { MIKRO_ORM_CLIENT } = await import(
-        '../../src/persistence/mikro-orm.store'
-      );
-      const { UserRole } = await import(
-        '../../src/persistence/entities/user-role.entity'
-      );
-      const { Auth } = await import(
-        '../../src/auths/domain/models/auth.entity'
-      );
-      await ctx.app.get(MIKRO_ORM_CLIENT).em.upsert(UserRole, {
-        userId: created.body.id,
-        roleId: '019de10c-b680-7000-8000-000000000001',
-      });
-
-      // Session 1 login
-      const login1 = await login({ email, code: E2E_LOGIN_CODE });
-      expect(login1.status).toBe(200);
-      const token1 = login1.body.token;
-
-      // Ensure distinct token issuance
-      await new Promise((r) => setTimeout(r, 20));
-
-      // Session 2 login
-      const login2 = await login({ email, code: E2E_LOGIN_CODE });
-      expect(login2.status).toBe(200);
-      const token2 = login2.body.token;
-
-      expect(token1).not.toBe(token2);
-
-      // Logout session 1 with bearer token1
-      const logoutRes = await request(http)
-        .post('/auth/logout')
-        .set('x-tenant-schema', 'tenant')
-        .set('authorization', `Bearer ${token1}`);
-      expect(logoutRes.status).toBe(204);
-
-      // Session 1 token is now rejected
-      const after1 = await request(http)
-        .get(`/users/${created.body.id}`)
-        .set('x-tenant-schema', 'tenant')
-        .set('authorization', `Bearer ${token1}`);
-      expect(after1.status).toBe(401);
-
-      // Session 2 token remains active and valid
-      const after2 = await request(http)
-        .get(`/users/${created.body.id}`)
-        .set('x-tenant-schema', 'tenant')
-        .set('authorization', `Bearer ${token2}`);
-      expect(after2.status).toBe(200);
-
-      // Verify in persistence that token1 record was removed but token2 persists
-      const store = ctx.app.get(MIKRO_ORM_CLIENT);
-      const auth1 = await store.em.findOne(Auth, { token: token1 });
-      const auth2 = await store.em.findOne(Auth, { token: token2 });
-      expect(auth1).toBeNull();
-      expect(auth2).not.toBeNull();
+    it('answers logout with 204 for a missing or unknown cookie', async () => {
+      expect((await logout()).status).toBe(204);
+      expect((await logout('refresh_token=never-issued')).status).toBe(204);
     });
 
-    it('is a no-op for an anonymous caller (204)', async () => {
-      const res = await request(http)
-        .post('/auth/logout')
-        .set('x-tenant-schema', 'tenant');
+    it('rate-limits refreshes per forwarded client IP when TRUST_PROXY is set', async () => {
+      for (let attempt = 0; attempt < 5; attempt += 1) {
+        expect((await refresh('refresh_token=never-issued')).status).toBe(401);
+      }
 
-      expect(res.status).toBe(204);
-    });
-
-    it('requires a tenant context (403)', async () => {
-      const res = await request(http).post('/auth/logout');
-
-      expect(res.status).toBe(403);
+      expect((await refresh('refresh_token=never-issued')).status).toBe(429);
+      expect(
+        (await refresh('refresh_token=never-issued', `${network}.250`)).status,
+      ).toBe(401);
     });
   });
 });

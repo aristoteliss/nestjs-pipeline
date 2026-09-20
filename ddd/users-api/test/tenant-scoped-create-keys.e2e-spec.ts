@@ -13,7 +13,7 @@ describe('tenant-scoped create keys (e2e)', () => {
     id: 'same-admin',
     email: 'same-admin@acme.test',
     department: 'platform',
-    capabilities: { roles: [], additionalCapabilities: ['all|manage|*'] },
+    grants: ['all|manage|*'],
   });
 
   beforeAll(async () => {

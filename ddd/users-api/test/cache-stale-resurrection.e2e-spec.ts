@@ -27,7 +27,7 @@ describe('Cache Revision Fencing & Anti-Resurrection (e2e)', () => {
     id: 'admin-resurrection',
     email: 'admin-resurrection@acme.test',
     department: 'platform',
-    capabilities: { roles: [], additionalCapabilities: ['all|manage|*'] },
+    grants: ['all|manage|*'],
   });
 
   beforeAll(async () => {

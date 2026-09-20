@@ -1,10 +1,16 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import type { CommandBus, QueryBus } from '@nestjs/cqrs';
+import {
+  type AppAbility,
+  buildAbility,
+  CaslAuthorizer,
+} from '@nestjs-pipeline/casl';
 import { describe, expect, it, vi } from 'vitest';
 import { CreateRoleCommand } from '../cqrs/commands/create-role.command';
 import { DeleteRoleCommand } from '../cqrs/commands/delete-role.command';
 import { UpdateRoleCommand } from '../cqrs/commands/update-role.command';
+import { GetRoleHandler } from '../cqrs/queries/get-role.handler';
 import { GetRoleQuery } from '../cqrs/queries/get-role.query';
 import { GetRolesQuery } from '../cqrs/queries/get-roles.query';
 import { Role } from '../domain/models/role.entity';
@@ -13,42 +19,77 @@ import { UpdateRoleDtoSchema } from '../dtos/update-role.dto';
 import { RolesController } from './roles.controller';
 
 describe('RolesController', () => {
-  it('creates role and maps aggregate to response DTO', async () => {
-    const role = Role.create('admin');
-    const commandBus = {
-      execute: vi.fn().mockResolvedValue(role),
-    } as unknown as CommandBus;
-    const queryBus = { execute: vi.fn() } as unknown as QueryBus;
+  function readingBus(ability: AppAbility, role: Role): QueryBus {
+    const handler = new GetRoleHandler(
+      { find: vi.fn().mockResolvedValue(role) },
+      new CaslAuthorizer(ability),
+    );
+    return {
+      execute: vi.fn((query: GetRoleQuery) => handler.execute(query)),
+    } as unknown as QueryBus;
+  }
 
-    const controller = new RolesController(commandBus, queryBus);
-    const result = await controller.createRole({ name: 'admin' });
+  function writingBus(result: unknown): CommandBus {
+    return {
+      execute: vi.fn().mockResolvedValue(result),
+    } as unknown as CommandBus;
+  }
+
+  it('creates a role and answers with a fresh authorized read', async () => {
+    const role = Role.create('admin');
+    const commandBus = writingBus(role);
+    const queryBus = readingBus(buildAbility(['Role|read|*']), role);
+
+    const result = await new RolesController(commandBus, queryBus).createRole({
+      name: 'admin',
+    });
 
     expect(commandBus.execute).toHaveBeenCalledWith(
       expect.any(CreateRoleCommand),
     );
-    expect(result).toEqual({
-      id: role.id,
-      name: 'admin',
-    });
+    expect(queryBus.execute).toHaveBeenCalledWith(expect.any(GetRoleQuery));
+    expect(result).toEqual({ id: role.id, name: 'admin' });
   });
 
-  it('updates role and maps aggregate to response DTO', async () => {
+  it('answers an update with only the fields the caller may read', async () => {
     const role = Role.create('editor');
     role.rename('publisher');
+    const commandBus = writingBus(role);
 
-    const commandBus = {
-      execute: vi.fn().mockResolvedValue(role),
-    } as unknown as CommandBus;
-    const queryBus = { execute: vi.fn() } as unknown as QueryBus;
-
-    const controller = new RolesController(commandBus, queryBus);
-    const result = await controller.updateRole(role.id, { name: 'publisher' });
+    const result = await new RolesController(
+      commandBus,
+      readingBus(buildAbility(['Role|update|*', 'Role|read|*|name']), role),
+    ).updateRole(role.id, { name: 'publisher' });
 
     expect(commandBus.execute).toHaveBeenCalledWith(
       expect.any(UpdateRoleCommand),
     );
-    expect(result.name).toBe('publisher');
+    expect(result).toEqual({ name: 'publisher' });
   });
+
+  it.each([
+    [
+      'create',
+      (c: RolesController, _id: string) => c.createRole({ name: 'admin' }),
+    ],
+    [
+      'update',
+      (c: RolesController, id: string) => c.updateRole(id, { name: 'admin' }),
+    ],
+  ])(
+    'answers a write-only caller with an empty body (%s)',
+    async (_, write) => {
+      const role = Role.create('admin');
+      const commandBus = writingBus(role);
+      const controller = new RolesController(
+        commandBus,
+        readingBus(buildAbility(['Role|create|*', 'Role|update|*']), role),
+      );
+
+      await expect(write(controller, role.id)).resolves.toEqual({});
+      expect(commandBus.execute).toHaveBeenCalledOnce();
+    },
+  );
 
   it('deletes role via DeleteRoleCommand', async () => {
     const commandBus = {

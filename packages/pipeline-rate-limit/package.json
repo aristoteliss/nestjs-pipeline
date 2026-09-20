@@ -1,6 +1,6 @@
 {
   "name": "@nestjs-pipeline/rate-limit",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Rate-limiting behavior for the NestJS pipeline — backend-agnostic, powered by rate-limiter-flexible (memory, Redis/Valkey, Mongo, SQL drop-ins).",
   "author": "Aristotelis <aristotelis@ik.me>",
   "license": "SEE LICENSE IN LICENSE",

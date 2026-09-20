@@ -34,8 +34,10 @@ export class GetRoleQueryRepository extends QueryRepository<
     alwaysHydrate: true,
   })
   async find(query: GetRoleQuery): Promise<Role | null> {
-    const role = await this.store.em.findOne(Role, buildConditions(query));
-
-    return role;
+    return this.store.em.findOne(
+      Role,
+      buildConditions(query),
+      query.refresh ? { refresh: true } : undefined,
+    );
   }
 }

@@ -107,7 +107,6 @@ describe('Deletion audit records fidelity', () => {
         tenant: 'tenant-a',
         department: 'Eng',
         principalType: 'user',
-        capabilities: { roles: ['admin'] },
       },
       async () => {
         await commandBus.execute(new DeleteUserCommand({ id: targetUserId }));
@@ -142,7 +141,6 @@ describe('Deletion audit records fidelity', () => {
         tenant: 'tenant-a',
         department: 'Ops',
         principalType: 'user',
-        capabilities: { roles: ['admin'] },
       },
       async () => {
         await commandBus.execute(new DeleteRoleCommand({ id: targetRoleId }));

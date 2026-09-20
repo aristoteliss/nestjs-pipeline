@@ -13,12 +13,11 @@ import { CaslModule } from '@nestjs-pipeline/casl';
 import { HttpCorrelationMiddleware } from '@nestjs-pipeline/correlation';
 import { TenantSchemaMiddleware } from '@persistence/middlewares/tenant-schema.middleware';
 import { PersistenceModule } from '@persistence/persistence.module';
+import { AuthorizationModule } from './auths/authorization.module';
 import { AuthsModule } from './auths/auths.module';
-import { GetUserCapabilitiesQueryRepository } from './auths/persistence/get-user-capabilities.query-repository';
+import { CaslPermissionSource } from './auths/persistence/casl-permission.source';
 import { ObservabilityModule, ReliabilityModule } from './infrastructure';
-import { GetRolesCapabilitiesQueryRepository } from './roles/persistence/get-roles-capabilities.query-repository';
 import { RolesModule } from './roles/roles.module';
-import { CaslUserContextResolver } from './users/persistence/casl-user-context.resolver';
 import { UsersModule } from './users/users.module';
 
 /**
@@ -30,7 +29,7 @@ import { UsersModule } from './users/users.module';
  * ### Architectural Layout
  * - {@link ObservabilityModule}: Structured logging (Pino), OpenTelemetry tracing & metrics, global pipeline behaviors, and audit logging.
  * - {@link ReliabilityModule}: BullMQ queue engine, dead-letter storage, rate limiting, distributed idempotency, resilience policies, caching, and feature flags.
- * - {@link CaslModule}: Dynamic role-based and attribute-based access control with dedicated request user-context resolution.
+ * - {@link CaslModule}: Role- and attribute-based access control; {@link AuthorizationModule} supplies the request permission source.
  * - {@link PersistenceModule}: MikroORM database connection, entity repositories, and tenant schema manager.
  * - Domain Feature Modules: {@link UsersModule}, {@link RolesModule}, {@link AuthsModule}.
  */
@@ -40,13 +39,8 @@ import { UsersModule } from './users/users.module';
     ObservabilityModule,
     ReliabilityModule,
     CaslModule.forRoot({
-      roleProvider: GetRolesCapabilitiesQueryRepository,
-      userContextResolver: CaslUserContextResolver,
-      userCapabilityProvider: GetUserCapabilitiesQueryRepository,
-      subjectContextPaths: ['sessionUser'],
-      defaultFieldsFromRequest: {
-        User: ['username', 'department', 'email'],
-      },
+      imports: [AuthorizationModule],
+      permissionSource: { useExisting: CaslPermissionSource },
     }),
     PersistenceModule,
     UsersModule,

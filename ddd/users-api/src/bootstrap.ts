@@ -1,12 +1,9 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import './tracing'; // Must initialize before NestJS and AppModule load.
-import secureSession from '@fastify/secure-session';
 import { NestFactory } from '@nestjs/core';
-import {
-  FastifyAdapter,
-  type NestFastifyApplication,
-} from '@nestjs/platform-fastify';
+import type { NestExpressApplication } from '@nestjs/platform-express';
+import type { NestFastifyApplication } from '@nestjs/platform-fastify';
 import { IdempotencyConflictFilter } from '@nestjs-pipeline/idempotency';
 import { RateLimitExceededFilter } from '@nestjs-pipeline/rate-limit';
 import { ZodValidationFilter } from '@nestjs-pipeline/zod';
@@ -15,6 +12,8 @@ import { AppModule } from './app.module';
 import { DomainExceptionFilter } from './common/filters/domain-exception.filter';
 import { FeatureDisabledFilter } from './common/filters/feature-disabled.filter';
 import { UnauthorizedActionFilter } from './common/filters/unauthorized-action.filter';
+import { configureExpress } from './express-platform';
+import { createFastifyAdapter, registerSecureSession } from './http-platform';
 
 export async function bootstrap(): Promise<void> {
   const useFastify = process.env.ADAPTER === 'fastify';
@@ -22,28 +21,23 @@ export async function bootstrap(): Promise<void> {
   const app = useFastify
     ? await NestFactory.create<NestFastifyApplication>(
         AppModule,
-        new FastifyAdapter(),
+        createFastifyAdapter(),
         { bufferLogs: true },
       )
-    : await NestFactory.create(AppModule, { bufferLogs: true });
+    : await NestFactory.create<NestExpressApplication>(AppModule, {
+        bufferLogs: true,
+      });
 
   if (useFastify) {
     if (!process.env.SESSION_SECRET) {
       throw new Error('SESSION_SECRET must be set for secure sessions');
     }
-
-    await (app as NestFastifyApplication)
-      .getHttpAdapter()
-      .getInstance()
-      .register(secureSession, {
-        key: Buffer.from(process.env.SESSION_SECRET, 'hex'),
-        cookieName: 'session',
-        cookie: {
-          path: '/',
-          httpOnly: true,
-          secure: process.env.NODE_ENV === 'production',
-        },
-      });
+    await registerSecureSession(
+      app as NestFastifyApplication,
+      process.env.SESSION_SECRET,
+    );
+  } else {
+    configureExpress(app as NestExpressApplication);
   }
 
   app.useLogger(app.get(NativeLogger));

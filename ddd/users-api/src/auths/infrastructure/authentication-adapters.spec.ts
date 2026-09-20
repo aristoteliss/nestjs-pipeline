@@ -64,21 +64,24 @@ describe('authentication infrastructure adapters', () => {
     const issuer = new JoseAccessTokenIssuer(tenantContext);
     const user = User.create('Alice', 'alice@example.test', 'Engineering');
 
+    const sessionId = '019488e0-0000-7000-8000-0000000000aa';
     const result = await tenantContext.run('tenant_a', () =>
-      issuer.issue({
-        user,
-        capabilities: {
-          roles: ['admin'],
-          additionalCapabilities: [],
-          deniedCapabilities: [],
-        },
-      }),
+      issuer.issue({ user, sessionId }),
     );
 
     const payload = decodeJwt(result.accessToken);
     expect(payload.sub).toBe(user.id);
+    expect(payload.sid).toBe(sessionId);
     expect(payload.tenant).toBe('tenant_a');
-    expect(payload.roles).toEqual(['admin']);
+    expect(payload.principalType).toBe('user');
+    expect(payload.exp).toBe((payload.iat as number) + 300);
+    expect(result.expiresAt).toBe((payload.exp as number) * 1000);
+    expect(payload).not.toHaveProperty('email');
+    expect(payload).not.toHaveProperty('department');
+    expect(payload).not.toHaveProperty('perms');
+    expect(payload).not.toHaveProperty('roles');
+    expect(payload).not.toHaveProperty('additionalCapabilities');
+    expect(payload).not.toHaveProperty('deniedCapabilities');
     expect(payload.jti).toBeDefined();
   });
 
@@ -88,15 +91,8 @@ describe('authentication infrastructure adapters', () => {
     const issuer = new JoseAccessTokenIssuer(new TenantSchemaContext());
     const user = User.create('Alice', 'alice@example.test');
 
-    await expect(
-      issuer.issue({
-        user,
-        capabilities: {
-          roles: [],
-          additionalCapabilities: [],
-          deniedCapabilities: [],
-        },
-      }),
-    ).rejects.toThrow(AuthConfigurationException);
+    await expect(issuer.issue({ user, sessionId: 's' })).rejects.toThrow(
+      AuthConfigurationException,
+    );
   });
 });

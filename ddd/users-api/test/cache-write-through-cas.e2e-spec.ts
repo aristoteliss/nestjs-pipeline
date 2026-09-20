@@ -21,7 +21,7 @@ describe('cache write-through CAS & read strong consistency (e2e)', () => {
     id: 'admin-cas',
     email: 'admin@acme.test',
     department: 'platform',
-    capabilities: { roles: [], additionalCapabilities: ['all|manage|*'] },
+    grants: ['all|manage|*'],
   });
 
   beforeAll(async () => {

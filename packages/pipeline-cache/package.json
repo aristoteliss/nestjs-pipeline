@@ -1,6 +1,6 @@
 {
   "name": "@nestjs-pipeline/cache",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Caching behavior for the NestJS pipeline — cache-manager v7 on top of Keyv with pluggable stores (memory, redis, memcache, sqlite, postgres).",
   "author": "Aristotelis <aristotelis@ik.me>",
   "license": "SEE LICENSE IN LICENSE",

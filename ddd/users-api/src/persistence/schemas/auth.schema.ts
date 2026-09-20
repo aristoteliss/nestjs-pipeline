@@ -1,6 +1,6 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import { EntitySchema } from '@mikro-orm/core';
+import { BigIntType, EntitySchema } from '@mikro-orm/core';
 import { AggregateRoot } from '@nestjs-pipeline/ddd-core/domain';
 import { UnixTimestampType } from '@nestjs-pipeline/ddd-core/persistence';
 import { Auth } from '../../auths/domain/models/auth.entity';
@@ -28,7 +28,38 @@ export const AuthSchema = new EntitySchema<Auth, AggregateRoot>({
       fieldName: 'updated_at',
       accessor: true,
     },
+    version: {
+      type: 'number',
+      fieldName: 'version',
+      default: 1,
+      accessor: true,
+      version: true,
+    },
     userId: { type: 'string', fieldName: 'user_id' },
-    token: { type: 'string' },
+    refreshTokenHash: {
+      type: 'string',
+      fieldName: 'refresh_token_hash',
+      unique: true,
+      accessor: true,
+    },
+    previousRefreshTokenHash: {
+      type: 'string',
+      fieldName: 'previous_refresh_token_hash',
+      nullable: true,
+      accessor: true,
+    },
+    rotatedAt: {
+      type: new BigIntType('number'),
+      fieldName: 'rotated_at',
+      nullable: true,
+      accessor: true,
+    },
+    expiresAt: { type: new BigIntType('number'), fieldName: 'expires_at' },
+    revokedAt: {
+      type: new BigIntType('number'),
+      fieldName: 'revoked_at',
+      nullable: true,
+      accessor: true,
+    },
   },
 });

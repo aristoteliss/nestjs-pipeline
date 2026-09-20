@@ -1,40 +1,48 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { Inject } from '@nestjs/common';
-import { CommandHandler, ICommandHandler } from '@nestjs/cqrs';
-import type {
-  ICommandRepository,
-  IQueryRepository,
-} from '@nestjs-pipeline/ddd-core/application';
-import { Auth } from '../../domain/models/auth.entity';
+import { CommandHandler, EventBus } from '@nestjs/cqrs';
+import { UsePipeline } from '@nestjs-pipeline/core';
 import {
-  COMMAND_REPOSITORY,
-  QUERY_REPOSITORY,
-} from '../../persistence/repository.tokens';
-import { FindAuthQuery } from '../queries/find-auth.query';
+  CommandBaseHandler,
+  type IWriteSideAggregateRepository,
+} from '@nestjs-pipeline/ddd-core/application';
+import { DeadLetterBehavior } from '@nestjs-pipeline/deadletter';
+import {
+  AUTH_SESSIONS,
+  type IAuthSessions,
+  type IRefreshTokens,
+  REFRESH_TOKENS,
+} from '../../application/authentication.ports';
+import { InvalidRefreshTokenError } from '../../domain/errors/refresh-token.errors';
+import type { Auth } from '../../domain/models/auth.entity';
+import { COMMAND_REPOSITORY } from '../../persistence/repository.tokens';
 import { DeleteAuthCommand } from './delete-auth.command';
 
 @CommandHandler(DeleteAuthCommand)
-export class DeleteAuthHandler
-  implements ICommandHandler<DeleteAuthCommand, void>
-{
+@UsePipeline([DeadLetterBehavior, { redactKeys: ['refreshToken'] }])
+export class DeleteAuthHandler extends CommandBaseHandler<
+  DeleteAuthCommand,
+  Auth
+> {
   constructor(
-    @Inject(COMMAND_REPOSITORY.deleteAuth)
-    private readonly commandRepository: ICommandRepository<Auth, null>,
-    @Inject(QUERY_REPOSITORY.findAuth)
-    private readonly queryRepository: IQueryRepository<
-      FindAuthQuery,
-      Auth | null
-    >,
-  ) {}
+    protected readonly eventBus: EventBus,
+    @Inject(AUTH_SESSIONS) private readonly sessions: IAuthSessions,
+    @Inject(COMMAND_REPOSITORY.updateAuth)
+    private readonly sessionRepository: IWriteSideAggregateRepository<Auth>,
+    @Inject(REFRESH_TOKENS) private readonly refreshTokens: IRefreshTokens,
+  ) {
+    super(eventBus);
+  }
 
-  async execute(command: DeleteAuthCommand): Promise<void> {
-    const auth = await this.queryRepository.find(
-      new FindAuthQuery({ userId: command.userId, token: command.token }),
+  async handle(command: DeleteAuthCommand): Promise<Auth> {
+    const session = await this.sessions.findByTokenHash(
+      this.refreshTokens.hash(command.refreshToken),
     );
+    if (!session) throw new InvalidRefreshTokenError();
 
-    if (auth) {
-      await this.commandRepository.save(auth);
-    }
+    session.revoke(Date.now());
+    await this.sessionRepository.save(session);
+    return session;
   }
 }

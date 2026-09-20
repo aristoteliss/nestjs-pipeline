@@ -19,7 +19,7 @@ describe('user event dispatch ports (e2e)', () => {
     id: 'admin-1',
     email: 'admin@acme.test',
     department: 'platform',
-    capabilities: { roles: [], additionalCapabilities: ['all|manage|*'] },
+    grants: ['all|manage|*'],
   });
 
   beforeAll(async () => {

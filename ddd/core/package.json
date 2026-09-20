@@ -1,6 +1,6 @@
 {
   "name": "@nestjs-pipeline/ddd-core",
-  "version": "0.0.3",
+  "version": "0.2.0",
   "private": true,
   "license": "SEE LICENSE IN LICENSE",
   "description": "Nest-oriented DDD support for the sample applications: domain primitives, application ports and MikroORM persistence adapters, exported as separate entry points.",

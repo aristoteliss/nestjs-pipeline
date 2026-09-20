@@ -7,14 +7,19 @@ import {
   Logger,
   UnauthorizedException,
 } from '@nestjs/common';
-import type { UserCapabilities } from '@nestjs-pipeline/casl';
+import { type Capability, parseCapabilityString } from '@nestjs-pipeline/casl';
 import { AUTH_HEADERS } from '../../common/constants/auth-headers.constants';
 import {
   type ITenantContext,
   TENANT_CONTEXT,
 } from '../../common/context/tenant-context.port';
 import type { SessionUser } from '../../common/types/SessionUser';
-import { CapabilityCodec } from './capability-codec';
+
+interface ApiClient {
+  key: string;
+  tenants: Set<string>;
+  grants?: Capability[];
+}
 
 /**
  * Authenticates machine-to-machine HTTP requests presenting `x-api-id` and `x-api-key` headers.
@@ -26,33 +31,36 @@ import { CapabilityCodec } from './capability-codec';
  * Successful authentication explicitly marks the principal as `service`; authorization never infers
  * machine identity from the syntax of the API client id.
  *
+ * Each client's `rules` are compact capability strings (`[!]subject|action[|conditions[|fields[|reason]]]`)
+ * parsed once at startup; a malformed rule fails boot. They become the principal's `grants`, which are
+ * its complete authorization: service principals never read the users tables.
+ *
  * @example
  * ```bash
  * # Calling a protected endpoint with API credentials
  * curl https://api.example.com/users \
  *   -H "x-tenant-schema: tenant_a" \
  *   -H "x-api-id: reporting-service" \
- *   -H "x-api-key: secret-api-key-999"
+ *   -H "x-api-key: <secret>"
  * ```
  *
  * @example
  * ```env
  * # Environment configuration (.env)
- * API_CLIENTS='[{"id":"reporting-service","key":"secret-api-key-999","tenants":["tenant_a","tenant_b"],"capabilities":{"roles":["reporter"]}}]'
+ * API_CLIENTS='[{"id":"reporting-service","key":"<secret>","tenants":["tenant_a"],"rules":["User|read|*|id,username","Role|read|*"]}]'
  * ```
  */
 @Injectable()
 export class ApiClientAuthenticator {
   private readonly logger = new Logger(ApiClientAuthenticator.name);
-  private apiClients?: Map<
-    string,
-    { key: string; tenants: Set<string>; capabilities?: UserCapabilities }
-  >;
+  private readonly apiClients: Map<string, ApiClient>;
 
   constructor(
     @Inject(TENANT_CONTEXT)
     private readonly tenantContext: ITenantContext,
-  ) {}
+  ) {
+    this.apiClients = this.loadApiClients();
+  }
 
   /**
    * Verifies API credentials provided in `x-api-id` and `x-api-key` request headers.
@@ -68,10 +76,10 @@ export class ApiClientAuthenticator {
    * const principal = authenticator.authenticate({
    *   headers: {
    *     'x-api-id': 'reporting-service',
-   *     'x-api-key': 'secret-api-key-999',
+   *     'x-api-key': '<secret>',
    *   },
    * });
-   * // returns: { id: 'reporting-service', principalType: 'service', tenant: 'tenant_a', capabilities: { roles: ['reporter'] } }
+   * // returns: { id: 'reporting-service', principalType: 'service', tenant: 'tenant_a', grants: [{ subject: 'Role', action: 'read' }] }
    * ```
    */
   authenticate(req: {
@@ -81,7 +89,7 @@ export class ApiClientAuthenticator {
     if (!apiId) return undefined;
 
     const apiKey = this.firstHeaderValue(req.headers?.[AUTH_HEADERS.API_KEY]);
-    const client = this.getApiClients().get(apiId);
+    const client = this.apiClients.get(apiId);
 
     if (
       !client ||
@@ -104,61 +112,50 @@ export class ApiClientAuthenticator {
       id: apiId,
       principalType: 'service',
       tenant,
-      capabilities: client.capabilities,
+      grants: client.grants,
     };
   }
 
-  private getApiClients(): Map<
-    string,
-    { key: string; tenants: Set<string>; capabilities?: UserCapabilities }
-  > {
-    if (this.apiClients) return this.apiClients;
-
-    const clients = new Map<
-      string,
-      { key: string; tenants: Set<string>; capabilities?: UserCapabilities }
-    >();
-
+  private loadApiClients(): Map<string, ApiClient> {
+    const clients = new Map<string, ApiClient>();
     const raw = process.env.API_CLIENTS;
-    if (raw) {
-      try {
-        const parsed: unknown = JSON.parse(raw);
+    if (!raw) return clients;
 
-        for (const entry of Array.isArray(parsed) ? parsed : []) {
-          if (
-            entry &&
-            typeof entry.id === 'string' &&
-            entry.id.length > 0 &&
-            typeof entry.key === 'string' &&
-            entry.key.length > 0 &&
-            (typeof entry.tenant === 'string' || Array.isArray(entry.tenants))
-          ) {
-            const configuredTenants: unknown[] =
-              typeof entry.tenant === 'string' ? [entry.tenant] : entry.tenants;
-            const tenants = new Set<string>(
-              configuredTenants.filter(
-                (tenant: unknown): tenant is string =>
-                  typeof tenant === 'string' && tenant.length > 0,
-              ),
-            );
-            if (tenants.size === 0) continue;
-            clients.set(entry.id, {
-              key: entry.key,
-              tenants,
-              capabilities: CapabilityCodec.compactUserCapabilities(
-                entry.capabilities,
-              ),
-            });
-          }
-        }
-      } catch (_e: unknown) {
-        this.logger.warn(
-          'API_CLIENTS contains invalid JSON or malformed credentials/capabilities; API-client authentication is disabled.',
-        );
-      }
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(raw);
+    } catch {
+      this.logger.warn(
+        'API_CLIENTS contains invalid JSON; API-client authentication is disabled.',
+      );
+      return clients;
     }
 
-    this.apiClients = clients;
+    for (const entry of Array.isArray(parsed) ? parsed : []) {
+      if (
+        entry &&
+        typeof entry.id === 'string' &&
+        entry.id.length > 0 &&
+        typeof entry.key === 'string' &&
+        entry.key.length > 0 &&
+        (typeof entry.tenant === 'string' || Array.isArray(entry.tenants))
+      ) {
+        const configuredTenants: unknown[] =
+          typeof entry.tenant === 'string' ? [entry.tenant] : entry.tenants;
+        const tenants = new Set<string>(
+          configuredTenants.filter(
+            (tenant: unknown): tenant is string =>
+              typeof tenant === 'string' && tenant.length > 0,
+          ),
+        );
+        if (tenants.size === 0) continue;
+        clients.set(entry.id, {
+          key: entry.key,
+          tenants,
+          grants: parseRules(entry.id, entry.rules),
+        });
+      }
+    }
     return clients;
   }
 
@@ -174,4 +171,27 @@ export class ApiClientAuthenticator {
     const single = Array.isArray(value) ? value[0] : value;
     return typeof single === 'string' && single.length > 0 ? single : undefined;
   }
+}
+
+function parseRules(
+  clientId: string,
+  rules: unknown,
+): Capability[] | undefined {
+  if (rules === undefined) return undefined;
+  if (!Array.isArray(rules) || rules.some((rule) => typeof rule !== 'string')) {
+    throw new TypeError(
+      `API_CLIENTS entry "${clientId}": rules must be an array of capability strings.`,
+    );
+  }
+  return rules.map((rule: string, index) => {
+    try {
+      return parseCapabilityString(rule);
+    } catch (error) {
+      throw new TypeError(
+        `API_CLIENTS entry "${clientId}": rule ${index} is malformed: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+    }
+  });
 }

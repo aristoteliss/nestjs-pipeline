@@ -19,7 +19,7 @@ describe('login command does not dispatch nested queries (e2e)', () => {
     id: 'admin-1',
     email: 'admin@acme.test',
     department: 'platform',
-    capabilities: { roles: [], additionalCapabilities: ['all|manage|*'] },
+    grants: ['all|manage|*'],
   });
 
   beforeAll(async () => {
@@ -32,7 +32,7 @@ describe('login command does not dispatch nested queries (e2e)', () => {
     await ctx?.close();
   });
 
-  it('resolves login capabilities without QueryBus.execute()', async () => {
+  it('logs in without QueryBus.execute()', async () => {
     const email = `no-nested-querybus-${Date.now()}@acme.test`;
     const created = await request(http)
       .post('/users')
@@ -45,13 +45,13 @@ describe('login command does not dispatch nested queries (e2e)', () => {
     const executeSpy = vi.spyOn(queryBus, 'execute');
 
     const login = await request(http)
-      .post('/auth/login')
+      .post('/auths/login')
       .set('x-tenant-schema', 'tenant')
       .send({ email, code: E2E_LOGIN_CODE });
 
     expect(login.status).toBe(200);
     expect(login.body.id).toBe(created.body.id);
-    expect(login.body).toHaveProperty('capabilities');
+    expect(login.body).not.toHaveProperty('capabilities');
     expect(executeSpy).not.toHaveBeenCalled();
 
     executeSpy.mockRestore();
