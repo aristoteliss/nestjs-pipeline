@@ -1,6 +1,6 @@
 {
   "name": "@nestjs-pipeline/deadletter",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Dead-letter capture behavior for the NestJS pipeline — transport-agnostic with bundled BullMQ, RabbitMQ, and Postgres transport implementations.",
   "author": "Aristotelis <aristotelis@ik.me>",
   "license": "SEE LICENSE IN LICENSE",

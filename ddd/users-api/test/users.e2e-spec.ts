@@ -8,6 +8,7 @@ import {
   bootstrapE2E,
   createTestJwt,
   type E2EContext,
+  rebuildPermissions,
 } from './support/e2e-app';
 
 /**
@@ -42,7 +43,7 @@ describe('users-api (e2e)', () => {
     id: 'admin-1',
     email: 'admin@acme.test',
     department: 'platform',
-    capabilities: { roles: [], additionalCapabilities: ['all|manage|*'] },
+    grants: ['all|manage|*'],
   });
 
   /** A principal with no capabilities — authenticated but not authorized. */
@@ -50,7 +51,7 @@ describe('users-api (e2e)', () => {
     id: 'guest-1',
     email: 'guest@acme.test',
     department: 'platform',
-    capabilities: { roles: [] },
+    grants: [],
   });
 
   const as = (user: string) => {
@@ -124,7 +125,7 @@ describe('users-api (e2e)', () => {
         id: 'admin-2',
         email: 'admin2@acme.test',
         department: 'platform',
-        capabilities: { roles: [], additionalCapabilities: ['all|manage|*'] },
+        grants: ['all|manage|*'],
       });
 
       const conflict = await createUser(secondAdmin, {
@@ -482,20 +483,20 @@ describe('users-api (e2e)', () => {
       });
       expect(created.status).toBe(201);
 
-      const userJwt = await createTestJwt({
-        sub: created.body.id,
-        email,
-        roles: ['admin'],
-        additionalCapabilities: ['all|manage|*'],
-      });
+      const userJwt = await createTestJwt({ sub: created.body.id, email });
 
-      const { Auth } = await import('../src/auths/domain/models/auth.entity');
+      const { UserRole } = await import(
+        '../src/persistence/entities/user-role.entity'
+      );
       const { MIKRO_ORM_CLIENT } = await import(
         '../src/persistence/mikro-orm.store'
       );
-      await ctx.app
-        .get(MIKRO_ORM_CLIENT)
-        .em.upsert(Auth, Auth.create(created.body.id, userJwt));
+      const { em } = ctx.app.get(MIKRO_ORM_CLIENT);
+      await em.upsert(UserRole, {
+        userId: created.body.id,
+        roleId: '019de10c-b680-7000-8000-000000000001',
+      });
+      await rebuildPermissions(ctx.app, [created.body.id]);
 
       // Before deletion, the user can successfully access protected endpoints
       const preDelete = await request(http)

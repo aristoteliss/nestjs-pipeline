@@ -1,92 +1,106 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
+import { Module } from '@nestjs/common';
 import { describe, expect, it } from 'vitest';
 import { CaslBehavior } from './casl.behavior';
 import { CaslModule } from './casl.module';
-import {
-  CASL_FIELDS_FROM_REQUEST,
-  CASL_ROLE_PROVIDER,
-  CASL_SUBJECT_CONTEXT_PATHS,
-  CASL_USER_CAPABILITY_PROVIDER,
-  CASL_USER_CONTEXT_RESOLVER,
-} from './constants/tokens';
-import { CaslAuthorizer } from './helpers/entity-authorization.helper';
-import { ENTITY_AUTHORIZER } from './interfaces/entity-authorizer.interface';
-import { StaticRoleProvider } from './providers/static-role.provider';
+import { CASL_PERMISSION_SOURCE } from './constants/tokens';
+import { CaslAuthorizer } from './helpers/authorizer';
+import type {
+  CaslAuthorizationInput,
+  ICaslPermissionSource,
+} from './interfaces/permission-source.interface';
+
+class Source implements ICaslPermissionSource {
+  async load(): Promise<CaslAuthorizationInput | null> {
+    return null;
+  }
+}
+
+@Module({})
+class SourceModule {}
+
+const SOURCE_TOKEN = Symbol('source');
+
+function sourceProvider(options: Parameters<typeof CaslModule.forRoot>[0]) {
+  return CaslModule.forRoot(options).providers?.find(
+    (provider) =>
+      typeof provider === 'object' &&
+      'provide' in provider &&
+      provider.provide === CASL_PERMISSION_SOURCE,
+  );
+}
 
 describe('CaslModule.forRoot', () => {
-  it('registers globally with class providers and subject context paths', () => {
-    class MockUserContextResolver {
-      resolveUserContext() {
-        return { id: 'u1' };
-      }
-    }
-
-    const dynamicModule = CaslModule.forRoot({
-      roleProvider: { useFactory: () => new StaticRoleProvider([]) },
-      userContextResolver: MockUserContextResolver as any,
-      subjectContextPaths: ['sessionUser', 'auth'],
-      defaultFieldsFromRequest: ['id', 'name'],
+  it.each([
+    ['a class', Source, { useClass: Source }],
+    ['useClass', { useClass: Source }, { useClass: Source }],
+    ['useExisting', { useExisting: Source }, { useExisting: Source }],
+    [
+      'useExisting with a token',
+      { useExisting: SOURCE_TOKEN },
+      { useExisting: SOURCE_TOKEN },
+    ],
+  ])('binds %s to CASL_PERMISSION_SOURCE', (_, permissionSource, expected) => {
+    expect(sourceProvider({ permissionSource })).toEqual({
+      provide: CASL_PERMISSION_SOURCE,
+      ...expected,
     });
-
-    expect(dynamicModule.global).toBe(true);
-    expect(dynamicModule.module).toBe(CaslModule);
-    expect(dynamicModule.exports).toContain(CaslBehavior);
-    expect(dynamicModule.exports).toContain(CaslAuthorizer);
-    expect(dynamicModule.exports).toContain(ENTITY_AUTHORIZER);
-    expect(dynamicModule.exports).toContain(CASL_ROLE_PROVIDER);
-    expect(dynamicModule.exports).toContain(CASL_SUBJECT_CONTEXT_PATHS);
-    expect(dynamicModule.exports).toContain(CASL_FIELDS_FROM_REQUEST);
-    expect(dynamicModule.exports).toContain(CASL_USER_CONTEXT_RESOLVER);
-
-    const authProvider = dynamicModule.providers?.find(
-      (p: any) => p.provide === ENTITY_AUTHORIZER,
-    ) as any;
-    expect(authProvider?.useExisting).toBe(CaslAuthorizer);
-
-    const pathsProvider = dynamicModule.providers?.find(
-      (p: any) => p.provide === CASL_SUBJECT_CONTEXT_PATHS,
-    ) as any;
-    expect(pathsProvider?.useValue).toEqual(['sessionUser', 'auth']);
   });
 
-  it('supports useClass, useExisting, and useFactory for providers', () => {
-    class MockCapabilityProvider {
-      async getUserCapabilities() {
-        return { roles: ['admin'] };
-      }
-    }
+  it('binds a factory with its injection list', () => {
+    const useFactory = () => new Source();
 
-    const dynamicModule = CaslModule.forRoot({
-      roleProvider: { useExisting: 'CustomRoleToken' as any },
-      userCapabilityProvider: { useClass: MockCapabilityProvider as any },
-      subjectContextPaths: [],
+    expect(
+      sourceProvider({
+        permissionSource: { useFactory, inject: [SOURCE_TOKEN] },
+      }),
+    ).toEqual({
+      provide: CASL_PERMISSION_SOURCE,
+      useFactory,
+      inject: [SOURCE_TOKEN],
     });
-
-    expect(dynamicModule.exports).toContain(CASL_USER_CAPABILITY_PROVIDER);
-    const capProvider = dynamicModule.providers?.find(
-      (p: any) => p.provide === CASL_USER_CAPABILITY_PROVIDER,
-    ) as any;
-    expect(capProvider?.useClass).toBe(MockCapabilityProvider);
+    expect(sourceProvider({ permissionSource: { useFactory } })).toMatchObject({
+      inject: [],
+    });
   });
 
-  it('instantiates CaslAuthorizer from provider factory and handles empty provider options', () => {
-    const dynamicModule = CaslModule.forRoot({
-      roleProvider: {} as any,
-      subjectContextPaths: [],
-    });
-
-    const authorizerProvider = dynamicModule.providers?.find(
-      (p: any) => p.provide === CaslAuthorizer,
-    ) as any;
-    expect(authorizerProvider?.useFactory).toBeDefined();
-    const instance = authorizerProvider.useFactory();
-    expect(instance).toBeInstanceOf(CaslAuthorizer);
-
-    // Empty provider option is ignored
-    const roleProvider = dynamicModule.providers?.find(
-      (p: any) => p.provide === CASL_ROLE_PROVIDER,
+  it('passes imports through', () => {
+    expect(
+      CaslModule.forRoot({ imports: [SourceModule], permissionSource: Source })
+        .imports,
+    ).toEqual([SourceModule]);
+    expect(CaslModule.forRoot({ permissionSource: Source }).imports).toEqual(
+      [],
     );
-    expect(roleProvider).toBeUndefined();
+  });
+
+  it('registers globally and exports the behavior, authorizer and source', () => {
+    const module = CaslModule.forRoot({ permissionSource: Source });
+
+    expect(module.module).toBe(CaslModule);
+    expect(module.global).toBe(true);
+    expect(module.exports).toEqual([
+      CaslBehavior,
+      CaslAuthorizer,
+      CASL_PERMISSION_SOURCE,
+    ]);
+    expect(module.providers).toContain(CaslBehavior);
+  });
+
+  it('provides an authorizer that reads the ambient ability', () => {
+    const provider = CaslModule.forRoot({
+      permissionSource: Source,
+    }).providers?.find(
+      (candidate) =>
+        typeof candidate === 'object' &&
+        'provide' in candidate &&
+        candidate.provide === CaslAuthorizer,
+    ) as { useFactory: () => CaslAuthorizer };
+
+    const authorizer = provider.useFactory();
+
+    expect(authorizer).toBeInstanceOf(CaslAuthorizer);
+    expect(authorizer.can('read', 'User')).toBe(false);
   });
 });

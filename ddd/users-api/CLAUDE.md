@@ -40,7 +40,7 @@ interceptors, context, environment).
 | `src/persistence/mikro-orm-write-side.command-repository.ts` | Authoritative aggregate loading for mutations (`{ refresh: true }`) |
 | `src/persistence/entity-manager-tenant.registry.ts` | Tenant ↔ EntityManager association (external `WeakMap`, never a property on the ORM object) |
 | `src/auths/services/session.service.ts` | Cookie lifecycle, kept out of domain login |
-| `src/users/persistence/casl-user-context.resolver.ts` | Principal/user-context resolution for CASL |
+| `src/auths/persistence/casl-permission.source.ts` | Principal and rule loading for CASL (`ICaslPermissionSource`) |
 
 ## Local commands
 
@@ -52,6 +52,9 @@ pnpm --filter @nestjs-pipeline/ddd-users-api test           # unit + integration
 pnpm test:e2e                                               # vitest.config.e2e.ts
 pnpm --filter @nestjs-pipeline/ddd-users-api db:migrate     # apply migrations
 pnpm --filter @nestjs-pipeline/ddd-users-api db:revert      # revert last migration
+pnpm --filter @nestjs-pipeline/ddd-users-api permissions:rebuild  # rebuild user_permission_rules
+pnpm --filter @nestjs-pipeline/ddd-users-api permissions:verify   # exit non-zero on drift
+pnpm --filter @nestjs-pipeline/ddd-users-api sessions:purge       # delete expired/revoked sessions
 pnpm --filter @nestjs-pipeline/ddd-users-api typecheck
 ```
 

@@ -23,7 +23,7 @@ describe('explicit principal type (e2e)', () => {
     const service = JSON.stringify({
       id: '019488e0-0000-7000-8000-000000000999',
       principalType: 'service',
-      capabilities: { roles: [], additionalCapabilities: ['all|manage|*'] },
+      grants: ['all|manage|*'],
     });
 
     const res = await request(http)
@@ -38,7 +38,6 @@ describe('explicit principal type (e2e)', () => {
     const missingUser = JSON.stringify({
       id: 'human-readable-missing-user',
       principalType: 'user',
-      capabilities: { roles: [], additionalCapabilities: ['all|manage|*'] },
     });
 
     const res = await request(http)
@@ -53,7 +52,7 @@ describe('explicit principal type (e2e)', () => {
     const unclassified = JSON.stringify({
       id: 'unclassified-principal-123',
       principalType: 'unknown',
-      capabilities: { roles: [], additionalCapabilities: ['all|manage|*'] },
+      grants: ['all|manage|*'],
     });
 
     const res = await request(http)

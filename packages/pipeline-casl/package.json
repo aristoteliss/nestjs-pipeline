@@ -1,7 +1,7 @@
 {
   "name": "@nestjs-pipeline/casl",
-  "version": "0.1.2",
-  "description": "CASL authorization behavior for @nestjs-pipeline/core — ABAC with role-based capability trees",
+  "version": "0.2.0",
+  "description": "CASL authorization behavior and entity authorizer for @nestjs-pipeline/core",
   "author": "Aristotelis <aristotelis@ik.me>",
   "license": "SEE LICENSE IN LICENSE",
   "repository": {

@@ -13,7 +13,11 @@ import {
 } from '../src/persistence/mikro-orm.store';
 import { BATCH_UPDATE_USERS_QUEUE } from '../src/users/jobs/batch-update-users.processor';
 import { WELCOME_EMAIL_QUEUE } from '../src/users/jobs/send-welcome-email.processor';
-import { bootstrapE2E, type E2EContext } from './support/e2e-app';
+import {
+  bootstrapE2E,
+  type E2EContext,
+  rebuildPermissions,
+} from './support/e2e-app';
 
 /**
  * End-to-end coverage for the users-api HTTP/CQRS composition:
@@ -35,7 +39,7 @@ describe('pipeline-packages (e2e)', () => {
     id: 'admin-pipeline-pkg',
     email: 'admin@acme.test',
     department: 'platform',
-    capabilities: { roles: [], additionalCapabilities: ['all|manage|*'] },
+    grants: ['all|manage|*'],
   });
 
   const as = (user: string) => {
@@ -123,7 +127,7 @@ describe('pipeline-packages (e2e)', () => {
         id: 'user-reader-1',
         email: 'reader@acme.test',
         department: 'engineering',
-        capabilities: { roles: [], additionalCapabilities: ['User|read|*'] },
+        grants: ['User|read|*'],
       });
 
       // 1. Can list users
@@ -142,7 +146,7 @@ describe('pipeline-packages (e2e)', () => {
       const roleCreateOnly = JSON.stringify({
         id: 'role-creator-partial',
         email: 'roleonly@acme.test',
-        capabilities: { roles: [], additionalCapabilities: ['Role|create|*'] },
+        grants: ['Role|create|*'],
       });
 
       const roleName1 = `dual-rule-role-${Date.now()}-1`;
@@ -155,10 +159,7 @@ describe('pipeline-packages (e2e)', () => {
       const roleCreateWithUserRead = JSON.stringify({
         id: 'role-creator-full',
         email: 'rolefull@acme.test',
-        capabilities: {
-          roles: [],
-          additionalCapabilities: ['Role|create|*', 'User|read|*'],
-        },
+        grants: ['Role|create|*', 'User|read|*'],
       });
 
       const roleName2 = `dual-rule-role-${Date.now()}-2`;
@@ -166,7 +167,8 @@ describe('pipeline-packages (e2e)', () => {
         .post('/roles')
         .send({ name: roleName2 });
       expect(allowedRes.status).toBe(201);
-      expect(allowedRes.body.name).toBe(roleName2);
+      // Without Role|read the caller may not read the role it just created.
+      expect(allowedRes.body).toEqual({});
     });
 
     it('enforces ABAC condition-based entity permissions on UpdateUserHandler', async () => {
@@ -193,10 +195,7 @@ describe('pipeline-packages (e2e)', () => {
         id: 'eng-mgr-1',
         email: 'engmgr@acme.test',
         department: 'engineering',
-        capabilities: {
-          roles: [],
-          additionalCapabilities: ['User|update|{"department":"engineering"}'],
-        },
+        grants: ['User|update|{"department":"engineering"}'],
       });
 
       // 1. Updating engineering user should SUCCEED
@@ -204,7 +203,10 @@ describe('pipeline-packages (e2e)', () => {
         .patch(`/users/${engUser.body.id}`)
         .send({ name: 'Renamed Eng User' });
       expect(updateEngRes.status).toBe(200);
-      expect(updateEngRes.body.name).toBe('Renamed Eng User');
+      // A write-only caller receives no fields back.
+      expect(updateEngRes.body).toEqual({});
+      const renamed = await as(admin).get(`/users/${engUser.body.id}`);
+      expect(renamed.body.name).toBe('Renamed Eng User');
 
       // 2. Updating sales user should be DENIED (403) by entity.authorize()
       const updateSalesRes = await as(engManager)
@@ -225,10 +227,7 @@ describe('pipeline-packages (e2e)', () => {
         id: 'name-updater-1',
         email: 'nameupdater@acme.test',
         department: 'engineering',
-        capabilities: {
-          roles: [],
-          additionalCapabilities: ['User|update|*|username'],
-        },
+        grants: ['User|update|*|username', 'User|read|*|username'],
       });
 
       // 1. Updating name ONLY should SUCCEED (200)
@@ -236,7 +235,8 @@ describe('pipeline-packages (e2e)', () => {
         .patch(`/users/${created.body.id}`)
         .send({ name: 'New Username Only' });
       expect(nameRes.status).toBe(200);
-      expect(nameRes.body.name).toBe('New Username Only');
+      // The response carries only what the caller may read afterwards.
+      expect(nameRes.body).toEqual({ name: 'New Username Only' });
 
       // 2. Attempting to update 'department' should be DENIED (403)
       const deptRes = await as(usernameOnlyUser)
@@ -251,13 +251,7 @@ describe('pipeline-packages (e2e)', () => {
         id: 'no-create-admin',
         email: 'nocreate@acme.test',
         department: 'platform',
-        capabilities: {
-          roles: [],
-          additionalCapabilities: ['all|manage|*'],
-          deniedCapabilities: [
-            { subject: 'User', action: 'create', inverted: true },
-          ],
-        },
+        grants: ['all|manage|*', '!User|create|*'],
       });
 
       // 1. Can list users
@@ -283,13 +277,7 @@ describe('pipeline-packages (e2e)', () => {
         id: 'no-delete-admin',
         email: 'nodelete@acme.test',
         department: 'platform',
-        capabilities: {
-          roles: [],
-          additionalCapabilities: ['all|manage|*'],
-          deniedCapabilities: [
-            { subject: 'User', action: 'delete', inverted: true },
-          ],
-        },
+        grants: ['all|manage|*', '!User|delete|*'],
       });
 
       // 1. Can read user
@@ -349,6 +337,7 @@ describe('pipeline-packages (e2e)', () => {
         `INSERT INTO user_roles (user_id, role_id) VALUES (?, ?)`,
         [userId, roleId],
       );
+      await rebuildPermissions(ctx.app, [userId]);
 
       // 3. Authenticate with ONLY the user's ID (no inline capabilities)
       const sessionUserWithNoInlineCaps = JSON.stringify({
@@ -357,8 +346,7 @@ describe('pipeline-packages (e2e)', () => {
         department: 'engineering',
       });
 
-      // CASL userCapabilityProvider (GetUserCapabilitiesQueryRepository) will load
-      // the capabilities from the database!
+      // The permission source loads this user's rules from the database.
       const getRes = await as(sessionUserWithNoInlineCaps).get(
         `/users/${userId}`,
       );
@@ -583,14 +571,14 @@ describe('pipeline-packages (e2e)', () => {
       // Send 5 login attempts
       for (let i = 0; i < 5; i++) {
         await request(http)
-          .post('/auth/login')
+          .post('/auths/login')
           .set('x-tenant-schema', 'tenant')
           .send({ email, code: '000000' });
       }
 
       // 6th attempt should be throttled by RateLimitBehavior
       const throttled = await request(http)
-        .post('/auth/login')
+        .post('/auths/login')
         .set('x-tenant-schema', 'tenant')
         .send({ email, code: '000000' });
 

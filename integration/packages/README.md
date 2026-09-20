@@ -16,7 +16,8 @@ All package-family dependencies are overridden to the local tarballs.
 
 Generated static imports compile with TypeScript and load with Node. The fixtures
 also check request-scoped core behavior, isolation between two Nest applications,
-and CASL 7 authorization. This checks public root entry points; it is not an
+and CASL 7 authorization, including a module bootstrap with an application
+permission source. This checks public root entry points; it is not an
 exhaustive check of every exported API, subpath, or supported dependency version.
 
 Adding a published package requires no fixture list update. Keep its dependencies

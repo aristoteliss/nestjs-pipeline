@@ -2,85 +2,94 @@
 
 import type { ITenantContext } from '@common/context/tenant-context.port';
 import type { EventBus } from '@nestjs/cqrs';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { User } from '../../../users/domain/models/user.entity';
 import { CreatedAuthEvent } from '../../domain/events/create-auth.event';
 import { Auth } from '../../domain/models/auth.entity';
+import { NodeRefreshTokens } from '../../infrastructure/node-refresh-tokens';
 import { CreateAuthCommand } from './create-auth.command';
 import { CreateAuthHandler } from './create-auth.handler';
 
+const NOW = Date.UTC(2026, 8, 22);
+
 describe('CreateAuthHandler', () => {
-  it('authenticates, signs token, persists Auth entity, and publishes event via CommandBaseHandler', async () => {
-    const eventBus = {
-      publishAll: vi.fn(),
-    } as unknown as EventBus;
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(NOW);
+  });
 
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  function setup() {
+    const user = User.create('alice', 'alice@example.test', 'Engineering');
+    const publishAll = vi.fn();
     const userLoginService = {
-      authenticate: vi.fn().mockResolvedValue({
-        id: 'user-1',
-        email: 'alice@example.test',
-        department: 'Engineering',
-      }),
-      signToken: vi.fn().mockResolvedValue({
-        userId: 'user-1',
-        accessToken: 'signed-token-123',
-        userCapabilities: {
-          roles: ['admin'],
-          additionalCapabilities: [],
-          deniedCapabilities: [],
-        },
-      }),
+      authenticate: vi.fn().mockResolvedValue(user),
+      signToken: vi.fn(async (_user: User, sessionId: string) => ({
+        userId: user.id,
+        accessToken: `access-for-${sessionId}`,
+        expiresAt: NOW + 300_000,
+      })),
     };
-
-    const save = vi.fn().mockResolvedValue({ id: 'auth-id' });
-    const commandRepository = { save };
-    const tenantContext: ITenantContext = {
-      schema: 'tenant_alpha',
-    };
-
+    const save = vi.fn(async (auth: Auth) => auth.toJSON());
+    const tokens = new NodeRefreshTokens();
     const handler = new CreateAuthHandler(
-      eventBus,
+      { publishAll } as unknown as EventBus,
       userLoginService as never,
-      commandRepository as never,
-      tenantContext,
+      { save },
+      { schema: 'tenant_alpha' } as ITenantContext,
+      tokens,
+      {
+        refreshTokenTtlSeconds: 3600,
+        refreshReuseGraceSeconds: 30,
+        permissionsInAccessToken: false,
+      },
+    );
+    return { user, publishAll, userLoginService, save, tokens, handler };
+  }
+
+  it('starts a session storing only the refresh-token hash and signs a token for it', async () => {
+    const { user, publishAll, userLoginService, save, tokens, handler } =
+      setup();
+
+    const result = await handler.execute(
+      new CreateAuthCommand({ email: 'alice@example.test', code: '123456' }),
     );
 
-    const command = new CreateAuthCommand({
-      email: 'alice@example.test',
-      code: '123456',
-    });
-
-    const result = await handler.execute(command);
-
-    expect(userLoginService.authenticate).toHaveBeenCalledWith(
-      'alice@example.test',
-      '123456',
+    const session = save.mock.calls[0][0];
+    expect(session).toBeInstanceOf(Auth);
+    expect(session.userId).toBe(user.id);
+    expect(session.expiresAt).toBe(NOW + 3_600_000);
+    expect(session.refreshTokenHash).toBe(
+      tokens.hash(result.refreshToken as string),
     );
-    expect(userLoginService.signToken).toHaveBeenCalled();
-    expect(save).toHaveBeenCalledWith(expect.any(Auth));
-
-    const savedAuth = save.mock.calls[0][0] as Auth;
-    expect(savedAuth.userId).toBe('user-1');
-    expect(savedAuth.token).toBe('signed-token-123');
-
-    // Verify CommandBaseHandler.execute() published CreatedAuthEvent and cleared uncommitted events
-    expect(eventBus.publishAll).toHaveBeenCalledTimes(1);
-    expect(eventBus.publishAll).toHaveBeenCalledWith(
-      expect.arrayContaining([expect.any(CreatedAuthEvent)]),
-    );
-    expect(savedAuth.getUncommittedEvents()).toHaveLength(0);
-
-    expect(result.aggregate).toBeInstanceOf(Auth);
+    expect(JSON.stringify(save.mock.calls)).not.toContain(result.refreshToken);
+    expect(userLoginService.signToken).toHaveBeenCalledWith(user, session.id);
     expect(result).toMatchObject({
-      id: 'user-1',
+      id: user.id,
+      principalType: 'user',
       tenant: 'tenant_alpha',
       email: 'alice@example.test',
       department: 'Engineering',
-      capabilities: {
-        roles: ['admin'],
-        additionalCapabilities: [],
-        deniedCapabilities: [],
-      },
-      token: 'signed-token-123',
+      accessToken: `access-for-${session.id}`,
+      accessTokenExpiresAt: NOW + 300_000,
+      sessionExpiresAt: NOW + 3_600_000,
     });
+    expect(publishAll).toHaveBeenCalledExactlyOnceWith([
+      expect.any(CreatedAuthEvent),
+    ]);
+  });
+
+  it('issues a different refresh token for every login', async () => {
+    const { handler } = setup();
+    const command = () =>
+      new CreateAuthCommand({ email: 'alice@example.test', code: '123456' });
+
+    const first = await handler.execute(command());
+    const second = await handler.execute(command());
+
+    expect(first.refreshToken).not.toBe(second.refreshToken);
   });
 });

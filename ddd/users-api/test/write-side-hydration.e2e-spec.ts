@@ -17,7 +17,7 @@ describe('write-side command hydration (e2e)', () => {
     id: 'admin-write-side',
     email: 'admin@acme.test',
     department: 'platform',
-    capabilities: { roles: [], additionalCapabilities: ['all|manage|*'] },
+    grants: ['all|manage|*'],
   });
   const authed = (req: request.Test) =>
     req.set('x-tenant-schema', 'tenant').set('x-test-user', admin);

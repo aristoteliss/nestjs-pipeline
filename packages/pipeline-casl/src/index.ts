@@ -1,83 +1,47 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-// Behavior
 export {
   CASL_BEHAVIOR_ID,
   CaslBehavior,
-  CaslBehaviorOptions,
+  type CaslBehaviorOptions,
 } from './casl.behavior';
-// Module
-export { CaslModule, CaslModuleOptions } from './casl.module';
-// Tokens
+export { CaslModule, type CaslModuleOptions } from './casl.module';
 export {
   CASL_ABILITY_KEY,
   CASL_ACTIONS,
-  CASL_BEHAVIOR_LOGGER,
-  CASL_FIELDS_FROM_REQUEST,
-  CASL_ROLE_PROVIDER,
-  CASL_SUBJECT_CONTEXT_PATHS,
+  CASL_PERMISSION_SOURCE,
+  CASL_PRINCIPAL_KEY,
   CASL_SUBJECTS,
-  CASL_USER_CAPABILITY_PROVIDER,
-  CASL_USER_CONTEXT_KEY,
-  CASL_USER_CONTEXT_RESOLVER,
   type CaslAction,
   type CaslSubject,
 } from './constants/tokens';
 export {
   type UnauthorizedActionDetails,
   UnauthorizedActionException,
-} from './exceptions/unauthorized-action.exception';
-// Helpers
+} from './errors/unauthorized-action.exception';
+export { buildAbility, interpolateConditions } from './helpers/ability';
 export {
-  type AuthorizeOptions,
-  authorize,
-} from './helpers/authorize.intent';
+  CaslAuthorizer,
+  getCaslAbility,
+  getCaslPrincipal,
+  hasEntityConditions,
+} from './helpers/authorizer';
 export {
-  capabilitiesToRawRules,
-  capabilityToRawRule,
-  interpolateConditions,
   normalizeCapability,
   parseCapabilityString,
   serializeCapability,
-} from './helpers/capability.helpers';
-export {
-  CaslAuthorizer,
-  type CaslAuthorizerOptions,
-  type CaslBypassContext,
-  getCaslAbility,
-  getCaslUserContext,
-  hasEntityConditions,
-} from './helpers/entity-authorization.helper';
-export {
-  ENTITY_AUTHORIZER,
-  type IEntityAuthorizer,
-} from './interfaces/entity-authorizer.interface';
-// Interfaces (for implementers)
-export {
-  IRoleProvider,
-  IUserCapabilityProvider,
-  IUserContextResolver,
-} from './interfaces/providers.interface';
-// Built-in providers
-export { StaticRoleProvider } from './providers/static-role.provider';
-
-// Factory
-export {
-  buildAbility,
-  buildAbilityFromRules,
-  buildBypassAbility,
-} from './services/ability.factory';
-// Types
-export {
+} from './helpers/capability';
+export { requires } from './helpers/requires';
+export type {
+  CaslAuthorizationInput,
+  CaslPrincipal,
+  ICaslPermissionSource,
+} from './interfaces/permission-source.interface';
+export type {
   AbilityRequirement,
   AppAbility,
   AppRawRule,
-  type AuthorizerSelectOptions,
   Capability,
   CapabilityString,
-  CaslUserContext,
-  type Projected,
-  RoleDefinition,
-  type SelectedProjection,
-  UserCapabilities,
+  Projected,
 } from './types/casl.types';

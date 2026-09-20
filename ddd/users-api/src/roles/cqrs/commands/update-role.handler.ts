@@ -2,7 +2,7 @@
 import { APP_ACTIONS, APP_SUBJECTS } from '@common/constants';
 import { Inject, Scope } from '@nestjs/common';
 import { CommandHandler, EventBus } from '@nestjs/cqrs';
-import { CaslAuthorizer, CaslBehavior } from '@nestjs-pipeline/casl';
+import { CaslAuthorizer, requires } from '@nestjs-pipeline/casl';
 import { LoggingBehavior, UsePipeline } from '@nestjs-pipeline/core';
 import {
   CommandBaseHandler,
@@ -23,10 +23,7 @@ import { UpdateRoleCommand } from './update-role.command';
       mapLogLevel: new Map([[UniqueRoleNameException, 'warn']]),
     },
   ],
-  [
-    CaslBehavior,
-    { rules: [{ action: APP_ACTIONS.UPDATE, subject: APP_SUBJECTS.ROLE }] },
-  ],
+  requires({ action: APP_ACTIONS.UPDATE, subject: APP_SUBJECTS.ROLE }),
 )
 export class UpdateRoleHandler extends CommandBaseHandler<
   UpdateRoleCommand,

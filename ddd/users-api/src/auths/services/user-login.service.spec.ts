@@ -2,27 +2,26 @@
 
 import { describe, expect, it, vi } from 'vitest';
 import { User } from '../../users/domain/models/user.entity';
-import { GetUserCapabilitiesQuery } from '../cqrs/queries/get-user-capabilities.query';
 import { InvalidLoginCredentialsException } from '../domain/errors/authentication.exception';
 import { UserLoginService } from './user-login.service';
 
-const emptyCapabilities = {
-  roles: [],
-  additionalCapabilities: [],
-  deniedCapabilities: [],
-};
-
 function createService(overrides?: {
   userRepository?: unknown;
-  capabilityRepository?: unknown;
   loginCodeVerifier?: unknown;
   accessTokenIssuer?: unknown;
+  permissionsInAccessToken?: boolean;
+  permissionRules?: unknown;
 }) {
   return new UserLoginService(
     (overrides?.userRepository ?? { find: vi.fn() }) as never,
-    (overrides?.capabilityRepository ?? { find: vi.fn() }) as never,
     (overrides?.loginCodeVerifier ?? { verify: vi.fn() }) as never,
     (overrides?.accessTokenIssuer ?? { issue: vi.fn() }) as never,
+    {
+      refreshTokenTtlSeconds: 3600,
+      refreshReuseGraceSeconds: 30,
+      permissionsInAccessToken: overrides?.permissionsInAccessToken ?? false,
+    },
+    (overrides?.permissionRules ?? { findOrdered: vi.fn() }) as never,
   );
 }
 
@@ -59,39 +58,60 @@ describe('UserLoginService', () => {
     expect(verifier.verify).not.toHaveBeenCalled();
   });
 
-  it('loads capabilities through the repository port and delegates token issuance', async () => {
+  it('delegates token issuance without loading permissions', async () => {
     const user = User.create('Alice', 'alice@example.test');
-    const capabilitiesRepository = {
-      find: vi.fn().mockResolvedValue(emptyCapabilities),
-    };
     const issuer = {
       issue: vi.fn().mockResolvedValue({
         accessToken: 'issued-token',
         expiresAt: 123000,
-        exp: 123,
       }),
     };
-    const service = createService({
-      capabilityRepository: capabilitiesRepository,
-      accessTokenIssuer: issuer,
-    });
+    const service = createService({ accessTokenIssuer: issuer });
 
-    const result = await service.signToken(user);
+    const result = await service.signToken(user, 'session-1');
 
-    expect(capabilitiesRepository.find).toHaveBeenCalledWith(
-      expect.any(GetUserCapabilitiesQuery),
-    );
-    expect(capabilitiesRepository.find.mock.calls[0][0].userId).toBe(user.id);
-    expect(issuer.issue).toHaveBeenCalledWith({
-      user,
-      capabilities: emptyCapabilities,
-    });
+    expect(issuer.issue).toHaveBeenCalledWith({ user, sessionId: 'session-1' });
     expect(result).toEqual({
       userId: user.id,
-      userCapabilities: emptyCapabilities,
       accessToken: 'issued-token',
       expiresAt: 123000,
-      exp: 123,
+    });
+  });
+
+  it('reads no permissions when they are not carried in the token', async () => {
+    const permissionRules = { findOrdered: vi.fn() };
+    const issuer = { issue: vi.fn().mockResolvedValue({ accessToken: 't' }) };
+    const user = User.create('Alice', 'alice@example.test');
+
+    await createService({
+      accessTokenIssuer: issuer,
+      permissionRules,
+    }).signToken(user, 'session-1');
+
+    expect(permissionRules.findOrdered).not.toHaveBeenCalled();
+    expect(issuer.issue.mock.calls[0][0]).not.toHaveProperty('permissions');
+  });
+
+  it('hands the ordered rules to the issuer when they are carried in the token', async () => {
+    const rules = [
+      { subject: 'User', action: 'read' },
+      { subject: 'User', action: 'delete', inverted: true },
+    ];
+    const permissionRules = { findOrdered: vi.fn().mockResolvedValue(rules) };
+    const issuer = { issue: vi.fn().mockResolvedValue({ accessToken: 't' }) };
+    const user = User.create('Alice', 'alice@example.test');
+
+    await createService({
+      accessTokenIssuer: issuer,
+      permissionRules,
+      permissionsInAccessToken: true,
+    }).signToken(user, 'session-1');
+
+    expect(permissionRules.findOrdered).toHaveBeenCalledWith(user.id);
+    expect(issuer.issue).toHaveBeenCalledWith({
+      user,
+      sessionId: 'session-1',
+      permissions: rules,
     });
   });
 });

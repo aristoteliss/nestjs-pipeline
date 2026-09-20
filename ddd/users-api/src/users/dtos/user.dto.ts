@@ -5,6 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { z } from 'zod';
+import type { UserReadModel } from '../application/user-read-model';
 import type { User, UserSnapshot } from '../domain/models/user.entity';
 
 /**
@@ -34,7 +35,7 @@ export const UserResponseDtoSchema = z
 export type UserResponseDto = z.output<typeof UserResponseDtoSchema>;
 
 export function toResponseDto(
-  user: User | UserSnapshot | null,
+  user: User | UserSnapshot | UserReadModel | null,
 ): UserResponseDto {
   if (!user) throw new NotFoundException('User not found');
 

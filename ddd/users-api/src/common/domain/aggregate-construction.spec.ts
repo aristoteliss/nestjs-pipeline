@@ -13,7 +13,7 @@ describe('aggregate construction contracts', () => {
   it('creates new aggregates through semantic factories and records creation events', () => {
     const user = User.create('Alice', 'alice@example.test', 'Engineering');
     const role = Role.create('admin');
-    const auth = Auth.create(user.id, 'signed-token');
+    const auth = Auth.start(user.id, 'refresh-hash', Date.now() + 1000);
 
     expect(user.getUncommittedEvents()).toHaveLength(1);
     expect(role.getUncommittedEvents()).toHaveLength(1);
@@ -41,7 +41,8 @@ describe('aggregate construction contracts', () => {
     const auth = Auth.fromJSON({
       id: '038f2d5e-4b6a-7b3f-8c1d-2e3f4a5b6c7d',
       userId: user.id,
-      token: 'signed-token',
+      refreshTokenHash: 'refresh-hash',
+      expiresAt: now.getTime() + 1000,
       createdAt: now,
       updatedAt: now,
     });

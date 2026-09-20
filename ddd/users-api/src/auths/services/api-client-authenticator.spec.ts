@@ -21,7 +21,7 @@ describe('ApiClientAuthenticator', () => {
         id: 'svc-1',
         key: 'secret-key-12345',
         tenant: tenantContext.schema,
-        capabilities: { roles: ['service-role'] },
+        rules: ['User|read|*|id,username', '!User|read|*|email'],
       },
     ]);
 
@@ -37,8 +37,46 @@ describe('ApiClientAuthenticator', () => {
       id: 'svc-1',
       principalType: 'service',
       tenant: tenantContext.schema,
-      capabilities: { roles: ['service-role'] },
+      grants: [
+        { subject: 'User', action: 'read', fields: ['id', 'username'] },
+        { subject: 'User', action: 'read', fields: ['email'], inverted: true },
+      ],
     });
+  });
+
+  it('authenticates a client without rules and attaches no grants', () => {
+    process.env.API_CLIENTS = JSON.stringify([
+      { id: 'svc-1', key: 'secret-key-12345', tenant: tenantContext.schema },
+    ]);
+
+    const user = new ApiClientAuthenticator(tenantContext).authenticate({
+      headers: {
+        [AUTH_HEADERS.API_ID]: 'svc-1',
+        [AUTH_HEADERS.API_KEY]: 'secret-key-12345',
+      },
+    });
+
+    expect(user?.grants).toBeUndefined();
+  });
+
+  it.each([
+    ['a malformed rule string', ['User']],
+    ['malformed conditions', ['User|read|{not json}']],
+    ['a non-string rule', [{ subject: 'User', action: 'read' }]],
+    ['rules that are not an array', 'User|read|*'],
+  ])('fails at startup for %s', (_, rules) => {
+    process.env.API_CLIENTS = JSON.stringify([
+      {
+        id: 'svc-1',
+        key: 'secret-key-12345',
+        tenant: tenantContext.schema,
+        rules,
+      },
+    ]);
+
+    expect(() => new ApiClientAuthenticator(tenantContext)).toThrow(
+      /API_CLIENTS entry "svc-1"/,
+    );
   });
 
   it('rejects when x-api-key is missing', () => {

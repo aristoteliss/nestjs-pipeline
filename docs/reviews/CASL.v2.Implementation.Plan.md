@@ -919,7 +919,7 @@ Then Phase 6.
 
 Commits for PR 1: one per subsection, so each finding is reviewable on its own. That means 3.1 (wiring and permission source), 3.2 (commands), 3.3 (read models and freshness), 3.4 (overview), 3.5 (write responses) and the removals in 3.1 as a separate commit, each green on `typecheck` and the affected tests. Final message of the series: `feat(users-api)!: authorize through the new CASL package and close read/write disclosure paths`.
 
-**Reference scenarios.** `docs/reviews/casl-reference-prototype.patch` contains `ddd/users-api/test/authorization-read-boundaries.spec.ts`, written against the old package. Its overview and "ordinary user read uses fresh state" scenarios (real `GetUserQueryRepository` + real `MemoryCache` + a `findOne` stub) are good starting points for the 3.3 and 3.4 tests. Port them to the new API (`assert` → `authorize`, `buildAbilityFromRules` → `buildAbility`) and place them in the closest existing suites. Ignore its `GetUserContextHandler`/`GetUserCapabilitiesHandler` cases, because 3.1 deletes those handlers. Ignore its production changes, because they target the old package.
+**Reference scenarios.** `docs/reviews/casl-reference-prototype.patch` (removed from the tree; available at commit `df0afd3f`) contained `ddd/users-api/test/authorization-read-boundaries.spec.ts`, written against the old package. Its overview and "ordinary user read uses fresh state" scenarios (real `GetUserQueryRepository` + real `MemoryCache` + a `findOne` stub) are good starting points for the 3.3 and 3.4 tests. Port them to the new API (`assert` → `authorize`, `buildAbilityFromRules` → `buildAbility`) and place them in the closest existing suites. Ignore its `GetUserContextHandler`/`GetUserCapabilitiesHandler` cases, because 3.1 deletes those handlers. Ignore its production changes, because they target the old package.
 
 ## Phase 4 — materialized permission rules (PR 2)
 
@@ -1363,3 +1363,182 @@ Commit: `feat(auth)!: short-lived access tokens with rotating hashed refresh tok
 - Request-payload authorization before the handler (the old `subjectFromRequest`/`fieldsFromRequest`). If an external consumer needs it later, add it as a **separate opt-in behavior** (e.g. `CaslRequestAuthorizationBehavior`), never as options on `CaslBehavior`.
 - A `prebuiltAbility` option on `CaslBehavior`: tests construct `CaslAuthorizer(ability)` or stub `ICaslPermissionSource`; a test-only option would violate `AGENTS.md` rule 20.
 - A CASL-to-MikroORM query translator. If needed later, it is a separate adapter package consuming `ability.rulesFor(...)`.
+
+## Implementation outcome — PR 1 (Phases 0–3, 6)
+
+Branch `feat/casl-v2` from `review/remaining-findings`.
+
+### Commits
+
+| SHA | Phase | Message |
+| --- | --- | --- |
+| `301c6390` | 1 | chore(casl)!: park the current CASL package as a reference outside the workspace |
+| `62b4a882` | 2 | feat(casl)!: rewrite the CASL package around a permission source and a three-method authorizer |
+| `f30a7f54` | 3.1 | feat(users-api)!: load CASL permissions through an application permission source |
+| `a8d17b78` | 3.1 removals | refactor(users-api)!: remove the user-context resolver and unused capability queries |
+| `c02e38a1` | 3.2 | refactor(users-api): declare command authorization with requires() |
+| `468fc3c1` | 3.3 | feat(users-api): project reads into read models and reread conditionally authorized entities |
+| `74be1754` | 3.4 | fix(users-api): project overview permission assignments through their own authorization subject |
+| `f55a5099` | 3.5 | feat(users-api)!: authorize through the new CASL package and close read/write disclosure paths |
+| (Phase 6 commit) | 6 | docs: CASL v2 PR 1 documentation, context map and review record |
+
+### What changed
+
+- `@nestjs-pipeline/casl` 0.2.0: `ICaslPermissionSource` port, `CaslBehavior` with `requires(...)`, `buildAbility` (deny-after-allow partition), `CaslAuthorizer` with `can`/void `authorize`/`project`, ported codec, interpolation and projection. The old package is parked at `packages/_old/pipeline-casl`.
+- users-api: `CaslPermissionSource` + `AuthorizationModule`; service principals from `API_CLIENTS[].rules` (parsed at startup, malformed rule fails boot) as `SessionUser.grants`; no permission claims in the login JWT, session or login response; read models (`UserReadModel`, `RoleReadModel`); conditional reads bypass the repository cache (`readDependsOnEntityState`, `GetRoleQueryRepository` forwards `refresh`); overview projects assignments through `UserCapabilities` (policy `v3`); writes answer through a fresh authorized read (`{}` for write-only callers).
+- Removed: `CaslUserContextResolver`, `GetUserContextQuery`/handler/repository, `GetUserCapabilitiesHandler`, `capability-codec.ts`, `test/user-context-resolver-split.e2e-spec.ts`.
+- Tests added: package suites (165 tests), packed-consumer `casl-bootstrap.ts`; `casl-permission.source.spec.ts`, `test/read-model-freshness.spec.ts`, overview disclosure scenarios, controller write-response scenarios, replayed-create composition, `test/casl-permission-source.e2e-spec.ts` (real AppModule + QueryBus), `test/authorization-denials.e2e-spec.ts` (type- and entity-level 403 on Express and Fastify; `bootstrapE2E` gained an `adapter` option).
+
+### Verification (final state of PR 1)
+
+| Command | Result |
+| --- | --- |
+| `pnpm build` | pass |
+| `pnpm --filter @nestjs-pipeline/casl test` | 6 files, 165 tests pass |
+| `pnpm --filter @nestjs-pipeline/ddd-users-api typecheck` | pass |
+| `pnpm --filter @nestjs-pipeline/ddd-users-api test` | 101 files, 641 tests pass |
+| `pnpm test` (all workspaces) | pass |
+| `pnpm lint:persistence` | 0 diagnostics |
+| `pnpm check` | clean |
+| `pnpm test:release` | pass (12 packed packages; CASL smoke and bootstrap contracts) |
+| `pnpm test:e2e` | 29 files, 145 tests pass (Docker available; no suite blocked) |
+| `pnpm context:validate` | 58 checks pass |
+
+### Deviations and notes
+
+- Phase 1 `pnpm install` ran in Phase 2.1: users-api still depended on `@nestjs-pipeline/casl@workspace:*` until the new package existed.
+- Intermediate Phase 3 commits do not all typecheck on their own (the plan allows users-api not to compile until the end of Phase 3); the final commit is green.
+- `CaslBehavior` declarations in all handlers use `requires(...)`.
+- The e2e session shim accepts `grants` (capability strings) in `x-test-user` instead of the removed `capabilities` bag; tests that relied on JWT capability claims now assign a seeded role in the database.
+- `test/` is outside the users-api `tsconfig.json`; a scratch typecheck over `test/` shows 23 errors on lines this PR did not touch.
+- The context-map generator lists `packages/_old/pipeline-casl`; recorded as a gotcha, no tool change.
+
+### Remaining limits
+
+- Per-request authorization cost is higher than before: the user row, then assignments, then role definitions, sequentially. PR 2 replaces this with one parallel round-trip.
+- No transaction spans a check and a later write.
+- Authorized pagination is separate work; list authorization filters loaded rows in memory.
+- `GetRolesCapabilitiesHandler` is registered on the query bus without a `CaslBehavior` requirement (unchanged by this PR).
+
+## Implementation outcome — PR 2 (Phase 4, 6)
+
+### Commits
+
+| SHA | Phase | Message |
+| --- | --- | --- |
+| `af7f1122` | 4 | feat(users-api): materialize per-user permission rules and read them in one round-trip |
+| (Phase 6 commit) | 6 | docs: CASL v2 PR 2 documentation, context map and review record |
+
+### What changed
+
+- `Migration20260921000000`: `user_permission_rules` with FK cascades on user, role and capability, two indexes, backfill in projector order, `down()` drops the table. Schema-pinning spec extended.
+- `UserPermissionRule` entity/schema registered for libSQL and PostgreSQL; `capabilityFromRow` shared by the role repository and the permission source.
+- `UserPermissionsProjector` (`rebuild` in batches of 500 with `PESSIMISTIC_WRITE` user locks in ascending id order, `findDrift` comparing `inverted, position` sequences on origin and rule columns). Provided and exported by `AuthorizationModule`.
+- `permissions:rebuild` / `permissions:verify` (`tenant-orms.ts` enumerates tenants like `migrate.ts`); the e2e bootstrap runs the verify step after seeding and fails on drift.
+- `CaslPermissionSource` user branch: `findOne(User)` and the ordered rule read in one `Promise.all` on one EntityManager; the assignment and role repositories are no longer its dependencies.
+
+### Verification
+
+| Command | Result |
+| --- | --- |
+| `pnpm build` | pass |
+| `pnpm --filter @nestjs-pipeline/casl test` | 165 tests pass |
+| `pnpm --filter @nestjs-pipeline/ddd-users-api typecheck` | pass |
+| `pnpm --filter @nestjs-pipeline/ddd-users-api test` | 103 files, 665 tests pass |
+| `pnpm test` | pass |
+| `pnpm lint:persistence`, `pnpm check` | clean |
+| `pnpm test:release` | pass |
+| `pnpm test:e2e` | 29 files, 147 tests pass; `test/postgres-migrations.e2e-spec.ts` rerun after adding two PostgreSQL cases: 3 tests pass |
+| `pnpm context:validate` | 58 checks pass |
+
+### Confirmations requested by the plan
+
+- SQLite/libSQL: `sqlite_version()` 3.45.1 (window functions available); `PRAGMA foreign_keys` = 1 through the MikroORM libSQL driver, and the cascade tests confirm deletes behave as for `user_roles`. Boolean literal `true` is the form the existing seed uses for both dialects.
+- PostgreSQL 16 (Testcontainers): the backfill, `findDrift`, rebuild, role cascade and `down()` pass.
+- Concurrent reads: two `pg_sleep(0.4)` queries issued with `Promise.all` on one forked EntityManager complete in under 750 ms, so the source's two reads overlap on PostgreSQL. On SQLite, MikroORM omits the `FOR UPDATE` clause, so the projector's lock step needs no platform branch.
+
+### Remaining limits
+
+- Writers that skip `rebuild` drift until `permissions:verify` reports them.
+- No assignment/revocation command exists yet; the writer rule applies to future ones.
+- The equivalence contract is tested against fixtures and the seeded demo users, not generated data.
+
+## Implementation outcome — PR 3 (Phase 5, 6)
+
+### Commits
+
+| SHA | Phase | Message |
+| --- | --- | --- |
+| `1e0790d0` | 5 | feat(auth)!: short-lived access tokens with rotating hashed refresh tokens |
+| (Phase 6 commit) | 6 | docs: CASL v2 PR 3 documentation, context map and review record |
+
+### What changed
+
+- Configuration (`src/common/environment/auth-token.config.ts`): `ACCESS_TOKEN_TTL_SECONDS`, `REFRESH_TOKEN_TTL_SECONDS`, `REFRESH_REUSE_GRACE_SECONDS`, `TRUST_PROXY`, `PERMISSIONS_IN_ACCESS_TOKEN`, `ACCESS_TOKEN_MAX_BYTES`, parsed and range-checked at load. Handlers read them through the `AUTH_TOKEN_POLICY` port. `TRUST_PROXY` and cookie parsing are wired in `src/http-platform.ts` (Fastify) and `src/express-platform.ts` (Express, adds `cookie-parser`), used by `bootstrap.ts` and the e2e harness.
+- `Migration20260922000000`: empties and recreates `auth` as versioned refresh-token sessions (hash unique, previous hash indexed, FK cascade on user) and adds `auth_consumed_refresh_tokens` (cascade on session). `sessions:purge` deletes expired and long-revoked sessions per tenant in batches.
+- Domain: `Auth.start`, `refresh(presented, next, now, graceMs)` → `'rotated' | 'grace'`, `revoke(now)`; `InvalidRefreshTokenError` / `RefreshTokenReuseError` mapped to 401 with `code` (`refresh_invalid`, `refresh_reused`) and classified as expected rejections for dead-lettering. Events carry no token material.
+- Application: login starts a session and signs a token with `sid`; `RefreshAuthCommand`/handler (rate limit per tenant + client IP, audit and dead-letter redaction of the token, live-session lookup before history lookup, autocommit history insert then version-conditioned save, one reload on `ConcurrencyConflictError`); logout revokes by cookie. `JwtAuthenticator` is stateless and maps `sub`, `principalType`, `tenant`, `sid`. `FindAuthQuery`, its repository and `DeleteAuthCommandRepository` are removed.
+- Presentation: `POST /auths/login|refresh|logout`; `refresh_token` cookie `HttpOnly; Secure; SameSite=Strict; Path=/auths`, set and cleared by `controllers/refresh-cookie.ts` for both adapters; body `{ …, accessToken, accessTokenExpiresAt }`, never the refresh token.
+- 5.9: `USER_PERMISSION_RULES` port (`UserPermissionRulesReader`) shared by `CaslPermissionSource` and token issuing; the issuer adds `perms` + `department` in token mode with a size fallback; the authenticator parses `perms` into `grants` only when the flag is on; the permission source answers a user's token grants without queries.
+
+### Verification
+
+| Command | Result |
+| --- | --- |
+| `pnpm build` | pass |
+| `pnpm --filter @nestjs-pipeline/casl test` | 165 tests pass |
+| `pnpm --filter @nestjs-pipeline/ddd-users-api typecheck` | pass |
+| `pnpm --filter @nestjs-pipeline/ddd-users-api test` | 104 files, 709 tests pass |
+| `pnpm test` | pass |
+| `pnpm lint:persistence`, `pnpm check` | clean |
+| `pnpm test:release` | pass |
+| `pnpm test:e2e` | 30 files, 161 tests pass, no unhandled errors (Express and Fastify login/refresh/logout lifecycle, same-cookie double refresh, cookie attributes, `TRUST_PROXY` rate-limit keying, token-mode scenarios, Fastify cookie budget) |
+| `pnpm context:validate` | 58 checks pass (size warning only) |
+
+The e2e harness now waits 300 ms before shutdown so event handlers that enqueue BullMQ jobs after a response reach Redis first; without it, teardown raised intermittent ioredis "Connection is closed" rejections (2 of 6 runs of `tenant-scoped-create-keys` before the fix, 0 of 8 after).
+
+### Deviations and notes
+
+- Routes and cookie path follow the plan (`/auths/…`, `Path=/auths`); the controller was mounted at `/auth` before, so client URLs change.
+- The auth migration drops and recreates `auth` on both dialects instead of `alter table` on PostgreSQL; the table is emptied first either way, so the resulting schema is the same.
+- `ACCESS_TOKEN_MAX_BYTES` default lowered from 2700 to 2600: at 2700 the Fastify session `Set-Cookie` measured 4113 bytes in the boundary test. The session JSON repeats the tenant, so long tenant names need a lower limit.
+- Requests authenticated by the Fastify session cookie read permissions from the database; the zero-read token path applies to bearer requests.
+- The "two refreshes, order controlled" HTTP test runs the two requests sequentially (both orders are equivalent over HTTP); the interleaved race where the second evaluation happens after the first commit is covered by the handler test that forces `ConcurrencyConflictError` on the rotation save.
+- `RefreshTokenReuseError` is rethrown after saving the revoked session, so `CommandBaseHandler` does not publish that revocation event.
+- Logout for an unknown token: the handler raises `InvalidRefreshTokenError` and the controller answers 204.
+- Loading `@nestjs/platform-fastify` in an Express e2e run produced ioredis "Connection is closed" unhandled rejections at teardown; Express setup therefore lives in its own module.
+
+### Remaining limits
+
+- No transaction spans a check and a later write.
+- A logged-out access token lives until `exp`.
+- Writers that skip `rebuild` drift until `permissions:verify` catches them.
+- Authorized pagination is separate work.
+- In token mode, permission, department and user-deletion changes apply at the next refresh.
+
+## Status and open items after PR 3
+
+All phases (0–6) are implemented and committed on `feat/casl-v2`. Every finding of [CASL.Authorization.Review.md](CASL.Authorization.Review.md) is resolved; its section 10 maps each one to the change that closed it.
+
+### Open owner decisions
+
+| Decision | Detail |
+| --- | --- |
+| Auth route prefix | The controller moved from `/auth` to `/auths` (cookie `Path=/auths`), as the plan specifies. Clients must change URLs, or the prefix is set back to `/auth` together with the cookie path. |
+| Rebase | `feat/casl-v2` has not been rebased onto `be606e85`. |
+| Push and pull requests | Nothing is pushed. PR 1 ends at `3452bd19`, PR 2 at `6fb44bf7`, PR 3 is everything after it. |
+
+### Pre-existing gaps, not introduced by CASL v2
+
+- `GetRolesCapabilitiesHandler` has no CASL gate on the query bus; only its controller route is protected.
+- `ddd/users-api/test/` has 23 type errors; `test/` is outside the workspace typecheck.
+- The codebase-map generator still lists `packages/_old`.
+- `.claude/codebase-map.md` is about 50 KB of its 64 KB limit.
+
+### Known limits of the design
+
+- No transaction spans an authorization check and a later write.
+- A logged-out access token stays valid until its `exp` (5 minutes by default).
+- A writer of `user_roles` or other permission inputs that skips `UserPermissionsProjector.rebuild` leaves drift until `permissions:verify` reports it.
+- Authorized pagination (filtering a page by entity rules in the query) is separate work.
+- With `PERMISSIONS_IN_ACCESS_TOKEN=true`, permission, department and user-deletion changes apply at the next refresh.

@@ -19,8 +19,8 @@ import { CreateAuthCommand } from '../src/auths/cqrs/commands/create-auth.comman
 import { CreateAuthHandler } from '../src/auths/cqrs/commands/create-auth.handler';
 import { DeleteAuthCommand } from '../src/auths/cqrs/commands/delete-auth.command';
 import { DeleteAuthHandler } from '../src/auths/cqrs/commands/delete-auth.handler';
-import { GetUserCapabilitiesHandler } from '../src/auths/cqrs/queries/get-user-capabilities.handler';
-import { GetUserCapabilitiesQuery } from '../src/auths/cqrs/queries/get-user-capabilities.query';
+import { InvalidRefreshTokenError } from '../src/auths/domain/errors/refresh-token.errors';
+import { NodeRefreshTokens } from '../src/auths/infrastructure/node-refresh-tokens';
 import { UserLoginService } from '../src/auths/services/user-login.service';
 // Filters
 import { DomainExceptionFilter } from '../src/common/filters/domain-exception.filter';
@@ -52,8 +52,6 @@ import { UpdateUserCommand } from '../src/users/cqrs/commands/update-user.comman
 import { UpdateUserHandler } from '../src/users/cqrs/commands/update-user.handler';
 import { GetUserHandler } from '../src/users/cqrs/queries/get-user.handler';
 import { GetUserQuery } from '../src/users/cqrs/queries/get-user.query';
-import { GetUserContextHandler } from '../src/users/cqrs/queries/get-user-context.handler';
-import { GetUserContextQuery } from '../src/users/cqrs/queries/get-user-context.query';
 import { GetUsersHandler } from '../src/users/cqrs/queries/get-users.handler';
 import { GetUsersQuery } from '../src/users/cqrs/queries/get-users.query';
 import {
@@ -74,25 +72,20 @@ function createMockEventBus(): EventBus {
 }
 
 function createMockAuthorizer(allow = true): CaslAuthorizer {
+  const check = (action: string, subject: unknown) => {
+    if (!allow) {
+      throw new UnauthorizedActionException({
+        action,
+        subject: typeof subject === 'string' ? subject : 'User',
+      });
+    }
+  };
   return {
     can: vi.fn(() => allow),
-    authorize: vi.fn((action: string, subject: unknown) => {
-      if (!allow) {
-        throw new UnauthorizedActionException(
-          `Unauthorized to ${action} ${typeof subject === 'string' ? subject : 'entity'}`,
-          action,
-          typeof subject === 'string' ? subject : 'User',
-        );
-      }
-      return subject;
-    }),
-    filter: vi.fn((_action: string, subjects: Iterable<unknown>) => {
-      if (!allow) return [];
-      const res: unknown[] = [];
-      for (const item of subjects) {
-        if (item) res.push(item);
-      }
-      return res;
+    authorize: vi.fn(check),
+    project: vi.fn((action: string, subject: unknown, candidate: unknown) => {
+      check(action, subject);
+      return candidate;
     }),
   } as unknown as CaslAuthorizer;
 }
@@ -457,23 +450,6 @@ describe('CQRS Commands & Queries Runtime Error Taxonomy', () => {
         expect(result).toHaveLength(1);
         expect(result[0].email).toBe('alice@example.test');
       });
-
-      it('GetUserContextQuery returns user context and capabilities (200)', async () => {
-        const queryRepo = {
-          find: vi.fn().mockResolvedValue({
-            id: 'user-1',
-            email: 'alice@example.test',
-            capabilities: { roles: ['admin'], additionalCapabilities: [] },
-          }),
-        };
-        const handler = new GetUserContextHandler(queryRepo as any);
-
-        const query = new GetUserContextQuery({ userId: 'user-1' });
-        const result = await handler.execute(query);
-
-        expect(result.id).toBe('user-1');
-        expect(result.capabilities.roles).toContain('admin');
-      });
     });
   });
 
@@ -692,6 +668,12 @@ describe('CQRS Commands & Queries Runtime Error Taxonomy', () => {
           loginService as unknown as UserLoginService,
           commandRepo as any,
           tenantContext,
+          new NodeRefreshTokens(),
+          {
+            refreshTokenTtlSeconds: 3600,
+            refreshReuseGraceSeconds: 30,
+            permissionsInAccessToken: false,
+          },
         );
 
         const command = new CreateAuthCommand({
@@ -722,6 +704,12 @@ describe('CQRS Commands & Queries Runtime Error Taxonomy', () => {
           loginService as unknown as UserLoginService,
           commandRepo as any,
           tenantContext,
+          new NodeRefreshTokens(),
+          {
+            refreshTokenTtlSeconds: 3600,
+            refreshReuseGraceSeconds: 30,
+            permissionsInAccessToken: false,
+          },
         );
 
         const command = new CreateAuthCommand({
@@ -739,36 +727,19 @@ describe('CQRS Commands & Queries Runtime Error Taxonomy', () => {
     });
 
     describe('DeleteAuthCommand & Handler', () => {
-      it('processes session deletion safely (204)', async () => {
+      it('rejects an unknown refresh token so logout can answer 204 without revoking', async () => {
+        const save = vi.fn();
         const handler = new DeleteAuthHandler(
-          { save: vi.fn().mockResolvedValue(null) } as any,
-          { find: vi.fn().mockResolvedValue(null) } as any,
+          eventBus,
+          { findByTokenHash: vi.fn().mockResolvedValue(null) } as any,
+          { save } as any,
+          new NodeRefreshTokens(),
         );
-        const command = new DeleteAuthCommand({
-          userId: 'usr-1',
-          token: 'token-1',
-        });
-        const result = await handler.execute(command);
 
-        expect(result).toBeUndefined();
-      });
-    });
-
-    describe('Auths Queries', () => {
-      it('GetUserCapabilitiesQuery resolves user capabilities array', async () => {
-        const queryRepo = {
-          find: vi.fn().mockResolvedValue({
-            roles: ['user'],
-            additionalCapabilities: ['user|read|self'],
-          }),
-        };
-        const handler = new GetUserCapabilitiesHandler(queryRepo as any);
-
-        const query = new GetUserCapabilitiesQuery({ userId: 'user-1' });
-        const result = await handler.execute(query);
-
-        expect(result.roles).toContain('user');
-        expect(result.additionalCapabilities).toContain('user|read|self');
+        await expect(
+          handler.execute(new DeleteAuthCommand({ refreshToken: 'unknown' })),
+        ).rejects.toBeInstanceOf(InvalidRefreshTokenError);
+        expect(save).not.toHaveBeenCalled();
       });
     });
   });

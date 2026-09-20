@@ -13,7 +13,7 @@ describe('CQRS discovery without private metadata re-exports (e2e)', () => {
     id: 'cqrs-discovery-admin',
     email: 'cqrs-discovery@acme.test',
     department: 'platform',
-    capabilities: { roles: [], additionalCapabilities: ['all|manage|*'] },
+    grants: ['all|manage|*'],
   });
 
   beforeAll(async () => {

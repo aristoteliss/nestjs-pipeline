@@ -12,6 +12,34 @@ Read `AGENTS.md` and the architecture skill before editing. Implement one findin
 
 ---
 
+# Current task scope — CASL package and supported public compatibility
+
+Follow the 2026-09-22 current-disposition section of [Final.Review.md](Final.Review.md) and the evidence in [CASL.v2.Commit.Review.md](CASL.v2.Commit.Review.md). Preserve the CASL architecture. The users-api authentication findings are separate application findings and are not implementation tasks in this package follow-up. Unrelated historical backlog below is retained for reference, not implicitly authorized.
+
+## C2-01 — Root-array projection contract
+
+1. Reproduce through exported `buildAbility` and `CaslAuthorizer.project`: an unrestricted `User` read with candidate `[{ id: 'one' }]` currently returns `{ '0': { id: 'one' } }`, although the declared return type is an array.
+2. Repair root-array shape within the projection abstraction. Define/test root index paths consistently with nested array masking; preserve null placeholders, readonly input support, nonmutation, condition evaluation against the supplied subject, cycle protection and parent-grant inheritance.
+3. Test empty arrays, allowed and denied indices, nested arrays and inferred return types. Do not export internals or add test-only options. Array-shape support does not authorize separate entities automatically; collections still require per-entity checks.
+4. Prefer preserving the accepted public input domain. If choosing record-only input instead, stop for the explicit API decision before narrowing supported inputs; the documentation update does not authorize that breaking alternative.
+5. Run CASL tests/typecheck, `pnpm check`, `pnpm lint:persistence`, and `pnpm test:release`. Close C2-01 only when the regression asserts the intended array result.
+
+## C2-02 — Public compatibility and release preparation
+
+Compare `3fc81b858dd4d7e139fb662307a5ffdef3a06675` with the proposed release. Inspect in this order: **core, correlation, OpenTelemetry, Zod, CASL**. Exclude deep imports/internal contracts, including `setCorrelationFallback`, internal setters and bootstrap implementation. Do not expand into other workspaces.
+
+- Core: document removal of `originalCorrelationId`, read-only `correlationId`, and logger-provider type narrowing. Verify ordinary factory/runner and custom behavior examples.
+- Correlation: cover `addCorrelationId()` plain-object acceptance and rejection of class instances. Do not classify its internal fallback setter removal as a supported API break.
+- OpenTelemetry: preserve existing tracing options; distinguish changed Nest/core peer requirements from API removal. No removed supported export was identified in this review.
+- Zod: migrate `ZOD_SCHEMA` imports, direct synchronous pipe calls, and assumptions that validation leaves the raw request untouched.
+- CASL: migrate provider configuration, public imports, `buildAbility` arguments, behavior options and permission precedence. Do not remove field/entity checks when replacing old request-derived options.
+
+Record versions and peer compatibility separately from code defects. The reviewed manifests use CASL `0.2.0`, core `0.1.19`, correlation/OpenTelemetry `0.1.9`, and Zod `0.1.7`; recommending a separate pre-1.0 minor release line is not authorization to change or publish versions. Check registry status before an authorized release. Do not claim the packed new-code suite proves compatibility for an unchanged old consumer; add representative public-consumer compile/runtime fixtures if implementing compatibility guarantees.
+
+**Evidence:** the earlier review runs passed CASL 165, users-api 709, targeted e2e 33, typechecks, lint and packed release verification. Temporary defect probes were removed. This documentation sync does not rerun or expand that coverage. Follow `.claude/README.md`: start a task file, update milestones, regenerate the map, validate, and retire completed task files.
+
+---
+
 # 1. Closed items — do not reopen
 
 | ID | What closed it |
@@ -21,11 +49,11 @@ Read `AGENTS.md` and the architecture skill before editing. Implement one findin
 | ~~F-02~~ | The correlation-scoped `defaultCacheKey` was removed. `CacheBehavior` declares a bootstrap contract that rejects an active cache declaration without a key, and `createPartitionedCacheKeyFactory` fails closed on missing tenant or principal. Residual documentation drift is tracked as N-02. |
 | ~~F-03~~ | `IdempotencyBehavior` releases the claim only when `next()` throws. Snapshot and completion-store failures retain the claim and raise `IdempotencyCompletionError` carrying a `snapshot` or `store` phase. |
 | ~~F-08~~ | `getBehaviorId()` returns the constructor reference; `PIPELINE_BEHAVIOR_ID` remains an opt-in stable string for duplicated package copies. |
-| ~~F-10~~ | The actor-first authorization overload was removed and replaced by an explicit error naming the supported form. |
+| ~~F-10~~ | Superseded by CASL v2: `CaslAuthorizer` has only `can`, void `authorize` and `project`; the old actor/bypass overloads are absent. |
 | ~~S-01~~ | `@SkipPipeline(...behaviors)` with `PIPELINE_SKIPPED_BEHAVIORS_METADATA`, `BehaviorId` filtering before DI resolution, preserved chain order, command/query/event and singleton/scoped support, and bootstrap failure on a contradictory skip plus local re-add. |
-| ~~S-02~~ | Typed intent builders in seven packages: `authorize`, `rateLimit`, `idempotent`, `cache`, `featureFlag`, `audit`, `resilience`. They return the existing `PipelineBehaviorEntry` tuple and require activation fields; raw tuples remain valid. |
+| ~~S-02~~ | Typed intent builders in seven packages: `requires`, `rateLimit`, `idempotent`, `cache`, `featureFlag`, `audit`, `resilience`. They return the existing `PipelineBehaviorEntry` tuple and require activation fields; raw tuples remain valid. |
 | ~~S-15~~ | `PIPELINE_BEHAVIOR_CONTRACT` with per-behavior `validate`/`order` hooks, implemented by the cache, rate-limit, idempotency, feature-flag and resilience behaviors, with strict/warn/off diagnostics and a users-api integration spec. |
-| ~~S-08 / A-01 / U-10~~ | Superseded, not implemented. `ddd/users-api/src/users/cqrs/queries/get-user-overview.handler.ts` is a real production `CacheBehavior` consumer, so the users-api `CacheModule` registration is live wiring. Do not remove it. Its missing entity authorization is N-01. |
+| ~~S-08 / A-01 / U-10~~ | Superseded, not implemented. `ddd/users-api/src/users/cqrs/queries/get-user-overview.handler.ts` is a real production `CacheBehavior` consumer, so the users-api `CacheModule` registration is live wiring. Do not remove it. Its entity/field authorization is implemented; N-01 is closed. |
 | ~~A-04 / U-09~~ | No semantic no-op `@MapPersistenceErrors({ unique: [] })` invocation remains in users-api. |
 | ~~D-02~~ | Resolved: `AggregateRoot` with NestJS 12 semantics is owned in `ddd/core/domain`; the domain entry point loads no `@nestjs/*` and no `@mikro-orm/*`, enforced by `domain-entry-point.spec.ts`. **Do not treat D-02 as an open decision.** |
 | ~~D-03~~ | Resolved: direct `accessor: true` mapping retained, hydration setters annotated `@internal`/`@deprecated`, `biome/plugins/aggregate-identity.grit` rejecting dot and literal-bracket writes, compound assignments and updates on receivers named `user`, `role`, `aggregate`, `entity` in application layers. The guard is syntax- and naming-based only; domain-method mutation stays mandatory outside its coverage. |
@@ -86,7 +114,7 @@ Land this before S-03 and S-04, which touch the same methods.
 
 ## 2.4 N-01 — Composed cached read model without entity or field authorization
 
-**Status: CLOSED. Done.** The composed candidate is authorized by a single `project('read', user, candidate)` on the loaded aggregate, which performs the entity check and applies field and descendant masks together, so the response cannot be returned without it. Roles and additional capabilities require `read` on the `UserCapabilities` subject, evaluated against the target user's id, and fail closed for a principal granted only the profile; roles are additionally kept only when the loaded `Role` passes `read` and `read name`. The response cache key is partitioned on tenant, principal type/id from the CASL user context, a digest of the effective rules and the policy version, and caching is bypassed for conditional `read` rules on `User`, `Role`, `UserCapabilities` or `all`. The read declares `refresh: true`, and `overview-repository-cache-freshness.spec.ts` drives the real `GetUserQueryRepository` with a real `MemoryCache` to prove a stale cached department cannot decide access.
+**Status: CLOSED. Done.** The composed candidate is authorized by a single `project('read', user, candidate)` on the loaded aggregate, which performs the entity check and applies field and descendant masks together, so the response cannot be returned without it. Roles and additional capabilities require `read` on the `UserCapabilities` subject, evaluated against the target user's id, and fail closed for a principal granted only the profile; roles are additionally kept only when the loaded `Role` passes `read` and `read name`. The response cache key is partitioned on tenant, principal type/id from `getCaslPrincipal()`, a digest of the effective rules and the policy version, and caching is bypassed for conditional `read` rules on `User`, `Role`, `UserCapabilities` or `all`. The read declares `refresh: true`, and `overview-repository-cache-freshness.spec.ts` drives the real `GetUserQueryRepository` with a real `MemoryCache` to prove a stale cached department cannot decide access.
 
 Response-cache freshness for conditional related resources rests on the bypass rather than on invalidation. That is the documented contract for this handler, not an outstanding item.
 
@@ -356,7 +384,9 @@ If discoverability becomes noisy, an `advanced` subpath may be considered, but m
 
 # 4. Implementation order and verification discipline
 
-Implement in small commits in this order unless a dependency requires adjustment:
+Historical repository-wide order follows. For the current narrowed task, use C2-01 and C2-02 above; do not execute unrelated entries without a separate request.
+
+Implement authorized findings in small commits unless a dependency requires adjustment:
 
 1. F-06;
 2. F-07;

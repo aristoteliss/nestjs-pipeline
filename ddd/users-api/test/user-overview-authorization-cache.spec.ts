@@ -11,21 +11,21 @@ import {
 import {
   buildAbility,
   CASL_ABILITY_KEY,
-  CASL_USER_CONTEXT_KEY,
+  CASL_PRINCIPAL_KEY,
+  type CaslAuthorizationInput,
   CaslBehavior,
   CaslModule,
-  type IRoleProvider,
-  type RoleDefinition,
+  type ICaslPermissionSource,
+  normalizeCapability,
   UnauthorizedActionException,
 } from '@nestjs-pipeline/casl';
-import {
-  type IPipelineBehavior,
-  type IPipelineContext,
-  type NextDelegate,
-  PipelineModule,
-} from '@nestjs-pipeline/core';
+import { type IPipelineContext, PipelineModule } from '@nestjs-pipeline/core';
 import type { IQueryRepository } from '@nestjs-pipeline/ddd-core/application';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import type {
+  RoleDefinition,
+  UserPermissionAssignments,
+} from '../src/auths/application/permission-assignments';
 import type { GetUserCapabilitiesQuery } from '../src/auths/cqrs/queries/get-user-capabilities.query';
 import type { SessionUser } from '../src/common/types/SessionUser';
 import { Role } from '../src/roles/domain/models/role.entity';
@@ -40,19 +40,37 @@ import {
 import { User } from '../src/users/domain/models/user.entity';
 import { QUERY_REPOSITORY } from '../src/users/persistence/repository.tokens';
 
-let currentTenant: string | undefined = 'tenant-alpha';
-let currentSessionUser: SessionUser | undefined;
+/** An authenticated caller together with the assignments their rules come from. */
+type Viewer = Omit<SessionUser, 'grants'> & {
+  capabilities: UserPermissionAssignments;
+};
 
+let currentTenant: string | undefined = 'tenant-alpha';
+let currentSessionUser: Viewer | undefined;
+let roleDefinitions: (names: string[]) => Promise<RoleDefinition[]>;
+
+/** Resolves the current viewer's rules from the role fixtures of the test. */
 @Injectable()
-class AmbientSessionBehavior implements IPipelineBehavior {
-  async handle(
-    context: IPipelineContext,
-    next: NextDelegate,
-  ): Promise<unknown> {
-    if (currentSessionUser) {
-      context.items.set(CASL_USER_CONTEXT_KEY, currentSessionUser);
-    }
-    return next();
+class ViewerPermissionSource implements ICaslPermissionSource {
+  async load(): Promise<CaslAuthorizationInput | null> {
+    if (!currentSessionUser) return null;
+    const { id, principalType, department, capabilities } = currentSessionUser;
+    const roles = await roleDefinitions(capabilities.roles);
+    return {
+      principal: {
+        id,
+        ...(principalType ? { principalType } : {}),
+        department: department ?? null,
+      },
+      rules: [
+        ...roles.flatMap((role) => role.capabilities.map(normalizeCapability)),
+        ...(capabilities.additionalCapabilities ?? []).map(normalizeCapability),
+        ...(capabilities.deniedCapabilities ?? []).map((capability) => ({
+          ...normalizeCapability(capability),
+          inverted: true,
+        })),
+      ],
+    };
   }
 }
 
@@ -70,7 +88,6 @@ describe('User overview composed query security and caching contracts', () => {
     GetUserCapabilitiesQuery,
     { roles: string[]; additionalCapabilities: string[] }
   >;
-  let mockRoleProvider: IRoleProvider;
 
   beforeEach(async () => {
     currentTenant = 'tenant-alpha';
@@ -132,12 +149,8 @@ describe('User overview composed query security and caching contracts', () => {
       },
     ];
 
-    mockRoleProvider = {
-      getRoles: async (names?: string[]) => {
-        if (!names || names.length === 0) return activeRoles;
-        return activeRoles.filter((r) => names.includes(r.name));
-      },
-    };
+    roleDefinitions = async (names) =>
+      activeRoles.filter((r) => names.includes(r.name));
 
     const moduleRef = await Test.createTestingModule({
       imports: [
@@ -147,20 +160,12 @@ describe('User overview composed query security and caching contracts', () => {
           ttl: 60_000,
         }),
         CaslModule.forRoot({
-          roleProvider: {
-            useFactory: () => mockRoleProvider,
-          },
+          permissionSource: { useFactory: () => new ViewerPermissionSource() },
         }),
         PipelineModule.forRootAsync({
-          behaviors: [AmbientSessionBehavior, CaslBehavior, CacheBehavior],
+          behaviors: [CaslBehavior, CacheBehavior],
           useFactory: () => ({
             tenantIdFactory: () => currentTenant,
-            globalBehaviors: [
-              {
-                scope: 'all',
-                before: [AmbientSessionBehavior],
-              },
-            ],
           }),
         }),
       ],
@@ -535,15 +540,13 @@ describe('User overview composed query security and caching contracts', () => {
   });
 
   it('does not reuse response policy entries from before the repair', () => {
-    const ability = buildAbility([
-      { name: 'admin', capabilities: [{ subject: 'User', action: 'read' }] },
-    ]);
+    const ability = buildAbility([{ subject: 'User', action: 'read' }]);
     const ctx = {
       tenantId: 'tenant-alpha',
       request: new GetUserOverviewQuery({ userId: 'u-1' }),
       requestName: 'GetUserOverviewQuery',
       items: new Map<string | symbol, unknown>([
-        [CASL_USER_CONTEXT_KEY, { id: 'alice', principalType: 'user' }],
+        [CASL_PRINCIPAL_KEY, { id: 'alice', principalType: 'user' }],
         [CASL_ABILITY_KEY, ability],
       ]),
     } as unknown as IPipelineContext;
@@ -581,26 +584,16 @@ describe('Permission scope canonicalization and hashing contracts', () => {
   it('produces identical fingerprints for equivalent conditions with different key ordering', () => {
     const abilityA = buildAbility([
       {
-        name: 'roleA',
-        capabilities: [
-          {
-            subject: 'User',
-            action: 'read',
-            conditions: { a: 1, b: 2, c: { x: 'foo', y: 'bar' } },
-          },
-        ],
+        subject: 'User',
+        action: 'read',
+        conditions: { a: 1, b: 2, c: { x: 'foo', y: 'bar' } },
       },
     ]);
     const abilityB = buildAbility([
       {
-        name: 'roleA',
-        capabilities: [
-          {
-            subject: 'User',
-            action: 'read',
-            conditions: { c: { y: 'bar', x: 'foo' }, b: 2, a: 1 },
-          },
-        ],
+        subject: 'User',
+        action: 'read',
+        conditions: { c: { y: 'bar', x: 'foo' }, b: 2, a: 1 },
       },
     ]);
 
@@ -615,23 +608,10 @@ describe('Permission scope canonicalization and hashing contracts', () => {
   });
 
   it('produces distinct fingerprints when rules, actions, or fields differ', () => {
-    const abilityRead = buildAbility([
-      {
-        name: 'roleA',
-        capabilities: [{ subject: 'User', action: 'read' }],
-      },
-    ]);
-    const abilityManage = buildAbility([
-      {
-        name: 'roleA',
-        capabilities: [{ subject: 'User', action: 'manage' }],
-      },
-    ]);
+    const abilityRead = buildAbility([{ subject: 'User', action: 'read' }]);
+    const abilityManage = buildAbility([{ subject: 'User', action: 'manage' }]);
     const abilityField = buildAbility([
-      {
-        name: 'roleA',
-        capabilities: [{ subject: 'User', action: 'read', fields: ['email'] }],
-      },
+      { subject: 'User', action: 'read', fields: ['email'] },
     ]);
 
     const scopeRead = resolveOverviewScope({

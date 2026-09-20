@@ -21,7 +21,7 @@ describe('create-user secondary cache invalidation (e2e)', () => {
     id: 'admin-cache',
     email: 'admin@acme.test',
     department: 'platform',
-    capabilities: { roles: [], additionalCapabilities: ['all|manage|*'] },
+    grants: ['all|manage|*'],
   });
 
   beforeAll(async () => {

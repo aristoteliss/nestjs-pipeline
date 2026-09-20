@@ -3,7 +3,7 @@
 import { createHash } from 'node:crypto';
 import { getSessionUserFromStore } from '@common/context/session-user.store';
 import type { PrincipalType } from '@common/types/SessionUser';
-import { getCaslAbility, getCaslUserContext } from '@nestjs-pipeline/casl';
+import { getCaslAbility, getCaslPrincipal } from '@nestjs-pipeline/casl';
 import { type IPipelineContext, stableStringify } from '@nestjs-pipeline/core';
 import { createPartitionedIdempotencyKeyFactory } from '@nestjs-pipeline/idempotency';
 import { requireTenantId } from './requireTenantId.helper';
@@ -113,7 +113,7 @@ export function operationIdempotencyKeyFactory(
  *
  * Covers the effective ability rules in order — actions, subjects, fields,
  * inversion and condition values all contribute — together with the trusted
- * principal and the user-context values those conditions interpolate. A change
+ * principal and the principal attributes those conditions interpolate. A change
  * to any of them yields a different digest, so a stored response is no longer
  * replayable to that caller.
  *
@@ -128,7 +128,7 @@ export function replayScopeDigest(
   const ability = getCaslAbility(ctx);
   if (!ability) throw new MissingReplayScopeContextError(purpose);
 
-  const userContext = getCaslUserContext(ctx);
+  const caslPrincipal = getCaslPrincipal(ctx);
   const digest = createHash('sha256')
     .update(
       stableStringify({
@@ -136,7 +136,7 @@ export function replayScopeDigest(
         rules: ability.rules,
         // Condition templates resolve against these, so a change in the values
         // behind an unchanged rule still changes the effective authorization.
-        context: userContext ?? null,
+        context: caslPrincipal ?? null,
       }),
     )
     .digest('hex');

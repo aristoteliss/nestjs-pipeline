@@ -4,7 +4,7 @@ import { EmailSchema } from '@common/validation/email.schema';
 import { z } from 'zod';
 
 /**
- * Login request body for `POST /auth/login`.
+ * Login request body for `POST /auths/login`.
  *
  * @example
  * `{ "email": "user@example.com", "code": "123456" }`

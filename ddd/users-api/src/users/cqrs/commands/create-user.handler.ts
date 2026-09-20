@@ -7,7 +7,7 @@ import {
 } from '@common/cqrs/helpers/idempotent-operation.helper';
 import { Inject } from '@nestjs/common';
 import { CommandHandler, EventBus } from '@nestjs/cqrs';
-import { CaslAuthorizer, CaslBehavior } from '@nestjs-pipeline/casl';
+import { CaslAuthorizer, requires } from '@nestjs-pipeline/casl';
 import {
   type IPipelineContext,
   LoggingBehavior,
@@ -52,12 +52,7 @@ export const createUserRateLimitKey = createPartitionedRateLimitKeyFactory(
       mapLogLevel: new Map([[UniqueEmailException, 'warn']]),
     },
   ],
-  [
-    CaslBehavior,
-    {
-      rules: [{ action: APP_ACTIONS.CREATE, subject: APP_SUBJECTS.USER }],
-    },
-  ],
+  requires({ action: APP_ACTIONS.CREATE, subject: APP_SUBJECTS.USER }),
   [FeatureFlagBehavior, { flag: 'user-registration' }],
   [RateLimitBehavior, { keyFactory: createUserRateLimitKey }],
   [

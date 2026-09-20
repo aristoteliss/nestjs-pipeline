@@ -3,7 +3,7 @@ import { APP_ACTIONS, APP_SUBJECTS, AUDIT_ACTIONS } from '@common/constants';
 import { Inject } from '@nestjs/common';
 import { CommandHandler, EventBus } from '@nestjs/cqrs';
 import { AUDIT_SEVERITY, audit } from '@nestjs-pipeline/audit';
-import { CaslAuthorizer, CaslBehavior } from '@nestjs-pipeline/casl';
+import { CaslAuthorizer, requires } from '@nestjs-pipeline/casl';
 import {
   type IPipelineContext,
   LoggingBehavior,
@@ -25,10 +25,7 @@ import { DeleteUserCommand } from './delete-user.command';
 @CommandHandler(DeleteUserCommand)
 @UsePipeline(
   [LoggingBehavior, { requestResponseLogLevel: 'log' }],
-  [
-    CaslBehavior,
-    { rules: [{ action: APP_ACTIONS.DELETE, subject: APP_SUBJECTS.USER }] },
-  ],
+  requires({ action: APP_ACTIONS.DELETE, subject: APP_SUBJECTS.USER }),
   audit({
     action: AUDIT_ACTIONS.USER_DELETE,
     severity: AUDIT_SEVERITY.HIGH,

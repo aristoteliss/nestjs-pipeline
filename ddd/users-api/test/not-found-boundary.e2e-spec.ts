@@ -14,7 +14,7 @@ describe('framework-neutral not-found boundary (e2e)', () => {
     id: 'not-found-admin',
     email: 'not-found-admin@acme.test',
     department: 'platform',
-    capabilities: { roles: [], additionalCapabilities: ['all|manage|*'] },
+    grants: ['all|manage|*'],
   });
 
   const authed = (req: request.Test) =>

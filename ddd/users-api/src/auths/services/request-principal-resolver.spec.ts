@@ -14,10 +14,6 @@ afterEach(() => {
 
 describe('RequestPrincipalResolver', () => {
   const tenantContext = new TenantSchemaContext();
-  const defaultAuthRepo = {
-    find: vi.fn().mockResolvedValue({ id: 'auth-active' }),
-  };
-
   it('uses session cookie fast-path without invoking authenticators', async () => {
     const existingUser = {
       id: 'cookie-user-1',
@@ -27,10 +23,7 @@ describe('RequestPrincipalResolver', () => {
       user: existingUser,
     } as unknown as Session<SessionData>;
 
-    const jwtAuth = new JwtAuthenticator(
-      tenantContext,
-      defaultAuthRepo as never,
-    );
+    const jwtAuth = new JwtAuthenticator(tenantContext);
     const apiClientAuth = new ApiClientAuthenticator(tenantContext);
     const jwtSpy = vi.spyOn(jwtAuth, 'authenticate');
     const apiSpy = vi.spyOn(apiClientAuth, 'authenticate');
@@ -57,7 +50,7 @@ describe('RequestPrincipalResolver', () => {
     } as unknown as Session<SessionData>;
 
     const resolver = new RequestPrincipalResolver(
-      new JwtAuthenticator(tenantContext, defaultAuthRepo as never),
+      new JwtAuthenticator(tenantContext),
       new ApiClientAuthenticator(tenantContext),
       tenantContext,
     );
@@ -80,7 +73,7 @@ describe('RequestPrincipalResolver', () => {
     } as unknown as Session<SessionData>;
 
     const resolver = new RequestPrincipalResolver(
-      new JwtAuthenticator(tenantContext, defaultAuthRepo as never),
+      new JwtAuthenticator(tenantContext),
       new ApiClientAuthenticator(tenantContext),
       tenantContext,
     );
@@ -106,10 +99,7 @@ describe('RequestPrincipalResolver', () => {
       id: 'jwt-user-fresh',
       tenant: tenantContext.schema,
     };
-    const jwtAuth = new JwtAuthenticator(
-      tenantContext,
-      defaultAuthRepo as never,
-    );
+    const jwtAuth = new JwtAuthenticator(tenantContext);
     const apiClientAuth = new ApiClientAuthenticator(tenantContext);
     vi.spyOn(jwtAuth, 'authenticate').mockResolvedValue(jwtUser);
 
@@ -138,7 +128,7 @@ describe('RequestPrincipalResolver', () => {
     } as unknown as Session<SessionData>;
 
     const resolver = new RequestPrincipalResolver(
-      new JwtAuthenticator(tenantContext, defaultAuthRepo as never),
+      new JwtAuthenticator(tenantContext),
       new ApiClientAuthenticator(tenantContext),
       tenantContext,
     );
@@ -155,10 +145,7 @@ describe('RequestPrincipalResolver', () => {
     const session = {} as unknown as Session<SessionData>;
     const req = { headers: { authorization: 'Bearer token' }, session };
 
-    const jwtAuth = new JwtAuthenticator(
-      tenantContext,
-      defaultAuthRepo as never,
-    );
+    const jwtAuth = new JwtAuthenticator(tenantContext);
     const apiClientAuth = new ApiClientAuthenticator(tenantContext);
     vi.spyOn(jwtAuth, 'authenticate').mockResolvedValue(jwtUser);
 
@@ -181,10 +168,7 @@ describe('RequestPrincipalResolver', () => {
     const session = {} as unknown as Session<SessionData>;
     const req = { headers: { 'x-api-id': 'client-1' }, session };
 
-    const jwtAuth = new JwtAuthenticator(
-      tenantContext,
-      defaultAuthRepo as never,
-    );
+    const jwtAuth = new JwtAuthenticator(tenantContext);
     const apiClientAuth = new ApiClientAuthenticator(tenantContext);
     vi.spyOn(jwtAuth, 'authenticate').mockResolvedValue(undefined);
     vi.spyOn(apiClientAuth, 'authenticate').mockReturnValue(apiUser);
@@ -204,7 +188,7 @@ describe('RequestPrincipalResolver', () => {
     const req = { headers: {}, session };
 
     const resolver = new RequestPrincipalResolver(
-      new JwtAuthenticator(tenantContext, defaultAuthRepo as never),
+      new JwtAuthenticator(tenantContext),
       new ApiClientAuthenticator(tenantContext),
       tenantContext,
     );

@@ -2,10 +2,5 @@
 
 export const COMMAND_REPOSITORY = {
   createAuth: Symbol('createAuth'),
-  deleteAuth: Symbol('deleteAuth'),
-} as const;
-
-export const QUERY_REPOSITORY = {
-  getUserCapabilities: Symbol('getUserCapabilities'),
-  findAuth: Symbol('findAuth'),
+  updateAuth: Symbol('updateAuth'),
 } as const;

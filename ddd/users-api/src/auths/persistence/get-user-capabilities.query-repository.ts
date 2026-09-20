@@ -1,11 +1,6 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { Inject, Injectable } from '@nestjs/common';
-import type {
-  CaslUserContext,
-  IUserCapabilityProvider,
-  UserCapabilities,
-} from '@nestjs-pipeline/casl';
 import type { IQueryRepository } from '@nestjs-pipeline/ddd-core/application';
 import { UserAdditionalCapability } from '@persistence/entities/user-additional-capability.entity';
 import { UserDeniedCapability } from '@persistence/entities/user-denied-capability.entity';
@@ -13,26 +8,24 @@ import { UserRole } from '@persistence/entities/user-role.entity';
 import { MIKRO_ORM_CLIENT, MikroOrmStore } from '@persistence/mikro-orm.store';
 import { Capability } from '../../roles/domain/models/capability.entity';
 import { Role } from '../../roles/domain/models/role.entity';
+import type { UserPermissionAssignments } from '../application/permission-assignments';
 import { GetUserCapabilitiesQuery } from '../cqrs/queries/get-user-capabilities.query';
 
 /**
- * Query repository and CASL capability provider resolving user permissions and roles.
+ * Query repository resolving a user's role names and per-user grants and denials.
  */
 @Injectable()
 export class GetUserCapabilitiesQueryRepository
   implements
-    IQueryRepository<GetUserCapabilitiesQuery, UserCapabilities>,
-    IUserCapabilityProvider
+    IQueryRepository<GetUserCapabilitiesQuery, UserPermissionAssignments>
 {
   constructor(
     @Inject(MIKRO_ORM_CLIENT) private readonly store: MikroOrmStore,
   ) {}
 
-  async getUserCapabilities(user: CaslUserContext): Promise<UserCapabilities> {
-    return this.find(new GetUserCapabilitiesQuery({ userId: String(user.id) }));
-  }
-
-  async find(query: GetUserCapabilitiesQuery): Promise<UserCapabilities> {
+  async find(
+    query: GetUserCapabilitiesQuery,
+  ): Promise<UserPermissionAssignments> {
     const userId = String(query.userId);
     const em = this.store.em;
 

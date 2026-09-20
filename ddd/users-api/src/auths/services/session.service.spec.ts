@@ -14,74 +14,34 @@ describe('SessionService', () => {
   });
 
   describe('saveSession', () => {
-    it('sets user and token on the session when session is defined', () => {
+    const response: SessionResponse = {
+      id: 'user-1',
+      principalType: 'user',
+      tenant: 'tenant_alpha',
+      email: 'user@example.test',
+      department: 'Engineering',
+      accessToken: 'access-abc',
+      accessTokenExpiresAt: 20_000_000,
+    };
+
+    it('stores only the access token and the principal with its expiry', () => {
       const setMock = vi.fn();
       const mockSession = { set: setMock } as unknown as Session<SessionData>;
 
-      const sessionResponse: SessionResponse = {
-        id: 'user-1',
-        tenant: 'tenant_alpha',
-        email: 'user@example.test',
-        department: 'Engineering',
-        capabilities: {
-          roles: ['admin'],
-          additionalCapabilities: [],
-          deniedCapabilities: [],
-        },
-        token: 'token-abc',
-        expiresAt: 10000,
-        exp: 20000,
-      };
-
-      service.saveSession(mockSession, sessionResponse);
+      service.saveSession(mockSession, response);
 
       expect(setMock).toHaveBeenCalledWith('user', {
         id: 'user-1',
         principalType: 'user',
         tenant: 'tenant_alpha',
-        email: 'user@example.test',
-        department: 'Engineering',
-        capabilities: sessionResponse.capabilities,
-        expiresAt: 10000,
-        exp: 20000,
+        exp: 20_000,
       });
-      expect(setMock).toHaveBeenCalledWith('token', 'token-abc');
-    });
-
-    it('handles undefined department gracefully', () => {
-      const setMock = vi.fn();
-      const mockSession = { set: setMock } as unknown as Session<SessionData>;
-
-      const sessionResponse: SessionResponse = {
-        id: 'user-2',
-        tenant: 'tenant_beta',
-        email: 'user2@example.test',
-        token: 'token-xyz',
-      };
-
-      service.saveSession(mockSession, sessionResponse);
-
-      expect(setMock).toHaveBeenCalledWith('user', {
-        id: 'user-2',
-        principalType: 'user',
-        tenant: 'tenant_beta',
-        email: 'user2@example.test',
-        department: undefined,
-        capabilities: undefined,
-        expiresAt: undefined,
-        exp: undefined,
-      });
+      expect(setMock).toHaveBeenCalledWith('token', 'access-abc');
+      expect(setMock).toHaveBeenCalledTimes(2);
     });
 
     it('does nothing when session is undefined', () => {
-      expect(() =>
-        service.saveSession(undefined, {
-          id: 'user-1',
-          tenant: 'tenant_alpha',
-          email: 'user@test.com',
-          token: 'tok',
-        }),
-      ).not.toThrow();
+      expect(() => service.saveSession(undefined, response)).not.toThrow();
     });
   });
 
@@ -111,38 +71,6 @@ describe('SessionService', () => {
 
     it('does nothing when session is undefined', () => {
       expect(() => service.clearSession(undefined)).not.toThrow();
-    });
-  });
-
-  describe('getCredentials', () => {
-    it('returns empty object when session is undefined', () => {
-      expect(service.getCredentials(undefined)).toEqual({});
-    });
-
-    it('extracts userId and token from session properties', () => {
-      const mockSession = {
-        user: { id: 'user-123' },
-        token: 'token-456',
-      } as unknown as Session<SessionData>;
-
-      const creds = service.getCredentials(mockSession);
-      expect(creds).toEqual({
-        userId: 'user-123',
-        token: 'token-456',
-      });
-    });
-
-    it('falls back to session.get("token") if session.token is undefined', () => {
-      const mockSession = {
-        user: { id: 'user-789' },
-        get: vi.fn().mockReturnValue('token-via-get'),
-      } as unknown as Session<SessionData>;
-
-      const creds = service.getCredentials(mockSession);
-      expect(creds).toEqual({
-        userId: 'user-789',
-        token: 'token-via-get',
-      });
     });
   });
 

@@ -1,6 +1,6 @@
 {
   "name": "@nestjs-pipeline/audit",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Audit-trail behavior for the NestJS pipeline — records who did what (with outcome, duration, and redacted payload) to a pluggable sink (console by default, Postgres drop-in, or your own AuditSink).",
   "author": "Aristotelis <aristotelis@ik.me>",
   "license": "SEE LICENSE IN LICENSE",

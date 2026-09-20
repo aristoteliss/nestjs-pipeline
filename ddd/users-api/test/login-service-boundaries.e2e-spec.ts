@@ -16,7 +16,7 @@ describe('login application/infrastructure boundary (e2e)', () => {
   const admin = JSON.stringify({
     id: 'admin-login-boundary',
     department: 'platform',
-    capabilities: { roles: [], additionalCapabilities: ['all|manage|*'] },
+    grants: ['all|manage|*'],
   });
 
   beforeAll(async () => {
@@ -39,18 +39,18 @@ describe('login application/infrastructure boundary (e2e)', () => {
     expect(created.status).toBe(201);
 
     const login = await request(http)
-      .post('/auth/login')
+      .post('/auths/login')
       .set('x-tenant-schema', 'tenant')
       .send({ email, code: E2E_LOGIN_CODE });
 
     expect(login.status).toBe(200);
     expect(login.body).toMatchObject({ id: created.body.id, email });
-    expect(typeof login.body.token).toBe('string');
+    expect(typeof login.body.accessToken).toBe('string');
   });
 
   it('maps neutral invalid-credential failures to HTTP 401', async () => {
     const login = await request(http)
-      .post('/auth/login')
+      .post('/auths/login')
       .set('x-tenant-schema', 'tenant')
       .send({ email: 'missing@example.test', code: E2E_LOGIN_CODE });
 
@@ -64,7 +64,7 @@ describe('login application/infrastructure boundary (e2e)', () => {
 
   it('does not reveal credential details for a wrong code', async () => {
     const login = await request(http)
-      .post('/auth/login')
+      .post('/auths/login')
       .set('x-tenant-schema', 'tenant')
       .send({ email: 'someone@example.test', code: '000000' });
 

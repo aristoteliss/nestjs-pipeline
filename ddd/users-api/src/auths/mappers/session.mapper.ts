@@ -23,9 +23,7 @@ export function toSessionRes(result: CreateAuthResult): SessionResponse {
     tenant: result.tenant,
     email: result.email,
     department: result.department ?? null,
-    capabilities: result.capabilities,
-    token: result.token,
-    expiresAt: result.expiresAt,
-    exp: result.exp,
+    accessToken: result.accessToken,
+    accessTokenExpiresAt: result.accessTokenExpiresAt,
   };
 }

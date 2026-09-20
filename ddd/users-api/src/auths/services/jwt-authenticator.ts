@@ -6,26 +6,25 @@ import {
   Logger,
   UnauthorizedException,
 } from '@nestjs/common';
-import type { IQueryRepository } from '@nestjs-pipeline/ddd-core/application';
-import { decodeJwt, importSPKI, jwtVerify } from 'jose';
+import { type Capability, parseCapabilityString } from '@nestjs-pipeline/casl';
+import { importSPKI, jwtVerify } from 'jose';
 import {
   type ITenantContext,
   TENANT_CONTEXT,
 } from '../../common/context/tenant-context.port';
+import { PERMISSIONS_IN_ACCESS_TOKEN } from '../../common/environment/auth-token.config';
 import type { SessionUser } from '../../common/types/SessionUser';
-import { FindAuthQuery } from '../cqrs/queries/find-auth.query';
-import type { Auth } from '../domain/models/auth.entity';
-import { QUERY_REPOSITORY } from '../persistence/repository.tokens';
-import { CapabilityCodec } from './capability-codec';
 
 /**
  * Verifies Bearer JSON Web Tokens presented in the `Authorization` request header.
  *
  * Supports both symmetric HMAC secrets (`JWT_SECRET`) and asymmetric RSA/ECDSA public keys (`JWT_PUBLIC_KEY`).
  * Public SPKI keys are parsed and memoized as WebCrypto `CryptoKey` objects on first use to avoid repeated ASN.1
- * parsing on every HTTP request. Token claims (`sub`, `tenant`, `roles`, `additionalCapabilities`,
- * `deniedCapabilities`) are validated, and token revocation is strictly verified against durable storage
- * via `QUERY_REPOSITORY.findAuth`. Tokens missing from durable storage or revoked result in `UnauthorizedException`.
+ * parsing on every HTTP request. Verification is stateless: signature, `exp`, issuer and audience
+ * are checked and `sub`, `tenant` and `sid` are mapped, with no per-request session lookup, so a
+ * logged-out access token stays valid until it expires. Only with `PERMISSIONS_IN_ACCESS_TOKEN=true`
+ * are the token's `perms` parsed into `grants` (a malformed entry is a 401) and `department` mapped;
+ * otherwise both claims are ignored, so turning the flag off takes effect for tokens already issued.
  * Successful Bearer authentication explicitly marks the principal as `user`; authorization never infers
  * human identity from the syntax of the JWT subject.
  *
@@ -64,72 +63,7 @@ export class JwtAuthenticator {
   constructor(
     @Inject(TENANT_CONTEXT)
     private readonly tenantContext: ITenantContext,
-    @Inject(QUERY_REPOSITORY.findAuth)
-    private readonly authQueryRepository: IQueryRepository<
-      FindAuthQuery,
-      Auth | null
-    >,
   ) {}
-
-  /**
-   * Extracts a Bearer token from the `Authorization` request header.
-   *
-   * @param headers - Request headers object containing optional `authorization` header.
-   * @returns The trimmed Bearer token if present and non-empty, or `undefined`.
-   */
-  extractToken(
-    headers?: Record<string, string | string[] | undefined>,
-  ): string | undefined {
-    const authHeader = this.firstHeaderValue(headers?.authorization);
-    if (!authHeader) return undefined;
-
-    const match = authHeader.match(/^[Bb]earer\s+(.+)$/);
-    if (!match) return undefined;
-
-    const token = match[1].trim();
-    return token.length > 0 ? token : undefined;
-  }
-
-  /**
-   * Reads the subject (`sub`) claim directly from a JWT string without cryptographic verification.
-   *
-   * @param token - Raw JWT string.
-   * @returns The token subject if present and non-empty, or `undefined`.
-   */
-  extractUserIdFromToken(token: string): string | undefined {
-    try {
-      const decoded = decodeJwt(token);
-      return typeof decoded.sub === 'string' && decoded.sub.trim().length > 0
-        ? decoded.sub.trim()
-        : undefined;
-    } catch {
-      return undefined;
-    }
-  }
-
-  /**
-   * Extracts the user ID from the request `Authorization` Bearer token.
-   *
-   * First attempts cryptographic verification via {@link authenticate}. If verification fails
-   * (e.g. expired token during logout), falls back to decoding the token claims directly.
-   *
-   * @param headers - Request headers containing the `authorization` header.
-   * @returns The resolved user ID if present, or `undefined`.
-   */
-  async extractUserId(
-    headers?: Record<string, string | string[] | undefined>,
-  ): Promise<string | undefined> {
-    const token = this.extractToken(headers);
-    if (!token) return undefined;
-
-    try {
-      const user = await this.authenticate({ headers });
-      if (user?.id) return user.id;
-    } catch {
-      return this.extractUserIdFromToken(token);
-    }
-    return undefined;
-  }
 
   /**
    * Parses and validates a Bearer JWT from the `Authorization` header.
@@ -147,7 +81,7 @@ export class JwtAuthenticator {
    * const principal = await jwtAuthenticator.authenticate({
    *   headers: { authorization: 'Bearer eyJhbGci...' },
    * });
-   * // returns: { id: 'usr_123', principalType: 'user', tenant: 'tenant_a', email: 'alice@example.com', capabilities: { roles: ['admin'] } }
+   * // returns: { id: 'usr_123', principalType: 'user', tenant: 'tenant_a', sid: '019...', exp: 1741258800 }
    * ```
    */
   async authenticate(req: {
@@ -215,18 +149,18 @@ export class JwtAuthenticator {
         throw new UnauthorizedException('Token is missing its tenant claim');
       }
 
-      if (payload.tenant !== this.tenantContext.schema) {
+      if (
+        payload.principalType !== undefined &&
+        payload.principalType !== 'user'
+      ) {
         throw new UnauthorizedException(
-          'Credential tenant does not match the selected tenant',
+          'Token principal type is not a user principal',
         );
       }
 
-      const activeAuth = await this.authQueryRepository.find(
-        new FindAuthQuery({ userId: payload.sub, token }),
-      );
-      if (!activeAuth) {
+      if (payload.tenant !== this.tenantContext.schema) {
         throw new UnauthorizedException(
-          'Token has been revoked or session has ended',
+          'Credential tenant does not match the selected tenant',
         );
       }
 
@@ -234,15 +168,19 @@ export class JwtAuthenticator {
         id: payload.sub,
         principalType: 'user',
         tenant: payload.tenant,
-        email: typeof payload.email === 'string' ? payload.email : undefined,
-        department:
-          typeof payload.department === 'string'
-            ? payload.department
-            : undefined,
+        ...(typeof payload.sid === 'string' ? { sid: payload.sid } : {}),
+        ...(PERMISSIONS_IN_ACCESS_TOKEN && payload.perms !== undefined
+          ? {
+              grants: parsePermissions(payload.perms),
+              department:
+                typeof payload.department === 'string'
+                  ? payload.department
+                  : null,
+            }
+          : {}),
         expiresAt:
           typeof payload.exp === 'number' ? payload.exp * 1000 : undefined,
         exp: typeof payload.exp === 'number' ? payload.exp : undefined,
-        capabilities: CapabilityCodec.compactUserCapabilities(payload),
       };
 
       this.logger.debug(`Authenticated user ${user.id} from Bearer token`);
@@ -314,5 +252,19 @@ export class JwtAuthenticator {
   ): string | undefined {
     const single = Array.isArray(value) ? value[0] : value;
     return typeof single === 'string' && single.length > 0 ? single : undefined;
+  }
+}
+
+function parsePermissions(perms: unknown): Capability[] {
+  if (!Array.isArray(perms)) {
+    throw new UnauthorizedException('Token permissions are malformed');
+  }
+  try {
+    return perms.map((entry) => {
+      if (typeof entry !== 'string') throw new TypeError('not a string');
+      return parseCapabilityString(entry);
+    });
+  } catch {
+    throw new UnauthorizedException('Token permissions are malformed');
   }
 }

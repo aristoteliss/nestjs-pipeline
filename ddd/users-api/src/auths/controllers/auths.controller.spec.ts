@@ -1,226 +1,202 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { describe, expect, it, vi } from 'vitest';
+import { CreateAuthCommand } from '../cqrs/commands/create-auth.command';
 import { DeleteAuthCommand } from '../cqrs/commands/delete-auth.command';
+import { RefreshAuthCommand } from '../cqrs/commands/refresh-auth.command';
+import type { CreateAuthResult } from '../cqrs/results/create-auth.result';
+import { InvalidRefreshTokenError } from '../domain/errors/refresh-token.errors';
 import { Auth } from '../domain/models/auth.entity';
 import { AuthsController } from './auths.controller';
 
+const USER = '019488e0-0000-7000-8000-000000000001';
+const COOKIE_OPTIONS = {
+  httpOnly: true,
+  secure: true,
+  sameSite: 'strict',
+  path: '/auths',
+};
+
+function result(refreshToken?: string): CreateAuthResult {
+  return {
+    aggregate: Auth.start(USER, 'hash', 9_000_000),
+    id: USER,
+    principalType: 'user',
+    tenant: 'tenant_a',
+    email: 'user@example.test',
+    department: 'sales',
+    accessToken: 'access-1',
+    accessTokenExpiresAt: 300_000,
+    ...(refreshToken ? { refreshToken } : {}),
+    sessionExpiresAt: 9_000_000,
+  };
+}
+
+function setup(execute: (command: unknown) => Promise<unknown>) {
+  const commandBus = { execute: vi.fn(execute) };
+  const sessionService = { saveSession: vi.fn(), clearSession: vi.fn() };
+  const controller = new AuthsController(
+    commandBus as never,
+    sessionService as never,
+  );
+  const expressResponse = { cookie: vi.fn(), clearCookie: vi.fn() };
+  const fastifyReply = { setCookie: vi.fn(), clearCookie: vi.fn() };
+  return {
+    commandBus,
+    sessionService,
+    controller,
+    expressResponse,
+    fastifyReply,
+  };
+}
+
+const expectedBody = {
+  id: USER,
+  principalType: 'user',
+  tenant: 'tenant_a',
+  email: 'user@example.test',
+  department: 'sales',
+  accessToken: 'access-1',
+  accessTokenExpiresAt: 300_000,
+};
+
 describe('AuthsController', () => {
-  describe('logout', () => {
-    it('extracts credentials directly via SessionService and JwtAuthenticator, dispatches DeleteAuthCommand, and clears session', async () => {
-      const mockCommandBus = {
-        execute: vi.fn().mockResolvedValue(undefined),
-      };
-      const mockSessionService = {
-        saveSession: vi.fn(),
-        clearSession: vi.fn(),
-        getCredentials: vi.fn().mockReturnValue({
-          userId: 'user-xyz',
-          token: undefined,
-        }),
-      };
-      const mockJwtAuthenticator = {
-        extractToken: vi.fn().mockReturnValue('token-abc'),
-        extractUserId: vi.fn(),
-      };
+  describe('login', () => {
+    it('returns the access token and sets the refresh token only as an HttpOnly cookie', async () => {
+      const { controller, commandBus, sessionService, expressResponse } = setup(
+        async () => result('refresh-secret'),
+      );
+      const req = { session: undefined };
 
-      const controller = new AuthsController(
-        mockCommandBus as never,
-        mockSessionService as never,
-        mockJwtAuthenticator as never,
+      const body = await controller.login(
+        { email: 'user@example.test', code: '123456' },
+        req,
+        expressResponse,
       );
 
-      const mockSession = { id: 'sess-1' };
-      const mockHeaders = {
-        authorization: 'Bearer token-abc',
-      };
-
-      await controller.logout({
-        session: mockSession as never,
-        headers: mockHeaders,
-      });
-
-      expect(mockSessionService.getCredentials).toHaveBeenCalledWith(
-        mockSession,
+      expect(commandBus.execute).toHaveBeenCalledWith(
+        expect.any(CreateAuthCommand),
       );
-      expect(mockJwtAuthenticator.extractToken).toHaveBeenCalledWith(
-        mockHeaders,
+      expect(body).toEqual(expectedBody);
+      expect(JSON.stringify(body)).not.toContain('refresh-secret');
+      expect(expressResponse.cookie).toHaveBeenCalledWith(
+        'refresh_token',
+        'refresh-secret',
+        { ...COOKIE_OPTIONS, expires: new Date(9_000_000) },
       );
-      expect(mockCommandBus.execute).toHaveBeenCalledOnce();
-      const dispatchedCommand = mockCommandBus.execute.mock.calls[0][0];
-      expect(dispatchedCommand).toBeInstanceOf(DeleteAuthCommand);
-      expect(dispatchedCommand.userId).toBe('user-xyz');
-      expect(dispatchedCommand.token).toBe('token-abc');
-      expect(mockSessionService.clearSession).toHaveBeenCalledWith(mockSession);
-    });
-
-    it('extracts userId from JwtAuthenticator when session is absent', async () => {
-      const mockCommandBus = {
-        execute: vi.fn().mockResolvedValue(undefined),
-      };
-      const mockSessionService = {
-        saveSession: vi.fn(),
-        clearSession: vi.fn(),
-        getCredentials: vi.fn().mockReturnValue({}),
-      };
-      const mockJwtAuthenticator = {
-        extractToken: vi.fn().mockReturnValue('token-header-only'),
-        extractUserId: vi.fn().mockResolvedValue('user-header-only'),
-      };
-
-      const controller = new AuthsController(
-        mockCommandBus as never,
-        mockSessionService as never,
-        mockJwtAuthenticator as never,
-      );
-
-      const mockHeaders = { authorization: 'Bearer token-header-only' };
-
-      await controller.logout({
-        headers: mockHeaders,
-      });
-
-      expect(mockJwtAuthenticator.extractToken).toHaveBeenCalledWith(
-        mockHeaders,
-      );
-      expect(mockJwtAuthenticator.extractUserId).toHaveBeenCalledWith(
-        mockHeaders,
-      );
-      expect(mockCommandBus.execute).toHaveBeenCalledOnce();
-      const dispatchedCommand = mockCommandBus.execute.mock.calls[0][0];
-      expect(dispatchedCommand.userId).toBe('user-header-only');
-      expect(dispatchedCommand.token).toBe('token-header-only');
-      expect(mockSessionService.clearSession).toHaveBeenCalledWith(undefined);
-    });
-
-    it('does not dispatch DeleteAuthCommand when no credentials are found (anonymous logout)', async () => {
-      const mockCommandBus = {
-        execute: vi.fn(),
-      };
-      const mockSessionService = {
-        saveSession: vi.fn(),
-        clearSession: vi.fn(),
-        getCredentials: vi.fn().mockReturnValue({}),
-      };
-      const mockJwtAuthenticator = {
-        extractToken: vi.fn().mockReturnValue(undefined),
-        extractUserId: vi.fn().mockResolvedValue(undefined),
-      };
-
-      const controller = new AuthsController(
-        mockCommandBus as never,
-        mockSessionService as never,
-        mockJwtAuthenticator as never,
-      );
-
-      const mockSession = { id: 'sess-anon' };
-      await controller.logout({
-        session: mockSession as never,
-      });
-
-      expect(mockCommandBus.execute).not.toHaveBeenCalled();
-      expect(mockSessionService.clearSession).toHaveBeenCalledWith(mockSession);
-    });
-
-    it('handles cookie-only session logout when token is stored on session', async () => {
-      const mockCommandBus = {
-        execute: vi.fn().mockResolvedValue(undefined),
-      };
-      const mockSessionService = {
-        saveSession: vi.fn(),
-        clearSession: vi.fn(),
-        getCredentials: vi.fn().mockReturnValue({
-          userId: 'user-cookie-1',
-          token: 'token-from-cookie',
-        }),
-      };
-      const mockJwtAuthenticator = {
-        extractToken: vi.fn().mockReturnValue(undefined),
-        extractUserId: vi.fn(),
-      };
-
-      const controller = new AuthsController(
-        mockCommandBus as never,
-        mockSessionService as never,
-        mockJwtAuthenticator as never,
-      );
-
-      const mockSession = {
-        user: { id: 'user-cookie-1', tenant: 'tenant_a' },
-        token: 'token-from-cookie',
-      };
-
-      await controller.logout({
-        session: mockSession as never,
-      });
-
-      expect(mockSessionService.getCredentials).toHaveBeenCalledWith(
-        mockSession,
-      );
-      expect(mockCommandBus.execute).toHaveBeenCalledWith(
-        expect.objectContaining({
-          userId: 'user-cookie-1',
-          token: 'token-from-cookie',
-        }),
-      );
-      expect(mockSessionService.clearSession).toHaveBeenCalledWith(mockSession);
+      expect(sessionService.saveSession).toHaveBeenCalledWith(undefined, body);
     });
   });
 
-  describe('login', () => {
-    it('executes CreateAuthCommand and updates session via sessionService.saveSession', async () => {
-      const auth = Auth.create('usr-1', 'token-new');
-      const createAuthResult = {
-        aggregate: auth,
-        id: 'usr-1',
-        principalType: 'user' as const,
-        tenant: 'tenant_a',
-        email: 'user@example.test',
-        department: 'sales',
-        capabilities: { roles: [] },
-        token: 'token-new',
-        expiresAt: 12345678,
-        exp: 12345,
-      };
-      const mockCommandBus = {
-        execute: vi.fn().mockResolvedValue(createAuthResult),
-      };
-      const mockSessionService = {
-        saveSession: vi.fn(),
-        clearSession: vi.fn(),
-      };
-      const mockJwtAuthenticator = {
-        extractToken: vi.fn(),
-        extractUserId: vi.fn(),
-      };
-
-      const controller = new AuthsController(
-        mockCommandBus as never,
-        mockSessionService as never,
-        mockJwtAuthenticator as never,
+  describe('refresh', () => {
+    it('passes the cookie and client IP and sets a rotated cookie through the Fastify reply', async () => {
+      const { controller, commandBus, fastifyReply } = setup(async () =>
+        result('refresh-next'),
       );
 
-      const mockSession: Record<string, unknown> = {};
-      const result = await controller.login(
-        { email: 'user@example.test', code: '123456' },
-        { session: mockSession as never },
+      const body = await controller.refresh(
+        { cookies: { refresh_token: 'refresh-old' }, ip: '203.0.113.9' },
+        fastifyReply,
       );
 
-      expect(result).toEqual({
-        id: 'usr-1',
-        principalType: 'user',
-        tenant: 'tenant_a',
-        email: 'user@example.test',
-        department: 'sales',
-        capabilities: { roles: [] },
-        token: 'token-new',
-        expiresAt: 12345678,
-        exp: 12345,
+      const [command] = commandBus.execute.mock.calls[0] as [
+        RefreshAuthCommand,
+      ];
+      expect(command).toBeInstanceOf(RefreshAuthCommand);
+      expect(command).toMatchObject({
+        refreshToken: 'refresh-old',
+        clientIp: '203.0.113.9',
       });
-      expect(mockSessionService.saveSession).toHaveBeenCalledWith(
-        mockSession,
-        result,
+      expect(body).toEqual(expectedBody);
+      expect(fastifyReply.setCookie).toHaveBeenCalledWith(
+        'refresh_token',
+        'refresh-next',
+        { ...COOKIE_OPTIONS, expires: new Date(9_000_000) },
       );
+    });
+
+    it('sets no cookie for a grace-window answer', async () => {
+      const { controller, expressResponse } = setup(async () => result());
+
+      await controller.refresh(
+        { cookies: { refresh_token: 'refresh-previous' }, ip: '203.0.113.9' },
+        expressResponse,
+      );
+
+      expect(expressResponse.cookie).not.toHaveBeenCalled();
+    });
+
+    it('rejects a request without a refresh cookie without dispatching', async () => {
+      const { controller, commandBus, expressResponse } = setup(async () =>
+        result(),
+      );
+
+      await expect(
+        controller.refresh({ cookies: {} }, expressResponse),
+      ).rejects.toBeInstanceOf(InvalidRefreshTokenError);
+      expect(commandBus.execute).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('logout', () => {
+    it('revokes the cookie session and clears both cookies', async () => {
+      const { controller, commandBus, sessionService, expressResponse } = setup(
+        async () => undefined,
+      );
+      const session = {};
+
+      await controller.logout(
+        { cookies: { refresh_token: 'refresh-1' }, session: session as never },
+        expressResponse,
+      );
+
+      const [command] = commandBus.execute.mock.calls[0] as [DeleteAuthCommand];
+      expect(command).toBeInstanceOf(DeleteAuthCommand);
+      expect(command.refreshToken).toBe('refresh-1');
+      expect(expressResponse.clearCookie).toHaveBeenCalledWith(
+        'refresh_token',
+        COOKIE_OPTIONS,
+      );
+      expect(sessionService.clearSession).toHaveBeenCalledWith(session);
+    });
+
+    it('still clears cookies for an unknown refresh token', async () => {
+      const { controller, expressResponse } = setup(async () => {
+        throw new InvalidRefreshTokenError();
+      });
+
+      await expect(
+        controller.logout(
+          { cookies: { refresh_token: 'unknown' } },
+          expressResponse,
+        ),
+      ).resolves.toBeUndefined();
+      expect(expressResponse.clearCookie).toHaveBeenCalled();
+    });
+
+    it('propagates unexpected failures', async () => {
+      const failure = new Error('database unavailable');
+      const { controller, expressResponse } = setup(async () => {
+        throw failure;
+      });
+
+      await expect(
+        controller.logout(
+          { cookies: { refresh_token: 'refresh-1' } },
+          expressResponse,
+        ),
+      ).rejects.toBe(failure);
+    });
+
+    it('dispatches nothing without a cookie', async () => {
+      const { controller, commandBus, expressResponse } = setup(
+        async () => undefined,
+      );
+
+      await controller.logout({}, expressResponse);
+
+      expect(commandBus.execute).not.toHaveBeenCalled();
+      expect(expressResponse.clearCookie).toHaveBeenCalled();
     });
   });
 });

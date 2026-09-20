@@ -23,6 +23,12 @@ import {
   createPartitionedRateLimitKeyFactory,
   RateLimitBehavior,
 } from '@nestjs-pipeline/rate-limit';
+import {
+  AUTH_TOKEN_POLICY,
+  type AuthTokenPolicy,
+  type IRefreshTokens,
+  REFRESH_TOKENS,
+} from '../../application/authentication.ports';
 import { Auth, AuthSnapshot } from '../../domain/models/auth.entity';
 import { COMMAND_REPOSITORY } from '../../persistence/repository.tokens';
 import { UserLoginService } from '../../services/user-login.service';
@@ -62,29 +68,40 @@ export class CreateAuthHandler extends CommandBaseHandler<
     private readonly commandRepository: ICommandRepository<Auth, AuthSnapshot>,
     @Inject(TENANT_CONTEXT)
     private readonly tenantContext: ITenantContext,
+    @Inject(REFRESH_TOKENS)
+    private readonly refreshTokens: IRefreshTokens,
+    @Inject(AUTH_TOKEN_POLICY)
+    private readonly policy: AuthTokenPolicy,
   ) {
     super(eventBus);
   }
 
   async handle(command: CreateAuthCommand): Promise<CreateAuthResult> {
     const { email, code } = command;
-    const verifiedUser = await this.userLoginService.authenticate(email, code);
-    const authResult = await this.userLoginService.signToken(verifiedUser);
-    const auth = Auth.create(authResult.userId, authResult.accessToken);
+    const user = await this.userLoginService.authenticate(email, code);
+    const refreshToken = this.refreshTokens.generate();
+    const sessionExpiresAt =
+      Date.now() + this.policy.refreshTokenTtlSeconds * 1000;
+    const auth = Auth.start(
+      user.id,
+      this.refreshTokens.hash(refreshToken),
+      sessionExpiresAt,
+    );
 
     await this.commandRepository.save(auth);
+    const access = await this.userLoginService.signToken(user, auth.id);
 
     return {
       aggregate: auth,
-      id: authResult.userId,
+      id: user.id,
       principalType: 'user',
       tenant: this.tenantContext.schema,
-      email,
-      department: verifiedUser.department,
-      capabilities: authResult.userCapabilities,
-      token: authResult.accessToken,
-      expiresAt: authResult.expiresAt,
-      exp: authResult.exp,
+      email: user.email,
+      department: user.department,
+      accessToken: access.accessToken,
+      accessTokenExpiresAt: access.expiresAt,
+      refreshToken,
+      sessionExpiresAt,
     };
   }
 }

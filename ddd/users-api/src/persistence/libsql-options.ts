@@ -5,11 +5,13 @@ import { Migrator } from '@mikro-orm/migrations';
 import { AuthSchema } from './schemas/auth.schema';
 import { CacheSchema } from './schemas/cache.schema';
 import { CapabilitySchema } from './schemas/capability.schema';
+import { ConsumedRefreshTokenSchema } from './schemas/consumed-refresh-token.schema';
 import { RoleSchema } from './schemas/role.schema';
 import { RoleCapabilitySchema } from './schemas/role-capability.schema';
 import { UserSchema } from './schemas/user.schema';
 import { UserAdditionalCapabilitySchema } from './schemas/user-additional-capability.schema';
 import { UserDeniedCapabilitySchema } from './schemas/user-denied-capability.schema';
+import { UserPermissionRuleSchema } from './schemas/user-permission-rule.schema';
 import { UserRoleSchema } from './schemas/user-role.schema';
 import { normalizeSchemaName } from './tenant-options';
 
@@ -88,6 +90,8 @@ export function createLibsqlOrmOptions(
       UserRoleSchema,
       UserAdditionalCapabilitySchema,
       UserDeniedCapabilitySchema,
+      UserPermissionRuleSchema,
+      ConsumedRefreshTokenSchema,
       CacheSchema,
     ],
     extensions: [Migrator],

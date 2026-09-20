@@ -12,13 +12,15 @@ import {
   Req,
 } from '@nestjs/common';
 import { CommandBus, QueryBus } from '@nestjs/cqrs';
+import { UnauthorizedActionException } from '@nestjs-pipeline/casl';
 import { ZodPipe } from '@nestjs-pipeline/zod';
+import type { RoleReadModel } from '../application/role-read-model';
 import { CreateRoleCommand } from '../cqrs/commands/create-role.command';
 import { DeleteRoleCommand } from '../cqrs/commands/delete-role.command';
 import { UpdateRoleCommand } from '../cqrs/commands/update-role.command';
 import { GetRoleQuery } from '../cqrs/queries/get-role.query';
 import { GetRolesQuery } from '../cqrs/queries/get-roles.query';
-import type { Role, RoleSnapshot } from '../domain/models/role.entity';
+import type { Role } from '../domain/models/role.entity';
 import {
   type CreateRoleDto,
   CreateRoleDtoSchema,
@@ -44,7 +46,7 @@ export class RolesController {
   async getRoles(
     @Req() _request: Request,
   ): Promise<{ roles: RoleResponseDto[] }> {
-    const roles = await this.queryBus.execute<GetRolesQuery, RoleSnapshot[]>(
+    const roles = await this.queryBus.execute<GetRolesQuery, RoleReadModel[]>(
       new GetRolesQuery({}),
     );
     return { roles: roles.map(toRoleResponseDto) };
@@ -56,9 +58,10 @@ export class RolesController {
     @Param('id', new ZodPipe<RoleIdDto, string>(RoleIdDtoSchema)) id: RoleIdDto,
   ): Promise<RoleResponseDto> {
     const query = new GetRoleQuery({ roleId: id }, { hydrate: false });
-    const role = await this.queryBus.execute<GetRoleQuery, RoleSnapshot | null>(
-      query,
-    );
+    const role = await this.queryBus.execute<
+      GetRoleQuery,
+      RoleReadModel | null
+    >(query);
     return toRoleResponseDto(role);
   }
 
@@ -67,10 +70,10 @@ export class RolesController {
   async createRole(
     @Body(new ZodPipe(CreateRoleDtoSchema)) dto: CreateRoleDto,
   ): Promise<RoleResponseDto> {
-    const role = await this.commandBus.execute<CreateRoleCommand, Role>(
+    const { id } = await this.commandBus.execute<CreateRoleCommand, Role>(
       CreateRoleMapper.map(dto),
     );
-    return toRoleResponseDto(role);
+    return this.readAfterWrite(id);
   }
 
   @Patch(':id')
@@ -79,10 +82,10 @@ export class RolesController {
     @Param('id', new ZodPipe<RoleIdDto, string>(RoleIdDtoSchema)) id: RoleIdDto,
     @Body(new ZodPipe(UpdateRoleDtoSchema)) dto: UpdateRoleDto,
   ): Promise<RoleResponseDto> {
-    const role = await this.commandBus.execute<UpdateRoleCommand, Role>(
+    await this.commandBus.execute<UpdateRoleCommand, Role>(
       UpdateRoleMapper.map(id, dto),
     );
-    return toRoleResponseDto(role);
+    return this.readAfterWrite(id);
   }
 
   @Delete(':id')
@@ -93,5 +96,23 @@ export class RolesController {
     await this.commandBus.execute<DeleteRoleCommand, Role>(
       new DeleteRoleCommand({ id }),
     );
+  }
+
+  /**
+   * A committed write answers with what the caller may read afterwards: `{}`
+   * when nothing is readable. Only a denial is absorbed; any other read
+   * failure propagates even though the write has committed.
+   */
+  private async readAfterWrite(roleId: string): Promise<RoleResponseDto> {
+    try {
+      const role = await this.queryBus.execute<
+        GetRoleQuery,
+        RoleReadModel | null
+      >(new GetRoleQuery({ roleId }));
+      return role ? toRoleResponseDto(role) : {};
+    } catch (error) {
+      if (error instanceof UnauthorizedActionException) return {};
+      throw error;
+    }
   }
 }

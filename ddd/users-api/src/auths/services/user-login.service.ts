@@ -1,37 +1,38 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { Inject, Injectable } from '@nestjs/common';
-import type { UserCapabilities } from '@nestjs-pipeline/casl';
 import type { IQueryRepository } from '@nestjs-pipeline/ddd-core/application';
 import { GetUserQuery } from '../../users/cqrs/queries/get-user.query';
 import { User } from '../../users/domain/models/user.entity';
 import { EXT_USER_QUERY_REPOSITORY } from '../../users/persistence/repository.tokens';
 import {
   ACCESS_TOKEN_ISSUER,
+  AUTH_TOKEN_POLICY,
+  type AuthTokenPolicy,
   type IAccessTokenIssuer,
   type ILoginCodeVerifier,
   LOGIN_CODE_VERIFIER,
 } from '../application/authentication.ports';
-import { GetUserCapabilitiesQuery } from '../cqrs/queries/get-user-capabilities.query';
+import {
+  type IUserPermissionRules,
+  USER_PERMISSION_RULES,
+} from '../application/ports/user-permission-rules.port';
 import { InvalidLoginCredentialsException } from '../domain/errors/authentication.exception';
-import { QUERY_REPOSITORY } from '../persistence/repository.tokens';
 
 export interface AuthResult {
   userId: string;
-  userCapabilities: UserCapabilities;
   accessToken: string;
-  expiresAt?: number;
-  exp?: number;
+  /** Access-token expiry as a Unix timestamp in milliseconds. */
+  expiresAt: number;
 }
 
 /**
  * Application service responsible for user login verification and access token issuance.
  *
- * Encapsulates the `POST /auth/login` workflow:
+ * Encapsulates the `POST /auths/login` workflow:
  * 1. Fetches user account details from the tenant database via {@link GetUserQuery}.
  * 2. Validates the temporary login code via {@link ILoginCodeVerifier} with user context.
- * 3. Resolves CASL user permissions and role capabilities via {@link IQueryRepository}.
- * 4. Signs an access token via {@link IAccessTokenIssuer}.
+ * 3. Signs a short-lived access token for a session via {@link IAccessTokenIssuer}.
  *
  * Infrastructure details like cryptography, JWT libraries, and environment variables
  * remain cleanly behind application ports.
@@ -39,7 +40,7 @@ export interface AuthResult {
  * @example
  * ```bash
  * # Initiating login
- * curl -X POST https://api.example.com/auth/login \
+ * curl -X POST https://api.example.com/auths/login \
  *   -H "x-tenant-schema: tenant_a" \
  *   -H "Content-Type: application/json" \
  *   -d '{"email":"alice@example.test","code":"123456"}'
@@ -50,15 +51,14 @@ export class UserLoginService {
   constructor(
     @Inject(EXT_USER_QUERY_REPOSITORY.getUser)
     private readonly queryRepository: IQueryRepository<GetUserQuery, User>,
-    @Inject(QUERY_REPOSITORY.getUserCapabilities)
-    private readonly capabilityRepository: IQueryRepository<
-      GetUserCapabilitiesQuery,
-      UserCapabilities
-    >,
     @Inject(LOGIN_CODE_VERIFIER)
     private readonly loginCodeVerifier: ILoginCodeVerifier,
     @Inject(ACCESS_TOKEN_ISSUER)
     private readonly accessTokenIssuer: IAccessTokenIssuer,
+    @Inject(AUTH_TOKEN_POLICY)
+    private readonly policy: AuthTokenPolicy,
+    @Inject(USER_PERMISSION_RULES)
+    private readonly permissionRules: IUserPermissionRules,
   ) {}
 
   /**
@@ -78,7 +78,9 @@ export class UserLoginService {
    * ```
    */
   async authenticate(email: string, code: string): Promise<User> {
-    const user = await this.queryRepository.find(new GetUserQuery({ email }));
+    const user = await this.queryRepository.find(
+      new GetUserQuery({ email }, { refresh: true }),
+    );
 
     if (!user) {
       throw new InvalidLoginCredentialsException();
@@ -92,31 +94,29 @@ export class UserLoginService {
   /**
    * Signs and issues a JWT access token for an authenticated user.
    *
-   * Resolves user capabilities directly through repository port and delegates
-   * token generation to {@link IAccessTokenIssuer}.
+   * Delegates token generation to {@link IAccessTokenIssuer}.
    *
    * @param user - The authenticated domain {@link User} entity.
-   * @returns An {@link AuthResult} containing userId, resolved capabilities, and the signed JWT string.
+   * @param sessionId - The session (`Auth` id) the token belongs to.
+   * @returns An {@link AuthResult} containing the userId and the signed JWT string.
    *
    * @example
    * ```ts
-   * const result = await loginService.signToken(user);
+   * const result = await loginService.signToken(user, auth.id);
    * console.log(result.accessToken);
    * ```
    */
-  async signToken(user: User): Promise<AuthResult> {
-    const userCapabilities = await this.capabilityRepository.find(
-      new GetUserCapabilitiesQuery({ userId: user.id }),
-    );
-
+  async signToken(user: User, sessionId: string): Promise<AuthResult> {
     const token = await this.accessTokenIssuer.issue({
       user,
-      capabilities: userCapabilities,
+      sessionId,
+      ...(this.policy.permissionsInAccessToken
+        ? { permissions: await this.permissionRules.findOrdered(user.id) }
+        : {}),
     });
 
     return {
       userId: user.id,
-      userCapabilities,
       ...token,
     };
   }

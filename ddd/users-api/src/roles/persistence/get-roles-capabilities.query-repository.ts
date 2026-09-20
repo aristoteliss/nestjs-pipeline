@@ -1,15 +1,16 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { Inject, Injectable } from '@nestjs/common';
-import type { IRoleProvider, RoleDefinition } from '@nestjs-pipeline/casl';
+import { capabilityFromRow } from '@persistence/capability-row.mapper';
 import { RoleCapability } from '@persistence/entities/role-capability.entity';
 import { MIKRO_ORM_CLIENT, MikroOrmStore } from '@persistence/mikro-orm.store';
+import type { RoleDefinition } from '../../auths/application/permission-assignments';
 import { GetRolesCapabilitiesQuery } from '../cqrs/queries/get-roles-capabilities.query';
 import { Capability } from '../domain/models/capability.entity';
 import { Role } from '../domain/models/role.entity';
 
 @Injectable()
-export class GetRolesCapabilitiesQueryRepository implements IRoleProvider {
+export class GetRolesCapabilitiesQueryRepository {
   constructor(
     @Inject(MIKRO_ORM_CLIENT) private readonly store: MikroOrmStore,
   ) {}
@@ -59,16 +60,7 @@ export class GetRolesCapabilitiesQueryRepository implements IRoleProvider {
       if (!capsByRole.has(roleId)) capsByRole.set(roleId, []);
 
       // biome-ignore lint/style/noNonNullAssertion: role bucket exists after has()/set() guard
-      capsByRole.get(roleId)!.push({
-        subject: capability.subject,
-        action: capability.action,
-        conditions: capability.conditions
-          ? JSON.parse(capability.conditions)
-          : undefined,
-        inverted: capability.inverted,
-        reason: capability.reason || undefined,
-        fields: capability.fields ? capability.fields.split(',') : undefined,
-      });
+      capsByRole.get(roleId)!.push(capabilityFromRow(capability));
     }
 
     return roles.map((role) => ({

@@ -13,6 +13,5 @@ export const EXT_USER_QUERY_REPOSITORY = {
 export const QUERY_REPOSITORY = {
   ...EXT_USER_QUERY_REPOSITORY,
   getUsers: Symbol('getUsers'),
-  getUserContext: Symbol('getUserContext'),
   getUserCapabilities: Symbol('getUserCapabilities'),
 } as const;

@@ -2,7 +2,7 @@
 import { APP_ACTIONS, APP_SUBJECTS } from '@common/constants';
 import { Inject, Scope } from '@nestjs/common';
 import { CommandHandler, EventBus } from '@nestjs/cqrs';
-import { CaslAuthorizer, CaslBehavior } from '@nestjs-pipeline/casl';
+import { CaslAuthorizer, requires } from '@nestjs-pipeline/casl';
 import { LoggingBehavior, UsePipeline } from '@nestjs-pipeline/core';
 import {
   CommandBaseHandler,
@@ -16,10 +16,7 @@ import { UpdateUserCommand } from './update-user.command';
 @CommandHandler(UpdateUserCommand, { scope: Scope.REQUEST })
 @UsePipeline(
   [LoggingBehavior, { requestResponseLogLevel: 'log' }],
-  [
-    CaslBehavior,
-    { rules: [{ action: APP_ACTIONS.UPDATE, subject: APP_SUBJECTS.USER }] },
-  ],
+  requires({ action: APP_ACTIONS.UPDATE, subject: APP_SUBJECTS.USER }),
 )
 export class UpdateUserHandler extends CommandBaseHandler<
   UpdateUserCommand,

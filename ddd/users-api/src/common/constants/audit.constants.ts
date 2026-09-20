@@ -10,6 +10,8 @@ export const AUDIT_ACTIONS = {
   ROLE_DELETE: 'role.delete',
   /** User login credential verification action. */
   AUTH_LOGIN: 'auth.login',
+  /** Refresh-token exchange for a new access token. */
+  AUTH_REFRESH: 'auth.refresh',
 } as const;
 
 export type AuditAction = (typeof AUDIT_ACTIONS)[keyof typeof AUDIT_ACTIONS];

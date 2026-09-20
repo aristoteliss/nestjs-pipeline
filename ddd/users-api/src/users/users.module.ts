@@ -17,7 +17,6 @@ import { UpdateUserHandler } from './cqrs/commands/update-user.handler';
 import { UserCreatedHandler } from './cqrs/events/user-created.handler';
 import { UserUpdatedHandler } from './cqrs/events/user-updated.handler';
 import { GetUserHandler } from './cqrs/queries/get-user.handler';
-import { GetUserContextHandler } from './cqrs/queries/get-user-context.handler';
 import { GetUserOverviewHandler } from './cqrs/queries/get-user-overview.handler';
 import { GetUsersHandler } from './cqrs/queries/get-users.handler';
 import {
@@ -32,7 +31,6 @@ import {
 import { CreateUserCommandRepository } from './persistence/create-user.command-repository';
 import { DeleteUserCommandRepository } from './persistence/delete-user.command-repository';
 import { GetUserQueryRepository } from './persistence/get-user.query-repository';
-import { GetUserContextQueryRepository } from './persistence/get-user-context.query-repository';
 import { GetUsersQueryRepository } from './persistence/get-users.query-repository';
 import {
   COMMAND_REPOSITORY,
@@ -72,10 +70,6 @@ import { UpdateUserCommandRepository } from './persistence/update-user.command-r
     { provide: QUERY_REPOSITORY.getUser, useClass: GetUserQueryRepository },
     { provide: QUERY_REPOSITORY.getUsers, useClass: GetUsersQueryRepository },
     {
-      provide: QUERY_REPOSITORY.getUserContext,
-      useClass: GetUserContextQueryRepository,
-    },
-    {
       provide: QUERY_REPOSITORY.getUserCapabilities,
       useClass: GetUserCapabilitiesQueryRepository,
     },
@@ -87,7 +81,6 @@ import { UpdateUserCommandRepository } from './persistence/update-user.command-r
     // Queries
     GetUserHandler,
     GetUsersHandler,
-    GetUserContextHandler,
     GetUserOverviewHandler,
 
     // Commands

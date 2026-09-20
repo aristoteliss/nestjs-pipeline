@@ -52,6 +52,8 @@ Use repository-native commands. Never invent an equivalent, and never `npm`/`yar
 | Format and lint (Biome) | `pnpm check`, `pnpm format` |
 | Build | `pnpm build` |
 | Migrations (users-api) | `pnpm --filter @nestjs-pipeline/ddd-users-api db:migrate` |
+| Permission rules (users-api) | `pnpm --filter @nestjs-pipeline/ddd-users-api permissions:rebuild`, `permissions:verify` |
+| Session cleanup (users-api) | `pnpm --filter @nestjs-pipeline/ddd-users-api sessions:purge` |
 | Regenerate the codebase map | `pnpm context:update` |
 | Check the map is current | `pnpm context:check` |
 | Validate all context files | `pnpm context:validate` |
