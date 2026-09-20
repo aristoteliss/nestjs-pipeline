@@ -34,6 +34,13 @@ import {
   IPipelineBehavior,
   NextDelegate,
 } from '../interfaces/pipeline.behavior.interface';
+import {
+  type IPipelineBehaviorContract,
+  PIPELINE_BEHAVIOR_CONTRACT,
+  type PipelineBehaviorDiagnostic,
+  type PipelineBehaviorValidationContext,
+  PipelineConfigurationError,
+} from '../interfaces/pipeline-behavior-contract.interface';
 import { PipelineHandlerMeta } from '../interfaces/pipeline-handler-meta.interface';
 import {
   PIPELINE_MODULE_OPTIONS,
@@ -133,15 +140,30 @@ export class PipelineBootstrapService
     const explorer = this.moduleRef.get(ExplorerService, { strict: false });
     const { commands = [], queries = [], events = [] } = explorer.explore();
 
+    const collectedDiagnostics: PipelineBehaviorDiagnostic[] = [];
+
     // Already categorized by kind — no detectKind() or resolveMethodName() needed
     for (const wrapper of commands) {
-      this.wrapIfDecorated(wrapper, 'command', 'execute');
+      this.wrapIfDecorated(wrapper, 'command', 'execute', collectedDiagnostics);
     }
     for (const wrapper of queries) {
-      this.wrapIfDecorated(wrapper, 'query', 'execute');
+      this.wrapIfDecorated(wrapper, 'query', 'execute', collectedDiagnostics);
     }
     for (const wrapper of events) {
-      this.wrapIfDecorated(wrapper, 'event', 'handle');
+      this.wrapIfDecorated(wrapper, 'event', 'handle', collectedDiagnostics);
+    }
+
+    const diagnosticsMode = this.options?.diagnostics ?? 'strict';
+    if (collectedDiagnostics.length > 0 && diagnosticsMode !== 'off') {
+      if (diagnosticsMode === 'warn') {
+        for (const d of collectedDiagnostics) {
+          this.logger.warn(
+            `[Pipeline Diagnostic] Handler '${d.handlerName}' with behavior '${d.behaviorName}': ${d.message}. Fix: ${d.fix}`,
+          );
+        }
+      } else {
+        throw new PipelineConfigurationError(collectedDiagnostics);
+      }
     }
   }
 
@@ -176,6 +198,7 @@ export class PipelineBootstrapService
     wrapper: InstanceWrapper,
     requestKind: 'command' | 'query' | 'event',
     methodName: 'execute' | 'handle',
+    diagnostics?: PipelineBehaviorDiagnostic[],
   ): void {
     // Scoped handlers may only expose their class through wrapper.metatype at bootstrap.
     const handlerType: Type | undefined =
@@ -376,6 +399,96 @@ export class PipelineBootstrapService
       requestKind,
       behaviorOptions: mergedOptions.size > 0 ? mergedOptions : undefined,
     };
+
+    // ── Bootstrap Diagnostics & Behavior Contracts Validation (S-15) ──
+    const diagnosticsMode = this.options?.diagnostics ?? 'strict';
+    if (diagnostics && diagnosticsMode !== 'off') {
+      for (let i = 0; i < behaviorTypes.length; i++) {
+        const BehaviorClass = behaviorTypes[i];
+        const id = getBehaviorId(BehaviorClass);
+
+        const isHandlerDeclared = (handlerBehaviorTypes ?? []).some(
+          (t) => getBehaviorId(t) === id,
+        );
+        const isGlobalDeclared = globalBehaviorIds.has(id);
+
+        const declarationSource: 'handler' | 'global' | 'both' =
+          isHandlerDeclared && isGlobalDeclared
+            ? 'both'
+            : isHandlerDeclared
+              ? 'handler'
+              : 'global';
+
+        const contract = untyped(BehaviorClass)[PIPELINE_BEHAVIOR_CONTRACT] as
+          | IPipelineBehaviorContract
+          | undefined;
+
+        if (contract) {
+          // 1. Validate Ordering Constraints
+          if (contract.order) {
+            if (contract.order.after) {
+              for (const target of contract.order.after) {
+                const targetIdx = behaviorTypes.findIndex((b) =>
+                  typeof target === 'string'
+                    ? getBehaviorId(b) === target || b.name === target
+                    : b === target ||
+                      getBehaviorId(b) === getBehaviorId(target),
+                );
+                if (targetIdx !== -1 && i <= targetIdx) {
+                  const targetName =
+                    typeof target === 'string' ? target : target.name;
+                  diagnostics.push({
+                    handlerName: handlerType.name,
+                    behaviorName: BehaviorClass.name,
+                    message: `${BehaviorClass.name} is positioned before ${targetName} in the pipeline chain, but must execute after it`,
+                    fix: `Reorder the pipeline behaviors so that ${targetName} runs before ${BehaviorClass.name}.`,
+                  });
+                }
+              }
+            }
+            if (contract.order.before) {
+              for (const target of contract.order.before) {
+                const targetIdx = behaviorTypes.findIndex((b) =>
+                  typeof target === 'string'
+                    ? getBehaviorId(b) === target || b.name === target
+                    : b === target ||
+                      getBehaviorId(b) === getBehaviorId(target),
+                );
+                if (targetIdx !== -1 && i >= targetIdx) {
+                  const targetName =
+                    typeof target === 'string' ? target : target.name;
+                  diagnostics.push({
+                    handlerName: handlerType.name,
+                    behaviorName: BehaviorClass.name,
+                    message: `${BehaviorClass.name} is positioned after ${targetName} in the pipeline chain, but must execute before it`,
+                    fix: `Reorder the pipeline behaviors so that ${BehaviorClass.name} runs before ${targetName}.`,
+                  });
+                }
+              }
+            }
+          }
+
+          // 2. Validate Behavior Options & Intent
+          if (typeof contract.validate === 'function') {
+            const validationCtx: PipelineBehaviorValidationContext = {
+              handlerType,
+              handlerName: handlerType.name,
+              requestKind,
+              declarationSource,
+              effectiveOptions: mergedOptions.get(id),
+              handlerOptions: handlerOptions?.get(id),
+              globalOptions: globalOptions.get(id),
+              effectiveBehaviorTypes: behaviorTypes,
+            };
+
+            const result = contract.validate(validationCtx);
+            if (Array.isArray(result) && result.length > 0) {
+              diagnostics.push(...result);
+            }
+          }
+        }
+      }
+    }
 
     if (this.bootstrapLogLevel !== 'none') {
       this.logger[this.bootstrapLogLevel](

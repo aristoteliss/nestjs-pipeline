@@ -1,6 +1,10 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import type { IPipelineContext } from '@nestjs-pipeline/core';
+import {
+  type IPipelineBehaviorContract,
+  type IPipelineContext,
+  PIPELINE_BEHAVIOR_CONTRACT,
+} from '@nestjs-pipeline/core';
 import { RateLimiterMemory } from 'rate-limiter-flexible';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { RateLimitExceededError } from './errors/rate-limit-exceeded.error';
@@ -265,5 +269,59 @@ describe('RateLimitBehavior', () => {
     await behavior.handle(ctx, vi.fn().mockResolvedValue('ok'));
 
     expect(consume).toHaveBeenCalledWith('default:CreateUserCommand', 4);
+  });
+
+  describe('PIPELINE_BEHAVIOR_CONTRACT', () => {
+    const contract = (
+      RateLimitBehavior as unknown as Record<symbol, IPipelineBehaviorContract>
+    )[PIPELINE_BEHAVIOR_CONTRACT];
+
+    it('returns diagnostic when handler declares intent without keyFactory', () => {
+      const diagnostics = contract?.validate?.({
+        handlerType: class CreateUserHandler {},
+        handlerName: 'CreateUserHandler',
+        requestKind: 'command',
+        declarationSource: 'handler',
+        effectiveOptions: {},
+        handlerOptions: {},
+        globalOptions: undefined,
+        effectiveBehaviorTypes: [RateLimitBehavior],
+      });
+
+      expect(diagnostics).toHaveLength(1);
+      expect(diagnostics?.[0].behaviorName).toBe('RateLimitBehavior');
+      expect(diagnostics?.[0].message).toContain('explicit `keyFactory`');
+      expect(diagnostics?.[0].fix).toContain('Provide keyFactory');
+    });
+
+    it('does not return diagnostic when keyFactory is provided', () => {
+      const diagnostics = contract?.validate?.({
+        handlerType: class CreateUserHandler {},
+        handlerName: 'CreateUserHandler',
+        requestKind: 'command',
+        declarationSource: 'handler',
+        effectiveOptions: { keyFactory: () => 'user-1' },
+        handlerOptions: { keyFactory: () => 'user-1' },
+        globalOptions: undefined,
+        effectiveBehaviorTypes: [RateLimitBehavior],
+      });
+
+      expect(diagnostics).toBeUndefined();
+    });
+
+    it('allows passive pass-through when declarationSource is global without handler options', () => {
+      const diagnostics = contract?.validate?.({
+        handlerType: class CreateUserHandler {},
+        handlerName: 'CreateUserHandler',
+        requestKind: 'command',
+        declarationSource: 'global',
+        effectiveOptions: {},
+        handlerOptions: undefined,
+        globalOptions: {},
+        effectiveBehaviorTypes: [RateLimitBehavior],
+      });
+
+      expect(diagnostics).toBeUndefined();
+    });
   });
 });

@@ -9,9 +9,13 @@ import {
 } from '@nestjs/common';
 import {
   type IPipelineBehavior,
+  type IPipelineBehaviorContract,
   type IPipelineContext,
   LOGGING_BEHAVIOR_LOGGER,
   type NextDelegate,
+  PIPELINE_BEHAVIOR_CONTRACT,
+  type PipelineBehaviorDiagnostic,
+  type PipelineBehaviorValidationContext,
 } from '@nestjs-pipeline/core';
 import type { Cache } from 'cache-manager';
 import {
@@ -77,6 +81,43 @@ const DEFAULT_KINDS: Array<IPipelineContext['requestKind']> = ['query'];
  */
 @Injectable()
 export class CacheBehavior implements IPipelineBehavior {
+  static readonly [PIPELINE_BEHAVIOR_CONTRACT]: IPipelineBehaviorContract = {
+    order: {
+      after: ['CaslBehavior'],
+    },
+    validate: (
+      context: PipelineBehaviorValidationContext,
+    ): PipelineBehaviorDiagnostic[] | undefined => {
+      const options = context.effectiveOptions as
+        | CacheBehaviorOptions
+        | undefined;
+      const kinds = options?.kinds ?? DEFAULT_KINDS;
+      if (!kinds.includes(context.requestKind)) {
+        return undefined;
+      }
+
+      if (
+        (context.declarationSource === 'handler' ||
+          context.declarationSource === 'both') &&
+        !options?.key
+      ) {
+        return [
+          {
+            handlerName: context.handlerName,
+            behaviorName: CacheBehavior.name,
+            message:
+              'Explicit CacheBehavior intent requires an explicit `key` factory',
+            fix:
+              'Provide a key factory via createPartitionedCacheKeyFactory(...) or ' +
+              'cacheKeyTemplate(...) in @UsePipeline([CacheBehavior, { key: ... }]).',
+          },
+        ];
+      }
+
+      return undefined;
+    },
+  };
+
   private readonly logger: LoggerService;
   private readonly defaults: CacheBehaviorOptions;
   private readonly cacheAdapter: IPipelineCache;

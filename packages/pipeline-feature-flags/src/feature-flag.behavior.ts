@@ -9,9 +9,13 @@ import {
 } from '@nestjs/common';
 import {
   type IPipelineBehavior,
+  type IPipelineBehaviorContract,
   type IPipelineContext,
   LOGGING_BEHAVIOR_LOGGER,
   type NextDelegate,
+  PIPELINE_BEHAVIOR_CONTRACT,
+  type PipelineBehaviorDiagnostic,
+  type PipelineBehaviorValidationContext,
 } from '@nestjs-pipeline/core';
 import type { Client, EvaluationContext } from '@openfeature/server-sdk';
 import {
@@ -154,6 +158,36 @@ interface BooleanEvaluationDetails {
  */
 @Injectable()
 export class FeatureFlagBehavior implements IPipelineBehavior {
+  static readonly [PIPELINE_BEHAVIOR_CONTRACT]: IPipelineBehaviorContract = {
+    validate: (
+      context: PipelineBehaviorValidationContext,
+    ): PipelineBehaviorDiagnostic[] | undefined => {
+      const options = context.effectiveOptions as
+        | FeatureFlagBehaviorOptions
+        | undefined;
+
+      if (
+        (context.declarationSource === 'handler' ||
+          context.declarationSource === 'both') &&
+        (!options?.flag ||
+          typeof options.flag !== 'string' ||
+          options.flag.trim() === '')
+      ) {
+        return [
+          {
+            handlerName: context.handlerName,
+            behaviorName: FeatureFlagBehavior.name,
+            message:
+              'Explicit FeatureFlagBehavior intent requires a non-empty `flag` name',
+            fix: 'Provide flag in @UsePipeline([FeatureFlagBehavior, { flag: "flag-name" }]).',
+          },
+        ];
+      }
+
+      return undefined;
+    },
+  };
+
   private readonly logger: LoggerService;
   private readonly defaults: FeatureFlagBehaviorOptions;
 

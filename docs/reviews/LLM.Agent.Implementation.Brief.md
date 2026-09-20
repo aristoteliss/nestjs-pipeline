@@ -380,6 +380,8 @@ If discoverability becomes noisy, an `advanced` subpath may be considered, but m
 
 ## 3.15 S-15 — Bootstrap diagnostics and package-owned behavior contracts
 
+**Status: RESOLVED / IMPLEMENTED** (Core contract engine + symbol `PIPELINE_BEHAVIOR_CONTRACT`, built-in addon contracts for cache, rate-limit, idempotency, feature-flags, and resilience, strict/warn/off diagnostic modes, unit tests, and users-api integration spec).
+
 Move deterministic policy mistakes from “first production request” to application bootstrap wherever possible.
 
 Core must remain addon-agnostic. Define a small optional behavior contract/validator mechanism that an addon can expose without core importing that addon. The validator should be able to inspect:

@@ -234,6 +234,19 @@ export interface PipelineModuleOptions {
    * ```
    */
   tenantIdFactory?: () => string | undefined;
+
+  /**
+   * Mode for validating behavior configuration contracts during application bootstrap.
+   *
+   * - `'strict'` (default): Fails application bootstrap immediately by throwing
+   *   a {@link PipelineConfigurationError} when deterministic misconfigurations or
+   *   ordering violations are discovered.
+   * - `'warn'`: Logs validation diagnostics as warnings instead of failing bootstrap.
+   * - `'off'`: Disables bootstrap validation diagnostics.
+   *
+   * @default 'strict'
+   */
+  diagnostics?: 'strict' | 'warn' | 'off';
 }
 
 /**
