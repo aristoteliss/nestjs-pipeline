@@ -16,9 +16,7 @@ import {
 import { IPipelineContext } from '../interfaces/pipeline.context.interface';
 import { PipelineBootstrapService } from './pipeline.bootstrap.service';
 
-// ─────────────────────────────────────────────────────────────────
 // Behaviors
-// ─────────────────────────────────────────────────────────────────
 
 class MockBehavior implements IPipelineBehavior {
   async handle(ctx: IPipelineContext, next: NextDelegate) {
@@ -46,9 +44,7 @@ class ConfiguredMockBehavior implements IPipelineBehavior {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────
 // Commands / Queries / Events
-// ─────────────────────────────────────────────────────────────────
 
 class MockCommand {
   constructor(public id: number) {}
@@ -62,9 +58,7 @@ class MockEvent {
   constructor(public payload: string) {}
 }
 
-// ─────────────────────────────────────────────────────────────────
 // Handlers
-// ─────────────────────────────────────────────────────────────────
 
 @UsePipeline(MockBehavior)
 class MockCommandHandler {
@@ -104,10 +98,8 @@ class MockEventHandler {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────
 // Helper — build a minimal InstanceWrapper-like object
 // scope 0 = Scope.DEFAULT (singleton), 1 = TRANSIENT, 2 = REQUEST
-// ─────────────────────────────────────────────────────────────────
 
 function makeWrapper(
   instance: any,
@@ -123,23 +115,13 @@ function makeWrapper(
   };
 }
 
-// ─────────────────────────────────────────────────────────────────
 // Tests
-// ─────────────────────────────────────────────────────────────────
 
 describe('PipelineBootstrapService', () => {
   let moduleRefMock: any;
   let explorerServiceMock: any;
   const bootstrapped: PipelineBootstrapService[] = [];
 
-  /**
-   * Bootstraps a service and registers it for teardown.
-   *
-   * Scoped handlers are patched on their prototype, which is shared by every
-   * test in this file. A service that is never destroyed leaves its runner
-   * registered there, so later tests would see several candidate runners for
-   * one prototype — the ambiguity the dispatcher now refuses to guess through.
-   */
   function bootstrap(options?: unknown): PipelineBootstrapService {
     const service = new PipelineBootstrapService(
       moduleRefMock,
@@ -183,7 +165,6 @@ describe('PipelineBootstrapService', () => {
     };
   });
 
-  // ─────────────────────────────────────────────────────────────────
   describe('Core singleton wrapping', () => {
     it('wraps execute() and runs the full behavior chain', async () => {
       const handler = new MockCommandHandler();
@@ -242,7 +223,6 @@ describe('PipelineBootstrapService', () => {
     });
   });
 
-  // ─────────────────────────────────────────────────────────────────
   describe('Query and Event handler wrapping', () => {
     it('wraps query handler.execute() and sets requestKind to "query"', async () => {
       const handler = new MockQueryHandler();
@@ -281,7 +261,6 @@ describe('PipelineBootstrapService', () => {
     });
   });
 
-  // ─────────────────────────────────────────────────────────────────
   describe('Scoped handlers (REQUEST scope: 2, TRANSIENT scope: 1)', () => {
     it('patches the prototype for REQUEST-scoped handlers (scope: 2)', async () => {
       // At bootstrap, instance is undefined for scoped providers.
@@ -344,7 +323,6 @@ describe('PipelineBootstrapService', () => {
     });
   });
 
-  // ─────────────────────────────────────────────────────────────────
   describe('Global behaviors — handler-kind scope filtering', () => {
     it('applies global behaviors to commands when scope is "commands"', async () => {
       const handler = new NoPipelineCommandHandler();
@@ -453,7 +431,6 @@ describe('PipelineBootstrapService', () => {
     });
   });
 
-  // ─────────────────────────────────────────────────────────────────
   describe('Global behaviors — array form (multiple GlobalBehaviorsOptions)', () => {
     it('applies mixed-scope array entries to the correct handler kinds', async () => {
       class PlainQueryHandler3 {
@@ -649,7 +626,6 @@ describe('PipelineBootstrapService', () => {
     });
   });
 
-  // ─────────────────────────────────────────────────────────────────
   describe('Deduplication — same behavior in @UsePipeline and globalBehaviors', () => {
     it('runs the behavior only once when it appears in both @UsePipeline and global before', async () => {
       @UsePipeline(SecondMockBehavior)
@@ -744,9 +720,6 @@ describe('PipelineBootstrapService', () => {
     it("bare handler redeclaration inherits the behavior's global options", async () => {
       const globalOpts = { mode: 'global', verbose: true };
 
-      // A bare @UsePipeline used to clear the global options, so redeclaring a
-      // globally configured behavior — the natural way to say "yes, this handler
-      // too" — silently reverted it to package defaults.
       @UsePipeline(ConfiguredMockBehavior)
       class BareOverrideHandler {
         async execute(_cmd: MockCommand) {
@@ -841,7 +814,6 @@ describe('PipelineBootstrapService', () => {
     });
   });
 
-  // ─────────────────────────────────────────────────────────────────
   describe('Dynamic DI — request-scoped behavior fallback', () => {
     it('falls back to moduleRef.resolve() when a behavior cannot be resolved as singleton', async () => {
       // Use a fresh, unique class so no previous test's bootstrap has touched it.
@@ -893,7 +865,6 @@ describe('PipelineBootstrapService', () => {
     });
   });
 
-  // ─────────────────────────────────────────────────────────────────
   describe('Correlation ID resolution', () => {
     it('generates a uuidv7 correlation ID when no external store is active', async () => {
       const handler = new MockCommandHandler();
@@ -991,7 +962,6 @@ describe('PipelineBootstrapService', () => {
     });
   });
 
-  // ─────────────────────────────────────────────────────────────────
   describe('bootstrapLogLevel option', () => {
     let logSpy: ReturnType<typeof vi.spyOn>;
     let debugSpy: ReturnType<typeof vi.spyOn>;
@@ -1098,7 +1068,6 @@ describe('PipelineBootstrapService', () => {
     });
   });
 
-  // ─────────────────────────────────────────────────────────────────
   describe('@SkipPipeline behavior filtering during bootstrap', () => {
     it('skips a specified global behavior for a command handler while executing remaining global behaviors', async () => {
       @SkipPipeline(MockBehavior)

@@ -211,6 +211,13 @@ unresolvable and failed on the first request instead.
 
 ## The @UsePipeline Decorator
 
+Repeated behavior identities execute once at their first position. The last tuple
+for that identity supplies its options; a bare repeat does not erase those options.
+Constructor references are the default identity. An explicit `PIPELINE_BEHAVIOR_ID`
+unifies copies of the same behavior across separately loaded packages.
+Malformed declarations, including undefined classes from circular imports, raise
+`TypeError` with the declaration location. `@SkipPipeline` accepts classes only.
+
 Decorate `@CommandHandler`, `@QueryHandler`, or `@EventsHandler` classes to attach handler-specific behaviors:
 
 ```typescript
@@ -557,6 +564,11 @@ Key rules:
 
 ## Built-in LoggingBehavior
 
+Logging and payload serialization failures do not prevent execution or replace the
+handler's result or error. `next()` is invoked once. Error `optionalParams` receive
+the same key exclusion and redaction as request/response payloads. Free-form error
+messages and stacks are not field-redacted; do not put credentials in them.
+
 The package includes `LoggingBehavior` for structured pipeline logging via the NestJS `Logger`:
 
 ```typescript
@@ -890,6 +902,26 @@ orderCreated = (events$: Observable<any>): Observable<ICommand> =>
 
 ---
 
+### Lifecycle and inheritance
+
+If pipeline bootstrap fails, it restores the methods and Nest instance hooks it
+installed before rethrowing the original error. Application shutdown removes only
+that application's runners. Inherited handler methods retain their original
+property descriptors and prototype inheritance after cleanup. A handler override
+can call `super.execute(request)` without entering the ancestor's pipeline again.
+
+Dispatch ownership is tracked separately for `execute` and `handle`, including
+when one scoped provider handles both commands and events. Invoke handlers through
+Nest's CQRS buses. A manually constructed scoped instance has no application
+ownership: it uses the sole registered chain when unambiguous, or logs a warning
+and runs the original method when several applications share its prototype.
+
+Internally, `pipeline-plan.ts` composes declarations and options,
+`pipeline-contracts.ts` validates contracts, and `pipeline-runner.ts` creates the
+request context and executes the chain. `PipelineBootstrapService` owns discovery,
+Nest provider resolution, method installation and cleanup. These helpers are
+internal and are not exported by the package entry point.
+
 ## Bootstrap Diagnostics & Behavior Contracts
 
 `@nestjs-pipeline/core` includes an eager bootstrap diagnostics mechanism that validates pipeline behavior ordering constraints and declarative configuration invariants during `OnApplicationBootstrap`.
@@ -962,7 +994,13 @@ When validating options at bootstrap, the bootstrap service resolves effective o
 2. Global pipeline options: Declared in `PipelineModule.forRoot({ globalBehaviors: [ ... ] })`.
 3. Per-handler options: Attached via `@UsePipeline([Behavior, { ... }])` on the handler class.
 
-If a behavior implements `resolveEffectiveOptions(rawMergedOptions)`, bootstrap invokes it on the resolved behavior instance so diagnostics evaluate the identical merged configuration that `handle()` sees at runtime.
+If a behavior implements `resolveEffectiveOptions(rawMergedOptions)`, bootstrap
+invokes it when a singleton instance is available. Scoped behaviors have no
+request instance at bootstrap: their static contracts receive the raw merged
+handler/global options and `behaviorInstance: undefined`. Instance-only contracts
+and request-dependent defaults cannot be checked eagerly. Scoped implementations
+must validate request-dependent configuration in `handle()`; static validators
+must account for the absent instance.
 
 ---
 

@@ -19,8 +19,6 @@ import {
   RateLimitBehavior,
 } from './rate-limit.behavior';
 
-// ─── Doubles ──────────────────────────────────────────────────────────────────
-
 function okRes(over: Partial<RateLimiterResLike> = {}): RateLimiterResLike {
   return {
     msBeforeNext: 1000,
@@ -71,8 +69,6 @@ function withOptions(
   } as unknown as ReturnType<IPipelineContext['getBehaviorOptions']>);
   return ctx;
 }
-
-// ─── Tests ────────────────────────────────────────────────────────────────────
 
 describe('RateLimitBehavior', () => {
   const consume = vi.fn();

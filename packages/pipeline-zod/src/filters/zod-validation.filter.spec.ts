@@ -6,9 +6,7 @@ import { z } from 'zod';
 import { ZodValidationError } from '../errors/zod-validation.error';
 import { ZodValidationFilter } from './zod-validation.filter';
 
-// ---------------------------------------------------------------------------
 // Helpers
-// ---------------------------------------------------------------------------
 
 function createMockHost(cb: (body: any) => void) {
   const res = {
@@ -31,9 +29,7 @@ function makeError(schema: z.ZodType, data: unknown): ZodValidationError {
   return new ZodValidationError(result.error);
 }
 
-// ---------------------------------------------------------------------------
 // Tests
-// ---------------------------------------------------------------------------
 
 describe('ZodValidationFilter', () => {
   const filter = new ZodValidationFilter();

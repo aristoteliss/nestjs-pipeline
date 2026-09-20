@@ -12,8 +12,6 @@ import { PIPELINE_MODULE_OPTIONS } from './options/pipeline-module.options';
 import { PipelineModule } from './pipeline.module';
 import { PipelineBootstrapService } from './services/pipeline.bootstrap.service';
 
-// ── Test behaviors ──────────────────────────────────────────
-
 @Injectable()
 class AlphaBehavior implements IPipelineBehavior {
   async handle(_ctx: IPipelineContext, next: NextDelegate) {
@@ -27,8 +25,6 @@ class BetaBehavior implements IPipelineBehavior {
     return next();
   }
 }
-
-// ── forRoot ─────────────────────────────────────────────────
 
 describe('PipelineModule.forRoot', () => {
   it('returns a DynamicModule with defaults when called with no args', () => {
@@ -180,8 +176,6 @@ describe('PipelineModule.forRoot', () => {
   });
 });
 
-// ── forFeature ──────────────────────────────────────────────
-
 describe('PipelineModule.forFeature', () => {
   it('registers and exports the provided behaviors application-wide', () => {
     const mod = PipelineModule.forFeature([AlphaBehavior, BetaBehavior]);
@@ -223,8 +217,6 @@ describe('PipelineModule.forFeature', () => {
     expect(mod.exports).toEqual([]);
   });
 });
-
-// ── forRootAsync ─────────────────────────────────────────────
 
 describe('PipelineModule.forRootAsync', () => {
   it('registers with useFactory and inject', () => {
@@ -270,10 +262,6 @@ describe('PipelineModule.forRootAsync', () => {
   });
 
   describe('provider-graph fields returned from the factory', () => {
-    // Nest builds the provider graph before the factory runs. Returning these
-    // used to register nothing and say nothing, so an application that moved
-    // its behavior list into the factory booted with every @UsePipeline
-    // reference unresolvable and only failed on the first request.
     function optionsFactoryOf(mod: DynamicModule) {
       const provider = mod.providers?.find(
         (p: any) => p && p.provide === PIPELINE_MODULE_OPTIONS,
@@ -364,4 +352,28 @@ describe('PipelineModule.forRootAsync', () => {
       expect(mod.exports).toContain('CUSTOM_TOKEN');
     });
   });
+});
+
+describe('PipelineModule behavior entry validation', () => {
+  it('rejects undefined global behaviors before Nest builds the provider graph', () => {
+    expect(() =>
+      PipelineModule.forRoot({
+        globalBehaviors: { before: [undefined as never] },
+      }),
+    ).toThrow(/PipelineModule.*entry 0/);
+  });
+  it('rejects malformed async provider entries', () => {
+    expect(() =>
+      PipelineModule.forRootAsync({
+        behaviors: [[undefined, {}] as never],
+        useFactory: () => ({}),
+      }),
+    ).toThrow(/PipelineModule.*entry 0/);
+  });
+});
+
+it('rejects undefined feature behavior providers at registration', () => {
+  expect(() => PipelineModule.forFeature([undefined as never])).toThrow(
+    /forFeature.*entry 0/,
+  );
 });

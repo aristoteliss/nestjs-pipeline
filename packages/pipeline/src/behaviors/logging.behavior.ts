@@ -192,8 +192,8 @@ interface ErrorWithOptionalParams {
  * Emits the incoming request, a completion metric (duration), and the response,
  * each at a configurable log level (see `LoggingBehaviorOptions`). Request and
  * response payloads are excluded by default and can be opted in, with key-based
- * exclusion/redaction. Existing payload output is unchanged unless the new
- * redaction options are explicitly configured. If the wrapped handler throws,
+ * exclusion/redaction. Logging and serialization failures do not change the
+ * handler result or error. If the wrapped handler throws,
  * the error is logged — including its stack trace and, when present, the error's
  * `optionalParams` (see {@link ErrorWithOptionalParams}) — and then re-thrown
  * unchanged. Uses the logger bound to `LOGGING_BEHAVIOR_LOGGER` (e.g.
@@ -273,107 +273,131 @@ export class LoggingBehavior implements IPipelineBehavior {
     const logFormat = options?.logFormat ?? 'text';
     const structured = logFormat === 'structured';
 
-    const requestPayload = excludeRequestObj
-      ? '[exclude request obj]'
-      : structured
-        ? safeSanitize(context.request, sanitizeOptions)
-        : safeStringify(context.request, sanitizeOptions);
+    this.observe(() => {
+      if (requestResponseLogLevel === 'none') return;
+      const requestPayload = excludeRequestObj
+        ? '[exclude request obj]'
+        : structured
+          ? safeSanitize(context.request, sanitizeOptions)
+          : safeStringify(context.request, sanitizeOptions);
 
-    this.log(
-      requestResponseLogLevel,
-      structured
-        ? { msg: `Request → ${context.handlerName}`, request: requestPayload }
-        : `Request: ${requestPayload}`,
-      context.handlerName,
-    );
+      this.log(
+        requestResponseLogLevel,
+        structured
+          ? { msg: `Request → ${context.handlerName}`, request: requestPayload }
+          : `Request: ${requestPayload}`,
+        context.handlerName,
+      );
+    });
 
     const startTime = performance.now();
 
     try {
       const result = await next();
-      const duration = (performance.now() - startTime).toFixed(2);
+      this.observe(() => {
+        const duration = (performance.now() - startTime).toFixed(2);
 
-      const metricMsg =
-        `[${context.correlationId}] ${context.requestKind.toUpperCase()} ` +
-        `${context.requestName} → ${context.handlerName} completed in ${duration}ms`;
+        const metricMsg =
+          `[${context.correlationId}] ${context.requestKind.toUpperCase()} ` +
+          `${context.requestName} → ${context.handlerName} completed in ${duration}ms`;
 
-      this.log(
-        metricLogLevel,
-        structured
-          ? {
-              msg: metricMsg,
-              correlationId: context.correlationId,
-              requestKind: context.requestKind,
-              requestName: context.requestName,
-              handlerName: context.handlerName,
-              durationMs: Number(duration),
-            }
-          : metricMsg,
-        context.handlerName,
-      );
+        this.log(
+          metricLogLevel,
+          structured
+            ? {
+                msg: metricMsg,
+                correlationId: context.correlationId,
+                requestKind: context.requestKind,
+                requestName: context.requestName,
+                handlerName: context.handlerName,
+                durationMs: Number(duration),
+              }
+            : metricMsg,
+          context.handlerName,
+        );
 
-      const responsePayload = excludeResponseObj
-        ? '[exclude response obj]'
-        : result != null
-          ? structured
-            ? safeSanitize(result, sanitizeOptions)
-            : safeStringify(result, sanitizeOptions)
-          : '(void)';
+        if (requestResponseLogLevel === 'none') return;
+        const responsePayload = excludeResponseObj
+          ? '[exclude response obj]'
+          : result != null
+            ? structured
+              ? safeSanitize(result, sanitizeOptions)
+              : safeStringify(result, sanitizeOptions)
+            : '(void)';
 
-      this.log(
-        requestResponseLogLevel,
-        structured
-          ? {
-              msg: `Response ← ${context.handlerName}`,
-              response: responsePayload,
-            }
-          : `Response: ${responsePayload}`,
-        context.handlerName,
-      );
+        this.log(
+          requestResponseLogLevel,
+          structured
+            ? {
+                msg: `Response ← ${context.handlerName}`,
+                response: responsePayload,
+              }
+            : `Response: ${responsePayload}`,
+          context.handlerName,
+        );
+      });
 
       return result;
     } catch (error) {
-      const duration = (performance.now() - startTime).toFixed(2);
-      const err = error instanceof Error ? error : undefined;
-      let logLevel = errorLogLevel;
+      this.observe(() => {
+        const duration = (performance.now() - startTime).toFixed(2);
+        const err = error instanceof Error ? error : undefined;
+        let logLevel = errorLogLevel;
 
-      if (options?.mapLogLevel) {
-        let bestMatch: ErrorClass | undefined;
-        for (const [errorType, level] of options.mapLogLevel.entries()) {
-          if (!(error instanceof errorType)) continue;
-          if (!bestMatch || errorType.prototype instanceof bestMatch) {
-            bestMatch = errorType;
-            logLevel = level;
+        if (options?.mapLogLevel) {
+          let bestMatch: ErrorClass | undefined;
+          for (const [errorType, level] of options.mapLogLevel.entries()) {
+            if (!(error instanceof errorType)) continue;
+            if (!bestMatch || errorType.prototype instanceof bestMatch) {
+              bestMatch = errorType;
+              logLevel = level;
+            }
           }
         }
-      }
 
-      const message =
-        `[${context.correlationId}] ${context.requestKind.toUpperCase()} ` +
-        `${context.requestName} → ${context.handlerName} failed after ${duration}ms: ` +
-        `${err ? `${err.name}: ${err.message}` : String(error)}`;
+        const message =
+          `[${context.correlationId}] ${context.requestKind.toUpperCase()} ` +
+          `${context.requestName} → ${context.handlerName} failed after ${duration}ms: ` +
+          `${err ? `${err.name}: ${err.message}` : String(error)}`;
 
-      if (structured) {
-        const payload: Record<string, unknown> = {
-          message,
-          ...(err?.stack ? { stack: err.stack } : {}),
-          ...(this.hasOptionalParams(error)
-            ? { optionalParams: this.extractOptionalParams(error) }
-            : {}),
-        };
-        this.log(logLevel, payload, context.handlerName);
-      } else {
-        const optionalParams: unknown[] = [
-          ...(err?.stack ? [err.stack] : []),
-          ...(this.hasOptionalParams(error)
-            ? this.extractOptionalParams(error)
-            : []),
-          context.handlerName,
-        ];
-        this.log(logLevel, message, ...optionalParams);
-      }
+        if (structured) {
+          const payload: Record<string, unknown> = {
+            message,
+            ...(err?.stack ? { stack: err.stack } : {}),
+            ...(this.hasOptionalParams(error)
+              ? {
+                  optionalParams: safeSanitize(
+                    this.extractOptionalParams(error),
+                    sanitizeOptions,
+                  ) as unknown[],
+                }
+              : {}),
+          };
+          this.log(logLevel, payload, context.handlerName);
+        } else {
+          const optionalParams: unknown[] = [
+            ...(err?.stack ? [err.stack] : []),
+            ...(this.hasOptionalParams(error)
+              ? (safeSanitize(
+                  this.extractOptionalParams(error),
+                  sanitizeOptions,
+                ) as unknown[])
+              : []),
+            context.handlerName,
+          ];
+          this.log(logLevel, message, ...optionalParams);
+        }
+      });
 
       throw error;
+    }
+  }
+
+  private observe(write: () => void): void {
+    try {
+      write();
+    } catch {
+      // Observability failures must not alter business execution or error identity.
     }
   }
 

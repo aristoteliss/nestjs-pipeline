@@ -12,9 +12,7 @@ import {
   ZodValidationBehavior,
 } from './zod-validation.behavior';
 
-// ---------------------------------------------------------------------------
 // Helpers
-// ---------------------------------------------------------------------------
 
 function makeRequestType(schema?: z.ZodType): Type {
   const cls = class {};
@@ -42,9 +40,7 @@ function createMockContext(
   };
 }
 
-// ---------------------------------------------------------------------------
 // Tests
-// ---------------------------------------------------------------------------
 
 describe('ZodValidationBehavior', () => {
   const behavior = new ZodValidationBehavior();

@@ -21,8 +21,6 @@ const record = (
   ...overrides,
 });
 
-// ─── Memory ─────────────────────────────────────────────────────────────────
-
 describe('MemoryIdempotencyStore', () => {
   beforeEach(() => {
     vi.useFakeTimers();
@@ -273,8 +271,6 @@ describe('MemoryIdempotencyStore', () => {
   });
 });
 
-// ─── Redis ──────────────────────────────────────────────────────────────────
-
 describe('RedisIdempotencyStore', () => {
   it('claims via SET NX PX and prefixes keys', async () => {
     const set = vi.fn().mockResolvedValue('OK');
@@ -401,8 +397,6 @@ describe('RedisIdempotencyStore', () => {
     expect(client.del).toHaveBeenCalledWith('idempotency:k1');
   });
 });
-
-// ─── Postgres ────────────────────────────────────────────────────────────────
 
 describe('PostgresIdempotencyStore', () => {
   it('claims or atomically reclaims an expired key when the upsert returns a row', async () => {

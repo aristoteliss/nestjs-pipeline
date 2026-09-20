@@ -49,8 +49,6 @@ describe('PipelineBootstrapService scoped CQRS context', () => {
       get: vi.fn((token: unknown) => {
         if (token === ExplorerService) return explorer;
         if (token === ScopedBehavior) {
-          // Nest's InvalidClassScopeException shape; the bootstrap now tells this
-          // apart from an unregistered provider.
           throw new Error(
             'ScopedBehavior is marked as a scoped provider. Please, use "resolve()" instead.',
           );
@@ -74,12 +72,6 @@ describe('PipelineBootstrapService scoped CQRS context', () => {
   });
 });
 
-/**
- * Scoped handlers are patched on their prototype, which is process-global. The
- * dispatcher used to resolve an unregistered instance to "the most recently
- * registered runner", so a request in application A could execute application
- * B's chain — B's global behaviors, tenant factory and correlation runner.
- */
 describe('PipelineBootstrapService with several applications', () => {
   class SharedCommand {}
 

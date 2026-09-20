@@ -7,8 +7,6 @@ import type { AuditBehaviorOptions } from './interfaces/audit-options.interface'
 import type { AuditRecord } from './interfaces/audit-record.interface';
 import type { AuditSink } from './interfaces/audit-sink.interface';
 
-// ─── Doubles ──────────────────────────────────────────────────────────────────
-
 const write = vi.fn();
 const sink: AuditSink = { write };
 
@@ -42,8 +40,6 @@ function withOptions(
 
 const lastRecord = (): AuditRecord =>
   write.mock.calls[write.mock.calls.length - 1]?.[0] as AuditRecord;
-
-// ─── Tests ────────────────────────────────────────────────────────────────────
 
 describe('AuditBehavior', () => {
   beforeEach(() => {

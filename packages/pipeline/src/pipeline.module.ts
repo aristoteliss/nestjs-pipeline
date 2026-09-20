@@ -3,6 +3,7 @@
 import { DynamicModule, Global, Module, Provider, Type } from '@nestjs/common';
 import { LOGGING_BEHAVIOR_LOGGER } from './behaviors/logging.behavior';
 import { PipelineBehaviorEntry } from './decorators/pipeline.decorator';
+import { behaviorEntryType } from './helpers/behavior-entries';
 import { IPipelineBehavior } from './interfaces/pipeline.behavior.interface';
 import {
   PIPELINE_MODULE_OPTIONS,
@@ -56,7 +57,13 @@ function assertRuntimeOptions(
 function extractBehaviorTypes(
   entries: PipelineBehaviorEntry[],
 ): Type<IPipelineBehavior>[] {
-  return entries.map((entry) => (Array.isArray(entry) ? entry[0] : entry));
+  return [
+    ...new Set(
+      entries.map((entry, index) =>
+        behaviorEntryType(entry, `PipelineModule behaviors, entry ${index}`),
+      ),
+    ),
+  ];
 }
 
 /**
@@ -134,7 +141,7 @@ export class PipelineModule {
       );
     }
 
-    const behaviors = options.behaviors ?? [];
+    const behaviors = extractBehaviorTypes(options.behaviors ?? []);
 
     // Extract global behavior types for DI registration (deduplicated against `behaviors`)
     const globalConfigs = options.globalBehaviors
@@ -312,12 +319,19 @@ export class PipelineModule {
       ? { behaviors: options, imports: undefined }
       : options;
 
+    const types = behaviors.map((behavior, index) =>
+      behaviorEntryType(
+        behavior,
+        `PipelineModule.forFeature behaviors, entry ${index}`,
+        false,
+      ),
+    );
     return {
       global: true,
       module: PipelineModule,
       ...(imports ? { imports } : {}),
-      providers: [...behaviors],
-      exports: [...behaviors],
+      providers: types,
+      exports: types,
     };
   }
 }

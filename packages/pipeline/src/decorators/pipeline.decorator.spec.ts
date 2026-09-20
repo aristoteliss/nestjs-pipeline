@@ -18,8 +18,6 @@ import {
 } from '../interfaces/pipeline.behavior.interface';
 import { IPipelineContext } from '../interfaces/pipeline.context.interface';
 
-// ── Test behaviors ──────────────────────────────────────────
-
 class BehaviorA implements IPipelineBehavior {
   async handle(_ctx: IPipelineContext, next: NextDelegate) {
     return next();
@@ -38,8 +36,6 @@ class CustomIdBehavior implements IPipelineBehavior {
     return next();
   }
 }
-
-// ── Tests ───────────────────────────────────────────────────
 
 describe('@UsePipeline decorator', () => {
   it('stores behavior classes in metadata', () => {
@@ -85,10 +81,6 @@ describe('@UsePipeline decorator', () => {
   });
 
   it('records options on the handler that the bootstrap actually reads', () => {
-    // These two cases previously asserted a process-global diagnostic registry
-    // that nothing but this spec ever read — production state kept alive purely
-    // so a test could observe it. The authoritative source is, and always was,
-    // the reflection metadata the bootstrap reads from the handler class.
     const opts = { foo: 'bar' };
 
     @UsePipeline([BehaviorA, opts])
@@ -249,4 +241,56 @@ it('rejects primitive options while accepting typed interfaces', () => {
   expectTypeOf<
     [typeof BehaviorA, undefined]
   >().not.toExtend<PipelineBehaviorEntry>();
+});
+
+describe('pipeline declaration normalization', () => {
+  it('keeps first placement and last tuple options without erasing them on a bare repeat', () => {
+    class Handler {}
+    UsePipeline(
+      [BehaviorA, { value: 1 }],
+      BehaviorB,
+      [BehaviorA, { value: 2 }],
+      BehaviorA,
+    )(Handler);
+    expect(Reflect.getMetadata(PIPELINE_BEHAVIORS_METADATA, Handler)).toEqual([
+      BehaviorA,
+      BehaviorB,
+    ]);
+    expect(
+      Reflect.getMetadata(PIPELINE_BEHAVIORS_OPTIONS_METADATA, Handler).get(
+        BehaviorA,
+      ),
+    ).toEqual({ value: 2 });
+  });
+
+  it.each([
+    undefined,
+    null,
+    {},
+    [undefined, {}],
+    [BehaviorA, null],
+    [BehaviorA, []],
+    [BehaviorA, {}, {}],
+  ])('rejects malformed use entries with the handler name', (entry) => {
+    class BrokenHandler {}
+    expect(() => UsePipeline(entry as never)(BrokenHandler)).toThrow(
+      /@UsePipeline.*BrokenHandler.*entry 0/,
+    );
+  });
+
+  it('rejects undefined skip entries at decoration time', () => {
+    class BrokenHandler {}
+    expect(() => SkipPipeline(undefined as never)(BrokenHandler)).toThrow(
+      /@SkipPipeline.*BrokenHandler/,
+    );
+  });
+
+  it('deduplicates explicit stable identities', () => {
+    class Alias extends CustomIdBehavior {}
+    class Handler {}
+    UsePipeline(CustomIdBehavior, Alias)(Handler);
+    expect(Reflect.getMetadata(PIPELINE_BEHAVIORS_METADATA, Handler)).toEqual([
+      CustomIdBehavior,
+    ]);
+  });
 });

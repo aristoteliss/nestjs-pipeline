@@ -6,8 +6,6 @@ import { describe, expect, it, vi } from 'vitest';
 import { correlationStore, getCorrelationId } from '../correlation.store';
 import { CorrelationFrom, WithCorrelation } from './with-correlation.decorator';
 
-// ── Helpers ─────────────────────────────────────────────────
-
 function fakeJob(data: Record<string, any> = {}) {
   return { data } as any;
 }
@@ -25,8 +23,6 @@ function fakeKafkaContext(headers?: Record<string, Buffer | string>) {
     getMessage: () => ({ headers }),
   };
 }
-
-// ── Default path (data.correlationId) ───────────────────────
 
 describe('WithCorrelation — default path', () => {
   it('sets the correlation store from job.data.correlationId', async () => {
@@ -105,8 +101,6 @@ describe('WithCorrelation — default path', () => {
   });
 });
 
-// ── Custom path ─────────────────────────────────────────────
-
 describe('WithCorrelation — custom path', () => {
   it('supports string shorthand', async () => {
     let captured: string | undefined;
@@ -158,8 +152,6 @@ describe('WithCorrelation — custom path', () => {
     expect(captured).toBe('deep-nested');
   });
 });
-
-// ── Custom extractor ────────────────────────────────────────
 
 describe('WithCorrelation — custom extract', () => {
   it('extracts from RabbitMQ context (second argument)', async () => {
@@ -244,8 +236,6 @@ describe('WithCorrelation — custom extract', () => {
   });
 });
 
-// ── Return value & errors ───────────────────────────────────
-
 describe('WithCorrelation — return value & errors', () => {
   it('preserves async return value', async () => {
     class Processor {
@@ -301,8 +291,6 @@ describe('WithCorrelation — return value & errors', () => {
   });
 });
 
-// ── this context & function name ────────────────────────────
-
 describe('WithCorrelation — this context & meta', () => {
   it('preserves class instance (this)', async () => {
     class Processor {
@@ -333,8 +321,6 @@ describe('WithCorrelation — this context & meta', () => {
     expect(descriptor.value.name).toBe('handleSendEmail');
   });
 });
-
-// ── Edge cases ──────────────────────────────────────────────
 
 describe('WithCorrelation — edge cases', () => {
   it('warns when first argument is an array and dot-path is used', async () => {
@@ -454,8 +440,6 @@ describe('WithCorrelation — edge cases', () => {
   });
 });
 
-// ── Cron job ────────────────────────────────────────────────
-
 describe('WithCorrelation — cron job', () => {
   it('generates uuidv7 for methods with no arguments', async () => {
     let captured: string | undefined;
@@ -476,8 +460,6 @@ describe('WithCorrelation — cron job', () => {
     );
   });
 });
-
-// ── CorrelationFrom presets ─────────────────────────────────
 
 describe('CorrelationFrom.amqp', () => {
   it('extracts correlationId from AMQP message properties', async () => {
@@ -605,8 +587,6 @@ describe('CorrelationFrom.grpc', () => {
     expect(captured).toBe('grpc-456');
   });
 });
-
-// ── logLevel option ─────────────────────────────────────────
 
 describe('WithCorrelation — logLevel', () => {
   it('logs at the specified level with the resolved correlationId', async () => {

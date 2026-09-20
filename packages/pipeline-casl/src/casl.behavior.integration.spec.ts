@@ -28,8 +28,6 @@ import type {
   UserCapabilities,
 } from './types/casl.types';
 
-// ── Roles from demo-roles.yml ───────────────────────────────────────────
-
 const adminRole: RoleDefinition = {
   name: 'admin',
   capabilities: ['all|manage|*'],
@@ -107,8 +105,6 @@ const allRoles = [
   supportAgentRole,
 ];
 
-// ── Test helpers ────────────────────────────────────────────────────────
-
 function makeRoleProvider(roles: RoleDefinition[]): IRoleProvider {
   const map = new Map(roles.map((r) => [r.name, r]));
   return {
@@ -182,8 +178,6 @@ function createBehavior(
     globalSubjectContextPaths,
   );
 }
-
-// ── Test request classes ────────────────────────────────────────────────
 
 class GetPostQuery {
   constructor(public readonly postId: string) {}
@@ -298,8 +292,6 @@ class UpdateTenantUserCommand {
     },
   ) {}
 }
-
-// ── Tests ───────────────────────────────────────────────────────────────
 
 describe('CaslBehavior.handle() integration', () => {
   const userCapProvider = makeUserCapabilityProvider({

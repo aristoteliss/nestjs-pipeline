@@ -21,8 +21,6 @@ import type { IPipelineContext } from './interfaces/pipeline.context.interface';
 import { PipelineHandlerMeta } from './interfaces/pipeline-handler-meta.interface';
 import { PipelineContext } from './pipeline.context';
 
-// ── Helpers ─────────────────────────────────────────────────
-
 class FakeCommand {
   constructor(public readonly name: string) {}
 }
@@ -44,8 +42,6 @@ function buildMeta(
     ...overrides,
   };
 }
-
-// ── PipelineContext ─────────────────────────────────────────
 
 describe('PipelineContext', () => {
   it('captures request and metadata', () => {
