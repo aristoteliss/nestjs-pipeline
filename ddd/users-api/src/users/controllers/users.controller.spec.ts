@@ -1,11 +1,13 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
+import { NotFoundException } from '@nestjs/common';
 import type { CommandBus, QueryBus } from '@nestjs/cqrs';
 import { describe, expect, it, vi } from 'vitest';
 import { CreateUserCommand } from '../cqrs/commands/create-user.command';
 import { DeleteUserCommand } from '../cqrs/commands/delete-user.command';
 import { UpdateUserCommand } from '../cqrs/commands/update-user.command';
 import { GetUserQuery } from '../cqrs/queries/get-user.query';
+import { GetUserOverviewQuery } from '../cqrs/queries/get-user-overview.query';
 import { GetUsersQuery } from '../cqrs/queries/get-users.query';
 import { User } from '../domain/models/user.entity';
 import { UsersController } from './users.controller';
@@ -98,5 +100,40 @@ describe('UsersController', () => {
     expect(queryBus.execute).toHaveBeenCalledWith(expect.any(GetUserQuery));
     expect(result.id).toBe(user.id);
     expect(result.email).toBe('alice@example.test');
+  });
+
+  it('fetches user overview via GetUserOverviewQuery', async () => {
+    const overview = {
+      id: '019488e0-0000-7000-8000-000000000001',
+      username: 'Alice',
+      email: 'alice@example.test',
+      department: 'Engineering',
+      roles: ['admin'],
+      capabilities: ['User:read'],
+    };
+    const commandBus = { execute: vi.fn() } as unknown as CommandBus;
+    const queryBus = {
+      execute: vi.fn().mockResolvedValue(overview),
+    } as unknown as QueryBus;
+
+    const controller = new UsersController(commandBus, queryBus);
+    const result = await controller.getUserOverview(overview.id);
+
+    expect(queryBus.execute).toHaveBeenCalledWith(
+      expect.any(GetUserOverviewQuery),
+    );
+    expect(result).toEqual(overview);
+  });
+
+  it('throws NotFoundException when user overview is not found', async () => {
+    const commandBus = { execute: vi.fn() } as unknown as CommandBus;
+    const queryBus = {
+      execute: vi.fn().mockResolvedValue(null),
+    } as unknown as QueryBus;
+
+    const controller = new UsersController(commandBus, queryBus);
+    await expect(
+      controller.getUserOverview('019488e0-0000-7000-8000-000000000001'),
+    ).rejects.toThrow(NotFoundException);
   });
 });

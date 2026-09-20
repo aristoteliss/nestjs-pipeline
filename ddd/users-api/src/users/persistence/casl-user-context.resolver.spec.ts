@@ -32,6 +32,7 @@ describe('CaslUserContextResolver', () => {
       id: 'human-readable-user-id',
     });
     expect(result).toEqual({
+      principalType: 'user',
       id: user.id,
       department: 'Executive',
       capabilities: { roles: ['manager'] },
@@ -62,6 +63,7 @@ describe('CaslUserContextResolver', () => {
 
     expect(findOne).not.toHaveBeenCalled();
     expect(result).toEqual({
+      principalType: 'service',
       id: '019488e0-0000-7000-8000-000000000001',
       department: 'platform',
       capabilities: { roles: [], additionalCapabilities: ['all|manage|*'] },

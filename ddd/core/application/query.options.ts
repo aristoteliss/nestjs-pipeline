@@ -13,4 +13,12 @@ export interface IQueryOptions {
    * @default false
    */
   hydrate?: boolean;
+
+  /**
+   * Bypass read-through cache lookup and fill, forcing an authoritative read
+   * directly from underlying persistence.
+   *
+   * @default false
+   */
+  refresh?: boolean;
 }

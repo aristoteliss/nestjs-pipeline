@@ -1,7 +1,7 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 /** Which dimension of the cache key could not be resolved. */
-export type CachePartitionDimension = 'tenant' | 'principal';
+export type CachePartitionDimension = 'tenant' | 'principal' | 'scope';
 
 /**
  * Raised before the cache is consulted when a dimension required by the

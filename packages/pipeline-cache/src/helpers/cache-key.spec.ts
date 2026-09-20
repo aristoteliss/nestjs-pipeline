@@ -149,6 +149,31 @@ describe('createPartitionedCacheKeyFactory', () => {
         unauthKey(makeContext({ tenantId: undefined, items: new Map() })),
       ).toContain('cache:v3:\\-:\\-:\\-:GetUserQuery');
     });
+
+    it('fails closed when scope is required but absent', () => {
+      const requireScopeKey = createPartitionedCacheKeyFactory({
+        principal: readUserId,
+        scope: () => undefined,
+        requireScope: true,
+      });
+
+      expect(() => requireScopeKey(makeContext())).toThrow(
+        MissingCachePartitionError,
+      );
+      expect(() => requireScopeKey(makeContext())).toThrow(
+        /requires a scope partition/,
+      );
+    });
+
+    it('succeeds when scope is required and present', () => {
+      const requireScopeKey = createPartitionedCacheKeyFactory({
+        principal: readUserId,
+        scope: () => 'v2:scope-hash',
+        requireScope: true,
+      });
+
+      expect(requireScopeKey(makeContext())).toContain('scope-hash');
+    });
   });
 
   describe('delimiter safety', () => {

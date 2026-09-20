@@ -23,6 +23,7 @@ import { GetRoleHandler } from '../src/roles/cqrs/queries/get-role.handler';
 import { GetRolesHandler } from '../src/roles/cqrs/queries/get-roles.handler';
 import { GetUserHandler } from '../src/users/cqrs/queries/get-user.handler';
 import { GetUserContextHandler } from '../src/users/cqrs/queries/get-user-context.handler';
+import { GetUserOverviewHandler } from '../src/users/cqrs/queries/get-user-overview.handler';
 import { GetUsersHandler } from '../src/users/cqrs/queries/get-users.handler';
 
 function caslRules(
@@ -50,6 +51,7 @@ describe('query handlers declare an authorization rule', () => {
     ['GetRoleHandler', GetRoleHandler],
     ['GetRolesHandler', GetRolesHandler],
     ['GetUserContextHandler', GetUserContextHandler],
+    ['GetUserOverviewHandler', GetUserOverviewHandler],
   ])('%s is gated by CaslBehavior with at least one rule', (_name, handler) => {
     expect(declaresCasl(handler)).toBe(true);
     expect(caslRules(handler).length).toBeGreaterThan(0);

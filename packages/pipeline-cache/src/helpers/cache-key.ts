@@ -47,6 +47,16 @@ export interface PartitionedCacheKeyOptions {
    * @default true
    */
   requirePrincipal?: boolean;
+
+  /**
+   * Whether a missing authorization scope is an error rather than an omitted segment.
+   *
+   * Set to `true` whenever responses depend on permissions and must not fall back
+   * to an unscoped partition.
+   *
+   * @default false
+   */
+  requireScope?: boolean;
 }
 
 /** Deterministic digest of the request payload, so secrets stay out of key listings. */
@@ -95,6 +105,7 @@ export function createPartitionedCacheKeyFactory(
 ): CacheKeyFactory {
   const requireTenant = options.requireTenant ?? true;
   const requirePrincipal = options.requirePrincipal ?? true;
+  const requireScope = options.requireScope ?? false;
 
   return (context) => {
     if (requireTenant && !context.tenantId) {
@@ -125,6 +136,16 @@ export function createPartitionedCacheKeyFactory(
       typeof resolvedScope === 'string' && resolvedScope.trim()
         ? resolvedScope.trim()
         : undefined;
+
+    if (requireScope && !scope) {
+      throw new MissingCachePartitionError(
+        context.requestName,
+        'scope',
+        'A cache hit skips the handler and therefore its entity-level ' +
+          'authorization. Return the authorization scope, or pass ' +
+          'requireScope: false when responses are scope-independent.',
+      );
+    }
 
     return joinKeySegments([
       'cache',

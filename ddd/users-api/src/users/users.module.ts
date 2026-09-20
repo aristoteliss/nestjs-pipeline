@@ -4,6 +4,8 @@ import { BullModule } from '@nestjs/bullmq';
 import { Module } from '@nestjs/common';
 import { LoggerModule } from 'nestjs-pino';
 import { GetUserCapabilitiesQueryRepository } from '../auths/persistence/get-user-capabilities.query-repository';
+import { GetRolesQueryRepository } from '../roles/persistence/get-roles.query-repository';
+import { QUERY_REPOSITORY as ROLES_QUERY_REPOSITORY } from '../roles/persistence/repository.tokens';
 import {
   USER_BATCH_DISPATCHER,
   WELCOME_EMAIL_DISPATCHER,
@@ -76,6 +78,10 @@ import { UpdateUserCommandRepository } from './persistence/update-user.command-r
     {
       provide: QUERY_REPOSITORY.getUserCapabilities,
       useClass: GetUserCapabilitiesQueryRepository,
+    },
+    {
+      provide: ROLES_QUERY_REPOSITORY.getRoles,
+      useClass: GetRolesQueryRepository,
     },
 
     // Queries

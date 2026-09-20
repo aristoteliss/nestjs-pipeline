@@ -54,5 +54,8 @@ import { UpdateRoleCommandRepository } from './persistence/update-role.command-r
     UpdateRoleHandler,
     DeleteRoleHandler,
   ],
+  exports: [
+    { provide: QUERY_REPOSITORY.getRoles, useClass: GetRolesQueryRepository },
+  ],
 })
 export class RolesModule {}

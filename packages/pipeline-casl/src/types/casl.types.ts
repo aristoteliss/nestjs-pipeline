@@ -275,3 +275,38 @@ export interface AbilityRequirement {
    */
   field?: string;
 }
+
+/**
+ * Options for configuring explicit field selection during authorization.
+ */
+export interface AuthorizerSelectOptions<K extends string = string> {
+  /**
+   * The allowlist of property names to include in the authorized result.
+   * Properties not in this list are omitted. Denied properties are omitted.
+   */
+  readonly select: readonly K[] | K[];
+}
+
+/**
+ * Result of applying field selection to an authorized entity.
+ * Properties in selection allowlist may be omitted if unauthorized at runtime.
+ */
+export type SelectedProjection<T, K extends keyof T> = {
+  [P in K]?: T[P];
+};
+
+/**
+ * Honest representation of a projected candidate object after authorization.
+ *
+ * - Ordinary properties become optional (`?:`) as unauthorized fields are omitted.
+ * - Array elements become nullable (`(Projected<U> | null)[]`) to preserve index positions
+ *   when descendant rules (e.g. `roles.0`) mask individual elements.
+ * - `Date` and primitive values are preserved without alteration.
+ */
+export type Projected<T> = T extends Date
+  ? T
+  : T extends (infer U)[]
+    ? (Projected<U> | null)[]
+    : T extends object
+      ? { [K in keyof T]?: Projected<T[K]> }
+      : T;
