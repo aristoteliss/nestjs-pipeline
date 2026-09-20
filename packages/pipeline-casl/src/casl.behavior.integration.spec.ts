@@ -8,7 +8,7 @@
  */
 /** biome-ignore-all lint/suspicious/noTemplateCurlyInString: false positive */
 
-import { createMongoAbility, ForbiddenError } from '@casl/ability';
+import { createMongoAbility } from '@casl/ability';
 import { HttpException, type Type } from '@nestjs/common';
 import type { IPipelineContext } from '@nestjs-pipeline/core';
 import { describe, expect, it, vi } from 'vitest';
@@ -1424,27 +1424,130 @@ describe('CaslBehavior.handle() pre-resolved capabilities', () => {
     expect(result).toBe('handler-result');
   });
 
-  it('re-throws non-ForbiddenError encountered during authorization check', async () => {
-    const resolver = resolverFor({
-      id: 'admin-1',
-      capabilities: { roles: ['admin'] },
-    });
-    const behavior = createBehavior(allRoles, throwingProvider, resolver);
+  it('propagates unexpected errors raised while evaluating an ability', async () => {
     const customError = new Error('unexpected ability error');
-    const spy = vi.spyOn(ForbiddenError, 'from').mockImplementation(() => {
+    const failingAbility = createMongoAbility<[string, string]>([
+      { action: 'read', subject: 'Post' },
+    ]);
+    vi.spyOn(failingAbility, 'can').mockImplementation(() => {
       throw customError;
     });
+    const behavior = createBehavior(allRoles);
 
     const ctx = makeContext(
       Object as any,
       {},
       { id: 'admin-1' },
       {
+        prebuiltAbility: failingAbility,
         rules: [{ action: 'read', subject: 'Post' }],
       },
     );
 
     await expect(behavior.handle(ctx, nextDelegate)).rejects.toBe(customError);
-    spy.mockRestore();
+  });
+});
+
+describe('CaslBehavior request field and skipCheck semantics', () => {
+  class UpdateOrderCommand {
+    constructor(
+      public readonly status: string,
+      public readonly price?: number,
+    ) {}
+  }
+
+  const orderRole: RoleDefinition = {
+    name: 'order-clerk',
+    capabilities: [{ subject: 'Order', action: 'update', fields: ['status'] }],
+  };
+  const clerkCapabilities = makeUserCapabilityProvider({
+    clerk: ['order-clerk'],
+  });
+
+  it('checks every requested field even when a rule names an explicit field', async () => {
+    const behavior = createBehavior([orderRole], clerkCapabilities);
+    const ctx = makeContext(
+      UpdateOrderCommand,
+      new UpdateOrderCommand('shipped', 10),
+      { id: 'clerk' },
+      {
+        subjectFromRequest: 'Order',
+        fieldsFromRequest: ['status', 'price'],
+        rules: [{ action: 'update', subject: 'Order', field: 'status' }],
+      },
+    );
+
+    await expect(behavior.handle(ctx, nextDelegate)).rejects.toThrow(
+      UnauthorizedActionException,
+    );
+  });
+
+  it('allows an explicit field rule when every requested field is permitted', async () => {
+    const behavior = createBehavior([orderRole], clerkCapabilities);
+    const ctx = makeContext(
+      UpdateOrderCommand,
+      new UpdateOrderCommand('shipped'),
+      { id: 'clerk' },
+      {
+        subjectFromRequest: 'Order',
+        fieldsFromRequest: ['status', 'price'],
+        rules: [{ action: 'update', subject: 'Order', field: 'status' }],
+      },
+    );
+
+    await expect(behavior.handle(ctx, nextDelegate)).resolves.toBe(
+      'handler-result',
+    );
+  });
+
+  it('does not demand authentication when checks are skipped', async () => {
+    const behavior = createBehavior([orderRole], clerkCapabilities);
+    const ctx = makeContext(
+      UpdateOrderCommand,
+      new UpdateOrderCommand('shipped'),
+      undefined,
+      {
+        skipCheck: true,
+        rules: [{ action: 'update', subject: 'Order' }],
+      },
+    );
+
+    await expect(behavior.handle(ctx, nextDelegate)).resolves.toBe(
+      'handler-result',
+    );
+    expect(
+      (ctx.items.get(CASL_ABILITY_KEY) as AppAbility).can('update', 'Order'),
+    ).toBe(false);
+  });
+
+  it('still requires authentication when checks are enforced', async () => {
+    const behavior = createBehavior([orderRole], clerkCapabilities);
+    const ctx = makeContext(
+      UpdateOrderCommand,
+      new UpdateOrderCommand('shipped'),
+      undefined,
+      { rules: [{ action: 'update', subject: 'Order' }] },
+    );
+
+    await expect(behavior.handle(ctx, nextDelegate)).rejects.toThrow(
+      UnauthorizedActionException,
+    );
+  });
+
+  it('stores the resolved user context for downstream consumers', async () => {
+    const resolved = { id: 'clerk', principalType: 'user' };
+    const behavior = createBehavior([orderRole], clerkCapabilities, {
+      resolve: () => resolved,
+    });
+    const ctx = makeContext(
+      UpdateOrderCommand,
+      new UpdateOrderCommand('shipped'),
+      undefined,
+      { rules: [{ action: 'update', subject: 'Order' }] },
+    );
+
+    await behavior.handle(ctx, nextDelegate);
+
+    expect(ctx.items.get(CASL_USER_CONTEXT_KEY)).toBe(resolved);
   });
 });

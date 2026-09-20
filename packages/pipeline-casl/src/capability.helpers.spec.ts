@@ -647,3 +647,28 @@ describe('capability.helpers', () => {
     });
   });
 });
+
+describe('capability empty field lists', () => {
+  it('rejects an allow capability that would grant no fields', () => {
+    expect(() =>
+      buildAbilityFromRules([
+        capabilityToRawRule({ subject: 'Doc', action: 'read', fields: [] }),
+      ]),
+    ).toThrow(/empty fields list/);
+  });
+
+  it('keeps an inverted capability with no listed fields as a denial of all fields', () => {
+    const rule = capabilityToRawRule({
+      subject: 'Doc',
+      action: 'read',
+      inverted: true,
+      fields: [],
+    });
+    const ability = buildAbilityFromRules([
+      { action: 'read', subject: 'Doc' },
+      rule,
+    ]);
+
+    expect(ability.can('read', 'Doc', 'title')).toBe(false);
+  });
+});

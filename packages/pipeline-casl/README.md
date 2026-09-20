@@ -39,8 +39,8 @@ moving parts fall into seven groups.
 | `rules` | `AbilityRequirement[]` | Requirements to enforce. **All** must pass (logical AND). |
 | `subjectFromRequest` | `string \| string[]` | Promote the named subject(s) to an *instance-level* check, so CASL evaluates conditions against the request payload. |
 | `subjectContextPaths` | `string[]` | Request dot-paths whose payload is merged in for instance checks. Overrides the module default. |
-| `fieldsFromRequest` | `string[] \| Record<string, string[]>` | Which request fields to validate for field-level permission. Does **not** grant access — only narrows what is checked. |
-| `skipCheck` | `boolean` | Build and store the ability but skip enforcement (useful for public endpoints that shape their response from the ability). |
+| `fieldsFromRequest` | `string[] \| Record<string, string[]>` | Which request fields to validate for field-level permission. Does **not** grant access — only narrows what is checked. Present fields are checked in addition to any rule's explicit `field`. |
+| `skipCheck` | `boolean` | Build and store the ability but skip enforcement, including the authentication requirement; an anonymous caller receives an empty ability (useful for public endpoints that shape their response from the ability). |
 | `prebuiltAbility` | `AppAbility` | Use a supplied ability instead of resolving one from providers — handy for tests or precomputed/cached abilities. |
 
 ### Module
@@ -100,7 +100,7 @@ A per-handler `prebuiltAbility` bypasses provider-based ability construction.
 | `CaslAuthorizer` | Generic authorizer adapter for entity instances and field-level permissions backed by CASL. |
 | `ENTITY_AUTHORIZER` | Injection token (`Symbol.for('ENTITY_AUTHORIZER')`) for entity authorizer DI providers. |
 | `IEntityAuthorizer` | Interface for pluggable checks: `can(action, subject, field?)`, `authorize(...)`, and `project(...)`. |
-| `hasEntityConditions` | Checks whether an `AppAbility` contains conditional rules matching given subjects. |
+| `hasEntityConditions(ability, subjects, action?)` | Checks whether an `AppAbility` contains conditional rules for the given subjects, optionally only rules that can affect `action` (`manage` rules always count). Use it to bypass a response cache when entity state can change the decision. |
 
 `CaslAuthorizer.can(action, subject, field?)` returns a boolean. Pass the loaded
 entity instance to evaluate record-dependent conditions, and optionally a field
@@ -108,28 +108,52 @@ name for a field-level check. A subject type string is suitable for type-level
 checks. Without a configured or ambient ability, the result is `false` unless
 explicit bypass is enabled.
 
-`CaslAuthorizer.authorize(...)` evaluates whole-entity conditions and returns
-the authorized snapshot with readable fields only, or throws `UnauthorizedActionException`.
-When passed `{ select: ['fieldA', 'fieldB'] }`, it enforces compile-time field allowlisting,
-omits denied fields, and preserves authorized `null` values.
+`CaslAuthorizer.authorize(...)` evaluates whole-entity conditions against the
+loaded entity and returns the authorized snapshot with readable fields only, or
+throws `UnauthorizedActionException`. The array form `authorize(action, subject,
+['field'])` is a write-side check list; it never selects or restricts what a
+`read` returns.
 
-`CaslAuthorizer.project(action, subject, candidate)` evaluates permissions against an
-authoritative loaded entity `subject` while returning the projected fields of a candidate
-DTO or composite object. Denied fields are omitted and denied array elements (such as `roles.0`)
-are replaced with `null` placeholders. Neither `subject` nor `candidate` is mutated.
+`authorize('read', entity, { select: [...] })` returns only the listed
+properties that the ability permits. Selection never grants access, denied
+properties are omitted, authorized `null` values are preserved, and values keep
+descendant masks (an array item denied by `tags.0` becomes `null`). The result
+type marks every selected property optional and its value as `Projected`.
+`select` is rejected with a `TypeError` for any action other than `read` and
+when it is not an array.
+
+`CaslAuthorizer.project(action, subject, candidate)` evaluates permissions and
+conditions against the loaded entity `subject` while returning only the fields of
+`candidate` that the ability permits for `action`. Denied fields are omitted and
+denied array elements (such as `roles.0`) become `null` placeholders. Neither
+`subject` nor `candidate` is mutated. It enforces entity authorization itself, so
+it is safe to call on its own; it does not authorize related resources placed in
+`candidate`, which the handler must authorize before adding them.
 
 ```typescript
 const canRename = authorizer.can('update', loadedUser, 'username');
 const canCreate = authorizer.can('create', 'User');
 
-// Explicit field selection allowlist
+// Explicit loaded-entity authorization after the authoritative load
+const visible = authorizer.authorize<UserSnapshot>('read', loadedUser);
+
+// Read selection: typed, allowlisted, omits denied fields
 const profile = authorizer.authorize('read', loadedUser, {
   select: ['username', 'email'],
 });
 
-// Project candidate composite against loaded aggregate
-const overview = authorizer.project<UserOverviewDto>('read', loadedUser, candidate);
+// Composed candidate: permission comes from loadedUser, output paths from candidate
+const overview = authorizer.project<UserOverviewDto>('read', loadedUser, {
+  ...profile,
+  roles: readableRoleNames,
+});
 ```
+
+`CaslAuthorizerOptions` (`{ bypass?: boolean }`) is the named constructor
+options type. `new CaslAuthorizer(options)` and `new CaslAuthorizer(ability,
+options)` are equivalent to the previous inline form. Bypass is never inferred;
+it must be enabled here, through `CaslAuthorizer.bypass()`, or per call with a
+leading `{ bypass: true }` (`CaslBypassContext`).
 
 ### Tokens & types
 
@@ -141,7 +165,9 @@ items bag: `CASL_USER_CONTEXT_KEY` (the input user context) and
 
 
 Types: `Capability`, `CapabilityString`, `RoleDefinition`, `UserCapabilities`,
-`CaslUserContext`, `AbilityRequirement`, and the CASL aliases `AppAbility`
+`CaslUserContext`, `AbilityRequirement`, `CaslAuthorizerOptions`,
+`CaslBypassContext`, `AuthorizerSelectOptions`, `SelectedProjection`,
+`Projected`, and the CASL aliases `AppAbility`
 (`MongoAbility<[string, string]>`) and `AppRawRule` (`RawRuleOf<AppAbility>`).
 
 ## Installation
@@ -460,7 +486,7 @@ read from the same configured path.
 | `subject`  | Entity type (e.g., `Post`, `User`)     | `all` → any subject    |
 | `action`   | Verb (e.g., `read`, `create`)          | `manage` → any action  |
 | `conditions` | MongoDB-style JSON conditions        | `*` → none             |
-| `fields`   | Comma-separated field names            | omitted or `*` → all   |
+| `fields`   | Comma-separated field names            | omitted or `*` → all; an allow capability with an empty list is rejected |
 | `reason`   | Human-readable rule reason              | omitted                |
 | `!` prefix | Inverted (deny) rule                   | —                      |
 

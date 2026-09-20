@@ -109,7 +109,7 @@ export interface CaslModuleOptions {
    * subjectContextPaths: ['sessionUser']
    * ```
    */
-  subjectContextPaths: string[];
+  subjectContextPaths?: string[];
 
   /**
    * Global default for extracting/updating field checks from request payloads.

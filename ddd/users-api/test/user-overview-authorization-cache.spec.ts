@@ -28,13 +28,15 @@ import type { IQueryRepository } from '@nestjs-pipeline/ddd-core/application';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { GetUserCapabilitiesQuery } from '../src/auths/cqrs/queries/get-user-capabilities.query';
 import type { SessionUser } from '../src/common/types/SessionUser';
+import { Role } from '../src/roles/domain/models/role.entity';
+import { QUERY_REPOSITORY as ROLES_QUERY_REPOSITORY } from '../src/roles/persistence/repository.tokens';
+import { GetUserOverviewHandler } from '../src/users/cqrs/queries/get-user-overview.handler';
+import { GetUserOverviewQuery } from '../src/users/cqrs/queries/get-user-overview.query';
 import {
-  GetUserOverviewHandler,
   OVERVIEW_RESPONSE_POLICY_VERSION,
   resolveOverviewScope,
   userOverviewCacheKey,
-} from '../src/users/cqrs/queries/get-user-overview.handler';
-import { GetUserOverviewQuery } from '../src/users/cqrs/queries/get-user-overview.query';
+} from '../src/users/cqrs/queries/user-overview-cache.policy';
 import { User } from '../src/users/domain/models/user.entity';
 import { QUERY_REPOSITORY } from '../src/users/persistence/repository.tokens';
 
@@ -48,7 +50,6 @@ class AmbientSessionBehavior implements IPipelineBehavior {
     next: NextDelegate,
   ): Promise<unknown> {
     if (currentSessionUser) {
-      context.items.set('user', currentSessionUser);
       context.items.set(CASL_USER_CONTEXT_KEY, currentSessionUser);
     }
     return next();
@@ -165,6 +166,13 @@ describe('User overview composed query security and caching contracts', () => {
       providers: [
         GetUserOverviewHandler,
         { provide: QUERY_REPOSITORY.getUser, useValue: mockUserRepo },
+        {
+          provide: ROLES_QUERY_REPOSITORY.getRoles,
+          useValue: {
+            find: async (query: { names?: string[] }) =>
+              (query.names ?? []).map((name) => Role.create(name)),
+          },
+        },
         {
           provide: QUERY_REPOSITORY.getUserCapabilities,
           useValue: mockCapabilitiesRepo,
@@ -534,7 +542,7 @@ describe('User overview composed query security and caching contracts', () => {
       request: new GetUserOverviewQuery({ userId: 'u-1' }),
       requestName: 'GetUserOverviewQuery',
       items: new Map<string | symbol, unknown>([
-        ['user', { id: 'alice', principalType: 'user' }],
+        [CASL_USER_CONTEXT_KEY, { id: 'alice', principalType: 'user' }],
         [CASL_ABILITY_KEY, ability],
       ]),
     } as unknown as IPipelineContext;

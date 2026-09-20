@@ -602,27 +602,14 @@ export class GetRolesHandler implements IQueryHandler<GetRolesQuery, RoleSnapsho
 
 #### 9. Composed Read Models & Authoritative Reads
 
-Composed read models such as `GetUserOverviewHandler` aggregate multiple entities (`User`, `Role`) into a unified DTO (`UserOverviewDto`). Composed queries balance performance and security across multiple layers:
+`GetUserOverviewHandler` composes a `User` with its assigned `Role` names and additional capabilities into `UserOverviewDto`.
 
-- **Authoritative Reads (`refresh: true`)**:
-  When a composed query requires fresh domain state, `BaseQuery` supports `{ refresh: true }`. Repository query decorators (`@FromCache`) inspect `query.refresh` and bypass cached snapshots, executing an authoritative read against persistence with `{ refresh: true }`.
-  ```typescript
-  const user = await this.queryBus.execute<GetUserQuery, User | null>(
-    new GetUserQuery({ userId: query.userId }, { refresh: true }),
-  );
-  ```
-
-- **Entity & Field Authorization on Composed Models**:
-  Type-level pipeline authorization (`CaslBehavior`) guards entry into the query handler, but does not verify loaded entity attributes or field permissions. Composed handlers enforce authorization across each entity:
-  1. Authorize the primary loaded aggregate via `this.authorizer.authorize('read', user)`.
-  2. Verify field-level permissions before reading related records (e.g. `can('read', user, 'roles')`).
-  3. Authorize related entities loaded from persistence (e.g. `can('read', role)` and `can('read', role, 'name')`).
-  4. Project the assembled candidate through `this.authorizer.project<UserOverviewDto>('read', user, candidate)`, ensuring denied fields or indexed collection items are omitted or masked without mutating domain state.
-
-- **Pipeline Cache Eligibility & Entity-Dependent Conditions**:
-  When caching composed query results with `CacheBehavior`:
-  - **Key Partitioning**: Use `createPartitionedCacheKeyFactory` to partition the key by tenant, principal identity (`user:<id>` or `service:<id>`), and a deterministic digest of the caller's effective capabilities and rules.
-  - **Entity-Dependent Conditions**: If the caller's ability contains entity-dependent conditions (such as `{ department: '${user.department}' }`), pipeline-level cache hits would bypass handler-level entity evaluation. Therefore, the cache `condition` evaluates `!hasEntityDependentConditions(context)`, bypassing the cache when entity-dependent conditions are present so that the handler always evaluates loaded-entity attributes.
+- **Authoritative read**: the handler loads the user through the query repository port with `new GetUserQuery({ userId }, { refresh: true })`. `@FromCache` skips the repository snapshot and the ORM reads with `{ refresh: true }`, so the authorization decision does not rely on a possibly stale cached department. This is a fresh read, not a transaction: persistence, the decision and cache maintenance remain separate steps.
+- **Two authorization stages**: `CaslBehavior` checks `read User` at type level. After the load, `authorize('read', user, { select: [...] })` evaluates conditions and field rules against the persisted user.
+- **Related resources**: roles and capabilities are read only when `can('read', user, 'roles' | 'capabilities')` allows it. Each role is loaded through the roles query port and kept only if `can('read', role)` and `can('read', role, 'name')` pass; a role that cannot be loaded is omitted. Additional capabilities are governed only by the `capabilities` field of the User read rule; no separate policy for them exists yet.
+- **Final projection**: `project('read', user, candidate)` applies field and descendant rules (`roles.0`, `capabilities.0`) to the composed candidate, masking denied array items with `null`. It does not authorize related records; the steps above do.
+- **Cache partition**: the response cache key contains the tenant, the principal type and ID from the CASL user context that built the ability, a digest of the effective rules, the policy version and the query payload. It fails closed when any of these is missing.
+- **Cache eligibility**: the response cache is bypassed when the caller has conditional `read` rules for `User`, `Role` or `all`, because a cache hit would skip evaluating the loaded entities. Unconditional scopes are cached for 60 seconds, so ordinary response content can be stale for that period; authorization for such scopes does not depend on entity state.
 
 ### Environment Variables Reference
 

@@ -2,11 +2,12 @@
 
 /** biome-ignore-all lint/suspicious/noTemplateCurlyInString: false positive */
 import { pipelineStore } from '@nestjs-pipeline/core';
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, expectTypeOf, it, vi } from 'vitest';
 import { CASL_ABILITY_KEY } from './constants/tokens';
 import { UnauthorizedActionException } from './exceptions/unauthorized-action.exception';
 import {
   CaslAuthorizer,
+  type CaslAuthorizerOptions,
   getCaslAbility,
   hasEntityConditions,
 } from './helpers/entity-authorization.helper';
@@ -16,7 +17,11 @@ import {
   buildAbilityFromRules,
   buildBypassAbility,
 } from './services/ability.factory';
-import type { CaslUserContext, RoleDefinition } from './types/casl.types';
+import type {
+  CaslUserContext,
+  Projected,
+  RoleDefinition,
+} from './types/casl.types';
 
 // Roles for testing
 const supervisorRole: RoleDefinition = {
@@ -412,17 +417,13 @@ describe('CaslAuthorizer', () => {
       const authorizer = new CaslAuthorizer(ability);
       const user = new User(2, 'engineering', 'alice');
 
-      // This was the actual defect: 'actor-1' was taken as the action and
-      // 'update' as the subject, so CASL was asked an entirely different
-      // question and answered it — producing a denial that looked like a
-      // permissions-configuration problem.
       expect(() =>
         (authorizer.authorize as unknown as (...a: unknown[]) => unknown)(
           'actor-1',
           'update',
           user,
         ),
-      ).toThrow(UnauthorizedActionException);
+      ).toThrow(TypeError);
     });
 
     it('still accepts an explicit ability and an explicit bypass', () => {
@@ -1107,5 +1108,203 @@ describe('hasEntityConditions', () => {
     ]);
 
     expect(hasEntityConditions(ability, ['User', 'Role'])).toBe(false);
+  });
+});
+
+describe('CaslAuthorizer selection and projection contracts', () => {
+  class Doc {
+    constructor(
+      public readonly id: string,
+      public readonly tags: string[],
+      public readonly status: string,
+      public readonly owner: string | null,
+    ) {}
+
+    toJSON() {
+      return {
+        id: this.id,
+        tags: this.tags,
+        status: this.status,
+        owner: this.owner,
+      };
+    }
+  }
+
+  const doc = () => new Doc('d-1', ['a', 'b'], 'open', null);
+  const readDoc = buildAbilityFromRules([{ action: 'read', subject: 'Doc' }]);
+
+  it('applies descendant masks to selected array properties', () => {
+    const ability = buildAbilityFromRules([
+      { action: 'read', subject: 'Doc' },
+      { action: 'read', subject: 'Doc', fields: ['tags.0'], inverted: true },
+    ]);
+
+    const result = new CaslAuthorizer(ability).authorize('read', doc(), {
+      select: ['tags', 'owner'],
+    });
+
+    expect(result).toEqual({ tags: [null, 'b'], owner: null });
+    expectTypeOf(result.tags).toEqualTypeOf<(string | null)[] | undefined>();
+  });
+
+  it('returns selection results whose types can omit every selected property', () => {
+    const result = new CaslAuthorizer(readDoc).authorize('read', doc(), {
+      select: ['id', 'owner'] as const,
+    });
+
+    expectTypeOf(result.id).toEqualTypeOf<string | undefined>();
+    expectTypeOf(result.owner).toEqualTypeOf<string | null | undefined>();
+    expectTypeOf(result).not.toHaveProperty('tags');
+  });
+
+  it('rejects selection keys that are not properties of the entity', () => {
+    const authorizer = new CaslAuthorizer(readDoc);
+
+    expect(() =>
+      // @ts-expect-error 'missing' is not a key of Doc
+      authorizer.authorize('read', doc(), { select: ['missing'] }),
+    ).not.toThrow();
+  });
+
+  it('does not select prototype members', () => {
+    const result = (
+      new CaslAuthorizer(readDoc) as unknown as {
+        authorize: (...args: unknown[]) => Record<string, unknown>;
+      }
+    ).authorize('read', doc(), { select: ['id', 'toString', 'constructor'] });
+
+    expect(Object.keys(result)).toEqual(['id']);
+  });
+
+  it('rejects selection on non-read actions instead of returning the entity', () => {
+    const ability = buildAbilityFromRules([
+      { action: 'update', subject: 'Doc' },
+    ]);
+    const authorizer = new CaslAuthorizer(ability) as unknown as {
+      authorize: (...args: unknown[]) => unknown;
+    };
+
+    expect(() =>
+      authorizer.authorize('update', doc(), { select: ['id'] }),
+    ).toThrow(TypeError);
+  });
+
+  it('rejects malformed selection options instead of returning the entity', () => {
+    const authorizer = new CaslAuthorizer(readDoc) as unknown as {
+      authorize: (...args: unknown[]) => unknown;
+    };
+
+    expect(() => authorizer.authorize('read', doc(), { select: 'id' })).toThrow(
+      TypeError,
+    );
+    expect(() => authorizer.authorize('read', doc(), 'id')).toThrow(TypeError);
+  });
+
+  it('fails closed for a selecting read without an ability', () => {
+    expect(() =>
+      new CaslAuthorizer().authorize('read', doc(), { select: ['id'] }),
+    ).toThrow(UnauthorizedActionException);
+  });
+
+  it('selects from an explicit bypass without an ability', () => {
+    expect(
+      new CaslAuthorizer().authorize({ bypass: true }, 'read', doc(), {
+        select: ['id', 'owner'],
+      }),
+    ).toEqual({ id: 'd-1', owner: null });
+  });
+
+  it('projects by the requested action rather than always by read rules', () => {
+    const ability = buildAbilityFromRules([
+      { action: 'update', subject: 'Doc', fields: ['tags'] },
+      { action: 'read', subject: 'Doc', fields: ['id'] },
+    ]);
+    const authorizer = new CaslAuthorizer(ability);
+    const candidate = { id: 'd-1', tags: ['x'] };
+
+    expect(authorizer.project('update', doc(), candidate)).toEqual({
+      tags: ['x'],
+    });
+    expect(authorizer.project('read', doc(), candidate)).toEqual({
+      id: 'd-1',
+    });
+  });
+
+  it('evaluates projection conditions on the loaded subject, not the candidate', () => {
+    const ability = buildAbilityFromRules([
+      { action: 'read', subject: 'Doc', conditions: { status: 'open' } },
+    ]);
+    const authorizer = new CaslAuthorizer(ability);
+
+    expect(
+      authorizer.project('read', doc(), { status: 'closed', id: 'd-1' }),
+    ).toEqual({ status: 'closed', id: 'd-1' });
+    expect(() =>
+      authorizer.project('read', new Doc('d-2', [], 'closed', null), {
+        status: 'open',
+      }),
+    ).toThrow(UnauthorizedActionException);
+  });
+
+  it('types projected candidates so masked properties and array items may be absent', () => {
+    type Candidate = { id: string; roles: string[]; at: Date };
+
+    expectTypeOf<Projected<Candidate>>().toEqualTypeOf<{
+      id?: string;
+      roles?: (string | null)[];
+      at?: Date;
+    }>();
+  });
+
+  it('accepts the named options type for equivalent constructions', () => {
+    const options: CaslAuthorizerOptions = { bypass: true };
+
+    expect(new CaslAuthorizer(options).can('read', 'Anything')).toBe(true);
+    expect(new CaslAuthorizer(readDoc, options).can('read', 'Anything')).toBe(
+      true,
+    );
+    expect(new CaslAuthorizer({}).can('read', 'Doc')).toBe(false);
+    expect(new CaslAuthorizer(readDoc, {}).can('read', 'Doc')).toBe(true);
+  });
+});
+
+describe('hasEntityConditions by action', () => {
+  const ability = buildAbilityFromRules([
+    { action: 'read', subject: 'User' },
+    { action: 'update', subject: 'User', conditions: { id: 'u-1' } },
+  ]);
+
+  it('ignores conditional rules for other actions', () => {
+    expect(hasEntityConditions(ability, ['User'], 'read')).toBe(false);
+    expect(hasEntityConditions(ability, ['User'], 'update')).toBe(true);
+    expect(hasEntityConditions(ability, ['User'])).toBe(true);
+  });
+
+  it('treats conditional manage rules as affecting every action', () => {
+    const managed = buildAbilityFromRules([
+      { action: 'manage', subject: 'User', conditions: { id: 'u-1' } },
+    ]);
+
+    expect(hasEntityConditions(managed, ['User'], 'read')).toBe(true);
+  });
+
+  it('matches conditional rules declared for all subjects', () => {
+    const all = buildAbilityFromRules([
+      { action: ['read'], subject: 'all', conditions: { public: true } },
+    ]);
+
+    expect(hasEntityConditions(all, ['User'], 'read')).toBe(true);
+  });
+});
+
+describe('UnauthorizedActionException', () => {
+  it('reports a numeric zero entity id', () => {
+    expect(
+      new UnauthorizedActionException({
+        action: 'read',
+        subject: 'Doc',
+        entityId: 0,
+      }).message,
+    ).toContain('id=0');
   });
 });

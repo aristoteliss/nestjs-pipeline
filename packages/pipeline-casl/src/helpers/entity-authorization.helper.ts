@@ -12,7 +12,7 @@ import type {
   Projected,
   SelectedProjection,
 } from '../types/casl.types';
-import { projectReadableFields } from './read-projection.helper';
+import { projectPermittedFields } from './field-projection.helper';
 
 /**
  * Retrieve the {@link AppAbility} that {@link CaslBehavior} stored for the
@@ -74,15 +74,56 @@ function isBypassContext(value: unknown): value is CaslBypassContext {
   );
 }
 
-/** Structural check for field selection options. */
 function isSelectOptions(value: unknown): value is AuthorizerSelectOptions {
   return (
     typeof value === 'object' &&
     value !== null &&
-    'select' in value &&
-    (Array.isArray((value as AuthorizerSelectOptions).select) ||
-      Array.isArray((value as AuthorizerSelectOptions).select as unknown))
+    Array.isArray((value as AuthorizerSelectOptions).select)
   );
+}
+
+function toSnapshot(value: unknown): unknown {
+  return typeof (value as { toJSON?: unknown } | null)?.toJSON === 'function'
+    ? (value as { toJSON: () => unknown }).toJSON()
+    : value;
+}
+
+/** Copies the requested own properties; prototype members are never selected. */
+function pickSelected(
+  record: unknown,
+  keys: readonly string[],
+): Record<string, unknown> {
+  const selected: Record<string, unknown> = {};
+  if (record === null || typeof record !== 'object') return selected;
+  for (const key of keys) {
+    if (Object.hasOwn(record, key)) {
+      Object.defineProperty(selected, key, {
+        value: (record as Record<string, unknown>)[key],
+        enumerable: true,
+        configurable: true,
+        writable: true,
+      });
+    }
+  }
+  return selected;
+}
+
+const NO_ABILITY = ' (no authorization ability present in context)';
+
+function denied(
+  action: string,
+  subjectType: string,
+  entityId: string | number | undefined,
+  detail: string,
+  fields?: string[],
+): UnauthorizedActionException {
+  return new UnauthorizedActionException({
+    action,
+    subject: subjectType,
+    entityId,
+    ...(fields ? { fields } : {}),
+    reason: `Access denied: insufficient permissions to ${action} ${subjectType}${detail}.`,
+  });
 }
 
 /**
@@ -164,6 +205,9 @@ export class CaslAuthorizer implements IEntityAuthorizer {
    * Evaluates permissions using the injected/ambient request ability and returns
    * the authorized subject or masked snapshot, or throws an
    * {@link UnauthorizedActionException} if access is forbidden.
+   *
+   * The array-valued `fields` argument is a write-side check list. It does not
+   * select or restrict the fields returned by a `read`.
    */
   authorize<T = unknown>(
     action: string,
@@ -171,7 +215,9 @@ export class CaslAuthorizer implements IEntityAuthorizer {
     fields?: string[],
   ): T;
   /**
-   * Evaluates read permissions with an explicit field selection allowlist.
+   * Authorizes a read of the loaded entity, then returns only the requested
+   * properties the ability permits. Selection never grants access; denied
+   * properties are omitted and authorized `null` values are preserved.
    */
   authorize<TEntity extends object, K extends keyof TEntity & string>(
     action: 'read',
@@ -189,8 +235,7 @@ export class CaslAuthorizer implements IEntityAuthorizer {
     fields?: string[],
   ): T;
   /**
-   * Evaluates read permissions with an explicit pre-built ability or explicit bypass
-   * context and an explicit field selection allowlist.
+   * Explicit-ability form of the selecting read.
    */
   authorize<TEntity extends object, K extends keyof TEntity & string>(
     abilityOrBypass: AppAbility | CaslBypassContext,
@@ -199,101 +244,86 @@ export class CaslAuthorizer implements IEntityAuthorizer {
     options: AuthorizerSelectOptions<K>,
   ): SelectedProjection<TEntity, K>;
   authorize<T = unknown>(...args: unknown[]): T {
-    const { ability, explicitBypass, action, subject, fields, options } =
-      this.normalizeAuthorizeArguments(args);
+    const {
+      ability,
+      explicitBypass,
+      args: [action, subject, extra],
+    } = this.splitAbilityArgument(
+      args,
+      'CaslAuthorizer.authorize() expects either (action, subject, fields?) or ' +
+        '(ability | { bypass: true }, action, subject, fields?). The actor-first ' +
+        'form was removed: an actor value cannot be converted into an ability, and ' +
+        'its three-argument shape was indistinguishable from (action, subject, fields).',
+    ) as {
+      ability?: AppAbility;
+      explicitBypass: boolean;
+      args: [string, object | string, unknown];
+    };
 
-    if (this.bypass || explicitBypass) {
-      const raw =
-        typeof (subject as { toJSON?: () => unknown })?.toJSON === 'function'
-          ? (subject as { toJSON: () => unknown }).toJSON()
-          : subject;
-      if (options?.select) {
-        const selected: Record<string, unknown> = {};
-        for (const key of options.select) {
-          if (raw && typeof raw === 'object' && key in raw) {
-            selected[key] = (raw as Record<string, unknown>)[key];
-          }
-        }
-        return selected as T;
+    let fields: string[] | undefined;
+    let select: readonly string[] | undefined;
+    if (Array.isArray(extra)) {
+      fields = extra;
+    } else if (isSelectOptions(extra)) {
+      if (action !== 'read') {
+        throw new TypeError(
+          'CaslAuthorizer.authorize() supports { select } only for the "read" action.',
+        );
       }
-      return raw as T;
+      select = extra.select;
+    } else if (extra !== undefined && extra !== null) {
+      throw new TypeError(
+        'CaslAuthorizer.authorize() expects fields as a string array or { select: string[] }.',
+      );
     }
 
-    if (!ability) {
-      const { subjectType, entityId } = this.resolveSubjectInfo(subject);
-      throw new UnauthorizedActionException({
-        action,
-        subject: subjectType,
-        entityId,
-        reason: `Access denied: insufficient permissions to ${action} ${subjectType} (no authorization ability present in context).`,
-      });
+    if (this.bypass || explicitBypass) {
+      const raw = toSnapshot(subject);
+      return (select ? pickSelected(raw, select) : raw) as T;
     }
 
     const { subjectType, entityRecord, entityId, typedSubject } =
       this.resolveSubjectInfo(subject);
 
+    if (!ability) {
+      throw denied(action, subjectType, entityId, NO_ABILITY);
+    }
+
     if (action === 'read') {
       if (!ability.can('read', typedSubject)) {
-        throw new UnauthorizedActionException({
-          action: 'read',
-          subject: subjectType,
-          entityId,
-          reason: `Access denied: insufficient permissions to read ${subjectType}.`,
-        });
+        throw denied('read', subjectType, entityId, '');
       }
 
       const projected = entityRecord
-        ? (projectReadableFields(ability, typedSubject, entityRecord) as Record<
-            string,
-            unknown
-          >)
-        : ((entityRecord ?? subject) as Record<string, unknown>);
+        ? projectPermittedFields(ability, 'read', typedSubject, entityRecord)
+        : subject;
 
-      if (options?.select) {
-        const selected: Record<string, unknown> = {};
-        for (const key of options.select) {
-          if (projected && typeof projected === 'object' && key in projected) {
-            selected[key] = projected[key];
-          }
-        }
-        return selected as T;
-      }
-
-      return projected as T;
+      return (select ? pickSelected(projected, select) : projected) as T;
     }
 
     if (fields && fields.length > 0) {
       for (const field of fields) {
         const fieldStr = String(field);
         if (!ability.can(action, typedSubject, fieldStr)) {
-          throw new UnauthorizedActionException({
-            action,
-            subject: subjectType,
-            entityId,
-            fields: [fieldStr],
-            reason: `Access denied: insufficient permissions to ${action} ${subjectType} field "${fieldStr}".`,
-          });
+          throw denied(action, subjectType, entityId, ` field "${fieldStr}"`, [
+            fieldStr,
+          ]);
         }
       }
     } else if (!ability.can(action, typedSubject)) {
-      throw new UnauthorizedActionException({
-        action,
-        subject: subjectType,
-        entityId,
-        reason: `Access denied: insufficient permissions to ${action} ${subjectType}.`,
-      });
+      throw denied(action, subjectType, entityId, '');
     }
 
     return (entityRecord ?? subject) as T;
   }
 
   /**
-   * Projects a candidate DTO or composite object against an authoritative loaded entity,
-   * applying CASL readable-field and descendant-path masking rules.
+   * Projects a candidate DTO or composite object against an authoritative loaded entity.
    *
-   * Evaluates permissions and conditions against `subject` while returning the projected
-   * fields of `candidate`. Denied fields are omitted, and denied array elements (e.g. `roles.0`)
-   * are replaced with `null` placeholders. Neither `subject` nor `candidate` is mutated.
+   * Permission and conditions are evaluated against `subject`; the returned
+   * value contains only the `candidate` fields the ability permits for `action`.
+   * Denied fields are omitted and denied array elements (e.g. `roles.0`) become
+   * `null` placeholders. Neither `subject` nor `candidate` is mutated.
    */
   project<TCandidate extends object>(
     action: string,
@@ -309,57 +339,51 @@ export class CaslAuthorizer implements IEntityAuthorizer {
   project<TCandidate extends object>(
     ...args: unknown[]
   ): Projected<TCandidate> {
-    const { ability, explicitBypass, action, subject, candidate } =
-      this.normalizeProjectArguments(args);
+    const {
+      ability,
+      explicitBypass,
+      args: [action, subject, candidate],
+    } = this.splitAbilityArgument(
+      args,
+      'CaslAuthorizer.project() expects either (action, subject, candidate) or ' +
+        '(ability | { bypass: true }, action, subject, candidate).',
+    ) as {
+      ability?: AppAbility;
+      explicitBypass: boolean;
+      args: [string, object | string, unknown];
+    };
 
-    if (this.bypass || explicitBypass) {
-      const raw =
-        typeof (candidate as { toJSON?: () => unknown })?.toJSON === 'function'
-          ? (candidate as { toJSON: () => unknown }).toJSON()
-          : candidate;
-      return (
-        raw && typeof raw === 'object'
-          ? Array.isArray(raw)
-            ? [...raw]
-            : { ...raw }
-          : raw
-      ) as Projected<TCandidate>;
+    if (!candidate || typeof candidate !== 'object') {
+      throw new TypeError(
+        'CaslAuthorizer.project() requires a candidate object to project.',
+      );
     }
 
-    if (!ability) {
-      const { subjectType, entityId } = this.resolveSubjectInfo(subject);
-      throw new UnauthorizedActionException({
-        action,
-        subject: subjectType,
-        entityId,
-        reason: `Access denied: insufficient permissions to ${action} ${subjectType} (no authorization ability present in context).`,
-      });
+    const candidateRecord = toSnapshot(candidate);
+
+    if (this.bypass || explicitBypass) {
+      return (
+        Array.isArray(candidateRecord)
+          ? [...candidateRecord]
+          : { ...(candidateRecord as object) }
+      ) as Projected<TCandidate>;
     }
 
     const { subjectType, entityId, typedSubject } =
       this.resolveSubjectInfo(subject);
 
+    if (!ability) {
+      throw denied(action, subjectType, entityId, NO_ABILITY);
+    }
     if (!ability.can(action, typedSubject)) {
-      throw new UnauthorizedActionException({
-        action,
-        subject: subjectType,
-        entityId,
-        reason: `Access denied: insufficient permissions to ${action} ${subjectType}.`,
-      });
+      throw denied(action, subjectType, entityId, '');
     }
 
-    const candidateRecord =
-      typeof (candidate as { toJSON?: () => unknown })?.toJSON === 'function'
-        ? ((candidate as { toJSON: () => unknown }).toJSON() as Record<
-            string,
-            unknown
-          >)
-        : (candidate as Record<string, unknown>);
-
-    return projectReadableFields(
+    return projectPermittedFields(
       ability,
+      action,
       typedSubject,
-      candidateRecord,
+      candidateRecord as Record<string, unknown>,
     ) as Projected<TCandidate>;
   }
 
@@ -382,7 +406,6 @@ export class CaslAuthorizer implements IEntityAuthorizer {
     subjects: Iterable<object | null | undefined>,
   ): T[];
   filter<T = unknown>(...args: unknown[]): T[] {
-    // Explicit-ability calls are distinguished by a non-string first argument.
     const explicitFirst = typeof args[0] !== 'string';
 
     if (explicitFirst && !isAppAbility(args[0]) && !isBypassContext(args[0])) {
@@ -400,20 +423,15 @@ export class CaslAuthorizer implements IEntityAuthorizer {
       object | null | undefined
     >;
 
-    if (!subjects) return [];
-
     const results: T[] = [];
     for (const item of subjects) {
       if (!item) continue;
       try {
-        if (abilityOrBypass === undefined && !this.can(action, item)) {
-          continue;
-        }
-        const authorized =
+        results.push(
           abilityOrBypass !== undefined
             ? this.authorize<T>(abilityOrBypass, action, item)
-            : this.authorize<T>(action, item);
-        results.push(authorized);
+            : this.authorize<T>(action, item),
+        );
       } catch (err) {
         if (!(err instanceof UnauthorizedActionException)) {
           throw err;
@@ -439,136 +457,31 @@ export class CaslAuthorizer implements IEntityAuthorizer {
   }
 
   /**
-   * Normalizes the ambient-ability and explicit-ability call shapes.
+   * Separates the leading ability/bypass argument from the call arguments.
    *
-   * Unsupported argument shapes are rejected rather than inferred because an
-   * ambiguous authorization call must never be converted into a different
-   * permission check.
+   * Unsupported shapes are rejected rather than inferred because an ambiguous
+   * authorization call must never be converted into a different permission check.
    */
-  private normalizeAuthorizeArguments(args: unknown[]): {
-    ability?: AppAbility;
-    explicitBypass: boolean;
-    action: string;
-    subject: object | string;
-    fields?: string[];
-    options?: AuthorizerSelectOptions;
-  } {
-    const [first] = args;
+  private splitAbilityArgument(
+    args: unknown[],
+    unsupportedMessage: string,
+  ): { ability?: AppAbility; explicitBypass: boolean; args: unknown[] } {
+    const [first, ...rest] = args;
 
     if (typeof first === 'string') {
-      const action = first;
-      const subject = args[1] as object | string;
-      const third = args[2];
-      const isOpts = isSelectOptions(third);
       return {
         ability: this.ability ?? getCaslAbility(),
         explicitBypass: false,
-        action,
-        subject,
-        fields: isOpts ? undefined : (third as string[] | undefined),
-        options: isOpts ? third : undefined,
+        args,
       };
     }
-
-    const [, act, subj, third] = args;
-    const action = act as string;
-    const subject = subj as object | string;
-    const isOpts = isSelectOptions(third);
-    const fields = isOpts ? undefined : (third as string[] | undefined);
-    const options = isOpts ? third : undefined;
-
     if (isAppAbility(first)) {
-      return {
-        ability: first,
-        explicitBypass: false,
-        action,
-        subject,
-        fields,
-        options,
-      };
+      return { ability: first, explicitBypass: false, args: rest };
     }
-
     if (isBypassContext(first)) {
-      return {
-        explicitBypass: true,
-        action,
-        subject,
-        fields,
-        options,
-      };
+      return { explicitBypass: true, args: rest };
     }
-
-    throw new TypeError(
-      'CaslAuthorizer.authorize() expects either (action, subject, fields?) or ' +
-        '(ability | { bypass: true }, action, subject, fields?). The actor-first ' +
-        'form was removed: an actor value cannot be converted into an ability, and ' +
-        'its three-argument shape was indistinguishable from (action, subject, fields).',
-    );
-  }
-
-  private normalizeProjectArguments(args: unknown[]): {
-    ability?: AppAbility;
-    explicitBypass: boolean;
-    action: string;
-    subject: object | string;
-    candidate: object;
-  } {
-    const [first] = args;
-
-    if (typeof first === 'string') {
-      const [action, subject, candidate] = args as [
-        string,
-        object | string,
-        object,
-      ];
-      if (!candidate || typeof candidate !== 'object') {
-        throw new TypeError(
-          'CaslAuthorizer.project() requires a candidate object to project.',
-        );
-      }
-      return {
-        ability: this.ability ?? getCaslAbility(),
-        explicitBypass: false,
-        action,
-        subject,
-        candidate,
-      };
-    }
-
-    const [, act, subj, cand] = args;
-    const action = act as string;
-    const subject = subj as object | string;
-    const candidate = cand as object;
-
-    if (!candidate || typeof candidate !== 'object') {
-      throw new TypeError(
-        'CaslAuthorizer.project() requires a candidate object to project.',
-      );
-    }
-
-    if (isAppAbility(first)) {
-      return {
-        ability: first,
-        explicitBypass: false,
-        action,
-        subject,
-        candidate,
-      };
-    }
-
-    if (isBypassContext(first)) {
-      return {
-        explicitBypass: true,
-        action,
-        subject,
-        candidate,
-      };
-    }
-
-    throw new TypeError(
-      'CaslAuthorizer.project() expects either (action, subject, candidate) or ' +
-        '(ability | { bypass: true }, action, subject, candidate).',
-    );
+    throw new TypeError(unsupportedMessage);
   }
 
   private resolveSubjectInfo(subject: object | string): {
@@ -589,13 +502,7 @@ export class CaslAuthorizer implements IEntityAuthorizer {
         ? subject.constructor.name
         : 'Object';
 
-    const entityRecord: Record<string, unknown> =
-      typeof (subject as { toJSON?: () => unknown }).toJSON === 'function'
-        ? ((subject as { toJSON: () => unknown }).toJSON() as Record<
-            string,
-            unknown
-          >)
-        : (subject as Record<string, unknown>);
+    const entityRecord = toSnapshot(subject) as Record<string, unknown>;
 
     const entityId =
       (subject as { id?: string | number }).id ??
@@ -617,36 +524,40 @@ export class CaslAuthorizer implements IEntityAuthorizer {
 /**
  * Checks whether an ability contains conditional rules for any of the given subjects.
  *
- * Used by cache policies to determine whether entity-level attributes can alter
- * authorization decisions, requiring cache bypass.
+ * Cache policies use this to detect that entity attributes can alter an
+ * authorization decision, which requires bypassing a response cache. Pass
+ * `action` to ignore rules that cannot affect that action; rules for `manage`
+ * always count. A subject list containing `'all'` matches every rule.
  */
 export function hasEntityConditions(
   ability: AppAbility,
   subjects: readonly string[],
+  action?: string,
 ): boolean {
-  const subjectSet = new Set(subjects);
-  for (const rule of ability.rules) {
-    const ruleSubjects = Array.isArray(rule.subject)
-      ? rule.subject
-      : [rule.subject];
-    const matchesSubject = ruleSubjects.some(
+  const wanted = new Set(subjects);
+  const asList = (value: unknown): unknown[] =>
+    Array.isArray(value) ? value : [value];
+
+  return ability.rules.some((rule) => {
+    const conditions: unknown = rule.conditions;
+    const conditional =
+      typeof conditions === 'function' ||
+      (typeof conditions === 'object' &&
+        conditions !== null &&
+        Object.keys(conditions).length > 0);
+    if (!conditional) return false;
+
+    if (
+      action !== undefined &&
+      !asList(rule.action).some((a) => a === action || a === 'manage')
+    ) {
+      return false;
+    }
+
+    return asList(rule.subject).some(
       (s) =>
         typeof s === 'string' &&
-        (subjectSet.has(s) || subjectSet.has('all') || s === 'all'),
+        (s === 'all' || wanted.has('all') || wanted.has(s)),
     );
-    if (!matchesSubject) continue;
-
-    if (rule.conditions) {
-      if (typeof rule.conditions === 'function') {
-        return true;
-      }
-      if (
-        typeof rule.conditions === 'object' &&
-        Object.keys(rule.conditions).length > 0
-      ) {
-        return true;
-      }
-    }
-  }
-  return false;
+  });
 }
