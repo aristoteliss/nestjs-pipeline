@@ -9,7 +9,10 @@ import {
   PIPELINE_SKIPPED_BEHAVIORS_METADATA,
   type PipelineBehaviorEntry,
 } from '../decorators/pipeline.decorator';
-import { behaviorEntryType } from '../helpers/behavior-entries';
+import {
+  type BehaviorEntryAccumulators,
+  normalizeBehaviorEntries,
+} from '../helpers/behavior-entries';
 import type { IPipelineBehavior } from '../interfaces/pipeline.behavior.interface';
 import type { PipelineModuleOptions } from '../options/pipeline-module.options';
 
@@ -139,39 +142,24 @@ function resolveGlobalBehaviors(
   const configs = Array.isArray(raw) ? raw : [raw];
   if (configs.length === 0) return empty;
 
-  const globalOptions = new Map<BehaviorId, Record<string, unknown>>();
   const beforeTypes: Type<IPipelineBehavior>[] = [];
   const afterTypes: Type<IPipelineBehavior>[] = [];
 
-  // Deduplicate across all matching configs and both chain positions. The
-  // first occurrence determines placement; later tuples may still override
-  // its options without causing the behavior to run more than once.
-  const globalIds = new Set<BehaviorId>();
-
-  const parseEntries = (
-    entries: PipelineBehaviorEntry[],
-    seenIds: Set<BehaviorId>,
-  ): Type<IPipelineBehavior>[] => {
-    const types: Type<IPipelineBehavior>[] = [];
-    for (const entry of entries) {
-      const type = behaviorEntryType(
-        entry,
-        `globalBehaviors for ${requestKind}`,
-      );
-      const id = getBehaviorId(type);
-      if (Array.isArray(entry)) {
-        // Later matching configuration supplies the effective options.
-        globalOptions.set(id, entry[1] as Record<string, unknown>);
-      }
-      // A bare duplicate only ensures inclusion. It must not erase options
-      // supplied by a tuple in another matching global configuration.
-      if (!seenIds.has(id)) {
-        seenIds.add(id);
-        types.push(type);
-      }
-    }
-    return types;
+  // One accumulator pair across every matching config and both chain positions,
+  // so the first occurrence fixes placement while a later tuple can still
+  // supply options without the behavior running more than once.
+  const accumulators: BehaviorEntryAccumulators = {
+    seen: new Set<BehaviorId>(),
+    options: new Map<BehaviorId, Record<string, unknown>>(),
   };
+
+  const parseEntries = (entries: PipelineBehaviorEntry[]) =>
+    normalizeBehaviorEntries(
+      entries,
+      `globalBehaviors for ${requestKind}`,
+      true,
+      accumulators,
+    ).types;
 
   for (const config of configs) {
     const scope = config.scope ?? 'all';
@@ -181,9 +169,9 @@ function resolveGlobalBehaviors(
     if (scope === 'queries' && requestKind !== 'query') continue;
     if (scope === 'events' && requestKind !== 'event') continue;
 
-    beforeTypes.push(...parseEntries(config.before ?? [], globalIds));
-    afterTypes.push(...parseEntries(config.after ?? [], globalIds));
+    beforeTypes.push(...parseEntries(config.before ?? []));
+    afterTypes.push(...parseEntries(config.after ?? []));
   }
 
-  return { beforeTypes, afterTypes, globalOptions };
+  return { beforeTypes, afterTypes, globalOptions: accumulators.options };
 }

@@ -123,6 +123,9 @@ export function validateBehaviorContracts(params: {
               : b === target || getBehaviorId(b) === getBehaviorId(target),
           );
 
+          // Relative position only: an absent target has no position to
+          // violate. A behavior that needs a peer to exist checks
+          // effectiveBehaviorTypes in its own validate().
           if (targetIdx === -1) continue;
 
           const isViolation =

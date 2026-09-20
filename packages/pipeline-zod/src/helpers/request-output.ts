@@ -24,7 +24,7 @@ export function assertPlainRequestOutput(
 ): asserts value is Record<string, unknown> {
   if (isPlainRequestOutput(value)) return;
   throw new TypeError(
-    `${source === 'constructor' ? 'createZodRequest' : 'ZodValidationBehavior'} requires the top-level parsed output to be a plain object so it can be applied to the existing pipeline request instance.`,
+    `${source === 'behavior' ? 'ZodValidationBehavior' : `createZodRequest.${source}`} requires the top-level parsed output to be a plain object so it can be applied to the existing pipeline request instance.`,
   );
 }
 

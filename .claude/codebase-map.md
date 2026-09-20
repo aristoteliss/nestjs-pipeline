@@ -50,7 +50,7 @@ what the libraries support.
 ## Technology Stack
 
 <!-- context:generated-start technology-stack -->
-- **Languages** (file counts, excluded directories omitted): `.ts` 605, `.md` 49, `.grit` 11, `.py` 3, `.mjs` 1, `.sql` 1
+- **Languages** (file counts, excluded directories omitted): `.ts` 606, `.md` 52, `.grit` 11, `.py` 3, `.mjs` 1, `.sql` 1
 - **Runtime engines** (root `package.json`): `node` >=22.0.0, `pnpm` >=9.0.0
 - **Package manager evidence**: `pnpm-lock.yaml`.
 
@@ -572,13 +572,13 @@ secret value.*
 ## Snapshot Metadata
 
 <!-- context:generated-start metadata -->
-- Generated at: 2026-09-20T12:09:43Z
-- Git commit: 2acb8a32405d21da8ed055adfcd18eecb69548ad
-- Git branch: fix/pipeline-bootstrap-review
+- Generated at: 2026-09-20T13:22:19Z
+- Git commit: dc6b1499133e3d312220139a0f779a9064b09536
+- Git branch: review/remaining-findings
 - Uncommitted changes when generated: yes
 - Generator: `scripts/update-claude-snapshot.py` version 1.0.0
 - Snapshot status: generated — structural inspection only, no code executed
-- Files inspected: 727
+- Files inspected: 731
 - Included top-level directories: `.agents`, `.claude`, `biome`, `ddd`, `docs`, `integration`, `packages`, `scripts`
 - Excluded directory names: `.cache`, `.git`, `.gradle`, `.idea`, `.mypy_cache`, `.next`, `.nuxt`, `.parcel-cache`, `.pnpm-store`, `.pytest_cache`, `.ruff_cache`, `.svelte-kit`, `.terraform`, `.tmp`, `.tox`, `.turbo`, `.venv`, `.vscode`, `__pycache__`, `bower_components`, `build`, `coverage`, `dist`, `node_modules`, `out`, `target`, `vendor`, `venv`, `virtualenv`
 - Excluded file patterns: `.env`, `.env.*`, `*.env`, `*.pem`, `*.key`, `*.pfx`, `*.p12`, `*.jks`, `*.keystore`, `id_rsa*`, `id_ed25519*`, `*credentials*`, `*.secret`, `secrets.*`

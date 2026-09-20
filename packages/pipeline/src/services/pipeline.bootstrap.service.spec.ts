@@ -589,6 +589,31 @@ describe('PipelineBootstrapService', () => {
       expect(result.store?.items.get('configured')).toEqual({ source: 'all' });
     });
 
+    it('runs a behavior declared in both global before and after once, at its before position', async () => {
+      ConfiguredMockBehavior.callCount = 0;
+      const handler = new NoPipelineCommandHandler();
+      explorerServiceMock.explore.mockReturnValue({
+        commands: [makeWrapper(handler, NoPipelineCommandHandler)],
+        queries: [],
+        events: [],
+      });
+
+      bootstrap({
+        globalBehaviors: {
+          scope: 'all',
+          before: [[ConfiguredMockBehavior, { source: 'before' }]],
+          after: [ConfiguredMockBehavior],
+        },
+      });
+
+      const result = await handler.execute(new MockCommand(1));
+
+      expect(ConfiguredMockBehavior.callCount).toBe(1);
+      expect(result.store?.items.get('configured')).toEqual({
+        source: 'before',
+      });
+    });
+
     it('skips array entries whose scope does not match the handler kind', async () => {
       const handler = new NoPipelineCommandHandler();
       explorerServiceMock.explore.mockReturnValue({

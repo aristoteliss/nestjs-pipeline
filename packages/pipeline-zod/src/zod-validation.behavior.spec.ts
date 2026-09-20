@@ -269,7 +269,7 @@ describe('ZodValidationBehavior', () => {
     });
   });
 
-  describe('createZodRequest transforms and mutation tracking (Item 12)', () => {
+  describe('createZodRequest transforms and mutation tracking', () => {
     it('handles string -> number transform without re-parse error in the pipeline', async () => {
       const transformSchema = z.object({
         amount: z.string().transform((val) => Number(val)),
