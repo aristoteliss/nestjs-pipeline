@@ -230,7 +230,7 @@ Persistence schemas map domain aggregate state to relational tables without comp
     },
   });
   ```
-- **Accessors vs. Domain Mutation**: Property setters exist strictly as accessors for MikroORM persistence mapping and rehydration. Application code **must not** modify domain state by invoking setters directly, because setters bypass the `@Mutate()` lifecycle decorator and do not publish domain events. Domain state mutations must always occur via explicit domain methods (`user.update()`, `role.rename()`) and factories (`User.create()`, `Role.create()`). During ORM hydration, property setters invoke static normalization routines to ensure invalid state cannot be loaded into memory.
+- **Accessors vs. Domain Mutation**: Property setters exist strictly as accessors for MikroORM persistence mapping and rehydration. Application code **must not** modify domain state by invoking setters directly, because setters bypass the `@ApplyMutation()` lifecycle decorator and do not publish domain events. Domain state mutations must always occur via explicit domain methods (`user.update()`, `role.rename()`) and factories (`User.create()`, `Role.create()`). During ORM hydration, property setters invoke static normalization routines to ensure invalid state cannot be loaded into memory.
 
 ---
 
@@ -315,7 +315,7 @@ The application enforces a consistent error taxonomy across all 8 commands and 7
 
 #### Optimistic Locking & Versioning
 
-Domain aggregates (`User`, `Role`) inherit automatic version tracking from `RootEntity`. Each entity initializes `version: 1` on creation, and every state mutation decorated with `@Mutate()` automatically increments `version`.
+Domain aggregates (`User`, `Role`) inherit automatic version tracking from `RootEntity`. Each entity initializes `version: 1` on creation, and every state mutation decorated with `@ApplyMutation()` automatically increments `version`.
 - Write repositories (`UpdateUserCommandRepository`, `UpdateRoleCommandRepository`) execute atomic conditional updates:
   ```typescript
   await this.store.em.nativeUpdate(

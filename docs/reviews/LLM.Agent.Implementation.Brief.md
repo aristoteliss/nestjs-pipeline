@@ -30,7 +30,8 @@ Read `AGENTS.md` and the architecture skill before editing. Implement one findin
 | ~~D-02~~ | Resolved: `AggregateRoot` with NestJS 12 semantics is owned in `ddd/core/domain`; the domain entry point loads no `@nestjs/*` and no `@mikro-orm/*`, enforced by `domain-entry-point.spec.ts`. **Do not treat D-02 as an open decision.** |
 | ~~D-03~~ | Resolved: direct `accessor: true` mapping retained, hydration setters annotated `@internal`/`@deprecated`, `biome/plugins/aggregate-identity.grit` rejecting dot and literal-bracket writes, compound assignments and updates on receivers named `user`, `role`, `aggregate`, `entity` in application layers. The guard is syntax- and naming-based only; domain-method mutation stays mandatory outside its coverage. |
 | ~~F-06~~ | Replaced raw tuples with `audit({...})` intent builder, renamed `metadataFactory` to `metadata`, registered trusted session actor factory as `AuditModule.forRoot` defaults (`AUDIT_MODULE_DEFAULTS`), added compile-time tests rejecting unknown options, and verified emitted records in `deletion-audit-records.spec.ts`. |
-| ~~F-05~~ | Coordinated mutation lifecycle and domain events via `@Mutable` backing fields and `@ApplyMutation<TEntity>({ event })` method decorator. Methods validate and return patches; `@ApplyMutation` applies patches, runs `onUpdate()` (advancing version & `updatedAt`), and constructs domain events from the post-mutation snapshot. Biome Grit plugin `domain-mutation.grit` enforces conventions. Verified in `ApplyMutation.spec.ts`, `user.entity.spec.ts`, and `role.entity.spec.ts`. |
+| ~~F-07~~ | Hand-written deep equality over Sets fixed in `packages/pipeline-zod/src/helpers/zod-data.helpers.ts` via one-to-one consumption matching in `equalData`, guaranteeing symmetry, order independence, cycle safety, and correct multiplicity handling. Verified by regressions in `zod-data.helpers.spec.ts` and `zod-validation.regressions.spec.ts` (commit `dc6b1499`). |
+| ~~F-05~~ | Coordinated mutation lifecycle and domain events via `@Mutable` backing fields and `@ApplyMutation<TEntity>({ event })` method decorator. Methods validate and return patches; `@ApplyMutation` applies patches, runs `onUpdate()` (advancing version & `updatedAt`), and constructs domain events from post-mutation snapshot. Public aggregate methods retain fluent `return this` wrapping protected patch methods. Pre-application checks abort before state change; unexpected post-application failures propagate without automated rollback. Biome Grit plugin `domain-mutation.grit` enforces conventions and rejects legacy `@Mutate`. Verified in `ApplyMutation.spec.ts`, `user.entity.spec.ts`, and `role.entity.spec.ts`. |
 
 ---
 
@@ -54,7 +55,7 @@ Implement in this order. Each item must ship with a regression that fails before
 
 ## 2.2 F-07 — Deep equality returns the wrong answer for Sets
 
-**Status: OPEN. Reproduced.** `deepEqual(Set([{n:1},{n:1}]), Set([{n:1},{n:2}]))` is `true`; the reverse is `false`.
+**Status: CLOSED. Done.** Applied one-to-one consumption matching for Sets and Maps in `equalData` (`packages/pipeline-zod/src/helpers/zod-data.helpers.ts`), ensuring symmetry, order independence, cycle safety, and correct multiplicity handling. Verified by regressions covering unequal multiplicities, nested collections, symmetry, and behavior-level revalidation upon mutation in `zod-data.helpers.spec.ts` and `zod-validation.regressions.spec.ts` (commit `dc6b1499`).
 
 `packages/pipeline-zod/src/helpers/zod-data.helpers.ts:133-146` iterates the right-hand Set without consuming the matched element, so two left entries can both match one right entry. Equality decides whether a mutated command is revalidated.
 
@@ -68,7 +69,7 @@ Implement in this order. Each item must ship with a regression that fails before
 
 ## 2.3 F-05 — Mutation events carry the previous version and timestamp
 
-**Status: CLOSED. Done.** Coordinated mutation lifecycle and domain events via `@Mutable` backing fields and `@ApplyMutation<TEntity>({ event })` method decorator. Aggregate version 2 produces a mutation-event payload at version 2, rejected mutations emit nothing and do not increment version, and optimistic writes preserve baseline expected version. Enforced by Biome Grit plugin `domain-mutation.grit`.
+**Status: CLOSED. Done.** Coordinated mutation lifecycle and domain events via `@Mutable` backing fields and `@ApplyMutation<TEntity>({ event })` method decorator. Aggregate version 2 produces a mutation-event payload at version 2, rejected mutations emit nothing and do not increment version, and optimistic writes preserve baseline expected version. Pre-application checks (patch validation, field normalizers, callable lifecycle methods) abort before state changes; unexpected post-application failures propagate without automated rollback; public aggregate methods retain fluent `return this` signatures delegating to protected patch methods; Biome Grit plugin `domain-mutation.grit` enforces conventions and rejects legacy `@Mutate`. Legacy `@Mutate` decorator removed as an accepted breaking change.
 
 `@Mutate` (`ddd/core/domain/decorators/Mutate.ts:31-52`) invokes the method and only then calls `onUpdate()`, which increments `_version` and refreshes `_updatedAt` (`root.entity.ts:301-311`). The method has already constructed the event, and `RootDomainEvent`'s constructor snapshots `entity.version` and `entity.toJSON()` at that moment (`root-domain.event.ts:174-196`).
 

@@ -39,7 +39,7 @@ This package provides the foundational building blocks for implementing a Clean 
 - **`deepCloneAndFreeze<T>()`** — Deeply clones and recursively freezes any value (objects, arrays, `Date` with mutation guards, `Map`, `Set`, `RegExp`), safely handling circular references via a `WeakMap`.
 - **`CommandBaseHandler<TCommand, TResult>`** — Abstract base handler for CQRS commands. Calls `handle()`, then publishes and clears buffered domain events from a returned `AggregateRoot` or result containing `aggregate: AggregateRoot`. Pipeline behaviors are applied by the pipeline integration; event publication is owned by `execute()`.
 - **`@Mutable(options?)`** — Property decorator declaring an aggregate field as mutable via patch mutations, with optional backing property name and value normalizer.
-- **`@ApplyMutation<TEntity>(options)`** — Method decorator coordinating aggregate state mutation and domain event application: receives a `MutationPatch`, updates `@Mutable` fields, invokes `onUpdate()` (advancing `version` and `updatedAt`), and constructs domain events (`options.event(entity)`) from the post-mutation snapshot.
+- **`@ApplyMutation<TEntity>(options)`** — Method decorator coordinating aggregate state mutation and domain event application: receives a `MutationPatch`, updates `@Mutable` fields, invokes `onUpdate()` (advancing `version` and `updatedAt`), and constructs domain events (`options.event(entity)`) from the post-mutation snapshot. Pre-application checks (key validation, normalizers, callable lifecycle methods) fail safely before state modification; unexpected post-application failures propagate without automated rollback. The legacy `@Mutate()` decorator is completely removed in favor of `@ApplyMutation` to guarantee deterministic event ordering and payload consistency.
 - **`UnixTimestampType`** — Custom MikroORM `Type<Date, number>` mapping JavaScript `Date` instances to Unix timestamps (ms) in 64-bit `bigint` SQL database columns (`platform.getBigIntTypeDeclarationSQL()`) to eliminate integer overflow.
 - **`Method`** — Utility type for extracting method signatures.
 
@@ -175,8 +175,13 @@ export class User extends RootEntity<UserSnapshot> {
   }
 
   @ApplyMutation<User>({ event: (user) => new UserRenamedEvent(user) })
-  rename(newUsername: string): MutationPatch<User> {
+  protected applyRename(newUsername: string): MutationPatch<User> {
     return { username: newUsername };
+  }
+
+  rename(newUsername: string): this {
+    this.applyRename(newUsername);
+    return this;
   }
 
   afterUpdate(): void {

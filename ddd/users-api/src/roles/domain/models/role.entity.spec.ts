@@ -36,23 +36,28 @@ describe('Role domain entity', () => {
 
   describe('rename', () => {
     it('renames role, updates updatedAt, and records RoleUpdatedEvent', () => {
-      const role = Role.create('Editor');
-      const initialUpdatedAt = role.updatedAt;
+      const past = new Date(Date.now() - 60000);
+      const role = Role.fromJSON({
+        id: uuidv7(),
+        name: 'Editor',
+        createdAt: past,
+        updatedAt: past,
+        version: 1,
+      });
 
-      role.rename('Publisher');
+      const result = role.rename('Publisher');
 
+      expect(result).toBe(role);
       expect(role.name).toBe('Publisher');
-      expect(role.updatedAt.getTime()).toBeGreaterThanOrEqual(
-        initialUpdatedAt.getTime(),
-      );
+      expect(role.getExpectedVersion()).toBe(1);
+      expect(role.version).toBe(2);
+      expect(role.updatedAt.getTime()).toBeGreaterThan(past.getTime());
 
       const events = role.getUncommittedEvents();
-      expect(events).toHaveLength(2);
-      expect(events[0]).toBeInstanceOf(RoleCreatedEvent);
-      expect(events[1]).toBeInstanceOf(RoleUpdatedEvent);
-      const updateEvent = events[1] as RoleUpdatedEvent;
+      expect(events).toHaveLength(1);
+      expect(events[0]).toBeInstanceOf(RoleUpdatedEvent);
+      const updateEvent = events[0] as RoleUpdatedEvent;
       expect(updateEvent.aggregateId).toBe(role.id);
-      expect(role.version).toBe(2);
       expect(updateEvent.aggregateVersion).toBe(2);
       expect(updateEvent.payload.version).toBe(2);
       expect(updateEvent.payload.updatedAt).toEqual(role.updatedAt);
@@ -69,21 +74,30 @@ describe('Role domain entity', () => {
 
   describe('delete', () => {
     it('records RoleDeletedEvent and updates updatedAt', () => {
-      const role = Role.create('Viewer');
-      const initialUpdatedAt = role.updatedAt;
+      const past = new Date(Date.now() - 60000);
+      const role = Role.fromJSON({
+        id: uuidv7(),
+        name: 'Viewer',
+        createdAt: past,
+        updatedAt: past,
+        version: 1,
+      });
 
-      role.delete();
+      const result = role.delete();
 
-      expect(role.updatedAt.getTime()).toBeGreaterThanOrEqual(
-        initialUpdatedAt.getTime(),
-      );
+      expect(result).toBe(role);
+      expect(role.getExpectedVersion()).toBe(1);
       expect(role.version).toBe(2);
+      expect(role.updatedAt.getTime()).toBeGreaterThan(past.getTime());
+
       const events = role.getUncommittedEvents();
-      expect(events).toHaveLength(2);
-      expect(events[1]).toBeInstanceOf(RoleDeletedEvent);
-      const deleteEvent = events[1] as RoleDeletedEvent;
+      expect(events).toHaveLength(1);
+      expect(events[0]).toBeInstanceOf(RoleDeletedEvent);
+      const deleteEvent = events[0] as RoleDeletedEvent;
       expect(deleteEvent.aggregateId).toBe(role.id);
       expect(deleteEvent.aggregateVersion).toBe(2);
+      expect(deleteEvent.payload.version).toBe(2);
+      expect(deleteEvent.payload.updatedAt).toEqual(role.updatedAt);
     });
   });
 

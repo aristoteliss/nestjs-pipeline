@@ -19,7 +19,7 @@ import { AggregateRoot } from './aggregate-root';
  *   incremented automatically on mutations to prevent concurrent lost updates.
  * - **Polymorphic Rehydration**: Static `RootEntity.from()` transparently handles instances, plain snapshots,
  *   or nullish database results while enforcing strict aggregate type safety (throws `TypeError` on incompatible aggregates).
- * - **Mutation Tracking**: Automatically updates `updatedAt`, increments `_version` on `@Mutate()`-decorated methods,
+ * - **Mutation Tracking**: Automatically updates `updatedAt`, increments `_version` on `@ApplyMutation()`-decorated methods,
  *   and triggers the `afterUpdate()` lifecycle hook.
  *
  * @example Defining a domain aggregate
@@ -31,6 +31,7 @@ import { AggregateRoot } from './aggregate-root';
  * }
  *
  * export class User extends RootEntity<UserSnapshot> {
+ *   @Mutable<string>()
  *   private _username: string;
  *   readonly email: string;
  *
@@ -50,10 +51,13 @@ import { AggregateRoot } from './aggregate-root';
  *     return new User(snapshot);
  *   }
  *
- *   @Mutate()
+ *   @ApplyMutation<User>({ event: (user) => new UserRenamedEvent(user) })
+ *   protected applyRename(newUsername: string): MutationPatch<User> {
+ *     return { username: newUsername };
+ *   }
+ *
  *   rename(newUsername: string): this {
- *     this._username = newUsername;
- *     this.apply(new UserRenamedEvent(this));
+ *     this.applyRename(newUsername);
  *     return this;
  *   }
  *

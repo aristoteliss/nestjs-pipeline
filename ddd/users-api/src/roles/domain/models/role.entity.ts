@@ -93,12 +93,22 @@ export class Role extends RootEntity<RoleSnapshot> {
   }
 
   @ApplyMutation<Role>({ event: (role) => new RoleUpdatedEvent(role) })
-  rename(name: string): MutationPatch<Role> {
+  protected applyRename(name: string): MutationPatch<Role> {
     return { name };
   }
 
+  rename(name: string): this {
+    this.applyRename(name);
+    return this;
+  }
+
   @ApplyMutation<Role>({ event: (role) => new RoleDeletedEvent(role) })
-  delete(): MutationPatch<Role> {}
+  protected applyDelete(): MutationPatch<Role> {}
+
+  delete(): this {
+    this.applyDelete();
+    return this;
+  }
 
   toJSON(): RootEntitySnapshot & RoleSnapshot {
     return this.freezeState({
