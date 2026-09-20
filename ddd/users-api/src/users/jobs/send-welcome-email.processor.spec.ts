@@ -48,4 +48,28 @@ describe('SendWelcomeEmailProcessor', () => {
       logs.some((l) => l.includes('Welcome email sent to alice@example.test')),
     ).toBe(true);
   });
+
+  it('closes worker gracefully on module destroy', async () => {
+    const tenantContext = {
+      run: vi.fn(),
+      schema: 'tenant_alpha',
+    } as unknown as TenantSchemaContext;
+    const processor = new SendWelcomeEmailProcessor(tenantContext);
+    const mockWorker = { close: vi.fn().mockResolvedValue(undefined) };
+    Object.defineProperty(processor, 'worker', { value: mockWorker });
+
+    await processor.onModuleDestroy();
+
+    expect(mockWorker.close).toHaveBeenCalledWith();
+  });
+
+  it('handles onModuleDestroy safely when worker is not initialized', async () => {
+    const tenantContext = {
+      run: vi.fn(),
+      schema: 'tenant_alpha',
+    } as unknown as TenantSchemaContext;
+    const processor = new SendWelcomeEmailProcessor(tenantContext);
+
+    await expect(processor.onModuleDestroy()).resolves.toBeUndefined();
+  });
 });
