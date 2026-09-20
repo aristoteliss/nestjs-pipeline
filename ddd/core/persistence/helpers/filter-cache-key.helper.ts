@@ -1,5 +1,6 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
+import { createHash } from 'node:crypto';
 import {
   type IPipelineContext,
   pipelineStore,
@@ -18,23 +19,36 @@ export type CacheResourceSpecifier =
   | { aggregateName?: string; prefixKey?: string };
 
 /**
- * Serializes one filter value into the cache-key segment format.
- *
- * Nested JSON values delegate to the core {@link stableStringify} implementation,
- * so deterministic recursive ordering has one canonical implementation across
- * pipeline cache, idempotency and DDD repository cache keys.
- *
- * Primitive values keep delimiter escaping local to this key format because `:`
- * and `\\` are structural characters in repository cache keys.
+ * Normalizes filter conditions for canonical tuple construction:
+ * - Omits undefined properties.
+ * - Retains null values.
+ * - Preserves scalar and structured types.
+ * - Rejects non-serializable types (functions, symbols, BigInt).
  */
-function canonicalizeValue(val: unknown): string {
-  if (val === null || val === undefined) {
-    return '';
+function normalizeFilterConditions(
+  conditions: Record<string, unknown>,
+): Record<string, unknown> {
+  const sortedKeys = Object.keys(conditions).sort();
+  const normalized: Record<string, unknown> = {};
+
+  for (const key of sortedKeys) {
+    const val = conditions[key];
+    if (val === undefined) {
+      continue;
+    }
+    if (
+      typeof val === 'function' ||
+      typeof val === 'symbol' ||
+      typeof val === 'bigint'
+    ) {
+      throw new TypeError(
+        `filterCacheKey does not support values of type ${typeof val}.`,
+      );
+    }
+    normalized[key] = val;
   }
-  if (typeof val === 'object') {
-    return stableStringify(val);
-  }
-  return String(val).replace(/([\\:])/g, '\\$1');
+
+  return normalized;
 }
 
 /**
@@ -62,41 +76,22 @@ function resolveTenantSchema(
 }
 
 /**
- * Derives a deterministic, collision-safe cache key from a resource name (or entity type) and
- * a set of filter conditions, namespaced by the active tenant schema.
+ * Derives a deterministic, collision-safe cache key from a canonical structured
+ * tuple `[tenant, resource, normalizedFilter]`, versioned and hashed with SHA-256.
  *
- * Domain aggregates remain pure DDD — they declare only a canonical logical `aggregateName`
- * (e.g., `User.aggregateName = 'user'`) without knowledge of caching or infrastructure.
- *
- * Features:
- * - **Canonical sorting**: top-level filter keys are sorted alphabetically.
- * - **Delimiter escaping**: primitive values containing `:` or `\\` are escaped.
- * - **Deterministic object serialization**: nested JSON values use core `stableStringify`.
- * - **Fail-safe resource prefixes**: fragile constructor names are rejected.
- *
- * @example Single property lookup with entity class
- * ```typescript
- * filterCacheKey(User, { id: '123' }, ctx)
- * // → "tenant:user:id:123"
- * ```
- *
- * @example Composite filter with escaped delimiters
- * ```typescript
- * filterCacheKey('user', { a: 'hello:b:world' }, 'tenant')
- * // → "tenant:user:a:hello\:b\:world"
- * ```
+ * Guarantees:
+ * - **Deterministic ordering**: object keys are sorted recursively.
+ * - **Type preservation**: numbers, booleans, strings, and nulls produce distinct representations.
+ * - **Null retention**: explicit `null` conditions are preserved, distinct from omitted/undefined keys.
+ * - **Fail-safe boundaries**: non-serializable types and cyclic structures are rejected.
+ * - **Versioned namespace**: keys are namespaced as `${tenant}:${resource}:v1:${hash}`.
  *
  * @param resourceOrEntity - Logical resource name or object exposing `aggregateName`/`prefixKey`.
  * @param conditions - Filter values that identify the cached record/query.
  * @param tenantOrContext - Explicit tenant id or pipeline context; ambient pipeline context is used when omitted.
- * @returns A tenant-prefixed deterministic cache key.
+ * @returns A versioned, hashed deterministic cache key.
  * @throws {MissingTenantContextError} When tenant identity cannot be resolved.
- *
- * @example Nested composite identity without [object Object]
- * ```typescript
- * filterCacheKey('deployment', { compose: { service: 'web', file: 'docker-compose.yml' } }, 'tenant')
- * // → 'tenant:deployment:compose:{"file":"docker-compose.yml","service":"web"}'
- * ```
+ * @throws {TypeError} When conditions contain non-serializable values.
  */
 export function filterCacheKey(
   resourceOrEntity: CacheResourceSpecifier,
@@ -105,24 +100,18 @@ export function filterCacheKey(
 ): string {
   const schema = resolveTenantSchema(tenantOrContext);
 
-  let prefix: string;
+  let resource: string;
   if (typeof resourceOrEntity === 'string') {
-    prefix = resourceOrEntity.endsWith(':')
-      ? resourceOrEntity
-      : `${resourceOrEntity}:`;
+    resource = resourceOrEntity.replace(/:+$/, '');
   } else if (
     resourceOrEntity &&
     (typeof resourceOrEntity === 'object' ||
       typeof resourceOrEntity === 'function')
   ) {
     if (resourceOrEntity.aggregateName) {
-      prefix = resourceOrEntity.aggregateName.endsWith(':')
-        ? resourceOrEntity.aggregateName
-        : `${resourceOrEntity.aggregateName}:`;
+      resource = resourceOrEntity.aggregateName.replace(/:+$/, '');
     } else if (resourceOrEntity.prefixKey) {
-      prefix = resourceOrEntity.prefixKey.endsWith(':')
-        ? resourceOrEntity.prefixKey
-        : `${resourceOrEntity.prefixKey}:`;
+      resource = resourceOrEntity.prefixKey.replace(/:+$/, '');
     } else {
       throw new Error(
         'Cannot resolve cache key prefix: resourceOrEntity must be a string or declare a static aggregateName or prefixKey.',
@@ -134,13 +123,29 @@ export function filterCacheKey(
     );
   }
 
-  const segments = Object.entries(conditions)
-    .filter(([, v]) => v !== undefined && v !== null)
-    .sort(([a], [b]) => a.localeCompare(b))
-    .map(([k, v]) => `${k}:${canonicalizeValue(v)}`)
-    .join(':');
+  const normalizedFilter = normalizeFilterConditions(conditions);
+  const tuple = [schema, resource, normalizedFilter];
+  const serializedTuple = stableStringify(tuple);
+  const hash = createHash('sha256').update(serializedTuple).digest('hex');
 
-  return `${schema}:${prefix}${segments}`;
+  return `${schema}:${resource}:v1:${hash}`;
+}
+
+/**
+ * Serializes one template placeholder value into a key segment.
+ *
+ * Template keys stay human-readable rather than hashed, so `:` and `\\` remain
+ * structural characters here and are escaped; nested values delegate to the
+ * shared {@link stableStringify} for deterministic recursive ordering.
+ */
+function canonicalizeValue(val: unknown): string {
+  if (val === null || val === undefined) {
+    return '';
+  }
+  if (typeof val === 'object') {
+    return stableStringify(val);
+  }
+  return String(val).replace(/([\\:])/g, '\\$1');
 }
 
 /**

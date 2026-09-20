@@ -1,5 +1,15 @@
 # nestjs-pipeline
 
+## Library scope
+
+The packages are reusable libraries for external applications and future use
+cases. `ddd/users-api` is one example, not the limit of the public contracts.
+Repository caching and pipeline query-result caching are complementary. See
+[AGENTS.md](AGENTS.md) for library scope and the criteria for reviewing or
+removing features, and the
+[architecture skill](.agents/skills/nestjs-pipeline-architecture/SKILL.md) for
+cache layer ownership, command reads, invalidation and security.
+
 Pipeline behaviors for **NestJS CQRS** — wrap every command, query, and event handler with reusable cross-cutting concerns (logging, validation, tracing, audit, …) using a clean middleware-like chain.
 
 ```
@@ -1366,6 +1376,7 @@ ADAPTER=fastify pnpm start
 - MikroORM-backed CASL providers (roles, capabilities, user context)
 - Official MikroORM `accessor: true` entity schemas bridging private aggregate fields to public accessors without TypeScript bypasses
 - Decoupled CQRS caching architecture with collision-safe key derivation (`filterCacheKey`), fail-fast handler templates (`cacheKeyTemplate`), and static aggregate naming (`User.aggregateName`)
+- Decoupled CQRS caching architecture with centralized key derivation (`filterCacheKey`; type/delimiter collision handling requires verification), fail-fast handler templates (`cacheKeyTemplate`), and static aggregate naming (`User.aggregateName`)
 - Versioned database migrations with tracking (`mikro_orm_migrations` table)
 - Zod-parsed/validated commands and queries via `createCommand()` and `createQuery()` exposing Standard Schema (`['~standard']`) metadata
 - Controller-level `ZodPipe` validation

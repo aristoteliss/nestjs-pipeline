@@ -1,6 +1,7 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { IQueryOptions } from '../../application/query.options';
+import { type CacheStateEntry, isVersionedCache } from '../cache.interface';
 import { isCacheMutationBarrier } from '../helpers/cache-barrier.helper';
 import { toCacheSnapshot } from '../helpers/cache-snapshot.helper';
 import { isCacheNewer } from '../helpers/cache-version.helper';
@@ -53,46 +54,16 @@ export interface FromCacheOptions<TQuery = unknown, TResult = unknown> {
 /**
  * Read-through cache decorator for a {@link QueryRepository} `find` method.
  *
- * Provides declarative read-through caching for query operations:
+ * Provides declarative read-through caching with revision-fenced coordination:
  * - **Key derivation**: Generates a cache key via `keyFn`. If `keyFn` returns `null`, caching is skipped.
  * - **Snapshot storage contract**: Stores strictly serializable snapshots in the cache, never live domain aggregates.
- *   On cache miss, automatically extracts a snapshot via `serializeFn` or `result.toJSON()`.
  * - **Deterministic rehydration**: When `alwaysHydrate: true` is configured, automatically rehydrates cached snapshots
- *   into domain entities via `hydrateFn`, ensuring the repository always returns `Promise<TEntity | null>`.
- *   If omitted, rehydrates conditionally when `query.hydrate` is truthy.
- * - **Strong consistency on concurrent writes**: If a concurrent mutation updates and caches a newer snapshot
- *   while the database fetch was in-flight, the decorator returns the newer cached snapshot (hydrated if requested)
- *   rather than returning stale database data or corrupting the cache.
- * - **Fail-closed policy**: Cache errors on read/set propagate to maintain strong consistency guarantees
- *   at the repository boundary.
- *
- * Use `alwaysHydrate: true` for repositories whose public contract returns
- * domain aggregates; cached snapshots are then never leaked to callers.
- *
- * @throws {TypeError} At decoration time when `alwaysHydrate: true` has no `hydrateFn`,
- * or at runtime when no key function was configured.
- *
- * @example Usage with options object and alwaysHydrate (recommended)
- * ```typescript
- * @Injectable()
- * export class GetUserQueryRepository extends QueryRepository<GetUserQuery, User | null> {
- *   constructor(
- *     @Inject(CACHE_TOKEN) protected readonly cache: ICache<UserSnapshot>,
- *     @Inject(MIKRO_ORM_CLIENT) private readonly store: MikroOrmStore,
- *   ) {
- *     super(cache);
- *   }
- *
- *   @FromCache<GetUserQuery, User | null>({
- *     keyFn: (query) => filterCacheKey('user', { id: query.userId }),
- *     hydrateFn: (cached) => User.fromJSON(cached as UserSnapshot),
- *     alwaysHydrate: true,
- *   })
- *   async find(query: GetUserQuery): Promise<User | null> {
- *     return this.store.em.findOne(User, { id: query.userId });
- *   }
- * }
- * ```
+ *   into domain entities via `hydrateFn`.
+ * - **Revision-fenced consistency**: When coordinated via {@link IVersionedCache}, cache fill attempts verify the
+ *   observed revision token atomically (`tryFill`). A fill started before an observed invalidation cannot
+ *   repopulate the key afterwards.
+ * - **Bounded retry**: Contended fills inspect current cache state and boundedly retry authoritative reads before
+ *   falling back to un-cached database results.
  */
 export function FromCache<
   TQuery extends IQueryOptions = IQueryOptions,
@@ -128,7 +99,7 @@ export function FromCache<
     throw new TypeError('FromCache: alwaysHydrate requires a hydrateFn');
   }
 
-  const MAX_BARRIER_RETRIES = 2;
+  const MAX_FILL_RETRIES = 2;
 
   return (
     _target: object,
@@ -162,40 +133,96 @@ export function FromCache<
         return cachedValue as unknown as TResult;
       };
 
+      // A revision-fenced key can still hold a barrier written by an
+      // unversioned writer against the same store; it is a sentinel, never a
+      // snapshot, so it counts as a miss rather than something to hydrate.
+      const isUsableSnapshot = (state: CacheStateEntry<unknown>): boolean =>
+        state.status === 'hit' &&
+        state.value !== undefined &&
+        !isCacheMutationBarrier(state.value);
+
+      // 1. Versioned coordination path (capable adapters)
+      if (isVersionedCache(this.cache)) {
+        let attempt = 0;
+        let observedState = await this.cache.readState(key);
+
+        if (isUsableSnapshot(observedState)) {
+          return hydrateCached(observedState.value);
+        }
+
+        while (attempt <= MAX_FILL_RETRIES) {
+          const result = await original.call(this, query);
+
+          if (result === null || result === undefined) {
+            const postState = await this.cache.readState(key);
+            if (isUsableSnapshot(postState)) {
+              return hydrateCached(postState.value);
+            }
+            return result;
+          }
+
+          const snapshot = toCacheSnapshot(
+            result,
+            resolvedOptions?.serializeFn,
+          );
+
+          const committed = await this.cache.tryFill(
+            key,
+            observedState.revision,
+            snapshot as never,
+            { ttl: resolvedOptions?.ttl },
+          );
+
+          if (committed) {
+            return result;
+          }
+
+          const currentState = await this.cache.readState(key);
+          if (isUsableSnapshot(currentState)) {
+            const newerCheck = resolvedOptions?.isNewer ?? isCacheNewer;
+            if (newerCheck(currentState.value, snapshot)) {
+              return hydrateCached(currentState.value);
+            }
+          }
+
+          if (attempt < MAX_FILL_RETRIES) {
+            attempt++;
+            observedState = currentState;
+            continue;
+          }
+
+          return result;
+        }
+
+        return original.call(this, query);
+      }
+
+      // 2. Legacy fallback path (unversioned get/set adapters)
       let attempt = 0;
-      while (attempt <= MAX_BARRIER_RETRIES) {
-        // 1. Initial Cache Check
+      while (attempt <= MAX_FILL_RETRIES) {
         const initial = await this.cache.get(key);
         let initialBarrierToken: string | undefined;
 
         if (initial !== null && initial !== undefined) {
           if (isCacheMutationBarrier(initial)) {
-            // Barrier observed: bypass cached value and record token to verify if mutation occurs during DB read
             initialBarrierToken = initial.token;
           } else {
-            // Normal snapshot cache hit
             return hydrateCached(initial);
           }
         }
 
-        // 2. Authoritative DB Read
         const result = await original.call(this, query);
-
-        // 3. Post-DB Cache Check (MANDATORY for all DB results, even null!)
         const current = await this.cache.get(key);
 
-        // Case A: Post-DB cache has a normal snapshot
         if (
           current !== null &&
           current !== undefined &&
           !isCacheMutationBarrier(current)
         ) {
-          // Concurrent create: DB was null, but creator committed and cached a normal snapshot
           if (result === null || result === undefined) {
             return hydrateCached(current);
           }
 
-          // Both DB and cache have data: compare snapshots
           const snapshot = toCacheSnapshot(
             result,
             resolvedOptions?.serializeFn,
@@ -206,16 +233,13 @@ export function FromCache<
             return hydrateCached(current);
           }
 
-          // DB snapshot is newer or equal: CAS-safe set
-          const setOptions = {
+          await this.cache.set(key, snapshot, {
             ttl: resolvedOptions?.ttl,
             isNewer: newerCheck,
-          };
-          await this.cache.set(key, snapshot, setOptions);
+          });
           return result;
         }
 
-        // Case B: Post-DB cache has a mutation barrier
         if (
           current !== null &&
           current !== undefined &&
@@ -225,8 +249,6 @@ export function FromCache<
             initialBarrierToken !== undefined &&
             current.token === initialBarrierToken
           ) {
-            // Same barrier observed before and after DB read.
-            // No mutation occurred while DB was in flight; DB result is authoritative relative to this barrier.
             if (result !== null && result !== undefined) {
               const snapshot = toCacheSnapshot(
                 result,
@@ -240,29 +262,23 @@ export function FromCache<
             return result;
           }
 
-          // Different barrier, or barrier appeared while DB query was in flight!
-          // Stale result detected: do NOT cache result!
-          if (attempt < MAX_BARRIER_RETRIES) {
+          if (attempt < MAX_FILL_RETRIES) {
             attempt++;
-            continue; // Retry authoritative DB read
+            continue;
           }
 
-          // Bounded retries exhausted: return authoritative DB result without caching
           return result;
         }
 
-        // Case C: Post-DB cache is a MISS (null/undefined)
         if (result === null || result === undefined) {
           return result;
         }
 
-        // DB returned non-null result and cache is miss: populate cache
         const snapshot = toCacheSnapshot(result, resolvedOptions?.serializeFn);
-        const setOptions = {
+        await this.cache.set(key, snapshot, {
           ttl: resolvedOptions?.ttl,
           isNewer: resolvedOptions?.isNewer ?? isCacheNewer,
-        };
-        await this.cache.set(key, snapshot, setOptions);
+        });
         return result;
       }
 

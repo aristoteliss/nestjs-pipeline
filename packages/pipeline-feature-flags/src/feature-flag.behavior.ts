@@ -167,6 +167,21 @@ export class FeatureFlagBehavior implements IPipelineBehavior {
         | undefined;
 
       if (
+        options?.flag !== undefined &&
+        (typeof options.flag !== 'string' || options.flag.trim() === '')
+      ) {
+        return [
+          {
+            handlerName: context.handlerName,
+            behaviorName: FeatureFlagBehavior.name,
+            message:
+              'FeatureFlagBehavior `flag` option must be a non-empty string',
+            fix: 'Provide a valid string flag name in options or omit options for pass-through.',
+          },
+        ];
+      }
+
+      if (
         (context.declarationSource === 'handler' ||
           context.declarationSource === 'both') &&
         (!options?.flag ||
@@ -216,7 +231,11 @@ export class FeatureFlagBehavior implements IPipelineBehavior {
     context: IPipelineContext,
     next: NextDelegate,
   ): Promise<unknown> {
-    const options = this.resolveOptions(context);
+    const options = this.resolveEffectiveOptions(
+      context.getBehaviorOptions<FeatureFlagBehaviorOptions>(
+        FeatureFlagBehavior,
+      ),
+    );
 
     // No flag to gate on — behave as a transparent pass-through.
     if (!options.flag) return next();
@@ -345,16 +364,10 @@ export class FeatureFlagBehavior implements IPipelineBehavior {
     return { details };
   }
 
-  /** Shallow-merges per-handler options over the application defaults. */
-  private resolveOptions(
-    context: IPipelineContext,
+  /** Shallow-merges pipeline-level options over the application defaults. */
+  resolveEffectiveOptions(
+    options?: FeatureFlagBehaviorOptions,
   ): FeatureFlagBehaviorOptions {
-    const handlerOptions =
-      context.getBehaviorOptions<FeatureFlagBehaviorOptions>(
-        FeatureFlagBehavior,
-      );
-    return handlerOptions
-      ? { ...this.defaults, ...handlerOptions }
-      : this.defaults;
+    return options ? { ...this.defaults, ...options } : this.defaults;
   }
 }

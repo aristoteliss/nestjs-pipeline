@@ -93,20 +93,27 @@ export class RateLimitBehavior implements IPipelineBehavior {
         | RateLimitBehaviorOptions
         | undefined;
 
-      if (
-        (context.declarationSource === 'handler' ||
-          context.declarationSource === 'both') &&
-        !options?.keyFactory
-      ) {
+      if (!options?.keyFactory) {
         return [
           {
             handlerName: context.handlerName,
             behaviorName: RateLimitBehavior.name,
             message:
-              'Explicit RateLimitBehavior intent requires an explicit `keyFactory`',
+              'Active RateLimitBehavior requires an explicit `keyFactory`',
             fix:
-              'Provide keyFactory in @UsePipeline([RateLimitBehavior, { keyFactory: ... }]) ' +
-              'or use createPartitionedRateLimitKeyFactory(...).',
+              'Provide keyFactory in @UsePipeline([RateLimitBehavior, { keyFactory: ... }]), ' +
+              'RateLimitModule.forRoot({ defaults: ... }), or use createPartitionedRateLimitKeyFactory(...).',
+          },
+        ];
+      }
+
+      if (typeof options.keyFactory !== 'function') {
+        return [
+          {
+            handlerName: context.handlerName,
+            behaviorName: RateLimitBehavior.name,
+            message: `RateLimitBehavior keyFactory must be a callable function, received ${typeof options.keyFactory}`,
+            fix: 'Pass a valid function (ctx) => string to the keyFactory option in @UsePipeline([RateLimitBehavior, { keyFactory: ... }]).',
           },
         ];
       }
@@ -142,7 +149,9 @@ export class RateLimitBehavior implements IPipelineBehavior {
     context: IPipelineContext,
     next: NextDelegate,
   ): Promise<unknown> {
-    const options = this.resolveOptions(context);
+    const options = this.resolveEffectiveOptions(
+      context.getBehaviorOptions<RateLimitBehaviorOptions>(RateLimitBehavior),
+    );
     const limiter = options.limiter ?? this.limiter;
     const key = buildRateLimitKey(context, options);
     const points = options.points ?? 1;
@@ -200,11 +209,11 @@ export class RateLimitBehavior implements IPipelineBehavior {
     throw error;
   }
 
-  /** Shallow-merges per-handler options over the module defaults. */
-  private resolveOptions(context: IPipelineContext): RateLimitBehaviorOptions {
-    const handlerOptions =
-      context.getBehaviorOptions<RateLimitBehaviorOptions>(RateLimitBehavior);
-    if (!handlerOptions) return this.defaults;
-    return { ...this.defaults, ...handlerOptions };
+  /** Shallow-merges pipeline-level options over the module defaults. */
+  resolveEffectiveOptions(
+    options?: RateLimitBehaviorOptions,
+  ): RateLimitBehaviorOptions {
+    if (!options) return this.defaults;
+    return { ...this.defaults, ...options };
   }
 }

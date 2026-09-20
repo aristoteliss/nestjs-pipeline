@@ -7,7 +7,10 @@ import {
   EntityNotFoundException,
   TransientOperationError,
 } from '@nestjs-pipeline/ddd-core/domain';
-import { DEFAULT_BARRIER_TTL_MS } from '@nestjs-pipeline/ddd-core/persistence';
+import {
+  DEFAULT_BARRIER_TTL_MS,
+  filterCacheKey,
+} from '@nestjs-pipeline/ddd-core/persistence';
 import { describe, expect, it, vi } from 'vitest';
 import { Role, type RoleSnapshot } from '../domain/models/role.entity';
 import { DeleteRoleCommandRepository } from './delete-role.command-repository';
@@ -34,13 +37,27 @@ describe('DeleteRoleCommandRepository', () => {
       () => repository.save(role),
     );
 
+    const idKey = filterCacheKey(Role.aggregateName, { id: role.id }, 'tenant');
+    const nameKey = filterCacheKey(
+      Role.aggregateName,
+      { name: role.name },
+      'tenant',
+    );
     expect(result).toBeNull();
     expect(nativeDelete).toHaveBeenCalledWith(Role, {
       id: role.id,
       version: role.getExpectedVersion(),
     });
     expect(cache.set).toHaveBeenCalledWith(
-      `tenant:role:id:${role.id}`,
+      idKey,
+      expect.objectContaining({
+        __cacheBarrier: true,
+        reason: 'deleted',
+      }),
+      { ttl: DEFAULT_BARRIER_TTL_MS },
+    );
+    expect(cache.set).toHaveBeenCalledWith(
+      nameKey,
       expect.objectContaining({
         __cacheBarrier: true,
         reason: 'deleted',

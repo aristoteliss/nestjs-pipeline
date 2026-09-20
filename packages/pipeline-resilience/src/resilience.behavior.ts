@@ -62,6 +62,45 @@ import type { ResilienceBehaviorOptions } from './interfaces/resilience-options.
  * A custom pre-built Cockatiel `policy` also bypasses the declarative safety
  * checks because the caller owns its semantics directly.
  */
+interface ResilienceSafetyIssue {
+  message: string;
+  fix: string;
+}
+
+function getResilienceSafetyIssues(
+  options: ResilienceBehaviorOptions | undefined,
+  requestKind: 'command' | 'query' | 'event' | 'unknown',
+): ResilienceSafetyIssue[] {
+  if (!options || options.policy) return [];
+
+  const issues: ResilienceSafetyIssue[] = [];
+  const classifiesErrors =
+    typeof options.handle === 'function' || options.handleAllErrors === true;
+  const needsErrorClassification =
+    !!options.retry || !!options.circuitBreaker || !!options.fallback;
+
+  if (needsErrorClassification && !classifiesErrors) {
+    issues.push({
+      message:
+        'retry, circuitBreaker and fallback require handle(error) or explicit handleAllErrors: true',
+      fix: 'Specify handle: (err) => boolean or handleAllErrors: true in ResilienceBehavior options.',
+    });
+  }
+
+  if (
+    options.retry &&
+    requestKind !== 'query' &&
+    options.retry.replaySafe !== true
+  ) {
+    issues.push({
+      message: `retry on non-query handler (${requestKind}) replays downstream work; commands/events must set retry.replaySafe: true`,
+      fix: 'Set retry: { ...retry, replaySafe: true } after verifying handler side effects are idempotent or transactional.',
+    });
+  }
+
+  return issues;
+}
+
 @Injectable()
 export class ResilienceBehavior implements IPipelineBehavior {
   static readonly [PIPELINE_BEHAVIOR_CONTRACT]: IPipelineBehaviorContract = {
@@ -71,40 +110,15 @@ export class ResilienceBehavior implements IPipelineBehavior {
       const options = context.effectiveOptions as
         | ResilienceBehaviorOptions
         | undefined;
-      if (!options || options.policy) return undefined;
+      const issues = getResilienceSafetyIssues(options, context.requestKind);
+      if (issues.length === 0) return undefined;
 
-      const diagnostics: PipelineBehaviorDiagnostic[] = [];
-
-      const classifiesErrors =
-        typeof options.handle === 'function' ||
-        options.handleAllErrors === true;
-      const needsErrorClassification =
-        !!options.retry || !!options.circuitBreaker || !!options.fallback;
-
-      if (needsErrorClassification && !classifiesErrors) {
-        diagnostics.push({
-          handlerName: context.handlerName,
-          behaviorName: ResilienceBehavior.name,
-          message:
-            'retry, circuitBreaker and fallback require handle(error) or explicit handleAllErrors: true',
-          fix: 'Specify handle: (err) => boolean or handleAllErrors: true in ResilienceBehavior options.',
-        });
-      }
-
-      if (
-        options.retry &&
-        context.requestKind !== 'query' &&
-        options.retry.replaySafe !== true
-      ) {
-        diagnostics.push({
-          handlerName: context.handlerName,
-          behaviorName: ResilienceBehavior.name,
-          message: `retry on non-query handler (${context.requestKind}) replays downstream work; commands/events must set retry.replaySafe: true`,
-          fix: 'Set retry: { ...retry, replaySafe: true } after verifying handler side effects are idempotent or transactional.',
-        });
-      }
-
-      return diagnostics.length > 0 ? diagnostics : undefined;
+      return issues.map((issue) => ({
+        handlerName: context.handlerName,
+        behaviorName: ResilienceBehavior.name,
+        message: issue.message,
+        fix: issue.fix,
+      }));
     },
   };
 
@@ -161,7 +175,7 @@ export class ResilienceBehavior implements IPipelineBehavior {
 
     const handlerOptions =
       context.getBehaviorOptions<ResilienceBehaviorOptions>(ResilienceBehavior);
-    const effective = this.mergeOptions(this.defaultOptions, handlerOptions);
+    const effective = this.resolveEffectiveOptions(handlerOptions);
 
     this.assertSafeConfiguration(context, effective);
 
@@ -186,32 +200,21 @@ export class ResilienceBehavior implements IPipelineBehavior {
     context: IPipelineContext,
     options: ResilienceBehaviorOptions | undefined,
   ): void {
-    if (!options || options.policy) return;
-
-    const classifiesErrors =
-      typeof options.handle === 'function' || options.handleAllErrors === true;
-    const needsErrorClassification =
-      !!options.retry || !!options.circuitBreaker || !!options.fallback;
-
-    if (needsErrorClassification && !classifiesErrors) {
+    const issues = getResilienceSafetyIssues(options, context.requestKind);
+    if (issues.length > 0) {
       throw new ResilienceConfigurationError(
         context.requestName,
         context.requestKind,
-        'retry, circuitBreaker and fallback require handle(error) or explicit handleAllErrors: true',
+        issues[0].message,
       );
     }
+  }
 
-    if (
-      options.retry &&
-      context.requestKind !== 'query' &&
-      options.retry.replaySafe !== true
-    ) {
-      throw new ResilienceConfigurationError(
-        context.requestName,
-        context.requestKind,
-        'retry replays downstream work; commands/events must set retry.replaySafe: true after verifying side effects are idempotent or transactional',
-      );
-    }
+  /** Shallow-merges pipeline-level options over module defaults. */
+  resolveEffectiveOptions(
+    options?: ResilienceBehaviorOptions,
+  ): ResilienceBehaviorOptions | undefined {
+    return this.mergeOptions(this.defaultOptions, options);
   }
 
   /** Shallow-merges per-handler options over the application defaults. */

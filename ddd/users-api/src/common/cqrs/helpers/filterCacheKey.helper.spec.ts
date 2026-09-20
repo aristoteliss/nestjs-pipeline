@@ -21,25 +21,29 @@ describe('filterCacheKey', () => {
       'tenant_test',
     );
 
-    expect(key1).toBe(
-      'tenant_test:user:department:engineering:email:test@example.com',
-    );
+    expect(key1).toMatch(/^tenant_test:user:v1:[a-f0-9]{64}$/);
     expect(key1).toBe(key2);
   });
 
-  it('filters out undefined and null values', () => {
+  it('filters out undefined and retains null values deterministically', () => {
     const key = filterCacheKey(
       'user',
       { id: '123', missing: undefined, empty: null },
       'tenant_test',
     );
+    const keyExplicit = filterCacheKey(
+      'user',
+      { id: '123', empty: null },
+      'tenant_test',
+    );
 
-    expect(key).toBe('tenant_test:user:id:123');
+    expect(key).toBe(keyExplicit);
+    expect(key).toMatch(/^tenant_test:user:v1:[a-f0-9]{64}$/);
   });
 
   it('resolves tenant from explicit string parameter', () => {
     const key = filterCacheKey('user', { id: '1' }, 'tenant_explicit');
-    expect(key).toBe('tenant_explicit:user:id:1');
+    expect(key).toMatch(/^tenant_explicit:user:v1:[a-f0-9]{64}$/);
   });
 
   it('resolves tenant from pipeline context ctx.tenantId', () => {
@@ -48,7 +52,7 @@ describe('filterCacheKey', () => {
     } as unknown as IPipelineContext;
 
     const key = filterCacheKey('user', { id: '1' }, ctx);
-    expect(key).toBe('tenant_from_ctx:user:id:1');
+    expect(key).toMatch(/^tenant_from_ctx:user:v1:[a-f0-9]{64}$/);
   });
 
   it('falls back to ambient pipelineStore when tenantOrContext is omitted', () => {
@@ -56,7 +60,7 @@ describe('filterCacheKey', () => {
       { tenantId: 'tenant_ambient' } as unknown as IPipelineContext,
       () => {
         const key = filterCacheKey('user', { id: '1' });
-        expect(key).toBe('tenant_ambient:user:id:1');
+        expect(key).toMatch(/^tenant_ambient:user:v1:[a-f0-9]{64}$/);
       },
     );
   });
@@ -70,7 +74,8 @@ describe('filterCacheKey', () => {
   it('maintains backwards compatibility with { prefixKey } objects', () => {
     const legacy = { prefixKey: 'user:' };
     const key = filterCacheKey(legacy, { id: '1' }, 'tenant_compat');
-    expect(key).toBe('tenant_compat:user:id:1');
+    const direct = filterCacheKey('user', { id: '1' }, 'tenant_compat');
+    expect(key).toBe(direct);
   });
 
   it('resolves prefix from static aggregateName on entity classes', () => {
@@ -78,7 +83,8 @@ describe('filterCacheKey', () => {
       static readonly aggregateName = 'user';
     }
     const key = filterCacheKey(MockAggregate, { id: '42' }, 'tenant_agg');
-    expect(key).toBe('tenant_agg:user:id:42');
+    const direct = filterCacheKey('user', { id: '42' }, 'tenant_agg');
+    expect(key).toBe(direct);
   });
 
   it('escapes colons in primitive values to prevent key collision attacks', () => {
@@ -89,8 +95,6 @@ describe('filterCacheKey', () => {
       't1',
     );
 
-    expect(keyWithColonValue).toBe('t1:x:a:hello\\:b\\:world');
-    expect(keyWithSeparateProps).toBe('t1:x:a:hello:b:world');
     expect(keyWithColonValue).not.toBe(keyWithSeparateProps);
   });
 
@@ -118,9 +122,7 @@ describe('filterCacheKey', () => {
     );
 
     expect(key1).not.toContain('[object Object]');
-    expect(key1).toBe(
-      't1:deployment:compose:{"file":"/app/docker-compose.yml","service":"postgres"}',
-    );
+    expect(key1).toMatch(/^t1:deployment:v1:[a-f0-9]{64}$/);
     expect(key1).toBe(key2);
   });
 

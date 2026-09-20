@@ -24,6 +24,7 @@ Store-agnostic: it depends only on a tiny `IdempotencyStore` interface. A zero-d
 - [Configuration](#configuration)
 - [Fingerprinting & key reuse](#fingerprinting--key-reuse)
 - [Conflict handling](#conflict-handling)
+- [Behavior Contract & Bootstrap Diagnostics](#behavior-contract--bootstrap-diagnostics)
 - [API Reference](#api-reference)
 - [License](#license)
 
@@ -403,6 +404,22 @@ Response body:
   "reason": "in_progress"
 }
 ```
+
+---
+
+## Behavior Contract & Bootstrap Diagnostics
+
+`IdempotencyBehavior` implements `@nestjs-pipeline/core` behavior contract diagnostics:
+
+### Ordering Constraints
+
+- **Execution order**: Idempotency must execute **after** CASL authorization (`@nestjs-pipeline/casl:CaslBehavior`) for all active idempotency request kinds (`scope: ['command']` by default). This ensures unauthorized callers cannot claim idempotency keys or trigger replayed executions.
+- **Dynamic evaluation**: The ordering rule evaluates dynamically per handler based on the effective `scope`. If a handler handles a request kind outside the effective scope (e.g. a query handler with default command scope), ordering constraints are not enforced.
+
+### Validation Invariants
+
+- **Callable key factory for explicit intent**: Whenever `IdempotencyBehavior` is explicitly attached to a handler (via `@UsePipeline(IdempotencyBehavior)` or `@UsePipeline([IdempotencyBehavior, { ... }])`), a callable `keyFactory: (context) => string` (`typeof === 'function'`) must be supplied via handler options or module defaults. Omission or non-callable values fail fast at application startup with `PipelineConfigurationError` in `strict` mode.
+- **Module defaults resolution**: Application-wide defaults supplied to `IdempotencyModule.forRoot({ defaults: { ... } })` are merged beneath handler options via `IdempotencyBehavior.resolveEffectiveOptions` and evaluated during bootstrap diagnostics.
 
 ---
 

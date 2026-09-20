@@ -3,6 +3,7 @@ import { type IPipelineContext, pipelineStore } from '@nestjs-pipeline/core';
 import { type ICache } from '@nestjs-pipeline/ddd-core/application';
 import {
   DEFAULT_BARRIER_TTL_MS,
+  filterCacheKey,
   toCacheSnapshot,
 } from '@nestjs-pipeline/ddd-core/persistence';
 import { describe, expect, it, vi } from 'vitest';
@@ -33,13 +34,20 @@ describe('CreateUserCommandRepository', () => {
       () => repository.save(user),
     );
 
+    const idKey = filterCacheKey(User.aggregateName, { id: user.id }, 'tenant');
+    const emailKey = filterCacheKey(
+      User.aggregateName,
+      { email: 'alice@example.test' },
+      'tenant',
+    );
+
     expect(cache.set).toHaveBeenCalledWith(
-      `tenant:user:id:${user.id}`,
+      idKey,
       toCacheSnapshot(result),
       expect.objectContaining({ isNewer: expect.any(Function) }),
     );
     expect(cache.set).toHaveBeenCalledWith(
-      'tenant:user:email:alice@example.test',
+      emailKey,
       expect.objectContaining({
         __cacheBarrier: true,
         reason: 'invalidated',

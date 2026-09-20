@@ -16,6 +16,7 @@ import {
   type NextDelegate,
   PIPELINE_BEHAVIOR_CONTRACT,
   type PipelineBehaviorDiagnostic,
+  type PipelineBehaviorOrderRule,
   type PipelineBehaviorValidationContext,
   untyped,
 } from '@nestjs-pipeline/core';
@@ -112,8 +113,19 @@ const DEFAULT_SCOPE: IdempotencyRequestKind[] = ['command'];
 @Injectable()
 export class IdempotencyBehavior implements IPipelineBehavior {
   static readonly [PIPELINE_BEHAVIOR_CONTRACT]: IPipelineBehaviorContract = {
-    order: {
-      after: ['CaslBehavior'],
+    order: (
+      context: PipelineBehaviorValidationContext,
+    ): PipelineBehaviorOrderRule | undefined => {
+      const options = context.effectiveOptions as
+        | IdempotencyBehaviorOptions
+        | undefined;
+      const scope = options?.scope ?? DEFAULT_SCOPE;
+      if (!scope.includes(context.requestKind as IdempotencyRequestKind)) {
+        return undefined;
+      }
+      return {
+        after: ['@nestjs-pipeline/casl:CaslBehavior', 'CaslBehavior'],
+      };
     },
     validate: (
       context: PipelineBehaviorValidationContext,
@@ -122,7 +134,7 @@ export class IdempotencyBehavior implements IPipelineBehavior {
         | IdempotencyBehaviorOptions
         | undefined;
       const scope = options?.scope ?? DEFAULT_SCOPE;
-      if (!scope.includes(context.requestKind)) {
+      if (!scope.includes(context.requestKind as IdempotencyRequestKind)) {
         return undefined;
       }
 
@@ -140,6 +152,17 @@ export class IdempotencyBehavior implements IPipelineBehavior {
             fix:
               'Provide keyFactory in @UsePipeline([IdempotencyBehavior, { keyFactory: ... }]) ' +
               'or use createPartitionedIdempotencyKeyFactory(...).',
+          },
+        ];
+      }
+
+      if (options?.keyFactory && typeof options.keyFactory !== 'function') {
+        return [
+          {
+            handlerName: context.handlerName,
+            behaviorName: IdempotencyBehavior.name,
+            message: `IdempotencyBehavior keyFactory must be a callable function, received ${typeof options.keyFactory}`,
+            fix: 'Pass a valid function (ctx) => string to the keyFactory option in @UsePipeline([IdempotencyBehavior, { keyFactory: ... }]).',
           },
         ];
       }
@@ -181,7 +204,11 @@ export class IdempotencyBehavior implements IPipelineBehavior {
     context: IPipelineContext,
     next: NextDelegate,
   ): Promise<unknown> {
-    const options = this.resolveOptions(context);
+    const options = this.resolveEffectiveOptions(
+      context.getBehaviorOptions<IdempotencyBehaviorOptions>(
+        IdempotencyBehavior,
+      ),
+    );
 
     if (!this.inScope(context, options)) {
       return next();
@@ -380,15 +407,11 @@ export class IdempotencyBehavior implements IPipelineBehavior {
     return scope.includes(context.requestKind as IdempotencyRequestKind);
   }
 
-  /** Shallow-merges per-handler options over the module defaults. */
-  private resolveOptions(
-    context: IPipelineContext,
+  /** Shallow-merges pipeline-level options over the module defaults. */
+  resolveEffectiveOptions(
+    options?: IdempotencyBehaviorOptions,
   ): IdempotencyBehaviorOptions {
-    const handlerOptions =
-      context.getBehaviorOptions<IdempotencyBehaviorOptions>(
-        IdempotencyBehavior,
-      );
-    if (!handlerOptions) return this.defaults;
-    return { ...this.defaults, ...handlerOptions };
+    if (!options) return this.defaults;
+    return { ...this.defaults, ...options };
   }
 }

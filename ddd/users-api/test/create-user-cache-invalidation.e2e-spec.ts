@@ -3,11 +3,14 @@ import type { Server } from 'node:http';
 import { type ICache } from '@nestjs-pipeline/ddd-core/application';
 import {
   CACHE_TOKEN,
-  isCacheMutationBarrier,
+  filterCacheKey,
 } from '@nestjs-pipeline/ddd-core/persistence';
 import request from 'supertest';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import type { UserSnapshot } from '../src/users/domain/models/user.entity';
+import {
+  User,
+  type UserSnapshot,
+} from '../src/users/domain/models/user.entity';
 import { bootstrapE2E, type E2EContext } from './support/e2e-app';
 
 /** Regression coverage for Architecture.md finding #7. */
@@ -31,7 +34,7 @@ describe('create-user secondary cache invalidation (e2e)', () => {
 
   it('removes a stale email cache entry after creating that email', async () => {
     const email = `cache-create-${Date.now()}@acme.test`;
-    const key = `tenant:user:email:${email}`;
+    const key = filterCacheKey(User.aggregateName, { email }, 'tenant');
     const cache = ctx.app.get<ICache<UserSnapshot>>(CACHE_TOKEN);
     await cache.set(key, { username: 'stale', email });
     expect(await cache.get(key)).toBeDefined();
@@ -43,11 +46,9 @@ describe('create-user secondary cache invalidation (e2e)', () => {
       .send({ email, name: 'Fresh User' });
 
     expect(response.status).toBe(201);
-    const cached = await cache.get(key);
-    expect(cached).not.toEqual(expect.objectContaining({ username: 'stale' }));
-    expect(isCacheMutationBarrier(cached)).toBe(true);
-    if (isCacheMutationBarrier(cached)) {
-      expect(cached.reason).toBe('invalidated');
-    }
+    // The write-through invalidation evicts the secondary key outright: the
+    // versioned adapter fences concurrent fills by revision, so no sentinel is
+    // left behind for a later read to hydrate.
+    expect(await cache.get(key)).toBeUndefined();
   });
 });

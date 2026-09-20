@@ -24,9 +24,9 @@ export class CreateAuthCommandRepository extends CommandRepository<
     super(cache);
   }
 
-  @Cache<Auth, AuthSnapshot>((auth) =>
-    filterCacheKey(Auth.aggregateName, { id: auth.id }),
-  )
+  @Cache<Auth, AuthSnapshot>({
+    setKey: (auth) => filterCacheKey(Auth.aggregateName, { id: auth.id }),
+  })
   @AcknowledgePersisted<[Auth]>({ entity: ([auth]) => auth })
   async save(auth: Auth): Promise<AuthSnapshot> {
     const persisted = await this.store.em.upsert(Auth, auth);

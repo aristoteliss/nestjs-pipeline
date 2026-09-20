@@ -26,9 +26,9 @@ export class DeleteAuthCommandRepository extends CommandRepository<Auth, null> {
     super(cache);
   }
 
-  @Cache<Auth, null>(null, (auth) => [
-    filterCacheKey(Auth.aggregateName, { id: auth.id }),
-  ])
+  @Cache<Auth, null>({
+    deleteKeys: (auth) => [filterCacheKey(Auth.aggregateName, { id: auth.id })],
+  })
   async save(auth: Auth): Promise<null> {
     await this.store.em.nativeDelete(Auth, { id: auth.id });
     return null;

@@ -1,3 +1,8 @@
+---
+name: nestjs-pipeline-architecture
+description: Guide architecture-sensitive implementation, reviews and documentation in nestjs-pipeline, preserving reusable library contracts and DDD boundaries.
+---
+
 # NestJS Pipeline Architecture Skill
 
 Use this skill for any change that affects architecture, CQRS handlers, domain models, persistence, pipeline behaviors, authentication/authorization, caching, idempotency, events, queues, or application-layer services in this repository.
@@ -13,6 +18,35 @@ This repository is authoritative. Before changing architecture-sensitive code, i
 - `ddd/users-api/README.md`
 
 If generic Clean Architecture / DDD / CQRS advice conflicts with this repository, follow the repository.
+
+## Library scope and caching decisions
+
+`packages/*` target external consumers and future applications; users-api is one
+example. Local non-use does not prove a public export, adapter or supported
+payload type is unnecessary. Removing a supported contract requires
+consumer/compatibility reasoning beyond an example search.
+
+Repository caching and pipeline caching are separate layers with separate owners;
+keep both. Cache a repository-owned read in the repository and a composed
+application result at the pipeline boundary. Do not move application composition
+into a repository merely to cache it, and do not require an application query
+class for every repository lookup. Invalidation is per layer: entity invalidation
+does not invalidate a composed pipeline result.
+
+Commands read through repository/application ports, never ORM clients and never
+QueryBus dispatch merely to obtain data. Mutations keep the authoritative
+write-side loading contract; a freshness-tolerant cached read elsewhere in a
+command is allowed only when the use case states that tolerance, and never in
+place of an authoritative precondition or authorization check.
+
+Repository invalidation belongs near successful persistence, which knows the
+changed entity and its old/new lookup values, including secondary keys. Cached
+collections and pipeline results need their own dependency or TTL policy. Do not
+promise automatic cross-layer or cross-service invalidation.
+
+Separate reproduced defects from architectural proposals, and intended invariants
+from verified guarantees. Repair cache races within the intended abstraction; do
+not infer that a cache layer must be removed.
 
 ## Documentation discipline
 
@@ -167,6 +201,12 @@ For multi-tenant security-sensitive keys, fail closed when tenant identity is re
 
 When authorization/roles can vary while the principal ID remains stable, either incorporate an authorization version/fingerprint in the key or invalidate all affected principal-scoped entries when roles change.
 
+An outer type-level CASL check does not reproduce the handler's entity decision. Correlation IDs are tracing metadata a caller can supply or reuse, never a principal or permission boundary.
+
+Repository caches of authorization-independent data are tenant-scoped and return detached domain data; entity/field authorization still runs in the application. Scope a repository key to the principal when the result itself depends on it.
+
+An idempotency key is an operation identity, not a disposable response-cache key: rotating it on permission changes can let the same effect run again. Evaluate replay scope and operation deduplication together.
+
 ### 9. Keep controllers as presentation adapters
 
 Controllers may own:
@@ -233,8 +273,8 @@ Query repositories and decorators:
 - `QueryRepository<TQuery, TResult>` accepts exactly 2 generic parameters: the query input type and the domain aggregate output type.
 - `@FromCache<TQuery, TResult>` accepts 2 generic parameters. On cache miss, it extracts a detached snapshot (`toCacheSnapshot()`, `serializeFn`, or `result.toJSON()`).
 - Query repositories configure `@FromCache({ alwaysHydrate: true, ... })` and return strictly `Promise<TEntity | null>`, eliminating ambiguous union types (`User | UserSnapshot`). Decoration-time validation ensures `alwaysHydrate: true` requires `hydrateFn`.
-- Strong consistency on concurrent reads: If an in-flight query races with a concurrent write that updates the cache, `@FromCache` detects the newer cached version (`newerCheck(current, snapshot)`) and returns the hydrated newer version to the reader rather than returning stale database data or corrupting cache.
-- Anti-resurrection protection: `@FromCache` coordinates pre- and post-DB barrier validation. When a deletion or secondary key invalidation occurs, `@Cache` writes a `CacheMutationBarrier` sentinel. If `@FromCache` encounters a barrier before DB execution, or if a barrier is installed while the DB query is running, it refuses to cache stale DB data, checks barrier token consistency (detecting ABA sequences), and boundedly retries (`MAX_BARRIER_RETRIES = 2`), preventing race conditions from resurrecting deleted or superseded records.
+- Concurrent reads: when an in-flight query races a concurrent write that updates the cache, `@FromCache` detects the newer cached version (`newerCheck(current, snapshot)`) and returns the hydrated newer version rather than stale database data. A stale fill must never replace newer cache state; separate read/check/write steps do not prove that guarantee, so verify the coordination through the final write.
+- Anti-resurrection: `@Cache` writes a `CacheMutationBarrier` sentinel on deletions and secondary key invalidations, and `@FromCache` validates barriers before and after DB execution, refusing to cache stale DB data, checking token consistency (detecting ABA sequences) and boundedly retrying (`MAX_BARRIER_RETRIES = 2`). Test invalidation after the last read but before fill, absence/expiry ABA, delete/recreate and retry exhaustion; the presence of barriers is not proof that all races are prevented, and DB commit plus cache maintenance remains a separate consistency boundary.
 - Cache adapters (`ICache<TSnapshot>`) store strictly serializable snapshots, never live domain aggregates. `MemoryCache` enforces deep detachment parity with database caches via JSON cloning on `set()` and `get()`.
 - `MikroOrmCache` executes queries outside the identity map (`{ disableIdentityMap: true }`) and uses conditional CAS deletion on expired keys (`{ key, value, expiresAt }`) to prevent concurrent fresh writes from being purged by an expired reader.
 
@@ -279,7 +319,7 @@ Do not throw HTTP exceptions from repositories.
 
 On command repository `save()` operations, apply method decorators in strictly outermost-to-innermost order:
 
-1. `@Cache(...)`: Write-through cache synchronization / invalidation after durable write & acknowledgment. Serializes through `toCacheSnapshot()` and protects against race conditions via CAS comparison (`isCacheNewer`), ensuring late-finishing writes cannot overwrite newer cached versions. On entity deletions (`deleteKeys`) and secondary invalidations (`invalidateKeys`), installs an atomic `CacheMutationBarrier` sentinel (`{ ttl: 0, reason: 'deleted' | 'invalidated', token: uuidv7() }`) so concurrent in-flight queries cannot resurrect stale snapshots.
+1. `@Cache(...)`: Write-through cache synchronization/invalidation after durable write and acknowledgment, using detached snapshots from `toCacheSnapshot()`. CAS comparison (`isCacheNewer`) keeps late-finishing writes from overwriting newer cached versions, and entity deletions (`deleteKeys`) and secondary invalidations (`invalidateKeys`) install a `CacheMutationBarrier` sentinel (`{ ttl: 0, reason: 'deleted' | 'invalidated', token: uuidv7() }`) against stale snapshot resurrection. Verify the atomic coordination of these mechanisms with readers; a barrier installation alone does not prove anti-resurrection or cross-store strong consistency.
 2. `@AcknowledgePersisted({ entity: ([arg]) => arg })`: Captures entry version, updates `aggregate.acknowledgePersisted(version)` only after the persistence promise resolves.
 3. `@MapPersistenceErrors({ entity, unique: [...] })`: Translates known driver constraint errors (PostgreSQL 23505 and SQLite column matches) into domain exceptions before throwing.
 

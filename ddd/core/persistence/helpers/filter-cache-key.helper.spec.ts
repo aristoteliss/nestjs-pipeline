@@ -6,7 +6,7 @@ import { MissingTenantContextError } from '../../domain/exceptions/missing-tenan
 import { cacheKeyTemplate, filterCacheKey } from './filter-cache-key.helper';
 
 describe('filterCacheKey', () => {
-  it('generates a deterministic key with sorted keys using resource string', () => {
+  it('generates a deterministic versioned key with sorted keys using resource string', () => {
     const key1 = filterCacheKey(
       'user',
       { email: 'test@example.com', department: 'engineering' },
@@ -18,25 +18,49 @@ describe('filterCacheKey', () => {
       'tenant_test',
     );
 
-    expect(key1).toBe(
-      'tenant_test:user:department:engineering:email:test@example.com',
-    );
+    expect(key1).toMatch(/^tenant_test:user:v1:[0-9a-f]{64}$/);
     expect(key1).toBe(key2);
   });
 
-  it('filters out undefined and null values', () => {
-    const key = filterCacheKey(
+  it('filters out undefined while retaining explicit null values', () => {
+    const keyWithUndefined = filterCacheKey(
       'user',
-      { id: '123', missing: undefined, empty: null },
+      { id: '123', missing: undefined },
+      'tenant_test',
+    );
+    const keyClean = filterCacheKey('user', { id: '123' }, 'tenant_test');
+    const keyWithNull = filterCacheKey(
+      'user',
+      { id: '123', empty: null },
       'tenant_test',
     );
 
-    expect(key).toBe('tenant_test:user:id:123');
+    expect(keyWithUndefined).toBe(keyClean);
+    expect(keyWithNull).not.toBe(keyClean);
+  });
+
+  it('preserves primitive types distinguishing numbers and strings', () => {
+    const keyString = filterCacheKey('user', { id: '123' }, 'tenant_test');
+    const keyNumber = filterCacheKey('user', { id: 123 }, 'tenant_test');
+
+    expect(keyString).not.toBe(keyNumber);
+  });
+
+  it('rejects unsupported types with TypeError', () => {
+    expect(() =>
+      filterCacheKey('user', { fn: () => {} }, 'tenant_test'),
+    ).toThrow(TypeError);
+    expect(() =>
+      filterCacheKey('user', { sym: Symbol('test') }, 'tenant_test'),
+    ).toThrow(TypeError);
+    expect(() => filterCacheKey('user', { big: 123n }, 'tenant_test')).toThrow(
+      TypeError,
+    );
   });
 
   it('resolves tenant from explicit string parameter', () => {
     const key = filterCacheKey('user', { id: '1' }, 'tenant_explicit');
-    expect(key).toBe('tenant_explicit:user:id:1');
+    expect(key).toMatch(/^tenant_explicit:user:v1:[0-9a-f]{64}$/);
   });
 
   it('resolves tenant from pipeline context ctx.tenantId', () => {
@@ -45,7 +69,7 @@ describe('filterCacheKey', () => {
     } as unknown as IPipelineContext;
 
     const key = filterCacheKey('user', { id: '1' }, ctx);
-    expect(key).toBe('tenant_from_ctx:user:id:1');
+    expect(key).toMatch(/^tenant_from_ctx:user:v1:[0-9a-f]{64}$/);
   });
 
   it('falls back to ambient pipelineStore when tenantOrContext is omitted', () => {
@@ -53,7 +77,7 @@ describe('filterCacheKey', () => {
       { tenantId: 'tenant_ambient' } as unknown as IPipelineContext,
       () => {
         const key = filterCacheKey('user', { id: '1' });
-        expect(key).toBe('tenant_ambient:user:id:1');
+        expect(key).toMatch(/^tenant_ambient:user:v1:[0-9a-f]{64}$/);
       },
     );
   });
@@ -67,7 +91,7 @@ describe('filterCacheKey', () => {
   it('maintains backwards compatibility with { prefixKey } objects', () => {
     const legacy = { prefixKey: 'user:' };
     const key = filterCacheKey(legacy, { id: '1' }, 'tenant_compat');
-    expect(key).toBe('tenant_compat:user:id:1');
+    expect(key).toMatch(/^tenant_compat:user:v1:[0-9a-f]{64}$/);
   });
 
   it('resolves prefix from static aggregateName on entity classes', () => {
@@ -75,10 +99,10 @@ describe('filterCacheKey', () => {
       static readonly aggregateName = 'user';
     }
     const key = filterCacheKey(MockAggregate, { id: '42' }, 'tenant_agg');
-    expect(key).toBe('tenant_agg:user:id:42');
+    expect(key).toMatch(/^tenant_agg:user:v1:[0-9a-f]{64}$/);
   });
 
-  it('escapes colons in primitive values to prevent key collision attacks', () => {
+  it('prevents key collisions with values containing colons and delimiters', () => {
     const keyWithColonValue = filterCacheKey('x', { a: 'hello:b:world' }, 't1');
     const keyWithSeparateProps = filterCacheKey(
       'x',
@@ -86,12 +110,10 @@ describe('filterCacheKey', () => {
       't1',
     );
 
-    expect(keyWithColonValue).toBe('t1:x:a:hello\\:b\\:world');
-    expect(keyWithSeparateProps).toBe('t1:x:a:hello:b:world');
     expect(keyWithColonValue).not.toBe(keyWithSeparateProps);
   });
 
-  it('deterministically serializes nested objects without [object Object]', () => {
+  it('deterministically serializes nested objects regardless of property insertion order', () => {
     const key1 = filterCacheKey(
       'deployment',
       {
@@ -114,10 +136,7 @@ describe('filterCacheKey', () => {
       't1',
     );
 
-    expect(key1).not.toContain('[object Object]');
-    expect(key1).toBe(
-      't1:deployment:compose:{"file":"/app/docker-compose.yml","service":"postgres"}',
-    );
+    expect(key1).toMatch(/^t1:deployment:v1:[0-9a-f]{64}$/);
     expect(key1).toBe(key2);
   });
 

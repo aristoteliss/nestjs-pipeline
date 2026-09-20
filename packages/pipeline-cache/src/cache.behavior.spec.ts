@@ -436,8 +436,38 @@ describe('CacheBehavior', () => {
   describe('PIPELINE_BEHAVIOR_CONTRACT', () => {
     const contract = CacheBehavior[PIPELINE_BEHAVIOR_CONTRACT];
 
-    it('declares order constraint after CaslBehavior', () => {
-      expect(contract?.order?.after).toContain('CaslBehavior');
+    it('declares order constraint after CaslBehavior for queries', () => {
+      const order =
+        typeof contract?.order === 'function'
+          ? contract.order({
+              handlerType: class GetUsersHandler {},
+              handlerName: 'GetUsersHandler',
+              requestKind: 'query',
+              declarationSource: 'handler',
+              effectiveOptions: {},
+              handlerOptions: {},
+              globalOptions: undefined,
+              effectiveBehaviorTypes: [CacheBehavior],
+            })
+          : contract?.order;
+      expect(order?.after).toContain('CaslBehavior');
+    });
+
+    it('skips order constraint for non-cached request kinds', () => {
+      const order =
+        typeof contract?.order === 'function'
+          ? contract.order({
+              handlerType: class CreateUserHandler {},
+              handlerName: 'CreateUserHandler',
+              requestKind: 'command',
+              declarationSource: 'handler',
+              effectiveOptions: {},
+              handlerOptions: {},
+              globalOptions: undefined,
+              effectiveBehaviorTypes: [CacheBehavior],
+            })
+          : contract?.order;
+      expect(order).toBeUndefined();
     });
 
     it('returns diagnostic when explicit handler declaration lacks key factory for query', () => {
@@ -488,7 +518,7 @@ describe('CacheBehavior', () => {
       expect(diagnostics).toBeUndefined();
     });
 
-    it('allows passive pass-through when declarationSource is global', () => {
+    it('returns diagnostic when declarationSource is global for an active query without key', () => {
       const diagnostics = contract?.validate?.({
         handlerType: class GetUsersHandler {},
         handlerName: 'GetUsersHandler',
@@ -500,7 +530,24 @@ describe('CacheBehavior', () => {
         effectiveBehaviorTypes: [CacheBehavior],
       });
 
-      expect(diagnostics).toBeUndefined();
+      expect(diagnostics).toHaveLength(1);
+      expect(diagnostics?.[0].message).toContain('explicit `key` factory');
+    });
+
+    it('returns diagnostic when key is not a callable function', () => {
+      const diagnostics = contract?.validate?.({
+        handlerType: class GetUsersHandler {},
+        handlerName: 'GetUsersHandler',
+        requestKind: 'query',
+        declarationSource: 'handler',
+        effectiveOptions: { key: 'invalid-string' as never },
+        handlerOptions: { key: 'invalid-string' as never },
+        globalOptions: undefined,
+        effectiveBehaviorTypes: [CacheBehavior],
+      });
+
+      expect(diagnostics).toHaveLength(1);
+      expect(diagnostics?.[0].message).toContain('must be a callable function');
     });
   });
 });

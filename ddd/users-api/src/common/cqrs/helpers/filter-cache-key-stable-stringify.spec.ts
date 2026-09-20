@@ -15,9 +15,7 @@ describe('filterCacheKey core canonical serialization', () => {
       'tenant_a',
     );
 
-    expect(left).toBe(
-      'tenant_a:deployment:compose:{"file":"/app/docker-compose.yml","service":"postgres"}',
-    );
+    expect(left).toMatch(/^tenant_a:deployment:v1:[a-f0-9]{64}$/);
     expect(right).toBe(left);
   });
 

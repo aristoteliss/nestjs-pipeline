@@ -8,6 +8,7 @@ import {
 } from '@nestjs-pipeline/ddd-core/domain';
 import {
   DEFAULT_BARRIER_TTL_MS,
+  filterCacheKey,
   toCacheSnapshot,
 } from '@nestjs-pipeline/ddd-core/persistence';
 import { describe, expect, it, vi } from 'vitest';
@@ -47,8 +48,14 @@ describe('UpdateUserCommandRepository', () => {
         version: 2,
       },
     );
+    const idKey = filterCacheKey(User.aggregateName, { id: user.id }, 'tenant');
+    const emailKey = filterCacheKey(
+      User.aggregateName,
+      { email: 'alice@example.test' },
+      'tenant',
+    );
     expect(cache.set).toHaveBeenCalledWith(
-      'tenant:user:email:alice@example.test',
+      emailKey,
       expect.objectContaining({
         __cacheBarrier: true,
         reason: 'invalidated',
@@ -56,7 +63,7 @@ describe('UpdateUserCommandRepository', () => {
       { ttl: DEFAULT_BARRIER_TTL_MS },
     );
     expect(cache.set).toHaveBeenCalledWith(
-      `tenant:user:id:${user.id}`,
+      idKey,
       toCacheSnapshot(user.toJSON()),
       expect.objectContaining({ isNewer: expect.any(Function) }),
     );

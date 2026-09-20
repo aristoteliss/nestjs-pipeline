@@ -3,7 +3,10 @@
 import { Logger } from '@nestjs/common';
 import { ExplorerService } from '@nestjs/cqrs/dist/services/explorer.service';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { UsePipeline } from '../decorators/pipeline.decorator';
+import {
+  PIPELINE_BEHAVIOR_ID,
+  UsePipeline,
+} from '../decorators/pipeline.decorator';
 import {
   IPipelineBehavior,
   NextDelegate,
@@ -181,22 +184,25 @@ describe('PipelineBootstrapService Diagnostics', () => {
       events: [],
     });
 
-    expect(() => bootstrap()).toThrow(PipelineConfigurationError);
+    let confErr: PipelineConfigurationError | undefined;
     try {
       bootstrap();
     } catch (err) {
-      expect(err).toBeInstanceOf(PipelineConfigurationError);
-      const confErr = err as PipelineConfigurationError;
-      expect(confErr.diagnostics).toHaveLength(1);
-      expect(confErr.diagnostics[0].behaviorName).toBe(
-        CacheBehaviorWithOrder.name,
-      );
-      expect(confErr.diagnostics[0].message).toContain('must execute after');
-      expect(confErr.diagnostics[0].fix).toContain(
-        'runs before CacheBehaviorWithOrder',
-      );
-      expect(confErr.message).toContain('MisorderedHandler');
+      if (err instanceof PipelineConfigurationError) {
+        confErr = err;
+      }
     }
+
+    expect(confErr).toBeDefined();
+    expect(confErr?.diagnostics).toHaveLength(1);
+    expect(confErr?.diagnostics[0].behaviorName).toBe(
+      CacheBehaviorWithOrder.name,
+    );
+    expect(confErr?.diagnostics[0].message).toContain('must execute after');
+    expect(confErr?.diagnostics[0].fix).toContain(
+      'runs before CacheBehaviorWithOrder',
+    );
+    expect(confErr?.message).toContain('MisorderedHandler');
   });
 
   it('fails bootstrap with PipelineConfigurationError on invalid explicit handler options', () => {
@@ -207,17 +213,20 @@ describe('PipelineBootstrapService Diagnostics', () => {
       events: [],
     });
 
-    expect(() => bootstrap()).toThrow(PipelineConfigurationError);
+    let confErr: PipelineConfigurationError | undefined;
     try {
       bootstrap();
     } catch (err) {
-      expect(err).toBeInstanceOf(PipelineConfigurationError);
-      const confErr = err as PipelineConfigurationError;
-      expect(confErr.diagnostics[0].message).toContain(
-        'Explicit cache intent requires a key factory',
-      );
-      expect(confErr.diagnostics[0].fix).toContain('Provide key in');
+      if (err instanceof PipelineConfigurationError) {
+        confErr = err;
+      }
     }
+
+    expect(confErr).toBeDefined();
+    expect(confErr?.diagnostics[0].message).toContain(
+      'Explicit cache intent requires a key factory',
+    );
+    expect(confErr?.diagnostics[0].fix).toContain('Provide key in');
   });
 
   it('passes bootstrap when ordering and options are valid', () => {
@@ -228,6 +237,228 @@ describe('PipelineBootstrapService Diagnostics', () => {
       events: [],
     });
 
+    expect(() => bootstrap()).not.toThrow();
+  });
+
+  it('evaluates dynamic context-aware ordering rules', () => {
+    class DynamicOrderedBehavior implements IPipelineBehavior {
+      static readonly [PIPELINE_BEHAVIOR_CONTRACT]: IPipelineBehaviorContract =
+        {
+          order: (ctx: PipelineBehaviorValidationContext) => {
+            if (ctx.requestKind === 'query') {
+              return { after: [AuthBehavior] };
+            }
+            return undefined;
+          },
+        };
+
+      async handle(_ctx: IPipelineContext, next: NextDelegate) {
+        return next();
+      }
+    }
+
+    @UsePipeline(DynamicOrderedBehavior, AuthBehavior)
+    class DynamicCommandHandler {
+      async execute() {
+        return { ok: true };
+      }
+    }
+
+    @UsePipeline(DynamicOrderedBehavior, AuthBehavior)
+    class DynamicQueryHandler {
+      async execute() {
+        return { ok: true };
+      }
+    }
+
+    moduleRefMock.get.mockImplementation((token: any) => {
+      if (token === ExplorerService) return explorerServiceMock;
+      if (token === AuthBehavior) return new AuthBehavior();
+      if (token === DynamicOrderedBehavior) return new DynamicOrderedBehavior();
+      return null;
+    });
+
+    // When handler is a command, DynamicOrderedBehavior is inactive for ordering -> passes
+    explorerServiceMock.explore.mockReturnValue({
+      commands: [
+        makeWrapper(new DynamicCommandHandler(), DynamicCommandHandler),
+      ],
+      queries: [],
+      events: [],
+    });
+    expect(() => bootstrap()).not.toThrow();
+
+    // When handler is a query, DynamicOrderedBehavior requires order after AuthBehavior -> fails
+    explorerServiceMock.explore.mockReturnValue({
+      queries: [makeWrapper(new DynamicQueryHandler(), DynamicQueryHandler)],
+      commands: [],
+      events: [],
+    });
+    expect(() => bootstrap()).toThrow(PipelineConfigurationError);
+  });
+
+  it('matches behavior identities using PIPELINE_BEHAVIOR_ID and avoids same-named false positives', () => {
+    const AUTH_ID = 'security:auth';
+
+    class RealAuthBehavior implements IPipelineBehavior {
+      static readonly [PIPELINE_BEHAVIOR_ID] = AUTH_ID;
+      async handle(_ctx: IPipelineContext, next: NextDelegate) {
+        return next();
+      }
+    }
+
+    class SameNamedAuthBehavior implements IPipelineBehavior {
+      static readonly [PIPELINE_BEHAVIOR_ID] = 'unrelated:auth';
+      async handle(_ctx: IPipelineContext, next: NextDelegate) {
+        return next();
+      }
+    }
+
+    class SecuredBehavior implements IPipelineBehavior {
+      static readonly [PIPELINE_BEHAVIOR_CONTRACT]: IPipelineBehaviorContract =
+        {
+          order: {
+            after: [AUTH_ID],
+          },
+        };
+      async handle(_ctx: IPipelineContext, next: NextDelegate) {
+        return next();
+      }
+    }
+
+    @UsePipeline(SecuredBehavior, SameNamedAuthBehavior)
+    class SameNameHandler {
+      async execute() {
+        return { ok: true };
+      }
+    }
+
+    moduleRefMock.get.mockImplementation((token: any) => {
+      if (token === ExplorerService) return explorerServiceMock;
+      if (token === RealAuthBehavior) return new RealAuthBehavior();
+      if (token === SameNamedAuthBehavior) return new SameNamedAuthBehavior();
+      if (token === SecuredBehavior) return new SecuredBehavior();
+      return null;
+    });
+
+    // SameNamedAuthBehavior does not have AUTH_ID, so edge is not matched -> passes
+    explorerServiceMock.explore.mockReturnValue({
+      queries: [makeWrapper(new SameNameHandler(), SameNameHandler)],
+      commands: [],
+      events: [],
+    });
+    expect(() => bootstrap()).not.toThrow();
+
+    @UsePipeline(SecuredBehavior, RealAuthBehavior)
+    class RealAuthHandler {
+      async execute() {
+        return { ok: true };
+      }
+    }
+
+    // RealAuthBehavior matches AUTH_ID -> fails ordering
+    explorerServiceMock.explore.mockReturnValue({
+      queries: [makeWrapper(new RealAuthHandler(), RealAuthHandler)],
+      commands: [],
+      events: [],
+    });
+    expect(() => bootstrap()).toThrow(PipelineConfigurationError);
+  });
+
+  it('enforces order.before constraints when behavior is positioned after target', () => {
+    class PreLoggingBehavior implements IPipelineBehavior {
+      static readonly [PIPELINE_BEHAVIOR_CONTRACT]: IPipelineBehaviorContract =
+        {
+          order: {
+            before: [AuthBehavior],
+          },
+        };
+      async handle(_ctx: IPipelineContext, next: NextDelegate) {
+        return next();
+      }
+    }
+
+    @UsePipeline(AuthBehavior, PreLoggingBehavior)
+    class InvertedHandler {
+      async execute() {
+        return { ok: true };
+      }
+    }
+
+    moduleRefMock.get.mockImplementation((token: any) => {
+      if (token === ExplorerService) return explorerServiceMock;
+      if (token === AuthBehavior) return new AuthBehavior();
+      if (token === PreLoggingBehavior) return new PreLoggingBehavior();
+      return null;
+    });
+
+    explorerServiceMock.explore.mockReturnValue({
+      queries: [makeWrapper(new InvertedHandler(), InvertedHandler)],
+      commands: [],
+      events: [],
+    });
+
+    let confErr: PipelineConfigurationError | undefined;
+    try {
+      bootstrap();
+    } catch (err) {
+      if (err instanceof PipelineConfigurationError) {
+        confErr = err;
+      }
+    }
+
+    expect(confErr).toBeDefined();
+    expect(confErr?.diagnostics[0].message).toContain('must execute before it');
+  });
+
+  it('resolves effective options via instance resolveEffectiveOptions', () => {
+    class ConfigurableBehavior implements IPipelineBehavior {
+      static readonly [PIPELINE_BEHAVIOR_CONTRACT]: IPipelineBehaviorContract =
+        {
+          validate: (ctx: PipelineBehaviorValidationContext) => {
+            if (!ctx.effectiveOptions?.requiredKey) {
+              return [
+                {
+                  handlerName: ctx.handlerName,
+                  behaviorName: ConfigurableBehavior.name,
+                  message: 'Missing requiredKey',
+                  fix: 'Provide requiredKey',
+                },
+              ];
+            }
+            return undefined;
+          },
+        };
+
+      resolveEffectiveOptions(raw?: Record<string, unknown>) {
+        return { requiredKey: 'from-instance-default', ...raw };
+      }
+
+      async handle(_ctx: IPipelineContext, next: NextDelegate) {
+        return next();
+      }
+    }
+
+    @UsePipeline(ConfigurableBehavior)
+    class BareHandler {
+      async execute() {
+        return { ok: true };
+      }
+    }
+
+    moduleRefMock.get.mockImplementation((token: any) => {
+      if (token === ExplorerService) return explorerServiceMock;
+      if (token === ConfigurableBehavior) return new ConfigurableBehavior();
+      return null;
+    });
+
+    explorerServiceMock.explore.mockReturnValue({
+      queries: [makeWrapper(new BareHandler(), BareHandler)],
+      commands: [],
+      events: [],
+    });
+
+    // Handler has no local options, but instance resolveEffectiveOptions supplies requiredKey -> passes
     expect(() => bootstrap()).not.toThrow();
   });
 

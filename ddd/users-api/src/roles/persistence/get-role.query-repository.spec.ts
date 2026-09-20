@@ -1,6 +1,7 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 import { type IPipelineContext, pipelineStore } from '@nestjs-pipeline/core';
 import { type ICache } from '@nestjs-pipeline/ddd-core/application';
+import { filterCacheKey } from '@nestjs-pipeline/ddd-core/persistence';
 import { describe, expect, it, vi } from 'vitest';
 import { GetRoleQuery } from '../cqrs/queries/get-role.query';
 import { Role, type RoleSnapshot } from '../domain/models/role.entity';
@@ -38,9 +39,14 @@ describe('GetRoleQueryRepository cache hydration', () => {
       () => queryRepository.find(new GetRoleQuery({ roleId: role.id })),
     );
 
+    const expectedKey = filterCacheKey(
+      Role.aggregateName,
+      { id: role.id },
+      'tenant',
+    );
     expect(result).toBeInstanceOf(Role);
     expect(result?.name).toBe('admin');
-    expect(cache.get).toHaveBeenCalledWith(`tenant:role:id:${role.id}`);
+    expect(cache.get).toHaveBeenCalledWith(expectedKey);
     expect(findOne).not.toHaveBeenCalled();
   });
 
@@ -64,9 +70,14 @@ describe('GetRoleQueryRepository cache hydration', () => {
       () => queryRepository.find(new GetRoleQuery({ roleId: role.id })),
     );
 
+    const expectedKey = filterCacheKey(
+      Role.aggregateName,
+      { id: role.id },
+      'tenant',
+    );
     expect(result).toBe(role);
     expect(cache.set).toHaveBeenCalledWith(
-      `tenant:role:id:${role.id}`,
+      expectedKey,
       role.toJSON(),
       expect.objectContaining({ isNewer: expect.any(Function) }),
     );

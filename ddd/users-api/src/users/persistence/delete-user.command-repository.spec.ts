@@ -7,7 +7,10 @@ import {
   EntityNotFoundException,
   TransientOperationError,
 } from '@nestjs-pipeline/ddd-core/domain';
-import { DEFAULT_BARRIER_TTL_MS } from '@nestjs-pipeline/ddd-core/persistence';
+import {
+  DEFAULT_BARRIER_TTL_MS,
+  filterCacheKey,
+} from '@nestjs-pipeline/ddd-core/persistence';
 import { describe, expect, it, vi } from 'vitest';
 import { User, type UserSnapshot } from '../domain/models/user.entity';
 import { DeleteUserCommandRepository } from './delete-user.command-repository';
@@ -39,8 +42,14 @@ describe('DeleteUserCommandRepository', () => {
       id: user.id,
       version: user.getExpectedVersion(),
     });
+    const idKey = filterCacheKey(User.aggregateName, { id: user.id }, 'tenant');
+    const emailKey = filterCacheKey(
+      User.aggregateName,
+      { email: 'alice@example.test' },
+      'tenant',
+    );
     expect(cache.set).toHaveBeenCalledWith(
-      `tenant:user:id:${user.id}`,
+      idKey,
       expect.objectContaining({
         __cacheBarrier: true,
         reason: 'deleted',
@@ -48,7 +57,7 @@ describe('DeleteUserCommandRepository', () => {
       { ttl: DEFAULT_BARRIER_TTL_MS },
     );
     expect(cache.set).toHaveBeenCalledWith(
-      'tenant:user:email:alice@example.test',
+      emailKey,
       expect.objectContaining({
         __cacheBarrier: true,
         reason: 'deleted',

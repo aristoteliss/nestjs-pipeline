@@ -32,6 +32,7 @@ Resilience and transient-fault-handling behavior for `@nestjs-pipeline/core`, po
 - [Handling Resilience Errors](#handling-resilience-errors)
 - [Custom Logger](#custom-logger)
 - [Full Example](#full-example)
+- [Behavior Contract & Bootstrap Diagnostics](#behavior-contract--bootstrap-diagnostics)
 - [API Reference](#api-reference)
 - [License](#license)
 
@@ -403,6 +404,18 @@ export class SyncInventoryHandler implements ICommandHandler<SyncInventoryComman
   }
 }
 ```
+
+---
+
+## Behavior Contract & Bootstrap Diagnostics
+
+`ResilienceBehavior` implements `@nestjs-pipeline/core` behavior contract diagnostics:
+
+### Validation Invariants
+
+- **Error classification required**: When `retry`, `circuitBreaker`, or `fallback` is configured, an error classifier must be explicitly defined via `handle: (error: unknown) => boolean`, or explicitly opted into via `handleAllErrors: true`. Unspecified error handling fails fast at startup with `PipelineConfigurationError` in `strict` mode.
+- **Non-query retry replay safety**: Retrying a handler repeats downstream execution and re-runs side effects. On non-query handlers (`command` or `event`), `retry` must explicitly declare `replaySafe: true` (`retry: { ...retry, replaySafe: true }`) after verifying that downstream side effects are idempotent or transactional. Omitting `replaySafe: true` on command/event retries fails fast at startup.
+- **Module defaults resolution**: Application-wide defaults supplied to `ResilienceModule.forRoot(...)` are merged beneath handler options via `ResilienceBehavior.resolveEffectiveOptions` and evaluated during bootstrap diagnostics.
 
 ---
 

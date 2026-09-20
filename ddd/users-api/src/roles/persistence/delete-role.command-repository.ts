@@ -30,9 +30,12 @@ export class DeleteRoleCommandRepository extends MikroOrmWriteSideCommandReposit
     super(cache, store, Role, Role.aggregateName, Role.fromJSON);
   }
 
-  @Cache<Role, null>(null, (role) => [
-    filterCacheKey(Role.aggregateName, { id: role.id }),
-  ])
+  @Cache<Role, null>({
+    deleteKeys: (role) => [
+      filterCacheKey(Role.aggregateName, { id: role.id }),
+      filterCacheKey(Role.aggregateName, { name: role.name }),
+    ],
+  })
   @MapPersistenceErrors<[Role], Role>({
     entity: ([role]) => role,
     unique: [],

@@ -1,6 +1,7 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 import { type IPipelineContext, pipelineStore } from '@nestjs-pipeline/core';
 import type { ICache } from '@nestjs-pipeline/ddd-core/application';
+import { filterCacheKey } from '@nestjs-pipeline/ddd-core/persistence';
 import { ZodValidationBehavior } from '@nestjs-pipeline/zod';
 import { describe, expect, it, vi } from 'vitest';
 import { GetUserQuery } from '../cqrs/queries/get-user.query';
@@ -84,8 +85,13 @@ describe('GetUserQueryRepository cache policy', () => {
     );
 
     expect(result).toBe(persisted);
+    const idKey = filterCacheKey(
+      User.aggregateName,
+      { id: persisted.id },
+      'tenant',
+    );
     expect(cache.set).toHaveBeenCalledWith(
-      `tenant:user:id:${persisted.id}`,
+      idKey,
       persisted.toJSON(),
       expect.objectContaining({ isNewer: expect.any(Function) }),
     );

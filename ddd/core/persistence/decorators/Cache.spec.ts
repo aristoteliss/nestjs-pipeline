@@ -3,7 +3,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { MemoryCache } from '../cache/memory.cache';
 import type { ICache } from '../cache.interface';
-import { isCacheMutationBarrier } from '../helpers/cache-barrier.helper';
 import { Cache, DEFAULT_BARRIER_TTL_MS } from './Cache';
 
 interface MockEntity {
@@ -381,25 +380,31 @@ describe('@Cache decorator on CommandRepository.save', () => {
 /**
  * Writer-side anti-resurrection, exercised against a real cache implementation.
  *
- * `@FromCache` guards readers with barrier checks, but those never engage
- * against a plain snapshot. Before barrier precedence existed, a delete could
- * install a barrier and a slower concurrent update could then write its snapshot
- * straight over it — after which every read saw an ordinary cache hit for a row
- * that no longer existed in the database.
+ * `@FromCache` guards readers, but those guards never engage against a plain
+ * snapshot. A write-through that started before a concurrent delete must not be
+ * allowed to land afterwards — every later read would then see an ordinary
+ * cache hit for a row that no longer exists in the database.
+ *
+ * A versioned adapter enforces that by revision: the write-through observes the
+ * key's revision before persisting and commits only while it still matches.
+ * Unversioned adapters fall back to the mutation-barrier token protocol.
  */
-describe('@Cache barrier durability against a concurrent write-through', () => {
+describe('@Cache anti-resurrection against a concurrent write-through', () => {
   interface VersionedSnapshot {
     id: string;
     version: number;
   }
 
   class UpdateRepo {
+    persistGate?: Promise<void>;
+
     constructor(public cache?: ICache<VersionedSnapshot>) {}
 
     @Cache<VersionedSnapshot, VersionedSnapshot>({
       setKey: (entity) => `user:${entity.id}`,
     })
     async save(entity: VersionedSnapshot): Promise<VersionedSnapshot | null> {
+      await this.persistGate;
       return entity;
     }
   }
@@ -422,44 +427,50 @@ describe('@Cache barrier durability against a concurrent write-through', () => {
     const deletes = new DeleteRepo(cache);
     const user = { id: 'u-1', version: 5 };
 
-    // Populate, then delete: the barrier is installed on the key.
     await updates.save(user);
+
+    // An update starts — observing the key as it is now — and is still
+    // persisting when the delete lands.
+    let release!: () => void;
+    updates.persistGate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const inFlight = updates.save({ id: 'u-1', version: 6 });
+
     await deletes.save(user);
+    release();
+    await inFlight;
 
-    // A concurrent update that started before the delete now finishes and
-    // attempts its write-through with a strictly higher version.
-    await updates.save({ id: 'u-1', version: 6 });
-
-    const stored = await cache.get('user:u-1');
-    expect(isCacheMutationBarrier(stored)).toBe(true);
+    // The delete advanced the revision, so the late fill was rejected.
+    expect(await cache.get('user:u-1')).toBeUndefined();
   });
 
-  it('still lets a later deletion replace an earlier barrier', async () => {
+  it('evicts the key on every deletion and advances its revision', async () => {
     const cache = new MemoryCache<VersionedSnapshot>();
     const deletes = new DeleteRepo(cache);
     const user = { id: 'u-1', version: 1 };
 
     await deletes.save(user);
-    const first = (await cache.get('user:u-1')) as unknown as {
-      token: string;
-    };
+    const first = await cache.readState('user:u-1');
     await deletes.save(user);
-    const second = (await cache.get('user:u-1')) as unknown as {
-      token: string;
-    };
+    const second = await cache.readState('user:u-1');
 
-    expect(isCacheMutationBarrier(second)).toBe(true);
-    expect(second.token).not.toBe(first.token);
+    expect(first.status).toBe('miss');
+    expect(second.status).toBe('miss');
+    expect(BigInt(second.revision)).toBeGreaterThan(BigInt(first.revision));
   });
 
-  it('bounds the barrier lifetime instead of leaving an immortal key', async () => {
-    // `ttl: 0` was read by MemoryCache as "never expires", so every deleted
-    // aggregate left a permanent entry behind.
-    const cache = new MemoryCache<VersionedSnapshot>();
-    const set = vi.spyOn(cache, 'set');
+  it('bounds the barrier lifetime on unversioned adapters', async () => {
+    // `ttl: 0` was read as "never expires", so every deleted aggregate left a
+    // permanent entry behind on adapters that have no revision to advance.
+    const cache: ICache<VersionedSnapshot> = {
+      get: vi.fn(),
+      set: vi.fn(),
+      delete: vi.fn(),
+    };
     await new DeleteRepo(cache).save({ id: 'u-1', version: 1 });
 
-    expect(set).toHaveBeenCalledWith(
+    expect(cache.set).toHaveBeenCalledWith(
       'user:u-1',
       expect.objectContaining({ __cacheBarrier: true }),
       { ttl: DEFAULT_BARRIER_TTL_MS },

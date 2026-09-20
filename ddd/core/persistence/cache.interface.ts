@@ -44,3 +44,93 @@ export interface ICache<T = unknown> {
   /** Removes `key` when present. */
   delete(key: string): Promise<void>;
 }
+
+/** Cache entry observation state. */
+export type CacheStateStatus = 'hit' | 'miss' | 'expired';
+
+/**
+ * Observed state of a cache key including opaque revision fencing.
+ *
+ * @typeParam T - Value shape stored by this cache adapter.
+ */
+export interface CacheStateEntry<T = unknown> {
+  /**
+   * Status of the cache entry:
+   * - `'hit'`: Value is present and unexpired.
+   * - `'miss'`: Key is absent or was invalidated.
+   * - `'expired'`: Entry existed but its TTL has elapsed.
+   */
+  readonly status: CacheStateStatus;
+
+  /** The cached value when status is `'hit'`, otherwise `undefined`. */
+  readonly value?: T;
+
+  /**
+   * Opaque revision token associated with the key at the moment of inspection.
+   * Advances on every write or invalidation, and is preserved on payload expiry
+   * to eliminate ABA races during fill attempts.
+   */
+  readonly revision: string;
+}
+
+/**
+ * Options for revision-fenced cache fill attempts.
+ */
+export interface CacheFillOptions {
+  /** Entry lifetime in milliseconds. */
+  ttl?: number;
+}
+
+/**
+ * Extended cache port providing atomic revision-fenced state operations.
+ *
+ * Guarantees per-key ordering: a fill started before an observed invalidation
+ * cannot repopulate its key afterwards.
+ *
+ * @typeParam T - Value shape stored by this cache adapter.
+ */
+export interface IVersionedCache<T = unknown> extends ICache<T> {
+  readonly isVersioned: true;
+
+  /**
+   * Observes current key state and opaque revision token.
+   */
+  readState(key: string): Promise<CacheStateEntry<T>>;
+
+  /**
+   * Atomically advances the key revision and evicts the value.
+   *
+   * @returns The newly advanced revision.
+   */
+  invalidate(key: string): Promise<string>;
+
+  /**
+   * Atomically checks that current revision matches `observedRevision`, writes
+   * value, and advances revision on match.
+   *
+   * @returns `true` if write committed; `false` if rejected due to revision mismatch.
+   */
+  tryFill(
+    key: string,
+    observedRevision: string,
+    value: T,
+    options?: CacheFillOptions,
+  ): Promise<boolean>;
+}
+
+/**
+ * Capability guard verifying whether an adapter supports versioned coordination.
+ */
+export function isVersionedCache<T = unknown>(
+  cache: unknown,
+): cache is IVersionedCache<T> {
+  return (
+    typeof cache === 'object' &&
+    cache !== null &&
+    (('isVersioned' in cache &&
+      (cache as IVersionedCache<T>).isVersioned === true) ||
+      (typeof (cache as IVersionedCache<T>).readState === 'function' &&
+        typeof (cache as IVersionedCache<T>).invalidate === 'function' &&
+        typeof (cache as IVersionedCache<T>).tryFill === 'function'))
+  );
+}

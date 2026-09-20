@@ -30,10 +30,12 @@ export class DeleteUserCommandRepository extends MikroOrmWriteSideCommandReposit
     super(cache, store, User, User.aggregateName, User.fromJSON);
   }
 
-  @Cache<User, null>(null, (user) => [
-    filterCacheKey(User.aggregateName, { id: user.id }),
-    filterCacheKey(User.aggregateName, { email: user.email }),
-  ])
+  @Cache<User, null>({
+    deleteKeys: (user) => [
+      filterCacheKey(User.aggregateName, { id: user.id }),
+      filterCacheKey(User.aggregateName, { email: user.email }),
+    ],
+  })
   @MapPersistenceErrors<[User], User>({
     entity: ([user]) => user,
     unique: [],

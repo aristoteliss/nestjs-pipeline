@@ -35,6 +35,7 @@ Its peer contract also includes the standard NestJS runtime peers
   - [Reading the Current Correlation ID](#reading-the-current-correlation-id)
   - [Nested Commands and Sagas](#nested-commands-and-sagas)
 - [Execution Model](#execution-model)
+- [Bootstrap Diagnostics & Behavior Contracts](#bootstrap-diagnostics--behavior-contracts)
 - [API Reference](#api-reference)
 - [License](#license)
 
@@ -889,6 +890,82 @@ orderCreated = (events$: Observable<any>): Observable<ICommand> =>
 
 ---
 
+## Bootstrap Diagnostics & Behavior Contracts
+
+`@nestjs-pipeline/core` includes an eager bootstrap diagnostics mechanism that validates pipeline behavior ordering constraints and declarative configuration invariants during `OnApplicationBootstrap`.
+
+### Diagnostics Modes
+
+Configure `diagnostics` in `PipelineModule.forRoot()`:
+
+| Mode | Behavior |
+|---|---|
+| `'strict'` *(default)* | Collects all violations across handlers and throws `PipelineConfigurationError` during `app.init()`, failing fast before traffic is served. |
+| `'warn'` | Logs formatted diagnostic warnings via Nest `Logger` but allows bootstrap to complete. |
+| `'off'` | Bypasses contract inspection completely. |
+
+```typescript
+PipelineModule.forRoot({
+  diagnostics: 'strict', // 'strict' | 'warn' | 'off'
+})
+```
+
+### IPipelineBehaviorContract
+
+Behaviors declare safety invariants and relative ordering constraints by attaching the well-known symbol `PIPELINE_BEHAVIOR_CONTRACT`:
+
+```typescript
+import {
+  IPipelineBehavior,
+  IPipelineBehaviorContract,
+  NextDelegate,
+  PIPELINE_BEHAVIOR_CONTRACT,
+  PipelineBehaviorDiagnostic,
+  PipelineBehaviorValidationContext,
+} from '@nestjs-pipeline/core';
+
+export class CustomSecurityBehavior implements IPipelineBehavior {
+  static readonly [PIPELINE_BEHAVIOR_CONTRACT]: IPipelineBehaviorContract = {
+    // Relative ordering constraint: static rule or dynamic function of handler context
+    order: (context: PipelineBehaviorValidationContext) => {
+      // e.g. enforce ordering only for commands
+      if (context.requestKind === 'command') {
+        return { after: ['CaslBehavior'] };
+      }
+      return undefined;
+    },
+
+    // Deterministic option validation
+    validate: (context: PipelineBehaviorValidationContext): PipelineBehaviorDiagnostic[] | undefined => {
+      if (!context.effectiveOptions?.secretKey) {
+        return [{
+          handlerName: context.handlerName,
+          behaviorName: CustomSecurityBehavior.name,
+          message: 'CustomSecurityBehavior requires secretKey',
+          fix: 'Provide secretKey in handler @UsePipeline options or module defaults.',
+        }];
+      }
+      return undefined;
+    },
+  };
+
+  async handle(context: IPipelineContext, next: NextDelegate) {
+    return next();
+  }
+}
+```
+
+### Option Precedence & Effective Options
+
+When validating options at bootstrap, the bootstrap service resolves effective options in the exact precedence order used at runtime:
+1. Module defaults: Injected via addon dynamic module `forRoot({ defaults: { ... } })` or module options.
+2. Global pipeline options: Declared in `PipelineModule.forRoot({ globalBehaviors: [ ... ] })`.
+3. Per-handler options: Attached via `@UsePipeline([Behavior, { ... }])` on the handler class.
+
+If a behavior implements `resolveEffectiveOptions(rawMergedOptions)`, bootstrap invokes it on the resolved behavior instance so diagnostics evaluate the identical merged configuration that `handle()` sees at runtime.
+
+---
+
 ## API Reference
 
 ### Exports
@@ -912,7 +989,11 @@ orderCreated = (events$: Observable<any>): Observable<ICommand> =>
 | `GlobalBehaviorScope` | Type | `'commands' \| 'queries' \| 'events' \| 'all'` |
 | `PipelineBootstrapService` | Class | Scans and wraps handlers at bootstrap |
 | `PipelineHandlerMeta` | Interface | Pre-computed handler metadata |
-| `PIPELINE_BEHAVIOR_ID` | Symbol | Custom deduplication key for behaviors |
+| `PIPELINE_BEHAVIOR_CONTRACT` | Symbol | Symbol key for declaring behavior contracts on behavior classes |
+| `PIPELINE_BEHAVIOR_ID` | Symbol | Custom deduplication and contract identity key for behaviors |
+| `PipelineConfigurationError` | Class | Error thrown when bootstrap contract diagnostics find issues |
+| `PipelineBehaviorDiagnostic` | Interface | Structure of a single diagnostic issue |
+| `PipelineBehaviorValidationContext` | Interface | Handler and option inspection context supplied to contract validators |
 | `PIPELINE_SKIPPED_BEHAVIORS_METADATA` | Symbol | Metadata key for skipped behavior classes |
 | `PIPELINE_TENANT_ID` | Symbol | Key symbol for tenant ID in `context.items` |
 | `SET_TENANT_ID` | Symbol | Symbol setter for `tenantId` and items sync |
@@ -929,6 +1010,7 @@ orderCreated = (events$: Observable<any>): Observable<ICommand> =>
 |---|---|---|
 | `behaviors` | `Type[]` | Behavior classes to register in DI; registration alone does not execute them globally |
 | `globalBehaviors` | `GlobalBehaviorsOptions \| GlobalBehaviorsOptions[]` | Auto-wrap matching handlers |
+| `diagnostics` | `'strict' \| 'warn' \| 'off'` | Bootstrap behavior contract verification mode (default `'strict'`) |
 | `correlationIdFactory` | `() => string \| undefined` | Read an external correlation ID for a root run after parent inheritance is checked (e.g. `getCorrelationId`) |
 | `correlationIdRunner` | `<T>(id: string, fn: () => T) => T` | Wrap each pipeline invocation in a correlation context (e.g. `runWithCorrelationId`) |
 | `tenantIdFactory` | `() => string \| undefined` | Eagerly resolve tenant ID per pipeline execution (e.g. from async storage context) |

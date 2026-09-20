@@ -26,9 +26,12 @@ export class CreateRoleCommandRepository extends CommandRepository<
     super(cache);
   }
 
-  @Cache<Role, RoleSnapshot>((role) =>
-    filterCacheKey(Role.aggregateName, { id: role.id }),
-  )
+  @Cache<Role, RoleSnapshot>({
+    setKey: (role) => filterCacheKey(Role.aggregateName, { id: role.id }),
+    invalidateKeys: (role) => [
+      filterCacheKey(Role.aggregateName, { name: role.name }),
+    ],
+  })
   @AcknowledgePersisted<[Role]>({ entity: ([role]) => role })
   @MapPersistenceErrors<[Role], Role>({
     entity: ([role]) => role,

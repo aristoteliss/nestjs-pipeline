@@ -27,11 +27,12 @@ export class UpdateUserCommandRepository extends MikroOrmWriteSideCommandReposit
     super(cache, store, User, User.aggregateName, User.fromJSON);
   }
 
-  @Cache<User, UserSnapshot>(
-    (user) => filterCacheKey(User.aggregateName, { id: user.id }),
-    null,
-    (user) => [filterCacheKey(User.aggregateName, { email: user.email })],
-  )
+  @Cache<User, UserSnapshot>({
+    setKey: (user) => filterCacheKey(User.aggregateName, { id: user.id }),
+    invalidateKeys: (user) => [
+      filterCacheKey(User.aggregateName, { email: user.email }),
+    ],
+  })
   @AcknowledgePersisted<[User]>({ entity: ([user]) => user })
   @MapPersistenceErrors<[User], User>({
     entity: ([user]) => user,
