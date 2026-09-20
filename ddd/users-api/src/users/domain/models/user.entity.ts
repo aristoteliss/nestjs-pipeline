@@ -1,7 +1,9 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import {
-  Mutate,
+  ApplyMutation,
+  Mutable,
+  type MutationPatch,
   RootEntity,
   type RootEntitySnapshot,
 } from '@nestjs-pipeline/ddd-core/domain';
@@ -26,7 +28,12 @@ const DEPARTMENT_MIN_LENGTH = 3;
 export class User extends RootEntity<UserSnapshot> {
   public static readonly aggregateName = 'user';
 
+  @Mutable<string>({ normalize: (value) => User.normalizeUsername(value) })
   private _username: string;
+
+  @Mutable<string | null>({
+    normalize: (value) => User.normalizeDepartment(value),
+  })
   private _department: string | null;
   readonly email: string;
 
@@ -134,39 +141,23 @@ export class User extends RootEntity<UserSnapshot> {
     }
   }
 
-  @Mutate()
+  @ApplyMutation<User>({ event: (user) => new UserUpdatedEvent(user) })
   update(fields: {
     username?: string | null;
     department?: string | null;
-  }): this {
+  }): MutationPatch<User> {
     if (fields.username === undefined && fields.department === undefined) {
       throw new EmptyUserUpdateException();
     }
-    const nextUsername =
-      fields.username !== undefined && fields.username !== null
-        ? User.normalizeUsername(fields.username)
-        : undefined;
 
-    const nextDepartment =
-      fields.department !== undefined
-        ? User.normalizeDepartment(fields.department)
-        : undefined;
-
-    if (nextUsername !== undefined) {
-      this._username = nextUsername;
-    }
-    if (nextDepartment !== undefined) {
-      this._department = nextDepartment;
-    }
-    this.apply(new UserUpdatedEvent(this));
-    return this;
+    return {
+      username: fields.username ?? undefined,
+      department: fields.department,
+    };
   }
 
-  @Mutate()
-  delete(): this {
-    this.apply(new UserDeletedEvent(this));
-    return this;
-  }
+  @ApplyMutation<User>({ event: (user) => new UserDeletedEvent(user) })
+  delete(): MutationPatch<User> {}
 
   toJSON(): RootEntitySnapshot & UserSnapshot {
     return this.freezeState({

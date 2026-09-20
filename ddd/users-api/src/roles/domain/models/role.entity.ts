@@ -1,7 +1,9 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import {
-  Mutate,
+  ApplyMutation,
+  Mutable,
+  type MutationPatch,
   RootEntity,
   type RootEntitySnapshot,
 } from '@nestjs-pipeline/ddd-core/domain';
@@ -19,6 +21,7 @@ const ROLE_NAME_MIN_LENGTH = 3;
 export class Role extends RootEntity<RoleSnapshot> {
   public static readonly aggregateName = 'role';
 
+  @Mutable<string>({ normalize: (value) => Role.normalizeName(value) })
   private _name: string;
 
   private constructor(snapshot?: RoleSnapshot) {
@@ -89,18 +92,13 @@ export class Role extends RootEntity<RoleSnapshot> {
     }
   }
 
-  @Mutate()
-  rename(name: string): this {
-    this._name = Role.normalizeName(name);
-    this.apply(new RoleUpdatedEvent(this));
-    return this;
+  @ApplyMutation<Role>({ event: (role) => new RoleUpdatedEvent(role) })
+  rename(name: string): MutationPatch<Role> {
+    return { name };
   }
 
-  @Mutate()
-  delete(): this {
-    this.apply(new RoleDeletedEvent(this));
-    return this;
-  }
+  @ApplyMutation<Role>({ event: (role) => new RoleDeletedEvent(role) })
+  delete(): MutationPatch<Role> {}
 
   toJSON(): RootEntitySnapshot & RoleSnapshot {
     return this.freezeState({

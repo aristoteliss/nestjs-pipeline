@@ -39,9 +39,8 @@ describe('Role domain entity', () => {
       const role = Role.create('Editor');
       const initialUpdatedAt = role.updatedAt;
 
-      const updated = role.rename('Publisher');
+      role.rename('Publisher');
 
-      expect(updated.name).toBe('Publisher');
       expect(role.name).toBe('Publisher');
       expect(role.updatedAt.getTime()).toBeGreaterThanOrEqual(
         initialUpdatedAt.getTime(),
@@ -51,7 +50,12 @@ describe('Role domain entity', () => {
       expect(events).toHaveLength(2);
       expect(events[0]).toBeInstanceOf(RoleCreatedEvent);
       expect(events[1]).toBeInstanceOf(RoleUpdatedEvent);
-      expect((events[1] as RoleUpdatedEvent).aggregateId).toBe(role.id);
+      const updateEvent = events[1] as RoleUpdatedEvent;
+      expect(updateEvent.aggregateId).toBe(role.id);
+      expect(role.version).toBe(2);
+      expect(updateEvent.aggregateVersion).toBe(2);
+      expect(updateEvent.payload.version).toBe(2);
+      expect(updateEvent.payload.updatedAt).toEqual(role.updatedAt);
     });
 
     it('throws when renaming to invalid name', () => {
@@ -73,10 +77,13 @@ describe('Role domain entity', () => {
       expect(role.updatedAt.getTime()).toBeGreaterThanOrEqual(
         initialUpdatedAt.getTime(),
       );
+      expect(role.version).toBe(2);
       const events = role.getUncommittedEvents();
       expect(events).toHaveLength(2);
       expect(events[1]).toBeInstanceOf(RoleDeletedEvent);
-      expect((events[1] as RoleDeletedEvent).aggregateId).toBe(role.id);
+      const deleteEvent = events[1] as RoleDeletedEvent;
+      expect(deleteEvent.aggregateId).toBe(role.id);
+      expect(deleteEvent.aggregateVersion).toBe(2);
     });
   });
 

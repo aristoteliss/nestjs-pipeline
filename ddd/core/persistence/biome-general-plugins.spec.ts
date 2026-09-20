@@ -516,3 +516,69 @@ describe('Biome Grit aggregate-identity setter guard plugin', () => {
     expect(result.status).toBe(0);
   });
 });
+
+describe('Biome Grit domain-mutation plugin', () => {
+  it('rejects @ApplyMutation() without event configuration', () => {
+    const result = lintFixture(
+      'ddd/users-api/src/users/domain/models/sample.entity.ts',
+      `
+      export class Sample {
+        @ApplyMutation()
+        update() { return {}; }
+      }
+      `,
+    );
+    expect(result.status).toBe(1);
+    expect(result.diagnostics).toContain(
+      '@ApplyMutation() requires the domain event it records',
+    );
+  });
+
+  it('accepts canonical @ApplyMutation with event configuration', () => {
+    const result = lintFixture(
+      'ddd/users-api/src/users/domain/models/sample.entity.ts',
+      `
+      export class Sample {
+        @ApplyMutation({ event: (s) => new Event(s) })
+        update() { return {}; }
+      }
+      `,
+    );
+    expect(result.status).toBe(0);
+  });
+
+  it('rejects this.apply() inside domain methods', () => {
+    const result = lintFixture(
+      'ddd/users-api/src/users/domain/models/sample.entity.ts',
+      `
+      export class Sample {
+        update() {
+          this.apply(new Event());
+        }
+      }
+      `,
+    );
+    expect(result.status).toBe(1);
+    expect(result.diagnostics).toContain(
+      'Domain events belong in @ApplyMutation({ event })',
+    );
+  });
+
+  it('rejects direct field assignment inside @ApplyMutation methods', () => {
+    const result = lintFixture(
+      'ddd/users-api/src/users/domain/models/sample.entity.ts',
+      `
+      export class Sample {
+        @ApplyMutation({ event: (s) => new Event(s) })
+        update() {
+          this._username = 'bob';
+        }
+      }
+      `,
+    );
+    expect(result.status).toBe(1);
+    expect(result.diagnostics).toContain(
+      'An @ApplyMutation() method returns a field patch instead of assigning backing fields',
+    );
+  });
+});

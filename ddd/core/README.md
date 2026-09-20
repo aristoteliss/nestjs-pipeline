@@ -38,7 +38,8 @@ This package provides the foundational building blocks for implementing a Clean 
 - **`RootDomainEvent<TEntity, TPayload>`** — Domain event carrying event-time `aggregateId`/`aggregateVersion` and an immutable, deeply cloned and frozen state snapshot (`event.payload`) created via `deepCloneAndFreeze()` to protect asynchronous event consumers from subsequent in-memory aggregate mutations.
 - **`deepCloneAndFreeze<T>()`** — Deeply clones and recursively freezes any value (objects, arrays, `Date` with mutation guards, `Map`, `Set`, `RegExp`), safely handling circular references via a `WeakMap`.
 - **`CommandBaseHandler<TCommand, TResult>`** — Abstract base handler for CQRS commands. Calls `handle()`, then publishes and clears buffered domain events from a returned `AggregateRoot` or result containing `aggregate: AggregateRoot`. Pipeline behaviors are applied by the pipeline integration; event publication is owned by `execute()`.
-- **`@Mutate()`** — Method decorator that automatically triggers `onUpdate()` after the decorated method executes, incrementing `version` and updating `updatedAt`.
+- **`@Mutable(options?)`** — Property decorator declaring an aggregate field as mutable via patch mutations, with optional backing property name and value normalizer.
+- **`@ApplyMutation<TEntity>(options)`** — Method decorator coordinating aggregate state mutation and domain event application: receives a `MutationPatch`, updates `@Mutable` fields, invokes `onUpdate()` (advancing `version` and `updatedAt`), and constructs domain events (`options.event(entity)`) from the post-mutation snapshot.
 - **`UnixTimestampType`** — Custom MikroORM `Type<Date, number>` mapping JavaScript `Date` instances to Unix timestamps (ms) in 64-bit `bigint` SQL database columns (`platform.getBigIntTypeDeclarationSQL()`) to eliminate integer overflow.
 - **`Method`** — Utility type for extracting method signatures.
 
@@ -94,7 +95,14 @@ This package is a workspace dependency:
 Domain aggregates extend `RootEntity` (which extends domain `AggregateRoot`). They record uncommitted domain events via `this.apply(event)`, manage optimistic locking versions (`this.version`, `this.getExpectedVersion()`), and enforce business rules through framework-agnostic `DomainException`s:
 
 ```typescript
-import { RootEntity, Mutate, type RootEntitySnapshot, DomainException } from '@nestjs-pipeline/ddd-core/domain';
+import {
+  ApplyMutation,
+  DomainException,
+  Mutable,
+  type MutationPatch,
+  RootEntity,
+  type RootEntitySnapshot,
+} from '@nestjs-pipeline/ddd-core/domain';
 import { UserCreatedEvent } from './user-created.event';
 import { UserRenamedEvent } from './user-renamed.event';
 
@@ -117,6 +125,7 @@ export interface UserSnapshot extends Partial<RootEntitySnapshot> {
 }
 
 export class User extends RootEntity<UserSnapshot> {
+  @Mutable<string>({ normalize: (val) => User.validateUsername(val) })
   private _username: string;
   readonly email: string;
   private _department?: string | null;
@@ -150,6 +159,8 @@ export class User extends RootEntity<UserSnapshot> {
   get username(): string {
     return this._username;
   }
+
+  /** @internal @deprecated MikroORM hydration setter only */
   set username(val: string) {
     this._username = User.validateUsername(val);
   }
@@ -157,15 +168,15 @@ export class User extends RootEntity<UserSnapshot> {
   get department(): string | null | undefined {
     return this._department;
   }
+
+  /** @internal @deprecated MikroORM hydration setter only */
   set department(val: string | null | undefined) {
     this._department = val?.trim() || null;
   }
 
-  @Mutate()
-  rename(newUsername: string): this {
-    this.username = newUsername;
-    this.apply(new UserRenamedEvent(this));
-    return this;
+  @ApplyMutation<User>({ event: (user) => new UserRenamedEvent(user) })
+  rename(newUsername: string): MutationPatch<User> {
+    return { username: newUsername };
   }
 
   afterUpdate(): void {

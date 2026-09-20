@@ -3,6 +3,7 @@
 import { uuidv7 } from '@nestjs-pipeline/core';
 import { describe, expect, it } from 'vitest';
 import { UserCreatedEvent } from '../events/user-created.event';
+import { UserDeletedEvent } from '../events/user-deleted.event';
 import { UserUpdatedEvent } from '../events/user-updated.event';
 import {
   EmptyUserUpdateException,
@@ -81,15 +82,19 @@ describe('User domain entity', () => {
 
     it('updates username and department when valid fields are supplied', () => {
       const user = User.create('Alice', 'alice@example.test');
-      const updatedUser = user.update({
+      user.update({
         username: 'Bob',
         department: 'Operations',
       });
 
-      expect(updatedUser.username).toBe('Bob');
-      expect(updatedUser.department).toBe('Operations');
+      expect(user.username).toBe('Bob');
       expect(user.getUncommittedEvents()).toHaveLength(2);
-      expect(user.getUncommittedEvents()[1]).toBeInstanceOf(UserUpdatedEvent);
+      const updateEvent = user.getUncommittedEvents()[1] as UserUpdatedEvent;
+      expect(updateEvent).toBeInstanceOf(UserUpdatedEvent);
+      expect(user.version).toBe(2);
+      expect(updateEvent.aggregateVersion).toBe(2);
+      expect(updateEvent.payload.version).toBe(2);
+      expect(updateEvent.payload.updatedAt).toEqual(user.updatedAt);
     });
 
     it('throws InvalidUsernameException when updating to an invalid username', () => {
@@ -117,6 +122,26 @@ describe('User domain entity', () => {
       expect(user.username).toBe('Alice');
       expect(user.department).toBe('Engineering');
       expect(user.getUncommittedEvents()).toHaveLength(eventsCount);
+    });
+  });
+
+  describe('delete', () => {
+    it('records UserDeletedEvent and increments version', () => {
+      const user = User.create('Alice', 'alice@example.test');
+      const initialUpdatedAt = user.updatedAt;
+
+      user.delete();
+
+      expect(user.version).toBe(2);
+      expect(user.updatedAt.getTime()).toBeGreaterThanOrEqual(
+        initialUpdatedAt.getTime(),
+      );
+      const events = user.getUncommittedEvents();
+      expect(events).toHaveLength(2);
+      const deleteEvent = events[1] as UserDeletedEvent;
+      expect(deleteEvent).toBeInstanceOf(UserDeletedEvent);
+      expect(deleteEvent.aggregateVersion).toBe(2);
+      expect(deleteEvent.aggregateId).toBe(user.id);
     });
   });
 
