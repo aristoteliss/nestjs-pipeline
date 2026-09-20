@@ -61,4 +61,28 @@ describe('BatchUpdateUsersProcessor tenant isolation', () => {
       ]),
     ).toBe('tenant_a');
   });
+
+  it('closes worker gracefully on module destroy', async () => {
+    const tenantContext = {
+      run: vi.fn(),
+      schema: 'tenant_a',
+    } as unknown as TenantSchemaContext;
+    const processor = new BatchUpdateUsersProcessor(tenantContext);
+    const mockWorker = { close: vi.fn().mockResolvedValue(undefined) };
+    Object.defineProperty(processor, 'worker', { value: mockWorker });
+
+    await processor.onModuleDestroy();
+
+    expect(mockWorker.close).toHaveBeenCalledWith();
+  });
+
+  it('handles onModuleDestroy safely when worker is not initialized', async () => {
+    const tenantContext = {
+      run: vi.fn(),
+      schema: 'tenant_a',
+    } as unknown as TenantSchemaContext;
+    const processor = new BatchUpdateUsersProcessor(tenantContext);
+
+    await expect(processor.onModuleDestroy()).resolves.toBeUndefined();
+  });
 });

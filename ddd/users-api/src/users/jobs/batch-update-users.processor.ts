@@ -73,7 +73,7 @@ export class BatchUpdateUsersProcessor
 
   async onModuleDestroy(): Promise<void> {
     try {
-      await this.worker.close(true);
+      await this.worker.close();
     } catch {
       // Worker was not initialized or already closed.
     }
