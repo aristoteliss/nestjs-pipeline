@@ -1,9 +1,7 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { createHash } from 'node:crypto';
-import { APP_SUBJECTS } from '@common/constants';
-import { getSessionUserFromStore } from '@common/context/session-user.store';
-import type { SessionUser } from '@common/types/SessionUser';
+import { APP_ACTIONS, APP_SUBJECTS } from '@common/constants';
 import {
   type CacheCondition,
   createPartitionedCacheKeyFactory,
@@ -21,62 +19,24 @@ import { type IPipelineContext, stableStringify } from '@nestjs-pipeline/core';
  */
 export const OVERVIEW_RESPONSE_POLICY_VERSION = 'v2';
 
-/**
- * Resolves the authenticated viewer from trusted execution context.
- * Rejects missing or malformed principal classification to ensure fail-closed security.
- */
-export function getViewerFromContext(
+function resolveViewer(
   context: IPipelineContext,
 ): { id: string; principalType: 'user' | 'service' } | undefined {
-  const itemUser = context.items.get('user') as SessionUser | undefined;
-  if (
-    itemUser?.id &&
-    (itemUser.principalType === 'user' || itemUser.principalType === 'service')
-  ) {
-    return {
-      id: String(itemUser.id).trim(),
-      principalType: itemUser.principalType,
-    };
-  }
-
-  const caslUser = context.items.get(CASL_USER_CONTEXT_KEY) as
+  const viewer = context.items.get(CASL_USER_CONTEXT_KEY) as
     | { id?: unknown; principalType?: unknown }
     | undefined;
-  if (
-    caslUser?.id &&
-    (caslUser.principalType === 'user' || caslUser.principalType === 'service')
-  ) {
-    return {
-      id: String(caslUser.id).trim(),
-      principalType: caslUser.principalType as 'user' | 'service',
-    };
-  }
+  const { principalType } = viewer ?? {};
+  if (principalType !== 'user' && principalType !== 'service') return undefined;
 
-  const storeUser = getSessionUserFromStore();
-  if (
-    storeUser?.id &&
-    (storeUser.principalType === 'user' ||
-      storeUser.principalType === 'service')
-  ) {
-    return {
-      id: String(storeUser.id).trim(),
-      principalType: storeUser.principalType,
-    };
-  }
-
-  return undefined;
+  const id = viewer?.id === undefined ? '' : String(viewer.id).trim();
+  return id ? { id, principalType } : undefined;
 }
 
-/**
- * Resolves the partitioned principal identifier including principal classification
- * to prevent collisions between user and service principals with identical IDs.
- */
-export function resolveOverviewPrincipal(
+function resolveOverviewPrincipal(
   context: IPipelineContext,
 ): string | undefined {
-  const viewer = getViewerFromContext(context);
-  if (!viewer?.id) return undefined;
-  return `${viewer.principalType}:${viewer.id}`;
+  const viewer = resolveViewer(context);
+  return viewer && `${viewer.principalType}:${viewer.id}`;
 }
 
 /**
@@ -98,8 +58,9 @@ export function resolveOverviewScope(
 }
 
 /**
- * Checks whether the viewer's effective ability contains rules with conditions
- * that depend on the mutable state of the target User or Role entities.
+ * Checks whether the viewer's effective ability has read rules whose conditions
+ * depend on the mutable state of the target User or Role entities. Rules for
+ * `all` subjects are included by `hasEntityConditions`.
  */
 export function hasEntityDependentConditions(
   context: IPipelineContext,
@@ -107,11 +68,11 @@ export function hasEntityDependentConditions(
   const ability = getCaslAbility(context);
   if (!ability) return false;
 
-  return hasEntityConditions(ability, [
-    APP_SUBJECTS.USER,
-    APP_SUBJECTS.ROLE,
-    'all',
-  ]);
+  return hasEntityConditions(
+    ability,
+    [APP_SUBJECTS.USER, APP_SUBJECTS.ROLE],
+    APP_ACTIONS.READ,
+  );
 }
 
 /**

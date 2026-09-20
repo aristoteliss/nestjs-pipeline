@@ -1,6 +1,6 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import { subject as caslSubject, ForbiddenError } from '@casl/ability';
+import { subject as caslSubject } from '@casl/ability';
 import {
   Inject,
   Injectable,
@@ -251,6 +251,11 @@ export interface CaslBehaviorOptions {
 }
 
 /**
+ * Canonical behavior ID for CaslBehavior, used in declarative ordering rules.
+ */
+export const CASL_BEHAVIOR_ID = '@nestjs-pipeline/casl:CaslBehavior';
+
+/**
  * Pipeline behavior that enforces CASL-based authorization (ABAC with roles).
  *
  * **How it works:**
@@ -282,7 +287,7 @@ export interface CaslBehaviorOptions {
  *
  * @example End-to-end with PostgreSQL-backed providers
  * ```ts
- * // ── 1. Schema (see Capability JSDoc for full column/junction layout) ────
+ * // 1. Schema (see Capability JSDoc for full column/junction layout)
  * // capabilities                 (id, subject, action, conditions, inverted, reason, fields)
  * // roles                        (id, name)
  * // role_capabilities            (role_id, capability_id)
@@ -290,7 +295,7 @@ export interface CaslBehaviorOptions {
  * // user_additional_capabilities (user_id, capability_id)
  * // user_denied_capabilities     (user_id, capability_id)
  *
- * // ── 2. Providers ─────────────────────────────────────────────────────────
+ * // 2. Providers
  * @Injectable()
  * class PgRoleProvider implements IRoleProvider {
  *   constructor(private readonly pool: Pool) {}
@@ -350,7 +355,7 @@ export interface CaslBehaviorOptions {
  *   }
  * }
  *
- * // ── 3. Module wiring ─────────────────────────────────────────────────────
+ * // 3. Module wiring
  * @Module({
  *   imports: [
  *     CaslModule.forRoot({
@@ -371,7 +376,7 @@ export interface CaslBehaviorOptions {
  * })
  * export class AppModule {}
  *
- * // ── 4. Simple type-level check (no subjectFromRequest) ─────────────
+ * // 4. Simple type-level check (no subjectFromRequest)
  * // CASL only verifies "can the user read Posts at all?" — no conditions
  * // are evaluated against the query payload.
  * @QueryHandler(GetPostsByAuthorQuery)
@@ -380,7 +385,7 @@ export interface CaslBehaviorOptions {
  * }])
  * class GetPostsByAuthorHandler { ... }
  *
- * // ── 5. Instance-level check with subjectFromRequest ──────────────────
+ * // 5. Instance-level check with subjectFromRequest
  * // CASL evaluates conditions (e.g. authorId = ${user.id}) against the
  * // command payload, so a user can only update their own posts.
  * @CommandHandler(UpdatePostCommand)
@@ -390,7 +395,7 @@ export interface CaslBehaviorOptions {
  * }])
  * class UpdatePostHandler { ... }
  *
- * // ── 6. Multi-tenant command with complex conditions ──────────────────
+ * // 6. Multi-tenant command with complex conditions
  * // Capability: Project|update|{"tenantId":"${user.tenantId}","status":{"$in":["active","planning"]}}
  * // subjectFromRequest makes CASL check tenantId and status on the command.
  * @CommandHandler(UpdateProjectCommand)
@@ -400,7 +405,7 @@ export interface CaslBehaviorOptions {
  * }])
  * class UpdateProjectHandler { ... }
  *
- * // ── 7. Cross-resource command — multiple requirements ────────────────
+ * // 7. Cross-resource command — multiple requirements
  * // User must be able to update Order.status AND create AuditLog.
  * // subjectFromRequest: 'Order' evaluates conditions against the command
  * // for the Order requirement; the AuditLog check remains type-level.
@@ -414,7 +419,7 @@ export interface CaslBehaviorOptions {
  * }])
  * class FulfillOrderHandler { ... }
  *
- * // ── 8. Public endpoint with skipCheck ────────────────────────────────
+ * // 8. Public endpoint with skipCheck
  * // Anyone can list posts, but the handler uses the ability to decide
  * // what to include (e.g. drafts, restricted fields).
  * @QueryHandler(ListPostsQuery)
@@ -427,7 +432,7 @@ export interface CaslBehaviorOptions {
  *   }
  * }
  *
- * // ── 9. Persisted delete with ownership conditions ────────────────────
+ * // 9. Persisted delete with ownership conditions
  * // Capability: Comment|delete|{"authorId":"${user.id}","status":"draft"}
  * // Use a type-level precheck, then authorize the database-loaded comment.
  * @CommandHandler(DeleteCommentCommand)
@@ -442,18 +447,13 @@ export interface CaslBehaviorOptions {
  *   }
  * }
  *
- * // ── 10. Event with authorization (restrict who can trigger) ──────────
+ * // 10. Event with authorization (restrict who can trigger)
  * @UsePipeline([CaslBehavior, {
  *   rules: [{ action: 'publish', subject: 'Post' }],
  * }])
  * class PostPublishedHandler { ... }
  * ```
  */
-/**
- * Canonical behavior ID for CaslBehavior, used in declarative ordering rules.
- */
-export const CASL_BEHAVIOR_ID = '@nestjs-pipeline/casl:CaslBehavior';
-
 @Injectable()
 export class CaslBehavior implements IPipelineBehavior {
   static readonly [PIPELINE_BEHAVIOR_ID] = CASL_BEHAVIOR_ID;
@@ -511,7 +511,7 @@ export class CaslBehavior implements IPipelineBehavior {
     } else {
       const user = await this.resolveUser(context);
 
-      if (!user && requirements && requirements.length > 0) {
+      if (!user && !options?.skipCheck && requirements?.length) {
         this.logger.warn?.(
           'Authorization required but no user context found. ' +
             `Set "${CASL_USER_CONTEXT_KEY.toString()}" in context.items or provide a CASL_USER_CONTEXT_RESOLVER.`,
@@ -639,81 +639,57 @@ export class CaslBehavior implements IPipelineBehavior {
     subjectContextPaths?: string[],
     fieldsFromRequest?: string[] | Record<string, string[]>,
   ): void {
-    const instanceSubjects = Array.isArray(subjectFromRequest)
-      ? subjectFromRequest
-      : subjectFromRequest
-        ? [subjectFromRequest]
-        : [];
+    const instanceSubjects = new Set(
+      Array.isArray(subjectFromRequest)
+        ? subjectFromRequest
+        : subjectFromRequest
+          ? [subjectFromRequest]
+          : [],
+    );
+    const requestPayload = context.request as
+      | Record<string, unknown>
+      | undefined;
 
     for (const req of requirements) {
-      try {
-        if (instanceSubjects.includes(req.subject)) {
-          // Instance-level check: evaluate conditions against the request payload.
-          // Shallow-copy to avoid CASL's subject-type stamp conflicting when
-          // multiple subjects are checked against the same request object.
-          const requestPayload = context.request as
-            | Record<string, unknown>
-            | undefined;
-          const instancePayload = this.buildInstanceSubjectPayload(
+      let subject: string = req.subject;
+      const fields = new Set<string>(req.field ? [req.field] : []);
+
+      if (instanceSubjects.has(req.subject)) {
+        // Shallow-copy so CASL's subject-type stamp cannot conflict when
+        // several subjects are checked against the same request object.
+        subject = caslSubject(req.subject, {
+          ...this.buildInstanceSubjectPayload(
             requestPayload,
             subjectContextPaths,
-          );
-          const sub = caslSubject(req.subject, {
-            ...instancePayload,
-          }) as unknown as string;
-
-          const requestedFields = this.resolveRequestedFields(
-            req.subject,
-            requestPayload,
-            fieldsFromRequest,
-          );
-
-          if (req.field) {
-            ForbiddenError.from(ability).throwUnlessCan(
-              req.action,
-              sub,
-              req.field,
-            );
-          } else if (requestedFields.length > 0) {
-            for (const field of requestedFields) {
-              ForbiddenError.from(ability).throwUnlessCan(
-                req.action,
-                sub,
-                field,
-              );
-            }
-          } else {
-            ForbiddenError.from(ability).throwUnlessCan(req.action, sub);
-          }
-        } else {
-          // Type-level check: can user perform action on at least one instance?
-          if (req.field) {
-            ForbiddenError.from(ability).throwUnlessCan(
-              req.action,
-              req.subject,
-              req.field,
-            );
-          } else {
-            ForbiddenError.from(ability).throwUnlessCan(
-              req.action,
-              req.subject,
-            );
-          }
+          ),
+        }) as unknown as string;
+        for (const field of this.resolveRequestedFields(
+          req.subject,
+          requestPayload,
+          fieldsFromRequest,
+        )) {
+          fields.add(field);
         }
-      } catch (error: unknown) {
-        if (error instanceof ForbiddenError) {
-          this.logger.debug?.(
-            `Authorization failed: ${error.message} ` +
-              `(action=${req.action}, subject=${req.subject}${req.field ? `, field=${req.field}` : ''})`,
-          );
-          throw new UnauthorizedActionException({
-            action: req.action,
-            subject: req.subject,
-            ...(req.field ? { fields: [req.field] } : {}),
-            reason: 'Access denied — insufficient permissions.',
-          });
-        }
-        throw error;
+      }
+
+      const allowed =
+        fields.size === 0
+          ? ability.can(req.action, subject)
+          : [...fields].every((field) =>
+              ability.can(req.action, subject, field),
+            );
+
+      if (!allowed) {
+        this.logger.debug?.(
+          `Authorization failed: action=${req.action}, subject=${req.subject}` +
+            (req.field ? `, field=${req.field}` : ''),
+        );
+        throw new UnauthorizedActionException({
+          action: req.action,
+          subject: req.subject,
+          ...(req.field ? { fields: [req.field] } : {}),
+          reason: 'Access denied — insufficient permissions.',
+        });
       }
     }
   }

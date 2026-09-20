@@ -22,7 +22,8 @@ export class UnauthorizedActionException extends Error {
     const fieldMsg = details.fields?.length
       ? ` on fields: [${details.fields.join(', ')}]`
       : '';
-    const idMsg = details.entityId ? ` (id=${details.entityId})` : '';
+    const idMsg =
+      details.entityId !== undefined ? ` (id=${details.entityId})` : '';
     const msg =
       details.reason ??
       `Access denied: cannot execute "${details.action}" on "${details.subject}"${idMsg}${fieldMsg}.`;

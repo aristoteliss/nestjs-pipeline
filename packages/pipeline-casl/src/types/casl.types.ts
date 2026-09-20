@@ -112,7 +112,10 @@ export interface Capability {
   inverted?: boolean;
   /** Human-readable reason for the forbiddance (only relevant when inverted). */
   reason?: string;
-  /** Optional field restrictions. */
+  /**
+   * Optional field restrictions. Omit for unrestricted field access. An empty
+   * array is rejected for allow rules because it would grant no fields.
+   */
   fields?: string[];
 }
 
@@ -284,15 +287,17 @@ export interface AuthorizerSelectOptions<K extends string = string> {
    * The allowlist of property names to include in the authorized result.
    * Properties not in this list are omitted. Denied properties are omitted.
    */
-  readonly select: readonly K[] | K[];
+  readonly select: readonly K[];
 }
 
 /**
  * Result of applying field selection to an authorized entity.
- * Properties in selection allowlist may be omitted if unauthorized at runtime.
+ *
+ * Selected properties may be omitted when unauthorized, and their values are
+ * typed as {@link Projected} because descendant rules can mask nested items.
  */
 export type SelectedProjection<T, K extends keyof T> = {
-  [P in K]?: T[P];
+  [P in K]?: Projected<T[P]>;
 };
 
 /**

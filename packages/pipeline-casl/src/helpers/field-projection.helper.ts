@@ -2,22 +2,26 @@
 
 import type { AppAbility } from '../types/casl.types';
 
-type ReadRule = ReturnType<AppAbility['relevantRuleFor']>;
+type FieldRule = ReturnType<AppAbility['relevantRuleFor']>;
 const OMIT = Symbol('unreadable-field');
 
-/** Project a snapshot without exposing descendants through a parent grant. */
-export function projectReadableFields(
+/**
+ * Project a snapshot to the fields `ability` permits for `action`, without
+ * exposing descendants through a parent grant.
+ */
+export function projectPermittedFields(
   ability: AppAbility,
+  action: string,
   typedSubject: string,
   record: Record<string, unknown>,
 ): Record<string, unknown> {
   const ancestors = new WeakSet<object>();
 
   // Evaluate full field paths using CASL. Conditions use the complete subject.
-  function ruleFor(paths: string[], inherited: ReadRule): ReadRule {
-    let rule: ReadRule = null;
+  function ruleFor(paths: string[], inherited: FieldRule): FieldRule {
+    let rule: FieldRule = null;
     for (const field of paths) {
-      const candidate = ability.relevantRuleFor('read', typedSubject, field);
+      const candidate = ability.relevantRuleFor(action, typedSubject, field);
       if (candidate) {
         if (candidate.inverted) {
           if (!rule?.inverted || candidate.priority < rule.priority) {
@@ -57,7 +61,7 @@ export function projectReadableFields(
   function project(
     value: unknown,
     paths: string[],
-    inherited: ReadRule,
+    inherited: FieldRule,
   ): unknown {
     const rule = ruleFor(paths, inherited);
     const allowed = !!rule && !rule.inverted;

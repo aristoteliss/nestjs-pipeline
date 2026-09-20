@@ -459,6 +459,9 @@ function getNestedValue(obj: Record<string, unknown>, path: string): unknown {
  *
  * If the capability's `conditions` contain template placeholders, they
  * are interpolated with the provided {@link CaslUserContext}.
+ *
+ * @throws {TypeError} For an allow capability with `fields: []`; an inverted
+ *   capability with an empty list denies all fields.
  */
 export function capabilityToRawRule(
   capability: Capability,
@@ -477,6 +480,12 @@ export function capabilityToRawRule(
     rule.reason = capability.reason;
   }
 
+  if (capability.fields?.length === 0 && !capability.inverted) {
+    throw new TypeError(
+      'Allow capability has an empty fields list, which would grant no fields. ' +
+        'Omit fields for unrestricted access.',
+    );
+  }
   if (capability.fields && capability.fields.length > 0) {
     rule.fields = capability.fields;
   }

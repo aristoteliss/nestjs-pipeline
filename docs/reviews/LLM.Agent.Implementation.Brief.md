@@ -41,7 +41,7 @@ Implement in this order. Each item must ship with a regression that fails before
 
 ## 2.1 F-06 — Audit options that are silently ignored
  
-**Status: CLOSED. Done.** Replaced raw tuples with `audit({...})`, renamed option to `metadata`, added module-wide `AUDIT_MODULE_DEFAULTS` with trusted actor factory, and verified with compile-time guards and runtime emitted-record specs.
+**Status: PARTIAL.** The loaded user is authorized and the composed candidate is projected against it; roles are kept only when the loaded `Role` passes `read` and `read name`; the user is loaded with `{ refresh: true }`; the response cache is partitioned by tenant, principal type/ID from the CASL user context, rule digest and policy version, and bypassed for conditional `read` rules on `User`, `Role` or `all`. Still open: an explicit policy for reading another user's additional capabilities, and a freshness regression through a real repository-cache adapter.
 
 `AuditBehaviorOptions` declares `metadata?: AuditMetadataFactory` (`packages/pipeline-audit/src/interfaces/audit-options.interface.ts:92`). `ddd/users-api/src/users/cqrs/commands/delete-user.handler.ts:38` and `ddd/users-api/src/roles/cqrs/commands/delete-role.handler.ts:38` pass `metadataFactory`, so the target id, acting user id and acting email never reach the HIGH-severity audit record.
 
