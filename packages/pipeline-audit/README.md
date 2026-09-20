@@ -297,22 +297,36 @@ sinks therefore preserve the same information after redaction.
 
 ## Resolving the actor
 
-The behavior itself doesn't know *who* the caller is — resolve it from the
-pipeline context. A common pattern: an upstream behavior writes the user id to
-`context.items`, and the `actor` factory reads it.
+The behavior itself doesn't know *who* the caller is — resolve it from trusted
+session context or pipeline context.
+
+### Module-wide trusted actor defaults
+
+Configure a trusted actor factory once in `AuditModule.forRoot({ defaults: { actor: ... } })`
+so that handlers don't need to duplicate actor resolution:
 
 ```typescript
-// AuthBehavior (runs before AuditBehavior)
-context.items.set('currentUserId', user.id);
-
-// Anywhere you audit
-@UsePipeline([AuditBehavior, {
-  actor: (c) => ({
-    id: c.items.get('currentUserId') as string,
-    correlationId: c.correlationId,
-  }),
-}])
+AuditModule.forRoot({
+  defaults: {
+    actor: (ctx) => {
+      const user = getSessionUserFromStore();
+      if (!user) return { authenticated: false };
+      return {
+        id: user.id,
+        authenticated: true,
+        principalType: user.principalType,
+        email: user.email,
+      };
+    },
+  },
+});
 ```
+
+### Security requirements for actor resolution
+
+- **Never trust caller-supplied request body fields:** An actor factory must resolve the principal from trusted session context, tokens, or `context.items` set by an upstream authentication behavior/interceptor. Using a request body field (like `req.email`) allows unverified identities to pollute the audit trail.
+- **Explicit unauthenticated status:** When no principal is in scope, return `{ authenticated: false }` (or omit `id`) rather than fabricating an `'anonymous'` identity that could be misread as an authenticated principal.
+- **Per-handler override:** Individual handlers can still override the actor factory if a specific operation has different principal semantics.
 
 ---
 

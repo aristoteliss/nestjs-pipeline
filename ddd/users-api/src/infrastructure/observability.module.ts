@@ -1,6 +1,7 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { IncomingMessage } from 'node:http';
+import { AUDIT_MODULE_DEFAULTS } from '@common/audit/audit.options';
 import { Module } from '@nestjs/common';
 import { AuditModule } from '@nestjs-pipeline/audit';
 import {
@@ -133,7 +134,9 @@ export const HTTP_LOG_REDACT_PATHS = [
         ],
       }),
     }),
-    AuditModule.forRoot(),
+    AuditModule.forRoot({
+      defaults: AUDIT_MODULE_DEFAULTS,
+    }),
   ],
   exports: [LoggerModule, PipelineModule, AuditModule],
 })

@@ -1,9 +1,8 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 import { APP_ACTIONS, APP_SUBJECTS, AUDIT_ACTIONS } from '@common/constants';
-import { getSessionUserFromStore } from '@common/context/session-user.store';
 import { Inject } from '@nestjs/common';
 import { CommandHandler, EventBus } from '@nestjs/cqrs';
-import { AUDIT_SEVERITY, AuditBehavior } from '@nestjs-pipeline/audit';
+import { AUDIT_SEVERITY, audit } from '@nestjs-pipeline/audit';
 import { CaslAuthorizer, CaslBehavior } from '@nestjs-pipeline/casl';
 import {
   type IPipelineContext,
@@ -30,24 +29,14 @@ import { DeleteUserCommand } from './delete-user.command';
     CaslBehavior,
     { rules: [{ action: APP_ACTIONS.DELETE, subject: APP_SUBJECTS.USER }] },
   ],
-  [
-    AuditBehavior,
-    {
-      action: AUDIT_ACTIONS.USER_DELETE,
-      severity: AUDIT_SEVERITY.HIGH,
-      metadataFactory: (ctx: IPipelineContext) => {
-        const cmd = ctx.request as DeleteUserCommand;
-        const actor = getSessionUserFromStore();
-        return cmd && actor
-          ? {
-              targetUserId: cmd.id,
-              deletedByUserId: actor.id,
-              deletedByEmail: actor.email,
-            }
-          : undefined;
-      },
+  audit({
+    action: AUDIT_ACTIONS.USER_DELETE,
+    severity: AUDIT_SEVERITY.HIGH,
+    metadata: (ctx: IPipelineContext) => {
+      const cmd = ctx.request as DeleteUserCommand;
+      return { targetUserId: cmd.id };
     },
-  ],
+  }),
   [
     ResilienceBehavior,
     {

@@ -8,7 +8,7 @@ import {
 import { requireTenantId } from '@common/cqrs/helpers/requireTenantId.helper';
 import { Inject } from '@nestjs/common';
 import { CommandHandler, EventBus } from '@nestjs/cqrs';
-import { AUDIT_SEVERITY, AuditBehavior } from '@nestjs-pipeline/audit';
+import { AUDIT_SEVERITY, audit } from '@nestjs-pipeline/audit';
 import {
   type IPipelineContext,
   LoggingBehavior,
@@ -36,18 +36,15 @@ export function createAuthRateLimitKey(ctx: IPipelineContext): string {
   [LoggingBehavior, { requestResponseLogLevel: 'log' }],
   [MetricsBehavior, { meterName: 'users-api.auth' }],
   [RateLimitBehavior, { keyFactory: createAuthRateLimitKey }],
-  [
-    AuditBehavior,
-    {
-      action: AUDIT_ACTIONS.AUTH_LOGIN,
-      severity: AUDIT_SEVERITY.MEDIUM,
-      redactKeys: ['code'],
-      actor: (ctx: IPipelineContext) => {
-        const req = ctx.request as CreateAuthCommand;
-        return { id: req?.email ?? 'anonymous', email: req?.email };
-      },
+  audit({
+    action: AUDIT_ACTIONS.AUTH_LOGIN,
+    severity: AUDIT_SEVERITY.MEDIUM,
+    redactKeys: ['code'],
+    actor: (ctx: IPipelineContext) => {
+      const req = ctx.request as CreateAuthCommand;
+      return { id: req?.email ?? 'anonymous', email: req?.email };
     },
-  ],
+  }),
 )
 export class CreateAuthHandler extends CommandBaseHandler<
   CreateAuthCommand,
