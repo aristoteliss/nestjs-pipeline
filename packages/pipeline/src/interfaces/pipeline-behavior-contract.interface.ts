@@ -56,11 +56,21 @@ export interface PipelineBehaviorDiagnostic {
 
 /**
  * Static ordering constraints relative to other pipeline behaviors.
+ *
+ * These are **relative-position** constraints, not dependency declarations. A
+ * target that is absent from the handler's effective chain produces no
+ * diagnostic, because there is no position to violate. `after: [CaslBehavior]`
+ * therefore means "must not run before `CaslBehavior` when it is present", not
+ * "`CaslBehavior` must be present".
+ *
+ * To require a peer, check {@link PipelineBehaviorValidationContext.effectiveBehaviorTypes}
+ * in {@link IPipelineBehaviorContract.validate} and return a diagnostic when it
+ * is missing. Ordering alone cannot express that.
  */
 export interface PipelineBehaviorOrderRule {
-  /** This behavior must execute before the specified behaviors. */
+  /** This behavior must execute before the specified behaviors, when present. */
   before?: Array<Type<IPipelineBehavior> | string>;
-  /** This behavior must execute after the specified behaviors. */
+  /** This behavior must execute after the specified behaviors, when present. */
   after?: Array<Type<IPipelineBehavior> | string>;
 }
 

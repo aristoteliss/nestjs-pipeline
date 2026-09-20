@@ -6,11 +6,7 @@ import {
   assertPlainRequestOutput,
   defineEnumerableDataProperties,
 } from './helpers/request-output';
-import {
-  cloneData,
-  setRawInput,
-  setValidatedData,
-} from './helpers/zod-data.helpers';
+import { setRawInput, setValidatedData } from './helpers/zod-data.helpers';
 import { ZOD_SCHEMA_KEY } from './zod-validation.behavior';
 
 /**
@@ -188,15 +184,8 @@ export function createZodRequest<
       }
 
       setRawInput(this, rawInput);
-
       defineEnumerableDataProperties(this, data);
-
-      const snapshot: Record<string, unknown> = {};
-      for (const key of Object.keys(this)) {
-        snapshot[key] = cloneData((this as Record<string, unknown>)[key]);
-      }
-
-      setValidatedData(this, snapshot);
+      setValidatedData(this, schema, data);
     }
   }
 

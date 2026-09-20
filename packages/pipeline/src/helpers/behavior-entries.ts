@@ -34,18 +34,44 @@ export function behaviorEntryType(
   return candidate as Type<IPipelineBehavior>;
 }
 
-/** First identity fixes placement; the last tuple supplies options. Bare repeats preserve options. */
+/**
+ * Accumulators shared across several calls, so one identity is deduplicated
+ * across every chain position and every matching global configuration.
+ */
+export interface BehaviorEntryAccumulators {
+  /** Identities already placed. The first occurrence fixes chain position. */
+  seen: Set<BehaviorId>;
+  /** Options by identity. A later tuple supplies the effective options. */
+  options: Map<BehaviorId, Record<string, unknown>>;
+}
+
+/**
+ * First identity fixes placement; the last tuple supplies options. Bare repeats
+ * preserve options.
+ *
+ * Pass `accumulators` to apply that rule across multiple entry lists — global
+ * `before` and `after` share one set so a behavior declared in both runs once,
+ * at its first position, without the bare repeat erasing tuple options.
+ *
+ * @param entries - Raw declarations, each a behavior class or `[Class, options]`.
+ * @param location - Human-readable declaration site, used in thrown messages.
+ * @param allowTuple - Whether `[Class, options]` is accepted (`@SkipPipeline` takes classes only).
+ * @param accumulators - Shared dedup state; a fresh pair is used when omitted.
+ * @returns Types to include, in first-seen order, plus the options map.
+ */
 export function normalizeBehaviorEntries(
   entries: readonly unknown[],
   location: string,
   allowTuple = true,
+  accumulators?: BehaviorEntryAccumulators,
 ): {
   types: Type<IPipelineBehavior>[];
   options: Map<BehaviorId, Record<string, unknown>>;
 } {
   const types: Type<IPipelineBehavior>[] = [];
-  const options = new Map<BehaviorId, Record<string, unknown>>();
-  const seen = new Set<BehaviorId>();
+  const options =
+    accumulators?.options ?? new Map<BehaviorId, Record<string, unknown>>();
+  const seen = accumulators?.seen ?? new Set<BehaviorId>();
   entries.forEach((entry, index) => {
     const type = behaviorEntryType(
       entry,

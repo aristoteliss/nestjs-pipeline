@@ -166,3 +166,112 @@ describe('zod-data.helpers', () => {
     });
   });
 });
+
+describe('rich validation snapshot data', () => {
+  it('matches Set elements one-to-one in both directions and ignores insertion order', () => {
+    const repeated = new Set([{ n: 1 }, { n: 1 }]);
+    const distinct = new Set([{ n: 1 }, { n: 2 }]);
+    expect(deepEqual(repeated, distinct)).toBe(false);
+    expect(deepEqual(distinct, repeated)).toBe(false);
+    expect(deepEqual(distinct, new Set([{ n: 2 }, { n: 1 }]))).toBe(true);
+  });
+
+  it('matches nested unordered collections without reusing a candidate', () => {
+    const left = new Set([
+      new Map([[{ id: 1 }, new Set([2, 3])]]),
+      new Map([[{ id: 2 }, new Set([4])]]),
+    ]);
+    const right = new Set([
+      new Map([[{ id: 2 }, new Set([4])]]),
+      new Map([[{ id: 1 }, new Set([3, 2])]]),
+    ]);
+    expect(deepEqual(left, right)).toBe(true);
+    expect(deepEqual(left, cloneData(left))).toBe(true);
+  });
+
+  it('clones own __proto__ properties without invoking the prototype setter', () => {
+    const data = JSON.parse(
+      '{"__proto__":{"admin":true},"nested":{"__proto__":42}}',
+    );
+    const copy = cloneData(data);
+    expect(Object.getPrototypeOf(copy)).toBe(Object.prototype);
+    expect(Object.hasOwn(copy, '__proto__')).toBe(true);
+    expect(Object.hasOwn(copy.nested, '__proto__')).toBe(true);
+    expect(deepEqual(data, copy)).toBe(true);
+  });
+
+  it('retains sparse lengths and distinguishes holes from explicit undefined', () => {
+    const empty = new Array(2);
+    const copy = cloneData(empty);
+    expect(copy).toHaveLength(2);
+    expect(Object.hasOwn(copy, '0')).toBe(false);
+    expect(deepEqual(empty, [])).toBe(false);
+    expect(deepEqual(empty, [undefined, undefined])).toBe(false);
+  });
+
+  it('clones cyclic Maps and Sets with detached shared values', () => {
+    const shared = { value: 1 };
+    const map = new Map<unknown, unknown>();
+    const set = new Set<unknown>();
+    map.set(map, set);
+    set.add(map);
+    set.add(shared);
+    const source = { map, set, shared };
+    const copy = cloneData(source);
+    expect(copy.map.get(copy.map)).toBe(copy.set);
+    expect(copy.set.has(copy.map)).toBe(true);
+    expect(copy.set.has(copy.shared)).toBe(true);
+    expect(copy.shared).not.toBe(shared);
+    expect(deepEqual(source, copy)).toBe(true);
+    copy.shared.value = 2;
+    expect(deepEqual(source, copy)).toBe(false);
+    expect(deepEqual(copy, source)).toBe(false);
+  });
+
+  it('detects nested enumerable symbol changes', () => {
+    const key = Symbol('value');
+    const value = { [key]: 1 };
+    const copy = cloneData(value);
+    expect(deepEqual(value, copy)).toBe(true);
+    value[key] = 2;
+    expect(deepEqual(value, copy)).toBe(false);
+  });
+
+  it.each([
+    new Uint8Array([1, 2]),
+    new DataView(new Uint8Array([1, 2]).buffer),
+    new Uint8Array([1, 2]).buffer,
+    Buffer.from([1, 2]),
+  ])('detaches binary snapshots and detects byte changes (%s)', (value) => {
+    const copy = cloneData(value);
+    expect(copy).not.toBe(value);
+    expect(deepEqual(value, copy)).toBe(true);
+    const view =
+      value instanceof ArrayBuffer
+        ? new Uint8Array(value)
+        : new Uint8Array(value.buffer, value.byteOffset, value.byteLength);
+    view[0] = 9;
+    expect(deepEqual(value, copy)).toBe(false);
+  });
+
+  it('clones and compares large binary payloads without per-byte property work', () => {
+    const payload = new Uint8Array(200_000).fill(7);
+    const started = performance.now();
+    const copy = cloneData(payload);
+    expect(deepEqual(payload, copy)).toBe(true);
+    expect(performance.now() - started).toBeLessThan(100);
+  });
+
+  it('detects RegExp position and Date attached-data mutations', () => {
+    const expression = /x/g;
+    expression.lastIndex = 2;
+    const copy = cloneData(expression);
+    expect(deepEqual(expression, copy)).toBe(true);
+    expression.lastIndex = 3;
+    expect(deepEqual(expression, copy)).toBe(false);
+    const date = Object.assign(new Date(0), { allowed: true });
+    const dateCopy = cloneData(date);
+    date.allowed = false;
+    expect(deepEqual(date, dateCopy)).toBe(false);
+  });
+});

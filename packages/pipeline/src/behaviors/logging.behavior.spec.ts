@@ -302,6 +302,54 @@ describe('LoggingBehavior failure isolation', () => {
     expect(next).toHaveBeenCalledOnce();
   });
 
+  it('reports a suppressed log write instead of discarding it silently', async () => {
+    const logger = {
+      log: vi.fn(),
+      debug: vi.fn(),
+      error: vi.fn(),
+      warn: vi.fn(),
+    };
+    const payload = Object.defineProperty({}, 'value', {
+      enumerable: true,
+      get() {
+        throw new Error('getter');
+      },
+    });
+    const context = createMockContext({
+      request: payload,
+      getBehaviorOptions: () => ({ excludeRequestObj: false }) as never,
+    });
+
+    await expect(
+      new LoggingBehavior(logger).handle(context, () =>
+        Promise.resolve('saved'),
+      ),
+    ).resolves.toBe('saved');
+
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining('LoggingBehavior suppressed a log write'),
+    );
+  });
+
+  it('stays silent when the logger itself is the failing component', async () => {
+    const logger = {
+      log: vi.fn(),
+      debug: vi.fn(() => {
+        throw new Error('logger unavailable');
+      }),
+      error: vi.fn(),
+      warn: vi.fn(() => {
+        throw new Error('logger unavailable');
+      }),
+    };
+
+    await expect(
+      new LoggingBehavior(logger).handle(createMockContext(), () =>
+        Promise.resolve('saved'),
+      ),
+    ).resolves.toBe('saved');
+  });
+
   it.each(['text', 'structured'])(
     'redacts error optionalParams in %s logs',
     async (logFormat) => {

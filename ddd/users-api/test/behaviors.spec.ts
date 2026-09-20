@@ -37,9 +37,9 @@ import { TenantSchemaContext } from '@persistence/tenant-schema.context';
 import { RateLimiterMemory } from 'rate-limiter-flexible';
 import { describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
-
 import { UniqueRoleNameException } from '../src/roles/domain/models/errors/role-name.exception';
 import { Role } from '../src/roles/domain/models/role.entity';
+import { UpdateUserCommand } from '../src/users/cqrs/commands/update-user.command';
 
 // ─── Pipeline Context Helper ──────────────────────────────────────────────────
 
@@ -714,6 +714,31 @@ describe('Users API Pipeline Behaviors Specification', () => {
         ZodValidationError,
       );
       expect(next).not.toHaveBeenCalled();
+    });
+
+    it('leaves a generated command untouched across repeated pipeline passes', async () => {
+      const zodBehavior = new ZodValidationBehavior();
+      const sessionUser = { id: 'session-user' };
+      const command = new UpdateUserCommand(
+        { id: '018e0d5c-4ef6-7000-b7c8-a1e6bc5c9e70', username: '  Ada  ' },
+        sessionUser,
+      );
+      const ctx = createContext({ request: command });
+      (ctx as any).requestType = UpdateUserCommand;
+
+      for (let pass = 0; pass < 2; pass += 1) {
+        await expect(
+          zodBehavior.handle(ctx, vi.fn().mockResolvedValue('ok')),
+        ).resolves.toBe('ok');
+      }
+
+      expect(command.username).toBe('Ada');
+      expect(Object.hasOwn(command, 'department')).toBe(false);
+      expect(command.sessionUser).toBe(sessionUser);
+      expect(Object.keys(command)).toEqual(['id', 'username']);
+      expect(command.getUpdateFields(UpdateUserCommand.MUTABLE_FIELDS)).toEqual(
+        ['username'],
+      );
     });
   });
 });

@@ -396,8 +396,22 @@ export class LoggingBehavior implements IPipelineBehavior {
   private observe(write: () => void): void {
     try {
       write();
-    } catch {
-      // Observability failures must not alter business execution or error identity.
+    } catch (error) {
+      // Observability failures must not alter business execution or error
+      // identity, but they must not be invisible either: a payload that always
+      // throws would otherwise silence a handler's logging with no trace.
+      try {
+        this.log(
+          'warn',
+          `LoggingBehavior suppressed a log write: ${
+            error instanceof Error
+              ? `${error.name}: ${error.message}`
+              : 'unknown error'
+          }`,
+        );
+      } catch {
+        // The logger itself is unusable; nothing further is safe to attempt.
+      }
     }
   }
 

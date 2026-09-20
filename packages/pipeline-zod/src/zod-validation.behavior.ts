@@ -14,9 +14,9 @@ import {
   defineEnumerableDataProperties,
 } from './helpers/request-output';
 import {
-  cloneData,
   getRawInput,
   getValidatedData,
+  getValidationState,
   hasBeenMutated,
   setValidatedData,
   ZOD_RAW_INPUT_KEY,
@@ -102,62 +102,35 @@ export class ZodValidationBehavior implements IPipelineBehavior {
     context: IPipelineContext,
     next: NextDelegate,
   ): Promise<unknown> {
-    const schema = untyped(context.requestType)[ZOD_SCHEMA_KEY] as
-      | ZodType
-      | undefined;
+    const schema = context.requestType
+      ? (untyped(context.requestType)[ZOD_SCHEMA_KEY] as ZodType | undefined)
+      : undefined;
 
-    if (schema) {
-      if (!context.request || typeof context.request !== 'object') {
-        throw new TypeError(
-          'ZodValidationBehavior requires the pipeline request to be an object when a schema is attached.',
-        );
-      }
-
-      const validatedSnapshot = getValidatedData(context.request);
-
-      const isAlreadyValidated =
-        !!validatedSnapshot &&
-        !hasBeenMutated(
-          context.request as Record<string, unknown>,
-          validatedSnapshot,
-        );
-
-      if (!isAlreadyValidated) {
-        const result = await schema.safeParseAsync(context.request);
-        if (!result.success) {
-          throw new ZodValidationError(result.error);
-        }
-
-        assertPlainRequestOutput(result.data, 'behavior');
-
-        const baseKeys = validatedSnapshot
-          ? new Set(
-              Object.keys(validatedSnapshot).filter(
-                (k) =>
-                  Object.getOwnPropertyDescriptor(result.data, k) === undefined,
-              ),
-            )
-          : new Set<string>();
-
-        for (const key of Object.keys(context.request)) {
-          if (
-            Object.getOwnPropertyDescriptor(result.data, key) === undefined &&
-            !baseKeys.has(key)
-          ) {
-            delete (context.request as unknown as Record<string, unknown>)[key];
-          }
-        }
-        defineEnumerableDataProperties(context.request, result.data);
-
-        const newSnapshot: Record<string, unknown> = {};
-        for (const key of Object.keys(context.request)) {
-          newSnapshot[key] = cloneData(
-            (context.request as Record<string, unknown>)[key],
-          );
-        }
-        setValidatedData(context.request, newSnapshot);
-      }
+    if (!schema) return next();
+    if (!context.request || typeof context.request !== 'object') {
+      throw new TypeError(
+        'ZodValidationBehavior requires the pipeline request to be an object when a schema is attached.',
+      );
     }
+    const request = context.request as Record<string, unknown>;
+    const state = getValidationState(request);
+    if (state?.schema === schema && !hasBeenMutated(request, state.snapshot))
+      return next();
+
+    const result = await schema.safeParseAsync(request);
+    if (!result.success) throw new ZodValidationError(result.error);
+    assertPlainRequestOutput(result.data, 'behavior');
+
+    // A previously parsed request only gives up the fields its schema produced;
+    // an unvalidated one gives up every field the schema does not keep.
+    const removable = state
+      ? Object.keys(state.snapshot)
+      : Object.keys(request);
+    for (const key of removable) {
+      if (!Object.hasOwn(result.data, key)) delete request[key];
+    }
+    defineEnumerableDataProperties(request, result.data);
+    setValidatedData(request, schema, result.data);
 
     return next();
   }

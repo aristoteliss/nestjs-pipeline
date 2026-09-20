@@ -101,12 +101,28 @@ export class CreateUserHandler implements ICommandHandler<CreateUserCommand> {
 ### How It Works
 
 1. `ZodValidationBehavior` reads `context.requestType._zodSchema` (a `ZodType`).
-2. If a schema exists, it awaits `schema.safeParseAsync(context.request)`.
-3. On failure, it throws `ZodValidationError` with structured details.
-4. On success, if both `result.data` and the request are objects, it mutates the existing request object to match `result.data`: request keys omitted by the parsed result are deleted, then parsed/coerced/defaulted values are assigned.
-5. If no schema is present (e.g. a plain event class), it's a no-op — just calls `next()`.
+2. If no schema is present (e.g. a plain event class, or a request type that carries none), it's a no-op — just calls `next()`.
+3. If the request was already parsed with that same schema and its parsed fields are unchanged, the behavior skips straight to `next()`. This is what keeps a non-idempotent transform from running twice over its own output.
+4. Otherwise it awaits `schema.safeParseAsync(context.request)`. On failure it throws `ZodValidationError` with structured details.
+5. On success the existing request object is updated in place to match `result.data`: keys the schema no longer produces are removed, then parsed/coerced/defaulted values are assigned.
 
 This means transforms, coercions, defaults, and object-key stripping performed by the schema are visible to later behaviors and to the handler; the behavior is not validation-only.
+
+**Which keys can be removed.** On the first parse of a request the behavior has not
+seen before — a plain object, or a hand-written class carrying `_zodSchema` — every
+key the schema does not keep is removed, so unknown input never reaches the handler.
+Once a request has been parsed (by the behavior, or by a generated constructor), only
+the fields that schema itself produced are tracked: they are re-checked for mutation
+and removed if a later parse omits them. Fields the request class owns — base-class
+properties, subclass fields, non-enumerable CQRS metadata such as `sessionUser` — are
+neither validated nor removed.
+
+**Mutating a request after construction.** Changing a schema-owned field marks the
+request for re-parsing, and that re-parse runs the schema over the *parsed* payload,
+not the original input. For a schema whose output type differs from its input type
+(`z.string().transform(Number)`, a `Uint8Array` transform, a branded object), that
+second pass can legitimately fail. Build a new request instead of mutating a parsed
+one when the schema is not input/output-stable.
 
 Async refinements and transforms are supported by both `ZodValidationBehavior`
 and `ZodPipe`. Consequently, `ZodPipe.transform()` returns a promise (which
@@ -355,7 +371,7 @@ On validation failure, `ZodPipe` throws a NestJS `BadRequestException` with `err
 
 ## ZodValidationFilter
 
-A NestJS `ExceptionFilter` that catches `ZodValidationError` (thrown by `ZodValidationBehavior` or `createRequest()` constructors) and maps it to an HTTP 400 response.
+A NestJS `ExceptionFilter` that catches `ZodValidationError` (thrown by `ZodValidationBehavior` or by a `createZodRequest()` constructor) and maps it to an HTTP 400 response.
 
 ```typescript
 // main.ts
@@ -434,7 +450,7 @@ export class CustomValidationFilter implements ExceptionFilter {
 A complete setup from module to controller:
 
 ```typescript
-// ── app.module.ts ──
+// app.module.ts
 import { Module } from '@nestjs/common';
 import { CqrsModule } from '@nestjs/cqrs';
 import { PipelineModule, LoggingBehavior } from '@nestjs-pipeline/core';
@@ -454,7 +470,7 @@ import { ZodValidationBehavior } from '@nestjs-pipeline/zod';
 })
 export class AppModule {}
 
-// ── main.ts ──
+// main.ts
 import { NestFactory } from '@nestjs/core';
 import { ZodValidationFilter } from '@nestjs-pipeline/zod';
 
@@ -465,7 +481,7 @@ async function bootstrap() {
 }
 bootstrap();
 
-// ── create-user.command.ts ──
+// create-user.command.ts
 import { createCommand } from '@nestjs-pipeline/zod';
 import { z } from 'zod';
 
@@ -476,7 +492,7 @@ const schema = z.object({
 
 export class CreateUserCommand extends createCommand(schema) {}
 
-// ── create-user.dto.ts ──
+// create-user.dto.ts
 import { z } from 'zod';
 
 export const CreateUserDtoSchema = z.object({
@@ -485,14 +501,14 @@ export const CreateUserDtoSchema = z.object({
 });
 export type CreateUserDto = z.infer<typeof CreateUserDtoSchema>;
 
-// ── create-user.mapper.ts ──
+// create-user.mapper.ts
 export const CreateUserMapper = {
   map(dto: CreateUserDto) {
     return new CreateUserCommand({ username: dto.name, email: dto.email });
   },
 };
 
-// ── create-user.handler.ts ──
+// create-user.handler.ts
 import { CommandHandler, ICommandHandler } from '@nestjs/cqrs';
 import { UsePipeline, LoggingBehavior } from '@nestjs-pipeline/core';
 
@@ -504,7 +520,7 @@ export class CreateUserHandler implements ICommandHandler<CreateUserCommand> {
   }
 }
 
-// ── users.controller.ts ──
+// users.controller.ts
 import { Body, Controller, Get, Param, Post } from '@nestjs/common';
 import { CommandBus, QueryBus } from '@nestjs/cqrs';
 import { ZodPipe } from '@nestjs-pipeline/zod';
@@ -544,6 +560,16 @@ export class UsersController {
 | `ZodValidationFilter` | Class | Exception filter — catches `ZodValidationError` → HTTP 400 |
 | `ZodPipe` | Class | Async NestJS pipe — validates params/body/query against synchronous or asynchronous Zod schemas |
 | `ZOD_SCHEMA_KEY` | `'_zodSchema'` | Key for attaching schemas to request classes |
+| `getRawInput(request)` | Function | Returns, by reference, the input a generated constructor was called with — including an explicit `null` or `undefined` that preprocessing replaced. Returns the request itself when no input was recorded |
+| `getValidatedData(request)` | Function | Returns a frozen, detached copy of the parsed payload a request carries, or `undefined` when it has never been parsed. Each call returns a fresh copy, so mutating it cannot affect validation |
+| `ZOD_RAW_INPUT_KEY` | `symbol` | Symbol `getRawInput()` also reads, for requests produced outside this package |
+| `ZOD_VALIDATED_DATA_KEY` | `symbol` | Symbol `getValidatedData()` also reads. Readable metadata only — attaching it does **not** mark a request validated, and the behavior still parses such a request |
+
+Each generated class additionally exposes `parse(input, ...baseArgs)`,
+`parseAsync(input, ...baseArgs)`, `safeParse(input)`, `schema`, and `~standard`;
+`createCommand()` and `createQuery()` add `requestKind`. The class types
+(`ZodRequestClass`, `ZodCommandClass`, `ZodQueryClass`) are exported for
+consumers that need to name them.
 
 ---
 
@@ -553,11 +579,14 @@ Dual-licensed under **AGPLv3** and a **Commercial License**. See the root [`LICE
 
 Contact: **aristotelis@ik.me**
 
-## Property-presence correction
+## Property presence
 
-Generated construction (including `parseAsync`) and behavior revalidation preserve
-all own enumerable keys returned by Zod, including explicit `undefined` values.
-An omitted optional key remains absent. Earlier constructors dropped explicit
-`undefined` keys; consumers using `Object.hasOwn`, `Object.keys`, or fingerprints
-must account for this observable correction. Base-class fields and prototypes are
-preserved; JSON serialization still follows its own undefined-value rules.
+Generated construction (including `parseAsync()`) and behavior re-parsing define
+every own enumerable key Zod returns, including keys whose parsed value is
+`undefined`. A key the schema omits entirely stays absent. So `Object.hasOwn()`,
+`Object.keys()`, and cache/idempotency fingerprints see an explicit `undefined`
+field as present; `JSON.stringify()` still drops it under its own rules.
+
+Prototypes and base-class fields are preserved, and an own `__proto__` key in
+parsed output is defined as a plain data property rather than reassigning the
+prototype.
