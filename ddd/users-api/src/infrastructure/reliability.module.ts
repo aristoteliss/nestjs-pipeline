@@ -1,9 +1,8 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { BullModule, getQueueToken } from '@nestjs/bullmq';
-import { Module, UnauthorizedException } from '@nestjs/common';
+import { Module } from '@nestjs/common';
 import { CacheModule } from '@nestjs-pipeline/cache';
-import { UnauthorizedActionException } from '@nestjs-pipeline/casl';
 import {
   BullMqDeadLetterTransport,
   DeadLetterModule,
@@ -12,10 +11,10 @@ import { FeatureFlagsModule } from '@nestjs-pipeline/feature-flags';
 import { IdempotencyModule } from '@nestjs-pipeline/idempotency';
 import { RateLimitModule } from '@nestjs-pipeline/rate-limit';
 import { ResilienceModule } from '@nestjs-pipeline/resilience';
-import { ZodValidationError } from '@nestjs-pipeline/zod';
 import { InMemoryProvider } from '@openfeature/server-sdk';
 import type { Queue } from 'bullmq';
 import { RateLimiterMemory } from 'rate-limiter-flexible';
+import { DEAD_LETTER_DEFAULTS } from './dead-letter.options';
 
 /**
  * Infrastructure module that encapsulates all reliability, resilience, rate limiting,
@@ -23,7 +22,7 @@ import { RateLimiterMemory } from 'rate-limiter-flexible';
  *
  * ### Responsibilities
  * - **BullMQ & Redis Connectivity**: Connects to the Redis instance for queues and background tasks.
- * - **Dead Letter Queue (`DeadLetterModule`)**: Captures unhandled command and event failures (excluding read queries and validation errors) into a dedicated BullMQ queue (`dead-letters`) for inspection or replay.
+ * - **Dead Letter Queue (`DeadLetterModule`)**: Captures unhandled command and event failures (excluding read queries, expected rejections and post-success idempotency failures; see `dead-letter.options.ts`) into a dedicated BullMQ queue (`dead-letters`) for inspection or replay.
  * - **Rate Limiting (`RateLimitModule`)**: Memory-based or Redis-backed rate limiter (default: 5 ops / 60s) used by opt-in command handlers.
  * - **Idempotency (`IdempotencyModule`)**: Distributed lock claiming and cached response replaying to prevent duplicate execution of mutating operations.
  * - **Resilience Policies (`ResilienceModule`)**: Cockatiel-based retry policies, circuit breakers, and timeouts.
@@ -70,15 +69,7 @@ import { RateLimiterMemory } from 'rate-limiter-flexible';
       ],
       inject: [getQueueToken('dead-letters')],
       useFactory: (queue: Queue) => new BullMqDeadLetterTransport(queue),
-      defaults: {
-        captureKinds: ['command', 'event'],
-        ignoreErrors: [
-          ZodValidationError,
-          UnauthorizedException,
-          UnauthorizedActionException,
-        ],
-        redactKeys: ['code'],
-      },
+      defaults: DEAD_LETTER_DEFAULTS,
     }),
     // Rate limiting: In-memory limiter (5 ops / 60s) configured for single-process local demo
     // and tests. For multi-replica production deployments, replace with RateLimiterRedis or
