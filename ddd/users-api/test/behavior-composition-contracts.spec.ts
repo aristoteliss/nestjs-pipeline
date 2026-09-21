@@ -1,7 +1,7 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 /**
- * Cross-package behavior composition contracts (R-07).
+ * Cross-package behavior composition contracts.
  *
  * Verifies real exported behavior classes at ordering boundaries:
  * 1. DeadLetterBehavior outside ResilienceBehavior: dead-letters once after retries exhaust.
@@ -55,7 +55,6 @@ function makeContext(
 ): IPipelineContext {
   return {
     correlationId: 'corr-1',
-    originalCorrelationId: 'corr-1',
     tenantId: 'tenant-a',
     request: { id: 'req-1' },
     requestType: class Request {},
@@ -70,7 +69,7 @@ function makeContext(
   } as unknown as IPipelineContext;
 }
 
-describe('Cross-package composition contracts (R-07)', () => {
+describe('Cross-package behavior composition contracts', () => {
   describe('Contract A: DeadLetterBehavior outside ResilienceBehavior', () => {
     it('dead-letters once after real resilience policy exhausts retries', async () => {
       const send = vi.fn().mockResolvedValue(undefined);

@@ -56,7 +56,6 @@ function createContext(options: {
 
   return {
     correlationId: 'test-correlation-id',
-    originalCorrelationId: 'test-correlation-id',
     request: options.request ?? {},
     requestType: class MockRequest {},
     requestName: options.requestName ?? 'MockCommand',

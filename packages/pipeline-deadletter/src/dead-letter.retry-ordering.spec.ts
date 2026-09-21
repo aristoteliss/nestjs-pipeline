@@ -8,7 +8,6 @@ import type { DeadLetterTransport } from './interfaces/dead-letter-transport.int
 function context(): IPipelineContext {
   return {
     correlationId: 'corr-1',
-    originalCorrelationId: 'corr-1',
     request: { id: 1 },
     requestType: class TestCommand {},
     requestName: 'TestCommand',

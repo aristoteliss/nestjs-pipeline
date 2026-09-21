@@ -24,16 +24,10 @@ export interface IPipelineContext<TRequest = unknown, TResponse = unknown> {
   readonly correlationId: string;
 
   /**
-   * The immutable correlation ID assigned when the pipeline was created.
-   * Alias for the initially assigned correlation ID, retained for compatibility.
-   */
-  readonly originalCorrelationId: string;
-
-  /**
    * Active tenant identifier for multi-tenant pipeline executions.
    *
    * Populated before behavior execution via `PipelineModuleOptions.tenantIdFactory`,
-   * inherited from parent context, or mirrored from `context.items.get(PIPELINE_TENANT_ID)`.
+   * or inherited from parent context.
    */
   readonly tenantId?: string;
 
@@ -67,6 +61,8 @@ export interface IPipelineContext<TRequest = unknown, TResponse = unknown> {
 
   /**
    * Bag for sharing arbitrary data between behaviors in the same execution.
+   * Use createPipelineItem and the typed item accessors for compile-time value checks.
+   * Raw map access remains supported and bypasses those checks.
    *
    * Keys can be strings or exported `unique symbol` constants. Exported symbols
    * are strongly recommended to prevent collision between behaviors or third-party packages.

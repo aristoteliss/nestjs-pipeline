@@ -20,12 +20,19 @@ export interface WelcomeEmailJobData {
   correlationId?: string;
 }
 
+export interface SimulatedWelcomeEmailResult {
+  readonly simulated: true;
+  readonly emailSent: false;
+  readonly recipient: string;
+  readonly userId: string;
+}
+
 @Processor(WELCOME_EMAIL_QUEUE)
-export class SendWelcomeEmailProcessor
+export class SimulatedSendWelcomeEmailProcessor
   extends WorkerHost
   implements OnModuleDestroy
 {
-  private readonly logger = new Logger(SendWelcomeEmailProcessor.name);
+  private readonly logger = new Logger(SimulatedSendWelcomeEmailProcessor.name);
 
   constructor(private readonly tenantContext: TenantSchemaContext) {
     super();
@@ -42,21 +49,25 @@ export class SendWelcomeEmailProcessor
   @WithCorrelation({
     extract: (job: Job, _token: string) => job.data.correlationId,
   } as CorrelationDecoratorOptions)
-  async process(job: Job<WelcomeEmailJobData>): Promise<void> {
+  async process(
+    job: Job<WelcomeEmailJobData>,
+  ): Promise<SimulatedWelcomeEmailResult> {
     return this.tenantContext.run(job.data.tenant, async () => {
       const correlationId = getCorrelationId();
 
       this.logger.log(
-        `📧 Sending welcome email to ${job.data.email} ` +
-          `(user: ${job.data.username}, tenant: ${this.tenantContext.schema}, correlationId: ${correlationId})`,
+        `[Simulated] Demonstrating welcome email dispatch for ${job.data.email} ` +
+          `(user: ${job.data.username}, tenant: ${this.tenantContext.schema}, correlationId: ${correlationId}). No external email sent.`,
       );
 
-      // Simulate email sending delay
-      await new Promise((resolve) => setTimeout(resolve, 100));
-
-      this.logger.log(
-        `✅ Welcome email sent to ${job.data.email} (correlationId: ${correlationId})`,
-      );
+      return {
+        simulated: true,
+        emailSent: false,
+        recipient: job.data.email,
+        userId: job.data.userId,
+      };
     });
   }
 }
+
+export { SimulatedSendWelcomeEmailProcessor as SendWelcomeEmailProcessor };

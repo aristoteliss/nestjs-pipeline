@@ -32,7 +32,6 @@ function makeCtx(
 ): IPipelineContext {
   return {
     correlationId: 'test-corr-id',
-    originalCorrelationId: 'test-corr-id',
     request: { id: 1 },
     requestType: class TestRequest {},
     requestName: 'GetUserQuery',

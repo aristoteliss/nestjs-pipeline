@@ -8,7 +8,6 @@ import { createPartitionedRateLimitKeyFactory } from './partitioned-key';
 function context(overrides: Partial<IPipelineContext> = {}): IPipelineContext {
   return {
     correlationId: 'corr-1',
-    originalCorrelationId: 'corr-1',
     request: {},
     requestType: class CreateOrderCommand {},
     requestName: 'CreateOrderCommand',

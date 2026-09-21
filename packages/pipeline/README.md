@@ -351,7 +351,6 @@ Every behavior receives `IPipelineContext`:
 | Property | Type | Description |
 |---|---|---|
 | `correlationId` | `string` | Immutable ID fixed before the behavior chain starts |
-| `originalCorrelationId` | `string` | Immutable snapshot of the initial correlation ID |
 | `tenantId` | `string \| undefined` | Active tenant identifier (inherited from parent context or resolved via `tenantIdFactory`) |
 | `request` | `TRequest` | The command / query / event instance |
 | `requestType` | `Type<TRequest>` | Class constructor (e.g. `CreateUserCommand`) |
@@ -391,30 +390,61 @@ chain position. The merge is one level deep: naming a nested object such as
 
 ### Inter-Behavior Communication
 
-Use `context.items` to pass data between behaviors in the same pipeline execution.
-
-> [!TIP]
-> **Avoid Magic Strings:** Use exported `unique symbol` constants rather than raw string keys. Symbols prevent accidental key collisions between distinct packages, libraries, or customized behaviors.
+Use a shared `PipelineItemToken<T>` to pass typed data between behaviors. Define
+and export the token once; each `createPipelineItem` call creates a distinct
+symbol, even when names match.
 
 ```typescript
-// Define a shared symbol token in your package or tokens file
-export const CURRENT_USER_ID_ITEM = Symbol('CURRENT_USER_ID_ITEM');
+import {
+  createPipelineItem, getPipelineItem, setPipelineItem,
+  requirePipelineItem, hasPipelineItem,
+  type IPipelineContext,
+} from '@nestjs-pipeline/core';
 
-// AuthBehavior (runs first)
-async handle(context: IPipelineContext, next: NextDelegate): Promise<any> {
-  const userId = await this.authService.getCurrentUserId();
-  context.items.set(CURRENT_USER_ID_ITEM, userId);
-  return next();
+export const CURRENT_USER_ID = createPipelineItem<string>('currentUserId');
+
+export function populateIdentity(context: IPipelineContext, userId: string) {
+  setPipelineItem(context, CURRENT_USER_ID, userId);
 }
 
-// AuditBehavior (runs later in the chain)
-async handle(context: IPipelineContext, next: NextDelegate): Promise<any> {
-  const result = await next();
-  const userId = context.items.get(CURRENT_USER_ID_ITEM);
-  await this.auditService.log({ userId, action: context.requestName });
-  return result;
+export function readIdentity(context: IPipelineContext) {
+  const optional = getPipelineItem(context, CURRENT_USER_ID); // string | undefined
+  const present = hasPipelineItem(context, CURRENT_USER_ID); // boolean
+  const required = requirePipelineItem(
+    context, CURRENT_USER_ID, 'Run the identity behavior before this consumer.',
+  ); // string
+  return { optional, present, required };
 }
 ```
+
+| Accessor | Behavior |
+|---|---|
+| `createPipelineItem<T>(name, key?)` | Creates a token; an explicit string or symbol preserves an existing key's identity |
+| `getPipelineItem(context, token)` | Returns `T \| undefined` |
+| `setPipelineItem(context, token, value)` | Writes a value checked against the token's type |
+| `requirePipelineItem(context, token, customMessage?)` | Throws `MissingPipelineItemError` for an absent or `undefined` value |
+| `hasPipelineItem(context, token)` | Uses map presence; returns `true` for an explicitly stored `undefined` |
+
+`MissingPipelineItemError` exposes `itemName`, `requestName`, and `handlerName`.
+Its message includes all three and a population hint; `customMessage` adds detail.
+Required reads return `null`, `false`, `0`, and empty strings unchanged. Consumers
+must validate these values separately when their policy disallows them.
+
+The raw `Map<string | symbol, unknown>` remains available. Wrap existing keys to
+share data with integrations without replacing their exported symbols:
+
+```typescript
+const EXISTING_KEY = Symbol('principal');
+const PRINCIPAL = createPipelineItem<{ id: string }>('principal', EXISTING_KEY);
+context.items.set(EXISTING_KEY, { id: 'user-1' });
+const principal = requirePipelineItem(context, PRINCIPAL);
+```
+
+All accessors also accept raw strings or symbols; reads then default to `unknown`
+unless the caller supplies a type argument. Types do not validate raw map writes
+at runtime. Required reads enforce presence, not authentication or authorization.
+Explicit keys share entries when equal; only default symbol keys avoid collisions.
+The token API uses TypeScript's `NoInfer` utility (TypeScript 5.4 or newer).
 
 
 ---
@@ -1025,7 +1055,9 @@ must account for the absent instance.
 | `PipelineModuleOptions` | Interface | Options for `PipelineModule.forRoot()` |
 | `GlobalBehaviorsOptions` | Interface | Global behavior configuration |
 | `GlobalBehaviorScope` | Type | `'commands' \| 'queries' \| 'events' \| 'all'` |
-| `PipelineBootstrapService` | Class | Scans and wraps handlers at bootstrap |
+| `PipelineItemToken<T>` | Interface | Typed context map key |
+| `createPipelineItem`, `getPipelineItem`, `setPipelineItem`, `requirePipelineItem`, `hasPipelineItem` | Functions | Typed context item accessors |
+| `MissingPipelineItemError` | Class | Required item is absent or undefined |
 | `PipelineHandlerMeta` | Interface | Pre-computed handler metadata |
 | `PIPELINE_BEHAVIOR_CONTRACT` | Symbol | Symbol key for declaring behavior contracts on behavior classes |
 | `PIPELINE_BEHAVIOR_ID` | Symbol | Custom deduplication and contract identity key for behaviors |
@@ -1033,8 +1065,7 @@ must account for the absent instance.
 | `PipelineBehaviorDiagnostic` | Interface | Structure of a single diagnostic issue |
 | `PipelineBehaviorValidationContext` | Interface | Handler and option inspection context supplied to contract validators |
 | `PIPELINE_SKIPPED_BEHAVIORS_METADATA` | Symbol | Metadata key for skipped behavior classes |
-| `PIPELINE_TENANT_ID` | Symbol | Key symbol for tenant ID in `context.items` |
-| `SET_TENANT_ID` | Symbol | Symbol setter for `tenantId` and items sync |
+| `SET_TENANT_ID` | Symbol | Symbol setter for `tenantId` |
 | `PipelineBehaviorEntry` | Type | `Type \| [Type, Record<string, unknown>]` |
 | `stableStringify` | Function | Deterministic JSON serialization with sorted keys and cycle detection |
 | `toStrictJsonValue` | Function | Normalizes arbitrary values into strictly typed JSON domain |

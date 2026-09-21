@@ -5,11 +5,16 @@ import type { Job } from 'bullmq';
 import { describe, expect, it, vi } from 'vitest';
 import {
   SendWelcomeEmailProcessor,
+  SimulatedSendWelcomeEmailProcessor,
   type WelcomeEmailJobData,
 } from './send-welcome-email.processor';
 
-describe('SendWelcomeEmailProcessor', () => {
-  it('processes welcome email job within tenant schema context and logs message', async () => {
+describe('SimulatedSendWelcomeEmailProcessor', () => {
+  it('exports SendWelcomeEmailProcessor as an alias for backwards compatibility', () => {
+    expect(SendWelcomeEmailProcessor).toBe(SimulatedSendWelcomeEmailProcessor);
+  });
+
+  it('demonstrates welcome email job execution without sending external emails', async () => {
     let capturedTenant: string | undefined;
     const tenantContext = {
       run: (tenant: string | undefined, fn: () => unknown) => {
@@ -19,7 +24,7 @@ describe('SendWelcomeEmailProcessor', () => {
       schema: 'tenant_alpha',
     } as unknown as TenantSchemaContext;
 
-    const processor = new SendWelcomeEmailProcessor(tenantContext);
+    const processor = new SimulatedSendWelcomeEmailProcessor(tenantContext);
     const logs: string[] = [];
     // biome-ignore lint/complexity/useLiteralKeys: for testing
     vi.spyOn(processor['logger'], 'log').mockImplementation((message) => {
@@ -36,16 +41,22 @@ describe('SendWelcomeEmailProcessor', () => {
       },
     } as unknown as Job<WelcomeEmailJobData>;
 
-    await processor.process(job);
+    const result = await processor.process(job);
 
     expect(capturedTenant).toBe('tenant_alpha');
+    expect(result).toEqual({
+      simulated: true,
+      emailSent: false,
+      recipient: 'alice@example.test',
+      userId: 'u-1',
+    });
     expect(
-      logs.some((l) =>
-        l.includes('Sending welcome email to alice@example.test'),
+      logs.some(
+        (l) =>
+          l.includes(
+            'Demonstrating welcome email dispatch for alice@example.test',
+          ) && l.includes('No external email sent'),
       ),
-    ).toBe(true);
-    expect(
-      logs.some((l) => l.includes('Welcome email sent to alice@example.test')),
     ).toBe(true);
   });
 
@@ -54,7 +65,7 @@ describe('SendWelcomeEmailProcessor', () => {
       run: vi.fn(),
       schema: 'tenant_alpha',
     } as unknown as TenantSchemaContext;
-    const processor = new SendWelcomeEmailProcessor(tenantContext);
+    const processor = new SimulatedSendWelcomeEmailProcessor(tenantContext);
     const mockWorker = { close: vi.fn().mockResolvedValue(undefined) };
     Object.defineProperty(processor, 'worker', { value: mockWorker });
 
@@ -68,7 +79,7 @@ describe('SendWelcomeEmailProcessor', () => {
       run: vi.fn(),
       schema: 'tenant_alpha',
     } as unknown as TenantSchemaContext;
-    const processor = new SendWelcomeEmailProcessor(tenantContext);
+    const processor = new SimulatedSendWelcomeEmailProcessor(tenantContext);
 
     await expect(processor.onModuleDestroy()).resolves.toBeUndefined();
   });

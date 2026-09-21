@@ -13,7 +13,6 @@ function createMockContext(
 ): IPipelineContext {
   return {
     correlationId: 'test-corr-id',
-    originalCorrelationId: 'test-corr-id',
     request: { name: 'MockCommand' },
     requestType: class MockCommand {} as Type,
     requestName: 'MockCommand',

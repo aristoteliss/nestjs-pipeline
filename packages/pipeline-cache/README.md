@@ -276,9 +276,8 @@ The previous default embedded `context.correlationId`, which is unique per
 request. That made the cache write an entry for every query and never read one
 back — two extra round-trips and unbounded store growth for a zero percent hit
 rate. It was not an authorization boundary either: a client can send its own
-correlation ID, and nested executions deliberately inherit one.
-rate. It was not an authorization boundary either: correlation metadata does not
-establish principal or permission isolation, as correlation IDs may be supplied
+correlation ID, and nested executions deliberately inherit one. Correlation metadata
+does not establish principal or permission isolation, as correlation IDs may be supplied
 or reused. Cache hits skip the handler, including entity/field checks. For protected
 results, provide an explicit `key` covering tenant, principal type/ID, effective
 permission scope and response dependencies; fail closed if required context is

@@ -226,6 +226,50 @@ describe('MikroOrmCache', () => {
     expect(JSON.parse(updatedData.value)).toEqual({ id: '1', version: 2 });
   });
 
+  it('heals unparsable cached payload without exposing keys or payloads in warnings', async () => {
+    const corruptEntry = new CacheEntry();
+    corruptEntry.key = 'user:private@example.test';
+    corruptEntry.value = 'sensitive-payload';
+    corruptEntry.expiresAt = Date.now() + 60_000;
+    corruptEntry.revision = '1';
+
+    let updatedData: any = null;
+    const transactionalEm: any = {
+      findOne: vi.fn().mockResolvedValue(corruptEntry),
+      nativeUpdate: vi.fn().mockImplementation((_, __, data) => {
+        updatedData = data;
+        return 1;
+      }),
+    };
+    const mockStore = createMockStore(transactionalEm);
+
+    const cache = new MikroOrmCache<{ id: string; version: number }>(mockStore);
+    const warnSpy = vi
+      .spyOn((cache as any).logger, 'warn')
+      .mockImplementation(() => {});
+
+    await cache.set(
+      corruptEntry.key,
+      { id: '1', version: 1 },
+      {
+        isNewer: (cached, incoming) =>
+          (cached as any).version > (incoming as any).version,
+      },
+    );
+
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.stringMatching(
+        /^Failed to parse cached value \(key digest: [a-f0-9]{64}\); treating as absent\.$/,
+      ),
+    );
+    const warnings = JSON.stringify(warnSpy.mock.calls);
+    expect(warnings).not.toContain(corruptEntry.key);
+    expect(warnings).not.toContain('private@example.test');
+    expect(warnings).not.toContain('sensitive');
+    expect(transactionalEm.nativeUpdate).toHaveBeenCalled();
+    expect(JSON.parse(updatedData.value)).toEqual({ id: '1', version: 1 });
+  });
+
   it('supports explicit deletion via revision-advancing invalidation', async () => {
     const cachedEntry = new CacheEntry();
     cachedEntry.key = 'key1';

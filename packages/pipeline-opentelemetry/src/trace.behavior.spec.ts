@@ -35,7 +35,6 @@ const mockTracer = {
 function makeCtx(overrides: Partial<IPipelineContext> = {}): IPipelineContext {
   return {
     correlationId: 'test-corr-id',
-    originalCorrelationId: 'test-corr-id',
     request: {},
     requestType: class TestRequest {},
     requestName: 'TestCommand',

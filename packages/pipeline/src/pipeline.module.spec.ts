@@ -233,7 +233,7 @@ describe('PipelineModule.forRootAsync', () => {
     expect(mod.providers).toContain(AlphaBehavior);
     expect(mod.providers).toContain(PipelineBootstrapService);
     expect(mod.exports).toContain(AlphaBehavior);
-    expect(mod.exports).toContain(PipelineBootstrapService);
+    expect(mod.exports).not.toContain(PipelineBootstrapService);
 
     const optionsProvider = mod.providers?.find(
       (p: any) => p && p.provide === PIPELINE_MODULE_OPTIONS,
@@ -376,4 +376,12 @@ it('rejects undefined feature behavior providers at registration', () => {
   expect(() => PipelineModule.forFeature([undefined as never])).toThrow(
     /forFeature.*entry 0/,
   );
+});
+
+describe('Public surface invariants', () => {
+  it('does not export PipelineBootstrapService or PIPELINE_TENANT_ID from the package entry point', async () => {
+    const publicExports = await import('./index');
+    expect(publicExports).not.toHaveProperty('PipelineBootstrapService');
+    expect(publicExports).not.toHaveProperty('PIPELINE_TENANT_ID');
+  });
 });

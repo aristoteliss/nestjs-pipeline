@@ -921,7 +921,7 @@ describe('PipelineBootstrapService', () => {
 
       const result = await handler.execute(new MockCommand(1));
 
-      expect(result.store!.originalCorrelationId).toBe('factory-corr-abc');
+      expect(result.store!.correlationId).toBe('factory-corr-abc');
     });
 
     it('inherits correlationId from parent pipeline context (saga / nested dispatch)', async () => {

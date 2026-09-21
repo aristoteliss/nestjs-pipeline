@@ -13,7 +13,6 @@ const sink: AuditSink = { write };
 function makeCtx(overrides: Partial<IPipelineContext> = {}): IPipelineContext {
   return {
     correlationId: 'corr-123',
-    originalCorrelationId: 'corr-123',
     request: { username: 'jane', password: 'hunter2' },
     requestType: class CreateUserCommand {},
     requestName: 'CreateUserCommand',

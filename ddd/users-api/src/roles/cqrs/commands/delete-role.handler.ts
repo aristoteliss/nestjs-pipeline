@@ -33,8 +33,8 @@ import { DeleteRoleCommand } from './delete-role.command';
     action: AUDIT_ACTIONS.ROLE_DELETE,
     severity: AUDIT_SEVERITY.HIGH,
     metadata: (ctx: IPipelineContext) => {
-      const cmd = ctx.request as DeleteRoleCommand;
-      return { targetRoleId: cmd.id };
+      const cmd = ctx.request as DeleteRoleCommand | undefined;
+      return cmd?.id ? { targetRoleId: cmd.id } : {};
     },
   }),
   [

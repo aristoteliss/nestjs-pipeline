@@ -231,7 +231,6 @@ export class PipelineModule {
       ],
       exports: [
         ...behaviors,
-        PipelineBootstrapService,
         ...(options.extraProviders
           ? options.extraProviders
               .map((p) =>

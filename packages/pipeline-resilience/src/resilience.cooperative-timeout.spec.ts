@@ -16,7 +16,6 @@ function deferred<T = void>() {
 function makeCtx(): IPipelineContext {
   return {
     correlationId: 'corr',
-    originalCorrelationId: 'corr',
     request: {},
     requestType: class TestRequest {},
     requestName: 'TestCommand',

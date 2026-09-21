@@ -1,8 +1,13 @@
 # Cache key security contract
 
-`defaultCacheKey()` is intentionally request-scoped. It includes the active `correlationId` together with tenant, request name, and canonical request payload, so the package default cannot replay an authorization-sensitive response into another request.
+Every active `CacheBehavior` declaration requires an explicit cache key. There is no implicit or request-scoped default cache key. Omitting `key` in an active cache behavior declaration fails fast during application bootstrap.
 
-This means the default is safe but not a cross-request cache. Applications that want shared caching must provide `CacheBehaviorOptions.key` explicitly and include every dimension that can change the returned data or authorization outcome, such as tenant, principal identity, role/capability scope, locale, or other policy inputs.
+Correlation IDs are distributed tracing metadata, not principal, authorization, or cache partition boundaries. Never use correlation IDs as cache key segments or security boundaries.
 
-Do not weaken the built-in default to tenant + payload only. A short-circuiting cache can bypass downstream authorization work on a hit, so shared keys are part of the security boundary and must be reviewed as such.
+Applications must define cache keys explicitly and include every security and context dimension that can affect the returned data or authorization outcome:
+- Active tenant (`context.tenantId`)
+- Principal identity (e.g. user ID / subject)
+- Effective permission or role scope when responses vary by authority
+- Request parameters and operation identity
 
+Use `createPartitionedCacheKeyFactory` to construct secure, partitioned cache keys. It fails closed with `MissingCachePartitionError` if required security context (such as tenant or principal) is absent, preventing shared fallback namespaces.

@@ -3,8 +3,8 @@
 import { describe, expect, it } from 'vitest';
 import {
   pipelineStore,
-  SET_ORIGINAL_CORRELATION_ID,
   SET_RESPONSE,
+  SET_TENANT_ID,
 } from '../constants/pipeline-context.constants';
 import { IPipelineContext } from '../interfaces/pipeline.context.interface';
 
@@ -42,10 +42,8 @@ describe('symbol keys', () => {
     expect(SET_RESPONSE.toString()).toContain('setResponse');
   });
 
-  it('SET_ORIGINAL_CORRELATION_ID is a unique symbol', () => {
-    expect(typeof SET_ORIGINAL_CORRELATION_ID).toBe('symbol');
-    expect(SET_ORIGINAL_CORRELATION_ID.toString()).toContain(
-      'setOriginalCorrelationId',
-    );
+  it('SET_TENANT_ID is a unique symbol', () => {
+    expect(typeof SET_TENANT_ID).toBe('symbol');
+    expect(SET_TENANT_ID.toString()).toContain('setTenantId');
   });
 });

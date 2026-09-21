@@ -143,7 +143,6 @@ function makeContext<T>(
 
   return {
     correlationId: 'test-correlation-id',
-    originalCorrelationId: 'test-correlation-id',
     request,
     requestType: requestClass,
     requestName: requestClass.name,
