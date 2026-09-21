@@ -9,7 +9,6 @@ import type { IdempotencyStore } from './interfaces/idempotency-store.interface'
 function context(): IPipelineContext {
   return {
     correlationId: 'corr',
-    originalCorrelationId: 'corr',
     request: { amount: 10 },
     requestType: class TestCommand {},
     requestName: 'TestCommand',

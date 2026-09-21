@@ -220,8 +220,7 @@ export interface PipelineModuleOptions {
   /**
    * Optional factory that resolves the active tenant ID for each pipeline execution.
    *
-   * When configured, called before behaviors execute to populate `context.tenantId`
-   * and `context.items.get(PIPELINE_TENANT_ID)`.
+   * When configured, called before behaviors execute to populate `context.tenantId`.
    *
    * @example
    * ```ts

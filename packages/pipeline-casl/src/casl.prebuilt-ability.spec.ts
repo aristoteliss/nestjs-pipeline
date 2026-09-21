@@ -13,7 +13,6 @@ function makeContext(
 ): IPipelineContext {
   return {
     correlationId: 'corr-1',
-    originalCorrelationId: 'corr-1',
     request: { postId: 'p1' },
     requestType: class GetPostQuery {},
     requestName: 'GetPostQuery',

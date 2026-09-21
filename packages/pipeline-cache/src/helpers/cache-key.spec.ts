@@ -10,7 +10,6 @@ function makeContext(
 ): IPipelineContext {
   return {
     correlationId: 'corr-1',
-    originalCorrelationId: 'corr-1',
     tenantId: 'tenant-a',
     request: { id: 1 },
     requestType: class GetUserQuery {},

@@ -24,7 +24,6 @@ function context(
 ): IPipelineContext {
   return {
     correlationId,
-    originalCorrelationId: correlationId,
     request: { id: 1 },
     requestType: class GetUserQuery {},
     requestName: 'GetUserQuery',

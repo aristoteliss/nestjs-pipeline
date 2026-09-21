@@ -2,11 +2,11 @@
 
 export * from './behaviors/logging.behavior';
 export {
-  PIPELINE_TENANT_ID,
   pipelineStore,
   SET_TENANT_ID,
 } from './constants/pipeline-context.constants';
 export * from './decorators';
+export * from './errors/missing-pipeline-item.error';
 export {
   ABSENT_SEGMENT,
   escapeKeySegment,
@@ -30,5 +30,5 @@ export type {
 } from './options';
 export * from './pipeline.context';
 export * from './pipeline.module';
-export { PipelineBootstrapService } from './services/pipeline.bootstrap.service';
+export * from './pipeline-items';
 export { untyped } from './types/safe-typing';

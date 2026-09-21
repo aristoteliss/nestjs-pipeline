@@ -31,6 +31,12 @@ export interface BatchUpdateUsersJobData {
   correlationId?: string;
 }
 
+export interface SimulatedBatchUpdateResult {
+  readonly simulated: true;
+  readonly rowsUpdated: 0;
+  readonly itemCount: number;
+}
+
 /**
  * Raised when one batch attempts to cross tenant boundaries.
  *
@@ -61,11 +67,11 @@ export function resolveBatchTenant(
 }
 
 @Processor(BATCH_UPDATE_USERS_QUEUE)
-export class BatchUpdateUsersProcessor
+export class SimulatedBatchUpdateUsersProcessor
   extends WorkerHost
   implements OnModuleDestroy
 {
-  private readonly logger = new Logger(BatchUpdateUsersProcessor.name);
+  private readonly logger = new Logger(SimulatedBatchUpdateUsersProcessor.name);
 
   constructor(private readonly tenantContext: TenantSchemaContext) {
     super();
@@ -83,7 +89,7 @@ export class BatchUpdateUsersProcessor
   async process(
     job: Job<BatchUpdateUsersJobData>,
     _token?: string,
-  ): Promise<void> {
+  ): Promise<SimulatedBatchUpdateResult> {
     const items = job.data.items;
     // Validate the entire payload before choosing a schema. Never infer tenant
     // ownership from only the first item in a multi-tenant batch.
@@ -93,20 +99,17 @@ export class BatchUpdateUsersProcessor
       const correlationId = getCorrelationId();
 
       this.logger.log(
-        `🔄 Batch updating ${items.length} users (tenant: ${this.tenantContext.schema}, correlationId: ${correlationId})`,
+        `[Simulated] Demonstrating batch update for ${items.length} users ` +
+          `(tenant: ${this.tenantContext.schema}, correlationId: ${correlationId}). No database rows updated.`,
       );
 
-      for (const item of items) {
-        this.logger.debug(
-          `  → Updating user ${item.userId} (correlationId: ${correlationId})`,
-        );
-        // Simulate update delay
-        await new Promise((resolve) => setTimeout(resolve, 50));
-      }
-
-      this.logger.log(
-        `✅ Batch update complete for ${items.length} users (correlationId: ${correlationId})`,
-      );
+      return {
+        simulated: true,
+        rowsUpdated: 0,
+        itemCount: items.length,
+      };
     });
   }
 }
+
+export { SimulatedBatchUpdateUsersProcessor as BatchUpdateUsersProcessor };

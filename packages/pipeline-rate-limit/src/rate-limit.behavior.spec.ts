@@ -32,7 +32,6 @@ function okRes(over: Partial<RateLimiterResLike> = {}): RateLimiterResLike {
 function makeCtx(overrides: Partial<IPipelineContext> = {}): IPipelineContext {
   return {
     correlationId: 'corr-123',
-    originalCorrelationId: 'corr-123',
     request: { ip: '10.0.0.1' },
     requestType: class CreateUserCommand {},
     requestName: 'CreateUserCommand',

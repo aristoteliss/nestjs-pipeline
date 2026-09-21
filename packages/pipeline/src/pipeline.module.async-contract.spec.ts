@@ -33,9 +33,8 @@ describe('PipelineModule async provider-graph contract', () => {
     expect(module.providers).toEqual(
       expect.arrayContaining([TestBehavior, PipelineBootstrapService]),
     );
-    expect(module.exports).toEqual(
-      expect.arrayContaining([TestBehavior, PipelineBootstrapService]),
-    );
+    expect(module.exports).toEqual(expect.arrayContaining([TestBehavior]));
+    expect(module.exports).not.toContain(PipelineBootstrapService);
     expect(module.providers).not.toEqual(
       expect.arrayContaining([
         expect.objectContaining({ provide: LOGGING_BEHAVIOR_LOGGER }),

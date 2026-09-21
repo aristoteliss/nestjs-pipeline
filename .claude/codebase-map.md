@@ -50,7 +50,7 @@ what the libraries support.
 ## Technology Stack
 
 <!-- context:generated-start technology-stack -->
-- **Languages** (file counts, excluded directories omitted): `.ts` 620, `.md` 47, `.grit` 12, `.py` 3, `.mjs` 1, `.sql` 1
+- **Languages** (file counts, excluded directories omitted): `.ts` 625, `.md` 52, `.grit` 12, `.py` 3, `.mjs` 1, `.sql` 1
 - **Runtime engines** (root `package.json`): `node` >=22.0.0, `pnpm` >=9.0.0
 - **Package manager evidence**: `pnpm-lock.yaml`.
 
@@ -133,7 +133,7 @@ Root files: `.gitignore`, `.npmrc`, `AGENTS.md`, `CLAUDE.md`, `COMMERCIAL_LICENS
 | --- | --- | --- | --- |
 | `ddd/core` | `@nestjs-pipeline/ddd-core` | `application`, `domain`, `persistence`, `types` | [README](ddd/core/README.md) |
 | `ddd/users-api` | `@nestjs-pipeline/ddd-users-api` | `auths`, `common`, `infrastructure`, `persistence`, `roles`, `users` | [README](ddd/users-api/README.md) |
-| `packages/pipeline` | `@nestjs-pipeline/core` | `behaviors`, `constants`, `decorators`, `helpers`, `interfaces`, `options`, `services`, `types` | [README](packages/pipeline/README.md) |
+| `packages/pipeline` | `@nestjs-pipeline/core` | `behaviors`, `constants`, `decorators`, `errors`, `helpers`, `interfaces`, `options`, `services`, `types` | [README](packages/pipeline/README.md) |
 | `packages/pipeline-audit` | `@nestjs-pipeline/audit` | `constants`, `helpers`, `interfaces`, `sinks` | [README](packages/pipeline-audit/README.md) |
 | `packages/pipeline-cache` | `@nestjs-pipeline/cache` | `adapters`, `constants`, `errors`, `helpers`, `interfaces` | [README](packages/pipeline-cache/README.md) |
 | `packages/pipeline-casl` | `@nestjs-pipeline/casl` | `constants`, `exceptions`, `helpers`, `interfaces`, `providers`, `services`, `types` | [README](packages/pipeline-casl/README.md) |
@@ -241,6 +241,9 @@ checks in the handler after the aggregate is loaded
 
 - **Responsibility**: discover CQRS handlers and wrap them in the behavior chain;
   carry per-request state through `AsyncLocalStorage` (`pipeline.context.ts`).
+- **Typed context items**: `pipeline-items.ts` adds symbol-backed tokens and accessors
+  over the unchanged raw map. Required reads reject missing or undefined values;
+  token types do not validate raw writes or establish authorization.
 - **Internal boundaries**: `packages/pipeline/src/services/pipeline-plan.ts` composes declarations and options;
   `packages/pipeline/src/services/pipeline-contracts.ts` validates contracts; `packages/pipeline/src/services/pipeline-runner.ts`
   executes the request-local chain. The bootstrap service owns Nest discovery, DI,
@@ -573,13 +576,13 @@ secret value.*
 ## Snapshot Metadata
 
 <!-- context:generated-start metadata -->
-- Generated at: 2026-09-21T13:33:24Z
-- Git commit: 3f5951169e232ae89075678d2c77f27cd64e007b
+- Generated at: 2026-09-21T19:32:57Z
+- Git commit: 4c73cca3a5a23f34449e3cc139a094b7aae6800f
 - Git branch: review/remaining-findings
 - Uncommitted changes when generated: yes
 - Generator: `scripts/update-claude-snapshot.py` version 1.0.0
 - Snapshot status: generated — structural inspection only, no code executed
-- Files inspected: 741
+- Files inspected: 751
 - Included top-level directories: `.agents`, `.claude`, `biome`, `ddd`, `docs`, `integration`, `packages`, `scripts`
 - Excluded directory names: `.cache`, `.git`, `.gradle`, `.idea`, `.mypy_cache`, `.next`, `.nuxt`, `.parcel-cache`, `.pnpm-store`, `.pytest_cache`, `.ruff_cache`, `.svelte-kit`, `.terraform`, `.tmp`, `.tox`, `.turbo`, `.venv`, `.vscode`, `__pycache__`, `bower_components`, `build`, `coverage`, `dist`, `node_modules`, `out`, `target`, `vendor`, `venv`, `virtualenv`
 - Excluded file patterns: `.env`, `.env.*`, `*.env`, `*.pem`, `*.key`, `*.pfx`, `*.p12`, `*.jks`, `*.keystore`, `id_rsa*`, `id_ed25519*`, `*credentials*`, `*.secret`, `secrets.*`

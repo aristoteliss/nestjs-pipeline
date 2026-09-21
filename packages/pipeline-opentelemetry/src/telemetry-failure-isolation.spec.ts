@@ -22,7 +22,6 @@ import { TraceBehavior } from './trace.behavior';
 function makeContext(): IPipelineContext {
   return {
     correlationId: 'corr-1',
-    originalCorrelationId: 'corr-1',
     request: { id: 1 },
     requestType: class GetUserQuery {},
     requestName: 'GetUserQuery',

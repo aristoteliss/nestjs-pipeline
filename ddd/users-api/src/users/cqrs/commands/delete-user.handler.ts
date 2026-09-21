@@ -33,8 +33,8 @@ import { DeleteUserCommand } from './delete-user.command';
     action: AUDIT_ACTIONS.USER_DELETE,
     severity: AUDIT_SEVERITY.HIGH,
     metadata: (ctx: IPipelineContext) => {
-      const cmd = ctx.request as DeleteUserCommand;
-      return { targetUserId: cmd.id };
+      const cmd = ctx.request as DeleteUserCommand | undefined;
+      return cmd?.id ? { targetUserId: cmd.id } : {};
     },
   }),
   [

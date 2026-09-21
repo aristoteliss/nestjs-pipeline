@@ -7,7 +7,6 @@ import { buildDeadLetterRecord } from './build-record';
 describe('buildDeadLetterRecord', () => {
   const mockContext: IPipelineContext = {
     correlationId: 'corr-123',
-    originalCorrelationId: 'corr-123',
     request: { userId: 'u1' },
     requestType: class TestRequest {},
     requestName: 'CreateUserCommand',

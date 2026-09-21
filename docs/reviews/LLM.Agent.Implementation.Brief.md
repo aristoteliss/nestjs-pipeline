@@ -114,16 +114,11 @@ The two alternatives in this section were weighed and rejected. Bypassing fills 
 
 Migrating the existing decorator and repository specs onto a real versioned adapter exposed one parity gap, now fixed: the versioned path hydrated a stored `null`, where the removed path treated it as a miss. `ddd/core/README.md` documents the policy and keeps the best-effort caveat — a committed write followed by an unavailable cache leaves the previous entry until expiry, and per-key compare-and-set cannot remove that dual-write window.
 
-## 2.8 F-16 — Dead-letter classification for expected rejections
+## 2.8 F-16 — Dead-letter classification for expected rejections (Closed)
 
-**Status: CLOSED. Done.** `ddd/users-api/src/infrastructure/dead-letter.options.ts` owns the classification: `EXPECTED_REJECTIONS` lists the concrete rejection classes the application raises and `POST_SUCCESS_FAILURES` keeps `IdempotencyCompletionError` out of the replay queue. `ReliabilityModule` passes `DEAD_LETTER_DEFAULTS` through the existing `ignoreErrors` hook, so the reusable package needed no new predicate. Invariant and configuration failures (`AuthConfigurationException`, `MissingTenantContextError`) and unclassified errors are still captured. `dead-letter.options.spec.ts` asserts zero records for each expected rejection and the completion error, and exactly one for unexpected failures, through a real `CommandBus` with the composed command-scope override. The original instructions follow for reference.
+**Status: CLOSED. Done.** `ddd/users-api/src/infrastructure/dead-letter.options.ts` owns the classification: `EXPECTED_REJECTIONS` lists the concrete rejection classes the application raises and `POST_SUCCESS_FAILURES` keeps `IdempotencyCompletionError` out of the replay queue. `ReliabilityModule` passes `DEAD_LETTER_DEFAULTS` through the existing `ignoreErrors` hook, so the reusable package needed no new predicate. Invariant and configuration failures (`AuthConfigurationException`, `MissingTenantContextError`) and unclassified errors are still captured. `dead-letter.options.spec.ts` asserts zero records for each expected rejection and the completion error, and exactly one for unexpected failures, through a real `CommandBus` with the composed command-scope override.
 
-1. Define an application-owned error classification policy close to the composition root, keyed on explicit error types or stable typed codes — never message substrings or blanket `instanceof Error` rules.
-2. Exclude expected rejections: `EntityNotFoundException`, unique-constraint exceptions, `EmptyUserUpdateException`, `InvalidLoginCredentialsException`, `ConcurrencyConflictError`, feature-disabled, rate-limit and idempotency conflicts. Inventory the concrete classes first; do not exclude every `DomainException` subclass, since some represent unexpected invariant failures.
-3. Use the package's existing ignore/filter hook if sufficient. If it cannot express the classification, add one optional typed predicate such as `shouldCapture(error, context)` while preserving the existing generic defaults. Keep application-specific imports out of the reusable package.
-4. Treat `IdempotencyCompletionError` with `executionSucceeded` as operational failure after business success: route it to ordinary error/metrics reporting or a non-replayable diagnostic path, never to a queue whose normal recovery re-executes the command. Do not retry it through resilience configuration.
-5. Preserve DLQ capture for unexpected failures in real background and event work, with tenant/correlation metadata, redaction, payload limits and sink error semantics intact. Do not claim the in-memory EventBus plus DLQ together provide a transactional outbox.
-6. Test classification with the actual application error classes and the real composed options: expected rejections create zero records, an unexpected processor failure creates exactly one, and a post-success completion error cannot schedule a command replay. Verify observability overrides merge the policy rather than replacing it.
+Verification (2026-09-21): `pnpm --filter @nestjs-pipeline/ddd-users-api test src/infrastructure/dead-letter.options.spec.ts` — **19/19 tests passed**. This verifies classification through the composed command pipeline; it does not claim durable delivery or transactional-outbox semantics.
 
 ## 2.9 F-11 — Detachment is not runtime immutability
 
@@ -150,19 +145,20 @@ This is a contract-accuracy fix, not an exploit. Detachment from the aggregate d
 5. Add a shared table-driven suite over both adapters: same ORM and tenant context reused; wrong schema rejected; wrong ORM/config rejected; wrong driver rejected; absent context gets the correct fork; concurrent tenant contexts stay isolated; transaction-context cases so the refactor cannot hide an active transaction from F-09.
 6. Run the existing tenant middleware/store tests and the relevant database E2E. Compare behavior, not private method names.
 
-## 2.11 N-02, N-04 … N-07 — Documentation accuracy and hygiene
+## 2.11 N-02, N-04 … N-07 — Documentation accuracy and hygiene (Closed)
 
-Cheap and independent; land each with its related fix rather than batching them at the end.
+All items closed:
 
-- **N-02** — `packages/pipeline-cache/src/helpers/README.md:3` still documents `defaultCacheKey()` as a correlation-scoped safe default. That function no longer exists, and the correlation-based default was removed precisely because it is not an authorization boundary. Rewrite the file around the real contract: there is no default key, an active `CacheBehavior` must declare one, `createPartitionedCacheKeyFactory` fails closed. Then extend `ddd/users-api/test/docs-cache-security.spec.ts` — which currently reads only `ddd/users-api/README.md` — to cover every file documenting cache key security, including package READMEs.
-- **N-03** — **Closed.** `create-auth.handler.ts` records a pre-authentication claim rather than an identity: `claimedIdentityActor()` returns `{ authenticated: false, claimedEmail }`, so the record carries no `id` and cannot pass a filter for authenticated activity, and the `'anonymous'` fallback is gone. `record.payload.email` still carries the attempted address and `code` stays redacted. `login-audit-actor.spec.ts` asserts the emitted record through the real `CommandBus`; `audit.options.spec.ts` covers the absent-claim branch.
-- **N-04** — Remove the review identifiers from test titles: `behavior-composition-contracts.spec.ts:4,73` (`R-07`) and `docs-cache-security.spec.ts:8,14` (`Finding #20`). Rename both suites after the behavior they assert. Then either extend `biome/plugins/test-suite.grit` — which today only rejects `.only`/`fit`/`fdescribe` — to reject identifier patterns in `describe`/`it` strings, or record in `AGENTS.md` that the rule is review-enforced. Do not leave a documented invariant with no owner.
-- **N-05** — Delete the 36 decorative divider comments in `packages/pipeline/src/services/pipeline.bootstrap.service.spec.ts` (20) and the five `packages/pipeline-zod` spec files (16). Use `describe` nesting for structure. If dividers are acceptable in tests, amend `AGENTS.md` instead of leaving the rule contradicted by the tree.
-- **N-06** — `ddd/users-api/src/persistence/cache/mikro-orm.cache.ts:253-257` swallows a `JSON.parse` failure with a bare `catch {}`, which skips the `isNewer` CAS guard and overwrites the entry. Keep the behavior; make it explicit with a named error, one short factual comment stating that an unparsable entry is treated as absent, and a diagnostic so persistent corruption is observable.
+- **N-02** — **Closed.** `packages/pipeline-cache/src/helpers/README.md` rewritten around the real contract: no default key, active `CacheBehavior` requires key, `createPartitionedCacheKeyFactory` fails closed. `ddd/users-api/test/docs-cache-security.spec.ts` extended to verify all three cache markdown files.
+- **N-03** — **Closed.** `create-auth.handler.ts` records a pre-authentication claim rather than an identity: `claimedIdentityActor()` returns `{ authenticated: false, claimedEmail }`, so the record carries no `id` and cannot pass a filter for authenticated activity, and the `'anonymous'` fallback is gone.
+- **N-04** — **Closed.** Removed review identifiers from `behavior-composition-contracts.spec.ts` and `docs-cache-security.spec.ts`. Zero review/ticket IDs remain in test titles across the workspace.
+- **N-05** — **Closed.** Removed in commit 12d912c8; zero divider lines remain across packages and DDD.
+- **N-06** — **Closed.** `ddd/users-api/src/persistence/cache/mikro-orm.cache.ts` logs a fixed diagnostic with a SHA-256 key digest via `this.logger.warn`, omits raw keys and parse-error messages, and records a factual comment that unparsable entry is treated as absent to heal corrupted data.
+- **N-07** — **Closed.** Protected `delete-user.handler.ts` and `delete-role.handler.ts` with `cmd?.id` safe dereference so metadata factory exceptions cannot discard audit records.
 
 ## 2.12 A-09 / F-17 — Example honesty and documentation authority
 
-- **A-09** — `send-welcome-email.processor.ts:49-57` and `batch-update-users.processor.ts:95-107` still log and `setTimeout` without sending an email or updating a row. Keep them as labelled demonstrations of queue integration, chunking and port boundaries; rename them so the class and job names say they simulate, make the returned result and logs state that no email was sent and no row was updated, and remove the artificial sleeps. Do not introduce SMTP credentials or a real provider to justify the class. Wire producer and consumer consistently if a demonstration is disabled. Replace tests asserting artificial delays or log text with tests of the remaining contract.
+- **A-09** — **Closed.** Renamed processors to `SimulatedSendWelcomeEmailProcessor` and `SimulatedBatchUpdateUsersProcessor` (with backwards-compatible aliases); removed artificial `setTimeout` delays; returned explicit simulation results (`SimulatedWelcomeEmailResult`, `SimulatedBatchUpdateResult`) and logged honest simulation demonstration statements.
 - **F-17** — Make each package README authoritative for its own public API, options and defaults; keep the root README a concise overview with links. Correct test-command descriptions so it is clear which command builds, which runs unit tests, and which requires Docker, a database or Redis. Correct the resilience examples to specify handled errors and command replay safety, and the feature-flag targeting examples to match module behavior. Rename `biome/plugins/package-licenses.grit` and `verify-package-licenses.grit` to names describing import and package boundaries, updating configuration, tests and documentation references; these rules are not licence-compliance checks. Update persistence documentation only where the implementation actually changes under F-01/F-09, and state that AST checks enforce recognizable source patterns while tests and review verify commit and transaction semantics.
 
 ---
@@ -192,29 +188,36 @@ This track is not permission to reduce features. Its objective is to make the no
 | S-11 | **Non-breaking / additive.** | Existing async configuration forms must remain valid; the static-global form is optional. |
 | S-12 | **Non-breaking if defaults are optional.** | Keep current constructors and full `@FromCache` configuration valid. |
 | S-13 | **Behavioral break for stacked decorators.** | One existing `@UsePipeline` call is unchanged. Explicitly test and document the new compose-versus-overwrite behavior. |
-| S-14 | **Public API/source breaking only for the narrow symbols actually removed or moved.** | Do not use users-api usage as deletion evidence. Retain coherent helpers, builders and adapters; perform true compatibility cleanup in one intentional breaking release or keep deprecation aliases. |
+| ~~S-14~~ | ~~Public API/source breaking only for the narrow symbols actually removed or moved.~~ | **Closed.** `PipelineBootstrapService` unexported, `originalCorrelationId` and `PIPELINE_TENANT_ID` removed. Coherent builders, serializers and adapters retained. |
 | ~~S-15~~ | ~~Additive first; later strictness can be behavior-breaking.~~ | Shipped. If a formerly accepted deterministic misconfiguration later becomes a bootstrap error, document that policy change. |
-| S-16 | **Non-breaking / additive.** | Keep raw `context.items`; typed tokens layer on top. |
+| ~~S-16~~ | **Non-breaking / additive.** | Closed. Raw `context.items` is unchanged; typed tokens layer on top. |
 | S-17 | **Non-breaking / additive.** | Presets expand to existing pipeline entries; `@UsePipeline` remains available. |
 | S-18 | **Non-breaking.** | Internal decomposition only. Public decorators and module configuration stay identical; existing lifecycle tests become characterization tests. |
 
 The implementation agent optimizes for one obvious normal path, typed declarative intent, safe defaults, first-class per-handler exceptions, no duplicated security-sensitive key mechanics, no behavior or persistence ordering knowledge in ordinary application code, and unchanged advanced capability.
 
-## 3.1 S-16 — Typed pipeline context items
+## 3.1 S-16 — Typed pipeline context items (Closed)
 
-Keep `IPipelineContext.items` as the low-level interoperability bag and add a typed layer so application and package code stop using magic strings and casts. Production code currently writes `ctx.items.get('user') as SessionUser | undefined` inside a security key factory (`get-user-overview.handler.ts:30-35`), where a misspelled key silently yields a key with an absent principal.
+**Status: CLOSED.** Core exports `PipelineItemToken<T>`, `createPipelineItem`,
+`getPipelineItem`, `setPipelineItem`, `requirePipelineItem`, `hasPipelineItem`,
+and `MissingPipelineItemError`. Default keys are unique symbols; explicit keys
+wrap existing strings and symbols without changing identity. No registry or DI
+system is involved, and `IPipelineContext.items` remains unchanged.
 
-```ts
-const CURRENT_USER_ID = createPipelineItem<string>('currentUserId');
+Token-based reads infer the value type; writes use `NoInfer<T>` to reject values
+that would widen it. Required reads reject absent or undefined entries and name
+the item, request and handler. Presence checks use `Map.has`; null and other
+falsy values remain valid. Raw-key access and direct map writes remain supported
+and unchecked at runtime. This implementation does not migrate existing addon
+symbols or application factories; they can opt in by wrapping their current keys.
 
-setPipelineItem(ctx, CURRENT_USER_ID, user.id);
-const userId = getPipelineItem(ctx, CURRENT_USER_ID);      // string | undefined
-const required = requirePipelineItem(ctx, CURRENT_USER_ID); // string or actionable error
-```
+The core README documents the API and interoperability. Runtime and compile-time
+regressions cover token isolation, inferred types, invalid writes, diagnostics,
+undefined/falsy values and raw-map interoperability through the public entry point.
 
-Requirements: token identity is collision-safe; the value type travels with the token at compile time; `requirePipelineItem` fails with a message identifying the missing item; built-in exported item constants adopt the typed shape without changing identity semantics; raw `context.items.get/set` remains supported; no central registry and no second DI system.
-
-Use typed accessors in new package examples and in the key, actor and targeting factories.
+Verification (2026-09-21): core tests (281 passed), `pnpm test` across all 14
+workspaces, `pnpm lint`, `pnpm check`, and `pnpm test:release` passed. Release
+verification built and loaded all 12 packed packages in the isolated consumer.
 
 ## 3.2 S-09 — Logging defaults and logger binding
 
@@ -339,16 +342,9 @@ Describe the outcome as a maintainability improvement, not a security fix or per
 
 ## 3.12 S-14 — Narrow only true accidental public surface
 
+**Status: CLOSED. Done.** `PipelineBootstrapService` is unexported from `packages/pipeline/src/index.ts` and from `PipelineModule.forRootAsync` exports, remaining an internal provider of `PipelineModule`. `originalCorrelationId` and `SET_ORIGINAL_CORRELATION_ID` are removed, converging on `correlationId`. `PIPELINE_TENANT_ID` and its duplicate `context.items` mirror are removed, converging on canonical `context.tenantId`. Coherent builders, serializers, record constructors, adapters, and stores (U-05 through U-12) remain intact as public extension points.
+
 Do **not** prune public APIs because `ddd/users-api` does not use them.
-
-High-confidence cleanup:
-
-- stop exporting `PipelineBootstrapService` from `packages/pipeline/src/index.ts:33`; keep it an internal provider of `PipelineModule`;
-- converge tenant access on `context.tenantId`, with an explicit migration for the `PIPELINE_TENANT_ID` item mirror (5 production files);
-- deprecate then remove `originalCorrelationId` / `SET_ORIGINAL_CORRELATION_ID` (3 production files) when compatibility policy allows;
-- use the public `CaslAuthorizerOptions` type consistently instead of maintaining a duplicate inline `{ bypass?: boolean }` shape.
-
-Already closed: `PIPELINE_OPTIONS_REGISTRY` no longer exists; the semantic no-op decorator usage is gone.
 
 Retain unless a **specific API-quality problem** is demonstrated: `cacheKeyTemplate`; `RootEntity.from(...)`; `buildCache`/`buildKeyv`; audit and dead-letter record builders; the resilience policy builder and context; feature evaluation helpers; public Zod raw/validated-data inspection helpers; convenience re-exports such as package-local `stableStringify` and `uuidv7`; addon context observation symbols; provider/store/transport interfaces and bundled adapters.
 
@@ -369,8 +365,8 @@ Implement in small commits in this order unless a dependency requires adjustment
 5. F-04;
 6. F-09 + S-06;
 7. F-01 residual adapter policy;
-8. F-16;
-9. S-16;
+8. ~~F-16~~ — closed; 19/19 classification tests passed;
+9. ~~S-16~~ — closed; additive typed context item API;
 10. S-09 / A-02 / A-03;
 11. S-05 / A-05;
 12. S-07 / A-07;

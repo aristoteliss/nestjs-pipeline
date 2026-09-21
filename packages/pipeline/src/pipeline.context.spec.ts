@@ -2,10 +2,8 @@
 
 import { describe, expect, it } from 'vitest';
 import {
-  PIPELINE_TENANT_ID,
   pipelineStore,
   SET_CORRELATION_ID,
-  SET_ORIGINAL_CORRELATION_ID,
   SET_RESPONSE,
   SET_TENANT_ID,
 } from './constants/pipeline-context.constants';
@@ -80,13 +78,11 @@ describe('PipelineContext', () => {
   it('sets correlationId only through the internal setter before execution', () => {
     const ctx = new PipelineContext(new FakeCommand('x'), buildMeta());
     ctx[SET_CORRELATION_ID]('first');
-    ctx[SET_ORIGINAL_CORRELATION_ID]('first');
 
     expect(() => {
       (ctx as unknown as { correlationId: string }).correlationId = 'second';
     }).toThrow();
     expect(ctx.correlationId).toBe('first');
-    expect(ctx.originalCorrelationId).toBe('first');
   });
 
   it('correlationId defaults to empty string (no parent context)', () => {
@@ -127,15 +123,13 @@ describe('PipelineContext', () => {
   it('tenantId defaults to undefined', () => {
     const ctx = new PipelineContext(new FakeCommand('x'), buildMeta());
     expect(ctx.tenantId).toBeUndefined();
-    expect(ctx.items.get(PIPELINE_TENANT_ID)).toBeUndefined();
   });
 
-  it('sets tenantId via SET_TENANT_ID and syncs to items[PIPELINE_TENANT_ID]', () => {
+  it('sets tenantId via SET_TENANT_ID', () => {
     const ctx = new PipelineContext(new FakeCommand('x'), buildMeta());
     ctx[SET_TENANT_ID]('tenant-123');
 
     expect(ctx.tenantId).toBe('tenant-123');
-    expect(ctx.items.get(PIPELINE_TENANT_ID)).toBe('tenant-123');
     expect(() => {
       (ctx as unknown as { tenantId: string }).tenantId = 'other';
     }).toThrow();
@@ -154,7 +148,6 @@ describe('PipelineContext', () => {
     });
 
     expect(childCtx!.tenantId).toBe('tenant-parent');
-    expect(childCtx!.items.get(PIPELINE_TENANT_ID)).toBe('tenant-parent');
   });
 
   it('does not set tenantId when parent tenantId is undefined', () => {
@@ -169,7 +162,6 @@ describe('PipelineContext', () => {
     });
 
     expect(childCtx!.tenantId).toBeUndefined();
-    expect(childCtx!.items.get(PIPELINE_TENANT_ID)).toBeUndefined();
   });
 });
 
@@ -226,14 +218,12 @@ describe('PipelineContext.getBehaviorOptions', () => {
     });
   });
 
-  it('deletes PIPELINE_TENANT_ID when SET_TENANT_ID is called with undefined', () => {
+  it('clears tenantId when SET_TENANT_ID is called with undefined', () => {
     const ctx = new PipelineContext(new FakeCommand('x'), buildMeta());
     ctx[SET_TENANT_ID]('initial-tenant');
     expect(ctx.tenantId).toBe('initial-tenant');
-    expect(ctx.items.get(PIPELINE_TENANT_ID)).toBe('initial-tenant');
 
     ctx[SET_TENANT_ID](undefined);
     expect(ctx.tenantId).toBeUndefined();
-    expect(ctx.items.has(PIPELINE_TENANT_ID)).toBe(false);
   });
 });

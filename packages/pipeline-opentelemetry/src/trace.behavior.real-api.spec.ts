@@ -8,7 +8,6 @@ import { TraceBehavior } from './trace.behavior';
 function makeCtx(options?: { enabled?: boolean }): IPipelineContext {
   return {
     correlationId: 'real-api-correlation',
-    originalCorrelationId: 'real-api-correlation',
     request: { id: '1' },
     requestType: class RealApiQuery {},
     requestName: 'RealApiQuery',

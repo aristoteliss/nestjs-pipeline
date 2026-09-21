@@ -15,7 +15,6 @@ const transport: DeadLetterTransport = { send };
 function makeCtx(overrides: Partial<IPipelineContext> = {}): IPipelineContext {
   return {
     correlationId: 'corr-123',
-    originalCorrelationId: 'corr-123',
     request: { id: 1 },
     requestType: class TestCommand {},
     requestName: 'TestCommand',

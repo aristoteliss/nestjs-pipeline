@@ -8,16 +8,21 @@ import {
   BatchUpdateUsersProcessor,
   MixedTenantBatchError,
   resolveBatchTenant,
+  SimulatedBatchUpdateUsersProcessor,
 } from './batch-update-users.processor';
 
-describe('BatchUpdateUsersProcessor tenant isolation', () => {
+describe('SimulatedBatchUpdateUsersProcessor tenant isolation', () => {
+  it('exports BatchUpdateUsersProcessor as an alias for backwards compatibility', () => {
+    expect(BatchUpdateUsersProcessor).toBe(SimulatedBatchUpdateUsersProcessor);
+  });
+
   it('rejects a mixed-tenant batch before entering TenantSchemaContext', async () => {
     const run = vi.fn();
     const tenantContext = {
       run,
       schema: 'tenant_a',
     } as unknown as TenantSchemaContext;
-    const processor = new BatchUpdateUsersProcessor(tenantContext);
+    const processor = new SimulatedBatchUpdateUsersProcessor(tenantContext);
     const data: BatchUpdateUserItem[] = [
       { userId: 'user-a', tenant: 'tenant_a' },
       { userId: 'user-b', tenant: 'tenant_b' },
@@ -31,19 +36,19 @@ describe('BatchUpdateUsersProcessor tenant isolation', () => {
     expect(run).not.toHaveBeenCalled();
   });
 
-  it('reads the correlation ID from the payload and runs the batch under it', async () => {
+  it('reads the correlation ID from the payload, executes simulation without DB rows updated, and returns result', async () => {
     const tenantContext = {
       run: (_tenant: string | undefined, fn: () => unknown) => fn(),
       schema: 'tenant_a',
     } as unknown as TenantSchemaContext;
-    const processor = new BatchUpdateUsersProcessor(tenantContext);
+    const processor = new SimulatedBatchUpdateUsersProcessor(tenantContext);
     let observed: string | undefined;
     // biome-ignore lint/complexity/useLiteralKeys: for testing
     vi.spyOn(processor['logger'], 'log').mockImplementation((message) => {
       observed ??= String(message);
     });
 
-    await processor.process({
+    const result = await processor.process({
       data: {
         items: [{ userId: 'user-a', tenant: 'tenant_a' }],
         correlationId: 'corr-payload',
@@ -51,6 +56,13 @@ describe('BatchUpdateUsersProcessor tenant isolation', () => {
     } as unknown as Job<BatchUpdateUsersJobData>);
 
     expect(observed).toContain('corr-payload');
+    expect(observed).toContain('Demonstrating batch update for 1 users');
+    expect(observed).toContain('No database rows updated');
+    expect(result).toEqual({
+      simulated: true,
+      rowsUpdated: 0,
+      itemCount: 1,
+    });
   });
 
   it('resolves a homogeneous tenant without changing the payload contract', () => {
@@ -67,7 +79,7 @@ describe('BatchUpdateUsersProcessor tenant isolation', () => {
       run: vi.fn(),
       schema: 'tenant_a',
     } as unknown as TenantSchemaContext;
-    const processor = new BatchUpdateUsersProcessor(tenantContext);
+    const processor = new SimulatedBatchUpdateUsersProcessor(tenantContext);
     const mockWorker = { close: vi.fn().mockResolvedValue(undefined) };
     Object.defineProperty(processor, 'worker', { value: mockWorker });
 
@@ -81,7 +93,7 @@ describe('BatchUpdateUsersProcessor tenant isolation', () => {
       run: vi.fn(),
       schema: 'tenant_a',
     } as unknown as TenantSchemaContext;
-    const processor = new BatchUpdateUsersProcessor(tenantContext);
+    const processor = new SimulatedBatchUpdateUsersProcessor(tenantContext);
 
     await expect(processor.onModuleDestroy()).resolves.toBeUndefined();
   });

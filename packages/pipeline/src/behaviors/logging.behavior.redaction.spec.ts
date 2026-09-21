@@ -7,7 +7,6 @@ import { LoggingBehavior } from './logging.behavior';
 function context(options?: Record<string, unknown>): IPipelineContext {
   return {
     correlationId: 'corr-1',
-    originalCorrelationId: 'corr-1',
     request: {
       email: 'user@example.com',
       password: 'secret-password',

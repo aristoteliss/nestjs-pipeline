@@ -1,6 +1,7 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import { Inject, Injectable, Optional } from '@nestjs/common';
+import { createHash } from 'node:crypto';
+import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
 import type {
   CacheFillOptions,
   CacheSetOptions,
@@ -40,6 +41,7 @@ class CacheCasExhaustedError extends Error {
 export class MikroOrmCache<T> implements IVersionedCache<T> {
   readonly isVersioned = true as const;
 
+  private readonly logger = new Logger(MikroOrmCache.name);
   private readonly defaultTtlMs: number;
 
   constructor(
@@ -254,7 +256,12 @@ export class MikroOrmCache<T> implements IVersionedCache<T> {
             let parsed: unknown;
             try {
               parsed = JSON.parse(existing.value);
-            } catch {}
+            } catch {
+              // An unparsable entry is treated as absent so the CAS update can heal corrupted data.
+              this.logger.warn(
+                `Failed to parse cached value (key digest: ${createHash('sha256').update(key).digest('hex')}); treating as absent.`,
+              );
+            }
             if (parsed !== undefined && isNewer(parsed, value)) {
               return;
             }

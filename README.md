@@ -822,7 +822,6 @@ Every behavior receives `IPipelineContext`:
 | Property | Type | Description |
 |---|---|---|
 | `correlationId` | `string` | Immutable ID fixed before the behavior chain starts |
-| `originalCorrelationId` | `string` | Immutable snapshot of the initial correlation ID |
 | `tenantId` | `string \| undefined` | Active tenant identifier (inherited from parent context or resolved via `tenantIdFactory`) |
 | `request` | `TRequest` | The command / query / event instance |
 | `requestType` | `Type<TRequest>` | Class constructor (e.g. `CreateUserCommand`) |

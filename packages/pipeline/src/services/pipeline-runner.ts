@@ -3,7 +3,6 @@
 import {
   pipelineStore,
   SET_CORRELATION_ID,
-  SET_ORIGINAL_CORRELATION_ID,
   SET_RESPONSE,
   SET_TENANT_ID,
 } from '../constants/pipeline-context.constants';
@@ -43,7 +42,6 @@ export function createPipelineRunner(
     if (!context.correlationId) {
       context[SET_CORRELATION_ID](correlationIdFactory?.() ?? uuidv7());
     }
-    context[SET_ORIGINAL_CORRELATION_ID](context.correlationId);
 
     if (!context.tenantId && tenantIdFactory) {
       const resolvedTenantId = tenantIdFactory();

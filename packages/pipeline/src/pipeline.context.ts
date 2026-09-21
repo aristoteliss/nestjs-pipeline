@@ -2,10 +2,8 @@
 
 import { Type } from '@nestjs/common';
 import {
-  PIPELINE_TENANT_ID,
   pipelineStore,
   SET_CORRELATION_ID,
-  SET_ORIGINAL_CORRELATION_ID,
   SET_RESPONSE,
   SET_TENANT_ID,
 } from './constants/pipeline-context.constants';
@@ -45,25 +43,6 @@ export abstract class BasePipelineContext<
     this._correlationId = value;
   }
 
-  /** Backing field for `originalCorrelationId`. */
-  private _originalCorrelationId = '';
-
-  /**
-   * The immutable correlation ID assigned when the pipeline was created.
-   * Alias for the initially assigned correlation ID.
-   */
-  get originalCorrelationId(): string {
-    return this._originalCorrelationId;
-  }
-
-  /**
-   * Symbol-keyed setter — only callable by code that imports {@link SET_ORIGINAL_CORRELATION_ID}.
-   * Locks the original value so behaviors cannot tamper with it.
-   */
-  [SET_ORIGINAL_CORRELATION_ID](value: string): void {
-    this._originalCorrelationId = value;
-  }
-
   /** Backing field for `tenantId`. */
   private _tenantId: string | undefined = undefined;
 
@@ -76,15 +55,9 @@ export abstract class BasePipelineContext<
 
   /**
    * Symbol-keyed setter — only callable by code that imports {@link SET_TENANT_ID}.
-   * Synchronizes `context.tenantId` and `context.items.get(PIPELINE_TENANT_ID)`.
    */
   [SET_TENANT_ID](value: string | undefined): void {
     this._tenantId = value;
-    if (value !== undefined) {
-      this.items.set(PIPELINE_TENANT_ID, value);
-    } else {
-      this.items.delete(PIPELINE_TENANT_ID);
-    }
   }
 
   abstract readonly request: TRequest;
@@ -133,7 +106,6 @@ export abstract class BasePipelineContext<
     }
     if (parent?.tenantId) {
       this._tenantId = parent.tenantId;
-      this.items.set(PIPELINE_TENANT_ID, parent.tenantId);
     }
   }
 
