@@ -6,7 +6,7 @@ import {
 } from '@common/context/tenant-context.port';
 import { Inject } from '@nestjs/common';
 import { EventsHandler, type IEventHandler } from '@nestjs/cqrs';
-import { LoggingBehavior, UsePipeline } from '@nestjs-pipeline/core';
+import { logging, UsePipeline } from '@nestjs-pipeline/core';
 import {
   type IUserBatchDispatcher,
   USER_BATCH_DISPATCHER,
@@ -14,7 +14,7 @@ import {
 import { UserUpdatedEvent } from '../../domain/events/user-updated.event';
 
 @EventsHandler(UserUpdatedEvent)
-@UsePipeline([LoggingBehavior, { requestResponseLogLevel: 'log' }])
+@UsePipeline(logging({ requestResponseLogLevel: 'log' }))
 export class UserUpdatedHandler implements IEventHandler<UserUpdatedEvent> {
   constructor(
     @Inject(USER_BATCH_DISPATCHER)

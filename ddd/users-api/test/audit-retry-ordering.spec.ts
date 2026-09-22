@@ -17,7 +17,7 @@
 
 import { CommandBus, CommandHandler, CqrsModule } from '@nestjs/cqrs';
 import { Test } from '@nestjs/testing';
-import { AuditBehavior, AuditModule } from '@nestjs-pipeline/audit';
+import { AuditBehavior, AuditModule, audit } from '@nestjs-pipeline/audit';
 import {
   PIPELINE_BEHAVIORS_METADATA,
   PipelineModule,
@@ -27,7 +27,7 @@ import {
   isTransientOperationError,
   TransientOperationError,
 } from '@nestjs-pipeline/ddd-core/domain';
-import { ResilienceBehavior } from '@nestjs-pipeline/resilience';
+import { ResilienceBehavior, resilience } from '@nestjs-pipeline/resilience';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { DeleteRoleHandler } from '../src/roles/cqrs/commands/delete-role.handler';
 import { DeleteUserHandler } from '../src/users/cqrs/commands/delete-user.handler';
@@ -47,18 +47,15 @@ let attempts = 0;
 /** Mirrors the reference handlers' declaration order. */
 @CommandHandler(FlakyDeleteCommand)
 @UsePipeline(
-  [AuditBehavior, { action: 'thing.delete' }],
-  [
-    ResilienceBehavior,
-    {
-      handle: isTransientOperationError,
-      retry: {
-        maxAttempts: 3,
-        replaySafe: true,
-        backoff: { type: 'constant', delay: 0 },
-      },
+  audit({ action: 'thing.delete' }),
+  resilience({
+    handle: isTransientOperationError,
+    retry: {
+      maxAttempts: 3,
+      replaySafe: true,
+      backoff: { type: 'constant', delay: 0 },
     },
-  ],
+  }),
 )
 class FlakyDeleteHandler {
   async execute(_command: FlakyDeleteCommand) {

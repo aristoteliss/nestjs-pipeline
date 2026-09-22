@@ -3,7 +3,7 @@ import { APP_ACTIONS, APP_SUBJECTS } from '@common/constants';
 import { Inject, Scope } from '@nestjs/common';
 import { CommandHandler, EventBus } from '@nestjs/cqrs';
 import { CaslAuthorizer, requires } from '@nestjs-pipeline/casl';
-import { LoggingBehavior, UsePipeline } from '@nestjs-pipeline/core';
+import { logging, UsePipeline } from '@nestjs-pipeline/core';
 import {
   CommandBaseHandler,
   IWriteSideAggregateRepository,
@@ -16,13 +16,10 @@ import { UpdateRoleCommand } from './update-role.command';
 
 @CommandHandler(UpdateRoleCommand, { scope: Scope.REQUEST })
 @UsePipeline(
-  [
-    LoggingBehavior,
-    {
-      requestResponseLogLevel: 'log',
-      mapLogLevel: new Map([[UniqueRoleNameException, 'warn']]),
-    },
-  ],
+  logging({
+    requestResponseLogLevel: 'log',
+    mapLogLevel: new Map([[UniqueRoleNameException, 'warn']]),
+  }),
   requires({ action: APP_ACTIONS.UPDATE, subject: APP_SUBJECTS.ROLE }),
 )
 export class UpdateRoleHandler extends CommandBaseHandler<

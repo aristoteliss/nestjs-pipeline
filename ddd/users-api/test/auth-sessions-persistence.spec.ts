@@ -5,13 +5,18 @@ import { type IPipelineContext, pipelineStore } from '@nestjs-pipeline/core';
 import { ConcurrencyConflictError } from '@nestjs-pipeline/ddd-core/domain';
 import { MemoryCache } from '@nestjs-pipeline/ddd-core/persistence';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { RefreshAuthCommand } from '../src/auths/cqrs/commands/refresh-auth.command';
+import { RefreshAuthHandler } from '../src/auths/cqrs/commands/refresh-auth.handler';
+import { RefreshTokenReuseError } from '../src/auths/domain/errors/refresh-token.errors';
 import {
   Auth,
   type AuthSnapshot,
 } from '../src/auths/domain/models/auth.entity';
+import { NodeRefreshTokens } from '../src/auths/infrastructure/node-refresh-tokens';
 import { AuthSessionsRepository } from '../src/auths/persistence/auth-sessions.repository';
 import { CreateAuthCommandRepository } from '../src/auths/persistence/create-auth.command-repository';
 import { UpdateAuthCommandRepository } from '../src/auths/persistence/update-auth.command-repository';
+import { AuthSessionRevocationService } from '../src/auths/services/auth-session-revocation.service';
 import { type MigratedDb, migratedDb } from './support/permission-rules-db';
 
 const ALICE = '019de10c-b680-7000-8000-000000000006';
@@ -71,6 +76,106 @@ describe('Auth session persistence', () => {
     await expect(inTenant(() => updates().save(stale))).rejects.toBeInstanceOf(
       ConcurrencyConflictError,
     );
+  });
+
+  it('persists previous-token reuse revocation through the real repository', async () => {
+    const tokens = new NodeRefreshTokens();
+    const auth = await start(tokens.hash('token-a'));
+    const loaded = (await sessions().findByTokenHash(
+      tokens.hash('token-a'),
+    )) as Auth;
+    loaded.refresh(
+      tokens.hash('token-a'),
+      tokens.hash('token-b'),
+      Date.now() - 31_000,
+      30_000,
+    );
+    await inTenant(() => updates().save(loaded));
+    const handler = new RefreshAuthHandler(
+      { publishAll: vi.fn() } as never,
+      sessions(),
+      updates(),
+      new AuthSessionRevocationService(updates()),
+      { find: vi.fn() } as never,
+      tokens,
+      {
+        refreshTokenTtlSeconds: 3600,
+        refreshReuseGraceSeconds: 30,
+        permissionsInAccessToken: false,
+      },
+      { signToken: vi.fn() } as never,
+      { schema: 'tenant' },
+    );
+    await expect(
+      inTenant(() =>
+        handler.execute(
+          new RefreshAuthCommand({
+            refreshToken: 'token-a',
+            clientIp: '127.0.0.1',
+          }),
+        ),
+      ),
+    ).rejects.toBeInstanceOf(RefreshTokenReuseError);
+    const persisted = await updates().findById(auth.id);
+    expect(persisted?.revokedAt).not.toBeNull();
+  });
+
+  it('revokes historical-token reuse after a competing database rotation', async () => {
+    const tokens = new NodeRefreshTokens();
+    const auth = await start(tokens.hash('token-a'));
+    for (const [from, to] of [
+      ['token-a', 'token-b'],
+      ['token-b', 'token-c'],
+    ]) {
+      const loaded = (await sessions().findByTokenHash(
+        tokens.hash(from),
+      )) as Auth;
+      loaded.refresh(tokens.hash(from), tokens.hash(to), Date.now(), 30_000);
+      await sessions().recordConsumed(tokens.hash(from), auth.id, Date.now());
+      await inTenant(() => updates().save(loaded));
+    }
+    const repository = updates();
+    const save = repository.save.bind(repository);
+    vi.spyOn(repository, 'save').mockImplementationOnce(async (stale) => {
+      const competing = updates();
+      const winner = (await competing.findById(auth.id)) as Auth;
+      winner.refresh(
+        tokens.hash('token-c'),
+        tokens.hash('token-d'),
+        Date.now(),
+        30_000,
+      );
+      await competing.save(winner);
+      return save(stale);
+    });
+    const handler = new RefreshAuthHandler(
+      { publishAll: vi.fn() } as never,
+      sessions(),
+      repository,
+      new AuthSessionRevocationService(repository),
+      { find: vi.fn() } as never,
+      tokens,
+      {
+        refreshTokenTtlSeconds: 3600,
+        refreshReuseGraceSeconds: 30,
+        permissionsInAccessToken: false,
+      },
+      { signToken: vi.fn() } as never,
+      { schema: 'tenant' },
+    );
+    await expect(
+      inTenant(() =>
+        handler.execute(
+          new RefreshAuthCommand({
+            refreshToken: 'token-a',
+            clientIp: '127.0.0.1',
+          }),
+        ),
+      ),
+    ).rejects.toBeInstanceOf(RefreshTokenReuseError);
+    const persisted = await sessions().findByTokenHash(tokens.hash('token-d'));
+    expect(persisted?.revokedAt).not.toBeNull();
+    expect(persisted?.id).toBe(auth.id);
   });
 
   it('records a consumed hash once and resolves its session', async () => {

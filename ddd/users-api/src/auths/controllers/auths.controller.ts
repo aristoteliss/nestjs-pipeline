@@ -106,7 +106,7 @@ export class AuthsController {
       setRefreshCookie(res, result.refreshToken, result.sessionExpiresAt);
     }
     const body = toSessionRes(result);
-    this.sessionService.saveSession(req.session, body);
+    this.sessionService.saveSession(req.session, body, result.aggregate?.id);
     return body;
   }
 }

@@ -161,6 +161,10 @@ user denial deny `delete User` in either input order.
   `fields: ['profile']` lets `project` return `profile.secret`, while
   `can('read', user, 'profile.secret')` is `false` (CASL needs `profile.*`/`profile.**`).
 - A denied array element becomes `null`, so positions stay stable (`roles.0`).
+- Root arrays retain their array shape. Named fields apply to every item; numeric
+  paths restrict specific items (`0`, `0.id`). Nested arrays use the same masking
+  and cycle detection as nested object properties. One supplied subject governs
+  the whole candidate; authorize collections of distinct entities item by item.
 - Conditions are evaluated against the **subject**, never the candidate, so a response
   DTO cannot satisfy a condition the entity does not.
 - Cyclic input and more than 1024 array path aliases throw.

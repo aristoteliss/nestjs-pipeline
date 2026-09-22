@@ -11,17 +11,17 @@ import { CommandHandler, EventBus } from '@nestjs/cqrs';
 import { AUDIT_SEVERITY, audit } from '@nestjs-pipeline/audit';
 import {
   type IPipelineContext,
-  LoggingBehavior,
+  logging,
   UsePipeline,
 } from '@nestjs-pipeline/core';
 import {
   CommandBaseHandler,
   ICommandRepository,
 } from '@nestjs-pipeline/ddd-core/application';
-import { MetricsBehavior } from '@nestjs-pipeline/opentelemetry';
+import { metrics } from '@nestjs-pipeline/opentelemetry';
 import {
   createPartitionedRateLimitKeyFactory,
-  RateLimitBehavior,
+  rateLimit,
 } from '@nestjs-pipeline/rate-limit';
 import {
   AUTH_TOKEN_POLICY,
@@ -46,9 +46,9 @@ export const createAuthRateLimitKey = createPartitionedRateLimitKeyFactory(
 
 @CommandHandler(CreateAuthCommand)
 @UsePipeline(
-  [LoggingBehavior, { requestResponseLogLevel: 'log' }],
-  [MetricsBehavior, { meterName: 'users-api.auth' }],
-  [RateLimitBehavior, { keyFactory: createAuthRateLimitKey }],
+  logging({ requestResponseLogLevel: 'log' }),
+  metrics({ meterName: 'users-api.auth' }),
+  rateLimit({ keyFactory: createAuthRateLimitKey }),
   audit({
     action: AUDIT_ACTIONS.AUTH_LOGIN,
     severity: AUDIT_SEVERITY.MEDIUM,

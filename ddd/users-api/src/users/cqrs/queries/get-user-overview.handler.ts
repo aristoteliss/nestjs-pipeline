@@ -7,7 +7,7 @@ import {
 } from '@common/constants';
 import { Inject } from '@nestjs/common';
 import { type IQueryHandler, QueryHandler } from '@nestjs/cqrs';
-import { CacheBehavior } from '@nestjs-pipeline/cache';
+import { cache } from '@nestjs-pipeline/cache';
 import {
   type Capability,
   type CapabilityString,
@@ -40,7 +40,7 @@ export interface UserOverviewDto {
 @QueryHandler(GetUserOverviewQuery)
 @UsePipeline(
   requires({ action: APP_ACTIONS.READ, subject: APP_SUBJECTS.USER }),
-  [CacheBehavior, userOverviewCacheOptions],
+  cache(userOverviewCacheOptions),
 )
 export class GetUserOverviewHandler
   implements IQueryHandler<GetUserOverviewQuery, UserOverviewDto | null>

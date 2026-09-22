@@ -7,7 +7,7 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { type Capability, parseCapabilityString } from '@nestjs-pipeline/casl';
-import { importSPKI, jwtVerify } from 'jose';
+import { errors, importSPKI, jwtVerify } from 'jose';
 import {
   type ITenantContext,
   TENANT_CONTEXT,
@@ -131,9 +131,18 @@ export class JwtAuthenticator {
             algorithms,
             issuer,
             audience,
+            requiredClaims: ['exp'],
           }));
           break;
         } catch (error) {
+          if (
+            error instanceof errors.JWTClaimValidationFailed &&
+            error.claim === 'exp'
+          ) {
+            throw new UnauthorizedException(
+              'Token is missing its expiration claim',
+            );
+          }
           lastError = error;
         }
       }
@@ -147,6 +156,16 @@ export class JwtAuthenticator {
       }
       if (typeof payload.tenant !== 'string') {
         throw new UnauthorizedException('Token is missing its tenant claim');
+      }
+      if (typeof payload.sid !== 'string' || payload.sid.trim().length === 0) {
+        throw new UnauthorizedException(
+          'Token is missing its session identifier claim',
+        );
+      }
+      if (typeof payload.exp !== 'number') {
+        throw new UnauthorizedException(
+          'Token is missing its expiration claim',
+        );
       }
 
       if (
@@ -168,7 +187,7 @@ export class JwtAuthenticator {
         id: payload.sub,
         principalType: 'user',
         tenant: payload.tenant,
-        ...(typeof payload.sid === 'string' ? { sid: payload.sid } : {}),
+        sid: payload.sid,
         ...(PERMISSIONS_IN_ACCESS_TOKEN && payload.perms !== undefined
           ? {
               grants: parsePermissions(payload.perms),
@@ -178,9 +197,8 @@ export class JwtAuthenticator {
                   : null,
             }
           : {}),
-        expiresAt:
-          typeof payload.exp === 'number' ? payload.exp * 1000 : undefined,
-        exp: typeof payload.exp === 'number' ? payload.exp : undefined,
+        expiresAt: payload.exp * 1000,
+        exp: payload.exp,
       };
 
       this.logger.debug(`Authenticated user ${user.id} from Bearer token`);

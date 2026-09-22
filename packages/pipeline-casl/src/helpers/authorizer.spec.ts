@@ -704,6 +704,72 @@ describe('CaslAuthorizer', () => {
       ).toEqual({ tags: [null, 'b'], owner: null });
     });
 
+    it('preserves array runtime shape and indexes on root-array candidates', () => {
+      const ability = buildAbility(['User|read|*']);
+      const authorizer = new CaslAuthorizer(ability);
+      const candidates = [{ id: 'one' }, { id: 'two' }];
+
+      const projected = authorizer.project('read', 'User', candidates);
+
+      expect(Array.isArray(projected)).toBe(true);
+      expect(projected).toEqual([{ id: 'one' }, { id: 'two' }]);
+      expect(projected.map((item) => item?.id)).toEqual(['one', 'two']);
+    });
+
+    it('returns empty array for empty root array candidate', () => {
+      const ability = buildAbility(['User|read|*']);
+      const authorizer = new CaslAuthorizer(ability);
+
+      const projected = authorizer.project('read', 'User', []);
+
+      expect(Array.isArray(projected)).toBe(true);
+      expect(projected).toEqual([]);
+    });
+
+    it('masks denied root-array indices to null while projecting remaining elements', () => {
+      const ability = buildAbility([
+        'User|read|*',
+        {
+          subject: 'User',
+          action: 'read',
+          fields: ['0'],
+          inverted: true,
+        },
+      ]);
+      const authorizer = new CaslAuthorizer(ability);
+
+      const projected = authorizer.project('read', 'User', [
+        { id: 'zero' },
+        { id: 'one' },
+      ]);
+
+      expect(Array.isArray(projected)).toBe(true);
+      expect(projected).toEqual([null, { id: 'one' }]);
+    });
+
+    it('filters unpermitted fields within root-array elements', () => {
+      const ability = buildAbility(['User|read|*|id']);
+      const authorizer = new CaslAuthorizer(ability);
+
+      const projected = authorizer.project('read', 'User', [
+        { id: 'one', secret: 'abc' },
+        { id: 'two', secret: 'xyz' },
+      ]);
+
+      expect(projected).toEqual([{ id: 'one' }, { id: 'two' }]);
+    });
+
+    it('supports readonly root arrays', () => {
+      const ability = buildAbility(['User|read|*']);
+      const authorizer = new CaslAuthorizer(ability);
+      const candidates: readonly { readonly id: string }[] = [{ id: 'one' }];
+
+      const projected = authorizer.project('read', 'User', candidates);
+
+      expect(Array.isArray(projected)).toBe(true);
+      expect(projected).toEqual([{ id: 'one' }]);
+    });
+
     it('types projected candidates so every property and array item may be absent', () => {
       type Candidate = { id: string; roles: string[]; at: Date };
 
@@ -715,6 +781,9 @@ describe('CaslAuthorizer', () => {
       expectTypeOf<
         Projected<{ tags: readonly string[] }>['tags']
       >().toEqualTypeOf<(string | null)[] | undefined>();
+      expectTypeOf<Projected<Candidate[]>>().toEqualTypeOf<
+        ({ id?: string; roles?: (string | null)[]; at?: Date } | null)[]
+      >();
     });
   });
 });
@@ -798,5 +867,41 @@ describe('UnauthorizedActionException', () => {
         entityId: 0,
       }).message,
     ).toContain('id=0');
+  });
+});
+
+describe('root array projection traversal', () => {
+  it('preserves nested arrays without treating them as cycles', () => {
+    const authorizer = new CaslAuthorizer(buildAbility(['User|read|*']));
+    expect(authorizer.project('read', 'User', [[{ id: 'one' }]])).toEqual([
+      [{ id: 'one' }],
+    ]);
+  });
+
+  it('applies named field masks through nested root arrays', () => {
+    const authorizer = new CaslAuthorizer(buildAbility(['User|read|*|id']));
+    expect(
+      authorizer.project('read', 'User', [[{ id: 'one', secret: true }]]),
+    ).toEqual([[{ id: 'one' }]]);
+  });
+
+  it('projects array entries through their scalar and null JSON values', () => {
+    const authorizer = new CaslAuthorizer(buildAbility(['User|read|*']));
+    expect(
+      authorizer.project('read', 'User', [
+        { toJSON: () => 'value' },
+        { toJSON: () => null },
+      ]),
+    ).toEqual(['value', null]);
+  });
+
+  it('rejects an array entry whose JSON value refers to itself', () => {
+    const authorizer = new CaslAuthorizer(buildAbility(['User|read|*']));
+    const entry = {
+      toJSON() {
+        return this;
+      },
+    };
+    expect(() => authorizer.project('read', 'User', [entry])).toThrow('cyclic');
   });
 });

@@ -31,6 +31,7 @@ import {
   DeadLetterBehavior,
   DeadLetterModule,
   type DeadLetterTransport,
+  deadLetter,
 } from '@nestjs-pipeline/deadletter';
 import {
   FeatureDisabledError,
@@ -41,7 +42,7 @@ import {
   IdempotencyCompletionError,
   MemoryIdempotencyStore,
 } from '@nestjs-pipeline/idempotency';
-import { ResilienceBehavior } from '@nestjs-pipeline/resilience';
+import { ResilienceBehavior, resilience } from '@nestjs-pipeline/resilience';
 import type { Client } from '@openfeature/server-sdk';
 import { createCache } from 'cache-manager';
 import { Keyv } from 'keyv';
@@ -251,24 +252,18 @@ describe('Cross-package behavior composition contracts', () => {
 
     @CommandHandler(FailingRetriedCommand)
     @UsePipeline(
-      [
-        DeadLetterBehavior,
-        {
-          captureKinds: ['command'],
-          rethrow: true,
+      deadLetter({
+        captureKinds: ['command'],
+        rethrow: true,
+      }),
+      resilience({
+        handle: (err: unknown) => err instanceof TransientTestError,
+        retry: {
+          maxAttempts: 2,
+          replaySafe: true,
+          backoff: { type: 'constant', delay: 0 },
         },
-      ],
-      [
-        ResilienceBehavior,
-        {
-          handle: (err: unknown) => err instanceof TransientTestError,
-          retry: {
-            maxAttempts: 2,
-            replaySafe: true,
-            backoff: { type: 'constant', delay: 0 },
-          },
-        },
-      ],
+      }),
     )
     class FailingRetriedHandler
       implements ICommandHandler<FailingRetriedCommand>

@@ -236,10 +236,10 @@ per-handler via `@UsePipeline`:
 ```typescript
 import { CommandHandler, ICommandHandler } from '@nestjs/cqrs';
 import { UsePipeline } from '@nestjs-pipeline/core';
-import { MetricsBehavior } from '@nestjs-pipeline/opentelemetry';
+import { metrics } from '@nestjs-pipeline/opentelemetry';
 
 @CommandHandler(ProcessPaymentCommand)
-@UsePipeline([MetricsBehavior, { meterName: 'payment-service' }])
+@UsePipeline(metrics({ meterName: 'payment-service' }))
 export class ProcessPaymentHandler
   implements ICommandHandler<ProcessPaymentCommand>
 {
@@ -325,12 +325,10 @@ Override the tracer name for specific handlers using `@UsePipeline`:
 ```typescript
 import { CommandHandler, ICommandHandler } from '@nestjs/cqrs';
 import { UsePipeline } from '@nestjs-pipeline/core';
-import { TraceBehavior } from '@nestjs-pipeline/opentelemetry';
+import { trace } from '@nestjs-pipeline/opentelemetry';
 
 @CommandHandler(ProcessPaymentCommand)
-@UsePipeline(
-  [TraceBehavior, { tracerName: 'payment-service' }],
-)
+@UsePipeline(trace({ tracerName: 'payment-service' }))
 export class ProcessPaymentHandler implements ICommandHandler<ProcessPaymentCommand> {
   async execute(command: ProcessPaymentCommand): Promise<PaymentResult> {
     // This handler's spans will appear under 'payment-service' tracer
@@ -439,12 +437,12 @@ import { ZodValidationBehavior } from '@nestjs-pipeline/zod';
 })
 export class AppModule {}
 
-// ── create-user.handler.ts ──
+// create-user.handler.ts
 import { CommandHandler, ICommandHandler } from '@nestjs/cqrs';
-import { UsePipeline, LoggingBehavior } from '@nestjs-pipeline/core';
+import { UsePipeline, logging } from '@nestjs-pipeline/core';
 
 @CommandHandler(CreateUserCommand)
-@UsePipeline([LoggingBehavior, { requestResponseLogLevel: 'log' }])
+@UsePipeline(logging({ requestResponseLogLevel: 'log' }))
 export class CreateUserHandler implements ICommandHandler<CreateUserCommand> {
   async execute(command: CreateUserCommand): Promise<User> {
     // This handler is now:
@@ -484,8 +482,12 @@ pipeline.handler.invocations{...,outcome="success"} counter   → request & erro
 |---|---|---|
 | `TraceBehavior` | Class | Pipeline behavior — creates OTel spans per handler invocation; uses the API no-op tracer when no SDK is registered |
 | `TraceBehaviorOptions` | Interface | `{ tracerName?: string, enabled?: boolean }` — configure the tracer name or explicitly disable tracing for a handler |
+| `trace` | Function | Typed intent builder returning `[TraceBehavior, options]` for `@UsePipeline` |
+| `TraceIntentOptions` | Type | Alias for `TraceBehaviorOptions` |
 | `MetricsBehavior` | Class | Pipeline behavior — records duration histogram & invocation counter per handler |
 | `MetricsBehaviorOptions` | Interface | `{ meterName?: string }` — configure the meter name |
+| `metrics` | Function | Typed intent builder returning `[MetricsBehavior, options]` for `@UsePipeline` |
+| `MetricsIntentOptions` | Type | Alias for `MetricsBehaviorOptions` |
 
 ---
 

@@ -143,6 +143,7 @@ describe('HTTP Authentication Integration (Real Nest App Pipeline)', () => {
       tenant: 'tenant_a',
       email: 'bearer-user@acme.test',
       roles: ['editor'],
+      sid: 'session-bearer-1',
     })
       .setProtectedHeader({ alg: 'HS256' })
       .setSubject('user-bearer-valid')
@@ -167,6 +168,7 @@ describe('HTTP Authentication Integration (Real Nest App Pipeline)', () => {
   it('2. Expired or malformed Bearer JWT -> 401 Unauthorized', async () => {
     const expiredToken = await new SignJWT({
       tenant: 'tenant_a',
+      sid: 'session-expired',
     })
       .setProtectedHeader({ alg: 'HS256' })
       .setSubject('user-expired')
@@ -184,6 +186,7 @@ describe('HTTP Authentication Integration (Real Nest App Pipeline)', () => {
   it('3. Wrong-tenant Bearer JWT -> 401 Unauthorized', async () => {
     const tokenForTenantB = await new SignJWT({
       tenant: 'tenant_b',
+      sid: 'session-tenant-b',
     })
       .setProtectedHeader({ alg: 'HS256' })
       .setSubject('user-b')
@@ -227,6 +230,7 @@ describe('HTTP Authentication Integration (Real Nest App Pipeline)', () => {
     const tokenA = await new SignJWT({
       tenant: 'tenant_a',
       roles: ['admin'],
+      sid: 'session-concurrent-a',
     })
       .setProtectedHeader({ alg: 'HS256' })
       .setSubject('user-concurrent-a')
@@ -236,6 +240,7 @@ describe('HTTP Authentication Integration (Real Nest App Pipeline)', () => {
     const tokenB = await new SignJWT({
       tenant: 'tenant_b',
       roles: ['guest'],
+      sid: 'session-concurrent-b',
     })
       .setProtectedHeader({ alg: 'HS256' })
       .setSubject('user-concurrent-b')
@@ -280,6 +285,7 @@ describe('HTTP Authentication Integration (Real Nest App Pipeline)', () => {
       id: 'user-cookie-fastpath',
       tenant: 'tenant_a',
       email: 'cookie@example.test',
+      sid: 'session-cookie-1',
     };
 
     const res = await request(app.getHttpServer())
@@ -300,6 +306,7 @@ describe('HTTP Authentication Integration (Real Nest App Pipeline)', () => {
       id: 'user-cookie-expired',
       tenant: 'tenant_a',
       email: 'expired@example.test',
+      sid: 'session-cookie-expired',
       expiresAt: Date.now() - 5000,
     };
 
@@ -319,12 +326,14 @@ describe('HTTP Authentication Integration (Real Nest App Pipeline)', () => {
     const expiredUser = {
       id: 'user-cookie-expired',
       tenant: 'tenant_a',
+      sid: 'session-cookie-expired',
       expiresAt: Date.now() - 5000,
     };
 
     const token = await new SignJWT({
       tenant: 'tenant_a',
       roles: ['editor'],
+      sid: 'session-jwt-fallback',
     })
       .setProtectedHeader({ alg: 'HS256' })
       .setSubject('user-jwt-fallback')
@@ -348,6 +357,7 @@ describe('HTTP Authentication Integration (Real Nest App Pipeline)', () => {
     const mismatchedUser = {
       id: 'user-mismatched',
       tenant: 'tenant_b',
+      sid: 'session-cookie-mismatch',
     };
 
     const res = await request(app.getHttpServer())
@@ -356,5 +366,42 @@ describe('HTTP Authentication Integration (Real Nest App Pipeline)', () => {
       .set('x-test-session-user', JSON.stringify(mismatchedUser));
 
     expect(res.status).toBe(401);
+  });
+
+  it('11. Bearer JWT without sid -> 401 Unauthorized', async () => {
+    const tokenWithoutSid = await new SignJWT({
+      tenant: 'tenant_a',
+      roles: ['editor'],
+    })
+      .setProtectedHeader({ alg: 'HS256' })
+      .setSubject('user-legacy')
+      .setExpirationTime('1h')
+      .sign(new TextEncoder().encode(jwtSecret));
+
+    const res = await request(app.getHttpServer())
+      .get('/test-auth/principal')
+      .set(AUTH_HEADERS.TENANT_SCHEMA, 'tenant_a')
+      .set('Authorization', `Bearer ${tokenWithoutSid}`);
+
+    expect(res.status).toBe(401);
+  });
+
+  it('12. Session cookie without sid -> clears session and resolves to anonymous', async () => {
+    const legacySessionUser = {
+      id: 'user-legacy-session',
+      tenant: 'tenant_a',
+      email: 'legacy@example.test',
+    };
+
+    const res = await request(app.getHttpServer())
+      .get('/test-auth/session-status')
+      .set(AUTH_HEADERS.TENANT_SCHEMA, 'tenant_a')
+      .set('x-test-session-user', JSON.stringify(legacySessionUser));
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({
+      sessionDeleted: true,
+      user: { anonymous: true },
+    });
   });
 });

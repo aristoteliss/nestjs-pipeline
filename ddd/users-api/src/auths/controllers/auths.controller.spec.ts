@@ -84,7 +84,11 @@ describe('AuthsController', () => {
         'refresh-secret',
         { ...COOKIE_OPTIONS, expires: new Date(9_000_000) },
       );
-      expect(sessionService.saveSession).toHaveBeenCalledWith(undefined, body);
+      expect(sessionService.saveSession).toHaveBeenCalledWith(
+        undefined,
+        body,
+        expect.any(String),
+      );
     });
   });
 

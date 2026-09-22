@@ -12,7 +12,7 @@ describe('event handler cross-cutting boundary', () => {
     '%s delegates logging/correlation instead of implementing them manually',
     (filename) => {
       const source = eventHandlerSource(filename);
-      expect(source).toContain('LoggingBehavior');
+      expect(source).toMatch(/\b(logging|LoggingBehavior)\b/);
       expect(source).not.toContain('new Logger(');
       expect(source).not.toContain('getCorrelationId');
       expect(source).not.toContain('@nestjs-pipeline/correlation');

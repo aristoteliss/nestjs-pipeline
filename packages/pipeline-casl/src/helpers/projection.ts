@@ -17,14 +17,15 @@ export function projectPermittedFields(
   ability: AppAbility,
   action: string,
   typedSubject: string,
-  record: Record<string, unknown>,
-): Record<string, unknown> {
+  record: Record<string, unknown> | unknown[],
+): Record<string, unknown> | unknown[] {
   const ancestors = new WeakSet<object>();
 
   // Evaluate full field paths using CASL. Conditions use the complete subject.
   function ruleFor(paths: string[], inherited: FieldRule): FieldRule {
     let rule: FieldRule = null;
     for (const field of paths) {
+      if (!field) continue;
       const candidate = ability.relevantRuleFor(action, typedSubject, field);
       if (candidate) {
         if (candidate.inverted) {
@@ -89,7 +90,12 @@ export function projectPermittedFields(
           // Named paths apply to every element; indexed paths can additionally
           // restrict individual elements. Keep positions stable after masking.
           const elementPaths = [
-            ...new Set([...paths, ...paths.map((path) => `${path}.${index}`)]),
+            ...new Set([
+              ...paths,
+              ...paths.map((path) =>
+                path ? `${path}.${index}` : String(index),
+              ),
+            ]),
           ];
           // Nested arrays have both named and indexed aliases. Bound their
           // combinations so pathological input fails closed instead of exploding.
@@ -111,7 +117,7 @@ export function projectPermittedFields(
       for (const [key, child] of entries) {
         const projected = project(
           child,
-          paths.map((path) => `${path}.${key}`),
+          paths.map((path) => (path ? `${path}.${key}` : key)),
           rule,
         );
         if (projected !== OMIT) {
@@ -129,18 +135,38 @@ export function projectPermittedFields(
     }
   }
 
-  const result: Record<string, unknown> = {};
-  ancestors.add(record);
-  for (const [key, value] of Object.entries(record)) {
-    const projected = project(value, [key], null);
-    if (projected !== OMIT) {
-      Object.defineProperty(result, key, {
-        value: projected,
-        enumerable: true,
-        configurable: true,
-        writable: true,
+  if (Array.isArray(record)) {
+    ancestors.add(record);
+    try {
+      return record.map((item, index) => {
+        // The empty path gives named fields the same meaning for every item.
+        const projected = project(item, ['', String(index)], null);
+        return projected === OMIT ? null : projected;
       });
+    } finally {
+      ancestors.delete(record);
     }
   }
-  return result;
+
+  const result: Record<string, unknown> = {};
+  if (ancestors.has(record)) {
+    throw new TypeError('Cannot project a cyclic authorization snapshot.');
+  }
+  ancestors.add(record);
+  try {
+    for (const [key, value] of Object.entries(record)) {
+      const projected = project(value, [key], null);
+      if (projected !== OMIT) {
+        Object.defineProperty(result, key, {
+          value: projected,
+          enumerable: true,
+          configurable: true,
+          writable: true,
+        });
+      }
+    }
+    return result;
+  } finally {
+    ancestors.delete(record);
+  }
 }

@@ -49,6 +49,7 @@ describe('JwtAuthenticator', () => {
 
     const token = await new SignJWT({
       tenant: tenantContext.schema,
+      sid: 'sess-asymm',
       email: 'asymm@example.test',
       roles: ['admin'],
     })
@@ -66,6 +67,7 @@ describe('JwtAuthenticator', () => {
       id: 'user-asymm',
       principalType: 'user',
       tenant: tenantContext.schema,
+      sid: 'sess-asymm',
     });
     expect(user).not.toHaveProperty('email');
     expect(user).not.toHaveProperty('capabilities');
@@ -78,6 +80,7 @@ describe('JwtAuthenticator', () => {
 
     const token = await new SignJWT({
       tenant: tenantContext.schema,
+      sid: 'sess-lower',
       roles: [],
     })
       .setProtectedHeader({ alg: 'HS256' })
@@ -92,6 +95,7 @@ describe('JwtAuthenticator', () => {
 
     expect(user?.id).toBe('user-lowercase-bearer');
     expect(user?.principalType).toBe('user');
+    expect(user?.sid).toBe('sess-lower');
   });
 
   it('reuses unchanged SPKI candidates and rebuilds them when the key rotates', async () => {
@@ -104,6 +108,7 @@ describe('JwtAuthenticator', () => {
 
     const token1 = await new SignJWT({
       tenant: tenantContext.schema,
+      sid: 'sess-req-1',
       roles: [],
     })
       .setProtectedHeader({ alg: 'RS256' })
@@ -113,6 +118,7 @@ describe('JwtAuthenticator', () => {
 
     const token2 = await new SignJWT({
       tenant: tenantContext.schema,
+      sid: 'sess-req-2',
       roles: [],
     })
       .setProtectedHeader({ alg: 'RS256' })
@@ -139,6 +145,7 @@ describe('JwtAuthenticator', () => {
     process.env.JWT_PUBLIC_KEY = await exportSPKI(rotated.publicKey);
     const rotatedToken = await new SignJWT({
       tenant: tenantContext.schema,
+      sid: 'sess-rot',
       roles: [],
     })
       .setProtectedHeader({ alg: 'RS256' })
@@ -200,6 +207,7 @@ describe('JwtAuthenticator', () => {
 
     const token = await new SignJWT({
       tenant: 'foreign-tenant-xyz',
+      sid: 'sess-wrong-tenant',
       roles: [],
     })
       .setProtectedHeader({ alg: 'HS256' })
@@ -230,6 +238,7 @@ describe('JwtAuthenticator', () => {
     const expTime = Math.floor(Date.now() / 1000) + 1800; // 30 minutes in future
     const token = await new SignJWT({
       tenant: tenantContext.schema,
+      sid: 'sess-exp',
       roles: [],
     })
       .setProtectedHeader({ alg: 'HS256' })
@@ -284,6 +293,7 @@ describe('JwtAuthenticator', () => {
 
     const token = await new SignJWT({
       tenant: tenantContext.schema,
+      sid: 'sess-svc',
       principalType: 'service',
     })
       .setProtectedHeader({ alg: 'HS256' })
@@ -296,5 +306,49 @@ describe('JwtAuthenticator', () => {
         headers: { authorization: `Bearer ${token}` },
       }),
     ).rejects.toThrow('not a user principal');
+  });
+
+  it('rejects legacy tokens missing the sid claim', async () => {
+    process.env.JWT_SECRET = 'legacy-secret';
+    delete process.env.JWT_PUBLIC_KEY;
+
+    const legacyToken = await new SignJWT({
+      tenant: tenantContext.schema,
+      roles: ['admin'],
+    })
+      .setProtectedHeader({ alg: 'HS256' })
+      .setSubject('legacy-user')
+      .setExpirationTime('1h')
+      .sign(new TextEncoder().encode(process.env.JWT_SECRET));
+
+    const authenticator = new JwtAuthenticator(tenantContext);
+
+    await expect(
+      authenticator.authenticate({
+        headers: { authorization: `Bearer ${legacyToken}` },
+      }),
+    ).rejects.toThrow('Token is missing its session identifier claim');
+  });
+
+  it('rejects tokens missing the exp claim', async () => {
+    process.env.JWT_SECRET = 'no-exp-secret';
+    delete process.env.JWT_PUBLIC_KEY;
+
+    const tokenWithoutExp = await new SignJWT({
+      tenant: tenantContext.schema,
+      sid: 'sess-no-exp',
+      principalType: 'user',
+    })
+      .setProtectedHeader({ alg: 'HS256' })
+      .setSubject('user-no-exp')
+      .sign(new TextEncoder().encode(process.env.JWT_SECRET));
+
+    const authenticator = new JwtAuthenticator(tenantContext);
+
+    await expect(
+      authenticator.authenticate({
+        headers: { authorization: `Bearer ${tokenWithoutExp}` },
+      }),
+    ).rejects.toThrow('Token is missing its expiration claim');
   });
 });

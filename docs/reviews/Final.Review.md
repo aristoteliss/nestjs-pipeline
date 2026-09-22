@@ -1,5 +1,10 @@
 # Final Repository Review — review/remaining-findings
 
+## Typed intent builder review — 2026-09-22
+
+The staged additive `logging`, `metrics`, `trace` and `deadLetter` builders and users-api migrations were reviewed against `70d24819`. No production runtime defect was reproduced. Working-tree fixes correct the disabled-cache example's missing typed key choice, role projection in that example, and the silence-all logging options. A packed-consumer fixture verifies public declarations and raw-tuple metadata parity. Verification passed: three affected package suites/typechecks, 724 users-api tests/typecheck, lint, 12-package packed release and 58 context checks. See [Typed.Intent.Builders.Review.md](Typed.Intent.Builders.Review.md) for scope, findings and verification.
+
+
 **Review baseline:** review/remaining-findings @ 1d4807bbd6cd4e9e11db0f54f8c3a4ef662a91ba
 **Review date:** 2026-09-20
 **Scope:** the full production surface — `packages/*/src`, `ddd/core`, `ddd/users-api/src`, `biome/plugins`, `integration/packages` — plus `AGENTS.md`, `.agents/skills/nestjs-pipeline-architecture/SKILL.md`, and every package/application README.
@@ -8,14 +13,16 @@ This document is the single current review source of truth. `docs/reviews/LLM.Ag
 
 ## Current CASL package disposition and compatibility scope — 2026-09-22
 
-**Current reviewed snapshot:** `9b7b17ac5d481bf2fab3619dfcb57d1640f6b6b8`. The original baseline and probes below remain historical evidence; this section governs the CASL package and release-compatibility follow-up. Detailed evidence: [CASL v2 commit review](CASL.v2.Commit.Review.md).
+**Final extraction verification:** users-api 724/724 tests, e2e 161/161 tests, typecheck, Biome, persistence lint and context validation (58 checks) passed. Shared service wiring and logout event publication are covered.
 
-**CASL package verdict:** retain the architecture. `ICaslPermissionSource`, the two-stage check and `can` / void `authorize` / `project` fit the reusable library contract. No authorization bypass was reproduced inside the package. One reproduced library defect remains: root-array projection returns an object despite its array return type. The four authentication findings in the companion review belong to users-api, not to the CASL package; they are recorded separately and are outside this follow-up's implementation scope.
+**Current reviewed snapshot:** repair range `7aa19eba` inclusive through `13a80022`, plus working-tree repairs. Detailed findings and verification boundaries: [CASL v2 commit review](CASL.v2.Commit.Review.md#repair-review--2026-09-22).
 
-| ID | Priority / evidence | Current finding | Completion criterion |
+**CASL package verdict:** retain the architecture. Root-array shape, nested traversal, masks and serialization regressions are repaired. The user's repair follow-up also authorizes the users-api authentication findings: remaining revocation, retry-exhaustion and preparation-timing defects are repaired without changing application ports or public library signatures.
+
+| ID | Priority / evidence | Current disposition | Remaining action |
 | --- | --- | --- | --- |
-| C2-01 | P2 / R | `packages/pipeline-casl/src/helpers/authorizer.ts:83–99` accepts root arrays; `helpers/projection.ts:132–145` returns an object. `Projected<T>` promises an array. | Align runtime root-array shape and public types, preserve masking and parent inheritance, add public-surface regressions and run packed-consumer verification. A record-only API restriction requires an explicit compatibility decision. |
-| C2-02 | P2 / C | Supported public API differs from tagged baseline `3fc81b858dd4d7e139fb662307a5ffdef3a06675`; several affected packages retain patch-only version increments. | Document migration and agree release versions/peer ranges. No version bump, compatibility shim or publication is authorized by this documentation update. |
+| C2-01 | P2 / R | Closed in working tree: public-authorizer regressions, 174 CASL tests and packed-consumer verification pass. | None for the reproduced projection defects. |
+| C2-02 | P2 / C | Release compatibility differs from tagged baseline `3fc81b85`. Current scoped manifests use `0.2.0`; the historical patch-version concern no longer describes HEAD. | Confirm migration guidance, peer compatibility and registry state before an authorized release. No publication performed. |
 
 **Compatibility priority and scope:** core → correlation → OpenTelemetry → Zod → CASL. Exclude internal APIs, bootstrap internals and all other workspaces. In particular, `setCorrelationFallback` was marked `@internal` at the baseline and is not a supported-public-API break for this assessment.
 
@@ -29,11 +36,9 @@ This document is the single current review source of truth. `docs/reviews/LLM.Ag
 
 All five packages require Nest 11. The core/correlation/OpenTelemetry/Zod changes predate the CASL v2 commit; the release comparison spans 88 commits. Local release tags were checked, not npm publication. See section 5 of the companion review for the version matrix and migration details.
 
-**Verification evidence from this review session:** 165 CASL tests, 709 users-api tests, 33 targeted e2e tests, package/application typechecks, lint, and the packed release check passed. Five temporary probes reproduced the companion review findings; the probes were removed afterward. These are the earlier code-review runs, not tests rerun for this documentation synchronization, and do not establish old-consumer compatibility or a full-e2e pass.
+**Repair verification:** CASL 174, refresh handler 18, real-database session persistence 6, packed release 12 packages, Biome and persistence lint passed. Full users-api 724 and typecheck passed after extracting `AuthSessionRevocationService.revoke` for refresh/logout and retaining private `applyRefresh`. The earlier execution blocker is resolved. See the companion for exact timing and residual guarantees. `pnpm context:update` completed and `pnpm context:validate` passed 58 checks (map-size warning only).
 
-**Documentation synchronization:** repository instructions and context workflow followed; manual map claims checked against source and generated sections refreshed. `pnpm context:validate` passed 58 checks (size warning only). No production code or package versions changed; runtime suites were not rerun for this documentation-only task.
-
-The existing non-CASL backlog below is retained; it is not newly authorized work. Within the requested package follow-up, C2-01 is the concrete code repair and C2-02 is release preparation.
+The unrelated historical backlog below remains outside the repair scope.
 
 ## Verification method and current branch assessment
 

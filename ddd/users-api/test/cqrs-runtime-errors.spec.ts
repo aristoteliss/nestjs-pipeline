@@ -21,6 +21,7 @@ import { DeleteAuthCommand } from '../src/auths/cqrs/commands/delete-auth.comman
 import { DeleteAuthHandler } from '../src/auths/cqrs/commands/delete-auth.handler';
 import { InvalidRefreshTokenError } from '../src/auths/domain/errors/refresh-token.errors';
 import { NodeRefreshTokens } from '../src/auths/infrastructure/node-refresh-tokens';
+import { AuthSessionRevocationService } from '../src/auths/services/auth-session-revocation.service';
 import { UserLoginService } from '../src/auths/services/user-login.service';
 // Filters
 import { DomainExceptionFilter } from '../src/common/filters/domain-exception.filter';
@@ -732,7 +733,7 @@ describe('CQRS Commands & Queries Runtime Error Taxonomy', () => {
         const handler = new DeleteAuthHandler(
           eventBus,
           { findByTokenHash: vi.fn().mockResolvedValue(null) } as any,
-          { save } as any,
+          new AuthSessionRevocationService({ save } as any),
           new NodeRefreshTokens(),
         );
 

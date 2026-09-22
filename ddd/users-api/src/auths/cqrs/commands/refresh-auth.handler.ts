@@ -16,11 +16,11 @@ import {
   type IWriteSideAggregateRepository,
 } from '@nestjs-pipeline/ddd-core/application';
 import { ConcurrencyConflictError } from '@nestjs-pipeline/ddd-core/domain';
-import { DeadLetterBehavior } from '@nestjs-pipeline/deadletter';
-import { MetricsBehavior } from '@nestjs-pipeline/opentelemetry';
+import { deadLetter } from '@nestjs-pipeline/deadletter';
+import { metrics } from '@nestjs-pipeline/opentelemetry';
 import {
   createPartitionedRateLimitKeyFactory,
-  RateLimitBehavior,
+  rateLimit,
 } from '@nestjs-pipeline/rate-limit';
 import { GetUserQuery } from '../../../users/cqrs/queries/get-user.query';
 import type { User } from '../../../users/domain/models/user.entity';
@@ -39,6 +39,7 @@ import {
 } from '../../domain/errors/refresh-token.errors';
 import type { Auth, RefreshOutcome } from '../../domain/models/auth.entity';
 import { COMMAND_REPOSITORY } from '../../persistence/repository.tokens';
+import { AuthSessionRevocationService } from '../../services/auth-session-revocation.service';
 import { UserLoginService } from '../../services/user-login.service';
 import type { CreateAuthResult } from '../results/create-auth.result';
 import { RefreshAuthCommand } from './refresh-auth.command';
@@ -50,9 +51,9 @@ export const refreshAuthRateLimitKey = createPartitionedRateLimitKeyFactory(
 
 @CommandHandler(RefreshAuthCommand)
 @UsePipeline(
-  [MetricsBehavior, { meterName: 'users-api.auth' }],
-  [RateLimitBehavior, { keyFactory: refreshAuthRateLimitKey }],
-  [DeadLetterBehavior, { redactKeys: ['refreshToken'] }],
+  metrics({ meterName: 'users-api.auth' }),
+  rateLimit({ keyFactory: refreshAuthRateLimitKey }),
+  deadLetter({ redactKeys: ['refreshToken'] }),
   audit({
     action: AUDIT_ACTIONS.AUTH_REFRESH,
     severity: AUDIT_SEVERITY.LOW,
@@ -69,6 +70,7 @@ export class RefreshAuthHandler extends CommandBaseHandler<
     @Inject(AUTH_SESSIONS) private readonly sessions: IAuthSessions,
     @Inject(COMMAND_REPOSITORY.updateAuth)
     private readonly sessionRepository: IWriteSideAggregateRepository<Auth>,
+    private readonly sessionRevocation: AuthSessionRevocationService,
     @Inject(EXT_USER_QUERY_REPOSITORY.getUser)
     private readonly users: IQueryRepository<GetUserQuery, User | null>,
     @Inject(REFRESH_TOKENS) private readonly refreshTokens: IRefreshTokens,
@@ -89,54 +91,72 @@ export class RefreshAuthHandler extends CommandBaseHandler<
     if (!session) {
       const reused = await this.sessions.findByConsumedTokenHash(presented);
       if (!reused) throw new InvalidRefreshTokenError();
-      reused.revoke(now);
-      await this.sessionRepository.save(reused);
+      await this.sessionRevocation.revoke(reused, now);
       throw new RefreshTokenReuseError();
     }
 
-    // 2. Evaluate; a lost version race is re-evaluated once against the winner.
     const nextToken = this.refreshTokens.generate();
-    let outcome: RefreshOutcome;
-    try {
-      outcome = await this.evaluate(session, presented, nextToken, now);
-    } catch (error) {
-      if (!(error instanceof ConcurrencyConflictError)) throw error;
-      const reloaded = await this.sessionRepository.findById(session.id);
-      if (!reloaded) throw new InvalidRefreshTokenError();
-      session = reloaded;
-      outcome = await this.evaluate(session, presented, nextToken, now);
+    for (let attempt = 0; ; attempt++) {
+      try {
+        const outcome = await this.applyRefresh(
+          session,
+          presented,
+          nextToken,
+          Date.now(),
+        );
+        const user = await this.users.find(
+          new GetUserQuery({ userId: session.userId }, { refresh: true }),
+        );
+        if (!user) throw new InvalidRefreshTokenError();
+        const access = await this.userLoginService.signToken(user, session.id);
+        const preparedAt = Date.now();
+        if (preparedAt >= session.expiresAt)
+          throw new InvalidRefreshTokenError();
+        if (outcome === 'grace') {
+          await this.applyRefresh(session, presented, nextToken, preparedAt);
+        } else {
+          // Prepare fallible token data before committing either persistence write.
+          await this.sessions.recordConsumed(presented, session.id, preparedAt);
+          await this.sessionRepository.save(session);
+        }
+
+        return {
+          aggregate: session,
+          id: user.id,
+          principalType: 'user',
+          tenant: this.tenantContext.schema,
+          email: user.email,
+          department: user.department,
+          accessToken: access.accessToken,
+          accessTokenExpiresAt: access.expiresAt,
+          ...(outcome === 'rotated' ? { refreshToken: nextToken } : {}),
+          sessionExpiresAt: session.expiresAt,
+        };
+      } catch (error) {
+        if (!(error instanceof ConcurrencyConflictError) || attempt === 1)
+          throw error;
+        const reloaded = await this.sessionRepository.findById(session.id);
+        if (!reloaded) throw new InvalidRefreshTokenError();
+        session = reloaded;
+        if (
+          presented !== session.refreshTokenHash &&
+          presented !== session.previousRefreshTokenHash
+        ) {
+          await this.sessionRevocation.revoke(session, Date.now());
+          throw new RefreshTokenReuseError();
+        }
+      }
     }
-
-    // 3. Issue an access token; only a rotation hands out a new refresh token.
-    const user = await this.users.find(
-      new GetUserQuery({ userId: session.userId }, { refresh: true }),
-    );
-    if (!user) throw new InvalidRefreshTokenError();
-    const access = await this.userLoginService.signToken(user, session.id);
-
-    return {
-      aggregate: session,
-      id: user.id,
-      principalType: 'user',
-      tenant: this.tenantContext.schema,
-      email: user.email,
-      department: user.department,
-      accessToken: access.accessToken,
-      accessTokenExpiresAt: access.expiresAt,
-      ...(outcome === 'rotated' ? { refreshToken: nextToken } : {}),
-      sessionExpiresAt: session.expiresAt,
-    };
   }
 
-  private async evaluate(
+  private async applyRefresh(
     session: Auth,
     presented: string,
     nextToken: string,
     now: number,
   ): Promise<RefreshOutcome> {
-    let outcome: RefreshOutcome;
     try {
-      outcome = session.refresh(
+      return session.refresh(
         presented,
         this.refreshTokens.hash(nextToken),
         now,
@@ -144,15 +164,9 @@ export class RefreshAuthHandler extends CommandBaseHandler<
       );
     } catch (error) {
       if (error instanceof RefreshTokenReuseError) {
-        await this.sessionRepository.save(session);
+        await this.sessionRevocation.revoke(session, now);
       }
       throw error;
     }
-    if (outcome === 'rotated') {
-      // Autocommit writes: the history row first, then the version-conditioned save.
-      await this.sessions.recordConsumed(presented, session.id, now);
-      await this.sessionRepository.save(session);
-    }
-    return outcome;
   }
 }

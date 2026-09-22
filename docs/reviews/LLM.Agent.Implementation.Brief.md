@@ -1,5 +1,10 @@
 # LLM Agent Implementation Brief
 
+## Typed intent builder review — 2026-09-22
+
+The staged additive `logging`, `metrics`, `trace` and `deadLetter` builders and users-api migrations were reviewed against `70d24819`. No production runtime defect was reproduced. Working-tree fixes correct the disabled-cache example's missing typed key choice, role projection in that example, and the silence-all logging options. A packed-consumer fixture verifies public declarations and raw-tuple metadata parity. Verification passed: three affected package suites/typechecks, 724 users-api tests/typecheck, lint, 12-package packed release and 58 context checks. See [Typed.Intent.Builders.Review.md](Typed.Intent.Builders.Review.md) for scope, findings and verification.
+
+
 **Review source of truth:** `docs/reviews/Final.Review.md`
 
 This file is the executable implementation companion to the Final Review. It translates approved findings into implementation steps; it does not redefine review conclusions or authorize decision-gated work. The current code, `AGENTS.md`, and `.agents/skills/nestjs-pipeline-architecture/SKILL.md` remain authoritative for runtime and architecture contracts.
@@ -12,17 +17,19 @@ Read `AGENTS.md` and the architecture skill before editing. Implement one findin
 
 ---
 
-# Current task scope — CASL package and supported public compatibility
+# Current repair disposition
 
-Follow the 2026-09-22 current-disposition section of [Final.Review.md](Final.Review.md) and the evidence in [CASL.v2.Commit.Review.md](CASL.v2.Commit.Review.md). Preserve the CASL architecture. The users-api authentication findings are separate application findings and are not implementation tasks in this package follow-up. Unrelated historical backlog below is retained for reference, not implicitly authorized.
+**Final extraction verification:** users-api 724/724 tests, e2e 161/161 tests, typecheck, Biome, persistence lint and context validation (58 checks) passed. Shared service wiring and logout event publication are covered.
 
-## C2-01 — Root-array projection contract
+Follow [Final.Review.md](Final.Review.md) and the [repair review](CASL.v2.Commit.Review.md#repair-review--2026-09-22). The requested repair review includes users-api authentication. Projection, durable reuse revocation, explicit retry exhaustion, preparation-time expiry and competing-rotation handling are repaired in the working tree. Preserve the existing architecture and regressions; do not restart the historical implementation instructions.
 
-1. Reproduce through exported `buildAbility` and `CaslAuthorizer.project`: an unrestricted `User` read with candidate `[{ id: 'one' }]` currently returns `{ '0': { id: 'one' } }`, although the declared return type is an array.
-2. Repair root-array shape within the projection abstraction. Define/test root index paths consistently with nested array masking; preserve null placeholders, readonly input support, nonmutation, condition evaluation against the supplied subject, cycle protection and parent-grant inheritance.
-3. Test empty arrays, allowed and denied indices, nested arrays and inferred return types. Do not export internals or add test-only options. Array-shape support does not authorize separate entities automatically; collections still require per-entity checks.
-4. Prefer preserving the accepted public input domain. If choosing record-only input instead, stop for the explicit API decision before narrowing supported inputs; the documentation update does not authorize that breaking alternative.
-5. Run CASL tests/typecheck, `pnpm check`, `pnpm lint:persistence`, and `pnpm test:release`. Close C2-01 only when the regression asserts the intended array result.
+## C2-01 — Closed in working tree
+
+Root arrays use shared recursive projection, preserving array shape, named/indexed masks, serialization and cycle protection. CASL 174 tests, typecheck and packed release verification passed. Collection candidates still require caller-owned per-entity authorization.
+
+## Shared revocation — implemented
+
+`AuthSessionRevocationService.revoke` owns persistence and conflict reloads for refresh and logout. It returns an aggregate or absence; handlers retain missing-session and event-publication semantics. `applyRefresh` remains private to the refresh handler. Full users-api tests passed 724/724, including logout event publication; typecheck, Biome and persistence lint passed. The previous final-verification execution blocker is resolved. Preserve these contracts and do not duplicate the revocation algorithm in handlers.
 
 ## C2-02 — Public compatibility and release preparation
 
@@ -34,9 +41,9 @@ Compare `3fc81b858dd4d7e139fb662307a5ffdef3a06675` with the proposed release. In
 - Zod: migrate `ZOD_SCHEMA` imports, direct synchronous pipe calls, and assumptions that validation leaves the raw request untouched.
 - CASL: migrate provider configuration, public imports, `buildAbility` arguments, behavior options and permission precedence. Do not remove field/entity checks when replacing old request-derived options.
 
-Record versions and peer compatibility separately from code defects. The reviewed manifests use CASL `0.2.0`, core `0.1.19`, correlation/OpenTelemetry `0.1.9`, and Zod `0.1.7`; recommending a separate pre-1.0 minor release line is not authorization to change or publish versions. Check registry status before an authorized release. Do not claim the packed new-code suite proves compatibility for an unchanged old consumer; add representative public-consumer compile/runtime fixtures if implementing compatibility guarantees.
+Record versions and peer compatibility separately from code defects. Current manifests for these five packages use `0.2.0`. Version changes and publication remain separate release actions. Check registry status before an authorized release. Do not claim the packed new-code suite proves compatibility for an unchanged old consumer; add representative public-consumer compile/runtime fixtures if implementing compatibility guarantees.
 
-**Evidence:** the earlier review runs passed CASL 165, users-api 709, targeted e2e 33, typechecks, lint and packed release verification. Temporary defect probes were removed. This documentation sync does not rerun or expand that coverage. Follow `.claude/README.md`: start a task file, update milestones, regenerate the map, validate, and retire completed task files.
+**Evidence:** see the repair review for reproduced defects, current passing checks and the blocked final full rerun. Follow `.claude/README.md` for context maintenance.
 
 ---
 

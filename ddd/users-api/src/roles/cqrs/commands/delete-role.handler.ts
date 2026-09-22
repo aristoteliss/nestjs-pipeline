@@ -6,7 +6,7 @@ import { AUDIT_SEVERITY, audit } from '@nestjs-pipeline/audit';
 import { CaslAuthorizer, requires } from '@nestjs-pipeline/casl';
 import {
   type IPipelineContext,
-  LoggingBehavior,
+  logging,
   UsePipeline,
 } from '@nestjs-pipeline/core';
 import {
@@ -17,14 +17,14 @@ import {
   EntityNotFoundException,
   isTransientOperationError,
 } from '@nestjs-pipeline/ddd-core/domain';
-import { ResilienceBehavior } from '@nestjs-pipeline/resilience';
+import { resilience } from '@nestjs-pipeline/resilience';
 import type { Role } from '../../domain/models/role.entity';
 import { COMMAND_REPOSITORY } from '../../persistence/repository.tokens';
 import { DeleteRoleCommand } from './delete-role.command';
 
 @CommandHandler(DeleteRoleCommand)
 @UsePipeline(
-  [LoggingBehavior, { requestResponseLogLevel: 'log' }],
+  logging({ requestResponseLogLevel: 'log' }),
   requires({ action: APP_ACTIONS.DELETE, subject: APP_SUBJECTS.ROLE }),
   audit({
     action: AUDIT_ACTIONS.ROLE_DELETE,
@@ -34,21 +34,18 @@ import { DeleteRoleCommand } from './delete-role.command';
       return cmd?.id ? { targetRoleId: cmd.id } : {};
     },
   }),
-  [
-    ResilienceBehavior,
-    {
-      handle: isTransientOperationError,
-      retry: {
-        maxAttempts: 3,
-        replaySafe: true,
-        backoff: {
-          type: 'exponential',
-          initialDelay: 25,
-          maxDelay: 100,
-        },
+  resilience({
+    handle: isTransientOperationError,
+    retry: {
+      maxAttempts: 3,
+      replaySafe: true,
+      backoff: {
+        type: 'exponential',
+        initialDelay: 25,
+        maxDelay: 100,
       },
     },
-  ],
+  }),
 )
 export class DeleteRoleHandler extends CommandBaseHandler<
   DeleteRoleCommand,

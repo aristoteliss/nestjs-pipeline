@@ -230,7 +230,7 @@ Downstream Pipeline (Controllers → CQRS Bus → CASL → Audit → DB)
 3. **`SessionService`**: Presentation-layer service for the `@fastify/secure-session` cookie: saving the access token and `{ id, principalType, tenant, exp }` on login and refresh (`saveSession`), clearing it on logout or expiry (`clearSession`), and checking expiry (`isExpired`). The refresh cookie is handled by `controllers/refresh-cookie.ts`.
 4. **`UserLoginService`**: Application service for login credential verification (`POST /auths/login`) and signing access tokens for a session, decoupled from HTTP cookies and session storage.
 5. **`toSessionRes` Mapper**: Clean presentation mapper converting internal `CreateAuthResult` application results into public `SessionResponse` HTTP response contracts.
-6. **Session persistence**: `CreateAuthCommandRepository` inserts a session, `UpdateAuthCommandRepository` saves rotation and revocation version-conditioned, and `AuthSessionsRepository` (`AUTH_SESSIONS` port) finds sessions by refresh-token hash and records rotated-away hashes. Sessions are never cached.
+6. **Session persistence**: `CreateAuthCommandRepository` inserts a session, `UpdateAuthCommandRepository` saves rotation and revocation version-conditioned, and `AuthSessionsRepository` (`AUTH_SESSIONS` port) finds sessions by refresh-token hash and records rotated-away hashes. Sessions are never cached. `AuthSessionRevocationService.revoke` coordinates durable revocation for refresh reuse and logout, reloads on version conflicts, and returns the saved aggregate or `null` if concurrently deleted. Exhausted conflicts propagate; handlers retain their own missing-session and event-publication semantics.
 7. **`CaslPermissionSource`**: Request-scoped `ICaslPermissionSource` bound through `AuthorizationModule` and `CaslModule.forRoot({ imports: [AuthorizationModule], permissionSource: { useExisting: CaslPermissionSource } })`. For a `user` principal it reads the user row (a deleted user is unauthenticated) and the materialized `user_permission_rules` in one parallel round-trip (see [Permission source](#permission-source)); the principal carries `department` for `${user.department}` placeholders. A `service` principal uses its `grants` without touching the users tables. Unclassified principals are unauthenticated.
 
 ### Authorization
@@ -337,11 +337,11 @@ export class CreateUserCommand extends createCommand(CreateUserSchema, BaseComma
 // 2. Command Handler with Pipeline Behaviors
 @CommandHandler(CreateUserCommand)
 @UsePipeline(
-  [LoggingBehavior, { requestResponseLogLevel: 'log' }],
+  logging({ requestResponseLogLevel: 'log' }),
   requires({ action: APP_ACTIONS.CREATE, subject: APP_SUBJECTS.USER }),
-  [FeatureFlagBehavior, { flag: 'user-registration' }],
-  [RateLimitBehavior, { keyFactory: (ctx) => `${ctx.tenantId}:${ctx.request.email}` }],
-  [IdempotencyBehavior, { keyFactory: createUserIdempotencyKey }],
+  featureFlag({ flag: 'user-registration' }),
+  rateLimit({ keyFactory: (ctx) => `${ctx.tenantId}:${ctx.request.email}` }),
+  idempotent({ keyFactory: createUserIdempotencyKey }),
 )
 export class CreateUserHandler extends CommandBaseHandler<CreateUserCommand, User> {
   constructor(
@@ -422,6 +422,14 @@ export class DeleteUserHandler {
 }
 ```
 
+Refresh validates the presented token before preparing the user and access token.
+Rotation and consumed-token recording happen only after preparation succeeds, with
+session expiry checked again before persistence. Previous-token reuse outside grace
+and historical-token reuse persist revocation with bounded conflict retries. A lost
+rotation race reloads the session; a token displaced by multiple rotations is treated
+as reuse. A process or network failure after commit can still prevent delivery of the
+new cookie; the grace response does not reconstruct that cookie.
+
 #### 7. User Logout & Session Revocation
 
 Logging out revokes the session of the refresh cookie and clears the cookies:
@@ -432,48 +440,53 @@ curl -X POST http://localhost:3000/auths/logout -b cookies.txt \
 ```
 
 Under the hood:
-1. `AuthsController.logout` reads the `refresh_token` cookie and dispatches `new DeleteAuthCommand({ refreshToken })`; it clears the refresh cookie and the Fastify session in every case.
-2. `DeleteAuthHandler` finds the session by the token's hash (`AUTH_SESSIONS`), calls `auth.revoke(now)` and saves it version-conditioned.
+1. `AuthsController.logout` reads the `refresh_token` cookie and dispatches `new DeleteAuthCommand({ refreshToken })`; it clears the refresh cookie and the Fastify session on success or a missing/unknown token. Persistence failures propagate without reporting a successful logout.
+2. `DeleteAuthHandler` finds the session by the token's hash (`AUTH_SESSIONS`), calls `auth.revoke(now)` and saves it version-conditioned. Revocation retries version conflicts up to three attempts; exhaustion propagates the conflict.
 3. Later refreshes with any token of that session answer 401 `refresh_invalid`; other sessions of the user stay active. An access token already issued remains valid until it expires.
 
 #### 8. Pipeline Caching with CacheBehavior
 
 While entity query repositories use `@FromCache`, CQRS query handlers can also declaratively cache aggregate query results using `CacheBehavior` from `@nestjs-pipeline/cache`:
 
+The disabled example uses a raw tuple because no cache key is configured. Use
+`cache({ key, ...options })` when enabling caching, or `inheritModuleKey: true`
+when a suitable key is configured in module defaults.
+
 ```typescript
+import { Inject } from '@nestjs/common';
+import type { IQueryRepository } from '@nestjs-pipeline/ddd-core/application';
+import type { Role } from '../../domain/models/role.entity';
+import { QUERY_REPOSITORY } from '../../persistence/repository.tokens';
 import { QueryHandler, type IQueryHandler } from '@nestjs/cqrs';
 import { UsePipeline } from '@nestjs-pipeline/core';
 import { CacheBehavior } from '@nestjs-pipeline/cache';
-import { CaslBehavior } from '@nestjs-pipeline/casl';
+import { CaslAuthorizer, requires } from '@nestjs-pipeline/casl';
+import { projectRoleRead, type RoleReadModel } from '../../application/role-read-model';
 import { GetRolesQuery } from './get-roles.query';
 
 @QueryHandler(GetRolesQuery)
 @UsePipeline(
-  [
-    CaslBehavior,
-    { rules: [{ action: 'read', subject: 'Role' }] },
-  ],
-  [
-    CacheBehavior,
-    {
-      ttl: 30_000, // 30-second cache TTL
-      // Safe baseline: do not enable this protected-result cache until the
-      // application supplies a key covering tenant, principal and permissions,
-      // plus an invalidation/freshness policy. Correlation ID is not isolation.
-      condition: () => false,
-    },
-  ],
+  requires({ action: 'read', subject: 'Role' }),
+  [CacheBehavior, {
+    ttl: 30_000, // 30-second cache TTL
+    // Safe baseline: do not enable this protected-result cache until the
+    // application supplies a key covering tenant, principal and permissions,
+    // plus an invalidation/freshness policy. Correlation ID is not isolation.
+    condition: () => false,
+  }],
 )
-export class GetRolesHandler implements IQueryHandler<GetRolesQuery, RoleSnapshot[]> {
+export class GetRolesHandler implements IQueryHandler<GetRolesQuery, RoleReadModel[]> {
   constructor(
     @Inject(QUERY_REPOSITORY.getRoles)
     private readonly queryRepository: IQueryRepository<GetRolesQuery, Role[]>,
     private readonly authorizer: CaslAuthorizer,
   ) {}
 
-  async execute(query: GetRolesQuery): Promise<RoleSnapshot[]> {
+  async execute(query: GetRolesQuery): Promise<RoleReadModel[]> {
     const roles = await this.queryRepository.find(query);
-    return roles.map((role) => this.authorizer.authorize('read', role));
+    return roles
+      .filter((role) => this.authorizer.can('read', role))
+      .map((role) => projectRoleRead(this.authorizer, role));
   }
 }
 ```

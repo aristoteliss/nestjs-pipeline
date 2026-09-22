@@ -15,6 +15,10 @@ export {
 } from './dead-letter.behavior';
 export { DeadLetterModule } from './dead-letter.module';
 export { buildDeadLetterRecord } from './helpers/build-record';
+export {
+  type DeadLetterIntentOptions,
+  deadLetter,
+} from './helpers/dead-letter.intent';
 export type {
   DeadLetterBehaviorOptions,
   DeadLetterMetadataFactory,

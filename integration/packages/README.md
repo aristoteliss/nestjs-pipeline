@@ -9,21 +9,25 @@ absence of tests or workspace/private DDD dependencies. Missing, duplicate, and
 unexpected archives fail the check.
 
 A temporary consumer outside the checkout installs every package from its tarball.
-Required external peers come from package manifests, including required peers of
-external peers, at the exact versions installed in the workspace lockfile graph. Strict peer validation checks their advertised ranges;
-automatic peer installation is disabled. Optional peers are not explicitly installed.
-All package-family dependencies are overridden to the local tarballs.
+Required peer dependencies are installed at the versions recorded in the workspace
+lockfile. Installation checks declared peer ranges, with automatic peer installation
+disabled. Optional peers are not explicitly installed. Dependencies between workspace
+packages resolve to the local tarballs.
 
-Generated static imports compile with TypeScript and load with Node. The fixtures
-also check request-scoped core behavior, isolation between two Nest applications,
-and CASL 7 authorization, including a module bootstrap with an application
-permission source. This checks public root entry points; it is not an
-exhaustive check of every exported API, subpath, or supported dependency version.
+The consumer compiles package imports with TypeScript and runs them with Node.
+Its fixtures test:
 
-Adding a published package requires no fixture list update. Keep its dependencies
-and peers accurate. Add a fixture only for behavior that needs a separate consumer
-check. If packages require incompatible peer versions, reconcile their contracts
-or explicitly add a separate consumer scenario.
+- Request-scoped behaviors and isolation between two Nest applications.
+- Option types for `logging`, `metrics`, `trace` and `deadLetter`, and whether they
+  produce the same decorator metadata as raw tuples.
+- CASL 7 authorization and Nest module startup with an application permission source.
+
+These tests use package root imports. They do not cover every export, subpath or
+supported dependency version.
+
+New published packages are discovered automatically. Add consumer tests under
+`consumer/src/`; every `.ts` file there is compiled and run. Packages requiring
+incompatible peer versions need separate consumer installations.
 
 Requirements: the repository's Node/pnpm versions, `tar`, and registry access for
 uncached dependencies. Temporary files are removed on completion or failure.

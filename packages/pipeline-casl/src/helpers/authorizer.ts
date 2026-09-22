@@ -95,7 +95,7 @@ export class CaslAuthorizer {
       ability,
       action,
       typedSubject,
-      toSnapshot(candidate) as Record<string, unknown>,
+      toSnapshot(candidate) as Record<string, unknown> | unknown[],
     ) as Projected<TCandidate>;
   }
 
