@@ -66,7 +66,11 @@ export class RequestPrincipalResolver {
   ): Promise<SessionUser | undefined> {
     const existingUser = req.session?.user;
     if (existingUser) {
-      if (this.sessionService.isExpired(existingUser)) {
+      if (
+        this.sessionService.isExpired(existingUser) ||
+        typeof existingUser.sid !== 'string' ||
+        existingUser.sid.trim().length === 0
+      ) {
         this.sessionService.clearSession(req.session);
       } else {
         this.assertCurrentTenant(existingUser.tenant);

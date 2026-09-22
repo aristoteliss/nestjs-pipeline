@@ -18,6 +18,7 @@ describe('RequestPrincipalResolver', () => {
     const existingUser = {
       id: 'cookie-user-1',
       tenant: tenantContext.schema,
+      sid: 'cookie-sid-1',
     };
     const session = {
       user: existingUser,
@@ -40,10 +41,33 @@ describe('RequestPrincipalResolver', () => {
     expect(apiSpy).not.toHaveBeenCalled();
   });
 
+  it('clears session cookie and ignores legacy session without sid', async () => {
+    const legacyUser = {
+      id: 'legacy-user-1',
+      tenant: tenantContext.schema,
+    };
+    const deleteSession = vi.fn();
+    const session = {
+      user: legacyUser,
+      delete: deleteSession,
+    } as unknown as Session<SessionData>;
+
+    const resolver = new RequestPrincipalResolver(
+      new JwtAuthenticator(tenantContext),
+      new ApiClientAuthenticator(tenantContext),
+      tenantContext,
+    );
+    const user = await resolver.resolvePrincipal({ headers: {}, session });
+
+    expect(user).toBeUndefined();
+    expect(deleteSession).toHaveBeenCalledOnce();
+  });
+
   it('rejects session cookie when tenant does not match', async () => {
     const existingUser = {
       id: 'cookie-user-1',
       tenant: 'mismatched-tenant',
+      sid: 'cookie-sid-1',
     };
     const session = {
       user: existingUser,
@@ -121,6 +145,7 @@ describe('RequestPrincipalResolver', () => {
     const validUser = {
       id: 'cookie-user-valid',
       tenant: tenantContext.schema,
+      sid: 'cookie-sid-valid',
       expiresAt: Date.now() + 60000,
     };
     const session = {

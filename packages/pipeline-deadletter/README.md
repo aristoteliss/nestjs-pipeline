@@ -95,12 +95,14 @@ Then opt a handler in per-handler, or configure `DeadLetterBehavior` under
 above only makes the provider available to the pipeline.
 
 ```typescript
+import { deadLetter } from '@nestjs-pipeline/deadletter';
+
 @CommandHandler(CreateUserCommand)
-@UsePipeline(DeadLetterBehavior) // attempt capture + re-throw on failure
+@UsePipeline(deadLetter()) // attempt capture + re-throw on failure
 export class CreateUserHandler implements ICommandHandler<CreateUserCommand> {}
 
 @EventsHandler(UserCreatedEvent)
-@UsePipeline([DeadLetterBehavior, { rethrow: false }]) // attempt capture + swallow handler error
+@UsePipeline(deadLetter({ rethrow: false })) // attempt capture + swallow handler error
 export class SendWelcomeEmailHandler implements IEventHandler<UserCreatedEvent> {}
 ```
 
@@ -211,7 +213,7 @@ For each request, `DeadLetterBehavior` runs the handler and, **only on failure**
 
 ## Configuration
 
-Per-handler options via `@UsePipeline([DeadLetterBehavior, options])`, merged
+Per-handler options via `@UsePipeline(deadLetter(options))` or `@UsePipeline([DeadLetterBehavior, options])`, merged
 over module-wide `defaults`:
 
 | Option | Type | Default | Description |
@@ -314,10 +316,12 @@ The chain becomes `Logging → ZodValidation → DeadLetterBehavior → Resilien
 | Export | Type | Description |
 |---|---|---|
 | `DeadLetterBehavior` | Class | Pipeline behavior — attempts to send failed requests to the transport |
+| `DeadLetterBehaviorOptions` | Interface | `{ rethrow?, includeStack?, captureKinds?, ignoreErrors?, metadata?, redact?, redactKeys? }` |
+| `deadLetter` | Function | Typed intent builder returning `[DeadLetterBehavior, options]` for `@UsePipeline` |
+| `DeadLetterIntentOptions` | Type | Alias for `DeadLetterBehaviorOptions` |
 | `DeadLetterModule` | Class | `forRoot(options)` / `forRootAsync(options)` |
 | `DeadLetterTransport` | Interface | One-method sink: `send(record)` |
 | `DeadLetterRecord` | Interface | Serializable failed-request snapshot |
-| `DeadLetterBehaviorOptions` | Interface | `{ rethrow?, includeStack?, captureKinds?, ignoreErrors?, metadata?, redact?, redactKeys? }` |
 | `DeadLetterModuleOptions` / `DeadLetterModuleAsyncOptions` | Interface | Module registration options |
 | `BullMqDeadLetterTransport` | Class | Adds a job to a BullMQ queue |
 | `RabbitMqDeadLetterTransport` | Class | Publishes a persistent AMQP message |

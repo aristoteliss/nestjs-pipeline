@@ -10,15 +10,15 @@ import { CommandHandler, EventBus } from '@nestjs/cqrs';
 import { CaslAuthorizer, requires } from '@nestjs-pipeline/casl';
 import {
   type IPipelineContext,
-  LoggingBehavior,
+  logging,
   UsePipeline,
 } from '@nestjs-pipeline/core';
 import {
   CommandBaseHandler,
   ICommandRepository,
 } from '@nestjs-pipeline/ddd-core/application';
-import { FeatureFlagBehavior } from '@nestjs-pipeline/feature-flags';
-import { IdempotencyBehavior } from '@nestjs-pipeline/idempotency';
+import { featureFlag } from '@nestjs-pipeline/feature-flags';
+import { idempotent } from '@nestjs-pipeline/idempotency';
 import { UniqueRoleNameException } from '../../domain/models/errors/role-name.exception';
 import { Role, type RoleSnapshot } from '../../domain/models/role.entity';
 import { COMMAND_REPOSITORY } from '../../persistence/repository.tokens';
@@ -37,25 +37,19 @@ export function createRoleReplayScope(ctx: IPipelineContext): string {
 
 @CommandHandler(CreateRoleCommand)
 @UsePipeline(
-  [
-    LoggingBehavior,
-    {
-      requestResponseLogLevel: 'log',
-      mapLogLevel: new Map([[UniqueRoleNameException, 'warn']]),
-    },
-  ],
+  logging({
+    requestResponseLogLevel: 'log',
+    mapLogLevel: new Map([[UniqueRoleNameException, 'warn']]),
+  }),
   requires(
     { action: APP_ACTIONS.CREATE, subject: APP_SUBJECTS.ROLE },
     { action: APP_ACTIONS.READ, subject: APP_SUBJECTS.USER },
   ),
-  [FeatureFlagBehavior, { flag: 'role-creation' }],
-  [
-    IdempotencyBehavior,
-    {
-      keyFactory: createRoleIdempotencyKey,
-      replayScopeFactory: createRoleReplayScope,
-    },
-  ],
+  featureFlag({ flag: 'role-creation' }),
+  idempotent({
+    keyFactory: createRoleIdempotencyKey,
+    replayScopeFactory: createRoleReplayScope,
+  }),
 )
 export class CreateRoleHandler extends CommandBaseHandler<
   CreateRoleCommand,

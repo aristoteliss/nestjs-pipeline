@@ -72,12 +72,14 @@ export async function createTestJwt(options?: {
   tenant?: string;
   secret?: string;
   expiresIn?: string | number;
+  sid?: string;
 }): Promise<string> {
   const secret = new TextEncoder().encode(options?.secret ?? E2E_JWT_SECRET);
   const jwt = new SignJWT({
     tenant: options?.tenant ?? 'tenant',
     email: options?.email ?? 'jwt-user@acme.test',
     department: options?.department ?? 'engineering',
+    sid: options?.sid ?? 'e2e-test-session-id',
   })
     .setProtectedHeader({ alg: 'HS256' })
     .setSubject(options?.sub ?? 'jwt-user-1')
@@ -289,6 +291,7 @@ function testSession(
   const user = parsedUser
     ? {
         ...parsedUser,
+        sid: parsedUser.sid ?? 'e2e-session-id',
         tenant: parsedUser.tenant ?? tenant,
         principalType:
           parsedUser.principalType !== undefined

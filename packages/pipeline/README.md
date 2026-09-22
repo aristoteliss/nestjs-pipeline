@@ -657,27 +657,29 @@ Nest log levels map to pino as:
 `verbose` → `trace`, `debug` → `debug`, `log` → `info`, `warn` → `warn`, `error` → `error`, `fatal` → `fatal`.
 
 ```typescript
+import { logging } from '@nestjs-pipeline/core';
+
 // Override options per handler
 @CommandHandler(CreateUserCommand)
-@UsePipeline([LoggingBehavior, { requestResponseLogLevel: 'log' }])
+@UsePipeline(logging({ requestResponseLogLevel: 'log' }))
 export class CreateUserHandler { /* ... */ }
 
 // Map specific exceptions to different log levels (e.g. log constraint violations as warnings)
-@UsePipeline([LoggingBehavior, { 
+@UsePipeline(logging({ 
   mapLogLevel: new Map([
     [UniqueConstraintException, 'warn'],
     [NotFoundException, 'debug'],
   ]) 
-}])
+}))
 
 // Disable payload logging, keep metrics
-@UsePipeline([LoggingBehavior, { requestResponseLogLevel: 'none' }])
+@UsePipeline(logging({ requestResponseLogLevel: 'none' }))
 
 // Silence all logging
-@UsePipeline([LoggingBehavior, { metricLogLevel: 'none', requestResponseLogLevel: 'none' }])
+@UsePipeline(logging({ metricLogLevel: 'none', requestResponseLogLevel: 'none', errorLogLevel: 'none' }))
 
 // Emit structured objects instead of strings (e.g. for nestjs-pino)
-@UsePipeline([LoggingBehavior, { logFormat: 'structured' }])
+@UsePipeline(logging({ logFormat: 'structured' }))
 ```
 
 **Output** (success, default `logFormat: 'text'`, with default `excludeRequestObj`/`excludeResponseObj`):
@@ -1050,6 +1052,8 @@ must account for the absent instance.
 | `PipelineContext` | Class | Concrete context created per invocation |
 | `LoggingBehavior` | Class | Built-in structured logging |
 | `LoggingBehaviorOptions` | Interface | Options for `LoggingBehavior` (`metricLogLevel`, `requestResponseLogLevel`, `errorLogLevel`, `mapLogLevel`, `excludeKeys`, `excludeRequestObj`, `excludeResponseObj`, `logFormat`) |
+| `logging` | Function | Typed intent builder returning `[LoggingBehavior, options]` for `@UsePipeline` |
+| `LoggingIntentOptions` | Type | Alias for `LoggingBehaviorOptions` |
 | `uuidv7` | Function | Generate timestamp-sortable UUIDs |
 | `pipelineStore` | `AsyncLocalStorage` | Access the current pipeline context |
 | `PipelineModuleOptions` | Interface | Options for `PipelineModule.forRoot()` |

@@ -4,6 +4,38 @@ Reviewed commit: `9b7b17ac5d481bf2fab3619dfcb57d1640f6b6b8`
 Review date: 2026-09-22  
 Baseline: HEAD matched the requested commit and the worktree was clean before review.
 
+## Repair review — 2026-09-22
+
+**Final extraction verification:** users-api 724/724 tests, e2e 161/161 tests, typecheck, Biome, persistence lint and context validation (58 checks) passed. Shared service wiring and logout event publication are covered.
+
+Reviewed `7aa19eba321eb3d4d4d71c6753a1e96d76532f7f` inclusive through `13a80022775e524b736491e75fd78c6904eaa5e9`, followed by the working-tree repairs described here. The original review below is historical evidence.
+
+**Verdict:** retain the CASL architecture. The five repair commits addressed the original findings, but refresh revocation and root-array traversal were incomplete. The reproduced defects below are repaired in the working tree. Mandatory JWT `sid`/`exp` and rejection of legacy sessions remain intact. No new public API or production test seam was introduced.
+
+| Priority / evidence | Remaining defect at reviewed HEAD | Working-tree repair and regression |
+| --- | --- | --- |
+| P1 / reproduced | Previous-token reuse mutates `revokedAt`, then the helper mistakes that unpersisted mutation for a saved revocation. Signing failures can also prevent reuse handling. | Evaluate reuse before signing; distinguish dirty revocation from acknowledged state. Handler and real-database tests verify durable revocation. |
+| P1 / reproduced | Two intervening rotations can displace the presented token beyond the previous slot during a save conflict; reload reports invalid without revoking. | Revoke on reload when the already-recognized token has moved into history; deterministic competing-rotation regression. |
+| P2 / reproduced | Refresh/history revocation and logout silently succeed after exhausting version-conflict retries. | Propagate the final `ConcurrencyConflictError`; regressions assert refresh and logout failures. Real-database coverage also verifies historical revocation after a competing rotation. |
+| P2 / reproduced | Session expiry during asynchronous user/token preparation is evaluated using an earlier time. | Recheck expiry after preparation and reevaluate the grace window before returning; controlled-time regression. |
+| P2 / reproduced | Root nested arrays trigger false cycle errors or lose named masks; primitive/null `toJSON` results and self-returning `toJSON` are mishandled. | Route root elements through the shared recursive projection; public-authorizer regressions cover nested shape, named masks, serialization and cycles. |
+
+### Architecture and compatibility
+
+Handlers retain repository/application ports and aggregate domain methods. Shared revocation is implemented by `AuthSessionRevocationService.revoke`, used by refresh and logout; the refresh-specific transition remains the private `applyRefresh` method. The service returns the resulting aggregate or absence, leaving rejection and event-publication semantics with each handler. Conflict retries reload authoritative aggregates and preserve version-conditioned persistence. These are state-dependent session transitions, not a generic retry policy. Token preparation precedes durable rotation/history writes; an in-memory mutation before signing is not a committed rotation. Projection remains inside the reusable library and preserves its accepted array input domain. Entity checks still apply to the supplied subject: an array candidate is not authorization for every entity in a collection.
+
+No exports or supported signatures changed in these repairs. The earlier release comparison remains scoped to core, correlation, OpenTelemetry, Zod and CASL; its old manifest versions describe the historical snapshot. Current manifests for these packages use `0.2.0`. Registry publication was not checked and no publication or version change was performed here.
+
+### Verification and limits
+
+- Regressions were observed failing before repair; CASL suite passed **174/174** and refresh-handler suite passed **18/18** after the final race repair.
+- Real libSQL session persistence suite passed **6/6**.
+- After extracting shared revocation, the full users-api suite passed **724 tests / 104 files**, including the logout event-publication assertion and real-database regressions. Final users-api typecheck passed; the earlier execution-approval blocker is resolved.
+- CASL typecheck and `pnpm test:release` passed for **12 packages**, including CASL bootstrap/smoke. Subsequent service extraction affects only the example application.
+- `pnpm check` and `pnpm lint:persistence` passed after the final handler edits. Repository context validation is recorded in the current disposition companion.
+
+These tests do not guarantee atomic delivery of a refresh cookie with the database commit. A process/network failure after persistence can still lose the response; sustained contention can still fail explicitly. The in-memory EventBus is not an outbox, and a handler throwing after revocation does not publish its buffered event through the successful-command path. Those existing architecture limits were not expanded into an outbox redesign.
+
 ## 1. Architecture assessment
 
 **CASL package verdict: keep the architecture; repair the root-array projection contract before releasing the library.** No authorization bypass was reproduced in the CASL package. Findings 1–4 concern users-api authentication, not defects in the reusable CASL package. The package passed 165 tests and the packed Nest bootstrap.

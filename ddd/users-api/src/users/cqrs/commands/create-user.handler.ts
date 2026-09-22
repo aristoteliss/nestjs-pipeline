@@ -10,18 +10,18 @@ import { CommandHandler, EventBus } from '@nestjs/cqrs';
 import { CaslAuthorizer, requires } from '@nestjs-pipeline/casl';
 import {
   type IPipelineContext,
-  LoggingBehavior,
+  logging,
   UsePipeline,
 } from '@nestjs-pipeline/core';
 import {
   CommandBaseHandler,
   ICommandRepository,
 } from '@nestjs-pipeline/ddd-core/application';
-import { FeatureFlagBehavior } from '@nestjs-pipeline/feature-flags';
-import { IdempotencyBehavior } from '@nestjs-pipeline/idempotency';
+import { featureFlag } from '@nestjs-pipeline/feature-flags';
+import { idempotent } from '@nestjs-pipeline/idempotency';
 import {
   createPartitionedRateLimitKeyFactory,
-  RateLimitBehavior,
+  rateLimit,
 } from '@nestjs-pipeline/rate-limit';
 import { UniqueEmailException } from '../../domain/models/errors/email.exception';
 import { User, type UserSnapshot } from '../../domain/models/user.entity';
@@ -45,23 +45,17 @@ export const createUserRateLimitKey = createPartitionedRateLimitKeyFactory(
 
 @CommandHandler(CreateUserCommand)
 @UsePipeline(
-  [
-    LoggingBehavior,
-    {
-      requestResponseLogLevel: 'log',
-      mapLogLevel: new Map([[UniqueEmailException, 'warn']]),
-    },
-  ],
+  logging({
+    requestResponseLogLevel: 'log',
+    mapLogLevel: new Map([[UniqueEmailException, 'warn']]),
+  }),
   requires({ action: APP_ACTIONS.CREATE, subject: APP_SUBJECTS.USER }),
-  [FeatureFlagBehavior, { flag: 'user-registration' }],
-  [RateLimitBehavior, { keyFactory: createUserRateLimitKey }],
-  [
-    IdempotencyBehavior,
-    {
-      keyFactory: createUserIdempotencyKey,
-      replayScopeFactory: createUserReplayScope,
-    },
-  ],
+  featureFlag({ flag: 'user-registration' }),
+  rateLimit({ keyFactory: createUserRateLimitKey }),
+  idempotent({
+    keyFactory: createUserIdempotencyKey,
+    replayScopeFactory: createUserReplayScope,
+  }),
 )
 export class CreateUserHandler extends CommandBaseHandler<
   CreateUserCommand,

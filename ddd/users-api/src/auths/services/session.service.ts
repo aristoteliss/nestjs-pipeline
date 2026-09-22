@@ -28,6 +28,7 @@ export class SessionService {
   saveSession(
     session: Session<SessionData> | undefined,
     data: SessionResponse,
+    sid?: string,
   ): void {
     if (!session) {
       return;
@@ -37,6 +38,7 @@ export class SessionService {
       id: data.id,
       principalType: data.principalType,
       tenant: data.tenant,
+      ...(sid ? { sid } : {}),
       exp: Math.floor(data.accessTokenExpiresAt / 1000),
     });
     session.set('token', data.accessToken);

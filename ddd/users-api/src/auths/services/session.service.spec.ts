@@ -24,16 +24,17 @@ describe('SessionService', () => {
       accessTokenExpiresAt: 20_000_000,
     };
 
-    it('stores only the access token and the principal with its expiry', () => {
+    it('stores the access token, principal, expiry, and optional sid', () => {
       const setMock = vi.fn();
       const mockSession = { set: setMock } as unknown as Session<SessionData>;
 
-      service.saveSession(mockSession, response);
+      service.saveSession(mockSession, response, 'sid-abc-123');
 
       expect(setMock).toHaveBeenCalledWith('user', {
         id: 'user-1',
         principalType: 'user',
         tenant: 'tenant_alpha',
+        sid: 'sid-abc-123',
         exp: 20_000,
       });
       expect(setMock).toHaveBeenCalledWith('token', 'access-abc');

@@ -110,7 +110,12 @@ describe('permissions carried in the access token', () => {
 
   describe('authenticator', () => {
     const tokenWith = (claims: Record<string, unknown>) =>
-      new SignJWT({ tenant: tenant.schema, principalType: 'user', ...claims })
+      new SignJWT({
+        tenant: tenant.schema,
+        principalType: 'user',
+        sid: SESSION,
+        ...claims,
+      })
         .setProtectedHeader({ alg: 'HS256' })
         .setSubject(user.id)
         .setExpirationTime('5m')

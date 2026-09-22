@@ -51,7 +51,7 @@ what the libraries support.
 ## Technology Stack
 
 <!-- context:generated-start technology-stack -->
-- **Languages** (file counts, excluded directories omitted): `.ts` 673, `.md` 52, `.grit` 12, `.py` 3, `.mjs` 1, `.sql` 1
+- **Languages** (file counts, excluded directories omitted): `.ts` 683, `.md` 53, `.grit` 12, `.py` 3, `.mjs` 1, `.sql` 1
 - **Runtime engines** (root `package.json`): `node` >=22.0.0, `pnpm` >=9.0.0
 - **Package manager evidence**: `pnpm-lock.yaml`.
 
@@ -144,7 +144,7 @@ Root files: `.gitignore`, `.npmrc`, `AGENTS.md`, `CLAUDE.md`, `COMMERCIAL_LICENS
 | `packages/pipeline-deadletter` | `@nestjs-pipeline/deadletter` | `constants`, `helpers`, `interfaces`, `transports` | [README](packages/pipeline-deadletter/README.md) |
 | `packages/pipeline-feature-flags` | `@nestjs-pipeline/feature-flags` | `constants`, `errors`, `helpers`, `interfaces` | [README](packages/pipeline-feature-flags/README.md) |
 | `packages/pipeline-idempotency` | `@nestjs-pipeline/idempotency` | `constants`, `errors`, `filters`, `helpers`, `interfaces`, `stores` | [README](packages/pipeline-idempotency/README.md) |
-| `packages/pipeline-opentelemetry` | `@nestjs-pipeline/opentelemetry` | flat (no subdirectories) | [README](packages/pipeline-opentelemetry/README.md) |
+| `packages/pipeline-opentelemetry` | `@nestjs-pipeline/opentelemetry` | `helpers` | [README](packages/pipeline-opentelemetry/README.md) |
 | `packages/pipeline-rate-limit` | `@nestjs-pipeline/rate-limit` | `constants`, `errors`, `filters`, `helpers`, `interfaces` | [README](packages/pipeline-rate-limit/README.md) |
 | `packages/pipeline-resilience` | `@nestjs-pipeline/resilience` | `constants`, `errors`, `helpers`, `interfaces` | [README](packages/pipeline-resilience/README.md) |
 | `packages/pipeline-zod` | `@nestjs-pipeline/zod` | `errors`, `filters`, `helpers`, `pipes` | [README](packages/pipeline-zod/README.md) |
@@ -319,8 +319,8 @@ and entity/field checks in the handler after the aggregate is loaded (`CaslAutho
 - **Invariants**: only refresh-token SHA-256 hashes are stored; the refresh token travels
   only as an `HttpOnly; Secure; SameSite=Strict; Path=/auths` cookie; the live-session lookup
   precedes the rotated-token history lookup; session saves are version-conditioned and a lost
-  race in the live-token evaluation is re-evaluated once (grace); historical-token revocation
-  has no conflict retry. `SessionService` owns the Fastify session cookie,
+  race in the live-token evaluation is re-evaluated once (grace); reuse revocation and logout retry version conflicts with authoritative reloads
+  and propagate retry exhaustion through `AuthSessionRevocationService.revoke`. `SessionService` owns the Fastify session cookie,
   `ddd/users-api/src/auths/controllers/refresh-cookie.ts` the refresh cookie; `jose` stays behind
   `jose-access-token.issuer.ts`; token settings are parsed at boot
   (`ddd/users-api/src/common/environment/auth-token.config.ts`); Fastify refuses to boot without
@@ -600,17 +600,16 @@ secret value.*
 - **Direct writes to assignment tables drift `user_permission_rules`.** Tests and tools
   that insert `user_roles`, `role_capabilities` or per-user grants must call
   `UserPermissionsProjector.rebuild` (e2e: `rebuildPermissions` in `ddd/users-api/test/support/e2e-app.ts`).
-- **Root-array projection has a shape mismatch.** `CaslAuthorizer.project()` accepts an array
-  and types its result as an array, but the root projection builds a plain object. Nested-array
-  support does not establish root-array support (`packages/pipeline-casl/src/helpers/authorizer.ts`,
-  `packages/pipeline-casl/src/helpers/projection.ts`).
-- **JWT verification does not require `exp` or `sid`.** Correctly signed tokens missing these
-  claims are accepted; deleting old session rows does not invalidate legacy bearer tokens
-  (`ddd/users-api/src/auths/services/jwt-authenticator.ts`).
-- **Refresh failure boundaries need care.** Historical-token revocation can lose a version
-  race; live-token rotation commits before user/token preparation. A later issuance failure
-  can leave the client holding only the previous cookie
-  (`ddd/users-api/src/auths/cqrs/commands/refresh-auth.handler.ts`).
+- **Root-array projection preserves arrays.** Named fields apply to each element; indexed
+  masks are supported. A collection candidate does not authorize each entity independently
+  (`packages/pipeline-casl/src/helpers/projection.ts`).
+- **JWT verification requires `exp` and nonempty `sid`.** Legacy session cookies without a
+  session id are rejected (`ddd/users-api/src/auths/services/jwt-authenticator.ts`,
+  `request-principal-resolver.ts`).
+- **Refresh failure boundaries:** token preparation precedes durable rotation; expiry/grace
+  is checked again after preparation. Reuse revocation persists dirty aggregate state and
+  retries version conflicts; exhausted retries propagate. Database persistence and cookie
+  delivery are not atomic (`ddd/users-api/src/auths/cqrs/commands/refresh-auth.handler.ts`).
 - **Field projection inherits parent grants.** `CaslAuthorizer.project` returns
   `profile.secret` under a `fields: ['profile']` grant while `can(…, 'profile.secret')` is
   `false` (`packages/pipeline-casl/src/helpers/projection.ts`).
@@ -641,13 +640,13 @@ secret value.*
 ## Snapshot Metadata
 
 <!-- context:generated-start metadata -->
-- Generated at: 2026-09-22T16:15:05Z
-- Git commit: 9b7b17ac5d481bf2fab3619dfcb57d1640f6b6b8
+- Generated at: 2026-09-22T18:02:10Z
+- Git commit: 70d24819175327cec46dd1614c7861c247f010b7
 - Git branch: review/casl
 - Uncommitted changes when generated: yes
 - Generator: `scripts/update-claude-snapshot.py` version 1.0.0
 - Snapshot status: generated — structural inspection only, no code executed
-- Files inspected: 802
+- Files inspected: 813
 - Included top-level directories: `.agents`, `.claude`, `biome`, `ddd`, `docs`, `integration`, `packages`, `scripts`
 - Excluded directory names: `.cache`, `.git`, `.gradle`, `.idea`, `.mypy_cache`, `.next`, `.nuxt`, `.parcel-cache`, `.pnpm-store`, `.pytest_cache`, `.ruff_cache`, `.svelte-kit`, `.terraform`, `.tmp`, `.tox`, `.turbo`, `.venv`, `.vscode`, `__pycache__`, `bower_components`, `build`, `coverage`, `dist`, `node_modules`, `out`, `target`, `vendor`, `venv`, `virtualenv`
 - Excluded file patterns: `.env`, `.env.*`, `*.env`, `*.pem`, `*.key`, `*.pfx`, `*.p12`, `*.jks`, `*.keystore`, `id_rsa*`, `id_ed25519*`, `*credentials*`, `*.secret`, `secrets.*`

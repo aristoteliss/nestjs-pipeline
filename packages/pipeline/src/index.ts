@@ -12,6 +12,10 @@ export {
   escapeKeySegment,
   joinKeySegments,
 } from './helpers/key-segment';
+export {
+  type LoggingIntentOptions,
+  logging,
+} from './helpers/logging.intent';
 export * from './helpers/safeStringify';
 export * from './helpers/stableStringify';
 export { isUuidV7, uuidv7 } from './helpers/uuidv7';

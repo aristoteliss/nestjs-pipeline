@@ -29,6 +29,7 @@ import { CreateAuthCommandRepository } from './persistence/create-auth.command-r
 import { COMMAND_REPOSITORY } from './persistence/repository.tokens';
 import { UpdateAuthCommandRepository } from './persistence/update-auth.command-repository';
 import { ApiClientAuthenticator } from './services/api-client-authenticator';
+import { AuthSessionRevocationService } from './services/auth-session-revocation.service';
 import { JwtAuthenticator } from './services/jwt-authenticator';
 import { RequestPrincipalResolver } from './services/request-principal-resolver';
 import { SessionService } from './services/session.service';
@@ -70,6 +71,7 @@ import { UserLoginService } from './services/user-login.service';
       } satisfies AuthTokenPolicy,
     },
 
+    AuthSessionRevocationService,
     SessionService,
     UserLoginService,
     JwtAuthenticator,
