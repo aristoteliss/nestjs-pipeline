@@ -4,6 +4,9 @@ import { BaseCommand } from '@nestjs-pipeline/ddd-core/application';
 import { createCommand } from '@nestjs-pipeline/zod';
 import { z } from 'zod';
 
+export const EMPTY_USER_UPDATE_MESSAGE =
+  'At least one mutable field must be supplied.';
+
 export class UpdateUserCommand extends createCommand(
   z
     .object({
@@ -13,9 +16,7 @@ export class UpdateUserCommand extends createCommand(
     })
     .refine(
       (data) => data.username !== undefined || data.department !== undefined,
-      {
-        message: 'At least one of username or department must be provided',
-      },
+      { message: EMPTY_USER_UPDATE_MESSAGE },
     ),
   BaseCommand,
 ) {

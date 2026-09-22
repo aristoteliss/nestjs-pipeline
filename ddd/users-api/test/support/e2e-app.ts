@@ -130,6 +130,7 @@ export async function bootstrapE2E(options?: E2EOptions): Promise<E2EContext> {
   // Credentials the auth use case reads at request time. Exercise the same
   // production-safe hashed login-code path used by deployed configuration.
   delete process.env.AUTH_LOGIN_CODE;
+  process.env.AUTH_SHARED_LOGIN_CODE = 'true';
   process.env.AUTH_LOGIN_CODE_SHA256 = createHash('sha256')
     .update(E2E_LOGIN_CODE, 'utf8')
     .digest('hex');

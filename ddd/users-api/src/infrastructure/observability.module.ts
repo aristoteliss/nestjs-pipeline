@@ -9,10 +9,7 @@ import {
   logging,
   PipelineModule,
 } from '@nestjs-pipeline/core';
-import {
-  getCorrelationId,
-  runWithCorrelationId,
-} from '@nestjs-pipeline/correlation';
+import { correlationPipelineOptions } from '@nestjs-pipeline/correlation';
 import { DeadLetterBehavior } from '@nestjs-pipeline/deadletter';
 import { MetricsBehavior, TraceBehavior } from '@nestjs-pipeline/opentelemetry';
 import { ZodValidationBehavior } from '@nestjs-pipeline/zod';
@@ -20,35 +17,7 @@ import { TenantSchemaContext } from '@persistence/tenant-schema.context';
 import { LoggerModule, NativeLogger } from 'nestjs-pino';
 import { TelemetryBridgeBehavior } from './behaviors/telemetry-bridge.behavior';
 
-/**
- * Infrastructure module that encapsulates all logging, telemetry, compliance auditing,
- * and global pipeline execution behaviors for the application.
- *
- * ### Responsibilities
- * - **Structured HTTP Logging**: Boots `nestjs-pino` with JSON logs in production and pretty-printing in development.
- * - **Distributed Correlation Tracing**: Bridges `getCorrelationId()` and `runWithCorrelationId()` from `@nestjs-pipeline/correlation` into every pipeline handler.
- * - **Global Pipeline Execution Chain**:
- *   - `DeadLetterBehavior`: Observes final unhandled execution failures for commands and events (excluding read queries and validation errors).
- *   - `LoggingBehavior`: Emits structured command/query execution logs and duration measurements.
- *   - `ZodValidationBehavior`: Validates and sanitizes incoming request payloads before handlers execute.
- *   - `TraceBehavior`: Spans execution with OpenTelemetry distributed traces.
- *   - `MetricsBehavior`: Measures latency histograms and invocation counters for Prometheus / OTel collectors.
- * - **Compliance Auditing**: Registers `AuditModule` with default JSON log sink and automatic payload redaction.
- *
- * @example Default Configuration in AppModule
- * ```ts
- * @Module({
- *   imports: [ObservabilityModule],
- * })
- * export class AppModule {}
- * ```
- *
- * @example Customizing Log Level or Custom OTel Exporters
- * ```ts
- * // Production environments can configure LOG_LEVEL=warn and OTEL_EXPORTER_OTLP_ENDPOINT
- * // in environment variables without altering application code.
- * ```
- */
+/** Credential headers redacted from structured HTTP logs. */
 export const HTTP_LOG_REDACT_PATHS = [
   'req.headers.authorization',
   'req.headers.cookie',
@@ -58,6 +27,21 @@ export const HTTP_LOG_REDACT_PATHS = [
   'res.headers["set-cookie"]',
 ];
 
+/**
+ * Configures structured HTTP logging, correlation propagation, tracing, metrics,
+ * request validation and operational audit recording. Global pipeline ordering
+ * keeps telemetry around handler-local behaviors so their outcomes reach the span.
+ *
+ * HTTP credentials are redacted through `HTTP_LOG_REDACT_PATHS`. Auditing uses
+ * the default console sink with `failOpen: true`; durable audit requirements need
+ * a persistent sink and an explicit failure policy.
+ *
+ * @example Register application observability
+ * ```ts
+ * @Module({ imports: [ObservabilityModule] })
+ * export class AppModule {}
+ * ```
+ */
 @Module({
   imports: [
     LoggerModule.forRoot({
@@ -119,8 +103,7 @@ export const HTTP_LOG_REDACT_PATHS = [
         },
       ],
       useFactory: (tenantContext: TenantSchemaContext) => ({
-        correlationIdFactory: getCorrelationId,
-        correlationIdRunner: runWithCorrelationId,
+        ...correlationPipelineOptions(),
         tenantIdFactory: () => tenantContext.schema,
       }),
     }),

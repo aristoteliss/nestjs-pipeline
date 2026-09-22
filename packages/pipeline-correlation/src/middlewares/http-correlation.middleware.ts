@@ -7,6 +7,8 @@ import { correlationStore, getCorrelationId } from '../correlation.store';
 import {
   CORRELATION_OPTIONS,
   CorrelationOptions,
+  DEFAULT_CORRELATION_ID_MAX_LENGTH,
+  DEFAULT_CORRELATION_ID_PATTERN,
 } from '../options/correlation.options';
 
 const HTTP_FIELD_NAME = /^[!#$%&'*+\-.^_`|~0-9A-Za-z]+$/;
@@ -25,9 +27,9 @@ const HTTP_FIELD_NAME = /^[!#$%&'*+\-.^_`|~0-9A-Za-z]+$/;
  * current implementation uses the default `x-correlation-id` header. A false
  * value does not disable a middleware instance that the application registered.
  *
- * Incoming-ID hardening is opt-in. Public-facing applications can set
- * `acceptIncoming`, `trimIncoming`, `maxLength`, and/or `validateIncoming`
- * without imposing a package-wide UUID format.
+ * An incoming ID longer than 128 characters or outside the default character
+ * set is replaced by a local ID. `acceptIncoming`, `trimIncoming`, `maxLength`
+ * and `validateIncoming` adjust that policy.
  *
  * @example Register for all HTTP routes
  * ```ts
@@ -38,14 +40,13 @@ const HTTP_FIELD_NAME = /^[!#$%&'*+\-.^_`|~0-9A-Za-z]+$/;
  * }
  * ```
  *
- * @example Reject oversized/untrusted client IDs
+ * @example Accept only trusted-prefix client IDs
  * ```ts
  * {
  *   provide: CORRELATION_OPTIONS,
  *   useValue: {
- *     maxLength: 128,
  *     trimIncoming: true,
- *     validateIncoming: (id: string) => /^[A-Za-z0-9._~:/+-]+$/.test(id),
+ *     validateIncoming: (id: string) => id.startsWith('edge:'),
  *   },
  * }
  * ```
@@ -55,8 +56,8 @@ export class HttpCorrelationMiddleware implements NestMiddleware {
   private readonly header: string;
   private readonly acceptIncoming: boolean;
   private readonly trimIncoming: boolean;
-  private readonly maxLength?: number;
-  private readonly validateIncoming?: (correlationId: string) => boolean;
+  private readonly maxLength: number;
+  private readonly validateIncoming: (correlationId: string) => boolean;
 
   constructor(
     @Optional()
@@ -81,8 +82,10 @@ export class HttpCorrelationMiddleware implements NestMiddleware {
       typeof h === 'string' ? h.toLowerCase() : DEFAULT_CORRELATION_HEADER;
     this.acceptIncoming = options?.acceptIncoming ?? true;
     this.trimIncoming = options?.trimIncoming ?? false;
-    this.maxLength = options?.maxLength;
-    this.validateIncoming = options?.validateIncoming;
+    this.maxLength = options?.maxLength ?? DEFAULT_CORRELATION_ID_MAX_LENGTH;
+    this.validateIncoming =
+      options?.validateIncoming ??
+      ((id) => DEFAULT_CORRELATION_ID_PATTERN.test(id));
   }
 
   use(req: IncomingMessage, res: ServerResponse, next: () => void): void {
@@ -106,16 +109,12 @@ export class HttpCorrelationMiddleware implements NestMiddleware {
     const value = this.trimIncoming ? raw.trim() : raw;
     if (value.length === 0) return undefined;
 
-    if (this.maxLength !== undefined && value.length > this.maxLength) {
-      return undefined;
-    }
+    if (value.length > this.maxLength) return undefined;
 
-    if (this.validateIncoming) {
-      try {
-        if (!this.validateIncoming(value)) return undefined;
-      } catch {
-        return undefined;
-      }
+    try {
+      if (!this.validateIncoming(value)) return undefined;
+    } catch {
+      return undefined;
     }
 
     return value;

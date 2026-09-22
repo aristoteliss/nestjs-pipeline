@@ -9,6 +9,7 @@ export class CreateAuthCommand extends createCommand(
   z.object({
     email: EmailSchema,
     code: z.string().min(4).max(6),
+    clientIp: z.string().min(1),
   }),
   BaseCommand,
 ) {}

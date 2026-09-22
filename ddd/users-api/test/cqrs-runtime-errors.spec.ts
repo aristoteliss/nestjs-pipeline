@@ -652,6 +652,7 @@ describe('CQRS Commands & Queries Runtime Error Taxonomy', () => {
             new CreateAuthCommand({
               email: 'alice@example.test',
               code: '',
+              clientIp: '203.0.113.7',
             }),
         ).toThrow(ZodValidationError);
       });
@@ -680,6 +681,7 @@ describe('CQRS Commands & Queries Runtime Error Taxonomy', () => {
         const command = new CreateAuthCommand({
           email: 'alice@example.test',
           code: '999999',
+          clientIp: '203.0.113.7',
         });
 
         await expect(handler.handle(command)).rejects.toThrow(
@@ -716,6 +718,7 @@ describe('CQRS Commands & Queries Runtime Error Taxonomy', () => {
         const command = new CreateAuthCommand({
           email: 'unknown@example.test',
           code: '123456',
+          clientIp: '203.0.113.7',
         });
 
         await expect(handler.handle(command)).rejects.toThrow(

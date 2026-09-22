@@ -176,6 +176,37 @@ describe('PipelineBootstrapService Diagnostics', () => {
     }
   });
 
+  it('validates a combined global and handler declaration with merged options', () => {
+    @UsePipeline([CacheBehaviorWithOrder, { key: () => 'handler-key' }])
+    class Handler {
+      async execute() {
+        return 'done';
+      }
+    }
+    const validate = vi.spyOn(
+      CacheBehaviorWithOrder[PIPELINE_BEHAVIOR_CONTRACT],
+      'validate',
+    );
+    explorerServiceMock.explore.mockReturnValue({
+      commands: [makeWrapper(new Handler(), Handler)],
+      queries: [],
+      events: [],
+    });
+    try {
+      bootstrap({
+        globalBehaviors: { before: [[CacheBehaviorWithOrder, { ttl: 10 }]] },
+      });
+      expect(validate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          declarationSource: 'both',
+          effectiveOptions: { key: expect.any(Function), ttl: 10 },
+        }),
+      );
+    } finally {
+      validate.mockRestore();
+    }
+  });
+
   it('fails bootstrap with PipelineConfigurationError on ordering violations', () => {
     const instance = new MisorderedHandler();
     explorerServiceMock.explore.mockReturnValue({

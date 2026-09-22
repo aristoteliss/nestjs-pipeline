@@ -67,7 +67,7 @@ describe('ResilienceBehavior cooperative timeout', () => {
         backoff: { type: 'constant', delay: 0 },
       },
       handleAllErrors: true,
-      timeout: { duration: 500, strategy: 'aggressive' },
+      timeout: { duration: 500, strategy: 'aggressive', replaySafe: true },
     });
 
     const releaseFirstAttempt = deferred();

@@ -24,6 +24,7 @@ import type { CacheBehaviorOptions } from './interfaces/cache-options.interface'
 const TEST_KEY = createPartitionedCacheKeyFactory({
   principal: (ctx) => (ctx.items.get('userId') as string | undefined) ?? 'u-1',
   requireTenant: false,
+  requireScope: false,
 });
 
 function makeCtx(
@@ -92,6 +93,106 @@ describe('CacheBehavior', () => {
     expect(second).toEqual({ name: 'Ada' });
     expect(next).toHaveBeenCalledTimes(1);
   });
+
+  it('returns the same JSON form on the miss that stored it and on the hit', async () => {
+    class UserView {
+      constructor(
+        readonly name: string,
+        readonly createdAt: Date,
+      ) {}
+    }
+    const next = vi.fn().mockResolvedValue(new UserView('Ada', new Date(0)));
+
+    const miss = await behavior.handle(makeCtx(), next);
+    const hit = await behavior.handle(makeCtx(), next);
+
+    const expected = { name: 'Ada', createdAt: '1970-01-01T00:00:00.000Z' };
+    expect(miss).toStrictEqual(expected);
+    expect(hit).toStrictEqual(expected);
+    expect(next).toHaveBeenCalledTimes(1);
+  });
+
+  it('returns a result without a JSON form unchanged and does not cache it', async () => {
+    const logger = { debug: vi.fn(), warn: vi.fn() };
+    const cacheBehavior = new CacheBehavior(cache, undefined, logger as never);
+    const result = { count: 10n };
+    const next = vi.fn().mockResolvedValue(result);
+
+    await expect(cacheBehavior.handle(makeCtx(), next)).resolves.toBe(result);
+    await cacheBehavior.handle(makeCtx(), next);
+
+    expect(next).toHaveBeenCalledTimes(2);
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining('not JSON-serializable'),
+      CacheBehavior.name,
+    );
+  });
+
+  it('returns JSON data after a failed cache read without attempting a write', async () => {
+    const set = vi.fn();
+    const cacheBehavior = new CacheBehavior({
+      get: vi.fn().mockRejectedValue(new Error('cache unavailable')),
+      set,
+    } as unknown as Cache);
+    const next = vi.fn().mockResolvedValue({ createdAt: new Date(0) });
+
+    await expect(cacheBehavior.handle(makeCtx(), next)).resolves.toStrictEqual({
+      createdAt: '1970-01-01T00:00:00.000Z',
+    });
+    expect(next).toHaveBeenCalledOnce();
+    expect(set).not.toHaveBeenCalled();
+  });
+
+  it('preserves an uncacheable result when diagnostic logging throws', async () => {
+    const logger = {
+      debug: vi.fn(() => {
+        throw new Error('logger unavailable');
+      }),
+      warn: vi.fn(() => {
+        throw new Error('logger unavailable');
+      }),
+    };
+    const cacheBehavior = new CacheBehavior(cache, undefined, logger as never);
+    const result = { count: 10n };
+    const next = vi.fn().mockResolvedValue(result);
+
+    await expect(cacheBehavior.handle(makeCtx(), next)).resolves.toBe(result);
+    expect(next).toHaveBeenCalledOnce();
+    expect(logger.warn).toHaveBeenCalledOnce();
+  });
+
+  it.each([true, false])(
+    'preserves the failure policy when the cache error logger throws (failOpen: %s)',
+    async (failOpen) => {
+      const storeError = new Error('cache unavailable');
+      const logger = {
+        warn: vi.fn(() => {
+          throw new Error('logger unavailable');
+        }),
+        error: vi.fn(() => {
+          throw new Error('logger unavailable');
+        }),
+      };
+      const cacheBehavior = new CacheBehavior(
+        {
+          get: vi.fn().mockRejectedValue(storeError),
+          set: vi.fn(),
+        } as unknown as Cache,
+        undefined,
+        logger as never,
+      );
+      const next = vi.fn().mockResolvedValue('result');
+      const outcome = cacheBehavior.handle(makeCtx({ failOpen }), next);
+
+      if (failOpen) {
+        await expect(outcome).resolves.toBe('result');
+        expect(next).toHaveBeenCalledOnce();
+      } else {
+        await expect(outcome).rejects.toBe(storeError);
+        expect(next).not.toHaveBeenCalled();
+      }
+    },
+  );
 
   it('fails open on a cache read error by default', async () => {
     const storeError = new Error('redis unavailable');

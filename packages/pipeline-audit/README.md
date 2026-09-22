@@ -341,8 +341,17 @@ When the **sink itself** throws (e.g. the audit DB is down):
   - If the handler succeeded, the sink error is propagated, rejecting the request because the required audit trail could not be recorded.
   - If the handler had already failed, `AuditBehavior` re-throws the original handler error and attaches the sink recording error as `error.cause` (guarded with `Object.isExtensible(error)`), preserving both the business failure and the audit failure details without masking the root exception.
 
-Building the record never throws into your request; only the sink write is
-governed by `failOpen`.
+Record construction and sink failures both follow `failOpen`. When handling an
+already failed request, the original request error is preserved.
+
+Diagnostic logging of an audit failure is itself fail-open: a logger that throws
+never replaces the handler's result or error.
+
+`actor`, `metadata` and `redact` must be functions. A non-function value fails
+application bootstrap with a `PipelineConfigurationError`. Module defaults of a
+request-scoped `AuditBehavior` have no instance at bootstrap; an invalid default
+there is rejected before the handler runs (logged and ignored with
+`failOpen: true`).
 
 ---
 
@@ -355,6 +364,7 @@ governed by `failOpen`.
 | `AuditIntentOptions` | type | Options for `audit(...)` |
 | `AuditModule` | class | `forRoot` / `forRootAsync` registration |
 | `AUDIT_RECORD_ITEM` | symbol | `context.items` exported unique Symbol key holding the produced record |
+| `AUDIT_RECORD_ITEM_TOKEN` | `PipelineItemToken<AuditRecord>` | Typed token over the same key, for `getPipelineItem` |
 
 | `AUDIT_SINK` / `AUDIT_DEFAULT_OPTIONS` | token | DI tokens |
 | `LogAuditSink` | class | Default zero-dep sink |

@@ -5,6 +5,7 @@ export type { WithCorrelationId } from './correlation.store';
 export {
   addCorrelationId,
   correlationHeaders,
+  correlationPipelineOptions,
   correlationStore,
   getCorrelationId,
   runWithCorrelationId,
@@ -20,4 +21,8 @@ export {
 export { uuidv7 } from './helpers/uuidv7';
 export { HttpCorrelationMiddleware } from './middlewares/http-correlation.middleware';
 export type { CorrelationOptions } from './options/correlation.options';
-export { CORRELATION_OPTIONS } from './options/correlation.options';
+export {
+  CORRELATION_OPTIONS,
+  DEFAULT_CORRELATION_ID_MAX_LENGTH,
+  DEFAULT_CORRELATION_ID_PATTERN,
+} from './options/correlation.options';

@@ -1,15 +1,23 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import { APP_ACTIONS, APP_SUBJECTS } from '@common/constants';
+import {
+  APP_ACTIONS,
+  APP_SUBJECTS,
+  AUDIT_ACTIONS,
+  RATE_LIMIT_COST,
+} from '@common/constants';
 import {
   operationIdempotencyKeyFactory,
   replayScopeDigest,
+  requireTrustedPrincipal,
 } from '@common/cqrs/helpers/idempotent-operation.helper';
 import { Inject } from '@nestjs/common';
 import { CommandHandler, EventBus } from '@nestjs/cqrs';
+import { AUDIT_SEVERITY, audit } from '@nestjs-pipeline/audit';
 import { CaslAuthorizer, requires } from '@nestjs-pipeline/casl';
 import {
   type IPipelineContext,
+  joinKeySegments,
   logging,
   UsePipeline,
 } from '@nestjs-pipeline/core';
@@ -32,15 +40,19 @@ const USER_CREATE_PURPOSE = 'user creation idempotency';
 
 export const createUserIdempotencyKey = operationIdempotencyKeyFactory(
   'user.create',
-  (ctx) => (ctx.request as CreateUserCommand).email,
+  (ctx) => (ctx.request as CreateUserCommand).idempotencyKey,
 );
 
 export function createUserReplayScope(ctx: IPipelineContext): string {
   return replayScopeDigest(ctx, USER_CREATE_PURPOSE);
 }
 
+/** Creation quota per acting principal within its tenant. */
 export const createUserRateLimitKey = createPartitionedRateLimitKeyFactory(
-  (ctx) => (ctx.request as CreateUserCommand).email,
+  (ctx) => {
+    const { principalType, id } = requireTrustedPrincipal(ctx, 'user creation');
+    return joinKeySegments([principalType, id]);
+  },
 );
 
 @CommandHandler(CreateUserCommand)
@@ -50,10 +62,17 @@ export const createUserRateLimitKey = createPartitionedRateLimitKeyFactory(
   }),
   requires({ action: APP_ACTIONS.CREATE, subject: APP_SUBJECTS.USER }),
   featureFlag({ flag: 'user-registration' }),
-  rateLimit({ keyFactory: createUserRateLimitKey }),
+  rateLimit({
+    keyFactory: createUserRateLimitKey,
+    points: RATE_LIMIT_COST.createUser,
+  }),
   idempotent({
     keyFactory: createUserIdempotencyKey,
     replayScopeFactory: createUserReplayScope,
+  }),
+  audit({
+    action: AUDIT_ACTIONS.USER_CREATE,
+    severity: AUDIT_SEVERITY.MEDIUM,
   }),
 )
 export class CreateUserHandler extends CommandBaseHandler<

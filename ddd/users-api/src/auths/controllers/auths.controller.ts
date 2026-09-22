@@ -50,7 +50,7 @@ export class AuthsController {
     const result = await this.commandBus.execute<
       CreateAuthCommand,
       CreateAuthResult
-    >(LoginMapper.map(dto));
+    >(LoginMapper.map(dto, req.ip ?? 'unknown'));
     return this.respond(result, req, res);
   }
 

@@ -3,7 +3,6 @@
 import {
   ApplyMutation,
   Mutable,
-  type MutationPatch,
   RootEntity,
   type RootEntitySnapshot,
 } from '@nestjs-pipeline/ddd-core/domain';
@@ -135,17 +134,19 @@ export class Auth extends RootEntity<AuthSnapshot> {
   }
 
   @ApplyMutation<Auth>({ event: (auth) => new AuthRefreshedEvent(auth) })
-  protected applyRotation(nextHash: string, now: number): MutationPatch<Auth> {
-    return {
+  protected applyRotation(nextHash: string, now: number): this {
+    this.applyPatch({
       previousRefreshTokenHash: this._refreshTokenHash,
       refreshTokenHash: nextHash,
       rotatedAt: now,
-    };
+    });
+    return this;
   }
 
   @ApplyMutation<Auth>({ event: (auth) => new AuthRevokedEvent(auth) })
-  protected applyRevocation(now: number): MutationPatch<Auth> {
-    return { revokedAt: now };
+  protected applyRevocation(now: number): this {
+    this.applyPatch({ revokedAt: now });
+    return this;
   }
 
   get refreshTokenHash(): string {

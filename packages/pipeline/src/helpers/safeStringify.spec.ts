@@ -120,6 +120,45 @@ describe('safeStringify', () => {
   });
 
   describe('safeSanitize & clone mode', () => {
+    it.each([
+      ['object', () => ({})],
+      ['error', () => new Error('failure')],
+    ] as const)(
+      'preserves safe property copying for a cloned %s',
+      (_, create) => {
+        const symbol = Symbol('details');
+        const input = Object.assign(create(), {
+          child: { password: 'secret', visible: 1 },
+          internal: 'excluded',
+          [symbol]: { password: 'secret' },
+        });
+        Object.assign(input, { self: input });
+        Object.defineProperty(input, '__proto__', {
+          value: { safe: true },
+          enumerable: true,
+        });
+
+        const copy = safeSanitize(input, {
+          mode: 'clone',
+          excludeKeys: ['internal'],
+          redactKeys: ['password'],
+        }) as Record<string | symbol, unknown>;
+
+        expect(Object.getPrototypeOf(copy)).toBe(Object.getPrototypeOf(input));
+        expect(Object.getOwnPropertyDescriptor(copy, '__proto__')).toEqual({
+          value: { safe: true },
+          enumerable: true,
+          configurable: true,
+          writable: true,
+        });
+        expect(copy.child).toEqual({ password: REDACTED, visible: 1 });
+        expect(copy[symbol]).toEqual({ password: REDACTED });
+        expect(copy.self).toBe('[Circular]');
+        expect(copy).not.toHaveProperty('internal');
+        expect(input.child.password).toBe('secret');
+      },
+    );
+
     it('clones Date and RegExp preserving types and properties', () => {
       const date = new Date('2026-05-10T12:00:00.000Z');
       const regex = /pattern/gi;
@@ -284,6 +323,36 @@ describe('safeStringify', () => {
       expect(result.user.profile.bio).toBe('developer');
       expect(result.user.meta).toEqual({});
     });
+
+    it('applies excludeKeys to enumerable properties of a cloned Error', () => {
+      const error = Object.assign(new Error('failure'), {
+        password: 'example',
+        code: 'E1',
+      });
+
+      const copy = safeSanitize(error, {
+        mode: 'clone',
+        excludeKeys: ['password'],
+      }) as Error & { password?: string; code: string };
+
+      expect(copy).toBeInstanceOf(Error);
+      expect(copy).not.toHaveProperty('password');
+      expect(copy.code).toBe('E1');
+    });
+
+    it('applies excludeKeys to string keys of a cloned Map', () => {
+      const map = new Map<string, string>([
+        ['password', 'example'],
+        ['name', 'alice'],
+      ]);
+
+      const copy = safeSanitize(map, {
+        mode: 'clone',
+        excludeKeys: ['password'],
+      }) as Map<string, string>;
+
+      expect([...copy.keys()]).toEqual(['name']);
+    });
   });
 
   describe('redactValue', () => {
@@ -313,10 +382,58 @@ describe('safeStringify', () => {
       expect(redacted.normal).toBe('def');
     });
 
+    it('matches default keys regardless of case, underscores and hyphens', () => {
+      const payload = {
+        refresh_token: 'r1',
+        api_key: 'k',
+        clientSecret: 's',
+        passwordHash: 'h',
+        sessionToken: 't',
+        Password: 'p',
+        headers: { 'x-api-key': 'xk', 'Set-Cookie': 'c' },
+        username: 'alice',
+      };
+
+      expect(
+        JSON.parse(safeStringify(payload, { redactKeys: DEFAULT_REDACT_KEYS })),
+      ).toEqual({
+        refresh_token: REDACTED,
+        api_key: REDACTED,
+        clientSecret: REDACTED,
+        passwordHash: REDACTED,
+        sessionToken: REDACTED,
+        Password: REDACTED,
+        headers: { 'x-api-key': REDACTED, 'Set-Cookie': REDACTED },
+        username: 'alice',
+      });
+    });
+
+    it('keeps excludeKeys an exact, case-sensitive match', () => {
+      expect(safeStringify({ Password: 'p' }, new Set(['password']))).toBe(
+        '{"Password":"p"}',
+      );
+    });
+
     it('exposes DEFAULT_REDACT_KEYS constant', () => {
       expect(DEFAULT_REDACT_KEYS).toContain('password');
       expect(DEFAULT_REDACT_KEYS).toContain('token');
       expect(DEFAULT_REDACT_KEYS).toContain('secret');
     });
   });
+});
+
+it('clones non-string Map keys while redacting values and omitting hidden symbols', () => {
+  const key = { id: 1 };
+  const hidden = Symbol('hidden');
+  const input = { entries: new Map([[key, { password: 'secret' }]]) };
+  Object.defineProperty(input, hidden, { value: 'hidden' });
+  const copy = safeSanitize(input, {
+    mode: 'clone',
+    redactKeys: ['password'],
+  }) as typeof input;
+  const [[copiedKey, value]] = [...copy.entries];
+  expect(copiedKey).toEqual(key);
+  expect(copiedKey).not.toBe(key);
+  expect(value).toEqual({ password: REDACTED });
+  expect(Object.getOwnPropertySymbols(copy)).toEqual([]);
 });

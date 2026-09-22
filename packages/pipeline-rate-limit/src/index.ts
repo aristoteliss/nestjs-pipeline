@@ -32,7 +32,9 @@ export type {
 } from './interfaces/rate-limiter.interface';
 export {
   RATE_LIMIT_ITEM,
+  RATE_LIMIT_ITEM_TOKEN,
   RATE_LIMIT_KEY_ITEM,
+  RATE_LIMIT_KEY_ITEM_TOKEN,
   RateLimitBehavior,
 } from './rate-limit.behavior';
 export { RateLimitModule } from './rate-limit.module';

@@ -32,8 +32,11 @@ export {
 } from './helpers/partitioned-key';
 export {
   IDEMPOTENCY_KEY_ITEM,
+  IDEMPOTENCY_KEY_ITEM_TOKEN,
   IDEMPOTENCY_OWNERSHIP_LOST_ITEM,
+  IDEMPOTENCY_OWNERSHIP_LOST_ITEM_TOKEN,
   IDEMPOTENCY_REPLAYED_ITEM,
+  IDEMPOTENCY_REPLAYED_ITEM_TOKEN,
   IdempotencyBehavior,
 } from './idempotency.behavior';
 export { IdempotencyModule } from './idempotency.module';

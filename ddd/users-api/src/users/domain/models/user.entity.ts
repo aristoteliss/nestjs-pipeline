@@ -3,7 +3,6 @@
 import {
   ApplyMutation,
   Mutable,
-  type MutationPatch,
   RootEntity,
   type RootEntitySnapshot,
 } from '@nestjs-pipeline/ddd-core/domain';
@@ -142,33 +141,23 @@ export class User extends RootEntity<UserSnapshot> {
   }
 
   @ApplyMutation<User>({ event: (user) => new UserUpdatedEvent(user) })
-  protected applyUpdate(fields: {
-    username?: string | null;
-    department?: string | null;
-  }): MutationPatch<User> {
-    if (fields.username === undefined && fields.department === undefined) {
-      throw new EmptyUserUpdateException();
-    }
-
-    return {
-      username: fields.username ?? undefined,
-      department: fields.department,
-    };
-  }
-
   update(fields: {
     username?: string | null;
     department?: string | null;
   }): this {
-    this.applyUpdate(fields);
+    if (fields.username === undefined && fields.department === undefined) {
+      throw new EmptyUserUpdateException();
+    }
+
+    this.applyPatch({
+      username: fields.username ?? undefined,
+      department: fields.department,
+    });
     return this;
   }
 
   @ApplyMutation<User>({ event: (user) => new UserDeletedEvent(user) })
-  protected applyDelete(): MutationPatch<User> {}
-
   delete(): this {
-    this.applyDelete();
     return this;
   }
 

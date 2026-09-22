@@ -2,6 +2,7 @@
 
 import { AUTH_HEADERS } from '@common/constants/auth-headers.constants';
 import {
+  BadRequestException,
   ForbiddenException,
   Injectable,
   type NestMiddleware,
@@ -11,6 +12,7 @@ import {
   resolveAllowedTenantSchemas,
 } from '../postgres-options';
 import { TenantSchemaContext } from '../tenant-schema.context';
+import { InvalidTenantSchemaError } from '../tenant-schema.errors';
 
 @Injectable()
 /**
@@ -36,7 +38,7 @@ export class TenantSchemaMiddleware implements NestMiddleware {
       );
     }
 
-    const schema = normalizeSchemaName(headerValue);
+    const schema = this.parseSchema(headerValue);
     if (!resolveAllowedTenantSchemas().has(schema)) {
       throw new ForbiddenException('Unknown tenant context.');
     }
@@ -44,5 +46,16 @@ export class TenantSchemaMiddleware implements NestMiddleware {
     this.tenantSchemaContext.run(schema, () => {
       next();
     });
+  }
+
+  private parseSchema(headerValue: string): string {
+    try {
+      return normalizeSchemaName(headerValue);
+    } catch (error) {
+      if (error instanceof InvalidTenantSchemaError) {
+        throw new BadRequestException(error.message);
+      }
+      throw error;
+    }
   }
 }

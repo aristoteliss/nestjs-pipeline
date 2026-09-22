@@ -35,6 +35,16 @@ describe('MemoryIdempotencyStore', () => {
     expect(store.setIfAbsent('k1', record(), 1000)).toBe(false);
   });
 
+  it('handles cleanup timer without unref method', () => {
+    const spy = vi
+      .spyOn(globalThis, 'setInterval')
+      .mockReturnValueOnce(123 as unknown as NodeJS.Timeout);
+    const store = new MemoryIdempotencyStore({ cleanupIntervalMs: 1000 });
+    expect(store.size).toBe(0);
+    store.destroy();
+    spy.mockRestore();
+  });
+
   it('expires keys after the TTL window', () => {
     const store = new MemoryIdempotencyStore();
     store.setIfAbsent('k1', record(), 1000);
@@ -399,6 +409,47 @@ describe('RedisIdempotencyStore', () => {
 });
 
 describe('PostgresIdempotencyStore', () => {
+  it.each([
+    [undefined, null],
+    [null, 'null'],
+    [{ id: 'order-1' }, '{"id":"order-1"}'],
+  ] as const)(
+    'binds response %j and record fields in SQL column order',
+    async (response, encoded) => {
+      const query = vi.fn().mockResolvedValue({ rows: [{ key: 'k1' }] });
+      const store = new PostgresIdempotencyStore({ query });
+      const value = record({
+        response,
+        fingerprint: 'fingerprint',
+        replayScope: 'scope',
+        completedAt: '2026-01-01T00:00:01.000Z',
+      });
+      const fields = [
+        'in_progress',
+        'CreateOrderCommand',
+        'claim-1',
+        'fingerprint',
+        'scope',
+        encoded,
+        '2026-01-01T00:00:00.000Z',
+        '2026-01-01T00:00:01.000Z',
+        '5000',
+      ];
+
+      await store.setIfAbsent('k1', value, 5000);
+      await store.completeIfOwned('k1', 'expected-owner', value, 5000);
+      await store.set('k1', value, 5000);
+
+      expect(query.mock.calls[0][1]).toEqual(['k1', ...fields]);
+      expect(query.mock.calls[1][1]).toEqual([
+        'k1',
+        'expected-owner',
+        ...fields,
+      ]);
+      expect(query.mock.calls[2][1]).toEqual(['k1', ...fields]);
+    },
+  );
+
   it('claims or atomically reclaims an expired key when the upsert returns a row', async () => {
     const query = vi.fn().mockResolvedValue({ rows: [{ key: 'k1' }] });
     const db: PostgresQueryableLike = { query };
@@ -667,5 +718,61 @@ describe('Replay scope round-trip across stores', () => {
 
     expect(sql).toContain('replay_scope  TEXT');
     expect(sql).toContain('ADD COLUMN IF NOT EXISTS replay_scope TEXT');
+  });
+
+  it('derives index name when table is schema-qualified', () => {
+    const sql = createIdempotencyTableSql('public.idempotency_keys');
+    expect(sql).toContain('idempotency_keys_expires_at_idx');
+  });
+
+  it('returns undefined when get finds no row', async () => {
+    const store = new PostgresIdempotencyStore({
+      query: vi.fn().mockResolvedValue({ rows: [] }),
+    });
+    expect(await store.get('missing-key')).toBeUndefined();
+  });
+
+  it('handles Date created_at and absent optional fields in mapRow', async () => {
+    const query = vi.fn().mockResolvedValue({
+      rows: [
+        {
+          status: 'completed',
+          request_name: 'TestCommand',
+          claim_id: null,
+          fingerprint: null,
+          replay_scope: null,
+          response: null,
+          has_response: false,
+          created_at: new Date('2026-01-01T00:00:00.000Z'),
+          completed_at: null,
+        },
+      ],
+    });
+    const store = new PostgresIdempotencyStore({ query });
+    const result = await store.get('k1');
+    expect(result?.claimId).toBeUndefined();
+    expect(result?.response).toBeUndefined();
+    expect(result?.completedAt).toBeUndefined();
+    expect(result?.createdAt).toBe('2026-01-01T00:00:00.000Z');
+  });
+
+  it('binds null for undefined claimId in toValues', async () => {
+    let passedValues: unknown[] = [];
+    const query = vi.fn().mockImplementation((_sql, values) => {
+      passedValues = values;
+      return Promise.resolve({ rows: [] });
+    });
+    const store = new PostgresIdempotencyStore({ query });
+    await store.set(
+      'k1',
+      {
+        key: 'k1',
+        status: 'in_progress',
+        requestName: 'TestCommand',
+        createdAt: '2026-01-01T00:00:00.000Z',
+      },
+      1000,
+    );
+    expect(passedValues[3]).toBeNull();
   });
 });

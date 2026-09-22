@@ -7,8 +7,8 @@
  */
 export interface IQueryOptions {
   /**
-   * Request a hydrated domain object when a query repository supports snapshot
-   * caching. {@link FromCache} uses this flag when `alwaysHydrate` is not set.
+   * Query metadata for repositories that read it. {@link FromCache} does not:
+   * it rehydrates every hit whenever a hydrator applies.
    *
    * @default false
    */

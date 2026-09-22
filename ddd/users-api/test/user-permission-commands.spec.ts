@@ -73,11 +73,11 @@ describe('permission rule commands', () => {
     expect(drifted.stdout).toContain('tenant: drifted user(s):');
   });
 
-  it('migrates and reverts the rules table on SQLite', async () => {
+  it('migrates and reverts the schema on SQLite', async () => {
     const dir = tempDir();
 
     expect(runScript('migrate.ts', dir).status).toBe(0);
-    const revert = runScript('revert.ts', dir, ['--steps', '2']);
+    const revert = runScript('revert.ts', dir);
     expect(revert.status, revert.stderr).toBe(0);
 
     const client = createClient({ url: `file:${join(dir, 'tenant.db')}` });
@@ -85,6 +85,6 @@ describe('permission rule commands', () => {
       "select name from sqlite_master where type = 'table' and name in ('user_permission_rules', 'users')",
     );
     client.close();
-    expect(tables.rows.map((row) => row.name)).toEqual(['users']);
+    expect(tables.rows.map((row) => row.name)).toEqual([]);
   });
 });

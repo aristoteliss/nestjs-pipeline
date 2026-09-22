@@ -454,7 +454,7 @@ describe('Users API Pipeline Behaviors Specification', () => {
       const behaviorOptions = new Map();
       behaviorOptions.set(ResilienceBehavior, {
         handle: (err: unknown) => !(err instanceof NotFoundException),
-        timeout: { duration: 3_000 },
+        timeout: { duration: 3_000, strategy: 'cooperative' },
         retry: {
           maxAttempts: 3,
           replaySafe: true,

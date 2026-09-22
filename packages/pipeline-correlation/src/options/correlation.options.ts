@@ -1,5 +1,15 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
+/** Default upper bound for an accepted incoming correlation ID. */
+export const DEFAULT_CORRELATION_ID_MAX_LENGTH = 128;
+
+/**
+ * Characters accepted in an incoming correlation ID unless `validateIncoming`
+ * is configured: letters, digits and `. _ ~ : / + = @ -`, which covers UUIDs,
+ * W3C trace identifiers and common request-ID formats.
+ */
+export const DEFAULT_CORRELATION_ID_PATTERN = /^[A-Za-z0-9._~:/+=@-]+$/;
+
 /**
  * Correlation ID configuration consumed by {@link HttpCorrelationMiddleware}.
  *
@@ -7,8 +17,10 @@
  * transports (Bull, RabbitMQ, etc.), use `runWithCorrelationId()` directly in
  * your processor/handler.
  *
- * Incoming-ID hardening is opt-in. By default a non-empty incoming header value
- * is accepted and echoed unchanged.
+ * An incoming header value is accepted only when it is at most
+ * {@link DEFAULT_CORRELATION_ID_MAX_LENGTH} characters and matches
+ * {@link DEFAULT_CORRELATION_ID_PATTERN}; otherwise a local ID is used.
+ * `maxLength` and `validateIncoming` replace these defaults.
  *
  * @example
  * ```ts
@@ -20,12 +32,12 @@
  * { header: false } // uses 'x-correlation-id'; it does not disable middleware
  * ```
  *
- * @example Harden untrusted public HTTP input without forcing UUID format
+ * @example Accept only UUIDs from clients
  * ```ts
  * {
- *   maxLength: 128,
+ *   maxLength: 36,
  *   trimIncoming: true,
- *   validateIncoming: (id) => /^[A-Za-z0-9._~:/+-]+$/.test(id),
+ *   validateIncoming: (id) => /^[0-9a-f-]{36}$/i.test(id),
  * }
  * ```
  *
@@ -64,22 +76,18 @@ export interface CorrelationOptions {
   trimIncoming?: boolean;
 
   /**
-   * Optional maximum accepted incoming correlation-ID length. Values longer
-   * than this are discarded and replaced by the locally resolved/generated ID.
-   * When omitted, no new length restriction is applied.
+   * Maximum accepted incoming correlation-ID length. Longer values are
+   * discarded and replaced by the locally resolved/generated ID.
    *
-   * @example
-   * ```ts
-   * { maxLength: 128 }
-   * ```
+   * @default 128
    */
   maxLength?: number;
 
   /**
-   * Optional application-specific validation predicate for incoming IDs.
-   * Returning `false` (or throwing) rejects the incoming value and falls back to
-   * the local correlation ID. No built-in UUID/character-format restriction is
-   * imposed, so W3C/custom identifiers remain usable.
+   * Validation predicate for incoming IDs; replaces the default
+   * {@link DEFAULT_CORRELATION_ID_PATTERN} check. Returning `false` (or
+   * throwing) rejects the incoming value and falls back to the local
+   * correlation ID. `maxLength` still applies.
    *
    * @example
    * ```ts

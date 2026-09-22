@@ -719,3 +719,17 @@ describe('WithCorrelation — logLevel', () => {
     }
   });
 });
+
+it('propagates correlation when the logger does not implement the selected level', () => {
+  const logger = { log: vi.fn(), warn: vi.fn(), error: vi.fn() };
+  class Processor {
+    @WithCorrelation({ logger, logLevel: 'debug' })
+    handle(_job: unknown) {
+      return getCorrelationId();
+    }
+  }
+  expect(
+    new Processor().handle(fakeJob({ correlationId: 'without-debug' })),
+  ).toBe('without-debug');
+  expect(logger.log).not.toHaveBeenCalled();
+});

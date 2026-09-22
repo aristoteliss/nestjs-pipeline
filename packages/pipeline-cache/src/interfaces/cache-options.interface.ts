@@ -1,5 +1,10 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
+import type {
+  InjectionToken,
+  ModuleMetadata,
+  OptionalFactoryDependency,
+} from '@nestjs/common';
 import type { IPipelineContext } from '@nestjs-pipeline/core';
 import type { Cache } from 'cache-manager';
 import type { Keyv } from 'keyv';
@@ -56,6 +61,7 @@ export type CacheCondition = (context: IPipelineContext) => boolean;
  * @UsePipeline([CacheBehavior, {
  *   key: createPartitionedCacheKeyFactory({
  *     principal: (ctx) => ctx.items.get('userId') as string | undefined,
+ *     scope: (ctx) => ctx.items.get('capabilityVersion') as string | undefined,
  *   }),
  *   ttl: 60_000,
  * }])
@@ -118,4 +124,15 @@ export interface CacheModuleOptions {
   nonBlocking?: boolean;
   /** Default per-handler behavior options merged into every pipeline. */
   defaults?: CacheBehaviorOptions;
+}
+
+/** Options for {@link CacheModule.forRootAsync}. */
+export interface CacheModuleAsyncOptions
+  extends Pick<ModuleMetadata, 'imports'> {
+  /** Resolves the module options when the application starts. */
+  useFactory: (
+    ...args: never[]
+  ) => CacheModuleOptions | Promise<CacheModuleOptions>;
+  /** Providers injected into {@link useFactory}. */
+  inject?: Array<InjectionToken | OptionalFactoryDependency>;
 }

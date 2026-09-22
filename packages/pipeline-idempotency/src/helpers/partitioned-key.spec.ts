@@ -101,6 +101,7 @@ describe('createPartitionedIdempotencyKeyFactory', () => {
     ['whitespace', '   '],
     ['an empty segment list', []],
     ['a list with a blank segment', ['user', ' ']],
+    ['a list with a non-string segment', ['user', 123 as unknown as string]],
   ])(
     'fails closed when the principal is %s, with no shared fallback',
     (_, principal) => {

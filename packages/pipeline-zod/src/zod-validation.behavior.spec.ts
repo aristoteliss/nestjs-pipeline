@@ -131,6 +131,26 @@ describe('ZodValidationBehavior', () => {
       expect(result).toEqual({ id: '1' });
     });
 
+    it('throws TypeError when request is not an object but schema is attached', async () => {
+      const ctxNull = createMockContext({
+        request: null as unknown as object,
+        requestType,
+      });
+      const next = vi.fn();
+      await expect(behavior.handle(ctxNull, next)).rejects.toThrow(
+        'ZodValidationBehavior requires the pipeline request to be an object when a schema is attached.',
+      );
+
+      const ctxPrimitive = createMockContext({
+        request: 'invalid' as unknown as object,
+        requestType,
+      });
+      await expect(behavior.handle(ctxPrimitive, next)).rejects.toThrow(
+        'ZodValidationBehavior requires the pipeline request to be an object when a schema is attached.',
+      );
+      expect(next).not.toHaveBeenCalled();
+    });
+
     it('applies default and transformed values from result.data back onto context.request', async () => {
       const transformSchema = z.object({
         count: z.string().transform((val) => Number(val)),

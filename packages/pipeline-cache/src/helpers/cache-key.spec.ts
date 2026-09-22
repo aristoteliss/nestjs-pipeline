@@ -28,7 +28,10 @@ function makeContext(
 const readUserId = (ctx: IPipelineContext) =>
   ctx.items.get('userId') as string | undefined;
 
-const factory = createPartitionedCacheKeyFactory({ principal: readUserId });
+const factory = createPartitionedCacheKeyFactory({
+  principal: readUserId,
+  requireScope: false,
+});
 
 describe('createPartitionedCacheKeyFactory', () => {
   it('produces the same key for the same caller and payload across requests', () => {
@@ -130,6 +133,7 @@ describe('createPartitionedCacheKeyFactory', () => {
         principal: () => 'public',
         requirePrincipal: false,
         requireTenant: false,
+        requireScope: false,
       });
 
       expect(
@@ -142,6 +146,7 @@ describe('createPartitionedCacheKeyFactory', () => {
         principal: () => undefined,
         requirePrincipal: false,
         requireTenant: false,
+        requireScope: false,
       });
 
       expect(
@@ -194,10 +199,26 @@ describe('createPartitionedCacheKeyFactory', () => {
       );
     });
 
+    it('requires a scope resolver unless requireScope is false', () => {
+      expect(() =>
+        createPartitionedCacheKeyFactory({ principal: readUserId }),
+      ).toThrow(/requires a `scope` resolver/);
+    });
+
+    it('rejects an unresolved scope by default', () => {
+      const scoped = createPartitionedCacheKeyFactory({
+        principal: readUserId,
+        scope: () => undefined,
+      });
+
+      expect(() => scoped(makeContext())).toThrow(MissingCachePartitionError);
+    });
+
     it('distinguishes an absent scope from a literal one', () => {
       const scoped = createPartitionedCacheKeyFactory({
         principal: readUserId,
         scope: (ctx) => ctx.items.get('scope') as string | undefined,
+        requireScope: false,
       });
 
       const absent = scoped(makeContext({ items: new Map([['userId', 'a']]) }));

@@ -1,5 +1,6 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
+import { Logger } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
 import { MemoryCache } from '../cache/memory.cache';
 import type { ICache } from '../cache.interface';
@@ -70,6 +71,46 @@ describe('@Cache decorator on CommandRepository.save', () => {
 
     const result = await repo.save(entity);
     expect(result).toEqual({ id: 'u1' });
+  });
+
+  it('reports a repository without a cache property once and still saves', async () => {
+    class MiswiredCommandRepo {
+      constructor(readonly cacheClient: ICache) {}
+
+      @Cache<MockEntity, { id: string }>((entity) => `mock:${entity.id}`)
+      async save(entity: MockEntity): Promise<{ id: string }> {
+        return { id: entity.id };
+      }
+    }
+    const warn = vi
+      .spyOn(Logger.prototype, 'warn')
+      .mockImplementation(() => undefined);
+    const repo = new MiswiredCommandRepo(new MemoryCache());
+
+    try {
+      await expect(repo.save({ id: 'u1' })).resolves.toEqual({ id: 'u1' });
+      await repo.save({ id: 'u2' });
+
+      expect(warn).toHaveBeenCalledTimes(1);
+      expect(warn.mock.calls[0][0]).toContain(
+        'MiswiredCommandRepo uses @Cache',
+      );
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  it('does not report a repository whose cache is deliberately unset', async () => {
+    const warn = vi
+      .spyOn(Logger.prototype, 'warn')
+      .mockImplementation(() => undefined);
+
+    try {
+      await new TestCommandRepo(undefined).save({ id: 'u1' });
+      expect(warn).not.toHaveBeenCalled();
+    } finally {
+      warn.mockRestore();
+    }
   });
 
   it('writes saved entity result to cache using entity id', async () => {
@@ -476,5 +517,150 @@ describe('@Cache anti-resurrection against a concurrent write-through', () => {
       { ttl: DEFAULT_BARRIER_TTL_MS },
     );
     expect(DEFAULT_BARRIER_TTL_MS).toBeGreaterThan(0);
+  });
+});
+
+describe('@Cache write-through without an observed revision', () => {
+  class SlowRepo {
+    constructor(
+      public cache: MemoryCache<{ id: string; v: number }>,
+      private readonly duringWrite: () => Promise<void>,
+    ) {}
+
+    @Cache<MockEntity, { id: string; v: number }>({
+      setKey: (entity) => `mock:${entity.id}`,
+    })
+    async save(entity: MockEntity): Promise<{ id: string; v: number }> {
+      await this.duringWrite();
+      return { id: entity.id, v: 1 };
+    }
+  }
+
+  it('never installs the snapshot unfenced when the initial readState fails', async () => {
+    const cache = new MemoryCache<{ id: string; v: number }>();
+    await cache.set('mock:a', { id: 'a', v: 0 });
+    vi.spyOn(cache, 'readState').mockRejectedValueOnce(new Error('cache down'));
+    const repo = new SlowRepo(cache, () => cache.invalidate('mock:a').then());
+
+    await repo.save({ id: 'a' });
+
+    expect(await cache.get('mock:a')).toBeUndefined();
+  });
+
+  it('drops the pre-write value when no revision could be observed', async () => {
+    const cache = new MemoryCache<{ id: string; v: number }>();
+    await cache.set('mock:a', { id: 'a', v: 0 });
+    vi.spyOn(cache, 'readState').mockRejectedValueOnce(new Error('cache down'));
+    const repo = new SlowRepo(cache, async () => undefined);
+
+    await repo.save({ id: 'a' });
+
+    expect(await cache.get('mock:a')).toBeUndefined();
+  });
+
+  it('rejects invalid decorator argument with Error', () => {
+    expect(() => Cache(123 as any)).toThrow(
+      '@Cache decorator requires an explicit key derivation function or options object.',
+    );
+  });
+
+  it('handles deleteKeys returning undefined or throwing non-Error', async () => {
+    class UndefinedDeleteRepo {
+      constructor(public cache?: ICache) {}
+      @Cache<MockEntity, null>({
+        deleteKeys: () => undefined as any,
+      })
+      async save(_entity: MockEntity): Promise<null> {
+        return null;
+      }
+    }
+    const repo1 = new UndefinedDeleteRepo(new MemoryCache());
+    await expect(repo1.save({ id: 'a' })).resolves.toBeNull();
+
+    class ThrowingStringDeleteRepo {
+      constructor(public cache?: ICache) {}
+      @Cache<MockEntity, null>({
+        deleteKeys: () => {
+          throw 'non-error delete failure';
+        },
+      })
+      async save(_entity: MockEntity): Promise<null> {
+        return null;
+      }
+    }
+    const repo2 = new ThrowingStringDeleteRepo(new MemoryCache());
+    await expect(repo2.save({ id: 'a' })).resolves.toBeNull();
+  });
+
+  it('handles non-Error thrown during eviction and setKey derivation', async () => {
+    const failingEvictCache: ICache = {
+      get: vi.fn(),
+      set: vi.fn(),
+      delete: vi.fn().mockRejectedValue('evict string rejection'),
+    };
+    class EvictFailRepo {
+      constructor(public cache?: ICache) {}
+      @Cache<MockEntity, null>({
+        deleteKeys: (e) => [`mock:${e.id}`],
+      })
+      async save(_entity: MockEntity): Promise<null> {
+        return null;
+      }
+    }
+    const repo1 = new EvictFailRepo(failingEvictCache);
+    await expect(repo1.save({ id: 'a' })).resolves.toBeNull();
+
+    class ThrowingStringKeyRepo {
+      constructor(public cache?: ICache) {}
+      @Cache<MockEntity, { id: string }>({
+        setKey: () => {
+          throw 'setKey string rejection';
+        },
+      })
+      async save(e: MockEntity): Promise<{ id: string }> {
+        return { id: e.id };
+      }
+    }
+    const repo2 = new ThrowingStringKeyRepo(new MemoryCache());
+    await expect(repo2.save({ id: 'a' })).resolves.toEqual({ id: 'a' });
+  });
+
+  it('skips tryFill when observed value before persistence is newer than result', async () => {
+    const cache = new MemoryCache<{ id: string; version: number }>();
+    await cache.set('mock:a', { id: 'a', version: 5 });
+
+    class NewerRepo {
+      constructor(public cache: MemoryCache<{ id: string; version: number }>) {}
+      @Cache<MockEntity, { id: string; version: number }>({
+        setKey: (e) => `mock:${e.id}`,
+        isNewer: (cached: any, incoming: any) =>
+          (cached?.version ?? 0) > (incoming?.version ?? 0),
+      })
+      async save(e: MockEntity): Promise<{ id: string; version: number }> {
+        return { id: e.id, version: 1 };
+      }
+    }
+
+    const repo = new NewerRepo(cache);
+    const result = await repo.save({ id: 'a' });
+    expect(result).toEqual({ id: 'a', version: 1 });
+    expect((await cache.get('mock:a'))?.version).toBe(5);
+  });
+
+  it('catches and warns when unversioned cache.set fails', async () => {
+    const unversionedFailingCache: ICache = {
+      get: vi.fn(),
+      set: vi.fn().mockRejectedValue(new Error('unversioned set error')),
+      delete: vi.fn(),
+    };
+    class SetFailRepo {
+      constructor(public cache?: ICache) {}
+      @Cache<MockEntity, { id: string }>((e) => `mock:${e.id}`)
+      async save(e: MockEntity): Promise<{ id: string }> {
+        return { id: e.id };
+      }
+    }
+    const repo = new SetFailRepo(unversionedFailingCache);
+    await expect(repo.save({ id: 'a' })).resolves.toEqual({ id: 'a' });
   });
 });

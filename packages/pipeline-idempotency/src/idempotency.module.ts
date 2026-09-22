@@ -1,6 +1,13 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import { type DynamicModule, Module } from '@nestjs/common';
+import {
+  type DynamicModule,
+  Inject,
+  Injectable,
+  Module,
+  type OnApplicationShutdown,
+  type Provider,
+} from '@nestjs/common';
 import {
   IDEMPOTENCY_DEFAULT_OPTIONS,
   IDEMPOTENCY_STORE,
@@ -11,6 +18,33 @@ import type {
   IdempotencyModuleOptions,
 } from './interfaces/idempotency-options.interface';
 import { MemoryIdempotencyStore } from './stores/memory.store';
+
+/** Destroys, on application shutdown, the default store the module created. */
+@Injectable()
+class DefaultStoreLifecycle implements OnApplicationShutdown {
+  constructor(
+    @Inject(IDEMPOTENCY_STORE) private readonly store: MemoryIdempotencyStore,
+  ) {}
+
+  onApplicationShutdown(): void {
+    this.store.destroy();
+  }
+}
+
+/**
+ * A supplied store belongs to the caller. The default memory store is created
+ * per application and destroyed with it.
+ */
+function storeProviders(store: IdempotencyModuleOptions['store']): Provider[] {
+  if (store) return [{ provide: IDEMPOTENCY_STORE, useValue: store }];
+  return [
+    {
+      provide: IDEMPOTENCY_STORE,
+      useFactory: () => new MemoryIdempotencyStore(),
+    },
+    DefaultStoreLifecycle,
+  ];
+}
 
 /**
  * NestJS module that wires an {@link IdempotencyStore} into the
@@ -63,10 +97,7 @@ export class IdempotencyModule {
       global: true,
       providers: [
         IdempotencyBehavior,
-        {
-          provide: IDEMPOTENCY_STORE,
-          useValue: options.store ?? new MemoryIdempotencyStore(),
-        },
+        ...storeProviders(options.store),
         {
           provide: IDEMPOTENCY_DEFAULT_OPTIONS,
           useValue: options.defaults ?? {},

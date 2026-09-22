@@ -56,7 +56,11 @@ export class MikroOrmCache<T> implements IVersionedCache<T> {
    * Reads bypass the identity map to guarantee authoritative persistence visibility.
    */
   async readState(key: string): Promise<CacheStateEntry<T>> {
-    const entry = await this.findEntry(key);
+    const entry = await this.store.em.findOne(
+      CacheEntry,
+      { key },
+      { disableIdentityMap: true },
+    );
 
     if (!entry) {
       return { status: 'miss', revision: '0' };
@@ -68,13 +72,13 @@ export class MikroOrmCache<T> implements IVersionedCache<T> {
       return { status: 'miss', revision };
     }
 
-    if (this.isExpired(entry)) {
+    if (entry.expiresAt !== null && entry.expiresAt < Date.now()) {
       return { status: 'expired', revision };
     }
 
     return {
       status: 'hit',
-      value: this.parseValue(entry.value),
+      value: JSON.parse(entry.value) as T,
       revision,
     };
   }
@@ -208,22 +212,6 @@ export class MikroOrmCache<T> implements IVersionedCache<T> {
   async get(key: string): Promise<T | undefined> {
     const state = await this.readState(key);
     return state.status === 'hit' ? state.value : undefined;
-  }
-
-  private async findEntry(key: string): Promise<CacheEntry | null> {
-    return this.store.em.findOne(
-      CacheEntry,
-      { key },
-      { disableIdentityMap: true },
-    );
-  }
-
-  private isExpired(entry: CacheEntry): boolean {
-    return entry.expiresAt !== null && entry.expiresAt < Date.now();
-  }
-
-  private parseValue(raw: string): T {
-    return JSON.parse(raw) as T;
   }
 
   /**

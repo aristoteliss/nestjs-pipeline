@@ -1,88 +1,29 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { loadOptionalEnvFile } from '@common/environment/load-optional-env-file';
-import { MikroORM } from '@mikro-orm/core';
-import { LibSqlDriver } from '@mikro-orm/libsql';
-import {
-  createLibsqlOrmOptions,
-  resolveLibsqlDbUrl,
-  resolveLibsqlTenants,
-} from './libsql-options';
-import {
-  createPostgresOrmOptions,
-  normalizeSchemaName,
-} from './postgres-options';
-
-function isPostgresEngine(): boolean {
-  return (process.env.DB_ENGINE ?? '').toLowerCase() === 'postgres';
-}
-
-function parseSchemas(): string[] {
-  const list = process.env.TENANT_SCHEMAS ?? process.env.DB_DEFAULT_SCHEMA;
-  if (!list) {
-    return [normalizeSchemaName(undefined)];
-  }
-
-  return list
-    .split(',')
-    .map((value) => normalizeSchemaName(value))
-    .filter((value, index, all) => all.indexOf(value) === index);
-}
-
-async function migrateSchema(schema: string): Promise<number> {
-  const originalSeedTenant = process.env.SEED_TENANT;
-  const orm = await MikroORM.init(createPostgresOrmOptions(schema));
-
-  try {
-    process.env.SEED_TENANT = schema;
-    await orm.em
-      .getConnection()
-      .execute(`create schema if not exists "${schema}";`);
-    const executed = await orm.migrator.up({ schema });
-    return Array.isArray(executed) ? executed.length : 0;
-  } finally {
-    process.env.SEED_TENANT = originalSeedTenant;
-    await orm.close();
-  }
-}
-
-async function migrateLibsqlTenant(tenant: string): Promise<number> {
-  const originalSeedTenant = process.env.SEED_TENANT;
-  const dbName = resolveLibsqlDbUrl(tenant);
-  const orm = await MikroORM.init<LibSqlDriver>(createLibsqlOrmOptions(dbName));
-
-  try {
-    process.env.SEED_TENANT = tenant;
-    const executed = await orm.migrator.up();
-    return Array.isArray(executed) ? executed.length : 0;
-  } finally {
-    process.env.SEED_TENANT = originalSeedTenant;
-    await orm.close();
-  }
-}
-
-async function migrateLibsql(): Promise<number> {
-  const tenants = resolveLibsqlTenants();
-  let total = 0;
-
-  for (const tenant of tenants) {
-    total += await migrateLibsqlTenant(tenant);
-  }
-
-  return total;
-}
+import { forEachTenantOrm } from './tenant-orms';
 
 export async function migrate(): Promise<number> {
-  if (!isPostgresEngine()) {
-    return migrateLibsql();
-  }
-
-  const schemas = parseSchemas();
+  const postgres = (process.env.DB_ENGINE ?? '').toLowerCase() === 'postgres';
   let total = 0;
 
-  for (const schema of schemas) {
-    total += await migrateSchema(schema);
-  }
+  await forEachTenantOrm(async (orm, tenant) => {
+    const originalSeedTenant = process.env.SEED_TENANT;
+    try {
+      process.env.SEED_TENANT = tenant;
+      if (postgres) {
+        await orm.em
+          .getConnection()
+          .execute(`create schema if not exists "${tenant}";`);
+      }
+      const executed = postgres
+        ? await orm.migrator.up({ schema: tenant })
+        : await orm.migrator.up();
+      total += Array.isArray(executed) ? executed.length : 0;
+    } finally {
+      process.env.SEED_TENANT = originalSeedTenant;
+    }
+  });
 
   return total;
 }

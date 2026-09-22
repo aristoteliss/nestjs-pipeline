@@ -2,7 +2,10 @@
 
 import type { Type } from '@nestjs/common';
 import { type BehaviorId, getBehaviorId } from '../helpers/behavior-id';
-import type { IPipelineBehavior } from '../interfaces/pipeline.behavior.interface';
+import type {
+  IPipelineBehavior,
+  IPipelineBehaviorOptionsResolver,
+} from '../interfaces/pipeline.behavior.interface';
 import {
   type IPipelineBehaviorContract,
   PIPELINE_BEHAVIOR_CONTRACT,
@@ -68,16 +71,8 @@ export function validateBehaviorContracts(params: {
 
     const rawMerged = mergedOptions.get(id);
     const effectiveOptions =
-      instance &&
-      typeof (instance as unknown as { resolveEffectiveOptions?: unknown })
-        .resolveEffectiveOptions === 'function'
-        ? (
-            instance as unknown as {
-              resolveEffectiveOptions: (
-                opts?: Record<string, unknown>,
-              ) => Record<string, unknown>;
-            }
-          ).resolveEffectiveOptions(rawMerged)
+      instance && resolvesOptions(instance)
+        ? instance.resolveEffectiveOptions(rawMerged)
         : rawMerged;
 
     const validationCtx: PipelineBehaviorValidationContext = {
@@ -157,4 +152,13 @@ export function validateBehaviorContracts(params: {
       }
     }
   }
+}
+
+function resolvesOptions(
+  instance: IPipelineBehavior,
+): instance is IPipelineBehavior & IPipelineBehaviorOptionsResolver {
+  return (
+    typeof (instance as Partial<IPipelineBehaviorOptionsResolver>)
+      .resolveEffectiveOptions === 'function'
+  );
 }

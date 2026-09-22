@@ -1,7 +1,15 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { describe, expect, it } from 'vitest';
-import { cloneData, deepEqual, hasBeenMutated } from './zod-data.helpers';
+import {
+  cloneData,
+  deepEqual,
+  getRawInput,
+  getValidatedData,
+  hasBeenMutated,
+  ZOD_RAW_INPUT_KEY,
+  ZOD_VALIDATED_DATA_KEY,
+} from './zod-data.helpers';
 
 describe('zod-data.helpers', () => {
   describe('deepEqual', () => {
@@ -273,5 +281,51 @@ describe('rich validation snapshot data', () => {
     const dateCopy = cloneData(date);
     date.allowed = false;
     expect(deepEqual(date, dateCopy)).toBe(false);
+  });
+
+  it('handles getRawInput with primitive values, unrecorded objects, and legacy symbol keys', () => {
+    expect(getRawInput(null)).toBeNull();
+    expect(getRawInput(undefined)).toBeUndefined();
+    expect(getRawInput('primitive')).toBe('primitive');
+    expect(getRawInput(42)).toBe(42);
+
+    const unrecorded = { unrecorded: true };
+    expect(getRawInput(unrecorded)).toBe(unrecorded);
+
+    const legacy = { [ZOD_RAW_INPUT_KEY]: { legacy: true } };
+    expect(getRawInput(legacy)).toEqual({ legacy: true });
+  });
+
+  it('handles getValidatedData with non-object inputs, unrecorded objects, and legacy symbol keys', () => {
+    expect(getValidatedData(null)).toBeUndefined();
+    expect(getValidatedData(undefined)).toBeUndefined();
+    expect(getValidatedData('string')).toBeUndefined();
+    expect(getValidatedData(123)).toBeUndefined();
+    expect(getValidatedData({})).toBeUndefined();
+
+    const legacy = { [ZOD_VALIDATED_DATA_KEY]: { parsed: 123 } };
+    expect(getValidatedData(legacy)).toEqual({ parsed: 123 });
+  });
+
+  it('handles non-enumerable symbols and null prototype in deepEqual and cloneData', () => {
+    const sym = Symbol('non-enumerable');
+    const obj1 = {};
+    Object.defineProperty(obj1, sym, { value: 1, enumerable: false });
+    const obj2 = {};
+    Object.defineProperty(obj2, sym, { value: 1, enumerable: false });
+    expect(deepEqual(obj1, obj2)).toBe(true);
+
+    const nullProto = Object.create(null);
+    nullProto.key = 'value';
+    const cloned = cloneData(nullProto);
+    expect(Object.getPrototypeOf(cloned)).toBeNull();
+    expect(deepEqual(nullProto, cloned)).toBe(true);
+  });
+
+  it('returns false when cyclic graph asymmetry occurs during deep comparison', () => {
+    const cyclicB: Record<string, unknown> = {};
+    cyclicB.ref = cyclicB;
+    const acyclicA = { ref: { ref: 'other' } };
+    expect(deepEqual(acyclicA, cyclicB)).toBe(false);
   });
 });

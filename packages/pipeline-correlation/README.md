@@ -134,26 +134,27 @@ async handle(@Payload() data: any, @Ctx() ctx: KafkaContext) { }
 | `correlationHeaders(key?)` | `(key?: string) => Record<string, string>` | Return a headers object for header-based transports |
 | `@WithCorrelation(opts?)` | Decorator | Restore correlation context on non-HTTP entry points |
 | `CorrelationFrom` | Object | Pre-built extractors: `.amqp()`, `.kafka()`, `.nats()`, `.grpc()` |
-| `HttpCorrelationMiddleware` | NestJS Middleware | Extracts/generates correlation ID from HTTP `x-correlation-id` header |
+| `correlationPipelineOptions()` | `() => { correlationIdFactory, correlationIdRunner }` | Core pipeline options that keep the pipeline context and the correlation store on one ID |
+| `HttpCorrelationMiddleware` | NestJS Middleware | Extracts/generates correlation ID from HTTP `x-correlation-id` header; accepts an incoming ID of at most 128 characters matching `DEFAULT_CORRELATION_ID_PATTERN` unless `CORRELATION_OPTIONS` overrides `maxLength`/`validateIncoming` |
+| `DEFAULT_CORRELATION_ID_MAX_LENGTH`, `DEFAULT_CORRELATION_ID_PATTERN` | Constants | Default incoming-ID length limit and character set |
 | `uuidv7()` | `() => string` | Generate a timestamp-sortable UUID v7 (RFC 9562) |
 
 ### Pipeline integration
 
 The core module exposes two independent hooks. `correlationIdFactory` chooses the
 ID assigned to a new pipeline context; `correlationIdRunner` wraps execution in
-an external correlation context. Configure both to keep the pipeline context and
-this package's `AsyncLocalStorage` aligned:
+an external correlation context. `correlationPipelineOptions()` returns both,
+wired to this package, so the pipeline context and this package's
+`AsyncLocalStorage` hold the same ID. Configuring only the factory leaves them
+independent: outside an HTTP request or `runWithCorrelationId`, `getCorrelationId()`
+inside a handler would differ from `context.correlationId`.
 
 ```typescript
 import { PipelineModule } from '@nestjs-pipeline/core';
-import {
-  getCorrelationId,
-  runWithCorrelationId,
-} from '@nestjs-pipeline/correlation';
+import { correlationPipelineOptions } from '@nestjs-pipeline/correlation';
 
 PipelineModule.forRoot({
-  correlationIdFactory: getCorrelationId,
-  correlationIdRunner: runWithCorrelationId,
+  ...correlationPipelineOptions(),
 })
 ```
 

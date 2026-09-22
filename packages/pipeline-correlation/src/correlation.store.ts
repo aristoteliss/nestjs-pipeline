@@ -1,6 +1,7 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { AsyncLocalStorage } from 'node:async_hooks';
+import type { PipelineModuleOptions } from '@nestjs-pipeline/core';
 import { DEFAULT_CORRELATION_HEADER } from './constants/correlation.constants';
 import { uuidv7 } from './helpers/uuidv7';
 
@@ -258,4 +259,29 @@ export function correlationHeaders(
   key = DEFAULT_CORRELATION_HEADER,
 ): Record<string, string> {
   return { [key]: getCorrelationId() };
+}
+
+/**
+ * Core pipeline options that keep `context.correlationId` and
+ * {@link correlationStore} on the same ID: a new pipeline context takes the
+ * active correlation ID, and the chain runs inside a correlation context
+ * holding the pipeline's ID, so {@link getCorrelationId} inside a handler
+ * equals `context.correlationId`. Configuring only `correlationIdFactory`
+ * leaves the two stores independent outside an active correlation context.
+ *
+ * @example
+ * ```ts
+ * PipelineModule.forRoot({
+ *   ...correlationPipelineOptions(),
+ *   tenantIdFactory: () => tenantContext.schema,
+ * });
+ * ```
+ */
+export function correlationPipelineOptions(): Required<
+  Pick<PipelineModuleOptions, 'correlationIdFactory' | 'correlationIdRunner'>
+> {
+  return {
+    correlationIdFactory: getCorrelationId,
+    correlationIdRunner: runWithCorrelationId,
+  };
 }

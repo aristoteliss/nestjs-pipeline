@@ -5,7 +5,10 @@ import { getSessionUserFromStore } from '@common/context/session-user.store';
 import type { PrincipalType } from '@common/types/SessionUser';
 import { getCaslAbility, getCaslPrincipal } from '@nestjs-pipeline/casl';
 import { type IPipelineContext, stableStringify } from '@nestjs-pipeline/core';
-import { createPartitionedIdempotencyKeyFactory } from '@nestjs-pipeline/idempotency';
+import {
+  createPartitionedIdempotencyKeyFactory,
+  type IdempotencyKeyFactory,
+} from '@nestjs-pipeline/idempotency';
 import { requireTenantId } from './requireTenantId.helper';
 
 /**
@@ -82,29 +85,32 @@ export function requireTrustedPrincipal(
 }
 
 /**
- * Key factory for the stable identity of one client operation.
+ * Key factory for the client-chosen identity of one operation.
+ *
+ * `operationId` reads the `Idempotency-Key` the client sent: retries of one
+ * operation carry the same value and replay its result, a new operation carries
+ * a new value and runs. Without one the request is not deduplicated, and domain
+ * invariants (such as a unique email) answer a duplicate. A business identifier
+ * must not serve as the operation id: deleting and recreating that object would
+ * replay the deleted object's creation.
  *
  * Built on the package's partitioned key helper, which escapes every segment and
- * fails closed when the tenant, principal or operation is missing. The key is
- * `v1:<tenant>:<principalType>:<principalId>:<action>:<discriminator>` and carries
+ * fails closed when the tenant or principal is missing. The key is
+ * `v1:<tenant>:<principalType>:<principalId>:<action>:<operationId>` and carries
  * nothing about permissions — an operation key that changed when permissions
  * changed would let the same side effect run a second time. Bind replay to the
  * caller's authorization with {@link replayScopeDigest} instead.
- *
- * The discriminator is a business identifier such as an email or a role name, so
- * this key deduplicates *that business object* for the configured TTL rather
- * than a single client request. A client-supplied `Idempotency-Key` contract is
- * a separate API decision.
  */
 export function operationIdempotencyKeyFactory(
   action: string,
-  discriminator: (ctx: IPipelineContext) => string | undefined,
-): (ctx: IPipelineContext) => string {
+  operationId: (ctx: IPipelineContext) => string | undefined,
+): IdempotencyKeyFactory {
   return createPartitionedIdempotencyKeyFactory({
     version: OPERATION_KEY_VERSION,
     action,
     principal: trustedPrincipalSegments,
-    operation: discriminator,
+    operation: operationId,
+    onMissingOperation: 'skip',
   });
 }
 

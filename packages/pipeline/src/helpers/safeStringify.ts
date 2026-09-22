@@ -4,20 +4,30 @@
 export const REDACTED = '[REDACTED]';
 
 /**
- * Field names always masked before an audit record is stored. Matching is
- * case-insensitive; per-handler `redactKeys` are merged on top of these.
+ * Commonly sensitive field names. Redaction matches a key ignoring case, `_`
+ * and `-`, so `refreshToken` also masks `refresh_token` and `REFRESH-TOKEN`;
+ * a name list cannot recognize every secret, so add application-specific
+ * names through `redactKeys`.
  */
 export const DEFAULT_REDACT_KEYS: readonly string[] = [
   'password',
+  'passwordHash',
   'pass',
   'pwd',
   'token',
   'accessToken',
   'refreshToken',
+  'idToken',
+  'sessionToken',
   'secret',
+  'clientSecret',
+  'privateKey',
   'apiKey',
+  'xApiKey',
   'authorization',
+  'proxyAuthorization',
   'cookie',
+  'setCookie',
   'ssn',
   'creditCard',
   'cardNumber',
@@ -25,9 +35,9 @@ export const DEFAULT_REDACT_KEYS: readonly string[] = [
 ];
 
 export interface SanitizeOptions {
-  /** Keys or dot-paths to completely exclude from the output. */
+  /** Keys or dot-paths to completely exclude from the output (exact, case-sensitive match). */
   excludeKeys?: Set<string> | readonly string[];
-  /** Keys or dot-paths to mask with {@link REDACTED} (case-insensitive). */
+  /** Keys or dot-paths to mask with {@link REDACTED}, matched ignoring case, `_` and `-`. */
   redactKeys?: Set<string> | readonly string[];
   /** Replacement string for redacted fields. Default: {@link REDACTED}. */
   redactReplacement?: string;
@@ -60,12 +70,8 @@ function buildMatchers(
   let redactReplacement = REDACTED;
   let mode: 'json' | 'clone' = 'json';
 
-  if (options instanceof Set) {
-    for (const key of options) {
-      if (key.includes('.')) pathExclude.add(key);
-      else flatExclude.add(key);
-    }
-  } else if (options) {
+  if (options instanceof Set) options = { excludeKeys: options };
+  if (options) {
     if (options.mode) mode = options.mode;
     if (options.redactReplacement)
       redactReplacement = options.redactReplacement;
@@ -78,9 +84,9 @@ function buildMatchers(
     }
     if (options.redactKeys) {
       for (const key of options.redactKeys) {
-        const lower = key.toLowerCase();
-        if (lower.includes('.')) pathRedact.add(lower);
-        else flatRedact.add(lower);
+        const normalized = normalizeRedactKey(key);
+        if (normalized.includes('.')) pathRedact.add(normalized);
+        else flatRedact.add(normalized);
       }
     }
   }
@@ -95,15 +101,18 @@ function buildMatchers(
   };
 }
 
+function normalizeRedactKey(key: string): string {
+  return key.toLowerCase().replace(/[_-]/g, '');
+}
+
 function isRedacted(
   key: string,
   path: string,
   matchers: SanitizerMatchers,
 ): boolean {
-  const lowerKey = key.toLowerCase();
-  const lowerPath = path.toLowerCase();
   return (
-    matchers.flatRedact.has(lowerKey) || matchers.pathRedact.has(lowerPath)
+    matchers.flatRedact.has(normalizeRedactKey(key)) ||
+    matchers.pathRedact.has(normalizeRedactKey(path))
   );
 }
 
@@ -165,19 +174,7 @@ function sanitizeValue(
         const clone = new Error(val.message);
         clone.name = val.name;
         clone.stack = val.stack;
-        for (const [key, propVal] of Object.entries(val)) {
-          const currentPath = path ? `${path}.${key}` : key;
-          const propValue = isRedacted(key, currentPath, matchers)
-            ? matchers.redactReplacement
-            : sanitizeValue(propVal, currentPath, matchers, ancestors);
-          Object.defineProperty(clone, key, {
-            value: propValue,
-            writable: true,
-            enumerable: true,
-            configurable: true,
-          });
-        }
-        copySymbolProperties(val, clone, path, matchers, ancestors);
+        copyProperties(val, clone, path, matchers, ancestors);
         return clone;
       }
       return { name: val.name, message: val.message, stack: val.stack };
@@ -217,6 +214,7 @@ function sanitizeValue(
         for (const [k, v] of val) {
           const keyStr = typeof k === 'string' ? k : '';
           const currentPath = path && keyStr ? `${path}.${keyStr}` : keyStr;
+          if (keyStr && isExcluded(keyStr, currentPath, matchers)) continue;
           const isRedact = keyStr
             ? isRedacted(keyStr, currentPath, matchers)
             : false;
@@ -253,32 +251,7 @@ function sanitizeValue(
     const out: Record<string, unknown> =
       matchers.mode === 'json' ? Object.create(null) : {};
 
-    for (const [k, v] of Object.entries(val as Record<string, unknown>)) {
-      const currentPath = path ? `${path}.${k}` : k;
-
-      if (isExcluded(k, currentPath, matchers)) {
-        continue;
-      }
-
-      const valOut = isRedacted(k, currentPath, matchers)
-        ? matchers.redactReplacement
-        : sanitizeValue(v, currentPath, matchers, ancestors);
-
-      if (matchers.mode === 'clone') {
-        Object.defineProperty(out, k, {
-          value: valOut,
-          writable: true,
-          enumerable: true,
-          configurable: true,
-        });
-      } else {
-        out[k] = valOut;
-      }
-    }
-
-    if (matchers.mode === 'clone') {
-      copySymbolProperties(val, out, path, matchers, ancestors);
-    }
+    copyProperties(val, out, path, matchers, ancestors);
 
     return out;
   } finally {
@@ -286,13 +259,33 @@ function sanitizeValue(
   }
 }
 
-function copySymbolProperties(
+function copyProperties(
   source: object,
   target: object,
   path: string,
   matchers: SanitizerMatchers,
   ancestors: WeakSet<object>,
 ): void {
+  for (const [k, v] of Object.entries(source)) {
+    const currentPath = path ? `${path}.${k}` : k;
+
+    if (isExcluded(k, currentPath, matchers)) {
+      continue;
+    }
+
+    const valOut = isRedacted(k, currentPath, matchers)
+      ? matchers.redactReplacement
+      : sanitizeValue(v, currentPath, matchers, ancestors);
+
+    Object.defineProperty(target, k, {
+      value: valOut,
+      writable: true,
+      enumerable: true,
+      configurable: true,
+    });
+  }
+
+  if (matchers.mode !== 'clone') return;
   for (const sym of Object.getOwnPropertySymbols(source)) {
     const descriptor = Object.getOwnPropertyDescriptor(source, sym);
     if (!descriptor?.enumerable) continue;

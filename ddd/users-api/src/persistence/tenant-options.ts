@@ -1,6 +1,6 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import { BadRequestException } from '@nestjs/common';
+import { InvalidTenantSchemaError } from './tenant-schema.errors';
 
 export const DEFAULT_TENANT_SCHEMA = 'tenant';
 const SCHEMA_NAME_REGEX = /^[a-zA-Z_][a-zA-Z0-9_]*$/;
@@ -16,7 +16,7 @@ export function normalizeSchemaName(value?: string | null): string {
   if (!candidate) return DEFAULT_TENANT_SCHEMA;
 
   if (!SCHEMA_NAME_REGEX.test(candidate)) {
-    throw new BadRequestException(`Invalid schema name: ${candidate}`);
+    throw new InvalidTenantSchemaError(candidate);
   }
 
   return candidate;

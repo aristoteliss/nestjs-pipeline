@@ -34,7 +34,8 @@ interceptors, context, environment).
 | File | Role |
 | --- | --- |
 | `src/main.ts` | Loads the optional env file before any environment-dependent import |
-| `src/bootstrap.ts` | Adapter choice, secure session, global exception filters |
+| `src/bootstrap.ts` | Adapter choice, secure session, global exception filters, signal-driven shutdown |
+| `src/graceful-shutdown.ts` | SIGTERM/SIGINT → `app.close()` → telemetry flush → re-raise the signal |
 | `src/app.module.ts` | Composition root: CQRS, observability, reliability, CASL, persistence, features |
 | `src/common/filters/domain-exception.filter.ts` | Framework-neutral errors → HTTP (409 for `ConcurrencyConflictError`, 404 for `EntityNotFoundException`) |
 | `src/persistence/mikro-orm-write-side.command-repository.ts` | Authoritative aggregate loading for mutations (`{ refresh: true }`) |

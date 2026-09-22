@@ -331,6 +331,7 @@ The chain becomes `Logging → ZodValidation → DeadLetterBehavior → Resilien
 | `DEFAULT_REDACT_KEYS` | Constant | Default list of sensitive keys masked with `[REDACTED]` |
 | `DEAD_LETTER_TRANSPORT` / `DEAD_LETTER_DEFAULT_OPTIONS` | Token | Injection tokens |
 | `DEAD_LETTER_ITEM` | Symbol | `context.items` exported unique Symbol key set after the capture attempt |
+| `DEAD_LETTER_ITEM_TOKEN` | `PipelineItemToken<boolean>` | Typed token over the same key, for `getPipelineItem` |
 
 
 ---

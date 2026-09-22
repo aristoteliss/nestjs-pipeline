@@ -39,7 +39,7 @@ This package provides the foundational building blocks for implementing a Clean 
 - **`deepCloneAndFreeze<T>()`** — Deeply clones and recursively freezes any value (objects, arrays, `Date` with mutation guards, `Map`, `Set`, `RegExp`), safely handling circular references via a `WeakMap`.
 - **`CommandBaseHandler<TCommand, TResult>`** — Abstract base handler for CQRS commands. Calls `handle()`, then publishes and clears buffered domain events from a returned `AggregateRoot` or result containing `aggregate: AggregateRoot`. Pipeline behaviors are applied by the pipeline integration; event publication is owned by `execute()`.
 - **`@Mutable(options?)`** — Property decorator declaring an aggregate field as mutable via patch mutations, with optional backing property name and value normalizer.
-- **`@ApplyMutation<TEntity>(options)`** — Method decorator coordinating aggregate state mutation and domain event application: receives a `MutationPatch`, updates `@Mutable` fields, invokes `onUpdate()` (advancing `version` and `updatedAt`), and constructs domain events (`options.event(entity)`) from the post-mutation snapshot. Pre-application checks (key validation, normalizers, callable lifecycle methods) fail safely before state modification; unexpected post-application failures propagate without automated rollback. The legacy `@Mutate()` decorator is completely removed in favor of `@ApplyMutation` to guarantee deterministic event ordering and payload consistency.
+- **`@ApplyMutation<TEntity>(options)`** — Completes a successful domain mutation by invoking `onUpdate()` (advancing `version` and `updatedAt`) and recording events from the resulting state. Methods return `this` (or `Promise<this>`); the decorator preserves that result. Call protected `applyPatch(...)` to validate and normalize all supplied `@Mutable` fields before writing them. Undefined values are ignored. Complete business validation before applying a patch: failures after field writes, including later method code, lifecycle hooks or event creation/application, do not roll back state; discard or reload the instance. A method that throws or rejects does not run the completion lifecycle.
 - **`UnixTimestampType`** — Custom MikroORM `Type<Date, number>` mapping JavaScript `Date` instances to Unix timestamps (ms) in 64-bit `bigint` SQL database columns (`platform.getBigIntTypeDeclarationSQL()`) to eliminate integer overflow.
 - **`Method`** — Utility type for extracting method signatures.
 
@@ -56,20 +56,22 @@ This package provides the foundational building blocks for implementing a Clean 
 - **`createCacheMutationBarrier(reason, entity?)`** / **`isCacheMutationBarrier(value)`** — Helper factory and type guard for mutation barriers.
 - **`CommandRepository<TEntity, TResult, TCache>`** — Abstract base for write repositories. Injects an `ICache` instance; concrete classes implement `save(entity: TEntity)`.
 - **`QueryRepository<TQuery, TResult>`** — Abstract base for read repositories. Injects an `ICache` instance and an optional `QueryRepositoryHydration` policy (`{ hydrateFn, serializeFn? }`) that `@FromCache` applies to methods declaring neither; concrete classes implement `find(query)`.
+- **Cache ownership contract** — `@Cache` and `@FromCache` read the repository's `cache` property (and `@FromCache` its `hydration`). Both bases declare them. A repository whose `cache` is unset is intentionally uncached: writes and reads pass through without cache work. A decorated repository with no `cache` property at all is miswired; it also passes through, and a warning is logged once per repository class. A `save()` that resolves `null` or `undefined` is treated as a deletion and evicts `deleteKeys`.
 - **`@Cache()`** — Method decorator for `save()` in command repositories:
   - **CAS-Safe Write-Through**: Automatically converts the returned result to a snapshot via `toCacheSnapshot()` and writes to cache using `isCacheNewer` CAS comparator to prevent late-finishing writes from overwriting newer cache entries.
   - **Anti-Resurrection Eviction**: Installs a `CacheMutationBarrier` sentinel with the configured `barrierTtl` for keys derived by `deleteKeys` when `save()` yields `null` or `undefined` (e.g. on entity deletion).
   - **Secondary Invalidation**: Installs a `CacheMutationBarrier` sentinel with the configured `barrierTtl` for auxiliary keys derived by `invalidateKeys` on successful writes before setting new values.
   - **Best-Effort**: Cache write/delete errors are caught and swallowed so a committed database transaction is never converted into an application error.
 - **`@FromCache()`** — Method decorator for `find()` in query repositories:
-  - **Read-Through**: Checks the cache first via `keyFn`; on a cache hit returns the cached value, rehydrated into a domain entity when the method sets `alwaysHydrate: true` (or the query sets `hydrate`) with a `hydrateFn`, or when the repository declares a hydration policy.
-  - **Hydration Precedence**: A method that declares `hydrateFn` (including `null`, which opts out) uses its own hydration and `alwaysHydrate`; otherwise the repository's `hydrateFn` rehydrates every hit. `serializeFn` follows the same rule.
+  - **Read-Through**: Checks the cache first via `keyFn`; every hit is rehydrated whenever a hydrator applies, so hits and misses return the same type regardless of `query.hydrate`.
+  - **Hydration Precedence**: A method that declares `hydrateFn` (including `null`, which opts out) uses its own; otherwise the repository's `hydrateFn` applies. `serializeFn` follows the same rule.
+  - **No Hydrator, Plain Data Only**: Without a hydrator a hit returns the cached data as is, so only plain-data results (primitives, arrays, plain objects) are cached. A class instance, or a result reshaped by `serializeFn`, is returned uncached and reported once.
   - **Revision-Fenced Fills**: Requires an adapter implementing `IVersionedCache`. The decorator observes the key's opaque revision before the database read and fills with `tryFill(key, observedRevision, snapshot)`, which commits only if nothing — an invalidation, a delete, a newer write — has advanced the revision in between. A stale snapshot therefore cannot overwrite a deletion barrier. A rejected fill re-reads the key, returns a strictly newer snapshot when one is present, and otherwise retries a bounded number of times before returning the database result uncached.
   - **Unversioned Adapters Are Bypassed**: An adapter exposing only `get`/`set`/`delete` cannot fence a fill against concurrent invalidation, so `@FromCache` uses neither side of it: no read, no fill, the query goes to the database. Reads are bypassed too because serving entries while skipping fills would still return values written before a mutation. The decorator logs this once per adapter instance. Implement `IVersionedCache` to enable caching; `MemoryCache` and the sample's `MikroOrmCache` both do.
   - **Barriers and Nulls Are Misses**: A `CacheMutationBarrier` or a stored `null` is never hydrated — neither is a snapshot this decorator would have written.
-  - **Enforceable Invariants**: Validates at decoration time that `alwaysHydrate: true` requires a `hydrateFn`, throwing `TypeError` immediately if omitted.
+  - **Enforceable Invariants**: Validates at decoration time that `alwaysHydrate: true` requires a `hydrateFn`, throwing `TypeError` immediately if omitted. The flag does not otherwise change results.
   - **Snapshot Storage Contract**: Stores strictly detached, serializable snapshots (`TSnapshot`), extracting them on cache miss via custom `serializeFn` or `toCacheSnapshot()`. Never caches live aggregate instances.
-  - **Strong Consistency on Concurrent Writes**: If a concurrent command writes and caches a newer snapshot during an in-flight DB fetch, `@FromCache` compares snapshots (`newerCheck(current, snapshot)`) and returns the fresher cached snapshot (rehydrated if requested) rather than stale DB data or overwriting cache.
+  - **Strong Consistency on Concurrent Writes**: If a concurrent command writes and caches a newer snapshot during an in-flight DB fetch, `@FromCache` compares snapshots (`newerCheck(current, snapshot)`) and returns the fresher cached snapshot (rehydrated when a hydrator applies) rather than stale DB data or overwriting cache.
   - **Bounded Negative Cache**: Stores **only non-nullish** results to prevent negative caching of uncreated records.
   - **Fail-Closed**: Cache errors propagate to enforce strong consistency at the query boundary.
 - **`@PersistedWrite(options)`** — Composite method decorator for `save(aggregate)`: applies `@Cache(options.cache)` → `@AcknowledgePersisted` → `@MapPersistenceErrors({ unique, otherwise })` in canonical order with the first argument as the entity. `cache` is optional. Use the individual decorators for other signatures, for deletes (which do not acknowledge), or for caller-owned ordering; `biome/plugins/persistence-lifecycle.grit` rejects combining both forms on one method.
@@ -106,7 +108,6 @@ import {
   ApplyMutation,
   DomainException,
   Mutable,
-  type MutationPatch,
   RootEntity,
   type RootEntitySnapshot,
 } from '@nestjs-pipeline/ddd-core/domain';
@@ -182,12 +183,8 @@ export class User extends RootEntity<UserSnapshot> {
   }
 
   @ApplyMutation<User>({ event: (user) => new UserRenamedEvent(user) })
-  protected applyRename(newUsername: string): MutationPatch<User> {
-    return { username: newUsername };
-  }
-
   rename(newUsername: string): this {
-    this.applyRename(newUsername);
+    this.applyPatch({ username: newUsername });
     return this;
   }
 

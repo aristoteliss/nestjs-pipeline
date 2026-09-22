@@ -35,14 +35,18 @@ interface MemoryCacheEntry<T> {
  * with database/network caches via JSON cloning on both `set()` and `get()`.
  *
  * Implements revision-fenced coordination:
- * - Maintains monotonic revisions per key across writes and invalidations.
+ * - Every write and invalidation takes the next value of one cache-wide counter.
  * - Retains coordination metadata on payload expiry to prevent ABA stale fills.
- * - Bounds active payload capacity separately from coordination metadata.
+ * - An absent key reports the absence revision, which advances to the counter
+ *   whenever an entry is evicted or the cache is cleared, so dropping a key's
+ *   metadata never returns it to a revision a reader observed before the drop.
  */
 export class MemoryCache<T> implements IVersionedCache<T> {
   readonly isVersioned = true as const;
 
   private store: Map<string, MemoryCacheEntry<T>> = new Map();
+  private lastRevision = 0n;
+  private absentRevision = 0n;
   private readonly defaultTtlMs: number;
   private readonly maxEntries: number;
 
@@ -54,11 +58,19 @@ export class MemoryCache<T> implements IVersionedCache<T> {
     this.maxEntries = options?.maxEntries ?? DEFAULT_MAX_ENTRIES;
   }
 
+  private nextRevision(): bigint {
+    this.lastRevision += 1n;
+    return this.lastRevision;
+  }
+
   /**
    * Drops expired entries, then the oldest surviving ones until the store fits.
    */
   private evict(): void {
     if (this.store.size <= this.maxEntries) return;
+
+    // 1. Invalidate every token observed before the drop, including absences
+    this.absentRevision = this.lastRevision;
 
     const now = Date.now();
     for (const [key, entry] of this.store) {
@@ -79,7 +91,7 @@ export class MemoryCache<T> implements IVersionedCache<T> {
   async readState(key: string): Promise<CacheStateEntry<T>> {
     const entry = this.store.get(key);
     if (!entry) {
-      return { status: 'miss', revision: '0' };
+      return { status: 'miss', revision: this.absentRevision.toString() };
     }
 
     if (entry.hasValue) {
@@ -101,21 +113,18 @@ export class MemoryCache<T> implements IVersionedCache<T> {
    */
   async invalidate(key: string): Promise<string> {
     const existing = this.store.get(key);
+    const revision = this.nextRevision();
     if (existing) {
-      existing.revision += 1n;
+      existing.revision = revision;
       existing.hasValue = false;
       existing.value = undefined;
       existing.expiresAt = undefined;
-      return existing.revision.toString();
+      return revision.toString();
     }
 
-    const initialRevision = 1n;
-    this.store.set(key, {
-      revision: initialRevision,
-      hasValue: false,
-    });
+    this.store.set(key, { revision, hasValue: false });
     this.evict();
-    return initialRevision.toString();
+    return revision.toString();
   }
 
   /**
@@ -129,31 +138,15 @@ export class MemoryCache<T> implements IVersionedCache<T> {
     options?: CacheFillOptions,
   ): Promise<boolean> {
     const existing = this.store.get(key);
-    const currentRevision = existing ? existing.revision.toString() : '0';
+    const currentRevision = (
+      existing ? existing.revision : this.absentRevision
+    ).toString();
 
     if (currentRevision !== observedRevision) {
       return false;
     }
 
-    const ttl = options?.ttl ?? this.defaultTtlMs;
-    const expiresAt = ttl > 0 ? Date.now() + ttl : undefined;
-    const nextRevision = (existing ? existing.revision : 0n) + 1n;
-
-    if (existing) {
-      existing.revision = nextRevision;
-      existing.value = detach(value);
-      existing.expiresAt = expiresAt;
-      existing.hasValue = true;
-    } else {
-      this.store.set(key, {
-        revision: nextRevision,
-        value: detach(value),
-        expiresAt,
-        hasValue: true,
-      });
-    }
-
-    this.evict();
+    this.write(key, value, options, existing);
     return true;
   }
 
@@ -177,9 +170,18 @@ export class MemoryCache<T> implements IVersionedCache<T> {
       }
     }
 
+    this.write(key, value, options, existing);
+  }
+
+  private write(
+    key: string,
+    value: T,
+    options: CacheFillOptions | undefined,
+    existing: MemoryCacheEntry<T> | undefined,
+  ): void {
     const ttl = options?.ttl ?? this.defaultTtlMs;
     const expiresAt = ttl > 0 ? Date.now() + ttl : undefined;
-    const nextRevision = (existing ? existing.revision : 0n) + 1n;
+    const nextRevision = this.nextRevision();
 
     if (existing) {
       existing.revision = nextRevision;
@@ -221,9 +223,11 @@ export class MemoryCache<T> implements IVersionedCache<T> {
   }
 
   /**
-   * Purges all keys from the in-memory cache.
+   * Purges all keys from the in-memory cache. Every revision observed before
+   * the purge, including an observed absence, is rejected by a later `tryFill`.
    */
   async clear(): Promise<void> {
+    this.absentRevision = this.nextRevision();
     this.store.clear();
   }
 

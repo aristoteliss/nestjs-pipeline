@@ -434,4 +434,109 @@ describe('capability codec', () => {
       ).toThrow('Capability conditions must be a JSON object.');
     });
   });
+
+  describe('normalizeCapability', () => {
+    it('parses capability strings', () => {
+      expect(normalizeCapability('Post|read|*')).toEqual({
+        subject: 'Post',
+        action: 'read',
+      });
+    });
+
+    it('passes through valid capability objects', () => {
+      const cap: Capability = {
+        subject: 'Post',
+        action: 'read',
+        conditions: { authorId: '123' },
+        fields: ['title', 'body'],
+        inverted: true,
+        reason: 'hidden',
+      };
+      expect(normalizeCapability(cap)).toEqual(cap);
+    });
+
+    it('rejects non-plain objects or non-strings', () => {
+      expect(() => normalizeCapability(null as never)).toThrow(
+        'Capability must be an object or compact string.',
+      );
+      expect(() => normalizeCapability(123 as never)).toThrow(
+        'Capability must be an object or compact string.',
+      );
+      expect(() => normalizeCapability([] as never)).toThrow(
+        'Capability must be an object or compact string.',
+      );
+    });
+
+    it('rejects invalid or empty subject', () => {
+      expect(() =>
+        normalizeCapability({ subject: '', action: 'read' }),
+      ).toThrow('Capability subject must be a non-empty string.');
+      expect(() =>
+        normalizeCapability({ subject: 123 as never, action: 'read' }),
+      ).toThrow('Capability subject must be a non-empty string.');
+    });
+
+    it('rejects invalid or empty action', () => {
+      expect(() =>
+        normalizeCapability({ subject: 'Post', action: '' }),
+      ).toThrow('Capability action must be a non-empty string.');
+      expect(() =>
+        normalizeCapability({ subject: 'Post', action: 123 as never }),
+      ).toThrow('Capability action must be a non-empty string.');
+    });
+
+    it('rejects invalid conditions', () => {
+      expect(() =>
+        normalizeCapability({
+          subject: 'Post',
+          action: 'read',
+          conditions: 'invalid' as never,
+        }),
+      ).toThrow('Capability conditions must be a JSON object.');
+      expect(() =>
+        normalizeCapability({
+          subject: 'Post',
+          action: 'read',
+          conditions: [] as never,
+        }),
+      ).toThrow('Capability conditions must be a JSON object.');
+    });
+
+    it('rejects invalid fields', () => {
+      expect(() =>
+        normalizeCapability({
+          subject: 'Post',
+          action: 'read',
+          fields: 'title' as never,
+        }),
+      ).toThrow('Capability fields must be an array of strings.');
+      expect(() =>
+        normalizeCapability({
+          subject: 'Post',
+          action: 'read',
+          fields: [123 as never],
+        }),
+      ).toThrow('Capability fields must be an array of strings.');
+    });
+
+    it('rejects invalid inverted', () => {
+      expect(() =>
+        normalizeCapability({
+          subject: 'Post',
+          action: 'read',
+          inverted: 'true' as never,
+        }),
+      ).toThrow('Capability inverted must be a boolean.');
+    });
+
+    it('rejects invalid reason', () => {
+      expect(() =>
+        normalizeCapability({
+          subject: 'Post',
+          action: 'read',
+          reason: 123 as never,
+        }),
+      ).toThrow('Capability reason must be a string.');
+    });
+  });
 });

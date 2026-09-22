@@ -59,14 +59,31 @@ function toGlobalConfigs(
   return Array.isArray(globalBehaviors) ? globalBehaviors : [globalBehaviors];
 }
 
-/** Behavior classes named by global configs and not already in `registered`. */
-function extractGlobalBehaviorTypes(
-  configs: GlobalBehaviorsOptions[],
-  registered: Type<IPipelineBehavior>[],
-): Type<IPipelineBehavior>[] {
-  return extractBehaviorTypes(
-    configs.flatMap((cfg) => [...(cfg.before ?? []), ...(cfg.after ?? [])]),
-  ).filter((type) => !registered.includes(type));
+/** Resolves provider registration shared by synchronous and asynchronous setup. */
+function resolveBehaviorRegistration(
+  options: Pick<
+    PipelineModuleAsyncOptions,
+    'behaviors' | 'globalBehaviors' | 'loggerProvider'
+  >,
+) {
+  if (
+    options.loggerProvider &&
+    options.loggerProvider.provide !== LOGGING_BEHAVIOR_LOGGER
+  ) {
+    throw new TypeError(
+      'loggerProvider must bind the LOGGING_BEHAVIOR_LOGGER token.',
+    );
+  }
+
+  const behaviors = extractBehaviorTypes(options.behaviors ?? []);
+  const globalConfigs = toGlobalConfigs(options.globalBehaviors);
+  const globalTypes = extractBehaviorTypes(
+    globalConfigs.flatMap((cfg) => [
+      ...(cfg.before ?? []),
+      ...(cfg.after ?? []),
+    ]),
+  ).filter((type) => !behaviors.includes(type));
+  return { behaviors: [...globalTypes, ...behaviors], globalConfigs };
 }
 
 /**
@@ -171,33 +188,17 @@ export class PipelineModule {
       ? { behaviors: optionsOrBehaviors }
       : optionsOrBehaviors;
 
-    if (
-      options.loggerProvider &&
-      options.loggerProvider.provide !== LOGGING_BEHAVIOR_LOGGER
-    ) {
-      throw new TypeError(
-        'loggerProvider must bind the LOGGING_BEHAVIOR_LOGGER token.',
-      );
-    }
-
-    const behaviors = extractBehaviorTypes(options.behaviors ?? []);
-
-    const globalBehaviorTypes = extractGlobalBehaviorTypes(
-      toGlobalConfigs(options.globalBehaviors),
-      behaviors,
-    );
+    const { behaviors } = resolveBehaviorRegistration(options);
 
     return {
       module: PipelineModule,
       providers: [
         { provide: PIPELINE_MODULE_OPTIONS, useValue: options },
         PipelineBootstrapService,
-        ...globalBehaviorTypes,
         ...behaviors,
         ...(options.loggerProvider ? [options.loggerProvider] : []),
       ],
       exports: [
-        ...globalBehaviorTypes,
         ...behaviors,
         ...(options.loggerProvider ? [LOGGING_BEHAVIOR_LOGGER] : []),
       ],
@@ -237,24 +238,10 @@ export class PipelineModule {
    * ```
    */
   static forRootAsync(options: PipelineModuleAsyncOptions): DynamicModule {
-    if (
-      options.loggerProvider &&
-      options.loggerProvider.provide !== LOGGING_BEHAVIOR_LOGGER
-    ) {
-      throw new TypeError(
-        'loggerProvider must bind the LOGGING_BEHAVIOR_LOGGER token.',
-      );
-    }
-
-    const behaviors = extractBehaviorTypes(options.behaviors ?? []);
-    const staticGlobals = toGlobalConfigs(options.globalBehaviors);
-    const globalBehaviorTypes = extractGlobalBehaviorTypes(
-      staticGlobals,
-      behaviors,
-    );
+    const { behaviors, globalConfigs } = resolveBehaviorRegistration(options);
     const asyncProviders = PipelineModule.createAsyncProviders(
       options,
-      staticGlobals,
+      globalConfigs,
     );
 
     return {
@@ -264,13 +251,11 @@ export class PipelineModule {
       providers: [
         ...asyncProviders,
         PipelineBootstrapService,
-        ...globalBehaviorTypes,
         ...behaviors,
         ...(options.extraProviders ?? []),
         ...(options.loggerProvider ? [options.loggerProvider] : []),
       ],
       exports: [
-        ...globalBehaviorTypes,
         ...behaviors,
         ...(options.extraProviders
           ? options.extraProviders

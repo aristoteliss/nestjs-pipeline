@@ -69,6 +69,7 @@ describe('Create command idempotency composition', () => {
             new CreateUserCommand({
               username: 'Alice',
               email: 'alice@example.test',
+              idempotencyKey: 'op-1',
               ...(department === undefined ? {} : { department }),
             }),
             {
@@ -142,8 +143,8 @@ describe('Create command idempotency composition', () => {
     const controller = new UsersController(commandBus, queryBus);
     const dto = { name: 'Alice', email: 'alice@example.test' };
 
-    const first = await controller.createUser(dto);
-    const replay = await controller.createUser(dto);
+    const first = await controller.createUser(dto, 'op-1');
+    const replay = await controller.createUser(dto, 'op-1');
 
     const created = save.mock.calls[0][0];
     expect(save).toHaveBeenCalledTimes(1);
@@ -157,6 +158,44 @@ describe('Create command idempotency composition', () => {
     expect(replay).toEqual(first);
   });
 
+  it('executes new operation IDs and requests without a key independently', async () => {
+    asAuthenticatedPrincipal();
+    const save = vi.fn(async (user: User) => user.toJSON());
+    const handler = new CreateUserHandler(
+      { save },
+      { authorize: vi.fn() } as unknown as CaslAuthorizer,
+      { publishAll: vi.fn() } as unknown as EventBus,
+    );
+    const behavior = new IdempotencyBehavior(new MemoryIdempotencyStore(), {
+      keyFactory: createUserIdempotencyKey,
+    });
+    const create = (idempotencyKey?: string) => {
+      const context = tenantContext(
+        new PipelineContext(
+          new CreateUserCommand({
+            username: 'Alice',
+            email: 'alice@example.test',
+            ...(idempotencyKey ? { idempotencyKey } : {}),
+          }),
+          {
+            handlerType: CreateUserHandler,
+            handlerName: 'CreateUserHandler',
+            requestKind: 'command',
+          },
+        ),
+      );
+      return behavior.handle(context, () => handler.execute(context.request));
+    };
+
+    const first = (await create('op-1')) as UserSnapshot;
+    const recreated = (await create('op-2')) as UserSnapshot;
+    await create();
+    await create();
+
+    expect(save).toHaveBeenCalledTimes(4);
+    expect(recreated.id).not.toBe(first.id);
+  });
+
   it('replays role creation without another write or event', async () => {
     asAuthenticatedPrincipal();
     const save = vi.fn(async (role: Role) => role.toJSON());
@@ -168,11 +207,14 @@ describe('Create command idempotency composition', () => {
     );
     const context = () =>
       tenantContext(
-        new PipelineContext(new CreateRoleCommand({ name: 'admin' }), {
-          handlerType: CreateRoleHandler,
-          handlerName: 'CreateRoleHandler',
-          requestKind: 'command',
-        }),
+        new PipelineContext(
+          new CreateRoleCommand({ name: 'admin', idempotencyKey: 'op-1' }),
+          {
+            handlerType: CreateRoleHandler,
+            handlerName: 'CreateRoleHandler',
+            requestKind: 'command',
+          },
+        ),
       );
     const store = new MemoryIdempotencyStore();
     const behavior = new IdempotencyBehavior(store, {

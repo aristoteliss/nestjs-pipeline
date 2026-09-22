@@ -78,4 +78,16 @@ describe('UnixTimestampType', () => {
     expect(type.convertToDatabaseValue(objVal as any)).toBe(d.getTime());
     expect(type.convertToJSValue(objVal as any)).toEqual(d);
   });
+
+  it('converts number directly in convertToDatabaseValue', () => {
+    const ts = 1787572800000;
+    expect(type.convertToDatabaseValue(ts)).toBe(ts);
+  });
+
+  it('converts ISO string in convertToJSValue', () => {
+    const iso = '2026-08-24T12:00:00.000Z';
+    const result = type.convertToJSValue(iso);
+    expect(result).toBeInstanceOf(Date);
+    expect(result.toISOString()).toBe(iso);
+  });
 });

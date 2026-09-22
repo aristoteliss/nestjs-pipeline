@@ -42,14 +42,19 @@ export type IdempotencyKeyFactory = (
  *
  * @example Tenant/principal-scoped command idempotency
  * ```ts
+ * // Fails closed when the tenant or principal is missing and escapes every
+ * // segment; never build a key with a template string.
+ * const createOrderKey = createPartitionedIdempotencyKeyFactory({
+ *   action: 'order.create',
+ *   principal: (ctx) => ['user', ctx.items.get(CURRENT_USER_ID) as string],
+ *   operation: (ctx) => (ctx.request as CreateOrderCommand).idempotencyKey,
+ * });
+ *
  * @UsePipeline([IdempotencyBehavior, {
- *   keyFactory: (ctx) => {
- *     const command = ctx.request as CreateUserCommand;
- *     return `${ctx.tenantId}:${command.sessionUser?.id}:user.create:${command.email}`;
- *   },
+ *   keyFactory: createOrderKey,
  *   ttl: 24 * 60 * 60 * 1000,
  * }])
- * export class CreateUserHandler {}
+ * export class CreateOrderHandler {}
  * ```
  */
 export interface IdempotencyBehaviorOptions {

@@ -140,6 +140,7 @@ describe('Cross-package behavior composition contracts', () => {
       const key = createPartitionedCacheKeyFactory({
         principal: () => 'alice',
         requireTenant: false,
+        requireScope: false,
       });
 
       const options = new Map<Type, unknown>([

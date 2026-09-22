@@ -197,6 +197,13 @@ without touching any handler.
 IdempotencyModule.forRoot(); // memory store, 24h default TTL
 ```
 
+The default store is created per application and its cleanup timer is stopped on
+application shutdown. A store passed as `store` (or built by `forRootAsync`)
+belongs to the caller, who calls `destroy()` on a `MemoryIdempotencyStore` it
+created. New claims are refused once `maxEntries` unexpired records exist, so
+monitor that error in production; deduplication is per process, so replicas
+need the Redis or Postgres store.
+
 Configurable options via `new MemoryIdempotencyStore(options)`:
 - `maxEntries` (`number`, default `10_000`): Maximum live entries stored before capacity enforcement.
 - `cleanupIntervalMs` (`number`, default `30_000`): Periodic timer interval for evicting expired entries.
@@ -534,6 +541,7 @@ Response body:
 
 - `IdempotencyBehavior` — the pipeline behavior.
 - `IDEMPOTENCY_KEY_ITEM`, `IDEMPOTENCY_REPLAYED_ITEM`, `IDEMPOTENCY_OWNERSHIP_LOST_ITEM` — exported unique `Symbol` context item keys.
+- `IDEMPOTENCY_KEY_ITEM_TOKEN`, `IDEMPOTENCY_REPLAYED_ITEM_TOKEN`, `IDEMPOTENCY_OWNERSHIP_LOST_ITEM_TOKEN` — typed tokens over the same keys, for `getPipelineItem` from `@nestjs-pipeline/core`.
 
 
 **Stores**

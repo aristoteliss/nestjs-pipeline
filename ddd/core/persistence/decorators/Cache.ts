@@ -7,6 +7,7 @@ import {
   type CacheBarrierReason,
   createCacheMutationBarrier,
 } from '../helpers/cache-barrier.helper';
+import { reportMissingCacheProperty } from '../helpers/cache-owner.helper';
 import { toCacheSnapshot } from '../helpers/cache-snapshot.helper';
 import { isCacheNewer } from '../helpers/cache-version.helper';
 
@@ -143,11 +144,10 @@ export function Cache<TEntity = unknown, TResult = unknown | null>(
     | ((cached: unknown, incoming: unknown) => boolean)
     | undefined = isCacheNewer;
 
-  if (typeof setKeyOrOptions === 'function') {
+  if (typeof setKeyOrOptions === 'function' || setKeyOrOptions === null) {
     resolvedSetKey = setKeyOrOptions;
     resolvedDeleteKeys = deleteKeysFn ?? null;
     resolvedInvalidateKeys = invalidateKeysFn ?? null;
-    resolvedIsNewer = isCacheNewer;
   } else if (setKeyOrOptions && typeof setKeyOrOptions === 'object') {
     resolvedSetKey = setKeyOrOptions.setKey ?? null;
     resolvedDeleteKeys = setKeyOrOptions.deleteKeys ?? null;
@@ -158,11 +158,6 @@ export function Cache<TEntity = unknown, TResult = unknown | null>(
       setKeyOrOptions.isNewer === null
         ? undefined
         : (setKeyOrOptions.isNewer ?? isCacheNewer);
-  } else if (setKeyOrOptions === null) {
-    resolvedSetKey = null;
-    resolvedDeleteKeys = deleteKeysFn ?? null;
-    resolvedInvalidateKeys = invalidateKeysFn ?? null;
-    resolvedIsNewer = isCacheNewer;
   } else {
     throw new Error(
       '@Cache decorator requires an explicit key derivation function or options object.',
@@ -211,6 +206,7 @@ export function Cache<TEntity = unknown, TResult = unknown | null>(
       const result = await original.call(this, entity);
 
       if (!this.cache) {
+        reportMissingCacheProperty(this, '@Cache');
         return result;
       }
 
@@ -218,60 +214,37 @@ export function Cache<TEntity = unknown, TResult = unknown | null>(
       // so a cache failure must not turn a success into an error (which
       // would cause idempotency release-on-error to drop the claim).
       try {
-        if (result === null || result === undefined) {
-          if (resolvedDeleteKeys) {
-            let deleteKeys: string[] = [];
-            try {
-              deleteKeys = resolvedDeleteKeys(entity) ?? [];
-            } catch (err) {
-              logger.warn(
-                `Failed resolving deleteKeys during cache eviction: ${err instanceof Error ? err.message : String(err)}`,
-              );
-            }
-            for (const key of deleteKeys) {
-              try {
-                await evictKey(
-                  this.cache,
-                  key,
-                  'deleted',
-                  entity,
-                  resolvedBarrierTtl,
-                );
-              } catch (err) {
-                logger.warn(
-                  `Failed evicting deletion key "${key}": ${err instanceof Error ? err.message : String(err)}`,
-                );
-              }
-            }
-          }
-          return result;
-        }
-
-        if (resolvedInvalidateKeys) {
-          let invalidateKeys: string[] = [];
+        const deleting = result === null || result === undefined;
+        const keysFn = deleting ? resolvedDeleteKeys : resolvedInvalidateKeys;
+        if (keysFn) {
+          let keys: string[] = [];
           try {
-            invalidateKeys = resolvedInvalidateKeys(entity) ?? [];
+            keys = keysFn(entity) ?? [];
           } catch (err) {
+            const keyOption = deleting ? 'deleteKeys' : 'invalidateKeys';
+            const operation = deleting ? 'cache eviction' : 'cache maintenance';
             logger.warn(
-              `Failed resolving invalidateKeys during cache maintenance: ${err instanceof Error ? err.message : String(err)}`,
+              `Failed resolving ${keyOption} during ${operation}: ${err instanceof Error ? err.message : String(err)}`,
             );
           }
-          for (const key of invalidateKeys) {
+          for (const key of keys) {
             try {
               await evictKey(
                 this.cache,
                 key,
-                'invalidated',
+                deleting ? 'deleted' : 'invalidated',
                 entity,
                 resolvedBarrierTtl,
               );
             } catch (err) {
+              const action = deleting ? 'evicting deletion' : 'invalidating';
               logger.warn(
-                `Failed invalidating key "${key}": ${err instanceof Error ? err.message : String(err)}`,
+                `Failed ${action} key "${key}": ${err instanceof Error ? err.message : String(err)}`,
               );
             }
           }
         }
+        if (deleting) return result;
 
         if (resolvedSetKey) {
           let setKey: string | undefined;
@@ -286,21 +259,23 @@ export function Cache<TEntity = unknown, TResult = unknown | null>(
             try {
               const snapshot = toCacheSnapshot(result);
 
-              if (
-                isVersionedCache(this.cache) &&
-                observedRevision !== undefined &&
-                setKey === observedKey
-              ) {
-                // Skip the write-through when the snapshot observed before
-                // persistence is already newer; otherwise commit it only if the
-                // revision still matches, so a concurrent mutation wins.
-                if (!resolvedIsNewer?.(observedValue, snapshot)) {
-                  await this.cache.tryFill(
-                    setKey,
-                    observedRevision,
-                    snapshot as never,
-                    { ttl: resolvedTtl },
-                  );
+              if (isVersionedCache(this.cache)) {
+                if (observedRevision !== undefined && setKey === observedKey) {
+                  // Skip the write-through when the snapshot observed before
+                  // persistence is already newer; otherwise commit it only if
+                  // the revision still matches, so a concurrent mutation wins.
+                  if (!resolvedIsNewer?.(observedValue, snapshot)) {
+                    await this.cache.tryFill(
+                      setKey,
+                      observedRevision,
+                      snapshot as never,
+                      { ttl: resolvedTtl },
+                    );
+                  }
+                } else {
+                  // No revision was observed for this key before the write, so
+                  // a fill cannot be fenced; drop the pre-write value instead.
+                  await this.cache.invalidate(setKey);
                 }
               } else {
                 await this.cache.set(setKey, snapshot, {

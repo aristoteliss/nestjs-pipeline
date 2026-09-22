@@ -149,9 +149,6 @@ export function projectPermittedFields(
   }
 
   const result: Record<string, unknown> = {};
-  if (ancestors.has(record)) {
-    throw new TypeError('Cannot project a cyclic authorization snapshot.');
-  }
   ancestors.add(record);
   try {
     for (const [key, value] of Object.entries(record)) {

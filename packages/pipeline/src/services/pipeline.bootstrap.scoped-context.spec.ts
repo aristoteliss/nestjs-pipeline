@@ -123,16 +123,14 @@ describe('PipelineBootstrapService with several applications', () => {
     }
   });
 
-  it('refuses to guess a chain when two applications share the prototype', async () => {
+  it('refuses to run an unowned instance when two applications share the prototype', async () => {
     const appA = bootstrapApp('app-a');
     const appB = bootstrapApp('app-b');
 
     try {
-      // Running unwrapped loses the pipeline for this call, which is recoverable
-      // and diagnosable. Silently applying the other application's chain is not.
       await expect(
         new SharedHandler().execute(new SharedCommand()),
-      ).resolves.toBe('no-pipeline');
+      ).rejects.toThrow('refused to run without its pipeline');
     } finally {
       appB.onModuleDestroy();
       appA.onModuleDestroy();

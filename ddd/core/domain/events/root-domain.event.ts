@@ -32,6 +32,23 @@ const MUTATING_DATE_METHODS = [
 const MUTATING_MAP_METHODS = ['set', 'delete', 'clear'] as const;
 const MUTATING_SET_METHODS = ['add', 'delete', 'clear'] as const;
 
+function freezeBuiltIn<T extends object>(
+  copy: T,
+  mutators: readonly string[],
+  name: string,
+): Readonly<T> {
+  for (const method of mutators) {
+    Object.defineProperty(copy, method, {
+      value: () => {
+        throw new TypeError(`Cannot mutate frozen ${name}`);
+      },
+      configurable: false,
+      writable: false,
+    });
+  }
+  return Object.freeze(copy);
+}
+
 /**
  * Deep clones and recursively freezes any value, object, array, Date, Set, Map, or RegExp.
  * Safely handles circular references via a WeakMap tracking visited objects.
@@ -57,16 +74,7 @@ export function deepCloneAndFreeze<T>(
 
   if (value instanceof Date) {
     const copy = new Date(value.getTime());
-    for (const method of MUTATING_DATE_METHODS) {
-      Object.defineProperty(copy, method, {
-        value: () => {
-          throw new TypeError('Cannot mutate frozen Date');
-        },
-        configurable: false,
-        writable: false,
-      });
-    }
-    return Object.freeze(copy) as unknown as T;
+    return freezeBuiltIn(copy, MUTATING_DATE_METHODS, 'Date') as unknown as T;
   }
 
   if (value instanceof RegExp) {
@@ -89,16 +97,7 @@ export function deepCloneAndFreeze<T>(
     for (const [k, v] of value.entries()) {
       copy.set(deepCloneAndFreeze(k, seen), deepCloneAndFreeze(v, seen));
     }
-    for (const method of MUTATING_MAP_METHODS) {
-      Object.defineProperty(copy, method, {
-        value: () => {
-          throw new TypeError('Cannot mutate frozen Map');
-        },
-        configurable: false,
-        writable: false,
-      });
-    }
-    return Object.freeze(copy) as unknown as T;
+    return freezeBuiltIn(copy, MUTATING_MAP_METHODS, 'Map') as unknown as T;
   }
 
   if (value instanceof Set) {
@@ -107,16 +106,7 @@ export function deepCloneAndFreeze<T>(
     for (const v of value.values()) {
       copy.add(deepCloneAndFreeze(v, seen));
     }
-    for (const method of MUTATING_SET_METHODS) {
-      Object.defineProperty(copy, method, {
-        value: () => {
-          throw new TypeError('Cannot mutate frozen Set');
-        },
-        configurable: false,
-        writable: false,
-      });
-    }
-    return Object.freeze(copy) as unknown as T;
+    return freezeBuiltIn(copy, MUTATING_SET_METHODS, 'Set') as unknown as T;
   }
 
   const proto = Object.getPrototypeOf(value);

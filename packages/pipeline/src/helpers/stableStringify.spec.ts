@@ -215,3 +215,15 @@ describe('stableStringify failure diagnostics', () => {
     );
   });
 });
+
+it('rejects an unsupported value without a constructor name', () => {
+  const value = new Map();
+  Object.defineProperty(value, 'constructor', { value: undefined });
+  expect(() => stableStringify(value)).toThrow(
+    expect.objectContaining({
+      cause: expect.objectContaining({
+        message: 'Object is outside the supported JSON domain.',
+      }),
+    }),
+  );
+});

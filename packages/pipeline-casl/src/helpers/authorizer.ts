@@ -44,7 +44,12 @@ export function getCaslPrincipal(
 export class CaslAuthorizer {
   constructor(private readonly ability?: AppAbility) {}
 
-  /** True when `action` is permitted on `subject` (and `field`, when given). */
+  /**
+   * True when `action` is permitted on `subject` (and `field`, when given).
+   * Field checks use CASL field matching, unlike {@link project}: a grant of
+   * `fields: ['profile']` does not permit `'profile.secret'`; grant
+   * `'profile.*'` or `'profile.**'` to cover nested fields.
+   */
   can(action: string, subject: object | string, field?: string): boolean {
     const ability = this.ability ?? getCaslAbility();
     if (!ability) return false;
@@ -56,7 +61,8 @@ export class CaslAuthorizer {
 
   /**
    * Throws `UnauthorizedActionException` unless `action` is permitted on
-   * `subject` and every listed field.
+   * `subject` and every listed field. Fields use CASL field matching, as in
+   * {@link can}.
    */
   authorize(
     action: string,

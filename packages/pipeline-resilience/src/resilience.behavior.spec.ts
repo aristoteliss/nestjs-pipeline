@@ -155,7 +155,9 @@ describe('ResilienceBehavior', () => {
 
     await expect(
       behavior.handle(
-        makeCtx({ timeout: { duration: 5, strategy: 'aggressive' } }),
+        makeCtx({
+          timeout: { duration: 5, strategy: 'aggressive', replaySafe: true },
+        }),
         next,
       ),
     ).rejects.toBeInstanceOf(TaskCancelledError);
@@ -355,7 +357,9 @@ describe('ResilienceBehavior', () => {
 
       await expect(
         behavior.handle(
-          makeCtx({ timeout: { duration: 5, strategy: 'aggressive' } }),
+          makeCtx({
+            timeout: { duration: 5, strategy: 'aggressive', replaySafe: true },
+          }),
           next,
         ),
       ).rejects.toBeInstanceOf(TaskCancelledError);
@@ -528,6 +532,34 @@ describe('ResilienceBehavior telemetry labels across request types', () => {
 
       expect(diagnostics).toHaveLength(2);
     });
+
+    it.each([
+      ['command', { duration: 100 }, 1],
+      ['event', { duration: 100, strategy: 'aggressive' }, 1],
+      ['command', { duration: 100, strategy: 'cooperative' }, 0],
+      ['command', { duration: 100, replaySafe: true }, 0],
+      ['query', { duration: 100 }, 0],
+    ] as const)(
+      'diagnoses an unacknowledged aggressive timeout on a %s handler (%o)',
+      (requestKind, timeout, expected) => {
+        const diagnostics = contract?.validate?.({
+          handlerType: class TestHandler {},
+          handlerName: 'TestHandler',
+          requestKind,
+          declarationSource: 'handler',
+          effectiveOptions: { timeout },
+          handlerOptions: { timeout },
+          globalOptions: undefined,
+          effectiveBehaviorTypes: [ResilienceBehavior],
+        });
+
+        expect(diagnostics ?? []).toHaveLength(expected);
+        if (expected) {
+          expect(diagnostics?.[0].message).toContain('aggressive timeout');
+          expect(diagnostics?.[0].fix).toContain("strategy: 'cooperative'");
+        }
+      },
+    );
 
     it('does not return diagnostic when query has proper error classification', () => {
       const diagnostics = contract?.validate?.({

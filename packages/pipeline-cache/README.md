@@ -99,6 +99,24 @@ import { CacheModule, CacheBehavior } from '@nestjs-pipeline/cache';
 export class AppModule {}
 ```
 
+The cache is built when the application instantiates its providers, once per
+application. To derive store settings from injected configuration, use
+`forRootAsync`:
+
+```ts
+CacheModule.forRootAsync({
+  inject: [ConfigService],
+  useFactory: (config: ConfigService) => ({
+    store: { type: 'redis', url: config.getOrThrow('REDIS_URL') },
+    ttl: 30_000,
+  }),
+});
+```
+
+A cache built from `store` (or the default memory store) is disconnected on
+application shutdown (`app.close()` or Nest shutdown hooks). A supplied `cache` or
+`stores` belongs to the caller, who closes it.
+
 ### 2. Attach the behavior
 
 The `behaviors` option above registers `CacheBehavior` with Nest DI; it does not execute it globally. Attach it per handler with `@UsePipeline`, or put it in `globalBehaviors` if you want it to run for a global scope.
@@ -243,6 +261,13 @@ that lookup directly. `CacheBehavior` does not use `cache-manager.wrap()` or
 background refresh because a refresh callback would re-run every behavior and
 side effect nested after the cache behavior.
 
+Cached results are JSON values. On a miss the behavior stores the JSON form of
+the handler result and returns that same form, so a miss and a later hit have
+the same shape: a `Date` is an ISO string and a class instance a plain object on
+both. Return plain JSON data (a snapshot or read model) from cached handlers. A
+result without a JSON form (a `bigint`, a cycle) is returned unchanged, not
+cached, and logged as a warning.
+
 ### Store errors
 
 Declaratively created stores use `throwOnErrors: true`. Pre-built `cache` and
@@ -254,7 +279,7 @@ it cannot detect backend errors they swallow.
 `cache-manager` or custom cache implementation. By default, `failOpen: true`:
 
 - a thrown cache read is logged, recorded as `cache.hit = false`, and bypasses
-  both the cache lookup and write for that execution;
+  the cache write for that execution; the handler result still uses the same JSON conversion as a normal miss;
 - a thrown cache write is logged and the successful handler result is returned.
 
 Set `failOpen: false` to log and propagate either store error. This strict mode
@@ -310,8 +335,14 @@ createPartitionedCacheKeyFactory({
   principal: () => 'public',
   requirePrincipal: false,
   requireTenant: false,
+  requireScope: false,
 });
 ```
+
+The permission scope is required by default: creating a factory without a
+`scope` resolver throws unless `requireScope: false` declares that responses do
+not depend on the caller's permissions, and a resolver that returns nothing
+throws `MissingCachePartitionError` at request time.
 
 The request payload is included as a SHA-256 digest, so secrets and search terms
 stay out of Redis key listings. The digest is built with `stableStringify`, which
@@ -346,7 +377,7 @@ The behavior records diagnostics on `context.items`:
 | `CACHE_HIT_ITEM` | `boolean` | Whether the request was served from cache. |
 | `CACHE_KEY_ITEM` | `string` | The resolved cache key. |
 
-Exported as unique `Symbol` constants (`CACHE_HIT_ITEM` and `CACHE_KEY_ITEM`) to prevent key collisions in `context.items`.
+Exported as unique `Symbol` constants (`CACHE_HIT_ITEM` and `CACHE_KEY_ITEM`) to prevent key collisions in `context.items`. `CACHE_HIT_ITEM_TOKEN` and `CACHE_KEY_ITEM_TOKEN` are typed tokens over the same keys for `getPipelineItem` / `requirePipelineItem` from `@nestjs-pipeline/core`.
 
 
 ---
@@ -404,7 +435,9 @@ Exported as unique `Symbol` constants (`CACHE_HIT_ITEM` and `CACHE_KEY_ITEM`) to
 
 ## Custom Logger
 
-`CacheBehavior` emits `debug` cache hit/miss lines and `warn`/`error` store-failure lines through the logger injected with `LOGGING_BEHAVIOR_LOGGER`, falling back to a standard NestJS `Logger` when that token is not bound. `CacheModule.forRoot` uses its own static NestJS `Logger` for the startup store-initialization message.
+Diagnostic logger failures do not replace handler results or cache-store errors.
+
+`CacheBehavior` emits `debug` cache hit/miss lines and `warn`/`error` store-failure lines through the logger injected with `LOGGING_BEHAVIOR_LOGGER`, falling back to a standard NestJS `Logger` when that token is not bound. `CacheModule` logs the store-initialization message through a NestJS `Logger` when the cache is built.
 
 ---
 
@@ -425,6 +458,7 @@ import {
   MissingCachePartitionError,
   stableStringify,
   type CacheModuleOptions,
+  type CacheModuleAsyncOptions,
   type CacheBehaviorOptions,
   type CacheIntentOptions,
   type CacheStoreConfig,

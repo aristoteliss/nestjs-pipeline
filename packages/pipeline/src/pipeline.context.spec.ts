@@ -218,12 +218,35 @@ describe('PipelineContext.getBehaviorOptions', () => {
     });
   });
 
-  it('clears tenantId when SET_TENANT_ID is called with undefined', () => {
+  it('rejects reassigning or clearing an assigned tenant', () => {
     const ctx = new PipelineContext(new FakeCommand('x'), buildMeta());
     ctx[SET_TENANT_ID]('initial-tenant');
-    expect(ctx.tenantId).toBe('initial-tenant');
+    ctx[SET_TENANT_ID]('initial-tenant');
 
-    ctx[SET_TENANT_ID](undefined);
-    expect(ctx.tenantId).toBeUndefined();
+    expect(() => ctx[SET_TENANT_ID]('other-tenant')).toThrow(
+      'tenantId is already assigned',
+    );
+    expect(() => ctx[SET_TENANT_ID](undefined)).toThrow(
+      'tenantId is already assigned',
+    );
+    expect(ctx.tenantId).toBe('initial-tenant');
+  });
+
+  it('rejects replacing a tenant inherited from the parent context', () => {
+    const parentCtx = new PipelineContext(
+      new FakeCommand('parent'),
+      buildMeta(),
+    );
+    parentCtx[SET_TENANT_ID]('tenant-parent');
+
+    pipelineStore.run(parentCtx, () => {
+      const childCtx = new PipelineContext(
+        new FakeCommand('child'),
+        buildMeta(),
+      );
+      expect(() => childCtx[SET_TENANT_ID]('tenant-other')).toThrow(
+        'tenantId is already assigned',
+      );
+    });
   });
 });

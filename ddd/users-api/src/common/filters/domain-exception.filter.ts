@@ -24,7 +24,6 @@ import {
   UniqueRoleNameException,
 } from '../../roles/domain/models/errors/role-name.exception';
 import {
-  EmptyUserUpdateException,
   InvalidDepartmentException,
   InvalidUsernameException,
   UniqueEmailException,
@@ -57,7 +56,7 @@ type HttpResponse = {
  * | {@link InvalidRoleNameException} | 422 Unprocessable Entity | Invalid role name |
  * | {@link InvalidUsernameException} | 422 Unprocessable Entity | Invalid username |
  * | {@link InvalidDepartmentException} | 422 Unprocessable Entity | Invalid department |
- * | {@link EmptyUserUpdateException} | 400 Bad Request | No mutable fields supplied |
+ * | `EmptyUserUpdateException` | 400 Bad Request | No mutable fields supplied |
  * | Unclassified {@link DomainException} | 400 Bad Request | Generic invariant failure |
  *
  * Application and persistence code must not throw Nest HTTP exceptions to obtain
@@ -156,10 +155,6 @@ export class DomainExceptionFilter implements ExceptionFilter {
           actualValue: exception.actualValue,
         },
       };
-    }
-
-    if (exception instanceof EmptyUserUpdateException) {
-      return { statusCode: HttpStatus.BAD_REQUEST, error: 'Bad Request' };
     }
 
     return { statusCode: HttpStatus.BAD_REQUEST, error: 'Bad Request' };

@@ -324,5 +324,84 @@ describe('RootEntity', () => {
       expect(entity.getExpectedVersion()).toBe(5);
       expect(entity.version).toBe(5);
     });
+
+    it('rejects null or undefined date with Error in setter', () => {
+      const entity = new TestEntity({ name: 'Alpha' });
+      expect(() => {
+        entity.createdAt = null as unknown as Date;
+      }).toThrow('Date is empty.');
+      expect(() => {
+        entity.createdAt = undefined as unknown as Date;
+      }).toThrow('Date is empty.');
+    });
+  });
+
+  describe('RootEntity.from edge cases', () => {
+    it('uses fallback class names when classes are anonymous or constructors lack names', () => {
+      const AnonClass = class extends RootEntity {
+        constructor(...args: any[]) {
+          super(...(args as [any]));
+        }
+        toJSON() {
+          return this.freezeState({
+            id: this.id,
+            createdAt: this.createdAt,
+            updatedAt: this.updatedAt,
+          });
+        }
+      };
+      Object.defineProperty(AnonClass, 'name', { value: '' });
+
+      const other = new OtherEntity();
+      Object.defineProperty(other, 'constructor', { value: { name: '' } });
+
+      expect(() => AnonClass.from(other as any)).toThrow(
+        'Cannot rehydrate entity: expected instance of TargetEntity, received incompatible aggregate RootEntity.',
+      );
+    });
+
+    it('returns candidate directly when this context is non-function and candidate is RootEntity', () => {
+      const entity = new TestEntity();
+      const nonFunctionContext = {
+        fromJSON: vi.fn(),
+      };
+      const result = RootEntity.from.call(nonFunctionContext, entity);
+      expect(result).toBe(entity);
+    });
+
+    it('throws when this context lacks fromJSON factory', () => {
+      expect(() =>
+        RootEntity.from.call({} as any, { id: uuidv7() } as any),
+      ).toThrow('Cannot rehydrate entity: missing fromJSON factory.');
+    });
+  });
+
+  describe('applyPatch validation', () => {
+    class PatchableEntity extends RootEntity {
+      invokeApplyPatch(patch: any) {
+        this.applyPatch(patch);
+      }
+      toJSON() {
+        return this.freezeState({
+          id: this.id,
+          createdAt: this.createdAt,
+          updatedAt: this.updatedAt,
+        });
+      }
+    }
+
+    it('returns early when patch is null or undefined', () => {
+      const entity = new PatchableEntity();
+      expect(() => entity.invokeApplyPatch(undefined)).not.toThrow();
+      expect(() => entity.invokeApplyPatch(null)).not.toThrow();
+    });
+
+    it('throws TypeError when patch is not an object', () => {
+      const entity = new PatchableEntity();
+      expect(() => entity.invokeApplyPatch('invalid-patch')).toThrow(TypeError);
+      expect(() => entity.invokeApplyPatch(123)).toThrow(
+        'applyPatch() requires a field patch object, or nothing.',
+      );
+    });
   });
 });

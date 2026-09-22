@@ -159,6 +159,74 @@ describe('pipeline bootstrap lifecycle in Nest', () => {
 });
 
 describe('pipeline scoped composition', () => {
+  it('preserves order and request identity in a mixed singleton and scoped chain', async () => {
+    const visits: { stage: string; instance: object }[] = [];
+    @Injectable({ scope: Scope.REQUEST })
+    class RequestState {}
+    @Injectable()
+    class OuterBehavior implements IPipelineBehavior {
+      async handle(_context: IPipelineContext, next: NextDelegate) {
+        visits.push({ stage: 'outer', instance: this });
+        return next();
+      }
+    }
+    @Injectable({ scope: Scope.REQUEST })
+    class ScopedBehavior implements IPipelineBehavior {
+      constructor(private readonly state: RequestState) {}
+      async handle(_context: IPipelineContext, next: NextDelegate) {
+        visits.push({ stage: 'scoped', instance: this.state });
+        return next();
+      }
+    }
+    @Injectable()
+    class InnerBehavior implements IPipelineBehavior {
+      async handle(_context: IPipelineContext, next: NextDelegate) {
+        visits.push({ stage: 'inner', instance: this });
+        return next();
+      }
+    }
+    class MixedCommand {}
+    @CommandHandler(MixedCommand, { scope: Scope.REQUEST })
+    @UsePipeline(OuterBehavior, ScopedBehavior, InnerBehavior)
+    class MixedHandler {
+      constructor(private readonly state: RequestState) {}
+      async execute() {
+        visits.push({ stage: 'handler', instance: this.state });
+        return 'done';
+      }
+    }
+    const app = await application([
+      RequestState,
+      OuterBehavior,
+      ScopedBehavior,
+      InnerBehavior,
+      MixedHandler,
+    ]);
+    try {
+      await app.init();
+      const bus = app.get(CommandBus);
+      await expect(bus.execute(new MixedCommand())).resolves.toBe('done');
+      await expect(bus.execute(new MixedCommand())).resolves.toBe('done');
+      expect(visits.map((visit) => visit.stage)).toEqual([
+        'outer',
+        'scoped',
+        'inner',
+        'handler',
+        'outer',
+        'scoped',
+        'inner',
+        'handler',
+      ]);
+      expect(visits[0].instance).toBe(visits[4].instance);
+      expect(visits[2].instance).toBe(visits[6].instance);
+      expect(visits[1].instance).toBe(visits[3].instance);
+      expect(visits[5].instance).toBe(visits[7].instance);
+      expect(visits[1].instance).not.toBe(visits[5].instance);
+    } finally {
+      await app.close();
+    }
+  });
+
   it('preserves the surviving application when another fails initialization', async () => {
     const live = await application([ParentHandler]);
     const failed = await application([ParentHandler, BrokenHandler]);

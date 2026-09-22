@@ -1,7 +1,9 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
+import { AUDIT_ACTIONS } from '@common/constants';
 import { Inject } from '@nestjs/common';
 import { CommandHandler, EventBus } from '@nestjs/cqrs';
+import { AUDIT_SEVERITY, audit } from '@nestjs-pipeline/audit';
 import { UsePipeline } from '@nestjs-pipeline/core';
 import { CommandBaseHandler } from '@nestjs-pipeline/ddd-core/application';
 import { deadLetter } from '@nestjs-pipeline/deadletter';
@@ -17,7 +19,14 @@ import { AuthSessionRevocationService } from '../../services/auth-session-revoca
 import { DeleteAuthCommand } from './delete-auth.command';
 
 @CommandHandler(DeleteAuthCommand)
-@UsePipeline(deadLetter({ redactKeys: ['refreshToken'] }))
+@UsePipeline(
+  deadLetter({ redactKeys: ['refreshToken'] }),
+  audit({
+    action: AUDIT_ACTIONS.AUTH_LOGOUT,
+    severity: AUDIT_SEVERITY.LOW,
+    redactKeys: ['refreshToken'],
+  }),
+)
 export class DeleteAuthHandler extends CommandBaseHandler<
   DeleteAuthCommand,
   Auth

@@ -29,7 +29,7 @@ entry points instead.
 | --- | --- |
 | `application/command-base.handler.ts` | Command lifecycle; publishes and clears buffered aggregate events |
 | `persistence/decorators/Cache.ts` | Write-through cache sync, CAS version compare, mutation barriers on delete/invalidate |
-| `persistence/decorators/FromCache.ts` | Read-through cache, `alwaysHydrate` + `hydrateFn`, pre/post barrier checks, bounded retries |
+| `persistence/decorators/FromCache.ts` | Read-through cache, every hit rehydrated when a hydrator applies, pre/post barrier checks, bounded retries |
 | `persistence/decorators/persisted-write.decorator.ts` | `@PersistedWrite`: the canonical three-decorator lifecycle for `save(aggregate)` |
 | `persistence/decorators/acknowledge-persisted.decorator.ts` | Advances the persisted version baseline only after a durable write |
 | `persistence/decorators/map-persistence-errors.decorator.ts` | Driver constraint errors → domain exceptions |

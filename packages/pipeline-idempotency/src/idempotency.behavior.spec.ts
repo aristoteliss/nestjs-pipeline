@@ -893,4 +893,116 @@ describe('IdempotencyBehavior', () => {
       expect(diagnostics?.[0].message).toContain('must be a callable function');
     });
   });
+
+  it('replays response when a second failed claim reveals a completed record', async () => {
+    const ctx = makeCtx();
+    const mockStore: IdempotencyStore = {
+      get: vi
+        .fn()
+        .mockResolvedValueOnce(undefined)
+        .mockResolvedValueOnce({
+          key: 'o1',
+          status: 'completed',
+          requestName: 'CreateOrderCommand',
+          claimId: 'other-claim',
+          fingerprint: fingerprintValue(ctx.request),
+          response: { id: 'order-123' },
+          createdAt: new Date().toISOString(),
+          completedAt: new Date().toISOString(),
+        }),
+      setIfAbsent: vi.fn().mockResolvedValue(false),
+      completeIfOwned: vi.fn(),
+      deleteIfOwned: vi.fn(),
+      set: vi.fn(),
+      delete: vi.fn(),
+    };
+    const behavior = new IdempotencyBehavior(mockStore);
+    const next = vi.fn();
+
+    const result = await behavior.handle(withOptions(ctx, byKey), next);
+    expect(result).toEqual({ id: 'order-123' });
+    expect(next).not.toHaveBeenCalled();
+  });
+
+  it('logs warning and does not suppress original error when release cleanup fails', async () => {
+    const logger = {
+      error: vi.fn(),
+      warn: vi.fn(),
+      log: vi.fn(),
+      debug: vi.fn(),
+    };
+    const mockStore: IdempotencyStore = {
+      get: vi.fn(),
+      setIfAbsent: vi.fn().mockResolvedValue(true),
+      completeIfOwned: vi.fn(),
+      deleteIfOwned: vi
+        .fn()
+        .mockRejectedValueOnce(new Error('store connection failed'))
+        .mockRejectedValueOnce('store string error'),
+      set: vi.fn(),
+      delete: vi.fn(),
+    };
+    const behavior = new IdempotencyBehavior(mockStore, {}, logger);
+    const boom = new Error('original handler error');
+
+    await expect(
+      behavior.handle(
+        withOptions(makeCtx(), byKey),
+        vi.fn().mockRejectedValue(boom),
+      ),
+    ).rejects.toBe(boom);
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining('store connection failed'),
+      IdempotencyBehavior.name,
+    );
+
+    await expect(
+      behavior.handle(
+        withOptions(makeCtx(), byKey),
+        vi.fn().mockRejectedValue(boom),
+      ),
+    ).rejects.toBe(boom);
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining('store string error'),
+      IdempotencyBehavior.name,
+    );
+  });
+
+  it('handles undefined options in resolveEffectiveOptions', () => {
+    const behavior = new IdempotencyBehavior(store, { ttl: 5000 });
+    expect(behavior.resolveEffectiveOptions(undefined)).toEqual({ ttl: 5000 });
+    expect(behavior.resolveEffectiveOptions()).toEqual({ ttl: 5000 });
+  });
+
+  it('handles non-Error thrown during store completion', async () => {
+    const logger = {
+      error: vi.fn(),
+      warn: vi.fn(),
+      log: vi.fn(),
+      debug: vi.fn(),
+    };
+    const mockStore: IdempotencyStore = {
+      get: vi.fn(),
+      setIfAbsent: vi.fn().mockResolvedValue(true),
+      completeIfOwned: vi
+        .fn()
+        .mockRejectedValueOnce('raw string completion error'),
+      deleteIfOwned: vi.fn(),
+      set: vi.fn(),
+      delete: vi.fn(),
+    };
+    const behavior = new IdempotencyBehavior(mockStore, {}, logger);
+
+    await expect(
+      behavior.handle(
+        withOptions(makeCtx(), byKey),
+        vi.fn().mockResolvedValue({ ok: true }),
+      ),
+    ).rejects.toBeInstanceOf(IdempotencyCompletionError);
+    expect(logger.error).toHaveBeenCalledWith(
+      expect.stringContaining('Idempotency completion persistence failed'),
+      undefined,
+      IdempotencyBehavior.name,
+    );
+  });
 });

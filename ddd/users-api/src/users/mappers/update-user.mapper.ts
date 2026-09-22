@@ -3,26 +3,22 @@
 import { createMapper } from '@common/mappers/create-mapper.helper';
 import { z } from 'zod';
 import { UpdateUserCommand } from '../cqrs/commands/update-user.command';
-import {
-  type UpdateUserDto,
-  UpdateUserDtoShape,
-} from '../dtos/update-user.dto';
+import type { UpdateUserDto } from '../dtos/update-user.dto';
 
 const base = createMapper(
   z
-    .object({ id: z.uuid() })
-    .extend(UpdateUserDtoShape)
-    .refine(
-      (value) => value.name !== undefined || value.department !== undefined,
-      { message: 'At least one mutable field must be supplied.' },
-    )
-    .transform(({ id, name, department }) => {
-      return new UpdateUserCommand({
-        id,
-        ...(name !== undefined ? { username: name } : {}),
-        ...(department !== undefined ? { department } : {}),
-      });
-    }),
+    .object({
+      id: z.string(),
+      name: z.string().optional(),
+      department: z.string().nullable().optional(),
+    })
+    .transform(({ id, name, department }) => ({
+      id,
+      ...(name !== undefined ? { username: name } : {}),
+      ...(department !== undefined ? { department } : {}),
+    }))
+    .pipe(UpdateUserCommand.schema)
+    .transform((payload) => new UpdateUserCommand(payload)),
 );
 
 export const UpdateUserMapper = {

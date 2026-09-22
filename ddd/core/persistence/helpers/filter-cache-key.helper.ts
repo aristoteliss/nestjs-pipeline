@@ -100,28 +100,23 @@ export function filterCacheKey(
 ): string {
   const schema = resolveTenantSchema(tenantOrContext);
 
-  let resource: string;
+  let resource: string | undefined;
   if (typeof resourceOrEntity === 'string') {
-    resource = resourceOrEntity.replace(/:+$/, '');
+    resource = resourceOrEntity;
   } else if (
     resourceOrEntity &&
     (typeof resourceOrEntity === 'object' ||
       typeof resourceOrEntity === 'function')
   ) {
-    if (resourceOrEntity.aggregateName) {
-      resource = resourceOrEntity.aggregateName.replace(/:+$/, '');
-    } else if (resourceOrEntity.prefixKey) {
-      resource = resourceOrEntity.prefixKey.replace(/:+$/, '');
-    } else {
-      throw new Error(
-        'Cannot resolve cache key prefix: resourceOrEntity must be a string or declare a static aggregateName or prefixKey.',
-      );
-    }
-  } else {
+    resource =
+      resourceOrEntity.aggregateName || resourceOrEntity.prefixKey || undefined;
+  }
+  if (resource === undefined) {
     throw new Error(
       'Cannot resolve cache key prefix: resourceOrEntity must be a string or declare a static aggregateName or prefixKey.',
     );
   }
+  resource = resource.replace(/:+$/, '');
 
   const normalizedFilter = normalizeFilterConditions(conditions);
   const tuple = [schema, resource, normalizedFilter];

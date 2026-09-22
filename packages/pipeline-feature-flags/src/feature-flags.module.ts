@@ -1,7 +1,15 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import { type DynamicModule, Module } from '@nestjs/common';
-import { type Client, OpenFeature } from '@openfeature/server-sdk';
+import {
+  type DynamicModule,
+  Module,
+  type OnApplicationShutdown,
+} from '@nestjs/common';
+import {
+  type Client,
+  NOOP_PROVIDER,
+  OpenFeature,
+} from '@openfeature/server-sdk';
 import {
   FEATURE_FLAGS_CLIENT,
   FEATURE_FLAGS_DEFAULT_CONTEXT,
@@ -108,6 +116,10 @@ export class FeatureFlagsModule {
           provide: FEATURE_FLAGS_TARGETING_KEY_FACTORY,
           useValue: options.targetingKeyFactory,
         },
+        {
+          provide: RegisteredProviderLifecycle,
+          useFactory: () => new RegisteredProviderLifecycle(options),
+        },
       ],
       exports: [
         FeatureFlagBehavior,
@@ -145,4 +157,29 @@ async function resolveClient(
   return options.domain
     ? OpenFeature.getClient(options.domain)
     : OpenFeature.getClient();
+}
+
+/**
+ * Unregisters, on application shutdown, a provider this module registered, so
+ * polling or streaming providers stop with the application. Replacing it with
+ * the no-op provider makes OpenFeature close it unless another domain still
+ * uses it. A provider that another registration has since replaced, and a
+ * consumer-supplied `client`, are left alone.
+ */
+class RegisteredProviderLifecycle implements OnApplicationShutdown {
+  constructor(private readonly options: FeatureFlagsModuleOptions) {}
+
+  async onApplicationShutdown(): Promise<void> {
+    const { client, provider, domain } = this.options;
+    if (client || !provider) return;
+
+    const current = domain
+      ? OpenFeature.getProvider(domain)
+      : OpenFeature.getProvider();
+    if (current !== provider) return;
+
+    await (domain
+      ? OpenFeature.setProviderAndWait(domain, NOOP_PROVIDER)
+      : OpenFeature.setProviderAndWait(NOOP_PROVIDER));
+  }
 }

@@ -209,4 +209,11 @@ describe('cacheKeyTemplate', () => {
       'tenant_test:user:u-123:admin',
     );
   });
+
+  it('serializes object placeholder values using stableStringify', () => {
+    const template = cacheKeyTemplate('user:{filter}', 'tenant_test');
+    expect(template({ filter: { b: 2, a: 1 } })).toBe(
+      'tenant_test:user:{"a":1,"b":2}',
+    );
+  });
 });

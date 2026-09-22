@@ -231,6 +231,12 @@ I/O when underlying work must stop.
 - `aggressive` (default): reject immediately with `TaskCancelledError`.
 - `cooperative`: signal cancellation and wait for the handler to settle.
 
+On a `command` or `event` handler an `aggressive` timeout is a bootstrap
+diagnostic unless `timeout.replaySafe: true` acknowledges it: the caller is
+answered while the handler keeps running, so an outer retry, a released
+idempotency claim or a client retry can run the same side effect alongside it.
+Prefer `cooperative` with `getResilienceAbortSignal()` for side-effecting work.
+
 ### Bulkhead
 
 Limits concurrent in-flight executions to protect a scarce resource. Reused across invocations.

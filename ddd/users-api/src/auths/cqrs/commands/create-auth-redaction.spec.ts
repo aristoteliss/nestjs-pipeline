@@ -34,6 +34,7 @@ describe('CreateAuthHandler secret redaction', () => {
     const request = new CreateAuthCommand({
       email: 'alice@example.test',
       code: '123456',
+      clientIp: '203.0.113.7',
     });
     const record = buildAuditRecord({
       context: {
@@ -52,6 +53,7 @@ describe('CreateAuthHandler secret redaction', () => {
     expect(record.payload).toEqual({
       email: 'alice@example.test',
       code: REDACTED,
+      clientIp: '203.0.113.7',
     });
   });
 });

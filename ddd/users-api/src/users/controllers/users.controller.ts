@@ -1,10 +1,12 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
+import { IDEMPOTENCY_KEY_HEADER } from '@common/validation/idempotency-key.schema';
 import {
   Body,
   Controller,
   Delete,
   Get,
+  Headers,
   HttpCode,
   NotFoundException,
   Param,
@@ -88,9 +90,10 @@ export class UsersController {
   @HttpCode(201)
   async createUser(
     @Body(new ZodPipe(CreateUserDtoSchema)) dto: CreateUserDto,
+    @Headers(IDEMPOTENCY_KEY_HEADER) idempotencyKey?: string,
   ): Promise<UserResponseDto> {
     const { id } = await this.commandBus.execute<CreateUserCommand, User>(
-      CreateUserMapper.map(dto),
+      CreateUserMapper.map(dto, idempotencyKey),
     );
     return this.readAfterWrite(id);
   }

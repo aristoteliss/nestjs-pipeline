@@ -2,22 +2,20 @@
 
 import { Injectable } from '@nestjs/common';
 import { CACHE_HIT_ITEM } from '@nestjs-pipeline/cache';
-import type {
-  IPipelineBehavior,
-  IPipelineContext,
-  NextDelegate,
+import {
+  getPipelineItem,
+  type IPipelineBehavior,
+  type IPipelineContext,
+  type NextDelegate,
 } from '@nestjs-pipeline/core';
 import { DEAD_LETTER_ITEM } from '@nestjs-pipeline/deadletter';
-import {
-  FEATURE_FLAG_DECISION_ITEM,
-  type FeatureFlagDecision,
-} from '@nestjs-pipeline/feature-flags';
+import { FEATURE_FLAG_DECISION_ITEM_TOKEN } from '@nestjs-pipeline/feature-flags';
 import {
   IDEMPOTENCY_OWNERSHIP_LOST_ITEM,
   IDEMPOTENCY_REPLAYED_ITEM,
 } from '@nestjs-pipeline/idempotency';
 import { addPipelineTelemetryAttributes } from '@nestjs-pipeline/opentelemetry';
-import { RATE_LIMIT_ITEM } from '@nestjs-pipeline/rate-limit';
+import { RATE_LIMIT_ITEM_TOKEN } from '@nestjs-pipeline/rate-limit';
 
 /**
  * Copies the add-on behaviors' context items onto the active span.
@@ -68,9 +66,7 @@ export class TelemetryBridgeBehavior implements IPipelineBehavior {
   }
 
   private featureFlagAttributes(context: IPipelineContext) {
-    const decision = context.items.get(FEATURE_FLAG_DECISION_ITEM) as
-      | FeatureFlagDecision
-      | undefined;
+    const decision = getPipelineItem(context, FEATURE_FLAG_DECISION_ITEM_TOKEN);
     if (!decision) return {};
     return {
       'feature_flag.key': decision.flagKey,
@@ -106,9 +102,7 @@ export class TelemetryBridgeBehavior implements IPipelineBehavior {
   }
 
   private rateLimitAttributes(context: IPipelineContext) {
-    const result = context.items.get(RATE_LIMIT_ITEM) as
-      | { remainingPoints?: number }
-      | undefined;
+    const result = getPipelineItem(context, RATE_LIMIT_ITEM_TOKEN);
     if (!result) return {};
     return typeof result.remainingPoints === 'number'
       ? { 'rate_limit.remaining_points': result.remainingPoints }

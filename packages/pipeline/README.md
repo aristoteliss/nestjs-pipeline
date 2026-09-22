@@ -261,7 +261,13 @@ export class CreateUserHandler implements ICommandHandler<CreateUserCommand> {
 @UsePipeline(
   authorize({ action: 'create', subject: 'User' }),
   rateLimit({ points: 5, keyFactory: (ctx) => `${ctx.requestName}:${ctx.request.clientIp}` }),
-  idempotent({ keyFactory: (ctx) => ctx.request.idempotencyKey }),
+  idempotent({
+    keyFactory: createPartitionedIdempotencyKeyFactory({
+      action: 'user.create',
+      principal: (ctx) => ['user', ctx.items.get(CURRENT_USER_ID) as string],
+      operation: (ctx) => ctx.request.idempotencyKey,
+    }),
+  }),
   audit({ action: 'user.create' }),
 )
 export class CreateUserHandler implements ICommandHandler<CreateUserCommand> {
@@ -968,8 +974,9 @@ can call `super.execute(request)` without entering the ancestor's pipeline again
 Dispatch ownership is tracked separately for `execute` and `handle`, including
 when one scoped provider handles both commands and events. Invoke handlers through
 Nest's CQRS buses. A manually constructed scoped instance has no application
-ownership: it uses the sole registered chain when unambiguous, or logs a warning
-and runs the original method when several applications share its prototype.
+ownership: it uses the sole registered chain when unambiguous, and throws instead
+of running the handler without a pipeline when several applications share its
+prototype.
 
 Internally, `pipeline-plan.ts` composes declarations and options,
 `pipeline-contracts.ts` validates contracts, and `pipeline-runner.ts` creates the
@@ -1090,9 +1097,10 @@ must account for the absent instance.
 | `PIPELINE_BEHAVIOR_ID` | Symbol | Custom deduplication and contract identity key for behaviors |
 | `PipelineConfigurationError` | Class | Error thrown when bootstrap contract diagnostics find issues |
 | `PipelineBehaviorDiagnostic` | Interface | Structure of a single diagnostic issue |
+| `IPipelineBehaviorOptionsResolver` | Interface | Optional behavior instance method `resolveEffectiveOptions` that merges module defaults; bootstrap diagnostics pass its result to contract validators as `effectiveOptions` |
 | `PipelineBehaviorValidationContext` | Interface | Handler and option inspection context supplied to contract validators |
 | `PIPELINE_SKIPPED_BEHAVIORS_METADATA` | Symbol | Metadata key for skipped behavior classes |
-| `SET_TENANT_ID` | Symbol | Symbol setter for `tenantId` |
+| `SET_TENANT_ID` | Symbol | Write-once symbol setter for `tenantId`, for custom runners constructing a context; assigning a different tenant throws |
 | `PipelineBehaviorEntry` | Type | `Type \| [Type, Record<string, unknown>]` |
 | `stableStringify` | Function | Deterministic JSON serialization with sorted keys and cycle detection |
 | `toStrictJsonValue` | Function | Normalizes arbitrary values into strictly typed JSON domain |

@@ -12,20 +12,33 @@ import {
 } from '../domain/errors/authentication.exception';
 
 /**
- * Demo credential adapter for the sample application's login code.
+ * Demo credential adapter: one configured login code is accepted for every
+ * user in every tenant, so anyone who knows it can sign in as any existing
+ * account. It is not user authentication; a deployment with real users binds
+ * `LOGIN_CODE_VERIFIER` to an adapter that ties the credential to the user.
  *
- * Production requires `AUTH_LOGIN_CODE_SHA256`; plaintext `AUTH_LOGIN_CODE` is
- * accepted only outside production for local demo compatibility. Verification
- * always compares fixed-length SHA-256 digests with `timingSafeEqual`.
+ * In production the shared code is refused unless `AUTH_SHARED_LOGIN_CODE=true`
+ * acknowledges it, and only as the `AUTH_LOGIN_CODE_SHA256` digest; plaintext
+ * `AUTH_LOGIN_CODE` is accepted only outside production. Verification compares
+ * fixed-length SHA-256 digests with `timingSafeEqual`.
  */
 @Injectable()
-export class EnvLoginCodeVerifier implements ILoginCodeVerifier {
+export class SharedDemoLoginCodeVerifier implements ILoginCodeVerifier {
   verify(credentials: LoginCredentialVerification | string): void {
     const code =
       typeof credentials === 'string' ? credentials : credentials.code;
     const configuredDigest =
       process.env.AUTH_LOGIN_CODE_SHA256?.trim().toLowerCase();
     const legacyPlaintext = process.env.AUTH_LOGIN_CODE;
+
+    if (
+      process.env.NODE_ENV === 'production' &&
+      process.env.AUTH_SHARED_LOGIN_CODE?.trim() !== 'true'
+    ) {
+      throw new AuthConfigurationException(
+        'A shared login code signs in any account; set AUTH_SHARED_LOGIN_CODE=true to accept it in production',
+      );
+    }
 
     if (!configuredDigest) {
       if (process.env.NODE_ENV === 'production' && legacyPlaintext) {

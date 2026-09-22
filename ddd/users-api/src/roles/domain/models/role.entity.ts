@@ -3,7 +3,6 @@
 import {
   ApplyMutation,
   Mutable,
-  type MutationPatch,
   RootEntity,
   type RootEntitySnapshot,
 } from '@nestjs-pipeline/ddd-core/domain';
@@ -93,20 +92,13 @@ export class Role extends RootEntity<RoleSnapshot> {
   }
 
   @ApplyMutation<Role>({ event: (role) => new RoleUpdatedEvent(role) })
-  protected applyRename(name: string): MutationPatch<Role> {
-    return { name };
-  }
-
   rename(name: string): this {
-    this.applyRename(name);
+    this.applyPatch({ name });
     return this;
   }
 
   @ApplyMutation<Role>({ event: (role) => new RoleDeletedEvent(role) })
-  protected applyDelete(): MutationPatch<Role> {}
-
   delete(): this {
-    this.applyDelete();
     return this;
   }
 

@@ -13,7 +13,9 @@ import { DomainExceptionFilter } from './common/filters/domain-exception.filter'
 import { FeatureDisabledFilter } from './common/filters/feature-disabled.filter';
 import { UnauthorizedActionFilter } from './common/filters/unauthorized-action.filter';
 import { configureExpress } from './express-platform';
+import { closeOnShutdownSignals } from './graceful-shutdown';
 import { createFastifyAdapter, registerSecureSession } from './http-platform';
+import { shutdownTracing } from './tracing';
 
 export async function bootstrap(): Promise<void> {
   const useFastify = process.env.ADAPTER === 'fastify';
@@ -49,6 +51,8 @@ export async function bootstrap(): Promise<void> {
     new UnauthorizedActionFilter(),
     new DomainExceptionFilter(),
   );
+
+  closeOnShutdownSignals(app, shutdownTracing);
 
   await app.listen(3000, '0.0.0.0');
   console.log(

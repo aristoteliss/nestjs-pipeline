@@ -524,7 +524,7 @@ describe('Biome Grit domain-mutation plugin', () => {
       `
       export class Sample {
         @ApplyMutation()
-        update() { return {}; }
+        update() { this.applyPatch({ username: 'bob' }); return this; }
       }
       `,
     );
@@ -540,7 +540,7 @@ describe('Biome Grit domain-mutation plugin', () => {
       `
       export class Sample {
         @ApplyMutation({ event: (s) => new Event(s) })
-        update() { return {}; }
+        update() { this.applyPatch({ username: 'bob' }); return this; }
       }
       `,
     );
@@ -578,7 +578,7 @@ describe('Biome Grit domain-mutation plugin', () => {
     );
     expect(result.status).toBe(1);
     expect(result.diagnostics).toContain(
-      'An @ApplyMutation() method returns a field patch instead of assigning backing fields',
+      'An @ApplyMutation() method uses this.applyPatch() instead of assigning backing fields',
     );
   });
 });

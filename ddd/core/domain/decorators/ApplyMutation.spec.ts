@@ -3,8 +3,9 @@
 import { describe, expect, it, vi } from 'vitest';
 import { IEvent } from '../events/event.interface';
 import { UnknownMutableFieldError } from '../exceptions/unknown-mutable-field.error';
-import { ApplyMutation, type MutationPatch } from './ApplyMutation';
-import { Mutable } from './Mutable';
+import { RootEntity } from '../models/root.entity';
+import { ApplyMutation } from './ApplyMutation';
+import { getMutableFields, Mutable } from './Mutable';
 
 class RenamedEvent implements IEvent {
   constructor(
@@ -20,7 +21,14 @@ class ScoreChangedEvent implements IEvent {
   ) {}
 }
 
-class TestAggregate {
+class TestAggregate extends RootEntity {
+  toJSON() {
+    return {
+      id: this.id,
+      createdAt: this.createdAt,
+      updatedAt: this.updatedAt,
+    };
+  }
   @Mutable<string>({ normalize: (value) => value.trim() })
   private _name = 'initial';
 
@@ -58,25 +66,29 @@ class TestAggregate {
   @ApplyMutation<TestAggregate>({
     event: (entity) => new RenamedEvent(entity.name, entity.version),
   })
-  rename(name: string, score?: number): MutationPatch<TestAggregate> {
+  rename(name: string, score?: number): this {
     if (name.trim().length === 0) {
       throw new Error('empty name');
     }
-    return { name, score };
+    this.applyPatch({ name, score });
+    return this;
   }
 
   @ApplyMutation<TestAggregate>({
     event: (entity) => new RenamedEvent(entity.name, entity.version),
   })
-  async renameAsync(name: string): Promise<MutationPatch<TestAggregate>> {
+  async renameAsync(name: string): Promise<this> {
     await Promise.resolve();
-    return { name };
+    this.applyPatch({ name });
+    return this;
   }
 
   @ApplyMutation<TestAggregate>({
     event: (entity) => new RenamedEvent(entity.name, entity.version),
   })
-  touch(): MutationPatch<TestAggregate> {}
+  touch(): this {
+    return this;
+  }
 
   @ApplyMutation<TestAggregate>({
     event: (entity) => [
@@ -84,42 +96,44 @@ class TestAggregate {
       new ScoreChangedEvent(entity.score, entity.version),
     ],
   })
-  multiEvent(name: string, score: number): MutationPatch<TestAggregate> {
-    return { name, score };
+  multiEvent(name: string, score: number): this {
+    this.applyPatch({ name, score });
+    return this;
   }
 
   @ApplyMutation<TestAggregate>({
     event: (entity) => new RenamedEvent(entity.name, entity.version),
   })
-  bogus(): MutationPatch<TestAggregate> {
-    return {
-      name: 'NewName',
-      applied: [],
-    } as unknown as MutationPatch<TestAggregate>;
+  bogus(): this {
+    this.applyPatch({ name: 'NewName', applied: [] });
+    return this;
   }
 
   @ApplyMutation<TestAggregate>({
     // @ts-expect-error test runtime validation of empty event collection
     event: () => [],
   })
-  emptyEvent(): MutationPatch<TestAggregate> {
-    return { name: 'EmptyEvent' };
+  emptyEvent(): this {
+    this.applyPatch({ name: 'EmptyEvent' });
+    return this;
   }
 
   @ApplyMutation<TestAggregate>({
     // @ts-expect-error test runtime validation of invalid later entry
     event: (entity) => [new RenamedEvent(entity.name, entity.version), null],
   })
-  invalidLaterEvent(): MutationPatch<TestAggregate> {
-    return { name: 'InvalidLater' };
+  invalidLaterEvent(): this {
+    this.applyPatch({ name: 'InvalidLater' });
+    return this;
   }
 
   @ApplyMutation<TestAggregate>({
     // @ts-expect-error test runtime validation of null event
     event: () => null,
   })
-  nullEvent(): MutationPatch<TestAggregate> {
-    return { name: 'NullEvent' };
+  nullEvent(): this {
+    this.applyPatch({ name: 'NullEvent' });
+    return this;
   }
 
   @ApplyMutation<TestAggregate>({
@@ -127,12 +141,20 @@ class TestAggregate {
       throw new Error('event factory crashed');
     },
   })
-  throwingEventFactory(): MutationPatch<TestAggregate> {
-    return { name: 'FactoryCrash' };
+  throwingEventFactory(): this {
+    this.applyPatch({ name: 'FactoryCrash' });
+    return this;
   }
 }
 
-class BaseAggregate {
+class BaseAggregate extends RootEntity {
+  toJSON() {
+    return {
+      id: this.id,
+      createdAt: this.createdAt,
+      updatedAt: this.updatedAt,
+    };
+  }
   @Mutable<string>()
   protected _title = 'base';
 
@@ -166,21 +188,22 @@ class SubAggregate extends BaseAggregate {
   @ApplyMutation<SubAggregate>({
     event: (entity) => new RenamedEvent(entity.title, entity.version),
   })
-  updateAll(title: string, extra: string): MutationPatch<SubAggregate> {
-    return { title, extra } as unknown as MutationPatch<SubAggregate>;
+  updateAll(title: string, extra: string): this {
+    this.applyPatch({ title, extra });
+    return this;
   }
 }
 
 describe('@ApplyMutation decorator', () => {
   describe('successful mutations', () => {
-    it('applies the patch, normalizes values and returns the normalized patch', () => {
+    it('applies the patch, normalizes values and returns the same entity', () => {
       const entity = new TestAggregate();
 
       const result = entity.rename('  Bob  ', 10);
 
       expect(entity.name).toBe('Bob');
       expect(entity.score).toBe(10);
-      expect(result).toEqual({ name: 'Bob', score: 10 });
+      expect(result).toBe(entity);
     });
 
     it('records the domain event after the lifecycle advance', () => {
@@ -204,17 +227,17 @@ describe('@ApplyMutation decorator', () => {
       expect(entity.applied[1]).toEqual(new ScoreChangedEvent(42, 2));
     });
 
-    it('records an event for a mutation that changes no field and returns undefined', () => {
+    it('records an event for a mutation that changes no field and returns the same entity', () => {
       const entity = new TestAggregate();
 
       const result = entity.touch();
 
       expect(entity.version).toBe(2);
       expect(entity.applied).toHaveLength(1);
-      expect(result).toBeUndefined();
+      expect(result).toBe(entity);
     });
 
-    it('completes an async mutation only after the promise resolves and returns normalized patch', async () => {
+    it('completes an async mutation only after the promise resolves and returns the same entity', async () => {
       const entity = new TestAggregate();
 
       const pending = entity.renameAsync('  Alice  ');
@@ -224,7 +247,7 @@ describe('@ApplyMutation decorator', () => {
       expect(entity.name).toBe('Alice');
       expect(entity.version).toBe(2);
       expect(entity.applied).toEqual([new RenamedEvent('Alice', 2)]);
-      expect(result).toEqual({ name: 'Alice' });
+      expect(result).toBe(entity);
     });
   });
 
@@ -264,7 +287,7 @@ describe('@ApplyMutation decorator', () => {
         @ApplyMutation<AsyncFailAggregate>({
           event: (e) => new RenamedEvent(e.name, e.version),
         })
-        async failAsync(): Promise<MutationPatch<AsyncFailAggregate>> {
+        async failAsync(): Promise<this> {
           await Promise.resolve();
           throw new Error('async rejected');
         }
@@ -280,6 +303,45 @@ describe('@ApplyMutation decorator', () => {
   });
 
   describe('post-application failure', () => {
+    it('does not complete the lifecycle when method code throws after applying a patch', () => {
+      class FailingAggregate extends TestAggregate {
+        @ApplyMutation<FailingAggregate>({
+          event: (entity) => new RenamedEvent(entity.name, entity.version),
+        })
+        fail(): this {
+          this.applyPatch({ name: 'changed' });
+          throw new Error('failed after patch');
+        }
+      }
+
+      const entity = new FailingAggregate();
+      expect(() => entity.fail()).toThrow('failed after patch');
+      expect(entity.name).toBe('changed');
+      expect(entity.version).toBe(1);
+      expect(entity.onUpdateHook).not.toHaveBeenCalled();
+      expect(entity.applied).toHaveLength(0);
+    });
+
+    it('does not complete the lifecycle when an async method rejects after applying a patch', async () => {
+      class FailingAggregate extends TestAggregate {
+        @ApplyMutation<FailingAggregate>({
+          event: (entity) => new RenamedEvent(entity.name, entity.version),
+        })
+        async fail(): Promise<this> {
+          this.applyPatch({ name: 'changed' });
+          await Promise.resolve();
+          throw new Error('failed after patch');
+        }
+      }
+
+      const entity = new FailingAggregate();
+      await expect(entity.fail()).rejects.toThrow('failed after patch');
+      expect(entity.name).toBe('changed');
+      expect(entity.version).toBe(1);
+      expect(entity.onUpdateHook).not.toHaveBeenCalled();
+      expect(entity.applied).toHaveLength(0);
+    });
+
     it('propagates failure from throwing onUpdate without applying events', () => {
       const entity = new TestAggregate();
       entity.onUpdate = () => {
@@ -325,8 +387,8 @@ describe('@ApplyMutation decorator', () => {
         @ApplyMutation({
           event: () => ({}),
         })
-        change(): MutationPatch<MissingOnUpdate> {
-          return { name: 'mutated' };
+        change(): this {
+          throw new Error('method must not run');
         }
       }
 
@@ -346,8 +408,8 @@ describe('@ApplyMutation decorator', () => {
         @ApplyMutation({
           event: () => ({}),
         })
-        change(): MutationPatch<MissingApply> {
-          return { name: 'mutated' };
+        change(): this {
+          throw new Error('method must not run');
         }
       }
 
@@ -404,6 +466,36 @@ describe('@ApplyMutation decorator', () => {
       expect(sub.extra).toBe('extra-value');
       expect(sub.version).toBe(2);
       expect(sub.applied).toHaveLength(1);
+    });
+  });
+
+  describe('@Mutable decorator validation', () => {
+    it('rejects symbol property keys with TypeError', () => {
+      const decorator = Mutable();
+      expect(() => decorator({}, Symbol('test'))).toThrow(
+        new TypeError('@Mutable() supports string properties only.'),
+      );
+    });
+
+    it('rejects targets without a constructor with TypeError', () => {
+      const decorator = Mutable();
+      expect(() => decorator(Object.create(null), 'test')).toThrow(
+        new TypeError('@Mutable() supports instance properties only.'),
+      );
+    });
+
+    it('skips empty fields entry in getMutableFields when carrier value is undefined', () => {
+      class CarrierTest {
+        @Mutable()
+        declared = 'val';
+      }
+      const symbol = Object.getOwnPropertySymbols(CarrierTest).find(
+        (s) => s.description === 'MUTABLE_FIELDS',
+      );
+      expect(symbol).toBeDefined();
+      (CarrierTest as unknown as Record<symbol, unknown>)[symbol!] = undefined;
+      const fields = getMutableFields(new CarrierTest());
+      expect(fields.size).toBe(0);
     });
   });
 });

@@ -1,5 +1,8 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
+import type { MutationPatch } from '../decorators/ApplyMutation';
+import { getMutableFields } from '../decorators/Mutable';
+import { UnknownMutableFieldError } from '../exceptions/unknown-mutable-field.error';
 import { RootEntitySnapshot } from '../interfaces/root-entity-snapshot.interface';
 import { isUuidV7, uuidv7 } from '../utils/uuidv7';
 import { AggregateRoot } from './aggregate-root';
@@ -52,12 +55,8 @@ import { AggregateRoot } from './aggregate-root';
  *   }
  *
  *   @ApplyMutation<User>({ event: (user) => new UserRenamedEvent(user) })
- *   protected applyRename(newUsername: string): MutationPatch<User> {
- *     return { username: newUsername };
- *   }
- *
  *   rename(newUsername: string): this {
- *     this.applyRename(newUsername);
+ *     this.applyPatch({ username: newUsername });
  *     return this;
  *   }
  *
@@ -296,6 +295,66 @@ export abstract class RootEntity<
       return;
     }
     this._persistedVersion = this._version;
+  }
+
+  /**
+   * Applies a patch to fields registered with `@Mutable()`, ignoring undefined values.
+   * Validates all keys and normalizes all values before writing any field.
+   * Does not advance version/timestamps or record events; use inside a decorated mutation.
+   *
+   * @param patch - Public field names and proposed values; keys must be registered with `@Mutable()`.
+   * @throws {UnknownMutableFieldError} When a defined patch key is not registered.
+   * @throws Propagates field normalization errors without applying the patch.
+   *
+   * @example Inside a User aggregate with a mutable username field
+   * ```ts
+   * @ApplyMutation<User>({ event: (user) => new UserUpdatedEvent(user) })
+   * update(username: string): this {
+   *   this.applyPatch<User>({ username });
+   *   return this;
+   * }
+   * ```
+   */
+  protected applyPatch<TEntity extends object>(
+    patch: MutationPatch<TEntity>,
+  ): void {
+    if (patch === undefined || patch === null) {
+      return;
+    }
+    if (typeof patch !== 'object') {
+      throw new TypeError(
+        'applyPatch() requires a field patch object, or nothing.',
+      );
+    }
+
+    const fields = getMutableFields(this);
+    const writes: Array<{
+      propertyKey: string;
+      value: unknown;
+    }> = [];
+
+    // Phase 1: validate all keys and normalize values before any state changes
+    for (const [key, value] of Object.entries(patch)) {
+      if (value === undefined) {
+        continue;
+      }
+      const field = fields.get(key);
+      if (!field) {
+        throw new UnknownMutableFieldError(this.constructor.name, key, [
+          ...fields.keys(),
+        ]);
+      }
+      const normalizedValue = field.normalize ? field.normalize(value) : value;
+      writes.push({
+        propertyKey: field.propertyKey,
+        value: normalizedValue,
+      });
+    }
+
+    // Phase 2: apply normalized writes to backing properties
+    for (const { propertyKey, value } of writes) {
+      (this as unknown as Record<string, unknown>)[propertyKey] = value;
+    }
   }
 
   protected onUpdate(): void {

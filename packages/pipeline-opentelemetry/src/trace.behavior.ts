@@ -187,7 +187,7 @@ export class TraceBehavior implements IPipelineBehavior {
     // invoked the handler — and must never cause a second execution.
     let business: Promise<unknown> | undefined;
     const runOnce = (): Promise<unknown> => {
-      business ??= next();
+      business ??= Promise.resolve().then(next);
       return business;
     };
 
@@ -206,34 +206,30 @@ export class TraceBehavior implements IPipelineBehavior {
       return runOnce();
     }
 
+    let traced: Promise<unknown> | undefined;
     try {
       return await tracer.startActiveSpan(
         spanName,
         { kind: SpanKind.INTERNAL, attributes: initialAttributes },
-        async (span) => {
-          try {
-            const result = await runOnce();
-            // Annotation runs after the business call has already succeeded, so
-            // every step is guarded: a throw here previously fell into the catch
-            // below and was re-thrown as though the handler itself had failed.
-            this.annotateSuccess(span, context, options);
-            return result;
-          } catch (error) {
-            this.annotateFailure(span, context, options, error);
-            throw error;
-          } finally {
-            // span.end() in an unguarded finally replaced the business error
-            // with the instrumentation error.
-            safely(() => span.end());
-          }
+        (span) => {
+          traced = (async () => {
+            try {
+              const result = await runOnce();
+              this.annotateSuccess(span, context, options);
+              return result;
+            } catch (error) {
+              this.annotateFailure(span, context, options, error);
+              throw error;
+            } finally {
+              safely(() => span.end());
+            }
+          })();
+          return traced;
         },
       );
-    } catch (error) {
-      // startActiveSpan may fail after its callback already ran the handler.
-      // Returning the existing promise preserves the single execution; calling
-      // next() again could repeat a successful mutation.
-      if (business !== undefined) throw error;
-      return runOnce();
+    } catch {
+      // A tracer may invoke the callback and then throw without observing its promise.
+      return traced ?? runOnce();
     }
   }
 
