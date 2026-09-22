@@ -1,5 +1,5 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
-import { ForbiddenException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException } from '@nestjs/common';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { TenantSchemaContext } from '../tenant-schema.context';
 import { TenantSchemaMiddleware } from './tenant-schema.middleware';
@@ -49,6 +49,21 @@ describe('TenantSchemaMiddleware', () => {
         vi.fn(),
       ),
     ).toThrow(ForbiddenException);
+  });
+
+  it('answers a malformed schema header with a bad request', () => {
+    process.env.DB_ENGINE = 'postgres';
+    process.env.TENANT_SCHEMAS = 'tenant_a';
+    const next = vi.fn();
+
+    expect(() =>
+      new TenantSchemaMiddleware(new TenantSchemaContext()).use(
+        { headers: { 'x-tenant-schema': 'tenant-a' } },
+        undefined,
+        next,
+      ),
+    ).toThrow(BadRequestException);
+    expect(next).not.toHaveBeenCalled();
   });
 
   it('accepts the libSQL default tenant alongside configured extra tenants', () => {

@@ -1,6 +1,7 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { isVersionedCache } from '../cache.interface';
 import { MemoryCache } from './memory.cache';
 
 describe('MemoryCache', () => {
@@ -134,5 +135,79 @@ describe('MemoryCache retention bounds', () => {
 
     expect(cache.size).toBeLessThanOrEqual(5);
     expect(await cache.get('key-199')).toEqual({ n: 199 });
+  });
+});
+
+describe('MemoryCache revision fencing across dropped metadata', () => {
+  it('rejects a fill observed before an invalidation whose metadata was evicted', async () => {
+    const cache = new MemoryCache<{ v: number }>({ maxEntries: 1 });
+
+    const observed = await cache.readState('user:1');
+    await cache.invalidate('user:1');
+    await cache.set('user:2', { v: 2 });
+
+    expect(await cache.tryFill('user:1', observed.revision, { v: 1 })).toBe(
+      false,
+    );
+    expect(await cache.get('user:1')).toBeUndefined();
+  });
+
+  it('rejects a fill observed before an expired entry was evicted and recreated elsewhere', async () => {
+    const cache = new MemoryCache<{ v: number }>({ maxEntries: 1 });
+    await cache.set('user:1', { v: 1 }, { ttl: 1 });
+    await new Promise((resolve) => setTimeout(resolve, 5));
+
+    const observed = await cache.readState('user:1');
+    await cache.invalidate('user:1');
+    await cache.set('user:2', { v: 2 });
+
+    expect(observed.status).toBe('expired');
+    expect(await cache.tryFill('user:1', observed.revision, { v: 1 })).toBe(
+      false,
+    );
+  });
+
+  it('rejects every token observed before clear(), including absences', async () => {
+    const cache = new MemoryCache<{ v: number }>();
+    const absent = await cache.readState('user:1');
+    await cache.set('user:2', { v: 2 });
+    const present = await cache.readState('user:2');
+
+    await cache.invalidate('user:1');
+    await cache.clear();
+
+    expect(await cache.tryFill('user:1', absent.revision, { v: 1 })).toBe(
+      false,
+    );
+    expect(await cache.tryFill('user:2', present.revision, { v: 2 })).toBe(
+      false,
+    );
+  });
+
+  it('accepts a fill observed after the drop', async () => {
+    const cache = new MemoryCache<{ v: number }>({ maxEntries: 1 });
+    await cache.invalidate('user:1');
+    await cache.set('user:2', { v: 2 });
+    await cache.clear();
+
+    const observed = await cache.readState('user:1');
+
+    expect(await cache.tryFill('user:1', observed.revision, { v: 1 })).toBe(
+      true,
+    );
+    expect(await cache.get('user:1')).toEqual({ v: 1 });
+  });
+
+  it('identifies non-versioned cache objects', () => {
+    expect(isVersionedCache({ readState: () => {} })).toBe(false);
+    expect(
+      isVersionedCache({ readState: () => {}, invalidate: () => {} }),
+    ).toBe(false);
+  });
+
+  it('stores value with non-expiring TTL when ttl <= 0', async () => {
+    const cache = new MemoryCache<string>();
+    await cache.set('permanent', 'value', { ttl: 0 });
+    expect(await cache.get('permanent')).toBe('value');
   });
 });

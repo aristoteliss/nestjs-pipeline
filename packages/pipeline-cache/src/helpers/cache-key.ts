@@ -51,10 +51,10 @@ export interface PartitionedCacheKeyOptions {
   /**
    * Whether a missing authorization scope is an error rather than an omitted segment.
    *
-   * Set to `true` whenever responses depend on permissions and must not fall back
-   * to an unscoped partition.
+   * Set to `false` only when responses do not depend on the caller's permissions;
+   * `scope` may then be omitted.
    *
-   * @default false
+   * @default true
    */
   requireScope?: boolean;
 }
@@ -78,7 +78,9 @@ function digestRequest(request: unknown): string {
  *
  * @param options - Resolvers and fail-closed requirements for key partitioning.
  * @returns A `CacheKeyFactory` suitable for `CacheBehaviorOptions.key`.
- * @throws {MissingCachePartitionError} When a required tenant or principal is absent.
+ * @throws {TypeError} When `requireScope` is not `false` and no `scope` resolver is given.
+ * @throws {MissingCachePartitionError} (from the returned factory) When a required
+ *   tenant, principal or scope is absent.
  *
  * @example Per principal, tenant-aware, invalidated when roles change
  * ```ts
@@ -97,6 +99,7 @@ function digestRequest(request: unknown): string {
  *   principal: () => 'public',
  *   requirePrincipal: false,
  *   requireTenant: false,
+ *   requireScope: false,
  * });
  * ```
  */
@@ -105,7 +108,15 @@ export function createPartitionedCacheKeyFactory(
 ): CacheKeyFactory {
   const requireTenant = options.requireTenant ?? true;
   const requirePrincipal = options.requirePrincipal ?? true;
-  const requireScope = options.requireScope ?? false;
+  const requireScope = options.requireScope ?? true;
+  if (requireScope && !options.scope) {
+    throw new TypeError(
+      'createPartitionedCacheKeyFactory requires a `scope` resolver: a cache hit ' +
+        'skips the handler, so a response computed under revoked permissions would ' +
+        'keep being served. Pass requireScope: false when responses do not depend ' +
+        "on the caller's permissions.",
+    );
+  }
 
   return (context) => {
     if (requireTenant && !context.tenantId) {

@@ -31,7 +31,7 @@ export interface AuthResult {
  *
  * Encapsulates the `POST /auths/login` workflow:
  * 1. Fetches user account details from the tenant database via {@link GetUserQuery}.
- * 2. Validates the temporary login code via {@link ILoginCodeVerifier} with user context.
+ * 2. Validates the login code via {@link ILoginCodeVerifier} with user context.
  * 3. Signs a short-lived access token for a session via {@link IAccessTokenIssuer}.
  *
  * Infrastructure details like cryptography, JWT libraries, and environment variables
@@ -62,7 +62,7 @@ export class UserLoginService {
   ) {}
 
   /**
-   * Verifies login credentials (email and one-time login code) against database records.
+   * Verifies login credentials (email and login code) against database records.
    *
    * Resolves the user identity through the query repository first and then delegates
    * credential verification to {@link ILoginCodeVerifier} with caller user context.

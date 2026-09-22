@@ -1,18 +1,5 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-/**
- * Failure-injection coverage for the fail-open guarantee both behaviors claim.
- *
- * Observability must never change the observed outcome. Previously it could:
- * `span.end()` sat in an unguarded `finally`, so an instrumentation error
- * replaced the business error; a success-path `setAttributes()` failure fell
- * into the catch block and was re-thrown as though the handler had failed; and
- * the diagnostic logger inside the metrics catch blocks was itself unguarded.
- *
- * Every test asserts two things: the caller sees the real result or the real
- * error by identity, and the handler ran exactly once.
- */
-
 import type { IPipelineContext } from '@nestjs-pipeline/core';
 import { metrics, trace } from '@opentelemetry/api';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -112,13 +99,10 @@ describe('TraceBehavior failure isolation', () => {
     expect(next).toHaveBeenCalledTimes(1);
   });
 
-  it('does not execute the handler twice when startActiveSpan fails after invoking it', async () => {
-    // The dangerous shape: the callback already ran the handler — possibly a
-    // successful mutation — and only then did the span machinery fail.
-    const next = vi.fn().mockResolvedValue('value');
+  function tracerFailingAfterCallback() {
     vi.spyOn(trace, 'getTracer').mockReturnValue({
       startActiveSpan: ((_n: unknown, _o: unknown, fn: unknown) => {
-        (fn as (s: unknown) => unknown)({
+        (fn as (s: unknown) => Promise<unknown>)({
           setAttributes: vi.fn(),
           setAttribute: vi.fn(),
           setStatus: vi.fn(),
@@ -128,11 +112,38 @@ describe('TraceBehavior failure isolation', () => {
         throw new Error('span machinery failure');
       }) as never,
     } as never);
+  }
 
-    const behavior = new TraceBehavior();
+  it('returns the handler result once when startActiveSpan fails after invoking it', async () => {
+    tracerFailingAfterCallback();
+    const next = vi.fn().mockResolvedValue('committed');
 
-    await expect(behavior.handle(makeContext(), next)).rejects.toThrow(
-      'span machinery failure',
+    await expect(new TraceBehavior().handle(makeContext(), next)).resolves.toBe(
+      'committed',
+    );
+    expect(next).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not retry a handler that throws synchronously', async () => {
+    withFailingSpan('end');
+    const businessError = new Error('synchronous business failure');
+    const next = vi.fn(() => {
+      throw businessError;
+    });
+
+    await expect(new TraceBehavior().handle(makeContext(), next)).rejects.toBe(
+      businessError,
+    );
+    expect(next).toHaveBeenCalledOnce();
+  });
+
+  it('keeps the business error when startActiveSpan fails after invoking it', async () => {
+    tracerFailingAfterCallback();
+    const businessError = new Error('business failure');
+    const next = vi.fn().mockRejectedValue(businessError);
+
+    await expect(new TraceBehavior().handle(makeContext(), next)).rejects.toBe(
+      businessError,
     );
     expect(next).toHaveBeenCalledTimes(1);
   });

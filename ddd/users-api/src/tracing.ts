@@ -23,6 +23,7 @@ const sdk = new NodeSDK({
 
 sdk.start();
 
-// Ensure SDK flushes all pending spans before the process exits.
-process.on('SIGTERM', () => sdk.shutdown());
-process.on('SIGINT', () => sdk.shutdown());
+/** Flushes pending telemetry and stops the SDK; called after the application closes. */
+export function shutdownTracing(): Promise<void> {
+  return sdk.shutdown();
+}

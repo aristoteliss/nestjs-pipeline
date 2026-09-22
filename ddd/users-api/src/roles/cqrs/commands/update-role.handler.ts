@@ -1,9 +1,14 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
-import { APP_ACTIONS, APP_SUBJECTS } from '@common/constants';
+import { APP_ACTIONS, APP_SUBJECTS, AUDIT_ACTIONS } from '@common/constants';
 import { Inject, Scope } from '@nestjs/common';
 import { CommandHandler, EventBus } from '@nestjs/cqrs';
+import { AUDIT_SEVERITY, audit } from '@nestjs-pipeline/audit';
 import { CaslAuthorizer, requires } from '@nestjs-pipeline/casl';
-import { logging, UsePipeline } from '@nestjs-pipeline/core';
+import {
+  type IPipelineContext,
+  logging,
+  UsePipeline,
+} from '@nestjs-pipeline/core';
 import {
   CommandBaseHandler,
   IWriteSideAggregateRepository,
@@ -20,6 +25,14 @@ import { UpdateRoleCommand } from './update-role.command';
     mapLogLevel: new Map([[UniqueRoleNameException, 'warn']]),
   }),
   requires({ action: APP_ACTIONS.UPDATE, subject: APP_SUBJECTS.ROLE }),
+  audit({
+    action: AUDIT_ACTIONS.ROLE_UPDATE,
+    severity: AUDIT_SEVERITY.MEDIUM,
+    metadata: (ctx: IPipelineContext) => {
+      const cmd = ctx.request as UpdateRoleCommand | undefined;
+      return cmd?.id ? { targetRoleId: cmd.id } : {};
+    },
+  }),
 )
 export class UpdateRoleHandler extends CommandBaseHandler<
   UpdateRoleCommand,

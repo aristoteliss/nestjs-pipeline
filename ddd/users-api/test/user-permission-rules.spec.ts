@@ -23,7 +23,6 @@ import { UserPermissionRule } from '../src/persistence/entities/user-permission-
 import { UserRole } from '../src/persistence/entities/user-role.entity';
 import { GetRolesCapabilitiesQueryRepository } from '../src/roles/persistence/get-roles-capabilities.query-repository';
 import {
-  FIRST_MIGRATION,
   fixtures,
   type MigratedDb,
   migratedDb,
@@ -360,33 +359,16 @@ describe('Materialized user permission rules', () => {
   });
 });
 
-describe('Upgrading an existing database', () => {
+describe('Migration revert', () => {
   let db: MigratedDb;
 
   afterEach(async () => {
     await db?.close();
   });
 
-  it('backfills rules that match the source tables and authorize as before', async () => {
-    db = await migratedDb({ to: FIRST_MIGRATION });
-    await seedFixtures(db);
-    const before = await sourceTableRules(db.em(), U1);
-
-    await db.orm.migrator.up();
-
-    expect(await projector.findDrift(db.em())).toEqual([]);
-    const input = await materializedInput(db.em(), U1);
-    const principal = { ...input.principal };
-    expect(probeMatrix(buildAbility(input.rules, principal), U1)).toEqual(
-      probeMatrix(buildAbility(before, principal), U1),
-    );
-    for (const userId of [U1, U2, U3]) await expectEquivalent(db, userId);
-  });
-
   it('reverts the rules table on down', async () => {
     db = await migratedDb();
 
-    await db.orm.migrator.down();
     await db.orm.migrator.down();
 
     const tables = (await db.sql(

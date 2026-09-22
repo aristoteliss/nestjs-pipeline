@@ -356,16 +356,23 @@ describe('pipeline-packages (e2e)', () => {
   });
 
   describe('@nestjs-pipeline/idempotency', () => {
-    it('replays identical response for duplicate create request with same email key', async () => {
+    it('replays identical response for a retried create with the same Idempotency-Key', async () => {
       const email = newEmail();
       const body = {
         email,
         name: 'Idempotency Test User',
         department: 'engineering',
       };
+      const operation = randomUUID();
 
-      const first = await as(admin).post('/users').send(body);
-      const second = await as(admin).post('/users').send(body);
+      const first = await as(admin)
+        .post('/users')
+        .set('idempotency-key', operation)
+        .send(body);
+      const second = await as(admin)
+        .post('/users')
+        .set('idempotency-key', operation)
+        .send(body);
 
       expect(first.status).toBe(201);
       expect(second.status).toBe(201);
@@ -375,13 +382,16 @@ describe('pipeline-packages (e2e)', () => {
 
     it('rejects key reuse with a modified payload (422)', async () => {
       const email = newEmail();
+      const operation = randomUUID();
 
       const first = await as(admin)
         .post('/users')
+        .set('idempotency-key', operation)
         .send({ email, name: 'Original Name', department: 'engineering' });
 
       const conflict = await as(admin)
         .post('/users')
+        .set('idempotency-key', operation)
         .send({ email, name: 'Different Name', department: 'engineering' });
 
       expect(first.status).toBe(201);
@@ -394,21 +404,27 @@ describe('pipeline-packages (e2e)', () => {
   });
 
   describe('@nestjs-pipeline/rate-limit', () => {
-    it('throttles registrations exceeding 5 attempts within 60s (429)', async () => {
-      const email = newEmail();
+    it('throttles one principal creating more than 60 users within 60s, whatever the emails (429)', async () => {
+      const creator = JSON.stringify({
+        ...JSON.parse(admin),
+        id: 'admin-rate-limited',
+      });
 
-      // Send 5 create attempts with the same email.
-      // Because RateLimitBehavior is placed BEFORE IdempotencyBehavior, all attempts count towards the rate limit.
-      for (let i = 0; i < 5; i++) {
-        await as(admin)
+      for (let i = 0; i < 60; i++) {
+        const created = await as(creator)
           .post('/users')
-          .send({ email, name: `Rate User ${i}`, department: 'engineering' });
+          .send({ email: newEmail(), name: `Rate User ${i}` });
+        expect(created.status).toBe(201);
       }
 
-      // 6th attempt should be throttled by RateLimitBehavior -> HTTP 429 Too Many Requests
-      const throttled = await as(admin)
+      const throttled = await as(creator)
         .post('/users')
-        .send({ email, name: 'Rate User 6', department: 'engineering' });
+        .send({ email: newEmail(), name: 'Rate User 61' });
+      const otherPrincipal = await as(admin)
+        .post('/users')
+        .send({ email: newEmail(), name: 'Unthrottled Uma' });
+
+      expect(otherPrincipal.status).toBe(201);
 
       expect(throttled.status).toBe(429);
       expect(throttled.body).toMatchObject({
@@ -550,12 +566,19 @@ describe('pipeline-packages (e2e)', () => {
   });
 
   describe('@nestjs-pipeline/idempotency (Roles API)', () => {
-    it('replays identical role response for duplicate create request with same name', async () => {
+    it('replays identical role response for a retried create with the same Idempotency-Key', async () => {
       const roleName = `idem-role-${Date.now()}`;
       const body = { name: roleName };
+      const operation = randomUUID();
 
-      const first = await as(admin).post('/roles').send(body);
-      const second = await as(admin).post('/roles').send(body);
+      const first = await as(admin)
+        .post('/roles')
+        .set('idempotency-key', operation)
+        .send(body);
+      const second = await as(admin)
+        .post('/roles')
+        .set('idempotency-key', operation)
+        .send(body);
 
       expect(first.status).toBe(201);
       expect(second.status).toBe(201);
@@ -565,22 +588,18 @@ describe('pipeline-packages (e2e)', () => {
   });
 
   describe('@nestjs-pipeline/rate-limit (Auth Login Throttling)', () => {
-    it('throttles login attempts exceeding 5 attempts within 60s per email (429)', async () => {
-      const email = newEmail();
-
-      // Send 5 login attempts
-      for (let i = 0; i < 5; i++) {
+    it('throttles more than 20 login attempts within 60s from one address across emails (429)', async () => {
+      for (let i = 0; i < 20; i++) {
         await request(http)
           .post('/auths/login')
           .set('x-tenant-schema', 'tenant')
-          .send({ email, code: '000000' });
+          .send({ email: newEmail(), code: '000000' });
       }
 
-      // 6th attempt should be throttled by RateLimitBehavior
       const throttled = await request(http)
         .post('/auths/login')
         .set('x-tenant-schema', 'tenant')
-        .send({ email, code: '000000' });
+        .send({ email: newEmail(), code: '000000' });
 
       expect(throttled.status).toBe(429);
       expect(throttled.body).toMatchObject({

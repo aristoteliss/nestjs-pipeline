@@ -1,7 +1,7 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { claimedIdentityActor } from '@common/audit/audit.options';
-import { AUDIT_ACTIONS } from '@common/constants';
+import { AUDIT_ACTIONS, RATE_LIMIT_COST } from '@common/constants';
 import {
   type ITenantContext,
   TENANT_CONTEXT,
@@ -52,7 +52,10 @@ export const refreshAuthRateLimitKey = createPartitionedRateLimitKeyFactory(
 @CommandHandler(RefreshAuthCommand)
 @UsePipeline(
   metrics({ meterName: 'users-api.auth' }),
-  rateLimit({ keyFactory: refreshAuthRateLimitKey }),
+  rateLimit({
+    keyFactory: refreshAuthRateLimitKey,
+    points: RATE_LIMIT_COST.refresh,
+  }),
   deadLetter({ redactKeys: ['refreshToken'] }),
   audit({
     action: AUDIT_ACTIONS.AUTH_REFRESH,

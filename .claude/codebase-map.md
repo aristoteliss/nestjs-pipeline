@@ -50,7 +50,7 @@ what the libraries support.
 ## Technology Stack
 
 <!-- context:generated-start technology-stack -->
-- **Languages** (file counts, excluded directories omitted): `.ts` 662, `.md` 53, `.grit` 12, `.py` 3, `.mjs` 1
+- **Languages** (file counts, excluded directories omitted): `.ts` 667, `.md` 48, `.grit` 12, `.py` 3, `.mjs` 1
 - **Runtime engines** (root `package.json`): `node` >=22.0.0, `pnpm` >=9.0.0
 - **Package manager evidence**: `pnpm-lock.yaml`.
 
@@ -60,7 +60,7 @@ what the libraries support.
 | NestJS CQRS — Command/query/event buses wrapped by the pipeline | `@nestjs/cqrs` | `ddd/core/application/base.command.ts`, `ddd/core/application/command-base.handler.spec.ts` |
 | MikroORM — ORM, unit of work, migrations | `@mikro-orm/core`, `@mikro-orm/nestjs`, `@mikro-orm/migrations` | `ddd/core/persistence/assert-autocommit.ts`, `ddd/core/persistence/biome-general-plugins.spec.ts` |
 | PostgreSQL — Relational backend and schema-per-tenant access | `pg`, `@mikro-orm/postgresql` | `ddd/users-api/src/persistence/postgres-mikro-orm.store.ts`, `ddd/users-api/src/persistence/postgres-options.ts` |
-| SQLite / libSQL — Local and test persistence backend | `@libsql/client`, `@mikro-orm/sqlite`, `@mikro-orm/libsql` | `ddd/users-api/src/persistence/libsql-options.ts`, `ddd/users-api/src/persistence/migrate.ts` |
+| SQLite / libSQL — Local and test persistence backend | `@libsql/client`, `@mikro-orm/sqlite`, `@mikro-orm/libsql` | `ddd/users-api/src/persistence/libsql-options.ts`, `ddd/users-api/src/persistence/mikro-orm.store.ts` |
 | Redis — Cache and queue backend | `@keyv/redis`, `redis` | `packages/pipeline-idempotency/src/stores/redis.store.ts` |
 | BullMQ — Background jobs and dead-letter transport | `bullmq`, `@nestjs/bullmq` | `ddd/users-api/src/infrastructure/reliability.module.ts`, `ddd/users-api/src/users/jobs/batch-update-users.processor.spec.ts` |
 | Keyv / cache-manager — Pluggable cache stores | `keyv`, `cache-manager` | `ddd/users-api/test/behavior-composition-contracts.spec.ts`, `packages/pipeline-cache/src/adapters/cache-manager.adapter.ts` |
@@ -185,7 +185,7 @@ README "Pipeline Execution Model"). Global behaviors are registered in
 
 Commands load aggregates through `IWriteSideAggregateRepository` →
 `MikroOrmWriteSideCommandRepository` (`{ refresh: true }`, bypasses `@FromCache` and the
-identity map) → domain method mutates the aggregate → `ICommandRepository.save()` →
+identity map) → domain method uses `applyPatch(...)` and returns `this`; `@ApplyMutation` advances the lifecycle and records events → `ICommandRepository.save()` →
 `@PersistedWrite` (= `@Cache` → `@AcknowledgePersisted` → `@MapPersistenceErrors`) → MikroORM. Updates are
 version-conditioned (`ddd/core/persistence/optimistic-update.ts`), deletes are conditional
 on `{ id, version }`. `CommandBaseHandler` publishes the aggregate's buffered events after
@@ -356,7 +356,7 @@ environment value is read or reproduced here.
 | NestJS CQRS | `ddd/core`, `ddd/users-api`, `packages/pipeline` | `ddd/core/application/base.command.ts`, `ddd/core/application/command-base.handler.spec.ts` |
 | MikroORM | `ddd/core`, `ddd/users-api` | `ddd/core/persistence/assert-autocommit.ts`, `ddd/core/persistence/biome-general-plugins.spec.ts` |
 | PostgreSQL | `ddd/users-api` | `ddd/users-api/src/persistence/postgres-mikro-orm.store.ts`, `ddd/users-api/src/persistence/postgres-options.ts` |
-| SQLite / libSQL | `ddd/users-api` | `ddd/users-api/src/persistence/libsql-options.ts`, `ddd/users-api/src/persistence/migrate.ts` |
+| SQLite / libSQL | `ddd/users-api` | `ddd/users-api/src/persistence/libsql-options.ts`, `ddd/users-api/src/persistence/mikro-orm.store.ts` |
 | Redis | `ddd/users-api`, `packages/pipeline-cache` | `packages/pipeline-idempotency/src/stores/redis.store.ts` |
 | BullMQ | `ddd/users-api` | `ddd/users-api/src/infrastructure/reliability.module.ts`, `ddd/users-api/src/users/jobs/batch-update-users.processor.spec.ts` |
 | Keyv / cache-manager | `ddd/users-api`, `packages/pipeline-cache` | `ddd/users-api/test/behavior-composition-contracts.spec.ts`, `packages/pipeline-cache/src/adapters/cache-manager.adapter.ts` |
@@ -637,9 +637,9 @@ secret value.*
 ## Snapshot Metadata
 
 <!-- context:generated-start metadata -->
-- Generated at: 2026-09-22T19:02:21Z
-- Git commit: b561c5bc1c7b6c1a9bd2804e387a32fef44110a4
-- Git branch: develop
+- Generated at: 2026-09-23T06:00:47Z
+- Git commit: 09c7775d6209b80dd5e06e4c2cb580ef6353f301
+- Git branch: review
 - Uncommitted changes when generated: yes
 - Generator: `scripts/update-claude-snapshot.py` version 1.0.0
 - Snapshot status: generated — structural inspection only, no code executed

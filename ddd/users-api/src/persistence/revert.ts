@@ -1,21 +1,7 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { loadOptionalEnvFile } from '@common/environment/load-optional-env-file';
-import { MikroORM } from '@mikro-orm/core';
-import { LibSqlDriver } from '@mikro-orm/libsql';
-import {
-  createLibsqlOrmOptions,
-  resolveLibsqlDbUrl,
-  resolveLibsqlTenants,
-} from './libsql-options';
-import {
-  createPostgresOrmOptions,
-  normalizeSchemaName,
-} from './postgres-options';
-
-function isPostgresEngine(): boolean {
-  return (process.env.DB_ENGINE ?? '').toLowerCase() === 'postgres';
-}
+import { forEachTenantOrm } from './tenant-orms';
 
 function parseSteps(argv: string[]): number {
   const args = argv.slice(2);
@@ -47,90 +33,20 @@ function parseSteps(argv: string[]): number {
   return 1;
 }
 
-function parseSchemas(): string[] {
-  const list = process.env.TENANT_SCHEMAS ?? process.env.DB_DEFAULT_SCHEMA;
-  if (!list) {
-    return [normalizeSchemaName(undefined)];
-  }
-
-  return list
-    .split(',')
-    .map((value) => normalizeSchemaName(value))
-    .filter((value, index, all) => all.indexOf(value) === index);
-}
-
-async function revertSchema(schema: string, steps: number): Promise<number> {
-  const orm = await MikroORM.init(createPostgresOrmOptions(schema));
-
-  try {
-    let revertedCount = 0;
-
-    for (let i = 0; i < steps; i += 1) {
-      const reverted = await orm.migrator.down({ schema });
-      const count = Array.isArray(reverted) ? reverted.length : 0;
-
-      if (count === 0) {
-        break;
-      }
-
-      revertedCount += count;
-    }
-
-    return revertedCount;
-  } finally {
-    await orm.close();
-  }
-}
-
-async function revertLibsqlTenant(
-  tenant: string,
-  steps: number,
-): Promise<number> {
-  const dbName = resolveLibsqlDbUrl(tenant);
-  const orm = await MikroORM.init<LibSqlDriver>(createLibsqlOrmOptions(dbName));
-
-  try {
-    let revertedCount = 0;
-
-    for (let i = 0; i < steps; i += 1) {
-      const reverted = await orm.migrator.down();
-      const count = Array.isArray(reverted) ? reverted.length : 0;
-
-      if (count === 0) {
-        break;
-      }
-
-      revertedCount += count;
-    }
-
-    return revertedCount;
-  } finally {
-    await orm.close();
-  }
-}
-
-async function revertLibsql(steps: number): Promise<number> {
-  const tenants = resolveLibsqlTenants();
-  let total = 0;
-
-  for (const tenant of tenants) {
-    total += await revertLibsqlTenant(tenant, steps);
-  }
-
-  return total;
-}
-
 export async function revert(steps = 1): Promise<number> {
-  if (!isPostgresEngine()) {
-    return revertLibsql(steps);
-  }
-
-  const schemas = parseSchemas();
+  const postgres = (process.env.DB_ENGINE ?? '').toLowerCase() === 'postgres';
   let total = 0;
 
-  for (const schema of schemas) {
-    total += await revertSchema(schema, steps);
-  }
+  await forEachTenantOrm(async (orm, tenant) => {
+    for (let i = 0; i < steps; i += 1) {
+      const reverted = postgres
+        ? await orm.migrator.down({ schema: tenant })
+        : await orm.migrator.down();
+      const count = Array.isArray(reverted) ? reverted.length : 0;
+      if (count === 0) break;
+      total += count;
+    }
+  });
 
   return total;
 }

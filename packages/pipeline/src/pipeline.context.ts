@@ -54,9 +54,17 @@ export abstract class BasePipelineContext<
   }
 
   /**
-   * Symbol-keyed setter — only callable by code that imports {@link SET_TENANT_ID}.
+   * Assigns the tenant once per execution. A different value after one is set
+   * (by the runner's `tenantIdFactory` or inheritance from a parent context)
+   * throws, so a behavior cannot move an execution to another tenant after an
+   * earlier behavior has used it.
    */
   [SET_TENANT_ID](value: string | undefined): void {
+    if (this._tenantId !== undefined && this._tenantId !== value) {
+      throw new Error(
+        'PipelineContext tenantId is already assigned and cannot be changed',
+      );
+    }
     this._tenantId = value;
   }
 

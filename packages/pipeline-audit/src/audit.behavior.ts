@@ -8,10 +8,18 @@ import {
   Optional,
 } from '@nestjs/common';
 import {
+  createPipelineItem,
   type IPipelineBehavior,
+  type IPipelineBehaviorContract,
+  type IPipelineBehaviorOptionsResolver,
   type IPipelineContext,
   LOGGING_BEHAVIOR_LOGGER,
   type NextDelegate,
+  PIPELINE_BEHAVIOR_CONTRACT,
+  type PipelineBehaviorDiagnostic,
+  type PipelineBehaviorValidationContext,
+  type PipelineItemToken,
+  setPipelineItem,
 } from '@nestjs-pipeline/core';
 import { AUDIT_DEFAULT_OPTIONS, AUDIT_SINK } from './constants/tokens';
 import { buildAuditRecord } from './helpers/build-record';
@@ -28,6 +36,13 @@ import type { AuditSink } from './interfaces/audit-sink.interface';
  * ```
  */
 export const AUDIT_RECORD_ITEM = Symbol('AUDIT_RECORD_ITEM');
+
+/**
+ * Typed token for {@link AUDIT_RECORD_ITEM}: the produced audit record. Reads and writes the same
+ * `context.items` entry through `getPipelineItem` / `requirePipelineItem`.
+ */
+export const AUDIT_RECORD_ITEM_TOKEN: PipelineItemToken<AuditRecord> =
+  createPipelineItem<AuditRecord>('AUDIT_RECORD_ITEM', AUDIT_RECORD_ITEM);
 
 /**
  * Pipeline behavior that writes an {@link AuditRecord} for every audited
@@ -75,7 +90,30 @@ export const AUDIT_RECORD_ITEM = Symbol('AUDIT_RECORD_ITEM');
  * ```
  */
 @Injectable()
-export class AuditBehavior implements IPipelineBehavior {
+export class AuditBehavior
+  implements
+    IPipelineBehavior,
+    IPipelineBehaviorOptionsResolver<AuditBehaviorOptions>
+{
+  static readonly [PIPELINE_BEHAVIOR_CONTRACT]: IPipelineBehaviorContract = {
+    validate: (
+      context: PipelineBehaviorValidationContext,
+    ): PipelineBehaviorDiagnostic[] | undefined => {
+      const invalid = findInvalidFactory(
+        (context.effectiveOptions ?? {}) as AuditBehaviorOptions,
+      );
+      if (!invalid) return undefined;
+      return [
+        {
+          handlerName: context.handlerName,
+          behaviorName: AuditBehavior.name,
+          message: invalid,
+          fix: 'Pass functions for the actor, metadata and redact options of AuditBehavior.',
+        },
+      ];
+    },
+  };
+
   private readonly logger: LoggerService;
   private readonly defaults: AuditBehaviorOptions;
 
@@ -91,21 +129,21 @@ export class AuditBehavior implements IPipelineBehavior {
   ) {
     this.defaults = defaults ?? {};
 
-    if (!logger) {
-      this.logger = new Logger(AuditBehavior.name, { timestamp: true });
-      return;
-    }
-
-    this.logger = logger;
+    this.logger = logger ?? new Logger(AuditBehavior.name, { timestamp: true });
   }
 
   async handle(
     context: IPipelineContext,
     next: NextDelegate,
   ): Promise<unknown> {
-    const options = this.resolveOptions(context);
+    const options = this.resolveEffectiveOptions(
+      context.getBehaviorOptions<AuditBehaviorOptions>(AuditBehavior),
+    );
 
-    if (!this.shouldAudit(context, options)) {
+    if (
+      options.captureKinds &&
+      !options.captureKinds.includes(context.requestKind)
+    ) {
       return next();
     }
 
@@ -129,9 +167,9 @@ export class AuditBehavior implements IPipelineBehavior {
           startedAt: startedAt.toISOString(),
         });
       } catch (recordError) {
-        this.logger.error?.(
+        this.diagnose(
+          'error',
           `Audit recording also failed after request error: ${recordError instanceof Error ? recordError.message : recordError}`,
-          AuditBehavior.name,
         );
         if (
           !failOpen &&
@@ -185,14 +223,14 @@ export class AuditBehavior implements IPipelineBehavior {
         `${buildError instanceof Error ? buildError.message : buildError}`;
 
       if (failOpen) {
-        this.logger.warn?.(`${message}; failing open`, AuditBehavior.name);
+        this.diagnose('warn', `${message}; failing open`);
         return;
       }
-      this.logger.error?.(`${message}; failing closed`, AuditBehavior.name);
+      this.diagnose('error', `${message}; failing closed`);
       throw buildError;
     }
 
-    input.context.items.set(AUDIT_RECORD_ITEM, record);
+    setPipelineItem(input.context, AUDIT_RECORD_ITEM_TOKEN, record);
 
     try {
       await this.sink.write(record);
@@ -203,91 +241,59 @@ export class AuditBehavior implements IPipelineBehavior {
         `${sinkError instanceof Error ? sinkError.message : sinkError}`;
 
       if (failOpen) {
-        this.logger.warn?.(`${message}; failing open`, AuditBehavior.name);
+        this.diagnose('warn', `${message}; failing open`);
         return;
       }
-      this.logger.error?.(`${message}; failing closed`, AuditBehavior.name);
+      this.diagnose('error', `${message}; failing closed`);
       throw sinkError;
     }
   }
 
-  /** Validates configured factory options before request execution. */
+  /** Rejects a non-function factory option before request execution. */
   private validateFactories(
     options: AuditBehaviorOptions,
     failOpen: boolean,
   ): void {
-    if (options.actor !== undefined && typeof options.actor !== 'function') {
-      const error = new TypeError(
-        `Invalid audit actor factory: expected a function, received ${typeof options.actor}`,
-      );
-      if (failOpen) {
-        this.logger.warn?.(
-          `${error.message}; failing open`,
-          AuditBehavior.name,
-        );
-      } else {
-        this.logger.error?.(
-          `${error.message}; failing closed`,
-          AuditBehavior.name,
-        );
-        throw error;
-      }
+    const invalid = findInvalidFactory(options);
+    if (!invalid) return;
+    if (failOpen) {
+      this.diagnose('warn', `${invalid}; failing open`);
+      return;
     }
-
-    if (
-      options.metadata !== undefined &&
-      typeof options.metadata !== 'function'
-    ) {
-      const error = new TypeError(
-        `Invalid audit metadata factory: expected a function, received ${typeof options.metadata}`,
-      );
-      if (failOpen) {
-        this.logger.warn?.(
-          `${error.message}; failing open`,
-          AuditBehavior.name,
-        );
-      } else {
-        this.logger.error?.(
-          `${error.message}; failing closed`,
-          AuditBehavior.name,
-        );
-        throw error;
-      }
-    }
-
-    if (options.redact !== undefined && typeof options.redact !== 'function') {
-      const error = new TypeError(
-        `Invalid audit redactor: expected a function, received ${typeof options.redact}`,
-      );
-      if (failOpen) {
-        this.logger.warn?.(
-          `${error.message}; failing open`,
-          AuditBehavior.name,
-        );
-      } else {
-        this.logger.error?.(
-          `${error.message}; failing closed`,
-          AuditBehavior.name,
-        );
-        throw error;
-      }
-    }
+    this.diagnose('error', `${invalid}; failing closed`);
+    throw new TypeError(invalid);
   }
 
-  /** Whether this request kind is configured to be audited. */
-  private shouldAudit(
-    context: IPipelineContext,
-    options: AuditBehaviorOptions,
-  ): boolean {
-    if (!options.captureKinds) return true;
-    return options.captureKinds.includes(context.requestKind);
+  /** Diagnostic logging never changes the request outcome. */
+  private diagnose(level: 'warn' | 'error', message: string): void {
+    try {
+      this.logger[level]?.(message, AuditBehavior.name);
+    } catch {
+      // A failing logger must not override the fail-open/fail-closed decision.
+    }
   }
 
   /** Shallow-merges per-handler options over the module defaults. */
-  private resolveOptions(context: IPipelineContext): AuditBehaviorOptions {
-    const handlerOptions =
-      context.getBehaviorOptions<AuditBehaviorOptions>(AuditBehavior);
-    if (!handlerOptions) return this.defaults;
-    return { ...this.defaults, ...handlerOptions };
+  resolveEffectiveOptions(
+    options?: AuditBehaviorOptions,
+  ): AuditBehaviorOptions {
+    if (!options) return this.defaults;
+    return { ...this.defaults, ...options };
   }
+}
+
+const FACTORY_OPTIONS = [
+  ['actor', 'actor factory'],
+  ['metadata', 'metadata factory'],
+  ['redact', 'redactor'],
+] as const;
+
+function findInvalidFactory(options: AuditBehaviorOptions): string | undefined {
+  for (const [option, label] of FACTORY_OPTIONS) {
+    const value = options[option];
+    if (value !== undefined && typeof value !== 'function') {
+      return `Invalid audit ${label}: expected a function, received ${typeof value}`;
+    }
+  }
+  return undefined;
 }

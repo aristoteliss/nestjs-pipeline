@@ -56,6 +56,7 @@ class GetReportQuery {
 
 const partitionedKey = createPartitionedCacheKeyFactory({
   principal: (ctx) => ctx.items.get('principal') as string | undefined,
+  requireScope: false,
 });
 
 @QueryHandler(GetReportQuery)

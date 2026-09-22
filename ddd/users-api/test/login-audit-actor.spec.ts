@@ -87,7 +87,13 @@ describe('Login audit actor', () => {
 
   async function login(email: string): Promise<void> {
     await expect(
-      commandBus.execute(new CreateAuthCommand({ email, code: '424242' })),
+      commandBus.execute(
+        new CreateAuthCommand({
+          email,
+          code: '424242',
+          clientIp: '203.0.113.7',
+        }),
+      ),
     ).rejects.toThrow();
   }
 

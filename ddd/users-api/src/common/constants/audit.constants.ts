@@ -4,14 +4,15 @@
  * Action identifiers recorded in audit logs.
  */
 export const AUDIT_ACTIONS = {
-  /** User entity deletion action. */
+  USER_CREATE: 'user.create',
+  USER_UPDATE: 'user.update',
   USER_DELETE: 'user.delete',
-  /** Role entity deletion action. */
+  ROLE_CREATE: 'role.create',
+  ROLE_UPDATE: 'role.update',
   ROLE_DELETE: 'role.delete',
-  /** User login credential verification action. */
   AUTH_LOGIN: 'auth.login',
-  /** Refresh-token exchange for a new access token. */
   AUTH_REFRESH: 'auth.refresh',
+  AUTH_LOGOUT: 'auth.logout',
 } as const;
 
 export type AuditAction = (typeof AUDIT_ACTIONS)[keyof typeof AUDIT_ACTIONS];

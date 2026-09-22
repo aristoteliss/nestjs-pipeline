@@ -145,7 +145,9 @@ Rules are `Capability` objects or compact strings:
 - `all` matches any subject and `manage` any action (CASL keywords).
 - Placeholders `${user.<path>}` (or `${<path>}`, `{{ <path> }}`) resolve against the
   principal. A whole-string placeholder keeps the value's type. A missing attribute
-  throws instead of matching an empty value.
+  throws instead of matching an empty value, and so does an attribute that is not a
+  string, number, boolean, `null` or an array of those: an object would otherwise
+  be evaluated as query operators.
 - An allow rule with `fields: []` throws: omit `fields` for all fields.
 
 ## Rule precedence
@@ -160,6 +162,15 @@ user denial deny `delete User` in either input order.
 - A granted parent path authorizes its descendants unless one is explicitly denied:
   `fields: ['profile']` lets `project` return `profile.secret`, while
   `can('read', user, 'profile.secret')` is `false` (CASL needs `profile.*`/`profile.**`).
+  `can`/`authorize` and `project` therefore apply different field policies to the same
+  grant. Grant nested access as `profile.**` when a handler checks nested fields and
+  projects the same response, so both agree:
+
+  ```ts
+  // fields: ['profile']    → project returns profile.secret; can(…, 'profile.secret') is false
+  // fields: ['profile.**'] → project returns profile.secret; can(…, 'profile') and
+  //                          can(…, 'profile.secret') are both true
+  ```
 - A denied array element becomes `null`, so positions stay stable (`roles.0`).
 - Root arrays retain their array shape. Named fields apply to every item; numeric
   paths restrict specific items (`0`, `0.id`). Nested arrays use the same masking

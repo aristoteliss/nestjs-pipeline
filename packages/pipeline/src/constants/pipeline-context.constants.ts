@@ -31,10 +31,9 @@ export const SET_CORRELATION_ID: unique symbol = Symbol(
 );
 
 /**
- * Symbol-keyed setter for `tenantId`. Only code that imports this symbol
- * can write to `context.tenantId`.
- *
- * @internal Used by the pipeline runner.
+ * Symbol-keyed setter for `tenantId`. The runner assigns the tenant before the
+ * behavior chain starts; a custom runner may assign it on a context it
+ * constructs. The tenant is write-once: assigning a different value throws.
  */
 export const SET_TENANT_ID: unique symbol = Symbol(
   'PipelineContext.setTenantId',

@@ -17,8 +17,12 @@ describe('EmailSchema consumers', () => {
     expect(LoginDtoSchema.parse({ email: input, code: '1234' }).email).toBe(
       'user@example.com',
     );
-    expect(new CreateAuthCommand({ email: input, code: '1234' }).email).toBe(
-      'user@example.com',
-    );
+    expect(
+      new CreateAuthCommand({
+        email: input,
+        code: '1234',
+        clientIp: '203.0.113.7',
+      }).email,
+    ).toBe('user@example.com');
   });
 });

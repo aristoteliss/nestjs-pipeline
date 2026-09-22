@@ -2,19 +2,15 @@
 
 import { Method } from '../../types/Method.type';
 import { IEvent } from '../events/event.interface';
-import { UnknownMutableFieldError } from '../exceptions/unknown-mutable-field.error';
-import { getMutableFields } from './Mutable';
 
 /**
  * The state change a domain method describes: mutable field keys mapped to
- * their new values. `undefined` values are ignored, so a partial update can be
- * expressed without branching per field. Returning nothing describes a
- * mutation that advances the aggregate lifecycle without changing any field
- * (a deletion, for instance).
+ * their new values for `RootEntity.applyPatch()`. Undefined values are ignored.
+ * An absent patch leaves fields unchanged.
  *
  * @typeParam TEntity - The aggregate the patch applies to.
  */
-// biome-ignore lint/suspicious/noConfusingVoidType: void allows parameterless delete methods returning nothing
+// biome-ignore lint/suspicious/noConfusingVoidType: supports an absent mutation patch
 export type MutationPatch<TEntity> = Partial<TEntity> | void;
 
 /**
@@ -48,73 +44,22 @@ type MutableTarget = {
 function assertLifecycleOperations(
   entity: unknown,
 ): asserts entity is MutableTarget {
-  if (
-    !entity ||
-    typeof (entity as { onUpdate?: unknown }).onUpdate !== 'function'
-  ) {
-    throw new TypeError(
-      '@ApplyMutation requires target instance to implement callable onUpdate() method.',
-    );
-  }
-  if (typeof (entity as { apply?: unknown }).apply !== 'function') {
-    throw new TypeError(
-      '@ApplyMutation requires target instance to implement callable apply() method.',
-    );
-  }
-}
-
-function applyPatch(entity: object, patch: unknown): unknown {
-  if (patch === undefined || patch === null) {
-    return undefined;
-  }
-  if (typeof patch !== 'object') {
-    throw new TypeError(
-      '@ApplyMutation() methods return a field patch object, or nothing.',
-    );
-  }
-
-  const fields = getMutableFields(entity);
-  const writes: Array<{
-    propertyKey: string;
-    value: unknown;
-    patchKey: string;
-  }> = [];
-
-  // Phase 1: validate all keys and normalize values before any state changes
-  for (const [key, value] of Object.entries(patch)) {
-    if (value === undefined) {
-      continue;
+  for (const method of ['onUpdate', 'apply'] as const) {
+    if (
+      typeof (entity as Partial<MutableTarget> | null)?.[method] !== 'function'
+    ) {
+      throw new TypeError(
+        `@ApplyMutation requires target instance to implement callable ${method}() method.`,
+      );
     }
-    const field = fields.get(key);
-    if (!field) {
-      throw new UnknownMutableFieldError(entity.constructor.name, key, [
-        ...fields.keys(),
-      ]);
-    }
-    const normalizedValue = field.normalize ? field.normalize(value) : value;
-    writes.push({
-      propertyKey: field.propertyKey,
-      value: normalizedValue,
-      patchKey: key,
-    });
   }
-
-  // Phase 2: apply normalized writes to backing properties
-  const appliedPatch: Record<string, unknown> = {};
-  for (const { propertyKey, value, patchKey } of writes) {
-    (entity as Record<string, unknown>)[propertyKey] = value;
-    appliedPatch[patchKey] = value;
-  }
-
-  return appliedPatch;
 }
 
 function completeMutation<TEntity>(
   entity: MutableTarget,
-  patch: unknown,
+  result: unknown,
   options: ApplyMutationOptions<TEntity>,
 ): unknown {
-  const applied = applyPatch(entity, patch);
   entity.onUpdate();
 
   const eventOrEvents = options.event(entity as TEntity);
@@ -148,29 +93,22 @@ function completeMutation<TEntity>(
     entity.apply(evt);
   }
 
-  return applied;
+  return result;
 }
 
 /**
- * Turns a domain method into a complete aggregate mutation: it applies the
- * returned field patch through the fields declared with `@Mutable()`, runs the
- * entity's `onUpdate()` lifecycle once, and records the configured domain event(s)
- * from the resulting post-mutation state.
+ * Completes a successful domain mutation by advancing `onUpdate()` once and
+ * recording events from the resulting state. Preserves the method's return value,
+ * including an entity returned by an asynchronous method.
  *
- * The method body describes the domain change — validation and proposed new values.
- * In accordance with repository architecture rules, method bodies follow the pure
- * patch-producing convention: they do not mutate backing fields directly, do not call
- * `apply()`, and do not touch version or timestamp bookkeeping.
+ * Domain methods validate inputs, call `this.applyPatch(...)` for mutable fields,
+ * and return `this`. They must not apply events or advance lifecycle state directly.
+ * Lifecycle operations are checked before invoking the method.
  *
- * **Failure contract:**
- * - **Pre-application rejection**: Unknown patch keys, field normalizer rejections,
- *   invalid patch types, and missing lifecycle operations abort before any state change.
- *   The aggregate fields, version, timestamp, baseline, and event buffer remain untouched.
- * - **Post-application failure**: If a failure occurs after field application begins
- *   (such as a throwing `onUpdate()`/`afterUpdate()` hook, a throwing event factory, an
- *   invalid event collection, or a throwing `apply()` handler), the error propagates
- *   immediately. No generic rollback is attempted; callers must discard or reload the
- *   partially completed aggregate instance.
+ * Patch validation and normalization finish before that patch writes any fields.
+ * Failures after a successful patch (including later method code, lifecycle hooks,
+ * or event construction/application) do not roll back state: discard or reload
+ * the aggregate. Rejected methods do not run the completion lifecycle.
  *
  * @typeParam TEntity - The aggregate the decorated method belongs to.
  * @param options - The domain event(s) factory to record for this mutation.
@@ -183,12 +121,8 @@ function completeMutation<TEntity>(
  *   private _username: string;
  *
  *   @ApplyMutation<User>({ event: (user) => new UserRenamedEvent(user) })
- *   protected applyRename(name: string): MutationPatch<User> {
- *     return { username: name };
- *   }
- *
  *   rename(name: string): this {
- *     this.applyRename(name);
+ *     this.applyPatch({ username: name });
  *     return this;
  *   }
  * }
@@ -216,8 +150,8 @@ export function ApplyMutation<TEntity = unknown>(
       const result = original.apply(this, args);
 
       if (result && typeof (result as Promise<unknown>).then === 'function') {
-        return (result as Promise<unknown>).then((patch) =>
-          completeMutation(entity, patch, options),
+        return (result as Promise<unknown>).then((value) =>
+          completeMutation(entity, value, options),
         );
       }
 

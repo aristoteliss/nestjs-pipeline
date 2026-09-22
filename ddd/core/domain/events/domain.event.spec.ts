@@ -372,4 +372,54 @@ describe('RootDomainEvent event-time state', () => {
     expect(event.payload).toMatchObject({ id, version, label: 'before' });
     expect('entity' in event).toBe(false);
   });
+
+  it('handles null entity in RootDomainEvent by defaulting payload to empty object', () => {
+    class NullEntityEvent extends RootDomainEvent<any> {
+      constructor() {
+        super(null);
+      }
+    }
+    const nullEvent = new NullEntityEvent();
+    expect(nullEvent.payload).toEqual({});
+    expect(nullEvent.aggregateId).toBeUndefined();
+    expect(nullEvent.aggregateVersion).toBeUndefined();
+  });
+
+  it('clones RegExp, null-prototype, custom-prototype, and accessor properties in payload', () => {
+    class CustomPayloadClass {
+      foo = 'bar';
+    }
+    const nullProto = Object.create(null);
+    nullProto.prop = 42;
+    const accessorObj = {};
+    Object.defineProperty(accessorObj, 'computed', {
+      get() {
+        return 100;
+      },
+      enumerable: true,
+      configurable: true,
+    });
+    const complexPayload = {
+      regex: /abc/gi,
+      nullProto,
+      customInstance: new CustomPayloadClass(),
+      accessor: accessorObj,
+    };
+    class ComplexPayloadEvent extends RootDomainEvent<any> {
+      constructor() {
+        super({}, complexPayload);
+      }
+    }
+    const complexEvent = new ComplexPayloadEvent();
+    expect(complexEvent.payload.regex).toBeInstanceOf(RegExp);
+    expect(complexEvent.payload.regex.source).toBe('abc');
+    expect(complexEvent.payload.regex.flags).toBe('gi');
+    expect(Object.getPrototypeOf(complexEvent.payload.nullProto)).toBeNull();
+    expect(complexEvent.payload.nullProto.prop).toBe(42);
+    expect(Object.getPrototypeOf(complexEvent.payload.customInstance)).toBe(
+      Object.prototype,
+    );
+    expect(complexEvent.payload.customInstance.foo).toBe('bar');
+    expect(complexEvent.payload.accessor.computed).toBe(100);
+  });
 });

@@ -109,6 +109,7 @@
         "**/ddd/*/src/**/cqrs/**/*.ts",
         "**/ddd/*/src/**/domain/**/*.ts",
         "**/ddd/*/src/**/application/**/*.ts",
+        "**/ddd/*/src/**/persistence/**/*.ts",
         "!**/controllers/**",
         "!**/filters/**",
         "!**/guards/**",

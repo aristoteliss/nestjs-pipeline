@@ -9,8 +9,10 @@ import {
   Optional,
 } from '@nestjs/common';
 import {
+  createPipelineItem,
   type IPipelineBehavior,
   type IPipelineBehaviorContract,
+  type IPipelineBehaviorOptionsResolver,
   type IPipelineContext,
   LOGGING_BEHAVIOR_LOGGER,
   type NextDelegate,
@@ -18,6 +20,8 @@ import {
   type PipelineBehaviorDiagnostic,
   type PipelineBehaviorOrderRule,
   type PipelineBehaviorValidationContext,
+  type PipelineItemToken,
+  setPipelineItem,
   untyped,
 } from '@nestjs-pipeline/core';
 import {
@@ -48,6 +52,13 @@ import type { IdempotencyStore } from './interfaces/idempotency-store.interface'
 export const IDEMPOTENCY_KEY_ITEM = Symbol('IDEMPOTENCY_KEY_ITEM');
 
 /**
+ * Typed token for {@link IDEMPOTENCY_KEY_ITEM}: the active idempotency key. Reads and writes the same
+ * `context.items` entry through `getPipelineItem` / `requirePipelineItem`.
+ */
+export const IDEMPOTENCY_KEY_ITEM_TOKEN: PipelineItemToken<string> =
+  createPipelineItem<string>('IDEMPOTENCY_KEY_ITEM', IDEMPOTENCY_KEY_ITEM);
+
+/**
  * Unique symbol key set on `context.items` to `true` when the response was replayed
  * from a previously-stored record (the handler did not run this time).
  *
@@ -57,6 +68,16 @@ export const IDEMPOTENCY_KEY_ITEM = Symbol('IDEMPOTENCY_KEY_ITEM');
  * ```
  */
 export const IDEMPOTENCY_REPLAYED_ITEM = Symbol('IDEMPOTENCY_REPLAYED_ITEM');
+
+/**
+ * Typed token for {@link IDEMPOTENCY_REPLAYED_ITEM}: the idempotent replay flag. Reads and writes the same
+ * `context.items` entry through `getPipelineItem` / `requirePipelineItem`.
+ */
+export const IDEMPOTENCY_REPLAYED_ITEM_TOKEN: PipelineItemToken<boolean> =
+  createPipelineItem<boolean>(
+    'IDEMPOTENCY_REPLAYED_ITEM',
+    IDEMPOTENCY_REPLAYED_ITEM,
+  );
 
 /**
  * Unique symbol key set on `context.items` to `true` when a handler completed after
@@ -71,6 +92,16 @@ export const IDEMPOTENCY_REPLAYED_ITEM = Symbol('IDEMPOTENCY_REPLAYED_ITEM');
 export const IDEMPOTENCY_OWNERSHIP_LOST_ITEM = Symbol(
   'IDEMPOTENCY_OWNERSHIP_LOST_ITEM',
 );
+
+/**
+ * Typed token for {@link IDEMPOTENCY_OWNERSHIP_LOST_ITEM}: the idempotency ownership-lost flag. Reads and writes the same
+ * `context.items` entry through `getPipelineItem` / `requirePipelineItem`.
+ */
+export const IDEMPOTENCY_OWNERSHIP_LOST_ITEM_TOKEN: PipelineItemToken<boolean> =
+  createPipelineItem<boolean>(
+    'IDEMPOTENCY_OWNERSHIP_LOST_ITEM',
+    IDEMPOTENCY_OWNERSHIP_LOST_ITEM,
+  );
 
 const DEFAULT_SCOPE: IdempotencyRequestKind[] = ['command'];
 
@@ -116,7 +147,11 @@ const DEFAULT_SCOPE: IdempotencyRequestKind[] = ['command'];
  * ```
  */
 @Injectable()
-export class IdempotencyBehavior implements IPipelineBehavior {
+export class IdempotencyBehavior
+  implements
+    IPipelineBehavior,
+    IPipelineBehaviorOptionsResolver<IdempotencyBehaviorOptions>
+{
   static readonly [PIPELINE_BEHAVIOR_CONTRACT]: IPipelineBehaviorContract = {
     order: (
       context: PipelineBehaviorValidationContext,
@@ -225,7 +260,7 @@ export class IdempotencyBehavior implements IPipelineBehavior {
       return next();
     }
 
-    context.items.set(IDEMPOTENCY_KEY_ITEM, key);
+    setPipelineItem(context, IDEMPOTENCY_KEY_ITEM_TOKEN, key);
 
     const ttl = options.ttl ?? DEFAULT_IDEMPOTENCY_TTL_MS;
     if (!Number.isSafeInteger(ttl) || ttl <= 0) {
@@ -333,7 +368,7 @@ export class IdempotencyBehavior implements IPipelineBehavior {
     }
 
     if (!completed) {
-      context.items.set(IDEMPOTENCY_OWNERSHIP_LOST_ITEM, true);
+      setPipelineItem(context, IDEMPOTENCY_OWNERSHIP_LOST_ITEM_TOKEN, true);
       this.logger.error?.(
         `Idempotency claim ownership was lost after ${context.requestName} ` +
           `completed successfully (key: ${key}). The successful result is being ` +
@@ -415,7 +450,7 @@ export class IdempotencyBehavior implements IPipelineBehavior {
       });
     }
 
-    context.items.set(IDEMPOTENCY_REPLAYED_ITEM, true);
+    setPipelineItem(context, IDEMPOTENCY_REPLAYED_ITEM_TOKEN, true);
     this.logger.debug?.(
       `Replaying idempotent response for ${context.requestName} (key: ${key})`,
       IdempotencyBehavior.name,

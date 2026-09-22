@@ -376,3 +376,128 @@ describe('LoggingBehavior failure isolation', () => {
     },
   );
 });
+
+describe('LoggingBehavior optional logger and error shapes', () => {
+  it.each([false, true])(
+    'preserves non-Error failures with structured=%s',
+    async (structured) => {
+      const logger = { log: vi.fn(), error: vi.fn(), warn: vi.fn() };
+      const options: LoggingBehaviorOptions = {
+        logFormat: structured ? 'structured' : 'text',
+        requestResponseLogLevel: 'none',
+      };
+      const context = createMockContext({
+        getBehaviorOptions: () => options as never,
+      });
+      const behavior = new LoggingBehavior(logger);
+      await expect(
+        behavior.handle(context, async () => {
+          throw 'failed';
+        }),
+      ).rejects.toBe('failed');
+      expect(logger.error).toHaveBeenCalled();
+      const message = logger.error.mock.calls[0][0];
+      expect(structured ? message.message : message).toContain('failed');
+    },
+  );
+
+  it.each([false, true])(
+    'redacts array error parameters with structured=%s',
+    async (structured) => {
+      const logger = { log: vi.fn(), error: vi.fn(), warn: vi.fn() };
+      const failure = { optionalParams: [{ password: 'secret' }] };
+      const context = createMockContext({
+        getBehaviorOptions: () =>
+          ({ logFormat: structured ? 'structured' : 'text' }) as never,
+      });
+      await expect(
+        new LoggingBehavior(logger).handle(context, async () => {
+          throw failure;
+        }),
+      ).rejects.toBe(failure);
+      expect(JSON.stringify(logger.error.mock.calls)).toContain('[REDACTED]');
+      expect(JSON.stringify(logger.error.mock.calls)).not.toContain('secret');
+    },
+  );
+
+  it('keeps the most specific mapped error level even when the base class is listed later', async () => {
+    const logger = { log: vi.fn(), error: vi.fn(), warn: vi.fn() };
+    const options: LoggingBehaviorOptions = {
+      mapLogLevel: new Map([
+        [TypeError, 'warn'],
+        [Error, 'error'],
+        [SyntaxError, 'debug'],
+      ]),
+    };
+    const failure = new TypeError('invalid input');
+    const context = createMockContext({
+      getBehaviorOptions: () => options as never,
+    });
+    await expect(
+      new LoggingBehavior(logger).handle(context, async () => {
+        throw failure;
+      }),
+    ).rejects.toBe(failure);
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining('invalid input'),
+      expect.any(String),
+      'MockHandler',
+    );
+    expect(logger.error).not.toHaveBeenCalled();
+  });
+
+  it('supports disabled and unimplemented logger levels', async () => {
+    const logger = { log: vi.fn(), error: vi.fn(), warn: vi.fn() };
+    const behavior = new LoggingBehavior(logger);
+    for (const level of ['none', 'debug'] as const) {
+      const options = {
+        metricLogLevel: level,
+        requestResponseLogLevel: level,
+        errorLogLevel: level,
+      };
+      const context = createMockContext({
+        getBehaviorOptions: () => options as never,
+      });
+      await expect(
+        behavior.handle(context, async () => undefined),
+      ).resolves.toBeUndefined();
+      await expect(
+        behavior.handle(context, async () => {
+          throw null;
+        }),
+      ).rejects.toBeNull();
+    }
+    expect(logger.log).not.toHaveBeenCalled();
+    expect(logger.error).not.toHaveBeenCalled();
+    expect(logger.warn).not.toHaveBeenCalled();
+  });
+
+  it('logs a void response without serializing a missing value', async () => {
+    const logger = { log: vi.fn(), error: vi.fn(), warn: vi.fn() };
+    const context = createMockContext({
+      getBehaviorOptions: () =>
+        ({
+          requestResponseLogLevel: 'log',
+          excludeResponseObj: false,
+        }) as never,
+    });
+    await new LoggingBehavior(logger).handle(context, async () => undefined);
+    expect(logger.log).toHaveBeenCalledWith('Response: (void)', 'MockHandler');
+  });
+
+  it('reports a non-Error logging failure without changing the result', async () => {
+    const logger = {
+      log: vi.fn(() => {
+        throw 'logger unavailable';
+      }),
+      error: vi.fn(),
+      warn: vi.fn(),
+    };
+    await expect(
+      new LoggingBehavior(logger).handle(createMockContext(), async () => 'ok'),
+    ).resolves.toBe('ok');
+    expect(logger.warn).toHaveBeenCalledWith(
+      'LoggingBehavior suppressed a log write: unknown error',
+    );
+  });
+});

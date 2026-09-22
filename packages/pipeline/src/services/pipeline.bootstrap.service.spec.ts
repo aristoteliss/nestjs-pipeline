@@ -166,6 +166,133 @@ describe('PipelineBootstrapService', () => {
   });
 
   describe('Core singleton wrapping', () => {
+    it('reports a frozen handler restoration failure and continues cleanup', () => {
+      @UsePipeline(MockBehavior)
+      class Handler {
+        execute = async (_request: object) => 'done';
+      }
+      const handler = new Handler();
+      explorerServiceMock.explore.mockReturnValue({
+        commands: [makeWrapper(handler, Handler)],
+      });
+      const warn = vi
+        .spyOn(Logger.prototype, 'warn')
+        .mockImplementation(() => {});
+      try {
+        const service = bootstrap();
+        Object.freeze(handler);
+        expect(() => service.onModuleDestroy()).not.toThrow();
+        expect(warn).toHaveBeenCalledWith(
+          expect.stringContaining(
+            'Failed to unwrap pipeline handler during cleanup',
+          ),
+        );
+      } finally {
+        warn.mockRestore();
+      }
+    });
+
+    it('filters skipped global after behaviors while retaining the others', async () => {
+      @SkipPipeline(SecondMockBehavior)
+      class Handler {
+        async execute(_request: object) {
+          return pipelineStore.getStore();
+        }
+      }
+      const handler = new Handler();
+      explorerServiceMock.explore.mockReturnValue({
+        commands: [makeWrapper(handler, Handler)],
+      });
+      bootstrap({
+        globalBehaviors: { after: [SecondMockBehavior, MockBehavior] },
+      });
+      const context = await handler.execute(new MockCommand(1));
+      expect(context?.items.get('mock')).toBe(true);
+      expect(context?.items.has('second')).toBe(false);
+    });
+
+    it.each([undefined, 'not a method'])(
+      'skips a handler with execute=%s',
+      (execute) => {
+        class InvalidHandler {}
+        const handler = Object.assign(new InvalidHandler(), { execute });
+        explorerServiceMock.explore.mockReturnValue({
+          commands: [makeWrapper(handler, InvalidHandler)],
+        });
+        bootstrap({ globalBehaviors: { before: [MockBehavior] } });
+        expect(handler.execute).toBe(execute);
+      },
+    );
+
+    it('leaves an already wrapped singleton untouched on repeated bootstrap', async () => {
+      @UsePipeline(MockBehavior)
+      class Handler {
+        async execute(_request: object) {
+          return 'done';
+        }
+      }
+      const handler = new Handler();
+      explorerServiceMock.explore.mockReturnValue({
+        commands: [makeWrapper(handler, Handler)],
+      });
+      const service = bootstrap();
+      const wrapped = handler.execute;
+      service.onApplicationBootstrap();
+      expect(handler.execute).toBe(wrapped);
+      await expect(handler.execute(new MockCommand(1))).resolves.toBe('done');
+    });
+
+    it('skips an absent inherited handler method', () => {
+      @UsePipeline(MockBehavior)
+      class Handler {}
+      const handler = new Handler();
+      explorerServiceMock.explore.mockReturnValue({
+        commands: [makeWrapper(handler, Handler)],
+      });
+      bootstrap();
+      expect(Object.hasOwn(handler, 'execute')).toBe(false);
+    });
+
+    it.each([undefined, null, 'lookup failed'])(
+      'preserves a non-object provider lookup failure as its cause',
+      (failure) => {
+        @UsePipeline(MockBehavior)
+        class Handler {
+          async execute() {
+            return 'done';
+          }
+        }
+        explorerServiceMock.explore.mockReturnValue({
+          commands: [makeWrapper(new Handler(), Handler)],
+        });
+        moduleRefMock.get.mockImplementation((token: unknown) => {
+          if (token === ExplorerService) return explorerServiceMock;
+          throw failure;
+        });
+        expect(() => bootstrap()).toThrow(
+          expect.objectContaining({ cause: failure }),
+        );
+        expect(moduleRefMock.resolve).not.toHaveBeenCalled();
+      },
+    );
+
+    it('rejects a falsy singleton provider rather than treating it as scoped', () => {
+      @UsePipeline(MockBehavior)
+      class Handler {
+        async execute() {
+          return 'done';
+        }
+      }
+      explorerServiceMock.explore.mockReturnValue({
+        commands: [makeWrapper(new Handler(), Handler)],
+      });
+      moduleRefMock.get.mockImplementation((token: unknown) =>
+        token === ExplorerService ? explorerServiceMock : undefined,
+      );
+      expect(() => bootstrap()).toThrow(/resolved to a falsy value/);
+      expect(moduleRefMock.resolve).not.toHaveBeenCalled();
+    });
+
     it('wraps execute() and runs the full behavior chain', async () => {
       const handler = new MockCommandHandler();
       explorerServiceMock.explore.mockReturnValue({
@@ -262,6 +389,74 @@ describe('PipelineBootstrapService', () => {
   });
 
   describe('Scoped handlers (REQUEST scope: 2, TRANSIENT scope: 1)', () => {
+    it('binds instances read or written through Nest and restores hooks on shutdown', async () => {
+      @UsePipeline(MockBehavior)
+      class Handler {
+        async execute(_request: object) {
+          return pipelineStore.getStore()?.items.get('mock') ?? 'unwrapped';
+        }
+      }
+      let host: { instance?: unknown } = {};
+      const get = vi.fn(() => host);
+      const set = vi.fn((_id: unknown, value: typeof host) => {
+        host = value;
+      });
+      const wrapper = {
+        ...makeWrapper(undefined, Handler, 2),
+        getInstanceByContextId: get,
+        setInstanceByContextId: set,
+      };
+      explorerServiceMock.explore.mockReturnValue({ commands: [wrapper] });
+      const service = bootstrap();
+      const dispatcher = Handler.prototype.execute;
+      service.onApplicationBootstrap();
+      expect(Handler.prototype.execute).toBe(dispatcher);
+      expect(wrapper.getInstanceByContextId()).toBe(host);
+      wrapper.setInstanceByContextId({}, { instance: 'pending' });
+      expect(wrapper.getInstanceByContextId()).toEqual({ instance: 'pending' });
+      const first = new Handler();
+      wrapper.setInstanceByContextId({}, { instance: first });
+      expect(wrapper.getInstanceByContextId().instance).toBe(first);
+      await expect(first.execute(new MockCommand(1))).resolves.toBe(true);
+      await expect(
+        dispatcher.call(undefined, new MockCommand(1)),
+      ).resolves.toBe(true);
+      service.onModuleDestroy();
+      expect(wrapper.getInstanceByContextId).toBe(get);
+      expect(wrapper.setInstanceByContextId).toBe(set);
+      await expect(dispatcher.call(first, new MockCommand(1))).resolves.toBe(
+        'unwrapped',
+      );
+    });
+
+    it('routes inherited super calls to the ancestor without repeating the child pipeline', async () => {
+      @UsePipeline(SecondMockBehavior)
+      class Parent {
+        async execute(_request: object) {
+          return 'done';
+        }
+      }
+      @UsePipeline(MockBehavior)
+      class Child extends Parent {
+        async execute(request: object) {
+          return super.execute(request);
+        }
+      }
+      let host = { instance: new Child() };
+      const childWrapper = {
+        ...makeWrapper(undefined, Child, 2),
+        getInstanceByContextId: () => host,
+      };
+      explorerServiceMock.explore.mockReturnValue({
+        commands: [makeWrapper(undefined, Parent, 2), childWrapper],
+      });
+      bootstrap();
+      const child = childWrapper.getInstanceByContextId().instance;
+      await expect(child.execute(new MockCommand(1))).resolves.toBe('done');
+      expect(SecondMockBehavior.callCount).toBe(0);
+      host = { instance: new Child() };
+    });
+
     it('patches the prototype for REQUEST-scoped handlers (scope: 2)', async () => {
       // At bootstrap, instance is undefined for scoped providers.
       explorerServiceMock.explore.mockReturnValue({
@@ -840,6 +1035,39 @@ describe('PipelineBootstrapService', () => {
   });
 
   describe('Dynamic DI — request-scoped behavior fallback', () => {
+    it('recognizes the Nest scoped exception and reuses singleton slots around it', async () => {
+      class InvalidClassScopeException extends Error {}
+      @UsePipeline(MockBehavior, SecondMockBehavior)
+      class Handler {
+        async execute(_request: unknown) {
+          return pipelineStore.getStore();
+        }
+      }
+      const handler = new Handler();
+      const singleton = new MockBehavior();
+      explorerServiceMock.explore.mockReturnValue({
+        commands: [makeWrapper(handler, Handler)],
+      });
+      moduleRefMock.get.mockImplementation((token: unknown) => {
+        if (token === ExplorerService) return explorerServiceMock;
+        if (token === MockBehavior) return singleton;
+        throw new InvalidClassScopeException();
+      });
+      moduleRefMock.resolve.mockResolvedValue(new SecondMockBehavior());
+      bootstrap();
+      const context = await handler.execute('primitive-request');
+      const detached = handler.execute;
+      await expect(detached(new MockCommand(1))).resolves.toBeDefined();
+      expect(context?.items.get('mock')).toBe(true);
+      expect(context?.items.get('second')).toBe(true);
+      expect(moduleRefMock.resolve).toHaveBeenCalledTimes(2);
+      expect(moduleRefMock.resolve).toHaveBeenCalledWith(
+        SecondMockBehavior,
+        expect.any(Object),
+        { strict: false },
+      );
+    });
+
     it('falls back to moduleRef.resolve() when a behavior cannot be resolved as singleton', async () => {
       // Use a fresh, unique class so no previous test's bootstrap has touched it.
       @UsePipeline(MockBehavior)

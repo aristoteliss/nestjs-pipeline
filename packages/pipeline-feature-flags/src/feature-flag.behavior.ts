@@ -8,14 +8,18 @@ import {
   Optional,
 } from '@nestjs/common';
 import {
+  createPipelineItem,
   type IPipelineBehavior,
   type IPipelineBehaviorContract,
+  type IPipelineBehaviorOptionsResolver,
   type IPipelineContext,
   LOGGING_BEHAVIOR_LOGGER,
   type NextDelegate,
   PIPELINE_BEHAVIOR_CONTRACT,
   type PipelineBehaviorDiagnostic,
   type PipelineBehaviorValidationContext,
+  type PipelineItemToken,
+  setPipelineItem,
 } from '@nestjs-pipeline/core';
 import type { Client, EvaluationContext } from '@openfeature/server-sdk';
 import {
@@ -49,6 +53,13 @@ import type {
 export const FEATURE_FLAG_ITEM = Symbol('FEATURE_FLAG_ITEM');
 
 /**
+ * Typed token for {@link FEATURE_FLAG_ITEM}: the feature flag gate decision. Reads and writes the same
+ * `context.items` entry through `getPipelineItem` / `requirePipelineItem`.
+ */
+export const FEATURE_FLAG_ITEM_TOKEN: PipelineItemToken<boolean> =
+  createPipelineItem<boolean>('FEATURE_FLAG_ITEM', FEATURE_FLAG_ITEM);
+
+/**
  * Unique symbol key set on `context.items` recording the evaluated feature flag
  * key string.
  *
@@ -58,6 +69,13 @@ export const FEATURE_FLAG_ITEM = Symbol('FEATURE_FLAG_ITEM');
  * ```
  */
 export const FEATURE_FLAG_KEY_ITEM = Symbol('FEATURE_FLAG_KEY_ITEM');
+
+/**
+ * Typed token for {@link FEATURE_FLAG_KEY_ITEM}: the evaluated feature flag key. Reads and writes the same
+ * `context.items` entry through `getPipelineItem` / `requirePipelineItem`.
+ */
+export const FEATURE_FLAG_KEY_ITEM_TOKEN: PipelineItemToken<string> =
+  createPipelineItem<string>('FEATURE_FLAG_KEY_ITEM', FEATURE_FLAG_KEY_ITEM);
 
 /**
  * Unique symbol key set on `context.items` with the full
@@ -79,6 +97,16 @@ export const FEATURE_FLAG_KEY_ITEM = Symbol('FEATURE_FLAG_KEY_ITEM');
  * ```
  */
 export const FEATURE_FLAG_DECISION_ITEM = Symbol('FEATURE_FLAG_DECISION_ITEM');
+
+/**
+ * Typed token for {@link FEATURE_FLAG_DECISION_ITEM}: the feature flag decision. Reads and writes the same
+ * `context.items` entry through `getPipelineItem` / `requirePipelineItem`.
+ */
+export const FEATURE_FLAG_DECISION_ITEM_TOKEN: PipelineItemToken<FeatureFlagDecision> =
+  createPipelineItem<FeatureFlagDecision>(
+    'FEATURE_FLAG_DECISION_ITEM',
+    FEATURE_FLAG_DECISION_ITEM,
+  );
 
 /** Minimal OpenFeature boolean detail shape used by the behavior. */
 interface BooleanEvaluationDetails {
@@ -157,7 +185,11 @@ interface BooleanEvaluationDetails {
  * ```
  */
 @Injectable()
-export class FeatureFlagBehavior implements IPipelineBehavior {
+export class FeatureFlagBehavior
+  implements
+    IPipelineBehavior,
+    IPipelineBehaviorOptionsResolver<FeatureFlagBehaviorOptions>
+{
   static readonly [PIPELINE_BEHAVIOR_CONTRACT]: IPipelineBehaviorContract = {
     validate: (
       context: PipelineBehaviorValidationContext,
@@ -184,9 +216,7 @@ export class FeatureFlagBehavior implements IPipelineBehavior {
       if (
         (context.declarationSource === 'handler' ||
           context.declarationSource === 'both') &&
-        (!options?.flag ||
-          typeof options.flag !== 'string' ||
-          options.flag.trim() === '')
+        options?.flag === undefined
       ) {
         return [
           {
@@ -280,9 +310,9 @@ export class FeatureFlagBehavior implements IPipelineBehavior {
 
     // Publish the decision before applying the throw policy so outer audit and
     // telemetry behaviors can observe provider failures.
-    context.items.set(FEATURE_FLAG_KEY_ITEM, options.flag);
-    context.items.set(FEATURE_FLAG_ITEM, enabled);
-    context.items.set(FEATURE_FLAG_DECISION_ITEM, decision);
+    setPipelineItem(context, FEATURE_FLAG_KEY_ITEM_TOKEN, options.flag);
+    setPipelineItem(context, FEATURE_FLAG_ITEM_TOKEN, enabled);
+    setPipelineItem(context, FEATURE_FLAG_DECISION_ITEM_TOKEN, decision);
 
     if (failure && (options.errorPolicy ?? 'use-default') === 'throw') {
       throw new FeatureFlagEvaluationError(
@@ -297,19 +327,13 @@ export class FeatureFlagBehavior implements IPipelineBehavior {
     const variantSuffix = details.variant ? ` variant=${details.variant}` : '';
     const reasonSuffix = details.reason ? ` reason=${details.reason}` : '';
 
-    if (enabled) {
-      this.logger.debug?.(
-        `Feature "${options.flag}" enabled for ${context.requestName}${variantSuffix}${reasonSuffix}`,
-        FeatureFlagBehavior.name,
-      );
-      return next();
-    }
-
+    const state = enabled ? 'enabled' : 'disabled';
     this.logger.debug?.(
-      `Feature "${options.flag}" disabled for ${context.requestName}${variantSuffix}${reasonSuffix}`,
+      `Feature "${options.flag}" ${state} for ${context.requestName}${variantSuffix}${reasonSuffix}`,
       FeatureFlagBehavior.name,
     );
 
+    if (enabled) return next();
     if (options.fallback) return options.fallback(context);
     throw new FeatureDisabledError(options.flag, context.requestName);
   }

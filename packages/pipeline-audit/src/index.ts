@@ -2,6 +2,7 @@
 
 export {
   AUDIT_RECORD_ITEM,
+  AUDIT_RECORD_ITEM_TOKEN,
   AuditBehavior,
 } from './audit.behavior';
 export { AuditModule } from './audit.module';

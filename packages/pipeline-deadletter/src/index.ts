@@ -11,6 +11,7 @@ export {
 } from './constants/tokens';
 export {
   DEAD_LETTER_ITEM,
+  DEAD_LETTER_ITEM_TOKEN,
   DeadLetterBehavior,
 } from './dead-letter.behavior';
 export { DeadLetterModule } from './dead-letter.module';

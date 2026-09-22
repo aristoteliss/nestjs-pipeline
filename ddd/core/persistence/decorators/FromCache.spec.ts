@@ -79,6 +79,37 @@ describe('@FromCache decorator on QueryRepository.find', () => {
     expect(repo.dbFetchCount).toBe(1);
   });
 
+  it('reports a repository without a cache property once and reads the database', async () => {
+    class MiswiredQueryRepo {
+      public dbFetchCount = 0;
+
+      constructor(readonly cacheClient: ICache) {}
+
+      @FromCache<GetUserQuery, Row>((q) => `user:${q.userId}`)
+      async find(query: GetUserQuery): Promise<Row> {
+        this.dbFetchCount++;
+        return { id: query.userId, name: 'db' };
+      }
+    }
+    const warn = vi
+      .spyOn(Logger.prototype, 'warn')
+      .mockImplementation(() => undefined);
+    const repo = new MiswiredQueryRepo(versionedCache<Row>());
+
+    try {
+      await repo.find({ userId: '1' });
+      await repo.find({ userId: '1' });
+
+      expect(repo.dbFetchCount).toBe(2);
+      expect(warn).toHaveBeenCalledTimes(1);
+      expect(warn.mock.calls[0][0]).toContain(
+        'MiswiredQueryRepo uses @FromCache',
+      );
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
   it('serves from cache on cache hit', async () => {
     const cache = versionedCache<Row>();
     await cache.set('user:20', { id: '20', name: 'Cached User' });
@@ -87,17 +118,17 @@ describe('@FromCache decorator on QueryRepository.find', () => {
     const repo = new TestQueryRepo(cache);
     const result = await repo.find({ userId: '20' });
 
-    expect(result).toEqual({ id: '20', name: 'Cached User' });
+    expect(result).toEqual({ id: '20', name: 'Cached User', hydrated: true });
     expect(readState).toHaveBeenCalledWith('user:20');
     expect(repo.dbFetchCount).toBe(0);
   });
 
-  it('hydrates cached data when query.hydrate is true and hydrateFn provided', async () => {
+  it('hydrates a hit even when the query does not request hydration', async () => {
     const cache = versionedCache<Row>();
     await cache.set('user:30', { id: '30', name: 'Cached User' });
 
     const repo = new TestQueryRepo(cache);
-    const result = await repo.find({ userId: '30', hydrate: true });
+    const result = await repo.find({ userId: '30', hydrate: false });
 
     expect(result).toEqual({ id: '30', name: 'Cached User', hydrated: true });
   });
@@ -353,6 +384,10 @@ describe('@FromCache with options and concurrency checks', () => {
 
       @FromCache<{ id: string } & IQueryOptions, EntityResult>({
         keyFn: (q) => `entity:${q.id}`,
+        hydrateFn: (cached) => {
+          const row = cached as { id: string; name: string };
+          return new EntityResult(row.id, row.name);
+        },
       })
       async find(query: { id: string }): Promise<EntityResult> {
         return new EntityResult(query.id, `Entity ${query.id}`);
@@ -360,16 +395,57 @@ describe('@FromCache with options and concurrency checks', () => {
     }
 
     const cache = versionedCache<unknown>();
-    const result = await new EntityQueryRepo(cache as ICache).find({
-      id: '99',
-    });
+    const repo = new EntityQueryRepo(cache as ICache);
+    const miss = await repo.find({ id: '99' });
+    const hit = await repo.find({ id: '99' });
 
-    expect(result).toBeInstanceOf(EntityResult);
+    expect(miss).toBeInstanceOf(EntityResult);
+    expect(hit).toBeInstanceOf(EntityResult);
     expect(await cache.get('entity:99')).toEqual({
       id: '99',
       name: 'Entity 99',
       isSnapshot: true,
     });
+  });
+
+  it('returns a class result uncached when no hydrator can rebuild it, reporting once', async () => {
+    class EntityResult {
+      constructor(readonly id: string) {}
+      toJSON() {
+        return { id: this.id };
+      }
+    }
+
+    class UnhydratedRepo {
+      public dbFetchCount = 0;
+
+      constructor(public cache?: ICache) {}
+
+      @FromCache<{ id: string } & IQueryOptions, EntityResult>({
+        keyFn: (q) => `entity:${q.id}`,
+      })
+      async find(query: { id: string }): Promise<EntityResult> {
+        this.dbFetchCount++;
+        return new EntityResult(query.id);
+      }
+    }
+    const warn = vi
+      .spyOn(Logger.prototype, 'warn')
+      .mockImplementation(() => undefined);
+    const cache = versionedCache<unknown>();
+    const repo = new UnhydratedRepo(cache as ICache);
+
+    try {
+      expect(await repo.find({ id: '1' })).toBeInstanceOf(EntityResult);
+      expect(await repo.find({ id: '1' })).toBeInstanceOf(EntityResult);
+
+      expect(repo.dbFetchCount).toBe(2);
+      expect(await cache.get('entity:1')).toBeUndefined();
+      expect(warn).toHaveBeenCalledTimes(1);
+      expect(warn.mock.calls[0][0]).toContain('returned uncached');
+    } finally {
+      warn.mockRestore();
+    }
   });
 
   it('uses a custom serializeFn on a miss when configured', async () => {
@@ -379,6 +455,9 @@ describe('@FromCache with options and concurrency checks', () => {
       @FromCache<{ id: string } & IQueryOptions, { raw: string }>({
         keyFn: (q) => `custom:${q.id}`,
         serializeFn: (res) => ({ transformed: res.raw.toUpperCase() }),
+        hydrateFn: (cached) => ({
+          raw: (cached as { transformed: string }).transformed.toLowerCase(),
+        }),
       })
       async find(_query: { id: string }): Promise<{ raw: string }> {
         return { raw: 'hello' };
@@ -390,6 +469,33 @@ describe('@FromCache with options and concurrency checks', () => {
 
     expect(result).toEqual({ raw: 'hello' });
     expect(await cache.get('custom:1')).toEqual({ transformed: 'HELLO' });
+  });
+
+  it('does not cache a serializeFn reshape that no hydrator can reverse', async () => {
+    class ReshapingRepo {
+      constructor(public cache?: ICache) {}
+
+      @FromCache<{ id: string } & IQueryOptions, { raw: string }>({
+        keyFn: (q) => `reshape:${q.id}`,
+        serializeFn: (res) => ({ transformed: res.raw }),
+      })
+      async find(_query: { id: string }): Promise<{ raw: string }> {
+        return { raw: 'hello' };
+      }
+    }
+    const warn = vi
+      .spyOn(Logger.prototype, 'warn')
+      .mockImplementation(() => undefined);
+    const cache = versionedCache<unknown>();
+
+    try {
+      const result = await new ReshapingRepo(cache as ICache).find({ id: '1' });
+
+      expect(result).toEqual({ raw: 'hello' });
+      expect(await cache.get('reshape:1')).toBeUndefined();
+    } finally {
+      warn.mockRestore();
+    }
   });
 });
 
@@ -568,5 +674,103 @@ describe('@FromCache with a repository hydration policy', () => {
     const result = await new DefaultedRepo(cache).find({ userId: 'u1' });
 
     expect(result).toEqual({ id: 'u1', name: 'cached' });
+  });
+
+  it('warns with fallback adapter name when unversioned adapter lacks constructor', async () => {
+    const anonCache = Object.create(null);
+    anonCache.get = vi.fn().mockResolvedValue(undefined);
+    anonCache.set = vi.fn().mockResolvedValue(undefined);
+    anonCache.delete = vi.fn().mockResolvedValue(undefined);
+
+    class AnonCacheRepo {
+      constructor(public cache: any) {}
+      @FromCache((q: any) => `key:${q.id}`)
+      async find(q: any) {
+        return { id: q.id };
+      }
+    }
+    const repo = new AnonCacheRepo(anonCache);
+    await repo.find({ id: '1' });
+  });
+
+  it('bypasses cache when query.refresh is true', async () => {
+    const cache = versionedCache<Row>();
+    await cache.set('user:u1', { id: 'u1', name: 'cached' });
+    const repo = new TestQueryRepo(cache);
+    const result = await repo.find({ userId: 'u1', refresh: true });
+    expect(result.name).toBe('User u1');
+    expect(repo.dbFetchCount).toBe(1);
+  });
+
+  it('throws TypeError when keyFn is not provided', async () => {
+    class MissingKeyFnRepo {
+      constructor(public cache?: ICache) {}
+      @FromCache({} as any)
+      async find(_q: any) {
+        return { ok: true };
+      }
+    }
+    const repo = new MissingKeyFnRepo(versionedCache());
+    await expect(repo.find({})).rejects.toThrow('FromCache requires a keyFn');
+  });
+
+  it('bypasses cache when keyFn returns null', async () => {
+    const cache = versionedCache<Row>();
+    const repo = new TestQueryRepo(cache);
+    const result = await repo.find({ userId: '' });
+    expect(result.id).toBe('');
+    expect(repo.dbFetchCount).toBe(1);
+  });
+
+  it('hydrates usable snapshot when db returns null but cache was concurrently filled', async () => {
+    const cache = versionedCache<Row>();
+    let readCount = 0;
+    vi.spyOn(cache, 'readState').mockImplementation(async () => {
+      readCount++;
+      if (readCount === 1) return { status: 'miss', revision: '1' };
+      return {
+        status: 'hit',
+        revision: '2',
+        value: { id: 'u1', name: 'concurrent' },
+      };
+    });
+    class ConcurrentRepo {
+      constructor(public cache: any) {}
+      @FromCache<GetUserQuery, Row | null>(
+        (q) => `user:${q.userId}`,
+        (cached: any) => ({ ...cached, hydrated: true }),
+      )
+      async find(_q: GetUserQuery): Promise<Row | null> {
+        return null;
+      }
+    }
+    const repo = new ConcurrentRepo(cache);
+    const result = await repo.find({ userId: 'u1' });
+    expect(result).toEqual({ id: 'u1', name: 'concurrent', hydrated: true });
+  });
+
+  it('retries fill when tryFill fails and current state is not newer', async () => {
+    const cache = versionedCache<Row>();
+    vi.spyOn(cache, 'tryFill').mockResolvedValue(false);
+    vi.spyOn(cache, 'readState')
+      .mockResolvedValueOnce({ status: 'miss', revision: '1' })
+      .mockResolvedValue({
+        status: 'hit',
+        revision: '2',
+        value: { id: 'u1', name: 'older', version: 1 } as any,
+      });
+    class OlderConflictRepo {
+      constructor(public cache: any) {}
+      @FromCache<GetUserQuery, Row>({
+        keyFn: (q) => `user:${q.userId}`,
+        isNewer: () => false,
+      })
+      async find(q: GetUserQuery): Promise<Row> {
+        return { id: q.userId, name: 'fresh' };
+      }
+    }
+    const repo = new OlderConflictRepo(cache);
+    const result = await repo.find({ userId: 'u1' });
+    expect(result).toEqual({ id: 'u1', name: 'fresh' });
   });
 });

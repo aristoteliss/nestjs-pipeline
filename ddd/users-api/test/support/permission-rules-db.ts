@@ -6,8 +6,7 @@ import { join } from 'node:path';
 import { type EntityManager, MikroORM } from '@mikro-orm/core';
 import type { LibSqlDriver } from '@mikro-orm/libsql';
 import { createLibsqlOrmOptions } from '../../src/persistence/libsql-options';
-
-export const FIRST_MIGRATION = 'Migration20260830000000';
+import { Migration20260830000000 } from '../../src/persistence/migrations/Migration20260830000000';
 
 export interface MigratedDb {
   orm: MikroORM<LibSqlDriver>;
@@ -17,17 +16,19 @@ export interface MigratedDb {
   close: () => Promise<void>;
 }
 
-/** A throwaway libSQL database migrated to `to` (default: latest), seed data included. */
-export async function migratedDb(options?: {
-  to?: string;
-}): Promise<MigratedDb> {
+/** A temporary libSQL database with the complete schema and demo seed. */
+export async function migratedDb(): Promise<MigratedDb> {
   const dir = mkdtempSync(join(tmpdir(), 'users-api-permissions-'));
   const url = `file:${join(dir, 'tenant.db')}`;
   const orm = await MikroORM.init<LibSqlDriver>({
     ...createLibsqlOrmOptions(url),
     debug: false,
+    migrations: {
+      migrationsList: [Migration20260830000000],
+      snapshot: false,
+    },
   });
-  await orm.migrator.up(options?.to ? { to: options.to } : undefined);
+  await orm.migrator.up();
 
   return {
     orm,

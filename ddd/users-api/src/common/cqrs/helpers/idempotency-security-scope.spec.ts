@@ -7,7 +7,7 @@ import { describe, expect, it } from 'vitest';
 import { createRoleIdempotencyKey } from '../../../roles/cqrs/commands/create-role.handler';
 import { createUserIdempotencyKey } from '../../../users/cqrs/commands/create-user.handler';
 
-type KeyFactory = (ctx: IPipelineContext) => string;
+type KeyFactory = (ctx: IPipelineContext) => string | undefined;
 
 const session = (overrides: Partial<SessionUser> = {}): SessionUser => ({
   id: 'alice',
@@ -21,7 +21,7 @@ function keyFor(
   payload: object,
   tenantId: string | undefined,
   user: SessionUser | undefined,
-): string {
+): string | undefined {
   return sessionUserStore.run(user, () =>
     factory({ tenantId, request: payload } as unknown as IPipelineContext),
   );
@@ -32,13 +32,13 @@ describe('create idempotency security scope', () => {
     {
       name: 'user creation',
       factory: createUserIdempotencyKey,
-      payload: { email: 'same@example.test' },
+      payload: { email: 'same@example.test', idempotencyKey: 'op-1' },
       action: 'user.create',
     },
     {
       name: 'role creation',
       factory: createRoleIdempotencyKey,
-      payload: { name: 'same-role' },
+      payload: { name: 'same-role', idempotencyKey: 'op-1' },
       action: 'role.create',
     },
   ] as const;
@@ -88,15 +88,35 @@ describe('create idempotency security scope', () => {
         ).toThrow(missing('principal'));
       });
 
-      it('escapes a separator in the discriminator rather than colliding', () => {
+      it('escapes a separator in the operation id rather than colliding', () => {
         const withSeparator = keyFor(
           factory,
-          { ...payload, email: 'a:b@example.test', name: 'a:b' },
+          { ...payload, idempotencyKey: 'a:b' },
           'tenant_a',
           session(),
         );
 
         expect(withSeparator).toContain('a\\:b');
+      });
+
+      it('keys the client operation id, not the business identifier', () => {
+        expect(key('tenant_a', session())).toMatch(/:op-1$/);
+        expect(
+          keyFor(
+            factory,
+            { ...payload, idempotencyKey: 'op-2' },
+            'tenant_a',
+            session(),
+          ),
+        ).not.toBe(key('tenant_a', session()));
+      });
+
+      it('skips deduplication when the client sends no operation id', () => {
+        const { idempotencyKey: _omitted, ...withoutKey } = payload;
+
+        expect(
+          keyFor(factory, withoutKey, 'tenant_a', session()),
+        ).toBeUndefined();
       });
 
       it('ignores a caller-supplied identity in the request payload', () => {

@@ -1,7 +1,6 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 import { MikroORM } from '@mikro-orm/postgresql';
 import { Migration20260830000000 } from '@persistence/migrations/Migration20260830000000';
-import { Migration20260921000000 } from '@persistence/migrations/Migration20260921000000';
 import { createPostgresOrmOptions } from '@persistence/postgres-options';
 import {
   GenericContainer,
@@ -141,15 +140,12 @@ describe('PostgreSQL migration tenant isolation', () => {
   });
 
   it('backfills materialized permission rules, verifies them and cascades role deletion', async () => {
-    const orm = await openTenant('tenant_rules', [
-      Migration20260830000000,
-      Migration20260921000000,
-    ]);
+    const orm = await openTenant('tenant_rules', [Migration20260830000000]);
     const connection = orm.em.getConnection();
     await connection.execute('create schema tenant_rules');
     vi.stubEnv('SEED_TENANT', 'tenant_rules');
 
-    expect(await orm.migrator.up({ schema: 'tenant_rules' })).toHaveLength(2);
+    expect(await orm.migrator.up({ schema: 'tenant_rules' })).toHaveLength(1);
 
     const projector = new UserPermissionsProjector();
     const rows = await connection.execute(

@@ -29,13 +29,6 @@ export class GetRolesCapabilitiesQueryRepository {
       names === undefined ? {} : { name: { $in: names } },
     );
 
-    return this.hydrate(em, roles);
-  }
-
-  private async hydrate(
-    em: MikroOrmStore['em'],
-    roles: Role[],
-  ): Promise<RoleDefinition[]> {
     if (roles.length === 0) return [];
 
     const links = await em.find(RoleCapability, {

@@ -9,8 +9,8 @@ import {
   AuthConfigurationException,
   InvalidLoginCredentialsException,
 } from '../domain/errors/authentication.exception';
-import { EnvLoginCodeVerifier } from './env-login-code.verifier';
 import { JoseAccessTokenIssuer } from './jose-access-token.issuer';
+import { SharedDemoLoginCodeVerifier } from './shared-demo-login-code.verifier';
 
 const originalEnv = { ...process.env };
 
@@ -21,12 +21,13 @@ afterEach(() => {
 describe('authentication infrastructure adapters', () => {
   it('verifies a configured SHA-256 login-code digest', () => {
     process.env.NODE_ENV = 'production';
+    process.env.AUTH_SHARED_LOGIN_CODE = 'true';
     delete process.env.AUTH_LOGIN_CODE;
     process.env.AUTH_LOGIN_CODE_SHA256 = createHash('sha256')
       .update('424242', 'utf8')
       .digest('hex');
 
-    const verifier = new EnvLoginCodeVerifier();
+    const verifier = new SharedDemoLoginCodeVerifier();
     expect(() => verifier.verify('424242')).not.toThrow();
     expect(() =>
       verifier.verify({ userId: 'user-1', code: '424242' }),
@@ -39,12 +40,29 @@ describe('authentication infrastructure adapters', () => {
     );
   });
 
+  it('refuses a shared login code in production without acknowledgement', () => {
+    process.env.NODE_ENV = 'production';
+    delete process.env.AUTH_SHARED_LOGIN_CODE;
+    delete process.env.AUTH_LOGIN_CODE;
+    process.env.AUTH_LOGIN_CODE_SHA256 = createHash('sha256')
+      .update('424242', 'utf8')
+      .digest('hex');
+
+    expect(() =>
+      new SharedDemoLoginCodeVerifier().verify({
+        userId: 'user-1',
+        code: '424242',
+      }),
+    ).toThrow(AuthConfigurationException);
+  });
+
   it('rejects plaintext login-code configuration in production', () => {
     process.env.NODE_ENV = 'production';
+    process.env.AUTH_SHARED_LOGIN_CODE = 'true';
     delete process.env.AUTH_LOGIN_CODE_SHA256;
     process.env.AUTH_LOGIN_CODE = '424242';
 
-    expect(() => new EnvLoginCodeVerifier().verify('424242')).toThrow(
+    expect(() => new SharedDemoLoginCodeVerifier().verify('424242')).toThrow(
       AuthConfigurationException,
     );
   });
@@ -54,7 +72,9 @@ describe('authentication infrastructure adapters', () => {
     delete process.env.AUTH_LOGIN_CODE_SHA256;
     process.env.AUTH_LOGIN_CODE = '424242';
 
-    expect(() => new EnvLoginCodeVerifier().verify('424242')).not.toThrow();
+    expect(() =>
+      new SharedDemoLoginCodeVerifier().verify('424242'),
+    ).not.toThrow();
   });
 
   it('issues tenant-bound JWTs through the infrastructure adapter', async () => {

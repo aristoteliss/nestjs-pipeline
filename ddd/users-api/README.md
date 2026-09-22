@@ -28,7 +28,7 @@ pnpm db:migrate
 pnpm dev
 ```
 
-`db:migrate` applies pending migrations for every configured tenant: the initial migration creates the schema and inserts the demo seed; `Migration20260921000000` adds `user_permission_rules` and backfills it from the assignment tables.
+`db:migrate` applies pending migrations for every configured tenant: the initial migration creates the schema, inserts the demo seed, and materializes its permission rules.
 
 | Command | Purpose |
 | --- | --- |
@@ -38,7 +38,7 @@ pnpm dev
 | `pnpm permissions:verify` | Print, per tenant, the users whose materialized rules differ from their source tables; exits non-zero on any drift |
 | `pnpm sessions:purge` | Delete expired and long-revoked login sessions (and their refresh-token history) in every tenant |
 
-**Upgrading an existing database** (rollout order): stop or drain the running version → `pnpm db:migrate` (creates and backfills `user_permission_rules`) → `pnpm permissions:verify` must exit 0 → start the new version. If verify reports drift, run `pnpm permissions:rebuild`, verify again, and only then start. Run `permissions:verify` after any seed or bulk import.
+**Database setup** (rollout order): `pnpm db:migrate` → `pnpm permissions:verify` must exit 0 → start the application. If verify reports drift, run `pnpm permissions:rebuild`, verify again, and only then start. Run `permissions:verify` after any seed or bulk import.
 
 ## Persistence modes
 
@@ -138,7 +138,7 @@ curl http://localhost:3000/users \
 | Rotation | Every successful `POST /auths/refresh` returns a new access token and sets a new refresh cookie; the presented token becomes the session's previous token and is recorded in `auth_consumed_refresh_tokens`. |
 | Grace window | Presenting the immediately previous token within `REFRESH_REUSE_GRACE_SECONDS` (default 30, 0–120) of its rotation answers 200 with a new access token for the same session, without rotating and without `Set-Cookie`. |
 | Reuse detection | Presenting any earlier token of a session (the previous one after the grace window, or any older generation) revokes the session: 401 `{ "code": "refresh_reused" }`. An unknown, expired or revoked token: 401 `{ "code": "refresh_invalid" }`. |
-| Rate limit | Refresh is throttled per tenant and client IP (never per token). Set `TRUST_PROXY` behind a load balancer; otherwise every client shares the proxy's address and one bucket. |
+| Rate limit | Login is throttled per tenant and client IP (20/min across claimed emails), refresh per tenant and client IP (60/min, never per token), user creation per acting principal (60/min). Limits are per process and do not provide a per-account limit across source addresses. Clients sharing an IP also share its quota. Set `TRUST_PROXY` behind a load balancer; otherwise every client shares the proxy's address and one bucket. |
 | Logout | `POST /auths/logout` revokes the cookie's session, clears the cookie and answers 204, also for a missing or unknown cookie. An access token already issued stays valid until its `exp`. |
 | User deletion | Sessions and their history are deleted by FK cascade; the permission source denies the deleted user on the next request. |
 
@@ -191,8 +191,6 @@ If the signed token would exceed `ACCESS_TOKEN_MAX_BYTES` (default 2600), it is 
 | Permission change, user deletion, department change | next request | next refresh (≤ `ACCESS_TOKEN_TTL_SECONDS`) |
 | Rule visibility | server only | readable by the client (the JWS is signed, not encrypted) |
 | Token size | small | larger; above `ACCESS_TOKEN_MAX_BYTES` falls back to the database path per user |
-
-**Upgrading.** `Migration20260922000000` recreates `auth`: sessions from earlier versions stored raw access tokens, which cannot be converted, so every user logs in again after `db:migrate`.
 
 ## Authentication & Context Scoping Architecture
 
@@ -258,6 +256,7 @@ export class UpdateUserHandler extends CommandBaseHandler<UpdateUserCommand, Use
 - **Read models.** `GetUserHandler`/`GetRoleHandler` return `UserReadModel`/`RoleReadModel` (`Projected<…>`: any field may be absent). Lists filter with `can('read', item)` and project each row; this filters the loaded collection in memory and is not authorized pagination.
 - **Fresh reads under conditional rules.** When the caller's `read` rules for the subject have conditions (`readDependsOnEntityState`), the handler re-issues the query with `refresh: true`, which bypasses the repository cache and asks the ORM for a refreshed row, so a cached snapshot cannot decide access. Unconditional reads may be served from the repository cache.
 - **Write responses.** `POST`/`PATCH` on users and roles answer with a fresh `GetUserQuery`/`GetRoleQuery` for the written id, so the body carries only what the caller may read afterwards. A write-only caller receives `{}` with the normal success status; a committed write is never reported as failed because its result is unreadable. Only `UnauthorizedActionException` is absorbed: any other failure of that read propagates as an error although the write has committed. An idempotent replay re-reads the same way. `DELETE` stays `204`.
+- **Create idempotency.** `POST /users` and `POST /roles` deduplicate a client operation, not a business object. A client that may retry sends an `Idempotency-Key` header (1-255 characters) and reuses it for retries of that operation: a retry replays the first result, and the same key with a different body answers `422 key_reuse`. A new operation uses a new key, so creating a user again after deleting it runs the handler. Without the header nothing is deduplicated and the unique email or role name answers a duplicate (`409`).
 - **Service principals.** Each `API_CLIENTS` entry lists `rules` as compact capability strings (`[!]subject|action[|conditions[|fields[|reason]]]`), parsed at startup; a malformed rule fails boot. Those rules are the client's complete authorization.
 
 ---
@@ -266,7 +265,7 @@ export class UpdateUserHandler extends CommandBaseHandler<UpdateUserCommand, Use
 
 #### 1. User Login & Token Issuance
 
-Users authenticate via `POST /auths/login` using their email and temporary login code (a simplified demo mechanism simulating OTP/login code via `AUTH_LOGIN_CODE`):
+Users authenticate via `POST /auths/login` using their email and the login code. The demo accepts one shared code (`AUTH_LOGIN_CODE_SHA256`, or `AUTH_LOGIN_CODE` outside production) for every user, so anyone who knows it can sign in as any account; it stands in for a per-user OTP or identity provider and is refused in production unless `AUTH_SHARED_LOGIN_CODE=true`:
 
 ```bash
 curl -X POST http://localhost:3000/auths/login -c cookies.txt \
@@ -330,6 +329,7 @@ export const CreateUserSchema = z.object({
   username: z.string().min(3).max(50),
   email: z.string().email(),
   department: z.string().min(3).max(50).optional(),
+  idempotencyKey: IdempotencyKeySchema.optional(), // from the Idempotency-Key header
 });
 
 export class CreateUserCommand extends createCommand(CreateUserSchema, BaseCommand) {}
@@ -340,8 +340,11 @@ export class CreateUserCommand extends createCommand(CreateUserSchema, BaseComma
   logging({ requestResponseLogLevel: 'log' }),
   requires({ action: APP_ACTIONS.CREATE, subject: APP_SUBJECTS.USER }),
   featureFlag({ flag: 'user-registration' }),
-  rateLimit({ keyFactory: (ctx) => `${ctx.tenantId}:${ctx.request.email}` }),
-  idempotent({ keyFactory: createUserIdempotencyKey }),
+  rateLimit({ keyFactory: createUserRateLimitKey }),
+  idempotent({
+    keyFactory: createUserIdempotencyKey,
+    replayScopeFactory: createUserReplayScope,
+  }),
 )
 export class CreateUserHandler extends CommandBaseHandler<CreateUserCommand, User> {
   constructor(
@@ -527,7 +530,9 @@ export class GetRolesHandler implements IQueryHandler<GetRolesQuery, RoleReadMod
 | `TRUST_PROXY` | Optional | Unset: off. Otherwise passed to Express `trust proxy` / Fastify `trustProxy` (`true`, a hop count, or an address list) so `req.ip` is the client | `loopback` |
 | `PERMISSIONS_IN_ACCESS_TOKEN` | Optional | `true` copies the user's rules into access tokens; `false` (default) ignores them | `false` |
 | `ACCESS_TOKEN_MAX_BYTES` | Optional | Largest access token that may carry permissions, 1024–16384 (default 2600) | `2600` |
-| `AUTH_LOGIN_CODE` | Required for login | Static verification code for `POST /auths/login` (simplified demo mechanism simulating OTP/login code) | `123456` |
+| `AUTH_LOGIN_CODE_SHA256` | Required for login in production | SHA-256 hex digest of the shared demo login code accepted for every user | `<64 hex characters>` |
+| `AUTH_LOGIN_CODE` | Non-production alternative | Plaintext shared demo login code; rejected in production | `123456` |
+| `AUTH_SHARED_LOGIN_CODE` | Required for login in production | `true` acknowledges that one code signs in any account; without it production login fails | `true` |
 | `SESSION_SECRET` | Fastify only | 64-character hex string (32 bytes) for `@fastify/secure-session` cookies | `0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef` |
 
 *\* Note: At least one of `JWT_SECRET` or `JWT_PUBLIC_KEY` must be set if Bearer token authentication is enabled.*

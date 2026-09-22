@@ -1,12 +1,13 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import { APP_ACTIONS, APP_SUBJECTS } from '@common/constants';
+import { APP_ACTIONS, APP_SUBJECTS, AUDIT_ACTIONS } from '@common/constants';
 import {
   operationIdempotencyKeyFactory,
   replayScopeDigest,
 } from '@common/cqrs/helpers/idempotent-operation.helper';
 import { Inject } from '@nestjs/common';
 import { CommandHandler, EventBus } from '@nestjs/cqrs';
+import { AUDIT_SEVERITY, audit } from '@nestjs-pipeline/audit';
 import { CaslAuthorizer, requires } from '@nestjs-pipeline/casl';
 import {
   type IPipelineContext,
@@ -28,7 +29,7 @@ const ROLE_CREATE_PURPOSE = 'role creation idempotency';
 
 export const createRoleIdempotencyKey = operationIdempotencyKeyFactory(
   'role.create',
-  (ctx) => (ctx.request as CreateRoleCommand).name,
+  (ctx) => (ctx.request as CreateRoleCommand).idempotencyKey,
 );
 
 export function createRoleReplayScope(ctx: IPipelineContext): string {
@@ -48,6 +49,10 @@ export function createRoleReplayScope(ctx: IPipelineContext): string {
   idempotent({
     keyFactory: createRoleIdempotencyKey,
     replayScopeFactory: createRoleReplayScope,
+  }),
+  audit({
+    action: AUDIT_ACTIONS.ROLE_CREATE,
+    severity: AUDIT_SEVERITY.MEDIUM,
   }),
 )
 export class CreateRoleHandler extends CommandBaseHandler<

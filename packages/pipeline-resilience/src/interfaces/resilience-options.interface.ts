@@ -122,6 +122,14 @@ export interface TimeoutOptions {
    * - `cooperative`: signal cancellation and wait for the handler to settle.
    */
   strategy?: 'aggressive' | 'cooperative';
+  /**
+   * Explicit acknowledgement that an `aggressive` timeout is safe on a `command`
+   * or `event` handler. The caller is answered while the handler keeps running,
+   * so a retry, a released idempotency claim or a client retry can run the same
+   * side effect alongside it. Required for those request kinds unless the
+   * strategy is `cooperative`.
+   */
+  replaySafe?: boolean;
 }
 
 /** Bulkhead configuration — limits concurrent in-flight executions. */

@@ -97,6 +97,15 @@ export class AppModule {}
 > default, so the first request already sees correct flag values. Set
 > `waitForReady: false` to register without blocking startup.
 
+OpenFeature's provider registry is process-wide. A `provider` without `domain`
+becomes the provider of the default domain, so two applications in one process
+that each register one replace each other; give each application its own
+`domain`, or pass a `client` you own. On application shutdown the module
+replaces a provider it registered with OpenFeature's no-op provider, which
+closes it unless another domain still uses it; a provider that has since been
+replaced, and a supplied `client`, are left to their owner. The module never
+calls the global `OpenFeature.close()`.
+
 ### 2. Gate a handler
 
 ```typescript
@@ -370,6 +379,7 @@ same rollout bucket across requests.
 | `FEATURE_FLAGS_DEFAULT_OPTIONS` | Token | Module-wide default behavior options |
 | `FEATURE_FLAGS_DEFAULT_CONTEXT` | Token | Module-wide default evaluation context |
 | `FEATURE_FLAG_ITEM` / `FEATURE_FLAG_KEY_ITEM` | Symbol | `context.items` exported unique Symbol keys for the resolved value / key |
+| `FEATURE_FLAG_ITEM_TOKEN`, `FEATURE_FLAG_KEY_ITEM_TOKEN`, `FEATURE_FLAG_DECISION_ITEM_TOKEN` | `PipelineItemToken` | Typed tokens over the same keys, for `getPipelineItem(context, FEATURE_FLAG_DECISION_ITEM_TOKEN)` without casts |
 
 
 ---

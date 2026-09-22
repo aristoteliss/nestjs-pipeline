@@ -80,16 +80,6 @@ function restoreMethod(
   else Reflect.deleteProperty(target, methodName);
 }
 
-/**
- * Logger for the shared prototype dispatcher.
- *
- * The dispatcher is installed on a prototype and outlives any single
- * `PipelineBootstrapService`, so it cannot use that instance's logger.
- */
-const bootstrapLogger = new Logger('PipelineBootstrapService', {
-  timestamp: true,
-});
-
 // Recognize Nest's scoped-provider error without importing another private class.
 // Unknown lookup failures must fail bootstrap instead of deferring to a request.
 function isScopedProviderError(error: unknown): boolean {
@@ -244,27 +234,13 @@ export class PipelineBootstrapService
       methodName,
     );
     let originalMethod: (this: unknown, request: unknown) => unknown;
-    let methodMap: Map<string | symbol, PrototypeMethodEntry> | undefined;
-    let entry: PrototypeMethodEntry | undefined;
+    let entry = isScoped
+      ? prototypeRegistry.get(target)?.get(methodName)
+      : undefined;
 
-    if (isScoped) {
-      methodMap = prototypeRegistry.get(target);
-      if (!methodMap) {
-        methodMap = new Map();
-        prototypeRegistry.set(target, methodMap);
-      }
-      entry = methodMap.get(methodName);
-      if (entry) {
-        if (entry.runners.has(this)) return;
-        originalMethod = entry.originalMethod;
-      } else {
-        originalMethod = originalHandlerMethod(
-          target,
-          methodName,
-        ) as typeof originalMethod;
-        if (typeof originalMethod !== 'function') return;
-        if (untyped(originalMethod).__pipelined) return;
-      }
+    if (entry) {
+      if (entry.runners.has(this)) return;
+      originalMethod = entry.originalMethod;
     } else {
       originalMethod = originalHandlerMethod(
         target,
@@ -279,7 +255,6 @@ export class PipelineBootstrapService
     // 1. Resolve singleton behavior instances once. Behaviors that are scoped
     //    (or otherwise unavailable through moduleRef.get) are resolved per run.
     const resolvedBehaviors = new Map<number, IPipelineBehavior>();
-    const dynamicIndices = new Set<number>();
 
     for (let i = 0; i < behaviorTypes.length; i++) {
       const BehaviorClass = behaviorTypes[i];
@@ -302,7 +277,6 @@ export class PipelineBootstrapService
         this.logger.warn(
           `${BehaviorClass.name} could not be resolved as singleton — will resolve per-request`,
         );
-        dynamicIndices.add(i);
         continue;
       }
 
@@ -340,28 +314,12 @@ export class PipelineBootstrapService
       );
     }
 
-    // Pre-capture singleton behavior array once — avoids allocating a new
-    // array on every invocation in the common all-singletons fast path.
-    // When dynamic indices exist, short-circuit to [] since this array won't be used.
-    const singletonBehaviors =
-      dynamicIndices.size === 0
-        ? behaviorTypes.map((_, i) => {
-            const behavior = resolvedBehaviors.get(i);
-            if (!behavior) {
-              throw new Error(
-                `Expected singleton behavior at index ${i} to be pre-resolved during bootstrap.`,
-              );
-            }
-            return behavior;
-          })
-        : [];
-
     const moduleRef = this.moduleRef;
     const runner = createPipelineRunner(
       originalMethod,
       meta,
-      dynamicIndices.size === 0
-        ? singletonBehaviors
+      resolvedBehaviors.size === behaviorTypes.length
+        ? [...resolvedBehaviors.values()]
         : async (self, request) => {
             // CQRS request-scoped handlers are resolved by CommandBus/QueryBus/EventBus
             // with an AsyncContext attached to the command/query/event. Reuse that
@@ -378,22 +336,17 @@ export class PipelineBootstrapService
               );
 
             return Promise.all(
-              behaviorTypes.map((BehaviorClass, i) => {
-                if (dynamicIndices.has(i)) {
-                  return moduleRef.resolve<IPipelineBehavior>(
+              behaviorTypes.map(
+                (BehaviorClass, i) =>
+                  resolvedBehaviors.get(i) ??
+                  moduleRef.resolve<IPipelineBehavior>(
                     BehaviorClass,
                     contextId,
-                    { strict: false },
-                  );
-                }
-                const behavior = resolvedBehaviors.get(i);
-                if (!behavior) {
-                  throw new Error(
-                    `Expected singleton behavior at index ${i} to be pre-resolved during bootstrap.`,
-                  );
-                }
-                return Promise.resolve(behavior);
-              }),
+                    {
+                      strict: false,
+                    },
+                  ),
+              ),
             );
           },
       hasPipeline,
@@ -402,13 +355,16 @@ export class PipelineBootstrapService
 
     if (isScoped) {
       if (!entry) {
+        let methodMap = prototypeRegistry.get(target);
+        if (!methodMap) {
+          methodMap = new Map();
+          prototypeRegistry.set(target, methodMap);
+        }
         entry = {
           originalMethod,
           descriptor: originalDescriptor,
           runners: new Map(),
         };
-        if (!methodMap)
-          throw new Error('Scoped pipeline method registry is missing');
 
         const currentTarget = target;
         const currentMethodName = methodName;
@@ -445,13 +401,14 @@ export class PipelineBootstrapService
             return allRunners[0](this, request);
           }
 
-          // Unowned instances cannot select safely between application-specific chains.
-          bootstrapLogger.warn(
-            `${String(currentMethodName)}() ran without its pipeline: ${allRunners.length} ` +
-              'applications share this handler prototype and the instance is not ' +
-              'registered to any of them, so the correct chain cannot be identified.',
+          // Unowned instances cannot select safely between application-specific
+          // chains, and running unwrapped would bypass every guard in them.
+          throw new Error(
+            `${String(currentMethodName)}() refused to run without its pipeline: ` +
+              `${allRunners.length} applications share this handler prototype and ` +
+              'the instance is not registered to any of them. Dispatch it through ' +
+              "the owning application's CQRS bus.",
           );
-          return fallbackMethod.call(this, request);
         };
 
         untyped(pipelinedDispatcher).__pipelined = true;
@@ -460,6 +417,7 @@ export class PipelineBootstrapService
       }
 
       entry.runners.set(this, runner);
+      const registeredEntry = entry;
 
       const origGetInstance = wrapper.getInstanceByContextId;
       const origSetInstance = wrapper.setInstanceByContextId;
@@ -500,14 +458,10 @@ export class PipelineBootstrapService
           wrapper.setInstanceByContextId = origSetInstance;
         }
 
-        const map = prototypeRegistry.get(target);
-        const currentEntry = map?.get(methodName);
-        if (currentEntry) {
-          currentEntry.runners.delete(this);
-          if (currentEntry.runners.size === 0) {
-            restoreMethod(target, methodName, currentEntry.descriptor);
-            map?.delete(methodName);
-          }
+        registeredEntry.runners.delete(this);
+        if (registeredEntry.runners.size === 0) {
+          restoreMethod(target, methodName, registeredEntry.descriptor);
+          prototypeRegistry.get(target)?.delete(methodName);
         }
       });
     } else {

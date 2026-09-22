@@ -7,7 +7,9 @@ export {
 } from './adapters/cache-manager.adapter';
 export {
   CACHE_HIT_ITEM,
+  CACHE_HIT_ITEM_TOKEN,
   CACHE_KEY_ITEM,
+  CACHE_KEY_ITEM_TOKEN,
   CacheBehavior,
 } from './cache.behavior';
 export { CacheModule } from './cache.module';
@@ -29,6 +31,7 @@ export type {
   CacheBehaviorOptions,
   CacheCondition,
   CacheKeyFactory,
+  CacheModuleAsyncOptions,
   CacheModuleOptions,
   CacheStoreConfig,
   CacheStoreType,

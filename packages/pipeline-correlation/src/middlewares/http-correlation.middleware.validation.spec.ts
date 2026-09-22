@@ -31,12 +31,29 @@ function run(
 }
 
 describe('HttpCorrelationMiddleware incoming ID compatibility and validation', () => {
-  it('preserves the historical incoming value exactly by default', () => {
-    expect(run(new HttpCorrelationMiddleware(), ' trace id / A ')).toEqual({
-      id: ' trace id / A ',
-      responseId: ' trace id / A ',
+  it('accepts a well-formed incoming value unchanged by default', () => {
+    const traceparent =
+      '00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01';
+    expect(run(new HttpCorrelationMiddleware(), traceparent)).toEqual({
+      id: traceparent,
+      responseId: traceparent,
       responseHeader: 'x-correlation-id',
     });
+  });
+
+  it('replaces an incoming value outside the default character set', () => {
+    const result = run(new HttpCorrelationMiddleware(), ' trace id / A ');
+    expect(result.id).not.toBe(' trace id / A ');
+    expect(result.responseId).toBe(result.id);
+  });
+
+  it('replaces an incoming value longer than 128 characters by default', () => {
+    const atLimit = 'a'.repeat(128);
+    const oversized = 'a'.repeat(8000);
+    expect(run(new HttpCorrelationMiddleware(), atLimit).id).toBe(atLimit);
+    expect(run(new HttpCorrelationMiddleware(), oversized).id).not.toBe(
+      oversized,
+    );
   });
 
   it('keeps the historical empty-header fallback behavior', () => {
@@ -96,13 +113,13 @@ describe('HttpCorrelationMiddleware incoming ID compatibility and validation', (
     expect(result.responseId).toBe(result.id);
   });
 
-  it('supports custom validation without requiring UUID format', () => {
+  it('lets custom validation replace the default character set', () => {
     const middleware = new HttpCorrelationMiddleware({
-      validateIncoming: (value: string) => value.startsWith('trusted:'),
+      validateIncoming: (value: string) => value.startsWith('trusted '),
     } as never);
 
-    expect(run(middleware, 'trusted:abc').id).toBe('trusted:abc');
-    expect(run(middleware, 'other:abc').id).not.toBe('other:abc');
+    expect(run(middleware, 'trusted abc').id).toBe('trusted abc');
+    expect(run(middleware, 'other-abc').id).not.toBe('other-abc');
   });
 
   it('falls back safely when a custom validator throws', () => {
@@ -115,7 +132,7 @@ describe('HttpCorrelationMiddleware incoming ID compatibility and validation', (
     expect(run(middleware, 'caller-id').id).not.toBe('caller-id');
   });
 
-  it('validates maxLength only when the option is configured', () => {
+  it('rejects a non-positive configured maxLength', () => {
     expect(
       () => new HttpCorrelationMiddleware({ maxLength: 0 } as never),
     ).toThrow(/positive safe integer/);

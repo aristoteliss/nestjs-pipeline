@@ -180,7 +180,7 @@ export class PostgresIdempotencyStore implements IdempotencyStore {
          expires_at = EXCLUDED.expires_at
        WHERE current_record.expires_at <= now()
        RETURNING key`,
-      this.toValues(key, record, ttlMs),
+      [key, ...this.toValues(record, ttlMs)],
     );
     return result.rows.length > 0;
   }
@@ -207,19 +207,7 @@ export class PostgresIdempotencyStore implements IdempotencyStore {
           AND status = 'in_progress'
           AND expires_at > now()
         RETURNING key`,
-      [
-        key,
-        claimId,
-        record.status,
-        record.requestName,
-        record.claimId ?? null,
-        record.fingerprint ?? null,
-        record.replayScope ?? null,
-        record.response === undefined ? null : JSON.stringify(record.response),
-        record.createdAt,
-        record.completedAt ?? null,
-        assertLeaseTtl(ttlMs),
-      ],
+      [key, claimId, ...this.toValues(record, ttlMs)],
     );
     return result.rows.length > 0;
   }
@@ -255,7 +243,7 @@ export class PostgresIdempotencyStore implements IdempotencyStore {
          created_at = EXCLUDED.created_at,
          completed_at = EXCLUDED.completed_at,
          expires_at = EXCLUDED.expires_at`,
-      this.toValues(key, record, ttlMs),
+      [key, ...this.toValues(record, ttlMs)],
     );
   }
 
@@ -263,13 +251,8 @@ export class PostgresIdempotencyStore implements IdempotencyStore {
     await this.db.query(`DELETE FROM ${this.table} WHERE key = $1`, [key]);
   }
 
-  private toValues(
-    key: string,
-    record: IdempotencyRecord,
-    ttlMs: number,
-  ): unknown[] {
+  private toValues(record: IdempotencyRecord, ttlMs: number): unknown[] {
     return [
-      key,
       record.status,
       record.requestName,
       record.claimId ?? null,

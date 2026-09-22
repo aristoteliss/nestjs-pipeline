@@ -1,6 +1,10 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import type { IPipelineContext } from '@nestjs-pipeline/core';
+import {
+  type IPipelineContext,
+  PIPELINE_BEHAVIOR_CONTRACT,
+  type PipelineBehaviorValidationContext,
+} from '@nestjs-pipeline/core';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { AUDIT_RECORD_ITEM, AuditBehavior } from './audit.behavior';
 import type { AuditBehaviorOptions } from './interfaces/audit-options.interface';
@@ -63,6 +67,74 @@ describe('AuditBehavior', () => {
       expect.stringContaining('failing open'),
       AuditBehavior.name,
     );
+  });
+
+  it('returns the handler result when the sink and the diagnostic logger both fail with failOpen', async () => {
+    const logger = {
+      warn: vi.fn(() => {
+        throw new Error('logger down');
+      }),
+      error: vi.fn(() => {
+        throw new Error('logger down');
+      }),
+    };
+    const failingSink: AuditSink = {
+      write: vi.fn().mockRejectedValue(new Error('sink unavailable')),
+    };
+    const behavior = new AuditBehavior(failingSink, undefined, logger as never);
+
+    await expect(
+      behavior.handle(makeCtx(), vi.fn().mockResolvedValue('committed')),
+    ).resolves.toBe('committed');
+    expect(logger.warn).toHaveBeenCalled();
+  });
+
+  it('keeps the business error when recording and logging fail after it', async () => {
+    const logger = {
+      error: vi.fn(() => {
+        throw new Error('logger down');
+      }),
+    };
+    const failingSink: AuditSink = {
+      write: vi.fn().mockRejectedValue(new Error('sink unavailable')),
+    };
+    const behavior = new AuditBehavior(failingSink, undefined, logger as never);
+    const businessError = new Error('business failure');
+
+    await expect(
+      behavior.handle(makeCtx(), vi.fn().mockRejectedValue(businessError)),
+    ).rejects.toBe(businessError);
+  });
+
+  it('reports a non-function factory option as a bootstrap diagnostic', () => {
+    const validate = AuditBehavior[PIPELINE_BEHAVIOR_CONTRACT].validate;
+    const validation = (effectiveOptions: Record<string, unknown>) =>
+      ({
+        handlerName: 'DeleteUserHandler',
+        effectiveOptions,
+      }) as unknown as PipelineBehaviorValidationContext;
+
+    expect(validate?.(validation({ metadata: 'not-a-function' }))).toEqual([
+      expect.objectContaining({
+        handlerName: 'DeleteUserHandler',
+        behaviorName: 'AuditBehavior',
+        message: expect.stringContaining('Invalid audit metadata factory'),
+      }),
+    ]);
+    expect(validate?.(validation({ actor: () => ({ id: 'u1' }) }))).toBe(
+      undefined,
+    );
+  });
+
+  it('merges module defaults into the options seen by bootstrap diagnostics', () => {
+    const behavior = new AuditBehavior(sink, {
+      actor: 'not-a-function' as never,
+    });
+
+    expect(behavior.resolveEffectiveOptions({ action: 'x' })).toEqual({
+      actor: 'not-a-function',
+      action: 'x',
+    });
   });
 
   it('writes a success record with redacted payload and passes the response through', async () => {

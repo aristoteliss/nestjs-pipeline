@@ -21,9 +21,9 @@ import { AuthsController } from './controllers/auths.controller';
 import { CreateAuthHandler } from './cqrs/commands/create-auth.handler';
 import { DeleteAuthHandler } from './cqrs/commands/delete-auth.handler';
 import { RefreshAuthHandler } from './cqrs/commands/refresh-auth.handler';
-import { EnvLoginCodeVerifier } from './infrastructure/env-login-code.verifier';
 import { JoseAccessTokenIssuer } from './infrastructure/jose-access-token.issuer';
 import { NodeRefreshTokens } from './infrastructure/node-refresh-tokens';
+import { SharedDemoLoginCodeVerifier } from './infrastructure/shared-demo-login-code.verifier';
 import { AuthSessionsRepository } from './persistence/auth-sessions.repository';
 import { CreateAuthCommandRepository } from './persistence/create-auth.command-repository';
 import { COMMAND_REPOSITORY } from './persistence/repository.tokens';
@@ -57,9 +57,9 @@ import { UserLoginService } from './services/user-login.service';
     },
 
     // Authentication infrastructure adapters exposed through application ports.
-    EnvLoginCodeVerifier,
+    SharedDemoLoginCodeVerifier,
     JoseAccessTokenIssuer,
-    { provide: LOGIN_CODE_VERIFIER, useExisting: EnvLoginCodeVerifier },
+    { provide: LOGIN_CODE_VERIFIER, useExisting: SharedDemoLoginCodeVerifier },
     { provide: ACCESS_TOKEN_ISSUER, useExisting: JoseAccessTokenIssuer },
     { provide: REFRESH_TOKENS, useClass: NodeRefreshTokens },
     {

@@ -43,8 +43,12 @@ describe('roles-api (e2e)', () => {
   let roleSeq = 0;
   const newRoleName = () => `role-${Date.now()}-${roleSeq++}`;
 
-  const createRole = (user: string, name: string) =>
-    as(user).post('/roles').send({ name });
+  const createRole = (user: string, name: string, idempotencyKey?: string) => {
+    const post = as(user).post('/roles');
+    return (
+      idempotencyKey ? post.set('idempotency-key', idempotencyKey) : post
+    ).send({ name });
+  };
 
   beforeAll(async () => {
     ctx = await bootstrapE2E();
@@ -67,12 +71,13 @@ describe('roles-api (e2e)', () => {
       expect(res.body.id.length).toBeGreaterThan(0);
     });
 
-    it('replays a duplicate role create for the same principal', async () => {
+    it('replays a retried role create with the same Idempotency-Key', async () => {
       const name = newRoleName();
-      const first = await createRole(admin, name);
+      const operation = randomUUID();
+      const first = await createRole(admin, name, operation);
       expect(first.status).toBe(201);
 
-      const duplicate = await createRole(admin, name);
+      const duplicate = await createRole(admin, name, operation);
       expect(duplicate.status).toBe(201);
       expect(duplicate.body).toEqual(first.body);
     });

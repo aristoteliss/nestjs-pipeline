@@ -233,7 +233,7 @@ describe.each(['express', 'fastify'] as const)('auths (e2e, %s)', (adapter) => {
     });
 
     it('rate-limits refreshes per forwarded client IP when TRUST_PROXY is set', async () => {
-      for (let attempt = 0; attempt < 5; attempt += 1) {
+      for (let attempt = 0; attempt < 60; attempt += 1) {
         expect((await refresh('refresh_token=never-issued')).status).toBe(401);
       }
 

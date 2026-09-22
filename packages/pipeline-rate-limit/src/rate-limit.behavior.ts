@@ -8,14 +8,18 @@ import {
   Optional,
 } from '@nestjs/common';
 import {
+  createPipelineItem,
   type IPipelineBehavior,
   type IPipelineBehaviorContract,
+  type IPipelineBehaviorOptionsResolver,
   type IPipelineContext,
   LOGGING_BEHAVIOR_LOGGER,
   type NextDelegate,
   PIPELINE_BEHAVIOR_CONTRACT,
   type PipelineBehaviorDiagnostic,
   type PipelineBehaviorValidationContext,
+  type PipelineItemToken,
+  setPipelineItem,
 } from '@nestjs-pipeline/core';
 import { RATE_LIMIT_DEFAULT_OPTIONS, RATE_LIMITER } from './constants/tokens';
 import { RateLimitExceededError } from './errors/rate-limit-exceeded.error';
@@ -37,6 +41,13 @@ import type {
 export const RATE_LIMIT_ITEM = Symbol('RATE_LIMIT_ITEM');
 
 /**
+ * Typed token for {@link RATE_LIMIT_ITEM}: the rate-limit result. Reads and writes the same
+ * `context.items` entry through `getPipelineItem` / `requirePipelineItem`.
+ */
+export const RATE_LIMIT_ITEM_TOKEN: PipelineItemToken<RateLimiterResLike> =
+  createPipelineItem<RateLimiterResLike>('RATE_LIMIT_ITEM', RATE_LIMIT_ITEM);
+
+/**
  * Unique symbol key set on `context.items` containing the resolved rate limit bucket key string.
  *
  * @example
@@ -45,6 +56,13 @@ export const RATE_LIMIT_ITEM = Symbol('RATE_LIMIT_ITEM');
  * ```
  */
 export const RATE_LIMIT_KEY_ITEM = Symbol('RATE_LIMIT_KEY_ITEM');
+
+/**
+ * Typed token for {@link RATE_LIMIT_KEY_ITEM}: the resolved rate-limit key. Reads and writes the same
+ * `context.items` entry through `getPipelineItem` / `requirePipelineItem`.
+ */
+export const RATE_LIMIT_KEY_ITEM_TOKEN: PipelineItemToken<string> =
+  createPipelineItem<string>('RATE_LIMIT_KEY_ITEM', RATE_LIMIT_KEY_ITEM);
 
 /** Whether a rejection value is a `rate-limiter-flexible` result (a limit hit). */
 function isRateLimiterRes(value: unknown): value is RateLimiterResLike {
@@ -84,7 +102,11 @@ function isRateLimiterRes(value: unknown): value is RateLimiterResLike {
  * ```
  */
 @Injectable()
-export class RateLimitBehavior implements IPipelineBehavior {
+export class RateLimitBehavior
+  implements
+    IPipelineBehavior,
+    IPipelineBehaviorOptionsResolver<RateLimitBehaviorOptions>
+{
   static readonly [PIPELINE_BEHAVIOR_CONTRACT]: IPipelineBehaviorContract = {
     validate: (
       context: PipelineBehaviorValidationContext,
@@ -137,12 +159,8 @@ export class RateLimitBehavior implements IPipelineBehavior {
   ) {
     this.defaults = defaults ?? {};
 
-    if (!logger) {
-      this.logger = new Logger(RateLimitBehavior.name, { timestamp: true });
-      return;
-    }
-
-    this.logger = logger;
+    this.logger =
+      logger ?? new Logger(RateLimitBehavior.name, { timestamp: true });
   }
 
   async handle(
@@ -159,14 +177,14 @@ export class RateLimitBehavior implements IPipelineBehavior {
       throw new TypeError('Rate-limit points must be a positive safe integer.');
     }
 
-    context.items.set(RATE_LIMIT_KEY_ITEM, key);
+    setPipelineItem(context, RATE_LIMIT_KEY_ITEM_TOKEN, key);
 
     let result: RateLimiterResLike;
     try {
       result = await limiter.consume(key, points);
     } catch (error) {
       if (isRateLimiterRes(error)) {
-        context.items.set(RATE_LIMIT_ITEM, error);
+        setPipelineItem(context, RATE_LIMIT_ITEM_TOKEN, error);
         throw new RateLimitExceededError({
           key,
           requestName: context.requestName,
@@ -178,7 +196,7 @@ export class RateLimitBehavior implements IPipelineBehavior {
       return this.handleStoreError(context, options, key, error, next);
     }
 
-    context.items.set(RATE_LIMIT_ITEM, result);
+    setPipelineItem(context, RATE_LIMIT_ITEM_TOKEN, result);
     return next();
   }
 

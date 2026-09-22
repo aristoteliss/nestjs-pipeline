@@ -1,7 +1,7 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { claimedIdentityActor } from '@common/audit/audit.options';
-import { AUDIT_ACTIONS } from '@common/constants';
+import { AUDIT_ACTIONS, RATE_LIMIT_COST } from '@common/constants';
 import {
   type ITenantContext,
   TENANT_CONTEXT,
@@ -31,19 +31,18 @@ import { UserLoginService } from '../../services/user-login.service';
 import { CreateAuthResult } from '../results/create-auth.result';
 import { CreateAuthCommand } from './create-auth.command';
 
-/**
- * Login attempts are throttled per targeted account within a tenant. The address
- * is caller-supplied, which is the point: brute force against one account must
- * share a bucket whoever sends it.
- */
+/** Login quota per tenant and source address, shared across claimed emails. */
 export const createAuthRateLimitKey = createPartitionedRateLimitKeyFactory(
-  (ctx) => (ctx.request as CreateAuthCommand).email,
+  (ctx) => (ctx.request as CreateAuthCommand).clientIp,
 );
 
 @CommandHandler(CreateAuthCommand)
 @UsePipeline(
   metrics({ meterName: 'users-api.auth' }),
-  rateLimit({ keyFactory: createAuthRateLimitKey }),
+  rateLimit({
+    keyFactory: createAuthRateLimitKey,
+    points: RATE_LIMIT_COST.login,
+  }),
   audit({
     action: AUDIT_ACTIONS.AUTH_LOGIN,
     severity: AUDIT_SEVERITY.MEDIUM,

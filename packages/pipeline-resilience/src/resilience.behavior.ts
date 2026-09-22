@@ -11,6 +11,7 @@ import {
 import {
   type IPipelineBehavior,
   type IPipelineBehaviorContract,
+  type IPipelineBehaviorOptionsResolver,
   type IPipelineContext,
   LOGGING_BEHAVIOR_LOGGER,
   type NextDelegate,
@@ -55,7 +56,10 @@ import type { ResilienceBehaviorOptions } from './interfaces/resilience-options.
  * side effects, command/event retries must explicitly set
  * `retry.replaySafe: true`. Retry/circuit-breaker/fallback configurations must
  * also define which errors are transient via `handle(error)`, unless the caller
- * intentionally opts into `handleAllErrors: true`.
+ * intentionally opts into `handleAllErrors: true`. An `aggressive` timeout
+ * (the default strategy) on a command/event answers the caller while the
+ * handler keeps running, so it requires `strategy: 'cooperative'` or
+ * `timeout.replaySafe: true`.
  *
  * Timeout and bulkhead-only policies do not require an error classifier because
  * they do not decide which application errors are retryable/circuit failures.
@@ -98,11 +102,27 @@ function getResilienceSafetyIssues(
     });
   }
 
+  if (
+    options.timeout &&
+    requestKind !== 'query' &&
+    options.timeout.strategy !== 'cooperative' &&
+    options.timeout.replaySafe !== true
+  ) {
+    issues.push({
+      message: `aggressive timeout on non-query handler (${requestKind}) answers the caller while the handler keeps running, so a retry can overlap its side effects`,
+      fix: "Use timeout: { ...timeout, strategy: 'cooperative' } and pass getResilienceAbortSignal() to cancellable work, or set timeout.replaySafe: true after verifying overlapping executions are safe.",
+    });
+  }
+
   return issues;
 }
 
 @Injectable()
-export class ResilienceBehavior implements IPipelineBehavior {
+export class ResilienceBehavior
+  implements
+    IPipelineBehavior,
+    IPipelineBehaviorOptionsResolver<ResilienceBehaviorOptions>
+{
   static readonly [PIPELINE_BEHAVIOR_CONTRACT]: IPipelineBehaviorContract = {
     validate: (
       context: PipelineBehaviorValidationContext,
@@ -137,12 +157,8 @@ export class ResilienceBehavior implements IPipelineBehavior {
     @Inject(LOGGING_BEHAVIOR_LOGGER)
     logger?: LoggerService,
   ) {
-    if (!logger) {
-      this.logger = new Logger(ResilienceBehavior.name, { timestamp: true });
-      return;
-    }
-
-    this.logger = logger;
+    this.logger =
+      logger ?? new Logger(ResilienceBehavior.name, { timestamp: true });
   }
 
   async handle(
@@ -214,15 +230,7 @@ export class ResilienceBehavior implements IPipelineBehavior {
   resolveEffectiveOptions(
     options?: ResilienceBehaviorOptions,
   ): ResilienceBehaviorOptions | undefined {
-    return this.mergeOptions(this.defaultOptions, options);
-  }
-
-  /** Shallow-merges per-handler options over the application defaults. */
-  private mergeOptions(
-    defaults: ResilienceBehaviorOptions | undefined,
-    handler: ResilienceBehaviorOptions | undefined,
-  ): ResilienceBehaviorOptions | undefined {
-    if (!defaults && !handler) return undefined;
-    return { ...(defaults ?? {}), ...(handler ?? {}) };
+    if (!this.defaultOptions && !options) return undefined;
+    return { ...this.defaultOptions, ...options };
   }
 }

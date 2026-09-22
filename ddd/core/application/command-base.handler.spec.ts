@@ -220,4 +220,21 @@ describe('CommandBaseHandler', () => {
     expect(result).toBeNull();
     expect(eventBus.publishAll).not.toHaveBeenCalled();
   });
+
+  it('does not publish events if result has getUncommittedEvents but lacks uncommit', async () => {
+    const eventBus = {
+      publishAll: vi.fn(),
+    } as unknown as EventBus;
+
+    class IncompleteAggregateHandler extends TestableHandler<any> {
+      async handle(_command: ICommand): Promise<any> {
+        return { getUncommittedEvents: () => [new OrderCreatedEvent('123')] };
+      }
+    }
+
+    const handler = new IncompleteAggregateHandler(eventBus);
+    await handler.execute({} as ICommand);
+
+    expect(eventBus.publishAll).not.toHaveBeenCalled();
+  });
 });

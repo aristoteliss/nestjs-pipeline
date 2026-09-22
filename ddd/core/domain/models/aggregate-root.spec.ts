@@ -120,4 +120,17 @@ describe('AggregateRoot', () => {
     expect(order.handledCancelledEvents).toHaveLength(1);
     expect(order.getUncommittedEvents()).toHaveLength(0);
   });
+
+  it('falls back to "Event" when applied event has no constructor name', () => {
+    class DynamicHandlerAggregate extends AggregateRoot {
+      handledDefault = false;
+      onEvent() {
+        this.handledDefault = true;
+      }
+    }
+    const agg = new DynamicHandlerAggregate();
+    const eventWithoutProto = Object.create(null);
+    agg.apply(eventWithoutProto as any);
+    expect(agg.handledDefault).toBe(true);
+  });
 });

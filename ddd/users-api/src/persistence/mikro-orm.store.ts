@@ -2,7 +2,6 @@
 
 import { EntityManager, MikroORM, SqlEntityManager } from '@mikro-orm/libsql';
 import {
-  BadRequestException,
   Inject,
   Injectable,
   Logger,
@@ -17,6 +16,7 @@ import {
 } from './libsql-options';
 import { TenantEntityManagerResolver } from './tenant-entity-manager.resolver';
 import { TenantSchemaContext } from './tenant-schema.context';
+import { UnknownTenantSchemaError } from './tenant-schema.errors';
 
 /**
  * MikroOrmStore is the PRIMARY persistence layer for the application.
@@ -61,7 +61,7 @@ export class MikroOrmStore implements OnModuleInit, OnModuleDestroy {
     const schema = this.tenantSchemaContext.schema;
     const orm = this.orms.get(schema);
     if (!orm) {
-      throw new BadRequestException(`Unknown tenant schema: ${schema}`);
+      throw new UnknownTenantSchemaError(schema);
     }
 
     return orm;

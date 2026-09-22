@@ -55,7 +55,11 @@ describe('CreateAuthHandler', () => {
       setup();
 
     const result = await handler.execute(
-      new CreateAuthCommand({ email: 'alice@example.test', code: '123456' }),
+      new CreateAuthCommand({
+        email: 'alice@example.test',
+        code: '123456',
+        clientIp: '203.0.113.7',
+      }),
     );
 
     const session = save.mock.calls[0][0];
@@ -85,7 +89,11 @@ describe('CreateAuthHandler', () => {
   it('issues a different refresh token for every login', async () => {
     const { handler } = setup();
     const command = () =>
-      new CreateAuthCommand({ email: 'alice@example.test', code: '123456' });
+      new CreateAuthCommand({
+        email: 'alice@example.test',
+        code: '123456',
+        clientIp: '203.0.113.7',
+      });
 
     const first = await handler.execute(command());
     const second = await handler.execute(command());

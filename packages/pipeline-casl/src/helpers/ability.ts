@@ -51,13 +51,15 @@ export function buildAbility(
  *
  * Supports nested property access via dot notation (e.g. `${address.city}`).
  *
- * A placeholder that cannot be resolved against the principal throws,
- * rather than collapsing to an empty string. This fails closed: a condition
+ * A placeholder that cannot be resolved against the principal, or that
+ * resolves to anything other than a string, number, boolean, `null` or an
+ * array of those, throws rather than collapsing to an empty string or
+ * injecting query operators. This fails closed: a condition
  * such as `{ department: '${department}' }` can never silently become
  * `{ department: '' }` and match unintended records.
  *
  * @throws {Error} When a placeholder references a property absent from the
- *   principal.
+ *   principal or resolves to an object.
  *
  * @example
  * ```ts
@@ -131,7 +133,25 @@ function resolvePlaceholder(
       `Cannot interpolate capability condition "${conditionPath}": property "${path}" is missing from the principal.`,
     );
   }
+  // An object value would be read by CASL as query operators ({ $ne: ... }).
+  if (
+    !isConditionScalar(resolved) &&
+    !(Array.isArray(resolved) && resolved.every(isConditionScalar))
+  ) {
+    throw new Error(
+      `Cannot interpolate capability condition "${conditionPath}": property "${path}" must be a scalar or an array of scalars.`,
+    );
+  }
   return resolved;
+}
+
+function isConditionScalar(value: unknown): boolean {
+  return (
+    value === null ||
+    typeof value === 'string' ||
+    typeof value === 'number' ||
+    typeof value === 'boolean'
+  );
 }
 
 function getNestedValue(obj: CaslPrincipal, path: string): unknown {

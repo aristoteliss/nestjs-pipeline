@@ -4,8 +4,11 @@ import { describe, expect, it } from 'vitest';
 import {
   addCorrelationId,
   correlationHeaders,
+  correlationPipelineOptions,
   correlationStore,
+  getCorrelationId,
   runWithCorrelationId,
+  setCorrelationFallback,
 } from './correlation.store';
 
 describe('correlationStore', () => {
@@ -157,4 +160,52 @@ describe('correlationHeaders', () => {
     expect(Object.keys(result)).toEqual(['x-correlation-id']);
     expect(result['x-correlation-id']).toMatch(/^[0-9a-f-]{36}$/);
   });
+});
+
+describe('correlationPipelineOptions', () => {
+  it('runs the chain with the pipeline ID visible to getCorrelationId outside a request', () => {
+    const { correlationIdFactory, correlationIdRunner } =
+      correlationPipelineOptions();
+
+    const pipelineId = correlationIdFactory() as string;
+    const seen = correlationIdRunner(pipelineId, () => [
+      getCorrelationId(),
+      getCorrelationId(),
+    ]);
+
+    expect(seen).toEqual([pipelineId, pipelineId]);
+  });
+
+  it('assigns the active correlation ID to a new pipeline context', () => {
+    const { correlationIdFactory } = correlationPipelineOptions();
+
+    expect(runWithCorrelationId('http-id', correlationIdFactory)).toBe(
+      'http-id',
+    );
+  });
+});
+
+describe('correlation fallback', () => {
+  it('uses the registered fallback only outside an active context', () => {
+    setCorrelationFallback(() => 'ambient-id');
+    try {
+      expect(getCorrelationId()).toBe('ambient-id');
+      expect(runWithCorrelationId('explicit-id', getCorrelationId)).toBe(
+        'explicit-id',
+      );
+      expect(runWithCorrelationId(undefined, getCorrelationId)).toBe(
+        'ambient-id',
+      );
+    } finally {
+      setCorrelationFallback(() => undefined);
+    }
+    expect(getCorrelationId()).toMatch(/^[0-9a-f-]{36}$/);
+  });
+
+  it.each([null, undefined, 1, 'payload', true])(
+    'rejects non-object payload %j',
+    (value) => {
+      expect(() => addCorrelationId(value as never)).toThrow(/plain object/);
+    },
+  );
 });

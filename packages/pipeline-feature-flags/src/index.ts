@@ -10,8 +10,11 @@ export { FeatureDisabledError } from './errors/feature-disabled.error';
 export { FeatureFlagEvaluationError } from './errors/feature-flag-evaluation.error';
 export {
   FEATURE_FLAG_DECISION_ITEM,
+  FEATURE_FLAG_DECISION_ITEM_TOKEN,
   FEATURE_FLAG_ITEM,
+  FEATURE_FLAG_ITEM_TOKEN,
   FEATURE_FLAG_KEY_ITEM,
+  FEATURE_FLAG_KEY_ITEM_TOKEN,
   FeatureFlagBehavior,
 } from './feature-flag.behavior';
 export { FeatureFlagsModule } from './feature-flags.module';

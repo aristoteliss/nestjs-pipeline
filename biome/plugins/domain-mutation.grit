@@ -9,7 +9,7 @@ or {
   JsMethodClassMember(modifiers=$modifiers, body=$body) as $method where {
     $modifiers <: contains JsDecorator(expression=JsCallExpression(callee=r"^(?:ApplyMutation|Mutate)$")),
     $body <: contains `this._$field = $value`,
-    register_diagnostic(span=$method, message="An @ApplyMutation() method returns a field patch instead of assigning backing fields; declare the field with @Mutable() so the decorator normalizes and applies it.", severity="error")
+    register_diagnostic(span=$method, message="An @ApplyMutation() method uses this.applyPatch() instead of assigning backing fields; declare the field with @Mutable() so the helper normalizes and applies it.", severity="error")
   },
   JsDecorator(expression=JsCallExpression(callee=r"^(?:ApplyMutation|Mutate)$", arguments=$args)) as $decorator where {
     $args <: JsCallArguments(args=[]),

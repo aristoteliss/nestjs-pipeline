@@ -8,10 +8,13 @@ import {
   Optional,
 } from '@nestjs/common';
 import {
+  createPipelineItem,
   type IPipelineBehavior,
   type IPipelineContext,
   LOGGING_BEHAVIOR_LOGGER,
   type NextDelegate,
+  type PipelineItemToken,
+  setPipelineItem,
 } from '@nestjs-pipeline/core';
 import {
   DEAD_LETTER_DEFAULT_OPTIONS,
@@ -31,6 +34,13 @@ import type { DeadLetterTransport } from './interfaces/dead-letter-transport.int
  * ```
  */
 export const DEAD_LETTER_ITEM = Symbol('DEAD_LETTER_ITEM');
+
+/**
+ * Typed token for {@link DEAD_LETTER_ITEM}: the dead-letter delivery outcome. Reads and writes the same
+ * `context.items` entry through `getPipelineItem` / `requirePipelineItem`.
+ */
+export const DEAD_LETTER_ITEM_TOKEN: PipelineItemToken<boolean> =
+  createPipelineItem<boolean>('DEAD_LETTER_ITEM', DEAD_LETTER_ITEM);
 
 /**
  * Pipeline behavior that forwards **failed** requests to a dead-letter sink.
@@ -73,12 +83,8 @@ export class DeadLetterBehavior implements IPipelineBehavior {
   ) {
     this.defaults = defaults ?? {};
 
-    if (!logger) {
-      this.logger = new Logger(DeadLetterBehavior.name, { timestamp: true });
-      return;
-    }
-
-    this.logger = logger;
+    this.logger =
+      logger ?? new Logger(DeadLetterBehavior.name, { timestamp: true });
   }
 
   async handle(
@@ -94,7 +100,7 @@ export class DeadLetterBehavior implements IPipelineBehavior {
 
       if (shouldCapture) {
         captured = await this.capture(context, error, options);
-        context.items.set(DEAD_LETTER_ITEM, captured);
+        setPipelineItem(context, DEAD_LETTER_ITEM_TOKEN, captured);
       }
 
       // Excluding a request kind or ignoring an error means this behavior is inactive
@@ -186,45 +192,12 @@ export class DeadLetterBehavior implements IPipelineBehavior {
           ...this.defaults.ignoreErrors,
           ...handlerOptions.ignoreErrors,
         ];
-      } else if (
-        typeof this.defaults.ignoreErrors === 'function' &&
-        typeof handlerOptions.ignoreErrors === 'function'
-      ) {
+      } else {
         const defaultFilter = this.defaults.ignoreErrors;
         const handlerFilter = handlerOptions.ignoreErrors;
         merged.ignoreErrors = (err, ctx) =>
-          defaultFilter(err, ctx) || handlerFilter(err, ctx);
-      } else if (
-        Array.isArray(this.defaults.ignoreErrors) &&
-        typeof handlerOptions.ignoreErrors === 'function'
-      ) {
-        const defaultTypes = this.defaults.ignoreErrors;
-        const handlerFilter = handlerOptions.ignoreErrors;
-        merged.ignoreErrors = (err, ctx) => {
-          for (const target of defaultTypes) {
-            if (typeof target === 'function' && err instanceof target) {
-              return true;
-            }
-          }
-          return handlerFilter(err, ctx);
-        };
-      } else if (
-        typeof this.defaults.ignoreErrors === 'function' &&
-        Array.isArray(handlerOptions.ignoreErrors)
-      ) {
-        const defaultFilter = this.defaults.ignoreErrors;
-        const handlerTypes = handlerOptions.ignoreErrors;
-        merged.ignoreErrors = (err, ctx) => {
-          if (defaultFilter(err, ctx)) {
-            return true;
-          }
-          for (const target of handlerTypes) {
-            if (typeof target === 'function' && err instanceof target) {
-              return true;
-            }
-          }
-          return false;
-        };
+          matchesIgnoredError(defaultFilter, err, ctx) ||
+          matchesIgnoredError(handlerFilter, err, ctx);
       }
     }
 
@@ -236,4 +209,16 @@ export class DeadLetterBehavior implements IPipelineBehavior {
 
     return merged;
   }
+}
+
+function matchesIgnoredError(
+  filter: NonNullable<DeadLetterBehaviorOptions['ignoreErrors']>,
+  error: unknown,
+  context: IPipelineContext,
+): boolean {
+  if (typeof filter === 'function') return filter(error, context);
+  for (const target of filter) {
+    if (typeof target === 'function' && error instanceof target) return true;
+  }
+  return false;
 }

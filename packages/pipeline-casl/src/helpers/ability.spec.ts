@@ -40,6 +40,9 @@ describe('interpolateConditions', () => {
     expect(
       interpolateConditions({ prefix: 'user-${id}-posts' }, principal),
     ).toEqual({ prefix: 'user-u-42-posts' });
+    expect(
+      interpolateConditions({ prefix: 'user-{{ id }}-posts' }, principal),
+    ).toEqual({ prefix: 'user-u-42-posts' });
   });
 
   it('interpolates nested conditions', () => {
@@ -101,6 +104,43 @@ describe('interpolateConditions', () => {
     expect(() =>
       interpolateConditions({ prefix: 'team-${department}' }, principal),
     ).toThrow('department');
+  });
+
+  it('rejects an object principal value instead of injecting query operators', () => {
+    const operatorPrincipal = {
+      id: 'u1',
+      department: { $ne: '__none__' },
+    } as unknown as CaslPrincipal;
+
+    expect(() =>
+      interpolateConditions(
+        { department: '${user.department}' },
+        operatorPrincipal,
+      ),
+    ).toThrow('must be a scalar or an array of scalars');
+    expect(() =>
+      buildAbility(
+        [
+          {
+            subject: 'User',
+            action: 'read',
+            conditions: { department: '${user.department}' },
+          },
+        ],
+        operatorPrincipal,
+      ),
+    ).toThrow('must be a scalar or an array of scalars');
+  });
+
+  it('interpolates an array of scalars for set operators', () => {
+    const teamPrincipal = {
+      id: 'u1',
+      teams: ['a', 'b'],
+    } as unknown as CaslPrincipal;
+
+    expect(
+      interpolateConditions({ team: { $in: '${user.teams}' } }, teamPrincipal),
+    ).toEqual({ team: { $in: ['a', 'b'] } });
   });
 
   it('preserves an own __proto__ condition as ordinary data', () => {

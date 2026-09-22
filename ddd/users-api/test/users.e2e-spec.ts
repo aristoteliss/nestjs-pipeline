@@ -71,7 +71,13 @@ describe('users-api (e2e)', () => {
   const createUser = (
     user: string,
     body: { email: string; name: string; department?: string | null },
-  ) => as(user).post('/users').send(body);
+    idempotencyKey?: string,
+  ) => {
+    const post = as(user).post('/users');
+    return (
+      idempotencyKey ? post.set('idempotency-key', idempotencyKey) : post
+    ).send(body);
+  };
 
   beforeAll(async () => {
     ctx = await bootstrapE2E();
@@ -194,16 +200,17 @@ describe('users-api (e2e)', () => {
   });
 
   describe('idempotent user creation (IdempotencyBehavior)', () => {
-    it('replays the original response when retrying with identical payload (201)', async () => {
+    it('replays the original response when retrying one operation (201)', async () => {
       const email = newEmail();
       const body = {
         email,
         name: 'Idempotent Isaac',
         department: 'engineering',
       };
+      const operation = randomUUID();
 
-      const first = await createUser(admin, body);
-      const replay = await createUser(admin, body);
+      const first = await createUser(admin, body, operation);
+      const replay = await createUser(admin, body, operation);
 
       expect(first.status).toBe(201);
       expect(replay.status).toBe(201);
@@ -214,16 +221,19 @@ describe('users-api (e2e)', () => {
       });
     });
 
-    it('rejects retrying an email with a conflicting payload (422)', async () => {
+    it('rejects reusing an operation id with a different payload (422)', async () => {
       const email = newEmail();
-      const first = await createUser(admin, {
-        email,
-        name: 'Original Name',
-      });
-      const conflict = await createUser(admin, {
-        email, // same email = same idempotency key...
-        name: 'Different Name', // ...but a different fingerprint
-      });
+      const operation = randomUUID();
+      const first = await createUser(
+        admin,
+        { email, name: 'Original Name' },
+        operation,
+      );
+      const conflict = await createUser(
+        admin,
+        { email, name: 'Different Name' },
+        operation,
+      );
 
       expect(first.status).toBe(201);
       expect(conflict.status).toBe(422);
@@ -233,7 +243,32 @@ describe('users-api (e2e)', () => {
       });
     });
 
-    it('treats distinct emails as distinct keys (independent creates)', async () => {
+    it('creates the user again under a new operation id after it was deleted', async () => {
+      const email = newEmail();
+      const body = { email, name: 'Recreated Rita' };
+
+      const first = await createUser(admin, body, randomUUID());
+      const deleted = await as(admin).delete(`/users/${first.body.id}`);
+      const recreated = await createUser(admin, body, randomUUID());
+
+      expect(first.status).toBe(201);
+      expect(deleted.status).toBe(204);
+      expect(recreated.status).toBe(201);
+      expect(recreated.body.id).not.toBe(first.body.id);
+      expect(recreated.body).toMatchObject({ email, name: 'Recreated Rita' });
+    });
+
+    it('does not deduplicate without an Idempotency-Key: the unique email answers (409)', async () => {
+      const body = { email: newEmail(), name: 'Keyless Kim' };
+
+      const first = await createUser(admin, body);
+      const second = await createUser(admin, body);
+
+      expect(first.status).toBe(201);
+      expect(second.status).toBe(409);
+    });
+
+    it('creates distinct users independently without idempotency keys', async () => {
       const first = await createUser(admin, {
         email: newEmail(),
         name: 'Distinct Dora',

@@ -34,6 +34,20 @@ describe('createZodRequest', () => {
     expect(TestCommand.schema).toBe(testSchema);
   });
 
+  it('handles schemas without ~standard property', () => {
+    const schemaWithoutStandard = Object.create(testSchema, {
+      '~standard': { value: undefined },
+    });
+    class CommandWithoutStandard extends createZodRequest(
+      schemaWithoutStandard,
+    ) {}
+    expect(
+      (CommandWithoutStandard as unknown as Record<string, unknown>)[
+        '~standard'
+      ],
+    ).toBeUndefined();
+  });
+
   it('instantiates valid payload and assigns fields to instance', () => {
     class TestCommand extends createZodRequest(testSchema) {}
     const cmd = new TestCommand({

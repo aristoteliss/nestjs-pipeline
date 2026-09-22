@@ -655,6 +655,19 @@ describe('CaslAuthorizer', () => {
       ).toThrow(/cyclic/);
     });
 
+    it('rejects a field that refers back to the projected record', () => {
+      const account = Object.assign(new Account(), {
+        owner: undefined as unknown,
+      });
+      account.owner = account;
+
+      expect(() =>
+        new CaslAuthorizer(
+          rawAbility([{ action: 'read', subject: 'Account' }]),
+        ).project('read', account, account),
+      ).toThrow(/cyclic/);
+    });
+
     it('checks mixed named and indexed paths through nested arrays', () => {
       const account = Object.assign(new Account(), {
         groups: [{ members: [{ name: 'Alice', secret: 'hidden' }] }],
@@ -903,5 +916,52 @@ describe('root array projection traversal', () => {
       },
     };
     expect(() => authorizer.project('read', 'User', [entry])).toThrow('cyclic');
+  });
+
+  it('handles empty array properties when permitted vs denied', () => {
+    const authorizerAllowed = new CaslAuthorizer(
+      buildAbility(['User|read|*|id,tags']),
+    );
+    expect(
+      authorizerAllowed.project('read', 'User', { id: '1', tags: [] }),
+    ).toEqual({ id: '1', tags: [] });
+
+    const authorizerDenied = new CaslAuthorizer(
+      buildAbility(['User|read|*|id']),
+    );
+    expect(
+      authorizerDenied.project('read', 'User', { id: '1', tags: [] }),
+    ).toEqual({ id: '1' });
+  });
+
+  it('handles empty object properties when permitted vs denied', () => {
+    const authorizerAllowed = new CaslAuthorizer(
+      buildAbility(['User|read|*|id,meta']),
+    );
+    expect(
+      authorizerAllowed.project('read', 'User', { id: '1', meta: {} }),
+    ).toEqual({ id: '1', meta: {} });
+
+    const authorizerDenied = new CaslAuthorizer(
+      buildAbility(['User|read|*|id']),
+    );
+    expect(
+      authorizerDenied.project('read', 'User', { id: '1', meta: {} }),
+    ).toEqual({ id: '1' });
+  });
+
+  it('resolves between multiple matching inverted rules by priority', () => {
+    const ability = rawAbility([
+      { action: 'read', subject: 'User' },
+      { action: 'read', subject: 'User', inverted: true, fields: ['items.0'] },
+      { action: 'read', subject: 'User', inverted: true, fields: ['items'] },
+    ]);
+    const authorizer = new CaslAuthorizer(ability);
+    expect(
+      authorizer.project('read', 'User', {
+        id: '1',
+        items: ['first', 'second'],
+      }),
+    ).toEqual({ id: '1' });
   });
 });

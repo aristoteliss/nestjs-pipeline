@@ -6,6 +6,7 @@ import {
   isTransientOperationError,
   TransientOperationError,
 } from './transient-operation.error';
+import { UnknownMutableFieldError } from './unknown-mutable-field.error';
 
 class SampleDomainException extends DomainException {
   constructor(message = 'Sample error') {
@@ -57,6 +58,17 @@ describe('DomainException', () => {
       );
       expect(errWithActual.expectedVersion).toBe(1);
       expect(errWithActual.actualVersion).toBe(3);
+    });
+  });
+
+  describe('UnknownMutableFieldError', () => {
+    it('formats message when known mutable fields list is empty', () => {
+      const err = new UnknownMutableFieldError('User', 'email', []);
+      expect(err.message).toBe(
+        "User does not declare 'email' as a mutable field. Declare it with @Mutable() or remove it from the mutation patch. Known mutable fields: (none).",
+      );
+      expect(err.aggregate).toBe('User');
+      expect(err.field).toBe('email');
     });
   });
 });

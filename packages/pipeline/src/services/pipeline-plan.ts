@@ -65,13 +65,6 @@ export function compilePipelinePlan(
     (type) => !skippedBehaviorIds.has(getBehaviorId(type)),
   );
 
-  const hasHandlerBehaviors =
-    handlerBehaviorTypes && handlerBehaviorTypes.length > 0;
-  const hasGlobalBehaviors =
-    effectiveBeforeTypes.length > 0 || effectiveAfterTypes.length > 0;
-
-  const hasPipeline = Boolean(hasHandlerBehaviors || hasGlobalBehaviors);
-
   // Handler declarations override options for a global behavior of the same
   // class, but must not relocate it. A global security guard configured in
   // `before` must remain outside handler-level cache/idempotency behaviors
@@ -106,7 +99,7 @@ export function compilePipelinePlan(
   return {
     behaviorTypes,
     mergedOptions,
-    hasPipeline,
+    hasPipeline: behaviorTypes.length > 0,
     handlerOptions,
     globalOptions,
     handlerBehaviorTypes,
@@ -130,17 +123,8 @@ function resolveGlobalBehaviors(
   afterTypes: Type<IPipelineBehavior>[];
   globalOptions: Map<BehaviorId, Record<string, unknown>>;
 } {
-  const empty = {
-    beforeTypes: [] as Type<IPipelineBehavior>[],
-    afterTypes: [] as Type<IPipelineBehavior>[],
-    globalOptions: new Map<BehaviorId, Record<string, unknown>>(),
-  };
-
   const raw = options?.globalBehaviors;
-  if (!raw) return empty;
-
-  const configs = Array.isArray(raw) ? raw : [raw];
-  if (configs.length === 0) return empty;
+  const configs = raw ? (Array.isArray(raw) ? raw : [raw]) : [];
 
   const beforeTypes: Type<IPipelineBehavior>[] = [];
   const afterTypes: Type<IPipelineBehavior>[] = [];

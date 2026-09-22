@@ -66,6 +66,7 @@ describe('Create user replay scope', () => {
       new CreateUserCommand({
         username: 'Alice',
         email: 'alice@example.test',
+        idempotencyKey: 'op-1',
       }),
       {
         handlerType: CreateUserHandler,
@@ -157,6 +158,7 @@ describe('Create user replay scope', () => {
       new CreateUserCommand({
         username: 'Alice',
         email: 'alice@example.test',
+        idempotencyKey: 'op-1',
       }),
       {
         handlerType: CreateUserHandler,

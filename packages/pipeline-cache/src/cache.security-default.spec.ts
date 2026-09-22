@@ -10,6 +10,7 @@ import type { CacheBehaviorOptions } from './interfaces/cache-options.interface'
 const partitioned: CacheBehaviorOptions = {
   key: createPartitionedCacheKeyFactory({
     principal: (ctx) => ctx.items.get('userId') as string | undefined,
+    requireScope: false,
   }),
 };
 

@@ -8,8 +8,10 @@ import {
   Optional,
 } from '@nestjs/common';
 import {
+  createPipelineItem,
   type IPipelineBehavior,
   type IPipelineBehaviorContract,
+  type IPipelineBehaviorOptionsResolver,
   type IPipelineContext,
   LOGGING_BEHAVIOR_LOGGER,
   type NextDelegate,
@@ -17,6 +19,8 @@ import {
   type PipelineBehaviorDiagnostic,
   type PipelineBehaviorOrderRule,
   type PipelineBehaviorValidationContext,
+  type PipelineItemToken,
+  setPipelineItem,
 } from '@nestjs-pipeline/core';
 import type { Cache } from 'cache-manager';
 import {
@@ -37,6 +41,13 @@ import type { CacheBehaviorOptions } from './interfaces/cache-options.interface'
 export const CACHE_HIT_ITEM = Symbol('CACHE_HIT_ITEM');
 
 /**
+ * Typed token for {@link CACHE_HIT_ITEM}: the cache hit flag. Reads and writes the same
+ * `context.items` entry through `getPipelineItem` / `requirePipelineItem`.
+ */
+export const CACHE_HIT_ITEM_TOKEN: PipelineItemToken<boolean> =
+  createPipelineItem<boolean>('CACHE_HIT_ITEM', CACHE_HIT_ITEM);
+
+/**
  * Unique symbol key set on `context.items` recording the resolved cache key string.
  *
  * @example
@@ -45,6 +56,13 @@ export const CACHE_HIT_ITEM = Symbol('CACHE_HIT_ITEM');
  * ```
  */
 export const CACHE_KEY_ITEM = Symbol('CACHE_KEY_ITEM');
+
+/**
+ * Typed token for {@link CACHE_KEY_ITEM}: the resolved cache key. Reads and writes the same
+ * `context.items` entry through `getPipelineItem` / `requirePipelineItem`.
+ */
+export const CACHE_KEY_ITEM_TOKEN: PipelineItemToken<string> =
+  createPipelineItem<string>('CACHE_KEY_ITEM', CACHE_KEY_ITEM);
 
 const DEFAULT_KINDS: Array<IPipelineContext['requestKind']> = ['query'];
 
@@ -64,6 +82,11 @@ const DEFAULT_KINDS: Array<IPipelineContext['requestKind']> = ['query'];
  * Cache hits return the value from the single explicit lookup. This behavior
  * intentionally does not use `cache-manager.wrap()` because its background
  * refresh callback would re-enter every downstream pipeline behavior.
+ * Cached results are JSON values. A miss returns the JSON form of the handler
+ * result that it stores (a `Date` becomes an ISO string and a class instance a
+ * plain object), so a hit and a miss return the same shape. A result that cannot
+ * be JSON-serialized is returned unchanged and not cached.
+ *
  * Store errors fail open by default: read failures bypass caching for that
  * execution, and write failures return the successful handler result. Set
  * `failOpen: false` to propagate store failures instead.
@@ -81,7 +104,11 @@ const DEFAULT_KINDS: Array<IPipelineContext['requestKind']> = ['query'];
  * ```
  */
 @Injectable()
-export class CacheBehavior implements IPipelineBehavior {
+export class CacheBehavior
+  implements
+    IPipelineBehavior,
+    IPipelineBehaviorOptionsResolver<CacheBehaviorOptions>
+{
   static readonly [PIPELINE_BEHAVIOR_CONTRACT]: IPipelineBehaviorContract = {
     order: (
       context: PipelineBehaviorValidationContext,
@@ -156,12 +183,7 @@ export class CacheBehavior implements IPipelineBehavior {
         ? cache
         : new CacheManagerAdapter(cache as Cache);
 
-    if (!logger) {
-      this.logger = new Logger(CacheBehavior.name, { timestamp: true });
-      return;
-    }
-
-    this.logger = logger;
+    this.logger = logger ?? new Logger(CacheBehavior.name, { timestamp: true });
   }
 
   async handle(
@@ -186,41 +208,45 @@ export class CacheBehavior implements IPipelineBehavior {
     }
 
     const key = options.key(context);
-    context.items.set(CACHE_KEY_ITEM, key);
+    setPipelineItem(context, CACHE_KEY_ITEM_TOKEN, key);
 
     let cached: unknown;
+    let canWrite = true;
     try {
       cached = await this.cacheAdapter.get(key);
     } catch (error) {
       this.handleStoreError('read', context, key, error, options);
-      context.items.set(CACHE_HIT_ITEM, false);
-      return next();
+      canWrite = false;
     }
     if (cached !== undefined && cached !== null) {
-      context.items.set(CACHE_HIT_ITEM, true);
-      this.logger.debug?.(
-        `Cache hit for ${context.requestName} (${key})`,
-        CacheBehavior.name,
-      );
+      setPipelineItem(context, CACHE_HIT_ITEM_TOKEN, true);
+      this.diagnose('debug', `Cache hit for ${context.requestName} (${key})`);
       return cached;
     }
 
-    context.items.set(CACHE_HIT_ITEM, false);
-    this.logger.debug?.(
-      `Cache miss for ${context.requestName} (${key})`,
-      CacheBehavior.name,
-    );
+    setPipelineItem(context, CACHE_HIT_ITEM_TOKEN, false);
+    this.diagnose('debug', `Cache miss for ${context.requestName} (${key})`);
 
     const result = await next();
-    if (result !== undefined && result !== null) {
+    if (result === undefined || result === null) return result;
+
+    const cacheable = toJsonForm(result);
+    if (cacheable === undefined) {
+      this.diagnose(
+        'warn',
+        `Result of ${context.requestName} is not JSON-serializable; not cached (key: ${key})`,
+      );
+      return result;
+    }
+
+    if (canWrite) {
       try {
-        await this.cacheAdapter.set(key, result, options.ttl);
+        await this.cacheAdapter.set(key, cacheable, options.ttl);
       } catch (error) {
         this.handleStoreError('write', context, key, error, options);
       }
     }
-
-    return result;
+    return cacheable;
   }
 
   /** Logs a store failure and either bypasses it or propagates it. */
@@ -234,20 +260,28 @@ export class CacheBehavior implements IPipelineBehavior {
     const message = error instanceof Error ? error.message : String(error);
 
     if (options.failOpen ?? true) {
-      this.logger.warn?.(
+      this.diagnose(
+        'warn',
         `Cache ${operation} error for ${context.requestName} ` +
           `(key: ${key}); failing open: ${message}`,
-        CacheBehavior.name,
       );
       return;
     }
 
-    this.logger.error?.(
+    this.diagnose(
+      'error',
       `Cache ${operation} error for ${context.requestName} ` +
         `(key: ${key}); failing closed: ${message}`,
-      CacheBehavior.name,
     );
     throw error;
+  }
+
+  private diagnose(level: 'debug' | 'warn' | 'error', message: string): void {
+    try {
+      this.logger[level]?.(message, CacheBehavior.name);
+    } catch {
+      // Diagnostics must not replace the handler result or cache-store error.
+    }
   }
 
   /** Shallow-merges pipeline-level options over application defaults. */
@@ -256,5 +290,15 @@ export class CacheBehavior implements IPipelineBehavior {
   ): CacheBehaviorOptions {
     if (!options) return this.defaults;
     return { ...this.defaults, ...options };
+  }
+}
+
+/** JSON round-trip of a cacheable result, or `undefined` when it has no JSON form. */
+function toJsonForm(value: unknown): unknown {
+  try {
+    const json = JSON.stringify(value);
+    return json === undefined ? undefined : JSON.parse(json);
+  } catch {
+    return undefined;
   }
 }

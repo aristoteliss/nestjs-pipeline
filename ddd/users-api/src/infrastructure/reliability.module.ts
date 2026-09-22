@@ -1,5 +1,6 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
+import { RATE_LIMIT_CAPACITY } from '@common/constants';
 import { BullModule, getQueueToken } from '@nestjs/bullmq';
 import { Module } from '@nestjs/common';
 import { CacheModule } from '@nestjs-pipeline/cache';
@@ -17,39 +18,18 @@ import { RateLimiterMemory } from 'rate-limiter-flexible';
 import { DEAD_LETTER_DEFAULTS } from './dead-letter.options';
 
 /**
- * Infrastructure module that encapsulates all reliability, resilience, rate limiting,
- * distributed idempotency, dead-letter capture, caching, and feature flag capabilities.
+ * Wires BullMQ dead-letter delivery, rate limiting, idempotency, resilience,
+ * response caching and feature flags for handler-local pipeline configuration.
  *
- * ### Responsibilities
- * - **BullMQ & Redis Connectivity**: Connects to the Redis instance for queues and background tasks.
- * - **Dead Letter Queue (`DeadLetterModule`)**: Captures unhandled command and event failures (excluding read queries, expected rejections and post-success idempotency failures; see `dead-letter.options.ts`) into a dedicated BullMQ queue (`dead-letters`) for inspection or replay.
- * - **Rate Limiting (`RateLimitModule`)**: Memory-based or Redis-backed rate limiter (default: 5 ops / 60s) used by opt-in command handlers.
- * - **Idempotency (`IdempotencyModule`)**: Distributed lock claiming and cached response replaying to prevent duplicate execution of mutating operations.
- * - **Resilience Policies (`ResilienceModule`)**: Cockatiel-based retry policies, circuit breakers, and timeouts.
- * - **Response Caching (`CacheModule`)**: In-memory (development) or Redis-backed (production) query response cache with a default 30-second TTL.
- * - **Feature Flags (`FeatureFlagsModule`)**: OpenFeature provider integration gating runtime registration and role creation features.
+ * Rate-limit quotas and idempotency records are process-local. Response caching
+ * uses memory for local development and Redis when REDIS_HOST is configured or
+ * NODE_ENV is production. Repository snapshot caching has its own adapters and
+ * invalidation lifecycle; this module configures pipeline response caching.
  *
- * @example Swapping Dead Letter Transport to PostgreSQL or RabbitMQ
+ * @example Register the pipeline infrastructure alongside observability
  * ```ts
- * // Drop-in replacement for DeadLetterModule transport:
- * DeadLetterModule.forRootAsync({
- *   inject: [PG_POOL],
- *   useFactory: (pool) => new PostgresDeadLetterTransport(pool),
- * });
- * ```
- *
- * @example Switching to Redis Distributed Rate Limiting
- * ```ts
- * RateLimitModule.forRoot({
- *   limiter: new RateLimiterRedis({ storeClient: redisClient, points: 10, duration: 60 }),
- * });
- * ```
- *
- * @example Switching to Unleash or Flagsmith Feature Flag Providers
- * ```ts
- * FeatureFlagsModule.forRoot({
- *   provider: new UnleashProvider({ url: 'https://unleash.example.com/api', appName: 'users-api', token: '...' }),
- * });
+ * @Module({ imports: [ObservabilityModule, ReliabilityModule] })
+ * export class AppModule {}
  * ```
  */
 @Module({
@@ -71,38 +51,28 @@ import { DEAD_LETTER_DEFAULTS } from './dead-letter.options';
       useFactory: (queue: Queue) => new BullMqDeadLetterTransport(queue),
       defaults: DEAD_LETTER_DEFAULTS,
     }),
-    // Rate limiting: In-memory limiter (5 ops / 60s) configured for single-process local demo
-    // and tests. For multi-replica production deployments, replace with RateLimiterRedis or
-    // RateLimiterPostgres to share quotas across replicas.
     RateLimitModule.forRoot({
-      limiter: new RateLimiterMemory({ points: 5, duration: 60 }),
+      limiter: new RateLimiterMemory(RATE_LIMIT_CAPACITY),
     }),
-    // Idempotency: MemoryIdempotencyStore configured for single-process local demo and tests.
-    // In multi-replica production deployments, configure RedisIdempotencyStore or
-    // PostgresIdempotencyStore via IdempotencyModule.forRoot({ store: ... }) or forRootAsync()
-    // to share idempotency locks and cached responses across instances and withstand restarts.
     IdempotencyModule.forRoot(),
     ResilienceModule.forRoot(),
-    // Response Caching: CacheModule supplies the underlying Cache/Keyv engine (memory for local
-    // demo/tests, Redis in production). In this DDD architecture, query caching and invalidation
-    // are coordinated at the repository boundary via @FromCache and @Cache to ensure invalidation
-    // stays synchronized with aggregate update/delete writes.
-    CacheModule.forRoot(
-      !process.env.REDIS_HOST && process.env.NODE_ENV !== 'production'
-        ? {
-            store: { type: 'memory' },
-            ttl: 30_000,
-          }
-        : {
-            store: {
-              type: 'redis',
-              url: `redis://${process.env.REDIS_HOST ?? 'localhost'}:${Number(
-                process.env.REDIS_PORT ?? 6379,
-              )}`,
+    CacheModule.forRootAsync({
+      useFactory: () =>
+        !process.env.REDIS_HOST && process.env.NODE_ENV !== 'production'
+          ? {
+              store: { type: 'memory' },
+              ttl: 30_000,
+            }
+          : {
+              store: {
+                type: 'redis',
+                url: `redis://${process.env.REDIS_HOST ?? 'localhost'}:${Number(
+                  process.env.REDIS_PORT ?? 6379,
+                )}`,
+              },
+              ttl: 30_000,
             },
-            ttl: 30_000,
-          },
-    ),
+    }),
     FeatureFlagsModule.forRoot({
       provider: new InMemoryProvider({
         'user-registration': {

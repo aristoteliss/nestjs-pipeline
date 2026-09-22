@@ -21,3 +21,27 @@ export interface IPipelineBehavior<TRequest = unknown, TResponse = unknown> {
     next: NextDelegate<TResponse>,
   ): Promise<TResponse>;
 }
+
+/**
+ * Optional instance contract for a behavior that merges its module defaults into
+ * the options declared on a handler or globally. Bootstrap diagnostics call it on
+ * pre-resolved singleton behaviors so contract validators receive the options the
+ * behavior will apply; scoped behaviors have no instance at bootstrap and their
+ * validators receive the raw declared options.
+ *
+ * @example
+ * ```ts
+ * class CacheBehavior
+ *   implements IPipelineBehavior, IPipelineBehaviorOptionsResolver<CacheOptions>
+ * {
+ *   resolveEffectiveOptions(options?: CacheOptions): CacheOptions {
+ *     return { ...this.defaults, ...options };
+ *   }
+ * }
+ * ```
+ */
+export interface IPipelineBehaviorOptionsResolver<
+  TOptions extends object = Record<string, unknown>,
+> {
+  resolveEffectiveOptions(options?: TOptions): TOptions | undefined;
+}
