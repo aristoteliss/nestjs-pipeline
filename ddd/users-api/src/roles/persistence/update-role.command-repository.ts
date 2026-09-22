@@ -3,12 +3,10 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { ICache } from '@nestjs-pipeline/ddd-core/application';
 import {
-  AcknowledgePersisted,
   CACHE_TOKEN,
-  Cache,
   filterCacheKey,
-  MapPersistenceErrors,
   optimisticUpdate,
+  PersistedWrite,
 } from '@nestjs-pipeline/ddd-core/persistence';
 import { MIKRO_ORM_CLIENT, MikroOrmStore } from '@persistence/mikro-orm.store';
 import { MikroOrmWriteSideCommandRepository } from '@persistence/mikro-orm-write-side.command-repository';
@@ -28,15 +26,13 @@ export class UpdateRoleCommandRepository extends MikroOrmWriteSideCommandReposit
     super(cache, store, Role, Role.aggregateName, Role.fromJSON);
   }
 
-  @Cache<Role, RoleSnapshot>({
-    setKey: (role) => filterCacheKey(Role.aggregateName, { id: role.id }),
-    invalidateKeys: (role) => [
-      filterCacheKey(Role.aggregateName, { name: role.name }),
-    ],
-  })
-  @AcknowledgePersisted<[Role]>({ entity: ([role]) => role })
-  @MapPersistenceErrors<[Role], Role>({
-    entity: ([role]) => role,
+  @PersistedWrite<Role>({
+    cache: {
+      setKey: (role) => filterCacheKey(Role.aggregateName, { id: role.id }),
+      invalidateKeys: (role) => [
+        filterCacheKey(Role.aggregateName, { name: role.name }),
+      ],
+    },
     unique: [
       {
         constraint: 'roles_name_unique',

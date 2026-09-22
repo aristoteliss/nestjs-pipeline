@@ -15,20 +15,32 @@ pattern persisted_method($modifiers, $body) {
 
 or {
   JsNamedImportSpecifier(name=$name) as $import where {
-    $name <: r"^(?:Cache|AcknowledgePersisted|MapPersistenceErrors|optimisticUpdate)$",
+    $name <: r"^(?:Cache|AcknowledgePersisted|MapPersistenceErrors|PersistedWrite|optimisticUpdate)$",
     $import <: within JsImportNamedClause(source=$source) ,
     $source <: r".*@nestjs-pipeline/ddd-core.*",
     register_diagnostic(span=$import, message="Use canonical persistence API names so the structural lifecycle rules can check their usage.", severity="error")
   },
+  JsMethodClassMember(modifiers=$modifiers) as $method where {
+    $modifiers <: contains JsDecorator(expression=JsCallExpression(callee=`PersistedWrite`)),
+    $modifiers <: contains JsDecorator(expression=JsCallExpression(callee=or {
+      `Cache`,
+      `AcknowledgePersisted`,
+      `MapPersistenceErrors`
+    })),
+    register_diagnostic(span=$method, message="@PersistedWrite already applies @Cache, @AcknowledgePersisted and @MapPersistenceErrors; do not combine it with them.", severity="error")
+  },
   persisted_method(modifiers=$modifiers, body=$body) as $method where {
-    not $modifiers <: [
-      JsDecorator(expression=JsCallExpression(callee=`Cache`)),
+    not $modifiers <: or {
+      [
+        JsDecorator(expression=JsCallExpression(callee=`Cache`)),
 
-      JsDecorator(expression=JsCallExpression(callee=`AcknowledgePersisted`)),
+        JsDecorator(expression=JsCallExpression(callee=`AcknowledgePersisted`)),
 
-      JsDecorator(expression=JsCallExpression(callee=`MapPersistenceErrors`))
-    ],
-    register_diagnostic(span=$method, message="Persistence lifecycle requires @Cache, @AcknowledgePersisted, @MapPersistenceErrors in that order, once each.", severity="error")
+        JsDecorator(expression=JsCallExpression(callee=`MapPersistenceErrors`))
+      ],
+      [JsDecorator(expression=JsCallExpression(callee=`PersistedWrite`))]
+    },
+    register_diagnostic(span=$method, message="Persistence lifecycle requires @PersistedWrite alone, or @Cache, @AcknowledgePersisted, @MapPersistenceErrors in that order, once each.", severity="error")
   },
   persisted_method(modifiers=$modifiers, body=$body) as $method where {
     not $body <: contains JsAwaitExpression(argument=JsCallExpression(callee=`optimisticUpdate`)),

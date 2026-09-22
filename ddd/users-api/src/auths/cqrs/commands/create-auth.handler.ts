@@ -9,11 +9,7 @@ import {
 import { Inject } from '@nestjs/common';
 import { CommandHandler, EventBus } from '@nestjs/cqrs';
 import { AUDIT_SEVERITY, audit } from '@nestjs-pipeline/audit';
-import {
-  type IPipelineContext,
-  logging,
-  UsePipeline,
-} from '@nestjs-pipeline/core';
+import { type IPipelineContext, UsePipeline } from '@nestjs-pipeline/core';
 import {
   CommandBaseHandler,
   ICommandRepository,
@@ -46,7 +42,6 @@ export const createAuthRateLimitKey = createPartitionedRateLimitKeyFactory(
 
 @CommandHandler(CreateAuthCommand)
 @UsePipeline(
-  logging({ requestResponseLogLevel: 'log' }),
   metrics({ meterName: 'users-api.auth' }),
   rateLimit({ keyFactory: createAuthRateLimitKey }),
   audit({

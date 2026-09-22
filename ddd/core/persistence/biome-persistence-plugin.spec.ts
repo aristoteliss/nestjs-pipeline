@@ -96,6 +96,32 @@ describe('Biome Grit persistence lifecycle plugin', () => {
     }
   });
 
+  it('accepts @PersistedWrite as the whole lifecycle', () => {
+    const source = valid
+      .replace(
+        '@Cache(key)\n  @AcknowledgePersisted(options)\n  @MapPersistenceErrors(options)',
+        '@PersistedWrite<Role>(options)',
+      )
+      .replace(
+        'Cache, AcknowledgePersisted, MapPersistenceErrors,',
+        'PersistedWrite,',
+      );
+    expect(lint(source)).toMatchObject({ status: 0 });
+  });
+
+  it.each(['Cache', 'AcknowledgePersisted', 'MapPersistenceErrors'])(
+    'rejects @PersistedWrite combined with @%s',
+    (name) => {
+      const source = valid.replace(
+        '@Cache(key)\n  @AcknowledgePersisted(options)\n  @MapPersistenceErrors(options)',
+        `@PersistedWrite(options)\n  @${name}(options)`,
+      );
+      const result = lint(source);
+      expect(result.status).toBe(1);
+      expect(result.diagnostics).toContain('do not combine it with them');
+    },
+  );
+
   it('rejects a missing helper and a second unawaited write even when one write is awaited', () => {
     expect(
       lint(

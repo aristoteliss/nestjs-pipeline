@@ -3,12 +3,10 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { ICache } from '@nestjs-pipeline/ddd-core/application';
 import {
-  AcknowledgePersisted,
   CACHE_TOKEN,
-  Cache,
   filterCacheKey,
-  MapPersistenceErrors,
   optimisticUpdate,
+  PersistedWrite,
 } from '@nestjs-pipeline/ddd-core/persistence';
 import { MIKRO_ORM_CLIENT, MikroOrmStore } from '@persistence/mikro-orm.store';
 import { MikroOrmWriteSideCommandRepository } from '@persistence/mikro-orm-write-side.command-repository';
@@ -27,16 +25,13 @@ export class UpdateUserCommandRepository extends MikroOrmWriteSideCommandReposit
     super(cache, store, User, User.aggregateName, User.fromJSON);
   }
 
-  @Cache<User, UserSnapshot>({
-    setKey: (user) => filterCacheKey(User.aggregateName, { id: user.id }),
-    invalidateKeys: (user) => [
-      filterCacheKey(User.aggregateName, { email: user.email }),
-    ],
-  })
-  @AcknowledgePersisted<[User]>({ entity: ([user]) => user })
-  @MapPersistenceErrors<[User], User>({
-    entity: ([user]) => user,
-    unique: [],
+  @PersistedWrite<User>({
+    cache: {
+      setKey: (user) => filterCacheKey(User.aggregateName, { id: user.id }),
+      invalidateKeys: (user) => [
+        filterCacheKey(User.aggregateName, { email: user.email }),
+      ],
+    },
   })
   async save(user: User): Promise<UserSnapshot> {
     const snapshot = user.toJSON();

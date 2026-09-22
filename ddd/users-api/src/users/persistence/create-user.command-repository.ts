@@ -3,13 +3,11 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { ICache } from '@nestjs-pipeline/ddd-core/application';
 import {
-  AcknowledgePersisted,
   assertAutocommit,
   CACHE_TOKEN,
-  Cache,
   CommandRepository,
   filterCacheKey,
-  MapPersistenceErrors,
+  PersistedWrite,
 } from '@nestjs-pipeline/ddd-core/persistence';
 import { MIKRO_ORM_CLIENT, MikroOrmStore } from '@persistence/mikro-orm.store';
 import { UniqueEmailException } from '../domain/models/errors/email.exception';
@@ -32,15 +30,13 @@ export class CreateUserCommandRepository extends CommandRepository<
    * secondary email lookup so a previous negative/stale cache entry cannot hide
    * the newly-created aggregate.
    */
-  @Cache<User, UserSnapshot>({
-    setKey: (user) => filterCacheKey(User.aggregateName, { id: user.id }),
-    invalidateKeys: (user) => [
-      filterCacheKey(User.aggregateName, { email: user.email }),
-    ],
-  })
-  @AcknowledgePersisted<[User]>({ entity: ([user]) => user })
-  @MapPersistenceErrors<[User], User>({
-    entity: ([user]) => user,
+  @PersistedWrite<User>({
+    cache: {
+      setKey: (user) => filterCacheKey(User.aggregateName, { id: user.id }),
+      invalidateKeys: (user) => [
+        filterCacheKey(User.aggregateName, { email: user.email }),
+      ],
+    },
     unique: [
       {
         constraint: 'users_email_unique',

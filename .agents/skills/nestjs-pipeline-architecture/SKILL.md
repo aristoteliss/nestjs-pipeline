@@ -290,7 +290,7 @@ Query repositories and decorators:
 
 - `QueryRepository<TQuery, TResult>` accepts exactly 2 generic parameters: the query input type and the domain aggregate output type.
 - `@FromCache<TQuery, TResult>` accepts 2 generic parameters. On cache miss, it extracts a detached snapshot (`toCacheSnapshot()`, `serializeFn`, or `result.toJSON()`).
-- Query repositories configure `@FromCache({ alwaysHydrate: true, ... })` and return strictly `Promise<TEntity | null>`, eliminating ambiguous union types (`User | UserSnapshot`). Decoration-time validation ensures `alwaysHydrate: true` requires `hydrateFn`.
+- Query repositories return strictly `Promise<TEntity | null>`, eliminating ambiguous union types (`User | UserSnapshot`). Declare rehydration once through the `QueryRepository` constructor's hydration policy (`super(cache, { hydrateFn })`, every hit rehydrated), or per method with `@FromCache({ alwaysHydrate: true, hydrateFn, ... })`; decoration-time validation ensures `alwaysHydrate: true` requires `hydrateFn`. A method's own `hydrateFn` (or `null`) and `serializeFn` override the repository default.
 - Concurrent reads: when an in-flight query races a concurrent write that updates the cache, `@FromCache` detects the newer cached version (`newerCheck(current, snapshot)`) and returns the hydrated newer version rather than stale database data. A stale fill must never replace newer cache state; separate read/check/write steps do not prove that guarantee, so verify the coordination through the final write.
 - Anti-resurrection: `@Cache` writes a `CacheMutationBarrier` sentinel on deletions and secondary key invalidations, and `@FromCache` fills only through a revision-fenced `IVersionedCache`: it observes the key's revision before the database read and commits with `tryFill` only if nothing advanced it, so a stale snapshot cannot overwrite a barrier; a rejected fill re-reads and boundedly retries. An adapter with only `get`/`set` cannot be fenced, so `@FromCache` bypasses it for both reads and fills. Test invalidation after the last read but before fill, absence/expiry ABA, delete/recreate and retry exhaustion; the presence of barriers is not proof that all races are prevented, and DB commit plus cache maintenance remains a separate consistency boundary.
 - Cache adapters (`ICache<TSnapshot>`) store strictly serializable snapshots, never live domain aggregates. `MemoryCache` enforces deep detachment parity with database caches via JSON cloning on `set()` and `get()`.
@@ -335,7 +335,7 @@ Do not throw HTTP exceptions from repositories.
 
 ### Persistence lifecycle decorators
 
-On command repository `save()` operations, apply method decorators in strictly outermost-to-innermost order:
+On command repository `save()` operations whose first argument is the aggregate and which acknowledge the persisted version (creates and updates), use `@PersistedWrite({ cache, unique, otherwise })`. It applies the three decorators below in canonical order with the first argument as the entity. Keep the individual decorators for other signatures, for deletes (which do not acknowledge), and for caller-owned ordering; never combine the two forms on one method. The individual decorators, outermost-to-innermost:
 
 1. `@Cache(...)`: Write-through cache synchronization/invalidation after durable write and acknowledgment, using detached snapshots from `toCacheSnapshot()`. CAS comparison (`isCacheNewer`) keeps late-finishing writes from overwriting newer cached versions, and entity deletions (`deleteKeys`) and secondary invalidations (`invalidateKeys`) install a `CacheMutationBarrier` sentinel (`{ ttl: 0, reason: 'deleted' | 'invalidated', token: uuidv7() }`) against stale snapshot resurrection. Verify the atomic coordination of these mechanisms with readers; a barrier installation alone does not prove anti-resurrection or cross-store strong consistency.
 2. `@AcknowledgePersisted({ entity: ([arg]) => arg })`: Captures entry version, updates `aggregate.acknowledgePersisted(version)` only after the persistence promise resolves.
@@ -419,7 +419,7 @@ Before finalizing an architecture-sensitive change, verify:
 - [ ] Controllers remain presentation adapters.
 - [ ] Event handlers do not exist only for observability logging.
 - [ ] New infrastructure dependency is introduced through a port unless it is clearly a composition/presentation adapter.
-- [ ] Persistence write methods follow `@Cache` -> `@AcknowledgePersisted` -> `@MapPersistenceErrors` decorator order.
+- [ ] Persistence write methods use `@PersistedWrite(...)` or follow `@Cache` -> `@AcknowledgePersisted` -> `@MapPersistenceErrors` decorator order.
 - [ ] Entity updates use `optimisticUpdate()` and reject active outer transactions (`em.isInTransaction()`).
 - [ ] Entity deletes condition on `{ id, version: aggregate.getExpectedVersion() }` and assert affected rows.
 - [ ] Cache mutations install mutation barriers to prevent stale reader resurrection.
@@ -459,7 +459,7 @@ Never introduce or re-introduce these patterns:
 - Defaulting missing tenant context to `'default'` instead of failing closed with `MissingTenantContextError`
 - Synthetic `new Auth({ userId, token: '' })` snapshots used as command payloads (pass explicit scalar parameters `{ userId, token }`)
 - Legacy `DomainOutcome` wrappers (aggregates manage domain events internally via `this.apply(event)`)
-- Inverting persistence decorator order (must be `@Cache` -> `@AcknowledgePersisted` -> `@MapPersistenceErrors`)
+- Inverting persistence decorator order (must be `@Cache` -> `@AcknowledgePersisted` -> `@MapPersistenceErrors`), or stacking an individual lifecycle decorator on top of `@PersistedWrite`
 - Calling `aggregate.acknowledgePersisted()` manually inside repositories instead of using `@AcknowledgePersisted`
 - Calling `optimisticUpdate` inside an active transaction without an explicit commit-hook contract
 - Unchecked deletes using only `{ id }` without checking `aggregate.getExpectedVersion()` and affected rows

@@ -119,6 +119,4 @@ export class Role extends RootEntity<RoleSnapshot> {
       version: this.version,
     });
   }
-
-  afterUpdate(): void {}
 }

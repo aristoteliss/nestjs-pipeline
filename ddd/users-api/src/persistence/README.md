@@ -8,11 +8,11 @@ Read/query handlers remain free to use `IQueryRepository` and `@FromCache`. Do n
 
 ## Tenant-bound EntityManager metadata
 
-`MikroOrmStore` and `PostgresMikroOrmStore` associate request/transaction EntityManager instances with the active tenant through `EntityManagerTenantRegistry`, an internal `WeakMap<object, string>`.
+`MikroOrmStore` and `PostgresMikroOrmStore` delegate EntityManager selection to one `TenantEntityManagerResolver`, which associates request/transaction EntityManager instances with the active tenant through `EntityManagerTenantRegistry`, an internal `WeakMap<object, string>`. Each store keeps only its driver-specific ORM bootstrap, fork options (the PostgreSQL store forks with the tenant `schema`) and shutdown.
 
 Do not attach application-owned properties such as `__tenant` to MikroORM EntityManager instances. Third-party runtime objects are not extension points; mutating them creates hidden coupling to undocumented implementation details and can collide with future library changes. Tenant ownership metadata must remain external to MikroORM objects.
 
-When a contextual EntityManager is reused, the store validates driver/config/schema compatibility plus the registry tenant. Fresh forks are registered immediately and remain otherwise untouched.
+A contextual EntityManager (request context or active transaction) is reused only when it is not the ORM's global manager and its driver, configuration and schema match the tenant's ORM and it is not registered to another tenant. Fresh forks are registered immediately and remain otherwise untouched. `test/store-context.spec.ts` runs the same cases against both stores.
 
 When adding a command that mutates an existing aggregate:
 
@@ -73,7 +73,7 @@ and Biome plugin tests live in `ddd/core/persistence`.
 ### 5. Cache Isolation Parity and Representation Contracts
 - **Snapshot Storage Contract**: Cache adapters and repositories inject `ICache<TSnapshot>` (e.g. `ICache<UserSnapshot>`, `ICache<RoleSnapshot>`). Caches store exclusively JSON-serializable snapshots, never live domain aggregates.
 - **Isolation Parity (`MemoryCache` vs `MikroOrmCache`)**: `MemoryCache` enforces deep detachment parity with database/network caches (`MikroOrmCache`) by cloning payloads on both `set()` and `get()` through a JSON round-trip. Any mutation on an aggregate returned to a caller or handler cannot bleed back into or corrupt cached entries. Conformance is guarded by `test/persistence/cache/cache-adapter-conformance.spec.ts`.
-- **Query Repository Contract (`alwaysHydrate: true`)**: Query repositories (`GetUserQueryRepository`, `GetRoleQueryRepository`) configure `@FromCache({ alwaysHydrate: true, ... })` and return strictly `Promise<User | null>` and `Promise<Role | null>`. This eliminates ambiguous union types (`User | UserSnapshot`) from query handlers (`GetUserHandler`, `GetRoleHandler`), allowing handlers to operate cleanly on domain aggregates before CASL authorization and response projection.
+- **Query Repository Contract (repository hydration)**: Query repositories (`GetUserQueryRepository`, `GetRoleQueryRepository`) pass `{ hydrateFn }` to the `QueryRepository` constructor, so every `@FromCache` hit is rehydrated, and return strictly `Promise<User | null>` and `Promise<Role | null>`. This eliminates ambiguous union types (`User | UserSnapshot`) from query handlers (`GetUserHandler`, `GetRoleHandler`), allowing handlers to operate cleanly on domain aggregates before CASL authorization and response projection.
 
 ### 6. MikroOrmCache Concurrency and Identity Map Isolation
 - **Identity Map Isolation**: All cache entry lookups in `MikroOrmCache.get()` use `{ disableIdentityMap: true }`. Because cache rows represent ephemeral infrastructure state rather than unit-of-work domain entities, bypassing the identity map ensures reads always reflect fresh persistence state regardless of request-scoped EntityManager reuse.

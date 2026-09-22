@@ -17,7 +17,6 @@ import { UpdateRoleCommand } from './update-role.command';
 @CommandHandler(UpdateRoleCommand, { scope: Scope.REQUEST })
 @UsePipeline(
   logging({
-    requestResponseLogLevel: 'log',
     mapLogLevel: new Map([[UniqueRoleNameException, 'warn']]),
   }),
   requires({ action: APP_ACTIONS.UPDATE, subject: APP_SUBJECTS.ROLE }),

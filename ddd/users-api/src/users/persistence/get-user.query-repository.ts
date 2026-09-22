@@ -32,7 +32,9 @@ export class GetUserQueryRepository extends QueryRepository<
     @Inject(CACHE_TOKEN) protected readonly cache: ICache<UserSnapshot>,
     @Inject(MIKRO_ORM_CLIENT) private readonly store: MikroOrmStore,
   ) {
-    super(cache);
+    super(cache, {
+      hydrateFn: (cached) => User.fromJSON(cached as UserSnapshot),
+    });
   }
 
   @FromCache<GetUserQuery, User | null>({
@@ -40,8 +42,6 @@ export class GetUserQueryRepository extends QueryRepository<
       q.department
         ? null
         : filterCacheKey(User.aggregateName, buildConditions(q)),
-    hydrateFn: (cached) => User.fromJSON(cached as UserSnapshot),
-    alwaysHydrate: true,
   })
   async find(query: GetUserQuery): Promise<User | null> {
     const conditions = buildConditions(query);

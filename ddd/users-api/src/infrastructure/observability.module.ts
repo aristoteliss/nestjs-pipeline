@@ -6,7 +6,7 @@ import { Module } from '@nestjs/common';
 import { AuditModule } from '@nestjs-pipeline/audit';
 import {
   LOGGING_BEHAVIOR_LOGGER,
-  LoggingBehavior,
+  logging,
   PipelineModule,
 } from '@nestjs-pipeline/core';
 import {
@@ -86,52 +86,42 @@ export const HTTP_LOG_REDACT_PATHS = [
     }),
     PipelineModule.forRootAsync({
       inject: [TenantSchemaContext],
-      behaviors: [
-        LoggingBehavior,
-        ZodValidationBehavior,
-        TraceBehavior,
-        MetricsBehavior,
-        TelemetryBridgeBehavior,
-        DeadLetterBehavior,
-      ],
-      extraProviders: [
+      loggerProvider: {
+        provide: LOGGING_BEHAVIOR_LOGGER,
+        useExisting: NativeLogger,
+      },
+      globalBehaviors: [
         {
-          provide: LOGGING_BEHAVIOR_LOGGER,
-          useExisting: NativeLogger,
+          scope: 'all',
+          before: [
+            logging({ requestResponseLogLevel: 'log' }),
+            [TraceBehavior, { tracerName: 'users-api' }],
+            [MetricsBehavior, { meterName: 'users-api' }],
+            // Inside the tracer, outside the add-ons: it reads their context
+            // items on unwind and TraceBehavior reads the merged bag after.
+            TelemetryBridgeBehavior,
+            ZodValidationBehavior,
+          ],
+        },
+        // No ignoreErrors here. ReliabilityModule already declares the
+        // module-wide list, and validation failures cannot reach this
+        // behavior in any case: scopes compose in declaration order, so the
+        // 'all' block above puts ZodValidationBehavior outside DeadLetter.
+        // Repeating ZodValidationError here read as a safety net that was
+        // doing nothing.
+        {
+          scope: 'commands',
+          before: [[DeadLetterBehavior, { captureKinds: ['command'] }]],
+        },
+        {
+          scope: 'events',
+          before: [[DeadLetterBehavior, { captureKinds: ['event'] }]],
         },
       ],
       useFactory: (tenantContext: TenantSchemaContext) => ({
         correlationIdFactory: getCorrelationId,
         correlationIdRunner: runWithCorrelationId,
         tenantIdFactory: () => tenantContext.schema,
-        globalBehaviors: [
-          {
-            scope: 'all',
-            before: [
-              LoggingBehavior,
-              [TraceBehavior, { tracerName: 'users-api' }],
-              [MetricsBehavior, { meterName: 'users-api' }],
-              // Inside the tracer, outside the add-ons: it reads their context
-              // items on unwind and TraceBehavior reads the merged bag after.
-              TelemetryBridgeBehavior,
-              ZodValidationBehavior,
-            ],
-          },
-          // No ignoreErrors here. ReliabilityModule already declares the
-          // module-wide list, and validation failures cannot reach this
-          // behavior in any case: scopes compose in declaration order, so the
-          // 'all' block above puts ZodValidationBehavior outside DeadLetter.
-          // Repeating ZodValidationError here read as a safety net that was
-          // doing nothing.
-          {
-            scope: 'commands',
-            before: [[DeadLetterBehavior, { captureKinds: ['command'] }]],
-          },
-          {
-            scope: 'events',
-            before: [[DeadLetterBehavior, { captureKinds: ['event'] }]],
-          },
-        ],
       }),
     }),
     AuditModule.forRoot({

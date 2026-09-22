@@ -38,7 +38,6 @@ export function createRoleReplayScope(ctx: IPipelineContext): string {
 @CommandHandler(CreateRoleCommand)
 @UsePipeline(
   logging({
-    requestResponseLogLevel: 'log',
     mapLogLevel: new Map([[UniqueRoleNameException, 'warn']]),
   }),
   requires(

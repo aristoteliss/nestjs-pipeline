@@ -183,6 +183,4 @@ export class User extends RootEntity<UserSnapshot> {
       version: this.version,
     });
   }
-
-  afterUpdate(): void {}
 }

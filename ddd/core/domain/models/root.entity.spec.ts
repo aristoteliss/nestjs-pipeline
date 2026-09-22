@@ -52,7 +52,13 @@ class OtherEntity extends RootEntity<TestSnapshot> {
     this.name = snapshot?.name ?? 'other';
   }
 
-  afterUpdate(): void {}
+  get version(): number {
+    return this._version;
+  }
+
+  triggerUpdate(): void {
+    this.onUpdate();
+  }
 
   toJSON(): RootEntitySnapshot & TestSnapshot {
     return this.freezeState({
@@ -170,6 +176,14 @@ describe('RootEntity', () => {
     entity.triggerUpdate();
     expect(entity.version).toBe(3);
     expect(entity.getExpectedVersion()).toBe(1);
+  });
+
+  it('runs the mutation lifecycle without an afterUpdate override', () => {
+    const entity = new OtherEntity({ name: 'plain' });
+
+    entity.triggerUpdate();
+
+    expect(entity.version).toBe(2);
   });
 
   it('advances expectedVersion baseline when acknowledgePersisted is called without emitting events or bumping version', () => {

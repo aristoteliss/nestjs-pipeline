@@ -9,8 +9,8 @@ import {
   OnModuleDestroy,
   OnModuleInit,
 } from '@nestjs/common';
-import { EntityManagerTenantRegistry } from './entity-manager-tenant.registry';
 import { createPostgresOrmOptions } from './postgres-options';
+import { TenantEntityManagerResolver } from './tenant-entity-manager.resolver';
 import { TenantSchemaContext } from './tenant-schema.context';
 
 @Injectable()
@@ -20,7 +20,7 @@ import { TenantSchemaContext } from './tenant-schema.context';
  */
 export class PostgresMikroOrmStore implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(PostgresMikroOrmStore.name);
-  private readonly entityManagerTenants = new EntityManagerTenantRegistry();
+  private readonly entityManagers = new TenantEntityManagerResolver();
   public orm!: MikroORM;
 
   constructor(
@@ -39,38 +39,11 @@ export class PostgresMikroOrmStore implements OnModuleInit, OnModuleDestroy {
     }
   }
 
-  private canReuseContextManager(
-    contextEm: EntityManager | SqlEntityManager | undefined,
-    schema: string,
-  ): boolean {
-    const isTenantMatch = this.entityManagerTenants.matches(contextEm, schema);
-    const isSchemaMatch =
-      contextEm?.schema === undefined || contextEm.schema === schema;
-    const isConfigMatch =
-      !this.orm.config ||
-      !contextEm?.config ||
-      contextEm.config === this.orm.config;
-    const isDriverMatch =
-      !this.orm.em.getDriver ||
-      !contextEm?.getDriver ||
-      contextEm.getDriver() === this.orm.em.getDriver();
-
-    return Boolean(
-      contextEm &&
-        contextEm !== this.orm.em &&
-        isDriverMatch &&
-        isConfigMatch &&
-        isSchemaMatch &&
-        isTenantMatch,
-    );
-  }
-
-  private markTenant<T extends EntityManager | SqlEntityManager>(
-    manager: T,
-    schema: string,
-  ): T {
-    this.entityManagerTenants.mark(manager, schema);
-    return manager;
+  private forkFor(schema: string): EntityManager {
+    return this.orm.em.fork({
+      disableContextResolution: true,
+      schema,
+    }) as EntityManager;
   }
 
   /**
@@ -82,52 +55,13 @@ export class PostgresMikroOrmStore implements OnModuleInit, OnModuleDestroy {
    */
   get em(): EntityManager {
     const schema = this.tenantSchemaContext.schema;
-    let contextEm: EntityManager | undefined;
-    try {
-      contextEm = this.orm.em.getContext(false) as EntityManager | undefined;
-    } catch {
-      contextEm = undefined;
-    }
-
-    if (this.canReuseContextManager(contextEm, schema)) {
-      if (this.entityManagerTenants.get(contextEm) === undefined) {
-        this.entityManagerTenants.mark(contextEm as EntityManager, schema);
-      }
-      return contextEm as EntityManager;
-    }
-
-    return this.markTenant(
-      this.orm.em.fork({
-        disableContextResolution: true,
-        schema,
-      }) as EntityManager,
-      schema,
+    return this.entityManagers.resolve(this.orm, schema, () =>
+      this.forkFor(schema),
     );
   }
 
   get sem(): SqlEntityManager {
-    const schema = this.tenantSchemaContext.schema;
-    let contextEm: SqlEntityManager | undefined;
-    try {
-      contextEm = this.orm.em.getContext(false) as SqlEntityManager | undefined;
-    } catch {
-      contextEm = undefined;
-    }
-
-    if (this.canReuseContextManager(contextEm, schema)) {
-      if (this.entityManagerTenants.get(contextEm) === undefined) {
-        this.entityManagerTenants.mark(contextEm as SqlEntityManager, schema);
-      }
-      return contextEm as SqlEntityManager;
-    }
-
-    return this.markTenant(
-      this.orm.em.fork({
-        disableContextResolution: true,
-        schema,
-      }) as SqlEntityManager,
-      schema,
-    );
+    return this.em;
   }
 
   /**
@@ -135,15 +69,7 @@ export class PostgresMikroOrmStore implements OnModuleInit, OnModuleDestroy {
    * Ensures that all operations within the callback share the same identity map and change set.
    */
   async withFork<T>(cb: (em: EntityManager) => Promise<T>): Promise<T> {
-    const schema = this.tenantSchemaContext.schema;
-    const fork = this.markTenant(
-      this.orm.em.fork({
-        disableContextResolution: true,
-        schema,
-      }) as EntityManager,
-      schema,
-    );
-    return cb(fork);
+    return cb(this.dedicatedFork());
   }
 
   /**
@@ -151,14 +77,11 @@ export class PostgresMikroOrmStore implements OnModuleInit, OnModuleDestroy {
    * Automatically commits on success and rolls back on failure.
    */
   async transactional<T>(cb: (em: EntityManager) => Promise<T>): Promise<T> {
+    return this.dedicatedFork().transactional(cb);
+  }
+
+  private dedicatedFork(): EntityManager {
     const schema = this.tenantSchemaContext.schema;
-    const fork = this.markTenant(
-      this.orm.em.fork({
-        disableContextResolution: true,
-        schema,
-      }) as EntityManager,
-      schema,
-    );
-    return fork.transactional(cb);
+    return this.entityManagers.fork(schema, () => this.forkFor(schema));
   }
 }

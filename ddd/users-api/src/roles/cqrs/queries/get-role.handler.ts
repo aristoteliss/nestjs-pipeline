@@ -5,7 +5,7 @@ import { readDependsOnEntityState } from '@common/cqrs/helpers/read-freshness.he
 import { Inject } from '@nestjs/common';
 import { type IQueryHandler, QueryHandler } from '@nestjs/cqrs';
 import { CaslAuthorizer, requires } from '@nestjs-pipeline/casl';
-import { logging, UsePipeline } from '@nestjs-pipeline/core';
+import { UsePipeline } from '@nestjs-pipeline/core';
 import { IQueryRepository } from '@nestjs-pipeline/ddd-core/application';
 import {
   projectRoleRead,
@@ -16,10 +16,7 @@ import { QUERY_REPOSITORY } from '../../persistence/repository.tokens';
 import { GetRoleQuery } from './get-role.query';
 
 @QueryHandler(GetRoleQuery)
-@UsePipeline(
-  logging({ requestResponseLogLevel: 'log' }),
-  requires({ action: APP_ACTIONS.READ, subject: APP_SUBJECTS.ROLE }),
-)
+@UsePipeline(requires({ action: APP_ACTIONS.READ, subject: APP_SUBJECTS.ROLE }))
 export class GetRoleHandler
   implements IQueryHandler<GetRoleQuery, RoleReadModel | null>
 {

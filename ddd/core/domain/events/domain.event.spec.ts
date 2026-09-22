@@ -20,6 +20,20 @@ class UserCreatedEvent extends RootDomainEvent<{ id: string; name: string }> {
   }
 }
 
+interface BuiltIns {
+  at: Date;
+  map: Map<string, string>;
+  set: Set<string>;
+}
+
+function builtIns(): BuiltIns {
+  return {
+    at: new Date('2026-01-01T00:00:00Z'),
+    map: new Map([['k', 'v']]),
+    set: new Set(['a']),
+  };
+}
+
 describe('DomainEvent & RootDomainEvent', () => {
   it('generates a UUIDv7 event id when none is provided', () => {
     const event = new CustomDomainEvent('something happened');
@@ -223,6 +237,48 @@ describe('DomainEvent & RootDomainEvent', () => {
     expect(() => {
       event.payload.set.clear();
     }).toThrow(/Cannot mutate frozen Set/);
+  });
+
+  it('does not protect Date, Map and Set internals from prototype method calls', () => {
+    class BuiltInsEvent extends RootDomainEvent<unknown, BuiltIns> {
+      constructor(payload: BuiltIns) {
+        super({}, payload);
+      }
+    }
+    const event = new BuiltInsEvent(builtIns());
+
+    Date.prototype.setTime.call(event.payload.at, 0);
+    Map.prototype.set.call(event.payload.map, 'k', 'changed');
+    Set.prototype.add.call(event.payload.set, 'added');
+
+    expect(Object.isFrozen(event.payload.at)).toBe(true);
+    expect(event.payload.at.getTime()).toBe(0);
+    expect(event.payload.map.get('k')).toBe('changed');
+    expect(event.payload.set.has('added')).toBe(true);
+  });
+
+  it('clonePayload isolates each copy from prototype-level changes to another', () => {
+    class BuiltInsEvent extends RootDomainEvent<unknown, BuiltIns> {
+      constructor(payload: BuiltIns) {
+        super({}, payload);
+      }
+    }
+    const event = new BuiltInsEvent(builtIns());
+    const first = event.clonePayload();
+    const second = event.clonePayload();
+
+    Date.prototype.setTime.call(first.at, 0);
+    Map.prototype.set.call(first.map, 'k', 'changed');
+    Set.prototype.add.call(first.set, 'added');
+
+    for (const view of [event.payload, second]) {
+      expect(view.at.toISOString()).toBe('2026-01-01T00:00:00.000Z');
+      expect(view.map.get('k')).toBe('v');
+      expect(view.set.has('added')).toBe(false);
+    }
+    expect(second).not.toBe(event.payload);
+    expect(Object.isFrozen(second)).toBe(true);
+    expect(() => second.map.set('k', 'x')).toThrow(/Cannot mutate frozen Map/);
   });
 
   it('RootDomainEvent handles circular references safely without infinite recursion', () => {

@@ -225,6 +225,4 @@ export class Auth extends RootEntity<AuthSnapshot> {
       version: this.version,
     });
   }
-
-  afterUpdate(): void {}
 }

@@ -6,7 +6,10 @@ import { type CacheStateEntry, isVersionedCache } from '../cache.interface';
 import { isCacheMutationBarrier } from '../helpers/cache-barrier.helper';
 import { toCacheSnapshot } from '../helpers/cache-snapshot.helper';
 import { isCacheNewer } from '../helpers/cache-version.helper';
-import { QueryRepository } from '../query-repository.abstract';
+import type {
+  QueryRepository,
+  QueryRepositoryHydration,
+} from '../query-repository.abstract';
 
 export { isCacheNewer };
 
@@ -41,14 +44,17 @@ export interface FromCacheOptions<TQuery = unknown, TResult = unknown> {
 
   /**
    * Function to rehydrate a raw cached snapshot back into a domain entity.
+   * When omitted, the repository's {@link QueryRepositoryHydration} applies;
+   * `null` opts this method out of it.
    */
   hydrateFn?: ((cached: unknown) => TResult) | null;
 
   /**
    * Optional serializer function to convert a domain entity or complex result into
    * a pure, detached snapshot for storage in cache.
-   * If omitted, {@link toCacheSnapshot} automatically extracts a snapshot via
-   * `result.toJSON()` or deep JSON cloning.
+   * If omitted, the repository's {@link QueryRepositoryHydration} serializer
+   * applies, and otherwise {@link toCacheSnapshot} extracts a snapshot via
+   * `result.toJSON()` or deep JSON cloning. `null` skips the repository default.
    */
   serializeFn?: ((result: TResult) => unknown) | null;
 
@@ -100,20 +106,28 @@ export function FromCache<
   let resolvedKeyFn: FromCacheOptions<TQuery, TResult>['keyFn'] | undefined;
   let resolvedHydrateFn: ((cached: unknown) => TResult) | undefined;
   let resolvedOptions: FromCacheOptions<TQuery, TResult> | undefined;
+  let declaresHydrateFn: boolean;
 
   if (typeof keyFnOrOptions === 'function') {
     resolvedKeyFn = keyFnOrOptions;
     if (typeof hydrateFnOrOptions === 'function') {
       resolvedHydrateFn = hydrateFnOrOptions;
       resolvedOptions = extraOptions;
+      declaresHydrateFn = true;
     } else {
       resolvedOptions = hydrateFnOrOptions;
+      declaresHydrateFn =
+        resolvedOptions !== undefined && 'hydrateFn' in resolvedOptions;
+      resolvedHydrateFn = resolvedOptions?.hydrateFn ?? undefined;
     }
   } else {
     resolvedKeyFn = keyFnOrOptions.keyFn;
     resolvedHydrateFn = keyFnOrOptions.hydrateFn ?? undefined;
     resolvedOptions = keyFnOrOptions;
+    declaresHydrateFn = 'hydrateFn' in keyFnOrOptions;
   }
+  const declaresSerializeFn =
+    resolvedOptions !== undefined && 'serializeFn' in resolvedOptions;
 
   if (resolvedOptions?.alwaysHydrate && !resolvedHydrateFn) {
     throw new TypeError('FromCache: alwaysHydrate requires a hydrateFn');
@@ -143,12 +157,22 @@ export function FromCache<
         return original.call(this, query);
       }
 
+      // Method-level options win; otherwise the repository policy applies,
+      // and a repository hydrator rehydrates every hit.
+      const repositoryHydration = this.hydration;
+      const hydrateFn = declaresHydrateFn
+        ? resolvedHydrateFn
+        : repositoryHydration?.hydrateFn;
+      const alwaysHydrate = declaresHydrateFn
+        ? resolvedOptions?.alwaysHydrate
+        : repositoryHydration !== undefined;
+      const serializeFn = declaresSerializeFn
+        ? resolvedOptions?.serializeFn
+        : repositoryHydration?.serializeFn;
+
       const hydrateCached = (cachedValue: unknown): TResult => {
-        if (
-          resolvedHydrateFn &&
-          (resolvedOptions?.alwaysHydrate || query.hydrate)
-        ) {
-          return resolvedHydrateFn(cachedValue);
+        if (hydrateFn && (alwaysHydrate || query.hydrate)) {
+          return hydrateFn(cachedValue);
         }
         return cachedValue as unknown as TResult;
       };
@@ -184,10 +208,7 @@ export function FromCache<
             return result;
           }
 
-          const snapshot = toCacheSnapshot(
-            result,
-            resolvedOptions?.serializeFn,
-          );
+          const snapshot = toCacheSnapshot(result, serializeFn);
 
           const committed = await this.cache.tryFill(
             key,
