@@ -18,6 +18,7 @@ export * from './decorators/acknowledge-persisted.decorator';
 export * from './decorators/Cache';
 export * from './decorators/FromCache';
 export * from './decorators/map-persistence-errors.decorator';
+export * from './decorators/persisted-write.decorator';
 export * from './helpers/cache-barrier.helper';
 export * from './helpers/cache-snapshot.helper';
 export * from './helpers/cache-version.helper';

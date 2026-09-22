@@ -272,9 +272,10 @@ export interface PipelineOptionsFactory {
  * Options for configuring `PipelineModule.forRootAsync`.
  *
  * Provider-graph settings such as `behaviors`, `loggerProvider`, and
- * `extraProviders` are declared on this object. Runtime settings such as
- * correlation, tenant resolution, and global behavior composition are returned
- * by `useFactory` / `PipelineOptionsFactory`.
+ * `extraProviders` are declared on this object, together with any global
+ * behaviors that do not depend on injected values. Runtime settings such as
+ * correlation, tenant resolution, and dynamic global behavior composition are
+ * returned by `useFactory` / `PipelineOptionsFactory`.
  *
  * @example Async composition with tenant and correlation context
  * ```ts
@@ -325,6 +326,30 @@ export interface PipelineModuleAsyncOptions
    * ```
    */
   behaviors?: (Type<IPipelineBehavior> | PipelineBehaviorEntry)[];
+
+  /**
+   * Global behaviors known before the async factory runs.
+   *
+   * Their behavior classes are registered as providers, exactly as with
+   * `PipelineModule.forRoot({ globalBehaviors })`, so they need no separate
+   * `behaviors` entry. Configs returned by the factory are appended after
+   * these. A behavior keeps the position of its first occurrence across both
+   * lists; a later tuple for the same behavior supplies its options only.
+   * Behaviors that appear only in factory-returned configs must still be
+   * listed in `behaviors`.
+   *
+   * @example
+   * ```ts
+   * PipelineModule.forRootAsync({
+   *   inject: [TenantSchemaContext],
+   *   globalBehaviors: { scope: 'all', before: [LoggingBehavior] },
+   *   useFactory: (tenant: TenantSchemaContext) => ({
+   *     tenantIdFactory: () => tenant.schema,
+   *   }),
+   * })
+   * ```
+   */
+  globalBehaviors?: GlobalBehaviorsOptions | GlobalBehaviorsOptions[];
 
   /**
    * Optional static logger provider for async configuration.

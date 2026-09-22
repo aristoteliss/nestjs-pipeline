@@ -5,6 +5,7 @@ import { LOGGING_BEHAVIOR_LOGGER } from './behaviors/logging.behavior';
 import { PipelineBehaviorEntry } from './decorators/pipeline.decorator';
 import { behaviorEntryType } from './helpers/behavior-entries';
 import { IPipelineBehavior } from './interfaces/pipeline.behavior.interface';
+import type { GlobalBehaviorsOptions } from './options/global-behaviors.options';
 import {
   PIPELINE_MODULE_OPTIONS,
   PipelineModuleAsyncOptions,
@@ -48,6 +49,44 @@ function assertRuntimeOptions(
     );
   }
   return options;
+}
+
+/** Normalizes the single-object and array forms of `globalBehaviors`. */
+function toGlobalConfigs(
+  globalBehaviors: PipelineModuleOptions['globalBehaviors'],
+): GlobalBehaviorsOptions[] {
+  if (!globalBehaviors) return [];
+  return Array.isArray(globalBehaviors) ? globalBehaviors : [globalBehaviors];
+}
+
+/** Behavior classes named by global configs and not already in `registered`. */
+function extractGlobalBehaviorTypes(
+  configs: GlobalBehaviorsOptions[],
+  registered: Type<IPipelineBehavior>[],
+): Type<IPipelineBehavior>[] {
+  return extractBehaviorTypes(
+    configs.flatMap((cfg) => [...(cfg.before ?? []), ...(cfg.after ?? [])]),
+  ).filter((type) => !registered.includes(type));
+}
+
+/**
+ * Places statically declared global configs ahead of factory-returned ones.
+ * Behavior placement is fixed by the first occurrence across the combined
+ * list, so a factory entry for a static behavior can supply its options but
+ * cannot move it.
+ */
+function withStaticGlobals(
+  runtime: PipelineRuntimeOptions,
+  staticGlobals: GlobalBehaviorsOptions[],
+): PipelineRuntimeOptions {
+  if (staticGlobals.length === 0) return runtime;
+  return {
+    ...runtime,
+    globalBehaviors: [
+      ...staticGlobals,
+      ...toGlobalConfigs(runtime?.globalBehaviors),
+    ],
+  };
 }
 
 /**
@@ -143,18 +182,10 @@ export class PipelineModule {
 
     const behaviors = extractBehaviorTypes(options.behaviors ?? []);
 
-    // Extract global behavior types for DI registration (deduplicated against `behaviors`)
-    const globalConfigs = options.globalBehaviors
-      ? Array.isArray(options.globalBehaviors)
-        ? options.globalBehaviors
-        : [options.globalBehaviors]
-      : [];
-    const globalBehaviorTypes = extractBehaviorTypes(
-      globalConfigs.flatMap((cfg) => [
-        ...(cfg.before ?? []),
-        ...(cfg.after ?? []),
-      ]),
-    ).filter((t) => !behaviors.includes(t));
+    const globalBehaviorTypes = extractGlobalBehaviorTypes(
+      toGlobalConfigs(options.globalBehaviors),
+      behaviors,
+    );
 
     return {
       module: PipelineModule,
@@ -216,7 +247,15 @@ export class PipelineModule {
     }
 
     const behaviors = extractBehaviorTypes(options.behaviors ?? []);
-    const asyncProviders = PipelineModule.createAsyncProviders(options);
+    const staticGlobals = toGlobalConfigs(options.globalBehaviors);
+    const globalBehaviorTypes = extractGlobalBehaviorTypes(
+      staticGlobals,
+      behaviors,
+    );
+    const asyncProviders = PipelineModule.createAsyncProviders(
+      options,
+      staticGlobals,
+    );
 
     return {
       module: PipelineModule,
@@ -225,11 +264,13 @@ export class PipelineModule {
       providers: [
         ...asyncProviders,
         PipelineBootstrapService,
+        ...globalBehaviorTypes,
         ...behaviors,
         ...(options.extraProviders ?? []),
         ...(options.loggerProvider ? [options.loggerProvider] : []),
       ],
       exports: [
+        ...globalBehaviorTypes,
         ...behaviors,
         ...(options.extraProviders
           ? options.extraProviders
@@ -247,16 +288,27 @@ export class PipelineModule {
 
   private static createAsyncProviders(
     options: PipelineModuleAsyncOptions,
+    staticGlobals: GlobalBehaviorsOptions[],
   ): Provider[] {
     if (options.useExisting || options.useFactory) {
-      return [PipelineModule.createAsyncOptionsProvider(options)];
+      return [
+        PipelineModule.createAsyncOptionsProvider(options, staticGlobals),
+      ];
     }
     if (options.useClass) {
       return [
-        PipelineModule.createAsyncOptionsProvider(options),
+        PipelineModule.createAsyncOptionsProvider(options, staticGlobals),
         {
           provide: options.useClass,
           useClass: options.useClass,
+        },
+      ];
+    }
+    if (staticGlobals.length > 0) {
+      return [
+        {
+          provide: PIPELINE_MODULE_OPTIONS,
+          useValue: { globalBehaviors: staticGlobals },
         },
       ];
     }
@@ -265,13 +317,17 @@ export class PipelineModule {
 
   private static createAsyncOptionsProvider(
     options: PipelineModuleAsyncOptions,
+    staticGlobals: GlobalBehaviorsOptions[],
   ): Provider {
     if (options.useFactory) {
       const factory = options.useFactory;
       return {
         provide: PIPELINE_MODULE_OPTIONS,
         useFactory: async (...args: never[]) =>
-          assertRuntimeOptions(await factory(...args), 'useFactory'),
+          withStaticGlobals(
+            assertRuntimeOptions(await factory(...args), 'useFactory'),
+            staticGlobals,
+          ),
         inject: options.inject ?? [],
       };
     }
@@ -281,9 +337,12 @@ export class PipelineModule {
     return {
       provide: PIPELINE_MODULE_OPTIONS,
       useFactory: async (optionsFactory: PipelineOptionsFactory) =>
-        assertRuntimeOptions(
-          await optionsFactory.createPipelineOptions(),
-          `${optionsFactory.constructor.name}.createPipelineOptions()`,
+        withStaticGlobals(
+          assertRuntimeOptions(
+            await optionsFactory.createPipelineOptions(),
+            `${optionsFactory.constructor.name}.createPipelineOptions()`,
+          ),
+          staticGlobals,
         ),
       inject,
     };

@@ -3,7 +3,7 @@ import { APP_ACTIONS, APP_SUBJECTS } from '@common/constants';
 import { Inject, Scope } from '@nestjs/common';
 import { CommandHandler, EventBus } from '@nestjs/cqrs';
 import { CaslAuthorizer, requires } from '@nestjs-pipeline/casl';
-import { logging, UsePipeline } from '@nestjs-pipeline/core';
+import { UsePipeline } from '@nestjs-pipeline/core';
 import {
   CommandBaseHandler,
   IWriteSideAggregateRepository,
@@ -15,7 +15,6 @@ import { UpdateUserCommand } from './update-user.command';
 
 @CommandHandler(UpdateUserCommand, { scope: Scope.REQUEST })
 @UsePipeline(
-  logging({ requestResponseLogLevel: 'log' }),
   requires({ action: APP_ACTIONS.UPDATE, subject: APP_SUBJECTS.USER }),
 )
 export class UpdateUserHandler extends CommandBaseHandler<

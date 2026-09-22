@@ -4,11 +4,7 @@ import { Inject } from '@nestjs/common';
 import { CommandHandler, EventBus } from '@nestjs/cqrs';
 import { AUDIT_SEVERITY, audit } from '@nestjs-pipeline/audit';
 import { CaslAuthorizer, requires } from '@nestjs-pipeline/casl';
-import {
-  type IPipelineContext,
-  logging,
-  UsePipeline,
-} from '@nestjs-pipeline/core';
+import { type IPipelineContext, UsePipeline } from '@nestjs-pipeline/core';
 import {
   CommandBaseHandler,
   IWriteSideAggregateRepository,
@@ -24,7 +20,6 @@ import { DeleteRoleCommand } from './delete-role.command';
 
 @CommandHandler(DeleteRoleCommand)
 @UsePipeline(
-  logging({ requestResponseLogLevel: 'log' }),
   requires({ action: APP_ACTIONS.DELETE, subject: APP_SUBJECTS.ROLE }),
   audit({
     action: AUDIT_ACTIONS.ROLE_DELETE,

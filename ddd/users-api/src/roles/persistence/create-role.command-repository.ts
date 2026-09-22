@@ -3,13 +3,11 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { ICache } from '@nestjs-pipeline/ddd-core/application';
 import {
-  AcknowledgePersisted,
   assertAutocommit,
   CACHE_TOKEN,
-  Cache,
   CommandRepository,
   filterCacheKey,
-  MapPersistenceErrors,
+  PersistedWrite,
 } from '@nestjs-pipeline/ddd-core/persistence';
 import { MIKRO_ORM_CLIENT, MikroOrmStore } from '@persistence/mikro-orm.store';
 import { UniqueRoleNameException } from '../domain/models/errors/role-name.exception';
@@ -27,15 +25,13 @@ export class CreateRoleCommandRepository extends CommandRepository<
     super(cache);
   }
 
-  @Cache<Role, RoleSnapshot>({
-    setKey: (role) => filterCacheKey(Role.aggregateName, { id: role.id }),
-    invalidateKeys: (role) => [
-      filterCacheKey(Role.aggregateName, { name: role.name }),
-    ],
-  })
-  @AcknowledgePersisted<[Role]>({ entity: ([role]) => role })
-  @MapPersistenceErrors<[Role], Role>({
-    entity: ([role]) => role,
+  @PersistedWrite<Role>({
+    cache: {
+      setKey: (role) => filterCacheKey(Role.aggregateName, { id: role.id }),
+      invalidateKeys: (role) => [
+        filterCacheKey(Role.aggregateName, { name: role.name }),
+      ],
+    },
     unique: [
       {
         constraint: 'roles_name_unique',

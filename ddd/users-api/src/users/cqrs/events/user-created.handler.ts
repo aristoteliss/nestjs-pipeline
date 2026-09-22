@@ -6,7 +6,7 @@ import {
 } from '@common/context/tenant-context.port';
 import { Inject } from '@nestjs/common';
 import { EventsHandler, type IEventHandler } from '@nestjs/cqrs';
-import { logging, UsePipeline } from '@nestjs-pipeline/core';
+import { UsePipeline } from '@nestjs-pipeline/core';
 import { deadLetter } from '@nestjs-pipeline/deadletter';
 import {
   type IWelcomeEmailDispatcher,
@@ -15,10 +15,7 @@ import {
 import { UserCreatedEvent } from '../../domain/events/user-created.event';
 
 @EventsHandler(UserCreatedEvent)
-@UsePipeline(
-  logging({ requestResponseLogLevel: 'log' }),
-  deadLetter({ rethrow: false }),
-)
+@UsePipeline(deadLetter({ rethrow: false }))
 export class UserCreatedHandler implements IEventHandler<UserCreatedEvent> {
   constructor(
     @Inject(WELCOME_EMAIL_DISPATCHER)

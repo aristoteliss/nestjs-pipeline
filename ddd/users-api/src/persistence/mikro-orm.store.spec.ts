@@ -110,29 +110,30 @@ describe('MikroOrmStore', () => {
     expect((forkedEm as any).__tenant).toBeUndefined();
   });
 
-  it('rejects context-bound EntityManager from another tenant and forks dedicated instance', () => {
+  it('rejects context-bound EntityManager already claimed by another tenant and forks dedicated instance', () => {
     const driver = {};
-    const contextEmTenantB = {
-      id: 'context-em-b',
-      getDriver: () => driver,
-    };
+    const sharedContextEm = { id: 'context-em', getDriver: () => driver };
     const forkedEmTenantA = { id: 'forked-em-a' };
-    const rootEm = {
-      id: 'root-em',
-      getDriver: () => driver,
-      getContext: vi.fn().mockReturnValue(contextEmTenantB),
-      fork: vi.fn().mockReturnValue(forkedEmTenantA),
-    };
-    const mockOrm = { em: rootEm };
+    const ormFor = (fork: unknown) => ({
+      em: {
+        getDriver: () => driver,
+        getContext: vi.fn().mockReturnValue(sharedContextEm),
+        fork: vi.fn().mockReturnValue(fork),
+      },
+    });
+    const tenantA = ormFor(forkedEmTenantA);
+    const tenantContext = { schema: 'tenant_b' } as TenantSchemaContext;
 
-    const store = new MikroOrmStore(mockTenantContext); // tenant_a
-    (store as any).orms.set('tenant_a', mockOrm);
-    (store as any).entityManagerTenants.mark(contextEmTenantB, 'tenant_b');
+    const store = new MikroOrmStore(tenantContext);
+    (store as any).orms.set('tenant_a', tenantA);
+    (store as any).orms.set('tenant_b', ormFor({}));
 
-    const em = store.em;
-    expect(em).toBe(forkedEmTenantA);
-    expect(rootEm.fork).toHaveBeenCalled();
-    expect((forkedEmTenantA as any).__tenant).toBeUndefined();
+    expect(store.em).toBe(sharedContextEm);
+
+    (tenantContext as { schema: string }).schema = 'tenant_a';
+    expect(store.em).toBe(forkedEmTenantA);
+    expect(tenantA.em.fork).toHaveBeenCalled();
+    expect((sharedContextEm as any).__tenant).toBeUndefined();
   });
 
   it('rejects context-bound EntityManager from another ORM instance with mismatched config', () => {

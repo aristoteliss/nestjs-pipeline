@@ -88,6 +88,4 @@ export class Capability extends RootEntity<CapabilitySnapshot> {
       updatedAt: this.updatedAt,
     });
   }
-
-  afterUpdate(): void {}
 }

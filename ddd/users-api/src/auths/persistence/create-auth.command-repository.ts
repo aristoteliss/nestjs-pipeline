@@ -3,11 +3,10 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { ICache } from '@nestjs-pipeline/ddd-core/application';
 import {
-  AcknowledgePersisted,
   CACHE_TOKEN,
-  Cache,
   CommandRepository,
   filterCacheKey,
+  PersistedWrite,
 } from '@nestjs-pipeline/ddd-core/persistence';
 import { MIKRO_ORM_CLIENT, MikroOrmStore } from '@persistence/mikro-orm.store';
 import { Auth, AuthSnapshot } from '../domain/models/auth.entity';
@@ -25,12 +24,13 @@ export class CreateAuthCommandRepository extends CommandRepository<
   }
 
   // Sessions hold refresh-token hashes and are never cached; the key is only invalidated.
-  @Cache<Auth, AuthSnapshot>({
-    invalidateKeys: (auth) => [
-      filterCacheKey(Auth.aggregateName, { id: auth.id }),
-    ],
+  @PersistedWrite<Auth>({
+    cache: {
+      invalidateKeys: (auth) => [
+        filterCacheKey(Auth.aggregateName, { id: auth.id }),
+      ],
+    },
   })
-  @AcknowledgePersisted<[Auth]>({ entity: ([auth]) => auth })
   async save(auth: Auth): Promise<AuthSnapshot> {
     await this.store.em.insert(Auth, auth);
 

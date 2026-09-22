@@ -61,10 +61,6 @@ import { AggregateRoot } from './aggregate-root';
  *     return this;
  *   }
  *
- *   afterUpdate(): void {
- *     // Aggregate domain side-effects or event recordings
- *   }
- *
  *   toJSON(): RootEntitySnapshot & UserSnapshot {
  *     return this.freezeState({
  *       id: this.id,
@@ -312,7 +308,12 @@ export abstract class RootEntity<
     return Object.freeze(state);
   }
 
-  abstract afterUpdate(): void;
+  /**
+   * Post-mutation lifecycle hook, invoked after the version and `updatedAt`
+   * advance and before the mutation's event is recorded. The default does
+   * nothing; override it only when the aggregate has post-mutation work.
+   */
+  protected afterUpdate(): void {}
 
   abstract toJSON(): RootEntitySnapshot & TSnapshot;
 }

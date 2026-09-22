@@ -6,6 +6,7 @@ import type { IQueryOptions } from '../../application/query.options';
 import { MemoryCache } from '../cache/memory.cache';
 import type { ICache } from '../cache.interface';
 import { createCacheMutationBarrier } from '../helpers/cache-barrier.helper';
+import { QueryRepository } from '../query-repository.abstract';
 import { FromCache, isCacheNewer } from './FromCache';
 
 interface GetUserQuery extends IQueryOptions {
@@ -469,5 +470,103 @@ describe('@FromCache with an adapter that exposes only get/set/delete', () => {
     await repo.find({ userId: '1' });
 
     expect(repo.dbFetchCount).toBe(1);
+  });
+});
+
+describe('@FromCache with a repository hydration policy', () => {
+  class Entity {
+    constructor(readonly row: Row) {}
+
+    toJSON(): Row {
+      return this.row;
+    }
+  }
+
+  const hydration = {
+    hydrateFn: (cached: unknown) => new Entity(cached as Row),
+  };
+
+  class DefaultedRepo extends QueryRepository<GetUserQuery, Entity> {
+    @FromCache<GetUserQuery, Entity>({ keyFn: (q) => `user:${q.userId}` })
+    async find(query: GetUserQuery): Promise<Entity> {
+      return new Entity({ id: query.userId, name: 'from db' });
+    }
+
+    @FromCache<GetUserQuery, Entity>({
+      keyFn: (q) => `raw:${q.userId}`,
+      hydrateFn: null,
+    })
+    async findRaw(query: GetUserQuery): Promise<Entity> {
+      return new Entity({ id: query.userId, name: 'from db' });
+    }
+
+    @FromCache<GetUserQuery, Entity>({
+      keyFn: (q) => `own:${q.userId}`,
+      hydrateFn: (cached) =>
+        new Entity({ ...(cached as Row), name: 'method hydrator' }),
+      alwaysHydrate: true,
+    })
+    async findOwn(query: GetUserQuery): Promise<Entity> {
+      return new Entity({ id: query.userId, name: 'from db' });
+    }
+  }
+
+  it('rehydrates every hit through the repository hydrator', async () => {
+    const cache = versionedCache<Row>();
+    await cache.set('user:u1', { id: 'u1', name: 'cached' });
+
+    const result = await new DefaultedRepo(cache, hydration).find({
+      userId: 'u1',
+    });
+
+    expect(result).toBeInstanceOf(Entity);
+    expect(result.row).toEqual({ id: 'u1', name: 'cached' });
+  });
+
+  it('stores the repository serializer output on a miss', async () => {
+    const cache = versionedCache<unknown>();
+    const repo = new DefaultedRepo(cache, {
+      ...hydration,
+      serializeFn: (entity) => ({ ...entity.row, serialized: true }),
+    });
+
+    await repo.find({ userId: 'u1' });
+
+    expect(await cache.get('user:u1')).toEqual({
+      id: 'u1',
+      name: 'from db',
+      serialized: true,
+    });
+  });
+
+  it('lets a method opt out of repository hydration with hydrateFn: null', async () => {
+    const cache = versionedCache<Row>();
+    await cache.set('raw:u1', { id: 'u1', name: 'cached' });
+
+    const result = await new DefaultedRepo(cache, hydration).findRaw({
+      userId: 'u1',
+    });
+
+    expect(result).toEqual({ id: 'u1', name: 'cached' });
+  });
+
+  it('prefers a method hydrator over the repository default', async () => {
+    const cache = versionedCache<Row>();
+    await cache.set('own:u1', { id: 'u1', name: 'cached' });
+
+    const result = await new DefaultedRepo(cache, hydration).findOwn({
+      userId: 'u1',
+    });
+
+    expect(result.row.name).toBe('method hydrator');
+  });
+
+  it('returns raw hits when neither the method nor the repository hydrates', async () => {
+    const cache = versionedCache<Row>();
+    await cache.set('user:u1', { id: 'u1', name: 'cached' });
+
+    const result = await new DefaultedRepo(cache).find({ userId: 'u1' });
+
+    expect(result).toEqual({ id: 'u1', name: 'cached' });
   });
 });

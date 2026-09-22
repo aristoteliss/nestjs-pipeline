@@ -4,18 +4,7 @@ import { RootEntitySnapshot } from '../interfaces/root-entity-snapshot.interface
 import { RootEntity } from '../models/root.entity';
 import { DomainEvent } from './domain.event';
 
-/**
- * A {@link DomainEvent} carrying aggregate identity/version and an immutable
- * state payload snapshot captured at event creation time.
- *
- * Capturing an immutable snapshot protects asynchronous event consumers from
- * subsequent in-memory mutations on the aggregate root instance. That protection
- * only applies to what a consumer reads from {@link RootDomainEvent.payload};
- * RootDomainEvent retains only the detached payload and aggregate identity/version.
- *
- * @typeParam T - The aggregate input type used to infer the snapshot payload.
- * @typeParam TPayload - The snapshot payload type.
- */
+/** Payload type of an event raised from `T`: its `toJSON()` result, or `T` itself. */
 export type InferPayload<T> = T extends { toJSON(): infer J }
   ? J
   : T extends object
@@ -47,6 +36,12 @@ const MUTATING_SET_METHODS = ['add', 'delete', 'clear'] as const;
  * Deep clones and recursively freezes any value, object, array, Date, Set, Map, or RegExp.
  * Safely handles circular references via a WeakMap tracking visited objects.
  * Guarantees that mutations on original nested objects do not leak into the clone.
+ *
+ * `Object.freeze` covers own properties only. The internal state of a cloned
+ * Date, Map or Set is guarded by overriding its mutating methods, which stops
+ * ordinary calls such as `date.setTime(...)` but not
+ * `Date.prototype.setTime.call(date, ...)`. Treat the result as detached and
+ * ordinarily read-only, not as a security boundary.
  */
 export function deepCloneAndFreeze<T>(
   value: T,
@@ -144,11 +139,16 @@ export function deepCloneAndFreeze<T>(
 }
 
 /**
- * A {@link DomainEvent} carrying aggregate identity/version and an immutable
- * state payload snapshot captured at event creation time.
+ * A {@link DomainEvent} carrying aggregate identity/version and a detached,
+ * frozen state payload snapshot captured at event creation time.
  *
- * Capturing an immutable snapshot protects asynchronous event consumers from
- * subsequent in-memory mutations on the aggregate root instance.
+ * The snapshot is deep-cloned from the aggregate, so later aggregate mutations
+ * never reach it. Every consumer shares the same `payload` instance: its own
+ * properties are frozen, but Date/Map/Set internals can still be changed
+ * through their prototype methods (see {@link deepCloneAndFreeze}). A consumer
+ * that must not observe changes made by another consumer reads
+ * {@link RootDomainEvent.clonePayload} instead. Transports should serialize an
+ * explicit message rather than the payload object itself.
  *
  * @typeParam T - The aggregate input type used to infer the snapshot payload.
  * @typeParam TPayload - The snapshot payload type.
@@ -157,7 +157,7 @@ export class RootDomainEvent<
   T = RootEntity<Partial<RootEntitySnapshot>>,
   TPayload = InferPayload<T>,
 > extends DomainEvent {
-  /** Deep-frozen state captured when the event was raised. */
+  /** Detached, frozen state captured when the event was raised; shared by all consumers. */
   public readonly payload: Readonly<TPayload>;
 
   /**
@@ -192,5 +192,14 @@ export class RootDomainEvent<
       rawPayload = {};
     }
     this.payload = deepCloneAndFreeze(rawPayload) as Readonly<TPayload>;
+  }
+
+  /**
+   * Returns a new detached, frozen copy of {@link payload} on every call, so
+   * a change one consumer forces through a Date/Map/Set prototype method stays
+   * out of the shared payload and out of other copies.
+   */
+  clonePayload(): Readonly<TPayload> {
+    return deepCloneAndFreeze(this.payload);
   }
 }

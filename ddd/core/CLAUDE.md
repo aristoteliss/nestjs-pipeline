@@ -30,6 +30,7 @@ entry points instead.
 | `application/command-base.handler.ts` | Command lifecycle; publishes and clears buffered aggregate events |
 | `persistence/decorators/Cache.ts` | Write-through cache sync, CAS version compare, mutation barriers on delete/invalidate |
 | `persistence/decorators/FromCache.ts` | Read-through cache, `alwaysHydrate` + `hydrateFn`, pre/post barrier checks, bounded retries |
+| `persistence/decorators/persisted-write.decorator.ts` | `@PersistedWrite`: the canonical three-decorator lifecycle for `save(aggregate)` |
 | `persistence/decorators/acknowledge-persisted.decorator.ts` | Advances the persisted version baseline only after a durable write |
 | `persistence/decorators/map-persistence-errors.decorator.ts` | Driver constraint errors → domain exceptions |
 | `persistence/optimistic-update.ts` | Version-conditioned update, rejects outer transactions |
@@ -59,9 +60,10 @@ pnpm test:e2e                                    # users-api exercises these dec
 ## Local security and compatibility rules
 
 - `ICache<TSnapshot>` stores strictly serializable snapshots — never a live aggregate.
-- Write repositories apply lifecycle decorators outermost to innermost:
-  `@Cache(...)` → `@AcknowledgePersisted(...)` → `@MapPersistenceErrors(...)`. Inverting the
-  order is a defect, and `biome/plugins/persistence-lifecycle.grit` fails the build.
+- Write repositories use `@PersistedWrite(...)`, or apply the lifecycle decorators outermost
+  to innermost: `@Cache(...)` → `@AcknowledgePersisted(...)` → `@MapPersistenceErrors(...)`.
+  Inverting the order, or stacking an individual decorator on `@PersistedWrite`, is a defect,
+  and `biome/plugins/persistence-lifecycle.grit` fails the build.
 - `acknowledgePersisted()` may only advance after durable persistence succeeds.
 - Version conflicts surface as framework-neutral `ConcurrencyConflictError`; no MikroORM
   error class may leak into application or domain code.

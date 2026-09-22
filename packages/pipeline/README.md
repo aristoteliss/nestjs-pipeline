@@ -202,6 +202,29 @@ PipelineModule.forRootAsync({
 });
 ```
 
+Global behaviors that do not depend on injected values can be declared
+statically on the same call. Their classes are registered as providers, as with
+`forRoot({ globalBehaviors })`, so they need no `behaviors` entry:
+
+```typescript
+PipelineModule.forRootAsync({
+  inject: [TenantSchemaContext],
+  globalBehaviors: [
+    { scope: 'all', before: [logging({ requestResponseLogLevel: 'log' })] },
+    { scope: 'commands', before: [[DeadLetterBehavior, { captureKinds: ['command'] }]] },
+  ],
+  useFactory: (tenant: TenantSchemaContext) => ({
+    tenantIdFactory: () => tenant.schema,
+  }),
+});
+```
+
+Static configs come first and any `globalBehaviors` the factory returns are
+appended after them. A behavior keeps the position of its first occurrence
+across the combined list; a later tuple for the same behavior supplies its
+options only. A behavior that appears only in factory-returned configs must
+still be listed in `behaviors`.
+
 Returning either field from the factory raises a `TypeError` at bootstrap. It
 used to be dropped in silence, so an application that moved its behavior list
 into the factory started cleanly with every `@UsePipeline` reference

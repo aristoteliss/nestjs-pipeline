@@ -24,16 +24,15 @@ what the libraries support.
 ## Repository Shape
 
 <!-- context:generated-start repository-shape -->
-- **Shape**: monorepo — workspace globs `ddd/*`, `packages/*` (15 workspace packages).
+- **Shape**: monorepo — workspace globs `ddd/*`, `packages/*` (14 workspace packages).
 - **Publishable packages**: 12 (manifest without `private: true`).
-- **Private workspaces**: 3.
+- **Private workspaces**: 2.
 - **Runnable workspaces**: 1 (`ddd/users-api`).
 
 | Path | Package | Version | Publishable | Runnable |
 | --- | --- | --- | --- | --- |
 | `ddd/core` | `@nestjs-pipeline/ddd-core` | 0.2.0 | no | no |
 | `ddd/users-api` | `@nestjs-pipeline/ddd-users-api` | 0.2.0 | no | yes |
-| `packages/_old/pipeline-casl` | `@nestjs-pipeline/casl-old` | 0.1.2 | no | no |
 | `packages/pipeline` | `@nestjs-pipeline/core` | 0.2.0 | yes | no |
 | `packages/pipeline-audit` | `@nestjs-pipeline/audit` | 0.2.0 | yes | no |
 | `packages/pipeline-cache` | `@nestjs-pipeline/cache` | 0.2.0 | yes | no |
@@ -51,7 +50,7 @@ what the libraries support.
 ## Technology Stack
 
 <!-- context:generated-start technology-stack -->
-- **Languages** (file counts, excluded directories omitted): `.ts` 683, `.md` 53, `.grit` 12, `.py` 3, `.mjs` 1, `.sql` 1
+- **Languages** (file counts, excluded directories omitted): `.ts` 662, `.md` 53, `.grit` 12, `.py` 3, `.mjs` 1
 - **Runtime engines** (root `package.json`): `node` >=22.0.0, `pnpm` >=9.0.0
 - **Package manager evidence**: `pnpm-lock.yaml`.
 
@@ -91,7 +90,6 @@ what the libraries support.
 | `ddd/users-api/src/main.ts` | Process entry point | workspace `@nestjs-pipeline/ddd-users-api` |
 | `ddd/users-api/src/tracing.ts` | Telemetry initialization (loaded before the framework) | workspace `@nestjs-pipeline/ddd-users-api` |
 | `integration/packages/release.mjs` | Referenced by a root script | `pnpm test:release` |
-| `packages/_old/pipeline-casl/src/index.ts` | Package public entry (barrel) | workspace `@nestjs-pipeline/casl-old` |
 | `packages/pipeline-audit/src/index.ts` | Package public entry (barrel) | workspace `@nestjs-pipeline/audit` |
 | `packages/pipeline-cache/src/index.ts` | Package public entry (barrel) | workspace `@nestjs-pipeline/cache` |
 | `packages/pipeline-casl/src/index.ts` | Package public entry (barrel) | workspace `@nestjs-pipeline/casl` |
@@ -124,7 +122,7 @@ editor/tooling directories are excluded (see Snapshot Metadata).
 | `ddd/` | Workspace container — 2 package(s); see the workspace table below | subdirectories only |
 | `docs/` | External, non-code repository documentation. | `README.md` |
 | `integration/` | Run pnpm test:release before publishing. It rebuilds the workspace, copies the licenses, and runs release.mjs. It is also part of pnpm verify:all. (from `integration/packages/README.md`) | subdirectories only |
-| `packages/` | Workspace container — 13 package(s); see the workspace table below | `CLAUDE.md` |
+| `packages/` | Workspace container — 12 package(s); see the workspace table below | `CLAUDE.md` |
 | `scripts/` | Dependency-free Python utilities for the agent context-management system. They are not part of the build, the test run, or the release pipeline; see .claude/README.md for the full system description. | `README.md`, `claude-context-checkpoint.py`, `update-claude-snapshot.py`, `validate-claude-context.py` |
 
 Root files: `.gitignore`, `.npmrc`, `AGENTS.md`, `CLAUDE.md`, `COMMERCIAL_LICENSE.txt`, `LICENSE`, `README.md`, `biome.json`, `package.json`, `pnpm-lock.yaml`, `pnpm-workspace.yaml`, `tsconfig.base.json`
@@ -135,7 +133,6 @@ Root files: `.gitignore`, `.npmrc`, `AGENTS.md`, `CLAUDE.md`, `COMMERCIAL_LICENS
 | --- | --- | --- | --- |
 | `ddd/core` | `@nestjs-pipeline/ddd-core` | `application`, `domain`, `persistence`, `types` | [README](ddd/core/README.md) |
 | `ddd/users-api` | `@nestjs-pipeline/ddd-users-api` | `auths`, `common`, `infrastructure`, `persistence`, `roles`, `users` | [README](ddd/users-api/README.md) |
-| `packages/_old/pipeline-casl` | `@nestjs-pipeline/casl-old` | `constants`, `exceptions`, `helpers`, `interfaces`, `providers`, `services`, `types` | [README](packages/_old/pipeline-casl/README.md) |
 | `packages/pipeline` | `@nestjs-pipeline/core` | `behaviors`, `constants`, `decorators`, `errors`, `helpers`, `interfaces`, `options`, `services`, `types` | [README](packages/pipeline/README.md) |
 | `packages/pipeline-audit` | `@nestjs-pipeline/audit` | `constants`, `helpers`, `interfaces`, `sinks` | [README](packages/pipeline-audit/README.md) |
 | `packages/pipeline-cache` | `@nestjs-pipeline/cache` | `adapters`, `constants`, `errors`, `helpers`, `interfaces` | [README](packages/pipeline-cache/README.md) |
@@ -189,13 +186,13 @@ README "Pipeline Execution Model"). Global behaviors are registered in
 Commands load aggregates through `IWriteSideAggregateRepository` →
 `MikroOrmWriteSideCommandRepository` (`{ refresh: true }`, bypasses `@FromCache` and the
 identity map) → domain method mutates the aggregate → `ICommandRepository.save()` →
-`@Cache` → `@AcknowledgePersisted` → `@MapPersistenceErrors` → MikroORM. Updates are
+`@PersistedWrite` (= `@Cache` → `@AcknowledgePersisted` → `@MapPersistenceErrors`) → MikroORM. Updates are
 version-conditioned (`ddd/core/persistence/optimistic-update.ts`), deletes are conditional
 on `{ id, version }`. `CommandBaseHandler` publishes the aggregate's buffered events after
 the handler returns.
 
-Queries go through `IQueryRepository` with `@FromCache({ alwaysHydrate: true, hydrateFn })`
-and return domain aggregates; entity/field authorization runs afterwards via
+Queries go through `IQueryRepository`: `@FromCache` plus a repository-level `{ hydrateFn }`
+passed to `QueryRepository`, and return domain aggregates; entity/field authorization runs afterwards via
 `CaslAuthorizer` in the handler.
 
 ### Errors
@@ -269,7 +266,7 @@ and entity/field checks in the handler after the aggregate is loaded (`CaslAutho
 
 - **Responsibility**: repository contracts, `@Cache` / `@FromCache` / `@AcknowledgePersisted`
   / `@MapPersistenceErrors`, `optimisticUpdate`, `MemoryCache`, cache barrier/version helpers.
-- **Invariants**: decorator order `@Cache → @AcknowledgePersisted → @MapPersistenceErrors`;
+- **Invariants**: `@PersistedWrite`, or decorator order `@Cache → @AcknowledgePersisted → @MapPersistenceErrors`;
   the persisted version baseline advances only after a durable write; caches hold
   serializable snapshots, never live aggregates; version conflicts surface as
   `ConcurrencyConflictError`.
@@ -334,7 +331,8 @@ and entity/field checks in the handler after the aggregate is loaded (`CaslAutho
   and middleware, tenant↔EntityManager registry, transient-error classification, migrations.
 - **Invariants**: tenant ownership metadata stays external to MikroORM objects
   (`entity-manager-tenant.registry.ts`); contextual EntityManager reuse validates
-  driver/config/schema plus registry tenant.
+  driver/config/schema plus registry tenant in one place for both drivers
+  (`ddd/users-api/src/persistence/tenant-entity-manager.resolver.ts`, shared suite `ddd/users-api/test/store-context.spec.ts`).
 - **Do not change casually**: applied migrations, the write-side authoritative load path.
 
 ### Observability and reliability wiring — `ddd/users-api/src/infrastructure/`
@@ -354,7 +352,7 @@ environment value is read or reproduced here.
 
 | Integration | Declared in | Imported by (sample) |
 | --- | --- | --- |
-| NestJS runtime | `ddd/core`, `ddd/users-api`, `packages/_old/pipeline-casl`, `packages/pipeline`, … (+11) | `ddd/core/persistence/biome-general-plugins.spec.ts`, `ddd/core/persistence/decorators/Cache.ts` |
+| NestJS runtime | `ddd/core`, `ddd/users-api`, `packages/pipeline`, `packages/pipeline-audit`, … (+10) | `ddd/core/persistence/biome-general-plugins.spec.ts`, `ddd/core/persistence/decorators/Cache.ts` |
 | NestJS CQRS | `ddd/core`, `ddd/users-api`, `packages/pipeline` | `ddd/core/application/base.command.ts`, `ddd/core/application/command-base.handler.spec.ts` |
 | MikroORM | `ddd/core`, `ddd/users-api` | `ddd/core/persistence/assert-autocommit.ts`, `ddd/core/persistence/biome-general-plugins.spec.ts` |
 | PostgreSQL | `ddd/users-api` | `ddd/users-api/src/persistence/postgres-mikro-orm.store.ts`, `ddd/users-api/src/persistence/postgres-options.ts` |
@@ -364,7 +362,7 @@ environment value is read or reproduced here.
 | Keyv / cache-manager | `ddd/users-api`, `packages/pipeline-cache` | `ddd/users-api/test/behavior-composition-contracts.spec.ts`, `packages/pipeline-cache/src/adapters/cache-manager.adapter.ts` |
 | OpenTelemetry | `ddd/users-api`, `packages/pipeline-opentelemetry` | `ddd/users-api/src/tracing.ts`, `ddd/users-api/test/behaviors.spec.ts` |
 | OpenFeature | `ddd/users-api`, `packages/pipeline-feature-flags` | `ddd/users-api/src/infrastructure/reliability.module.ts`, `ddd/users-api/test/behavior-composition-contracts.spec.ts` |
-| CASL | `ddd/users-api`, `packages/_old/pipeline-casl`, `packages/pipeline-casl` | `ddd/users-api/src/common/constants/casl.constants.ts`, `ddd/users-api/test/user-permission-rules.spec.ts` |
+| CASL | `ddd/users-api`, `packages/pipeline-casl` | `ddd/users-api/src/common/constants/casl.constants.ts`, `ddd/users-api/test/user-permission-rules.spec.ts` |
 | JOSE | `ddd/users-api` | `ddd/users-api/src/auths/infrastructure/authentication-adapters.spec.ts`, `ddd/users-api/src/auths/infrastructure/jose-access-token.issuer.ts` |
 | Zod | `ddd/users-api`, `packages/pipeline-zod` | `ddd/users-api/src/auths/cqrs/commands/create-auth.command.ts`, `ddd/users-api/src/auths/cqrs/commands/delete-auth.command.ts` |
 | Pino | `ddd/users-api` | `ddd/users-api/src/bootstrap.ts`, `ddd/users-api/src/infrastructure/observability.module.spec.ts` |
@@ -372,7 +370,7 @@ environment value is read or reproduced here.
 | Express | `ddd/users-api` | `ddd/users-api/src/bootstrap.ts`, `ddd/users-api/src/express-platform.ts` |
 | Cockatiel | `ddd/users-api`, `packages/pipeline-resilience` | `packages/pipeline-resilience/src/helpers/policy-factory.spec.ts`, `packages/pipeline-resilience/src/helpers/policy-factory.ts` |
 | rate-limiter-flexible | `ddd/users-api`, `packages/pipeline-rate-limit` | `ddd/users-api/src/infrastructure/reliability.module.ts`, `ddd/users-api/test/behaviors.spec.ts` |
-| Vitest | `ddd/core`, `ddd/users-api`, `packages/_old/pipeline-casl`, `packages/pipeline`, … (+11) | `ddd/core/application/base.command.spec.ts`, `ddd/core/application/base.query.spec.ts` |
+| Vitest | `ddd/core`, `ddd/users-api`, `packages/pipeline`, `packages/pipeline-audit`, … (+10) | `ddd/core/application/base.command.spec.ts`, `ddd/core/application/base.query.spec.ts` |
 | Biome | `ddd/core`, `ddd/users-api` | not imported directly |
 | TypeScript | `ddd/core`, `ddd/users-api` | not imported directly |
 | SWC | `ddd/users-api` | `ddd/users-api/vitest.config.e2e.ts`, `ddd/users-api/vitest.config.ts` |
@@ -383,7 +381,6 @@ environment value is read or reproduced here.
 | --- | --- | --- | --- |
 | `ddd/core` | `@nestjs-pipeline/core`, `@nestjs-pipeline/correlation` | `@nestjs/common`, `@nestjs/cqrs` | `@mikro-orm/core` |
 | `ddd/users-api` | 13 workspace packages | `@casl/ability`, `@fastify/secure-session`, `@keyv/redis`, `@libsql/client`, `@mikro-orm/core`, `@mikro-orm/libsql`, `@mikro-orm/migrations`, `@mikro-orm/nestjs`, `@mikro-orm/postgresql`, `@mikro-orm/sqlite`, … (+27) | — |
-| `packages/_old/pipeline-casl` | — | — | `@casl/ability`, `@nestjs-pipeline/core`, `@nestjs/common`, `reflect-metadata` |
 | `packages/pipeline` | — | — | `@nestjs/common`, `@nestjs/core`, `@nestjs/cqrs`, `reflect-metadata`, `rxjs` |
 | `packages/pipeline-audit` | — | — | `@nestjs-pipeline/core`, `@nestjs/common`, `reflect-metadata` |
 | `packages/pipeline-cache` | — | — | `@keyv/memcache`, `@keyv/postgres`, `@keyv/redis`, `@keyv/sqlite`, `@nestjs-pipeline/core`, `@nestjs/common`, `cache-manager`, `keyv`, `reflect-metadata` |
@@ -467,7 +464,6 @@ row as *declared* unless you have run it yourself in this checkout.
 | --- | --- |
 | `ddd/core` | `build`, `clean`, `lint`, `rebuild`, `test`, `test:watch` |
 | `ddd/users-api` | `build`, `clean`, `db:migrate`, `db:revert`, `dev`, `lint`, `permissions:rebuild`, `permissions:verify`, `rebuild`, `sessions:purge`, `start`, `start:fastify`, `start:prod`, `start:prod:fastify`, … (+5) |
-| `packages/_old/pipeline-casl` | `build`, `build:watch`, `clean`, `lint`, `rebuild`, `test`, `test:watch` |
 | `packages/pipeline` | `build`, `build:watch`, `clean`, `lint`, `prepublishOnly`, `rebuild`, `test`, `test:watch` |
 | `packages/pipeline-audit` | `build`, `build:watch`, `clean`, `lint`, `prepublishOnly`, `rebuild`, `test`, `test:watch` |
 | `packages/pipeline-cache` | `build`, `build:watch`, `clean`, `lint`, `prepublishOnly`, `rebuild`, `test`, `test:watch` |
@@ -577,12 +573,16 @@ secret value.*
 <!-- context:manual-start gotchas -->
 *Manual section — the generator never overwrites it. Every entry cites a source.*
 
+- **Global logging defaults live in `ObservabilityModule`.** users-api sets
+  `requestResponseLogLevel: 'log'` globally; handler `logging({...})` entries carry only deltas
+  such as `mapLogLevel` and shallow-merge over it (`ddd/users-api/src/infrastructure/observability.module.ts`).
 - **Private NestJS API in the bootstrap path.** `packages/pipeline/src/services/pipeline.bootstrap.service.ts`
   imports `@nestjs/cqrs/dist/services/explorer.service`. Accepted trade-off; a NestJS CQRS
   minor release can break handler discovery. Do not expand it or cite it as precedent.
 - **Decorator order is load-bearing.** `@Cache → @AcknowledgePersisted → @MapPersistenceErrors`
-  on `save()`. Inverting it acknowledges persistence before the write is durable.
-  `pnpm lint:persistence` (`biome/plugins/persistence-lifecycle.grit`) fails on it.
+  on `save()`, or `@PersistedWrite` alone, which applies that order. Inverting it acknowledges
+  persistence before the write is durable. `pnpm lint:persistence`
+  (`biome/plugins/persistence-lifecycle.grit`) fails on it, and on mixing both forms.
 - **`optimisticUpdate` rejects outer transactions.** `em.isInTransaction()` makes it throw,
   because acknowledgment and cache eviction must happen at commit time
   (`ddd/core/persistence/optimistic-update.ts`).
@@ -590,9 +590,6 @@ secret value.*
   matches receivers literally named `user`, `role`, `aggregate`, `entity`. Aliases, types,
   destructuring and dynamic keys are outside its coverage — domain-method mutation is still
   mandatory where the lint cannot see.
-- **`packages/_old/pipeline-casl` is a parked reference, not a workspace package.** It is
-  outside `pnpm-workspace.yaml` and not built, tested or published, although the map
-  generator still lists it. Never import from it.
 - **Send refresh and logout without an `Authorization` header.** An expired bearer token is
   rejected by the global guard before `/auths/refresh` runs (`ddd/users-api/src/common/guards/auth-session.guard.ts`).
 - **Importing the Fastify platform module in an Express e2e run changes teardown timing.**
@@ -640,13 +637,13 @@ secret value.*
 ## Snapshot Metadata
 
 <!-- context:generated-start metadata -->
-- Generated at: 2026-09-22T18:02:10Z
-- Git commit: 70d24819175327cec46dd1614c7861c247f010b7
-- Git branch: review/casl
+- Generated at: 2026-09-22T19:02:21Z
+- Git commit: b561c5bc1c7b6c1a9bd2804e387a32fef44110a4
+- Git branch: develop
 - Uncommitted changes when generated: yes
 - Generator: `scripts/update-claude-snapshot.py` version 1.0.0
 - Snapshot status: generated — structural inspection only, no code executed
-- Files inspected: 813
+- Files inspected: 787
 - Included top-level directories: `.agents`, `.claude`, `biome`, `ddd`, `docs`, `integration`, `packages`, `scripts`
 - Excluded directory names: `.cache`, `.git`, `.gradle`, `.idea`, `.mypy_cache`, `.next`, `.nuxt`, `.parcel-cache`, `.pnpm-store`, `.pytest_cache`, `.ruff_cache`, `.svelte-kit`, `.terraform`, `.tmp`, `.tox`, `.turbo`, `.venv`, `.vscode`, `__pycache__`, `bower_components`, `build`, `coverage`, `dist`, `node_modules`, `out`, `target`, `vendor`, `venv`, `virtualenv`
 - Excluded file patterns: `.env`, `.env.*`, `*.env`, `*.pem`, `*.key`, `*.pfx`, `*.p12`, `*.jks`, `*.keystore`, `id_rsa*`, `id_ed25519*`, `*credentials*`, `*.secret`, `secrets.*`

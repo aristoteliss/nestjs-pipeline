@@ -46,7 +46,6 @@ export const createUserRateLimitKey = createPartitionedRateLimitKeyFactory(
 @CommandHandler(CreateUserCommand)
 @UsePipeline(
   logging({
-    requestResponseLogLevel: 'log',
     mapLogLevel: new Map([[UniqueEmailException, 'warn']]),
   }),
   requires({ action: APP_ACTIONS.CREATE, subject: APP_SUBJECTS.USER }),

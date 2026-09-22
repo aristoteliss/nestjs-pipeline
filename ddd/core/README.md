@@ -30,12 +30,12 @@ This package provides the foundational building blocks for implementing a Clean 
 ### Domain Primitives
 
 - **`AggregateRoot<EventBase>`** — Abstract base class representing a DDD aggregate root. Owns uncommitted event buffering (`this.apply(event)`), `getUncommittedEvents()`, `uncommit()`, and `loadFromHistory()`. Pure domain primitive completely decoupled from `@nestjs/*`.
-- **`RootEntity<TSnapshot>`** — Abstract base aggregate entity extending domain `AggregateRoot`. Provides UUID v7 identity, detached `Date` reads for `createdAt`/`updatedAt` with public setters reserved for persistence hydration, accessor mappings (`id`, `createdAt`, `updatedAt`), optimistic concurrency version tracking (`version`, `getExpectedVersion()`), polymorphic snapshot rehydration via `RootEntity.from()` with strict aggregate type safety (throws `TypeError` on incompatible aggregates), and mutation tracking via `onUpdate()`.
+- **`RootEntity<TSnapshot>`** — Abstract base aggregate entity extending domain `AggregateRoot`. Provides UUID v7 identity, detached `Date` reads for `createdAt`/`updatedAt` with public setters reserved for persistence hydration, accessor mappings (`id`, `createdAt`, `updatedAt`), optimistic concurrency version tracking (`version`, `getExpectedVersion()`), polymorphic snapshot rehydration via `RootEntity.from()` with strict aggregate type safety (throws `TypeError` on incompatible aggregates), and mutation tracking via `onUpdate()`, which calls the overridable `protected afterUpdate()` hook (a no-op by default).
 - **`RootEntitySnapshot`** — Interface defining the serialized state contract (`id`, `createdAt`, `updatedAt`, and optional `version`).
 - **`DomainException`** — Abstract base class for domain invariant failures. Pure TypeScript error class completely decoupled from HTTP status codes and framework decorators.
 - **`DomainEvent`** — Abstract base class for domain events carrying a unique UUID v7 `id` and implementing `IEvent`.
 - **`IEvent`** — Marker interface for domain events.
-- **`RootDomainEvent<TEntity, TPayload>`** — Domain event carrying event-time `aggregateId`/`aggregateVersion` and an immutable, deeply cloned and frozen state snapshot (`event.payload`) created via `deepCloneAndFreeze()` to protect asynchronous event consumers from subsequent in-memory aggregate mutations.
+- **`RootDomainEvent<TEntity, TPayload>`** — Domain event carrying event-time `aggregateId`/`aggregateVersion` and a detached, deeply cloned and frozen state snapshot (`event.payload`) created via `deepCloneAndFreeze()` so later aggregate mutations never reach consumers; `clonePayload()` returns an independent copy per call.
 - **`deepCloneAndFreeze<T>()`** — Deeply clones and recursively freezes any value (objects, arrays, `Date` with mutation guards, `Map`, `Set`, `RegExp`), safely handling circular references via a `WeakMap`.
 - **`CommandBaseHandler<TCommand, TResult>`** — Abstract base handler for CQRS commands. Calls `handle()`, then publishes and clears buffered domain events from a returned `AggregateRoot` or result containing `aggregate: AggregateRoot`. Pipeline behaviors are applied by the pipeline integration; event publication is owned by `execute()`.
 - **`@Mutable(options?)`** — Property decorator declaring an aggregate field as mutable via patch mutations, with optional backing property name and value normalizer.
@@ -55,14 +55,15 @@ This package provides the foundational building blocks for implementing a Clean 
 - **`CacheMutationBarrier`** — Sentinel record (`{ __cacheBarrier: true, token: string, reason: 'deleted' | 'invalidated', createdAt: number }`) installed in cache during mutations with a finite `barrierTtl` (60 seconds by default) to prevent concurrent in-flight queries from repopulating the cache with stale/resurrected state.
 - **`createCacheMutationBarrier(reason, entity?)`** / **`isCacheMutationBarrier(value)`** — Helper factory and type guard for mutation barriers.
 - **`CommandRepository<TEntity, TResult, TCache>`** — Abstract base for write repositories. Injects an `ICache` instance; concrete classes implement `save(entity: TEntity)`.
-- **`QueryRepository<TQuery, TResult>`** — Abstract base for read repositories. Injects an `ICache` instance; concrete classes implement `find(query)`.
+- **`QueryRepository<TQuery, TResult>`** — Abstract base for read repositories. Injects an `ICache` instance and an optional `QueryRepositoryHydration` policy (`{ hydrateFn, serializeFn? }`) that `@FromCache` applies to methods declaring neither; concrete classes implement `find(query)`.
 - **`@Cache()`** — Method decorator for `save()` in command repositories:
   - **CAS-Safe Write-Through**: Automatically converts the returned result to a snapshot via `toCacheSnapshot()` and writes to cache using `isCacheNewer` CAS comparator to prevent late-finishing writes from overwriting newer cache entries.
   - **Anti-Resurrection Eviction**: Installs a `CacheMutationBarrier` sentinel with the configured `barrierTtl` for keys derived by `deleteKeys` when `save()` yields `null` or `undefined` (e.g. on entity deletion).
   - **Secondary Invalidation**: Installs a `CacheMutationBarrier` sentinel with the configured `barrierTtl` for auxiliary keys derived by `invalidateKeys` on successful writes before setting new values.
   - **Best-Effort**: Cache write/delete errors are caught and swallowed so a committed database transaction is never converted into an application error.
 - **`@FromCache()`** — Method decorator for `find()` in query repositories:
-  - **Read-Through**: Checks the cache first via `keyFn`; on a cache hit returns the cached value (or automatically rehydrates it into a domain entity if `alwaysHydrate: true` or `query.hydrate` is enabled).
+  - **Read-Through**: Checks the cache first via `keyFn`; on a cache hit returns the cached value, rehydrated into a domain entity when the method sets `alwaysHydrate: true` (or the query sets `hydrate`) with a `hydrateFn`, or when the repository declares a hydration policy.
+  - **Hydration Precedence**: A method that declares `hydrateFn` (including `null`, which opts out) uses its own hydration and `alwaysHydrate`; otherwise the repository's `hydrateFn` rehydrates every hit. `serializeFn` follows the same rule.
   - **Revision-Fenced Fills**: Requires an adapter implementing `IVersionedCache`. The decorator observes the key's opaque revision before the database read and fills with `tryFill(key, observedRevision, snapshot)`, which commits only if nothing — an invalidation, a delete, a newer write — has advanced the revision in between. A stale snapshot therefore cannot overwrite a deletion barrier. A rejected fill re-reads the key, returns a strictly newer snapshot when one is present, and otherwise retries a bounded number of times before returning the database result uncached.
   - **Unversioned Adapters Are Bypassed**: An adapter exposing only `get`/`set`/`delete` cannot fence a fill against concurrent invalidation, so `@FromCache` uses neither side of it: no read, no fill, the query goes to the database. Reads are bypassed too because serving entries while skipping fills would still return values written before a mutation. The decorator logs this once per adapter instance. Implement `IVersionedCache` to enable caching; `MemoryCache` and the sample's `MikroOrmCache` both do.
   - **Barriers and Nulls Are Misses**: A `CacheMutationBarrier` or a stored `null` is never hydrated — neither is a snapshot this decorator would have written.
@@ -71,6 +72,7 @@ This package provides the foundational building blocks for implementing a Clean 
   - **Strong Consistency on Concurrent Writes**: If a concurrent command writes and caches a newer snapshot during an in-flight DB fetch, `@FromCache` compares snapshots (`newerCheck(current, snapshot)`) and returns the fresher cached snapshot (rehydrated if requested) rather than stale DB data or overwriting cache.
   - **Bounded Negative Cache**: Stores **only non-nullish** results to prevent negative caching of uncreated records.
   - **Fail-Closed**: Cache errors propagate to enforce strong consistency at the query boundary.
+- **`@PersistedWrite(options)`** — Composite method decorator for `save(aggregate)`: applies `@Cache(options.cache)` → `@AcknowledgePersisted` → `@MapPersistenceErrors({ unique, otherwise })` in canonical order with the first argument as the entity. `cache` is optional. Use the individual decorators for other signatures, for deletes (which do not acknowledge), or for caller-owned ordering; `biome/plugins/persistence-lifecycle.grit` rejects combining both forms on one method.
 - **`@AcknowledgePersisted()`** — Method decorator for `save()` in command repositories: captures the aggregate's current entry version before write execution and automatically calls `entity.acknowledgePersisted(version)` upon successful persistence.
 - **`@MapPersistenceErrors()`** — Method decorator for persistence operations: maps identifiable database driver unique constraint failures (PostgreSQL `23505` and SQLite unique constraints) to application-owned domain exceptions.
 - **`optimisticUpdate()`** — Infrastructure helper for MikroORM version-conditioned updates (`WHERE id = ? AND version = expectedVersion`). Inspects affected rows, performs diagnostic existence checks on zero affected rows, and raises `EntityNotFoundException` or `ConcurrencyConflictError`. Explicitly rejects execution inside active outer transactions.
@@ -189,10 +191,6 @@ export class User extends RootEntity<UserSnapshot> {
     return this;
   }
 
-  afterUpdate(): void {
-    // Optional hook executed immediately after onUpdate()
-  }
-
   toJSON(): RootEntitySnapshot & UserSnapshot {
     return this.freezeState({
       id: this.id,
@@ -209,7 +207,7 @@ export class User extends RootEntity<UserSnapshot> {
 
 ---
 
-### 2. Defining Domain Events with Immutable Payloads
+### 2. Defining Domain Events with Detached Payloads
 
 Domain events extend `RootDomainEvent<TEntity, TPayload>` (which implements `IEvent`). They carry a unique UUID v7 identifier, event-time aggregate identity and version (`aggregateId`, `aggregateVersion`), and a deeply cloned, recursively frozen state snapshot (`event.payload`) created via `deepCloneAndFreeze()`.
 
@@ -217,7 +215,24 @@ Consumers reading `event.payload` observe the captured snapshot despite later
 aggregate mutations. The originating aggregate is not retained or frozen.
 Use `payload`, `aggregateId`, and `aggregateVersion` when consuming events.
 Constructors accept the aggregate. Snapshot isolation does not make in-memory
-EventBus delivery durable:
+EventBus delivery durable.
+
+What the snapshot guarantees:
+
+- **Detachment** — the payload is a deep clone; mutating the aggregate or the
+  object passed to the constructor never changes it.
+- **Ordinary read-only access** — own properties are frozen, and the mutating
+  methods of cloned `Date`, `Map` and `Set` values throw.
+- **Not a security boundary** — `Object.freeze` does not cover built-in
+  internal state, so `Date.prototype.setTime.call(payload.at, 0)` or
+  `Map.prototype.set.call(payload.map, …)` still changes the shared payload.
+  Every consumer of one event sees the same `payload` instance.
+- **Per-consumer isolation on request** — `event.clonePayload()` returns a new
+  detached, frozen copy on every call. Use it when one consumer must not
+  observe what another did to its copy.
+- **Transport** — send an explicit, serializable message built from the fields
+  you need (as users-api does with its job DTOs) rather than the payload object.
+
 
 ```typescript
 import { RootDomainEvent } from '@nestjs-pipeline/ddd-core/domain';
@@ -246,7 +261,7 @@ import { UserCreatedEvent } from './user-created.event';
 @EventsHandler(UserCreatedEvent)
 export class SendWelcomeEmailHandler implements IEventHandler<UserCreatedEvent> {
   async handle(event: UserCreatedEvent): Promise<void> {
-    // event.payload is an immutable, frozen snapshot
+    // event.payload is a detached, frozen snapshot shared by all consumers
     const { id, username, email } = event.payload;
     // Asynchronous notification or projection logic...
   }
@@ -279,8 +294,34 @@ Do not publish events manually or put response/session mapping in these handlers
 
 ### 4. Write-Side Command Repositories with Lifecycle Decorators
 
-The canonical outermost-to-innermost order is `@Cache(...)` →
-`@AcknowledgePersisted(...)` → `@MapPersistenceErrors(...)`:
+Creates and updates declare the whole lifecycle with `@PersistedWrite`, which
+applies `@Cache(...)` → `@AcknowledgePersisted(...)` →
+`@MapPersistenceErrors(...)` in that order:
+
+```typescript
+@PersistedWrite<User>({
+  cache: {
+    setKey: (user) => filterCacheKey(User.aggregateName, { id: user.id }),
+    invalidateKeys: (user) => [
+      filterCacheKey(User.aggregateName, { email: user.email }),
+    ],
+  },
+  unique: [
+    {
+      constraint: 'users_email_unique',
+      columns: 'users.email',
+      error: (user) => new UniqueEmailException(user),
+    },
+  ],
+})
+async save(user: User): Promise<UserSnapshot> { ... }
+```
+
+A rejected write translates known constraint errors, leaves the persisted
+version baseline unchanged and performs no cache maintenance; a resolved write
+acknowledges first, then maintains the cache best-effort. `@PersistedWrite`
+adds no transaction or event-delivery guarantee. Deletes do not acknowledge,
+so they stack `@Cache` and `@MapPersistenceErrors` individually.
 
 - [Creation repository](../users-api/src/users/persistence/create-user.command-repository.ts)
 - [Update repository](../users-api/src/users/persistence/update-user.command-repository.ts)
@@ -295,8 +336,11 @@ and cache maintenance run.
 ### 5. Read-Side Query Repository with `@FromCache()`
 
 [GetUserQueryRepository](../users-api/src/users/persistence/get-user.query-repository.ts)
-returns `Promise<User | null>` and configures `alwaysHydrate: true` with a
-`hydrateFn`. Its cache stores detached serializable snapshots, not aggregates.
+returns `Promise<User | null>` and passes `{ hydrateFn: User.fromJSON }` to the
+`QueryRepository` constructor, so every cache hit is rehydrated; its
+`@FromCache` declares only the key. A method needing different treatment
+declares its own `hydrateFn`/`alwaysHydrate` (or `hydrateFn: null`). The cache
+stores detached serializable snapshots, not aggregates.
 [GetUserHandler](../users-api/src/users/cqrs/queries/get-user.handler.ts) authorizes
 and filters the loaded aggregate before returning a response.
 
@@ -356,10 +400,12 @@ Reusable persistence decorators and the MikroORM update helper are exported from
 `@nestjs-pipeline/ddd-core`. Concrete repositories retain their own `save()` logic:
 
 ```ts
-import { AcknowledgePersisted, Cache, MapPersistenceErrors, optimisticUpdate } from '@nestjs-pipeline/ddd-core/persistence';
+import { AcknowledgePersisted, Cache, MapPersistenceErrors, PersistedWrite, optimisticUpdate } from '@nestjs-pipeline/ddd-core/persistence';
 ```
 
-Apply decorators in this order (outermost first):
+`@PersistedWrite({ cache, unique, otherwise })` applies the three decorators
+below with the first argument as the aggregate. When stacking them
+individually, apply them in this order (outermost first):
 
 1. `@Cache(...)`: best-effort cache maintenance after acknowledgment.
 2. `@AcknowledgePersisted({ entity: ([aggregate]) => aggregate })`: explicitly
