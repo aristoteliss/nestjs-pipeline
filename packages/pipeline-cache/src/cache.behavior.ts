@@ -66,6 +66,14 @@ export const CACHE_KEY_ITEM_TOKEN: PipelineItemToken<string> =
 
 const DEFAULT_KINDS: Array<IPipelineContext['requestKind']> = ['query'];
 
+/** Whether this request kind is configured for caching. */
+function inScope(
+  options: CacheBehaviorOptions | undefined,
+  requestKind: IPipelineContext['requestKind'],
+): boolean {
+  return (options?.kinds ?? DEFAULT_KINDS).includes(requestKind);
+}
+
 /**
  * Pipeline behavior that transparently caches handler results with
  * `cache-manager` (v7) on top of Keyv.
@@ -116,8 +124,7 @@ export class CacheBehavior
       const options = context.effectiveOptions as
         | CacheBehaviorOptions
         | undefined;
-      const kinds = options?.kinds ?? DEFAULT_KINDS;
-      if (!kinds.includes(context.requestKind)) {
+      if (!inScope(options, context.requestKind)) {
         return undefined;
       }
       return {
@@ -130,8 +137,7 @@ export class CacheBehavior
       const options = context.effectiveOptions as
         | CacheBehaviorOptions
         | undefined;
-      const kinds = options?.kinds ?? DEFAULT_KINDS;
-      if (!kinds.includes(context.requestKind)) {
+      if (!inScope(options, context.requestKind)) {
         return undefined;
       }
 
@@ -194,8 +200,7 @@ export class CacheBehavior
       context.getBehaviorOptions<CacheBehaviorOptions>(CacheBehavior),
     );
 
-    const kinds = options.kinds ?? DEFAULT_KINDS;
-    if (!kinds.includes(context.requestKind)) return next();
+    if (!inScope(options, context.requestKind)) return next();
     if (options.condition && !options.condition(context)) return next();
 
     if (!options.key) {

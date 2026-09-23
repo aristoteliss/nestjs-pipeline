@@ -19,11 +19,13 @@ import {
   metrics,
   type UpDownCounter,
 } from '@opentelemetry/api';
+import { safely } from './helpers/safely';
 import {
   buildMetricAttributes,
   getPipelineTelemetryAttributes,
   PIPELINE_OTEL_ATTRIBUTES,
   type PipelineTelemetryAttributeFactory,
+  withFactoryAttributes,
 } from './telemetry-attributes';
 
 /**
@@ -149,21 +151,6 @@ interface MeterInstruments {
  * export class HealthCheckHandler {}
  * ```
  */
-/**
- * Emits a diagnostic without letting the logger itself change the outcome.
- *
- * These calls sit inside catch blocks whose whole purpose is to stop
- * instrumentation from replacing the business result. A throwing logger — the
- * logger is injected by the application — would defeat exactly that.
- */
-function logSafely(emit: () => unknown): void {
-  try {
-    emit();
-  } catch {
-    // Intentionally ignored: see above.
-  }
-}
-
 @Injectable()
 export class MetricsBehavior implements IPipelineBehavior {
   /** Lazily-created instruments, keyed by meter name. */
@@ -188,7 +175,7 @@ export class MetricsBehavior implements IPipelineBehavior {
       instruments = this.getInstruments(options?.meterName ?? METER_NAME);
     } catch (error) {
       // OpenTelemetry setup must never prevent the handler from running.
-      logSafely(() =>
+      safely(() =>
         this.logger?.warn?.(
           `Failed to create OpenTelemetry pipeline metrics; failing open: ${error instanceof Error ? error.message : error}`,
           MetricsBehavior.name,
@@ -247,12 +234,7 @@ export class MetricsBehavior implements IPipelineBehavior {
         : {}),
     };
 
-    if (!options?.attributeFactory) return base;
-    try {
-      return { ...base, ...(await options.attributeFactory(context)) };
-    } catch {
-      return base;
-    }
+    return withFactoryAttributes(base, options?.attributeFactory, context);
   }
 
   /** Records duration + invocation count without changing business semantics. */
@@ -266,7 +248,7 @@ export class MetricsBehavior implements IPipelineBehavior {
       instruments.invocations.add(1, attributes);
     } catch (error) {
       // Observability must not replace the business result/error.
-      logSafely(() =>
+      safely(() =>
         this.logger?.debug?.(
           `Failed to record OpenTelemetry pipeline metrics: ${error instanceof Error ? error.message : error}`,
           MetricsBehavior.name,
@@ -285,7 +267,7 @@ export class MetricsBehavior implements IPipelineBehavior {
     try {
       counter.add(value, attributes);
     } catch (error) {
-      logSafely(() =>
+      safely(() =>
         this.logger?.debug?.(
           `Failed to update OpenTelemetry in-flight metric: ${error instanceof Error ? error.message : error}`,
           MetricsBehavior.name,

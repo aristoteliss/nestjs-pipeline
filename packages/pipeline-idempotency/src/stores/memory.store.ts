@@ -98,10 +98,7 @@ export class MemoryIdempotencyStore implements IdempotencyStore {
       return false;
     }
     this.ensureCapacity();
-    this.entries.set(key, {
-      record: cloneIdempotencyRecord(record),
-      expiresAt: Date.now() + ttlMs,
-    });
+    this.write(key, record, ttlMs);
     return true;
   }
 
@@ -119,10 +116,7 @@ export class MemoryIdempotencyStore implements IdempotencyStore {
       return false;
     }
 
-    this.entries.set(key, {
-      record: cloneIdempotencyRecord(record),
-      expiresAt: Date.now() + ttlMs,
-    });
+    this.write(key, record, ttlMs);
     return true;
   }
 
@@ -138,14 +132,18 @@ export class MemoryIdempotencyStore implements IdempotencyStore {
     if (!this.entries.has(key)) {
       this.ensureCapacity();
     }
-    this.entries.set(key, {
-      record: cloneIdempotencyRecord(record),
-      expiresAt: Date.now() + ttlMs,
-    });
+    this.write(key, record, ttlMs);
   }
 
   delete(key: string): void {
     this.entries.delete(key);
+  }
+
+  private write(key: string, record: IdempotencyRecord, ttlMs: number): void {
+    this.entries.set(key, {
+      record: cloneIdempotencyRecord(record),
+      expiresAt: Date.now() + ttlMs,
+    });
   }
 
   /** Returns the entry for `key` if present and not expired, pruning if it is. */

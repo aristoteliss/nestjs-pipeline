@@ -137,6 +137,17 @@ describe('PipelineBootstrapService with several applications', () => {
     }
   });
 
+  it('runs the original method through a dispatcher retained after every application is destroyed', async () => {
+    const app = bootstrapApp('app-a');
+    const retained = SharedHandler.prototype.execute;
+    app.onModuleDestroy();
+
+    expect(SharedHandler.prototype.execute).not.toBe(retained);
+    await expect(
+      retained.call(new SharedHandler(), new SharedCommand()),
+    ).resolves.toBe('no-pipeline');
+  });
+
   it('restores unambiguous dispatch once the second application is destroyed', async () => {
     const appA = bootstrapApp('app-a');
     const appB = bootstrapApp('app-b');

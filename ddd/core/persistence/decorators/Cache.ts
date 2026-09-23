@@ -13,6 +13,10 @@ import { isCacheNewer } from '../helpers/cache-version.helper';
 
 const logger = new Logger('CacheDecorator');
 
+function errorMessage(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
+}
+
 /**
  * Evicts one key using the strongest coordination the adapter supports.
  *
@@ -135,34 +139,27 @@ export function Cache<TEntity = unknown, TResult = unknown | null>(
   deleteKeysFn?: ((entity: TEntity) => string[]) | null,
   invalidateKeysFn?: ((entity: TEntity) => string[]) | null,
 ): MethodDecorator {
-  let resolvedSetKey: ((entity: TEntity) => string) | null = null;
-  let resolvedDeleteKeys: ((entity: TEntity) => string[]) | null = null;
-  let resolvedInvalidateKeys: ((entity: TEntity) => string[]) | null = null;
-  let resolvedTtl: number | undefined;
-  let resolvedBarrierTtl: number = DEFAULT_BARRIER_TTL_MS;
-  let resolvedIsNewer:
-    | ((cached: unknown, incoming: unknown) => boolean)
-    | undefined = isCacheNewer;
-
-  if (typeof setKeyOrOptions === 'function' || setKeyOrOptions === null) {
-    resolvedSetKey = setKeyOrOptions;
-    resolvedDeleteKeys = deleteKeysFn ?? null;
-    resolvedInvalidateKeys = invalidateKeysFn ?? null;
-  } else if (setKeyOrOptions && typeof setKeyOrOptions === 'object') {
-    resolvedSetKey = setKeyOrOptions.setKey ?? null;
-    resolvedDeleteKeys = setKeyOrOptions.deleteKeys ?? null;
-    resolvedInvalidateKeys = setKeyOrOptions.invalidateKeys ?? null;
-    resolvedTtl = setKeyOrOptions.ttl;
-    resolvedBarrierTtl = setKeyOrOptions.barrierTtl ?? DEFAULT_BARRIER_TTL_MS;
-    resolvedIsNewer =
-      setKeyOrOptions.isNewer === null
-        ? undefined
-        : (setKeyOrOptions.isNewer ?? isCacheNewer);
-  } else {
+  const options: CacheOptions<TEntity> =
+    typeof setKeyOrOptions === 'function' || setKeyOrOptions === null
+      ? {
+          setKey: setKeyOrOptions,
+          deleteKeys: deleteKeysFn,
+          invalidateKeys: invalidateKeysFn,
+        }
+      : setKeyOrOptions;
+  if (!options || typeof options !== 'object') {
     throw new Error(
       '@Cache decorator requires an explicit key derivation function or options object.',
     );
   }
+
+  const resolvedSetKey = options.setKey ?? null;
+  const resolvedDeleteKeys = options.deleteKeys ?? null;
+  const resolvedInvalidateKeys = options.invalidateKeys ?? null;
+  const resolvedTtl = options.ttl;
+  const resolvedBarrierTtl = options.barrierTtl ?? DEFAULT_BARRIER_TTL_MS;
+  const resolvedIsNewer =
+    options.isNewer === null ? undefined : (options.isNewer ?? isCacheNewer);
 
   if (!resolvedSetKey && !resolvedDeleteKeys && !resolvedInvalidateKeys) {
     throw new Error(
@@ -224,7 +221,7 @@ export function Cache<TEntity = unknown, TResult = unknown | null>(
             const keyOption = deleting ? 'deleteKeys' : 'invalidateKeys';
             const operation = deleting ? 'cache eviction' : 'cache maintenance';
             logger.warn(
-              `Failed resolving ${keyOption} during ${operation}: ${err instanceof Error ? err.message : String(err)}`,
+              `Failed resolving ${keyOption} during ${operation}: ${errorMessage(err)}`,
             );
           }
           for (const key of keys) {
@@ -239,7 +236,7 @@ export function Cache<TEntity = unknown, TResult = unknown | null>(
             } catch (err) {
               const action = deleting ? 'evicting deletion' : 'invalidating';
               logger.warn(
-                `Failed ${action} key "${key}": ${err instanceof Error ? err.message : String(err)}`,
+                `Failed ${action} key "${key}": ${errorMessage(err)}`,
               );
             }
           }
@@ -252,7 +249,7 @@ export function Cache<TEntity = unknown, TResult = unknown | null>(
             setKey = resolvedSetKey(entity);
           } catch (err) {
             logger.warn(
-              `Failed resolving setKey during cache maintenance: ${err instanceof Error ? err.message : String(err)}`,
+              `Failed resolving setKey during cache maintenance: ${errorMessage(err)}`,
             );
           }
           if (setKey) {
@@ -285,14 +282,14 @@ export function Cache<TEntity = unknown, TResult = unknown | null>(
               }
             } catch (err) {
               logger.warn(
-                `Failed setting cache key "${setKey}": ${err instanceof Error ? err.message : String(err)}`,
+                `Failed setting cache key "${setKey}": ${errorMessage(err)}`,
               );
             }
           }
         }
       } catch (err) {
         logger.warn(
-          `Unexpected error during cache maintenance: ${err instanceof Error ? err.message : String(err)}`,
+          `Unexpected error during cache maintenance: ${errorMessage(err)}`,
         );
       }
 

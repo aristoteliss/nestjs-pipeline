@@ -54,11 +54,7 @@ export class User extends RootEntity<UserSnapshot> {
     email: string,
     department?: string | null,
   ): User {
-    const user = new User({
-      username: User.normalizeUsername(username),
-      department: User.normalizeDepartment(department),
-      email,
-    });
+    const user = new User({ username, department, email });
 
     user.apply(new UserCreatedEvent(user));
 

@@ -5,6 +5,20 @@ import type { AppAbility } from '../types/casl.types';
 type FieldRule = ReturnType<AppAbility['relevantRuleFor']>;
 const OMIT = Symbol('unreadable-field');
 
+/** Defines an own data property, so a `__proto__` key stays a plain field. */
+function defineField(
+  target: Record<string, unknown>,
+  key: string,
+  value: unknown,
+): void {
+  Object.defineProperty(target, key, {
+    value,
+    enumerable: true,
+    configurable: true,
+    writable: true,
+  });
+}
+
 /**
  * Projects a snapshot to the fields `ability` permits for `action`. Conditions
  * are evaluated against the full subject. A granted parent path authorizes its
@@ -120,14 +134,7 @@ export function projectPermittedFields(
           paths.map((path) => (path ? `${path}.${key}` : key)),
           rule,
         );
-        if (projected !== OMIT) {
-          Object.defineProperty(result, key, {
-            value: projected,
-            enumerable: true,
-            configurable: true,
-            writable: true,
-          });
-        }
+        if (projected !== OMIT) defineField(result, key, projected);
       }
       return Object.keys(result).length > 0 ? result : OMIT;
     } finally {
@@ -153,14 +160,7 @@ export function projectPermittedFields(
   try {
     for (const [key, value] of Object.entries(record)) {
       const projected = project(value, [key], null);
-      if (projected !== OMIT) {
-        Object.defineProperty(result, key, {
-          value: projected,
-          enumerable: true,
-          configurable: true,
-          writable: true,
-        });
-      }
+      if (projected !== OMIT) defineField(result, key, projected);
     }
     return result;
   } finally {

@@ -102,7 +102,7 @@ export class HttpCorrelationMiddleware implements NestMiddleware {
 
   /** Applies configured validation/normalization to one incoming header value. */
   private resolveIncoming(raw: string | undefined): string | undefined {
-    if (!this.acceptIncoming || typeof raw !== 'string' || raw.length === 0) {
+    if (!this.acceptIncoming || typeof raw !== 'string') {
       return undefined;
     }
 

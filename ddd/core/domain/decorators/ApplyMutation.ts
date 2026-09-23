@@ -63,33 +63,31 @@ function completeMutation<TEntity>(
   entity.onUpdate();
 
   const eventOrEvents = options.event(entity as TEntity);
-  const eventsToApply: IEvent[] = [];
 
-  if (Array.isArray(eventOrEvents)) {
-    if (eventOrEvents.length === 0) {
-      throw new TypeError(
-        '@ApplyMutation event factory must return at least one domain event.',
-      );
-    }
-    for (let i = 0; i < eventOrEvents.length; i++) {
-      const evt = eventOrEvents[i];
-      if (evt === null || typeof evt !== 'object') {
-        throw new TypeError(
-          `@ApplyMutation event factory returned an invalid event at index ${i}. Expected an event object, received: ${String(evt)}.`,
-        );
-      }
-      eventsToApply.push(evt as IEvent);
-    }
-  } else {
+  if (!Array.isArray(eventOrEvents)) {
     if (eventOrEvents === null || typeof eventOrEvents !== 'object') {
       throw new TypeError(
         `@ApplyMutation event factory must return a domain event object or non-empty array of events, received: ${String(eventOrEvents)}.`,
       );
     }
-    eventsToApply.push(eventOrEvents as IEvent);
+    entity.apply(eventOrEvents);
+    return result;
   }
 
-  for (const evt of eventsToApply) {
+  if (eventOrEvents.length === 0) {
+    throw new TypeError(
+      '@ApplyMutation event factory must return at least one domain event.',
+    );
+  }
+  for (let i = 0; i < eventOrEvents.length; i++) {
+    const evt = eventOrEvents[i];
+    if (evt === null || typeof evt !== 'object') {
+      throw new TypeError(
+        `@ApplyMutation event factory returned an invalid event at index ${i}. Expected an event object, received: ${String(evt)}.`,
+      );
+    }
+  }
+  for (const evt of eventOrEvents) {
     entity.apply(evt);
   }
 

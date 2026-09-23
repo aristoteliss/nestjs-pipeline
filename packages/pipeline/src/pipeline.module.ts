@@ -15,6 +15,7 @@ import {
   PipelineRuntimeOptions,
 } from './options/pipeline-module.options';
 import { PipelineBootstrapService } from './services/pipeline.bootstrap.service';
+import { toGlobalConfigs } from './services/pipeline-plan';
 
 // Re-export the option types so they can be imported from this module too.
 export {
@@ -49,14 +50,6 @@ function assertRuntimeOptions(
     );
   }
   return options;
-}
-
-/** Normalizes the single-object and array forms of `globalBehaviors`. */
-function toGlobalConfigs(
-  globalBehaviors: PipelineModuleOptions['globalBehaviors'],
-): GlobalBehaviorsOptions[] {
-  if (!globalBehaviors) return [];
-  return Array.isArray(globalBehaviors) ? globalBehaviors : [globalBehaviors];
 }
 
 /** Resolves provider registration shared by synchronous and asynchronous setup. */

@@ -30,6 +30,19 @@ interface MemoryCacheEntry<T> {
   hasValue: boolean;
 }
 
+function isExpired(
+  entry: MemoryCacheEntry<unknown>,
+  now = Date.now(),
+): boolean {
+  return entry.expiresAt !== undefined && now > entry.expiresAt;
+}
+
+function clearValue(entry: MemoryCacheEntry<unknown>): void {
+  entry.hasValue = false;
+  entry.value = undefined;
+  entry.expiresAt = undefined;
+}
+
 /**
  * In-memory implementation of {@link IVersionedCache} maintaining deep detachment parity
  * with database/network caches via JSON cloning on both `set()` and `get()`.
@@ -74,7 +87,7 @@ export class MemoryCache<T> implements IVersionedCache<T> {
 
     const now = Date.now();
     for (const [key, entry] of this.store) {
-      if (entry.expiresAt !== undefined && now > entry.expiresAt) {
+      if (isExpired(entry, now)) {
         this.store.delete(key);
       }
     }
@@ -95,7 +108,7 @@ export class MemoryCache<T> implements IVersionedCache<T> {
     }
 
     if (entry.hasValue) {
-      if (entry.expiresAt !== undefined && Date.now() > entry.expiresAt) {
+      if (isExpired(entry)) {
         return { status: 'expired', revision: entry.revision.toString() };
       }
       return {
@@ -116,9 +129,7 @@ export class MemoryCache<T> implements IVersionedCache<T> {
     const revision = this.nextRevision();
     if (existing) {
       existing.revision = revision;
-      existing.hasValue = false;
-      existing.value = undefined;
-      existing.expiresAt = undefined;
+      clearValue(existing);
       return revision.toString();
     }
 
@@ -161,10 +172,8 @@ export class MemoryCache<T> implements IVersionedCache<T> {
   ): Promise<void> {
     const existing = this.store.get(key);
     if (existing?.hasValue) {
-      if (existing.expiresAt !== undefined && Date.now() > existing.expiresAt) {
-        existing.hasValue = false;
-        existing.value = undefined;
-        existing.expiresAt = undefined;
+      if (isExpired(existing)) {
+        clearValue(existing);
       } else if (options?.isNewer?.(existing.value, value)) {
         return;
       }
@@ -180,22 +189,15 @@ export class MemoryCache<T> implements IVersionedCache<T> {
     existing: MemoryCacheEntry<T> | undefined,
   ): void {
     const ttl = options?.ttl ?? this.defaultTtlMs;
-    const expiresAt = ttl > 0 ? Date.now() + ttl : undefined;
-    const nextRevision = this.nextRevision();
+    const entry: MemoryCacheEntry<T> = {
+      revision: this.nextRevision(),
+      value: detach(value),
+      expiresAt: ttl > 0 ? Date.now() + ttl : undefined,
+      hasValue: true,
+    };
 
-    if (existing) {
-      existing.revision = nextRevision;
-      existing.value = detach(value);
-      existing.expiresAt = expiresAt;
-      existing.hasValue = true;
-    } else {
-      this.store.set(key, {
-        revision: nextRevision,
-        value: detach(value),
-        expiresAt,
-        hasValue: true,
-      });
-    }
+    if (existing) Object.assign(existing, entry);
+    else this.store.set(key, entry);
 
     this.evict();
   }
@@ -206,10 +208,8 @@ export class MemoryCache<T> implements IVersionedCache<T> {
   async get(key: string): Promise<T | undefined> {
     const entry = this.store.get(key);
     if (!entry?.hasValue) return undefined;
-    if (entry.expiresAt !== undefined && Date.now() > entry.expiresAt) {
-      entry.hasValue = false;
-      entry.value = undefined;
-      entry.expiresAt = undefined;
+    if (isExpired(entry)) {
+      clearValue(entry);
       return undefined;
     }
     return detach(entry.value);

@@ -62,14 +62,8 @@ export function isCacheNewer(cached: unknown, incoming: unknown): boolean {
   }
 
   if (c.updatedAt !== undefined && inc.updatedAt !== undefined) {
-    const cTime =
-      c.updatedAt instanceof Date
-        ? c.updatedAt.getTime()
-        : new Date(c.updatedAt as string | number).getTime();
-    const incTime =
-      inc.updatedAt instanceof Date
-        ? inc.updatedAt.getTime()
-        : new Date(inc.updatedAt as string | number).getTime();
+    const cTime = new Date(c.updatedAt as Date | string | number).getTime();
+    const incTime = new Date(inc.updatedAt as Date | string | number).getTime();
     if (!Number.isNaN(cTime) && !Number.isNaN(incTime)) {
       return cTime > incTime;
     }

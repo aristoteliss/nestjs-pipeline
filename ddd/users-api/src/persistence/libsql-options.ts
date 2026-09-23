@@ -2,17 +2,7 @@
 
 import { LibSqlDriver } from '@mikro-orm/libsql';
 import { Migrator } from '@mikro-orm/migrations';
-import { AuthSchema } from './schemas/auth.schema';
-import { CacheSchema } from './schemas/cache.schema';
-import { CapabilitySchema } from './schemas/capability.schema';
-import { ConsumedRefreshTokenSchema } from './schemas/consumed-refresh-token.schema';
-import { RoleSchema } from './schemas/role.schema';
-import { RoleCapabilitySchema } from './schemas/role-capability.schema';
-import { UserSchema } from './schemas/user.schema';
-import { UserAdditionalCapabilitySchema } from './schemas/user-additional-capability.schema';
-import { UserDeniedCapabilitySchema } from './schemas/user-denied-capability.schema';
-import { UserPermissionRuleSchema } from './schemas/user-permission-rule.schema';
-import { UserRoleSchema } from './schemas/user-role.schema';
+import { PERSISTENCE_ENTITIES } from './persistence-entities';
 import { normalizeSchemaName } from './tenant-options';
 
 export const DEFAULT_SQLITE_DATABASE_URL = 'file:src/persistence/local.db';
@@ -81,19 +71,7 @@ export function createLibsqlOrmOptions(
     driver: LibSqlDriver,
     dbName,
     password: process.env.AUTH_TOKEN,
-    entities: [
-      UserSchema,
-      AuthSchema,
-      RoleSchema,
-      CapabilitySchema,
-      RoleCapabilitySchema,
-      UserRoleSchema,
-      UserAdditionalCapabilitySchema,
-      UserDeniedCapabilitySchema,
-      UserPermissionRuleSchema,
-      ConsumedRefreshTokenSchema,
-      CacheSchema,
-    ],
+    entities: [...PERSISTENCE_ENTITIES],
     extensions: [Migrator],
     migrations: {
       path: 'dist/persistence/migrations',

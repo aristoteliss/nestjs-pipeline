@@ -221,13 +221,8 @@ export class AuditBehavior
       const message =
         `Failed to build audit record for ${input.context.requestName}: ` +
         `${buildError instanceof Error ? buildError.message : buildError}`;
-
-      if (failOpen) {
-        this.diagnose('warn', `${message}; failing open`);
-        return;
-      }
-      this.diagnose('error', `${message}; failing closed`);
-      throw buildError;
+      this.reportFailure(message, failOpen, buildError);
+      return;
     }
 
     setPipelineItem(input.context, AUDIT_RECORD_ITEM_TOKEN, record);
@@ -239,13 +234,7 @@ export class AuditBehavior
         `Failed to write audit record for ${record.requestName} ` +
         `(correlationId: ${record.correlationId}): ` +
         `${sinkError instanceof Error ? sinkError.message : sinkError}`;
-
-      if (failOpen) {
-        this.diagnose('warn', `${message}; failing open`);
-        return;
-      }
-      this.diagnose('error', `${message}; failing closed`);
-      throw sinkError;
+      this.reportFailure(message, failOpen, sinkError);
     }
   }
 
@@ -255,13 +244,21 @@ export class AuditBehavior
     failOpen: boolean,
   ): void {
     const invalid = findInvalidFactory(options);
-    if (!invalid) return;
+    if (invalid) this.reportFailure(invalid, failOpen, new TypeError(invalid));
+  }
+
+  /** Logs an audit failure, then fails open or rethrows `error`. */
+  private reportFailure(
+    message: string,
+    failOpen: boolean,
+    error: unknown,
+  ): void {
     if (failOpen) {
-      this.diagnose('warn', `${invalid}; failing open`);
+      this.diagnose('warn', `${message}; failing open`);
       return;
     }
-    this.diagnose('error', `${invalid}; failing closed`);
-    throw new TypeError(invalid);
+    this.diagnose('error', `${message}; failing closed`);
+    throw error;
   }
 
   /** Diagnostic logging never changes the request outcome. */

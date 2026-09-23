@@ -28,6 +28,21 @@ export type PipelineTelemetryAttributeFactory = (
   context: IPipelineContext,
 ) => Attributes | Promise<Attributes>;
 
+/** Applies a custom attribute factory over `base`; enrichment failures keep `base`. */
+export async function withFactoryAttributes(
+  base: Attributes,
+  factory: PipelineTelemetryAttributeFactory | undefined,
+  context: IPipelineContext,
+): Promise<Attributes> {
+  if (!factory) return base;
+  try {
+    return { ...base, ...(await factory(context)) };
+  } catch {
+    // Telemetry enrichment must never make the business request fail.
+    return base;
+  }
+}
+
 /** Merge request-local telemetry attributes for the active pipeline execution. */
 export function addPipelineTelemetryAttributes(
   context: IPipelineContext,
