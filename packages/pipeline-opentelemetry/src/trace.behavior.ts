@@ -9,16 +9,19 @@ import {
 } from '@nestjs-pipeline/core';
 import {
   type Attributes,
+  type Exception,
   type Span,
   SpanKind,
   SpanStatusCode,
   trace,
 } from '@opentelemetry/api';
+import { safely } from './helpers/safely';
 import {
   buildTraceAttributes,
   getPipelineTelemetryAttributes,
   PIPELINE_OTEL_ATTRIBUTES,
   type PipelineTelemetryAttributeFactory,
+  withFactoryAttributes,
 } from './telemetry-attributes';
 
 /**
@@ -115,23 +118,6 @@ export interface TraceBehaviorOptions {
 }
 
 const TRACER_NAME = 'nestjs-pipeline';
-
-/**
- * Runs an instrumentation step and discards any failure.
- *
- * Observability must never change the observed outcome. The OpenTelemetry error
- * handling specification expects conforming implementations not to throw during
- * normal operation, but the span object here is supplied by whatever provider
- * the application registered, and the extension points around it are
- * user-supplied.
- */
-function safely(operation: () => unknown): void {
-  try {
-    operation();
-  } catch {
-    // Intentionally ignored: see above.
-  }
-}
 
 /**
  * Pipeline behavior that wraps a handler in an OpenTelemetry span.
@@ -271,13 +257,7 @@ export class TraceBehavior implements IPipelineBehavior {
     });
 
     if (options?.recordException !== false) {
-      safely(() => {
-        if (error instanceof Error || typeof error === 'string') {
-          span.recordException?.(error);
-        } else {
-          span.recordException?.(untyped(error) as never);
-        }
-      });
+      safely(() => span.recordException?.(error as Exception));
     }
 
     const err = untyped(error);
@@ -316,13 +296,6 @@ export class TraceBehavior implements IPipelineBehavior {
         ? getPipelineTelemetryAttributes(context)
         : {}),
     };
-    if (!options?.attributeFactory) return base;
-
-    try {
-      return { ...base, ...(await options.attributeFactory(context)) };
-    } catch {
-      // Telemetry enrichment must never make the business request fail.
-      return base;
-    }
+    return withFactoryAttributes(base, options?.attributeFactory, context);
   }
 }

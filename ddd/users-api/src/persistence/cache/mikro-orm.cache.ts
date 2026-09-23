@@ -221,6 +221,7 @@ export class MikroOrmCache<T> implements IVersionedCache<T> {
     const ttl = options?.ttl ?? this.defaultTtlMs;
     const expiresAt = ttl > 0 ? Date.now() + ttl : null;
     const isNewer = options?.isNewer;
+    const serialized = JSON.stringify(value);
 
     await this.store.transactional(async (em) => {
       for (let attempt = 0; attempt < MAX_CAS_ATTEMPTS; attempt++) {
@@ -233,7 +234,7 @@ export class MikroOrmCache<T> implements IVersionedCache<T> {
         if (!existing) {
           await em.upsert(
             CacheEntry,
-            { key, value: JSON.stringify(value), expiresAt, revision: '1' },
+            { key, value: serialized, expiresAt, revision: '1' },
             { onConflictAction: 'ignore' },
           );
           continue;
@@ -262,7 +263,7 @@ export class MikroOrmCache<T> implements IVersionedCache<T> {
           CacheEntry,
           { key, revision: existing.revision },
           {
-            value: JSON.stringify(value),
+            value: serialized,
             expiresAt,
             revision: nextRevision,
           },

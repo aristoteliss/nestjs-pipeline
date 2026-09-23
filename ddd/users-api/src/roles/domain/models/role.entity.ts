@@ -33,9 +33,7 @@ export class Role extends RootEntity<RoleSnapshot> {
   }
 
   static create(name: string): Role {
-    const role = new Role({
-      name: Role.normalizeName(name),
-    });
+    const role = new Role({ name });
 
     role.apply(new RoleCreatedEvent(role));
 

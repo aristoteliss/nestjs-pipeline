@@ -79,15 +79,14 @@ export function createAuditTableSql(table = 'audit_log'): string {
  * ```
  */
 export class PostgresAuditSink implements AuditSink {
-  private readonly table: string;
   private readonly insertSql: string;
 
   constructor(
     private readonly db: PostgresQueryableLike,
     options: PostgresAuditSinkOptions = {},
   ) {
-    this.table = assertSafeTable(options.table ?? 'audit_log');
-    this.insertSql = `INSERT INTO ${this.table}
+    const table = assertSafeTable(options.table ?? 'audit_log');
+    this.insertSql = `INSERT INTO ${table}
       (id, correlation_id, action, severity, outcome, actor, request_kind,
        request_name, handler_name, payload, response, error, duration_ms,
        metadata, occurred_at)

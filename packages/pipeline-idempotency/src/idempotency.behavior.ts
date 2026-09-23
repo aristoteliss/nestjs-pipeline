@@ -105,6 +105,16 @@ export const IDEMPOTENCY_OWNERSHIP_LOST_ITEM_TOKEN: PipelineItemToken<boolean> =
 
 const DEFAULT_SCOPE: IdempotencyRequestKind[] = ['command'];
 
+/** Whether this request kind is configured for idempotency. */
+function inScope(
+  options: IdempotencyBehaviorOptions | undefined,
+  requestKind: IPipelineContext['requestKind'],
+): boolean {
+  return (options?.scope ?? DEFAULT_SCOPE).includes(
+    requestKind as IdempotencyRequestKind,
+  );
+}
+
 /**
  * Pipeline behavior that deduplicates concurrent requests sharing an
  * idempotency key and replays the stored response after a successful execution.
@@ -159,8 +169,7 @@ export class IdempotencyBehavior
       const options = context.effectiveOptions as
         | IdempotencyBehaviorOptions
         | undefined;
-      const scope = options?.scope ?? DEFAULT_SCOPE;
-      if (!scope.includes(context.requestKind as IdempotencyRequestKind)) {
+      if (!inScope(options, context.requestKind)) {
         return undefined;
       }
       return {
@@ -173,8 +182,7 @@ export class IdempotencyBehavior
       const options = context.effectiveOptions as
         | IdempotencyBehaviorOptions
         | undefined;
-      const scope = options?.scope ?? DEFAULT_SCOPE;
-      if (!scope.includes(context.requestKind as IdempotencyRequestKind)) {
+      if (!inScope(options, context.requestKind)) {
         return undefined;
       }
 
@@ -250,7 +258,7 @@ export class IdempotencyBehavior
       ),
     );
 
-    if (!this.inScope(context, options)) {
+    if (!inScope(options, context.requestKind)) {
       return next();
     }
 
@@ -404,16 +412,11 @@ export class IdempotencyBehavior
       });
     }
 
-    if (existing.requestName !== context.requestName) {
-      throw new IdempotencyConflictError({
-        key,
-        requestName: context.requestName,
-        reason: 'key_reuse',
-      });
-    }
-
     // A fingerprinted request never replays a record that cannot prove payload identity.
-    if (fingerprint && existing.fingerprint !== fingerprint) {
+    if (
+      existing.requestName !== context.requestName ||
+      (fingerprint && existing.fingerprint !== fingerprint)
+    ) {
       throw new IdempotencyConflictError({
         key,
         requestName: context.requestName,
@@ -472,15 +475,6 @@ export class IdempotencyBehavior
         IdempotencyBehavior.name,
       );
     }
-  }
-
-  /** Whether this request kind is configured for idempotency. */
-  private inScope(
-    context: IPipelineContext,
-    options: IdempotencyBehaviorOptions,
-  ): boolean {
-    const scope = options.scope ?? DEFAULT_SCOPE;
-    return scope.includes(context.requestKind as IdempotencyRequestKind);
   }
 
   /** Shallow-merges pipeline-level options over the module defaults. */

@@ -34,17 +34,11 @@ export function toCacheSnapshot<T>(
     return serializeFn(value);
   }
 
-  if (
-    value !== null &&
-    typeof value === 'object' &&
-    typeof (value as { toJSON?: unknown }).toJSON === 'function'
-  ) {
-    return (value as unknown as { toJSON(): unknown }).toJSON();
+  if (value === null || typeof value !== 'object') {
+    return value;
   }
 
-  if (value !== null && typeof value === 'object') {
-    return JSON.parse(JSON.stringify(value));
-  }
-
-  return value;
+  return typeof (value as { toJSON?: unknown }).toJSON === 'function'
+    ? (value as unknown as { toJSON(): unknown }).toJSON()
+    : JSON.parse(JSON.stringify(value));
 }

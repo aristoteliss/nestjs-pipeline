@@ -31,41 +31,6 @@ import {
 } from './helpers/resilience-context';
 import type { ResilienceBehaviorOptions } from './interfaces/resilience-options.interface';
 
-/**
- * Pipeline behavior that wraps each command / query / event handler in a
- * cockatiel resilience policy (retry, circuit breaker, timeout, bulkhead,
- * fallback) for transient-fault handling.
- *
- * Resolution of the effective options for a handler where this behavior is
- * attached:
- * 1. Application-wide defaults bound to {@link RESILIENCE_DEFAULT_OPTIONS}
- *    (via {@link ResilienceModule.forRoot}).
- * 2. Per-handler options from `@UsePipeline([ResilienceBehavior, { ... }])`,
- *    shallow-merged on top of the defaults (handler keys win).
- *
- * Policies are built **lazily on first invocation and cached per handler**, so
- * stateful layers (circuit breaker, bulkhead) correctly share state across
- * every request to that handler. When no options resolve, the behavior caches
- * that result and passes subsequent invocations directly to `next()` without
- * constructing or executing a cockatiel policy.
- *
- * ### Replay / error-classification safety
- *
- * A handler-level retry calls `next()` again, which means the complete
- * downstream pipeline and handler are replayed. To avoid accidental duplicate
- * side effects, command/event retries must explicitly set
- * `retry.replaySafe: true`. Retry/circuit-breaker/fallback configurations must
- * also define which errors are transient via `handle(error)`, unless the caller
- * intentionally opts into `handleAllErrors: true`. An `aggressive` timeout
- * (the default strategy) on a command/event answers the caller while the
- * handler keeps running, so it requires `strategy: 'cooperative'` or
- * `timeout.replaySafe: true`.
- *
- * Timeout and bulkhead-only policies do not require an error classifier because
- * they do not decide which application errors are retryable/circuit failures.
- * A custom pre-built Cockatiel `policy` also bypasses the declarative safety
- * checks because the caller owns its semantics directly.
- */
 interface ResilienceSafetyIssue {
   message: string;
   fix: string;
@@ -117,6 +82,41 @@ function getResilienceSafetyIssues(
   return issues;
 }
 
+/**
+ * Pipeline behavior that wraps each command / query / event handler in a
+ * cockatiel resilience policy (retry, circuit breaker, timeout, bulkhead,
+ * fallback) for transient-fault handling.
+ *
+ * Resolution of the effective options for a handler where this behavior is
+ * attached:
+ * 1. Application-wide defaults bound to {@link RESILIENCE_DEFAULT_OPTIONS}
+ *    (via {@link ResilienceModule.forRoot}).
+ * 2. Per-handler options from `@UsePipeline([ResilienceBehavior, { ... }])`,
+ *    shallow-merged on top of the defaults (handler keys win).
+ *
+ * Policies are built **lazily on first invocation and cached per handler**, so
+ * stateful layers (circuit breaker, bulkhead) correctly share state across
+ * every request to that handler. When no options resolve, the behavior caches
+ * that result and passes subsequent invocations directly to `next()` without
+ * constructing or executing a cockatiel policy.
+ *
+ * ### Replay / error-classification safety
+ *
+ * A handler-level retry calls `next()` again, which means the complete
+ * downstream pipeline and handler are replayed. To avoid accidental duplicate
+ * side effects, command/event retries must explicitly set
+ * `retry.replaySafe: true`. Retry/circuit-breaker/fallback configurations must
+ * also define which errors are transient via `handle(error)`, unless the caller
+ * intentionally opts into `handleAllErrors: true`. An `aggressive` timeout
+ * (the default strategy) on a command/event answers the caller while the
+ * handler keeps running, so it requires `strategy: 'cooperative'` or
+ * `timeout.replaySafe: true`.
+ *
+ * Timeout and bulkhead-only policies do not require an error classifier because
+ * they do not decide which application errors are retryable/circuit failures.
+ * A custom pre-built Cockatiel `policy` also bypasses the declarative safety
+ * checks because the caller owns its semantics directly.
+ */
 @Injectable()
 export class ResilienceBehavior
   implements

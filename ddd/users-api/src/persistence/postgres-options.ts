@@ -3,17 +3,7 @@
 import { Migrator } from '@mikro-orm/migrations';
 import { PostgreSqlDriver } from '@mikro-orm/postgresql';
 import { resolveLibsqlTenants } from './libsql-options';
-import { AuthSchema } from './schemas/auth.schema';
-import { CacheSchema } from './schemas/cache.schema';
-import { CapabilitySchema } from './schemas/capability.schema';
-import { ConsumedRefreshTokenSchema } from './schemas/consumed-refresh-token.schema';
-import { RoleSchema } from './schemas/role.schema';
-import { RoleCapabilitySchema } from './schemas/role-capability.schema';
-import { UserSchema } from './schemas/user.schema';
-import { UserAdditionalCapabilitySchema } from './schemas/user-additional-capability.schema';
-import { UserDeniedCapabilitySchema } from './schemas/user-denied-capability.schema';
-import { UserPermissionRuleSchema } from './schemas/user-permission-rule.schema';
-import { UserRoleSchema } from './schemas/user-role.schema';
+import { PERSISTENCE_ENTITIES } from './persistence-entities';
 import { normalizeSchemaName } from './tenant-options';
 
 export { DEFAULT_TENANT_SCHEMA, normalizeSchemaName } from './tenant-options';
@@ -21,7 +11,7 @@ export { DEFAULT_TENANT_SCHEMA, normalizeSchemaName } from './tenant-options';
 /** Returns the tenant schemas this process is configured to serve. */
 export function resolveAllowedTenantSchemas(): Set<string> {
   if (process.env.DB_ENGINE !== 'postgres') {
-    return new Set(resolveLibsqlTenants().map(normalizeSchemaName));
+    return new Set(resolveLibsqlTenants());
   }
 
   const configured = process.env.TENANT_SCHEMAS;
@@ -51,19 +41,7 @@ export function createPostgresOrmOptions(schema?: string) {
     user,
     password,
     schema: normalizeSchemaName(schema),
-    entities: [
-      UserSchema,
-      AuthSchema,
-      RoleSchema,
-      CapabilitySchema,
-      RoleCapabilitySchema,
-      UserRoleSchema,
-      UserAdditionalCapabilitySchema,
-      UserDeniedCapabilitySchema,
-      UserPermissionRuleSchema,
-      ConsumedRefreshTokenSchema,
-      CacheSchema,
-    ],
+    entities: [...PERSISTENCE_ENTITIES],
     extensions: [Migrator],
     migrations: {
       schema: normalizeSchemaName(schema),

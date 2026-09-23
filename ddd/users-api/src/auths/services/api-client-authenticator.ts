@@ -14,6 +14,7 @@ import {
   TENANT_CONTEXT,
 } from '../../common/context/tenant-context.port';
 import type { SessionUser } from '../../common/types/SessionUser';
+import { firstHeaderValue } from './first-header-value';
 
 interface ApiClient {
   key: string;
@@ -85,10 +86,10 @@ export class ApiClientAuthenticator {
   authenticate(req: {
     headers?: Record<string, string | string[] | undefined>;
   }): SessionUser | undefined {
-    const apiId = this.firstHeaderValue(req.headers?.[AUTH_HEADERS.API_ID]);
+    const apiId = firstHeaderValue(req.headers?.[AUTH_HEADERS.API_ID]);
     if (!apiId) return undefined;
 
-    const apiKey = this.firstHeaderValue(req.headers?.[AUTH_HEADERS.API_KEY]);
+    const apiKey = firstHeaderValue(req.headers?.[AUTH_HEADERS.API_KEY]);
     const client = this.apiClients.get(apiId);
 
     if (
@@ -163,13 +164,6 @@ export class ApiClientAuthenticator {
     const aHash = createHash('sha256').update(a).digest();
     const bHash = createHash('sha256').update(b).digest();
     return timingSafeEqual(aHash, bHash);
-  }
-
-  private firstHeaderValue(
-    value: string | string[] | undefined,
-  ): string | undefined {
-    const single = Array.isArray(value) ? value[0] : value;
-    return typeof single === 'string' && single.length > 0 ? single : undefined;
   }
 }
 

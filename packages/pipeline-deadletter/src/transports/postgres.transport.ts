@@ -74,15 +74,14 @@ export function createDeadLetterTableSql(table = 'dead_letters'): string {
  * ```
  */
 export class PostgresDeadLetterTransport implements DeadLetterTransport {
-  private readonly table: string;
   private readonly insertSql: string;
 
   constructor(
     private readonly db: PostgresQueryableLike,
     options: PostgresDeadLetterTransportOptions = {},
   ) {
-    this.table = assertSafeTable(options.table ?? 'dead_letters');
-    this.insertSql = `INSERT INTO ${this.table}
+    const table = assertSafeTable(options.table ?? 'dead_letters');
+    this.insertSql = `INSERT INTO ${table}
       (correlation_id, request_kind, request_name, handler_name, payload, error, metadata, failed_at)
       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`;
   }

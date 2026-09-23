@@ -155,21 +155,11 @@ export class DeadLetterBehavior implements IPipelineBehavior {
       return false;
     }
 
-    if (options.ignoreErrors) {
-      if (typeof options.ignoreErrors === 'function') {
-        if (options.ignoreErrors(error, context)) {
-          return false;
-        }
-      } else if (Array.isArray(options.ignoreErrors)) {
-        for (const target of options.ignoreErrors) {
-          if (typeof target === 'function' && error instanceof target) {
-            return false;
-          }
-        }
-      }
-    }
-
-    return true;
+    const { ignoreErrors } = options;
+    return !(
+      (typeof ignoreErrors === 'function' || Array.isArray(ignoreErrors)) &&
+      matchesIgnoredError(ignoreErrors, error, context)
+    );
   }
 
   /** Merges per-handler options over the module defaults. */

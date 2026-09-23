@@ -16,11 +16,9 @@ const resilienceRequestStore = new AsyncLocalStorage<ResilienceRequestLabels>();
  * Runs a whole policy execution with the labels of the request that triggered it.
  *
  * Policies are cached per handler so that circuit-breaker and bulkhead state is
- * shared across invocations — which is correct. What was not correct was baking
- * the *first* request's name into the policy's telemetry callbacks at build
- * time: an event handler registered for several event types then reported the
- * first type forever, pointing operators at the wrong event during a retry
- * storm.
+ * shared across invocations, while telemetry callbacks report the request that
+ * is actually executing: an event handler registered for several event types
+ * labels each retry or break with the event that triggered it.
  *
  * The scope wraps the entire `policy.execute(...)` call rather than a single
  * attempt, because Cockatiel raises `onRetry`, `onBreak` and friends from its

@@ -14,6 +14,7 @@ import {
 } from '../../common/context/tenant-context.port';
 import { PERMISSIONS_IN_ACCESS_TOKEN } from '../../common/environment/auth-token.config';
 import type { SessionUser } from '../../common/types/SessionUser';
+import { firstHeaderValue } from './first-header-value';
 
 /**
  * Verifies Bearer JSON Web Tokens presented in the `Authorization` request header.
@@ -87,7 +88,7 @@ export class JwtAuthenticator {
   async authenticate(req: {
     headers?: Record<string, string | string[] | undefined>;
   }): Promise<SessionUser | undefined> {
-    const authHeader = this.firstHeaderValue(req.headers?.authorization);
+    const authHeader = firstHeaderValue(req.headers?.authorization);
     if (!authHeader) return undefined;
 
     const match = authHeader.match(/^[Bb]earer\s+(.+)$/);
@@ -263,13 +264,6 @@ export class JwtAuthenticator {
     this.cachedSecretRaw = secret;
 
     return candidates;
-  }
-
-  private firstHeaderValue(
-    value: string | string[] | undefined,
-  ): string | undefined {
-    const single = Array.isArray(value) ? value[0] : value;
-    return typeof single === 'string' && single.length > 0 ? single : undefined;
   }
 }
 

@@ -14,6 +14,7 @@ import {
   normalizeBehaviorEntries,
 } from '../helpers/behavior-entries';
 import type { IPipelineBehavior } from '../interfaces/pipeline.behavior.interface';
+import type { GlobalBehaviorsOptions } from '../options/global-behaviors.options';
 import type { PipelineModuleOptions } from '../options/pipeline-module.options';
 
 /** Compiles handler declarations without resolving providers or mutating methods. */
@@ -107,6 +108,14 @@ export function compilePipelinePlan(
   };
 }
 
+/** Normalizes the single-object and array forms of `globalBehaviors`. */
+export function toGlobalConfigs(
+  globalBehaviors: PipelineModuleOptions['globalBehaviors'],
+): GlobalBehaviorsOptions[] {
+  if (!globalBehaviors) return [];
+  return Array.isArray(globalBehaviors) ? globalBehaviors : [globalBehaviors];
+}
+
 /**
  * Resolves global before/after behaviors that match the given handler kind.
  * `globalBehaviors` may be a single `GlobalBehaviorsOptions` object or an array.
@@ -123,8 +132,7 @@ function resolveGlobalBehaviors(
   afterTypes: Type<IPipelineBehavior>[];
   globalOptions: Map<BehaviorId, Record<string, unknown>>;
 } {
-  const raw = options?.globalBehaviors;
-  const configs = raw ? (Array.isArray(raw) ? raw : [raw]) : [];
+  const configs = toGlobalConfigs(options?.globalBehaviors);
 
   const beforeTypes: Type<IPipelineBehavior>[] = [];
   const afterTypes: Type<IPipelineBehavior>[] = [];

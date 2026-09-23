@@ -366,30 +366,26 @@ export class PipelineBootstrapService
           runners: new Map(),
         };
 
-        const currentTarget = target;
-        const currentMethodName = methodName;
-        const fallbackMethod = originalMethod;
-
         const pipelinedDispatcher = async function (
           this: unknown,
           request: unknown,
         ): Promise<unknown> {
-          const map = prototypeRegistry.get(currentTarget);
-          const currentEntry = map?.get(currentMethodName);
+          const map = prototypeRegistry.get(target);
+          const currentEntry = map?.get(methodName);
           if (!currentEntry || currentEntry.runners.size === 0) {
-            return fallbackMethod.call(this, request);
+            return originalMethod.call(this, request);
           }
 
           const activeRunner =
             this && typeof this === 'object'
-              ? instanceRunnerMap.get(this)?.get(currentMethodName)
+              ? instanceRunnerMap.get(this)?.get(methodName)
               : undefined;
 
           if (activeRunner) {
             // A super call must invoke the ancestor method, not reenter the child chain.
-            return activeRunner.target === currentTarget
+            return activeRunner.target === target
               ? activeRunner.runner(this, request)
-              : fallbackMethod.call(this, request);
+              : originalMethod.call(this, request);
           }
 
           // The prototype is shared by every application in the process. With a
@@ -404,7 +400,7 @@ export class PipelineBootstrapService
           // Unowned instances cannot select safely between application-specific
           // chains, and running unwrapped would bypass every guard in them.
           throw new Error(
-            `${String(currentMethodName)}() refused to run without its pipeline: ` +
+            `${String(methodName)}() refused to run without its pipeline: ` +
               `${allRunners.length} applications share this handler prototype and ` +
               'the instance is not registered to any of them. Dispatch it through ' +
               "the owning application's CQRS bus.",

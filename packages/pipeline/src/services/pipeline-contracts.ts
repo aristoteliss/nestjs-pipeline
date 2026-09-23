@@ -88,58 +88,56 @@ export function validateBehaviorContracts(params: {
     };
 
     // 1. Validate ordering constraints
-    if (contract.order) {
-      const orderRule =
-        typeof contract.order === 'function'
-          ? contract.order(validationCtx)
-          : contract.order;
+    const orderRule =
+      typeof contract.order === 'function'
+        ? contract.order(validationCtx)
+        : contract.order;
 
-      if (orderRule) {
-        const edges: Array<{
-          target: Type<IPipelineBehavior> | string;
-          direction: 'after' | 'before';
-        }> = [];
+    if (orderRule) {
+      const edges: Array<{
+        target: Type<IPipelineBehavior> | string;
+        direction: 'after' | 'before';
+      }> = [];
 
-        if (orderRule.after) {
-          for (const target of orderRule.after) {
-            edges.push({ target, direction: 'after' });
-          }
+      if (orderRule.after) {
+        for (const target of orderRule.after) {
+          edges.push({ target, direction: 'after' });
         }
-        if (orderRule.before) {
-          for (const target of orderRule.before) {
-            edges.push({ target, direction: 'before' });
-          }
+      }
+      if (orderRule.before) {
+        for (const target of orderRule.before) {
+          edges.push({ target, direction: 'before' });
         }
+      }
 
-        for (const { target, direction } of edges) {
-          const targetIdx = behaviorTypes.findIndex((b) =>
-            typeof target === 'string'
-              ? getBehaviorId(b) === target || b.name === target
-              : b === target || getBehaviorId(b) === getBehaviorId(target),
-          );
+      for (const { target, direction } of edges) {
+        const targetIdx = behaviorTypes.findIndex((b) =>
+          typeof target === 'string'
+            ? getBehaviorId(b) === target || b.name === target
+            : b === target || getBehaviorId(b) === getBehaviorId(target),
+        );
 
-          // Relative position only: an absent target has no position to
-          // violate. A behavior that needs a peer to exist checks
-          // effectiveBehaviorTypes in its own validate().
-          if (targetIdx === -1) continue;
+        // Relative position only: an absent target has no position to
+        // violate. A behavior that needs a peer to exist checks
+        // effectiveBehaviorTypes in its own validate().
+        if (targetIdx === -1) continue;
 
-          const isViolation =
-            direction === 'after' ? i <= targetIdx : i >= targetIdx;
-          if (isViolation) {
-            const targetName = behaviorTypes[targetIdx].name;
-            diagnostics.push({
-              handlerName: handlerType.name,
-              behaviorName: BehaviorClass.name,
-              message:
-                direction === 'after'
-                  ? `${BehaviorClass.name} is positioned before ${targetName} in the pipeline chain, but must execute after it`
-                  : `${BehaviorClass.name} is positioned after ${targetName} in the pipeline chain, but must execute before it`,
-              fix:
-                direction === 'after'
-                  ? `Reorder the pipeline behaviors so that ${targetName} runs before ${BehaviorClass.name}.`
-                  : `Reorder the pipeline behaviors so that ${BehaviorClass.name} runs before ${targetName}.`,
-            });
-          }
+        const isViolation =
+          direction === 'after' ? i <= targetIdx : i >= targetIdx;
+        if (isViolation) {
+          const targetName = behaviorTypes[targetIdx].name;
+          diagnostics.push({
+            handlerName: handlerType.name,
+            behaviorName: BehaviorClass.name,
+            message:
+              direction === 'after'
+                ? `${BehaviorClass.name} is positioned before ${targetName} in the pipeline chain, but must execute after it`
+                : `${BehaviorClass.name} is positioned after ${targetName} in the pipeline chain, but must execute before it`,
+            fix:
+              direction === 'after'
+                ? `Reorder the pipeline behaviors so that ${targetName} runs before ${BehaviorClass.name}.`
+                : `Reorder the pipeline behaviors so that ${BehaviorClass.name} runs before ${targetName}.`,
+          });
         }
       }
     }
@@ -147,9 +145,7 @@ export function validateBehaviorContracts(params: {
     // 2. Validate behavior options and intent
     if (typeof contract.validate === 'function') {
       const result = contract.validate(validationCtx);
-      if (Array.isArray(result) && result.length > 0) {
-        diagnostics.push(...result);
-      }
+      if (Array.isArray(result)) diagnostics.push(...result);
     }
   }
 }

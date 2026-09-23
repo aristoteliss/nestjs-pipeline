@@ -179,7 +179,7 @@ export interface LoggingBehaviorOptions {
  * Structural type for errors/exceptions that carry extra, loggable context
  * via an `optionalParams` property, in addition to the standard `message`
  * and `stack`. When a thrown error matches this shape (checked via
- * {@link LoggingBehavior.hasOptionalParams}), `handle` appends
+ * {@link LoggingBehavior.optionalParamsOf}), `handle` appends
  * `optionalParams` to the error log entry — see {@link LoggingBehavior.handle}.
  */
 interface ErrorWithOptionalParams {
@@ -232,8 +232,8 @@ export class LoggingBehavior implements IPipelineBehavior {
    *    name/message. Two things are appended to that log entry when available:
    *    - the error's `stack`, if it's an `Error` instance;
    *    - the error's `optionalParams`, if it defines one (see
-   *      {@link ErrorWithOptionalParams} / {@link hasOptionalParams}) — the
-   *      value is normalized into an array via {@link extractOptionalParams}
+   *      {@link ErrorWithOptionalParams} / {@link optionalParamsOf}) — the
+   *      value is normalized into an array
    *      (wrapped in a single-element array if it isn't already an array)
    *      and merged into the logged payload, so any extra context an
    *      exception carries beyond `message`/`stack` still reaches the logs.
@@ -264,9 +264,7 @@ export class LoggingBehavior implements IPipelineBehavior {
     const metricLogLevel = options?.metricLogLevel ?? 'log';
     const requestResponseLogLevel = options?.requestResponseLogLevel ?? 'debug';
     const errorLogLevel = options?.errorLogLevel ?? 'error';
-    const excludeKeys = options?.excludeKeys
-      ? new Set<string>(options.excludeKeys)
-      : new Set<string>();
+    const excludeKeys = new Set<string>(options?.excludeKeys);
     const sanitizeOptions = this.buildSanitizeOptions(options, excludeKeys);
     const excludeRequestObj = options?.excludeRequestObj ?? true;
     const excludeResponseObj = options?.excludeResponseObj ?? true;
@@ -360,32 +358,26 @@ export class LoggingBehavior implements IPipelineBehavior {
           `${context.requestName} → ${context.handlerName} failed after ${duration}ms: ` +
           `${err ? `${err.name}: ${err.message}` : String(error)}`;
 
+        const params = this.optionalParamsOf(error);
+        const optionalParams = params
+          ? (safeSanitize(params, sanitizeOptions) as unknown[])
+          : undefined;
+
         if (structured) {
           const payload: Record<string, unknown> = {
             message,
             ...(err?.stack ? { stack: err.stack } : {}),
-            ...(this.hasOptionalParams(error)
-              ? {
-                  optionalParams: safeSanitize(
-                    this.extractOptionalParams(error),
-                    sanitizeOptions,
-                  ) as unknown[],
-                }
-              : {}),
+            ...(optionalParams ? { optionalParams } : {}),
           };
           this.log(logLevel, payload, context.handlerName);
         } else {
-          const optionalParams: unknown[] = [
+          this.log(
+            logLevel,
+            message,
             ...(err?.stack ? [err.stack] : []),
-            ...(this.hasOptionalParams(error)
-              ? (safeSanitize(
-                  this.extractOptionalParams(error),
-                  sanitizeOptions,
-                ) as unknown[])
-              : []),
+            ...(optionalParams ?? []),
             context.handlerName,
-          ];
-          this.log(logLevel, message, ...optionalParams);
+          );
         }
       });
 
@@ -460,30 +452,22 @@ export class LoggingBehavior implements IPipelineBehavior {
   }
 
   /**
-   * Type guard: true when `error` is a non-null object exposing a defined
-   * `optionalParams` property, i.e. it matches {@link ErrorWithOptionalParams}.
-   * `handle`'s `catch` branch uses this to decide whether the error log
-   * should be enriched with that extra context.
+   * Extracts extra, loggable context from an error matching
+   * {@link ErrorWithOptionalParams}: a non-null object exposing a defined
+   * `optionalParams` property. `handle`'s `catch` branch uses this to decide
+   * whether the error log should be enriched with that extra context.
+   *
+   * The value is normalized into an array so it can be spread into the error
+   * log payload: passed through as-is if it's already an array, or wrapped in a
+   * single-element array otherwise.
+   *
+   * @returns The normalized `optionalParams`, or `undefined` when the error is
+   *   not an object or does not define `optionalParams`.
    */
-  private hasOptionalParams(error: unknown): error is ErrorWithOptionalParams {
-    return (
-      typeof error === 'object' &&
-      error !== null &&
-      'optionalParams' in error &&
-      error.optionalParams !== undefined
-    );
-  }
-
-  /**
-   * Normalizes `error.optionalParams` into an array so it can be spread into
-   * the error log payload: passed through as-is if it's already an array,
-   * or wrapped in a single-element array otherwise. Always returns an array —
-   * callers only reach this after {@link hasOptionalParams} has confirmed
-   * `optionalParams` is defined, so there's no `null`/`undefined` case here.
-   */
-  private extractOptionalParams(error: ErrorWithOptionalParams): unknown[] {
-    return Array.isArray(error.optionalParams)
-      ? error.optionalParams
-      : [error.optionalParams];
+  private optionalParamsOf(error: unknown): unknown[] | undefined {
+    if (typeof error !== 'object' || error === null) return undefined;
+    const { optionalParams } = error as ErrorWithOptionalParams;
+    if (optionalParams === undefined) return undefined;
+    return Array.isArray(optionalParams) ? optionalParams : [optionalParams];
   }
 }

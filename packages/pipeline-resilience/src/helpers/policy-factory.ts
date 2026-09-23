@@ -38,7 +38,10 @@ import type {
   RetryOptions,
   TimeoutOptions,
 } from '../interfaces/resilience-options.interface';
-import { getResilienceRequestLabels } from './resilience-context';
+import {
+  getResilienceRequestLabels,
+  type ResilienceRequestLabels,
+} from './resilience-context';
 
 /** Default outermost → innermost composition order of the resilience layers. */
 const DEFAULT_ORDER: readonly ResilienceLayer[] = [
@@ -59,8 +62,7 @@ export type AnyPolicy = IPolicy<IDefaultPolicyContext, unknown>;
  *
  * `requestName` and `handlerName` are build-time fallbacks only. A policy is
  * built once per handler and reused, so the live values are read from the
- * request-scoped store at emit time; baking the first request's name in made a
- * multi-event handler report the wrong event forever.
+ * request-scoped store at emit time.
  */
 export interface PolicyBuildContext {
   logger?: LoggerService;
@@ -70,10 +72,7 @@ export interface PolicyBuildContext {
 }
 
 /** Resolves the live request labels, falling back to the build-time values. */
-function labels(ctx: PolicyBuildContext): {
-  requestName: string;
-  handlerName: string;
-} {
+function labels(ctx: PolicyBuildContext): ResilienceRequestLabels {
   return (
     getResilienceRequestLabels() ?? {
       requestName: ctx.requestName,
