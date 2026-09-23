@@ -2,8 +2,11 @@
 
 import { EntitySchema } from '@mikro-orm/core';
 import { AggregateRoot } from '@nestjs-pipeline/ddd-core/domain';
-import { UnixTimestampType } from '@nestjs-pipeline/ddd-core/persistence';
 import { User } from '../../users/domain/models/user.entity';
+import {
+  rootEntityProperties,
+  versionProperty,
+} from './root-entity.properties';
 
 /**
  * MikroORM EntitySchema for the {@link User} aggregate root.
@@ -22,24 +25,8 @@ export const UserSchema = new EntitySchema<User, AggregateRoot>({
   class: User as any,
   tableName: 'users',
   properties: {
-    id: { type: 'string', primary: true, fieldName: 'id', accessor: true },
-    createdAt: {
-      type: UnixTimestampType,
-      fieldName: 'created_at',
-      accessor: true,
-    },
-    updatedAt: {
-      type: UnixTimestampType,
-      fieldName: 'updated_at',
-      accessor: true,
-    },
-    version: {
-      type: 'number',
-      fieldName: 'version',
-      default: 1,
-      accessor: true,
-      version: true,
-    },
+    ...rootEntityProperties(),
+    version: versionProperty(),
     username: { type: 'string', fieldName: 'username', accessor: true },
     department: {
       type: 'string',

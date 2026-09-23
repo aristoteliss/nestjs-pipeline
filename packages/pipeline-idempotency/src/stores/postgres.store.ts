@@ -232,7 +232,7 @@ export class PostgresIdempotencyStore implements IdempotencyStore {
     await this.db.query(
       `INSERT INTO ${this.table}
          (key, status, request_name, claim_id, fingerprint, replay_scope, response, created_at, completed_at, expires_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, now() + ($10 || ' milliseconds')::interval)
        ON CONFLICT (key) DO UPDATE SET
          status = EXCLUDED.status,
          request_name = EXCLUDED.request_name,

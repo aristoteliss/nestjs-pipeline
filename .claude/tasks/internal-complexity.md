@@ -21,9 +21,55 @@ The production diff must be net negative in both real code lines and code charac
 
 ## Current Status
 
-Paused at the user's request after a verified pass. Nothing is committed. The working tree holds the uncommitted production changes listed below.
+On hold, waiting for the user to pick the next backlog item. Work since `705905ba` (the architecture pass, the idempotency `set()` fix and the test-only code move) is verified and **uncommitted**. Commit only when asked.
 
-Baseline for this pass: `e7b005c7`. Its tree is identical to the former coverage commit `313b58b0`, so all earlier cleanup work is already committed there. Measure this pass against `e7b005c7`; earlier savings do not count.
+## On-Hold Backlog (do after, in this order; each item needs the user's go-ahead)
+
+1. **Commit and release hygiene.**
+   - Commit the current working tree when asked.
+   - Bump `@nestjs-pipeline/idempotency` at least a patch version: the `set()` expiry fix changes runtime behavior.
+   - Add a changelog; none exists.
+   - Confirm the published versions on npm. `npm view` output was drowned by the `link-workspace-packages` config warning, so check again or silence the warning.
+   - Publish only from a commit that contains the `set()` fix.
+2. **Move generic persistence code from users-api into `ddd/core`** (prerequisite for publishing it):
+   - `ddd/users-api/src/persistence/is-transient-persistence-error.ts` (`isTransientPersistenceError`, `mapPersistenceError`) → `ddd/core/persistence`. The `ddd/core` docs already reference `mapPersistenceError`.
+   - `ddd/users-api/src/persistence/mikro-orm-write-side.command-repository.ts` → `ddd/core/persistence`, behind an `{ em }` store port instead of `MikroOrmStore`.
+   - Replace users-api's own `MissingTenantContextError` (`common/cqrs/helpers/requireTenantId.helper.ts`, extends `Error`) with `ddd/core`'s (extends `DomainException`). First decide the intended HTTP mapping, because the two map differently.
+   - Optional, decide separately:
+     - `MikroOrmCache` plus `CacheEntry` as a MikroORM `IVersionedCache` adapter (needs a table/schema story for consumers);
+     - `rootEntityProperties`/`versionProperty` with configurable column names;
+     - `DomainExceptionFilter` as an optional presentation entry point.
+3. **Make `ddd/core` publishable** (user leaning yes; recommendation about 65/35 for an experimental 0.x):
+   - Move it to `packages/ddd-core`, or extend `copy-licenses`, `test:release`, the Grit package rules and `publish:all` to cover it.
+   - `package.json`:
+     - remove `private`;
+     - make `@nestjs-pipeline/core`, `@nestjs/common` and `@nestjs/cqrs` peer dependencies;
+     - drop the unused `@nestjs-pipeline/correlation` dependency;
+     - add `files`, `publishConfig`, the license files and `repository`;
+     - rewrite the description, which currently says "for the sample applications".
+   - Enforce 100% coverage thresholds like core. Add release consumer checks per entry point; `/domain` and `/application` must load without MikroORM.
+   - Keep the repo-policy Grit specs (`biome-*-plugin.spec.ts`) out of the published package (P-09).
+   - Make the README a consumer manual.
+4. **Remaining review coverage** (not yet reviewed for simplification):
+   - `packages/pipeline/src/options/`, `interfaces/`, `errors/`, `types/`;
+   - `helpers/stableStringify.ts`, `key-segment.ts`, `logging.intent.ts`;
+   - the `*.intent.ts` helpers in the other packages (only skimmed);
+   - users-api migrations (deliberately skipped).
+5. **Small doc fix:** the `PostgresIdempotencyStore` class JSDoc sits above the `assertLeaseTtl` comment, so the class has no doc comment of its own.
+6. **Open review findings outside the published packages, not re-verified this session:**
+   - I-01: create → delete → create within 24h replays the old response;
+   - O-06: signal listeners do not close the app;
+   - U-01: the shared demo login code;
+   - RL-01/RL-02: users-api rate-limit dimensions and deployment;
+   - AU-06: audit coverage;
+   - U-03: auth services layering.
+
+   Check each against the current code before acting.
+7. **Only if the user asks:**
+   - users-api repository-per-operation consolidation (one command repository per aggregate). This changes the documented positive-example pattern and the Grit rules.
+   - Behavior-module factory in core: about 70 net lines, but a new public core API and a peer-version bump. Recommended against.
+
+Closed decisions (do not reopen): keep `setCorrelationFallback`; keep the production functions exported for specs; keep the processor alias names; U-05 cache-key object, Z-06 mapper pipe, AU-01 bootstrap move and shared delete-retry policy are rejected.
 
 ## Decisions
 
@@ -38,6 +84,7 @@ Baseline for this pass: `e7b005c7`. Its tree is identical to the former coverage
 - Do not force changes. Leave code alone when no clear, behavior-preserving simplification exists.
 - Follow repository architecture rules. Preserve cache coordination, tenant and authorization boundaries, persistence acknowledgment, error behavior, lifecycle ordering and extension points.
 - Do not commit unless requested. Do not stage files.
+- Architecture-level changes are allowed when they measurably simplify the code: fewer production lines and characters, fewer duplicated mechanisms or concepts. They must follow the same rules as local cleanups: preserve features, public APIs, options, extension points and consumer usage, and record each change's measured benefit. Structural change without a measured simplification is not a goal.
 
 ## Additional Requirements
 
@@ -127,21 +174,109 @@ Not reviewed yet: `ddd/users-api/src/persistence/migrations/*` (deliberately ski
 - Code-path inference, not reproduced: `PostgresIdempotencyStore.set()` binds the TTL in milliseconds (`$10`) directly to `expires_at TIMESTAMPTZ`. `setIfAbsent` and `completeIfOwned` use `now() + ($10 || ' milliseconds')::interval`. This predates `757e9e25`. The spec mocks `query`, so it does not catch this. Fixing it is a bug fix; it needs a user decision.
 - The `PostgresIdempotencyStore` class JSDoc sits above the `assertLeaseTtl` comment, so the class has no doc comment of its own. This was not fixed.
 
-## Tests and Verification (this pass, final sources)
+## Architecture Pass (baseline `705905ba`, uncommitted)
+
+Method: a clone scan of production files (repeated windows of six or more normalized lines, excluding imports and punctuation), then the open "architectural simplification" priorities in `docs/reviews/Architecture.Review.el.md` (P-02, AU-01, Z-06, U-05, O-04, C-04, X-02). Measured with the printer-based method: **-43 lines, -425 characters**.
+
+Applied:
+- `ddd/users-api/src/persistence/schemas/root-entity.properties.ts`: `rootEntityProperties()` and `versionProperty()` replace the identity, timestamp and version columns copied into the auth, role, user and capability schemas. The factories return fresh objects, and property order is unchanged. Result: -58 lines in schemas, +25 in the new file.
+- `ddd/core/application/request-fields.helper.ts` (not in the barrel): `defineHidden()` and `definedFields()` replace the duplicated hidden-property setup (four copies) and `toJSON()` in `BaseCommand` and `BaseQuery`. Class hierarchy and public API are unchanged.
+- `MikroOrmCache`: `readCommittedEntry()` names the identity-map-bypassing CAS read that was repeated five times. Size-neutral after normalization (+4 lines, -25 characters); kept because it gives the rule-17 invariant one named home. `readState` keeps its own read without `refresh`.
+- `@nestjs-pipeline/correlation` imports `untyped` from core (C-04) instead of keeping a copy, and keeps its own `dyn`. Coverage is still 100%.
+
+Scope for further architecture work: the published `packages/*` and core (`@nestjs-pipeline/core`, `ddd/core`). The users-api structure (for example, one repository per operation) is out of scope unless the user asks.
+
+Evaluated and rejected (do not re-evaluate):
+- A shared base for the three `Missing*PartitionError` classes: these are public classes with distinct names and messages, and a base would save about five lines each while adding a core export.
+- A shared core helper for the partitioned-key tenant check: about eight lines each, and it would need a new public API.
+- `*.intent.ts` helpers: already one-line public functions.
+- AU-01 was already consolidated to a single loop. Moving it to bootstrap would turn `failOpen` warnings into startup failures.
+- U-05: a per-aggregate cache-key object would add lines (the new file costs more than the call sites save); its benefit is consistency only.
+- Z-06 is mostly resolved. Removing the mapper `.pipe(UpdateUserCommand.schema)` would change the error type.
+- A shared retry policy for the two delete handlers: per-use-case policy, only two uses.
+- Handler and repository decorator configurations: declarative per use case and checked by the Grit plugin.
+- `ddd/core` domain `uuidv7`: deliberate domain isolation.
+- O-04 typed item wrappers: additive, not a reduction.
+- Already done earlier: P-02 (`IPipelineBehaviorOptionsResolver` exists).
+
+Further packages/core architecture review (normalized-size ranking plus cross-package mechanisms):
+- Serializers: audit `json.ts` is a tagged storage format (`$type`) persisted by the Postgres sink, distinct from core `safeStringify` (logs) and `stableStringify` (keys); merging would change stored records. Idempotency and dead-letter already reuse core (`toStrictJsonValue`, `stableStringify`, `redactValue`).
+- Audit and dead-letter record builders: different contracts (DL-01); only a tiny metadata merge overlaps.
+- Postgres identifier guard (audit, dead-letter): about 10 lines each. A shared version would put SQL helpers into core's public API. Not done.
+- Behavior modules (audit, rate-limit, idempotency, dead-letter; similar in cache and feature-flags): the same shape (behavior + backend token as value or factory + defaults token, `forRoot`/`forRootAsync`). A core module factory is estimated at about 110 lines saved in packages minus about 35 in core, so about 70 net. It needs a new public core export and a peer-version bump, hides the Nest provider graph, and DL-01 advises against it without a proven maintenance benefit. Awaiting the user's decision; not implemented.
+- Bootstrap scoped multi-application machinery, correlation's two ID sources (C-01), barrier and revision coexistence (D-02, rule 18), and `@Cache`/`@FromCache` positional overloads: supported contracts; not candidates.
+
+Verified on final sources: `pnpm test` (2,475), `pnpm lint`, `pnpm check`, `pnpm lint:persistence`, `git diff --check`, `pnpm test:e2e` (163 tests in 30 files, with Docker), `pnpm test:release` (12 packages), and `pnpm context:update` plus `context:validate`.
+
+## Defect Fix and Test-Only Code Move (baseline `705905ba`, uncommitted)
+
+Defect fix (reproduced, then fixed):
+- `PostgresIdempotencyStore.set()` bound the TTL in milliseconds to `expires_at TIMESTAMPTZ`. Real Postgres rejected it with `invalid input syntax for type timestamp with time zone: "60000"`. It now uses `now() + ($10 || ' milliseconds')::interval`, like the claim and completion writes.
+- Regression test: `ddd/users-api/test/postgres-idempotency-store.e2e-spec.ts` (Testcontainers Postgres). It failed before the fix and passes after. The package unit spec also asserts the `set()` expiry expression and parameter.
+
+Test-only production code moved or removed (users-api):
+- The `GetRolesCapabilitiesQuery`, handler, repository and `RoleDefinition` moved to `test/support/roles-capabilities/`, together with a local repository token. The module registration and the `QUERY_REPOSITORY.getRolesCapabilities` token were removed. The repository spec moved to `test/`. `casl-permission-source.e2e-spec.ts` keeps its "no per-request role query" spies, pointing at the moved class.
+- `SYSTEM_ROLES` moved into `test/role-provider-persistence.spec.ts` (the migration keeps its own copy). The unused `SystemRole` type and `roles.constants.ts` were deleted.
+- `withFork()` was removed from both stores. Its spec now asserts the same dedicated, untagged fork through `transactional()`.
+- `Capability.create`/`fromJSON` were removed. Specs use the public constructor, which applies the same normalization.
+- The `sem` getters were removed from both stores. The store-context spec reads `em` twice to assert fresh forks.
+- `MikroOrmStore.orm` was removed: production wrote it and nothing read it.
+- The `ILoginCodeVerifier.verify` string overload was removed. The two assertions that covered only that overload were dropped; the object-form assertions for the same codes remain.
+- The `RequestPrincipalResolver` constructor default `new SessionService()` was removed; specs pass an instance.
+
+Not moved (user decided to keep them as they are; do not propose again):
+- `setCorrelationFallback` and its state in `@nestjs-pipeline/correlation`: `@internal`, not exported from `index.ts`, and set only by tests. It is not movable; removal deletes the hook and its two tests.
+- Production functions exported only so that specs can import them (they are used in production within their own file, so the code cannot move). Removing each export means rewriting the tests to go through the real entry point:
+  - users-api: `createAuthRateLimitKey`, `refreshAuthRateLimitKey`, `createRoleIdempotencyKey`, `createUserRateLimitKey`, `createUserReplayScope`, `sessionAuditActor`, `UNAUTHENTICATED_AUDIT_ACTOR`, the five `user-overview-cache.policy.ts` exports, `resolveBatchTenant`, `MixedTenantBatchError`, `BatchUpdateUserItem`, `MissingPrincipalContextError`, `HTTP_LOG_REDACT_PATHS`, `isTransientPersistenceError`, and the CLI functions `purgeSessions`, `verifyUserPermissions` and `revert`;
+  - zod: `deepEqual` and `cloneData`.
+- Processor aliases `BatchUpdateUsersProcessor`/`SendWelcomeEmailProcessor`: production registers them, so they are not test-only. They are a second name for each class.
+- Inventory limitation: exported top-level names were checked by script. Class members were checked only for the items listed above.
+
+Measured against `705905ba` (architecture pass included): **-174 normalized lines, -4,964 code characters**.
+
+Verified: `pnpm test` (2,475), `pnpm lint`, `pnpm check`, `pnpm lint:persistence`, `git diff --check`, `pnpm test:e2e` (165 tests in 31 files), `pnpm test:release` (12 packages), and `pnpm context:update` plus `context:validate`.
+
+## Proposal: publish `ddd/core` (advice only, nothing changed)
+
+Generic code in users-api that belongs in `ddd/core`:
+- `persistence/is-transient-persistence-error.ts` (`isTransientPersistenceError`, `mapPersistenceError`). `ddd/core` docs already name `mapPersistenceError` as the canonical `otherwise` translator.
+- `persistence/mikro-orm-write-side.command-repository.ts`: the rule-18 authoritative write-side base. It needs an `{ em }` store port instead of `MikroOrmStore`.
+- `common/cqrs/helpers/requireTenantId.helper.ts` redefines `MissingTenantContextError` (extends `Error`), which differs from `ddd/core`'s class (extends `DomainException`).
+- Possible: `MikroOrmCache` plus `CacheEntry` (a MikroORM `IVersionedCache` adapter), `rootEntityProperties`/`versionProperty` (with configurable column names), and `DomainExceptionFilter` as an optional presentation entry.
+- Stay in users-api: the idempotent-operation, read-freshness and session helpers, the tenant EM registry and resolver, and `createMapper` (which, if shared at all, belongs in pipeline-zod).
+
+Restructure needed to publish `ddd/core`:
+- Move it to `packages/ddd-core`, or extend `copy-licenses`, `test:release`, the Grit package rules and `publish:all`.
+- `package.json`:
+  - remove `private`;
+  - make `@nestjs-pipeline/core`, `@nestjs/common` and `@nestjs/cqrs` peers;
+  - drop the unused `@nestjs-pipeline/correlation` dependency;
+  - add `files`, the license files and `publishConfig`;
+  - rewrite the description, which currently says "for the sample applications".
+- Enforce coverage thresholds like core.
+- Add pack and consumer checks per entry point, including `/domain` and `/application` without MikroORM installed.
+- Keep the repo-policy Grit specs out of the published package (P-09).
+- Resolve the tenant error duplicate and move the generic persistence helpers listed above.
+
+## Tests and Verification (first pass, final sources)
 
 - Per-package tests passed after each change. `pnpm test`: 2,475 tests passed across all workspaces (core 324, ddd-core 406, users-api 761).
 - Core and correlation coverage: 100% on all four metrics (core 651/559/107/601, correlation 82/78/25/78).
 - `pnpm lint`, `pnpm check`, `pnpm lint:persistence` and `git diff --check`: passed.
 - `pnpm test:release`: passed for all 12 packed packages, including the core lifecycle and CASL contracts.
-- Not run yet: `pnpm test:e2e` (needs Docker), `pnpm context:check`/`context:validate`.
+- `pnpm test:e2e`: all 163 tests in 30 files passed with Docker running.
+- `pnpm context:update` regenerated only the generated map sections (file counts, the commit, one env var name). `pnpm context:validate`: 58 checks passed, with the existing map-size warning.
 
 ## Next Steps
 
-1. Run `pnpm test:e2e` (Docker) for real Nest composition of the bootstrap rename, the users-api persistence options and the `ddd/core` decorators.
-2. Run `pnpm context:check`. The users-api file additions and deletions may need `pnpm context:update` and `pnpm context:validate`; mention any map change.
-3. Optionally review the unreviewed areas listed above.
-4. Ask the user about the Postgres `set()` defect and the test-only users-api surface.
-5. Report to the user; do not commit unless asked.
+User decisions:
+- Fix the `PostgresIdempotencyStore.set()` expiry defect, with a regression test against real Postgres.
+- Move every production part used only by tests into test code (users-api and packages), updating the tests without weakening them.
+- Behavior-module factory in core: offered and recommended against; not requested.
+- Keep `setCorrelationFallback`, and keep the production functions exported for specs. Do not remove or un-export them.
+
+
+1. Wait for the user to choose from the On-Hold Backlog. Do not start any item without the go-ahead.
 
 ## Snapshot Impact
 
@@ -166,6 +301,8 @@ Treat foundational execution and context propagation as critical code. Add focus
 You may remove deprecated root-entity code when a documented contract and consumer-scope review establishes that it is obsolete. Do not remove root-entity getters or setters, including hydration accessors. Neither a deprecation label nor missing local usage alone justifies removing a reusable feature.
 
 Keep function descriptions that carry good explanations or examples; when merging or moving functions, carry their full documentation across.
+
+Architecture-level changes are allowed when they deliver a measured simplification (less production code and fewer duplicated mechanisms) under the same preservation rules; record the measured benefit of each.
 
 Keep test-only code in tests. Production code must serve runtime behavior or a supported consumer contract. Do not add or retain production exports, parameters, branches, injection seams or state solely to help tests access internals or satisfy coverage. Verify consumer scope before moving existing support code into tests.
 

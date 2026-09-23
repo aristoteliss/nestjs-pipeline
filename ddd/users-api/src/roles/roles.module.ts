@@ -7,12 +7,10 @@ import { DeleteRoleHandler } from './cqrs/commands/delete-role.handler';
 import { UpdateRoleHandler } from './cqrs/commands/update-role.handler';
 import { GetRoleHandler } from './cqrs/queries/get-role.handler';
 import { GetRolesHandler } from './cqrs/queries/get-roles.handler';
-import { GetRolesCapabilitiesHandler } from './cqrs/queries/get-roles-capabilities.handler';
 import { CreateRoleCommandRepository } from './persistence/create-role.command-repository';
 import { DeleteRoleCommandRepository } from './persistence/delete-role.command-repository';
 import { GetRoleQueryRepository } from './persistence/get-role.query-repository';
 import { GetRolesQueryRepository } from './persistence/get-roles.query-repository';
-import { GetRolesCapabilitiesQueryRepository } from './persistence/get-roles-capabilities.query-repository';
 import {
   COMMAND_REPOSITORY,
   QUERY_REPOSITORY,
@@ -39,15 +37,10 @@ import { UpdateRoleCommandRepository } from './persistence/update-role.command-r
     // Repositories (Query)
     { provide: QUERY_REPOSITORY.getRole, useClass: GetRoleQueryRepository },
     { provide: QUERY_REPOSITORY.getRoles, useClass: GetRolesQueryRepository },
-    {
-      provide: QUERY_REPOSITORY.getRolesCapabilities,
-      useClass: GetRolesCapabilitiesQueryRepository,
-    },
 
     // Queries
     GetRoleHandler,
     GetRolesHandler,
-    GetRolesCapabilitiesHandler,
 
     // Commands
     CreateRoleHandler,

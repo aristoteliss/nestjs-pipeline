@@ -1,6 +1,7 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { createHash } from 'node:crypto';
+import type { EntityManager } from '@mikro-orm/libsql';
 import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
 import type {
   CacheFillOptions,
@@ -10,6 +11,18 @@ import type {
 } from '@nestjs-pipeline/ddd-core/application';
 import { MIKRO_ORM_CLIENT, MikroOrmStore } from '../mikro-orm.store';
 import { CacheEntry } from './cache.entity';
+
+/**
+ * Reads the committed row inside a CAS transaction, bypassing the identity map
+ * so a concurrent writer's revision is always observed.
+ */
+function readCommittedEntry(em: EntityManager, key: string) {
+  return em.findOne(
+    CacheEntry,
+    { key },
+    { refresh: true, disableIdentityMap: true },
+  );
+}
 
 export type { CacheSetOptions };
 
@@ -90,11 +103,7 @@ export class MikroOrmCache<T> implements IVersionedCache<T> {
   async invalidate(key: string): Promise<string> {
     return this.store.transactional(async (em) => {
       for (let attempt = 0; attempt < MAX_CAS_ATTEMPTS; attempt++) {
-        const existing = await em.findOne(
-          CacheEntry,
-          { key },
-          { refresh: true, disableIdentityMap: true },
-        );
+        const existing = await readCommittedEntry(em, key);
 
         if (!existing) {
           // `onConflictAction: 'ignore'` keeps a lost insert race from aborting
@@ -104,11 +113,7 @@ export class MikroOrmCache<T> implements IVersionedCache<T> {
             { key, value: '', expiresAt: null, revision: '1' },
             { onConflictAction: 'ignore' },
           );
-          const inserted = await em.findOne(
-            CacheEntry,
-            { key },
-            { refresh: true, disableIdentityMap: true },
-          );
+          const inserted = await readCommittedEntry(em, key);
           if (inserted && (inserted.revision ?? '0').toString() === '1') {
             return '1';
           }
@@ -154,11 +159,7 @@ export class MikroOrmCache<T> implements IVersionedCache<T> {
       const nextRevision = (BigInt(observedRevision) + 1n).toString();
 
       if (observedRevision === '0') {
-        const existing = await em.findOne(
-          CacheEntry,
-          { key },
-          { refresh: true, disableIdentityMap: true },
-        );
+        const existing = await readCommittedEntry(em, key);
 
         if (!existing) {
           await em.upsert(
@@ -166,11 +167,7 @@ export class MikroOrmCache<T> implements IVersionedCache<T> {
             { key, value: serialized, expiresAt, revision: '1' },
             { onConflictAction: 'ignore' },
           );
-          const inserted = await em.findOne(
-            CacheEntry,
-            { key },
-            { refresh: true, disableIdentityMap: true },
-          );
+          const inserted = await readCommittedEntry(em, key);
           // A competing writer won the insert; this fill observed revision 0
           // and must not overwrite it.
           return inserted !== null && inserted.value === serialized;
@@ -225,11 +222,7 @@ export class MikroOrmCache<T> implements IVersionedCache<T> {
 
     await this.store.transactional(async (em) => {
       for (let attempt = 0; attempt < MAX_CAS_ATTEMPTS; attempt++) {
-        const existing = await em.findOne(
-          CacheEntry,
-          { key },
-          { refresh: true, disableIdentityMap: true },
-        );
+        const existing = await readCommittedEntry(em, key);
 
         if (!existing) {
           await em.upsert(

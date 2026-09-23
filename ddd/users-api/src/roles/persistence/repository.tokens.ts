@@ -9,5 +9,4 @@ export const COMMAND_REPOSITORY = {
 export const QUERY_REPOSITORY = {
   getRole: Symbol('getRole'),
   getRoles: Symbol('getRoles'),
-  getRolesCapabilities: Symbol('getRolesCapabilities'),
 } as const;

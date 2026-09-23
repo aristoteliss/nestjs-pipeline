@@ -1,9 +1,10 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { Logger, LoggerService, LogLevel } from '@nestjs/common';
+import { untyped } from '@nestjs-pipeline/core';
 import { DEFAULT_CORRELATION_HEADER } from '../constants/correlation.constants';
 import { getCorrelationId, runWithCorrelationId } from '../correlation.store';
-import { dyn, untyped } from '../types/safe-typing';
+import { dyn } from '../types/safe-typing';
 
 /**
  * A function that extracts the correlation ID from the method arguments.

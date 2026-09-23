@@ -21,12 +21,12 @@ import { UserPermissionsProjector } from '../src/auths/persistence/user-permissi
 import { sessionUserStore } from '../src/common/context/session-user.store';
 import { UserPermissionRule } from '../src/persistence/entities/user-permission-rule.entity';
 import { UserRole } from '../src/persistence/entities/user-role.entity';
-import { GetRolesCapabilitiesQueryRepository } from '../src/roles/persistence/get-roles-capabilities.query-repository';
 import {
   fixtures,
   type MigratedDb,
   migratedDb,
 } from './support/permission-rules-db';
+import { GetRolesCapabilitiesQueryRepository } from './support/roles-capabilities/get-roles-capabilities.query-repository';
 
 const id = (suffix: string) => `01990000-0000-7000-8000-000000000${suffix}`;
 const U1 = id('a01');

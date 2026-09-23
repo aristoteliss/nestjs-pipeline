@@ -47,8 +47,11 @@ describe('MikroOrmStore', () => {
     expect((forkedEm as any).__tenant).toBeUndefined();
   });
 
-  it('withFork provides a dedicated fork to callback and returns result', async () => {
-    const forkedEm = { id: 'scoped-fork' };
+  it('transactional runs on a dedicated untagged fork and returns the result', async () => {
+    const forkedEm = {
+      id: 'scoped-fork',
+      transactional: vi.fn().mockImplementation((cb) => cb(forkedEm)),
+    };
     const rootEm = {
       id: 'root-em',
       fork: vi.fn().mockReturnValue(forkedEm),
@@ -58,12 +61,13 @@ describe('MikroOrmStore', () => {
     const store = new MikroOrmStore(mockTenantContext);
     (store as any).orms.set('tenant_a', mockOrm);
 
-    const result = await store.withFork(async (em) => {
+    const result = await store.transactional(async (em) => {
       expect(em).toBe(forkedEm);
       expect((em as any).__tenant).toBeUndefined();
       return 'fork-result';
     });
 
+    expect(rootEm.fork).toHaveBeenCalledTimes(1);
     expect(result).toBe('fork-result');
   });
 

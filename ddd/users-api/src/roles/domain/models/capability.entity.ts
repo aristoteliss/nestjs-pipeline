@@ -43,38 +43,6 @@ export class Capability extends RootEntity<CapabilitySnapshot> {
     this.fields = snapshot.fields;
   }
 
-  static create(
-    action: string,
-    subject: string,
-    conditions?: string | null,
-    inverted = false,
-    reason?: string | null,
-    fields?: string | null,
-  ): Capability {
-    return new Capability({
-      action,
-      subject,
-      conditions,
-      inverted,
-      reason,
-      fields,
-    });
-  }
-
-  static fromJSON(snapshot: CapabilitySnapshot): Capability {
-    return new Capability({
-      id: Capability.normalizeId(snapshot.id),
-      action: snapshot.action,
-      subject: snapshot.subject,
-      conditions: snapshot.conditions,
-      inverted: snapshot.inverted,
-      reason: snapshot.reason,
-      fields: snapshot.fields,
-      createdAt: Capability.normalizeDate(snapshot.createdAt),
-      updatedAt: Capability.normalizeDate(snapshot.updatedAt),
-    });
-  }
-
   toJSON(): RootEntitySnapshot & CapabilitySnapshot {
     return this.freezeState({
       id: this.id,

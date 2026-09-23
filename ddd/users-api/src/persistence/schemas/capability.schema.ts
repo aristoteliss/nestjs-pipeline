@@ -2,24 +2,14 @@
 
 import { EntitySchema } from '@mikro-orm/core';
 import { AggregateRoot } from '@nestjs-pipeline/ddd-core/domain';
-import { UnixTimestampType } from '@nestjs-pipeline/ddd-core/persistence';
 import { Capability } from '../../roles/domain/models/capability.entity';
+import { rootEntityProperties } from './root-entity.properties';
 
 export const CapabilitySchema = new EntitySchema<Capability, AggregateRoot>({
   class: Capability,
   tableName: 'capabilities',
   properties: {
-    id: { type: 'string', primary: true, fieldName: 'id', accessor: true },
-    createdAt: {
-      type: UnixTimestampType,
-      fieldName: 'created_at',
-      accessor: true,
-    },
-    updatedAt: {
-      type: UnixTimestampType,
-      fieldName: 'updated_at',
-      accessor: true,
-    },
+    ...rootEntityProperties(),
     action: { type: 'string' },
     subject: { type: 'string' },
     conditions: { type: 'string', nullable: true },

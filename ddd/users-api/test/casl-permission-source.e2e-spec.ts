@@ -89,7 +89,7 @@ describe('CASL permission source wiring (e2e)', () => {
       '../src/auths/persistence/get-user-capabilities.query-repository'
     );
     const { GetRolesCapabilitiesQueryRepository } = await import(
-      '../src/roles/persistence/get-roles-capabilities.query-repository'
+      './support/roles-capabilities/get-roles-capabilities.query-repository'
     );
     const assignments = vi.spyOn(
       GetUserCapabilitiesQueryRepository.prototype,

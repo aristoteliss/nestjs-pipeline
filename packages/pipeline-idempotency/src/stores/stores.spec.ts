@@ -631,6 +631,9 @@ describe('PostgresIdempotencyStore', () => {
       expect.stringContaining('ON CONFLICT (key) DO UPDATE SET'),
       expect.any(Array),
     );
+    const [sql, params] = query.mock.calls[0];
+    expect(sql).toContain("now() + ($10 || ' milliseconds')::interval");
+    expect(params[9]).toBe('5000');
     await store.delete('key1');
     expect(query).toHaveBeenCalledWith(
       expect.stringContaining('DELETE FROM idempotency_keys WHERE key = $1'),

@@ -1,11 +1,19 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
-import { SYSTEM_ROLES } from '@common/constants';
 import { MikroORM } from '@mikro-orm/libsql';
 import { createLibsqlOrmOptions } from '@persistence/libsql-options';
 import { Migration20260830000000 } from '@persistence/migrations/Migration20260830000000';
 import type { MikroOrmStore } from '@persistence/mikro-orm.store';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { GetRolesCapabilitiesQueryRepository } from '../src/roles/persistence/get-roles-capabilities.query-repository';
+import { GetRolesCapabilitiesQueryRepository } from './support/roles-capabilities/get-roles-capabilities.query-repository';
+
+/** Role names seeded by the initial migration. */
+const SYSTEM_ROLES = {
+  ADMIN: 'admin',
+  USER_MANAGER: 'user-manager',
+  SELF: 'self',
+  VIEWER: 'viewer',
+  SUPPORT_AGENT: 'support-agent',
+} as const;
 
 describe('Role provider with real MikroORM persistence', () => {
   let orm: MikroORM;

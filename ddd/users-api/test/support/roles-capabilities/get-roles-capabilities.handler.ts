@@ -3,16 +3,17 @@
 import { Inject } from '@nestjs/common';
 import { type IQueryHandler, QueryHandler } from '@nestjs/cqrs';
 import { IQueryRepository } from '@nestjs-pipeline/ddd-core/application';
-import type { RoleDefinition } from '../../../auths/application/permission-assignments';
-import { QUERY_REPOSITORY } from '../../persistence/repository.tokens';
 import { GetRolesCapabilitiesQuery } from './get-roles-capabilities.query';
+import type { RoleDefinition } from './get-roles-capabilities.query-repository';
+
+export const GET_ROLES_CAPABILITIES_REPOSITORY = Symbol('getRolesCapabilities');
 
 @QueryHandler(GetRolesCapabilitiesQuery)
 export class GetRolesCapabilitiesHandler
   implements IQueryHandler<GetRolesCapabilitiesQuery, RoleDefinition[]>
 {
   constructor(
-    @Inject(QUERY_REPOSITORY.getRolesCapabilities)
+    @Inject(GET_ROLES_CAPABILITIES_REPOSITORY)
     private readonly queryRepository: IQueryRepository<
       GetRolesCapabilitiesQuery,
       RoleDefinition[]

@@ -1,6 +1,7 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import type { ICommand } from '@nestjs/cqrs';
+import { definedFields, defineHidden } from './request-fields.helper';
 
 /**
  * Base class for application CQRS commands.
@@ -14,12 +15,8 @@ export abstract class BaseCommand<TSessionUser = any> implements ICommand {
   public declare readonly sessionUser?: TSessionUser;
 
   constructor(sessionUser?: TSessionUser) {
-    if (sessionUser !== undefined) {
-      Object.defineProperty(this, 'sessionUser', {
-        value: sessionUser,
-        enumerable: false,
-      });
-    }
+    if (sessionUser !== undefined)
+      defineHidden(this, 'sessionUser', sessionUser);
   }
 
   /**
@@ -32,13 +29,7 @@ export abstract class BaseCommand<TSessionUser = any> implements ICommand {
    * @returns The command payload without pipeline/session metadata.
    */
   toJSON(): Record<string, unknown> {
-    const json: Record<string, unknown> = {};
-    for (const [key, value] of Object.entries(this)) {
-      if (value !== undefined) {
-        json[key] = value;
-      }
-    }
-    return json;
+    return definedFields(this);
   }
 
   /**

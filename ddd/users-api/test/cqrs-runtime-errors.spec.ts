@@ -39,11 +39,8 @@ import { GetRoleHandler } from '../src/roles/cqrs/queries/get-role.handler';
 import { GetRoleQuery } from '../src/roles/cqrs/queries/get-role.query';
 import { GetRolesHandler } from '../src/roles/cqrs/queries/get-roles.handler';
 import { GetRolesQuery } from '../src/roles/cqrs/queries/get-roles.query';
-import { GetRolesCapabilitiesHandler } from '../src/roles/cqrs/queries/get-roles-capabilities.handler';
-import { GetRolesCapabilitiesQuery } from '../src/roles/cqrs/queries/get-roles-capabilities.query';
 import { UniqueRoleNameException } from '../src/roles/domain/models/errors/role-name.exception';
 import { Role } from '../src/roles/domain/models/role.entity';
-
 // Users CQRS & Exceptions
 import { CreateUserCommand } from '../src/users/cqrs/commands/create-user.command';
 import { CreateUserHandler } from '../src/users/cqrs/commands/create-user.handler';
@@ -63,6 +60,8 @@ import {
 } from '../src/users/domain/models/errors';
 import { User } from '../src/users/domain/models/user.entity';
 import { toResponseDto } from '../src/users/dtos/user.dto';
+import { GetRolesCapabilitiesHandler } from './support/roles-capabilities/get-roles-capabilities.handler';
+import { GetRolesCapabilitiesQuery } from './support/roles-capabilities/get-roles-capabilities.query';
 
 // Test Utilities
 function createMockEventBus(): EventBus {

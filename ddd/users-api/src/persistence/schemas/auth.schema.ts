@@ -2,8 +2,11 @@
 
 import { BigIntType, EntitySchema } from '@mikro-orm/core';
 import { AggregateRoot } from '@nestjs-pipeline/ddd-core/domain';
-import { UnixTimestampType } from '@nestjs-pipeline/ddd-core/persistence';
 import { Auth } from '../../auths/domain/models/auth.entity';
+import {
+  rootEntityProperties,
+  versionProperty,
+} from './root-entity.properties';
 
 /**
  * MikroORM EntitySchema for the {@link Auth} aggregate.
@@ -17,24 +20,8 @@ export const AuthSchema = new EntitySchema<Auth, AggregateRoot>({
   class: Auth as any,
   tableName: 'auth',
   properties: {
-    id: { type: 'string', primary: true, fieldName: 'id', accessor: true },
-    createdAt: {
-      type: UnixTimestampType,
-      fieldName: 'created_at',
-      accessor: true,
-    },
-    updatedAt: {
-      type: UnixTimestampType,
-      fieldName: 'updated_at',
-      accessor: true,
-    },
-    version: {
-      type: 'number',
-      fieldName: 'version',
-      default: 1,
-      accessor: true,
-      version: true,
-    },
+    ...rootEntityProperties(),
+    version: versionProperty(),
     userId: { type: 'string', fieldName: 'user_id' },
     refreshTokenHash: {
       type: 'string',

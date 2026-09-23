@@ -5,15 +5,15 @@ import { describe, expect, it } from 'vitest';
 import { Capability } from './capability.entity';
 
 describe('Capability entity', () => {
-  it('creates capability through factory and serializes to JSON', () => {
-    const cap = Capability.create(
-      'read',
-      'Document',
-      '{"status":"published"}',
-      false,
-      'Allowed to view published docs',
-      'title,body',
-    );
+  it('creates a capability and serializes it to JSON', () => {
+    const cap = new Capability({
+      action: 'read',
+      subject: 'Document',
+      conditions: '{"status":"published"}',
+      inverted: false,
+      reason: 'Allowed to view published docs',
+      fields: 'title,body',
+    });
 
     expect(cap.action).toBe('read');
     expect(cap.subject).toBe('Document');
@@ -32,7 +32,7 @@ describe('Capability entity', () => {
     expect(json.fields).toBe('title,body');
   });
 
-  it('rehydrates capability from snapshot via fromJSON()', () => {
+  it('rehydrates a capability from a persisted snapshot', () => {
     const id = uuidv7();
     const createdAt = new Date('2026-01-01T00:00:00.000Z');
     const updatedAt = new Date('2026-01-02T00:00:00.000Z');
@@ -49,7 +49,7 @@ describe('Capability entity', () => {
       updatedAt,
     };
 
-    const cap = Capability.fromJSON(snapshot);
+    const cap = new Capability(snapshot);
     expect(cap).toBeInstanceOf(Capability);
     expect(cap.id).toBe(id);
     expect(cap.action).toBe('delete');
