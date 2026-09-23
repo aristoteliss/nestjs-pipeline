@@ -1,7 +1,7 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { MikroORM } from '@mikro-orm/core';
-import { EntityManager, SqlEntityManager } from '@mikro-orm/postgresql';
+import { EntityManager } from '@mikro-orm/postgresql';
 import {
   Inject,
   Injectable,
@@ -58,18 +58,6 @@ export class PostgresMikroOrmStore implements OnModuleInit, OnModuleDestroy {
     return this.entityManagers.resolve(this.orm, schema, () =>
       this.forkFor(schema),
     );
-  }
-
-  get sem(): SqlEntityManager {
-    return this.em;
-  }
-
-  /**
-   * Executes an operation within an explicit, shared Unit of Work (EntityManager fork).
-   * Ensures that all operations within the callback share the same identity map and change set.
-   */
-  async withFork<T>(cb: (em: EntityManager) => Promise<T>): Promise<T> {
-    return cb(this.dedicatedFork());
   }
 
   /**

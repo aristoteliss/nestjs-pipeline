@@ -10,7 +10,3 @@ export interface UserPermissionAssignments {
 }
 
 /** A named role and the rules it grants. */
-export interface RoleDefinition {
-  name: string;
-  capabilities: (Capability | CapabilityString)[];
-}

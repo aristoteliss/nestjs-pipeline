@@ -11,8 +11,13 @@ import { GetUserCapabilitiesQueryRepository } from './get-user-capabilities.quer
 describe('GetUserCapabilitiesQueryRepository', () => {
   it('uses schema-aware entity operations instead of raw SQL', async () => {
     const role = Role.create('admin');
-    const additional = Capability.create('read', 'User');
-    const denied = Capability.create('delete', 'User', null, true);
+    const additional = new Capability({ action: 'read', subject: 'User' });
+    const denied = new Capability({
+      action: 'delete',
+      subject: 'User',
+      conditions: null,
+      inverted: true,
+    });
     const find = vi.fn(async (entity: unknown) => {
       if (entity === UserRole) return [{ userId: 'user-1', roleId: role.id }];
       if (entity === UserAdditionalCapability) {

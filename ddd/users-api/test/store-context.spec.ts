@@ -17,7 +17,6 @@ type Manager = EntityManager;
 
 interface StoreUnderTest {
   readonly em: Manager;
-  readonly sem: Manager;
 }
 
 interface Adapter {
@@ -123,10 +122,11 @@ describe.each([
   it('forks for the active tenant when no context exists', () => {
     for (const tenant of ['tenant_a', 'tenant_b']) {
       asTenant(tenant, () => {
-        const { em, sem } = adapter.store;
+        const em = adapter.store.em;
+        const next = adapter.store.em;
         expect(adapter.ownedBy(em, tenant)).toBe(true);
-        expect(adapter.ownedBy(sem, tenant)).toBe(true);
-        expect(em).not.toBe(sem);
+        expect(adapter.ownedBy(next, tenant)).toBe(true);
+        expect(em).not.toBe(next);
       });
     }
   });

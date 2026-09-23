@@ -7,6 +7,7 @@ import type { SessionData } from '../../common/types/SessionUser';
 import { ApiClientAuthenticator } from './api-client-authenticator';
 import { JwtAuthenticator } from './jwt-authenticator';
 import { RequestPrincipalResolver } from './request-principal-resolver';
+import { SessionService } from './session.service';
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -33,6 +34,7 @@ describe('RequestPrincipalResolver', () => {
       jwtAuth,
       apiClientAuth,
       tenantContext,
+      new SessionService(),
     );
     const user = await resolver.resolvePrincipal({ headers: {}, session });
 
@@ -56,6 +58,7 @@ describe('RequestPrincipalResolver', () => {
       new JwtAuthenticator(tenantContext),
       new ApiClientAuthenticator(tenantContext),
       tenantContext,
+      new SessionService(),
     );
     const user = await resolver.resolvePrincipal({ headers: {}, session });
 
@@ -77,6 +80,7 @@ describe('RequestPrincipalResolver', () => {
       new JwtAuthenticator(tenantContext),
       new ApiClientAuthenticator(tenantContext),
       tenantContext,
+      new SessionService(),
     );
 
     await expect(
@@ -100,6 +104,7 @@ describe('RequestPrincipalResolver', () => {
       new JwtAuthenticator(tenantContext),
       new ApiClientAuthenticator(tenantContext),
       tenantContext,
+      new SessionService(),
     );
     const user = await resolver.resolvePrincipal({ headers: {}, session });
 
@@ -131,6 +136,7 @@ describe('RequestPrincipalResolver', () => {
       jwtAuth,
       apiClientAuth,
       tenantContext,
+      new SessionService(),
     );
     const user = await resolver.resolvePrincipal({
       headers: { authorization: 'Bearer fresh-token' },
@@ -156,6 +162,7 @@ describe('RequestPrincipalResolver', () => {
       new JwtAuthenticator(tenantContext),
       new ApiClientAuthenticator(tenantContext),
       tenantContext,
+      new SessionService(),
     );
     const user = await resolver.resolvePrincipal({ headers: {}, session });
 
@@ -178,6 +185,7 @@ describe('RequestPrincipalResolver', () => {
       jwtAuth,
       apiClientAuth,
       tenantContext,
+      new SessionService(),
     );
     const user = await resolver.resolvePrincipal(req);
 
@@ -202,6 +210,7 @@ describe('RequestPrincipalResolver', () => {
       jwtAuth,
       apiClientAuth,
       tenantContext,
+      new SessionService(),
     );
     const user = await resolver.resolvePrincipal(req);
 
@@ -216,6 +225,7 @@ describe('RequestPrincipalResolver', () => {
       new JwtAuthenticator(tenantContext),
       new ApiClientAuthenticator(tenantContext),
       tenantContext,
+      new SessionService(),
     );
     const user = await resolver.resolvePrincipal(req);
 

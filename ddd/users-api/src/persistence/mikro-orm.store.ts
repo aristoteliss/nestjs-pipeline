@@ -1,6 +1,6 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import { EntityManager, MikroORM, SqlEntityManager } from '@mikro-orm/libsql';
+import { EntityManager, MikroORM } from '@mikro-orm/libsql';
 import {
   Inject,
   Injectable,
@@ -10,7 +10,6 @@ import {
 } from '@nestjs/common';
 import {
   createLibsqlOrmOptions,
-  resolveDefaultSchema,
   resolveLibsqlDbUrl,
   resolveLibsqlTenants,
 } from './libsql-options';
@@ -32,7 +31,6 @@ export const MIKRO_ORM_CLIENT = Symbol('MIKRO_ORM_CLIENT');
 export class MikroOrmStore implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(MikroOrmStore.name);
   private readonly orms = new Map<string, MikroORM>();
-  public orm!: MikroORM;
 
   constructor(
     @Inject(TenantSchemaContext)
@@ -48,8 +46,6 @@ export class MikroOrmStore implements OnModuleInit, OnModuleDestroy {
         `MikroORM initialized for tenant "${tenant}" (${dbName})`,
       );
     }
-
-    this.orm = this.orms.get(resolveDefaultSchema()) as MikroORM;
   }
 
   async onModuleDestroy(): Promise<void> {
@@ -87,18 +83,6 @@ export class MikroOrmStore implements OnModuleInit, OnModuleDestroy {
       this.tenantSchemaContext.schema,
       () => this.forkFor(orm),
     );
-  }
-
-  get sem(): SqlEntityManager {
-    return this.em;
-  }
-
-  /**
-   * Executes an operation within an explicit, shared Unit of Work (EntityManager fork).
-   * Ensures that all operations within the callback share the same identity map and change set.
-   */
-  async withFork<T>(cb: (em: EntityManager) => Promise<T>): Promise<T> {
-    return cb(this.dedicatedFork());
   }
 
   /**

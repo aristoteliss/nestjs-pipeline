@@ -1,6 +1,7 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import type { IQueryOptions } from './query.options';
+import { definedFields, defineHidden } from './request-fields.helper';
 
 /**
  * Base class for application CQRS queries.
@@ -30,20 +31,10 @@ export abstract class BaseQuery<TSessionUser = unknown>
   public declare readonly sessionUser?: TSessionUser;
 
   constructor(options?: Partial<IQueryOptions>, sessionUser?: TSessionUser) {
-    Object.defineProperty(this, 'hydrate', {
-      value: options?.hydrate ?? false,
-      enumerable: false,
-    });
-    Object.defineProperty(this, 'refresh', {
-      value: options?.refresh ?? false,
-      enumerable: false,
-    });
-    if (sessionUser !== undefined) {
-      Object.defineProperty(this, 'sessionUser', {
-        value: sessionUser,
-        enumerable: false,
-      });
-    }
+    defineHidden(this, 'hydrate', options?.hydrate ?? false);
+    defineHidden(this, 'refresh', options?.refresh ?? false);
+    if (sessionUser !== undefined)
+      defineHidden(this, 'sessionUser', sessionUser);
   }
 
   /**
@@ -55,12 +46,6 @@ export abstract class BaseQuery<TSessionUser = unknown>
    * @returns The query payload with `undefined` fields omitted.
    */
   toJSON(): Record<string, unknown> {
-    const json: Record<string, unknown> = {};
-    for (const [key, value] of Object.entries(this)) {
-      if (value !== undefined) {
-        json[key] = value;
-      }
-    }
-    return json;
+    return definedFields(this);
   }
 }

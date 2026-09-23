@@ -50,17 +50,17 @@ what the libraries support.
 ## Technology Stack
 
 <!-- context:generated-start technology-stack -->
-- **Languages** (file counts, excluded directories omitted): `.ts` 667, `.md` 48, `.grit` 12, `.py` 3, `.mjs` 1
+- **Languages** (file counts, excluded directories omitted): `.ts` 674, `.md` 48, `.grit` 12, `.py` 3, `.mjs` 1
 - **Runtime engines** (root `package.json`): `node` >=22.0.0, `pnpm` >=9.0.0
 - **Package manager evidence**: `pnpm-lock.yaml`.
 
 | Technology | Evidence (declared) | Used in (sample) |
 | --- | --- | --- |
-| NestJS runtime — Application framework and DI container | `@nestjs/common`, `@nestjs/core` | `ddd/core/persistence/biome-general-plugins.spec.ts`, `ddd/core/persistence/decorators/Cache.ts` |
+| NestJS runtime — Application framework and DI container | `@nestjs/common`, `@nestjs/core` | `ddd/core/persistence/biome-general-plugins.spec.ts`, `ddd/core/persistence/decorators/Cache.spec.ts` |
 | NestJS CQRS — Command/query/event buses wrapped by the pipeline | `@nestjs/cqrs` | `ddd/core/application/base.command.ts`, `ddd/core/application/command-base.handler.spec.ts` |
 | MikroORM — ORM, unit of work, migrations | `@mikro-orm/core`, `@mikro-orm/nestjs`, `@mikro-orm/migrations` | `ddd/core/persistence/assert-autocommit.ts`, `ddd/core/persistence/biome-general-plugins.spec.ts` |
 | PostgreSQL — Relational backend and schema-per-tenant access | `pg`, `@mikro-orm/postgresql` | `ddd/users-api/src/persistence/postgres-mikro-orm.store.ts`, `ddd/users-api/src/persistence/postgres-options.ts` |
-| SQLite / libSQL — Local and test persistence backend | `@libsql/client`, `@mikro-orm/sqlite`, `@mikro-orm/libsql` | `ddd/users-api/src/persistence/libsql-options.ts`, `ddd/users-api/src/persistence/mikro-orm.store.ts` |
+| SQLite / libSQL — Local and test persistence backend | `@libsql/client`, `@mikro-orm/sqlite`, `@mikro-orm/libsql` | `ddd/users-api/src/persistence/cache/mikro-orm.cache.ts`, `ddd/users-api/src/persistence/libsql-options.ts` |
 | Redis — Cache and queue backend | `@keyv/redis`, `redis` | `packages/pipeline-idempotency/src/stores/redis.store.ts` |
 | BullMQ — Background jobs and dead-letter transport | `bullmq`, `@nestjs/bullmq` | `ddd/users-api/src/infrastructure/reliability.module.ts`, `ddd/users-api/src/users/jobs/batch-update-users.processor.spec.ts` |
 | Keyv / cache-manager — Pluggable cache stores | `keyv`, `cache-manager` | `ddd/users-api/test/behavior-composition-contracts.spec.ts`, `packages/pipeline-cache/src/adapters/cache-manager.adapter.ts` |
@@ -352,11 +352,11 @@ environment value is read or reproduced here.
 
 | Integration | Declared in | Imported by (sample) |
 | --- | --- | --- |
-| NestJS runtime | `ddd/core`, `ddd/users-api`, `packages/pipeline`, `packages/pipeline-audit`, … (+10) | `ddd/core/persistence/biome-general-plugins.spec.ts`, `ddd/core/persistence/decorators/Cache.ts` |
+| NestJS runtime | `ddd/core`, `ddd/users-api`, `packages/pipeline`, `packages/pipeline-audit`, … (+10) | `ddd/core/persistence/biome-general-plugins.spec.ts`, `ddd/core/persistence/decorators/Cache.spec.ts` |
 | NestJS CQRS | `ddd/core`, `ddd/users-api`, `packages/pipeline` | `ddd/core/application/base.command.ts`, `ddd/core/application/command-base.handler.spec.ts` |
 | MikroORM | `ddd/core`, `ddd/users-api` | `ddd/core/persistence/assert-autocommit.ts`, `ddd/core/persistence/biome-general-plugins.spec.ts` |
 | PostgreSQL | `ddd/users-api` | `ddd/users-api/src/persistence/postgres-mikro-orm.store.ts`, `ddd/users-api/src/persistence/postgres-options.ts` |
-| SQLite / libSQL | `ddd/users-api` | `ddd/users-api/src/persistence/libsql-options.ts`, `ddd/users-api/src/persistence/mikro-orm.store.ts` |
+| SQLite / libSQL | `ddd/users-api` | `ddd/users-api/src/persistence/cache/mikro-orm.cache.ts`, `ddd/users-api/src/persistence/libsql-options.ts` |
 | Redis | `ddd/users-api`, `packages/pipeline-cache` | `packages/pipeline-idempotency/src/stores/redis.store.ts` |
 | BullMQ | `ddd/users-api` | `ddd/users-api/src/infrastructure/reliability.module.ts`, `ddd/users-api/src/users/jobs/batch-update-users.processor.spec.ts` |
 | Keyv / cache-manager | `ddd/users-api`, `packages/pipeline-cache` | `ddd/users-api/test/behavior-composition-contracts.spec.ts`, `packages/pipeline-cache/src/adapters/cache-manager.adapter.ts` |
@@ -398,7 +398,7 @@ environment value is read or reproduced here.
 
 Names only — values are never read by the generator.
 
-`ACCESS_TOKEN_MAX_BYTES`, `ADAPTER`, `AMQP_URL`, `API_CLIENTS`, `AUTH_LOGIN_CODE`, `AUTH_LOGIN_CODE_SHA256`, `AUTH_TOKEN`, `DATABASE_HOST`, `DATABASE_NAME`, `DATABASE_PASSWORD`, `DATABASE_PORT`, `DATABASE_URL`, `DATABASE_USER`, `DB_DEFAULT_SCHEMA`, `DB_ENGINE`, `FLAGSMITH_KEY`, `JWT_ALGORITHMS`, `JWT_AUDIENCE`, `JWT_ISSUER`, `JWT_PUBLIC_KEY`, `JWT_PUBLIC_KEY_ALG`, `JWT_SECRET`, `NODE_ENV`, `OTEL_EXPORTER_OTLP_ENDPOINT`, `OTEL_SERVICE_NAME`, `PERMISSIONS_IN_ACCESS_TOKEN`, `REDIS_HOST`, `REDIS_PORT`, `REDIS_URL`, `REGION`, `SEED_TENANT`, `SESSION_SECRET`, `SQLITE_DATABASE_TEMPLATE`, `SQLITE_TENANTS`, `TENANT_SCHEMAS`, `TESTCONTAINERS_RYUK_DISABLED`, `TRUST_PROXY`, `UNLEASH_TOKEN`
+`ACCESS_TOKEN_MAX_BYTES`, `ADAPTER`, `AMQP_URL`, `API_CLIENTS`, `AUTH_LOGIN_CODE`, `AUTH_LOGIN_CODE_SHA256`, `AUTH_SHARED_LOGIN_CODE`, `AUTH_TOKEN`, `DATABASE_HOST`, `DATABASE_NAME`, `DATABASE_PASSWORD`, `DATABASE_PORT`, `DATABASE_URL`, `DATABASE_USER`, `DB_DEFAULT_SCHEMA`, `DB_ENGINE`, `FLAGSMITH_KEY`, `JWT_ALGORITHMS`, `JWT_AUDIENCE`, `JWT_ISSUER`, `JWT_PUBLIC_KEY`, `JWT_PUBLIC_KEY_ALG`, `JWT_SECRET`, `NODE_ENV`, `OTEL_EXPORTER_OTLP_ENDPOINT`, `OTEL_SERVICE_NAME`, `PERMISSIONS_IN_ACCESS_TOKEN`, `REDIS_HOST`, `REDIS_PORT`, `REDIS_URL`, `REGION`, `SEED_TENANT`, `SESSION_SECRET`, `SQLITE_DATABASE_TEMPLATE`, `SQLITE_TENANTS`, `TENANT_SCHEMAS`, `TESTCONTAINERS_RYUK_DISABLED`, `TRUST_PROXY`, `UNLEASH_TOKEN`
 <!-- context:generated-end dependencies -->
 
 ## Conventions
@@ -637,13 +637,13 @@ secret value.*
 ## Snapshot Metadata
 
 <!-- context:generated-start metadata -->
-- Generated at: 2026-09-23T06:00:47Z
-- Git commit: 09c7775d6209b80dd5e06e4c2cb580ef6353f301
+- Generated at: 2026-09-23T10:14:25Z
+- Git commit: 705905ba1fb8806f94caf996ce182161668a911c
 - Git branch: review
 - Uncommitted changes when generated: yes
 - Generator: `scripts/update-claude-snapshot.py` version 1.0.0
 - Snapshot status: generated — structural inspection only, no code executed
-- Files inspected: 787
+- Files inspected: 794
 - Included top-level directories: `.agents`, `.claude`, `biome`, `ddd`, `docs`, `integration`, `packages`, `scripts`
 - Excluded directory names: `.cache`, `.git`, `.gradle`, `.idea`, `.mypy_cache`, `.next`, `.nuxt`, `.parcel-cache`, `.pnpm-store`, `.pytest_cache`, `.ruff_cache`, `.svelte-kit`, `.terraform`, `.tmp`, `.tox`, `.turbo`, `.venv`, `.vscode`, `__pycache__`, `bower_components`, `build`, `coverage`, `dist`, `node_modules`, `out`, `target`, `vendor`, `venv`, `virtualenv`
 - Excluded file patterns: `.env`, `.env.*`, `*.env`, `*.pem`, `*.key`, `*.pfx`, `*.p12`, `*.jks`, `*.keystore`, `id_rsa*`, `id_ed25519*`, `*credentials*`, `*.secret`, `secrets.*`

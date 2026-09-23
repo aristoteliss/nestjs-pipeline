@@ -24,9 +24,7 @@ import {
  */
 @Injectable()
 export class SharedDemoLoginCodeVerifier implements ILoginCodeVerifier {
-  verify(credentials: LoginCredentialVerification | string): void {
-    const code =
-      typeof credentials === 'string' ? credentials : credentials.code;
+  verify({ code }: LoginCredentialVerification): void {
     const configuredDigest =
       process.env.AUTH_LOGIN_CODE_SHA256?.trim().toLowerCase();
     const legacyPlaintext = process.env.AUTH_LOGIN_CODE;

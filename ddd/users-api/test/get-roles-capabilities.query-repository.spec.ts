@@ -1,15 +1,15 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 import { RoleCapability } from '@persistence/entities/role-capability.entity';
 import { describe, expect, it, vi } from 'vitest';
-import { GetRolesCapabilitiesQuery } from '../cqrs/queries/get-roles-capabilities.query';
-import { Capability } from '../domain/models/capability.entity';
-import { Role } from '../domain/models/role.entity';
-import { GetRolesCapabilitiesQueryRepository } from './get-roles-capabilities.query-repository';
+import { Capability } from '../src/roles/domain/models/capability.entity';
+import { Role } from '../src/roles/domain/models/role.entity';
+import { GetRolesCapabilitiesQuery } from './support/roles-capabilities/get-roles-capabilities.query';
+import { GetRolesCapabilitiesQueryRepository } from './support/roles-capabilities/get-roles-capabilities.query-repository';
 
 describe('GetRolesCapabilitiesQueryRepository', () => {
   it('hydrates roles with schema-aware entity operations instead of raw SQL', async () => {
     const role = Role.create('admin');
-    const capability = Capability.create('read', 'User');
+    const capability = new Capability({ action: 'read', subject: 'User' });
     const find = vi.fn(async (entity: unknown) => {
       if (entity === Role) return [role];
       if (entity === RoleCapability) {

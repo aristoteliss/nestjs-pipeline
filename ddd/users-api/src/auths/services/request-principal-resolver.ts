@@ -44,7 +44,7 @@ export class RequestPrincipalResolver {
     private readonly apiClientAuthenticator: ApiClientAuthenticator,
     @Inject(TENANT_CONTEXT)
     private readonly tenantContext: ITenantContext,
-    private readonly sessionService: SessionService = new SessionService(),
+    private readonly sessionService: SessionService,
   ) {}
 
   /**

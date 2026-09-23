@@ -1,13 +1,22 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { Inject, Injectable } from '@nestjs/common';
+import type {
+  CapabilityString,
+  Capability as CaslCapability,
+} from '@nestjs-pipeline/casl';
 import { capabilityFromRow } from '@persistence/capability-row.mapper';
 import { RoleCapability } from '@persistence/entities/role-capability.entity';
 import { MIKRO_ORM_CLIENT, MikroOrmStore } from '@persistence/mikro-orm.store';
-import type { RoleDefinition } from '../../auths/application/permission-assignments';
-import { GetRolesCapabilitiesQuery } from '../cqrs/queries/get-roles-capabilities.query';
-import { Capability } from '../domain/models/capability.entity';
-import { Role } from '../domain/models/role.entity';
+import { Capability } from '../../../src/roles/domain/models/capability.entity';
+import { Role } from '../../../src/roles/domain/models/role.entity';
+import { GetRolesCapabilitiesQuery } from './get-roles-capabilities.query';
+
+/** Role capabilities read straight from the assignment tables. */
+export interface RoleDefinition {
+  name: string;
+  capabilities: (CaslCapability | CapabilityString)[];
+}
 
 @Injectable()
 export class GetRolesCapabilitiesQueryRepository {

@@ -17,9 +17,7 @@ export interface LoginCredentialVerification {
 
 /** Application port for verifying the login credential presented by a caller. */
 export interface ILoginCodeVerifier {
-  verify(
-    credentials: LoginCredentialVerification | string,
-  ): Promise<void> | void;
+  verify(credentials: LoginCredentialVerification): Promise<void> | void;
 }
 
 export interface AccessTokenIssueRequest {

@@ -22,10 +22,7 @@ import {
 import { type IPipelineContext, PipelineModule } from '@nestjs-pipeline/core';
 import type { IQueryRepository } from '@nestjs-pipeline/ddd-core/application';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import type {
-  RoleDefinition,
-  UserPermissionAssignments,
-} from '../src/auths/application/permission-assignments';
+import type { UserPermissionAssignments } from '../src/auths/application/permission-assignments';
 import type { GetUserCapabilitiesQuery } from '../src/auths/cqrs/queries/get-user-capabilities.query';
 import type { SessionUser } from '../src/common/types/SessionUser';
 import { Role } from '../src/roles/domain/models/role.entity';
@@ -39,6 +36,7 @@ import {
 } from '../src/users/cqrs/queries/user-overview-cache.policy';
 import { User } from '../src/users/domain/models/user.entity';
 import { QUERY_REPOSITORY } from '../src/users/persistence/repository.tokens';
+import type { RoleDefinition } from './support/roles-capabilities/get-roles-capabilities.query-repository';
 
 /** An authenticated caller together with the assignments their rules come from. */
 type Viewer = Omit<SessionUser, 'grants'> & {

@@ -28,13 +28,9 @@ describe('authentication infrastructure adapters', () => {
       .digest('hex');
 
     const verifier = new SharedDemoLoginCodeVerifier();
-    expect(() => verifier.verify('424242')).not.toThrow();
     expect(() =>
       verifier.verify({ userId: 'user-1', code: '424242' }),
     ).not.toThrow();
-    expect(() => verifier.verify('000000')).toThrow(
-      InvalidLoginCredentialsException,
-    );
     expect(() => verifier.verify({ userId: 'user-1', code: '000000' })).toThrow(
       InvalidLoginCredentialsException,
     );
@@ -62,9 +58,12 @@ describe('authentication infrastructure adapters', () => {
     delete process.env.AUTH_LOGIN_CODE_SHA256;
     process.env.AUTH_LOGIN_CODE = '424242';
 
-    expect(() => new SharedDemoLoginCodeVerifier().verify('424242')).toThrow(
-      AuthConfigurationException,
-    );
+    expect(() =>
+      new SharedDemoLoginCodeVerifier().verify({
+        userId: 'user-1',
+        code: '424242',
+      }),
+    ).toThrow(AuthConfigurationException);
   });
 
   it('keeps plaintext login-code compatibility for non-production demos', () => {
@@ -73,7 +72,10 @@ describe('authentication infrastructure adapters', () => {
     process.env.AUTH_LOGIN_CODE = '424242';
 
     expect(() =>
-      new SharedDemoLoginCodeVerifier().verify('424242'),
+      new SharedDemoLoginCodeVerifier().verify({
+        userId: 'user-1',
+        code: '424242',
+      }),
     ).not.toThrow();
   });
 
