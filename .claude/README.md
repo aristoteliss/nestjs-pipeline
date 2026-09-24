@@ -78,8 +78,7 @@ Use a short, stable, non-sensitive id. Update the file after each meaningful mil
 record verification results, not intentions.
 
 `.claude/tasks/` holds **active** work only. When a task finishes, move whatever is
-durable into the place that owns it — source, a README, or `docs/reviews/` for review and
-task-tracking material — and delete the task file. A completed task file left behind is a
+durable into the place that owns it — source or a README — and delete the task file. A completed task file left behind is a
 second copy of a record nothing maintains, which is the documentation drift `AGENTS.md`
 forbids. `TEMPLATE.md` is the only permanent file in this directory.
 

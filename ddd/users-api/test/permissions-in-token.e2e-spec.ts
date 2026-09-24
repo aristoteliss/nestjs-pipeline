@@ -208,7 +208,7 @@ describe('permissions in the access token (e2e, fastify cookie budget)', () => {
     const { ACCESS_TOKEN_MAX_BYTES } = await import(
       '../src/common/environment/auth-token.config'
     );
-    expect(ACCESS_TOKEN_MAX_BYTES).toBe(2600);
+    expect(ACCESS_TOKEN_MAX_BYTES).toBe(2500);
     const user = await seedAdminUser(ctx, 'cookie-budget');
     await grantReports(ctx, user.id, 1, 'r');
     const [{ capability_id: capabilityId }] = (await sql(

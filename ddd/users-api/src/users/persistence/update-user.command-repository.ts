@@ -5,11 +5,12 @@ import { ICache } from '@nestjs-pipeline/ddd-core/application';
 import {
   CACHE_TOKEN,
   filterCacheKey,
+  MikroOrmWriteSideCommandRepository,
   optimisticUpdate,
   PersistedWrite,
 } from '@nestjs-pipeline/ddd-core/persistence';
+import { cacheWriteLogger } from '@persistence/cache/cache-loggers';
 import { MIKRO_ORM_CLIENT, MikroOrmStore } from '@persistence/mikro-orm.store';
-import { MikroOrmWriteSideCommandRepository } from '@persistence/mikro-orm-write-side.command-repository';
 import { User, UserSnapshot } from '../domain/models/user.entity';
 
 @Injectable()
@@ -27,6 +28,7 @@ export class UpdateUserCommandRepository extends MikroOrmWriteSideCommandReposit
 
   @PersistedWrite<User>({
     cache: {
+      logger: cacheWriteLogger,
       setKey: (user) => filterCacheKey(User.aggregateName, { id: user.id }),
       invalidateKeys: (user) => [
         filterCacheKey(User.aggregateName, { email: user.email }),

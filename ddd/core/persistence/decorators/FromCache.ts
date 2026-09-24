@@ -1,9 +1,10 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import { Logger } from '@nestjs/common';
 import { IQueryOptions } from '../../application/query.options';
 import { type CacheStateEntry, isVersionedCache } from '../cache.interface';
+import type { ICacheLogger } from '../cache-logger';
 import { isCacheMutationBarrier } from '../helpers/cache-barrier.helper';
+import { consoleCacheLogger, safeWarn } from '../helpers/cache-logger.helper';
 import { reportMissingCacheProperty } from '../helpers/cache-owner.helper';
 import { toCacheSnapshot } from '../helpers/cache-snapshot.helper';
 import { isCacheNewer } from '../helpers/cache-version.helper';
@@ -14,7 +15,7 @@ import type {
 
 export { isCacheNewer };
 
-const logger = new Logger('FromCacheDecorator');
+const defaultLogger = consoleCacheLogger('FromCacheDecorator');
 
 const warnedUnversionedAdapters = new WeakSet<object>();
 
@@ -22,10 +23,11 @@ const warnedUnversionedAdapters = new WeakSet<object>();
  * Reports an unversioned adapter once per instance: a silent loss of caching is
  * harder to diagnose than the race the bypass avoids.
  */
-function warnUnversionedAdapterOnce(cache: object): void {
+function warnUnversionedAdapterOnce(cache: object, logger: ICacheLogger): void {
   if (warnedUnversionedAdapters.has(cache)) return;
   warnedUnversionedAdapters.add(cache);
-  logger.warn(
+  safeWarn(
+    logger,
     `${cache.constructor?.name ?? 'Cache adapter'} implements only get/set/delete, ` +
       'so @FromCache read-through is disabled for repositories using it. ' +
       'Implement IVersionedCache (readState/invalidate/tryFill) to enable ' +
@@ -75,6 +77,13 @@ export interface FromCacheOptions<TQuery = unknown, TResult = unknown> {
    * Defaults to {@link isCacheNewer}.
    */
   isNewer?: (cached: unknown, incoming: unknown) => boolean;
+
+  /**
+   * Receives read-through warnings (unversioned adapter, uncacheable result, missing
+   * `cache` property). Defaults to `console.warn` with a `[FromCacheDecorator]`
+   * prefix. See {@link ICacheLogger}.
+   */
+  logger?: ICacheLogger;
 }
 
 /**
@@ -151,6 +160,7 @@ export function FromCache<
     throw new TypeError('FromCache: alwaysHydrate requires a hydrateFn');
   }
 
+  const logger = resolvedOptions?.logger ?? defaultLogger;
   const MAX_FILL_RETRIES = 2;
   let reportedUncacheable = false;
 
@@ -166,7 +176,7 @@ export function FromCache<
       query: TQuery,
     ): Promise<TResult> {
       if (!this.cache) {
-        reportMissingCacheProperty(this, '@FromCache');
+        reportMissingCacheProperty(this, '@FromCache', resolvedOptions?.logger);
         return original.call(this, query);
       }
       if (query.refresh) return original.call(this, query);
@@ -226,7 +236,8 @@ export function FromCache<
           if (!hydrateFn && (serializeFn || !isPlainData(result))) {
             if (!reportedUncacheable) {
               reportedUncacheable = true;
-              logger.warn(
+              safeWarn(
+                logger,
                 `${this.constructor.name} caches a result that a hit could not reproduce without a hydrateFn; ` +
                   'the result is returned uncached. Configure a hydrateFn or return plain data.',
               );
@@ -269,7 +280,7 @@ export function FromCache<
       // Serving reads while skipping fills does not help either: entries written
       // before the adapter was swapped would still be returned. So neither side
       // of the cache is used for this path and the query goes to the database.
-      warnUnversionedAdapterOnce(this.cache);
+      warnUnversionedAdapterOnce(this.cache, logger);
       return original.call(this, query);
     };
   };

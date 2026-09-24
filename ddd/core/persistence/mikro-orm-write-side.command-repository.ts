@@ -1,17 +1,25 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import type { EntityName, FilterQuery } from '@mikro-orm/core';
-import {
-  type ICache,
-  type IWriteSideAggregateRepository,
-} from '@nestjs-pipeline/ddd-core/application';
-import {
-  type RootEntity,
-  type RootEntitySnapshot,
-} from '@nestjs-pipeline/ddd-core/domain';
-import { CommandRepository } from '@nestjs-pipeline/ddd-core/persistence';
+import type { EntityManager, EntityName, FilterQuery } from '@mikro-orm/core';
+import type { RootEntitySnapshot } from '../domain/interfaces/root-entity-snapshot.interface';
+import type { RootEntity } from '../domain/models/root.entity';
+import type { ICache } from './cache.interface';
+import { CommandRepository } from './command-repository.abstract';
 import { mapPersistenceError } from './is-transient-persistence-error';
-import type { MikroOrmStore } from './mikro-orm.store';
+import type { IWriteSideAggregateRepository } from './write-side-aggregate-repository.interface';
+
+/**
+ * Supplies the MikroORM `EntityManager` for the current repository operation.
+ *
+ * {@link MikroOrmWriteSideCommandRepository} reads `em` on every operation and
+ * never keeps it, so a source may return a different manager each time: the
+ * current tenant's in a multi-tenant application, or the current request's.
+ * A getter over the application's own store satisfies it, and so does a plain
+ * `{ em }` object in a single-database setup or a test.
+ */
+export interface IEntityManagerSource {
+  readonly em: EntityManager;
+}
 
 /**
  * Reusable write-side repository base class for command repositories that mutate an existing aggregate.
@@ -23,6 +31,8 @@ import type { MikroOrmStore } from './mikro-orm.store';
  *
  * Concrete repositories extend this class, inject dependencies into `super(...)`, and provide their
  * decorated `save()` method with persistence lifecycle decorators (`@Cache`, `@AcknowledgePersisted`, `@MapPersistenceErrors`).
+ * The `store` is any {@link IEntityManagerSource}, typically the application's own
+ * store; its `em` is also what `save()` passes to `optimisticUpdate` or `optimisticDelete`.
  *
  * @typeParam TSnapshot - Snapshot structure of the aggregate.
  * @typeParam TEntity - Domain aggregate class extending {@link RootEntity}.
@@ -30,6 +40,7 @@ import type { MikroOrmStore } from './mikro-orm.store';
  *
  * @example
  * ```typescript
+ * // A NestJS provider; STORE is the application's IEntityManagerSource token.
  * @Injectable()
  * export class UpdateUserCommandRepository extends MikroOrmWriteSideCommandRepository<
  *   UserSnapshot,
@@ -38,9 +49,9 @@ import type { MikroOrmStore } from './mikro-orm.store';
  * > {
  *   constructor(
  *     @Inject(CACHE_TOKEN) cache: ICache<UserSnapshot>,
- *     @Inject(MIKRO_ORM_CLIENT) store: MikroOrmStore,
+ *     @Inject(STORE) store: IEntityManagerSource,
  *   ) {
- *     super(cache, store, User, 'User');
+ *     super(cache, store, User, User.aggregateName, User.fromJSON);
  *   }
  *
  *   @Cache<User, UserSnapshot>(...)
@@ -62,7 +73,7 @@ export abstract class MikroOrmWriteSideCommandRepository<
 {
   constructor(
     cache: ICache<TSnapshot>,
-    protected readonly store: MikroOrmStore,
+    protected readonly store: IEntityManagerSource,
     protected readonly entityClass: EntityName<TEntity>,
     protected readonly aggregateName: string,
     protected readonly hydrateFn: (snapshot: TSnapshot) => TEntity,
@@ -75,7 +86,8 @@ export abstract class MikroOrmWriteSideCommandRepository<
    *
    * Enforces `{ refresh: true }` so that if the entity was already loaded in the active
    * EntityManager's identity map, its columns are re-fetched from the database before
-   * domain mutations and optimistic concurrency checks take place.
+   * domain mutations and optimistic concurrency checks take place. The manager comes
+   * from `store.em`, read for this call.
    *
    * @param id - The aggregate identifier.
    * @returns Rehydrated aggregate instance, or `null` if not found.

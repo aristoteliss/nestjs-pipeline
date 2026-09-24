@@ -9,6 +9,7 @@ import {
   filterCacheKey,
   PersistedWrite,
 } from '@nestjs-pipeline/ddd-core/persistence';
+import { cacheWriteLogger } from '@persistence/cache/cache-loggers';
 import { MIKRO_ORM_CLIENT, MikroOrmStore } from '@persistence/mikro-orm.store';
 import { UniqueEmailException } from '../domain/models/errors/email.exception';
 import { User, UserSnapshot } from '../domain/models/user.entity';
@@ -32,6 +33,7 @@ export class CreateUserCommandRepository extends CommandRepository<
    */
   @PersistedWrite<User>({
     cache: {
+      logger: cacheWriteLogger,
       setKey: (user) => filterCacheKey(User.aggregateName, { id: user.id }),
       invalidateKeys: (user) => [
         filterCacheKey(User.aggregateName, { email: user.email }),

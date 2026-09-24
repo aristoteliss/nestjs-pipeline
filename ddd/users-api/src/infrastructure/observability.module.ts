@@ -16,6 +16,7 @@ import { ZodValidationBehavior } from '@nestjs-pipeline/zod';
 import { TenantSchemaContext } from '@persistence/tenant-schema.context';
 import { LoggerModule, NativeLogger } from 'nestjs-pino';
 import { TelemetryBridgeBehavior } from './behaviors/telemetry-bridge.behavior';
+import { TenantScopeBehavior } from './behaviors/tenant-scope.behavior';
 
 /** Credential headers redacted from structured HTTP logs. */
 export const HTTP_LOG_REDACT_PATHS = [
@@ -78,6 +79,8 @@ export const HTTP_LOG_REDACT_PATHS = [
         {
           scope: 'all',
           before: [
+            // First, so the whole chain and the handler run in ddd-core's tenant scope.
+            TenantScopeBehavior,
             logging({ requestResponseLogLevel: 'log' }),
             [TraceBehavior, { tracerName: 'users-api' }],
             [MetricsBehavior, { meterName: 'users-api' }],

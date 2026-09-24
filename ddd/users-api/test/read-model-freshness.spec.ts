@@ -8,6 +8,7 @@ import {
   UnauthorizedActionException,
 } from '@nestjs-pipeline/casl';
 import { type IPipelineContext, pipelineStore } from '@nestjs-pipeline/core';
+import { runWithTenant } from '@nestjs-pipeline/ddd-core/application';
 import { MemoryCache } from '@nestjs-pipeline/ddd-core/persistence';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { GetRoleHandler } from '../src/roles/cqrs/queries/get-role.handler';
@@ -31,7 +32,10 @@ import { GetUserQueryRepository } from '../src/users/persistence/get-user.query-
 
 const TARGET_ID = '019488e0-0000-7000-8000-000000000001';
 
-/** Runs `fn` as a pipeline execution whose CASL ability is `rules`. */
+/**
+ * Runs `fn` as a pipeline execution whose CASL ability is `rules`. A real pipeline
+ * run also sets ddd-core's tenant scope (`TenantScopeBehavior`).
+ */
 function asCaller<T>(
   rules: CapabilityString[],
   fn: () => Promise<T>,
@@ -41,7 +45,7 @@ function asCaller<T>(
       tenantId: 'tenant-a',
       items: new Map([[CASL_ABILITY_KEY, buildAbility(rules)]]),
     } as unknown as IPipelineContext,
-    fn,
+    () => runWithTenant('tenant-a', fn),
   );
 }
 

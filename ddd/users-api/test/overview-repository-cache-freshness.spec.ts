@@ -2,6 +2,7 @@
 
 import { buildAbility, CaslAuthorizer } from '@nestjs-pipeline/casl';
 import { type IPipelineContext, pipelineStore } from '@nestjs-pipeline/core';
+import { runWithTenant } from '@nestjs-pipeline/ddd-core/application';
 import { MemoryCache } from '@nestjs-pipeline/ddd-core/persistence';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { GetUserQuery } from '../src/users/cqrs/queries/get-user.query';
@@ -44,11 +45,14 @@ describe('User overview repository cache freshness', () => {
     } as never);
   });
 
-  /** The repository cache key is tenant-scoped and fails closed without one. */
+  /**
+   * The repository cache key is tenant-scoped and fails closed without one. A real
+   * pipeline run also sets ddd-core's tenant scope (`TenantScopeBehavior`).
+   */
   function inTenant<T>(run: () => Promise<T>): Promise<T> {
     return pipelineStore.run(
       { tenantId: 'tenant-a' } as unknown as IPipelineContext,
-      run,
+      () => runWithTenant('tenant-a', run),
     );
   }
 

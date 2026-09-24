@@ -61,11 +61,12 @@ export function Mutable<TValue = unknown>(
       throw new TypeError('@Mutable() supports string properties only.');
     }
 
+    // A static property decorates the class itself, whose constructor is `Function`.
     const owner = (target as { constructor: unknown }).constructor as
       | MutableCarrier
       | undefined;
 
-    if (!owner) {
+    if (!owner || typeof target === 'function') {
       throw new TypeError('@Mutable() supports instance properties only.');
     }
 

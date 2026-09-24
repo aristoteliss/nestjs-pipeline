@@ -1,6 +1,5 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import type { ICommand } from '@nestjs/cqrs';
 import { definedFields, defineHidden } from './request-fields.helper';
 
 /**
@@ -11,7 +10,7 @@ import { definedFields, defineHidden } from './request-fields.helper';
  * {@link getUpdateFields}.
  */
 // biome-ignore lint/suspicious/noExplicitAny: generic session user default
-export abstract class BaseCommand<TSessionUser = any> implements ICommand {
+export abstract class BaseCommand<TSessionUser = any> {
   public declare readonly sessionUser?: TSessionUser;
 
   constructor(sessionUser?: TSessionUser) {

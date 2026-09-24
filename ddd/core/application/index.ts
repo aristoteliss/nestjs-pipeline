@@ -16,4 +16,6 @@ export * from '../persistence/write-side-aggregate-repository.interface';
 export * from './base.command';
 export * from './base.query';
 export * from './command-base.handler';
+export * from './domain-event-publisher.port';
 export * from './query.options';
+export * from './tenant-scope';

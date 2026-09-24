@@ -67,12 +67,15 @@ export const PERMISSIONS_IN_ACCESS_TOKEN = flag('PERMISSIONS_IN_ACCESS_TOKEN');
 /**
  * Largest compact access token that may carry permissions; larger ones are
  * re-issued without them. The default keeps the Fastify session `Set-Cookie`
- * (which also repeats the tenant) under 4096 bytes for the e2e tenant name;
- * the cookie-budget e2e test is the authority.
+ * (which also repeats the tenant) under 4096 bytes for the e2e tenant name.
+ * That cookie is URL-encoded base64 ciphertext, so each `+` and `/` costs three
+ * bytes and its length varies by about 170 bytes between logins; the default
+ * leaves room for that. `http-platform.spec.ts` checks 1,000 logins at this
+ * size, and the cookie-budget e2e test checks a real login.
  */
 export const ACCESS_TOKEN_MAX_BYTES = integer(
   'ACCESS_TOKEN_MAX_BYTES',
-  2600,
+  2500,
   1024,
   16_384,
 );

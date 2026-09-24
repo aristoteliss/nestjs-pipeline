@@ -1,6 +1,5 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import type { EventBus, ICommand } from '@nestjs/cqrs';
 import { describe, expect, it, vi } from 'vitest';
 import { DomainEvent } from '../domain/events/domain.event';
 import { AggregateRoot } from '../domain/models/aggregate-root';
@@ -9,6 +8,9 @@ import {
   type AggregateBearingResult,
   CommandBaseHandler,
 } from './command-base.handler';
+import type { IDomainEventPublisher } from './domain-event-publisher.port';
+
+type TestCommand = object;
 
 class BufferedAggregate extends AggregateRoot {}
 
@@ -20,15 +22,16 @@ class OrderCreatedEvent extends DomainEvent {
 
 /**
  * `CommandBaseHandler`'s constructor is protected: a concrete handler declares
- * its own public constructor with `@Inject(EventBus)`. This is the test
+ * its own public constructor that receives its event publisher (a Nest handler
+ * injects `EventBus`). This is the test
  * equivalent, so the specs build handlers the way an application does instead
  * of reaching past the modifier.
  */
 abstract class TestableHandler<
   TResult extends AggregateBearingResult,
-> extends CommandBaseHandler<ICommand, TResult> {
+> extends CommandBaseHandler<TestCommand, TResult> {
   // biome-ignore lint/complexity/noUselessConstructor: can init test
-  constructor(eventBus: EventBus) {
+  constructor(eventBus: IDomainEventPublisher) {
     super(eventBus);
   }
 }
@@ -37,7 +40,7 @@ class PlainCommandHandler extends TestableHandler<// @ts-expect-error — the co
 // runtime guard is what this test exercises: JavaScript callers and `as any`
 // still reach it, and it must not publish anything.
 string> {
-  async handle(_command: ICommand): Promise<string> {
+  async handle(_command: TestCommand): Promise<string> {
     return 'non-aggregate-result';
   }
 }
@@ -46,10 +49,10 @@ describe('CommandBaseHandler', () => {
   it('does not publish events if handle returns plain non-aggregate result', async () => {
     const eventBus = {
       publishAll: vi.fn(),
-    } as unknown as EventBus;
+    } as unknown as IDomainEventPublisher;
 
     const handler = new PlainCommandHandler(eventBus);
-    const result = await handler.execute({} as ICommand);
+    const result = await handler.execute({} as TestCommand);
 
     expect(result).toBe('non-aggregate-result');
     expect(eventBus.publishAll).not.toHaveBeenCalled();
@@ -58,7 +61,7 @@ describe('CommandBaseHandler', () => {
   it('publishes uncommitted events and uncommits when handle returns AggregateRoot', async () => {
     const eventBus = {
       publishAll: vi.fn(),
-    } as unknown as EventBus;
+    } as unknown as IDomainEventPublisher;
 
     class TestAggregate extends RootEntity {
       afterUpdate(): void {}
@@ -72,7 +75,7 @@ describe('CommandBaseHandler', () => {
     }
 
     class AggregateCommandHandler extends TestableHandler<TestAggregate> {
-      async handle(_command: ICommand): Promise<TestAggregate> {
+      async handle(_command: TestCommand): Promise<TestAggregate> {
         const agg = new TestAggregate();
         agg.apply(new OrderCreatedEvent('agg-101'));
         return agg;
@@ -80,7 +83,7 @@ describe('CommandBaseHandler', () => {
     }
 
     const handler = new AggregateCommandHandler(eventBus);
-    const agg = await handler.execute({} as ICommand);
+    const agg = await handler.execute({} as TestCommand);
 
     expect(agg).toBeInstanceOf(TestAggregate);
     expect(eventBus.publishAll).toHaveBeenCalledTimes(1);
@@ -93,7 +96,7 @@ describe('CommandBaseHandler', () => {
   it('automatically publishes uncommitted events and clears them when handle returns an object containing an aggregate', async () => {
     const eventBus = {
       publishAll: vi.fn(),
-    } as unknown as EventBus;
+    } as unknown as IDomainEventPublisher;
 
     class TestAggregate extends RootEntity {
       afterUpdate(): void {}
@@ -111,7 +114,7 @@ describe('CommandBaseHandler', () => {
       meta: string;
     }> {
       async handle(
-        _command: ICommand,
+        _command: TestCommand,
       ): Promise<{ aggregate: TestAggregate; meta: string }> {
         const agg = new TestAggregate();
         agg.apply(new OrderCreatedEvent('agg-in-result-101'));
@@ -120,7 +123,7 @@ describe('CommandBaseHandler', () => {
     }
 
     const handler = new ResultWithAggregateCommandHandler(eventBus);
-    const result = await handler.execute({} as ICommand);
+    const result = await handler.execute({} as TestCommand);
 
     expect(result.meta).toBe('test-meta');
     expect(result.aggregate).toBeInstanceOf(TestAggregate);
@@ -137,7 +140,9 @@ describe('CommandBaseHandler', () => {
     const aggregate = new BufferedAggregate();
     const event = new OrderCreatedEvent('failed-command');
     const failure = new Error('persistence failed');
-    const eventBus = { publishAll: vi.fn() } as unknown as EventBus;
+    const eventBus = {
+      publishAll: vi.fn(),
+    } as unknown as IDomainEventPublisher;
 
     class FailingHandler extends TestableHandler<AggregateRoot> {
       async handle(): Promise<AggregateRoot> {
@@ -161,7 +166,7 @@ describe('CommandBaseHandler', () => {
     const publishAll = vi.fn(() => {
       throw failure;
     });
-    const eventBus = { publishAll } as unknown as EventBus;
+    const eventBus = { publishAll } as unknown as IDomainEventPublisher;
 
     class Handler extends TestableHandler<AggregateRoot> {
       async handle(): Promise<AggregateRoot> {
@@ -177,7 +182,7 @@ describe('CommandBaseHandler', () => {
   it('does not publish events when aggregate has no uncommitted events', async () => {
     const eventBus = {
       publishAll: vi.fn(),
-    } as unknown as EventBus;
+    } as unknown as IDomainEventPublisher;
 
     class TestAggregate extends RootEntity {
       afterUpdate(): void {}
@@ -191,13 +196,13 @@ describe('CommandBaseHandler', () => {
     }
 
     class NoEventsCommandHandler extends TestableHandler<TestAggregate> {
-      async handle(_command: ICommand): Promise<TestAggregate> {
+      async handle(_command: TestCommand): Promise<TestAggregate> {
         return new TestAggregate();
       }
     }
 
     const handler = new NoEventsCommandHandler(eventBus);
-    await handler.execute({} as ICommand);
+    await handler.execute({} as TestCommand);
 
     expect(eventBus.publishAll).not.toHaveBeenCalled();
   });
@@ -205,17 +210,17 @@ describe('CommandBaseHandler', () => {
   it('does not throw or publish when handle returns null or undefined', async () => {
     const eventBus = {
       publishAll: vi.fn(),
-    } as unknown as EventBus;
+    } as unknown as IDomainEventPublisher;
 
     class NullCommandHandler extends TestableHandler<// @ts-expect-error — as above: null is not an aggregate-bearing result.
     null> {
-      async handle(_command: ICommand): Promise<null> {
+      async handle(_command: TestCommand): Promise<null> {
         return null;
       }
     }
 
     const handler = new NullCommandHandler(eventBus);
-    const result = await handler.execute({} as ICommand);
+    const result = await handler.execute({} as TestCommand);
 
     expect(result).toBeNull();
     expect(eventBus.publishAll).not.toHaveBeenCalled();
@@ -224,16 +229,16 @@ describe('CommandBaseHandler', () => {
   it('does not publish events if result has getUncommittedEvents but lacks uncommit', async () => {
     const eventBus = {
       publishAll: vi.fn(),
-    } as unknown as EventBus;
+    } as unknown as IDomainEventPublisher;
 
     class IncompleteAggregateHandler extends TestableHandler<any> {
-      async handle(_command: ICommand): Promise<any> {
+      async handle(_command: TestCommand): Promise<any> {
         return { getUncommittedEvents: () => [new OrderCreatedEvent('123')] };
       }
     }
 
     const handler = new IncompleteAggregateHandler(eventBus);
-    await handler.execute({} as ICommand);
+    await handler.execute({} as TestCommand);
 
     expect(eventBus.publishAll).not.toHaveBeenCalled();
   });

@@ -1,12 +1,9 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { createHash } from 'node:crypto';
-import {
-  type IPipelineContext,
-  pipelineStore,
-  stableStringify,
-} from '@nestjs-pipeline/core';
+import { currentTenantId } from '../../application/tenant-scope';
 import { MissingTenantContextError } from '../../domain/exceptions/missing-tenant-context.exception';
+import { stableStringify } from './stable-stringify';
 
 /**
  * Types supported as cache key resource specifiers:
@@ -17,6 +14,27 @@ import { MissingTenantContextError } from '../../domain/exceptions/missing-tenan
 export type CacheResourceSpecifier =
   | string
   | { aggregateName?: string; prefixKey?: string };
+
+/**
+ * An explicit tenant for a cache key: a tenant id string, or an object carrying
+ * `tenantId`, such as a pipeline context.
+ *
+ * When it is omitted, or an object carries no `tenantId`, the tenant of the running
+ * {@link runWithTenant} scope applies. A missing or empty tenant always throws
+ * {@link MissingTenantContextError}; there is no shared fallback namespace.
+ */
+export type CacheKeyTenantSource =
+  | string
+  | { readonly tenantId?: string | undefined };
+
+/**
+ * A request-bearing source accepted by the factories of {@link cacheKeyTemplate},
+ * such as a pipeline context.
+ */
+export interface CacheKeyRequestContext {
+  readonly request: unknown;
+  readonly tenantId?: string | undefined;
+}
 
 /**
  * Normalizes filter conditions for canonical tuple construction:
@@ -52,21 +70,19 @@ function normalizeFilterConditions(
 }
 
 /**
- * Resolves the active tenant schema from explicit arguments, pipeline context,
- * or ambient AsyncLocalStorage.
+ * Resolves the tenant schema from an explicit {@link CacheKeyTenantSource}, or
+ * else from the running {@link runWithTenant} scope.
  *
  * Fails closed in every environment: tenant-scoped cache keys are never placed
  * into a shared fallback namespace when tenant context is absent.
  *
  * @throws {MissingTenantContextError} When no tenant can be resolved.
  */
-function resolveTenantSchema(
-  tenantOrContext?: string | IPipelineContext,
-): string {
+function resolveTenantSchema(tenantSource?: CacheKeyTenantSource): string {
   const schema =
-    typeof tenantOrContext === 'string'
-      ? tenantOrContext
-      : (tenantOrContext?.tenantId ?? pipelineStore.getStore()?.tenantId);
+    typeof tenantSource === 'string'
+      ? tenantSource
+      : (tenantSource?.tenantId ?? currentTenantId());
 
   if (!schema) {
     throw new MissingTenantContextError('cache key derivation');
@@ -88,7 +104,9 @@ function resolveTenantSchema(
  *
  * @param resourceOrEntity - Logical resource name or object exposing `aggregateName`/`prefixKey`.
  * @param conditions - Filter values that identify the cached record/query.
- * @param tenantOrContext - Explicit tenant id or pipeline context; ambient pipeline context is used when omitted.
+ * @param tenantOrContext - An explicit tenant id, or an object carrying `tenantId` (such
+ *   as a pipeline context). When omitted, the tenant of the running
+ *   {@link runWithTenant} scope is used. See {@link CacheKeyTenantSource}.
  * @returns A versioned, hashed deterministic cache key.
  * @throws {MissingTenantContextError} When tenant identity cannot be resolved.
  * @throws {TypeError} When conditions contain non-serializable values.
@@ -96,7 +114,7 @@ function resolveTenantSchema(
 export function filterCacheKey(
   resourceOrEntity: CacheResourceSpecifier,
   conditions: Record<string, unknown>,
-  tenantOrContext?: string | IPipelineContext,
+  tenantOrContext?: CacheKeyTenantSource,
 ): string {
   const schema = resolveTenantSchema(tenantOrContext);
 
@@ -152,8 +170,11 @@ function canonicalizeValue(val: unknown): string {
  * as `filterCacheKey`.
  *
  * @param template - Key template containing required `{prop}` or optional `{prop?}` placeholders.
- * @param tenantOrContext - Explicit tenant id or context used to namespace produced keys.
- * @returns A key factory accepting either a request object or `IPipelineContext`.
+ * @param tenantOrContext - An explicit tenant used to namespace produced keys. When
+ *   omitted, a context source's `tenantId` is used, and otherwise the tenant of the
+ *   running {@link runWithTenant} scope.
+ * @returns A key factory accepting either a request object or a
+ *   {@link CacheKeyRequestContext} (such as a pipeline context).
  * @throws {MissingTenantContextError} When tenant identity cannot be resolved.
  * @throws {Error} When a required placeholder is absent.
  *
@@ -166,12 +187,12 @@ function canonicalizeValue(val: unknown): string {
  */
 export function cacheKeyTemplate<T = Record<string, unknown>>(
   template: string,
-  tenantOrContext?: string | IPipelineContext,
-): (source: T | IPipelineContext) => string {
-  return (source: T | IPipelineContext) => {
+  tenantOrContext?: CacheKeyTenantSource,
+): (source: T | CacheKeyRequestContext) => string {
+  return (source: T | CacheKeyRequestContext) => {
     const ctx =
       source && typeof source === 'object' && 'request' in source
-        ? (source as IPipelineContext)
+        ? (source as CacheKeyRequestContext)
         : undefined;
     const data = (ctx ? ctx.request : source) as Record<string, unknown>;
     const schema = resolveTenantSchema(tenantOrContext ?? ctx);

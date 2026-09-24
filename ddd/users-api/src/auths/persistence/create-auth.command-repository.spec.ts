@@ -1,7 +1,9 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import { type IPipelineContext, pipelineStore } from '@nestjs-pipeline/core';
-import { type ICache } from '@nestjs-pipeline/ddd-core/application';
+import {
+  type ICache,
+  runWithTenant,
+} from '@nestjs-pipeline/ddd-core/application';
 import { describe, expect, it, vi } from 'vitest';
 import { Auth, type AuthSnapshot } from '../domain/models/auth.entity';
 import { CreateAuthCommandRepository } from './create-auth.command-repository';
@@ -26,10 +28,7 @@ describe('CreateAuthCommandRepository', () => {
     };
     const repository = new CreateAuthCommandRepository(cache, store as never);
 
-    const result = await pipelineStore.run(
-      { tenantId: 'tenant' } as unknown as IPipelineContext,
-      () => repository.save(auth),
-    );
+    const result = await runWithTenant('tenant', () => repository.save(auth));
 
     expect(insert).toHaveBeenCalledWith(Auth, auth);
     expect(result).toEqual(auth.toJSON());

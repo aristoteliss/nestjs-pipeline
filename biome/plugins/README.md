@@ -76,6 +76,20 @@ Enforces `AGENTS.md` rule 6 / `SKILL.md` rule 5 across `cqrs/`, `application/`, 
 - This is a **syntax-only naming convention**, not a type-aware guarantee. Aliases, other receiver names, nested receivers, dynamic keys, destructuring and reflective writes are outside its coverage. A DTO named `user` or `role` also matches: give DTOs descriptive names (such as `userDto`). Domain methods/factories remain the required mutation path regardless of lint coverage.
 - Domain and persistence hydration, tests, and `this` writes are outside the guard's scope. The two receiver/property expressions in the rule are the only lists to maintain when conventions change.
 
+### 10. `framework-independence.grit`
+Keeps the framework-neutral libraries free of NestJS across `ddd/core` and the planned
+`packages/uuidv7` and `packages/safe-stringify`, specs included:
+- Forbids importing `@nestjs/*`, any other `nestjs`-named package, and every
+  `@nestjs-pipeline/*` package, in every form: import, `import type`, re-export,
+  `import x = require()`, module augmentation, dynamic `import()` and `require()`.
+
+These packages are published for consumers that may not use NestJS, so one such import
+makes them fail to load or need an undeclared peer. A NestJS application integrates
+through the ports they define and supplies the NestJS side itself. Strings and comments
+are not imports, so documentation and lint-rule fixtures are unaffected. The manifest side
+of the same guarantee is `ddd/core/package-manifest.spec.ts`, because Grit cannot match
+JSON (see below).
+
 ---
 
 ## Manifest guard (not a Grit plugin)
@@ -107,7 +121,7 @@ sibling resolves exactly one copy of it:
 - `pnpm test:unit` enforces the persistence plugin plus the full test suite, including the
   manifest guard in `packages/pipeline/src/package-boundaries.spec.ts`.
 - Unit test coverage against the real Biome CLI:
-  - `ddd/core/persistence/biome-persistence-plugin.spec.ts` (13 tests)
-  - `ddd/core/persistence/biome-general-plugins.spec.ts` (10 tests)
+  - `ddd/core/persistence/biome-persistence-plugin.spec.ts`
+  - `ddd/core/persistence/biome-general-plugins.spec.ts`
 
 Reference: [Biome linter plugins](https://biomejs.dev/linter/plugins/) and [GritQL syntax](https://biomejs.dev/reference/gritql/).

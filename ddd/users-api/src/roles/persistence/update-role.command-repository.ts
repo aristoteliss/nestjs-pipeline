@@ -5,11 +5,12 @@ import { ICache } from '@nestjs-pipeline/ddd-core/application';
 import {
   CACHE_TOKEN,
   filterCacheKey,
+  MikroOrmWriteSideCommandRepository,
   optimisticUpdate,
   PersistedWrite,
 } from '@nestjs-pipeline/ddd-core/persistence';
+import { cacheWriteLogger } from '@persistence/cache/cache-loggers';
 import { MIKRO_ORM_CLIENT, MikroOrmStore } from '@persistence/mikro-orm.store';
-import { MikroOrmWriteSideCommandRepository } from '@persistence/mikro-orm-write-side.command-repository';
 import { UniqueRoleNameException } from '../domain/models/errors/role-name.exception';
 import { Role, RoleSnapshot } from '../domain/models/role.entity';
 
@@ -28,6 +29,7 @@ export class UpdateRoleCommandRepository extends MikroOrmWriteSideCommandReposit
 
   @PersistedWrite<Role>({
     cache: {
+      logger: cacheWriteLogger,
       setKey: (role) => filterCacheKey(Role.aggregateName, { id: role.id }),
       invalidateKeys: (role) => [
         filterCacheKey(Role.aggregateName, { name: role.name }),

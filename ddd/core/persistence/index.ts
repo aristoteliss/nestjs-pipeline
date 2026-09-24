@@ -12,6 +12,7 @@
 export * from './assert-autocommit';
 export * from './cache/memory.cache';
 export * from './cache.interface';
+export * from './cache-logger';
 export * from './command-repository.abstract';
 export * from './command-repository.interface';
 export * from './decorators/acknowledge-persisted.decorator';
@@ -23,6 +24,8 @@ export * from './helpers/cache-barrier.helper';
 export * from './helpers/cache-snapshot.helper';
 export * from './helpers/cache-version.helper';
 export * from './helpers/filter-cache-key.helper';
+export * from './is-transient-persistence-error';
+export * from './mikro-orm-write-side.command-repository';
 export * from './optimistic-delete';
 export * from './optimistic-update';
 export * from './query-repository.abstract';

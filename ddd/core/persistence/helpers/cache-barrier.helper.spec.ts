@@ -1,7 +1,7 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import { isUuidV7 } from '@nestjs-pipeline/core';
 import { describe, expect, it } from 'vitest';
+import { isUuidV7 } from '../../domain/utils/uuidv7';
 import {
   createCacheMutationBarrier,
   isCacheMutationBarrier,

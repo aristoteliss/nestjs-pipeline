@@ -105,8 +105,9 @@ export function MapPersistenceErrors<
    * mapping. Return the error unchanged to preserve its identity, or return a
    * replacement to express it in application terms.
    *
-   * The canonical use is transient-failure classification, so that retry policies
-   * consume `TransientOperationError` rather than driver codes:
+   * The canonical use is transient-failure classification with
+   * {@link mapPersistenceError}, so that retry policies consume
+   * `TransientOperationError` rather than driver codes:
    *
    * ```typescript
    * otherwise: (error, user) => mapPersistenceError(error, `deleting User ${user.id}`),

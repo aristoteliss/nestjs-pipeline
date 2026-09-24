@@ -9,6 +9,7 @@ import {
   filterCacheKey,
   PersistedWrite,
 } from '@nestjs-pipeline/ddd-core/persistence';
+import { cacheWriteLogger } from '@persistence/cache/cache-loggers';
 import { MIKRO_ORM_CLIENT, MikroOrmStore } from '@persistence/mikro-orm.store';
 import { UniqueRoleNameException } from '../domain/models/errors/role-name.exception';
 import { Role, RoleSnapshot } from '../domain/models/role.entity';
@@ -27,6 +28,7 @@ export class CreateRoleCommandRepository extends CommandRepository<
 
   @PersistedWrite<Role>({
     cache: {
+      logger: cacheWriteLogger,
       setKey: (role) => filterCacheKey(Role.aggregateName, { id: role.id }),
       invalidateKeys: (role) => [
         filterCacheKey(Role.aggregateName, { name: role.name }),

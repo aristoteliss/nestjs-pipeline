@@ -24,6 +24,24 @@ Per feature module (`users/`, `roles/`, `auths/`):
 | Persistence | `persistence/` | ORM, caching, tenant access, lifecycle decorators |
 | Jobs | `jobs/` | BullMQ processors and dispatcher adapters behind application ports |
 
+Generic DDD and persistence building blocks belong to `ddd/core` (see its `CLAUDE.md`,
+Ownership). The following still live here:
+- `src/persistence/cache/mikro-orm.cache.ts` and `cache.entity.ts`
+- `src/persistence/schemas/root-entity.properties.ts`
+- `requireTenantId` and its `MissingTenantContextError` in
+  `src/common/cqrs/helpers/requireTenantId.helper.ts`
+- the generic part of `src/common/filters/domain-exception.filter.ts`: the status mapping
+  for `ddd/core` errors. The Nest filter itself stays here.
+
+These belong in pipeline packages and are also still here: `feature-disabled.filter.ts`
+(`@nestjs-pipeline/feature-flags`) and `unauthorized-action.filter.ts`
+(`@nestjs-pipeline/casl`) in `src/common/filters/`, and
+`src/common/mappers/create-mapper.helper.ts` (`@nestjs-pipeline/zod`).
+
+Keep application-specific behavior out of them, and do not copy them. `ddd/core` is
+framework-neutral: Nest glue (DI providers, logger adapter, tenant wiring, exception
+filters) for `ddd/core` belongs in this application.
+
 Cross-cutting wiring lives in `src/infrastructure/` (`ObservabilityModule` — Pino, OTel,
 audit, global behaviors; `ReliabilityModule` — BullMQ, dead-letter, rate limit,
 idempotency, resilience, cache, feature flags) and `src/common/` (guards, filters,
@@ -38,7 +56,7 @@ interceptors, context, environment).
 | `src/graceful-shutdown.ts` | SIGTERM/SIGINT → `app.close()` → telemetry flush → re-raise the signal |
 | `src/app.module.ts` | Composition root: CQRS, observability, reliability, CASL, persistence, features |
 | `src/common/filters/domain-exception.filter.ts` | Framework-neutral errors → HTTP (409 for `ConcurrencyConflictError`, 404 for `EntityNotFoundException`) |
-| `src/persistence/mikro-orm-write-side.command-repository.ts` | Authoritative aggregate loading for mutations (`{ refresh: true }`) |
+| `src/persistence/mikro-orm.store.ts` | Tenant-resolved `EntityManager` (`em`), the `IEntityManagerSource` of `ddd/core`'s `MikroOrmWriteSideCommandRepository` |
 | `src/persistence/entity-manager-tenant.registry.ts` | Tenant ↔ EntityManager association (external `WeakMap`, never a property on the ORM object) |
 | `src/auths/services/session.service.ts` | Cookie lifecycle, kept out of domain login |
 | `src/auths/persistence/casl-permission.source.ts` | Principal and rule loading for CASL (`ICaslPermissionSource`) |

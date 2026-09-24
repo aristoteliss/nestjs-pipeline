@@ -183,7 +183,7 @@ export function accessToken(): Promise<string> {
 
 With `PERMISSIONS_IN_ACCESS_TOKEN=true`, login and refresh copy the user's materialized rules into the access token as `perms` (compact capability strings, all direct rules then all inverted, from `user_permission_rules`) together with `department`, the only principal attribute a placeholder reads today (`${user.id}` resolves from `sub`). `JwtAuthenticator` parses them into the session user's `grants` (a malformed entry is a 401), and `CaslPermissionSource` then answers without any query. With the flag off, `perms`/`department` in an already issued token are ignored, so turning it off takes effect immediately.
 
-If the signed token would exceed `ACCESS_TOKEN_MAX_BYTES` (default 2600), it is re-issued without `perms` and `department` and a warning names the user id and rule count (never the token or the rules); that user's requests use the database path. On Fastify the token also sits in the encrypted session cookie: session JSON → nonce + MAC → base64, which also repeats the tenant. The limit budgets that serialized cookie, not the JWS; the cookie-budget e2e test (a 2600-byte token keeps every `Set-Cookie` under 4096 bytes; 2700 did not) is the authority. Lower the limit for long tenant names. Requests authenticated by the Fastify session cookie read permissions from the database; bearer requests use the token path.
+If the signed token would exceed `ACCESS_TOKEN_MAX_BYTES` (default 2500), it is re-issued without `perms` and `department` and a warning names the user id and rule count (never the token or the rules); that user's requests use the database path. On Fastify the token also sits in the encrypted session cookie: session JSON → nonce + MAC → base64 → URL encoding, which also repeats the tenant. The limit budgets that serialized cookie, not the JWS. The ciphertext is random and URL encoding turns each `+` and `/` into three bytes, so the cookie length varies by about 170 bytes between logins: with a 2600-byte token about 1% of logins produced a `Set-Cookie` over 4096 bytes, and with 2500 none of 20,000 did. `src/http-platform.spec.ts` checks 1,000 logins at the limit, and the cookie-budget e2e test checks a real one. Lower the limit for long tenant names. Requests authenticated by the Fastify session cookie read permissions from the database; bearer requests use the token path.
 
 | | Database path (default) | Token path |
 | --- | --- | --- |
@@ -529,7 +529,7 @@ export class GetRolesHandler implements IQueryHandler<GetRolesQuery, RoleReadMod
 | `REFRESH_REUSE_GRACE_SECONDS` | Optional | Window for the immediately previous refresh token, 0–120 (default 30) | `30` |
 | `TRUST_PROXY` | Optional | Unset: off. Otherwise passed to Express `trust proxy` / Fastify `trustProxy` (`true`, a hop count, or an address list) so `req.ip` is the client | `loopback` |
 | `PERMISSIONS_IN_ACCESS_TOKEN` | Optional | `true` copies the user's rules into access tokens; `false` (default) ignores them | `false` |
-| `ACCESS_TOKEN_MAX_BYTES` | Optional | Largest access token that may carry permissions, 1024–16384 (default 2600) | `2600` |
+| `ACCESS_TOKEN_MAX_BYTES` | Optional | Largest access token that may carry permissions, 1024–16384 (default 2500) | `2500` |
 | `AUTH_LOGIN_CODE_SHA256` | Required for login in production | SHA-256 hex digest of the shared demo login code accepted for every user | `<64 hex characters>` |
 | `AUTH_LOGIN_CODE` | Non-production alternative | Plaintext shared demo login code; rejected in production | `123456` |
 | `AUTH_SHARED_LOGIN_CODE` | Required for login in production | `true` acknowledges that one code signs in any account; without it production login fails | `true` |
@@ -589,7 +589,7 @@ fabricated `cache.hit=false` would be indistinguishable from a real miss. The
 cache key is deliberately not an attribute — it carries tenant and principal and
 is unbounded.
 
-The application also has its own tenant-aware DDD repository cache so user/role write invalidation has a single clear target. In addition, `ObservabilityModule` configures `tenantIdFactory` so that the active tenant schema is explicitly conveyed through `IPipelineContext.tenantId`, allowing command handlers, rate limiters, and idempotency key factories to access the tenant cleanly from context without direct ambient coupling.
+The application also has its own tenant-aware DDD repository cache so user/role write invalidation has a single clear target. In addition, `ObservabilityModule` configures `tenantIdFactory` so that the active tenant schema is explicitly conveyed through `IPipelineContext.tenantId`, allowing command handlers, rate limiters, and idempotency key factories to access the tenant cleanly from context without direct ambient coupling. `TenantScopeBehavior` (the first global behavior) runs every pipeline execution inside ddd-core's tenant scope (`runWithTenant`), so repository cache keys (`filterCacheKey`) take the same tenant without it being passed at each call site.
 
 ## Tests
 

@@ -1,17 +1,18 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import { Logger } from '@nestjs/common';
 import { type ICache, isVersionedCache } from '../cache.interface';
+import type { ICacheLogger } from '../cache-logger';
 import type { CommandRepository } from '../command-repository.abstract';
 import {
   type CacheBarrierReason,
   createCacheMutationBarrier,
 } from '../helpers/cache-barrier.helper';
+import { consoleCacheLogger, safeWarn } from '../helpers/cache-logger.helper';
 import { reportMissingCacheProperty } from '../helpers/cache-owner.helper';
 import { toCacheSnapshot } from '../helpers/cache-snapshot.helper';
 import { isCacheNewer } from '../helpers/cache-version.helper';
 
-const logger = new Logger('CacheDecorator');
+const defaultLogger = consoleCacheLogger('CacheDecorator');
 
 function errorMessage(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
@@ -86,6 +87,12 @@ export interface CacheOptions<TEntity = unknown> {
    * @default {@link DEFAULT_BARRIER_TTL_MS}
    */
   barrierTtl?: number;
+
+  /**
+   * Receives cache-maintenance warnings. Defaults to `console.warn` with a
+   * `[CacheDecorator]` prefix. See {@link ICacheLogger}.
+   */
+  logger?: ICacheLogger;
 }
 
 /**
@@ -158,6 +165,7 @@ export function Cache<TEntity = unknown, TResult = unknown | null>(
   const resolvedInvalidateKeys = options.invalidateKeys ?? null;
   const resolvedTtl = options.ttl;
   const resolvedBarrierTtl = options.barrierTtl ?? DEFAULT_BARRIER_TTL_MS;
+  const logger = options.logger ?? defaultLogger;
   const resolvedIsNewer =
     options.isNewer === null ? undefined : (options.isNewer ?? isCacheNewer);
 
@@ -203,7 +211,7 @@ export function Cache<TEntity = unknown, TResult = unknown | null>(
       const result = await original.call(this, entity);
 
       if (!this.cache) {
-        reportMissingCacheProperty(this, '@Cache');
+        reportMissingCacheProperty(this, '@Cache', options.logger);
         return result;
       }
 
@@ -220,7 +228,8 @@ export function Cache<TEntity = unknown, TResult = unknown | null>(
           } catch (err) {
             const keyOption = deleting ? 'deleteKeys' : 'invalidateKeys';
             const operation = deleting ? 'cache eviction' : 'cache maintenance';
-            logger.warn(
+            safeWarn(
+              logger,
               `Failed resolving ${keyOption} during ${operation}: ${errorMessage(err)}`,
             );
           }
@@ -235,7 +244,8 @@ export function Cache<TEntity = unknown, TResult = unknown | null>(
               );
             } catch (err) {
               const action = deleting ? 'evicting deletion' : 'invalidating';
-              logger.warn(
+              safeWarn(
+                logger,
                 `Failed ${action} key "${key}": ${errorMessage(err)}`,
               );
             }
@@ -248,7 +258,8 @@ export function Cache<TEntity = unknown, TResult = unknown | null>(
           try {
             setKey = resolvedSetKey(entity);
           } catch (err) {
-            logger.warn(
+            safeWarn(
+              logger,
               `Failed resolving setKey during cache maintenance: ${errorMessage(err)}`,
             );
           }
@@ -281,14 +292,16 @@ export function Cache<TEntity = unknown, TResult = unknown | null>(
                 });
               }
             } catch (err) {
-              logger.warn(
+              safeWarn(
+                logger,
                 `Failed setting cache key "${setKey}": ${errorMessage(err)}`,
               );
             }
           }
         }
       } catch (err) {
-        logger.warn(
+        safeWarn(
+          logger,
           `Unexpected error during cache maintenance: ${errorMessage(err)}`,
         );
       }

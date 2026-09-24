@@ -8,6 +8,7 @@ import {
   filterCacheKey,
   PersistedWrite,
 } from '@nestjs-pipeline/ddd-core/persistence';
+import { cacheWriteLogger } from '@persistence/cache/cache-loggers';
 import { MIKRO_ORM_CLIENT, MikroOrmStore } from '@persistence/mikro-orm.store';
 import { Auth, AuthSnapshot } from '../domain/models/auth.entity';
 
@@ -26,6 +27,7 @@ export class CreateAuthCommandRepository extends CommandRepository<
   // Sessions hold refresh-token hashes and are never cached; the key is only invalidated.
   @PersistedWrite<Auth>({
     cache: {
+      logger: cacheWriteLogger,
       invalidateKeys: (auth) => [
         filterCacheKey(Auth.aggregateName, { id: auth.id }),
       ],

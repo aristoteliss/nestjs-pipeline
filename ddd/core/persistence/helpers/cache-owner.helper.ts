@@ -1,8 +1,9 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import { Logger } from '@nestjs/common';
+import type { ICacheLogger } from '../cache-logger';
+import { consoleCacheLogger, safeWarn } from './cache-logger.helper';
 
-const logger = new Logger('CacheDecorators');
+const defaultLogger = consoleCacheLogger('CacheDecorators');
 const reportedOwners = new WeakSet<object>();
 
 /**
@@ -14,11 +15,13 @@ const reportedOwners = new WeakSet<object>();
 export function reportMissingCacheProperty(
   instance: object,
   decorator: '@Cache' | '@FromCache',
+  logger: ICacheLogger = defaultLogger,
 ): void {
   const owner = instance.constructor;
   if ('cache' in instance || reportedOwners.has(owner)) return;
   reportedOwners.add(owner);
-  logger.warn(
+  safeWarn(
+    logger,
     `${owner.name} uses ${decorator} but has no \`cache\` property, so caching is skipped. ` +
       'Extend CommandRepository/QueryRepository or declare a `cache` property.',
   );

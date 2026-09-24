@@ -1,6 +1,5 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import { Logger } from '@nestjs/common';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { IQueryOptions } from '../../application/query.options';
 import { MemoryCache } from '../cache/memory.cache';
@@ -91,9 +90,7 @@ describe('@FromCache decorator on QueryRepository.find', () => {
         return { id: query.userId, name: 'db' };
       }
     }
-    const warn = vi
-      .spyOn(Logger.prototype, 'warn')
-      .mockImplementation(() => undefined);
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     const repo = new MiswiredQueryRepo(versionedCache<Row>());
 
     try {
@@ -429,9 +426,7 @@ describe('@FromCache with options and concurrency checks', () => {
         return new EntityResult(query.id);
       }
     }
-    const warn = vi
-      .spyOn(Logger.prototype, 'warn')
-      .mockImplementation(() => undefined);
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     const cache = versionedCache<unknown>();
     const repo = new UnhydratedRepo(cache as ICache);
 
@@ -483,9 +478,7 @@ describe('@FromCache with options and concurrency checks', () => {
         return { raw: 'hello' };
       }
     }
-    const warn = vi
-      .spyOn(Logger.prototype, 'warn')
-      .mockImplementation(() => undefined);
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     const cache = versionedCache<unknown>();
 
     try {
@@ -554,9 +547,7 @@ describe('@FromCache with an adapter that exposes only get/set/delete', () => {
   });
 
   it('reports the disabled read-through once per adapter instance', async () => {
-    const warn = vi
-      .spyOn(Logger.prototype, 'warn')
-      .mockImplementation(() => {});
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const cache = unversionedCache();
     const repo = new TestQueryRepo(cache);
 
@@ -565,7 +556,61 @@ describe('@FromCache with an adapter that exposes only get/set/delete', () => {
     await new TestQueryRepo(unversionedCache()).find({ userId: '3' });
 
     expect(warn).toHaveBeenCalledTimes(2);
+    expect(warn.mock.calls[0][0]).toMatch(/^\[FromCacheDecorator\] /);
     expect(warn.mock.calls[0][0]).toMatch(/read-through is disabled/);
+    warn.mockRestore();
+  });
+
+  it('routes read-through warnings to the configured logger', async () => {
+    const logger = { warn: vi.fn() };
+    class LoggedQueryRepo {
+      constructor(public cache?: ICache) {}
+
+      @FromCache<GetUserQuery, Row>({
+        keyFn: (q) => `user:${q.userId}`,
+        logger,
+      })
+      async find(query: GetUserQuery): Promise<Row> {
+        return { id: query.userId, name: 'db' };
+      }
+    }
+    const consoleWarn = vi
+      .spyOn(console, 'warn')
+      .mockImplementation(() => undefined);
+
+    try {
+      await new LoggedQueryRepo(unversionedCache()).find({ userId: '1' });
+
+      expect(logger.warn).toHaveBeenCalledTimes(1);
+      expect(logger.warn.mock.calls[0][0]).toMatch(/read-through is disabled/);
+      expect(consoleWarn).not.toHaveBeenCalled();
+    } finally {
+      consoleWarn.mockRestore();
+    }
+  });
+
+  it('returns the database result when the configured logger throws', async () => {
+    const logger = {
+      warn: vi.fn(() => {
+        throw new Error('logger down');
+      }),
+    };
+    class ThrowingLoggerQueryRepo {
+      constructor(public cache?: ICache) {}
+
+      @FromCache<GetUserQuery, Row>({
+        keyFn: (q) => `user:${q.userId}`,
+        logger,
+      })
+      async find(query: GetUserQuery): Promise<Row> {
+        return { id: query.userId, name: 'db' };
+      }
+    }
+
+    await expect(
+      new ThrowingLoggerQueryRepo(unversionedCache()).find({ userId: '1' }),
+    ).resolves.toEqual({ id: '1', name: 'db' });
+    expect(logger.warn).toHaveBeenCalledTimes(1);
   });
 
   it('keeps full caching for an adapter that implements the versioned contract', async () => {

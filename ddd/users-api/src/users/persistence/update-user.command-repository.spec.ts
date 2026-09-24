@@ -1,7 +1,9 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import { type IPipelineContext, pipelineStore } from '@nestjs-pipeline/core';
-import { type ICache } from '@nestjs-pipeline/ddd-core/application';
+import {
+  type ICache,
+  runWithTenant,
+} from '@nestjs-pipeline/ddd-core/application';
 import {
   ConcurrencyConflictError,
   EntityNotFoundException,
@@ -33,10 +35,7 @@ describe('UpdateUserCommandRepository', () => {
     const repository = new UpdateUserCommandRepository(cache, store as never);
 
     await expect(
-      pipelineStore.run(
-        { tenantId: 'tenant' } as unknown as IPipelineContext,
-        () => repository.save(user),
-      ),
+      runWithTenant('tenant', () => repository.save(user)),
     ).resolves.toEqual(user.toJSON());
     expect(nativeUpdate).toHaveBeenCalledWith(
       User,
