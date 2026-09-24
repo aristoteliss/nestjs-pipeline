@@ -13,9 +13,11 @@ for consistency and invalidation
 requirements. Existing barriers/CAS checks are mechanisms to verify, not proof of
 atomic DB/cache consistency or complete anti-resurrection safety.
 
-Private, Nest-oriented DDD support for the sample applications. Domain, application,
-and MikroORM persistence entry points are provided separately; this is not a
-framework-neutral or independently published domain library.
+Framework-neutral DDD support: domain, application, and MikroORM persistence entry
+points, provided separately. It does not depend on NestJS or on any
+`@nestjs-pipeline/*` package. A NestJS application supplies its own glue, such as
+the injected `EventBus` it passes to `CommandBaseHandler` and a pipeline behavior
+that calls `runWithTenant`. It is a private workspace package.
 
 Internal users-api code imports domain primitives from `/domain`, application
 ports and CQRS support from `/application`, and concrete adapters/decorators from
@@ -52,6 +54,7 @@ This package provides the foundational building blocks for implementing a Clean 
 - **`toCacheSnapshot(value, serializeFn?)`** — Shared serialization boundary extracting a pure, detached snapshot via `serializeFn`, `value.toJSON()`, or deep JSON cloning. Guarantees live aggregate references never leak into cache storage.
 - **`ICommandRepository<TEntity, TResult>`** — Interface defining the contract `save(entity: TEntity): Promise<TResult | null>`.
 - **`IWriteSideAggregateRepository<TEntity, TId = string>`** — Single-entity generic interface for write-side repositories extending `ICommandRepository<TEntity, unknown>`, defining `findById(id: TId): Promise<TEntity | null>`. Guarantees command handlers load rehydrated domain aggregates directly from authoritative persistence (`{ refresh: true }`) without leaking snapshot types or ORM clients into handlers.
+- **`MikroOrmWriteSideCommandRepository<TSnapshot, TEntity, TResult>`** — Abstract MikroORM base class that implements it: `findById()` reads with `{ refresh: true }`, never touches the cache, rehydrates through the `hydrateFn` passed to the constructor, and translates failures with `mapPersistenceError`. It takes an **`IEntityManagerSource`** (`{ readonly em: EntityManager }`) and reads `em` on every call, so a multi-tenant store can return the current tenant's manager. Subclasses add the decorated `save()`.
 - **`CacheMutationBarrier`** — Sentinel record (`{ __cacheBarrier: true, token: string, reason: 'deleted' | 'invalidated', createdAt: number }`) installed in cache during mutations with a finite `barrierTtl` (60 seconds by default) to prevent concurrent in-flight queries from repopulating the cache with stale/resurrected state.
 - **`createCacheMutationBarrier(reason, entity?)`** / **`isCacheMutationBarrier(value)`** — Helper factory and type guard for mutation barriers.
 - **`CommandRepository<TEntity, TResult, TCache>`** — Abstract base for write repositories. Injects an `ICache` instance; concrete classes implement `save(entity: TEntity)`.
@@ -77,6 +80,8 @@ This package provides the foundational building blocks for implementing a Clean 
 - **`@PersistedWrite(options)`** — Composite method decorator for `save(aggregate)`: applies `@Cache(options.cache)` → `@AcknowledgePersisted` → `@MapPersistenceErrors({ unique, otherwise })` in canonical order with the first argument as the entity. `cache` is optional. Use the individual decorators for other signatures, for deletes (which do not acknowledge), or for caller-owned ordering; `biome/plugins/persistence-lifecycle.grit` rejects combining both forms on one method.
 - **`@AcknowledgePersisted()`** — Method decorator for `save()` in command repositories: captures the aggregate's current entry version before write execution and automatically calls `entity.acknowledgePersisted(version)` upon successful persistence.
 - **`@MapPersistenceErrors()`** — Method decorator for persistence operations: maps identifiable database driver unique constraint failures (PostgreSQL `23505` and SQLite unique constraints) to application-owned domain exceptions.
+- **`mapPersistenceError(error, operation)`** — The canonical `otherwise` translator for `@MapPersistenceErrors` and `@PersistedWrite`, also usable in a plain `catch`: returns a `TransientOperationError` (with the original as `cause`) for a retryable failure, and any other error unchanged, so deliberate domain errors keep their identity. Retry policies then depend on `TransientOperationError`, never on driver codes.
+- **`isTransientPersistenceError(error)`** — The classifier behind it, for persistence adapters only: retryable PostgreSQL SQLSTATEs (serialization failure, deadlock, lock not available, shutdown, and the `08` and `53` classes), Node network errors, `SQLITE_BUSY`/`SQLITE_LOCKED`, and errors named `TaskCancelledError` or `TimeoutError`, searched through the `cause` chain. Keep it in persistence adapters: application handlers depend on `TransientOperationError` instead.
 - **`optimisticUpdate()`** — Infrastructure helper for MikroORM version-conditioned updates (`WHERE id = ? AND version = expectedVersion`). Inspects affected rows, performs diagnostic existence checks on zero affected rows, and raises `EntityNotFoundException` or `ConcurrencyConflictError`. Explicitly rejects execution inside active outer transactions.
 - **`optimisticDelete()`** — The delete counterpart, on `{ id, version: getExpectedVersion() }`, with the same affected-row contract and the same autocommit requirement. Unversioned rows (sessions, tokens) are out of scope: delete those by primary key rather than inventing a version column.
 - **`assertAutocommit()`** — The single transaction-boundary check shared by the update, delete and create paths. Every write whose successful return triggers acknowledgment or cache maintenance calls it before issuing a statement.
@@ -281,11 +286,13 @@ Use the compiled sample handlers as the canonical examples:
 `handle()` returns either the aggregate or an application result containing it,
 for example `{ aggregate: user, success: true }`. `execute()` returns that result
 unchanged and publishes buffered events once after successful handling. A rejected
-`handle()` does not publish events. If `EventBus.publishAll()` throws synchronously,
-the error propagates and the aggregate's buffered events remain uncleared.
+`handle()` does not publish events. If the publisher's `publishAll()` throws
+synchronously, the error propagates and the aggregate's buffered events remain
+uncleared.
 
-Publication uses the in-memory Nest EventBus. Persistence and event delivery are
-not atomic; durable delivery requires an explicit outbox architecture.
+The sample passes the in-memory Nest `EventBus` as the publisher. Persistence and
+event delivery are not atomic; durable delivery requires an explicit outbox
+architecture.
 
 Do not publish events manually or put response/session mapping in these handlers.
 
@@ -346,6 +353,39 @@ Cache mutation barriers protect against stale in-flight reads while retained.
 maximum in-flight read duration. This is a bounded race-protection window, not
 an indefinite tombstone or a durable consistency protocol.
 
+## Tenant-scoped cache keys
+
+`filterCacheKey(resource, conditions, tenant?)` and `cacheKeyTemplate(template, tenant?)`
+namespace every key by tenant. The tenant comes from, in order:
+
+1. the explicit `tenant` argument (`CacheKeyTenantSource`): a tenant id string, or an
+   object carrying `tenantId`, such as a pipeline context;
+2. for `cacheKeyTemplate`, a context source's `tenantId`;
+3. the running tenant scope, set with `runWithTenant(tenantId, fn)` from
+   `@nestjs-pipeline/ddd-core/application`, which is Node's `AsyncLocalStorage` and needs
+   no framework.
+
+Set the scope once where a unit of work enters the application: an HTTP request, a queue
+job, or a command dispatch. The examples above then need no tenant argument. In a NestJS
+pipeline application, one global pipeline behavior does it:
+
+```typescript
+@Injectable()
+export class TenantScopeBehavior implements IPipelineBehavior {
+  handle(context: IPipelineContext, next: NextDelegate) {
+    return runWithTenant(context.tenantId, next);
+  }
+}
+```
+
+There is no shared namespace: a missing or empty tenant throws
+`MissingTenantContextError`. A single-tenant deployment passes a fixed id or runs inside
+`runWithTenant('single', ...)`.
+
+`filterCacheKey` keys have the form `${tenant}:${resource}:v1:${sha256}`, hashed over a
+key-sorted serialization of `[tenant, resource, conditions]`. That output is frozen, so
+existing cache entries stay addressable across releases.
+
 ## Cache Implementations & Options
 
 `@nestjs-pipeline/ddd-core` defines the `ICache<T>` interface and `CacheSetOptions`:
@@ -365,9 +405,9 @@ export interface ICache<T = unknown> {
 }
 ```
 
-Both bundled implementations also implement `IVersionedCache`:
-- **`MikroOrmCache`**: Database-backed cache entity (`CacheEntry`) storing JSON payloads and Unix expiration timestamps, supporting atomic `isNewer` comparison against existing records.
-- **`MemoryCache`**: Lightweight in-process `Map` cache with TTL and atomic `isNewer` protection, suitable for unit tests and local development.
+Two implementations of `IVersionedCache` exist:
+- **`MemoryCache`** (bundled): Lightweight in-process `Map` cache with TTL and atomic `isNewer` protection, suitable for unit tests and local development.
+- **`MikroOrmCache`**: Database-backed cache entity (`CacheEntry`) storing JSON payloads and Unix expiration timestamps, supporting atomic `isNewer` comparison against existing records. It is currently implemented in the users-api example application, not exported by this package.
 
 A custom adapter that implements only `ICache` still works with `@Cache`, but
 `@FromCache` bypasses it entirely, as described above. That is a deliberate
@@ -383,12 +423,14 @@ with `{ refresh: true }` where a decision must not rest on a cached value.
 
 ---
 
-## Peer Dependencies
+## Dependencies
 
-- `@nestjs-pipeline/core` (workspace)
-- `@mikro-orm/core` is an optional peer required by persistence helpers and `UnixTimestampType`.
-  Import `@nestjs-pipeline/ddd-core/domain` or `/application` to avoid loading
-  the persistence entry point; the root barrel also exports persistence.
+- No runtime dependencies, and no NestJS or `@nestjs-pipeline/*` package in any
+  form.
+- `@mikro-orm/core` is the only peer, and it is optional. `/persistence` and the
+  root barrel load it at runtime, because they export `UnixTimestampType`, which
+  extends MikroORM's `Type`. Import `@nestjs-pipeline/ddd-core/domain` or
+  `/application` to run without it.
 
 
 ## Decorated versioned updates
@@ -418,7 +460,7 @@ version-conditional update, verifies the affected row count, and raises
 `EntityNotFoundException` or framework-neutral `ConcurrencyConflictError` when appropriate.
 It remains an explicit helper because it executes SQL, rather than wrapping
 arbitrary repository logic. It does not cache, acknowledge, or publish events.
-This helper is MikroORM-specific infrastructure within this Nest-oriented support
+This helper is MikroORM-specific infrastructure within this framework-neutral
 package; the decorators do not depend on application models or configuration.
 
 The acknowledgment decorator requires that the method write the entry version

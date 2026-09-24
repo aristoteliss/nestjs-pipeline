@@ -1,6 +1,6 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import { uuidv7 } from '@nestjs-pipeline/core';
+import { uuidv7 } from '../../domain/utils/uuidv7';
 
 /**
  * Mutation reason associated with a {@link CacheMutationBarrier}.

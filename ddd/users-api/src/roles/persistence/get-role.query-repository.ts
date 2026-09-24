@@ -8,6 +8,7 @@ import {
   filterCacheKey,
   QueryRepository,
 } from '@nestjs-pipeline/ddd-core/persistence';
+import { cacheReadLogger } from '@persistence/cache/cache-loggers';
 import { MIKRO_ORM_CLIENT, MikroOrmStore } from '@persistence/mikro-orm.store';
 import { GetRoleQuery } from '../cqrs/queries/get-role.query';
 import { Role, RoleSnapshot } from '../domain/models/role.entity';
@@ -31,6 +32,7 @@ export class GetRoleQueryRepository extends QueryRepository<
   }
 
   @FromCache<GetRoleQuery, Role | null>({
+    logger: cacheReadLogger,
     keyFn: (q) => filterCacheKey(Role.aggregateName, buildConditions(q)),
   })
   async find(query: GetRoleQuery): Promise<Role | null> {

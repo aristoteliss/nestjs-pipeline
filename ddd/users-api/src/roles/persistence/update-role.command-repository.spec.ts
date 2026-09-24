@@ -1,7 +1,9 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import { type IPipelineContext, pipelineStore } from '@nestjs-pipeline/core';
-import { type ICache } from '@nestjs-pipeline/ddd-core/application';
+import {
+  type ICache,
+  runWithTenant,
+} from '@nestjs-pipeline/ddd-core/application';
 import {
   ConcurrencyConflictError,
   EntityNotFoundException,
@@ -32,10 +34,7 @@ describe('UpdateRoleCommandRepository', () => {
     };
     const repository = new UpdateRoleCommandRepository(cache, store as never);
 
-    const result = await pipelineStore.run(
-      { tenantId: 'tenant' } as unknown as IPipelineContext,
-      () => repository.save(role),
-    );
+    const result = await runWithTenant('tenant', () => repository.save(role));
 
     expect(nativeUpdate).toHaveBeenCalledWith(
       Role,
@@ -204,10 +203,7 @@ describe('decorated versioned update lifecycle', () => {
       role.rename('reviewer');
       return 1;
     });
-    const result = await pipelineStore.run(
-      { tenantId: 'tenant' } as unknown as IPipelineContext,
-      () => repository.save(role),
-    );
+    const result = await runWithTenant('tenant', () => repository.save(role));
     expect(role.version).toBe(3);
     expect(role.getExpectedVersion()).toBe(2);
     expect(result).toEqual(written);

@@ -1,6 +1,8 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
-import { type IPipelineContext, pipelineStore } from '@nestjs-pipeline/core';
-import { type ICache } from '@nestjs-pipeline/ddd-core/application';
+import {
+  type ICache,
+  runWithTenant,
+} from '@nestjs-pipeline/ddd-core/application';
 import {
   DEFAULT_BARRIER_TTL_MS,
   filterCacheKey,
@@ -29,10 +31,7 @@ describe('CreateUserCommandRepository', () => {
     };
     const repository = new CreateUserCommandRepository(cache, store as never);
 
-    const result = await pipelineStore.run(
-      { tenantId: 'tenant' } as unknown as IPipelineContext,
-      () => repository.save(user),
-    );
+    const result = await runWithTenant('tenant', () => repository.save(user));
 
     const idKey = filterCacheKey(User.aggregateName, { id: user.id }, 'tenant');
     const emailKey = filterCacheKey(
@@ -150,10 +149,7 @@ describe('CreateUserCommandRepository transaction boundary', () => {
     const expectedBefore = user.getExpectedVersion();
 
     await expect(
-      pipelineStore.run(
-        { tenantId: 'tenant' } as unknown as IPipelineContext,
-        () => repository.save(user),
-      ),
+      runWithTenant('tenant', () => repository.save(user)),
     ).rejects.toThrow(/requires autocommit/);
 
     expect(create).not.toHaveBeenCalled();

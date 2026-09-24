@@ -19,19 +19,6 @@ importers:
         version: 6.0.3
 
   ddd/core:
-    dependencies:
-      '@nestjs-pipeline/core':
-        specifier: workspace:*
-        version: link:../../packages/pipeline
-      '@nestjs-pipeline/correlation':
-        specifier: workspace:*
-        version: link:../../packages/pipeline-correlation
-      '@nestjs/common':
-        specifier: ^11.2.1
-        version: 11.2.1(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@7.2.0)
-      '@nestjs/cqrs':
-        specifier: ^11.0.3
-        version: 11.0.3(@nestjs/common@11.2.1(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@7.2.0))(@nestjs/core@11.2.1)(reflect-metadata@0.2.2)(rxjs@7.8.2)
     devDependencies:
       '@biomejs/biome':
         specifier: ^2.5.10

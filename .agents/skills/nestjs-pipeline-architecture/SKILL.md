@@ -59,7 +59,7 @@ Keep architecture documentation focused on the repository as it exists.
 - Handlers and ordinary domain entities should be self-explanatory and normally have no narrative JSDoc. A short comment is acceptable only for a non-obvious invariant, security/concurrency constraint, or external protocol requirement.
 - Do not leave review conclusions, refactor rationale, migration history, or "previously/now/used to" explanations in source comments or normal READMEs. Git history records changes.
 - **No AI slop, banners, or decorative divider lines**: Never write decorative section headers, ASCII divider lines, or boxed borders (e.g. `// ── ... ──`, `// ===== ... =====`, `/* ──────────────── */`). Write clean, standard code.
-- **No ticket or task identifiers in code or test suites**: Never include task/review IDs (e.g. `(S-15)`, `S-02`, `R-07`, ticket tags) in code comments, test file names, `describe` / `it` blocks, or identifier names. Tests must describe the *actual behavior or invariant*, not the development task that introduced it. Task IDs belong exclusively in external task-tracking/review documents (`docs/reviews/`).
+- **No ticket or task identifiers in code or test suites**: Never include task/review IDs (e.g. `(S-15)`, `S-02`, `R-07`, ticket tags) in code comments, test file names, `describe` / `it` blocks, or identifier names. Tests must describe the *actual behavior or invariant*, not the development task that introduced it. Task IDs belong exclusively in task-tracking documents (such as `.claude/tasks/`).
 - **Concise step markers in core logic vs. narrative signposting**: Short, concise step comments in multi-phase core mechanisms or helpers (e.g. `// 1. Validate ordering constraints`, `// 2. Validate behavior options and intent`) are helpful and welcomed. Avoid conversational narrative commentary ("This block validates...", "Here we handle...", "Helper to...") and paragraph-sized inline explanations.
 - If a source comment needs a paragraph to explain ordinary application flow, simplify the code or move durable consumer guidance to the appropriate README.
 
@@ -454,7 +454,7 @@ Never introduce or re-introduce these patterns:
 - Merging session cookie logic, credential validation, and JWT operations into a single application service (use `SessionService` for presentation cookies and `UserLoginService` for domain login)
 - CQRS event handlers injecting BullMQ queues directly without application ports
 - Event handlers that only call `Logger`/`getCorrelationId()` without performing meaningful domain work
-- CQRS handlers importing persistence-specific error classifiers (e.g. `@persistence/is-transient-persistence-error`)
+- CQRS handlers importing persistence-specific error classifiers (e.g. `isTransientPersistenceError` from `@nestjs-pipeline/ddd-core/persistence`)
 - Tenant-only pipeline cache keys for responses filtered by principal permissions
 - Defaulting missing tenant context to `'default'` instead of failing closed with `MissingTenantContextError`
 - Synthetic `new Auth({ userId, token: '' })` snapshots used as command payloads (pass explicit scalar parameters `{ userId, token }`)

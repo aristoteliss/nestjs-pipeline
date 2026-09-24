@@ -1,5 +1,6 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
-import { type IPipelineContext, pipelineStore } from '@nestjs-pipeline/core';
+
+import { runWithTenant } from '@nestjs-pipeline/ddd-core/application';
 import {
   filterCacheKey,
   MemoryCache,
@@ -43,9 +44,8 @@ describe('GetRoleQueryRepository cache hydration', () => {
       await createCachedRoleFixture();
     const readState = vi.spyOn(cache, 'readState');
 
-    const result = await pipelineStore.run(
-      { tenantId: 'tenant' } as unknown as IPipelineContext,
-      () => queryRepository.find(new GetRoleQuery({ roleId: role.id })),
+    const result = await runWithTenant('tenant', () =>
+      queryRepository.find(new GetRoleQuery({ roleId: role.id })),
     );
 
     expect(result).toBeInstanceOf(Role);
@@ -65,9 +65,8 @@ describe('GetRoleQueryRepository cache hydration', () => {
     };
     const queryRepository = new GetRoleQueryRepository(cache, store as never);
 
-    const result = await pipelineStore.run(
-      { tenantId: 'tenant' } as unknown as IPipelineContext,
-      () => queryRepository.find(new GetRoleQuery({ roleId: role.id })),
+    const result = await runWithTenant('tenant', () =>
+      queryRepository.find(new GetRoleQuery({ roleId: role.id })),
     );
 
     expect(result).toBe(role);

@@ -1,6 +1,8 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
-import { type IPipelineContext, pipelineStore } from '@nestjs-pipeline/core';
-import type { ICache } from '@nestjs-pipeline/ddd-core/application';
+import {
+  type ICache,
+  runWithTenant,
+} from '@nestjs-pipeline/ddd-core/application';
 import {
   filterCacheKey,
   MemoryCache,
@@ -40,10 +42,7 @@ describe('GetUserQueryRepository cache policy', () => {
       } as never,
       async () => undefined,
     );
-    const result = await pipelineStore.run(
-      { tenantId: 'tenant' } as unknown as IPipelineContext,
-      () => repository.find(query),
-    );
+    const result = await runWithTenant('tenant', () => repository.find(query));
 
     expect(query.hydrate).toBe(true);
     expect(result).toBeInstanceOf(User);
@@ -88,10 +87,7 @@ describe('GetUserQueryRepository cache policy', () => {
     const repository = new GetUserQueryRepository(cache, store as never);
     const query = new GetUserQuery({ userId: persisted.id });
 
-    const result = await pipelineStore.run(
-      { tenantId: 'tenant' } as unknown as IPipelineContext,
-      () => repository.find(query),
-    );
+    const result = await runWithTenant('tenant', () => repository.find(query));
 
     expect(result).toBe(persisted);
     const idKey = filterCacheKey(
@@ -111,10 +107,7 @@ describe('GetUserQueryRepository cache policy', () => {
     const repository = new GetUserQueryRepository(cache, store as never);
     const query = new GetUserQuery({ userId: persisted.id });
 
-    const result = await pipelineStore.run(
-      { tenantId: 'tenant' } as unknown as IPipelineContext,
-      () => repository.find(query),
-    );
+    const result = await runWithTenant('tenant', () => repository.find(query));
 
     expect(result).toBeInstanceOf(User);
     expect(store.em.findOne).not.toHaveBeenCalled();

@@ -1,6 +1,7 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { type IPipelineContext, pipelineStore } from '@nestjs-pipeline/core';
+import { runWithTenant } from '@nestjs-pipeline/ddd-core/application';
 import { MissingTenantContextError } from '@nestjs-pipeline/ddd-core/domain';
 import {
   cacheKeyTemplate,
@@ -55,19 +56,27 @@ describe('filterCacheKey', () => {
     expect(key).toMatch(/^tenant_from_ctx:user:v1:[a-f0-9]{64}$/);
   });
 
-  it('falls back to ambient pipelineStore when tenantOrContext is omitted', () => {
-    pipelineStore.run(
-      { tenantId: 'tenant_ambient' } as unknown as IPipelineContext,
-      () => {
-        const key = filterCacheKey('user', { id: '1' });
-        expect(key).toMatch(/^tenant_ambient:user:v1:[a-f0-9]{64}$/);
-      },
+  it('uses the ddd-core tenant scope when no tenant is passed', () => {
+    const key = runWithTenant('tenant_scope', () =>
+      filterCacheKey('user', { id: '1' }),
     );
+    expect(key).toMatch(/^tenant_scope:user:v1:[a-f0-9]{64}$/);
   });
 
   it('fails closed when no tenant is available, rather than sharing a namespace', () => {
     expect(() => filterCacheKey('user', { id: '1' })).toThrow(
       MissingTenantContextError,
+    );
+  });
+
+  it('does not read the pipeline store directly; TenantScopeBehavior bridges it', () => {
+    pipelineStore.run(
+      { tenantId: 'tenant_ambient' } as unknown as IPipelineContext,
+      () => {
+        expect(() => filterCacheKey('user', { id: '1' })).toThrow(
+          MissingTenantContextError,
+        );
+      },
     );
   });
 

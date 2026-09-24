@@ -16,7 +16,7 @@ A contextual EntityManager (request context or active transaction) is reused onl
 
 When adding a command that mutates an existing aggregate:
 
-1. extend `MikroOrmWriteSideCommandRepository<TEntity, TSnapshot, TResult>` (providing `hydrateFn: (s) => TEntity.fromJSON(s)`);
+1. extend `MikroOrmWriteSideCommandRepository<TSnapshot, TEntity, TResult>` from `@nestjs-pipeline/ddd-core/persistence`, passing `MikroOrmStore` as its `IEntityManagerSource` and `hydrateFn: (s) => TEntity.fromJSON(s)`;
 2. inject `IWriteSideAggregateRepository<TEntity>` into the command handler;
 3. load the aggregate authoritatively via `await this.repository.findById(id)`;
 4. verify presence or throw `EntityNotFoundException`;

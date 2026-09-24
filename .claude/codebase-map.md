@@ -50,14 +50,14 @@ what the libraries support.
 ## Technology Stack
 
 <!-- context:generated-start technology-stack -->
-- **Languages** (file counts, excluded directories omitted): `.ts` 674, `.md` 48, `.grit` 12, `.py` 3, `.mjs` 1
+- **Languages** (file counts, excluded directories omitted): `.ts` 686, `.md` 45, `.grit` 13, `.py` 3, `.mjs` 1
 - **Runtime engines** (root `package.json`): `node` >=22.0.0, `pnpm` >=9.0.0
 - **Package manager evidence**: `pnpm-lock.yaml`.
 
 | Technology | Evidence (declared) | Used in (sample) |
 | --- | --- | --- |
-| NestJS runtime — Application framework and DI container | `@nestjs/common`, `@nestjs/core` | `ddd/core/persistence/biome-general-plugins.spec.ts`, `ddd/core/persistence/decorators/Cache.spec.ts` |
-| NestJS CQRS — Command/query/event buses wrapped by the pipeline | `@nestjs/cqrs` | `ddd/core/application/base.command.ts`, `ddd/core/application/command-base.handler.spec.ts` |
+| NestJS runtime — Application framework and DI container | `@nestjs/common`, `@nestjs/core` | `ddd/core/persistence/biome-general-plugins.spec.ts`, `ddd/users-api/src/app.module.ts` |
+| NestJS CQRS — Command/query/event buses wrapped by the pipeline | `@nestjs/cqrs` | `ddd/core/persistence/biome-general-plugins.spec.ts`, `ddd/users-api/src/app.module.ts` |
 | MikroORM — ORM, unit of work, migrations | `@mikro-orm/core`, `@mikro-orm/nestjs`, `@mikro-orm/migrations` | `ddd/core/persistence/assert-autocommit.ts`, `ddd/core/persistence/biome-general-plugins.spec.ts` |
 | PostgreSQL — Relational backend and schema-per-tenant access | `pg`, `@mikro-orm/postgresql` | `ddd/users-api/src/persistence/postgres-mikro-orm.store.ts`, `ddd/users-api/src/persistence/postgres-options.ts` |
 | SQLite / libSQL — Local and test persistence backend | `@libsql/client`, `@mikro-orm/sqlite`, `@mikro-orm/libsql` | `ddd/users-api/src/persistence/cache/mikro-orm.cache.ts`, `ddd/users-api/src/persistence/libsql-options.ts` |
@@ -120,7 +120,6 @@ editor/tooling directories are excluded (see Snapshot Metadata).
 | `.claude/` | Persistent, repository-local context for Claude Code and other coding agents. Everything here is plain Markdown plus two dependency-free Python scripts; nothing runs during a normal build or test. | `README.md`, `codebase-map.md` |
 | `biome/` | Native Biome analyzer plugins registered in the root biome.json. They report diagnostics; they do not rewrite code automatically. (from `biome/plugins/README.md`) | subdirectories only |
 | `ddd/` | Workspace container — 2 package(s); see the workspace table below | subdirectories only |
-| `docs/` | External, non-code repository documentation. | `README.md` |
 | `integration/` | Run pnpm test:release before publishing. It rebuilds the workspace, copies the licenses, and runs release.mjs. It is also part of pnpm verify:all. (from `integration/packages/README.md`) | subdirectories only |
 | `packages/` | Workspace container — 12 package(s); see the workspace table below | `CLAUDE.md` |
 | `scripts/` | Dependency-free Python utilities for the agent context-management system. They are not part of the build, the test run, or the release pipeline; see .claude/README.md for the full system description. | `README.md`, `claude-context-checkpoint.py`, `update-claude-snapshot.py`, `validate-claude-context.py` |
@@ -166,7 +165,9 @@ path given before relying on it.*
 The direction is strictly inward: presentation → application → domain. Persistence
 implements application-owned interfaces. Biome Grit plugins enforce the crossings
 (`biome/plugins/ddd-layering.grit`, `handler-boundaries.grit`, `ddd-entry-points.grit`,
-`transport-neutral-errors.grit`).
+`transport-neutral-errors.grit`). `ddd/core` depends on no NestJS or `@nestjs-pipeline/*`
+package; users-api supplies the Nest glue (`framework-independence.grit`,
+`ddd/core/package-manifest.spec.ts`).
 
 ### Request flow
 
@@ -184,8 +185,8 @@ README "Pipeline Execution Model"). Global behaviors are registered in
 ### Persistence flow
 
 Commands load aggregates through `IWriteSideAggregateRepository` →
-`MikroOrmWriteSideCommandRepository` (`{ refresh: true }`, bypasses `@FromCache` and the
-identity map) → domain method uses `applyPatch(...)` and returns `this`; `@ApplyMutation` advances the lifecycle and records events → `ICommandRepository.save()` →
+`MikroOrmWriteSideCommandRepository` (`ddd/core/persistence/`; `{ refresh: true }`, bypasses
+`@FromCache` and the identity map) → domain method uses `applyPatch(...)` and returns `this`; `@ApplyMutation` advances the lifecycle and records events → `ICommandRepository.save()` →
 `@PersistedWrite` (= `@Cache` → `@AcknowledgePersisted` → `@MapPersistenceErrors`) → MikroORM. Updates are
 version-conditioned (`ddd/core/persistence/optimistic-update.ts`), deletes are conditional
 on `{ id, version }`. `CommandBaseHandler` publishes the aggregate's buffered events after
@@ -352,8 +353,8 @@ environment value is read or reproduced here.
 
 | Integration | Declared in | Imported by (sample) |
 | --- | --- | --- |
-| NestJS runtime | `ddd/core`, `ddd/users-api`, `packages/pipeline`, `packages/pipeline-audit`, … (+10) | `ddd/core/persistence/biome-general-plugins.spec.ts`, `ddd/core/persistence/decorators/Cache.spec.ts` |
-| NestJS CQRS | `ddd/core`, `ddd/users-api`, `packages/pipeline` | `ddd/core/application/base.command.ts`, `ddd/core/application/command-base.handler.spec.ts` |
+| NestJS runtime | `ddd/users-api`, `packages/pipeline`, `packages/pipeline-audit`, `packages/pipeline-cache`, … (+9) | `ddd/core/persistence/biome-general-plugins.spec.ts`, `ddd/users-api/src/app.module.ts` |
+| NestJS CQRS | `ddd/users-api`, `packages/pipeline` | `ddd/core/persistence/biome-general-plugins.spec.ts`, `ddd/users-api/src/app.module.ts` |
 | MikroORM | `ddd/core`, `ddd/users-api` | `ddd/core/persistence/assert-autocommit.ts`, `ddd/core/persistence/biome-general-plugins.spec.ts` |
 | PostgreSQL | `ddd/users-api` | `ddd/users-api/src/persistence/postgres-mikro-orm.store.ts`, `ddd/users-api/src/persistence/postgres-options.ts` |
 | SQLite / libSQL | `ddd/users-api` | `ddd/users-api/src/persistence/cache/mikro-orm.cache.ts`, `ddd/users-api/src/persistence/libsql-options.ts` |
@@ -379,7 +380,7 @@ environment value is read or reproduced here.
 
 | Workspace | Internal | External | Peers |
 | --- | --- | --- | --- |
-| `ddd/core` | `@nestjs-pipeline/core`, `@nestjs-pipeline/correlation` | `@nestjs/common`, `@nestjs/cqrs` | `@mikro-orm/core` |
+| `ddd/core` | — | — | `@mikro-orm/core` |
 | `ddd/users-api` | 13 workspace packages | `@casl/ability`, `@fastify/secure-session`, `@keyv/redis`, `@libsql/client`, `@mikro-orm/core`, `@mikro-orm/libsql`, `@mikro-orm/migrations`, `@mikro-orm/nestjs`, `@mikro-orm/postgresql`, `@mikro-orm/sqlite`, … (+27) | — |
 | `packages/pipeline` | — | — | `@nestjs/common`, `@nestjs/core`, `@nestjs/cqrs`, `reflect-metadata`, `rxjs` |
 | `packages/pipeline-audit` | — | — | `@nestjs-pipeline/core`, `@nestjs/common`, `reflect-metadata` |
@@ -411,6 +412,7 @@ Names only — values are never read by the generator.
 | Naming | `<concern>.behavior.ts`, `<concern>.module.ts`, `*.command.ts`, `*.query.ts`, `*.handler.ts`, `*.entity.ts`, `*.exception.ts` / `*.error.ts`, `*.command-repository.ts`, `*.query-repository.ts`, `*.spec.ts` | existing files under `packages/*/src`, `ddd/users-api/src` |
 | File organization | Packages: `src/{constants,helpers,interfaces,errors,filters,...}` + one `packages/*/src/index.ts`. App: feature folder with `controllers/ cqrs/ domain/ dtos/ mappers/ persistence/` | `.claude/codebase-map.md` → Directory Map |
 | Imports | Path aliases `@common/*`, `@persistence/*` in users-api; `ddd-core` imported via `/domain`, `/application`, `/persistence`, never the root barrel | `ddd/users-api/vitest.config.ts`, `biome/plugins/ddd-entry-points.grit` |
+| Framework independence | `ddd/core` imports no NestJS, `nestjs`-named or `@nestjs-pipeline/*` package, specs included, and declares none; Nest glue lives in the application | `biome/plugins/framework-independence.grit`, `ddd/core/package-manifest.spec.ts`, `ddd/core/domain/domain-entry-point.spec.ts` |
 | Error handling | Framework-neutral errors inward, HTTP mapping at the presentation boundary only | `biome/plugins/transport-neutral-errors.grit`, `ddd/users-api/src/common/filters/` |
 | Logging | Structured Pino; cross-cutting logging via `LoggingBehavior`, not manual calls in handlers | `ddd/users-api/src/infrastructure/observability.module.ts` |
 | Configuration | `process.env` only in bootstrap/infrastructure/config; application code takes ports and module options | `biome/plugins/core-environment.grit`, `ddd/users-api/src/common/environment/` |
@@ -637,14 +639,14 @@ secret value.*
 ## Snapshot Metadata
 
 <!-- context:generated-start metadata -->
-- Generated at: 2026-09-23T10:14:25Z
-- Git commit: 705905ba1fb8806f94caf996ce182161668a911c
-- Git branch: review
+- Generated at: 2026-09-24T17:34:43Z
+- Git commit: 7479b865b2e325da587ac94c63c9ba420b71d2a1
+- Git branch: publish
 - Uncommitted changes when generated: yes
 - Generator: `scripts/update-claude-snapshot.py` version 1.0.0
 - Snapshot status: generated — structural inspection only, no code executed
-- Files inspected: 794
-- Included top-level directories: `.agents`, `.claude`, `biome`, `ddd`, `docs`, `integration`, `packages`, `scripts`
+- Files inspected: 804
+- Included top-level directories: `.agents`, `.claude`, `biome`, `ddd`, `integration`, `packages`, `scripts`
 - Excluded directory names: `.cache`, `.git`, `.gradle`, `.idea`, `.mypy_cache`, `.next`, `.nuxt`, `.parcel-cache`, `.pnpm-store`, `.pytest_cache`, `.ruff_cache`, `.svelte-kit`, `.terraform`, `.tmp`, `.tox`, `.turbo`, `.venv`, `.vscode`, `__pycache__`, `bower_components`, `build`, `coverage`, `dist`, `node_modules`, `out`, `target`, `vendor`, `venv`, `virtualenv`
 - Excluded file patterns: `.env`, `.env.*`, `*.env`, `*.pem`, `*.key`, `*.pfx`, `*.p12`, `*.jks`, `*.keystore`, `id_rsa*`, `id_ed25519*`, `*credentials*`, `*.secret`, `secrets.*`
 

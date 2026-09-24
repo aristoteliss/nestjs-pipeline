@@ -65,8 +65,16 @@ describe('ddd-core entry points', () => {
     expect(loaded.filter((m) => m.includes('@mikro-orm'))).toEqual([]);
   });
 
-  it('does not load @nestjs through the domain entry point', () => {
-    const loaded = loadedModules('dist/domain/index.js');
+  it.each([
+    'dist/index.js',
+    'dist/domain/index.js',
+    'dist/application/index.js',
+    'dist/persistence/index.js',
+  ])('does not load @nestjs through %s', (entryPoint) => {
+    // The package is framework-neutral: a consumer without NestJS must be able
+    // to load every entry point. framework-independence.grit rejects the
+    // imports; this checks what the built output actually loads.
+    const loaded = loadedModules(entryPoint);
 
     expect(loaded.length).toBeGreaterThan(0);
     expect(loaded.filter((m) => m.includes('@nestjs'))).toEqual([]);

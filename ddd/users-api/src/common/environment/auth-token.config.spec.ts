@@ -28,7 +28,7 @@ describe('auth token configuration', () => {
       REFRESH_REUSE_GRACE_SECONDS: 30,
       TRUST_PROXY: undefined,
       PERMISSIONS_IN_ACCESS_TOKEN: false,
-      ACCESS_TOKEN_MAX_BYTES: 2600,
+      ACCESS_TOKEN_MAX_BYTES: 2500,
     });
   });
 

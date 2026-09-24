@@ -1,0 +1,36 @@
+engine biome(1.0)
+language js(typescript)
+
+// `ddd/core` and the utility packages it will depend on are published as
+// framework-neutral libraries, so none of their code, specs included, may import
+// NestJS: not `@nestjs/*`, not another `nestjs`-named ecosystem package, and not
+// an `@nestjs-pipeline/*` package, each of which brings NestJS with it. One such
+// import is enough to make the package fail to load, or to need an undeclared
+// peer, in a consumer that does not use NestJS.
+//
+// A NestJS application integrates through the ports these packages define (an
+// event publisher, a cache logger, the tenant scope) and supplies the NestJS side
+// itself. Every static form is matched through its module source (import,
+// `import type`, re-export, `import x = require()`, module augmentation), plus
+// dynamic `import()` and `require()`. Strings and comments are not imports, so
+// documentation and lint-rule fixtures are unaffected.
+//
+// Scoped in biome.json. `message=` accepts only string literals, so the
+// diagnostic text is repeated per form.
+
+pattern nest_module() { r"^['\"]@?nestjs.*['\"]$" }
+
+or {
+  JsModuleSource() as $source where {
+    $source <: nest_module(),
+    register_diagnostic(span=$source, message="This package is framework-neutral: do not import NestJS, a NestJS ecosystem package or an @nestjs-pipeline/* package. Depend on a port defined here, and let the application supply the NestJS side (DI providers, logger adapters, tenant wiring, HTTP filters).", severity="error")
+  },
+  JsImportCallExpression(arguments=$arguments) as $call where {
+    $arguments <: contains nest_module(),
+    register_diagnostic(span=$call, message="This package is framework-neutral: do not import NestJS, a NestJS ecosystem package or an @nestjs-pipeline/* package. Depend on a port defined here, and let the application supply the NestJS side (DI providers, logger adapters, tenant wiring, HTTP filters).", severity="error")
+  },
+  `require($module)` as $call where {
+    $module <: nest_module(),
+    register_diagnostic(span=$call, message="This package is framework-neutral: do not import NestJS, a NestJS ecosystem package or an @nestjs-pipeline/* package. Depend on a port defined here, and let the application supply the NestJS side (DI providers, logger adapters, tenant wiring, HTTP filters).", severity="error")
+  }
+}

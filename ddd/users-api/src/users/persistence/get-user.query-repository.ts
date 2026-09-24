@@ -9,6 +9,7 @@ import {
   filterCacheKey,
   QueryRepository,
 } from '@nestjs-pipeline/ddd-core/persistence';
+import { cacheReadLogger } from '@persistence/cache/cache-loggers';
 import { MIKRO_ORM_CLIENT, MikroOrmStore } from '@persistence/mikro-orm.store';
 import { GetUserQuery } from '../cqrs/queries/get-user.query';
 import { User, UserSnapshot } from '../domain/models/user.entity';
@@ -38,6 +39,7 @@ export class GetUserQueryRepository extends QueryRepository<
   }
 
   @FromCache<GetUserQuery, User | null>({
+    logger: cacheReadLogger,
     keyFn: (q) =>
       q.department
         ? null

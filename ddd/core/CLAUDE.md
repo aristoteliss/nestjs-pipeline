@@ -23,6 +23,40 @@ Three entry points, and they are the boundary consumers import from:
 `biome/plugins/ddd-entry-points.grit` requires application code to import the layered
 entry points instead.
 
+## Ownership
+
+Generic DDD and persistence building blocks belong here, not in an application. An
+application configures and extends them. This package owns:
+- persistence error translation (`mapPersistenceError`, `isTransientPersistenceError`, in
+  `persistence/is-transient-persistence-error.ts`);
+- the authoritative write-side base repository (`MikroOrmWriteSideCommandRepository`, in
+  `persistence/mikro-orm-write-side.command-repository.ts`);
+- the tenant context error;
+- the MikroORM `IVersionedCache` adapter (`MikroOrmCache`, `CacheEntry`);
+- the root-entity schema mapping;
+- a framework-neutral mapping of this package's errors to HTTP status codes.
+
+The others are still implemented in `ddd/users-api`. Do not add another copy
+anywhere; `.claude/tasks/ddd-core-publish-readiness.md` (section C) tracks the pending
+work.
+
+## Independence from NestJS
+
+This package is framework-neutral and is published as its own npm package. No code here,
+specs included, may import `@nestjs/*`, another `nestjs`-named package or any
+`@nestjs-pipeline/*` package. Nest integration, such as DI providers, logger adapters,
+tenant wiring and HTTP exception filters, belongs in the application. Three checks
+enforce this:
+- `biome/plugins/framework-independence.grit` rejects the imports (`pnpm lint:persistence`);
+- `package-manifest.spec.ts` rejects NestJS packages in every dependency field and keeps
+  `@mikro-orm/core` the only, optional, peer;
+- `domain/domain-entry-point.spec.ts` loads every built entry point and fails if any
+  NestJS module loads, so rebuild `dist` before running the specs.
+
+Cache keys take their tenant from an explicit argument (`CacheKeyTenantSource`) or from
+this package's own tenant scope (`runWithTenant`, `application/tenant-scope.ts`), never
+from another package's state.
+
 ## Important files
 
 | File | Role |
@@ -34,12 +68,15 @@ entry points instead.
 | `persistence/decorators/acknowledge-persisted.decorator.ts` | Advances the persisted version baseline only after a durable write |
 | `persistence/decorators/map-persistence-errors.decorator.ts` | Driver constraint errors → domain exceptions |
 | `persistence/optimistic-update.ts` | Version-conditioned update, rejects outer transactions |
+| `persistence/is-transient-persistence-error.ts` | Driver and network failures → `TransientOperationError`; `mapPersistenceError` is the canonical `otherwise` translator |
 | `persistence/cache/memory.cache.ts` | JSON-clone detachment parity with external caches |
 | `persistence/write-side-aggregate-repository.interface.ts` | Authoritative aggregate loading for commands |
+| `persistence/mikro-orm-write-side.command-repository.ts` | Its MikroORM base class: `{ refresh: true }`, no cache, `mapPersistenceError`; `em` read per call from an `IEntityManagerSource` |
 
 ## Local commands
 
 ```bash
+pnpm --filter @nestjs-pipeline/ddd-core rebuild  # the entry-point spec loads dist
 pnpm --filter @nestjs-pipeline/ddd-core test
 pnpm --filter @nestjs-pipeline/ddd-core lint     # tsc --noEmit
 pnpm lint:persistence                            # Grit persistence/lifecycle diagnostics

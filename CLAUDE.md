@@ -73,8 +73,7 @@ For any task that is large, multi-step, or likely to span sessions, create
 - Never put secrets, credentials, tokens, customer data, or personal information in a
   task id or a task file.
 - `.claude/tasks/` is for active work. When the task is done, move anything durable to the
-  place that owns it — source, a README, or `docs/reviews/` for review material — then
-  delete the task file. Only `TEMPLATE.md` stays.
+  place that owns it — source or a README — then delete the task file. Only `TEMPLATE.md` stays.
 
 ## Keeping the map current
 

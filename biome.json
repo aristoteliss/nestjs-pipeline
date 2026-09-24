@@ -147,6 +147,14 @@
       ]
     },
     {
+      "path": "./biome/plugins/framework-independence.grit",
+      "includes": [
+        "**/ddd/core/**/*.ts",
+        "**/packages/uuidv7/**/*.ts",
+        "**/packages/safe-stringify/**/*.ts"
+      ]
+    },
+    {
       "path": "./biome/plugins/ddd-layering.grit",
       "includes": [
         "**/ddd/*/src/**/cqrs/**/*.ts",

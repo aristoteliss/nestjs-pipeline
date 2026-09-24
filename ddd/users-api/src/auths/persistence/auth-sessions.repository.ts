@@ -1,8 +1,8 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { Inject, Injectable } from '@nestjs/common';
+import { mapPersistenceError } from '@nestjs-pipeline/ddd-core/persistence';
 import { ConsumedRefreshToken } from '@persistence/entities/consumed-refresh-token.entity';
-import { mapPersistenceError } from '@persistence/is-transient-persistence-error';
 import { MIKRO_ORM_CLIENT, MikroOrmStore } from '@persistence/mikro-orm.store';
 import type { IAuthSessions } from '../application/authentication.ports';
 import { Auth } from '../domain/models/auth.entity';

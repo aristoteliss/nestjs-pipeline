@@ -1,6 +1,5 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import { Logger } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
 import { MemoryCache } from '../cache/memory.cache';
 import type { ICache } from '../cache.interface';
@@ -82,9 +81,7 @@ describe('@Cache decorator on CommandRepository.save', () => {
         return { id: entity.id };
       }
     }
-    const warn = vi
-      .spyOn(Logger.prototype, 'warn')
-      .mockImplementation(() => undefined);
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     const repo = new MiswiredCommandRepo(new MemoryCache());
 
     try {
@@ -92,6 +89,7 @@ describe('@Cache decorator on CommandRepository.save', () => {
       await repo.save({ id: 'u2' });
 
       expect(warn).toHaveBeenCalledTimes(1);
+      expect(warn.mock.calls[0][0]).toMatch(/^\[CacheDecorators\] /);
       expect(warn.mock.calls[0][0]).toContain(
         'MiswiredCommandRepo uses @Cache',
       );
@@ -101,9 +99,7 @@ describe('@Cache decorator on CommandRepository.save', () => {
   });
 
   it('does not report a repository whose cache is deliberately unset', async () => {
-    const warn = vi
-      .spyOn(Logger.prototype, 'warn')
-      .mockImplementation(() => undefined);
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
 
     try {
       await new TestCommandRepo(undefined).save({ id: 'u1' });
@@ -111,6 +107,65 @@ describe('@Cache decorator on CommandRepository.save', () => {
     } finally {
       warn.mockRestore();
     }
+  });
+
+  it('routes maintenance warnings to the configured logger', async () => {
+    const logger = { warn: vi.fn() };
+    class LoggedRepo {
+      constructor(public cache?: ICache) {}
+
+      @Cache<MockEntity, { id: string }>({
+        setKey: () => {
+          throw new Error('bad key');
+        },
+        logger,
+      })
+      async save(entity: MockEntity): Promise<{ id: string }> {
+        return { id: entity.id };
+      }
+    }
+    const consoleWarn = vi
+      .spyOn(console, 'warn')
+      .mockImplementation(() => undefined);
+
+    try {
+      await expect(
+        new LoggedRepo(new MemoryCache()).save({ id: 'u1' }),
+      ).resolves.toEqual({ id: 'u1' });
+
+      expect(logger.warn).toHaveBeenCalledWith(
+        'Failed resolving setKey during cache maintenance: bad key',
+      );
+      expect(consoleWarn).not.toHaveBeenCalled();
+    } finally {
+      consoleWarn.mockRestore();
+    }
+  });
+
+  it('resolves a durable write when the configured logger throws', async () => {
+    const logger = {
+      warn: vi.fn(() => {
+        throw new Error('logger down');
+      }),
+    };
+    class ThrowingLoggerRepo {
+      constructor(public cache?: ICache) {}
+
+      @Cache<MockEntity, { id: string }>({
+        setKey: () => {
+          throw new Error('bad key');
+        },
+        logger,
+      })
+      async save(entity: MockEntity): Promise<{ id: string }> {
+        return { id: entity.id };
+      }
+    }
+
+    await expect(
+      new ThrowingLoggerRepo(new MemoryCache()).save({ id: 'u1' }),
+    ).resolves.toEqual({ id: 'u1' });
+    expect(logger.warn).toHaveBeenCalledTimes(1);
   });
 
   it('writes saved entity result to cache using entity id', async () => {

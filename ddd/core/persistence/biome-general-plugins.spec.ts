@@ -302,6 +302,60 @@ describe('Biome Grit core-environment plugin', () => {
   });
 });
 
+describe('Biome Grit framework-independence plugin', () => {
+  it.each([
+    `import { Injectable } from '@nestjs/common';`,
+    `import type { IPipelineContext } from '@nestjs-pipeline/core';`,
+    `import * as cqrs from '@nestjs/cqrs';`,
+    `import '@nestjs/core';`,
+    `export { pipelineStore } from '@nestjs-pipeline/core';`,
+    `export * from '@nestjs-pipeline/correlation';`,
+    `import cls = require('nestjs-cls');`,
+    `declare module '@nestjs/common' {}`,
+    `export const load = () => import('@nestjs/common');`,
+    `const { EventBus } = require('@nestjs/cqrs');`,
+  ])('rejects %s in ddd/core', (source) => {
+    const result = lintFixture('ddd/core/application/coupled.ts', source);
+    expect(result.status).toBe(1);
+    expect(result.diagnostics).toContain('This package is framework-neutral');
+  });
+
+  it.each([
+    'ddd/core/application/coupled.spec.ts',
+    'packages/uuidv7/src/index.ts',
+    'packages/safe-stringify/src/index.ts',
+  ])('covers %s', (path) => {
+    expect(
+      lintFixture(path, `import { Injectable } from '@nestjs/common';`).status,
+    ).toBe(1);
+  });
+
+  it('accepts built-ins, MikroORM, relative paths, and NestJS names in strings or comments', () => {
+    const source = `
+      import { AsyncLocalStorage } from 'node:async_hooks';
+      import { Type } from '@mikro-orm/core';
+      import { helper } from './nestjs/helper';
+      // A NestJS handler passes the EventBus injected from '@nestjs/cqrs'.
+      export const fixture = \`import { Injectable } from '@nestjs/common';\`;
+      export const moduleName = '@nestjs/common';
+      export const load = () => import('./local');
+    `;
+    expect(
+      lintFixture('ddd/core/persistence/neutral.ts', source),
+    ).toMatchObject({ status: 0 });
+  });
+
+  it('leaves NestJS imports to the application and the pipeline packages', () => {
+    const source = `import { Injectable } from '@nestjs/common';`;
+    expect(
+      lintFixture('ddd/users-api/src/users/users.module.ts', source).status,
+    ).toBe(0);
+    expect(
+      lintFixture('packages/my-lib/src/my.behavior.ts', source).status,
+    ).toBe(0);
+  });
+});
+
 describe('Biome Grit event-handler-substance plugin', () => {
   it('reports a log-only event handler, at warn so a showcase does not fail the build', () => {
     const source = `

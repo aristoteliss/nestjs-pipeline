@@ -1,7 +1,9 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import { type IPipelineContext, pipelineStore } from '@nestjs-pipeline/core';
-import { type ICache } from '@nestjs-pipeline/ddd-core/application';
+import {
+  type ICache,
+  runWithTenant,
+} from '@nestjs-pipeline/ddd-core/application';
 import {
   ConcurrencyConflictError,
   EntityNotFoundException,
@@ -32,10 +34,7 @@ describe('DeleteUserCommandRepository', () => {
     const user = User.create('Alice', 'alice@example.test', 'engineering');
 
     user.delete();
-    const result = await pipelineStore.run(
-      { tenantId: 'tenant' } as unknown as IPipelineContext,
-      () => repository.save(user),
-    );
+    const result = await runWithTenant('tenant', () => repository.save(user));
 
     expect(result).toBeNull();
     expect(nativeDelete).toHaveBeenCalledWith(User, {
@@ -195,10 +194,7 @@ describe('DeleteUserCommandRepository transaction boundary', () => {
     user.delete();
 
     await expect(
-      pipelineStore.run(
-        { tenantId: 'tenant' } as unknown as IPipelineContext,
-        () => repository.save(user),
-      ),
+      runWithTenant('tenant', () => repository.save(user)),
     ).rejects.toThrow(/requires autocommit/);
 
     expect(nativeDelete).not.toHaveBeenCalled();
@@ -222,10 +218,7 @@ describe('DeleteUserCommandRepository transaction boundary', () => {
     const expectedBefore = user.getExpectedVersion();
 
     await expect(
-      pipelineStore.run(
-        { tenantId: 'tenant' } as unknown as IPipelineContext,
-        () => repository.save(user),
-      ),
+      runWithTenant('tenant', () => repository.save(user)),
     ).rejects.toThrow();
 
     expect(user.getExpectedVersion()).toBe(expectedBefore);

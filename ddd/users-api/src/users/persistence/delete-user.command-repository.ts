@@ -7,11 +7,12 @@ import {
   Cache,
   filterCacheKey,
   MapPersistenceErrors,
+  MikroOrmWriteSideCommandRepository,
+  mapPersistenceError,
   optimisticDelete,
 } from '@nestjs-pipeline/ddd-core/persistence';
-import { mapPersistenceError } from '@persistence/is-transient-persistence-error';
+import { cacheWriteLogger } from '@persistence/cache/cache-loggers';
 import { MIKRO_ORM_CLIENT, MikroOrmStore } from '@persistence/mikro-orm.store';
-import { MikroOrmWriteSideCommandRepository } from '@persistence/mikro-orm-write-side.command-repository';
 import { User, UserSnapshot } from '../domain/models/user.entity';
 
 @Injectable()
@@ -28,6 +29,7 @@ export class DeleteUserCommandRepository extends MikroOrmWriteSideCommandReposit
   }
 
   @Cache<User, null>({
+    logger: cacheWriteLogger,
     deleteKeys: (user) => [
       filterCacheKey(User.aggregateName, { id: user.id }),
       filterCacheKey(User.aggregateName, { email: user.email }),

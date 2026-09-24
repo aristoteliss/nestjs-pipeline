@@ -6,6 +6,7 @@
   },
   "include": [
     "index.ts",
+    "*.spec.ts",
     "application/**/*.ts",
     "domain/**/*.ts",
     "persistence/**/*.ts",

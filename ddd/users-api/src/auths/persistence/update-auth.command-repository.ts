@@ -5,11 +5,12 @@ import { ICache } from '@nestjs-pipeline/ddd-core/application';
 import {
   CACHE_TOKEN,
   filterCacheKey,
+  MikroOrmWriteSideCommandRepository,
   optimisticUpdate,
   PersistedWrite,
 } from '@nestjs-pipeline/ddd-core/persistence';
+import { cacheWriteLogger } from '@persistence/cache/cache-loggers';
 import { MIKRO_ORM_CLIENT, MikroOrmStore } from '@persistence/mikro-orm.store';
-import { MikroOrmWriteSideCommandRepository } from '@persistence/mikro-orm-write-side.command-repository';
 import { Auth, type AuthSnapshot } from '../domain/models/auth.entity';
 
 /** Version-conditioned writes of refresh rotation and revocation. */
@@ -29,6 +30,7 @@ export class UpdateAuthCommandRepository extends MikroOrmWriteSideCommandReposit
   // Sessions hold refresh-token hashes and are never cached; the key is only invalidated.
   @PersistedWrite<Auth>({
     cache: {
+      logger: cacheWriteLogger,
       invalidateKeys: (auth) => [
         filterCacheKey(Auth.aggregateName, { id: auth.id }),
       ],

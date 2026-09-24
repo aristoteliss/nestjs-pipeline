@@ -484,6 +484,17 @@ describe('@ApplyMutation decorator', () => {
       );
     });
 
+    it('rejects a static property without registering fields on Function', () => {
+      class StaticTarget {}
+      const decorator = Mutable();
+      const before = Object.getOwnPropertySymbols(Function);
+
+      expect(() => decorator(StaticTarget, '_flag')).toThrow(
+        new TypeError('@Mutable() supports instance properties only.'),
+      );
+      expect(Object.getOwnPropertySymbols(Function)).toEqual(before);
+    });
+
     it('skips empty fields entry in getMutableFields when carrier value is undefined', () => {
       class CarrierTest {
         @Mutable()

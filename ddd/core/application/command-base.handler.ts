@@ -1,7 +1,7 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import { EventBus, type ICommand, type ICommandHandler } from '@nestjs/cqrs';
 import { AggregateRoot } from '../domain/models/aggregate-root';
+import type { IDomainEventPublisher } from './domain-event-publisher.port';
 
 /**
  * Result shapes that allow `CommandBaseHandler` to publish buffered aggregate events.
@@ -27,8 +27,12 @@ function isAggregate(obj: unknown): obj is AggregateRoot {
  * Wraps every concrete command handler with shared lifecycle behavior:
  * 1. Executes command logic via the abstract {@link handle} method.
  * 2. If the result is an {@link AggregateRoot} (or an object containing `aggregate: AggregateRoot`),
- *    its buffered uncommitted domain events are automatically published to the {@link EventBus}
- *    and cleared after publication.
+ *    its buffered uncommitted domain events are automatically published through the
+ *    {@link IDomainEventPublisher} and cleared after publication.
+ *
+ * It is framework-neutral. With NestJS CQRS, decorate the subclass with
+ * `@CommandHandler` and pass the injected `EventBus`, which satisfies
+ * {@link IDomainEventPublisher}; Nest calls {@link execute} as the handler entry point.
  *
  * @typeParam TCommand - The concrete command type this handler processes.
  * @typeParam TResult - The handler's return type (e.g. aggregate entity or result carrying aggregate).
@@ -79,16 +83,16 @@ function isAggregate(obj: unknown): obj is AggregateRoot {
  * ```
  */
 export abstract class CommandBaseHandler<
-  TCommand extends ICommand = ICommand,
+  TCommand = unknown,
   TResult extends AggregateBearingResult = AggregateBearingResult,
-> implements ICommandHandler<ICommand, TResult>
-{
+> {
   /**
-   * Constructs the handler with an injected Nest CQRS {@link EventBus}.
+   * Constructs the handler with the publisher of domain events.
    *
-   * @param eventBus - The EventBus used to dispatch domain events.
+   * @param eventBus - The publisher used to dispatch domain events, such as the
+   *   NestJS CQRS `EventBus`.
    */
-  protected constructor(protected readonly eventBus: EventBus) {}
+  protected constructor(protected readonly eventBus: IDomainEventPublisher) {}
 
   /**
    * Executes the business logic for the command.
@@ -103,19 +107,20 @@ export abstract class CommandBaseHandler<
   abstract handle(command: TCommand): Promise<TResult>;
 
   /**
-   * Nest `ICommandHandler` entry point invoked by the `CommandBus`.
+   * Handler entry point, invoked by the command bus (for example the NestJS CQRS
+   * `CommandBus`).
    *
    * Delegates to {@link handle} and automatically publishes any uncommitted domain
    * events if the result is an {@link AggregateRoot} (or an object containing `aggregate: AggregateRoot`).
    *
-   * Persistence and in-memory EventBus publication are not atomic. A crash after
+   * Persistence and in-memory event publication are not atomic. A crash after
    * persistence can lose events; durable delivery requires an explicit outbox.
    *
-   * @param command - The command dispatched through the `CommandBus`.
+   * @param command - The command dispatched through the command bus.
    * @returns The result produced by {@link handle}.
    */
-  async execute(command: ICommand): Promise<TResult> {
-    const commandResult = await this.handle(command as TCommand);
+  async execute(command: TCommand): Promise<TResult> {
+    const commandResult = await this.handle(command);
 
     const aggregate = isAggregate(commandResult)
       ? commandResult
