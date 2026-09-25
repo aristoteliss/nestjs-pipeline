@@ -3,81 +3,53 @@
 [![npm version](https://img.shields.io/npm/v/@nestjs-pipeline/tenant.svg)](https://www.npmjs.com/package/@nestjs-pipeline/tenant)
 [![License](https://img.shields.io/npm/l/@nestjs-pipeline/tenant.svg)](https://www.npmjs.com/package/@nestjs-pipeline/tenant)
 
-`TenantScopeBehavior` connects the tenant of a
-[`@nestjs-pipeline/core`](https://github.com/aristoteliss/nestjs-pipeline/tree/master/packages/pipeline#readme)
-pipeline to the tenant scope of
-[`@cqrs-ddd/core`](https://github.com/aristoteliss/nestjs-pipeline/tree/master/packages/ddd-core#readme).
-It runs each pipeline invocation inside `runWithTenant(context.tenantId, next)`, so
-tenant-scoped helpers such as `filterCacheKey` and `cacheKeyTemplate` find the tenant
-without it being passed at every call site.
+The current tenant for applications built on
+[`@nestjs-pipeline/core`](https://github.com/aristoteliss/nestjs-pipeline/tree/master/packages/pipeline#readme):
+`currentTenantId()` returns the tenant of the running pipeline, or of a `runWithTenant`
+scope, so code deep inside a handler can read the tenant without it being passed at every
+call site.
 
 ## Installation
 
 ```bash
-pnpm add @nestjs-pipeline/tenant @nestjs-pipeline/core @cqrs-ddd/core @nestjs/common reflect-metadata
+pnpm add @nestjs-pipeline/tenant @nestjs-pipeline/core
 ```
 
-Requires Node.js 22 or later.
+Requires Node.js 22 or later. There is nothing to register: the package reads the
+pipeline context that `@nestjs-pipeline/core` already carries.
 
-`@cqrs-ddd/core` is a peer dependency, not a dependency, and the application must resolve
-exactly one copy of it. Its tenant scope is a module-level `AsyncLocalStorage`: with two
-copies, the behavior would set the tenant in one scope while `filterCacheKey` reads the
-other, and every tenant-scoped key would fail closed.
-
-## Setup
-
-Register the behavior **first** in the global `'all'` `before` list, so the whole chain
-and the handler run inside the tenant scope. The pipeline's own tenant comes from
-`tenantIdFactory`, and nested dispatches inherit it.
+## Usage
 
 ```typescript
-import { Module } from '@nestjs/common';
-import { PipelineModule } from '@nestjs-pipeline/core';
-import { TenantScopeBehavior } from '@nestjs-pipeline/tenant';
+import { currentTenantId, runWithTenant } from '@nestjs-pipeline/tenant';
 
-@Module({
-  imports: [
-    PipelineModule.forRootAsync({
-      imports: [TenantModule],
-      inject: [TenantContext],
-      globalBehaviors: [
-        {
-          scope: 'all',
-          before: [TenantScopeBehavior /* , then the other global behaviors */],
-        },
-      ],
-      useFactory: (tenant: TenantContext) => ({
-        tenantIdFactory: () => tenant.currentTenantId,
-      }),
-    }),
-  ],
-})
-export class AppModule {}
+// Inside a handler: the pipeline's tenant, from `tenantIdFactory` or a parent dispatch.
+const tenant = currentTenantId();
+
+// Outside a pipeline, such as in a queue job:
+await runWithTenant(job.data.tenant, () => processBatch(job.data));
 ```
 
-`TenantModule` and `TenantContext` stand for the application's own tenant resolution,
-for example from the authenticated request.
+`currentTenantId()` returns the tenant of whichever was entered last:
 
-## Tenant resolution
+- a pipeline execution: its context's `tenantId`, which `tenantIdFactory` resolves and
+  nested dispatches inherit;
+- a `runWithTenant(tenantId, fn)` call: `tenantId`, for everything `fn` calls.
 
-With the behavior registered, a tenant-scoped helper in `@cqrs-ddd/core` resolves the
-tenant in this order:
+So a scope entered inside a handler changes the tenant for its callback, and a pipeline
+dispatched inside a scope runs with its own tenant. `runWithTenant(undefined, fn)` runs
+`fn` with no tenant. Outside both, `currentTenantId()` returns `undefined`: code that
+needs a tenant must then fail rather than fall back to a shared one.
 
-1. an explicit tenant id string passed to it;
-2. the `tenantId` of an object passed to it, such as a pipeline context;
-3. the tenant of the running scope, which this behavior sets from the pipeline;
-4. otherwise it throws `MissingTenantContextError`.
-
-A pipeline invocation without a tenant runs with none, so tenant-scoped keys fail closed
-instead of falling back to a shared namespace. Code outside a pipeline, such as a queue
-consumer that does not dispatch through one, sets the scope itself with
-`runWithTenant(tenantId, fn)` from `@cqrs-ddd/core/application`.
+To hand the tenant to a library that asks for a function returning the current tenant,
+pass `currentTenantId` itself.
 
 ## API
 
 | Export | Kind | Description |
 | --- | --- | --- |
-| `TenantScopeBehavior` | class | Pipeline behavior that runs the rest of the chain and the handler inside `runWithTenant(context.tenantId, next)` |
+| `currentTenantId()` | function | The tenant of the innermost pipeline execution or `runWithTenant` scope, or `undefined` |
+| `runWithTenant(tenantId, fn)` | function | Runs `fn` with `tenantId` as the current tenant and returns its result |
 
 ## License
 

@@ -1,6 +1,7 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
-import { type ICache, runWithTenant } from '@cqrs-ddd/core/application';
+import { type ICache } from '@cqrs-ddd/core/application';
 import { filterCacheKey, toCacheSnapshot } from '@cqrs-ddd/core/persistence';
+import { runWithTenant } from '@nestjs-pipeline/tenant';
 import { describe, expect, it, vi } from 'vitest';
 import { UniqueRoleNameException } from '../domain/models/errors/role-name.exception';
 import { Role, type RoleSnapshot } from '../domain/models/role.entity';

@@ -2,6 +2,7 @@
 
 import { IncomingMessage } from 'node:http';
 import { AUDIT_MODULE_DEFAULTS } from '@common/audit/audit.options';
+import { setTenantResolver } from '@cqrs-ddd/core/application';
 import { Module } from '@nestjs/common';
 import { AuditModule } from '@nestjs-pipeline/audit';
 import {
@@ -12,7 +13,7 @@ import {
 import { correlationPipelineOptions } from '@nestjs-pipeline/correlation';
 import { DeadLetterBehavior } from '@nestjs-pipeline/deadletter';
 import { MetricsBehavior, TraceBehavior } from '@nestjs-pipeline/opentelemetry';
-import { TenantScopeBehavior } from '@nestjs-pipeline/tenant';
+import { currentTenantId } from '@nestjs-pipeline/tenant';
 import { ZodValidationBehavior } from '@nestjs-pipeline/zod';
 import { TenantSchemaContext } from '@persistence/tenant-schema.context';
 import { LoggerModule, NativeLogger } from 'nestjs-pino';
@@ -36,6 +37,10 @@ export const HTTP_LOG_REDACT_PATHS = [
  * HTTP credentials are redacted through `HTTP_LOG_REDACT_PATHS`. Auditing uses
  * the default console sink with `failOpen: true`; durable audit requirements need
  * a persistent sink and an explicit failure policy.
+ *
+ * It also makes the pipeline's tenant the tenant of `@cqrs-ddd/core`'s
+ * tenant-scoped helpers (`filterCacheKey`, `cacheKeyTemplate`), before any
+ * lifecycle hook can start work that reads it.
  *
  * @example Register application observability
  * ```ts
@@ -79,8 +84,6 @@ export const HTTP_LOG_REDACT_PATHS = [
         {
           scope: 'all',
           before: [
-            // First, so the whole chain and the handler run in @cqrs-ddd/core's tenant scope.
-            TenantScopeBehavior,
             logging({ requestResponseLogLevel: 'log' }),
             [TraceBehavior, { tracerName: 'users-api' }],
             [MetricsBehavior, { meterName: 'users-api' }],
@@ -110,4 +113,8 @@ export const HTTP_LOG_REDACT_PATHS = [
   ],
   exports: [LoggerModule, PipelineModule, AuditModule],
 })
-export class ObservabilityModule {}
+export class ObservabilityModule {
+  constructor() {
+    setTenantResolver(currentTenantId);
+  }
+}

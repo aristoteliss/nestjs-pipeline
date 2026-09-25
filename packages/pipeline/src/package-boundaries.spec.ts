@@ -21,7 +21,6 @@ const DDD_PREFIX = '@nestjs-pipeline/ddd-';
 const SCOPE = '@nestjs-pipeline/';
 const NEUTRAL_SCOPE = '@cqrs-ddd/';
 const DDD_CORE = '@cqrs-ddd/core';
-const TENANT = '@nestjs-pipeline/tenant';
 
 const PACKAGES_DIR = resolve(__dirname, '../..');
 
@@ -31,6 +30,7 @@ interface Manifest {
   dependencies?: Record<string, string>;
   peerDependencies?: Record<string, string>;
   optionalDependencies?: Record<string, string>;
+  devDependencies?: Record<string, string>;
 }
 
 function manifests(): Manifest[] {
@@ -123,28 +123,22 @@ describe('published package boundaries', () => {
     },
   );
 
-  it(`lets only ${TENANT} name ${DDD_CORE}`, () => {
+  it(`lets no ${SCOPE}* package name ${DDD_CORE}`, () => {
     const naming = published
-      .filter((m) => m.name !== DDD_CORE)
+      .filter((m) => m.name.startsWith(SCOPE))
       .filter((m) =>
-        [m.dependencies, m.peerDependencies, m.optionalDependencies].some(
-          (field) => field !== undefined && DDD_CORE in field,
-        ),
+        [
+          m.dependencies,
+          m.peerDependencies,
+          m.optionalDependencies,
+          m.devDependencies,
+        ].some((field) => field !== undefined && DDD_CORE in field),
       )
       .map((m) => m.name);
 
-    expect(naming).toEqual([TENANT]);
-  });
-
-  it(`has ${TENANT} declare ${DDD_CORE} as a workspace peer only`, () => {
-    const tenant = published.find((m) => m.name === TENANT) as Manifest;
-
-    // Its tenant scope is a module-level AsyncLocalStorage. With a second copy,
-    // TenantScopeBehavior would set one scope while filterCacheKey reads the
-    // other, and every tenant-scoped key would fail closed.
-    expect(tenant.peerDependencies?.[DDD_CORE]).toBe('workspace:^');
-    expect(tenant.dependencies ?? {}).not.toHaveProperty(DDD_CORE);
-    expect(tenant.optionalDependencies ?? {}).not.toHaveProperty(DDD_CORE);
+    // The pipeline packages and the DDD core know nothing of each other; only
+    // an application connects them.
+    expect(naming).toEqual([]);
   });
 
   it.each(published.map((m) => m.name))(

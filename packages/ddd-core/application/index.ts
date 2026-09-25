@@ -18,4 +18,4 @@ export * from './base.query';
 export * from './command-base.handler';
 export * from './domain-event-publisher.port';
 export * from './query.options';
-export * from './tenant-scope';
+export * from './tenant-resolver';

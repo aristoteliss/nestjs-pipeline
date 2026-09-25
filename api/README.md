@@ -591,7 +591,7 @@ fabricated `cache.hit=false` would be indistinguishable from a real miss. The
 cache key is deliberately not an attribute — it carries tenant and principal and
 is unbounded.
 
-The application also has its own tenant-aware DDD repository cache so user/role write invalidation has a single clear target. In addition, `ObservabilityModule` configures `tenantIdFactory` so that the active tenant schema is explicitly conveyed through `IPipelineContext.tenantId`, allowing command handlers, rate limiters, and idempotency key factories to access the tenant cleanly from context without direct ambient coupling. `TenantScopeBehavior` from `@nestjs-pipeline/tenant` (the first global behavior) runs every pipeline execution inside `@cqrs-ddd/core`'s tenant scope (`runWithTenant`), so repository cache keys (`filterCacheKey`) take the same tenant without it being passed at each call site.
+The application also has its own tenant-aware DDD repository cache so user/role write invalidation has a single clear target. In addition, `ObservabilityModule` configures `tenantIdFactory` so that the active tenant schema is explicitly conveyed through `IPipelineContext.tenantId`, allowing command handlers, rate limiters, and idempotency key factories to access the tenant cleanly from context without direct ambient coupling. `ObservabilityModule` also registers `currentTenantId` from `@nestjs-pipeline/tenant` as the tenant resolver of `@cqrs-ddd/core` (`setTenantResolver`), so repository cache keys (`filterCacheKey`) take the pipeline's tenant without it being passed at each call site. The application is the only place that knows both packages.
 
 ## Tests
 

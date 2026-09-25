@@ -34,7 +34,7 @@ export default defineConfig({
     globals: true,
     root: '.',
     include: ['test/**/*.spec.ts', 'src/**/*.spec.ts'],
-    setupFiles: ['reflect-metadata'],
+    setupFiles: ['reflect-metadata', './test/support/tenant-resolver.setup.ts'],
     testTimeout: 30_000,
     hookTimeout: 30_000,
   },

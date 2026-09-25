@@ -210,8 +210,8 @@ describe('stableStringify failure diagnostics', () => {
 });
 
 /**
- * Exact outputs recorded from `@nestjs-pipeline/core`'s `stableStringify`. This
- * serializer forms cache keys, so any change here would silently move every key.
+ * Exact outputs. This serializer forms cache keys, so any change here would
+ * silently move every key.
  */
 describe('stableStringify frozen output', () => {
   it.each([

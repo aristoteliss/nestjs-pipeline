@@ -2,12 +2,6 @@ engine biome(1.0)
 language js(typescript)
 
 JsImportNamedClause(source=$source) as $clause where {
-  or {
-    $source <: r".*(?:\.\./\.\./api/|@nestjs-pipeline/ddd-).*",
-    and {
-      $source <: r".*@cqrs-ddd/core.*",
-      not $filename <: r".*/packages/pipeline-tenant/.*"
-    }
-  },
-  register_diagnostic(span=$clause, message="Standalone pipeline packages cannot depend on the api application, the private DDD workspaces or @cqrs-ddd/core (only @nestjs-pipeline/tenant may import it); preserve standalone package license boundaries.", severity="error")
+  $source <: r".*(?:\.\./\.\./api/|@nestjs-pipeline/ddd-|@cqrs-ddd/core).*",
+  register_diagnostic(span=$clause, message="Standalone pipeline packages cannot depend on the api application, the private DDD workspaces or @cqrs-ddd/core; preserve standalone package license boundaries.", severity="error")
 }

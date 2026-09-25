@@ -55,9 +55,10 @@ enforce this:
   NestJS module loads, so rebuild `dist` before running the specs.
 
 Cache keys take their tenant from an explicit argument (`CacheKeyTenantSource`) or from
-this package's own tenant scope (`runWithTenant`, `application/tenant-scope.ts`), never
-from another package's state. `requireTenantId` in the same file is the one tenant
-resolver; the cache-key helpers use it too.
+the resolver the application registers with `setTenantResolver`
+(`application/tenant-resolver.ts`), never from another package's state: this package
+knows nothing of where an application keeps its tenant. `requireTenantId` in the same
+file is the one tenant resolution path; the cache-key helpers use it too.
 
 ## Important files
 
