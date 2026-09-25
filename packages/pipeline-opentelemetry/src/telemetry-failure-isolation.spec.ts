@@ -191,8 +191,7 @@ describe('MetricsBehavior failure isolation', () => {
   });
 
   it('returns the business result when instrument creation and the logger both fail', async () => {
-    // Both halves matter: the meter throws, and the warn() that reports it
-    // throws too. Only the second is new — the first was already handled.
+    // The meter throws, and the warn() reporting it throws too.
     vi.spyOn(metrics, 'getMeter').mockImplementation(() => {
       throw new Error('meter failure');
     });

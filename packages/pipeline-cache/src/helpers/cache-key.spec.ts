@@ -176,26 +176,6 @@ describe('createPartitionedCacheKeyFactory', () => {
 
       expect(requireScopeKey(makeContext())).toContain('scope-hash');
     });
-  });
-
-  describe('delimiter safety', () => {
-    it('keeps a tenant containing a separator distinct from a principal containing one', () => {
-      expect(
-        factory(
-          makeContext({
-            tenantId: 'a:b',
-            items: new Map([['userId', 'c']]),
-          }),
-        ),
-      ).not.toBe(
-        factory(
-          makeContext({
-            tenantId: 'a',
-            items: new Map([['userId', 'b:c']]),
-          }),
-        ),
-      );
-    });
 
     it('requires a scope resolver unless requireScope is false', () => {
       expect(() =>
@@ -230,6 +210,26 @@ describe('createPartitionedCacheKeyFactory', () => {
       );
 
       expect(absent).not.toBe(present);
+    });
+  });
+
+  describe('delimiter safety', () => {
+    it('keeps a tenant containing a separator distinct from a principal containing one', () => {
+      expect(
+        factory(
+          makeContext({
+            tenantId: 'a:b',
+            items: new Map([['userId', 'c']]),
+          }),
+        ),
+      ).not.toBe(
+        factory(
+          makeContext({
+            tenantId: 'a',
+            items: new Map([['userId', 'b:c']]),
+          }),
+        ),
+      );
     });
   });
 });

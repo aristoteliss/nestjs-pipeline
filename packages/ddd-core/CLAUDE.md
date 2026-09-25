@@ -98,8 +98,9 @@ pnpm test:e2e                                    # users-api exercises these dec
 - Cache changes must cover the hard races explicitly: invalidation after the last read but
   before fill, absence/expiry ABA, delete-then-recreate, and retry exhaustion. The presence
   of a barrier is not proof a race is prevented — test the coordination through the final write.
-- `persistence/biome-persistence-plugin.spec.ts` and `biome-general-plugins.spec.ts` assert
-  the Grit plugins still fire. Keep them passing rather than loosening the plugin.
+- The repository-wide Grit plugins, including the persistence rules that apply to this
+  package, are tested in `api/test/lint/`; this package's specs name no other workspace.
+  Keep those specs passing rather than loosening a plugin.
 
 ## Local security and compatibility rules
 

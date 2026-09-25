@@ -7,11 +7,8 @@ import type { RateLimitBehaviorOptions } from '../interfaces/rate-limit-options.
 /**
  * Resolve the rate-limit bucket key for a request.
  *
- * A `keyFactory` is required. There is deliberately no default: the obvious one —
- * `context.requestName` — is a bucket shared by every caller of that request
- * across every tenant, so one abusive client locks out everybody. A limiter whose
- * default configuration turns one abuser into a full outage is worse than no
- * limiter, because it looks like protection.
+ * A `keyFactory` is required; a request-name-only bucket is shared by every
+ * caller in every tenant.
  *
  * Callers that genuinely want an application-wide operation bucket say so:
  *

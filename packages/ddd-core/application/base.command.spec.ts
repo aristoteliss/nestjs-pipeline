@@ -53,8 +53,8 @@ describe('BaseCommand', () => {
   });
 
   it('ignores properties the caller did not declare', () => {
-    // This is the point of the parameter. Deriving the set from Object.keys
-    // meant a new schema property became an authorized field with no edit.
+    // Only declared fields are reported, so a new payload property is never
+    // authorized implicitly.
     const cmd = new TestUpdateCommand({ id: '1', name: 'Alice', age: 30 });
     expect(cmd.getUpdateFields(['name'])).toEqual(['name']);
     expect(cmd.getUpdateFields([])).toEqual([]);

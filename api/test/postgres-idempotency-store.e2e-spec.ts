@@ -80,4 +80,39 @@ describe('PostgresIdempotencyStore against PostgreSQL', () => {
 
     expect(await expiresInMs('reset-key')).toBeGreaterThan(110_000);
   });
+
+  it('completes and replays a response with NUL characters and unpaired surrogates exactly', async () => {
+    const response = {
+      note: 'nul\u0000inside',
+      lone: 'high \ud800 and low \udc00',
+      pair: '\ud83d\ude00',
+    };
+    const claim: IdempotencyRecord = {
+      key: 'text-key',
+      status: 'in_progress',
+      requestName: 'CreateOrderCommand',
+      claimId: 'owner-1',
+      createdAt: new Date().toISOString(),
+    };
+
+    await expect(store.setIfAbsent('text-key', claim, 60_000)).resolves.toBe(
+      true,
+    );
+    await expect(
+      store.completeIfOwned(
+        'text-key',
+        'owner-1',
+        {
+          ...claim,
+          status: 'completed',
+          response,
+          completedAt: new Date().toISOString(),
+        },
+        60_000,
+      ),
+    ).resolves.toBe(true);
+
+    const replayed = await store.get('text-key');
+    expect(replayed?.response).toEqual(response);
+  });
 });

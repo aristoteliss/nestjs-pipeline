@@ -43,7 +43,6 @@ export abstract class BasePipelineContext<
     this._correlationId = value;
   }
 
-  /** Backing field for `tenantId`. */
   private _tenantId: string | undefined = undefined;
 
   /**
@@ -98,7 +97,10 @@ export abstract class BasePipelineContext<
     this._response = value;
   }
 
-  /** Behavior options map — populated from @UsePipeline metadata. */
+  /**
+   * Options per behavior for this handler: global `[Behavior, opts]` tuple
+   * options, shallowly overridden by the handler's `@UsePipeline` options.
+   */
   protected abstract readonly behaviorOptionsMap:
     | Map<BehaviorId, Record<string, unknown>>
     | undefined;
@@ -118,7 +120,9 @@ export abstract class BasePipelineContext<
   }
 
   /**
-   * Retrieve options passed to a specific behavior via @UsePipeline([Behavior, opts]).
+   * Returns the options for a behavior on this handler: the options from a
+   * global `[Behavior, opts]` tuple, shallowly overridden by the options from
+   * the handler's `@UsePipeline([Behavior, opts])`.
    */
   getBehaviorOptions<T = Record<string, unknown>>(
     behaviorType: Type,

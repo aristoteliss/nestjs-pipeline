@@ -48,8 +48,7 @@ export interface RabbitMqDeadLetterTransportOptions {
 }
 
 /**
- * {@link DeadLetterTransport} backed by **RabbitMQ** (`amqplib`) — a drop-in
- * replacement for the BullMQ transport.
+ * {@link DeadLetterTransport} backed by **RabbitMQ** (`amqplib`).
  *
  * Publishes each dead letter as a persistent JSON message and waits for a
  * broker publisher-confirm acknowledgement before reporting success. Make sure

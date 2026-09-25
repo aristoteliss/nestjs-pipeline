@@ -10,10 +10,8 @@ export class FeatureFlagEvaluationError extends Error {
     public readonly errorCode?: string,
     public readonly providerMessage?: string,
     /**
-     * The provider error, when one was thrown.
-     *
-     * Reducing it to a message lost the stack and any provider-specific fields,
-     * which is what an operator needs when a flag backend starts failing.
+     * The provider error, when one was thrown. It becomes the error's `cause`,
+     * which keeps its stack and any provider-specific fields.
      */
     options?: { cause?: unknown },
   ) {

@@ -154,10 +154,8 @@ describe('MemoryIdempotencyStore', () => {
       }
       expect(store.size).toBe(20);
 
-      // Advance past TTL and trigger the periodic cleanup timer
       vi.advanceTimersByTime(5000);
 
-      // All 20 expired keys have been purged from memory automatically
       expect(store.size).toBe(0);
     } finally {
       store.destroy();
@@ -172,7 +170,6 @@ describe('MemoryIdempotencyStore', () => {
     });
     try {
       for (let i = 0; i < 100; i++) {
-        // Advance time so older entries expire and get cleaned up on ensureCapacity
         vi.advanceTimersByTime(100);
         store.setIfAbsent(
           `cardinality-${i}`,
@@ -204,14 +201,11 @@ describe('MemoryIdempotencyStore', () => {
 
     expect(store.setIfAbsent('claim-a', claimA, 10_000)).toBe(true);
 
-    // Adding claim-b when capacity 1 is full of unexpired claim-a must reject and NOT evict claim-a
     expect(() => store.setIfAbsent('claim-b', claimB, 10_000)).toThrow(
       /capacity .* reached: cannot evict active or unexpired claims/,
     );
 
-    // Claim A is still alive and owned
     expect(store.get('claim-a')).toBeDefined();
-    // A duplicate claim A is rejected (not allowed to execute again)
     expect(store.setIfAbsent('claim-a', claimA, 10_000)).toBe(false);
   });
 
@@ -238,24 +232,20 @@ describe('MemoryIdempotencyStore', () => {
       claimId: 'owner-b',
       status: 'in_progress',
     });
-    // Attempting to claim B cannot evict completed unexpired claim A
     expect(() => store.setIfAbsent('claim-b', claimB, 10_000)).toThrow(
       /capacity .* reached: cannot evict active or unexpired claims/,
     );
 
-    // Claim A still returns the completed record
     expect(store.get('claim-a')?.status).toBe('completed');
-    // New duplicate claim A is rejected so it cannot execute twice
     expect(store.setIfAbsent('claim-a', claimA, 10_000)).toBe(false);
   });
 
-  it('purges expired entries first before evicting live entries when reaching maxEntries', () => {
+  it('purges expired entries to make room when reaching maxEntries', () => {
     const store = new MemoryIdempotencyStore({
       maxEntries: 5,
       cleanupIntervalMs: 0,
     });
     try {
-      // 3 short-lived entries (1s) and 2 longer-lived entries (10s)
       for (let i = 0; i < 3; i++) {
         store.setIfAbsent(`short-${i}`, record({ key: `short-${i}` }), 1000);
       }
@@ -264,13 +254,10 @@ describe('MemoryIdempotencyStore', () => {
       }
       expect(store.size).toBe(5);
 
-      // Advance past the 1s TTL of the short entries
       vi.advanceTimersByTime(1001);
 
-      // Adding new entry triggers ensureCapacity() which purges the 3 expired short entries
       store.setIfAbsent('new-1', record({ key: 'new-1' }), 10_000);
 
-      // Remaining should be 2 long-lived entries + 1 new entry = 3 entries
       expect(store.size).toBe(3);
       expect(store.get('long-0')).toBeDefined();
       expect(store.get('long-1')).toBeDefined();
@@ -534,7 +521,7 @@ describe('PostgresIdempotencyStore', () => {
             request_name: 'CreateOrderCommand',
             claim_id: 'owner-a',
             fingerprint: 'abc',
-            response: { id: 'x' },
+            response: '{"id":"x"}',
             has_response: true,
             created_at: '2026-01-01T00:00:00.000Z',
             completed_at: '2026-01-01T00:00:01.000Z',
@@ -565,7 +552,7 @@ describe('PostgresIdempotencyStore', () => {
             request_name: 'VoidCommand',
             claim_id: 'owner-a',
             fingerprint: null,
-            response: null,
+            response: 'null',
             has_response: true,
             created_at: '2026-01-01T00:00:00.000Z',
             completed_at: '2026-01-01T00:00:01.000Z',
@@ -576,7 +563,6 @@ describe('PostgresIdempotencyStore', () => {
     const store = new PostgresIdempotencyStore(db);
     const result = await store.get('k1');
 
-    // response: null must stay null, not become undefined
     expect(result).toBeDefined();
     expect(result!.response).toBeNull();
   });
@@ -604,14 +590,15 @@ describe('PostgresIdempotencyStore', () => {
     expect(query.mock.calls[1][0]).toContain('AND claim_id = $2');
   });
 
-  it('emits a CREATE/upgrade statement for the default table', () => {
+  it('emits the CREATE TABLE and expiry index statements for the default table', () => {
     const sql = createIdempotencyTableSql();
     expect(sql).toContain('CREATE TABLE IF NOT EXISTS idempotency_keys');
     expect(sql).toContain('key           TEXT        PRIMARY KEY');
     expect(sql).toContain('claim_id      TEXT');
     expect(sql).toContain(
-      'ALTER TABLE idempotency_keys ADD COLUMN IF NOT EXISTS claim_id TEXT',
+      'CREATE INDEX IF NOT EXISTS idempotency_keys_expires_at_idx ON idempotency_keys (expires_at)',
     );
+    expect(sql).not.toContain('ALTER TABLE');
   });
 
   it('rejects an unsafe table name', () => {
@@ -637,6 +624,66 @@ describe('PostgresIdempotencyStore', () => {
       expect.stringContaining('DELETE FROM idempotency_keys WHERE key = $1'),
       ['key1'],
     );
+  });
+
+  it('declares the response column as TEXT', () => {
+    expect(createIdempotencyTableSql()).toContain('response      TEXT,');
+  });
+
+  it('derives index name when table is schema-qualified', () => {
+    const sql = createIdempotencyTableSql('public.idempotency_keys');
+    expect(sql).toContain('idempotency_keys_expires_at_idx');
+  });
+
+  it('returns undefined when get finds no row', async () => {
+    const store = new PostgresIdempotencyStore({
+      query: vi.fn().mockResolvedValue({ rows: [] }),
+    });
+    expect(await store.get('missing-key')).toBeUndefined();
+  });
+
+  it('handles Date created_at and absent optional fields in mapRow', async () => {
+    const query = vi.fn().mockResolvedValue({
+      rows: [
+        {
+          status: 'completed',
+          request_name: 'TestCommand',
+          claim_id: null,
+          fingerprint: null,
+          replay_scope: null,
+          response: null,
+          has_response: false,
+          created_at: new Date('2026-01-01T00:00:00.000Z'),
+          completed_at: null,
+        },
+      ],
+    });
+    const store = new PostgresIdempotencyStore({ query });
+    const result = await store.get('k1');
+    expect(result?.claimId).toBeUndefined();
+    expect(result?.response).toBeUndefined();
+    expect(result?.completedAt).toBeUndefined();
+    expect(result?.createdAt).toBe('2026-01-01T00:00:00.000Z');
+  });
+
+  it('binds null for undefined claimId in toValues', async () => {
+    let passedValues: unknown[] = [];
+    const query = vi.fn().mockImplementation((_sql, values) => {
+      passedValues = values;
+      return Promise.resolve({ rows: [] });
+    });
+    const store = new PostgresIdempotencyStore({ query });
+    await store.set(
+      'k1',
+      {
+        key: 'k1',
+        status: 'in_progress',
+        requestName: 'TestCommand',
+        createdAt: '2026-01-01T00:00:00.000Z',
+      },
+      1000,
+    );
+    expect(passedValues[3]).toBeNull();
   });
 });
 
@@ -701,7 +748,7 @@ describe('Replay scope round-trip across stores', () => {
           claim_id: 'claim-1',
           fingerprint: 'fp',
           replay_scope: 'scope-a',
-          response: { id: 1 },
+          response: '{"id":1}',
           has_response: true,
           created_at: '2026-01-01T00:00:00.000Z',
           completed_at: '2026-01-01T00:00:01.000Z',
@@ -714,66 +761,7 @@ describe('Replay scope round-trip across stores', () => {
     expect((await store.get('k1'))?.replayScope).toBe('scope-a');
   });
 
-  it('creates the table with the scope column and adds it to an existing one', () => {
-    const sql = createIdempotencyTableSql();
-
-    expect(sql).toContain('replay_scope  TEXT');
-    expect(sql).toContain('ADD COLUMN IF NOT EXISTS replay_scope TEXT');
-  });
-
-  it('derives index name when table is schema-qualified', () => {
-    const sql = createIdempotencyTableSql('public.idempotency_keys');
-    expect(sql).toContain('idempotency_keys_expires_at_idx');
-  });
-
-  it('returns undefined when get finds no row', async () => {
-    const store = new PostgresIdempotencyStore({
-      query: vi.fn().mockResolvedValue({ rows: [] }),
-    });
-    expect(await store.get('missing-key')).toBeUndefined();
-  });
-
-  it('handles Date created_at and absent optional fields in mapRow', async () => {
-    const query = vi.fn().mockResolvedValue({
-      rows: [
-        {
-          status: 'completed',
-          request_name: 'TestCommand',
-          claim_id: null,
-          fingerprint: null,
-          replay_scope: null,
-          response: null,
-          has_response: false,
-          created_at: new Date('2026-01-01T00:00:00.000Z'),
-          completed_at: null,
-        },
-      ],
-    });
-    const store = new PostgresIdempotencyStore({ query });
-    const result = await store.get('k1');
-    expect(result?.claimId).toBeUndefined();
-    expect(result?.response).toBeUndefined();
-    expect(result?.completedAt).toBeUndefined();
-    expect(result?.createdAt).toBe('2026-01-01T00:00:00.000Z');
-  });
-
-  it('binds null for undefined claimId in toValues', async () => {
-    let passedValues: unknown[] = [];
-    const query = vi.fn().mockImplementation((_sql, values) => {
-      passedValues = values;
-      return Promise.resolve({ rows: [] });
-    });
-    const store = new PostgresIdempotencyStore({ query });
-    await store.set(
-      'k1',
-      {
-        key: 'k1',
-        status: 'in_progress',
-        requestName: 'TestCommand',
-        createdAt: '2026-01-01T00:00:00.000Z',
-      },
-      1000,
-    );
-    expect(passedValues[3]).toBeNull();
+  it('creates the table with the scope column', () => {
+    expect(createIdempotencyTableSql()).toContain('replay_scope  TEXT');
   });
 });

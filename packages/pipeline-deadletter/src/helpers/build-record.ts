@@ -25,7 +25,7 @@ function sanitizePayload(
  *
  * @param context - The pipeline context of the failed request.
  * @param error - The thrown value (any type).
- * @param options - Effective behavior options (controls stack inclusion + metadata).
+ * @param options - Effective behavior options (stack inclusion, metadata, redaction).
  */
 export function buildDeadLetterRecord(
   context: IPipelineContext,

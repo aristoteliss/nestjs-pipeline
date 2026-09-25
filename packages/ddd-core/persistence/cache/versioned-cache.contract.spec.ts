@@ -72,7 +72,7 @@ describe('Versioned Cache Coordination Contract', () => {
     expect(isVersionedCache(cache)).toBe(true);
   });
 
-  it('interleaving 1: invalidate after final read before fill rejects stale fill', async () => {
+  it('invalidate after final read before fill rejects stale fill', async () => {
     const cache = new MemoryCache<TestUserSnapshot>();
     const key = filterCacheKey('user', { id: 'u-1' }, 'tenant_test');
 
@@ -100,7 +100,7 @@ describe('Versioned Cache Coordination Contract', () => {
     expect(currentState.revision).toBe('1');
   });
 
-  it('interleaving 2: two competing fills commit first and reject second', async () => {
+  it('two competing fills commit first and reject second', async () => {
     const cache = new MemoryCache<TestUserSnapshot>();
     const key = filterCacheKey('user', { id: 'u-2' }, 'tenant_test');
 
@@ -133,7 +133,7 @@ describe('Versioned Cache Coordination Contract', () => {
     expect(await cache.get(key)).toEqual(snap1);
   });
 
-  it('interleaving 3: update, delete, recreate sequence prevents stale snapshot resurrection', async () => {
+  it('rejects fills observed before an update and before a delete', async () => {
     const cache = new MemoryCache<TestUserSnapshot>();
     const commands = new TestUserCommandRepository(cache);
     const key = filterCacheKey('user', { id: 'u-3' }, 'tenant_test');
@@ -175,7 +175,7 @@ describe('Versioned Cache Coordination Contract', () => {
     expect(committedB).toBe(false);
   });
 
-  it('interleaving 4: secondary key changes are fenced by revision on update', async () => {
+  it('secondary key changes are fenced by revision on update', async () => {
     const cache = new MemoryCache<TestUserSnapshot>();
     const commands = new TestUserCommandRepository(cache);
     const oldEmailKey = filterCacheKey(
@@ -199,7 +199,7 @@ describe('Versioned Cache Coordination Contract', () => {
     expect(committed).toBe(false);
   });
 
-  it('interleaving 5: expired value preserves revision to prevent ABA races', async () => {
+  it('expired value preserves revision to prevent ABA races', async () => {
     const cache = new MemoryCache<TestUserSnapshot>();
     const key = filterCacheKey('user', { id: 'u-5' }, 'tenant_test');
 
@@ -229,7 +229,7 @@ describe('Versioned Cache Coordination Contract', () => {
     expect(committed).toBe(false);
   });
 
-  it('interleaving 6: bounded retry exhaustion falls back to authoritative DB read', async () => {
+  it('bounded retry exhaustion falls back to authoritative DB read', async () => {
     const cache = new MemoryCache<TestUserSnapshot>();
     const queryRepo = new TestUserQueryRepository(cache);
     const key = filterCacheKey('user', { id: 'u-6' }, 'tenant_test');
@@ -253,7 +253,7 @@ describe('Versioned Cache Coordination Contract', () => {
     expect(queryRepo.fetchCount).toBeLessThanOrEqual(3);
   });
 
-  it('interleaving 7: database success survives cache outage without throwing', async () => {
+  it('database success survives cache outage without throwing', async () => {
     const brokenCache: IVersionedCache<TestUserSnapshot> = {
       isVersioned: true,
       async get() {
@@ -292,7 +292,7 @@ describe('Versioned Cache Coordination Contract', () => {
     expect(deleted).toBeNull();
   });
 
-  it('interleaving 8: tenant isolation guarantees independent keys and revisions', async () => {
+  it('tenant isolation guarantees independent keys and revisions', async () => {
     const cache = new MemoryCache<TestUserSnapshot>();
     const keyTenantA = filterCacheKey('user', { id: 'u-8' }, 'tenant_a');
     const keyTenantB = filterCacheKey('user', { id: 'u-8' }, 'tenant_b');
@@ -311,17 +311,5 @@ describe('Versioned Cache Coordination Contract', () => {
     await cache.invalidate(keyTenantA);
     expect((await cache.readState(keyTenantA)).revision).not.toBe('0');
     expect((await cache.readState(keyTenantB)).revision).toBe('0');
-  });
-
-  it('interleaving 9: structured tuple collision resistance preserves types and detects nulls', () => {
-    const keyNumber = filterCacheKey('user', { code: 123 }, 'tenant_test');
-    const keyString = filterCacheKey('user', { code: '123' }, 'tenant_test');
-    const keyNull = filterCacheKey('user', { code: null }, 'tenant_test');
-    const keyMissing = filterCacheKey('user', {}, 'tenant_test');
-
-    expect(keyNumber).not.toBe(keyString);
-    expect(keyNull).not.toBe(keyMissing);
-    expect(keyNull).not.toBe(keyString);
-    expect(keyNull).not.toBe(keyNumber);
   });
 });

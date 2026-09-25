@@ -84,7 +84,7 @@ describe('FeatureFlagBehavior', () => {
     expect(getBooleanDetails).not.toHaveBeenCalled();
   });
 
-  it('runs the handler when the flag is enabled and preserves original context items', async () => {
+  it('runs the handler when the flag is enabled and records the flag key and value on the context', async () => {
     getBooleanDetails.mockResolvedValue({
       flagKey: 'new-checkout',
       value: true,
@@ -482,7 +482,7 @@ describe('FeatureFlagBehavior decision record on evaluation failure', () => {
     expect(next).not.toHaveBeenCalled();
   });
 
-  it('still recovers with the default value under use-default', async () => {
+  it('applies the fail-closed default and records the error decision under use-default', async () => {
     const next = vi.fn().mockResolvedValue('ran');
     const behavior = new FeatureFlagBehavior({
       getBooleanDetails: vi.fn().mockRejectedValue(new Error('down')),
@@ -497,77 +497,74 @@ describe('FeatureFlagBehavior decision record on evaluation failure', () => {
       reason: 'ERROR',
     });
   });
+});
 
-  describe('PIPELINE_BEHAVIOR_CONTRACT', () => {
-    const contract = (
-      FeatureFlagBehavior as unknown as Record<
-        symbol,
-        IPipelineBehaviorContract
-      >
-    )[PIPELINE_BEHAVIOR_CONTRACT];
+describe('FeatureFlagBehavior PIPELINE_BEHAVIOR_CONTRACT', () => {
+  const contract = (
+    FeatureFlagBehavior as unknown as Record<symbol, IPipelineBehaviorContract>
+  )[PIPELINE_BEHAVIOR_CONTRACT];
 
-    it('returns diagnostic when handler declares intent without a flag name', () => {
-      const diagnostics = contract?.validate?.({
-        handlerType: class TestHandler {},
-        handlerName: 'TestHandler',
-        requestKind: 'command',
-        declarationSource: 'handler',
-        effectiveOptions: {},
-        handlerOptions: {},
-        globalOptions: undefined,
-        effectiveBehaviorTypes: [FeatureFlagBehavior],
-      });
-
-      expect(diagnostics).toHaveLength(1);
-      expect(diagnostics?.[0].behaviorName).toBe('FeatureFlagBehavior');
-      expect(diagnostics?.[0].message).toContain('non-empty `flag` name');
-      expect(diagnostics?.[0].fix).toContain('Provide flag');
+  it('returns diagnostic when handler declares intent without a flag name', () => {
+    const diagnostics = contract?.validate?.({
+      handlerType: class TestHandler {},
+      handlerName: 'TestHandler',
+      requestKind: 'command',
+      declarationSource: 'handler',
+      effectiveOptions: {},
+      handlerOptions: {},
+      globalOptions: undefined,
+      effectiveBehaviorTypes: [FeatureFlagBehavior],
     });
 
-    it('returns diagnostic when flag is an empty whitespace string', () => {
-      const diagnostics = contract?.validate?.({
-        handlerType: class TestHandler {},
-        handlerName: 'TestHandler',
-        requestKind: 'command',
-        declarationSource: 'handler',
-        effectiveOptions: { flag: '   ' },
-        handlerOptions: { flag: '   ' },
-        globalOptions: undefined,
-        effectiveBehaviorTypes: [FeatureFlagBehavior],
-      });
+    expect(diagnostics).toHaveLength(1);
+    expect(diagnostics?.[0].behaviorName).toBe('FeatureFlagBehavior');
+    expect(diagnostics?.[0].message).toContain('non-empty `flag` name');
+    expect(diagnostics?.[0].fix).toContain('Provide flag');
+  });
 
-      expect(diagnostics).toHaveLength(1);
-      expect(diagnostics?.[0].behaviorName).toBe('FeatureFlagBehavior');
+  it('returns diagnostic when flag is an empty whitespace string', () => {
+    const diagnostics = contract?.validate?.({
+      handlerType: class TestHandler {},
+      handlerName: 'TestHandler',
+      requestKind: 'command',
+      declarationSource: 'handler',
+      effectiveOptions: { flag: '   ' },
+      handlerOptions: { flag: '   ' },
+      globalOptions: undefined,
+      effectiveBehaviorTypes: [FeatureFlagBehavior],
     });
 
-    it('does not return diagnostic when flag name is provided', () => {
-      const diagnostics = contract?.validate?.({
-        handlerType: class TestHandler {},
-        handlerName: 'TestHandler',
-        requestKind: 'command',
-        declarationSource: 'handler',
-        effectiveOptions: { flag: 'beta-feature' },
-        handlerOptions: { flag: 'beta-feature' },
-        globalOptions: undefined,
-        effectiveBehaviorTypes: [FeatureFlagBehavior],
-      });
+    expect(diagnostics).toHaveLength(1);
+    expect(diagnostics?.[0].behaviorName).toBe('FeatureFlagBehavior');
+  });
 
-      expect(diagnostics).toBeUndefined();
+  it('does not return diagnostic when flag name is provided', () => {
+    const diagnostics = contract?.validate?.({
+      handlerType: class TestHandler {},
+      handlerName: 'TestHandler',
+      requestKind: 'command',
+      declarationSource: 'handler',
+      effectiveOptions: { flag: 'beta-feature' },
+      handlerOptions: { flag: 'beta-feature' },
+      globalOptions: undefined,
+      effectiveBehaviorTypes: [FeatureFlagBehavior],
     });
 
-    it('allows passive pass-through when declarationSource is global', () => {
-      const diagnostics = contract?.validate?.({
-        handlerType: class TestHandler {},
-        handlerName: 'TestHandler',
-        requestKind: 'command',
-        declarationSource: 'global',
-        effectiveOptions: {},
-        handlerOptions: undefined,
-        globalOptions: {},
-        effectiveBehaviorTypes: [FeatureFlagBehavior],
-      });
+    expect(diagnostics).toBeUndefined();
+  });
 
-      expect(diagnostics).toBeUndefined();
+  it('allows passive pass-through when declarationSource is global', () => {
+    const diagnostics = contract?.validate?.({
+      handlerType: class TestHandler {},
+      handlerName: 'TestHandler',
+      requestKind: 'command',
+      declarationSource: 'global',
+      effectiveOptions: {},
+      handlerOptions: undefined,
+      globalOptions: {},
+      effectiveBehaviorTypes: [FeatureFlagBehavior],
     });
+
+    expect(diagnostics).toBeUndefined();
   });
 });

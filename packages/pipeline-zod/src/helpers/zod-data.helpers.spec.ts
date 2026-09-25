@@ -84,6 +84,17 @@ describe('zod-data.helpers', () => {
       expect(deepEqual(s1, s4)).toBe(false);
       expect(deepEqual(s1, {})).toBe(false);
     });
+
+    it('returns false when objects have different keys despite same length', () => {
+      expect(deepEqual({ a: 1, b: 2 }, { a: 1, c: 2 })).toBe(false);
+    });
+
+    it('returns false when comparing array with object having same keys', () => {
+      const arr = ['a'];
+      const obj = { 0: 'a' };
+      expect(deepEqual(arr, obj)).toBe(false);
+      expect(deepEqual(obj, arr)).toBe(false);
+    });
   });
 
   describe('hasBeenMutated', () => {
@@ -131,17 +142,6 @@ describe('zod-data.helpers', () => {
       const snapshot = { a: 1, b: 2 };
       const request = { a: 1, c: 2 }; // same key length, different keys
       expect(hasBeenMutated(request, snapshot)).toBe(true);
-    });
-
-    it('returns false in deepEqual when objects have different keys despite same length', () => {
-      expect(deepEqual({ a: 1, b: 2 }, { a: 1, c: 2 })).toBe(false);
-    });
-
-    it('returns false in deepEqual when comparing array with object having same keys', () => {
-      const arr = ['a'];
-      const obj = { 0: 'a' };
-      expect(deepEqual(arr, obj)).toBe(false);
-      expect(deepEqual(obj, arr)).toBe(false);
     });
   });
 
@@ -283,7 +283,7 @@ describe('rich validation snapshot data', () => {
     expect(deepEqual(date, dateCopy)).toBe(false);
   });
 
-  it('handles getRawInput with primitive values, unrecorded objects, and legacy symbol keys', () => {
+  it('handles getRawInput with primitive values, unrecorded objects, and ZOD_RAW_INPUT_KEY', () => {
     expect(getRawInput(null)).toBeNull();
     expect(getRawInput(undefined)).toBeUndefined();
     expect(getRawInput('primitive')).toBe('primitive');
@@ -292,19 +292,19 @@ describe('rich validation snapshot data', () => {
     const unrecorded = { unrecorded: true };
     expect(getRawInput(unrecorded)).toBe(unrecorded);
 
-    const legacy = { [ZOD_RAW_INPUT_KEY]: { legacy: true } };
-    expect(getRawInput(legacy)).toEqual({ legacy: true });
+    const keyed = { [ZOD_RAW_INPUT_KEY]: { stored: true } };
+    expect(getRawInput(keyed)).toEqual({ stored: true });
   });
 
-  it('handles getValidatedData with non-object inputs, unrecorded objects, and legacy symbol keys', () => {
+  it('handles getValidatedData with non-object inputs, unrecorded objects, and ZOD_VALIDATED_DATA_KEY', () => {
     expect(getValidatedData(null)).toBeUndefined();
     expect(getValidatedData(undefined)).toBeUndefined();
     expect(getValidatedData('string')).toBeUndefined();
     expect(getValidatedData(123)).toBeUndefined();
     expect(getValidatedData({})).toBeUndefined();
 
-    const legacy = { [ZOD_VALIDATED_DATA_KEY]: { parsed: 123 } };
-    expect(getValidatedData(legacy)).toEqual({ parsed: 123 });
+    const keyed = { [ZOD_VALIDATED_DATA_KEY]: { parsed: 123 } };
+    expect(getValidatedData(keyed)).toEqual({ parsed: 123 });
   });
 
   it('handles non-enumerable symbols and null prototype in deepEqual and cloneData', () => {

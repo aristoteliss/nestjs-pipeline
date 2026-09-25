@@ -24,8 +24,8 @@ function context(options?: Record<string, unknown>): IPipelineContext {
   } as unknown as IPipelineContext;
 }
 
-describe('LoggingBehavior payload compatibility and redaction', () => {
-  it('keeps develop defaults when no options are configured', async () => {
+describe('LoggingBehavior payload exclusion and redaction', () => {
+  it('excludes request and response payloads by default', async () => {
     const logger = { debug: vi.fn(), log: vi.fn(), error: vi.fn() };
     const behavior = new LoggingBehavior(logger as never);
 
@@ -100,8 +100,7 @@ describe('LoggingBehavior payload compatibility and redaction', () => {
     );
 
     const requestLine = logger.debug.mock.calls[0][0] as string;
-    // Excluded keys disappear entirely; the remaining sensitive key is masked
-    // rather than printed, which is the behavioral change.
+    // Excluded keys are omitted; other sensitive keys are masked.
     expect(requestLine).not.toContain('secret-password');
     expect(requestLine).not.toContain('remove-me');
     expect(requestLine).not.toContain('secret-token');

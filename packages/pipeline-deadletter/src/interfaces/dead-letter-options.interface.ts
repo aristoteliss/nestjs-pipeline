@@ -25,7 +25,8 @@ export type DeadLetterMetadataFactory = (
  *
  * Supplied per handler via
  * `@UsePipeline([DeadLetterBehavior, { ... }])`, shallow-merged over the
- * module-wide defaults (handler keys win).
+ * module-wide defaults (handler keys win), except that `ignoreErrors` and
+ * `redactKeys` set at both levels are combined.
  *
  * @example Fire-and-forget event capture
  * ```ts
@@ -43,8 +44,9 @@ export interface DeadLetterBehaviorOptions {
    *
    * - `true` (default) — propagate after the capture decision; the caller sees the
    *   failure (HTTP 5xx, command rejection, …). Use for commands/queries.
-   * - `false` — swallow only when this request kind is selected for capture;
-   *   the pipeline resolves to `undefined`. Use for fire-and-forget events.
+   * - `false` — swallow only when the error is captured and the transport
+   *   delivers it; the pipeline then resolves to `undefined`. Otherwise the
+   *   error is rethrown. Use for fire-and-forget events.
    */
   rethrow?: boolean;
 

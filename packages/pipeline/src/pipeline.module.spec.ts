@@ -34,13 +34,11 @@ describe('PipelineModule.forRoot', () => {
     expect(mod.exports).toBeDefined();
   });
 
-  it('accepts a plain array of behavior classes (backward-compat)', () => {
+  it('accepts a bare array of behavior classes as { behaviors }', () => {
     const mod = PipelineModule.forRoot([AlphaBehavior, BetaBehavior]);
 
-    // Both behaviors should be in providers
     expect(mod.providers).toContain(AlphaBehavior);
     expect(mod.providers).toContain(BetaBehavior);
-    // And exported for consumer modules
     expect(mod.exports).toContain(AlphaBehavior);
     expect(mod.exports).toContain(BetaBehavior);
   });
@@ -79,8 +77,6 @@ describe('PipelineModule.forRoot', () => {
       },
     });
 
-    // BetaBehavior is referenced only in globalBehaviors, not in behaviors[]
-    // It should be auto-registered as a provider
     expect(mod.providers).toContain(BetaBehavior);
     expect(mod.exports).toContain(BetaBehavior);
   });
@@ -93,7 +89,6 @@ describe('PipelineModule.forRoot', () => {
       },
     });
 
-    // AlphaBehavior should appear only once in providers
     const alphaCounts = (mod.providers as unknown[]).filter(
       (p: unknown) => p === AlphaBehavior,
     ).length;
@@ -379,9 +374,8 @@ it('rejects undefined feature behavior providers at registration', () => {
 });
 
 describe('Public surface invariants', () => {
-  it('does not export PipelineBootstrapService or PIPELINE_TENANT_ID from the package entry point', async () => {
+  it('does not export PipelineBootstrapService from the package entry point', async () => {
     const publicExports = await import('./index');
     expect(publicExports).not.toHaveProperty('PipelineBootstrapService');
-    expect(publicExports).not.toHaveProperty('PIPELINE_TENANT_ID');
   });
 });

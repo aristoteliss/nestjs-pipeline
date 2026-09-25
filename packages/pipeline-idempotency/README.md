@@ -255,6 +255,11 @@ infrastructure if you already run Postgres. Create the table once with
 conditional `INSERT … ON CONFLICT (key) DO UPDATE`: live rows are left
 untouched, while expired rows are replaced by the new claim in one statement.
 
+The `response` column is `TEXT` holding the response as JSON, not `jsonb`: `jsonb`
+rejects NUL characters and unpaired surrogates, so a response containing them could
+not be completed. As JSON text, every response a handler returns is stored and
+replayed exactly.
+
 ```typescript
 import { Pool } from 'pg';
 import {
@@ -398,8 +403,9 @@ export class CreateOrderHandler {}
 The key is `[version:]<tenantId>:<principal…>:<action>:<operation>`, and the
 helper guarantees three things a hand-written template does not:
 
-- **Escaping.** Every segment goes through the core key helper, so an email or a
-  composite id containing `:` cannot make two different operations collide.
+- **Escaping.** Every segment goes through `joinKeySegments` from
+  `@cqrs-ddd/safe-stringify`, so an email or a composite id containing `:`
+  cannot make two different operations collide.
 - **No shared fallback for the principal.** A missing tenant or principal throws
   `MissingIdempotencyPartitionError` before anything is claimed. A placeholder
   such as `'anonymous'` would put every unresolved caller in one namespace, where

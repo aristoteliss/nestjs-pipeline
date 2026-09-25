@@ -80,7 +80,7 @@ describe('@UsePipeline decorator', () => {
     expect(options.get(getBehaviorId(BehaviorA))).toEqual(opts);
   });
 
-  it('records options on the handler that the bootstrap actually reads', () => {
+  it("records options in the handler's PIPELINE_BEHAVIORS_OPTIONS_METADATA", () => {
     const opts = { foo: 'bar' };
 
     @UsePipeline([BehaviorA, opts])
@@ -105,8 +105,6 @@ describe('@UsePipeline decorator', () => {
   });
 
   it('keeps per-handler options separate rather than keyed by class name', () => {
-    // The removed registry was keyed by class name, so two handlers sharing a
-    // name overwrote each other's entry.
     const first = (() => {
       @UsePipeline([BehaviorA, { tag: 'first' }])
       class SharedName {}

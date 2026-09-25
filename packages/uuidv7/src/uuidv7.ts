@@ -68,7 +68,10 @@ export function uuidv7(): string {
   );
 }
 
-/** Returns true when the value is a non-empty valid RFC 9562 UUID v7 string. */
+/**
+ * Returns true when the value is a string that, with surrounding whitespace
+ * trimmed, is a valid RFC 9562 UUID v7.
+ */
 export function isUuidV7(value: unknown): value is string {
   if (typeof value !== 'string') return false;
 

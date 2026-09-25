@@ -150,12 +150,7 @@ export class RootDomainEvent<
   /** Detached, frozen state captured when the event was raised; shared by all consumers. */
   public readonly payload: Readonly<TPayload>;
 
-  /**
-   * Identity of the aggregate that raised the event.
-   *
-   * An immutable scalar, so a consumer that only needs to know *which* aggregate
-   * changed has no reason to reach for the live instance.
-   */
+  /** Identity of the aggregate that raised the event. */
   public readonly aggregateId?: string;
 
   /** Aggregate version at the moment the event was raised. */

@@ -219,7 +219,10 @@ export class AuditBehavior
     }
   }
 
-  /** Rejects a non-function factory option before request execution. */
+  /**
+   * Rejects a non-function factory option before request execution when
+   * `failOpen` is false, and logs it otherwise.
+   */
   private validateFactories(
     options: AuditBehaviorOptions,
     failOpen: boolean,

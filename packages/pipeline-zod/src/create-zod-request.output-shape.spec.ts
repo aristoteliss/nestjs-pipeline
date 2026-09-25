@@ -16,7 +16,7 @@ describe('createZodRequest output shape', () => {
     );
   });
 
-  it('continues to apply object transforms in-place', () => {
+  it('applies object transforms in place', () => {
     const Request = createZodRequest(
       z.object({ value: z.string() }).transform(({ value }) => ({
         value: value.trim(),

@@ -40,7 +40,7 @@ function optionsProvider(module: DynamicModule): OptionsProvider {
 }
 
 describe('PipelineModule async provider-graph contract', () => {
-  it('keeps the legacy module shape when no new async settings are used', () => {
+  it('returns a global module that registers and exports the static behaviors', () => {
     const factory = () => ({ bootstrapLogLevel: 'none' as const });
     const module = PipelineModule.forRootAsync({
       imports: [],
@@ -101,7 +101,7 @@ describe('PipelineModule async provider-graph contract', () => {
     ).toThrow(/LOGGING_BEHAVIOR_LOGGER/);
   });
 
-  it('keeps the historical async tuple behavior form accepted', () => {
+  it('accepts a [behavior, options] tuple in the static behaviors list', () => {
     const options: PipelineModuleAsyncOptions = {
       behaviors: [[TestBehavior, { enabled: true }]],
       useFactory: () => ({
@@ -116,13 +116,11 @@ describe('PipelineModule async provider-graph contract', () => {
     expect(module.exports).toContain(TestBehavior);
   });
 
-  it('keeps async factories compatible with PipelineModuleOptions', () => {
+  it('defers checking factory-returned fields until the options factory runs', () => {
     const options: PipelineModuleAsyncOptions = {
       behaviors: [TestBehavior],
       useFactory: () => ({
         bootstrapLogLevel: 'none',
-        // Retained for backward compatibility even though provider registration
-        // belongs on the static forRootAsync field above.
         behaviors: [TestBehavior],
       }),
     };
@@ -196,7 +194,7 @@ describe('PipelineModule async provider-graph contract', () => {
     });
   });
 
-  it('does not require any new async option for useClass/useExisting consumers', () => {
+  it('accepts useClass and useExisting without further async options', () => {
     class Factory {
       createPipelineOptions() {
         return { bootstrapLogLevel: 'none' as const };

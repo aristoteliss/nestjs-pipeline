@@ -19,7 +19,7 @@ describe('cache-barrier.helper', () => {
     expect(barrier.version).toBeUndefined();
   });
 
-  it('guarantees unique tokens across consecutive creations for ABA detection', () => {
+  it('creates a distinct token for each barrier', () => {
     const b1 = createCacheMutationBarrier('deleted', { id: 'u1', version: 1 });
     const b2 = createCacheMutationBarrier('deleted', { id: 'u1', version: 1 });
 

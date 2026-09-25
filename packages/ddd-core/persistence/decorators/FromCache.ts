@@ -41,7 +41,7 @@ function warnUnversionedAdapterOnce(cache: object, logger: ICacheLogger): void {
 export interface FromCacheOptions<TQuery = unknown, TResult = unknown> {
   /**
    * Function deriving the cache key from query options.
-   * If `null` or returns `null`, caching is skipped for the invocation.
+   * When it returns `null`, caching is skipped for that call.
    */
   keyFn?: ((query: TQuery) => string | null) | null;
 
@@ -271,15 +271,8 @@ export function FromCache<
         }
       }
 
-      // 2. Unversioned adapter: read-through is bypassed entirely.
-      //
-      // Coordinating a fill with concurrent invalidation needs the revision
-      // fence. With only get/set there is a window between the post-database
-      // read and the write in which a deletion barrier can be installed and
-      // then overwritten by this stale snapshot, resurrecting a deleted entity.
-      // Serving reads while skipping fills does not help either: entries written
-      // before the adapter was swapped would still be returned. So neither side
-      // of the cache is used for this path and the query goes to the database.
+      // 2. Unversioned adapter: with no revision to fence a fill against a
+      // concurrent invalidation, the cache is bypassed for both reads and fills.
       warnUnversionedAdapterOnce(this.cache, logger);
       return original.call(this, query);
     };

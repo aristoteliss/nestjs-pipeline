@@ -247,18 +247,18 @@ describe('IdempotencyBehavior', () => {
     expect(ctx.items.get(IDEMPOTENCY_KEY_ITEM)).toBe('o1');
   });
 
-  it('rejects a legacy custom store before a handler can execute', () => {
-    const legacyStore = {
+  it('rejects a store without completeIfOwned and deleteIfOwned at construction', () => {
+    const incompleteStore = {
       get: vi.fn(),
       setIfAbsent: vi.fn(),
       set: vi.fn(),
       delete: vi.fn(),
     } as unknown as IdempotencyStore;
 
-    expect(() => new IdempotencyBehavior(legacyStore)).toThrow(
+    expect(() => new IdempotencyBehavior(incompleteStore)).toThrow(
       /missing required methods/,
     );
-    expect(legacyStore.setIfAbsent).not.toHaveBeenCalled();
+    expect(incompleteStore.setIfAbsent).not.toHaveBeenCalled();
   });
 
   it('throws a 409 conflict while a duplicate is still in progress', async () => {
@@ -310,14 +310,14 @@ describe('IdempotencyBehavior', () => {
     ).rejects.toMatchObject({ statusCode: 422, reason: 'key_reuse' });
   });
 
-  it('rejects an unverifiable legacy record when fingerprinting is enabled', async () => {
+  it('rejects a record without a fingerprint when fingerprinting is enabled', async () => {
     const mockStore: IdempotencyStore = {
       get: vi.fn().mockResolvedValue({
         key: 'o1',
         status: 'completed',
         requestName: 'CreateOrderCommand',
-        claimId: 'legacy-owner',
-        response: 'legacy-result',
+        claimId: 'other-owner',
+        response: 'stored-result',
         createdAt: new Date().toISOString(),
         completedAt: new Date().toISOString(),
       }),

@@ -10,9 +10,13 @@ import { isCacheMutationBarrier } from './cache-barrier.helper';
  * Returns `false` if `incoming` is newer, equal, or if no meaningful ordering can be determined.
  *
  * Comparison precedence:
- * 1. Numeric `version` (optimistic concurrency version)
- * 2. Numeric `__gen` (generation sequence counter)
- * 3. `updatedAt` (Date instance or ISO 8601 string / timestamp)
+ * 1. {@link CacheMutationBarrier}: a barrier outranks any snapshot. A cached
+ *    barrier is newer than an incoming snapshot, an incoming barrier always
+ *    replaces a cached snapshot, and between two barriers the cached one is
+ *    newer unless the incoming one has a later `createdAt`.
+ * 2. Numeric `version` (optimistic concurrency version)
+ * 3. Numeric `__gen` (generation sequence counter)
+ * 4. `updatedAt` (Date instance or ISO 8601 string / timestamp)
  *
  * @example Comparing versioned aggregate snapshots
  * ```typescript

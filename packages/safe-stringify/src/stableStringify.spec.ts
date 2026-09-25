@@ -163,10 +163,8 @@ describe('stableStringify and toStrictJsonValue', () => {
 });
 
 /**
- * `toStrictJsonValue` reports precisely what it rejected. `stableStringify`
- * caught those errors and replaced them with one generic message, so an operator
- * debugging a failed cache key or idempotency fingerprint learned nothing about
- * which field or which constraint had broken.
+ * `stableStringify` throws one TypeError and keeps the precise normalization
+ * error as its `cause`.
  */
 describe('stableStringify failure diagnostics', () => {
   it.each([
@@ -209,7 +207,7 @@ describe('stableStringify failure diagnostics', () => {
     },
   );
 
-  it('keeps successful output byte-identical', () => {
+  it('sorts object keys recursively into compact JSON', () => {
     expect(stableStringify({ z: 1, a: { d: 4, c: 3 } })).toBe(
       '{"a":{"c":3,"d":4},"z":1}',
     );

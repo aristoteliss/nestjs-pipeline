@@ -1,18 +1,15 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 /**
- * The generated constructor is synchronous, and `ZodValidationBehavior` and
- * `ZodPipe` run only after construction, so a schema with async refinements
- * makes the constructor throw "Encountered Promise during synchronous parse".
- *
- * `parseAsync()` is the asynchronous path: validate first, then build the
- * instance from the already-validated data.
+ * The generated constructor parses synchronously, so an async schema makes it
+ * throw; `parseAsync()` validates first, then builds the instance.
  */
 
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import { createCommand } from './create-zod-request';
 import { ZodValidationError } from './errors/zod-validation.error';
+import { getRawInput } from './helpers/zod-data.helpers';
 
 const AsyncSchema = z.object({
   email: z
@@ -28,7 +25,7 @@ class RenameCommand extends createCommand(SyncSchema) {}
 
 describe('parseAsync with an asynchronous schema', () => {
   it('constructs an instance the synchronous constructor cannot build', async () => {
-    // Establish the premise rather than assuming it.
+    // The synchronous constructor cannot parse an async schema.
     expect(
       () => new RegisterCommand({ email: 'ada@example.test', age: '36' }),
     ).toThrow(/synchronous parse/i);
@@ -81,13 +78,13 @@ describe('parseAsync with a synchronous schema', () => {
     expect(command.name).toBe('Ada');
   });
 
-  it('cannot be triggered accidentally by ordinary input', async () => {
+  it('ignores a payload `rawInput` field; only the symbol marker selects the pre-validated path', async () => {
     // The hand-off marker is a symbol, so a payload cannot forge it.
-    const command = await RenameCommand.parseAsync({
-      name: 'Ada',
-      rawInput: 'attacker-controlled',
-    } as never);
+    const input = { name: 'Ada', rawInput: 'attacker-controlled' };
+    const command = await RenameCommand.parseAsync(input as never);
 
     expect(command.name).toBe('Ada');
+    expect(command).not.toHaveProperty('rawInput');
+    expect(getRawInput(command)).toBe(input);
   });
 });

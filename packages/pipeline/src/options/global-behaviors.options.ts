@@ -26,7 +26,7 @@ export type GlobalBehaviorScope = 'commands' | 'queries' | 'events' | 'all';
  * // Array — different scopes for different handler kinds
  * globalBehaviors: [
  *   { scope: 'commands', before: [AuditBehavior] },
- *   { scope: 'queries',  before: [CachingBehavior] },
+ *   { scope: 'queries',  before: [CacheBehavior] },
  *   { scope: 'all',      after:  [LoggingBehavior] },
  * ]
  * ```

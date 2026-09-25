@@ -44,7 +44,7 @@ describe('TraceBehavior (real OpenTelemetry API)', () => {
     ).rejects.toBe(failure);
   });
 
-  it('uses an installed global TracerProvider without readiness probing', async () => {
+  it('uses an installed global TracerProvider', async () => {
     const span = {
       setAttribute: vi.fn(),
       setAttributes: vi.fn(),

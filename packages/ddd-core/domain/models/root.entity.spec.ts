@@ -1,6 +1,6 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import { uuidv7 } from '@cqrs-ddd/uuidv7';
+import { isUuidV7, uuidv7 } from '@cqrs-ddd/uuidv7';
 import { describe, expect, it, vi } from 'vitest';
 import { RootEntitySnapshot } from '../interfaces/root-entity-snapshot.interface';
 import { RootEntity } from './root.entity';
@@ -79,6 +79,7 @@ describe('RootEntity', () => {
     const entity = new TestEntity({ name: 'Alpha' });
 
     expect(entity.id).toBeDefined();
+    expect(isUuidV7(entity.id)).toBe(true);
     expect(entity.createdAt).toBeInstanceOf(Date);
     expect(entity.updatedAt).toBeInstanceOf(Date);
   });
@@ -137,8 +138,7 @@ describe('RootEntity', () => {
       () =>
         new TestEntity({
           id,
-          // A blank string is what a malformed persistence row supplies; the
-          // cast is the point of the test, not an oversight.
+          // A malformed persistence row can supply a blank string.
           createdAt: '   ' as unknown as Date,
           updatedAt: new Date(),
         }),

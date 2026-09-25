@@ -1,5 +1,6 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
+import { isUuidV7 } from '@cqrs-ddd/uuidv7';
 import { Logger } from '@nestjs/common';
 import { ExplorerService } from '@nestjs/cqrs/dist/services/explorer.service';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -15,8 +16,6 @@ import {
 } from '../interfaces/pipeline.behavior.interface';
 import { IPipelineContext } from '../interfaces/pipeline.context.interface';
 import { PipelineBootstrapService } from './pipeline.bootstrap.service';
-
-// Behaviors
 
 class MockBehavior implements IPipelineBehavior {
   async handle(ctx: IPipelineContext, next: NextDelegate) {
@@ -44,8 +43,6 @@ class ConfiguredMockBehavior implements IPipelineBehavior {
   }
 }
 
-// Commands / Queries / Events
-
 class MockCommand {
   constructor(public id: number) {}
 }
@@ -57,8 +54,6 @@ class MockQuery {
 class MockEvent {
   constructor(public payload: string) {}
 }
-
-// Handlers
 
 @UsePipeline(MockBehavior)
 class MockCommandHandler {
@@ -98,7 +93,6 @@ class MockEventHandler {
   }
 }
 
-// Helper — build a minimal InstanceWrapper-like object
 // scope 0 = Scope.DEFAULT (singleton), 1 = TRANSIENT, 2 = REQUEST
 
 function makeWrapper(
@@ -114,8 +108,6 @@ function makeWrapper(
     isDependencyTreeStatic: vi.fn(() => dependencyTreeStatic),
   };
 }
-
-// Tests
 
 describe('PipelineBootstrapService', () => {
   let moduleRefMock: any;
@@ -326,7 +318,7 @@ describe('PipelineBootstrapService', () => {
       expect(result.store).toBeUndefined();
     });
 
-    it('skips a singleton wrapper whose instance is undefined (early-return guard)', () => {
+    it('skips a singleton wrapper whose instance is undefined', () => {
       // scope 0 = DEFAULT = isScoped false. No instance → should skip silently.
       explorerServiceMock.explore.mockReturnValue({
         commands: [makeWrapper(undefined, MockCommandHandler, 0)],
@@ -653,12 +645,10 @@ describe('PipelineBootstrapService', () => {
       const cmdResult = await cmdHandler.execute(new MockCommand(1));
       const qResult = await qHandler.execute(new MockQuery(1));
 
-      // MockBehavior applied to command
       expect(cmdResult.store).toBeDefined();
       expect(cmdResult.store!.items.get('mock')).toBe(true);
       expect(cmdResult.store!.items.get('second')).toBeUndefined();
 
-      // SecondMockBehavior applied to query
       expect(qResult.store).toBeDefined();
       expect(qResult.store!.items.get('second')).toBe(true);
       expect(qResult.store!.items.get('mock')).toBeUndefined();
@@ -681,7 +671,6 @@ describe('PipelineBootstrapService', () => {
 
       const result = await handler.execute(new MockCommand(1));
 
-      // Both behaviors should have run
       expect(result.store).toBeDefined();
       expect(result.store!.items.get('mock')).toBe(true);
       expect(result.store!.items.get('second')).toBe(true);
@@ -690,8 +679,7 @@ describe('PipelineBootstrapService', () => {
     it('composes matching scope blocks in declaration order', async () => {
       // An 'all' block declared first wraps a later 'commands' block, so a
       // behavior in 'all' is outside one in 'commands' and its errors never
-      // reach it. ObservabilityModule relies on exactly this to keep validation
-      // failures away from the dead-letter behavior.
+      // reach it.
       const calls: string[] = [];
       class OuterBehavior implements IPipelineBehavior {
         async handle(_ctx: IPipelineContext, next: NextDelegate) {
@@ -825,7 +813,6 @@ describe('PipelineBootstrapService', () => {
       });
 
       const result = await handler.execute(new MockCommand(1));
-      // Neither behavior should apply to a command handler
       expect(result.store).toBeUndefined();
     });
 
@@ -1133,6 +1120,7 @@ describe('PipelineBootstrapService', () => {
 
       expect(typeof result.store!.correlationId).toBe('string');
       expect(result.store!.correlationId.length).toBeGreaterThan(0);
+      expect(isUuidV7(result.store!.correlationId)).toBe(true);
     });
 
     it('uses correlationIdFactory when provided', async () => {

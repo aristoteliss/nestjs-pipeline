@@ -56,7 +56,6 @@ describe('WithCorrelation — default path', () => {
     const p = new Processor();
     await p.handle(fakeJob({}));
 
-    // runCorrelationId falls back to uuidv7
     expect(captured).toBeDefined();
     expect(captured).toMatch(
       /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
@@ -96,7 +95,6 @@ describe('WithCorrelation — default path', () => {
       await p.handle(fakeJob({})); // no correlationId in data
     });
 
-    // runCorrelationId falls back to parent store
     expect(captured).toBe('parent-id');
   });
 });
@@ -690,7 +688,6 @@ describe('WithCorrelation — logLevel', () => {
     await p.handle(fakeJob({})); // no correlationId → fallback to uuidv7
 
     expect(debugSpy).toHaveBeenCalledOnce();
-    // Should log the resolved uuidv7, not "undefined"
     expect(debugSpy).toHaveBeenCalledWith(
       expect.not.stringContaining('undefined'),
     );

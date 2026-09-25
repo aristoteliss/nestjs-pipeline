@@ -305,7 +305,6 @@ describe('DeadLetterBehavior', () => {
 
   it('merges module defaults under per-handler options (handler wins)', async () => {
     const behavior = new DeadLetterBehavior(transport, { rethrow: false });
-    // Handler overrides rethrow back to true.
     const ctx = withOptions(makeCtx(), { rethrow: true });
 
     await expect(
@@ -344,7 +343,6 @@ describe('DeadLetterBehavior', () => {
       ignoreErrors: [DefaultIgnoredError],
     });
 
-    // Handler adds HandlerIgnoredError
     const ctx = withOptions(makeCtx(), {
       ignoreErrors: [HandlerIgnoredError],
     });

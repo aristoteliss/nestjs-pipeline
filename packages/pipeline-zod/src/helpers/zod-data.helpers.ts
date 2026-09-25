@@ -58,8 +58,9 @@ export function getValidationState(
 /**
  * Returns a detached copy of the parsed payload for inspection. Its top level is
  * frozen and every call returns a fresh copy, so changing it cannot change the
- * validation state the behavior relies on. Legacy symbol metadata remains
- * readable but does not establish a trusted validation result.
+ * validation state the behavior relies on. Without an internal validation
+ * record, it falls back to a value stored under `ZOD_VALIDATED_DATA_KEY`; that
+ * value is returned as data but never establishes a trusted validation result.
  */
 export function getValidatedData<T = Record<string, unknown>>(
   request: unknown,

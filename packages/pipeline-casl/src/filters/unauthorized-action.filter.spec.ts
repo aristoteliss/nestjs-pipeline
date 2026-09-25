@@ -69,7 +69,7 @@ describe('UnauthorizedActionFilter', () => {
 
   it('catches exception thrown directly by CaslAuthorizer', () => {
     const filter = new UnauthorizedActionFilter();
-    const authorizer = new CaslAuthorizer(buildAbility([])); // empty permissions
+    const authorizer = new CaslAuthorizer(buildAbility([]));
 
     let caughtException: unknown;
     try {

@@ -16,9 +16,9 @@ export interface AuditSink {
   /**
    * Persist / publish a single audit record.
    *
-   * Implementations should be resilient; a throw here is caught by the behavior
-   * and logged (when `failOpen`), but never masks the original handler result
-   * or error.
+   * Implementations should be resilient. A throw here is logged by the
+   * behavior; with `failOpen: false` it also fails a successful request. A
+   * handler error is always rethrown unchanged.
    *
    * @param record - The completed audit entry to forward.
    */

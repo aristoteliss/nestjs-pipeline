@@ -135,7 +135,7 @@ function extractBehaviorTypes(
  * PipelineModule.forRoot({
  *   globalBehaviors: [
  *     { scope: 'commands', before: [AuditBehavior] },
- *     { scope: 'queries',  before: [CachingBehavior] },
+ *     { scope: 'queries',  before: [CacheBehavior] },
  *     { scope: 'all',      after:  [LoggingBehavior] },
  *   ],
  * })

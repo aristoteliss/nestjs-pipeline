@@ -40,21 +40,12 @@ describe('cache-factory', () => {
 
     describe('adapter load diagnostics', () => {
       /**
-       * Each failure keeps its own diagnosis. Telling someone to install a
-       * package they already have sends them in the wrong direction; the three
-       * causes — unresolvable, present-but-unbuilt, and broken-for-another-reason
-       * — need different actions.
-       *
        * The cases are injected rather than inferred from whichever optional
        * adapters happen to be installed, so the result does not depend on the
        * machine: `@keyv/sqlite` can resolve while its native binding does not.
        */
       function loadWith(failure: unknown): () => unknown {
-        const NodeModule = Module as unknown as {
-          _resolveFilename: unknown;
-          _load: unknown;
-        };
-        const resolve = NodeModule._resolveFilename;
+        const NodeModule = Module as unknown as { _load: unknown };
         const load = NodeModule._load;
         NodeModule._load = ((request: string, ...rest: unknown[]) => {
           if (request === '@keyv/sqlite') throw failure;
@@ -65,7 +56,6 @@ describe('cache-factory', () => {
         }) as never;
         return () => {
           NodeModule._load = load;
-          NodeModule._resolveFilename = resolve;
         };
       }
 

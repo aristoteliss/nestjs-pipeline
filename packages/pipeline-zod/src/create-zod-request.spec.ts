@@ -154,7 +154,7 @@ describe('createZodRequest', () => {
     expect(descriptor?.enumerable).toBe(true);
     expect(descriptor?.value).toBe('Own Property Value');
 
-    // Ensures JSON serialization and idempotency fingerprints only contain own enumerable properties
+    // JSON serialization contains only own enumerable properties
     const json = JSON.parse(JSON.stringify(cmd));
     expect(json).toEqual({
       id: '019728a3-7f4a-7000-8000-000000000000',
@@ -212,7 +212,7 @@ describe('createZodRequest', () => {
     expect(sampleOutput.name).toBe('Valid Name');
   });
 
-  it('createCommand attaches requestKind and preserves BaseCommand arguments', () => {
+  it('createCommand attaches requestKind and forwards base-class constructor arguments', () => {
     const commandSchema = z.object({ title: z.string().min(1) });
     class MyBaseCommand {
       constructor(public readonly sessionUser?: { id: string }) {}
@@ -230,7 +230,7 @@ describe('createZodRequest', () => {
     expect(cmd).toBeInstanceOf(TestCommand);
   });
 
-  it('createQuery attaches requestKind and preserves BaseQuery arguments', () => {
+  it('createQuery attaches requestKind and forwards base-class constructor arguments', () => {
     const querySchema = z.object({ filter: z.string() });
     class MyBaseQuery {
       constructor(

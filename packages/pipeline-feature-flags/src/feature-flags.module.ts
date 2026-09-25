@@ -27,9 +27,8 @@ import type {
  * {@link FeatureFlagBehavior}, optionally registering a provider and binding
  * application-wide default options / targeting context.
  *
- * OpenFeature is the abstraction layer, so the actual flag source is a drop-in
- * swap — pass an Unleash provider today, a Flagsmith provider tomorrow, without
- * touching handler code. If neither a `client` nor `provider` is supplied,
+ * OpenFeature is the abstraction layer; changing the provider does not touch
+ * handler code. If neither a `client` nor `provider` is supplied,
  * the module uses OpenFeature's ambient client.
  *
  * For percentage rollouts, provide a stable {@link FeatureFlagsModuleOptions.targetingKeyFactory}

@@ -55,6 +55,18 @@ describe('filterCacheKey', () => {
     expect(keyString).not.toBe(keyNumber);
   });
 
+  it('distinguishes numbers, strings, null and absent conditions', () => {
+    const keyNumber = filterCacheKey('user', { code: 123 }, 'tenant_test');
+    const keyString = filterCacheKey('user', { code: '123' }, 'tenant_test');
+    const keyNull = filterCacheKey('user', { code: null }, 'tenant_test');
+    const keyMissing = filterCacheKey('user', {}, 'tenant_test');
+
+    expect(keyNumber).not.toBe(keyString);
+    expect(keyNull).not.toBe(keyMissing);
+    expect(keyNull).not.toBe(keyString);
+    expect(keyNull).not.toBe(keyNumber);
+  });
+
   it('rejects unsupported types with TypeError', () => {
     expect(() =>
       filterCacheKey('user', { fn: () => {} }, 'tenant_test'),
@@ -72,7 +84,7 @@ describe('filterCacheKey', () => {
     expect(key).toMatch(/^tenant_explicit:user:v1:[0-9a-f]{64}$/);
   });
 
-  it('resolves tenant from an object carrying tenantId, such as a pipeline context', () => {
+  it('resolves tenant from an object carrying tenantId, such as a request or job context', () => {
     const key = filterCacheKey(
       'user',
       { id: '1' },
@@ -147,10 +159,10 @@ describe('filterCacheKey', () => {
     );
   });
 
-  it('maintains backwards compatibility with { prefixKey } objects', () => {
-    const legacy = { prefixKey: 'user:' };
-    const key = filterCacheKey(legacy, { id: '1' }, 'tenant_compat');
-    expect(key).toMatch(/^tenant_compat:user:v1:[0-9a-f]{64}$/);
+  it('accepts a { prefixKey } object as the resource', () => {
+    const resource = { prefixKey: 'user:' };
+    const key = filterCacheKey(resource, { id: '1' }, 'tenant_prefix');
+    expect(key).toMatch(/^tenant_prefix:user:v1:[0-9a-f]{64}$/);
   });
 
   it('resolves prefix from static aggregateName on entity classes', () => {

@@ -23,9 +23,7 @@ describe('correlationStore', () => {
   });
 
   it('does not leak correlation ID outside run()', () => {
-    correlationStore.run('scoped', () => {
-      // inside
-    });
+    correlationStore.run('scoped', () => {});
     expect(correlationStore.getStore()).toBeUndefined();
   });
 
@@ -138,6 +136,13 @@ describe('addCorrelationId', () => {
       expect(() => addCorrelationId(value as never)).toThrow(/plain object/);
     },
   );
+
+  it.each([null, undefined, 1, 'payload', true])(
+    'rejects non-object payload %j',
+    (value) => {
+      expect(() => addCorrelationId(value as never)).toThrow(/plain object/);
+    },
+  );
 });
 
 describe('correlationHeaders', () => {
@@ -201,11 +206,4 @@ describe('correlation fallback', () => {
     }
     expect(getCorrelationId()).toMatch(/^[0-9a-f-]{36}$/);
   });
-
-  it.each([null, undefined, 1, 'payload', true])(
-    'rejects non-object payload %j',
-    (value) => {
-      expect(() => addCorrelationId(value as never)).toThrow(/plain object/);
-    },
-  );
 });

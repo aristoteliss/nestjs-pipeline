@@ -520,149 +520,7 @@ describe('@Cache decorator on CommandRepository.save', () => {
     // Command A delayed write-through completes with version 2
     await repo.save({ id: 'e1', version: 2 });
 
-    // The cache MUST NOT have been overwritten by stale version 2; it stays version 3!
     expect(store.get('entity:e1')).toEqual({ id: 'e1', version: 3 });
-  });
-});
-
-/**
- * Writer-side anti-resurrection, exercised against a real cache implementation.
- *
- * `@FromCache` guards readers, but those guards never engage against a plain
- * snapshot. A write-through that started before a concurrent delete must not be
- * allowed to land afterwards — every later read would then see an ordinary
- * cache hit for a row that no longer exists in the database.
- *
- * A versioned adapter enforces that by revision: the write-through observes the
- * key's revision before persisting and commits only while it still matches.
- * Unversioned adapters fall back to the mutation-barrier token protocol.
- */
-describe('@Cache anti-resurrection against a concurrent write-through', () => {
-  interface VersionedSnapshot {
-    id: string;
-    version: number;
-  }
-
-  class UpdateRepo {
-    persistGate?: Promise<void>;
-
-    constructor(public cache?: ICache<VersionedSnapshot>) {}
-
-    @Cache<VersionedSnapshot, VersionedSnapshot>({
-      setKey: (entity) => `user:${entity.id}`,
-    })
-    async save(entity: VersionedSnapshot): Promise<VersionedSnapshot | null> {
-      await this.persistGate;
-      return entity;
-    }
-  }
-
-  class DeleteRepo {
-    constructor(public cache?: ICache<VersionedSnapshot>) {}
-
-    @Cache<VersionedSnapshot, VersionedSnapshot>({
-      setKey: null,
-      deleteKeys: (entity) => [`user:${entity.id}`],
-    })
-    async save(_entity: VersionedSnapshot): Promise<VersionedSnapshot | null> {
-      return null;
-    }
-  }
-
-  it('does not let a late write-through resurrect a deleted aggregate', async () => {
-    const cache = new MemoryCache<VersionedSnapshot>();
-    const updates = new UpdateRepo(cache);
-    const deletes = new DeleteRepo(cache);
-    const user = { id: 'u-1', version: 5 };
-
-    await updates.save(user);
-
-    // An update starts — observing the key as it is now — and is still
-    // persisting when the delete lands.
-    let release!: () => void;
-    updates.persistGate = new Promise<void>((resolve) => {
-      release = resolve;
-    });
-    const inFlight = updates.save({ id: 'u-1', version: 6 });
-
-    await deletes.save(user);
-    release();
-    await inFlight;
-
-    // The delete advanced the revision, so the late fill was rejected.
-    expect(await cache.get('user:u-1')).toBeUndefined();
-  });
-
-  it('evicts the key on every deletion and advances its revision', async () => {
-    const cache = new MemoryCache<VersionedSnapshot>();
-    const deletes = new DeleteRepo(cache);
-    const user = { id: 'u-1', version: 1 };
-
-    await deletes.save(user);
-    const first = await cache.readState('user:u-1');
-    await deletes.save(user);
-    const second = await cache.readState('user:u-1');
-
-    expect(first.status).toBe('miss');
-    expect(second.status).toBe('miss');
-    expect(BigInt(second.revision)).toBeGreaterThan(BigInt(first.revision));
-  });
-
-  it('bounds the barrier lifetime on unversioned adapters', async () => {
-    // `ttl: 0` was read as "never expires", so every deleted aggregate left a
-    // permanent entry behind on adapters that have no revision to advance.
-    const cache: ICache<VersionedSnapshot> = {
-      get: vi.fn(),
-      set: vi.fn(),
-      delete: vi.fn(),
-    };
-    await new DeleteRepo(cache).save({ id: 'u-1', version: 1 });
-
-    expect(cache.set).toHaveBeenCalledWith(
-      'user:u-1',
-      expect.objectContaining({ __cacheBarrier: true }),
-      { ttl: DEFAULT_BARRIER_TTL_MS },
-    );
-    expect(DEFAULT_BARRIER_TTL_MS).toBeGreaterThan(0);
-  });
-});
-
-describe('@Cache write-through without an observed revision', () => {
-  class SlowRepo {
-    constructor(
-      public cache: MemoryCache<{ id: string; v: number }>,
-      private readonly duringWrite: () => Promise<void>,
-    ) {}
-
-    @Cache<MockEntity, { id: string; v: number }>({
-      setKey: (entity) => `mock:${entity.id}`,
-    })
-    async save(entity: MockEntity): Promise<{ id: string; v: number }> {
-      await this.duringWrite();
-      return { id: entity.id, v: 1 };
-    }
-  }
-
-  it('never installs the snapshot unfenced when the initial readState fails', async () => {
-    const cache = new MemoryCache<{ id: string; v: number }>();
-    await cache.set('mock:a', { id: 'a', v: 0 });
-    vi.spyOn(cache, 'readState').mockRejectedValueOnce(new Error('cache down'));
-    const repo = new SlowRepo(cache, () => cache.invalidate('mock:a').then());
-
-    await repo.save({ id: 'a' });
-
-    expect(await cache.get('mock:a')).toBeUndefined();
-  });
-
-  it('drops the pre-write value when no revision could be observed', async () => {
-    const cache = new MemoryCache<{ id: string; v: number }>();
-    await cache.set('mock:a', { id: 'a', v: 0 });
-    vi.spyOn(cache, 'readState').mockRejectedValueOnce(new Error('cache down'));
-    const repo = new SlowRepo(cache, async () => undefined);
-
-    await repo.save({ id: 'a' });
-
-    expect(await cache.get('mock:a')).toBeUndefined();
   });
 
   it('rejects invalid decorator argument with Error', () => {
@@ -769,5 +627,148 @@ describe('@Cache write-through without an observed revision', () => {
     }
     const repo = new SetFailRepo(unversionedFailingCache);
     await expect(repo.save({ id: 'a' })).resolves.toEqual({ id: 'a' });
+  });
+});
+
+/**
+ * Writer-side anti-resurrection, exercised against a real cache implementation.
+ *
+ * `@FromCache` guards readers, but those guards never engage against a plain
+ * snapshot. A write-through that started before a concurrent delete must not be
+ * allowed to land afterwards — every later read would then see an ordinary
+ * cache hit for a row that no longer exists in the database.
+ *
+ * A versioned adapter enforces that by revision: the write-through observes the
+ * key's revision before persisting and commits only while it still matches.
+ * Unversioned adapters receive a mutation barrier instead, which the default
+ * `isNewer` (`isCacheNewer`) ranks above any snapshot, so the late write-through
+ * is skipped.
+ */
+describe('@Cache anti-resurrection against a concurrent write-through', () => {
+  interface VersionedSnapshot {
+    id: string;
+    version: number;
+  }
+
+  class UpdateRepo {
+    persistGate?: Promise<void>;
+
+    constructor(public cache?: ICache<VersionedSnapshot>) {}
+
+    @Cache<VersionedSnapshot, VersionedSnapshot>({
+      setKey: (entity) => `user:${entity.id}`,
+    })
+    async save(entity: VersionedSnapshot): Promise<VersionedSnapshot | null> {
+      await this.persistGate;
+      return entity;
+    }
+  }
+
+  class DeleteRepo {
+    constructor(public cache?: ICache<VersionedSnapshot>) {}
+
+    @Cache<VersionedSnapshot, VersionedSnapshot>({
+      setKey: null,
+      deleteKeys: (entity) => [`user:${entity.id}`],
+    })
+    async save(_entity: VersionedSnapshot): Promise<VersionedSnapshot | null> {
+      return null;
+    }
+  }
+
+  it('does not let a late write-through resurrect a deleted aggregate', async () => {
+    const cache = new MemoryCache<VersionedSnapshot>();
+    const updates = new UpdateRepo(cache);
+    const deletes = new DeleteRepo(cache);
+    const user = { id: 'u-1', version: 5 };
+
+    await updates.save(user);
+
+    // An update starts — observing the key as it is now — and is still
+    // persisting when the delete lands.
+    let release!: () => void;
+    updates.persistGate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const inFlight = updates.save({ id: 'u-1', version: 6 });
+
+    await deletes.save(user);
+    release();
+    await inFlight;
+
+    // The delete advanced the revision, so the late fill was rejected.
+    expect(await cache.get('user:u-1')).toBeUndefined();
+  });
+
+  it('evicts the key on every deletion and advances its revision', async () => {
+    const cache = new MemoryCache<VersionedSnapshot>();
+    const deletes = new DeleteRepo(cache);
+    const user = { id: 'u-1', version: 1 };
+
+    await deletes.save(user);
+    const first = await cache.readState('user:u-1');
+    await deletes.save(user);
+    const second = await cache.readState('user:u-1');
+
+    expect(first.status).toBe('miss');
+    expect(second.status).toBe('miss');
+    expect(BigInt(second.revision)).toBeGreaterThan(BigInt(first.revision));
+  });
+
+  it('bounds the barrier lifetime on unversioned adapters', async () => {
+    // Barriers must expire; `ttl: 0` would keep one entry per deleted aggregate
+    // forever.
+    const cache: ICache<VersionedSnapshot> = {
+      get: vi.fn(),
+      set: vi.fn(),
+      delete: vi.fn(),
+    };
+    await new DeleteRepo(cache).save({ id: 'u-1', version: 1 });
+
+    expect(cache.set).toHaveBeenCalledWith(
+      'user:u-1',
+      expect.objectContaining({ __cacheBarrier: true }),
+      { ttl: DEFAULT_BARRIER_TTL_MS },
+    );
+    expect(DEFAULT_BARRIER_TTL_MS).toBeGreaterThan(0);
+  });
+});
+
+describe('@Cache write-through without an observed revision', () => {
+  class SlowRepo {
+    constructor(
+      public cache: MemoryCache<{ id: string; v: number }>,
+      private readonly duringWrite: () => Promise<void>,
+    ) {}
+
+    @Cache<MockEntity, { id: string; v: number }>({
+      setKey: (entity) => `mock:${entity.id}`,
+    })
+    async save(entity: MockEntity): Promise<{ id: string; v: number }> {
+      await this.duringWrite();
+      return { id: entity.id, v: 1 };
+    }
+  }
+
+  it('never installs the snapshot unfenced when the initial readState fails', async () => {
+    const cache = new MemoryCache<{ id: string; v: number }>();
+    await cache.set('mock:a', { id: 'a', v: 0 });
+    vi.spyOn(cache, 'readState').mockRejectedValueOnce(new Error('cache down'));
+    const repo = new SlowRepo(cache, () => cache.invalidate('mock:a').then());
+
+    await repo.save({ id: 'a' });
+
+    expect(await cache.get('mock:a')).toBeUndefined();
+  });
+
+  it('drops the pre-write value when no revision could be observed', async () => {
+    const cache = new MemoryCache<{ id: string; v: number }>();
+    await cache.set('mock:a', { id: 'a', v: 0 });
+    vi.spyOn(cache, 'readState').mockRejectedValueOnce(new Error('cache down'));
+    const repo = new SlowRepo(cache, async () => undefined);
+
+    await repo.save({ id: 'a' });
+
+    expect(await cache.get('mock:a')).toBeUndefined();
   });
 });

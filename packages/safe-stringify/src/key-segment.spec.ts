@@ -74,8 +74,7 @@ describe('joinKeySegments', () => {
   });
 
   it('uses a marker that PostgreSQL text columns accept', () => {
-    // These keys are persisted by Keyv/Postgres and the Postgres idempotency
-    // store, which reject U+0000 outright.
+    // A PostgreSQL text column rejects U+0000.
     expect(ABSENT_SEGMENT).not.toContain('\u0000');
     expect(joinKeySegments([undefined, 'x'])).not.toContain('\u0000');
   });

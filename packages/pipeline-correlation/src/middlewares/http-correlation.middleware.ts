@@ -24,8 +24,8 @@ const HTTP_FIELD_NAME = /^[!#$%&'*+\-.^_`|~0-9A-Za-z]+$/;
  * `MiddlewareConsumer`; it is not installed by `PipelineModule`.
  *
  * If `header` is omitted or is any non-string value (including `false`), the
- * current implementation uses the default `x-correlation-id` header. A false
- * value does not disable a middleware instance that the application registered.
+ * middleware uses the default `x-correlation-id` header. A false value does not
+ * disable a middleware instance that the application registered.
  *
  * An incoming ID longer than 128 characters or outside the default character
  * set is replaced by a local ID. `acceptIncoming`, `trimIncoming`, `maxLength`

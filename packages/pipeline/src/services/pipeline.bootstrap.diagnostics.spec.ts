@@ -328,7 +328,7 @@ describe('PipelineBootstrapService Diagnostics', () => {
     expect(() => bootstrap()).toThrow(PipelineConfigurationError);
   });
 
-  it('matches behavior identities using PIPELINE_BEHAVIOR_ID and avoids same-named false positives', () => {
+  it('matches a string order target by PIPELINE_BEHAVIOR_ID, ignoring a behavior with a different id', () => {
     const AUTH_ID = 'security:auth';
 
     class RealAuthBehavior implements IPipelineBehavior {

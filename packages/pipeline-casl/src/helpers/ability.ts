@@ -41,10 +41,11 @@ export function buildAbility(
 }
 
 /**
- * Resolve template placeholders in a {@link Capability}'s `conditions` column
- * against the current {@link CaslPrincipal}.
+ * Resolve template placeholders in a {@link Capability}'s `conditions` against
+ * the current {@link CaslPrincipal}.
  *
- * Conditions are stored in the database with placeholders like `${user.id}` or
+ * A capability's conditions, whether supplied as an object or parsed from a
+ * compact string, may contain placeholders like `${user.id}` or
  * `${user.tenantId}` (or `{{ property }}` syntax). At runtime, before CASL can
  * evaluate the rule, this function replaces each placeholder with the real
  * value from the authenticated principal.

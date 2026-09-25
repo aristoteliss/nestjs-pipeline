@@ -174,13 +174,7 @@ export interface LoggingBehaviorOptions {
   logFormat?: 'text' | 'structured';
 }
 
-/**
- * Structural type for errors/exceptions that carry extra, loggable context
- * via an `optionalParams` property, in addition to the standard `message`
- * and `stack`. When a thrown error matches this shape (checked via
- * {@link LoggingBehavior.optionalParamsOf}), `handle` appends
- * `optionalParams` to the error log entry — see {@link LoggingBehavior.handle}.
- */
+/** An error carrying extra loggable context in `optionalParams`. */
 interface ErrorWithOptionalParams {
   optionalParams?: unknown;
 }
@@ -211,48 +205,15 @@ export class LoggingBehavior implements IPipelineBehavior {
   }
 
   /**
-   * Wraps the next handler/behavior in the pipeline with request/response
-   * logging, a duration metric, and error logging.
+   * Logs the request, a duration metric, and the response or error around
+   * `next()`, using the options from `context.getBehaviorOptions(LoggingBehavior)`
+   * and the defaults documented on {@link LoggingBehaviorOptions}.
    *
-   * Resolves options via `context.getBehaviorOptions(LoggingBehavior)`
-   * (falling back to the defaults documented on {@link LoggingBehaviorOptions})
-   * and then, in order:
-   *
-   * 1. Logs the incoming request — or the `'[exclude request obj]'`
-   *    placeholder when `excludeRequestObj` is true — at `requestResponseLogLevel`.
-   * 2. Invokes `next()` and awaits the result.
-   * 3. **On success:** logs a metric line (correlation ID, request kind/name,
-   *    handler name, elapsed time in ms) at `metricLogLevel`, then logs the
-   *    response — or the `'[exclude response obj]'` placeholder when
-   *    `excludeResponseObj` is true — at `requestResponseLogLevel`, and
-   *    returns the result.
-   * 4. **On failure:** logs an error line containing the correlation ID,
-   *    request kind/name, handler name, elapsed time, and the error's
-   *    name/message. Two things are appended to that log entry when available:
-   *    - the error's `stack`, if it's an `Error` instance;
-   *    - the error's `optionalParams`, if it defines one (see
-   *      {@link ErrorWithOptionalParams} / {@link optionalParamsOf}) — the
-   *      value is normalized into an array
-   *      (wrapped in a single-element array if it isn't already an array)
-   *      and merged into the logged payload, so any extra context an
-   *      exception carries beyond `message`/`stack` still reaches the logs.
-   *
-   *    The level used for this line is `errorLogLevel` by default, unless
-   *    `mapLogLevel` has an entry matching the error's type — in which case
-   *    the most specific matching class wins. The original error is then
-   *    re-thrown unchanged, so this behavior only observes failures, never
-   *    swallows them.
-   *
-   * Any line is skipped entirely when its resolved level is `'none'`, and
-   * every line's shape — an interpolated string vs. a structured object —
-   * depends on `logFormat`.
-   *
-   * @param context - The pipeline context for the current request: exposes
-   *   `handlerName`, `correlationId`, `requestKind`, `requestName`, `request`,
-   *   and the per-behavior options via `getBehaviorOptions`.
+   * @param context - The pipeline context for the current request.
    * @param next - Delegate that invokes the next behavior/handler in the chain.
    * @returns The value resolved by `next()`.
-   * @throws Re-throws whatever `next()` throws, after logging it.
+   * @throws Whatever `next()` throws, unchanged, after logging it. A logging
+   *   or serialization failure never changes the returned value or the error.
    */
   async handle(
     context: IPipelineContext,
@@ -409,8 +370,9 @@ export class LoggingBehavior implements IPipelineBehavior {
   /**
    * Builds the sanitizer configuration for payload logging.
    *
-   * Sensitive keys are masked unless the caller explicitly opted out, in which
-   * case the plain exclusion set is used and payloads are logged verbatim.
+   * The default sensitive keys are masked unless `redactSensitiveKeys` is
+   * false; keys listed in `redactKeys` are always masked. With no key to mask,
+   * only the exclusion set applies.
    */
   private buildSanitizeOptions(
     options: LoggingBehaviorOptions | undefined,

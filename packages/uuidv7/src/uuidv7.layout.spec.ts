@@ -17,7 +17,7 @@ describe('uuidv7 bit layout', () => {
     vi.restoreAllMocks();
   });
 
-  it('puts the millisecond timestamp in the first 48 bits and clears the version and variant bits', () => {
+  it('puts the millisecond timestamp in the first 48 bits and sets version 7 and variant 0b10', () => {
     vi.spyOn(Date, 'now').mockReturnValue(TIMESTAMP);
     random.fill = 0x00;
 

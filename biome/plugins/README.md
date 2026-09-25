@@ -123,7 +123,7 @@ sibling resolves exactly one copy of it:
 - `pnpm test:unit` enforces the persistence plugin plus the full test suite, including the
   manifest guard in `packages/pipeline/src/package-boundaries.spec.ts`.
 - Unit test coverage against the real Biome CLI:
-  - `packages/ddd-core/persistence/biome-persistence-plugin.spec.ts`
-  - `packages/ddd-core/persistence/biome-general-plugins.spec.ts`
+  - `api/test/lint/biome-persistence-plugin.spec.ts`
+  - `api/test/lint/biome-general-plugins.spec.ts`
 
 Reference: [Biome linter plugins](https://biomejs.dev/linter/plugins/) and [GritQL syntax](https://biomejs.dev/reference/gritql/).

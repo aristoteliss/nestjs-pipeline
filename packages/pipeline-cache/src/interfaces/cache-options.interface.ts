@@ -98,9 +98,11 @@ export interface CacheBehaviorOptions {
 
 /**
  * Options accepted by {@link CacheModule.forRoot}. The store can be provided in
- * three mutually exclusive ways (checked in order): a pre-built `cache`,
- * pre-built `stores`, or declarative `store` configuration. When none are
- * supplied an in-memory store is used.
+ * three ways: a pre-built `cache`, pre-built `stores`, or declarative `store`
+ * configuration. When several are given, `cache` takes precedence over
+ * `stores`, which takes precedence over `store`; the others are ignored. An
+ * empty `stores` array counts as absent. When none is supplied an in-memory
+ * store is used.
  *
  * @example Redis-backed cache
  * ```ts

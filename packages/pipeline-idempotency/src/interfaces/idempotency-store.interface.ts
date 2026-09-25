@@ -63,7 +63,7 @@ export interface IdempotencyStore {
   deleteIfOwned(key: string, claimId: string): MaybePromise<boolean>;
 
   /**
-   * Unconditional overwrite retained for administrative/custom use. Pipeline
+   * Unconditional overwrite for administrative or custom use. Pipeline
    * execution completion uses {@link completeIfOwned}, not this method.
    */
   set(
@@ -73,7 +73,7 @@ export interface IdempotencyStore {
   ): MaybePromise<void>;
 
   /**
-   * Unconditional delete retained for administrative/custom use. Pipeline
+   * Unconditional delete for administrative or custom use. Pipeline
    * failure release uses {@link deleteIfOwned}, not this method.
    */
   delete(key: string): MaybePromise<void>;

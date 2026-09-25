@@ -272,10 +272,7 @@ describe('ResilienceBehavior', () => {
       ).rejects.toBeInstanceOf(ResilienceConfigurationError);
     });
 
-    it('does not accept retry.isRetryable as the error classifier', async () => {
-      // `handle` is the only error classifier: a predicate named for retries
-      // must not also decide which errors open the circuit breaker or which
-      // ones the fallback swallows.
+    it('requires handle or handleAllErrors even when retry options carry an unrecognized predicate', async () => {
       await expect(
         behavior.handle(
           makeCtx(
@@ -367,14 +364,10 @@ describe('ResilienceBehavior', () => {
 });
 
 /**
- * A policy is cached per handler so that circuit-breaker and bulkhead state is
- * shared across invocations — which is correct. Baking the *first* request's
- * name into the policy's telemetry callbacks was not: an event handler
- * registered for several event types then reported the first type forever,
- * pointing operators at the wrong event during a retry storm.
+ * A policy is cached per handler; telemetry reports the request currently executing.
  */
 describe('ResilienceBehavior telemetry labels across request types', () => {
-  it('reports the request that is actually retrying, not the first one seen', async () => {
+  it('labels each retry with the request that triggered it', async () => {
     const retries: Array<string | undefined> = [];
     const handlerType = class MultiEventHandler {};
 
@@ -415,7 +408,9 @@ describe('ResilienceBehavior telemetry labels across request types', () => {
 
     expect(retries).toEqual(['OrderPlacedEvent', 'OrderCancelledEvent']);
   });
+});
 
+describe('ResilienceBehavior circuit breaker lifecycle', () => {
   it('triggers circuit breaker open, half-open and reset lifecycle callbacks', async () => {
     const onCircuitOpen = vi.fn();
     const onCircuitHalfOpen = vi.fn();
@@ -473,146 +468,146 @@ describe('ResilienceBehavior telemetry labels across request types', () => {
       expect.any(String),
     );
   });
+});
 
-  describe('PIPELINE_BEHAVIOR_CONTRACT', () => {
-    const contract = (
-      ResilienceBehavior as unknown as Record<symbol, IPipelineBehaviorContract>
-    )[PIPELINE_BEHAVIOR_CONTRACT];
+describe('ResilienceBehavior PIPELINE_BEHAVIOR_CONTRACT', () => {
+  const contract = (
+    ResilienceBehavior as unknown as Record<symbol, IPipelineBehaviorContract>
+  )[PIPELINE_BEHAVIOR_CONTRACT];
 
-    it('returns diagnostic when retry/circuitBreaker/fallback lacks error classification', () => {
-      const diagnostics = contract?.validate?.({
-        handlerType: class TestHandler {},
-        handlerName: 'TestHandler',
-        requestKind: 'query',
-        declarationSource: 'handler',
-        effectiveOptions: { retry: { attempts: 2 } },
-        handlerOptions: { retry: { attempts: 2 } },
-        globalOptions: undefined,
-        effectiveBehaviorTypes: [ResilienceBehavior],
-      });
-
-      expect(diagnostics).toHaveLength(1);
-      expect(diagnostics?.[0].behaviorName).toBe('ResilienceBehavior');
-      expect(diagnostics?.[0].message).toContain(
-        'require handle(error) or explicit handleAllErrors',
-      );
-      expect(diagnostics?.[0].fix).toContain('handleAllErrors: true');
+  it('returns diagnostic when retry/circuitBreaker/fallback lacks error classification', () => {
+    const diagnostics = contract?.validate?.({
+      handlerType: class TestHandler {},
+      handlerName: 'TestHandler',
+      requestKind: 'query',
+      declarationSource: 'handler',
+      effectiveOptions: { retry: { attempts: 2 } },
+      handlerOptions: { retry: { attempts: 2 } },
+      globalOptions: undefined,
+      effectiveBehaviorTypes: [ResilienceBehavior],
     });
 
-    it('returns diagnostic when retry on command/event lacks replaySafe: true', () => {
-      const diagnostics = contract?.validate?.({
-        handlerType: class TestHandler {},
-        handlerName: 'TestHandler',
-        requestKind: 'command',
-        declarationSource: 'handler',
-        effectiveOptions: { retry: { attempts: 2 }, handleAllErrors: true },
-        handlerOptions: { retry: { attempts: 2 }, handleAllErrors: true },
-        globalOptions: undefined,
-        effectiveBehaviorTypes: [ResilienceBehavior],
-      });
-
-      expect(diagnostics).toHaveLength(1);
-      expect(diagnostics?.[0].behaviorName).toBe('ResilienceBehavior');
-      expect(diagnostics?.[0].message).toContain('retry.replaySafe: true');
-      expect(diagnostics?.[0].fix).toContain('replaySafe: true');
-    });
-
-    it('returns multiple diagnostics when both error classification and replaySafe are missing', () => {
-      const diagnostics = contract?.validate?.({
-        handlerType: class TestHandler {},
-        handlerName: 'TestHandler',
-        requestKind: 'command',
-        declarationSource: 'handler',
-        effectiveOptions: { retry: { attempts: 2 } },
-        handlerOptions: { retry: { attempts: 2 } },
-        globalOptions: undefined,
-        effectiveBehaviorTypes: [ResilienceBehavior],
-      });
-
-      expect(diagnostics).toHaveLength(2);
-    });
-
-    it.each([
-      ['command', { duration: 100 }, 1],
-      ['event', { duration: 100, strategy: 'aggressive' }, 1],
-      ['command', { duration: 100, strategy: 'cooperative' }, 0],
-      ['command', { duration: 100, replaySafe: true }, 0],
-      ['query', { duration: 100 }, 0],
-    ] as const)(
-      'diagnoses an unacknowledged aggressive timeout on a %s handler (%o)',
-      (requestKind, timeout, expected) => {
-        const diagnostics = contract?.validate?.({
-          handlerType: class TestHandler {},
-          handlerName: 'TestHandler',
-          requestKind,
-          declarationSource: 'handler',
-          effectiveOptions: { timeout },
-          handlerOptions: { timeout },
-          globalOptions: undefined,
-          effectiveBehaviorTypes: [ResilienceBehavior],
-        });
-
-        expect(diagnostics ?? []).toHaveLength(expected);
-        if (expected) {
-          expect(diagnostics?.[0].message).toContain('aggressive timeout');
-          expect(diagnostics?.[0].fix).toContain("strategy: 'cooperative'");
-        }
-      },
+    expect(diagnostics).toHaveLength(1);
+    expect(diagnostics?.[0].behaviorName).toBe('ResilienceBehavior');
+    expect(diagnostics?.[0].message).toContain(
+      'require handle(error) or explicit handleAllErrors',
     );
+    expect(diagnostics?.[0].fix).toContain('handleAllErrors: true');
+  });
 
-    it('does not return diagnostic when query has proper error classification', () => {
+  it('returns diagnostic when retry on command/event lacks replaySafe: true', () => {
+    const diagnostics = contract?.validate?.({
+      handlerType: class TestHandler {},
+      handlerName: 'TestHandler',
+      requestKind: 'command',
+      declarationSource: 'handler',
+      effectiveOptions: { retry: { attempts: 2 }, handleAllErrors: true },
+      handlerOptions: { retry: { attempts: 2 }, handleAllErrors: true },
+      globalOptions: undefined,
+      effectiveBehaviorTypes: [ResilienceBehavior],
+    });
+
+    expect(diagnostics).toHaveLength(1);
+    expect(diagnostics?.[0].behaviorName).toBe('ResilienceBehavior');
+    expect(diagnostics?.[0].message).toContain('retry.replaySafe: true');
+    expect(diagnostics?.[0].fix).toContain('replaySafe: true');
+  });
+
+  it('returns multiple diagnostics when both error classification and replaySafe are missing', () => {
+    const diagnostics = contract?.validate?.({
+      handlerType: class TestHandler {},
+      handlerName: 'TestHandler',
+      requestKind: 'command',
+      declarationSource: 'handler',
+      effectiveOptions: { retry: { attempts: 2 } },
+      handlerOptions: { retry: { attempts: 2 } },
+      globalOptions: undefined,
+      effectiveBehaviorTypes: [ResilienceBehavior],
+    });
+
+    expect(diagnostics).toHaveLength(2);
+  });
+
+  it.each([
+    ['command', { duration: 100 }, 1],
+    ['event', { duration: 100, strategy: 'aggressive' }, 1],
+    ['command', { duration: 100, strategy: 'cooperative' }, 0],
+    ['command', { duration: 100, replaySafe: true }, 0],
+    ['query', { duration: 100 }, 0],
+  ] as const)(
+    'diagnoses an unacknowledged aggressive timeout on a %s handler (%o)',
+    (requestKind, timeout, expected) => {
       const diagnostics = contract?.validate?.({
         handlerType: class TestHandler {},
         handlerName: 'TestHandler',
-        requestKind: 'query',
+        requestKind,
         declarationSource: 'handler',
-        effectiveOptions: { retry: { attempts: 2 }, handleAllErrors: true },
-        handlerOptions: { retry: { attempts: 2 }, handleAllErrors: true },
+        effectiveOptions: { timeout },
+        handlerOptions: { timeout },
         globalOptions: undefined,
         effectiveBehaviorTypes: [ResilienceBehavior],
       });
 
-      expect(diagnostics).toBeUndefined();
+      expect(diagnostics ?? []).toHaveLength(expected);
+      if (expected) {
+        expect(diagnostics?.[0].message).toContain('aggressive timeout');
+        expect(diagnostics?.[0].fix).toContain("strategy: 'cooperative'");
+      }
+    },
+  );
+
+  it('does not return diagnostic when query has proper error classification', () => {
+    const diagnostics = contract?.validate?.({
+      handlerType: class TestHandler {},
+      handlerName: 'TestHandler',
+      requestKind: 'query',
+      declarationSource: 'handler',
+      effectiveOptions: { retry: { attempts: 2 }, handleAllErrors: true },
+      handlerOptions: { retry: { attempts: 2 }, handleAllErrors: true },
+      globalOptions: undefined,
+      effectiveBehaviorTypes: [ResilienceBehavior],
     });
 
-    it('does not return diagnostic when command has replaySafe: true and handleAllErrors: true', () => {
-      const diagnostics = contract?.validate?.({
-        handlerType: class TestHandler {},
-        handlerName: 'TestHandler',
-        requestKind: 'command',
-        declarationSource: 'handler',
-        effectiveOptions: {
-          retry: { attempts: 2, replaySafe: true },
-          handleAllErrors: true,
-        },
-        handlerOptions: {
-          retry: { attempts: 2, replaySafe: true },
-          handleAllErrors: true,
-        },
-        globalOptions: undefined,
-        effectiveBehaviorTypes: [ResilienceBehavior],
-      });
+    expect(diagnostics).toBeUndefined();
+  });
 
-      expect(diagnostics).toBeUndefined();
+  it('does not return diagnostic when command has replaySafe: true and handleAllErrors: true', () => {
+    const diagnostics = contract?.validate?.({
+      handlerType: class TestHandler {},
+      handlerName: 'TestHandler',
+      requestKind: 'command',
+      declarationSource: 'handler',
+      effectiveOptions: {
+        retry: { attempts: 2, replaySafe: true },
+        handleAllErrors: true,
+      },
+      handlerOptions: {
+        retry: { attempts: 2, replaySafe: true },
+        handleAllErrors: true,
+      },
+      globalOptions: undefined,
+      effectiveBehaviorTypes: [ResilienceBehavior],
     });
 
-    it('does not return diagnostic when custom policy object is supplied', () => {
-      const diagnostics = contract?.validate?.({
-        handlerType: class TestHandler {},
-        handlerName: 'TestHandler',
-        requestKind: 'command',
-        declarationSource: 'handler',
-        effectiveOptions: {
-          policy: {} as never,
-        },
-        handlerOptions: {
-          policy: {} as never,
-        },
-        globalOptions: undefined,
-        effectiveBehaviorTypes: [ResilienceBehavior],
-      });
+    expect(diagnostics).toBeUndefined();
+  });
 
-      expect(diagnostics).toBeUndefined();
+  it('does not return diagnostic when custom policy object is supplied', () => {
+    const diagnostics = contract?.validate?.({
+      handlerType: class TestHandler {},
+      handlerName: 'TestHandler',
+      requestKind: 'command',
+      declarationSource: 'handler',
+      effectiveOptions: {
+        policy: {} as never,
+      },
+      handlerOptions: {
+        policy: {} as never,
+      },
+      globalOptions: undefined,
+      effectiveBehaviorTypes: [ResilienceBehavior],
     });
+
+    expect(diagnostics).toBeUndefined();
   });
 });

@@ -80,7 +80,8 @@ export interface PartitionedIdempotencyKeyOptions {
  * Creates an {@link IdempotencyKeyFactory} whose keys partition by tenant,
  * principal and operation, and fail closed when any of them is missing.
  *
- * Segments are escaped and joined through the core key helper, so values
+ * Segments are escaped and joined with `joinKeySegments` from
+ * `@cqrs-ddd/safe-stringify`, so values
  * containing the separator — email addresses, external subject claims, composite
  * ids — cannot make two different operations collide on one key.
  *

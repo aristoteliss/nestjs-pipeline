@@ -146,11 +146,16 @@ function inScope(
  * one-line swaps in {@link IdempotencyModule.forRoot}. When no key is produced,
  * the handler runs normally.
  *
- * @example Per-handler, keyed off an `Idempotency-Key` header
+ * @example Per-handler, keyed off an optional `Idempotency-Key` header and
+ * partitioned by tenant and principal
  * ```ts
  * @CommandHandler(CreatePaymentCommand)
  * @UsePipeline([IdempotencyBehavior, {
- *   keyFactory: (c) => c.items.get('idempotencyKey') as string | undefined,
+ *   keyFactory: createPartitionedIdempotencyKeyFactory({
+ *     principal: (c) => c.items.get('currentUserId') as string | undefined,
+ *     operation: (c) => c.items.get('idempotencyKey') as string | undefined,
+ *     onMissingOperation: 'skip',
+ *   }),
  *   ttl: 86_400_000,
  * }])
  * export class CreatePaymentHandler {}
@@ -280,8 +285,8 @@ export class IdempotencyBehavior
       (options.fingerprint ?? true)
         ? fingerprintValue(context.request)
         : undefined;
-    // Resolved before the claim so a missing authorization context rejects the
-    // operation instead of claiming a key it cannot later prove the scope of.
+    // Resolved before the claim, so a replayScopeFactory that throws rejects the
+    // operation before any key is claimed.
     const replayScope = options.replayScopeFactory?.(context);
     const scopeRequired = options.replayScopeFactory !== undefined;
     const claimId = randomUUID();
@@ -390,7 +395,8 @@ export class IdempotencyBehavior
 
   /**
    * The key was already claimed. Replay a completed response, or surface a
-   * conflict for an in-progress duplicate or a key reused with a new payload.
+   * conflict for an in-progress duplicate, a key reused with a new payload, or a
+   * completed record whose replay scope does not match the caller's.
    */
   private async replayOrConflict(
     context: IPipelineContext,

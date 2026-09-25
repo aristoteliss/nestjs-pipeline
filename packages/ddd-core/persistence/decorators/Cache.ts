@@ -72,7 +72,7 @@ export interface CacheOptions<TEntity = unknown> {
   /**
    * Optional version comparison function for CAS-safe write-through caching.
    * If omitted, defaults to {@link isCacheNewer} which compares `version`, `__gen`, or `updatedAt`.
-   * Pass `null` to explicitly disable CAS.
+   * Pass `null` to skip the isNewer comparison.
    */
   isNewer?: ((cached: unknown, incoming: unknown) => boolean) | null;
 
@@ -83,7 +83,7 @@ export interface CacheOptions<TEntity = unknown> {
    * A barrier only has to outlive the in-flight reads/writes it guards against,
    * so configure this above the expected maximum repository operation latency.
    * Ignored by {@link IVersionedCache} adapters, which fence concurrent fills by
-   * revision instead of by barrier token.
+   * revision instead of by barrier.
    *
    * @default {@link DEFAULT_BARRIER_TTL_MS}
    */
@@ -113,8 +113,8 @@ export const DEFAULT_BARRIER_TTL_MS = 60_000;
  *   all keys returned by `deleteKeys` are evicted from the cache.
  * - **Best-effort safety**: Cache write and eviction operations swallow errors internally so that an
  *   already-committed database transaction is never converted into an application error.
- * - **Explicit key derivation**: Requires explicit key derivation functions or options to prevent
- *   unscoped or ambiguous key collisions across multi-tenant boundaries.
+ * - **Explicit keys**: Requires at least one of `setKey`, `deleteKeys` or `invalidateKeys`;
+ *   scoping the key (for example with `filterCacheKey`) is the key function's job.
  *
  * @example Positional syntax on creation / update
  * ```typescript
@@ -217,8 +217,7 @@ export function Cache<TEntity = unknown, TResult = unknown | null>(
       }
 
       // Cache maintenance is best-effort: the DB write already succeeded,
-      // so a cache failure must not turn a success into an error (which
-      // would cause idempotency release-on-error to drop the claim).
+      // so a cache failure must not turn a success into an error.
       try {
         const deleting = result === null || result === undefined;
         const keysFn = deleting ? resolvedDeleteKeys : resolvedInvalidateKeys;

@@ -18,7 +18,7 @@ export class TransientOperationError extends Error {
   }
 }
 
-/** Retry predicate used by application-level resilience behaviors. */
+/** True when `error` is a TransientOperationError. */
 export function isTransientOperationError(
   error: unknown,
 ): error is TransientOperationError {

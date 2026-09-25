@@ -112,12 +112,9 @@ function getByPath(obj: unknown, path: string): string | undefined {
  * Place it **under** any transport decorator (`@Process`, `@MessagePattern`,
  * `@EventPattern`, `@Cron`, etc.). It does not replace or interfere with them.
  *
- * **How it works:**
- * 1. Extracts the correlation ID from the method arguments (via `path` or `extract`).
- * 2. Wraps the original method inside {@link runWithCorrelationId}.
- * 3. If the extracted ID is `undefined`, `runWithCorrelationId` falls back to
- *    any parent context, then to `uuidv7()` — so a correlation ID is **always**
- *    available inside the method via {@link getCorrelationId}.
+ * It extracts the correlation ID from the method arguments (via `path` or
+ * `extract`) and runs the method inside {@link runWithCorrelationId}, which
+ * falls back to any parent context and then to `uuidv7()` when no ID is found.
  *
  * **⚠️ Array payloads:**
  * When using the default dot-path extraction, the first argument must be an
@@ -138,7 +135,7 @@ function getByPath(obj: unknown, path: string): string | undefined {
  *
  * @example
  * ```ts
- * // ── Bull (default path: data.correlationId) ──
+ * // Bull (default path: data.correlationId)
  * @Process('send-email')
  * @WithCorrelation()
  * async handleSendEmail(job: Job) {
@@ -146,19 +143,19 @@ function getByPath(obj: unknown, path: string): string | undefined {
  *   await this.commandBus.execute(new SendEmailCommand(job.data));
  * }
  *
- * // ── Bull with custom key ──
+ * // Bull with custom key
  * @Process('send-sms')
  * @WithCorrelation('data.x-request-id')
  * async handleSendSms(job: Job) { ... }
  *
- * // ── RabbitMQ ──
+ * // RabbitMQ
  * @MessagePattern('user.created')
  * @WithCorrelation({
  *   extract: (data, ctx) => ctx.getMessage().properties.correlationId,
  * })
  * async handle(@Payload() data: any, @Ctx() ctx: RmqContext) { ... }
  *
- * // ── Kafka ──
+ * // Kafka
  * @EventPattern('order.placed')
  * @WithCorrelation({
  *   extract: (data, ctx) =>
@@ -166,11 +163,11 @@ function getByPath(obj: unknown, path: string): string | undefined {
  * })
  * async handle(@Payload() data: any, @Ctx() ctx: KafkaContext) { ... }
  *
- * // ── PostgreSQL LISTEN/NOTIFY ──
+ * // PostgreSQL LISTEN/NOTIFY
  * @WithCorrelation({ path: 'correlationId' })
  * async onNotification(notification: PgNotification) { ... }
  *
- * // ── Cron (no ID in args → auto-generates uuidv7) ──
+ * // Cron (no ID in args → auto-generates uuidv7)
  * @Cron('0 * * * *')
  * @WithCorrelation()
  * async hourlySync() { ... }
@@ -255,22 +252,22 @@ export function WithCorrelation(
  *
  * @example
  * ```ts
- * // ── RabbitMQ ──
+ * // RabbitMQ
  * @MessagePattern('user.created')
  * @WithCorrelation(CorrelationFrom.amqp())
  * async handle(@Payload() data: any, @Ctx() ctx: RmqContext) { }
  *
- * // ── Kafka ──
+ * // Kafka
  * @EventPattern('order.placed')
  * @WithCorrelation(CorrelationFrom.kafka())
  * async handle(@Payload() data: any, @Ctx() ctx: KafkaContext) { }
  *
- * // ── NATS ──
+ * // NATS
  * @MessagePattern('user.created')
  * @WithCorrelation(CorrelationFrom.nats())
  * async handle(@Payload() data: any, @Ctx() ctx: NatsContext) { }
  *
- * // ── gRPC ──
+ * // gRPC
  * @GrpcMethod('UsersService', 'FindOne')
  * @WithCorrelation(CorrelationFrom.grpc())
  * async findOne(data: any, metadata: Metadata) { }

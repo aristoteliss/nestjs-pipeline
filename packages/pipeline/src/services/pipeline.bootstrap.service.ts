@@ -216,7 +216,6 @@ export class PipelineBootstrapService
     // Scope.DEFAULT.
     const isScoped = !wrapper.isDependencyTreeStatic();
 
-    // For singleton handlers, verify the instance exists
     const instance = isScoped ? undefined : wrapper.instance;
     if (!isScoped && !instance) return;
 
@@ -249,10 +248,8 @@ export class PipelineBootstrapService
       if (untyped(originalMethod).__pipelined) return;
     }
 
-    // Pre-resolve everything at bootstrap
-
-    // 1. Resolve singleton behavior instances once. Behaviors that are scoped
-    //    (or otherwise unavailable through moduleRef.get) are resolved per run.
+    // Resolve singleton behavior instances once. Behaviors that are scoped
+    // (or otherwise unavailable through moduleRef.get) are resolved per run.
     const resolvedBehaviors = new Map<number, IPipelineBehavior>();
 
     for (let i = 0; i < behaviorTypes.length; i++) {

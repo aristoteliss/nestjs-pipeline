@@ -23,9 +23,9 @@ type HttpResponse = {
 
 /**
  * Catches {@link IdempotencyConflictError} thrown by {@link IdempotencyBehavior}
- * at the pipeline boundary, mapping it to `409 Conflict` (a duplicate is still
- * in progress) or `422 Unprocessable Entity` (the key was reused with a
- * different payload). Works with both Express and Fastify responses.
+ * at the pipeline boundary, mapping it to `409 Conflict` (`in_progress`,
+ * `replay_scope`) or `422 Unprocessable Entity` (`key_reuse`). Works with both
+ * Express and Fastify responses.
  *
  * Register it globally:
  * ```ts

@@ -8,8 +8,7 @@
  * `noExplicitAny` without suppressing the rule.
  *
  * @example
- * // Before:  (wrapper as any).scope
- * // After:   untyped(wrapper).scope
+ * const scope = untyped(wrapper).scope; // unknown
  */
 export function untyped<T>(value: T): T & Record<string | symbol, unknown> {
   return value as T & Record<string | symbol, unknown>;
