@@ -178,9 +178,9 @@ describe('getBehaviorId', () => {
   });
 
   it('distinguishes unrelated classes that happen to share a name', () => {
-    // Keying on the name made two modules each exporting a `LoggingBehavior`
-    // collapse into one behavior — running only one and applying the other's
-    // options. If one of them is a security guard, it silently disappears.
+    // Keyed by name, two modules that each export a `LoggingBehavior` would
+    // collapse into one behavior, running only one with the other's options. If
+    // one of them were a security guard, it would silently disappear.
     class Shared {}
     const first = Shared;
     const second = (() => {

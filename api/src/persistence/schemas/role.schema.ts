@@ -14,9 +14,6 @@ import { Role } from '../../roles/domain/models/role.entity';
  * Employs official MikroORM `accessor: true` mappings for encapsulated properties
  * (`id`, `createdAt`, `updatedAt`, `name`). This allows MikroORM to interact with the
  * aggregate through public getters and setters without violating domain boundary encapsulation.
- *
- * MikroORM v7 requires an explicit schema-level cast when an entity deliberately
- * hides its constructor. The escape hatch remains confined to persistence.
  */
 export const RoleSchema = new EntitySchema<Role, AggregateRoot>({
   // biome-ignore lint/suspicious/noExplicitAny: MikroORM schema requires a public constructor; Role hides its constructor to enforce domain invariants.

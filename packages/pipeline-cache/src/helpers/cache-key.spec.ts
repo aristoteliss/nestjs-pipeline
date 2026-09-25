@@ -35,10 +35,8 @@ const factory = createPartitionedCacheKeyFactory({
 
 describe('createPartitionedCacheKeyFactory', () => {
   it('produces the same key for the same caller and payload across requests', () => {
-    // The previous default embedded context.correlationId, which is unique per
-    // request. That made every lookup a miss: the cache wrote on every query and
-    // could never read one back. This assertion is the contract that a cache is
-    // actually supposed to have.
+    // A key that varied per request, such as one built from the correlation ID,
+    // could never produce a hit.
     expect(factory(makeContext({ correlationId: 'request-a' }))).toBe(
       factory(makeContext({ correlationId: 'request-b' })),
     );

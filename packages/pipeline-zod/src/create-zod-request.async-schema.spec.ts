@@ -1,14 +1,11 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 /**
- * The generated constructor is synchronous by design, and the root README says
- * so. What it also said was that a schema with async refinements should be
- * validated in `ZodValidationBehavior` or `ZodPipe` instead — advice that could
- * not be followed for a generated request class, because both run *after*
- * construction and the constructor itself throws
- * "Encountered Promise during synchronous parse".
+ * The generated constructor is synchronous, and `ZodValidationBehavior` and
+ * `ZodPipe` run only after construction, so a schema with async refinements
+ * makes the constructor throw "Encountered Promise during synchronous parse".
  *
- * `parseAsync()` is that missing path: validate asynchronously, then build the
+ * `parseAsync()` is the asynchronous path: validate first, then build the
  * instance from the already-validated data.
  */
 

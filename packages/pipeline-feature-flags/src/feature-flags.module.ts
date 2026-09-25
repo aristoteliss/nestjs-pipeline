@@ -33,8 +33,7 @@ import type {
  * the module uses OpenFeature's ambient client.
  *
  * For percentage rollouts, provide a stable {@link FeatureFlagsModuleOptions.targetingKeyFactory}
- * such as user/account/device ID. Correlation ID is intentionally not used as
- * the rollout identity because it normally changes on every request.
+ * such as user/account/device ID.
  *
  * @example Unleash provider, per-handler gating
  * ```ts

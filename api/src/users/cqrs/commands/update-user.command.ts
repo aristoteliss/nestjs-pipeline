@@ -1,7 +1,7 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { BaseCommand } from '@cqrs-ddd/core/application';
-import { createCommand } from '@nestjs-pipeline/zod';
+import { createCommand, updatable } from '@nestjs-pipeline/zod';
 import { z } from 'zod';
 
 export const EMPTY_USER_UPDATE_MESSAGE =
@@ -11,21 +11,18 @@ export class UpdateUserCommand extends createCommand(
   z
     .object({
       id: z.uuid(),
-      username: z.string().trim().min(3).optional(),
-      department: z.string().trim().min(3).nullable().optional(),
+      username: z.string().trim().min(3).apply(updatable).optional(),
+      department: z
+        .string()
+        .trim()
+        .min(3)
+        .apply(updatable)
+        .nullable()
+        .optional(),
     })
     .refine(
       (data) => data.username !== undefined || data.department !== undefined,
       { message: EMPTY_USER_UPDATE_MESSAGE },
     ),
   BaseCommand,
-) {
-  /**
-   * Fields governed by field-level authorization.
-   *
-   * Declared rather than derived from the schema: a new schema property must be
-   * added here before CASL is asked about it, so widening the authorization
-   * surface is a deliberate edit and shows up in review.
-   */
-  static readonly MUTABLE_FIELDS = ['username', 'department'] as const;
-}
+) {}

@@ -41,7 +41,7 @@ This package provides the foundational building blocks for implementing a Clean 
 - **`CommandBaseHandler<TCommand, TResult>`** — Abstract base handler for CQRS commands. Calls `handle()`, then publishes and clears buffered domain events from a returned `AggregateRoot` or result containing `aggregate: AggregateRoot`. Pipeline behaviors are applied by the pipeline integration; event publication is owned by `execute()`.
 - **`@Mutable(options?)`** — Property decorator declaring an aggregate field as mutable via patch mutations, with optional backing property name and value normalizer.
 - **`@ApplyMutation<TEntity>(options)`** — Completes a successful domain mutation by invoking `onUpdate()` (advancing `version` and `updatedAt`) and recording events from the resulting state. Methods return `this` (or `Promise<this>`); the decorator preserves that result. Call protected `applyPatch(...)` to validate and normalize all supplied `@Mutable` fields before writing them. Undefined values are ignored. Complete business validation before applying a patch: failures after field writes, including later method code, lifecycle hooks or event creation/application, do not roll back state; discard or reload the instance. A method that throws or rejects does not run the completion lifecycle.
-- **`UnixTimestampType`** — Custom MikroORM `Type<Date, number>` mapping JavaScript `Date` instances to Unix timestamps (ms) in 64-bit `bigint` SQL database columns (`platform.getBigIntTypeDeclarationSQL()`) to eliminate integer overflow.
+- **`UnixTimestampType`** — Custom MikroORM type mapping JavaScript `Date` instances to Unix timestamps (ms) in 64-bit `bigint` SQL database columns (`platform.getBigIntTypeDeclarationSQL()`) to eliminate integer overflow. `null` and `undefined` pass through; a value with no valid time (an unparsable or blank string, `NaN`, an invalid `Date`) throws a `TypeError` instead of being stored as `NaN`.
 - **`rootEntityProperties(columns?)` / `versionProperty(column?)`** — MikroORM `EntitySchema` property definitions for the `id`, `createdAt`, `updatedAt` and `version` accessors every `RootEntity` inherits. Timestamps use `UnixTimestampType`; `version` is the optimistic-lock column and starts at 1. Column names default to `id`, `created_at`, `updated_at` and `version`; pass `{ id?, createdAt?, updatedAt? }` or a version column name to change them. Spread them into each aggregate schema: `properties: { ...rootEntityProperties(), version: versionProperty(), … }`.
 - **`Method`** — Utility type for extracting method signatures.
 
@@ -178,7 +178,7 @@ export class User extends RootEntity<UserSnapshot> {
     return this._username;
   }
 
-  /** @internal @deprecated MikroORM hydration setter only */
+  /** @internal MikroORM hydration setter only */
   set username(val: string) {
     this._username = User.validateUsername(val);
   }
@@ -187,7 +187,7 @@ export class User extends RootEntity<UserSnapshot> {
     return this._department;
   }
 
-  /** @internal @deprecated MikroORM hydration setter only */
+  /** @internal MikroORM hydration setter only */
   set department(val: string | null | undefined) {
     this._department = val?.trim() || null;
   }

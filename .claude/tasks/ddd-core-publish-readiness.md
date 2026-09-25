@@ -102,7 +102,7 @@ merging or publishing.
 
 ## Current Status
 
-In progress. Phase 1 complete and Gate 1 green on `5c94efee` (2026-09-25); phase 2: U1–U3, S1–S3, D1–D3 and T1–T3 done; next is D5. A1–A5, A7, B9–B11, N1–N6 and A6, B1–B4, B7, B8, C1–C8 and D4 done.
+In progress. Phase 1 complete and Gate 1 green on `5c94efee` (2026-09-25); phase 2: U1–U3, S1–S3, D1–D3 and T1–T3 done; next is D5. Section R (comment and code review) is recorded for joint review; nothing in it is changed yet. A1–A5, A7, B9–B11, N1–N6 and A6, B1–B4, B7, B8, C1–C8 and D4 done.
 Section T (`@nestjs-pipeline/tenant`)
 was added to phase 2 on 2026-09-24. Baseline `e60c689a` on branch `review`. Facts
 verified on 2026-09-23 and 2026-09-24 by running commands (no code changed):
@@ -887,6 +887,241 @@ Do it after D3. The release check installs every required peer, and it cannot in
 
 ### Phase 3: prepare the publish
 
+#### R. Comment and code review with the owner
+
+**What this is.** A list of comments and code that break the repository's comment rules
+(AGENTS.md, "Documentation and comment policy", rules 20–21). We review it together
+first; nothing here is changed yet. Found on 2026-09-25 at `01c6c735`, and each finding
+was checked again against the code.
+
+**How sure we are.** High: clearly breaks a rule, checked in the code. Medium: probably
+wrong, but it carries some useful information. Low: a matter of style.
+
+**What was read.** Every inline `//` comment in `api/src` and in the packages' production
+code; every JSDoc block in `api/src` production code; every long comment in specs. Searches
+covered all `*.ts`, `*.mjs` and `*.grit` files. The API documentation of the packages was
+not read comment by comment.
+
+Steps:
+- [x] R1. Go through the list with the owner. Answer the decisions in group D.
+- [x] R2. Apply the agreed changes, one commit per group. Keep good JSDoc, and do not
+  weaken any test.
+- [x] R3. Run the searches again, then `pnpm build`, `pnpm lint`, `pnpm check`,
+  `pnpm lint:persistence`, `pnpm test`, `pnpm test:e2e`, and `pnpm test:release` if a
+  published package changed.
+
+##### Group A. Comments that tell the history of a change (high)
+
+The rule: comments describe the code as it is now; git keeps the history. Fix for each:
+delete the history, and keep any sentence that states the current rule.
+
+| # | Where | What the comment says |
+| --- | --- | --- |
+| A1 | `api/src/infrastructure/observability.module.ts:93` | Six lines about an option that is *not* there ("No ignoreErrors here … a safety net that was doing nothing"). Delete: `pipeline.bootstrap.service.spec.ts:691` already tests the ordering. |
+| A2 | `api/src/persistence/entity-manager-tenant.registry.ts:8` | "avoids the previous private `__tenant` monkey-patch" |
+| A3 | `api/src/users/jobs/bullmq-user-event-dispatcher.adapter.ts:28` | "The batch queue used to put it on `JobsOptions` instead" |
+| A4 | `api/src/users/jobs/bullmq-user-event-dispatcher.adapter.spec.ts:46` | "The ID used to be passed as a JobsOptions field …" |
+| A5 | `packages/pipeline/src/services/pipeline.bootstrap.service.ts:142` | "no detectKind() or resolveMethodName() needed": these functions no longer exist anywhere. |
+| A6 | `packages/ddd-core/persistence/helpers/cache-version.helper.ts:39` | Tells the old bug ("Treating it as 'not newer' let a write-through … resurrect …"). Keep the first sentence. |
+| A7 | `packages/ddd-core/domain/exceptions/concurrency-conflict.error.ts:10` | "Previously they threw MikroORM's …" (published documentation) |
+| A8 | `packages/pipeline-cache/src/adapters/cache-manager.adapter.ts:31` | Ten lines; "Mutating it here contradicted that documented ownership contract". Keep one line: stores the caller passes in are not modified. |
+| A9 | `packages/pipeline-cache/src/adapters/cache-manager.adapter.spec.ts:31` | The same story in the test. |
+| A10 | `packages/pipeline-cache/src/cache.behavior.spec.ts:20` | "the removed one embedded the per-request correlation ID" |
+| A11 | `packages/pipeline-cache/src/cache.security-default.spec.ts:44`, `:73` | "The removed default keyed on correlationId"; "the old default could never deliver" |
+| A12 | `packages/pipeline-cache/src/helpers/cache-key.spec.ts:38` | "The previous default embedded context.correlationId" |
+| A13 | `packages/pipeline-cache/src/helpers/cache-factory.spec.ts:50` | "what made the previous test assert the wrong diagnosis" |
+| A14 | `packages/pipeline-idempotency/src/idempotency.behavior.spec.ts:164` | "An earlier revision deleted the claim here" |
+| A15 | `packages/pipeline-idempotency/src/stores/stores.spec.ts:477` | "Expiry used to be computed from the application clock" |
+| A16 | `packages/pipeline-resilience/src/resilience.behavior.spec.ts:276` | "It used to be resolved as the classifier for the whole policy" |
+| A17 | `packages/pipeline-rate-limit/src/helpers/partitioned-key.spec.ts:84` | "includeTenant previously meant 'include if present'" |
+| A18 | `packages/pipeline/src/decorators/pipeline.decorator.spec.ts:181` | "Keying on the name made two modules … collapse into one behavior" |
+| A19 | `packages/ddd-core/application/command-base.handler.contract.spec.ts:5`, `:124` | "That made the contract easy to break silently"; "used to compile and silently drop" |
+| A20 | `packages/ddd-core/domain/domain-entry-point.spec.ts:6` | "A single barrel used to export domain, application and persistence together" |
+| A21 | `packages/ddd-core/persistence/cache/memory.cache.spec.ts:127` | "Entries used to be removed only when their own key was read again" |
+| A22 | `packages/ddd-core/persistence/decorators/map-persistence-errors.decorator.spec.ts:101` | "the hand-rolled try/catch that delete command repositories used to …" |
+| A23 | `packages/pipeline-zod/src/create-zod-request.types.spec.ts:6` | "The constructor alias used to default its instance type to `any`" |
+| A24 | `packages/pipeline-zod/src/create-zod-request.async-schema.spec.ts:5` | Retells what an old README said ("What it also said was …"). |
+| A25 | `api/test/pipeline-behavior-identity.spec.ts:4` | "Bootstrap contracts that used to fail silently" |
+| A26 | `api/test/cache-behavior-partitioning.spec.ts:6`, `:113` | "The package previously had none"; "the old correlation-scoped default" |
+| A27 | `api/test/docs-cache-security.spec.ts:70` | A test title: "no longer presents a correlation-scoped key as safe …". Rename it to "presents no correlation-scoped key as safe by default". |
+
+Group A done (2026-09-25): every row applied as written; where a comment also stated a
+current rule, that rule stays in the present tense (A6, A7, A8, A11, A13–A19, A21–A26).
+Verified: the history search above finds only runtime wording ("a row that no longer
+exists"); `pnpm check`, `pnpm lint` and `pnpm test` pass with every test count unchanged.
+
+##### Group B. Decorative banners (high)
+
+AGENTS.md forbids them by name. Fix: delete them; the `describe` blocks already group the tests.
+
+| # | Where |
+| --- | --- |
+| B1 | `api/test/cqrs-runtime-errors.spec.ts:105`, `:456`, `:643` (`// ═══…═══`) |
+| B2 | `api/test/behaviors.spec.ts:44` and 12 more (`// ─── 1. MetricsBehavior ───…`) |
+
+Group B done (2026-09-25): the 3 banner blocks and 13 banner lines are deleted. Verified:
+the banner search finds none in `*.ts`, `*.mjs` or `*.grit`; the two specs pass (45
+tests); `pnpm check` passes.
+
+##### Group C. Code that cuts a corner, with a clear fix (high)
+
+| # | Where | Problem | Fix |
+| --- | --- | --- | --- |
+| C1 | `api/src/auths/services/session.service.ts:48` | `clearSession` has a second branch for sessions without `delete()`. The real session type always has `delete()`; only a test reaches the branch, by passing a fake object. Rule 20 forbids code that exists only for tests. | Call `session.delete()`; remove the branch and its test. |
+| C2 | `api/src/users/domain/models/errors/*.exception.ts` (e.g. `invalid-username.exception.ts:29`) | Each error takes a `message` parameter that no caller passes. Two take `minLength = 3`, a copy of `USERNAME_MIN_LENGTH` and `DEPARTMENT_MIN_LENGTH` that callers always pass anyway. Each has a 13-line tutorial comment. | Remove the unused parameter and the default; keep a one-line comment. |
+
+C1 done (2026-09-25): `clearSession` calls `session?.delete()`; the fallback branch and
+the spec case that reached it with a plain object are gone. Every other caller passes a
+real or mocked session with `delete()` (the HTTP harness in
+`test/auth-http-integration.spec.ts` included). Verified: `api` 719 tests (720 − 1).
+
+C2 done (2026-09-25): the four user errors (`UniqueEmailException`,
+`EmptyUserUpdateException`, `InvalidDepartmentException`, `InvalidUsernameException`) take
+no `message` override, the length errors require `minLength`, and each has a one-line
+doc. No caller used the override or the default. Verified: `api` 719 tests,
+`pnpm test:e2e` 191 tests, `api` type check passes. Open, not in the approved finding:
+`api/src/roles/domain/models/errors/role-name.exception.ts` has the same unused `message`
+parameter and `minLength = 3` default.
+
+##### Group D. Decisions for the owner
+
+**D1. The list of "normal" errors for the dead-letter queue**
+(`api/src/infrastructure/dead-letter.options.ts:41`, `EXPECTED_REJECTIONS`).
+- *What it is:* a hand-written list of 17 error types. Errors on the list are normal
+  answers (for example "not found"), so they are not sent to the dead-letter queue.
+- *Why it matters:* it has the same weakness as `MUTABLE_FIELDS`. When someone adds a new
+  normal error and forgets the list, every such error lands in the dead-letter queue.
+- *Options:*
+  - (a) keep the list, and add a test that fails when an application error class is
+    neither on it nor declared as "capture this";
+  - (b) mark each error class itself. This cannot cover the errors from NestJS, Zod and
+    the packages, so a short list would remain for those.
+- *Recommendation:* (a). The test makes forgetting impossible, and nothing moves.
+- *Owner decision (2026-09-25):* (a). Done: `dead-letter.options.spec.ts` finds every
+  error class exported by an `api/src` file that declares one, plus the
+  `@cqrs-ddd/core/domain` errors, and requires each to be covered by
+  `EXPECTED_REJECTIONS` (a class or a parent) or listed in the spec's `CAPTURED_ERRORS`,
+  never both. `CAPTURED_ERRORS` records what is dead-lettered today, so no runtime
+  behavior changes. Verified: 21 tests pass (19 + 2); a temporary unlisted
+  `DomainException` subclass (then deleted) fails the test by name.
+
+**D2. `@deprecated` on the entity setters**
+(`packages/ddd-core/domain/models/root.entity.ts:202` and 12 copies in the `api` entities).
+- *What it is:* public setters such as `set username(...)` exist only so MikroORM can load
+  rows. They are tagged `@deprecated` to scare callers away, although nothing is deprecated.
+  Editors show them crossed out.
+- *Why it matters:* the tag is misused, and it is the only protection in most places: the
+  lint rule `aggregate-identity.grit` only catches variables named `user`, `role`,
+  `aggregate` or `entity`.
+- *Options:*
+  - (a) replace `@deprecated` with `@internal` only, and keep the lint rule as it is;
+  - (b) let MikroORM write the private fields directly and delete the public setters.
+    This is a bigger change in core and in three entities.
+- *Recommendation:* (a) now; (b) as its own task later.
+- *Owner decision (2026-09-25):* (a). Done: the 13 setter tags (`root.entity.ts` and the
+  `Auth`, `Role` and `User` entities) keep `@internal` and say that application code uses
+  domain methods and factories; `@deprecated` is gone from them and from the built
+  `root.entity.d.ts`. AGENTS.md, the architecture skill, the codebase map (manual
+  Conventions section) and the `@cqrs-ddd/core` README say `@internal` only. The lint rule
+  is unchanged. Verified: `pnpm build`, `pnpm lint`, `pnpm check`, `pnpm lint:persistence`
+  exit 0; `@cqrs-ddd/core` 595 and `api` 717 tests pass; `pnpm context:validate` passes.
+
+**D3. The audit behavior changes the handler's error**
+(`packages/pipeline-audit/src/audit.behavior.ts:188`).
+- *What it is:* when a handler fails and writing the audit record also fails, the behavior
+  puts the audit error into the handler error's `cause` property, then rethrows it.
+- *Why it matters:* the caller receives a modified error object. Code that inspects
+  `cause` sees an audit problem where it expects the real cause.
+- *Options:*
+  - (a) leave the handler's error untouched, and only log the audit failure;
+  - (b) keep it, and document it in the README.
+- *Recommendation:* (a). It changes a published package, so B5 must mention it.
+- *Owner decision (2026-09-25):* (a). Done: with `failOpen: false`, a handler failure
+  followed by a sink failure rethrows the handler's error unchanged (no `cause` added)
+  and logs the sink failure, as it already did. JSDoc and README updated; the four
+  `cause` specs now assert the unchanged error and the log line. Correction: the audit
+  package has never been published (B5 lists only core, correlation, opentelemetry, zod
+  and casl), so B5 describes this behavior in its first-release entry, not as a change.
+  Verified: `@nestjs-pipeline/audit` 86 tests at 100% coverage; nothing else in the
+  repository reads the audit `cause`.
+
+**D4. `principalType` may be missing from a session**
+(`api/src/common/types/SessionUser.ts:13`).
+- *What it is:* the field is optional so that old stored sessions can still be read.
+  Every reader must then handle "missing", and authorization rejects such sessions anyway.
+- *Options:*
+  - (a) check sessions when they are read, reject those without the field, and make it
+    required. Users with an old session sign in once more.
+  - (b) keep the type, and only delete the comment that defends it.
+- *Recommendation:* (a). It is the sample application, so no published package changes.
+- *Owner decision (2026-09-25):* (a). Done: `SessionUser.principalType` is required, with a
+  one-line doc. `RequestPrincipalResolver` clears and ignores a cookie session whose user
+  has no valid principal type (new `isPrincipalType` guard in `SessionUser.ts`), as it
+  already did for a missing `sid` or an expired session; the other credentials are then
+  tried. Spec fixtures that built session users without the field now carry it (three
+  unit specs, and five fixtures in `test/auth-http-integration.spec.ts`, which passed
+  cookies without it). Verified: `api` 720 tests (717 + 2 resolver cases + 1 HTTP case:
+  an old cookie is cleared and the request is anonymous); removing the check (then
+  restored) fails both resolver cases; `pnpm test:e2e` 191 tests; `pnpm check` and the
+  `api` type check pass.
+
+**D5. Timestamps that are not dates**
+(`packages/ddd-core/persistence/types/unix-timestamp.type.ts:15`).
+- *What it is:* a text value that is not a number or a date is saved as `NaN`, with no
+  error. `null` is returned through a cast that claims it is a number. The last line of
+  each method can only be reached by a value outside the declared types.
+- *Options:*
+  - (a) throw an error for a value that cannot be read, type `null` honestly, and remove
+    the last line;
+  - (b) keep it as it is.
+- *Recommendation:* (a). It changes published core behavior, so B5 must mention it.
+- *Owner decision (2026-09-25):* (a). Done: `UnixTimestampType` is a
+  `Type<Date | null | undefined, number | null | undefined>`; `null` and `undefined` pass
+  through, and a value with no valid time (an unparsable or blank string, `NaN`, an
+  infinite number, an invalid `Date`, a value outside the declared types) throws a
+  `TypeError`. The unreachable last lines are gone; the spec that reached them with a
+  plain object now expects the error. A blank string, previously read as `0`, is also
+  rejected. Correction: `@cqrs-ddd/core` has never been published under this name, so B5
+  describes this in its first-release entry. README updated. Verified: frozen install,
+  `pnpm build`, `pnpm lint`, `pnpm check`, `pnpm lint:persistence`, `pnpm test` exit 0
+  (`@cqrs-ddd/core` 601 = 595 − 1 + 7, 100% per file); `pnpm test:e2e` 191 tests;
+  `pnpm test:release` 16 packages.
+
+##### Group E. Smaller wording fixes (medium and low)
+
+| # | Where | Problem | Fix |
+| --- | --- | --- | --- |
+| E1 | `api/src/persistence/mikro-orm.store.ts:77`, `postgres-mikro-orm.store.ts:54` | "never monkey-patched with private properties": a current fact, but it only makes sense against the old code. (medium) | Delete the sentence. |
+| E2 | `api/src/persistence/schemas/auth.schema.ts:14`, `role.schema.ts:18`, `user.schema.ts:19` | The JSDoc repeats the reason already given in the `biome-ignore` line. (medium) | Keep the `biome-ignore` reason only. |
+| E3 | `api/src/common/guards/auth-session.guard.ts:16` | "Executes first in the NestJS request lifecycle": middleware runs before it, as its own list shows. (medium) | Say what the guard does, in two lines. |
+| E4 | `packages/pipeline-opentelemetry/src/trace.behavior.ts:185`, `metrics.behavior.ts:131` | "no readiness heuristic is required": describes something that does not exist. (medium) | Delete the clause. |
+| E5 | `api/src/common/cqrs/commands/base.command.spec.ts:49`, `:94` | Written in this task; they argue ("so it must be a deliberate edit"). (medium) | State the behavior in one line. |
+| E6 | `packages/pipeline-feature-flags/src/helpers/evaluation-context.ts:13`, `feature-flag.behavior.ts:147`, `feature-flags.module.ts:36`, `interfaces/feature-flags-options.interface.ts:111` | The same sentence, "correlation IDs are intentionally not used", four times. (medium) | Keep it once, on the option. |
+| E7 | `api/src/*/*.module.ts` (`// Commands`, `// Repositories (Query)`, …) | Labels inside provider lists. (low) | Keep or delete all of them together. |
+| E8 | `api/src/tracing.ts:13` | Vendor notes ("SigNoz default …", "Datadog Agent …"). (low) | Move to the README. |
+| E9 | `packages/pipeline/src/behaviors/logging.behavior.ts:41`, `packages/pipeline/src/services/pipeline-plan.ts:26`, `:32`, `:52`, `packages/pipeline/src/pipeline.module.ts:20` | They repeat the next line ("Type definition accepting any error class"). (low) | Delete. |
+| E10 | `api/src/auths/mappers/session.mapper.ts:9`, `api/src/persistence/mikro-orm.store.ts:21` | Architecture prose ("Sits in the mapper layer …", "the PRIMARY persistence layer"). (low) | Shorten. |
+| E11 | `packages/{ddd-core,uuidv7,safe-stringify}/**/package-manifest.spec.ts:3` | The same eight-line header three times (written in this task). (low) | One sentence each. |
+| E12 | `api/test/users.e2e-spec.ts:14`, `api/test/pipeline-packages.e2e-spec.ts:22` | 12–23 lines listing the whole stack. (low) | Shorten. |
+
+Group E done (2026-09-25), as written, with three notes: E6 found a fifth copy (the
+`TargetingKeyFactory` type doc), and the sentence now stays only on the
+`targetingKeyFactory` option; E7 keeps the provider-list labels, as the finding allowed;
+E8 adds `OTEL_SERVICE_NAME` and `OTEL_EXPORTER_OTLP_ENDPOINT` to the `api` README table.
+Verified: `pnpm check`, `pnpm lint`, `pnpm lint:persistence`, `pnpm test` (every count
+unchanged; `api` 719) and `pnpm test:e2e` (191) pass. A first combined run was killed
+(exit 137) during `biome check --write .` before any check ran; the steps were rerun one
+by one with a time limit and all passed.
+
+##### Withdrawn after the second check
+
+- `api/src/auths/services/auth-session-revocation.service.ts:22` ("refresh() may have
+  recorded a revocation that is not persisted yet"). It is correct: it explains why the
+  early return also compares the version. No change.
+
+Totals: 27 history comments (A), 2 banner groups (B), 2 code fixes (C), 5 decisions (D),
+12 wording fixes (E), 1 withdrawn.
+
 #### Release notes
 
 - [ ] B5. **Release notes.** There is no `CHANGELOG.md`. Record the 0.2.0 changes for the
@@ -902,7 +1137,11 @@ Do it after D3. The release check installs every required peer, and it cannot in
   - opentelemetry: a throwing tracer never replaces the handler's outcome.
 
   Confirm each against the published typings. For each first-release package, state its
-  notable defaults once (feature-flags: `FeatureDisabledFilter` answers 403, B9). Add a
+  notable defaults once (feature-flags: `FeatureDisabledFilter` answers 403, B9; audit:
+  with `failOpen: false`, a handler error is rethrown unchanged when the sink also fails,
+  R/D3; `@cqrs-ddd/core`: `UnixTimestampType` throws a `TypeError` for a value with no
+  valid time, R/D5). Also list the zod peer range `^4.3.0` and the new `updatable` and
+  `updatableFieldsOf` exports (Decisions, "Updatable command fields"). Add a
   separate entry for `ddd/core` listing the section N API
   changes, and first-release entries for `@cqrs-ddd/uuidv7`, `@cqrs-ddd/safe-stringify` and
   `@nestjs-pipeline/tenant`.
@@ -1017,6 +1256,17 @@ Do it after D3. The release check installs every required peer, and it cannot in
   mocked unit tests only. Name this limitation in its README and in the release notes.
 - Closed earlier, do not reopen: keep `setCorrelationFallback`; keep the production functions
   exported for specs; no core behavior-module factory.
+- Updatable command fields (owner, 2026-09-25; outside the plan, two commits): fields are
+  marked in the Zod schema with `.apply(updatable)` from `@nestjs-pipeline/zod`, and
+  `createCommand()` exposes them as the static, frozen `updatableFields`. It replaces the
+  hand-written `static MUTABLE_FIELDS` lists in users-api. Rejected: `.meta()` (leaks into
+  `z.toJSONSchema()` output), a patched `ZodType.prototype.mutable()` (global side effect
+  on the consumer's Zod), and an `@Updatable()` property decorator (a field without
+  `declare` erases the parsed value; with `declare` the name is written twice). The
+  name is `updatable`, not `mutable`, which already names the domain `@Mutable()`. The
+  zod peer range rises to `^4.3.0`: in 4.0.x–4.2.x a mark placed before later checks is
+  silently lost and `.apply()` does not exist (probed on 4.0.0, 4.0.17, 4.1.0, 4.1.13,
+  4.2.0, 4.3.0, 4.4.0, 4.6.5). B5 must list the new exports and the peer change.
 
 ## Modified Files
 
@@ -1911,7 +2161,7 @@ Phase 2 (after Gate 1):
 4. D5;
 5. Gate 2.
 
-Phase 3: B5 (release notes), then E1–E4.
+Phase 3: R1–R3 (comment and code review with the owner), then B5 (release notes), then E1–E4.
 
 ## Snapshot Impact
 

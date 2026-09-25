@@ -38,7 +38,7 @@
   "peerDependencies": {
     "@nestjs-pipeline/core": "workspace:^",
     "@nestjs/common": "^11.0.0",
-    "zod": "^4.0.0"
+    "zod": "^4.3.0"
   },
   "devDependencies": {
     "@nestjs-pipeline/core": "workspace:*",

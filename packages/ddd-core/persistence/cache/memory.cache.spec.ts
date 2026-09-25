@@ -124,9 +124,8 @@ describe('MemoryCache retention bounds', () => {
   });
 
   it('never grows past the limit even when nothing has expired', async () => {
-    // Entries used to be removed only when their own key was read again, so a
-    // stream of deletions — each retaining revision metadata nobody re-reads —
-    // grew the map for the lifetime of the process.
+    // The limit also holds for entries nobody reads again, such as the revision
+    // metadata a deletion keeps.
     const cache = new MemoryCache<{ n: number }>({ maxEntries: 5 });
 
     for (let n = 0; n < 200; n += 1) {

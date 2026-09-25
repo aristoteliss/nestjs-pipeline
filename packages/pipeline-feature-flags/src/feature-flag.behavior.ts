@@ -144,10 +144,7 @@ interface BooleanEvaluationDetails {
  * ### Stable rollout identity
  *
  * Percentage/gradual rollouts should use a stable user/account/device/tenant
- * identity through `targetingKeyFactory`. Correlation IDs are intentionally not
- * used automatically because they normally change on every request; using one
- * as the OpenFeature targeting key makes the same user jump between rollout
- * cohorts.
+ * identity through `targetingKeyFactory`.
  *
  * @example Simple gate
  * ```ts

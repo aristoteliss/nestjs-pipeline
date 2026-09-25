@@ -18,8 +18,8 @@ import { TenantSchemaContext } from './tenant-schema.context';
 import { UnknownTenantSchemaError } from './tenant-schema.errors';
 
 /**
- * MikroOrmStore is the PRIMARY persistence layer for the application.
- * It manages all entities (users, roles, capabilities, cache, etc.) using MikroORM.
+ * Injection token of the MikroORM store, which persists every entity of the
+ * application (users, roles, capabilities, cache entries).
  *
  * For SQLite/libSQL, multi-tenancy uses a database-per-tenant strategy: one ORM
  * instance is initialized per tenant schema (resolved from `SQLITE_TENANTS`), and
@@ -73,8 +73,8 @@ export class MikroOrmStore implements OnModuleInit, OnModuleDestroy {
    * Returns a request-bound or transactional EntityManager if available in the current context,
    * or a newly forked EntityManager instance.
    *
-   * Tenant ownership metadata is tracked externally in a WeakMap; MikroORM
-   * EntityManager instances are never monkey-patched with private properties.
+   * The tenant that owns each EntityManager is recorded in a WeakMap, outside the
+   * manager.
    */
   get em(): EntityManager {
     const orm = this.resolveOrm();

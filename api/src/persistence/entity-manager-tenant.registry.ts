@@ -4,8 +4,7 @@
  * Associates MikroORM EntityManager instances with the tenant selected when the
  * manager/fork was created without mutating third-party runtime objects.
  *
- * A WeakMap keeps the metadata lifecycle tied to the EntityManager instance and
- * avoids the previous private `__tenant` monkey-patch.
+ * A WeakMap keeps the metadata lifecycle tied to the EntityManager instance.
  */
 export class EntityManagerTenantRegistry {
   private readonly tenants = new WeakMap<object, string>();

@@ -474,12 +474,10 @@ describe('PostgresIdempotencyStore', () => {
 
   describe('lease clock', () => {
     /**
-     * Expiry used to be computed from the application clock
-     * (`Date.now() + ttlMs`) and compared against the database clock (SQL
-     * `now()`). When the application ran behind the database, a claim was born
-     * already expired and a second execution could take the key while the first
-     * handler was still running — the exact double execution the store exists to
-     * prevent. Running ahead silently extended every lease instead.
+     * Expiry is computed on the database clock that also judges it (SQL
+     * `now()`). An application clock behind the database would create claims
+     * that are already expired, so a second execution could take the key while
+     * the first handler still runs; one ahead would extend every lease.
      */
     it('derives the claim expiry from the database clock, not the application clock', async () => {
       const query = vi.fn().mockResolvedValue({ rows: [{ key: 'k1' }] });

@@ -50,8 +50,8 @@ export class PostgresMikroOrmStore implements OnModuleInit, OnModuleDestroy {
    * Returns a request-bound or transactional EntityManager if available in the current context,
    * or a newly forked EntityManager instance scoped to the tenant schema.
    *
-   * Tenant ownership metadata is tracked externally in a WeakMap; MikroORM
-   * EntityManager instances are never monkey-patched with private properties.
+   * The tenant that owns each EntityManager is recorded in a WeakMap, outside the
+   * manager.
    */
   get em(): EntityManager {
     const schema = this.tenantSchemaContext.schema;

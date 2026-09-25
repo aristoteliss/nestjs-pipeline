@@ -12,27 +12,9 @@ import {
 } from './support/e2e-app';
 
 /**
- * Functional / end-to-end tests for the users use cases (`/users`).
- *
- * Exercises the complete stack end-to-end:
- *
- *   HTTP request
- *     → Fastify session shim (feeds the test principal)
- *     → Nest controller
- *     → Zod request validation pipe
- *     → CQRS CommandBus / QueryBus
- *     → nestjs-pipeline middleware / behaviors:
- *         - LoggingBehavior (tracing + audit log)
- *         - CaslBehavior (RBAC + ABAC authorization)
- *         - FeatureFlagBehavior (kill-switch gating)
- *         - IdempotencyBehavior (duplicate detection per tenant/principal/email)
- *         - RateLimitBehavior (5 req / 60s per email)
- *         - tenant-aware DDD repository read-through cache
- *         - ResilienceBehavior (retry / circuit-breaker on delete)
- *         - AuditBehavior (action logging on delete)
- *     → DDD Command / Query Handlers
- *     → MikroORM + libSQL persistence
- *     → EventBus → BullMQ event handler
+ * End-to-end tests for the `/users` use cases, through the HTTP layer, the
+ * pipeline behaviors, the CQRS handlers, MikroORM persistence and the BullMQ
+ * event handler. A Fastify session shim supplies the test principal.
  */
 describe('users-api (e2e)', () => {
   let ctx: E2EContext;

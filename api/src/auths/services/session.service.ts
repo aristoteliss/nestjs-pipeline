@@ -45,7 +45,7 @@ export class SessionService {
   }
 
   /**
-   * Destroys the active session cookie safely, supporting both native `.delete()` and property deletion.
+   * Destroys the active session cookie, if there is one.
    *
    * @param session - Fastify secure session instance to destroy.
    *
@@ -55,16 +55,7 @@ export class SessionService {
    * ```
    */
   clearSession(session: Session<SessionData> | undefined): void {
-    if (!session) {
-      return;
-    }
-
-    if (typeof session.delete === 'function') {
-      session.delete();
-    } else {
-      delete session.user;
-      delete session.token;
-    }
+    session?.delete();
   }
 
   /**

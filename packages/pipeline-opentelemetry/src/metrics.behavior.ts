@@ -127,8 +127,7 @@ interface MeterInstruments {
  * The OTel **Metrics API** is used directly. When no OpenTelemetry SDK / metric
  * reader is registered, the API returns no-op instruments and recordings are
  * discarded. The behavior therefore does not inspect provider implementation
- * details (`constructor.name`, private delegates, etc.) and does not need a
- * readiness heuristic.
+ * details (`constructor.name`, private delegates, etc.).
  *
  * Instrument creation/recording and custom enrichment are best-effort: telemetry
  * must not replace a successful business result or the original business error.

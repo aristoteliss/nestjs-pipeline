@@ -49,7 +49,7 @@ export class UpdateUserHandler extends CommandBaseHandler<
     this.authorizer.authorize(
       'update',
       user,
-      command.getUpdateFields(UpdateUserCommand.MUTABLE_FIELDS),
+      command.getUpdateFields(UpdateUserCommand.updatableFields),
     );
     user.update({ username, department });
     await this.commandRepository.save(user);

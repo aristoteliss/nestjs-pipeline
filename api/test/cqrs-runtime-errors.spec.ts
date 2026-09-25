@@ -102,9 +102,6 @@ describe('CQRS Commands & Queries Runtime Error Taxonomy', () => {
   const zodFilter = new ZodValidationFilter();
   const authFilter = new UnauthorizedActionFilter();
 
-  // ═══════════════════════════════════════════════════════════════════════════
-  // 1. Users Model: Commands & Queries Runtime Errors
-  // ═══════════════════════════════════════════════════════════════════════════
   describe('Users Model', () => {
     describe('CreateUserCommand & Handler', () => {
       it('catches Zod validation errors on invalid constructor parameters (400)', () => {
@@ -453,9 +450,6 @@ describe('CQRS Commands & Queries Runtime Error Taxonomy', () => {
     });
   });
 
-  // ═══════════════════════════════════════════════════════════════════════════
-  // 2. Roles Model: Commands & Queries Runtime Errors
-  // ═══════════════════════════════════════════════════════════════════════════
   describe('Roles Model', () => {
     describe('CreateRoleCommand & Handler', () => {
       it('catches Zod validation errors on too-short role name (400)', () => {
@@ -640,9 +634,6 @@ describe('CQRS Commands & Queries Runtime Error Taxonomy', () => {
     });
   });
 
-  // ═══════════════════════════════════════════════════════════════════════════
-  // 3. Auths Model: Commands & Queries Runtime Errors
-  // ═══════════════════════════════════════════════════════════════════════════
   describe('Auths Model', () => {
     describe('CreateAuthCommand & Handler', () => {
       it('catches Zod validation errors on missing login code (400)', () => {

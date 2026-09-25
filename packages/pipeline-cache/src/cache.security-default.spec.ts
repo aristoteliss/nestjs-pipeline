@@ -41,9 +41,8 @@ function context(
 
 describe('CacheBehavior key safety', () => {
   it('refuses to run without an explicit key factory', () => {
-    // The removed default keyed on correlationId. It never produced a hit, and
-    // it was not an authorization boundary either: clients can send their own
-    // correlation ID and nested executions deliberately inherit one.
+    // A correlation ID cannot key a cache: it is unique per request, a client
+    // can choose it, and nested executions inherit it.
     const behavior = new CacheBehavior(createCache({ stores: [new Keyv()] }));
     const next = vi.fn().mockResolvedValue({ value: 1 });
 
@@ -70,7 +69,6 @@ describe('CacheBehavior key safety', () => {
   });
 
   it('serves the same principal from cache across separate requests', async () => {
-    // The property the old default could never deliver: an actual cache hit.
     const behavior = new CacheBehavior(createCache({ stores: [new Keyv()] }));
     const next = vi.fn().mockResolvedValue({ value: 'cached' });
 

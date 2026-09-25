@@ -90,12 +90,6 @@ export const HTTP_LOG_REDACT_PATHS = [
             ZodValidationBehavior,
           ],
         },
-        // No ignoreErrors here. ReliabilityModule already declares the
-        // module-wide list, and validation failures cannot reach this
-        // behavior in any case: scopes compose in declaration order, so the
-        // 'all' block above puts ZodValidationBehavior outside DeadLetter.
-        // Repeating ZodValidationError here read as a safety net that was
-        // doing nothing.
         {
           scope: 'commands',
           before: [[DeadLetterBehavior, { captureKinds: ['command'] }]],

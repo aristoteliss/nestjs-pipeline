@@ -6,8 +6,6 @@ import type { SessionResponse } from '../responses/session.res';
 /**
  * Maps the application-level {@link CreateAuthResult} to the HTTP {@link SessionResponse}.
  *
- * Sits in the mapper layer between application command handlers/results and the presentation controller.
- *
  * @example
  * ```typescript
  * const result = await this.commandBus.execute<CreateAuthCommand, CreateAuthResult>(command);

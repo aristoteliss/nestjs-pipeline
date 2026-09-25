@@ -1,11 +1,7 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 /**
- * The manifest must not bring NestJS in either.
- *
- * `framework-independence.grit` rejects NestJS imports, but a manifest entry
- * reaches consumers without any import: every dependency is installed with the
- * package, and every required peer must be installed next to it. Biome's GritQL
+ * The manifest must not bring NestJS in, even without an import; Biome's GritQL
  * engine cannot match JSON, so the manifest is checked here.
  */
 

@@ -20,16 +20,10 @@ import {
 } from './support/e2e-app';
 
 /**
- * End-to-end coverage for the users-api HTTP/CQRS composition:
- * - @nestjs-pipeline/casl (RBAC, ABAC, dual rules, field-level, inverted rules, DB capabilities)
- * - @nestjs-pipeline/correlation (Header reflection, AsyncLocalStorage propagation into CQRS events & BullMQ jobs)
- * - @nestjs-pipeline/idempotency (Replay, key reuse conflict, independent keys)
- * - @nestjs-pipeline/rate-limit (Throttling, 429 status, retry-after headers)
- * - DDD repository read-through caching (response consistency)
- * - Delete flows decorated with audit/resilience (HTTP outcomes only; package
- *   effects are covered by their focused integration/unit suites)
- * - BullMQ event job enqueuing (not dead-letter failure capture)
- * - @nestjs-pipeline/zod (Boundary & DTO schema validation)
+ * End-to-end coverage of the pipeline packages as users-api composes them: CASL,
+ * correlation, idempotency, rate limiting, repository caching, Zod validation
+ * and BullMQ job enqueuing. For the audited and resilient delete flows, only the
+ * HTTP outcomes are checked here; their package effects have focused suites.
  */
 describe('pipeline-packages (e2e)', () => {
   let ctx: E2EContext;

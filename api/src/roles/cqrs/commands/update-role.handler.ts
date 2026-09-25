@@ -55,7 +55,7 @@ export class UpdateRoleHandler extends CommandBaseHandler<
     this.authorizer.authorize(
       'update',
       role,
-      command.getUpdateFields(UpdateRoleCommand.MUTABLE_FIELDS),
+      command.getUpdateFields(UpdateRoleCommand.updatableFields),
     );
     role.rename(command.name);
     await this.commandRepository.save(role);

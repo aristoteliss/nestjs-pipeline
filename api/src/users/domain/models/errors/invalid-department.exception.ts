@@ -2,34 +2,13 @@
 
 import { DomainException } from '@cqrs-ddd/core/domain';
 
-/**
- * Domain exception thrown when a user's department violates business constraints
- * (e.g. non-empty but shorter than the required minimum length).
- *
- * Extends {@link DomainException} to remain decoupled from web frameworks and HTTP.
- *
- * @example
- * ```ts
- * if (department.length < 3) {
- *   throw new InvalidDepartmentException(3, department);
- * }
- * ```
- */
+/** A non-empty department is shorter than `minLength` characters after trimming. */
 export class InvalidDepartmentException extends DomainException {
   readonly minLength: number;
   readonly actualValue?: string | null;
 
-  /**
-   * Creates a new {@link InvalidDepartmentException}.
-   *
-   * @param minLength - Minimum character length constraint (default: 3).
-   * @param actualValue - The invalid department string that caused the failure.
-   * @param message - Optional custom error message override.
-   */
-  constructor(minLength = 3, actualValue?: string | null, message?: string) {
-    const msg =
-      message ?? `department must be at least ${minLength} characters.`;
-    super(msg);
+  constructor(minLength: number, actualValue?: string | null) {
+    super(`department must be at least ${minLength} characters.`);
     this.name = 'InvalidDepartmentException';
     this.minLength = minLength;
     this.actualValue = actualValue;

@@ -245,7 +245,7 @@ export class UpdateUserHandler extends CommandBaseHandler<UpdateUserCommand, Use
   async handle(command: UpdateUserCommand): Promise<User> {
     const user = await this.commandRepository.findById(command.id);
     if (!user) throw new EntityNotFoundException('User', command.id);
-    this.authorizer.authorize('update', user, command.getUpdateFields(UpdateUserCommand.MUTABLE_FIELDS));
+    this.authorizer.authorize('update', user, command.getUpdateFields(UpdateUserCommand.updatableFields));
     user.update(command);
     await this.commandRepository.save(user);
     return user;
@@ -534,6 +534,8 @@ export class GetRolesHandler implements IQueryHandler<GetRolesQuery, RoleReadMod
 | `AUTH_LOGIN_CODE` | Non-production alternative | Plaintext shared demo login code; rejected in production | `123456` |
 | `AUTH_SHARED_LOGIN_CODE` | Required for login in production | `true` acknowledges that one code signs in any account; without it production login fails | `true` |
 | `SESSION_SECRET` | Fastify only | 64-character hex string (32 bytes) for `@fastify/secure-session` cookies | `0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef` |
+| `OTEL_SERVICE_NAME` | Optional | Service name on exported spans (default `users-api`) | `users-api` |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | Optional | OTLP gRPC endpoint for traces (default `http://localhost:4317`, where SigNoz and a Datadog Agent with `otlp_config` enabled listen) | `http://otel-collector:4317` |
 
 *\* Note: At least one of `JWT_SECRET` or `JWT_PUBLIC_KEY` must be set if Bearer token authentication is enabled.*
 

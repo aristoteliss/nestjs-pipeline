@@ -20,22 +20,19 @@ describe('UnixTimestampType', () => {
   it('converts number timestamp to Date object in convertToJSValue', () => {
     const ts = 1787572800000;
     const result = type.convertToJSValue(ts);
-    expect(result).toBeInstanceOf(Date);
-    expect(result.getTime()).toBe(ts);
+    expect(result).toEqual(new Date(ts));
   });
 
   it('converts string number timestamp to Date object in convertToJSValue', () => {
     const ts = 1787572800000;
     const result = type.convertToJSValue(String(ts));
-    expect(result).toBeInstanceOf(Date);
-    expect(result.getTime()).toBe(ts);
+    expect(result).toEqual(new Date(ts));
   });
 
   it('converts bigint timestamp to Date object in convertToJSValue', () => {
     const ts = 1787572800000;
     const result = type.convertToJSValue(BigInt(ts));
-    expect(result).toBeInstanceOf(Date);
-    expect(result.getTime()).toBe(ts);
+    expect(result).toEqual(new Date(ts));
   });
 
   it('converts string and bigint to numeric millisecond timestamp in convertToDatabaseValue', () => {
@@ -67,16 +64,29 @@ describe('UnixTimestampType', () => {
     expect(type.convertToJSValue(d)).toBe(d);
   });
 
-  it('handles non-numeric date string and arbitrary objects in convertToDatabaseValue and convertToJSValue', () => {
+  it('converts a date string in convertToDatabaseValue', () => {
     const isoStr = '2026-08-24T12:00:00.000Z';
     expect(type.convertToDatabaseValue(isoStr)).toBe(
       new Date(isoStr).getTime(),
     );
+  });
 
-    const d = new Date('2026-08-24T12:00:00.000Z');
-    const objVal = { toString: () => '2026-08-24T12:00:00.000Z' };
-    expect(type.convertToDatabaseValue(objVal as any)).toBe(d.getTime());
-    expect(type.convertToJSValue(objVal as any)).toEqual(d);
+  it.each([
+    ['an unparsable string', 'not a date'],
+    ['a blank string', '  '],
+    ['NaN', Number.NaN],
+    ['an infinite number', Number.POSITIVE_INFINITY],
+    ['an invalid Date', new Date('invalid')],
+    ['a value outside the supported types', { toString: () => '2026' }],
+  ])('rejects %s in both directions', (_label, value) => {
+    const unreadable = value as Parameters<
+      UnixTimestampType['convertToDatabaseValue']
+    >[0];
+
+    expect(() => type.convertToDatabaseValue(unreadable)).toThrow(
+      /cannot read .* as a timestamp/,
+    );
+    expect(() => type.convertToJSValue(unreadable)).toThrow(TypeError);
   });
 
   it('converts number directly in convertToDatabaseValue', () => {
@@ -87,7 +97,6 @@ describe('UnixTimestampType', () => {
   it('converts ISO string in convertToJSValue', () => {
     const iso = '2026-08-24T12:00:00.000Z';
     const result = type.convertToJSValue(iso);
-    expect(result).toBeInstanceOf(Date);
-    expect(result.toISOString()).toBe(iso);
+    expect(result).toEqual(new Date(iso));
   });
 });

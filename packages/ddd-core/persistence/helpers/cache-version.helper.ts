@@ -36,10 +36,9 @@ export function isCacheNewer(cached: unknown, incoming: unknown): boolean {
   }
 
   // A barrier records a mutation that has already been durably applied, so it
-  // outranks any snapshot. Treating it as "not newer" let a write-through that
-  // started before a concurrent delete overwrite the barrier afterwards and
-  // resurrect the deleted aggregate in cache — the reader-side barrier checks
-  // never engaged, because from a reader's view that is an ordinary hit.
+  // outranks any snapshot: a write-through that started before a concurrent
+  // delete must not overwrite it, or the deleted aggregate would reappear in the
+  // cache as an ordinary hit.
   if (isCacheMutationBarrier(cached)) {
     if (!isCacheMutationBarrier(incoming)) return true;
     // Between two barriers the later one wins, so a fresh mutation can still

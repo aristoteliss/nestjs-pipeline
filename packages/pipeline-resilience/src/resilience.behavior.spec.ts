@@ -273,10 +273,9 @@ describe('ResilienceBehavior', () => {
     });
 
     it('does not accept retry.isRetryable as the error classifier', async () => {
-      // It used to be resolved as the classifier for the whole policy, so a
-      // predicate named for retries also decided which errors opened the
-      // circuit breaker and which ones the fallback swallowed. `handle` is now
-      // the only classifier, and its absence fails loudly instead.
+      // `handle` is the only error classifier: a predicate named for retries
+      // must not also decide which errors open the circuit breaker or which
+      // ones the fallback swallows.
       await expect(
         behavior.handle(
           makeCtx(

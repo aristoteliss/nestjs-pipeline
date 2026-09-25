@@ -25,9 +25,8 @@ import {
  * not carried as an application-handler concern.
  *
  * Both queues stamp the correlation ID into the job payload with
- * `addCorrelationId`. The batch queue used to put it on `JobsOptions` instead,
- * under a field BullMQ does not declare — the ID survived only because BullMQ
- * happens to persist unknown options, and nothing in its contract says it will.
+ * `addCorrelationId`, as `@nestjs-pipeline/correlation` prescribes for
+ * transports without headers.
  */
 @Injectable()
 export class BullMqUserEventDispatcher

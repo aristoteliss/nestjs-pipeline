@@ -8,13 +8,7 @@ import {
 import { BigIntType, EntitySchema } from '@mikro-orm/core';
 import { Auth } from '../../auths/domain/models/auth.entity';
 
-/**
- * MikroORM EntitySchema for the {@link Auth} aggregate.
- *
- * The explicit `any` cast is the MikroORM v7 compatibility escape hatch for
- * aggregates with private constructors. It remains confined to persistence so
- * application/domain callers cannot bypass `Auth.create()` / `Auth.fromJSON()`.
- */
+/** MikroORM EntitySchema for the {@link Auth} aggregate. */
 export const AuthSchema = new EntitySchema<Auth, AggregateRoot>({
   // biome-ignore lint/suspicious/noExplicitAny: MikroORM schema requires a public constructor; Auth hides its constructor to enforce domain invariants.
   class: Auth as any,

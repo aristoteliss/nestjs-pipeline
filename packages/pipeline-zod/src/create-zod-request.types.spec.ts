@@ -3,15 +3,11 @@
 /**
  * Declaration-level coverage for the generated request's output type.
  *
- * The constructor alias used to default its instance type to `any`, so a request
- * generated without a base class had the type `any & z.output<TSchema>` — which
- * collapses to `any`. Every property check on the result silently disappeared,
- * and nothing in a runtime test could notice: the values were correct, only the
- * types were gone.
- *
- * These assertions therefore have to be type-level. `@ts-expect-error` fails the
- * build when the error it expects stops occurring, which is exactly the
- * regression to catch.
+ * A request generated without a base class must have the type
+ * `z.output<TSchema>`. If its instance type collapsed to `any`, every property
+ * check would disappear while the runtime values stayed correct, so no runtime
+ * test would notice. These assertions are therefore type-level:
+ * `@ts-expect-error` fails the build when the error it expects stops occurring.
  */
 
 import { describe, expect, it } from 'vitest';

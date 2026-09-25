@@ -23,13 +23,11 @@ export function compilePipelinePlan(
   requestKind: 'command' | 'query' | 'event',
   options?: PipelineModuleOptions,
 ) {
-  // Handler-specific behaviors from @UsePipeline decorator
   const handlerBehaviorTypes: Type<IPipelineBehavior>[] | undefined =
     Reflect.getMetadata(PIPELINE_BEHAVIORS_METADATA, handlerType);
   const handlerOptions: Map<BehaviorId, Record<string, unknown>> | undefined =
     Reflect.getMetadata(PIPELINE_BEHAVIORS_OPTIONS_METADATA, handlerType);
 
-  // Handler-specific behaviors to skip from @SkipPipeline decorator
   const skippedBehaviorTypes: Type<IPipelineBehavior>[] | undefined =
     Reflect.getMetadata(PIPELINE_SKIPPED_BEHAVIORS_METADATA, handlerType);
 
@@ -49,7 +47,6 @@ export function compilePipelinePlan(
     }
   }
 
-  // Global behaviors for this handler kind
   const { beforeTypes, afterTypes, globalOptions } = resolveGlobalBehaviors(
     options,
     requestKind,

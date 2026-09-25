@@ -155,7 +155,7 @@ export class Auth extends RootEntity<AuthSnapshot> {
 
   /**
    * @internal For MikroORM persistence hydration only.
-   * @deprecated Direct mutation via setter is prohibited. Mutate aggregate state exclusively via domain methods/factories.
+   * Application code changes aggregate state through domain methods and factories, never through this setter.
    */
   set refreshTokenHash(value: string) {
     this._refreshTokenHash = value;
@@ -167,7 +167,7 @@ export class Auth extends RootEntity<AuthSnapshot> {
 
   /**
    * @internal For MikroORM persistence hydration only.
-   * @deprecated Direct mutation via setter is prohibited. Mutate aggregate state exclusively via domain methods/factories.
+   * Application code changes aggregate state through domain methods and factories, never through this setter.
    */
   set previousRefreshTokenHash(value: string | null) {
     this._previousRefreshTokenHash = value ?? null;
@@ -179,7 +179,7 @@ export class Auth extends RootEntity<AuthSnapshot> {
 
   /**
    * @internal For MikroORM persistence hydration only.
-   * @deprecated Direct mutation via setter is prohibited. Mutate aggregate state exclusively via domain methods/factories.
+   * Application code changes aggregate state through domain methods and factories, never through this setter.
    */
   set rotatedAt(value: number | null) {
     this._rotatedAt = value === null ? null : Number(value);
@@ -191,7 +191,7 @@ export class Auth extends RootEntity<AuthSnapshot> {
 
   /**
    * @internal For MikroORM persistence hydration only.
-   * @deprecated Direct mutation via setter is prohibited. Mutate aggregate state exclusively via domain methods/factories.
+   * Application code changes aggregate state through domain methods and factories, never through this setter.
    */
   set revokedAt(value: number | null) {
     this._revokedAt = value === null ? null : Number(value);
@@ -203,7 +203,7 @@ export class Auth extends RootEntity<AuthSnapshot> {
 
   /**
    * @internal For MikroORM persistence hydration only.
-   * @deprecated Direct mutation via setter is prohibited. Mutate aggregate state exclusively via domain methods/factories.
+   * Application code changes aggregate state through domain methods and factories, never through this setter.
    */
   set version(value: number) {
     if (typeof value === 'number' && Number.isInteger(value) && value > 0) {

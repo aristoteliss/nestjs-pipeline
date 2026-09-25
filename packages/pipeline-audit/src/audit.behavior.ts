@@ -53,10 +53,8 @@ export const AUDIT_RECORD_ITEM_TOKEN: PipelineItemToken<AuditRecord> =
  * failures are recorded before propagation. With the default `failOpen: true`,
  * sink failures are logged and the original handler result/error is preserved.
  * With `failOpen: false`, a sink/build failure on the **success path** fails the
- * request. If the handler already failed, the original handler error remains the
- * error seen by the caller; when possible the audit failure is attached as
- * `error.cause` so the secondary durability problem is still observable without
- * hiding the business/application root cause.
+ * request. If the handler already failed, the caller receives the handler's own
+ * error, unchanged, and the audit failure is logged.
  *
  * Sink-agnostic by design: it depends only on {@link AuditSink}, so the backend
  * (console, Postgres, an event store, …) is a one-line swap in
@@ -171,23 +169,6 @@ export class AuditBehavior
           'error',
           `Audit recording also failed after request error: ${recordError instanceof Error ? recordError.message : recordError}`,
         );
-        if (
-          !failOpen &&
-          error instanceof Error &&
-          !(error as { cause?: unknown }).cause
-        ) {
-          const causeError =
-            recordError instanceof Error
-              ? recordError
-              : new Error(String(recordError));
-          try {
-            if (Object.isExtensible(error)) {
-              (error as { cause?: unknown }).cause = causeError;
-            }
-          } catch {
-            // Intentionally ignored: error may be non-extensible or frozen
-          }
-        }
       }
       throw error;
     }

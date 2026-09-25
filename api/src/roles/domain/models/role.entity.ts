@@ -68,7 +68,7 @@ export class Role extends RootEntity<RoleSnapshot> {
 
   /**
    * @internal For MikroORM persistence hydration only.
-   * @deprecated Direct mutation via setter is prohibited. Mutate aggregate state exclusively via domain methods/factories.
+   * Application code changes aggregate state through domain methods and factories, never through this setter.
    */
   set name(value: string) {
     this._name = Role.normalizeName(value);
@@ -80,7 +80,7 @@ export class Role extends RootEntity<RoleSnapshot> {
 
   /**
    * @internal For MikroORM persistence hydration only.
-   * @deprecated Direct mutation via setter is prohibited. Mutate aggregate state exclusively via domain methods/factories.
+   * Application code changes aggregate state through domain methods and factories, never through this setter.
    */
   set version(value: number) {
     if (typeof value === 'number' && Number.isInteger(value) && value > 0) {

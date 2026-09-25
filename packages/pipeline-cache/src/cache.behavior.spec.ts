@@ -17,9 +17,8 @@ import { createPartitionedCacheKeyFactory } from './helpers/cache-key';
 import type { CacheBehaviorOptions } from './interfaces/cache-options.interface';
 
 /**
- * `CacheBehavior` has no default key: the removed one embedded the per-request
- * correlation ID, so it never produced a hit. These tests exercise caching
- * mechanics, so they partition by tenant and principal explicitly.
+ * `CacheBehavior` has no default key. These tests exercise caching mechanics,
+ * so they partition by tenant and principal explicitly.
  */
 const TEST_KEY = createPartitionedCacheKeyFactory({
   principal: (ctx) => (ctx.items.get('userId') as string | undefined) ?? 'u-1',

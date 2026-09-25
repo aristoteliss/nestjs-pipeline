@@ -6,37 +6,61 @@ import {
   Type,
 } from '@mikro-orm/core';
 
-export class UnixTimestampType extends Type<Date, number> {
+type Timestamp = Date | number | string | bigint;
+
+/**
+ * Converts a timestamp value to epoch milliseconds, or throws.
+ *
+ * A number, a bigint, a numeric string, a date string and a `Date` are read. A
+ * blank string, `NaN`, an infinite number, an unparsable string, an invalid
+ * `Date` and any other value have no valid time.
+ */
+function toEpochMilliseconds(value: unknown): number {
+  let milliseconds = Number.NaN;
+  if (value instanceof Date) milliseconds = value.getTime();
+  else if (typeof value === 'number') milliseconds = value;
+  else if (typeof value === 'bigint') milliseconds = Number(value);
+  else if (typeof value === 'string' && value.trim() !== '') {
+    const numeric = Number(value);
+    milliseconds = Number.isNaN(numeric) ? Date.parse(value) : numeric;
+  }
+  if (!Number.isFinite(milliseconds)) {
+    throw new TypeError(
+      `UnixTimestampType cannot read ${typeof value} value ${JSON.stringify(String(value))} as a timestamp.`,
+    );
+  }
+  return milliseconds;
+}
+
+/**
+ * MikroORM type that stores a `Date` as epoch milliseconds in a 64-bit `bigint`
+ * column.
+ *
+ * `null` and `undefined` pass through in both directions. A value that has no
+ * valid time throws a `TypeError` rather than being stored or returned as
+ * `NaN`.
+ */
+export class UnixTimestampType extends Type<
+  Date | null | undefined,
+  number | null | undefined
+> {
   convertToDatabaseValue(
-    value: Date | number | string | bigint | undefined | null,
+    value: Timestamp | null | undefined,
     _platform?: Platform,
     _context?: TransformContext,
-  ): number {
-    if (value == null) return value as unknown as number;
-    if (value instanceof Date) return value.getTime();
-    if (typeof value === 'number') return value;
-    if (typeof value === 'bigint') return Number(value);
-    if (typeof value === 'string') {
-      const numeric = Number(value);
-      return Number.isNaN(numeric) ? new Date(value).getTime() : numeric;
-    }
-    return new Date(value as unknown as string).getTime();
+  ): number | null | undefined {
+    if (value == null) return value;
+    return toEpochMilliseconds(value);
   }
 
   convertToJSValue(
-    value: number | string | bigint | Date | undefined | null,
+    value: Timestamp | null | undefined,
     _platform?: Platform,
     _context?: TransformContext,
-  ): Date {
-    if (value == null) return value as unknown as Date;
-    if (value instanceof Date) return value;
-    if (typeof value === 'number') return new Date(value);
-    if (typeof value === 'bigint') return new Date(Number(value));
-    if (typeof value === 'string') {
-      const numeric = Number(value);
-      return new Date(Number.isNaN(numeric) ? value : numeric);
-    }
-    return new Date(value as unknown as number);
+  ): Date | null | undefined {
+    if (value == null) return value;
+    const milliseconds = toEpochMilliseconds(value);
+    return value instanceof Date ? value : new Date(milliseconds);
   }
 
   getColumnType(

@@ -44,8 +44,17 @@ describe('BaseCommand metadata', () => {
     );
   });
 
-  it('reports only the declared mutable fields the command carries', () => {
-    const fields = UpdateUserCommand.MUTABLE_FIELDS;
+  it('marks exactly the fields the update handlers write', () => {
+    // These lists are the fields CASL checks for field-level authorization.
+    expect(UpdateUserCommand.updatableFields).toEqual([
+      'username',
+      'department',
+    ]);
+    expect(UpdateRoleCommand.updatableFields).toEqual(['name']);
+  });
+
+  it('reports only the updatable fields the command carries', () => {
+    const fields = UpdateUserCommand.updatableFields;
 
     const cmd1 = new UpdateUserCommand({
       id: '019488e0-0000-7000-8000-000000000001',
@@ -68,28 +77,25 @@ describe('BaseCommand metadata', () => {
     expect(cmd3.getUpdateFields(fields)).toEqual(['department']);
   });
 
-  it('never reports the identifier, which is not a mutable field', () => {
+  it('never reports the identifier, which is not an updatable field', () => {
     const command = new UpdateUserCommand({
       id: '019488e0-0000-7000-8000-000000000001',
       username: 'Ada',
     });
 
     expect(
-      command.getUpdateFields(UpdateUserCommand.MUTABLE_FIELDS),
+      command.getUpdateFields(UpdateUserCommand.updatableFields),
     ).not.toContain('id');
   });
 
-  it('does not widen the authorization surface when the schema gains a field', () => {
-    // The whole point of declaring the set. A property the command carries but
-    // MUTABLE_FIELDS does not name is not handed to CASL, so adding one to the
-    // schema cannot quietly change what is checked.
+  it('does not report a property the schema does not mark updatable', () => {
     const command = new UpdateUserCommand({
       id: '019488e0-0000-7000-8000-000000000001',
       username: 'Ada',
     });
     (command as unknown as Record<string, unknown>).salary = 100;
 
-    expect(command.getUpdateFields(UpdateUserCommand.MUTABLE_FIELDS)).toEqual([
+    expect(command.getUpdateFields(UpdateUserCommand.updatableFields)).toEqual([
       'username',
     ]);
   });
@@ -100,7 +106,7 @@ describe('BaseCommand metadata', () => {
       name: 'admin',
     });
 
-    expect(command.getUpdateFields(UpdateRoleCommand.MUTABLE_FIELDS)).toEqual([
+    expect(command.getUpdateFields(UpdateRoleCommand.updatableFields)).toEqual([
       'name',
     ]);
   });

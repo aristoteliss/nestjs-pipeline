@@ -19,8 +19,7 @@ export type EvaluationContextFactory = (
  * Resolves a stable OpenFeature targeting key from the current pipeline request.
  *
  * For percentage rollouts this should normally be a user, account, tenant or
- * device identifier that stays stable across requests. A correlation ID is
- * usually a poor rollout key because it changes per request.
+ * device identifier that stays stable across requests.
  */
 export type TargetingKeyFactory = (
   context: IPipelineContext,

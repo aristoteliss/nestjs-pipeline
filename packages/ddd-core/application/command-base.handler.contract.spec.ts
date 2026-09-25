@@ -2,14 +2,10 @@
 
 /**
  * `CommandBaseHandler` publishes buffered aggregate events based on the *shape*
- * of what `handle()` returns. That made the contract easy to break silently: a
- * handler that mutated an aggregate and returned a DTO compiled cleanly and
- * dropped every event it had raised — no error, no warning, and no failing test
- * unless somebody had thought to assert on the event.
- *
- * The shape is now a type constraint, so the compiler rejects it. These tests
- * pin both halves: the constraint itself, and the publication semantics that
- * depend on it.
+ * of what `handle()` returns, so that shape is a type constraint: a handler that
+ * mutates an aggregate and returns a DTO does not compile, rather than silently
+ * dropping every event it raised. These tests pin both halves: the constraint
+ * itself, and the publication semantics that depend on it.
  */
 
 import { describe, expect, it, vi } from 'vitest';
@@ -120,9 +116,6 @@ describe('CommandBaseHandler publication semantics', () => {
   it('rejects a handler whose result carries no aggregate', () => {
     const bus = makeEventBus();
 
-    // This is the defect the constraint exists to prevent: a handler that
-    // mutated an aggregate and returned a DTO used to compile and silently drop
-    // every event it had raised.
     class Handler extends CommandBaseHandler<
       CreateThingCommand,
       // @ts-expect-error a DTO carries no aggregate, so events could never be published
