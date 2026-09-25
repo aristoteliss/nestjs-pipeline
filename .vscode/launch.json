@@ -5,12 +5,12 @@
       "type": "node",
       "request": "launch",
       "name": "Debug Users API",
-      "cwd": "${workspaceFolder}/ddd/users-api",
+      "cwd": "${workspaceFolder}/api",
       "runtimeExecutable": "pnpm",
       "runtimeArgs": ["run", "dev"],
       "skipFiles": ["<node_internals>/**"],
       "env": {
-        "TSX_TSCONFIG_PATH": "${workspaceFolder}/ddd/users-api/tsconfig.json"
+        "TSX_TSCONFIG_PATH": "${workspaceFolder}/api/tsconfig.json"
       },
       "sourceMaps": true,
       "resolveSourceMapLocations": [
@@ -19,7 +19,7 @@
       ],
       "outFiles": [
         "${workspaceFolder}/packages/*/dist/**/*.js",
-        "${workspaceFolder}/ddd/*/dist/**/*.js"
+        "${workspaceFolder}/api/dist/**/*.js"
       ],
       "autoAttachChildProcesses": true,
       "console": "integratedTerminal",

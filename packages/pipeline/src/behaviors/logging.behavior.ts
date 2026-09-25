@@ -2,6 +2,12 @@
 
 import { performance } from 'node:perf_hooks';
 import {
+  DEFAULT_REDACT_KEYS,
+  type SanitizeOptions,
+  safeSanitize,
+  safeStringify,
+} from '@cqrs-ddd/safe-stringify';
+import {
   Inject,
   Injectable,
   Logger,
@@ -9,12 +15,6 @@ import {
   LogLevel,
   Optional,
 } from '@nestjs/common';
-import {
-  DEFAULT_REDACT_KEYS,
-  type SanitizeOptions,
-  safeSanitize,
-  safeStringify,
-} from '../helpers/safeStringify';
 import {
   IPipelineBehavior,
   NextDelegate,

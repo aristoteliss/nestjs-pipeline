@@ -1,7 +1,7 @@
 engine biome(1.0)
 language js(typescript)
 
-// `@nestjs-pipeline/ddd-core` exposes three entry points — `/domain`,
+// `@cqrs-ddd/core` exposes three entry points — `/domain`,
 // `/application` and `/persistence` — so the layering is expressed by the import
 // itself rather than only by convention.
 //
@@ -14,6 +14,6 @@ language js(typescript)
 // Scoped to domain, CQRS and application code in biome.json.
 
 JsImportNamedClause(source=$source) as $clause where {
-  $source <: r".*@nestjs-pipeline/ddd-core/persistence.*",
-  register_diagnostic(span=$clause, message="Domain and CQRS code must not import @nestjs-pipeline/ddd-core/persistence. That entry point holds the MikroORM adapters; depend on the repository ports exported from @nestjs-pipeline/ddd-core/application instead.", severity="error")
+  $source <: r".*@cqrs-ddd/core/persistence.*",
+  register_diagnostic(span=$clause, message="Domain and CQRS code must not import @cqrs-ddd/core/persistence. That entry point holds the MikroORM adapters; depend on the repository ports exported from @cqrs-ddd/core/application instead.", severity="error")
 }

@@ -1,6 +1,6 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import { toStrictJsonValue } from '@nestjs-pipeline/core';
+import { toStrictJsonValue } from '@cqrs-ddd/safe-stringify';
 import type {
   IdempotencyRecord,
   JsonValue,

@@ -10,9 +10,9 @@ dist/
 build/
 .cache/
 .tmp/
-ddd/users-api/src/persistence/*.db
-ddd/users-api/src/persistence/*.db-*
-ddd/users-api/src/persistence/migrations/.snapshot*
+api/src/persistence/*.db
+api/src/persistence/*.db-*
+api/src/persistence/migrations/.snapshot*
 
 # Coverage
 coverage/

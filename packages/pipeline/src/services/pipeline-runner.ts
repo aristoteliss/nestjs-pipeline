@@ -1,12 +1,12 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
+import { uuidv7 } from '@cqrs-ddd/uuidv7';
 import {
   pipelineStore,
   SET_CORRELATION_ID,
   SET_RESPONSE,
   SET_TENANT_ID,
 } from '../constants/pipeline-context.constants';
-import { uuidv7 } from '../helpers/uuidv7';
 import type {
   IPipelineBehavior,
   NextDelegate,

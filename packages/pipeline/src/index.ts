@@ -1,5 +1,20 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
+export {
+  ABSENT_SEGMENT,
+  DEFAULT_REDACT_KEYS,
+  escapeKeySegment,
+  joinKeySegments,
+  REDACTED,
+  redactValue,
+  type SanitizeOptions,
+  type StrictJsonValue,
+  safeSanitize,
+  safeStringify,
+  stableStringify,
+  toStrictJsonValue,
+} from '@cqrs-ddd/safe-stringify';
+export { isUuidV7, uuidv7 } from '@cqrs-ddd/uuidv7';
 export * from './behaviors/logging.behavior';
 export {
   pipelineStore,
@@ -8,18 +23,10 @@ export {
 export * from './decorators';
 export * from './errors/missing-pipeline-item.error';
 export {
-  ABSENT_SEGMENT,
-  escapeKeySegment,
-  joinKeySegments,
-} from './helpers/key-segment';
-export {
   type LoggingIntentOptions,
   logging,
 } from './helpers/logging.intent';
 export { toPostgresJson } from './helpers/postgres-json';
-export * from './helpers/safeStringify';
-export * from './helpers/stableStringify';
-export { isUuidV7, uuidv7 } from './helpers/uuidv7';
 export * from './interfaces/pipeline.behavior.interface';
 export * from './interfaces/pipeline.context.interface';
 export * from './interfaces/pipeline-behavior-contract.interface';

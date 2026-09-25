@@ -17,7 +17,7 @@ or {
   JsNamedImportSpecifier(name=$name) as $import where {
     $name <: r"^(?:Cache|AcknowledgePersisted|MapPersistenceErrors|PersistedWrite|optimisticUpdate)$",
     $import <: within JsImportNamedClause(source=$source) ,
-    $source <: r".*@nestjs-pipeline/ddd-core.*",
+    $source <: r".*@cqrs-ddd/core.*",
     register_diagnostic(span=$import, message="Use canonical persistence API names so the structural lifecycle rules can check their usage.", severity="error")
   },
   JsMethodClassMember(modifiers=$modifiers) as $method where {

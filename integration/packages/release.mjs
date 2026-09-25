@@ -17,6 +17,20 @@ const root = resolve(import.meta.dirname, '../..');
 const template = resolve(import.meta.dirname, 'consumer');
 const readJson = (path) => JSON.parse(readFileSync(path, 'utf8'));
 const nodeEngine = readJson(resolve(root, 'package.json')).engines.node;
+// For a framework-neutral package with optional peers: the entry points that must
+// load without them. Every other entry point is loaded after they are installed.
+const PEER_FREE_ENTRIES = {
+  '@cqrs-ddd/core': [
+    '@cqrs-ddd/core/domain',
+    '@cqrs-ddd/core/application',
+    '@cqrs-ddd/core/http',
+  ],
+};
+// The one pipeline package that may name @cqrs-ddd/core, and only as a peer: its
+// tenant scope is module-level state, so a runtime dependency could install a
+// second copy that the application's own code never sees.
+const isTenantBridgePeer = (manifest, field) =>
+  manifest.name === '@nestjs-pipeline/tenant' && field === 'peerDependencies';
 const run = (command, args, cwd = root) =>
   execFileSync(command, args, { cwd, stdio: 'inherit' });
 const tar = (args) => execFileSync('tar', args, { encoding: 'utf8' });
@@ -134,9 +148,9 @@ try {
       for (const [name, range] of Object.entries(manifest[field] ?? {})) {
         if (
           range.startsWith('workspace:') ||
-          range.includes('ddd/') ||
-          name.includes('ddd-core') ||
-          name.includes('users-api')
+          /(?:^|[/:])api\//.test(range) ||
+          (name === '@cqrs-ddd/core' && !isTenantBridgePeer(manifest, field)) ||
+          name === '@nestjs-pipeline/ddd-api'
         ) {
           throw new Error(
             `${manifest.name}: invalid published dependency ${name}: ${range}`,
@@ -158,9 +172,21 @@ try {
     );
   }
 
+  // pnpm reads overrides from the workspace file only, so a packed package that
+  // depends on another packed one resolves to its tarball, never to the registry.
   writeFileSync(
     resolve(consumer, 'pnpm-workspace.yaml'),
-    'packages: []\nautoInstallPeers: false\nstrictPeerDependencies: true\nlinkWorkspacePackages: false\n',
+    [
+      'packages: []',
+      'autoInstallPeers: false',
+      'strictPeerDependencies: true',
+      'linkWorkspacePackages: false',
+      'overrides:',
+      ...Object.entries(packedDependencies).map(
+        ([name, spec]) => `  ${JSON.stringify(name)}: ${JSON.stringify(spec)}`,
+      ),
+      '',
+    ].join('\n'),
   );
   writeFileSync(
     resolve(consumer, 'package.json'),
@@ -175,7 +201,6 @@ try {
             resolve(root, 'node_modules/@types/node/package.json'),
           ).version,
         },
-        pnpm: { overrides: packedDependencies },
       },
       null,
       2,
@@ -199,10 +224,12 @@ try {
     resolve(consumer, 'src/all-packages.ts'),
     [
       "import 'reflect-metadata';",
-      ...[...expected.keys()].map(
-        (name, index) =>
-          `import * as package${index} from ${JSON.stringify(name)};\nconsole.log(${JSON.stringify(name)}, Object.keys(package${index}).length);`,
-      ),
+      ...[...expected.keys()]
+        .filter((name) => !name.startsWith('@cqrs-ddd/'))
+        .map(
+          (name, index) =>
+            `import * as package${index} from ${JSON.stringify(name)};\nconsole.log(${JSON.stringify(name)}, Object.keys(package${index}).length);`,
+        ),
     ].join('\n'),
   );
 
@@ -224,8 +251,133 @@ try {
   for (const file of ['all-packages.ts', ...fixtures]) {
     run('node', [`dist/${file.replace(/\.ts$/, '.js')}`], consumer);
   }
+
+  // Framework-neutral packages must work with nothing else installed: each gets an
+  // empty consumer holding only its tarball and the packed packages it depends on.
+  const neutral = [...expected.values()].filter((manifest) =>
+    manifest.name.startsWith('@cqrs-ddd/'),
+  );
+  for (const [index, manifest] of neutral.entries()) {
+    const own = Object.keys(manifest.dependencies ?? {});
+    const foreign = own.filter((name) => !packedDependencies[name]);
+    if (foreign.length) {
+      throw new Error(
+        `${manifest.name}: depends on packages outside this release: ${foreign.join(', ')}`,
+      );
+    }
+    const allowed = [manifest.name, ...own];
+    const specs = Object.fromEntries(
+      allowed.map((name) => [name, packedDependencies[name]]),
+    );
+    const alone = resolve(temporary, `standalone-${index}`);
+    mkdirSync(alone);
+    writeFileSync(
+      resolve(alone, 'pnpm-workspace.yaml'),
+      [
+        'packages: []',
+        'autoInstallPeers: false',
+        'strictPeerDependencies: true',
+        'overrides:',
+        ...Object.entries(specs).map(
+          ([name, spec]) =>
+            `  ${JSON.stringify(name)}: ${JSON.stringify(spec)}`,
+        ),
+        '',
+      ].join('\n'),
+    );
+    writeFileSync(
+      resolve(alone, 'package.json'),
+      JSON.stringify(
+        {
+          name: 'packed-standalone-smoke',
+          private: true,
+          version: '1.0.0',
+          dependencies: { [manifest.name]: specs[manifest.name] },
+        },
+        null,
+        2,
+      ),
+    );
+    run('pnpm', ['install', '--prefer-offline'], alone);
+    const installedNames = () => {
+      const names = new Set();
+      const collect = (tree) => {
+        for (const [name, entry] of Object.entries(tree ?? {})) {
+          names.add(name);
+          collect(entry.dependencies);
+        }
+      };
+      const projects = JSON.parse(
+        execFileSync('pnpm', ['ls', '--json', '--depth', 'Infinity'], {
+          cwd: alone,
+          encoding: 'utf8',
+        }),
+      );
+      for (const project of projects) collect(project.dependencies);
+      return [...names];
+    };
+    const extra = installedNames().filter((name) => !allowed.includes(name));
+    if (extra.length) {
+      throw new Error(
+        `${manifest.name}: standalone install also installed ${extra.join(', ')}`,
+      );
+    }
+
+    // Entry points that must load with only the package installed; the rest may
+    // need its optional peers, which are added afterwards.
+    const entries = Object.keys(manifest.exports ?? { '.': null }).map((key) =>
+      key === '.' ? manifest.name : `${manifest.name}${key.slice(1)}`,
+    );
+    // The version the package is developed and tested against.
+    const sourceDir = packages.find(
+      (entry) => entry.manifest.name === manifest.name,
+    ).dir;
+    const optionalPeers = Object.keys(manifest.peerDependencies ?? {}).filter(
+      (name) => manifest.peerDependenciesMeta?.[name]?.optional,
+    );
+    const peerFree = optionalPeers.length
+      ? (PEER_FREE_ENTRIES[manifest.name] ?? [])
+      : entries;
+    const load = (specifiers, label) =>
+      run(
+        'node',
+        [
+          '-e',
+          `for (const s of ${JSON.stringify(specifiers)}) { const n = Object.keys(require(s)).length; if (!n) throw new Error(s + ': no exports'); console.log(${JSON.stringify(label)}, s, n); }`,
+        ],
+        alone,
+      );
+    load(peerFree, 'standalone');
+
+    if (optionalPeers.length) {
+      run(
+        'pnpm',
+        [
+          'add',
+          '--prefer-offline',
+          ...optionalPeers.map(
+            (name) =>
+              `${name}@${readJson(resolve(sourceDir, 'node_modules', name, 'package.json')).version}`,
+          ),
+        ],
+        alone,
+      );
+      const framework = installedNames().filter((name) =>
+        /^@?nestjs/.test(name),
+      );
+      if (framework.length) {
+        throw new Error(
+          `${manifest.name}: its optional peers brought in ${framework.join(', ')}`,
+        );
+      }
+      load(
+        entries.filter((entry) => !peerFree.includes(entry)),
+        `standalone with ${optionalPeers.join(', ')}`,
+      );
+    }
+  }
   console.log(
-    `Release verification passed: ${seen.size} packed packages, core lifecycle, CASL 7.`,
+    `Release verification passed: ${seen.size} packed packages (${neutral.length} standalone), core lifecycle, CASL 7.`,
   );
 } finally {
   rmSync(temporary, { recursive: true, force: true });

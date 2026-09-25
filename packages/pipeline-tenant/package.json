@@ -1,0 +1,62 @@
+{
+  "name": "@nestjs-pipeline/tenant",
+  "version": "0.2.0",
+  "description": "Pipeline behavior for @nestjs-pipeline/core that runs every command, query and event handler inside the @cqrs-ddd/core tenant scope",
+  "author": "Aristotelis",
+  "license": "SEE LICENSE IN LICENSE",
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/aristoteliss/nestjs-pipeline.git",
+    "directory": "packages/pipeline-tenant"
+  },
+  "homepage": "https://github.com/aristoteliss/nestjs-pipeline/tree/master/packages/pipeline-tenant#readme",
+  "bugs": {
+    "url": "https://github.com/aristoteliss/nestjs-pipeline/issues"
+  },
+  "keywords": [
+    "nestjs",
+    "cqrs",
+    "ddd",
+    "pipeline",
+    "multi-tenancy",
+    "tenant"
+  ],
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist",
+    "LICENSE",
+    "COMMERCIAL_LICENSE.txt"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "build:watch": "tsc -p tsconfig.build.json --watch",
+    "clean": "rm -rf dist tsconfig.tsbuildinfo",
+    "rebuild": "pnpm run clean && pnpm run build",
+    "lint": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "prepublishOnly": "pnpm run rebuild"
+  },
+  "peerDependencies": {
+    "@cqrs-ddd/core": "workspace:^",
+    "@nestjs-pipeline/core": "workspace:^",
+    "@nestjs/common": "^11.0.0",
+    "reflect-metadata": "^0.1.13 || ^0.2.0"
+  },
+  "devDependencies": {
+    "@cqrs-ddd/core": "workspace:*",
+    "@mikro-orm/core": "^7.1.13",
+    "@nestjs-pipeline/core": "workspace:*",
+    "@nestjs/common": "^11.2.1",
+    "@vitest/coverage-v8": "^4.1.11",
+    "reflect-metadata": "^0.2.2",
+    "vitest": "^4.1.11"
+  }
+}

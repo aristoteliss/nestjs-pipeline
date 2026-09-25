@@ -1,8 +1,9 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 /**
- * Canonical UUIDv7 implementation shared with `@nestjs-pipeline/core`.
- * UUIDs are timestamp-sortable across different milliseconds; random bits mean
- * values generated within the same millisecond are not monotonic.
+ * The canonical UUIDv7 implementation, from `@cqrs-ddd/uuidv7`, which
+ * `@nestjs-pipeline/core` also re-exports. UUIDs are timestamp-sortable across
+ * different milliseconds; random bits mean values generated within the same
+ * millisecond are not monotonic.
  */
-export { uuidv7 } from '@nestjs-pipeline/core';
+export { uuidv7 } from '@cqrs-ddd/uuidv7';

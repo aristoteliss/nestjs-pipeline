@@ -1,6 +1,7 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import { type IPipelineContext, joinKeySegments } from '@nestjs-pipeline/core';
+import { joinKeySegments } from '@cqrs-ddd/safe-stringify';
+import { type IPipelineContext } from '@nestjs-pipeline/core';
 import { MissingRateLimitPartitionError } from '../errors/missing-partition.error';
 import type { RateLimitKeyFactory } from '../interfaces/rate-limit-options.interface';
 

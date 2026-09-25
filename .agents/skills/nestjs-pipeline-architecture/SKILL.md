@@ -14,8 +14,8 @@ This repository is authoritative. Before changing architecture-sensitive code, i
 - `README.md`
 - `packages/pipeline/README.md`
 - `packages/pipeline-cache/README.md`
-- `ddd/core/README.md`
-- `ddd/users-api/README.md`
+- `packages/ddd-core/README.md`
+- `api/README.md`
 
 If generic Clean Architecture / DDD / CQRS advice conflicts with this repository, follow the repository.
 
@@ -196,9 +196,9 @@ authenticator may put `grants` on the session user.
 
 Canonical references:
 
-- `ddd/users-api/src/users/cqrs/commands/create-user.handler.ts`
-- `ddd/users-api/src/users/cqrs/queries/get-user.handler.ts`
-- `ddd/users-api/src/users/cqrs/queries/get-users.handler.ts`
+- `api/src/users/cqrs/commands/create-user.handler.ts`
+- `api/src/users/cqrs/queries/get-user.handler.ts`
+- `api/src/users/cqrs/queries/get-users.handler.ts`
 
 ### 8. Treat cache and idempotency short-circuiting as a security boundary
 
@@ -294,7 +294,7 @@ Query repositories and decorators:
 - Concurrent reads: when an in-flight query races a concurrent write that updates the cache, `@FromCache` detects the newer cached version (`newerCheck(current, snapshot)`) and returns the hydrated newer version rather than stale database data. A stale fill must never replace newer cache state; separate read/check/write steps do not prove that guarantee, so verify the coordination through the final write.
 - Anti-resurrection: `@Cache` writes a `CacheMutationBarrier` sentinel on deletions and secondary key invalidations, and `@FromCache` fills only through a revision-fenced `IVersionedCache`: it observes the key's revision before the database read and commits with `tryFill` only if nothing advanced it, so a stale snapshot cannot overwrite a barrier; a rejected fill re-reads and boundedly retries. An adapter with only `get`/`set` cannot be fenced, so `@FromCache` bypasses it for both reads and fills. Test invalidation after the last read but before fill, absence/expiry ABA, delete/recreate and retry exhaustion; the presence of barriers is not proof that all races are prevented, and DB commit plus cache maintenance remains a separate consistency boundary.
 - Cache adapters (`ICache<TSnapshot>`) store strictly serializable snapshots, never live domain aggregates. `MemoryCache` enforces deep detachment parity with database caches via JSON cloning on `set()` and `get()`.
-- `MikroOrmCache` (`ddd/core`) executes queries outside the identity map (`{ disableIdentityMap: true }`) and never deletes an expired row: it reports it as `expired` and keeps its revision, so an expired reader cannot purge a concurrent fresh write.
+- `MikroOrmCache` (`packages/ddd-core`) executes queries outside the identity map (`{ disableIdentityMap: true }`) and never deletes an expired row: it reports it as `expired` and keeps its revision, so an expired reader cannot purge a concurrent fresh write.
 
 Query handlers:
 
@@ -393,7 +393,7 @@ Instead:
 - to control a dependency at a module boundary, mock the module in the spec
   (`vi.mock('@nestjs/cqrs', ...)`), which needs no production seam;
 - to reach an integration path that needs a Nest application, put the spec in
-  `ddd/users-api`, never in a published package — a published package must not
+  `api`, never in a published package — a published package must not
   depend on `@nestjs/testing`;
 - if the behavior genuinely cannot be reached from any real caller, that is dead
   code: delete it rather than testing it.
@@ -432,19 +432,19 @@ Before finalizing an architecture-sensitive change, verify:
 
 Prefer adapting these files rather than inventing a new pattern:
 
-- Command + pipeline + domain mutation: `ddd/users-api/src/users/cqrs/commands/create-user.handler.ts`
-- Command update flow: `ddd/users-api/src/users/cqrs/commands/update-user.handler.ts` (authoritative pattern: loads via write-side repository `findById`, throws framework-neutral `EntityNotFoundException` on absence, authorizes aggregate, calls domain update method, persists, and auto-publishes events via `CommandBaseHandler`)
-- Update repository with lifecycle decorators: `ddd/users-api/src/roles/persistence/update-role.command-repository.ts` and `ddd/users-api/src/users/persistence/update-user.command-repository.ts`
-- Create repository with lifecycle decorators: `ddd/users-api/src/users/persistence/create-user.command-repository.ts`
-- Conditional delete repository: `ddd/users-api/src/users/persistence/delete-user.command-repository.ts`
-- Authorized single query: `ddd/users-api/src/users/cqrs/queries/get-user.handler.ts`
-- Authorized collection query: `ddd/users-api/src/users/cqrs/queries/get-users.handler.ts`
-- Domain aggregate: `ddd/users-api/src/users/domain/models/user.entity.ts`
-- Framework-neutral domain error: `ddd/users-api/src/users/domain/models/errors/email.exception.ts`
-- HTTP mapping boundary: `ddd/users-api/src/common/filters/domain-exception.filter.ts`
-- Command lifecycle: `ddd/core/application/command-base.handler.ts`
-- Session cookie management: `ddd/users-api/src/auths/services/session.service.ts`
-- Permission source & principal discriminator: `ddd/users-api/src/auths/persistence/casl-permission.source.ts`
+- Command + pipeline + domain mutation: `api/src/users/cqrs/commands/create-user.handler.ts`
+- Command update flow: `api/src/users/cqrs/commands/update-user.handler.ts` (authoritative pattern: loads via write-side repository `findById`, throws framework-neutral `EntityNotFoundException` on absence, authorizes aggregate, calls domain update method, persists, and auto-publishes events via `CommandBaseHandler`)
+- Update repository with lifecycle decorators: `api/src/roles/persistence/update-role.command-repository.ts` and `api/src/users/persistence/update-user.command-repository.ts`
+- Create repository with lifecycle decorators: `api/src/users/persistence/create-user.command-repository.ts`
+- Conditional delete repository: `api/src/users/persistence/delete-user.command-repository.ts`
+- Authorized single query: `api/src/users/cqrs/queries/get-user.handler.ts`
+- Authorized collection query: `api/src/users/cqrs/queries/get-users.handler.ts`
+- Domain aggregate: `api/src/users/domain/models/user.entity.ts`
+- Framework-neutral domain error: `api/src/users/domain/models/errors/email.exception.ts`
+- HTTP mapping boundary: `api/src/common/filters/domain-exception.filter.ts`
+- Command lifecycle: `packages/ddd-core/application/command-base.handler.ts`
+- Session cookie management: `api/src/auths/services/session.service.ts`
+- Permission source & principal discriminator: `api/src/auths/persistence/casl-permission.source.ts`
 
 ## Architectural anti-patterns to avoid
 
@@ -454,7 +454,7 @@ Never introduce or re-introduce these patterns:
 - Merging session cookie logic, credential validation, and JWT operations into a single application service (use `SessionService` for presentation cookies and `UserLoginService` for domain login)
 - CQRS event handlers injecting BullMQ queues directly without application ports
 - Event handlers that only call `Logger`/`getCorrelationId()` without performing meaningful domain work
-- CQRS handlers importing persistence-specific error classifiers (e.g. `isTransientPersistenceError` from `@nestjs-pipeline/ddd-core/persistence`)
+- CQRS handlers importing persistence-specific error classifiers (e.g. `isTransientPersistenceError` from `@cqrs-ddd/core/persistence`)
 - Tenant-only pipeline cache keys for responses filtered by principal permissions
 - Defaulting missing tenant context to `'default'` instead of failing closed with `MissingTenantContextError`
 - Synthetic `new Auth({ userId, token: '' })` snapshots used as command payloads (pass explicit scalar parameters `{ userId, token }`)

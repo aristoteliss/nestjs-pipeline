@@ -1,7 +1,7 @@
 engine biome(1.0)
 language js(typescript)
 
-// `ddd/core` and the utility packages it will depend on are published as
+// `packages/ddd-core` and the utility packages it will depend on are published as
 // framework-neutral libraries, so none of their code, specs included, may import
 // NestJS: not `@nestjs/*`, not another `nestjs`-named ecosystem package, and not
 // an `@nestjs-pipeline/*` package, each of which brings NestJS with it. One such

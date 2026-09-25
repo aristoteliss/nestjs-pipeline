@@ -14,7 +14,7 @@ detail belongs in the files it points to.
    entry points, directories, commands, gotchas.
 4. The nested `CLAUDE.md` for the area you are editing, if one exists
    ([packages/](packages/CLAUDE.md), [packages/pipeline/](packages/pipeline/CLAUDE.md),
-   [ddd/core/](ddd/core/CLAUDE.md), [ddd/users-api/](ddd/users-api/CLAUDE.md)).
+   [packages/ddd-core/](packages/ddd-core/CLAUDE.md), [api/](api/CLAUDE.md)).
 5. The active task context file under `.claude/tasks/`, if the task has one.
 
 ## How to use the codebase map
@@ -51,9 +51,9 @@ Use repository-native commands. Never invent an equivalent, and never `npm`/`yar
 | Persistence Grit plugin diagnostics | `pnpm lint:persistence` |
 | Format and lint (Biome) | `pnpm check`, `pnpm format` |
 | Build | `pnpm build` |
-| Migrations (users-api) | `pnpm --filter @nestjs-pipeline/ddd-users-api db:migrate` |
-| Permission rules (users-api) | `pnpm --filter @nestjs-pipeline/ddd-users-api permissions:rebuild`, `permissions:verify` |
-| Session cleanup (users-api) | `pnpm --filter @nestjs-pipeline/ddd-users-api sessions:purge` |
+| Migrations (users-api) | `pnpm --filter @nestjs-pipeline/ddd-api db:migrate` |
+| Permission rules (users-api) | `pnpm --filter @nestjs-pipeline/ddd-api permissions:rebuild`, `permissions:verify` |
+| Session cleanup (users-api) | `pnpm --filter @nestjs-pipeline/ddd-api sessions:purge` |
 | Regenerate the codebase map | `pnpm context:update` |
 | Check the map is current | `pnpm context:check` |
 | Validate all context files | `pnpm context:validate` |
