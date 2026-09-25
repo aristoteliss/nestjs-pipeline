@@ -4,6 +4,9 @@
   "description": "Idempotency behavior for the NestJS pipeline — atomically excludes concurrent duplicates and replays stored successful responses per idempotency key, via a pluggable store (in-memory default, Redis/Postgres drop-in).",
   "author": "Aristotelis <aristotelis@ik.me>",
   "license": "SEE LICENSE IN LICENSE",
+  "engines": {
+    "node": ">=22.0.0"
+  },
   "keywords": [
     "nestjs",
     "pipeline",

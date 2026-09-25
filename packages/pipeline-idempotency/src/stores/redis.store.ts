@@ -23,7 +23,7 @@ return redis.call('DEL', KEYS[1])
 `;
 
 /**
- * Minimal structural shape of a `redis` (node-redis v4) client. Declared
+ * Minimal structural shape of a node-redis client (`redis` v4 or later). Declared
  * locally so this package does not hard-depend on `redis` — a real client
  * satisfies it. Add it in your app: `pnpm add redis`.
  *
@@ -52,7 +52,7 @@ export interface RedisIdempotencyStoreOptions {
 }
 
 /**
- * {@link IdempotencyStore} backed by **Redis** (node-redis v4) — a drop-in
+ * {@link IdempotencyStore} backed by **Redis** (node-redis) — a drop-in
  * replacement for the memory store that shares state across instances.
  *
  * Atomicity comes from Redis itself: {@link setIfAbsent} issues
@@ -60,6 +60,10 @@ export interface RedisIdempotencyStoreOptions {
  * exist and returns `null` otherwise. Owner-aware completion and release use
  * Lua scripts so a stale execution cannot overwrite/delete a newer claim.
  * TTL is enforced by Redis, so expired keys never linger.
+ *
+ * A stored value that is not valid JSON fails closed: {@link get} throws, and
+ * the owner-aware writes cannot prove ownership of it, so they leave it
+ * untouched and return `false`.
  *
  * @example
  * ```ts

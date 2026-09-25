@@ -97,8 +97,8 @@ function interpolateValue(
 
     return value.replace(
       /\$\{([^}]+)\}|\{\{\s*([^}]+?)\s*\}\}/g,
-      (_, p1: string | undefined, p2: string | undefined) => {
-        const prop = (p1 ?? p2 ?? '').trim();
+      (_, p1: string | undefined, p2: string) => {
+        const prop = (p1 ?? p2).trim();
         return String(resolvePlaceholder(principal, prop, conditionPath));
       },
     );

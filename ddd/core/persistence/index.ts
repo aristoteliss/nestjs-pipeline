@@ -10,7 +10,9 @@
  */
 
 export * from './assert-autocommit';
+export * from './cache/cache-entry';
 export * from './cache/memory.cache';
+export * from './cache/mikro-orm.cache';
 export * from './cache.interface';
 export * from './cache-logger';
 export * from './command-repository.abstract';
@@ -30,5 +32,6 @@ export * from './optimistic-delete';
 export * from './optimistic-update';
 export * from './query-repository.abstract';
 export * from './query-repository.interface';
+export * from './root-entity.properties';
 export * from './types/unix-timestamp.type';
 export * from './write-side-aggregate-repository.interface';

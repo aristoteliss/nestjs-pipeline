@@ -19,6 +19,10 @@ export {
 } from './feature-flag.behavior';
 export { FeatureFlagsModule } from './feature-flags.module';
 export {
+  FeatureDisabledFilter,
+  type FeatureDisabledFilterOptions,
+} from './filters/feature-disabled.filter';
+export {
   baseEvaluationContext,
   buildEvaluationContext,
 } from './helpers/evaluation-context';

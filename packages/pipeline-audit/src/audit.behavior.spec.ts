@@ -126,6 +126,17 @@ describe('AuditBehavior', () => {
     );
   });
 
+  it('reports no bootstrap diagnostic when the behavior has no effective options', () => {
+    const validate = AuditBehavior[PIPELINE_BEHAVIOR_CONTRACT].validate;
+
+    expect(
+      validate?.({
+        handlerName: 'DeleteUserHandler',
+        effectiveOptions: undefined,
+      } as unknown as PipelineBehaviorValidationContext),
+    ).toBeUndefined();
+  });
+
   it('merges module defaults into the options seen by bootstrap diagnostics', () => {
     const behavior = new AuditBehavior(sink, {
       actor: 'not-a-function' as never,
@@ -441,6 +452,25 @@ describe('AuditBehavior', () => {
         vi.fn().mockResolvedValue('ok'),
       );
       expect(result).toBe('ok');
+      expect(write).not.toHaveBeenCalled();
+    });
+
+    it('logs a non-Error thrown by a factory verbatim and fails open', async () => {
+      const logger = { warn: vi.fn(), error: vi.fn() };
+      const behavior = new AuditBehavior(sink, undefined, logger as never);
+      const ctx = withOptions(makeCtx(), {
+        actor: () => {
+          throw 'identity provider offline';
+        },
+      });
+
+      await expect(
+        behavior.handle(ctx, vi.fn().mockResolvedValue('ok')),
+      ).resolves.toBe('ok');
+      expect(logger.warn).toHaveBeenCalledWith(
+        'Failed to build audit record for CreateUserCommand: identity provider offline; failing open',
+        AuditBehavior.name,
+      );
       expect(write).not.toHaveBeenCalled();
     });
 

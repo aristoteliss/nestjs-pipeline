@@ -89,6 +89,16 @@ describe('LogAuditSink', () => {
     });
   });
 
+  it('pretty-prints the JSON record over multiple lines when pretty=true', () => {
+    const logger = { log: vi.fn(), warn: vi.fn() };
+    const record = makeRecord();
+
+    new LogAuditSink({ logger, pretty: true }).write(record);
+
+    const line = logger.log.mock.calls[0][0] as string;
+    expect(line).toBe(JSON.stringify(record, null, 2));
+  });
+
   it('preserves symbol-keyed own properties as tagged JSON entries', () => {
     const logger = { log: vi.fn(), warn: vi.fn() };
     const sink = new LogAuditSink({ logger });
@@ -138,6 +148,26 @@ describe('PostgresAuditSink', () => {
     });
   });
 
+  it('binds a NUL character or a lone surrogate as U+FFFD, which jsonb accepts', async () => {
+    const query = vi.fn().mockResolvedValue(undefined);
+    const sink = new PostgresAuditSink({ query });
+
+    await sink.write(
+      makeRecord({
+        payload: { note: 'a\u0000b', broken: '\ud800' },
+        metadata: { source: 'x\u0000' },
+      }),
+    );
+
+    const values = query.mock.calls[0][1] as unknown[];
+    expect(values[9]).not.toMatch(/\\u0000|\\ud800/);
+    expect(JSON.parse(values[9] as string)).toEqual({
+      note: 'a\ufffdb',
+      broken: '\ufffd',
+    });
+    expect(JSON.parse(values[13] as string)).toEqual({ source: 'x\ufffd' });
+  });
+
   it('rejects unsafe table identifiers', () => {
     const db: PostgresQueryableLike = { query: vi.fn() };
     expect(
@@ -182,5 +212,15 @@ describe('PostgresAuditSink', () => {
       env: 'production',
       tenantId: 'tenant-42',
     }); // metadata
+  });
+
+  it('stores the tenantId as metadata when the record carries no other metadata', async () => {
+    const query = vi.fn().mockResolvedValue(undefined);
+    const sink = new PostgresAuditSink({ query });
+
+    await sink.write(makeRecord({ tenantId: 'tenant-42' }));
+
+    const values = query.mock.calls[0][1] as unknown[];
+    expect(JSON.parse(values[13] as string)).toEqual({ tenantId: 'tenant-42' });
   });
 });

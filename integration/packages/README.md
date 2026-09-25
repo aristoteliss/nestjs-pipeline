@@ -4,8 +4,10 @@ Run `pnpm test:release` before publishing. It rebuilds the workspace, copies the
 licenses, and runs `release.mjs`. It is also part of `pnpm verify:all`.
 
 The script discovers every non-private `packages/*/package.json`, packs it, and
-checks the archive identity/version, licenses, JavaScript, declarations, and
-absence of tests or workspace/private DDD dependencies. Missing, duplicate, and
+checks the archive identity/version, licenses, JavaScript, declarations, an
+`engines.node` equal to the root `package.json`'s, a README without relative links
+outside the package (they break on npmjs.com), and absence of tests or
+workspace/private DDD dependencies. Missing, duplicate, and
 unexpected archives fail the check.
 
 A temporary consumer outside the checkout installs every package from its tarball.

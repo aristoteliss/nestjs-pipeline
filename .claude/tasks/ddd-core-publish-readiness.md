@@ -102,7 +102,7 @@ merging or publishing.
 
 ## Current Status
 
-In progress. A1, A2, A3, A5, A7, N1–N6, C1 and C2 done; next is B9–B11, then C3 with A4.
+In progress. Phase 1 complete and Gate 1 green on `5c94efee` (2026-09-25); next is phase 2, U1. A1–A5, A7, B9–B11, N1–N6 and A6, B1–B4, B7, B8, C1–C8 and D4 done.
 Section T (`@nestjs-pipeline/tenant`)
 was added to phase 2 on 2026-09-24. Baseline `e60c689a` on branch `review`. Facts
 verified on 2026-09-23 and 2026-09-24 by running commands (no code changed):
@@ -215,7 +215,7 @@ No folder moves, new packages or renames in this phase.
   global `Function`. Reject a function target with the existing
   `'@Mutable() supports instance properties only.'` TypeError.
   Verify: a spec expects the TypeError and no symbol on `Function`.
-- [ ] A4. **Missing tenant context answers 400 instead of 500.** This is a code-path
+- [x] A4. **Missing tenant context answers 400 instead of 500.** This is a code-path
   inference; confirm it with a test first. `ddd/core`'s `MissingTenantContextError` extends
   `DomainException`, and `filterCacheKey`/`cacheKeyTemplate` throw it. users-api's
   `DomainExceptionFilter` sends every unclassified `DomainException` to 400. A missing tenant
@@ -225,14 +225,15 @@ No folder moves, new packages or renames in this phase.
   - Then delete users-api's duplicate class (`common/cqrs/helpers/requireTenantId.helper.ts`,
     which extends `Error` and currently gives a plain 500) and use `ddd/core`'s.
 
-  Verify: a filter spec and a request-level test both return 500.
+  Verify: a filter spec and a request-level test both return 500. Done with C3 (see
+  Modified Files).
 - [x] A5. **Unguarded logger in `@Cache`'s outer catch** (reproduced on the old code; fixed in N3).
   `ddd/core/persistence/decorators/Cache.ts`, around line 291, runs only when a
   `logger.warn` inside an inner catch throws. Its own `logger.warn` is unguarded, so a
   throwing logger turns a durable write into an error. Guard it, never rethrow. Fix it
   together with N3.
   Verify: a spec with a throwing logger resolves the `save()` result.
-- [ ] A6. **Real-backend tests for the untested adapters** (BullMQ already has
+- [x] A6. **Real-backend tests for the untested adapters** (BullMQ already has
   `test/bullmq-deadletter.e2e-spec.ts`), in `ddd/users-api/test/` with
   Testcontainers (pattern: `postgres-idempotency-store.e2e-spec.ts`):
   - `PostgresAuditSink` and `PostgresDeadLetterTransport`, against Postgres, using
@@ -276,27 +277,27 @@ No folder moves, new packages or renames in this phase.
 
 #### B. Missing pieces in the published packages
 
-- [ ] B1. **Enforced coverage.** Add core's `vitest.config.ts` coverage thresholds
+- [x] B1. **Enforced coverage.** Add core's `vitest.config.ts` coverage thresholds
   (`perFile`, 100% on all four metrics, production `src/**/*.ts`, no exclusions, no ignore
   directives) to the ten packages without them. Close the gaps in the table above with
   behavior tests; remove a branch only after establishing that it is unreachable.
-- [ ] B2. **`engines`.** Add `"engines": { "node": ">=22.0.0" }` (the root requirement) to
+- [x] B2. **`engines`.** Add `"engines": { "node": ">=22.0.0" }` (the root requirement) to
   every package and to `ddd/core`. The phase 2 packages get it in U1/S1.
-- [ ] B3. **README links on npmjs.com.** Replace relative links outside the package with
+- [x] B3. **README links on npmjs.com.** Replace relative links outside the package with
   absolute `https://github.com/aristoteliss/nestjs-pipeline/blob/master/...` URLs. Drop the
   cache README's link to the internal architecture skill.
   Verify: `grep -nE "\]\(\.\./" packages/*/README.md` prints nothing.
-- [ ] B4. **`PostgresIdempotencyStore` class JSDoc.** It sits above the `assertLeaseTtl`
+- [x] B4. **`PostgresIdempotencyStore` class JSDoc.** It sits above the `assertLeaseTtl`
   comment, so the class has no doc comment. Move it onto the class.
-- [ ] B8. **pipeline-cache diagnostic names a function it does not export.** The
+- [x] B8. **pipeline-cache diagnostic names a function it does not export.** The
   missing-`key` bootstrap diagnostic in `packages/pipeline-cache/src/cache.behavior.ts`
   (around line 152) suggests `cacheKeyTemplate(...)`. `@nestjs-pipeline/cache` does not
   export that function; it lives in `ddd/core`. Point it only at
   `createPartitionedCacheKeyFactory(...)`, or at a function the package exports, and keep
   the diagnostic test in step.
-- [ ] B7. **Correlation README install command.** Add its required peers
+- [x] B7. **Correlation README install command.** Add its required peers
   (`@nestjs-pipeline/core`, `@nestjs/common`) to both install lines, as the other READMEs do.
-- [ ] B9. **`FeatureDisabledFilter` belongs in `@nestjs-pipeline/feature-flags`.** users-api's
+- [x] B9. **`FeatureDisabledFilter` belongs in `@nestjs-pipeline/feature-flags`.** users-api's
   `src/common/filters/feature-disabled.filter.ts` maps that package's own
   `FeatureDisabledError` to HTTP. The package ships no filter, although rate-limit, zod and
   idempotency each ship one for their own error.
@@ -310,8 +311,8 @@ No folder moves, new packages or renames in this phase.
   - README section; B5 notes it.
 
   Verify: the package spec at 100% coverage, including the 404 option; users-api tests and
-  `pnpm test:e2e` pass.
-- [ ] B10. **`UnauthorizedActionFilter` belongs in `@nestjs-pipeline/casl`.** users-api's
+  `pnpm test:e2e` pass. Done (see Modified Files).
+- [x] B10. **`UnauthorizedActionFilter` belongs in `@nestjs-pipeline/casl`.** users-api's
   `src/common/filters/unauthorized-action.filter.ts` maps that package's own
   `UnauthorizedActionException` to 403.
   - Move the filter and its spec into the package (`src/filters/`, exported). Keep the
@@ -322,7 +323,8 @@ No folder moves, new packages or renames in this phase.
   - README section; B5 notes it.
 
   Verify: the package spec at 100% coverage; users-api tests and `pnpm test:e2e` pass.
-- [ ] B11. **`createMapper` belongs in `@nestjs-pipeline/zod`, as `createZodMapper`.**
+  Done (see Modified Files).
+- [x] B11. **`createMapper` belongs in `@nestjs-pipeline/zod`, as `createZodMapper`.**
   users-api's `src/common/mappers/create-mapper.helper.ts` parses input with a Zod schema
   and returns `{ schema, map(input) }`. It is a controller-layer Zod adapter like `ZodPipe`,
   and nothing in it is specific to users-api.
@@ -339,7 +341,7 @@ No folder moves, new packages or renames in this phase.
   - README section; B5 notes it.
 
   Verify: the package spec at 100% coverage, asserting the `flatten()` body; users-api tests
-  and `pnpm test:e2e` pass.
+  and `pnpm test:e2e` pass. Done (see Modified Files).
 
 #### N. Independence from NestJS (`ddd/core`)
 
@@ -441,7 +443,7 @@ in `ddd/core` in framework-neutral, reusable form, then make users-api consume i
   plus `mapPersistenceError`. Put it in `ddd/core/persistence`, and replace its
   `MikroOrmStore` dependency with a minimal store port (`{ readonly em: EntityManager }`).
   Done (see Modified Files).
-- [ ] C3. **Tenant context error and `requireTenantId`.** users-api's
+- [x] C3. **Tenant context error and `requireTenantId`.** users-api's
   `MissingTenantContextError` (`src/common/cqrs/helpers/requireTenantId.helper.ts`) duplicates
   `ddd/core`'s class under the same name with a different base class. `ddd/core`'s class is
   the one. Do C3 together with A4, which maps it to 500: switching the class alone would
@@ -456,8 +458,8 @@ in `ddd/core` in framework-neutral, reusable form, then make users-api consume i
     `resolveTenantSchema`. Their golden keys and fail-closed cases must pass unchanged.
   - Its only users-api caller, `src/common/cqrs/helpers/idempotent-operation.helper.ts`,
     imports it from `@nestjs-pipeline/ddd-core/application`. Delete the users-api helper and
-    port its spec cases.
-- [ ] C4. **MikroORM cache adapter.** `MikroOrmCache` and `CacheEntry` (users-api
+    port its spec cases. Done with A4 (see Modified Files).
+- [x] C4. **MikroORM cache adapter.** `MikroOrmCache` and `CacheEntry` (users-api
   `src/persistence/cache/`) are the MikroORM `IVersionedCache` implementation.
   `ddd/core/README.md` names `MikroOrmCache` as the second `IVersionedCache`
   implementation.
@@ -472,12 +474,19 @@ in `ddd/core` in framework-neutral, reusable form, then make users-api consume i
     `cache-adapter-conformance.spec.ts` against it.
   - Keep revision fencing, identity-map bypass and conditional expiry exactly as they are.
   - Move `cache-adapter-conformance.spec.ts` with it.
-- [ ] C5. **Root-entity schema mapping.** `rootEntityProperties()` and `versionProperty()`
+  - Part 1 done (see Modified Files). The store port is `ITransactionalEntityManagerSource`
+    (C2's `IEntityManagerSource` plus `transactional(work)`): the adapter runs every write in
+    a transaction on a manager dedicated to the call, which `em` alone cannot express.
+  - Part 2 done (see Modified Files). A `ddd/core` spec cannot run against Postgres, so
+    the real-backend check is a users-api e2e suite that mirrors the conformance and
+    fencing cases; coverage came from targeted fencing specs rather than parametrizing
+    `versioned-cache.contract.spec.ts`.
+- [x] C5. **Root-entity schema mapping.** `rootEntityProperties()` and `versionProperty()`
   (users-api `src/persistence/schemas/root-entity.properties.ts`) map `RootEntity`'s
   identity, timestamp and version accessors for MikroORM. Put them in `ddd/core/persistence`
   with configurable column names. The defaults are the current `created_at`/`updated_at`
   names, so users-api's schemas stay unchanged.
-- [ ] C6. **Error-to-HTTP-status mapping, framework-neutral.**
+- [x] C6. **Error-to-HTTP-status mapping, framework-neutral.**
   - `@cqrs-ddd/core` exports, from a new `/http` entry point, a pure function that maps its
     own errors to an HTTP status and label: 409 `ConcurrencyConflictError`, 404
     `EntityNotFoundException`, 500 `MissingTenantContextError`, 400 for any other
@@ -486,14 +495,14 @@ in `ddd/core` in framework-neutral, reusable form, then make users-api consume i
   - users-api's Nest `DomainExceptionFilter` stays in users-api. It uses the function for
     `ddd/core` errors and keeps its own mappings (unique email/role name 409, validation 422,
     auth 401/500).
-- [ ] C7. **Dead branches found by coverage.**
+- [x] C7. **Dead branches found by coverage.**
   - `ddd/core/persistence/helpers/filter-cache-key.helper.ts:138`: its only caller already
     excludes `null`/`undefined`. Remove the branch.
   - `ddd/core/domain/events/root-domain.event.ts:120`: `if (desc)` is always true for an own
     key. Remove it, or cover it if Proxy input must be supported.
   - `ddd/core/persistence/command-repository.abstract.ts:43`: the constructor is never run
     by `ddd/core` specs. Cover it with a minimal subclass spec.
-- [ ] C8. **Docs after the moves.**
+- [x] C8. **Docs after the moves.**
   - Update `ddd/core/README.md` (entry points, configuration, the cache adapter, the store
     port, the status mapping), `ddd/core/CLAUDE.md` (Ownership, Independence) and
     `ddd/users-api/CLAUDE.md`.
@@ -503,17 +512,35 @@ in `ddd/core` in framework-neutral, reusable form, then make users-api consume i
 
 #### Phase 1 coverage
 
-- [ ] D4. **`ddd/core` coverage.** After C7, enforce 100% like core (in its current folder).
+- [x] D4. **`ddd/core` coverage.** After C7, enforce 100% like core (in its current folder).
 
 #### Gate 1: everything correct in the current structure
 
-- [ ] G1. Before any folder move, new package or rename:
+- [x] G1. Before any folder move, new package or rename:
   - `pnpm install --frozen-lockfile`, `pnpm build`, `pnpm lint`, `pnpm check`,
     `pnpm lint:persistence`, `pnpm test`, `pnpm test:e2e` (Docker) and
     `pnpm test:release` all pass;
   - every package and `ddd/core` meets its enforced 100% coverage;
   - `ddd/core` has no `@nestjs/*` or `@nestjs-pipeline/*` import or dependency (N6);
   - users-api behaves as before. Record the results here.
+
+  Results (2026-09-25, commit `5c94efee`, clean tree before and after):
+  - exit 0: `pnpm install --frozen-lockfile --offline`, `pnpm build`, `pnpm lint`,
+    `pnpm check`, `pnpm lint:persistence`, `pnpm test`, `pnpm test:e2e`,
+    `pnpm test:release`;
+  - `pnpm test`: core 331, `ddd/core` 620, audit 86, cache 93, casl 192, correlation 93,
+    deadletter 58, feature-flags 56, idempotency 140, opentelemetry 67, rate-limit 52,
+    resilience 56, zod 141, users-api 717; no coverage-threshold error;
+  - `pnpm test:e2e`: 191 tests in 35 files; `pnpm test:release`: 12 packed packages,
+    core lifecycle, CASL 7;
+  - all 12 package configs and `ddd/core` have `perFile` and 100% on all four metrics; no
+    `v8`/`c8`/`istanbul` ignore directive in `packages/*/src` or `ddd/core`;
+  - `ddd/core`: no `dependencies`; `@mikro-orm/core` the only, optional, peer; every
+    `@nestjs` import text in it is a template-string fixture in the two Biome plugin
+    specs; `framework-independence.grit` and `domain-entry-point.spec.ts` pass;
+  - users-api: unit and e2e suites pass unchanged in behavior.
+  - Still open, not blocking: the `PostgresIdempotencyStore` `jsonb` question (Open
+    Questions).
 
   Phase 2 starts only when everything here is green.
 
@@ -533,6 +560,7 @@ Method:
 | `safeStringify`, `safeSanitize`, `redactValue`, `DEFAULT_REDACT_KEYS`, `REDACTED`, `SanitizeOptions` | core `helpers/safeStringify.ts` | audit, deadletter, users-api | `@cqrs-ddd/safe-stringify` (S) |
 | `joinKeySegments`, `escapeKeySegment`, `ABSENT_SEGMENT` | core `helpers/key-segment.ts` (no imports) | cache, idempotency, rate-limit, users-api | `@cqrs-ddd/safe-stringify` (S): key text for identity, next to `stableStringify` |
 | `\`/`:` escaping inside `cacheKeyTemplate` | `ddd/core/persistence/helpers/filter-cache-key.helper.ts:143` (a second copy of `escapeKeySegment`, same output) | `ddd/core` | replace with `escapeKeySegment` from `@cqrs-ddd/safe-stringify` (S2) |
+| `toPostgresJson` | core `helpers/postgres-json.ts` | audit, deadletter | stays in core: Postgres `jsonb` text, not serialization; revisit with the idempotency question in Open Questions |
 | `untyped` | core `types/safe-typing.ts` | correlation, idempotency, opentelemetry, zod | stays in core: a type-only cast for the Nest packages, and no `@cqrs-ddd` package needs it |
 | `assertSafeTable`, `SAFE_IDENTIFIER` | audit, deadletter and idempotency Postgres adapters (three copies) | none | stays per package: Postgres-specific, with a package-specific error message; neither new package is about SQL |
 | `inScope` | cache and idempotency behaviors | none | stays: two lines each, over different option types |
@@ -690,7 +718,11 @@ and users-api. `ddd/core`'s `cacheKeyTemplate` has its own copy of the escaping.
   - `packages/CLAUDE.md`, which is scoped to `@nestjs-pipeline/*` and says packages depend on
     `@nestjs-pipeline/core`: add the three framework-neutral `@cqrs-ddd/*` packages
     (`ddd-core`, `uuidv7`, `safe-stringify`) as their own group, with no Nest dependency;
-  - the codebase map.
+  - the codebase map;
+  - `ddd/core/README.md`'s 13 relative links (`../../.agents/...`, `../users-api/...`): make
+    them absolute GitHub URLs on the new `api/` paths, and drop the architecture-skill
+    link, as B3 did for the packages. `pnpm test:release` rejects `](../` in a packed
+    README once the package is published.
 
   `verify-package-licenses.grit` forbids published packages from importing
   `@nestjs-pipeline/ddd-*`. Change it to forbid `@nestjs-pipeline/*` packages from importing
@@ -1176,6 +1208,336 @@ Do it after D3. The release check installs every required peer, and it cannot in
     - `pnpm check` and `pnpm lint:persistence` pass;
     - `pnpm test:e2e`: 165 tests in 31 files pass.
 
+- B9:
+  - Moved with `git mv`: users-api `src/common/filters/feature-disabled.filter.ts` and its
+    spec → `packages/pipeline-feature-flags/src/filters/`, exported with
+    `FeatureDisabledFilterOptions` from the package entry.
+  - Default behavior unchanged: 403 with `statusCode`, `error`, `message` and `flag`.
+  - New option `{ status: 404 }`: a plain `{ statusCode: 404, error: 'Not Found',
+    message: 'Not Found' }`. It omits the flag and the error message, because both name
+    the gated feature. The old JSDoc advice ("adjust the status to 404"), and the README's
+    hand-written 404 example, both kept the message.
+  - The options parameter is `@Optional()`, so `{ provide: APP_FILTER, useClass:
+    FeatureDisabledFilter }` keeps working; a spec pins the metadata, because a package
+    may not use `@nestjs/testing`.
+  - Spec: the 2 original cases kept; added the explicit 403, the 404 body (no flag or
+    request name anywhere in it) and the optional parameter. The filter is 100% covered.
+  - users-api: `src/bootstrap.ts` and `test/support/e2e-app.ts` import the filter from
+    `@nestjs-pipeline/feature-flags`.
+  - Docs: the package README ("Mapping the Error to HTTP" now uses the shipped filter; two
+    API rows), the `FeatureDisabledError` JSDoc, and `ddd/users-api/CLAUDE.md`.
+  - Verified:
+    - feature-flags: rebuilt; lint is clean; 46 tests in 7 files pass;
+    - users-api: lint is clean; 751 tests in 107 files pass (the 2 moved tests left);
+    - `pnpm check` and `pnpm lint:persistence` pass;
+    - `pnpm test:e2e`: 165 tests in 31 files pass;
+    - `pnpm test:release`: "Release verification passed: 12 packed packages"; the packed
+      feature-flags loads with 18 exports. There was no network: pnpm retried the registry,
+      then installed from the local store.
+
+- B10:
+  - Moved with `git mv`: users-api `src/common/filters/unauthorized-action.filter.ts` and
+    its spec → `packages/pipeline-casl/src/filters/`, exported from the package entry.
+    Behavior and response body unchanged (403 with `statusCode`, `error`, `message`,
+    `action`, `subject`); the JSDoc gained a registration example.
+  - Spec: the 2 original cases kept; added the Fastify `send()` path, which was untested.
+    The filter is 100% covered.
+  - users-api: `src/bootstrap.ts`, `test/support/e2e-app.ts` and
+    `test/cqrs-runtime-errors.spec.ts` import the filter from `@nestjs-pipeline/casl`.
+  - Docs: the package README (Errors section shows the filter; one API row) and
+    `ddd/users-api/CLAUDE.md`.
+  - Verified:
+    - casl: rebuilt; lint is clean; 192 tests in 7 files pass;
+    - users-api: lint is clean; 749 tests in 106 files pass (the 2 moved tests left);
+    - `pnpm check` and `pnpm lint:persistence` pass;
+    - `pnpm test:e2e`: 165 tests in 31 files pass;
+    - `pnpm test:release`: "Release verification passed: 12 packed packages"; the packed
+      casl loads with 20 exports.
+
+- B11:
+  - Moved with `git mv`: users-api `src/common/mappers/create-mapper.helper.ts` and its spec
+    → `packages/pipeline-zod/src/pipes/create-zod-mapper.ts`, exported as
+    `createZodMapper` with a `ZodMapper` interface. It sits in `pipes/` beside `ZodPipe`
+    because it throws a Nest HTTP exception, which `transport-neutral-errors.grit` allows
+    only in presentation folders.
+  - Failures throw `BadRequestException(error.flatten())`, as `ZodPipe` does, instead of
+    `z.treeifyError(...)`. Parsing stays synchronous; the JSDoc says so.
+  - Spec: the original success case kept; the failure case now asserts the exact
+    `{ formErrors, fieldErrors }` body (it only checked the type before). Added: transform
+    output and `schema` reuse, and a case proving the body equals `ZodPipe`'s for the
+    same input. The module is 100% covered.
+  - users-api: the five mappers import `createZodMapper` from `@nestjs-pipeline/zod`;
+    `src/common/mappers/` is gone.
+  - Docs: the package README (new `createZodMapper` section, contents entry, two API rows)
+    and `ddd/users-api/CLAUDE.md`.
+  - Verified:
+    - zod: rebuilt; lint is clean; 141 tests in 14 files pass;
+    - users-api: lint is clean; 747 tests in 105 files pass (the 2 moved tests left);
+    - `pnpm check` and `pnpm lint:persistence` pass;
+    - `pnpm test:e2e`: 165 tests in 31 files pass;
+    - `pnpm test:release`: "Release verification passed: 12 packed packages"; the packed
+      zod loads with 13 exports.
+
+- C3 + A4:
+  - `ddd/core/application/tenant-scope.ts`: new exported `TenantSource` type and
+    `requireTenantId(source, purpose)`: an explicit string wins (an empty one fails), an
+    object's `tenantId` comes next, then the `runWithTenant` scope; otherwise it throws
+    `ddd/core`'s `MissingTenantContextError`. Full JSDoc with an example.
+  - `filterCacheKey` and `cacheKeyTemplate` use it; their private `resolveTenantSchema` is
+    gone, and `CacheKeyTenantSource` is now an alias of `TenantSource`, so no export
+    changed. The 15 frozen keys and every fail-closed case pass unchanged.
+  - users-api: `idempotent-operation.helper.ts` imports `requireTenantId` from
+    `/application`; `src/common/cqrs/helpers/requireTenantId.helper.ts` (the duplicate
+    class, which had no spec) is deleted.
+  - **A4 reproduced first**: a filter spec with `ddd/core`'s error failed with 400. The
+    filter now maps it to 500 with a generic `Internal server error` message, the body
+    Nest's default handler gave users-api's old class, because the `ddd/core` message is
+    guidance for developers. The JSDoc table lists it.
+  - Dead-letter capture is unchanged: `EXPECTED_REJECTIONS` lists concrete classes, and
+    its spec already uses `ddd/core`'s class as a capturable failure.
+  - Specs: 7 `requireTenantId` cases in `tenant-scope.spec.ts` (`tenant-scope.ts` is 100%
+    covered); the filter case; new `test/missing-tenant-boundary.e2e-spec.ts`, where a
+    real `GET /users` whose handler rejects with the error answers the generic 500.
+  - Docs: `ddd/core/README.md` (tenant section: `requireTenantId`, `TenantSource`, map
+    the error to 500), `ddd/core/CLAUDE.md`, `ddd/users-api/CLAUDE.md`.
+  - Verified:
+    - `ddd/core`: rebuilt; 540 tests in 32 files pass; lint is clean;
+    - users-api: lint is clean; 748 tests in 105 files pass;
+    - `pnpm check` and `pnpm lint:persistence` pass;
+    - `pnpm test:e2e`: 166 tests in 32 files pass (one new file).
+
+- C4, part 1 (the move):
+  - Moved with `git mv` into `ddd/core/persistence/cache/`: `mikro-orm.cache.ts`, its spec,
+    `cache-adapter-conformance.spec.ts`, and `cache.entity.ts` → `cache-entry.ts`. users-api's
+    `schemas/cache.schema.ts` is deleted; its mapping is now `createCacheEntrySchema(table)`
+    and `CacheEntrySchema` in `cache-entry.ts` (table name validated like the audit sink's).
+    All exported from `/persistence`.
+  - `MikroOrmCache` is a plain class: no Nest decorators, constructor
+    `(store: ITransactionalEntityManagerSource, { defaultTtlMs?, logger? })`. The N3
+    `ICacheLogger` replaces the Nest `Logger` (default `console.warn` with a
+    `[MikroOrmCache]` prefix; guarded by `safeWarn`). Fencing, identity-map bypass and
+    expiry logic are unchanged.
+  - **Schema fix**: `expiresAt` was `type: 'number'`, which MikroORM's schema generator
+    creates as a 32-bit `int`, too small for epoch milliseconds. It is now
+    `columnType: 'bigint'`, as in the migration. `test/cache-concurrency.e2e-spec.ts` no
+    longer needs its `ALTER COLUMN ... TYPE bigint` workaround.
+  - users-api: `persistence.module.ts` registers the cache with a `useFactory` provider,
+    passing its store and the new `mikroOrmCacheLogger`; `persistence-entities.ts`
+    registers `CacheEntrySchema`.
+  - Specs: every moved case kept. The conformance spec's `User` case uses a local `Member`
+    aggregate; the warning case passes `logger` instead of spying on a private field.
+    Added: the default `[MikroOrmCache]` console warning, a throwing logger that does not
+    fail the write, and `cache-entry.spec.ts` (default table, `bigint` expiry, accepted and
+    rejected table names).
+  - Docs: `ddd/core/README.md` (`MikroOrmCache` entry: construction, store port, schema),
+    `ddd/core/CLAUDE.md`, `ddd/users-api/CLAUDE.md`, root `README.md` layout,
+    `ddd/users-api/src/persistence/README.md` and the architecture skill. The last two
+    described a conditional deletion of expired rows that the adapter no longer does; they
+    now say that expired rows are reported as `expired` and kept.
+  - Verified:
+    - `ddd/core`: rebuilt; 582 tests in 35 files pass; lint is clean;
+    - users-api: lint is clean; 717 tests in 103 files pass (the moved specs left);
+    - `pnpm check` and `pnpm lint:persistence` pass;
+    - `pnpm test:e2e`: 166 tests in 32 files pass, including the real-Postgres
+      `cache-concurrency.e2e-spec.ts` on a table created from `CacheEntrySchema` alone.
+
+- C4, part 2:
+  - `createCacheTableSql(table = 'cache')` in `persistence/cache/cache-entry.ts`, exported:
+    the migration's columns (`key` varchar(255) primary key, `value` text, `expires_at`
+    bigint null, `revision` bigint default 0) plus `<table>_expires_at_idx`, with the table
+    name validated. Spec pins the exact SQL, the schema-qualified index name and rejection.
+  - `mikro-orm.cache.ts` is 100% covered (was 80.5%): new specs for the absent-key
+    tombstone, a lost insert race, a missing revision, 16-conflict exhaustion, the four
+    fills observed at revision 0, zero TTL and an expired value under `isNewer`.
+  - New `ddd/users-api/test/mikro-orm-cache.postgres.e2e-spec.ts` (Testcontainers): creates
+    the table with the helper and checks its columns and index, then round-trip with a
+    bigint expiry, expiry keeping the revision, `isNewer`, delete advancing the revision,
+    a stale fill rejected after invalidation, and exactly one of two competing fills.
+  - Observed, not a defect: `set()` on an absent key inserts revision 1, then loops and
+    writes through the compare-and-set path, ending at revision 2. Revisions are opaque
+    and only need to advance; the suite asserts advancement, not numbers.
+  - Verified:
+    - `ddd/core`: 597 tests in 35 files pass; lint is clean;
+    - users-api: lint is clean; 717 tests in 103 files pass;
+    - `pnpm check` and `pnpm lint:persistence` pass;
+    - `pnpm test:e2e`: 173 tests in 33 files pass; the new suite passed 3 separate runs.
+
+- C5:
+  - New `ddd/core/persistence/root-entity.properties.ts`, exported from `/persistence`:
+    `rootEntityProperties(columns?: RootEntityColumns)` and `versionProperty(column?)`.
+    Defaults are `id`, `created_at`, `updated_at` and `version`. JSDoc kept and extended.
+  - The four users-api schemas import them from `@nestjs-pipeline/ddd-core/persistence`;
+    users-api's `src/persistence/schemas/root-entity.properties.ts` is deleted.
+  - New spec (7 tests): default mapping, partial overrides, fresh definitions per call,
+    acceptance by an `EntitySchema`.
+  - Docs: `ddd/core/README.md` entry, ownership lists in `ddd/core/CLAUDE.md` and
+    `ddd/users-api/CLAUDE.md`.
+  - Verified:
+    - `ddd/core`: 604 tests in 36 files pass; build is clean;
+    - users-api: 717 tests in 103 files pass; `pnpm lint` is clean;
+    - `pnpm test:e2e`: 173 tests in 33 files pass (the schemas run on Postgres unchanged);
+    - `pnpm check`, `pnpm lint:persistence` and `pnpm context:validate` pass.
+
+- C6:
+  - New `/http` entry point (`ddd/core/http/`, `package.json` `exports`, `tsconfig.json`,
+    root barrel): `domainErrorHttpStatus(error)` returns `{ statusCode, error, message }`,
+    or `undefined` for anything that is not a `DomainException`. An overload types the
+    result of a `DomainException` as always defined. 500 for a missing tenant carries a
+    generic message.
+  - users-api `DomainExceptionFilter` keeps its own mappings and returns
+    `domainErrorHttpStatus(exception)` for the rest; its responses are unchanged.
+  - `domain-entry-point.spec.ts` also loads `dist/http/index.js` (no `@nestjs`, no
+    `@mikro-orm`). New spec: 10 tests.
+  - Docs: `ddd/core/README.md`, both `CLAUDE.md` files, map Conventions rows, the
+    `ddd-entry-points.grit` message.
+  - Verified:
+    - `ddd/core`: 615 tests in 37 files pass; build is clean;
+    - users-api: 717 tests in 103 files pass, filter specs unchanged; `pnpm lint` is clean;
+    - `pnpm test:e2e`: 173 tests in 33 files pass;
+    - `pnpm check`, `pnpm lint:persistence` and `pnpm context:validate` pass.
+
+- C7:
+  - `filter-cache-key.helper.ts`: `canonicalizeValue` takes `NonNullable<unknown>` and its
+    `null`/`undefined` branch is gone; its only caller already excludes both.
+  - `root-domain.event.ts`: `if (desc)` kept, because a Proxy may list a configurable key
+    in `ownKeys` and report no descriptor for it; without the guard
+    `Object.defineProperty` would throw. Covered by a new Proxy case in
+    `domain.event.spec.ts`.
+  - New `command-repository.abstract.spec.ts` runs the constructor through a subclass.
+  - Verified:
+    - the three files are at 100% statements, branches, functions and lines;
+    - `ddd/core`: 617 tests pass; rebuild and lint are clean;
+    - users-api: 717 tests pass;
+    - `pnpm check`, `pnpm lint:persistence` and `pnpm context:validate` pass;
+    - `pnpm test:e2e` not rerun: no runtime behavior changed.
+
+- C8:
+  - Most C8 docs were updated with each move (C1–C7). This step checked the rest against
+    the source and fixed:
+    - users-api `src/persistence/README.md`: `/persistence` imports instead of the root
+      barrel; create and update repositories use `@PersistedWrite`; deletes use
+      `optimisticDelete` and raise `ConcurrencyConflictError`, not `OptimisticLockError`;
+      `@Cache` invalidates versioned caches and writes a barrier only to unversioned ones,
+      for `barrierTtl` (60 s default), not `ttl: 0`; identity-map bypass covers every read.
+    - users-api `src/common/filters/README.md`: the full status mapping and
+      `domainErrorHttpStatus()`; the missing-tenant e2e suite.
+    - `ddd/users-api/CLAUDE.md`: filter row and ownership sentence.
+    - Codebase map: Critical Modules list what `ddd/core/persistence` and `/http` now own;
+      users-api persistence no longer claims transient-error classification; the Biome
+      plugin-spec glob matches both files.
+    - `Cache.ts` JSDoc of `evictKey`: `@FromCache` bypasses unversioned adapters and treats
+      a barrier as a miss.
+  - Every file path named in the skill, the map, the `ddd/core` README and the users-api
+    persistence README exists.
+  - Verified: `pnpm check`, `pnpm lint:persistence`, `pnpm context:validate` pass;
+    `ddd/core` 617 tests pass after the JSDoc change.
+
+- A6:
+  - New `ddd/users-api/test/postgres-audit-dead-letter.e2e-spec.ts` (Testcontainers
+    Postgres, 8 tests): both adapters on tables from `createAuditTableSql()` and
+    `createDeadLetterTableSql()`, default and schema-qualified; arrays, nested objects,
+    Greek, CJK and emoji text; tagged BigInt and Infinity; JSON null versus SQL NULL.
+  - Defect found and fixed: `jsonb` rejects a NUL character ("unsupported Unicode escape
+    sequence") and a lone surrogate ("invalid input syntax for type json"), so either
+    one in a payload or error message failed the whole `INSERT`; the dead-letter behavior
+    logs that and the dead letter is lost. New `toPostgresJson(json)` in
+    `@nestjs-pipeline/core` (`helpers/postgres-json.ts`, exported, 7 specs) replaces only
+    those escapes with U+FFFD, keeping escaped backslashes and valid surrogate pairs.
+    `PostgresAuditSink` and `PostgresDeadLetterTransport` use it; a unit spec each and the
+    e2e suite pin it. READMEs of core, audit and deadletter updated.
+  - New `ddd/users-api/test/redis-idempotency-store.e2e-spec.ts` (Testcontainers Redis,
+    real node-redis `@redis/client` 5.12.1, added as a users-api devDependency from the
+    local store, 10 tests): claim with TTL, one winner of 10 concurrent claims,
+    complete-if-owned with the new TTL, ownership lost after expiry for complete and
+    delete, completed or absent records not completed, release then reclaim, `set` and
+    `delete`, key prefix.
+  - Corrupt-value inconsistency settled: both behaviors fail closed and stay. `get()`
+    throws `SyntaxError`, so the request fails before the handler runs; the Lua scripts
+    cannot prove ownership, so they return `false` and leave the value untouched;
+    `setIfAbsent` also leaves it. Documented in `redis.store.ts` and the idempotency
+    README; the e2e suite pins it. The README and JSDoc now say node-redis v4 or later.
+  - Open: the same `jsonb` limit in `PostgresIdempotencyStore` (see Open Questions).
+  - Verified:
+    - `pnpm build`, `pnpm test` (every workspace), `pnpm lint`, `pnpm check` and
+      `pnpm lint:persistence` pass;
+    - `pnpm test:e2e`: 191 tests in 35 files pass;
+    - `pnpm test:release`: 12 packed packages pass.
+
+- B1:
+  - Core's coverage block (`enabled`, `include: ['src/**/*.ts']`, `perFile`, 100% on all
+    four metrics) added to the `vitest.config.ts` of audit, cache, casl, deadletter,
+    feature-flags, idempotency, opentelemetry, rate-limit, resilience and zod. Rate-limit
+    and zod were already at 100%.
+  - 20 files closed, almost all with behavior tests (audit +9, deadletter +4, cache +4,
+    feature-flags +10, opentelemetry +4, resilience +4). No ignore directive, no
+    exclusion, no production seam; no defect found.
+  - Two branches removed as unreachable:
+    - casl `helpers/ability.ts`: `p1 ?? p2 ?? ''` became `p1 ?? p2`. Each alternative of
+      the placeholder regex has one capture group of at least one character, so every
+      match sets exactly one of them.
+    - idempotency `idempotency.behavior.ts`: the snapshot `catch` logs
+      `(cause as TypeError).stack`. The only call in that `try` is `toJsonSnapshot`,
+      whose own `catch` rethrows every failure as a `TypeError`.
+  - A spec comment in feature-flags that told history was reworded to state the
+    requirement. `packages/CLAUDE.md` now states the coverage rule.
+  - Verified:
+    - `pnpm build`, `pnpm test` (exit 0, every package at its enforced 100%),
+      `pnpm lint`, `pnpm check` and `pnpm lint:persistence` pass;
+    - `pnpm test:e2e`: 191 tests in 35 files pass;
+    - `pnpm test:release`: 12 packed packages pass;
+    - no `v8`/`c8`/`istanbul` ignore directive under `packages/*/src`.
+
+- B2:
+  - `"engines": { "node": ">=22.0.0" }` added after `license` in the 12 package manifests
+    and `ddd/core/package.json`.
+  - Enforced: `integration/packages/release.mjs` rejects a packed manifest whose
+    `engines.node` differs from the root's (README updated); `ddd/core`'s
+    `package-manifest.spec.ts` asserts the same for `ddd/core`.
+  - Verified: `ddd/core` 618 tests pass; `pnpm test:release` passes, and fails with
+    "engines.node must be the root's" when one manifest is set to `>=20` (then restored);
+    `pnpm check` passes; `pnpm install --offline` leaves the lockfile unchanged.
+
+- B3:
+  - 11 package READMEs: `../../LICENSE`, `../../COMMERCIAL_LICENSE.txt`, casl's
+    `./LICENSE`/`./COMMERCIAL_LICENSE.txt`, `../../README.md#...` and `../pipeline-*` are
+    absolute `https://github.com/aristoteliss/nestjs-pipeline/{blob,tree}/master/...`
+    URLs; every target exists on `master`. The cache README's architecture-skill sentence
+    is removed. Correlation had none.
+  - Enforced: `release.mjs` requires `README.md` in every tarball and rejects one that
+    contains `](../` (README updated).
+  - Verified: `grep -nE "\]\(\.\./" packages/*/README.md` prints nothing;
+    `pnpm test:release` passes, and fails with "README links outside the package" when a
+    relative link is appended to one README (then restored); Biome clean.
+  - `ddd/core/README.md` has 13 such links; added to D1.
+
+- B4: the class JSDoc of `PostgresIdempotencyStore` moved from above `assertLeaseTtl`'s
+  comment onto the class, unchanged. Verified: the built `postgres.store.d.ts` carries it
+  on `export declare class PostgresIdempotencyStore`; idempotency 140 tests, lint and
+  Biome pass.
+
+- B8: the missing-`key` diagnostic's `fix` in `cache.behavior.ts` names only
+  `createPartitionedCacheKeyFactory(...)`. The existing spec pins the exact text; a new
+  spec extracts every `name(...)` from the fix and asserts each is exported from the
+  package's `index.ts`. Verified: cache 93 tests at 100% coverage, lint and Biome pass;
+  users-api 717 tests pass; nothing else asserts the old text.
+
+- B7: both install lines in `packages/pipeline-correlation/README.md` add the required
+  peers `@nestjs-pipeline/core` and `@nestjs/common` (the `peerDependencies`, neither
+  optional). Verified against `package.json`; `pnpm test:release` still passes.
+
+- D4:
+  - `ddd/core/vitest.config.ts` enforces core's thresholds (`perFile`, 100% on all four
+    metrics) over `index.ts`, `application/`, `domain/`, `http/`, `persistence/` and
+    `types/`. Only `persistence/decorators/Cache.ts` was short; both gaps were reachable:
+    - the outer maintenance `catch`: a JavaScript caller's `invalidateKeys` returning a
+      non-list makes the key loop throw. New spec: the write still resolves and one
+      "Unexpected error during cache maintenance" warning is logged;
+    - `isNewer: null` (documented as disabling CAS): new spec asserts the unversioned
+      `set` receives `isNewer: undefined`.
+  - `ddd/core/CLAUDE.md` states the coverage rule.
+  - Verified: `pnpm --filter @nestjs-pipeline/ddd-core test` exits 0 with 620 tests at
+    100%; lint and Biome pass; no ignore directive in `ddd/core`.
+
 ## Tests and Verification
 
 Per step: the affected package's `test` and `lint`, and
@@ -1200,7 +1562,12 @@ Per step: the affected package's `test` and `lint`, and
 
 ## Open Questions
 
-None. All answered 2026-09-24 (see Decisions).
+- (2026-09-25, found in A6) `PostgresIdempotencyStore` binds `JSON.stringify(response)` into
+  a `jsonb` column, so a handler response containing a NUL character or a lone surrogate
+  fails `completeIfOwned` after the handler already succeeded: the caller gets
+  `IdempotencyCompletionError` and the claim stays until its TTL. Using `toPostgresJson`
+  there would succeed, but a replay would then return U+FFFD where the original response
+  had those characters. Owner to choose: keep failing, or store with the replacement.
 
 ## Next Steps
 
@@ -1210,12 +1577,12 @@ Phase 1:
 3. A7;
 4. C1, C2;
 5. B9–B11 (users-api code that belongs in packages);
-6. C3 with A4;
-7. C4–C8;
-8. A6;
+6. C3 with A4 (done);
+7. C4–C8 (done);
+8. A6 (done);
 9. B1–B4, B7, B8;
-10. D4;
-11. Gate 1.
+10. D4 (done);
+11. Gate 1 (green).
 
 Phase 2 (after Gate 1):
 1. U1–U3, then S1–S3 (section H is the reference);
@@ -1235,4 +1602,4 @@ Modules, Directory Map, Gotchas) and the nested `CLAUDE.md`.
 
 ## Last Updated
 
-2026-09-24
+2026-09-25

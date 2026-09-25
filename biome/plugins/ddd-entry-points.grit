@@ -8,5 +8,5 @@ JsImportNamedClause(source=$source) as $clause where {
     "'@nestjs-pipeline/ddd-core'",
     "\"@nestjs-pipeline/ddd-core\""
   },
-  register_diagnostic(span=$clause, message="Do not use the ddd-core root barrel inside users-api production code. Import /domain, /application, or /persistence according to the dependency role.", severity="error")
+  register_diagnostic(span=$clause, message="Do not use the ddd-core root barrel inside users-api production code. Import /domain, /application, /persistence, or /http according to the dependency role.", severity="error")
 }

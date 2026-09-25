@@ -177,11 +177,9 @@ export async function bootstrapE2E(options?: E2EOptions): Promise<E2EContext> {
   );
   const { AppModule } = await import('../../src/app.module');
   const { FeatureDisabledFilter } = await import(
-    '../../src/common/filters/feature-disabled.filter'
+    '@nestjs-pipeline/feature-flags'
   );
-  const { UnauthorizedActionFilter } = await import(
-    '../../src/common/filters/unauthorized-action.filter'
-  );
+  const { UnauthorizedActionFilter } = await import('@nestjs-pipeline/casl');
   const { DomainExceptionFilter } = await import(
     '../../src/common/filters/domain-exception.filter'
   );

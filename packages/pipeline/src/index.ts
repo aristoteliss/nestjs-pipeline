@@ -16,6 +16,7 @@ export {
   type LoggingIntentOptions,
   logging,
 } from './helpers/logging.intent';
+export { toPostgresJson } from './helpers/postgres-json';
 export * from './helpers/safeStringify';
 export * from './helpers/stableStringify';
 export { isUuidV7, uuidv7 } from './helpers/uuidv7';

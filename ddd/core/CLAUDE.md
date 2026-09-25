@@ -11,13 +11,14 @@ changing anything here. Orientation: [.claude/codebase-map.md](../../.claude/cod
 
 ## Local architecture
 
-Three entry points, and they are the boundary consumers import from:
+Four entry points, and they are the boundary consumers import from:
 
 | Entry | Holds |
 | --- | --- |
 | `domain/index.ts` | `AggregateRoot`, `DomainEvent`/`RootDomainEvent`, domain exceptions, snapshot interfaces |
 | `application/index.ts` | `BaseCommand`, `BaseQuery`, `CommandBaseHandler`, query options |
 | `persistence/index.ts` | Repository interfaces/abstracts, `ICache`, `MemoryCache`, `optimisticUpdate`, lifecycle decorators |
+| `http/index.ts` | `domainErrorHttpStatus`: this package's errors → HTTP status, reason phrase and safe message |
 
 `index.ts` at the package root is a compatibility barrel;
 `biome/plugins/ddd-entry-points.grit` requires application code to import the layered
@@ -32,13 +33,13 @@ application configures and extends them. This package owns:
 - the authoritative write-side base repository (`MikroOrmWriteSideCommandRepository`, in
   `persistence/mikro-orm-write-side.command-repository.ts`);
 - the tenant context error;
-- the MikroORM `IVersionedCache` adapter (`MikroOrmCache`, `CacheEntry`);
-- the root-entity schema mapping;
-- a framework-neutral mapping of this package's errors to HTTP status codes.
+- the MikroORM `IVersionedCache` adapter (`MikroOrmCache`, `CacheEntry`, in `persistence/cache/`);
+- the root-entity schema mapping (`rootEntityProperties`, `versionProperty`, in
+  `persistence/root-entity.properties.ts`);
+- the framework-neutral mapping of this package's errors to HTTP status codes
+  (`domainErrorHttpStatus`, in `http/domain-error-http-status.ts`).
 
-The others are still implemented in `ddd/users-api`. Do not add another copy
-anywhere; `.claude/tasks/ddd-core-publish-readiness.md` (section C) tracks the pending
-work.
+Do not add another copy of any of them anywhere.
 
 ## Independence from NestJS
 
@@ -55,7 +56,8 @@ enforce this:
 
 Cache keys take their tenant from an explicit argument (`CacheKeyTenantSource`) or from
 this package's own tenant scope (`runWithTenant`, `application/tenant-scope.ts`), never
-from another package's state.
+from another package's state. `requireTenantId` in the same file is the one tenant
+resolver; the cache-key helpers use it too.
 
 ## Important files
 
@@ -70,6 +72,7 @@ from another package's state.
 | `persistence/optimistic-update.ts` | Version-conditioned update, rejects outer transactions |
 | `persistence/is-transient-persistence-error.ts` | Driver and network failures → `TransientOperationError`; `mapPersistenceError` is the canonical `otherwise` translator |
 | `persistence/cache/memory.cache.ts` | JSON-clone detachment parity with external caches |
+| `persistence/cache/mikro-orm.cache.ts` | MikroORM `IVersionedCache`: revision-fenced compare-and-set writes, each in its own transaction |
 | `persistence/write-side-aggregate-repository.interface.ts` | Authoritative aggregate loading for commands |
 | `persistence/mikro-orm-write-side.command-repository.ts` | Its MikroORM base class: `{ refresh: true }`, no cache, `mapPersistenceError`; `em` read per call from an `IEntityManagerSource` |
 
@@ -85,6 +88,9 @@ pnpm test:e2e                                    # users-api exercises these dec
 
 ## Local testing requirements
 
+- `vitest.config.ts` enforces 100% statements, branches, functions and lines per source
+  file. Close a gap with a behavior test; no ignore directives or exclusions, and remove a
+  branch only once it is proven unreachable.
 - Every decorator and helper has a spec next to it; cache work also has contract suites
   (`persistence/cache/versioned-cache.contract.spec.ts`,
   `persistence/decorators/*.spec.ts`, `persistence/helpers/cache-barrier.helper.spec.ts`).

@@ -158,6 +158,24 @@ describe('MetricsBehavior', () => {
     expect(mockActive.add).toHaveBeenLastCalledWith(-1, attrs);
   });
 
+  it('records duration and invocations when the meter cannot create an in-flight counter', async () => {
+    vi.mocked(metrics.getMeter).mockReturnValue({
+      createHistogram: mockMeter.createHistogram,
+      createCounter: mockMeter.createCounter,
+    } as never);
+
+    await expect(
+      behavior.handle(makeCtx(), vi.fn().mockResolvedValue('ok')),
+    ).resolves.toBe('ok');
+
+    expect(mockDuration.record).toHaveBeenCalledTimes(1);
+    expect(mockInvocations.add).toHaveBeenCalledWith(
+      1,
+      expect.objectContaining({ outcome: 'success' }),
+    );
+    expect(mockActive.add).not.toHaveBeenCalled();
+  });
+
   it('records outcome=failure with error.type and re-throws the original error', async () => {
     class CustomError extends Error {
       override name = 'CustomError';

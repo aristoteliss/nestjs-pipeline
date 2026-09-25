@@ -461,4 +461,4 @@ Errors: `BrokenCircuitError`, `BulkheadRejectedError`, `IsolatedCircuitError`, `
 
 ## License
 
-Dual-licensed under **AGPLv3** (see [LICENSE](../../LICENSE)) or a **Commercial License** (see [COMMERCIAL_LICENSE.txt](../../COMMERCIAL_LICENSE.txt)). Contact: aristotelis@ik.me
+Dual-licensed under **AGPLv3** (see [LICENSE](https://github.com/aristoteliss/nestjs-pipeline/blob/master/LICENSE)) or a **Commercial License** (see [COMMERCIAL_LICENSE.txt](https://github.com/aristoteliss/nestjs-pipeline/blob/master/COMMERCIAL_LICENSE.txt)). Contact: aristotelis@ik.me

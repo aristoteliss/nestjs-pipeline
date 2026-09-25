@@ -4,6 +4,9 @@
   "description": "Rate-limiting behavior for the NestJS pipeline — backend-agnostic, powered by rate-limiter-flexible (memory, Redis/Valkey, Mongo, SQL drop-ins).",
   "author": "Aristotelis <aristotelis@ik.me>",
   "license": "SEE LICENSE IN LICENSE",
+  "engines": {
+    "node": ">=22.0.0"
+  },
   "keywords": [
     "nestjs",
     "pipeline",

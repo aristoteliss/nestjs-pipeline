@@ -14,6 +14,7 @@ import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 interface Manifest {
+  engines?: Record<string, string>;
   dependencies?: Record<string, string>;
   devDependencies?: Record<string, string>;
   peerDependencies?: Record<string, string>;
@@ -46,5 +47,13 @@ describe('ddd-core manifest', () => {
     expect(manifest.peerDependenciesMeta?.['@mikro-orm/core']?.optional).toBe(
       true,
     );
+  });
+
+  it('requires the Node version the repository requires', () => {
+    const root = JSON.parse(
+      readFileSync(resolve(__dirname, '../../package.json'), 'utf8'),
+    ) as Manifest;
+
+    expect(manifest.engines?.node).toBe(root.engines?.node);
   });
 });

@@ -1,5 +1,6 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
+import { toPostgresJson } from '@nestjs-pipeline/core';
 import { stringifyAuditValue } from '../helpers/json';
 import type { AuditRecord } from '../interfaces/audit-record.interface';
 import type { AuditSink } from '../interfaces/audit-sink.interface';
@@ -68,7 +69,9 @@ export function createAuditTableSql(table = 'audit_log'): string {
  *
  * Create the table once with {@link createAuditTableSql}. The table name is
  * validated as a plain SQL identifier (it is interpolated, not parameterized);
- * all record values are passed as bound parameters.
+ * all record values are passed as bound parameters. A NUL character or a lone
+ * surrogate, which `jsonb` rejects, is stored as U+FFFD (see
+ * `toPostgresJson`), so one such character cannot lose the whole record.
  *
  * @example
  * ```ts
@@ -94,6 +97,7 @@ export class PostgresAuditSink implements AuditSink {
   }
 
   async write(record: AuditRecord): Promise<void> {
+    const json = (value: unknown) => toPostgresJson(stringifyAuditValue(value));
     const metadata =
       record.metadata || record.tenantId
         ? {
@@ -108,17 +112,15 @@ export class PostgresAuditSink implements AuditSink {
       record.action,
       record.severity,
       record.outcome,
-      record.actor ? stringifyAuditValue(record.actor) : null,
+      record.actor ? json(record.actor) : null,
       record.requestKind,
       record.requestName,
       record.handlerName,
-      record.payload === undefined ? null : stringifyAuditValue(record.payload),
-      record.response === undefined
-        ? null
-        : stringifyAuditValue(record.response),
-      record.error ? stringifyAuditValue(record.error) : null,
+      record.payload === undefined ? null : json(record.payload),
+      record.response === undefined ? null : json(record.response),
+      record.error ? json(record.error) : null,
       record.durationMs,
-      metadata ? stringifyAuditValue(metadata) : null,
+      metadata ? json(metadata) : null,
       record.timestamp,
     ]);
   }

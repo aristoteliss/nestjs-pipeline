@@ -4,6 +4,9 @@
   "description": "Audit-trail behavior for the NestJS pipeline — records who did what (with outcome, duration, and redacted payload) to a pluggable sink (console by default, Postgres drop-in, or your own AuditSink).",
   "author": "Aristotelis <aristotelis@ik.me>",
   "license": "SEE LICENSE IN LICENSE",
+  "engines": {
+    "node": ">=22.0.0"
+  },
   "keywords": [
     "nestjs",
     "pipeline",

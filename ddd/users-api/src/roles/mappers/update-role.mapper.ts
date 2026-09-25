@@ -1,6 +1,6 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import { createMapper } from '@common/mappers/create-mapper.helper';
+import { createZodMapper } from '@nestjs-pipeline/zod';
 import { z } from 'zod';
 import { UpdateRoleCommand } from '../cqrs/commands/update-role.command';
 import {
@@ -8,7 +8,7 @@ import {
   UpdateRoleDtoSchema,
 } from '../dtos/update-role.dto';
 
-const base = createMapper(
+const base = createZodMapper(
   z
     .object({ id: z.uuid() })
     .extend(UpdateRoleDtoSchema.shape)

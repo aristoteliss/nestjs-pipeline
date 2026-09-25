@@ -213,8 +213,15 @@ Configurable options via `new MemoryIdempotencyStore(options)`:
 
 ### Redis (drop-in)
 
-`RedisIdempotencyStore` — backed by a `redis` (node-redis v4) client. Atomic
-claims via `SET key value PX <ttl> NX`; TTL is enforced by Redis.
+`RedisIdempotencyStore` — backed by a node-redis client (`redis` v4 or later;
+tested against `@redis/client` 5). Atomic claims via `SET key value PX <ttl> NX`;
+TTL is enforced by Redis.
+
+A stored value that is not valid JSON fails closed. `get()` throws, so the
+request fails without running the handler. The owner-aware writes
+(`completeIfOwned`, `deleteIfOwned`) cannot prove ownership of it, so they leave
+it untouched and report `false`. The key stays blocked until its TTL expires or
+an operator deletes it.
 
 ```typescript
 import { createClient } from 'redis';
@@ -581,4 +588,4 @@ Response body:
 ## License
 
 Dual-licensed under **AGPL-3.0-or-later** or a **Commercial License**.
-See [LICENSE](../../LICENSE) and [COMMERCIAL_LICENSE.txt](../../COMMERCIAL_LICENSE.txt).
+See [LICENSE](https://github.com/aristoteliss/nestjs-pipeline/blob/master/LICENSE) and [COMMERCIAL_LICENSE.txt](https://github.com/aristoteliss/nestjs-pipeline/blob/master/COMMERCIAL_LICENSE.txt).

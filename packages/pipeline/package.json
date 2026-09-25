@@ -4,6 +4,9 @@
   "description": "NestJS CQRS pipeline behavior base library",
   "author": "Aristotelis <aristotelis@ik.me>",
   "license": "SEE LICENSE IN LICENSE",
+  "engines": {
+    "node": ">=22.0.0"
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/aristoteliss/nestjs-pipeline.git",

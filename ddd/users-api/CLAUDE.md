@@ -25,20 +25,11 @@ Per feature module (`users/`, `roles/`, `auths/`):
 | Jobs | `jobs/` | BullMQ processors and dispatcher adapters behind application ports |
 
 Generic DDD and persistence building blocks belong to `ddd/core` (see its `CLAUDE.md`,
-Ownership). The following still live here:
-- `src/persistence/cache/mikro-orm.cache.ts` and `cache.entity.ts`
-- `src/persistence/schemas/root-entity.properties.ts`
-- `requireTenantId` and its `MissingTenantContextError` in
-  `src/common/cqrs/helpers/requireTenantId.helper.ts`
-- the generic part of `src/common/filters/domain-exception.filter.ts`: the status mapping
-  for `ddd/core` errors. The Nest filter itself stays here.
+Ownership). `src/common/filters/domain-exception.filter.ts` maps this application's own
+exceptions and takes the status for `ddd/core` errors from `domainErrorHttpStatus()`
+(`@nestjs-pipeline/ddd-core/http`).
 
-These belong in pipeline packages and are also still here: `feature-disabled.filter.ts`
-(`@nestjs-pipeline/feature-flags`) and `unauthorized-action.filter.ts`
-(`@nestjs-pipeline/casl`) in `src/common/filters/`, and
-`src/common/mappers/create-mapper.helper.ts` (`@nestjs-pipeline/zod`).
-
-Keep application-specific behavior out of them, and do not copy them. `ddd/core` is
+Keep application-specific behavior out of `ddd/core`, and do not copy its code here. `ddd/core` is
 framework-neutral: Nest glue (DI providers, logger adapter, tenant wiring, exception
 filters) for `ddd/core` belongs in this application.
 
@@ -55,7 +46,7 @@ interceptors, context, environment).
 | `src/bootstrap.ts` | Adapter choice, secure session, global exception filters, signal-driven shutdown |
 | `src/graceful-shutdown.ts` | SIGTERM/SIGINT → `app.close()` → telemetry flush → re-raise the signal |
 | `src/app.module.ts` | Composition root: CQRS, observability, reliability, CASL, persistence, features |
-| `src/common/filters/domain-exception.filter.ts` | Framework-neutral errors → HTTP (409 for `ConcurrencyConflictError`, 404 for `EntityNotFoundException`) |
+| `src/common/filters/domain-exception.filter.ts` | Framework-neutral errors → HTTP: this application's exceptions, then `domainErrorHttpStatus()` for `ddd/core`'s (409, 404, generic 500 for a missing tenant, 400) |
 | `src/persistence/mikro-orm.store.ts` | Tenant-resolved `EntityManager` (`em`), the `IEntityManagerSource` of `ddd/core`'s `MikroOrmWriteSideCommandRepository` |
 | `src/persistence/entity-manager-tenant.registry.ts` | Tenant ↔ EntityManager association (external `WeakMap`, never a property on the ORM object) |
 | `src/auths/services/session.service.ts` | Cookie lifecycle, kept out of domain login |

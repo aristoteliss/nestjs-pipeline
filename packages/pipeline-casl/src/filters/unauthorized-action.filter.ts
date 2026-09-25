@@ -6,13 +6,14 @@ import {
   type ExceptionFilter,
   HttpStatus,
 } from '@nestjs/common';
-import { FeatureDisabledError } from '@nestjs-pipeline/feature-flags';
+import { UnauthorizedActionException } from '../errors/unauthorized-action.exception';
 
 type ErrorResponseBody = {
   statusCode: number;
   error: string;
   message: string;
-  flag: string;
+  action?: string;
+  subject?: string;
 };
 
 type HttpResponse = {
@@ -22,19 +23,25 @@ type HttpResponse = {
 };
 
 /**
- * Catches {@link FeatureDisabledError} thrown by `FeatureFlagBehavior` at the
- * pipeline boundary and maps it to HTTP 403 Forbidden. Adjust the status to 404
- * if you prefer to hide gated features entirely.
+ * Catches {@link UnauthorizedActionException} thrown from domain entities or CQRS handlers
+ * and maps it to HTTP 403 Forbidden at the HTTP boundary, with the denied `action` and
+ * `subject`. Works with both Express and Fastify responses.
+ *
+ * Register it globally:
+ * ```ts
+ * app.useGlobalFilters(new UnauthorizedActionFilter());
+ * ```
  */
-@Catch(FeatureDisabledError)
-export class FeatureDisabledFilter implements ExceptionFilter {
-  catch(exception: FeatureDisabledError, host: ArgumentsHost): void {
+@Catch(UnauthorizedActionException)
+export class UnauthorizedActionFilter implements ExceptionFilter {
+  catch(exception: UnauthorizedActionException, host: ArgumentsHost): void {
     const response = host.switchToHttp().getResponse<HttpResponse>();
     const body: ErrorResponseBody = {
       statusCode: HttpStatus.FORBIDDEN,
       error: 'Forbidden',
       message: exception.message,
-      flag: exception.flag,
+      action: exception.action,
+      subject: exception.subject,
     };
 
     response.status(HttpStatus.FORBIDDEN);

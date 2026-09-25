@@ -24,8 +24,9 @@ function errorMessage(err: unknown): string {
  * A {@link IVersionedCache} advances the key revision, which already fences any
  * fill that started before this mutation, so no barrier value is stored: leaving
  * one behind would make the next read hydrate a sentinel instead of a snapshot.
- * Unversioned adapters have no revision to compare, so they keep the
- * {@link CacheMutationBarrier} token protocol that {@link FromCache} reads.
+ * Unversioned adapters have no revision to compare, so they receive a
+ * {@link CacheMutationBarrier} instead. {@link FromCache} bypasses such adapters,
+ * and wherever it meets a barrier it treats it as a miss, never as a snapshot.
  */
 async function evictKey(
   cache: ICache<unknown>,

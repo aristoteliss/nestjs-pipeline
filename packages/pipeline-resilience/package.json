@@ -4,6 +4,9 @@
   "description": "Resilience and transient-fault-handling behavior (retry, circuit breaker, timeout, bulkhead, fallback) for @nestjs-pipeline/core, powered by cockatiel",
   "author": "Aristotelis <aristotelis@ik.me>",
   "license": "SEE LICENSE IN LICENSE",
+  "engines": {
+    "node": ">=22.0.0"
+  },
   "keywords": [
     "nestjs",
     "cqrs",

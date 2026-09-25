@@ -1,7 +1,12 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { describe, expect, it } from 'vitest';
-import { currentTenantId, runWithTenant } from './tenant-scope';
+import { MissingTenantContextError } from '../domain/exceptions/missing-tenant-context.exception';
+import {
+  currentTenantId,
+  requireTenantId,
+  runWithTenant,
+} from './tenant-scope';
 
 describe('tenant scope', () => {
   it('has no tenant outside any scope', () => {
@@ -37,5 +42,55 @@ describe('tenant scope', () => {
     runWithTenant('outer', () => {
       expect(runWithTenant(undefined, () => currentTenantId())).toBeUndefined();
     });
+  });
+});
+
+describe('requireTenantId', () => {
+  it('returns an explicit tenant string, even inside another scope', () => {
+    expect(requireTenantId('tenant_a', 'key')).toBe('tenant_a');
+    expect(
+      runWithTenant('scoped', () => requireTenantId('tenant_a', 'key')),
+    ).toBe('tenant_a');
+  });
+
+  it("uses an object's tenantId before the scope", () => {
+    expect(
+      runWithTenant('scoped', () =>
+        requireTenantId({ tenantId: 'ctx' }, 'key'),
+      ),
+    ).toBe('ctx');
+  });
+
+  it('falls back to the scope without a source, or for an object without tenantId', () => {
+    runWithTenant('scoped', () => {
+      expect(requireTenantId(undefined, 'key')).toBe('scoped');
+      expect(requireTenantId({}, 'key')).toBe('scoped');
+    });
+  });
+
+  it.each([
+    [
+      'no source and no scope',
+      () => requireTenantId(undefined, 'idempotency key'),
+    ],
+    [
+      'an object without tenantId and no scope',
+      () => requireTenantId({}, 'idempotency key'),
+    ],
+    [
+      'an empty string, even inside a scope',
+      () =>
+        runWithTenant('scoped', () => requireTenantId('', 'idempotency key')),
+    ],
+    [
+      'an empty tenantId, even inside a scope',
+      () =>
+        runWithTenant('scoped', () =>
+          requireTenantId({ tenantId: '' }, 'idempotency key'),
+        ),
+    ],
+  ])('fails closed for %s', (_label, resolve) => {
+    expect(resolve).toThrow(MissingTenantContextError);
+    expect(resolve).toThrow('idempotency key');
   });
 });

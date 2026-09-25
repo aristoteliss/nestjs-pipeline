@@ -11,5 +11,6 @@
 
 export * from './application/index';
 export * from './domain/index';
+export * from './http/index';
 export * from './persistence/index';
 export * from './types/Method.type';

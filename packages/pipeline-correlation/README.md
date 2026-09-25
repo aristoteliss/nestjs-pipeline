@@ -15,9 +15,9 @@ Part of the [@nestjs-pipeline](https://github.com/aristoteliss/nestjs-pipeline) 
 ## Installation
 
 ```bash
-npm install @nestjs-pipeline/correlation
+npm install @nestjs-pipeline/correlation @nestjs-pipeline/core @nestjs/common
 # or
-pnpm add @nestjs-pipeline/correlation
+pnpm add @nestjs-pipeline/correlation @nestjs-pipeline/core @nestjs/common
 ```
 
 > **Tip:** To integrate correlation IDs with the pipeline context, pass

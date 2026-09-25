@@ -1,7 +1,7 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { describe, expect, it, vi } from 'vitest';
-import { CacheEntry } from './cache.entity';
+import { CacheEntry } from './cache-entry';
 import { MikroOrmCache } from './mikro-orm.cache';
 
 function createMockStore(mockEm: any): any {
@@ -243,10 +243,11 @@ describe('MikroOrmCache', () => {
     };
     const mockStore = createMockStore(transactionalEm);
 
-    const cache = new MikroOrmCache<{ id: string; version: number }>(mockStore);
-    const warnSpy = vi
-      .spyOn((cache as any).logger, 'warn')
-      .mockImplementation(() => {});
+    const warnSpy = vi.fn();
+    const cache = new MikroOrmCache<{ id: string; version: number }>(
+      mockStore,
+      { logger: { warn: warnSpy } },
+    );
 
     await cache.set(
       corruptEntry.key,
@@ -268,6 +269,51 @@ describe('MikroOrmCache', () => {
     expect(warnings).not.toContain('sensitive');
     expect(transactionalEm.nativeUpdate).toHaveBeenCalled();
     expect(JSON.parse(updatedData.value)).toEqual({ id: '1', version: 1 });
+  });
+
+  describe('warning logger', () => {
+    function corruptStore() {
+      const corruptEntry = Object.assign(new CacheEntry(), {
+        key: 'k',
+        value: 'not-json',
+        expiresAt: null,
+        revision: '1',
+      });
+      return createMockStore({
+        findOne: vi.fn().mockResolvedValue(corruptEntry),
+        nativeUpdate: vi.fn().mockResolvedValue(1),
+      });
+    }
+    const isNewer = () => false;
+
+    it('writes to console.warn with a [MikroOrmCache] prefix by default', async () => {
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      try {
+        await new MikroOrmCache(corruptStore()).set('k', { v: 1 }, { isNewer });
+
+        expect(warn).toHaveBeenCalledWith(
+          expect.stringMatching(
+            /^\[MikroOrmCache\] Failed to parse cached value/,
+          ),
+        );
+      } finally {
+        warn.mockRestore();
+      }
+    });
+
+    it('still completes the write when the configured logger throws', async () => {
+      const cache = new MikroOrmCache(corruptStore(), {
+        logger: {
+          warn: () => {
+            throw new Error('logger down');
+          },
+        },
+      });
+
+      await expect(
+        cache.set('k', { v: 1 }, { isNewer }),
+      ).resolves.toBeUndefined();
+    });
   });
 
   it('supports explicit deletion via revision-advancing invalidation', async () => {
@@ -359,4 +405,190 @@ it('rechecks newer data after a conditional update loses a race', async () => {
   );
   expect(em.nativeUpdate).toHaveBeenCalledTimes(1);
   expect(em.findOne).toHaveBeenCalledTimes(2);
+});
+
+describe('MikroOrmCache revision fencing', () => {
+  const row = (fields: Partial<CacheEntry>) =>
+    Object.assign(
+      new CacheEntry(),
+      { key: 'k', value: '', expiresAt: null },
+      fields,
+    );
+
+  function scriptedStore(em: Record<string, unknown>) {
+    return createMockStore({
+      upsert: vi.fn().mockResolvedValue(undefined),
+      nativeUpdate: vi.fn().mockResolvedValue(1),
+      ...em,
+    });
+  }
+
+  describe('invalidate', () => {
+    it('creates a revision-1 tombstone for an absent key', async () => {
+      const findOne = vi
+        .fn()
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce(row({ revision: '1' }));
+      const store = scriptedStore({ findOne });
+
+      await expect(new MikroOrmCache(store).invalidate('k')).resolves.toBe('1');
+      expect(store.em.upsert).toHaveBeenCalledWith(
+        CacheEntry,
+        { key: 'k', value: '', expiresAt: null, revision: '1' },
+        { onConflictAction: 'ignore' },
+      );
+    });
+
+    it('retries when a competing writer wins the insert, then advances its revision', async () => {
+      const findOne = vi
+        .fn()
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce(row({ revision: '2' }))
+        .mockResolvedValueOnce(row({ revision: '2' }));
+      const store = scriptedStore({ findOne });
+
+      await expect(new MikroOrmCache(store).invalidate('k')).resolves.toBe('3');
+      expect(store.em.nativeUpdate).toHaveBeenCalledWith(
+        CacheEntry,
+        { key: 'k', revision: '2' },
+        { value: '', expiresAt: null, revision: '3' },
+      );
+    });
+
+    it('treats a row without a revision as revision 0', async () => {
+      const store = scriptedStore({
+        findOne: vi.fn().mockResolvedValue(row({ revision: undefined })),
+      });
+
+      await expect(new MikroOrmCache(store).invalidate('k')).resolves.toBe('1');
+    });
+
+    it('retries when the re-read insert has no revision, then advances it from 0', async () => {
+      const findOne = vi
+        .fn()
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce(row({ revision: undefined }))
+        .mockResolvedValueOnce(row({ revision: undefined }));
+      const store = scriptedStore({ findOne });
+
+      await expect(new MikroOrmCache(store).invalidate('k')).resolves.toBe('1');
+      expect(store.em.nativeUpdate).toHaveBeenCalledOnce();
+    });
+
+    it('gives up after 16 compare-and-set conflicts', async () => {
+      const store = scriptedStore({
+        findOne: vi.fn().mockResolvedValue(row({ revision: '1' })),
+        nativeUpdate: vi.fn().mockResolvedValue(0),
+      });
+
+      await expect(new MikroOrmCache(store).invalidate('k')).rejects.toThrow(
+        'MikroOrmCache.invalidate could not settle key "k" after 16 attempts.',
+      );
+      expect(store.em.nativeUpdate).toHaveBeenCalledTimes(16);
+    });
+  });
+
+  describe('tryFill observed at revision 0', () => {
+    it('inserts revision 1 into an absent key', async () => {
+      const findOne = vi
+        .fn()
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce(row({ value: '{"v":1}', revision: '1' }));
+      const store = scriptedStore({ findOne });
+
+      await expect(
+        new MikroOrmCache(store).tryFill('k', '0', { v: 1 }),
+      ).resolves.toBe(true);
+    });
+
+    it('reports failure when a competing writer inserted first', async () => {
+      const findOne = vi
+        .fn()
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce(row({ value: '{"v":2}', revision: '1' }));
+      const store = scriptedStore({ findOne });
+
+      await expect(
+        new MikroOrmCache(store).tryFill('k', '0', { v: 1 }),
+      ).resolves.toBe(false);
+    });
+
+    it('fills a row still at revision 0 only if the update matches', async () => {
+      const findOne = vi.fn().mockResolvedValue(row({ revision: '0' }));
+      const won = scriptedStore({ findOne });
+      const lost = scriptedStore({
+        findOne,
+        nativeUpdate: vi.fn().mockResolvedValue(0),
+      });
+
+      await expect(
+        new MikroOrmCache(won).tryFill('k', '0', { v: 1 }),
+      ).resolves.toBe(true);
+      await expect(
+        new MikroOrmCache(lost).tryFill('k', '0', { v: 1 }),
+      ).resolves.toBe(false);
+    });
+
+    it('treats a row without a revision as still at revision 0', async () => {
+      const store = scriptedStore({
+        findOne: vi.fn().mockResolvedValue(row({ revision: undefined })),
+      });
+
+      await expect(
+        new MikroOrmCache(store).tryFill('k', '0', { v: 1 }),
+      ).resolves.toBe(true);
+    });
+
+    it('refuses to fill when the row already moved past revision 0', async () => {
+      const store = scriptedStore({
+        findOne: vi.fn().mockResolvedValue(row({ revision: '4' })),
+      });
+
+      await expect(
+        new MikroOrmCache(store).tryFill('k', '0', { v: 1 }),
+      ).resolves.toBe(false);
+      expect(store.em.nativeUpdate).not.toHaveBeenCalled();
+    });
+  });
+
+  it('stores no expiry when the TTL is 0', async () => {
+    const tryFillStore = scriptedStore({ findOne: vi.fn() });
+    await new MikroOrmCache(tryFillStore).tryFill(
+      'k',
+      '5',
+      { v: 1 },
+      { ttl: 0 },
+    );
+    expect(tryFillStore.em.nativeUpdate).toHaveBeenCalledWith(
+      CacheEntry,
+      { key: 'k', revision: '5' },
+      { value: '{"v":1}', expiresAt: null, revision: '6' },
+    );
+
+    const setStore = scriptedStore({
+      findOne: vi.fn().mockResolvedValue(row({ revision: undefined })),
+    });
+    await new MikroOrmCache(setStore).set('k', { v: 1 }, { ttl: 0 });
+    expect(setStore.em.nativeUpdate).toHaveBeenCalledWith(
+      CacheEntry,
+      { key: 'k', revision: undefined },
+      { value: '{"v":1}', expiresAt: null, revision: '1' },
+    );
+  });
+
+  it('overwrites an expired value without consulting isNewer', async () => {
+    const isNewer = vi.fn().mockReturnValue(true);
+    const store = scriptedStore({
+      findOne: vi
+        .fn()
+        .mockResolvedValue(
+          row({ value: '{"v":9}', expiresAt: Date.now() - 1, revision: '2' }),
+        ),
+    });
+
+    await new MikroOrmCache(store).set('k', { v: 1 }, { isNewer });
+
+    expect(isNewer).not.toHaveBeenCalled();
+    expect(store.em.nativeUpdate).toHaveBeenCalledOnce();
+  });
 });

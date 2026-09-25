@@ -2,11 +2,11 @@
 
 import { EntitySchema } from '@mikro-orm/core';
 import { AggregateRoot } from '@nestjs-pipeline/ddd-core/domain';
-import { Role } from '../../roles/domain/models/role.entity';
 import {
   rootEntityProperties,
   versionProperty,
-} from './root-entity.properties';
+} from '@nestjs-pipeline/ddd-core/persistence';
+import { Role } from '../../roles/domain/models/role.entity';
 
 /**
  * MikroORM EntitySchema for the {@link Role} aggregate root.

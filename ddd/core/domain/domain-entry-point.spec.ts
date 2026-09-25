@@ -70,6 +70,7 @@ describe('ddd-core entry points', () => {
     'dist/domain/index.js',
     'dist/application/index.js',
     'dist/persistence/index.js',
+    'dist/http/index.js',
   ])('does not load @nestjs through %s', (entryPoint) => {
     // The package is framework-neutral: a consumer without NestJS must be able
     // to load every entry point. framework-independence.grit rejects the
@@ -84,6 +85,13 @@ describe('ddd-core entry points', () => {
     // Repository ports live here, so a CQRS handler needs nothing else.
     const loaded = loadedModules('dist/application/index.js');
 
+    expect(loaded.filter((m) => m.includes('@mikro-orm'))).toEqual([]);
+  });
+
+  it('does not load MikroORM through the http entry point', () => {
+    const loaded = loadedModules('dist/http/index.js');
+
+    expect(loaded.length).toBeGreaterThan(0);
     expect(loaded.filter((m) => m.includes('@mikro-orm'))).toEqual([]);
   });
 

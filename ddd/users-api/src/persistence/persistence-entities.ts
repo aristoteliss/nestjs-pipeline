@@ -1,7 +1,7 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
+import { CacheEntrySchema } from '@nestjs-pipeline/ddd-core/persistence';
 import { AuthSchema } from './schemas/auth.schema';
-import { CacheSchema } from './schemas/cache.schema';
 import { CapabilitySchema } from './schemas/capability.schema';
 import { ConsumedRefreshTokenSchema } from './schemas/consumed-refresh-token.schema';
 import { RoleSchema } from './schemas/role.schema';
@@ -24,5 +24,5 @@ export const PERSISTENCE_ENTITIES = [
   UserDeniedCapabilitySchema,
   UserPermissionRuleSchema,
   ConsumedRefreshTokenSchema,
-  CacheSchema,
+  CacheEntrySchema,
 ];

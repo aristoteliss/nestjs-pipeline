@@ -50,7 +50,7 @@ describe('cache-factory', () => {
        * what made the previous test assert the wrong diagnosis on a machine where
        * `@keyv/sqlite` resolved but its native binding did not.
        */
-      function loadWith(failure: Error): () => unknown {
+      function loadWith(failure: unknown): () => unknown {
         const NodeModule = Module as unknown as {
           _resolveFilename: unknown;
           _load: unknown;
@@ -120,6 +120,23 @@ describe('cache-factory', () => {
         }
       });
 
+      it('rethrows a thrown non-Error value untouched', () => {
+        const failure = 'adapter initialization aborted';
+        const restore = loadWith(failure);
+
+        try {
+          let thrown: unknown;
+          try {
+            buildKeyv({ type: 'sqlite', url: 'sqlite://cache.sqlite' });
+          } catch (error) {
+            thrown = error;
+          }
+          expect(thrown).toBe(failure);
+        } finally {
+          restore();
+        }
+      });
+
       it('preserves the original failure as the cause', () => {
         const notFound = Object.assign(
           new Error("Cannot find module '@keyv/sqlite'"),
@@ -139,6 +156,42 @@ describe('cache-factory', () => {
           restore();
         }
       });
+    });
+  });
+
+  describe('adapter module shapes', () => {
+    it('constructs an adapter whose module exports the constructor itself', () => {
+      class DirectExportAdapter extends Map {
+        constructor(
+          readonly url: unknown,
+          readonly options: unknown,
+        ) {
+          super();
+        }
+      }
+      const NodeModule = Module as unknown as { _load: unknown };
+      const load = NodeModule._load;
+      NodeModule._load = ((request: string, ...rest: unknown[]) => {
+        if (request === '@keyv/sqlite') return DirectExportAdapter;
+        return (load as never as (...a: unknown[]) => unknown)(
+          request,
+          ...rest,
+        );
+      }) as never;
+
+      try {
+        const keyv = buildKeyv({
+          type: 'sqlite',
+          url: 'sqlite://cache.sqlite',
+          options: { table: 'entries' },
+        });
+
+        expect(keyv.store).toBeInstanceOf(DirectExportAdapter);
+        expect(keyv.store.url).toBe('sqlite://cache.sqlite');
+        expect(keyv.store.options).toEqual({ table: 'entries' });
+      } finally {
+        NodeModule._load = load;
+      }
     });
   });
 

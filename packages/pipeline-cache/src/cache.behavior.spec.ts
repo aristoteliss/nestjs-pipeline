@@ -128,6 +128,22 @@ describe('CacheBehavior', () => {
     );
   });
 
+  it('does not cache a result that JSON serializes to nothing', async () => {
+    const logger = { debug: vi.fn(), warn: vi.fn() };
+    const cacheBehavior = new CacheBehavior(cache, undefined, logger as never);
+    const result = () => 'computed';
+    const next = vi.fn().mockResolvedValue(result);
+
+    await expect(cacheBehavior.handle(makeCtx(), next)).resolves.toBe(result);
+    await cacheBehavior.handle(makeCtx(), next);
+
+    expect(next).toHaveBeenCalledTimes(2);
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining('not JSON-serializable'),
+      CacheBehavior.name,
+    );
+  });
+
   it('returns JSON data after a failed cache read without attempting a write', async () => {
     const set = vi.fn();
     const cacheBehavior = new CacheBehavior({
@@ -581,7 +597,32 @@ describe('CacheBehavior', () => {
       expect(diagnostics).toHaveLength(1);
       expect(diagnostics?.[0].behaviorName).toBe('CacheBehavior');
       expect(diagnostics?.[0].message).toContain('explicit `key` factory');
-      expect(diagnostics?.[0].fix).toContain('Provide a key factory');
+      expect(diagnostics?.[0].fix).toBe(
+        'Provide a key factory via createPartitionedCacheKeyFactory(...) in ' +
+          '@UsePipeline([CacheBehavior, { key: ... }]) or CacheModule.forRoot({ defaults: ... }).',
+      );
+    });
+
+    it('names only functions this package exports in the missing-key fix', async () => {
+      const exported = await import('./index');
+      const diagnostics = contract?.validate?.({
+        handlerType: class GetUsersHandler {},
+        handlerName: 'GetUsersHandler',
+        requestKind: 'query',
+        declarationSource: 'handler',
+        effectiveOptions: {},
+        handlerOptions: {},
+        globalOptions: undefined,
+        effectiveBehaviorTypes: [CacheBehavior],
+      });
+
+      const named = [
+        ...(diagnostics?.[0].fix ?? '').matchAll(/([A-Za-z]\w*)\(\.\.\.\)/g),
+      ].map(([, name]) => name);
+      expect(named).toEqual(['createPartitionedCacheKeyFactory']);
+      for (const name of named) {
+        expect(exported).toHaveProperty(name);
+      }
     });
 
     it('does not return diagnostic when key factory is provided', () => {

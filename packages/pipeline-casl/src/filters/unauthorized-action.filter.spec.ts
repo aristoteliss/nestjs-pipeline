@@ -1,12 +1,10 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import type { ArgumentsHost } from '@nestjs/common';
-import {
-  buildAbility,
-  CaslAuthorizer,
-  UnauthorizedActionException,
-} from '@nestjs-pipeline/casl';
 import { describe, expect, it, vi } from 'vitest';
+import { UnauthorizedActionException } from '../errors/unauthorized-action.exception';
+import { buildAbility } from '../helpers/ability';
+import { CaslAuthorizer } from '../helpers/authorizer';
 import { UnauthorizedActionFilter } from './unauthorized-action.filter';
 
 describe('UnauthorizedActionFilter', () => {
@@ -42,6 +40,31 @@ describe('UnauthorizedActionFilter', () => {
         subject: 'User',
       }),
     );
+  });
+
+  it('uses Fastify send() when json() is unavailable', () => {
+    const exception = new UnauthorizedActionException({
+      action: 'update',
+      subject: 'Role',
+    });
+    const statusFn = vi.fn().mockReturnThis();
+    const sendFn = vi.fn();
+    const host = {
+      switchToHttp: () => ({
+        getResponse: () => ({ status: statusFn, send: sendFn }),
+      }),
+    } as unknown as ArgumentsHost;
+
+    new UnauthorizedActionFilter().catch(exception, host);
+
+    expect(statusFn).toHaveBeenCalledWith(403);
+    expect(sendFn).toHaveBeenCalledWith({
+      statusCode: 403,
+      error: 'Forbidden',
+      message: exception.message,
+      action: 'update',
+      subject: 'Role',
+    });
   });
 
   it('catches exception thrown directly by CaslAuthorizer', () => {

@@ -46,7 +46,7 @@ passwords, missing the actor). This behavior centralizes it:
 - **One seam** — the `AuditSink` interface. Console today, Postgres or your event
   store tomorrow, with no handler changes.
 
-It generalizes the [Audit-Trail example](../../README.md#example-audit-trail-behavior-with-options)
+It generalizes the [Audit-Trail example](https://github.com/aristoteliss/nestjs-pipeline/blob/master/README.md#example-audit-trail-behavior-with-options)
 from the root README into a reusable, redaction-aware, outcome-aware package.
 
 ---
@@ -183,6 +183,10 @@ AuditModule.forRootAsync({
 
 > The table name is validated as a plain SQL identifier (interpolated, not
 > parameterized); every record value is passed as a **bound parameter**.
+>
+> PostgreSQL `jsonb` cannot hold a NUL character or a lone UTF-16 surrogate, and
+> rejects the whole `INSERT` when a value contains one. The sink stores each such
+> character as U+FFFD (`�`) instead, so the record is kept.
 
 ### Custom sink
 
@@ -379,5 +383,5 @@ there is rejected before the handler runs (logged and ignored with
 ## License
 
 Dual-licensed under **AGPL-3.0-or-later** or a **Commercial License**. See
-[`LICENSE`](../../LICENSE) and [`COMMERCIAL_LICENSE.txt`](../../COMMERCIAL_LICENSE.txt)
+[`LICENSE`](https://github.com/aristoteliss/nestjs-pipeline/blob/master/LICENSE) and [`COMMERCIAL_LICENSE.txt`](https://github.com/aristoteliss/nestjs-pipeline/blob/master/COMMERCIAL_LICENSE.txt)
 at the repository root.

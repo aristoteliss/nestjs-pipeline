@@ -153,6 +153,42 @@ describe('RabbitMqDeadLetterTransport', () => {
     expect(events.listenerCount('error')).toBe(0);
   });
 
+  it('rejects with a descriptive error when the channel emits error without one', async () => {
+    const events = new EventEmitter();
+    const pending = new RabbitMqDeadLetterTransport({
+      publish: vi.fn().mockReturnValue(false),
+      waitForConfirms: vi.fn().mockResolvedValue(undefined),
+      once: events.once.bind(events),
+      removeListener: events.removeListener.bind(events),
+    }).send(record);
+    queueMicrotask(() => events.emit('error'));
+
+    await expect(pending).rejects.toThrow(
+      /failed while waiting for publish backpressure to drain/,
+    );
+    expect(events.listenerCount('drain')).toBe(0);
+    expect(events.listenerCount('close')).toBe(0);
+  });
+
+  it('settles on the first lifecycle event when a channel keeps firing listeners it cannot detach', async () => {
+    const listeners = new Map<string, (error?: Error) => void>();
+    const removeListener = vi.fn();
+    const pending = new RabbitMqDeadLetterTransport({
+      publish: vi.fn().mockReturnValue(false),
+      waitForConfirms: vi.fn().mockResolvedValue(undefined),
+      once: (event, listener) => listeners.set(event, listener),
+      removeListener,
+    }).send(record);
+    queueMicrotask(() => {
+      listeners.get('drain')?.();
+      listeners.get('close')?.();
+      listeners.get('error')?.(new Error('late failure'));
+    });
+
+    await expect(pending).resolves.toBeUndefined();
+    expect(removeListener).toHaveBeenCalledTimes(3);
+  });
+
   it('rejects when the channel errors before drain', async () => {
     const events = new EventEmitter();
     const failure = new Error('channel failed');
@@ -223,6 +259,24 @@ describe('PostgresDeadLetterTransport', () => {
     );
   });
 
+  it('binds a NUL character or a lone surrogate as U+FFFD, which jsonb accepts', async () => {
+    const query = vi.fn().mockResolvedValue({ rowCount: 1 });
+    await new PostgresDeadLetterTransport({ query }).send({
+      ...record,
+      payload: { note: 'a\u0000b' },
+      error: { name: 'Error', message: 'lone \udc00' },
+      metadata: { 'k\u0000': 1 },
+    });
+
+    const [, values] = query.mock.calls[0];
+    expect(JSON.parse(values[4])).toEqual({ note: 'a\ufffdb' });
+    expect(JSON.parse(values[5])).toEqual({
+      name: 'Error',
+      message: 'lone \ufffd',
+    });
+    expect(JSON.parse(values[6])).toEqual({ 'k\ufffd': 1 });
+  });
+
   it('inserts null metadata when metadata is undefined in Postgres record', async () => {
     const query = vi.fn().mockResolvedValue({ rowCount: 1 });
     const recordWithoutMeta: DeadLetterRecord = {
@@ -233,6 +287,17 @@ describe('PostgresDeadLetterTransport', () => {
 
     const [, values] = query.mock.calls[0];
     expect(values[6]).toBeNull();
+  });
+
+  it('binds a JSON null payload when the record payload is undefined', async () => {
+    const query = vi.fn().mockResolvedValue({ rowCount: 1 });
+    await new PostgresDeadLetterTransport({ query }).send({
+      ...record,
+      payload: undefined,
+    });
+
+    const [, values] = query.mock.calls[0];
+    expect(values[4]).toBe('null');
   });
 
   it('rejects when RabbitMQ channel reports backpressure without EventEmitter methods', async () => {

@@ -772,7 +772,7 @@ Every pipeline invocation carries a `correlationId` for distributed tracing, res
 2. **`correlationIdFactory`** — user-supplied factory from module options
 3. **`uuidv7()`** — timestamp-sortable UUID fallback
 
-The pipeline core generates its own `uuidv7()` IDs by default. To bridge external correlation IDs (HTTP headers, message queues, etc.), install [`@nestjs-pipeline/correlation`](../pipeline-correlation) and pass `getCorrelationId` + `runWithCorrelationId`:
+The pipeline core generates its own `uuidv7()` IDs by default. To bridge external correlation IDs (HTTP headers, message queues, etc.), install [`@nestjs-pipeline/correlation`](https://github.com/aristoteliss/nestjs-pipeline/tree/master/packages/pipeline-correlation) and pass `getCorrelationId` + `runWithCorrelationId`:
 
 ```typescript
 import { getCorrelationId, runWithCorrelationId } from '@nestjs-pipeline/correlation';
@@ -1106,6 +1106,7 @@ must account for the absent instance.
 | `toStrictJsonValue` | Function | Normalizes arbitrary values into strictly typed JSON domain |
 | `StrictJsonValue` | Type | Strict JSON-compatible recursive type definition |
 | `safeSanitize` | Function | Deeply redacts sensitive keys and strips unsupported types |
+| `toPostgresJson` | Function | Replaces the NUL characters and lone surrogates that PostgreSQL `jsonb` rejects in JSON text with U+FFFD; used by the Postgres audit sink and dead-letter transport |
 
 
 **`PipelineModuleOptions` fields:**
@@ -1125,6 +1126,6 @@ must account for the absent instance.
 
 ## License
 
-Dual-licensed under **AGPLv3** and a **Commercial License**. See the root [`LICENSE`](../../LICENSE) and [`COMMERCIAL_LICENSE.txt`](../../COMMERCIAL_LICENSE.txt) for details.
+Dual-licensed under **AGPLv3** and a **Commercial License**. See the root [`LICENSE`](https://github.com/aristoteliss/nestjs-pipeline/blob/master/LICENSE) and [`COMMERCIAL_LICENSE.txt`](https://github.com/aristoteliss/nestjs-pipeline/blob/master/COMMERCIAL_LICENSE.txt) for details.
 
 Contact: **aristotelis@ik.me**

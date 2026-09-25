@@ -80,6 +80,7 @@
   "devDependencies": {
     "@biomejs/biome": "^2.5.10",
     "@nestjs/testing": "^11.2.1",
+    "@redis/client": "^5.12.1",
     "@testcontainers/redis": "^11.14.0",
     "@types/cookie-parser": "^1.4.10",
     "@types/supertest": "^7.2.1",

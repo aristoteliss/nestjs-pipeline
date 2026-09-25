@@ -38,6 +38,9 @@ pnpm test:release                     # packs every package and verifies it from
 ## Local testing requirements
 
 - Specs live beside the source as `src/**/*.spec.ts` (Vitest, `globals: true`).
+- Every package's `vitest.config.ts` enforces 100% statements, branches, functions and lines
+  per file of `src/**/*.ts`. Close a gap with a behavior test; no ignore directives or
+  exclusions, and remove a branch only once it is proven unreachable.
 - A published package must not depend on `@nestjs/testing`. An integration path that needs
   a Nest application belongs in `ddd/users-api/test/`.
 - No production seam for tests: no export, parameter, option, branch, or retained state
