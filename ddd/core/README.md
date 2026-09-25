@@ -13,15 +13,16 @@ for consistency and invalidation
 requirements. Existing barriers/CAS checks are mechanisms to verify, not proof of
 atomic DB/cache consistency or complete anti-resurrection safety.
 
-Framework-neutral DDD support: domain, application, and MikroORM persistence entry
-points, provided separately. It does not depend on NestJS or on any
+Framework-neutral DDD support: domain, application, MikroORM persistence and HTTP
+status-mapping entry points, provided separately. It does not depend on NestJS or on any
 `@nestjs-pipeline/*` package. A NestJS application supplies its own glue, such as
 the injected `EventBus` it passes to `CommandBaseHandler` and a pipeline behavior
 that calls `runWithTenant`. It is a private workspace package.
 
 Internal users-api code imports domain primitives from `/domain`, application
 ports and CQRS support from `/application`, and concrete adapters/decorators from
-`/persistence`. The root export remains a compatibility convenience. Biome rejects
+`/persistence`. An HTTP boundary takes status codes for this package's errors from
+`/http`. The root export remains a compatibility convenience. Biome rejects
 bare-root imports throughout users-api production code and persistence imports
 from domain, CQRS, and application directories.
 
@@ -43,6 +44,7 @@ This package provides the foundational building blocks for implementing a Clean 
 - **`@Mutable(options?)`** — Property decorator declaring an aggregate field as mutable via patch mutations, with optional backing property name and value normalizer.
 - **`@ApplyMutation<TEntity>(options)`** — Completes a successful domain mutation by invoking `onUpdate()` (advancing `version` and `updatedAt`) and recording events from the resulting state. Methods return `this` (or `Promise<this>`); the decorator preserves that result. Call protected `applyPatch(...)` to validate and normalize all supplied `@Mutable` fields before writing them. Undefined values are ignored. Complete business validation before applying a patch: failures after field writes, including later method code, lifecycle hooks or event creation/application, do not roll back state; discard or reload the instance. A method that throws or rejects does not run the completion lifecycle.
 - **`UnixTimestampType`** — Custom MikroORM `Type<Date, number>` mapping JavaScript `Date` instances to Unix timestamps (ms) in 64-bit `bigint` SQL database columns (`platform.getBigIntTypeDeclarationSQL()`) to eliminate integer overflow.
+- **`rootEntityProperties(columns?)` / `versionProperty(column?)`** — MikroORM `EntitySchema` property definitions for the `id`, `createdAt`, `updatedAt` and `version` accessors every `RootEntity` inherits. Timestamps use `UnixTimestampType`; `version` is the optimistic-lock column and starts at 1. Column names default to `id`, `created_at`, `updated_at` and `version`; pass `{ id?, createdAt?, updatedAt? }` or a version column name to change them. Spread them into each aggregate schema: `properties: { ...rootEntityProperties(), version: versionProperty(), … }`.
 - **`Method`** — Utility type for extracting method signatures.
 
 ### Persistence Abstractions
@@ -70,7 +72,7 @@ This package provides the foundational building blocks for implementing a Clean 
   - **Hydration Precedence**: A method that declares `hydrateFn` (including `null`, which opts out) uses its own; otherwise the repository's `hydrateFn` applies. `serializeFn` follows the same rule.
   - **No Hydrator, Plain Data Only**: Without a hydrator a hit returns the cached data as is, so only plain-data results (primitives, arrays, plain objects) are cached. A class instance, or a result reshaped by `serializeFn`, is returned uncached and reported once.
   - **Revision-Fenced Fills**: Requires an adapter implementing `IVersionedCache`. The decorator observes the key's opaque revision before the database read and fills with `tryFill(key, observedRevision, snapshot)`, which commits only if nothing — an invalidation, a delete, a newer write — has advanced the revision in between. A stale snapshot therefore cannot overwrite a deletion barrier. A rejected fill re-reads the key, returns a strictly newer snapshot when one is present, and otherwise retries a bounded number of times before returning the database result uncached.
-  - **Unversioned Adapters Are Bypassed**: An adapter exposing only `get`/`set`/`delete` cannot fence a fill against concurrent invalidation, so `@FromCache` uses neither side of it: no read, no fill, the query goes to the database. Reads are bypassed too because serving entries while skipping fills would still return values written before a mutation. The decorator logs this once per adapter instance. Implement `IVersionedCache` to enable caching; `MemoryCache` and the sample's `MikroOrmCache` both do.
+  - **Unversioned Adapters Are Bypassed**: An adapter exposing only `get`/`set`/`delete` cannot fence a fill against concurrent invalidation, so `@FromCache` uses neither side of it: no read, no fill, the query goes to the database. Reads are bypassed too because serving entries while skipping fills would still return values written before a mutation. The decorator logs this once per adapter instance. Implement `IVersionedCache` to enable caching; `MemoryCache` and `MikroOrmCache` both do.
   - **Barriers and Nulls Are Misses**: A `CacheMutationBarrier` or a stored `null` is never hydrated — neither is a snapshot this decorator would have written.
   - **Enforceable Invariants**: Validates at decoration time that `alwaysHydrate: true` requires a `hydrateFn`, throwing `TypeError` immediately if omitted. The flag does not otherwise change results.
   - **Snapshot Storage Contract**: Stores strictly detached, serializable snapshots (`TSnapshot`), extracting them on cache miss via custom `serializeFn` or `toCacheSnapshot()`. Never caches live aggregate instances.
@@ -85,6 +87,10 @@ This package provides the foundational building blocks for implementing a Clean 
 - **`optimisticUpdate()`** — Infrastructure helper for MikroORM version-conditioned updates (`WHERE id = ? AND version = expectedVersion`). Inspects affected rows, performs diagnostic existence checks on zero affected rows, and raises `EntityNotFoundException` or `ConcurrencyConflictError`. Explicitly rejects execution inside active outer transactions.
 - **`optimisticDelete()`** — The delete counterpart, on `{ id, version: getExpectedVersion() }`, with the same affected-row contract and the same autocommit requirement. Unversioned rows (sessions, tokens) are out of scope: delete those by primary key rather than inventing a version column.
 - **`assertAutocommit()`** — The single transaction-boundary check shared by the update, delete and create paths. Every write whose successful return triggers acknowledgment or cache maintenance calls it before issuing a statement.
+
+### HTTP Status Mapping
+
+- **`domainErrorHttpStatus(error)`** (`/http`) — Maps this package's errors to `{ statusCode, error, message }` as plain values, for any HTTP framework: 409 `ConcurrencyConflictError`, 404 `EntityNotFoundException`, 500 `MissingTenantContextError` with a generic message (its own message is for developers), 400 for any other `DomainException`. It returns `undefined` for anything that is not a `DomainException`. Map the application's own exceptions first, then pass the rest to it.
 
 ---
 
@@ -382,6 +388,12 @@ There is no shared namespace: a missing or empty tenant throws
 `MissingTenantContextError`. A single-tenant deployment passes a fixed id or runs inside
 `runWithTenant('single', ...)`.
 
+The same resolution is public as `requireTenantId(source, purpose)` from `/application`,
+for any other key that must be partitioned by tenant, such as an idempotency or
+rate-limit key. `source` is a `TenantSource` (`CacheKeyTenantSource` is the same type).
+Map `MissingTenantContextError` to HTTP 500: a request without a tenant is server
+misconfiguration, never the caller's fault.
+
 `filterCacheKey` keys have the form `${tenant}:${resource}:v1:${sha256}`, hashed over a
 key-sorted serialization of `[tenant, resource, conditions]`. That output is frozen, so
 existing cache entries stay addressable across releases.
@@ -407,7 +419,10 @@ export interface ICache<T = unknown> {
 
 Two implementations of `IVersionedCache` exist:
 - **`MemoryCache`** (bundled): Lightweight in-process `Map` cache with TTL and atomic `isNewer` protection, suitable for unit tests and local development.
-- **`MikroOrmCache`**: Database-backed cache entity (`CacheEntry`) storing JSON payloads and Unix expiration timestamps, supporting atomic `isNewer` comparison against existing records. It is currently implemented in the users-api example application, not exported by this package.
+- **`MikroOrmCache`**: Database-backed `IVersionedCache`, one row per key (`CacheEntry`): the JSON payload, an epoch-millisecond expiry and a revision token that fences concurrent fills. Every write is a compare-and-set in its own transaction, reads bypass the identity map, and `set()` supports atomic `isNewer` comparison against the stored value.
+  - `new MikroOrmCache(store, { defaultTtlMs?, logger? })`, where `store` is an `ITransactionalEntityManagerSource`: an `em`, plus `transactional(work)` that runs `work` on a manager dedicated to that call (`em.fork().transactional(work)` qualifies). No framework is needed; in NestJS, register it with a `useFactory` provider.
+  - Register `CacheEntrySchema` with the ORM, or `createCacheEntrySchema(table)` for another table name (validated). `expires_at` is a `bigint` column.
+  - Create the table once, in a migration, with `createCacheTableSql(table?)` (PostgreSQL and SQLite): the columns the schema maps plus an index on `expires_at`.
 
 A custom adapter that implements only `ICache` still works with `@Cache`, but
 `@FromCache` bypasses it entirely, as described above. That is a deliberate

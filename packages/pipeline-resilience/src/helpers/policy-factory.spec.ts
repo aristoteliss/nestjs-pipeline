@@ -84,6 +84,26 @@ describe('buildResiliencePolicy', () => {
       expect(attempts).toBe(3);
     });
 
+    it('retries without delay when no backoff is configured', async () => {
+      const onRetry = vi.fn();
+      const policy = buildResiliencePolicy(
+        { retry: { maxAttempts: 1 }, telemetry: { onRetry } },
+        ctx,
+      );
+
+      let attempts = 0;
+      const result = await policy!.execute(async () => {
+        attempts++;
+        if (attempts === 1) throw new Error('fail once');
+        return 'recovered';
+      });
+
+      expect(result).toBe('recovered');
+      expect(onRetry).toHaveBeenCalledWith(
+        expect.objectContaining({ attempt: 1, delay: 0 }),
+      );
+    });
+
     it('builds retry with exponential backoff and various jitter strategies', () => {
       for (const jitter of ['none', 'full', 'half', 'decorrelated'] as const) {
         const policy = buildResiliencePolicy(
@@ -102,6 +122,38 @@ describe('buildResiliencePolicy', () => {
           ctx,
         );
         expect(policy).not.toBeNull();
+      }
+    });
+
+    it('applies the documented exponential defaults when tuning fields are omitted', async () => {
+      vi.useFakeTimers();
+      try {
+        const onRetry = vi.fn();
+        const policy = buildResiliencePolicy(
+          {
+            retry: {
+              maxAttempts: 2,
+              backoff: { type: 'exponential', jitter: 'none' },
+            },
+            telemetry: { onRetry },
+          },
+          ctx,
+        );
+
+        let attempts = 0;
+        const execution = policy!.execute(async () => {
+          attempts++;
+          if (attempts < 3) throw new Error('fail');
+          return 'recovered';
+        });
+        await vi.advanceTimersByTimeAsync(128 + 256);
+
+        await expect(execution).resolves.toBe('recovered');
+        expect(onRetry.mock.calls.map(([event]) => event.delay)).toEqual([
+          128, 256,
+        ]);
+      } finally {
+        vi.useRealTimers();
       }
     });
   });
@@ -190,6 +242,27 @@ describe('buildResiliencePolicy', () => {
       expect(onBulkheadRejected).toHaveBeenCalled();
       await slow;
     });
+
+    it('rejects a call beyond the limit immediately and reports an empty queue', async () => {
+      const warn = vi.fn();
+      const onBulkheadRejected = vi.fn();
+      const policy = buildResiliencePolicy(
+        { bulkhead: { limit: 1 }, telemetry: { onBulkheadRejected } },
+        { ...ctx, logger: { log: vi.fn(), warn, error: vi.fn() } },
+      );
+
+      const slow = policy!.execute(
+        () => new Promise((resolve) => setTimeout(resolve, 20)),
+      );
+      await expect(policy!.execute(async () => 'second')).rejects.toThrow();
+
+      expect(onBulkheadRejected).toHaveBeenCalledTimes(1);
+      expect(warn).toHaveBeenCalledWith(
+        expect.stringContaining('(limit 1, queue 0)'),
+        'ResilienceBehavior',
+      );
+      await slow;
+    });
   });
 
   describe('timeout layer', () => {
@@ -275,6 +348,25 @@ describe('buildResiliencePolicy', () => {
           throw new IgnoredError('do not retry');
         }),
       ).rejects.toThrow(IgnoredError);
+      expect(attempts).toBe(1);
+    });
+
+    it('does not retry when the predicate returns no boolean', async () => {
+      const policy = buildResiliencePolicy(
+        {
+          handle: (() => undefined) as unknown as (error: unknown) => boolean,
+          retry: { maxAttempts: 3, backoff: { type: 'constant', delay: 1 } },
+        },
+        ctx,
+      );
+
+      let attempts = 0;
+      await expect(
+        policy!.execute(async () => {
+          attempts++;
+          throw new Error('unclassified');
+        }),
+      ).rejects.toThrow('unclassified');
       expect(attempts).toBe(1);
     });
   });

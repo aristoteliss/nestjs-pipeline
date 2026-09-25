@@ -19,6 +19,7 @@ export {
   type UnauthorizedActionDetails,
   UnauthorizedActionException,
 } from './errors/unauthorized-action.exception';
+export { UnauthorizedActionFilter } from './filters/unauthorized-action.filter';
 export { buildAbility, interpolateConditions } from './helpers/ability';
 export {
   CaslAuthorizer,

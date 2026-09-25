@@ -8,9 +8,7 @@ It complements repository snapshot/read-through caches; it is not replaced by
 them just because a particular example currently uses repository caching. Choose
 the layer that owns the result and define its dependencies, security scope and
 freshness. Using both layers is optional, and invalidation is not automatically
-shared. See the
-[architecture skill](../../.agents/skills/nestjs-pipeline-architecture/SKILL.md)
-for layer ownership, invalidation and security rules.
+shared.
 
 [![npm version](https://img.shields.io/npm/v/@nestjs-pipeline/cache.svg)](https://www.npmjs.com/package/@nestjs-pipeline/cache)
 [![License](https://img.shields.io/npm/l/@nestjs-pipeline/cache.svg)](https://www.npmjs.com/package/@nestjs-pipeline/cache)
@@ -474,6 +472,6 @@ import {
 ## License
 
 Distributed under a dual license: **AGPLv3** (open source) or a **Commercial
-License**. See [`LICENSE`](../../LICENSE) and
-[`COMMERCIAL_LICENSE.txt`](../../COMMERCIAL_LICENSE.txt), or contact
+License**. See [`LICENSE`](https://github.com/aristoteliss/nestjs-pipeline/blob/master/LICENSE) and
+[`COMMERCIAL_LICENSE.txt`](https://github.com/aristoteliss/nestjs-pipeline/blob/master/COMMERCIAL_LICENSE.txt), or contact
 aristotelis@ik.me.

@@ -243,22 +243,35 @@ export class GetRecommendationsHandler
 
 ### Mapping the Error to HTTP
 
-`FeatureDisabledError` is transport-agnostic. For HTTP, map it in an exception
-filter (e.g. hide the feature behind a `404`):
+`FeatureDisabledError` is transport-agnostic. For HTTP, register the bundled
+`FeatureDisabledFilter`; it works with Express and Fastify:
 
 ```typescript
-import { ArgumentsHost, Catch, ExceptionFilter, NotFoundException } from '@nestjs/common';
-import { BaseExceptionFilter } from '@nestjs/core';
-import { FeatureDisabledError } from '@nestjs-pipeline/feature-flags';
+import { FeatureDisabledFilter } from '@nestjs-pipeline/feature-flags';
 
-@Catch(FeatureDisabledError)
-export class FeatureDisabledFilter extends BaseExceptionFilter implements ExceptionFilter {
-  catch(error: FeatureDisabledError, host: ArgumentsHost) {
-    // Hide the gated feature behind a 404.
-    super.catch(new NotFoundException(error.message), host);
-  }
+app.useGlobalFilters(new FeatureDisabledFilter());
+```
+
+It answers `403 Forbidden` and names the flag:
+
+```json
+{
+  "statusCode": 403,
+  "error": "Forbidden",
+  "message": "Feature \"beta-export\" is disabled for ExportDataQuery",
+  "flag": "beta-export"
 }
 ```
+
+To hide gated features, answer `404` instead. The body is then a plain Not Found
+that names neither the flag nor the request:
+
+```typescript
+app.useGlobalFilters(new FeatureDisabledFilter({ status: 404 }));
+```
+
+Registered through dependency injection
+(`{ provide: APP_FILTER, useClass: FeatureDisabledFilter }`), it uses the defaults.
 
 ---
 
@@ -369,6 +382,8 @@ same rollout bucket across requests.
 | `FeatureFlagBehaviorOptions` | Interface | `Per-handler options listed above, including stable targeting, variants, and error policy` |
 | `FeatureFlagsModuleOptions` | Interface | ``client`, `provider`, `domain`, `context`, `waitForReady`, `defaults`, and `targetingKeyFactory`` |
 | `FeatureDisabledError` | Class | Thrown when a gated flag is disabled and no `fallback` is set |
+| `FeatureDisabledFilter` | Class | Exception filter: `FeatureDisabledError` → `403` with the flag, or a plain `404` with `{ status: 404 }` |
+| `FeatureDisabledFilterOptions` | Interface | `status`: `403` (default) or `404` |
 | `baseEvaluationContext` | Function | Derives the base targeting context from a pipeline request |
 | `buildEvaluationContext` | Function | Merges base + module + handler targeting context |
 | `FeatureFlagEvaluationError` | Class | Provider evaluation failure under `errorPolicy: 'throw'` |
@@ -386,6 +401,6 @@ same rollout bucket across requests.
 
 ## License
 
-Dual-licensed under **AGPLv3** and a **Commercial License**. See the root [`LICENSE`](../../LICENSE) and [`COMMERCIAL_LICENSE.txt`](../../COMMERCIAL_LICENSE.txt) for details.
+Dual-licensed under **AGPLv3** and a **Commercial License**. See the root [`LICENSE`](https://github.com/aristoteliss/nestjs-pipeline/blob/master/LICENSE) and [`COMMERCIAL_LICENSE.txt`](https://github.com/aristoteliss/nestjs-pipeline/blob/master/COMMERCIAL_LICENSE.txt) for details.
 
 Contact: **aristotelis@ik.me**

@@ -81,4 +81,41 @@ describe('stringifyAuditValue', () => {
     expect(parsedErr.$type).toBe('Error');
     expect(parsedErr.symbolProperties).toBeDefined();
   });
+
+  it('tags undefined properties, anonymous functions and description-less symbols', () => {
+    const serialized = stringifyAuditValue({
+      missing: undefined,
+      callback: (
+        () => () =>
+          undefined
+      )(),
+      marker: Symbol(),
+    });
+
+    expect(JSON.parse(serialized)).toEqual({
+      missing: { $type: 'Undefined' },
+      callback: { $type: 'Function', name: null },
+      marker: { $type: 'Symbol', description: null },
+    });
+  });
+
+  it('serializes dates as ISO strings', () => {
+    const serialized = stringifyAuditValue({
+      at: new Date('2026-01-01T00:00:00.000Z'),
+    });
+
+    expect(JSON.parse(serialized)).toEqual({ at: '2026-01-01T00:00:00.000Z' });
+  });
+
+  it('marks a circular reference but serializes a repeated non-circular reference in full', () => {
+    const shared = { id: 1 };
+    const node: Record<string, unknown> = { shared, again: shared };
+    node.self = node;
+
+    expect(JSON.parse(stringifyAuditValue(node))).toEqual({
+      shared: { id: 1 },
+      again: { id: 1 },
+      self: '[Circular]',
+    });
+  });
 });

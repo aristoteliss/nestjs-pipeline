@@ -344,6 +344,49 @@ describe('FeatureFlagBehavior', () => {
     });
   });
 
+  it('describes a thrown non-Error provider failure by its string form', async () => {
+    getBooleanDetails.mockRejectedValueOnce('socket hang up');
+    const ctx = withOptions(makeCtx(), {
+      flag: 'checkout',
+      errorPolicy: 'throw',
+    });
+
+    await expect(
+      new FeatureFlagBehavior(client).handle(ctx, vi.fn()),
+    ).rejects.toMatchObject({
+      name: 'FeatureFlagEvaluationError',
+      providerMessage: 'socket hang up',
+      cause: 'socket hang up',
+    });
+    expect(ctx.items.get(FEATURE_FLAG_DECISION_ITEM)).toMatchObject({
+      reason: 'ERROR',
+      errorMessage: 'socket hang up',
+    });
+  });
+
+  it('describes a provider-reported failure by its error code when no message is given', async () => {
+    getBooleanDetails.mockResolvedValue({
+      flagKey: 'checkout',
+      value: false,
+      reason: 'ERROR',
+      errorCode: 'FLAG_NOT_FOUND',
+    });
+    const next = vi.fn();
+    const ctx = withOptions(makeCtx(), {
+      flag: 'checkout',
+      errorPolicy: 'throw',
+    });
+
+    await expect(
+      new FeatureFlagBehavior(client).handle(ctx, next),
+    ).rejects.toMatchObject({
+      name: 'FeatureFlagEvaluationError',
+      errorCode: 'FLAG_NOT_FOUND',
+      providerMessage: 'FLAG_NOT_FOUND',
+    });
+    expect(next).not.toHaveBeenCalled();
+  });
+
   it('uses the default value when provider evaluation throws and policy is use-default', async () => {
     getBooleanDetails.mockRejectedValueOnce(new Error('provider offline'));
     const fallback = vi.fn().mockReturnValue('legacy');
@@ -365,10 +408,9 @@ describe('FeatureFlagBehavior', () => {
 });
 
 /**
- * With `errorPolicy: 'throw'` the evaluation used to throw from inside
- * `evaluate()`, before `handle()` wrote `FEATURE_FLAG_DECISION_ITEM`. An outer
- * audit or telemetry behavior was therefore blind in exactly the case it most
- * needs to record, and the provider error was reduced to a message.
+ * With `errorPolicy: 'throw'`, `FEATURE_FLAG_DECISION_ITEM` must be written
+ * before the evaluation error propagates, and the error must keep the provider
+ * failure. An outer audit or telemetry behavior needs to record exactly this case.
  */
 describe('FeatureFlagBehavior decision record on evaluation failure', () => {
   const flag = 'checkout-v2';

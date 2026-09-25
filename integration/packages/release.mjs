@@ -16,6 +16,7 @@ import { dirname, resolve } from 'node:path';
 const root = resolve(import.meta.dirname, '../..');
 const template = resolve(import.meta.dirname, 'consumer');
 const readJson = (path) => JSON.parse(readFileSync(path, 'utf8'));
+const nodeEngine = readJson(resolve(root, 'package.json')).engines.node;
 const run = (command, args, cwd = root) =>
   execFileSync(command, args, { cwd, stdio: 'inherit' });
 const tar = (args) => execFileSync('tar', args, { encoding: 'utf8' });
@@ -77,6 +78,7 @@ try {
     const entries = tar(['-tf', path]).trim().split('\n');
     for (const required of [
       'package.json',
+      'README.md',
       'LICENSE',
       'COMMERCIAL_LICENSE.txt',
     ]) {
@@ -98,6 +100,12 @@ try {
     ) {
       throw new Error(`${file}: ships test files`);
     }
+    const readme = tar(['-xzf', path, '-O', 'package/README.md']);
+    if (/\]\(\.\.\//.test(readme)) {
+      throw new Error(
+        `${file}: README links outside the package, which break on npmjs.com`,
+      );
+    }
     const manifest = JSON.parse(
       tar(['-xzf', path, '-O', 'package/package.json']),
     );
@@ -113,6 +121,11 @@ try {
     }
     seen.add(manifest.name);
     packedDependencies[manifest.name] = `file:${path}`;
+    if (manifest.engines?.node !== nodeEngine) {
+      throw new Error(
+        `${manifest.name}: engines.node must be the root's "${nodeEngine}", found "${manifest.engines?.node}"`,
+      );
+    }
     for (const field of [
       'dependencies',
       'peerDependencies',

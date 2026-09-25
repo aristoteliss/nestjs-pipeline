@@ -1504,7 +1504,7 @@ nestjs-pipeline/
     │       └── models/            # RootEntity
     └── users-api/                # Full working example using ddd-core + casl
         └── src/
-            ├── persistence/      # MikroOrmStore, MikroOrmCache, schemas/, migrate.ts
+            ├── persistence/      # MikroOrmStore, schemas/, migrate.ts
             ├── roles/            # MikroORM-backed CASL providers (role CRUD + capabilities)
             ├── auths/            # Auth CRUD + user-context resolver
             └── users/

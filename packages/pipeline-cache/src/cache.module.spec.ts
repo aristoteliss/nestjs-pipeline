@@ -153,4 +153,16 @@ describe('CacheModule.forRootAsync', () => {
       ),
     ).toBe(false);
   });
+
+  it('declares no factory dependencies when none are injected', () => {
+    const useFactory = vi.fn(() => ({ ttl: 5_000 }));
+    const dynamicModule = CacheModule.forRootAsync({ useFactory });
+
+    const optionsProvider = dynamicModule.providers?.find(
+      (provider) => (provider as FactoryProvider).useFactory === useFactory,
+    ) as FactoryProvider;
+
+    expect(optionsProvider.inject).toEqual([]);
+    expect(dynamicModule.imports).toEqual([]);
+  });
 });

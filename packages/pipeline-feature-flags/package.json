@@ -4,6 +4,9 @@
   "description": "Feature-flag gating behavior for the NestJS pipeline — provider-agnostic via OpenFeature (Unleash, Flagsmith, LaunchDarkly, …).",
   "author": "Aristotelis <aristotelis@ik.me>",
   "license": "SEE LICENSE IN LICENSE",
+  "engines": {
+    "node": ">=22.0.0"
+  },
   "keywords": [
     "nestjs",
     "pipeline",

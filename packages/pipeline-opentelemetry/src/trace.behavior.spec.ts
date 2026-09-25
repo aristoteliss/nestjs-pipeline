@@ -268,6 +268,22 @@ describe('TraceBehavior', () => {
     );
   });
 
+  it.each([
+    ['an empty static span name', ''],
+    ['a span-name factory that returns an empty string', () => ''],
+  ])('falls back to the default name for %s', async (_label, spanName) => {
+    const ctx = makeCtx();
+    vi.mocked(ctx.getBehaviorOptions).mockReturnValue({ spanName } as never);
+
+    await behavior.handle(ctx, vi.fn().mockResolvedValue(null));
+
+    expect(mockTracer.startActiveSpan).toHaveBeenCalledWith(
+      'command.TestCommand',
+      expect.any(Object),
+      expect.any(Function),
+    );
+  });
+
   it('merges custom span attributes', async () => {
     const ctx = makeCtx();
     vi.mocked(ctx.getBehaviorOptions).mockReturnValue({
@@ -331,6 +347,29 @@ describe('TraceBehavior', () => {
       }),
     );
     expect(mockSpan.setAttributes).not.toHaveBeenCalled();
+  });
+
+  it('skips request-local context attributes on a failed span when disabled', async () => {
+    const ctx = makeCtx();
+    addPipelineTelemetryAttributes(ctx, { 'user.id': 'user-123' });
+    vi.mocked(ctx.getBehaviorOptions).mockReturnValue({
+      includeContextAttributes: false,
+    } as never);
+    const error = new Error('boom');
+
+    await expect(
+      behavior.handle(ctx, vi.fn().mockRejectedValue(error)),
+    ).rejects.toBe(error);
+
+    expect(mockSpan.setAttributes).not.toHaveBeenCalled();
+    expect(mockSpan.setAttribute).toHaveBeenCalledWith(
+      'pipeline.outcome',
+      'failure',
+    );
+    expect(mockSpan.setStatus).toHaveBeenCalledWith({
+      code: SpanStatusCode.ERROR,
+      message: 'boom',
+    });
   });
 
   it('can disable exception events while preserving ERROR status', async () => {

@@ -56,4 +56,36 @@ describe('AuditModule', () => {
     ) as any;
     expect(sinkProvider?.useFactory).toBe(factory);
   });
+
+  it('forRootAsync injects nothing and imports nothing when neither is given', () => {
+    const dynamicModule = AuditModule.forRootAsync({
+      useFactory: () => new LogAuditSink(),
+    });
+
+    const sinkProvider = dynamicModule.providers?.find(
+      (p: any) => p.provide === AUDIT_SINK,
+    ) as any;
+    const defaultsProvider = dynamicModule.providers?.find(
+      (p: any) => p.provide === AUDIT_DEFAULT_OPTIONS,
+    ) as any;
+    expect(sinkProvider?.inject).toEqual([]);
+    expect(dynamicModule.imports).toEqual([]);
+    expect(defaultsProvider?.useValue).toEqual({});
+  });
+
+  it('forRootAsync forwards the injected tokens and imports to the sink factory', () => {
+    const POOL = Symbol('POOL');
+    class PoolModule {}
+    const dynamicModule = AuditModule.forRootAsync({
+      imports: [PoolModule],
+      inject: [POOL],
+      useFactory: () => new LogAuditSink(),
+    });
+
+    const sinkProvider = dynamicModule.providers?.find(
+      (p: any) => p.provide === AUDIT_SINK,
+    ) as any;
+    expect(sinkProvider?.inject).toEqual([POOL]);
+    expect(dynamicModule.imports).toEqual([PoolModule]);
+  });
 });

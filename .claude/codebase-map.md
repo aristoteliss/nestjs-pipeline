@@ -50,7 +50,7 @@ what the libraries support.
 ## Technology Stack
 
 <!-- context:generated-start technology-stack -->
-- **Languages** (file counts, excluded directories omitted): `.ts` 686, `.md` 45, `.grit` 13, `.py` 3, `.mjs` 1
+- **Languages** (file counts, excluded directories omitted): `.ts` 697, `.md` 45, `.grit` 13, `.py` 3, `.mjs` 1
 - **Runtime engines** (root `package.json`): `node` >=22.0.0, `pnpm` >=9.0.0
 - **Package manager evidence**: `pnpm-lock.yaml`.
 
@@ -60,7 +60,7 @@ what the libraries support.
 | NestJS CQRS — Command/query/event buses wrapped by the pipeline | `@nestjs/cqrs` | `ddd/core/persistence/biome-general-plugins.spec.ts`, `ddd/users-api/src/app.module.ts` |
 | MikroORM — ORM, unit of work, migrations | `@mikro-orm/core`, `@mikro-orm/nestjs`, `@mikro-orm/migrations` | `ddd/core/persistence/assert-autocommit.ts`, `ddd/core/persistence/biome-general-plugins.spec.ts` |
 | PostgreSQL — Relational backend and schema-per-tenant access | `pg`, `@mikro-orm/postgresql` | `ddd/users-api/src/persistence/postgres-mikro-orm.store.ts`, `ddd/users-api/src/persistence/postgres-options.ts` |
-| SQLite / libSQL — Local and test persistence backend | `@libsql/client`, `@mikro-orm/sqlite`, `@mikro-orm/libsql` | `ddd/users-api/src/persistence/cache/mikro-orm.cache.ts`, `ddd/users-api/src/persistence/libsql-options.ts` |
+| SQLite / libSQL — Local and test persistence backend | `@libsql/client`, `@mikro-orm/sqlite`, `@mikro-orm/libsql` | `ddd/users-api/src/persistence/libsql-options.ts`, `ddd/users-api/src/persistence/mikro-orm.store.ts` |
 | Redis — Cache and queue backend | `@keyv/redis`, `redis` | `packages/pipeline-idempotency/src/stores/redis.store.ts` |
 | BullMQ — Background jobs and dead-letter transport | `bullmq`, `@nestjs/bullmq` | `ddd/users-api/src/infrastructure/reliability.module.ts`, `ddd/users-api/src/users/jobs/batch-update-users.processor.spec.ts` |
 | Keyv / cache-manager — Pluggable cache stores | `keyv`, `cache-manager` | `ddd/users-api/test/behavior-composition-contracts.spec.ts`, `packages/pipeline-cache/src/adapters/cache-manager.adapter.ts` |
@@ -130,15 +130,15 @@ Root files: `.gitignore`, `.npmrc`, `AGENTS.md`, `CLAUDE.md`, `COMMERCIAL_LICENS
 
 | Path | Package | Source layout | Docs |
 | --- | --- | --- | --- |
-| `ddd/core` | `@nestjs-pipeline/ddd-core` | `application`, `domain`, `persistence`, `types` | [README](ddd/core/README.md) |
+| `ddd/core` | `@nestjs-pipeline/ddd-core` | `application`, `domain`, `http`, `persistence`, `types` | [README](ddd/core/README.md) |
 | `ddd/users-api` | `@nestjs-pipeline/ddd-users-api` | `auths`, `common`, `infrastructure`, `persistence`, `roles`, `users` | [README](ddd/users-api/README.md) |
 | `packages/pipeline` | `@nestjs-pipeline/core` | `behaviors`, `constants`, `decorators`, `errors`, `helpers`, `interfaces`, `options`, `services`, `types` | [README](packages/pipeline/README.md) |
 | `packages/pipeline-audit` | `@nestjs-pipeline/audit` | `constants`, `helpers`, `interfaces`, `sinks` | [README](packages/pipeline-audit/README.md) |
 | `packages/pipeline-cache` | `@nestjs-pipeline/cache` | `adapters`, `constants`, `errors`, `helpers`, `interfaces` | [README](packages/pipeline-cache/README.md) |
-| `packages/pipeline-casl` | `@nestjs-pipeline/casl` | `constants`, `errors`, `helpers`, `interfaces`, `types` | [README](packages/pipeline-casl/README.md) |
+| `packages/pipeline-casl` | `@nestjs-pipeline/casl` | `constants`, `errors`, `filters`, `helpers`, `interfaces`, `types` | [README](packages/pipeline-casl/README.md) |
 | `packages/pipeline-correlation` | `@nestjs-pipeline/correlation` | `constants`, `decorators`, `helpers`, `middlewares`, `options`, `types` | [README](packages/pipeline-correlation/README.md) |
 | `packages/pipeline-deadletter` | `@nestjs-pipeline/deadletter` | `constants`, `helpers`, `interfaces`, `transports` | [README](packages/pipeline-deadletter/README.md) |
-| `packages/pipeline-feature-flags` | `@nestjs-pipeline/feature-flags` | `constants`, `errors`, `helpers`, `interfaces` | [README](packages/pipeline-feature-flags/README.md) |
+| `packages/pipeline-feature-flags` | `@nestjs-pipeline/feature-flags` | `constants`, `errors`, `filters`, `helpers`, `interfaces` | [README](packages/pipeline-feature-flags/README.md) |
 | `packages/pipeline-idempotency` | `@nestjs-pipeline/idempotency` | `constants`, `errors`, `filters`, `helpers`, `interfaces`, `stores` | [README](packages/pipeline-idempotency/README.md) |
 | `packages/pipeline-opentelemetry` | `@nestjs-pipeline/opentelemetry` | `helpers` | [README](packages/pipeline-opentelemetry/README.md) |
 | `packages/pipeline-rate-limit` | `@nestjs-pipeline/rate-limit` | `constants`, `errors`, `filters`, `helpers`, `interfaces` | [README](packages/pipeline-rate-limit/README.md) |
@@ -266,7 +266,12 @@ and entity/field checks in the handler after the aggregate is loaded (`CaslAutho
 ### Persistence lifecycle and caching — `ddd/core/persistence/`
 
 - **Responsibility**: repository contracts, `@Cache` / `@FromCache` / `@AcknowledgePersisted`
-  / `@MapPersistenceErrors`, `optimisticUpdate`, `MemoryCache`, cache barrier/version helpers.
+  / `@MapPersistenceErrors` / `@PersistedWrite`, `optimisticUpdate` / `optimisticDelete`,
+  `MemoryCache` and `MikroOrmCache` (with `CacheEntry` and `createCacheTableSql`), cache
+  barrier/version helpers, `MikroOrmWriteSideCommandRepository`, persistence error
+  translation (`mapPersistenceError`, `isTransientPersistenceError`), and the root-entity
+  schema mapping (`rootEntityProperties`, `versionProperty`). HTTP statuses for
+  `ddd/core` errors come from `ddd/core/http/` (`domainErrorHttpStatus`).
 - **Invariants**: `@PersistedWrite`, or decorator order `@Cache → @AcknowledgePersisted → @MapPersistenceErrors`;
   the persisted version baseline advances only after a durable write; caches hold
   serializable snapshots, never live aggregates; version conflicts surface as
@@ -329,7 +334,8 @@ and entity/field checks in the handler after the aggregate is loaded (`CaslAutho
 ### Multi-tenant persistence — `ddd/users-api/src/persistence/`
 
 - **Responsibility**: MikroORM stores (SQLite/libSQL and PostgreSQL), tenant schema context
-  and middleware, tenant↔EntityManager registry, transient-error classification, migrations.
+  and middleware, tenant↔EntityManager registry, migrations. Transient-error
+  classification comes from `ddd/core/persistence`.
 - **Invariants**: tenant ownership metadata stays external to MikroORM objects
   (`entity-manager-tenant.registry.ts`); contextual EntityManager reuse validates
   driver/config/schema plus registry tenant in one place for both drivers
@@ -357,7 +363,7 @@ environment value is read or reproduced here.
 | NestJS CQRS | `ddd/users-api`, `packages/pipeline` | `ddd/core/persistence/biome-general-plugins.spec.ts`, `ddd/users-api/src/app.module.ts` |
 | MikroORM | `ddd/core`, `ddd/users-api` | `ddd/core/persistence/assert-autocommit.ts`, `ddd/core/persistence/biome-general-plugins.spec.ts` |
 | PostgreSQL | `ddd/users-api` | `ddd/users-api/src/persistence/postgres-mikro-orm.store.ts`, `ddd/users-api/src/persistence/postgres-options.ts` |
-| SQLite / libSQL | `ddd/users-api` | `ddd/users-api/src/persistence/cache/mikro-orm.cache.ts`, `ddd/users-api/src/persistence/libsql-options.ts` |
+| SQLite / libSQL | `ddd/users-api` | `ddd/users-api/src/persistence/libsql-options.ts`, `ddd/users-api/src/persistence/mikro-orm.store.ts` |
 | Redis | `ddd/users-api`, `packages/pipeline-cache` | `packages/pipeline-idempotency/src/stores/redis.store.ts` |
 | BullMQ | `ddd/users-api` | `ddd/users-api/src/infrastructure/reliability.module.ts`, `ddd/users-api/src/users/jobs/batch-update-users.processor.spec.ts` |
 | Keyv / cache-manager | `ddd/users-api`, `packages/pipeline-cache` | `ddd/users-api/test/behavior-composition-contracts.spec.ts`, `packages/pipeline-cache/src/adapters/cache-manager.adapter.ts` |
@@ -411,9 +417,9 @@ Names only — values are never read by the generator.
 | --- | --- | --- |
 | Naming | `<concern>.behavior.ts`, `<concern>.module.ts`, `*.command.ts`, `*.query.ts`, `*.handler.ts`, `*.entity.ts`, `*.exception.ts` / `*.error.ts`, `*.command-repository.ts`, `*.query-repository.ts`, `*.spec.ts` | existing files under `packages/*/src`, `ddd/users-api/src` |
 | File organization | Packages: `src/{constants,helpers,interfaces,errors,filters,...}` + one `packages/*/src/index.ts`. App: feature folder with `controllers/ cqrs/ domain/ dtos/ mappers/ persistence/` | `.claude/codebase-map.md` → Directory Map |
-| Imports | Path aliases `@common/*`, `@persistence/*` in users-api; `ddd-core` imported via `/domain`, `/application`, `/persistence`, never the root barrel | `ddd/users-api/vitest.config.ts`, `biome/plugins/ddd-entry-points.grit` |
+| Imports | Path aliases `@common/*`, `@persistence/*` in users-api; `ddd-core` imported via `/domain`, `/application`, `/persistence`, `/http`, never the root barrel | `ddd/users-api/vitest.config.ts`, `biome/plugins/ddd-entry-points.grit` |
 | Framework independence | `ddd/core` imports no NestJS, `nestjs`-named or `@nestjs-pipeline/*` package, specs included, and declares none; Nest glue lives in the application | `biome/plugins/framework-independence.grit`, `ddd/core/package-manifest.spec.ts`, `ddd/core/domain/domain-entry-point.spec.ts` |
-| Error handling | Framework-neutral errors inward, HTTP mapping at the presentation boundary only | `biome/plugins/transport-neutral-errors.grit`, `ddd/users-api/src/common/filters/` |
+| Error handling | Framework-neutral errors inward, HTTP mapping at the presentation boundary only; statuses for `ddd/core` errors come from `domainErrorHttpStatus()` | `biome/plugins/transport-neutral-errors.grit`, `ddd/core/http/`, `ddd/users-api/src/common/filters/` |
 | Logging | Structured Pino; cross-cutting logging via `LoggingBehavior`, not manual calls in handlers | `ddd/users-api/src/infrastructure/observability.module.ts` |
 | Configuration | `process.env` only in bootstrap/infrastructure/config; application code takes ports and module options | `biome/plugins/core-environment.grit`, `ddd/users-api/src/common/environment/` |
 | Database access | Handlers depend on repository interfaces and tokens; ORM only in persistence adapters | `biome/plugins/handler-boundaries.grit` |
@@ -507,12 +513,14 @@ row as *declared* unless you have run it yourself in this checkout.
 - **Integration dependencies**: a published package must not depend on `@nestjs/testing` —
   tests needing a Nest application live in `ddd/users-api`. Suites that need PostgreSQL or
   Redis are in `ddd/users-api/test/` (for example `postgres-migrations.e2e-spec.ts`,
-  `bullmq-deadletter.e2e-spec.ts`); the default local path uses SQLite/libSQL and in-memory
-  stores.
+  `bullmq-deadletter.e2e-spec.ts`). Each bundled Postgres or Redis adapter has one there
+  (`postgres-audit-dead-letter`, `postgres-idempotency-store`, `redis-idempotency-store`,
+  `mikro-orm-cache.postgres`), except `RabbitMqDeadLetterTransport`. The default local path
+  uses SQLite/libSQL and in-memory stores.
 - **Environment**: copy `ddd/users-api/.env.example` to `.env` for local runs. Vitest sets
   `reflect-metadata` as a setup file.
 - **Architecture guards run as tests**: `packages/pipeline/src/package-boundaries.spec.ts`,
-  `ddd/core/persistence/biome-*-plugins.spec.ts`,
+  `ddd/core/persistence/biome-*-plugin*.spec.ts`,
   `ddd/users-api/test/behavior-composition-contracts.spec.ts`,
   `cqrs-discovery-without-private-metadata.e2e-spec.ts`.
 - **Release verification**: `pnpm test:release` packs every publishable package and loads it
@@ -639,13 +647,13 @@ secret value.*
 ## Snapshot Metadata
 
 <!-- context:generated-start metadata -->
-- Generated at: 2026-09-24T17:34:43Z
-- Git commit: 7479b865b2e325da587ac94c63c9ba420b71d2a1
+- Generated at: 2026-09-25T07:36:48Z
+- Git commit: 65f1f35d466707be935244e115eb4d2a7aa81ffc
 - Git branch: publish
 - Uncommitted changes when generated: yes
 - Generator: `scripts/update-claude-snapshot.py` version 1.0.0
 - Snapshot status: generated — structural inspection only, no code executed
-- Files inspected: 804
+- Files inspected: 815
 - Included top-level directories: `.agents`, `.claude`, `biome`, `ddd`, `integration`, `packages`, `scripts`
 - Excluded directory names: `.cache`, `.git`, `.gradle`, `.idea`, `.mypy_cache`, `.next`, `.nuxt`, `.parcel-cache`, `.pnpm-store`, `.pytest_cache`, `.ruff_cache`, `.svelte-kit`, `.terraform`, `.tmp`, `.tox`, `.turbo`, `.venv`, `.vscode`, `__pycache__`, `bower_components`, `build`, `coverage`, `dist`, `node_modules`, `out`, `target`, `vendor`, `venv`, `virtualenv`
 - Excluded file patterns: `.env`, `.env.*`, `*.env`, `*.pem`, `*.key`, `*.pfx`, `*.p12`, `*.jks`, `*.keystore`, `id_rsa*`, `id_ed25519*`, `*credentials*`, `*.secret`, `secrets.*`

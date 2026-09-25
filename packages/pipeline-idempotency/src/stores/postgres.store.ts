@@ -101,6 +101,22 @@ function mapRow(key: string, row: PostgresRowLike): IdempotencyRecord {
 }
 
 /**
+ * Validates a lease TTL before it is interpolated into a PostgreSQL interval.
+ *
+ * Lease expiry is computed and compared using the database clock. The returned
+ * string is safe to concatenate only because the input is first constrained to a
+ * positive safe integer.
+ */
+function assertLeaseTtl(ttlMs: number): string {
+  if (!Number.isSafeInteger(ttlMs) || ttlMs <= 0) {
+    throw new TypeError(
+      `Idempotency lease TTL must be a positive safe integer in milliseconds, received ${ttlMs}.`,
+    );
+  }
+  return String(ttlMs);
+}
+
+/**
  * {@link IdempotencyStore} backed by **Postgres** (`pg`) — a drop-in
  * replacement that shares state across instances without a separate Redis.
  *
@@ -120,22 +136,6 @@ function mapRow(key: string, row: PostgresRowLike): IdempotencyRecord {
  * const store = new PostgresIdempotencyStore(pool);
  * ```
  */
-/**
- * Validates a lease TTL before it is interpolated into a PostgreSQL interval.
- *
- * Lease expiry is computed and compared using the database clock. The returned
- * string is safe to concatenate only because the input is first constrained to a
- * positive safe integer.
- */
-function assertLeaseTtl(ttlMs: number): string {
-  if (!Number.isSafeInteger(ttlMs) || ttlMs <= 0) {
-    throw new TypeError(
-      `Idempotency lease TTL must be a positive safe integer in milliseconds, received ${ttlMs}.`,
-    );
-  }
-  return String(ttlMs);
-}
-
 export class PostgresIdempotencyStore implements IdempotencyStore {
   private readonly table: string;
 

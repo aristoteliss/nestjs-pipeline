@@ -1,11 +1,48 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import { ICache } from '@nestjs-pipeline/ddd-core/application';
-import { MemoryCache } from '@nestjs-pipeline/ddd-core/persistence';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { User, UserSnapshot } from '../../users/domain/models/user.entity';
-import { CacheEntry } from './cache.entity';
+import type { RootEntitySnapshot } from '../../domain/interfaces/root-entity-snapshot.interface';
+import { RootEntity } from '../../domain/models/root.entity';
+import type { ICache } from '../cache.interface';
+import { CacheEntry } from './cache-entry';
+import { MemoryCache } from './memory.cache';
 import { MikroOrmCache } from './mikro-orm.cache';
+
+interface MemberSnapshot extends Partial<RootEntitySnapshot> {
+  username: string;
+  email: string;
+}
+
+/** A minimal aggregate, to prove a cached snapshot rehydrates faithfully. */
+class Member extends RootEntity<MemberSnapshot> {
+  readonly username: string;
+  readonly email: string;
+
+  private constructor(snapshot: Partial<MemberSnapshot>) {
+    super(snapshot);
+    this.username = snapshot.username ?? '';
+    this.email = snapshot.email ?? '';
+  }
+
+  static create(username: string, email: string): Member {
+    return new Member({ username, email });
+  }
+
+  static fromJSON(snapshot: MemberSnapshot): Member {
+    return new Member(snapshot);
+  }
+
+  toJSON(): RootEntitySnapshot & MemberSnapshot {
+    return this.freezeState({
+      id: this.id,
+      createdAt: this.createdAt,
+      updatedAt: this.updatedAt,
+      version: this._version,
+      username: this.username,
+      email: this.email,
+    });
+  }
+}
 
 /**
  * Creates a stateful in-memory store simulating MikroORM CacheEntry storage.
@@ -205,25 +242,24 @@ describe('Cache Adapter Conformance (MemoryCache & MikroOrmCache)', () => {
       expect(cached.updatedAt).toBe('2026-09-13T18:00:00.000Z');
     });
 
-    it('restores domain Date instances and prototype when rehydrated via User.fromJSON()', async () => {
+    it('restores domain Date instances and prototype when rehydrated via fromJSON()', async () => {
       const cache = factory();
-      const user = User.create('BobSmith', 'bob@example.test', 'engineering');
+      const user = Member.create('BobSmith', 'bob@example.test');
       const snapshot = user.toJSON();
 
       await cache.set(`user:${user.id}`, snapshot);
 
       const cachedSnapshot = (await cache.get(
         `user:${user.id}`,
-      )) as UserSnapshot;
+      )) as MemberSnapshot;
 
       // Rehydrate into aggregate
-      const rehydrated = User.fromJSON(cachedSnapshot);
+      const rehydrated = Member.fromJSON(cachedSnapshot);
 
-      expect(rehydrated).toBeInstanceOf(User);
+      expect(rehydrated).toBeInstanceOf(Member);
       expect(rehydrated.id).toBe(user.id);
       expect(rehydrated.username).toBe('BobSmith');
       expect(rehydrated.email).toBe('bob@example.test');
-      expect(rehydrated.department).toBe('engineering');
       expect(rehydrated.createdAt).toBeInstanceOf(Date);
       expect(rehydrated.createdAt.getTime()).toBe(user.createdAt.getTime());
       expect(rehydrated.updatedAt).toBeInstanceOf(Date);

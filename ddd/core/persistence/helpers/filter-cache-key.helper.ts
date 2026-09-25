@@ -1,8 +1,10 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { createHash } from 'node:crypto';
-import { currentTenantId } from '../../application/tenant-scope';
-import { MissingTenantContextError } from '../../domain/exceptions/missing-tenant-context.exception';
+import {
+  requireTenantId,
+  type TenantSource,
+} from '../../application/tenant-scope';
 import { stableStringify } from './stable-stringify';
 
 /**
@@ -23,9 +25,7 @@ export type CacheResourceSpecifier =
  * {@link runWithTenant} scope applies. A missing or empty tenant always throws
  * {@link MissingTenantContextError}; there is no shared fallback namespace.
  */
-export type CacheKeyTenantSource =
-  | string
-  | { readonly tenantId?: string | undefined };
+export type CacheKeyTenantSource = TenantSource;
 
 /**
  * A request-bearing source accepted by the factories of {@link cacheKeyTemplate},
@@ -70,28 +70,6 @@ function normalizeFilterConditions(
 }
 
 /**
- * Resolves the tenant schema from an explicit {@link CacheKeyTenantSource}, or
- * else from the running {@link runWithTenant} scope.
- *
- * Fails closed in every environment: tenant-scoped cache keys are never placed
- * into a shared fallback namespace when tenant context is absent.
- *
- * @throws {MissingTenantContextError} When no tenant can be resolved.
- */
-function resolveTenantSchema(tenantSource?: CacheKeyTenantSource): string {
-  const schema =
-    typeof tenantSource === 'string'
-      ? tenantSource
-      : (tenantSource?.tenantId ?? currentTenantId());
-
-  if (!schema) {
-    throw new MissingTenantContextError('cache key derivation');
-  }
-
-  return schema;
-}
-
-/**
  * Derives a deterministic, collision-safe cache key from a canonical structured
  * tuple `[tenant, resource, normalizedFilter]`, versioned and hashed with SHA-256.
  *
@@ -116,7 +94,7 @@ export function filterCacheKey(
   conditions: Record<string, unknown>,
   tenantOrContext?: CacheKeyTenantSource,
 ): string {
-  const schema = resolveTenantSchema(tenantOrContext);
+  const schema = requireTenantId(tenantOrContext, 'cache key derivation');
 
   let resource: string | undefined;
   if (typeof resourceOrEntity === 'string') {
@@ -151,10 +129,7 @@ export function filterCacheKey(
  * structural characters here and are escaped; nested values delegate to the
  * shared {@link stableStringify} for deterministic recursive ordering.
  */
-function canonicalizeValue(val: unknown): string {
-  if (val === null || val === undefined) {
-    return '';
-  }
+function canonicalizeValue(val: NonNullable<unknown>): string {
   if (typeof val === 'object') {
     return stableStringify(val);
   }
@@ -195,7 +170,10 @@ export function cacheKeyTemplate<T = Record<string, unknown>>(
         ? (source as CacheKeyRequestContext)
         : undefined;
     const data = (ctx ? ctx.request : source) as Record<string, unknown>;
-    const schema = resolveTenantSchema(tenantOrContext ?? ctx);
+    const schema = requireTenantId(
+      tenantOrContext ?? ctx,
+      'cache key derivation',
+    );
 
     const resolved = template.replace(
       /\{(\w+)(\?)?\}/g,

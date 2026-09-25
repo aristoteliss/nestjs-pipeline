@@ -62,6 +62,31 @@ describe('FeatureFlagsModule shutdown', () => {
     expect(other.onClose).not.toHaveBeenCalled();
   });
 
+  it('leaves the ambient provider alone when the module registered none', async () => {
+    const ambient = provider();
+    await OpenFeature.setProviderAndWait(ambient.registered);
+    const lifecycle = await start({});
+
+    await lifecycle.onApplicationShutdown?.();
+
+    expect(OpenFeature.getProvider()).toBe(ambient.registered);
+    expect(ambient.onClose).not.toHaveBeenCalled();
+  });
+
+  it('leaves the provider alone when a consumer-supplied client takes precedence', async () => {
+    const { registered, onClose } = provider();
+    await OpenFeature.setProviderAndWait(registered);
+    const lifecycle = await start({
+      client: OpenFeature.getClient(),
+      provider: registered,
+    });
+
+    await lifecycle.onApplicationShutdown?.();
+
+    expect(OpenFeature.getProvider()).toBe(registered);
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
   it('leaves a provider that another registration replaced', async () => {
     const { registered } = provider();
     const lifecycle = await start({ provider: registered });

@@ -2,8 +2,8 @@
 
 import { EntitySchema } from '@mikro-orm/core';
 import { AggregateRoot } from '@nestjs-pipeline/ddd-core/domain';
+import { rootEntityProperties } from '@nestjs-pipeline/ddd-core/persistence';
 import { Capability } from '../../roles/domain/models/capability.entity';
-import { rootEntityProperties } from './root-entity.properties';
 
 export const CapabilitySchema = new EntitySchema<Capability, AggregateRoot>({
   class: Capability,

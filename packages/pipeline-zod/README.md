@@ -22,6 +22,7 @@ Zod v4 validation and parsing integration for `@nestjs-pipeline/core` — parse 
   - [Body Validation](#body-validation)
   - [Param Validation](#param-validation)
   - [Transform Schemas](#transform-schemas)
+- [createZodMapper](#createzodmapper)
 - [ZodValidationFilter](#zodvalidationfilter)
 - [ZodValidationError](#zodvalidationerror)
 - [Full Example](#full-example)
@@ -369,6 +370,34 @@ On validation failure, `ZodPipe` throws a NestJS `BadRequestException` with `err
 
 ---
 
+## createZodMapper
+
+`createZodMapper(schema)` returns `{ schema, map(input) }`: a controller-layer mapper that
+parses a validated DTO into the value the schema outputs, typically an application command.
+
+```typescript
+import { createZodMapper, ZodPipe } from '@nestjs-pipeline/zod';
+
+export const CreateUserMapper = createZodMapper(
+  CreateUserDtoSchema.transform(
+    ({ name, email }) => new CreateUserCommand({ username: name, email }),
+  ),
+);
+
+@Post()
+create(@Body(new ZodPipe(CreateUserDtoSchema)) dto: CreateUserDto) {
+  return this.commandBus.execute(CreateUserMapper.map(dto));
+}
+```
+
+- `map()` parses synchronously, so the schema must not use async refinements or
+  transforms; validate those with `ZodPipe`.
+- On failure it throws the same `BadRequestException` as `ZodPipe`, with
+  `error.flatten()` details (`formErrors`, `fieldErrors`), so clients see one 400 shape.
+- `schema` is exposed for reuse, for example `CreateUserMapper.schema.extend(...)`.
+
+---
+
 ## ZodValidationFilter
 
 A NestJS `ExceptionFilter` that catches `ZodValidationError` (thrown by `ZodValidationBehavior` or by a `createZodRequest()` constructor) and maps it to an HTTP 400 response.
@@ -558,6 +587,8 @@ export class UsersController {
 | `ZodValidationBehavior` | Class | Pipeline behavior — parses `_zodSchema` and applies successful plain-object output to the existing request |
 | `ZodValidationError` | Class | Error with `details` from `ZodError.flatten()` |
 | `ZodValidationFilter` | Class | Exception filter — catches `ZodValidationError` → HTTP 400 |
+| `createZodMapper` | Function | Controller-layer mapper `{ schema, map(input) }`; failures → `BadRequestException` like `ZodPipe` |
+| `ZodMapper` | Interface | The mapper returned by `createZodMapper` |
 | `ZodPipe` | Class | Async NestJS pipe — validates params/body/query against synchronous or asynchronous Zod schemas |
 | `ZOD_SCHEMA_KEY` | `'_zodSchema'` | Key for attaching schemas to request classes |
 | `getRawInput(request)` | Function | Returns, by reference, the input a generated constructor was called with — including an explicit `null` or `undefined` that preprocessing replaced. Returns the request itself when no input was recorded |
@@ -575,7 +606,7 @@ consumers that need to name them.
 
 ## License
 
-Dual-licensed under **AGPLv3** and a **Commercial License**. See the root [`LICENSE`](../../LICENSE) and [`COMMERCIAL_LICENSE.txt`](../../COMMERCIAL_LICENSE.txt) for details.
+Dual-licensed under **AGPLv3** and a **Commercial License**. See the root [`LICENSE`](https://github.com/aristoteliss/nestjs-pipeline/blob/master/LICENSE) and [`COMMERCIAL_LICENSE.txt`](https://github.com/aristoteliss/nestjs-pipeline/blob/master/COMMERCIAL_LICENSE.txt) for details.
 
 Contact: **aristotelis@ik.me**
 

@@ -148,8 +148,8 @@ export class CacheBehavior
             behaviorName: CacheBehavior.name,
             message: 'Active CacheBehavior requires an explicit `key` factory',
             fix:
-              'Provide a key factory via createPartitionedCacheKeyFactory(...) or ' +
-              'cacheKeyTemplate(...) in @UsePipeline([CacheBehavior, { key: ... }]) or CacheModule.forRoot({ defaults: ... }).',
+              'Provide a key factory via createPartitionedCacheKeyFactory(...) in ' +
+              '@UsePipeline([CacheBehavior, { key: ... }]) or CacheModule.forRoot({ defaults: ... }).',
           },
         ];
       }

@@ -4,6 +4,9 @@
   "description": "Caching behavior for the NestJS pipeline — cache-manager v7 on top of Keyv with pluggable stores (memory, redis, memcache, sqlite, postgres).",
   "author": "Aristotelis <aristotelis@ik.me>",
   "license": "SEE LICENSE IN LICENSE",
+  "engines": {
+    "node": ">=22.0.0"
+  },
   "keywords": [
     "nestjs",
     "pipeline",

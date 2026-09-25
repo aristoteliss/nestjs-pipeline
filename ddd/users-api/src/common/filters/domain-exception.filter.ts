@@ -6,11 +6,13 @@ import {
   type ExceptionFilter,
   HttpStatus,
 } from '@nestjs/common';
-import {
+import type {
   ConcurrencyConflictError,
-  DomainException,
   EntityNotFoundException,
+  MissingTenantContextError,
 } from '@nestjs-pipeline/ddd-core/domain';
+import { DomainException } from '@nestjs-pipeline/ddd-core/domain';
+import { domainErrorHttpStatus } from '@nestjs-pipeline/ddd-core/http';
 import {
   AuthConfigurationException,
   InvalidLoginCredentialsException,
@@ -51,6 +53,7 @@ type HttpResponse = {
  * | {@link InvalidRefreshTokenError} | 401 Unauthorized, `code: refresh_invalid` | Unknown, expired or revoked refresh token |
  * | {@link RefreshTokenReuseError} | 401 Unauthorized, `code: refresh_reused` | A rotated-away refresh token was presented; the session is revoked |
  * | {@link EntityNotFoundException} | 404 Not Found | Required aggregate/entity does not exist |
+ * | {@link MissingTenantContextError} | 500, generic message | Server misconfiguration: every request path must carry a tenant, and invalid tenant headers are already rejected |
  * | {@link UniqueEmailException} | 409 Conflict | Duplicate email detected across tenant users |
  * | {@link UniqueRoleNameException} | 409 Conflict | Duplicate role name detected across tenant roles |
  * | {@link InvalidRoleNameException} | 422 Unprocessable Entity | Invalid role name |
@@ -58,6 +61,10 @@ type HttpResponse = {
  * | {@link InvalidDepartmentException} | 422 Unprocessable Entity | Invalid department |
  * | `EmptyUserUpdateException` | 400 Bad Request | No mutable fields supplied |
  * | Unclassified {@link DomainException} | 400 Bad Request | Generic invariant failure |
+ *
+ * The `ddd-core` rows (conflict, not found, missing tenant, unclassified) come
+ * from `domainErrorHttpStatus()`; this filter maps the application's own
+ * exceptions first and passes the rest to it.
  *
  * Application and persistence code must not throw Nest HTTP exceptions to obtain
  * these responses; this filter is the presentation boundary responsible for mapping.
@@ -83,12 +90,13 @@ type HttpResponse = {
 export class DomainExceptionFilter implements ExceptionFilter {
   catch(exception: DomainException, host: ArgumentsHost): void {
     const response = host.switchToHttp().getResponse<HttpResponse>();
-    const { statusCode, error, extra } = this.resolveHttpError(exception);
+    const { statusCode, error, message, extra } =
+      this.resolveHttpError(exception);
 
     const body: ErrorResponseBody = {
       statusCode,
       error,
-      message: exception.message,
+      message: message ?? exception.message,
       ...extra,
     };
 
@@ -103,12 +111,9 @@ export class DomainExceptionFilter implements ExceptionFilter {
   private resolveHttpError(exception: DomainException): {
     statusCode: number;
     error: string;
+    message?: string;
     extra?: Record<string, unknown>;
   } {
-    if (exception instanceof ConcurrencyConflictError) {
-      return { statusCode: HttpStatus.CONFLICT, error: 'Conflict' };
-    }
-
     if (
       exception instanceof InvalidRefreshTokenError ||
       exception instanceof RefreshTokenReuseError
@@ -129,10 +134,6 @@ export class DomainExceptionFilter implements ExceptionFilter {
         statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
         error: 'Internal Server Error',
       };
-    }
-
-    if (exception instanceof EntityNotFoundException) {
-      return { statusCode: HttpStatus.NOT_FOUND, error: 'Not Found' };
     }
 
     if (
@@ -157,6 +158,6 @@ export class DomainExceptionFilter implements ExceptionFilter {
       };
     }
 
-    return { statusCode: HttpStatus.BAD_REQUEST, error: 'Bad Request' };
+    return domainErrorHttpStatus(exception);
   }
 }

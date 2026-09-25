@@ -95,6 +95,32 @@ describe('FeatureFlagsModule.forRoot', () => {
     expect(OpenFeature.setProviderAndWait).not.toHaveBeenCalled();
   });
 
+  it('returns the ambient client without registering a provider when given neither', async () => {
+    const module = FeatureFlagsModule.forRoot();
+
+    await expect(clientFactory(module)()).resolves.toEqual({
+      name: 'default-client',
+    });
+    expect(OpenFeature.setProvider).not.toHaveBeenCalled();
+    expect(OpenFeature.setProviderAndWait).not.toHaveBeenCalled();
+    expect(OpenFeature.getClient).toHaveBeenCalledWith();
+  });
+
+  it('registers a domain-bound provider without waiting when waitForReady=false', async () => {
+    const provider = { metadata: { name: 'fake' } } as unknown as Provider;
+    const module = FeatureFlagsModule.forRoot({
+      provider,
+      domain: 'billing',
+      waitForReady: false,
+    });
+
+    await clientFactory(module)();
+
+    expect(OpenFeature.setProvider).toHaveBeenCalledWith('billing', provider);
+    expect(OpenFeature.setProviderAndWait).not.toHaveBeenCalled();
+    expect(OpenFeature.getClient).toHaveBeenCalledWith('billing');
+  });
+
   it('provides default options and context tokens', () => {
     const defaults = { flag: 'default-flag' };
     const context = { targetingKey: 'user-1' };

@@ -9,6 +9,7 @@
     "*.spec.ts",
     "application/**/*.ts",
     "domain/**/*.ts",
+    "http/**/*.ts",
     "persistence/**/*.ts",
     "types/**/*.ts"
   ],

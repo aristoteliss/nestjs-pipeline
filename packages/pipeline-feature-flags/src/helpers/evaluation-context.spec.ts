@@ -31,6 +31,12 @@ describe('baseEvaluationContext', () => {
       'pipeline.correlation_id': 'corr-123',
     });
   });
+
+  it('includes the tenant id when the pipeline context carries one', () => {
+    const ctx = baseEvaluationContext(makeContext({ tenantId: 'tenant-a' }));
+
+    expect(ctx['pipeline.tenant_id']).toBe('tenant-a');
+  });
 });
 
 describe('buildEvaluationContext', () => {

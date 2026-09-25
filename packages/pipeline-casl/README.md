@@ -203,8 +203,15 @@ unauthorized rows. Authorized pagination needs a query-side design.
 ## Errors
 
 - Every denial is an `UnauthorizedActionException` (`action`, `subject`, optional
-  `entityId` and `fields`). Map it to HTTP 403 in your presentation layer; the package
-  throws no transport exceptions.
+  `entityId` and `fields`). The package throws no transport exceptions. Over HTTP,
+  register the bundled `UnauthorizedActionFilter` (Express and Fastify):
+
+  ```typescript
+  app.useGlobalFilters(new UnauthorizedActionFilter());
+  ```
+
+  It answers `403 Forbidden` with `statusCode`, `error`, `message`, `action` and
+  `subject`. The message can include the entity id and denied fields.
 - An unauthenticated caller (`load` returned `null`) is denied with reason
   `Access denied — authentication required.`
 - Permission source failures, malformed rules and unresolved placeholders propagate as
@@ -225,7 +232,8 @@ unauthorized rows. Authorized pagination needs a query-side design.
 | `Capability`, `CapabilityString`, `AbilityRequirement`, `AppAbility`, `AppRawRule`, `Projected` | Types |
 | `CASL_ABILITY_KEY`, `CASL_PRINCIPAL_KEY`, `CASL_ACTIONS`, `CASL_SUBJECTS`, `CaslAction`, `CaslSubject` | Constants |
 | `UnauthorizedActionException`, `UnauthorizedActionDetails` | Denial error |
+| `UnauthorizedActionFilter` | Exception filter: denial → HTTP 403 |
 
 ## License
 
-See [LICENSE](./LICENSE) and [COMMERCIAL_LICENSE.txt](./COMMERCIAL_LICENSE.txt).
+See [LICENSE](https://github.com/aristoteliss/nestjs-pipeline/blob/master/LICENSE) and [COMMERCIAL_LICENSE.txt](https://github.com/aristoteliss/nestjs-pipeline/blob/master/COMMERCIAL_LICENSE.txt).

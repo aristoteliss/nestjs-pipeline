@@ -3,6 +3,7 @@ import type { ArgumentsHost } from '@nestjs/common';
 import {
   ConcurrencyConflictError,
   DomainException,
+  MissingTenantContextError,
 } from '@nestjs-pipeline/ddd-core/domain';
 import { describe, expect, it, vi } from 'vitest';
 import {
@@ -32,6 +33,21 @@ function makeHost(response: unknown): ArgumentsHost {
 
 describe('DomainExceptionFilter', () => {
   const filter = new DomainExceptionFilter();
+
+  it('maps a missing tenant context to a generic HTTP 500, not a client error', () => {
+    const error = new MissingTenantContextError('cache key derivation');
+    const response = { status: vi.fn(), json: vi.fn() };
+    response.status.mockReturnValue(response);
+
+    filter.catch(error, makeHost(response));
+
+    expect(response.status).toHaveBeenCalledWith(500);
+    expect(response.json).toHaveBeenCalledWith({
+      statusCode: 500,
+      error: 'Internal Server Error',
+      message: 'Internal server error',
+    });
+  });
 
   it('maps UniqueEmailException to HTTP 409 Conflict', () => {
     const user = User.create('Alice', 'alice@example.test');

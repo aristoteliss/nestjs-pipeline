@@ -342,7 +342,7 @@ export class IdempotencyBehavior
         `Idempotency response snapshot failed after ${context.requestName} ` +
           `executed successfully (key: ${key}). The claim is retained until it ` +
           'expires; retrying the business request may repeat side effects.',
-        cause instanceof Error ? cause.stack : undefined,
+        (cause as TypeError).stack,
         IdempotencyBehavior.name,
       );
       throw new IdempotencyCompletionError(key, claimId, cause, 'snapshot');

@@ -1,6 +1,6 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import { createMapper } from '@common/mappers/create-mapper.helper';
+import { createZodMapper } from '@nestjs-pipeline/zod';
 import { z } from 'zod';
 import { CreateUserCommand } from '../cqrs/commands/create-user.command';
 import {
@@ -8,7 +8,7 @@ import {
   CreateUserDtoSchema,
 } from '../dtos/create-user.dto';
 
-const base = createMapper(
+const base = createZodMapper(
   CreateUserDtoSchema.extend({
     idempotencyKey: z.string().optional(),
   }).transform(

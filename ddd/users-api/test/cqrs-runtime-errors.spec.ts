@@ -10,6 +10,7 @@ import type { EventBus } from '@nestjs/cqrs';
 import {
   CaslAuthorizer,
   UnauthorizedActionException,
+  UnauthorizedActionFilter,
 } from '@nestjs-pipeline/casl';
 import { EntityNotFoundException } from '@nestjs-pipeline/ddd-core/domain';
 import { ZodValidationError, ZodValidationFilter } from '@nestjs-pipeline/zod';
@@ -25,7 +26,6 @@ import { AuthSessionRevocationService } from '../src/auths/services/auth-session
 import { UserLoginService } from '../src/auths/services/user-login.service';
 // Filters
 import { DomainExceptionFilter } from '../src/common/filters/domain-exception.filter';
-import { UnauthorizedActionFilter } from '../src/common/filters/unauthorized-action.filter';
 import { TenantSchemaContext } from '../src/persistence/tenant-schema.context';
 
 // Roles CQRS & Exceptions

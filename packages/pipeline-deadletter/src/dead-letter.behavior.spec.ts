@@ -272,6 +272,25 @@ describe('DeadLetterBehavior', () => {
     ).rejects.toBe(original);
   });
 
+  it('logs a non-Error transport rejection verbatim and still rethrows the original error', async () => {
+    send.mockRejectedValue('queue unreachable');
+    const logger = { warn: vi.fn(), error: vi.fn() };
+    const behavior = new DeadLetterBehavior(
+      transport,
+      undefined,
+      logger as never,
+    );
+    const original = new Error('original');
+
+    await expect(
+      behavior.handle(makeCtx(), vi.fn().mockRejectedValue(original)),
+    ).rejects.toBe(original);
+    expect(logger.error).toHaveBeenCalledWith(
+      'Failed to dead-letter TestCommand: queue unreachable',
+      DeadLetterBehavior.name,
+    );
+  });
+
   it('rethrows the original error when delivery fails despite rethrow=false', async () => {
     send.mockRejectedValue(new Error('sink down'));
     const behavior = new DeadLetterBehavior(transport);

@@ -3,7 +3,7 @@
 import { describe, expect, it } from 'vitest';
 import { RootEntity } from '../models/root.entity';
 import { DomainEvent } from './domain.event';
-import { RootDomainEvent } from './root-domain.event';
+import { deepCloneAndFreeze, RootDomainEvent } from './root-domain.event';
 
 class CustomDomainEvent extends DomainEvent {
   constructor(
@@ -421,5 +421,24 @@ describe('RootDomainEvent event-time state', () => {
     );
     expect(complexEvent.payload.customInstance.foo).toBe('bar');
     expect(complexEvent.payload.accessor.computed).toBe(100);
+  });
+});
+
+describe('deepCloneAndFreeze', () => {
+  it('skips a key that a Proxy lists but describes as absent', () => {
+    // A Proxy may list a configurable key in ownKeys and still report no
+    // descriptor for it; there is nothing to copy for that key.
+    const target: Record<string, unknown> = { kept: 1 };
+    const listed = new Proxy(target, {
+      ownKeys: () => ['kept', 'ghost'],
+      getOwnPropertyDescriptor: (t, key) =>
+        key === 'ghost' ? undefined : Reflect.getOwnPropertyDescriptor(t, key),
+    });
+
+    const copy = deepCloneAndFreeze(listed);
+
+    expect(copy).toEqual({ kept: 1 });
+    expect(Object.hasOwn(copy, 'ghost')).toBe(false);
+    expect(Object.isFrozen(copy)).toBe(true);
   });
 });

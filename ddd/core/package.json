@@ -3,6 +3,9 @@
   "version": "0.2.0",
   "private": true,
   "license": "SEE LICENSE IN LICENSE",
+  "engines": {
+    "node": ">=22.0.0"
+  },
   "description": "Nest-oriented DDD support for the sample applications: domain primitives, application ports and MikroORM persistence adapters, exported as separate entry points.",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -38,6 +41,10 @@
     "./persistence": {
       "types": "./dist/persistence/index.d.ts",
       "default": "./dist/persistence/index.js"
+    },
+    "./http": {
+      "types": "./dist/http/index.d.ts",
+      "default": "./dist/http/index.js"
     }
   },
   "files": [

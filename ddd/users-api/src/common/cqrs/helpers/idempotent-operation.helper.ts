@@ -5,11 +5,11 @@ import { getSessionUserFromStore } from '@common/context/session-user.store';
 import type { PrincipalType } from '@common/types/SessionUser';
 import { getCaslAbility, getCaslPrincipal } from '@nestjs-pipeline/casl';
 import { type IPipelineContext, stableStringify } from '@nestjs-pipeline/core';
+import { requireTenantId } from '@nestjs-pipeline/ddd-core/application';
 import {
   createPartitionedIdempotencyKeyFactory,
   type IdempotencyKeyFactory,
 } from '@nestjs-pipeline/idempotency';
-import { requireTenantId } from './requireTenantId.helper';
 
 /**
  * Namespace version for operation keys. Bump it only deliberately: a new

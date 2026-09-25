@@ -39,7 +39,7 @@ on final failure it attempts to send the request + error to the configured sink,
   `rethrow: false`.
 
 For *retrying* a request right now, use
-[`@nestjs-pipeline/resilience`](../pipeline-resilience). This package is about
+[`@nestjs-pipeline/resilience`](https://github.com/aristoteliss/nestjs-pipeline/tree/master/packages/pipeline-resilience). This package is about
 what happens **after** retries are exhausted.
 
 ---
@@ -174,6 +174,11 @@ DeadLetterModule.forRoot({
   transport: new PostgresDeadLetterTransport(pool, { table: 'dead_letters' }),
 });
 ```
+
+PostgreSQL `jsonb` cannot hold a NUL character or a lone UTF-16 surrogate, and
+rejects the whole `INSERT` when a payload or error message contains one. The
+transport stores each such character as U+FFFD (`�`) instead, so the dead letter
+is kept.
 
 ### Custom transport
 
@@ -338,6 +343,6 @@ The chain becomes `Logging → ZodValidation → DeadLetterBehavior → Resilien
 
 ## License
 
-Dual-licensed under **AGPLv3** and a **Commercial License**. See the root [`LICENSE`](../../LICENSE) and [`COMMERCIAL_LICENSE.txt`](../../COMMERCIAL_LICENSE.txt) for details.
+Dual-licensed under **AGPLv3** and a **Commercial License**. See the root [`LICENSE`](https://github.com/aristoteliss/nestjs-pipeline/blob/master/LICENSE) and [`COMMERCIAL_LICENSE.txt`](https://github.com/aristoteliss/nestjs-pipeline/blob/master/COMMERCIAL_LICENSE.txt) for details.
 
 Contact: **aristotelis@ik.me**

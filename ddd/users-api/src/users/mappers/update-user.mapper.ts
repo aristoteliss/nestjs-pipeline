@@ -1,11 +1,11 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import { createMapper } from '@common/mappers/create-mapper.helper';
+import { createZodMapper } from '@nestjs-pipeline/zod';
 import { z } from 'zod';
 import { UpdateUserCommand } from '../cqrs/commands/update-user.command';
 import type { UpdateUserDto } from '../dtos/update-user.dto';
 
-const base = createMapper(
+const base = createZodMapper(
   z
     .object({
       id: z.string(),

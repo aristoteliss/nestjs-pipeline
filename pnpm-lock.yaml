@@ -198,6 +198,9 @@ importers:
       '@nestjs/testing':
         specifier: ^11.2.1
         version: 11.2.1(@nestjs/common@11.2.1(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@7.2.0))(@nestjs/core@11.2.1)(@nestjs/platform-express@11.2.1)
+      '@redis/client':
+        specifier: ^5.12.1
+        version: 5.12.1(@node-rs/xxhash@1.7.7)(@opentelemetry/api@1.9.1)
       '@testcontainers/redis':
         specifier: ^11.14.0
         version: 11.14.0(supports-color@7.2.0)

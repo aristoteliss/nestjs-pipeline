@@ -1,5 +1,6 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
+import { toPostgresJson } from '@nestjs-pipeline/core';
 import type {
   DeadLetterRecord,
   DeadLetterTransport,
@@ -63,7 +64,9 @@ export function createDeadLetterTableSql(table = 'dead_letters'): string {
  *
  * Create the table once with {@link createDeadLetterTableSql}. The table name is
  * validated as a plain SQL identifier (it is interpolated, not parameterized);
- * all record values are passed as bound parameters.
+ * all record values are passed as bound parameters. A NUL character or a lone
+ * surrogate, which `jsonb` rejects, is stored as U+FFFD (see
+ * `toPostgresJson`), so one such character cannot lose the whole dead letter.
  *
  * @example
  * ```ts
@@ -87,14 +90,15 @@ export class PostgresDeadLetterTransport implements DeadLetterTransport {
   }
 
   async send(record: DeadLetterRecord): Promise<void> {
+    const json = (value: unknown) => toPostgresJson(JSON.stringify(value));
     await this.db.query(this.insertSql, [
       record.correlationId,
       record.requestKind,
       record.requestName,
       record.handlerName,
-      JSON.stringify(record.payload ?? null),
-      JSON.stringify(record.error),
-      record.metadata ? JSON.stringify(record.metadata) : null,
+      json(record.payload ?? null),
+      json(record.error),
+      record.metadata ? json(record.metadata) : null,
       record.failedAt,
     ]);
   }

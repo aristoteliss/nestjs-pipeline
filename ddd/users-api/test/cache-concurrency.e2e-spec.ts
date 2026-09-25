@@ -1,11 +1,13 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 import { EntityManager, MikroORM } from '@mikro-orm/postgresql';
+import {
+  CacheEntry,
+  CacheEntrySchema,
+  type ITransactionalEntityManagerSource,
+  MikroOrmCache,
+} from '@nestjs-pipeline/ddd-core/persistence';
 import { GenericContainer, Wait } from 'testcontainers';
 import { expect, it } from 'vitest';
-import { CacheEntry } from '../src/persistence/cache/cache.entity';
-import { MikroOrmCache } from '../src/persistence/cache/mikro-orm.cache';
-import { MikroOrmStore } from '../src/persistence/mikro-orm.store';
-import { CacheSchema } from '../src/persistence/schemas/cache.schema';
 
 it.each([true, false])(
   'preserves newest PostgreSQL cache value (existing row: %s)',
@@ -33,14 +35,10 @@ it.each([true, false])(
         dbName: 'cache_test',
         user: 'test',
         password: 'test',
-        entities: [CacheSchema],
+        entities: [CacheEntrySchema],
       });
       orm = database;
       await database.schema.create();
-      // Match Migration20260830000000: epoch milliseconds require bigint.
-      await database.em
-        .getConnection()
-        .execute('alter table cache alter column expires_at type bigint');
       if (seed)
         await database.em.fork().upsert(CacheEntry, {
           key: 'k',
@@ -74,7 +72,7 @@ it.each([true, false])(
               });
               return callback(intercepted);
             }),
-        }) as unknown as MikroOrmStore;
+        }) as unknown as ITransactionalEntityManagerSource;
       const options = {
         isNewer: (old: unknown, incoming: unknown) =>
           (old as { version: number }).version >

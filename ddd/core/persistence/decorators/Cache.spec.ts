@@ -168,6 +168,58 @@ describe('@Cache decorator on CommandRepository.save', () => {
     expect(logger.warn).toHaveBeenCalledTimes(1);
   });
 
+  it('resolves a durable write when a key function returns a value that is not a list', async () => {
+    // A JavaScript caller is not held to the `string[]` return type.
+    const logger = { warn: vi.fn() };
+    class NonListKeysRepo {
+      constructor(public cache?: ICache) {}
+
+      @Cache<MockEntity, { id: string }>({
+        invalidateKeys: () => 42 as unknown as string[],
+        logger,
+      })
+      async save(entity: MockEntity): Promise<{ id: string }> {
+        return { id: entity.id };
+      }
+    }
+
+    await expect(
+      new NonListKeysRepo(new MemoryCache()).save({ id: 'u1' }),
+    ).resolves.toEqual({ id: 'u1' });
+    expect(logger.warn).toHaveBeenCalledTimes(1);
+    expect(logger.warn.mock.calls[0][0]).toMatch(
+      /^Unexpected error during cache maintenance: .*not iterable/,
+    );
+  });
+
+  it('writes through without a comparison when isNewer is null', async () => {
+    const set = vi.fn().mockResolvedValue(undefined);
+    const unversioned: ICache = {
+      get: vi.fn(),
+      set,
+      delete: vi.fn(),
+    };
+    class UncomparedRepo {
+      constructor(public cache?: ICache) {}
+
+      @Cache<MockEntity, { id: string }>({
+        setKey: (entity) => `mock:${entity.id}`,
+        isNewer: null,
+      })
+      async save(entity: MockEntity): Promise<{ id: string }> {
+        return { id: entity.id };
+      }
+    }
+
+    await new UncomparedRepo(unversioned).save({ id: 'u1' });
+
+    expect(set).toHaveBeenCalledWith(
+      'mock:u1',
+      { id: 'u1' },
+      { ttl: undefined, isNewer: undefined },
+    );
+  });
+
   it('writes saved entity result to cache using entity id', async () => {
     const mockCache: ICache = {
       get: vi.fn(),

@@ -7,6 +7,17 @@ export default defineConfig({
     globals: true,
     root: '.',
     include: ['src/**/*.spec.ts'],
+    coverage: {
+      enabled: true,
+      include: ['src/**/*.ts'],
+      thresholds: {
+        perFile: true,
+        statements: 100,
+        branches: 100,
+        functions: 100,
+        lines: 100,
+      },
+    },
     setupFiles: ['reflect-metadata'],
   },
 });

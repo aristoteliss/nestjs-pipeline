@@ -1,16 +1,17 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { createHash } from 'node:crypto';
-import type { EntityManager } from '@mikro-orm/libsql';
-import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
+import type { EntityManager } from '@mikro-orm/core';
 import type {
   CacheFillOptions,
   CacheSetOptions,
   CacheStateEntry,
   IVersionedCache,
-} from '@nestjs-pipeline/ddd-core/application';
-import { MIKRO_ORM_CLIENT, MikroOrmStore } from '../mikro-orm.store';
-import { CacheEntry } from './cache.entity';
+} from '../cache.interface';
+import type { ICacheLogger } from '../cache-logger';
+import { consoleCacheLogger, safeWarn } from '../helpers/cache-logger.helper';
+import type { IEntityManagerSource } from '../mikro-orm-write-side.command-repository';
+import { CacheEntry } from './cache-entry';
 
 /**
  * Reads the committed row inside a CAS transaction, bypassing the identity map
@@ -24,15 +25,30 @@ function readCommittedEntry(em: EntityManager, key: string) {
   );
 }
 
-export type { CacheSetOptions };
-
 /**
- * MikroOrmCache is the PRIMARY cache implementation for this app.
- * Uses MikroORM for persistence, storing cache entries in the 'cache' table.
+ * An {@link IEntityManagerSource} that can also run work in a transaction.
  *
- * Implements {@link IVersionedCache} with revision-fenced atomic coordination,
- * bypassing the identity map across all read and mutation operations.
+ * `transactional` must run `work` on a manager dedicated to that call, never on
+ * the caller's request or transaction manager, so the cache's compare-and-set
+ * steps commit on their own and never join a surrounding unit of work.
+ * `em.fork().transactional(work)` satisfies it.
  */
+export interface ITransactionalEntityManagerSource
+  extends IEntityManagerSource {
+  transactional<T>(work: (em: EntityManager) => Promise<T>): Promise<T>;
+}
+
+/** Options for {@link MikroOrmCache}. */
+export interface MikroOrmCacheOptions {
+  /** Time to live in milliseconds when a write passes none; `0` never expires. Default 60,000. */
+  readonly defaultTtlMs?: number;
+  /**
+   * Receives cache-maintenance warnings. Defaults to `console.warn` with a
+   * `[MikroOrmCache]` prefix. See {@link ICacheLogger}.
+   */
+  readonly logger?: ICacheLogger;
+}
+
 /**
  * Upper bound on compare-and-set re-reads. Each iteration only repeats after a
  * competing writer won the row, so the bound exists to guarantee termination if
@@ -50,18 +66,39 @@ class CacheCasExhaustedError extends Error {
   }
 }
 
-@Injectable()
+/**
+ * MikroORM-backed {@link IVersionedCache}: one row per key in the table mapped by
+ * {@link CacheEntrySchema} (or {@link createCacheEntrySchema}).
+ *
+ * Implements {@link IVersionedCache} with revision-fenced atomic coordination,
+ * bypassing the identity map across all read and mutation operations. Reads use
+ * `store.em`; every write runs in `store.transactional(...)`.
+ *
+ * A plain class with no framework dependency. In a NestJS application, register
+ * it with a factory:
+ *
+ * @example
+ * ```ts
+ * {
+ *   provide: CACHE_TOKEN,
+ *   useFactory: (store: AppStore) =>
+ *     new MikroOrmCache(store, { logger: new Logger('MikroOrmCache') }),
+ *   inject: [STORE],
+ * }
+ * ```
+ */
 export class MikroOrmCache<T> implements IVersionedCache<T> {
   readonly isVersioned = true as const;
 
-  private readonly logger = new Logger(MikroOrmCache.name);
+  private readonly logger: ICacheLogger;
   private readonly defaultTtlMs: number;
 
   constructor(
-    @Inject(MIKRO_ORM_CLIENT) private readonly store: MikroOrmStore,
-    @Optional() options?: { defaultTtlMs?: number },
+    private readonly store: ITransactionalEntityManagerSource,
+    options?: MikroOrmCacheOptions,
   ) {
     this.defaultTtlMs = options?.defaultTtlMs ?? 60_000;
+    this.logger = options?.logger ?? consoleCacheLogger('MikroOrmCache');
   }
 
   /**
@@ -240,7 +277,8 @@ export class MikroOrmCache<T> implements IVersionedCache<T> {
               parsed = JSON.parse(existing.value);
             } catch {
               // An unparsable entry is treated as absent so the CAS update can heal corrupted data.
-              this.logger.warn(
+              safeWarn(
+                this.logger,
                 `Failed to parse cached value (key digest: ${createHash('sha256').update(key).digest('hex')}); treating as absent.`,
               );
             }

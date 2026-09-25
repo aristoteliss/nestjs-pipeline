@@ -4,6 +4,9 @@
   "description": "Dead-letter capture behavior for the NestJS pipeline — transport-agnostic with bundled BullMQ, RabbitMQ, and Postgres transport implementations.",
   "author": "Aristotelis <aristotelis@ik.me>",
   "license": "SEE LICENSE IN LICENSE",
+  "engines": {
+    "node": ">=22.0.0"
+  },
   "keywords": [
     "nestjs",
     "pipeline",
