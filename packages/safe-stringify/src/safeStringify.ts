@@ -44,7 +44,9 @@ export interface SanitizeOptions {
   /**
    * Sanitization mode:
    * - 'json': normalizes rich types (Date, Map, Set, Error) to JSON-friendly primitives/objects.
-   * - 'clone': deeply clones rich types (Date, Map, Set, Error, RegExp) preserving their classes.
+   * - 'clone': deeply clones Date, RegExp, Map, Set, and binary values with their classes. An
+   *   Error becomes a plain `Error` carrying its name, message, stack, and own enumerable
+   *   properties; any other object becomes a plain object.
    */
   mode?: 'json' | 'clone';
 }
@@ -124,9 +126,6 @@ function isExcluded(
   return matchers.flatExclude.has(key) || matchers.pathExclude.has(path);
 }
 
-/**
- * Recursively sanitizes/redacts a single value according to matchers.
- */
 function sanitizeValue(
   val: unknown,
   path: string,
@@ -324,8 +323,14 @@ export function safeStringify(
 }
 
 /**
- * Returns a deep clone of `value` with sensitive keys masked with {@link REDACTED}.
- * Safe against cyclic references and preserves rich object types.
+ * Returns a copy of `value` with the given keys masked with {@link REDACTED}.
+ *
+ * Copies in the `'clone'` mode of {@link SanitizeOptions}: Date, RegExp, Map,
+ * Set, and binary values keep their classes; an Error becomes a plain `Error`
+ * with the same name, message, stack, and own enumerable properties; any other
+ * object becomes a plain object. A cyclic reference becomes `'[Circular]'`,
+ * streams and Multer files become placeholder strings, and functions are
+ * returned by reference.
  */
 export function redactValue(
   value: unknown,

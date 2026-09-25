@@ -7,7 +7,7 @@ import { DomainException } from './domain.exception';
  *
  * Application and persistence layers may throw this exception without importing
  * HTTP/Nest presentation semantics. Transport adapters are responsible for mapping
- * it to their own not-found representation (HTTP 404 in the users-api).
+ * it to their own not-found representation (such as HTTP 404).
  */
 export class EntityNotFoundException extends DomainException {
   constructor(

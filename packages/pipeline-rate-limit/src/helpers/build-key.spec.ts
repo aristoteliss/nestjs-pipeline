@@ -21,9 +21,6 @@ describe('buildRateLimitKey', () => {
   it.each([undefined, {}, { keyPrefix: 'rl' }])(
     'refuses to invent a bucket when no keyFactory is configured: %j',
     (options) => {
-      // The obvious default — requestName — is one bucket shared by every caller
-      // in every tenant, so a single client can lock out everyone. Failing here
-      // makes the partitioning decision explicit at the first request.
       expect(() => buildRateLimitKey(makeContext(), options)).toThrow(
         TypeError,
       );

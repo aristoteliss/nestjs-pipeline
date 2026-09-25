@@ -102,7 +102,7 @@ merging or publishing.
 
 ## Current Status
 
-In progress. Phase 1 complete and Gate 1 green on `5c94efee` (2026-09-25); phase 2: U1–U3, S1–S3, D1–D3 and T1–T3 done; D5 done; next is Gate 2. Section R (comment and code review) is done. A1–A5, A7, B9–B11, N1–N6 and A6, B1–B4, B7, B8, C1–C8 and D4 done.
+In progress. Phase 1 complete and Gate 1 green on `5c94efee` (2026-09-25); phase 2: U1–U3, S1–S3, D1–D3 and T1–T3 done; D5 and Gate 2 done (green on `6891569e`); phase 3: B5 and E1–E4 done; handed over to the owner for publishing. Section R (comment and code review) is done. A1–A5, A7, B9–B11, N1–N6 and A6, B1–B4, B7, B8, C1–C8 and D4 done.
 Section T (`@nestjs-pipeline/tenant`)
 was added to phase 2 on 2026-09-24. Baseline `e60c689a` on branch `review`. Facts
 verified on 2026-09-23 and 2026-09-24 by running commands (no code changed):
@@ -887,8 +887,46 @@ Do it after D3. The release check installs every required peer, and it cannot in
 
 #### Gate 2: everything correct after the rearrangement
 
-- [ ] G2. Rerun every G1 check on the new layout and names, plus the D1a lint probe. All
+- [x] G2. Rerun every G1 check on the new layout and names, plus the D1a lint probe. All
   must pass with the same results as G1 (same test counts, apart from specs added in phase 2).
+
+  Results (2026-09-25, commit `6891569e`, clean tree before and after):
+  - exit 0: `pnpm install --frozen-lockfile --offline`, `pnpm build`, `pnpm lint`,
+    `pnpm check` (776 files), `pnpm lint:persistence`, `pnpm test`, `pnpm test:e2e`,
+    `pnpm test:release`, `pnpm context:check`, `pnpm context:validate`;
+  - `pnpm test:e2e`: 191 tests in 35 files, as in G1;
+  - `pnpm test:release`: "16 packed packages (3 standalone), core lifecycle, CASL 7";
+    standalone `@cqrs-ddd/core` `/domain` 15, `/application` 6, `/http` 1 without
+    MikroORM, root 53 and `/persistence` 32 with it; `@cqrs-ddd/safe-stringify` 10,
+    `@cqrs-ddd/uuidv7` 2. Export counts: core 37 and correlation 14 as in G1, zod 15 (13 +
+    `updatable`, `updatableFieldsOf`), tenant 2, the others as in U2;
+  - coverage: all 16 package configs have `perFile` and 100% on all four metrics; no
+    `v8`/`c8`/`istanbul` ignore directive in `packages/`; no coverage-threshold error;
+  - independence: `@cqrs-ddd/core` depends on the two utilities and peers optionally on
+    `@mikro-orm/core` only; `@cqrs-ddd/uuidv7` and `@cqrs-ddd/safe-stringify` have no
+    dependencies or peers; no `@nestjs` import in their production code (the remaining
+    mentions are test fixtures and the manifest rules); no `@nestjs-pipeline/*` package
+    names `@cqrs-ddd/core` except the boundary rule itself;
+  - D1a lint probe: a file in `api/src/users/cqrs/commands/` importing the
+    `@cqrs-ddd/core` root, `@cqrs-ddd/core/persistence` and a NestJS HTTP exception got
+    the `ddd-entry-points`, `ddd-layering` and `transport-neutral-errors` diagnostics
+    (4 in all); deleted afterwards.
+  - Found and fixed during the gate (`6891569e`): `getUpdateFields`' published JSDoc named
+    `@nestjs-pipeline/zod`, and two golden-output spec comments named
+    `@nestjs-pipeline/core` (one also told history). The neutral packages now name no
+    `@nestjs-pipeline/*` package.
+  - Test counts against G1, every difference traced to a phase 2 or section R step:
+
+    | Suite | G1 | G2 | Change |
+    | --- | --- | --- | --- |
+    | `@nestjs-pipeline/core` | 331 | 270 | U1 +3 boundary cases; U2 −2 (its `uuidv7` spec, cases now in `@cqrs-ddd/uuidv7`); S2 −68 (moved to safe-stringify); D3 +2, T1 +3, T3 +2 boundary cases; tenant rework −1 (two tenant cases became one) |
+    | `@cqrs-ddd/core` (`ddd/core`) | 620 | 598 | U2 −3 (its `uuidv7` spec); S2 −27 (moved to safe-stringify); D1b +2 and T1 +3 plugin cases; R/D5 +6 (timestamp cases, net); resolver +5; tenant rework −2 plugin cases and −6 (scope tests moved to the tenant package) |
+    | `@nestjs-pipeline/zod` | 141 | 159 | +18 `updatable` |
+    | `api` (users-api) | 717 | 720 | T2 −3 (moved); `updatableFields` pin +1; R/D1 +2; R/D4 +3; R/C1 −1 (test of the removed branch); tenant wiring +1 |
+    | `@cqrs-ddd/uuidv7` | — | 16 | new (U1) |
+    | `@cqrs-ddd/safe-stringify` | — | 113 | new (S1 86, S2 +27 moved from `ddd/core`) |
+    | `@nestjs-pipeline/tenant` | — | 9 | new (T1, reworked) |
+    | audit, cache, casl, correlation, deadletter, feature-flags, idempotency, opentelemetry, rate-limit, resilience | 86, 93, 192, 93, 58, 56, 140, 67, 52, 56 | same | none |
 
 ### Phase 3: prepare the publish
 
@@ -1129,7 +1167,7 @@ Totals: 27 history comments (A), 2 banner groups (B), 2 code fixes (C), 5 decisi
 
 #### Release notes
 
-- [ ] B5. **Release notes.** There is no `CHANGELOG.md`. Record the 0.2.0 changes for the
+- [x] B5. **Release notes.** There is no `CHANGELOG.md`. Record the 0.2.0 changes for the
   packages already on npm (core 0.1.18, correlation 0.1.8, opentelemetry 0.1.8, zod 0.1.6,
   casl 0.1.1):
   - core: the tenant id is write-once per context. An unowned instance of a handler class
@@ -1160,23 +1198,58 @@ Totals: 27 history comments (A), 2 banner groups (B), 2 code fixes (C), 5 decisi
 
 #### E. Pre-publish verification (last step before the owner publishes)
 
-- [ ] E1. Run the full suite on the release commit: `pnpm install --frozen-lockfile`,
+- [x] E1. Run the full suite on the release commit: `pnpm install --frozen-lockfile`,
   `pnpm build`, `pnpm lint`, `pnpm check`, `pnpm lint:persistence`, `pnpm test`,
   `pnpm test:e2e` (Docker) and `pnpm test:release`. Record the results here.
-- [ ] E2. Independence proof for `@cqrs-ddd/core`, `@cqrs-ddd/uuidv7` and
+- [x] E2. Independence proof for `@cqrs-ddd/core`, `@cqrs-ddd/uuidv7` and
   `@cqrs-ddd/safe-stringify`:
   - `grep` finds no `@nestjs` string in their packed `dist/**/*.js` or `package.json`;
   - the D2, U3 and S3 consumer checks load every entry point (`@cqrs-ddd/core`'s
     `/domain`, `/application`, `/persistence` and `/http`) with no Nest installed.
-- [ ] E3. Dry run: `pnpm copy-licenses && pnpm -r publish --access public --dry-run`. It
+- [x] E3. Dry run: `pnpm copy-licenses && pnpm -r publish --access public --dry-run`. It
   must list exactly 16 packages (the 12 existing `@nestjs-pipeline/*` packages,
   `@nestjs-pipeline/tenant`, `@cqrs-ddd/core`, `@cqrs-ddd/uuidv7` and
   `@cqrs-ddd/safe-stringify`, all at 0.2.0) and no private workspace.
   Publish order: `@cqrs-ddd/uuidv7` and `@cqrs-ddd/safe-stringify` before the packages that
   depend on them (`pnpm -r` orders by dependency). The dry run must also list
-  `@nestjs-pipeline/tenant` after `@cqrs-ddd/core` and `@nestjs-pipeline/core`.
-- [ ] E4. Hand over to the owner: the branch and commit to publish from, the `CHANGELOG.md`
+  `@nestjs-pipeline/tenant` after `@nestjs-pipeline/core`, its only peer.
+
+  Results (2026-09-25, commit `15137585`, branch `publish`, clean tree before and after):
+  - E1: exit 0 for `pnpm install --frozen-lockfile --offline`, `pnpm build`, `pnpm lint`,
+    `pnpm check` (776 files), `pnpm lint:persistence`, `pnpm test` (counts as in G2),
+    `pnpm test:e2e` (191 tests in 35 files) and `pnpm test:release` ("16 packed packages
+    (3 standalone), core lifecycle, CASL 7").
+  - E2: `pnpm pack` of the three `@cqrs-ddd/*` packages: no `@nestjs` string in any of
+    their 62 `dist/**/*.js` files or in their `package.json`. The release check's
+    standalone stage loaded `@cqrs-ddd/core` `/domain` (15), `/application` (6) and `/http`
+    (1) with nothing but its dependencies, then the root (53) and `/persistence` (32) with
+    `@mikro-orm/core`, checking that no `@nestjs` package was installed; `@cqrs-ddd/uuidv7`
+    (2) and `@cqrs-ddd/safe-stringify` (10) alone.
+  - E3: `pnpm copy-licenses && pnpm -r publish --access public --dry-run --no-git-checks`
+    (`--no-git-checks` because the branch is `publish`, not `master`) exits 0 and lists
+    exactly 16 packages, all 0.2.0, in this order: `@cqrs-ddd/safe-stringify`,
+    `@cqrs-ddd/uuidv7`, `@cqrs-ddd/core`, `@nestjs-pipeline/core`, then audit, cache, casl,
+    correlation, deadletter, feature-flags, idempotency, opentelemetry, rate-limit,
+    resilience, tenant, zod. Each ran its `prepublishOnly` rebuild and printed "Skip
+    publishing … (dry run)". No private workspace (`@nestjs-pipeline/ddd-api`) appears.
+- [x] E4. Hand over to the owner: the branch and commit to publish from, the `CHANGELOG.md`
   entry and the dry-run output. The owner merges to `master` and publishes.
+
+  Handover (2026-09-25): publish from branch `publish` at the commit that records this
+  step (the only change after `15137585` is this task file). `CHANGELOG.md` holds the
+  0.2.0 entry. Before publishing: the `cqrs-ddd` npm organization must exist with the
+  owner allowed to publish to it (no `@cqrs-ddd/*` name is on npm yet); after merging to
+  `master`, `pnpm publish:all` publishes in the dry-run order. The `PostgresIdempotencyStore`
+  question and the root README's `@cqrs-ddd/*` rows were resolved afterwards (Decisions).
+
+  Rerun on the final code commit `28eaf935` (2026-09-25, clean tree): E1 exit 0 for the
+  frozen install, `pnpm build`, `pnpm lint`, `pnpm check`, `pnpm lint:persistence`,
+  `pnpm test` (idempotency 141, the rest as in G2), `pnpm test:e2e` (192 tests in 35
+  files: 191 + the PostgreSQL replay case) and `pnpm test:release` (16 packages, 3
+  standalone, core lifecycle, CASL 7); E3's dry run lists the same 16 packages at 0.2.0
+  in the same order, with no private workspace. Publish from branch `publish` at the
+  commit that records this rerun. When the release
+  is out, move anything durable out of this file and delete it (CLAUDE.md).
 
 ## Decisions
 
@@ -1263,6 +1336,22 @@ Totals: 27 history comments (A), 2 banner groups (B), 2 code fixes (C), 5 decisi
   mocked unit tests only. Name this limitation in its README and in the release notes.
 - Closed earlier, do not reopen: keep `setCorrelationFallback`; keep the production functions
   exported for specs; no core behavior-module factory.
+- Root README (owner, 2026-09-25): the three `@cqrs-ddd/*` packages are listed in their own
+  "Framework-neutral packages" table under the `@nestjs-pipeline/*` one, with a note that
+  only an application connects `@cqrs-ddd/core` to the pipeline packages, and in
+  "Current Package Versions".
+- `PostgresIdempotencyStore` responses (owner asked to solve it, 2026-09-25): the
+  `response` column is `TEXT` holding `JSON.stringify(response)`, read back with
+  `JSON.parse`. Neither recorded option: keeping `jsonb` failed `completeIfOwned` after a
+  successful handler for a response with NUL or an unpaired surrogate (`jsonb` rejects
+  those escapes), and `toPostgresJson` would have replayed U+FFFD. `JSON.stringify`
+  escapes both, so the text is always storable and the replay exact, like the Redis
+  store. The package was never published and only the e2e spec creates the table, so
+  no migration is needed. Verified: a new real-PostgreSQL case in
+  `api/test/postgres-idempotency-store.e2e-spec.ts` failed first ("unsupported Unicode
+  escape sequence") and passes after the change; idempotency unit tests 141 (140 + a DDL
+  pin; fixtures now return JSON text, as `pg` does for `TEXT`) at 100%; `pnpm check`,
+  `pnpm lint` and `pnpm test:release` pass. README and `CHANGELOG.md` updated.
 - Tenant: no knowledge either way (owner, 2026-09-25; four commits, `3a16538d`,
   `13eb022a`, `629cdccb` and the documentation commit). `@cqrs-ddd/core` and the
   `@nestjs-pipeline/*` packages know nothing of each other; only an application connects
@@ -2161,6 +2250,29 @@ Totals: 27 history comments (A), 2 banner groups (B), 2 code fixes (C), 5 decisi
     selectors of the individual decorators. The aggregate and event examples type-check
     against the built package (`tsc --strict --experimentalDecorators`). No `](../`
     link. `pnpm test:release` passes (16 packages).
+- B5:
+  - New root `CHANGELOG.md`, 0.2.0 (unreleased): requirements for every package, an
+    upgrade section for each of the five packages on npm (core 0.1.18, correlation 0.1.8,
+    opentelemetry 0.1.8, zod 0.1.6, casl 0.1.1), and first-release entries for the other
+    eleven. `@cqrs-ddd/core` gets a first-release entry, not a list of section N changes:
+    it was never published, so no user can have depended on the earlier shape.
+  - Confirmed against the published packages, downloaded from the registry: every
+    removed and added export (TypeScript compiler over each `dist/index.d.ts`) and every
+    peer, dependency and `engines` change. The comparison found breaking changes the plan
+    did not list: NestJS 10 dropped everywhere; `@casl/ability` 6 → 7; correlation's new
+    `@nestjs-pipeline/core` peer; removed exports in core (6), correlation
+    (`setCorrelationFallback`, removed from the index in `e0438a4c`, before this task),
+    zod (`ZOD_SCHEMA`, a deprecated alias) and casl (17, the provider API replaced by
+    `ICaslPermissionSource`). The behavior entries were checked against the source
+    (write-once tenant, unowned-instance error, `redactSensitiveKeys` default, correlation
+    length and pattern defaults, the CASL object-placeholder rejection, the fail-safe
+    tracer, the audit and timestamp behaviors).
+  - `packages/pipeline-deadletter/README.md` names the RabbitMQ limitation (mocked channel
+    only), as the "No `amqplib` dependency" decision requires; no test in the repository
+    runs that transport against a broker.
+  - Registry note for the owner: none of the `@cqrs-ddd/*` names exists on npm yet, so
+    the `cqrs-ddd` npm organization must exist, with the owner allowed to publish to it,
+    before E3's publish.
 
 ## Tests and Verification
 
@@ -2186,12 +2298,7 @@ Per step: the affected package's `test` and `lint`, and
 
 ## Open Questions
 
-- (2026-09-25, found in A6) `PostgresIdempotencyStore` binds `JSON.stringify(response)` into
-  a `jsonb` column, so a handler response containing a NUL character or a lone surrogate
-  fails `completeIfOwned` after the handler already succeeded: the caller gets
-  `IdempotencyCompletionError` and the claim stays until its TTL. Using `toPostgresJson`
-  there would succeed, but a replay would then return U+FFFD where the original response
-  had those characters. Owner to choose: keep failing, or store with the replacement.
+- None open.
 
 ## Next Steps
 

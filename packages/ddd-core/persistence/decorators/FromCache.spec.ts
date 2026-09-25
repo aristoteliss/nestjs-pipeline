@@ -201,6 +201,35 @@ describe('@FromCache decorator on QueryRepository.find', () => {
     expect(result).toEqual({ id: 'u1', name: 'User u1' });
     expect(await cache.get('user:u1')).toEqual({ id: 'u1', name: 'User u1' });
   });
+
+  it('bypasses cache when query.refresh is true', async () => {
+    const cache = versionedCache<Row>();
+    await cache.set('user:u1', { id: 'u1', name: 'cached' });
+    const repo = new TestQueryRepo(cache);
+    const result = await repo.find({ userId: 'u1', refresh: true });
+    expect(result.name).toBe('User u1');
+    expect(repo.dbFetchCount).toBe(1);
+  });
+
+  it('throws TypeError when keyFn is not provided', async () => {
+    class MissingKeyFnRepo {
+      constructor(public cache?: ICache) {}
+      @FromCache({} as any)
+      async find(_q: any) {
+        return { ok: true };
+      }
+    }
+    const repo = new MissingKeyFnRepo(versionedCache());
+    await expect(repo.find({})).rejects.toThrow('FromCache requires a keyFn');
+  });
+
+  it('bypasses cache when keyFn returns null', async () => {
+    const cache = versionedCache<Row>();
+    const repo = new TestQueryRepo(cache);
+    const result = await repo.find({ userId: '' });
+    expect(result.id).toBe('');
+    expect(repo.dbFetchCount).toBe(1);
+  });
 });
 
 describe('isCacheNewer helper', () => {
@@ -292,7 +321,7 @@ describe('@FromCache with options and concurrency checks', () => {
     expect(await cache.get('user:80')).toEqual({ id: '80', version: 2 });
   });
 
-  it('rehydrates the newer concurrent snapshot when alwaysHydrate is true', async () => {
+  it('rehydrates the newer concurrent snapshot through hydrateFn', async () => {
     const cache = versionedCache<Versioned>();
 
     class HydratedQueryRepo {
@@ -490,6 +519,58 @@ describe('@FromCache with options and concurrency checks', () => {
       warn.mockRestore();
     }
   });
+
+  it('hydrates usable snapshot when db returns null but cache was concurrently filled', async () => {
+    const cache = versionedCache<Row>();
+    let readCount = 0;
+    vi.spyOn(cache, 'readState').mockImplementation(async () => {
+      readCount++;
+      if (readCount === 1) return { status: 'miss', revision: '1' };
+      return {
+        status: 'hit',
+        revision: '2',
+        value: { id: 'u1', name: 'concurrent' },
+      };
+    });
+    class ConcurrentRepo {
+      constructor(public cache: any) {}
+      @FromCache<GetUserQuery, Row | null>(
+        (q) => `user:${q.userId}`,
+        (cached: any) => ({ ...cached, hydrated: true }),
+      )
+      async find(_q: GetUserQuery): Promise<Row | null> {
+        return null;
+      }
+    }
+    const repo = new ConcurrentRepo(cache);
+    const result = await repo.find({ userId: 'u1' });
+    expect(result).toEqual({ id: 'u1', name: 'concurrent', hydrated: true });
+  });
+
+  it('retries fill when tryFill fails and current state is not newer', async () => {
+    const cache = versionedCache<Row>();
+    vi.spyOn(cache, 'tryFill').mockResolvedValue(false);
+    vi.spyOn(cache, 'readState')
+      .mockResolvedValueOnce({ status: 'miss', revision: '1' })
+      .mockResolvedValue({
+        status: 'hit',
+        revision: '2',
+        value: { id: 'u1', name: 'older', version: 1 } as any,
+      });
+    class OlderConflictRepo {
+      constructor(public cache: any) {}
+      @FromCache<GetUserQuery, Row>({
+        keyFn: (q) => `user:${q.userId}`,
+        isNewer: () => false,
+      })
+      async find(q: GetUserQuery): Promise<Row> {
+        return { id: q.userId, name: 'fresh' };
+      }
+    }
+    const repo = new OlderConflictRepo(cache);
+    const result = await repo.find({ userId: 'u1' });
+    expect(result).toEqual({ id: 'u1', name: 'fresh' });
+  });
 });
 
 describe('@FromCache with an adapter that exposes only get/set/delete', () => {
@@ -622,6 +703,31 @@ describe('@FromCache with an adapter that exposes only get/set/delete', () => {
 
     expect(repo.dbFetchCount).toBe(1);
   });
+
+  it('warns with fallback adapter name when unversioned adapter lacks constructor', async () => {
+    const anonCache = Object.create(null);
+    anonCache.get = vi.fn().mockResolvedValue(undefined);
+    anonCache.set = vi.fn().mockResolvedValue(undefined);
+    anonCache.delete = vi.fn().mockResolvedValue(undefined);
+
+    class AnonCacheRepo {
+      constructor(public cache: any) {}
+      @FromCache((q: any) => `key:${q.id}`)
+      async find(q: any) {
+        return { id: q.id };
+      }
+    }
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const repo = new AnonCacheRepo(anonCache);
+
+    await expect(repo.find({ id: '1' })).resolves.toEqual({ id: '1' });
+
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(warn.mock.calls[0][0]).toMatch(
+      /^\[FromCacheDecorator\] Cache adapter implements only get\/set\/delete, /,
+    );
+    warn.mockRestore();
+  });
 });
 
 describe('@FromCache with a repository hydration policy', () => {
@@ -719,103 +825,5 @@ describe('@FromCache with a repository hydration policy', () => {
     const result = await new DefaultedRepo(cache).find({ userId: 'u1' });
 
     expect(result).toEqual({ id: 'u1', name: 'cached' });
-  });
-
-  it('warns with fallback adapter name when unversioned adapter lacks constructor', async () => {
-    const anonCache = Object.create(null);
-    anonCache.get = vi.fn().mockResolvedValue(undefined);
-    anonCache.set = vi.fn().mockResolvedValue(undefined);
-    anonCache.delete = vi.fn().mockResolvedValue(undefined);
-
-    class AnonCacheRepo {
-      constructor(public cache: any) {}
-      @FromCache((q: any) => `key:${q.id}`)
-      async find(q: any) {
-        return { id: q.id };
-      }
-    }
-    const repo = new AnonCacheRepo(anonCache);
-    await repo.find({ id: '1' });
-  });
-
-  it('bypasses cache when query.refresh is true', async () => {
-    const cache = versionedCache<Row>();
-    await cache.set('user:u1', { id: 'u1', name: 'cached' });
-    const repo = new TestQueryRepo(cache);
-    const result = await repo.find({ userId: 'u1', refresh: true });
-    expect(result.name).toBe('User u1');
-    expect(repo.dbFetchCount).toBe(1);
-  });
-
-  it('throws TypeError when keyFn is not provided', async () => {
-    class MissingKeyFnRepo {
-      constructor(public cache?: ICache) {}
-      @FromCache({} as any)
-      async find(_q: any) {
-        return { ok: true };
-      }
-    }
-    const repo = new MissingKeyFnRepo(versionedCache());
-    await expect(repo.find({})).rejects.toThrow('FromCache requires a keyFn');
-  });
-
-  it('bypasses cache when keyFn returns null', async () => {
-    const cache = versionedCache<Row>();
-    const repo = new TestQueryRepo(cache);
-    const result = await repo.find({ userId: '' });
-    expect(result.id).toBe('');
-    expect(repo.dbFetchCount).toBe(1);
-  });
-
-  it('hydrates usable snapshot when db returns null but cache was concurrently filled', async () => {
-    const cache = versionedCache<Row>();
-    let readCount = 0;
-    vi.spyOn(cache, 'readState').mockImplementation(async () => {
-      readCount++;
-      if (readCount === 1) return { status: 'miss', revision: '1' };
-      return {
-        status: 'hit',
-        revision: '2',
-        value: { id: 'u1', name: 'concurrent' },
-      };
-    });
-    class ConcurrentRepo {
-      constructor(public cache: any) {}
-      @FromCache<GetUserQuery, Row | null>(
-        (q) => `user:${q.userId}`,
-        (cached: any) => ({ ...cached, hydrated: true }),
-      )
-      async find(_q: GetUserQuery): Promise<Row | null> {
-        return null;
-      }
-    }
-    const repo = new ConcurrentRepo(cache);
-    const result = await repo.find({ userId: 'u1' });
-    expect(result).toEqual({ id: 'u1', name: 'concurrent', hydrated: true });
-  });
-
-  it('retries fill when tryFill fails and current state is not newer', async () => {
-    const cache = versionedCache<Row>();
-    vi.spyOn(cache, 'tryFill').mockResolvedValue(false);
-    vi.spyOn(cache, 'readState')
-      .mockResolvedValueOnce({ status: 'miss', revision: '1' })
-      .mockResolvedValue({
-        status: 'hit',
-        revision: '2',
-        value: { id: 'u1', name: 'older', version: 1 } as any,
-      });
-    class OlderConflictRepo {
-      constructor(public cache: any) {}
-      @FromCache<GetUserQuery, Row>({
-        keyFn: (q) => `user:${q.userId}`,
-        isNewer: () => false,
-      })
-      async find(q: GetUserQuery): Promise<Row> {
-        return { id: q.userId, name: 'fresh' };
-      }
-    }
-    const repo = new OlderConflictRepo(cache);
-    const result = await repo.find({ userId: 'u1' });
-    expect(result).toEqual({ id: 'u1', name: 'fresh' });
   });
 });

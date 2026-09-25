@@ -30,7 +30,6 @@ describe('BaseQuery', () => {
     expect(query.hydrate).toBe(true);
     expect(query.sessionUser).toBe(sessionUser);
 
-    // Metadata properties should not be enumerable
     const keys = Object.keys(query);
     expect(keys).toContain('id');
     expect(keys).toContain('filter');

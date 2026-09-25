@@ -34,8 +34,7 @@ export interface PartitionedRateLimitKeyOptions {
    * `includeTenant` answers "should the tenant be part of the key"; this answers
    * "may it be absent".
    *
-   * Defaults to the value of `includeTenant`: asking for tenant partitioning
-   * implies that a missing tenant is a configuration failure, not a shrug.
+   * Defaults to `includeTenant`.
    */
   requireTenant?: boolean;
 

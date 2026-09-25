@@ -25,12 +25,10 @@ import { assertAutocommit } from './assert-autocommit';
  * transactional state.
  *
  * Caching, aggregate acknowledgment and event publication stay with `@Cache`,
- * `@AcknowledgePersisted` and `CommandBaseHandler`. A delete resolves to `null`
- * in the repositories here: there is no new persisted snapshot to acknowledge.
+ * `@AcknowledgePersisted` and `CommandBaseHandler`. A delete repository resolves
+ * to `null`: there is no new persisted snapshot to acknowledge.
  *
- * Unversioned rows (session or token tables without a `version` column) are out
- * of scope — do not invent a version field to reuse this helper; delete those by
- * primary key and document the different lifecycle.
+ * Rows without a version column are out of scope; delete them by primary key.
  *
  * @param em Entity manager in autocommit mode.
  * @param entityType Entity class or registered name.

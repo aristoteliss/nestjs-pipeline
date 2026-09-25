@@ -77,8 +77,10 @@ export interface IPipelineContext<TRequest = unknown, TResponse = unknown> {
   readonly items: Map<string | symbol, unknown>;
 
   /**
-   * Retrieve options passed to a specific behavior via @UsePipeline([Behavior, opts]).
-   * Returns undefined if no options were provided for that behavior.
+   * Returns the options for a behavior on this handler: the options from a
+   * global `[Behavior, opts]` tuple, shallowly overridden by the options from
+   * the handler's `@UsePipeline([Behavior, opts])`. Returns undefined when
+   * neither supplies options for that behavior.
    */
   getBehaviorOptions<T = Record<string, unknown>>(
     behaviorType: Type,

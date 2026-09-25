@@ -4,7 +4,7 @@ import type { Capability, CapabilityString } from '../types/casl.types';
 
 /**
  * Expand a compact {@link CapabilityString} (e.g. from a JWT or cookie) back
- * into a structured {@link Capability} that mirrors a database row.
+ * into a structured {@link Capability}.
  *
  * This is a **runtime-only deserialisation** step — the inverse of
  * {@link serializeCapability}.
@@ -105,9 +105,9 @@ export function parseCapabilityString(cap: CapabilityString): Capability {
 }
 
 /**
- * Normalize a capability — whether it arrives as a database-hydrated
- * {@link Capability} object or a compact {@link CapabilityString} from
- * a JWT / cookie — into a structured {@link Capability}.
+ * Normalize a capability — whether it arrives as a {@link Capability} object
+ * or as a compact {@link CapabilityString} (for example from a JWT or cookie) —
+ * into a structured {@link Capability}.
  */
 export function normalizeCapability(
   cap: Capability | CapabilityString,
@@ -142,15 +142,16 @@ export function normalizeCapability(
 }
 
 /**
- * Collapse a {@link Capability} (typically loaded from the database) into a
- * compact {@link CapabilityString} suitable for JWT claims, encrypted cookies,
- * or session stores where payload size matters.
+ * Collapse a {@link Capability} into a compact {@link CapabilityString}
+ * suitable for JWT claims, encrypted cookies, or session stores where payload
+ * size matters.
  *
  * This is a **runtime-only serialisation** step — the inverse of
  * {@link parseCapabilityString}.
  *
- * The fields segment is only appended when the capability restricts specific
- * fields, keeping the string compact for the common case.
+ * The fields segment is appended when the capability restricts specific
+ * fields, or as `*` when a reason segment follows it; otherwise it is omitted,
+ * keeping the string compact for the common case.
  *
  * @example
  * ```ts

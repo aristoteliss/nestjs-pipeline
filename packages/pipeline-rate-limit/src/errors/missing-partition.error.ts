@@ -5,13 +5,8 @@ export type RateLimitPartitionDimension = 'tenant' | 'caller';
 
 /**
  * Raised before the limiter is consumed when a dimension required by the
- * configured key factory cannot be resolved.
- *
- * Failing here is deliberate. The alternative — omitting the missing segment —
- * silently merges isolation domains: every caller whose identity could not be
- * resolved would share one bucket, so one of them can exhaust the quota for all
- * the others. A configuration error at the first request is cheaper than a
- * shared-fate limiter discovered in production.
+ * configured key factory cannot be resolved; omitting the segment instead would
+ * put every unresolved caller into one shared bucket.
  */
 export class MissingRateLimitPartitionError extends Error {
   override readonly name = 'MissingRateLimitPartitionError';

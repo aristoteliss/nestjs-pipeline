@@ -1,5 +1,6 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
+import { isUuidV7 } from '@cqrs-ddd/uuidv7';
 import { describe, expect, it } from 'vitest';
 import { RootEntity } from '../models/root.entity';
 import { DomainEvent } from './domain.event';
@@ -38,6 +39,7 @@ describe('DomainEvent & RootDomainEvent', () => {
   it('generates a UUIDv7 event id when none is provided', () => {
     const event = new CustomDomainEvent('something happened');
     expect(event.id).toBeDefined();
+    expect(isUuidV7(event.id)).toBe(true);
     expect(event.detail).toBe('something happened');
   });
 
@@ -56,7 +58,6 @@ describe('DomainEvent & RootDomainEvent', () => {
     expect(event.payload).toEqual({ id: 'user-1', name: 'Alice' });
     expect(Object.isFrozen(event.payload)).toBe(true);
 
-    // Mutating entity does not mutate event.payload
     entity.name = 'Bob';
     expect((event.payload as { name: string }).name).toBe('Alice');
   });
@@ -122,7 +123,6 @@ describe('DomainEvent & RootDomainEvent', () => {
 
     const event = new DeepPayloadEvent(entity, nestedData);
 
-    // Initial assertions
     expect(event.payload.profile.address.city).toBe('Athens');
     expect(event.payload.profile.tags).toEqual(['developer', 'admin']);
 
@@ -133,7 +133,6 @@ describe('DomainEvent & RootDomainEvent', () => {
     expect(event.payload.profile.address.city).toBe('Athens');
     expect(event.payload.profile.tags).toEqual(['developer', 'admin']);
 
-    // Deep freeze guarantees all levels are frozen
     expect(Object.isFrozen(event.payload)).toBe(true);
     expect(Object.isFrozen(event.payload.profile)).toBe(true);
     expect(Object.isFrozen(event.payload.profile.address)).toBe(true);
@@ -171,11 +170,9 @@ describe('DomainEvent & RootDomainEvent', () => {
       '2026-01-01T00:00:00.000Z',
     );
 
-    // Mutating original date does not affect event.payload
     createdAt.setFullYear(2099);
     expect(event.payload.createdAt.getFullYear()).toBe(2026);
 
-    // Calling mutating methods on payload date throws
     expect(() => {
       event.payload.createdAt.setFullYear(2030);
     }).toThrow(/Cannot mutate frozen Date/);
@@ -202,12 +199,10 @@ describe('DomainEvent & RootDomainEvent', () => {
 
     const event = new CollectionsEvent(entity);
 
-    // Initial assertions
     expect(event.payload.map.get('k1')).toBe('v1');
     expect(event.payload.map.get('nested')).toEqual({ count: 1 });
     expect(event.payload.set.has('item1')).toBe(true);
 
-    // Mutations on source do not affect payload
     sourceMap.set('k1', 'mutated');
     sourceMap.set('k2', 'new');
     sourceSet.add('item2');
@@ -216,7 +211,6 @@ describe('DomainEvent & RootDomainEvent', () => {
     expect(event.payload.map.has('k2')).toBe(false);
     expect(event.payload.set.has('item2')).toBe(false);
 
-    // Calling mutating methods on payload Map throws
     expect(() => {
       event.payload.map.set('k3', 'val');
     }).toThrow(/Cannot mutate frozen Map/);
@@ -227,7 +221,6 @@ describe('DomainEvent & RootDomainEvent', () => {
       event.payload.map.clear();
     }).toThrow(/Cannot mutate frozen Map/);
 
-    // Calling mutating methods on payload Set throws
     expect(() => {
       event.payload.set.add('new-item');
     }).toThrow(/Cannot mutate frozen Set/);

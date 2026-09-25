@@ -19,7 +19,7 @@ export type CacheResourceSpecifier =
 
 /**
  * An explicit tenant for a cache key: a tenant id string, or an object carrying
- * `tenantId`, such as a pipeline context.
+ * `tenantId`, such as a request or job context.
  *
  * When it is omitted, or an object carries no `tenantId`, the tenant of the
  * registered {@link setTenantResolver} resolver applies. A missing or empty tenant always throws
@@ -29,7 +29,7 @@ export type CacheKeyTenantSource = TenantSource;
 
 /**
  * A request-bearing source accepted by the factories of {@link cacheKeyTemplate},
- * such as a pipeline context.
+ * such as a request or job context.
  */
 export interface CacheKeyRequestContext {
   readonly request: unknown;
@@ -83,7 +83,7 @@ function normalizeFilterConditions(
  * @param resourceOrEntity - Logical resource name or object exposing `aggregateName`/`prefixKey`.
  * @param conditions - Filter values that identify the cached record/query.
  * @param tenantOrContext - An explicit tenant id, or an object carrying `tenantId` (such
- *   as a pipeline context). When omitted, the tenant of the registered
+ *   as a request or job context). When omitted, the tenant of the registered
  *   {@link setTenantResolver} resolver is used. See {@link CacheKeyTenantSource}.
  * @returns A versioned, hashed deterministic cache key.
  * @throws {MissingTenantContextError} When tenant identity cannot be resolved.
@@ -150,7 +150,7 @@ function canonicalizeValue(val: NonNullable<unknown>): string {
  *   omitted, a context source's `tenantId` is used, and otherwise the tenant of the
  *   registered {@link setTenantResolver} resolver.
  * @returns A key factory accepting either a request object or a
- *   {@link CacheKeyRequestContext} (such as a pipeline context).
+ *   {@link CacheKeyRequestContext} (such as a request or job context).
  * @throws {MissingTenantContextError} When tenant identity cannot be resolved.
  * @throws {Error} When a required placeholder is absent.
  *

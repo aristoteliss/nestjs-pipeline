@@ -28,7 +28,7 @@ describe('ddd-core manifest', () => {
     'devDependencies',
     'peerDependencies',
     'optionalDependencies',
-  ] as const)('names no NestJS or @nestjs-pipeline package in %s', (field) => {
+  ] as const)('names no NestJS package in %s', (field) => {
     const names = Object.keys(manifest[field] ?? {});
 
     expect(names.filter((name) => /^@?nestjs/.test(name))).toEqual([]);

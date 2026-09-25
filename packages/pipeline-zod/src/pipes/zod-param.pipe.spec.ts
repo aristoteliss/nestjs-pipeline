@@ -5,8 +5,6 @@ import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import { ZodPipe } from './zod-param.pipe';
 
-// Tests
-
 describe('ZodPipe', () => {
   describe('valid input', () => {
     it('returns the parsed value for a simple object schema', async () => {
@@ -28,7 +26,7 @@ describe('ZodPipe', () => {
       await expect(pipe.transform('42')).resolves.toBe(42);
     });
 
-    it('strips unknown keys with .strict() alternative — passthrough still works', async () => {
+    it('keeps unknown keys for a .passthrough() schema', async () => {
       const schema = z.object({ a: z.string() }).passthrough();
       const pipe = new ZodPipe(schema);
       const result = await pipe.transform({ a: 'ok', extra: true });
@@ -62,8 +60,6 @@ describe('ZodPipe', () => {
       } catch (e: any) {
         expect(e).toBeInstanceOf(BadRequestException);
         const response = e.getResponse();
-        // The pipe passes error.flatten() to BadRequestException,
-        // so getResponse() contains flattened fieldErrors
         expect(response).toHaveProperty('fieldErrors');
       }
     });

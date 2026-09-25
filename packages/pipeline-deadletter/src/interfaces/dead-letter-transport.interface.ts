@@ -39,7 +39,7 @@ export interface DeadLetterRecord {
   error: DeadLetterError;
   /** ISO-8601 timestamp of when the dead letter was produced. */
   failedAt: string;
-  /** Optional extra metadata produced by the behavior's `metadata` factory. */
+  /** Metadata from the `metadata` factory, plus `tenantId` when present. */
   metadata?: Record<string, unknown>;
 }
 
@@ -47,7 +47,7 @@ export interface DeadLetterRecord {
  * Transport-agnostic sink for dead letters.
  *
  * Implement this once per backend; the bundled implementations are
- * {@link BullMqDeadLetterTransport} (default), {@link RabbitMqDeadLetterTransport},
+ * {@link BullMqDeadLetterTransport}, {@link RabbitMqDeadLetterTransport},
  * and {@link PostgresDeadLetterTransport}. Because the {@link DeadLetterBehavior}
  * depends only on this interface, swapping the backend is a one-line change in
  * {@link DeadLetterModule.forRoot}.

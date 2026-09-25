@@ -24,8 +24,7 @@ const ADAPTER_PACKAGES: Record<Exclude<CacheStoreType, 'memory'>, string> = {
  * Only a resolution failure *for that exact package* counts. A `MODULE_NOT_FOUND`
  * naming some other module means the adapter is installed but one of its own
  * dependencies is not, and a native binding failure means it is installed but
- * did not build — telling the user to install a package they already have sends
- * them in the wrong direction.
+ * did not build.
  */
 function isRequestedModuleMissing(error: unknown, pkg: string): boolean {
   if (!(error instanceof Error)) return false;
@@ -158,13 +157,11 @@ export function buildKeyv(config: CacheStoreConfig): Keyv {
  */
 export function buildCache(options: CacheModuleOptions): Cache {
   if (options.cache) {
-    // Respect ownership: never mutate a cache object supplied by the caller.
     return options.cache;
   }
 
   let stores: Keyv[];
   if (options.stores && options.stores.length > 0) {
-    // These instances belong to the caller. Pass them through untouched.
     stores = options.stores;
   } else if (options.store) {
     const configs = Array.isArray(options.store)

@@ -49,7 +49,8 @@ function matchesUniqueConstraint(
  * ### Error Matching Mechanics
  * - **PostgreSQL**: Matches driver error code `23505` with `constraint === mapping.constraint`,
  *   or driver message containing `violates unique constraint "${mapping.constraint}"`.
- * - **SQLite / libSQL**: Matches driver message lines containing `UNIQUE constraint failed: ${mapping.columns}`.
+ * - **SQLite / libSQL**: Matches a driver message line equal to `UNIQUE constraint failed: ${mapping.columns}`
+ *   or ending with `: UNIQUE constraint failed: ${mapping.columns}`.
  * - **Residual translation**: Any error not matching a configured constraint is passed to the
  *   optional `otherwise` translator, which is the declarative place to convert driver/network
  *   failures into the neutral {@link TransientOperationError} retry signal.

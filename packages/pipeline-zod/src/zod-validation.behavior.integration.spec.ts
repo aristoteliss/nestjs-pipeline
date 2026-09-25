@@ -8,8 +8,6 @@ import {
   ZodValidationBehavior,
 } from './zod-validation.behavior';
 
-// Helpers
-
 function makeClass(schema?: z.ZodType) {
   const cls = class {};
   if (schema) (cls as any)[ZOD_SCHEMA_KEY] = schema;
@@ -19,8 +17,6 @@ function makeClass(schema?: z.ZodType) {
 function ctx(request: unknown, requestType: any, kind: string = 'command') {
   return { request, requestType, requestKind: kind } as any;
 }
-
-// Tests
 
 describe('ZodValidationBehavior – integration', () => {
   const behavior = new ZodValidationBehavior();

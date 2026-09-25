@@ -57,8 +57,7 @@ describe('createPartitionedRateLimitKeyFactory', () => {
     });
 
     it('falls back to a bucket that is still scoped to the tenant', () => {
-      // The previous fallback returned a bare request name, so an anonymous
-      // caller in one tenant could exhaust the quota of every other tenant.
+      // An anonymous caller in one tenant must not exhaust another tenant's quota.
       const factory = createPartitionedRateLimitKeyFactory(() => undefined, {
         onMissingPartition: 'request',
       });

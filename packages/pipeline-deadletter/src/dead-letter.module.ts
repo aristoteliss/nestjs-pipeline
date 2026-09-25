@@ -19,7 +19,7 @@ import type {
  * RabbitMQ, and Postgres transports are interchangeable drop-ins — handler code
  * never changes. `forRoot()` requires a transport; none is selected implicitly.
  *
- * @example BullMQ — synchronous transport
+ * @example BullMQ — ready-made transport instance
  * ```ts
  * import { DeadLetterModule, BullMqDeadLetterTransport } from '@nestjs-pipeline/deadletter';
  * import { Queue } from 'bullmq';

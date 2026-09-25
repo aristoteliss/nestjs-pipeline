@@ -28,9 +28,11 @@ export interface IdempotencyRecord {
   /** The request type name, e.g. `CreateUserCommand`. */
   requestName: string;
   /**
-   * Unique owner token for the execution that claimed this record. New claims
-   * always include it; it is optional only so records written by an older
-   * package version can still be read/replayed during a rolling upgrade.
+   * Unique owner token for the execution that claimed this record. Every claim
+   * `IdempotencyBehavior` makes sets it, and `completeIfOwned` and
+   * `deleteIfOwned` compare against it. It may be absent from a record written
+   * through the unconditional `set` or claimed outside the behavior; such a
+   * record can still be read and replayed, but no owner check matches it.
    */
   claimId?: string;
   /**

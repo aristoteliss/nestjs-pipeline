@@ -82,7 +82,7 @@ export interface PipelineModuleOptions {
    *
    * @example
    * ```ts
-   * // Apply LoggingBehavior before ALL command & query handlers
+   * // Apply LoggingBehavior before every command, query, and event handler
    * globalBehaviors: {
    *   before: [LoggingBehavior],
    * }
@@ -109,7 +109,7 @@ export interface PipelineModuleOptions {
    *
    * @example
    * ```ts
-   * behaviors: [LoggingBehavior, AuditBehavior, CachingBehavior]
+   * behaviors: [LoggingBehavior, AuditBehavior, CacheBehavior]
    * ```
    */
   behaviors?: Type<IPipelineBehavior>[];

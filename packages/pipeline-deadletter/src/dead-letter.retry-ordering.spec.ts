@@ -56,7 +56,7 @@ describe('DeadLetterBehavior retry ordering', () => {
     expect(sink.send).toHaveBeenCalledTimes(1);
   });
 
-  it('documents why placing dead-letter inside a retry loop captures every attempt', async () => {
+  it('captures every attempt when placed inside a retry loop', async () => {
     const sink = transport();
     const behavior = new DeadLetterBehavior(sink);
     const ctx = context();

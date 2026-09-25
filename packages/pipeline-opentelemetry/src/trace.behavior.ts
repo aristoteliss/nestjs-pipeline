@@ -122,15 +122,8 @@ const TRACER_NAME = 'nestjs-pipeline';
 /**
  * Pipeline behavior that wraps a handler in an OpenTelemetry span.
  *
- * The behavior deliberately does not inspect provider implementation details to
- * decide whether an SDK is installed. The OpenTelemetry API contract already
- * supplies a no-op tracer/provider when no SDK is registered, so calling
- * `trace.getTracer()` is safe before bootstrap and simply discards spans.
- *
- * This avoids coupling to private/de facto implementation details such as
- * `constructor.name`, `ProxyTracerProvider.getDelegate()`, or `NoopTracer` class
- * names. Consumers that want zero tracing calls for a handler can set
- * `enabled: false` explicitly.
+ * With no OpenTelemetry SDK registered, `trace.getTracer()` returns a no-op
+ * tracer and spans are discarded; `enabled: false` skips tracing for a handler.
  *
  * Each span includes stable pipeline semantic attributes such as request kind,
  * request name, handler name, correlation ID and start time. The final outcome
@@ -181,7 +174,6 @@ export class TraceBehavior implements IPipelineBehavior {
     let spanName: string;
     let initialAttributes: Attributes;
     try {
-      // OpenTelemetry returns a no-op tracer when no SDK or provider is registered.
       tracer = trace.getTracer(options?.tracerName ?? TRACER_NAME);
       spanName = this.resolveSpanName(context, options?.spanName);
       initialAttributes = await this.resolveAttributes(context, options);

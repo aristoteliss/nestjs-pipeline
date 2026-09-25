@@ -254,7 +254,6 @@ export function buildResiliencePolicy(
     ? handleWhen((error) => options.handle?.(error) ?? false)
     : handleAll;
 
-  // Thread per-handler telemetry hooks into the build context.
   const buildCtx: PolicyBuildContext = { ...ctx, telemetry: options.telemetry };
 
   const layers: Partial<Record<ResilienceLayer, AnyPolicy>> = {};

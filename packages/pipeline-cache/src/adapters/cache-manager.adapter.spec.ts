@@ -53,7 +53,7 @@ describe('CacheManagerAdapter', () => {
     expect(result).toEqual({ id: '1', name: 'Alice' });
   });
 
-  it('throws storeError when get event with matching key contains error', async () => {
+  it('rethrows the error a get event reports for the same key', async () => {
     const mockCache = new MockCacheManager();
     const expectedError = new Error('Redis connection failed');
 
@@ -73,7 +73,6 @@ describe('CacheManagerAdapter', () => {
     const key2Error = new Error('Key 2 store failure');
 
     vi.spyOn(mockCache, 'get').mockImplementation(async (key: string) => {
-      // Simulate async delay
       await new Promise((resolve) => setTimeout(resolve, 10));
       if (key === 'key2') {
         mockCache.emit('get', { key: 'key2', error: key2Error });
@@ -100,7 +99,7 @@ describe('CacheManagerAdapter', () => {
     }
   });
 
-  it('throws storeError when set event with matching key contains error', async () => {
+  it('rethrows the error a set event reports for the same key', async () => {
     const mockCache = new MockCacheManager();
     const expectedError = new Error('Write failed');
 
@@ -119,7 +118,6 @@ describe('CacheManagerAdapter', () => {
     const mockCache = new MockCacheManager();
 
     vi.spyOn(mockCache, 'get').mockImplementation(async (key: string) => {
-      // Emit error for another key
       mockCache.emit('error', {
         key: 'other-key',
         error: new Error('other failed'),

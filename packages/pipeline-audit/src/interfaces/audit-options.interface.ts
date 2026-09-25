@@ -96,8 +96,10 @@ export interface AuditBehaviorOptions {
   includeStack?: boolean;
   /**
    * When record construction (actor/metadata/redactor factories) or the sink itself throws,
-   * allow the request to continue (`true`, default) or surface the audit error (`false`).
-   * Fail-open favors availability; fail-closed favors a guaranteed audit trail.
+   * allow the request to continue (`true`, default) or fail a successful request with the
+   * audit error (`false`). A handler error is always rethrown unchanged, and an audit failure
+   * on that path is only logged. Fail-open favors availability; fail-closed favors a
+   * guaranteed audit trail.
    */
   failOpen?: boolean;
 }

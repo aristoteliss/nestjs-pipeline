@@ -27,9 +27,8 @@ export const DEFAULT_CORRELATION_ID_PATTERN = /^[A-Za-z0-9._~:/+=@-]+$/;
  * // Custom header name (bind CORRELATION_OPTIONS to this value)
  * { header: 'x-request-id' }
  *
- * // `false` is accepted by the public type for compatibility, but the current
- * // middleware treats every non-string value as the default header name.
- * { header: false } // uses 'x-correlation-id'; it does not disable middleware
+ * // `header: false` selects the default header; it does not disable the middleware.
+ * { header: false } // uses 'x-correlation-id'
  * ```
  *
  * @example Accept only UUIDs from clients
@@ -51,8 +50,7 @@ export interface CorrelationOptions {
    * HTTP header name to extract the correlation ID from.
    * A valid, non-empty HTTP field-name string selects that header. Invalid
    * strings throw during middleware construction. Any non-string value, including `false` and
-   * `undefined`, makes the current middleware implementation use the default
-   * `x-correlation-id` header.
+   * `undefined`, makes the middleware use the default `x-correlation-id` header.
    *
    * @default 'x-correlation-id'
    */

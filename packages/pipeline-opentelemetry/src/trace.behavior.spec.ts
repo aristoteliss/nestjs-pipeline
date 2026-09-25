@@ -111,7 +111,7 @@ describe('TraceBehavior', () => {
     );
   });
 
-  it('sets the original pipeline attributes and optional tenant on the span', async () => {
+  it('sets the pipeline identity attributes and optional tenant on the span', async () => {
     const startedAt = new Date('2026-03-01T10:00:00.000Z');
     const ctx = makeCtx({
       requestKind: 'command',

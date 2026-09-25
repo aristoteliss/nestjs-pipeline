@@ -175,7 +175,6 @@ export function stableStringify(value: unknown): string {
   try {
     return JSON.stringify(toStrictJsonValue(value, true));
   } catch (cause) {
-    // Preserve the precise normalization failure as the cause.
     throw new TypeError(
       'stableStringify requires an acyclic JSON-serializable value.',
       { cause },

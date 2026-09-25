@@ -14,8 +14,8 @@ import { ZOD_SCHEMA_KEY } from './zod-validation.behavior';
  * Constructor shape accepted as the optional base class for generated requests.
  *
  * The instance side defaults to `object` so generated request properties remain
- * strongly typed. Constructor arguments stay unconstrained to support base
- * classes such as `BaseCommand` and `BaseQuery`.
+ * strongly typed. Constructor arguments stay unconstrained so a base class can
+ * take any constructor parameters.
  */
 // biome-ignore lint/suspicious/noExplicitAny: constructor parameter covariance requires any[]
 type AbstractConstructor<T = object> = abstract new (...args: any[]) => T;
@@ -94,30 +94,35 @@ function isPreValidated(value: unknown): value is PreValidated {
 /**
  * Generates a strongly-typed Command, Query, or Event class from a Zod schema.
  *
- * Compatible with NestJS CQRS, Standard Schema, and `@nestjs-pipeline/zod`:
+ * Compatible with NestJS CQRS, Standard Schema, and {@link ZodValidationBehavior}:
  * - Attaches the schema as static `_zodSchema` (`ZOD_SCHEMA_KEY`) and `schema`.
  * - Forwards Standard Schema specification (`~standard`) for schema interoperability.
  * - Provides static `parse()` and `safeParse()` directly on the class.
- * - Inherits from an optional base class (e.g. `BaseCommand`, `BaseQuery`) preserving prototype,
+ * - Inherits from an optional base class, preserving its prototype,
  *   instanceof checks, and constructor arguments.
  * - Validates input and applies transformations (e.g. email trimming / lowercasing) on construction,
  *   throwing {@link ZodValidationError} on invalid payload.
  * - Safely assigns transformed output properties onto the instance including own keys whose parsed value is `undefined`.
  *
- * @example Defining a Command with BaseCommand
+ * @example Defining a Command with a base class
  * ```ts
+ * abstract class AppCommand {
+ *   constructor(readonly actorId?: string) {}
+ * }
+ *
  * const CreateUserSchema = z.object({
  *   username: z.string().min(3),
  *   email: z.string().email(),
  * });
  *
- * export class CreateUserCommand extends createCommand(CreateUserSchema, BaseCommand) {}
+ * export class CreateUserCommand extends createCommand(CreateUserSchema, AppCommand) {}
+ * const command = new CreateUserCommand(input, actorId);
  * ```
  *
- * @example Defining a Query with BaseQuery
+ * @example Defining a Query without a base class
  * ```ts
  * const GetUserSchema = z.object({ id: z.string().uuid() });
- * export class GetUserQuery extends createQuery(GetUserSchema, BaseQuery) {}
+ * export class GetUserQuery extends createQuery(GetUserSchema) {}
  * ```
  */
 export function createZodRequest<
@@ -210,7 +215,7 @@ export type ZodCommandClass<
   readonly requestKind: 'command';
   /**
    * The top-level fields marked with {@link updatable}, in shape order and
-   * frozen. Pass them to `getUpdateFields()` for field-level authorization.
+   * frozen: the list of fields to pass to field-level authorization.
    */
   readonly updatableFields: readonly (keyof z.output<TSchema> & string)[];
 };
@@ -230,28 +235,28 @@ export type ZodQueryClass<
  * lists the fields marked with {@link updatable} as static `updatableFields`,
  * and preserves any Base class inheritance.
  *
- * @example Defining a Command with BaseCommand
+ * @example Defining a Command with a base class
  * ```ts
+ * abstract class AppCommand {
+ *   constructor(readonly actorId?: string) {}
+ * }
+ *
  * const CreateUserSchema = z.object({
  *   username: z.string().min(3),
  *   email: z.string().email(),
  * });
  *
- * export class CreateUserCommand extends createCommand(CreateUserSchema, BaseCommand) {}
+ * export class CreateUserCommand extends createCommand(CreateUserSchema, AppCommand) {}
  * ```
  *
  * @example Declaring the fields an update command changes
  * ```ts
  * export class UpdateRoleCommand extends createCommand(
  *   z.object({ id: z.uuid(), name: z.string().trim().apply(updatable).min(3) }),
- *   BaseCommand,
  * ) {}
  *
- * authorizer.authorize(
- *   'update',
- *   role,
- *   command.getUpdateFields(UpdateRoleCommand.updatableFields),
- * );
+ * // The fields to pass to field-level authorization:
+ * UpdateRoleCommand.updatableFields; // ['name']
  * ```
  */
 export function createCommand<
@@ -272,12 +277,16 @@ export function createCommand<
  *
  * Automatically marks the class with `requestKind = 'query'`,
  * attaches the Zod schema as static `_zodSchema`, forwards Standard Schema metadata (`~standard`),
- * and preserves any Base class inheritance (such as `BaseQuery`).
+ * and preserves the prototype and constructor arguments of an optional base class.
  *
- * @example Defining a Query with BaseQuery
+ * @example Defining a Query with a base class
  * ```ts
+ * abstract class AppQuery {
+ *   constructor(readonly actorId?: string) {}
+ * }
+ *
  * const GetUserSchema = z.object({ id: z.string().uuid() });
- * export class GetUserQuery extends createQuery(GetUserSchema, BaseQuery) {}
+ * export class GetUserQuery extends createQuery(GetUserSchema, AppQuery) {}
  * ```
  */
 export function createQuery<

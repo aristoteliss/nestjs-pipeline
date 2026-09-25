@@ -14,13 +14,17 @@ import { definedFields, defineHidden } from './request-fields.helper';
  *
  * @example
  * ```ts
- * export class GetUserQuery extends createQuery(GetUserSchema, BaseQuery) {}
+ * export class GetUserQuery extends BaseQuery<SessionUser> {
+ *   constructor(
+ *     public readonly id: string,
+ *     options?: Partial<IQueryOptions>,
+ *     sessionUser?: SessionUser,
+ *   ) {
+ *     super(options, sessionUser);
+ *   }
+ * }
  *
- * const query = new GetUserQuery(
- *   { id: userId },
- *   { hydrate: true },
- *   sessionUser,
- * );
+ * const query = new GetUserQuery(userId, { hydrate: true }, sessionUser);
  * ```
  */
 export abstract class BaseQuery<TSessionUser = unknown>
@@ -40,8 +44,8 @@ export abstract class BaseQuery<TSessionUser = unknown>
   /**
    * Serializes enumerable query payload fields to a plain object.
    *
-   * `hydrate` and `sessionUser` remain out of the payload because they are
-   * non-enumerable query metadata.
+   * `hydrate`, `refresh` and `sessionUser` are non-enumerable metadata and stay
+   * out of the payload.
    *
    * @returns The query payload with `undefined` fields omitted.
    */

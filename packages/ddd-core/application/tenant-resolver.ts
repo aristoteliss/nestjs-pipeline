@@ -4,7 +4,7 @@ import { MissingTenantContextError } from '../domain/exceptions/missing-tenant-c
 
 /**
  * An explicit tenant: a tenant id string, or an object carrying `tenantId`, such
- * as a pipeline context.
+ * as a request or job context.
  */
 export type TenantSource = string | { readonly tenantId?: string | undefined };
 
@@ -57,7 +57,7 @@ export function setTenantResolver(resolver: TenantResolver | undefined): void {
  *
  * @example
  * ```ts
- * // A key factory that receives the pipeline context:
+ * // A key factory that receives a request or job context:
  * const tenantId = requireTenantId(ctx, 'users.create idempotency key');
  * ```
  */

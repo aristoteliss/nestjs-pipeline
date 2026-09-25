@@ -84,7 +84,7 @@ describe('buildAuditRecord', () => {
     expect(record.payload).toBeUndefined();
   });
 
-  it('captures the response only when enabled and successful', () => {
+  it('captures the redacted response when captureResponse is enabled', () => {
     const record = buildAuditRecord(
       makeInput({
         options: { captureResponse: true },

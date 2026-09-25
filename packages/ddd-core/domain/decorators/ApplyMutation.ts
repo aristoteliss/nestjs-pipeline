@@ -13,17 +13,18 @@ import { IEvent } from '../events/event.interface';
 // biome-ignore lint/suspicious/noConfusingVoidType: supports an absent mutation patch
 export type MutationPatch<TEntity> = Partial<TEntity> | void;
 
-/**
- * Configuration for a declarative aggregate mutation and domain event application.
- *
- * @typeParam TEntity - The aggregate the decorated method belongs to.
- */
+/** A non-empty array of domain events. */
 export type NonEmptyEventArray =
   | readonly [IEvent, ...IEvent[]]
   | [IEvent, ...IEvent[]];
 
 export type SingleEvent = IEvent & { length?: never };
 
+/**
+ * Configuration for a declarative aggregate mutation and domain event application.
+ *
+ * @typeParam TEntity - The aggregate the decorated method belongs to.
+ */
 export interface ApplyMutationOptions<TEntity> {
   /**
    * Factory for the domain event(s) recorded once the mutation has completed.

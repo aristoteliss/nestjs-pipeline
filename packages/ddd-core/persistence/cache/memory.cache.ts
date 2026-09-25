@@ -12,7 +12,7 @@ export const CACHE_TOKEN = Symbol('MemoryCache');
 export type MemoryCacheSetOptions = CacheSetOptions;
 
 /**
- * Upper bound on retained active payload keys.
+ * Upper bound on retained keys, including revision-only entries.
  */
 export const DEFAULT_MAX_ENTRIES = 10_000;
 
@@ -82,7 +82,7 @@ export class MemoryCache<T> implements IVersionedCache<T> {
   private evict(): void {
     if (this.store.size <= this.maxEntries) return;
 
-    // 1. Invalidate every token observed before the drop, including absences
+    // Invalidate every token observed before the drop, including absences
     this.absentRevision = this.lastRevision;
 
     const now = Date.now();
@@ -216,7 +216,7 @@ export class MemoryCache<T> implements IVersionedCache<T> {
   }
 
   /**
-   * Explicitly evicts a key from memory while advancing its revision.
+   * Removes the value and advances the key's revision, as invalidate() does.
    */
   async delete(key: string): Promise<void> {
     await this.invalidate(key);

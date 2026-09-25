@@ -44,8 +44,7 @@ let _correlationFallback: (() => string | undefined) | undefined;
  * Register a fallback function for {@link getCorrelationId}.
  *
  * The fallback is consulted only when `correlationStore.getStore()` returns no
- * value. Consumers that need another ambient correlation source can register it
- * here.
+ * value.
  *
  * @param fn - Fallback that returns a correlation ID or `undefined`.
  *

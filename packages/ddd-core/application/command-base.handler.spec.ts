@@ -30,7 +30,7 @@ class OrderCreatedEvent extends DomainEvent {
 abstract class TestableHandler<
   TResult extends AggregateBearingResult,
 > extends CommandBaseHandler<TestCommand, TResult> {
-  // biome-ignore lint/complexity/noUselessConstructor: can init test
+  // biome-ignore lint/complexity/noUselessConstructor: widens the protected base constructor to public
   constructor(eventBus: IDomainEventPublisher) {
     super(eventBus);
   }

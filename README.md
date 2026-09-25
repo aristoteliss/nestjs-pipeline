@@ -109,6 +109,17 @@ Works with Express and Fastify.
 
 > Add-on packages live in `packages/pipeline-<name>/` and peer-depend on `@nestjs-pipeline/core`.
 
+Framework-neutral packages, with no NestJS dependency:
+
+| Package | Description |
+|---|---|
+| [`@cqrs-ddd/core`](packages/ddd-core) | DDD building blocks — aggregates with versioned mutations, detached domain events, `CommandBaseHandler`, repository contracts, MikroORM persistence decorators, a revision-fenced repository cache, tenant-scoped cache keys and HTTP status mapping |
+| [`@cqrs-ddd/uuidv7`](packages/uuidv7) | RFC 9562 UUIDv7 generation and validation, with no dependencies |
+| [`@cqrs-ddd/safe-stringify`](packages/safe-stringify) | A strict, key-sorted serializer for identities, a redacting serializer for logs, and the key-segment helpers, with no dependencies |
+
+> `@nestjs-pipeline/core` uses the two utilities. No `@nestjs-pipeline/*` package uses
+> `@cqrs-ddd/core`, and it knows nothing of them: an application connects the two.
+
 ### Current Package Versions
 
 | Package | Version |
@@ -126,6 +137,9 @@ Works with Express and Fastify.
 | `@nestjs-pipeline/audit` | `0.2.0` |
 | `@nestjs-pipeline/idempotency` | `0.2.0` |
 | `@nestjs-pipeline/tenant` | `0.2.0` |
+| `@cqrs-ddd/core` | `0.2.0` |
+| `@cqrs-ddd/uuidv7` | `0.2.0` |
+| `@cqrs-ddd/safe-stringify` | `0.2.0` |
 
 ---
 

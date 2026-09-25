@@ -197,11 +197,9 @@ describe('PipelineBootstrapService Lifecycle & OnModuleDestroy', () => {
     });
     app2.onApplicationBootstrap();
 
-    // Instantiate for App 1
     const inst1 = new ScopedLifecycleHandler();
     wrapper1.setInstanceByContextId('ctx-1', { instance: inst1 });
 
-    // Instantiate for App 2
     const inst2 = new ScopedLifecycleHandler();
     wrapper2.setInstanceByContextId('ctx-2', { instance: inst2 });
 
@@ -219,7 +217,6 @@ describe('PipelineBootstrapService Lifecycle & OnModuleDestroy', () => {
     expect(behaviorAExecuted).toBe(false);
     expect(behaviorBExecuted).toBe(true);
 
-    // Destroy App 1
     app1.onModuleDestroy();
 
     // App 2 instance should STILL run CustomBehaviorB
@@ -229,7 +226,6 @@ describe('PipelineBootstrapService Lifecycle & OnModuleDestroy', () => {
     expect(behaviorAExecuted).toBe(false);
     expect(behaviorBExecuted).toBe(true);
 
-    // Destroy App 2
     app2.onModuleDestroy();
 
     // Prototype is completely restored

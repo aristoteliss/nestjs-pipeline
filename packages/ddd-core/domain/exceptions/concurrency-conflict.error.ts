@@ -10,8 +10,8 @@ import { DomainException } from './domain.exception';
  * {@link TransientOperationError}, so no ORM exception class reaches the
  * application layer or the presentation boundary.
  *
- * Transport adapters map it to their own conflict representation; the users-api
- * returns HTTP 409.
+ * Transport adapters map it to their own conflict representation, such as
+ * HTTP 409 through `domainErrorHttpStatus`.
  */
 export class ConcurrencyConflictError extends DomainException {
   constructor(

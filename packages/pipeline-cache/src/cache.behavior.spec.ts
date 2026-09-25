@@ -18,7 +18,8 @@ import type { CacheBehaviorOptions } from './interfaces/cache-options.interface'
 
 /**
  * `CacheBehavior` has no default key. These tests exercise caching mechanics,
- * so they partition by tenant and principal explicitly.
+ * so they key by principal, request type and payload; the contexts carry no
+ * tenant and no authorization scope.
  */
 const TEST_KEY = createPartitionedCacheKeyFactory({
   principal: (ctx) => (ctx.items.get('userId') as string | undefined) ?? 'u-1',
@@ -490,7 +491,6 @@ describe('CacheBehavior', () => {
     const next = vi.fn().mockResolvedValue('value');
     const withDefaults = new CacheBehavior(cache, { kinds: ['command'] });
 
-    // Default kinds = ['command']; a query should now pass through.
     await withDefaults.handle(
       makeCtx(undefined, { requestKind: 'query' }),
       next,
@@ -526,7 +526,6 @@ describe('CacheBehavior', () => {
     );
     const next = vi.fn().mockResolvedValue('fresh');
 
-    // failOpen: true
     const res = await customBehavior.handle(makeCtx({ failOpen: true }), next);
     expect(res).toBe('fresh');
     expect(logger.warn).toHaveBeenCalledWith(
@@ -534,7 +533,6 @@ describe('CacheBehavior', () => {
       CacheBehavior.name,
     );
 
-    // failOpen: false
     await expect(
       customBehavior.handle(makeCtx({ failOpen: false }), next),
     ).rejects.toBe('redis string failure');

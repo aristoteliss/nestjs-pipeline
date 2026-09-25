@@ -55,12 +55,12 @@ export abstract class AggregateRoot<EventBase extends IEvent = IEvent> {
   }
 
   /**
-   * Hook to publish a single event immediately when autoCommit is enabled or an EventPublisher is attached.
+   * Called by apply() for each event while autoCommit is enabled; a no-op unless overridden.
    */
   publish<T extends EventBase = EventBase>(_event: T): void {}
 
   /**
-   * Hook to publish multiple events when commit is invoked.
+   * Called by commit() with a copy of the buffered events; a no-op unless overridden.
    */
   publishAll<T extends EventBase = EventBase>(_events: T[]): void {}
 

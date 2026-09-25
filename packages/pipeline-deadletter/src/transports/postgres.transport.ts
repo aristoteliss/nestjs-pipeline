@@ -59,8 +59,8 @@ export function createDeadLetterTableSql(table = 'dead_letters'): string {
 }
 
 /**
- * {@link DeadLetterTransport} backed by **Postgres** (`pg`) — a drop-in
- * replacement for the BullMQ transport. Inserts each dead letter as a row.
+ * {@link DeadLetterTransport} backed by **Postgres** (`pg`). Inserts each dead
+ * letter as a row.
  *
  * Create the table once with {@link createDeadLetterTableSql}. The table name is
  * validated as a plain SQL identifier (it is interpolated, not parameterized);

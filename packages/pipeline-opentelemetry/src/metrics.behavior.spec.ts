@@ -6,8 +6,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { MetricsBehavior } from './metrics.behavior';
 import { addPipelineTelemetryAttributes } from './telemetry-attributes';
 
-// Preserve the rest of the public API and stub only meter acquisition. The
-// implementation intentionally does not inspect provider implementation details.
+// Preserve the rest of the public API and stub only meter acquisition.
 vi.mock('@opentelemetry/api', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@opentelemetry/api')>();
   return {
@@ -61,7 +60,7 @@ describe('MetricsBehavior', () => {
       .mockReturnValue(mockMeter as never);
   });
 
-  it('keeps the optional shared logger constructor and never mutates its context', async () => {
+  it('reports meter failures to an injected logger without mutating its context', async () => {
     const logger = {
       warn: vi.fn(),
       debug: vi.fn(),
@@ -117,7 +116,7 @@ describe('MetricsBehavior', () => {
     );
   });
 
-  it('records duration and increments the counter with the historical outcome label on success', async () => {
+  it('records duration and increments the counter with outcome and pipeline.outcome labels on success', async () => {
     const next = vi.fn().mockResolvedValue({ ok: true });
 
     const result = await behavior.handle(
@@ -217,7 +216,7 @@ describe('MetricsBehavior', () => {
     await behavior.handle(makeCtx(), next);
     await behavior.handle(makeCtx(), next);
 
-    // Meter is resolved each call, but instruments are built only once per name.
+    // The meter and its instruments are resolved once per meter name.
     expect(mockMeter.createHistogram).toHaveBeenCalledTimes(1);
     expect(mockMeter.createCounter).toHaveBeenCalledTimes(1);
     expect(mockMeter.createUpDownCounter).toHaveBeenCalledTimes(1);

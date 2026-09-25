@@ -12,8 +12,6 @@ import {
   ZodValidationBehavior,
 } from './zod-validation.behavior';
 
-// Helpers
-
 function makeRequestType(schema?: z.ZodType): Type {
   const cls = class {};
   if (schema) (cls as any)[ZOD_SCHEMA_KEY] = schema;
@@ -38,8 +36,6 @@ function createMockContext(
     ...overrides,
   };
 }
-
-// Tests
 
 describe('ZodValidationBehavior', () => {
   const behavior = new ZodValidationBehavior();
@@ -338,7 +334,6 @@ describe('ZodValidationBehavior', () => {
       const cmd = new UserCommand({ name: 'Alice' });
       expect(cmd.name).toBe('Alice');
 
-      // Mutate to an invalid value
       (cmd as any).name = 'ab';
 
       const ctx = createMockContext({

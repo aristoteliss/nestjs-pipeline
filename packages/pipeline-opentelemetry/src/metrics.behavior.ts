@@ -126,13 +126,12 @@ interface MeterInstruments {
  *
  * The OTel **Metrics API** is used directly. When no OpenTelemetry SDK / metric
  * reader is registered, the API returns no-op instruments and recordings are
- * discarded. The behavior therefore does not inspect provider implementation
- * details (`constructor.name`, private delegates, etc.).
+ * discarded.
  *
  * Instrument creation/recording and custom enrichment are best-effort: telemetry
  * must not replace a successful business result or the original business error.
- * The optional shared Nest logger constructor is retained for compatibility and
- * is used only to report genuine instrumentation failures.
+ * An injected `LOGGING_BEHAVIOR_LOGGER`, when present, reports instrumentation
+ * failures.
  *
  * @example Global application metrics
  * ```ts
@@ -219,7 +218,6 @@ export class MetricsBehavior implements IPipelineBehavior {
   ): Promise<Attributes> {
     const base: Attributes = {
       ...buildMetricAttributes(context),
-      // Emit both the short outcome label and the namespaced pipeline semantic key.
       outcome,
       [PIPELINE_OTEL_ATTRIBUTES.OUTCOME]: outcome,
       ...(outcome === 'failure'

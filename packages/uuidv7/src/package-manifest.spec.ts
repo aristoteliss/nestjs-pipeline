@@ -30,7 +30,7 @@ describe('@cqrs-ddd/uuidv7 manifest', () => {
     expect(Object.keys(manifest[field] ?? {})).toEqual([]);
   });
 
-  it('names no NestJS or @nestjs-pipeline package in devDependencies', () => {
+  it('declares no NestJS-scoped devDependency', () => {
     const names = Object.keys(manifest.devDependencies ?? {});
 
     expect(names.filter((name) => /^@?nestjs/.test(name))).toEqual([]);

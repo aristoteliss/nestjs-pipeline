@@ -36,8 +36,7 @@ export interface AuditError {
  * {@link AuditSink}.
  *
  * Unlike a dead letter (failures only), an audit record is written for **both**
- * successful and failed operations, so denied/rejected attempts are captured too
- * — which is exactly what security and compliance audits need.
+ * successful and failed operations, so denied/rejected attempts are captured too.
  */
 export interface AuditRecord {
   /** Unique id for this entry (UUID). */
@@ -70,6 +69,6 @@ export interface AuditRecord {
   durationMs: number;
   /** ISO-8601 timestamp of when the operation started. */
   timestamp: string;
-  /** Optional extra metadata produced by the behavior's `metadata` factory. */
+  /** Metadata from the `metadata` factory, plus `tenantId` when present. */
   metadata?: Record<string, unknown>;
 }

@@ -264,7 +264,6 @@ export class FeatureFlagBehavior
       ),
     );
 
-    // No flag to gate on — behave as a transparent pass-through.
     if (!options.flag) return next();
 
     const targetingKeyFactory =

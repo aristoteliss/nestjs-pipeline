@@ -142,6 +142,9 @@ DeadLetterModule.forRootAsync({
 Publishes a persistent JSON message and waits for broker publisher confirmation.
 Assert the queue/exchange first and use an `amqplib` confirm channel.
 
+This transport is tested with a mocked channel only; no test runs it against a real
+broker. Verify it against your RabbitMQ version before relying on it.
+
 ```typescript
 import amqp from 'amqplib';
 import { RabbitMqDeadLetterTransport } from '@nestjs-pipeline/deadletter';

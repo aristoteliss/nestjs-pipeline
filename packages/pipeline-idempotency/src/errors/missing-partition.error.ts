@@ -10,7 +10,7 @@ export type IdempotencyPartitionDimension =
  * Raised before a key is claimed when a dimension required by
  * {@link createPartitionedIdempotencyKeyFactory} cannot be resolved.
  *
- * Failing here is deliberate. Omitting a missing tenant or principal would
+ * Omitting a missing tenant or principal would
  * merge isolation domains: every caller whose identity could not be resolved
  * would share one deduplication namespace, so one caller's completed operation
  * could be replayed to another, or suppress another's first execution.

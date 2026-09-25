@@ -24,9 +24,9 @@ const defOf = (schema: ZodType) => schema._zod.def as unknown as WrapperDef;
  * field-level authorization must check.
  *
  * {@link createCommand} lists the marked fields of the top-level object as
- * the class's static `updatableFields`. Pass that list to `getUpdateFields()`
- * and on to the authorizer. A field without the mark is never sent to
- * field-level authorization, so mark every field the handler writes.
+ * the class's static `updatableFields`, the list of fields to pass to
+ * field-level authorization. A field without the mark is never in that list,
+ * so mark every field the handler writes.
  *
  * The mark survives the checks and wrappers chained after it (`.min()`,
  * `.optional()`, `.nullable()`, `.default()`, `.transform()`) and
@@ -43,7 +43,6 @@ const defOf = (schema: ZodType) => schema._zod.def as unknown as WrapperDef;
  *     id: z.uuid(),
  *     name: z.string().trim().apply(updatable).min(3),
  *   }),
- *   BaseCommand,
  * ) {}
  *
  * UpdateRoleCommand.updatableFields; // ['name']

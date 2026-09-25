@@ -201,7 +201,7 @@ describe('raw input inspection', () => {
   );
 });
 
-it('keeps legacy metadata readable without trusting it to bypass validation', async () => {
+it('reads ZOD_VALIDATED_DATA_KEY metadata without trusting it to skip validation', async () => {
   class Request {
     static readonly [ZOD_SCHEMA_KEY] = z.object({ age: z.number().positive() });
     age = -1;

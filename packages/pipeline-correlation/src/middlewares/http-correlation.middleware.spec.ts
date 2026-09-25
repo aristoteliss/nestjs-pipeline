@@ -24,7 +24,7 @@ describe('HttpCorrelationMiddleware', () => {
     expect(captured).toBe('abc-123');
   });
 
-  it('calls next without a store when header is missing', () => {
+  it('calls next when the header is missing', () => {
     const middleware = new HttpCorrelationMiddleware();
     const req = fakeRequest({});
     const next = vi.fn();
@@ -105,7 +105,6 @@ describe('HttpCorrelationMiddleware', () => {
       captured = correlationStore.getStore();
     });
 
-    // Should generate a fresh correlation id, not keep whitespace
     expect(captured).toBeDefined();
     expect(captured?.trim()).not.toBe('');
     expect(captured).not.toBe('   \t  ');

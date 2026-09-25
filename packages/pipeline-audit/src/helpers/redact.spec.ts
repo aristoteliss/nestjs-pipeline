@@ -76,7 +76,6 @@ describe('redactValue', () => {
       'email',
     ]);
 
-    // `password` is not in the custom list, so it is preserved.
     expect(result).toEqual({ password: 'kept', email: REDACTED });
   });
 

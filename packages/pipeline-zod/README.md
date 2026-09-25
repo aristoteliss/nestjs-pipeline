@@ -13,7 +13,7 @@ Zod v4 validation and parsing integration for `@nestjs-pipeline/core` — parse 
   - [How It Works](#how-it-works)
 - [Creating Validated Commands, Queries, and Events](#creating-validated-commands-queries-and-events)
   - [createCommand() and createQuery() Factories](#createcommand-and-createquery-factories)
-  - [Extending Base Classes (BaseCommand, BaseQuery)](#extending-base-classes-basecommand-basequery)
+  - [Extending a Base Class](#extending-a-base-class)
   - [Updatable Fields](#updatable-fields)
   - [Standard Schema Metadata](#standard-schema-metadata)
   - [Static parse() and safeParse()](#static-parse-and-safeparse)
@@ -207,13 +207,13 @@ const schema = z.object({
 export class GetUserQuery extends createQuery(schema) {}
 ```
 
-### Extending Base Classes (BaseCommand, BaseQuery)
+### Extending a Base Class
 
 Both `createCommand()` and `createQuery()` accept an optional base class as the second argument. Constructor arguments of the base class are forwarded transparently via `super(...baseArgs)`:
 
 ```typescript
-// Base command with ambient session user
-export abstract class BaseCommand {
+// A base class defined by the application
+export abstract class AppCommand {
   constructor(public readonly sessionUser?: SessionUser) {}
 }
 
@@ -222,17 +222,17 @@ const CreateUserSchema = z.object({
   email: z.string().email(),
 });
 
-export class CreateUserCommand extends createCommand(CreateUserSchema, BaseCommand) {}
+export class CreateUserCommand extends createCommand(CreateUserSchema, AppCommand) {}
 
 // Construct with payload and optional base class arguments:
 const cmd = new CreateUserCommand(
   { name: 'Alice', email: 'alice@example.com' },
-  sessionUser, // forwarded to BaseCommand constructor
+  sessionUser, // forwarded to the AppCommand constructor
 );
 
 expect(cmd.name).toBe('Alice');
 expect(cmd.sessionUser).toBe(sessionUser);
-expect(cmd instanceof BaseCommand).toBe(true);
+expect(cmd instanceof AppCommand).toBe(true);
 expect(cmd instanceof CreateUserCommand).toBe(true);
 ```
 
@@ -240,7 +240,8 @@ expect(cmd instanceof CreateUserCommand).toBe(true);
 
 Mark each field an update command changes with `updatable`, inside the schema.
 `createCommand()` lists the marked fields of the top-level object as the static,
-frozen `updatableFields`, in shape order. Pass them to field-level authorization:
+frozen `updatableFields`, in shape order: the list of fields to pass to field-level
+authorization:
 
 ```typescript
 import { createCommand, updatable } from '@nestjs-pipeline/zod';
@@ -252,25 +253,17 @@ export class UpdateUserCommand extends createCommand(
     username: z.string().trim().apply(updatable).min(3).optional(),
     department: z.string().trim().min(3).apply(updatable).nullable().optional(),
   }),
-  BaseCommand,
 ) {}
 
 UpdateUserCommand.updatableFields; // ['username', 'department']
-
-// In the handler: only the marked fields this command carries.
-authorizer.authorize(
-  'update',
-  user,
-  command.getUpdateFields(UpdateUserCommand.updatableFields),
-);
 ```
 
 - `.apply(updatable)` can sit anywhere in the field's chain, and `updatable(schema)` works
   as a function. The mark survives later checks and wrappers (`.min()`, `.optional()`,
   `.nullable()`, `.default()`, `.transform()`) and `.partial()`, `.pick()` or `.extend()`
   on the object.
-- **A field without the mark is never sent to field-level authorization.** Mark every
-  field the handler writes; `id`, which selects the aggregate, stays unmarked.
+- **A field without the mark is never in `updatableFields`, so field-level authorization
+  never sees it.** Mark every field the handler writes; `id`, which selects the aggregate, stays unmarked.
 - Only the top-level object is read, also through a top-level `.transform()`: marks in
   nested objects, arrays or unions are not listed. `updatableFieldsOf(schema)` returns the
   same list for a schema used without `createCommand()`.

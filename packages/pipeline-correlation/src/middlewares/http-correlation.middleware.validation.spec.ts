@@ -30,7 +30,7 @@ function run(
   return { id, responseId, responseHeader };
 }
 
-describe('HttpCorrelationMiddleware incoming ID compatibility and validation', () => {
+describe('HttpCorrelationMiddleware incoming ID validation', () => {
   it('accepts a well-formed incoming value unchanged by default', () => {
     const traceparent =
       '00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01';
@@ -56,26 +56,26 @@ describe('HttpCorrelationMiddleware incoming ID compatibility and validation', (
     );
   });
 
-  it('keeps the historical empty-header fallback behavior', () => {
+  it('generates a local ID when the incoming header is empty', () => {
     const result = run(new HttpCorrelationMiddleware(), '');
     expect(result.id).not.toBe('');
     expect(result.responseId).toBe(result.id);
     expect(result.responseHeader).toBe('x-correlation-id');
   });
 
-  it('keeps header=false mapped to the default header for compatibility', () => {
+  it('uses the default header when header is false', () => {
     const result = run(
       new HttpCorrelationMiddleware({ header: false } as never),
-      'legacy-id',
+      'incoming-id',
     );
     expect(result).toEqual({
-      id: 'legacy-id',
-      responseId: 'legacy-id',
+      id: 'incoming-id',
+      responseId: 'incoming-id',
       responseHeader: 'x-correlation-id',
     });
   });
 
-  it('keeps custom header lookup and lower-casing unchanged', () => {
+  it('lower-cases a custom header name for the lookup and the response header', () => {
     const result = run(
       new HttpCorrelationMiddleware({ header: 'X-Request-ID' } as never),
       'custom-id',

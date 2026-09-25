@@ -308,7 +308,8 @@ export class MikroOrmCache<T> implements IVersionedCache<T> {
   }
 
   /**
-   * Explicitly evicts a key from the database cache table by advancing its revision.
+   * Removes the value and advances the key's revision, as invalidate() does; the
+   * row is kept.
    */
   async delete(key: string): Promise<void> {
     await this.invalidate(key);

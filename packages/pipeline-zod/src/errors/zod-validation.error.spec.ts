@@ -4,10 +4,7 @@ import { describe, expect, it } from 'vitest';
 import { ZodError, z } from 'zod';
 import { ZodValidationError } from './zod-validation.error';
 
-// Tests
-
 describe('ZodValidationError', () => {
-  // Helper: parse with a schema and return the ZodError
   function parseError(schema: z.ZodType, data: unknown): ZodError {
     const result = schema.safeParse(data);
     if (result.success) throw new Error('Expected parse to fail');
@@ -48,10 +45,9 @@ describe('ZodValidationError', () => {
     expect(err.details.formErrors.length).toBeGreaterThan(0);
   });
 
-  it('details is readonly and serializable', () => {
+  it('exposes details that survive a JSON round-trip', () => {
     const err = new ZodValidationError(parseError(z.string(), 42));
 
-    // Should survive JSON round-trip (serializable)
     const json = JSON.parse(JSON.stringify(err.details));
     expect(json).toHaveProperty('formErrors');
   });

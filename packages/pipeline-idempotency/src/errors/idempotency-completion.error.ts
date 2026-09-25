@@ -13,9 +13,8 @@ export type IdempotencyFinalizationPhase = 'snapshot' | 'store';
  * Raised when the business handler succeeded but the idempotency record could
  * not be finalized.
  *
- * This distinction is operationally important: blindly retrying the request may
- * replay business side effects even though the caller received an error.
- * Consumers can use {@link executionSucceeded} to distinguish this state from a
+ * Retrying the request may repeat business side effects even though the caller
+ * received an error. Consumers can use {@link executionSucceeded} to distinguish this state from a
  * handler failure and make an explicit retry/reconciliation decision, and
  * {@link phase} to tell an unusable response apart from an unavailable store.
  *

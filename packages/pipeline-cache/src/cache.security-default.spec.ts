@@ -17,9 +17,8 @@ const partitioned: CacheBehaviorOptions = {
 function context(
   correlationId: string,
   userId: string,
-  // Explicit rather than defaulted: passing `undefined` to a defaulted parameter
-  // would silently restore the partitioned factory and make the "no key
-  // configured" test assert nothing.
+  // `options` defaults to the partitioned key factory; `configured = false`
+  // makes the context report no behavior options at all.
   options: CacheBehaviorOptions | undefined = partitioned,
   configured = true,
 ): IPipelineContext {
@@ -52,8 +51,7 @@ describe('CacheBehavior key safety', () => {
   });
 
   it('does not replay one principal response to another sharing a correlation ID', async () => {
-    // This is the reproduction from the Packages review: same tenant, same
-    // query, same payload, same correlation ID, two different principals.
+    // Same tenant, query, payload and correlation ID; only the principal differs.
     const behavior = new CacheBehavior(createCache({ stores: [new Keyv()] }));
     const next = vi
       .fn()

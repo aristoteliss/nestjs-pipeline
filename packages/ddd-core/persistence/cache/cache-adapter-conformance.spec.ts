@@ -193,7 +193,6 @@ describe('Cache Adapter Conformance (MemoryCache & MikroOrmCache)', () => {
 
       await cache.set('iso:set', input);
 
-      // Caller mutates the source object
       input.name = 'Mutated';
       input.meta.score = 999;
 
@@ -253,7 +252,6 @@ describe('Cache Adapter Conformance (MemoryCache & MikroOrmCache)', () => {
         `user:${user.id}`,
       )) as MemberSnapshot;
 
-      // Rehydrate into aggregate
       const rehydrated = Member.fromJSON(cachedSnapshot);
 
       expect(rehydrated).toBeInstanceOf(Member);

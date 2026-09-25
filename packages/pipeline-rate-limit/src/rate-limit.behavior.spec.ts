@@ -49,10 +49,8 @@ function makeCtx(overrides: Partial<IPipelineContext> = {}): IPipelineContext {
 }
 
 /**
- * `buildRateLimitKey` now requires an explicit keyFactory, because a
- * request-name-only bucket is shared by every caller in every tenant. These
- * tests are about point cost, limiter wiring and failure policy, so they opt
- * into the global bucket deliberately.
+ * These tests cover point cost, limiter wiring and failure policy rather than
+ * partitioning, so they pass a request-name bucket as the required keyFactory.
  */
 const GLOBAL_BUCKET: RateLimitBehaviorOptions = {
   keyFactory: (ctx) => ctx.requestName,
@@ -95,7 +93,7 @@ describe('RateLimitBehavior', () => {
     );
   });
 
-  it('consumes 1 point by default, keyed by requestName, and proceeds', async () => {
+  it('consumes 1 point by default under a request-name keyFactory and proceeds', async () => {
     consume.mockResolvedValue(okRes());
     const behavior = new RateLimitBehavior(limiter);
     const ctx = makeCtx();
@@ -207,7 +205,6 @@ describe('RateLimitBehavior', () => {
     expect(consume).toHaveBeenCalledWith('CreateUserCommand', 7);
   });
 
-  // ── Integration: prove the real rate-limiter-flexible limiter is a drop-in ──
   it('integrates with a real RateLimiterMemory (3rd call is throttled)', async () => {
     const realLimiter = new RateLimiterMemory({ points: 2, duration: 60 });
     const behavior = new RateLimitBehavior(realLimiter);

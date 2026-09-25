@@ -356,7 +356,7 @@ describe('AuditBehavior', () => {
     );
   });
 
-  it('keeps an existing cause on the handler error when the audit also fails', async () => {
+  it('rethrows the handler error with its own cause intact when the audit also fails', async () => {
     const sinkError = new Error('sink recording failed');
     write.mockRejectedValueOnce(sinkError);
     const behavior = new AuditBehavior(sink);

@@ -49,8 +49,12 @@ function assertSafeTable(table: string): string {
 }
 
 /**
- * SQL for creating the idempotency table and ensuring the owner-token column
- * exists. Run it from an application migration, not at request time.
+ * SQL that creates the idempotency table and its `expires_at` index. Run it
+ * from an application migration, not at request time.
+ *
+ * `response` holds the response as JSON text rather than `jsonb`: `jsonb`
+ * rejects the `\u0000` and unpaired-surrogate escapes `JSON.stringify` writes,
+ * and a completed response must always be storable and replay exactly.
  *
  * @param table - Table name (validated). Default `'idempotency_keys'`.
  * @returns SQL statements required by {@link PostgresIdempotencyStore}.
@@ -64,13 +68,11 @@ export function createIdempotencyTableSql(table = 'idempotency_keys'): string {
   claim_id      TEXT,
   fingerprint   TEXT,
   replay_scope  TEXT,
-  response      JSONB,
+  response      TEXT,
   created_at    TIMESTAMPTZ NOT NULL,
   completed_at  TIMESTAMPTZ,
   expires_at    TIMESTAMPTZ NOT NULL
 );
-ALTER TABLE ${name} ADD COLUMN IF NOT EXISTS claim_id TEXT;
-ALTER TABLE ${name} ADD COLUMN IF NOT EXISTS replay_scope TEXT;
 CREATE INDEX IF NOT EXISTS ${indexName(name)} ON ${name} (expires_at);`;
 }
 
@@ -92,9 +94,10 @@ function mapRow(key: string, row: PostgresRowLike): IdempotencyRecord {
     claimId: (row.claim_id as string | null) ?? undefined,
     fingerprint: (row.fingerprint as string | null) ?? undefined,
     replayScope: (row.replay_scope as string | null) ?? undefined,
-    // SQL NULL → has_response=false → undefined (no response stored).
-    // JSONB null → has_response=true, row.response=null → null (explicit null).
-    response: row.has_response ? (row.response as JsonValue) : undefined,
+    // SQL NULL: no response stored. The text 'null' is an explicit null response.
+    response: row.has_response
+      ? (JSON.parse(row.response as string) as JsonValue)
+      : undefined,
     createdAt: toIso(row.created_at),
     completedAt: row.completed_at ? toIso(row.completed_at) : undefined,
   };
