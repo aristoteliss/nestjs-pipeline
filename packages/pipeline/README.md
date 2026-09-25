@@ -1084,7 +1084,7 @@ must account for the absent instance.
 | `LoggingBehaviorOptions` | Interface | Options for `LoggingBehavior` (`metricLogLevel`, `requestResponseLogLevel`, `errorLogLevel`, `mapLogLevel`, `excludeKeys`, `excludeRequestObj`, `excludeResponseObj`, `logFormat`) |
 | `logging` | Function | Typed intent builder returning `[LoggingBehavior, options]` for `@UsePipeline` |
 | `LoggingIntentOptions` | Type | Alias for `LoggingBehaviorOptions` |
-| `uuidv7` | Function | Generate timestamp-sortable UUIDs |
+| `uuidv7` | Function | Generate timestamp-sortable UUIDs (re-exported from `@cqrs-ddd/uuidv7`) |
 | `pipelineStore` | `AsyncLocalStorage` | Access the current pipeline context |
 | `PipelineModuleOptions` | Interface | Options for `PipelineModule.forRoot()` |
 | `GlobalBehaviorsOptions` | Interface | Global behavior configuration |
@@ -1107,6 +1107,13 @@ must account for the absent instance.
 | `StrictJsonValue` | Type | Strict JSON-compatible recursive type definition |
 | `safeSanitize` | Function | Deeply redacts sensitive keys and strips unsupported types |
 | `toPostgresJson` | Function | Replaces the NUL characters and lone surrogates that PostgreSQL `jsonb` rejects in JSON text with U+FFFD; used by the Postgres audit sink and dead-letter transport |
+
+`stableStringify`, `toStrictJsonValue`, `StrictJsonValue` and `safeSanitize` above, together
+with `safeStringify`, `redactValue`, `DEFAULT_REDACT_KEYS`, `REDACTED`, `SanitizeOptions` and
+the key-segment helpers `joinKeySegments`, `escapeKeySegment` and `ABSENT_SEGMENT`, are
+re-exported from
+[`@cqrs-ddd/safe-stringify`](https://github.com/aristoteliss/nestjs-pipeline/tree/master/packages/safe-stringify),
+which documents them in full.
 
 
 **`PipelineModuleOptions` fields:**

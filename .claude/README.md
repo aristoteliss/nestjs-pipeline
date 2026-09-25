@@ -9,7 +9,7 @@ normal build or test.
 | Path | Tracked | Purpose |
 | --- | --- | --- |
 | `CLAUDE.md` (repository root) | yes | Durable agent instructions: what to read, how to work, which commands to use |
-| `packages/CLAUDE.md`, `packages/pipeline/CLAUDE.md`, `ddd/core/CLAUDE.md`, `ddd/users-api/CLAUDE.md` | yes | Local rules for those areas |
+| `packages/CLAUDE.md`, `packages/pipeline/CLAUDE.md`, `packages/ddd-core/CLAUDE.md`, `api/CLAUDE.md` | yes | Local rules for those areas |
 | `.claude/codebase-map.md` | yes | The codebase map — generated sections plus human-owned sections |
 | `.claude/tasks/TEMPLATE.md` | yes | Template for task context files |
 | `.claude/tasks/<task-id>.md` | yes | One file per large or multi-session task |

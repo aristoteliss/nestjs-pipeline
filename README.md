@@ -3,7 +3,7 @@
 ## Library scope
 
 The packages are reusable libraries for external applications and future use
-cases. `ddd/users-api` is one example, not the limit of the public contracts.
+cases. `api` is one example, not the limit of the public contracts.
 Repository caching and pipeline query-result caching are complementary. See
 [AGENTS.md](AGENTS.md) for library scope and the criteria for reviewing or
 removing features, and the
@@ -31,7 +31,8 @@ HTTP Request
 > their keys must include the relevant tenant, principal, and permission scope
 > whenever results depend on those checks.
 
-The core package adds no runtime dependencies beyond NestJS itself. Add-on packages
+The core package adds no runtime dependencies beyond NestJS itself, apart from the
+dependency-free `@cqrs-ddd/uuidv7` and `@cqrs-ddd/safe-stringify`. Add-on packages
 use their own declared integrations (Zod, OpenTelemetry, CASL, OpenFeature, etc.).
 Works with Express and Fastify.
 
@@ -104,6 +105,7 @@ Works with Express and Fastify.
 | [`@nestjs-pipeline/rate-limit`](packages/pipeline-rate-limit) | Rate-limiting behavior — backend-agnostic via rate-limiter-flexible (memory, Redis/Valkey, Mongo, SQL), HTTP 429 filter |
 | [`@nestjs-pipeline/audit`](packages/pipeline-audit) | Audit-trail behavior — records who/what/outcome/duration to a pluggable `AuditSink` (console default, Postgres drop-in), with payload redaction |
 | [`@nestjs-pipeline/idempotency`](packages/pipeline-idempotency) | Idempotency behavior — atomic concurrent duplicate exclusion and successful-response replay per key; failed executions are retryable by default, via a pluggable store (in-memory default, Redis/Postgres drop-in) |
+| [`@nestjs-pipeline/tenant`](packages/pipeline-tenant) | `TenantScopeBehavior` — runs every pipeline invocation inside the `@cqrs-ddd/core` tenant scope, so tenant-scoped cache keys follow the pipeline tenant |
 
 > Add-on packages live in `packages/pipeline-<name>/` and peer-depend on `@nestjs-pipeline/core`.
 
@@ -123,6 +125,7 @@ Works with Express and Fastify.
 | `@nestjs-pipeline/rate-limit` | `0.2.0` |
 | `@nestjs-pipeline/audit` | `0.2.0` |
 | `@nestjs-pipeline/idempotency` | `0.2.0` |
+| `@nestjs-pipeline/tenant` | `0.2.0` |
 
 ---
 
@@ -149,6 +152,7 @@ pnpm add @nestjs-pipeline/rate-limit rate-limiter-flexible  # rate limiting (mem
 pnpm add @nestjs-pipeline/audit   # audit trail (console default; + optional pg for Postgres)
 pnpm add @nestjs-pipeline/idempotency   # idempotent commands (in-memory default; + optional redis/pg)
 pnpm add @nestjs-pipeline/feature-flags @openfeature/server-sdk  # feature flags (provider adapters optional)
+pnpm add @nestjs-pipeline/tenant @cqrs-ddd/core   # pipeline tenant as the @cqrs-ddd/core tenant scope
 
 # Optional: pino logger integration
 pnpm add nestjs-pino pino-http pino-pretty
@@ -1261,15 +1265,16 @@ startup:
 
 ## DDD Example
 
-The `ddd/` directory demonstrates Domain-Driven Design with `@nestjs-pipeline`.
+`packages/ddd-core` and the `api` example demonstrate Domain-Driven Design with `@nestjs-pipeline`.
 
-### `ddd/core` — Nest-oriented DDD support for the sample application
+### `packages/ddd-core` — framework-neutral DDD support
 
-The private `@nestjs-pipeline/ddd-core` workspace package provides three explicit entry points:
+The `@cqrs-ddd/core` package has no NestJS dependency and provides four explicit entry points:
 
 - `/domain` — aggregate/event/error primitives;
 - `/application` — CQRS base classes and repository/cache ports;
-- `/persistence` — persistence decorators/adapters/helpers.
+- `/persistence` — persistence decorators/adapters/helpers;
+- `/http` — HTTP status mapping for its own errors.
 
 Domain and application code should use the narrow entry points rather than the compatibility root barrel.
 
@@ -1280,7 +1285,8 @@ Domain and application code should use the narrow entry points rather than the c
 | `DomainException`     | `/domain`      | Abstract base class for framework-agnostic domain invariant exceptions                  |
 | `DomainEvent`         | `/domain`      | Abstract base class for domain events (carries a UUID v7 `id`)                        |
 | `RootDomainEvent`     | `/domain`      | Domain event with detached immutable payload and event-time aggregate ID/version       |
-| `Mutate`              | `/domain`      | Decorator that calls `onUpdate()` after a method executes                             |
+| `@ApplyMutation()`    | `/domain`      | Completes a domain mutation: calls `onUpdate()` and records events from the result    |
+| `@Mutable()`          | `/domain`      | Declares an aggregate field as patchable through `applyPatch(...)`                    |
 | `CommandBaseHandler`  | `/application` | Base CQRS command handler that dispatches and clears uncommitted events                 |
 | `ICommandRepository`  | `/application` | Port for write repositories                                                            |
 | `IQueryRepository`    | `/application` | Port for read repositories                                                             |
@@ -1292,15 +1298,15 @@ Domain and application code should use the narrow entry points rather than the c
 Import domain primitives in your domain layer:
 
 ```typescript
-import { RootEntity, RootDomainEvent, Mutate, DomainException } from '@nestjs-pipeline/ddd-core/domain';
+import { ApplyMutation, DomainException, RootDomainEvent, RootEntity } from '@cqrs-ddd/core/domain';
 ```
 
-### `ddd/users-api` — Full Working Application
+### `api` — Full Working Application
 
-The `ddd/users-api/` directory contains a complete working application:
+The `api/` directory contains a complete working application:
 
 ```bash
-cd ddd/users-api
+cd api
 pnpm install
 pnpm build              # build workspace dependencies
 cp .env.example .env    # create local environment file (edit as needed)
@@ -1400,7 +1406,7 @@ ADAPTER=fastify pnpm start
 ```
 nestjs-pipeline/
 ├── package.json                  # root — workspace scripts
-├── pnpm-workspace.yaml           # declares packages/* and ddd/*
+├── pnpm-workspace.yaml           # declares packages/* and api
 ├── tsconfig.base.json            # shared TypeScript config
 ├── packages/
 │   ├── pipeline/                 # @nestjs-pipeline/core
@@ -1408,7 +1414,7 @@ nestjs-pipeline/
 │   │       ├── behaviors/        # LoggingBehavior
 │   │       ├── constants/        # pipelineStore (AsyncLocalStorage)
 │   │       ├── decorators/       # @UsePipeline
-│   │       ├── helpers/          # uuidv7, safeStringify
+│   │       ├── helpers/          # behavior entries, logging intent, toPostgresJson
 │   │       ├── interfaces/       # IPipelineBehavior, IPipelineContext
 │   │       ├── options/          # PipelineModuleOptions, GlobalBehaviorsOptions
 │   │       ├── services/         # PipelineBootstrapService
@@ -1417,7 +1423,7 @@ nestjs-pipeline/
 │   ├── pipeline-correlation/      # @nestjs-pipeline/correlation
 │   │   └── src/
 │   │       ├── decorators/       # @WithCorrelation, CorrelationFrom
-│   │       ├── helpers/          # uuidv7
+│   │       ├── helpers/          # uuidv7 (re-exported from @cqrs-ddd/uuidv7)
 │   │       ├── middlewares/      # HttpCorrelationMiddleware
 │   │       ├── options/          # CorrelationOptions
 │   │       └── correlation.store.ts    # correlationStore, getCorrelationId, runWithCorrelationId
@@ -1486,31 +1492,35 @@ nestjs-pipeline/
 │   │       ├── sinks/            # LogAuditSink (default), PostgresAuditSink drop-in
 │   │       ├── audit.behavior.ts # AuditBehavior (records who/what/outcome/duration)
 │   │       └── audit.module.ts
-│   └── pipeline-idempotency/     # @nestjs-pipeline/idempotency
-│       └── src/
-│           ├── constants/        # IDEMPOTENCY_STORE, IDEMPOTENCY_DEFAULT_OPTIONS tokens
-│           ├── errors/           # IdempotencyConflictError
-│           ├── filters/          # IdempotencyConflictFilter (HTTP 409 / 422)
-│           ├── helpers/          # fingerprintValue (stable payload hash)
-│           ├── interfaces/       # IdempotencyStore, IdempotencyRecord, options types
-│           ├── stores/           # Memory (default), Redis, Postgres drop-in stores
-│           ├── idempotency.behavior.ts   # IdempotencyBehavior (concurrent exclusion + successful replay)
-│           └── idempotency.module.ts
-└── ddd/
-    ├── core/                     # @nestjs-pipeline/ddd-core — reusable DDD primitives
-    │   └── domain/
-    │       ├── events/            # DomainEvent, RootDomainEvent
-    │       ├── interfaces/        # RootEntitySnapshot
-    │       └── models/            # RootEntity
-    └── users-api/                # Full working example using ddd-core + casl
-        └── src/
-            ├── persistence/      # MikroOrmStore, schemas/, migrate.ts
-            ├── roles/            # MikroORM-backed CASL providers (role CRUD + capabilities)
-            ├── auths/            # Auth CRUD + user-context resolver
-            └── users/
-                ├── cqrs/         # Commands, queries, events
-                ├── domain/       # User entity, domain events
-                └── persistence/  # Repositories
+│   ├── pipeline-idempotency/     # @nestjs-pipeline/idempotency
+│   │   └── src/
+│   │       ├── constants/        # IDEMPOTENCY_STORE, IDEMPOTENCY_DEFAULT_OPTIONS tokens
+│   │       ├── errors/           # IdempotencyConflictError
+│   │       ├── filters/          # IdempotencyConflictFilter (HTTP 409 / 422)
+│   │       ├── helpers/          # fingerprintValue (stable payload hash)
+│   │       ├── interfaces/       # IdempotencyStore, IdempotencyRecord, options types
+│   │       ├── stores/           # Memory (default), Redis, Postgres drop-in stores
+│   │       ├── idempotency.behavior.ts   # IdempotencyBehavior (concurrent exclusion + successful replay)
+│   │       └── idempotency.module.ts
+│   ├── pipeline-tenant/          # @nestjs-pipeline/tenant
+│   │   └── src/
+│   │       └── tenant-scope.behavior.ts  # TenantScopeBehavior (runWithTenant per invocation)
+│   ├── uuidv7/                   # @cqrs-ddd/uuidv7 — RFC 9562 UUIDv7, no dependencies
+│   ├── safe-stringify/           # @cqrs-ddd/safe-stringify — strict and log-safe JSON, key segments
+│   └── ddd-core/                 # @cqrs-ddd/core — framework-neutral DDD primitives
+│       ├── domain/               # RootEntity, AggregateRoot, domain events and exceptions
+│       ├── application/          # CQRS base classes, repository and cache ports, tenant scope
+│       ├── persistence/          # lifecycle decorators, cache adapters, MikroORM repositories
+│       └── http/                 # HTTP status mapping for its errors
+└── api/                          # @nestjs-pipeline/ddd-api — full working example using ddd-core + casl
+    └── src/
+        ├── persistence/          # MikroOrmStore, schemas/, migrate.ts
+        ├── roles/                # MikroORM-backed CASL providers (role CRUD + capabilities)
+        ├── auths/                # Auth CRUD + user-context resolver
+        └── users/
+            ├── cqrs/             # Commands, queries, events
+            ├── domain/           # User entity, domain events
+            └── persistence/      # Repositories
 ```
 
 ---
@@ -1554,7 +1564,7 @@ Persistence lifecycle lint rules are native [Biome Grit plugins](biome/plugins/R
 registered in `biome.json`. They run through Biome CLI/editor checks and before
 `test:unit`; there is no standalone JavaScript persistence linter. Shared decorator
 and optimistic-update contracts/tests are documented in
-[`ddd/core`](ddd/core/README.md#decorated-versioned-updates).
+[`packages/ddd-core`](packages/ddd-core/README.md#decorated-versioned-updates).
 
 ### Agent context files
 

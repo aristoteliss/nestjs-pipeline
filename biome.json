@@ -95,7 +95,7 @@
     },
     {
       "path": "./biome/plugins/verify-package-licenses.grit",
-      "includes": ["**/packages/**/*.ts"]
+      "includes": ["**/packages/**/*.ts", "!**/packages/ddd-core/**"]
     },
     {
       "path": "./biome/plugins/package-licenses.grit",
@@ -105,11 +105,11 @@
       "path": "./biome/plugins/transport-neutral-errors.grit",
       "includes": [
         "**/packages/*/src/**/*.ts",
-        "**/ddd/core/**/*.ts",
-        "**/ddd/*/src/**/cqrs/**/*.ts",
-        "**/ddd/*/src/**/domain/**/*.ts",
-        "**/ddd/*/src/**/application/**/*.ts",
-        "**/ddd/*/src/**/persistence/**/*.ts",
+        "**/packages/ddd-core/**/*.ts",
+        "**/api/src/**/cqrs/**/*.ts",
+        "**/api/src/**/domain/**/*.ts",
+        "**/api/src/**/application/**/*.ts",
+        "**/api/src/**/persistence/**/*.ts",
         "!**/controllers/**",
         "!**/filters/**",
         "!**/guards/**",
@@ -123,8 +123,8 @@
     {
       "path": "./biome/plugins/handler-boundaries.grit",
       "includes": [
-        "**/ddd/*/src/**/cqrs/**/*.ts",
-        "**/ddd/*/src/**/application/**/*.ts",
+        "**/api/src/**/cqrs/**/*.ts",
+        "**/api/src/**/application/**/*.ts",
         "!**/*.spec.ts",
         "!**/*.test.ts"
       ]
@@ -132,7 +132,7 @@
     {
       "path": "./biome/plugins/event-handler-substance.grit",
       "includes": [
-        "**/ddd/*/src/**/events/**/*.ts",
+        "**/api/src/**/events/**/*.ts",
         "!**/*.spec.ts",
         "!**/*.test.ts"
       ]
@@ -141,7 +141,7 @@
       "path": "./biome/plugins/core-environment.grit",
       "includes": [
         "**/packages/*/src/**/*.ts",
-        "**/ddd/core/**/*.ts",
+        "**/packages/ddd-core/**/*.ts",
         "!**/*.spec.ts",
         "!**/*.test.ts"
       ]
@@ -149,7 +149,7 @@
     {
       "path": "./biome/plugins/framework-independence.grit",
       "includes": [
-        "**/ddd/core/**/*.ts",
+        "**/packages/ddd-core/**/*.ts",
         "**/packages/uuidv7/**/*.ts",
         "**/packages/safe-stringify/**/*.ts"
       ]
@@ -157,9 +157,9 @@
     {
       "path": "./biome/plugins/ddd-layering.grit",
       "includes": [
-        "**/ddd/*/src/**/cqrs/**/*.ts",
-        "**/ddd/*/src/**/domain/**/*.ts",
-        "**/ddd/*/src/**/application/**/*.ts",
+        "**/api/src/**/cqrs/**/*.ts",
+        "**/api/src/**/domain/**/*.ts",
+        "**/api/src/**/application/**/*.ts",
         "!**/*.spec.ts",
         "!**/*.test.ts"
       ]
@@ -167,13 +167,13 @@
     {
       "path": "./biome/plugins/aggregate-identity.grit",
       "includes": [
-        "**/ddd/*/src/**/cqrs/**/*.ts",
-        "**/ddd/*/src/**/application/**/*.ts",
-        "**/ddd/core/application/**/*.ts",
-        "**/ddd/*/src/**/controllers/**/*.ts",
-        "**/ddd/*/src/**/services/**/*.ts",
-        "**/ddd/*/src/**/mappers/**/*.ts",
-        "**/ddd/*/src/**/jobs/**/*.ts",
+        "**/api/src/**/cqrs/**/*.ts",
+        "**/api/src/**/application/**/*.ts",
+        "**/packages/ddd-core/application/**/*.ts",
+        "**/api/src/**/controllers/**/*.ts",
+        "**/api/src/**/services/**/*.ts",
+        "**/api/src/**/mappers/**/*.ts",
+        "**/api/src/**/jobs/**/*.ts",
         "!**/*.spec.ts",
         "!**/*.test.ts"
       ]
@@ -181,18 +181,14 @@
     {
       "path": "./biome/plugins/domain-mutation.grit",
       "includes": [
-        "**/ddd/*/src/**/domain/models/**/*.ts",
+        "**/api/src/**/domain/models/**/*.ts",
         "!**/*.spec.ts",
         "!**/*.test.ts"
       ]
     },
     {
       "path": "./biome/plugins/ddd-entry-points.grit",
-      "includes": [
-        "**/ddd/users-api/src/**/*.ts",
-        "!**/*.spec.ts",
-        "!**/*.test.ts"
-      ]
+      "includes": ["**/api/src/**/*.ts", "!**/*.spec.ts", "!**/*.test.ts"]
     }
   ]
 }

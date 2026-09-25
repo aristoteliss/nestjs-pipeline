@@ -1,11 +1,8 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { createHash } from 'node:crypto';
-import {
-  type IPipelineContext,
-  joinKeySegments,
-  stableStringify,
-} from '@nestjs-pipeline/core';
+import { joinKeySegments, stableStringify } from '@cqrs-ddd/safe-stringify';
+import { type IPipelineContext } from '@nestjs-pipeline/core';
 import { MissingCachePartitionError } from '../errors/missing-partition.error';
 import type { CacheKeyFactory } from '../interfaces/cache-options.interface';
 

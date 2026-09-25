@@ -102,7 +102,7 @@ merging or publishing.
 
 ## Current Status
 
-In progress. Phase 1 complete and Gate 1 green on `5c94efee` (2026-09-25); next is phase 2, U1. A1–A5, A7, B9–B11, N1–N6 and A6, B1–B4, B7, B8, C1–C8 and D4 done.
+In progress. Phase 1 complete and Gate 1 green on `5c94efee` (2026-09-25); phase 2: U1–U3, S1–S3, D1–D3 and T1–T3 done; next is D5. A1–A5, A7, B9–B11, N1–N6 and A6, B1–B4, B7, B8, C1–C8 and D4 done.
 Section T (`@nestjs-pipeline/tenant`)
 was added to phase 2 on 2026-09-24. Baseline `e60c689a` on branch `review`. Facts
 verified on 2026-09-23 and 2026-09-24 by running commands (no code changed):
@@ -580,7 +580,7 @@ Their callers are core's `services/pipeline-runner.ts`, correlation (it re-expor
 through `src/helpers/uuidv7.ts`), and `ddd/core`'s `domain/events/domain.event.ts`,
 `domain/models/root.entity.ts` and `persistence/helpers/cache-barrier.helper.ts`.
 
-- [ ] U1. **Create `packages/uuidv7` as `@cqrs-ddd/uuidv7`.**
+- [x] U1. **Create `packages/uuidv7` as `@cqrs-ddd/uuidv7`.**
   - Zero runtime dependencies (Node `crypto` only), framework-neutral, and no `@nestjs/*`.
   - API exactly as today: `uuidv7(): string` and `isUuidV7(value: unknown): value is string`.
     Same algorithm and output (RFC 9562; not monotonic within one millisecond). Keep core's
@@ -595,7 +595,7 @@ through `src/helpers/uuidv7.ts`), and `ddd/core`'s `domain/events/domain.event.t
     - `src/index.ts`, a README (purpose, install, API, format guarantees), and license headers;
     - a manifest spec like `ddd/core/package-manifest.spec.ts`.
       `framework-independence.grit` already covers `packages/uuidv7` (N6).
-- [ ] U2. **Use it everywhere.**
+- [x] U2. **Use it everywhere.**
   - `@nestjs-pipeline/core`:
     - add `@cqrs-ddd/uuidv7` to `dependencies`. It is a zero-dependency pure utility with no
       identity, so a duplicate copy is harmless; a peer adds nothing;
@@ -616,7 +616,7 @@ through `src/helpers/uuidv7.ts`), and `ddd/core`'s `domain/events/domain.event.t
     `packages/uuidv7/src`;
   - core and correlation still export `uuidv7` (`pnpm test:release` consumer check);
   - `pnpm test` and `pnpm test:e2e` pass.
-- [ ] U3. **Tooling.** `copy-licenses`, `test:release` and `publish:all` pick it up under
+- [x] U3. **Tooling.** `copy-licenses`, `test:release` and `publish:all` pick it up under
   `packages/*`. Extend the release check to load it standalone with nothing else installed.
 
 #### S. `@cqrs-ddd/safe-stringify`: one package for serialization and key text
@@ -650,7 +650,7 @@ Key-segment helpers, core `helpers/key-segment.ts` (no imports):
 Core re-exports them publicly. Callers: cache, idempotency and rate-limit key builders,
 and users-api. `ddd/core`'s `cacheKeyTemplate` has its own copy of the escaping.
 
-- [ ] S1. **Create `packages/safe-stringify` as `@cqrs-ddd/safe-stringify`** with the three
+- [x] S1. **Create `packages/safe-stringify` as `@cqrs-ddd/safe-stringify`** with the three
   modules (strict serializer, log-safe serializer, key segments) moved unchanged.
   - Same names, algorithms, error messages and `cause`s, redaction lists and matching rules.
   - Full JSDoc and specs move too.
@@ -675,7 +675,7 @@ and users-api. `ddd/core`'s `cacheKeyTemplate` has its own copy of the escaping.
       `framework-independence.grit` already covers `packages/safe-stringify` (N6).
   - The README states when to use which: strict for identity, safe for display. Never use
     `safeStringify` for keys.
-- [ ] S2. **Use it everywhere.**
+- [x] S2. **Use it everywhere.**
   - Core:
     - add `@cqrs-ddd/safe-stringify` to `dependencies` (the same single-exception rule as
       U2);
@@ -702,12 +702,12 @@ and users-api. `ddd/core`'s `cacheKeyTemplate` has its own copy of the escaping.
     (`pnpm test:release`);
   - `test/cache-key-canonicalization.e2e-spec.ts`, the idempotency fingerprint specs and the
     logging, audit and dead-letter redaction specs pass unchanged.
-- [ ] S3. **Tooling.** Covered by `packages/*` scripts. Extend the release check to load it
+- [x] S3. **Tooling.** Covered by `packages/*` scripts. Extend the release check to load it
   standalone.
 
 #### D. Restructure `ddd/core` as its own package
 
-- [ ] D1. **Move** `ddd/core` → `packages/ddd-core` (owner decision). Update:
+- [x] D1. **Move** `ddd/core` → `packages/ddd-core` (owner decision). Update:
   - `pnpm-workspace.yaml` if needed;
   - `biome.json` overrides and the Grit plugin paths that match `ddd/*`
     (`ddd-layering`, `ddd-entry-points`, `transport-neutral-errors`,
@@ -729,7 +729,7 @@ and users-api. `ddd/core`'s `cacheKeyTemplate` has its own copy of the escaping.
   `@cqrs-ddd/core`, and allow `@cqrs-ddd/uuidv7` and `@cqrs-ddd/safe-stringify` (U2, S2).
   `@cqrs-ddd/core` may import itself in its specs. T3 adds the one exception,
   `packages/pipeline-tenant`.
-- [ ] D1a. **Move** `ddd/users-api` → `api/` (owner decision 2026-09-24). The app's contents
+- [x] D1a. **Move** `ddd/users-api` → `api/` (owner decision 2026-09-24). The app's contents
   sit directly in `api/` (`api/src`, `api/test`, `api/package.json`). Then delete the empty
   `ddd/` folder. Rename the package `@nestjs-pipeline/ddd-users-api` →
   `@nestjs-pipeline/ddd-api` (owner decision; still private). Update every
@@ -769,7 +769,7 @@ and users-api. `ddd/core`'s `cacheKeyTemplate` has its own copy of the escaping.
     is reported (then removed), proving the globs match;
   - `pnpm test:e2e` passes;
   - `pnpm context:update` then `pnpm context:validate` pass.
-- [ ] D1b. **Rename** `@nestjs-pipeline/ddd-core` → `@cqrs-ddd/core` (owner decision).
+- [x] D1b. **Rename** `@nestjs-pipeline/ddd-core` → `@cqrs-ddd/core` (owner decision).
   - `package.json` `name`, and the `exports` subpaths unchanged (`@cqrs-ddd/core/domain`,
     `/application`, `/persistence`);
   - every import: 117 `.ts` files at baseline, mostly `ddd/users-api/src` and `test`;
@@ -784,11 +784,11 @@ and users-api. `ddd/core`'s `cacheKeyTemplate` has its own copy of the escaping.
   - `pnpm install`, `pnpm lint` and `pnpm test` pass;
   - `biome/*-plugin.spec.ts` still prove each rule fires, and `pnpm lint:persistence` is
     clean.
-- [ ] D2. **Scripts.** `copy-licenses`, `test:release` (`integration/packages/release.mjs`)
+- [x] D2. **Scripts.** `copy-licenses`, `test:release` (`integration/packages/release.mjs`)
   and `publish:all` then cover it automatically. Extend the release check to load
   `/domain`, `/application` and `/persistence` in a consumer with **no `@nestjs/*`
   installed**: `/domain` and `/application` without MikroORM, `/persistence` with it.
-- [ ] D3. **`package.json` metadata.**
+- [x] D3. **`package.json` metadata.**
   - Remove `"private": true`.
   - Name `@cqrs-ddd/core` (D1b).
   - Peers: `@mikro-orm/core` only (optional).
@@ -829,7 +829,7 @@ users-api. It is the only `@nestjs-pipeline/*` package allowed to depend on
 Do it after D3. The release check installs every required peer, and it cannot install
 `@cqrs-ddd/core` while that package is private and unpublished.
 
-- [ ] T1. **Create** `packages/pipeline-tenant` as `@nestjs-pipeline/tenant`, version 0.2.0.
+- [x] T1. **Create** `packages/pipeline-tenant` as `@nestjs-pipeline/tenant`, version 0.2.0.
   - Move `api/src/infrastructure/behaviors/tenant-scope.behavior.ts` and its spec, keeping
     the code and the JSDoc. Only the `ddd-core` wording changes to `@cqrs-ddd/core`.
   - `src/index.ts` exports `TenantScopeBehavior` only: no module, no intent helper and no
@@ -857,13 +857,16 @@ Do it after D3. The release check installs every required peer, and it cannot in
 
   Verify: `pnpm --filter @nestjs-pipeline/tenant test` passes at 100% coverage, and its
   `build` emits `dist/index.js` and `dist/index.d.ts`.
-- [ ] T2. **Adopt it in users-api.** Add the `workspace:*` dependency.
+- [x] T2. **Adopt it in users-api.** Add the `workspace:*` dependency.
   `src/infrastructure/observability.module.ts` imports `TenantScopeBehavior` from
   `@nestjs-pipeline/tenant` and keeps it first in the global `'all'` `before` list.
   Delete the users-api copy and its spec.
   Verify: the users-api tests pass with the same count minus the moved spec, and
   `pnpm test:e2e` passes with the same count.
-- [ ] T3. **Boundaries, docs and release.**
+- [x] T3. **Boundaries, docs and release.**
+  - [x] Done in T1, which could not pass `pnpm check` or `pnpm test:release` without them:
+    the `verify-package-licenses.grit` exception with its plugin spec cases, the
+    `release.mjs` peer exception, and the `packages/CLAUDE.md` note.
   - `verify-package-licenses.grit`, as changed in D1: allow `@cqrs-ddd/core` imports in
     `packages/pipeline-tenant` only. Add a plugin spec case proving the rule still fires in
     another `@nestjs-pipeline/*` package.
@@ -1537,6 +1540,323 @@ Do it after D3. The release check installs every required peer, and it cannot in
   - `ddd/core/CLAUDE.md` states the coverage rule.
   - Verified: `pnpm --filter @nestjs-pipeline/ddd-core test` exits 0 with 620 tests at
     100%; lint and Biome pass; no ignore directive in `ddd/core`.
+
+- U1:
+  - New `packages/uuidv7` (`@cqrs-ddd/uuidv7` 0.2.0): `src/uuidv7.ts` is core's file
+    byte for byte (`diff` empty), full JSDoc and bit layout kept; `src/index.ts` exports
+    `uuidv7` and `isUuidV7`. Manifest: `files`, `license`, `engines` `>=22.0.0`,
+    `publishConfig` public, `repository.directory`, `prepublishOnly`, no dependencies or
+    peers. `author` is `Aristotelis` without the e-mail the other manifests carry, and
+    the README has no contact line (organization rule on personal data); the owner may
+    align both.
+  - Specs (16 tests, 100% coverage enforced): core's and `ddd/core`'s cases merged
+    (`uuidv7.spec.ts`), plus uppercase and wrong-variant rejections; new
+    `uuidv7.layout.spec.ts` mocks `node:crypto` and `Date.now` and pins the exact output
+    for all-zero and all-one random bytes and the largest 48-bit timestamp; new
+    `package-manifest.spec.ts`.
+  - README: purpose, install, API, format guarantees (bit table, ordering, no monotonic
+    counter, clock caveat, what `isUuidV7` checks).
+  - `packages/pipeline/src/package-boundaries.spec.ts`: the peer-on-core rules apply to
+    `@nestjs-pipeline/*` siblings only; new rules: every workspace is in one of the two
+    scopes, and each `@cqrs-ddd/*` package has no dependency or peer matching `@?nestjs`.
+  - `packages/CLAUDE.md` names the `@cqrs-ddd/*` exception. Codebase map regenerated.
+  - Verified: `framework-independence.grit` fires on a probe file with a NestJS import in
+    `packages/uuidv7/src` (then deleted); `pnpm install --frozen-lockfile --offline`,
+    `pnpm lint`, `pnpm check`, `pnpm lint:persistence` and `pnpm test` exit 0 (core 334);
+    `pnpm test:release`: 13 packed packages; the tarball holds only `dist`, README,
+    `package.json` and the licenses.
+
+- U2:
+  - `@cqrs-ddd/uuidv7` added with `workspace:^` to the `dependencies` of core,
+    correlation and `ddd/core`, and with `workspace:*` to users-api's `devDependencies`.
+  - Core: `src/index.ts` re-exports `isUuidV7, uuidv7` from it, `pipeline-runner.ts`
+    imports it, and `src/helpers/uuidv7.ts` and its spec are deleted (cases merged in U1).
+    Correlation's `helpers/uuidv7.ts` re-exports it instead of core's. `ddd/core`:
+    `domain.event.ts`, `root.entity.ts`, `cache-barrier.helper.ts` and two specs import
+    it; `domain/utils/uuidv7.ts` and its spec are deleted. users-api: six specs import it.
+  - Manifest rules: core's `package-boundaries.spec.ts` and `ddd/core`'s
+    `package-manifest.spec.ts` pin their `dependencies` to exactly
+    `{ '@cqrs-ddd/uuidv7': 'workspace:^' }`. `packages/CLAUDE.md`,
+    `packages/pipeline/CLAUDE.md`, the root, core and `ddd/core` READMEs state the
+    exception.
+  - Defect found and fixed in `integration/packages/release.mjs`: the consumer's
+    `pnpm.overrides` in `package.json` is ignored by pnpm 11 (it warned), so the first
+    runtime dependency between packed packages was fetched from the registry (404).
+    The overrides now go in the consumer's `pnpm-workspace.yaml`; README updated.
+  - Verified:
+    - `grep -rn "function uuidv7" packages ddd --include=*.ts` finds only
+      `packages/uuidv7/src/uuidv7.ts`;
+    - the built core and correlation `uuidv7` (and core's `isUuidV7`) are the same
+      function objects as `@cqrs-ddd/uuidv7`'s;
+    - `pnpm install --frozen-lockfile --offline`, `pnpm build`, `pnpm lint`, `pnpm check`,
+      `pnpm lint:persistence` and `pnpm test` exit 0;
+    - `pnpm test:e2e`: 191 tests in 35 files pass;
+    - `pnpm test:release`: 13 packages; every `@nestjs-pipeline/*` export count equals
+      the Gate 1 run (core 37, correlation 14); no ignored-field warning.
+
+- U3:
+  - Pickup confirmed without changes: `copy-licenses` copied `LICENSE` and
+    `COMMERCIAL_LICENSE.txt` into `packages/uuidv7`; `test:release` packs it;
+    `publish:all` (`pnpm -r publish`) covers it, since `pnpm -r ls` lists it among the 13
+    non-private workspaces. Nothing was published.
+  - New standalone stage in `integration/packages/release.mjs` (README updated): every
+    packed `@cqrs-ddd/*` package is installed alone in an empty consumer, with overrides
+    for itself and its packed dependencies only. It fails when a dependency is outside
+    the release, when `pnpm ls --depth Infinity` shows any other package, or when
+    `require()` of the root yields no exports.
+  - Verified: `pnpm test:release` passes with "13 packed packages (1 standalone)" and
+    `@cqrs-ddd/uuidv7 standalone 2`; with `tslib` added to its `dependencies` (then
+    restored) the check exits 1 with "depends on packages outside this release: tslib".
+
+- S1:
+  - New `packages/safe-stringify` (`@cqrs-ddd/safe-stringify` 0.2.0). `stableStringify.ts`,
+    `safeStringify.ts` and `key-segment.ts` are core's files byte for byte, and their
+    specs are core's with only the one `../helpers/safeStringify` import path changed
+    (`diff` checked). No internals were shared or refactored: the strict path is untouched.
+  - `src/index.ts` exports both families and the key helpers, as core does (10 runtime
+    exports). Manifest, tsconfigs, enforced 100% coverage and manifest spec as in U1.
+  - New `golden-output.spec.ts`: exact strings computed from core's current build (not
+    from the copy under test) for `stableStringify` (nested unsorted keys, arrays and
+    number forms, dates, `toJSON`, unicode keys, string escapes) and `joinKeySegments` /
+    `escapeKeySegment` (`:`, `\`, both, `undefined`/`null`, a literal `\-`).
+  - README: the strict/safe comparison and rule (never `safeStringify` for keys), both
+    APIs, `SanitizeOptions`, that `safeStringify` redacts nothing unless `redactKeys` is
+    passed while `redactValue` applies `DEFAULT_REDACT_KEYS`, and the key-segment format.
+    Every example was run against the build.
+  - `packages/CLAUDE.md` lists both `@cqrs-ddd/*` packages.
+  - Verified: 86 tests at 100% coverage; `framework-independence.grit` fires on a NestJS
+    probe file (deleted); frozen install, `pnpm lint`, `pnpm check`,
+    `pnpm lint:persistence` and `pnpm test` exit 0; `pnpm test:release`: 14 packed
+    packages, 2 standalone (`@cqrs-ddd/safe-stringify standalone 10`).
+
+- S2:
+  - `@cqrs-ddd/safe-stringify` added with `workspace:^` to the `dependencies` of core,
+    cache, idempotency, rate-limit, audit, deadletter and `ddd/core`, and with
+    `workspace:*` to users-api's `dependencies` (its production code uses it).
+  - Core: `src/index.ts` re-exports the 12 names explicitly (10 values, 2 types) from the
+    package in place of the two `export *` lines and the key-segment export;
+    `logging.behavior.ts` imports from it; `helpers/stableStringify.ts`,
+    `safeStringify.ts`, `key-segment.ts` and their specs are deleted (moved in S1).
+  - Packages and users-api: every import or re-export of those names from
+    `@nestjs-pipeline/core` was split by a script into a core import (for the other
+    names) and a package import (17 files). Public re-exports stay in cache, idempotency,
+    audit (`helpers/redact.ts`) and deadletter.
+  - `ddd/core`: the N5 copy `persistence/helpers/stable-stringify.ts` is deleted; its
+    fuller JSDoc (boundary list, "must never change", `cause`) is merged into the
+    package's `stableStringify`, and its 15-test spec moved into the package as
+    `stableStringify.keys.spec.ts`. `cacheKeyTemplate`'s `replace(/([\\:])/g, '\\$1')`
+    became `escapeKeySegment(...)`: same output, because the second pass only touches
+    colons, which the first never creates.
+  - Manifest specs pin core's and `ddd/core`'s `dependencies` to the two `@cqrs-ddd/*`
+    packages. Docs: `packages/CLAUDE.md`, `packages/pipeline/CLAUDE.md`, the root,
+    core (a note below its export table) and `ddd/core` READMEs.
+  - Verified:
+    - the `grep -rnE "function (stableStringify|...)"` finds only
+      `packages/safe-stringify/src`;
+    - core's 10 re-exported values, cache and idempotency `stableStringify`, and audit
+      and deadletter `redactValue`/`REDACTED`/`DEFAULT_REDACT_KEYS` are the package's own
+      objects;
+    - frozen install, `pnpm build`, `pnpm lint`, `pnpm check`, `pnpm lint:persistence`
+      and `pnpm test` exit 0 (the golden, fingerprint, logging, audit and dead-letter
+      specs pass; the fingerprint spec changed only its import line);
+    - `pnpm test:e2e`: 191 tests in 35 files, including
+      `cache-key-canonicalization.e2e-spec.ts`;
+    - `pnpm test:release`: 14 packages, 2 standalone; every `@nestjs-pipeline/*` export
+      count equals Gate 1.
+
+- S3: no change needed. `copy-licenses`, `test:release` and `publish:all` cover
+  `packages/safe-stringify` like any `packages/*` workspace, and U3's standalone stage
+  applies to every `@cqrs-ddd/*` package. Verified in the S2 run of `pnpm test:release`:
+  `@cqrs-ddd/safe-stringify standalone 10`, "14 packed packages (2 standalone)".
+
+- D1 (from here on, `ddd/core` in earlier entries means `packages/ddd-core`):
+  - `git mv ddd/core packages/ddd-core`; `pnpm-workspace.yaml` already covers
+    `packages/*`. The tsconfig, vitest and spec paths that reach the root are at the same
+    depth, so none changed.
+  - `biome.json`: the four `**/ddd/core/**` globs (`transport-neutral-errors`,
+    `core-environment`, `framework-independence`, `aggregate-identity`) point at
+    `**/packages/ddd-core/**`. The `packages/*/src/**` globs do not match it (no `src/`),
+    hence the explicit globs. `verify-package-licenses.grit` and `package-licenses.grit`
+    now also cover it; it has no real `@nestjs-pipeline/ddd-*` import.
+  - `biome-general-plugins.spec.ts` fixture paths and titles use `packages/ddd-core`.
+  - `package-boundaries.spec.ts` skips `private: true` workspaces (it covers published
+    packages), so the private `ddd-core` is not held to the pipeline-package rules.
+  - Docs: every `ddd/core` reference outside this task file now says `packages/ddd-core`
+    (AGENTS, CLAUDE, root and `.claude` READMEs, the skill, `biome/plugins/README.md`,
+    `framework-independence.grit`, nested `CLAUDE.md` files, users-api persistence
+    README's relative link, map manual sections). The root README's DDD section no longer
+    says "Nest-oriented", lists four entry points including `/http`, and replaces the
+    non-existent `Mutate` row with `@ApplyMutation()` and `@Mutable()`.
+    `packages/CLAUDE.md` describes the private workspace.
+  - Deferred to D1a: `packages/ddd-core/README.md`'s relative links, because their targets
+    move to `api/` there.
+  - Verified: a probe file in `packages/ddd-core/application/` with a Nest import, a
+    `process.env` read and a Nest HTTP exception gets the `framework-independence`,
+    `core-environment` and `transport-neutral-errors` diagnostics (then deleted); frozen
+    install, `pnpm build`, `pnpm lint`, `pnpm check`, `pnpm lint:persistence` and
+    `pnpm test` exit 0 (`packages/ddd-core` 590 tests, the same as after S2: its 27-test
+    `stable-stringify.spec.ts` moved to safe-stringify, which went 86 → 113);
+    `pnpm test:e2e` 191 tests; `pnpm test:release` passes; no `ddd/core` reference remains
+    outside this file.
+
+- D1a (from here on, `ddd/users-api` and "users-api" paths in earlier entries mean `api/`):
+  - `git mv ddd/users-api api`, `ddd/` removed. Package renamed
+    `@nestjs-pipeline/ddd-api` (private). The local, untracked `.env` moved with it and
+    was not read.
+  - Config: `pnpm-workspace.yaml` (`api`), `api/tsconfig.json` (`../tsconfig.base.json`),
+    root scripts (`--filter @nestjs-pipeline/ddd-api`; `test:last:review` matches
+    `packages/<name>` or `api`), `.gitignore`, `.vscode/launch.json`,
+    `release.mjs` (rejects a range pointing into `api/` or the `ddd-api` name),
+    `package-boundaries.spec.ts` comments and title.
+  - `biome.json`: 18 `ddd/*/src` and `ddd/users-api/src` globs → `**/api/src/**`. An
+    anchored `api/src/**` form was tried first and matched nothing, silently; the probe
+    caught it.
+  - Grit: `verify-package-licenses.grit` matches `../../api/` instead of `../../ddd`, and
+    its message names the api application; `ddd-entry-points.grit` and
+    `event-handler-substance.grit` texts updated. Plugin-spec fixtures use `api/src/...`
+    and `../../api/src/...`.
+  - Fixes found by the move: `test/docs-cache-security.spec.ts` climbed one level too
+    many with `resolve(__dirname, '..', '..', '..')`; `test/users.e2e-spec.ts` imported
+    `../../src/...` from `test/`, which never existed and only worked through Vite's
+    fallback, now `../src/...`.
+  - Docs: relative links in the moved `api/` Markdown were recomputed (all resolve);
+    `ddd/users-api` → `api` and the package name in every other document; the root
+    README layout tree lists `api/`, `packages/ddd-core`, `packages/uuidv7` and
+    `packages/safe-stringify`; `packages/ddd-core/README.md`'s 12 relative links are
+    absolute `blob/master/...` URLs (they resolve on `master` once this branch is
+    merged) and its architecture-skill link is replaced by a sentence.
+  - Lockfile: importer `api`, link paths `../packages/...`; pnpm also deduped
+    `@keyv/postgres`'s `pg` 8.22.0 → 8.23.0, `fastify`'s `find-my-way` 9.6.0 → 9.7.0 and
+    `@types/node` 25.9.5 → 26.2.0, all versions already in the lockfile and in range.
+  - Verified:
+    - the D1a grep for `ddd/users-api`, `ddd/core` and `ddd/*` finds only this file and
+      `@cqrs-ddd/*` text; every relative Markdown link resolves except the codebase map's
+      root-relative generated links (unchanged convention);
+    - a probe in `api/src/users/cqrs/commands/` gets the `transport-neutral-errors` and
+      `ddd-entry-points` diagnostics (then deleted);
+    - frozen install, `pnpm build`, `pnpm lint`, `pnpm check`, `pnpm lint:persistence`,
+      `pnpm test` exit 0 (`api` 717, `packages/ddd-core` 590); `pnpm test:e2e` 191 tests;
+      `pnpm test:release` passes; `pnpm context:validate` passes.
+    - Observed once, not reproduced: in one full `pnpm test` run a Vitest fork worker in
+      idempotency exited unexpectedly (88 of 140 tests ran, so coverage failed). Three
+      isolated runs and the next full run passed with 140 tests.
+
+- D1b (from here on, `@nestjs-pipeline/ddd-core` in earlier entries means `@cqrs-ddd/core`):
+  - 213 occurrences in 134 files replaced (96 in `api/src`, 17 in `api/test`, the
+    package itself, Grit rules, docs); `exports` subpaths unchanged. The folder stays
+    `packages/ddd-core`. `api/package.json` depends on `@cqrs-ddd/core` (sorted).
+  - `ddd-entry-points.grit`, `ddd-layering.grit` and `persistence-lifecycle.grit` match the
+    new name. `verify-package-licenses.grit` also rejects `@cqrs-ddd/core` imports from
+    packages, and `biome.json` no longer applies it to `packages/ddd-core` itself; the two
+    utility packages stay allowed. `release.mjs` rejects a published dependency on
+    `@cqrs-ddd/core`. New plugin specs: a package importing `@cqrs-ddd/core/domain` is
+    rejected; one importing both utilities is clean.
+  - Verified: the D1b grep for `@nestjs-pipeline/ddd-core` (`.ts`, `.json`, `.grit`, `.md`,
+    no `node_modules`/`dist`) finds only this file; probes: the root barrel and
+    `/persistence` in `api/src/**/cqrs/` and `@cqrs-ddd/core/domain` in a pipeline package
+    each get their diagnostic (then deleted); frozen install, `pnpm build`, `pnpm lint`,
+    `pnpm check`, `pnpm lint:persistence`, `pnpm test` exit 0 (`@cqrs-ddd/core` 592,
+    `api` 717); `pnpm test:e2e` 191 tests; `pnpm test:release` passes;
+    `pnpm context:validate` passes.
+
+- D2:
+  - `release.mjs` standalone stage, two phases per `@cqrs-ddd/*` package: with only the
+    package and its packed dependencies installed (and nothing else, so no NestJS), it
+    loads every `exports` entry, or for a package with optional peers the entries in the
+    new `PEER_FREE_ENTRIES` table (`@cqrs-ddd/core`: `/domain`, `/application`, `/http`).
+    Then it adds the optional peers at the version installed in the package's own
+    `node_modules`, fails if any `@?nestjs` package appears, and loads the remaining
+    entries. The main consumer no longer imports `@cqrs-ddd/*` roots. README updated.
+  - `@cqrs-ddd/core` is still private here, so the committed check covers it only after
+    D3.
+  - Verified: `pnpm test:release` passes as committed (14 packages, 2 standalone). With
+    `private` removed locally (then restored): passes with 15 packages, 3 standalone;
+    `/domain` 15, `/application` 7, `/http` 1 exports without MikroORM, root 54 and
+    `/persistence` 32 with it. With an `import '@mikro-orm/core'` appended to
+    `domain/index.ts` as well (then restored and rebuilt), it exits 1 with "Cannot find
+    module '@mikro-orm/core'". Biome clean.
+
+- D3:
+  - `packages/ddd-core/package.json`: `private` removed; new description (framework-neutral
+    DDD building blocks); `author` `Aristotelis` without e-mail (as U1); `repository`
+    with `directory`, `homepage`, `bugs`, `keywords`, `publishConfig` public,
+    `prepublishOnly: pnpm run rebuild`. Already in place: name (D1b), version 0.2.0,
+    `engines` (B2), `./http` export (C6), `@mikro-orm/core` as the only, optional, peer.
+    A key-by-key comparison with the previous manifest shows only those changes.
+  - Docs: the package `CLAUDE.md` scope, its README (no "private workspace"; an npm/pnpm
+    install section with the optional MikroORM note), the root README, `packages/CLAUDE.md`,
+    `biome/plugins/README.md`, and `package-boundaries.spec.ts` comments and title.
+  - Verified: frozen install, `pnpm build`, `pnpm lint`, `pnpm check`,
+    `pnpm lint:persistence`, `pnpm test` exit 0 (core 266: the 264 since S2, whose 68
+    moved to safe-stringify, plus 2 boundary cases for the newly published package;
+    `@cqrs-ddd/core` 592); `pnpm test:e2e` 191 tests; `pnpm test:release`: 15 packed
+    packages, 3 standalone (`/domain` 15, `/application` 7, `/http` 1 without MikroORM,
+    root 54 and `/persistence` 32 with it). The tarball holds `dist`, README, licenses
+    and `package.json` only (no specs), with `private` absent and the `workspace:^`
+    ranges rewritten to `^0.2.0`. Nothing was published.
+
+- T1:
+  - New `packages/pipeline-tenant` (`@nestjs-pipeline/tenant` 0.2.0): `package.json`
+    (peers `@cqrs-ddd/core` and `@nestjs-pipeline/core` `workspace:^`, `@nestjs/common`
+    `^11.0.0`, `reflect-metadata` `^0.1.13 || ^0.2.0`; devDependencies `workspace:*` plus
+    `@mikro-orm/core`, which the spec's `/persistence` import needs; no `dependencies`;
+    `author` without e-mail), `tsconfig.json`, `tsconfig.build.json`, `vitest.config.ts`
+    (100% per file), `src/index.ts` (`TenantScopeBehavior` only), and README (install line
+    with every peer, registration first in the `'all'` `before` list, the tenant order,
+    fail-closed without a tenant, absolute links only).
+  - `src/tenant-scope.behavior.ts` and its spec copied from `api/src/infrastructure/behaviors/`
+    with only the `ddd-core` wording changed; T2 deletes the `api` copies.
+  - Pulled forward from T3: `verify-package-licenses.grit` now rejects `@cqrs-ddd/core`
+    except where `$filename` matches `/packages/pipeline-tenant/`, and still rejects `api`
+    and `ddd-` imports there. `biome-general-plugins.spec.ts`: the rejection case also runs
+    on `packages/pipeline-tenant-extra/`, plus cases for the allowed tenant import and the
+    tenant package importing `api`. `release.mjs` accepts `@cqrs-ddd/core` only as a peer
+    of `@nestjs-pipeline/tenant` (`isTenantBridgePeer`). `packages/CLAUDE.md`,
+    `biome/plugins/README.md` (also its stale `ddd/` wording) and
+    `integration/packages/README.md` updated.
+  - Codebase map regenerated (`pnpm context:update`); no manual section named the package.
+  - Verified: `pnpm --filter @nestjs-pipeline/tenant test` 3 tests at 100%; `build` emits
+    `dist/index.js` and `dist/index.d.ts`; frozen install, `pnpm build`, `pnpm lint`,
+    `pnpm check`, `pnpm lint:persistence`, `pnpm test` exit 0 (core 269 = 266 + 3 sibling
+    boundary cases; `@cqrs-ddd/core` 595 = 592 + 3 plugin cases; `api` 717);
+    `pnpm test:release`: 16 packed packages, the tenant package loads in the consumer.
+    Probes (removed): a `@cqrs-ddd/core` import in `packages/pipeline-cache` and `api`/`ddd-`
+    imports in `packages/pipeline-tenant` are reported. Negative: `@cqrs-ddd/core` moved
+    to `dependencies` (then restored) fails `release.mjs` with "invalid published
+    dependency". `pnpm context:validate` 58 passed.
+- T2:
+  - `api/package.json`: `@nestjs-pipeline/tenant` `workspace:*`.
+  - `api/src/infrastructure/observability.module.ts` imports `TenantScopeBehavior` from the
+    package; still first in the `'all'` `before` list.
+  - Deleted `api/src/infrastructure/behaviors/tenant-scope.behavior.ts` and its spec.
+  - Wording updated to the package and `@cqrs-ddd/core`: `api/README.md`,
+    `api/src/common/cqrs/helpers/README.md` (also its stale serializer sentence, now
+    `@cqrs-ddd/safe-stringify`), comments in `api/test/read-model-freshness.spec.ts` and
+    `api/test/overview-repository-cache-freshness.spec.ts`. Codebase map regenerated.
+  - `packages/ddd-core/README.md` still shows a hand-written `TenantScopeBehavior`
+    example; D5 replaces it with `@nestjs-pipeline/tenant`.
+  - Verified: frozen install, `pnpm build`, `pnpm lint`, `pnpm check`,
+    `pnpm lint:persistence`, `pnpm test` exit 0 (`api` 714 = 717 − the 3 moved tests);
+    `pnpm test:e2e` 191 tests, unchanged. `api` and the tenant package resolve
+    `@cqrs-ddd/core` to the same directory (`packages/ddd-core`).
+    `pnpm context:validate` 58 passed.
+- T3 (the rule, release and `packages/CLAUDE.md` parts were done in T1):
+  - `packages/pipeline/src/package-boundaries.spec.ts`: two cases. No published manifest
+    except `@nestjs-pipeline/tenant` names `@cqrs-ddd/core` in `dependencies`,
+    `peerDependencies` or `optionalDependencies`; the tenant package declares it as a
+    `workspace:^` peer and in neither of the other two.
+  - Root `README.md`: the package in "Packages", "Current Package Versions", the Quick
+    Start install list and the layout tree. Also fixed the `/domain` import example, which
+    named a nonexistent `Mutate` export (now `ApplyMutation`; all four names checked
+    against the built entry).
+  - Not done, for the owner: the "Packages" and "Current Package Versions" tables still
+    omit the three `@cqrs-ddd/*` packages.
+  - Verified: `pnpm check`, `pnpm lint`, `pnpm lint:persistence`, `pnpm test` exit 0
+    (core 271 = 269 + 2); `pnpm test:release` packs 16 packages, installs the packed
+    `@cqrs-ddd/core` as the tenant peer and loads `@nestjs-pipeline/tenant` (1 export).
+    Negative (then restored, lockfile included, since pnpm reinstalled on the edit): a
+    tenant `dependencies` entry fails the peer-only case; a `@cqrs-ddd/core` peer on
+    `@nestjs-pipeline/cache` fails the only-tenant case.
 
 ## Tests and Verification
 

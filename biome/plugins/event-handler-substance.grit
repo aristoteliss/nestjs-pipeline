@@ -17,7 +17,7 @@ language js(typescript)
 // deliberately narrow so a handler doing genuine work is not flagged merely for
 // logging alongside it.
 //
-// Severity is `warn`, not `error`, because `ddd/users-api` is a showcase: several
+// Severity is `warn`, not `error`, because the `api` example is a showcase: several
 // of its event handlers exist to demonstrate that domain events reach handlers and
 // that the correlation ID survives the hop, which is illustrative rather than
 // production code. The diagnostic keeps that trade-off visible without blocking the

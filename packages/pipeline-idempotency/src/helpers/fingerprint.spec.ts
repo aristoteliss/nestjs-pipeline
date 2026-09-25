@@ -1,6 +1,6 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import { stableStringify } from '@nestjs-pipeline/core';
+import { stableStringify } from '@cqrs-ddd/safe-stringify';
 import { describe, expect, it } from 'vitest';
 import { fingerprintValue } from './fingerprint';
 

@@ -13,9 +13,23 @@ too. Repository-wide orientation: [.claude/codebase-map.md](../.claude/codebase-
   translation in `src/filters/`. `src/index.ts` is the only public entry.
 - Packages depend on `@nestjs-pipeline/core` and their own integration library as **peer**
   dependencies, never as runtime `dependencies`. `@nestjs-pipeline/core` adds no runtime
-  dependency beyond NestJS itself.
+  dependency beyond NestJS itself, with one exception: the framework-neutral `@cqrs-ddd/*`
+  utilities (`@cqrs-ddd/uuidv7` and `@cqrs-ddd/safe-stringify`), which hold no
+  module-scoped state. Behavior packages may depend on them too, the same way. `package-boundaries.spec.ts` pins that list.
+- The exception is the framework-neutral `@cqrs-ddd/*` group, today `packages/uuidv7`
+  (`@cqrs-ddd/uuidv7`) and `packages/safe-stringify` (`@cqrs-ddd/safe-stringify`): no
+  dependencies, no peers, no NestJS or `@nestjs-pipeline/*` import
+  (`framework-independence.grit`, each package's `package-manifest.spec.ts`).
+- `packages/ddd-core` (`@cqrs-ddd/core`) is the framework-neutral DDD package, in the same
+  group. It follows its own [CLAUDE.md](ddd-core/CLAUDE.md): no NestJS, only the two
+  `@cqrs-ddd/*` utilities as dependencies, and `@mikro-orm/core` as its only, optional,
+  peer. No `@nestjs-pipeline/*` package may import it (`verify-package-licenses.grit`),
+  except `packages/pipeline-tenant` (`@nestjs-pipeline/tenant`): its `TenantScopeBehavior`
+  is the bridge from the pipeline tenant to `@cqrs-ddd/core`'s tenant scope. It declares
+  `@cqrs-ddd/core` as a peer only, because that scope is a module-level
+  `AsyncLocalStorage` and a second copy would split it.
 - These libraries target external consumers and future use cases. A missing call site in
-  `ddd/users-api` does not prove an export is unused — see the library-scope rules in
+  `api` does not prove an export is unused — see the library-scope rules in
   `AGENTS.md` before removing any exported API, adapter, or supported input type.
 
 ## Important files
@@ -42,7 +56,7 @@ pnpm test:release                     # packs every package and verifies it from
   per file of `src/**/*.ts`. Close a gap with a behavior test; no ignore directives or
   exclusions, and remove a branch only once it is proven unreachable.
 - A published package must not depend on `@nestjs/testing`. An integration path that needs
-  a Nest application belongs in `ddd/users-api/test/`.
+  a Nest application belongs in `api/test/`.
 - No production seam for tests: no export, parameter, option, branch, or retained state
   added because a spec needs to reach it. Mock the module boundary instead (`vi.mock`).
 - Adding or changing a published export means running `pnpm test:release`, which packs each

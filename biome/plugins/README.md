@@ -10,7 +10,7 @@ Enforces aggregate persistence lifecycle rules across all repositories (`**/pers
 - Awaited `optimisticUpdate()` call without unawaited writes.
 - No manual `acknowledgePersisted`/`markPersisted` invocations.
 - Repositories named `Update*CommandRepository` must declare their decorated `save()`.
-- Canonical named imports from `@nestjs-pipeline/ddd-core`.
+- Canonical named imports from `@cqrs-ddd/core`.
 - No hand-rolled `try`/`catch` inside a `*CommandRepository.save()`. Error translation
   belongs in the decorator stack, where its ordering relative to `@AcknowledgePersisted`
   and `@Cache` is explicit: `@MapPersistenceErrors({ unique: [...] })` for constraint
@@ -22,14 +22,15 @@ Enforces test suite integrity across all test files (`**/*.spec.ts`, `**/*.test.
 
 ### 3. `verify-package-licenses.grit`
 Enforces standalone package licensing boundaries for published libraries (`**/packages/**/*.ts`):
-- Forbids standalone published packages from depending on internal `ddd/` application modules (`../../ddd` or `@nestjs-pipeline/ddd-*`), guaranteeing that package distributions maintain self-contained commercial/AGPL licensing boundaries.
+- Forbids standalone published packages from importing the private `api` application (`../../api/`) or `@nestjs-pipeline/ddd-*`, guaranteeing that package distributions maintain self-contained commercial/AGPL licensing boundaries.
+- Forbids them from importing `@cqrs-ddd/core`, except `packages/pipeline-tenant` (`@nestjs-pipeline/tenant`), the bridge from the pipeline tenant to its tenant scope. `packages/ddd-core` itself is excluded in `biome.json`. `@cqrs-ddd/uuidv7` and `@cqrs-ddd/safe-stringify` stay allowed everywhere.
 
 ### 4. `package-licenses.grit`
 Enforces framework compatibility in standalone published libraries (`**/packages/**/*.ts`):
 - Forbids imports of private internal NestJS framework modules (e.g. `@nestjs/.../internal...`, `router-execution-context`), ensuring published packages only depend on public, stable framework contracts under their declared license tiers.
 
 ### 5. `transport-neutral-errors.grit`
-Enforces `AGENTS.md` rule 2 / `SKILL.md` rule 4 across the published packages, `ddd/core`,
+Enforces `AGENTS.md` rule 2 / `SKILL.md` rule 4 across the published packages, `packages/ddd-core`,
 and the application's `cqrs/`, `domain/` and `application/` trees:
 - Forbids importing or constructing NestJS HTTP exceptions (`ForbiddenException`,
   `NotFoundException`, `ConflictException`, …) in domain, application or behavior code.
@@ -52,7 +53,7 @@ through injection tokens; persistence mechanics stay in the adapters under `pers
 Reports `@EventsHandler` classes whose `handle()` logs or reads the correlation ID but never
 awaits any work (`**/events/**`). `SKILL.md` names this in its anti-pattern list.
 
-Severity is **`warn`**, not `error`: `ddd/users-api` is a showcase, and several of its event
+Severity is **`warn`**, not `error`: `api` is a showcase, and several of its event
 handlers exist to demonstrate that domain events reach handlers and that the correlation ID
 survives the hop. The diagnostic keeps that trade-off visible without blocking the build.
 Raise it to `error` in a real application, where such a handler is pure overhead — a DI
@@ -60,7 +61,7 @@ provider, a `PipelineContext` allocation and an OpenTelemetry span per event, fo
 `LoggingBehavior` already emits.
 
 ### 8. `core-environment.grit`
-Enforces `SKILL.md` rule 10 across the published packages and `ddd/core`:
+Enforces `SKILL.md` rule 10 across the published packages and `packages/ddd-core`:
 - Forbids `process.env` reads in shared library and DDD core code.
 
 Configuration belongs in the composition root, passed in through a module option or an
@@ -77,7 +78,7 @@ Enforces `AGENTS.md` rule 6 / `SKILL.md` rule 5 across `cqrs/`, `application/`, 
 - Domain and persistence hydration, tests, and `this` writes are outside the guard's scope. The two receiver/property expressions in the rule are the only lists to maintain when conventions change.
 
 ### 10. `framework-independence.grit`
-Keeps the framework-neutral libraries free of NestJS across `ddd/core` and the planned
+Keeps the framework-neutral libraries free of NestJS across `packages/ddd-core` and the planned
 `packages/uuidv7` and `packages/safe-stringify`, specs included:
 - Forbids importing `@nestjs/*`, any other `nestjs`-named package, and every
   `@nestjs-pipeline/*` package, in every form: import, `import type`, re-export,
@@ -87,7 +88,7 @@ These packages are published for consumers that may not use NestJS, so one such 
 makes them fail to load or need an undeclared peer. A NestJS application integrates
 through the ports they define and supplies the NestJS side itself. Strings and comments
 are not imports, so documentation and lint-rule fixtures are unaffected. The manifest side
-of the same guarantee is `ddd/core/package-manifest.spec.ts`, because Grit cannot match
+of the same guarantee is `packages/ddd-core/package-manifest.spec.ts`, because Grit cannot match
 JSON (see below).
 
 ---
@@ -110,7 +111,8 @@ sibling resolves exactly one copy of it:
   is built, so the published range tracks core automatically. A literal range has to be edited
   in every sibling on every core release, and goes stale silently when it is not.
 - No published package may depend on a sibling behavior package, or on the private,
-  differently-licensed `ddd/*` workspaces.
+  differently-licensed `api` example, and no `@nestjs-pipeline/*` package may import
+  `@cqrs-ddd/core`.
 
 ---
 
@@ -121,7 +123,7 @@ sibling resolves exactly one copy of it:
 - `pnpm test:unit` enforces the persistence plugin plus the full test suite, including the
   manifest guard in `packages/pipeline/src/package-boundaries.spec.ts`.
 - Unit test coverage against the real Biome CLI:
-  - `ddd/core/persistence/biome-persistence-plugin.spec.ts`
-  - `ddd/core/persistence/biome-general-plugins.spec.ts`
+  - `packages/ddd-core/persistence/biome-persistence-plugin.spec.ts`
+  - `packages/ddd-core/persistence/biome-general-plugins.spec.ts`
 
 Reference: [Biome linter plugins](https://biomejs.dev/linter/plugins/) and [GritQL syntax](https://biomejs.dev/reference/gritql/).

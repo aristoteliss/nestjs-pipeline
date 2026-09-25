@@ -4,7 +4,7 @@ export {
   DEFAULT_REDACT_KEYS,
   REDACTED,
   redactValue,
-} from '@nestjs-pipeline/core';
+} from '@cqrs-ddd/safe-stringify';
 export {
   DEAD_LETTER_DEFAULT_OPTIONS,
   DEAD_LETTER_TRANSPORT,

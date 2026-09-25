@@ -52,5 +52,9 @@
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.2",
     "vitest": "^4.1.11"
+  },
+  "dependencies": {
+    "@cqrs-ddd/safe-stringify": "workspace:^",
+    "@cqrs-ddd/uuidv7": "workspace:^"
   }
 }

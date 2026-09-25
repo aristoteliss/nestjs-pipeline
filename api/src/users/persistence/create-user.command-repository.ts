@@ -1,0 +1,58 @@
+/* Copyright (C) 2026-present Aristotelis — see repository license. */
+
+import { ICache } from '@cqrs-ddd/core/application';
+import {
+  assertAutocommit,
+  CACHE_TOKEN,
+  CommandRepository,
+  filterCacheKey,
+  PersistedWrite,
+} from '@cqrs-ddd/core/persistence';
+import { Inject, Injectable } from '@nestjs/common';
+import { cacheWriteLogger } from '@persistence/cache/cache-loggers';
+import { MIKRO_ORM_CLIENT, MikroOrmStore } from '@persistence/mikro-orm.store';
+import { UniqueEmailException } from '../domain/models/errors/email.exception';
+import { User, UserSnapshot } from '../domain/models/user.entity';
+
+@Injectable()
+export class CreateUserCommandRepository extends CommandRepository<
+  User,
+  UserSnapshot
+> {
+  constructor(
+    @Inject(CACHE_TOKEN) protected readonly cache: ICache<UserSnapshot>,
+    @Inject(MIKRO_ORM_CLIENT) private readonly store: MikroOrmStore,
+  ) {
+    super(cache);
+  }
+
+  /**
+   * Persists a new user, caches the canonical id lookup and invalidates the
+   * secondary email lookup so a previous negative/stale cache entry cannot hide
+   * the newly-created aggregate.
+   */
+  @PersistedWrite<User>({
+    cache: {
+      logger: cacheWriteLogger,
+      setKey: (user) => filterCacheKey(User.aggregateName, { id: user.id }),
+      invalidateKeys: (user) => [
+        filterCacheKey(User.aggregateName, { email: user.email }),
+      ],
+    },
+    unique: [
+      {
+        constraint: 'users_email_unique',
+        columns: 'users.email',
+        error: (user) => new UniqueEmailException(user),
+      },
+    ],
+  })
+  async save(user: User): Promise<UserSnapshot> {
+    const em = this.store.em;
+    assertAutocommit(em, 'createUser');
+    const persistedUser = em.create(User, user);
+    em.persist(persistedUser);
+    await em.flush();
+    return persistedUser.toJSON();
+  }
+}

@@ -1,6 +1,6 @@
 packages:
   - packages/*
-  - ddd/*
+  - api
 
 allowBuilds:
   '@nestjs/core': false

@@ -1,7 +1,7 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { createHash } from 'node:crypto';
-import { stableStringify } from '@nestjs-pipeline/core';
+import { stableStringify } from '@cqrs-ddd/safe-stringify';
 
 /**
  * Produces a stable SHA-256 hex digest of an acyclic JSON-serializable value,

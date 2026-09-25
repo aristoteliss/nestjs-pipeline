@@ -1,6 +1,7 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import { ABSENT_SEGMENT, type IPipelineContext } from '@nestjs-pipeline/core';
+import { ABSENT_SEGMENT } from '@cqrs-ddd/safe-stringify';
+import { type IPipelineContext } from '@nestjs-pipeline/core';
 import { describe, expect, it } from 'vitest';
 import { MissingRateLimitPartitionError } from '../errors/missing-partition.error';
 import { createPartitionedRateLimitKeyFactory } from './partitioned-key';

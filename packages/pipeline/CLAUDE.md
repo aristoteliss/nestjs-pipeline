@@ -13,7 +13,10 @@ packages. Repository orientation: [.claude/codebase-map.md](../../.claude/codeba
   [global after] → handler`. When a handler's `@UsePipeline` names a behavior class that is
   also registered globally, it runs **once, at its global chain position**, with the
   handler's options — this keeps global guards outside behaviors that may short-circuit.
-- The core package adds no runtime dependency beyond NestJS.
+- The core package adds no runtime dependency beyond NestJS, except the framework-neutral
+  `@cqrs-ddd/*` utilities (see [packages/CLAUDE.md](../CLAUDE.md)). `uuidv7` and `isUuidV7`
+  are re-exported from `@cqrs-ddd/uuidv7`; the serializers and key-segment helpers are
+  re-exported from `@cqrs-ddd/safe-stringify`.
 
 ## Important files
 
@@ -32,13 +35,13 @@ packages. Repository orientation: [.claude/codebase-map.md](../../.claude/codeba
 pnpm --filter @nestjs-pipeline/core test
 pnpm --filter @nestjs-pipeline/core lint
 pnpm --filter @nestjs-pipeline/core build
-pnpm test:e2e     # ddd/users-api exercises the real Nest composition paths
+pnpm test:e2e     # api exercises the real Nest composition paths
 ```
 
 ## Local testing requirements
 
 - Changes to discovery, ordering, deduplication, or context propagation need a spec in
-  `src/*.spec.ts` **and** a composition check in `ddd/users-api/test/` (see
+  `src/*.spec.ts` **and** a composition check in `api/test/` (see
   `pipeline-behavior-identity.spec.ts`, `behavior-composition-contracts.spec.ts`,
   `cqrs-discovery-without-private-metadata.e2e-spec.ts`).
 - `package-boundaries.spec.ts` guards what the package may import. Do not relax it to make a

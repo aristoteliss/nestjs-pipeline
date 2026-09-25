@@ -1,6 +1,7 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import { type IPipelineContext, joinKeySegments } from '@nestjs-pipeline/core';
+import { joinKeySegments } from '@cqrs-ddd/safe-stringify';
+import { type IPipelineContext } from '@nestjs-pipeline/core';
 import { MissingIdempotencyPartitionError } from '../errors/missing-partition.error';
 import type { IdempotencyKeyFactory } from '../interfaces/idempotency-options.interface';
 
