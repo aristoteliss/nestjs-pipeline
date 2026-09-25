@@ -220,7 +220,7 @@ failure it attempts to write the failure record and then re-throws the original
 handler error when the sink write succeeds or `failOpen: true` suppresses a sink
 failure. If the sink throws while `failOpen: false`:
 - on the success path, the sink error propagates, failing the request;
-- on the handler-failure path, `AuditBehavior` preserves the original handler error and attaches the sink error as `error.cause` (safely checking `Object.isExtensible`), ensuring the root cause is never hidden while recording the sink failure.
+- on the handler-failure path, the caller receives the handler's own error, unchanged, and the sink error is logged.
 The produced record is also stashed on `context.items` under `AUDIT_RECORD_ITEM`
 for any later behavior to read.
 
@@ -343,7 +343,7 @@ When the **sink itself** throws (e.g. the audit DB is down):
   its original error remains the error seen by the caller. Favors availability.
 - **`failOpen: false`** — strictly enforces audit persistence:
   - If the handler succeeded, the sink error is propagated, rejecting the request because the required audit trail could not be recorded.
-  - If the handler had already failed, `AuditBehavior` re-throws the original handler error and attaches the sink recording error as `error.cause` (guarded with `Object.isExtensible(error)`), preserving both the business failure and the audit failure details without masking the root exception.
+  - If the handler had already failed, `AuditBehavior` re-throws the handler's own error, unchanged, and logs the sink error. The error object is never modified.
 
 Record construction and sink failures both follow `failOpen`. When handling an
 already failed request, the original request error is preserved.

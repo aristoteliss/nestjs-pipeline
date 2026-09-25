@@ -97,9 +97,8 @@ describe('MapPersistenceErrors', () => {
 });
 
 /**
- * `otherwise` is the declarative replacement for the hand-rolled try/catch that
- * delete command repositories used to translate transient driver failures. It runs
- * only for errors no unique-constraint mapping claimed.
+ * `otherwise` translates the failures no unique-constraint mapping claimed, such
+ * as transient driver failures in delete command repositories.
  */
 describe('MapPersistenceErrors otherwise translator', () => {
   function setupOtherwise(

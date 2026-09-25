@@ -322,35 +322,41 @@ describe('AuditBehavior', () => {
     expect(lastRecord().outcome).toBe('success');
   });
 
-  it('attaches recordError as cause when failOpen=false and primary error is extensible', async () => {
-    const sinkError = new Error('sink recording failed');
-    write.mockRejectedValueOnce(sinkError);
-    const behavior = new AuditBehavior(sink);
+  it('rethrows the handler error unchanged and logs the audit failure when failOpen=false and the sink also fails', async () => {
+    const logger = { warn: vi.fn(), error: vi.fn() };
+    write.mockRejectedValueOnce(new Error('sink recording failed'));
+    const behavior = new AuditBehavior(sink, undefined, logger as never);
     const ctx = withOptions(makeCtx(), { failOpen: false });
 
     const standardError = new Error('primary handler error');
     const next = vi.fn().mockRejectedValue(standardError);
 
     await expect(behavior.handle(ctx, next)).rejects.toBe(standardError);
-    expect((standardError as any).cause).toBe(sinkError);
-  });
-
-  it('attaches normalized Error cause when failOpen=false and sink throws a non-Error string', async () => {
-    write.mockRejectedValueOnce('raw string sink failure');
-    const behavior = new AuditBehavior(sink);
-    const ctx = withOptions(makeCtx(), { failOpen: false });
-
-    const standardError = new Error('primary handler error');
-    const next = vi.fn().mockRejectedValue(standardError);
-
-    await expect(behavior.handle(ctx, next)).rejects.toBe(standardError);
-    expect((standardError as any).cause).toBeInstanceOf(Error);
-    expect((standardError as any).cause.message).toBe(
-      'raw string sink failure',
+    expect(Object.hasOwn(standardError, 'cause')).toBe(false);
+    expect(logger.error).toHaveBeenCalledWith(
+      expect.stringContaining('sink recording failed'),
+      AuditBehavior.name,
     );
   });
 
-  it('does not overwrite existing cause on primary error when audit fails closed', async () => {
+  it('logs a non-Error sink failure after a handler failure', async () => {
+    const logger = { warn: vi.fn(), error: vi.fn() };
+    write.mockRejectedValueOnce('raw string sink failure');
+    const behavior = new AuditBehavior(sink, undefined, logger as never);
+    const ctx = withOptions(makeCtx(), { failOpen: false });
+
+    const standardError = new Error('primary handler error');
+    const next = vi.fn().mockRejectedValue(standardError);
+
+    await expect(behavior.handle(ctx, next)).rejects.toBe(standardError);
+    expect(Object.hasOwn(standardError, 'cause')).toBe(false);
+    expect(logger.error).toHaveBeenCalledWith(
+      expect.stringContaining('raw string sink failure'),
+      AuditBehavior.name,
+    );
+  });
+
+  it('keeps an existing cause on the handler error when the audit also fails', async () => {
     const sinkError = new Error('sink recording failed');
     write.mockRejectedValueOnce(sinkError);
     const behavior = new AuditBehavior(sink);
@@ -365,7 +371,7 @@ describe('AuditBehavior', () => {
     expect((standardError as any).cause).toBe(originalCause);
   });
 
-  it('does not throw TypeError when setting cause on a frozen or non-extensible Error', async () => {
+  it('rethrows a frozen handler error when the audit also fails', async () => {
     const sinkError = new Error('sink recording failed');
     write.mockRejectedValueOnce(sinkError);
     const behavior = new AuditBehavior(sink);

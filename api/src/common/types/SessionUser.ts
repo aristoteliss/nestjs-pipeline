@@ -5,16 +5,15 @@ import type { Capability } from '@nestjs-pipeline/casl';
 /** Explicit principal classification. Authorization must never infer this from the id format. */
 export type PrincipalType = 'user' | 'service';
 
+/** Whether `value` is a {@link PrincipalType}, for data read back from a session cookie. */
+export function isPrincipalType(value: unknown): value is PrincipalType {
+  return value === 'user' || value === 'service';
+}
+
 export type SessionUser = {
   id: string;
-  /**
-   * Authentication source classification used by authorization.
-   *
-   * Kept optional at the transport type boundary so stale sessions can still be
-   * deserialized, but authorization deliberately rejects principals that do not
-   * carry an explicit value.
-   */
-  principalType?: PrincipalType;
+  /** Authentication source classification used by authorization. */
+  principalType: PrincipalType;
   tenant: string;
   /** Login session (`Auth` id) of a user access token. */
   sid?: string;

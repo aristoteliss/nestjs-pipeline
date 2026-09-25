@@ -32,30 +32,36 @@ export abstract class BaseCommand<TSessionUser = any> {
   }
 
   /**
-   * Returns the declared mutable fields that are actually present on this command.
+   * Returns the declared updatable fields that are actually present on this command.
    *
    * A field counts as present when its value is not `undefined`. `null`
    * therefore counts as an intentional mutation, which is important for nullable
    * fields such as clearing a department.
    *
    * Use this with field-level authorization so the authorization surface is an
-   * explicit list owned by the command type.
+   * explicit list owned by the command type. With `@nestjs-pipeline/zod`, mark
+   * the fields in the schema with `.apply(updatable)`, and `createCommand()`
+   * lists them as the static `updatableFields`.
    *
-   * @param mutableFields - Allowed mutable field names for this command.
+   * @param updatableFields - Allowed updatable field names for this command.
    * @returns Only fields present in the current command payload.
    *
    * @example
    * ```ts
-   * export class UpdateUserCommand extends createCommand(UpdateUserSchema, BaseCommand) {
-   *   static readonly MUTABLE_FIELDS = ['username', 'department'] as const;
-   * }
+   * export class UpdateUserCommand extends createCommand(
+   *   z.object({
+   *     id: z.uuid(),
+   *     username: z.string().trim().min(3).apply(updatable).optional(),
+   *   }),
+   *   BaseCommand,
+   * ) {}
    *
-   * const fields = command.getUpdateFields(UpdateUserCommand.MUTABLE_FIELDS);
+   * const fields = command.getUpdateFields(UpdateUserCommand.updatableFields);
    * authorizer.authorize('update', user, fields);
    * ```
    */
-  getUpdateFields(mutableFields: readonly string[]): string[] {
-    return mutableFields.filter(
+  getUpdateFields(updatableFields: readonly string[]): string[] {
+    return updatableFields.filter(
       (field) => (this as Record<string, unknown>)[field] !== undefined,
     );
   }

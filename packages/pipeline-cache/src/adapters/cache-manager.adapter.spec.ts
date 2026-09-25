@@ -25,11 +25,7 @@ class MockCacheManager extends EventEmitter {
 
 describe('CacheManagerAdapter', () => {
   it("leaves a caller-owned store's error behavior untouched", () => {
-    // buildCache() sets throwOnErrors only on Keyv instances this package
-    // creates. A cache handed in by the application belongs to the application,
-    // which may be sharing it with another subsystem; changing its semantics as
-    // a side effect of module initialization contradicted the documented
-    // ownership contract.
+    // A cache the application passes in may be shared with another subsystem.
     const mockCache = new MockCacheManager();
     mockCache.stores[0].throwOnErrors = false;
 

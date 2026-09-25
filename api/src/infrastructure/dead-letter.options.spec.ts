@@ -1,9 +1,15 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
+import { readdirSync, readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+import * as coreDomain from '@cqrs-ddd/core/domain';
 import {
   ConcurrencyConflictError,
+  DomainException,
   EntityNotFoundException,
   MissingTenantContextError,
+  TransientOperationError,
+  UnknownMutableFieldError,
 } from '@cqrs-ddd/core/domain';
 import type { INestApplication } from '@nestjs/common';
 import { UnauthorizedException } from '@nestjs/common';
@@ -35,6 +41,14 @@ import {
   InvalidLoginCredentialsException,
 } from '../auths/domain/errors/authentication.exception';
 import {
+  MissingPrincipalContextError,
+  MissingReplayScopeContextError,
+} from '../common/cqrs/helpers/idempotent-operation.helper';
+import {
+  InvalidTenantSchemaError,
+  UnknownTenantSchemaError,
+} from '../persistence/tenant-schema.errors';
+import {
   InvalidRoleNameException,
   UniqueRoleNameException,
 } from '../roles/domain/models/errors/role-name.exception';
@@ -45,7 +59,61 @@ import {
   UniqueEmailException,
 } from '../users/domain/models/errors';
 import type { User } from '../users/domain/models/user.entity';
-import { DEAD_LETTER_DEFAULTS } from './dead-letter.options';
+import { MixedTenantBatchError } from '../users/jobs/batch-update-users.processor';
+import {
+  DEAD_LETTER_DEFAULTS,
+  EXPECTED_REJECTIONS,
+} from './dead-letter.options';
+
+type ErrorClass = abstract new (...args: never[]) => Error;
+
+/**
+ * The application and core domain errors that are dead-lettered: base classes,
+ * misconfigurations, broken invariants and failures a replay may fix. Every
+ * other such error class must be in `EXPECTED_REJECTIONS`.
+ */
+const CAPTURED_ERRORS: readonly ErrorClass[] = [
+  DomainException,
+  TransientOperationError,
+  UnknownMutableFieldError,
+  MissingTenantContextError,
+  AuthConfigurationException,
+  MissingPrincipalContextError,
+  MissingReplayScopeContextError,
+  InvalidTenantSchemaError,
+  UnknownTenantSchemaError,
+  MixedTenantBatchError,
+];
+
+const isErrorClass = (value: unknown): value is ErrorClass =>
+  typeof value === 'function' && value.prototype instanceof Error;
+
+/**
+ * Every error class exported by an `api/src` source file whose declaration
+ * extends an `…Error` or `…Exception` class, plus the `@cqrs-ddd/core/domain`
+ * errors.
+ */
+async function errorClasses(): Promise<ErrorClass[]> {
+  const root = resolve(__dirname, '..');
+  const declaring = readdirSync(root, { recursive: true, encoding: 'utf8' })
+    .filter((file) => file.endsWith('.ts') && !file.endsWith('.spec.ts'))
+    .map((file) => resolve(root, file))
+    .filter((file) =>
+      /^export (?:abstract )?class \w+ extends [\w.]*(?:Error|Exception)\b/m.test(
+        readFileSync(file, 'utf8'),
+      ),
+    );
+  const modules = await Promise.all(
+    declaring.map((file) => import(file) as Promise<Record<string, unknown>>),
+  );
+  return [
+    ...new Set(
+      [...modules, coreDomain].flatMap((exports) =>
+        Object.values(exports).filter(isErrorClass),
+      ),
+    ),
+  ];
+}
 
 class FailingCommand {
   constructor(readonly error: Error) {}
@@ -99,6 +167,35 @@ const expectedRejections: Array<[string, Error]> = [
     }),
   ],
 ];
+
+describe('application error classification', () => {
+  it('finds the error classes of the application and of the core domain', async () => {
+    expect(await errorClasses()).toEqual(
+      expect.arrayContaining([
+        UniqueEmailException,
+        MixedTenantBatchError,
+        InvalidTenantSchemaError,
+        MissingTenantContextError,
+      ]),
+    );
+  });
+
+  it('puts every error class either among the expected rejections or among the captured errors', async () => {
+    const unclassified: string[] = [];
+    const both: string[] = [];
+    for (const errorClass of await errorClasses()) {
+      const expected = EXPECTED_REJECTIONS.some(
+        (target) =>
+          errorClass === target || errorClass.prototype instanceof target,
+      );
+      const captured = CAPTURED_ERRORS.includes(errorClass);
+      if (!expected && !captured) unclassified.push(errorClass.name);
+      if (expected && captured) both.push(errorClass.name);
+    }
+
+    expect({ unclassified, both }).toEqual({ unclassified: [], both: [] });
+  });
+});
 
 describe('application dead-letter classification', () => {
   const records: DeadLetterRecord[] = [];

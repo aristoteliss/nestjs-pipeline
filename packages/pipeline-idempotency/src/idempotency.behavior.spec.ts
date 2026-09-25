@@ -160,9 +160,8 @@ describe('IdempotencyBehavior', () => {
   });
 
   it('retains the owned claim when a successful response cannot be serialized', async () => {
-    // The handler already succeeded, so its side effects have happened. An
-    // earlier revision deleted the claim here, which let the very next retry
-    // repeat them immediately.
+    // The handler already succeeded, so its side effects have happened;
+    // deleting the claim would let the very next retry repeat them.
     const behavior = new IdempotencyBehavior(store);
 
     const error = await behavior

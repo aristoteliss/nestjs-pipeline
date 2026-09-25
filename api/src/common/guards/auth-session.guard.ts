@@ -11,12 +11,9 @@ import {
 } from '../../auths/services/request-principal-resolver';
 
 /**
- * Global authentication guard.
- *
- * Executes first in the NestJS request lifecycle (Middleware → Guards → Interceptors → Pipes → Handler).
- * Delegates credential resolution to {@link RequestPrincipalResolver}.
- * Rejects invalid, expired, or tenant-mismatched credentials immediately with HTTP 401 Unauthorized.
- * On success, stores the resolved principal in `req.sessionUser` for downstream consumption.
+ * Global authentication guard. It resolves the principal through
+ * {@link RequestPrincipalResolver}, answers HTTP 401 for invalid, expired or
+ * tenant-mismatched credentials, and stores the principal in `req.sessionUser`.
  *
  * @example
  * ```ts

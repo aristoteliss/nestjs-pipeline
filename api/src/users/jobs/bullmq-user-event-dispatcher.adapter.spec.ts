@@ -43,10 +43,6 @@ describe('BullMqUserEventDispatcher', () => {
       ]),
     );
 
-    // The ID used to be passed as a JobsOptions field BullMQ does not declare.
-    // It survived only because BullMQ happens to persist unknown options, which
-    // nothing in its contract promises. Both queues now use the one documented
-    // mechanism, and `add` is called with no options argument at all.
     expect(batchAdd).toHaveBeenCalledWith('batch-update', {
       items: [{ userId: 'user-1', username: 'Alice', tenant: 'tenant_a' }],
       correlationId: 'corr-2',

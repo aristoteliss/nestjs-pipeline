@@ -14,6 +14,7 @@ Zod v4 validation and parsing integration for `@nestjs-pipeline/core` — parse 
 - [Creating Validated Commands, Queries, and Events](#creating-validated-commands-queries-and-events)
   - [createCommand() and createQuery() Factories](#createcommand-and-createquery-factories)
   - [Extending Base Classes (BaseCommand, BaseQuery)](#extending-base-classes-basecommand-basequery)
+  - [Updatable Fields](#updatable-fields)
   - [Standard Schema Metadata](#standard-schema-metadata)
   - [Static parse() and safeParse()](#static-parse-and-safeparse)
   - [Type Inference Helpers (InferInput, InferOutput)](#type-inference-helpers-inferinput-inferoutput)
@@ -36,6 +37,8 @@ Zod v4 validation and parsing integration for `@nestjs-pipeline/core` — parse 
 ```bash
 pnpm add @nestjs-pipeline/zod zod
 ```
+
+Requires Zod 4.3 or later.
 
 **Peer dependencies:**
 
@@ -232,6 +235,48 @@ expect(cmd.sessionUser).toBe(sessionUser);
 expect(cmd instanceof BaseCommand).toBe(true);
 expect(cmd instanceof CreateUserCommand).toBe(true);
 ```
+
+### Updatable Fields
+
+Mark each field an update command changes with `updatable`, inside the schema.
+`createCommand()` lists the marked fields of the top-level object as the static,
+frozen `updatableFields`, in shape order. Pass them to field-level authorization:
+
+```typescript
+import { createCommand, updatable } from '@nestjs-pipeline/zod';
+import { z } from 'zod';
+
+export class UpdateUserCommand extends createCommand(
+  z.object({
+    id: z.uuid(),
+    username: z.string().trim().apply(updatable).min(3).optional(),
+    department: z.string().trim().min(3).apply(updatable).nullable().optional(),
+  }),
+  BaseCommand,
+) {}
+
+UpdateUserCommand.updatableFields; // ['username', 'department']
+
+// In the handler: only the marked fields this command carries.
+authorizer.authorize(
+  'update',
+  user,
+  command.getUpdateFields(UpdateUserCommand.updatableFields),
+);
+```
+
+- `.apply(updatable)` can sit anywhere in the field's chain, and `updatable(schema)` works
+  as a function. The mark survives later checks and wrappers (`.min()`, `.optional()`,
+  `.nullable()`, `.default()`, `.transform()`) and `.partial()`, `.pick()` or `.extend()`
+  on the object.
+- **A field without the mark is never sent to field-level authorization.** Mark every
+  field the handler writes; `id`, which selects the aggregate, stays unmarked.
+- Only the top-level object is read, also through a top-level `.transform()`: marks in
+  nested objects, arrays or unions are not listed. `updatableFieldsOf(schema)` returns the
+  same list for a schema used without `createCommand()`.
+- The mark lives in a registry private to this package. It does not change validation or
+  output, it never appears in `z.toJSONSchema()` output, and it is set on a copy, so a
+  field schema shared with other commands stays unmarked.
 
 ### Standard Schema Metadata
 
@@ -581,6 +626,8 @@ export class UsersController {
 |---|---|---|
 | `createCommand(schema, Base?)` | Function | Generates a validated CQRS Command class tagged with `requestKind: 'command'`, `~standard`, and static `parse()`/`safeParse()` |
 | `createQuery(schema, Base?)` | Function | Generates a validated CQRS Query class tagged with `requestKind: 'query'`, `~standard`, and static `parse()`/`safeParse()` |
+| `updatable(schema)` | Function | Marks a command field as updatable; use it as `.apply(updatable)`. `createCommand()` lists marked fields as `updatableFields` |
+| `updatableFieldsOf(schema)` | Function | The top-level object fields marked with `updatable`, frozen, in shape order |
 | `createZodRequest(schema, Base?)` | Function | Generic factory generating a validated Request class with `~standard` forwarding and static parsers |
 | `type InferInput<T>` | Type | Extracts the input DTO type accepted by a generated command/query class |
 | `type InferOutput<T>` | Type | Extracts the parsed/transformed output payload of a generated command/query class |
@@ -598,7 +645,8 @@ export class UsersController {
 
 Each generated class additionally exposes `parse(input, ...baseArgs)`,
 `parseAsync(input, ...baseArgs)`, `safeParse(input)`, `schema`, and `~standard`;
-`createCommand()` and `createQuery()` add `requestKind`. The class types
+`createCommand()` and `createQuery()` add `requestKind`, and `createCommand()` adds
+`updatableFields`. The class types
 (`ZodRequestClass`, `ZodCommandClass`, `ZodQueryClass`) are exported for
 consumers that need to name them.
 

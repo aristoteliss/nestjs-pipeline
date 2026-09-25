@@ -6,7 +6,11 @@ import {
   type ITenantContext,
   TENANT_CONTEXT,
 } from '../../common/context/tenant-context.port';
-import type { SessionData, SessionUser } from '../../common/types/SessionUser';
+import {
+  isPrincipalType,
+  type SessionData,
+  type SessionUser,
+} from '../../common/types/SessionUser';
 import { ApiClientAuthenticator } from './api-client-authenticator';
 import { JwtAuthenticator } from './jwt-authenticator';
 import { SessionService } from './session.service';
@@ -50,6 +54,9 @@ export class RequestPrincipalResolver {
   /**
    * Resolves the authenticated {@link SessionUser} principal for the incoming request.
    *
+   * A session cookie that has expired, or whose user has no `sid` or no principal
+   * type, is cleared and ignored; the other credentials are then tried.
+   *
    * @param req - Incoming HTTP request containing optional session cookie or headers.
    * @returns The resolved {@link SessionUser}, or `undefined` for anonymous requests.
    * @throws {@link UnauthorizedException} If credentials are supplied but expired, malformed,
@@ -68,6 +75,7 @@ export class RequestPrincipalResolver {
     if (existingUser) {
       if (
         this.sessionService.isExpired(existingUser) ||
+        !isPrincipalType(existingUser.principalType) ||
         typeof existingUser.sid !== 'string' ||
         existingUser.sid.trim().length === 0
       ) {

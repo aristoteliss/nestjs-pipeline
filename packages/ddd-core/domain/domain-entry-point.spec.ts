@@ -3,12 +3,10 @@
 /**
  * The domain entry point must stay free of the ORM.
  *
- * A single barrel used to export domain, application and persistence together,
- * so importing `DomainException` loaded MikroORM behind it and the layers
- * existed only as a naming convention. `@mikro-orm/core` is now an optional peer
- * that only `@cqrs-ddd/core/persistence` requires — a claim worth
- * asserting rather than trusting, because a single stray import in any
- * transitively reachable file would quietly restore the old situation.
+ * `@mikro-orm/core` is an optional peer that only `@cqrs-ddd/core/persistence`
+ * requires. One stray import in any file the entry point reaches would load
+ * MikroORM behind `DomainException`, so the built output is checked rather than
+ * trusted.
  */
 
 import { execSync } from 'node:child_process';

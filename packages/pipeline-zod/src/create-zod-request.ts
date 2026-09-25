@@ -1,12 +1,13 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import type { ZodTypeAny, z } from 'zod';
+import type { ZodType, z } from 'zod';
 import { ZodValidationError } from './errors/zod-validation.error';
 import {
   assertPlainRequestOutput,
   defineEnumerableDataProperties,
 } from './helpers/request-output';
 import { setRawInput, setValidatedData } from './helpers/zod-data.helpers';
+import { updatableFieldsOf } from './updatable';
 import { ZOD_SCHEMA_KEY } from './zod-validation.behavior';
 
 /**
@@ -23,7 +24,7 @@ type AbstractConstructor<T = object> = abstract new (...args: any[]) => T;
  * Extracts the input type of a command or query class generated from a Zod schema.
  */
 export type InferInput<T> = T extends { readonly [ZOD_SCHEMA_KEY]: infer S }
-  ? S extends ZodTypeAny
+  ? S extends ZodType
     ? z.input<S>
     : never
   : never;
@@ -32,13 +33,13 @@ export type InferInput<T> = T extends { readonly [ZOD_SCHEMA_KEY]: infer S }
  * Extracts the output (parsed) type of a command or query class generated from a Zod schema.
  */
 export type InferOutput<T> = T extends { readonly [ZOD_SCHEMA_KEY]: infer S }
-  ? S extends ZodTypeAny
+  ? S extends ZodType
     ? z.output<S>
     : never
   : never;
 
 export type ZodRequestClass<
-  TSchema extends ZodTypeAny,
+  TSchema extends ZodType,
   TBase extends AbstractConstructor,
 > = {
   new (
@@ -120,7 +121,7 @@ function isPreValidated(value: unknown): value is PreValidated {
  * ```
  */
 export function createZodRequest<
-  TSchema extends ZodTypeAny,
+  TSchema extends ZodType,
   TBase extends AbstractConstructor = AbstractConstructor,
 >(schema: TSchema, Base?: TBase): ZodRequestClass<TSchema, TBase> {
   const Parent = (Base ?? class {}) as new (...args: unknown[]) => object;
@@ -203,14 +204,19 @@ export function createZodRequest<
 }
 
 export type ZodCommandClass<
-  TSchema extends ZodTypeAny,
+  TSchema extends ZodType,
   TBase extends AbstractConstructor,
 > = ZodRequestClass<TSchema, TBase> & {
   readonly requestKind: 'command';
+  /**
+   * The top-level fields marked with {@link updatable}, in shape order and
+   * frozen. Pass them to `getUpdateFields()` for field-level authorization.
+   */
+  readonly updatableFields: readonly (keyof z.output<TSchema> & string)[];
 };
 
 export type ZodQueryClass<
-  TSchema extends ZodTypeAny,
+  TSchema extends ZodType,
   TBase extends AbstractConstructor,
 > = ZodRequestClass<TSchema, TBase> & {
   readonly requestKind: 'query';
@@ -221,6 +227,7 @@ export type ZodQueryClass<
  *
  * Automatically marks the class with `requestKind = 'command'`,
  * attaches the Zod schema as static `_zodSchema`, forwards Standard Schema metadata (`~standard`),
+ * lists the fields marked with {@link updatable} as static `updatableFields`,
  * and preserves any Base class inheritance.
  *
  * @example Defining a Command with BaseCommand
@@ -232,13 +239,31 @@ export type ZodQueryClass<
  *
  * export class CreateUserCommand extends createCommand(CreateUserSchema, BaseCommand) {}
  * ```
+ *
+ * @example Declaring the fields an update command changes
+ * ```ts
+ * export class UpdateRoleCommand extends createCommand(
+ *   z.object({ id: z.uuid(), name: z.string().trim().apply(updatable).min(3) }),
+ *   BaseCommand,
+ * ) {}
+ *
+ * authorizer.authorize(
+ *   'update',
+ *   role,
+ *   command.getUpdateFields(UpdateRoleCommand.updatableFields),
+ * );
+ * ```
  */
 export function createCommand<
-  TSchema extends ZodTypeAny,
+  TSchema extends ZodType,
   TBase extends AbstractConstructor = AbstractConstructor,
 >(schema: TSchema, Base?: TBase): ZodCommandClass<TSchema, TBase> {
   const RequestClass = createZodRequest(schema, Base);
   Object.assign(RequestClass, { requestKind: 'command' });
+  Object.defineProperty(RequestClass, 'updatableFields', {
+    value: updatableFieldsOf(schema),
+    enumerable: true,
+  });
   return RequestClass as unknown as ZodCommandClass<TSchema, TBase>;
 }
 
@@ -256,7 +281,7 @@ export function createCommand<
  * ```
  */
 export function createQuery<
-  TSchema extends ZodTypeAny,
+  TSchema extends ZodType,
   TBase extends AbstractConstructor = AbstractConstructor,
 >(schema: TSchema, Base?: TBase): ZodQueryClass<TSchema, TBase> {
   const RequestClass = createZodRequest(schema, Base);

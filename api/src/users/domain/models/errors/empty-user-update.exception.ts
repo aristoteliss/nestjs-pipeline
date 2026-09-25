@@ -2,26 +2,10 @@
 
 import { DomainException } from '@cqrs-ddd/core/domain';
 
-/**
- * Domain exception thrown when an update mutation is invoked without any modifying fields.
- *
- * Extends {@link DomainException} to remain decoupled from web frameworks and HTTP.
- *
- * @example
- * ```ts
- * if (fields.username === undefined && fields.department === undefined) {
- *   throw new EmptyUserUpdateException();
- * }
- * ```
- */
+/** A user update supplied no field to change. */
 export class EmptyUserUpdateException extends DomainException {
-  /**
-   * Creates a new {@link EmptyUserUpdateException}.
-   *
-   * @param message - Optional custom error message override.
-   */
-  constructor(message?: string) {
-    super(message ?? 'At least one user field must be supplied for update.');
+  constructor() {
+    super('At least one user field must be supplied for update.');
     this.name = 'EmptyUserUpdateException';
   }
 }

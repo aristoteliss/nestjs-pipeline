@@ -38,7 +38,6 @@ import { IPipelineContext } from '../interfaces/pipeline.context.interface';
  */
 export const LOGGING_BEHAVIOR_LOGGER = Symbol('LOGGING_BEHAVIOR_LOGGER');
 
-// Type definition accepting any error class
 type ErrorClass = abstract new (...args: never[]) => Error;
 
 /**

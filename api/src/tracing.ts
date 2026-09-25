@@ -9,9 +9,6 @@ import { NodeSDK } from '@opentelemetry/sdk-node';
 const sdk = new NodeSDK({
   serviceName: process.env.OTEL_SERVICE_NAME ?? 'users-api',
   traceExporter: new OTLPTraceExporter({
-    // Override with OTEL_EXPORTER_OTLP_ENDPOINT env var in production.
-    // SigNoz default: http://localhost:4317
-    // Datadog Agent: http://localhost:4317 (with otlp_config enabled)
     url: process.env.OTEL_EXPORTER_OTLP_ENDPOINT ?? 'http://localhost:4317',
   }),
   instrumentations: [

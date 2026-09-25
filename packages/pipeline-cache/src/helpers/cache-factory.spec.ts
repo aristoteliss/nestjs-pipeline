@@ -46,9 +46,8 @@ describe('cache-factory', () => {
        * — need different actions.
        *
        * The cases are injected rather than inferred from whichever optional
-       * adapters happen to be installed in the developer's workspace, which is
-       * what made the previous test assert the wrong diagnosis on a machine where
-       * `@keyv/sqlite` resolved but its native binding did not.
+       * adapters happen to be installed, so the result does not depend on the
+       * machine: `@keyv/sqlite` can resolve while its native binding does not.
        */
       function loadWith(failure: unknown): () => unknown {
         const NodeModule = Module as unknown as {

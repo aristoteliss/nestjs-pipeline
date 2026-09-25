@@ -139,7 +139,6 @@ export class PipelineBootstrapService
 
       const collectedDiagnostics: PipelineBehaviorDiagnostic[] = [];
 
-      // Already categorized by kind — no detectKind() or resolveMethodName() needed
       for (const wrapper of commands) {
         this.wrapIfDecorated(
           wrapper,

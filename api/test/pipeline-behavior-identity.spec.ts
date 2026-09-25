@@ -1,18 +1,17 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 /**
- * Bootstrap contracts that used to fail silently, exercised against a real Nest
- * application. These live here rather than in `@nestjs-pipeline/core` because a
- * published package must not depend on `@nestjs/testing`.
+ * Bootstrap contracts exercised against a real Nest application. These live
+ * here rather than in `@nestjs-pipeline/core` because a published package must
+ * not depend on `@nestjs/testing`.
  *
- * Behavior identity was the class name, so two unrelated classes sharing a name
- * — one per module is entirely ordinary — were deduplicated into one: only one
- * ran, and it received the other's options. When one of them is a security
- * guard, that is a guard quietly removed from the chain.
+ * Behavior identity is the class, not its name: two unrelated classes that share
+ * a name, one per module, are two behaviors. Merged, only one would run, with
+ * the other's options, and a security guard could leave the chain unnoticed.
  *
- * Provider resolution caught every `moduleRef.get()` failure and reclassified it
- * as a scoping problem, so an unregistered behavior survived bootstrap and
- * failed on the first request instead.
+ * Provider resolution treats only Nest's scoped-provider error as a scoping
+ * problem, so an unregistered behavior fails at bootstrap, not on the first
+ * request.
  */
 
 import { Injectable } from '@nestjs/common';

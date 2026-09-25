@@ -8,10 +8,8 @@ import type {
 } from '../interfaces/feature-flags-options.interface';
 
 /**
- * Base OpenFeature attributes derived from the live pipeline request.
- *
- * Deliberately does not synthesize `targetingKey` from correlationId: correlation
- * IDs are request-scoped and therefore unsafe for sticky percentage rollouts.
+ * Base OpenFeature attributes derived from the live pipeline request. It sets no
+ * `targetingKey`; that comes from `targetingKeyFactory`.
  */
 export function baseEvaluationContext(
   context: IPipelineContext,

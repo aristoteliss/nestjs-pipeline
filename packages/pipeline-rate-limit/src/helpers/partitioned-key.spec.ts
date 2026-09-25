@@ -81,8 +81,7 @@ describe('createPartitionedRateLimitKeyFactory', () => {
 
   describe('missing tenant', () => {
     it('fails closed when tenant partitioning was requested', () => {
-      // includeTenant previously meant "include if present", so a missing tenant
-      // silently produced a key with the isolation domain removed.
+      // A missing tenant must not produce a key without its isolation domain.
       const factory = createPartitionedRateLimitKeyFactory(readUserId);
 
       expect(() => factory(context({ tenantId: undefined }))).toThrow(

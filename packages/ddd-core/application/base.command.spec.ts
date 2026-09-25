@@ -20,7 +20,7 @@ class TestUpdateCommand extends BaseCommand<{ id: string; tenant: string }> {
 }
 
 /** The fields TestUpdateCommand subjects to field-level authorization. */
-const MUTABLE_FIELDS = ['name', 'age'] as const;
+const UPDATABLE_FIELDS = ['name', 'age'] as const;
 
 describe('BaseCommand', () => {
   it('keeps sessionUser non-enumerable', () => {
@@ -35,14 +35,14 @@ describe('BaseCommand', () => {
 
   it('reports the declared fields the command carries', () => {
     const cmd1 = new TestUpdateCommand({ id: '1', name: 'Alice' });
-    expect(cmd1.getUpdateFields(MUTABLE_FIELDS)).toEqual(['name']);
+    expect(cmd1.getUpdateFields(UPDATABLE_FIELDS)).toEqual(['name']);
 
     const cmd2 = new TestUpdateCommand({ id: '1', name: 'Alice', age: 30 });
-    expect(cmd2.getUpdateFields(MUTABLE_FIELDS)).toEqual(['name', 'age']);
+    expect(cmd2.getUpdateFields(UPDATABLE_FIELDS)).toEqual(['name', 'age']);
 
     // null is a value: clearing a field is a mutation that must be authorized.
     const cmd3 = new TestUpdateCommand({ id: '1', age: null });
-    expect(cmd3.getUpdateFields(MUTABLE_FIELDS)).toEqual(['age']);
+    expect(cmd3.getUpdateFields(UPDATABLE_FIELDS)).toEqual(['age']);
   });
 
   it('reports the declared fields in declaration order, not property order', () => {

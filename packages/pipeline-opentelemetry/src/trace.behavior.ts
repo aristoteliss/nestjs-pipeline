@@ -181,8 +181,7 @@ export class TraceBehavior implements IPipelineBehavior {
     let spanName: string;
     let initialAttributes: Attributes;
     try {
-      // OpenTelemetry guarantees this is a no-op tracer when no SDK/provider is
-      // registered, so no readiness heuristic is required.
+      // OpenTelemetry returns a no-op tracer when no SDK or provider is registered.
       tracer = trace.getTracer(options?.tracerName ?? TRACER_NAME);
       spanName = this.resolveSpanName(context, options?.spanName);
       initialAttributes = await this.resolveAttributes(context, options);

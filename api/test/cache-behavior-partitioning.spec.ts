@@ -1,17 +1,10 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 /**
- * Integration coverage for `CacheBehavior` inside a real pipeline.
- *
- * The package previously had none: it was exercised only by unit tests holding a
- * mocked store and a hand-written key, and the reference application never
- * attached the behavior to a handler at all. That is why its default key —
- * which embedded the per-request correlation ID and therefore could never
- * produce a hit — went unnoticed through several reviews.
- *
- * These tests assert the two properties that matter and that a mocked store
- * cannot show: a repeated request by the same principal really is served from
- * the store, and a different principal really is not.
+ * Integration coverage for `CacheBehavior` inside a real pipeline. These tests
+ * assert the two properties a mocked store cannot show: a repeated request by
+ * the same principal is served from the store, and a different principal's is
+ * not.
  */
 
 import { type INestApplication, Injectable } from '@nestjs/common';
@@ -110,7 +103,6 @@ describe('CacheBehavior partitioning in a real pipeline', () => {
 
     expect(first).toEqual({ reportId: 'r-1', visibleTo: 'alice' });
     expect(second).toEqual(first);
-    // The property the old correlation-scoped default could never deliver.
     expect(GetReportHandler.executions).toBe(1);
   });
 

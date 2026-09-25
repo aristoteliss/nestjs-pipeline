@@ -30,7 +30,11 @@ afterEach(() => {
 
 describe('SessionUserContextInterceptor', () => {
   it('scopes sessionUserStore during next.handle() and clears afterward', async () => {
-    const user = { id: 'user-1', tenant: 'tenant_a' };
+    const user = {
+      id: 'user-1',
+      principalType: 'user' as const,
+      tenant: 'tenant_a',
+    };
     const req: AuthenticatedRequest = { sessionUser: user };
     const context = makeContext(req);
 
@@ -51,8 +55,16 @@ describe('SessionUserContextInterceptor', () => {
     const tenantSchemaContext = new TenantSchemaContext();
     const interceptor = new SessionUserContextInterceptor();
 
-    const userA = { id: 'admin-a', tenant: 'tenant_a' };
-    const userB = { id: 'viewer-b', tenant: 'tenant_b' };
+    const userA = {
+      id: 'admin-a',
+      principalType: 'user' as const,
+      tenant: 'tenant_a',
+    };
+    const userB = {
+      id: 'viewer-b',
+      principalType: 'user' as const,
+      tenant: 'tenant_b',
+    };
 
     const observations: Array<{
       tenant: string;
@@ -120,7 +132,7 @@ describe('SessionUserContextInterceptor', () => {
 
   it('restores context to undefined even when next.handle() throws', async () => {
     const req: AuthenticatedRequest = {
-      sessionUser: { id: 'err-user', tenant: 't1' },
+      sessionUser: { id: 'err-user', principalType: 'user', tenant: 't1' },
     };
     const context = makeContext(req);
 

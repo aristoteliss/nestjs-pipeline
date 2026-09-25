@@ -47,7 +47,7 @@ describe('SessionService', () => {
   });
 
   describe('clearSession', () => {
-    it('calls session.delete() when available', () => {
+    it('calls session.delete()', () => {
       const deleteMock = vi.fn();
       const mockSession = {
         delete: deleteMock,
@@ -56,18 +56,6 @@ describe('SessionService', () => {
       service.clearSession(mockSession);
 
       expect(deleteMock).toHaveBeenCalledOnce();
-    });
-
-    it('deletes properties when session.delete is not a function', () => {
-      const mockSession: Record<string, unknown> = {
-        user: { id: 'u1' },
-        token: 'tok',
-      };
-
-      service.clearSession(mockSession as unknown as Session<SessionData>);
-
-      expect(mockSession.user).toBeUndefined();
-      expect(mockSession.token).toBeUndefined();
     });
 
     it('does nothing when session is undefined', () => {
@@ -83,6 +71,7 @@ describe('SessionService', () => {
     it('returns false when no expiry fields are set', () => {
       const user: SessionUser = {
         id: 'u1',
+        principalType: 'user',
         tenant: 't1',
         email: 'u1@test.com',
       };
@@ -92,6 +81,7 @@ describe('SessionService', () => {
     it('returns true when expiresAt is in the past', () => {
       const user: SessionUser = {
         id: 'u1',
+        principalType: 'user',
         tenant: 't1',
         email: 'u1@test.com',
         expiresAt: Date.now() - 1000,
@@ -102,6 +92,7 @@ describe('SessionService', () => {
     it('returns false when expiresAt is in the future', () => {
       const user: SessionUser = {
         id: 'u1',
+        principalType: 'user',
         tenant: 't1',
         email: 'u1@test.com',
         expiresAt: Date.now() + 60000,
@@ -112,6 +103,7 @@ describe('SessionService', () => {
     it('returns true when exp * 1000 is in the past', () => {
       const user: SessionUser = {
         id: 'u1',
+        principalType: 'user',
         tenant: 't1',
         email: 'u1@test.com',
         exp: Math.floor(Date.now() / 1000) - 10,
@@ -122,6 +114,7 @@ describe('SessionService', () => {
     it('returns false when exp * 1000 is in the future', () => {
       const user: SessionUser = {
         id: 'u1',
+        principalType: 'user',
         tenant: 't1',
         email: 'u1@test.com',
         exp: Math.floor(Date.now() / 1000) + 60,

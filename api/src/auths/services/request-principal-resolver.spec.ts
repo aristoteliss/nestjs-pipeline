@@ -18,6 +18,7 @@ describe('RequestPrincipalResolver', () => {
   it('uses session cookie fast-path without invoking authenticators', async () => {
     const existingUser = {
       id: 'cookie-user-1',
+      principalType: 'user' as const,
       tenant: tenantContext.schema,
       sid: 'cookie-sid-1',
     };
@@ -46,6 +47,7 @@ describe('RequestPrincipalResolver', () => {
   it('clears session cookie and ignores legacy session without sid', async () => {
     const legacyUser = {
       id: 'legacy-user-1',
+      principalType: 'user' as const,
       tenant: tenantContext.schema,
     };
     const deleteSession = vi.fn();
@@ -66,9 +68,40 @@ describe('RequestPrincipalResolver', () => {
     expect(deleteSession).toHaveBeenCalledOnce();
   });
 
+  it.each([
+    ['without a principal type', {}],
+    ['with an unknown principal type', { principalType: 'admin' }],
+  ])(
+    'clears session cookie and ignores a session user %s',
+    async (_label, principal) => {
+      const deleteSession = vi.fn();
+      const session = {
+        user: {
+          id: 'cookie-user-1',
+          tenant: tenantContext.schema,
+          sid: 'cookie-sid-1',
+          ...principal,
+        },
+        delete: deleteSession,
+      } as unknown as Session<SessionData>;
+
+      const resolver = new RequestPrincipalResolver(
+        new JwtAuthenticator(tenantContext),
+        new ApiClientAuthenticator(tenantContext),
+        tenantContext,
+        new SessionService(),
+      );
+      const user = await resolver.resolvePrincipal({ headers: {}, session });
+
+      expect(user).toBeUndefined();
+      expect(deleteSession).toHaveBeenCalledOnce();
+    },
+  );
+
   it('rejects session cookie when tenant does not match', async () => {
     const existingUser = {
       id: 'cookie-user-1',
+      principalType: 'user' as const,
       tenant: 'mismatched-tenant',
       sid: 'cookie-sid-1',
     };
@@ -91,6 +124,7 @@ describe('RequestPrincipalResolver', () => {
   it('rejects expired session cookie and clears session', async () => {
     const expiredUser = {
       id: 'expired-user-1',
+      principalType: 'user' as const,
       tenant: tenantContext.schema,
       expiresAt: Date.now() - 5000,
     };
@@ -115,6 +149,7 @@ describe('RequestPrincipalResolver', () => {
   it('rejects expired session cookie and falls through to valid JWT bearer', async () => {
     const expiredUser = {
       id: 'expired-user-1',
+      principalType: 'user' as const,
       tenant: tenantContext.schema,
       exp: Math.floor(Date.now() / 1000) - 10,
     };
@@ -126,6 +161,7 @@ describe('RequestPrincipalResolver', () => {
 
     const jwtUser = {
       id: 'jwt-user-fresh',
+      principalType: 'user' as const,
       tenant: tenantContext.schema,
     };
     const jwtAuth = new JwtAuthenticator(tenantContext);
@@ -150,6 +186,7 @@ describe('RequestPrincipalResolver', () => {
   it('accepts unexpired session cookie with future expiresAt', async () => {
     const validUser = {
       id: 'cookie-user-valid',
+      principalType: 'user' as const,
       tenant: tenantContext.schema,
       sid: 'cookie-sid-valid',
       expiresAt: Date.now() + 60000,
@@ -172,6 +209,7 @@ describe('RequestPrincipalResolver', () => {
   it('delegates to JwtAuthenticator when authorization header is provided without mutating session', async () => {
     const jwtUser = {
       id: 'jwt-user-1',
+      principalType: 'user' as const,
       tenant: tenantContext.schema,
     };
     const session = {} as unknown as Session<SessionData>;
@@ -196,6 +234,7 @@ describe('RequestPrincipalResolver', () => {
   it('delegates to ApiClientAuthenticator when x-api-id is provided', async () => {
     const apiUser = {
       id: 'client-1',
+      principalType: 'service' as const,
       tenant: tenantContext.schema,
     };
     const session = {} as unknown as Session<SessionData>;

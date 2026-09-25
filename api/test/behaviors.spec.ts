@@ -41,8 +41,6 @@ import { UniqueRoleNameException } from '../src/roles/domain/models/errors/role-
 import { Role } from '../src/roles/domain/models/role.entity';
 import { UpdateUserCommand } from '../src/users/cqrs/commands/update-user.command';
 
-// ─── Pipeline Context Helper ──────────────────────────────────────────────────
-
 function createContext(options: {
   request?: unknown;
   requestKind?: 'command' | 'query' | 'event';
@@ -70,7 +68,6 @@ function createContext(options: {
 }
 
 describe('Users API Pipeline Behaviors Specification', () => {
-  // ─── 1. MetricsBehavior ───────────────────────────────────────────────────
   describe('MetricsBehavior (@nestjs-pipeline/opentelemetry)', () => {
     it('records duration histogram and invocation counter for handler executions', async () => {
       const mockDuration = { record: vi.fn() };
@@ -154,7 +151,6 @@ describe('Users API Pipeline Behaviors Specification', () => {
     });
   });
 
-  // ─── 2. RateLimitBehavior ─────────────────────────────────────────────────
   describe('RateLimitBehavior (@nestjs-pipeline/rate-limit)', () => {
     it('throttles login attempts when rate limit points are exceeded', async () => {
       const limiter = new RateLimiterMemory({ points: 2, duration: 60 });
@@ -219,7 +215,6 @@ describe('Users API Pipeline Behaviors Specification', () => {
     });
   });
 
-  // ─── 3. AuditBehavior ─────────────────────────────────────────────────────
   describe('AuditBehavior (@nestjs-pipeline/audit)', () => {
     it('records audit trail for role deletion with actor metadata', async () => {
       const records: AuditRecord[] = [];
@@ -296,7 +291,6 @@ describe('Users API Pipeline Behaviors Specification', () => {
     });
   });
 
-  // ─── 4. IdempotencyBehavior ───────────────────────────────────────────────
   describe('IdempotencyBehavior (@nestjs-pipeline/idempotency)', () => {
     it('replays cached response for duplicate role creation requests', async () => {
       const memoryStore = new MemoryIdempotencyStore();
@@ -328,7 +322,6 @@ describe('Users API Pipeline Behaviors Specification', () => {
     });
   });
 
-  // ─── 5. FeatureFlagBehavior ───────────────────────────────────────────────
   describe('FeatureFlagBehavior (@nestjs-pipeline/feature-flags)', () => {
     it('allows execution when feature flag is enabled and blocks with FeatureDisabledError when disabled', async () => {
       const provider = new InMemoryProvider({
@@ -373,7 +366,6 @@ describe('Users API Pipeline Behaviors Specification', () => {
     });
   });
 
-  // ─── 6. CacheBehavior ─────────────────────────────────────────────────────
   describe('CacheBehavior (@nestjs-pipeline/cache)', () => {
     it('caches query responses and bypasses handler on second query execution', async () => {
       const cacheStore = new Map<string, unknown>();
@@ -445,7 +437,6 @@ describe('Users API Pipeline Behaviors Specification', () => {
     });
   });
 
-  // ─── 7. ResilienceBehavior ────────────────────────────────────────────────
   describe('ResilienceBehavior (@nestjs-pipeline/resilience)', () => {
     it('retries transient failures and succeeds on subsequent attempts', async () => {
       const resilienceBehavior = new ResilienceBehavior();
@@ -507,7 +498,6 @@ describe('Users API Pipeline Behaviors Specification', () => {
     });
   });
 
-  // ─── 8. DeadLetterBehavior ────────────────────────────────────────────────
   describe('DeadLetterBehavior (@nestjs-pipeline/deadletter)', () => {
     it('swallows exception when rethrow is false on background events', async () => {
       const transport: DeadLetterTransport = {
@@ -587,7 +577,6 @@ describe('Users API Pipeline Behaviors Specification', () => {
     });
   });
 
-  // ─── 9. CaslBehavior ──────────────────────────────────────────────────────
   describe('CaslBehavior (@nestjs-pipeline/casl)', () => {
     it('verifies entity-level authorization with CaslAuthorizer', () => {
       const role = Role.create('manager');
@@ -608,7 +597,6 @@ describe('Users API Pipeline Behaviors Specification', () => {
     });
   });
 
-  // ─── 10. LoggingBehavior ──────────────────────────────────────────────────
   describe('LoggingBehavior (@nestjs-pipeline/core)', () => {
     it('maps specific exceptions to warning log levels via mapLogLevel option', async () => {
       const mockLogger = {
@@ -640,7 +628,6 @@ describe('Users API Pipeline Behaviors Specification', () => {
     });
   });
 
-  // ─── 11. TraceBehavior ────────────────────────────────────────────────────
   describe('TraceBehavior (@nestjs-pipeline/opentelemetry)', () => {
     it('creates an OpenTelemetry span for the handler invocation when SDK is initialized', async () => {
       const mockSpan = {
@@ -689,7 +676,6 @@ describe('Users API Pipeline Behaviors Specification', () => {
     });
   });
 
-  // ─── 12. ZodValidationBehavior ────────────────────────────────────────────
   describe('ZodValidationBehavior (@nestjs-pipeline/zod)', () => {
     it('validates request against static _zodSchema and throws ZodValidationError on mismatch', async () => {
       const zodBehavior = new ZodValidationBehavior();
@@ -735,9 +721,9 @@ describe('Users API Pipeline Behaviors Specification', () => {
       expect(Object.hasOwn(command, 'department')).toBe(false);
       expect(command.sessionUser).toBe(sessionUser);
       expect(Object.keys(command)).toEqual(['id', 'username']);
-      expect(command.getUpdateFields(UpdateUserCommand.MUTABLE_FIELDS)).toEqual(
-        ['username'],
-      );
+      expect(
+        command.getUpdateFields(UpdateUserCommand.updatableFields),
+      ).toEqual(['username']);
     });
   });
 });

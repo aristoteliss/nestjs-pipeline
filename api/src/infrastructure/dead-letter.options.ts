@@ -34,9 +34,11 @@ import {
  * Rejections the application raises as an ordinary answer to the caller. Replaying
  * the request cannot change the outcome, so none of them is dead-lettered.
  *
- * Listed by concrete class: a `DomainException` subclass that signals a broken
- * invariant or misconfiguration (`AuthConfigurationException`,
- * `MissingTenantContextError`) stays capturable.
+ * Listed by concrete class, because a listed class also covers its subclasses:
+ * listing `DomainException` would also hide misconfigurations such as
+ * `AuthConfigurationException`. `dead-letter.options.spec.ts` fails for any
+ * application or core domain error class that is neither listed here nor
+ * declared there as dead-lettered.
  */
 export const EXPECTED_REJECTIONS = [
   ZodValidationError,

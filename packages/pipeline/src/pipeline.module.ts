@@ -17,7 +17,6 @@ import {
 import { PipelineBootstrapService } from './services/pipeline.bootstrap.service';
 import { toGlobalConfigs } from './services/pipeline-plan';
 
-// Re-export the option types so they can be imported from this module too.
 export {
   GlobalBehaviorScope,
   GlobalBehaviorsOptions,

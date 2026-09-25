@@ -67,7 +67,7 @@ describe('Documentation cache security contracts', () => {
     expect(cacheHelpersReadme).toContain('MissingCachePartitionError');
   });
 
-  it('no longer presents a correlation-scoped key as safe by default across all documentation', () => {
+  it('presents no correlation-scoped key as safe by default in any documentation', () => {
     for (const content of allDocs) {
       expect(content).not.toMatch(/`defaultCacheKey\(\)`/);
       expect(content).not.toMatch(/defaultCacheKey\(\)\s+is\s+intentionally/i);
