@@ -2,9 +2,29 @@
 
 import { EventEmitter } from 'node:events';
 import { Writable } from 'node:stream';
+import { setTenantResolver } from '@cqrs-ddd/core/application';
+import { filterCacheKey } from '@cqrs-ddd/core/persistence';
+import { type IPipelineContext, pipelineStore } from '@nestjs-pipeline/core';
 import pinoHttp from 'pino-http';
 import { describe, expect, it } from 'vitest';
-import { HTTP_LOG_REDACT_PATHS } from './observability.module';
+import {
+  HTTP_LOG_REDACT_PATHS,
+  ObservabilityModule,
+} from './observability.module';
+
+describe('ObservabilityModule tenant resolver', () => {
+  it("gives the tenant-scoped cache keys the running pipeline's tenant", () => {
+    setTenantResolver(undefined);
+    new ObservabilityModule();
+
+    const key = pipelineStore.run(
+      { tenantId: 'tenant_a' } as unknown as IPipelineContext,
+      () => filterCacheKey('user', { id: '1' }),
+    );
+
+    expect(key).toMatch(/^tenant_a:user:v1:[a-f0-9]{64}$/);
+  });
+});
 
 describe('ObservabilityModule HTTP logger redaction', () => {
   it('defines redaction paths for all credential headers', () => {

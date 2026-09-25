@@ -53,7 +53,7 @@ what the libraries support.
 ## Technology Stack
 
 <!-- context:generated-start technology-stack -->
-- **Languages** (file counts, excluded directories omitted): `.ts` 706, `.md` 48, `.grit` 13, `.py` 3, `.mjs` 1
+- **Languages** (file counts, excluded directories omitted): `.ts` 707, `.md` 48, `.grit` 13, `.py` 3, `.mjs` 1
 - **Runtime engines** (root `package.json`): `node` >=22.0.0, `pnpm` >=9.0.0
 - **Package manager evidence**: `pnpm-lock.yaml`.
 
@@ -368,9 +368,9 @@ environment value is read or reproduced here.
 
 | Integration | Declared in | Imported by (sample) |
 | --- | --- | --- |
-| NestJS runtime | `api`, `packages/pipeline`, `packages/pipeline-audit`, `packages/pipeline-cache`, … (+10) | `api/src/app.module.ts`, `api/src/auths/authorization.module.ts` |
+| NestJS runtime | `api`, `packages/pipeline`, `packages/pipeline-audit`, `packages/pipeline-cache`, … (+9) | `api/src/app.module.ts`, `api/src/auths/authorization.module.ts` |
 | NestJS CQRS | `api`, `packages/pipeline` | `api/src/app.module.ts`, `api/src/auths/controllers/auths.controller.ts` |
-| MikroORM | `api`, `packages/ddd-core`, `packages/pipeline-tenant` | `api/src/auths/persistence/user-permissions.projector.ts`, `api/src/persistence/libsql-options.ts` |
+| MikroORM | `api`, `packages/ddd-core` | `api/src/auths/persistence/user-permissions.projector.ts`, `api/src/persistence/libsql-options.ts` |
 | PostgreSQL | `api` | `api/src/persistence/postgres-mikro-orm.store.ts`, `api/src/persistence/postgres-options.ts` |
 | SQLite / libSQL | `api` | `api/src/persistence/libsql-options.ts`, `api/src/persistence/mikro-orm.store.ts` |
 | Redis | `api`, `packages/pipeline-cache` | `packages/pipeline-idempotency/src/stores/redis.store.ts` |
@@ -408,7 +408,7 @@ environment value is read or reproduced here.
 | `packages/pipeline-opentelemetry` | — | — | `@nestjs-pipeline/core`, `@nestjs/common`, `@opentelemetry/api`, `reflect-metadata` |
 | `packages/pipeline-rate-limit` | `@cqrs-ddd/safe-stringify` | — | `@nestjs-pipeline/core`, `@nestjs/common`, `reflect-metadata` |
 | `packages/pipeline-resilience` | — | — | `@nestjs-pipeline/core`, `@nestjs/common`, `cockatiel`, `reflect-metadata` |
-| `packages/pipeline-tenant` | — | — | `@cqrs-ddd/core`, `@nestjs-pipeline/core`, `@nestjs/common`, `reflect-metadata` |
+| `packages/pipeline-tenant` | — | — | `@nestjs-pipeline/core` |
 | `packages/pipeline-zod` | — | — | `@nestjs-pipeline/core`, `@nestjs/common`, `zod` |
 | `packages/safe-stringify` | — | — | — |
 | `packages/uuidv7` | — | — | — |
@@ -662,13 +662,13 @@ secret value.*
 ## Snapshot Metadata
 
 <!-- context:generated-start metadata -->
-- Generated at: 2026-09-25T11:11:04Z
-- Git commit: 33c6b7ab0131d0c2867f308134a66ff2a40023e2
+- Generated at: 2026-09-25T13:58:43Z
+- Git commit: 629cdccbaea9348d757f3d1d7626dfa9157fa63e
 - Git branch: publish
 - Uncommitted changes when generated: yes
 - Generator: `scripts/update-claude-snapshot.py` version 1.0.0
 - Snapshot status: generated — structural inspection only, no code executed
-- Files inspected: 836
+- Files inspected: 837
 - Included top-level directories: `.agents`, `.claude`, `api`, `biome`, `integration`, `packages`, `scripts`
 - Excluded directory names: `.cache`, `.git`, `.gradle`, `.idea`, `.mypy_cache`, `.next`, `.nuxt`, `.parcel-cache`, `.pnpm-store`, `.pytest_cache`, `.ruff_cache`, `.svelte-kit`, `.terraform`, `.tmp`, `.tox`, `.turbo`, `.venv`, `.vscode`, `__pycache__`, `bower_components`, `build`, `coverage`, `dist`, `node_modules`, `out`, `target`, `vendor`, `venv`, `virtualenv`
 - Excluded file patterns: `.env`, `.env.*`, `*.env`, `*.pem`, `*.key`, `*.pfx`, `*.p12`, `*.jks`, `*.keystore`, `id_rsa*`, `id_ed25519*`, `*credentials*`, `*.secret`, `secrets.*`

@@ -530,18 +530,9 @@ importers:
 
   packages/pipeline-tenant:
     devDependencies:
-      '@cqrs-ddd/core':
-        specifier: workspace:*
-        version: link:../ddd-core
-      '@mikro-orm/core':
-        specifier: ^7.1.13
-        version: 7.1.13
       '@nestjs-pipeline/core':
         specifier: workspace:*
         version: link:../pipeline
-      '@nestjs/common':
-        specifier: ^11.2.1
-        version: 11.2.1(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@7.2.0)
       '@vitest/coverage-v8':
         specifier: ^4.1.11
         version: 4.1.11(vitest@4.1.11)

@@ -26,11 +26,6 @@ const PEER_FREE_ENTRIES = {
     '@cqrs-ddd/core/http',
   ],
 };
-// The one pipeline package that may name @cqrs-ddd/core, and only as a peer: its
-// tenant scope is module-level state, so a runtime dependency could install a
-// second copy that the application's own code never sees.
-const isTenantBridgePeer = (manifest, field) =>
-  manifest.name === '@nestjs-pipeline/tenant' && field === 'peerDependencies';
 const run = (command, args, cwd = root) =>
   execFileSync(command, args, { cwd, stdio: 'inherit' });
 const tar = (args) => execFileSync('tar', args, { encoding: 'utf8' });
@@ -149,7 +144,7 @@ try {
         if (
           range.startsWith('workspace:') ||
           /(?:^|[/:])api\//.test(range) ||
-          (name === '@cqrs-ddd/core' && !isTenantBridgePeer(manifest, field)) ||
+          name === '@cqrs-ddd/core' ||
           name === '@nestjs-pipeline/ddd-api'
         ) {
           throw new Error(

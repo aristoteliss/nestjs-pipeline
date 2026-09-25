@@ -1,6 +1,7 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import { type ICache, runWithTenant } from '@cqrs-ddd/core/application';
+import { type ICache } from '@cqrs-ddd/core/application';
+import { runWithTenant } from '@nestjs-pipeline/tenant';
 import { describe, expect, it, vi } from 'vitest';
 import { Auth, type AuthSnapshot } from '../domain/models/auth.entity';
 import { CreateAuthCommandRepository } from './create-auth.command-repository';

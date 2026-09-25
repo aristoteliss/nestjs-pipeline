@@ -1,6 +1,5 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import { runWithTenant } from '@cqrs-ddd/core/application';
 import { MemoryCache } from '@cqrs-ddd/core/persistence';
 import { buildAbility, CaslAuthorizer } from '@nestjs-pipeline/casl';
 import { type IPipelineContext, pipelineStore } from '@nestjs-pipeline/core';
@@ -45,14 +44,11 @@ describe('User overview repository cache freshness', () => {
     } as never);
   });
 
-  /**
-   * The repository cache key is tenant-scoped and fails closed without one. A real
-   * pipeline run also sets @cqrs-ddd/core's tenant scope (`TenantScopeBehavior`).
-   */
+  /** The repository cache key is tenant-scoped and fails closed without one. */
   function inTenant<T>(run: () => Promise<T>): Promise<T> {
     return pipelineStore.run(
       { tenantId: 'tenant-a' } as unknown as IPipelineContext,
-      () => runWithTenant('tenant-a', run),
+      run,
     );
   }
 

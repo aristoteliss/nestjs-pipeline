@@ -98,36 +98,12 @@ describe('Biome Grit verify-package-licenses plugin', () => {
 
   it.each([
     'packages/my-lib/src/coupled.ts',
-    'packages/pipeline-tenant-extra/src/coupled.ts',
+    'packages/pipeline-tenant/src/coupled.ts',
   ])('rejects a pipeline package importing @cqrs-ddd/core (%s)', (path) => {
     const source = `
       import { DomainException } from '@cqrs-ddd/core/domain';
     `;
     const result = lintFixture(path, source);
-    expect(result.status).toBe(1);
-    expect(result.diagnostics).toContain(
-      'preserve standalone package license boundaries',
-    );
-  });
-
-  it('allows the tenant package, and only it, to import @cqrs-ddd/core', () => {
-    const source = `
-      import { runWithTenant } from '@cqrs-ddd/core/application';
-      export const run = runWithTenant;
-    `;
-    expect(
-      lintFixture('packages/pipeline-tenant/src/tenant.ts', source).status,
-    ).toBe(0);
-  });
-
-  it('still rejects the tenant package importing the api application', () => {
-    const source = `
-      import { User } from '../../api/src/users/domain/models/user.entity';
-    `;
-    const result = lintFixture(
-      'packages/pipeline-tenant/src/leaking.ts',
-      source,
-    );
     expect(result.status).toBe(1);
     expect(result.diagnostics).toContain(
       'preserve standalone package license boundaries',

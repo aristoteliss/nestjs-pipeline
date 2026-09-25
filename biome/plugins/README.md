@@ -23,7 +23,7 @@ Enforces test suite integrity across all test files (`**/*.spec.ts`, `**/*.test.
 ### 3. `verify-package-licenses.grit`
 Enforces standalone package licensing boundaries for published libraries (`**/packages/**/*.ts`):
 - Forbids standalone published packages from importing the private `api` application (`../../api/`) or `@nestjs-pipeline/ddd-*`, guaranteeing that package distributions maintain self-contained commercial/AGPL licensing boundaries.
-- Forbids them from importing `@cqrs-ddd/core`, except `packages/pipeline-tenant` (`@nestjs-pipeline/tenant`), the bridge from the pipeline tenant to its tenant scope. `packages/ddd-core` itself is excluded in `biome.json`. `@cqrs-ddd/uuidv7` and `@cqrs-ddd/safe-stringify` stay allowed everywhere.
+- Forbids them from importing `@cqrs-ddd/core`: the pipeline packages and the DDD core know nothing of each other, and only an application connects them. `packages/ddd-core` itself is excluded in `biome.json`. `@cqrs-ddd/uuidv7` and `@cqrs-ddd/safe-stringify` stay allowed everywhere.
 
 ### 4. `package-licenses.grit`
 Enforces framework compatibility in standalone published libraries (`**/packages/**/*.ts`):

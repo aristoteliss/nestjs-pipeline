@@ -5,7 +5,7 @@ import { escapeKeySegment, stableStringify } from '@cqrs-ddd/safe-stringify';
 import {
   requireTenantId,
   type TenantSource,
-} from '../../application/tenant-scope';
+} from '../../application/tenant-resolver';
 
 /**
  * Types supported as cache key resource specifiers:
@@ -21,8 +21,8 @@ export type CacheResourceSpecifier =
  * An explicit tenant for a cache key: a tenant id string, or an object carrying
  * `tenantId`, such as a pipeline context.
  *
- * When it is omitted, or an object carries no `tenantId`, the tenant of the running
- * {@link runWithTenant} scope applies. A missing or empty tenant always throws
+ * When it is omitted, or an object carries no `tenantId`, the tenant of the
+ * registered {@link setTenantResolver} resolver applies. A missing or empty tenant always throws
  * {@link MissingTenantContextError}; there is no shared fallback namespace.
  */
 export type CacheKeyTenantSource = TenantSource;
@@ -83,8 +83,8 @@ function normalizeFilterConditions(
  * @param resourceOrEntity - Logical resource name or object exposing `aggregateName`/`prefixKey`.
  * @param conditions - Filter values that identify the cached record/query.
  * @param tenantOrContext - An explicit tenant id, or an object carrying `tenantId` (such
- *   as a pipeline context). When omitted, the tenant of the running
- *   {@link runWithTenant} scope is used. See {@link CacheKeyTenantSource}.
+ *   as a pipeline context). When omitted, the tenant of the registered
+ *   {@link setTenantResolver} resolver is used. See {@link CacheKeyTenantSource}.
  * @returns A versioned, hashed deterministic cache key.
  * @throws {MissingTenantContextError} When tenant identity cannot be resolved.
  * @throws {TypeError} When conditions contain non-serializable values.
@@ -148,7 +148,7 @@ function canonicalizeValue(val: NonNullable<unknown>): string {
  * @param template - Key template containing required `{prop}` or optional `{prop?}` placeholders.
  * @param tenantOrContext - An explicit tenant used to namespace produced keys. When
  *   omitted, a context source's `tenantId` is used, and otherwise the tenant of the
- *   running {@link runWithTenant} scope.
+ *   registered {@link setTenantResolver} resolver.
  * @returns A key factory accepting either a request object or a
  *   {@link CacheKeyRequestContext} (such as a pipeline context).
  * @throws {MissingTenantContextError} When tenant identity cannot be resolved.

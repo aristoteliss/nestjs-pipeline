@@ -7,8 +7,7 @@ The script discovers every non-private `packages/*/package.json`, packs it, and
 checks the archive identity/version, licenses, JavaScript, declarations, an
 `engines.node` equal to the root `package.json`'s, a README without relative links
 outside the package (they break on npmjs.com), and absence of tests or
-workspace/private `api` dependencies. No package may name `@cqrs-ddd/core`, except
-`@nestjs-pipeline/tenant`, and only as a peer. Missing, duplicate, and
+workspace/private `api` dependencies. No package may name `@cqrs-ddd/core`. Missing, duplicate, and
 unexpected archives fail the check.
 
 A temporary consumer outside the checkout installs every package from its tarball.

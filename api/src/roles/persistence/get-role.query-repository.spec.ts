@@ -1,7 +1,7 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import { runWithTenant } from '@cqrs-ddd/core/application';
 import { filterCacheKey, MemoryCache } from '@cqrs-ddd/core/persistence';
+import { runWithTenant } from '@nestjs-pipeline/tenant';
 import { describe, expect, it, vi } from 'vitest';
 import { GetRoleQuery } from '../cqrs/queries/get-role.query';
 import { Role, type RoleSnapshot } from '../domain/models/role.entity';

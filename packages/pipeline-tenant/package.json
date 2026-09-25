@@ -1,7 +1,7 @@
 {
   "name": "@nestjs-pipeline/tenant",
   "version": "0.2.0",
-  "description": "Pipeline behavior for @nestjs-pipeline/core that runs every command, query and event handler inside the @cqrs-ddd/core tenant scope",
+  "description": "The current tenant for @nestjs-pipeline/core applications: the running pipeline's tenant, or the tenant of a runWithTenant scope",
   "author": "Aristotelis",
   "license": "SEE LICENSE IN LICENSE",
   "engines": {
@@ -19,10 +19,10 @@
   "keywords": [
     "nestjs",
     "cqrs",
-    "ddd",
     "pipeline",
     "multi-tenancy",
-    "tenant"
+    "tenant",
+    "asynclocalstorage"
   ],
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -45,16 +45,10 @@
     "prepublishOnly": "pnpm run rebuild"
   },
   "peerDependencies": {
-    "@cqrs-ddd/core": "workspace:^",
-    "@nestjs-pipeline/core": "workspace:^",
-    "@nestjs/common": "^11.0.0",
-    "reflect-metadata": "^0.1.13 || ^0.2.0"
+    "@nestjs-pipeline/core": "workspace:^"
   },
   "devDependencies": {
-    "@cqrs-ddd/core": "workspace:*",
-    "@mikro-orm/core": "^7.1.13",
     "@nestjs-pipeline/core": "workspace:*",
-    "@nestjs/common": "^11.2.1",
     "@vitest/coverage-v8": "^4.1.11",
     "reflect-metadata": "^0.2.2",
     "vitest": "^4.1.11"

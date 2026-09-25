@@ -105,7 +105,7 @@ Works with Express and Fastify.
 | [`@nestjs-pipeline/rate-limit`](packages/pipeline-rate-limit) | Rate-limiting behavior — backend-agnostic via rate-limiter-flexible (memory, Redis/Valkey, Mongo, SQL), HTTP 429 filter |
 | [`@nestjs-pipeline/audit`](packages/pipeline-audit) | Audit-trail behavior — records who/what/outcome/duration to a pluggable `AuditSink` (console default, Postgres drop-in), with payload redaction |
 | [`@nestjs-pipeline/idempotency`](packages/pipeline-idempotency) | Idempotency behavior — atomic concurrent duplicate exclusion and successful-response replay per key; failed executions are retryable by default, via a pluggable store (in-memory default, Redis/Postgres drop-in) |
-| [`@nestjs-pipeline/tenant`](packages/pipeline-tenant) | `TenantScopeBehavior` — runs every pipeline invocation inside the `@cqrs-ddd/core` tenant scope, so tenant-scoped cache keys follow the pipeline tenant |
+| [`@nestjs-pipeline/tenant`](packages/pipeline-tenant) | `currentTenantId()` and `runWithTenant()` — the tenant of the running pipeline or of a scope, for code deep inside a handler |
 
 > Add-on packages live in `packages/pipeline-<name>/` and peer-depend on `@nestjs-pipeline/core`.
 
@@ -152,7 +152,7 @@ pnpm add @nestjs-pipeline/rate-limit rate-limiter-flexible  # rate limiting (mem
 pnpm add @nestjs-pipeline/audit   # audit trail (console default; + optional pg for Postgres)
 pnpm add @nestjs-pipeline/idempotency   # idempotent commands (in-memory default; + optional redis/pg)
 pnpm add @nestjs-pipeline/feature-flags @openfeature/server-sdk  # feature flags (provider adapters optional)
-pnpm add @nestjs-pipeline/tenant @cqrs-ddd/core   # pipeline tenant as the @cqrs-ddd/core tenant scope
+pnpm add @nestjs-pipeline/tenant   # currentTenantId(): the running pipeline's tenant
 
 # Optional: pino logger integration
 pnpm add nestjs-pino pino-http pino-pretty
@@ -1504,7 +1504,7 @@ nestjs-pipeline/
 │   │       └── idempotency.module.ts
 │   ├── pipeline-tenant/          # @nestjs-pipeline/tenant
 │   │   └── src/
-│   │       └── tenant-scope.behavior.ts  # TenantScopeBehavior (runWithTenant per invocation)
+│   │       └── tenant-scope.ts   # currentTenantId, runWithTenant
 │   ├── uuidv7/                   # @cqrs-ddd/uuidv7 — RFC 9562 UUIDv7, no dependencies
 │   ├── safe-stringify/           # @cqrs-ddd/safe-stringify — strict and log-safe JSON, key segments
 │   └── ddd-core/                 # @cqrs-ddd/core — framework-neutral DDD primitives

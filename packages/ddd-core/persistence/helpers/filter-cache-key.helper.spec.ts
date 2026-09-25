@@ -1,9 +1,18 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import { describe, expect, it } from 'vitest';
-import { runWithTenant } from '../../application/tenant-scope';
+import { AsyncLocalStorage } from 'node:async_hooks';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { setTenantResolver } from '../../application/tenant-resolver';
 import { MissingTenantContextError } from '../../domain/exceptions/missing-tenant-context.exception';
 import { cacheKeyTemplate, filterCacheKey } from './filter-cache-key.helper';
+
+/** The application's own tenant context, registered as the tenant resolver. */
+const applicationTenant = new AsyncLocalStorage<string | undefined>();
+const inTenant = <T>(tenant: string | undefined, fn: () => T): T =>
+  applicationTenant.run(tenant, fn);
+
+beforeAll(() => setTenantResolver(() => applicationTenant.getStore()));
+afterAll(() => setTenantResolver(undefined));
 
 describe('filterCacheKey', () => {
   it('generates a deterministic versioned key with sorted keys using resource string', () => {
@@ -74,23 +83,23 @@ describe('filterCacheKey', () => {
     expect(key).toMatch(/^tenant_from_ctx:user:v1:[0-9a-f]{64}$/);
   });
 
-  it('uses the tenant of the running scope when no tenant is passed', () => {
-    const key = runWithTenant('tenant_scope', () =>
+  it('uses the registered resolver when no tenant is passed', () => {
+    const key = inTenant('tenant_scope', () =>
       filterCacheKey('user', { id: '1' }),
     );
     expect(key).toMatch(/^tenant_scope:user:v1:[0-9a-f]{64}$/);
   });
 
-  it('keeps the scope tenant across awaits inside the scope', async () => {
-    const key = await runWithTenant('tenant_async', async () => {
+  it('reads the resolver when the key is derived, also after an await', async () => {
+    const key = await inTenant('tenant_async', async () => {
       await Promise.resolve();
       return filterCacheKey('user', { id: '1' });
     });
     expect(key).toMatch(/^tenant_async:user:v1:[0-9a-f]{64}$/);
   });
 
-  it('prefers an explicit tenant over the running scope', () => {
-    const key = runWithTenant('tenant_scope', () =>
+  it('prefers an explicit tenant over the resolver', () => {
+    const key = inTenant('tenant_scope', () =>
       filterCacheKey('user', { id: '1' }, 'tenant_explicit'),
     );
     expect(key).toMatch(/^tenant_explicit:user:v1:[0-9a-f]{64}$/);
@@ -99,8 +108,8 @@ describe('filterCacheKey', () => {
   it.each([
     ['an object without tenantId', {}],
     ['an object with an undefined tenantId', { tenantId: undefined }],
-  ])('falls back to the running scope for %s', (_label, source) => {
-    const key = runWithTenant('tenant_scope', () =>
+  ])('falls back to the resolver for %s', (_label, source) => {
+    const key = inTenant('tenant_scope', () =>
       filterCacheKey('user', { id: '1' }, source),
     );
     expect(key).toMatch(/^tenant_scope:user:v1:[0-9a-f]{64}$/);
@@ -112,7 +121,7 @@ describe('filterCacheKey', () => {
     ['an empty tenant id', ''],
     ['an object with an empty tenantId', { tenantId: '' }],
   ])(
-    'fails closed for %s outside a scope, rather than sharing a namespace',
+    'fails closed for %s when the resolver has no tenant, rather than sharing a namespace',
     (_label, source) => {
       expect(() => filterCacheKey('user', { id: '1' }, source)).toThrow(
         MissingTenantContextError,
@@ -120,17 +129,15 @@ describe('filterCacheKey', () => {
     },
   );
 
-  it('fails closed for an empty tenant id even inside a scope', () => {
+  it('fails closed for an empty tenant id even when the resolver has a tenant', () => {
     expect(() =>
-      runWithTenant('tenant_scope', () =>
-        filterCacheKey('user', { id: '1' }, ''),
-      ),
+      inTenant('tenant_scope', () => filterCacheKey('user', { id: '1' }, '')),
     ).toThrow(MissingTenantContextError);
   });
 
-  it('fails closed inside a scope that carries no tenant', () => {
+  it('fails closed when the resolver returns no tenant', () => {
     expect(() =>
-      runWithTenant(undefined, () => filterCacheKey('user', { id: '1' })),
+      inTenant(undefined, () => filterCacheKey('user', { id: '1' })),
     ).toThrow(MissingTenantContextError);
   });
 
@@ -249,10 +256,10 @@ describe('cacheKeyTemplate', () => {
     ).toBe('tenant_explicit:user:u-1');
   });
 
-  it('uses the running scope for a plain source or a context without tenantId', () => {
+  it('uses the resolver for a plain source or a context without tenantId', () => {
     const template = cacheKeyTemplate('user:{userId}');
 
-    runWithTenant('tenant_scope', () => {
+    inTenant('tenant_scope', () => {
       expect(template({ userId: 'u-1' })).toBe('tenant_scope:user:u-1');
       expect(template({ request: { userId: 'u-2' } })).toBe(
         'tenant_scope:user:u-2',
@@ -299,9 +306,8 @@ describe('cacheKeyTemplate', () => {
 });
 
 /**
- * Exact keys recorded before the key helpers stopped depending on
- * `@nestjs-pipeline/core`. Stored cache entries are addressed by these strings,
- * so any change here would silently orphan them.
+ * Exact keys. Stored cache entries are addressed by these strings, so any change
+ * here would silently orphan them.
  */
 describe('cache key frozen output', () => {
   class UserAggregate {

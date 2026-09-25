@@ -102,7 +102,7 @@ merging or publishing.
 
 ## Current Status
 
-In progress. Phase 1 complete and Gate 1 green on `5c94efee` (2026-09-25); phase 2: U1–U3, S1–S3, D1–D3 and T1–T3 done; next is D5. Section R (comment and code review) is recorded for joint review; nothing in it is changed yet. A1–A5, A7, B9–B11, N1–N6 and A6, B1–B4, B7, B8, C1–C8 and D4 done.
+In progress. Phase 1 complete and Gate 1 green on `5c94efee` (2026-09-25); phase 2: U1–U3, S1–S3, D1–D3 and T1–T3 done; D5 done; next is Gate 2. Section R (comment and code review) is done. A1–A5, A7, B9–B11, N1–N6 and A6, B1–B4, B7, B8, C1–C8 and D4 done.
 Section T (`@nestjs-pipeline/tenant`)
 was added to phase 2 on 2026-09-24. Baseline `e60c689a` on branch `review`. Facts
 verified on 2026-09-23 and 2026-09-24 by running commands (no code changed):
@@ -800,13 +800,14 @@ and users-api. `ddd/core`'s `cacheKeyTemplate` has its own copy of the escaping.
   - Add the `./http` export for C6.
   - Rewrite the description as a framework-neutral DDD library; it currently says "for the
     sample applications".
-- [ ] D5. **README as consumer manual.** Cover:
+- [x] D5. **README as consumer manual.** Cover:
   - install;
   - the three entry points and what each needs at runtime;
   - the per-decorator `logger` option;
   - the tenant order for cache keys: an explicit argument, then a context's `tenantId`,
-    then the `runWithTenant` scope, then `MissingTenantContextError`. Name
-    `@nestjs-pipeline/tenant` (T) as the bridge for NestJS pipeline applications;
+    then the resolver registered with `setTenantResolver`, then
+    `MissingTenantContextError`. Name no `@nestjs-pipeline/*` package: the core knows
+    nothing of them (Decisions, "Tenant: no knowledge either way");
   - use from NestJS: structural compatibility with `EventBus`, commands and handlers, plus
     the glue an application writes, with users-api as the example;
   - the lifecycle decorator order;
@@ -818,6 +819,10 @@ and users-api. `ddd/core`'s `cacheKeyTemplate` has its own copy of the escaping.
   No repo-internal links.
 
 #### T. `@nestjs-pipeline/tenant`: `TenantScopeBehavior` as its own package
+
+**Superseded (owner, 2026-09-25):** see Decisions, "Tenant: no knowledge either way".
+T1–T3 below record what was built first; the package no longer contains
+`TenantScopeBehavior` and no longer depends on `@cqrs-ddd/core`.
 
 Owner decision (2026-09-24). `TenantScopeBehavior` is the bridge a NestJS pipeline
 application needs so that `@cqrs-ddd/core`'s tenant scope follows the pipeline context: it
@@ -1143,7 +1148,9 @@ Totals: 27 history comments (A), 2 banner groups (B), 2 code fixes (C), 5 decisi
   valid time, R/D5). Also list the zod peer range `^4.3.0` and the new `updatable` and
   `updatableFieldsOf` exports (Decisions, "Updatable command fields"). Add a
   separate entry for `ddd/core` listing the section N API
-  changes, and first-release entries for `@cqrs-ddd/uuidv7`, `@cqrs-ddd/safe-stringify` and
+  changes (including `setTenantResolver`, and `runWithTenant`/`currentTenantId`, which
+  are now in `@nestjs-pipeline/tenant`), and first-release entries for
+  `@cqrs-ddd/uuidv7`, `@cqrs-ddd/safe-stringify` and
   `@nestjs-pipeline/tenant`.
   Note, as same API and output, that:
   - `uuidv7`/`isUuidV7` now come from `@cqrs-ddd/uuidv7` (core, correlation);
@@ -1256,6 +1263,32 @@ Totals: 27 history comments (A), 2 banner groups (B), 2 code fixes (C), 5 decisi
   mocked unit tests only. Name this limitation in its README and in the release notes.
 - Closed earlier, do not reopen: keep `setCorrelationFallback`; keep the production functions
   exported for specs; no core behavior-module factory.
+- Tenant: no knowledge either way (owner, 2026-09-25; four commits, `3a16538d`,
+  `13eb022a`, `629cdccb` and the documentation commit). `@cqrs-ddd/core` and the
+  `@nestjs-pipeline/*` packages know nothing of each other; only an application connects
+  them. `@cqrs-ddd/uuidv7` and `@cqrs-ddd/safe-stringify` stay shared (owner).
+  - `@nestjs-pipeline/tenant` owns the tenant scope (`src/tenant-scope.ts`):
+    `runWithTenant(tenantId, fn)` and `currentTenantId()`, which returns the tenant of the
+    innermost `runWithTenant` call or pipeline execution (read from `pipelineStore`),
+    whichever was entered last. `TenantScopeBehavior` is gone: nothing copies the tenant
+    any more. Its only peer is `@nestjs-pipeline/core`.
+  - `@cqrs-ddd/core` has no scope: `application/tenant-resolver.ts` keeps `TenantSource`,
+    `requireTenantId` and a new `setTenantResolver(fn)` / `TenantResolver`.
+    `requireTenantId`, and so `filterCacheKey` and `cacheKeyTemplate`, take the explicit
+    tenant, then an object's `tenantId`, then the resolver, and fail closed.
+  - `api`: `ObservabilityModule`'s constructor registers `currentTenantId` as the core
+    resolver, before any lifecycle hook (BullMQ workers start in one). The unit tests
+    register the same resolver in `test/support/tenant-resolver.setup.ts`; a spec clears
+    it and proves the module registers it.
+  - The lint rule, the release check and `package-boundaries.spec.ts` again forbid any
+    `@nestjs-pipeline/*` package to name `@cqrs-ddd/core` (the boundary spec also checks
+    `devDependencies`).
+  - Verified at each commit: `pnpm build`, `pnpm lint`, `pnpm check`,
+    `pnpm lint:persistence`, `pnpm test`, `pnpm test:e2e` (191) and `pnpm test:release`
+    (16 packages; tenant 2 exports; core `/application` 6) pass. Counts: tenant 9 tests at
+    100% (the scope cases moved from core), core 598, pipeline 270, `api` 720. Mutation
+    checks: the innermost-wins rule, the module's registration, and a `@cqrs-ddd/core`
+    entry in the tenant manifest each fail a test.
 - Updatable command fields (owner, 2026-09-25; outside the plan, two commits): fields are
   marked in the Zod schema with `.apply(updatable)` from `@nestjs-pipeline/zod`, and
   `createCommand()` exposes them as the static, frozen `updatableFields`. It replaces the
@@ -2107,6 +2140,27 @@ Totals: 27 history comments (A), 2 banner groups (B), 2 code fixes (C), 5 decisi
     Negative (then restored, lockfile included, since pnpm reinstalled on the edit): a
     tenant `dependencies` entry fails the peer-only case; a `@cqrs-ddd/core` peer on
     `@nestjs-pipeline/cache` fails the only-tenant case.
+- D5:
+  - `packages/ddd-core/README.md` rewritten as the npm consumer manual (462 lines): install,
+    an entry-point table with what each needs at runtime, aggregates, domain events,
+    commands and event publication (with the `AggregateRoot.commit()` caveat: the default
+    hooks publish nothing and the buffer is cleared anyway), write-side repositories and
+    the fixed decorator order, read-side repositories, the repository cache
+    (`IVersionedCache` required by `@FromCache`, the adapters, barriers, the per-decorator
+    `logger` option), tenant-scoped keys with `setTenantResolver`, HTTP status mapping,
+    use from NestJS (structural `EventBus` and handler compatibility, the glue an
+    application writes), known limits, and the license.
+  - Removed: repository-internal material (links to `api` source, spec lists, Grit
+    plugins, `pnpm --filter` commands) and a `CacheSetOptions` block whose two comments
+    on `isNewer` contradicted each other; the code's meaning (`true`: the cached value is
+    newer) is stated instead. No `@nestjs-pipeline/*` package is named.
+  - Verified against the source before writing: every export per entry point (from the
+    built `dist`), `ICacheLogger` on `@Cache`, `@FromCache` and `MikroOrmCache`,
+    `MemoryCache` defaults (60 s, 10 000 entries), `DEFAULT_BARRIER_TTL_MS` (60 s),
+    `isCacheNewer` order, the protected `RootDomainEvent` constructor, and the `entity`
+    selectors of the individual decorators. The aggregate and event examples type-check
+    against the built package (`tsc --strict --experimentalDecorators`). No `](../`
+    link. `pnpm test:release` passes (16 packages).
 
 ## Tests and Verification
 

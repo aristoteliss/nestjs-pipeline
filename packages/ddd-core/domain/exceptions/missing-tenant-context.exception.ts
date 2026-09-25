@@ -12,14 +12,14 @@ import { DomainException } from './domain.exception';
  * cross-tenant data leak that produces no error and no log line.
  *
  * Deployments that are genuinely single-tenant make that explicit rather than
- * implicit: pass a fixed tenant id to the key helper, or run the work inside
- * `runWithTenant('single', ...)`, so the decision is visible in code.
+ * implicit: pass a fixed tenant id to the key helper, or register
+ * `setTenantResolver(() => 'single')`, so the decision is visible in code.
  */
 export class MissingTenantContextError extends DomainException {
   constructor(readonly operation: string) {
     super(
       `Missing tenant context: cannot derive a tenant-scoped key for ${operation}. ` +
-        'Pass the tenant explicitly, or run the operation inside runWithTenant(...). ' +
+        'Pass the tenant explicitly, or register a tenant resolver with setTenantResolver(...). ' +
         'Falling back to a shared namespace would merge tenants into one cache partition.',
     );
   }

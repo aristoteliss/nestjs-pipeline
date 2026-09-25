@@ -23,11 +23,11 @@ too. Repository-wide orientation: [.claude/codebase-map.md](../.claude/codebase-
 - `packages/ddd-core` (`@cqrs-ddd/core`) is the framework-neutral DDD package, in the same
   group. It follows its own [CLAUDE.md](ddd-core/CLAUDE.md): no NestJS, only the two
   `@cqrs-ddd/*` utilities as dependencies, and `@mikro-orm/core` as its only, optional,
-  peer. No `@nestjs-pipeline/*` package may import it (`verify-package-licenses.grit`),
-  except `packages/pipeline-tenant` (`@nestjs-pipeline/tenant`): its `TenantScopeBehavior`
-  is the bridge from the pipeline tenant to `@cqrs-ddd/core`'s tenant scope. It declares
-  `@cqrs-ddd/core` as a peer only, because that scope is a module-level
-  `AsyncLocalStorage` and a second copy would split it.
+  peer. No `@nestjs-pipeline/*` package may import or declare it
+  (`verify-package-licenses.grit`, `package-boundaries.spec.ts`), and it knows nothing of
+  them: an application connects the two, for example by registering
+  `@nestjs-pipeline/tenant`'s `currentTenantId` with `@cqrs-ddd/core`'s
+  `setTenantResolver`.
 - These libraries target external consumers and future use cases. A missing call site in
   `api` does not prove an export is unused — see the library-scope rules in
   `AGENTS.md` before removing any exported API, adapter, or supported input type.

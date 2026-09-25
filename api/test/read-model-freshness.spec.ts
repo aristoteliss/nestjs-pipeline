@@ -1,6 +1,5 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import { runWithTenant } from '@cqrs-ddd/core/application';
 import { MemoryCache } from '@cqrs-ddd/core/persistence';
 import {
   buildAbility,
@@ -32,10 +31,7 @@ import { GetUserQueryRepository } from '../src/users/persistence/get-user.query-
 
 const TARGET_ID = '019488e0-0000-7000-8000-000000000001';
 
-/**
- * Runs `fn` as a pipeline execution whose CASL ability is `rules`. A real pipeline
- * run also sets @cqrs-ddd/core's tenant scope (`TenantScopeBehavior`).
- */
+/** Runs `fn` as a pipeline execution for `tenant-a` whose CASL ability is `rules`. */
 function asCaller<T>(
   rules: CapabilityString[],
   fn: () => Promise<T>,
@@ -45,7 +41,7 @@ function asCaller<T>(
       tenantId: 'tenant-a',
       items: new Map([[CASL_ABILITY_KEY, buildAbility(rules)]]),
     } as unknown as IPipelineContext,
-    () => runWithTenant('tenant-a', fn),
+    fn,
   );
 }
 
