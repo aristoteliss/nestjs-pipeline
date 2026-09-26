@@ -296,23 +296,23 @@ describe('RootEntity', () => {
     });
   });
 
-  describe('property setters and persistence acknowledgment', () => {
-    it('sets and normalizes id, createdAt, and updatedAt', () => {
+  describe('hydration setters and persistence acknowledgment', () => {
+    it('keeps the id, createdAt and updatedAt setters private and normalizes through them', () => {
       const entity = new TestEntity({ name: 'Alpha' });
       const newId = uuidv7();
-      entity.id = newId;
-      expect(entity.id).toBe(newId);
-
       const d = new Date('2026-01-01T00:00:00.000Z');
-      entity.createdAt = d;
-      expect(entity.createdAt).toEqual(d);
-      entity.createdAt = '2026-02-01T00:00:00.000Z';
-      expect(entity.createdAt).toEqual(new Date('2026-02-01T00:00:00.000Z'));
 
-      entity.updatedAt = d;
-      expect(entity.updatedAt).toEqual(d);
-      entity.updatedAt = '2026-03-01T00:00:00.000Z';
+      // MikroORM assigns hydrated values through the accessors at runtime.
+      Reflect.set(entity, 'id', newId);
+      Reflect.set(entity, 'createdAt', d);
+      Reflect.set(entity, 'updatedAt', '2026-03-01T00:00:00.000Z');
+
+      expect(entity.id).toBe(newId);
+      expect(entity.createdAt).toEqual(d);
       expect(entity.updatedAt).toEqual(new Date('2026-03-01T00:00:00.000Z'));
+      expect(() => Reflect.set(entity, 'createdAt', null)).toThrow(
+        'Date is empty.',
+      );
     });
 
     it('advances current version when acknowledged version exceeds current version', () => {
@@ -325,14 +325,16 @@ describe('RootEntity', () => {
       expect(entity.version).toBe(5);
     });
 
-    it('rejects null or undefined date with Error in setter', () => {
-      const entity = new TestEntity({ name: 'Alpha' });
-      expect(() => {
-        entity.createdAt = null as unknown as Date;
-      }).toThrow('Date is empty.');
-      expect(() => {
-        entity.createdAt = undefined as unknown as Date;
-      }).toThrow('Date is empty.');
+    it('rejects a null rehydration date with Error', () => {
+      expect(
+        () =>
+          new TestEntity({
+            name: 'Alpha',
+            id: uuidv7(),
+            createdAt: null as unknown as Date,
+            updatedAt: new Date(),
+          }),
+      ).toThrow('Date is empty.');
     });
   });
 

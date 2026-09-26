@@ -5,6 +5,7 @@ import {
   Mutable,
   RootEntity,
   type RootEntitySnapshot,
+  textRule,
 } from '@cqrs-ddd/core/domain';
 import { UserCreatedEvent } from '../events/user-created.event';
 import { UserDeletedEvent } from '../events/user-deleted.event';
@@ -21,17 +22,31 @@ export interface UserSnapshot extends Partial<RootEntitySnapshot> {
   readonly department?: string | null;
 }
 
-const USERNAME_MIN_LENGTH = 3;
-const DEPARTMENT_MIN_LENGTH = 3;
-
 export class User extends RootEntity<UserSnapshot> {
   public static readonly aggregateName = 'user';
+  public static readonly rules = {
+    username: textRule({
+      field: 'username',
+      minLength: 3,
+      maxLength: 255,
+      error: (violation) => new InvalidUsernameException(violation),
+    }),
+    department: textRule({
+      field: 'department',
+      required: false,
+      minLength: 3,
+      maxLength: 255,
+      error: (violation) => new InvalidDepartmentException(violation),
+    }),
+  } as const;
 
-  @Mutable<string>({ normalize: (value) => User.normalizeUsername(value) })
+  @Mutable<string>({
+    normalize: (value) => User.rules.username.parse(value),
+  })
   private _username: string;
 
   @Mutable<string | null>({
-    normalize: (value) => User.normalizeDepartment(value),
+    normalize: (value) => User.rules.department.parse(value),
   })
   private _department: string | null;
   readonly email: string;
@@ -44,8 +59,8 @@ export class User extends RootEntity<UserSnapshot> {
       this.email = '';
       return;
     }
-    this._username = User.normalizeUsername(snapshot.username);
-    this._department = User.normalizeDepartment(snapshot.department);
+    this._username = User.rules.username.parse(snapshot.username);
+    this._department = User.rules.department.parse(snapshot.department);
     this.email = snapshot.email;
   }
 
@@ -64,37 +79,13 @@ export class User extends RootEntity<UserSnapshot> {
   static fromJSON(snapshot: UserSnapshot): User {
     return new User({
       id: User.normalizeId(snapshot.id),
-      username: User.normalizeUsername(snapshot.username),
+      username: User.rules.username.parse(snapshot.username),
       email: snapshot.email,
-      department: User.normalizeDepartment(snapshot.department),
+      department: User.rules.department.parse(snapshot.department),
       createdAt: User.normalizeDate(snapshot.createdAt),
       updatedAt: User.normalizeDate(snapshot.updatedAt),
       version: snapshot.version ?? 1,
     });
-  }
-
-  private static normalizeUsername(username: string): string {
-    const trimmed = username?.trim();
-    if (!trimmed || trimmed.length < USERNAME_MIN_LENGTH) {
-      throw new InvalidUsernameException(USERNAME_MIN_LENGTH, username);
-    }
-    return trimmed;
-  }
-
-  private static normalizeDepartment(
-    department?: string | null,
-  ): string | null {
-    if (department === null || department === undefined) {
-      return null;
-    }
-    const trimmed = department.trim();
-    if (trimmed.length === 0) {
-      return null;
-    }
-    if (trimmed.length < DEPARTMENT_MIN_LENGTH) {
-      throw new InvalidDepartmentException(DEPARTMENT_MIN_LENGTH, department);
-    }
-    return trimmed;
   }
 
   get username(): string {
@@ -102,11 +93,11 @@ export class User extends RootEntity<UserSnapshot> {
   }
 
   /**
-   * @internal For MikroORM persistence hydration only.
-   * Application code changes aggregate state through domain methods and factories, never through this setter.
+   * For MikroORM hydration only (`accessor: true`). Private, so application code
+   * cannot assign it and changes state through domain methods and factories.
    */
-  set username(value: string) {
-    this._username = User.normalizeUsername(value);
+  private set username(value: string) {
+    this._username = User.rules.username.parse(value);
   }
 
   get department(): string | null {
@@ -114,11 +105,11 @@ export class User extends RootEntity<UserSnapshot> {
   }
 
   /**
-   * @internal For MikroORM persistence hydration only.
-   * Application code changes aggregate state through domain methods and factories, never through this setter.
+   * For MikroORM hydration only (`accessor: true`). Private, so application code
+   * cannot assign it and changes state through domain methods and factories.
    */
-  set department(value: string | null) {
-    this._department = User.normalizeDepartment(value);
+  private set department(value: string | null) {
+    this._department = User.rules.department.parse(value);
   }
 
   get version(): number {
@@ -126,10 +117,10 @@ export class User extends RootEntity<UserSnapshot> {
   }
 
   /**
-   * @internal For MikroORM persistence hydration only.
-   * Application code changes aggregate state through domain methods and factories, never through this setter.
+   * For MikroORM hydration only (`accessor: true`). Private, so application code
+   * cannot assign it and changes state through domain methods and factories.
    */
-  set version(value: number) {
+  private set version(value: number) {
     if (typeof value === 'number' && Number.isInteger(value) && value > 0) {
       this._version = value;
       this._persistedVersion = value;

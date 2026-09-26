@@ -166,7 +166,9 @@ describe('CQRS Commands & Queries Runtime Error Taxonomy', () => {
             expect.objectContaining({
               statusCode: 422,
               error: 'Unprocessable Entity',
-              minLength: 3,
+              field: 'username',
+              rule: 'minLength',
+              limit: 3,
             }),
           );
         }
@@ -207,8 +209,9 @@ describe('CQRS Commands & Queries Runtime Error Taxonomy', () => {
             expect.objectContaining({
               statusCode: 422,
               error: 'Unprocessable Entity',
-              minLength: 3,
-              actualValue: 'ab',
+              field: 'department',
+              rule: 'minLength',
+              limit: 3,
             }),
           );
         }

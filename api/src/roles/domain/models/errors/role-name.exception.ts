@@ -1,5 +1,5 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
-import { DomainException } from '@cqrs-ddd/core/domain';
+import { DomainException, InvalidValueException } from '@cqrs-ddd/core/domain';
 import { Role } from '../role.entity';
 
 export class UniqueRoleNameException extends DomainException {
@@ -18,16 +18,5 @@ export class UniqueRoleNameException extends DomainException {
   }
 }
 
-export class InvalidRoleNameException extends DomainException {
-  readonly minLength: number;
-  readonly actualValue?: string | null;
-
-  constructor(minLength = 3, actualValue?: string | null, message?: string) {
-    const msg =
-      message ?? `Role name must be at least ${minLength} characters.`;
-    super(msg);
-    this.name = 'InvalidRoleNameException';
-    this.minLength = minLength;
-    this.actualValue = actualValue;
-  }
-}
+/** A role name breaks `Role.rules.name`. */
+export class InvalidRoleNameException extends InvalidValueException {}

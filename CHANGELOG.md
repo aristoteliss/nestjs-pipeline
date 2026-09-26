@@ -144,12 +144,13 @@ Added: `requires()`, `CaslAuthorizer` (`can`, `authorize`, `project`),
   pipeline or of the innermost `runWithTenant()` scope.
 - `@cqrs-ddd/core`: framework-neutral DDD building blocks (aggregates, domain events,
   `CommandBaseHandler`, repository contracts, MikroORM persistence decorators, a
-  revision-fenced repository cache, tenant-scoped cache keys and HTTP status mapping). It
-  depends on no framework: `CommandBaseHandler` takes any `IDomainEventPublisher`, the
-  cache decorators take a `logger`, and cache keys take their tenant from a resolver the
-  application registers with `setTenantResolver`. `UnixTimestampType` throws a
-  `TypeError` for a value with no valid time. `@mikro-orm/core` 7 is an optional peer,
-  needed only for `/persistence`.
+  revision-fenced repository cache, tenant-scoped cache keys, HTTP status mapping, and
+  the value rules `textRule` and `numberRule`, which throw an `InvalidValueException` or
+  an application's own subclass). It depends on no framework: `CommandBaseHandler` takes
+  any `IDomainEventPublisher`, the cache decorators take a `logger`, and cache keys take
+  their tenant from a resolver the application registers with `setTenantResolver`.
+  `UnixTimestampType` throws a `TypeError` for a value with no valid time.
+  `@mikro-orm/core` 7 is an optional peer, needed only for `/persistence`.
 - `@cqrs-ddd/uuidv7`: RFC 9562 UUIDv7 generation and validation, with no dependencies.
 - `@cqrs-ddd/safe-stringify`: a strict, key-sorted serializer for identities and a safe,
   redacting serializer for logs, with the key-segment helpers; no dependencies. Its output

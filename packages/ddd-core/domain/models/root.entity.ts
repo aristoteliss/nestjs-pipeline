@@ -15,9 +15,9 @@ import { AggregateRoot } from './aggregate-root';
  * - **Domain Event Recording**: Call `this.apply(new SomeEvent(this))` to buffer uncommitted events.
  * - **UUID v7 Identity**: Automatically generates time-ordered UUID v7 identifiers for new instances.
  * - **Lifecycle Timestamps**: Enforces invariant-checked `createdAt` and `updatedAt` tracking.
- * - **Accessor-Driven Persistence**: Exposes typed getters and setters (`id`, `createdAt`, `updatedAt`)
- *   compatible with MikroORM `accessor: true` mapping. Setters are a hydration escape hatch;
- *   application mutations must use factories/domain methods, not these setters.
+ * - **Accessor-Driven Persistence**: `id`, `createdAt` and `updatedAt` have public getters and
+ *   private setters. MikroORM hydrates through the setters (`accessor: true`); application code
+ *   cannot assign them and changes state through factories and domain methods.
  * - **Optimistic Concurrency Control**: Tracks integer aggregate versioning (`_version`, {@link getExpectedVersion}),
  *   incremented automatically on mutations to prevent concurrent lost updates.
  * - **Polymorphic Rehydration**: Static `RootEntity.from()` transparently handles instances, plain snapshots,
@@ -198,10 +198,10 @@ export abstract class RootEntity<
   }
 
   /**
-   * @internal For MikroORM persistence hydration only.
-   * Application code changes aggregate state through domain methods and factories, never through this setter.
+   * For MikroORM hydration only (`accessor: true`). Private, so application code
+   * cannot assign it and changes state through domain methods and factories.
    */
-  set id(value: string) {
+  private set id(value: string) {
     this._id = RootEntity.normalizeId(value);
   }
 
@@ -210,10 +210,10 @@ export abstract class RootEntity<
   }
 
   /**
-   * @internal For MikroORM persistence hydration only.
-   * Application code changes aggregate state through domain methods and factories, never through this setter.
+   * For MikroORM hydration only (`accessor: true`). Private, so application code
+   * cannot assign it and changes state through domain methods and factories.
    */
-  set createdAt(value: Date | string) {
+  private set createdAt(value: Date | string) {
     this._createdAt = RootEntity.normalizeDate(value);
   }
 
@@ -222,10 +222,10 @@ export abstract class RootEntity<
   }
 
   /**
-   * @internal For MikroORM persistence hydration only.
-   * Application code changes aggregate state through domain methods and factories, never through this setter.
+   * For MikroORM hydration only (`accessor: true`). Private, so application code
+   * cannot assign it and changes state through domain methods and factories.
    */
-  set updatedAt(value: Date | string) {
+  private set updatedAt(value: Date | string) {
     this._updatedAt = RootEntity.normalizeDate(value);
   }
 

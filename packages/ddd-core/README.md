@@ -16,6 +16,7 @@ application through structural compatibility: see [Using it from NestJS](#using-
 - [Installation](#installation)
 - [Entry points](#entry-points)
 - [Aggregates](#aggregates)
+- [Value rules](#value-rules)
 - [Domain events](#domain-events)
 - [Commands and event publication](#commands-and-event-publication)
 - [Write-side repositories](#write-side-repositories)
@@ -50,7 +51,7 @@ needs.
 
 | Entry | Holds | Needs at runtime |
 | --- | --- | --- |
-| `@cqrs-ddd/core/domain` | `AggregateRoot`, `RootEntity`, `@Mutable`, `@ApplyMutation`, `DomainEvent`, `RootDomainEvent`, `deepCloneAndFreeze`, and the errors `DomainException`, `EntityNotFoundException`, `ConcurrencyConflictError`, `TransientOperationError`, `MissingTenantContextError`, `UnknownMutableFieldError` | nothing |
+| `@cqrs-ddd/core/domain` | `AggregateRoot`, `RootEntity`, `@Mutable`, `@ApplyMutation`, `DomainEvent`, `RootDomainEvent`, `deepCloneAndFreeze`, `textRule`, `numberRule`, `ValueViolation`, and the errors `DomainException`, `InvalidValueException`, `EntityNotFoundException`, `ConcurrencyConflictError`, `TransientOperationError`, `MissingTenantContextError`, `UnknownMutableFieldError` | nothing |
 | `@cqrs-ddd/core/application` | `BaseCommand`, `BaseQuery`, `CommandBaseHandler`, the ports (`IDomainEventPublisher`, `ICommandRepository`, `IQueryRepository`, `IWriteSideAggregateRepository`, `ICache`, `IVersionedCache`), `requireTenantId`, `setTenantResolver` | nothing |
 | `@cqrs-ddd/core/persistence` | the lifecycle decorators, `QueryRepository`, `CommandRepository`, `MikroOrmWriteSideCommandRepository`, `optimisticUpdate`, `optimisticDelete`, `MemoryCache`, `MikroOrmCache`, the cache-key helpers, `UnixTimestampType`, `rootEntityProperties` | `@mikro-orm/core` 7 |
 | `@cqrs-ddd/core/http` | `domainErrorHttpStatus` | nothing |
@@ -66,13 +67,14 @@ declared `@Mutable`:
 ```typescript
 import {
   ApplyMutation,
-  DomainException,
+  InvalidValueException,
   Mutable,
   RootEntity,
   type RootEntitySnapshot,
+  textRule,
 } from '@cqrs-ddd/core/domain';
 
-export class InvalidUsernameException extends DomainException {}
+export class InvalidUsernameException extends InvalidValueException {}
 
 export interface UserSnapshot extends Partial<RootEntitySnapshot> {
   readonly username: string;
@@ -81,14 +83,22 @@ export interface UserSnapshot extends Partial<RootEntitySnapshot> {
 
 export class User extends RootEntity<UserSnapshot> {
   static readonly aggregateName = 'user';
+  static readonly rules = {
+    username: textRule({
+      field: 'username',
+      minLength: 3,
+      maxLength: 255,
+      error: (violation) => new InvalidUsernameException(violation),
+    }),
+  } as const;
 
-  @Mutable<string>({ normalize: (value) => User.validUsername(value) })
+  @Mutable<string>({ normalize: (value) => User.rules.username.parse(value) })
   private _username: string;
   readonly email: string;
 
   private constructor(snapshot: UserSnapshot) {
     super(snapshot);
-    this._username = User.validUsername(snapshot.username);
+    this._username = User.rules.username.parse(snapshot.username);
     this.email = snapshot.email;
   }
 
@@ -100,12 +110,6 @@ export class User extends RootEntity<UserSnapshot> {
 
   static fromJSON(snapshot: UserSnapshot): User {
     return new User(snapshot);
-  }
-
-  private static validUsername(value: string): string {
-    const trimmed = value.trim();
-    if (trimmed.length < 3) throw new InvalidUsernameException('Username too short');
-    return trimmed;
   }
 
   get username(): string {
@@ -140,9 +144,52 @@ export class User extends RootEntity<UserSnapshot> {
   instance.
 - `RootEntity.from(value)` rehydrates an instance, a snapshot or a nullish database
   result, and throws a `TypeError` for an incompatible aggregate.
-- The public setters of `id`, `createdAt` and `updatedAt` exist for ORM hydration only
-  (`@internal`), as should any a subclass adds for its own fields. Application code
-  changes state through domain methods and factories.
+- `id`, `createdAt` and `updatedAt` have public getters and private setters. The ORM
+  hydrates through the setters (see below); application code cannot assign them and
+  changes state through domain methods and factories. Give a subclass's own persisted
+  fields private setters too.
+
+## Value rules
+
+`textRule(options)` and `numberRule(options)` define the rule for one field once. The
+aggregate uses the rule's `parse(value)` to normalize the value, and other layers read
+the rule's limits, so a request schema cannot drift from the domain:
+
+```typescript
+z.string().trim().min(User.rules.username.minLength).max(User.rules.username.maxLength);
+```
+
+`parse(value)` returns the normalized value or throws the rule's error. It is a
+standalone function, and the rule is frozen.
+
+| `textRule` option | Effect |
+| --- | --- |
+| `field` | Name reported in the violation and in the default message |
+| `required` | `false` normalizes `null`, `undefined` and blank text to `null`; by default they are rejected |
+| `minLength`, `maxLength` | Length after normalization, in UTF-16 code units like Zod's `.min()` and `.max()` |
+| `pattern` | Regular expression the text must match; a `g` or `y` flag is rejected |
+| `multiline` | `true` accepts tab, line feed and carriage return inside the text |
+| `error` | Builds the error for a violation; defaults to `InvalidValueException` |
+
+Text is checked for type and unpaired surrogates, then put in Unicode NFC form and
+trimmed. Control characters are always rejected, and so are tabs and line breaks unless
+`multiline` is set.
+
+| `numberRule` option | Effect |
+| --- | --- |
+| `field`, `required`, `error` | As for `textRule` (`required: false` accepts `null` and `undefined`) |
+| `integer` | Accepts safe integers only |
+| `min`, `max` | Inclusive bounds |
+
+A number must be of type `number` and finite; a numeric string is rejected, not
+converted. An invalid option, such as `minLength` above `maxLength`, throws a
+`TypeError` when the rule is defined.
+
+A broken rule throws `error(violation)`. `violation` is a frozen `ValueViolation`:
+`{ field, rule }`, plus `limit` for a length or range rule and `expected` for a type
+rule. `InvalidValueException` carries it, builds the message (`username must be at
+least 3 characters.`), and does not keep the rejected value. Extend it for your own
+exceptions, as in the example above, so every one shares that shape.
 
 ## Domain events
 
@@ -283,7 +330,9 @@ durable persistence.
 `rootEntityProperties(columns?)` and `versionProperty(column?)` give the MikroORM
 `EntitySchema` properties every `RootEntity` needs, with timestamps stored as epoch
 milliseconds through `UnixTimestampType`. That type throws a `TypeError` for a value
-with no valid time instead of storing `NaN`.
+with no valid time instead of storing `NaN`. The properties use `accessor: true`, so
+MikroORM reads and writes them through the entity's getters and private setters, and
+queries use the public names. Map a subclass's fields the same way.
 
 ## Read-side repositories
 
@@ -399,7 +448,7 @@ stored entries stay addressable across releases.
 | `ConcurrencyConflictError` | 409 |
 | `EntityNotFoundException` | 404 |
 | `MissingTenantContextError` | 500, with a generic message: a request without a tenant is a server fault |
-| any other `DomainException` | 400 |
+| any other `DomainException`, `InvalidValueException` included | 400 |
 
 It returns `undefined` for anything else. Map your own exceptions first, then pass the
 rest to it.

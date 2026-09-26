@@ -15,7 +15,7 @@ Four entry points, and they are the boundary consumers import from:
 
 | Entry | Holds |
 | --- | --- |
-| `domain/index.ts` | `AggregateRoot`, `DomainEvent`/`RootDomainEvent`, domain exceptions, snapshot interfaces |
+| `domain/index.ts` | `AggregateRoot`, `DomainEvent`/`RootDomainEvent`, domain exceptions, value rules (`textRule`, `numberRule`, `InvalidValueException`), snapshot interfaces |
 | `application/index.ts` | `BaseCommand`, `BaseQuery`, `CommandBaseHandler`, query options |
 | `persistence/index.ts` | Repository interfaces/abstracts, `ICache`, `MemoryCache`, `optimisticUpdate`, lifecycle decorators |
 | `http/index.ts` | `domainErrorHttpStatus`: this package's errors → HTTP status, reason phrase and safe message |
@@ -34,6 +34,8 @@ application configures and extends them. This package owns:
   `persistence/mikro-orm-write-side.command-repository.ts`);
 - the tenant context error;
 - the MikroORM `IVersionedCache` adapter (`MikroOrmCache`, `CacheEntry`, in `persistence/cache/`);
+- the value rules (`textRule`, `numberRule`, `ValueViolation`, in `domain/rules/`, and
+  `InvalidValueException`);
 - the root-entity schema mapping (`rootEntityProperties`, `versionProperty`, in
   `persistence/root-entity.properties.ts`);
 - the framework-neutral mapping of this package's errors to HTTP status codes

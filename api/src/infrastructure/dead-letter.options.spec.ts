@@ -7,6 +7,7 @@ import {
   ConcurrencyConflictError,
   DomainException,
   EntityNotFoundException,
+  InvalidValueException,
   MissingTenantContextError,
   TransientOperationError,
   UnknownMutableFieldError,
@@ -71,9 +72,13 @@ type ErrorClass = abstract new (...args: never[]) => Error;
  * The application and core domain errors that are dead-lettered: base classes,
  * misconfigurations, broken invariants and failures a replay may fix. Every
  * other such error class must be in `EXPECTED_REJECTIONS`.
+ * `InvalidValueException` is a base class: the application's subclasses for
+ * caller input are rejections, and any other value violation is a broken
+ * invariant.
  */
 const CAPTURED_ERRORS: readonly ErrorClass[] = [
   DomainException,
+  InvalidValueException,
   TransientOperationError,
   UnknownMutableFieldError,
   MissingTenantContextError,
@@ -142,9 +147,30 @@ const expectedRejections: Array<[string, Error]> = [
   ],
   ['duplicate role name', new UniqueRoleNameException('admin')],
   ['empty user update', new EmptyUserUpdateException()],
-  ['short username', new InvalidUsernameException(3, 'ab')],
-  ['short department', new InvalidDepartmentException(3, 'ab')],
-  ['short role name', new InvalidRoleNameException(3, 'ab')],
+  [
+    'short username',
+    new InvalidUsernameException({
+      field: 'username',
+      rule: 'minLength',
+      limit: 3,
+    }),
+  ],
+  [
+    'short department',
+    new InvalidDepartmentException({
+      field: 'department',
+      rule: 'minLength',
+      limit: 3,
+    }),
+  ],
+  [
+    'short role name',
+    new InvalidRoleNameException({
+      field: 'name',
+      rule: 'minLength',
+      limit: 3,
+    }),
+  ],
   [
     'disabled feature',
     new FeatureDisabledError('user-registration', 'FailingCommand'),

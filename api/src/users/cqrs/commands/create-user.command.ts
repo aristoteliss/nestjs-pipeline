@@ -5,12 +5,22 @@ import { IdempotencyKeySchema } from '@common/validation/idempotency-key.schema'
 import { BaseCommand } from '@cqrs-ddd/core/application';
 import { createCommand } from '@nestjs-pipeline/zod';
 import { z } from 'zod';
+import { User } from '../../domain/models/user.entity';
 
 export class CreateUserCommand extends createCommand(
   z.object({
-    username: z.string().trim().min(3),
+    username: z
+      .string()
+      .trim()
+      .min(User.rules.username.minLength)
+      .max(User.rules.username.maxLength),
     email: EmailSchema,
-    department: z.string().trim().min(3).optional(),
+    department: z
+      .string()
+      .trim()
+      .min(User.rules.department.minLength)
+      .max(User.rules.department.maxLength)
+      .optional(),
     idempotencyKey: IdempotencyKeySchema.optional(),
   }),
   BaseCommand,

@@ -53,7 +53,7 @@ what the libraries support.
 ## Technology Stack
 
 <!-- context:generated-start technology-stack -->
-- **Languages** (file counts, excluded directories omitted): `.ts` 707, `.md` 48, `.grit` 13, `.py` 3, `.mjs` 1
+- **Languages** (file counts, excluded directories omitted): `.ts` 715, `.md` 49, `.grit` 13, `.py` 3, `.mjs` 1
 - **Runtime engines** (root `package.json`): `node` >=22.0.0, `pnpm` >=9.0.0
 - **Package manager evidence**: `pnpm-lock.yaml`.
 
@@ -130,7 +130,7 @@ editor/tooling directories are excluded (see Snapshot Metadata).
 | `packages/` | Workspace container — 16 package(s); see the workspace table below | `CLAUDE.md` |
 | `scripts/` | Dependency-free Python utilities for the agent context-management system. They are not part of the build, the test run, or the release pipeline; see .claude/README.md for the full system description. | `README.md`, `claude-context-checkpoint.py`, `update-claude-snapshot.py`, `validate-claude-context.py` |
 
-Root files: `.gitignore`, `.npmrc`, `AGENTS.md`, `CLAUDE.md`, `COMMERCIAL_LICENSE.txt`, `LICENSE`, `README.md`, `biome.json`, `package.json`, `pnpm-lock.yaml`, `pnpm-workspace.yaml`, `tsconfig.base.json`
+Root files: `.gitignore`, `.npmrc`, `AGENTS.md`, `CHANGELOG.md`, `CLAUDE.md`, `COMMERCIAL_LICENSE.txt`, `LICENSE`, `README.md`, `biome.json`, `package.json`, `pnpm-lock.yaml`, `pnpm-workspace.yaml`, `tsconfig.base.json`
 
 ### Workspace packages
 
@@ -436,7 +436,8 @@ Names only — values are never read by the generator.
 | Configuration | `process.env` only in bootstrap/infrastructure/config; application code takes ports and module options | `biome/plugins/core-environment.grit`, `api/src/common/environment/` |
 | Database access | Handlers depend on repository interfaces and tokens; ORM only in persistence adapters | `biome/plugins/handler-boundaries.grit` |
 | Validation | Zod schemas on commands/queries plus `ZodPipe` at the controller | `packages/pipeline-zod`, `src/*/cqrs/commands/*.command.ts` |
-| Aggregate mutation | Factories and domain methods only; public setters exist solely for MikroORM hydration and are `@internal` | `biome/plugins/aggregate-identity.grit`, `packages/ddd-core/domain/models/aggregate-root.ts` |
+| Aggregate mutation | Factories and domain methods only; aggregate setters are `private` and exist only for MikroORM hydration | `biome/plugins/aggregate-identity.grit`, `packages/ddd-core/domain/models/aggregate-root.ts` |
+| Field value constraints | Declared once as `textRule`/`numberRule` in the aggregate's static `rules`; request schemas read their limits; value exceptions extend `InvalidValueException` | `packages/ddd-core/domain/rules/`, `api/src/users/domain/models/user.entity.ts` |
 | Formatting | Biome, 2-space indent, single quotes | `biome.json` |
 | Type checking | `tsc --noEmit` per workspace, strict + `noUnusedLocals`/`noUnusedParameters`/`noImplicitReturns` | `tsconfig.base.json`, package `lint` scripts |
 | Licensing | Every `packages/**/*.ts` starts with the repository copyright header | `biome/plugins/package-licenses.grit` |
@@ -611,7 +612,7 @@ secret value.*
 - **`optimisticUpdate` rejects outer transactions.** `em.isInTransaction()` makes it throw,
   because acknowledgment and cache eviction must happen at commit time
   (`packages/ddd-core/persistence/optimistic-update.ts`).
-- **The aggregate setter lint is naming-based only.** `biome/plugins/aggregate-identity.grit`
+- **The aggregate property-write lint is naming-based only.** `biome/plugins/aggregate-identity.grit`
   matches receivers literally named `user`, `role`, `aggregate`, `entity`. Aliases, types,
   destructuring and dynamic keys are outside its coverage — domain-method mutation is still
   mandatory where the lint cannot see.
@@ -662,13 +663,13 @@ secret value.*
 ## Snapshot Metadata
 
 <!-- context:generated-start metadata -->
-- Generated at: 2026-09-25T13:58:43Z
-- Git commit: 629cdccbaea9348d757f3d1d7626dfa9157fa63e
+- Generated at: 2026-09-26T04:33:56Z
+- Git commit: 8fb50f30c2d56e9faf55672562fb0da350321d2e
 - Git branch: publish
 - Uncommitted changes when generated: yes
 - Generator: `scripts/update-claude-snapshot.py` version 1.0.0
 - Snapshot status: generated — structural inspection only, no code executed
-- Files inspected: 837
+- Files inspected: 846
 - Included top-level directories: `.agents`, `.claude`, `api`, `biome`, `integration`, `packages`, `scripts`
 - Excluded directory names: `.cache`, `.git`, `.gradle`, `.idea`, `.mypy_cache`, `.next`, `.nuxt`, `.parcel-cache`, `.pnpm-store`, `.pytest_cache`, `.ruff_cache`, `.svelte-kit`, `.terraform`, `.tmp`, `.tox`, `.turbo`, `.venv`, `.vscode`, `__pycache__`, `bower_components`, `build`, `coverage`, `dist`, `node_modules`, `out`, `target`, `vendor`, `venv`, `virtualenv`
 - Excluded file patterns: `.env`, `.env.*`, `*.env`, `*.pem`, `*.key`, `*.pfx`, `*.p12`, `*.jks`, `*.keystore`, `id_rsa*`, `id_ed25519*`, `*credentials*`, `*.secret`, `secrets.*`

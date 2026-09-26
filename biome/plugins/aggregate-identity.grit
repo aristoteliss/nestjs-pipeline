@@ -14,5 +14,5 @@ or {
   },
   $aggregate <: r"^(?:user|role|aggregate|entity)$",
   $property <: r"^[\"']?(?:id|createdAt|updatedAt|version|username|department|name)[\"']?$",
-  register_diagnostic(span=$mutation, message="Do not assign aggregate properties directly via setters. Use domain methods or factories. For a DTO, use a DTO-specific receiver name.", severity="error")
+  register_diagnostic(span=$mutation, message="Do not assign aggregate properties directly. Use domain methods or factories. For a DTO, use a DTO-specific receiver name.", severity="error")
 }

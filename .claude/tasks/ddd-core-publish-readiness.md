@@ -1026,6 +1026,14 @@ doc. No caller used the override or the default. Verified: `api` 719 tests,
 `api/src/roles/domain/models/errors/role-name.exception.ts` has the same unused `message`
 parameter and `minLength = 3` default.
 
+C2 follow-up done (2026-09-25, owner request): the length rules are a static `rules`
+object on each entity (`User.rules.usernameMinLength`, `User.rules.departmentMinLength`,
+`Role.rules.nameMinLength`), and the entity, the four command schemas and the three
+create/update DTO schemas read from it instead of the literal `3`. `InvalidRoleNameException`
+takes a required `minLength` and no `message`. `UniqueRoleNameException` still has an
+unused `message` parameter. Verified: `api` typecheck exit 0, `api` 838 tests, `pnpm test:e2e`
+192 tests, `pnpm lint:persistence` and Biome on the changed files exit 0.
+
 ##### Group D. Decisions for the owner
 
 **D1. The list of "normal" errors for the dead-letter queue**
@@ -1250,6 +1258,38 @@ Totals: 27 history comments (A), 2 banner groups (B), 2 code fixes (C), 5 decisi
   in the same order, with no private workspace. Publish from branch `publish` at the
   commit that records this rerun. When the release
   is out, move anything durable out of this file and delete it (CLAUDE.md).
+
+### Value rules (owner request after E4, before publishing)
+
+The users-api entities repeat one text check (trim, minimum length, own exception) in
+`normalizeName`, `normalizeUsername` and `normalizeDepartment`. The owner asked for one
+reusable, parameterized rule in `@cqrs-ddd/core`, for text and for numbers (minimum,
+maximum, own exceptions), usable by any consumer of the library.
+
+- [x] V1. `@cqrs-ddd/core/domain`: `textRule()` and `numberRule()` build a frozen rule
+  (its options plus `parse(value)`, which returns the normalized value or throws); `ValueViolation` describes the broken rule;
+  `InvalidValueException` is the default error, and an `error` factory lets an
+  application throw its own subclass. Text: `null`/blank to `null` when not required,
+  NFC, trim, rejects control characters and unpaired surrogates, `minLength`,
+  `maxLength`, `pattern` (no `g`/`y` flag). Numbers: finite, `integer` (safe integer),
+  `min`, `max`, `null` when not required. Invalid options throw a `TypeError` at
+  definition.
+- [x] V2. users-api: `User.rules`, `Role.rules` and `Auth.rules` hold the rules; the three
+  `Invalid…Exception` classes extend `InvalidValueException`; `maxLength` matches the
+  column (`varchar(255)` username and department, `varchar(128)` role name); Zod schemas
+  read `minLength`/`maxLength` from the rules; the filter answers 422 with the
+  violation's `field`, `rule` and `limit`.
+- [x] V3. Core README, `CHANGELOG.md`, architecture skill, codebase map.
+- [x] V4. Full verification and commit. `normalize` on a rule was renamed `parse` at the
+  owner's request (it validates and returns the normalized value, like Zod's `parse`);
+  `@Mutable`'s `normalize` option keeps its name. `EntityNotFoundException` was checked:
+  it is defined only in `@cqrs-ddd/core` and mapped to 404 by `domainErrorHttpStatus()`.
+
+  Results (2026-09-26): `pnpm check`, `pnpm lint:persistence`, `pnpm lint` clean;
+  `pnpm test` exit 0 (core 518, users-api 841, 100% coverage); `pnpm test:e2e` 192 tests
+  in 35 files; `pnpm test:release` passed (core root entry 56 exports, `/persistence` 32);
+  `pnpm context:validate` 58 passed.
+- [ ] V5. Pre-publish refresh: rerun E1–E3 on the final commit and update E4's handover.
 
 ## Decisions
 

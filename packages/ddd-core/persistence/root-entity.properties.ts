@@ -14,9 +14,9 @@ export interface RootEntityColumns {
 
 /**
  * Identity and timestamp columns shared by every `RootEntity` schema, mapped
- * through the entity's hydration accessors (`accessor: true`). Timestamps are
- * stored as epoch milliseconds through {@link UnixTimestampType}. Returns fresh
- * property definitions for each schema.
+ * through the entity's private hydration setters (`accessor: true`). Timestamps
+ * are stored as epoch milliseconds through {@link UnixTimestampType}. Returns
+ * fresh property definitions for each schema.
  *
  * @param columns - Column names that differ from the defaults.
  *

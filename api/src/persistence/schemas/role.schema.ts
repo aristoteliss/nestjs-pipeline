@@ -11,9 +11,9 @@ import { Role } from '../../roles/domain/models/role.entity';
 /**
  * MikroORM EntitySchema for the {@link Role} aggregate root.
  *
- * Employs official MikroORM `accessor: true` mappings for encapsulated properties
- * (`id`, `createdAt`, `updatedAt`, `name`). This allows MikroORM to interact with the
- * aggregate through public getters and setters without violating domain boundary encapsulation.
+ * `name` and `version` map through the aggregate's private hydration setters
+ * (`accessor: true`, like `rootEntityProperties()`): MikroORM assigns them on load, and
+ * application code, which cannot, changes state through domain methods.
  */
 export const RoleSchema = new EntitySchema<Role, AggregateRoot>({
   // biome-ignore lint/suspicious/noExplicitAny: MikroORM schema requires a public constructor; Role hides its constructor to enforce domain invariants.

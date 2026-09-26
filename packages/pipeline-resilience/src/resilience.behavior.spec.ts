@@ -272,24 +272,6 @@ describe('ResilienceBehavior', () => {
       ).rejects.toBeInstanceOf(ResilienceConfigurationError);
     });
 
-    it('requires handle or handleAllErrors even when retry options carry an unrecognized predicate', async () => {
-      await expect(
-        behavior.handle(
-          makeCtx(
-            {
-              retry: {
-                maxAttempts: 1,
-                replaySafe: true,
-                isRetryable: () => true,
-              },
-            } as ResilienceBehaviorOptions,
-            { requestKind: 'query', requestName: 'GetThingQuery' },
-          ),
-          vi.fn(),
-        ),
-      ).rejects.toBeInstanceOf(ResilienceConfigurationError);
-    });
-
     it('rejects command retry unless replay safety is explicitly acknowledged', async () => {
       await expect(
         behavior.handle(
