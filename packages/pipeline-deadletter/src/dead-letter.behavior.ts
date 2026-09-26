@@ -10,9 +10,13 @@ import {
 import {
   createPipelineItem,
   type IPipelineBehavior,
+  type IPipelineBehaviorContract,
   type IPipelineContext,
   LOGGING_BEHAVIOR_LOGGER,
   type NextDelegate,
+  PIPELINE_BEHAVIOR_CONTRACT,
+  type PipelineBehaviorDiagnostic,
+  type PipelineBehaviorValidationContext,
   type PipelineItemToken,
   setPipelineItem,
 } from '@nestjs-pipeline/core';
@@ -21,8 +25,19 @@ import {
   DEAD_LETTER_TRANSPORT,
 } from './constants/tokens';
 import { buildDeadLetterRecord } from './helpers/build-record';
+import { currentRedriveId } from './helpers/redrive-scope';
 import type { DeadLetterBehaviorOptions } from './interfaces/dead-letter-options.interface';
-import type { DeadLetterTransport } from './interfaces/dead-letter-transport.interface';
+import type {
+  DeadLetterRequestKind,
+  DeadLetterTransport,
+} from './interfaces/dead-letter-transport.interface';
+
+/**
+ * Kinds captured when `captureKinds` is omitted: events. A command's or a
+ * query's caller already receives the error; an event handler's failure has
+ * no caller to receive it.
+ */
+const DEFAULT_CAPTURE_KINDS: readonly DeadLetterRequestKind[] = ['event'];
 
 /**
  * Unique symbol key set on `context.items` to `true` or `false` recording whether
@@ -68,6 +83,27 @@ export const DEAD_LETTER_ITEM_TOKEN: PipelineItemToken<boolean> =
  */
 @Injectable()
 export class DeadLetterBehavior implements IPipelineBehavior {
+  static readonly [PIPELINE_BEHAVIOR_CONTRACT]: IPipelineBehaviorContract = {
+    validate: (
+      context: PipelineBehaviorValidationContext,
+    ): PipelineBehaviorDiagnostic[] | undefined => {
+      const options = context.effectiveOptions as
+        | DeadLetterBehaviorOptions
+        | undefined;
+      if (options?.rethrow !== false || context.requestKind === 'event') {
+        return undefined;
+      }
+      return [
+        {
+          handlerName: context.handlerName,
+          behaviorName: DeadLetterBehavior.name,
+          message: `rethrow: false on a ${context.requestKind} handler would answer its caller with undefined instead of the error`,
+          fix: 'Remove rethrow: false; swallowing a captured error is allowed on event handlers only.',
+        },
+      ];
+    },
+  };
+
   private readonly logger: LoggerService;
   private readonly defaults: DeadLetterBehaviorOptions;
 
@@ -94,43 +130,58 @@ export class DeadLetterBehavior implements IPipelineBehavior {
     try {
       return await next();
     } catch (error) {
+      // A redrive records its own attempt on the existing record, and must see
+      // the failure: never capture it again, never swallow it.
+      if (currentRedriveId() !== undefined) throw error;
+
       const options = this.resolveOptions(context);
       const shouldCapture = this.shouldCapture(context, options, error);
-      let captured = false;
+      let recordId: string | undefined;
 
       if (shouldCapture) {
-        captured = await this.capture(context, error, options);
-        setPipelineItem(context, DEAD_LETTER_ITEM_TOKEN, captured);
+        recordId = await this.capture(context, error, options);
+        setPipelineItem(
+          context,
+          DEAD_LETTER_ITEM_TOKEN,
+          recordId !== undefined,
+        );
       }
 
       // Excluding a request kind or ignoring an error means this behavior is inactive
       // for that failure; it must not silently swallow an error it did not capture.
-      if ((options.rethrow ?? true) || !shouldCapture || !captured) throw error;
+      // Only an event's error is ever swallowed: a command or query has a caller.
+      if (
+        (options.rethrow ?? true) ||
+        context.requestKind !== 'event' ||
+        recordId === undefined
+      ) {
+        throw error;
+      }
 
-      this.logger.warn?.(
+      this.logger.error?.(
         `Dead-lettered and swallowed ${context.requestName} ` +
-          `(correlationId: ${context.correlationId})`,
+          `(correlationId: ${context.correlationId}, deadLetterId: ${recordId})`,
         DeadLetterBehavior.name,
       );
       return undefined;
     }
   }
 
-  /** Forwards the failed request and reports whether transport delivery succeeded. */
+  /** Forwards the failed request; returns the record id once the transport has it. */
   private async capture(
     context: IPipelineContext,
     error: unknown,
     options: DeadLetterBehaviorOptions,
-  ): Promise<boolean> {
+  ): Promise<string | undefined> {
     try {
       const record = buildDeadLetterRecord(context, error, options);
       await this.transport.send(record);
       this.logger.warn?.(
         `Dead-lettered ${context.requestKind} ${context.requestName} ` +
-          `(correlationId: ${context.correlationId})`,
+          `(correlationId: ${context.correlationId}, deadLetterId: ${record.id})`,
         DeadLetterBehavior.name,
       );
-      return true;
+      return record.id;
     } catch (transportError) {
       // The sink failing must never hide the real handler error: log and move on.
       this.logger.error?.(
@@ -138,7 +189,7 @@ export class DeadLetterBehavior implements IPipelineBehavior {
           `${transportError instanceof Error ? transportError.message : transportError}`,
         DeadLetterBehavior.name,
       );
-      return false;
+      return undefined;
     }
   }
 
@@ -148,10 +199,8 @@ export class DeadLetterBehavior implements IPipelineBehavior {
     options: DeadLetterBehaviorOptions,
     error: unknown,
   ): boolean {
-    if (
-      options.captureKinds &&
-      !options.captureKinds.includes(context.requestKind)
-    ) {
+    const captureKinds = options.captureKinds ?? DEFAULT_CAPTURE_KINDS;
+    if (!captureKinds.includes(context.requestKind)) {
       return false;
     }
 

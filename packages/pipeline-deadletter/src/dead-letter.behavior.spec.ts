@@ -1,6 +1,10 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import type { IPipelineContext } from '@nestjs-pipeline/core';
+import {
+  type IPipelineBehaviorContract,
+  type IPipelineContext,
+  PIPELINE_BEHAVIOR_CONTRACT,
+} from '@nestjs-pipeline/core';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { DEAD_LETTER_ITEM, DeadLetterBehavior } from './dead-letter.behavior';
 import type { DeadLetterBehaviorOptions } from './interfaces/dead-letter-options.interface';
@@ -20,7 +24,7 @@ function makeCtx(overrides: Partial<IPipelineContext> = {}): IPipelineContext {
     requestName: 'TestCommand',
     handlerType: class TestHandler {},
     handlerName: 'TestHandler',
-    requestKind: 'command',
+    requestKind: 'event',
     startedAt: new Date('2026-01-01T00:00:00.000Z'),
     response: undefined,
     items: new Map(),
@@ -62,7 +66,7 @@ describe('DeadLetterBehavior', () => {
 
     expect(logger.setContext).not.toHaveBeenCalled();
     expect(logger.warn).toHaveBeenCalledWith(
-      expect.stringContaining('Dead-lettered command TestCommand'),
+      expect.stringContaining('Dead-lettered event TestCommand'),
       DeadLetterBehavior.name,
     );
   });
@@ -90,7 +94,7 @@ describe('DeadLetterBehavior', () => {
     const record = send.mock.calls[0][0] as DeadLetterRecord;
     expect(record).toMatchObject({
       correlationId: 'corr-123',
-      requestKind: 'command',
+      requestKind: 'event',
       requestName: 'TestCommand',
       handlerName: 'TestHandler',
       payload: { id: 1 },
@@ -489,6 +493,91 @@ describe('DeadLetterBehavior', () => {
         behavior.handle(ctx, vi.fn().mockRejectedValue(new ErrorC('c'))),
       ).rejects.toThrow('c');
       expect(send).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  it('captures only events when captureKinds is omitted', async () => {
+    const behavior = new DeadLetterBehavior(transport);
+
+    for (const requestKind of ['command', 'query'] as const) {
+      await expect(
+        behavior.handle(
+          makeCtx({ requestKind }),
+          vi.fn().mockRejectedValue(new Error('caller sees it')),
+        ),
+      ).rejects.toThrow('caller sees it');
+    }
+    expect(send).not.toHaveBeenCalled();
+  });
+
+  it('never swallows a captured command error, even with rethrow=false', async () => {
+    const behavior = new DeadLetterBehavior(transport);
+    const ctx = withOptions(makeCtx({ requestKind: 'command' }), {
+      captureKinds: ['command'],
+      rethrow: false,
+    });
+
+    await expect(
+      behavior.handle(ctx, vi.fn().mockRejectedValue(new Error('failed'))),
+    ).rejects.toThrow('failed');
+    expect(send).toHaveBeenCalledOnce();
+  });
+
+  it('logs a swallowed event at error level with the record id', async () => {
+    const logger = { warn: vi.fn(), error: vi.fn() };
+    const behavior = new DeadLetterBehavior(
+      transport,
+      undefined,
+      logger as never,
+    );
+
+    await behavior.handle(
+      withOptions(makeCtx(), { rethrow: false }),
+      vi.fn().mockRejectedValue(new Error('failed')),
+    );
+
+    const record = send.mock.calls[0]?.[0] as DeadLetterRecord;
+    expect(logger.error).toHaveBeenCalledWith(
+      `Dead-lettered and swallowed TestCommand (correlationId: corr-123, deadLetterId: ${record.id})`,
+      DeadLetterBehavior.name,
+    );
+  });
+
+  describe('PIPELINE_BEHAVIOR_CONTRACT', () => {
+    const contract = (
+      DeadLetterBehavior as unknown as Record<symbol, IPipelineBehaviorContract>
+    )[PIPELINE_BEHAVIOR_CONTRACT];
+    const validate = (
+      requestKind: 'command' | 'query' | 'event',
+      effectiveOptions: DeadLetterBehaviorOptions | undefined,
+    ) =>
+      contract?.validate?.({
+        handlerType: class TestHandler {},
+        handlerName: 'TestHandler',
+        requestKind,
+        declarationSource: 'handler',
+        effectiveOptions: effectiveOptions as
+          | Record<string, unknown>
+          | undefined,
+        handlerOptions: effectiveOptions as Record<string, unknown> | undefined,
+        globalOptions: undefined,
+        effectiveBehaviorTypes: [DeadLetterBehavior],
+      });
+
+    it('rejects rethrow: false on a command or query handler', () => {
+      for (const requestKind of ['command', 'query'] as const) {
+        const diagnostics = validate(requestKind, { rethrow: false });
+        expect(diagnostics).toHaveLength(1);
+        expect(diagnostics?.[0].message).toBe(
+          `rethrow: false on a ${requestKind} handler would answer its caller with undefined instead of the error`,
+        );
+      }
+    });
+
+    it('accepts rethrow: false on an event handler, and any handler without it', () => {
+      expect(validate('event', { rethrow: false })).toBeUndefined();
+      expect(validate('command', {})).toBeUndefined();
+      expect(validate('command', undefined)).toBeUndefined();
     });
   });
 });

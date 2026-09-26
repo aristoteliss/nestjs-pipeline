@@ -11,6 +11,18 @@ describe('resilience intent builder', () => {
       retry: { maxAttempts: string };
     }>().not.toExtend<ResilienceIntentOptions>();
   });
+
+  it('offers no circuit breaker or fallback, which belong to named policies', () => {
+    expectTypeOf<{
+      circuitBreaker: {
+        halfOpenAfter: number;
+        breaker: { type: 'consecutive'; threshold: number };
+      };
+    }>().not.toExtend<ResilienceIntentOptions>();
+    expectTypeOf<{
+      fallback: { value: unknown };
+    }>().not.toExtend<ResilienceIntentOptions>();
+  });
   it('creates entry with retry options', () => {
     const entry = resilience({
       retry: { maxAttempts: 3, replaySafe: true },

@@ -123,4 +123,46 @@ describe('buildDeadLetterRecord', () => {
     expect(record.tenantId).toBe('tenant-99');
     expect(record.metadata).toEqual({ tenantId: 'tenant-99' });
   });
+
+  it('flags whether redaction changed the payload, through maps and cycles', () => {
+    const context = (request: unknown) =>
+      ({
+        correlationId: 'c',
+        requestKind: 'event',
+        requestName: 'E',
+        handlerName: 'H',
+        request,
+      }) as never;
+    const cyclic: Record<string, unknown> = { name: 'n' };
+    cyclic.self = cyclic;
+
+    expect(
+      buildDeadLetterRecord(context({ name: 'n' }), new Error('e')),
+    ).toMatchObject({
+      attempts: 0,
+      status: 'open',
+      payloadRedacted: false,
+    });
+    expect(
+      buildDeadLetterRecord(context(cyclic), new Error('e')).payloadRedacted,
+    ).toBe(false);
+    expect(
+      buildDeadLetterRecord(context({ password: 'p' }), new Error('e'))
+        .payloadRedacted,
+    ).toBe(true);
+    expect(
+      buildDeadLetterRecord(
+        context(new Map([['k', { token: 't' }]])),
+        new Error('e'),
+      ).payloadRedacted,
+    ).toBe(true);
+    expect(
+      buildDeadLetterRecord(context({ name: 'n' }), new Error('e'), {
+        redact: (payload) => payload,
+      }).payloadRedacted,
+    ).toBe(true);
+    expect(buildDeadLetterRecord(context({}), new Error('e')).id).toMatch(
+      /^[0-9a-f-]{36}$/,
+    );
+  });
 });

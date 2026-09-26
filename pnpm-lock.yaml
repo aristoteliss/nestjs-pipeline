@@ -296,6 +296,9 @@ importers:
       '@cqrs-ddd/safe-stringify':
         specifier: workspace:^
         version: link:../safe-stringify
+      '@cqrs-ddd/uuidv7':
+        specifier: workspace:^
+        version: link:../uuidv7
     devDependencies:
       '@nestjs-pipeline/core':
         specifier: workspace:*
@@ -401,6 +404,9 @@ importers:
       '@cqrs-ddd/safe-stringify':
         specifier: workspace:^
         version: link:../safe-stringify
+      '@cqrs-ddd/uuidv7':
+        specifier: workspace:^
+        version: link:../uuidv7
     devDependencies:
       '@nestjs-pipeline/core':
         specifier: workspace:*

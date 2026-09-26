@@ -1,14 +1,22 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import {
+  getPipelineItem,
   type IPipelineContext,
   PIPELINE_BEHAVIOR_CONTRACT,
   type PipelineBehaviorValidationContext,
 } from '@nestjs-pipeline/core';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { AUDIT_RECORD_ITEM, AuditBehavior } from './audit.behavior';
+import {
+  AUDIT_RECORD_ITEM,
+  AUDIT_START_RECORD_ITEM_TOKEN,
+  AuditBehavior,
+} from './audit.behavior';
 import type { AuditBehaviorOptions } from './interfaces/audit-options.interface';
-import type { AuditRecord } from './interfaces/audit-record.interface';
+import type {
+  AuditRecord,
+  AuditStartRecord,
+} from './interfaces/audit-record.interface';
 import type { AuditSink } from './interfaces/audit-sink.interface';
 
 const write = vi.fn();
@@ -249,11 +257,41 @@ describe('AuditBehavior', () => {
     const behavior = new AuditBehavior(sink);
 
     await behavior.handle(
-      makeCtx({ requestKind: 'query', requestName: 'GetUserQuery' }),
+      withOptions(
+        makeCtx({ requestKind: 'query', requestName: 'GetUserQuery' }),
+        { captureKinds: ['query'] },
+      ),
       vi.fn().mockResolvedValue('ok'),
     );
 
     expect(lastRecord().severity).toBe('low');
+  });
+
+  it('audits only commands when captureKinds is omitted', async () => {
+    const behavior = new AuditBehavior(sink);
+
+    for (const requestKind of ['query', 'event', 'unknown'] as const) {
+      const next = vi.fn().mockResolvedValue('ok');
+      await expect(
+        behavior.handle(makeCtx({ requestKind }), next),
+      ).resolves.toBe('ok');
+      expect(next).toHaveBeenCalledOnce();
+    }
+    expect(write).not.toHaveBeenCalled();
+
+    await behavior.handle(makeCtx(), vi.fn().mockResolvedValue('ok'));
+    expect(lastRecord().requestKind).toBe('command');
+  });
+
+  it('audits the kinds listed in the module defaults', async () => {
+    const behavior = new AuditBehavior(sink, { captureKinds: ['query'] });
+
+    await behavior.handle(
+      makeCtx({ requestKind: 'query' }),
+      vi.fn().mockResolvedValue('ok'),
+    );
+
+    expect(lastRecord().requestKind).toBe('query');
   });
 
   it('honors extra redactKeys merged with the defaults', async () => {
@@ -526,6 +564,155 @@ describe('AuditBehavior', () => {
       expect(logger.warn).toHaveBeenCalledWith(
         expect.stringContaining('failing open'),
         'AuditBehavior',
+      );
+    });
+  });
+
+  describe('with a sink that records the start', () => {
+    const begin = vi.fn();
+    const startingSink: AuditSink = { write, begin };
+    const logger = { warn: vi.fn(), error: vi.fn() };
+
+    beforeEach(() => {
+      begin.mockReset();
+      logger.warn.mockReset();
+      logger.error.mockReset();
+    });
+
+    it('writes a pending start record before the handler and the final record under its id', async () => {
+      const behavior = new AuditBehavior(startingSink);
+      const ctx = makeCtx();
+      let pendingDuringHandler: AuditStartRecord | undefined;
+      const next = vi.fn().mockImplementation(async () => {
+        expect(begin).toHaveBeenCalledOnce();
+        expect(write).not.toHaveBeenCalled();
+        pendingDuringHandler = getPipelineItem(
+          ctx,
+          AUDIT_START_RECORD_ITEM_TOKEN,
+        );
+        return 'ok';
+      });
+
+      await expect(behavior.handle(ctx, next)).resolves.toBe('ok');
+
+      const start = begin.mock.calls[0]?.[0] as AuditStartRecord;
+      expect(start).toMatchObject({
+        outcome: 'pending',
+        requestName: 'CreateUserCommand',
+        payload: { username: 'jane', password: '[REDACTED]' },
+      });
+      expect(start).not.toHaveProperty('durationMs');
+      expect(pendingDuringHandler).toBe(start);
+      expect(lastRecord()).toMatchObject({ id: start.id, outcome: 'success' });
+    });
+
+    it('completes the start record as a failure when the handler throws', async () => {
+      const behavior = new AuditBehavior(startingSink);
+      const failure = new Error('handler failed');
+
+      await expect(
+        behavior.handle(makeCtx(), vi.fn().mockRejectedValue(failure)),
+      ).rejects.toBe(failure);
+
+      const start = begin.mock.calls[0]?.[0] as AuditStartRecord;
+      expect(lastRecord()).toMatchObject({ id: start.id, outcome: 'failure' });
+    });
+
+    it('skips the start record when recordStart is false', async () => {
+      const behavior = new AuditBehavior(startingSink, { recordStart: false });
+
+      await behavior.handle(makeCtx(), vi.fn().mockResolvedValue('ok'));
+
+      expect(begin).not.toHaveBeenCalled();
+      expect(write).toHaveBeenCalledOnce();
+    });
+
+    it('runs the handler and writes the final record when the start write fails open', async () => {
+      begin.mockRejectedValueOnce(new Error('audit db down'));
+      const behavior = new AuditBehavior(
+        startingSink,
+        undefined,
+        logger as never,
+      );
+      const next = vi.fn().mockResolvedValue('ok');
+
+      await expect(behavior.handle(makeCtx(), next)).resolves.toBe('ok');
+
+      expect(next).toHaveBeenCalledOnce();
+      expect(write).toHaveBeenCalledOnce();
+      expect(logger.warn).toHaveBeenCalledWith(
+        'Failed to write audit start record for CreateUserCommand (correlationId: corr-123): audit db down; failing open',
+        AuditBehavior.name,
+      );
+    });
+
+    it('stops the request before its handler when the start write fails closed', async () => {
+      begin.mockRejectedValueOnce('audit db down');
+      const behavior = new AuditBehavior(
+        startingSink,
+        undefined,
+        logger as never,
+      );
+      const next = vi.fn();
+
+      await expect(
+        behavior.handle(withOptions(makeCtx(), { failOpen: false }), next),
+      ).rejects.toBe('audit db down');
+
+      expect(next).not.toHaveBeenCalled();
+      expect(write).not.toHaveBeenCalled();
+      expect(logger.error).toHaveBeenCalledWith(
+        'Failed to write audit start record for CreateUserCommand (correlationId: corr-123): audit db down; failing closed',
+        AuditBehavior.name,
+      );
+    });
+
+    it('stops the request before its handler when the start record cannot be built and fails closed', async () => {
+      const behavior = new AuditBehavior(
+        startingSink,
+        undefined,
+        logger as never,
+      );
+      const next = vi.fn();
+      const ctx = withOptions(makeCtx(), {
+        failOpen: false,
+        actor: () => {
+          throw 'identity provider down';
+        },
+      });
+
+      await expect(behavior.handle(ctx, next)).rejects.toBe(
+        'identity provider down',
+      );
+
+      expect(begin).not.toHaveBeenCalled();
+      expect(next).not.toHaveBeenCalled();
+      expect(logger.error).toHaveBeenCalledWith(
+        'Failed to build audit start record for CreateUserCommand: identity provider down; failing closed',
+        AuditBehavior.name,
+      );
+    });
+
+    it('runs the handler when the start record cannot be built and fails open', async () => {
+      const behavior = new AuditBehavior(
+        startingSink,
+        undefined,
+        logger as never,
+      );
+      const next = vi.fn().mockResolvedValue('ok');
+      const ctx = withOptions(makeCtx(), {
+        actor: () => {
+          throw new Error('identity provider down');
+        },
+      });
+
+      await expect(behavior.handle(ctx, next)).resolves.toBe('ok');
+
+      expect(begin).not.toHaveBeenCalled();
+      expect(next).toHaveBeenCalledOnce();
+      expect(logger.warn).toHaveBeenCalledWith(
+        'Failed to build audit start record for CreateUserCommand: identity provider down; failing open',
+        AuditBehavior.name,
       );
     });
   });

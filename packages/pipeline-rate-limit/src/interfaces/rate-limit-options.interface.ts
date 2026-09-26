@@ -15,6 +15,12 @@ import type { RateLimiterLike } from './rate-limiter.interface';
 export type RateLimitKeyFactory = (context: IPipelineContext) => string;
 
 /**
+ * Computes the points a request costs from the pipeline context — e.g. one
+ * point per item of a bulk command. Must return a non-negative safe integer.
+ */
+export type RateLimitCostFactory = (context: IPipelineContext) => number;
+
+/**
  * Per-handler (and module-default) options for {@link RateLimitBehavior}.
  *
  * @example Tenant + caller scoped limit
@@ -31,8 +37,17 @@ export type RateLimitKeyFactory = (context: IPipelineContext) => string;
  * ```
  */
 export interface RateLimitBehaviorOptions {
-  /** Positive safe-integer points this request costs. Default `1`. */
-  points?: number;
+  /**
+   * Points this request costs: a non-negative safe integer, or a
+   * {@link RateLimitCostFactory} computing it per request. `0` charges
+   * nothing: the limiter is not called and no key is built. Default `1`.
+   *
+   * @example One point per imported row
+   * ```ts
+   * points: (ctx) => (ctx.request as ImportUsersCommand).rows.length
+   * ```
+   */
+  points?: number | RateLimitCostFactory;
   /**
    * Builds the bucket key. Required whenever the behavior executes; there is
    * no implicit shared bucket. Prefer `createPartitionedRateLimitKeyFactory`

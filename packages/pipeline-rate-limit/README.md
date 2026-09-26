@@ -5,12 +5,15 @@
 
 Rate-limiting behavior for `@nestjs-pipeline/core` — consumes points from a bucket before a command, query, or event handler runs, and throws `RateLimitExceededError` (→ HTTP `429`) when the bucket is exhausted.
 
+It limits a **command**, not an HTTP route: the same limit applies wherever the command is dispatched from — an HTTP controller, a queue worker, gRPC, a scheduled job — keyed by tenant, caller or any field of the command. See [When to use this, and when `@nestjs/throttler`](#when-to-use-this-and-when-nestjsthrottler).
+
 Backend-agnostic: it depends only on a tiny `RateLimiterLike` interface, satisfied by every [`rate-limiter-flexible`](https://www.npmjs.com/package/rate-limiter-flexible) backend — **memory**, **Redis/Valkey**, **Mongo**, **Postgres**, **MySQL**. The interface is typed *structurally*, so this package adds **zero heavy dependencies**; you pass your own limiter. Don't hand-roll distributed rate limiting — `rate-limiter-flexible` gives you atomic counters and race-free windows.
 
 ---
 
 ## Table of Contents
 
+- [When to use this, and when `@nestjs/throttler`](#when-to-use-this-and-when-nestjsthrottler)
 - [Why rate-limiter-flexible](#why-rate-limiter-flexible)
 - [Installation](#installation)
 - [Setup](#setup)
@@ -18,11 +21,65 @@ Backend-agnostic: it depends only on a tiny `RateLimiterLike` interface, satisfi
 - [Behavior](#behavior)
 - [Configuration](#configuration)
 - [Keying strategy](#keying-strategy)
+- [Cost per command](#cost-per-command)
 - [HTTP 429 filter](#http-429-filter)
 - [Fail-open vs fail-closed](#fail-open-vs-fail-closed)
 - [Behavior Contract & Bootstrap Diagnostics](#behavior-contract--bootstrap-diagnostics)
 - [API Reference](#api-reference)
 - [License](#license)
+
+---
+
+## When to use this, and when `@nestjs/throttler`
+
+`@nestjs/throttler` is an HTTP guard. It limits requests at the edge, by route and
+client, before any command exists. Keep it for raw flood protection of your HTTP
+API.
+
+This behavior limits a **command or query at the command bus**. It sees what the
+guard cannot: the command itself, and the tenant and principal on the pipeline
+context. Use it for business quotas that must hold on every transport.
+
+| | `@nestjs/throttler` | `@nestjs-pipeline/rate-limit` |
+|---|---|---|
+| Runs at | the HTTP layer (guard) | the command bus (pipeline behavior) |
+| Covers | HTTP (and WebSocket/GraphQL with adapters) | every dispatch: HTTP, queue workers, gRPC, cron jobs, other handlers |
+| Keys on | route and client (IP, custom tracker) | anything on the context: tenant, principal, command fields |
+| Cost | one request, one hit | fixed or computed per command (`points`) |
+| Typical use | "at most 100 requests per minute per IP" | "a tenant may import at most 10 000 rows per hour" |
+
+They compose: throttler at the edge against floods, this behavior for per-command
+quotas. A command that is limited here is limited no matter which entry point
+dispatched it, so a queue worker cannot bypass a quota that an HTTP controller
+respects:
+
+```typescript
+@CommandHandler(ImportUsersCommand)
+@UsePipeline(
+  rateLimit({
+    keyFactory: perTenant,
+    points: (ctx) => (ctx.request as ImportUsersCommand).rows.length,
+  }),
+)
+export class ImportUsersHandler { /* ... */ }
+
+// HTTP
+@Post('imports')
+importUsers(@Body() body: ImportUsersDto) {
+  return this.commandBus.execute(new ImportUsersCommand(body.rows));
+}
+
+// Queue worker: the same quota applies.
+@Processor('imports')
+export class ImportWorker extends WorkerHost {
+  process(job: Job<ImportUsersDto>) {
+    return this.commandBus.execute(new ImportUsersCommand(job.data.rows));
+  }
+}
+```
+
+`RateLimitExceededError` is transport-neutral: the bundled filter maps it to HTTP
+429, and a worker can read `msBeforeNext` to delay a retry.
 
 ---
 
@@ -145,7 +202,9 @@ RateLimitModule.forRootAsync({
 
 For each request, `RateLimitBehavior`:
 
-1. Resolves effective options (module defaults ← per-handler options).
+1. Resolves effective options (module defaults ← per-handler options) and the
+   request's [cost](#cost-per-command). A cost of `0` runs the handler without
+   touching the limiter.
 2. Builds the bucket key via [keying strategy](#keying-strategy) and stores it on
    `context.items['rate-limit.key']`.
 3. Calls `limiter.consume(key, points)`.
@@ -163,7 +222,7 @@ module-wide `defaults` (handler wins):
 
 | Option | Type | Default | Description |
 |---|---|---|---|
-| `points` | `number` | `1` | Positive safe-integer cost of this request. |
+| `points` | `number \| (ctx) => number` | `1` | Cost of this request: a non-negative safe integer, or a function computing it. `0` charges nothing. See [Cost per command](#cost-per-command). |
 | `keyFactory` | `(ctx) => string` | **required** | Builds the bucket key. No default: see [Keying strategy](#keying-strategy). |
 | `keyPrefix` | `string` | — | Prepended as `"<prefix>:<key>"`. |
 | `limiter` | `RateLimiterLike` | injected | Per-handler limiter override (stricter/looser policy). |
@@ -211,6 +270,41 @@ A deliberately global bucket is still supported; it just has to be written down:
 ```typescript
 { keyFactory: (ctx) => ctx.requestName }
 ```
+
+---
+
+## Cost per command
+
+Each command decides what one execution costs. The limiter's capacity (`points`
+and `duration` of the `rate-limiter-flexible` instance) is the budget; the
+behavior's `points` option is the price:
+
+```typescript
+// Fixed: a login costs 5 points of the same budget a profile update spends 1 of.
+rateLimit({ keyFactory: perCaller, points: 5 })
+
+// Computed per request: one point per imported row.
+rateLimit({
+  keyFactory: perTenant,
+  points: (ctx) => (ctx.request as ImportUsersCommand).rows.length,
+})
+
+// Free for some requests: 0 charges nothing (no key is built, the limiter is not called).
+rateLimit({
+  keyFactory: perCaller,
+  points: (ctx) => ((ctx.request as SearchQuery).cached ? 0 : 1),
+})
+```
+
+- The cost must be a non-negative safe integer. A fixed invalid value fails
+  application bootstrap with a `PipelineConfigurationError`; a function returning
+  an invalid value throws a `TypeError` before the limiter is called, so a wrong
+  cost is never silently charged as `1`.
+- A cost above the limiter's capacity can never pass, whatever the wait.
+  `RateLimitExceededError` carries both `points` (asked) and `limit` (capacity), so
+  that case is visible.
+- To give one command its own budget instead of a share of the module's, pass a
+  `limiter` for that handler.
 
 ---
 
@@ -264,6 +358,7 @@ plain `Error`** when the backing store itself fails (e.g. Redis unreachable). Th
 
 - **Callable key factory required**: Whenever `RateLimitBehavior` is declared on a handler or globally in `PipelineModule.forRoot({ globalBehaviors })`, a callable `keyFactory: (context) => string` (`typeof === 'function'`) must be supplied either via handler options (`rateLimit({ keyFactory })`) or module-wide defaults (`RateLimitModule.forRoot({ defaults: { keyFactory } })`).
 - **Bootstrap enforcement**: Declaring `RateLimitBehavior` without a callable key factory (e.g. passing a string, non-callable, or omitting it when no module default exists) fails fast at application startup with `PipelineConfigurationError` in `strict` diagnostics mode.
+- **Valid fixed cost**: a fixed `points` must be a non-negative safe integer, or `points` must be a function; anything else fails startup with `PipelineConfigurationError`. A computed cost is checked per request.
 - **Module defaults resolution**: Application-wide defaults supplied to `RateLimitModule.forRoot({ defaults: { ... } })` are merged beneath handler options via `RateLimitBehavior.resolveEffectiveOptions` and evaluated during bootstrap diagnostics.
 
 ---
@@ -276,11 +371,12 @@ plain `Error`** when the backing store itself fails (e.g. Redis unreachable). Th
 | `rateLimit` | Function | Type-safe intent builder returning `[RateLimitBehavior, options]` requiring a key or explicit inheritance |
 | `RateLimitIntentOptions` | Type | Options for `rateLimit(...)` with required key intent |
 | `RateLimitModule` | Class | `forRoot(options)` / `forRootAsync(options)` |
-| `RateLimitExceededError` | Class | Thrown when a bucket is exhausted |
+| `RateLimitExceededError` | Class | Thrown when a bucket is exhausted; carries `points` asked and `limit` |
 | `RateLimitExceededFilter` | Class | Maps the error to HTTP 429 + `Retry-After` |
 | `RateLimiterLike` | Interface | Structural limiter shape: `consume(key, points?)` |
 | `RateLimiterResLike` | Interface | Structural `rate-limiter-flexible` result |
 | `RateLimitBehaviorOptions` | Interface | `{ points?, keyFactory?, keyPrefix?, limiter?, failOpen? }` |
+| `RateLimitCostFactory` | Type | `(ctx) => number`, a per-request cost for `points` |
 | `RateLimitModuleOptions` / `RateLimitModuleAsyncOptions` | Interface | Module registration options |
 | `buildRateLimitKey` | Function | Resolves the bucket key from a context + options |
 | `RATE_LIMITER` / `RATE_LIMIT_DEFAULT_OPTIONS` | Token | Injection tokens |

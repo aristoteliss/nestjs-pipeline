@@ -11,6 +11,7 @@ import {
 import { RabbitMqDeadLetterTransport } from './rabbitmq.transport';
 
 const record: DeadLetterRecord = {
+  id: '0199a1b2-0000-7000-8000-000000000001',
   correlationId: 'corr-1',
   requestKind: 'command',
   requestName: 'CreateUserCommand',
@@ -19,6 +20,9 @@ const record: DeadLetterRecord = {
   error: { name: 'Error', message: 'boom' },
   failedAt: '2026-01-01T00:00:00.000Z',
   metadata: { tenant: 'acme' },
+  attempts: 0,
+  status: 'open',
+  payloadRedacted: false,
 };
 
 describe('BullMqDeadLetterTransport', () => {
@@ -226,6 +230,7 @@ describe('PostgresDeadLetterTransport', () => {
     const [sql, values] = query.mock.calls[0];
     expect(sql).toContain('INSERT INTO dead_letters');
     expect(values).toEqual([
+      '0199a1b2-0000-7000-8000-000000000001',
       'corr-1',
       'command',
       'CreateUserCommand',
@@ -234,6 +239,9 @@ describe('PostgresDeadLetterTransport', () => {
       JSON.stringify(record.error),
       JSON.stringify({ tenant: 'acme' }),
       '2026-01-01T00:00:00.000Z',
+      0,
+      'open',
+      false,
     ]);
   });
 
@@ -281,12 +289,12 @@ describe('PostgresDeadLetterTransport', () => {
     });
 
     const [, values] = query.mock.calls[0];
-    expect(JSON.parse(values[4])).toEqual({ note: 'a\ufffdb' });
-    expect(JSON.parse(values[5])).toEqual({
+    expect(JSON.parse(values[5])).toEqual({ note: 'a\ufffdb' });
+    expect(JSON.parse(values[6])).toEqual({
       name: 'Error',
       message: 'lone \ufffd',
     });
-    expect(JSON.parse(values[6])).toEqual({ 'k\ufffd': 1 });
+    expect(JSON.parse(values[7])).toEqual({ 'k\ufffd': 1 });
   });
 
   it('inserts null metadata when metadata is undefined in Postgres record', async () => {
@@ -298,7 +306,7 @@ describe('PostgresDeadLetterTransport', () => {
     await new PostgresDeadLetterTransport({ query }).send(recordWithoutMeta);
 
     const [, values] = query.mock.calls[0];
-    expect(values[6]).toBeNull();
+    expect(values[7]).toBeNull();
   });
 
   it('binds a JSON null payload when the record payload is undefined', async () => {
@@ -309,6 +317,107 @@ describe('PostgresDeadLetterTransport', () => {
     });
 
     const [, values] = query.mock.calls[0];
-    expect(values[4]).toBe('null');
+    expect(values[5]).toBe('null');
+  });
+});
+
+describe('PostgresDeadLetterTransport as a store', () => {
+  const row = {
+    id: 'dl-1',
+    correlation_id: 'corr-1',
+    request_kind: 'event',
+    request_name: 'UserCreatedEvent',
+    handler_name: 'SendWelcomeEmailHandler',
+    payload: { userId: 'u-1' },
+    error: { name: 'Error', message: 'boom' },
+    metadata: { tenantId: 't-1' },
+    failed_at: new Date('2026-01-01T00:00:00.000Z'),
+    attempts: 2,
+    status: 'resolved',
+    payload_redacted: false,
+    last_error: { name: 'Error', message: 'again' },
+    resolved_at: new Date('2026-01-02T00:00:00.000Z'),
+  };
+
+  it('reads a record by id, mapping every column', async () => {
+    const query = vi.fn().mockResolvedValue({ rows: [row] });
+
+    const record = await new PostgresDeadLetterTransport({ query }).get('dl-1');
+
+    expect(query.mock.calls[0]).toEqual([
+      'SELECT * FROM dead_letters WHERE id = $1',
+      ['dl-1'],
+    ]);
+    expect(record).toEqual({
+      id: 'dl-1',
+      correlationId: 'corr-1',
+      tenantId: 't-1',
+      requestKind: 'event',
+      requestName: 'UserCreatedEvent',
+      handlerName: 'SendWelcomeEmailHandler',
+      payload: { userId: 'u-1' },
+      error: { name: 'Error', message: 'boom' },
+      failedAt: '2026-01-01T00:00:00.000Z',
+      metadata: { tenantId: 't-1' },
+      attempts: 2,
+      status: 'resolved',
+      payloadRedacted: false,
+      lastError: { name: 'Error', message: 'again' },
+      resolvedAt: '2026-01-02T00:00:00.000Z',
+    });
+  });
+
+  it('maps a minimal row and returns undefined for a missing id', async () => {
+    const minimal = {
+      ...row,
+      metadata: null,
+      last_error: null,
+      resolved_at: null,
+      status: 'open',
+    };
+    const store = new PostgresDeadLetterTransport({
+      query: vi
+        .fn()
+        .mockResolvedValueOnce({ rows: [minimal] })
+        .mockResolvedValueOnce({}),
+    });
+
+    const record = await store.get('dl-1');
+    expect(record).not.toHaveProperty('tenantId');
+    expect(record).not.toHaveProperty('metadata');
+    expect(record).not.toHaveProperty('lastError');
+    expect(record).not.toHaveProperty('resolvedAt');
+    await expect(store.get('missing')).resolves.toBeUndefined();
+  });
+
+  it('lists records by status and request name, oldest first, with a default limit', async () => {
+    const query = vi.fn().mockResolvedValue({ rows: [row] });
+    const store = new PostgresDeadLetterTransport({ query });
+
+    await expect(
+      store.list({ status: 'open', requestName: 'UserCreatedEvent', limit: 5 }),
+    ).resolves.toHaveLength(1);
+    await store.list();
+
+    expect(query.mock.calls[0]?.[0]).toContain('ORDER BY id');
+    expect(query.mock.calls[0]?.[1]).toEqual(['open', 'UserCreatedEvent', 5]);
+    expect(query.mock.calls[1]?.[1]).toEqual([null, null, 100]);
+  });
+
+  it('counts an attempt with its error, and marks a record resolved', async () => {
+    const query = vi.fn().mockResolvedValue({});
+    const store = new PostgresDeadLetterTransport({ query });
+
+    await store.recordAttempt('dl-1', { name: 'Error', message: 'again' });
+    await store.markResolved('dl-1');
+
+    expect(query.mock.calls[0]).toEqual([
+      'UPDATE dead_letters SET attempts = attempts + 1, last_error = $2 WHERE id = $1',
+      ['dl-1', JSON.stringify({ name: 'Error', message: 'again' })],
+    ]);
+    expect(query.mock.calls[1]).toEqual([
+      "UPDATE dead_letters SET status = 'resolved', resolved_at = now() WHERE id = $1",
+      ['dl-1'],
+    ]);
   });
 });

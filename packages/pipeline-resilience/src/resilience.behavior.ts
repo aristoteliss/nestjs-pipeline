@@ -43,15 +43,26 @@ function getResilienceSafetyIssues(
   if (!options || options.policy) return [];
 
   const issues: ResilienceSafetyIssue[] = [];
-  const classifiesErrors =
-    typeof options.handle === 'function' || options.handleAllErrors === true;
-  const needsErrorClassification =
-    !!options.retry || !!options.circuitBreaker || !!options.fallback;
-
-  if (needsErrorClassification && !classifiesErrors) {
+  const dependencyLayers = options as {
+    circuitBreaker?: unknown;
+    fallback?: unknown;
+  };
+  if (
+    dependencyLayers.circuitBreaker !== undefined ||
+    dependencyLayers.fallback !== undefined
+  ) {
     issues.push({
       message:
-        'retry, circuitBreaker and fallback require handle(error) or explicit handleAllErrors: true',
+        'circuitBreaker and fallback are not applied around a whole handler; they belong to a named policy of an outbound dependency',
+      fix: 'Declare them in ResilienceModule.forRoot({ policies: { <name>: { ... } } }) and run the outbound call through ResiliencePolicies or @InjectResiliencePolicy(<name>).',
+    });
+  }
+
+  const classifiesErrors =
+    typeof options.handle === 'function' || options.handleAllErrors === true;
+  if (options.retry && !classifiesErrors) {
+    issues.push({
+      message: 'retry requires handle(error) or explicit handleAllErrors: true',
       fix: 'Specify handle: (err) => boolean or handleAllErrors: true in ResilienceBehavior options.',
     });
   }
@@ -84,8 +95,13 @@ function getResilienceSafetyIssues(
 
 /**
  * Pipeline behavior that wraps each command / query / event handler in a
- * cockatiel resilience policy (retry, circuit breaker, timeout, bulkhead,
- * fallback) for transient-fault handling.
+ * cockatiel resilience policy — the layers that make sense around a whole
+ * handler: retry, timeout and bulkhead.
+ *
+ * A circuit breaker and a fallback belong to an outbound dependency, not to a
+ * handler: declare them on a named policy (`ResilienceModule.forRoot({ policies })`)
+ * and use it in the adapter through {@link ResiliencePolicies}. The bootstrap
+ * contract rejects them here.
  *
  * Resolution of the effective options for a handler where this behavior is
  * attached:
@@ -95,7 +111,7 @@ function getResilienceSafetyIssues(
  *    shallow-merged on top of the defaults (handler keys win).
  *
  * Policies are built **lazily on first invocation and cached per handler**, so
- * stateful layers (circuit breaker, bulkhead) correctly share state across
+ * a stateful layer (bulkhead) correctly shares state across
  * every request to that handler. When no options resolve, the behavior caches
  * that result and passes subsequent invocations directly to `next()` without
  * constructing or executing a cockatiel policy.
@@ -105,15 +121,14 @@ function getResilienceSafetyIssues(
  * A handler-level retry calls `next()` again, which means the complete
  * downstream pipeline and handler are replayed. To avoid accidental duplicate
  * side effects, command/event retries must explicitly set
- * `retry.replaySafe: true`. Retry/circuit-breaker/fallback configurations must
- * also define which errors are transient via `handle(error)`, unless the caller
+ * `retry.replaySafe: true`. A retry must also define which errors are transient via `handle(error)`, unless the caller
  * intentionally opts into `handleAllErrors: true`. An `aggressive` timeout
  * (the default strategy) on a command/event answers the caller while the
  * handler keeps running, so it requires `strategy: 'cooperative'` or
  * `timeout.replaySafe: true`.
  *
  * Timeout and bulkhead-only policies do not require an error classifier because
- * they do not decide which application errors are retryable/circuit failures.
+ * they do not decide which application errors are retryable.
  * A custom pre-built Cockatiel `policy` also bypasses the declarative safety
  * checks because the caller owns its semantics directly.
  */

@@ -15,6 +15,13 @@ export {
   DeadLetterBehavior,
 } from './dead-letter.behavior';
 export { DeadLetterModule } from './dead-letter.module';
+export {
+  type DeadLetterDispatch,
+  type DeadLetterRedriveResult,
+  DeadLetterRedriver,
+  type DeadLetterRedriverOptions,
+} from './dead-letter.redriver';
+export { DeadLetterRedriveError } from './errors/dead-letter-redrive.error';
 export { buildDeadLetterRecord } from './helpers/build-record';
 export {
   type DeadLetterIntentOptions,
@@ -28,8 +35,11 @@ export type {
 } from './interfaces/dead-letter-options.interface';
 export type {
   DeadLetterError,
+  DeadLetterListFilter,
   DeadLetterRecord,
   DeadLetterRequestKind,
+  DeadLetterStatus,
+  DeadLetterStore,
   DeadLetterTransport,
 } from './interfaces/dead-letter-transport.interface';
 export {

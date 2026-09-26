@@ -5,7 +5,7 @@ import {
   type IPipelineContext,
   PIPELINE_BEHAVIOR_CONTRACT,
 } from '@nestjs-pipeline/core';
-import { BrokenCircuitError, TaskCancelledError } from 'cockatiel';
+import { TaskCancelledError } from 'cockatiel';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ResilienceConfigurationError } from './errors/resilience-configuration.error';
 import type { ResilienceBehaviorOptions } from './interfaces/resilience-options.interface';
@@ -124,30 +124,6 @@ describe('ResilienceBehavior', () => {
     expect(next).toHaveBeenCalledTimes(3);
   });
 
-  it('returns the fallback value when broad fallback handling is explicitly selected', async () => {
-    const next = vi.fn().mockRejectedValue(new Error('down'));
-
-    const result = await behavior.handle(
-      makeCtx({ fallback: { value: 'default' }, handleAllErrors: true }),
-      next,
-    );
-
-    expect(result).toBe('default');
-  });
-
-  it('uses a fallback factory when provided', async () => {
-    const next = vi.fn().mockRejectedValue(new Error('down'));
-    const factory = vi.fn().mockReturnValue('made');
-
-    const result = await behavior.handle(
-      makeCtx({ fallback: { factory }, handleAllErrors: true }),
-      next,
-    );
-
-    expect(result).toBe('made');
-    expect(factory).toHaveBeenCalledTimes(1);
-  });
-
   it('cancels with a timeout when the handler is too slow', async () => {
     const next = vi.fn(
       () => new Promise((resolve) => setTimeout(() => resolve('late'), 50)),
@@ -210,10 +186,7 @@ describe('ResilienceBehavior', () => {
   });
 
   it('builds the policy once per handler and caches it', async () => {
-    const ctx = makeCtx({
-      fallback: { value: 'x' },
-      handleAllErrors: true,
-    });
+    const ctx = makeCtx({ bulkhead: { limit: 2 } });
     const next = vi.fn().mockResolvedValue('ok');
 
     await behavior.handle(ctx, next);
@@ -233,24 +206,24 @@ describe('ResilienceBehavior', () => {
     });
 
     const next = vi.fn().mockRejectedValue(new Error('boom'));
-    const result = await withDefaults.handle(
-      makeCtx({
-        retry: {
-          maxAttempts: 1,
-          replaySafe: true,
-          backoff: { type: 'constant', delay: 0 },
-        },
-        fallback: { value: 'fb' },
-      }),
-      next,
-    );
+    await expect(
+      withDefaults.handle(
+        makeCtx({
+          retry: {
+            maxAttempts: 1,
+            replaySafe: true,
+            backoff: { type: 'constant', delay: 0 },
+          },
+        }),
+        next,
+      ),
+    ).rejects.toThrow('boom');
 
-    expect(result).toBe('fb');
     expect(next).toHaveBeenCalledTimes(2);
   });
 
   describe('configuration safety', () => {
-    it('rejects retry/fallback/breaker policies without an error classifier', async () => {
+    it('rejects a retry without an error classifier', async () => {
       await expect(
         behavior.handle(
           makeCtx(
@@ -260,16 +233,33 @@ describe('ResilienceBehavior', () => {
           vi.fn(),
         ),
       ).rejects.toBeInstanceOf(ResilienceConfigurationError);
+    });
 
-      await expect(
-        behavior.handle(
-          makeCtx(
-            { fallback: { value: 'x' } },
-            { handlerType: class Other {} },
+    it('rejects a circuit breaker or fallback, which belong to named policies', async () => {
+      for (const options of [
+        {
+          circuitBreaker: {
+            halfOpenAfter: 10,
+            breaker: { type: 'consecutive', threshold: 1 },
+          },
+        },
+        { fallback: { value: 'x' } },
+      ]) {
+        const next = vi.fn();
+        await expect(
+          behavior.handle(
+            makeCtx(
+              {
+                ...options,
+                handleAllErrors: true,
+              } as ResilienceBehaviorOptions,
+              { handlerType: class Other {} },
+            ),
+            next,
           ),
-          vi.fn(),
-        ),
-      ).rejects.toBeInstanceOf(ResilienceConfigurationError);
+        ).rejects.toThrow('belong to a named policy of an outbound dependency');
+        expect(next).not.toHaveBeenCalled();
+      }
     });
 
     it('rejects command retry unless replay safety is explicitly acknowledged', async () => {
@@ -392,72 +382,40 @@ describe('ResilienceBehavior telemetry labels across request types', () => {
   });
 });
 
-describe('ResilienceBehavior circuit breaker lifecycle', () => {
-  it('triggers circuit breaker open, half-open and reset lifecycle callbacks', async () => {
-    const onCircuitOpen = vi.fn();
-    const onCircuitHalfOpen = vi.fn();
-    const onCircuitClose = vi.fn();
-    const logger = { log: vi.fn(), warn: vi.fn(), debug: vi.fn() };
-
-    class CircuitHandler {}
-    const resilientBehavior = new ResilienceBehavior(undefined, logger as any);
-
-    const makeCall = async (shouldFail: boolean) => {
-      const ctx = makeCtx(
-        {
-          circuitBreaker: {
-            halfOpenAfter: 15,
-            breaker: { type: 'consecutive', threshold: 2 },
-          },
-          handleAllErrors: true,
-          telemetry: {
-            onCircuitOpen,
-            onCircuitHalfOpen,
-            onCircuitClose,
-          },
-        },
-        { handlerType: CircuitHandler, handlerName: 'CircuitHandler' },
-      );
-
-      return resilientBehavior.handle(ctx, async () => {
-        if (shouldFail) throw new Error('circuit failure');
-        return 'success';
-      });
-    };
-
-    // 1. Fail twice to trip circuit breaker open
-    await expect(makeCall(true)).rejects.toThrow('circuit failure');
-    await expect(makeCall(true)).rejects.toThrow('circuit failure');
-    expect(onCircuitOpen).toHaveBeenCalledTimes(1);
-    expect(logger.warn).toHaveBeenCalledWith(
-      expect.stringContaining('circuit OPEN'),
-      expect.any(String),
-    );
-
-    // 2. Immediate 3rd call rejected by open circuit
-    await expect(makeCall(false)).rejects.toBeInstanceOf(BrokenCircuitError);
-
-    // 3. Wait for half-open cooldown
-    await new Promise((resolve) => setTimeout(resolve, 30));
-
-    // 4. Successful call in half-open state resets the circuit to closed
-    const res = await makeCall(false);
-    expect(res).toBe('success');
-    expect(onCircuitHalfOpen).toHaveBeenCalled();
-    expect(onCircuitClose).toHaveBeenCalledTimes(1);
-    expect(logger.log).toHaveBeenCalledWith(
-      expect.stringContaining('circuit CLOSED'),
-      expect.any(String),
-    );
-  });
-});
-
 describe('ResilienceBehavior PIPELINE_BEHAVIOR_CONTRACT', () => {
   const contract = (
     ResilienceBehavior as unknown as Record<symbol, IPipelineBehaviorContract>
   )[PIPELINE_BEHAVIOR_CONTRACT];
 
-  it('returns diagnostic when retry/circuitBreaker/fallback lacks error classification', () => {
+  it('returns diagnostic when a circuit breaker or fallback is configured on a handler', () => {
+    const options = {
+      circuitBreaker: {
+        halfOpenAfter: 10,
+        breaker: { type: 'consecutive', threshold: 1 },
+      },
+      handleAllErrors: true,
+    };
+    const diagnostics = contract?.validate?.({
+      handlerType: class TestHandler {},
+      handlerName: 'TestHandler',
+      requestKind: 'query',
+      declarationSource: 'handler',
+      effectiveOptions: options,
+      handlerOptions: options,
+      globalOptions: undefined,
+      effectiveBehaviorTypes: [ResilienceBehavior],
+    });
+
+    expect(diagnostics).toHaveLength(1);
+    expect(diagnostics?.[0].message).toBe(
+      'circuitBreaker and fallback are not applied around a whole handler; they belong to a named policy of an outbound dependency',
+    );
+    expect(diagnostics?.[0].fix).toContain(
+      'ResilienceModule.forRoot({ policies',
+    );
+  });
+
+  it('returns diagnostic when a retry lacks error classification', () => {
     const diagnostics = contract?.validate?.({
       handlerType: class TestHandler {},
       handlerName: 'TestHandler',
@@ -471,8 +429,8 @@ describe('ResilienceBehavior PIPELINE_BEHAVIOR_CONTRACT', () => {
 
     expect(diagnostics).toHaveLength(1);
     expect(diagnostics?.[0].behaviorName).toBe('ResilienceBehavior');
-    expect(diagnostics?.[0].message).toContain(
-      'require handle(error) or explicit handleAllErrors',
+    expect(diagnostics?.[0].message).toBe(
+      'retry requires handle(error) or explicit handleAllErrors: true',
     );
     expect(diagnostics?.[0].fix).toContain('handleAllErrors: true');
   });

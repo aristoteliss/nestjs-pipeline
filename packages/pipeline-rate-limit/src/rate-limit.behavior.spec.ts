@@ -124,7 +124,7 @@ describe('RateLimitBehavior', () => {
     expect(consume).toHaveBeenCalledWith('api:CreateUserCommand:10.0.0.1', 5);
   });
 
-  it.each([0, -1, 1.5, Number.MAX_SAFE_INTEGER + 1])(
+  it.each([-1, 1.5, Number.NaN, Number.MAX_SAFE_INTEGER + 1])(
     'rejects invalid point cost %s before consuming',
     async (points) => {
       const behavior = new RateLimitBehavior(limiter);
@@ -132,11 +132,51 @@ describe('RateLimitBehavior', () => {
 
       await expect(
         behavior.handle(withOptions(makeCtx(), { points }), next),
-      ).rejects.toThrow('positive safe integer');
+      ).rejects.toThrow(
+        `Rate-limit points for CreateUserHandler must be a non-negative safe integer, received ${String(points)}.`,
+      );
       expect(consume).not.toHaveBeenCalled();
       expect(next).not.toHaveBeenCalled();
     },
   );
+
+  it('computes the cost per request when points is a function', async () => {
+    consume.mockResolvedValue(okRes());
+    const behavior = new RateLimitBehavior(limiter);
+    const ctx = withOptions(makeCtx({ request: { rows: [1, 2, 3] } }), {
+      points: (c) => (c.request as { rows: unknown[] }).rows.length,
+    });
+
+    await behavior.handle(ctx, vi.fn().mockResolvedValue('ok'));
+
+    expect(consume).toHaveBeenCalledWith('CreateUserCommand', 3);
+  });
+
+  it('rejects a computed cost that is not a non-negative safe integer', async () => {
+    const behavior = new RateLimitBehavior(limiter);
+    const next = vi.fn();
+
+    await expect(
+      behavior.handle(withOptions(makeCtx(), { points: () => 2.5 }), next),
+    ).rejects.toThrow(TypeError);
+    expect(consume).not.toHaveBeenCalled();
+    expect(next).not.toHaveBeenCalled();
+  });
+
+  it('charges nothing for a cost of 0: no key, no limiter call', async () => {
+    const behavior = new RateLimitBehavior(limiter);
+    const keyFactory = vi.fn(() => 'unused');
+    const next = vi.fn().mockResolvedValue('ok');
+
+    for (const points of [0, () => 0]) {
+      const ctx = withOptions(makeCtx(), { points, keyFactory });
+      await expect(behavior.handle(ctx, next)).resolves.toBe('ok');
+      expect(ctx.items.has(RATE_LIMIT_KEY_ITEM)).toBe(false);
+    }
+    expect(keyFactory).not.toHaveBeenCalled();
+    expect(consume).not.toHaveBeenCalled();
+    expect(next).toHaveBeenCalledTimes(2);
+  });
 
   it('throws RateLimitExceededError when the limiter rejects with a result', async () => {
     consume.mockRejectedValue(
@@ -156,6 +196,7 @@ describe('RateLimitBehavior', () => {
       retryAfterSeconds: 3,
       remainingPoints: 0,
       limit: 10,
+      points: 1,
     });
     expect(next).not.toHaveBeenCalled();
   });
@@ -315,6 +356,43 @@ describe('RateLimitBehavior', () => {
 
       expect(diagnostics).toHaveLength(1);
       expect(diagnostics?.[0].message).toContain('explicit `keyFactory`');
+    });
+
+    it.each([
+      [-1, '-1'],
+      [1.5, '1.5'],
+      ['2', '2'],
+    ])('returns diagnostic for invalid fixed points %s', (points, shown) => {
+      const diagnostics = contract?.validate?.({
+        handlerType: class CreateUserHandler {},
+        handlerName: 'CreateUserHandler',
+        requestKind: 'command',
+        declarationSource: 'handler',
+        effectiveOptions: { keyFactory: () => 'k', points: points as never },
+        handlerOptions: { keyFactory: () => 'k', points: points as never },
+        globalOptions: undefined,
+        effectiveBehaviorTypes: [RateLimitBehavior],
+      });
+
+      expect(diagnostics).toHaveLength(1);
+      expect(diagnostics?.[0].message).toBe(
+        `RateLimitBehavior points must be a non-negative safe integer or a function, received ${shown}`,
+      );
+    });
+
+    it.each([0, 5, () => 1])('accepts points %s', (points) => {
+      const diagnostics = contract?.validate?.({
+        handlerType: class CreateUserHandler {},
+        handlerName: 'CreateUserHandler',
+        requestKind: 'command',
+        declarationSource: 'handler',
+        effectiveOptions: { keyFactory: () => 'k', points },
+        handlerOptions: { keyFactory: () => 'k', points },
+        globalOptions: undefined,
+        effectiveBehaviorTypes: [RateLimitBehavior],
+      });
+
+      expect(diagnostics).toBeUndefined();
     });
 
     it('returns diagnostic when keyFactory is not a callable function', () => {

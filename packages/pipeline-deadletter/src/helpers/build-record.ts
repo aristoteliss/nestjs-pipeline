@@ -1,6 +1,11 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import { DEFAULT_REDACT_KEYS, redactValue } from '@cqrs-ddd/safe-stringify';
+import {
+  DEFAULT_REDACT_KEYS,
+  REDACTED,
+  redactValue,
+} from '@cqrs-ddd/safe-stringify';
+import { uuidv7 } from '@cqrs-ddd/uuidv7';
 import { type IPipelineContext } from '@nestjs-pipeline/core';
 import type { DeadLetterBehaviorOptions } from '../interfaces/dead-letter-options.interface';
 import type { DeadLetterRecord } from '../interfaces/dead-letter-transport.interface';
@@ -15,6 +20,21 @@ function sanitizePayload(
     ? [...DEFAULT_REDACT_KEYS, ...options.redactKeys]
     : DEFAULT_REDACT_KEYS;
   return redactValue(payload, keys);
+}
+
+/** Whether key-based redaction masked a value anywhere in `value`. */
+function containsRedacted(
+  value: unknown,
+  seen = new WeakSet<object>(),
+): boolean {
+  if (value === REDACTED) return true;
+  if (typeof value !== 'object' || value === null || seen.has(value)) {
+    return false;
+  }
+  seen.add(value);
+  const entries =
+    value instanceof Map ? [...value.values()] : Object.values(value);
+  return entries.some((entry) => containsRedacted(entry, seen));
 }
 
 /**
@@ -34,14 +54,16 @@ export function buildDeadLetterRecord(
 ): DeadLetterRecord {
   const isError = error instanceof Error;
   const userMetadata = options.metadata?.(context);
+  const payload = sanitizePayload(context.request, options);
 
   return {
+    id: uuidv7(),
     correlationId: context.correlationId,
     tenantId: context.tenantId,
     requestKind: context.requestKind,
     requestName: context.requestName,
     handlerName: context.handlerName,
-    payload: sanitizePayload(context.request, options),
+    payload,
     error: {
       name: isError ? error.name : 'unknown',
       message: isError ? error.message : String(error),
@@ -56,5 +78,8 @@ export function buildDeadLetterRecord(
             ...(context.tenantId ? { tenantId: context.tenantId } : {}),
           }
         : undefined,
+    attempts: 0,
+    status: 'open',
+    payloadRedacted: options.redact !== undefined || containsRedacted(payload),
   };
 }

@@ -1,5 +1,10 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
+import type {
+  InjectionToken,
+  ModuleMetadata,
+  OptionalFactoryDependency,
+} from '@nestjs/common';
 import type { IPolicy } from 'cockatiel';
 
 /**
@@ -15,6 +20,16 @@ export type ResilienceLayer =
   | 'circuitBreaker'
   | 'bulkhead'
   | 'timeout';
+
+/**
+ * The layers {@link ResilienceBehavior} applies around a whole handler.
+ * Circuit breaker and fallback belong to a dependency, so they exist only on
+ * named policies ({@link ResiliencePolicyOptions}).
+ */
+export type HandlerResilienceLayer = Exclude<
+  ResilienceLayer,
+  'circuitBreaker' | 'fallback'
+>;
 
 /** Jitter strategy used by the exponential backoff generator. */
 export type JitterStrategy = 'decorrelated' | 'none' | 'full' | 'half';
@@ -38,8 +53,8 @@ export type RetryBackoff =
   /** Walk through an explicit list of delays (ms); the last value repeats. */
   | { type: 'iterable'; delays: number[] };
 
-/** Retry configuration — re-runs all downstream pipeline work on a handled failure. */
-export interface RetryOptions {
+/** Retry configuration of a named policy: re-runs the call on a handled failure. */
+export interface RetryPolicyOptions {
   /**
    * Maximum number of retry attempts after the initial call (e.g. `3` allows
    * the original execution plus up to three retries), matching Cockatiel's
@@ -49,7 +64,10 @@ export interface RetryOptions {
 
   /** Delay strategy between attempts. Defaults to no delay. */
   backoff?: RetryBackoff;
+}
 
+/** Retry configuration of the behavior — re-runs all downstream pipeline work on a handled failure. */
+export interface RetryOptions extends RetryPolicyOptions {
   /**
    * Explicit acknowledgement that replaying the handler/downstream behaviors is
    * safe. Required for `command` and `event` retries because those request kinds
@@ -113,15 +131,19 @@ export interface CircuitBreakerOptions {
   breaker: BreakerStrategy;
 }
 
-/** Timeout configuration. Underlying work stops only when it cooperates with the abort signal. */
-export interface TimeoutOptions {
+/** Timeout configuration of a named policy. Underlying work stops only when it cooperates with the abort signal. */
+export interface TimeoutPolicyOptions {
   /** Duration in milliseconds after which the call times out. */
   duration: number;
   /**
    * - `aggressive` (default): reject immediately with `TaskCancelledError`.
-   * - `cooperative`: signal cancellation and wait for the handler to settle.
+   * - `cooperative`: signal cancellation and wait for the call to settle.
    */
   strategy?: 'aggressive' | 'cooperative';
+}
+
+/** Timeout configuration of the behavior. Underlying work stops only when it cooperates with the abort signal. */
+export interface TimeoutOptions extends TimeoutPolicyOptions {
   /**
    * Explicit acknowledgement that an `aggressive` timeout is safe on a `command`
    * or `event` handler. The caller is answered while the handler keeps running,
@@ -147,37 +169,95 @@ export type FallbackOptions =
   /** Lazily produce a value when a handled failure occurs. */
   | { factory: () => unknown };
 
+/** What every telemetry hook receives. */
+export interface ResilienceTelemetryEvent {
+  /** The named policy that fired the event; absent for a handler's policy. */
+  policyName?: string;
+}
+
 /**
  * Optional telemetry hooks fired by the underlying cockatiel policies.
  *
- * These are attached once per handler (policies are built lazily and cached so
- * circuit-breaker / bulkhead state is preserved across invocations), therefore
- * they are scoped to the handler rather than to a single request.
+ * These are attached once per policy: per handler for the behavior, per name
+ * for a named policy. They are scoped to that policy rather than to a single
+ * request.
  */
 export interface ResilienceTelemetry {
   /** Fired before each retry, with the upcoming attempt number and delay (ms). */
-  onRetry?(event: {
-    attempt: number;
-    delay: number;
-    /**
-     * The request that triggered this retry.
-     *
-     * A policy is cached per handler, so a handler registered for several event
-     * types shares one policy; without this the consumer could not tell which
-     * event is actually retrying.
-     */
-    requestName?: string;
-  }): void;
+  onRetry?(
+    event: ResilienceTelemetryEvent & {
+      attempt: number;
+      delay: number;
+      /**
+       * The request that triggered this retry.
+       *
+       * A policy is cached per handler, so a handler registered for several event
+       * types shares one policy; without this the consumer could not tell which
+       * event is actually retrying.
+       */
+      requestName?: string;
+    },
+  ): void;
   /** Fired when the circuit breaker opens (trips). */
-  onCircuitOpen?(): void;
+  onCircuitOpen?(event: ResilienceTelemetryEvent): void;
   /** Fired when the circuit breaker closes (recovers). */
-  onCircuitClose?(): void;
+  onCircuitClose?(event: ResilienceTelemetryEvent): void;
   /** Fired when the circuit breaker enters the half-open trial state. */
-  onCircuitHalfOpen?(): void;
+  onCircuitHalfOpen?(event: ResilienceTelemetryEvent): void;
   /** Fired when a timeout is reached. */
-  onTimeout?(): void;
+  onTimeout?(event: ResilienceTelemetryEvent): void;
   /** Fired when the bulkhead rejects a call (capacity + queue exhausted). */
-  onBulkheadRejected?(): void;
+  onBulkheadRejected?(event: ResilienceTelemetryEvent): void;
+}
+
+/**
+ * A named policy for an outbound dependency, declared once in
+ * `ResilienceModule.forRoot({ policies })` and shared by every caller through
+ * `ResiliencePolicies` or `@InjectResiliencePolicy(name)`.
+ *
+ * It wraps one outbound call, not a handler, so it offers every layer —
+ * a circuit breaker per dependency, a fallback value for one call — and needs
+ * no `replaySafe` acknowledgment: the adapter retries only its own call.
+ * Retry, circuit breaker and fallback still require `handle(error)` or
+ * `handleAllErrors: true`.
+ *
+ * @example A payment API shared by several handlers
+ * ```ts
+ * ResilienceModule.forRoot({
+ *   policies: {
+ *     paymentsApi: {
+ *       handle: (error) => error instanceof PaymentGatewayUnavailableError,
+ *       retry: { maxAttempts: 2, backoff: { type: 'exponential' } },
+ *       circuitBreaker: { halfOpenAfter: 30_000, breaker: { type: 'consecutive', threshold: 5 } },
+ *       timeout: { duration: 3_000, strategy: 'cooperative' },
+ *     },
+ *   },
+ * });
+ * ```
+ */
+export interface ResiliencePolicyOptions {
+  /** Retry the call. */
+  retry?: RetryPolicyOptions;
+  /** Circuit breaker, shared by every caller of the policy. */
+  circuitBreaker?: CircuitBreakerOptions;
+  /** Concurrency limit, shared by every caller of the policy. */
+  bulkhead?: BulkheadOptions;
+  /** Timeout of one call. */
+  timeout?: TimeoutPolicyOptions;
+  /** Value returned in place of a handled failure. */
+  fallback?: FallbackOptions;
+  /** Selects the errors retry, circuit breaker and fallback act on. */
+  handle?: (error: unknown) => boolean;
+  /** Acts on every error; set it only deliberately. */
+  handleAllErrors?: boolean;
+  /**
+   * Composition order, outermost first.
+   *
+   * @default ['fallback', 'retry', 'circuitBreaker', 'bulkhead', 'timeout']
+   */
+  order?: ResilienceLayer[];
+  /** Telemetry hooks; every event carries the policy name. */
+  telemetry?: ResilienceTelemetry;
 }
 
 /**
@@ -194,23 +274,20 @@ export interface ResilienceTelemetry {
  * repeat side effects, the package makes the dangerous choices explicit:
  *
  * - timeout / bulkhead may be configured without an error classifier;
- * - retry / circuit-breaker / fallback require `handle(error)` unless
- *   `handleAllErrors: true` is explicitly selected;
+ * - retry requires `handle(error)` unless `handleAllErrors: true` is
+ *   explicitly selected;
  * - retries for commands/events additionally require `retry.replaySafe: true`.
  *
- * For most network/database retries, prefer placing resilience in the
- * infrastructure adapter behind an application port so only the remote call is
- * repeated instead of the whole command handler.
+ * A circuit breaker and a fallback belong to an outbound dependency, not to a
+ * handler: declare them on a named policy (`ResilienceModule.forRoot({ policies })`)
+ * and use it in the adapter, so only the remote call is repeated or short-circuited.
+ * The bootstrap contract rejects them here.
  *
  * @example Query retry with an explicit transient-error classifier
  * ```ts
  * @QueryHandler(GetCatalogQuery)
  * @UsePipeline([ResilienceBehavior, {
  *   retry: { maxAttempts: 3, backoff: { type: 'exponential' } },
- *   circuitBreaker: {
- *     halfOpenAfter: 10_000,
- *     breaker: { type: 'consecutive', threshold: 5 },
- *   },
  *   timeout: { duration: 2_000 },
  *   handle: (error) => error instanceof CatalogUnavailableError,
  * }])
@@ -225,21 +302,10 @@ export interface ResilienceTelemetry {
  * }])
  * export class RebuildProjectionHandler {}
  * ```
- *
- * @example Deliberately broad fallback policy
- * ```ts
- * @UsePipeline([ResilienceBehavior, {
- *   fallback: { value: [] },
- *   handleAllErrors: true,
- * }])
- * ```
  */
 export interface ResilienceBehaviorOptions {
   /** Retry policy. */
   retry?: RetryOptions;
-
-  /** Circuit breaker policy. Reused across invocations to preserve state. */
-  circuitBreaker?: CircuitBreakerOptions;
 
   /** Bulkhead (concurrency limiter) policy. Reused across invocations. */
   bulkhead?: BulkheadOptions;
@@ -247,15 +313,12 @@ export interface ResilienceBehaviorOptions {
   /** Timeout policy. */
   timeout?: TimeoutOptions;
 
-  /** Fallback policy. */
-  fallback?: FallbackOptions;
-
   /**
    * Predicate selecting which thrown errors are treated as *handled* failures
-   * (eligible for retry / fallback / tripping the breaker). Return `true` only
-   * for failures that really are safe for the configured policy.
+   * (eligible for retry). Return `true` only for failures that really are safe
+   * for the configured policy.
    *
-   * Declarative retry/fallback/breaker policies require an explicit classifier.
+   * A declarative retry requires an explicit classifier.
    * Use {@link handleAllErrors} only when handling every thrown error is
    * intentionally part of the policy.
    */
@@ -264,7 +327,7 @@ export interface ResilienceBehaviorOptions {
   /**
    * Explicitly opt into Cockatiel's `handleAll` semantics when no classifier is
    * supplied. Prefer {@link handle} in production so validation, authorization,
-   * domain and programmer errors do not accidentally affect retry/circuit health.
+   * domain and programmer errors are not retried.
    */
   handleAllErrors?: boolean;
 
@@ -273,9 +336,9 @@ export interface ResilienceBehaviorOptions {
    * configured layers are wrapped; unlisted layers are skipped. The first entry
    * is the outermost wrapper, the last is closest to the handler.
    *
-   * @default ['fallback', 'retry', 'circuitBreaker', 'bulkhead', 'timeout']
+   * @default ['retry', 'bulkhead', 'timeout']
    */
-  order?: ResilienceLayer[];
+  order?: HandlerResilienceLayer[];
 
   /** Optional telemetry hooks. */
   telemetry?: ResilienceTelemetry;
@@ -287,4 +350,43 @@ export interface ResilienceBehaviorOptions {
    * semantics directly.
    */
   policy?: IPolicy;
+}
+
+/** Options for `ResilienceModule.forRoot`. */
+export interface ResilienceModuleOptions {
+  /** Behavior options merged under every handler's own. */
+  defaults?: ResilienceBehaviorOptions;
+  /** Named policies for outbound dependencies, built once at startup. */
+  policies?: Record<string, ResiliencePolicyOptions>;
+}
+
+/**
+ * Options for `ResilienceModule.forRootAsync`: build {@link ResilienceModuleOptions}
+ * from injected dependencies, such as configuration.
+ *
+ * @example
+ * ```ts
+ * ResilienceModule.forRootAsync({
+ *   inject: [ConfigService],
+ *   useFactory: (config: ConfigService) => ({
+ *     policies: { paymentsApi: { timeout: { duration: config.get('PAYMENTS_TIMEOUT_MS') } } },
+ *   }),
+ *   policyNames: ['paymentsApi'],
+ * });
+ * ```
+ */
+export interface ResilienceModuleAsyncOptions
+  extends Pick<ModuleMetadata, 'imports'> {
+  /** Builds the module options; may be async. */
+  useFactory: (
+    ...args: never[]
+  ) => ResilienceModuleOptions | Promise<ResilienceModuleOptions>;
+  /** Providers injected into {@link useFactory}. */
+  inject?: Array<InjectionToken | OptionalFactoryDependency>;
+  /**
+   * Names to make injectable with `@InjectResiliencePolicy(name)`. The factory
+   * must declare each of them; a missing one fails at startup. Every policy is
+   * available through `ResiliencePolicies` either way.
+   */
+  policyNames?: readonly string[];
 }

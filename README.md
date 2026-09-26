@@ -98,10 +98,10 @@ Works with Express and Fastify.
 | [`@nestjs-pipeline/zod`](packages/pipeline-zod) | Zod v4 validation/parsing behavior that applies successful parsed object output to the request, plus `ZodPipe`, `ZodValidationFilter`, `ZodValidationError` |
 | [`@nestjs-pipeline/opentelemetry`](packages/pipeline-opentelemetry) | OpenTelemetry tracing & metrics behaviors — spans plus duration/throughput/error instruments for every pipeline invocation |
 | [`@nestjs-pipeline/casl`](packages/pipeline-casl) | CASL authorization — type-level `CaslBehavior` fed by an application permission source, plus `CaslAuthorizer` (`can`, `authorize`, `project`) for entity and field checks |
-| [`@nestjs-pipeline/resilience`](packages/pipeline-resilience) | Resilience & transient-fault-handling behavior — retry, circuit breaker, timeout, bulkhead, fallback (powered by cockatiel) |
+| [`@nestjs-pipeline/resilience`](packages/pipeline-resilience) | Resilience on cockatiel — named policies for outbound dependencies (retry, circuit breaker, timeout, bulkhead, fallback), shared through DI, and a behavior for handler-level retry, timeout and bulkhead |
 | [`@nestjs-pipeline/cache`](packages/pipeline-cache) | Read-through caching behavior for queries — pluggable stores (memory, redis, memcache, sqlite, postgres) via cache-manager v7 on keyv |
 | [`@nestjs-pipeline/feature-flags`](packages/pipeline-feature-flags) | Feature-flag gating behavior — provider-agnostic via OpenFeature (Unleash shown in examples; Flagsmith/LaunchDarkly are drop-in alternatives) |
-| [`@nestjs-pipeline/deadletter`](packages/pipeline-deadletter) | Dead-letter capture-attempt behavior for failed requests — transport-agnostic with bundled BullMQ, RabbitMQ, and Postgres transports |
+| [`@nestjs-pipeline/deadletter`](packages/pipeline-deadletter) | Dead-letter capture for failed requests (events by default) — bundled BullMQ, RabbitMQ and Postgres transports; redrive with an attempt count and a resolved state for stored records |
 | [`@nestjs-pipeline/rate-limit`](packages/pipeline-rate-limit) | Rate-limiting behavior — backend-agnostic via rate-limiter-flexible (memory, Redis/Valkey, Mongo, SQL), HTTP 429 filter |
 | [`@nestjs-pipeline/audit`](packages/pipeline-audit) | Audit-trail behavior — records who/what/outcome/duration to a pluggable `AuditSink` (console default, Postgres drop-in), with payload redaction |
 | [`@nestjs-pipeline/idempotency`](packages/pipeline-idempotency) | Idempotency behavior — atomic concurrent duplicate exclusion and successful-response replay per key; failed executions are retryable by default, via a pluggable store (in-memory default, Redis/Postgres drop-in) |
@@ -1570,6 +1570,10 @@ pnpm lint:persistence
 
 # Clean build artifacts
 pnpm clean
+
+# Remove every generated file: node_modules, dist, coverage, caches, *.tsbuildinfo, license copies
+pnpm clean:all
+pnpm install
 ```
 
 `pnpm test:coverage` runs each workspace’s existing test script sequentially with Vitest coverage. It prints test results and a coverage summary per workspace, and writes `coverage/coverage-summary.json` in each workspace. Reports cover the same tests selected by each workspace’s Vitest configuration; E2E tests run separately. All workspaces run even if one fails, and any failure makes the command fail. `pnpm test:review` is an alias for this command. There is no combined monorepo coverage total.
@@ -1579,6 +1583,23 @@ registered in `biome.json`. They run through Biome CLI/editor checks and before
 `test:unit`; there is no standalone JavaScript persistence linter. Shared decorator
 and optimistic-update contracts/tests are documented in
 [`packages/ddd-core`](packages/ddd-core/README.md#decorated-versioned-updates).
+
+### Releasing
+
+Every publishable workspace is released at the same version; `CHANGELOG.md` records
+each release. Before publishing:
+
+1. Run `pnpm verify:all` (type checks, unit, build, release and E2E suites; E2E needs a
+   container runtime). `pnpm test:release` packs every package and loads it from its
+   tarball in an isolated consumer.
+2. Run `pnpm copy-licenses && pnpm -r publish --access public --dry-run --no-git-checks`
+   and check the list: every `@cqrs-ddd/*` and `@nestjs-pipeline/*` package, no private
+   workspace (`@nestjs-pipeline/ddd-api`).
+3. The npm organizations `cqrs-ddd` and `nestjs-pipeline` must exist, with your account
+   allowed to publish to both.
+4. Merge to `master`, then run `pnpm publish:all`. It copies the license files into each
+   package and publishes in dependency order; each package rebuilds in
+   `prepublishOnly`.
 
 ### Agent context files
 

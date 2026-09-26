@@ -497,7 +497,9 @@ The application writes the rest of the glue:
 - A mutation barrier protects only for `barrierTtl`. It is a bounded race window, not a
   tombstone.
 - The persistence helpers reject outer transactions; decorators cannot make several
-  writes atomic.
+  writes atomic. A row that must commit with the aggregate, such as an audit record or
+  an outbox message, therefore cannot share its transaction yet: that needs commit
+  hooks that run acknowledgment and cache work after the commit.
 - `/persistence` supports MikroORM 7; constraint mapping and the cache table SQL cover
   PostgreSQL and SQLite.
 - The tenant resolver is process-wide: one per process, for each installed copy of this

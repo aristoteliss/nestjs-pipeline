@@ -3,7 +3,7 @@
 [![npm version](https://img.shields.io/npm/v/@nestjs-pipeline/audit.svg)](https://www.npmjs.com/package/@nestjs-pipeline/audit)
 [![License](https://img.shields.io/npm/l/@nestjs-pipeline/audit.svg)](https://www.npmjs.com/package/@nestjs-pipeline/audit)
 
-Audit-trail behavior for `@nestjs-pipeline/core` — records **who did what, when, and with what outcome** for every command, query, and event handler, and forwards the record to a pluggable **audit sink**. Captured application values must satisfy that sink's serialization requirements.
+Audit-trail behavior for `@nestjs-pipeline/core` — records **who did what, when, and with what outcome** for every command (and, when listed in `captureKinds`, every query or event handler), and forwards the record to a pluggable **audit sink**. Captured application values must satisfy that sink's serialization requirements.
 
 Sink-agnostic: it depends only on a tiny `AuditSink` interface. A zero-dependency **console** sink is the default; **Postgres** is a genuine drop-in, and your own sink (event store, Kafka, HTTP collector, …) is a one-line swap — handlers never change. Records are written on **both success and failure**, sensitive payload fields are **redacted** by default, and the actor can be resolved from the pipeline context.
 
@@ -20,6 +20,8 @@ Sink-agnostic: it depends only on a tiny `AuditSink` interface. A zero-dependenc
   - [Postgres (drop-in)](#postgres-drop-in)
   - [Custom sink](#custom-sink)
 - [Behavior](#behavior)
+- [Architecture and delivery guarantees](#architecture-and-delivery-guarantees)
+- [Recording the audit row atomically with the business write](#recording-the-audit-row-atomically-with-the-business-write)
 - [Configuration](#configuration)
 - [Redaction](#redaction)
 - [Resolving the actor](#resolving-the-actor)
@@ -81,7 +83,7 @@ import { AuditModule, AuditBehavior } from '@nestjs-pipeline/audit';
 
 @Module({
   imports: [
-    // Zero-config: audit every handler to the console.
+    // Zero-config: audit every command to the console.
     AuditModule.forRoot(),
     PipelineModule.forRoot({
       globalBehaviors: { scope: 'all', before: [AuditBehavior] },
@@ -125,13 +127,18 @@ Every audited run produces one `AuditRecord`, forwarded to the sink:
 
 ## Sinks
 
-A sink implements a single method — `AuditSink`:
+A sink implements `AuditSink`: `write`, and optionally `begin`:
 
 ```typescript
 interface AuditSink {
   write(record: AuditRecord): Promise<void> | void;
+  begin?(record: AuditStartRecord): Promise<void> | void;
 }
 ```
+
+`begin` receives a pending record before the handler runs; `write` receives the
+final record under the same `id` and must replace it. A durable sink should
+implement both (see [Architecture and delivery guarantees](#architecture-and-delivery-guarantees)).
 
 ### Console (default)
 
@@ -149,7 +156,9 @@ AuditModule.forRoot({
 
 ### Postgres (drop-in)
 
-Inserts each record as a row. Create the table once with `createAuditTableSql`.
+Implements `begin` and `write`: it inserts a `pending` row when a command starts
+and completes that row (`INSERT … ON CONFLICT (id) DO UPDATE`) when it finishes.
+Create the table once with `createAuditTableSql`.
 
 ```typescript
 import { Pool } from 'pg';
@@ -187,6 +196,14 @@ AuditModule.forRootAsync({
 > PostgreSQL `jsonb` cannot hold a NUL character or a lone UTF-16 surrogate, and
 > rejects the whole `INSERT` when a value contains one. The sink stores each such
 > character as U+FFFD (`�`) instead, so the record is kept.
+>
+> A row still `pending` long after it started is an attempt interrupted by a
+> process stop; its outcome is unknown. `duration_ms` and `completed_at` stay null:
+>
+> ```sql
+> SELECT * FROM audit_log
+> WHERE outcome = 'pending' AND occurred_at < now() - interval '1 hour';
+> ```
 
 ### Custom sink
 
@@ -224,6 +241,10 @@ failure. If the sink throws while `failOpen: false`:
 The produced record is also stashed on `context.items` under `AUDIT_RECORD_ITEM`
 for any later behavior to read.
 
+When the sink implements `begin` (and `recordStart` is not `false`), a pending
+start record is written **before** the handler runs and stashed under
+`AUDIT_START_RECORD_ITEM_TOKEN`; the final record reuses its `id`.
+
 Opt in per handler with options:
 
 ```typescript
@@ -246,6 +267,107 @@ export class DeleteUserHandler { /* ... */ }
 
 ---
 
+## Architecture and delivery guarantees
+
+`AuditBehavior` is a pipeline step around the handler. It never sees the
+handler's database transaction: every sink call is a separate operation.
+
+For each audited request (commands only, unless `captureKinds` lists more):
+
+1. **Start** — when the sink implements `begin`, build the pending
+   `AuditStartRecord` (actor, action, redacted payload, `outcome: 'pending'`) and
+   call `sink.begin(record)`. Stash it under `AUDIT_START_RECORD_ITEM_TOKEN`.
+2. **Handler** — `next()` runs the rest of the pipeline and the handler, which
+   commits its own changes.
+3. **Finish** — build the final `AuditRecord` under the same `id` (`success` or
+   `failure`, duration, optional response, error) and call `sink.write(record)`.
+   Stash it under `AUDIT_RECORD_ITEM`.
+
+What survives a process stop at each point:
+
+| Stop happens | Sink with `begin` (Postgres) | Sink without `begin` (console) |
+|---|---|---|
+| before step 1 completes | no row, and the handler did not run | no line, and the handler did not run |
+| during step 2 or before step 3 completes | a `pending` row: the attempt is known, its outcome is not | nothing: the attempt is lost |
+| after step 3 | the final row | the final line |
+
+Two consequences follow:
+
+- A `pending` row does **not** say whether the handler's changes committed. Treat
+  it as "outcome unknown" and reconcile it against the business data.
+- With `failOpen: false`, a failed `begin` stops the request **before** the
+  handler runs: no audit, no action. A failed final `write` fails a successful
+  request, but the handler's changes are already committed; the row stays
+  `pending`.
+
+These guarantees hold for any sink and any database, because the behavior does
+not need to join the handler's transaction. What they do not give is an audit
+row that commits **together** with the business change. That needs the
+application's cooperation, described next.
+
+---
+
+## Recording the audit row atomically with the business write
+
+The only way to guarantee "a committed change always has its audit row, and a
+rolled-back change has none" is to insert the audit row **in the same database
+transaction** as the business change. A pipeline behavior cannot do that on its
+own: it runs outside the handler and cannot see its unit of work. The
+application must do it in its persistence layer.
+
+**The pattern (a transactional audit record):**
+
+1. Use a sink whose `begin` stores nothing and whose `write` completes a row by
+   `id` (an upsert, like `PostgresAuditSink.write`). `begin` must exist so that
+   the pending record is built and stashed.
+2. In the handler's repository, inside the transaction that writes the business
+   change, read the pending record with `getPipelineItem(context,
+   AUDIT_START_RECORD_ITEM_TOKEN)` (or pass it in from the handler) and insert it
+   into the audit table.
+3. After the handler returns, the behavior's `write` completes that row with the
+   outcome. If the transaction rolled back, `write` inserts a `failure` row; if
+   the process stops before `write`, the committed row stays `pending` but its
+   business change is known to have committed.
+
+```typescript
+import { AuditModule, type AuditSink } from '@nestjs-pipeline/audit';
+
+class TransactionalAuditSink implements AuditSink {
+  constructor(private readonly completing: PostgresAuditSink) {}
+
+  begin(): void {
+    // The repository inserts the pending row in its own transaction.
+  }
+
+  write(record: AuditRecord): Promise<void> {
+    return this.completing.write(record); // upsert by id
+  }
+}
+```
+
+**Checklist for doing it properly:**
+
+- The audit table lives in the **same database** as the business data, and the
+  insert runs on the **same connection and transaction** as the business write.
+- Completion is **idempotent by `id`** (an upsert), so a retried `write`, or a
+  `write` without a stored start row, is safe.
+- The row is **redacted before storage**: use the record from the token, never
+  the raw request.
+- A **reconciliation job** handles rows left `pending` (compare with the
+  business data, then mark them).
+- If a message broker must also receive the audit event, publish it from the
+  stored row (a transactional outbox), not from the request path.
+
+**Limit with autocommit-only repositories:** some write sides refuse to run
+inside an outer transaction, because they acknowledge the write (advance a
+version, update a cache) as soon as their statement succeeds, which would be
+wrong after a rollback they cannot observe. Such a repository cannot share a
+transaction with the audit insert until it gains commit hooks (acknowledgment
+and cache work run after the commit). Until then, rely on the two-phase
+guarantees above.
+
+---
+
 ## Configuration
 
 Per-handler options (`AuditBehaviorOptions`) shallow-merge over the module
@@ -258,7 +380,8 @@ defaults passed to `AuditModule.forRoot({ defaults })`:
 | `actor` | `(ctx) => AuditActor \| undefined` | — | Resolve the acting principal |
 | `captureRequest` | `boolean` | `true` | Record the (redacted) request payload |
 | `captureResponse` | `boolean` | `false` | Record the (redacted) handler response |
-| `captureKinds` | `AuditRequestKind[]` | all | Restrict auditing to specific kinds |
+| `recordStart` | `boolean` | `true` | Write a pending start record first, when the sink implements `begin` |
+| `captureKinds` | `AuditRequestKind[]` | `['command']` | Request kinds to audit; list `'query'` or `'event'` to audit them too |
 | `redactKeys` | `string[]` | — | Extra field names to mask (merged with defaults) |
 | `redact` | `(value) => unknown` | — | Full custom redactor (replaces key-masking) |
 | `metadata` | `(ctx) => object` | — | Extra metadata merged into the record |
@@ -348,6 +471,10 @@ When the **sink itself** throws (e.g. the audit DB is down):
 Record construction and sink failures both follow `failOpen`. When handling an
 already failed request, the original request error is preserved.
 
+The start record follows the same rule, one step earlier: when building it or
+`sink.begin` fails, `failOpen: true` logs the failure and runs the handler, and
+`failOpen: false` rejects the request **before the handler runs**.
+
 Diagnostic logging of an audit failure is itself fail-open: a logger that throws
 never replaces the handler's result or error.
 
@@ -369,14 +496,14 @@ there is rejected before the handler runs (logged and ignored with
 | `AuditModule` | class | `forRoot` / `forRootAsync` registration |
 | `AUDIT_RECORD_ITEM` | symbol | `context.items` exported unique Symbol key holding the produced record |
 | `AUDIT_RECORD_ITEM_TOKEN` | `PipelineItemToken<AuditRecord>` | Typed token over the same key, for `getPipelineItem` |
-
+| `AUDIT_START_RECORD_ITEM_TOKEN` | `PipelineItemToken<AuditStartRecord>` | The pending start record, set before the handler runs |
 | `AUDIT_SINK` / `AUDIT_DEFAULT_OPTIONS` | token | DI tokens |
 | `LogAuditSink` | class | Default zero-dep sink |
 | `PostgresAuditSink` | class | Postgres drop-in sink |
 | `createAuditTableSql` | fn | `CREATE TABLE` DDL for the Postgres sink |
-| `buildAuditRecord` | fn | Pure record builder (used by the behavior) |
+| `buildAuditRecord` / `buildAuditStartRecord` | fn | Pure builders of the final and the pending record (used by the behavior) |
 | `redactValue` / `DEFAULT_REDACT_KEYS` / `REDACTED` | fn/const | Redaction helpers |
-| `AuditSink`, `AuditRecord`, `AuditBehaviorOptions`, … | type | Public types |
+| `AuditSink`, `AuditRecord`, `AuditStartRecord`, `AuditBehaviorOptions`, … | type | Public types |
 
 ---
 

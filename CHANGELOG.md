@@ -120,25 +120,40 @@ Added: `requires()`, `CaslAuthorizer` (`can`, `authorize`, `project`),
 ### First releases
 
 - `@nestjs-pipeline/audit`: records every audited request, on success and failure, to an
-  `AuditSink` (console by default, Postgres bundled), with payload redaction. With the
+  `AuditSink` (console by default, Postgres bundled), with payload redaction. Only
+  commands are audited unless `captureKinds` lists queries or events. A sink that
+  implements `begin` (the Postgres sink does) receives a pending record before the
+  handler runs, then the final record under the same id, so a process stop leaves a
+  `pending` row instead of none. With the
   default `failOpen: true`, a sink failure is logged and the request's outcome is kept.
   With `failOpen: false`, a sink failure fails a successful request; if the handler had
   already failed, its own error is rethrown unchanged and the sink failure is logged.
 - `@nestjs-pipeline/cache`: read-through caching for queries on cache-manager 7 and Keyv.
   `key` is required: there is no default key.
-- `@nestjs-pipeline/deadletter`: captures failed commands and events through a
-  `DeadLetterTransport` (BullMQ, RabbitMQ and Postgres bundled). The RabbitMQ transport is
-  tested with a mocked channel only.
+- `@nestjs-pipeline/deadletter`: captures failed requests through a `DeadLetterTransport`
+  (BullMQ, RabbitMQ and Postgres bundled); events by default, commands and queries when
+  listed in `captureKinds`. The Postgres transport is a `DeadLetterStore`, and
+  `DeadLetterRedriver` replays a stored record, counts failed attempts and resolves it;
+  a redacted payload is not replayed without a `rebuild`. `rethrow: false` swallows an
+  event handler's error only, and is a bootstrap error on a command or query handler.
+  The RabbitMQ transport is tested with a mocked channel only.
 - `@nestjs-pipeline/feature-flags`: gates handlers through OpenFeature.
   `FeatureDisabledFilter` answers HTTP 403.
 - `@nestjs-pipeline/idempotency`: concurrent-duplicate exclusion and replay of successful
   responses, with memory (default), Redis and Postgres stores. A failed execution releases
   its key by default. The Postgres store keeps responses as JSON text, so every response,
   including one with NUL characters or unpaired surrogates, replays exactly.
-- `@nestjs-pipeline/rate-limit`: rate limiting on rate-limiter-flexible, with an HTTP 429
-  filter. `keyFactory` is required: there is no default bucket.
-- `@nestjs-pipeline/resilience`: retry, circuit breaker, timeout, bulkhead and fallback on
-  cockatiel. Retry, circuit breaker and fallback require a `handle` predicate or
+- `@nestjs-pipeline/rate-limit`: per-command rate limiting on rate-limiter-flexible,
+  applied wherever the command is dispatched from, with an HTTP 429 filter. `keyFactory`
+  is required: there is no default bucket. `points` is a fixed or computed cost per
+  command; `0` charges nothing.
+- `@nestjs-pipeline/resilience`: resilience on cockatiel, in two parts. Named policies
+  for outbound dependencies (retry, circuit breaker, timeout, bulkhead, fallback),
+  declared in `ResilienceModule.forRoot({ policies })` or `forRootAsync`, built and
+  validated at startup, and shared through `ResiliencePolicies` or
+  `@InjectResiliencePolicy(name)`. `ResilienceBehavior` applies retry, timeout and
+  bulkhead around a whole handler; a circuit breaker or fallback there is a bootstrap
+  error. Retry, circuit breaker and fallback require a `handle` predicate or
   `handleAllErrors: true`.
 - `@nestjs-pipeline/tenant`: `currentTenantId()` returns the tenant of the running
   pipeline or of the innermost `runWithTenant()` scope.

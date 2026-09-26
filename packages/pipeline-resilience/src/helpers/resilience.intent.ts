@@ -7,14 +7,8 @@ import { ResilienceBehavior } from '../resilience.behavior';
 export type ResilienceIntentOptions = ResilienceBehaviorOptions &
   (
     | { retry: NonNullable<ResilienceBehaviorOptions['retry']> }
-    | {
-        circuitBreaker: NonNullable<
-          ResilienceBehaviorOptions['circuitBreaker']
-        >;
-      }
     | { timeout: NonNullable<ResilienceBehaviorOptions['timeout']> }
     | { bulkhead: NonNullable<ResilienceBehaviorOptions['bulkhead']> }
-    | { fallback: NonNullable<ResilienceBehaviorOptions['fallback']> }
     | { policy: NonNullable<ResilienceBehaviorOptions['policy']> }
   );
 

@@ -17,6 +17,7 @@
     "test:last:fails": "node -e 'const fs=require(\"fs\");if(!fs.existsSync(\"test-run.log\")){console.log(\"No test-run.log found. Run pnpm test:all:full first.\");process.exit(0);}const time=fs.statSync(\"test-run.log\").mtime.toLocaleString();const raw=fs.readFileSync(\"test-run.log\",\"utf8\").replace(/\\x1b\\[[0-9;]*[a-zA-Z]/g,\"\").split(\"\\n\");let tf=0;for(const l of raw){const m=l.match(/(?:Test Files|Tests)\\s+(\\d+)\\s+failed/);if(m)tf+=+m[1];}if(tf===0){console.log(\"\\x1b[32m✔ No failures found! All tests passed.\\x1b[0m (Recorded: \"+time+\")\");process.exit(0);}console.log(\"\\x1b[31m✖ Failures detected in test run (\"+time+\"):\\x1b[0m\\n\");let cap=false;for(let i=0;i<raw.length;i++){const l=raw[i];if(/Failed Tests|Failed Suites|FAIL\\s+[^\\s]|^\\s*✕\\s+/.test(l))cap=true;if(cap){console.log(l);if(/Test Files\\s+|% Coverage report|Coverage summary/.test(l)){cap=false;console.log(\"-\".repeat(80));}}}'",
     "lint": "pnpm lint:persistence && pnpm -r lint",
     "clean": "pnpm -r run clean",
+    "clean:all": "rm -rf node_modules .tmp .cache coverage api/node_modules api/dist api/coverage api/*.tsbuildinfo packages/*/node_modules packages/*/dist packages/*/coverage packages/*/*.tsbuildinfo packages/*/LICENSE packages/*/COMMERCIAL_LICENSE.txt packages/*/.package-licenses.generated",
     "rebuild": "pnpm -r run clean && pnpm -r build",
     "test:release": "pnpm rebuild && pnpm copy-licenses && node integration/packages/release.mjs",
     "verify:all": "pnpm lint && pnpm test:unit && pnpm test:build && pnpm test:release && pnpm test:e2e",

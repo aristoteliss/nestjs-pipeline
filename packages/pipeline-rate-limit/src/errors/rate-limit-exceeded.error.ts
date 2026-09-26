@@ -20,6 +20,11 @@ export class RateLimitExceededError extends Error {
   readonly remainingPoints: number;
   /** Configured point capacity per window, when known. */
   readonly limit?: number;
+  /**
+   * Points the rejected request asked for, when known. A request costing more
+   * than {@link limit} can never pass, whatever the wait.
+   */
+  readonly points?: number;
 
   constructor(params: {
     key: string;
@@ -27,6 +32,7 @@ export class RateLimitExceededError extends Error {
     msBeforeNext: number;
     remainingPoints: number;
     limit?: number;
+    points?: number;
   }) {
     const retryAfterSeconds = Math.max(
       1,
@@ -43,5 +49,6 @@ export class RateLimitExceededError extends Error {
     this.retryAfterSeconds = retryAfterSeconds;
     this.remainingPoints = params.remainingPoints;
     this.limit = params.limit;
+    this.points = params.points;
   }
 }

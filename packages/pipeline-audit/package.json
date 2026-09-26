@@ -61,6 +61,7 @@
     "vitest": "^4.1.11"
   },
   "dependencies": {
-    "@cqrs-ddd/safe-stringify": "workspace:^"
+    "@cqrs-ddd/safe-stringify": "workspace:^",
+    "@cqrs-ddd/uuidv7": "workspace:^"
   }
 }

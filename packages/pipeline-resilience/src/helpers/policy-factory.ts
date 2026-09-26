@@ -31,12 +31,13 @@ import type {
   CircuitBreakerOptions,
   FallbackOptions,
   JitterStrategy,
-  ResilienceBehaviorOptions,
   ResilienceLayer,
+  ResiliencePolicyOptions,
   ResilienceTelemetry,
+  ResilienceTelemetryEvent,
   RetryBackoff,
-  RetryOptions,
-  TimeoutOptions,
+  RetryPolicyOptions,
+  TimeoutPolicyOptions,
 } from '../interfaces/resilience-options.interface';
 import {
   getResilienceRequestLabels,
@@ -60,25 +61,40 @@ export type AnyPolicy = IPolicy<IDefaultPolicyContext, unknown>;
 /**
  * Contextual metadata used to enrich telemetry/log messages.
  *
- * `requestName` and `handlerName` are build-time fallbacks only. A policy is
- * built once per handler and reused, so the live values are read from the
- * request-scoped store at emit time.
+ * A handler's policy passes `requestName` and `handlerName`, which are
+ * build-time fallbacks only: the policy is built once per handler and reused,
+ * so the live values are read from the request-scoped store at emit time. A
+ * named policy passes `policyName` instead.
  */
 export interface PolicyBuildContext {
   logger?: LoggerService;
-  requestName: string;
-  handlerName: string;
+  requestName?: string;
+  handlerName?: string;
+  /** Name of a named policy; log messages and telemetry events carry it. */
+  policyName?: string;
   telemetry?: ResilienceTelemetry;
 }
 
 /** Resolves the live request labels, falling back to the build-time values. */
-function labels(ctx: PolicyBuildContext): ResilienceRequestLabels {
+function labels(ctx: PolicyBuildContext): Partial<ResilienceRequestLabels> {
   return (
     getResilienceRequestLabels() ?? {
       requestName: ctx.requestName,
       handlerName: ctx.handlerName,
     }
   );
+}
+
+/** What a log message names: the named policy, or the live handler. */
+function subject(ctx: PolicyBuildContext): string | undefined {
+  return ctx.policyName !== undefined
+    ? `policy '${ctx.policyName}'`
+    : labels(ctx).handlerName;
+}
+
+/** The event every telemetry hook receives. */
+function telemetryEvent(ctx: PolicyBuildContext): ResilienceTelemetryEvent {
+  return { policyName: ctx.policyName };
 }
 
 /** Maps a {@link JitterStrategy} to its cockatiel generator function. */
@@ -137,7 +153,7 @@ function buildBreaker(options: CircuitBreakerOptions): IBreaker {
 }
 
 function buildRetry(
-  options: RetryOptions,
+  options: RetryPolicyOptions,
   base: Policy,
   ctx: PolicyBuildContext,
 ): AnyPolicy {
@@ -147,12 +163,17 @@ function buildRetry(
   });
   policy.onRetry((event) => {
     const { requestName, handlerName } = labels(ctx);
+    const retrying =
+      ctx.policyName !== undefined
+        ? `policy '${ctx.policyName}'`
+        : `${requestName} → ${handlerName}`;
     ctx.logger?.debug?.(
-      `[resilience] retrying ${requestName} → ${handlerName} ` +
+      `[resilience] retrying ${retrying} ` +
         `(attempt ${event.attempt}, delay ${event.delay}ms)`,
       LOG_CONTEXT,
     );
     ctx.telemetry?.onRetry?.({
+      ...telemetryEvent(ctx),
       attempt: event.attempt,
       delay: event.delay,
       requestName,
@@ -172,24 +193,24 @@ function buildCircuitBreaker(
   });
   policy.onBreak(() => {
     ctx.logger?.warn?.(
-      `[resilience] circuit OPEN for ${labels(ctx).handlerName}`,
+      `[resilience] circuit OPEN for ${subject(ctx)}`,
       LOG_CONTEXT,
     );
-    ctx.telemetry?.onCircuitOpen?.();
+    ctx.telemetry?.onCircuitOpen?.(telemetryEvent(ctx));
   });
   policy.onReset(() => {
     ctx.logger?.log?.(
-      `[resilience] circuit CLOSED for ${labels(ctx).handlerName}`,
+      `[resilience] circuit CLOSED for ${subject(ctx)}`,
       LOG_CONTEXT,
     );
-    ctx.telemetry?.onCircuitClose?.();
+    ctx.telemetry?.onCircuitClose?.(telemetryEvent(ctx));
   });
   policy.onHalfOpen(() => {
     ctx.logger?.debug?.(
-      `[resilience] circuit HALF-OPEN for ${labels(ctx).handlerName}`,
+      `[resilience] circuit HALF-OPEN for ${subject(ctx)}`,
       LOG_CONTEXT,
     );
-    ctx.telemetry?.onCircuitHalfOpen?.();
+    ctx.telemetry?.onCircuitHalfOpen?.(telemetryEvent(ctx));
   });
   return policy;
 }
@@ -201,17 +222,17 @@ function buildBulkhead(
   const policy = bulkhead(options.limit, options.queue ?? 0);
   policy.onReject(() => {
     ctx.logger?.warn?.(
-      `[resilience] bulkhead rejected ${labels(ctx).handlerName} ` +
+      `[resilience] bulkhead rejected ${subject(ctx)} ` +
         `(limit ${options.limit}, queue ${options.queue ?? 0})`,
       LOG_CONTEXT,
     );
-    ctx.telemetry?.onBulkheadRejected?.();
+    ctx.telemetry?.onBulkheadRejected?.(telemetryEvent(ctx));
   });
   return policy;
 }
 
 function buildTimeout(
-  options: TimeoutOptions,
+  options: TimeoutPolicyOptions,
   ctx: PolicyBuildContext,
 ): AnyPolicy {
   const strategy =
@@ -221,10 +242,10 @@ function buildTimeout(
   const policy = timeout(options.duration, strategy);
   policy.onTimeout(() => {
     ctx.logger?.warn?.(
-      `[resilience] timeout after ${options.duration}ms for ${labels(ctx).handlerName}`,
+      `[resilience] timeout after ${options.duration}ms for ${subject(ctx)}`,
       LOG_CONTEXT,
     );
-    ctx.telemetry?.onTimeout?.();
+    ctx.telemetry?.onTimeout?.(telemetryEvent(ctx));
   });
   return policy;
 }
@@ -236,15 +257,16 @@ function buildFallback(options: FallbackOptions, base: Policy): AnyPolicy {
 }
 
 /**
- * Builds a single composed cockatiel {@link IPolicy} from declarative
- * {@link ResilienceBehaviorOptions}, or `null` when nothing is configured.
+ * Builds a single composed cockatiel {@link IPolicy} from declarative options
+ * — a named policy's {@link ResiliencePolicyOptions} or a handler's
+ * `ResilienceBehaviorOptions` — or `null` when nothing is configured.
  *
- * The policy is intended to be built **once per handler** and cached so that
- * stateful layers (circuit breaker, bulkhead) retain their state across
- * invocations.
+ * The policy is intended to be built **once** (per handler, or per name) and
+ * reused so that stateful layers (circuit breaker, bulkhead) retain their
+ * state across invocations.
  */
 export function buildResiliencePolicy(
-  options: ResilienceBehaviorOptions,
+  options: ResiliencePolicyOptions & { policy?: IPolicy },
   ctx: PolicyBuildContext,
 ): AnyPolicy | null {
   // Escape hatch: a fully pre-built policy wins over everything else.
