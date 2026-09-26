@@ -3,6 +3,7 @@
 import {
   ApplyMutation,
   Mutable,
+  numberRule,
   RootEntity,
   type RootEntitySnapshot,
 } from '@cqrs-ddd/core/domain';
@@ -32,6 +33,21 @@ export type RefreshOutcome = 'rotated' | 'grace';
  */
 export class Auth extends RootEntity<AuthSnapshot> {
   public static readonly aggregateName = 'auth';
+  public static readonly rules = {
+    expiresAt: numberRule({ field: 'expiresAt', integer: true, min: 0 }),
+    rotatedAt: numberRule({
+      field: 'rotatedAt',
+      required: false,
+      integer: true,
+      min: 0,
+    }),
+    revokedAt: numberRule({
+      field: 'revokedAt',
+      required: false,
+      integer: true,
+      min: 0,
+    }),
+  } as const;
 
   readonly userId: string;
   readonly expiresAt: number;
@@ -42,10 +58,14 @@ export class Auth extends RootEntity<AuthSnapshot> {
   @Mutable<string | null>()
   private _previousRefreshTokenHash: string | null;
 
-  @Mutable<number | null>()
+  @Mutable<number | null>({
+    normalize: (value) => Auth.rules.rotatedAt.parse(value),
+  })
   private _rotatedAt: number | null;
 
-  @Mutable<number | null>()
+  @Mutable<number | null>({
+    normalize: (value) => Auth.rules.revokedAt.parse(value),
+  })
   private _revokedAt: number | null;
 
   private constructor(snapshot?: AuthSnapshot) {
@@ -60,11 +80,11 @@ export class Auth extends RootEntity<AuthSnapshot> {
       return;
     }
     this.userId = snapshot.userId;
-    this.expiresAt = snapshot.expiresAt;
+    this.expiresAt = Auth.rules.expiresAt.parse(snapshot.expiresAt);
     this._refreshTokenHash = snapshot.refreshTokenHash;
     this._previousRefreshTokenHash = snapshot.previousRefreshTokenHash ?? null;
-    this._rotatedAt = snapshot.rotatedAt ?? null;
-    this._revokedAt = snapshot.revokedAt ?? null;
+    this._rotatedAt = Auth.rules.rotatedAt.parse(snapshot.rotatedAt);
+    this._revokedAt = Auth.rules.revokedAt.parse(snapshot.revokedAt);
   }
 
   static start(
@@ -154,10 +174,10 @@ export class Auth extends RootEntity<AuthSnapshot> {
   }
 
   /**
-   * @internal For MikroORM persistence hydration only.
-   * Application code changes aggregate state through domain methods and factories, never through this setter.
+   * For MikroORM hydration only (`accessor: true`). Private, so application code
+   * cannot assign it and changes state through domain methods and factories.
    */
-  set refreshTokenHash(value: string) {
+  private set refreshTokenHash(value: string) {
     this._refreshTokenHash = value;
   }
 
@@ -166,10 +186,10 @@ export class Auth extends RootEntity<AuthSnapshot> {
   }
 
   /**
-   * @internal For MikroORM persistence hydration only.
-   * Application code changes aggregate state through domain methods and factories, never through this setter.
+   * For MikroORM hydration only (`accessor: true`). Private, so application code
+   * cannot assign it and changes state through domain methods and factories.
    */
-  set previousRefreshTokenHash(value: string | null) {
+  private set previousRefreshTokenHash(value: string | null) {
     this._previousRefreshTokenHash = value ?? null;
   }
 
@@ -178,11 +198,11 @@ export class Auth extends RootEntity<AuthSnapshot> {
   }
 
   /**
-   * @internal For MikroORM persistence hydration only.
-   * Application code changes aggregate state through domain methods and factories, never through this setter.
+   * For MikroORM hydration only (`accessor: true`). Private, so application code
+   * cannot assign it and changes state through domain methods and factories.
    */
-  set rotatedAt(value: number | null) {
-    this._rotatedAt = value === null ? null : Number(value);
+  private set rotatedAt(value: number | null) {
+    this._rotatedAt = Auth.rules.rotatedAt.parse(value);
   }
 
   get revokedAt(): number | null {
@@ -190,11 +210,11 @@ export class Auth extends RootEntity<AuthSnapshot> {
   }
 
   /**
-   * @internal For MikroORM persistence hydration only.
-   * Application code changes aggregate state through domain methods and factories, never through this setter.
+   * For MikroORM hydration only (`accessor: true`). Private, so application code
+   * cannot assign it and changes state through domain methods and factories.
    */
-  set revokedAt(value: number | null) {
-    this._revokedAt = value === null ? null : Number(value);
+  private set revokedAt(value: number | null) {
+    this._revokedAt = Auth.rules.revokedAt.parse(value);
   }
 
   get version(): number {
@@ -202,10 +222,10 @@ export class Auth extends RootEntity<AuthSnapshot> {
   }
 
   /**
-   * @internal For MikroORM persistence hydration only.
-   * Application code changes aggregate state through domain methods and factories, never through this setter.
+   * For MikroORM hydration only (`accessor: true`). Private, so application code
+   * cannot assign it and changes state through domain methods and factories.
    */
-  set version(value: number) {
+  private set version(value: number) {
     if (typeof value === 'number' && Number.isInteger(value) && value > 0) {
       this._version = value;
       this._persistedVersion = value;

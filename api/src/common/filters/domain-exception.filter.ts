@@ -56,9 +56,9 @@ type HttpResponse = {
  * | {@link MissingTenantContextError} | 500, generic message | Server misconfiguration: every request path must carry a tenant, and invalid tenant headers are already rejected |
  * | {@link UniqueEmailException} | 409 Conflict | Duplicate email detected across tenant users |
  * | {@link UniqueRoleNameException} | 409 Conflict | Duplicate role name detected across tenant roles |
- * | {@link InvalidRoleNameException} | 422 Unprocessable Entity | Invalid role name |
- * | {@link InvalidUsernameException} | 422 Unprocessable Entity | Invalid username |
- * | {@link InvalidDepartmentException} | 422 Unprocessable Entity | Invalid department |
+ * | {@link InvalidRoleNameException} | 422 Unprocessable Entity, with the violation's `field`, `rule` and `limit` | Invalid role name |
+ * | {@link InvalidUsernameException} | 422 Unprocessable Entity, likewise | Invalid username |
+ * | {@link InvalidDepartmentException} | 422 Unprocessable Entity, likewise | Invalid department |
  * | `EmptyUserUpdateException` | 400 Bad Request | No mutable fields supplied |
  * | Unclassified {@link DomainException} | 400 Bad Request | Generic invariant failure |
  *
@@ -80,9 +80,10 @@ type HttpResponse = {
  * {
  *   "statusCode": 422,
  *   "error": "Unprocessable Entity",
- *   "message": "Username must be at least 3 characters, received: \"a\".",
- *   "minLength": 3,
- *   "actualValue": "a"
+ *   "message": "username must be at least 3 characters.",
+ *   "field": "username",
+ *   "rule": "minLength",
+ *   "limit": 3
  * }
  * ```
  */
@@ -151,10 +152,7 @@ export class DomainExceptionFilter implements ExceptionFilter {
       return {
         statusCode: HttpStatus.UNPROCESSABLE_ENTITY,
         error: 'Unprocessable Entity',
-        extra: {
-          minLength: exception.minLength,
-          actualValue: exception.actualValue,
-        },
+        extra: { ...exception.violation },
       };
     }
 

@@ -51,8 +51,11 @@ describe('User domain entity', () => {
         User.create('Al', 'alice@example.test');
       } catch (err) {
         expect(err).toBeInstanceOf(InvalidUsernameException);
-        expect((err as InvalidUsernameException).minLength).toBe(3);
-        expect((err as InvalidUsernameException).actualValue).toBe('Al');
+        expect((err as InvalidUsernameException).violation).toEqual({
+          field: 'username',
+          rule: 'minLength',
+          limit: 3,
+        });
       }
     });
 
@@ -64,9 +67,32 @@ describe('User domain entity', () => {
         User.create('Alice', 'alice@example.test', 'IT');
       } catch (err) {
         expect(err).toBeInstanceOf(InvalidDepartmentException);
-        expect((err as InvalidDepartmentException).minLength).toBe(3);
-        expect((err as InvalidDepartmentException).actualValue).toBe('IT');
+        expect((err as InvalidDepartmentException).violation).toEqual({
+          field: 'department',
+          rule: 'minLength',
+          limit: 3,
+        });
       }
+    });
+
+    it('rejects a username or department longer than its 255-character column', () => {
+      const long = 'a'.repeat(256);
+
+      expect(() => User.create(long, 'alice@example.test')).toThrow(
+        'username must be at most 255 characters.',
+      );
+      expect(() => User.create('Alice', 'alice@example.test', long)).toThrow(
+        'department must be at most 255 characters.',
+      );
+      expect(User.create('a'.repeat(255), 'alice@example.test').username).toBe(
+        'a'.repeat(255),
+      );
+    });
+
+    it('rejects a username with a control character', () => {
+      expect(() => User.create('Ali\u0000ce', 'alice@example.test')).toThrow(
+        InvalidUsernameException,
+      );
     });
   });
 
@@ -216,41 +242,39 @@ describe('User domain entity', () => {
     });
   });
 
-  describe('setters domain encapsulation and invariants', () => {
-    it('enforces invariants and normalization on username setter', () => {
+  describe('field invariants on update', () => {
+    it('rejects an empty, blank or short username and trims a valid one', () => {
       const user = User.create('Alice', 'alice@example.test');
 
-      expect(() => {
-        user.username = '';
-      }).toThrow(InvalidUsernameException);
+      expect(() => user.update({ username: '' })).toThrow(
+        InvalidUsernameException,
+      );
+      expect(() => user.update({ username: '   ' })).toThrow(
+        InvalidUsernameException,
+      );
+      expect(() => user.update({ username: 'Al' })).toThrow(
+        InvalidUsernameException,
+      );
 
-      expect(() => {
-        user.username = '   ';
-      }).toThrow(InvalidUsernameException);
-
-      expect(() => {
-        user.username = 'Al';
-      }).toThrow(InvalidUsernameException);
-
-      user.username = '  Bob  ';
+      user.update({ username: '  Bob  ' });
       expect(user.username).toBe('Bob');
     });
 
-    it('enforces invariants and normalization on department setter', () => {
+    it('rejects a short department, clears a blank or null one and trims a valid one', () => {
       const user = User.create('Alice', 'alice@example.test', 'Engineering');
 
-      expect(() => {
-        user.department = 'ab';
-      }).toThrow(InvalidDepartmentException);
+      expect(() => user.update({ department: 'ab' })).toThrow(
+        InvalidDepartmentException,
+      );
 
-      user.department = '   ';
+      user.update({ department: '   ' });
       expect(user.department).toBeNull();
 
-      user.department = null;
-      expect(user.department).toBeNull();
-
-      user.department = '  Finance  ';
+      user.update({ department: '  Finance  ' });
       expect(user.department).toBe('Finance');
+
+      user.update({ department: null });
+      expect(user.department).toBeNull();
     });
   });
 });

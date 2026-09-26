@@ -5,6 +5,7 @@ import {
   Mutable,
   RootEntity,
   type RootEntitySnapshot,
+  textRule,
 } from '@cqrs-ddd/core/domain';
 import { RoleCreatedEvent } from '../events/role-created.event';
 import { RoleDeletedEvent } from '../events/role-deleted.event';
@@ -15,12 +16,18 @@ export interface RoleSnapshot extends Partial<RootEntitySnapshot> {
   readonly name: string;
 }
 
-const ROLE_NAME_MIN_LENGTH = 3;
-
 export class Role extends RootEntity<RoleSnapshot> {
   public static readonly aggregateName = 'role';
+  public static readonly rules = {
+    name: textRule({
+      field: 'name',
+      minLength: 3,
+      maxLength: 128,
+      error: (violation) => new InvalidRoleNameException(violation),
+    }),
+  } as const;
 
-  @Mutable<string>({ normalize: (value) => Role.normalizeName(value) })
+  @Mutable<string>({ normalize: (value) => Role.rules.name.parse(value) })
   private _name: string;
 
   private constructor(snapshot?: RoleSnapshot) {
@@ -29,7 +36,7 @@ export class Role extends RootEntity<RoleSnapshot> {
       this._name = '';
       return;
     }
-    this._name = Role.normalizeName(snapshot.name);
+    this._name = Role.rules.name.parse(snapshot.name);
   }
 
   static create(name: string): Role {
@@ -43,23 +50,11 @@ export class Role extends RootEntity<RoleSnapshot> {
   static fromJSON(snapshot: RoleSnapshot): Role {
     return new Role({
       id: Role.normalizeId(snapshot.id),
-      name: Role.normalizeName(snapshot.name),
+      name: Role.rules.name.parse(snapshot.name),
       createdAt: Role.normalizeDate(snapshot.createdAt),
       updatedAt: Role.normalizeDate(snapshot.updatedAt),
       version: snapshot.version ?? 1,
     });
-  }
-
-  private static normalizeName(name: string): string {
-    const trimmed = name?.trim();
-    if (!trimmed || trimmed.length < ROLE_NAME_MIN_LENGTH) {
-      throw new InvalidRoleNameException(
-        ROLE_NAME_MIN_LENGTH,
-        name,
-        `Role name must be at least ${ROLE_NAME_MIN_LENGTH} characters.`,
-      );
-    }
-    return trimmed;
   }
 
   get name(): string {
@@ -67,11 +62,11 @@ export class Role extends RootEntity<RoleSnapshot> {
   }
 
   /**
-   * @internal For MikroORM persistence hydration only.
-   * Application code changes aggregate state through domain methods and factories, never through this setter.
+   * For MikroORM hydration only (`accessor: true`). Private, so application code
+   * cannot assign it and changes state through domain methods and factories.
    */
-  set name(value: string) {
-    this._name = Role.normalizeName(value);
+  private set name(value: string) {
+    this._name = Role.rules.name.parse(value);
   }
 
   get version(): number {
@@ -79,10 +74,10 @@ export class Role extends RootEntity<RoleSnapshot> {
   }
 
   /**
-   * @internal For MikroORM persistence hydration only.
-   * Application code changes aggregate state through domain methods and factories, never through this setter.
+   * For MikroORM hydration only (`accessor: true`). Private, so application code
+   * cannot assign it and changes state through domain methods and factories.
    */
-  set version(value: number) {
+  private set version(value: number) {
     if (typeof value === 'number' && Number.isInteger(value) && value > 0) {
       this._version = value;
       this._persistedVersion = value;

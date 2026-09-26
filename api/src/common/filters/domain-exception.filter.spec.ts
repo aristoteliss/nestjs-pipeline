@@ -101,8 +101,12 @@ describe('DomainExceptionFilter', () => {
     });
   });
 
-  it('maps InvalidUsernameException to HTTP 422 Unprocessable Entity with constraint details', () => {
-    const error = new InvalidUsernameException(3, 'Al');
+  it('maps InvalidUsernameException to HTTP 422 Unprocessable Entity with the broken rule', () => {
+    const error = new InvalidUsernameException({
+      field: 'username',
+      rule: 'minLength',
+      limit: 3,
+    });
     const response = { status: vi.fn(), json: vi.fn() };
     response.status.mockReturnValue(response);
 
@@ -113,13 +117,18 @@ describe('DomainExceptionFilter', () => {
       statusCode: 422,
       error: 'Unprocessable Entity',
       message: error.message,
-      minLength: 3,
-      actualValue: 'Al',
+      field: 'username',
+      rule: 'minLength',
+      limit: 3,
     });
   });
 
-  it('maps InvalidDepartmentException to HTTP 422 Unprocessable Entity with constraint details', () => {
-    const error = new InvalidDepartmentException(3, 'IT');
+  it('maps InvalidDepartmentException to HTTP 422 Unprocessable Entity with the broken rule', () => {
+    const error = new InvalidDepartmentException({
+      field: 'department',
+      rule: 'minLength',
+      limit: 3,
+    });
     const response = { status: vi.fn(), json: vi.fn() };
     response.status.mockReturnValue(response);
 
@@ -130,13 +139,18 @@ describe('DomainExceptionFilter', () => {
       statusCode: 422,
       error: 'Unprocessable Entity',
       message: error.message,
-      minLength: 3,
-      actualValue: 'IT',
+      field: 'department',
+      rule: 'minLength',
+      limit: 3,
     });
   });
 
-  it('maps InvalidRoleNameException to HTTP 422 Unprocessable Entity with constraint details', () => {
-    const error = new InvalidRoleNameException(3, 'ab');
+  it('maps InvalidRoleNameException to HTTP 422 Unprocessable Entity with the broken rule', () => {
+    const error = new InvalidRoleNameException({
+      field: 'name',
+      rule: 'minLength',
+      limit: 3,
+    });
     const response = { status: vi.fn(), json: vi.fn() };
     response.status.mockReturnValue(response);
 
@@ -147,8 +161,9 @@ describe('DomainExceptionFilter', () => {
       statusCode: 422,
       error: 'Unprocessable Entity',
       message: error.message,
-      minLength: 3,
-      actualValue: 'ab',
+      field: 'name',
+      rule: 'minLength',
+      limit: 3,
     });
   });
 

@@ -28,9 +28,17 @@ describe('Role domain entity', () => {
       expect(() => Role.create('')).toThrow(InvalidRoleNameException);
       expect(() => Role.create('  ')).toThrow(InvalidRoleNameException);
       expect(() => Role.create('ab')).toThrow(InvalidRoleNameException);
-      expect(() => Role.create('')).toThrow(
-        'Role name must be at least 3 characters.',
+      expect(() => Role.create('')).toThrow('name is required.');
+      expect(() => Role.create('ab')).toThrow(
+        'name must be at least 3 characters.',
       );
+    });
+
+    it('rejects a name longer than its 128-character column', () => {
+      expect(() => Role.create('a'.repeat(129))).toThrow(
+        'name must be at most 128 characters.',
+      );
+      expect(Role.create('a'.repeat(128)).name).toBe('a'.repeat(128));
     });
   });
 
@@ -67,7 +75,7 @@ describe('Role domain entity', () => {
       const role = Role.create('Editor');
       expect(() => role.rename('x')).toThrow(InvalidRoleNameException);
       expect(() => role.rename('x')).toThrow(
-        'Role name must be at least 3 characters.',
+        'name must be at least 3 characters.',
       );
     });
   });
@@ -133,23 +141,15 @@ describe('Role domain entity', () => {
     });
   });
 
-  describe('name setter domain encapsulation and invariants', () => {
-    it('enforces invariants and normalization on name setter', () => {
+  describe('name invariants on rename', () => {
+    it('rejects an empty, blank or short name and trims a valid one', () => {
       const role = Role.create('Developer');
 
-      expect(() => {
-        role.name = '';
-      }).toThrow(InvalidRoleNameException);
+      expect(() => role.rename('')).toThrow(InvalidRoleNameException);
+      expect(() => role.rename('  ')).toThrow(InvalidRoleNameException);
+      expect(() => role.rename('ab')).toThrow(InvalidRoleNameException);
 
-      expect(() => {
-        role.name = '  ';
-      }).toThrow(InvalidRoleNameException);
-
-      expect(() => {
-        role.name = 'ab';
-      }).toThrow(InvalidRoleNameException);
-
-      role.name = '  Lead Developer  ';
+      role.rename('  Lead Developer  ');
       expect(role.name).toBe('Lead Developer');
     });
   });

@@ -491,7 +491,7 @@ describe('Biome Grit aggregate-identity setter guard plugin', () => {
     );
     expect(result.status).toBe(1);
     expect(result.diagnostics).toContain(
-      'Do not assign aggregate properties directly via setters',
+      'Do not assign aggregate properties directly',
     );
   });
 
@@ -542,7 +542,7 @@ describe('Biome Grit aggregate-identity setter guard plugin', () => {
     );
     expect(result.status).toBe(1);
     expect(result.diagnostics).toContain(
-      'Do not assign aggregate properties directly via setters',
+      'Do not assign aggregate properties directly',
     );
   });
 

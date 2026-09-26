@@ -11,10 +11,9 @@ import { User } from '../../users/domain/models/user.entity';
 /**
  * MikroORM EntitySchema for the {@link User} aggregate root.
  *
- * Employs official MikroORM `accessor: true` mappings for encapsulated properties
- * (`id`, `createdAt`, `updatedAt`, `username`, `department`). This allows MikroORM
- * to access state exclusively through public getters and setters without requiring
- * private field `@ts-expect-error` bypasses or breaking domain encapsulation.
+ * `username`, `department` and `version` map through the aggregate's private hydration setters
+ * (`accessor: true`, like `rootEntityProperties()`): MikroORM assigns them on load, and
+ * application code, which cannot, changes state through domain methods.
  */
 export const UserSchema = new EntitySchema<User, AggregateRoot>({
   // biome-ignore lint/suspicious/noExplicitAny: MikroORM schema requires a public constructor; User hides its constructor to enforce domain invariants.
