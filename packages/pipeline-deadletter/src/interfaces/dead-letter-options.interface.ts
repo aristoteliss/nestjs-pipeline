@@ -44,9 +44,10 @@ export interface DeadLetterBehaviorOptions {
    *
    * - `true` (default) — propagate after the capture decision; the caller sees the
    *   failure (HTTP 5xx, command rejection, …). Use for commands/queries.
-   * - `false` — swallow only when the error is captured and the transport
-   *   delivers it; the pipeline then resolves to `undefined`. Otherwise the
-   *   error is rethrown. Use for fire-and-forget events.
+   * - `false` — on an **event** handler only, swallow the error when it is
+   *   captured and the transport delivers it; the pipeline then resolves to
+   *   `undefined` and the swallow is logged at `error` level with the record id.
+   *   On a command or query handler it is a bootstrap diagnostic and is ignored.
    */
   rethrow?: boolean;
 
@@ -57,8 +58,9 @@ export interface DeadLetterBehaviorOptions {
   includeStack?: boolean;
 
   /**
-   * Restrict capture to specific request kinds. When omitted, every kind is
-   * captured. Example: `['command', 'event']` to skip read-side query failures.
+   * Request kinds to capture. Default `['event']`: a command's or query's
+   * caller already receives the error. Example: `['command', 'event']` to also
+   * keep failed commands.
    */
   captureKinds?: DeadLetterRequestKind[];
 

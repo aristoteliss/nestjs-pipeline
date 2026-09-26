@@ -13,8 +13,12 @@ export {
   isTaskCancelledError,
   TaskCancelledError,
 } from 'cockatiel';
-export { RESILIENCE_DEFAULT_OPTIONS } from './constants/tokens';
+export {
+  getResiliencePolicyToken,
+  RESILIENCE_DEFAULT_OPTIONS,
+} from './constants/tokens';
 export { ResilienceConfigurationError } from './errors/resilience-configuration.error';
+export { ResiliencePolicyConfigurationError } from './errors/resilience-policy-configuration.error';
 export {
   buildResiliencePolicy,
   type PolicyBuildContext,
@@ -29,13 +33,24 @@ export type {
   BulkheadOptions,
   CircuitBreakerOptions,
   FallbackOptions,
+  HandlerResilienceLayer,
   JitterStrategy,
   ResilienceBehaviorOptions,
   ResilienceLayer,
+  ResilienceModuleAsyncOptions,
+  ResilienceModuleOptions,
+  ResiliencePolicyOptions,
   ResilienceTelemetry,
+  ResilienceTelemetryEvent,
   RetryBackoff,
   RetryOptions,
+  RetryPolicyOptions,
   TimeoutOptions,
+  TimeoutPolicyOptions,
 } from './interfaces/resilience-options.interface';
 export { ResilienceBehavior } from './resilience.behavior';
 export { ResilienceModule } from './resilience.module';
+export {
+  InjectResiliencePolicy,
+  ResiliencePolicies,
+} from './resilience-policies';

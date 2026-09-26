@@ -73,8 +73,9 @@ export interface AuditBehaviorOptions {
    */
   captureResponse?: boolean;
   /**
-   * Restrict auditing to specific request kinds. When omitted, every kind is
-   * audited. Example: `['command', 'event']` to skip read-side queries.
+   * Request kinds to audit. Default `['command']`: queries change nothing, and
+   * a domain event follows a command that is already audited. Example:
+   * `['command', 'query']` to also audit reads.
    */
   captureKinds?: AuditRequestKind[];
   /**
@@ -90,6 +91,12 @@ export interface AuditBehaviorOptions {
   redact?: AuditRedactor;
   /** Produce extra metadata to merge into the audit record. */
   metadata?: AuditMetadataFactory;
+  /**
+   * Write a pending start record before the handler runs, when the sink
+   * implements `begin`. Default `true`. Set `false` to save that write when a
+   * lost record is acceptable.
+   */
+  recordStart?: boolean;
   /**
    * Include the error stack trace on failure records. Default `true`.
    */

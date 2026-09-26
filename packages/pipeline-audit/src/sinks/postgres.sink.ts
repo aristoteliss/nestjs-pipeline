@@ -2,7 +2,10 @@
 
 import { toPostgresJson } from '@nestjs-pipeline/core';
 import { stringifyAuditValue } from '../helpers/json';
-import type { AuditRecord } from '../interfaces/audit-record.interface';
+import type {
+  AuditRecord,
+  AuditStartRecord,
+} from '../interfaces/audit-record.interface';
 import type { AuditSink } from '../interfaces/audit-sink.interface';
 
 /**
@@ -39,6 +42,15 @@ function assertSafeTable(table: string): string {
 /**
  * SQL to create the audit table. Run once in a migration.
  *
+ * A row whose `outcome` is `'pending'` is an operation that started and has no
+ * final record: `duration_ms` and `completed_at` stay null. An old pending row
+ * marks an attempt interrupted by a process stop, whose outcome is unknown:
+ *
+ * ```sql
+ * SELECT * FROM audit_log
+ * WHERE outcome = 'pending' AND occurred_at < now() - interval '1 hour';
+ * ```
+ *
  * @param table - Table name (validated). Default `'audit_log'`.
  */
 export function createAuditTableSql(table = 'audit_log'): string {
@@ -56,16 +68,19 @@ export function createAuditTableSql(table = 'audit_log'): string {
   payload         JSONB,
   response        JSONB,
   error           JSONB,
-  duration_ms     DOUBLE PRECISION NOT NULL,
+  duration_ms     DOUBLE PRECISION,
   metadata        JSONB,
   occurred_at     TIMESTAMPTZ NOT NULL,
-  created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+  completed_at    TIMESTAMPTZ
 );`;
 }
 
 /**
  * {@link AuditSink} backed by **Postgres** (`pg`) — a drop-in replacement for
- * the console sink. Inserts each audit record as a row.
+ * the console sink. {@link begin} inserts a pending row when an operation
+ * starts, and {@link write} completes it under the same id (or inserts it, when
+ * no pending row exists), so an operation interrupted by a process stop stays
+ * visible as `'pending'`.
  *
  * Create the table once with {@link createAuditTableSql}. The table name is
  * validated as a plain SQL identifier (it is interpolated, not parameterized);
@@ -82,21 +97,46 @@ export function createAuditTableSql(table = 'audit_log'): string {
  * ```
  */
 export class PostgresAuditSink implements AuditSink {
-  private readonly insertSql: string;
+  private readonly beginSql: string;
+  private readonly writeSql: string;
 
   constructor(
     private readonly db: PostgresQueryableLike,
     options: PostgresAuditSinkOptions = {},
   ) {
     const table = assertSafeTable(options.table ?? 'audit_log');
-    this.insertSql = `INSERT INTO ${table}
-      (id, correlation_id, action, severity, outcome, actor, request_kind,
+    const columns = `(id, correlation_id, action, severity, outcome, actor, request_kind,
        request_name, handler_name, payload, response, error, duration_ms,
-       metadata, occurred_at)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)`;
+       metadata, occurred_at, completed_at)`;
+    this.beginSql = `INSERT INTO ${table} ${columns}
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, NULL)`;
+    this.writeSql = `INSERT INTO ${table} ${columns}
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, now())
+      ON CONFLICT (id) DO UPDATE SET
+        outcome = EXCLUDED.outcome,
+        actor = EXCLUDED.actor,
+        payload = EXCLUDED.payload,
+        response = EXCLUDED.response,
+        error = EXCLUDED.error,
+        duration_ms = EXCLUDED.duration_ms,
+        metadata = EXCLUDED.metadata,
+        completed_at = EXCLUDED.completed_at`;
   }
 
+  /** Inserts the pending row of an operation about to run. */
+  async begin(record: AuditStartRecord): Promise<void> {
+    await this.db.query(this.beginSql, this.values(record));
+  }
+
+  /**
+   * Inserts the final row, or completes the pending row that {@link begin}
+   * inserted under the same id.
+   */
   async write(record: AuditRecord): Promise<void> {
+    await this.db.query(this.writeSql, this.values(record));
+  }
+
+  private values(record: AuditRecord | AuditStartRecord): unknown[] {
     const json = (value: unknown) => toPostgresJson(stringifyAuditValue(value));
     const metadata =
       record.metadata || record.tenantId
@@ -105,8 +145,9 @@ export class PostgresAuditSink implements AuditSink {
             ...(record.tenantId ? { tenantId: record.tenantId } : {}),
           }
         : null;
+    const final = record.outcome === 'pending' ? undefined : record;
 
-    await this.db.query(this.insertSql, [
+    return [
       record.id,
       record.correlationId,
       record.action,
@@ -117,11 +158,11 @@ export class PostgresAuditSink implements AuditSink {
       record.requestName,
       record.handlerName,
       record.payload === undefined ? null : json(record.payload),
-      record.response === undefined ? null : json(record.response),
-      record.error ? json(record.error) : null,
-      record.durationMs,
+      final?.response === undefined ? null : json(final.response),
+      final?.error ? json(final.error) : null,
+      final?.durationMs ?? null,
       metadata ? json(metadata) : null,
       record.timestamp,
-    ]);
+    ];
   }
 }

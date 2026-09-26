@@ -1,7 +1,7 @@
 {
   "name": "@nestjs-pipeline/deadletter",
   "version": "0.2.0",
-  "description": "Dead-letter capture behavior for the NestJS pipeline — transport-agnostic with bundled BullMQ, RabbitMQ, and Postgres transport implementations.",
+  "description": "Dead-letter behavior for the NestJS pipeline — captures failed requests (events by default) through bundled BullMQ, RabbitMQ and Postgres transports, and redrives stored failures with an attempt count and a resolved state.",
   "author": "Aristotelis <aristotelis@ik.me>",
   "license": "SEE LICENSE IN LICENSE",
   "engines": {
@@ -13,6 +13,7 @@
     "cqrs",
     "dead-letter",
     "dlq",
+    "redrive",
     "bullmq",
     "rabbitmq",
     "postgres",
@@ -62,6 +63,7 @@
     "vitest": "^4.1.11"
   },
   "dependencies": {
-    "@cqrs-ddd/safe-stringify": "workspace:^"
+    "@cqrs-ddd/safe-stringify": "workspace:^",
+    "@cqrs-ddd/uuidv7": "workspace:^"
   }
 }

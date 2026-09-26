@@ -13,7 +13,7 @@ function context(): IPipelineContext {
     requestName: 'TestCommand',
     handlerType: class TestHandler {},
     handlerName: 'TestHandler',
-    requestKind: 'command',
+    requestKind: 'event',
     startedAt: new Date('2026-01-01T00:00:00.000Z'),
     response: undefined,
     items: new Map(),

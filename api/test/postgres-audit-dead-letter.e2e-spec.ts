@@ -1,4 +1,5 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
+import { uuidv7 } from '@cqrs-ddd/uuidv7';
 import {
   type AuditRecord,
   createAuditTableSql,
@@ -126,6 +127,38 @@ describe('PostgresAuditSink against PostgreSQL', () => {
     });
   });
 
+  it('keeps a pending row from begin and completes it under the same id', async () => {
+    const sink = new PostgresAuditSink(pool);
+    const id = '0199a1b2-0000-7000-8000-000000000004';
+    const {
+      outcome: _outcome,
+      response: _response,
+      durationMs: _durationMs,
+      ...started
+    } = record(id);
+
+    await sink.begin({ ...started, outcome: 'pending' });
+
+    const pending = await row(id);
+    expect(pending.outcome).toBe('pending');
+    expect(pending.payload).toEqual(richPayload);
+    expect(pending.duration_ms).toBeNull();
+    expect(pending.completed_at).toBeNull();
+
+    await sink.write(record(id));
+
+    const completed = await row(id);
+    expect(completed.outcome).toBe('success');
+    expect(completed.response).toEqual({ orderId: 'o-1' });
+    expect(completed.duration_ms).toBe(12.75);
+    expect(completed.completed_at).toBeInstanceOf(Date);
+    const { rows } = await pool.query(
+      'SELECT count(*)::int AS n FROM audit_log WHERE id = $1',
+      [id],
+    );
+    expect(rows[0].n).toBe(1);
+  });
+
   it('writes to a schema-qualified table', async () => {
     await pool.query('CREATE SCHEMA IF NOT EXISTS audit');
     await pool.query(createAuditTableSql('audit.audit_log'));
@@ -147,6 +180,7 @@ describe('PostgresDeadLetterTransport against PostgreSQL', () => {
     correlationId: string,
     overrides: Partial<DeadLetterRecord> = {},
   ): DeadLetterRecord => ({
+    id: uuidv7(),
     correlationId,
     tenantId: 'tenant-a',
     requestKind: 'command',
@@ -160,7 +194,39 @@ describe('PostgresDeadLetterTransport against PostgreSQL', () => {
     },
     failedAt: '2026-09-25T08:00:00.000Z',
     metadata: { attempt: 3, tenantId: 'tenant-a' },
+    attempts: 0,
+    status: 'open',
+    payloadRedacted: false,
     ...overrides,
+  });
+
+  it('keeps a record to list, count attempts on and resolve', async () => {
+    const store = new PostgresDeadLetterTransport(pool);
+    const captured = record('dl-store', { requestName: 'StoreRoundTripEvent' });
+
+    await store.send(captured);
+    await store.recordAttempt(captured.id, { name: 'Error', message: 'again' });
+
+    const [open] = await store.list({
+      status: 'open',
+      requestName: 'StoreRoundTripEvent',
+    });
+    expect(open).toMatchObject({
+      id: captured.id,
+      tenantId: 'tenant-a',
+      payload: richPayload,
+      attempts: 1,
+      lastError: { name: 'Error', message: 'again' },
+      failedAt: '2026-09-25T08:00:00.000Z',
+    });
+
+    await store.markResolved(captured.id);
+    const resolved = await store.get(captured.id);
+    expect(resolved?.status).toBe('resolved');
+    expect(resolved?.resolvedAt).toEqual(expect.any(String));
+    await expect(
+      store.list({ status: 'open', requestName: 'StoreRoundTripEvent' }),
+    ).resolves.toEqual([]);
   });
 
   const row = async (correlationId: string) =>
@@ -226,9 +292,10 @@ describe('characters jsonb cannot hold', () => {
     'keeps the record and stores %s as U+FFFD',
     async (label, text, stored) => {
       const correlationId = `unsupported-${label}`;
-      const id = crypto.randomUUID();
+      const id = uuidv7();
 
       await new PostgresDeadLetterTransport(pool).send({
+        id: uuidv7(),
         correlationId,
         requestKind: 'command',
         requestName: 'ImportFileCommand',
@@ -236,6 +303,9 @@ describe('characters jsonb cannot hold', () => {
         payload: { text, [`key ${text}`]: 1 },
         error: { name: 'ParseError', message: text },
         failedAt: '2026-09-25T08:00:00.000Z',
+        attempts: 0,
+        status: 'open',
+        payloadRedacted: false,
       });
       await new PostgresAuditSink(pool).write({
         id,

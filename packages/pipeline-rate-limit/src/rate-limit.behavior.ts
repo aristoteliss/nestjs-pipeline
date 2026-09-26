@@ -77,8 +77,10 @@ function isRateLimiterRes(value: unknown): value is RateLimiterResLike {
 /**
  * Pipeline behavior that enforces rate limits before a handler runs.
  *
- * For each request it consumes `points` (default `1`) from a bucket keyed by
- * {@link buildRateLimitKey}. If the bucket is exhausted it throws
+ * For each request it consumes `points` (default `1`, or computed per request
+ * when `points` is a function) from a bucket keyed by
+ * {@link buildRateLimitKey}. A cost of `0` charges nothing and skips the
+ * limiter. If the bucket is exhausted it throws
  * {@link RateLimitExceededError} (map to HTTP 429 with
  * {@link RateLimitExceededFilter}); otherwise the handler proceeds.
  *
@@ -140,6 +142,22 @@ export class RateLimitBehavior
         ];
       }
 
+      const { points } = options;
+      if (
+        points !== undefined &&
+        typeof points !== 'function' &&
+        !isValidPoints(points)
+      ) {
+        return [
+          {
+            handlerName: context.handlerName,
+            behaviorName: RateLimitBehavior.name,
+            message: `RateLimitBehavior points must be a non-negative safe integer or a function, received ${String(points)}`,
+            fix: 'Pass an integer from 0 up (0 charges nothing) or a function (ctx) => number as the points option.',
+          },
+        ];
+      }
+
       return undefined;
     },
   };
@@ -170,12 +188,11 @@ export class RateLimitBehavior
     const options = this.resolveEffectiveOptions(
       context.getBehaviorOptions<RateLimitBehaviorOptions>(RateLimitBehavior),
     );
+    const points = resolvePoints(context, options);
+    if (points === 0) return next();
+
     const limiter = options.limiter ?? this.limiter;
     const key = buildRateLimitKey(context, options);
-    const points = options.points ?? 1;
-    if (!Number.isSafeInteger(points) || points <= 0) {
-      throw new TypeError('Rate-limit points must be a positive safe integer.');
-    }
 
     setPipelineItem(context, RATE_LIMIT_KEY_ITEM_TOKEN, key);
 
@@ -191,6 +208,7 @@ export class RateLimitBehavior
           msBeforeNext: error.msBeforeNext,
           remainingPoints: error.remainingPoints,
           limit: limiter.points,
+          points,
         });
       }
       return this.handleStoreError(context, options, key, error, next);
@@ -234,4 +252,30 @@ export class RateLimitBehavior
     if (!options) return this.defaults;
     return { ...this.defaults, ...options };
   }
+}
+
+function isValidPoints(points: unknown): points is number {
+  return Number.isSafeInteger(points) && (points as number) >= 0;
+}
+
+/**
+ * Resolves the request's cost: the `points` option, computed when it is a
+ * function, `1` when omitted.
+ *
+ * @throws {TypeError} When the cost is not a non-negative safe integer.
+ */
+function resolvePoints(
+  context: IPipelineContext,
+  options: RateLimitBehaviorOptions,
+): number {
+  const points =
+    typeof options.points === 'function'
+      ? options.points(context)
+      : (options.points ?? 1);
+  if (!isValidPoints(points)) {
+    throw new TypeError(
+      `Rate-limit points for ${context.handlerName} must be a non-negative safe integer, received ${String(points)}.`,
+    );
+  }
+  return points;
 }

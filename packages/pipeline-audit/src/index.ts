@@ -3,6 +3,7 @@
 export {
   AUDIT_RECORD_ITEM,
   AUDIT_RECORD_ITEM_TOKEN,
+  AUDIT_START_RECORD_ITEM_TOKEN,
   AuditBehavior,
 } from './audit.behavior';
 export { AuditModule } from './audit.module';
@@ -17,8 +18,14 @@ export {
   type AuditIntentOptions,
   audit,
 } from './helpers/audit.intent';
-export type { BuildAuditRecordInput } from './helpers/build-record';
-export { buildAuditRecord } from './helpers/build-record';
+export type {
+  BuildAuditRecordInput,
+  BuildAuditStartRecordInput,
+} from './helpers/build-record';
+export {
+  buildAuditRecord,
+  buildAuditStartRecord,
+} from './helpers/build-record';
 export {
   DEFAULT_REDACT_KEYS,
   REDACTED,
@@ -39,6 +46,7 @@ export type {
   AuditRecord,
   AuditRequestKind,
   AuditSeverity,
+  AuditStartRecord,
 } from './interfaces/audit-record.interface';
 export type { AuditSink } from './interfaces/audit-sink.interface';
 export {

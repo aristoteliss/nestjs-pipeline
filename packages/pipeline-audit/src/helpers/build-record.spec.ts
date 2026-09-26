@@ -3,7 +3,11 @@
 import type { IPipelineContext } from '@nestjs-pipeline/core';
 import { describe, expect, it } from 'vitest';
 import type { AuditBehaviorOptions } from '../interfaces/audit-options.interface';
-import { type BuildAuditRecordInput, buildAuditRecord } from './build-record';
+import {
+  type BuildAuditRecordInput,
+  buildAuditRecord,
+  buildAuditStartRecord,
+} from './build-record';
 import { REDACTED } from './redact';
 
 function makeContext(
@@ -167,5 +171,42 @@ describe('buildAuditRecord', () => {
 
     expect(record.tenantId).toBe('tenant-42');
     expect(record.metadata).toEqual({ tenantId: 'tenant-42' });
+  });
+});
+
+describe('buildAuditStartRecord', () => {
+  it('builds a pending record with the fields known before the handler runs', () => {
+    const record = buildAuditStartRecord({
+      context: makeContext(),
+      options: { action: 'user.create' },
+      id: 'rec-1',
+      startedAt: '2026-01-01T00:00:00.000Z',
+    });
+
+    expect(record).toEqual({
+      id: 'rec-1',
+      correlationId: 'corr-123',
+      tenantId: undefined,
+      action: 'user.create',
+      severity: 'medium',
+      actor: undefined,
+      requestKind: 'command',
+      requestName: 'CreateUserCommand',
+      handlerName: 'CreateUserHandler',
+      timestamp: '2026-01-01T00:00:00.000Z',
+      metadata: undefined,
+      payload: { username: 'jane', password: REDACTED },
+      outcome: 'pending',
+    });
+  });
+
+  it('shares its id with the final record built from it', () => {
+    const start = buildAuditStartRecord({
+      context: makeContext(),
+      options: {},
+      startedAt: '2026-01-01T00:00:00.000Z',
+    });
+
+    expect(buildAuditRecord(makeInput({ id: start.id })).id).toBe(start.id);
   });
 });

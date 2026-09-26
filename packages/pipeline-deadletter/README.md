@@ -22,7 +22,8 @@ Transport-agnostic: it depends only on a tiny `DeadLetterTransport` interface. *
 - [Behavior](#behavior)
 - [Configuration](#configuration)
 - [The dead-letter record](#the-dead-letter-record)
-- [Ordering with retries](#ordering-with-retries)
+- [Redrive: replay, count, resolve](#redrive-replay-count-resolve)
+- [Ordering with validation and retries](#ordering-with-validation-and-retries)
 - [API Reference](#api-reference)
 - [License](#license)
 
@@ -34,9 +35,16 @@ A pipeline command/query is a **synchronous, in-process call** — you can't "pa
 for later." So this behavior does the one thing that *is* meaningful in-process:
 on final failure it attempts to send the request + error to the configured sink, then:
 
-- **commands/queries** → re-throws (the caller still gets the failure);
-- **events** (fire-and-forget) → can optionally **swallow** the handler error with
-  `rethrow: false`.
+- **events** (the default capture kind) → kept for [redrive](#redrive-replay-count-resolve);
+  an event handler may **swallow** the error with `rethrow: false`, logged at
+  `error` level with the record id;
+- **commands/queries** → captured only when listed in `captureKinds`, and always
+  re-thrown: their caller still gets the failure. `rethrow: false` on such a handler
+  fails at bootstrap.
+
+For async consumers on BullMQ or RabbitMQ, the broker's own dead-letter queue and
+retry tooling may already be enough; this package is for failures of handlers run
+through the pipeline, including event handlers that have no queue behind them.
 
 For *retrying* a request right now, use
 [`@nestjs-pipeline/resilience`](https://github.com/aristoteliss/nestjs-pipeline/tree/master/packages/pipeline-resilience). This package is about
@@ -208,14 +216,17 @@ class WebhookTransport implements DeadLetterTransport {
 For each request, `DeadLetterBehavior` runs the handler and, **only on failure**:
 
 1. Resolves effective options (module defaults ← per-handler options).
-2. Skips capture if the request kind isn't in `captureKinds` (when set).
+2. Skips capture if the request kind isn't in `captureKinds` (default `['event']`).
+   During a [redrive](#redrive-replay-count-resolve) it skips capture and never
+   swallows: the redriver records the attempt on the existing record.
 3. Builds a transport-neutral [`DeadLetterRecord`](#the-dead-letter-record) and calls
    `transport.send(record)`. A transport failure is logged and **never masks**
    the original handler error.
 4. Sets `dead-letter.captured` on `context.items` to whether delivery succeeded.
-5. Re-throws the original handler error (`rethrow: true`, default) or resolves to
-   `undefined` when `rethrow: false` **and delivery succeeded**. An excluded
-   request kind or failed transport always re-throws the original error.
+5. Re-throws the original handler error (`rethrow: true`, default) or, on an
+   **event** handler with `rethrow: false` **and successful delivery**, resolves to
+   `undefined`. An excluded request kind, a command or query, or a failed transport
+   always re-throws the original error.
 
 ---
 
@@ -226,9 +237,9 @@ over module-wide `defaults`:
 
 | Option | Type | Default | Description |
 |---|---|---|---|
-| `rethrow` | `boolean` | `true` | Re-throw after capture. `false` swallows only after successful transport delivery. |
+| `rethrow` | `boolean` | `true` | Re-throw after capture. `false` swallows an **event** handler's error after successful delivery; on a command or query handler it is a bootstrap error. |
 | `includeStack` | `boolean` | `true` | Include the error stack in the record. |
-| `captureKinds` | `('command'\|'query'\|'event'\|'unknown')[]` | all | Restrict which request kinds are captured. |
+| `captureKinds` | `('command'\|'query'\|'event'\|'unknown')[]` | `['event']` | Request kinds to capture. |
 | `ignoreErrors` | `Type[] \| ((err, ctx) => boolean)` | — | Error classes or predicate function to skip from dead-letter capture. Combines intelligently when defined at both module and handler level. |
 | `metadata` | `(ctx) => Record<string, unknown>` | — | Extra request-aware metadata to attach. |
 | `redact` | `(payload: unknown) => unknown` | — | Custom redactor function taking precedence over `redactKeys`. |
@@ -275,6 +286,73 @@ interface DeadLetterRecord {
   metadata?: Record<string, unknown>;    // from the `metadata` factory
 }
 ```
+
+---
+
+## Redrive: replay, count, resolve
+
+A record carries `id`, `attempts` (0 when captured), `status` (`'open'` or
+`'resolved'`) and `payloadRedacted`. A **store** keeps records so they can be acted
+on: `PostgresDeadLetterTransport` implements `DeadLetterStore` (`get`, `list`,
+`recordAttempt`, `markResolved`). Queue transports hand records to the broker, whose
+tooling retries them.
+
+`DeadLetterRedriver` replays a stored record:
+
+1. refuses — without dispatching — a missing or resolved record, a request name not
+   in `requestTypes`, a kind without a `dispatch`, or a redacted payload without
+   `rebuild` (`DeadLetterRedriveError`);
+2. rebuilds the request: by default an instance of the registered class with the
+   stored fields (its constructor is not run); `rebuild(record, type)` replaces this;
+3. dispatches it inside a redrive scope, where `DeadLetterBehavior` neither captures
+   nor swallows;
+4. marks the record resolved on success, or counts the attempt, keeps its error as
+   `lastError`, and rethrows it.
+
+The package does not depend on `@nestjs/cqrs`, so the application wires the
+dispatch. For an **event**, run only the handler that failed (`record.handlerName`):
+publishing the event again would rerun the handlers that already succeeded.
+
+```typescript
+import { CommandBus } from '@nestjs/cqrs';
+import { DEAD_LETTER_TRANSPORT, DeadLetterRedriver } from '@nestjs-pipeline/deadletter';
+
+const eventHandlers = { SendWelcomeEmailHandler };
+
+@Module({
+  providers: [
+    {
+      provide: DeadLetterRedriver,
+      inject: [DEAD_LETTER_TRANSPORT, CommandBus, ModuleRef],
+      useFactory: (store, commandBus: CommandBus, moduleRef: ModuleRef) =>
+        new DeadLetterRedriver(store, {
+          requestTypes: [UserCreatedEvent, SendInvoiceCommand],
+          dispatch: {
+            command: (command) => commandBus.execute(command as ICommand),
+            event: (event, record) =>
+              moduleRef
+                .get(eventHandlers[record.handlerName], { strict: false })
+                .handle(event),
+          },
+        }),
+    },
+  ],
+})
+export class DeadLetterAdminModule {}
+
+// An admin endpoint or a scheduled job:
+for (const record of await store.list({ status: 'open', limit: 50 })) {
+  await redriver.redrive(record.id).catch(() => undefined); // attempts +1 on failure
+}
+await redriver.resolve(someId); // close without replaying
+```
+
+**Redacted payloads.** Redaction masks secrets in the stored payload, so a replayed
+request would carry `[REDACTED]` values. Such a record (`payloadRedacted: true`,
+also set whenever a custom `redact` runs) is refused unless `rebuild` restores the
+missing values, for example by reloading them from their source.
+
+A redriven command runs again: it needs the same replay safety as a retry.
 
 ---
 
@@ -329,11 +407,15 @@ The chain becomes `Logging → ZodValidation → DeadLetterBehavior → Resilien
 | `DeadLetterIntentOptions` | Type | Alias for `DeadLetterBehaviorOptions` |
 | `DeadLetterModule` | Class | `forRoot(options)` / `forRootAsync(options)` |
 | `DeadLetterTransport` | Interface | One-method sink: `send(record)` |
+| `DeadLetterStore` | Interface | A transport that keeps records: `get`, `list`, `recordAttempt`, `markResolved` |
+| `DeadLetterRedriver` | Class | `redrive(id)` and `resolve(id)` over a store |
+| `DeadLetterRedriveError` | Class | A record that cannot be redriven; nothing was dispatched |
+| `DeadLetterRedriverOptions` / `DeadLetterDispatch` | Type | `requestTypes`, `dispatch` per kind, optional `rebuild` |
 | `DeadLetterRecord` | Interface | Serializable failed-request snapshot |
 | `DeadLetterModuleOptions` / `DeadLetterModuleAsyncOptions` | Interface | Module registration options |
 | `BullMqDeadLetterTransport` | Class | Adds a job to a BullMQ queue |
 | `RabbitMqDeadLetterTransport` | Class | Publishes a persistent AMQP message |
-| `PostgresDeadLetterTransport` | Class | Inserts a row via `pg` |
+| `PostgresDeadLetterTransport` | Class | `DeadLetterStore` on `pg` |
 | `createDeadLetterTableSql` | Function | `CREATE TABLE` DDL for the Postgres transport |
 | `buildDeadLetterRecord` | Function | Builds a record from a context + error |
 | `DEFAULT_REDACT_KEYS` | Constant | Default list of sensitive keys masked with `[REDACTED]` |

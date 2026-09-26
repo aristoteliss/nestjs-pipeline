@@ -1,7 +1,10 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { describe, expect, it, vi } from 'vitest';
-import type { AuditRecord } from '../interfaces/audit-record.interface';
+import type {
+  AuditRecord,
+  AuditStartRecord,
+} from '../interfaces/audit-record.interface';
 import { LogAuditSink } from './log.sink';
 import {
   createAuditTableSql,
@@ -118,6 +121,46 @@ describe('LogAuditSink', () => {
 });
 
 describe('PostgresAuditSink', () => {
+  it('inserts a pending row with no outcome details on begin', async () => {
+    const query = vi.fn().mockResolvedValue(undefined);
+    const sink = new PostgresAuditSink({ query });
+    const { durationMs: _durationMs, ...common } = makeRecord();
+    const start: AuditStartRecord = { ...common, outcome: 'pending' };
+
+    await sink.begin(start);
+
+    const [sql, values] = query.mock.calls[0];
+    expect(sql).toContain('INSERT INTO audit_log');
+    expect(sql).not.toContain('ON CONFLICT');
+    expect(sql).toMatch(/\$15, NULL\)/);
+    expect(values[4]).toBe('pending');
+    expect(values[9]).toBe(JSON.stringify({ username: 'jane' }));
+    expect(values.slice(10, 13)).toEqual([null, null, null]);
+  });
+
+  it('completes the pending row with the same id on write', async () => {
+    const query = vi.fn().mockResolvedValue(undefined);
+    const sink = new PostgresAuditSink({ query });
+
+    await sink.write(
+      makeRecord({
+        outcome: 'failure',
+        response: { ok: false },
+        error: { name: 'Error', message: 'boom' },
+      }),
+    );
+
+    const [sql, values] = query.mock.calls[0];
+    expect(sql).toContain('ON CONFLICT (id) DO UPDATE SET');
+    expect(sql).toContain('completed_at = EXCLUDED.completed_at');
+    expect(sql).toMatch(/\$15, now\(\)\)/);
+    expect(values[0]).toBe('rec-1');
+    expect(values[4]).toBe('failure');
+    expect(values[10]).toBe(JSON.stringify({ ok: false }));
+    expect(values[11]).toBe(JSON.stringify({ name: 'Error', message: 'boom' }));
+    expect(values[12]).toBe(12.5);
+  });
+
   it('inserts a row with bound parameters', async () => {
     const query = vi.fn().mockResolvedValue(undefined);
     const db: PostgresQueryableLike = { query };

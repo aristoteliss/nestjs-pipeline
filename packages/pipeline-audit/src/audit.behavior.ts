@@ -1,5 +1,6 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
+import { uuidv7 } from '@cqrs-ddd/uuidv7';
 import {
   Inject,
   Injectable,
@@ -22,9 +23,16 @@ import {
   setPipelineItem,
 } from '@nestjs-pipeline/core';
 import { AUDIT_DEFAULT_OPTIONS, AUDIT_SINK } from './constants/tokens';
-import { buildAuditRecord } from './helpers/build-record';
+import {
+  buildAuditRecord,
+  buildAuditStartRecord,
+} from './helpers/build-record';
 import type { AuditBehaviorOptions } from './interfaces/audit-options.interface';
-import type { AuditRecord } from './interfaces/audit-record.interface';
+import type {
+  AuditRecord,
+  AuditRequestKind,
+  AuditStartRecord,
+} from './interfaces/audit-record.interface';
 import type { AuditSink } from './interfaces/audit-sink.interface';
 
 /**
@@ -45,11 +53,24 @@ export const AUDIT_RECORD_ITEM_TOKEN: PipelineItemToken<AuditRecord> =
   createPipelineItem<AuditRecord>('AUDIT_RECORD_ITEM', AUDIT_RECORD_ITEM);
 
 /**
+ * Typed token for the pending {@link AuditStartRecord}, set before the handler
+ * runs when a start record is written. A step inside the handler can read it,
+ * for example to store the record in its own transaction.
+ */
+export const AUDIT_START_RECORD_ITEM_TOKEN: PipelineItemToken<AuditStartRecord> =
+  createPipelineItem<AuditStartRecord>('AUDIT_START_RECORD_ITEM');
+
+/**
  * Pipeline behavior that writes an {@link AuditRecord} for every audited
  * request — **on both success and failure** — to a pluggable {@link AuditSink}.
+ * Only commands are audited unless `captureKinds` lists other request kinds.
  *
  * For each run it times the handler, resolves the actor and action, redacts the
- * payload (and optionally the response), then forwards the record. Handler
+ * payload (and optionally the response), then forwards the record. When the
+ * sink implements `begin`, a pending start record is written first under the
+ * same id, so a process stop during the handler leaves a pending record
+ * instead of none; with `failOpen: false`, a failed start write stops the
+ * request before its handler runs. Handler
  * failures are recorded before propagation. With the default `failOpen: true`,
  * sink failures are logged and the original handler result/error is preserved.
  * With `failOpen: false`, a sink/build failure on the **success path** fails the
@@ -138,10 +159,8 @@ export class AuditBehavior
       context.getBehaviorOptions<AuditBehaviorOptions>(AuditBehavior),
     );
 
-    if (
-      options.captureKinds &&
-      !options.captureKinds.includes(context.requestKind)
-    ) {
+    const captureKinds = options.captureKinds ?? DEFAULT_CAPTURE_KINDS;
+    if (!captureKinds.includes(context.requestKind)) {
       return next();
     }
 
@@ -149,6 +168,20 @@ export class AuditBehavior
     this.validateFactories(options, failOpen);
 
     const startedAt = new Date();
+    const id = uuidv7();
+    const begin =
+      options.recordStart === false
+        ? undefined
+        : this.sink.begin?.bind(this.sink);
+    if (begin) {
+      await this.begin(begin, {
+        context,
+        options,
+        id,
+        startedAt: startedAt.toISOString(),
+      });
+    }
+
     const start = performance.now();
 
     let response: unknown;
@@ -159,6 +192,7 @@ export class AuditBehavior
         await this.record({
           context,
           options,
+          id,
           error,
           failed: true,
           durationMs: performance.now() - start,
@@ -176,6 +210,7 @@ export class AuditBehavior
     await this.record({
       context,
       options,
+      id,
       response,
       failed: false,
       durationMs: performance.now() - start,
@@ -184,10 +219,49 @@ export class AuditBehavior
     return response;
   }
 
+  /**
+   * Build the start record, forward it to the sink's `begin`, and stash it on
+   * the context. Throws only when failing closed, before the handler runs.
+   */
+  private async begin(
+    begin: (record: AuditStartRecord) => Promise<void> | void,
+    input: {
+      context: IPipelineContext;
+      options: AuditBehaviorOptions;
+      id: string;
+      startedAt: string;
+    },
+  ): Promise<void> {
+    const failOpen = input.options.failOpen ?? true;
+    let record: AuditStartRecord;
+    try {
+      record = buildAuditStartRecord(input);
+    } catch (buildError) {
+      const message =
+        `Failed to build audit start record for ${input.context.requestName}: ` +
+        `${buildError instanceof Error ? buildError.message : buildError}`;
+      this.reportFailure(message, failOpen, buildError);
+      return;
+    }
+
+    setPipelineItem(input.context, AUDIT_START_RECORD_ITEM_TOKEN, record);
+
+    try {
+      await begin(record);
+    } catch (sinkError) {
+      const message =
+        `Failed to write audit start record for ${record.requestName} ` +
+        `(correlationId: ${record.correlationId}): ` +
+        `${sinkError instanceof Error ? sinkError.message : sinkError}`;
+      this.reportFailure(message, failOpen, sinkError);
+    }
+  }
+
   /** Build the record, forward it to the sink, and stash it on the context. */
   private async record(input: {
     context: IPipelineContext;
     options: AuditBehaviorOptions;
+    id: string;
     response?: unknown;
     error?: unknown;
     failed: boolean;
@@ -262,6 +336,13 @@ export class AuditBehavior
     return { ...this.defaults, ...options };
   }
 }
+
+/**
+ * Kinds audited when `captureKinds` is omitted: commands, which change state.
+ * A query changes nothing, and a domain event follows a command that is
+ * already audited.
+ */
+const DEFAULT_CAPTURE_KINDS: readonly AuditRequestKind[] = ['command'];
 
 const FACTORY_OPTIONS = [
   ['actor', 'actor factory'],

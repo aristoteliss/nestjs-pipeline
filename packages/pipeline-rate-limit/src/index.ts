@@ -22,6 +22,7 @@ export {
 } from './helpers/rate-limit.intent';
 export type {
   RateLimitBehaviorOptions,
+  RateLimitCostFactory,
   RateLimitKeyFactory,
   RateLimitModuleAsyncOptions,
   RateLimitModuleOptions,

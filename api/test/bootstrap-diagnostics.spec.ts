@@ -435,7 +435,7 @@ describe('Pipeline Bootstrap Diagnostics', () => {
             diagnostics: 'strict',
           }),
           ResilienceModule.forRoot({
-            retry: { maxAttempts: 2 },
+            defaults: { retry: { maxAttempts: 2 } },
           }),
         ],
         providers: [BareResilienceCommandHandler],
@@ -458,8 +458,10 @@ describe('Pipeline Bootstrap Diagnostics', () => {
             diagnostics: 'strict',
           }),
           ResilienceModule.forRoot({
-            retry: { maxAttempts: 2, replaySafe: true },
-            handleAllErrors: true,
+            defaults: {
+              retry: { maxAttempts: 2, replaySafe: true },
+              handleAllErrors: true,
+            },
           }),
         ],
         providers: [BareResilienceCommandHandler],
@@ -497,7 +499,7 @@ describe('Pipeline Bootstrap Diagnostics', () => {
             diagnostics: 'strict',
           }),
           ResilienceModule.forRoot({
-            handleAllErrors: true,
+            defaults: { handleAllErrors: true },
           }),
         ],
         providers: [LocalRetryCommandHandler],

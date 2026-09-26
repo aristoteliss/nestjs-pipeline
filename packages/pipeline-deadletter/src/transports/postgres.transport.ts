@@ -2,8 +2,10 @@
 
 import { toPostgresJson } from '@nestjs-pipeline/core';
 import type {
+  DeadLetterError,
+  DeadLetterListFilter,
   DeadLetterRecord,
-  DeadLetterTransport,
+  DeadLetterStore,
 } from '../interfaces/dead-letter-transport.interface';
 
 /**
@@ -45,7 +47,7 @@ function assertSafeTable(table: string): string {
 export function createDeadLetterTableSql(table = 'dead_letters'): string {
   const name = assertSafeTable(table);
   return `CREATE TABLE IF NOT EXISTS ${name} (
-  id              BIGSERIAL PRIMARY KEY,
+  id              UUID        PRIMARY KEY,
   correlation_id  TEXT        NOT NULL,
   request_kind    TEXT        NOT NULL,
   request_name    TEXT        NOT NULL,
@@ -54,52 +56,144 @@ export function createDeadLetterTableSql(table = 'dead_letters'): string {
   error           JSONB       NOT NULL,
   metadata        JSONB,
   failed_at       TIMESTAMPTZ NOT NULL,
-  created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+  attempts        INTEGER     NOT NULL DEFAULT 0,
+  status          TEXT        NOT NULL DEFAULT 'open',
+  payload_redacted BOOLEAN    NOT NULL DEFAULT false,
+  last_error      JSONB,
+  resolved_at     TIMESTAMPTZ
 );`;
 }
 
 /**
- * {@link DeadLetterTransport} backed by **Postgres** (`pg`). Inserts each dead
- * letter as a row.
+ * {@link DeadLetterStore} backed by **Postgres** (`pg`): inserts each dead
+ * letter as a row and keeps it, so it can be listed, redriven with
+ * `DeadLetterRedriver`, and resolved. Create the table once with
+ * {@link createDeadLetterTableSql}.
  *
- * Create the table once with {@link createDeadLetterTableSql}. The table name is
- * validated as a plain SQL identifier (it is interpolated, not parameterized);
- * all record values are passed as bound parameters. A NUL character or a lone
- * surrogate, which `jsonb` rejects, is stored as U+FFFD (see
- * `toPostgresJson`), so one such character cannot lose the whole dead letter.
+ * The table name is validated as a plain SQL identifier (it is interpolated,
+ * not parameterized); all values are bound parameters.
  *
  * @example
  * ```ts
- * import { Pool } from 'pg';
- * const pool = new Pool({ connectionString: process.env.DATABASE_URL });
  * await pool.query(createDeadLetterTableSql());
- * const transport = new PostgresDeadLetterTransport(pool);
+ * const store = new PostgresDeadLetterTransport(pool);
+ * const open = await store.list({ status: 'open' });
  * ```
  */
-export class PostgresDeadLetterTransport implements DeadLetterTransport {
-  private readonly insertSql: string;
+export class PostgresDeadLetterTransport implements DeadLetterStore {
+  private readonly table: string;
 
   constructor(
     private readonly db: PostgresQueryableLike,
     options: PostgresDeadLetterTransportOptions = {},
   ) {
-    const table = assertSafeTable(options.table ?? 'dead_letters');
-    this.insertSql = `INSERT INTO ${table}
-      (correlation_id, request_kind, request_name, handler_name, payload, error, metadata, failed_at)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`;
+    this.table = assertSafeTable(options.table ?? 'dead_letters');
   }
 
   async send(record: DeadLetterRecord): Promise<void> {
-    const json = (value: unknown) => toPostgresJson(JSON.stringify(value));
-    await this.db.query(this.insertSql, [
-      record.correlationId,
-      record.requestKind,
-      record.requestName,
-      record.handlerName,
-      json(record.payload ?? null),
-      json(record.error),
-      record.metadata ? json(record.metadata) : null,
-      record.failedAt,
-    ]);
+    await this.db.query(
+      `INSERT INTO ${this.table}
+        (id, correlation_id, request_kind, request_name, handler_name, payload,
+         error, metadata, failed_at, attempts, status, payload_redacted)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+      [
+        record.id,
+        record.correlationId,
+        record.requestKind,
+        record.requestName,
+        record.handlerName,
+        json(record.payload ?? null),
+        json(record.error),
+        record.metadata ? json(record.metadata) : null,
+        record.failedAt,
+        record.attempts,
+        record.status,
+        record.payloadRedacted,
+      ],
+    );
   }
+
+  async get(id: string): Promise<DeadLetterRecord | undefined> {
+    const rows = await this.rows(`SELECT * FROM ${this.table} WHERE id = $1`, [
+      id,
+    ]);
+    return rows[0];
+  }
+
+  async list(filter: DeadLetterListFilter = {}): Promise<DeadLetterRecord[]> {
+    return this.rows(
+      `SELECT * FROM ${this.table}
+        WHERE ($1::text IS NULL OR status = $1)
+          AND ($2::text IS NULL OR request_name = $2)
+        ORDER BY id
+        LIMIT $3`,
+      [filter.status ?? null, filter.requestName ?? null, filter.limit ?? 100],
+    );
+  }
+
+  async recordAttempt(id: string, error: DeadLetterError): Promise<void> {
+    await this.db.query(
+      `UPDATE ${this.table} SET attempts = attempts + 1, last_error = $2 WHERE id = $1`,
+      [id, json(error)],
+    );
+  }
+
+  async markResolved(id: string): Promise<void> {
+    await this.db.query(
+      `UPDATE ${this.table} SET status = 'resolved', resolved_at = now() WHERE id = $1`,
+      [id],
+    );
+  }
+
+  private async rows(
+    sql: string,
+    values: unknown[],
+  ): Promise<DeadLetterRecord[]> {
+    const result = (await this.db.query(sql, values)) as {
+      rows?: DeadLetterRow[];
+    };
+    return (result.rows ?? []).map(toRecord);
+  }
+}
+
+interface DeadLetterRow {
+  id: string;
+  correlation_id: string;
+  request_kind: DeadLetterRecord['requestKind'];
+  request_name: string;
+  handler_name: string;
+  payload: unknown;
+  error: DeadLetterError;
+  metadata: Record<string, unknown> | null;
+  failed_at: Date;
+  attempts: number;
+  status: DeadLetterRecord['status'];
+  payload_redacted: boolean;
+  last_error: DeadLetterError | null;
+  resolved_at: Date | null;
+}
+
+function json(value: unknown): string {
+  return toPostgresJson(JSON.stringify(value));
+}
+
+function toRecord(row: DeadLetterRow): DeadLetterRecord {
+  const tenantId = row.metadata?.tenantId;
+  return {
+    id: row.id,
+    correlationId: row.correlation_id,
+    ...(typeof tenantId === 'string' ? { tenantId } : {}),
+    requestKind: row.request_kind,
+    requestName: row.request_name,
+    handlerName: row.handler_name,
+    payload: row.payload,
+    error: row.error,
+    failedAt: row.failed_at.toISOString(),
+    ...(row.metadata ? { metadata: row.metadata } : {}),
+    attempts: row.attempts,
+    status: row.status,
+    payloadRedacted: row.payload_redacted,
+    ...(row.last_error ? { lastError: row.last_error } : {}),
+    ...(row.resolved_at ? { resolvedAt: row.resolved_at.toISOString() } : {}),
+  };
 }

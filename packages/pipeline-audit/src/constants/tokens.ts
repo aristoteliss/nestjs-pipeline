@@ -35,9 +35,10 @@ export const AUDIT_REQUEST_KINDS = {
 } as const;
 
 /**
- * Audit record outcomes.
+ * Audit record outcomes. `PENDING` is the outcome of a start record only.
  */
 export const AUDIT_OUTCOMES = {
   SUCCESS: 'success',
   FAILURE: 'failure',
+  PENDING: 'pending',
 } as const;

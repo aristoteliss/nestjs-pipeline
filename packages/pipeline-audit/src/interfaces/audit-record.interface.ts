@@ -39,7 +39,7 @@ export interface AuditError {
  * successful and failed operations, so denied/rejected attempts are captured too.
  */
 export interface AuditRecord {
-  /** Unique id for this entry (UUID). */
+  /** Unique id for this entry (UUIDv7, so ids sort in start order). */
   id: string;
   /** Correlation ID of the pipeline run (for cross-system tracing). */
   correlationId: string;
@@ -72,3 +72,18 @@ export interface AuditRecord {
   /** Metadata from the `metadata` factory, plus `tenantId` when present. */
   metadata?: Record<string, unknown>;
 }
+
+/**
+ * The record written before the handler runs, when the sink implements
+ * {@link AuditSink.begin}. Its `outcome` stays `'pending'` until the final
+ * {@link AuditRecord}, written under the same `id`, replaces it. A record still
+ * pending after the process stopped marks an attempt whose outcome is unknown:
+ * the handler may or may not have completed.
+ */
+export type AuditStartRecord = Omit<
+  AuditRecord,
+  'outcome' | 'response' | 'error' | 'durationMs'
+> & {
+  /** Always `'pending'`: the operation has not finished. */
+  outcome: 'pending';
+};
