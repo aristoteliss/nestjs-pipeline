@@ -26,6 +26,7 @@ application through structural compatibility: see [Using it from NestJS](#using-
 - [Tenant-scoped cache keys](#tenant-scoped-cache-keys)
 - [HTTP status mapping](#http-status-mapping)
 - [Using it from NestJS](#using-it-from-nestjs)
+- [Moving from ddd/core](#moving-from-dddcore)
 - [Known limits](#known-limits)
 - [License](#license)
 
@@ -48,11 +49,11 @@ needs.
 
 | Entry | Holds |
 | --- | --- |
-| `@cqrs-ddd/core/domain` | `AggregateRoot`, `RootEntity`, `@Mutable`, `@ApplyMutation`, `DomainEvent`, `RootDomainEvent`, `deepCloneAndFreeze`, `textRule`, `numberRule`, `ValueViolation`, and the errors `DomainException`, `InvalidValueException`, `EntityNotFoundException`, `ConcurrencyConflictError`, `TransientOperationError`, `MissingTenantContextError`, `UnknownMutableFieldError` |
-| `@cqrs-ddd/core/application` | `BaseCommand`, `BaseQuery`, `CommandBaseHandler`, the ports (`IDomainEventPublisher`, `ICommandRepository`, `IQueryRepository`, `IWriteSideAggregateRepository`, `ICache`, `IVersionedCache`), `requireTenantId`, `setTenantResolver` |
-| `@cqrs-ddd/core/persistence` | the lifecycle decorators, `QueryRepository`, `CommandRepository`, `MemoryCache`, the cache-key and cache-logger helpers, the persistence dialect contract (`IPersistenceDialect`, `setPersistenceDialect`) |
+| `@cqrs-ddd/core/domain` | `AggregateRoot`, `RootEntity`, `RootEntitySnapshot`, `@Mutable`, `getMutableFields`, `@ApplyMutation`, `IEvent`, `DomainEvent`, `RootDomainEvent`, `deepCloneAndFreeze`, `textRule`, `numberRule`, `ValueViolation`, and the errors `DomainException`, `InvalidValueException`, `EntityNotFoundException`, `ConcurrencyConflictError`, `TransientOperationError` (with `isTransientOperationError`), `MissingTenantContextError`, `UnknownMutableFieldError` |
+| `@cqrs-ddd/core/application` | `BaseCommand`, `BaseQuery`, `IQueryOptions`, `CommandBaseHandler`, the ports (`IDomainEventPublisher`, `ICommandRepository`, `IQueryRepository`, `IWriteSideAggregateRepository`, `ICache`, `IVersionedCache`, `isVersionedCache`), `requireTenantId`, `setTenantResolver` |
+| `@cqrs-ddd/core/persistence` | the lifecycle decorators (`@PersistedWrite`, `@Cache`, `@AcknowledgePersisted`, `@MapPersistenceErrors`, `@FromCache`), `QueryRepository`, `CommandRepository`, `MemoryCache` and its injection token `CACHE_TOKEN`, `cacheKey`, `cacheKeyTemplate`, `isCacheNewer`, `toCacheSnapshot`, the mutation-barrier helpers, `consoleCacheLogger`, `safeWarn`, and the persistence dialect contract (`IPersistenceDialect`, `setPersistenceDialect`, `persistenceDialect`) |
 | `@cqrs-ddd/core/http` | `domainErrorHttpStatus` |
-| `@cqrs-ddd/core` | all of the above |
+| `@cqrs-ddd/core` | all of the above, plus the `Method` type |
 
 No entry point loads an ORM or NestJS.
 
@@ -66,6 +67,7 @@ declared `@Mutable`:
 ```typescript
 import {
   ApplyMutation,
+  DomainException,
   InvalidValueException,
   Mutable,
   RootEntity,
@@ -74,10 +76,17 @@ import {
 } from '@cqrs-ddd/core/domain';
 
 export class InvalidUsernameException extends InvalidValueException {}
+export class InvalidDepartmentException extends InvalidValueException {}
+export class EmptyUserUpdateException extends DomainException {
+  constructor() {
+    super('A user update needs at least one field.');
+  }
+}
 
 export interface UserSnapshot extends Partial<RootEntitySnapshot> {
   readonly username: string;
   readonly email: string;
+  readonly department?: string | null;
 }
 
 export class User extends RootEntity<UserSnapshot> {
@@ -89,20 +98,31 @@ export class User extends RootEntity<UserSnapshot> {
       maxLength: 255,
       error: (violation) => new InvalidUsernameException(violation),
     }),
+    department: textRule({
+      field: 'department',
+      required: false,
+      maxLength: 255,
+      error: (violation) => new InvalidDepartmentException(violation),
+    }),
   } as const;
 
   @Mutable<string>({ normalize: (value) => User.rules.username.parse(value) })
   private _username: string;
+
+  @Mutable<string | null>({ normalize: (value) => User.rules.department.parse(value) })
+  private _department: string | null;
+
   readonly email: string;
 
   private constructor(snapshot: UserSnapshot) {
     super(snapshot);
     this._username = User.rules.username.parse(snapshot.username);
+    this._department = User.rules.department.parse(snapshot.department);
     this.email = snapshot.email;
   }
 
-  static create(username: string, email: string): User {
-    const user = new User({ username, email });
+  static create(username: string, email: string, department?: string | null): User {
+    const user = new User({ username, email, department });
     user.apply(new UserCreatedEvent(user));
     return user;
   }
@@ -115,9 +135,29 @@ export class User extends RootEntity<UserSnapshot> {
     return this._username;
   }
 
-  @ApplyMutation<User>({ event: (user) => new UserRenamedEvent(user) })
-  rename(username: string): this {
-    this.applyPatch({ username });
+  private set username(value: string) {
+    this._username = User.rules.username.parse(value);
+  }
+
+  get department(): string | null {
+    return this._department;
+  }
+
+  private set department(value: string | null) {
+    this._department = User.rules.department.parse(value);
+  }
+
+  @ApplyMutation<User>({ event: (user) => new UserUpdatedEvent(user) })
+  update(fields: { username?: string; department?: string | null }): this {
+    if (fields.username === undefined && fields.department === undefined) {
+      throw new EmptyUserUpdateException();
+    }
+    this.applyPatch({ username: fields.username, department: fields.department });
+    return this;
+  }
+
+  @ApplyMutation<User>({ event: (user) => new UserDeletedEvent(user) })
+  delete(): this {
     return this;
   }
 
@@ -125,14 +165,34 @@ export class User extends RootEntity<UserSnapshot> {
     return this.freezeState({
       id: this.id,
       username: this._username,
+      department: this._department,
       email: this.email,
       createdAt: this.createdAt,
       updatedAt: this.updatedAt,
-      version: this._version,
+      version: this.version,
     });
   }
 }
 ```
+
+The events are declared in [Domain events](#domain-events). Using the aggregate:
+
+```typescript
+const user = User.create('alice', 'alice@example.test');
+user.version;                  // 1
+user.getUncommittedEvents();   // [UserCreatedEvent]
+
+user.update({ department: 'Research' });
+user.version;                  // 2
+user.getExpectedVersion();     // 1: the version the next write must find in storage
+
+user.update({});               // throws EmptyUserUpdateException; nothing is recorded
+user.update({ username: 'a' }); // throws InvalidUsernameException before any field is written
+```
+
+- `@Mutable` registers a field for `applyPatch` under its property name without a
+  leading underscore (`_username` is patched as `username`); `as: 'name'` sets another
+  key, and `normalize` validates and converts each value.
 
 - `applyPatch(patch)` validates and normalizes every supplied field before writing any
   of them, and ignores `undefined` values. An unknown key throws `UnknownMutableFieldError`.
@@ -146,7 +206,11 @@ export class User extends RootEntity<UserSnapshot> {
 - `id`, `createdAt` and `updatedAt` have public getters and private setters. The ORM
   hydrates through the setters (see below); application code cannot assign them and
   changes state through domain methods and factories. Give a subclass's own persisted
-  fields private setters too.
+  fields private setters too, as `username` and `department` above.
+- `version` is the in-memory version; `getExpectedVersion()` is the version last read
+  from or written to storage, which a version-conditioned write compares against.
+  `acknowledgePersisted()` moves it forward after a successful write; `@PersistedWrite`
+  calls it for you.
 
 ## Value rules
 
@@ -206,7 +270,7 @@ export class UserCreatedEvent extends RootDomainEvent<User, UserSnapshot> {
 }
 ```
 
-`UserRenamedEvent` is declared the same way.
+`UserUpdatedEvent` and `UserDeletedEvent` are declared the same way.
 
 - **Detached:** later changes to the aggregate never reach `payload`.
 - **Read-only for ordinary access:** own properties are frozen, and the mutating methods
@@ -233,9 +297,25 @@ authorization.
 returns:
 
 ```typescript
-import { CommandBaseHandler, type IDomainEventPublisher } from '@cqrs-ddd/core/application';
+import {
+  BaseCommand,
+  CommandBaseHandler,
+  type IDomainEventPublisher,
+  type IWriteSideAggregateRepository,
+} from '@cqrs-ddd/core/application';
+import { EntityNotFoundException } from '@cqrs-ddd/core/domain';
 
-export class RenameUserHandler extends CommandBaseHandler<RenameUserCommand, User> {
+export class UpdateUserCommand extends BaseCommand {
+  constructor(
+    readonly id: string,
+    readonly username?: string,
+    readonly department?: string | null,
+  ) {
+    super();
+  }
+}
+
+export class UpdateUserHandler extends CommandBaseHandler<UpdateUserCommand, User> {
   constructor(
     private readonly users: IWriteSideAggregateRepository<User>,
     eventBus: IDomainEventPublisher,
@@ -243,14 +323,19 @@ export class RenameUserHandler extends CommandBaseHandler<RenameUserCommand, Use
     super(eventBus);
   }
 
-  async handle(command: RenameUserCommand): Promise<User> {
+  async handle(command: UpdateUserCommand): Promise<User> {
     const user = await this.users.findById(command.id);
     if (!user) throw new EntityNotFoundException('User', command.id);
-    user.rename(command.username);
+    user.update({ username: command.username, department: command.department });
     await this.users.save(user);
     return user;
   }
 }
+
+const handler = new UpdateUserHandler(users, {
+  publishAll: async (events) => events.forEach((event) => emitter.emit('event', event)),
+});
+await handler.execute(new UpdateUserCommand(id, 'bob'));
 ```
 
 - `handle()` returns the aggregate, or a result carrying it as `aggregate`.
@@ -273,25 +358,59 @@ A command handler loads the authoritative aggregate through
 `IWriteSideAggregateRepository<TEntity>.findById(id)`: it must read primary storage, never
 a cache. `@cqrs-ddd/mikro-orm`'s `AggregateRepository` implements it for MikroORM.
 
-`save()` declares its lifecycle with `@PersistedWrite`:
+`save()` declares its lifecycle with `@PersistedWrite`. With `@cqrs-ddd/mikro-orm`, where
+`AggregateRepository` provides `findById()` and `this.store`:
 
 ```typescript
+import type { ICache } from '@cqrs-ddd/core/application';
+import { DomainException } from '@cqrs-ddd/core/domain';
 import { cacheKey, PersistedWrite } from '@cqrs-ddd/core/persistence';
-import { optimisticUpdate } from '@cqrs-ddd/mikro-orm';
+import {
+  AggregateRepository,
+  type IEntityManagerSource,
+  mapPersistenceError,
+  optimisticUpdate,
+} from '@cqrs-ddd/mikro-orm';
 
-@PersistedWrite<User>({
-  cache: {
-    setKey: (user) => cacheKey(User.aggregateName, { id: user.id }),
-    invalidateKeys: (user) => [cacheKey(User.aggregateName, { email: user.email })],
-  },
-  unique: { email: (user) => new UniqueEmailException(user) },
-})
-async save(user: User): Promise<UserSnapshot> {
-  const snapshot = user.toJSON();
-  await optimisticUpdate(this.store.em, UserRow, user, { username: snapshot.username }, 'User');
-  return snapshot;
+export class UniqueEmailException extends DomainException {
+  constructor(readonly user: User) {
+    super('This email is already registered.');
+  }
+}
+
+export class UpdateUserRepository extends AggregateRepository<UserSnapshot, User, UserSnapshot> {
+  constructor(cache: ICache<UserSnapshot>, store: IEntityManagerSource) {
+    super(cache, store, User, User.aggregateName, User.fromJSON);
+  }
+
+  @PersistedWrite<User>({
+    cache: {
+      setKey: (user) => cacheKey(User.aggregateName, { id: user.id }),
+      invalidateKeys: (user) => [cacheKey(User.aggregateName, { email: user.email })],
+    },
+    unique: { email: (user) => new UniqueEmailException(user) },
+    otherwise: (error, user) => mapPersistenceError(error, `updating User ${user.id}`),
+  })
+  async save(user: User): Promise<UserSnapshot> {
+    const snapshot = user.toJSON();
+    await optimisticUpdate(
+      this.store.em,
+      User,
+      user,
+      {
+        username: snapshot.username,
+        department: snapshot.department ?? null,
+        updatedAt: snapshot.updatedAt,
+      },
+      'User',
+    );
+    return snapshot;
+  }
 }
 ```
+
+`optimisticUpdate` adds `version` to the written fields; every other changed column,
+`updatedAt` included, is listed explicitly.
 
 `@PersistedWrite` applies three decorators. Stacked by hand, the order is fixed,
 outermost first:
@@ -316,7 +435,34 @@ outermost first:
    `@cqrs-ddd/mikro-orm`, which turns retryable driver and network failures into
    `TransientOperationError` and keeps every other error unchanged.
 
-Deletes do not acknowledge, so they stack `@Cache` and `@MapPersistenceErrors` alone.
+Deletes do not acknowledge, so they stack `@Cache` and `@MapPersistenceErrors` alone,
+and resolve `null` so `@Cache` installs barriers for `deleteKeys`:
+
+```typescript
+import { Cache, cacheKey, MapPersistenceErrors } from '@cqrs-ddd/core/persistence';
+import { mapPersistenceError, optimisticDelete } from '@cqrs-ddd/mikro-orm';
+
+export class DeleteUserRepository extends AggregateRepository<UserSnapshot, User, null> {
+  constructor(cache: ICache<UserSnapshot>, store: IEntityManagerSource) {
+    super(cache, store, User, User.aggregateName, User.fromJSON);
+  }
+
+  @Cache<User, null>({
+    deleteKeys: (user) => [
+      cacheKey(User.aggregateName, { id: user.id }),
+      cacheKey(User.aggregateName, { email: user.email }),
+    ],
+  })
+  @MapPersistenceErrors<[User], User>({
+    entity: ([user]) => user,
+    otherwise: (error, user) => mapPersistenceError(error, `deleting User ${user.id}`),
+  })
+  async save(user: User): Promise<null> {
+    await optimisticDelete(this.store.em, User, user, 'User');
+    return null;
+  }
+}
+```
 
 The write itself must be version-conditioned (`WHERE id = ? AND version = expected`) and
 must not run inside an outer transaction, whose success would not mean durable
@@ -325,14 +471,29 @@ for this.
 
 ## Read-side repositories
 
-A query repository extends `QueryRepository` and decorates `find()` with `@FromCache`:
+A query repository extends `QueryRepository` and decorates `find()` with `@FromCache`. The
+constructor takes the cache (any `ICache`; see [The repository cache](#the-repository-cache)
+for why `@FromCache` needs an `IVersionedCache`) and the repository's default hydration:
 
 ```typescript
-import { FromCache, QueryRepository, cacheKey } from '@cqrs-ddd/core/persistence';
+import { BaseQuery, type ICache, type IQueryOptions } from '@cqrs-ddd/core/application';
+import { cacheKey, FromCache, QueryRepository } from '@cqrs-ddd/core/persistence';
 import type { IEntityManagerSource } from '@cqrs-ddd/mikro-orm';
 
-export class GetUserQueryRepository extends QueryRepository<GetUserQuery, User | null> {
-  constructor(cache: IVersionedCache<UserSnapshot>, private readonly store: IEntityManagerSource) {
+export class GetUserQuery extends BaseQuery {
+  constructor(
+    readonly id: string,
+    options?: IQueryOptions,
+  ) {
+    super(options);
+  }
+}
+
+export class GetUserRepository extends QueryRepository<GetUserQuery, User | null> {
+  constructor(
+    cache: ICache<UserSnapshot>,
+    private readonly store: IEntityManagerSource,
+  ) {
     super(cache, { hydrateFn: (cached) => User.fromJSON(cached as UserSnapshot) });
   }
 
@@ -340,11 +501,16 @@ export class GetUserQueryRepository extends QueryRepository<GetUserQuery, User |
     keyFn: (query) => cacheKey(User.aggregateName, { id: query.id }),
   })
   async find(query: GetUserQuery): Promise<User | null> {
-    const row = await this.store.em.findOne(UserRow, { id: query.id });
-    return row ? User.fromJSON(row) : null;
+    return this.store.em.findOne(User, { id: query.id }, query.refresh ? { refresh: true } : undefined);
   }
 }
+
+await users.find(new GetUserQuery(id));                    // may be served from the cache
+await users.find(new GetUserQuery(id, { refresh: true })); // always reads the database
 ```
+
+`@FromCache` options: `keyFn` (return `null` to skip the cache for that call),
+`hydrateFn`, `serializeFn`, `ttl` in milliseconds, `isNewer` and `logger`.
 
 - Every hit is rehydrated whenever a hydrator applies, so a hit and a miss return the
   same type. A method's own `hydrateFn` (or `hydrateFn: null`) overrides the
@@ -453,8 +619,8 @@ Nothing in this package imports NestJS; the fit is structural.
   dispatches like any other.
 
 ```typescript
-@CommandHandler(RenameUserCommand)
-export class RenameUserHandler extends CommandBaseHandler<RenameUserCommand, User> {
+@CommandHandler(UpdateUserCommand)
+export class UpdateUserHandler extends CommandBaseHandler<UpdateUserCommand, User> {
   constructor(
     @Inject(USER_WRITE_REPOSITORY) private readonly users: IWriteSideAggregateRepository<User>,
     eventBus: EventBus,
@@ -468,11 +634,51 @@ export class RenameUserHandler extends CommandBaseHandler<RenameUserCommand, Use
 The application writes the rest of the glue:
 
 - providers for the repositories and the cache, for example a `useFactory` provider
-  that builds a `MikroOrmCache` from `@cqrs-ddd/mikro-orm`;
+  that builds a `MikroOrmCache` from `@cqrs-ddd/mikro-orm` under `CACHE_TOKEN`:
+
+  ```typescript
+  { provide: CACHE_TOKEN, useValue: new MemoryCache({ defaultTtlMs: 30_000 }) }
+  ```
+
 - the tenant resolver, registered once before any lifecycle hook can start work that
   reads it, for example in a module constructor;
 - an exception filter that maps its own errors, then calls `domainErrorHttpStatus`;
 - a `logger` for the cache decorators, such as `new Logger('UserCache')`.
+
+## Moving from ddd/core
+
+The unpublished workspace package `@nestjs-pipeline/ddd-core` (directory `ddd/core`) maps
+onto this package as follows. It depended on NestJS and MikroORM; this package depends on
+neither, and the MikroORM parts are in `@cqrs-ddd/mikro-orm`.
+
+| `ddd/core` | `@cqrs-ddd/core` |
+| --- | --- |
+| `import { … } from '@nestjs-pipeline/ddd-core'` | the layer entry points: `@cqrs-ddd/core/domain`, `/application`, `/persistence`, `/http` |
+| `@Mutate()` on a mutation method, which called `onUpdate()` | `@ApplyMutation({ event })`, which also records the event, plus `@Mutable` fields written through `applyPatch()` |
+| `DomainOutcome`, `RootDomainOutcome` returned by `handle()` | `handle()` returns the aggregate, or a result with an `aggregate` property; its buffered events are published |
+| `CommandBaseHandler(eventBus: EventBus)` from `@nestjs/cqrs` | `CommandBaseHandler(eventBus: IDomainEventPublisher)`; a NestJS `EventBus` still fits |
+| `CacheableEntity`, `ICacheKey`, `entity.cacheKey` (`prefix + id`) | `RootEntity` with a static `aggregateName`, keys built with `cacheKey(User.aggregateName, { id })`, always tenant-scoped |
+| `CacheableEntity.fromStringify(data, fromJSON)` | `RootEntity.from(value)` or the aggregate's own `fromJSON` |
+| `ICommandRepository.save(domainOutcome)` | `ICommandRepository.save(entity)`, and `IWriteSideAggregateRepository.findById(id)` for loading |
+| `@Cache(setKeyFn, deleteKeysFn)` | `@Cache({ setKey, deleteKeys, invalidateKeys, ttl, isNewer, barrierTtl, logger })`, usually through `@PersistedWrite` |
+| `@FromCache(keyFn, hydrateFn)`, hydrating when `query.hydrate` is set | `@FromCache({ keyFn, hydrateFn, … })` with an `IVersionedCache`; hits are always rehydrated when a hydrator applies |
+| `QueryRepository(cache)` | `QueryRepository(cache, { hydrateFn, serializeFn? })` |
+| `ICache` in `persistence/cache.interface` | `ICache` and `IVersionedCache` in `@cqrs-ddd/core/application` |
+| `UnixTimestampType` | `UnixTimestampType` in `@cqrs-ddd/mikro-orm` |
+| `RootEntity` with an abstract `afterUpdate()` | `afterUpdate()` is an optional hook; `RootEntity` extends `AggregateRoot` and adds `version`, `getExpectedVersion()`, the event buffer and private hydration setters |
+
+The old imports and the new ones side by side:
+
+```typescript
+// ddd/core
+import { CacheableEntity, CommandBaseHandler, Mutate, RootDomainOutcome } from '@nestjs-pipeline/ddd-core';
+
+// @cqrs-ddd/core
+import { ApplyMutation, Mutable, RootEntity } from '@cqrs-ddd/core/domain';
+import { CommandBaseHandler } from '@cqrs-ddd/core/application';
+import { cacheKey, PersistedWrite } from '@cqrs-ddd/core/persistence';
+import { AggregateRepository, optimisticUpdate, UnixTimestampType } from '@cqrs-ddd/mikro-orm';
+```
 
 ## Known limits
 
@@ -488,7 +694,8 @@ The application writes the rest of the glue:
   writes atomic. A row that must commit with the aggregate, such as an audit record or
   an outbox message, therefore cannot share its transaction yet: that needs commit
   hooks that run acknowledgment and cache work after the commit.
-- `@MapPersistenceErrors` recognises PostgreSQL and SQLite unique-constraint errors.
+- `@MapPersistenceErrors` maps a unique violation only as well as the registered
+  persistence dialect reads it; `MikroOrmDialect` reads PostgreSQL and SQLite errors.
 - The tenant resolver is process-wide: one per process, for each installed copy of this
   package.
 - Event payloads are frozen for ordinary access only; see [Domain events](#domain-events).

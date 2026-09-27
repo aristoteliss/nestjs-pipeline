@@ -11,8 +11,8 @@ import { definedFields, defineHidden } from './request-fields.helper';
  */
 // biome-ignore lint/suspicious/noExplicitAny: generic session principal default
 export abstract class BaseCommand<TSessionPrincipal = any> {
-  public declare readonly sessionPrincipal?: TSessionPrincipal;
-  public declare readonly sessionUser?: TSessionPrincipal;
+  declare public readonly sessionPrincipal?: TSessionPrincipal;
+  declare public readonly sessionUser?: TSessionPrincipal;
 
   constructor(sessionPrincipal?: TSessionPrincipal) {
     if (sessionPrincipal !== undefined) {

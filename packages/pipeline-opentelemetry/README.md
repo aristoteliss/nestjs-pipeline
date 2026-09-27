@@ -29,8 +29,14 @@ Both are no-op-safe: if the matching SDK isn't initialized, the OpenTelemetry AP
   - [Custom Logger](#custom-logger)
   - [Global Tracer Name](#global-tracer-name)
   - [Per-Handler Tracer Name](#per-handler-tracer-name)
+  - [Span Name and Custom Attributes](#span-name-and-custom-attributes)
+  - [Disabling Telemetry for a Handler](#disabling-telemetry-for-a-handler)
+  - [Request-Local Attributes](#request-local-attributes)
+  - [Tenant and Correlation Attributes](#tenant-and-correlation-attributes)
+- [Instrumentation failure boundaries](#instrumentation-failure-boundaries)
 - [No SDK? No Problem.](#no-sdk-no-problem)
 - [Full Example](#full-example)
+- [Migrating from 0.1.x](#migrating-from-01x)
 - [API Reference](#api-reference)
 - [License](#license)
 
@@ -47,6 +53,8 @@ pnpm add @nestjs-pipeline/opentelemetry @opentelemetry/api
 ```bash
 pnpm add @nestjs-pipeline/core @nestjs/common reflect-metadata
 ```
+
+Requires Node.js 22 or later, `@nestjs/common` `^11.0.0` and `@nestjs-pipeline/core` `^0.2.0`.
 
 You'll also need an OTel SDK and exporter for your backend (e.g. SigNoz, Jaeger, Datadog):
 
@@ -131,6 +139,12 @@ Each span includes the following:
 | `pipeline.handler.name` | `CreateUserHandler` |
 | `pipeline.correlation_id` | `019728a3-7f4a-7b3e-8a1d-...` |
 | `pipeline.started_at` | `2026-03-01T12:00:00.000Z` |
+| `pipeline.tenant_id` | `acme` _(only when the pipeline has a tenant)_ |
+| `pipeline.outcome` | `success` \| `failure` _(set when the handler ends)_ |
+| `error.type` | `ZodValidationError` _(failures only; `err.name`, or `unknown` for non-`Error` values)_ |
+
+Attributes added through `addPipelineTelemetryAttributes()` and returned by
+`attributeFactory` are also applied (see [Configuration](#configuration)).
 
 **On success:**
 
@@ -139,7 +153,8 @@ Each span includes the following:
 **On error:**
 
 - Span status: `ERROR` with the exception message
-- The exception is recorded on the span via `span.recordException(err)`
+- The exception is recorded on the span via `span.recordException(err)` (disable with `recordException: false`)
+- The original error is rethrown unchanged
 
 ---
 
@@ -155,11 +170,13 @@ you can derive **throughput**, **error-rate**, and **latency percentiles**
 | Instrument | Type | Unit | Description |
 |---|---|---|---|
 | `pipeline.handler.duration` | Histogram | `ms` | Handler execution time |
-| `pipeline.handler.invocations` | Counter | — | Number of handler invocations |
+| `pipeline.handler.invocations` | Counter | — | Number of completed handler invocations |
+| `pipeline.handler.active` | UpDownCounter | — | Handlers currently executing |
 
 ### Attributes
 
-Both instruments are tagged with the same **low-cardinality** attributes so they
+`pipeline.handler.active` carries only the request kind, request name and
+handler name. The duration and invocation instruments are tagged with the same **low-cardinality** attributes so they
 can be sliced per handler and outcome:
 
 | Attribute | Example Value |
@@ -168,6 +185,7 @@ can be sliced per handler and outcome:
 | `pipeline.request.name` | `CreateUserCommand` |
 | `pipeline.handler.name` | `CreateUserHandler` |
 | `outcome` | `success` \| `failure` |
+| `pipeline.outcome` | `success` \| `failure` _(same value, namespaced)_ |
 | `error.type` | `ZodValidationError` _(failures only — `err.name`)_ |
 
 > **Why no `correlation_id` / `started_at`?** Unlike spans, metric attributes
@@ -286,7 +304,7 @@ histogram_quantile(
 
 ### Custom Logger
 
-`MetricsBehavior` accepts a custom Nest `LoggerService` via the `LOGGING_BEHAVIOR_LOGGER` token so its startup SDK hint can use your application's logger. `TraceBehavior` has no startup readiness logger because it relies directly on the OpenTelemetry Trace API's no-op semantics.
+`MetricsBehavior` optionally injects a Nest `LoggerService` through the `LOGGING_BEHAVIOR_LOGGER` token and uses it only to report instrumentation failures (a `warn` when instruments cannot be created, a `debug` when a recording fails). It logs nothing at startup. `TraceBehavior` injects no logger.
 
 ```typescript
 import { Module } from '@nestjs/common';
@@ -303,7 +321,7 @@ import { MetricsBehavior } from '@nestjs-pipeline/opentelemetry';
 export class AppModule {}
 ```
 
-`MetricsBehavior` emits its startup `warn`/`log` hint through the injected logger; how that maps to your transport (e.g. pino levels) is handled entirely by the logger implementation.
+Without a bound logger, instrumentation failures are swallowed silently.
 
 ### Global Tracer Name
 
@@ -339,6 +357,103 @@ export class ProcessPaymentHandler implements ICommandHandler<ProcessPaymentComm
 
 If no `tracerName` is provided (neither globally nor per-handler), the default is `'nestjs-pipeline'`.
 
+### Span Name and Custom Attributes
+
+`spanName` accepts a string or a function of the pipeline context. An empty
+result, or a function that throws, falls back to `{requestKind}.{requestName}`.
+`attributeFactory` may be synchronous or asynchronous; if it throws, the default
+attributes are kept.
+
+```typescript
+import { QueryHandler, IQueryHandler } from '@nestjs/cqrs';
+import { UsePipeline } from '@nestjs-pipeline/core';
+import { metrics, trace } from '@nestjs-pipeline/opentelemetry';
+
+@QueryHandler(GetInvoiceQuery)
+@UsePipeline(
+  trace({
+    spanName: (ctx) => `billing.${ctx.requestName}`,
+    attributeFactory: async () => ({
+      'billing.region': process.env.REGION ?? 'unknown',
+    }),
+  }),
+  metrics({
+    // Metric labels must stay bounded: no ids, emails or raw request values.
+    attributeFactory: () => ({ 'app.operation': 'invoice.read' }),
+  }),
+)
+export class GetInvoiceHandler implements IQueryHandler<GetInvoiceQuery> {
+  async execute(query: GetInvoiceQuery): Promise<Invoice> {
+    return this.invoices.get(query.invoiceId);
+  }
+}
+```
+
+### Disabling Telemetry for a Handler
+
+When the behaviors are registered globally, `enabled: false` skips them for one
+hot or noisy handler without removing the global registration:
+
+```typescript
+@QueryHandler(HealthCheckQuery)
+@UsePipeline(trace({ enabled: false }), metrics({ enabled: false }))
+export class HealthCheckHandler implements IQueryHandler<HealthCheckQuery> {
+  async execute(): Promise<string> {
+    return 'ok';
+  }
+}
+```
+
+### Request-Local Attributes
+
+A downstream behavior or the handler can enrich the request span without
+creating a child span. `TraceBehavior` reads the bag before and again after
+execution, so attributes added late still reach the span. Set
+`includeContextAttributes: false` on `trace()` to ignore the bag.
+
+```typescript
+import { Injectable } from '@nestjs/common';
+import type {
+  IPipelineBehavior,
+  IPipelineContext,
+  NextDelegate,
+} from '@nestjs-pipeline/core';
+import { addPipelineTelemetryAttributes } from '@nestjs-pipeline/opentelemetry';
+
+@Injectable()
+export class VariantBehavior implements IPipelineBehavior {
+  async handle(context: IPipelineContext, next: NextDelegate): Promise<unknown> {
+    addPipelineTelemetryAttributes(context, { 'app.variant': 'treatment' });
+    return next();
+  }
+}
+```
+
+`getPipelineTelemetryAttributes(context)` returns a copy of the bag. The bag is
+**not** copied to metric labels unless `metrics({ includeContextAttributes: true })`
+is set; enable that only when every value in the bag is bounded.
+
+### Tenant and Correlation Attributes
+
+`pipeline.correlation_id` and `pipeline.tenant_id` come from the pipeline
+context. Configure where the pipeline takes them from with `sources` on
+`PipelineModule.forRoot()`:
+
+```typescript
+import { PipelineModule } from '@nestjs-pipeline/core';
+import { correlationSource } from '@nestjs-pipeline/correlation';
+import { tenantSource } from '@nestjs-pipeline/tenant';
+import { TraceBehavior } from '@nestjs-pipeline/opentelemetry';
+
+PipelineModule.forRoot({
+  sources: { tenantId: tenantSource, correlationId: correlationSource },
+  globalBehaviors: { scope: 'all', before: [TraceBehavior] },
+});
+```
+
+Both values are span attributes only. They are never metric labels by default,
+because they are unbounded.
+
 ---
 
 ## Instrumentation failure boundaries
@@ -354,23 +469,13 @@ against arbitrary asynchronous failures inside an SDK.
 If the OpenTelemetry SDK is **not** initialized (for example in development or tests), both behaviors remain safe because the OpenTelemetry API provides no-op implementations.
 
 - `TraceBehavior` always calls the public Trace API. Without a registered tracer provider, `trace.getTracer()` returns the API's no-op tracer; span operations are discarded and the wrapped handler still executes normally.
-- `MetricsBehavior` performs its normal timing and metric-recording calls against a no-op meter, so recordings are silently discarded. It keeps a best-effort startup hint for missing metrics configuration, but that hint never gates request handling.
+- `MetricsBehavior` performs its normal timing and metric-recording calls against a no-op meter, so recordings are silently discarded.
+
+Neither behavior logs a startup message about SDK readiness.
 
 `TraceBehavior` deliberately does **not** inspect provider implementation details such as `ProxyTracerProvider.getDelegate()`, `getDelegateTracer()`, or `constructor.name`. Those are implementation details rather than the public readiness contract and can change across OpenTelemetry versions.
 
-If you want to skip even the no-op Trace API calls for a particular handler, set `enabled: false` in `TraceBehaviorOptions`.
-
-`MetricsBehavior` can still log its startup hint:
-
-```
-[Nest] WARN [MetricsBehavior] OpenTelemetry metrics SDK is NOT initialized — MetricsBehavior will record to a no-op meter (metrics discarded). Register a MeterProvider with a reader/exporter to export pipeline metrics.
-```
-
-When a metrics provider is active:
-
-```
-[Nest] LOG [MetricsBehavior] OpenTelemetry meter provider is active — pipeline metrics will be exported.
-```
+If you want to skip even the no-op API calls for a particular handler, set `enabled: false` in `TraceBehaviorOptions` or `MetricsBehaviorOptions`.
 
 ---
 
@@ -464,7 +569,8 @@ Trace: my-service
     ├── pipeline.request.name = "CreateUserCommand"
     ├── pipeline.handler.name = "CreateUserHandler"
     ├── pipeline.correlation_id = "019728a3-7f4a-..."
-    └── pipeline.started_at = "2026-03-01T12:00:00.000Z"
+    ├── pipeline.started_at = "2026-03-01T12:00:00.000Z"
+    └── pipeline.outcome = "success"
 ```
 
 **Plus metrics** (same handler) on the `my-service` meter:
@@ -476,18 +582,116 @@ pipeline.handler.invocations{...,outcome="success"} counter   → request & erro
 
 ---
 
+## Migrating from 0.1.x
+
+0.1.x exported only `TraceBehavior` and `TraceBehaviorOptions`. Everything else
+listed in the [API Reference](#api-reference) is new in 0.2.0.
+
+### Peer dependencies and runtime
+
+| | 0.1.x | 0.2.0 |
+|---|---|---|
+| `@nestjs/common` | `^10.0.0 \|\| ^11.0.0` | `^11.0.0` |
+| `@nestjs-pipeline/core` | `*` | `^0.2.0` |
+| Node.js | not declared | `>=22.0.0` |
+
+```bash
+pnpm add @nestjs-pipeline/opentelemetry@^0.2.0 @nestjs-pipeline/core@^0.2.0 @nestjs/common@^11
+```
+
+### `TraceBehaviorOptions` is a type-only export
+
+In 0.1.x it was re-exported without the `type` modifier. It is now exported as
+a type, so import it with `import type` under `isolatedModules` or
+`verbatimModuleSyntax`:
+
+```typescript
+// 0.1.x
+import { TraceBehavior, TraceBehaviorOptions } from '@nestjs-pipeline/opentelemetry';
+
+// 0.2.0
+import { TraceBehavior, type TraceBehaviorOptions } from '@nestjs-pipeline/opentelemetry';
+```
+
+### `TraceBehavior` no longer checks SDK readiness or logs
+
+In 0.1.x, `TraceBehavior` implemented `OnModuleInit`, injected
+`LOGGING_BEHAVIOR_LOGGER`, logged a startup `warn`/`log` about SDK readiness and
+skipped span creation when it detected no SDK delegate. In 0.2.0 it has no
+constructor dependencies, no `onModuleInit()`, and always calls the public Trace
+API (a no-op tracer discards spans when no SDK is registered).
+
+```typescript
+// 0.1.x: bound only so TraceBehavior's startup message used pino
+@Module({
+  providers: [
+    TraceBehavior,
+    { provide: LOGGING_BEHAVIOR_LOGGER, useExisting: NativeLogger },
+  ],
+})
+export class AppModule {}
+
+// 0.2.0: TraceBehavior ignores the token; keep the binding only if
+// LoggingBehavior or MetricsBehavior uses it
+@Module({
+  providers: [TraceBehavior],
+})
+export class AppModule {}
+```
+
+Code or tests that called `traceBehavior.onModuleInit()`, or asserted the
+"OpenTelemetry SDK is NOT initialized" warning, must drop those calls. To skip
+tracing for a handler, use `enabled: false` instead of relying on SDK detection:
+
+```typescript
+// 0.2.0
+@UsePipeline(trace({ enabled: false }))
+export class HealthCheckHandler {}
+```
+
+### Span attributes and failure handling
+
+Spans keep the 0.1.x name and attributes, and add `pipeline.tenant_id` (when
+present), `pipeline.outcome` and `error.type`. Dashboards or span processors
+that match an exact attribute set should account for them. A tracer or
+enrichment callback that throws no longer fails the request: the handler runs
+once, untraced if needed, and its own result or error is returned.
+
+### Adopting the tuple helpers
+
+Tuple registration still works. The `trace()` helper is an equivalent, typed
+form:
+
+```typescript
+// 0.1.x
+@UsePipeline([TraceBehavior, { tracerName: 'payment-service' }])
+
+// 0.2.0 (either form)
+@UsePipeline([TraceBehavior, { tracerName: 'payment-service' }])
+@UsePipeline(trace({ tracerName: 'payment-service' }))
+```
+
+---
+
 ## API Reference
 
 | Export | Type | Description |
 |---|---|---|
 | `TraceBehavior` | Class | Pipeline behavior — creates OTel spans per handler invocation; uses the API no-op tracer when no SDK is registered |
-| `TraceBehaviorOptions` | Interface | `{ tracerName?: string, enabled?: boolean }` — configure the tracer name or explicitly disable tracing for a handler |
+| `TraceBehaviorOptions` | Interface | `tracerName`, `enabled`, `spanName`, `attributeFactory`, `recordException`, `includeContextAttributes` (default `true`) |
 | `trace` | Function | Typed intent builder returning `[TraceBehavior, options]` for `@UsePipeline` |
 | `TraceIntentOptions` | Type | Alias for `TraceBehaviorOptions` |
-| `MetricsBehavior` | Class | Pipeline behavior — records duration histogram & invocation counter per handler |
-| `MetricsBehaviorOptions` | Interface | `{ meterName?: string }` — configure the meter name |
+| `MetricsBehavior` | Class | Pipeline behavior — records duration histogram, invocation counter and in-flight counter per handler |
+| `MetricsBehaviorOptions` | Interface | `meterName`, `enabled`, `attributeFactory`, `includeContextAttributes` (default `false`) |
 | `metrics` | Function | Typed intent builder returning `[MetricsBehavior, options]` for `@UsePipeline` |
 | `MetricsIntentOptions` | Type | Alias for `MetricsBehaviorOptions` |
+| `addPipelineTelemetryAttributes` | Function | Merges attributes into the request-local telemetry bag |
+| `getPipelineTelemetryAttributes` | Function | Returns a copy of the request-local telemetry bag |
+| `buildTraceAttributes` | Function | Default span attributes for a pipeline context |
+| `buildMetricAttributes` | Function | Default low-cardinality metric attributes (kind, request name, handler name) |
+| `PIPELINE_OTEL_ATTRIBUTES` | Constant | Attribute names emitted by this package |
+| `PIPELINE_TELEMETRY_ATTRIBUTES` | Symbol | `Symbol.for` key of the request-local bag in `context.items` |
+| `PipelineTelemetryAttributeFactory` | Type | `(context) => Attributes \| Promise<Attributes>` |
 
 ---
 

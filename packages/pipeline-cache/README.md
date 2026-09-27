@@ -15,6 +15,8 @@ shared.
 
 Caching behavior for `@nestjs-pipeline/core`, powered by [cache-manager](https://www.npmjs.com/package/cache-manager) v7 on top of [Keyv](https://keyv.org/). Transparently cache query results — declaratively, with zero changes to your handler code — and choose any backend: **memory** (default), **redis**, **memcache**, **sqlite**, or **postgres**.
 
+> **New in 0.2.0:** this is the first published release of the package.
+
 ---
 
 ## Table of Contents
@@ -36,6 +38,7 @@ Caching behavior for `@nestjs-pipeline/core`, powered by [cache-manager](https:/
 - [How It Works](#how-it-works)
   - [What gets cached](#what-gets-cached)
   - [Cache keys](#cache-keys)
+  - [Tenant partitioning](#tenant-partitioning)
   - [Options resolution](#options-resolution)
   - [Context items](#context-items)
 - [Configuration](#configuration)
@@ -63,6 +66,8 @@ pnpm add @nestjs-pipeline/cache cache-manager keyv
 ```bash
 pnpm add @nestjs-pipeline/core @nestjs/common reflect-metadata
 ```
+
+Requires `@nestjs/common` `^11.0.0` and `@nestjs-pipeline/core` `^0.2.0`.
 
 **Optional store adapters** — install only the one(s) you use:
 
@@ -121,8 +126,9 @@ The `behaviors` option above registers `CacheBehavior` with Nest DI; it does not
 
 ### 3. Configure per handler
 
-This protected-query fragment assumes an outer context resolver supplies
-`tenantId`, `currentUserId`, and `capabilityVersion` before caching runs.
+This protected-query fragment assumes the pipeline has a tenant (`context.tenantId`,
+see [Tenant partitioning](#tenant-partitioning)) and that an upstream behavior sets
+`currentUserId` and `capabilityVersion` on `context.items` before caching runs.
 The handler still performs entity and field authorization on cache misses.
 
 ```ts
@@ -348,7 +354,7 @@ puts the tenant in the key, and `requireTenant` (default: `includeTenant`) refus
 missing one. The three packages' partition errors extend `MissingPartitionError`.
 
 The request payload is included as a SHA-256 digest, so secrets and search terms
-stay out of Redis key listings. The digest is built with `stableStringify`, which
+stay out of Redis key listings. The digest is built with `stableStringify` from `@cqrs-ddd/safe-stringify` (not re-exported by this package), which
 sorts object keys recursively so structurally equal payloads map to the same
 entry. It accepts `null`, booleans, finite numbers, strings, arrays, record-like
 objects, and valid dates (converted to ISO strings). Lossy native JSON cases such
@@ -358,10 +364,90 @@ risking a collision.
 
 Because a cache hit returns before the handler runs, it also skips whatever
 entity-level authorization and field filtering the handler performs. That is why
-tenant and principal are required by the helper by default. The `scope` resolver
-is optional in the API; supply and validate a permission fingerprint whenever
-authorization changes can change the response. Missing scope is not rejected by
-the helper.
+tenant, principal and scope are all required by the helper by default. Opt out
+of each explicitly with `requireTenant: false`, `requirePrincipal: false` or
+`requireScope: false`.
+
+A caught `MissingCachePartitionError` names the missing dimension:
+
+```typescript
+import { MissingCachePartitionError } from '@nestjs-pipeline/cache';
+
+if (error instanceof MissingCachePartitionError) {
+  // error.name === 'MissingCachePartitionError'; map it to 401/403 in your filter
+}
+```
+
+### Tenant partitioning
+
+The tenant segment of the key is `context.tenantId`, not a value on
+`context.items`. The pipeline takes it from the tenant source configured on
+`PipelineModule.forRoot()`; the cache package does not import
+`@nestjs-pipeline/tenant`:
+
+```typescript
+import { Module } from '@nestjs/common';
+import { PipelineModule } from '@nestjs-pipeline/core';
+import { tenantSource } from '@nestjs-pipeline/tenant';
+import { CacheBehavior, CacheModule } from '@nestjs-pipeline/cache';
+
+@Module({
+  imports: [
+    CacheModule.forRoot({ ttl: 30_000 }),
+    PipelineModule.forRoot({
+      sources: { tenantId: tenantSource },
+      behaviors: [CacheBehavior],
+    }),
+  ],
+})
+export class AppModule {}
+```
+
+For a single-tenant deployment, leave the tenant out of the key:
+
+```typescript
+createPartitionedCacheKeyFactory({
+  includeTenant: false,
+  principal: (ctx) => ctx.items.get('currentUserId') as string | undefined,
+  scope: (ctx) => ctx.items.get('capabilityVersion') as string | undefined,
+});
+```
+
+The correlation id is never part of the key (see above).
+
+### Sharing a key factory through module defaults
+
+Set the factory once in `defaults` and opt in per handler with
+`inheritModuleKey: true`; `cache()` rejects a call with neither `key` nor
+`inheritModuleKey` at compile time:
+
+```typescript
+CacheModule.forRoot({
+  ttl: 30_000,
+  defaults: {
+    key: createPartitionedCacheKeyFactory({
+      principal: (ctx) => ctx.items.get('currentUserId') as string | undefined,
+      scope: (ctx) => ctx.items.get('capabilityVersion') as string | undefined,
+    }),
+  },
+});
+
+@QueryHandler(ListOrdersQuery)
+@UsePipeline(cache({ inheritModuleKey: true, ttl: 10_000 }))
+export class ListOrdersHandler {}
+```
+
+### Conditional caching
+
+`condition` returns `false` to bypass the cache for one request:
+
+```typescript
+@UsePipeline(cache({
+  inheritModuleKey: true,
+  condition: (ctx) => (ctx.request as { fresh?: boolean }).fresh !== true,
+}))
+export class GetReportHandler {}
+```
 
 ### Options resolution
 
@@ -454,12 +540,16 @@ import {
   CACHE_DEFAULT_OPTIONS,
   PIPELINE_CACHE,
   CACHE_HIT_ITEM,
+  CACHE_HIT_ITEM_TOKEN,
   CACHE_KEY_ITEM,
+  CACHE_KEY_ITEM_TOKEN,
+  CacheManagerAdapter,
   buildCache,
   buildKeyv,
   createPartitionedCacheKeyFactory,
   MissingCachePartitionError,
-  stableStringify,
+  type CachePartitionDimension,
+  type IPipelineCache,
   type CacheModuleOptions,
   type CacheModuleAsyncOptions,
   type CacheBehaviorOptions,

@@ -7,6 +7,8 @@ Audit-trail behavior for `@nestjs-pipeline/core` — records **who did what, whe
 
 Sink-agnostic: it depends only on a tiny `AuditSink` interface. A zero-dependency **console** sink is the default; **Postgres** is a genuine drop-in, and your own sink (event store, Kafka, HTTP collector, …) is a one-line swap — handlers never change. Records are written on **both success and failure**, sensitive payload fields are **redacted** by default, and the actor can be resolved from the pipeline context.
 
+> **New in 0.2.0:** this is the first published release of the package.
+
 ---
 
 ## Table of Contents
@@ -25,6 +27,7 @@ Sink-agnostic: it depends only on a tiny `AuditSink` interface. A zero-dependenc
 - [Configuration](#configuration)
 - [Redaction](#redaction)
 - [Resolving the actor](#resolving-the-actor)
+- [Tenant and correlation](#tenant-and-correlation)
 - [Fail-open vs fail-closed](#fail-open-vs-fail-closed)
 - [API Reference](#api-reference)
 - [License](#license)
@@ -64,6 +67,8 @@ pnpm add @nestjs-pipeline/audit
 ```bash
 pnpm add @nestjs-pipeline/core @nestjs/common reflect-metadata
 ```
+
+Requires `@nestjs/common` `^11.0.0` and `@nestjs-pipeline/core` `^0.2.0`.
 
 The bundled sinks are typed *structurally*, so this package adds **zero heavy
 dependencies**. For the Postgres sink, add a `pg` `Pool`/`Client` in your app
@@ -105,8 +110,9 @@ Every audited run produces one `AuditRecord`, forwarded to the sink:
 
 ```jsonc
 {
-  "id": "0d3f…",                       // UUID per entry
+  "id": "0197…",                       // UUIDv7 per entry
   "correlationId": "019728a3-…",
+  "tenantId": "acme",                  // context.tenantId, when present
   "action": "user.create",             // defaults to requestName
   "severity": "medium",                // 'low' | 'medium' | 'high' | 'critical'
   "outcome": "success",                // or 'failure'
@@ -119,7 +125,7 @@ Every audited run produces one `AuditRecord`, forwarded to the sink:
   "error": undefined,                  // present on failure
   "durationMs": 12.3,
   "timestamp": "2026-03-01T12:00:00.000Z",
-  "metadata": { "tenant": "acme" }     // optional
+  "metadata": { "tenantId": "acme" }   // metadata factory output, plus tenantId when present
 }
 ```
 
@@ -161,6 +167,7 @@ and completes that row (`INSERT … ON CONFLICT (id) DO UPDATE`) when it finishe
 Create the table once with `createAuditTableSql`.
 
 ```typescript
+import { Module } from '@nestjs/common';
 import { Pool } from 'pg';
 import {
   AuditModule,
@@ -211,7 +218,7 @@ Anything that matches `AuditSink` works — an event store, Kafka, an HTTP
 collector, your domain repository:
 
 ```typescript
-import { AuditSink, AuditRecord } from '@nestjs-pipeline/audit';
+import type { AuditRecord, AuditSink } from '@nestjs-pipeline/audit';
 
 export class KafkaAuditSink implements AuditSink {
   constructor(private readonly producer: Producer) {}
@@ -330,7 +337,11 @@ application must do it in its persistence layer.
    business change is known to have committed.
 
 ```typescript
-import { AuditModule, type AuditSink } from '@nestjs-pipeline/audit';
+import {
+  type AuditRecord,
+  type AuditSink,
+  PostgresAuditSink,
+} from '@nestjs-pipeline/audit';
 
 class TransactionalAuditSink implements AuditSink {
   constructor(private readonly completing: PostgresAuditSink) {}
@@ -342,6 +353,22 @@ class TransactionalAuditSink implements AuditSink {
   write(record: AuditRecord): Promise<void> {
     return this.completing.write(record); // upsert by id
   }
+}
+```
+
+Inside the repository, the pending record is read from the pipeline context:
+
+```typescript
+import { getPipelineItem } from '@nestjs-pipeline/core';
+import { AUDIT_START_RECORD_ITEM_TOKEN } from '@nestjs-pipeline/audit';
+
+const pending = getPipelineItem(context, AUDIT_START_RECORD_ITEM_TOKEN);
+if (pending) {
+  await tx.query(
+    'INSERT INTO audit_log (id, correlation_id, action, severity, outcome, request_kind, request_name, handler_name, occurred_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)',
+    [pending.id, pending.correlationId, pending.action, pending.severity, pending.outcome,
+     pending.requestKind, pending.requestName, pending.handlerName, pending.timestamp],
+  );
 }
 ```
 
@@ -457,6 +484,38 @@ AuditModule.forRoot({
 
 ---
 
+## Tenant and correlation
+
+Every record carries `correlationId` and, when the pipeline has one, `tenantId`,
+both read from the pipeline context. The pipeline takes them from the sources
+configured on `PipelineModule.forRoot()`:
+
+```typescript
+import { Module } from '@nestjs/common';
+import { PipelineModule } from '@nestjs-pipeline/core';
+import { correlationSource } from '@nestjs-pipeline/correlation';
+import { tenantSource } from '@nestjs-pipeline/tenant';
+import { AuditBehavior, AuditModule } from '@nestjs-pipeline/audit';
+
+@Module({
+  imports: [
+    AuditModule.forRoot(),
+    PipelineModule.forRoot({
+      sources: { tenantId: tenantSource, correlationId: correlationSource },
+      globalBehaviors: { scope: 'all', before: [AuditBehavior] },
+    }),
+  ],
+})
+export class AppModule {}
+```
+
+The audit package imports neither `@nestjs-pipeline/tenant` nor
+`@nestjs-pipeline/correlation`. The tenant is also merged into `metadata` as
+`tenantId`; `PostgresAuditSink` has no tenant column and stores it there
+(`metadata->>'tenantId'`).
+
+---
+
 ## Fail-open vs fail-closed
 
 When the **sink itself** throws (e.g. the audit DB is down):
@@ -498,12 +557,13 @@ there is rejected before the handler runs (logged and ignored with
 | `AUDIT_RECORD_ITEM_TOKEN` | `PipelineItemToken<AuditRecord>` | Typed token over the same key, for `getPipelineItem` |
 | `AUDIT_START_RECORD_ITEM_TOKEN` | `PipelineItemToken<AuditStartRecord>` | The pending start record, set before the handler runs |
 | `AUDIT_SINK` / `AUDIT_DEFAULT_OPTIONS` | token | DI tokens |
+| `AUDIT_SEVERITY` / `AUDIT_OUTCOMES` / `AUDIT_REQUEST_KINDS` | const | Named values for severities, outcomes (including `pending`) and request kinds |
 | `LogAuditSink` | class | Default zero-dep sink |
 | `PostgresAuditSink` | class | Postgres drop-in sink |
 | `createAuditTableSql` | fn | `CREATE TABLE` DDL for the Postgres sink |
 | `buildAuditRecord` / `buildAuditStartRecord` | fn | Pure builders of the final and the pending record (used by the behavior) |
 | `redactValue` / `DEFAULT_REDACT_KEYS` / `REDACTED` | fn/const | Redaction helpers |
-| `AuditSink`, `AuditRecord`, `AuditStartRecord`, `AuditBehaviorOptions`, … | type | Public types |
+| `AuditSink`, `AuditRecord`, `AuditStartRecord`, `AuditBehaviorOptions`, `AuditModuleOptions`, `AuditModuleAsyncOptions`, `LogAuditSinkOptions`, `PostgresAuditSinkOptions`, `PostgresQueryableLike`, `BuildAuditRecordInput`, … | type | Public types |
 
 ---
 

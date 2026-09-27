@@ -26,8 +26,11 @@ Zod v4 validation and parsing integration for `@nestjs-pipeline/core` — parse 
 - [createZodMapper](#createzodmapper)
 - [ZodValidationFilter](#zodvalidationfilter)
 - [ZodValidationError](#zodvalidationerror)
+- [Reading Raw Input and Parsed Data](#reading-raw-input-and-parsed-data)
 - [Full Example](#full-example)
+- [Migrating from 0.1.x](#migrating-from-01x)
 - [API Reference](#api-reference)
+- [Property Presence](#property-presence)
 - [License](#license)
 
 ---
@@ -38,7 +41,7 @@ Zod v4 validation and parsing integration for `@nestjs-pipeline/core` — parse 
 pnpm add @nestjs-pipeline/zod zod
 ```
 
-Requires Zod 4.3 or later.
+Requires Zod `^4.3.0`, NestJS `^11.0.0` and Node.js 22 or later.
 
 **Peer dependencies:**
 
@@ -258,6 +261,28 @@ export class UpdateUserCommand extends createCommand(
 UpdateUserCommand.updatableFields; // ['username', 'department']
 ```
 
+In the handler, authorize only the marked fields the caller actually sent, for example
+with `CaslAuthorizer` from `@nestjs-pipeline/casl`:
+
+```typescript
+@CommandHandler(UpdateUserCommand)
+export class UpdateUserHandler implements ICommandHandler<UpdateUserCommand> {
+  constructor(
+    private readonly users: UserRepository,
+    private readonly authorizer: CaslAuthorizer,
+  ) {}
+
+  async execute(command: UpdateUserCommand): Promise<void> {
+    const user = await this.users.findById(command.id);
+    const changed = UpdateUserCommand.updatableFields.filter(
+      (field) => command[field] !== undefined,
+    );
+    this.authorizer.authorize('update', user, changed);
+    user.update(command);
+  }
+}
+```
+
 - `.apply(updatable)` can sit anywhere in the field's chain, and `updatable(schema)` works
   as a function. The mark survives later checks and wrappers (`.min()`, `.optional()`,
   `.nullable()`, `.default()`, `.transform()`) and `.partial()`, `.pick()` or `.extend()`
@@ -285,7 +310,7 @@ Every generated class exposes ergonomic static parsing methods that polymorphica
 // Returns an instance of CreateUserCommand or throws ZodValidationError:
 const cmd = CreateUserCommand.parse(rawInput, sessionUser);
 
-// Returns standard Zod SafeParseReturnType without throwing:
+// Returns Zod's safe-parse result (no instance is constructed) without throwing:
 const result = CreateUserCommand.safeParse(rawInput);
 if (result.success) {
   console.log('Valid data:', result.data);
@@ -299,7 +324,8 @@ if (result.success) {
 Easily infer TypeScript types directly from the command/query class without re-exporting or importing the raw schema:
 
 ```typescript
-import { CreateUserCommand, type InferInput, type InferOutput } from './create-user.command';
+import type { InferInput, InferOutput } from '@nestjs-pipeline/zod';
+import { CreateUserCommand } from './create-user.command';
 
 // Input type (what the constructor or API endpoint accepts):
 type CreateUserDto = InferInput<typeof CreateUserCommand>;
@@ -404,6 +430,23 @@ createUser(
 }
 ```
 
+### Query-String Coercion
+
+Query-string values arrive as strings; coerce them in the schema:
+
+```typescript
+const ListUsersSchema = z.object({
+  page: z.coerce.number().int().min(1).default(1),
+  size: z.coerce.number().int().min(1).max(100).default(20),
+  department: z.string().optional(),
+});
+
+@Get()
+listUsers(@Query(new ZodPipe(ListUsersSchema)) query: z.output<typeof ListUsersSchema>) {
+  return this.queryBus.execute(new ListUsersQuery(query));
+}
+```
+
 On validation failure, `ZodPipe` throws a NestJS `BadRequestException` with `error.flatten()` details.
 
 ---
@@ -454,6 +497,9 @@ async function bootstrap() {
 bootstrap();
 ```
 
+The filter writes the body with `response.json()` when present (Express) and falls back to
+`response.send()` (Fastify).
+
 **Response format** (HTTP 400):
 
 ```json
@@ -464,8 +510,8 @@ bootstrap();
   "details": {
     "formErrors": [],
     "fieldErrors": {
-      "email": ["Invalid email"],
-      "username": ["String must contain at least 4 character(s)"]
+      "email": ["Invalid email address"],
+      "username": ["Too small: expected string to have >=4 characters"]
     }
   }
 }
@@ -512,6 +558,33 @@ export class CustomValidationFilter implements ExceptionFilter {
 
 ---
 
+## Reading Raw Input and Parsed Data
+
+A generated constructor records the input it was called with and the parsed payload.
+Both are readable without exposing them as enumerable fields:
+
+```typescript
+import { getRawInput, getValidatedData } from '@nestjs-pipeline/zod';
+
+const schema = z.object({
+  email: z.string().trim().toLowerCase(),
+  nickname: z.preprocess((v) => v ?? undefined, z.string().optional()),
+});
+class RegisterCommand extends createCommand(schema) {}
+
+const command = new RegisterCommand({ email: '  Jane@Example.com ', nickname: null });
+
+getRawInput<{ nickname: unknown }>(command)?.nickname; // null — the caller sent it explicitly
+command.email;                                          // 'jane@example.com'
+getValidatedData(command)?.email;                       // 'jane@example.com' (frozen copy)
+```
+
+- `getRawInput()` returns the original input by reference; do not mutate it.
+- `getValidatedData()` returns `undefined` for a request that was never parsed, and a new
+  frozen copy on every call.
+
+---
+
 ## Full Example
 
 A complete setup from module to controller:
@@ -549,31 +622,35 @@ async function bootstrap() {
 bootstrap();
 
 // create-user.command.ts
-import { createCommand } from '@nestjs-pipeline/zod';
+import { createCommand, createQuery } from '@nestjs-pipeline/zod';
 import { z } from 'zod';
 
-const schema = z.object({
-  username: z.string().min(4),
-  email: z.string().email(),
-});
+export class CreateUserCommand extends createCommand(
+  z.object({
+    username: z.string().min(4),
+    email: z.email(),
+  }),
+) {}
 
-export class CreateUserCommand extends createCommand(schema) {}
+export class GetUserQuery extends createQuery(z.object({ userId: z.uuid() })) {}
 
 // create-user.dto.ts
 import { z } from 'zod';
 
 export const CreateUserDtoSchema = z.object({
   name: z.string().min(5),
-  email: z.string().email(),
+  email: z.email(),
 });
 export type CreateUserDto = z.infer<typeof CreateUserDtoSchema>;
 
 // create-user.mapper.ts
-export const CreateUserMapper = {
-  map(dto: CreateUserDto) {
-    return new CreateUserCommand({ username: dto.name, email: dto.email });
-  },
-};
+import { createZodMapper } from '@nestjs-pipeline/zod';
+
+export const CreateUserMapper = createZodMapper(
+  CreateUserDtoSchema.transform(
+    ({ name, email }) => new CreateUserCommand({ username: name, email }),
+  ),
+);
 
 // create-user.handler.ts
 import { CommandHandler, ICommandHandler } from '@nestjs/cqrs';
@@ -591,6 +668,7 @@ export class CreateUserHandler implements ICommandHandler<CreateUserCommand> {
 import { Body, Controller, Get, Param, Post } from '@nestjs/common';
 import { CommandBus, QueryBus } from '@nestjs/cqrs';
 import { ZodPipe } from '@nestjs-pipeline/zod';
+import { z } from 'zod';
 
 @Controller('users')
 export class UsersController {
@@ -605,7 +683,7 @@ export class UsersController {
   }
 
   @Get(':id')
-  getUser(@Param('id', new ZodPipe(z.string().uuid())) id: string) {
+  getUser(@Param('id', new ZodPipe(z.uuid())) id: string) {
     return this.queryBus.execute(new GetUserQuery({ userId: id }));
   }
 }
@@ -645,13 +723,104 @@ consumers that need to name them.
 
 ---
 
-## License
+## Migrating from 0.1.x
 
-Dual-licensed under **AGPLv3** and a **Commercial License**. See the root [`LICENSE`](https://github.com/aristoteliss/nestjs-pipeline/blob/master/LICENSE) and [`COMMERCIAL_LICENSE.txt`](https://github.com/aristoteliss/nestjs-pipeline/blob/master/COMMERCIAL_LICENSE.txt) for details.
+**1. Peers and runtime.** `zod` must be `^4.3.0` (was `^4.0.0`), `@nestjs/common`
+`^11.0.0` (was `>=10`), `@nestjs-pipeline/core` `^0.2.0`, and Node.js 22 or later.
 
-Contact: **aristotelis@ik.me**
+```bash
+pnpm add zod@^4.3.0 @nestjs/common@^11 @nestjs-pipeline/core@^0.2.0 @nestjs-pipeline/zod@^0.2.0
+```
 
-## Property presence
+**2. `ZOD_SCHEMA` is removed.** It was a deprecated alias; use `ZOD_SCHEMA_KEY`.
+
+```typescript
+// 0.1.x
+import { ZOD_SCHEMA } from '@nestjs-pipeline/zod';
+class UserCreatedEvent {
+  static readonly [ZOD_SCHEMA] = userCreatedSchema;
+}
+
+// 0.2.0
+import { ZOD_SCHEMA_KEY } from '@nestjs-pipeline/zod';
+class UserCreatedEvent {
+  static readonly [ZOD_SCHEMA_KEY] = userCreatedSchema;
+}
+```
+
+**3. The behavior now applies parsed output to the request.** In 0.1.x
+`ZodValidationBehavior` only validated; the handler received the request unchanged. In
+0.2.0 transforms, coercions and defaults are written back onto the same request object,
+and keys the schema strips are deleted from it.
+
+```typescript
+const schema = z.object({ email: z.string().trim().toLowerCase() });
+class InviteCommand {
+  static readonly [ZOD_SCHEMA_KEY] = schema;
+  constructor(public email: string, public debug?: boolean) {}
+}
+
+// Dispatched as new InviteCommand('  Jane@Example.com ', true):
+// 0.1.x handler sees { email: '  Jane@Example.com ', debug: true }
+// 0.2.0 handler sees { email: 'jane@example.com' }   — `debug` is removed
+```
+
+If a handler relied on a field the schema does not declare, add it to the schema (or use
+`.passthrough()`/`.loose()`), or build the request with `createCommand(schema, Base)` so
+that base-class fields are kept.
+
+**4. Parsed output must be a plain object.** A schema attached to a request class whose
+top-level output is not a plain object (for example `.transform(() => new Foo())`, an
+array or a primitive) now throws `TypeError` in the behavior; 0.1.x accepted it because
+the output was discarded. The behavior also throws `TypeError` when the request itself is
+not an object. Keep class-producing transforms in `ZodPipe` or `createZodMapper`.
+
+**5. Async schemas.** `ZodValidationBehavior` and `ZodPipe` now use `safeParseAsync`, so
+async refinements work; 0.1.x threw on them. `ZodPipe.transform()` returns a promise,
+which Nest awaits; code that calls `transform()` directly must await it.
+
+```typescript
+// 0.1.x
+const id = new ZodPipe(z.uuid()).transform(rawId); // rawId: string
+// 0.2.0
+const id = await new ZodPipe(z.uuid()).transform(rawId); // rawId: string
+```
+
+`ZodPipe`'s schema type is now `ZodType<TOutput, TInput>`, so its input type is checked
+against the declared `TInput`.
+
+**6. Hand-written request classes can become generated ones (optional).**
+
+```typescript
+// 0.1.x
+const schema = z.object({ id: z.uuid(), username: z.string().min(3).optional() });
+export class UpdateUserCommand {
+  static readonly [ZOD_SCHEMA] = schema;
+  readonly id: string;
+  readonly username?: string;
+  constructor(input: z.input<typeof schema>) {
+    const data = schema.parse(input);
+    this.id = data.id;
+    this.username = data.username;
+  }
+}
+
+// 0.2.0
+export class UpdateUserCommand extends createCommand(
+  z.object({ id: z.uuid(), username: z.string().min(3).apply(updatable).optional() }),
+) {}
+UpdateUserCommand.updatableFields; // ['username']
+```
+
+A generated constructor throws `ZodValidationError` (not `ZodError`), which
+`ZodValidationFilter` maps to HTTP 400.
+
+**7. `ZodValidationFilter` supports Fastify.** It calls `response.send()` when
+`response.json()` is absent; the body is unchanged.
+
+---
+
+## Property Presence
 
 Generated construction (including `parseAsync()`) and behavior re-parsing define
 every own enumerable key Zod returns, including keys whose parsed value is
@@ -662,3 +831,11 @@ field as present; `JSON.stringify()` still drops it under its own rules.
 Prototypes and base-class fields are preserved, and an own `__proto__` key in
 parsed output is defined as a plain data property rather than reassigning the
 prototype.
+
+---
+
+## License
+
+Dual-licensed under **AGPLv3** and a **Commercial License**. See the root [`LICENSE`](https://github.com/aristoteliss/nestjs-pipeline/blob/master/LICENSE) and [`COMMERCIAL_LICENSE.txt`](https://github.com/aristoteliss/nestjs-pipeline/blob/master/COMMERCIAL_LICENSE.txt) for details.
+
+Contact: **aristotelis@ik.me**

@@ -46,11 +46,11 @@
   },
   "peerDependencies": {
     "@cqrs-ddd/core": "workspace:^",
-    "@mikro-orm/core": "^7.1.13"
+    "@mikro-orm/core": "^7.2.1"
   },
   "devDependencies": {
     "@cqrs-ddd/core": "workspace:^",
-    "@mikro-orm/core": "^7.1.13",
+    "@mikro-orm/core": "^7.2.1",
     "@vitest/coverage-v8": "^4.1.11",
     "typescript": "^6.0.3",
     "vitest": "^4.1.11"

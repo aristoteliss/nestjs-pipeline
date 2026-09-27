@@ -54,6 +54,10 @@ dispatched it, so a queue worker cannot bypass a quota that an HTTP controller
 respects:
 
 ```typescript
+const perTenant = createPartitionedRateLimitKeyFactory(() => undefined, {
+  onMissingPartition: 'request', // one bucket per tenant: <tenant>:<requestName>
+});
+
 @CommandHandler(ImportUsersCommand)
 @UsePipeline(
   rateLimit({
@@ -117,6 +121,7 @@ pnpm add @nestjs-pipeline/core @nestjs/common reflect-metadata
 import { Module } from '@nestjs/common';
 import { PipelineModule } from '@nestjs-pipeline/core';
 import { RateLimitModule, RateLimitBehavior } from '@nestjs-pipeline/rate-limit';
+import { tenantSource } from '@nestjs-pipeline/tenant';
 import { RateLimiterMemory } from 'rate-limiter-flexible';
 
 @Module({
@@ -126,7 +131,11 @@ import { RateLimiterMemory } from 'rate-limiter-flexible';
       limiter: new RateLimiterMemory({ points: 10, duration: 1 }),
     }),
     // Register the behavior provider so handlers/globalBehaviors can reference it.
-    PipelineModule.forRoot({ behaviors: [RateLimitBehavior] }),
+    PipelineModule.forRoot({
+      behaviors: [RateLimitBehavior],
+      // Partitioned keys read `context.tenantId`, which comes from this source.
+      sources: { tenantId: tenantSource },
+    }),
   ],
 })
 export class AppModule {}
@@ -142,7 +151,10 @@ import { rateLimit } from '@nestjs-pipeline/rate-limit';
 
 @CommandHandler(CreateUserCommand)
 @UsePipeline(
-  rateLimit({ points: 1, keyFactory: (ctx) => `${ctx.requestName}:${ctx.request.clientIp}` }),
+  rateLimit({
+    points: 1,
+    keyFactory: (ctx) => `${ctx.requestName}:${(ctx.request as CreateUserCommand).clientIp}`,
+  }),
 )
 export class CreateUserHandler implements ICommandHandler<CreateUserCommand> {}
 ```
@@ -205,37 +217,73 @@ For each request, `RateLimitBehavior`:
 1. Resolves effective options (module defaults ← per-handler options) and the
    request's [cost](#cost-per-command). A cost of `0` runs the handler without
    touching the limiter.
-2. Builds the bucket key via [keying strategy](#keying-strategy) and stores it on
-   `context.items['rate-limit.key']`.
-3. Calls `limiter.consume(key, points)`.
-   - **Allowed** → stores the result on `context.items['rate-limit.result']` and
-     runs the handler.
-   - **Limit hit** → throws [`RateLimitExceededError`](#http-429-filter).
+2. Builds the bucket key via [keying strategy](#keying-strategy) (with `keyPrefix`
+   when set) and stores it under `RATE_LIMIT_KEY_ITEM_TOKEN`.
+3. Calls `limiter.consume(key, points)`, on the handler's `limiter` when given,
+   otherwise on the module's.
+   - **Allowed** → stores the result under `RATE_LIMIT_ITEM_TOKEN` and runs the
+     handler.
+   - **Limit hit** → stores the rejected result under `RATE_LIMIT_ITEM_TOKEN` and
+     throws [`RateLimitExceededError`](#http-429-filter).
    - **Store error** (e.g. Redis down) → [fail-open or fail-closed](#fail-open-vs-fail-closed).
+
+A later behavior or the handler can read both values through the typed tokens:
+
+```typescript
+import { getPipelineItem, type IPipelineContext } from '@nestjs-pipeline/core';
+import {
+  RATE_LIMIT_ITEM_TOKEN,
+  RATE_LIMIT_KEY_ITEM_TOKEN,
+} from '@nestjs-pipeline/rate-limit';
+
+function quotaHeaders(context: IPipelineContext) {
+  const result = getPipelineItem(context, RATE_LIMIT_ITEM_TOKEN);
+  return {
+    key: getPipelineItem(context, RATE_LIMIT_KEY_ITEM_TOKEN),
+    remaining: result?.remainingPoints,
+    resetInMs: result?.msBeforeNext,
+  };
+}
+```
 
 ---
 
 ## Configuration
 
-Per-handler options via `@UsePipeline([RateLimitBehavior, options])`, merged over
-module-wide `defaults` (handler wins):
+Per-handler options via `rateLimit(options)` (or the raw tuple
+`@UsePipeline([RateLimitBehavior, options])`), shallow-merged over module-wide
+`defaults` (handler wins):
 
 | Option | Type | Default | Description |
 |---|---|---|---|
 | `points` | `number \| (ctx) => number` | `1` | Cost of this request: a non-negative safe integer, or a function computing it. `0` charges nothing. See [Cost per command](#cost-per-command). |
 | `keyFactory` | `(ctx) => string` | **required** | Builds the bucket key. No default: see [Keying strategy](#keying-strategy). |
-| `keyPrefix` | `string` | — | Prepended as `"<prefix>:<key>"`. |
+| `keyPrefix` | `string` | — | Prepended as `"<prefix>:<key>"`; `:` and `\` inside the prefix are escaped, the key is not. |
 | `limiter` | `RateLimiterLike` | injected | Per-handler limiter override (stricter/looser policy). |
 | `failOpen` | `boolean` | `true` | On a **store** error, allow (`true`) or reject (`false`). |
 
-Module-wide defaults:
+Module-wide defaults, including a shared key factory that handlers inherit with
+`rateLimit({ inheritModuleKey: true })`:
 
 ```typescript
 RateLimitModule.forRoot({
   limiter,
-  defaults: { keyPrefix: 'api', failOpen: false },
+  defaults: {
+    keyPrefix: 'api',
+    failOpen: false,
+    keyFactory: createPartitionedRateLimitKeyFactory(
+      (ctx) => ctx.items.get('userId') as string | undefined,
+    ),
+  },
 });
+
+@CommandHandler(UpdateProfileCommand)
+@UsePipeline(rateLimit({ inheritModuleKey: true, points: 2 }))
+export class UpdateProfileHandler { /* ... */ }
 ```
+
+`forRootAsync` takes `useFactory`, `inject` and `imports` for the limiter, and a
+static `defaults`. Both register the module globally.
 
 ---
 
@@ -247,7 +295,9 @@ caller in every tenant, so one abusive client locks out everybody. A limiter who
 default turns one abuser into a full outage is worse than no limiter, because it
 looks like protection.
 
-For per-caller limits, prefer the built-in factory. It escapes each segment, so
+For per-caller limits, prefer the built-in factory. It builds
+`<tenant>:<caller>:<requestName>`, trims the caller identifier, and escapes each
+segment, so
 tenant `a:b` with principal `c` cannot collide with tenant `a` and principal
 `b:c`, and it fails closed when a required dimension is missing:
 
@@ -265,6 +315,14 @@ import { createPartitionedRateLimitKeyFactory } from '@nestjs-pipeline/rate-limi
 { keyFactory: createPartitionedRateLimitKeyFactory(readCallerId, { onMissingPartition: 'request' }) }
 ```
 
+| `PartitionedRateLimitKeyOptions` | Default | Effect |
+|---|---|---|
+| `includeTenant` | `true` | Adds `context.tenantId` as the first segment. |
+| `requireTenant` | value of `includeTenant` | Throws `MissingRateLimitPartitionError` when the tenant is missing; `false` writes an absent segment instead. |
+| `onMissingPartition` | `'throw'` | `'request'` falls back to `<tenant>:<requestName>` when the caller resolves to an empty value. |
+
+`MissingRateLimitPartitionError` has a `dimension` of `'tenant'` or `'caller'`.
+
 A deliberately global bucket is still supported; it just has to be written down:
 
 ```typescript
@@ -274,6 +332,17 @@ A deliberately global bucket is still supported; it just has to be written down:
 ---
 
 ## Cost per command
+
+The examples below assume key factories such as:
+
+```typescript
+const perCaller = createPartitionedRateLimitKeyFactory(
+  (ctx) => ctx.items.get('userId') as string | undefined,
+);
+const perTenant = createPartitionedRateLimitKeyFactory(() => undefined, {
+  onMissingPartition: 'request', // one bucket per tenant: <tenant>:<requestName>
+});
+```
 
 Each command decides what one execution costs. The limiter's capacity (`points`
 and `duration` of the `rate-limiter-flexible` instance) is the budget; the
@@ -333,7 +402,27 @@ Response body:
 ```
 
 `RateLimitExceededError` carries `key`, `requestName`, `msBeforeNext`,
-`retryAfterSeconds`, `remainingPoints`, and `limit` for custom handling.
+`retryAfterSeconds` (at least `1`), `remainingPoints`, `points` and `limit` for custom
+handling. `limit` is the limiter's `points` property, `undefined` when the limiter
+does not expose one. The filter uses `header()` (Fastify) or `setHeader()` (Express),
+and `json()` or `send()`.
+
+Outside HTTP, catch the error and reschedule, for example in a BullMQ worker:
+
+```typescript
+import { DelayedError, type Job } from 'bullmq';
+import { RateLimitExceededError } from '@nestjs-pipeline/rate-limit';
+
+async process(job: Job<ImportUsersDto>, token?: string) {
+  try {
+    return await this.commandBus.execute(new ImportUsersCommand(job.data.rows));
+  } catch (error) {
+    if (!(error instanceof RateLimitExceededError)) throw error;
+    await job.moveToDelayed(Date.now() + error.msBeforeNext, token);
+    throw new DelayedError();
+  }
+}
+```
 
 ---
 
@@ -343,9 +432,11 @@ Response body:
 plain `Error`** when the backing store itself fails (e.g. Redis unreachable). The
 `failOpen` option controls only the latter:
 
-- `failOpen: true` (default) — log a warning and let the request through.
+- `failOpen: true` (default) — log a warning and let the request through. The
+  logger is the one bound to `LOGGING_BEHAVIOR_LOGGER` of `@nestjs-pipeline/core`,
+  or a Nest `Logger` when none is bound.
   Favors **availability**: a store outage won't take down your API.
-- `failOpen: false` — propagate the error. Favors **strict protection**: no
+- `failOpen: false` — log an error and propagate the original error. Favors **strict protection**: no
   request bypasses the limiter, at the cost of failing when the store is down.
 
 ---
@@ -357,7 +448,7 @@ plain `Error`** when the backing store itself fails (e.g. Redis unreachable). Th
 ### Validation Invariants
 
 - **Callable key factory required**: Whenever `RateLimitBehavior` is declared on a handler or globally in `PipelineModule.forRoot({ globalBehaviors })`, a callable `keyFactory: (context) => string` (`typeof === 'function'`) must be supplied either via handler options (`rateLimit({ keyFactory })`) or module-wide defaults (`RateLimitModule.forRoot({ defaults: { keyFactory } })`).
-- **Bootstrap enforcement**: Declaring `RateLimitBehavior` without a callable key factory (e.g. passing a string, non-callable, or omitting it when no module default exists) fails fast at application startup with `PipelineConfigurationError` in `strict` diagnostics mode.
+- **Bootstrap enforcement**: Declaring `RateLimitBehavior` without a callable key factory (e.g. passing a string, non-callable, or omitting it when no module default exists) fails fast at application startup with `PipelineConfigurationError` in `strict` diagnostics mode (the default of `PipelineModule`); `'warn'` logs it instead.
 - **Valid fixed cost**: a fixed `points` must be a non-negative safe integer, or `points` must be a function; anything else fails startup with `PipelineConfigurationError`. A computed cost is checked per request.
 - **Module defaults resolution**: Application-wide defaults supplied to `RateLimitModule.forRoot({ defaults: { ... } })` are merged beneath handler options via `RateLimitBehavior.resolveEffectiveOptions` and evaluated during bootstrap diagnostics.
 
@@ -378,7 +469,12 @@ plain `Error`** when the backing store itself fails (e.g. Redis unreachable). Th
 | `RateLimitBehaviorOptions` | Interface | `{ points?, keyFactory?, keyPrefix?, limiter?, failOpen? }` |
 | `RateLimitCostFactory` | Type | `(ctx) => number`, a per-request cost for `points` |
 | `RateLimitModuleOptions` / `RateLimitModuleAsyncOptions` | Interface | Module registration options |
-| `buildRateLimitKey` | Function | Resolves the bucket key from a context + options |
+| `RateLimitKeyFactory` | Type | `(ctx) => string`, the bucket key |
+| `createPartitionedRateLimitKeyFactory` | Function | Tenant-aware, escaped `<tenant>:<caller>:<requestName>` key factory |
+| `PartitionedRateLimitKeyOptions` | Interface | `{ includeTenant?, requireTenant?, onMissingPartition? }` |
+| `RateLimitPartitionFactory` | Type | `(ctx) => string \| undefined`, the caller identifier |
+| `MissingRateLimitPartitionError` / `RateLimitPartitionDimension` | Class / Type | Thrown when a required tenant or caller is missing |
+| `buildRateLimitKey` | Function | Resolves the bucket key from a context + options; throws a `TypeError` without `keyFactory` |
 | `RATE_LIMITER` / `RATE_LIMIT_DEFAULT_OPTIONS` | Token | Injection tokens |
 | `RATE_LIMIT_ITEM` / `RATE_LIMIT_KEY_ITEM` | Symbol | `context.items` exported unique Symbol keys set per request |
 | `RATE_LIMIT_ITEM_TOKEN` / `RATE_LIMIT_KEY_ITEM_TOKEN` | `PipelineItemToken` | Typed tokens over the same keys (`RateLimiterResLike` / `string`), for `getPipelineItem` |

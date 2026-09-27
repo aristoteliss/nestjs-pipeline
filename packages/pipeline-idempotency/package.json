@@ -1,7 +1,7 @@
 {
   "name": "@nestjs-pipeline/idempotency",
   "version": "0.2.0",
-  "description": "Idempotency behavior for the NestJS pipeline \u2014 atomically excludes concurrent duplicates and replays stored successful responses per idempotency key, via a pluggable store (in-memory default, Redis/Postgres drop-in).",
+  "description": "Idempotency behavior for the NestJS pipeline — atomically excludes concurrent duplicates and replays stored successful responses per idempotency key, via a pluggable store (in-memory default, Redis/Postgres drop-in).",
   "author": "Aristotelis <aristotelis@ik.me>",
   "license": "SEE LICENSE IN LICENSE",
   "engines": {
@@ -53,7 +53,7 @@
   },
   "devDependencies": {
     "@nestjs-pipeline/core": "workspace:*",
-    "@nestjs/common": "^11.2.1",
+    "@nestjs/common": "^11.2.6",
     "@vitest/coverage-v8": "^4.1.11",
     "reflect-metadata": "^0.2.2",
     "vitest": "^4.1.11"

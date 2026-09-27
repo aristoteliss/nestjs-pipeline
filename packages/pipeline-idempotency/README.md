@@ -105,6 +105,11 @@ Then opt a command in and tell the behavior how to derive its key. A controller
 can copy the `Idempotency-Key` header into the CQRS command before dispatch:
 
 ```typescript
+import { Body, Controller, Headers, Post } from '@nestjs/common';
+import { CommandBus, CommandHandler } from '@nestjs/cqrs';
+import { UsePipeline } from '@nestjs-pipeline/core';
+import { idempotent } from '@nestjs-pipeline/idempotency';
+
 class CreatePaymentCommand {
   constructor(
     readonly payment: PaymentInput,
@@ -112,10 +117,18 @@ class CreatePaymentCommand {
   ) {}
 }
 
-// In the controller:
-commandBus.execute(new CreatePaymentCommand(body, idempotencyKeyHeader));
+@Controller('payments')
+export class PaymentsController {
+  constructor(private readonly commandBus: CommandBus) {}
 
-import { idempotent } from '@nestjs-pipeline/idempotency';
+  @Post()
+  create(
+    @Body() body: PaymentInput,
+    @Headers('idempotency-key') key?: string,
+  ) {
+    return this.commandBus.execute(new CreatePaymentCommand(body, key));
+  }
+}
 
 @CommandHandler(CreatePaymentCommand)
 @UsePipeline(
@@ -204,6 +217,23 @@ created. New claims are refused once `maxEntries` unexpired records exist, so
 monitor that error in production; deduplication is per process, so replicas
 need the Redis or Postgres store.
 
+```typescript
+import { Module, type OnApplicationShutdown } from '@nestjs/common';
+import {
+  IdempotencyModule,
+  MemoryIdempotencyStore,
+} from '@nestjs-pipeline/idempotency';
+
+const store = new MemoryIdempotencyStore({ maxEntries: 50_000 });
+
+@Module({ imports: [IdempotencyModule.forRoot({ store })] })
+export class AppModule implements OnApplicationShutdown {
+  onApplicationShutdown(): void {
+    store.destroy();
+  }
+}
+```
+
 Configurable options via `new MemoryIdempotencyStore(options)`:
 - `maxEntries` (`number`, default `10_000`): Maximum live entries stored before capacity enforcement.
 - `cleanupIntervalMs` (`number`, default `30_000`): Periodic timer interval for evicting expired entries.
@@ -241,9 +271,14 @@ IdempotencyModule.forRoot({
 Wire a DI-managed client with `forRootAsync`:
 
 ```typescript
+import type { RedisClientType } from 'redis';
+
+// REDIS_CLIENT is the application's own provider token for a connected client.
 IdempotencyModule.forRootAsync({
+  imports: [RedisModule],
   inject: [REDIS_CLIENT],
-  useFactory: (client) => new RedisIdempotencyStore(client),
+  useFactory: (client: RedisClientType) =>
+    new RedisIdempotencyStore(client, { keyPrefix: 'idempotency:' }),
 });
 ```
 
@@ -269,9 +304,19 @@ import {
 } from '@nestjs-pipeline/idempotency';
 
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
-await pool.query(createIdempotencyTableSql()); // run in a migration
+await pool.query(createIdempotencyTableSql('idempotency_keys')); // run in a migration
 
+IdempotencyModule.forRoot({
+  store: new PostgresIdempotencyStore(pool, { table: 'idempotency_keys' }),
+  defaults: { ttl: 3_600_000 }, // 1h
+});
+```
+
+With a pool from Nest DI (`PG_POOL` is the application's own token):
+
+```typescript
 IdempotencyModule.forRootAsync({
+  imports: [DatabaseModule],
   inject: [PG_POOL],
   useFactory: (pool: Pool) => new PostgresIdempotencyStore(pool),
 });
@@ -358,6 +403,26 @@ guarantee against duplicates — it only prevents immediate reentry while the cl
 is live — so treat this error as a reconciliation signal rather than something to
 retry blindly.
 
+Handle it where the request is dispatched: report the operation for
+reconciliation instead of retrying it.
+
+```typescript
+import { IdempotencyCompletionError } from '@nestjs-pipeline/idempotency';
+
+try {
+  return await commandBus.execute(command);
+} catch (error) {
+  if (error instanceof IdempotencyCompletionError) {
+    logger.error(`idempotency ${error.phase} failed for key ${error.key}`);
+    // The side effects ran; the client must not retry blindly.
+  }
+  throw error;
+}
+```
+
+`IdempotencyConflictFilter` maps only `IdempotencyConflictError`; an
+`IdempotencyCompletionError` reaches your own filters.
+
 Validate the response contract in application tests. Do not loosen serialization
 to make this error go away: a response that cannot be stored cannot be replayed,
 so the next caller would silently get different behavior from the first.
@@ -387,7 +452,10 @@ the handler, so two callers that share a key share a result. Build keys with
 `createPartitionedIdempotencyKeyFactory` rather than by hand:
 
 ```typescript
-import { createPartitionedIdempotencyKeyFactory } from '@nestjs-pipeline/idempotency';
+import {
+  createPartitionedIdempotencyKeyFactory,
+  idempotent,
+} from '@nestjs-pipeline/idempotency';
 
 const createOrderKey = createPartitionedIdempotencyKeyFactory({
   version: 'v1',                    // namespace; change only deliberately
@@ -396,11 +464,11 @@ const createOrderKey = createPartitionedIdempotencyKeyFactory({
   operation: (ctx) => (ctx.request as CreateOrderCommand).externalRef,
 });
 
-@UsePipeline([IdempotencyBehavior, { keyFactory: createOrderKey }])
+@UsePipeline(idempotent({ keyFactory: createOrderKey }))
 export class CreateOrderHandler {}
 ```
 
-The key is `[version:]<tenantId>:<principal…>:<action>:<operation>`, and the
+The key is `[version:][tenantId:]<principal…>:<action>:<operation>`, and the
 helper guarantees three things a hand-written template does not:
 
 - **Escaping.** Every segment goes through `joinKeySegments` from
@@ -414,6 +482,34 @@ helper guarantees three things a hand-written template does not:
 - **Distinct principal kinds.** `principal` may return several segments, so
   `['service', id]` and `['user', id]` never share a namespace even when the ids
   are equal.
+
+The tenant comes from `context.tenantId` (set by `@nestjs-pipeline/tenant`, or any
+`sources` configuration). Two options inherited from core's `TenantPartitionOptions`
+control it:
+
+- `includeTenant` (default `true`) — whether the key has a tenant segment;
+- `requireTenant` (default: the value of `includeTenant`) — whether a missing tenant
+  throws `MissingIdempotencyPartitionError` with dimension `'tenant'`.
+
+```typescript
+// Single-tenant deployment: no tenant segment, nothing to require.
+createPartitionedIdempotencyKeyFactory({
+  includeTenant: false,
+  principal: (ctx) => ['user', currentUserId(ctx)],
+  operation: (ctx) => (ctx.request as CreateOrderCommand).externalRef,
+});
+
+// Mixed traffic: partition by tenant when there is one, allow requests without.
+createPartitionedIdempotencyKeyFactory({
+  requireTenant: false,
+  principal: (ctx) => ['service', currentServiceId(ctx)],
+  operation: (ctx) => (ctx.request as SyncCommand).batchId,
+  onMissingOperation: 'skip',
+});
+```
+
+`MissingIdempotencyPartitionError` extends core's `MissingPartitionError`, so one
+filter on the base class maps the partition errors of every pipeline package.
 
 A missing operation identity throws by default. For an optional client
 `Idempotency-Key` header, pass `onMissingOperation: 'skip'`: the factory then
@@ -560,13 +656,19 @@ Response body:
 **Stores**
 
 - `MemoryIdempotencyStore` — default, zero-dependency.
-- `RedisIdempotencyStore` — `(client, { keyPrefix? })`; `RedisClientLike`.
+- `MemoryIdempotencyStore` options — `{ maxEntries?, cleanupIntervalMs? }`; `destroy()` stops cleanup.
+- `RedisIdempotencyStore` — `(client, { keyPrefix? })`; `RedisClientLike`,
+  `RedisIdempotencyStoreOptions`.
 - `PostgresIdempotencyStore` — `(db, { table? })`; `createIdempotencyTableSql(table?)`,
-  `PostgresQueryableLike`.
+  `PostgresIdempotencyStoreOptions`, `PostgresQueryableLike`, `PostgresQueryResultLike`,
+  `PostgresRowLike`.
 
 **Errors & filter**
 
-- `IdempotencyConflictError` — `{ key, requestName, reason, statusCode }`.
+- `IdempotencyConflictError` — `{ key, requestName, reason, statusCode }`;
+  `IdempotencyConflictReason`.
+- `IdempotencyCompletionError` — `{ key, claimId, cause, phase, executionSucceeded }`;
+  `IdempotencyFinalizationPhase`.
 - `IdempotencyConflictFilter` — maps it to `409` / `422`.
 - `MissingIdempotencyPartitionError` — `{ requestName, dimension, remedy }`, raised
   by the partitioned key helper when the tenant, principal or operation is missing.
@@ -576,7 +678,8 @@ Response body:
 - `idempotent(options)` — type-safe intent builder returning `[IdempotencyBehavior, options]` with required key intent.
 - `createPartitionedIdempotencyKeyFactory(options)` — tenant/principal/operation key
   factory with escaping and fail-closed partitions; see [Partitioned keys](#partitioned-keys).
-- `fingerprintValue(value)`, `stableStringify(value)`.
+- `fingerprintValue(value)`. Canonical serialization (`stableStringify`,
+  `joinKeySegments`) lives in `@cqrs-ddd/safe-stringify`; import it from there.
 - `IDEMPOTENCY_STORE`, `IDEMPOTENCY_DEFAULT_OPTIONS`, `DEFAULT_IDEMPOTENCY_TTL_MS`.
 
 **Types**
@@ -587,7 +690,7 @@ Response body:
   `PartitionedIdempotencyKeyOptions`, `IdempotencyPrincipalFactory`,
   `IdempotencyOperationFactory`, `IdempotencyPartitionDimension`,
   `IdempotencyModuleOptions`, `IdempotencyModuleAsyncOptions`,
-  `MemoryIdempotencyStoreOptions`, `MaybePromise`.
+  `MemoryIdempotencyStoreOptions`, `JsonValue`, `MaybePromise`.
 
 ---
 

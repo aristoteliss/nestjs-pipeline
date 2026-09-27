@@ -28,9 +28,19 @@ Requires Node.js 22 or later.
 Implement `IJobPrincipal` over the application's authentication state, and register it
 with the tenants jobs may run in and the tenant and correlation id sources:
 
+`Capability`, `SessionRepository`, `SessionsModule`, `currentPrincipal`,
+`runAsPrincipal` and `SessionRevokedError` stand for the application's own authentication
+code.
+
 ```typescript
-import { Injectable } from '@nestjs/common';
-import { type IJobPrincipal, type PrincipalReference } from '@nestjs-pipeline/job-context';
+import { Injectable, Module } from '@nestjs/common';
+import { correlationSource } from '@nestjs-pipeline/correlation';
+import {
+  type IJobPrincipal,
+  JobContextModule,
+  type PrincipalReference,
+} from '@nestjs-pipeline/job-context';
+import { tenantSource } from '@nestjs-pipeline/tenant';
 
 @Injectable()
 export class SessionJobPrincipal implements IJobPrincipal<Capability> {
@@ -73,17 +83,44 @@ request would, and throw to refuse the job.
 
 ## Usage
 
-Stamp the payload when enqueuing, from inside the request or handler:
+Stamp the payload when enqueuing, from inside the request or handler, so the tenant,
+correlation id and principal are current:
 
 ```typescript
-await queue.add('send', withJobContext({ userId, email }));
+import { InjectQueue } from '@nestjs/bullmq';
+import { EventsHandler, type IEventHandler } from '@nestjs/cqrs';
+import { withJobContext, type WithJobContext } from '@nestjs-pipeline/job-context';
+import type { Queue } from 'bullmq';
+
+type WelcomeEmail = { userId: string; email: string };
+
+@EventsHandler(UserRegisteredEvent)
+export class EnqueueWelcomeEmail implements IEventHandler<UserRegisteredEvent> {
+  constructor(
+    @InjectQueue(WELCOME_EMAIL_QUEUE)
+    private readonly queue: Queue<WithJobContext<WelcomeEmail>>,
+  ) {}
+
+  async handle({ userId, email }: UserRegisteredEvent) {
+    await this.queue.add('send', withJobContext({ userId, email }));
+  }
+}
 ```
 
 Restore it in the processor. Place the decorator under the transport decorator:
 
 ```typescript
+import { Processor, WorkerHost } from '@nestjs/bullmq';
+import { CommandBus } from '@nestjs/cqrs';
+import { InJobContext, type WithJobContext } from '@nestjs-pipeline/job-context';
+import type { Job } from 'bullmq';
+
 @Processor(WELCOME_EMAIL_QUEUE)
 export class SendWelcomeEmailProcessor extends WorkerHost {
+  constructor(private readonly commandBus: CommandBus) {
+    super();
+  }
+
   @InJobContext()
   async process(job: Job<WithJobContext<WelcomeEmail>>) {
     await this.commandBus.execute(new SendWelcomeEmailCommand(job.data));
@@ -94,9 +131,23 @@ export class SendWelcomeEmailProcessor extends WorkerHost {
 `@InJobContext()` reads `data.jobContext` from the first argument (a BullMQ `Job`); pass
 `{ path: 'jobContext' }` for a transport that hands the payload itself.
 
+```typescript
+@EventPattern('user.registered')
+@InJobContext({ path: 'jobContext' })
+async onRegistered(@Payload() data: WithJobContext<WelcomeEmail>) {
+  await this.commandBus.execute(new SendWelcomeEmailCommand(data));
+}
+```
+
+A refused job throws `MissingJobContextError` or `InvalidJobContextError` before the method
+runs; let the queue mark it failed rather than retrying it, since the payload will not change.
+
 Declare system-started work:
 
 ```typescript
+import { AsSystem } from '@nestjs-pipeline/job-context';
+import { Cron } from '@nestjs/schedule';
+
 @Cron('0 3 * * *')
 @AsSystem({
   principal: { id: 'session-cleanup', type: 'service' },

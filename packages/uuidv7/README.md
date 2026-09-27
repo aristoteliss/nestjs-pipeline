@@ -56,6 +56,48 @@ Each identifier is 128 bits, written as 36 lowercase hexadecimal characters and 
 - `isUuidV7` checks the textual form, the version and the variant. It does not check that
   the timestamp is plausible.
 
+## Examples
+
+Validate an incoming identifier before using it, and generate one otherwise:
+
+```typescript
+import { isUuidV7, uuidv7 } from '@cqrs-ddd/uuidv7';
+
+function requestId(header: string | undefined): string {
+  return isUuidV7(header) ? header.trim().toLowerCase() : uuidv7();
+}
+```
+
+`isUuidV7` accepts surrounding whitespace and uppercase, so normalize an accepted value
+before storing it if you compare identifiers as strings.
+
+Read the creation time back from the first 48 bits:
+
+```typescript
+import { uuidv7 } from '@cqrs-ddd/uuidv7';
+
+const id = uuidv7();
+const createdAt = new Date(Number.parseInt(id.replace(/-/g, '').slice(0, 12), 16));
+```
+
+## Migrating from @nestjs-pipeline/core 0.1.x
+
+`uuidv7` and `isUuidV7` were exported by `@nestjs-pipeline/core` 0.1.x, and `uuidv7`
+also by `@nestjs-pipeline/correlation` 0.1.x. Neither package exports them in 0.2.0.
+
+```typescript
+// Before (0.1.x)
+import { isUuidV7, uuidv7 } from '@nestjs-pipeline/core';
+import { uuidv7 } from '@nestjs-pipeline/correlation';
+
+// After (0.2.0)
+import { isUuidV7, uuidv7 } from '@cqrs-ddd/uuidv7';
+```
+
+The signatures and the output format are unchanged. Add `@cqrs-ddd/uuidv7` to your own
+`dependencies`: it is a dependency of the pipeline packages, not a re-export.
+
+
 ## License
 
 Dual-licensed under **AGPLv3** and a **Commercial License**. See the root

@@ -54,7 +54,7 @@ import {
   safeStringify,
 } from '@cqrs-ddd/safe-stringify';
 
-const payload = { user: 'jane', password: 'secret', amount: 10n };
+const payload: Record<string, unknown> = { user: 'jane', password: 'secret', amount: 10n };
 payload.self = payload;
 
 safeStringify(payload);
@@ -67,8 +67,11 @@ redactValue(payload); // a deep clone with DEFAULT_REDACT_KEYS masked
 ```
 
 - `safeStringify(value, options?, indent?)` and `safeSanitize(value, options?)` never
-  throw. Cycles become `"[Circular]"`, errors are expanded, and values JSON cannot hold
-  are replaced by a readable marker.
+  throw. Cycles become `"[Circular]"`, errors are expanded to `name`, `message`, `stack`
+  and their own enumerable properties, and values JSON cannot hold are replaced by a
+  readable marker (`"[bigint]"`, `"[Function]"`, `"[Invalid Date]"`, `"[Binary Data]"`,
+  `"[Stream]"`). A `Set<string>` in place of `options` is read as `excludeKeys`.
+  `safeStringify(undefined)` returns the string `'undefined'`.
 - **They redact nothing unless you pass `redactKeys`.** `redactValue(value, keys?)`
   applies `DEFAULT_REDACT_KEYS` by default and keeps rich types (`mode: 'clone'`).
 - `SanitizeOptions`:
@@ -79,6 +82,20 @@ redactValue(payload); // a deep clone with DEFAULT_REDACT_KEYS masked
   | `redactKeys` | keys or dot-paths masked; matched ignoring case, `_` and `-`, so `refreshToken` also masks `refresh_token` |
   | `redactReplacement` | the mask; default `REDACTED` (`"[REDACTED]"`) |
   | `mode` | `'json'` (default) turns rich types into JSON-friendly values; `'clone'` deep-clones them keeping their classes |
+
+- Exclusion and redaction, with a key matched at any depth or a dot-path matched at one
+  place only:
+
+  ```typescript
+  safeStringify(
+    { user: { profile: { email: 'x' }, token: 't' } },
+    { excludeKeys: ['user.profile'], redactKeys: ['token'], redactReplacement: '***' },
+  );
+  // '{"user":{"token":"***"}}'
+
+  safeStringify({ when: new Date(0), tags: new Set(['a']), limits: new Map([['k', 1]]) });
+  // '{"when":"1970-01-01T00:00:00.000Z","tags":["a"],"limits":{"k":1}}'
+  ```
 
 - `DEFAULT_REDACT_KEYS` lists common secret names (passwords, tokens, API keys,
   authorization headers, cookies, card data). No list recognizes every secret: add your
@@ -103,9 +120,45 @@ joinKeySegments(['cache', 'tenant:a', undefined, 'user']);
 - `escapeKeySegment(value)` escapes `\` first, then `:`. A segment that is literally
   `\-` is written `\\-`, so it never collides with an absent segment.
 
+Build a cache key from a tenant, a request name and a strict fingerprint of the payload:
+
+```typescript
+import { joinKeySegments, stableStringify } from '@cqrs-ddd/safe-stringify';
+import { createHash } from 'node:crypto';
+
+function cacheKey(tenantId: string | undefined, name: string, payload: unknown): string {
+  const fingerprint = createHash('sha256').update(stableStringify(payload)).digest('hex');
+  return joinKeySegments(['cache', tenantId, name, fingerprint]);
+}
+```
+
 The strict serializer's output and these key formats are part of the package contract:
 changing them would orphan every stored cache entry, rate-limit bucket and idempotency
 fingerprint. The package's golden-output specs pin them.
+
+## Migrating from @nestjs-pipeline/core 0.1.x
+
+`@nestjs-pipeline/core` 0.1.x did not export any serializer or key-segment helper from its
+entry point: `safeStringify` and `safeSanitize` lived in its internal
+`dist/helpers/safeStringify` module, and `stableStringify`, `toStrictJsonValue`,
+`redactValue`, `DEFAULT_REDACT_KEYS`, `REDACTED` and the key-segment helpers did not exist.
+Code that deep-imported the internal module moves to this package:
+
+```typescript
+// Before (0.1.x, an internal path)
+import { safeSanitize, safeStringify } from '@nestjs-pipeline/core/dist/helpers/safeStringify';
+
+safeStringify(value, new Set(['token', 'ctx.sessionUser']), 2);
+
+// After (0.2.0)
+import { safeSanitize, safeStringify } from '@cqrs-ddd/safe-stringify';
+
+safeStringify(value, { excludeKeys: ['token', 'ctx.sessionUser'] }, 2);
+```
+
+- The `Set<string>` second argument is still accepted and means `excludeKeys`.
+- `safeStringify(undefined)` now returns `'undefined'` instead of `undefined`.
+- Use `stableStringify`, not `safeStringify`, for any key or fingerprint you build.
 
 ## License
 

@@ -33,6 +33,52 @@ if (typeof scope === 'number') {
 
 It changes only the type; the value is returned as is.
 
+## Examples
+
+Read a symbol-keyed property that a library sets on an object it hands you:
+
+```typescript
+import { untyped } from '@cqrs-ddd/untyped';
+
+const TRACE = Symbol.for('app.trace');
+
+function traceOf(request: object): string | undefined {
+  const trace = untyped(request)[TRACE];
+  return typeof trace === 'string' ? trace : undefined;
+}
+```
+
+Declared properties keep their types, so only the undeclared read needs narrowing:
+
+```typescript
+import { untyped } from '@cqrs-ddd/untyped';
+
+interface Command {
+  readonly id: string;
+}
+
+function describe(command: Command): string {
+  const view = untyped(command);
+  const source = view.source; // unknown
+  return typeof source === 'string' ? `${view.id} from ${source}` : view.id; // view.id is string
+}
+```
+
+## Migrating from @nestjs-pipeline/core 0.1.x
+
+`untyped` was exported by `@nestjs-pipeline/core` 0.1.x and is no longer exported there
+in 0.2.0.
+
+```typescript
+// Before (0.1.x)
+import { untyped } from '@nestjs-pipeline/core';
+
+// After (0.2.0)
+import { untyped } from '@cqrs-ddd/untyped';
+```
+
+The signature is unchanged. Add `@cqrs-ddd/untyped` to your own `dependencies`.
+
 ## License
 
 Dual-licensed under **AGPLv3** and a **Commercial License**. See the root

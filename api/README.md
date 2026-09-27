@@ -83,14 +83,14 @@ The fresh initial migration creates:
 
 - `users`
 - `auth`
+- `auth_consumed_refresh_tokens`
 - `roles`
 - `capabilities`
 - `role_capabilities`
 - `user_roles`
 - `user_additional_capabilities`
 - `user_denied_capabilities`
-- `cache`
-- `user_permission_rules` (second migration; see [Permission source](#permission-source))
+- `user_permission_rules` (see [Permission source](#permission-source))
 
 `capabilities.inverted` is created as a boolean from the beginning. There is no smallint-to-boolean compatibility conversion.
 
@@ -236,7 +236,7 @@ Downstream Pipeline (Controllers → CQRS Bus → CASL → Audit → DB)
    - **`RequestPrincipalResolver`**: Lean orchestrator coordinating priority resolution (Cookie $\rightarrow$ JWT $\rightarrow$ API Key $\rightarrow$ Anonymous fallback).
 
    *Note on Anonymous Access*: `AuthSessionGuard` does **not** reject unauthenticated requests; it resolves the caller to `undefined` (anonymous) and permits the request to continue. Rejections (HTTP 401 Unauthorized) only occur when credentials are provided but fail verification (e.g. expired JWT, invalid API key, or tenant mismatch). Downstream pipeline behaviors, such as `CaslBehavior` and `CaslAuthorizer`, enforce endpoint authorization and reject unauthorized callers with HTTP 403 Forbidden.
-2. **`SessionPrincipalContextInterceptor` (`APP_INTERCEPTOR`)**: Decides **the execution scope**. A single-responsibility interceptor that reads `req.sessionPrincipal` (populated by the guard) and invokes `sessionPrincipalStore.run(req.sessionPrincipal, () => next.handle())`. In NestJS 11.2.1, `InterceptorsConsumer` binds stream continuations using `defer(AsyncResource.bind(...))`, guaranteeing that the `AsyncLocalStorage` context established by `run()` persists across all downstream asynchronous operations, CQRS handlers, and pipeline behaviors without cross-request context bleeding. (Maintains `SessionUserContextInterceptor` and `sessionUserStore` as backward-compatible aliases).
+2. **`SessionPrincipalContextInterceptor` (`APP_INTERCEPTOR`)**: Decides **the execution scope**. A single-responsibility interceptor that reads `req.sessionPrincipal` (populated by the guard) and invokes `sessionPrincipalStore.run(req.sessionPrincipal, () => next.handle())`. In NestJS 11.2.1, `InterceptorsConsumer` binds stream continuations using `defer(AsyncResource.bind(...))`, guaranteeing that the `AsyncLocalStorage` context established by `run()` persists across all downstream asynchronous operations, CQRS handlers, and pipeline behaviors without cross-request context bleeding. (`src/common/context/session-user.store.ts` re-exports `sessionPrincipalStore` as `sessionUserStore` and `getSessionPrincipal` as `getSessionUser`).
 3. **`SessionService`**: Owner of both auth cookies and the `SESSION_COOKIES` adapter. `save` sets a new refresh token as the `refresh_token` cookie (`HttpOnly; Secure; SameSite=Strict; Path=/auths`) and, on Fastify, stores the access token and `{ id, type, tenant, sid, exp }` in the `@fastify/secure-session` cookie; `clear` deletes both; both act on the current request's session and response from `httpExchangeStore` (set by `SessionPrincipalContextInterceptor`) and do nothing outside an HTTP request. `discard` drops a stale secure session during principal resolution, and `isExpired` checks a session principal's expiry. `CreateAuthHandler` and `PrincipalLoginService.refresh` call `save`, the logout handler calls `clear`, and `AuthsController` maps the result with `toSessionRes`; logout answers 204 for a missing or unknown refresh token. The `@RefreshToken()` parameter decorator reads the refresh cookie and validates it with `RefreshTokenDtoSchema`; a missing cookie on `POST /auths/refresh` answers 401 `refresh_invalid`.
 4. **`PrincipalLoginService`**: Application service for login credential verification (`POST /auths/login`), token refresh (`POST /auths/refresh`), and signing access tokens for a session.
 5. **`toSessionRes` Mapper**: Maps `AuthResult` through `SessionResponseSchema`, which keeps only the response fields, so the refresh token never reaches the body.
@@ -258,7 +258,7 @@ export class UpdateUserHandler extends CommandBaseHandler<UpdateUserCommand, Use
     const user = await this.commandRepository.findById(command.id);
     if (!user) throw new EntityNotFoundException('User', command.id);
     this.authorizer.authorize('update', user, command.getUpdateFields(UpdateUserCommand.updatableFields));
-    user.update(command);
+    user.update({ username: command.username, department: command.department });
     await this.commandRepository.save(user);
     return user;
   }
@@ -292,11 +292,11 @@ curl -X POST http://localhost:3000/auths/login -c cookies.txt \
 Response:
 ```json
 {
-  "id": "019488e0-0000-7000-8000-000000000001",
+  "id": "019de10c-b680-7000-8000-000000000006",
   "tenant": "tenant",
   "email": "alice+tenant@seed.local",
   "principalType": "user",
-  "department": null,
+  "department": "engineering",
   "accessToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ...",
   "accessTokenExpiresAt": 1741258800000
 }
@@ -337,14 +337,15 @@ Commands use `createCommand()` to guarantee Zod schema enforcement, idempotency,
 
 ```typescript
 // 1. Command Definition (createCommand)
-export const CreateUserSchema = z.object({
-  username: z.string().min(3).max(50),
-  email: z.string().email(),
-  department: z.string().min(3).max(50).optional(),
-  idempotencyKey: IdempotencyKeySchema.optional(), // from the Idempotency-Key header
-});
-
-export class CreateUserCommand extends createCommand(CreateUserSchema, BaseCommand) {}
+export class CreateUserCommand extends createCommand(
+  z.object({
+    username: z.string().trim().min(User.rules.username.minLength).max(User.rules.username.maxLength),
+    email: EmailSchema,
+    department: z.string().trim().min(User.rules.department.minLength).max(User.rules.department.maxLength).optional(),
+    idempotencyKey: IdempotencyKeySchema.optional(), // from the Idempotency-Key header
+  }),
+  BaseCommand,
+) {}
 
 // 2. Command Handler with Pipeline Behaviors
 @CommandHandler(CreateUserCommand)
@@ -369,10 +370,15 @@ export class CreateUserHandler extends CommandBaseHandler<CreateUserCommand, Use
   }
 
   async handle(command: CreateUserCommand): Promise<User> {
-    const user = User.create(command.username, command.email, command.department);
+    const { username, email, department } = command;
+    const user = User.create(username, email, department);
 
     // Entity-level and field-level permission check
-    this.authorizer.authorize('create', user, ['username', 'email', 'department']);
+    this.authorizer.authorize('create', user, [
+      'username',
+      'email',
+      ...(department !== undefined ? ['department'] : []),
+    ]);
 
     await this.commandRepository.save(user);
     return user;
@@ -386,22 +392,31 @@ Queries use `createQuery()` with read-through caching in the repository:
 
 ```typescript
 // 1. Query Definition (createQuery)
-export const GetUserSchema = z.object({
-  userId: z.string().uuid().optional(),
-  email: z.string().email().optional(),
-});
-
-export class GetUserQuery extends createQuery(GetUserSchema, BaseQuery) {}
+export class GetUserQuery extends createQuery(
+  z.object({
+    userId: z.optional(z.uuid()),
+    email: z.optional(EmailSchema),
+    department: z.optional(z.string()),
+  }), // plus a refinement requiring exactly one of userId or email
+  BaseQuery,
+) {}
 
 // 2. Query Repository with @FromCache
 @Injectable()
 export class GetUserQueryRepository extends QueryRepository<GetUserQuery, User | null> {
-  @FromCache<GetUserQuery, User>(
-    (q) => cacheKey(User.aggregateName, q.userId ? { id: q.userId } : { email: q.email }),
-    (cached) => User.fromJSON(cached as UserSnapshot),
-  )
+  constructor(
+    @Inject(CACHE_TOKEN) protected readonly cache: ICache<UserSnapshot>,
+    @Inject(MIKRO_ORM_CLIENT) private readonly store: MikroOrmStore,
+  ) {
+    super(cache, { hydrateFn: (cached) => User.fromJSON(cached as UserSnapshot) });
+  }
+
+  @FromCache<GetUserQuery, User | null>({
+    logger: cacheReadLogger,
+    keyFn: (q) => (q.department ? null : cacheKey(User.aggregateName, buildConditions(q))),
+  })
   async find(query: GetUserQuery): Promise<User | null> {
-    return this.store.em.findOne(User, query.userId ? { id: query.userId } : { email: query.email });
+    return this.store.em.findOne(User, buildConditions(query) as FilterQuery<User>, query.refresh ? { refresh: true } : undefined);
   }
 }
 
@@ -470,13 +485,13 @@ when a suitable key is configured in module defaults.
 ```typescript
 import { Inject } from '@nestjs/common';
 import type { IQueryRepository } from '@cqrs-ddd/core/application';
-import type { Role } from '../../domain/models/role.entity';
-import { QUERY_REPOSITORY } from '../../persistence/repository.tokens';
+import type { Role } from '../../../domain/models/role.entity';
+import { QUERY_REPOSITORY } from '../../../persistence/repository.tokens';
 import { QueryHandler, type IQueryHandler } from '@nestjs/cqrs';
 import { UsePipeline } from '@nestjs-pipeline/core';
 import { CacheBehavior } from '@nestjs-pipeline/cache';
 import { CaslAuthorizer, requires } from '@nestjs-pipeline/casl';
-import { projectRoleRead, type RoleReadModel } from '../../application/role-read-model';
+import { projectRoleRead, type RoleReadModel } from '../../role-read-model';
 import { GetRolesQuery } from './get-roles.query';
 
 @QueryHandler(GetRolesQuery)
@@ -612,7 +627,7 @@ Global and per-handler examples exercise:
 The add-ons publish their decisions as `context.items` entries and take no
 OpenTelemetry dependency, which is what lets them be installed one at a time.
 Nothing therefore writes those decisions to a span by itself. `ObservabilityModule`
-registers [`TelemetryBridgeBehavior`](src/infrastructure/behaviors/telemetry-bridge.behavior.ts),
+registers [`TelemetryBridgeBehavior`](src/common/behaviors/telemetry-bridge.behavior.ts),
 which reads them on unwind and adds `feature_flag.*`, `cache.hit`,
 `idempotency.*`, `rate_limit.remaining_points` and `dead_letter.captured` to the
 request span. It sits inside `TraceBehavior` and outside the add-ons, so every
