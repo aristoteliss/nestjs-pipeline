@@ -2,7 +2,6 @@
 
 import { describe, expect, it, vi } from 'vitest';
 import { CreateAuthCommand } from '../application/cqrs/commands/create-auth.command';
-import { RefreshAuthCommand } from '../application/cqrs/commands/refresh-auth.command';
 import { RevokeAuthCommand } from '../application/cqrs/commands/revoke-auth.command';
 import type { AuthResult } from '../application/results/auth.result';
 import { InvalidRefreshTokenError } from '../domain/errors/refresh-token.errors';
@@ -35,10 +34,20 @@ const expectedBody = {
   accessTokenExpiresAt: 300_000,
 };
 
-function setup(execute: (command: unknown) => Promise<unknown>) {
+function setup(
+  execute: (command: unknown) => Promise<unknown>,
+  refresh: (
+    refreshToken: string,
+    clientIp: string,
+  ) => Promise<unknown> = async () => issued,
+) {
   const commandBus = { execute: vi.fn(execute) };
-  const controller = new AuthsController(commandBus as never);
-  return { commandBus, controller };
+  const principalLoginService = { refresh: vi.fn(refresh) };
+  const controller = new AuthsController(
+    commandBus as never,
+    principalLoginService as never,
+  );
+  return { commandBus, principalLoginService, controller };
 }
 
 describe('AuthsController', () => {
@@ -60,17 +69,18 @@ describe('AuthsController', () => {
     expect(JSON.stringify(body)).not.toContain('refresh-secret');
   });
 
-  it('dispatches the refresh token with the client address and maps the result', async () => {
-    const { controller, commandBus } = setup(async () => issued);
+  it('calls principal login service with the refresh token and client address and maps the result', async () => {
+    const { controller, principalLoginService } = setup(
+      async () => undefined,
+      async () => issued,
+    );
 
     const body = await controller.refresh('refresh-old', CLIENT_IP);
 
-    const [command] = commandBus.execute.mock.calls[0] as [RefreshAuthCommand];
-    expect(command).toBeInstanceOf(RefreshAuthCommand);
-    expect(command).toMatchObject({
-      refreshToken: 'refresh-old',
-      clientIp: CLIENT_IP,
-    });
+    expect(principalLoginService.refresh).toHaveBeenCalledWith(
+      'refresh-old',
+      CLIENT_IP,
+    );
     expect(body).toEqual(expectedBody);
   });
 

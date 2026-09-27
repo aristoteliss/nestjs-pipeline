@@ -7,7 +7,17 @@ export const RoleCapabilitySchema = new EntitySchema<RoleCapability>({
   class: RoleCapability,
   tableName: 'role_capabilities',
   properties: {
-    roleId: { type: 'string', primary: true, fieldName: 'role_id' },
-    capabilityId: { type: 'string', primary: true, fieldName: 'capability_id' },
+    roleId: {
+      type: 'string',
+      length: 64,
+      primary: true,
+      fieldName: 'role_id',
+    },
+    capabilityId: {
+      type: 'string',
+      length: 64,
+      primary: true,
+      fieldName: 'capability_id',
+    },
   },
 });

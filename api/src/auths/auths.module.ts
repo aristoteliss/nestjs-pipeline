@@ -6,11 +6,12 @@ import {
   REFRESH_REUSE_GRACE_SECONDS,
   REFRESH_TOKEN_TTL_SECONDS,
 } from '../common/environment/auth-token.config';
+import { ReliabilityModule } from '../common/modules/reliability.module';
 import { GetUserQueryRepository } from '../users/persistence/get-user.query-repository';
 import { EXT_USER_QUERY_REPOSITORY } from '../users/persistence/repository.tokens';
 import { CreateAuthHandler } from './application/cqrs/commands/create-auth.handler';
-import { RefreshAuthHandler } from './application/cqrs/commands/refresh-auth.handler';
 import { RevokeAuthHandler } from './application/cqrs/commands/revoke-auth.handler';
+import { GetUserPermissionRulesHandler } from './application/cqrs/queries/get-user-permission-rules.handler';
 import { ACCESS_TOKEN_ISSUER } from './application/ports/access-token-issuer.port';
 import { AUTH_SESSIONS } from './application/ports/auth-sessions.port';
 import {
@@ -30,14 +31,13 @@ import { CreateAuthCommandRepository } from './persistence/create-auth.command-r
 import { COMMAND_REPOSITORY } from './persistence/repository.tokens';
 import { UpdateAuthCommandRepository } from './persistence/update-auth.command-repository';
 import { ApiClientAuthenticator } from './services/api-client-authenticator';
-import { AuthSessionRevocationService } from './services/auth-session-revocation.service';
 import { JwtAuthenticator } from './services/jwt-authenticator';
+import { PrincipalLoginService } from './services/principal-login.service';
 import { RequestPrincipalResolver } from './services/request-principal-resolver';
 import { SessionService } from './services/session.service';
-import { UserLoginService } from './services/user-login.service';
 
 @Module({
-  imports: [AuthorizationModule],
+  imports: [AuthorizationModule, ReliabilityModule],
   controllers: [AuthsController],
   providers: [
     // Repositories (Query)
@@ -72,10 +72,9 @@ import { UserLoginService } from './services/user-login.service';
       } satisfies AuthTokenPolicy,
     },
 
-    AuthSessionRevocationService,
     SessionService,
     { provide: SESSION_COOKIES, useExisting: SessionService },
-    UserLoginService,
+    PrincipalLoginService,
     JwtAuthenticator,
     ApiClientAuthenticator,
     RequestPrincipalResolver,
@@ -83,11 +82,13 @@ import { UserLoginService } from './services/user-login.service';
     // Commands
     CreateAuthHandler,
     RevokeAuthHandler,
-    RefreshAuthHandler,
+
+    //Queries
+    GetUserPermissionRulesHandler,
   ],
   exports: [
     SessionService,
-    UserLoginService,
+    PrincipalLoginService,
     RequestPrincipalResolver,
     JwtAuthenticator,
     ApiClientAuthenticator,

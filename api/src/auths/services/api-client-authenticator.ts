@@ -13,8 +13,8 @@ import {
   TENANT_CONTEXT,
 } from '../../common/context/tenant-context.port';
 import { API_CLIENTS } from '../../common/environment/api-clients.config';
-import type { SessionUser } from '../../common/types/SessionUser';
-import { firstHeaderValue } from './first-header-value';
+import type { SessionPrincipal } from '../../common/types/SessionPrincipal';
+import { firstHeaderValue } from './helpers/first-header-value';
 
 /**
  * Authenticates machine-to-machine HTTP requests presenting `x-api-id` and `x-api-key` headers.
@@ -51,7 +51,7 @@ export class ApiClientAuthenticator {
    * Verifies API credentials provided in `x-api-id` and `x-api-key` request headers.
    *
    * @param req - Request object containing incoming HTTP headers.
-   * @returns The resolved {@link SessionUser} service principal if valid credentials match the active tenant,
+   * @returns The resolved {@link SessionPrincipal} service principal if valid credentials match the active tenant,
    *          or `undefined` if no `x-api-id` header was provided.
    * @throws {@link UnauthorizedException} If `x-api-id` is present but credentials are invalid,
    *         the API key is incorrect, or the client is not authorized for the active tenant schema.
@@ -69,7 +69,7 @@ export class ApiClientAuthenticator {
    */
   authenticate(req: {
     headers?: Record<string, string | string[] | undefined>;
-  }): SessionUser | undefined {
+  }): SessionPrincipal | undefined {
     const apiId = firstHeaderValue(req.headers?.[AUTH_HEADERS.API_ID]);
     if (!apiId) return undefined;
 
@@ -95,7 +95,7 @@ export class ApiClientAuthenticator {
 
     return {
       id: apiId,
-      principalType: 'service',
+      type: 'service',
       tenant,
       grants: client.grants,
     };

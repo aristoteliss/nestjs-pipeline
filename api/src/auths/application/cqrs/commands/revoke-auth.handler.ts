@@ -14,7 +14,7 @@ import {
 } from '@nestjs-pipeline/rate-limit';
 import { InvalidRefreshTokenError } from '../../../domain/errors/refresh-token.errors';
 import type { Auth } from '../../../domain/models/auth.entity';
-import { AuthSessionRevocationService } from '../../../services/auth-session-revocation.service';
+import { PrincipalLoginService } from '../../../services/principal-login.service';
 import {
   AUTH_SESSIONS,
   type IAuthSessions,
@@ -52,9 +52,9 @@ export class RevokeAuthHandler extends CommandBaseHandler<
   constructor(
     protected readonly eventBus: EventBus,
     @Inject(AUTH_SESSIONS) private readonly sessions: IAuthSessions,
-    private readonly sessionRevocation: AuthSessionRevocationService,
     @Inject(REFRESH_TOKENS) private readonly refreshTokens: IRefreshTokens,
     @Inject(SESSION_COOKIES) private readonly cookies: ISessionCookies,
+    private readonly principalLoginService: PrincipalLoginService,
   ) {
     super(eventBus);
   }
@@ -66,7 +66,7 @@ export class RevokeAuthHandler extends CommandBaseHandler<
         )
       : null;
     const revoked = auth
-      ? await this.sessionRevocation.revoke(auth, Date.now())
+      ? await this.principalLoginService.revoke(auth, Date.now())
       : null;
 
     this.cookies.clear();

@@ -10,6 +10,7 @@ import { AggregateRepository, optimisticUpdate } from '@cqrs-ddd/mikro-orm';
 import { Inject, Injectable } from '@nestjs/common';
 import { cacheWriteLogger } from '@persistence/cache/cache-loggers';
 import { MIKRO_ORM_CLIENT, MikroOrmStore } from '@persistence/mikro-orm.store';
+import { ROLE_NAME_UNIQUE } from '@persistence/schemas/role.schema';
 import { UniqueRoleNameException } from '../domain/models/errors/role-name.exception';
 import { Role, RoleSnapshot } from '../domain/models/role.entity';
 
@@ -36,7 +37,7 @@ export class UpdateRoleCommandRepository extends AggregateRepository<
     },
     unique: [
       {
-        constraint: 'roles_name_unique',
+        constraint: ROLE_NAME_UNIQUE,
         columns: 'roles.name',
         error: (role) => new UniqueRoleNameException(role),
       },

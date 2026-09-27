@@ -9,8 +9,8 @@ import {
 import {
   isPrincipalType,
   type SessionData,
-  type SessionUser,
-} from '../../common/types/SessionUser';
+  type SessionPrincipal,
+} from '../../common/types/SessionPrincipal';
 import { ApiClientAuthenticator } from './api-client-authenticator';
 import { JwtAuthenticator } from './jwt-authenticator';
 import { SessionService } from './session.service';
@@ -18,7 +18,8 @@ import { SessionService } from './session.service';
 export type AuthenticatedRequest = {
   headers?: Record<string, string | string[] | undefined>;
   session?: Session<SessionData>;
-  sessionUser?: SessionUser;
+  sessionPrincipal?: SessionPrincipal;
+  sessionUser?: SessionPrincipal;
 };
 
 @Injectable()
@@ -44,17 +45,17 @@ export class RequestPrincipalResolver {
    *
    * @example
    * ```ts
-   * req.sessionUser = await this.principalResolver.resolvePrincipal(req);
+   * req.sessionPrincipal = await this.principalResolver.resolvePrincipal(req);
    * ```
    */
   async resolvePrincipal(
     req: AuthenticatedRequest,
-  ): Promise<SessionUser | undefined> {
+  ): Promise<SessionPrincipal | undefined> {
     const existingUser = req.session?.user;
     if (existingUser) {
       if (
         this.sessionService.isExpired(existingUser) ||
-        !isPrincipalType(existingUser.principalType) ||
+        !isPrincipalType(existingUser.type) ||
         typeof existingUser.sid !== 'string' ||
         existingUser.sid.trim().length === 0
       ) {

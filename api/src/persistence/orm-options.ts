@@ -3,6 +3,7 @@
 import { LibSqlDriver } from '@mikro-orm/libsql';
 import { Migrator } from '@mikro-orm/migrations';
 import { PostgreSqlDriver } from '@mikro-orm/postgresql';
+import { Migration20260830000000 } from './migrations/Migration20260830000000';
 import {
   type PersistenceConfig,
   persistenceConfig,
@@ -15,6 +16,7 @@ function sharedOptions(config: PersistenceConfig) {
     entities: [...PERSISTENCE_ENTITIES],
     extensions: [Migrator],
     migrations: {
+      migrationsList: [Migration20260830000000],
       path: 'dist/persistence/migrations',
       pathTs: 'src/persistence/migrations',
       glob: '!(*.d).{js,ts}',

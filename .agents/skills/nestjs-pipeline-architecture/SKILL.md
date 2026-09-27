@@ -462,7 +462,7 @@ Prefer adapting these files rather than inventing a new pattern:
 Never introduce or re-introduce these patterns:
 
 - Nest HTTP exceptions (`NotFoundException`, `ConflictException`) in command or query handlers (use `EntityNotFoundException`, `ConcurrencyConflictError`, or `DomainException` instead)
-- Merging session cookie logic, credential validation, and JWT operations into a single application service (use `SessionService` for presentation cookies and `UserLoginService` for domain login)
+- Merging session cookie logic, credential validation, and JWT operations into a single application service (use `SessionService` for presentation cookies and `PrincipalLoginService` for domain login)
 - CQRS event handlers injecting BullMQ queues directly without application ports
 - Event handlers that only call `Logger`/`getCorrelationId()` without performing meaningful domain work
 - CQRS handlers importing persistence-specific error classifiers (e.g. `isTransientPersistenceError` from `@cqrs-ddd/core/persistence`)

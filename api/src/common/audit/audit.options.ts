@@ -1,6 +1,6 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import { getSessionUser } from '@common/context/session-user.store';
+import { getSessionPrincipal } from '@common/context/session-principal.store';
 import type { AuditActor, AuditBehaviorOptions } from '@nestjs-pipeline/audit';
 
 /**
@@ -17,7 +17,7 @@ export const UNAUTHENTICATED_AUDIT_ACTOR: AuditActor = Object.freeze({
  * Resolve the acting principal from the authenticated session context.
  *
  * Reads the request-scoped session established by
- * `SessionUserContextInterceptor`, never the request payload: a caller-supplied
+ * `SessionPrincipalContextInterceptor`, never the request payload: a caller-supplied
  * field must not populate an identity that audit consumers read as
  * authenticated.
  *
@@ -25,14 +25,14 @@ export const UNAUTHENTICATED_AUDIT_ACTOR: AuditActor = Object.freeze({
  * request carries no session principal.
  */
 export function sessionAuditActor(): AuditActor {
-  const sessionUser = getSessionUser();
-  if (!sessionUser) return UNAUTHENTICATED_AUDIT_ACTOR;
+  const sessionPrincipal = getSessionPrincipal();
+  if (!sessionPrincipal) return UNAUTHENTICATED_AUDIT_ACTOR;
 
   return {
-    id: sessionUser.id,
+    id: sessionPrincipal.id,
     authenticated: true,
-    principalType: sessionUser.principalType,
-    email: sessionUser.email ?? undefined,
+    principalType: sessionPrincipal.type,
+    email: sessionPrincipal.email ?? undefined,
   };
 }
 

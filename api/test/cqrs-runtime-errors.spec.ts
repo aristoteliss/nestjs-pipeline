@@ -15,6 +15,8 @@ import {
 } from '@nestjs-pipeline/casl';
 import { ZodValidationError, ZodValidationFilter } from '@nestjs-pipeline/zod';
 import { describe, expect, it, vi } from 'vitest';
+import { GetUserPermissionRulesHandler } from '../src/auths/application/cqrs/queries/get-user-permission-rules.handler';
+import { GetUserPermissionRulesQuery } from '../src/auths/application/cqrs/queries/get-user-permission-rules.query';
 // Auths CQRS & Services
 import { CreateAuthCommand } from '../src/auths/cqrs/commands/create-auth.command';
 import { CreateAuthHandler } from '../src/auths/cqrs/commands/create-auth.handler';
@@ -22,8 +24,7 @@ import { RevokeAuthCommand } from '../src/auths/cqrs/commands/revoke-auth.comman
 import { RevokeAuthHandler } from '../src/auths/cqrs/commands/revoke-auth.handler';
 import { InvalidRefreshTokenError } from '../src/auths/domain/errors/refresh-token.errors';
 import { NodeRefreshTokens } from '../src/auths/infrastructure/node-refresh-tokens';
-import { AuthSessionRevocationService } from '../src/auths/services/auth-session-revocation.service';
-import { UserLoginService } from '../src/auths/services/user-login.service';
+import { PrincipalLoginService } from '../src/auths/services/principal-login.service';
 // Filters
 import { DomainExceptionFilter } from '../src/common/filters/domain-exception.filter';
 import { TenantSchemaContext } from '../src/persistence/tenant-schema.context';
@@ -660,7 +661,7 @@ describe('CQRS Commands & Queries Runtime Error Taxonomy', () => {
         const tenantContext = new TenantSchemaContext();
         const handler = new CreateAuthHandler(
           eventBus,
-          loginService as unknown as UserLoginService,
+          loginService as unknown as PrincipalLoginService,
           commandRepo as any,
           tenantContext,
           new NodeRefreshTokens(),
@@ -698,7 +699,7 @@ describe('CQRS Commands & Queries Runtime Error Taxonomy', () => {
         const tenantContext = new TenantSchemaContext();
         const handler = new CreateAuthHandler(
           eventBus,
-          loginService as unknown as UserLoginService,
+          loginService as unknown as PrincipalLoginService,
           commandRepo as any,
           tenantContext,
           new NodeRefreshTokens(),
@@ -727,13 +728,13 @@ describe('CQRS Commands & Queries Runtime Error Taxonomy', () => {
 
     describe('RevokeAuthCommand & Handler', () => {
       it('rejects an unknown refresh token so logout can answer 204 without revoking', async () => {
-        const save = vi.fn();
+        const principalLoginService = { revoke: vi.fn() };
         const handler = new RevokeAuthHandler(
           eventBus,
           { findByTokenHash: vi.fn().mockResolvedValue(null) } as any,
-          new AuthSessionRevocationService({ save } as any),
           new NodeRefreshTokens(),
           { save: vi.fn(), clear: vi.fn() },
+          principalLoginService as any,
         );
 
         await expect(
@@ -744,7 +745,26 @@ describe('CQRS Commands & Queries Runtime Error Taxonomy', () => {
             }),
           ),
         ).rejects.toBeInstanceOf(InvalidRefreshTokenError);
-        expect(save).not.toHaveBeenCalled();
+        expect(principalLoginService.revoke).not.toHaveBeenCalled();
+      });
+    });
+
+    describe('GetUserPermissionRulesQuery & Handler', () => {
+      it('catches Zod validation errors on invalid query parameters (400)', () => {
+        expect(() => new GetUserPermissionRulesQuery({ userId: '' })).toThrow(
+          ZodValidationError,
+        );
+      });
+
+      it('delegates to the query repository when valid', async () => {
+        const queryRepo = { find: vi.fn().mockResolvedValue([]) };
+        const handler = new GetUserPermissionRulesHandler(queryRepo as any);
+        const query = new GetUserPermissionRulesQuery({ userId: 'u-1' });
+
+        const result = await handler.execute(query);
+
+        expect(result).toEqual([]);
+        expect(queryRepo.find).toHaveBeenCalledWith(query);
       });
     });
   });

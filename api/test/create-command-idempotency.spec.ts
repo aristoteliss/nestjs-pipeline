@@ -1,5 +1,5 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
-import { sessionUserStore } from '@common/context/session-user.store';
+import { sessionPrincipalStore } from '@common/context/session-principal.store';
 import type { CommandBus, EventBus, QueryBus } from '@nestjs/cqrs';
 import type { CaslAuthorizer } from '@nestjs-pipeline/casl';
 import { PipelineContext, SET_TENANT_ID } from '@nestjs-pipeline/core';
@@ -44,9 +44,9 @@ function tenantContext<T>(context: PipelineContext<T>): PipelineContext<T> {
  * closed, so these compositions run as an authenticated principal.
  */
 function asAuthenticatedPrincipal(): void {
-  sessionUserStore.enterWith({
+  sessionPrincipalStore.enterWith({
     id: 'admin-1',
-    principalType: 'user',
+    type: 'user',
     tenant: 'tenant',
   });
 }

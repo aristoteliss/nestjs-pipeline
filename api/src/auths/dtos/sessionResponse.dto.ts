@@ -1,6 +1,9 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import { isPrincipalType, type PrincipalType } from '@common/types/SessionUser';
+import {
+  isPrincipalType,
+  type PrincipalType,
+} from '@common/types/SessionPrincipal';
 import { z } from 'zod';
 
 /**

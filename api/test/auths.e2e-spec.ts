@@ -5,6 +5,7 @@ import request from 'supertest';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import {
   bootstrapE2E,
+  createTestJwt,
   E2E_LOGIN_CODE,
   type E2EContext,
   inTenant,
@@ -244,6 +245,72 @@ describe.each(['express', 'fastify'] as const)('auths (e2e, %s)', (adapter) => {
       expect(
         (await refresh('refresh_token=never-issued', `${network}.250`)).status,
       ).toBe(401);
+    });
+
+    it('detects consumed refresh token reuse, revokes the session, and rejects subsequent attempts (401)', async () => {
+      const email = newEmail();
+      await seedUser(email);
+
+      // 1. Initial login -> token A
+      const loggedIn = await login({ email, code: E2E_LOGIN_CODE });
+      expect(loggedIn.status).toBe(200);
+      const tokenA = cookiePair(refreshCookie(loggedIn));
+
+      // 2. First refresh -> token B (token A becomes previous token)
+      const firstRefresh = await refresh(tokenA);
+      expect(firstRefresh.status).toBe(200);
+      const tokenB = cookiePair(refreshCookie(firstRefresh));
+
+      // 3. Second refresh -> token C (token B becomes previous, token A is strictly consumed)
+      const secondRefresh = await refresh(tokenB);
+      expect(secondRefresh.status).toBe(200);
+      const tokenC = cookiePair(refreshCookie(secondRefresh));
+
+      // 4. Replay token A -> triggers RefreshTokenReuseError and revokes the session
+      const reuseAttempt = await refresh(tokenA);
+      expect(reuseAttempt.status).toBe(401);
+      expect(reuseAttempt.body).toMatchObject({
+        statusCode: 401,
+        code: 'refresh_reused',
+      });
+
+      // 5. Active token C is now revoked because reuse compromised the session
+      const afterRevocation = await refresh(tokenC);
+      expect(afterRevocation.status).toBe(401);
+      expect(afterRevocation.body.code).toBe('refresh_invalid');
+    });
+  });
+
+  describe('bearer token verification (JwtAuthenticator)', () => {
+    it('rejects an expired Bearer token (401)', async () => {
+      const expiredJwt = await createTestJwt({ expiresIn: -10 });
+      const res = await listUsers(expiredJwt);
+
+      expect(res.status).toBe(401);
+    });
+
+    it('rejects a Bearer token without a sid claim (401)', async () => {
+      const jwtWithoutSid = await createTestJwt({ sid: '' });
+      const res = await listUsers(jwtWithoutSid);
+
+      expect(res.status).toBe(401);
+    });
+
+    it('rejects an invalid or malformed Bearer token (401)', async () => {
+      const res = await listUsers('not.a.valid.jwt');
+
+      expect(res.status).toBe(401);
+    });
+
+    it('rejects a Bearer token issued for a different tenant schema (401)', async () => {
+      const foreignJwt = await createTestJwt({ tenant: 'tenant_b' });
+
+      const res = await request(http)
+        .get('/users')
+        .set('x-tenant-schema', 'tenant')
+        .set('authorization', `Bearer ${foreignJwt}`);
+
+      expect(res.status).toBe(401);
     });
   });
 });

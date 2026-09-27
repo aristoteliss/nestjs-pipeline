@@ -16,8 +16,8 @@ import {
   JWT,
   PERMISSIONS_IN_ACCESS_TOKEN,
 } from '../../common/environment/auth-token.config';
-import type { SessionUser } from '../../common/types/SessionUser';
-import { firstHeaderValue } from './first-header-value';
+import type { SessionPrincipal } from '../../common/types/SessionPrincipal';
+import { firstHeaderValue } from './helpers/first-header-value';
 
 type VerificationKey = {
   key: Uint8Array | CryptoKey;
@@ -90,7 +90,7 @@ export class JwtAuthenticator {
    */
   async authenticate(req: {
     headers?: Record<string, string | string[] | undefined>;
-  }): Promise<SessionUser | undefined> {
+  }): Promise<SessionPrincipal | undefined> {
     const authHeader = firstHeaderValue(req.headers?.authorization);
     if (!authHeader) return undefined;
 
@@ -184,9 +184,9 @@ export class JwtAuthenticator {
         );
       }
 
-      const user: SessionUser = {
+      const user: SessionPrincipal = {
         id: payload.sub,
-        principalType: 'user',
+        type: 'user',
         tenant: payload.tenant,
         sid: payload.sid,
         ...(PERMISSIONS_IN_ACCESS_TOKEN && payload.perms !== undefined

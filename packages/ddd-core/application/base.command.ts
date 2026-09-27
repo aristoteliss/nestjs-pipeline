@@ -9,19 +9,22 @@ import { definedFields, defineHidden } from './request-fields.helper';
  * of a declared set of fields this command actually carries, via
  * {@link getUpdateFields}.
  */
-// biome-ignore lint/suspicious/noExplicitAny: generic session user default
-export abstract class BaseCommand<TSessionUser = any> {
-  public declare readonly sessionUser?: TSessionUser;
+// biome-ignore lint/suspicious/noExplicitAny: generic session principal default
+export abstract class BaseCommand<TSessionPrincipal = any> {
+  public declare readonly sessionPrincipal?: TSessionPrincipal;
+  public declare readonly sessionUser?: TSessionPrincipal;
 
-  constructor(sessionUser?: TSessionUser) {
-    if (sessionUser !== undefined)
-      defineHidden(this, 'sessionUser', sessionUser);
+  constructor(sessionPrincipal?: TSessionPrincipal) {
+    if (sessionPrincipal !== undefined) {
+      defineHidden(this, 'sessionPrincipal', sessionPrincipal);
+      defineHidden(this, 'sessionUser', sessionPrincipal);
+    }
   }
 
   /**
    * Serializes enumerable command payload fields to a plain object.
    *
-   * Non-enumerable metadata such as `sessionUser` is excluded, and fields whose
+   * Non-enumerable metadata such as `sessionPrincipal` and `sessionUser` is excluded, and fields whose
    * value is `undefined` are omitted. This makes the result suitable for stable
    * cache/idempotency fingerprinting.
    *

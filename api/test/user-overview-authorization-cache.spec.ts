@@ -22,7 +22,7 @@ import {
 } from '@nestjs-pipeline/casl';
 import { type IPipelineContext, PipelineModule } from '@nestjs-pipeline/core';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import type { SessionUser } from '../src/common/types/SessionUser';
+import type { SessionPrincipal } from '../src/common/types/SessionPrincipal';
 import { Role } from '../src/roles/domain/models/role.entity';
 import { QUERY_REPOSITORY as ROLES_QUERY_REPOSITORY } from '../src/roles/persistence/repository.tokens';
 import type { UserPermissionAssignments } from '../src/users/application/permission-assignments';
@@ -39,7 +39,7 @@ import { QUERY_REPOSITORY } from '../src/users/persistence/repository.tokens';
 import type { RoleDefinition } from './support/roles-capabilities/get-roles-capabilities.query-repository';
 
 /** An authenticated caller together with the assignments their rules come from. */
-type Viewer = Omit<SessionUser, 'grants'> & {
+type Viewer = Omit<SessionPrincipal, 'grants'> & {
   capabilities: UserPermissionAssignments;
 };
 
@@ -52,12 +52,12 @@ let roleDefinitions: (names: string[]) => Promise<RoleDefinition[]>;
 class ViewerPermissionSource implements ICaslPermissionSource {
   async load(): Promise<CaslAuthorizationInput | null> {
     if (!currentSessionUser) return null;
-    const { id, principalType, department, capabilities } = currentSessionUser;
+    const { id, type, department, capabilities } = currentSessionUser;
     const roles = await roleDefinitions(capabilities.roles);
     return {
       principal: {
         id,
-        ...(principalType ? { principalType } : {}),
+        ...(type ? { principalType: type } : {}),
         department: department ?? null,
       },
       rules: [
@@ -196,7 +196,7 @@ describe('User overview composed query security and caching contracts', () => {
   it('serves a repeated identical request from the cache for an eligible caller', async () => {
     currentSessionUser = {
       id: 'viewer-admin',
-      principalType: 'user',
+      type: 'user',
       tenant: 'tenant-alpha',
       capabilities: { roles: ['admin'] },
     };
@@ -224,7 +224,7 @@ describe('User overview composed query security and caching contracts', () => {
   it('applies field authorization so viewers with restricted fields receive only readable projections', async () => {
     currentSessionUser = {
       id: 'viewer-restricted',
-      principalType: 'user',
+      type: 'user',
       tenant: 'tenant-alpha',
       capabilities: { roles: ['restricted-viewer'] },
     };
@@ -249,7 +249,7 @@ describe('User overview composed query security and caching contracts', () => {
     // 1. Admin executes query and populates cache with email and roles
     currentSessionUser = {
       id: 'viewer-admin',
-      principalType: 'user',
+      type: 'user',
       tenant: 'tenant-alpha',
       capabilities: { roles: ['admin'] },
     };
@@ -262,7 +262,7 @@ describe('User overview composed query security and caching contracts', () => {
     // 2. Restricted viewer executes query for the same target
     currentSessionUser = {
       id: 'viewer-restricted',
-      principalType: 'user',
+      type: 'user',
       tenant: 'tenant-alpha',
       capabilities: { roles: ['restricted-viewer'] },
     };
@@ -278,7 +278,7 @@ describe('User overview composed query security and caching contracts', () => {
   it('separates cache entries across different tenants', async () => {
     currentSessionUser = {
       id: 'viewer-admin',
-      principalType: 'user',
+      type: 'user',
       tenant: 'tenant-alpha',
       capabilities: { roles: ['admin'] },
     };
@@ -296,7 +296,7 @@ describe('User overview composed query security and caching contracts', () => {
   it('separates user and service principals with identical textual IDs', async () => {
     currentSessionUser = {
       id: 'shared-id',
-      principalType: 'user',
+      type: 'user',
       tenant: 'tenant-alpha',
       capabilities: { roles: ['admin'] },
     };
@@ -306,7 +306,7 @@ describe('User overview composed query security and caching contracts', () => {
 
     currentSessionUser = {
       id: 'shared-id',
-      principalType: 'service',
+      type: 'service',
       tenant: 'tenant-alpha',
       capabilities: { roles: ['admin'] },
     };
@@ -318,7 +318,7 @@ describe('User overview composed query security and caching contracts', () => {
   it('separates distinct target query payloads', async () => {
     currentSessionUser = {
       id: 'viewer-admin',
-      principalType: 'user',
+      type: 'user',
       tenant: 'tenant-alpha',
       capabilities: { roles: ['admin'] },
     };
@@ -335,7 +335,7 @@ describe('User overview composed query security and caching contracts', () => {
   it('invalidates cache reuse when additional capabilities change with same roles', async () => {
     currentSessionUser = {
       id: 'viewer-custom',
-      principalType: 'user',
+      type: 'user',
       tenant: 'tenant-alpha',
       capabilities: {
         roles: ['admin'],
@@ -349,7 +349,7 @@ describe('User overview composed query security and caching contracts', () => {
     // Same roles, but different additional capabilities
     currentSessionUser = {
       id: 'viewer-custom',
-      principalType: 'user',
+      type: 'user',
       tenant: 'tenant-alpha',
       capabilities: {
         roles: ['admin'],
@@ -364,7 +364,7 @@ describe('User overview composed query security and caching contracts', () => {
   it('invalidates cache reuse when an explicit denial is added', async () => {
     currentSessionUser = {
       id: 'viewer-denial',
-      principalType: 'user',
+      type: 'user',
       tenant: 'tenant-alpha',
       capabilities: {
         roles: ['admin'],
@@ -377,7 +377,7 @@ describe('User overview composed query security and caching contracts', () => {
     // Add denial for email field
     currentSessionUser = {
       id: 'viewer-denial',
-      principalType: 'user',
+      type: 'user',
       tenant: 'tenant-alpha',
       capabilities: {
         roles: ['admin'],
@@ -403,7 +403,7 @@ describe('User overview composed query security and caching contracts', () => {
   it('invalidates cache reuse when a role definition is modified with same role name', async () => {
     currentSessionUser = {
       id: 'viewer-role-change',
-      principalType: 'user',
+      type: 'user',
       tenant: 'tenant-alpha',
       capabilities: { roles: ['analyst'] },
     };
@@ -438,7 +438,7 @@ describe('User overview composed query security and caching contracts', () => {
   it('bypasses caching when permissions depend on mutable target entity state', async () => {
     currentSessionUser = {
       id: 'viewer-conditional',
-      principalType: 'user',
+      type: 'user',
       tenant: 'tenant-alpha',
       department: 'engineering',
       capabilities: { roles: ['department-scoped'] },
@@ -476,7 +476,7 @@ describe('User overview composed query security and caching contracts', () => {
     currentTenant = undefined;
     currentSessionUser = {
       id: 'viewer-admin',
-      principalType: 'user',
+      type: 'user',
       tenant: '',
       capabilities: { roles: ['admin'] },
     };
@@ -521,7 +521,7 @@ describe('User overview composed query security and caching contracts', () => {
     // Viewer with restricted fields
     currentSessionUser = {
       id: 'viewer-restricted',
-      principalType: 'user',
+      type: 'user',
       tenant: 'tenant-alpha',
       capabilities: { roles: ['restricted-viewer'] },
     };
@@ -560,7 +560,7 @@ describe('User overview composed query security and caching contracts', () => {
   it('requests authoritative aggregate loading with refresh flag set on the repository query', async () => {
     currentSessionUser = {
       id: 'viewer-admin',
-      principalType: 'user',
+      type: 'user',
       tenant: 'tenant-alpha',
       capabilities: { roles: ['admin'] },
     };

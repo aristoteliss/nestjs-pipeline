@@ -3,6 +3,7 @@ import { type ICache } from '@cqrs-ddd/core/application';
 import { cacheKey, toCacheSnapshot } from '@cqrs-ddd/core/persistence';
 import { runWithTenant } from '@nestjs-pipeline/tenant';
 import { describe, expect, it, vi } from 'vitest';
+import { ROLE_NAME_UNIQUE } from '../../persistence/schemas/role.schema';
 import { UniqueRoleNameException } from '../domain/models/errors/role-name.exception';
 import { Role, type RoleSnapshot } from '../domain/models/role.entity';
 import { CreateRoleCommandRepository } from './create-role.command-repository';
@@ -57,7 +58,7 @@ describe('CreateRoleCommandRepository', () => {
         return {
           upsert: vi.fn().mockRejectedValue({
             code: '23505',
-            constraint: 'roles_name_unique',
+            constraint: ROLE_NAME_UNIQUE,
           }),
         };
       },

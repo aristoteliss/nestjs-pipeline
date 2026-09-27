@@ -220,27 +220,27 @@ AuthSessionGuard (APP_GUARD)
   ├─ 2. Parse & verify Bearer JWT (JwtAuthenticator)
   ├─ 3. Verify API-client credentials (ApiClientAuthenticator)
   │
-  ▼ Sets req.sessionUser = principal (or undefined for anonymous callers;
+  ▼ Sets req.sessionPrincipal = principal (and req.sessionUser; undefined for anonymous callers;
     throws 401 if credentials are provided but invalid, expired, or tenant-mismatched)
-SessionUserContextInterceptor (APP_INTERCEPTOR)
+SessionPrincipalContextInterceptor (APP_INTERCEPTOR)
   │
-  ▼ sessionUserStore.run(req.sessionUser, () => next.handle())
+  ▼ sessionPrincipalStore.run(req.sessionPrincipal, () => next.handle())
 Downstream Pipeline (Controllers → CQRS Bus → CASL → Audit → DB)
 ```
 
 ### Architecture Components
 
 1. **`AuthSessionGuard` (`APP_GUARD`)**: Decides **who you are**. It executes early in the NestJS request lifecycle (before interceptors, pipes, or route handlers) and delegates credential resolution to:
-   - **`JwtAuthenticator`**: Parses `Authorization: Bearer <token>` (the scheme `Bearer` or `bearer`). Supports both symmetric (`JWT_SECRET`) and asymmetric (`JWT_PUBLIC_KEY`) keys. Asymmetric SPKI keys are memoized upon first parse to eliminate repetitive ASN.1 DER parsing. Validates tenant alignment, maps the token's `perms` to `grants` only with `PERMISSIONS_IN_ACCESS_TOKEN=true`, and explicitly tags the authenticated principal as `principalType: 'user'`.
-   - **`ApiClientAuthenticator`**: Authenticates machine-to-machine callers using `x-api-id` and `x-api-key` headers against configured `API_CLIENTS`. Uses constant-time fixed-length SHA-256 digest comparison (`timingSafeEqual`) to prevent timing side-channel leaks. Operates completely statelessly, attaches the client's configured rules as `grants`, and explicitly tags the principal as `principalType: 'service'`.
+   - **`JwtAuthenticator`**: Parses `Authorization: Bearer <token>` (the scheme `Bearer` or `bearer`). Supports both symmetric (`JWT_SECRET`) and asymmetric (`JWT_PUBLIC_KEY`) keys. Asymmetric SPKI keys are memoized upon first parse to eliminate repetitive ASN.1 DER parsing. Validates tenant alignment, maps the token's `perms` to `grants` only with `PERMISSIONS_IN_ACCESS_TOKEN=true`, and explicitly tags the authenticated principal as `type: 'user'`.
+   - **`ApiClientAuthenticator`**: Authenticates machine-to-machine callers using `x-api-id` and `x-api-key` headers against configured `API_CLIENTS`. Uses constant-time fixed-length SHA-256 digest comparison (`timingSafeEqual`) to prevent timing side-channel leaks. Operates completely statelessly, attaches the client's configured rules as `grants`, and explicitly tags the principal as `type: 'service'`.
    - **`RequestPrincipalResolver`**: Lean orchestrator coordinating priority resolution (Cookie $\rightarrow$ JWT $\rightarrow$ API Key $\rightarrow$ Anonymous fallback).
 
    *Note on Anonymous Access*: `AuthSessionGuard` does **not** reject unauthenticated requests; it resolves the caller to `undefined` (anonymous) and permits the request to continue. Rejections (HTTP 401 Unauthorized) only occur when credentials are provided but fail verification (e.g. expired JWT, invalid API key, or tenant mismatch). Downstream pipeline behaviors, such as `CaslBehavior` and `CaslAuthorizer`, enforce endpoint authorization and reject unauthorized callers with HTTP 403 Forbidden.
-2. **`SessionUserContextInterceptor` (`APP_INTERCEPTOR`)**: Decides **the execution scope**. A single-responsibility interceptor that reads `req.sessionUser` (populated by the guard) and invokes `sessionUserStore.run(req.sessionUser, () => next.handle())`. In NestJS 11.2.1, `InterceptorsConsumer` binds stream continuations using `defer(AsyncResource.bind(...))`, guaranteeing that the `AsyncLocalStorage` context established by `run()` persists across all downstream asynchronous operations, CQRS handlers, and pipeline behaviors without cross-request context bleeding.
-3. **`SessionService`**: Owner of both auth cookies and the `SESSION_COOKIES` adapter. `save` sets a new refresh token as the `refresh_token` cookie (`HttpOnly; Secure; SameSite=Strict; Path=/auths`) and, on Fastify, stores the access token and `{ id, principalType, tenant, sid, exp }` in the `@fastify/secure-session` cookie; `clear` deletes both; both act on the current request's session and response from `httpExchangeStore` (set by `SessionUserContextInterceptor`) and do nothing outside an HTTP request. `discard` drops a stale secure session during principal resolution, and `isExpired` checks a session principal's expiry. The login and refresh handlers call `save`, the logout handler calls `clear`, and `AuthsController` only dispatches and maps the result with `toSessionRes`; logout answers 204 for a missing or unknown refresh token. The `@RefreshToken()` parameter decorator reads the refresh cookie and validates it with `RefreshTokenDtoSchema`; a missing cookie on `POST /auths/refresh` answers 401 `refresh_invalid`.
-4. **`UserLoginService`**: Application service for login credential verification (`POST /auths/login`) and signing access tokens for a session, decoupled from HTTP cookies and session storage.
+2. **`SessionPrincipalContextInterceptor` (`APP_INTERCEPTOR`)**: Decides **the execution scope**. A single-responsibility interceptor that reads `req.sessionPrincipal` (populated by the guard) and invokes `sessionPrincipalStore.run(req.sessionPrincipal, () => next.handle())`. In NestJS 11.2.1, `InterceptorsConsumer` binds stream continuations using `defer(AsyncResource.bind(...))`, guaranteeing that the `AsyncLocalStorage` context established by `run()` persists across all downstream asynchronous operations, CQRS handlers, and pipeline behaviors without cross-request context bleeding. (Maintains `SessionUserContextInterceptor` and `sessionUserStore` as backward-compatible aliases).
+3. **`SessionService`**: Owner of both auth cookies and the `SESSION_COOKIES` adapter. `save` sets a new refresh token as the `refresh_token` cookie (`HttpOnly; Secure; SameSite=Strict; Path=/auths`) and, on Fastify, stores the access token and `{ id, type, tenant, sid, exp }` in the `@fastify/secure-session` cookie; `clear` deletes both; both act on the current request's session and response from `httpExchangeStore` (set by `SessionPrincipalContextInterceptor`) and do nothing outside an HTTP request. `discard` drops a stale secure session during principal resolution, and `isExpired` checks a session principal's expiry. `CreateAuthHandler` and `PrincipalLoginService.refresh` call `save`, the logout handler calls `clear`, and `AuthsController` maps the result with `toSessionRes`; logout answers 204 for a missing or unknown refresh token. The `@RefreshToken()` parameter decorator reads the refresh cookie and validates it with `RefreshTokenDtoSchema`; a missing cookie on `POST /auths/refresh` answers 401 `refresh_invalid`.
+4. **`PrincipalLoginService`**: Application service for login credential verification (`POST /auths/login`), token refresh (`POST /auths/refresh`), and signing access tokens for a session.
 5. **`toSessionRes` Mapper**: Maps `AuthResult` through `SessionResponseSchema`, which keeps only the response fields, so the refresh token never reaches the body.
-6. **Session persistence**: `CreateAuthCommandRepository` inserts a session, `UpdateAuthCommandRepository` saves rotation and revocation version-conditioned, and `AuthSessionsRepository` (`AUTH_SESSIONS` port) finds sessions by refresh-token hash and records rotated-away hashes. Sessions are never cached. `AuthSessionRevocationService.revoke` coordinates durable revocation for refresh reuse and logout, reloads on version conflicts, and returns the saved aggregate or `null` if concurrently deleted. Exhausted conflicts propagate; handlers retain their own missing-session and event-publication semantics.
+6. **Session persistence**: `CreateAuthCommandRepository` inserts a session, `UpdateAuthCommandRepository` saves rotation and revocation version-conditioned, and `AuthSessionsRepository` (`AUTH_SESSIONS` port) finds sessions by refresh-token hash and records rotated-away hashes. Sessions are never cached. `PrincipalLoginService.revoke` coordinates durable revocation for refresh reuse and logout, reloads on version conflicts, and returns the saved aggregate or `null` if concurrently deleted. Exhausted conflicts propagate; handlers retain their own missing-session and event-publication semantics.
 7. **`CaslPermissionSource`**: Request-scoped `ICaslPermissionSource` bound through `AuthorizationModule` and `CaslModule.forRoot({ imports: [AuthorizationModule], permissionSource: { useExisting: CaslPermissionSource } })`. For a `user` principal whose verified access token carried rules it uses them; otherwise it reads the user row (a deleted user is unauthenticated) and the materialized `user_permission_rules` in one parallel round-trip (see [Permission source](#permission-source)); the principal carries `department` for `${user.department}` placeholders. A `service` principal uses its `grants` without touching the users tables. Unclassified principals are unauthenticated.
 
 ### Authorization
@@ -423,16 +423,16 @@ export class GetUserHandler implements IQueryHandler<GetUserQuery, UserReadModel
 
 #### 6. Accessing the Authenticated Principal Anywhere
 
-Downstream services, processors, and handlers access the current user via `sessionUserStore`:
+Downstream services, processors, and handlers access the current principal via `sessionPrincipalStore`:
 
 ```typescript
-import { getSessionUserFromStore } from '@common/context/session-user.store';
+import { getSessionPrincipal } from '@common/context/session-principal.store';
 
 @CommandHandler(DeleteUserCommand)
 export class DeleteUserHandler {
   async handle(command: DeleteUserCommand) {
-    const actor = getSessionUserFromStore();
-    console.log('User action executed by:', actor?.id, 'in tenant:', actor?.tenant);
+    const actor = getSessionPrincipal();
+    console.log('Principal action executed by:', actor?.id, 'in tenant:', actor?.tenant);
   }
 }
 ```

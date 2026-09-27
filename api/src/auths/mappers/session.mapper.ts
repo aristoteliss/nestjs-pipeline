@@ -13,7 +13,7 @@ import {
  * refresh token and the session aggregate never reach the body. A missing
  * department becomes `null`.
  *
- * @param result - Result of `CreateAuthCommand` or `RefreshAuthCommand`.
+ * @param result - Result of login or refresh.
  * @returns The body of `POST /auths/login` and `POST /auths/refresh`.
  * @throws InternalServerErrorException when the result does not fit the schema.
  *

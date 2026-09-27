@@ -1,6 +1,7 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { Migration } from '@mikro-orm/migrations';
+import { generateDropSchemaSql, generateSchemaSql } from '../schema-ddl';
 
 const SYSTEM_ROLES = {
   ADMIN: 'admin',
@@ -57,136 +58,15 @@ export class Migration20260830000000 extends Migration {
   }
 
   override async down(): Promise<void> {
-    this.addSql('drop table if exists auth_consumed_refresh_tokens;');
-    this.addSql('drop table if exists auth;');
-    this.addSql('drop table if exists user_permission_rules;');
-    this.addSql('drop table if exists user_denied_capabilities;');
-    this.addSql('drop table if exists user_additional_capabilities;');
-    this.addSql('drop table if exists user_roles;');
-    this.addSql('drop table if exists role_capabilities;');
-    this.addSql('drop table if exists capabilities;');
-    this.addSql('drop table if exists roles;');
-    this.addSql('drop table if exists users;');
-    this.addSql('drop table if exists cache;');
+    for (const sql of generateDropSchemaSql()) {
+      this.addSql(sql);
+    }
   }
 
   private createSchema(): void {
-    this.addSql(`create table users (
-      id varchar(64) not null,
-      created_at bigint not null,
-      updated_at bigint not null,
-      version int not null default 1,
-      username varchar(255) not null,
-      department varchar(255) null,
-      email varchar(320) not null,
-      primary key (id)
-    );`);
-    this.addSql('create unique index users_email_unique on users (email);');
-
-    this.addSql(`create table roles (
-      id varchar(64) not null,
-      created_at bigint not null,
-      updated_at bigint not null,
-      version int not null default 1,
-      name varchar(128) not null,
-      primary key (id)
-    );`);
-    this.addSql('create unique index roles_name_unique on roles (name);');
-
-    this.addSql(`create table capabilities (
-      id varchar(64) not null,
-      created_at bigint not null,
-      updated_at bigint not null,
-      action varchar(64) not null,
-      subject varchar(128) not null,
-      conditions text null,
-      inverted boolean not null default false,
-      reason text null,
-      fields text null,
-      primary key (id)
-    );`);
-
-    this.addSql(`create table role_capabilities (
-      role_id varchar(64) not null references roles(id) on delete cascade,
-      capability_id varchar(64) not null references capabilities(id) on delete cascade,
-      primary key (role_id, capability_id)
-    );`);
-    this.addSql(`create table user_roles (
-      user_id varchar(64) not null references users(id) on delete cascade,
-      role_id varchar(64) not null references roles(id) on delete cascade,
-      primary key (user_id, role_id)
-    );`);
-    this.addSql(`create table user_additional_capabilities (
-      user_id varchar(64) not null references users(id) on delete cascade,
-      capability_id varchar(64) not null references capabilities(id) on delete cascade,
-      primary key (user_id, capability_id)
-    );`);
-    this.addSql(`create table user_denied_capabilities (
-      user_id varchar(64) not null references users(id) on delete cascade,
-      capability_id varchar(64) not null references capabilities(id) on delete cascade,
-      primary key (user_id, capability_id)
-    );`);
-
-    this.addSql(`create table user_permission_rules (
-      user_id varchar(64) not null references users(id) on delete cascade,
-      position integer not null,
-      source varchar(16) not null,
-      role_id varchar(64) null references roles(id) on delete cascade,
-      capability_id varchar(64) not null references capabilities(id) on delete cascade,
-      subject varchar(128) not null,
-      action varchar(64) not null,
-      conditions text null,
-      fields text null,
-      inverted boolean not null,
-      reason text null,
-      primary key (user_id, position)
-    );`);
-    this.addSql(
-      'create index user_permission_rules_role_id_index on user_permission_rules (role_id);',
-    );
-    this.addSql(
-      'create index user_permission_rules_capability_id_index on user_permission_rules (capability_id);',
-    );
-
-    this.addSql(`create table auth (
-      id varchar(64) not null,
-      created_at bigint not null,
-      updated_at bigint not null,
-      user_id varchar(64) not null references users(id) on delete cascade,
-      refresh_token_hash varchar(64) not null,
-      previous_refresh_token_hash varchar(64) null,
-      rotated_at bigint null,
-      expires_at bigint not null,
-      revoked_at bigint null,
-      version int not null default 1,
-      primary key (id)
-    );`);
-    this.addSql(
-      'create unique index auth_refresh_token_hash_unique on auth (refresh_token_hash);',
-    );
-    this.addSql(
-      'create index auth_previous_refresh_token_hash_idx on auth (previous_refresh_token_hash);',
-    );
-    this.addSql('create index auth_user_id_idx on auth (user_id);');
-
-    this.addSql(`create table auth_consumed_refresh_tokens (
-      token_hash varchar(64) not null,
-      auth_id varchar(64) not null references auth(id) on delete cascade,
-      consumed_at bigint not null,
-      primary key (token_hash)
-    );`);
-    this.addSql(
-      'create index auth_consumed_refresh_tokens_auth_id_index on auth_consumed_refresh_tokens (auth_id);',
-    );
-
-    this.addSql(`create table cache (
-      key varchar(255) not null,
-      value text not null,
-      expires_at bigint null,
-      revision bigint not null default 0,
-      primary key (key)
-    );`);
-    this.addSql('create index cache_expires_at_idx on cache (expires_at);');
+    for (const sql of generateSchemaSql()) {
+      this.addSql(sql);
+    }
   }
 
   private seedDemoData(): void {

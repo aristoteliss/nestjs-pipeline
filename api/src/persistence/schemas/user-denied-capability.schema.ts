@@ -8,9 +8,15 @@ export const UserDeniedCapabilitySchema =
     class: UserDeniedCapability,
     tableName: 'user_denied_capabilities',
     properties: {
-      userId: { type: 'string', primary: true, fieldName: 'user_id' },
+      userId: {
+        type: 'string',
+        length: 64,
+        primary: true,
+        fieldName: 'user_id',
+      },
       capabilityId: {
         type: 'string',
+        length: 64,
         primary: true,
         fieldName: 'capability_id',
       },

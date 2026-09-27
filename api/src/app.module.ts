@@ -1,7 +1,7 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { AuthSessionGuard } from '@common/guards/auth-session.guard';
-import { SessionUserContextInterceptor } from '@common/interceptors/session-user-context.interceptor';
+import { SessionPrincipalContextInterceptor } from '@common/interceptors/session-principal-context.interceptor';
 import {
   type MiddlewareConsumer,
   Module,
@@ -49,7 +49,7 @@ import { UsersModule } from './users/users.module';
   ],
   providers: [
     { provide: APP_GUARD, useClass: AuthSessionGuard },
-    { provide: APP_INTERCEPTOR, useClass: SessionUserContextInterceptor },
+    { provide: APP_INTERCEPTOR, useClass: SessionPrincipalContextInterceptor },
   ],
 })
 export class AppModule implements NestModule {

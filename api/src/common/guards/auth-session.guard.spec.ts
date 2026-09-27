@@ -17,7 +17,7 @@ afterEach(() => {
 });
 
 describe('AuthSessionGuard', () => {
-  it('resolves principal, attaches to req.sessionUser, and returns true', async () => {
+  it('resolves principal, attaches to req.sessionPrincipal, and returns true', async () => {
     const resolvedUser = { id: 'resolved-user', tenant: 'test-tenant' };
     const req: AuthenticatedRequest = { headers: {} };
     const context = makeContext(req);
@@ -30,6 +30,7 @@ describe('AuthSessionGuard', () => {
     const result = await guard.canActivate(context);
 
     expect(result).toBe(true);
+    expect(req.sessionPrincipal).toEqual(resolvedUser);
     expect(req.sessionUser).toEqual(resolvedUser);
     expect(principalResolver.resolvePrincipal).toHaveBeenCalledWith(req);
   });

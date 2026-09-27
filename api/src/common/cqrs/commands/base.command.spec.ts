@@ -19,6 +19,7 @@ describe('BaseCommand metadata', () => {
       },
     );
 
+    expect(Object.keys(command)).not.toContain('sessionPrincipal');
     expect(Object.keys(command)).not.toContain('sessionUser');
     expect(fingerprintValue(command)).toBe(
       fingerprintValue({

@@ -21,7 +21,7 @@ import {
 } from '@nestjs-pipeline/rate-limit';
 import { Auth, AuthSnapshot } from '../../../domain/models/auth.entity';
 import { COMMAND_REPOSITORY } from '../../../persistence/repository.tokens';
-import { UserLoginService } from '../../../services/user-login.service';
+import { PrincipalLoginService } from '../../../services/principal-login.service';
 import {
   AUTH_TOKEN_POLICY,
   type AuthTokenPolicy,
@@ -60,7 +60,7 @@ export class CreateAuthHandler extends CommandBaseHandler<
 > {
   constructor(
     protected readonly eventBus: EventBus,
-    private readonly userLoginService: UserLoginService,
+    private readonly principalLoginService: PrincipalLoginService,
     @Inject(COMMAND_REPOSITORY.createAuth)
     private readonly commandRepository: ICommandRepository<Auth, AuthSnapshot>,
     @Inject(TENANT_CONTEXT)
@@ -77,7 +77,7 @@ export class CreateAuthHandler extends CommandBaseHandler<
 
   async handle(command: CreateAuthCommand): Promise<AuthResult> {
     const { email, code } = command;
-    const user = await this.userLoginService.authenticate(email, code);
+    const user = await this.principalLoginService.authenticate(email, code);
     const refreshToken = this.refreshTokens.generate();
     const sessionExpiresAt =
       Date.now() + this.policy.refreshTokenTtlSeconds * 1000;
@@ -88,7 +88,7 @@ export class CreateAuthHandler extends CommandBaseHandler<
     );
 
     await this.commandRepository.save(auth);
-    const access = await this.userLoginService.signToken(user, auth.id);
+    const access = await this.principalLoginService.signToken(user, auth.id);
 
     const result: AuthResult = {
       aggregate: auth,

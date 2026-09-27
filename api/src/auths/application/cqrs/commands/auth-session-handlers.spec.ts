@@ -1,5 +1,6 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
+import { IAuthSessions } from '@auths/application/ports/auth-sessions.port';
 import type { ITenantContext } from '@common/context/tenant-context.port';
 import { ConcurrencyConflictError } from '@cqrs-ddd/core/domain';
 import type { EventBus } from '@nestjs/cqrs';
@@ -13,10 +14,7 @@ import { AuthRefreshedEvent } from '../../../domain/events/auth-refreshed.event'
 import { AuthRevokedEvent } from '../../../domain/events/auth-revoked.event';
 import { Auth, type AuthSnapshot } from '../../../domain/models/auth.entity';
 import { NodeRefreshTokens } from '../../../infrastructure/node-refresh-tokens';
-import { AuthSessionRevocationService } from '../../../services/auth-session-revocation.service';
-import { type IAuthSessions } from '../../ports/auth-sessions.port';
-import { RefreshAuthCommand } from './refresh-auth.command';
-import { RefreshAuthHandler } from './refresh-auth.handler';
+import { PrincipalLoginService } from '../../../services/principal-login.service';
 import { RevokeAuthCommand } from './revoke-auth.command';
 import { RevokeAuthHandler } from './revoke-auth.handler';
 
@@ -91,47 +89,67 @@ const USER = User.create('alice', 'alice@example.test', 'engineering');
 function setup() {
   const store = new SessionStore();
   const publishAll = vi.fn();
-  const signToken = vi.fn(async (_user: User, sessionId: string) => ({
-    accessToken: `access-for-${sessionId}`,
-    expiresAt: Date.now() + 300_000,
-  }));
   const cookies = { save: vi.fn(), clear: vi.fn() };
-  const handler = new RefreshAuthHandler(
-    { publishAll } as unknown as EventBus,
-    store,
-    store.repository as never,
-    new AuthSessionRevocationService(store.repository as never),
-    { find: vi.fn().mockResolvedValue(USER) },
-    tokens,
+  const service = new PrincipalLoginService(
+    { find: vi.fn().mockResolvedValue(USER) } as never,
+    { verify: vi.fn() } as never,
+    {
+      issue: vi.fn(async ({ sessionId }: { sessionId: string }) => ({
+        accessToken: `access-for-${sessionId}`,
+        expiresAt: Date.now() + 300_000,
+      })),
+    } as never,
     {
       refreshTokenTtlSeconds: 3600,
       refreshReuseGraceSeconds: GRACE_SECONDS,
       embedPermissions: false,
     },
-    { signToken } as never,
+    { find: vi.fn() } as never,
+    store,
+    store.repository as never,
+    tokens,
     { schema: 'tenant' } as ITenantContext,
     cookies,
+    { publishAll } as unknown as EventBus,
   );
+  const signToken = vi.spyOn(service, 'signToken');
   const refresh = (refreshToken: string) =>
-    handler.execute(
-      new RefreshAuthCommand({ refreshToken, clientIp: '203.0.113.7' }),
-    );
-  return { store, handler, refresh, publishAll, signToken, cookies };
+    service.refresh(refreshToken, '203.0.113.7');
+  return { store, service, refresh, publishAll, signToken, cookies };
 }
 
 function logoutHandler(store: SessionStore, publishAll = vi.fn()) {
   const cookies = { save: vi.fn(), clear: vi.fn() };
+  const service = new PrincipalLoginService(
+    { find: vi.fn().mockResolvedValue(USER) } as never,
+    { verify: vi.fn() } as never,
+    {
+      issue: vi.fn(),
+    } as never,
+    {
+      refreshTokenTtlSeconds: 3600,
+      refreshReuseGraceSeconds: GRACE_SECONDS,
+      embedPermissions: false,
+    },
+    { find: vi.fn() } as never,
+    store,
+    store.repository as never,
+    tokens,
+    { schema: 'tenant' } as ITenantContext,
+    cookies,
+    { publishAll } as unknown as EventBus,
+  );
   const handler = new RevokeAuthHandler(
     { publishAll } as unknown as EventBus,
     store,
-    new AuthSessionRevocationService(store.repository as never),
     tokens,
     cookies,
+    service,
   );
   return { handler, cookies };
 }
 
-describe('RefreshAuthHandler', () => {
+describe('PrincipalLoginService refresh', () => {
   beforeEach(() => {
     vi.useFakeTimers();
     vi.setSystemTime(T0);

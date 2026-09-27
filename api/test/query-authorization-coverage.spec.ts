@@ -13,6 +13,7 @@ import {
   PIPELINE_BEHAVIORS_OPTIONS_METADATA,
 } from '@nestjs-pipeline/core';
 import { describe, expect, it } from 'vitest';
+import { GetUserPermissionRulesHandler } from '../src/auths/application/cqrs/queries/get-user-permission-rules.handler';
 import { GetRoleHandler } from '../src/roles/cqrs/queries/get-role.handler';
 import { GetRolesHandler } from '../src/roles/cqrs/queries/get-roles.handler';
 import { GetUserHandler } from '../src/users/cqrs/queries/get-user.handler';
@@ -44,6 +45,7 @@ describe('query handlers declare an authorization rule', () => {
     ['GetRoleHandler', GetRoleHandler],
     ['GetRolesHandler', GetRolesHandler],
     ['GetUserOverviewHandler', GetUserOverviewHandler],
+    ['GetUserPermissionRulesHandler', GetUserPermissionRulesHandler],
   ])('%s is gated by CaslBehavior with at least one rule', (_name, handler) => {
     expect(declaresCasl(handler)).toBe(true);
     expect(caslRules(handler).length).toBeGreaterThan(0);

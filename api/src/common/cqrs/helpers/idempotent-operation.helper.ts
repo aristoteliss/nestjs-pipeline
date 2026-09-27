@@ -1,8 +1,8 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { createHash } from 'node:crypto';
-import { getSessionUser } from '@common/context/session-user.store';
-import type { PrincipalType } from '@common/types/SessionUser';
+import { getSessionPrincipal } from '@common/context/session-principal.store';
+import type { PrincipalType } from '@common/types/SessionPrincipal';
 import { requireTenantId } from '@cqrs-ddd/core/application';
 import { stableStringify } from '@cqrs-ddd/safe-stringify';
 import { getCaslAbility, getCaslPrincipal } from '@nestjs-pipeline/casl';
@@ -58,9 +58,9 @@ export interface TrustedPrincipal {
  * and only the classification separates them.
  */
 function trustedPrincipalSegments(): [PrincipalType, string] | undefined {
-  const sessionUser = getSessionUser();
-  const id = sessionUser?.id?.trim();
-  const principalType = sessionUser?.principalType;
+  const sessionPrincipal = getSessionPrincipal();
+  const id = sessionPrincipal?.id?.trim();
+  const principalType = sessionPrincipal?.type;
 
   return id && (principalType === 'user' || principalType === 'service')
     ? [principalType, id]
