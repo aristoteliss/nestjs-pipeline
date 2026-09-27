@@ -1,6 +1,7 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { EntitySchema } from '@mikro-orm/core';
+import { isSqlIdentifier } from '../sql-identifier';
 
 /**
  * One row of the {@link MikroOrmCache} table.
@@ -16,11 +17,8 @@ export class CacheEntry {
   revision!: string;
 }
 
-/** Allows `table` or `schema.table` made of unquoted SQL identifiers only. */
-const SAFE_IDENTIFIER = /^[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)?$/;
-
 function assertSafeTable(table: string): string {
-  if (!SAFE_IDENTIFIER.test(table)) {
+  if (!isSqlIdentifier(table, { qualified: true })) {
     throw new Error(
       `Invalid cache table name "${table}". ` +
         'Use an unquoted identifier like "cache" or "schema.cache".',

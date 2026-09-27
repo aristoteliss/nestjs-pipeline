@@ -3,8 +3,8 @@
 import { ICache } from '@cqrs-ddd/core/application';
 import {
   CACHE_TOKEN,
-  FromCache,
   cacheKey,
+  FromCache,
   QueryRepository,
 } from '@cqrs-ddd/core/persistence';
 import { Inject, Injectable } from '@nestjs/common';

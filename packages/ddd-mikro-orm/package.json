@@ -1,0 +1,58 @@
+{
+  "name": "@cqrs-ddd/mikro-orm",
+  "version": "0.2.0",
+  "description": "MikroORM persistence adapters for @cqrs-ddd/core: authoritative aggregate loading, version-conditioned writes, a revision-fenced cache and root-entity schema mapping.",
+  "author": "Aristotelis",
+  "license": "SEE LICENSE IN LICENSE",
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/aristoteliss/nestjs-pipeline.git",
+    "directory": "packages/ddd-mikro-orm"
+  },
+  "homepage": "https://github.com/aristoteliss/nestjs-pipeline/tree/master/packages/ddd-mikro-orm#readme",
+  "bugs": {
+    "url": "https://github.com/aristoteliss/nestjs-pipeline/issues"
+  },
+  "keywords": [
+    "ddd",
+    "cqrs",
+    "mikro-orm",
+    "repository",
+    "optimistic-concurrency",
+    "cache"
+  ],
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE",
+    "COMMERCIAL_LICENSE.txt"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "clean": "rm -rf dist tsconfig.tsbuildinfo",
+    "rebuild": "pnpm run clean && pnpm run build",
+    "lint": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "prepublishOnly": "pnpm run rebuild"
+  },
+  "peerDependencies": {
+    "@cqrs-ddd/core": "workspace:^",
+    "@mikro-orm/core": "^7.1.13"
+  },
+  "devDependencies": {
+    "@cqrs-ddd/core": "workspace:^",
+    "@mikro-orm/core": "^7.1.13",
+    "@vitest/coverage-v8": "^4.1.11",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.11"
+  }
+}

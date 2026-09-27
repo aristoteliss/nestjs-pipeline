@@ -8,11 +8,11 @@ import { Inject } from '@nestjs/common';
 import { EventsHandler, type IEventHandler } from '@nestjs/cqrs';
 import { UsePipeline } from '@nestjs-pipeline/core';
 import { deadLetter } from '@nestjs-pipeline/deadletter';
+import { UserCreatedEvent } from '../../../domain/events/user-created.event';
 import {
   type IWelcomeEmailDispatcher,
   WELCOME_EMAIL_DISPATCHER,
 } from '../../ports/user-event-dispatcher.port';
-import { UserCreatedEvent } from '../../../domain/events/user-created.event';
 
 @EventsHandler(UserCreatedEvent)
 @UsePipeline(deadLetter({ rethrow: false }))

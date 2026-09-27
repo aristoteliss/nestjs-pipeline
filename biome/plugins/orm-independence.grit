@@ -1,0 +1,30 @@
+engine biome(1.0)
+language js(typescript)
+
+// `packages/ddd-core` is ORM- and driver-neutral: none of its code, specs
+// included, may import an ORM or a database driver. MikroORM adapters live in
+// `packages/ddd-mikro-orm`; another ORM gets its own adapter package the same way.
+// Every static form is matched through its module source, plus dynamic
+// `import()` and `require()`. Strings and comments are not imports.
+//
+// Scoped in biome.json. `message=` accepts only string literals, so the
+// diagnostic text is repeated per form.
+
+pattern orm_module() {
+  r"^['\"](?:@mikro-orm/.*|mikro-orm|typeorm|@prisma/.*|prisma|drizzle-orm(?:/.*)?|sequelize|mongoose|knex|kysely|objection|pg|pg-pool|postgres|mysql2?|sqlite3|better-sqlite3|@libsql/.*|mongodb|ioredis|redis)['\"]$"
+}
+
+or {
+  JsModuleSource() as $source where {
+    $source <: orm_module(),
+    register_diagnostic(span=$source, message="@cqrs-ddd/core is ORM-neutral: do not import an ORM or a database driver. Put the adapter in its own package, such as @cqrs-ddd/mikro-orm, behind a port defined here.", severity="error")
+  },
+  JsImportCallExpression(arguments=$arguments) as $call where {
+    $arguments <: contains orm_module(),
+    register_diagnostic(span=$call, message="@cqrs-ddd/core is ORM-neutral: do not import an ORM or a database driver. Put the adapter in its own package, such as @cqrs-ddd/mikro-orm, behind a port defined here.", severity="error")
+  },
+  `require($module)` as $call where {
+    $module <: orm_module(),
+    register_diagnostic(span=$call, message="@cqrs-ddd/core is ORM-neutral: do not import an ORM or a database driver. Put the adapter in its own package, such as @cqrs-ddd/mikro-orm, behind a port defined here.", severity="error")
+  }
+}

@@ -7,6 +7,6 @@ export const sessionUserStore = new AsyncLocalStorage<
   SessionUser | undefined
 >();
 
-export function getSessionUserFromStore(): SessionUser | undefined {
+export function getSessionUser(): SessionUser | undefined {
   return sessionUserStore.getStore();
 }

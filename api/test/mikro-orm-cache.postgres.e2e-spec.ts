@@ -5,7 +5,7 @@ import {
   createCacheTableSql,
   type ITransactionalEntityManagerSource,
   MikroOrmCache,
-} from '@cqrs-ddd/core/persistence';
+} from '@cqrs-ddd/mikro-orm';
 import { type EntityManager, MikroORM } from '@mikro-orm/postgresql';
 import {
   GenericContainer,

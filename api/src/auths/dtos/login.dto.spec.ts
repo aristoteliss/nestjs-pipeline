@@ -1,7 +1,7 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { describe, expect, it } from 'vitest';
-import { CreateAuthCommand } from '../cqrs/commands/create-auth.command';
+import { CreateAuthCommand } from '../application/cqrs/commands/create-auth.command';
 import { LoginDtoSchema } from './login.dto';
 
 describe('LoginDtoSchema', () => {

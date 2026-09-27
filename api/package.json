@@ -28,6 +28,7 @@
   "dependencies": {
     "@casl/ability": "^7.0.0",
     "@cqrs-ddd/core": "workspace:*",
+    "@cqrs-ddd/mikro-orm": "workspace:*",
     "@cqrs-ddd/safe-stringify": "workspace:*",
     "@fastify/secure-session": "^8.3.0",
     "@keyv/redis": "^5.0.0",

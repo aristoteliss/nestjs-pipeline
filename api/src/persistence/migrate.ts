@@ -1,10 +1,11 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { loadOptionalEnvFile } from '@common/environment/load-optional-env-file';
+import { persistenceConfig } from './persistence.config';
 import { forEachTenantOrm } from './tenant-orms';
 
 export async function migrate(): Promise<number> {
-  const postgres = (process.env.DB_ENGINE ?? '').toLowerCase() === 'postgres';
+  const postgres = persistenceConfig().engine === 'postgres';
   let total = 0;
 
   await forEachTenantOrm(async (orm, tenant) => {

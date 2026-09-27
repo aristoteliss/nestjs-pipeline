@@ -1,7 +1,7 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
+import type { ITenantContext } from '@common/context/tenant-context.port';
 import type { Session } from '@fastify/secure-session';
-import { TenantSchemaContext } from '@persistence/tenant-schema.context';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { SessionData } from '../../common/types/SessionUser';
 import { ApiClientAuthenticator } from './api-client-authenticator';
@@ -14,7 +14,7 @@ afterEach(() => {
 });
 
 describe('RequestPrincipalResolver', () => {
-  const tenantContext = new TenantSchemaContext();
+  const tenantContext: ITenantContext = { schema: 'tenant' };
   it('uses session cookie fast-path without invoking authenticators', async () => {
     const existingUser = {
       id: 'cookie-user-1',

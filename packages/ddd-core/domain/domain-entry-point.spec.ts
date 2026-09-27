@@ -1,12 +1,11 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 /**
- * The domain entry point must stay free of the ORM.
+ * Every entry point must stay free of NestJS and of any ORM.
  *
- * `@mikro-orm/core` is an optional peer that only `@cqrs-ddd/core/persistence`
- * requires. One stray import in any file the entry point reaches would load
- * MikroORM behind `DomainException`, so the built output is checked rather than
- * trusted.
+ * The package is framework- and ORM-neutral. One stray import in any file an
+ * entry point reaches would load NestJS or MikroORM behind it, so the built
+ * output is checked rather than trusted.
  */
 
 import { execSync } from 'node:child_process';
@@ -56,13 +55,6 @@ function loadedModules(entryPoint: string): string[] {
 }
 
 describe('ddd-core entry points', () => {
-  it('does not load MikroORM through the domain entry point', () => {
-    const loaded = loadedModules('dist/domain/index.js');
-
-    expect(loaded.length).toBeGreaterThan(0);
-    expect(loaded.filter((m) => m.includes('@mikro-orm'))).toEqual([]);
-  });
-
   it.each([
     'dist/index.js',
     'dist/domain/index.js',
@@ -79,15 +71,16 @@ describe('ddd-core entry points', () => {
     expect(loaded.filter((m) => m.includes('@nestjs'))).toEqual([]);
   });
 
-  it('does not load MikroORM through the application entry point', () => {
-    // Repository ports live here, so a CQRS handler needs nothing else.
-    const loaded = loadedModules('dist/application/index.js');
-
-    expect(loaded.filter((m) => m.includes('@mikro-orm'))).toEqual([]);
-  });
-
-  it('does not load MikroORM through the http entry point', () => {
-    const loaded = loadedModules('dist/http/index.js');
+  it.each([
+    'dist/index.js',
+    'dist/domain/index.js',
+    'dist/application/index.js',
+    'dist/persistence/index.js',
+    'dist/http/index.js',
+  ])('does not load MikroORM through %s', (entryPoint) => {
+    // orm-independence.grit rejects the imports; this checks what the built
+    // output actually loads.
+    const loaded = loadedModules(entryPoint);
 
     expect(loaded.length).toBeGreaterThan(0);
     expect(loaded.filter((m) => m.includes('@mikro-orm'))).toEqual([]);

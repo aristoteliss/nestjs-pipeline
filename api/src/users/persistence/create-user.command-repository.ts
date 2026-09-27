@@ -2,12 +2,12 @@
 
 import { ICache } from '@cqrs-ddd/core/application';
 import {
-  assertAutocommit,
   CACHE_TOKEN,
   CommandRepository,
   cacheKey,
   PersistedWrite,
 } from '@cqrs-ddd/core/persistence';
+import { assertAutocommit } from '@cqrs-ddd/mikro-orm';
 import { Inject, Injectable } from '@nestjs/common';
 import { cacheWriteLogger } from '@persistence/cache/cache-loggers';
 import { MIKRO_ORM_CLIENT, MikroOrmStore } from '@persistence/mikro-orm.store';

@@ -9,7 +9,7 @@ import {
   OnModuleDestroy,
   OnModuleInit,
 } from '@nestjs/common';
-import { createPostgresOrmOptions } from './postgres-options';
+import { createPostgresOrmOptions } from './orm-options';
 import { TenantEntityManagerResolver } from './tenant-entity-manager.resolver';
 import { TenantSchemaContext } from './tenant-schema.context';
 

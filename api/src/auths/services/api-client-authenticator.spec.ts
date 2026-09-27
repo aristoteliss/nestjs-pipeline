@@ -1,10 +1,10 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import { TenantSchemaContext } from '@persistence/tenant-schema.context';
+import type { ITenantContext } from '@common/context/tenant-context.port';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { AUTH_HEADERS } from '../../common/constants/auth-headers.constants';
 
-const tenantContext = new TenantSchemaContext();
+const tenantContext: ITenantContext = { schema: 'tenant' };
 
 async function load(clients?: unknown[]) {
   vi.stubEnv(

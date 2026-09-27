@@ -8,8 +8,8 @@ import { UserRole } from '@persistence/entities/user-role.entity';
 import { MIKRO_ORM_CLIENT, MikroOrmStore } from '@persistence/mikro-orm.store';
 import { Capability } from '../../roles/domain/models/capability.entity';
 import { Role } from '../../roles/domain/models/role.entity';
-import type { UserPermissionAssignments } from '../application/permission-assignments';
 import { GetUserCapabilitiesQuery } from '../application/cqrs/queries/get-user-capabilities.query';
+import type { UserPermissionAssignments } from '../application/permission-assignments';
 
 /**
  * Query repository resolving a user's role names and per-user grants and denials.

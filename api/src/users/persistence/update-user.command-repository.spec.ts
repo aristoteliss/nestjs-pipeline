@@ -6,8 +6,8 @@ import {
   EntityNotFoundException,
 } from '@cqrs-ddd/core/domain';
 import {
-  DEFAULT_BARRIER_TTL_MS,
   cacheKey,
+  DEFAULT_BARRIER_TTL_MS,
   toCacheSnapshot,
 } from '@cqrs-ddd/core/persistence';
 import { runWithTenant } from '@nestjs-pipeline/tenant';

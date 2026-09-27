@@ -352,7 +352,25 @@ export async function rebuildPermissions(
     '../../src/auths/persistence/user-permissions.projector'
   );
   const projector = app.get(UserPermissionsProjector);
-  await app
-    .get(MIKRO_ORM_CLIENT)
-    .transactional((em: never) => projector.rebuild(em, userIds));
+  await inTenant(app, () =>
+    app
+      .get(MIKRO_ORM_CLIENT)
+      .transactional((em: never) => projector.rebuild(em, userIds)),
+  );
+}
+
+/**
+ * Runs `work` as `tenant`. Direct store, cache or projector calls in a test have
+ * no request to carry a tenant, and the tenant context fails closed outside a
+ * scope, so a test states its tenant here.
+ */
+export async function inTenant<T>(
+  app: INestApplication,
+  work: () => T | Promise<T>,
+  tenant = 'tenant',
+): Promise<T> {
+  const { TenantSchemaContext } = await import(
+    '@persistence/tenant-schema.context'
+  );
+  return app.get(TenantSchemaContext).run(tenant, work);
 }

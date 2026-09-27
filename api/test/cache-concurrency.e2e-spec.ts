@@ -5,7 +5,7 @@ import {
   CacheEntrySchema,
   type ITransactionalEntityManagerSource,
   MikroOrmCache,
-} from '@cqrs-ddd/core/persistence';
+} from '@cqrs-ddd/mikro-orm';
 import { EntityManager, MikroORM } from '@mikro-orm/postgresql';
 import { GenericContainer, Wait } from 'testcontainers';
 import { expect, it } from 'vitest';

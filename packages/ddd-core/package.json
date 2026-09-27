@@ -1,7 +1,7 @@
 {
   "name": "@cqrs-ddd/core",
   "version": "0.2.0",
-  "description": "Framework-neutral DDD building blocks for TypeScript: aggregates and domain events, CQRS base classes and repository ports, revision-fenced caching and MikroORM persistence adapters, as separate entry points.",
+  "description": "Framework- and ORM-neutral DDD building blocks for TypeScript: aggregates and domain events, CQRS base classes and repository ports, and a revision-fenced repository cache, as separate entry points.",
   "author": "Aristotelis",
   "license": "SEE LICENSE IN LICENSE",
   "engines": {
@@ -23,7 +23,6 @@
     "aggregate",
     "domain-events",
     "repository",
-    "mikro-orm",
     "cache"
   ],
   "main": "dist/index.js",
@@ -72,17 +71,8 @@
     "@cqrs-ddd/safe-stringify": "workspace:^",
     "@cqrs-ddd/uuidv7": "workspace:^"
   },
-  "peerDependencies": {
-    "@mikro-orm/core": "^7.1.13"
-  },
-  "peerDependenciesMeta": {
-    "@mikro-orm/core": {
-      "optional": true
-    }
-  },
   "devDependencies": {
     "@biomejs/biome": "^2.5.10",
-    "@mikro-orm/core": "^7.1.13",
     "@vitest/coverage-v8": "^4.1.11",
     "tsx": "^4.23.12",
     "typescript": "^6.0.3",

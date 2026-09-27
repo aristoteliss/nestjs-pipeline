@@ -6,10 +6,7 @@ import {
   EntityNotFoundException,
   TransientOperationError,
 } from '@cqrs-ddd/core/domain';
-import {
-  DEFAULT_BARRIER_TTL_MS,
-  cacheKey,
-} from '@cqrs-ddd/core/persistence';
+import { cacheKey, DEFAULT_BARRIER_TTL_MS } from '@cqrs-ddd/core/persistence';
 import { runWithTenant } from '@nestjs-pipeline/tenant';
 import { describe, expect, it, vi } from 'vitest';
 import { User, type UserSnapshot } from '../domain/models/user.entity';

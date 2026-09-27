@@ -16,7 +16,7 @@ import { AggregateRoot } from './aggregate-root';
  * - **UUID v7 Identity**: Automatically generates time-ordered UUID v7 identifiers for new instances.
  * - **Lifecycle Timestamps**: Enforces invariant-checked `createdAt` and `updatedAt` tracking.
  * - **Accessor-Driven Persistence**: `id`, `createdAt` and `updatedAt` have public getters and
- *   private setters. MikroORM hydrates through the setters (`accessor: true`); application code
+ *   private setters. An ORM hydrates through the setters (MikroORM: `accessor: true`); application code
  *   cannot assign them and changes state through factories and domain methods.
  * - **Optimistic Concurrency Control**: Tracks integer aggregate versioning (`_version`, {@link getExpectedVersion}),
  *   incremented automatically on mutations to prevent concurrent lost updates.
@@ -198,7 +198,7 @@ export abstract class RootEntity<
   }
 
   /**
-   * For MikroORM hydration only (`accessor: true`). Private, so application code
+   * For ORM hydration only (MikroORM: `accessor: true`). Private, so application code
    * cannot assign it and changes state through domain methods and factories.
    */
   private set id(value: string) {
@@ -210,7 +210,7 @@ export abstract class RootEntity<
   }
 
   /**
-   * For MikroORM hydration only (`accessor: true`). Private, so application code
+   * For ORM hydration only (MikroORM: `accessor: true`). Private, so application code
    * cannot assign it and changes state through domain methods and factories.
    */
   private set createdAt(value: Date | string) {
@@ -222,11 +222,40 @@ export abstract class RootEntity<
   }
 
   /**
-   * For MikroORM hydration only (`accessor: true`). Private, so application code
+   * For ORM hydration only (MikroORM: `accessor: true`). Private, so application code
    * cannot assign it and changes state through domain methods and factories.
    */
   private set updatedAt(value: Date | string) {
     this._updatedAt = RootEntity.normalizeDate(value);
+  }
+
+  /**
+   * The current in-memory version: 1 for a new entity, advanced by each
+   * `@ApplyMutation()` method. Persistence writes store it; the version a write
+   * expects to find in storage is {@link getExpectedVersion}.
+   *
+   * @example
+   * ```typescript
+   * const user = User.create('ada', 'ada@example.com'); // user.version === 1
+   * user.rename('ada.l');                                // user.version === 2
+   * user.getExpectedVersion();                           // still 1 until persisted
+   * ```
+   */
+  get version(): number {
+    return this._version;
+  }
+
+  /**
+   * For ORM hydration only (MikroORM: `accessor: true`). Private, so application code
+   * cannot assign it and changes state through domain methods and factories.
+   * A loaded version is also the persisted baseline; a value that is not a
+   * positive integer is ignored.
+   */
+  private set version(value: number) {
+    if (typeof value === 'number' && Number.isInteger(value) && value > 0) {
+      this._version = value;
+      this._persistedVersion = value;
+    }
   }
 
   /**

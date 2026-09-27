@@ -1,11 +1,11 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
+import type { RootEntitySnapshot } from '@cqrs-ddd/core/domain';
+import { RootEntity } from '@cqrs-ddd/core/domain';
+import type { ICache } from '@cqrs-ddd/core/persistence';
+import { MemoryCache } from '@cqrs-ddd/core/persistence';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { RootEntitySnapshot } from '../../domain/interfaces/root-entity-snapshot.interface';
-import { RootEntity } from '../../domain/models/root.entity';
-import type { ICache } from '../cache.interface';
 import { CacheEntry } from './cache-entry';
-import { MemoryCache } from './memory.cache';
 import { MikroOrmCache } from './mikro-orm.cache';
 
 interface MemberSnapshot extends Partial<RootEntitySnapshot> {

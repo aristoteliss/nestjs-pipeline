@@ -95,7 +95,11 @@
     },
     {
       "path": "./biome/plugins/verify-package-licenses.grit",
-      "includes": ["**/packages/**/*.ts", "!**/packages/ddd-core/**"]
+      "includes": [
+        "**/packages/**/*.ts",
+        "!**/packages/ddd-core/**",
+        "!**/packages/ddd-mikro-orm/**"
+      ]
     },
     {
       "path": "./biome/plugins/package-licenses.grit",
@@ -150,9 +154,14 @@
       "path": "./biome/plugins/framework-independence.grit",
       "includes": [
         "**/packages/ddd-core/**/*.ts",
+        "**/packages/ddd-mikro-orm/**/*.ts",
         "**/packages/uuidv7/**/*.ts",
         "**/packages/safe-stringify/**/*.ts"
       ]
+    },
+    {
+      "path": "./biome/plugins/orm-independence.grit",
+      "includes": ["**/packages/ddd-core/**/*.ts"]
     },
     {
       "path": "./biome/plugins/ddd-layering.grit",

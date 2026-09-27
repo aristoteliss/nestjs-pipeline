@@ -4,7 +4,7 @@ import { httpExchangeStore } from '@common/context/http-exchange.store';
 import type { Session } from '@fastify/secure-session';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { SessionData, SessionUser } from '../../common/types/SessionUser';
-import type { AuthResult } from '../cqrs/results/auth.result';
+import type { AuthResult } from '../application/results/auth.result';
 import { Auth } from '../domain/models/auth.entity';
 import { SessionService } from './session.service';
 

@@ -6,14 +6,10 @@ import { migrate } from './migrate';
 import { revert } from './revert';
 
 vi.mock('@mikro-orm/core', () => ({ MikroORM: { init: vi.fn() } }));
-vi.mock('./postgres-options', () => ({
-  normalizeSchemaName: (name?: string) => name?.trim() || 'public',
+vi.mock('./orm-options', () => ({
   createPostgresOrmOptions: (schema: string) => ({ schema }),
-}));
-vi.mock('./libsql-options', () => ({
-  resolveLibsqlTenants: () => ['alpha', 'beta'],
-  resolveLibsqlDbUrl: (tenant: string) => `file:${tenant}.db`,
   createLibsqlOrmOptions: (dbName: string) => ({ dbName }),
+  libsqlDbUrl: (tenant: string) => `file:${tenant}.db`,
 }));
 
 function orm() {
@@ -33,6 +29,8 @@ describe('migration commands', () => {
   beforeEach(() => {
     vi.stubEnv('DB_ENGINE', 'postgres');
     vi.stubEnv('TENANT_SCHEMAS', 'alpha,beta,alpha');
+    vi.stubEnv('DB_DEFAULT_SCHEMA', 'alpha');
+    vi.stubEnv('SQLITE_TENANTS', 'beta');
     vi.stubEnv('SEED_TENANT', 'original');
     vi.mocked(MikroORM.init).mockReset();
   });

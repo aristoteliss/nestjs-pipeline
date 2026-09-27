@@ -1,6 +1,6 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import { getSessionUserFromStore } from '@common/context/session-user.store';
+import { getSessionUser } from '@common/context/session-user.store';
 import { Inject, Injectable, Scope } from '@nestjs/common';
 import type {
   CaslAuthorizationInput,
@@ -33,7 +33,7 @@ export class CaslPermissionSource implements ICaslPermissionSource {
   ) {}
 
   async load(): Promise<CaslAuthorizationInput | null> {
-    const session = getSessionUserFromStore();
+    const session = getSessionUser();
     const id = session?.id?.trim();
     if (!session || !id) return null;
 

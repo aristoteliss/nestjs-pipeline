@@ -1,18 +1,19 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { TENANT_CONTEXT } from '@common/context/tenant-context.port';
-import { CACHE_TOKEN, MikroOrmCache } from '@cqrs-ddd/core/persistence';
+import { CACHE_TOKEN } from '@cqrs-ddd/core/persistence';
+import { MikroOrmCache } from '@cqrs-ddd/mikro-orm';
 import { Global, Module } from '@nestjs/common';
 import { mikroOrmCacheLogger } from './cache/cache-loggers';
 import { TenantSchemaMiddleware } from './middlewares/tenant-schema.middleware';
 import { MIKRO_ORM_CLIENT, MikroOrmStore } from './mikro-orm.store';
+import { persistenceConfig } from './persistence.config';
 import { PostgresMikroOrmStore } from './postgres-mikro-orm.store';
 import { TenantSchemaContext } from './tenant-schema.context';
 
-const isPostgres = process.env.DB_ENGINE === 'postgres';
-const SelectedMikroOrmStore = isPostgres
-  ? PostgresMikroOrmStore
-  : MikroOrmStore;
+const config = persistenceConfig();
+const SelectedMikroOrmStore =
+  config.engine === 'postgres' ? PostgresMikroOrmStore : MikroOrmStore;
 
 @Global()
 @Module({
@@ -26,7 +27,10 @@ const SelectedMikroOrmStore = isPostgres
     {
       provide: TenantSchemaMiddleware,
       useFactory: (tenantSchemaContext: TenantSchemaContext) =>
-        new TenantSchemaMiddleware(tenantSchemaContext),
+        new TenantSchemaMiddleware(
+          tenantSchemaContext,
+          new Set(config.tenants),
+        ),
       inject: [TenantSchemaContext],
     },
     {

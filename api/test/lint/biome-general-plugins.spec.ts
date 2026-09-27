@@ -341,6 +341,7 @@ describe('Biome Grit framework-independence plugin', () => {
 
   it.each([
     'packages/ddd-core/application/coupled.spec.ts',
+    'packages/ddd-mikro-orm/src/coupled.ts',
     'packages/uuidv7/src/index.ts',
     'packages/safe-stringify/src/index.ts',
   ])('covers %s', (path) => {
@@ -360,7 +361,7 @@ describe('Biome Grit framework-independence plugin', () => {
       export const load = () => import('./local');
     `;
     expect(
-      lintFixture('packages/ddd-core/persistence/neutral.ts', source),
+      lintFixture('packages/ddd-mikro-orm/src/neutral.ts', source),
     ).toMatchObject({ status: 0 });
   });
 
@@ -369,6 +370,59 @@ describe('Biome Grit framework-independence plugin', () => {
     expect(lintFixture('api/src/users/users.module.ts', source).status).toBe(0);
     expect(
       lintFixture('packages/my-lib/src/my.behavior.ts', source).status,
+    ).toBe(0);
+  });
+});
+
+describe('Biome Grit orm-independence plugin', () => {
+  it.each([
+    `import { EntityManager } from '@mikro-orm/core';`,
+    `import type { Type } from '@mikro-orm/core';`,
+    `export { EntitySchema } from '@mikro-orm/core';`,
+    `import { DataSource } from 'typeorm';`,
+    `import { PrismaClient } from '@prisma/client';`,
+    `import { eq } from 'drizzle-orm';`,
+    `import { Pool } from 'pg';`,
+    `import { createClient } from '@libsql/client';`,
+    `export const load = () => import('@mikro-orm/core');`,
+    `const { MikroORM } = require('@mikro-orm/core');`,
+  ])('rejects %s in ddd-core', (source) => {
+    const result = lintFixture(
+      'packages/ddd-core/persistence/coupled.ts',
+      source,
+    );
+    expect(result.status).toBe(1);
+    expect(result.diagnostics).toContain('@cqrs-ddd/core is ORM-neutral');
+  });
+
+  it('covers ddd-core specs', () => {
+    expect(
+      lintFixture(
+        'packages/ddd-core/persistence/coupled.spec.ts',
+        `import { EntityManager } from '@mikro-orm/core';`,
+      ).status,
+    ).toBe(1);
+  });
+
+  it('accepts ORM names in strings and comments, and look-alike module names', () => {
+    const source = `
+      import { helper } from './mikro-orm/helper';
+      // Adapters for '@mikro-orm/core' live in @cqrs-ddd/mikro-orm.
+      export const moduleName = '@mikro-orm/core';
+      export const note = 'pg';
+    `;
+    expect(
+      lintFixture('packages/ddd-core/persistence/neutral.ts', source),
+    ).toMatchObject({ status: 0 });
+  });
+
+  it('leaves MikroORM imports to the adapter package and the application', () => {
+    const source = `import { EntityManager } from '@mikro-orm/core';`;
+    expect(
+      lintFixture('packages/ddd-mikro-orm/src/adapter.ts', source).status,
+    ).toBe(0);
+    expect(
+      lintFixture('api/src/persistence/mikro-orm.store.ts', source).status,
     ).toBe(0);
   });
 });

@@ -5,11 +5,6 @@ import { Module } from '@nestjs/common';
 import { LoggerModule } from 'nestjs-pino';
 import { GetRolesQueryRepository } from '../roles/persistence/get-roles.query-repository';
 import { QUERY_REPOSITORY as ROLES_QUERY_REPOSITORY } from '../roles/persistence/repository.tokens';
-import {
-  USER_BATCH_DISPATCHER,
-  WELCOME_EMAIL_DISPATCHER,
-} from './application/ports/user-event-dispatcher.port';
-import { UsersController } from './controllers/users.controller';
 import { CreateUserHandler } from './application/cqrs/commands/create-user.handler';
 import { DeleteUserHandler } from './application/cqrs/commands/delete-user.handler';
 import { UpdateUserHandler } from './application/cqrs/commands/update-user.handler';
@@ -18,6 +13,11 @@ import { UserUpdatedHandler } from './application/cqrs/events/user-updated.handl
 import { GetUserHandler } from './application/cqrs/queries/get-user.handler';
 import { GetUserOverviewHandler } from './application/cqrs/queries/get-user-overview.handler';
 import { GetUsersHandler } from './application/cqrs/queries/get-users.handler';
+import {
+  USER_BATCH_DISPATCHER,
+  WELCOME_EMAIL_DISPATCHER,
+} from './application/ports/user-event-dispatcher.port';
+import { UsersController } from './controllers/users.controller';
 import {
   BATCH_UPDATE_USERS_QUEUE,
   BatchUpdateUsersProcessor,

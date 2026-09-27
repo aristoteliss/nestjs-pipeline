@@ -1,9 +1,9 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
-
 /** biome-ignore-all lint/suspicious/noTemplateCurlyInString: placeholders are data */
+
+import type { ITenantContext } from '@common/context/tenant-context.port';
 import { Logger, UnauthorizedException } from '@nestjs/common';
 import type { Capability } from '@nestjs-pipeline/casl';
-import { TenantSchemaContext } from '@persistence/tenant-schema.context';
 import { decodeJwt, SignJWT } from 'jose';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { User } from '../../users/domain/models/user.entity';
@@ -32,7 +32,7 @@ async function load(env: Record<string, string>) {
 }
 
 describe('permissions carried in the access token', () => {
-  const tenant = new TenantSchemaContext();
+  const tenant: ITenantContext = { schema: 'tenant' };
   const user = User.create('Alice', 'alice@example.test', 'engineering');
 
   beforeEach(() => {

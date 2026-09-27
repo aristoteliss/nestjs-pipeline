@@ -1,7 +1,7 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { httpExchangeStore } from '@common/context/http-exchange.store';
-import { getSessionUserFromStore } from '@common/context/session-user.store';
+import { getSessionUser } from '@common/context/session-user.store';
 import type { CallHandler, ExecutionContext } from '@nestjs/common';
 import { TenantSchemaContext } from '@persistence/tenant-schema.context';
 import { firstValueFrom, from, of, throwError } from 'rxjs';
@@ -26,7 +26,7 @@ function makeCallHandler<T>(onHandle?: () => void, result?: T): CallHandler<T> {
 
 afterEach(() => {
   vi.restoreAllMocks();
-  expect(getSessionUserFromStore()).toBeUndefined();
+  expect(getSessionUser()).toBeUndefined();
 });
 
 describe('SessionUserContextInterceptor', () => {
@@ -41,7 +41,7 @@ describe('SessionUserContextInterceptor', () => {
 
     let observedUser: unknown;
     const next = makeCallHandler(() => {
-      observedUser = getSessionUserFromStore();
+      observedUser = getSessionUser();
     }, 'success');
 
     const interceptor = new SessionUserContextInterceptor();
@@ -49,7 +49,7 @@ describe('SessionUserContextInterceptor', () => {
 
     expect(result).toBe('success');
     expect(observedUser).toEqual(user);
-    expect(getSessionUserFromStore()).toBeUndefined();
+    expect(getSessionUser()).toBeUndefined();
   });
 
   it('scopes the request session and response in httpExchangeStore during next.handle()', async () => {
@@ -104,7 +104,7 @@ describe('SessionUserContextInterceptor', () => {
             setTimeout(() => {
               observations.push({
                 tenant: 'tenant_a',
-                userId: getSessionUserFromStore()?.id ?? 'none',
+                userId: getSessionUser()?.id ?? 'none',
                 schema: tenantSchemaContext.schema,
               });
               resolve('result-a');
@@ -120,7 +120,7 @@ describe('SessionUserContextInterceptor', () => {
             setTimeout(() => {
               observations.push({
                 tenant: 'tenant_b',
-                userId: getSessionUserFromStore()?.id ?? 'none',
+                userId: getSessionUser()?.id ?? 'none',
                 schema: tenantSchemaContext.schema,
               });
               resolve('result-b');
@@ -152,7 +152,7 @@ describe('SessionUserContextInterceptor', () => {
       { tenant: 'tenant_b', userId: 'viewer-b', schema: 'tenant_b' },
       { tenant: 'tenant_a', userId: 'admin-a', schema: 'tenant_a' },
     ]);
-    expect(getSessionUserFromStore()).toBeUndefined();
+    expect(getSessionUser()).toBeUndefined();
   });
 
   it('restores context to undefined even when next.handle() throws', async () => {
@@ -170,6 +170,6 @@ describe('SessionUserContextInterceptor', () => {
       firstValueFrom(interceptor.intercept(context, next)),
     ).rejects.toThrow('Pipeline error');
 
-    expect(getSessionUserFromStore()).toBeUndefined();
+    expect(getSessionUser()).toBeUndefined();
   });
 });

@@ -5,7 +5,7 @@ import { UserRole } from '@persistence/entities/user-role.entity';
 import { describe, expect, it, vi } from 'vitest';
 import { Capability } from '../../roles/domain/models/capability.entity';
 import { Role } from '../../roles/domain/models/role.entity';
-import { GetUserCapabilitiesQuery } from '../cqrs/queries/get-user-capabilities.query';
+import { GetUserCapabilitiesQuery } from '../application/cqrs/queries/get-user-capabilities.query';
 import { GetUserCapabilitiesQueryRepository } from './get-user-capabilities.query-repository';
 
 describe('GetUserCapabilitiesQueryRepository', () => {

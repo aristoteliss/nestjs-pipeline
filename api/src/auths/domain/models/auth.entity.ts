@@ -201,17 +201,6 @@ export class Auth extends RootEntity<AuthSnapshot> {
     this._revokedAt = Auth.rules.revokedAt.parse(value);
   }
 
-  get version(): number {
-    return this._version;
-  }
-
-  private set version(value: number) {
-    if (typeof value === 'number' && Number.isInteger(value) && value > 0) {
-      this._version = value;
-      this._persistedVersion = value;
-    }
-  }
-
   toJSON(): RootEntitySnapshot & AuthSnapshot {
     return this.freezeState({
       id: this.id,

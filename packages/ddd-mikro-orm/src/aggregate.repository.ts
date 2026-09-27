@@ -1,28 +1,17 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import type { EntityManager, EntityName, FilterQuery } from '@mikro-orm/core';
-import type { RootEntitySnapshot } from '../domain/interfaces/root-entity-snapshot.interface';
-import type { RootEntity } from '../domain/models/root.entity';
-import type { ICache } from './cache.interface';
-import { CommandRepository } from './command-repository.abstract';
-import { mapPersistenceError } from './is-transient-persistence-error';
-import type { IWriteSideAggregateRepository } from './write-side-aggregate-repository.interface';
+import type { IWriteSideAggregateRepository } from '@cqrs-ddd/core/application';
+import type { RootEntity, RootEntitySnapshot } from '@cqrs-ddd/core/domain';
+import type { ICache } from '@cqrs-ddd/core/persistence';
+import {
+  CommandRepository,
+  mapPersistenceError,
+} from '@cqrs-ddd/core/persistence';
+import type { EntityName, FilterQuery } from '@mikro-orm/core';
+import type { IEntityManagerSource } from './entity-manager-source';
 
 /**
- * Supplies the MikroORM `EntityManager` for the current repository operation.
- *
- * {@link MikroOrmWriteSideCommandRepository} reads `em` on every operation and
- * never keeps it, so a source may return a different manager each time: the
- * current tenant's in a multi-tenant application, or the current request's.
- * A getter over the application's own store satisfies it, and so does a plain
- * `{ em }` object in a single-database setup or a test.
- */
-export interface IEntityManagerSource {
-  readonly em: EntityManager;
-}
-
-/**
- * Reusable write-side repository base class for command repositories that mutate an existing aggregate.
+ * Base class for the command repositories that load and save an existing aggregate.
  *
  * Provides authoritative aggregate hydration via {@link findById}:
  * - Bypasses read-side caches (`@FromCache`) to prevent stale reads on mutation paths.
@@ -42,7 +31,7 @@ export interface IEntityManagerSource {
  * ```typescript
  * // A NestJS provider; STORE is the application's IEntityManagerSource token.
  * @Injectable()
- * export class UpdateUserCommandRepository extends MikroOrmWriteSideCommandRepository<
+ * export class UpdateUserCommandRepository extends AggregateRepository<
  *   UserSnapshot,
  *   User,
  *   UserSnapshot
@@ -63,7 +52,7 @@ export interface IEntityManagerSource {
  * }
  * ```
  */
-export abstract class MikroOrmWriteSideCommandRepository<
+export abstract class AggregateRepository<
     TSnapshot extends Partial<RootEntitySnapshot>,
     TEntity extends RootEntity<TSnapshot>,
     TResult = unknown,

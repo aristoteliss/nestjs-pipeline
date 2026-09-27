@@ -2,9 +2,9 @@
 
 import type { ITenantContext } from '@common/context/tenant-context.port';
 import { describe, expect, it, vi } from 'vitest';
-import type { IWelcomeEmailDispatcher } from '../../application/ports/user-event-dispatcher.port';
-import { UserCreatedEvent } from '../../domain/events/user-created.event';
-import { User } from '../../domain/models/user.entity';
+import { UserCreatedEvent } from '../../../domain/events/user-created.event';
+import { User } from '../../../domain/models/user.entity';
+import type { IWelcomeEmailDispatcher } from '../../ports/user-event-dispatcher.port';
 import { UserCreatedHandler } from './user-created.handler';
 
 describe('UserCreatedHandler', () => {

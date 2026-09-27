@@ -16,12 +16,12 @@ import {
 import { CommandBus, QueryBus } from '@nestjs/cqrs';
 import { UnauthorizedActionException } from '@nestjs-pipeline/casl';
 import { ZodPipe } from '@nestjs-pipeline/zod';
-import type { RoleReadModel } from '../application/role-read-model';
 import { CreateRoleCommand } from '../application/cqrs/commands/create-role.command';
 import { DeleteRoleCommand } from '../application/cqrs/commands/delete-role.command';
 import { UpdateRoleCommand } from '../application/cqrs/commands/update-role.command';
 import { GetRoleQuery } from '../application/cqrs/queries/get-role.query';
 import { GetRolesQuery } from '../application/cqrs/queries/get-roles.query';
+import type { RoleReadModel } from '../application/role-read-model';
 import type { Role } from '../domain/models/role.entity';
 import {
   type CreateRoleDto,

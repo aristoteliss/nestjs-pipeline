@@ -1,6 +1,6 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import { CacheEntrySchema } from '@cqrs-ddd/core/persistence';
+import { CacheEntrySchema } from '@cqrs-ddd/mikro-orm';
 import { AuthSchema } from './schemas/auth.schema';
 import { CapabilitySchema } from './schemas/capability.schema';
 import { ConsumedRefreshTokenSchema } from './schemas/consumed-refresh-token.schema';

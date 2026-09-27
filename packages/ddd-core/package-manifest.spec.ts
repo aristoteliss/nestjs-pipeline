@@ -1,8 +1,8 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 /**
- * The manifest must not bring NestJS in, even without an import; Biome's GritQL
- * engine cannot match JSON, so the manifest is checked here.
+ * The manifest must not bring NestJS or an ORM in, even without an import;
+ * Biome's GritQL engine cannot match JSON, so the manifest is checked here.
  */
 
 import { readFileSync } from 'node:fs';
@@ -14,7 +14,6 @@ interface Manifest {
   dependencies?: Record<string, string>;
   devDependencies?: Record<string, string>;
   peerDependencies?: Record<string, string>;
-  peerDependenciesMeta?: Record<string, { optional?: boolean }>;
   optionalDependencies?: Record<string, string>;
 }
 
@@ -43,15 +42,19 @@ describe('ddd-core manifest', () => {
     });
   });
 
-  it('keeps MikroORM as its only peer, and an optional one', () => {
-    // Required only by /persistence and the root barrel, so a consumer of
-    // /domain or /application must not be asked to install it.
-    expect(Object.keys(manifest.peerDependencies ?? {})).toEqual([
-      '@mikro-orm/core',
-    ]);
-    expect(manifest.peerDependenciesMeta?.['@mikro-orm/core']?.optional).toBe(
-      true,
-    );
+  it.each([
+    'dependencies',
+    'devDependencies',
+    'peerDependencies',
+    'optionalDependencies',
+  ] as const)('names no MikroORM package in %s', (field) => {
+    const names = Object.keys(manifest[field] ?? {});
+
+    expect(names.filter((name) => name.startsWith('@mikro-orm/'))).toEqual([]);
+  });
+
+  it('has no peer dependencies', () => {
+    expect(manifest.peerDependencies ?? {}).toEqual({});
   });
 
   it('requires the Node version the repository requires', () => {

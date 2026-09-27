@@ -2,8 +2,8 @@
 
 import { BadRequestException } from '@nestjs/common';
 import { describe, expect, it } from 'vitest';
-import { CreateRoleCommand } from '../cqrs/commands/create-role.command';
-import { UpdateRoleCommand } from '../cqrs/commands/update-role.command';
+import { CreateRoleCommand } from '../application/cqrs/commands/create-role.command';
+import { UpdateRoleCommand } from '../application/cqrs/commands/update-role.command';
 import { CreateRoleMapper } from './create-role.mapper';
 import { UpdateRoleMapper } from './update-role.mapper';
 

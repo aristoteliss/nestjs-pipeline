@@ -1,6 +1,7 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { loadOptionalEnvFile } from '@common/environment/load-optional-env-file';
+import { persistenceConfig } from './persistence.config';
 import { forEachTenantOrm } from './tenant-orms';
 
 function parseSteps(argv: string[]): number {
@@ -34,7 +35,7 @@ function parseSteps(argv: string[]): number {
 }
 
 export async function revert(steps = 1): Promise<number> {
-  const postgres = (process.env.DB_ENGINE ?? '').toLowerCase() === 'postgres';
+  const postgres = persistenceConfig().engine === 'postgres';
   let total = 0;
 
   await forEachTenantOrm(async (orm, tenant) => {

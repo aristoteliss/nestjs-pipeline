@@ -1,7 +1,7 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { generateKeyPairSync } from 'node:crypto';
-import { TenantSchemaContext } from '@persistence/tenant-schema.context';
+import type { ITenantContext } from '@common/context/tenant-context.port';
 import { exportSPKI, SignJWT } from 'jose';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -19,7 +19,7 @@ const ENV_KEYS = [
   'JWT_AUDIENCE',
 ] as const;
 
-const tenantContext = new TenantSchemaContext();
+const tenantContext: ITenantContext = { schema: 'tenant' };
 
 async function load(env: Partial<Record<(typeof ENV_KEYS)[number], string>>) {
   for (const key of ENV_KEYS) vi.stubEnv(key, env[key]);

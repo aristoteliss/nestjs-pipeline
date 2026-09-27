@@ -3,9 +3,9 @@
 import type { ICache } from '@cqrs-ddd/core/application';
 import { ConcurrencyConflictError } from '@cqrs-ddd/core/domain';
 import { MikroORM } from '@mikro-orm/libsql';
-import { createLibsqlOrmOptions } from '@persistence/libsql-options';
 import { Migration20260830000000 } from '@persistence/migrations/Migration20260830000000';
 import type { MikroOrmStore } from '@persistence/mikro-orm.store';
+import { createLibsqlOrmOptions } from '@persistence/orm-options';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import {
   User,

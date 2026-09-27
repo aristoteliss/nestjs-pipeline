@@ -4,8 +4,8 @@ import type { SessionUser } from '@common/types/SessionUser';
 import type { IPipelineContext } from '@nestjs-pipeline/core';
 import { MissingIdempotencyPartitionError } from '@nestjs-pipeline/idempotency';
 import { describe, expect, it } from 'vitest';
-import { createRoleIdempotencyKey } from '../../../roles/cqrs/commands/create-role.handler';
-import { createUserIdempotencyKey } from '../../../users/cqrs/commands/create-user.handler';
+import { createRoleIdempotencyKey } from '../../../roles/application/cqrs/commands/create-role.handler';
+import { createUserIdempotencyKey } from '../../../users/application/cqrs/commands/create-user.handler';
 
 type KeyFactory = (ctx: IPipelineContext) => string | undefined;
 

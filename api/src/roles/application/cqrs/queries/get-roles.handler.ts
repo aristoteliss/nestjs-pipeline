@@ -6,12 +6,9 @@ import { Inject } from '@nestjs/common';
 import { type IQueryHandler, QueryHandler } from '@nestjs/cqrs';
 import { CaslAuthorizer, requires } from '@nestjs-pipeline/casl';
 import { UsePipeline } from '@nestjs-pipeline/core';
-import {
-  projectRoleRead,
-  type RoleReadModel,
-} from '../../role-read-model';
 import type { Role } from '../../../domain/models/role.entity';
 import { QUERY_REPOSITORY } from '../../../persistence/repository.tokens';
+import { projectRoleRead, type RoleReadModel } from '../../role-read-model';
 import { GetRolesQuery } from './get-roles.query';
 
 @QueryHandler(GetRolesQuery)

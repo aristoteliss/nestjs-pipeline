@@ -1,15 +1,12 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
+import type { RootEntitySnapshot } from '@cqrs-ddd/core/domain';
+import { RootEntity, TransientOperationError } from '@cqrs-ddd/core/domain';
+import type { ICache } from '@cqrs-ddd/core/persistence';
 import type { EntityManager } from '@mikro-orm/core';
 import { describe, expect, it, vi } from 'vitest';
-import { TransientOperationError } from '../domain/exceptions/transient-operation.error';
-import type { RootEntitySnapshot } from '../domain/interfaces/root-entity-snapshot.interface';
-import { RootEntity } from '../domain/models/root.entity';
-import type { ICache } from './cache.interface';
-import {
-  type IEntityManagerSource,
-  MikroOrmWriteSideCommandRepository,
-} from './mikro-orm-write-side.command-repository';
+import { AggregateRepository } from './aggregate.repository';
+import type { IEntityManagerSource } from './entity-manager-source';
 
 interface ItemSnapshot extends Partial<RootEntitySnapshot> {
   name: string;
@@ -21,10 +18,6 @@ class Item extends RootEntity<ItemSnapshot> {
   constructor(snapshot: Partial<ItemSnapshot>) {
     super(snapshot);
     this.name = snapshot.name ?? 'item';
-  }
-
-  get version(): number {
-    return this._version;
   }
 
   toJSON(): RootEntitySnapshot & ItemSnapshot {
@@ -42,7 +35,7 @@ class Item extends RootEntity<ItemSnapshot> {
   }
 }
 
-class TestWriteSideRepository extends MikroOrmWriteSideCommandRepository<
+class TestWriteSideRepository extends AggregateRepository<
   ItemSnapshot,
   Item,
   ItemSnapshot
@@ -77,7 +70,7 @@ function setup(findOne: ReturnType<typeof vi.fn>) {
   return { cache, repository };
 }
 
-describe('MikroOrmWriteSideCommandRepository', () => {
+describe('AggregateRepository', () => {
   it('loads authoritative snapshot using refresh: true', async () => {
     const stored = new Item({ name: 'stored', version: 3 });
     const findOne = vi.fn().mockResolvedValue(stored);

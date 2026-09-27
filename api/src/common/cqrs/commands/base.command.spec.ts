@@ -1,9 +1,9 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 import { fingerprintValue } from '@nestjs-pipeline/idempotency';
 import { describe, expect, it } from 'vitest';
-import { UpdateRoleCommand } from '../../../roles/cqrs/commands/update-role.command';
-import { CreateUserCommand } from '../../../users/cqrs/commands/create-user.command';
-import { UpdateUserCommand } from '../../../users/cqrs/commands/update-user.command';
+import { UpdateRoleCommand } from '../../../roles/application/cqrs/commands/update-role.command';
+import { CreateUserCommand } from '../../../users/application/cqrs/commands/create-user.command';
+import { UpdateUserCommand } from '../../../users/application/cqrs/commands/update-user.command';
 
 describe('BaseCommand metadata', () => {
   it('keeps session context out of command fingerprints', () => {

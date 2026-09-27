@@ -12,6 +12,9 @@ import {
   createPartitionedRateLimitKeyFactory,
   rateLimit,
 } from '@nestjs-pipeline/rate-limit';
+import { InvalidRefreshTokenError } from '../../../domain/errors/refresh-token.errors';
+import type { Auth } from '../../../domain/models/auth.entity';
+import { AuthSessionRevocationService } from '../../../services/auth-session-revocation.service';
 import {
   AUTH_SESSIONS,
   type IAuthSessions,
@@ -24,9 +27,6 @@ import {
   type ISessionCookies,
   SESSION_COOKIES,
 } from '../../ports/session-cookies.port';
-import { InvalidRefreshTokenError } from '../../../domain/errors/refresh-token.errors';
-import type { Auth } from '../../../domain/models/auth.entity';
-import { AuthSessionRevocationService } from '../../../services/auth-session-revocation.service';
 import { RevokeAuthCommand } from './revoke-auth.command';
 
 @CommandHandler(RevokeAuthCommand)

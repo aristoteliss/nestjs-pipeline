@@ -1,7 +1,7 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { createHash } from 'node:crypto';
-import { getSessionUserFromStore } from '@common/context/session-user.store';
+import { getSessionUser } from '@common/context/session-user.store';
 import type { PrincipalType } from '@common/types/SessionUser';
 import { requireTenantId } from '@cqrs-ddd/core/application';
 import { stableStringify } from '@cqrs-ddd/safe-stringify';
@@ -58,7 +58,7 @@ export interface TrustedPrincipal {
  * and only the classification separates them.
  */
 function trustedPrincipalSegments(): [PrincipalType, string] | undefined {
-  const sessionUser = getSessionUserFromStore();
+  const sessionUser = getSessionUser();
   const id = sessionUser?.id?.trim();
   const principalType = sessionUser?.principalType;
 
