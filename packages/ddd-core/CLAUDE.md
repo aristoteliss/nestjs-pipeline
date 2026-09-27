@@ -1,6 +1,6 @@
 # packages/ddd-core — @cqrs-ddd/core
 
-Scope: reusable, framework-neutral DDD primitives — aggregate roots, domain events and
+Scope: reusable, framework- and ORM-neutral DDD primitives — aggregate roots, domain events and
 exceptions, command/query base classes, repository contracts, and the persistence
 lifecycle decorators. Published as `@cqrs-ddd/core`: treat its exports as a public contract
 consumed outside `api`.
@@ -17,7 +17,7 @@ Four entry points, and they are the boundary consumers import from:
 | --- | --- |
 | `domain/index.ts` | `AggregateRoot`, `DomainEvent`/`RootDomainEvent`, domain exceptions, value rules (`textRule`, `numberRule`, `InvalidValueException`), snapshot interfaces |
 | `application/index.ts` | `BaseCommand`, `BaseQuery`, `CommandBaseHandler`, query options |
-| `persistence/index.ts` | Repository interfaces/abstracts, `ICache`, `MemoryCache`, `optimisticUpdate`, lifecycle decorators |
+| `persistence/index.ts` | Repository interfaces/abstracts, `ICache`, `MemoryCache`, lifecycle decorators, cache helpers |
 | `http/index.ts` | `domainErrorHttpStatus`: this package's errors → HTTP status, reason phrase and safe message |
 
 `index.ts` at the package root is a compatibility barrel;
@@ -33,31 +33,29 @@ Generic DDD and persistence building blocks belong here, not in an application. 
 application configures and extends them. This package owns:
 - persistence error translation (`mapPersistenceError`, `isTransientPersistenceError`, in
   `persistence/is-transient-persistence-error.ts`);
-- the authoritative write-side base repository (`MikroOrmWriteSideCommandRepository`, in
-  `persistence/mikro-orm-write-side.command-repository.ts`);
 - the tenant context error;
-- the MikroORM `IVersionedCache` adapter (`MikroOrmCache`, `CacheEntry`, in `persistence/cache/`);
 - the value rules (`textRule`, `numberRule`, `ValueViolation`, in `domain/rules/`, and
   `InvalidValueException`);
-- the root-entity schema mapping (`rootEntityProperties`, `versionProperty`, in
-  `persistence/root-entity.properties.ts`);
 - the framework-neutral mapping of this package's errors to HTTP status codes
   (`domainErrorHttpStatus`, in `http/domain-error-http-status.ts`).
 
-Do not add another copy of any of them anywhere.
+Do not add another copy of any of them anywhere. MikroORM adapters, including the
+aggregate repository base, `optimisticUpdate`, `MikroOrmCache` and the root-entity schema
+mapping, belong to `packages/ddd-mikro-orm` (see its `CLAUDE.md`).
 
-## Independence from NestJS
+## Independence from NestJS and from any ORM
 
-This package is framework-neutral and is published as its own npm package. No code here,
-specs included, may import `@nestjs/*`, another `nestjs`-named package or any
-`@nestjs-pipeline/*` package. Nest integration, such as DI providers, logger adapters,
-tenant wiring and HTTP exception filters, belongs in the application. Three checks
-enforce this:
-- `biome/plugins/framework-independence.grit` rejects the imports (`pnpm lint:persistence`);
-- `package-manifest.spec.ts` rejects NestJS packages in every dependency field and keeps
-  `@mikro-orm/core` the only, optional, peer;
+This package is framework- and ORM-neutral and is published as its own npm package. No
+code here, specs included, may import `@nestjs/*`, another `nestjs`-named package, any
+`@nestjs-pipeline/*` package, an ORM or a database driver. Nest integration, such as DI
+providers, logger adapters, tenant wiring and HTTP exception filters, belongs in the
+application; ORM adapters belong in their own package. Four checks enforce this:
+- `biome/plugins/framework-independence.grit` rejects the NestJS imports and
+  `biome/plugins/orm-independence.grit` the ORM and driver imports (`pnpm lint:persistence`);
+- `package-manifest.spec.ts` rejects NestJS and MikroORM packages in every dependency
+  field and allows no peer;
 - `domain/domain-entry-point.spec.ts` loads every built entry point and fails if any
-  NestJS module loads, so rebuild `dist` before running the specs.
+  NestJS or MikroORM module loads, so rebuild `dist` before running the specs.
 
 Cache keys take their tenant from an explicit argument (`CacheKeyTenantSource`) or from
 the resolver the application registers with `setTenantResolver`
@@ -75,12 +73,9 @@ file is the one tenant resolution path; the cache-key helpers use it too.
 | `persistence/decorators/persisted-write.decorator.ts` | `@PersistedWrite`: the canonical three-decorator lifecycle for `save(aggregate)` |
 | `persistence/decorators/acknowledge-persisted.decorator.ts` | Advances the persisted version baseline only after a durable write |
 | `persistence/decorators/map-persistence-errors.decorator.ts` | Driver constraint errors → domain exceptions |
-| `persistence/optimistic-update.ts` | Version-conditioned update, rejects outer transactions |
 | `persistence/is-transient-persistence-error.ts` | Driver and network failures → `TransientOperationError`; `mapPersistenceError` is the canonical `otherwise` translator |
 | `persistence/cache/memory.cache.ts` | JSON-clone detachment parity with external caches |
-| `persistence/cache/mikro-orm.cache.ts` | MikroORM `IVersionedCache`: revision-fenced compare-and-set writes, each in its own transaction |
 | `persistence/write-side-aggregate-repository.interface.ts` | Authoritative aggregate loading for commands |
-| `persistence/mikro-orm-write-side.command-repository.ts` | Its MikroORM base class: `{ refresh: true }`, no cache, `mapPersistenceError`; `em` read per call from an `IEntityManagerSource` |
 
 ## Local commands
 

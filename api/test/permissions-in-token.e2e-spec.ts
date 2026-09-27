@@ -9,6 +9,7 @@ import {
   bootstrapE2E,
   E2E_LOGIN_CODE,
   type E2EContext,
+  inTenant,
   rebuildPermissions,
 } from './support/e2e-app';
 
@@ -30,7 +31,9 @@ async function sql(ctx: E2EContext, statement: string, params: unknown[]) {
   const { MIKRO_ORM_CLIENT } = await import(
     '../src/persistence/mikro-orm.store'
   );
-  return ctx.app.get(MIKRO_ORM_CLIENT).em.execute(statement, params);
+  return inTenant(ctx.app, () =>
+    ctx.app.get(MIKRO_ORM_CLIENT).em.execute(statement, params),
+  );
 }
 
 /** Seeds a user holding the admin role and returns its id and email. */
@@ -185,16 +188,18 @@ describe('permissions in the access token (e2e, fastify cookie budget)', () => {
     const { MIKRO_ORM_CLIENT } = await import(
       '../src/persistence/mikro-orm.store'
     );
-    const user = await ctx.app
-      .get(MIKRO_ORM_CLIENT)
-      .em.findOne(User, { id: userId }, { refresh: true });
-    const permissions = await ctx.app
-      .get(USER_PERMISSION_RULES)
-      .findOrdered(userId);
-    const { accessToken } = await ctx.app
-      .get(ACCESS_TOKEN_ISSUER)
-      .issue({ user, sessionId: uuidv7(), permissions });
-    return accessToken;
+    return inTenant(ctx.app, async () => {
+      const user = await ctx.app
+        .get(MIKRO_ORM_CLIENT)
+        .em.findOne(User, { id: userId }, { refresh: true });
+      const permissions = await ctx.app
+        .get(USER_PERMISSION_RULES)
+        .findOrdered(userId);
+      const { accessToken } = await ctx.app
+        .get(ACCESS_TOKEN_ISSUER)
+        .issue({ user, sessionId: uuidv7(), permissions });
+      return accessToken;
+    });
   }
 
   async function setReason(capabilityId: string, length: number) {

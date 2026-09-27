@@ -1,7 +1,10 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
+
+import {
+  ConcurrencyConflictError,
+  EntityNotFoundException,
+} from '@cqrs-ddd/core/domain';
 import type { EntityManager, EntityName, FilterQuery } from '@mikro-orm/core';
-import { ConcurrencyConflictError } from '../domain/exceptions/concurrency-conflict.error';
-import { EntityNotFoundException } from '../domain/exceptions/entity-not-found.exception';
 import { assertAutocommit } from './assert-autocommit';
 
 /**

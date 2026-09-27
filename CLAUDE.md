@@ -14,7 +14,8 @@ detail belongs in the files it points to.
    entry points, directories, commands, gotchas.
 4. The nested `CLAUDE.md` for the area you are editing, if one exists
    ([packages/](packages/CLAUDE.md), [packages/pipeline/](packages/pipeline/CLAUDE.md),
-   [packages/ddd-core/](packages/ddd-core/CLAUDE.md), [api/](api/CLAUDE.md)).
+   [packages/ddd-core/](packages/ddd-core/CLAUDE.md),
+   [packages/ddd-mikro-orm/](packages/ddd-mikro-orm/CLAUDE.md), [api/](api/CLAUDE.md)).
 5. The active task context file under `.claude/tasks/`, if the task has one.
 
 ## How to use the codebase map

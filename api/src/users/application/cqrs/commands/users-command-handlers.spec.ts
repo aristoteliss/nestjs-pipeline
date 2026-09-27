@@ -5,7 +5,7 @@ import { EntityNotFoundException } from '@cqrs-ddd/core/domain';
 import type { EventBus } from '@nestjs/cqrs';
 import type { CaslAuthorizer } from '@nestjs-pipeline/casl';
 import { describe, expect, it, vi } from 'vitest';
-import { User } from '../../domain/models/user.entity';
+import { User } from '../../../domain/models/user.entity';
 import { DeleteUserCommand } from './delete-user.command';
 import { DeleteUserHandler } from './delete-user.handler';
 import { UpdateUserCommand } from './update-user.command';

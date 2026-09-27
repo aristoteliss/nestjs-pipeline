@@ -26,11 +26,7 @@ describe('CreateRoleCommandRepository', () => {
     const result = await runWithTenant('tenant', () => repository.save(role));
 
     const idKey = cacheKey(Role.aggregateName, { id: role.id }, 'tenant');
-    const nameKey = cacheKey(
-      Role.aggregateName,
-      { name: role.name },
-      'tenant',
-    );
+    const nameKey = cacheKey(Role.aggregateName, { name: role.name }, 'tenant');
     expect(upsert).toHaveBeenCalledWith(Role, role);
     expect(cache.set).toHaveBeenCalledWith(
       idKey,

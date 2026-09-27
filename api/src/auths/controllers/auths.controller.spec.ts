@@ -1,10 +1,10 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { describe, expect, it, vi } from 'vitest';
-import { CreateAuthCommand } from '../cqrs/commands/create-auth.command';
-import { RefreshAuthCommand } from '../cqrs/commands/refresh-auth.command';
-import { RevokeAuthCommand } from '../cqrs/commands/revoke-auth.command';
-import type { AuthResult } from '../cqrs/results/auth.result';
+import { CreateAuthCommand } from '../application/cqrs/commands/create-auth.command';
+import { RefreshAuthCommand } from '../application/cqrs/commands/refresh-auth.command';
+import { RevokeAuthCommand } from '../application/cqrs/commands/revoke-auth.command';
+import type { AuthResult } from '../application/results/auth.result';
 import { InvalidRefreshTokenError } from '../domain/errors/refresh-token.errors';
 import { Auth } from '../domain/models/auth.entity';
 import { AuthsController } from './auths.controller';

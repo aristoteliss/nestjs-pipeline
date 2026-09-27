@@ -1,10 +1,7 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { AggregateRoot } from '@cqrs-ddd/core/domain';
-import {
-  rootEntityProperties,
-  versionProperty,
-} from '@cqrs-ddd/core/persistence';
+import { rootEntityProperties, versionProperty } from '@cqrs-ddd/mikro-orm';
 import { EntitySchema } from '@mikro-orm/core';
 import { Role } from '../../roles/domain/models/role.entity';
 

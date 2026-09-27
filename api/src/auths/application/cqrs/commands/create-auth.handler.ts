@@ -19,6 +19,9 @@ import {
   createPartitionedRateLimitKeyFactory,
   rateLimit,
 } from '@nestjs-pipeline/rate-limit';
+import { Auth, AuthSnapshot } from '../../../domain/models/auth.entity';
+import { COMMAND_REPOSITORY } from '../../../persistence/repository.tokens';
+import { UserLoginService } from '../../../services/user-login.service';
 import {
   AUTH_TOKEN_POLICY,
   type AuthTokenPolicy,
@@ -31,10 +34,7 @@ import {
   type ISessionCookies,
   SESSION_COOKIES,
 } from '../../ports/session-cookies.port';
-import { Auth, AuthSnapshot } from '../../../domain/models/auth.entity';
-import { COMMAND_REPOSITORY } from '../../../persistence/repository.tokens';
-import { UserLoginService } from '../../../services/user-login.service';
-import { AuthResult } from '../results/auth.result';
+import { AuthResult } from '../../results/auth.result';
 import { CreateAuthCommand } from './create-auth.command';
 
 @CommandHandler(CreateAuthCommand)

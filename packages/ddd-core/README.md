@@ -5,10 +5,11 @@
 
 Framework-neutral building blocks for domain-driven design in TypeScript: aggregates with
 versioned mutations, detached domain events, a command handler that publishes those
-events, repository contracts, MikroORM persistence decorators, a revision-fenced
+events, repository contracts, persistence lifecycle decorators, a revision-fenced
 repository cache, tenant-scoped cache keys and HTTP status mapping for its errors.
 
-It depends on no framework. It works in a plain Node service, and in a NestJS
+It depends on no framework and no ORM. MikroORM adapters are in
+[`@cqrs-ddd/mikro-orm`](https://www.npmjs.com/package/@cqrs-ddd/mikro-orm). It works in a plain Node service, and in a NestJS
 application through structural compatibility: see [Using it from NestJS](#using-it-from-nestjs).
 
 ## Contents
@@ -37,25 +38,23 @@ npm install @cqrs-ddd/core
 ```
 
 Requires Node.js 22 or later. It installs `@cqrs-ddd/uuidv7` and
-`@cqrs-ddd/safe-stringify`, which have no dependencies. Add `@mikro-orm/core` 7 only if
-you use `/persistence` or the root entry:
-
-```bash
-pnpm add @mikro-orm/core
-```
+`@cqrs-ddd/safe-stringify`, which have no dependencies. To persist with MikroORM, add
+`@cqrs-ddd/mikro-orm` and `@mikro-orm/core` 7.
 
 ## Entry points
 
 Import from the entry point for the layer you are writing. Each one loads only what it
 needs.
 
-| Entry | Holds | Needs at runtime |
-| --- | --- | --- |
-| `@cqrs-ddd/core/domain` | `AggregateRoot`, `RootEntity`, `@Mutable`, `@ApplyMutation`, `DomainEvent`, `RootDomainEvent`, `deepCloneAndFreeze`, `textRule`, `numberRule`, `ValueViolation`, and the errors `DomainException`, `InvalidValueException`, `EntityNotFoundException`, `ConcurrencyConflictError`, `TransientOperationError`, `MissingTenantContextError`, `UnknownMutableFieldError` | nothing |
-| `@cqrs-ddd/core/application` | `BaseCommand`, `BaseQuery`, `CommandBaseHandler`, the ports (`IDomainEventPublisher`, `ICommandRepository`, `IQueryRepository`, `IWriteSideAggregateRepository`, `ICache`, `IVersionedCache`), `requireTenantId`, `setTenantResolver` | nothing |
-| `@cqrs-ddd/core/persistence` | the lifecycle decorators, `QueryRepository`, `CommandRepository`, `MikroOrmWriteSideCommandRepository`, `optimisticUpdate`, `optimisticDelete`, `MemoryCache`, `MikroOrmCache`, the cache-key helpers, `UnixTimestampType`, `rootEntityProperties` | `@mikro-orm/core` 7 |
-| `@cqrs-ddd/core/http` | `domainErrorHttpStatus` | nothing |
-| `@cqrs-ddd/core` | all of the above | `@mikro-orm/core` 7 |
+| Entry | Holds |
+| --- | --- |
+| `@cqrs-ddd/core/domain` | `AggregateRoot`, `RootEntity`, `@Mutable`, `@ApplyMutation`, `DomainEvent`, `RootDomainEvent`, `deepCloneAndFreeze`, `textRule`, `numberRule`, `ValueViolation`, and the errors `DomainException`, `InvalidValueException`, `EntityNotFoundException`, `ConcurrencyConflictError`, `TransientOperationError`, `MissingTenantContextError`, `UnknownMutableFieldError` |
+| `@cqrs-ddd/core/application` | `BaseCommand`, `BaseQuery`, `CommandBaseHandler`, the ports (`IDomainEventPublisher`, `ICommandRepository`, `IQueryRepository`, `IWriteSideAggregateRepository`, `ICache`, `IVersionedCache`), `requireTenantId`, `setTenantResolver` |
+| `@cqrs-ddd/core/persistence` | the lifecycle decorators, `QueryRepository`, `CommandRepository`, `MemoryCache`, the cache-key and cache-logger helpers, `mapPersistenceError` |
+| `@cqrs-ddd/core/http` | `domainErrorHttpStatus` |
+| `@cqrs-ddd/core` | all of the above |
+
+No entry point loads an ORM or NestJS.
 
 ## Aggregates
 
@@ -271,16 +270,14 @@ yourself.
 ## Write-side repositories
 
 A command handler loads the authoritative aggregate through
-`IWriteSideAggregateRepository<TEntity>.findById(id)`. `MikroOrmWriteSideCommandRepository`
-implements it: `findById()` reads with `{ refresh: true }`, never touches the cache,
-rehydrates through the `hydrateFn` you pass, and translates failures with
-`mapPersistenceError`. It reads `store.em` on every call (`IEntityManagerSource`), so a
-multi-tenant store can hand out the current tenant's manager.
+`IWriteSideAggregateRepository<TEntity>.findById(id)`: it must read primary storage, never
+a cache. `@cqrs-ddd/mikro-orm`'s `AggregateRepository` implements it for MikroORM.
 
 `save()` declares its lifecycle with `@PersistedWrite`:
 
 ```typescript
 import { filterCacheKey, PersistedWrite } from '@cqrs-ddd/core/persistence';
+import { optimisticUpdate } from '@cqrs-ddd/mikro-orm';
 
 @PersistedWrite<User>({
   cache: {
@@ -320,19 +317,10 @@ outermost first:
 
 Deletes do not acknowledge, so they stack `@Cache` and `@MapPersistenceErrors` alone.
 
-`optimisticUpdate` and `optimisticDelete` write `WHERE id = ? AND version = expected`,
-check the affected rows, and raise `EntityNotFoundException` or
-`ConcurrencyConflictError`. They, and every write whose success triggers acknowledgment
-or cache work, call `assertAutocommit(em, operation)` first: a write inside an outer
-transaction is rejected before any statement runs, because its success would not mean
-durable persistence.
-
-`rootEntityProperties(columns?)` and `versionProperty(column?)` give the MikroORM
-`EntitySchema` properties every `RootEntity` needs, with timestamps stored as epoch
-milliseconds through `UnixTimestampType`. That type throws a `TypeError` for a value
-with no valid time instead of storing `NaN`. The properties use `accessor: true`, so
-MikroORM reads and writes them through the entity's getters and private setters, and
-queries use the public names. Map a subclass's fields the same way.
+The write itself must be version-conditioned (`WHERE id = ? AND version = expected`) and
+must not run inside an outer transaction, whose success would not mean durable
+persistence. `@cqrs-ddd/mikro-orm` provides `optimisticUpdate` and `optimisticDelete`
+for this.
 
 ## Read-side repositories
 
@@ -340,6 +328,7 @@ A query repository extends `QueryRepository` and decorates `find()` with `@FromC
 
 ```typescript
 import { FromCache, QueryRepository, filterCacheKey } from '@cqrs-ddd/core/persistence';
+import type { IEntityManagerSource } from '@cqrs-ddd/mikro-orm';
 
 export class GetUserQueryRepository extends QueryRepository<GetUserQuery, User | null> {
   constructor(cache: IVersionedCache<UserSnapshot>, private readonly store: IEntityManagerSource) {
@@ -386,11 +375,8 @@ Two adapters implement `IVersionedCache`:
 
 - `MemoryCache({ defaultTtlMs = 60_000, maxEntries = 10_000 })`: in process, entries
   JSON-cloned on write and read, for tests and a single process.
-- `MikroOrmCache(store, { defaultTtlMs?, logger? })`: one database row per key, every
-  write a compare-and-set in its own transaction. `store` provides `em` and
-  `transactional(work)`. Register `CacheEntrySchema` (or `createCacheEntrySchema(table)`)
-  with the ORM, and create the table in a migration with `createCacheTableSql(table?)`
-  (PostgreSQL and SQLite).
+- `MikroOrmCache`, in `@cqrs-ddd/mikro-orm`: one database row per key, every write a
+  compare-and-set in its own transaction.
 
 `CacheSetOptions.isNewer(cached, incoming)` returns `true` when the cached value is
 newer and must not be overwritten; `isCacheNewer` compares `version`, then `__gen`, then
@@ -400,10 +386,11 @@ stores a live aggregate.
 Mutation barriers (`CacheMutationBarrier`) mark a deleted or invalidated key for
 `barrierTtl`, 60 seconds by default. Size it above your longest in-flight read.
 
-**The `logger` option.** `@Cache`, `@FromCache` and `MikroOrmCache` each accept
-`logger: { warn(message) }` for their operational warnings, such as a failed cache write,
-a bypassed adapter or a miswired repository. A NestJS `Logger` or `console` fits.
-Without one, warnings go to `console.warn`. A logger that throws never changes a result.
+**The `logger` option.** `@Cache` and `@FromCache` accept `logger: { warn(message) }`
+for their operational warnings, such as a failed cache write, a bypassed adapter or a
+miswired repository. A NestJS `Logger` or `console` fits. Without one, warnings go to
+`console.warn`. A logger that throws never changes a result. An adapter reports its own
+warnings the same way through `consoleCacheLogger(context)` and `safeWarn(logger, message)`.
 
 ## Tenant-scoped cache keys
 
@@ -480,7 +467,7 @@ export class RenameUserHandler extends CommandBaseHandler<RenameUserCommand, Use
 The application writes the rest of the glue:
 
 - providers for the repositories and the cache, for example a `useFactory` provider
-  that builds a `MikroOrmCache`;
+  that builds a `MikroOrmCache` from `@cqrs-ddd/mikro-orm`;
 - the tenant resolver, registered once before any lifecycle hook can start work that
   reads it, for example in a module constructor;
 - an exception filter that maps its own errors, then calls `domainErrorHttpStatus`;
@@ -500,8 +487,7 @@ The application writes the rest of the glue:
   writes atomic. A row that must commit with the aggregate, such as an audit record or
   an outbox message, therefore cannot share its transaction yet: that needs commit
   hooks that run acknowledgment and cache work after the commit.
-- `/persistence` supports MikroORM 7; constraint mapping and the cache table SQL cover
-  PostgreSQL and SQLite.
+- `@MapPersistenceErrors` recognises PostgreSQL and SQLite unique-constraint errors.
 - The tenant resolver is process-wide: one per process, for each installed copy of this
   package.
 - Event payloads are frozen for ordinary access only; see [Domain events](#domain-events).

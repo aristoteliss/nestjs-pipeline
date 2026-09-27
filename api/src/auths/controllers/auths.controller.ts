@@ -6,7 +6,7 @@ import { ZodPipe } from '@nestjs-pipeline/zod';
 import type { CreateAuthCommand } from '../application/cqrs/commands/create-auth.command';
 import { RefreshAuthCommand } from '../application/cqrs/commands/refresh-auth.command';
 import { RevokeAuthCommand } from '../application/cqrs/commands/revoke-auth.command';
-import type { AuthResult } from '../application/cqrs/results/auth.result';
+import type { AuthResult } from '../application/results/auth.result';
 import { RefreshToken } from '../decorators/refresh-token.decorator';
 import { InvalidRefreshTokenError } from '../domain/errors/refresh-token.errors';
 import { type LoginDto, LoginDtoSchema } from '../dtos/login.dto';

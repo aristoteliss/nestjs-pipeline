@@ -2,7 +2,7 @@
 
 import { BadRequestException } from '@nestjs/common';
 import { describe, expect, it } from 'vitest';
-import { CreateAuthCommand } from '../cqrs/commands/create-auth.command';
+import { CreateAuthCommand } from '../application/cqrs/commands/create-auth.command';
 import { LoginMapper } from './login.mapper';
 
 describe('LoginMapper', () => {

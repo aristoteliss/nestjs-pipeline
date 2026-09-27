@@ -21,11 +21,13 @@ too. Repository-wide orientation: [.claude/codebase-map.md](../.claude/codebase-
   dependencies, no peers, no NestJS or `@nestjs-pipeline/*` import
   (`framework-independence.grit`, each package's `package-manifest.spec.ts`).
 - `packages/ddd-core` (`@cqrs-ddd/core`) is the framework-neutral DDD package, in the same
-  group. It follows its own [CLAUDE.md](ddd-core/CLAUDE.md): no NestJS, only the two
-  `@cqrs-ddd/*` utilities as dependencies, and `@mikro-orm/core` as its only, optional,
-  peer. No `@nestjs-pipeline/*` package may import or declare it
-  (`verify-package-licenses.grit`, `package-boundaries.spec.ts`), and it knows nothing of
-  them: an application connects the two, for example by registering
+  group. It follows its own [CLAUDE.md](ddd-core/CLAUDE.md): no NestJS, no ORM, only the
+  two `@cqrs-ddd/*` utilities as dependencies, and no peers. `packages/ddd-mikro-orm`
+  (`@cqrs-ddd/mikro-orm`, [CLAUDE.md](ddd-mikro-orm/CLAUDE.md)) holds its MikroORM
+  adapters, with `@cqrs-ddd/core` and `@mikro-orm/core` as required peers. No
+  `@nestjs-pipeline/*` package may import or declare either (`verify-package-licenses.grit`,
+  `package-boundaries.spec.ts`), and neither knows anything of them: an application
+  connects the two, for example by registering
   `@nestjs-pipeline/tenant`'s `currentTenantId` with `@cqrs-ddd/core`'s
   `setTenantResolver`.
 - These libraries target external consumers and future use cases. A missing call site in

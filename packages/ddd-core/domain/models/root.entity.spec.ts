@@ -13,10 +13,6 @@ class TestEntity extends RootEntity<TestSnapshot> {
   name: string;
   afterUpdateHook = vi.fn();
 
-  get version(): number {
-    return this._version;
-  }
-
   constructor(snapshot?: Partial<TestSnapshot>) {
     super(snapshot);
     this.name = snapshot?.name ?? 'default';
@@ -50,10 +46,6 @@ class OtherEntity extends RootEntity<TestSnapshot> {
   constructor(snapshot?: Partial<TestSnapshot>) {
     super(snapshot);
     this.name = snapshot?.name ?? 'other';
-  }
-
-  get version(): number {
-    return this._version;
   }
 
   triggerUpdate(): void {
@@ -302,7 +294,7 @@ describe('RootEntity', () => {
       const newId = uuidv7();
       const d = new Date('2026-01-01T00:00:00.000Z');
 
-      // MikroORM assigns hydrated values through the accessors at runtime.
+      // An ORM assigns hydrated values through the accessors at runtime.
       Reflect.set(entity, 'id', newId);
       Reflect.set(entity, 'createdAt', d);
       Reflect.set(entity, 'updatedAt', '2026-03-01T00:00:00.000Z');
@@ -314,6 +306,27 @@ describe('RootEntity', () => {
         'Date is empty.',
       );
     });
+
+    it('hydrates a loaded version as both the current version and the persisted baseline', () => {
+      const entity = new TestEntity({ name: 'Alpha' });
+
+      Reflect.set(entity, 'version', 4);
+
+      expect(entity.version).toBe(4);
+      expect(entity.getExpectedVersion()).toBe(4);
+    });
+
+    it.each([0, -1, 1.5, Number.NaN, '3'])(
+      'ignores a hydrated version of %s, which is not a positive integer',
+      (value) => {
+        const entity = new TestEntity({ name: 'Alpha', version: 2 });
+
+        Reflect.set(entity, 'version', value);
+
+        expect(entity.version).toBe(2);
+        expect(entity.getExpectedVersion()).toBe(2);
+      },
+    );
 
     it('advances current version when acknowledged version exceeds current version', () => {
       const entity = new TestEntity({ name: 'Alpha' });

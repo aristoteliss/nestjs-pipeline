@@ -8,6 +8,7 @@ import {
   bootstrapE2E,
   createTestJwt,
   type E2EContext,
+  inTenant,
   rebuildPermissions,
 } from './support/e2e-app';
 
@@ -492,79 +493,81 @@ describe('users-api (e2e)', () => {
       ).toBe(false);
     });
 
-    it('denies authorization when a user aggregate is deleted even if token has valid claims (403)', async () => {
-      const email = newEmail();
-      const created = await createUser(admin, {
-        email,
-        name: 'Revocable Rachel',
-      });
-      expect(created.status).toBe(201);
+    it('denies authorization when a user aggregate is deleted even if token has valid claims (403)', () =>
+      inTenant(ctx.app, async () => {
+        const email = newEmail();
+        const created = await createUser(admin, {
+          email,
+          name: 'Revocable Rachel',
+        });
+        expect(created.status).toBe(201);
 
-      const userJwt = await createTestJwt({ sub: created.body.id, email });
+        const userJwt = await createTestJwt({ sub: created.body.id, email });
 
-      const { UserRole } = await import(
-        '../src/persistence/entities/user-role.entity'
-      );
-      const { MIKRO_ORM_CLIENT } = await import(
-        '../src/persistence/mikro-orm.store'
-      );
-      const { em } = ctx.app.get(MIKRO_ORM_CLIENT);
-      await em.upsert(UserRole, {
-        userId: created.body.id,
-        roleId: '019de10c-b680-7000-8000-000000000001',
-      });
-      await rebuildPermissions(ctx.app, [created.body.id]);
+        const { UserRole } = await import(
+          '../src/persistence/entities/user-role.entity'
+        );
+        const { MIKRO_ORM_CLIENT } = await import(
+          '../src/persistence/mikro-orm.store'
+        );
+        const { em } = ctx.app.get(MIKRO_ORM_CLIENT);
+        await em.upsert(UserRole, {
+          userId: created.body.id,
+          roleId: '019de10c-b680-7000-8000-000000000001',
+        });
+        await rebuildPermissions(ctx.app, [created.body.id]);
 
-      // Before deletion, the user can successfully access protected endpoints
-      const preDelete = await request(http)
-        .get('/users')
-        .set('x-tenant-schema', 'tenant')
-        .set('authorization', `Bearer ${userJwt}`);
-      expect(preDelete.status).toBe(200);
+        // Before deletion, the user can successfully access protected endpoints
+        const preDelete = await request(http)
+          .get('/users')
+          .set('x-tenant-schema', 'tenant')
+          .set('authorization', `Bearer ${userJwt}`);
+        expect(preDelete.status).toBe(200);
 
-      // Delete the user
-      const del = await as(admin).delete(`/users/${created.body.id}`);
-      expect(del.status).toBe(204);
+        // Delete the user
+        const del = await as(admin).delete(`/users/${created.body.id}`);
+        expect(del.status).toBe(204);
 
-      // After deletion, the same token is rejected because the user entity is deleted
-      const postDelete = await request(http)
-        .get('/users')
-        .set('x-tenant-schema', 'tenant')
-        .set('authorization', `Bearer ${userJwt}`);
-      expect(postDelete.status).toBe(403);
-    });
+        // After deletion, the same token is rejected because the user entity is deleted
+        const postDelete = await request(http)
+          .get('/users')
+          .set('x-tenant-schema', 'tenant')
+          .set('authorization', `Bearer ${userJwt}`);
+        expect(postDelete.status).toBe(403);
+      }));
 
-    it('increments version on update and protects aggregate consistency', async () => {
-      const email = newEmail();
-      const created = await createUser(admin, {
-        email,
-        name: 'Versioned Victor',
-      });
-      expect(created.status).toBe(201);
+    it('increments version on update and protects aggregate consistency', () =>
+      inTenant(ctx.app, async () => {
+        const email = newEmail();
+        const created = await createUser(admin, {
+          email,
+          name: 'Versioned Victor',
+        });
+        expect(created.status).toBe(201);
 
-      const { User } = await import('../src/users/domain/models/user.entity');
-      const { MIKRO_ORM_CLIENT } = await import(
-        '../src/persistence/mikro-orm.store'
-      );
-      const store = ctx.app.get(MIKRO_ORM_CLIENT);
+        const { User } = await import('../src/users/domain/models/user.entity');
+        const { MIKRO_ORM_CLIENT } = await import(
+          '../src/persistence/mikro-orm.store'
+        );
+        const store = ctx.app.get(MIKRO_ORM_CLIENT);
 
-      const initialUser = await store.em.findOne(User, {
-        id: created.body.id,
-      });
-      expect(initialUser.version).toBe(1);
+        const initialUser = await store.em.findOne(User, {
+          id: created.body.id,
+        });
+        expect(initialUser.version).toBe(1);
 
-      const updated = await as(admin)
-        .patch(`/users/${created.body.id}`)
-        .send({ name: 'Versioned Victor Two' });
-      expect(updated.status).toBe(200);
+        const updated = await as(admin)
+          .patch(`/users/${created.body.id}`)
+          .send({ name: 'Versioned Victor Two' });
+        expect(updated.status).toBe(200);
 
-      const updatedUser = await store.em.findOne(
-        User,
-        { id: created.body.id },
-        { refresh: true },
-      );
-      expect(updatedUser.version).toBe(2);
-      expect(updatedUser.username).toBe('Versioned Victor Two');
-    });
+        const updatedUser = await store.em.findOne(
+          User,
+          { id: created.body.id },
+          { refresh: true },
+        );
+        expect(updatedUser.version).toBe(2);
+        expect(updatedUser.username).toBe('Versioned Victor Two');
+      }));
   });
 });

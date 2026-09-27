@@ -1,7 +1,7 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { MissingTenantContextError } from '@cqrs-ddd/core/domain';
-import { cacheKeyTemplate, cacheKey } from '@cqrs-ddd/core/persistence';
+import { cacheKey, cacheKeyTemplate } from '@cqrs-ddd/core/persistence';
 import { type IPipelineContext, pipelineStore } from '@nestjs-pipeline/core';
 import { runWithTenant } from '@nestjs-pipeline/tenant';
 import { describe, expect, it } from 'vitest';

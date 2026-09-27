@@ -4,7 +4,7 @@ import { cacheKey, MemoryCache } from '@cqrs-ddd/core/persistence';
 import { runWithTenant } from '@nestjs-pipeline/tenant';
 import { ZodValidationBehavior } from '@nestjs-pipeline/zod';
 import { describe, expect, it, vi } from 'vitest';
-import { GetUserQuery } from '../cqrs/queries/get-user.query';
+import { GetUserQuery } from '../application/cqrs/queries/get-user.query';
 import { User, type UserSnapshot } from '../domain/models/user.entity';
 import { GetUserQueryRepository } from './get-user.query-repository';
 
@@ -85,11 +85,7 @@ describe('GetUserQueryRepository cache policy', () => {
     const result = await runWithTenant('tenant', () => repository.find(query));
 
     expect(result).toBe(persisted);
-    const idKey = cacheKey(
-      User.aggregateName,
-      { id: persisted.id },
-      'tenant',
-    );
+    const idKey = cacheKey(User.aggregateName, { id: persisted.id }, 'tenant');
     const cached = await cache.get(idKey);
     expect(cached).not.toBeInstanceOf(User);
     expect(cached).toEqual(JSON.parse(JSON.stringify(persisted.toJSON())));

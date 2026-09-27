@@ -16,7 +16,6 @@ import {
 import { CommandBus, QueryBus } from '@nestjs/cqrs';
 import { UnauthorizedActionException } from '@nestjs-pipeline/casl';
 import { ZodPipe } from '@nestjs-pipeline/zod';
-import type { UserReadModel } from '../application/user-read-model';
 import { CreateUserCommand } from '../application/cqrs/commands/create-user.command';
 import { DeleteUserCommand } from '../application/cqrs/commands/delete-user.command';
 import { UpdateUserCommand } from '../application/cqrs/commands/update-user.command';
@@ -24,6 +23,7 @@ import { GetUserQuery } from '../application/cqrs/queries/get-user.query';
 import type { UserOverviewDto } from '../application/cqrs/queries/get-user-overview.handler';
 import { GetUserOverviewQuery } from '../application/cqrs/queries/get-user-overview.query';
 import { GetUsersQuery } from '../application/cqrs/queries/get-users.query';
+import type { UserReadModel } from '../application/user-read-model';
 import type { User } from '../domain/models/user.entity';
 import {
   type CreateUserDto,

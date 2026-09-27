@@ -1,6 +1,6 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import { getSessionUserFromStore } from '@common/context/session-user.store';
+import { getSessionUser } from '@common/context/session-user.store';
 import type { SessionUser } from '@common/types/SessionUser';
 import type { Capability } from '@nestjs-pipeline/casl';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -8,10 +8,10 @@ import { User } from '../../users/domain/models/user.entity';
 import { CaslPermissionSource } from './casl-permission.source';
 
 vi.mock('@common/context/session-user.store', () => ({
-  getSessionUserFromStore: vi.fn(),
+  getSessionUser: vi.fn(),
 }));
 
-const session = vi.mocked(getSessionUserFromStore);
+const session = vi.mocked(getSessionUser);
 
 const storedRules: Capability[] = [
   { subject: 'User', action: 'read' },

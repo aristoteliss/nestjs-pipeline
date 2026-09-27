@@ -42,7 +42,6 @@ class TestAggregate extends RootEntity {
   })
   private _score = 0;
 
-  version = 1;
   applied: IEvent[] = [];
   onUpdateHook = vi.fn();
 
@@ -55,7 +54,7 @@ class TestAggregate extends RootEntity {
   }
 
   onUpdate(): void {
-    this.version += 1;
+    this._version += 1;
     this.onUpdateHook();
   }
 
@@ -158,7 +157,6 @@ class BaseAggregate extends RootEntity {
   @Mutable<string>()
   protected _title = 'base';
 
-  version = 1;
   applied: IEvent[] = [];
 
   get title(): string {
@@ -166,7 +164,7 @@ class BaseAggregate extends RootEntity {
   }
 
   onUpdate(): void {
-    this.version += 1;
+    this._version += 1;
   }
 
   apply(event: IEvent): void {

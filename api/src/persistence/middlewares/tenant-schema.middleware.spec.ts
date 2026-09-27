@@ -1,36 +1,37 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 import { BadRequestException, ForbiddenException } from '@nestjs/common';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { TenantSchemaContext } from '../tenant-schema.context';
 import { TenantSchemaMiddleware } from './tenant-schema.middleware';
 
-const originalTenantSchemas = process.env.TENANT_SCHEMAS;
-const originalDbEngine = process.env.DB_ENGINE;
-const originalSqliteTenants = process.env.SQLITE_TENANTS;
-const originalDefaultSchema = process.env.DB_DEFAULT_SCHEMA;
-
-afterEach(() => {
-  if (originalTenantSchemas === undefined) delete process.env.TENANT_SCHEMAS;
-  else process.env.TENANT_SCHEMAS = originalTenantSchemas;
-  if (originalDbEngine === undefined) delete process.env.DB_ENGINE;
-  else process.env.DB_ENGINE = originalDbEngine;
-  if (originalSqliteTenants === undefined) delete process.env.SQLITE_TENANTS;
-  else process.env.SQLITE_TENANTS = originalSqliteTenants;
-  if (originalDefaultSchema === undefined) delete process.env.DB_DEFAULT_SCHEMA;
-  else process.env.DB_DEFAULT_SCHEMA = originalDefaultSchema;
-});
+function middleware(
+  tenants: string[],
+  context = new TenantSchemaContext(),
+): TenantSchemaMiddleware {
+  return new TenantSchemaMiddleware(context, new Set(tenants));
+}
 
 describe('TenantSchemaMiddleware', () => {
-  it('accepts only configured PostgreSQL tenant schemas', () => {
-    process.env.DB_ENGINE = 'postgres';
-    process.env.TENANT_SCHEMAS = 'tenant_a,tenant_b';
+  it('runs the request inside a configured tenant', () => {
     const context = new TenantSchemaContext();
     const next = vi.fn(() => {
       expect(context.schema).toBe('tenant_b');
     });
 
-    new TenantSchemaMiddleware(context).use(
-      { headers: { 'x-tenant-schema': 'tenant_b' } },
+    middleware(['tenant_a', 'tenant_b'], context).use(
+      { headers: { 'x-tenant-schema': ' tenant_b ' } },
+      undefined,
+      next,
+    );
+
+    expect(next).toHaveBeenCalledOnce();
+  });
+
+  it('reads the first value of a repeated header', () => {
+    const next = vi.fn();
+
+    middleware(['tenant_a']).use(
+      { headers: { 'x-tenant-schema': ['tenant_a', 'tenant_b'] } },
       undefined,
       next,
     );
@@ -39,11 +40,8 @@ describe('TenantSchemaMiddleware', () => {
   });
 
   it('rejects a syntactically valid but unconfigured schema', () => {
-    process.env.DB_ENGINE = 'postgres';
-    process.env.TENANT_SCHEMAS = 'tenant_a';
-
     expect(() =>
-      new TenantSchemaMiddleware(new TenantSchemaContext()).use(
+      middleware(['tenant_a']).use(
         { headers: { 'x-tenant-schema': 'tenant_b' } },
         undefined,
         vi.fn(),
@@ -51,33 +49,25 @@ describe('TenantSchemaMiddleware', () => {
     ).toThrow(ForbiddenException);
   });
 
-  it('answers a malformed schema header with a bad request', () => {
-    process.env.DB_ENGINE = 'postgres';
-    process.env.TENANT_SCHEMAS = 'tenant_a';
-    const next = vi.fn();
-
-    expect(() =>
-      new TenantSchemaMiddleware(new TenantSchemaContext()).use(
-        { headers: { 'x-tenant-schema': 'tenant-a' } },
-        undefined,
-        next,
-      ),
-    ).toThrow(BadRequestException);
-    expect(next).not.toHaveBeenCalled();
-  });
-
-  it('accepts the libSQL default tenant alongside configured extra tenants', () => {
-    process.env.DB_ENGINE = 'libsql';
-    process.env.DB_DEFAULT_SCHEMA = 'tenant';
-    process.env.SQLITE_TENANTS = 'tenant_a';
-    const next = vi.fn();
-
-    new TenantSchemaMiddleware(new TenantSchemaContext()).use(
-      { headers: { 'x-tenant-schema': 'tenant' } },
-      undefined,
-      next,
+  it('rejects a request without a tenant header', () => {
+    expect(() => middleware(['tenant_a']).use({}, undefined, vi.fn())).toThrow(
+      ForbiddenException,
     );
-
-    expect(next).toHaveBeenCalledOnce();
   });
+
+  it.each(['tenant-a', '   '])(
+    'answers the malformed schema header %j with a bad request',
+    (value) => {
+      const next = vi.fn();
+
+      expect(() =>
+        middleware(['tenant_a', 'tenant']).use(
+          { headers: { 'x-tenant-schema': value } },
+          undefined,
+          next,
+        ),
+      ).toThrow(BadRequestException);
+      expect(next).not.toHaveBeenCalled();
+    },
+  );
 });

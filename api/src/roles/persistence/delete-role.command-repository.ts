@@ -6,17 +6,16 @@ import {
   Cache,
   cacheKey,
   MapPersistenceErrors,
-  MikroOrmWriteSideCommandRepository,
   mapPersistenceError,
-  optimisticDelete,
 } from '@cqrs-ddd/core/persistence';
+import { AggregateRepository, optimisticDelete } from '@cqrs-ddd/mikro-orm';
 import { Inject, Injectable } from '@nestjs/common';
 import { cacheWriteLogger } from '@persistence/cache/cache-loggers';
 import { MIKRO_ORM_CLIENT, MikroOrmStore } from '@persistence/mikro-orm.store';
 import { Role, RoleSnapshot } from '../domain/models/role.entity';
 
 @Injectable()
-export class DeleteRoleCommandRepository extends MikroOrmWriteSideCommandRepository<
+export class DeleteRoleCommandRepository extends AggregateRepository<
   RoleSnapshot,
   Role,
   null

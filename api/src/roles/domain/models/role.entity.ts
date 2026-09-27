@@ -65,17 +65,6 @@ export class Role extends RootEntity<RoleSnapshot> {
     this._name = Role.rules.name.parse(value);
   }
 
-  get version(): number {
-    return this._version;
-  }
-
-  private set version(value: number) {
-    if (typeof value === 'number' && Number.isInteger(value) && value > 0) {
-      this._version = value;
-      this._persistedVersion = value;
-    }
-  }
-
   @ApplyMutation<Role>({ event: (role) => new RoleUpdatedEvent(role) })
   rename(name: string): this {
     this.applyPatch({ name });

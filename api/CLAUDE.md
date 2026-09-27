@@ -33,7 +33,7 @@ Keep application-specific behavior out of `packages/ddd-core`, and do not copy i
 framework-neutral: Nest glue (DI providers, logger adapter, tenant wiring, exception
 filters) for `packages/ddd-core` belongs in this application.
 
-Cross-cutting wiring lives in `src/infrastructure/` (`ObservabilityModule` — Pino, OTel,
+Cross-cutting wiring lives in `src/common/modules/` (`ObservabilityModule` — Pino, OTel,
 audit, global behaviors; `ReliabilityModule` — BullMQ, dead-letter, rate limit,
 idempotency, resilience, cache, feature flags) and `src/common/` (guards, filters,
 interceptors, context, environment).
@@ -51,7 +51,7 @@ short and declarative, with no prefix or suffix the module already gives.
 | `src/graceful-shutdown.ts` | SIGTERM/SIGINT → `app.close()` → telemetry flush → re-raise the signal |
 | `src/app.module.ts` | Composition root: CQRS, observability, reliability, CASL, persistence, features |
 | `src/common/filters/domain-exception.filter.ts` | Framework-neutral errors → HTTP: this application's exceptions, then `domainErrorHttpStatus()` for `packages/ddd-core`'s (409, 404, generic 500 for a missing tenant, 400) |
-| `src/persistence/mikro-orm.store.ts` | Tenant-resolved `EntityManager` (`em`), the `IEntityManagerSource` of `packages/ddd-core`'s `MikroOrmWriteSideCommandRepository` |
+| `src/persistence/mikro-orm.store.ts` | Tenant-resolved `EntityManager` (`em`), the `IEntityManagerSource` of `@cqrs-ddd/mikro-orm`'s `AggregateRepository` |
 | `src/persistence/entity-manager-tenant.registry.ts` | Tenant ↔ EntityManager association (external `WeakMap`, never a property on the ORM object) |
 | `src/auths/services/session.service.ts` | Cookie lifecycle, kept out of domain login |
 | `src/auths/persistence/casl-permission.source.ts` | Principal and rule loading for CASL (`ICaslPermissionSource`) |

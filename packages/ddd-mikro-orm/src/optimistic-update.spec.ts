@@ -1,9 +1,11 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
+import {
+  ConcurrencyConflictError,
+  EntityNotFoundException,
+} from '@cqrs-ddd/core/domain';
 import { type EntityManager } from '@mikro-orm/core';
 import { describe, expect, it, vi } from 'vitest';
-import { ConcurrencyConflictError } from '../domain/exceptions/concurrency-conflict.error';
-import { EntityNotFoundException } from '../domain/exceptions/entity-not-found.exception';
 import { optimisticUpdate } from './optimistic-update';
 
 class Item {

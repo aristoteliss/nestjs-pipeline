@@ -1,6 +1,6 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import { UnixTimestampType } from './types/unix-timestamp.type';
+import { UnixTimestampType } from './unix-timestamp.type';
 
 /** Column names for the {@link rootEntityProperties} mapping. */
 export interface RootEntityColumns {

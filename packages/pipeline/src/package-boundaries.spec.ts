@@ -20,7 +20,7 @@ const CORE = '@nestjs-pipeline/core';
 const DDD_PREFIX = '@nestjs-pipeline/ddd-';
 const SCOPE = '@nestjs-pipeline/';
 const NEUTRAL_SCOPE = '@cqrs-ddd/';
-const DDD_CORE = '@cqrs-ddd/core';
+const DDD_PACKAGES = ['@cqrs-ddd/core', '@cqrs-ddd/mikro-orm'];
 
 const PACKAGES_DIR = resolve(__dirname, '../..');
 
@@ -123,7 +123,7 @@ describe('published package boundaries', () => {
     },
   );
 
-  it(`lets no ${SCOPE}* package name ${DDD_CORE}`, () => {
+  it(`lets no ${SCOPE}* package name ${DDD_PACKAGES.join(' or ')}`, () => {
     const naming = published
       .filter((m) => m.name.startsWith(SCOPE))
       .filter((m) =>
@@ -132,12 +132,15 @@ describe('published package boundaries', () => {
           m.peerDependencies,
           m.optionalDependencies,
           m.devDependencies,
-        ].some((field) => field !== undefined && DDD_CORE in field),
+        ].some(
+          (field) =>
+            field !== undefined && DDD_PACKAGES.some((name) => name in field),
+        ),
       )
       .map((m) => m.name);
 
-    // The pipeline packages and the DDD core know nothing of each other; only
-    // an application connects them.
+    // The pipeline packages and the DDD packages know nothing of each other;
+    // only an application connects them.
     expect(naming).toEqual([]);
   });
 

@@ -7,6 +7,7 @@ import {
   bootstrapE2E,
   E2E_LOGIN_CODE,
   type E2EContext,
+  inTenant,
   rebuildPermissions,
 } from './support/e2e-app';
 
@@ -51,12 +52,14 @@ describe.each(['express', 'fastify'] as const)('auths (e2e, %s)', (adapter) => {
     const { MIKRO_ORM_CLIENT } = await import(
       '../src/persistence/mikro-orm.store'
     );
-    await ctx.app
-      .get(MIKRO_ORM_CLIENT)
-      .em.execute('insert into user_roles (user_id, role_id) values (?, ?)', [
-        created.body.id,
-        ADMIN_ROLE,
-      ]);
+    await inTenant(ctx.app, () =>
+      ctx.app
+        .get(MIKRO_ORM_CLIENT)
+        .em.execute('insert into user_roles (user_id, role_id) values (?, ?)', [
+          created.body.id,
+          ADMIN_ROLE,
+        ]),
+    );
     await rebuildPermissions(ctx.app, [created.body.id]);
     return created.body.id;
   }

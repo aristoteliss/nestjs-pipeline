@@ -3,10 +3,10 @@
 import type { ITenantContext } from '@common/context/tenant-context.port';
 import type { EventBus } from '@nestjs/cqrs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { User } from '../../../users/domain/models/user.entity';
-import { AuthCreatedEvent } from '../../domain/events/auth-created.event';
-import { Auth } from '../../domain/models/auth.entity';
-import { NodeRefreshTokens } from '../../infrastructure/node-refresh-tokens';
+import { User } from '../../../../users/domain/models/user.entity';
+import { AuthCreatedEvent } from '../../../domain/events/auth-created.event';
+import { Auth } from '../../../domain/models/auth.entity';
+import { NodeRefreshTokens } from '../../../infrastructure/node-refresh-tokens';
 import { CreateAuthCommand } from './create-auth.command';
 import { CreateAuthHandler } from './create-auth.handler';
 

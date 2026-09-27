@@ -6,12 +6,9 @@ import { Inject } from '@nestjs/common';
 import { type IQueryHandler, QueryHandler } from '@nestjs/cqrs';
 import { CaslAuthorizer, requires } from '@nestjs-pipeline/casl';
 import { UsePipeline } from '@nestjs-pipeline/core';
-import {
-  projectUserRead,
-  type UserReadModel,
-} from '../../user-read-model';
 import type { User } from '../../../domain/models/user.entity';
 import { QUERY_REPOSITORY } from '../../../persistence/repository.tokens';
+import { projectUserRead, type UserReadModel } from '../../user-read-model';
 import { GetUsersQuery } from './get-users.query';
 
 @QueryHandler(GetUsersQuery)

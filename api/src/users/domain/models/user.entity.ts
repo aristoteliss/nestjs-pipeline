@@ -104,17 +104,6 @@ export class User extends RootEntity<UserSnapshot> {
     this._department = User.rules.department.parse(value);
   }
 
-  get version(): number {
-    return this._version;
-  }
-
-  private set version(value: number) {
-    if (typeof value === 'number' && Number.isInteger(value) && value > 0) {
-      this._version = value;
-      this._persistedVersion = value;
-    }
-  }
-
   @ApplyMutation<User>({ event: (user) => new UserUpdatedEvent(user) })
   update(fields: {
     username?: string | null;

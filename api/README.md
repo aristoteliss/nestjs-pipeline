@@ -56,7 +56,19 @@ A single tenant uses `DATABASE_URL` unchanged. For multiple local tenants, set `
 
 ### PostgreSQL
 
-Set `DB_ENGINE=postgres` and configure the PostgreSQL environment variables. Each tenant uses a separate schema. `TENANT_SCHEMAS` controls which schemas are migrated by the CLI.
+Set `DB_ENGINE=postgres` and configure the PostgreSQL environment variables. Each tenant uses a separate schema. `TENANT_SCHEMAS` lists the schemas the application serves and the CLI migrates; without it, only `DB_DEFAULT_SCHEMA` is served.
+
+### Tenant configuration
+
+`src/persistence/persistence.config.ts` reads every persistence variable, and the
+application, the tenant middleware and the CLI scripts all use its result:
+
+- `DB_ENGINE` is `libsql` (the default) or `postgres`, in any letter case; any other value
+  stops startup.
+- Tenant lists are split on commas and trimmed; blank entries are dropped and duplicates
+  removed. An invalid name stops startup; it is never replaced by the default schema.
+- `DB_DEFAULT_SCHEMA` (default `tenant`) names exactly one schema. libSQL always serves it
+  alongside `SQLITE_TENANTS`; PostgreSQL serves it only when `TENANT_SCHEMAS` is empty.
 
 The PostgreSQL options set both the ORM `schema` and `migrations.schema` to the
 selected tenant. MikroORM uses the latter to scope unqualified migration SQL

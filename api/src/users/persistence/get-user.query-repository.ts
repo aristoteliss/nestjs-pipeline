@@ -3,8 +3,8 @@
 import { ICache } from '@cqrs-ddd/core/application';
 import {
   CACHE_TOKEN,
-  FromCache,
   cacheKey,
+  FromCache,
   QueryRepository,
 } from '@cqrs-ddd/core/persistence';
 import { FilterQuery } from '@mikro-orm/core';
@@ -41,9 +41,7 @@ export class GetUserQueryRepository extends QueryRepository<
   @FromCache<GetUserQuery, User | null>({
     logger: cacheReadLogger,
     keyFn: (q) =>
-      q.department
-        ? null
-        : cacheKey(User.aggregateName, buildConditions(q)),
+      q.department ? null : cacheKey(User.aggregateName, buildConditions(q)),
   })
   async find(query: GetUserQuery): Promise<User | null> {
     const conditions = buildConditions(query);

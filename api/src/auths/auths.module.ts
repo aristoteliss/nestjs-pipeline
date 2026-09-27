@@ -8,6 +8,9 @@ import {
 } from '../common/environment/auth-token.config';
 import { GetUserQueryRepository } from '../users/persistence/get-user.query-repository';
 import { EXT_USER_QUERY_REPOSITORY } from '../users/persistence/repository.tokens';
+import { CreateAuthHandler } from './application/cqrs/commands/create-auth.handler';
+import { RefreshAuthHandler } from './application/cqrs/commands/refresh-auth.handler';
+import { RevokeAuthHandler } from './application/cqrs/commands/revoke-auth.handler';
 import { ACCESS_TOKEN_ISSUER } from './application/ports/access-token-issuer.port';
 import { AUTH_SESSIONS } from './application/ports/auth-sessions.port';
 import {
@@ -19,9 +22,6 @@ import { REFRESH_TOKENS } from './application/ports/refresh-tokens.port';
 import { SESSION_COOKIES } from './application/ports/session-cookies.port';
 import { AuthorizationModule } from './authorization.module';
 import { AuthsController } from './controllers/auths.controller';
-import { CreateAuthHandler } from './application/cqrs/commands/create-auth.handler';
-import { RefreshAuthHandler } from './application/cqrs/commands/refresh-auth.handler';
-import { RevokeAuthHandler } from './application/cqrs/commands/revoke-auth.handler';
 import { JoseAccessTokenIssuer } from './infrastructure/jose-access-token.issuer';
 import { NodeRefreshTokens } from './infrastructure/node-refresh-tokens';
 import { SharedDemoLoginCodeVerifier } from './infrastructure/shared-demo-login-code.verifier';

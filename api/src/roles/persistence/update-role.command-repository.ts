@@ -4,10 +4,9 @@ import { ICache } from '@cqrs-ddd/core/application';
 import {
   CACHE_TOKEN,
   cacheKey,
-  MikroOrmWriteSideCommandRepository,
-  optimisticUpdate,
   PersistedWrite,
 } from '@cqrs-ddd/core/persistence';
+import { AggregateRepository, optimisticUpdate } from '@cqrs-ddd/mikro-orm';
 import { Inject, Injectable } from '@nestjs/common';
 import { cacheWriteLogger } from '@persistence/cache/cache-loggers';
 import { MIKRO_ORM_CLIENT, MikroOrmStore } from '@persistence/mikro-orm.store';
@@ -15,7 +14,7 @@ import { UniqueRoleNameException } from '../domain/models/errors/role-name.excep
 import { Role, RoleSnapshot } from '../domain/models/role.entity';
 
 @Injectable()
-export class UpdateRoleCommandRepository extends MikroOrmWriteSideCommandRepository<
+export class UpdateRoleCommandRepository extends AggregateRepository<
   RoleSnapshot,
   Role,
   RoleSnapshot

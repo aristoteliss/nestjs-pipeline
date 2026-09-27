@@ -7,12 +7,12 @@ import {
   CaslAuthorizer,
 } from '@nestjs-pipeline/casl';
 import { describe, expect, it, vi } from 'vitest';
-import { CreateRoleCommand } from '../cqrs/commands/create-role.command';
-import { DeleteRoleCommand } from '../cqrs/commands/delete-role.command';
-import { UpdateRoleCommand } from '../cqrs/commands/update-role.command';
-import { GetRoleHandler } from '../cqrs/queries/get-role.handler';
-import { GetRoleQuery } from '../cqrs/queries/get-role.query';
-import { GetRolesQuery } from '../cqrs/queries/get-roles.query';
+import { CreateRoleCommand } from '../application/cqrs/commands/create-role.command';
+import { DeleteRoleCommand } from '../application/cqrs/commands/delete-role.command';
+import { UpdateRoleCommand } from '../application/cqrs/commands/update-role.command';
+import { GetRoleHandler } from '../application/cqrs/queries/get-role.handler';
+import { GetRoleQuery } from '../application/cqrs/queries/get-role.query';
+import { GetRolesQuery } from '../application/cqrs/queries/get-roles.query';
 import { Role } from '../domain/models/role.entity';
 import { CreateRoleDtoSchema } from '../dtos/create-role.dto';
 import { UpdateRoleDtoSchema } from '../dtos/update-role.dto';

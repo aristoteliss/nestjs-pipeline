@@ -2,9 +2,9 @@
 
 import type { ITenantContext } from '@common/context/tenant-context.port';
 import { describe, expect, it, vi } from 'vitest';
-import type { IUserBatchDispatcher } from '../../application/ports/user-event-dispatcher.port';
-import { UserUpdatedEvent } from '../../domain/events/user-updated.event';
-import { User } from '../../domain/models/user.entity';
+import { UserUpdatedEvent } from '../../../domain/events/user-updated.event';
+import { User } from '../../../domain/models/user.entity';
+import type { IUserBatchDispatcher } from '../../ports/user-event-dispatcher.port';
 import { UserUpdatedHandler } from './user-updated.handler';
 
 describe('UserUpdatedHandler', () => {

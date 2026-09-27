@@ -311,11 +311,6 @@ describe('RootDomainEvent event-time state', () => {
       return this._label;
     }
 
-    /** Concrete aggregates declare this accessor for the ORM; mirror them. */
-    get version(): number {
-      return this._version;
-    }
-
     rename(label: string) {
       this._label = label;
       this.onUpdate();

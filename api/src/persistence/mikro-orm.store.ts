@@ -8,11 +8,8 @@ import {
   OnModuleDestroy,
   OnModuleInit,
 } from '@nestjs/common';
-import {
-  createLibsqlOrmOptions,
-  resolveLibsqlDbUrl,
-  resolveLibsqlTenants,
-} from './libsql-options';
+import { createLibsqlOrmOptions, libsqlDbUrl } from './orm-options';
+import { persistenceConfig } from './persistence.config';
 import { TenantEntityManagerResolver } from './tenant-entity-manager.resolver';
 import { TenantSchemaContext } from './tenant-schema.context';
 import { UnknownTenantSchemaError } from './tenant-schema.errors';
@@ -22,7 +19,7 @@ import { UnknownTenantSchemaError } from './tenant-schema.errors';
  * application (users, roles, capabilities, cache entries).
  *
  * For SQLite/libSQL, multi-tenancy uses a database-per-tenant strategy: one ORM
- * instance is initialized per tenant schema (resolved from `SQLITE_TENANTS`), and
+ * instance is initialized per configured tenant (`persistenceConfig().tenants`), and
  * the active tenant from `TenantSchemaContext` selects which database to query.
  */
 export const MIKRO_ORM_CLIENT = Symbol('MIKRO_ORM_CLIENT');
@@ -38,8 +35,9 @@ export class MikroOrmStore implements OnModuleInit, OnModuleDestroy {
   ) {}
 
   async onModuleInit(): Promise<void> {
-    for (const tenant of resolveLibsqlTenants()) {
-      const dbName = resolveLibsqlDbUrl(tenant);
+    const config = persistenceConfig();
+    for (const tenant of config.tenants) {
+      const dbName = libsqlDbUrl(tenant, config);
       const orm = await MikroORM.init(createLibsqlOrmOptions(dbName));
       this.orms.set(tenant, orm);
       this.logger.log(

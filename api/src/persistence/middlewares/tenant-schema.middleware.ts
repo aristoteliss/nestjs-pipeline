@@ -7,10 +7,7 @@ import {
   Injectable,
   type NestMiddleware,
 } from '@nestjs/common';
-import {
-  normalizeSchemaName,
-  resolveAllowedTenantSchemas,
-} from '../postgres-options';
+import { tenantSchema } from '../persistence.config';
 import { TenantSchemaContext } from '../tenant-schema.context';
 import { InvalidTenantSchemaError } from '../tenant-schema.errors';
 
@@ -20,7 +17,10 @@ import { InvalidTenantSchemaError } from '../tenant-schema.errors';
  * inside the tenant async context used by persistence components.
  */
 export class TenantSchemaMiddleware implements NestMiddleware {
-  constructor(private readonly tenantSchemaContext: TenantSchemaContext) {}
+  constructor(
+    private readonly tenantSchemaContext: TenantSchemaContext,
+    private readonly tenants: ReadonlySet<string>,
+  ) {}
 
   use(
     request: { headers?: Record<string, string | string[] | undefined> },
@@ -39,7 +39,7 @@ export class TenantSchemaMiddleware implements NestMiddleware {
     }
 
     const schema = this.parseSchema(headerValue);
-    if (!resolveAllowedTenantSchemas().has(schema)) {
+    if (!this.tenants.has(schema)) {
       throw new ForbiddenException('Unknown tenant context.');
     }
 
@@ -50,7 +50,7 @@ export class TenantSchemaMiddleware implements NestMiddleware {
 
   private parseSchema(headerValue: string): string {
     try {
-      return normalizeSchemaName(headerValue);
+      return tenantSchema(headerValue);
     } catch (error) {
       if (error instanceof InvalidTenantSchemaError) {
         throw new BadRequestException(error.message);

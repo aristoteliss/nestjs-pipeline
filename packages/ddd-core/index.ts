@@ -3,10 +3,9 @@
 /**
  * Convenience barrel re-exporting every layer.
  *
- * It reaches `./persistence`, and therefore MikroORM. Prefer the layered entry
- * points — `@cqrs-ddd/core/domain` and `.../application` — in domain
- * and CQRS code so the layering is expressed by the import itself rather than
- * only by convention.
+ * Prefer the layered entry points — `@cqrs-ddd/core/domain` and
+ * `.../application` — in domain and CQRS code so the layering is expressed by
+ * the import itself rather than only by convention.
  */
 
 export * from './application/index';

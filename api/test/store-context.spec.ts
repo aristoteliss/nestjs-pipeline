@@ -6,10 +6,12 @@ import {
 } from '@mikro-orm/core';
 import { MikroORM } from '@mikro-orm/libsql';
 import { MikroORM as PostgresORM } from '@mikro-orm/postgresql';
-import { createLibsqlOrmOptions } from '@persistence/libsql-options';
 import { MikroOrmStore } from '@persistence/mikro-orm.store';
+import {
+  createLibsqlOrmOptions,
+  createPostgresOrmOptions,
+} from '@persistence/orm-options';
 import { PostgresMikroOrmStore } from '@persistence/postgres-mikro-orm.store';
-import { createPostgresOrmOptions } from '@persistence/postgres-options';
 import { TenantSchemaContext } from '@persistence/tenant-schema.context';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 

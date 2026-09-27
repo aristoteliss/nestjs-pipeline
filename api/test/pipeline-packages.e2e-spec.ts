@@ -16,6 +16,7 @@ import { WELCOME_EMAIL_QUEUE } from '../src/users/jobs/send-welcome-email.proces
 import {
   bootstrapE2E,
   type E2EContext,
+  inTenant,
   rebuildPermissions,
 } from './support/e2e-app';
 
@@ -287,66 +288,67 @@ describe('pipeline-packages (e2e)', () => {
       expect(deleteRes.status).toBe(403);
     });
 
-    it('resolves capabilities persisted in SQLite database tables (user_roles -> capabilities)', async () => {
-      // 1. Create a user via API
-      const userEmail = newEmail();
-      const createRes = await as(admin).post('/users').send({
-        email: userEmail,
-        name: 'Db Capability User',
-        department: 'engineering',
-      });
-      expect(createRes.status).toBe(201);
-      const userId = createRes.body.id;
+    it('resolves capabilities persisted in SQLite database tables (user_roles -> capabilities)', () =>
+      inTenant(ctx.app, async () => {
+        // 1. Create a user via API
+        const userEmail = newEmail();
+        const createRes = await as(admin).post('/users').send({
+          email: userEmail,
+          name: 'Db Capability User',
+          department: 'engineering',
+        });
+        expect(createRes.status).toBe(201);
+        const userId = createRes.body.id;
 
-      // 2. Seed database with a role and capability directly
-      const store = ctx.app.get<MikroOrmStore>(MIKRO_ORM_CLIENT);
-      const em = store.em;
+        // 2. Seed database with a role and capability directly
+        const store = ctx.app.get<MikroOrmStore>(MIKRO_ORM_CLIENT);
+        const em = store.em;
 
-      const capId = uuidv7();
-      const roleId = uuidv7();
-      const now = Date.now();
+        const capId = uuidv7();
+        const roleId = uuidv7();
+        const now = Date.now();
 
-      // Insert capability for User|read
-      await em.execute(
-        `INSERT INTO capabilities (id, created_at, updated_at, action, subject, conditions, inverted, reason, fields)
+        // Insert capability for User|read
+        await em.execute(
+          `INSERT INTO capabilities (id, created_at, updated_at, action, subject, conditions, inverted, reason, fields)
          VALUES (?, ?, ?, 'read', 'User', NULL, false, NULL, NULL)`,
-        [capId, now, now],
-      );
+          [capId, now, now],
+        );
 
-      // Insert role
-      await em.execute(
-        `INSERT INTO roles (id, created_at, updated_at, name)
+        // Insert role
+        await em.execute(
+          `INSERT INTO roles (id, created_at, updated_at, name)
          VALUES (?, ?, ?, ?)`,
-        [roleId, now, now, `db-role-${Date.now()}`],
-      );
+          [roleId, now, now, `db-role-${Date.now()}`],
+        );
 
-      // Link role to capability
-      await em.execute(
-        `INSERT INTO role_capabilities (role_id, capability_id) VALUES (?, ?)`,
-        [roleId, capId],
-      );
+        // Link role to capability
+        await em.execute(
+          `INSERT INTO role_capabilities (role_id, capability_id) VALUES (?, ?)`,
+          [roleId, capId],
+        );
 
-      // Link user to role
-      await em.execute(
-        `INSERT INTO user_roles (user_id, role_id) VALUES (?, ?)`,
-        [userId, roleId],
-      );
-      await rebuildPermissions(ctx.app, [userId]);
+        // Link user to role
+        await em.execute(
+          `INSERT INTO user_roles (user_id, role_id) VALUES (?, ?)`,
+          [userId, roleId],
+        );
+        await rebuildPermissions(ctx.app, [userId]);
 
-      // 3. Authenticate with ONLY the user's ID (no inline capabilities)
-      const sessionUserWithNoInlineCaps = JSON.stringify({
-        id: userId,
-        email: userEmail,
-        department: 'engineering',
-      });
+        // 3. Authenticate with ONLY the user's ID (no inline capabilities)
+        const sessionUserWithNoInlineCaps = JSON.stringify({
+          id: userId,
+          email: userEmail,
+          department: 'engineering',
+        });
 
-      // The permission source loads this user's rules from the database.
-      const getRes = await as(sessionUserWithNoInlineCaps).get(
-        `/users/${userId}`,
-      );
-      expect(getRes.status).toBe(200);
-      expect(getRes.body.id).toBe(userId);
-    });
+        // The permission source loads this user's rules from the database.
+        const getRes = await as(sessionUserWithNoInlineCaps).get(
+          `/users/${userId}`,
+        );
+        expect(getRes.status).toBe(200);
+        expect(getRes.body.id).toBe(userId);
+      }));
   });
 
   describe('@nestjs-pipeline/idempotency', () => {

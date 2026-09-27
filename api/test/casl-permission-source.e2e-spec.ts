@@ -11,6 +11,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import {
   bootstrapE2E,
   type E2EContext,
+  inTenant,
   rebuildPermissions,
 } from './support/e2e-app';
 
@@ -43,7 +44,9 @@ describe('CASL permission source wiring (e2e)', () => {
 
   async function sql(statement: string, params: unknown[]): Promise<void> {
     const { MIKRO_ORM_CLIENT } = await import('@persistence/mikro-orm.store');
-    await ctx.app.get(MIKRO_ORM_CLIENT).em.execute(statement, params);
+    await inTenant(ctx.app, () =>
+      ctx.app.get(MIKRO_ORM_CLIENT).em.execute(statement, params),
+    );
   }
 
   const assign = (userId: string, roleId: string) =>

@@ -26,6 +26,9 @@ importers:
       '@cqrs-ddd/core':
         specifier: workspace:*
         version: link:../packages/ddd-core
+      '@cqrs-ddd/mikro-orm':
+        specifier: workspace:*
+        version: link:../packages/ddd-mikro-orm
       '@cqrs-ddd/safe-stringify':
         specifier: workspace:*
         version: link:../packages/safe-stringify
@@ -241,15 +244,30 @@ importers:
       '@biomejs/biome':
         specifier: ^2.5.10
         version: 2.5.10
-      '@mikro-orm/core':
-        specifier: ^7.1.13
-        version: 7.1.13
       '@vitest/coverage-v8':
         specifier: ^4.1.11
         version: 4.1.11(vitest@4.1.11)
       tsx:
         specifier: ^4.23.12
         version: 4.23.12
+      typescript:
+        specifier: ^6.0.3
+        version: 6.0.3
+      vitest:
+        specifier: ^4.1.11
+        version: 4.1.11(@opentelemetry/api@1.9.1)(@types/node@26.2.0)(@vitest/coverage-v8@4.1.11)(vite@8.2.0(@types/node@26.2.0)(esbuild@0.28.1)(tsx@4.23.12)(yaml@2.9.0))
+
+  packages/ddd-mikro-orm:
+    devDependencies:
+      '@cqrs-ddd/core':
+        specifier: workspace:^
+        version: link:../ddd-core
+      '@mikro-orm/core':
+        specifier: ^7.1.13
+        version: 7.1.13
+      '@vitest/coverage-v8':
+        specifier: ^4.1.11
+        version: 4.1.11(vitest@4.1.11)
       typescript:
         specifier: ^6.0.3
         version: 6.0.3

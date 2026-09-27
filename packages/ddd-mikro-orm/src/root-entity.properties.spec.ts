@@ -6,7 +6,7 @@ import {
   rootEntityProperties,
   versionProperty,
 } from './root-entity.properties';
-import { UnixTimestampType } from './types/unix-timestamp.type';
+import { UnixTimestampType } from './unix-timestamp.type';
 
 describe('rootEntityProperties', () => {
   it('maps id and epoch-millisecond timestamps through accessors under the default column names', () => {

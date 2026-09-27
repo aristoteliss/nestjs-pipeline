@@ -4,17 +4,17 @@ import type { ITenantContext } from '@common/context/tenant-context.port';
 import { ConcurrencyConflictError } from '@cqrs-ddd/core/domain';
 import type { EventBus } from '@nestjs/cqrs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { User } from '../../../users/domain/models/user.entity';
-import { type IAuthSessions } from '../../application/ports/auth-sessions.port';
+import { User } from '../../../../users/domain/models/user.entity';
 import {
   InvalidRefreshTokenError,
   RefreshTokenReuseError,
-} from '../../domain/errors/refresh-token.errors';
-import { AuthRefreshedEvent } from '../../domain/events/auth-refreshed.event';
-import { AuthRevokedEvent } from '../../domain/events/auth-revoked.event';
-import { Auth, type AuthSnapshot } from '../../domain/models/auth.entity';
-import { NodeRefreshTokens } from '../../infrastructure/node-refresh-tokens';
-import { AuthSessionRevocationService } from '../../services/auth-session-revocation.service';
+} from '../../../domain/errors/refresh-token.errors';
+import { AuthRefreshedEvent } from '../../../domain/events/auth-refreshed.event';
+import { AuthRevokedEvent } from '../../../domain/events/auth-revoked.event';
+import { Auth, type AuthSnapshot } from '../../../domain/models/auth.entity';
+import { NodeRefreshTokens } from '../../../infrastructure/node-refresh-tokens';
+import { AuthSessionRevocationService } from '../../../services/auth-session-revocation.service';
+import { type IAuthSessions } from '../../ports/auth-sessions.port';
 import { RefreshAuthCommand } from './refresh-auth.command';
 import { RefreshAuthHandler } from './refresh-auth.handler';
 import { RevokeAuthCommand } from './revoke-auth.command';

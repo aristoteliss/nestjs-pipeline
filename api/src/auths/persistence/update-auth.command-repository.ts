@@ -1,19 +1,15 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { ICache } from '@cqrs-ddd/core/application';
-import {
-  CACHE_TOKEN,
-  MikroOrmWriteSideCommandRepository,
-  optimisticUpdate,
-  PersistedWrite,
-} from '@cqrs-ddd/core/persistence';
+import { CACHE_TOKEN, PersistedWrite } from '@cqrs-ddd/core/persistence';
+import { AggregateRepository, optimisticUpdate } from '@cqrs-ddd/mikro-orm';
 import { Inject, Injectable } from '@nestjs/common';
 import { MIKRO_ORM_CLIENT, MikroOrmStore } from '@persistence/mikro-orm.store';
 import { Auth, type AuthSnapshot } from '../domain/models/auth.entity';
 
 /** Version-conditioned writes of refresh rotation and revocation. */
 @Injectable()
-export class UpdateAuthCommandRepository extends MikroOrmWriteSideCommandRepository<
+export class UpdateAuthCommandRepository extends AggregateRepository<
   AuthSnapshot,
   Auth,
   AuthSnapshot

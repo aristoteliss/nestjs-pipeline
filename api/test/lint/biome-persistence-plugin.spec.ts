@@ -16,7 +16,8 @@ const repositoryPath =
   'api/src/roles/persistence/update-role.command-repository.ts';
 const current = readFileSync(resolve(root, repositoryPath), 'utf8');
 const valid = `
-import { Cache, AcknowledgePersisted, MapPersistenceErrors, optimisticUpdate } from '@cqrs-ddd/core/persistence';
+import { Cache, AcknowledgePersisted, MapPersistenceErrors } from '@cqrs-ddd/core/persistence';
+import { optimisticUpdate } from '@cqrs-ddd/mikro-orm';
 class UpdateRoleCommandRepository {
   @Cache(key)
   @AcknowledgePersisted(options)

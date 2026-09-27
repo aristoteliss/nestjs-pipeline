@@ -4,7 +4,7 @@ import { AsyncLocalStorage } from 'node:async_hooks';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { setTenantResolver } from '../../application/tenant-resolver';
 import { MissingTenantContextError } from '../../domain/exceptions/missing-tenant-context.exception';
-import { cacheKeyTemplate, cacheKey } from './cache-key.helper';
+import { cacheKey, cacheKeyTemplate } from './cache-key.helper';
 
 /** The application's own tenant context, registered as the tenant resolver. */
 const applicationTenant = new AsyncLocalStorage<string | undefined>();
@@ -68,9 +68,9 @@ describe('filterCacheKey', () => {
   });
 
   it('rejects unsupported types with TypeError', () => {
-    expect(() =>
-      cacheKey('user', { fn: () => {} }, 'tenant_test'),
-    ).toThrow(TypeError);
+    expect(() => cacheKey('user', { fn: () => {} }, 'tenant_test')).toThrow(
+      TypeError,
+    );
     expect(() =>
       cacheKey('user', { sym: Symbol('test') }, 'tenant_test'),
     ).toThrow(TypeError);
@@ -96,9 +96,7 @@ describe('filterCacheKey', () => {
   });
 
   it('uses the registered resolver when no tenant is passed', () => {
-    const key = inTenant('tenant_scope', () =>
-      cacheKey('user', { id: '1' }),
-    );
+    const key = inTenant('tenant_scope', () => cacheKey('user', { id: '1' }));
     expect(key).toMatch(/^tenant_scope:user:v1:[0-9a-f]{64}$/);
   });
 
@@ -238,9 +236,9 @@ describe('filterCacheKey', () => {
   );
 
   it('throws when resourceOrEntity is neither a string nor an object with aggregateName or prefixKey', () => {
-    expect(() =>
-      cacheKey(123 as any, { id: '1' }, 'tenant_test'),
-    ).toThrow(/Cannot resolve cache key prefix/);
+    expect(() => cacheKey(123 as any, { id: '1' }, 'tenant_test')).toThrow(
+      /Cannot resolve cache key prefix/,
+    );
     expect(() => cacheKey({} as any, { id: '1' }, 'tenant_test')).toThrow(
       /Cannot resolve cache key prefix/,
     );
@@ -349,8 +347,7 @@ describe('cache key frozen output', () => {
     ],
     [
       'a retained null and a dropped undefined',
-      () =>
-        cacheKey('user', { id: null, name: undefined }, 'tenant_golden'),
+      () => cacheKey('user', { id: null, name: undefined }, 'tenant_golden'),
       'tenant_golden:user:v1:2e754bc2d34f163338128e77575acd3509eacad32ea63dd7d044a7abb362cff8',
     ],
     [
@@ -395,8 +392,7 @@ describe('cache key frozen output', () => {
     ],
     [
       'a prefixKey object',
-      () =>
-        cacheKey({ prefixKey: 'user:' }, { id: '1' }, 'tenant_golden'),
+      () => cacheKey({ prefixKey: 'user:' }, { id: '1' }, 'tenant_golden'),
       'tenant_golden:user:v1:647a0712378b1f69e500fdf2c8cd7404c0a93a8ac1a0518af2646b2a74609fd2',
     ],
     [

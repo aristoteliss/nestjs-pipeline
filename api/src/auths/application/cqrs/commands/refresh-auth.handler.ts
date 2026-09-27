@@ -26,6 +26,14 @@ import { GetUserQuery } from '../../../../users/application/cqrs/queries/get-use
 import type { User } from '../../../../users/domain/models/user.entity';
 import { EXT_USER_QUERY_REPOSITORY } from '../../../../users/persistence/repository.tokens';
 import {
+  InvalidRefreshTokenError,
+  RefreshTokenReuseError,
+} from '../../../domain/errors/refresh-token.errors';
+import type { Auth, RefreshOutcome } from '../../../domain/models/auth.entity';
+import { COMMAND_REPOSITORY } from '../../../persistence/repository.tokens';
+import { AuthSessionRevocationService } from '../../../services/auth-session-revocation.service';
+import { UserLoginService } from '../../../services/user-login.service';
+import {
   AUTH_SESSIONS,
   type IAuthSessions,
 } from '../../ports/auth-sessions.port';
@@ -41,15 +49,7 @@ import {
   type ISessionCookies,
   SESSION_COOKIES,
 } from '../../ports/session-cookies.port';
-import {
-  InvalidRefreshTokenError,
-  RefreshTokenReuseError,
-} from '../../../domain/errors/refresh-token.errors';
-import type { Auth, RefreshOutcome } from '../../../domain/models/auth.entity';
-import { COMMAND_REPOSITORY } from '../../../persistence/repository.tokens';
-import { AuthSessionRevocationService } from '../../../services/auth-session-revocation.service';
-import { UserLoginService } from '../../../services/user-login.service';
-import type { AuthResult } from '../results/auth.result';
+import type { AuthResult } from '../../results/auth.result';
 import { RefreshAuthCommand } from './refresh-auth.command';
 
 @CommandHandler(RefreshAuthCommand)

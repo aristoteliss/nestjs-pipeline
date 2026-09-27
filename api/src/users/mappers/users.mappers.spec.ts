@@ -2,8 +2,8 @@
 
 import { BadRequestException } from '@nestjs/common';
 import { describe, expect, it } from 'vitest';
-import { CreateUserCommand } from '../cqrs/commands/create-user.command';
-import { UpdateUserCommand } from '../cqrs/commands/update-user.command';
+import { CreateUserCommand } from '../application/cqrs/commands/create-user.command';
+import { UpdateUserCommand } from '../application/cqrs/commands/update-user.command';
 import { CreateUserMapper } from './create-user.mapper';
 import { UpdateUserMapper } from './update-user.mapper';
 

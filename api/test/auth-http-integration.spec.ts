@@ -1,7 +1,7 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { AUTH_HEADERS } from '@common/constants/auth-headers.constants';
-import { getSessionUserFromStore } from '@common/context/session-user.store';
+import { getSessionUser } from '@common/context/session-user.store';
 import { AuthSessionGuard } from '@common/guards/auth-session.guard';
 import { SessionUserContextInterceptor } from '@common/interceptors/session-user-context.interceptor';
 import {
@@ -16,6 +16,7 @@ import {
 } from '@nestjs/common';
 import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { Test } from '@nestjs/testing';
+import { persistenceConfig } from '@persistence/persistence.config';
 import { TenantSchemaContext } from '@persistence/tenant-schema.context';
 import { SignJWT } from 'jose';
 import request from 'supertest';
@@ -34,7 +35,7 @@ class TestAuthController {
   @Get('principal')
   async getPrincipal() {
     await Promise.resolve();
-    return getSessionUserFromStore() ?? { anonymous: true };
+    return getSessionUser() ?? { anonymous: true };
   }
 
   @Get('concurrent')
@@ -42,7 +43,7 @@ class TestAuthController {
     const delay = parseInt(delayStr, 10) || 10;
     await new Promise((resolve) => setTimeout(resolve, delay));
     return {
-      user: getSessionUserFromStore(),
+      user: getSessionUser(),
       schema: this.tenantContext.schema,
     };
   }
@@ -50,7 +51,7 @@ class TestAuthController {
   async getSessionStatus(@Req() req: { sessionDeleted?: boolean }) {
     return {
       sessionDeleted: req.sessionDeleted ?? false,
-      user: getSessionUserFromStore() ?? { anonymous: true },
+      user: getSessionUser() ?? { anonymous: true },
     };
   }
 }
@@ -63,7 +64,15 @@ class TestAuthController {
       provide: TENANT_CONTEXT,
       useExisting: TenantSchemaContext,
     },
-    TenantSchemaMiddleware,
+    {
+      provide: TenantSchemaMiddleware,
+      useFactory: (context: TenantSchemaContext) =>
+        new TenantSchemaMiddleware(
+          context,
+          new Set(persistenceConfig().tenants),
+        ),
+      inject: [TenantSchemaContext],
+    },
     SessionService,
     JwtAuthenticator,
     ApiClientAuthenticator,

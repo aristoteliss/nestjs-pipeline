@@ -104,7 +104,7 @@ export const HTTP_LOG_REDACT_PATHS = [
       ],
       useFactory: (tenantContext: TenantSchemaContext) => ({
         ...correlationPipelineOptions(),
-        tenantIdFactory: () => tenantContext.schema,
+        tenantIdFactory: () => tenantContext.current,
       }),
     }),
     AuditModule.forRoot({

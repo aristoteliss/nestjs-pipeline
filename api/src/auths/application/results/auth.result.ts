@@ -1,7 +1,7 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import type { PrincipalType } from '@common/types/SessionUser';
-import type { Auth } from '../../../domain/models/auth.entity';
+import type { Auth } from '../../domain/models/auth.entity';
 
 /**
  * Application result of login and refresh.

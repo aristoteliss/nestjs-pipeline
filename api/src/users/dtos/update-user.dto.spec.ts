@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   EMPTY_USER_UPDATE_MESSAGE,
   UpdateUserCommand,
-} from '../cqrs/commands/update-user.command';
+} from '../application/cqrs/commands/update-user.command';
 import { UpdateUserDtoSchema } from './update-user.dto';
 
 describe('UpdateUserDtoSchema', () => {

@@ -11,8 +11,8 @@ import {
 } from '@nestjs-pipeline/casl';
 import type { IPipelineContext } from '@nestjs-pipeline/core';
 import { describe, expect, it, vi } from 'vitest';
-import { Role } from '../../../roles/domain/models/role.entity';
-import { User } from '../../domain/models/user.entity';
+import { Role } from '../../../../roles/domain/models/role.entity';
+import { User } from '../../../domain/models/user.entity';
 import { GetUserOverviewHandler } from './get-user-overview.handler';
 import { GetUserOverviewQuery } from './get-user-overview.query';
 import {

@@ -37,11 +37,7 @@ describe('UpdateRoleCommandRepository', () => {
       { name: 'publisher', updatedAt: role.updatedAt, version: 2 },
     );
     const idKey = cacheKey(Role.aggregateName, { id: role.id }, 'tenant');
-    const nameKey = cacheKey(
-      Role.aggregateName,
-      { name: role.name },
-      'tenant',
-    );
+    const nameKey = cacheKey(Role.aggregateName, { name: role.name }, 'tenant');
     expect(cache.set).toHaveBeenCalledWith(
       idKey,
       toCacheSnapshot(result),

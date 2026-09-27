@@ -5,7 +5,7 @@ import type { Session } from '@fastify/secure-session';
 import { Injectable } from '@nestjs/common';
 import type { SessionData, SessionUser } from '../../common/types/SessionUser';
 import type { ISessionCookies } from '../application/ports/session-cookies.port';
-import type { AuthResult } from '../application/cqrs/results/auth.result';
+import type { AuthResult } from '../application/results/auth.result';
 
 export const REFRESH_COOKIE = 'refresh_token';
 

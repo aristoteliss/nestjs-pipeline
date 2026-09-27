@@ -14,19 +14,19 @@ import {
   type RateLimitKeyFactory,
 } from '@nestjs-pipeline/rate-limit';
 import { describe, expect, it } from 'vitest';
-import { CreateAuthCommand } from '../../../auths/cqrs/commands/create-auth.command';
-import { CreateAuthHandler } from '../../../auths/cqrs/commands/create-auth.handler';
-import { RefreshAuthCommand } from '../../../auths/cqrs/commands/refresh-auth.command';
-import { RefreshAuthHandler } from '../../../auths/cqrs/commands/refresh-auth.handler';
-import { RevokeAuthCommand } from '../../../auths/cqrs/commands/revoke-auth.command';
-import { RevokeAuthHandler } from '../../../auths/cqrs/commands/revoke-auth.handler';
-import { CreateRoleCommand } from '../../../roles/cqrs/commands/create-role.command';
-import { createRoleIdempotencyKey } from '../../../roles/cqrs/commands/create-role.handler';
-import { CreateUserCommand } from '../../../users/cqrs/commands/create-user.command';
+import { CreateAuthCommand } from '../../../auths/application/cqrs/commands/create-auth.command';
+import { CreateAuthHandler } from '../../../auths/application/cqrs/commands/create-auth.handler';
+import { RefreshAuthCommand } from '../../../auths/application/cqrs/commands/refresh-auth.command';
+import { RefreshAuthHandler } from '../../../auths/application/cqrs/commands/refresh-auth.handler';
+import { RevokeAuthCommand } from '../../../auths/application/cqrs/commands/revoke-auth.command';
+import { RevokeAuthHandler } from '../../../auths/application/cqrs/commands/revoke-auth.handler';
+import { CreateRoleCommand } from '../../../roles/application/cqrs/commands/create-role.command';
+import { createRoleIdempotencyKey } from '../../../roles/application/cqrs/commands/create-role.handler';
+import { CreateUserCommand } from '../../../users/application/cqrs/commands/create-user.command';
 import {
   createUserIdempotencyKey,
   createUserRateLimitKey,
-} from '../../../users/cqrs/commands/create-user.handler';
+} from '../../../users/application/cqrs/commands/create-user.handler';
 
 import { MissingPrincipalContextError } from './idempotent-operation.helper';
 
