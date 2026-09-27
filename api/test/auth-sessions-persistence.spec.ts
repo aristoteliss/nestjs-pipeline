@@ -5,8 +5,6 @@ import { ConcurrencyConflictError } from '@cqrs-ddd/core/domain';
 import { MemoryCache } from '@cqrs-ddd/core/persistence';
 import { type IPipelineContext, pipelineStore } from '@nestjs-pipeline/core';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { RefreshAuthCommand } from '../src/auths/cqrs/commands/refresh-auth.command';
-import { RefreshAuthHandler } from '../src/auths/cqrs/commands/refresh-auth.handler';
 import { RefreshTokenReuseError } from '../src/auths/domain/errors/refresh-token.errors';
 import {
   Auth,
@@ -16,7 +14,7 @@ import { NodeRefreshTokens } from '../src/auths/infrastructure/node-refresh-toke
 import { AuthSessionsRepository } from '../src/auths/persistence/auth-sessions.repository';
 import { CreateAuthCommandRepository } from '../src/auths/persistence/create-auth.command-repository';
 import { UpdateAuthCommandRepository } from '../src/auths/persistence/update-auth.command-repository';
-import { AuthSessionRevocationService } from '../src/auths/services/auth-session-revocation.service';
+import { PrincipalLoginService } from '../src/auths/services/principal-login.service';
 import { type MigratedDb, migratedDb } from './support/permission-rules-db';
 
 const ALICE = '019de10c-b680-7000-8000-000000000006';
@@ -91,31 +89,24 @@ describe('Auth session persistence', () => {
       30_000,
     );
     await inTenant(() => updates().save(loaded));
-    const handler = new RefreshAuthHandler(
-      { publishAll: vi.fn() } as never,
-      sessions(),
-      updates(),
-      new AuthSessionRevocationService(updates()),
+    const service = new PrincipalLoginService(
       { find: vi.fn() } as never,
-      tokens,
+      { verify: vi.fn() } as never,
+      { issue: vi.fn() } as never,
       {
         refreshTokenTtlSeconds: 3600,
         refreshReuseGraceSeconds: 30,
         embedPermissions: false,
       },
-      { signToken: vi.fn() } as never,
+      { find: vi.fn() } as never,
+      sessions(),
+      updates(),
+      tokens,
       { schema: 'tenant' },
       { save: vi.fn(), clear: vi.fn() },
     );
     await expect(
-      inTenant(() =>
-        handler.execute(
-          new RefreshAuthCommand({
-            refreshToken: 'token-a',
-            clientIp: '127.0.0.1',
-          }),
-        ),
-      ),
+      inTenant(() => service.refresh('token-a', '127.0.0.1')),
     ).rejects.toBeInstanceOf(RefreshTokenReuseError);
     const persisted = await updates().findById(auth.id);
     expect(persisted?.revokedAt).not.toBeNull();
@@ -149,31 +140,24 @@ describe('Auth session persistence', () => {
       await competing.save(winner);
       return save(stale);
     });
-    const handler = new RefreshAuthHandler(
-      { publishAll: vi.fn() } as never,
-      sessions(),
-      repository,
-      new AuthSessionRevocationService(repository),
+    const service = new PrincipalLoginService(
       { find: vi.fn() } as never,
-      tokens,
+      { verify: vi.fn() } as never,
+      { issue: vi.fn() } as never,
       {
         refreshTokenTtlSeconds: 3600,
         refreshReuseGraceSeconds: 30,
         embedPermissions: false,
       },
-      { signToken: vi.fn() } as never,
+      { find: vi.fn() } as never,
+      sessions(),
+      repository,
+      tokens,
       { schema: 'tenant' },
       { save: vi.fn(), clear: vi.fn() },
     );
     await expect(
-      inTenant(() =>
-        handler.execute(
-          new RefreshAuthCommand({
-            refreshToken: 'token-a',
-            clientIp: '127.0.0.1',
-          }),
-        ),
-      ),
+      inTenant(() => service.refresh('token-a', '127.0.0.1')),
     ).rejects.toBeInstanceOf(RefreshTokenReuseError);
     const persisted = await sessions().findByTokenHash(tokens.hash('token-d'));
     expect(persisted?.revokedAt).not.toBeNull();

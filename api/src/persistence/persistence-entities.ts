@@ -15,7 +15,6 @@ import { UserRoleSchema } from './schemas/user-role.schema';
 /** Entity schemas registered by every persistence engine. */
 export const PERSISTENCE_ENTITIES = [
   UserSchema,
-  AuthSchema,
   RoleSchema,
   CapabilitySchema,
   RoleCapabilitySchema,
@@ -23,6 +22,7 @@ export const PERSISTENCE_ENTITIES = [
   UserAdditionalCapabilitySchema,
   UserDeniedCapabilitySchema,
   UserPermissionRuleSchema,
+  AuthSchema,
   ConsumedRefreshTokenSchema,
   CacheEntrySchema,
 ];

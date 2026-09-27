@@ -224,7 +224,7 @@ handles objects, arrays, `Date`, `Map`, `Set`, `RegExp` and circular references.
 ## Commands and event publication
 
 `BaseCommand` and `BaseQuery` are plain base classes for command and query objects.
-`BaseCommand` keeps an optional `sessionUser` out of enumeration and `toJSON()`, so it
+`BaseCommand` keeps an optional `sessionPrincipal` (or `sessionUser`) out of enumeration and `toJSON()`, so it
 never reaches a fingerprint or a log. `getUpdateFields(fields)` returns the listed
 fields the command carries (`null` counts, `undefined` does not), for field-level
 authorization.

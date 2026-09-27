@@ -27,24 +27,30 @@ import { definedFields, defineHidden } from './request-fields.helper';
  * const query = new GetUserQuery(userId, { hydrate: true }, sessionUser);
  * ```
  */
-export abstract class BaseQuery<TSessionUser = unknown>
+export abstract class BaseQuery<TSessionPrincipal = unknown>
   implements IQueryOptions
 {
   public declare readonly hydrate?: boolean;
   public declare readonly refresh?: boolean;
-  public declare readonly sessionUser?: TSessionUser;
+  public declare readonly sessionPrincipal?: TSessionPrincipal;
+  public declare readonly sessionUser?: TSessionPrincipal;
 
-  constructor(options?: Partial<IQueryOptions>, sessionUser?: TSessionUser) {
+  constructor(
+    options?: Partial<IQueryOptions>,
+    sessionPrincipal?: TSessionPrincipal,
+  ) {
     defineHidden(this, 'hydrate', options?.hydrate ?? false);
     defineHidden(this, 'refresh', options?.refresh ?? false);
-    if (sessionUser !== undefined)
-      defineHidden(this, 'sessionUser', sessionUser);
+    if (sessionPrincipal !== undefined) {
+      defineHidden(this, 'sessionPrincipal', sessionPrincipal);
+      defineHidden(this, 'sessionUser', sessionPrincipal);
+    }
   }
 
   /**
    * Serializes enumerable query payload fields to a plain object.
    *
-   * `hydrate`, `refresh` and `sessionUser` are non-enumerable metadata and stay
+   * `hydrate`, `refresh`, `sessionPrincipal` and `sessionUser` are non-enumerable metadata and stay
    * out of the payload.
    *
    * @returns The query payload with `undefined` fields omitted.

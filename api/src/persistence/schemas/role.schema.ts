@@ -5,6 +5,8 @@ import { rootEntityProperties, versionProperty } from '@cqrs-ddd/mikro-orm';
 import { EntitySchema } from '@mikro-orm/core';
 import { Role } from '../../roles/domain/models/role.entity';
 
+export const ROLE_NAME_UNIQUE = 'roles_name_unique';
+
 /**
  * MikroORM EntitySchema for the {@link Role} aggregate root.
  *
@@ -19,6 +21,18 @@ export const RoleSchema = new EntitySchema<Role, AggregateRoot>({
   properties: {
     ...rootEntityProperties(),
     version: versionProperty(),
-    name: { type: 'string', fieldName: 'name', unique: true, accessor: true },
+    name: {
+      type: 'string',
+      length: 128,
+      fieldName: 'name',
+      accessor: true,
+    },
   },
+  indexes: [
+    {
+      name: ROLE_NAME_UNIQUE,
+      properties: ['name'],
+      type: 'unique',
+    },
+  ],
 });

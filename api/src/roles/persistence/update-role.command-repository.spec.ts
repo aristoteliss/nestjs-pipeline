@@ -8,6 +8,7 @@ import {
 import { cacheKey, toCacheSnapshot } from '@cqrs-ddd/core/persistence';
 import { runWithTenant } from '@nestjs-pipeline/tenant';
 import { describe, expect, it, vi } from 'vitest';
+import { ROLE_NAME_UNIQUE } from '../../persistence/schemas/role.schema';
 import { UniqueRoleNameException } from '../domain/models/errors/role-name.exception';
 import { Role, type RoleSnapshot } from '../domain/models/role.entity';
 import { UpdateRoleCommandRepository } from './update-role.command-repository';
@@ -224,9 +225,9 @@ describe('decorated versioned update lifecycle', () => {
   });
 
   it.each([
-    { code: '23505', constraint: 'roles_name_unique' },
+    { code: '23505', constraint: ROLE_NAME_UNIQUE },
     new Error(
-      'insert - duplicate key value violates unique constraint "roles_name_unique"',
+      `insert - duplicate key value violates unique constraint "${ROLE_NAME_UNIQUE}"`,
     ),
     new Error(
       'update - SQLITE_CONSTRAINT: UNIQUE constraint failed: roles.name',

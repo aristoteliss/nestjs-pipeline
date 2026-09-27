@@ -1,9 +1,9 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { Module } from '@nestjs/common';
-import { USER_PERMISSION_RULES } from './application/ports/user-permission-rules.port';
 import { CaslPermissionSource } from './persistence/casl-permission.source';
-import { UserPermissionRulesReader } from './persistence/user-permission-rules.reader';
+import { GetUserPermissionRulesRepository } from './persistence/get-user-permission-rules.query-repository';
+import { QUERY_REPOSITORY } from './persistence/repository.tokens';
 import { UserPermissionsProjector } from './persistence/user-permissions.projector';
 
 /**
@@ -15,12 +15,17 @@ import { UserPermissionsProjector } from './persistence/user-permissions.project
   providers: [
     CaslPermissionSource,
     UserPermissionsProjector,
-    { provide: USER_PERMISSION_RULES, useClass: UserPermissionRulesReader },
+    GetUserPermissionRulesRepository,
+    {
+      provide: QUERY_REPOSITORY.getUserPermissionRules,
+      useExisting: GetUserPermissionRulesRepository,
+    },
   ],
   exports: [
     CaslPermissionSource,
     UserPermissionsProjector,
-    USER_PERMISSION_RULES,
+    GetUserPermissionRulesRepository,
+    QUERY_REPOSITORY.getUserPermissionRules,
   ],
 })
 export class AuthorizationModule {}

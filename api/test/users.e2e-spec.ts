@@ -570,4 +570,89 @@ describe('users-api (e2e)', () => {
         expect(updatedUser.username).toBe('Versioned Victor Two');
       }));
   });
+
+  describe('GET /users/:id/overview', () => {
+    it('fetches a user overview including roles and capabilities (200)', async () => {
+      const vinceId = '019de10c-b680-7000-8000-00000000000d';
+
+      const res = await as(admin).get(`/users/${vinceId}/overview`);
+
+      expect(res.status).toBe(200);
+      expect(res.body).toMatchObject({
+        id: vinceId,
+        username: 'vince_tenant',
+        email: 'vince+tenant@seed.local',
+        department: 'marketing',
+        roles: ['viewer'],
+        capabilities: ['User:create'],
+      });
+    });
+
+    it('serves subsequent user overview requests from the pipeline cache (200)', async () => {
+      const vinceId = '019de10c-b680-7000-8000-00000000000d';
+
+      const first = await as(admin).get(`/users/${vinceId}/overview`);
+      expect(first.status).toBe(200);
+
+      const second = await as(admin).get(`/users/${vinceId}/overview`);
+      expect(second.status).toBe(200);
+      expect(second.body).toEqual(first.body);
+    });
+
+    it('returns empty roles and capabilities when user has none assigned (200)', async () => {
+      const email = newEmail();
+      const created = await createUser(admin, {
+        email,
+        name: 'Plain Paul',
+        department: 'finance',
+      });
+      expect(created.status).toBe(201);
+
+      const res = await as(admin).get(`/users/${created.body.id}/overview`);
+
+      expect(res.status).toBe(200);
+      expect(res.body).toMatchObject({
+        id: created.body.id,
+        username: 'Plain Paul',
+        email,
+        department: 'finance',
+        roles: [],
+        capabilities: [],
+      });
+    });
+
+    it('returns 404 for an unknown user id', async () => {
+      const res = await as(admin).get(`/users/${randomUUID()}/overview`);
+
+      expect(res.status).toBe(404);
+      expect(res.body).toMatchObject({
+        statusCode: 404,
+        message: 'User not found',
+      });
+    });
+
+    it('denies user overview for an unauthorized principal without capabilities (403)', async () => {
+      const vinceId = '019de10c-b680-7000-8000-00000000000d';
+
+      const res = await as(guest).get(`/users/${vinceId}/overview`);
+
+      expect(res.status).toBe(403);
+    });
+
+    it('denies user overview for an anonymous request (403)', async () => {
+      const vinceId = '019de10c-b680-7000-8000-00000000000d';
+
+      const res = await request(http)
+        .get(`/users/${vinceId}/overview`)
+        .set('x-tenant-schema', 'tenant');
+
+      expect(res.status).toBe(403);
+    });
+
+    it('rejects a malformed id with a validation error (400)', async () => {
+      const res = await as(admin).get('/users/not-a-uuid/overview');
+
+      expect(res.status).toBe(400);
+    });
+  });
 });

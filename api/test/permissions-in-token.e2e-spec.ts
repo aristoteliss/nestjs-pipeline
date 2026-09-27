@@ -102,10 +102,10 @@ describe('permissions in the access token (e2e, express)', () => {
   });
 
   async function rulesReader() {
-    const { UserPermissionRulesReader } = await import(
-      '../src/auths/persistence/user-permission-rules.reader'
+    const { GetUserPermissionRulesRepository } = await import(
+      '../src/auths/persistence/get-user-permission-rules.query-repository'
     );
-    return vi.spyOn(UserPermissionRulesReader.prototype, 'findOrdered');
+    return vi.spyOn(GetUserPermissionRulesRepository.prototype, 'find');
   }
 
   it('authorizes an API call from the token without reading permissions', async () => {
@@ -181,8 +181,8 @@ describe('permissions in the access token (e2e, fastify cookie budget)', () => {
     const { ACCESS_TOKEN_ISSUER } = await import(
       '../src/auths/application/ports/access-token-issuer.port'
     );
-    const { USER_PERMISSION_RULES } = await import(
-      '../src/auths/application/ports/user-permission-rules.port'
+    const { GetUserPermissionRulesRepository } = await import(
+      '../src/auths/persistence/get-user-permission-rules.query-repository'
     );
     const { User } = await import('../src/users/domain/models/user.entity');
     const { MIKRO_ORM_CLIENT } = await import(
@@ -192,9 +192,12 @@ describe('permissions in the access token (e2e, fastify cookie budget)', () => {
       const user = await ctx.app
         .get(MIKRO_ORM_CLIENT)
         .em.findOne(User, { id: userId }, { refresh: true });
+      const { GetUserPermissionRulesQuery } = await import(
+        '../src/auths/application/cqrs/queries/get-user-permission-rules.query'
+      );
       const permissions = await ctx.app
-        .get(USER_PERMISSION_RULES)
-        .findOrdered(userId);
+        .get(GetUserPermissionRulesRepository)
+        .find(new GetUserPermissionRulesQuery({ userId }, { refresh: true }));
       const { accessToken } = await ctx.app
         .get(ACCESS_TOKEN_ISSUER)
         .issue({ user, sessionId: uuidv7(), permissions });

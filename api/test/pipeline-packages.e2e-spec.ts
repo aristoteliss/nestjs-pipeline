@@ -336,14 +336,15 @@ describe('pipeline-packages (e2e)', () => {
         await rebuildPermissions(ctx.app, [userId]);
 
         // 3. Authenticate with ONLY the user's ID (no inline capabilities)
-        const sessionUserWithNoInlineCaps = JSON.stringify({
+        const sessionPrincipalWithNoInlineCaps = JSON.stringify({
           id: userId,
+          type: 'user',
           email: userEmail,
           department: 'engineering',
         });
 
         // The permission source loads this user's rules from the database.
-        const getRes = await as(sessionUserWithNoInlineCaps).get(
+        const getRes = await as(sessionPrincipalWithNoInlineCaps).get(
           `/users/${userId}`,
         );
         expect(getRes.status).toBe(200);

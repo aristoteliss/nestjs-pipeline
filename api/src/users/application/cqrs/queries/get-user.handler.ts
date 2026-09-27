@@ -36,7 +36,7 @@ export class GetUserHandler
               department: query.department,
             },
             { hydrate: query.hydrate, refresh: true },
-            query.sessionUser,
+            query.sessionPrincipal ?? query.sessionUser,
           )
         : query,
     );

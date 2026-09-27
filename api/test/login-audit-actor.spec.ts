@@ -22,7 +22,7 @@ import { CreateAuthCommand } from '../src/auths/cqrs/commands/create-auth.comman
 import { CreateAuthHandler } from '../src/auths/cqrs/commands/create-auth.handler';
 import { NodeRefreshTokens } from '../src/auths/infrastructure/node-refresh-tokens';
 import { COMMAND_REPOSITORY } from '../src/auths/persistence/repository.tokens';
-import { UserLoginService } from '../src/auths/services/user-login.service';
+import { PrincipalLoginService } from '../src/auths/services/principal-login.service';
 
 describe('Login audit actor', () => {
   const recorded: AuditRecord[] = [];
@@ -55,7 +55,7 @@ describe('Login audit actor', () => {
         { provide: MetricsBehavior, useValue: passThroughBehavior },
         { provide: RateLimitBehavior, useValue: passThroughBehavior },
         {
-          provide: UserLoginService,
+          provide: PrincipalLoginService,
           useValue: {
             authenticate,
             signToken: vi.fn(),

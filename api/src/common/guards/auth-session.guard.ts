@@ -13,7 +13,7 @@ import {
 /**
  * Global authentication guard. It resolves the principal through
  * {@link RequestPrincipalResolver}, answers HTTP 401 for invalid, expired or
- * tenant-mismatched credentials, and stores the principal in `req.sessionUser`.
+ * tenant-mismatched credentials, and stores the principal in `req.sessionPrincipal` (and `req.sessionUser`).
  *
  * @example
  * ```ts
@@ -29,7 +29,9 @@ export class AuthSessionGuard implements CanActivate {
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const req = context.switchToHttp().getRequest<AuthenticatedRequest>();
-    req.sessionUser = await this.principalResolver.resolvePrincipal(req);
+    const principal = await this.principalResolver.resolvePrincipal(req);
+    req.sessionPrincipal = principal;
+    req.sessionUser = principal;
     return true;
   }
 }

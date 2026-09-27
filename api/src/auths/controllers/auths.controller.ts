@@ -4,7 +4,6 @@ import { Body, Controller, HttpCode, Ip, Post } from '@nestjs/common';
 import { CommandBus } from '@nestjs/cqrs';
 import { ZodPipe } from '@nestjs-pipeline/zod';
 import type { CreateAuthCommand } from '../application/cqrs/commands/create-auth.command';
-import { RefreshAuthCommand } from '../application/cqrs/commands/refresh-auth.command';
 import { RevokeAuthCommand } from '../application/cqrs/commands/revoke-auth.command';
 import type { AuthResult } from '../application/results/auth.result';
 import { RefreshToken } from '../decorators/refresh-token.decorator';
@@ -14,10 +13,14 @@ import type { RefreshTokenDto } from '../dtos/refresh-token.dto';
 import type { SessionResponse } from '../dtos/sessionResponse.dto';
 import { LoginMapper } from '../mappers/login.mapper';
 import { toSessionRes } from '../mappers/session.mapper';
+import { PrincipalLoginService } from '../services/principal-login.service';
 
 @Controller('auths')
 export class AuthsController {
-  constructor(private readonly commandBus: CommandBus) {}
+  constructor(
+    private readonly commandBus: CommandBus,
+    private readonly principalLoginService: PrincipalLoginService,
+  ) {}
 
   /**
    * Starts a session. Returns a short-lived access token in the body and sets
@@ -46,10 +49,10 @@ export class AuthsController {
     @RefreshToken() refreshToken: RefreshTokenDto,
     @Ip() clientIp: string,
   ): Promise<SessionResponse> {
-    const result = await this.commandBus.execute<
-      RefreshAuthCommand,
-      AuthResult
-    >(new RefreshAuthCommand({ refreshToken, clientIp }));
+    const result = await this.principalLoginService.refresh(
+      refreshToken,
+      clientIp,
+    );
     return toSessionRes(result);
   }
 

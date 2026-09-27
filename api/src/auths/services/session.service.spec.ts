@@ -3,7 +3,10 @@
 import { httpExchangeStore } from '@common/context/http-exchange.store';
 import type { Session } from '@fastify/secure-session';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { SessionData, SessionUser } from '../../common/types/SessionUser';
+import type {
+  SessionData,
+  SessionPrincipal,
+} from '../../common/types/SessionPrincipal';
 import type { AuthResult } from '../application/results/auth.result';
 import { Auth } from '../domain/models/auth.entity';
 import { SessionService } from './session.service';
@@ -90,7 +93,7 @@ describe('SessionService', () => {
 
       expect(session.set).toHaveBeenCalledWith('user', {
         id: 'user-1',
-        principalType: 'user',
+        type: 'user',
         tenant: 'tenant_alpha',
         sid: issued.aggregate.id,
         exp: 20_000,
@@ -145,9 +148,9 @@ describe('SessionService', () => {
     });
 
     it('returns false when no expiry fields are set', () => {
-      const user: SessionUser = {
+      const user: SessionPrincipal = {
         id: 'u1',
-        principalType: 'user',
+        type: 'user',
         tenant: 't1',
         email: 'u1@test.com',
       };
@@ -155,9 +158,9 @@ describe('SessionService', () => {
     });
 
     it('returns true when expiresAt is in the past', () => {
-      const user: SessionUser = {
+      const user: SessionPrincipal = {
         id: 'u1',
-        principalType: 'user',
+        type: 'user',
         tenant: 't1',
         email: 'u1@test.com',
         expiresAt: Date.now() - 1000,
@@ -166,9 +169,9 @@ describe('SessionService', () => {
     });
 
     it('returns false when expiresAt is in the future', () => {
-      const user: SessionUser = {
+      const user: SessionPrincipal = {
         id: 'u1',
-        principalType: 'user',
+        type: 'user',
         tenant: 't1',
         email: 'u1@test.com',
         expiresAt: Date.now() + 60000,
@@ -177,9 +180,9 @@ describe('SessionService', () => {
     });
 
     it('returns true when exp * 1000 is in the past', () => {
-      const user: SessionUser = {
+      const user: SessionPrincipal = {
         id: 'u1',
-        principalType: 'user',
+        type: 'user',
         tenant: 't1',
         email: 'u1@test.com',
         exp: Math.floor(Date.now() / 1000) - 10,
@@ -188,9 +191,9 @@ describe('SessionService', () => {
     });
 
     it('returns false when exp * 1000 is in the future', () => {
-      const user: SessionUser = {
+      const user: SessionPrincipal = {
         id: 'u1',
-        principalType: 'user',
+        type: 'user',
         tenant: 't1',
         email: 'u1@test.com',
         exp: Math.floor(Date.now() / 1000) + 60,

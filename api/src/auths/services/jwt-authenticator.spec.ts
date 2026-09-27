@@ -60,7 +60,7 @@ describe('JwtAuthenticator', () => {
 
     expect(user).toMatchObject({
       id: 'user-asymm',
-      principalType: 'user',
+      type: 'user',
       tenant: tenantContext.schema,
       sid: 'sess-asymm',
     });
@@ -86,7 +86,7 @@ describe('JwtAuthenticator', () => {
     });
 
     expect(user?.id).toBe('user-lowercase-bearer');
-    expect(user?.principalType).toBe('user');
+    expect(user?.type).toBe('user');
     expect(user?.sid).toBe('sess-lower');
   });
 
@@ -214,7 +214,7 @@ describe('JwtAuthenticator', () => {
 
     expect(user).toMatchObject({
       id: 'user-active',
-      principalType: 'user',
+      type: 'user',
       tenant: tenantContext.schema,
       sid: 'session-1',
     });

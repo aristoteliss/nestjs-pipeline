@@ -3,7 +3,10 @@
 import { httpExchangeStore } from '@common/context/http-exchange.store';
 import type { Session } from '@fastify/secure-session';
 import { Injectable } from '@nestjs/common';
-import type { SessionData, SessionUser } from '../../common/types/SessionUser';
+import type {
+  SessionData,
+  SessionPrincipal,
+} from '../../common/types/SessionPrincipal';
 import type { ISessionCookies } from '../application/ports/session-cookies.port';
 import type { AuthResult } from '../application/results/auth.result';
 
@@ -45,7 +48,7 @@ export class SessionService implements ISessionCookies {
    *   `{ id, principalType, tenant, sid, exp }` go into the secure-session
    *   cookie, so the browser authenticates without a Bearer header.
    *
-   * @param result - Result of `CreateAuthCommand` or `RefreshAuthCommand`.
+   * @param result - Result of login or refresh.
    *
    * @example
    * ```ts
@@ -73,7 +76,7 @@ export class SessionService implements ISessionCookies {
 
     exchange.session?.set('user', {
       id: result.userId,
-      principalType: result.principalType,
+      type: result.principalType,
       tenant: result.tenant,
       sid: result.aggregate.id,
       exp: Math.floor(result.accessTokenExpiresAt / 1000),
@@ -135,7 +138,7 @@ export class SessionService implements ISessionCookies {
    * }
    * ```
    */
-  isExpired(user: SessionUser | undefined): boolean {
+  isExpired(user: SessionPrincipal | undefined): boolean {
     if (!user) {
       return true;
     }

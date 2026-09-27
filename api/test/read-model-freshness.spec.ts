@@ -106,11 +106,15 @@ describe('User read freshness under conditional rules', () => {
 
   it('keeps the incoming query options when it forces a fresh read', async () => {
     const repository = { find: vi.fn().mockResolvedValue(stored) };
-    const sessionUser = { id: 'viewer', principalType: 'user' };
+    const sessionPrincipal = { id: 'viewer', type: 'user' };
 
     await asCaller(['User|read|{"department":"engineering"}'], () =>
       new GetUserHandler(repository, new CaslAuthorizer()).execute(
-        new GetUserQuery({ userId: TARGET_ID }, { hydrate: true }, sessionUser),
+        new GetUserQuery(
+          { userId: TARGET_ID },
+          { hydrate: true },
+          sessionPrincipal,
+        ),
       ),
     );
 
@@ -118,7 +122,7 @@ describe('User read freshness under conditional rules', () => {
     expect(query).toMatchObject({ userId: TARGET_ID });
     expect(query.refresh).toBe(true);
     expect(query.hydrate).toBe(true);
-    expect(query.sessionUser).toBe(sessionUser);
+    expect(query.sessionUser).toBe(sessionPrincipal);
   });
 });
 

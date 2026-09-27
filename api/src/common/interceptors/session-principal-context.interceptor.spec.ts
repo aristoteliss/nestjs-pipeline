@@ -1,13 +1,13 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { httpExchangeStore } from '@common/context/http-exchange.store';
-import { getSessionUser } from '@common/context/session-user.store';
+import { getSessionPrincipal } from '@common/context/session-principal.store';
 import type { CallHandler, ExecutionContext } from '@nestjs/common';
 import { TenantSchemaContext } from '@persistence/tenant-schema.context';
 import { firstValueFrom, from, of, throwError } from 'rxjs';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { AuthenticatedRequest } from '../../auths/services/request-principal-resolver';
-import { SessionUserContextInterceptor } from './session-user-context.interceptor';
+import { SessionPrincipalContextInterceptor } from './session-principal-context.interceptor';
 
 function makeContext(req: AuthenticatedRequest): ExecutionContext {
   return {
@@ -26,14 +26,36 @@ function makeCallHandler<T>(onHandle?: () => void, result?: T): CallHandler<T> {
 
 afterEach(() => {
   vi.restoreAllMocks();
-  expect(getSessionUser()).toBeUndefined();
+  expect(getSessionPrincipal()).toBeUndefined();
 });
 
-describe('SessionUserContextInterceptor', () => {
-  it('scopes sessionUserStore during next.handle() and clears afterward', async () => {
+describe('SessionPrincipalContextInterceptor', () => {
+  it('scopes sessionPrincipalStore during next.handle() and clears afterward', async () => {
     const user = {
       id: 'user-1',
-      principalType: 'user' as const,
+      type: 'user' as const,
+      tenant: 'tenant_a',
+    };
+    const req: AuthenticatedRequest = { sessionPrincipal: user };
+    const context = makeContext(req);
+
+    let observedUser: unknown;
+    const next = makeCallHandler(() => {
+      observedUser = getSessionPrincipal();
+    }, 'success');
+
+    const interceptor = new SessionPrincipalContextInterceptor();
+    const result = await firstValueFrom(interceptor.intercept(context, next));
+
+    expect(result).toBe('success');
+    expect(observedUser).toEqual(user);
+    expect(getSessionPrincipal()).toBeUndefined();
+  });
+
+  it('falls back to req.sessionUser when sessionPrincipal is absent', async () => {
+    const user = {
+      id: 'user-fallback',
+      type: 'user' as const,
       tenant: 'tenant_a',
     };
     const req: AuthenticatedRequest = { sessionUser: user };
@@ -41,15 +63,15 @@ describe('SessionUserContextInterceptor', () => {
 
     let observedUser: unknown;
     const next = makeCallHandler(() => {
-      observedUser = getSessionUser();
+      observedUser = getSessionPrincipal();
     }, 'success');
 
-    const interceptor = new SessionUserContextInterceptor();
+    const interceptor = new SessionPrincipalContextInterceptor();
     const result = await firstValueFrom(interceptor.intercept(context, next));
 
     expect(result).toBe('success');
     expect(observedUser).toEqual(user);
-    expect(getSessionUser()).toBeUndefined();
+    expect(getSessionPrincipal()).toBeUndefined();
   });
 
   it('scopes the request session and response in httpExchangeStore during next.handle()', async () => {
@@ -64,7 +86,7 @@ describe('SessionUserContextInterceptor', () => {
 
     let observed: unknown;
     await firstValueFrom(
-      new SessionUserContextInterceptor().intercept(
+      new SessionPrincipalContextInterceptor().intercept(
         context,
         makeCallHandler(() => {
           observed = httpExchangeStore.getStore();
@@ -78,16 +100,16 @@ describe('SessionUserContextInterceptor', () => {
 
   it('guarantees real multi-tenant isolation across concurrent requests (tenant_a vs tenant_b)', async () => {
     const tenantSchemaContext = new TenantSchemaContext();
-    const interceptor = new SessionUserContextInterceptor();
+    const interceptor = new SessionPrincipalContextInterceptor();
 
     const userA = {
       id: 'admin-a',
-      principalType: 'user' as const,
+      type: 'user' as const,
       tenant: 'tenant_a',
     };
     const userB = {
       id: 'viewer-b',
-      principalType: 'user' as const,
+      type: 'user' as const,
       tenant: 'tenant_b',
     };
 
@@ -104,7 +126,7 @@ describe('SessionUserContextInterceptor', () => {
             setTimeout(() => {
               observations.push({
                 tenant: 'tenant_a',
-                userId: getSessionUser()?.id ?? 'none',
+                userId: getSessionPrincipal()?.id ?? 'none',
                 schema: tenantSchemaContext.schema,
               });
               resolve('result-a');
@@ -120,7 +142,7 @@ describe('SessionUserContextInterceptor', () => {
             setTimeout(() => {
               observations.push({
                 tenant: 'tenant_b',
-                userId: getSessionUser()?.id ?? 'none',
+                userId: getSessionPrincipal()?.id ?? 'none',
                 schema: tenantSchemaContext.schema,
               });
               resolve('result-b');
@@ -132,13 +154,13 @@ describe('SessionUserContextInterceptor', () => {
     // Execute concurrently inside distinct tenant contexts
     const taskA = tenantSchemaContext.run('tenant_a', () =>
       firstValueFrom(
-        interceptor.intercept(makeContext({ sessionUser: userA }), nextA),
+        interceptor.intercept(makeContext({ sessionPrincipal: userA }), nextA),
       ),
     );
 
     const taskB = tenantSchemaContext.run('tenant_b', () =>
       firstValueFrom(
-        interceptor.intercept(makeContext({ sessionUser: userB }), nextB),
+        interceptor.intercept(makeContext({ sessionPrincipal: userB }), nextB),
       ),
     );
 
@@ -152,12 +174,12 @@ describe('SessionUserContextInterceptor', () => {
       { tenant: 'tenant_b', userId: 'viewer-b', schema: 'tenant_b' },
       { tenant: 'tenant_a', userId: 'admin-a', schema: 'tenant_a' },
     ]);
-    expect(getSessionUser()).toBeUndefined();
+    expect(getSessionPrincipal()).toBeUndefined();
   });
 
   it('restores context to undefined even when next.handle() throws', async () => {
     const req: AuthenticatedRequest = {
-      sessionUser: { id: 'err-user', principalType: 'user', tenant: 't1' },
+      sessionPrincipal: { id: 'err-user', type: 'user', tenant: 't1' },
     };
     const context = makeContext(req);
 
@@ -165,11 +187,11 @@ describe('SessionUserContextInterceptor', () => {
       handle: () => throwError(() => new Error('Pipeline error')),
     };
 
-    const interceptor = new SessionUserContextInterceptor();
+    const interceptor = new SessionPrincipalContextInterceptor();
     await expect(
       firstValueFrom(interceptor.intercept(context, next)),
     ).rejects.toThrow('Pipeline error');
 
-    expect(getSessionUser()).toBeUndefined();
+    expect(getSessionPrincipal()).toBeUndefined();
   });
 });

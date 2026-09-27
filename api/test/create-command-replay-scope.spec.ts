@@ -1,7 +1,7 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import { sessionUserStore } from '@common/context/session-user.store';
-import type { SessionUser } from '@common/types/SessionUser';
+import { sessionPrincipalStore } from '@common/context/session-principal.store';
+import type { SessionPrincipal } from '@common/types/SessionPrincipal';
 import type { EventBus } from '@nestjs/cqrs';
 import {
   buildAbility,
@@ -28,9 +28,9 @@ import { User } from '../src/users/domain/models/user.entity';
 
 type RawRules = Capability[];
 
-const PRINCIPAL: SessionUser = {
+const PRINCIPAL: SessionPrincipal = {
   id: 'admin-1',
-  principalType: 'user',
+  type: 'user',
   tenant: 'tenant',
 };
 
@@ -47,8 +47,8 @@ describe('Create user replay scope', () => {
    * AsyncLocalStorage does not carry from `beforeEach` into a test's own
    * context, so each test enters the principal scope itself.
    */
-  function authenticated(user: SessionUser = PRINCIPAL): void {
-    sessionUserStore.enterWith(user);
+  function authenticated(user: SessionPrincipal = PRINCIPAL): void {
+    sessionPrincipalStore.enterWith(user);
   }
 
   beforeEach(() => {
@@ -144,7 +144,7 @@ describe('Create user replay scope', () => {
     authenticated();
     const asUser = createUserIdempotencyKey(contextFor(createRule));
 
-    authenticated({ ...PRINCIPAL, principalType: 'service' });
+    authenticated({ ...PRINCIPAL, type: 'service' });
     const asService = createUserIdempotencyKey(contextFor(createRule));
 
     expect(asService).not.toBe(asUser);

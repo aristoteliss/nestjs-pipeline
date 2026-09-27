@@ -65,8 +65,8 @@ describe('CASL permission source wiring (e2e)', () => {
   });
 
   async function readAs(principalId: string): Promise<unknown> {
-    const { sessionUserStore } = await import(
-      '../src/common/context/session-user.store'
+    const { sessionPrincipalStore } = await import(
+      '../src/common/context/session-principal.store'
     );
     const { TenantSchemaContext } = await import(
       '../src/persistence/tenant-schema.context'
@@ -77,8 +77,8 @@ describe('CASL permission source wiring (e2e)', () => {
     return ctx.app
       .get(TenantSchemaContext)
       .run(TENANT, () =>
-        sessionUserStore.run(
-          { id: principalId, principalType: 'user', tenant: TENANT },
+        sessionPrincipalStore.run(
+          { id: principalId, type: 'user', tenant: TENANT },
           () =>
             ctx.app
               .get(QueryBus)
@@ -180,5 +180,50 @@ describe('CASL permission source wiring (e2e)', () => {
     );
 
     expect(source).toBeInstanceOf(CaslPermissionSource);
+  });
+
+  it('dispatches GetUserPermissionRulesQuery through QueryBus with Casl authorization', async () => {
+    const { GetUserPermissionRulesQuery } = await import(
+      '../src/auths/application/cqrs/queries/get-user-permission-rules.query'
+    );
+    const { TenantSchemaContext } = await import(
+      '../src/persistence/tenant-schema.context'
+    );
+    const { sessionPrincipalStore } = await import(
+      '../src/common/context/session-principal.store'
+    );
+
+    const rules = await ctx.app
+      .get(TenantSchemaContext)
+      .run(TENANT, () =>
+        sessionPrincipalStore.run(
+          { id: ALICE_ADMIN, type: 'user', tenant: TENANT },
+          () =>
+            ctx.app
+              .get(QueryBus)
+              .execute(
+                new GetUserPermissionRulesQuery({ userId: ALICE_ADMIN }),
+              ),
+        ),
+      );
+
+    expect(Array.isArray(rules)).toBe(true);
+    expect(rules.length).toBeGreaterThan(0);
+
+    await expect(
+      ctx.app
+        .get(TenantSchemaContext)
+        .run(TENANT, () =>
+          sessionPrincipalStore.run(
+            { id: unassignedUserId, type: 'user', tenant: TENANT },
+            () =>
+              ctx.app
+                .get(QueryBus)
+                .execute(
+                  new GetUserPermissionRulesQuery({ userId: ALICE_ADMIN }),
+                ),
+          ),
+        ),
+    ).rejects.toBeInstanceOf(UnauthorizedActionException);
   });
 });

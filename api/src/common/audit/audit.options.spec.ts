@@ -1,6 +1,6 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import { sessionUserStore } from '@common/context/session-user.store';
+import { sessionPrincipalStore } from '@common/context/session-principal.store';
 import { type AuditBehaviorOptions, audit } from '@nestjs-pipeline/audit';
 import { describe, expect, it } from 'vitest';
 import {
@@ -11,12 +11,12 @@ import {
 } from './audit.options';
 
 describe('sessionAuditActor', () => {
-  it('resolves actor from active session user', () => {
-    sessionUserStore.run(
+  it('resolves actor from active session principal', () => {
+    sessionPrincipalStore.run(
       {
         id: 'user-1',
         tenant: 'tenant-a',
-        principalType: 'user',
+        type: 'user',
         email: 'user@test.com',
       },
       () => {

@@ -8,6 +8,7 @@ const applicationFiles = [
   '../../auths/infrastructure/jose-access-token.issuer.ts',
   '../../auths/services/jwt-authenticator.ts',
   '../../auths/services/api-client-authenticator.ts',
+  '../../auths/services/principal-login.service.ts',
   '../../auths/services/request-principal-resolver.ts',
   '../../users/application/cqrs/events/user-created.handler.ts',
   '../../users/application/cqrs/events/user-updated.handler.ts',
@@ -35,10 +36,4 @@ describe('application tenant-context boundary', () => {
       expect(source).toContain('TENANT_CONTEXT');
     },
   );
-
-  it('user-login.service.ts does not depend on persistence tenant context', () => {
-    const source = readSource('../../auths/services/user-login.service.ts');
-    expect(source).not.toContain('@persistence/tenant-schema.context');
-    expect(source).not.toContain('../../persistence/tenant-schema.context');
-  });
 });

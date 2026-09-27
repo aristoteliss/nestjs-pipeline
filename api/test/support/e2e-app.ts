@@ -42,6 +42,13 @@ export const E2E_API_CLIENTS = [
     tenants: ['tenant', 'tenant_a', 'tenant_b'],
     rules: ['User|read|*', 'Role|read|*'],
   },
+  {
+    id: 'api-tenant-b-only-client',
+    name: 'Tenant B Only Client',
+    key: 'tenant-b-secret-key-12345',
+    tenants: ['tenant_b'],
+    rules: ['User|read|*'],
+  },
 ];
 
 export interface E2EOptions {
@@ -292,12 +299,14 @@ function testSession(
         ...parsedUser,
         sid: parsedUser.sid ?? 'e2e-session-id',
         tenant: parsedUser.tenant ?? tenant,
+        type:
+          parsedUser.type ??
+          parsedUser.principalType ??
+          (parsedUser.grants ? 'service' : 'user'),
         principalType:
-          parsedUser.principalType !== undefined
-            ? parsedUser.principalType
-            : parsedUser.grants
-              ? 'service'
-              : 'user',
+          parsedUser.type ??
+          parsedUser.principalType ??
+          (parsedUser.grants ? 'service' : 'user'),
         ...(parsedUser.grants
           ? { grants: parsedUser.grants.map(parseCapabilityString) }
           : {}),
@@ -372,5 +381,8 @@ export async function inTenant<T>(
   const { TenantSchemaContext } = await import(
     '@persistence/tenant-schema.context'
   );
-  return app.get(TenantSchemaContext).run(tenant, work);
+  const { runWithTenant } = await import('@nestjs-pipeline/tenant');
+  return runWithTenant(tenant, () =>
+    app.get(TenantSchemaContext).run(tenant, work),
+  );
 }

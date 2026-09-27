@@ -2,7 +2,7 @@
 
 import { AUDIT_MODULE_DEFAULTS } from '@common/audit/audit.options';
 import { AUDIT_ACTIONS } from '@common/constants';
-import { sessionUserStore } from '@common/context/session-user.store';
+import { sessionPrincipalStore } from '@common/context/session-principal.store';
 import { CommandBus, CqrsModule } from '@nestjs/cqrs';
 import { Test } from '@nestjs/testing';
 import {
@@ -100,13 +100,13 @@ describe('Deletion audit records fidelity', () => {
   it('emits high-severity audit record carrying target and acting user on user deletion', async () => {
     const targetUserId = '019488e0-0000-7000-8000-000000000001';
 
-    await sessionUserStore.run(
+    await sessionPrincipalStore.run(
       {
         id: 'admin-1',
         email: 'admin@test.com',
         tenant: 'tenant-a',
         department: 'Eng',
-        principalType: 'user',
+        type: 'user',
       },
       async () => {
         await commandBus.execute(new DeleteUserCommand({ id: targetUserId }));
@@ -134,13 +134,13 @@ describe('Deletion audit records fidelity', () => {
   it('emits high-severity audit record carrying target and acting user on role deletion', async () => {
     const targetRoleId = '019488e0-0000-7000-8000-000000000002';
 
-    await sessionUserStore.run(
+    await sessionPrincipalStore.run(
       {
         id: 'admin-2',
         email: 'admin2@test.com',
         tenant: 'tenant-a',
         department: 'Ops',
-        principalType: 'user',
+        type: 'user',
       },
       async () => {
         await commandBus.execute(new DeleteRoleCommand({ id: targetRoleId }));
@@ -184,12 +184,12 @@ describe('Deletion audit records fidelity', () => {
     const missingUserId = '019488e0-0000-7000-8000-000000000099';
 
     await expect(
-      sessionUserStore.run(
+      sessionPrincipalStore.run(
         {
           id: 'admin-fail',
           email: 'fail@test.com',
           tenant: 'tenant-a',
-          principalType: 'user',
+          type: 'user',
         },
         async () => {
           await commandBus.execute(

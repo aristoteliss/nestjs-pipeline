@@ -40,7 +40,7 @@ describe('ApiClientAuthenticator', () => {
 
     expect(user).toEqual({
       id: 'svc-1',
-      principalType: 'service',
+      type: 'service',
       tenant: tenantContext.schema,
       grants: [
         { subject: 'User', action: 'read', fields: ['id', 'username'] },

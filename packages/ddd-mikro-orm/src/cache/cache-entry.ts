@@ -66,20 +66,28 @@ CREATE INDEX IF NOT EXISTS ${index} ON ${name} (expires_at);`;
 export function createCacheEntrySchema(
   table = 'cache',
 ): EntitySchema<CacheEntry> {
+  const safe = assertSafeTable(table);
+  const index = `${safe.slice(safe.lastIndexOf('.') + 1)}_expires_at_idx`;
   return new EntitySchema<CacheEntry>({
     class: CacheEntry,
-    tableName: assertSafeTable(table),
+    tableName: safe,
     properties: {
-      key: { type: 'string', primary: true },
-      value: { type: 'string' },
+      key: { type: 'string', length: 255, primary: true },
+      value: { type: 'text' },
       expiresAt: {
         type: 'number',
         columnType: 'bigint',
         fieldName: 'expires_at',
         nullable: true,
       },
-      revision: { type: 'bigint', fieldName: 'revision', default: '0' },
+      revision: { type: 'bigint', fieldName: 'revision', default: 0 },
     },
+    indexes: [
+      {
+        name: index,
+        properties: ['expiresAt'],
+      },
+    ],
   });
 }
 

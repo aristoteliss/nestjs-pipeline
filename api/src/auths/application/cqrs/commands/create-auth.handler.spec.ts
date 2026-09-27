@@ -25,7 +25,7 @@ describe('CreateAuthHandler', () => {
   function setup() {
     const user = User.create('alice', 'alice@example.test', 'Engineering');
     const publishAll = vi.fn();
-    const userLoginService = {
+    const principalLoginService = {
       authenticate: vi.fn().mockResolvedValue(user),
       signToken: vi.fn(async (_user: User, sessionId: string) => ({
         accessToken: `access-for-${sessionId}`,
@@ -37,7 +37,7 @@ describe('CreateAuthHandler', () => {
     const cookies = { save: vi.fn(), clear: vi.fn() };
     const handler = new CreateAuthHandler(
       { publishAll } as unknown as EventBus,
-      userLoginService as never,
+      principalLoginService as never,
       { save },
       { schema: 'tenant_alpha' } as ITenantContext,
       tokens,
@@ -51,7 +51,7 @@ describe('CreateAuthHandler', () => {
     return {
       user,
       publishAll,
-      userLoginService,
+      principalLoginService,
       save,
       tokens,
       cookies,
@@ -63,7 +63,7 @@ describe('CreateAuthHandler', () => {
     const {
       user,
       publishAll,
-      userLoginService,
+      principalLoginService,
       save,
       tokens,
       cookies,
@@ -86,7 +86,7 @@ describe('CreateAuthHandler', () => {
       tokens.hash(result.refreshToken as string),
     );
     expect(JSON.stringify(save.mock.calls)).not.toContain(result.refreshToken);
-    expect(userLoginService.signToken).toHaveBeenCalledWith(user, auth.id);
+    expect(principalLoginService.signToken).toHaveBeenCalledWith(user, auth.id);
     expect(result).toMatchObject({
       userId: user.id,
       principalType: 'user',

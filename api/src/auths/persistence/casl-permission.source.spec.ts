@@ -1,17 +1,17 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import { getSessionUser } from '@common/context/session-user.store';
-import type { SessionUser } from '@common/types/SessionUser';
+import { getSessionPrincipal } from '@common/context/session-principal.store';
+import type { SessionPrincipal } from '@common/types/SessionPrincipal';
 import type { Capability } from '@nestjs-pipeline/casl';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { User } from '../../users/domain/models/user.entity';
 import { CaslPermissionSource } from './casl-permission.source';
 
-vi.mock('@common/context/session-user.store', () => ({
-  getSessionUser: vi.fn(),
+vi.mock('@common/context/session-principal.store', () => ({
+  getSessionPrincipal: vi.fn(),
 }));
 
-const session = vi.mocked(getSessionUser);
+const session = vi.mocked(getSessionPrincipal);
 
 const storedRules: Capability[] = [
   { subject: 'User', action: 'read' },
@@ -21,11 +21,12 @@ const storedRules: Capability[] = [
 
 function setup(user: User | null = null) {
   const findOne = vi.fn().mockResolvedValue(user);
-  const findOrdered = vi.fn().mockResolvedValue(storedRules);
-  const source = new CaslPermissionSource({ em: { findOne } } as never, {
-    findOrdered,
-  });
-  return { source, findOne, findOrdered };
+  const find = vi.fn().mockResolvedValue(storedRules);
+  const source = new CaslPermissionSource(
+    { em: { findOne } } as never,
+    { find } as never,
+  );
+  return { source, findOne, find };
 }
 
 describe('CaslPermissionSource', () => {
@@ -40,44 +41,44 @@ describe('CaslPermissionSource', () => {
   it('returns null for a blank principal id', async () => {
     session.mockReturnValue({
       id: '  ',
-      principalType: 'user',
+      type: 'user',
       tenant: 't',
-    } as SessionUser);
+    } as SessionPrincipal);
 
     await expect(setup().source.load()).resolves.toBeNull();
   });
 
   it('returns null for an unclassified principal without reading anything', async () => {
-    session.mockReturnValue({ id: 'u-1', tenant: 't' } as SessionUser);
-    const { source, findOne, findOrdered } = setup();
+    session.mockReturnValue({ id: 'u-1', tenant: 't' } as SessionPrincipal);
+    const { source, findOne, find } = setup();
 
     await expect(source.load()).resolves.toBeNull();
     expect(findOne).not.toHaveBeenCalled();
-    expect(findOrdered).not.toHaveBeenCalled();
+    expect(find).not.toHaveBeenCalled();
   });
 
   it('returns a service principal with its grants without reading the database', async () => {
     const grants = [{ subject: 'User', action: 'read' }];
     session.mockReturnValue({
       id: 'svc-1',
-      principalType: 'service',
+      type: 'service',
       tenant: 't',
       grants,
     });
-    const { source, findOne, findOrdered } = setup();
+    const { source, findOne, find } = setup();
 
     await expect(source.load()).resolves.toEqual({
-      principal: { id: 'svc-1', principalType: 'service' },
+      principal: { id: 'svc-1', principalType: 'service', department: null },
       rules: grants,
     });
     expect(findOne).not.toHaveBeenCalled();
-    expect(findOrdered).not.toHaveBeenCalled();
+    expect(find).not.toHaveBeenCalled();
   });
 
   it('returns null for a service principal without grants', async () => {
     session.mockReturnValue({
       id: 'svc-1',
-      principalType: 'service',
+      type: 'service',
       tenant: 't',
     });
 
@@ -91,23 +92,23 @@ describe('CaslPermissionSource', () => {
     ];
     session.mockReturnValue({
       id: 'u-1',
-      principalType: 'user',
+      type: 'user',
       tenant: 't',
       department: 'sales',
       grants,
     });
-    const { source, findOne, findOrdered } = setup();
+    const { source, findOne, find } = setup();
 
     await expect(source.load()).resolves.toEqual({
       principal: { id: 'u-1', principalType: 'user', department: 'sales' },
       rules: grants,
     });
     expect(findOne).not.toHaveBeenCalled();
-    expect(findOrdered).not.toHaveBeenCalled();
+    expect(find).not.toHaveBeenCalled();
   });
 
   it('returns null for a user missing from the database', async () => {
-    session.mockReturnValue({ id: 'u-1', principalType: 'user', tenant: 't' });
+    session.mockReturnValue({ id: 'u-1', type: 'user', tenant: 't' });
 
     await expect(setup(null).source.load()).resolves.toBeNull();
   });
@@ -116,11 +117,11 @@ describe('CaslPermissionSource', () => {
     const user = User.create('alice', 'alice@example.test', 'engineering');
     session.mockReturnValue({
       id: user.id,
-      principalType: 'user',
+      type: 'user',
       tenant: 't',
       department: 'stale-session-value',
     });
-    const { source, findOne, findOrdered } = setup(user);
+    const { source, findOne, find } = setup(user);
 
     await expect(source.load()).resolves.toEqual({
       principal: {
@@ -131,14 +132,16 @@ describe('CaslPermissionSource', () => {
       rules: storedRules,
     });
     expect(findOne).toHaveBeenCalledWith(User, { id: user.id });
-    expect(findOrdered).toHaveBeenCalledWith(user.id);
+    expect(find).toHaveBeenCalledWith(
+      expect.objectContaining({ userId: user.id, refresh: true }),
+    );
   });
 
   it('issues the user and rule reads without waiting for each other', async () => {
     const user = User.create('alice', 'alice@example.test');
     session.mockReturnValue({
       id: user.id,
-      principalType: 'user',
+      type: 'user',
       tenant: 't',
     });
     let releaseUser: (value: User) => void = () => {};
@@ -148,13 +151,14 @@ describe('CaslPermissionSource', () => {
           releaseUser = resolve;
         }),
     );
-    const findOrdered = vi.fn().mockResolvedValue([]);
-    const loading = new CaslPermissionSource({ em: { findOne } } as never, {
-      findOrdered,
-    }).load();
+    const find = vi.fn().mockResolvedValue([]);
+    const loading = new CaslPermissionSource(
+      { em: { findOne } } as never,
+      { find } as never,
+    ).load();
 
     await Promise.resolve();
-    expect(findOrdered).toHaveBeenCalledOnce();
+    expect(find).toHaveBeenCalledOnce();
     releaseUser(user);
     await expect(loading).resolves.toMatchObject({ rules: [] });
   });

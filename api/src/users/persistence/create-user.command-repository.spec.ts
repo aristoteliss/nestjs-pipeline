@@ -7,6 +7,7 @@ import {
 } from '@cqrs-ddd/core/persistence';
 import { runWithTenant } from '@nestjs-pipeline/tenant';
 import { describe, expect, it, vi } from 'vitest';
+import { USER_EMAIL_UNIQUE } from '../../persistence/schemas/user.schema';
 import { UniqueEmailException } from '../domain/models/errors/email.exception';
 import { User, type UserSnapshot } from '../domain/models/user.entity';
 import { CreateUserCommandRepository } from './create-user.command-repository';
@@ -69,7 +70,7 @@ describe('CreateUserCommandRepository', () => {
           persist: vi.fn(),
           flush: vi.fn().mockRejectedValue({
             code: '23505',
-            constraint: 'users_email_unique',
+            constraint: USER_EMAIL_UNIQUE,
           }),
         };
       },

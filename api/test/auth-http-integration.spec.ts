@@ -1,9 +1,9 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { AUTH_HEADERS } from '@common/constants/auth-headers.constants';
-import { getSessionUser } from '@common/context/session-user.store';
+import { getSessionPrincipal } from '@common/context/session-principal.store';
 import { AuthSessionGuard } from '@common/guards/auth-session.guard';
-import { SessionUserContextInterceptor } from '@common/interceptors/session-user-context.interceptor';
+import { SessionPrincipalContextInterceptor } from '@common/interceptors/session-principal-context.interceptor';
 import {
   Controller,
   Get,
@@ -35,7 +35,7 @@ class TestAuthController {
   @Get('principal')
   async getPrincipal() {
     await Promise.resolve();
-    return getSessionUser() ?? { anonymous: true };
+    return getSessionPrincipal() ?? { anonymous: true };
   }
 
   @Get('concurrent')
@@ -43,7 +43,7 @@ class TestAuthController {
     const delay = parseInt(delayStr, 10) || 10;
     await new Promise((resolve) => setTimeout(resolve, delay));
     return {
-      user: getSessionUser(),
+      user: getSessionPrincipal(),
       schema: this.tenantContext.schema,
     };
   }
@@ -51,7 +51,7 @@ class TestAuthController {
   async getSessionStatus(@Req() req: { sessionDeleted?: boolean }) {
     return {
       sessionDeleted: req.sessionDeleted ?? false,
-      user: getSessionUser() ?? { anonymous: true },
+      user: getSessionPrincipal() ?? { anonymous: true },
     };
   }
 }
@@ -78,7 +78,7 @@ class TestAuthController {
     ApiClientAuthenticator,
     RequestPrincipalResolver,
     { provide: APP_GUARD, useClass: AuthSessionGuard },
-    { provide: APP_INTERCEPTOR, useClass: SessionUserContextInterceptor },
+    { provide: APP_INTERCEPTOR, useClass: SessionPrincipalContextInterceptor },
   ],
 })
 class TestAuthModule implements NestModule {
@@ -171,7 +171,7 @@ describe('HTTP Authentication Integration (Real Nest App Pipeline)', () => {
     expect(res.status).toBe(200);
     expect(res.body).toMatchObject({
       id: 'user-bearer-valid',
-      principalType: 'user',
+      type: 'user',
       tenant: 'tenant_a',
     });
     expect(res.body).not.toHaveProperty('email');
@@ -296,7 +296,7 @@ describe('HTTP Authentication Integration (Real Nest App Pipeline)', () => {
   it('Valid session cookie -> 200 with principal resolved inside controller via SessionService cookie fast-path', async () => {
     const sessionUser = {
       id: 'user-cookie-fastpath',
-      principalType: 'user',
+      type: 'user',
       tenant: 'tenant_a',
       email: 'cookie@example.test',
       sid: 'session-cookie-1',
@@ -318,7 +318,7 @@ describe('HTTP Authentication Integration (Real Nest App Pipeline)', () => {
   it('Expired session cookie -> clears session via SessionService and resolves to anonymous', async () => {
     const expiredUser = {
       id: 'user-cookie-expired',
-      principalType: 'user',
+      type: 'user',
       tenant: 'tenant_a',
       email: 'expired@example.test',
       sid: 'session-cookie-expired',
@@ -340,7 +340,7 @@ describe('HTTP Authentication Integration (Real Nest App Pipeline)', () => {
   it('Expired session cookie + valid Bearer JWT -> clears expired session and falls through to JWT principal', async () => {
     const expiredUser = {
       id: 'user-cookie-expired',
-      principalType: 'user',
+      type: 'user',
       tenant: 'tenant_a',
       sid: 'session-cookie-expired',
       expiresAt: Date.now() - 5000,
@@ -372,7 +372,7 @@ describe('HTTP Authentication Integration (Real Nest App Pipeline)', () => {
   it('Session cookie with tenant mismatch -> 401 Unauthorized', async () => {
     const mismatchedUser = {
       id: 'user-mismatched',
-      principalType: 'user',
+      type: 'user',
       tenant: 'tenant_b',
       sid: 'session-cookie-mismatch',
     };
@@ -406,7 +406,7 @@ describe('HTTP Authentication Integration (Real Nest App Pipeline)', () => {
   it('Session cookie without sid -> clears session and resolves to anonymous', async () => {
     const legacySessionUser = {
       id: 'user-legacy-session',
-      principalType: 'user',
+      type: 'user',
       tenant: 'tenant_a',
       email: 'legacy@example.test',
     };

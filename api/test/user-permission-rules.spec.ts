@@ -2,6 +2,7 @@
 
 /** biome-ignore-all lint/suspicious/noTemplateCurlyInString: placeholders are data */
 import { subject as caslSubject } from '@casl/ability';
+import { MemoryCache } from '@cqrs-ddd/core/persistence';
 import { stableStringify } from '@cqrs-ddd/safe-stringify';
 import type { EntityManager } from '@mikro-orm/core';
 import {
@@ -13,10 +14,11 @@ import {
   serializeCapability,
 } from '@nestjs-pipeline/casl';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { GetUserPermissionRulesQuery } from '../src/auths/application/cqrs/queries/get-user-permission-rules.query';
 import { CaslPermissionSource } from '../src/auths/persistence/casl-permission.source';
-import { UserPermissionRulesReader } from '../src/auths/persistence/user-permission-rules.reader';
+import { GetUserPermissionRulesRepository } from '../src/auths/persistence/get-user-permission-rules.query-repository';
 import { UserPermissionsProjector } from '../src/auths/persistence/user-permissions.projector';
-import { sessionUserStore } from '../src/common/context/session-user.store';
+import { sessionPrincipalStore } from '../src/common/context/session-principal.store';
 import { UserPermissionRule } from '../src/persistence/entities/user-permission-rule.entity';
 import { UserRole } from '../src/persistence/entities/user-role.entity';
 import { GetUserCapabilitiesQuery } from '../src/users/cqrs/queries/get-user-capabilities.query';
@@ -118,12 +120,12 @@ async function sourceTableRules(
 }
 
 async function materializedInput(em: EntityManager, userId: string) {
-  const input = await sessionUserStore.run(
-    { id: userId, principalType: 'user', tenant: 'tenant' },
+  const input = await sessionPrincipalStore.run(
+    { id: userId, type: 'user', tenant: 'tenant' },
     () =>
       new CaslPermissionSource(
         { em } as never,
-        new UserPermissionRulesReader({ em } as never),
+        new GetUserPermissionRulesRepository({} as never, { em } as never),
       ).load(),
   );
   if (!input) throw new Error(`no permission input for ${userId}`);
@@ -232,6 +234,69 @@ describe('Materialized user permission rules', () => {
     it('grants identically for every seeded demo user', async () => {
       const users = (await db.sql('select id from users')) as { id: string }[];
       for (const { id } of users) await expectEquivalent(db, id);
+    });
+  });
+
+  describe('GetUserPermissionRulesRepository', () => {
+    it('resolves direct rules first followed by inverted rules against real SQLite', async () => {
+      const cache = new MemoryCache();
+      const repo = new GetUserPermissionRulesRepository(
+        cache as never,
+        { em: db.em() } as never,
+      );
+
+      const rules = await sessionPrincipalStore.run(
+        { id: U1, type: 'user', tenant: 'tenant' },
+        () => repo.find(new GetUserPermissionRulesQuery({ userId: U1 })),
+      );
+
+      expect(rules.length).toBeGreaterThan(0);
+      const invertedIndex = rules.findIndex((r) => r.inverted);
+      const directIndex = rules.findLastIndex((r) => !r.inverted);
+      expect(directIndex).toBeLessThan(invertedIndex);
+    });
+
+    it('returns empty array when user has no permissions', async () => {
+      const cache = new MemoryCache();
+      const repo = new GetUserPermissionRulesRepository(
+        cache as never,
+        { em: db.em() } as never,
+      );
+
+      const rules = await sessionPrincipalStore.run(
+        { id: U2, type: 'user', tenant: 'tenant' },
+        () => repo.find(new GetUserPermissionRulesQuery({ userId: U2 })),
+      );
+
+      expect(rules).toEqual([]);
+    });
+
+    it('serves cached rules on subsequent reads and refreshes when requested', async () => {
+      const cache = new MemoryCache();
+      const repo = new GetUserPermissionRulesRepository(
+        cache as never,
+        { em: db.em() } as never,
+      );
+
+      const first = await sessionPrincipalStore.run(
+        { id: U1, type: 'user', tenant: 'tenant' },
+        () => repo.find(new GetUserPermissionRulesQuery({ userId: U1 })),
+      );
+
+      const cached = await sessionPrincipalStore.run(
+        { id: U1, type: 'user', tenant: 'tenant' },
+        () => repo.find(new GetUserPermissionRulesQuery({ userId: U1 })),
+      );
+      expect(cached).toEqual(first);
+
+      const refreshed = await sessionPrincipalStore.run(
+        { id: U1, type: 'user', tenant: 'tenant' },
+        () =>
+          repo.find(
+            new GetUserPermissionRulesQuery({ userId: U1 }, { refresh: true }),
+          ),
+      );
+      expect(refreshed).toEqual(first);
     });
   });
 

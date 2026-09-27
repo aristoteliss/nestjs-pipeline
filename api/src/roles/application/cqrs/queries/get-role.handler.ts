@@ -32,7 +32,7 @@ export class GetRoleHandler
         ? new GetRoleQuery(
             { roleId: query.roleId },
             { hydrate: query.hydrate, refresh: true },
-            query.sessionUser,
+            query.sessionPrincipal ?? query.sessionUser,
           )
         : query,
     );

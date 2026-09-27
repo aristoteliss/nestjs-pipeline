@@ -15,11 +15,11 @@ export const CapabilitySchema = new EntitySchema<Capability, AggregateRoot>({
   properties: {
     ...rootEntityProperties(),
     version: { type: 'number', persist: false },
-    action: { type: 'string' },
-    subject: { type: 'string' },
-    conditions: { type: 'string', nullable: true },
+    action: { type: 'string', length: 64 },
+    subject: { type: 'string', length: 128 },
+    conditions: { type: 'text', nullable: true },
     inverted: { type: 'boolean', default: false },
-    reason: { type: 'string', nullable: true },
-    fields: { type: 'string', nullable: true },
+    reason: { type: 'text', nullable: true },
+    fields: { type: 'text', nullable: true },
   },
 });

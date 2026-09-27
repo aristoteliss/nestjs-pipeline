@@ -5,6 +5,8 @@ import { rootEntityProperties, versionProperty } from '@cqrs-ddd/mikro-orm';
 import { EntitySchema } from '@mikro-orm/core';
 import { User } from '../../users/domain/models/user.entity';
 
+export const USER_EMAIL_UNIQUE = 'users_email_unique';
+
 /**
  * MikroORM EntitySchema for the {@link User} aggregate root.
  *
@@ -19,13 +21,26 @@ export const UserSchema = new EntitySchema<User, AggregateRoot>({
   properties: {
     ...rootEntityProperties(),
     version: versionProperty(),
-    username: { type: 'string', fieldName: 'username', accessor: true },
+    username: {
+      type: 'string',
+      length: 255,
+      fieldName: 'username',
+      accessor: true,
+    },
     department: {
       type: 'string',
+      length: 255,
       fieldName: 'department',
       nullable: true,
       accessor: true,
     },
-    email: { type: 'string', unique: true },
+    email: { type: 'string', length: 320 },
   },
+  indexes: [
+    {
+      name: USER_EMAIL_UNIQUE,
+      properties: ['email'],
+      type: 'unique',
+    },
+  ],
 });

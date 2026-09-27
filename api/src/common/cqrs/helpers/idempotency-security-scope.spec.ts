@@ -1,6 +1,6 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
-import { sessionUserStore } from '@common/context/session-user.store';
-import type { SessionUser } from '@common/types/SessionUser';
+import { sessionPrincipalStore } from '@common/context/session-principal.store';
+import type { SessionPrincipal } from '@common/types/SessionPrincipal';
 import type { IPipelineContext } from '@nestjs-pipeline/core';
 import { MissingIdempotencyPartitionError } from '@nestjs-pipeline/idempotency';
 import { describe, expect, it } from 'vitest';
@@ -9,9 +9,11 @@ import { createUserIdempotencyKey } from '../../../users/application/cqrs/comman
 
 type KeyFactory = (ctx: IPipelineContext) => string | undefined;
 
-const session = (overrides: Partial<SessionUser> = {}): SessionUser => ({
+const session = (
+  overrides: Partial<SessionPrincipal> = {},
+): SessionPrincipal => ({
   id: 'alice',
-  principalType: 'user',
+  type: 'user',
   tenant: 'tenant_a',
   ...overrides,
 });
@@ -20,9 +22,9 @@ function keyFor(
   factory: KeyFactory,
   payload: object,
   tenantId: string | undefined,
-  user: SessionUser | undefined,
+  user: SessionPrincipal | undefined,
 ): string | undefined {
-  return sessionUserStore.run(user, () =>
+  return sessionPrincipalStore.run(user, () =>
     factory({ tenantId, request: payload } as unknown as IPipelineContext),
   );
 }
@@ -45,7 +47,7 @@ describe('create idempotency security scope', () => {
 
   for (const { name, factory, payload, action } of cases) {
     describe(name, () => {
-      const key = (tenantId?: string, user?: SessionUser) =>
+      const key = (tenantId?: string, user?: SessionPrincipal) =>
         keyFor(factory, payload, tenantId, user);
 
       it('partitions by tenant, principal type and principal id', () => {
@@ -59,8 +61,8 @@ describe('create idempotency security scope', () => {
       });
 
       it('separates a service principal from a user sharing the same id', () => {
-        expect(key('tenant_a', session({ principalType: 'user' }))).not.toBe(
-          key('tenant_a', session({ principalType: 'service' })),
+        expect(key('tenant_a', session({ type: 'user' }))).not.toBe(
+          key('tenant_a', session({ type: 'service' })),
         );
       });
 
@@ -83,9 +85,9 @@ describe('create idempotency security scope', () => {
       });
 
       it('fails closed when the principal carries no explicit type', () => {
-        expect(() =>
-          key('tenant_a', session({ principalType: undefined })),
-        ).toThrow(missing('principal'));
+        expect(() => key('tenant_a', session({ type: undefined }))).toThrow(
+          missing('principal'),
+        );
       });
 
       it('escapes a separator in the operation id rather than colliding', () => {
@@ -120,7 +122,7 @@ describe('create idempotency security scope', () => {
       });
 
       it('ignores a caller-supplied identity in the request payload', () => {
-        const spoofed = sessionUserStore.run(session(), () =>
+        const spoofed = sessionPrincipalStore.run(session(), () =>
           factory({
             tenantId: 'tenant_a',
             request: { ...payload, sessionUser: { id: 'attacker' } },

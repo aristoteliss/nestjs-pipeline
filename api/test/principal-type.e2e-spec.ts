@@ -62,4 +62,59 @@ describe('explicit principal type (e2e)', () => {
 
     expect(res.status).toBe(403);
   });
+
+  describe('API key authentication (ApiClientAuthenticator)', () => {
+    it('authenticates a service principal using x-api-id and x-api-key headers (200)', async () => {
+      const res = await request(http)
+        .get('/users')
+        .set('x-tenant-schema', 'tenant')
+        .set('x-api-id', 'api-read-only-client')
+        .set('x-api-key', 'readonly-secret-key-12345');
+
+      expect(res.status).toBe(200);
+      expect(Array.isArray(res.body.users)).toBe(true);
+    });
+
+    it('rejects an API client with an invalid secret key (401)', async () => {
+      const res = await request(http)
+        .get('/users')
+        .set('x-tenant-schema', 'tenant')
+        .set('x-api-id', 'api-read-only-client')
+        .set('x-api-key', 'invalid-key');
+
+      expect(res.status).toBe(401);
+      expect(res.body).toMatchObject({
+        statusCode: 401,
+        message: 'Invalid API credentials',
+      });
+    });
+
+    it('rejects an unknown API client id (401)', async () => {
+      const res = await request(http)
+        .get('/users')
+        .set('x-tenant-schema', 'tenant')
+        .set('x-api-id', 'unknown-client')
+        .set('x-api-key', 'some-key');
+
+      expect(res.status).toBe(401);
+      expect(res.body).toMatchObject({
+        statusCode: 401,
+        message: 'Invalid API credentials',
+      });
+    });
+
+    it('rejects an API client not authorized for the requested tenant (401)', async () => {
+      const res = await request(http)
+        .get('/users')
+        .set('x-tenant-schema', 'tenant')
+        .set('x-api-id', 'api-tenant-b-only-client')
+        .set('x-api-key', 'tenant-b-secret-key-12345');
+
+      expect(res.status).toBe(401);
+      expect(res.body).toMatchObject({
+        statusCode: 401,
+        message: 'Invalid API credentials',
+      });
+    });
+  });
 });

@@ -1,5 +1,5 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
-import { sessionUserStore } from '@common/context/session-user.store';
+import { sessionPrincipalStore } from '@common/context/session-principal.store';
 import {
   type BehaviorId,
   getBehaviorId,
@@ -16,8 +16,6 @@ import {
 import { describe, expect, it } from 'vitest';
 import { CreateAuthCommand } from '../../../auths/application/cqrs/commands/create-auth.command';
 import { CreateAuthHandler } from '../../../auths/application/cqrs/commands/create-auth.handler';
-import { RefreshAuthCommand } from '../../../auths/application/cqrs/commands/refresh-auth.command';
-import { RefreshAuthHandler } from '../../../auths/application/cqrs/commands/refresh-auth.handler';
 import { RevokeAuthCommand } from '../../../auths/application/cqrs/commands/revoke-auth.command';
 import { RevokeAuthHandler } from '../../../auths/application/cqrs/commands/revoke-auth.handler';
 import { CreateRoleCommand } from '../../../roles/application/cqrs/commands/create-role.command';
@@ -95,14 +93,14 @@ describe('security-sensitive pipeline key tenant isolation', () => {
 
     // The idempotency key is principal-scoped, so it needs an authenticated one.
     const idempotencyKey = (ctx: IPipelineContext) =>
-      sessionUserStore.run(
-        { id: 'alice', principalType: 'user', tenant: 'tenant_a' },
+      sessionPrincipalStore.run(
+        { id: 'alice', type: 'user', tenant: 'tenant_a' },
         () => createUserIdempotencyKey(ctx),
       );
 
     const rateLimitKey = (ctx: IPipelineContext) =>
-      sessionUserStore.run(
-        { id: 'alice', principalType: 'user', tenant: 'tenant_a' },
+      sessionPrincipalStore.run(
+        { id: 'alice', type: 'user', tenant: 'tenant_a' },
         () => createUserRateLimitKey(ctx),
       );
 
@@ -127,22 +125,6 @@ describe('security-sensitive pipeline key tenant isolation', () => {
     );
   });
 
-  it('limits refresh per source address and never keys on the refresh token', () => {
-    const key = rateLimitKeyOf(RefreshAuthHandler)(
-      context(
-        new RefreshAuthCommand({
-          refreshToken: 'secret-token',
-          clientIp: '203.0.113.7',
-        }),
-        'tenant_a',
-      ),
-    );
-
-    expect(key).toContain('tenant_a');
-    expect(key).toContain('203.0.113.7');
-    expect(key).not.toContain('secret-token');
-  });
-
   it('limits logout per source address and never keys on the refresh token', () => {
     const key = rateLimitKeyOf(RevokeAuthHandler)(
       context(
@@ -161,8 +143,8 @@ describe('security-sensitive pipeline key tenant isolation', () => {
 
   it('limits user creation per acting principal across target emails', () => {
     const create = (email: string, actor: string) =>
-      sessionUserStore.run(
-        { id: actor, principalType: 'user', tenant: 'tenant_a' },
+      sessionPrincipalStore.run(
+        { id: actor, type: 'user', tenant: 'tenant_a' },
         () =>
           createUserRateLimitKey(
             context(

@@ -1,12 +1,7 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import { AsyncLocalStorage } from 'node:async_hooks';
-import type { SessionUser } from '@common/types/SessionUser';
-
-export const sessionUserStore = new AsyncLocalStorage<
-  SessionUser | undefined
->();
-
-export function getSessionUser(): SessionUser | undefined {
-  return sessionUserStore.getStore();
-}
+export * from './session-principal.store';
+export {
+  getSessionPrincipal as getSessionUser,
+  sessionPrincipalStore as sessionUserStore,
+} from './session-principal.store';

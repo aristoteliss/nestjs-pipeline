@@ -54,7 +54,7 @@ what the libraries support.
 ## Technology Stack
 
 <!-- context:generated-start technology-stack -->
-- **Languages** (file counts, excluded directories omitted): `.ts` 739, `.md` 48, `.grit` 14, `.py` 3, `.mjs` 1
+- **Languages** (file counts, excluded directories omitted): `.ts` 746, `.md` 48, `.grit` 14, `.py` 3, `.mjs` 1
 - **Runtime engines** (root `package.json`): `node` >=22.0.0, `pnpm` >=9.0.0
 - **Package manager evidence**: `pnpm-lock.yaml`.
 
@@ -72,7 +72,7 @@ what the libraries support.
 | OpenFeature — Feature-flag evaluation | `@openfeature/server-sdk` | `api/src/common/modules/reliability.module.ts`, `api/test/behavior-composition-contracts.spec.ts` |
 | CASL — Attribute/role based authorization | `@casl/ability` | `api/src/common/constants/casl.constants.ts`, `api/test/user-permission-rules.spec.ts` |
 | JOSE — JWT signing and verification | `jose` | `api/src/auths/infrastructure/authentication-adapters.spec.ts`, `api/src/auths/infrastructure/jose-access-token.issuer.ts` |
-| Zod — Schema validation for DTOs and pipeline payloads | `zod` | `api/src/auths/application/cqrs/commands/create-auth.command.ts`, `api/src/auths/application/cqrs/commands/refresh-auth.command.ts` |
+| Zod — Schema validation for DTOs and pipeline payloads | `zod` | `api/src/auths/application/cqrs/commands/create-auth.command.ts`, `api/src/auths/application/cqrs/commands/revoke-auth.command.ts` |
 | Pino — Structured logging | `nestjs-pino`, `pino-http`, `pino-pretty` | `api/src/bootstrap.ts`, `api/src/common/modules/observability.module.spec.ts` |
 | Fastify — Alternative HTTP adapter and sessions | `@nestjs/platform-fastify`, `@fastify/secure-session` | `api/src/auths/decorators/refresh-token.decorator.spec.ts`, `api/src/auths/services/request-principal-resolver.spec.ts` |
 | Express — Default HTTP adapter | `@nestjs/platform-express` | `api/src/bootstrap.ts`, `api/src/express-platform.ts` |
@@ -239,10 +239,9 @@ without mutating ORM objects. Missing tenant context fails closed with
 Session cookie → `AuthSessionGuard` → `SessionUserContextInterceptor` populates the request
 user context. JWT issuing/verification is behind ports
 (`api/src/auths/infrastructure/jose-access-token.issuer.ts`, `api/src/auths/services/jwt-authenticator.ts`),
-cookie lifecycle in `api/src/auths/services/session.service.ts`, domain login in
-`user-login.service.ts`. Login issues a short-lived stateless access token and a rotating,
-hashed refresh token delivered only as the `refresh_token` cookie (`/auths/login|refresh|logout`,
-`api/src/auths/application/cqrs/commands/refresh-auth.handler.ts`); the `Auth` aggregate is the session. CASL does type-level checks in `CaslBehavior` (declared with
+cookie lifecycle in `api/src/auths/services/session.service.ts`, domain login and refresh in
+`api/src/auths/services/principal-login.service.ts`. Login issues a short-lived stateless access token and a rotating,
+hashed refresh token delivered only as the `refresh_token` cookie (`/auths/login|refresh|logout`); the `Auth` aggregate is the session. CASL does type-level checks in `CaslBehavior` (declared with
 `requires(...)`), fed per request by `CaslPermissionSource`
 (`api/src/auths/persistence/casl-permission.source.ts`, bound via `AuthorizationModule`),
 and entity/field checks in the handler after the aggregate is loaded (`CaslAuthorizer`:
@@ -311,7 +310,7 @@ and entity/field checks in the handler after the aggregate is loaded (`CaslAutho
   have conditions bypass the repository cache (`read-freshness.helper.ts`).
 - **Materialized permissions**: `user_permission_rules` is written only by
   `UserPermissionsProjector` (`api/src/auths/persistence/user-permissions.projector.ts`) and
-  read through `UserPermissionRulesReader` by the permission source or token issuer; deletes
+  read through `GetUserPermissionRulesRepository` by the permission source or token issuer; deletes
   cascade, any other write to role,
   capability or assignment rows must rebuild the affected users in the same transaction.
   `permissions:verify` detects drift, `permissions:rebuild` repairs it.
@@ -337,7 +336,7 @@ and entity/field checks in the handler after the aggregate is loaded (`CaslAutho
   only as an `HttpOnly; Secure; SameSite=Strict; Path=/auths` cookie; the live-session lookup
   precedes the rotated-token history lookup; session saves are version-conditioned and a lost
   race in the live-token evaluation is re-evaluated once (grace); reuse revocation and logout retry version conflicts with authoritative reloads
-  and propagate retry exhaustion through `AuthSessionRevocationService.revoke`. `SessionService` owns the Fastify session cookie
+  and propagate retry exhaustion through `PrincipalLoginService.revoke`. `SessionService` owns the Fastify session cookie
   and the refresh cookie, which the login, refresh and logout handlers write through the `SESSION_COOKIES` port over `httpExchangeStore`; the `@RefreshToken()` parameter decorator reads and validates the refresh cookie; `jose` stays behind
   `jose-access-token.issuer.ts`; token and JWT settings and `API_CLIENTS` are parsed at boot
   (`api/src/common/environment/auth-token.config.ts`, `api-clients.config.ts`); Fastify refuses to boot without
@@ -387,7 +386,7 @@ environment value is read or reproduced here.
 | OpenFeature | `api`, `packages/pipeline-feature-flags` | `api/src/common/modules/reliability.module.ts`, `api/test/behavior-composition-contracts.spec.ts` |
 | CASL | `api`, `packages/pipeline-casl` | `api/src/common/constants/casl.constants.ts`, `api/test/user-permission-rules.spec.ts` |
 | JOSE | `api` | `api/src/auths/infrastructure/authentication-adapters.spec.ts`, `api/src/auths/infrastructure/jose-access-token.issuer.ts` |
-| Zod | `api`, `packages/pipeline-zod` | `api/src/auths/application/cqrs/commands/create-auth.command.ts`, `api/src/auths/application/cqrs/commands/refresh-auth.command.ts` |
+| Zod | `api`, `packages/pipeline-zod` | `api/src/auths/application/cqrs/commands/create-auth.command.ts`, `api/src/auths/application/cqrs/commands/revoke-auth.command.ts` |
 | Pino | `api` | `api/src/bootstrap.ts`, `api/src/common/modules/observability.module.spec.ts` |
 | Fastify | `api` | `api/src/auths/decorators/refresh-token.decorator.spec.ts`, `api/src/auths/services/request-principal-resolver.spec.ts` |
 | Express | `api` | `api/src/bootstrap.ts`, `api/src/express-platform.ts` |
@@ -646,7 +645,7 @@ secret value.*
 - **Refresh failure boundaries:** token preparation precedes durable rotation; expiry/grace
   is checked again after preparation. Reuse revocation persists dirty aggregate state and
   retries version conflicts; exhausted retries propagate. Database persistence and cookie
-  delivery are not atomic (`api/src/auths/application/cqrs/commands/refresh-auth.handler.ts`).
+  delivery are not atomic (`api/src/auths/services/principal-login.service.ts`).
 - **Field projection inherits parent grants.** `CaslAuthorizer.project` returns
   `profile.secret` under a `fields: ['profile']` grant while `can(…, 'profile.secret')` is
   `false` (`packages/pipeline-casl/src/helpers/projection.ts`).
@@ -677,13 +676,13 @@ secret value.*
 ## Snapshot Metadata
 
 <!-- context:generated-start metadata -->
-- Generated at: 2026-09-27T09:29:52Z
-- Git commit: 78e58e8a4981a5f4f085569f9ce3c08dd99612fd
+- Generated at: 2026-09-27T13:52:22Z
+- Git commit: 40fc31fb94a6b623cb3688faa339b2883f658ed0
 - Git branch: publish
 - Uncommitted changes when generated: yes
 - Generator: `scripts/update-claude-snapshot.py` version 1.0.0
 - Snapshot status: generated — structural inspection only, no code executed
-- Files inspected: 873
+- Files inspected: 880
 - Included top-level directories: `.agents`, `.claude`, `api`, `biome`, `integration`, `packages`, `scripts`
 - Excluded directory names: `.cache`, `.git`, `.gradle`, `.idea`, `.mypy_cache`, `.next`, `.nuxt`, `.parcel-cache`, `.pnpm-store`, `.pytest_cache`, `.ruff_cache`, `.svelte-kit`, `.terraform`, `.tmp`, `.tox`, `.turbo`, `.venv`, `.vscode`, `__pycache__`, `bower_components`, `build`, `coverage`, `dist`, `node_modules`, `out`, `target`, `vendor`, `venv`, `virtualenv`
 - Excluded file patterns: `.env`, `.env.*`, `*.env`, `*.pem`, `*.key`, `*.pfx`, `*.p12`, `*.jks`, `*.keystore`, `id_rsa*`, `id_ed25519*`, `*credentials*`, `*.secret`, `secrets.*`
