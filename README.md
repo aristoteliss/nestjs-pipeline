@@ -106,6 +106,7 @@ Works with Express and Fastify.
 | [`@nestjs-pipeline/audit`](packages/pipeline-audit) | Audit-trail behavior — records who/what/outcome/duration to a pluggable `AuditSink` (console default, Postgres drop-in), with payload redaction |
 | [`@nestjs-pipeline/idempotency`](packages/pipeline-idempotency) | Idempotency behavior — atomic concurrent duplicate exclusion and successful-response replay per key; failed executions are retryable by default, via a pluggable store (in-memory default, Redis/Postgres drop-in) |
 | [`@nestjs-pipeline/tenant`](packages/pipeline-tenant) | `currentTenantId()` and `runWithTenant()` — the tenant of the running pipeline or of a scope, for code deep inside a handler |
+| [`@nestjs-pipeline/job-context`](packages/pipeline-job-context) | Carries a request's tenant, correlation id and principal into the queue jobs it enqueues (`withJobContext`, `@InJobContext`), and gives system work an explicit context (`@AsSystem`) |
 
 > Add-on packages live in `packages/pipeline-<name>/` and peer-depend on `@nestjs-pipeline/core`.
 
@@ -137,7 +138,9 @@ Framework-neutral packages, with no NestJS dependency:
 | `@nestjs-pipeline/audit` | `0.2.0` |
 | `@nestjs-pipeline/idempotency` | `0.2.0` |
 | `@nestjs-pipeline/tenant` | `0.2.0` |
+| `@nestjs-pipeline/job-context` | `0.2.0` |
 | `@cqrs-ddd/core` | `0.2.0` |
+| `@cqrs-ddd/mikro-orm` | `0.2.0` |
 | `@cqrs-ddd/uuidv7` | `0.2.0` |
 | `@cqrs-ddd/safe-stringify` | `0.2.0` |
 
@@ -167,6 +170,7 @@ pnpm add @nestjs-pipeline/audit   # audit trail (console default; + optional pg 
 pnpm add @nestjs-pipeline/idempotency   # idempotent commands (in-memory default; + optional redis/pg)
 pnpm add @nestjs-pipeline/feature-flags @openfeature/server-sdk  # feature flags (provider adapters optional)
 pnpm add @nestjs-pipeline/tenant   # currentTenantId(): the running pipeline's tenant
+pnpm add @nestjs-pipeline/job-context   # a request's tenant, correlation id and principal in its queue jobs
 
 # Optional: pino logger integration
 pnpm add nestjs-pino pino-http pino-pretty
@@ -179,7 +183,7 @@ pnpm add nestjs-pino pino-http pino-pretty
 import { Module, NestModule, MiddlewareConsumer } from '@nestjs/common';
 import { CqrsModule } from '@nestjs/cqrs';
 import { PipelineModule, LoggingBehavior } from '@nestjs-pipeline/core';
-import { getCorrelationId, runWithCorrelationId, HttpCorrelationMiddleware } from '@nestjs-pipeline/correlation';
+import { HttpCorrelationMiddleware } from '@nestjs-pipeline/correlation';
 import { ZodValidationBehavior } from '@nestjs-pipeline/zod';
 import { TraceBehavior } from '@nestjs-pipeline/opentelemetry';
 
@@ -187,11 +191,6 @@ import { TraceBehavior } from '@nestjs-pipeline/opentelemetry';
   imports: [
     CqrsModule.forRoot(),
     PipelineModule.forRoot({
-      // Bridge correlation IDs from @nestjs-pipeline/correlation into the pipeline
-      correlationIdFactory: getCorrelationId,
-      correlationIdRunner: runWithCorrelationId,
-      // Eagerly resolve tenant ID per pipeline execution (optional)
-      // tenantIdFactory: () => TenantContext.currentTenant,
       globalBehaviors: {
         scope: 'all',                // 'commands' | 'queries' | 'events' | 'all'
         before: [
@@ -642,23 +641,15 @@ bypassing the guard.
 
 ## Correlation IDs
 
-Every pipeline invocation carries a `correlationId` resolved in priority order:
-
-1. **Parent pipeline** — if a saga or nested `CommandBus.execute()` triggers a child, it inherits the parent's ID via `AsyncLocalStorage`.
-2. **`correlationIdFactory`** — user-supplied factory from `PipelineModule.forRoot()` options (e.g. `getCorrelationId` from `@nestjs-pipeline/correlation`).
-3. **`uuidv7()` fallback** — timestamp-sortable UUID when no ID is available.
-
-For full bidirectional correlation support, also provide `correlationIdRunner`. It wraps each pipeline invocation so that `getCorrelationId()` returns the pipeline's resolved ID throughout the entire handler chain — including event handlers dispatched via `eventBus.publish()`:
-
-```typescript
-import { getCorrelationId, runWithCorrelationId } from '@nestjs-pipeline/correlation';
-
-PipelineModule.forRoot({
-  correlationIdFactory: getCorrelationId,
-  correlationIdRunner: runWithCorrelationId,
-  // ...
-})
-```
+The tenant and correlation ID of an execution live in one async-local store, the
+execution scope of `@nestjs-pipeline/core` (`runInScope`, `currentScope`). A pipeline takes
+both when it starts: `context.correlationId` is the scope's ID or a new `uuidv7()`, and
+`context.tenantId` is the scope's tenant (write-once). The behaviors and handler run inside
+a scope holding them, so a saga, an event published with `eventBus.publish()` or a nested
+`CommandBus.execute()` inherits them, and `getCorrelationId()` in a handler equals
+`context.correlationId`. There is nothing to configure on `PipelineModule`: set the values
+where work enters, with `HttpCorrelationMiddleware` or `runWithCorrelationId` of
+`@nestjs-pipeline/correlation` and `runWithTenant` of `@nestjs-pipeline/tenant`.
 
 ### HTTP Requests
 
@@ -840,7 +831,7 @@ Every behavior receives `IPipelineContext`:
 | Property | Type | Description |
 |---|---|---|
 | `correlationId` | `string` | Immutable ID fixed before the behavior chain starts |
-| `tenantId` | `string \| undefined` | Active tenant identifier (inherited from parent context or resolved via `tenantIdFactory`) |
+| `tenantId` | `string \| undefined` | Tenant of the execution scope when the pipeline started; write-once |
 | `request` | `TRequest` | The command / query / event instance |
 | `requestType` | `Type<TRequest>` | Class constructor (e.g. `CreateUserCommand`) |
 | `requestName` | `string` | Class name string (e.g. `"CreateUserCommand"`) |
@@ -1396,8 +1387,8 @@ ADAPTER=fastify pnpm start
 - Per-handler CASL requirements declared with `requires(...)`
 - MikroORM-backed CASL permission source (roles, per-user grants and denials)
 - Official MikroORM `accessor: true` entity schemas bridging private aggregate fields to public accessors without TypeScript bypasses
-- Decoupled CQRS caching architecture with collision-safe key derivation (`filterCacheKey`), fail-fast handler templates (`cacheKeyTemplate`), and static aggregate naming (`User.aggregateName`)
-- Decoupled CQRS caching architecture with centralized key derivation (`filterCacheKey`; type/delimiter collision handling requires verification), fail-fast handler templates (`cacheKeyTemplate`), and static aggregate naming (`User.aggregateName`)
+- Decoupled CQRS caching architecture with collision-safe key derivation (`cacheKey`), fail-fast handler templates (`cacheKeyTemplate`), and static aggregate naming (`User.aggregateName`)
+- Decoupled CQRS caching architecture with centralized key derivation (`cacheKey`; type/delimiter collision handling requires verification), fail-fast handler templates (`cacheKeyTemplate`), and static aggregate naming (`User.aggregateName`)
 - Versioned database migrations with tracking (`mikro_orm_migrations` table)
 - Zod-parsed/validated commands and queries via `createCommand()` and `createQuery()` exposing Standard Schema (`['~standard']`) metadata
 - Controller-level `ZodPipe` validation
@@ -1440,7 +1431,7 @@ nestjs-pipeline/
 │   │       ├── helpers/          # uuidv7 (re-exported from @cqrs-ddd/uuidv7)
 │   │       ├── middlewares/      # HttpCorrelationMiddleware
 │   │       ├── options/          # CorrelationOptions
-│   │       └── correlation.store.ts    # correlationStore, getCorrelationId, runWithCorrelationId
+│   │       └── correlation.store.ts    # getCorrelationId, runWithCorrelationId, addCorrelationId
 │   ├── pipeline-zod/             # @nestjs-pipeline/zod
 │   │   └── src/
 │   │       ├── errors/           # ZodValidationError
@@ -1519,12 +1510,20 @@ nestjs-pipeline/
 │   ├── pipeline-tenant/          # @nestjs-pipeline/tenant
 │   │   └── src/
 │   │       └── tenant-scope.ts   # currentTenantId, runWithTenant
+│   ├── pipeline-job-context/     # @nestjs-pipeline/job-context
+│   │   └── src/
+│   │       ├── decorators/       # @InJobContext, @AsSystem
+│   │       ├── errors/           # MissingJobContextError, InvalidJobContextError
+│   │       ├── helpers/          # withJobContext, payload validation
+│   │       ├── interfaces/       # IJobPrincipal, PrincipalReference, JobContext
+│   │       └── job-context.module.ts   # JobContextModule.forRoot({ principal, tenants })
 │   ├── uuidv7/                   # @cqrs-ddd/uuidv7 — RFC 9562 UUIDv7, no dependencies
 │   ├── safe-stringify/           # @cqrs-ddd/safe-stringify — strict and log-safe JSON, key segments
+│   ├── ddd-mikro-orm/            # @cqrs-ddd/mikro-orm — MikroORM repositories, optimistic writes, cache adapter
 │   └── ddd-core/                 # @cqrs-ddd/core — framework-neutral DDD primitives
 │       ├── domain/               # RootEntity, AggregateRoot, domain events and exceptions
 │       ├── application/          # CQRS base classes, repository and cache ports, tenant scope
-│       ├── persistence/          # lifecycle decorators, cache adapters, MikroORM repositories
+│       ├── persistence/          # repository base classes, lifecycle decorators, in-memory cache
 │       └── http/                 # HTTP status mapping for its errors
 └── api/                          # @nestjs-pipeline/ddd-api — full working example using ddd-core + casl
     └── src/
@@ -1578,11 +1577,36 @@ pnpm install
 
 `pnpm test:coverage` runs each workspace’s existing test script sequentially with Vitest coverage. It prints test results and a coverage summary per workspace, and writes `coverage/coverage-summary.json` in each workspace. Reports cover the same tests selected by each workspace’s Vitest configuration; E2E tests run separately. All workspaces run even if one fails, and any failure makes the command fail. `pnpm test:review` is an alias for this command. There is no combined monorepo coverage total.
 
-Persistence lifecycle lint rules are native [Biome Grit plugins](biome/plugins/README.md)
-registered in `biome.json`. They run through Biome CLI/editor checks and before
-`test:unit`; there is no standalone JavaScript persistence linter. Shared decorator
-and optimistic-update contracts/tests are documented in
-[`packages/ddd-core`](packages/ddd-core/README.md#decorated-versioned-updates).
+### Lint rules
+
+Architecture rules are native Biome Grit plugins in `biome/plugins/`, registered and scoped
+in `biome.json`. They report diagnostics and never rewrite code; they run in `pnpm check`,
+in editors, and in `pnpm lint:persistence` before `test:unit`. Grit matches syntax, not
+types: a rule sees names and import sources, not what a value is.
+
+| Plugin | Rule |
+| --- | --- |
+| `persistence-lifecycle.grit` | `save()` in `persistence/` uses `@PersistedWrite` or `@Cache` → `@AcknowledgePersisted` → `@MapPersistenceErrors` in that order; awaited `optimisticUpdate()`; no manual `acknowledgePersisted`/`markPersisted`; no hand-rolled `try`/`catch` in a command repository `save()` |
+| `aggregate-identity.grit` | No writes to hydration properties (`id`, `version`, `username`, …) on receivers named `user`, `role`, `aggregate` or `entity` in application layers. A naming convention, not a type-aware guarantee |
+| `domain-mutation.grit` | In aggregates, events go in `@ApplyMutation({ event })`, which is required, and mutations use `applyPatch()` |
+| `handler-boundaries.grit` | Handlers and application services import no `@mikro-orm/*`, store or ORM token |
+| `ddd-layering.grit`, `ddd-entry-points.grit` | Domain and CQRS code do not import `@cqrs-ddd/core/persistence`; api code imports a layered entry point, not the root |
+| `transport-neutral-errors.grit` | No Nest HTTP exceptions in packages, domain, application or CQRS code; presentation adapters map neutral errors |
+| `event-handler-substance.grit` | Warns on an event handler that only logs or reads the correlation ID (`warn`, because the api keeps such showcase handlers) |
+| `core-environment.grit` | No `process.env` in published packages or `packages/ddd-core`; configuration comes through module options or ports |
+| `framework-independence.grit` | `packages/ddd-core`, `ddd-mikro-orm`, `uuidv7` and `safe-stringify` import nothing from NestJS or `@nestjs-pipeline/*`, in any import form |
+| `orm-independence.grit` | `packages/ddd-core` imports no ORM or database driver |
+| `verify-package-licenses.grit` | Published packages import neither the private `api` nor `@nestjs-pipeline/ddd-*`, and `@nestjs-pipeline/*` packages do not import `@cqrs-ddd/core` |
+| `package-licenses.grit` | Published packages import no private NestJS internals |
+| `test-suite.grit` | No focused tests (`.only`, `fit`, `fdescribe`) |
+
+Package manifests are checked by specs instead, because Grit cannot match JSON:
+`packages/pipeline/src/package-boundaries.spec.ts` requires every sibling to peer on
+`@nestjs-pipeline/core` through `workspace:^` and never depend on it at runtime (a second
+copy of core silently loses its async-local context and behavior identity), and forbids
+dependencies on the private `api`; each `@cqrs-ddd/*` package has its own
+`package-manifest.spec.ts`. `api/test/lint/biome-persistence-plugin.spec.ts` and
+`biome-general-plugins.spec.ts` run every rule against the real Biome CLI.
 
 ### Releasing
 
@@ -1601,25 +1625,55 @@ each release. Before publishing:
    package and publishes in dependency order; each package rebuilds in
    `prepublishOnly`.
 
+`pnpm test:release` (`integration/packages/release.mjs`) packs every non-private
+`packages/*` workspace and checks each archive: name and version, licenses, JavaScript and
+declarations, `engines.node` equal to the root's, a README without relative links outside
+the package (they break on npmjs.com), no tests, and no dependency on the private `api`. No
+`@nestjs-pipeline/*` package may name `@cqrs-ddd/core`. Missing, duplicate or unexpected
+archives fail it. A temporary consumer outside the checkout then installs every tarball,
+with required peers at the lockfile's versions and automatic peer installation off, and
+compiles and runs the fixtures in `integration/packages/consumer/src/` (request-scoped
+behaviors across two Nest applications, the typed intent builders, CASL 7 startup). Every
+`.ts` file there is compiled and run; add a fixture for a new cross-package contract.
+Finally, each `@cqrs-ddd/*` package is installed alone with its peers and the packed
+packages it needs, and no NestJS: it fails if it depends on anything outside the release,
+pulls in anything else, or an entry point yields no exports. Requirements: the repository's
+Node and pnpm, `tar`, and registry access for uncached dependencies.
+
 ### Agent context files
 
 `CLAUDE.md` and `.claude/codebase-map.md` give coding agents a compact orientation map of
-the repository. The map's generated sections come from a dependency-free Python script:
+the repository; `AGENTS.md` holds the rules every agent follows. The files:
+
+| Path | Tracked | Purpose |
+| --- | --- | --- |
+| `CLAUDE.md`, and nested `CLAUDE.md` under `packages/`, `packages/pipeline/`, `packages/ddd-core/`, `packages/ddd-mikro-orm/`, `api/` | yes | Working instructions, and local rules per area |
+| `.claude/codebase-map.md` | yes | The map: generated sections plus human-owned sections |
+| `.claude/tasks/TEMPLATE.md`, `.claude/tasks/<task-id>.md` | yes | Template, and one file per active multi-step task |
+| `.claude/settings*.json`, `.claude/state/context-checkpoint.md` | no | Local settings and the pre-compaction checkpoint |
 
 ```bash
-# Regenerate .claude/codebase-map.md (human-written sections are preserved)
-pnpm context:update
-
-# Fail if the committed map no longer matches the repository
-pnpm context:check
-
-# Structure, required headings, secret scan, size budget, path references, generator run
-pnpm context:validate
+pnpm context:update     # regenerate the map's generated sections (human-written ones are preserved)
+pnpm context:check      # fail if the committed map no longer matches the repository
+pnpm context:validate   # required files and headings, secret scan, size budget, path references, generator run
 ```
 
-The scripts inspect structure only and never execute project code. See
-[`.claude/README.md`](.claude/README.md) for the file layout, the generated/manual section
-split, and the optional pre-compaction hook.
+The scripts in `scripts/` need Python 3.9+ and optionally `git`, with no third-party
+packages. `update-claude-snapshot.py` inspects structure only — manifests, directory layout,
+import specifiers, `process.env` names, README first paragraphs, git metadata — through
+`git ls-files`, and never executes project code, reads `.env*` or key material, or uses the
+network. `<!-- context:generated-* -->` blocks are rewritten on every run;
+`<!-- context:manual-* -->` blocks are copied through unchanged. `--check` ignores the
+volatile metadata fields, so only structural drift makes the map stale. Regenerate when
+architecture, modules, dependencies, entry points, commands or conventions change, then
+update the manual sections and run `pnpm context:validate`.
+
+A task file (`cp .claude/tasks/TEMPLATE.md .claude/tasks/<task-id>.md`) records decisions
+and verified results of active work only; when the task is done, move what is durable into
+source or a README and delete the file. `.claude/settings.json` registers a `PreCompact`
+hook, `scripts/claude-context-checkpoint.py`, that writes the current branch, commit,
+changed paths and task files to `.claude/state/context-checkpoint.md`. It never reads the
+conversation or file contents and always exits 0; remove the `hooks` block to disable it.
 
 ## Adding a New Behavior Package
 

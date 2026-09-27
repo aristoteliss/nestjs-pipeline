@@ -120,7 +120,7 @@ export function createPartitionedCacheKeyFactory(
       throw new MissingCachePartitionError(
         context.requestName,
         'tenant',
-        'Set a tenantIdFactory on PipelineModule, or pass requireTenant: false ' +
+        'Run the request inside a tenant scope (runWithTenant of @nestjs-pipeline/tenant), or pass requireTenant: false ' +
           'for a single-tenant deployment.',
       );
     }

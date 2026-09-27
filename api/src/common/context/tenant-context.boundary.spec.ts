@@ -6,12 +6,11 @@ import { describe, expect, it } from 'vitest';
 const applicationFiles = [
   '../../auths/application/cqrs/commands/create-auth.handler.ts',
   '../../auths/infrastructure/jose-access-token.issuer.ts',
+  '../../auths/infrastructure/session-job-principal.ts',
   '../../auths/services/jwt-authenticator.ts',
   '../../auths/services/api-client-authenticator.ts',
   '../../auths/services/principal-login.service.ts',
   '../../auths/services/request-principal-resolver.ts',
-  '../../users/application/cqrs/events/user-created.handler.ts',
-  '../../users/application/cqrs/events/user-updated.handler.ts',
 ] as const;
 
 function readSource(relativePath: string): string {

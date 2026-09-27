@@ -2,7 +2,7 @@
 
 import { MemoryCache } from '@cqrs-ddd/core/persistence';
 import { buildAbility, CaslAuthorizer } from '@nestjs-pipeline/casl';
-import { type IPipelineContext, pipelineStore } from '@nestjs-pipeline/core';
+import { runInScope } from '@nestjs-pipeline/core';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { GetUserQuery } from '../src/users/cqrs/queries/get-user.query';
 import { GetUserOverviewHandler } from '../src/users/cqrs/queries/get-user-overview.handler';
@@ -46,10 +46,7 @@ describe('User overview repository cache freshness', () => {
 
   /** The repository cache key is tenant-scoped and fails closed without one. */
   function inTenant<T>(run: () => Promise<T>): Promise<T> {
-    return pipelineStore.run(
-      { tenantId: 'tenant-a' } as unknown as IPipelineContext,
-      run,
-    );
+    return runInScope({ tenantId: 'tenant-a' }, run);
   }
 
   function handlerFor(viewerDepartment: string): GetUserOverviewHandler {

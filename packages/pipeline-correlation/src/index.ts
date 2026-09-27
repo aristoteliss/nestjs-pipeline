@@ -5,8 +5,6 @@ export type { WithCorrelationId } from './correlation.store';
 export {
   addCorrelationId,
   correlationHeaders,
-  correlationPipelineOptions,
-  correlationStore,
   getCorrelationId,
   runWithCorrelationId,
 } from './correlation.store';

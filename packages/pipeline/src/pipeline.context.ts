@@ -2,7 +2,6 @@
 
 import { Type } from '@nestjs/common';
 import {
-  pipelineStore,
   SET_CORRELATION_ID,
   SET_RESPONSE,
   SET_TENANT_ID,
@@ -54,7 +53,7 @@ export abstract class BasePipelineContext<
 
   /**
    * Assigns the tenant once per execution. A different value after one is set
-   * (by the runner's `tenantIdFactory` or inheritance from a parent context)
+   * (by the runner, from the current execution scope)
    * throws, so a behavior cannot move an execution to another tenant after an
    * earlier behavior has used it.
    */
@@ -108,15 +107,6 @@ export abstract class BasePipelineContext<
   constructor() {
     this.startedAt = new Date();
     this.items = new Map();
-
-    // Inherit correlationId and tenantId from parent pipeline context (saga / nested command)
-    const parent = pipelineStore.getStore();
-    if (parent?.correlationId) {
-      this._correlationId = parent.correlationId;
-    }
-    if (parent?.tenantId) {
-      this._tenantId = parent.tenantId;
-    }
   }
 
   /**

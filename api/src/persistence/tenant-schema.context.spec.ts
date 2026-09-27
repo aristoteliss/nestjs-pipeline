@@ -1,6 +1,7 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { MissingTenantContextError } from '@cqrs-ddd/core/domain';
+import { currentTenantId, runWithTenant } from '@nestjs-pipeline/tenant';
 import { describe, expect, it } from 'vitest';
 import { TenantSchemaContext } from './tenant-schema.context';
 import { InvalidTenantSchemaError } from './tenant-schema.errors';
@@ -12,7 +13,6 @@ describe('TenantSchemaContext', () => {
     await context.run(' tenant_a ', async () => {
       await Promise.resolve();
       expect(context.schema).toBe('tenant_a');
-      expect(context.current).toBe('tenant_a');
     });
   });
 
@@ -29,7 +29,6 @@ describe('TenantSchemaContext', () => {
     const context = new TenantSchemaContext();
 
     expect(() => context.schema).toThrow(MissingTenantContextError);
-    expect(context.current).toBeUndefined();
   });
 
   it('refuses to run without a tenant', () => {
@@ -47,6 +46,23 @@ describe('TenantSchemaContext', () => {
   it('refuses an invalid tenant name', () => {
     expect(() => new TenantSchemaContext().run('tenant-a', () => 0)).toThrow(
       InvalidTenantSchemaError,
+    );
+  });
+
+  it('shares one tenant with the pipeline tenant scope, in both directions', () => {
+    const context = new TenantSchemaContext();
+
+    context.run('tenant_a', () => expect(currentTenantId()).toBe('tenant_a'));
+    runWithTenant('tenant_b', () => {
+      expect(context.schema).toBe('tenant_b');
+    });
+  });
+
+  it('refuses an invalid tenant set through the shared scope', () => {
+    const context = new TenantSchemaContext();
+
+    runWithTenant('tenant-a', () =>
+      expect(() => context.schema).toThrow(InvalidTenantSchemaError),
     );
   });
 });

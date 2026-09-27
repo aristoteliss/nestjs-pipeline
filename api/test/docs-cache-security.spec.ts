@@ -22,21 +22,10 @@ describe('Documentation cache security contracts', () => {
     'pipeline-cache',
     'README.md',
   );
-  const cacheHelpersReadmePath = resolve(
-    __dirname,
-    '..',
-    '..',
-    'packages',
-    'pipeline-cache',
-    'src',
-    'helpers',
-    'README.md',
-  );
 
   const usersApiReadme = readFileSync(usersApiReadmePath, 'utf8');
   const cacheReadme = readFileSync(cacheReadmePath, 'utf8');
-  const cacheHelpersReadme = readFileSync(cacheHelpersReadmePath, 'utf8');
-  const allDocs = [usersApiReadme, cacheReadme, cacheHelpersReadme];
+  const allDocs = [usersApiReadme, cacheReadme];
 
   it('does not contain unsafe tenant-only shared cache keys for authorized handlers', () => {
     expect(usersApiReadme).not.toContain(
@@ -62,9 +51,6 @@ describe('Documentation cache security contracts', () => {
 
     expect(cacheReadme).toContain('createPartitionedCacheKeyFactory');
     expect(cacheReadme).toContain('MissingCachePartitionError');
-
-    expect(cacheHelpersReadme).toContain('createPartitionedCacheKeyFactory');
-    expect(cacheHelpersReadme).toContain('MissingCachePartitionError');
   });
 
   it('presents no correlation-scoped key as safe by default in any documentation', () => {

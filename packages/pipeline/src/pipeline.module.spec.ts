@@ -57,7 +57,7 @@ describe('PipelineModule.forRoot', () => {
   it('accepts an options object with behaviors', () => {
     const mod = PipelineModule.forRoot({
       behaviors: [AlphaBehavior],
-      correlationIdFactory: () => 'test-id',
+      diagnostics: 'warn',
     });
 
     expect(mod.providers).toContain(AlphaBehavior);
@@ -66,7 +66,7 @@ describe('PipelineModule.forRoot', () => {
       (p: any) => p.provide === PIPELINE_MODULE_OPTIONS,
     );
     expect(optionsProvider).toBeDefined();
-    expect(optionsProvider.useValue.correlationIdFactory).toBeDefined();
+    expect(optionsProvider.useValue.diagnostics).toBe('warn');
   });
 
   it('registers global before/after behavior types', () => {
@@ -219,7 +219,7 @@ describe('PipelineModule.forRootAsync', () => {
       inject: ['CUSTOM_SERVICE'],
       behaviors: [AlphaBehavior],
       useFactory: (service: string) => ({
-        tenantIdFactory: () => `${service}:tenant`,
+        bootstrapLogLevel: service === 'quiet' ? 'none' : 'debug',
       }),
     });
 
@@ -240,7 +240,7 @@ describe('PipelineModule.forRootAsync', () => {
   it('registers with useClass', () => {
     class ConfigService {
       createPipelineOptions() {
-        return { tenantIdFactory: () => 'class-tenant' };
+        return { diagnostics: 'warn' as const };
       }
     }
 
@@ -317,7 +317,7 @@ describe('PipelineModule.forRootAsync', () => {
     });
 
     it('passes runtime options through untouched', async () => {
-      const runtime = { tenantIdFactory: () => 'acme' };
+      const runtime = { diagnostics: 'warn' as const };
       const mod = PipelineModule.forRootAsync({
         behaviors: [AlphaBehavior],
         useFactory: () => runtime,

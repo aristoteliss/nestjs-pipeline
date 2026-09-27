@@ -3,7 +3,7 @@
 import 'reflect-metadata';
 import { Logger } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
-import { correlationStore, getCorrelationId } from '../correlation.store';
+import { getCorrelationId, runWithCorrelationId } from '../correlation.store';
 import { CorrelationFrom, WithCorrelation } from './with-correlation.decorator';
 
 function fakeJob(data: Record<string, any> = {}) {
@@ -91,7 +91,7 @@ describe('WithCorrelation — default path', () => {
     const p = new Processor();
 
     // Simulate: already inside a parent correlation context (e.g. saga)
-    await correlationStore.run('parent-id', async () => {
+    await runWithCorrelationId('parent-id', async () => {
       await p.handle(fakeJob({})); // no correlationId in data
     });
 
@@ -430,7 +430,7 @@ describe('WithCorrelation — edge cases', () => {
 
     const p = new Processor();
 
-    await correlationStore.run('outer-id', async () => {
+    await runWithCorrelationId('outer-id', async () => {
       await p.handle(fakeJob({ correlationId: 'inner-id' }));
     });
 

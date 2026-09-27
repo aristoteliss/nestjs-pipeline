@@ -12,7 +12,7 @@
  * @example
  * ```ts
  * @Cache<User, UserSnapshot>({
- *   setKey: (user) => filterCacheKey(User.aggregateName, { id: user.id }),
+ *   setKey: (user) => cacheKey(User.aggregateName, { id: user.id }),
  *   logger: new Logger('UserCache'), // NestJS
  * })
  * ```

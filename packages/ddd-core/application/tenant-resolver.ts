@@ -17,7 +17,7 @@ export type TenantResolver = () => string | undefined;
 let tenantResolver: TenantResolver | undefined;
 
 /**
- * Registers where tenant-scoped helpers such as `filterCacheKey` and
+ * Registers where tenant-scoped helpers such as `cacheKey` and
  * `cacheKeyTemplate` find the tenant when none is passed to them, typically the
  * request or job context the application already keeps.
  *

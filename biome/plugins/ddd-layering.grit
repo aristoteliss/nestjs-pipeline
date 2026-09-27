@@ -5,9 +5,9 @@ language js(typescript)
 // `/application` and `/persistence` — so the layering is expressed by the import
 // itself rather than only by convention.
 //
-// Domain and CQRS code may not reach the persistence entry point. It is the only
-// one that touches MikroORM, and a handler that imports from it has taken a
-// dependency on the adapter instead of the port. Repository contracts
+// Domain and CQRS code may not reach the persistence entry point. It holds the
+// building blocks of persistence adapters, and a handler that imports from it has
+// taken a dependency on the adapter instead of the port. Repository contracts
 // (`ICommandRepository`, `IQueryRepository`, `IWriteSideAggregateRepository`) are
 // exported from `/application` precisely so handlers never need to.
 //

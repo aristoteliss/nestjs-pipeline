@@ -35,7 +35,9 @@ the applied migration (its index names already match the derived names).
 
 ## Current Status
 
-not started. Depends on: nothing left (mikro-orm-package is done). Design decisions agreed (below).
+in progress. Already in place (owner, `cbbfd44e`): each unique index is declared by name in
+its schema (`USER_EMAIL_UNIQUE`, `ROLE_NAME_UNIQUE` beside the schema); repositories still
+pass `constraint` and `columns` strings.
 
 ## Plan
 

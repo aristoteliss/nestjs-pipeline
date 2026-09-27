@@ -346,7 +346,6 @@ export class PipelineBootstrapService
             );
           },
       hasPipeline,
-      this.options,
     );
 
     if (isScoped) {

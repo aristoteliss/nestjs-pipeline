@@ -5,7 +5,7 @@ import type {
   CapabilityString,
   Capability as CaslCapability,
 } from '@nestjs-pipeline/casl';
-import { capabilityFromRow } from '@persistence/capability-row.mapper';
+import { capabilityFromRow } from '@auths/persistence/helpers/capability-row.mapper';
 import { RoleCapability } from '@persistence/entities/role-capability.entity';
 import { MIKRO_ORM_CLIENT, MikroOrmStore } from '@persistence/mikro-orm.store';
 import { Capability } from '../../../src/roles/domain/models/capability.entity';

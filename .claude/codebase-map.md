@@ -24,8 +24,8 @@ what the libraries support.
 ## Repository Shape
 
 <!-- context:generated-start repository-shape -->
-- **Shape**: monorepo — workspace globs `api`, `packages/*` (18 workspace packages).
-- **Publishable packages**: 17 (manifest without `private: true`).
+- **Shape**: monorepo — workspace globs `api`, `packages/*` (19 workspace packages).
+- **Publishable packages**: 18 (manifest without `private: true`).
 - **Private workspaces**: 1.
 - **Runnable workspaces**: 1 (`api`).
 
@@ -42,6 +42,7 @@ what the libraries support.
 | `packages/pipeline-deadletter` | `@nestjs-pipeline/deadletter` | 0.2.0 | yes | no |
 | `packages/pipeline-feature-flags` | `@nestjs-pipeline/feature-flags` | 0.2.0 | yes | no |
 | `packages/pipeline-idempotency` | `@nestjs-pipeline/idempotency` | 0.2.0 | yes | no |
+| `packages/pipeline-job-context` | `@nestjs-pipeline/job-context` | 0.2.0 | yes | no |
 | `packages/pipeline-opentelemetry` | `@nestjs-pipeline/opentelemetry` | 0.2.0 | yes | no |
 | `packages/pipeline-rate-limit` | `@nestjs-pipeline/rate-limit` | 0.2.0 | yes | no |
 | `packages/pipeline-resilience` | `@nestjs-pipeline/resilience` | 0.2.0 | yes | no |
@@ -54,7 +55,7 @@ what the libraries support.
 ## Technology Stack
 
 <!-- context:generated-start technology-stack -->
-- **Languages** (file counts, excluded directories omitted): `.ts` 746, `.md` 48, `.grit` 14, `.py` 3, `.mjs` 1
+- **Languages** (file counts, excluded directories omitted): `.ts` 774, `.md` 41, `.grit` 14, `.py` 3, `.mjs` 1
 - **Runtime engines** (root `package.json`): `node` >=22.0.0, `pnpm` >=9.0.0
 - **Package manager evidence**: `pnpm-lock.yaml`.
 
@@ -102,6 +103,7 @@ what the libraries support.
 | `packages/pipeline-deadletter/src/index.ts` | Package public entry (barrel) | workspace `@nestjs-pipeline/deadletter` |
 | `packages/pipeline-feature-flags/src/index.ts` | Package public entry (barrel) | workspace `@nestjs-pipeline/feature-flags` |
 | `packages/pipeline-idempotency/src/index.ts` | Package public entry (barrel) | workspace `@nestjs-pipeline/idempotency` |
+| `packages/pipeline-job-context/src/index.ts` | Package public entry (barrel) | workspace `@nestjs-pipeline/job-context` |
 | `packages/pipeline-opentelemetry/src/index.ts` | Package public entry (barrel) | workspace `@nestjs-pipeline/opentelemetry` |
 | `packages/pipeline-rate-limit/src/index.ts` | Package public entry (barrel) | workspace `@nestjs-pipeline/rate-limit` |
 | `packages/pipeline-resilience/src/index.ts` | Package public entry (barrel) | workspace `@nestjs-pipeline/resilience` |
@@ -125,12 +127,12 @@ editor/tooling directories are excluded (see Snapshot Metadata).
 | Directory | Responsibility | Key files |
 | --- | --- | --- |
 | `.agents/` | Guide architecture-sensitive implementation, reviews and documentation in nestjs-pipeline, preserving reusable library contracts and DDD boundaries. | subdirectories only |
-| `.claude/` | Persistent, repository-local context for Claude Code and other coding agents. Everything here is plain Markdown plus two dependency-free Python scripts; nothing runs during a normal build or test. | `README.md`, `codebase-map.md` |
+| `.claude/` | Needs verification | `codebase-map.md` |
 | `api/` | Sample NestJS app demonstrating @nestjs-pipeline/core usage | `CLAUDE.md`, `README.md`, `package.json`, `tsconfig.build.json` |
-| `biome/` | Native Biome analyzer plugins registered in the root biome.json. They report diagnostics; they do not rewrite code automatically. (from `biome/plugins/README.md`) | subdirectories only |
-| `integration/` | Run pnpm test:release before publishing. It rebuilds the workspace, copies the licenses, and runs release.mjs. It is also part of pnpm verify:all. (from `integration/packages/README.md`) | subdirectories only |
-| `packages/` | Workspace container — 17 package(s); see the workspace table below | `CLAUDE.md` |
-| `scripts/` | Dependency-free Python utilities for the agent context-management system. They are not part of the build, the test run, or the release pipeline; see .claude/README.md for the full system description. | `README.md`, `claude-context-checkpoint.py`, `update-claude-snapshot.py`, `validate-claude-context.py` |
+| `biome/` | Needs verification | subdirectories only |
+| `integration/` | Needs verification | subdirectories only |
+| `packages/` | Workspace container — 18 package(s); see the workspace table below | `CLAUDE.md` |
+| `scripts/` | Needs verification | `claude-context-checkpoint.py`, `update-claude-snapshot.py`, `validate-claude-context.py` |
 
 Root files: `.gitignore`, `.npmrc`, `AGENTS.md`, `CHANGELOG.md`, `CLAUDE.md`, `COMMERCIAL_LICENSE.txt`, `LICENSE`, `Packages.Guide.el.md`, `README.md`, `biome.json`, `package.json`, `pnpm-lock.yaml`, `pnpm-workspace.yaml`, `tsconfig.base.json`
 
@@ -149,6 +151,7 @@ Root files: `.gitignore`, `.npmrc`, `AGENTS.md`, `CHANGELOG.md`, `CLAUDE.md`, `C
 | `packages/pipeline-deadletter` | `@nestjs-pipeline/deadletter` | `constants`, `errors`, `helpers`, `interfaces`, `transports` | [README](packages/pipeline-deadletter/README.md) |
 | `packages/pipeline-feature-flags` | `@nestjs-pipeline/feature-flags` | `constants`, `errors`, `filters`, `helpers`, `interfaces` | [README](packages/pipeline-feature-flags/README.md) |
 | `packages/pipeline-idempotency` | `@nestjs-pipeline/idempotency` | `constants`, `errors`, `filters`, `helpers`, `interfaces`, `stores` | [README](packages/pipeline-idempotency/README.md) |
+| `packages/pipeline-job-context` | `@nestjs-pipeline/job-context` | `constants`, `decorators`, `errors`, `helpers`, `interfaces` | [README](packages/pipeline-job-context/README.md) |
 | `packages/pipeline-opentelemetry` | `@nestjs-pipeline/opentelemetry` | `helpers` | [README](packages/pipeline-opentelemetry/README.md) |
 | `packages/pipeline-rate-limit` | `@nestjs-pipeline/rate-limit` | `constants`, `errors`, `filters`, `helpers`, `interfaces` | [README](packages/pipeline-rate-limit/README.md) |
 | `packages/pipeline-resilience` | `@nestjs-pipeline/resilience` | `constants`, `errors`, `helpers`, `interfaces` | [README](packages/pipeline-resilience/README.md) |
@@ -223,13 +226,19 @@ exceptions → 409, invariant violations → 422, `InvalidLoginCredentialsExcept
 BullMQ over Redis, wired in `api/src/common/modules/reliability.module.ts`. Processors live in
 `api/src/users/jobs/` (`send-welcome-email`, `batch-update-users`), dispatch goes
 through an application port implemented by `bullmq-user-event-dispatcher.adapter.ts`.
-Failed commands and events are captured by `DeadLetterBehavior` into a `dead-letters`
+A job runs in the tenant, correlation id and principal of the request that enqueued it:
+the dispatcher stamps `withJobContext`, the processors use `@InJobContext()`
+(`@nestjs-pipeline/job-context`), and `SessionJobPrincipal`
+(`api/src/auths/infrastructure/session-job-principal.ts`) re-checks the principal when the
+job runs. System work declares its principal and grants with `@AsSystem`. Failed commands and events are captured by `DeadLetterBehavior` into a `dead-letters`
 queue. The Nest in-memory `EventBus` is **not** a transactional outbox; there is no durable
 delivery guarantee.
 
 ### Multi-tenancy
 
-`TenantSchemaMiddleware` resolves the tenant per request; `TenantSchemaContext` and
+`TenantSchemaMiddleware` resolves the tenant per request; `TenantSchemaContext` (which
+reads and writes `@nestjs-pipeline/tenant`'s scope, the one tenant store the database
+store, the pipeline, core's cache keys and jobs share) and
 `EntityManagerTenantRegistry` (an external `WeakMap`) bind an EntityManager to a tenant
 without mutating ORM objects. Missing tenant context fails closed with
 `MissingTenantContextError` — never a shared `'default'` namespace.
@@ -374,7 +383,7 @@ environment value is read or reproduced here.
 
 | Integration | Declared in | Imported by (sample) |
 | --- | --- | --- |
-| NestJS runtime | `api`, `packages/pipeline`, `packages/pipeline-audit`, `packages/pipeline-cache`, … (+9) | `api/src/app.module.ts`, `api/src/auths/application/cqrs/commands/create-auth.handler.ts` |
+| NestJS runtime | `api`, `packages/pipeline`, `packages/pipeline-audit`, `packages/pipeline-cache`, … (+10) | `api/src/app.module.ts`, `api/src/auths/application/cqrs/commands/create-auth.handler.ts` |
 | NestJS CQRS | `api`, `packages/pipeline` | `api/src/app.module.ts`, `api/src/auths/application/cqrs/commands/auth-session-handlers.spec.ts` |
 | MikroORM | `api`, `packages/ddd-mikro-orm` | `api/src/auths/persistence/user-permissions.projector.ts`, `api/src/persistence/migration-commands.spec.ts` |
 | PostgreSQL | `api` | `api/src/persistence/orm-options.spec.ts`, `api/src/persistence/orm-options.ts` |
@@ -392,7 +401,7 @@ environment value is read or reproduced here.
 | Express | `api` | `api/src/bootstrap.ts`, `api/src/express-platform.ts` |
 | Cockatiel | `api`, `packages/pipeline-resilience` | `packages/pipeline-resilience/src/helpers/policy-factory.spec.ts`, `packages/pipeline-resilience/src/helpers/policy-factory.ts` |
 | rate-limiter-flexible | `api`, `packages/pipeline-rate-limit` | `api/src/common/modules/reliability.module.ts`, `api/test/behaviors.spec.ts` |
-| Vitest | `api`, `packages/ddd-core`, `packages/ddd-mikro-orm`, `packages/pipeline`, … (+14) | `api/src/auths/application/cqrs/commands/auth-session-handlers.spec.ts`, `api/src/auths/application/cqrs/commands/create-auth-redaction.spec.ts` |
+| Vitest | `api`, `packages/ddd-core`, `packages/ddd-mikro-orm`, `packages/pipeline`, … (+15) | `api/src/auths/application/cqrs/commands/auth-session-handlers.spec.ts`, `api/src/auths/application/cqrs/commands/create-auth-redaction.spec.ts` |
 | Biome | `api`, `packages/ddd-core` | not imported directly |
 | TypeScript | `api`, `packages/ddd-core`, `packages/ddd-mikro-orm` | not imported directly |
 | SWC | `api` | `api/vitest.config.e2e.ts`, `api/vitest.config.ts` |
@@ -401,7 +410,7 @@ environment value is read or reproduced here.
 
 | Workspace | Internal | External | Peers |
 | --- | --- | --- | --- |
-| `api` | 16 workspace packages | `@casl/ability`, `@fastify/secure-session`, `@keyv/redis`, `@libsql/client`, `@mikro-orm/core`, `@mikro-orm/libsql`, `@mikro-orm/migrations`, `@mikro-orm/nestjs`, `@mikro-orm/postgresql`, `@mikro-orm/sqlite`, … (+27) | — |
+| `api` | 17 workspace packages | `@casl/ability`, `@fastify/secure-session`, `@keyv/redis`, `@libsql/client`, `@mikro-orm/core`, `@mikro-orm/libsql`, `@mikro-orm/migrations`, `@mikro-orm/nestjs`, `@mikro-orm/postgresql`, `@mikro-orm/sqlite`, … (+27) | — |
 | `packages/ddd-core` | `@cqrs-ddd/safe-stringify`, `@cqrs-ddd/uuidv7` | — | — |
 | `packages/ddd-mikro-orm` | — | — | `@cqrs-ddd/core`, `@mikro-orm/core` |
 | `packages/pipeline` | `@cqrs-ddd/safe-stringify`, `@cqrs-ddd/uuidv7` | — | `@nestjs/common`, `@nestjs/core`, `@nestjs/cqrs`, `reflect-metadata`, `rxjs` |
@@ -412,6 +421,7 @@ environment value is read or reproduced here.
 | `packages/pipeline-deadletter` | `@cqrs-ddd/safe-stringify`, `@cqrs-ddd/uuidv7` | — | `@nestjs-pipeline/core`, `@nestjs/common`, `reflect-metadata` |
 | `packages/pipeline-feature-flags` | — | — | `@nestjs-pipeline/core`, `@nestjs/common`, `@openfeature/server-sdk`, `reflect-metadata` |
 | `packages/pipeline-idempotency` | `@cqrs-ddd/safe-stringify` | — | `@nestjs-pipeline/core`, `@nestjs/common`, `reflect-metadata` |
+| `packages/pipeline-job-context` | — | — | `@nestjs-pipeline/core`, `@nestjs-pipeline/correlation`, `@nestjs-pipeline/tenant`, `@nestjs/common` |
 | `packages/pipeline-opentelemetry` | — | — | `@nestjs-pipeline/core`, `@nestjs/common`, `@opentelemetry/api`, `reflect-metadata` |
 | `packages/pipeline-rate-limit` | `@cqrs-ddd/safe-stringify` | — | `@nestjs-pipeline/core`, `@nestjs/common`, `reflect-metadata` |
 | `packages/pipeline-resilience` | — | — | `@nestjs-pipeline/core`, `@nestjs/common`, `cockatiel`, `reflect-metadata` |
@@ -502,6 +512,7 @@ row as *declared* unless you have run it yourself in this checkout.
 | `packages/pipeline-deadletter` | `build`, `build:watch`, `clean`, `lint`, `prepublishOnly`, `rebuild`, `test`, `test:watch` |
 | `packages/pipeline-feature-flags` | `build`, `build:watch`, `clean`, `lint`, `prepublishOnly`, `rebuild`, `test`, `test:watch` |
 | `packages/pipeline-idempotency` | `build`, `build:watch`, `clean`, `lint`, `prepublishOnly`, `rebuild`, `test`, `test:watch` |
+| `packages/pipeline-job-context` | `build`, `build:watch`, `clean`, `lint`, `prepublishOnly`, `rebuild`, `test`, `test:watch` |
 | `packages/pipeline-opentelemetry` | `build`, `build:watch`, `clean`, `lint`, `prepublishOnly`, `rebuild`, `test`, `test:watch` |
 | `packages/pipeline-rate-limit` | `build`, `build:watch`, `clean`, `lint`, `prepublishOnly`, `rebuild`, `test`, `test:watch` |
 | `packages/pipeline-resilience` | `build`, `build:watch`, `clean`, `lint`, `prepublishOnly`, `rebuild`, `test`, `test:watch` |
@@ -549,7 +560,7 @@ row as *declared* unless you have run it yourself in this checkout.
   `api/test/behavior-composition-contracts.spec.ts`,
   `cqrs-discovery-without-private-metadata.e2e-spec.ts`.
 - **Release verification**: `pnpm test:release` packs every publishable package and loads it
-  from its tarball in an isolated consumer (`integration/packages/README.md`). It checks root
+  from its tarball in an isolated consumer (root `README.md`, Releasing). It checks root
   entry points only — not every subpath or dependency version.
 - **Test-log helpers**: `test:all:full` runs coverage suites and writes `test-run.log`;
   `test:last:review`, `test:last:log` and `test:last:fails` inspect that log. These are
@@ -582,6 +593,12 @@ secret value.*
   into context files.
 - **Fail-closed behavior**: Fastify mode requires `SESSION_SECRET`; missing tenant context
   raises `MissingTenantContextError`.
+- **Jobs**: a queue payload is data anyone with queue access can write. It carries only the
+  principal's identity (`id`, `type`, `sessionId`), never grants; `@InJobContext()` refuses
+  a missing or malformed context, an unconfigured tenant, or a principal carrying other
+  fields, and `SessionJobPrincipal` refuses a revoked, expired or foreign session, a
+  deleted user, and an API client no longer listed for the tenant. Grants come only from
+  `@AsSystem` in code.
 - **Rate limiting**: `RateLimitBehavior` over `rate-limiter-flexible`, memory-backed by
   default and Redis-backed in production (`api/src/common/modules/reliability.module.ts`).
   Exceeded limits become HTTP 429 with `Retry-After` via `RateLimitExceededFilter`.
@@ -676,13 +693,13 @@ secret value.*
 ## Snapshot Metadata
 
 <!-- context:generated-start metadata -->
-- Generated at: 2026-09-27T13:52:22Z
-- Git commit: 40fc31fb94a6b623cb3688faa339b2883f658ed0
+- Generated at: 2026-09-27T14:56:19Z
+- Git commit: 129425fd4c207e27c5673e3d37b1a9a37d2d0727
 - Git branch: publish
 - Uncommitted changes when generated: yes
 - Generator: `scripts/update-claude-snapshot.py` version 1.0.0
 - Snapshot status: generated — structural inspection only, no code executed
-- Files inspected: 880
+- Files inspected: 904
 - Included top-level directories: `.agents`, `.claude`, `api`, `biome`, `integration`, `packages`, `scripts`
 - Excluded directory names: `.cache`, `.git`, `.gradle`, `.idea`, `.mypy_cache`, `.next`, `.nuxt`, `.parcel-cache`, `.pnpm-store`, `.pytest_cache`, `.ruff_cache`, `.svelte-kit`, `.terraform`, `.tmp`, `.tox`, `.turbo`, `.venv`, `.vscode`, `__pycache__`, `bower_components`, `build`, `coverage`, `dist`, `node_modules`, `out`, `target`, `vendor`, `venv`, `virtualenv`
 - Excluded file patterns: `.env`, `.env.*`, `*.env`, `*.pem`, `*.key`, `*.pfx`, `*.p12`, `*.jks`, `*.keystore`, `id_rsa*`, `id_ed25519*`, `*credentials*`, `*.secret`, `secrets.*`

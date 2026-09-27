@@ -21,7 +21,7 @@ Out of scope: what each maintenance job does.
 
 ## Current Status
 
-not started. Depends on: tenant-store.
+partial — the mapper/spec cleanup is done; the rest depends on tenant-store.
 
 ## Plan
 
@@ -34,9 +34,8 @@ not started. Depends on: tenant-store.
       around each run (`migrate.ts:11-24`, read at `Migration20260830000000.ts:408`). Find a
       way to pass it that does not mutate global state; do not rewrite the applied migration's
       schema changes (api/CLAUDE.md).
-- [ ] Move `capability-row.mapper.ts` out of the persistence root to the feature that owns
-      it, and delete `cache/memory.cache.spec.ts` (it tests core's `MemoryCache`; move any
-      case core's spec lacks into core).
+- [x] `capability-row.mapper.ts` lives in `api/src/auths/persistence/helpers/` (owner);
+      the root copy and `cache/memory.cache.spec.ts` (a subset of core's spec) are deleted.
 
 ## Decisions
 

@@ -21,6 +21,7 @@ import {
   UnauthorizedActionException,
 } from '@nestjs-pipeline/casl';
 import { type IPipelineContext, PipelineModule } from '@nestjs-pipeline/core';
+import { runWithTenant } from '@nestjs-pipeline/tenant';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { SessionPrincipal } from '../src/common/types/SessionPrincipal';
 import { Role } from '../src/roles/domain/models/role.entity';
@@ -160,12 +161,7 @@ describe('User overview composed query security and caching contracts', () => {
         CaslModule.forRoot({
           permissionSource: { useFactory: () => new ViewerPermissionSource() },
         }),
-        PipelineModule.forRootAsync({
-          behaviors: [CaslBehavior, CacheBehavior],
-          useFactory: () => ({
-            tenantIdFactory: () => currentTenant,
-          }),
-        }),
+        PipelineModule.forRoot({ behaviors: [CaslBehavior, CacheBehavior] }),
       ],
       providers: [
         GetUserOverviewHandler,
@@ -186,7 +182,11 @@ describe('User overview composed query security and caching contracts', () => {
 
     app = moduleRef.createNestApplication();
     await app.init();
-    queries = app.get(QueryBus);
+    const bus = app.get(QueryBus);
+    queries = {
+      execute: (query) =>
+        runWithTenant(currentTenant, () => bus.execute(query)),
+    } as QueryBus;
   });
 
   afterEach(async () => {

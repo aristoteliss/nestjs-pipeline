@@ -66,7 +66,7 @@ pnpm test:release                     # packs every package and verifies it from
   added because a spec needs to reach it. Mock the module boundary instead (`vi.mock`).
 - Adding or changing a published export means running `pnpm test:release`, which packs each
   package and loads it from its tarball in an isolated consumer
-  ([integration/packages/README.md](../integration/packages/README.md)).
+  ([README.md → Releasing](../README.md#releasing)).
 
 ## Do not edit manually
 

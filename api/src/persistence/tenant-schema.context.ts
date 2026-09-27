@@ -1,24 +1,21 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import { AsyncLocalStorage } from 'node:async_hooks';
 import { MissingTenantContextError } from '@cqrs-ddd/core/domain';
 import { Injectable } from '@nestjs/common';
+import { currentTenantId, runWithTenant } from '@nestjs-pipeline/tenant';
 import { tenantSchema } from './persistence.config';
 
-type TenantSchemaStore = {
-  schema: string;
-};
-
 /**
- * Stores and resolves the active tenant schema per async execution context.
+ * Validates and resolves the active tenant schema.
  *
- * It fails closed: work outside {@link run} has no tenant, and reading
- * {@link schema} there throws instead of falling back to a default tenant.
+ * It reads and writes the tenant scope of `@nestjs-pipeline/tenant`, the one
+ * store the database store, the pipeline and core's tenant-scoped cache keys
+ * share. It fails closed: work outside {@link run} or a pipeline execution has
+ * no tenant, and reading {@link schema} there throws instead of falling back to
+ * a default tenant.
  */
 @Injectable()
 export class TenantSchemaContext {
-  private readonly storage = new AsyncLocalStorage<TenantSchemaStore>();
-
   /**
    * Runs `callback` with `schema` as the active tenant.
    *
@@ -35,13 +32,17 @@ export class TenantSchemaContext {
     if (schema === undefined) {
       throw new MissingTenantContextError('a tenant-scoped run');
     }
-    return this.storage.run({ schema: tenantSchema(schema) }, callback);
+    return runWithTenant(tenantSchema(schema), callback);
   }
 
   /**
-   * The active tenant.
+   * The active tenant, validated on every read: the shared scope also accepts
+   * tenants set through `runWithTenant` directly.
    *
-   * @throws {MissingTenantContextError} Outside {@link run}.
+   * @throws {MissingTenantContextError} Outside {@link run} and outside a
+   *   pipeline execution that has a tenant.
+   * @throws {InvalidTenantSchemaError} When the active tenant is not a valid
+   *   name.
    *
    * @example
    * ```ts
@@ -49,24 +50,10 @@ export class TenantSchemaContext {
    * ```
    */
   get schema(): string {
-    const schema = this.storage.getStore()?.schema;
+    const schema = currentTenantId();
     if (schema === undefined) {
       throw new MissingTenantContextError('reading the active tenant');
     }
-    return schema;
-  }
-
-  /**
-   * The active tenant, or `undefined` outside {@link run}. For callers that
-   * must not throw, such as the pipeline's `tenantIdFactory`, which leaves the
-   * tenant unset so tenant-scoped behaviors fail closed on their own.
-   *
-   * @example
-   * ```ts
-   * PipelineModule.forRoot({ tenantIdFactory: () => tenantContext.current });
-   * ```
-   */
-  get current(): string | undefined {
-    return this.storage.getStore()?.schema;
+    return tenantSchema(schema);
   }
 }

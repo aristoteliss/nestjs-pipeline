@@ -41,7 +41,7 @@ export interface QueryRepositoryHydration<TResult> {
  *   }
  *
  *   @FromCache<GetUserQuery, User | null>({
- *     keyFn: (query) => filterCacheKey('user', { id: query.userId }),
+ *     keyFn: (query) => cacheKey('user', { id: query.userId }),
  *     hydrateFn: (cached) => User.fromJSON(cached as UserSnapshot),
  *     alwaysHydrate: true,
  *   })
@@ -63,7 +63,7 @@ export interface QueryRepositoryHydration<TResult> {
  *   }
  *
  *   @FromCache<GetRoleQuery, Role | null>({
- *     keyFn: (query) => filterCacheKey(Role.aggregateName, { id: query.roleId }),
+ *     keyFn: (query) => cacheKey(Role.aggregateName, { id: query.roleId }),
  *   })
  *   async find(query: GetRoleQuery): Promise<Role | null> { ... }
  * }

@@ -1,0 +1,64 @@
+{
+  "name": "@nestjs-pipeline/job-context",
+  "version": "0.2.0",
+  "description": "Carries the tenant, correlation id and principal of a request into the queue jobs it enqueues, and gives system-started work an explicit context",
+  "author": "Aristotelis",
+  "license": "SEE LICENSE IN LICENSE",
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/aristoteliss/nestjs-pipeline.git",
+    "directory": "packages/pipeline-job-context"
+  },
+  "homepage": "https://github.com/aristoteliss/nestjs-pipeline/tree/master/packages/pipeline-job-context#readme",
+  "bugs": {
+    "url": "https://github.com/aristoteliss/nestjs-pipeline/issues"
+  },
+  "keywords": [
+    "nestjs",
+    "cqrs",
+    "pipeline",
+    "multi-tenancy",
+    "queue",
+    "jobs",
+    "authorization",
+    "correlation-id"
+  ],
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist",
+    "LICENSE",
+    "COMMERCIAL_LICENSE.txt"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "build:watch": "tsc -p tsconfig.build.json --watch",
+    "clean": "rm -rf dist tsconfig.tsbuildinfo",
+    "rebuild": "pnpm run clean && pnpm run build",
+    "lint": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "prepublishOnly": "pnpm run rebuild"
+  },
+  "peerDependencies": {
+    "@nestjs-pipeline/core": "workspace:^",
+    "@nestjs-pipeline/correlation": "workspace:^",
+    "@nestjs-pipeline/tenant": "workspace:^",
+    "@nestjs/common": "^11.0.0"
+  },
+  "devDependencies": {
+    "@nestjs-pipeline/core": "workspace:*",
+    "@nestjs-pipeline/correlation": "workspace:*",
+    "@nestjs-pipeline/tenant": "workspace:*",
+    "@nestjs/common": "^11.2.1",
+    "@vitest/coverage-v8": "^4.1.11",
+    "reflect-metadata": "^0.2.2",
+    "vitest": "^4.1.11"
+  }
+}

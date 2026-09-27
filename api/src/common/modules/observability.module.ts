@@ -10,12 +10,10 @@ import {
   logging,
   PipelineModule,
 } from '@nestjs-pipeline/core';
-import { correlationPipelineOptions } from '@nestjs-pipeline/correlation';
 import { DeadLetterBehavior } from '@nestjs-pipeline/deadletter';
 import { MetricsBehavior, TraceBehavior } from '@nestjs-pipeline/opentelemetry';
 import { currentTenantId } from '@nestjs-pipeline/tenant';
 import { ZodValidationBehavior } from '@nestjs-pipeline/zod';
-import { TenantSchemaContext } from '@persistence/tenant-schema.context';
 import { LoggerModule, NativeLogger } from 'nestjs-pino';
 import { TelemetryBridgeBehavior } from '../behaviors/telemetry-bridge.behavior';
 
@@ -39,7 +37,7 @@ export const HTTP_LOG_REDACT_PATHS = [
  * a persistent sink and an explicit failure policy.
  *
  * It also makes the pipeline's tenant the tenant of `@cqrs-ddd/core`'s
- * tenant-scoped helpers (`filterCacheKey`, `cacheKeyTemplate`), before any
+ * tenant-scoped helpers (`cacheKey`, `cacheKeyTemplate`), before any
  * lifecycle hook can start work that reads it.
  *
  * @example Register application observability
@@ -74,8 +72,7 @@ export const HTTP_LOG_REDACT_PATHS = [
         }),
       },
     }),
-    PipelineModule.forRootAsync({
-      inject: [TenantSchemaContext],
+    PipelineModule.forRoot({
       loggerProvider: {
         provide: LOGGING_BEHAVIOR_LOGGER,
         useExisting: NativeLogger,
@@ -102,10 +99,6 @@ export const HTTP_LOG_REDACT_PATHS = [
           before: [[DeadLetterBehavior, { captureKinds: ['event'] }]],
         },
       ],
-      useFactory: (tenantContext: TenantSchemaContext) => ({
-        ...correlationPipelineOptions(),
-        tenantIdFactory: () => tenantContext.current,
-      }),
     }),
     AuditModule.forRoot({
       defaults: AUDIT_MODULE_DEFAULTS,

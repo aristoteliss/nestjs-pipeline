@@ -7,12 +7,12 @@ import {
   SET_RESPONSE,
   SET_TENANT_ID,
 } from '../constants/pipeline-context.constants';
+import { currentScope, runInScope } from '../execution-scope';
 import type {
   IPipelineBehavior,
   NextDelegate,
 } from '../interfaces/pipeline.behavior.interface';
 import type { PipelineHandlerMeta } from '../interfaces/pipeline-handler-meta.interface';
-import type { PipelineModuleOptions } from '../options/pipeline-module.options';
 import { PipelineContext } from '../pipeline.context';
 
 export type PipelineRunner = (
@@ -28,10 +28,7 @@ export function createPipelineRunner(
     | readonly IPipelineBehavior[]
     | ((self: unknown, request: unknown) => Promise<IPipelineBehavior[]>),
   hasPipeline: boolean,
-  options?: PipelineModuleOptions,
 ): PipelineRunner {
-  const { correlationIdFactory, correlationIdRunner, tenantIdFactory } =
-    options ?? {};
   return async (self, request) => {
     if (!hasPipeline) return originalMethod.call(self, request);
     const context = new PipelineContext(request, meta);
@@ -39,16 +36,9 @@ export function createPipelineRunner(
       typeof behaviors === 'function'
         ? await behaviors(self, request)
         : behaviors;
-    if (!context.correlationId) {
-      context[SET_CORRELATION_ID](correlationIdFactory?.() ?? uuidv7());
-    }
-
-    if (!context.tenantId && tenantIdFactory) {
-      const resolvedTenantId = tenantIdFactory();
-      if (resolvedTenantId !== undefined) {
-        context[SET_TENANT_ID](resolvedTenantId);
-      }
-    }
+    const { tenantId, correlationId } = currentScope();
+    context[SET_CORRELATION_ID](correlationId ?? uuidv7());
+    if (tenantId !== undefined) context[SET_TENANT_ID](tenantId);
 
     let chain: NextDelegate = async () => {
       const result = await originalMethod.call(self, request);
@@ -62,14 +52,13 @@ export function createPipelineRunner(
       chain = () => behavior.handle(context, nextInChain);
     }
 
-    // Run inside the pipeline async-local store so child handlers
-    // (saga / nested dispatch) inherit the correlation ID.
-    // When correlationIdRunner is provided, also wrap in the correlation
-    // store so getCorrelationId() returns the pipeline's correlation ID.
-    const runChain = () => pipelineStore.run(context, chain);
-    if (correlationIdRunner) {
-      return correlationIdRunner(context.correlationId, runChain);
-    }
-    return runChain();
+    // Behaviors and the handler run inside this execution's values, so a
+    // nested dispatch inherits them and cannot see a different tenant.
+    return pipelineStore.run(context, () =>
+      runInScope(
+        { tenantId: context.tenantId, correlationId: context.correlationId },
+        chain,
+      ),
+    );
   };
 }

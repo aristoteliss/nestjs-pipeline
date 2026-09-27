@@ -276,13 +276,13 @@ a cache. `@cqrs-ddd/mikro-orm`'s `AggregateRepository` implements it for MikroOR
 `save()` declares its lifecycle with `@PersistedWrite`:
 
 ```typescript
-import { filterCacheKey, PersistedWrite } from '@cqrs-ddd/core/persistence';
+import { cacheKey, PersistedWrite } from '@cqrs-ddd/core/persistence';
 import { optimisticUpdate } from '@cqrs-ddd/mikro-orm';
 
 @PersistedWrite<User>({
   cache: {
-    setKey: (user) => filterCacheKey(User.aggregateName, { id: user.id }),
-    invalidateKeys: (user) => [filterCacheKey(User.aggregateName, { email: user.email })],
+    setKey: (user) => cacheKey(User.aggregateName, { id: user.id }),
+    invalidateKeys: (user) => [cacheKey(User.aggregateName, { email: user.email })],
   },
   unique: [
     {
@@ -327,7 +327,7 @@ for this.
 A query repository extends `QueryRepository` and decorates `find()` with `@FromCache`:
 
 ```typescript
-import { FromCache, QueryRepository, filterCacheKey } from '@cqrs-ddd/core/persistence';
+import { FromCache, QueryRepository, cacheKey } from '@cqrs-ddd/core/persistence';
 import type { IEntityManagerSource } from '@cqrs-ddd/mikro-orm';
 
 export class GetUserQueryRepository extends QueryRepository<GetUserQuery, User | null> {
@@ -336,7 +336,7 @@ export class GetUserQueryRepository extends QueryRepository<GetUserQuery, User |
   }
 
   @FromCache<GetUserQuery, User | null>({
-    keyFn: (query) => filterCacheKey(User.aggregateName, { id: query.id }),
+    keyFn: (query) => cacheKey(User.aggregateName, { id: query.id }),
   })
   async find(query: GetUserQuery): Promise<User | null> {
     const row = await this.store.em.findOne(UserRow, { id: query.id });
@@ -394,7 +394,7 @@ warnings the same way through `consoleCacheLogger(context)` and `safeWarn(logger
 
 ## Tenant-scoped cache keys
 
-`filterCacheKey(resource, conditions, tenant?)` and `cacheKeyTemplate(template, tenant?)`
+`cacheKey(resource, conditions, tenant?)` and `cacheKeyTemplate(template, tenant?)`
 namespace every key by tenant. The tenant comes from, in order:
 
 1. the explicit `tenant` argument: a tenant id string, or an object carrying `tenantId`,
@@ -421,7 +421,7 @@ nothing, throws. A single-tenant deployment passes a fixed id or registers
 `requireTenantId(source, purpose)`, for any other key that must be partitioned by
 tenant, such as an idempotency or rate-limit key.
 
-`filterCacheKey` keys have the form `${tenant}:${resource}:v1:${sha256}`, hashed over a
+`cacheKey` keys have the form `${tenant}:${resource}:v1:${sha256}`, hashed over a
 key-sorted serialization of `[tenant, resource, conditions]`. The format is frozen, so
 stored entries stay addressable across releases.
 

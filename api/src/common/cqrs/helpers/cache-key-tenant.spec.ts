@@ -2,11 +2,11 @@
 
 import { MissingTenantContextError } from '@cqrs-ddd/core/domain';
 import { cacheKey, cacheKeyTemplate } from '@cqrs-ddd/core/persistence';
-import { type IPipelineContext, pipelineStore } from '@nestjs-pipeline/core';
+import { type IPipelineContext, runInScope } from '@nestjs-pipeline/core';
 import { runWithTenant } from '@nestjs-pipeline/tenant';
 import { describe, expect, it } from 'vitest';
 
-describe('filterCacheKey', () => {
+describe('cacheKey', () => {
   it('generates a deterministic key with sorted keys using resource string', () => {
     const key1 = cacheKey(
       'user',
@@ -66,10 +66,9 @@ describe('filterCacheKey', () => {
     );
   });
 
-  it('uses the tenant of the running pipeline when no tenant is passed', () => {
-    const key = pipelineStore.run(
-      { tenantId: 'tenant_ambient' } as unknown as IPipelineContext,
-      () => cacheKey('user', { id: '1' }),
+  it('uses the tenant of the current execution scope when no tenant is passed', () => {
+    const key = runInScope({ tenantId: 'tenant_ambient' }, () =>
+      cacheKey('user', { id: '1' }),
     );
     expect(key).toMatch(/^tenant_ambient:user:v1:[a-f0-9]{64}$/);
   });

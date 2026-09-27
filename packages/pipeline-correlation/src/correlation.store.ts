@@ -1,58 +1,8 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import { AsyncLocalStorage } from 'node:async_hooks';
-import type { PipelineModuleOptions } from '@nestjs-pipeline/core';
+import { currentScope, runInScope } from '@nestjs-pipeline/core';
 import { DEFAULT_CORRELATION_HEADER } from './constants/correlation.constants';
 import { uuidv7 } from './helpers/uuidv7';
-
-/**
- * Async-local store that holds the current correlation ID.
- *
- * **How it gets populated:**
- * - **HTTP** — {@link HttpCorrelationMiddleware} reads the configured header
- *   (default `x-correlation-id`) and calls `correlationStore.run()`.
- * - **Non-HTTP** (Bull, RabbitMQ, WebSocket, cron, etc.) — use
- *   {@link runWithCorrelationId} in your processor / handler.
- * - **Pipeline integration** — configure the core module's
- *   `correlationIdRunner` with {@link runWithCorrelationId} when pipeline runs
- *   should also populate this store.
- *
- * **How it is consumed:**
- * Call {@link getCorrelationId} to read the current store. If no store value is
- * active, an optional registered fallback is consulted and then a `uuidv7()` is
- * generated (timestamp-sortable UUID per RFC 9562).
- *
- * Uses Node.js built-in `AsyncLocalStorage` — zero external dependencies.
- *
- * @example
- * ```ts
- * // Read the raw store value without generating a fallback ID
- * const id = correlationStore.getStore(); // string | undefined
- * ```
- */
-export const correlationStore = new AsyncLocalStorage<string>();
-
-/**
- * Optional fallback function used by {@link getCorrelationId} when no
- * correlation store is active.
- *
- * @internal
- */
-let _correlationFallback: (() => string | undefined) | undefined;
-
-/**
- * Register a fallback function for {@link getCorrelationId}.
- *
- * The fallback is consulted only when `correlationStore.getStore()` returns no
- * value.
- *
- * @param fn - Fallback that returns a correlation ID or `undefined`.
- *
- * @internal
- */
-export function setCorrelationFallback(fn: () => string | undefined): void {
-  _correlationFallback = fn;
-}
 
 /**
  * Run a callback within a correlation context.
@@ -62,8 +12,9 @@ export function setCorrelationFallback(fn: () => string | undefined): void {
  * into any CQRS commands or queries dispatched inside the callback.
  *
  * If `correlationId` is falsy (`undefined` or empty), the id is resolved via
- * {@link getCorrelationId} (active fallback source, or a generated `uuidv7()`),
- * and `fn` always executes inside a populated correlation store.
+ * {@link getCorrelationId} (the current one, or a generated `uuidv7()`), so
+ * `fn` always runs with a correlation id. A pipeline dispatched inside `fn`
+ * takes it as its `context.correlationId`.
  *
  * @example
  * ```ts
@@ -103,22 +54,16 @@ export function runWithCorrelationId<T>(
   correlationId: string | undefined,
   fn: () => T,
 ): T {
-  const id = correlationId || getCorrelationId();
-  return correlationStore.run(id, fn);
+  return runInScope({ correlationId: correlationId || getCorrelationId() }, fn);
 }
 
 /**
  * Read the current correlation ID.
  *
- * Resolution order:
- * 1. the active {@link correlationStore};
- * 2. the fallback registered with {@link setCorrelationFallback};
- * 3. a newly generated UUIDv7.
- *
- * Therefore this function always returns a string, even when called outside an
- * existing correlation context. Pipeline handlers participate in this store
- * when the core module is configured with `correlationIdRunner:
- * runWithCorrelationId`.
+ * It is the correlation id of the current execution scope of
+ * `@nestjs-pipeline/core`, set by {@link runWithCorrelationId}, the HTTP
+ * middleware, or a running pipeline. Outside any, a new UUIDv7 is generated on
+ * each call, so it always returns a string.
  *
  * @publicApi
  *
@@ -136,7 +81,7 @@ export function runWithCorrelationId<T>(
  * ```
  */
 export function getCorrelationId(): string {
-  return correlationStore.getStore() || _correlationFallback?.() || uuidv7();
+  return currentScope().correlationId || uuidv7();
 }
 
 /**
@@ -258,29 +203,4 @@ export function correlationHeaders(
   key = DEFAULT_CORRELATION_HEADER,
 ): Record<string, string> {
   return { [key]: getCorrelationId() };
-}
-
-/**
- * Core pipeline options that keep `context.correlationId` and
- * {@link correlationStore} on the same ID: a new pipeline context takes the
- * active correlation ID, and the chain runs inside a correlation context
- * holding the pipeline's ID, so {@link getCorrelationId} inside a handler
- * equals `context.correlationId`. Configuring only `correlationIdFactory`
- * leaves the two stores independent outside an active correlation context.
- *
- * @example
- * ```ts
- * PipelineModule.forRoot({
- *   ...correlationPipelineOptions(),
- *   tenantIdFactory: () => tenantContext.schema,
- * });
- * ```
- */
-export function correlationPipelineOptions(): Required<
-  Pick<PipelineModuleOptions, 'correlationIdFactory' | 'correlationIdRunner'>
-> {
-  return {
-    correlationIdFactory: getCorrelationId,
-    correlationIdRunner: runWithCorrelationId,
-  };
 }

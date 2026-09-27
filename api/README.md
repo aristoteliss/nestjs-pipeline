@@ -397,7 +397,7 @@ export class GetUserQuery extends createQuery(GetUserSchema, BaseQuery) {}
 @Injectable()
 export class GetUserQueryRepository extends QueryRepository<GetUserQuery, User | null> {
   @FromCache<GetUserQuery, User>(
-    (q) => filterCacheKey(User.aggregateName, q.userId ? { id: q.userId } : { email: q.email }),
+    (q) => cacheKey(User.aggregateName, q.userId ? { id: q.userId } : { email: q.email }),
     (cached) => User.fromJSON(cached as UserSnapshot),
   )
   async find(query: GetUserQuery): Promise<User | null> {
@@ -551,6 +551,27 @@ export class GetRolesHandler implements IQueryHandler<GetRolesQuery, RoleReadMod
 
 *\* Note: At least one of `JWT_SECRET` or `JWT_PUBLIC_KEY` must be set if Bearer token authentication is enabled.*
 
+## Background jobs
+
+A job runs with the tenant, correlation id and principal of the request that enqueued it
+(`@nestjs-pipeline/job-context`). `BullMqUserEventDispatcher` stamps each payload with
+`withJobContext`, and both processors restore it with `@InJobContext()`. `AppModule`
+registers `JobContextModule` with `SessionJobPrincipal` and the tenants of
+`persistenceConfig()`.
+
+The payload carries identity only. `SessionJobPrincipal` checks it again when the job runs
+and binds it through `sessionPrincipalStore`, as a request does:
+
+- a user runs only while its `Auth` session exists, belongs to it, is not revoked and has
+  not expired, and its user row exists. It is bound without grants, so
+  `CaslPermissionSource` reads its current rules. A job enqueued before logout fails;
+- an API client runs only while `API_CLIENTS` lists it for the job's tenant, with the
+  grants listed there now;
+- `@AsSystem` work runs once per configured tenant with the grants its code declares.
+
+A payload without a context, with an unconfigured tenant, or with a principal carrying
+grants fails before the processor runs.
+
 ## Permission source
 
 Human users' rules are materialized per rule and per user in `user_permission_rules`:
@@ -603,7 +624,47 @@ fabricated `cache.hit=false` would be indistinguishable from a real miss. The
 cache key is deliberately not an attribute — it carries tenant and principal and
 is unbounded.
 
-The application also has its own tenant-aware DDD repository cache so user/role write invalidation has a single clear target. In addition, `ObservabilityModule` configures `tenantIdFactory` so that the active tenant schema is explicitly conveyed through `IPipelineContext.tenantId`, allowing command handlers, rate limiters, and idempotency key factories to access the tenant cleanly from context without direct ambient coupling. `ObservabilityModule` also registers `currentTenantId` from `@nestjs-pipeline/tenant` as the tenant resolver of `@cqrs-ddd/core` (`setTenantResolver`), so repository cache keys (`filterCacheKey`) take the pipeline's tenant without it being passed at each call site. The application is the only place that knows both packages.
+The application also has its own tenant-aware DDD repository cache so user/role write invalidation has a single clear target. In addition, `TenantSchemaMiddleware` runs each request inside `TenantSchemaContext.run`, which sets the tenant of `@nestjs-pipeline/core`'s execution scope; every pipeline takes it as `IPipelineContext.tenantId`, so command handlers, rate limiters and idempotency key factories read the tenant from the context without direct ambient coupling. `ObservabilityModule` also registers `currentTenantId` from `@nestjs-pipeline/tenant` as the tenant resolver of `@cqrs-ddd/core` (`setTenantResolver`), so repository cache keys (`cacheKey`) take the scope's tenant without it being passed at each call site. The application is the only place that knows both packages.
+
+## Code boundaries
+
+### Aggregate construction
+
+`User`, `Role` and `Auth` expose semantic factories instead of public constructors. A new
+aggregate is created through `create(...)`, which records the creation event; a persisted
+snapshot is restored through `fromJSON(...)` without replaying it. The constructors stay
+usable by MikroORM hydration but are private at the TypeScript boundary. Their
+`EntitySchema.class` entries use an explicit persistence-only cast for the private
+constructor; that cast must not be copied into application or domain code.
+
+### Error mapping
+
+Domain, application and persistence code stays transport-neutral: a missing aggregate is
+`EntityNotFoundException` from `@cqrs-ddd/core/domain`, never Nest's `NotFoundException`.
+`DomainExceptionFilter` is the HTTP boundary. It maps this application's own exceptions
+(unique email or role name 409; invalid username, department or role name 422; login and
+refresh-token failures 401; auth misconfiguration 500) and takes the status of every other
+`DomainException` from `domainErrorHttpStatus()` in `@cqrs-ddd/core/http`: 409
+`ConcurrencyConflictError`, 404 `EntityNotFoundException`, a generic 500 for
+`MissingTenantContextError`, 400 otherwise. Presentation-only code such as response
+mappers may use Nest HTTP exceptions. Unit specs assert the neutral exception types and the
+filter's mapping; `test/not-found-boundary.e2e-spec.ts` and
+`test/missing-tenant-boundary.e2e-spec.ts` check the HTTP behavior end to end.
+
+### Cache and throttling keys
+
+Repository cache keys use one serializer, `stableStringify` from
+`@cqrs-ddd/safe-stringify`. `cacheKey` adds only tenant namespacing, top-level filter
+segments and escaping of its `:` / `\` delimiters, and takes the tenant from the resolver
+`ObservabilityModule` registers (`currentTenantId`, the execution scope's tenant). Do not
+add another object sorter or JSON canonicalizer here.
+
+Idempotency and rate-limit key factories call `requireTenantId()` and fail closed when
+`IPipelineContext.tenantId` is absent; never `ctx.tenantId ?? 'default'`, which would merge
+tenants into one namespace. The protected factories are user-create idempotency and rate
+limiting, role-create idempotency and auth-login rate limiting. Their unit specs check the
+refusal and the per-tenant partition, and `test/tenant-scoped-create-keys.e2e-spec.ts`
+checks two real tenant schemas.
 
 ## Tests
 

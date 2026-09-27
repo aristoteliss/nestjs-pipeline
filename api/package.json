@@ -50,6 +50,7 @@
     "@nestjs-pipeline/opentelemetry": "workspace:*",
     "@nestjs-pipeline/rate-limit": "workspace:*",
     "@nestjs-pipeline/resilience": "workspace:*",
+    "@nestjs-pipeline/job-context": "workspace:*",
     "@nestjs-pipeline/tenant": "workspace:*",
     "@nestjs-pipeline/zod": "workspace:*",
     "@nestjs/bullmq": "^11.0.5",

@@ -56,7 +56,6 @@ import {
   UniqueEmailException,
 } from '../../users/domain/models/errors';
 import type { User } from '../../users/domain/models/user.entity';
-import { MixedTenantBatchError } from '../../users/jobs/batch-update-users.processor';
 import {
   MissingPrincipalContextError,
   MissingReplayScopeContextError,
@@ -87,7 +86,6 @@ const CAPTURED_ERRORS: readonly ErrorClass[] = [
   MissingReplayScopeContextError,
   InvalidTenantSchemaError,
   UnknownTenantSchemaError,
-  MixedTenantBatchError,
 ];
 
 const isErrorClass = (value: unknown): value is ErrorClass =>
@@ -199,7 +197,6 @@ describe('application error classification', () => {
     expect(await errorClasses()).toEqual(
       expect.arrayContaining([
         UniqueEmailException,
-        MixedTenantBatchError,
         InvalidTenantSchemaError,
         MissingTenantContextError,
       ]),

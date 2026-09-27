@@ -1,6 +1,5 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import type { ITenantContext } from '@common/context/tenant-context.port';
 import { describe, expect, it, vi } from 'vitest';
 import { UserUpdatedEvent } from '../../../domain/events/user-updated.event';
 import { User } from '../../../domain/models/user.entity';
@@ -11,10 +10,7 @@ describe('UserUpdatedHandler', () => {
   it('dispatches only application data; logging/correlation are cross-cutting concerns', async () => {
     const enqueueUserBatch = vi.fn().mockResolvedValue(undefined);
     const dispatcher = { enqueueUserBatch } as IUserBatchDispatcher;
-    const tenantContext = {
-      schema: 'tenant_gamma',
-    } as unknown as ITenantContext;
-    const handler = new UserUpdatedHandler(dispatcher, tenantContext);
+    const handler = new UserUpdatedHandler(dispatcher);
 
     const user = User.create('john_doe', 'john@example.com');
     user.commit();
@@ -28,7 +24,6 @@ describe('UserUpdatedHandler', () => {
       {
         userId: user.id,
         username: 'john_renamed',
-        tenant: 'tenant_gamma',
       },
     ]);
   });

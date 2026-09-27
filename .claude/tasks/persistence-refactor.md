@@ -27,7 +27,8 @@ Out of scope: application schemas and migrations content (except the seed-tenant
 
 ## Current Status
 
-in progress — root-entity-version, mikro-orm-package and persistence-config done.
+in progress — root-entity-version, mikro-orm-package, persistence-config and
+execution-context done; next: persistence-dialects.
 
 ## Plan
 
@@ -49,8 +50,10 @@ Order matters: each task lists what it depends on.
       maintenance scripts.
 - [x] tenant-context (fail-closed step) — no default-tenant fallback (task file removed; the
       rest moved to execution-context).
-- [ ] [execution-context](execution-context.md) — tenant, principal and correlation carried
-      into jobs; a decorator for system jobs; one tenant source.
+- [x] execution-context — `@nestjs-pipeline/job-context`, jobs run in the enqueuing
+      request's context (`cd87c004`, `09c969d9`); one execution scope in core for tenant
+      and correlation id (`129425fd`). Task files removed; notes live in the package
+      READMEs, the api README (Background jobs) and CHANGELOG.
 
 ## Decisions
 
@@ -97,7 +100,7 @@ Nothing run. The findings in each task come from reading the source on 2026-09-2
 
 ## Next Steps
 
-execution-context: three design questions are open in its task file.
+persistence-dialects, then core-persistence-layout; tenant-store, then persistence-scripts.
 
 ## Snapshot Impact
 
