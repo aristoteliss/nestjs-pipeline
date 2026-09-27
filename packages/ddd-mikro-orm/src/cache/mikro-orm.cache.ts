@@ -10,7 +10,7 @@ import {
 import type { ICacheLogger } from '@cqrs-ddd/core/persistence';
 import { consoleCacheLogger, safeWarn } from '@cqrs-ddd/core/persistence';
 import type { EntityManager } from '@mikro-orm/core';
-import type { IEntityManagerSource } from '../entity-manager-source';
+import type { IEntityManagerSource } from '../interfaces/entity-manager-source';
 import { CacheEntry } from './cache-entry';
 
 /**

@@ -1,6 +1,8 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import { currentScope, runInScope } from '@nestjs-pipeline/core';
+import { AsyncLocalStorage } from 'node:async_hooks';
+
+const tenant = new AsyncLocalStorage<string | undefined>();
 
 /**
  * Runs `fn` with `tenantId` as the current tenant for everything it calls,
@@ -22,13 +24,13 @@ import { currentScope, runInScope } from '@nestjs-pipeline/core';
  * ```
  */
 export function runWithTenant<T>(tenantId: string | undefined, fn: () => T): T {
-  return runInScope({ tenantId }, fn);
+  return tenant.run(tenantId, fn);
 }
 
 /**
  * Returns the current tenant: that of the innermost {@link runWithTenant} call
  * or running pipeline, or `undefined` outside both. A running pipeline's tenant
- * is its `context.tenantId`, which it took from the scope when it started.
+ * is its `context.tenantId`, which it took from here when it started.
  *
  * @returns The current tenant id, or `undefined` for none.
  *
@@ -38,5 +40,21 @@ export function runWithTenant<T>(tenantId: string | undefined, fn: () => T): T {
  * ```
  */
 export function currentTenantId(): string | undefined {
-  return currentScope().tenantId;
+  return tenant.getStore();
 }
+
+/**
+ * The tenant as a context source, for `PipelineModule.forRoot({ sources })` of
+ * `@nestjs-pipeline/core` and `JobContextModule.forRoot` of
+ * `@nestjs-pipeline/job-context`: pipelines and jobs then take and restore
+ * this tenant.
+ *
+ * @example
+ * ```ts
+ * PipelineModule.forRoot({ sources: { tenantId: tenantSource } });
+ * ```
+ */
+export const tenantSource = {
+  current: currentTenantId,
+  run: runWithTenant,
+} as const;

@@ -342,6 +342,11 @@ The permission scope is required by default: creating a factory without a
 not depend on the caller's permissions, and a resolver that returns nothing
 throws `MissingCachePartitionError` at request time.
 
+The tenant options are the same for the cache, idempotency and rate-limit key factories
+(`TenantPartitionOptions` of `@nestjs-pipeline/core`): `includeTenant` (default `true`)
+puts the tenant in the key, and `requireTenant` (default: `includeTenant`) refuses a
+missing one. The three packages' partition errors extend `MissingPartitionError`.
+
 The request payload is included as a SHA-256 digest, so secrets and search terms
 stay out of Redis key listings. The digest is built with `stableStringify`, which
 sorts object keys recursively so structurally equal payloads map to the same

@@ -2,7 +2,7 @@
 
 import { MissingTenantContextError } from '@cqrs-ddd/core/domain';
 import { cacheKey, cacheKeyTemplate } from '@cqrs-ddd/core/persistence';
-import { type IPipelineContext, runInScope } from '@nestjs-pipeline/core';
+import type { IPipelineContext } from '@nestjs-pipeline/core';
 import { runWithTenant } from '@nestjs-pipeline/tenant';
 import { describe, expect, it } from 'vitest';
 
@@ -66,18 +66,11 @@ describe('cacheKey', () => {
     );
   });
 
-  it('uses the tenant of the current execution scope when no tenant is passed', () => {
-    const key = runInScope({ tenantId: 'tenant_ambient' }, () =>
+  it('uses the current tenant when no tenant is passed', () => {
+    const key = runWithTenant('tenant_ambient', () =>
       cacheKey('user', { id: '1' }),
     );
     expect(key).toMatch(/^tenant_ambient:user:v1:[a-f0-9]{64}$/);
-  });
-
-  it('maintains backwards compatibility with { prefixKey } objects', () => {
-    const legacy = { prefixKey: 'user:' };
-    const key = cacheKey(legacy, { id: '1' }, 'tenant_compat');
-    const direct = cacheKey('user', { id: '1' }, 'tenant_compat');
-    expect(key).toBe(direct);
   });
 
   it('resolves prefix from static aggregateName on entity classes', () => {
@@ -128,12 +121,12 @@ describe('cacheKey', () => {
     expect(key1).toBe(key2);
   });
 
-  it('throws an error if resourceOrEntity has neither aggregateName nor prefixKey', () => {
+  it('throws an error if resourceOrEntity has no aggregateName', () => {
     class UnnamedClass {}
     expect(() => {
       cacheKey(UnnamedClass as never, { id: '1' }, 't1');
     }).toThrow(
-      'Cannot resolve cache key prefix: resourceOrEntity must be a string or declare a static aggregateName or prefixKey.',
+      'Cannot resolve cache key prefix: resourceOrEntity must be a string or declare a static aggregateName.',
     );
   });
 

@@ -6,7 +6,6 @@ import type { Job } from 'bullmq';
 import { describe, expect, it, vi } from 'vitest';
 import {
   SendWelcomeEmailProcessor,
-  SimulatedSendWelcomeEmailProcessor,
   type WelcomeEmailJobData,
 } from './send-welcome-email.processor';
 
@@ -16,13 +15,9 @@ vi.mock('@nestjs-pipeline/job-context', () => ({
 
 const tenantContext = { schema: 'tenant_alpha' } as TenantSchemaContext;
 
-describe('SimulatedSendWelcomeEmailProcessor', () => {
-  it('exports SendWelcomeEmailProcessor as an alias for backwards compatibility', () => {
-    expect(SendWelcomeEmailProcessor).toBe(SimulatedSendWelcomeEmailProcessor);
-  });
-
+describe('SendWelcomeEmailProcessor', () => {
   it('demonstrates welcome email job execution without sending external emails', async () => {
-    const processor = new SimulatedSendWelcomeEmailProcessor(tenantContext);
+    const processor = new SendWelcomeEmailProcessor(tenantContext);
     const logs: string[] = [];
     // biome-ignore lint/complexity/useLiteralKeys: for testing
     vi.spyOn(processor['logger'], 'log').mockImplementation((message) => {
@@ -57,7 +52,7 @@ describe('SimulatedSendWelcomeEmailProcessor', () => {
   });
 
   it('closes worker gracefully on module destroy', async () => {
-    const processor = new SimulatedSendWelcomeEmailProcessor(tenantContext);
+    const processor = new SendWelcomeEmailProcessor(tenantContext);
     const mockWorker = { close: vi.fn().mockResolvedValue(undefined) };
     Object.defineProperty(processor, 'worker', { value: mockWorker });
 
@@ -67,7 +62,7 @@ describe('SimulatedSendWelcomeEmailProcessor', () => {
   });
 
   it('handles onModuleDestroy safely when worker is not initialized', async () => {
-    const processor = new SimulatedSendWelcomeEmailProcessor(tenantContext);
+    const processor = new SendWelcomeEmailProcessor(tenantContext);
 
     await expect(processor.onModuleDestroy()).resolves.toBeUndefined();
   });

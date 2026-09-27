@@ -22,7 +22,7 @@ describe('DeleteRoleCommandRepository', () => {
     const nativeDelete = vi.fn().mockResolvedValue(1);
     const store = {
       get em() {
-        return { nativeDelete };
+        return { nativeDelete, isInTransaction: () => false };
       },
     };
     const repository = new DeleteRoleCommandRepository(cache, store as never);
@@ -68,7 +68,7 @@ describe('DeleteRoleCommandRepository', () => {
     const findOne = vi.fn().mockResolvedValue({ id: role.id, version: 2 });
     const store = {
       get em() {
-        return { nativeDelete, findOne };
+        return { nativeDelete, findOne, isInTransaction: () => false };
       },
     };
     const repository = new DeleteRoleCommandRepository(cache, store as never);
@@ -97,7 +97,7 @@ describe('DeleteRoleCommandRepository', () => {
     const findOne = vi.fn().mockResolvedValue(null);
     const store = {
       get em() {
-        return { nativeDelete, findOne };
+        return { nativeDelete, findOne, isInTransaction: () => false };
       },
     };
     const repository = new DeleteRoleCommandRepository(cache, store as never);
@@ -127,7 +127,7 @@ describe('DeleteRoleCommandRepository', () => {
     const nativeDelete = vi.fn().mockRejectedValue(transientError);
     const store = {
       get em() {
-        return { nativeDelete };
+        return { nativeDelete, isInTransaction: () => false };
       },
     };
     const repository = new DeleteRoleCommandRepository(cache, store as never);

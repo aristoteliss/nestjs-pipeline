@@ -1,5 +1,6 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
+import { contextSources } from '@common/context/context-sources';
 import type { IQueryRepository } from '@cqrs-ddd/core/application';
 import { type INestApplication, Injectable } from '@nestjs/common';
 import { CqrsModule, QueryBus } from '@nestjs/cqrs';
@@ -161,7 +162,10 @@ describe('User overview composed query security and caching contracts', () => {
         CaslModule.forRoot({
           permissionSource: { useFactory: () => new ViewerPermissionSource() },
         }),
-        PipelineModule.forRoot({ behaviors: [CaslBehavior, CacheBehavior] }),
+        PipelineModule.forRoot({
+          behaviors: [CaslBehavior, CacheBehavior],
+          sources: contextSources,
+        }),
       ],
       providers: [
         GetUserOverviewHandler,

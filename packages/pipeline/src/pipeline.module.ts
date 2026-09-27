@@ -140,9 +140,11 @@ function extractBehaviorTypes(
  * })
  * ```
  *
- * Each execution takes its tenant and correlation id from the current
- * execution scope (`runInScope`), generating a `uuidv7()` correlation id
- * when the scope has none, and runs its behaviors inside a scope holding them.
+ * Each execution takes its tenant and correlation id from the `sources`
+ * option (such as `tenantSource` and `correlationSource`), or from the
+ * pipeline it is nested in, gets a missing correlation id from the correlation
+ * source's `create()` (`uuidv7()` without one), and runs its behaviors inside
+ * those values.
  */
 @Global()
 @Module({})

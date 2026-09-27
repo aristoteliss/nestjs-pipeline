@@ -1,7 +1,7 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import type { EntityManager, MikroORM } from '@mikro-orm/core';
-import type { IEntityManagerSource } from './entity-manager-source';
+import type { IEntityManagerSource } from '../interfaces/entity-manager-source';
 
 /**
  * How tenants are kept apart: `'database'` — one ORM per tenant, each on its own

@@ -11,11 +11,8 @@ import {
  * Types supported as cache key resource specifiers:
  * - A raw resource string (e.g., `'user'` or `'user:'`)
  * - An entity constructor declaring `static readonly aggregateName = 'user'`
- * - An object declaring `prefixKey`
  */
-export type CacheResourceSpecifier =
-  | string
-  | { aggregateName?: string; prefixKey?: string };
+export type CacheResourceSpecifier = string | { aggregateName?: string };
 
 /**
  * An explicit tenant for a cache key: a tenant id string, or an object carrying
@@ -80,7 +77,7 @@ function normalizeFilterConditions(
  * - **Fail-safe boundaries**: non-serializable types and cyclic structures are rejected.
  * - **Versioned namespace**: keys are namespaced as `${tenant}:${resource}:v1:${hash}`.
  *
- * @param resourceOrEntity - Logical resource name or object exposing `aggregateName`/`prefixKey`.
+ * @param resourceOrEntity - Logical resource name or object exposing `aggregateName`.
  * @param conditions - Filter values that identify the cached record/query.
  * @param tenantOrContext - An explicit tenant id, or an object carrying `tenantId` (such
  *   as a request or job context). When omitted, the tenant of the registered
@@ -104,12 +101,11 @@ export function cacheKey(
     (typeof resourceOrEntity === 'object' ||
       typeof resourceOrEntity === 'function')
   ) {
-    resource =
-      resourceOrEntity.aggregateName || resourceOrEntity.prefixKey || undefined;
+    resource = resourceOrEntity.aggregateName || undefined;
   }
   if (resource === undefined) {
     throw new Error(
-      'Cannot resolve cache key prefix: resourceOrEntity must be a string or declare a static aggregateName or prefixKey.',
+      'Cannot resolve cache key prefix: resourceOrEntity must be a string or declare a static aggregateName.',
     );
   }
   resource = resource.replace(/:+$/, '');

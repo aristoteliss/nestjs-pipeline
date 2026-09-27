@@ -2,6 +2,7 @@
 
 import { IncomingMessage } from 'node:http';
 import { AUDIT_MODULE_DEFAULTS } from '@common/audit/audit.options';
+import { contextSources } from '@common/context/context-sources';
 import { setTenantResolver } from '@cqrs-ddd/core/application';
 import { Module } from '@nestjs/common';
 import { AuditModule } from '@nestjs-pipeline/audit';
@@ -73,6 +74,7 @@ export const HTTP_LOG_REDACT_PATHS = [
       },
     }),
     PipelineModule.forRoot({
+      sources: contextSources,
       loggerProvider: {
         provide: LOGGING_BEHAVIOR_LOGGER,
         useExisting: NativeLogger,

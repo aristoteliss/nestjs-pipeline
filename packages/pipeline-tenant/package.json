@@ -44,11 +44,7 @@
     "test:watch": "vitest",
     "prepublishOnly": "pnpm run rebuild"
   },
-  "peerDependencies": {
-    "@nestjs-pipeline/core": "workspace:^"
-  },
   "devDependencies": {
-    "@nestjs-pipeline/core": "workspace:*",
     "@vitest/coverage-v8": "^4.1.11",
     "reflect-metadata": "^0.2.2",
     "vitest": "^4.1.11"

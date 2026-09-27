@@ -4,7 +4,7 @@ import { EventEmitter } from 'node:events';
 import { Writable } from 'node:stream';
 import { setTenantResolver } from '@cqrs-ddd/core/application';
 import { cacheKey } from '@cqrs-ddd/core/persistence';
-import { runInScope } from '@nestjs-pipeline/core';
+import { runWithTenant } from '@nestjs-pipeline/tenant';
 import pinoHttp from 'pino-http';
 import { describe, expect, it } from 'vitest';
 import {
@@ -13,13 +13,11 @@ import {
 } from './observability.module';
 
 describe('ObservabilityModule tenant resolver', () => {
-  it('gives the tenant-scoped cache keys the tenant of the execution scope', () => {
+  it('gives the tenant-scoped cache keys the current tenant', () => {
     setTenantResolver(undefined);
     new ObservabilityModule();
 
-    const key = runInScope({ tenantId: 'tenant_a' }, () =>
-      cacheKey('user', { id: '1' }),
-    );
+    const key = runWithTenant('tenant_a', () => cacheKey('user', { id: '1' }));
 
     expect(key).toMatch(/^tenant_a:user:v1:[a-f0-9]{64}$/);
   });

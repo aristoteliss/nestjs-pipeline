@@ -1,13 +1,29 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import { getCorrelationId } from '@nestjs-pipeline/correlation';
-import { currentTenantId } from '@nestjs-pipeline/tenant';
+import { AsyncLocalStorage } from 'node:async_hooks';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MissingJobContextError } from '../errors/missing-job-context.error';
 import { register, unregister } from '../helpers/registration';
 import type { IJobPrincipal } from '../interfaces/job-principal.interface';
 import type { PrincipalReference } from '../interfaces/principal-reference.interface';
 import { AsSystem } from './as-system.decorator';
+
+function source() {
+  const store = new AsyncLocalStorage<string | undefined>();
+  return {
+    current: () => store.getStore(),
+    run: <T>(value: string | undefined, fn: () => T) => store.run(value, fn),
+  };
+}
+let created = 0;
+const sources = {
+  tenantId: source(),
+  correlationId: {
+    ...source(),
+    accepts: (id: string) => !id.includes(' '),
+    create: () => `created-${++created}`,
+  },
+};
 
 const restore = vi.fn(
   async <T>(
@@ -19,10 +35,11 @@ const restore = vi.fn(
 const registration = {
   principal: { capture: () => undefined, restore } as IJobPrincipal,
   tenants: ['tenant_a', 'tenant_b'],
+  sources,
 };
 
 class Cleanup {
-  readonly runs: { tenant?: string; correlationId: string }[] = [];
+  readonly runs: { tenant?: string; correlationId?: string }[] = [];
 
   @AsSystem({
     principal: {
@@ -33,12 +50,15 @@ class Cleanup {
     grants: ['Auth|delete'],
   })
   async purge() {
-    if (currentTenantId() === 'tenant_a' && this.failIn === 'tenant_a') {
+    if (
+      sources.tenantId.current() === 'tenant_a' &&
+      this.failIn === 'tenant_a'
+    ) {
       throw new Error('tenant_a failed');
     }
     this.runs.push({
-      tenant: currentTenantId(),
-      correlationId: getCorrelationId(),
+      tenant: sources.tenantId.current(),
+      correlationId: sources.correlationId.current(),
     });
     return 'ignored';
   }

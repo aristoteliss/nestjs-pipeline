@@ -27,7 +27,7 @@ describe('UpdateUserCommandRepository', () => {
     const nativeUpdate = vi.fn().mockResolvedValue(1);
     const store = {
       get em() {
-        return { nativeUpdate };
+        return { nativeUpdate, isInTransaction: () => false };
       },
     };
     const repository = new UpdateUserCommandRepository(cache, store as never);
@@ -78,7 +78,7 @@ describe('UpdateUserCommandRepository', () => {
     const findOne = vi.fn().mockResolvedValue(null);
     const store = {
       get em() {
-        return { nativeUpdate, findOne };
+        return { nativeUpdate, findOne, isInTransaction: () => false };
       },
     };
     const repository = new UpdateUserCommandRepository(cache, store as never);
@@ -107,7 +107,7 @@ describe('UpdateUserCommandRepository', () => {
     const findOne = vi.fn().mockResolvedValue({ id: user.id, version: 2 });
     const store = {
       get em() {
-        return { nativeUpdate, findOne };
+        return { nativeUpdate, findOne, isInTransaction: () => false };
       },
     };
     const repository = new UpdateUserCommandRepository(cache, store as never);
@@ -131,7 +131,7 @@ describe('UpdateUserCommandRepository', () => {
     const nativeUpdate = vi.fn().mockRejectedValue(failure);
     const store = {
       get em() {
-        return { nativeUpdate };
+        return { nativeUpdate, isInTransaction: () => false };
       },
     };
     const repository = new UpdateUserCommandRepository(cache, store as never);
@@ -154,7 +154,7 @@ describe('UpdateUserCommandRepository', () => {
     const nativeUpdate = vi.fn().mockResolvedValue(1);
     const store = {
       get em() {
-        return { nativeUpdate };
+        return { nativeUpdate, isInTransaction: () => false };
       },
     };
     const repository = new UpdateUserCommandRepository(cache, store as never);

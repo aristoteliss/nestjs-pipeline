@@ -35,7 +35,7 @@ describe('CreateRoleCommandRepository', () => {
     const upsert = vi.fn().mockResolvedValue(role);
     const store = {
       get em() {
-        return { upsert };
+        return { upsert, isInTransaction: () => false };
       },
     };
     const repository = new CreateRoleCommandRepository(cache, store as never);
@@ -73,6 +73,7 @@ describe('CreateRoleCommandRepository', () => {
       get em() {
         return {
           upsert: vi.fn().mockRejectedValue(taken),
+          isInTransaction: () => false,
         };
       },
     };
@@ -95,6 +96,7 @@ describe('CreateRoleCommandRepository', () => {
       get em() {
         return {
           upsert: vi.fn().mockRejectedValue(new Error('Database timeout')),
+          isInTransaction: () => false,
         };
       },
     };

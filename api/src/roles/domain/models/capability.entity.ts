@@ -12,8 +12,6 @@ export interface CapabilitySnapshot extends Partial<RootEntitySnapshot> {
 }
 
 export class Capability extends RootEntity<CapabilitySnapshot> {
-  static readonly prefixKey = 'capability:';
-
   readonly action: string;
   readonly subject: string;
   readonly conditions?: string | null;

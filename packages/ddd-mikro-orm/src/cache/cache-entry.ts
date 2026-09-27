@@ -1,7 +1,7 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { EntitySchema } from '@mikro-orm/core';
-import { isSqlIdentifier } from '../sql-identifier';
+import { isSqlIdentifier } from '../helpers/sql-identifier';
 
 /**
  * One row of the {@link MikroOrmCache} table.

@@ -1,15 +1,17 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import type { IWriteSideAggregateRepository } from '@cqrs-ddd/core/application';
-import { type ICache } from '@cqrs-ddd/core/application';
+import type {
+  ICache,
+  IWriteSideAggregateRepository,
+} from '@cqrs-ddd/core/application';
 import type { RootEntity, RootEntitySnapshot } from '@cqrs-ddd/core/domain';
 import {
   CommandRepository,
   MapPersistenceErrors,
 } from '@cqrs-ddd/core/persistence';
 import type { EntityName, FilterQuery } from '@mikro-orm/core';
-import type { IEntityManagerSource } from './entity-manager-source';
-import { mapPersistenceError } from './transient-error';
+import { mapPersistenceError } from '../errors/transient-error';
+import type { IEntityManagerSource } from '../interfaces/entity-manager-source';
 
 /**
  * Base class for the command repositories that load and save an existing aggregate.
@@ -20,7 +22,7 @@ import { mapPersistenceError } from './transient-error';
  * - Translates low-level driver failures through {@link mapPersistenceError} into application-neutral transient signals.
  *
  * Concrete repositories extend this class, inject dependencies into `super(...)`, and provide their
- * decorated `save()` method with persistence lifecycle decorators (`@Cache`, `@AcknowledgePersisted`, `@MapPersistenceErrors`).
+ * decorated `save()` method, usually through `@PersistedWrite`.
  * The `store` is any {@link IEntityManagerSource}, typically the application's own
  * store; its `em` is also what `save()` passes to `optimisticUpdate` or `optimisticDelete`.
  *
@@ -44,9 +46,9 @@ import { mapPersistenceError } from './transient-error';
  *     super(cache, store, User, User.aggregateName, User.fromJSON);
  *   }
  *
- *   @Cache<User, UserSnapshot>(...)
- *   @AcknowledgePersisted<[User]>({ entity: ([user]) => user })
- *   @MapPersistenceErrors<[User], User>({ entity: ([user]) => user, unique: [] })
+ *   @PersistedWrite<User>({
+ *     unique: { email: (user) => new UniqueEmailException(user) },
+ *   })
  *   async save(user: User): Promise<UserSnapshot> {
  *     ...
  *   }

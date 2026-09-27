@@ -1,6 +1,5 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-export { stableStringify } from '@cqrs-ddd/safe-stringify';
 export {
   DEFAULT_IDEMPOTENCY_TTL_MS,
   IDEMPOTENCY_DEFAULT_OPTIONS,

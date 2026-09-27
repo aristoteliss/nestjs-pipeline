@@ -1,5 +1,6 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
+import { untyped } from '@cqrs-ddd/untyped';
 import type { Type } from '@nestjs/common';
 import { type BehaviorId, getBehaviorId } from '../helpers/behavior-id';
 import type {
@@ -12,7 +13,6 @@ import {
   type PipelineBehaviorDiagnostic,
   type PipelineBehaviorValidationContext,
 } from '../interfaces/pipeline-behavior-contract.interface';
-import { untyped } from '../types/safe-typing';
 
 /**
  * Validates behavior contracts and ordering rules during bootstrap.

@@ -20,7 +20,7 @@ import type { EntityManager } from '@mikro-orm/core';
  * @throws {Error} When `em` is inside an active transaction.
  */
 export function assertAutocommit(em: EntityManager, operation: string): void {
-  if (typeof em.isInTransaction === 'function' && em.isInTransaction()) {
+  if (em.isInTransaction()) {
     throw new Error(
       `${operation} requires autocommit; external transactions need commit hooks.`,
     );

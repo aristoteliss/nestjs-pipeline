@@ -118,10 +118,4 @@ describe('assertAutocommit', () => {
       'writeThing requires autocommit; external transactions need commit hooks.',
     );
   });
-
-  it('accepts a manager that cannot report transaction state', () => {
-    expect(() =>
-      assertAutocommit({} as unknown as EntityManager, 'writeThing'),
-    ).not.toThrow();
-  });
 });

@@ -7,7 +7,6 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   type BatchUpdateUsersJobData,
   BatchUpdateUsersProcessor,
-  SimulatedBatchUpdateUsersProcessor,
 } from './batch-update-users.processor';
 
 vi.mock('@nestjs-pipeline/job-context', () => ({
@@ -16,13 +15,9 @@ vi.mock('@nestjs-pipeline/job-context', () => ({
 
 const tenantContext = { schema: 'tenant_a' } as TenantSchemaContext;
 
-describe('SimulatedBatchUpdateUsersProcessor', () => {
-  it('exports BatchUpdateUsersProcessor as an alias for backwards compatibility', () => {
-    expect(BatchUpdateUsersProcessor).toBe(SimulatedBatchUpdateUsersProcessor);
-  });
-
+describe('BatchUpdateUsersProcessor', () => {
   it('logs the active tenant and correlation id and updates no rows', async () => {
-    const processor = new SimulatedBatchUpdateUsersProcessor(tenantContext);
+    const processor = new BatchUpdateUsersProcessor(tenantContext);
     let observed: string | undefined;
     // biome-ignore lint/complexity/useLiteralKeys: for testing
     vi.spyOn(processor['logger'], 'log').mockImplementation((message) => {
@@ -46,7 +41,7 @@ describe('SimulatedBatchUpdateUsersProcessor', () => {
   });
 
   it('closes worker gracefully on module destroy', async () => {
-    const processor = new SimulatedBatchUpdateUsersProcessor(tenantContext);
+    const processor = new BatchUpdateUsersProcessor(tenantContext);
     const mockWorker = { close: vi.fn().mockResolvedValue(undefined) };
     Object.defineProperty(processor, 'worker', { value: mockWorker });
 
@@ -56,7 +51,7 @@ describe('SimulatedBatchUpdateUsersProcessor', () => {
   });
 
   it('handles onModuleDestroy safely when worker is not initialized', async () => {
-    const processor = new SimulatedBatchUpdateUsersProcessor(tenantContext);
+    const processor = new BatchUpdateUsersProcessor(tenantContext);
 
     await expect(processor.onModuleDestroy()).resolves.toBeUndefined();
   });

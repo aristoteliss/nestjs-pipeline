@@ -1,7 +1,5 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import { runWithCorrelationId } from '@nestjs-pipeline/correlation';
-import { runWithTenant } from '@nestjs-pipeline/tenant';
 import { parseJobContext } from '../helpers/parse-job-context';
 import { activeRegistration } from '../helpers/registration';
 
@@ -54,10 +52,14 @@ export function InJobContext(
     const original = descriptor.value as (...args: unknown[]) => unknown;
 
     descriptor.value = async function (this: unknown, ...args: unknown[]) {
-      const { principal, tenants } = activeRegistration();
-      const context = parseJobContext(readPath(args[0], segments), tenants);
-      return runWithTenant(context.tenantId, () =>
-        runWithCorrelationId(context.correlationId, () =>
+      const { principal, tenants, sources } = activeRegistration();
+      const context = parseJobContext(
+        readPath(args[0], segments),
+        tenants,
+        sources.correlationId.accepts,
+      );
+      return sources.tenantId.run(context.tenantId, () =>
+        sources.correlationId.run(context.correlationId, () =>
           principal.restore(context.principal, async () =>
             original.apply(this, args),
           ),

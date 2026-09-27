@@ -286,6 +286,9 @@ importers:
       '@cqrs-ddd/safe-stringify':
         specifier: workspace:^
         version: link:../safe-stringify
+      '@cqrs-ddd/untyped':
+        specifier: workspace:^
+        version: link:../untyped
       '@cqrs-ddd/uuidv7':
         specifier: workspace:^
         version: link:../uuidv7
@@ -403,13 +406,13 @@ importers:
 
   packages/pipeline-correlation:
     dependencies:
+      '@cqrs-ddd/untyped':
+        specifier: workspace:^
+        version: link:../untyped
       '@cqrs-ddd/uuidv7':
         specifier: workspace:^
         version: link:../uuidv7
     devDependencies:
-      '@nestjs-pipeline/core':
-        specifier: workspace:*
-        version: link:../pipeline
       '@nestjs/common':
         specifier: ^11.2.1
         version: 11.2.1(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@7.2.0)
@@ -474,6 +477,9 @@ importers:
       '@cqrs-ddd/safe-stringify':
         specifier: workspace:^
         version: link:../safe-stringify
+      '@cqrs-ddd/untyped':
+        specifier: workspace:^
+        version: link:../untyped
     devDependencies:
       '@nestjs-pipeline/core':
         specifier: workspace:*
@@ -493,15 +499,6 @@ importers:
 
   packages/pipeline-job-context:
     devDependencies:
-      '@nestjs-pipeline/core':
-        specifier: workspace:*
-        version: link:../pipeline
-      '@nestjs-pipeline/correlation':
-        specifier: workspace:*
-        version: link:../pipeline-correlation
-      '@nestjs-pipeline/tenant':
-        specifier: workspace:*
-        version: link:../pipeline-tenant
       '@nestjs/common':
         specifier: ^11.2.1
         version: 11.2.1(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@7.2.0)
@@ -516,6 +513,10 @@ importers:
         version: 4.1.11(@opentelemetry/api@1.9.1)(@types/node@26.2.0)(@vitest/coverage-v8@4.1.11)(vite@8.2.0(@types/node@26.2.0)(esbuild@0.28.1)(tsx@4.23.12)(yaml@2.9.0))
 
   packages/pipeline-opentelemetry:
+    dependencies:
+      '@cqrs-ddd/untyped':
+        specifier: workspace:^
+        version: link:../untyped
     devDependencies:
       '@nestjs-pipeline/core':
         specifier: workspace:*
@@ -584,9 +585,6 @@ importers:
 
   packages/pipeline-tenant:
     devDependencies:
-      '@nestjs-pipeline/core':
-        specifier: workspace:*
-        version: link:../pipeline
       '@vitest/coverage-v8':
         specifier: ^4.1.11
         version: 4.1.11(vitest@4.1.11)
@@ -598,6 +596,10 @@ importers:
         version: 4.1.11(@opentelemetry/api@1.9.1)(@types/node@26.2.0)(@vitest/coverage-v8@4.1.11)(vite@8.2.0(@types/node@26.2.0)(esbuild@0.28.1)(tsx@4.23.12)(yaml@2.9.0))
 
   packages/pipeline-zod:
+    dependencies:
+      '@cqrs-ddd/untyped':
+        specifier: workspace:^
+        version: link:../untyped
     devDependencies:
       '@nestjs-pipeline/core':
         specifier: workspace:*
@@ -619,6 +621,15 @@ importers:
         version: 4.4.3
 
   packages/safe-stringify:
+    devDependencies:
+      '@vitest/coverage-v8':
+        specifier: ^4.1.11
+        version: 4.1.11(vitest@4.1.11)
+      vitest:
+        specifier: ^4.1.11
+        version: 4.1.11(@opentelemetry/api@1.9.1)(@types/node@26.2.0)(@vitest/coverage-v8@4.1.11)(vite@8.2.0(@types/node@26.2.0)(esbuild@0.28.1)(tsx@4.23.12)(yaml@2.9.0))
+
+  packages/untyped:
     devDependencies:
       '@vitest/coverage-v8':
         specifier: ^4.1.11

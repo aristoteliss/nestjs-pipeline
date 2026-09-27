@@ -1,8 +1,8 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
+import { untyped } from '@cqrs-ddd/untyped';
 import type { Type } from '@nestjs/common';
 import type { IPipelineBehavior } from '../interfaces/pipeline.behavior.interface';
-import { untyped } from '../types/safe-typing';
 
 /**
  * Optional static property on a behavior class that provides a stable,

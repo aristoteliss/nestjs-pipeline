@@ -1,5 +1,6 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
+import { untyped } from '@cqrs-ddd/untyped';
 import { Type } from '@nestjs/common';
 import {
   SET_CORRELATION_ID,
@@ -13,7 +14,6 @@ import {
 import { IPipelineBehavior } from './interfaces/pipeline.behavior.interface';
 import { IPipelineContext } from './interfaces/pipeline.context.interface';
 import { PipelineHandlerMeta } from './interfaces/pipeline-handler-meta.interface';
-import { untyped } from './types/safe-typing';
 
 /**
  * Abstract base class with shared implementation for all pipeline contexts.
@@ -53,7 +53,7 @@ export abstract class BasePipelineContext<
 
   /**
    * Assigns the tenant once per execution. A different value after one is set
-   * (by the runner, from the current execution scope)
+   * (by the runner, from the tenant source or the enclosing pipeline)
    * throws, so a behavior cannot move an execution to another tenant after an
    * earlier behavior has used it.
    */

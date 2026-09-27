@@ -5,8 +5,8 @@ import type { RootEntitySnapshot } from '@cqrs-ddd/core/domain';
 import { RootEntity, TransientOperationError } from '@cqrs-ddd/core/domain';
 import type { EntityManager } from '@mikro-orm/core';
 import { describe, expect, it, vi } from 'vitest';
+import type { IEntityManagerSource } from '../interfaces/entity-manager-source';
 import { AggregateRepository } from './aggregate.repository';
-import type { IEntityManagerSource } from './entity-manager-source';
 
 interface ItemSnapshot extends Partial<RootEntitySnapshot> {
   name: string;

@@ -22,7 +22,7 @@ describe('DeleteUserCommandRepository', () => {
     const nativeDelete = vi.fn().mockResolvedValue(1);
     const store = {
       get em() {
-        return { nativeDelete };
+        return { nativeDelete, isInTransaction: () => false };
       },
     };
     const repository = new DeleteUserCommandRepository(cache, store as never);
@@ -72,7 +72,7 @@ describe('DeleteUserCommandRepository', () => {
     const findOne = vi.fn().mockResolvedValue({ id: user.id, version: 2 });
     const store = {
       get em() {
-        return { nativeDelete, findOne };
+        return { nativeDelete, findOne, isInTransaction: () => false };
       },
     };
     const repository = new DeleteUserCommandRepository(cache, store as never);
@@ -101,7 +101,7 @@ describe('DeleteUserCommandRepository', () => {
     const findOne = vi.fn().mockResolvedValue(null);
     const store = {
       get em() {
-        return { nativeDelete, findOne };
+        return { nativeDelete, findOne, isInTransaction: () => false };
       },
     };
     const repository = new DeleteUserCommandRepository(cache, store as never);
@@ -129,7 +129,7 @@ describe('DeleteUserCommandRepository', () => {
     const nativeDelete = vi.fn().mockRejectedValue(failure);
     const store = {
       get em() {
-        return { nativeDelete };
+        return { nativeDelete, isInTransaction: () => false };
       },
     };
     const repository = new DeleteUserCommandRepository(cache, store as never);
@@ -154,7 +154,7 @@ describe('DeleteUserCommandRepository', () => {
     const nativeDelete = vi.fn().mockRejectedValue(transientError);
     const store = {
       get em() {
-        return { nativeDelete };
+        return { nativeDelete, isInTransaction: () => false };
       },
     };
     const repository = new DeleteUserCommandRepository(cache, store as never);

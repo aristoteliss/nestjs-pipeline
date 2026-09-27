@@ -1,5 +1,6 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
+import { AsyncLocalStorage } from 'node:async_hooks';
 import { isUuidV7 } from '@cqrs-ddd/uuidv7';
 import { Logger } from '@nestjs/common';
 import { ExplorerService } from '@nestjs/cqrs/dist/services/explorer.service';
@@ -10,7 +11,6 @@ import {
   SkipPipeline,
   UsePipeline,
 } from '../decorators/pipeline.decorator';
-import { runInScope } from '../execution-scope';
 import {
   IPipelineBehavior,
   NextDelegate,
@@ -1124,7 +1124,49 @@ describe('PipelineBootstrapService', () => {
       expect(isUuidV7(result.store!.correlationId)).toBe(true);
     });
 
-    it('takes the tenant and correlation id of the current execution scope', async () => {
+    it.each([
+      ['omitted', undefined, 'strict', true],
+      ['empty on purpose', {}, 'strict', false],
+      ['omitted with diagnostics off', undefined, 'off', false],
+    ])(
+      'warns at bootstrap only when sources are %s',
+      (_case, sources, diagnostics, warns) => {
+        const warn = vi
+          .spyOn(Logger.prototype, 'warn')
+          .mockImplementation(() => {});
+        explorerServiceMock.explore.mockReturnValue({
+          commands: [makeWrapper(new MockCommandHandler(), MockCommandHandler)],
+          queries: [],
+          events: [],
+        });
+
+        bootstrap({ sources, diagnostics });
+
+        const warned = warn.mock.calls.some(([message]) =>
+          String(message).includes('PipelineModule has no `sources`'),
+        );
+        expect(warned).toBe(warns);
+        warn.mockRestore();
+      },
+    );
+
+    it('does not warn about sources when no handler is wrapped', () => {
+      const warn = vi
+        .spyOn(Logger.prototype, 'warn')
+        .mockImplementation(() => {});
+      explorerServiceMock.explore.mockReturnValue({
+        commands: [],
+        queries: [],
+        events: [],
+      });
+
+      bootstrap();
+
+      expect(warn).not.toHaveBeenCalled();
+      warn.mockRestore();
+    });
+
+    it('takes the tenant and correlation id of the configured sources', async () => {
       const handler = new MockCommandHandler();
       explorerServiceMock.explore.mockReturnValue({
         commands: [makeWrapper(handler, MockCommandHandler)],
@@ -1132,11 +1174,28 @@ describe('PipelineBootstrapService', () => {
         events: [],
       });
 
-      bootstrap();
+      const tenant = new AsyncLocalStorage<string | undefined>();
+      const correlation = new AsyncLocalStorage<string | undefined>();
+      bootstrap({
+        sources: {
+          tenantId: {
+            current: () => tenant.getStore(),
+            run: <T>(value: string | undefined, fn: () => T) =>
+              tenant.run(value, fn),
+          },
+          correlationId: {
+            create: () => 'created-id',
+            current: () => correlation.getStore(),
+            run: <T>(value: string | undefined, fn: () => T) =>
+              correlation.run(value, fn),
+          },
+        },
+      });
 
-      const result = await runInScope(
-        { tenantId: 'tenant-a', correlationId: 'scope-corr-abc' },
-        () => handler.execute(new MockCommand(1)),
+      const result = await tenant.run('tenant-a', () =>
+        correlation.run('scope-corr-abc', () =>
+          handler.execute(new MockCommand(1)),
+        ),
       );
 
       expect(result.store!.correlationId).toBe('scope-corr-abc');

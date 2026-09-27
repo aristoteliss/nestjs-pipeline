@@ -6,6 +6,8 @@ import { MissingJobContextError } from '../errors/missing-job-context.error';
 import { parseJobContext } from './parse-job-context';
 
 const tenants = ['tenant_a', 'tenant_b'];
+const accepts = (id: string) =>
+  id.length <= 128 && /^[A-Za-z0-9._~:/+=@-]+$/.test(id);
 const valid = {
   tenantId: 'tenant_a',
   correlationId: 'corr-1',
@@ -14,20 +16,20 @@ const valid = {
 
 describe('parseJobContext', () => {
   it('returns a valid context', () => {
-    expect(parseJobContext(valid, tenants)).toEqual(valid);
+    expect(parseJobContext(valid, tenants, accepts)).toEqual(valid);
   });
 
   it('accepts a principal without a session', () => {
     const context = { ...valid, principal: { id: 'svc', type: 'service' } };
 
-    expect(parseJobContext(context, tenants).principal).toEqual({
+    expect(parseJobContext(context, tenants, accepts).principal).toEqual({
       id: 'svc',
       type: 'service',
     });
   });
 
   it('reports a payload without a context as missing', () => {
-    expect(() => parseJobContext(undefined, tenants)).toThrow(
+    expect(() => parseJobContext(undefined, tenants, accepts)).toThrow(
       MissingJobContextError,
     );
   });
@@ -91,7 +93,7 @@ describe('parseJobContext', () => {
       'principal is malformed',
     ],
   ])('refuses %s', (_case, value, reason) => {
-    expect(() => parseJobContext(value, tenants)).toThrow(
+    expect(() => parseJobContext(value, tenants, accepts)).toThrow(
       new InvalidJobContextError(reason),
     );
   });

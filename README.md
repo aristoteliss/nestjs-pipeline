@@ -32,7 +32,9 @@ HTTP Request
 > whenever results depend on those checks.
 
 The core package adds no runtime dependencies beyond NestJS itself, apart from the
-dependency-free `@cqrs-ddd/uuidv7` and `@cqrs-ddd/safe-stringify`. Add-on packages
+dependency-free `@cqrs-ddd/uuidv7`, `@cqrs-ddd/safe-stringify` and `@cqrs-ddd/untyped`.
+`@nestjs-pipeline/tenant`, `/correlation` and `/job-context` depend on no other pipeline
+package. Add-on packages
 use their own declared integrations (Zod, OpenTelemetry, CASL, OpenFeature, etc.).
 Works with Express and Fastify.
 
@@ -117,8 +119,9 @@ Framework-neutral packages, with no NestJS dependency:
 | [`@cqrs-ddd/core`](packages/ddd-core) | DDD building blocks — aggregates with versioned mutations, detached domain events, `CommandBaseHandler`, repository contracts, MikroORM persistence decorators, a revision-fenced repository cache, tenant-scoped cache keys and HTTP status mapping |
 | [`@cqrs-ddd/uuidv7`](packages/uuidv7) | RFC 9562 UUIDv7 generation and validation, with no dependencies |
 | [`@cqrs-ddd/safe-stringify`](packages/safe-stringify) | A strict, key-sorted serializer for identities, a redacting serializer for logs, and the key-segment helpers, with no dependencies |
+| [`@cqrs-ddd/untyped`](packages/untyped) | `untyped(value)`: a typed replacement for `as any` that reads undeclared properties as `unknown`, with no dependencies |
 
-> `@nestjs-pipeline/core` uses the two utilities. No `@nestjs-pipeline/*` package uses
+> `@nestjs-pipeline/core` uses the three utilities. No `@nestjs-pipeline/*` package uses
 > `@cqrs-ddd/core`, and it knows nothing of them: an application connects the two.
 
 ### Current Package Versions
@@ -143,6 +146,7 @@ Framework-neutral packages, with no NestJS dependency:
 | `@cqrs-ddd/mikro-orm` | `0.2.0` |
 | `@cqrs-ddd/uuidv7` | `0.2.0` |
 | `@cqrs-ddd/safe-stringify` | `0.2.0` |
+| `@cqrs-ddd/untyped` | `0.2.0` |
 
 ---
 
@@ -641,14 +645,14 @@ bypassing the guard.
 
 ## Correlation IDs
 
-The tenant and correlation ID of an execution live in one async-local store, the
-execution scope of `@nestjs-pipeline/core` (`runInScope`, `currentScope`). A pipeline takes
-both when it starts: `context.correlationId` is the scope's ID or a new `uuidv7()`, and
-`context.tenantId` is the scope's tenant (write-once). The behaviors and handler run inside
-a scope holding them, so a saga, an event published with `eventBus.publish()` or a nested
+`@nestjs-pipeline/correlation` and `@nestjs-pipeline/tenant` each keep their value in
+their own store and depend on no other pipeline package. Pass their stores to
+`PipelineModule.forRoot({ sources: { tenantId: tenantSource, correlationId: correlationSource } })`,
+and a pipeline takes both when it starts: `context.correlationId` is the current ID or a new
+`uuidv7()`, and `context.tenantId` is the current tenant (write-once). The behaviors and
+handler run inside both values, so a saga, an event published with `eventBus.publish()` or a nested
 `CommandBus.execute()` inherits them, and `getCorrelationId()` in a handler equals
-`context.correlationId`. There is nothing to configure on `PipelineModule`: set the values
-where work enters, with `HttpCorrelationMiddleware` or `runWithCorrelationId` of
+`context.correlationId`. Set the values where work enters, with `HttpCorrelationMiddleware` or `runWithCorrelationId` of
 `@nestjs-pipeline/correlation` and `runWithTenant` of `@nestjs-pipeline/tenant`.
 
 ### HTTP Requests
@@ -714,7 +718,8 @@ async handle(@Payload() data: UserPayload, @Ctx() ctx: RmqContext) {
 ### Cron Jobs
 
 ```typescript
-import { runWithCorrelationId, uuidv7 } from '@nestjs-pipeline/correlation';
+import { uuidv7 } from '@cqrs-ddd/uuidv7';
+import { runWithCorrelationId } from '@nestjs-pipeline/correlation';
 import { Cron } from '@nestjs/schedule';
 
 @Injectable()
@@ -831,7 +836,7 @@ Every behavior receives `IPipelineContext`:
 | Property | Type | Description |
 |---|---|---|
 | `correlationId` | `string` | Immutable ID fixed before the behavior chain starts |
-| `tenantId` | `string \| undefined` | Tenant of the execution scope when the pipeline started; write-once |
+| `tenantId` | `string \| undefined` | Current tenant when the pipeline started; write-once |
 | `request` | `TRequest` | The command / query / event instance |
 | `requestType` | `Type<TRequest>` | Class constructor (e.g. `CreateUserCommand`) |
 | `requestName` | `string` | Class name string (e.g. `"CreateUserCommand"`) |
@@ -1428,7 +1433,6 @@ nestjs-pipeline/
 │   ├── pipeline-correlation/      # @nestjs-pipeline/correlation
 │   │   └── src/
 │   │       ├── decorators/       # @WithCorrelation, CorrelationFrom
-│   │       ├── helpers/          # uuidv7 (re-exported from @cqrs-ddd/uuidv7)
 │   │       ├── middlewares/      # HttpCorrelationMiddleware
 │   │       ├── options/          # CorrelationOptions
 │   │       └── correlation.store.ts    # getCorrelationId, runWithCorrelationId, addCorrelationId
@@ -1519,6 +1523,7 @@ nestjs-pipeline/
 │   │       └── job-context.module.ts   # JobContextModule.forRoot({ principal, tenants })
 │   ├── uuidv7/                   # @cqrs-ddd/uuidv7 — RFC 9562 UUIDv7, no dependencies
 │   ├── safe-stringify/           # @cqrs-ddd/safe-stringify — strict and log-safe JSON, key segments
+│   ├── untyped/                  # @cqrs-ddd/untyped — typed replacement for `as any`
 │   ├── ddd-mikro-orm/            # @cqrs-ddd/mikro-orm — MikroORM repositories, optimistic writes, cache adapter
 │   └── ddd-core/                 # @cqrs-ddd/core — framework-neutral DDD primitives
 │       ├── domain/               # RootEntity, AggregateRoot, domain events and exceptions

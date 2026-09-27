@@ -1,13 +1,15 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import { currentScope, runInScope } from '@nestjs-pipeline/core';
 import { describe, expect, it } from 'vitest';
 import {
   addCorrelationId,
   correlationHeaders,
+  correlationSource,
   getCorrelationId,
   runWithCorrelationId,
 } from './correlation.store';
+
+const source = correlationSource;
 
 describe('getCorrelationId', () => {
   it('generates a new UUIDv7 on each call outside any scope', () => {
@@ -15,12 +17,20 @@ describe('getCorrelationId', () => {
 
     expect(first).toMatch(/^[0-9a-f-]{36}$/);
     expect(getCorrelationId()).not.toBe(first);
-    expect(currentScope().correlationId).toBeUndefined();
+    expect(source.current()).toBeUndefined();
   });
 
-  it('reads the correlation id of the core execution scope', () => {
-    runInScope({ correlationId: 'scope-id' }, () => {
-      expect(getCorrelationId()).toBe('scope-id');
+  it('accepts only an id within the default length and character set', () => {
+    expect(source.accepts('edge:req/1+a=b@c~d')).toBe(true);
+    expect(source.accepts('a'.repeat(128))).toBe(true);
+    expect(source.accepts('a'.repeat(129))).toBe(false);
+    expect(source.accepts('a b')).toBe(false);
+  });
+
+  it('reads and sets the same id through correlationSource', () => {
+    source.run('pipeline-id', () => {
+      expect(getCorrelationId()).toBe('pipeline-id');
+      expect(source.current()).toBe('pipeline-id');
     });
   });
 
@@ -37,34 +47,23 @@ describe('getCorrelationId', () => {
 describe('runWithCorrelationId', () => {
   it('runs fn inside a correlation context when id is provided', () => {
     const result = runWithCorrelationId('my-id', () => {
-      return currentScope().correlationId;
+      return source.current();
     });
     expect(result).toBe('my-id');
   });
 
   it('generates a uuidv7 fallback when id is undefined', () => {
     const result = runWithCorrelationId(undefined, () => {
-      return currentScope().correlationId;
+      return source.current();
     });
     expect(result).toMatch(/^[0-9a-f-]{36}$/);
   });
 
   it('generates a uuidv7 fallback when id is empty string', () => {
     const result = runWithCorrelationId('', () => {
-      return currentScope().correlationId;
+      return source.current();
     });
     expect(result).toMatch(/^[0-9a-f-]{36}$/);
-  });
-
-  it('keeps the tenant of the current scope', () => {
-    runInScope({ tenantId: 'tenant_a' }, () =>
-      runWithCorrelationId('my-id', () =>
-        expect(currentScope()).toEqual({
-          tenantId: 'tenant_a',
-          correlationId: 'my-id',
-        }),
-      ),
-    );
   });
 
   it('returns the value from fn', () => {

@@ -15,6 +15,7 @@ import {
 } from '@nestjs/common';
 import { LOGGING_BEHAVIOR_LOGGER } from '../behaviors/logging.behavior';
 import { PipelineBehaviorEntry } from '../decorators/pipeline.decorator';
+import type { ContextSources } from '../interfaces/context-source.interface';
 import { IPipelineBehavior } from '../interfaces/pipeline.behavior.interface';
 import { GlobalBehaviorsOptions } from './global-behaviors.options';
 
@@ -177,6 +178,21 @@ export interface PipelineModuleOptions {
    * @default 'strict'
    */
   diagnostics?: 'strict' | 'warn' | 'off';
+
+  /**
+   * Where pipelines take their tenant and correlation id from, such as
+   * `tenantSource` of `@nestjs-pipeline/tenant` and `correlationSource` of
+   * `@nestjs-pipeline/correlation`. See {@link ContextSources}. When it is
+   * omitted and a handler is wrapped, bootstrap logs a warning, because
+   * handlers then cannot read the pipeline's tenant or correlation id; pass
+   * `{}` to run without sources on purpose.
+   *
+   * @example
+   * ```ts
+   * sources: { tenantId: tenantSource, correlationId: correlationSource }
+   * ```
+   */
+  sources?: ContextSources;
 }
 
 /**

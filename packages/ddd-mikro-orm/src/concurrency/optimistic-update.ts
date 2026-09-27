@@ -1,9 +1,5 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import {
-  ConcurrencyConflictError,
-  EntityNotFoundException,
-} from '@cqrs-ddd/core/domain';
 import type {
   EntityData,
   EntityManager,
@@ -11,6 +7,7 @@ import type {
   FilterQuery,
 } from '@mikro-orm/core';
 import { assertAutocommit } from './assert-autocommit';
+import { expectOneRow, type VersionedAggregate } from './conditioned-write';
 
 /**
  * Executes a single, version-conditioned, autocommitted SQL `UPDATE` statement on an aggregate entity.
@@ -43,38 +40,23 @@ import { assertAutocommit } from './assert-autocommit';
  * @throws {ConcurrencyConflictError} If 0 rows were updated and the entity version has diverged.
  * @throws {Error} If unexpected row count (> 1) was affected.
  *
- * @example Usage in an UpdateCommandRepository
+ * @example Usage in an update command repository
  * ```typescript
- * @Injectable()
- * export class UpdateUserCommandRepository extends CommandRepository<User, UserSnapshot> {
- *   @Cache<User, UserSnapshot>((user) => `users:${user.id}`)
- *   @AcknowledgePersisted<[User]>({ entity: ([user]) => user })
- *   @MapPersistenceErrors<[User], User>({ entity: ([user]) => user, unique: [] })
- *   async save(user: User): Promise<UserSnapshot> {
- *     const snapshot = user.toJSON();
- *     await optimisticUpdate(
- *       this.store.em,
- *       User,
- *       user,
- *       {
- *         username: snapshot.username,
- *         department: snapshot.department ?? null,
- *         updatedAt: snapshot.updatedAt,
- *       },
- *       'User',
- *     );
- *     return snapshot;
- *   }
+ * @PersistedWrite<User>({ cache: { setKey: (user) => cacheKey(User.aggregateName, { id: user.id }) } })
+ * async save(user: User): Promise<UserSnapshot> {
+ *   const snapshot = user.toJSON();
+ *   await optimisticUpdate(
+ *     this.store.em,
+ *     User,
+ *     user,
+ *     { username: snapshot.username, updatedAt: snapshot.updatedAt },
+ *     'User',
+ *   );
+ *   return snapshot;
  * }
  * ```
  */
-export async function optimisticUpdate<
-  TEntity extends {
-    readonly id: string;
-    readonly version: number;
-    getExpectedVersion(): number;
-  },
->(
+export async function optimisticUpdate<TEntity extends VersionedAggregate>(
   em: EntityManager,
   entityType: EntityName<TEntity>,
   entity: TEntity,
@@ -82,29 +64,11 @@ export async function optimisticUpdate<
   entityName: string,
 ): Promise<void> {
   assertAutocommit(em, 'optimisticUpdate');
-  const id = entity.id;
-  const expectedVersion = entity.getExpectedVersion();
+  const row = { id: entity.id, expectedVersion: entity.getExpectedVersion() };
   const affected = await em.nativeUpdate(
     entityType,
-    { id, version: expectedVersion } as FilterQuery<TEntity>,
+    { id: row.id, version: row.expectedVersion } as FilterQuery<TEntity>,
     { ...data, version: entity.version } as EntityData<TEntity>,
   );
-  if (affected === 0) {
-    const existing = await em.findOne(
-      entityType,
-      { id } as FilterQuery<TEntity>,
-      { refresh: true },
-    );
-    if (!existing) throw new EntityNotFoundException(entityName, id);
-    throw new ConcurrencyConflictError(
-      entityName,
-      id,
-      expectedVersion,
-      existing.version,
-    );
-  }
-  if (affected !== 1)
-    throw new Error(
-      `Expected one updated ${entityName}, received ${affected}.`,
-    );
+  await expectOneRow(affected, em, entityType, row, entityName, 'updated');
 }

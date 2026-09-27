@@ -1,9 +1,5 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import {
-  DEFAULT_CORRELATION_ID_MAX_LENGTH,
-  DEFAULT_CORRELATION_ID_PATTERN,
-} from '@nestjs-pipeline/correlation';
 import { InvalidJobContextError } from '../errors/invalid-job-context.error';
 import { MissingJobContextError } from '../errors/missing-job-context.error';
 import type { JobContext } from '../interfaces/job-context.interface';
@@ -33,22 +29,25 @@ function assertFields(
 
 /**
  * Validates a job payload's context before anything runs with it. Every field
- * is checked, unknown fields are refused, and the tenant must be configured.
+ * is checked, unknown fields are refused, the tenant must be configured, and
+ * the correlation id must be one `acceptsCorrelationId` accepts.
  *
  * @param value - The payload's `jobContext` value, as read from the queue.
  * @param tenants - The configured tenants.
+ * @param acceptsCorrelationId - The correlation source's `accepts`.
  * @returns A context holding only the validated fields.
  * @throws {MissingJobContextError} When `value` is `undefined`.
  * @throws {InvalidJobContextError} For any other value that is not a valid context.
  *
  * @example
  * ```ts
- * const context = parseJobContext(job.data.jobContext, ['tenant_a']);
+ * const context = parseJobContext(job.data.jobContext, ['tenant_a'], sources.correlationId.accepts);
  * ```
  */
 export function parseJobContext(
   value: unknown,
   tenants: readonly string[],
+  acceptsCorrelationId: (id: string) => boolean,
 ): JobContext {
   if (value === undefined) {
     throw new MissingJobContextError('the payload has no jobContext');
@@ -63,8 +62,7 @@ export function parseJobContext(
   }
   if (
     typeof correlationId !== 'string' ||
-    correlationId.length > DEFAULT_CORRELATION_ID_MAX_LENGTH ||
-    !DEFAULT_CORRELATION_ID_PATTERN.test(correlationId)
+    !acceptsCorrelationId(correlationId)
   ) {
     throw new InvalidJobContextError('correlationId is malformed');
   }

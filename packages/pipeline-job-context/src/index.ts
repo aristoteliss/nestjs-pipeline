@@ -12,6 +12,11 @@ export { InvalidJobContextError } from './errors/invalid-job-context.error';
 export { MissingJobContextError } from './errors/missing-job-context.error';
 export { withJobContext } from './helpers/with-job-context';
 export type {
+  ContextSource,
+  CorrelationSource,
+  JobContextSources,
+} from './interfaces/context-source.interface';
+export type {
   JobContext,
   WithJobContext,
 } from './interfaces/job-context.interface';

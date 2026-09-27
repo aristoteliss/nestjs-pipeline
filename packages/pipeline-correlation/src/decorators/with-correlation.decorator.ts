@@ -1,7 +1,7 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
+import { untyped } from '@cqrs-ddd/untyped';
 import { Logger, LoggerService, LogLevel } from '@nestjs/common';
-import { untyped } from '@nestjs-pipeline/core';
 import { DEFAULT_CORRELATION_HEADER } from '../constants/correlation.constants';
 import { getCorrelationId, runWithCorrelationId } from '../correlation.store';
 import { dyn } from '../types/safe-typing';
@@ -10,7 +10,8 @@ import { dyn } from '../types/safe-typing';
  * A function that extracts the correlation ID from the method arguments.
  *
  * Receives the same arguments the decorated method receives.
- * Return `undefined` to let the pipeline fall back to parent context or `uuidv7()`.
+ * Return `undefined` to keep the current id, or get a new one from
+ * `correlationSource.create()` when there is none.
  */
 export type CorrelationExtractor = (...args: unknown[]) => string | undefined;
 
@@ -114,7 +115,8 @@ function getByPath(obj: unknown, path: string): string | undefined {
  *
  * It extracts the correlation ID from the method arguments (via `path` or
  * `extract`) and runs the method inside {@link runWithCorrelationId}, which
- * falls back to any parent context and then to `uuidv7()` when no ID is found.
+ * keeps the current id, or makes one with `correlationSource.create()`, when
+ * no ID is found.
  *
  * **⚠️ Array payloads:**
  * When using the default dot-path extraction, the first argument must be an

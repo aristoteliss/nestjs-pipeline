@@ -1,12 +1,14 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { MissingJobContextError } from '../errors/missing-job-context.error';
+import type { JobContextSources } from '../interfaces/context-source.interface';
 import type { IJobPrincipal } from '../interfaces/job-principal.interface';
 
 /** What `JobContextModule` registers for the decorators, which run outside DI. */
 export interface Registration {
   readonly principal: IJobPrincipal;
   readonly tenants: readonly string[];
+  readonly sources: JobContextSources;
 }
 
 let active: Registration | undefined;
@@ -16,7 +18,7 @@ let active: Registration | undefined;
  *
  * @example
  * ```ts
- * register({ principal, tenants: ['tenant_a'] });
+ * register({ principal, tenants: ['tenant_a'], sources });
  * ```
  */
 export function register(registration: Registration): void {
@@ -43,7 +45,7 @@ export function unregister(registration: Registration): void {
  *
  * @example
  * ```ts
- * const { principal, tenants } = activeRegistration();
+ * const { principal, tenants, sources } = activeRegistration();
  * ```
  */
 export function activeRegistration(): Registration {

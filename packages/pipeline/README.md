@@ -27,7 +27,7 @@ Its peer contract also includes the standard NestJS runtime peers
   - [Deduplication](#deduplication)
   - [Skipping Global Behaviors (@SkipPipeline)](#skipping-global-behaviors-skippipeline)
 - [Built-in LoggingBehavior](#built-in-loggingbehavior)
-- [Execution scope: tenant and correlation ID](#execution-scope-tenant-and-correlation-id)
+- [Tenant and correlation ID](#tenant-and-correlation-id)
   - [HTTP Requests](#http-requests)
   - [Non-HTTP Entry Points](#non-http-entry-points)
   - [@WithCorrelation Decorator](#withcorrelation-decorator)
@@ -359,7 +359,7 @@ Every behavior receives `IPipelineContext`:
 | Property | Type | Description |
 |---|---|---|
 | `correlationId` | `string` | Immutable ID fixed before the behavior chain starts |
-| `tenantId` | `string \| undefined` | Tenant of the execution scope when the pipeline started; write-once |
+| `tenantId` | `string \| undefined` | Current tenant when the pipeline started; write-once |
 | `request` | `TRequest` | The command / query / event instance |
 | `requestType` | `Type<TRequest>` | Class constructor (e.g. `CreateUserCommand`) |
 | `requestName` | `string` | Class name string (e.g. `"CreateUserCommand"`) |
@@ -743,37 +743,54 @@ With `logFormat: 'structured'`, the same events are emitted as plain objects ins
 
 ---
 
-## Execution scope: tenant and correlation ID
+## Tenant and correlation ID
 
-The tenant and correlation ID of the current execution live in one async-local store,
-the execution scope. `runInScope(values, fn)` lays values over the current scope for
-everything `fn` calls; `currentScope()` reads it.
-
-When a pipeline starts, it takes both from the scope into its context:
-
-- `context.correlationId` — the scope's correlation ID, or a new `uuidv7()` when it has
-  none;
-- `context.tenantId` — the scope's tenant, or none. It is write-once.
-
-The behaviors and the handler then run inside a scope holding these two values, so a
-nested dispatch (saga, `eventBus.publish()`, a command sent from a handler) inherits them,
-and code deep inside the handler reads the same values the behaviors keyed on. A pipeline
-dispatched inside a narrower `runInScope` takes that scope's values.
+The core keeps no tenant or correlation store of its own. Each value has a source, a
+`ContextSource` (`current()` and `run(value, fn)`), given in the `sources` module option.
+[`@nestjs-pipeline/tenant`](https://github.com/aristoteliss/nestjs-pipeline/tree/master/packages/pipeline-tenant)
+and
+[`@nestjs-pipeline/correlation`](https://github.com/aristoteliss/nestjs-pipeline/tree/master/packages/pipeline-correlation)
+own those stores and depend on nothing here; they export them as `tenantSource` and
+`correlationSource`:
 
 ```typescript
-import { currentScope, runInScope } from '@nestjs-pipeline/core';
+import { correlationSource } from '@nestjs-pipeline/correlation';
+import { tenantSource } from '@nestjs-pipeline/tenant';
 
-await runInScope({ tenantId: 'tenant_a', correlationId: job.id }, () =>
-  commandBus.execute(new SyncCommand()),
+PipelineModule.forRoot({
+  sources: { tenantId: tenantSource, correlationId: correlationSource },
+});
+```
+
+The application then uses their API: `runWithTenant`, `currentTenantId`,
+`HttpCorrelationMiddleware`, `runWithCorrelationId`, `getCorrelationId`,
+`@WithCorrelation`. Without `sources`, bootstrap logs a warning once handlers are
+wrapped, since handlers then cannot read the pipeline's tenant or correlation ID; pass
+`sources: {}` to run without them on purpose (or set `diagnostics: 'off'`).
+
+When a pipeline starts, it fills its context:
+
+- `context.correlationId` — the source's current ID, or a new one from its `create()`;
+  without a source, that of the pipeline it is nested in, or a new `uuidv7()`;
+- `context.tenantId` — the source's current tenant; without a source, that of the
+  pipeline it is nested in; otherwise none. It is write-once.
+
+The behaviors and the handler then run inside both sources holding these values, so a
+nested dispatch (saga, `eventBus.publish()`, a command sent from a handler) inherits them,
+and `getCorrelationId()` or `currentTenantId()` deep inside the handler returns what the
+behaviors keyed on. A pipeline dispatched inside a narrower `runWithTenant` takes that
+tenant.
+
+```typescript
+import { runWithCorrelationId } from '@nestjs-pipeline/correlation';
+import { runWithTenant } from '@nestjs-pipeline/tenant';
+
+await runWithTenant('tenant_a', () =>
+  runWithCorrelationId(job.id, () => commandBus.execute(new SyncCommand())),
 );
 ```
 
-Set the values where work enters the application. The add-on packages do it for you:
-`@nestjs-pipeline/tenant` (`runWithTenant`, `currentTenantId`) and
-[`@nestjs-pipeline/correlation`](https://github.com/aristoteliss/nestjs-pipeline/tree/master/packages/pipeline-correlation)
-(`HttpCorrelationMiddleware`, `runWithCorrelationId`, `getCorrelationId`,
-`@WithCorrelation`). Without a tenant in the scope, tenant-scoped behaviors (cache,
-idempotency, rate limit) fail closed.
+Without a tenant, tenant-scoped behaviors (cache, idempotency, rate limit) fail closed.
 
 ### HTTP Requests
 
@@ -802,7 +819,8 @@ curl -X POST http://localhost:3000/users \
 For Bull queues, RabbitMQ, Kafka, cron jobs, etc., use utilities from `@nestjs-pipeline/correlation`:
 
 ```typescript
-import { runWithCorrelationId, uuidv7 } from '@nestjs-pipeline/correlation';
+import { uuidv7 } from '@cqrs-ddd/uuidv7';
+import { runWithCorrelationId } from '@nestjs-pipeline/correlation';
 
 // Bull queue processor
 @Process('send-email')
@@ -1059,9 +1077,10 @@ must account for the absent instance.
 | `LoggingBehaviorOptions` | Interface | Options for `LoggingBehavior` (`metricLogLevel`, `requestResponseLogLevel`, `errorLogLevel`, `mapLogLevel`, `excludeKeys`, `excludeRequestObj`, `excludeResponseObj`, `logFormat`) |
 | `logging` | Function | Typed intent builder returning `[LoggingBehavior, options]` for `@UsePipeline` |
 | `LoggingIntentOptions` | Type | Alias for `LoggingBehaviorOptions` |
-| `uuidv7` | Function | Generate timestamp-sortable UUIDs (re-exported from `@cqrs-ddd/uuidv7`) |
 | `pipelineStore` | `AsyncLocalStorage` | Access the current pipeline context |
-| `runInScope`, `currentScope`, `ExecutionScope` | Functions, type | The execution scope: the one async-local store of the tenant and correlation ID |
+| `TenantPartitionOptions`, `tenantSegments` | Type, function | The tenant segment of a partitioned key and its options, shared by the cache, idempotency and rate-limit key factories |
+| `MissingPartitionError` | Class | Base of the packages' partition errors (`MissingCachePartitionError`, …): `{ requestName, dimension, remedy }` |
+| `ContextSource`, `CorrelationSource`, `ContextSources` | Types | The `sources` option: where pipelines take their tenant and correlation ID from; a correlation source also has `create()` |
 | `PipelineModuleOptions` | Interface | Options for `PipelineModule.forRoot()` |
 | `GlobalBehaviorsOptions` | Interface | Global behavior configuration |
 | `GlobalBehaviorScope` | Type | `'commands' \| 'queries' \| 'events' \| 'all'` |
@@ -1078,18 +1097,11 @@ must account for the absent instance.
 | `PIPELINE_SKIPPED_BEHAVIORS_METADATA` | Symbol | Metadata key for skipped behavior classes |
 | `SET_TENANT_ID` | Symbol | Write-once symbol setter for `tenantId`, for custom runners constructing a context; assigning a different tenant throws |
 | `PipelineBehaviorEntry` | Type | `Type \| [Type, Record<string, unknown>]` |
-| `stableStringify` | Function | Deterministic JSON serialization with sorted keys and cycle detection |
-| `toStrictJsonValue` | Function | Normalizes arbitrary values into strictly typed JSON domain |
-| `StrictJsonValue` | Type | Strict JSON-compatible recursive type definition |
-| `safeSanitize` | Function | Deeply redacts sensitive keys and strips unsupported types |
 | `toPostgresJson` | Function | Replaces the NUL characters and lone surrogates that PostgreSQL `jsonb` rejects in JSON text with U+FFFD; used by the Postgres audit sink and dead-letter transport |
 
-`stableStringify`, `toStrictJsonValue`, `StrictJsonValue` and `safeSanitize` above, together
-with `safeStringify`, `redactValue`, `DEFAULT_REDACT_KEYS`, `REDACTED`, `SanitizeOptions` and
-the key-segment helpers `joinKeySegments`, `escapeKeySegment` and `ABSENT_SEGMENT`, are
-re-exported from
+The serializers and key-segment helpers (`stableStringify`, `safeStringify`, …) come from
 [`@cqrs-ddd/safe-stringify`](https://github.com/aristoteliss/nestjs-pipeline/tree/master/packages/safe-stringify),
-which documents them in full.
+and `uuidv7` from `@cqrs-ddd/uuidv7`; import them from there.
 
 
 **`PipelineModuleOptions` fields:**
@@ -1101,6 +1113,7 @@ which documents them in full.
 | `diagnostics` | `'strict' \| 'warn' \| 'off'` | Bootstrap behavior contract verification mode (default `'strict'`) |
 | `bootstrapLogLevel` | `LogLevel \| 'none'` | Log level for bootstrap messages (default `'debug'`) |
 | `loggerProvider` | `PipelineLoggerProvider` | Custom DI provider whose `provide` token must be `LOGGING_BEHAVIOR_LOGGER` (registered and exported) |
+| `sources` | `ContextSources` | Where pipelines take their tenant and correlation ID from, such as `tenantSource` and `correlationSource` |
 
 ---
 

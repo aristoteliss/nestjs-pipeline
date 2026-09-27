@@ -1,9 +1,10 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import { isUuidV7 } from '@cqrs-ddd/uuidv7';
+import { AsyncLocalStorage } from 'node:async_hooks';
+import { isUuidV7, uuidv7 } from '@cqrs-ddd/uuidv7';
 import { describe, expect, it, vi } from 'vitest';
 import { pipelineStore } from '../constants/pipeline-context.constants';
-import { currentScope, runInScope } from '../execution-scope';
+import type { ContextSource } from '../interfaces/context-source.interface';
 import type { PipelineHandlerMeta } from '../interfaces/pipeline-handler-meta.interface';
 import { createPipelineRunner } from './pipeline-runner';
 
@@ -41,18 +42,7 @@ describe('pipeline runner', () => {
     expect(resolve).not.toHaveBeenCalled();
   });
 
-  it('takes the tenant and correlation id of the current scope', async () => {
-    const runner = createPipelineRunner(readContext, meta, [], true);
-
-    await expect(
-      runInScope({ tenantId: 'tenant-a', correlationId: 'corr-1' }, () =>
-        runner(new Handler(), new Request()),
-      ),
-    ).resolves.toEqual({ tenantId: 'tenant-a', correlationId: 'corr-1' });
-    expect(pipelineStore.getStore()).toBeUndefined();
-  });
-
-  it('runs without a tenant and with a generated correlation id outside any scope', async () => {
+  it('runs without a tenant and with a generated correlation id outside any pipeline', async () => {
     const runner = createPipelineRunner(readContext, meta, [], true);
 
     const { tenantId, correlationId } = (await runner(
@@ -62,42 +52,81 @@ describe('pipeline runner', () => {
 
     expect(tenantId).toBeUndefined();
     expect(isUuidV7(correlationId as string)).toBe(true);
+    expect(pipelineStore.getStore()).toBeUndefined();
   });
 
-  it('runs the handler inside a scope holding the execution values, which nested runs inherit', async () => {
+  it('gives a nested pipeline the values of the enclosing one when no source is registered', async () => {
     const nested = createPipelineRunner(readContext, meta, [], true);
     const outer = createPipelineRunner(
-      async () => ({ scope: currentScope(), nested: await nested({}, {}) }),
+      async () => ({ outer: readContext(), nested: await nested({}, {}) }),
       meta,
       [],
       true,
     );
 
-    const result = await runInScope({ tenantId: 'tenant-a' }, () =>
-      outer(new Handler(), new Request()),
-    );
+    const result = (await outer(new Handler(), new Request())) as {
+      outer: ReturnType<typeof readContext>;
+      nested: ReturnType<typeof readContext>;
+    };
 
-    expect(result).toEqual({
-      scope: { tenantId: 'tenant-a', correlationId: expect.any(String) },
-      nested: {
-        tenantId: 'tenant-a',
-        correlationId: (result as { scope: { correlationId: string } }).scope
-          .correlationId,
-      },
-    });
+    expect(result.nested).toEqual(result.outer);
+  });
+});
+
+function source(): ContextSource {
+  const store = new AsyncLocalStorage<string | undefined>();
+  return {
+    current: () => store.getStore(),
+    run: (value, fn) => store.run(value, fn),
+  };
+}
+
+describe('pipeline runner with context sources', () => {
+  const tenant = source();
+  const correlation = { ...source(), create: () => uuidv7() };
+  const sources = { tenantId: tenant, correlationId: correlation };
+  const runner = (fn: () => unknown) =>
+    createPipelineRunner(fn, meta, [], true, sources);
+  const readSources = () => ({
+    tenantId: tenant.current(),
+    correlationId: correlation.current(),
   });
 
-  it('gives a pipeline dispatched inside a narrower scope that scope’s tenant', async () => {
-    const nested = createPipelineRunner(readContext, meta, [], true);
-    const outer = createPipelineRunner(
-      () => runInScope({ tenantId: 'tenant-b' }, () => nested({}, {})),
-      meta,
-      [],
-      true,
-    );
+  it('gives a pipeline their current values', async () => {
+    await expect(
+      tenant.run('tenant-a', () =>
+        correlation.run('corr-1', () => runner(readContext)({}, {})),
+      ),
+    ).resolves.toEqual({ tenantId: 'tenant-a', correlationId: 'corr-1' });
+  });
+
+  it('hold the pipeline’s values while it runs, including a generated correlation id', async () => {
+    const { context, sources: seen } = (await tenant.run('tenant-a', () =>
+      runner(() => ({ context: readContext(), sources: readSources() }))(
+        {},
+        {},
+      ),
+    )) as Record<string, ReturnType<typeof readContext>>;
+
+    expect(isUuidV7(context.correlationId as string)).toBe(true);
+    expect(seen).toEqual(context);
+  });
+
+  it('give a pipeline dispatched inside a narrower run that run’s tenant', async () => {
+    const nested = runner(readContext);
+    const outer = runner(() => tenant.run('tenant-b', () => nested({}, {})));
 
     await expect(
-      runInScope({ tenantId: 'tenant-a' }, () => outer({}, {})),
+      tenant.run('tenant-a', () => outer({}, {})),
     ).resolves.toMatchObject({ tenantId: 'tenant-b' });
+  });
+
+  it('take precedence over the enclosing pipeline, so clearing the tenant clears it', async () => {
+    const nested = runner(readContext);
+    const outer = runner(() => tenant.run(undefined, () => nested({}, {})));
+
+    await expect(
+      tenant.run('tenant-a', () => outer({}, {})),
+    ).resolves.toMatchObject({ tenantId: undefined });
   });
 });
