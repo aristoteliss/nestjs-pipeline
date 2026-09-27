@@ -1,6 +1,6 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import { TransientOperationError } from '../domain/exceptions/transient-operation.error';
+import { TransientOperationError } from '@cqrs-ddd/core/domain';
 
 const TRANSIENT_CODES = new Set([
   '40001', // PostgreSQL serialization failure
@@ -70,8 +70,8 @@ export function isTransientPersistenceError(error: unknown): boolean {
  * Translates persistence-specific transient failures into the neutral application
  * retry signal. Non-transient failures are returned unchanged.
  *
- * This is the canonical `otherwise` translator for {@link MapPersistenceErrors}
- * and {@link PersistedWrite}. Because non-transient errors keep their identity,
+ * This is the canonical `otherwise` translator for `@MapPersistenceErrors` and
+ * `@PersistedWrite` of `@cqrs-ddd/core`. Because non-transient errors keep their identity,
  * domain errors a repository throws on purpose (`ConcurrencyConflictError`,
  * `EntityNotFoundException`) pass through without a re-throw guard.
  *
@@ -85,7 +85,6 @@ export function isTransientPersistenceError(error: unknown): boolean {
  * ```ts
  * @MapPersistenceErrors<[User], User>({
  *   entity: ([user]) => user,
- *   unique: [],
  *   otherwise: (error, user) =>
  *     mapPersistenceError(error, `deleting User ${user.id}`),
  * })

@@ -1,6 +1,13 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import { EntityManager, MikroORM } from '@mikro-orm/libsql';
+import { setPersistenceDialect } from '@cqrs-ddd/core/persistence';
+import {
+  type IEntityManagerSource,
+  MikroOrmDialect,
+  TenantStore,
+} from '@cqrs-ddd/mikro-orm';
+import { MikroORM } from '@mikro-orm/core';
+import type { SqlEntityManager } from '@mikro-orm/sql';
 import {
   Inject,
   Injectable,
@@ -8,26 +15,44 @@ import {
   OnModuleDestroy,
   OnModuleInit,
 } from '@nestjs/common';
-import { createLibsqlOrmOptions, libsqlDbUrl } from './orm-options';
+import {
+  createLibsqlOrmOptions,
+  createPostgresOrmOptions,
+  libsqlDbUrl,
+} from './orm-options';
 import { persistenceConfig } from './persistence.config';
-import { TenantEntityManagerResolver } from './tenant-entity-manager.resolver';
 import { TenantSchemaContext } from './tenant-schema.context';
 import { UnknownTenantSchemaError } from './tenant-schema.errors';
 
 /**
- * Injection token of the MikroORM store, which persists every entity of the
- * application (users, roles, capabilities, cache entries).
- *
- * For SQLite/libSQL, multi-tenancy uses a database-per-tenant strategy: one ORM
- * instance is initialized per configured tenant (`persistenceConfig().tenants`), and
- * the active tenant from `TenantSchemaContext` selects which database to query.
+ * Injection token of the {@link MikroOrmStore}, which persists every entity of
+ * the application (users, roles, capabilities, sessions, cache entries).
  */
 export const MIKRO_ORM_CLIENT = Symbol('MIKRO_ORM_CLIENT');
 
+/**
+ * The application's MikroORM store: `em` and `transactional()` act on the
+ * tenant of `TenantSchemaContext`, through `TenantStore`.
+ *
+ * libSQL keeps a database per tenant, with one ORM per configured tenant;
+ * PostgreSQL keeps a schema per tenant in one database, with one ORM. A tenant
+ * outside `persistenceConfig().tenants` is rejected on either engine. It also
+ * registers the persistence dialect, read from the entity metadata.
+ *
+ * @example
+ * ```ts
+ * constructor(@Inject(MIKRO_ORM_CLIENT) private readonly store: MikroOrmStore) {}
+ *
+ * await this.store.em.findOne(User, { id });
+ * ```
+ */
 @Injectable()
-export class MikroOrmStore implements OnModuleInit, OnModuleDestroy {
+export class MikroOrmStore
+  implements IEntityManagerSource, OnModuleInit, OnModuleDestroy
+{
   private readonly logger = new Logger(MikroOrmStore.name);
   private readonly orms = new Map<string, MikroORM>();
+  private tenants!: TenantStore<SqlEntityManager>;
 
   constructor(
     @Inject(TenantSchemaContext)
@@ -36,65 +61,64 @@ export class MikroOrmStore implements OnModuleInit, OnModuleDestroy {
 
   async onModuleInit(): Promise<void> {
     const config = persistenceConfig();
+    const isolation = config.engine === 'postgres' ? 'schema' : 'database';
+    const shared =
+      isolation === 'schema'
+        ? await MikroORM.init(createPostgresOrmOptions())
+        : undefined;
     for (const tenant of config.tenants) {
-      const dbName = libsqlDbUrl(tenant, config);
-      const orm = await MikroORM.init(createLibsqlOrmOptions(dbName));
+      const orm =
+        shared ??
+        (await MikroORM.init(
+          createLibsqlOrmOptions(libsqlDbUrl(tenant, config)),
+        ));
       this.orms.set(tenant, orm);
-      this.logger.log(
-        `MikroORM initialized for tenant "${tenant}" (${dbName})`,
-      );
     }
+    this.logger.log(
+      `MikroORM initialized: ${config.engine}, a ${isolation} per tenant (${config.tenants.join(', ')})`,
+    );
+    // Every tenant maps the same entities, so one ORM's metadata serves all.
+    const [first] = this.orms.values();
+    if (first) setPersistenceDialect(new MikroOrmDialect(first));
+    this.tenants = new TenantStore({
+      tenant: () => this.tenantSchemaContext.schema,
+      orm: (tenant) => {
+        const orm = this.orms.get(tenant);
+        if (!orm) throw new UnknownTenantSchemaError(tenant);
+        return orm;
+      },
+      isolation,
+    });
   }
 
   async onModuleDestroy(): Promise<void> {
-    await Promise.all(Array.from(this.orms.values()).map((orm) => orm.close()));
+    await Promise.all(
+      [...new Set(this.orms.values())].map((orm) => orm.close()),
+    );
     this.orms.clear();
   }
 
-  private resolveOrm(): MikroORM {
-    const schema = this.tenantSchemaContext.schema;
-    const orm = this.orms.get(schema);
-    if (!orm) {
-      throw new UnknownTenantSchemaError(schema);
-    }
-
-    return orm;
-  }
-
-  private readonly entityManagers = new TenantEntityManagerResolver();
-
-  private forkFor(orm: MikroORM): EntityManager {
-    return orm.em.fork({ disableContextResolution: true });
-  }
-
   /**
-   * Returns a request-bound or transactional EntityManager if available in the current context,
-   * or a newly forked EntityManager instance.
+   * The active tenant's `EntityManager`: the contextual one when it belongs to
+   * the tenant, otherwise a new fork. Read it per operation, never keep it.
    *
-   * The tenant that owns each EntityManager is recorded in a WeakMap, outside the
-   * manager.
+   * @throws {MissingTenantContextError} Outside a tenant scope.
+   * @throws {UnknownTenantSchemaError} For a tenant that is not configured.
    */
-  get em(): EntityManager {
-    const orm = this.resolveOrm();
-    return this.entityManagers.resolve(
-      orm,
-      this.tenantSchemaContext.schema,
-      () => this.forkFor(orm),
-    );
+  get em(): SqlEntityManager {
+    return this.tenants.em;
   }
 
   /**
-   * Executes an operation within an atomic database transaction using a dedicated fork.
-   * Automatically commits on success and rolls back on failure.
+   * Runs `work` in a transaction on a fork of its own, for the active tenant;
+   * commits when it resolves and rolls back when it rejects.
+   *
+   * @example
+   * ```ts
+   * await store.transactional((em) => em.nativeDelete(Auth, { userId }));
+   * ```
    */
-  async transactional<T>(cb: (em: EntityManager) => Promise<T>): Promise<T> {
-    return this.dedicatedFork().transactional(cb);
-  }
-
-  private dedicatedFork(): EntityManager {
-    const orm = this.resolveOrm();
-    return this.entityManagers.fork(this.tenantSchemaContext.schema, () =>
-      this.forkFor(orm),
-    );
+  transactional<T>(work: (em: SqlEntityManager) => Promise<T>): Promise<T> {
+    return this.tenants.transactional(work);
   }
 }

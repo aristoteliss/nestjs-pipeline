@@ -1,7 +1,7 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import { IAuthSessions } from '@auths/application/ports/auth-sessions.port';
 import type { ITenantContext } from '@common/context/tenant-context.port';
+import type { IQueryRepository } from '@cqrs-ddd/core/application';
 import { ConcurrencyConflictError } from '@cqrs-ddd/core/domain';
 import type { EventBus } from '@nestjs/cqrs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -15,6 +15,8 @@ import { AuthRevokedEvent } from '../../../domain/events/auth-revoked.event';
 import { Auth, type AuthSnapshot } from '../../../domain/models/auth.entity';
 import { NodeRefreshTokens } from '../../../infrastructure/node-refresh-tokens';
 import { PrincipalLoginService } from '../../../services/principal-login.service';
+import { GetAuthByConsumedTokenHashQuery } from '../queries/get-auth-by-consumed-token-hash.query';
+import { GetAuthByTokenHashQuery } from '../queries/get-auth-by-token-hash.query';
 import { RevokeAuthCommand } from './revoke-auth.command';
 import { RevokeAuthHandler } from './revoke-auth.handler';
 
@@ -26,7 +28,7 @@ const tokens = new NodeRefreshTokens();
  * Primary storage for sessions: lookups return fresh aggregates, and saves are
  * version-conditioned like `optimisticUpdate`.
  */
-class SessionStore implements IAuthSessions {
+class SessionStore {
   readonly rows = new Map<string, AuthSnapshot>();
   readonly consumed = new Map<string, string>();
 
@@ -34,28 +36,38 @@ class SessionStore implements IAuthSessions {
     return snapshot ? Auth.fromJSON(snapshot) : null;
   }
 
-  async findByTokenHash(hash: string): Promise<Auth | null> {
-    return this.load(
-      [...this.rows.values()].find(
-        (row) =>
-          row.refreshTokenHash === hash ||
-          row.previousRefreshTokenHash === hash,
-      ),
-    );
-  }
+  readonly byTokenHash: IQueryRepository<GetAuthByTokenHashQuery, Auth | null> =
+    {
+      find: async (query: GetAuthByTokenHashQuery) => {
+        return this.load(
+          [...this.rows.values()].find(
+            (row) =>
+              row.refreshTokenHash === query.tokenHash ||
+              row.previousRefreshTokenHash === query.tokenHash,
+          ),
+        );
+      },
+    };
 
-  async findByConsumedTokenHash(hash: string): Promise<Auth | null> {
-    const authId = this.consumed.get(hash);
-    return authId ? this.load(this.rows.get(authId)) : null;
-  }
+  readonly byConsumedTokenHash: IQueryRepository<
+    GetAuthByConsumedTokenHashQuery,
+    Auth | null
+  > = {
+    find: async (query: GetAuthByConsumedTokenHashQuery) => {
+      const authId = this.consumed.get(query.tokenHash);
+      return authId ? this.load(this.rows.get(authId)) : null;
+    },
+  };
 
-  async recordConsumed(hash: string, authId: string): Promise<void> {
+  recordConsumed(hash: string, authId: string): void {
     if (!this.consumed.has(hash)) this.consumed.set(hash, authId);
   }
 
   readonly repository = {
     findById: async (id: string) => this.load(this.rows.get(id)),
     save: vi.fn(async (auth: Auth) => {
+      const consumed = auth.getConsumedToken();
+      if (consumed) this.recordConsumed(consumed.tokenHash, auth.id);
       const stored = this.rows.get(auth.id);
       if (stored && stored.version !== auth.getExpectedVersion()) {
         throw new ConcurrencyConflictError(
@@ -105,17 +117,18 @@ function setup() {
       embedPermissions: false,
     },
     { find: vi.fn() } as never,
-    store,
+    store.byTokenHash,
+    store.byConsumedTokenHash,
     store.repository as never,
     tokens,
     { schema: 'tenant' } as ITenantContext,
     cookies,
     { publishAll } as unknown as EventBus,
   );
-  const signToken = vi.spyOn(service, 'signToken');
+  const sign = vi.spyOn(service, 'sign');
   const refresh = (refreshToken: string) =>
     service.refresh(refreshToken, '203.0.113.7');
-  return { store, service, refresh, publishAll, signToken, cookies };
+  return { store, service, refresh, publishAll, sign, cookies };
 }
 
 function logoutHandler(store: SessionStore, publishAll = vi.fn()) {
@@ -132,7 +145,8 @@ function logoutHandler(store: SessionStore, publishAll = vi.fn()) {
       embedPermissions: false,
     },
     { find: vi.fn() } as never,
-    store,
+    store.byTokenHash,
+    store.byConsumedTokenHash,
     store.repository as never,
     tokens,
     { schema: 'tenant' } as ITenantContext,
@@ -141,7 +155,7 @@ function logoutHandler(store: SessionStore, publishAll = vi.fn()) {
   );
   const handler = new RevokeAuthHandler(
     { publishAll } as unknown as EventBus,
-    store,
+    store.byTokenHash,
     tokens,
     cookies,
     service,
@@ -160,10 +174,10 @@ describe('PrincipalLoginService refresh', () => {
   });
 
   it('persists revocation of the immediately previous token outside grace before token issuance', async () => {
-    const { store, refresh, signToken } = setup();
+    const { store, refresh, sign } = setup();
     const auth = store.start('token-a');
     const current = (await refresh('token-a')).refreshToken as string;
-    signToken.mockRejectedValue(new Error('issuer unavailable'));
+    sign.mockRejectedValue(new Error('issuer unavailable'));
     vi.setSystemTime(T0 + 31_000);
     await expect(refresh('token-a')).rejects.toBeInstanceOf(
       RefreshTokenReuseError,
@@ -185,7 +199,6 @@ describe('PrincipalLoginService refresh', () => {
       ]) {
         const winner = Auth.fromJSON(store.current(auth.id));
         winner.refresh(tokens.hash(from), tokens.hash(to), Date.now(), 30_000);
-        await store.recordConsumed(tokens.hash(from), auth.id);
         await save(winner);
       }
       return save(stale);
@@ -210,9 +223,9 @@ describe('PrincipalLoginService refresh', () => {
   });
 
   it('does not rotate a session that expires during access-token preparation', async () => {
-    const { store, refresh, signToken } = setup();
+    const { store, refresh, sign } = setup();
     const auth = store.start('token-a', T0 + 1000);
-    signToken.mockImplementationOnce(async () => {
+    sign.mockImplementationOnce(async () => {
       vi.setSystemTime(T0 + 2000);
       return {
         accessToken: 'prepared',
@@ -294,6 +307,7 @@ describe('PrincipalLoginService refresh', () => {
   it('keeps a session current when its history row was written but its save failed', async () => {
     const { store, refresh } = setup();
     const auth = store.start('token-a');
+    store.recordConsumed(tokens.hash('token-a'), auth.id);
     store.repository.save.mockRejectedValueOnce(new Error('connection lost'));
 
     await expect(refresh('token-a')).rejects.toThrow('connection lost');
@@ -399,12 +413,10 @@ describe('PrincipalLoginService refresh', () => {
   });
 
   it('leaves the auth unrotated when token signing fails, allowing clean retry', async () => {
-    const { store, refresh, signToken } = setup();
+    const { store, refresh, sign } = setup();
     const auth = store.start('token-a');
 
-    signToken.mockRejectedValueOnce(
-      new Error('transient token issuance failure'),
-    );
+    sign.mockRejectedValueOnce(new Error('transient token issuance failure'));
 
     await expect(refresh('token-a')).rejects.toThrow(
       'transient token issuance failure',

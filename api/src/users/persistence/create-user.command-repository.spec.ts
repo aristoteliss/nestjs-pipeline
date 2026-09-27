@@ -3,16 +3,29 @@ import { type ICache } from '@cqrs-ddd/core/application';
 import {
   cacheKey,
   DEFAULT_BARRIER_TTL_MS,
+  setPersistenceDialect,
   toCacheSnapshot,
 } from '@cqrs-ddd/core/persistence';
 import { runWithTenant } from '@nestjs-pipeline/tenant';
-import { describe, expect, it, vi } from 'vitest';
-import { USER_EMAIL_UNIQUE } from '../../persistence/schemas/user.schema';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { UniqueEmailException } from '../domain/models/errors/email.exception';
 import { User, type UserSnapshot } from '../domain/models/user.entity';
 import { CreateUserCommandRepository } from './create-user.command-repository';
 
+/** Reports the `email` constraint for `taken`, as the MikroORM dialect does for a real violation. */
+const taken = new Error('email already taken');
+function useFakeDialect() {
+  beforeAll(() =>
+    setPersistenceDialect({
+      uniqueViolation: (error) => (error === taken ? 'email' : undefined),
+    }),
+  );
+  afterAll(() => setPersistenceDialect(undefined));
+}
+
 describe('CreateUserCommandRepository', () => {
+  useFakeDialect();
+
   it('persists, acknowledges, caches by id, and invalidates the secondary email lookup', async () => {
     const cache: ICache<UserSnapshot> = {
       get: vi.fn(),
@@ -56,7 +69,7 @@ describe('CreateUserCommandRepository', () => {
     expect((user as any)._persistedVersion).toBe(1);
   });
 
-  it('translates PostgreSQL unique constraint violation into UniqueEmailException', async () => {
+  it('translates a violation of the email constraint into UniqueEmailException', async () => {
     const cache: ICache<UserSnapshot> = {
       get: vi.fn(),
       set: vi.fn(),
@@ -68,36 +81,7 @@ describe('CreateUserCommandRepository', () => {
         return {
           create: vi.fn().mockReturnValue(user),
           persist: vi.fn(),
-          flush: vi.fn().mockRejectedValue({
-            code: '23505',
-            constraint: USER_EMAIL_UNIQUE,
-          }),
-        };
-      },
-    };
-    const repository = new CreateUserCommandRepository(cache, store as never);
-    await expect(repository.save(user)).rejects.toThrow(UniqueEmailException);
-  });
-
-  it('translates SQLite unique constraint violation into UniqueEmailException', async () => {
-    const cache: ICache<UserSnapshot> = {
-      get: vi.fn(),
-      set: vi.fn(),
-      delete: vi.fn(),
-    };
-    const user = User.create('Alice', 'alice@example.test', 'engineering');
-    const store = {
-      get em() {
-        return {
-          create: vi.fn().mockReturnValue(user),
-          persist: vi.fn(),
-          flush: vi
-            .fn()
-            .mockRejectedValue(
-              new Error(
-                'SQLITE_CONSTRAINT: UNIQUE constraint failed: users.email',
-              ),
-            ),
+          flush: vi.fn().mockRejectedValue(taken),
         };
       },
     };
@@ -129,6 +113,8 @@ describe('CreateUserCommandRepository', () => {
 });
 
 describe('CreateUserCommandRepository transaction boundary', () => {
+  useFakeDialect();
+
   it('rejects an externally active transaction before persisting or flushing', async () => {
     const cache: ICache<UserSnapshot> = {
       get: vi.fn(),

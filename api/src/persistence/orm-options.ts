@@ -11,12 +11,17 @@ import {
 } from './persistence.config';
 import { PERSISTENCE_ENTITIES } from './persistence-entities';
 
-function sharedOptions(config: PersistenceConfig) {
+function sharedOptions(config: PersistenceConfig, tenant: string) {
   return {
     entities: [...PERSISTENCE_ENTITIES],
     extensions: [Migrator],
     migrations: {
-      migrationsList: [Migration20260830000000],
+      migrationsList: [
+        {
+          name: Migration20260830000000.name,
+          class: Migration20260830000000.seeding(tenant),
+        },
+      ],
       path: 'dist/persistence/migrations',
       pathTs: 'src/persistence/migrations',
       glob: '!(*.d).{js,ts}',
@@ -71,19 +76,21 @@ export function libsqlDbUrl(tenant: string, config: PersistenceConfig): string {
  * MikroORM options for one libSQL database.
  *
  * @param dbName - Database URL, usually from {@link libsqlDbUrl}.
+ * @param tenant - The tenant the migrations' demo seed is named after.
+ *   Default: the default schema.
  *
  * @example
  * ```ts
  * const config = persistenceConfig();
  * const orm = await MikroORM.init(
- *   createLibsqlOrmOptions(libsqlDbUrl('tenant_a', config)),
+ *   createLibsqlOrmOptions(libsqlDbUrl('tenant_a', config), 'tenant_a'),
  * );
  * ```
  */
-export function createLibsqlOrmOptions(dbName: string) {
+export function createLibsqlOrmOptions(dbName: string, tenant?: string) {
   const config = persistenceConfig();
   return {
-    ...sharedOptions(config),
+    ...sharedOptions(config, tenant ?? config.defaultSchema),
     driver: LibSqlDriver,
     dbName,
     password: config.libsql.authToken,
@@ -93,7 +100,8 @@ export function createLibsqlOrmOptions(dbName: string) {
 /**
  * MikroORM options for the PostgreSQL database, bound to one tenant schema.
  *
- * @param schema - Tenant schema. Default: the default schema.
+ * @param schema - Tenant schema, which the migrations' demo seed is also named
+ *   after. Default: the default schema.
  * @throws {InvalidTenantSchemaError} When `schema` is not a valid name.
  *
  * @example
@@ -105,7 +113,7 @@ export function createPostgresOrmOptions(schema?: string) {
   const config = persistenceConfig();
   const tenant =
     schema === undefined ? config.defaultSchema : tenantSchema(schema);
-  const shared = sharedOptions(config);
+  const shared = sharedOptions(config, tenant);
   return {
     ...shared,
     driver: PostgreSqlDriver,

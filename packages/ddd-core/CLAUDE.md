@@ -31,8 +31,9 @@ prefix or suffix their context already gives. An exported name is a published co
 
 Generic DDD and persistence building blocks belong here, not in an application. An
 application configures and extends them. This package owns:
-- persistence error translation (`mapPersistenceError`, `isTransientPersistenceError`, in
-  `persistence/is-transient-persistence-error.ts`);
+- the persistence dialect contract (`IPersistenceDialect`, `setPersistenceDialect`, in
+  `persistence/persistence-dialect.ts`); implementations, and every database error code,
+  live in adapter packages such as `@cqrs-ddd/mikro-orm`;
 - the tenant context error;
 - the value rules (`textRule`, `numberRule`, `ValueViolation`, in `domain/rules/`, and
   `InvalidValueException`);
@@ -68,14 +69,14 @@ file is the one tenant resolution path; the cache-key helpers use it too.
 | File | Role |
 | --- | --- |
 | `application/command-base.handler.ts` | Command lifecycle; publishes and clears buffered aggregate events |
-| `persistence/decorators/Cache.ts` | Write-through cache sync, CAS version compare, mutation barriers on delete/invalidate |
-| `persistence/decorators/FromCache.ts` | Read-through cache, every hit rehydrated when a hydrator applies, pre/post barrier checks, bounded retries |
+| `persistence/decorators/cache.decorator.ts` | Write-through cache sync, CAS version compare, mutation barriers on delete/invalidate |
+| `persistence/decorators/from-cache.decorator.ts` | Read-through cache, every hit rehydrated when a hydrator applies, pre/post barrier checks, bounded retries |
 | `persistence/decorators/persisted-write.decorator.ts` | `@PersistedWrite`: the canonical three-decorator lifecycle for `save(aggregate)` |
 | `persistence/decorators/acknowledge-persisted.decorator.ts` | Advances the persisted version baseline only after a durable write |
-| `persistence/decorators/map-persistence-errors.decorator.ts` | Driver constraint errors → domain exceptions |
-| `persistence/is-transient-persistence-error.ts` | Driver and network failures → `TransientOperationError`; `mapPersistenceError` is the canonical `otherwise` translator |
+| `persistence/decorators/map-persistence-errors.decorator.ts` | Unique violations → domain exceptions, keyed by entity property through the persistence dialect |
+| `persistence/persistence-dialect.ts` | `IPersistenceDialect` and the registered default (`setPersistenceDialect`) |
 | `persistence/cache/memory.cache.ts` | JSON-clone detachment parity with external caches |
-| `persistence/write-side-aggregate-repository.interface.ts` | Authoritative aggregate loading for commands |
+| `application/ports/` | The ports handlers depend on: repositories, `IWriteSideAggregateRepository` (authoritative loading for commands), `ICache`/`IVersionedCache`, `IDomainEventPublisher`; exported only from `/application` |
 
 ## Local commands
 

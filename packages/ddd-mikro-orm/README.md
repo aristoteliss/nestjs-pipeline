@@ -4,8 +4,9 @@
 [![License](https://img.shields.io/npm/l/@cqrs-ddd/mikro-orm.svg)](https://www.npmjs.com/package/@cqrs-ddd/mikro-orm)
 
 MikroORM 7 adapters for [`@cqrs-ddd/core`](https://www.npmjs.com/package/@cqrs-ddd/core):
-authoritative aggregate loading, version-conditioned writes, a revision-fenced cache
-stored in the database, and the `EntitySchema` mapping of `RootEntity`.
+authoritative aggregate loading, version-conditioned writes, the persistence dialect
+that maps unique violations and transient failures, a revision-fenced cache stored in
+the database, and the `EntitySchema` mapping of `RootEntity`.
 
 `@cqrs-ddd/core` depends on no ORM; this package is where MikroORM enters. It depends
 on no framework: it works in a plain Node service and in a NestJS application.
@@ -14,8 +15,10 @@ on no framework: it works in a plain Node service and in a NestJS application.
 
 - [Installation](#installation)
 - [Entity manager source](#entity-manager-source)
+- [Multi-tenant store](#multi-tenant-store)
 - [Loading aggregates](#loading-aggregates)
 - [Version-conditioned writes](#version-conditioned-writes)
+- [Persistence errors](#persistence-errors)
 - [Mapping a root entity](#mapping-a-root-entity)
 - [The database cache](#the-database-cache)
 - [SQL identifiers](#sql-identifiers)
@@ -36,12 +39,40 @@ The adapters take an `IEntityManagerSource`, an object with an `em` property, an
 `em` on every operation. A multi-tenant store can therefore hand out the current
 tenant's manager; a single-database setup can pass `{ em: orm.em.fork() }`.
 
+## Multi-tenant store
+
+`TenantStore` is that source for a multi-tenant application. `em` and `transactional()`
+act on the active tenant, which `tenant()` supplies; `orm(tenant)` returns the initialized
+ORM holding its data. Both throw when there is no tenant or it is unknown: the store never
+falls back to one.
+
+```ts
+import { TenantStore } from '@cqrs-ddd/mikro-orm';
+
+const store = new TenantStore({
+  tenant: () => currentTenantId() ?? fail('no tenant'),
+  orm: (tenant) => orms.get(tenant) ?? fail(`unknown tenant ${tenant}`),
+  isolation: 'database', // one ORM and database per tenant; 'schema': one ORM, a schema per tenant
+});
+const repository = new UpdateUserRepository(cache, store);
+await store.transactional((em) => em.nativeDelete(CacheEntry, { key }));
+```
+
+- `em` reuses the contextual manager (a MikroORM `RequestContext` or an active
+  transaction) only when it belongs to the tenant's ORM, configuration, driver and schema,
+  and no other tenant used it first. Otherwise it forks one, with the tenant's schema under
+  `'schema'` isolation.
+- `transactional()` always runs on a fork of its own; a missing or unknown tenant rejects
+  it.
+- The tenant of each manager it hands out is kept in a `WeakMap`: MikroORM objects are
+  never modified.
+
 ## Loading aggregates
 
 A command that mutates an aggregate loads it through core's
 `IWriteSideAggregateRepository<TEntity>.findById(id)`. `AggregateRepository` implements
 it: `findById()` reads with `{ refresh: true }`, never touches the cache, rehydrates
-through the `hydrateFn` you pass, and translates driver failures with core's
+through the `hydrateFn` you pass, and translates driver failures with
 `mapPersistenceError`.
 
 ```typescript
@@ -70,6 +101,40 @@ check the affected rows, and raise core's `EntityNotFoundException` or
 or cache work, call `assertAutocommit(em, operation)` first: a write inside an outer
 transaction is rejected before any statement runs, because its success would not mean
 durable persistence.
+
+## Persistence errors
+
+`MikroOrmDialect` implements core's `IPersistenceDialect`. Register it once the ORM is
+initialized, and `@MapPersistenceErrors` / `@PersistedWrite` map unique violations by
+entity property:
+
+```typescript
+import { setPersistenceDialect } from '@cqrs-ddd/core/persistence';
+import { MikroOrmDialect } from '@cqrs-ddd/mikro-orm';
+
+const orm = await MikroORM.init(options);
+setPersistenceDialect(new MikroOrmDialect(orm));
+
+@PersistedWrite<User>({ unique: { email: (user) => new UniqueEmailException(user) } })
+async save(user: User): Promise<UserSnapshot> { ... }
+```
+
+It reads each entity's unique constraints from the ORM metadata: `unique: true` or
+`unique: 'name'` on a property, and `uniques: [{ name?, properties }]` on the schema. A
+single-property constraint is keyed by that property; a multi-property one by its
+`name`, which it must declare. For a `UniqueConstraintViolationException`, PostgreSQL's
+reported constraint name is matched against the declared name, or the naming strategy's
+`indexName` when none is declared, and SQLite's reported `table.column` list against the
+constraint's columns. Anything else yields no match and the original error is rethrown.
+Construction fails when two constraints of one entity cover the same columns, because
+SQLite could not tell them apart. Declare constraint names in the mapping, never in a
+repository.
+
+`mapPersistenceError(error, operation)` is the `otherwise` translator for transient
+failures: `isTransientPersistenceError` recognizes retryable PostgreSQL SQLSTATEs
+(`40001`, `40P01`, `55P03`, `57P01`–`57P03`, classes `08` and `53`), Node network errors,
+`SQLITE_BUSY`/`SQLITE_LOCKED` and timeouts, through the `cause` chain, and wraps them in
+core's `TransientOperationError`. Any other error is returned unchanged.
 
 ## Mapping a root entity
 

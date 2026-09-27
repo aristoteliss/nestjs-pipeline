@@ -28,7 +28,7 @@ pnpm db:migrate
 pnpm dev
 ```
 
-`db:migrate` applies pending migrations for every configured tenant: the initial migration creates the schema, inserts the demo seed, and materializes its permission rules.
+`db:migrate` applies pending migrations for every configured tenant: the initial migration creates the schema, inserts the demo seed, and materializes its permission rules. The seed names its users after the tenant, which the ORM options hand to the migration: in `tenant_a`, Alice's email is `alice+tenant-a@seed.local`. Every maintenance script runs through one entry point, `src/persistence/cli.ts`.
 
 | Command | Purpose |
 | --- | --- |
@@ -240,7 +240,7 @@ Downstream Pipeline (Controllers → CQRS Bus → CASL → Audit → DB)
 3. **`SessionService`**: Owner of both auth cookies and the `SESSION_COOKIES` adapter. `save` sets a new refresh token as the `refresh_token` cookie (`HttpOnly; Secure; SameSite=Strict; Path=/auths`) and, on Fastify, stores the access token and `{ id, type, tenant, sid, exp }` in the `@fastify/secure-session` cookie; `clear` deletes both; both act on the current request's session and response from `httpExchangeStore` (set by `SessionPrincipalContextInterceptor`) and do nothing outside an HTTP request. `discard` drops a stale secure session during principal resolution, and `isExpired` checks a session principal's expiry. `CreateAuthHandler` and `PrincipalLoginService.refresh` call `save`, the logout handler calls `clear`, and `AuthsController` maps the result with `toSessionRes`; logout answers 204 for a missing or unknown refresh token. The `@RefreshToken()` parameter decorator reads the refresh cookie and validates it with `RefreshTokenDtoSchema`; a missing cookie on `POST /auths/refresh` answers 401 `refresh_invalid`.
 4. **`PrincipalLoginService`**: Application service for login credential verification (`POST /auths/login`), token refresh (`POST /auths/refresh`), and signing access tokens for a session.
 5. **`toSessionRes` Mapper**: Maps `AuthResult` through `SessionResponseSchema`, which keeps only the response fields, so the refresh token never reaches the body.
-6. **Session persistence**: `CreateAuthCommandRepository` inserts a session, `UpdateAuthCommandRepository` saves rotation and revocation version-conditioned, and `AuthSessionsRepository` (`AUTH_SESSIONS` port) finds sessions by refresh-token hash and records rotated-away hashes. Sessions are never cached. `PrincipalLoginService.revoke` coordinates durable revocation for refresh reuse and logout, reloads on version conflicts, and returns the saved aggregate or `null` if concurrently deleted. Exhausted conflicts propagate; handlers retain their own missing-session and event-publication semantics.
+6. **Session persistence**: `CreateAuthCommandRepository` inserts a session, `UpdateAuthCommandRepository` saves rotation and revocation version-conditioned, first recording the hash a rotation consumed (`Auth.getConsumedToken()`, a `ConsumedRefreshToken`) so reuse stays detectable even when the version update loses, and `GetAuthByTokenHashQueryRepository` and `GetAuthByConsumedTokenHashQueryRepository` find sessions by current or previous refresh-token hash and by consumed history. Sessions are never cached. `PrincipalLoginService.revoke` coordinates durable revocation for refresh reuse and logout, reloads on version conflicts, and returns the saved aggregate or `null` if concurrently deleted. Exhausted conflicts propagate; handlers retain their own missing-session and event-publication semantics.
 7. **`CaslPermissionSource`**: Request-scoped `ICaslPermissionSource` bound through `AuthorizationModule` and `CaslModule.forRoot({ imports: [AuthorizationModule], permissionSource: { useExisting: CaslPermissionSource } })`. For a `user` principal whose verified access token carried rules it uses them; otherwise it reads the user row (a deleted user is unauthenticated) and the materialized `user_permission_rules` in one parallel round-trip (see [Permission source](#permission-source)); the principal carries `department` for `${user.department}` placeholders. A `service` principal uses its `grants` without touching the users tables. Unclassified principals are unauthenticated.
 
 ### Authorization
@@ -456,7 +456,7 @@ curl -X POST http://localhost:3000/auths/logout -b cookies.txt \
 
 Under the hood:
 1. `AuthsController.logout` reads the `refresh_token` cookie and dispatches `new RevokeAuthCommand({ refreshToken })`; it clears the refresh cookie and the Fastify session on success or a missing/unknown token. Persistence failures propagate without reporting a successful logout.
-2. `RevokeAuthHandler` finds the session by the token's hash (`AUTH_SESSIONS`), calls `auth.revoke(now)` and saves it version-conditioned. Revocation retries version conflicts up to three attempts; exhaustion propagates the conflict.
+2. `RevokeAuthHandler` finds the session by the token's hash (`QUERY_REPOSITORY.getAuthByTokenHash`), calls `auth.revoke(now)` and saves it version-conditioned. Revocation retries version conflicts up to three attempts; exhaustion propagates the conflict.
 3. Later refreshes with any token of that session answer 401 `refresh_invalid`; other sessions of the user stay active. An access token already issued remains valid until it expires.
 
 #### 8. Pipeline Caching with CacheBehavior

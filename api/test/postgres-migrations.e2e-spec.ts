@@ -1,6 +1,6 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
+import { MikroOrmDialect } from '@cqrs-ddd/mikro-orm';
 import { MikroORM } from '@mikro-orm/postgresql';
-import { Migration20260830000000 } from '@persistence/migrations/Migration20260830000000';
 import { createPostgresOrmOptions } from '@persistence/orm-options';
 import {
   GenericContainer,
@@ -8,7 +8,10 @@ import {
   Wait,
 } from 'testcontainers';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
+import { Auth } from '../src/auths/domain/models/auth.entity';
 import { UserPermissionsProjector } from '../src/auths/persistence/user-permissions.projector';
+import { Role } from '../src/roles/domain/models/role.entity';
+import { User } from '../src/users/domain/models/user.entity';
 
 describe('PostgreSQL migration tenant isolation', () => {
   let postgres: StartedTestContainer | undefined;
@@ -42,18 +45,13 @@ describe('PostgreSQL migration tenant isolation', () => {
     }
   });
 
-  async function openTenant(
-    schema: string,
-    migrationsList: unknown[] = [Migration20260830000000],
-  ): Promise<MikroORM> {
+  async function openTenant(schema: string): Promise<MikroORM> {
     const options = createPostgresOrmOptions(schema);
     const orm = await MikroORM.init({
       ...options,
       debug: false,
       migrations: {
         ...options.migrations,
-        // Load the real migration directly so this test also works before build.
-        migrationsList: migrationsList as never,
         snapshot: false,
       },
     });
@@ -79,12 +77,10 @@ describe('PostgreSQL migration tenant isolation', () => {
       "insert into public.roles values ('keep-public-role')",
     );
 
-    vi.stubEnv('SEED_TENANT', 'tenant_a');
-    expect(await tenantA.migrator.up({ schema: 'tenant_a' })).toHaveLength(1);
-    vi.stubEnv('SEED_TENANT', 'tenant_b');
-    expect(await tenantB.migrator.up({ schema: 'tenant_b' })).toHaveLength(1);
-    expect(await tenantA.migrator.up({ schema: 'tenant_a' })).toHaveLength(0);
-    expect(await tenantB.migrator.up({ schema: 'tenant_b' })).toHaveLength(0);
+    expect(await tenantA.migrator.up()).toHaveLength(1);
+    expect(await tenantB.migrator.up()).toHaveLength(1);
+    expect(await tenantA.migrator.up()).toHaveLength(0);
+    expect(await tenantB.migrator.up()).toHaveLength(0);
 
     const usersA = await connection.execute(
       'select * from tenant_a.users order by id',
@@ -107,7 +103,7 @@ describe('PostgreSQL migration tenant isolation', () => {
       ),
     ).toEqual([{ tablename: 'roles' }, { tablename: 'users' }]);
 
-    expect(await tenantA.migrator.down({ schema: 'tenant_a' })).toHaveLength(1);
+    expect(await tenantA.migrator.down()).toHaveLength(1);
     expect(
       await tenantA.migrator.getExecuted({ schema: 'tenant_a' }),
     ).toHaveLength(0);
@@ -129,8 +125,7 @@ describe('PostgreSQL migration tenant isolation', () => {
       { marker: 'keep-public-role' },
     ]);
 
-    vi.stubEnv('SEED_TENANT', 'tenant_a');
-    expect(await tenantA.migrator.up({ schema: 'tenant_a' })).toHaveLength(1);
+    expect(await tenantA.migrator.up()).toHaveLength(1);
     expect(
       await connection.execute('select * from tenant_a.users'),
     ).toHaveLength(8);
@@ -140,12 +135,11 @@ describe('PostgreSQL migration tenant isolation', () => {
   });
 
   it('backfills materialized permission rules, verifies them and cascades role deletion', async () => {
-    const orm = await openTenant('tenant_rules', [Migration20260830000000]);
+    const orm = await openTenant('tenant_rules');
     const connection = orm.em.getConnection();
     await connection.execute('create schema tenant_rules');
-    vi.stubEnv('SEED_TENANT', 'tenant_rules');
 
-    expect(await orm.migrator.up({ schema: 'tenant_rules' })).toHaveLength(1);
+    expect(await orm.migrator.up()).toHaveLength(1);
 
     const projector = new UserPermissionsProjector();
     const rows = await connection.execute(
@@ -183,12 +177,50 @@ describe('PostgreSQL migration tenant isolation', () => {
     ).toEqual([]);
     expect(await projector.findDrift(orm.em.fork() as never)).toEqual([]);
 
-    expect(await orm.migrator.down({ schema: 'tenant_rules' })).toHaveLength(1);
+    expect(await orm.migrator.down()).toHaveLength(1);
     expect(
       await connection.execute(
         "select tablename from pg_tables where schemaname = 'tenant_rules' and tablename = 'user_permission_rules'",
       ),
     ).toEqual([]);
+  });
+
+  it('reports each real unique violation under the property the dialect maps it to', async () => {
+    const orm = await openTenant('tenant_uniques');
+    await orm.em.getConnection().execute('create schema tenant_uniques');
+    expect(await orm.migrator.up()).toHaveLength(1);
+    const dialect = new MikroOrmDialect(orm);
+    const violation = (work: () => Promise<unknown>) =>
+      work().then(
+        () => undefined,
+        (error: unknown) => error,
+      );
+
+    const user = User.create('alice', 'alice@example.test');
+    await orm.em.fork().insert(user);
+    const sameEmail = User.create('bob', 'alice@example.test');
+    const sameName = Role.create('admin'); // Seeded by the migration.
+    await orm.em.fork().insert(Auth.create(user.id, 'hash-1', Date.now()));
+    const sameHash = Auth.create(user.id, 'hash-1', Date.now());
+
+    expect(
+      dialect.uniqueViolation(
+        await violation(() => orm.em.fork().insert(sameEmail)),
+        sameEmail,
+      ),
+    ).toBe('email');
+    expect(
+      dialect.uniqueViolation(
+        await violation(() => orm.em.fork().insert(sameName)),
+        sameName,
+      ),
+    ).toBe('name');
+    expect(
+      dialect.uniqueViolation(
+        await violation(() => orm.em.fork().insert(sameHash)),
+        sameHash,
+      ),
+    ).toBe('refreshTokenHash');
   });
 
   it('overlaps two reads issued concurrently on one forked EntityManager', async () => {

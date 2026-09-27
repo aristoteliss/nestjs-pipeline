@@ -1,6 +1,5 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import { loadOptionalEnvFile } from '@common/environment/load-optional-env-file';
 import { UserPermissionsProjector } from '../auths/persistence/user-permissions.projector';
 import { User } from '../users/domain/models/user.entity';
 import { forEachTenantOrm } from './tenant-orms';
@@ -22,17 +21,4 @@ export async function rebuildUserPermissions(): Promise<Map<string, number>> {
     }
     return ids.length;
   });
-}
-
-if (
-  process.argv[1] &&
-  (process.argv[1].endsWith('/rebuild-user-permissions.ts') ||
-    process.argv[1].endsWith('/rebuild-user-permissions.js'))
-) {
-  (async () => {
-    loadOptionalEnvFile();
-    for (const [tenant, count] of await rebuildUserPermissions()) {
-      console.log(`${tenant}: rebuilt permission rules for ${count} user(s).`);
-    }
-  })();
 }

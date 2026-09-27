@@ -16,13 +16,13 @@ afterEach(() => {
 });
 
 /**
- * Runs a persistence script the way `pnpm <script>` does. Every variable the
- * scripts read is pinned, so a local env file cannot redirect them.
+ * Runs a persistence command the way `pnpm <script>` does. Every variable the
+ * commands read is pinned, so a local env file cannot redirect them.
  */
-function runScript(script: string, dir: string, args: string[] = []) {
+function run(command: string, dir: string, args: string[] = []) {
   return spawnSync(
     'pnpm',
-    ['exec', 'tsx', `src/persistence/${script}`, ...args],
+    ['exec', 'tsx', 'src/persistence/cli.ts', command, ...args],
     {
       cwd: join(__dirname, '..'),
       encoding: 'utf8',
@@ -49,16 +49,16 @@ function tempDir(): string {
 describe('permission rule commands', () => {
   it('verify exits 0 after rebuild and non-zero after a hand edit', async () => {
     const dir = tempDir();
-    const migrate = runScript('migrate.ts', dir);
+    const migrate = run('migrate', dir);
     expect(migrate.status, migrate.stderr).toBe(0);
 
-    const rebuild = runScript('rebuild-user-permissions.ts', dir);
+    const rebuild = run('permissions:rebuild', dir);
     expect(rebuild.status, rebuild.stderr).toBe(0);
     expect(rebuild.stdout).toContain(
       'tenant: rebuilt permission rules for 8 user(s).',
     );
 
-    const clean = runScript('verify-user-permissions.ts', dir);
+    const clean = run('permissions:verify', dir);
     expect(clean.status, clean.stderr).toBe(0);
     expect(clean.stdout).toContain('tenant: no drift.');
 
@@ -68,7 +68,7 @@ describe('permission rule commands', () => {
     );
     client.close();
 
-    const drifted = runScript('verify-user-permissions.ts', dir);
+    const drifted = run('permissions:verify', dir);
     expect(drifted.status).toBe(1);
     expect(drifted.stdout).toContain('tenant: drifted user(s):');
   });
@@ -76,8 +76,8 @@ describe('permission rule commands', () => {
   it('migrates and reverts the schema on SQLite', async () => {
     const dir = tempDir();
 
-    expect(runScript('migrate.ts', dir).status).toBe(0);
-    const revert = runScript('revert.ts', dir);
+    expect(run('migrate', dir).status).toBe(0);
+    const revert = run('revert', dir);
     expect(revert.status, revert.stderr).toBe(0);
 
     const client = createClient({ url: `file:${join(dir, 'tenant.db')}` });

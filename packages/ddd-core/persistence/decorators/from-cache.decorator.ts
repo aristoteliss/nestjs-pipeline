@@ -1,10 +1,13 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
+import {
+  type CacheStateEntry,
+  isVersionedCache,
+} from '../../application/ports/cache.port';
 import { IQueryOptions } from '../../application/query.options';
-import { type CacheStateEntry, isVersionedCache } from '../cache.interface';
-import type { ICacheLogger } from '../cache-logger';
+import type { ICacheLogger } from '../cache/cache-logger';
+import { consoleCacheLogger, safeWarn } from '../cache/cache-logger';
 import { isCacheMutationBarrier } from '../helpers/cache-barrier.helper';
-import { consoleCacheLogger, safeWarn } from '../helpers/cache-logger.helper';
 import { reportMissingCacheProperty } from '../helpers/cache-owner.helper';
 import { toCacheSnapshot } from '../helpers/cache-snapshot.helper';
 import { isCacheNewer } from '../helpers/cache-version.helper';

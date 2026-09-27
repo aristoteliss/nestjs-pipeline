@@ -1,9 +1,9 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { describe, expect, it, vi } from 'vitest';
+import type { ICache } from '../../application/ports/cache.port';
 import { MemoryCache } from '../cache/memory.cache';
-import type { ICache } from '../cache.interface';
-import { Cache, DEFAULT_BARRIER_TTL_MS } from './Cache';
+import { Cache, DEFAULT_BARRIER_TTL_MS } from './cache.decorator';
 
 interface MockEntity {
   id: string;

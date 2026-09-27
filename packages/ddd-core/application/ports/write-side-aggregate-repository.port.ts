@@ -1,6 +1,6 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import type { ICommandRepository } from './command-repository.interface';
+import type { ICommandRepository } from './command-repository.port';
 
 /**
  * Write-side repository contract for commands that mutate an existing aggregate.

@@ -56,6 +56,9 @@ importers:
       '@mikro-orm/postgresql':
         specifier: ^7.1.13
         version: 7.1.13(@mikro-orm/core@7.1.13)
+      '@mikro-orm/sql':
+        specifier: ^7.1.13
+        version: 7.1.13(@mikro-orm/core@7.1.13)
       '@mikro-orm/sqlite':
         specifier: ^7.1.13
         version: 7.1.13(@mikro-orm/core@7.1.13)

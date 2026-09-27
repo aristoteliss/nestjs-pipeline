@@ -1,27 +1,17 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import { afterEach, describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { Migration20260830000000 } from './migrations/Migration20260830000000';
 
-const ORIGINAL_SEED_TENANT = process.env.SEED_TENANT;
-
-async function migrationSql(direction: 'up' | 'down'): Promise<string[]> {
-  const migration = new Migration20260830000000(
-    undefined as never,
-    undefined as never,
-  );
+async function migrationSql(
+  direction: 'up' | 'down',
+  migrationClass = Migration20260830000000,
+): Promise<string[]> {
+  const migration = new migrationClass(undefined as never, undefined as never);
 
   await migration[direction]();
   return migration.getQueries().map(String);
 }
-
-afterEach(() => {
-  if (ORIGINAL_SEED_TENANT === undefined) {
-    delete process.env.SEED_TENANT;
-  } else {
-    process.env.SEED_TENANT = ORIGINAL_SEED_TENANT;
-  }
-});
 
 describe('Migration20260830000000', () => {
   it('creates the complete schema directly without upgrade compatibility SQL', async () => {
@@ -54,8 +44,9 @@ describe('Migration20260830000000', () => {
   });
 
   it('seeds eight intentional demo users and both override directions', async () => {
-    process.env.SEED_TENANT = 'tenant_acme';
-    const sql = (await migrationSql('up')).join('\n');
+    const sql = (
+      await migrationSql('up', Migration20260830000000.seeding('tenant_acme'))
+    ).join('\n');
 
     expect(sql.match(/insert into users /g)).toHaveLength(8);
     expect(sql.match(/insert into roles /g)).toHaveLength(5);

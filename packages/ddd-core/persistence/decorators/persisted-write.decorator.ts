@@ -1,28 +1,38 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
+import type { IPersistenceDialect } from '../persistence-dialect';
 import {
   AcknowledgePersisted,
   type PersistedAggregate,
 } from './acknowledge-persisted.decorator';
-import { Cache, type CacheOptions } from './Cache';
+import { Cache, type CacheOptions } from './cache.decorator';
 import {
   MapPersistenceErrors,
-  type UniqueConstraintMapping,
+  type UniqueErrors,
 } from './map-persistence-errors.decorator';
 
 /**
  * Options for {@link PersistedWrite}. The aggregate is always the method's
  * first argument.
  */
-export interface PersistedWriteOptions<TEntity> {
+export interface PersistedWriteOptions<
+  TEntity,
+  TConstraint extends string = never,
+> {
   /**
    * Write-through, eviction and barrier/CAS settings, as accepted by
    * `@Cache({...})`. Omit for a repository without a cache.
    */
   cache?: CacheOptions<TEntity>;
 
-  /** Unique-constraint violations to translate into domain exceptions. */
-  unique?: readonly UniqueConstraintMapping<TEntity>[];
+  /**
+   * Domain errors per violated unique constraint, keyed by entity property, as
+   * accepted by `@MapPersistenceErrors({ unique })`.
+   */
+  unique?: UniqueErrors<TEntity, TConstraint>;
+
+  /** Dialect overriding the registered one, for a repository on another store. */
+  dialect?: IPersistenceDialect;
 
   /**
    * Translator for errors that match no unique mapping, as accepted by
@@ -58,27 +68,23 @@ export interface PersistedWriteOptions<TEntity> {
  *       cacheKey(User.aggregateName, { email: user.email }),
  *     ],
  *   },
- *   unique: [
- *     {
- *       constraint: 'users_email_unique',
- *       columns: 'users.email',
- *       error: (user) => new UniqueEmailException(user),
- *     },
- *   ],
+ *   unique: { email: (user) => new UniqueEmailException(user) },
  * })
  * async save(user: User): Promise<UserSnapshot> { ... }
  * ```
  */
-export function PersistedWrite<TEntity extends PersistedAggregate>(
-  options: PersistedWriteOptions<TEntity> = {},
-) {
+export function PersistedWrite<
+  TEntity extends PersistedAggregate,
+  TConstraint extends string = never,
+>(options: PersistedWriteOptions<TEntity, TConstraint> = {}) {
   const cache = options.cache ? Cache<TEntity>(options.cache) : undefined;
   const acknowledge = AcknowledgePersisted<[TEntity]>({
     entity: ([entity]) => entity,
   });
-  const mapErrors = MapPersistenceErrors<[TEntity], TEntity>({
+  const mapErrors = MapPersistenceErrors<[TEntity], TEntity, TConstraint>({
     entity: ([entity]) => entity,
-    unique: options.unique ?? [],
+    unique: options.unique,
+    dialect: options.dialect,
     otherwise: options.otherwise,
   });
 

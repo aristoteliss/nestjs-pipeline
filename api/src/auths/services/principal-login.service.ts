@@ -22,16 +22,14 @@ import {
 import { GetUserQuery } from '../../users/application/cqrs/queries/get-user.query';
 import { User } from '../../users/domain/models/user.entity';
 import { EXT_USER_QUERY_REPOSITORY } from '../../users/persistence/repository.tokens';
+import { GetAuthByConsumedTokenHashQuery } from '../application/cqrs/queries/get-auth-by-consumed-token-hash.query';
+import { GetAuthByTokenHashQuery } from '../application/cqrs/queries/get-auth-by-token-hash.query';
 import { GetUserPermissionRulesQuery } from '../application/cqrs/queries/get-user-permission-rules.query';
 import {
   ACCESS_TOKEN_ISSUER,
   type AccessTokenIssueResult,
   type IAccessTokenIssuer,
 } from '../application/ports/access-token-issuer.port';
-import {
-  AUTH_SESSIONS,
-  type IAuthSessions,
-} from '../application/ports/auth-sessions.port';
 import {
   AUTH_TOKEN_POLICY,
   type AuthTokenPolicy,
@@ -56,7 +54,10 @@ import {
 } from '../domain/errors/refresh-token.errors';
 import type { Auth } from '../domain/models/auth.entity';
 import { GetUserPermissionRulesRepository } from '../persistence/get-user-permission-rules.query-repository';
-import { COMMAND_REPOSITORY } from '../persistence/repository.tokens';
+import {
+  COMMAND_REPOSITORY,
+  QUERY_REPOSITORY,
+} from '../persistence/repository.tokens';
 
 function isRateLimiterRes(value: unknown): value is RateLimiterResLike {
   return (
@@ -82,8 +83,16 @@ export class PrincipalLoginService {
     @Inject(AUTH_TOKEN_POLICY)
     private readonly policy: AuthTokenPolicy,
     private readonly permissionRules: GetUserPermissionRulesRepository,
-    @Inject(AUTH_SESSIONS)
-    private readonly sessions: IAuthSessions,
+    @Inject(QUERY_REPOSITORY.getAuthByTokenHash)
+    private readonly authByTokenHash: IQueryRepository<
+      GetAuthByTokenHashQuery,
+      Auth | null
+    >,
+    @Inject(QUERY_REPOSITORY.getAuthByConsumedTokenHash)
+    private readonly authByConsumedTokenHash: IQueryRepository<
+      GetAuthByConsumedTokenHashQuery,
+      Auth | null
+    >,
     @Inject(COMMAND_REPOSITORY.updateAuth)
     private readonly authRepository: IWriteSideAggregateRepository<Auth>,
     @Inject(REFRESH_TOKENS)
@@ -141,13 +150,10 @@ export class PrincipalLoginService {
    * @example
    * ```ts
    * await this.commandRepository.save(auth);
-   * const access = await this.principalLoginService.signToken(user, auth.id);
+   * const access = await this.principalLoginService.sign(user, auth.id);
    * ```
    */
-  async signToken(
-    user: User,
-    sessionId: string,
-  ): Promise<AccessTokenIssueResult> {
+  async sign(user: User, sessionId: string): Promise<AccessTokenIssueResult> {
     return this.accessTokenIssuer.issue({
       user,
       sessionId,
@@ -211,9 +217,13 @@ export class PrincipalLoginService {
     const presented = this.refreshTokens.hash(refreshToken);
     const now = Date.now();
 
-    let auth = await this.sessions.findByTokenHash(presented);
+    let auth = await this.authByTokenHash.find(
+      new GetAuthByTokenHashQuery({ tokenHash: presented }),
+    );
     if (!auth) {
-      const reused = await this.sessions.findByConsumedTokenHash(presented);
+      const reused = await this.authByConsumedTokenHash.find(
+        new GetAuthByConsumedTokenHashQuery({ tokenHash: presented }),
+      );
       if (!reused) throw new InvalidRefreshTokenError();
       await this.revoke(reused, now);
       throw new RefreshTokenReuseError();
@@ -230,13 +240,12 @@ export class PrincipalLoginService {
           new GetUserQuery({ userId: auth.userId }, { refresh: true }),
         );
         if (!user) throw new InvalidRefreshTokenError();
-        const access = await this.signToken(user, auth.id);
+        const access = await this.sign(user, auth.id);
         const preparedAt = Date.now();
         if (preparedAt >= auth.expiresAt) throw new InvalidRefreshTokenError();
         if (outcome === 'grace') {
           auth.refresh(presented, nextHash, preparedAt, graceMs);
         } else {
-          await this.sessions.recordConsumed(presented, auth.id, preparedAt);
           await this.authRepository.save(auth);
         }
 

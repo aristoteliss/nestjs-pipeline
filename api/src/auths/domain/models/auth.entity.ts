@@ -14,6 +14,7 @@ import {
 import { AuthCreatedEvent } from '../events/auth-created.event';
 import { AuthRefreshedEvent } from '../events/auth-refreshed.event';
 import { AuthRevokedEvent } from '../events/auth-revoked.event';
+import { ConsumedRefreshToken } from './consumed-refresh-token.entity';
 
 export interface AuthSnapshot extends Partial<RootEntitySnapshot> {
   readonly userId: string;
@@ -68,6 +69,8 @@ export class Auth extends RootEntity<AuthSnapshot> {
   })
   private _revokedAt: number | null;
 
+  private _consumed: ConsumedRefreshToken | null = null;
+
   private constructor(snapshot?: AuthSnapshot) {
     super(snapshot);
     if (!snapshot) {
@@ -114,8 +117,9 @@ export class Auth extends RootEntity<AuthSnapshot> {
 
   /**
    * Evaluates a presented refresh-token hash against this session.
-   * Returns 'rotated' after moving to `nextHash`, or 'grace' when the immediately
-   * previous token is presented within `graceMs` (state unchanged).
+   * Returns 'rotated' after moving to `nextHash` and recording the presented
+   * token as {@link getConsumedToken}, or 'grace' when the immediately previous token is
+   * presented within `graceMs` (state unchanged).
    *
    * @throws InvalidRefreshTokenError for a revoked or expired session or an unknown hash.
    * @throws RefreshTokenReuseError after revoking the session when the previous
@@ -131,6 +135,7 @@ export class Auth extends RootEntity<AuthSnapshot> {
       throw new InvalidRefreshTokenError();
     }
     if (presentedHash === this._refreshTokenHash) {
+      this._consumed = new ConsumedRefreshToken(presentedHash, this.id, now);
       this.applyRotation(nextHash, now);
       return 'rotated';
     }
@@ -166,6 +171,20 @@ export class Auth extends RootEntity<AuthSnapshot> {
   @ApplyMutation<Auth>({ event: (auth) => new AuthRevokedEvent(auth) })
   protected applyRevocation(now: number): this {
     this.applyPatch({ revokedAt: now });
+    return this;
+  }
+
+  /**
+   * The token the last rotation consumed and that is not yet persisted; its
+   * repository records it with the rotation, and {@link uncommit} clears it.
+   */
+  getConsumedToken(): ConsumedRefreshToken | null {
+    return this._consumed ?? null;
+  }
+
+  override uncommit(): this {
+    super.uncommit();
+    this._consumed = null;
     return this;
   }
 

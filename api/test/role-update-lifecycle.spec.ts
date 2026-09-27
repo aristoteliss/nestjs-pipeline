@@ -2,6 +2,8 @@
 
 import type { ICache } from '@cqrs-ddd/core/application';
 import { ConcurrencyConflictError } from '@cqrs-ddd/core/domain';
+import { setPersistenceDialect } from '@cqrs-ddd/core/persistence';
+import { MikroOrmDialect } from '@cqrs-ddd/mikro-orm';
 import { MikroORM } from '@mikro-orm/libsql';
 import { Migration20260830000000 } from '@persistence/migrations/Migration20260830000000';
 import type { MikroOrmStore } from '@persistence/mikro-orm.store';
@@ -33,6 +35,7 @@ describe('versioned role updates with real MikroORM persistence', () => {
       },
     });
     await orm.migrator.up();
+    setPersistenceDialect(new MikroOrmDialect(orm));
     repository = new UpdateRoleCommandRepository(cache, {
       get em() {
         return orm.em.fork();
@@ -40,6 +43,7 @@ describe('versioned role updates with real MikroORM persistence', () => {
     } as MikroOrmStore);
   });
   afterAll(async () => {
+    setPersistenceDialect(undefined);
     await orm?.close(true);
   });
 

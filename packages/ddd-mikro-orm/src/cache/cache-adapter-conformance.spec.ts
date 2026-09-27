@@ -1,8 +1,8 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
+import { type ICache } from '@cqrs-ddd/core/application';
 import type { RootEntitySnapshot } from '@cqrs-ddd/core/domain';
 import { RootEntity } from '@cqrs-ddd/core/domain';
-import type { ICache } from '@cqrs-ddd/core/persistence';
 import { MemoryCache } from '@cqrs-ddd/core/persistence';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { CacheEntry } from './cache-entry';

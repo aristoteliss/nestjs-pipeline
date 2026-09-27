@@ -7,4 +7,6 @@ export const COMMAND_REPOSITORY = {
 
 export const QUERY_REPOSITORY = {
   getUserPermissionRules: Symbol('getUserPermissionRules'),
+  getAuthByTokenHash: Symbol('getAuthByTokenHash'),
+  getAuthByConsumedTokenHash: Symbol('getAuthByConsumedTokenHash'),
 } as const;

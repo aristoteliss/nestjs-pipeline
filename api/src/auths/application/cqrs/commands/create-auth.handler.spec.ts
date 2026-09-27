@@ -27,7 +27,7 @@ describe('CreateAuthHandler', () => {
     const publishAll = vi.fn();
     const principalLoginService = {
       authenticate: vi.fn().mockResolvedValue(user),
-      signToken: vi.fn(async (_user: User, sessionId: string) => ({
+      sign: vi.fn(async (_user: User, sessionId: string) => ({
         accessToken: `access-for-${sessionId}`,
         expiresAt: NOW + 300_000,
       })),
@@ -86,7 +86,7 @@ describe('CreateAuthHandler', () => {
       tokens.hash(result.refreshToken as string),
     );
     expect(JSON.stringify(save.mock.calls)).not.toContain(result.refreshToken);
-    expect(principalLoginService.signToken).toHaveBeenCalledWith(user, auth.id);
+    expect(principalLoginService.sign).toHaveBeenCalledWith(user, auth.id);
     expect(result).toMatchObject({
       userId: user.id,
       principalType: 'user',

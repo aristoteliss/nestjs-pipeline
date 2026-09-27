@@ -1,14 +1,15 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import type { IWriteSideAggregateRepository } from '@cqrs-ddd/core/application';
+import { type ICache } from '@cqrs-ddd/core/application';
 import type { RootEntity, RootEntitySnapshot } from '@cqrs-ddd/core/domain';
-import type { ICache } from '@cqrs-ddd/core/persistence';
 import {
   CommandRepository,
-  mapPersistenceError,
+  MapPersistenceErrors,
 } from '@cqrs-ddd/core/persistence';
 import type { EntityName, FilterQuery } from '@mikro-orm/core';
 import type { IEntityManagerSource } from './entity-manager-source';
+import { mapPersistenceError } from './transient-error';
 
 /**
  * Base class for the command repositories that load and save an existing aggregate.
@@ -82,22 +83,29 @@ export abstract class AggregateRepository<
    * @returns Rehydrated aggregate instance, or `null` if not found.
    * @throws {TransientOperationError} If a retryable database connection or driver error occurs.
    */
+  @MapPersistenceErrors<
+    [string],
+    string,
+    never,
+    AggregateRepository<RootEntitySnapshot, RootEntity, unknown>
+  >({
+    entity: ([id]) => id,
+    otherwise(error, id) {
+      return mapPersistenceError(error, `loading ${this.aggregateName} ${id}`);
+    },
+  })
   async findById(id: string): Promise<TEntity | null> {
-    try {
-      const entity = await this.store.em.findOne(
-        this.entityClass,
-        { id } as FilterQuery<TEntity>,
-        { refresh: true },
-      );
+    const entity = await this.store.em.findOne(
+      this.entityClass,
+      { id } as FilterQuery<TEntity>,
+      { refresh: true },
+    );
 
-      if (!entity) {
-        return null;
-      }
-
-      const snapshot = entity.toJSON() as TSnapshot;
-      return this.hydrateFn(snapshot);
-    } catch (error) {
-      throw mapPersistenceError(error, `loading ${this.aggregateName} ${id}`);
+    if (!entity) {
+      return null;
     }
+
+    const snapshot = entity.toJSON() as TSnapshot;
+    return this.hydrateFn(snapshot);
   }
 }

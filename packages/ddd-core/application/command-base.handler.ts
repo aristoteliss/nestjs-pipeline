@@ -1,7 +1,7 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { AggregateRoot } from '../domain/models/aggregate-root';
-import type { IDomainEventPublisher } from './domain-event-publisher.port';
+import type { IDomainEventPublisher } from './ports/domain-event-publisher.port';
 
 /**
  * Result shapes that allow `CommandBaseHandler` to publish buffered aggregate events.
