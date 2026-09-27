@@ -1,39 +1,23 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import { SessionData } from '@common/types/SessionUser';
-import { Session } from '@fastify/secure-session';
-import { Body, Controller, HttpCode, Post, Req, Res } from '@nestjs/common';
+import { Body, Controller, HttpCode, Ip, Post } from '@nestjs/common';
 import { CommandBus } from '@nestjs/cqrs';
 import { ZodPipe } from '@nestjs-pipeline/zod';
-import { CreateAuthCommand } from '../cqrs/commands/create-auth.command';
-import { DeleteAuthCommand } from '../cqrs/commands/delete-auth.command';
-import { RefreshAuthCommand } from '../cqrs/commands/refresh-auth.command';
-import { CreateAuthResult } from '../cqrs/results/create-auth.result';
+import type { CreateAuthCommand } from '../application/cqrs/commands/create-auth.command';
+import { RefreshAuthCommand } from '../application/cqrs/commands/refresh-auth.command';
+import { RevokeAuthCommand } from '../application/cqrs/commands/revoke-auth.command';
+import type { AuthResult } from '../application/cqrs/results/auth.result';
+import { RefreshToken } from '../decorators/refresh-token.decorator';
 import { InvalidRefreshTokenError } from '../domain/errors/refresh-token.errors';
-import { LoginDto, LoginDtoSchema } from '../dtos/login.dto';
+import { type LoginDto, LoginDtoSchema } from '../dtos/login.dto';
+import type { RefreshTokenDto } from '../dtos/refresh-token.dto';
+import type { SessionResponse } from '../dtos/sessionResponse.dto';
 import { LoginMapper } from '../mappers/login.mapper';
 import { toSessionRes } from '../mappers/session.mapper';
-import { SessionResponse } from '../responses/session.res';
-import { SessionService } from '../services/session.service';
-import {
-  type CookieRequest,
-  type CookieResponse,
-  clearRefreshCookie,
-  readRefreshCookie,
-  setRefreshCookie,
-} from './refresh-cookie';
-
-type AuthRequest = CookieRequest & {
-  session?: Session<SessionData>;
-  ip?: string;
-};
 
 @Controller('auths')
 export class AuthsController {
-  constructor(
-    private readonly commandBus: CommandBus,
-    private readonly sessionService: SessionService,
-  ) {}
+  constructor(private readonly commandBus: CommandBus) {}
 
   /**
    * Starts a session. Returns a short-lived access token in the body and sets
@@ -44,14 +28,12 @@ export class AuthsController {
   @HttpCode(200)
   async login(
     @Body(new ZodPipe(LoginDtoSchema)) dto: LoginDto,
-    @Req() req: AuthRequest,
-    @Res({ passthrough: true }) res: CookieResponse,
+    @Ip() clientIp: string,
   ): Promise<SessionResponse> {
-    const result = await this.commandBus.execute<
-      CreateAuthCommand,
-      CreateAuthResult
-    >(LoginMapper.map(dto, req.ip ?? 'unknown'));
-    return this.respond(result, req, res);
+    const result = await this.commandBus.execute<CreateAuthCommand, AuthResult>(
+      LoginMapper.map(dto, clientIp),
+    );
+    return toSessionRes(result);
   }
 
   /**
@@ -61,17 +43,14 @@ export class AuthsController {
   @Post('refresh')
   @HttpCode(200)
   async refresh(
-    @Req() req: AuthRequest,
-    @Res({ passthrough: true }) res: CookieResponse,
+    @RefreshToken() refreshToken: RefreshTokenDto,
+    @Ip() clientIp: string,
   ): Promise<SessionResponse> {
-    const refreshToken = readRefreshCookie(req);
-    if (!refreshToken) throw new InvalidRefreshTokenError();
-
     const result = await this.commandBus.execute<
       RefreshAuthCommand,
-      CreateAuthResult
-    >(new RefreshAuthCommand({ refreshToken, clientIp: req.ip ?? 'unknown' }));
-    return this.respond(result, req, res);
+      AuthResult
+    >(new RefreshAuthCommand({ refreshToken, clientIp }));
+    return toSessionRes(result);
   }
 
   /**
@@ -82,31 +61,15 @@ export class AuthsController {
   @Post('logout')
   @HttpCode(204)
   async logout(
-    @Req() req: AuthRequest,
-    @Res({ passthrough: true }) res: CookieResponse,
+    @RefreshToken({ optional: true }) refreshToken: RefreshTokenDto | undefined,
+    @Ip() clientIp: string,
   ): Promise<void> {
-    const refreshToken = readRefreshCookie(req);
-    if (refreshToken) {
-      try {
-        await this.commandBus.execute(new DeleteAuthCommand({ refreshToken }));
-      } catch (error) {
-        if (!(error instanceof InvalidRefreshTokenError)) throw error;
-      }
+    try {
+      await this.commandBus.execute(
+        new RevokeAuthCommand({ refreshToken, clientIp }),
+      );
+    } catch (error) {
+      if (!(error instanceof InvalidRefreshTokenError)) throw error;
     }
-    clearRefreshCookie(res);
-    this.sessionService.clearSession(req.session);
-  }
-
-  private respond(
-    result: CreateAuthResult,
-    req: AuthRequest,
-    res: CookieResponse,
-  ): SessionResponse {
-    if (result.refreshToken) {
-      setRefreshCookie(res, result.refreshToken, result.sessionExpiresAt);
-    }
-    const body = toSessionRes(result);
-    this.sessionService.saveSession(req.session, body, result.aggregate?.id);
-    return body;
   }
 }

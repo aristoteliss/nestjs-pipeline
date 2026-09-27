@@ -24,6 +24,9 @@ Four entry points, and they are the boundary consumers import from:
 `biome/plugins/ddd-entry-points.grit` requires application code to import the layered
 entry points instead.
 
+Names follow [AGENTS.md → Naming](../../AGENTS.md#naming): short and declarative, with no
+prefix or suffix their context already gives. An exported name is a published contract.
+
 ## Ownership
 
 Generic DDD and persistence building blocks belong here, not in an application. An

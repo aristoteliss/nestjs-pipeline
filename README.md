@@ -1390,7 +1390,7 @@ ADAPTER=fastify pnpm start
 - Global + per-handler pipeline behaviors
 - Decoupled domain invariants with framework-agnostic `DomainException` & presentation-boundary `DomainExceptionFilter` (mapping to 400, 409, 422)
 - Clean Architecture persistence repository boundaries: CQRS handlers inject exclusively `ICommandRepository` and `IQueryRepository`, completely decoupled from ORM/database client classes (zero `MIKRO_ORM_CLIENT` leakage in handlers)
-- Persistent token revocation on logout via `DeleteAuthCommandRepository`, per-request permission loading in `CaslPermissionSource`, and explicit principal classification
+- Persistent token revocation on logout via `RevokeAuthCommand`, per-request permission loading in `CaslPermissionSource`, and explicit principal classification
 - Optimistic concurrency with aggregate version tracking on `User` and `Role` entities. Persistence adapters translate driver/ORM conflict diagnostics into the transport-neutral `ConcurrencyConflictError`; the HTTP presentation filter maps that error to `409 Conflict`.
 - Injectable `CaslAuthorizer` in CQRS command and query handlers: `authorize` before writes, `project` for read models and responses
 - Per-handler CASL requirements declared with `requires(...)`

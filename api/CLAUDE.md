@@ -18,7 +18,7 @@ Per feature module (`users/`, `roles/`, `auths/`):
 
 | Layer | Directory | Rule |
 | --- | --- | --- |
-| Presentation | `controllers/`, `dtos/`, `responses/`, `mappers/` | Dispatch through `CommandBus`/`QueryBus`; own HTTP and session concerns only |
+| Presentation | `controllers/`, `decorators/`, `interceptors/`, `dtos/`, `responses/`, `mappers/` | A controller dispatches through `CommandBus`/`QueryBus` and maps the result, nothing else; in rare cases it translates an application error into another HTTP answer |
 | Application | `cqrs/commands/`, `cqrs/queries/`, `application/ports/` | Depend on repository interfaces and injection tokens; never on ORM clients |
 | Domain | `domain/models/`, `domain/events/`, `domain/errors/` | Invariants inside aggregates; framework-neutral errors |
 | Persistence | `persistence/` | ORM, caching, tenant access, lifecycle decorators |
@@ -37,6 +37,10 @@ Cross-cutting wiring lives in `src/infrastructure/` (`ObservabilityModule` — P
 audit, global behaviors; `ReliabilityModule` — BullMQ, dead-letter, rate limit,
 idempotency, resilience, cache, feature flags) and `src/common/` (guards, filters,
 interceptors, context, environment).
+
+Names follow [AGENTS.md → Naming](../AGENTS.md#naming) and the skill's CQRS name shapes
+(`CreateUserCommand`, `UserCreatedEvent`, `IAccessTokenIssuer` ↔ `ACCESS_TOKEN_ISSUER`):
+short and declarative, with no prefix or suffix the module already gives.
 
 ## Important files
 

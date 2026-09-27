@@ -7,13 +7,13 @@ import { Auth, type AuthSnapshot } from '../domain/models/auth.entity';
 import { CreateAuthCommandRepository } from './create-auth.command-repository';
 
 describe('CreateAuthCommandRepository', () => {
-  it('inserts the session and never caches its refresh-token hash', async () => {
+  it('inserts the session without writing it or its refresh-token hash to the cache', async () => {
     const cache: ICache<AuthSnapshot> = {
       get: vi.fn(),
       set: vi.fn(),
       delete: vi.fn(),
     };
-    const auth = Auth.start(
+    const auth = Auth.create(
       '019488e0-0000-7000-8000-000000000001',
       'refresh-hash',
       Date.now() + 1000,
@@ -30,9 +30,7 @@ describe('CreateAuthCommandRepository', () => {
 
     expect(insert).toHaveBeenCalledWith(Auth, auth);
     expect(result).toEqual(auth.toJSON());
-    expect(JSON.stringify(vi.mocked(cache.set).mock.calls)).not.toContain(
-      'refresh-hash',
-    );
+    expect(cache.set).not.toHaveBeenCalled();
     expect(auth.getExpectedVersion()).toBe(1);
   });
 });

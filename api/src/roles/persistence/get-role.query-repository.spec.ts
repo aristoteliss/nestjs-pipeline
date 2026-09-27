@@ -1,6 +1,6 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import { filterCacheKey, MemoryCache } from '@cqrs-ddd/core/persistence';
+import { cacheKey, MemoryCache } from '@cqrs-ddd/core/persistence';
 import { runWithTenant } from '@nestjs-pipeline/tenant';
 import { describe, expect, it, vi } from 'vitest';
 import { GetRoleQuery } from '../cqrs/queries/get-role.query';
@@ -8,7 +8,7 @@ import { Role, type RoleSnapshot } from '../domain/models/role.entity';
 import { GetRoleQueryRepository } from './get-role.query-repository';
 
 const roleKey = (id: string) =>
-  filterCacheKey(Role.aggregateName, { id }, 'tenant');
+  cacheKey(Role.aggregateName, { id }, 'tenant');
 
 /** A real revision-fenced adapter, optionally holding `role`'s snapshot. */
 async function cacheHolding(role?: Role): Promise<MemoryCache<RoleSnapshot>> {

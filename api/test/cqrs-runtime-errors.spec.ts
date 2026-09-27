@@ -18,8 +18,8 @@ import { describe, expect, it, vi } from 'vitest';
 // Auths CQRS & Services
 import { CreateAuthCommand } from '../src/auths/cqrs/commands/create-auth.command';
 import { CreateAuthHandler } from '../src/auths/cqrs/commands/create-auth.handler';
-import { DeleteAuthCommand } from '../src/auths/cqrs/commands/delete-auth.command';
-import { DeleteAuthHandler } from '../src/auths/cqrs/commands/delete-auth.handler';
+import { RevokeAuthCommand } from '../src/auths/cqrs/commands/revoke-auth.command';
+import { RevokeAuthHandler } from '../src/auths/cqrs/commands/revoke-auth.handler';
 import { InvalidRefreshTokenError } from '../src/auths/domain/errors/refresh-token.errors';
 import { NodeRefreshTokens } from '../src/auths/infrastructure/node-refresh-tokens';
 import { AuthSessionRevocationService } from '../src/auths/services/auth-session-revocation.service';
@@ -667,8 +667,9 @@ describe('CQRS Commands & Queries Runtime Error Taxonomy', () => {
           {
             refreshTokenTtlSeconds: 3600,
             refreshReuseGraceSeconds: 30,
-            permissionsInAccessToken: false,
+            embedPermissions: false,
           },
+          { save: vi.fn(), clear: vi.fn() },
         );
 
         const command = new CreateAuthCommand({
@@ -704,8 +705,9 @@ describe('CQRS Commands & Queries Runtime Error Taxonomy', () => {
           {
             refreshTokenTtlSeconds: 3600,
             refreshReuseGraceSeconds: 30,
-            permissionsInAccessToken: false,
+            embedPermissions: false,
           },
+          { save: vi.fn(), clear: vi.fn() },
         );
 
         const command = new CreateAuthCommand({
@@ -723,18 +725,24 @@ describe('CQRS Commands & Queries Runtime Error Taxonomy', () => {
       });
     });
 
-    describe('DeleteAuthCommand & Handler', () => {
+    describe('RevokeAuthCommand & Handler', () => {
       it('rejects an unknown refresh token so logout can answer 204 without revoking', async () => {
         const save = vi.fn();
-        const handler = new DeleteAuthHandler(
+        const handler = new RevokeAuthHandler(
           eventBus,
           { findByTokenHash: vi.fn().mockResolvedValue(null) } as any,
           new AuthSessionRevocationService({ save } as any),
           new NodeRefreshTokens(),
+          { save: vi.fn(), clear: vi.fn() },
         );
 
         await expect(
-          handler.execute(new DeleteAuthCommand({ refreshToken: 'unknown' })),
+          handler.execute(
+            new RevokeAuthCommand({
+              refreshToken: 'unknown',
+              clientIp: '203.0.113.7',
+            }),
+          ),
         ).rejects.toBeInstanceOf(InvalidRefreshTokenError);
         expect(save).not.toHaveBeenCalled();
       });

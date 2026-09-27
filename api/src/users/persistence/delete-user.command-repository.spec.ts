@@ -8,7 +8,7 @@ import {
 } from '@cqrs-ddd/core/domain';
 import {
   DEFAULT_BARRIER_TTL_MS,
-  filterCacheKey,
+  cacheKey,
 } from '@cqrs-ddd/core/persistence';
 import { runWithTenant } from '@nestjs-pipeline/tenant';
 import { describe, expect, it, vi } from 'vitest';
@@ -39,8 +39,8 @@ describe('DeleteUserCommandRepository', () => {
       id: user.id,
       version: user.getExpectedVersion(),
     });
-    const idKey = filterCacheKey(User.aggregateName, { id: user.id }, 'tenant');
-    const emailKey = filterCacheKey(
+    const idKey = cacheKey(User.aggregateName, { id: user.id }, 'tenant');
+    const emailKey = cacheKey(
       User.aggregateName,
       { email: 'alice@example.test' },
       'tenant',

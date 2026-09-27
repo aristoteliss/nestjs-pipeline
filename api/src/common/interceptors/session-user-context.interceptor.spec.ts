@@ -1,5 +1,6 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
+import { httpExchangeStore } from '@common/context/http-exchange.store';
 import { getSessionUserFromStore } from '@common/context/session-user.store';
 import type { CallHandler, ExecutionContext } from '@nestjs/common';
 import { TenantSchemaContext } from '@persistence/tenant-schema.context';
@@ -10,7 +11,7 @@ import { SessionUserContextInterceptor } from './session-user-context.intercepto
 
 function makeContext(req: AuthenticatedRequest): ExecutionContext {
   return {
-    switchToHttp: () => ({ getRequest: () => req }),
+    switchToHttp: () => ({ getRequest: () => req, getResponse: () => ({}) }),
   } as unknown as ExecutionContext;
 }
 
@@ -49,6 +50,30 @@ describe('SessionUserContextInterceptor', () => {
     expect(result).toBe('success');
     expect(observedUser).toEqual(user);
     expect(getSessionUserFromStore()).toBeUndefined();
+  });
+
+  it('scopes the request session and response in httpExchangeStore during next.handle()', async () => {
+    const session = { get: vi.fn() };
+    const response = { cookie: vi.fn() };
+    const context = {
+      switchToHttp: () => ({
+        getRequest: () => ({ session }),
+        getResponse: () => response,
+      }),
+    } as unknown as ExecutionContext;
+
+    let observed: unknown;
+    await firstValueFrom(
+      new SessionUserContextInterceptor().intercept(
+        context,
+        makeCallHandler(() => {
+          observed = httpExchangeStore.getStore();
+        }, 'ok'),
+      ),
+    );
+
+    expect(observed).toEqual({ session, response });
+    expect(httpExchangeStore.getStore()).toBeUndefined();
   });
 
   it('guarantees real multi-tenant isolation across concurrent requests (tenant_a vs tenant_b)', async () => {

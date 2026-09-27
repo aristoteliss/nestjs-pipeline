@@ -1,7 +1,7 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 import type { Server } from 'node:http';
 import { type ICache } from '@cqrs-ddd/core/application';
-import { CACHE_TOKEN, filterCacheKey } from '@cqrs-ddd/core/persistence';
+import { CACHE_TOKEN, cacheKey } from '@cqrs-ddd/core/persistence';
 import request from 'supertest';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
@@ -31,7 +31,7 @@ describe('create-user secondary cache invalidation (e2e)', () => {
 
   it('removes a stale email cache entry after creating that email', async () => {
     const email = `cache-create-${Date.now()}@acme.test`;
-    const key = filterCacheKey(User.aggregateName, { email }, 'tenant');
+    const key = cacheKey(User.aggregateName, { email }, 'tenant');
     const cache = ctx.app.get<ICache<UserSnapshot>>(CACHE_TOKEN);
     await cache.set(key, { username: 'stale', email });
     expect(await cache.get(key)).toBeDefined();

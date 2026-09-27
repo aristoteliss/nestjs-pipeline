@@ -1,6 +1,16 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-/** Returns the first non-empty value of an incoming HTTP header. */
+/**
+ * Returns the first value of an incoming HTTP header, or `undefined` when the
+ * header is missing or that first value is empty.
+ *
+ * @example
+ * ```ts
+ * firstHeaderValue(req.headers['x-api-id']); // 'reporting-service'
+ * firstHeaderValue(['first', 'second']); // 'first'
+ * firstHeaderValue(''); // undefined
+ * ```
+ */
 export function firstHeaderValue(
   value: string | string[] | undefined,
 ): string | undefined {

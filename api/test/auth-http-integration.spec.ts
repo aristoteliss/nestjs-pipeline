@@ -19,7 +19,7 @@ import { Test } from '@nestjs/testing';
 import { TenantSchemaContext } from '@persistence/tenant-schema.context';
 import { SignJWT } from 'jose';
 import request from 'supertest';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { ApiClientAuthenticator } from '../src/auths/services/api-client-authenticator';
 import { JwtAuthenticator } from '../src/auths/services/jwt-authenticator';
 import { RequestPrincipalResolver } from '../src/auths/services/request-principal-resolver';
@@ -109,22 +109,26 @@ class TestAuthModule implements NestModule {
   }
 }
 
+const jwtSecret = vi.hoisted(() => {
+  const secret = 'integration-test-jwt-secret-key-32b!';
+  process.env.JWT_SECRET = secret;
+  delete process.env.JWT_PUBLIC_KEY;
+  process.env.API_CLIENTS = JSON.stringify([
+    {
+      id: 'trusted-client',
+      key: 'client-api-key-999',
+      tenant: 'tenant_a',
+      rules: ['User|read|*'],
+    },
+  ]);
+  return secret;
+});
+
 describe('HTTP Authentication Integration (Real Nest App Pipeline)', () => {
   let app: INestApplication;
-  const jwtSecret = 'integration-test-jwt-secret-key-32b!';
 
   beforeAll(async () => {
     process.env.SQLITE_TENANTS = 'tenant_a,tenant_b';
-    process.env.JWT_SECRET = jwtSecret;
-    delete process.env.JWT_PUBLIC_KEY;
-    process.env.API_CLIENTS = JSON.stringify([
-      {
-        id: 'trusted-client',
-        key: 'client-api-key-999',
-        tenant: 'tenant_a',
-        rules: ['User|read|*'],
-      },
-    ]);
 
     const moduleRef = await Test.createTestingModule({
       imports: [TestAuthModule],
@@ -138,7 +142,7 @@ describe('HTTP Authentication Integration (Real Nest App Pipeline)', () => {
     await app?.close();
   });
 
-  it('1. Valid Bearer JWT -> 200 with principal resolved inside controller', async () => {
+  it('Valid Bearer JWT -> 200 with principal resolved inside controller', async () => {
     const token = await new SignJWT({
       tenant: 'tenant_a',
       email: 'bearer-user@acme.test',
@@ -165,7 +169,7 @@ describe('HTTP Authentication Integration (Real Nest App Pipeline)', () => {
     expect(res.body).not.toHaveProperty('capabilities');
   });
 
-  it('2. Expired or malformed Bearer JWT -> 401 Unauthorized', async () => {
+  it('Expired or malformed Bearer JWT -> 401 Unauthorized', async () => {
     const expiredToken = await new SignJWT({
       tenant: 'tenant_a',
       sid: 'session-expired',
@@ -183,7 +187,7 @@ describe('HTTP Authentication Integration (Real Nest App Pipeline)', () => {
     expect(res.status).toBe(401);
   });
 
-  it('3. Wrong-tenant Bearer JWT -> 401 Unauthorized', async () => {
+  it('Wrong-tenant Bearer JWT -> 401 Unauthorized', async () => {
     const tokenForTenantB = await new SignJWT({
       tenant: 'tenant_b',
       sid: 'session-tenant-b',
@@ -201,7 +205,7 @@ describe('HTTP Authentication Integration (Real Nest App Pipeline)', () => {
     expect(res.status).toBe(401);
   });
 
-  it('4. Valid API key -> 200 with principal resolved inside controller', async () => {
+  it('Valid API key -> 200 with principal resolved inside controller', async () => {
     const res = await request(app.getHttpServer())
       .get('/test-auth/principal')
       .set(AUTH_HEADERS.TENANT_SCHEMA, 'tenant_a')
@@ -216,7 +220,7 @@ describe('HTTP Authentication Integration (Real Nest App Pipeline)', () => {
     });
   });
 
-  it('5. Valid API key + wrong tenant -> 401 Unauthorized', async () => {
+  it('Valid API key + wrong tenant -> 401 Unauthorized', async () => {
     const res = await request(app.getHttpServer())
       .get('/test-auth/principal')
       .set(AUTH_HEADERS.TENANT_SCHEMA, 'tenant_b')
@@ -226,7 +230,7 @@ describe('HTTP Authentication Integration (Real Nest App Pipeline)', () => {
     expect(res.status).toBe(401);
   });
 
-  it('6. Concurrent HTTP requests maintain strict AsyncLocalStorage isolation across async turns in controller', async () => {
+  it('Concurrent HTTP requests maintain strict AsyncLocalStorage isolation across async turns in controller', async () => {
     const tokenA = await new SignJWT({
       tenant: 'tenant_a',
       roles: ['admin'],
@@ -280,7 +284,7 @@ describe('HTTP Authentication Integration (Real Nest App Pipeline)', () => {
     });
   });
 
-  it('7. Valid session cookie -> 200 with principal resolved inside controller via SessionService cookie fast-path', async () => {
+  it('Valid session cookie -> 200 with principal resolved inside controller via SessionService cookie fast-path', async () => {
     const sessionUser = {
       id: 'user-cookie-fastpath',
       principalType: 'user',
@@ -302,7 +306,7 @@ describe('HTTP Authentication Integration (Real Nest App Pipeline)', () => {
     });
   });
 
-  it('8. Expired session cookie -> clears session via SessionService and resolves to anonymous', async () => {
+  it('Expired session cookie -> clears session via SessionService and resolves to anonymous', async () => {
     const expiredUser = {
       id: 'user-cookie-expired',
       principalType: 'user',
@@ -324,7 +328,7 @@ describe('HTTP Authentication Integration (Real Nest App Pipeline)', () => {
     });
   });
 
-  it('9. Expired session cookie + valid Bearer JWT -> clears expired session and falls through to JWT principal', async () => {
+  it('Expired session cookie + valid Bearer JWT -> clears expired session and falls through to JWT principal', async () => {
     const expiredUser = {
       id: 'user-cookie-expired',
       principalType: 'user',
@@ -356,7 +360,7 @@ describe('HTTP Authentication Integration (Real Nest App Pipeline)', () => {
     });
   });
 
-  it('10. Session cookie with tenant mismatch -> 401 Unauthorized', async () => {
+  it('Session cookie with tenant mismatch -> 401 Unauthorized', async () => {
     const mismatchedUser = {
       id: 'user-mismatched',
       principalType: 'user',
@@ -372,7 +376,7 @@ describe('HTTP Authentication Integration (Real Nest App Pipeline)', () => {
     expect(res.status).toBe(401);
   });
 
-  it('11. Bearer JWT without sid -> 401 Unauthorized', async () => {
+  it('Bearer JWT without sid -> 401 Unauthorized', async () => {
     const tokenWithoutSid = await new SignJWT({
       tenant: 'tenant_a',
       roles: ['editor'],
@@ -390,7 +394,7 @@ describe('HTTP Authentication Integration (Real Nest App Pipeline)', () => {
     expect(res.status).toBe(401);
   });
 
-  it('12. Session cookie without sid -> clears session and resolves to anonymous', async () => {
+  it('Session cookie without sid -> clears session and resolves to anonymous', async () => {
     const legacySessionUser = {
       id: 'user-legacy-session',
       principalType: 'user',
@@ -410,7 +414,7 @@ describe('HTTP Authentication Integration (Real Nest App Pipeline)', () => {
     });
   });
 
-  it('13. Session cookie without principal type -> clears session and resolves to anonymous', async () => {
+  it('Session cookie without principal type -> clears session and resolves to anonymous', async () => {
     const legacySessionUser = {
       id: 'user-legacy-principal',
       tenant: 'tenant_a',

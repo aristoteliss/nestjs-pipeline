@@ -2,21 +2,31 @@
 
 import { createHash } from 'node:crypto';
 import { decodeJwt } from 'jose';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { TenantSchemaContext } from '../../persistence/tenant-schema.context';
 import { User } from '../../users/domain/models/user.entity';
 import {
   AuthConfigurationException,
   InvalidLoginCredentialsException,
 } from '../domain/errors/authentication.exception';
-import { JoseAccessTokenIssuer } from './jose-access-token.issuer';
 import { SharedDemoLoginCodeVerifier } from './shared-demo-login-code.verifier';
 
 const originalEnv = { ...process.env };
 
 afterEach(() => {
   process.env = { ...originalEnv };
+  vi.unstubAllEnvs();
 });
+
+async function loadIssuer(env: Record<string, string | undefined>) {
+  for (const [name, value] of Object.entries(env)) vi.stubEnv(name, value);
+  vi.resetModules();
+  const [{ JoseAccessTokenIssuer }, errors] = await Promise.all([
+    import('./jose-access-token.issuer'),
+    import('../domain/errors/authentication.exception'),
+  ]);
+  return { JoseAccessTokenIssuer, errors };
+}
 
 describe('authentication infrastructure adapters', () => {
   it('verifies a configured SHA-256 login-code digest', () => {
@@ -80,8 +90,10 @@ describe('authentication infrastructure adapters', () => {
   });
 
   it('issues tenant-bound JWTs through the infrastructure adapter', async () => {
-    process.env.JWT_SECRET = 'tenant-bound-token-secret';
-    delete process.env.JWT_ALGORITHMS;
+    const { JoseAccessTokenIssuer } = await loadIssuer({
+      JWT_SECRET: 'tenant-bound-token-secret',
+      JWT_ALGORITHMS: undefined,
+    });
     const tenantContext = new TenantSchemaContext();
     const issuer = new JoseAccessTokenIssuer(tenantContext);
     const user = User.create('Alice', 'alice@example.test', 'Engineering');
@@ -108,13 +120,15 @@ describe('authentication infrastructure adapters', () => {
   });
 
   it('rejects local issuance when HS256 is excluded', async () => {
-    process.env.JWT_SECRET = 'tenant-bound-token-secret';
-    process.env.JWT_ALGORITHMS = 'RS256';
+    const { JoseAccessTokenIssuer, errors } = await loadIssuer({
+      JWT_SECRET: 'tenant-bound-token-secret',
+      JWT_ALGORITHMS: 'RS256',
+    });
     const issuer = new JoseAccessTokenIssuer(new TenantSchemaContext());
     const user = User.create('Alice', 'alice@example.test');
 
     await expect(issuer.issue({ user, sessionId: 's' })).rejects.toThrow(
-      AuthConfigurationException,
+      errors.AuthConfigurationException,
     );
   });
 });

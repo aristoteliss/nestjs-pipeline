@@ -4,7 +4,7 @@ import { ICache } from '@cqrs-ddd/core/application';
 import {
   CACHE_TOKEN,
   Cache,
-  filterCacheKey,
+  cacheKey,
   MapPersistenceErrors,
   MikroOrmWriteSideCommandRepository,
   mapPersistenceError,
@@ -31,8 +31,8 @@ export class DeleteRoleCommandRepository extends MikroOrmWriteSideCommandReposit
   @Cache<Role, null>({
     logger: cacheWriteLogger,
     deleteKeys: (role) => [
-      filterCacheKey(Role.aggregateName, { id: role.id }),
-      filterCacheKey(Role.aggregateName, { name: role.name }),
+      cacheKey(Role.aggregateName, { id: role.id }),
+      cacheKey(Role.aggregateName, { name: role.name }),
     ],
   })
   @MapPersistenceErrors<[Role], Role>({

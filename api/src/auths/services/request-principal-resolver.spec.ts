@@ -44,15 +44,15 @@ describe('RequestPrincipalResolver', () => {
     expect(apiSpy).not.toHaveBeenCalled();
   });
 
-  it('clears session cookie and ignores legacy session without sid', async () => {
-    const legacyUser = {
-      id: 'legacy-user-1',
+  it('clears and ignores a session cookie without a sid', async () => {
+    const sessionUserWithoutSid = {
+      id: 'user-without-sid',
       principalType: 'user' as const,
       tenant: tenantContext.schema,
     };
     const deleteSession = vi.fn();
     const session = {
-      user: legacyUser,
+      user: sessionUserWithoutSid,
       delete: deleteSession,
     } as unknown as Session<SessionData>;
 

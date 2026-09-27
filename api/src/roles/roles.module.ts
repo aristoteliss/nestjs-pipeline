@@ -2,11 +2,11 @@
 
 import { Module } from '@nestjs/common';
 import { RolesController } from './controllers/roles.controller';
-import { CreateRoleHandler } from './cqrs/commands/create-role.handler';
-import { DeleteRoleHandler } from './cqrs/commands/delete-role.handler';
-import { UpdateRoleHandler } from './cqrs/commands/update-role.handler';
-import { GetRoleHandler } from './cqrs/queries/get-role.handler';
-import { GetRolesHandler } from './cqrs/queries/get-roles.handler';
+import { CreateRoleHandler } from './application/cqrs/commands/create-role.handler';
+import { DeleteRoleHandler } from './application/cqrs/commands/delete-role.handler';
+import { UpdateRoleHandler } from './application/cqrs/commands/update-role.handler';
+import { GetRoleHandler } from './application/cqrs/queries/get-role.handler';
+import { GetRolesHandler } from './application/cqrs/queries/get-roles.handler';
 import { CreateRoleCommandRepository } from './persistence/create-role.command-repository';
 import { DeleteRoleCommandRepository } from './persistence/delete-role.command-repository';
 import { GetRoleQueryRepository } from './persistence/get-role.query-repository';

@@ -1,15 +1,15 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
-import { filterCacheKey } from '@cqrs-ddd/core/persistence';
+import { cacheKey } from '@cqrs-ddd/core/persistence';
 import { describe, expect, it } from 'vitest';
 
 describe('filterCacheKey core canonical serialization', () => {
   it('keeps nested key output stable regardless of object insertion order', () => {
-    const left = filterCacheKey(
+    const left = cacheKey(
       'deployment',
       { compose: { service: 'postgres', file: '/app/docker-compose.yml' } },
       'tenant_a',
     );
-    const right = filterCacheKey(
+    const right = cacheKey(
       'deployment',
       { compose: { file: '/app/docker-compose.yml', service: 'postgres' } },
       'tenant_a',
@@ -21,7 +21,7 @@ describe('filterCacheKey core canonical serialization', () => {
 
   it('inherits the core strict JSON boundary for unsupported object values', () => {
     expect(() =>
-      filterCacheKey(
+      cacheKey(
         'deployment',
         { compose: new Map([['a', 1]]) },
         'tenant_a',

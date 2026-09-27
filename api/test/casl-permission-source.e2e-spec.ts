@@ -86,7 +86,7 @@ describe('CASL permission source wiring (e2e)', () => {
 
   it('authorizes from materialized rules without per-request assignment or role queries', async () => {
     const { GetUserCapabilitiesQueryRepository } = await import(
-      '../src/auths/persistence/get-user-capabilities.query-repository'
+      '../src/users/persistence/get-user-capabilities.query-repository'
     );
     const { GetRolesCapabilitiesQueryRepository } = await import(
       './support/roles-capabilities/get-roles-capabilities.query-repository'

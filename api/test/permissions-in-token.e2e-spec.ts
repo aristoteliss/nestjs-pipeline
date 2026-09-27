@@ -176,7 +176,7 @@ describe('permissions in the access token (e2e, fastify cookie budget)', () => {
   /** Length of the access token the issuer produces for the user's current rules. */
   async function tokenFor(userId: string): Promise<string> {
     const { ACCESS_TOKEN_ISSUER } = await import(
-      '../src/auths/application/authentication.ports'
+      '../src/auths/application/ports/access-token-issuer.port'
     );
     const { USER_PERMISSION_RULES } = await import(
       '../src/auths/application/ports/user-permission-rules.port'

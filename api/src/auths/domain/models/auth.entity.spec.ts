@@ -5,9 +5,9 @@ import {
   InvalidRefreshTokenError,
   RefreshTokenReuseError,
 } from '../errors/refresh-token.errors';
+import { AuthCreatedEvent } from '../events/auth-created.event';
 import { AuthRefreshedEvent } from '../events/auth-refreshed.event';
 import { AuthRevokedEvent } from '../events/auth-revoked.event';
-import { CreatedAuthEvent } from '../events/create-auth.event';
 import { Auth } from './auth.entity';
 
 const USER = '019488e0-0000-7000-8000-000000000001';
@@ -16,14 +16,14 @@ const EXPIRES = START + 60_000;
 const GRACE = 30_000;
 
 function session(): Auth {
-  const auth = Auth.start(USER, 'hash-a', EXPIRES);
+  const auth = Auth.create(USER, 'hash-a', EXPIRES);
   auth.uncommit();
   return auth;
 }
 
 describe('Auth session', () => {
   it('starts with the current hash and fixed expiry, recording a creation event without token material', () => {
-    const auth = Auth.start(USER, 'hash-a', EXPIRES);
+    const auth = Auth.create(USER, 'hash-a', EXPIRES);
 
     expect(auth).toMatchObject({
       userId: USER,
@@ -35,7 +35,7 @@ describe('Auth session', () => {
       version: 1,
     });
     const [event] = auth.getUncommittedEvents();
-    expect(event).toBeInstanceOf(CreatedAuthEvent);
+    expect(event).toBeInstanceOf(AuthCreatedEvent);
     expect(JSON.stringify(event)).not.toContain('hash-a');
   });
 

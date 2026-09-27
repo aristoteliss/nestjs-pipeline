@@ -13,14 +13,14 @@ import {
   serializeCapability,
 } from '@nestjs-pipeline/casl';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { GetUserCapabilitiesQuery } from '../src/auths/cqrs/queries/get-user-capabilities.query';
 import { CaslPermissionSource } from '../src/auths/persistence/casl-permission.source';
-import { GetUserCapabilitiesQueryRepository } from '../src/auths/persistence/get-user-capabilities.query-repository';
 import { UserPermissionRulesReader } from '../src/auths/persistence/user-permission-rules.reader';
 import { UserPermissionsProjector } from '../src/auths/persistence/user-permissions.projector';
 import { sessionUserStore } from '../src/common/context/session-user.store';
 import { UserPermissionRule } from '../src/persistence/entities/user-permission-rule.entity';
 import { UserRole } from '../src/persistence/entities/user-role.entity';
+import { GetUserCapabilitiesQuery } from '../src/users/cqrs/queries/get-user-capabilities.query';
+import { GetUserCapabilitiesQueryRepository } from '../src/users/persistence/get-user-capabilities.query-repository';
 import {
   fixtures,
   type MigratedDb,

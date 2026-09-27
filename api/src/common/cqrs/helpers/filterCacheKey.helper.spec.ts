@@ -1,19 +1,19 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { MissingTenantContextError } from '@cqrs-ddd/core/domain';
-import { cacheKeyTemplate, filterCacheKey } from '@cqrs-ddd/core/persistence';
+import { cacheKeyTemplate, cacheKey } from '@cqrs-ddd/core/persistence';
 import { type IPipelineContext, pipelineStore } from '@nestjs-pipeline/core';
 import { runWithTenant } from '@nestjs-pipeline/tenant';
 import { describe, expect, it } from 'vitest';
 
 describe('filterCacheKey', () => {
   it('generates a deterministic key with sorted keys using resource string', () => {
-    const key1 = filterCacheKey(
+    const key1 = cacheKey(
       'user',
       { email: 'test@example.com', department: 'engineering' },
       'tenant_test',
     );
-    const key2 = filterCacheKey(
+    const key2 = cacheKey(
       'user',
       { department: 'engineering', email: 'test@example.com' },
       'tenant_test',
@@ -24,12 +24,12 @@ describe('filterCacheKey', () => {
   });
 
   it('filters out undefined and retains null values deterministically', () => {
-    const key = filterCacheKey(
+    const key = cacheKey(
       'user',
       { id: '123', missing: undefined, empty: null },
       'tenant_test',
     );
-    const keyExplicit = filterCacheKey(
+    const keyExplicit = cacheKey(
       'user',
       { id: '123', empty: null },
       'tenant_test',
@@ -40,7 +40,7 @@ describe('filterCacheKey', () => {
   });
 
   it('resolves tenant from explicit string parameter', () => {
-    const key = filterCacheKey('user', { id: '1' }, 'tenant_explicit');
+    const key = cacheKey('user', { id: '1' }, 'tenant_explicit');
     expect(key).toMatch(/^tenant_explicit:user:v1:[a-f0-9]{64}$/);
   });
 
@@ -49,19 +49,19 @@ describe('filterCacheKey', () => {
       tenantId: 'tenant_from_ctx',
     } as unknown as IPipelineContext;
 
-    const key = filterCacheKey('user', { id: '1' }, ctx);
+    const key = cacheKey('user', { id: '1' }, ctx);
     expect(key).toMatch(/^tenant_from_ctx:user:v1:[a-f0-9]{64}$/);
   });
 
   it('uses the tenant of a runWithTenant scope when no tenant is passed', () => {
     const key = runWithTenant('tenant_scope', () =>
-      filterCacheKey('user', { id: '1' }),
+      cacheKey('user', { id: '1' }),
     );
     expect(key).toMatch(/^tenant_scope:user:v1:[a-f0-9]{64}$/);
   });
 
   it('fails closed when no tenant is available, rather than sharing a namespace', () => {
-    expect(() => filterCacheKey('user', { id: '1' })).toThrow(
+    expect(() => cacheKey('user', { id: '1' })).toThrow(
       MissingTenantContextError,
     );
   });
@@ -69,15 +69,15 @@ describe('filterCacheKey', () => {
   it('uses the tenant of the running pipeline when no tenant is passed', () => {
     const key = pipelineStore.run(
       { tenantId: 'tenant_ambient' } as unknown as IPipelineContext,
-      () => filterCacheKey('user', { id: '1' }),
+      () => cacheKey('user', { id: '1' }),
     );
     expect(key).toMatch(/^tenant_ambient:user:v1:[a-f0-9]{64}$/);
   });
 
   it('maintains backwards compatibility with { prefixKey } objects', () => {
     const legacy = { prefixKey: 'user:' };
-    const key = filterCacheKey(legacy, { id: '1' }, 'tenant_compat');
-    const direct = filterCacheKey('user', { id: '1' }, 'tenant_compat');
+    const key = cacheKey(legacy, { id: '1' }, 'tenant_compat');
+    const direct = cacheKey('user', { id: '1' }, 'tenant_compat');
     expect(key).toBe(direct);
   });
 
@@ -85,14 +85,14 @@ describe('filterCacheKey', () => {
     class MockAggregate {
       static readonly aggregateName = 'user';
     }
-    const key = filterCacheKey(MockAggregate, { id: '42' }, 'tenant_agg');
-    const direct = filterCacheKey('user', { id: '42' }, 'tenant_agg');
+    const key = cacheKey(MockAggregate, { id: '42' }, 'tenant_agg');
+    const direct = cacheKey('user', { id: '42' }, 'tenant_agg');
     expect(key).toBe(direct);
   });
 
   it('escapes colons in primitive values to prevent key collision attacks', () => {
-    const keyWithColonValue = filterCacheKey('x', { a: 'hello:b:world' }, 't1');
-    const keyWithSeparateProps = filterCacheKey(
+    const keyWithColonValue = cacheKey('x', { a: 'hello:b:world' }, 't1');
+    const keyWithSeparateProps = cacheKey(
       'x',
       { a: 'hello', b: 'world' },
       't1',
@@ -102,7 +102,7 @@ describe('filterCacheKey', () => {
   });
 
   it('deterministically serializes nested objects without [object Object]', () => {
-    const key1 = filterCacheKey(
+    const key1 = cacheKey(
       'deployment',
       {
         compose: {
@@ -113,7 +113,7 @@ describe('filterCacheKey', () => {
       't1',
     );
 
-    const key2 = filterCacheKey(
+    const key2 = cacheKey(
       'deployment',
       {
         compose: {
@@ -132,7 +132,7 @@ describe('filterCacheKey', () => {
   it('throws an error if resourceOrEntity has neither aggregateName nor prefixKey', () => {
     class UnnamedClass {}
     expect(() => {
-      filterCacheKey(UnnamedClass as never, { id: '1' }, 't1');
+      cacheKey(UnnamedClass as never, { id: '1' }, 't1');
     }).toThrow(
       'Cannot resolve cache key prefix: resourceOrEntity must be a string or declare a static aggregateName or prefixKey.',
     );
@@ -146,7 +146,7 @@ describe('filterCacheKey', () => {
         if (environment === undefined) delete process.env.NODE_ENV;
         else process.env.NODE_ENV = environment;
 
-        expect(() => filterCacheKey('user', { id: '1' })).toThrow(
+        expect(() => cacheKey('user', { id: '1' })).toThrow(
           MissingTenantContextError,
         );
       } finally {

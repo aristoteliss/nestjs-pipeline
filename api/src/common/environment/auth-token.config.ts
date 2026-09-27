@@ -79,3 +79,21 @@ export const ACCESS_TOKEN_MAX_BYTES = integer(
   1024,
   16_384,
 );
+
+/**
+ * JWT signing and verification settings; an empty value counts as unset.
+ * `secret` signs HS256 login tokens and verifies them; `publicKey` (SPKI, with
+ * `\n` escapes allowed) verifies tokens signed elsewhere with `publicKeyAlg`;
+ * `algorithms` restricts what verification accepts; `issuer` and `audience` are
+ * set on issued tokens and required on verified ones.
+ */
+export const JWT = {
+  secret: process.env.JWT_SECRET || undefined,
+  publicKey: process.env.JWT_PUBLIC_KEY?.replace(/\\n/g, '\n') || undefined,
+  publicKeyAlg: process.env.JWT_PUBLIC_KEY_ALG ?? 'RS256',
+  algorithms: process.env.JWT_ALGORITHMS?.split(',')
+    .map((algorithm) => algorithm.trim())
+    .filter(Boolean),
+  issuer: process.env.JWT_ISSUER || undefined,
+  audience: process.env.JWT_AUDIENCE || undefined,
+} as const;

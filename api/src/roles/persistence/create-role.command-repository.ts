@@ -5,7 +5,7 @@ import {
   assertAutocommit,
   CACHE_TOKEN,
   CommandRepository,
-  filterCacheKey,
+  cacheKey,
   PersistedWrite,
 } from '@cqrs-ddd/core/persistence';
 import { Inject, Injectable } from '@nestjs/common';
@@ -29,9 +29,9 @@ export class CreateRoleCommandRepository extends CommandRepository<
   @PersistedWrite<Role>({
     cache: {
       logger: cacheWriteLogger,
-      setKey: (role) => filterCacheKey(Role.aggregateName, { id: role.id }),
+      setKey: (role) => cacheKey(Role.aggregateName, { id: role.id }),
       invalidateKeys: (role) => [
-        filterCacheKey(Role.aggregateName, { name: role.name }),
+        cacheKey(Role.aggregateName, { name: role.name }),
       ],
     },
     unique: [

@@ -2,9 +2,8 @@
 
 import { createHash, randomBytes } from 'node:crypto';
 import { Injectable } from '@nestjs/common';
-import type { IRefreshTokens } from '../application/authentication.ports';
+import { type IRefreshTokens } from '../application/ports/refresh-tokens.port';
 
-/** 32 random bytes as base64url; stored only as a SHA-256 hex digest. */
 @Injectable()
 export class NodeRefreshTokens implements IRefreshTokens {
   generate(): string {

@@ -4,14 +4,14 @@ import { ICache } from '@cqrs-ddd/core/application';
 import {
   CACHE_TOKEN,
   FromCache,
-  filterCacheKey,
+  cacheKey,
   QueryRepository,
 } from '@cqrs-ddd/core/persistence';
 import { FilterQuery } from '@mikro-orm/core';
 import { Inject, Injectable } from '@nestjs/common';
 import { cacheReadLogger } from '@persistence/cache/cache-loggers';
 import { MIKRO_ORM_CLIENT, MikroOrmStore } from '@persistence/mikro-orm.store';
-import { GetUserQuery } from '../cqrs/queries/get-user.query';
+import { GetUserQuery } from '../application/cqrs/queries/get-user.query';
 import { User, UserSnapshot } from '../domain/models/user.entity';
 
 function buildConditions(query: GetUserQuery): Record<string, unknown> {
@@ -43,7 +43,7 @@ export class GetUserQueryRepository extends QueryRepository<
     keyFn: (q) =>
       q.department
         ? null
-        : filterCacheKey(User.aggregateName, buildConditions(q)),
+        : cacheKey(User.aggregateName, buildConditions(q)),
   })
   async find(query: GetUserQuery): Promise<User | null> {
     const conditions = buildConditions(query);

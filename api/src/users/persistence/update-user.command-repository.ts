@@ -3,7 +3,7 @@
 import { ICache } from '@cqrs-ddd/core/application';
 import {
   CACHE_TOKEN,
-  filterCacheKey,
+  cacheKey,
   MikroOrmWriteSideCommandRepository,
   optimisticUpdate,
   PersistedWrite,
@@ -29,9 +29,9 @@ export class UpdateUserCommandRepository extends MikroOrmWriteSideCommandReposit
   @PersistedWrite<User>({
     cache: {
       logger: cacheWriteLogger,
-      setKey: (user) => filterCacheKey(User.aggregateName, { id: user.id }),
+      setKey: (user) => cacheKey(User.aggregateName, { id: user.id }),
       invalidateKeys: (user) => [
-        filterCacheKey(User.aggregateName, { email: user.email }),
+        cacheKey(User.aggregateName, { email: user.email }),
       ],
     },
   })

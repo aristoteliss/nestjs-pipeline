@@ -53,7 +53,7 @@ what the libraries support.
 ## Technology Stack
 
 <!-- context:generated-start technology-stack -->
-- **Languages** (file counts, excluded directories omitted): `.ts` 715, `.md` 49, `.grit` 13, `.py` 3, `.mjs` 1
+- **Languages** (file counts, excluded directories omitted): `.ts` 734, `.md` 48, `.grit` 13, `.py` 3, `.mjs` 1
 - **Runtime engines** (root `package.json`): `node` >=22.0.0, `pnpm` >=9.0.0
 - **Package manager evidence**: `pnpm-lock.yaml`.
 
@@ -71,13 +71,13 @@ what the libraries support.
 | OpenFeature — Feature-flag evaluation | `@openfeature/server-sdk` | `api/src/infrastructure/reliability.module.ts`, `api/test/behavior-composition-contracts.spec.ts` |
 | CASL — Attribute/role based authorization | `@casl/ability` | `api/src/common/constants/casl.constants.ts`, `api/test/user-permission-rules.spec.ts` |
 | JOSE — JWT signing and verification | `jose` | `api/src/auths/infrastructure/authentication-adapters.spec.ts`, `api/src/auths/infrastructure/jose-access-token.issuer.ts` |
-| Zod — Schema validation for DTOs and pipeline payloads | `zod` | `api/src/auths/cqrs/commands/create-auth.command.ts`, `api/src/auths/cqrs/commands/delete-auth.command.ts` |
+| Zod — Schema validation for DTOs and pipeline payloads | `zod` | `api/src/auths/cqrs/commands/create-auth.command.ts`, `api/src/auths/cqrs/commands/refresh-auth.command.ts` |
 | Pino — Structured logging | `nestjs-pino`, `pino-http`, `pino-pretty` | `api/src/bootstrap.ts`, `api/src/infrastructure/observability.module.spec.ts` |
-| Fastify — Alternative HTTP adapter and sessions | `@nestjs/platform-fastify`, `@fastify/secure-session` | `api/src/auths/controllers/auths.controller.ts`, `api/src/auths/services/request-principal-resolver.spec.ts` |
+| Fastify — Alternative HTTP adapter and sessions | `@nestjs/platform-fastify`, `@fastify/secure-session` | `api/src/auths/decorators/refresh-token.decorator.spec.ts`, `api/src/auths/services/request-principal-resolver.spec.ts` |
 | Express — Default HTTP adapter | `@nestjs/platform-express` | `api/src/bootstrap.ts`, `api/src/express-platform.ts` |
 | Cockatiel — Retry, timeout and circuit-breaker policies | `cockatiel` | `packages/pipeline-resilience/src/helpers/policy-factory.spec.ts`, `packages/pipeline-resilience/src/helpers/policy-factory.ts` |
 | rate-limiter-flexible — Rate-limit counters | `rate-limiter-flexible` | `api/src/infrastructure/reliability.module.ts`, `api/test/behaviors.spec.ts` |
-| Vitest — Test runner | `vitest` | `api/src/auths/controllers/auths.controller.spec.ts`, `api/src/auths/cqrs/commands/create-auth-redaction.spec.ts` |
+| Vitest — Test runner | `vitest` | `api/src/auths/controllers/auths.controller.spec.ts`, `api/src/auths/cqrs/commands/auth-session-handlers.spec.ts` |
 | Biome — Formatter, linter and Grit plugin host | `@biomejs/biome` | declared only |
 | TypeScript — Language and type checker | `typescript` | declared only |
 | SWC — Decorator-aware test transform | `unplugin-swc` | `api/vitest.config.e2e.ts`, `api/vitest.config.ts` |
@@ -130,7 +130,7 @@ editor/tooling directories are excluded (see Snapshot Metadata).
 | `packages/` | Workspace container — 16 package(s); see the workspace table below | `CLAUDE.md` |
 | `scripts/` | Dependency-free Python utilities for the agent context-management system. They are not part of the build, the test run, or the release pipeline; see .claude/README.md for the full system description. | `README.md`, `claude-context-checkpoint.py`, `update-claude-snapshot.py`, `validate-claude-context.py` |
 
-Root files: `.gitignore`, `.npmrc`, `AGENTS.md`, `CHANGELOG.md`, `CLAUDE.md`, `COMMERCIAL_LICENSE.txt`, `LICENSE`, `README.md`, `biome.json`, `package.json`, `pnpm-lock.yaml`, `pnpm-workspace.yaml`, `tsconfig.base.json`
+Root files: `.gitignore`, `.npmrc`, `AGENTS.md`, `CHANGELOG.md`, `CLAUDE.md`, `COMMERCIAL_LICENSE.txt`, `LICENSE`, `Packages.Guide.el.md`, `README.md`, `biome.json`, `package.json`, `pnpm-lock.yaml`, `pnpm-workspace.yaml`, `tsconfig.base.json`
 
 ### Workspace packages
 
@@ -143,7 +143,7 @@ Root files: `.gitignore`, `.npmrc`, `AGENTS.md`, `CHANGELOG.md`, `CLAUDE.md`, `C
 | `packages/pipeline-cache` | `@nestjs-pipeline/cache` | `adapters`, `constants`, `errors`, `helpers`, `interfaces` | [README](packages/pipeline-cache/README.md) |
 | `packages/pipeline-casl` | `@nestjs-pipeline/casl` | `constants`, `errors`, `filters`, `helpers`, `interfaces`, `types` | [README](packages/pipeline-casl/README.md) |
 | `packages/pipeline-correlation` | `@nestjs-pipeline/correlation` | `constants`, `decorators`, `helpers`, `middlewares`, `options`, `types` | [README](packages/pipeline-correlation/README.md) |
-| `packages/pipeline-deadletter` | `@nestjs-pipeline/deadletter` | `constants`, `helpers`, `interfaces`, `transports` | [README](packages/pipeline-deadletter/README.md) |
+| `packages/pipeline-deadletter` | `@nestjs-pipeline/deadletter` | `constants`, `errors`, `helpers`, `interfaces`, `transports` | [README](packages/pipeline-deadletter/README.md) |
 | `packages/pipeline-feature-flags` | `@nestjs-pipeline/feature-flags` | `constants`, `errors`, `filters`, `helpers`, `interfaces` | [README](packages/pipeline-feature-flags/README.md) |
 | `packages/pipeline-idempotency` | `@nestjs-pipeline/idempotency` | `constants`, `errors`, `filters`, `helpers`, `interfaces`, `stores` | [README](packages/pipeline-idempotency/README.md) |
 | `packages/pipeline-opentelemetry` | `@nestjs-pipeline/opentelemetry` | `helpers` | [README](packages/pipeline-opentelemetry/README.md) |
@@ -165,7 +165,7 @@ path given before relying on it.*
 
 | Layer | Where | Depends on |
 | --- | --- | --- |
-| Presentation | `api/src/*/controllers`, `dtos`, `responses`, `mappers`, `api/src/common/filters`, `guards`, `interceptors` | Command/Query buses only |
+| Presentation | `api/src/*/controllers`, `decorators`, `interceptors`, `dtos`, `responses`, `mappers`, `api/src/common/filters`, `guards`, `interceptors` | Command/Query buses only; controllers dispatch and map |
 | Application (CQRS) | `api/src/*/cqrs`, `src/*/application/ports` | Repository/port interfaces and injection tokens |
 | Domain | `api/src/*/domain`, `packages/ddd-core/domain` | Nothing framework-specific |
 | Persistence | `api/src/persistence`, `src/*/persistence`, `packages/ddd-core/persistence` | MikroORM, cache adapters |
@@ -332,10 +332,10 @@ and entity/field checks in the handler after the aggregate is loaded (`CaslAutho
   only as an `HttpOnly; Secure; SameSite=Strict; Path=/auths` cookie; the live-session lookup
   precedes the rotated-token history lookup; session saves are version-conditioned and a lost
   race in the live-token evaluation is re-evaluated once (grace); reuse revocation and logout retry version conflicts with authoritative reloads
-  and propagate retry exhaustion through `AuthSessionRevocationService.revoke`. `SessionService` owns the Fastify session cookie,
-  `api/src/auths/controllers/refresh-cookie.ts` the refresh cookie; `jose` stays behind
-  `jose-access-token.issuer.ts`; token settings are parsed at boot
-  (`api/src/common/environment/auth-token.config.ts`); Fastify refuses to boot without
+  and propagate retry exhaustion through `AuthSessionRevocationService.revoke`. `SessionService` owns the Fastify session cookie
+  and the refresh cookie, which the login, refresh and logout handlers write through the `SESSION_COOKIES` port over `httpExchangeStore`; the `@RefreshToken()` parameter decorator reads and validates the refresh cookie; `jose` stays behind
+  `jose-access-token.issuer.ts`; token and JWT settings and `API_CLIENTS` are parsed at boot
+  (`api/src/common/environment/auth-token.config.ts`, `api-clients.config.ts`); Fastify refuses to boot without
   `SESSION_SECRET`.
 - **Failure modes**: a logged-out access token stays valid until `exp`; without
   `TRUST_PROXY` behind a load balancer every client shares one refresh rate-limit bucket.
@@ -380,13 +380,13 @@ environment value is read or reproduced here.
 | OpenFeature | `api`, `packages/pipeline-feature-flags` | `api/src/infrastructure/reliability.module.ts`, `api/test/behavior-composition-contracts.spec.ts` |
 | CASL | `api`, `packages/pipeline-casl` | `api/src/common/constants/casl.constants.ts`, `api/test/user-permission-rules.spec.ts` |
 | JOSE | `api` | `api/src/auths/infrastructure/authentication-adapters.spec.ts`, `api/src/auths/infrastructure/jose-access-token.issuer.ts` |
-| Zod | `api`, `packages/pipeline-zod` | `api/src/auths/cqrs/commands/create-auth.command.ts`, `api/src/auths/cqrs/commands/delete-auth.command.ts` |
+| Zod | `api`, `packages/pipeline-zod` | `api/src/auths/cqrs/commands/create-auth.command.ts`, `api/src/auths/cqrs/commands/refresh-auth.command.ts` |
 | Pino | `api` | `api/src/bootstrap.ts`, `api/src/infrastructure/observability.module.spec.ts` |
-| Fastify | `api` | `api/src/auths/controllers/auths.controller.ts`, `api/src/auths/services/request-principal-resolver.spec.ts` |
+| Fastify | `api` | `api/src/auths/decorators/refresh-token.decorator.spec.ts`, `api/src/auths/services/request-principal-resolver.spec.ts` |
 | Express | `api` | `api/src/bootstrap.ts`, `api/src/express-platform.ts` |
 | Cockatiel | `api`, `packages/pipeline-resilience` | `packages/pipeline-resilience/src/helpers/policy-factory.spec.ts`, `packages/pipeline-resilience/src/helpers/policy-factory.ts` |
 | rate-limiter-flexible | `api`, `packages/pipeline-rate-limit` | `api/src/infrastructure/reliability.module.ts`, `api/test/behaviors.spec.ts` |
-| Vitest | `api`, `packages/ddd-core`, `packages/pipeline`, `packages/pipeline-audit`, … (+13) | `api/src/auths/controllers/auths.controller.spec.ts`, `api/src/auths/cqrs/commands/create-auth-redaction.spec.ts` |
+| Vitest | `api`, `packages/ddd-core`, `packages/pipeline`, `packages/pipeline-audit`, … (+13) | `api/src/auths/controllers/auths.controller.spec.ts`, `api/src/auths/cqrs/commands/auth-session-handlers.spec.ts` |
 | Biome | `api`, `packages/ddd-core` | not imported directly |
 | TypeScript | `api`, `packages/ddd-core` | not imported directly |
 | SWC | `api` | `api/vitest.config.e2e.ts`, `api/vitest.config.ts` |
@@ -398,11 +398,11 @@ environment value is read or reproduced here.
 | `api` | 15 workspace packages | `@casl/ability`, `@fastify/secure-session`, `@keyv/redis`, `@libsql/client`, `@mikro-orm/core`, `@mikro-orm/libsql`, `@mikro-orm/migrations`, `@mikro-orm/nestjs`, `@mikro-orm/postgresql`, `@mikro-orm/sqlite`, … (+27) | — |
 | `packages/ddd-core` | `@cqrs-ddd/safe-stringify`, `@cqrs-ddd/uuidv7` | — | `@mikro-orm/core` |
 | `packages/pipeline` | `@cqrs-ddd/safe-stringify`, `@cqrs-ddd/uuidv7` | — | `@nestjs/common`, `@nestjs/core`, `@nestjs/cqrs`, `reflect-metadata`, `rxjs` |
-| `packages/pipeline-audit` | `@cqrs-ddd/safe-stringify` | — | `@nestjs-pipeline/core`, `@nestjs/common`, `reflect-metadata` |
+| `packages/pipeline-audit` | `@cqrs-ddd/safe-stringify`, `@cqrs-ddd/uuidv7` | — | `@nestjs-pipeline/core`, `@nestjs/common`, `reflect-metadata` |
 | `packages/pipeline-cache` | `@cqrs-ddd/safe-stringify` | — | `@keyv/memcache`, `@keyv/postgres`, `@keyv/redis`, `@keyv/sqlite`, `@nestjs-pipeline/core`, `@nestjs/common`, `cache-manager`, `keyv`, `reflect-metadata` |
 | `packages/pipeline-casl` | — | — | `@casl/ability`, `@nestjs-pipeline/core`, `@nestjs/common`, `reflect-metadata` |
 | `packages/pipeline-correlation` | `@cqrs-ddd/uuidv7` | — | `@nestjs-pipeline/core`, `@nestjs/common` |
-| `packages/pipeline-deadletter` | `@cqrs-ddd/safe-stringify` | — | `@nestjs-pipeline/core`, `@nestjs/common`, `reflect-metadata` |
+| `packages/pipeline-deadletter` | `@cqrs-ddd/safe-stringify`, `@cqrs-ddd/uuidv7` | — | `@nestjs-pipeline/core`, `@nestjs/common`, `reflect-metadata` |
 | `packages/pipeline-feature-flags` | — | — | `@nestjs-pipeline/core`, `@nestjs/common`, `@openfeature/server-sdk`, `reflect-metadata` |
 | `packages/pipeline-idempotency` | `@cqrs-ddd/safe-stringify` | — | `@nestjs-pipeline/core`, `@nestjs/common`, `reflect-metadata` |
 | `packages/pipeline-opentelemetry` | — | — | `@nestjs-pipeline/core`, `@nestjs/common`, `@opentelemetry/api`, `reflect-metadata` |
@@ -427,7 +427,7 @@ Names only — values are never read by the generator.
 
 | Area | Convention | Evidence |
 | --- | --- | --- |
-| Naming | `<concern>.behavior.ts`, `<concern>.module.ts`, `*.command.ts`, `*.query.ts`, `*.handler.ts`, `*.entity.ts`, `*.exception.ts` / `*.error.ts`, `*.command-repository.ts`, `*.query-repository.ts`, `*.spec.ts` | existing files under `packages/*/src`, `api/src` |
+| Naming | Short, declarative names; no prefix or suffix the context gives; long names are a smell. Files kebab-case with role suffix: `<concern>.behavior.ts`, `<concern>.module.ts`, `*.command.ts`, `*.query.ts`, `*.handler.ts`, `*.entity.ts`, `*.exception.ts` / `*.error.ts`, `*.command-repository.ts`, `*.query-repository.ts`, `*.spec.ts` | `AGENTS.md` → Naming; skill → Naming |
 | File organization | Packages: `src/{constants,helpers,interfaces,errors,filters,...}` + one `packages/*/src/index.ts`. App: feature folder with `controllers/ cqrs/ domain/ dtos/ mappers/ persistence/` | `.claude/codebase-map.md` → Directory Map |
 | Imports | Path aliases `@common/*`, `@persistence/*` in users-api; `ddd-core` imported via `/domain`, `/application`, `/persistence`, `/http`, never the root barrel | `api/vitest.config.ts`, `biome/plugins/ddd-entry-points.grit` |
 | Framework independence | `packages/ddd-core`, `packages/uuidv7` and `packages/safe-stringify` import no NestJS, `nestjs`-named or `@nestjs-pipeline/*` package, specs included, and declare none; `packages/ddd-core` depends only on the two `@cqrs-ddd/*` utilities; Nest glue lives in the application | `biome/plugins/framework-independence.grit`, `packages/ddd-core/package-manifest.spec.ts`, `packages/ddd-core/domain/domain-entry-point.spec.ts` |
@@ -441,7 +441,7 @@ Names only — values are never read by the generator.
 | Formatting | Biome, 2-space indent, single quotes | `biome.json` |
 | Type checking | `tsc --noEmit` per workspace, strict + `noUnusedLocals`/`noUnusedParameters`/`noImplicitReturns` | `tsconfig.base.json`, package `lint` scripts |
 | Licensing | Every `packages/**/*.ts` starts with the repository copyright header | `biome/plugins/package-licenses.grit` |
-| Comments | No banners, no narrative signposting, no ticket/review identifiers, no history-telling; short step markers in multi-phase core logic are welcome | `AGENTS.md` → Documentation and comment policy |
+| Comments | Exported functions and public methods of exported classes: useful JSDoc with `@example`, never a restated name. Inline comments only in difficult core logic, none in CQRS handlers or ordinary app code. No banners, signposting, ticket IDs or history | `AGENTS.md` → Documentation and comment policy, rule 21 |
 | Commit messages | Conventional style observed: `feat(scope): …`, `fix(scope): …`, `docs: …` | `git log` |
 <!-- context:manual-end conventions -->
 
@@ -458,6 +458,7 @@ row as *declared* unless you have run it yourself in this checkout.
 | `pnpm build` | `pnpm -r build` |
 | `pnpm check` | `biome check .` |
 | `pnpm clean` | `pnpm -r run clean` |
+| `pnpm clean:all` | `rm -rf node_modules .tmp .cache coverage api/node_modules api/dist api/coverage api/*.tsbuildinfo packages/*/…` |
 | `pnpm context:check` | `python3 scripts/update-claude-snapshot.py --check` |
 | `pnpm context:update` | `python3 scripts/update-claude-snapshot.py` |
 | `pnpm context:validate` | `python3 scripts/validate-claude-context.py` |
@@ -663,13 +664,13 @@ secret value.*
 ## Snapshot Metadata
 
 <!-- context:generated-start metadata -->
-- Generated at: 2026-09-26T04:33:56Z
-- Git commit: 8fb50f30c2d56e9faf55672562fb0da350321d2e
+- Generated at: 2026-09-27T06:42:37Z
+- Git commit: 72b935f577ba88852d5fc52ba5cac5509649e3d7
 - Git branch: publish
 - Uncommitted changes when generated: yes
 - Generator: `scripts/update-claude-snapshot.py` version 1.0.0
 - Snapshot status: generated — structural inspection only, no code executed
-- Files inspected: 846
+- Files inspected: 864
 - Included top-level directories: `.agents`, `.claude`, `api`, `biome`, `integration`, `packages`, `scripts`
 - Excluded directory names: `.cache`, `.git`, `.gradle`, `.idea`, `.mypy_cache`, `.next`, `.nuxt`, `.parcel-cache`, `.pnpm-store`, `.pytest_cache`, `.ruff_cache`, `.svelte-kit`, `.terraform`, `.tmp`, `.tox`, `.turbo`, `.venv`, `.vscode`, `__pycache__`, `bower_components`, `build`, `coverage`, `dist`, `node_modules`, `out`, `target`, `vendor`, `venv`, `virtualenv`
 - Excluded file patterns: `.env`, `.env.*`, `*.env`, `*.pem`, `*.key`, `*.pfx`, `*.p12`, `*.jks`, `*.keystore`, `id_rsa*`, `id_ed25519*`, `*credentials*`, `*.secret`, `secrets.*`

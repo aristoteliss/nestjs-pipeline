@@ -3,7 +3,7 @@
 import { IQueryRepository } from '@cqrs-ddd/core/application';
 import { Inject, Injectable } from '@nestjs/common';
 import { MIKRO_ORM_CLIENT, MikroOrmStore } from '@persistence/mikro-orm.store';
-import { GetUsersQuery } from '../cqrs/queries/get-users.query';
+import { GetUsersQuery } from '../application/cqrs/queries/get-users.query';
 import { User } from '../domain/models/user.entity';
 
 @Injectable()

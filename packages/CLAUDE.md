@@ -31,6 +31,9 @@ too. Repository-wide orientation: [.claude/codebase-map.md](../.claude/codebase-
 - These libraries target external consumers and future use cases. A missing call site in
   `api` does not prove an export is unused — see the library-scope rules in
   `AGENTS.md` before removing any exported API, adapter, or supported input type.
+- Names follow [AGENTS.md → Naming](../AGENTS.md#naming): short and declarative, with no
+  prefix or suffix the package already gives. An exported name is a published contract,
+  so get it right before release.
 
 ## Important files
 

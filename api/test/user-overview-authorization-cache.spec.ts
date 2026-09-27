@@ -22,11 +22,11 @@ import {
 } from '@nestjs-pipeline/casl';
 import { type IPipelineContext, PipelineModule } from '@nestjs-pipeline/core';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import type { UserPermissionAssignments } from '../src/auths/application/permission-assignments';
-import type { GetUserCapabilitiesQuery } from '../src/auths/cqrs/queries/get-user-capabilities.query';
 import type { SessionUser } from '../src/common/types/SessionUser';
 import { Role } from '../src/roles/domain/models/role.entity';
 import { QUERY_REPOSITORY as ROLES_QUERY_REPOSITORY } from '../src/roles/persistence/repository.tokens';
+import type { UserPermissionAssignments } from '../src/users/application/permission-assignments';
+import type { GetUserCapabilitiesQuery } from '../src/users/cqrs/queries/get-user-capabilities.query';
 import { GetUserOverviewHandler } from '../src/users/cqrs/queries/get-user-overview.handler';
 import { GetUserOverviewQuery } from '../src/users/cqrs/queries/get-user-overview.query';
 import {

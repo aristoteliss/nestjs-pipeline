@@ -15,10 +15,9 @@ import { LoggingBehavior, PipelineModule } from '@nestjs-pipeline/core';
 import { MetricsBehavior } from '@nestjs-pipeline/opentelemetry';
 import { RateLimitBehavior } from '@nestjs-pipeline/rate-limit';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import {
-  AUTH_TOKEN_POLICY,
-  REFRESH_TOKENS,
-} from '../src/auths/application/authentication.ports';
+import { AUTH_TOKEN_POLICY } from '../src/auths/application/ports/auth-token-policy.port';
+import { REFRESH_TOKENS } from '../src/auths/application/ports/refresh-tokens.port';
+import { SESSION_COOKIES } from '../src/auths/application/ports/session-cookies.port';
 import { CreateAuthCommand } from '../src/auths/cqrs/commands/create-auth.command';
 import { CreateAuthHandler } from '../src/auths/cqrs/commands/create-auth.handler';
 import { NodeRefreshTokens } from '../src/auths/infrastructure/node-refresh-tokens';
@@ -73,8 +72,12 @@ describe('Login audit actor', () => {
           useValue: {
             refreshTokenTtlSeconds: 3600,
             refreshReuseGraceSeconds: 30,
-            permissionsInAccessToken: false,
+            embedPermissions: false,
           },
+        },
+        {
+          provide: SESSION_COOKIES,
+          useValue: { save: vi.fn(), clear: vi.fn() },
         },
         CreateAuthHandler,
       ],

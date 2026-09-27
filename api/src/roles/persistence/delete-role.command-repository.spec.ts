@@ -8,7 +8,7 @@ import {
 } from '@cqrs-ddd/core/domain';
 import {
   DEFAULT_BARRIER_TTL_MS,
-  filterCacheKey,
+  cacheKey,
 } from '@cqrs-ddd/core/persistence';
 import { runWithTenant } from '@nestjs-pipeline/tenant';
 import { describe, expect, it, vi } from 'vitest';
@@ -34,8 +34,8 @@ describe('DeleteRoleCommandRepository', () => {
     role.delete();
     const result = await runWithTenant('tenant', () => repository.save(role));
 
-    const idKey = filterCacheKey(Role.aggregateName, { id: role.id }, 'tenant');
-    const nameKey = filterCacheKey(
+    const idKey = cacheKey(Role.aggregateName, { id: role.id }, 'tenant');
+    const nameKey = cacheKey(
       Role.aggregateName,
       { name: role.name },
       'tenant',
