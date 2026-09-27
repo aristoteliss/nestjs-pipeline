@@ -1,13 +1,16 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
+
+import {
+  ConcurrencyConflictError,
+  DomainException,
+  EntityNotFoundException,
+  TransientOperationError,
+} from '@cqrs-ddd/core/domain';
 import { describe, expect, it } from 'vitest';
-import { ConcurrencyConflictError } from '../domain/exceptions/concurrency-conflict.error';
-import { DomainException } from '../domain/exceptions/domain.exception';
-import { EntityNotFoundException } from '../domain/exceptions/entity-not-found.exception';
-import { TransientOperationError } from '../domain/exceptions/transient-operation.error';
 import {
   isTransientPersistenceError,
   mapPersistenceError,
-} from './is-transient-persistence-error';
+} from './transient-error';
 
 class UniqueEmailException extends DomainException {}
 

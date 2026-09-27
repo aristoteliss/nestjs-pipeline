@@ -1,32 +1,49 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import {
+  type IPersistenceDialect,
+  persistenceDialect,
+  setPersistenceDialect,
+} from '../persistence-dialect';
 import { MapPersistenceErrors } from './map-persistence-errors.decorator';
 
-function setup(failure?: unknown) {
-  const entity = { id: 'entity-1' };
+type Item = { id: string; name: string; code: string };
+
+/** Reports the `violated` key an error carries, as a real dialect reads a constraint. */
+const fakeDialect = (): IPersistenceDialect & {
+  uniqueViolation: ReturnType<typeof vi.fn>;
+} => ({
+  uniqueViolation: vi.fn((error: unknown) =>
+    typeof error === 'object' && error !== null && 'violated' in error
+      ? String((error as { violated: unknown }).violated)
+      : undefined,
+  ),
+});
+
+const violation = (key: string) =>
+  Object.assign(new Error(`unique ${key}`), { violated: key });
+
+function setup(
+  failure: unknown,
+  options: { dialect?: IPersistenceDialect; withUnique?: boolean } = {},
+) {
+  const entity: Item = { id: 'entity-1', name: 'n', code: 'c' };
   const mapped = new Error('name already exists');
-  const errorFactory = vi.fn().mockReturnValue(mapped);
-  const selector = vi.fn((args: [string, typeof entity]) => args[1]);
+  const nameError = vi.fn().mockReturnValue(mapped);
+  const selector = vi.fn((args: [string, Item]) => args[1]);
+  const body = vi.fn();
   class Writer {
     readonly result = { saved: true };
-    @MapPersistenceErrors<[string, typeof entity], typeof entity>({
+    @MapPersistenceErrors<[string, Item], Item, 'items_pair'>({
       entity: selector,
-      unique: [
-        {
-          constraint: 'other_unique',
-          columns: 'items.other',
-          error: () => new Error('other'),
-        },
-        {
-          constraint: 'items_name_unique',
-          columns: 'items.name',
-          error: errorFactory,
-        },
-      ],
+      unique:
+        options.withUnique === false
+          ? undefined
+          : { name: nameError, items_pair: () => new Error('pair') },
+      dialect: options.dialect,
     })
-    async write(label: string, value: typeof entity) {
-      expect(label).toBe('update');
-      expect(value).toBe(entity);
+    async write(label: string, value: Item) {
+      body(label, value);
       if (failure !== undefined) throw failure;
       return this.result;
     }
@@ -37,93 +54,120 @@ function setup(failure?: unknown) {
     entity,
     mapped,
     selector,
-    errorFactory,
+    nameError,
+    body,
     run: () => writer.write('update', entity),
   };
 }
 
 describe('MapPersistenceErrors', () => {
+  afterEach(() => setPersistenceDialect(undefined));
+
   it('preserves receiver, arguments and successful result without invoking mapping callbacks', async () => {
-    const { writer, run, selector, errorFactory } = setup();
+    const dialect = fakeDialect();
+    const { writer, run, selector, nameError, body, entity } = setup(
+      undefined,
+      { dialect },
+    );
+
     expect(await run()).toBe(writer.result);
+    expect(body).toHaveBeenCalledWith('update', entity);
     expect(selector).not.toHaveBeenCalled();
-    expect(errorFactory).not.toHaveBeenCalled();
+    expect(nameError).not.toHaveBeenCalled();
+    expect(dialect.uniqueViolation).not.toHaveBeenCalled();
+  });
+
+  it('builds the domain error the dialect names, from the selected entity', async () => {
+    const dialect = fakeDialect();
+    const failure = violation('name');
+    const { run, entity, mapped, nameError } = setup(failure, { dialect });
+
+    await expect(run()).rejects.toBe(mapped);
+    expect(dialect.uniqueViolation).toHaveBeenCalledWith(failure, entity);
+    expect(nameError).toHaveBeenCalledExactlyOnceWith(entity);
+  });
+
+  it('maps a declared multi-column constraint by its name', async () => {
+    const { run } = setup(violation('items_pair'), { dialect: fakeDialect() });
+
+    await expect(run()).rejects.toThrow('pair');
+  });
+
+  it('uses the registered dialect when the options name none', async () => {
+    setPersistenceDialect(fakeDialect());
+    const { run, mapped } = setup(violation('name'));
+
+    await expect(run()).rejects.toBe(mapped);
+    expect(persistenceDialect()).toBeDefined();
+  });
+
+  it('prefers the dialect in the options over the registered one', async () => {
+    const registered = fakeDialect();
+    setPersistenceDialect(registered);
+    const own = fakeDialect();
+    const { run, mapped } = setup(violation('name'), { dialect: own });
+
+    await expect(run()).rejects.toBe(mapped);
+    expect(own.uniqueViolation).toHaveBeenCalledOnce();
+    expect(registered.uniqueViolation).not.toHaveBeenCalled();
   });
 
   it.each([
-    { code: '23505', constraint: 'items_name_unique' },
-    new Error(
-      'update failed: duplicate key value violates unique constraint "items_name_unique"',
-    ),
-    new Error('UNIQUE constraint failed: items.name'),
-    new Error('SQLITE_CONSTRAINT: UNIQUE constraint failed: items.name'),
-    new Error('driver failure\n  UNIQUE constraint failed: items.name\n'),
-  ])(
-    'selects the identified constraint and passes the selected aggregate: %s',
-    async (failure) => {
-      const { run, entity, mapped, errorFactory } = setup(failure);
-      await expect(run()).rejects.toBe(mapped);
-      expect(errorFactory).toHaveBeenCalledExactlyOnceWith(entity);
-    },
-  );
+    ['an error the dialect does not recognize', new Error('driver failure')],
+    ['a constraint with no mapping', violation('code')],
+    ['a non-object failure', 'driver failure'],
+  ])('rethrows %s unchanged', async (_case, failure) => {
+    const { run, nameError } = setup(failure, { dialect: fakeDialect() });
 
-  it.each([
-    null,
-    'driver failure',
-    42,
-    new Error('unique application failure'),
-    { code: '23505', constraint: 'unknown_unique' },
-    { code: 'SQLITE_CONSTRAINT_UNIQUE' },
-    new Error('UNIQUE constraint failed: items.name, items.category'),
-    new Error('UNIQUE constraint failed: items.namespace'),
-    new Error('violates unique constraint "items_name_unique_suffix"'),
-  ])(
-    'preserves unrelated/ambiguous failures by identity: %s',
-    async (failure) => {
-      const { run, selector, errorFactory } = setup(failure);
-      await expect(run()).rejects.toBe(failure);
-      expect(selector).not.toHaveBeenCalled();
-      expect(errorFactory).not.toHaveBeenCalled();
-    },
-  );
+    await expect(run()).rejects.toBe(failure);
+    expect(nameError).not.toHaveBeenCalled();
+  });
+
+  it('refuses to run a method that maps unique errors without any dialect', async () => {
+    const { run, body } = setup(undefined);
+
+    await expect(run()).rejects.toThrow(
+      'Unique-constraint mapping needs a persistence dialect',
+    );
+    expect(body).not.toHaveBeenCalled();
+  });
+
+  it('needs no dialect when it maps no unique errors', async () => {
+    const failure = violation('name');
+    const { run } = setup(failure, { withUnique: false });
+
+    await expect(run()).rejects.toBe(failure);
+  });
 
   it('rejects decorating a non-method', () => {
-    const decorate = MapPersistenceErrors<[], object>({
-      entity: () => ({}),
-      unique: [],
-    });
+    const decorate = MapPersistenceErrors<[], object>({ entity: () => ({}) });
     expect(() => decorate({}, 'value', {})).toThrow(TypeError);
   });
 });
 
 /**
- * `otherwise` translates the failures no unique-constraint mapping claimed, such
- * as transient driver failures in delete command repositories.
+ * `otherwise` translates the failures no unique mapping claimed, such as
+ * transient driver failures in delete command repositories.
  */
 describe('MapPersistenceErrors otherwise translator', () => {
   function setupOtherwise(
     failure: unknown,
-    translate: (error: unknown, entity: { id: string }) => unknown,
+    translate: (error: unknown, entity: Item) => unknown,
   ) {
-    const entity = { id: 'entity-1' };
+    const entity: Item = { id: 'entity-1', name: 'n', code: 'c' };
     const otherwise = vi.fn(translate);
     const constraintError = new Error('name already exists');
-    const errorFactory = vi.fn().mockReturnValue(constraintError);
+    const nameError = vi.fn().mockReturnValue(constraintError);
 
     class Writer {
       readonly result = { saved: true };
-      @MapPersistenceErrors<[typeof entity], typeof entity>({
+      @MapPersistenceErrors<[Item], Item>({
         entity: ([value]) => value,
-        unique: [
-          {
-            constraint: 'items_name_unique',
-            columns: 'items.name',
-            error: errorFactory,
-          },
-        ],
+        unique: { name: nameError },
+        dialect: fakeDialect(),
         otherwise,
       })
-      async write(_value: typeof entity) {
+      async write(_value: Item) {
         if (failure !== undefined) throw failure;
         return this.result;
       }
@@ -134,7 +178,7 @@ describe('MapPersistenceErrors otherwise translator', () => {
       writer,
       entity,
       otherwise,
-      errorFactory,
+      nameError,
       constraintError,
       run: () => writer.write(entity),
     };
@@ -152,10 +196,17 @@ describe('MapPersistenceErrors otherwise translator', () => {
     expect(otherwise).toHaveBeenCalledExactlyOnceWith(failure, entity);
   });
 
+  it('runs with this bound to the decorated instance', async () => {
+    const { writer, run, otherwise } = setupOtherwise(
+      new Error('lost'),
+      (error) => error,
+    );
+
+    await expect(run()).rejects.toThrow('lost');
+    expect(otherwise.mock.contexts[0]).toBe(writer);
+  });
+
   it('preserves error identity when the translator returns the error unchanged', async () => {
-    // This is the `mapPersistenceError` contract: non-transient failures pass
-    // through, so repositories need no explicit re-throw guard for the domain
-    // errors they raise deliberately (ConcurrencyConflictError, EntityNotFound…).
     const failure = new Error('deliberate domain failure');
     const { run, otherwise } = setupOtherwise(failure, (error) => error);
 
@@ -163,14 +214,14 @@ describe('MapPersistenceErrors otherwise translator', () => {
     expect(otherwise).toHaveBeenCalledOnce();
   });
 
-  it('does not run when a unique constraint already claimed the failure', async () => {
-    const { run, otherwise, constraintError, errorFactory } = setupOtherwise(
-      { code: '23505', constraint: 'items_name_unique' },
+  it('does not run when a unique mapping already claimed the failure', async () => {
+    const { run, otherwise, constraintError, nameError } = setupOtherwise(
+      violation('name'),
       () => new Error('should not be reached'),
     );
 
     await expect(run()).rejects.toBe(constraintError);
-    expect(errorFactory).toHaveBeenCalledOnce();
+    expect(nameError).toHaveBeenCalledOnce();
     expect(otherwise).not.toHaveBeenCalled();
   });
 

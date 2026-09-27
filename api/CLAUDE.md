@@ -51,8 +51,7 @@ short and declarative, with no prefix or suffix the module already gives.
 | `src/graceful-shutdown.ts` | SIGTERM/SIGINT → `app.close()` → telemetry flush → re-raise the signal |
 | `src/app.module.ts` | Composition root: CQRS, observability, reliability, CASL, persistence, features |
 | `src/common/filters/domain-exception.filter.ts` | Framework-neutral errors → HTTP: this application's exceptions, then `domainErrorHttpStatus()` for `packages/ddd-core`'s (409, 404, generic 500 for a missing tenant, 400) |
-| `src/persistence/mikro-orm.store.ts` | Tenant-resolved `EntityManager` (`em`), the `IEntityManagerSource` of `@cqrs-ddd/mikro-orm`'s `AggregateRepository` |
-| `src/persistence/entity-manager-tenant.registry.ts` | Tenant ↔ EntityManager association (external `WeakMap`, never a property on the ORM object) |
+| `src/persistence/mikro-orm.store.ts` | The one store for both engines: builds the ORMs (libSQL: one per tenant; PostgreSQL: one, a schema per tenant), registers the dialect, and hands out the active tenant's `EntityManager` through `@cqrs-ddd/mikro-orm`'s `TenantStore` |
 | `src/auths/services/session.service.ts` | Cookie lifecycle, kept out of domain login |
 | `src/auths/persistence/casl-permission.source.ts` | Principal and rule loading for CASL (`ICaslPermissionSource`) |
 

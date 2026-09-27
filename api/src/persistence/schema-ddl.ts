@@ -115,25 +115,24 @@ export function generateSchemaSql(
       : columns.join(',\n      ');
     statements.push(`create table ${tableName} (\n      ${body}\n    );`);
 
-    if (meta.indexes) {
-      for (const idx of meta.indexes) {
-        const propNames = (idx.properties ?? []) as string[];
-        const colNames = propNames.map((p) => {
+    const columnsOf = (properties: unknown) =>
+      ([properties ?? []].flat() as string[])
+        .map((p) => {
           const rawP = meta.properties[p] as
             | { fieldName?: string; fieldNames?: string[] }
             | undefined;
           return rawP?.fieldName ?? rawP?.fieldNames?.[0] ?? p;
-        });
-        if (idx.type === 'unique') {
-          statements.push(
-            `create unique index ${idx.name} on ${tableName} (${colNames.join(', ')});`,
-          );
-        } else {
-          statements.push(
-            `create index ${idx.name} on ${tableName} (${colNames.join(', ')});`,
-          );
-        }
-      }
+        })
+        .join(', ');
+    for (const unique of meta.uniques ?? []) {
+      statements.push(
+        `create unique index ${unique.name} on ${tableName} (${columnsOf(unique.properties)});`,
+      );
+    }
+    for (const idx of meta.indexes ?? []) {
+      statements.push(
+        `create index ${idx.name} on ${tableName} (${columnsOf(idx.properties)});`,
+      );
     }
   }
 

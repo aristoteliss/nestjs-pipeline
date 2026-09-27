@@ -11,7 +11,6 @@ import { assertAutocommit } from '@cqrs-ddd/mikro-orm';
 import { Inject, Injectable } from '@nestjs/common';
 import { cacheWriteLogger } from '@persistence/cache/cache-loggers';
 import { MIKRO_ORM_CLIENT, MikroOrmStore } from '@persistence/mikro-orm.store';
-import { USER_EMAIL_UNIQUE } from '@persistence/schemas/user.schema';
 import { UniqueEmailException } from '../domain/models/errors/email.exception';
 import { User, UserSnapshot } from '../domain/models/user.entity';
 
@@ -40,13 +39,7 @@ export class CreateUserCommandRepository extends CommandRepository<
         cacheKey(User.aggregateName, { email: user.email }),
       ],
     },
-    unique: [
-      {
-        constraint: USER_EMAIL_UNIQUE,
-        columns: 'users.email',
-        error: (user) => new UniqueEmailException(user),
-      },
-    ],
+    unique: { email: (user) => new UniqueEmailException(user) },
   })
   async save(user: User): Promise<UserSnapshot> {
     const em = this.store.em;

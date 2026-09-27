@@ -3,6 +3,7 @@
 import { LibSqlDriver } from '@mikro-orm/libsql';
 import { PostgreSqlDriver } from '@mikro-orm/postgresql';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { Migration20260830000000 } from './migrations/Migration20260830000000';
 import {
   createLibsqlOrmOptions,
   createPostgresOrmOptions,
@@ -104,10 +105,38 @@ describe('ORM options', () => {
 
     expect(postgres.entities).toEqual(libsql.entities);
     expect(postgres.extensions).toEqual(libsql.extensions);
-    expect(postgres.migrations).toEqual({
-      ...libsql.migrations,
+    const { migrationsList: libsqlList, ...libsqlMigrations } =
+      libsql.migrations;
+    const { migrationsList: postgresList, ...postgresMigrations } =
+      postgres.migrations;
+    expect(postgresMigrations).toEqual({
+      ...libsqlMigrations,
       schema: 'tenant_a',
     });
+    expect(postgresList.map(({ name }) => name)).toEqual(
+      libsqlList.map(({ name }) => name),
+    );
+  });
+
+  it('seeds the migrations for the tenant the options serve', async () => {
+    const seed = async (migrations: {
+      migrationsList: { class: typeof Migration20260830000000 }[];
+    }) => {
+      const [{ class: seeded }] = migrations.migrationsList;
+      const migration = new seeded(undefined as never, undefined as never);
+      await migration.up();
+      return migration.getQueries().map(String).join('\n');
+    };
+
+    expect(
+      await seed(createLibsqlOrmOptions(':memory:', 'tenant_b').migrations),
+    ).toContain('vince+tenant-b@seed.local');
+    expect(
+      await seed(createPostgresOrmOptions('tenant_a').migrations),
+    ).toContain('vince+tenant-a@seed.local');
+    expect(await seed(createLibsqlOrmOptions(':memory:').migrations)).toContain(
+      'vince+tenant@seed.local',
+    );
   });
 
   it('builds libSQL options for the given database and auth token', () => {

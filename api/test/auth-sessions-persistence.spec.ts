@@ -5,14 +5,17 @@ import { ConcurrencyConflictError } from '@cqrs-ddd/core/domain';
 import { MemoryCache } from '@cqrs-ddd/core/persistence';
 import { type IPipelineContext, pipelineStore } from '@nestjs-pipeline/core';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { GetAuthByConsumedTokenHashQuery } from '../src/auths/application/cqrs/queries/get-auth-by-consumed-token-hash.query';
+import { GetAuthByTokenHashQuery } from '../src/auths/application/cqrs/queries/get-auth-by-token-hash.query';
 import { RefreshTokenReuseError } from '../src/auths/domain/errors/refresh-token.errors';
 import {
   Auth,
   type AuthSnapshot,
 } from '../src/auths/domain/models/auth.entity';
 import { NodeRefreshTokens } from '../src/auths/infrastructure/node-refresh-tokens';
-import { AuthSessionsRepository } from '../src/auths/persistence/auth-sessions.repository';
 import { CreateAuthCommandRepository } from '../src/auths/persistence/create-auth.command-repository';
+import { GetAuthByConsumedTokenHashQueryRepository } from '../src/auths/persistence/get-auth-by-consumed-token-hash.query-repository';
+import { GetAuthByTokenHashQueryRepository } from '../src/auths/persistence/get-auth-by-token-hash.query-repository';
 import { UpdateAuthCommandRepository } from '../src/auths/persistence/update-auth.command-repository';
 import { PrincipalLoginService } from '../src/auths/services/principal-login.service';
 import { type MigratedDb, migratedDb } from './support/permission-rules-db';
@@ -56,18 +59,39 @@ describe('Auth session persistence', () => {
     return auth;
   }
 
-  const sessions = () => new AuthSessionsRepository(store as never);
+  const byTokenHash = () =>
+    new GetAuthByTokenHashQueryRepository(cache, store as never);
+  const byConsumedTokenHash = () =>
+    new GetAuthByConsumedTokenHashQueryRepository(cache, store as never);
   const updates = () => new UpdateAuthCommandRepository(cache, store as never);
 
   it('finds a session by its current or previous hash and saves a rotation version-conditioned', async () => {
     const auth = await start('hash-a');
-    const loaded = (await sessions().findByTokenHash('hash-a')) as Auth;
+    const loaded = (await byTokenHash().find(
+      new GetAuthByTokenHashQuery({ tokenHash: 'hash-a' }),
+    )) as Auth;
     loaded.refresh('hash-a', 'hash-b', Date.now(), 30_000);
     await inTenant(() => updates().save(loaded));
 
-    expect((await sessions().findByTokenHash('hash-b'))?.id).toBe(auth.id);
-    expect((await sessions().findByTokenHash('hash-a'))?.id).toBe(auth.id);
-    expect(await sessions().findByTokenHash('hash-z')).toBeNull();
+    expect(
+      (
+        await byTokenHash().find(
+          new GetAuthByTokenHashQuery({ tokenHash: 'hash-b' }),
+        )
+      )?.id,
+    ).toBe(auth.id);
+    expect(
+      (
+        await byTokenHash().find(
+          new GetAuthByTokenHashQuery({ tokenHash: 'hash-a' }),
+        )
+      )?.id,
+    ).toBe(auth.id);
+    expect(
+      await byTokenHash().find(
+        new GetAuthByTokenHashQuery({ tokenHash: 'hash-z' }),
+      ),
+    ).toBeNull();
 
     const stale = Auth.fromJSON({ ...auth.toJSON(), version: 1 });
     stale.revoke(Date.now());
@@ -79,8 +103,8 @@ describe('Auth session persistence', () => {
   it('persists previous-token reuse revocation through the real repository', async () => {
     const tokens = new NodeRefreshTokens();
     const auth = await start(tokens.hash('token-a'));
-    const loaded = (await sessions().findByTokenHash(
-      tokens.hash('token-a'),
+    const loaded = (await byTokenHash().find(
+      new GetAuthByTokenHashQuery({ tokenHash: tokens.hash('token-a') }),
     )) as Auth;
     loaded.refresh(
       tokens.hash('token-a'),
@@ -99,7 +123,8 @@ describe('Auth session persistence', () => {
         embedPermissions: false,
       },
       { find: vi.fn() } as never,
-      sessions(),
+      byTokenHash(),
+      byConsumedTokenHash(),
       updates(),
       tokens,
       { schema: 'tenant' },
@@ -119,11 +144,10 @@ describe('Auth session persistence', () => {
       ['token-a', 'token-b'],
       ['token-b', 'token-c'],
     ]) {
-      const loaded = (await sessions().findByTokenHash(
-        tokens.hash(from),
+      const loaded = (await byTokenHash().find(
+        new GetAuthByTokenHashQuery({ tokenHash: tokens.hash(from) }),
       )) as Auth;
       loaded.refresh(tokens.hash(from), tokens.hash(to), Date.now(), 30_000);
-      await sessions().recordConsumed(tokens.hash(from), auth.id, Date.now());
       await inTenant(() => updates().save(loaded));
     }
     const repository = updates();
@@ -150,7 +174,8 @@ describe('Auth session persistence', () => {
         embedPermissions: false,
       },
       { find: vi.fn() } as never,
-      sessions(),
+      byTokenHash(),
+      byConsumedTokenHash(),
       repository,
       tokens,
       { schema: 'tenant' },
@@ -159,20 +184,32 @@ describe('Auth session persistence', () => {
     await expect(
       inTenant(() => service.refresh('token-a', '127.0.0.1')),
     ).rejects.toBeInstanceOf(RefreshTokenReuseError);
-    const persisted = await sessions().findByTokenHash(tokens.hash('token-d'));
+    const persisted = await byTokenHash().find(
+      new GetAuthByTokenHashQuery({ tokenHash: tokens.hash('token-d') }),
+    );
     expect(persisted?.revokedAt).not.toBeNull();
     expect(persisted?.id).toBe(auth.id);
   });
 
   it('records a consumed hash once and resolves its session', async () => {
-    const auth = await start('hash-a');
+    const auth = await start('hash-old');
+    const first = Auth.fromJSON(auth.toJSON());
+    const second = Auth.fromJSON(auth.toJSON());
+    first.refresh('hash-old', 'hash-a', 1, 30_000);
+    second.refresh('hash-old', 'hash-b', 2, 30_000);
 
-    await sessions().recordConsumed('hash-old', auth.id, 1);
-    await sessions().recordConsumed('hash-old', auth.id, 2);
-
-    expect((await sessions().findByConsumedTokenHash('hash-old'))?.id).toBe(
-      auth.id,
+    await inTenant(() => updates().save(first));
+    await expect(inTenant(() => updates().save(second))).rejects.toBeInstanceOf(
+      ConcurrencyConflictError,
     );
+
+    expect(
+      (
+        await byConsumedTokenHash().find(
+          new GetAuthByConsumedTokenHashQuery({ tokenHash: 'hash-old' }),
+        )
+      )?.id,
+    ).toBe(auth.id);
     expect(
       await db.sql(
         'select consumed_at from auth_consumed_refresh_tokens where token_hash = ?',
@@ -182,8 +219,9 @@ describe('Auth session persistence', () => {
   });
 
   it('deletes sessions and their history with the user', async () => {
-    const auth = await start('hash-a');
-    await sessions().recordConsumed('hash-old', auth.id, 1);
+    const auth = await start('hash-old');
+    auth.refresh('hash-old', 'hash-a', Date.now(), 30_000);
+    await inTenant(() => updates().save(auth));
 
     await db.sql('delete from users where id = ?', [ALICE]);
 
@@ -195,10 +233,15 @@ describe('Auth session persistence', () => {
 
   it('purges expired and long-revoked sessions with their history and keeps live ones', async () => {
     const live = await start('hash-live');
-    const expired = await start('hash-expired', Date.now() - 1);
+    const expired = await start('hash-expired-old', Date.now() + 1_000);
     const revokedLongAgo = await start('hash-revoked-old');
     const revokedRecently = await start('hash-revoked-new');
-    await sessions().recordConsumed('hash-expired-old', expired.id, 1);
+    expired.refresh('hash-expired-old', 'hash-expired', Date.now(), 30_000);
+    await inTenant(() => updates().save(expired));
+    await db.sql('update auth set expires_at = ? where id = ?', [
+      Date.now() - 1,
+      expired.id,
+    ]);
     await db.sql('update auth set revoked_at = ? where id = ?', [
       Date.now() - 15 * DAY,
       revokedLongAgo.id,

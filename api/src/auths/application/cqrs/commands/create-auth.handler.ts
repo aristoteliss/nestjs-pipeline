@@ -88,7 +88,7 @@ export class CreateAuthHandler extends CommandBaseHandler<
     );
 
     await this.commandRepository.save(auth);
-    const access = await this.principalLoginService.signToken(user, auth.id);
+    const access = await this.principalLoginService.sign(user, auth.id);
 
     const result: AuthResult = {
       aggregate: auth,

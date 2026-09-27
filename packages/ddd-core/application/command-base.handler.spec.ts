@@ -8,7 +8,7 @@ import {
   type AggregateBearingResult,
   CommandBaseHandler,
 } from './command-base.handler';
-import type { IDomainEventPublisher } from './domain-event-publisher.port';
+import type { IDomainEventPublisher } from './ports/domain-event-publisher.port';
 
 type TestCommand = object;
 

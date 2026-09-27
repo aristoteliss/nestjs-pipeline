@@ -6,9 +6,12 @@ import {
   Cache,
   cacheKey,
   MapPersistenceErrors,
-  mapPersistenceError,
 } from '@cqrs-ddd/core/persistence';
-import { AggregateRepository, optimisticDelete } from '@cqrs-ddd/mikro-orm';
+import {
+  AggregateRepository,
+  mapPersistenceError,
+  optimisticDelete,
+} from '@cqrs-ddd/mikro-orm';
 import { Inject, Injectable } from '@nestjs/common';
 import { cacheWriteLogger } from '@persistence/cache/cache-loggers';
 import { MIKRO_ORM_CLIENT, MikroOrmStore } from '@persistence/mikro-orm.store';
@@ -36,7 +39,6 @@ export class DeleteUserCommandRepository extends AggregateRepository<
   })
   @MapPersistenceErrors<[User], User>({
     entity: ([user]) => user,
-    unique: [],
     otherwise: (error, user) =>
       mapPersistenceError(error, `deleting User ${user.id}`),
   })

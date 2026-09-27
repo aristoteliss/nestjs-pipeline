@@ -58,7 +58,7 @@ describe('Login audit actor', () => {
           provide: PrincipalLoginService,
           useValue: {
             authenticate,
-            signToken: vi.fn(),
+            sign: vi.fn(),
           },
         },
         {

@@ -13,7 +13,6 @@ import { CreateAuthHandler } from './application/cqrs/commands/create-auth.handl
 import { RevokeAuthHandler } from './application/cqrs/commands/revoke-auth.handler';
 import { GetUserPermissionRulesHandler } from './application/cqrs/queries/get-user-permission-rules.handler';
 import { ACCESS_TOKEN_ISSUER } from './application/ports/access-token-issuer.port';
-import { AUTH_SESSIONS } from './application/ports/auth-sessions.port';
 import {
   AUTH_TOKEN_POLICY,
   type AuthTokenPolicy,
@@ -26,9 +25,13 @@ import { AuthsController } from './controllers/auths.controller';
 import { JoseAccessTokenIssuer } from './infrastructure/jose-access-token.issuer';
 import { NodeRefreshTokens } from './infrastructure/node-refresh-tokens';
 import { SharedDemoLoginCodeVerifier } from './infrastructure/shared-demo-login-code.verifier';
-import { AuthSessionsRepository } from './persistence/auth-sessions.repository';
 import { CreateAuthCommandRepository } from './persistence/create-auth.command-repository';
-import { COMMAND_REPOSITORY } from './persistence/repository.tokens';
+import { GetAuthByConsumedTokenHashQueryRepository } from './persistence/get-auth-by-consumed-token-hash.query-repository';
+import { GetAuthByTokenHashQueryRepository } from './persistence/get-auth-by-token-hash.query-repository';
+import {
+  COMMAND_REPOSITORY,
+  QUERY_REPOSITORY,
+} from './persistence/repository.tokens';
 import { UpdateAuthCommandRepository } from './persistence/update-auth.command-repository';
 import { ApiClientAuthenticator } from './services/api-client-authenticator';
 import { JwtAuthenticator } from './services/jwt-authenticator';
@@ -45,7 +48,14 @@ import { SessionService } from './services/session.service';
       provide: EXT_USER_QUERY_REPOSITORY.getUser,
       useClass: GetUserQueryRepository,
     },
-    { provide: AUTH_SESSIONS, useClass: AuthSessionsRepository },
+    {
+      provide: QUERY_REPOSITORY.getAuthByTokenHash,
+      useClass: GetAuthByTokenHashQueryRepository,
+    },
+    {
+      provide: QUERY_REPOSITORY.getAuthByConsumedTokenHash,
+      useClass: GetAuthByConsumedTokenHashQueryRepository,
+    },
 
     // Repositories (Command)
     {

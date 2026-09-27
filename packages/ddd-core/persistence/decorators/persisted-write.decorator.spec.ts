@@ -1,8 +1,9 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { describe, expect, it, vi } from 'vitest';
+import type { ICache } from '../../application/ports/cache.port';
 import { MemoryCache } from '../cache/memory.cache';
-import type { ICache } from '../cache.interface';
+import type { IPersistenceDialect } from '../persistence-dialect';
 import { PersistedWrite } from './persisted-write.decorator';
 
 class Aggregate {
@@ -22,9 +23,12 @@ class DuplicateNameError extends Error {}
 class TranslatedError extends Error {}
 
 const duplicateName = Object.assign(new Error('duplicate'), {
-  code: '23505',
-  constraint: 'aggregates_name_unique',
+  violated: 'id',
 });
+
+const dialect: IPersistenceDialect = {
+  uniqueViolation: (error) => (error === duplicateName ? 'id' : undefined),
+};
 
 class Repository {
   failure?: unknown;
@@ -33,13 +37,8 @@ class Repository {
 
   @PersistedWrite<Aggregate>({
     cache: { setKey: (aggregate) => `aggregate:${aggregate.id}` },
-    unique: [
-      {
-        constraint: 'aggregates_name_unique',
-        columns: 'aggregates.name',
-        error: () => new DuplicateNameError(),
-      },
-    ],
+    unique: { id: () => new DuplicateNameError() },
+    dialect,
     otherwise: (error) =>
       error instanceof Error && error.message === 'transient'
         ? new TranslatedError()

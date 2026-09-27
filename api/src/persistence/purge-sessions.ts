@@ -1,6 +1,5 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import { loadOptionalEnvFile } from '@common/environment/load-optional-env-file';
 import { Auth } from '../auths/domain/models/auth.entity';
 import { REFRESH_TOKEN_TTL_SECONDS } from '../common/environment/auth-token.config';
 import { forEachTenantOrm } from './tenant-orms';
@@ -39,17 +38,4 @@ export async function purgeSessions(): Promise<Map<string, number>> {
       });
     }
   });
-}
-
-if (
-  process.argv[1] &&
-  (process.argv[1].endsWith('/purge-sessions.ts') ||
-    process.argv[1].endsWith('/purge-sessions.js'))
-) {
-  (async () => {
-    loadOptionalEnvFile();
-    for (const [tenant, count] of await purgeSessions()) {
-      console.log(`${tenant}: purged ${count} session(s).`);
-    }
-  })();
 }

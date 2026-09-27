@@ -1,4 +1,6 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
+
+import { TenantStore } from '@cqrs-ddd/mikro-orm';
 import {
   type EntityManager,
   RequestContext,
@@ -6,12 +8,10 @@ import {
 } from '@mikro-orm/core';
 import { MikroORM } from '@mikro-orm/libsql';
 import { MikroORM as PostgresORM } from '@mikro-orm/postgresql';
-import { MikroOrmStore } from '@persistence/mikro-orm.store';
 import {
   createLibsqlOrmOptions,
   createPostgresOrmOptions,
 } from '@persistence/orm-options';
-import { PostgresMikroOrmStore } from '@persistence/postgres-mikro-orm.store';
 import { TenantSchemaContext } from '@persistence/tenant-schema.context';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
@@ -56,10 +56,12 @@ async function libsqlAdapter(): Promise<Adapter> {
   ]);
   const foreign = await libsqlOrm();
   const otherDriver = await postgresOrm('tenant_a');
-  const store = new MikroOrmStore(tenants);
-  const registry = Reflect.get(store, 'orms') as Map<string, MikroORM>;
-  for (const [tenant, orm] of orms) registry.set(tenant, orm);
   const orm = (tenant: string) => orms.get(tenant) as MikroORM;
+  const store = new TenantStore({
+    tenant: () => tenants.schema,
+    orm,
+    isolation: 'database',
+  });
 
   return {
     store,
@@ -84,8 +86,11 @@ async function postgresAdapter(): Promise<Adapter> {
   const orm = await postgresOrm('tenant_a');
   const foreign = await postgresOrm('tenant_a');
   const otherDriver = await libsqlOrm();
-  const store = new PostgresMikroOrmStore(tenants);
-  store.orm = orm;
+  const store = new TenantStore({
+    tenant: () => tenants.schema,
+    orm: () => orm,
+    isolation: 'schema',
+  });
 
   return {
     store,
@@ -106,9 +111,9 @@ async function postgresAdapter(): Promise<Adapter> {
 }
 
 describe.each([
-  ['MikroOrmStore (libSQL, database per tenant)', libsqlAdapter],
-  ['PostgresMikroOrmStore (schema per tenant)', postgresAdapter],
-])('%s tenant EntityManager selection', (_name, createAdapter) => {
+  ['libSQL, a database per tenant', libsqlAdapter],
+  ['PostgreSQL, a schema per tenant', postgresAdapter],
+])('TenantStore over %s: EntityManager selection', (_name, createAdapter) => {
   let adapter: Adapter;
   const asTenant = <T>(tenant: string, fn: () => T): T =>
     adapter.tenants.run(tenant, fn);

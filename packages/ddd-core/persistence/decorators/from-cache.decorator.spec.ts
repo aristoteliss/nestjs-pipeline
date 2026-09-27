@@ -1,12 +1,12 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import type { ICache } from '../../application/ports/cache.port';
 import type { IQueryOptions } from '../../application/query.options';
 import { MemoryCache } from '../cache/memory.cache';
-import type { ICache } from '../cache.interface';
 import { createCacheMutationBarrier } from '../helpers/cache-barrier.helper';
 import { QueryRepository } from '../query-repository.abstract';
-import { FromCache, isCacheNewer } from './FromCache';
+import { FromCache, isCacheNewer } from './from-cache.decorator';
 
 interface GetUserQuery extends IQueryOptions {
   userId: string;

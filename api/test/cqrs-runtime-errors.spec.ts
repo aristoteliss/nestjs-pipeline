@@ -731,7 +731,7 @@ describe('CQRS Commands & Queries Runtime Error Taxonomy', () => {
         const principalLoginService = { revoke: vi.fn() };
         const handler = new RevokeAuthHandler(
           eventBus,
-          { findByTokenHash: vi.fn().mockResolvedValue(null) } as any,
+          { find: vi.fn().mockResolvedValue(null) } as any,
           new NodeRefreshTokens(),
           { save: vi.fn(), clear: vi.fn() },
           principalLoginService as any,

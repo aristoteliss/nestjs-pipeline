@@ -1,8 +1,8 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
+import { type ICache } from '@cqrs-ddd/core/application';
 import type { RootEntitySnapshot } from '@cqrs-ddd/core/domain';
 import { RootEntity, TransientOperationError } from '@cqrs-ddd/core/domain';
-import type { ICache } from '@cqrs-ddd/core/persistence';
 import type { EntityManager } from '@mikro-orm/core';
 import { describe, expect, it, vi } from 'vitest';
 import { AggregateRepository } from './aggregate.repository';

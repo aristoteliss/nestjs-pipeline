@@ -52,6 +52,26 @@ function sqlString(value: string | null): string {
 }
 
 export class Migration20260830000000 extends Migration {
+  /** The tenant the demo seed names its users and emails after. */
+  protected readonly seedTenant: string = 'tenant';
+
+  /**
+   * This migration, seeding the demo data for `tenant`. The ORM options list it
+   * under this class's name, so the applied history is unchanged.
+   *
+   * @example
+   * ```ts
+   * migrationsList: [
+   *   { name: Migration20260830000000.name, class: Migration20260830000000.seeding('tenant_a') },
+   * ],
+   * ```
+   */
+  static seeding(tenant: string): typeof Migration20260830000000 {
+    return class extends Migration20260830000000 {
+      protected override readonly seedTenant = tenant;
+    };
+  }
+
   override async up(): Promise<void> {
     this.createSchema();
     this.seedDemoData();
@@ -285,7 +305,7 @@ export class Migration20260830000000 extends Migration {
   }
 
   private tenantToken(): string {
-    const raw = (process.env.SEED_TENANT ?? 'tenant').trim().toLowerCase();
+    const raw = this.seedTenant.trim().toLowerCase();
     const token = raw.replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
     return token || 'tenant';
   }

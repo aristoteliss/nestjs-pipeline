@@ -1,7 +1,7 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { isVersionedCache } from '../cache.interface';
+import { isVersionedCache } from '../../application/ports/cache.port';
 import { MemoryCache } from './memory.cache';
 
 describe('MemoryCache', () => {

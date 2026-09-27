@@ -1,7 +1,10 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { AUDIT_ACTIONS, RATE_LIMIT_COST } from '@common/constants';
-import { CommandBaseHandler } from '@cqrs-ddd/core/application';
+import {
+  CommandBaseHandler,
+  type IQueryRepository,
+} from '@cqrs-ddd/core/application';
 import { Inject } from '@nestjs/common';
 import { CommandHandler, EventBus } from '@nestjs/cqrs';
 import { AUDIT_SEVERITY, audit } from '@nestjs-pipeline/audit';
@@ -14,11 +17,8 @@ import {
 } from '@nestjs-pipeline/rate-limit';
 import { InvalidRefreshTokenError } from '../../../domain/errors/refresh-token.errors';
 import type { Auth } from '../../../domain/models/auth.entity';
+import { QUERY_REPOSITORY } from '../../../persistence/repository.tokens';
 import { PrincipalLoginService } from '../../../services/principal-login.service';
-import {
-  AUTH_SESSIONS,
-  type IAuthSessions,
-} from '../../ports/auth-sessions.port';
 import {
   type IRefreshTokens,
   REFRESH_TOKENS,
@@ -27,6 +27,7 @@ import {
   type ISessionCookies,
   SESSION_COOKIES,
 } from '../../ports/session-cookies.port';
+import { GetAuthByTokenHashQuery } from '../queries/get-auth-by-token-hash.query';
 import { RevokeAuthCommand } from './revoke-auth.command';
 
 @CommandHandler(RevokeAuthCommand)
@@ -51,7 +52,11 @@ export class RevokeAuthHandler extends CommandBaseHandler<
 > {
   constructor(
     protected readonly eventBus: EventBus,
-    @Inject(AUTH_SESSIONS) private readonly sessions: IAuthSessions,
+    @Inject(QUERY_REPOSITORY.getAuthByTokenHash)
+    private readonly authByTokenHash: IQueryRepository<
+      GetAuthByTokenHashQuery,
+      Auth | null
+    >,
     @Inject(REFRESH_TOKENS) private readonly refreshTokens: IRefreshTokens,
     @Inject(SESSION_COOKIES) private readonly cookies: ISessionCookies,
     private readonly principalLoginService: PrincipalLoginService,
@@ -61,8 +66,10 @@ export class RevokeAuthHandler extends CommandBaseHandler<
 
   async handle({ refreshToken }: RevokeAuthCommand): Promise<Auth> {
     const auth = refreshToken
-      ? await this.sessions.findByTokenHash(
-          this.refreshTokens.hash(refreshToken),
+      ? await this.authByTokenHash.find(
+          new GetAuthByTokenHashQuery({
+            tokenHash: this.refreshTokens.hash(refreshToken),
+          }),
         )
       : null;
     const revoked = auth

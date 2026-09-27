@@ -20,7 +20,13 @@ defines no port of its own except `IEntityManagerSource`.
 - the root-entity schema mapping (`rootEntityProperties`, `versionProperty`,
   `UnixTimestampType`);
 - the SQL identifier check (`isSqlIdentifier`), used wherever a name is interpolated into
-  SQL text.
+  SQL text;
+- the multi-tenant `EntityManager` source (`TenantStore`, `src/tenant-store.ts`), which
+  alone decides whether a contextual manager may be reused for a tenant;
+- the persistence dialect (`MikroOrmDialect`, `src/mikro-orm.dialect.ts`) and the transient
+  failure classifier (`isTransientPersistenceError`, `mapPersistenceError`,
+  `src/transient-error.ts`): every database error code of the stack lives here, never in
+  core.
 
 Do not add another copy of any of them anywhere.
 
@@ -49,4 +55,5 @@ pnpm test:release                         # installs and loads it standalone
 - `src/cache/cache-adapter-conformance.spec.ts` keeps `MikroOrmCache` and core's
   `MemoryCache` behaviorally identical; keep both sides passing.
 - Real-database coverage lives in `api/test/` (`mikro-orm-cache.postgres.e2e-spec.ts`,
-  the update-lifecycle suites).
+  the update-lifecycle suites); `api/test/schema-uniques.spec.ts` builds the dialect from
+  the api's real schemas and checks every unique constraint.

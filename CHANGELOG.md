@@ -173,7 +173,9 @@ Added: `requires()`, `CaslAuthorizer` (`can`, `authorize`, `project`),
   re-checked through an application `IJobPrincipal` when the job runs, and gives system
   work an explicit principal and grants per tenant (`@AsSystem`).
 - `@cqrs-ddd/core`: framework-neutral DDD building blocks (aggregates, domain events,
-  `CommandBaseHandler`, repository contracts, persistence lifecycle decorators, a
+  `CommandBaseHandler`, repository contracts, persistence lifecycle decorators that map
+  unique violations by entity property through a pluggable persistence dialect
+  (`IPersistenceDialect`, `setPersistenceDialect`), a
   revision-fenced repository cache, tenant-scoped cache keys, HTTP status mapping, and
   the value rules `textRule` and `numberRule`, which throw an `InvalidValueException` or
   an application's own subclass). It depends on no framework: `CommandBaseHandler` takes
@@ -182,7 +184,10 @@ Added: `requires()`, `CaslAuthorizer` (`can`, `authorize`, `project`),
   It has no peers and no ORM dependency.
 - `@cqrs-ddd/mikro-orm`: the MikroORM 7 adapters of `@cqrs-ddd/core` —
   `AggregateRepository`, `optimisticUpdate`, `optimisticDelete`, `assertAutocommit`,
-  `MikroOrmCache` and `UnixTimestampType`, which throws a `TypeError` for a value with no
+  `MikroOrmDialect` (reads the violated unique constraint from the ORM metadata, for
+  PostgreSQL and SQLite), `mapPersistenceError` / `isTransientPersistenceError`,
+  `MikroOrmCache`, `TenantStore` (the active tenant's `EntityManager`, with a database or
+  a schema per tenant) and `UnixTimestampType`, which throws a `TypeError` for a value with no
   valid time. `@cqrs-ddd/core` and `@mikro-orm/core` are required peers.
 - `@cqrs-ddd/uuidv7`: RFC 9562 UUIDv7 generation and validation, with no dependencies.
 - `@cqrs-ddd/safe-stringify`: a strict, key-sorted serializer for identities and a safe,

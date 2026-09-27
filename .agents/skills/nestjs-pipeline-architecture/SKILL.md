@@ -350,7 +350,7 @@ On command repository `save()` operations whose first argument is the aggregate 
 
 1. `@Cache(...)`: Write-through cache synchronization/invalidation after durable write and acknowledgment, using detached snapshots from `toCacheSnapshot()`. CAS comparison (`isCacheNewer`) keeps late-finishing writes from overwriting newer cached versions, and entity deletions (`deleteKeys`) and secondary invalidations (`invalidateKeys`) install a `CacheMutationBarrier` sentinel (`{ ttl: 0, reason: 'deleted' | 'invalidated', token: uuidv7() }`) against stale snapshot resurrection. Verify the atomic coordination of these mechanisms with readers; a barrier installation alone does not prove anti-resurrection or cross-store strong consistency.
 2. `@AcknowledgePersisted({ entity: ([arg]) => arg })`: Captures entry version, updates `aggregate.acknowledgePersisted(version)` only after the persistence promise resolves.
-3. `@MapPersistenceErrors({ entity, unique: [...] })`: Translates known driver constraint errors (PostgreSQL 23505 and SQLite column matches) into domain exceptions before throwing.
+3. `@MapPersistenceErrors({ entity, unique: { property: ... } })`: Translates unique violations into domain exceptions, keyed by entity property; the registered persistence dialect (`MikroOrmDialect`) reads which constraint the driver error names. Repositories never write constraint names or columns.
 
 ### Optimistic updates and conditional deletes
 
@@ -465,7 +465,7 @@ Never introduce or re-introduce these patterns:
 - Merging session cookie logic, credential validation, and JWT operations into a single application service (use `SessionService` for presentation cookies and `PrincipalLoginService` for domain login)
 - CQRS event handlers injecting BullMQ queues directly without application ports
 - Event handlers that only call `Logger`/`getCorrelationId()` without performing meaningful domain work
-- CQRS handlers importing persistence-specific error classifiers (e.g. `isTransientPersistenceError` from `@cqrs-ddd/core/persistence`)
+- CQRS handlers importing persistence-specific error classifiers (e.g. `isTransientPersistenceError` from `@cqrs-ddd/mikro-orm`)
 - Tenant-only pipeline cache keys for responses filtered by principal permissions
 - Defaulting missing tenant context to `'default'` instead of failing closed with `MissingTenantContextError`
 - Synthetic `new Auth({ userId, token: '' })` snapshots used as command payloads (pass explicit scalar parameters `{ userId, token }`)

@@ -1,10 +1,14 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { describe, expect, it } from 'vitest';
+import {
+  ICache,
+  IVersionedCache,
+  isVersionedCache,
+} from '../../application/ports/cache.port';
 import type { IQueryOptions } from '../../application/query.options';
-import { ICache, IVersionedCache, isVersionedCache } from '../cache.interface';
-import { Cache } from '../decorators/Cache';
-import { FromCache } from '../decorators/FromCache';
+import { Cache } from '../decorators/cache.decorator';
+import { FromCache } from '../decorators/from-cache.decorator';
 import { cacheKey } from '../helpers/cache-key.helper';
 import { QueryRepository } from '../query-repository.abstract';
 import { MemoryCache } from './memory.cache';

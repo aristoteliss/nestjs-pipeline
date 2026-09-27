@@ -5,15 +5,31 @@ import {
   ConcurrencyConflictError,
   EntityNotFoundException,
 } from '@cqrs-ddd/core/domain';
-import { cacheKey, toCacheSnapshot } from '@cqrs-ddd/core/persistence';
+import {
+  cacheKey,
+  setPersistenceDialect,
+  toCacheSnapshot,
+} from '@cqrs-ddd/core/persistence';
 import { runWithTenant } from '@nestjs-pipeline/tenant';
-import { describe, expect, it, vi } from 'vitest';
-import { ROLE_NAME_UNIQUE } from '../../persistence/schemas/role.schema';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { UniqueRoleNameException } from '../domain/models/errors/role-name.exception';
 import { Role, type RoleSnapshot } from '../domain/models/role.entity';
 import { UpdateRoleCommandRepository } from './update-role.command-repository';
 
+/** Reports the `name` constraint for `taken`, as the MikroORM dialect does for a real violation. */
+const taken = new Error('name already taken');
+function useFakeDialect() {
+  beforeAll(() =>
+    setPersistenceDialect({
+      uniqueViolation: (error) => (error === taken ? 'name' : undefined),
+    }),
+  );
+  afterAll(() => setPersistenceDialect(undefined));
+}
+
 describe('UpdateRoleCommandRepository', () => {
+  useFakeDialect();
+
   it('updates role and refreshes cache snapshot by id', async () => {
     const cache: ICache<RoleSnapshot> = {
       get: vi.fn(),
@@ -118,10 +134,7 @@ describe('UpdateRoleCommandRepository', () => {
       get em() {
         return {
           isInTransaction: () => false,
-          nativeUpdate: vi.fn().mockRejectedValue({
-            code: 'SQLITE_CONSTRAINT_UNIQUE',
-            message: 'UNIQUE constraint failed: roles.name',
-          }),
+          nativeUpdate: vi.fn().mockRejectedValue(taken),
         };
       },
     };
@@ -167,6 +180,8 @@ describe('UpdateRoleCommandRepository', () => {
 
 /** These tests exercise the decorated lifecycle through the concrete repository API. */
 describe('decorated versioned update lifecycle', () => {
+  useFakeDialect();
+
   function setup() {
     const cache: ICache<RoleSnapshot> = {
       get: vi.fn(),
@@ -225,29 +240,8 @@ describe('decorated versioned update lifecycle', () => {
   });
 
   it.each([
-    { code: '23505', constraint: ROLE_NAME_UNIQUE },
-    new Error(
-      `insert - duplicate key value violates unique constraint "${ROLE_NAME_UNIQUE}"`,
-    ),
-    new Error(
-      'update - SQLITE_CONSTRAINT: UNIQUE constraint failed: roles.name',
-    ),
-  ])('maps an identified role-name constraint: %s', async (error) => {
-    const { cache, em, role, repository } = setup();
-    em.nativeUpdate.mockRejectedValue(error);
-    await expect(repository.save(role)).rejects.toBeInstanceOf(
-      UniqueRoleNameException,
-    );
-    expect(role.getExpectedVersion()).toBe(1);
-    expect(cache.set).not.toHaveBeenCalled();
-  });
-
-  it.each([
     new Error('unique application failure'),
-    { code: 'SQLITE_CONSTRAINT_UNIQUE' },
-    { code: '23505', constraint: 'roles_other_unique' },
-    new Error('UNIQUE constraint failed: roles.other'),
-    new Error('UNIQUE constraint failed: roles.name, roles.other'),
+    new Error('UNIQUE constraint failed: roles.name'),
   ])('preserves unrelated or unidentified failures: %s', async (error) => {
     const { cache, em, role, repository } = setup();
     em.nativeUpdate.mockRejectedValue(error);

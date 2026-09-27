@@ -1,8 +1,8 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
+import { ICache } from '../application/ports/cache.port';
+import { IQueryRepository } from '../application/ports/query-repository.port';
 import { IQueryOptions } from '../application/query.options';
-import { ICache } from './cache.interface';
-import { IQueryRepository } from './query-repository.interface';
 
 /**
  * Repository-wide snapshot policy applied by {@link FromCache} to methods that

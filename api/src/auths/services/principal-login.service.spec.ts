@@ -15,7 +15,8 @@ function createService(overrides?: {
   accessTokenIssuer?: unknown;
   embedPermissions?: boolean;
   permissionRules?: unknown;
-  sessions?: unknown;
+  authByTokenHash?: unknown;
+  authByConsumedTokenHash?: unknown;
   authRepository?: unknown;
   refreshTokens?: unknown;
   tenantContext?: unknown;
@@ -33,11 +34,8 @@ function createService(overrides?: {
       embedPermissions: overrides?.embedPermissions ?? false,
     },
     (overrides?.permissionRules ?? { find: vi.fn() }) as never,
-    (overrides?.sessions ?? {
-      findByTokenHash: vi.fn(),
-      findByConsumedTokenHash: vi.fn(),
-      recordConsumed: vi.fn(),
-    }) as never,
+    (overrides?.authByTokenHash ?? { find: vi.fn() }) as never,
+    (overrides?.authByConsumedTokenHash ?? { find: vi.fn() }) as never,
     (overrides?.authRepository ?? {
       findById: vi.fn(),
       save: vi.fn(),
@@ -100,7 +98,7 @@ describe('PrincipalLoginService', () => {
       permissionRules,
     });
 
-    const result = await service.signToken(user, 'session-1');
+    const result = await service.sign(user, 'session-1');
 
     expect(permissionRules.find).not.toHaveBeenCalled();
     expect(issuer.issue).toHaveBeenCalledWith({ user, sessionId: 'session-1' });
@@ -120,7 +118,7 @@ describe('PrincipalLoginService', () => {
       accessTokenIssuer: issuer,
       permissionRules,
       embedPermissions: true,
-    }).signToken(user, 'session-1');
+    }).sign(user, 'session-1');
 
     expect(permissionRules.find).toHaveBeenCalledWith(
       expect.objectContaining({ userId: user.id, refresh: true }),
@@ -136,14 +134,12 @@ describe('PrincipalLoginService', () => {
     const consume = vi
       .fn()
       .mockResolvedValue({ msBeforeNext: 0, remainingPoints: 59 });
-    const sessions = {
-      findByTokenHash: vi.fn().mockResolvedValue(null),
-      findByConsumedTokenHash: vi.fn().mockResolvedValue(null),
-      recordConsumed: vi.fn(),
-    };
+    const authByTokenHash = { find: vi.fn().mockResolvedValue(null) };
+    const authByConsumedTokenHash = { find: vi.fn().mockResolvedValue(null) };
     const service = createService({
       rateLimiter: { consume, points: 60 },
-      sessions,
+      authByTokenHash,
+      authByConsumedTokenHash,
     });
 
     await expect(

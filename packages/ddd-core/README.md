@@ -50,7 +50,7 @@ needs.
 | --- | --- |
 | `@cqrs-ddd/core/domain` | `AggregateRoot`, `RootEntity`, `@Mutable`, `@ApplyMutation`, `DomainEvent`, `RootDomainEvent`, `deepCloneAndFreeze`, `textRule`, `numberRule`, `ValueViolation`, and the errors `DomainException`, `InvalidValueException`, `EntityNotFoundException`, `ConcurrencyConflictError`, `TransientOperationError`, `MissingTenantContextError`, `UnknownMutableFieldError` |
 | `@cqrs-ddd/core/application` | `BaseCommand`, `BaseQuery`, `CommandBaseHandler`, the ports (`IDomainEventPublisher`, `ICommandRepository`, `IQueryRepository`, `IWriteSideAggregateRepository`, `ICache`, `IVersionedCache`), `requireTenantId`, `setTenantResolver` |
-| `@cqrs-ddd/core/persistence` | the lifecycle decorators, `QueryRepository`, `CommandRepository`, `MemoryCache`, the cache-key and cache-logger helpers, `mapPersistenceError` |
+| `@cqrs-ddd/core/persistence` | the lifecycle decorators, `QueryRepository`, `CommandRepository`, `MemoryCache`, the cache-key and cache-logger helpers, the persistence dialect contract (`IPersistenceDialect`, `setPersistenceDialect`) |
 | `@cqrs-ddd/core/http` | `domainErrorHttpStatus` |
 | `@cqrs-ddd/core` | all of the above |
 
@@ -284,13 +284,7 @@ import { optimisticUpdate } from '@cqrs-ddd/mikro-orm';
     setKey: (user) => cacheKey(User.aggregateName, { id: user.id }),
     invalidateKeys: (user) => [cacheKey(User.aggregateName, { email: user.email })],
   },
-  unique: [
-    {
-      constraint: 'users_email_unique',
-      columns: 'users.email',
-      error: (user) => new UniqueEmailException(user),
-    },
-  ],
+  unique: { email: (user) => new UniqueEmailException(user) },
 })
 async save(user: User): Promise<UserSnapshot> {
   const snapshot = user.toJSON();
@@ -309,10 +303,17 @@ outermost first:
    Cache errors are logged and never turn a committed write into a failure.
 2. `@AcknowledgePersisted({ entity: ([aggregate]) => aggregate })`: advances the
    selected aggregate's persisted version only after the write succeeded.
-3. `@MapPersistenceErrors({ entity, unique, otherwise })`: translates a configured unique
-   constraint (PostgreSQL `23505` with the constraint name, or the PostgreSQL/SQLite
-   diagnostic for it) into your domain error. `otherwise` translates the rest;
-   `mapPersistenceError` turns retryable driver and network failures into
+3. `@MapPersistenceErrors({ entity, unique, dialect, otherwise })`: translates a unique
+   violation into your domain error. `unique` is keyed by the entity property the
+   constraint covers (`{ email: ... }`), or by the declared name of a multi-column
+   constraint (`MapPersistenceErrors<Args, Entity, typeof NAME>`), so a repository never
+   names a database constraint or column. Which constraint an error violated is read by
+   the persistence dialect: `options.dialect`, else the one registered with
+   `setPersistenceDialect()` at the composition root. Core knows no database; an adapter
+   such as `MikroOrmDialect` of `@cqrs-ddd/mikro-orm` implements `IPersistenceDialect`.
+   A method that declares `unique` with no dialect available throws a `TypeError` before
+   it runs. `otherwise` translates the rest, for example with `mapPersistenceError` of
+   `@cqrs-ddd/mikro-orm`, which turns retryable driver and network failures into
    `TransientOperationError` and keeps every other error unchanged.
 
 Deletes do not acknowledge, so they stack `@Cache` and `@MapPersistenceErrors` alone.

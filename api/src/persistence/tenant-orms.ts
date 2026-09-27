@@ -24,7 +24,7 @@ export async function forEachTenantOrm<T>(
       config.engine === 'postgres'
         ? await MikroORM.init(createPostgresOrmOptions(tenant))
         : await MikroORM.init<LibSqlDriver>(
-            createLibsqlOrmOptions(libsqlDbUrl(tenant, config)),
+            createLibsqlOrmOptions(libsqlDbUrl(tenant, config), tenant),
           );
     try {
       results.set(tenant, await task(orm, tenant));

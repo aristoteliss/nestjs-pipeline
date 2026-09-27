@@ -8,12 +8,9 @@ import { mikroOrmCacheLogger } from './cache/cache-loggers';
 import { TenantSchemaMiddleware } from './middlewares/tenant-schema.middleware';
 import { MIKRO_ORM_CLIENT, MikroOrmStore } from './mikro-orm.store';
 import { persistenceConfig } from './persistence.config';
-import { PostgresMikroOrmStore } from './postgres-mikro-orm.store';
 import { TenantSchemaContext } from './tenant-schema.context';
 
 const config = persistenceConfig();
-const SelectedMikroOrmStore =
-  config.engine === 'postgres' ? PostgresMikroOrmStore : MikroOrmStore;
 
 @Global()
 @Module({
@@ -23,7 +20,7 @@ const SelectedMikroOrmStore =
       provide: TENANT_CONTEXT,
       useExisting: TenantSchemaContext,
     },
-    SelectedMikroOrmStore,
+    MikroOrmStore,
     {
       provide: TenantSchemaMiddleware,
       useFactory: (tenantSchemaContext: TenantSchemaContext) =>
@@ -35,7 +32,7 @@ const SelectedMikroOrmStore =
     },
     {
       provide: MIKRO_ORM_CLIENT,
-      useExisting: SelectedMikroOrmStore,
+      useExisting: MikroOrmStore,
     },
     {
       provide: CACHE_TOKEN,

@@ -1,13 +1,13 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { createHash } from 'node:crypto';
-import type {
-  CacheFillOptions,
-  CacheSetOptions,
-  CacheStateEntry,
-  ICacheLogger,
-  IVersionedCache,
-} from '@cqrs-ddd/core/persistence';
+import {
+  type CacheFillOptions,
+  type CacheSetOptions,
+  type CacheStateEntry,
+  type IVersionedCache,
+} from '@cqrs-ddd/core/application';
+import type { ICacheLogger } from '@cqrs-ddd/core/persistence';
 import { consoleCacheLogger, safeWarn } from '@cqrs-ddd/core/persistence';
 import type { EntityManager } from '@mikro-orm/core';
 import type { IEntityManagerSource } from '../entity-manager-source';

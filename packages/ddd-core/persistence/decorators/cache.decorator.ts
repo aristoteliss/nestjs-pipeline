@@ -1,13 +1,16 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import { type ICache, isVersionedCache } from '../cache.interface';
-import type { ICacheLogger } from '../cache-logger';
+import {
+  type ICache,
+  isVersionedCache,
+} from '../../application/ports/cache.port';
+import type { ICacheLogger } from '../cache/cache-logger';
+import { consoleCacheLogger, safeWarn } from '../cache/cache-logger';
 import type { CommandRepository } from '../command-repository.abstract';
 import {
   type CacheBarrierReason,
   createCacheMutationBarrier,
 } from '../helpers/cache-barrier.helper';
-import { consoleCacheLogger, safeWarn } from '../helpers/cache-logger.helper';
 import { reportMissingCacheProperty } from '../helpers/cache-owner.helper';
 import { toCacheSnapshot } from '../helpers/cache-snapshot.helper';
 import { isCacheNewer } from '../helpers/cache-version.helper';

@@ -1,7 +1,7 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import { ICache } from './cache.interface';
-import { ICommandRepository } from './command-repository.interface';
+import { ICache } from '../application/ports/cache.port';
+import { ICommandRepository } from '../application/ports/command-repository.port';
 
 /**
  * Base class for write-side (command) repositories.

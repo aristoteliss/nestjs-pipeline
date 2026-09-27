@@ -55,7 +55,7 @@ what the libraries support.
 ## Technology Stack
 
 <!-- context:generated-start technology-stack -->
-- **Languages** (file counts, excluded directories omitted): `.ts` 774, `.md` 41, `.grit` 14, `.py` 3, `.mjs` 1
+- **Languages** (file counts, excluded directories omitted): `.ts` 776, `.md` 35, `.grit` 14, `.py` 3, `.mjs` 1
 - **Runtime engines** (root `package.json`): `node` >=22.0.0, `pnpm` >=9.0.0
 - **Package manager evidence**: `pnpm-lock.yaml`.
 
@@ -65,7 +65,7 @@ what the libraries support.
 | NestJS CQRS — Command/query/event buses wrapped by the pipeline | `@nestjs/cqrs` | `api/src/app.module.ts`, `api/src/auths/application/cqrs/commands/auth-session-handlers.spec.ts` |
 | MikroORM — ORM, unit of work, migrations | `@mikro-orm/core`, `@mikro-orm/nestjs`, `@mikro-orm/migrations` | `api/src/auths/persistence/user-permissions.projector.ts`, `api/src/persistence/migration-commands.spec.ts` |
 | PostgreSQL — Relational backend and schema-per-tenant access | `pg`, `@mikro-orm/postgresql` | `api/src/persistence/orm-options.spec.ts`, `api/src/persistence/orm-options.ts` |
-| SQLite / libSQL — Local and test persistence backend | `@libsql/client`, `@mikro-orm/sqlite`, `@mikro-orm/libsql` | `api/src/persistence/mikro-orm.store.ts`, `api/src/persistence/orm-options.spec.ts` |
+| SQLite / libSQL — Local and test persistence backend | `@libsql/client`, `@mikro-orm/sqlite`, `@mikro-orm/libsql` | `api/src/persistence/orm-options.spec.ts`, `api/src/persistence/orm-options.ts` |
 | Redis — Cache and queue backend | `@keyv/redis`, `redis` | `packages/pipeline-idempotency/src/stores/redis.store.ts` |
 | BullMQ — Background jobs and dead-letter transport | `bullmq`, `@nestjs/bullmq` | `api/src/common/modules/reliability.module.ts`, `api/src/users/jobs/batch-update-users.processor.spec.ts` |
 | Keyv / cache-manager — Pluggable cache stores | `keyv`, `cache-manager` | `api/test/behavior-composition-contracts.spec.ts`, `packages/pipeline-cache/src/adapters/cache-manager.adapter.ts` |
@@ -238,9 +238,9 @@ delivery guarantee.
 
 `TenantSchemaMiddleware` resolves the tenant per request; `TenantSchemaContext` (which
 reads and writes `@nestjs-pipeline/tenant`'s scope, the one tenant store the database
-store, the pipeline, core's cache keys and jobs share) and
-`EntityManagerTenantRegistry` (an external `WeakMap`) bind an EntityManager to a tenant
-without mutating ORM objects. Missing tenant context fails closed with
+store, the pipeline, core's cache keys and jobs share) selects the tenant, and
+`MikroOrmStore` hands out its EntityManager through `@cqrs-ddd/mikro-orm`'s `TenantStore`,
+which records each manager's tenant in an external `WeakMap` without mutating ORM objects. Missing tenant context fails closed with
 `MissingTenantContextError` — never a shared `'default'` namespace.
 
 ### Authentication and authorization
@@ -287,13 +287,18 @@ and entity/field checks in the handler after the aggregate is loaded (`CaslAutho
 
 - **Responsibility**: ORM-neutral repository contracts, `@Cache` / `@FromCache` /
   `@AcknowledgePersisted` / `@MapPersistenceErrors` / `@PersistedWrite`, `MemoryCache`, cache
-  barrier/version/logger helpers, and persistence error translation (`mapPersistenceError`,
-  `isTransientPersistenceError`). HTTP statuses for `packages/ddd-core` errors come from
+  barrier/version/logger helpers, and the persistence dialect contract
+  (`IPersistenceDialect`, `setPersistenceDialect`): unique violations are mapped by entity
+  property, and the dialect (`MikroOrmDialect` in `@cqrs-ddd/mikro-orm`, registered by the
+  api's `MikroOrmStore`) reads which constraint a driver error names. Database error codes and
+  `mapPersistenceError` live in `@cqrs-ddd/mikro-orm`. HTTP statuses for `packages/ddd-core` errors come from
   `packages/ddd-core/http/` (`domainErrorHttpStatus`). The MikroORM side lives in
   `packages/ddd-mikro-orm/src/` (`@cqrs-ddd/mikro-orm`): `AggregateRepository`,
   `optimisticUpdate` / `optimisticDelete`, `MikroOrmCache` (with `CacheEntry` and
   `createCacheTableSql`), the root-entity schema mapping (`rootEntityProperties`,
-  `versionProperty`) and `isSqlIdentifier`. Core imports no ORM (`orm-independence.grit`).
+  `versionProperty`), `TenantStore` (the multi-tenant `EntityManager` source) and
+  `isSqlIdentifier`. Ports live in `packages/ddd-core/application/ports/` and are exported only
+  from `/application`. Core imports no ORM (`orm-independence.grit`).
 - **Invariants**: `@PersistedWrite`, or decorator order `@Cache → @AcknowledgePersisted → @MapPersistenceErrors`;
   the persisted version baseline advances only after a durable write; caches hold
   serializable snapshots, never live aggregates; version conflicts surface as
@@ -356,15 +361,19 @@ and entity/field checks in the handler after the aggregate is loaded (`CaslAutho
 ### Multi-tenant persistence — `api/src/persistence/`
 
 - **Responsibility**: persistence configuration (`persistence.config.ts`: engine, tenant list,
-  connection settings) and ORM options (`orm-options.ts`), MikroORM stores (SQLite/libSQL and
-  PostgreSQL), tenant schema context and middleware, tenant↔EntityManager registry,
-  migrations. Transient-error
-  classification comes from `packages/ddd-core/persistence`.
-- **Invariants**: tenant ownership metadata stays external to MikroORM objects
-  (`entity-manager-tenant.registry.ts`); contextual EntityManager reuse validates
-  driver/config/schema plus registry tenant in one place for both drivers
-  (`api/src/persistence/tenant-entity-manager.resolver.ts`, shared suite `api/test/store-context.spec.ts`).
+  connection settings) and ORM options (`orm-options.ts`), one MikroORM store for SQLite/libSQL (a database per tenant) and
+  PostgreSQL (a schema per tenant), tenant schema context and middleware, migrations, and the
+  maintenance commands behind one entry point (`cli.ts`: migrate, revert, sessions and
+  permission-rule jobs, each run per tenant by `forEachTenantOrm`). Transient-error
+  classification and the dialect come from `@cqrs-ddd/mikro-orm`.
+- **Invariants**: tenant ownership metadata stays external to MikroORM objects; contextual
+  EntityManager reuse validates driver/config/schema plus the recorded tenant in one place
+  for both engines (`packages/ddd-mikro-orm/src/tenant-store.ts`, real-ORM suite
+  `api/test/store-context.spec.ts`). A tenant outside the configured list is rejected.
 - **Do not change casually**: applied migrations, the write-side authoritative load path.
+  `Migration20260830000000` builds its SQL from the current schemas (`schema-ddl.ts`), so a
+  schema edit also changes what that applied migration creates; its demo seed takes the
+  tenant from the ORM options (`Migration20260830000000.seeding`).
 
 ### Observability and reliability wiring — `api/src/common/modules/`
 
@@ -387,7 +396,7 @@ environment value is read or reproduced here.
 | NestJS CQRS | `api`, `packages/pipeline` | `api/src/app.module.ts`, `api/src/auths/application/cqrs/commands/auth-session-handlers.spec.ts` |
 | MikroORM | `api`, `packages/ddd-mikro-orm` | `api/src/auths/persistence/user-permissions.projector.ts`, `api/src/persistence/migration-commands.spec.ts` |
 | PostgreSQL | `api` | `api/src/persistence/orm-options.spec.ts`, `api/src/persistence/orm-options.ts` |
-| SQLite / libSQL | `api` | `api/src/persistence/mikro-orm.store.ts`, `api/src/persistence/orm-options.spec.ts` |
+| SQLite / libSQL | `api` | `api/src/persistence/orm-options.spec.ts`, `api/src/persistence/orm-options.ts` |
 | Redis | `api`, `packages/pipeline-cache` | `packages/pipeline-idempotency/src/stores/redis.store.ts` |
 | BullMQ | `api` | `api/src/common/modules/reliability.module.ts`, `api/src/users/jobs/batch-update-users.processor.spec.ts` |
 | Keyv / cache-manager | `api`, `packages/pipeline-cache` | `api/test/behavior-composition-contracts.spec.ts`, `packages/pipeline-cache/src/adapters/cache-manager.adapter.ts` |
@@ -410,7 +419,7 @@ environment value is read or reproduced here.
 
 | Workspace | Internal | External | Peers |
 | --- | --- | --- | --- |
-| `api` | 17 workspace packages | `@casl/ability`, `@fastify/secure-session`, `@keyv/redis`, `@libsql/client`, `@mikro-orm/core`, `@mikro-orm/libsql`, `@mikro-orm/migrations`, `@mikro-orm/nestjs`, `@mikro-orm/postgresql`, `@mikro-orm/sqlite`, … (+27) | — |
+| `api` | 17 workspace packages | `@casl/ability`, `@fastify/secure-session`, `@keyv/redis`, `@libsql/client`, `@mikro-orm/core`, `@mikro-orm/libsql`, `@mikro-orm/migrations`, `@mikro-orm/nestjs`, `@mikro-orm/postgresql`, `@mikro-orm/sql`, … (+28) | — |
 | `packages/ddd-core` | `@cqrs-ddd/safe-stringify`, `@cqrs-ddd/uuidv7` | — | — |
 | `packages/ddd-mikro-orm` | — | — | `@cqrs-ddd/core`, `@mikro-orm/core` |
 | `packages/pipeline` | `@cqrs-ddd/safe-stringify`, `@cqrs-ddd/uuidv7` | — | `@nestjs/common`, `@nestjs/core`, `@nestjs/cqrs`, `reflect-metadata`, `rxjs` |
@@ -434,7 +443,7 @@ environment value is read or reproduced here.
 
 Names only — values are never read by the generator.
 
-`ACCESS_TOKEN_MAX_BYTES`, `ADAPTER`, `AMQP_URL`, `API_CLIENTS`, `AUTH_LOGIN_CODE`, `AUTH_LOGIN_CODE_SHA256`, `AUTH_SHARED_LOGIN_CODE`, `AUTH_TOKEN`, `DATABASE_HOST`, `DATABASE_NAME`, `DATABASE_PASSWORD`, `DATABASE_PORT`, `DATABASE_URL`, `DATABASE_USER`, `DB_DEFAULT_SCHEMA`, `DB_ENGINE`, `FLAGSMITH_KEY`, `JWT_ALGORITHMS`, `JWT_AUDIENCE`, `JWT_ISSUER`, `JWT_PUBLIC_KEY`, `JWT_PUBLIC_KEY_ALG`, `JWT_SECRET`, `NODE_ENV`, `OTEL_EXPORTER_OTLP_ENDPOINT`, `OTEL_SERVICE_NAME`, `PERMISSIONS_IN_ACCESS_TOKEN`, `REDIS_HOST`, `REDIS_PORT`, `REDIS_URL`, `REGION`, `SEED_TENANT`, `SESSION_SECRET`, `SQLITE_DATABASE_TEMPLATE`, `SQLITE_TENANTS`, `TESTCONTAINERS_RYUK_DISABLED`, `TRUST_PROXY`, `UNLEASH_TOKEN`
+`ACCESS_TOKEN_MAX_BYTES`, `ADAPTER`, `AMQP_URL`, `API_CLIENTS`, `AUTH_LOGIN_CODE`, `AUTH_LOGIN_CODE_SHA256`, `AUTH_SHARED_LOGIN_CODE`, `AUTH_TOKEN`, `DATABASE_HOST`, `DATABASE_NAME`, `DATABASE_PASSWORD`, `DATABASE_PORT`, `DATABASE_URL`, `DATABASE_USER`, `DB_DEFAULT_SCHEMA`, `DB_ENGINE`, `FLAGSMITH_KEY`, `JWT_ALGORITHMS`, `JWT_AUDIENCE`, `JWT_ISSUER`, `JWT_PUBLIC_KEY`, `JWT_PUBLIC_KEY_ALG`, `JWT_SECRET`, `NODE_ENV`, `OTEL_EXPORTER_OTLP_ENDPOINT`, `OTEL_SERVICE_NAME`, `PERMISSIONS_IN_ACCESS_TOKEN`, `REDIS_HOST`, `REDIS_PORT`, `REDIS_URL`, `REGION`, `SESSION_SECRET`, `SQLITE_DATABASE_TEMPLATE`, `SQLITE_TENANTS`, `TESTCONTAINERS_RYUK_DISABLED`, `TRUST_PROXY`, `UNLEASH_TOKEN`
 <!-- context:generated-end dependencies -->
 
 ## Conventions
@@ -630,7 +639,7 @@ secret value.*
   such as `mapLogLevel` and shallow-merge over it (`api/src/common/modules/observability.module.ts`).
 - **One reader for persistence settings.** `DB_ENGINE`, the tenant lists and the connection
   variables are read only by `persistenceConfig()` (`api/src/persistence/persistence.config.ts`);
-  the application, `TenantSchemaMiddleware` and the CLI scripts share its tenant list. Read
+  the application, `TenantSchemaMiddleware` and the maintenance CLI share its tenant list. Read
   them anywhere else and the served and migrated tenant sets can drift apart again.
 - **Private NestJS API in the bootstrap path.** `packages/pipeline/src/services/pipeline.bootstrap.service.ts`
   imports `@nestjs/cqrs/dist/services/explorer.service`. Accepted trade-off; a NestJS CQRS
@@ -675,8 +684,8 @@ secret value.*
   not prove a published export is unused (`AGENTS.md` → Library scope).
 - **`ddd-core` root barrel is off-limits in users-api production code.** Import
   `/domain`, `/application` or `/persistence` (`biome/plugins/ddd-entry-points.grit`).
-- **Tenant metadata must stay off ORM objects.** Use `EntityManagerTenantRegistry`, never a
-  `__tenant` property on a MikroORM EntityManager (`api/src/persistence/entity-manager-tenant.registry.ts`).
+- **Tenant metadata must stay off ORM objects.** `TenantStore` keeps them in a `WeakMap`,
+  never a `__tenant` property on a MikroORM EntityManager (`packages/ddd-mikro-orm/src/tenant-store.ts`).
 - **`api/src/main.ts` must stay free of environment-dependent static imports.** ESM dependencies
   execute before the module body, so the env file is loaded first and `./bootstrap` is
   imported dynamically.
@@ -693,13 +702,13 @@ secret value.*
 ## Snapshot Metadata
 
 <!-- context:generated-start metadata -->
-- Generated at: 2026-09-27T14:56:19Z
-- Git commit: 129425fd4c207e27c5673e3d37b1a9a37d2d0727
+- Generated at: 2026-09-27T18:11:04Z
+- Git commit: 3a8028f092842631937084e7911a011fca9e3efd
 - Git branch: publish
 - Uncommitted changes when generated: yes
 - Generator: `scripts/update-claude-snapshot.py` version 1.0.0
 - Snapshot status: generated — structural inspection only, no code executed
-- Files inspected: 904
+- Files inspected: 900
 - Included top-level directories: `.agents`, `.claude`, `api`, `biome`, `integration`, `packages`, `scripts`
 - Excluded directory names: `.cache`, `.git`, `.gradle`, `.idea`, `.mypy_cache`, `.next`, `.nuxt`, `.parcel-cache`, `.pnpm-store`, `.pytest_cache`, `.ruff_cache`, `.svelte-kit`, `.terraform`, `.tmp`, `.tox`, `.turbo`, `.venv`, `.vscode`, `__pycache__`, `bower_components`, `build`, `coverage`, `dist`, `node_modules`, `out`, `target`, `vendor`, `venv`, `virtualenv`
 - Excluded file patterns: `.env`, `.env.*`, `*.env`, `*.pem`, `*.key`, `*.pfx`, `*.p12`, `*.jks`, `*.keystore`, `id_rsa*`, `id_ed25519*`, `*credentials*`, `*.secret`, `secrets.*`

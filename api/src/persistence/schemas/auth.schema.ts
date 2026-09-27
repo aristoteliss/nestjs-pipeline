@@ -5,7 +5,6 @@ import { rootEntityProperties, versionProperty } from '@cqrs-ddd/mikro-orm';
 import { BigIntType, EntitySchema } from '@mikro-orm/core';
 import { Auth } from '../../auths/domain/models/auth.entity';
 
-export const AUTH_REFRESH_TOKEN_HASH_UNIQUE = 'auth_refresh_token_hash_unique';
 export const AUTH_PREVIOUS_REFRESH_TOKEN_HASH_INDEX =
   'auth_previous_refresh_token_hash_idx';
 export const AUTH_USER_ID_INDEX = 'auth_user_id_idx';
@@ -46,12 +45,13 @@ export const AuthSchema = new EntitySchema<Auth, AggregateRoot>({
       accessor: true,
     },
   },
-  indexes: [
+  uniques: [
     {
-      name: AUTH_REFRESH_TOKEN_HASH_UNIQUE,
+      name: 'auth_refresh_token_hash_unique',
       properties: ['refreshTokenHash'],
-      type: 'unique',
     },
+  ],
+  indexes: [
     {
       name: AUTH_PREVIOUS_REFRESH_TOKEN_HASH_INDEX,
       properties: ['previousRefreshTokenHash'],

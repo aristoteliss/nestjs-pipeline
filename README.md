@@ -1527,7 +1527,7 @@ nestjs-pipeline/
 │       └── http/                 # HTTP status mapping for its errors
 └── api/                          # @nestjs-pipeline/ddd-api — full working example using ddd-core + casl
     └── src/
-        ├── persistence/          # MikroOrmStore, schemas/, migrate.ts
+        ├── persistence/          # MikroOrmStore, schemas/, cli.ts
         ├── roles/                # MikroORM-backed CASL providers (role CRUD + capabilities)
         ├── auths/                # Auth CRUD + user-context resolver
         └── users/

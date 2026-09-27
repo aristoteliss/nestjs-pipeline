@@ -1,169 +1,89 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import { describe, expect, it, vi } from 'vitest';
+import { persistenceDialect } from '@cqrs-ddd/core/persistence';
+import { MikroOrmDialect } from '@cqrs-ddd/mikro-orm';
+import { MikroORM } from '@mikro-orm/core';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { MikroOrmStore } from './mikro-orm.store';
-import type { TenantSchemaContext } from './tenant-schema.context';
+import { TenantSchemaContext } from './tenant-schema.context';
+import { UnknownTenantSchemaError } from './tenant-schema.errors';
+
+/** Starts the store over ORMs that discover metadata but never connect. */
+async function started(env: Record<string, string>) {
+  for (const [name, value] of Object.entries(env)) vi.stubEnv(name, value);
+  const init = vi
+    .spyOn(MikroORM, 'init')
+    .mockImplementation(
+      async (options) => new MikroORM({ ...options, debug: false }),
+    );
+  const tenants = new TenantSchemaContext();
+  const store = new MikroOrmStore(tenants);
+  await store.onModuleInit();
+  return { store, tenants, init };
+}
 
 describe('MikroOrmStore', () => {
-  const mockTenantContext: TenantSchemaContext = {
-    schema: 'tenant_a',
-  } as TenantSchemaContext;
-
-  it('uses context-bound EntityManager when getContext() returns an active fork', () => {
-    const driver = {};
-    const contextEm = { id: 'context-em', getDriver: () => driver };
-    const rootEm = {
-      id: 'root-em',
-      getDriver: () => driver,
-      getContext: vi.fn().mockReturnValue(contextEm),
-      fork: vi.fn(),
-    };
-    const mockOrm = { em: rootEm };
-
-    const store = new MikroOrmStore(mockTenantContext);
-    (store as any).orms.set('tenant_a', mockOrm);
-
-    const em = store.em;
-    expect(em).toBe(contextEm);
-    expect(rootEm.fork).not.toHaveBeenCalled();
-    expect((contextEm as any).__tenant).toBeUndefined();
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.unstubAllEnvs();
   });
 
-  it('forks a new EntityManager when no contextual EntityManager is active', () => {
-    const forkedEm = { id: 'forked-em' };
-    const rootEm = {
-      id: 'root-em',
-      getContext: vi.fn().mockReturnValue(undefined),
-      fork: vi.fn().mockReturnValue(forkedEm),
-    };
-    const mockOrm = { em: rootEm };
-
-    const store = new MikroOrmStore(mockTenantContext);
-    (store as any).orms.set('tenant_a', mockOrm);
-
-    const em = store.em;
-    expect(em).toBe(forkedEm);
-    expect(rootEm.fork).toHaveBeenCalled();
-    expect((forkedEm as any).__tenant).toBeUndefined();
-  });
-
-  it('transactional runs on a dedicated untagged fork and returns the result', async () => {
-    const forkedEm = {
-      id: 'scoped-fork',
-      transactional: vi.fn().mockImplementation((cb) => cb(forkedEm)),
-    };
-    const rootEm = {
-      id: 'root-em',
-      fork: vi.fn().mockReturnValue(forkedEm),
-    };
-    const mockOrm = { em: rootEm };
-
-    const store = new MikroOrmStore(mockTenantContext);
-    (store as any).orms.set('tenant_a', mockOrm);
-
-    const result = await store.transactional(async (em) => {
-      expect(em).toBe(forkedEm);
-      expect((em as any).__tenant).toBeUndefined();
-      return 'fork-result';
+  it('keeps one libSQL database per tenant', async () => {
+    const { store, tenants, init } = await started({
+      DB_ENGINE: 'libsql',
+      DB_DEFAULT_SCHEMA: 'tenant_a',
+      SQLITE_TENANTS: 'tenant_b',
+      SQLITE_DATABASE_TEMPLATE: 'file:/tmp/{tenant}.db',
     });
 
-    expect(rootEm.fork).toHaveBeenCalledTimes(1);
-    expect(result).toBe('fork-result');
+    expect(init).toHaveBeenCalledTimes(2);
+    const a = tenants.run('tenant_a', () => store.em);
+    const b = tenants.run('tenant_b', () => store.em);
+    expect(a.config.get('dbName')).toBe('file:/tmp/tenant_a.db');
+    expect(b.config.get('dbName')).toBe('file:/tmp/tenant_b.db');
+    expect(persistenceDialect()).toBeInstanceOf(MikroOrmDialect);
+    await store.onModuleDestroy();
   });
 
-  it('transactional executes callback within fork.transactional', async () => {
-    const forkedEm = {
-      id: 'tx-fork',
-      transactional: vi.fn().mockImplementation((cb) => cb({ id: 'tx-em' })),
-    };
-    const rootEm = {
-      id: 'root-em',
-      fork: vi.fn().mockReturnValue(forkedEm),
-    };
-    const mockOrm = { em: rootEm };
-
-    const store = new MikroOrmStore(mockTenantContext);
-    (store as any).orms.set('tenant_a', mockOrm);
-
-    const result = await store.transactional(async (em) => {
-      expect(em).toEqual({ id: 'tx-em' });
-      return 42;
+  it('keeps one PostgreSQL schema per tenant on one ORM', async () => {
+    const { store, tenants, init } = await started({
+      DB_ENGINE: 'postgres',
+      TENANT_SCHEMAS: 'tenant_a,tenant_b',
     });
 
-    expect(result).toBe(42);
-    expect(forkedEm.transactional).toHaveBeenCalled();
+    expect(init).toHaveBeenCalledOnce();
+    const a = tenants.run('tenant_a', () => store.em);
+    const b = tenants.run('tenant_b', () => store.em);
+    expect(a.schema).toBe('tenant_a');
+    expect(b.schema).toBe('tenant_b');
+    expect(a.getDriver()).toBe(b.getDriver());
+    await store.onModuleDestroy();
   });
 
-  it('safely catches and falls back to fork when getContext() throws an exception', () => {
-    const forkedEm = { id: 'fallback-fork' };
-    const rootEm = {
-      id: 'root-em',
-      getContext: vi.fn().mockImplementation(() => {
-        throw new Error('RequestContext is not active');
-      }),
-      fork: vi.fn().mockReturnValue(forkedEm),
-    };
-    const mockOrm = { em: rootEm };
-
-    const store = new MikroOrmStore(mockTenantContext);
-    (store as any).orms.set('tenant_a', mockOrm);
-
-    expect(() => store.em).not.toThrow();
-    expect(store.em).toBe(forkedEm);
-    expect(rootEm.fork).toHaveBeenCalled();
-    expect((forkedEm as any).__tenant).toBeUndefined();
-  });
-
-  it('rejects context-bound EntityManager already claimed by another tenant and forks dedicated instance', () => {
-    const driver = {};
-    const sharedContextEm = { id: 'context-em', getDriver: () => driver };
-    const forkedEmTenantA = { id: 'forked-em-a' };
-    const ormFor = (fork: unknown) => ({
-      em: {
-        getDriver: () => driver,
-        getContext: vi.fn().mockReturnValue(sharedContextEm),
-        fork: vi.fn().mockReturnValue(fork),
-      },
+  it('rejects a tenant that is not configured', async () => {
+    const { store, tenants } = await started({
+      DB_ENGINE: 'postgres',
+      TENANT_SCHEMAS: 'tenant_a',
     });
-    const tenantA = ormFor(forkedEmTenantA);
-    const tenantContext = { schema: 'tenant_b' } as TenantSchemaContext;
 
-    const store = new MikroOrmStore(tenantContext);
-    (store as any).orms.set('tenant_a', tenantA);
-    (store as any).orms.set('tenant_b', ormFor({}));
-
-    expect(store.em).toBe(sharedContextEm);
-
-    (tenantContext as { schema: string }).schema = 'tenant_a';
-    expect(store.em).toBe(forkedEmTenantA);
-    expect(tenantA.em.fork).toHaveBeenCalled();
-    expect((sharedContextEm as any).__tenant).toBeUndefined();
+    expect(() => tenants.run('tenant_z', () => store.em)).toThrow(
+      UnknownTenantSchemaError,
+    );
+    await expect(
+      tenants.run('tenant_z', () => store.transactional(async () => 1)),
+    ).rejects.toBeInstanceOf(UnknownTenantSchemaError);
+    await store.onModuleDestroy();
   });
 
-  it('rejects context-bound EntityManager from another ORM instance with mismatched config', () => {
-    const driver = {};
-    const contextEmOtherOrm = {
-      id: 'context-em-other',
-      getDriver: () => driver,
-      config: { dbName: 'users_tenant_b.db' },
-    };
-    const forkedEmTenantA = { id: 'forked-em-a' };
-    const rootEm = {
-      id: 'root-em',
-      getDriver: () => driver,
-      getContext: vi.fn().mockReturnValue(contextEmOtherOrm),
-      fork: vi.fn().mockReturnValue(forkedEmTenantA),
-    };
-    const mockOrm = {
-      em: rootEm,
-      config: { dbName: 'users_tenant_a.db' },
-    };
+  it('closes every ORM once on shutdown', async () => {
+    const { store } = await started({
+      DB_ENGINE: 'postgres',
+      TENANT_SCHEMAS: 'tenant_a,tenant_b',
+    });
+    const close = vi.spyOn(MikroORM.prototype, 'close');
 
-    const store = new MikroOrmStore(mockTenantContext); // tenant_a
-    (store as any).orms.set('tenant_a', mockOrm);
+    await store.onModuleDestroy();
 
-    const em = store.em;
-    expect(em).toBe(forkedEmTenantA);
-    expect(rootEm.fork).toHaveBeenCalled();
+    expect(close).toHaveBeenCalledOnce();
   });
 });

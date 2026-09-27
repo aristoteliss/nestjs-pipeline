@@ -1,0 +1,12 @@
+/* Copyright (C) 2026-present Aristotelis — see repository license. */
+
+import { BaseQuery } from '@cqrs-ddd/core/application';
+import { createQuery } from '@nestjs-pipeline/zod';
+import { z } from 'zod';
+
+export class GetAuthByConsumedTokenHashQuery extends createQuery(
+  z.object({
+    tokenHash: z.string().min(1),
+  }),
+  BaseQuery,
+) {}

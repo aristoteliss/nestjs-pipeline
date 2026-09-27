@@ -1,8 +1,8 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { describe, expect, it } from 'vitest';
+import type { ICache } from '../application/ports/cache.port';
 import { MemoryCache } from './cache/memory.cache';
-import type { ICache } from './cache.interface';
 import { CommandRepository } from './command-repository.abstract';
 
 class NoteRepository extends CommandRepository<string, string, string> {
