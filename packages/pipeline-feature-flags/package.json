@@ -55,8 +55,8 @@
   },
   "devDependencies": {
     "@nestjs-pipeline/core": "workspace:*",
-    "@nestjs/common": "^11.2.1",
-    "@openfeature/server-sdk": "^1.13.0",
+    "@nestjs/common": "^11.2.6",
+    "@openfeature/server-sdk": "^1.23.0",
     "@vitest/coverage-v8": "^4.1.11",
     "reflect-metadata": "^0.2.2",
     "vitest": "^4.1.11"

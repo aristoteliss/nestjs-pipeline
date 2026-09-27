@@ -1,6 +1,6 @@
 # Production usage notes
 
-This branch makes `pipeline-opentelemetry` a pipeline observability integration rather than just a span wrapper. It relies on the OpenTelemetry API contract: if no SDK/provider is installed, the API returns no-op tracers/meters. The package does not inspect provider implementation names or private delegates.
+`@nestjs-pipeline/opentelemetry` is a pipeline observability integration rather than just a span wrapper. It relies on the OpenTelemetry API contract: if no SDK/provider is installed, the API returns no-op tracers/meters. The package does not inspect provider implementation names or private delegates.
 
 ## Standard pipeline semantics
 
@@ -17,7 +17,7 @@ pipeline.outcome
 error.type
 ```
 
-Metrics intentionally use a smaller low-cardinality default set: request kind, request name, handler name, outcome, and error type.
+Metrics intentionally use a smaller low-cardinality default set: request kind, request name, handler name, `outcome` and `pipeline.outcome`, and error type (failures only). `pipeline.handler.active` carries only request kind, request name and handler name.
 
 ## Request-local enrichment
 
@@ -36,7 +36,7 @@ For package-to-package integration, keep add-ons independent: they should expose
 
 This means installing the add-ons produces no feature, cache, idempotency,
 rate-limit or dead-letter attributes on its own — the application supplies the
-join. `api/src/infrastructure/behaviors/telemetry-bridge.behavior.ts`
+join. `api/src/common/behaviors/telemetry-bridge.behavior.ts`
 is a complete reference implementation: register it inside `TraceBehavior` and
 outside the add-ons, annotate on unwind, write nothing for an item that is
 absent, and keep unbounded values such as cache keys out of the attributes.
@@ -68,4 +68,4 @@ Use `recordException: false` only when another layer already records exceptions 
 
 ## Span volume
 
-The default remains one span around the handler pipeline. This branch deliberately does not create a span for every behavior because that often creates trace noise and ingestion cost. Add child spans only for operations that have useful independent latency/failure semantics.
+The default remains one span around the handler pipeline. The package deliberately does not create a span for every behavior because that often creates trace noise and ingestion cost. Add child spans only for operations that have useful independent latency/failure semantics.

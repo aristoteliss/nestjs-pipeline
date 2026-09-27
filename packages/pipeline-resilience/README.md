@@ -272,6 +272,21 @@ Signals timeout when a call or handler runs too long. Aggressive timeouts reject
 - `aggressive` (default): reject immediately with `TaskCancelledError`.
 - `cooperative`: signal cancellation and wait for the work to settle.
 
+A cooperative timeout inside a handler, passing the attempt's signal to `fetch`:
+
+```typescript
+import { getResilienceAbortSignal, resilience } from '@nestjs-pipeline/resilience';
+
+@QueryHandler(GetExchangeRatesQuery)
+@UsePipeline(resilience({ timeout: { duration: 2_000, strategy: 'cooperative' } }))
+export class GetExchangeRatesHandler implements IQueryHandler<GetExchangeRatesQuery> {
+  async execute(): Promise<unknown> {
+    const response = await fetch(RATES_URL, { signal: getResilienceAbortSignal() });
+    return response.json();
+  }
+}
+```
+
 On a `command` or `event` handler an `aggressive` timeout is a bootstrap diagnostic unless `timeout.replaySafe: true` acknowledges it: the caller is answered while the handler keeps running, so an outer retry, a released idempotency claim or a client retry can run the same side effect alongside it.
 
 ### Bulkhead
@@ -344,14 +359,14 @@ The package also emits `debug`/`warn` log lines for these events.
 
 ### Escape hatch (`policy`)
 
-Already have a hand-built cockatiel policy for a handler? Pass it directly and the behavior's declarative options are ignored:
+Already have a hand-built cockatiel policy for a handler? Pass it directly and the behavior's declarative options are ignored. The bootstrap checks (`handle`, `replaySafe`, dependency layers) are skipped too, so the policy is entirely your responsibility:
 
 ```typescript
 import { wrap, retry, handleAll, ExponentialBackoff } from 'cockatiel';
 
 const myPolicy = wrap(retry(handleAll, { maxAttempts: 3, backoff: new ExponentialBackoff() }));
 
-@UsePipeline([ResilienceBehavior, { policy: myPolicy }])
+@UsePipeline(resilience({ policy: myPolicy }))
 ```
 
 ---
@@ -384,28 +399,75 @@ try {
 
 Type guards (`isBrokenCircuitError`, `isBulkheadRejectedError`, `isIsolatedCircuitError`, `isTaskCancelledError`) are also re-exported.
 
+Map them to HTTP responses once, with a Nest exception filter:
+
+```typescript
+import { type ArgumentsHost, Catch, type ExceptionFilter, HttpStatus } from '@nestjs/common';
+import {
+  BrokenCircuitError,
+  BulkheadRejectedError,
+  TaskCancelledError,
+} from '@nestjs-pipeline/resilience';
+
+@Catch(BrokenCircuitError, BulkheadRejectedError, TaskCancelledError)
+export class ResilienceErrorFilter implements ExceptionFilter {
+  catch(error: Error, host: ArgumentsHost) {
+    const status =
+      error instanceof TaskCancelledError
+        ? HttpStatus.GATEWAY_TIMEOUT
+        : HttpStatus.SERVICE_UNAVAILABLE;
+    host.switchToHttp().getResponse().status(status).json({ statusCode: status, message: error.message });
+  }
+}
+```
+
+Track a breaker's state for a health check through the telemetry hooks of its named policy:
+
+```typescript
+import { CircuitState, ResilienceModule } from '@nestjs-pipeline/resilience';
+
+export const paymentsCircuit = { state: CircuitState.Closed };
+
+ResilienceModule.forRoot({
+  policies: {
+    paymentsApi: {
+      handle: (error) => error instanceof PaymentGatewayUnavailableError,
+      circuitBreaker: { halfOpenAfter: 30_000, breaker: { type: 'consecutive', threshold: 5 } },
+      telemetry: {
+        onCircuitOpen: () => { paymentsCircuit.state = CircuitState.Open; },
+        onCircuitHalfOpen: () => { paymentsCircuit.state = CircuitState.HalfOpen; },
+        onCircuitClose: () => { paymentsCircuit.state = CircuitState.Closed; },
+      },
+    },
+  },
+});
+```
+
 ---
 
 ## Custom Logger
 
-`ResilienceBehavior` accepts a custom Nest `LoggerService` via the `LOGGING_BEHAVIOR_LOGGER` token (useful with `nestjs-pino`):
+`ResilienceBehavior` and `ResiliencePolicies` log through the `LoggerService` bound to `LOGGING_BEHAVIOR_LOGGER`. Bind it with the `loggerProvider` option of `PipelineModule` (useful with `nestjs-pino`):
 
 ```typescript
 import { Module } from '@nestjs/common';
 import { Logger } from 'nestjs-pino';
-import { LOGGING_BEHAVIOR_LOGGER } from '@nestjs-pipeline/core';
-import { ResilienceBehavior } from '@nestjs-pipeline/resilience';
+import { LOGGING_BEHAVIOR_LOGGER, PipelineModule } from '@nestjs-pipeline/core';
+import { ResilienceBehavior, ResilienceModule } from '@nestjs-pipeline/resilience';
 
 @Module({
-  providers: [
-    ResilienceBehavior,
-    { provide: LOGGING_BEHAVIOR_LOGGER, useExisting: Logger },
+  imports: [
+    ResilienceModule.forRoot({ policies: { /* ... */ } }),
+    PipelineModule.forRoot({
+      behaviors: [ResilienceBehavior],
+      loggerProvider: { provide: LOGGING_BEHAVIOR_LOGGER, useExisting: Logger },
+    }),
   ],
 })
 export class AppModule {}
 ```
 
-If no logger is provided, a default Nest `Logger` scoped to `ResilienceBehavior` is used.
+If no logger is bound, each uses a default Nest `Logger` scoped to its class name.
 
 ---
 
@@ -418,6 +480,9 @@ If no logger is provided, a default Nest `Logger` scoped to `ResilienceBehavior`
 - **No dependency layers on a handler**: `circuitBreaker` and `fallback` belong to named policies. Configuring either on the behavior fails at startup, with a fix pointing to `ResilienceModule.forRoot({ policies })`.
 - **Error classification required**: a `retry` needs `handle: (error: unknown) => boolean` or `handleAllErrors: true`. Unspecified error handling fails fast at startup with `PipelineConfigurationError` in `strict` mode.
 - **Non-query retry replay safety**: Retrying a handler repeats downstream execution and re-runs side effects. On `command` and `event` handlers, `retry` must declare `replaySafe: true` after verifying that downstream side effects are idempotent or transactional.
+- **Aggressive timeout on a command or event**: requires `timeout.replaySafe: true`; otherwise use `strategy: 'cooperative'`.
+- **Escape hatch**: a handler configured with `policy` skips every check above.
+- **Runtime guard**: when diagnostics are `'warn'` or `'off'`, the same unsafe configuration throws `ResilienceConfigurationError` (`requestName`, `requestKind`, `reason`) on the handler's first invocation instead.
 - **Module defaults resolution**: `defaults` supplied to `ResilienceModule.forRoot({ defaults })` are merged beneath handler options via `ResilienceBehavior.resolveEffectiveOptions` and evaluated during bootstrap diagnostics.
 
 Named policies are validated separately, when `ResiliencePolicies` is created at startup (see [Named policies](#named-policies)).
@@ -458,9 +523,31 @@ The declarative configuration of a handler (`retry`, `bulkhead`, `timeout`, `han
 
 Low-level helper that composes a cockatiel `IPolicy` (or `null` when nothing is configured) from declarative options. Exposed for advanced/testing scenarios.
 
+```typescript
+import { Logger } from '@nestjs/common';
+import { buildResiliencePolicy } from '@nestjs-pipeline/resilience';
+
+const policy = buildResiliencePolicy(
+  { handleAllErrors: true, retry: { maxAttempts: 2 }, timeout: { duration: 1_000 } },
+  { logger: new Logger('Reports'), policyName: 'reports' },
+);
+await policy?.execute(() => generateReport());
+```
+
+It does not run the startup validation of `ResiliencePolicies`.
+
+### Errors
+
+- `ResiliencePolicyConfigurationError` (`policyName`, `reason`) — an invalid named policy at startup, or an unknown name on `get`/`execute`.
+- `ResilienceConfigurationError` (`requestName`, `requestKind`, `reason`) — an unsafe handler configuration found at its first invocation.
+
+### Types
+
+`ResilienceModuleOptions`, `ResilienceModuleAsyncOptions`, `RetryOptions` / `RetryPolicyOptions` (with and without `replaySafe`), `TimeoutOptions` / `TimeoutPolicyOptions`, `BulkheadOptions`, `CircuitBreakerOptions`, `BreakerStrategy`, `FallbackOptions` (`{ value }` or `{ factory }`), `RetryBackoff`, `JitterStrategy`, `ResilienceLayer`, `HandlerResilienceLayer` (`'retry' | 'bulkhead' | 'timeout'`), `ResilienceTelemetry`, `ResilienceTelemetryEvent`, `PolicyBuildContext` (`logger`, `requestName`, `handlerName`, `policyName`, `telemetry`).
+
 ### Context Helpers & Tokens
 
-- `getResilienceAbortSignal()` — returns the active attempt's `AbortSignal` for cooperative timeouts inside a handler.
+- `getResilienceAbortSignal()` — returns the active attempt's `AbortSignal` for cooperative timeouts inside a handler, or `undefined` outside `ResilienceBehavior`.
 - `RESILIENCE_DEFAULT_OPTIONS` — the token of the behavior defaults.
 
 ### Re-exported from cockatiel

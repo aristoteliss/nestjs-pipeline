@@ -130,8 +130,9 @@ starts in BullMQ's waiting state, not its failed state, so `queue.getFailed()`
 and `job.retry()` do not apply. Inspect records with Bull Board or
 `queue.getJobs(['waiting', 'delayed', 'active', 'completed'])`, then use an
 application-specific replay worker/tool to validate the record and re-dispatch
-the original request. Defaults keep jobs around
-(`removeOnComplete: false`, `removeOnFail: false`).
+the original request. The job name defaults to `'dead-letter'`
+(`jobName`); `jobOptions` defaults to
+`{ removeOnComplete: false, removeOnFail: false, attempts: 1 }`.
 
 ```typescript
 import { getQueueToken } from '@nestjs/bullmq';
@@ -165,6 +166,9 @@ DeadLetterModule.forRoot({
   transport: new RabbitMqDeadLetterTransport(channel, { routingKey: 'dead-letters' }),
 });
 ```
+
+Options: `exchange` (default `''`, the default exchange), `routingKey` (default
+`'dead-letter'`) and `publishOptions`, merged over the persistent JSON defaults.
 
 ### Postgres (drop-in)
 
@@ -222,7 +226,7 @@ For each request, `DeadLetterBehavior` runs the handler and, **only on failure**
 3. Builds a transport-neutral [`DeadLetterRecord`](#the-dead-letter-record) and calls
    `transport.send(record)`. A transport failure is logged and **never masks**
    the original handler error.
-4. Sets `dead-letter.captured` on `context.items` to whether delivery succeeded.
+4. Sets `DEAD_LETTER_ITEM_TOKEN` (key `DEAD_LETTER_ITEM`) on `context.items` to whether delivery succeeded.
 5. Re-throws the original handler error (`rethrow: true`, default) or, on an
    **event** handler with `rethrow: false` **and successful delivery**, resolves to
    `undefined`. An excluded request kind, a command or query, or a failed transport
@@ -243,7 +247,7 @@ over module-wide `defaults`:
 | `ignoreErrors` | `Type[] \| ((err, ctx) => boolean)` | — | Error classes or predicate function to skip from dead-letter capture. Combines intelligently when defined at both module and handler level. |
 | `metadata` | `(ctx) => Record<string, unknown>` | — | Extra request-aware metadata to attach. |
 | `redact` | `(payload: unknown) => unknown` | — | Custom redactor function taking precedence over `redactKeys`. |
-| `redactKeys` | `string[]` | `DEFAULT_REDACT_KEYS` | Field names to mask with `[REDACTED]` in the captured payload. Case-insensitive matching. Merged as a Set union with module defaults. |
+| `redactKeys` | `string[]` | `DEFAULT_REDACT_KEYS` | Extra field names to mask with `[REDACTED]` in the captured payload, added to `DEFAULT_REDACT_KEYS`. Case-insensitive matching. Merged as a Set union with module defaults. |
 
 ### Smart Options Merging
 
@@ -276,15 +280,39 @@ replacing the original handler error under the default fail-open behavior):
 
 ```typescript
 interface DeadLetterRecord {
+  id: string;                            // UUIDv7, sorts in capture order
   correlationId: string;                 // cross-system tracing id
+  tenantId?: string;                     // active tenant, when there is one
   requestKind: 'command' | 'query' | 'event' | 'unknown';
   requestName: string;                   // e.g. 'CreateUserCommand'
   handlerName: string;                   // e.g. 'CreateUserHandler'
-  payload: unknown;                      // the original request instance
+  payload: unknown;                      // the redacted request
   error: { name: string; message: string; stack?: string };
   failedAt: string;                      // ISO-8601
-  metadata?: Record<string, unknown>;    // from the `metadata` factory
+  metadata?: Record<string, unknown>;    // `metadata` factory output, plus tenantId
+  attempts: number;                      // redrive attempts; 0 when captured
+  status: 'open' | 'resolved';
+  payloadRedacted: boolean;              // redaction changed the payload
+  lastError?: { name: string; message: string; stack?: string };
+  resolvedAt?: string;                   // ISO-8601
 }
+```
+
+`tenantId` and `correlationId` are read from the pipeline context, so records are
+partitioned by tenant without extra configuration. The Postgres transport keeps the
+tenant inside the `metadata` column and restores `tenantId` from it on read. Add
+request-aware fields with `metadata`:
+
+```typescript
+DeadLetterModule.forRoot({
+  transport,
+  defaults: {
+    metadata: (ctx) => ({
+      userId: (ctx.request as { userId?: string }).userId,
+      handler: ctx.handlerName,
+    }),
+  },
+});
 ```
 
 ---
@@ -314,8 +342,14 @@ dispatch. For an **event**, run only the handler that failed (`record.handlerNam
 publishing the event again would rerun the handlers that already succeeded.
 
 ```typescript
-import { CommandBus } from '@nestjs/cqrs';
-import { DEAD_LETTER_TRANSPORT, DeadLetterRedriver } from '@nestjs-pipeline/deadletter';
+import { Module } from '@nestjs/common';
+import { ModuleRef } from '@nestjs/core';
+import { CommandBus, type ICommand } from '@nestjs/cqrs';
+import {
+  DEAD_LETTER_TRANSPORT,
+  type DeadLetterStore,
+  DeadLetterRedriver,
+} from '@nestjs-pipeline/deadletter';
 
 const eventHandlers = { SendWelcomeEmailHandler };
 
@@ -324,7 +358,7 @@ const eventHandlers = { SendWelcomeEmailHandler };
     {
       provide: DeadLetterRedriver,
       inject: [DEAD_LETTER_TRANSPORT, CommandBus, ModuleRef],
-      useFactory: (store, commandBus: CommandBus, moduleRef: ModuleRef) =>
+      useFactory: (store: DeadLetterStore, commandBus: CommandBus, moduleRef: ModuleRef) =>
         new DeadLetterRedriver(store, {
           requestTypes: [UserCreatedEvent, SendInvoiceCommand],
           dispatch: {
@@ -340,11 +374,63 @@ const eventHandlers = { SendWelcomeEmailHandler };
 })
 export class DeadLetterAdminModule {}
 
-// An admin endpoint or a scheduled job:
-for (const record of await store.list({ status: 'open', limit: 50 })) {
-  await redriver.redrive(record.id).catch(() => undefined); // attempts +1 on failure
+```
+
+An admin job that redrives open records and separates refusals from handler failures:
+
+```typescript
+import { Inject, Injectable, Logger } from '@nestjs/common';
+import {
+  DEAD_LETTER_TRANSPORT,
+  DeadLetterRedriveError,
+  DeadLetterRedriver,
+  type DeadLetterStore,
+} from '@nestjs-pipeline/deadletter';
+
+@Injectable()
+export class RedriveJob {
+  private readonly logger = new Logger(RedriveJob.name);
+
+  constructor(
+    @Inject(DEAD_LETTER_TRANSPORT) private readonly store: DeadLetterStore,
+    private readonly redriver: DeadLetterRedriver,
+  ) {}
+
+  async run(): Promise<void> {
+    const open = await this.store.list({ status: 'open', limit: 50 });
+    for (const record of open) {
+      if (record.attempts >= 5) continue;
+      try {
+        await this.redriver.redrive(record.id);
+      } catch (error) {
+        if (error instanceof DeadLetterRedriveError) {
+          this.logger.warn(error.message); // nothing was dispatched
+        } else {
+          this.logger.error(`redrive ${record.id} failed`); // attempts +1
+        }
+      }
+    }
+  }
+
+  close(id: string): Promise<void> {
+    return this.redriver.resolve(id); // resolve without replaying
+  }
 }
-await redriver.resolve(someId); // close without replaying
+```
+
+A `rebuild` that restores redacted values from their source:
+
+```typescript
+new DeadLetterRedriver(store, {
+  requestTypes: [ChangePasswordCommand],
+  dispatch: { command: (command) => commandBus.execute(command as ICommand) },
+  rebuild: (record, type) => {
+    const fields = record.payload as { userId: string };
+    return Object.assign(Object.create(type.prototype), fields, {
+      password: secrets.pendingPassword(fields.userId),
+    });
+  },
+});
 ```
 
 **Redacted payloads.** Redaction masks secrets in the stored payload, so a replayed
@@ -411,14 +497,19 @@ The chain becomes `Logging → ZodValidation → DeadLetterBehavior → Resilien
 | `DeadLetterRedriver` | Class | `redrive(id)` and `resolve(id)` over a store |
 | `DeadLetterRedriveError` | Class | A record that cannot be redriven; nothing was dispatched |
 | `DeadLetterRedriverOptions` / `DeadLetterDispatch` | Type | `requestTypes`, `dispatch` per kind, optional `rebuild` |
+| `DeadLetterRedriveResult` | Type | `{ id, response }` returned by `redrive` |
+| `DeadLetterListFilter` | Type | `{ status?, requestName?, limit? }` for `store.list` (default limit `100`, oldest first) |
+| `DeadLetterError` / `DeadLetterStatus` / `DeadLetterRequestKind` / `DeadLetterMetadataFactory` | Type | Record field and option types |
 | `DeadLetterRecord` | Interface | Serializable failed-request snapshot |
 | `DeadLetterModuleOptions` / `DeadLetterModuleAsyncOptions` | Interface | Module registration options |
 | `BullMqDeadLetterTransport` | Class | Adds a job to a BullMQ queue |
 | `RabbitMqDeadLetterTransport` | Class | Publishes a persistent AMQP message |
+| `BullMqDeadLetterTransportOptions` / `RabbitMqDeadLetterTransportOptions` / `PostgresDeadLetterTransportOptions` | Type | `{ jobName?, jobOptions? }` / `{ exchange?, routingKey?, publishOptions? }` / `{ table? }` |
+| `BullMqQueueLike` / `RabbitMqConfirmChannelLike` / `PostgresQueryableLike` | Type | Structural client types |
 | `PostgresDeadLetterTransport` | Class | `DeadLetterStore` on `pg` |
 | `createDeadLetterTableSql` | Function | `CREATE TABLE` DDL for the Postgres transport |
 | `buildDeadLetterRecord` | Function | Builds a record from a context + error |
-| `DEFAULT_REDACT_KEYS` | Constant | Default list of sensitive keys masked with `[REDACTED]` |
+| `DEFAULT_REDACT_KEYS` / `REDACTED` / `redactValue` | Constant / Function | Re-exported from `@cqrs-ddd/safe-stringify`: default sensitive keys, the mask string, and the key-based redactor |
 | `DEAD_LETTER_TRANSPORT` / `DEAD_LETTER_DEFAULT_OPTIONS` | Token | Injection tokens |
 | `DEAD_LETTER_ITEM` | Symbol | `context.items` exported unique Symbol key set after the capture attempt |
 | `DEAD_LETTER_ITEM_TOKEN` | `PipelineItemToken<boolean>` | Typed token over the same key, for `getPipelineItem` |

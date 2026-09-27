@@ -20,17 +20,20 @@ configuration) is the application's decision.
 pnpm add @nestjs-pipeline/casl @nestjs-pipeline/core @casl/ability @nestjs/common reflect-metadata
 ```
 
-Peers: `@casl/ability` `^7.0.0`, `@nestjs/common` `^11`, `@nestjs-pipeline/core`,
-`reflect-metadata`.
+Peers: `@casl/ability` `^7.0.0`, `@nestjs/common` `^11.0.0`, `@nestjs-pipeline/core`
+`^0.2.0`, `reflect-metadata`. Node.js 22 or later.
 
 ## Register the module
 
 ```ts
+import { Injectable, Module } from '@nestjs/common';
+import { CqrsModule } from '@nestjs/cqrs';
 import {
   type CaslAuthorizationInput,
   CaslModule,
   type ICaslPermissionSource,
 } from '@nestjs-pipeline/casl';
+import { PipelineModule } from '@nestjs-pipeline/core';
 
 @Injectable()
 export class AppPermissionSource implements ICaslPermissionSource {
@@ -74,6 +77,44 @@ class, `{ useClass }` and `{ useFactory, inject }`.
 
 A request-scoped source makes `CaslBehavior` request-scoped as well, which is how a
 source reads per-request state.
+
+`load()` receives the pipeline context, so a source can also read the caller from the
+request itself. A source built with a factory:
+
+```ts
+CaslModule.forRoot({
+  imports: [AuthorizationModule],
+  permissionSource: {
+    useFactory: (grants: GrantRepository): ICaslPermissionSource => ({
+      async load(context) {
+        const session = (context.request as { sessionUser?: SessionUser }).sessionUser;
+        if (!session) return null;
+        return {
+          principal: { id: session.id, tenantId: session.tenantId },
+          rules: await grants.rulesFor(session.id),
+        };
+      },
+    }),
+    inject: [GrantRepository],
+  },
+});
+```
+
+Rules may mix `Capability` objects and strings, and roles are simply rules the source
+concatenates; deny rules win regardless of order (see [Rule precedence](#rule-precedence)):
+
+```ts
+const roles: Record<string, string[]> = {
+  admin: ['all|manage|*'],
+  author: ['Post|read|*', 'Post|create|*', 'Post|update|{"authorId":"${user.id}"}'],
+};
+
+async rulesFor(userId: string): Promise<Capability[]> {
+  const { roleNames, extra, denied } = await this.store.grantsOf(userId);
+  return [...roleNames.flatMap((name) => roles[name] ?? []), ...extra, ...denied]
+    .map(normalizeCapability);
+}
+```
 
 ## Declare requirements
 
@@ -120,6 +161,33 @@ return this.authorizer.project('read', user, {
 // Optional sections: a boolean check.
 if (this.authorizer.can('read', user, 'email')) { /* … */ }
 ```
+
+A full handler, with tenant-scoped conditions evaluated against the loaded entity:
+
+```ts
+// Rule from the source: 'Project|update|{"tenantId":"${user.tenantId}"}|name,status'
+@CommandHandler(UpdateProjectCommand)
+@UsePipeline(requires({ action: 'update', subject: 'Project' }))
+export class UpdateProjectHandler implements ICommandHandler<UpdateProjectCommand> {
+  constructor(
+    private readonly projects: ProjectRepository,
+    private readonly authorizer: CaslAuthorizer,
+  ) {}
+
+  async execute(command: UpdateProjectCommand) {
+    const project = await this.projects.findById(command.id);
+    // Throws UnauthorizedActionException for a project of another tenant,
+    // or when the command changes a field other than name or status.
+    this.authorizer.authorize('update', project, command.changedFields);
+    project.rename(command.name);
+    await this.projects.save(project);
+    return this.authorizer.project('read', project, project.toJSON());
+  }
+}
+```
+
+The subject type is the entity's class name (`Project`). For a plain object, tag it with
+CASL's `subject()`: `this.authorizer.can('read', subject('Project', row))`.
 
 `authorize` returns `void`. `project` returns `Projected<T>`: every property may be
 absent, and array items may be `null`.
@@ -196,6 +264,12 @@ reproduce them.
 
 ## Lists
 
+```ts
+const visible = posts
+  .filter((post) => this.authorizer.can('read', post))
+  .map((post) => this.authorizer.project('read', post, post.toJSON()));
+```
+
 Authorizing a list (`can` + `project` per item) filters an already loaded collection in
 memory. It is not database filtering: pagination counts and page sizes still reflect
 unauthorized rows. Authorized pagination needs a query-side design.
@@ -233,6 +307,157 @@ unauthorized rows. Authorized pagination needs a query-side design.
 | `CASL_ABILITY_KEY`, `CASL_PRINCIPAL_KEY`, `CASL_ACTIONS`, `CASL_SUBJECTS`, `CaslAction`, `CaslSubject` | Constants |
 | `UnauthorizedActionException`, `UnauthorizedActionDetails` | Denial error |
 | `UnauthorizedActionFilter` | Exception filter: denial → HTTP 403 |
+
+## Migrating from 0.1.x
+
+**1. Peers and runtime.** `@casl/ability` `^7.0.0` (was `^6.0.0`), `@nestjs/common`
+`^11.0.0` (was `^10 || ^11`), `@nestjs-pipeline/core` `^0.2.0`, Node.js 22 or later.
+
+```bash
+pnpm add @casl/ability@^7 @nestjs/common@^11 @nestjs-pipeline/core@^0.2.0 @nestjs-pipeline/casl@^0.2.0
+```
+
+**2. One permission source replaces the providers and resolvers.** The module options
+`roleProvider`, `userCapabilityProvider`, `userContextResolver`, `subjectContextPaths`
+and `defaultFieldsFromRequest` are removed, with `IRoleProvider`,
+`IUserCapabilityProvider`, `IUserContextResolver`, `StaticRoleProvider`,
+`RoleDefinition`, `UserCapabilities` and `CaslUserContext`. Their work moves into one
+`ICaslPermissionSource.load()`, which returns the principal and the already expanded
+rules (role rules, per-user additions and denials in one list).
+
+```ts
+// 0.1.x
+CaslModule.forRoot({
+  roleProvider: { useFactory: (pool: Pool) => new PgRoleProvider(pool), inject: [Pool] },
+  userCapabilityProvider: PgUserCapabilityProvider,
+  userContextResolver: JwtUserContextResolver,
+  subjectContextPaths: ['sessionUser'],
+  defaultFieldsFromRequest: { User: ['username', 'email'] },
+});
+
+// 0.2.0
+@Injectable()
+export class PgPermissionSource implements ICaslPermissionSource {
+  constructor(private readonly roles: PgRoleProvider, private readonly users: PgUserCapabilityProvider) {}
+
+  async load(context: IPipelineContext): Promise<CaslAuthorizationInput | null> {
+    const user = (context.request as { sessionUser?: { id: string; tenantId: string } }).sessionUser;
+    if (!user) return null;
+    const grants = await this.users.getUserCapabilities(user);
+    const roleRules = (await this.roles.getRoles(grants.roles)).flatMap((r) => r.capabilities);
+    return {
+      principal: user,
+      rules: [...roleRules, ...grants.additionalCapabilities, ...grants.deniedCapabilities]
+        .map(normalizeCapability),
+    };
+  }
+}
+
+CaslModule.forRoot({
+  imports: [DatabaseModule],
+  permissionSource: PgPermissionSource,
+});
+```
+
+`PgRoleProvider` and `PgUserCapabilityProvider` above are your former implementations,
+now plain application services.
+
+**3. Principal instead of `CASL_USER_CONTEXT_KEY`.** Setting the user in
+`context.items` is no longer read; return it as `principal` from `load()`. `principal.id`
+is required. Placeholders resolve against it (`${user.tenantId}`, `${tenantId}` and
+`{{ tenantId }}` are equivalent).
+
+```ts
+// 0.1.x
+context.items.set(CASL_USER_CONTEXT_KEY, { id: user.id, tenantId: user.tenantId });
+
+// 0.2.0 — in load()
+return { principal: { id: user.id, tenantId: user.tenantId }, rules };
+```
+
+**4. `requires()` replaces the tuple (the tuple still works).**
+
+```ts
+// 0.1.x
+@UsePipeline([CaslBehavior, { rules: [{ action: 'create', subject: 'Post' }] }])
+
+// 0.2.0
+@UsePipeline(requires({ action: 'create', subject: 'Post' }))
+```
+
+`rules` must be non-empty. The `prebuiltAbility` option is removed; to check against an
+ability you built yourself, use `new CaslAuthorizer(ability)`.
+
+**5. Entity and field checks move into the handler.** `subjectFromRequest`,
+`fieldsFromRequest`, the per-handler `subjectContextPaths` and `defaultFieldsFromRequest`
+are removed. 0.1.x evaluated conditions against the command payload; 0.2.0 evaluates them
+against the entity the handler loads, with `CaslAuthorizer`.
+
+```ts
+// 0.1.x
+@UsePipeline([CaslBehavior, {
+  subjectFromRequest: 'User',
+  fieldsFromRequest: ['username', 'department'],
+  rules: [{ action: 'update', subject: 'User' }],
+}])
+
+// 0.2.0
+@UsePipeline(requires({ action: 'update', subject: 'User' }))
+export class UpdateUserHandler {
+  constructor(private readonly users: UserRepository, private readonly authorizer: CaslAuthorizer) {}
+
+  async execute(command: UpdateUserCommand) {
+    const user = await this.users.findById(command.id);
+    this.authorizer.authorize('update', user, ['username', 'department']);
+    // …
+  }
+}
+```
+
+With `@nestjs-pipeline/zod`, `UpdateUserCommand.updatableFields` supplies the field list.
+
+**6. `skipCheck` is removed.** To tailor a response without gating the handler, declare
+the weakest requirement and read the ability:
+
+```ts
+// 0.1.x
+@UsePipeline([CaslBehavior, { skipCheck: true }])
+// … context.items.get(CASL_ABILITY_KEY)
+
+// 0.2.0
+@UsePipeline(requires({ action: 'read', subject: 'Post' }))
+// … getCaslAbility()?.can('read', 'DraftPost'), or this.authorizer.can('read', 'DraftPost')
+```
+
+**7. Denials are `UnauthorizedActionException`, not `ForbiddenException`.** Register the
+filter to keep HTTP 403 responses:
+
+```ts
+app.useGlobalFilters(new UnauthorizedActionFilter());
+```
+
+Code that caught `ForbiddenException` must catch `UnauthorizedActionException`.
+
+**8. `buildAbility` takes rules, not roles.** Its 0.1.x signature was
+`buildAbility(roles, user, additional)`; it is now `buildAbility(rules, principal)`.
+`buildAbilityFromRules`, `capabilityToRawRule`, `capabilitiesToRawRules` and
+`CASL_BEHAVIOR_LOGGER` are removed.
+
+```ts
+// 0.1.x
+const ability = buildAbility(roleDefinitions, user, extraCaps);
+const same = buildAbilityFromRules(capabilitiesToRawRules(caps, user));
+
+// 0.2.0
+const ability = buildAbility(
+  [...roleDefinitions.flatMap((role) => role.capabilities), ...extraCaps],
+  principal,
+);
+```
+
+**9. Stricter rules.** An unresolved placeholder, a placeholder resolving to an object,
+and an allow rule with `fields: []` now throw. Direct rules are always applied before
+inverted ones, so a deny wins whatever the input order.
 
 ## License
 

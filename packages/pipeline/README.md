@@ -13,9 +13,11 @@ Its peer contract also includes the standard NestJS runtime peers
 ## Table of Contents
 
 - [Installation](#installation)
+- [Migrating from 0.1.x](#migrating-from-01x)
 - [Module Registration](#module-registration)
   - [forRoot()](#forroot)
   - [forFeature()](#forfeature)
+  - [Async registration](#async-registration)
 - [The @UsePipeline Decorator](#the-usepipeline-decorator)
 - [Writing a Custom Behavior](#writing-a-custom-behavior)
 - [Pipeline Context](#pipeline-context)
@@ -58,6 +60,119 @@ pnpm add @nestjs/common @nestjs/core @nestjs/cqrs reflect-metadata rxjs
 # Optional: use pino as Nest logger
 pnpm add nestjs-pino pino-http pino-pretty
 ```
+
+---
+
+## Migrating from 0.1.x
+
+0.2.0 contains the following breaking changes for applications on 0.1.18. The full list
+is in the repository [CHANGELOG](https://github.com/aristoteliss/nestjs-pipeline/blob/master/CHANGELOG.md).
+
+**NestJS 11 and Node.js 22.** The peers `@nestjs/common`, `@nestjs/core` and
+`@nestjs/cqrs` are `^11.0.0`; NestJS 10 is no longer accepted.
+
+**`sources` replaces `correlationIdFactory` and `correlationIdRunner`.**
+
+```typescript
+// 0.1.x
+PipelineModule.forRoot({
+  correlationIdFactory: getCorrelationId,
+  correlationIdRunner: runWithCorrelationId,
+});
+
+// 0.2.0
+import { correlationSource } from '@nestjs-pipeline/correlation';
+import { tenantSource } from '@nestjs-pipeline/tenant';
+
+PipelineModule.forRoot({
+  sources: { tenantId: tenantSource, correlationId: correlationSource },
+});
+```
+
+Omitting `sources` logs a bootstrap warning; `sources: {}` states that the application
+uses neither store.
+
+**`context.correlationId` is read-only, and `originalCorrelationId` is removed.** A
+behavior can no longer replace the ID of a running pipeline. Set it where the work enters
+the application instead:
+
+```typescript
+// 0.1.x, inside a behavior
+context.correlationId = context.request.messageId;
+const original = context.originalCorrelationId;
+
+// 0.2.0, at the entry point
+import { runWithCorrelationId } from '@nestjs-pipeline/correlation';
+
+await runWithCorrelationId(message.id, () => commandBus.execute(command));
+// inside a behavior, context.correlationId is now message.id
+```
+
+**Internal exports are removed.** `PipelineBootstrapService`, `PIPELINE_MODULE_OPTIONS`,
+`PIPELINE_OPTIONS_REGISTRY`, `clearPipelineOptionsRegistry`, `SET_RESPONSE` and
+`SET_ORIGINAL_CORRELATION_ID` are no longer exported. Configure the pipeline through
+`forRoot` or `forRootAsync`, and read handler options through
+`context.getBehaviorOptions()`:
+
+```typescript
+// 0.1.x
+const options = PIPELINE_OPTIONS_REGISTRY.get('CreateUserHandler');
+afterEach(() => clearPipelineOptionsRegistry());
+
+// 0.2.0, inside a behavior
+const options = context.getBehaviorOptions<AuditOptions>(AuditBehavior);
+```
+
+**Utilities moved to `@cqrs-ddd/*` packages.** The core no longer re-exports them:
+
+```typescript
+// 0.1.x
+import { isUuidV7, untyped, uuidv7 } from '@nestjs-pipeline/core';
+
+// 0.2.0
+import { isUuidV7, uuidv7 } from '@cqrs-ddd/uuidv7';
+import { untyped } from '@cqrs-ddd/untyped';
+import { safeStringify, stableStringify } from '@cqrs-ddd/safe-stringify';
+```
+
+**`LoggingBehavior` redacts sensitive keys by default.** With payload logging enabled,
+keys such as `password`, `token`, `authorization` and `cardNumber` are logged as
+`[REDACTED]`. Opt out only when raw payloads are an explicit requirement:
+
+```typescript
+// 0.1.x logged these values in clear text
+@UsePipeline([LoggingBehavior, { excludeRequestObj: false }])
+
+// 0.2.0, to restore the previous output
+@UsePipeline(logging({ excludeRequestObj: false, redactSensitiveKeys: false }))
+```
+
+**Behavior identity is the class, not its name.** Without `PIPELINE_BEHAVIOR_ID`,
+two distinct classes with the same name are now two behaviors, and `getBehaviorId()`
+returns the class instead of a string. Copies of one behavior loaded from separate
+package instances deduplicate only through an explicit ID:
+
+```typescript
+// 0.2.0
+export class AuditBehavior implements IPipelineBehavior {
+  static readonly [PIPELINE_BEHAVIOR_ID] = '@acme/audit:AuditBehavior';
+  // ...
+}
+```
+
+**`loggerProvider` must provide `LOGGING_BEHAVIOR_LOGGER`.** The option is typed
+`PipelineLoggerProvider` rather than any `Provider`:
+
+```typescript
+// 0.2.0
+PipelineModule.forRoot({
+  loggerProvider: { provide: LOGGING_BEHAVIOR_LOGGER, useExisting: Logger },
+});
+```
+
+**Bootstrap diagnostics default to `'strict'`.** A behavior contract violation throws
+`PipelineConfigurationError` from `app.init()`. Use `diagnostics: 'warn'` while fixing
+existing declarations.
 
 ---
 
@@ -204,10 +319,60 @@ across the combined list; a later tuple for the same behavior supplies its
 options only. A behavior that appears only in factory-returned configs must
 still be listed in `behaviors`.
 
-Returning either field from the factory raises a `TypeError` at bootstrap. It
-used to be dropped in silence, so an application that moved its behavior list
-into the factory started cleanly with every `@UsePipeline` reference
-unresolvable and failed on the first request instead.
+Returning either field from the factory raises a `TypeError` at bootstrap, so a
+behavior list placed in the factory fails at startup rather than on the first
+request.
+
+The second example uses the `logging()` intent helper, imported from this package:
+
+```typescript
+import { logging, PipelineModule } from '@nestjs-pipeline/core';
+```
+
+A class can supply the runtime options instead of a factory. `useClass`
+instantiates it inside the pipeline module; `useExisting` reuses a provider that
+an imported module exports:
+
+```typescript
+import { Injectable, Module } from '@nestjs/common';
+import { ConfigModule, ConfigService } from '@nestjs/config';
+import { correlationSource } from '@nestjs-pipeline/correlation';
+import {
+  LoggingBehavior,
+  PipelineModule,
+  type PipelineOptionsFactory,
+  type PipelineRuntimeOptions,
+} from '@nestjs-pipeline/core';
+import { tenantSource } from '@nestjs-pipeline/tenant';
+
+@Injectable()
+export class PipelineConfig implements PipelineOptionsFactory {
+  constructor(private readonly config: ConfigService) {}
+
+  createPipelineOptions(): PipelineRuntimeOptions {
+    return {
+      diagnostics: this.config.get('PIPELINE_DIAGNOSTICS') ?? 'strict',
+      bootstrapLogLevel: 'log',
+      sources: { tenantId: tenantSource, correlationId: correlationSource },
+    };
+  }
+}
+
+@Module({
+  imports: [
+    PipelineModule.forRootAsync({
+      imports: [ConfigModule],
+      useClass: PipelineConfig,
+      globalBehaviors: { scope: 'all', before: [LoggingBehavior] },
+    }),
+  ],
+})
+export class AppModule {}
+```
+
+`extraProviders` adds providers to the pipeline module and exports them, for
+dependencies that the options class or the behaviors inject and that no imported
+module provides.
 
 ---
 
@@ -522,9 +687,9 @@ PipelineModule.forRoot({
 
 ### Deduplication
 
-When the same behavior class appears in both global and handler-level
-configurations, the handler's complete options record wins while the behavior
-retains its global chain position. Global duplicates are deduplicated:
+When the same behavior appears in both global and handler-level configurations,
+it runs once, at its global chain position, with the global options patched by
+the handler's fields. Global duplicates are deduplicated:
 
 ```typescript
 // Global: LoggingBehavior with default options
@@ -537,7 +702,8 @@ PipelineModule.forRoot({
 @UsePipeline([LoggingBehavior, { requestResponseLogLevel: 'log' }])
 export class CreateUserHandler { /* ... */ }
 
-// Effective chain: [LoggingBehavior at global-before position (handler opts)] → handler
+// Effective chain: [LoggingBehavior at global-before position, global options
+// patched by the handler options] → handler
 ```
 
 A redeclaration inherits the global options rather than clearing them, so a
@@ -592,6 +758,21 @@ export class InternalRebuildHandler implements ICommandHandler<InternalRebuildCo
 }
 ```
 
+Several behaviors can be skipped at once, and the decorator combines with
+`@UsePipeline` for other behaviors:
+
+```typescript
+import { CommandHandler, ICommandHandler } from '@nestjs/cqrs';
+import { logging, SkipPipeline, UsePipeline } from '@nestjs-pipeline/core';
+
+@CommandHandler(HealthProbeCommand)
+@SkipPipeline(AuditBehavior, MetricsBehavior)
+@UsePipeline(logging({ metricLogLevel: 'debug' }))
+export class HealthProbeHandler implements ICommandHandler<HealthProbeCommand> {
+  async execute(): Promise<void> {}
+}
+```
+
 Key rules:
 - **All behaviors skipped:** The handler runs without creating a new pipeline context. Request-scoped handlers remain isolated when multiple Nest applications share the same handler class, including across application startup and shutdown order.
 - **No relocation:** Skipping one behavior does not shift or reorder the remaining behaviors.
@@ -626,6 +807,8 @@ PipelineModule.forRoot({
 | `errorLogLevel` | `LogLevel \| 'none'` | `'error'` | Log level when an error happened |
 | `mapLogLevel` | `Map<ErrorClass, LogLevel \| 'none'>` | `undefined` | Specific log levels mapped by exception error class (most specific match in prototype chain wins) |
 | `excludeKeys` | `string[]` | `[]` | Keys to omit from request/response logs (supports dot notation for nested properties, e.g. `'ctx.sessionUser'`) |
+| `redactKeys` | `string[]` | `[]` | Additional keys or dot-paths masked with `[REDACTED]`; unlike `excludeKeys`, the property stays in the payload |
+| `redactSensitiveKeys` | `boolean` | `true` | Masks `DEFAULT_REDACT_KEYS` of `@cqrs-ddd/safe-stringify` (passwords, tokens, authorization, cookies, API keys, card data). Matching ignores case, `_` and `-` |
 | `excludeRequestObj` | `boolean` | `true` | If true, omits the request object from logs entirely (shows placeholder instead) |
 | `excludeResponseObj` | `boolean` | `true` | If true, omits the response object from logs entirely (shows placeholder instead) |
 | `logFormat` | `'text' \| 'structured'` | `'text'` | Output shape for request/response/metric/error logs. `'text'` emits a single interpolated string; `'structured'` emits a plain object payload (e.g. `{ msg, request }` for request/response, `{ message, stack, ... }` for errors) — suitable for structured loggers like `nestjs-pino`/pino that serialize objects into JSON fields |
@@ -636,11 +819,13 @@ When the wrapped handler throws, the logged error entry is also enriched with:
 
 The original error is always re-thrown unchanged after logging, so `LoggingBehavior` only observes failures — it never swallows them.
 
-Provide your own logger by binding `LOGGING_BEHAVIOR_LOGGER` (for example with `nestjs-pino`):
+Provide your own logger through the `loggerProvider` option, whose `provide` token
+must be `LOGGING_BEHAVIOR_LOGGER` (for example with `nestjs-pino`, whose global
+`LoggerModule` exports `Logger`):
 
 ```typescript
 import { Module } from '@nestjs/common';
-import { NativeLogger } from 'nestjs-pino';
+import { Logger, LoggerModule } from 'nestjs-pino';
 import {
   LOGGING_BEHAVIOR_LOGGER,
   LoggingBehavior,
@@ -649,16 +834,31 @@ import {
 
 @Module({
   imports: [
+    LoggerModule.forRoot(),
     PipelineModule.forRoot({
       globalBehaviors: { scope: 'all', before: [LoggingBehavior] },
       bootstrapLogLevel: 'verbose',
+      loggerProvider: { provide: LOGGING_BEHAVIOR_LOGGER, useExisting: Logger },
     }),
-  ],
-  providers: [
-    { provide: LOGGING_BEHAVIOR_LOGGER, useExisting: NativeLogger },
   ],
 })
 export class AppModule {}
+```
+
+Payload logging is off by default. When it is enabled, sensitive keys are masked
+unless `redactSensitiveKeys` is `false`:
+
+```typescript
+@CommandHandler(RegisterCardCommand)
+@UsePipeline(
+  logging({
+    excludeRequestObj: false,
+    excludeKeys: ['ctx.sessionUser'],        // removed from the output
+    redactKeys: ['profile.email', 'iban'],   // kept, value replaced by [REDACTED]
+  }),
+)
+export class RegisterCardHandler { /* ... */ }
+// Request: {"cardNumber":"[REDACTED]","iban":"[REDACTED]","profile":{"email":"[REDACTED]"}}
 ```
 
 Nest log levels map to pino as:
@@ -791,6 +991,52 @@ await runWithTenant('tenant_a', () =>
 ```
 
 Without a tenant, tenant-scoped behaviors (cache, idempotency, rate limit) fail closed.
+
+A behavior reads both values from its context. A behavior that keys shared state by
+tenant builds the tenant segment with `tenantSegments`, which throws the given
+`MissingPartitionError` subclass when a required tenant is absent:
+
+```typescript
+import {
+  MissingPartitionError,
+  type IPipelineContext,
+  type TenantPartitionOptions,
+  tenantSegments,
+} from '@nestjs-pipeline/core';
+
+export class MissingQuotaPartitionError extends MissingPartitionError<'tenant'> {
+  constructor(requestName: string, dimension: 'tenant', remedy: string) {
+    super('Quota', requestName, dimension, remedy);
+  }
+}
+
+export function quotaKey(context: IPipelineContext, options: TenantPartitionOptions = {}) {
+  return [...tenantSegments(context, options, MissingQuotaPartitionError), context.requestName]
+    .map((segment) => encodeURIComponent(segment ?? ''))
+    .join(':');
+}
+```
+
+A simpler behavior can check the tenant directly:
+
+```typescript
+import { Injectable } from '@nestjs/common';
+import type {
+  IPipelineBehavior,
+  IPipelineContext,
+  NextDelegate,
+} from '@nestjs-pipeline/core';
+
+@Injectable()
+export class TenantRequiredBehavior implements IPipelineBehavior {
+  async handle(context: IPipelineContext, next: NextDelegate): Promise<unknown> {
+    if (context.tenantId === undefined) {
+      throw new Error(`${context.requestName} requires a tenant (${context.correlationId})`);
+    }
+    return next();
+  }
+}
+```
 
 ### HTTP Requests
 
@@ -1005,6 +1251,7 @@ Behaviors declare safety invariants and relative ordering constraints by attachi
 import {
   IPipelineBehavior,
   IPipelineBehaviorContract,
+  IPipelineContext,
   NextDelegate,
   PIPELINE_BEHAVIOR_CONTRACT,
   PipelineBehaviorDiagnostic,
@@ -1065,7 +1312,7 @@ must account for the absent instance.
 
 | Export | Type | Description |
 |---|---|---|
-| `PipelineModule` | Module | `.forRoot()` and `.forFeature()` registration |
+| `PipelineModule` | Module | `.forRoot()`, `.forRootAsync()` and `.forFeature()` registration |
 | `UsePipeline` | Decorator | Attach behaviors to CQRS handlers |
 | `SkipPipeline` | Decorator | Exclude global behaviors from a specific CQRS handler |
 | `IPipelineBehavior` | Interface | Behavior contract: `handle(context, next)` |
@@ -1074,7 +1321,7 @@ must account for the absent instance.
 | `BasePipelineContext` | Class | Extensible base — override if you need custom contexts |
 | `PipelineContext` | Class | Concrete context created per invocation |
 | `LoggingBehavior` | Class | Built-in structured logging |
-| `LoggingBehaviorOptions` | Interface | Options for `LoggingBehavior` (`metricLogLevel`, `requestResponseLogLevel`, `errorLogLevel`, `mapLogLevel`, `excludeKeys`, `excludeRequestObj`, `excludeResponseObj`, `logFormat`) |
+| `LoggingBehaviorOptions` | Interface | Options for `LoggingBehavior` (`metricLogLevel`, `requestResponseLogLevel`, `errorLogLevel`, `mapLogLevel`, `excludeKeys`, `redactKeys`, `redactSensitiveKeys`, `excludeRequestObj`, `excludeResponseObj`, `logFormat`) |
 | `logging` | Function | Typed intent builder returning `[LoggingBehavior, options]` for `@UsePipeline` |
 | `LoggingIntentOptions` | Type | Alias for `LoggingBehaviorOptions` |
 | `pipelineStore` | `AsyncLocalStorage` | Access the current pipeline context |
@@ -1082,6 +1329,10 @@ must account for the absent instance.
 | `MissingPartitionError` | Class | Base of the packages' partition errors (`MissingCachePartitionError`, …): `{ requestName, dimension, remedy }` |
 | `ContextSource`, `CorrelationSource`, `ContextSources` | Types | The `sources` option: where pipelines take their tenant and correlation ID from; a correlation source also has `create()` |
 | `PipelineModuleOptions` | Interface | Options for `PipelineModule.forRoot()` |
+| `PipelineModuleAsyncOptions`, `PipelineOptionsFactory`, `PipelineRuntimeOptions` | Types | `forRootAsync()` options, the `useClass`/`useExisting` factory contract, and what a factory returns |
+| `PipelineModuleFeatureOptions` | Interface | Object form of `forFeature()`: `{ imports, behaviors }` |
+| `PipelineLoggerProvider` | Type | A provider whose `provide` is `LOGGING_BEHAVIOR_LOGGER` |
+| `LOGGING_BEHAVIOR_LOGGER` | Symbol | Injection token of the logger `LoggingBehavior` uses |
 | `GlobalBehaviorsOptions` | Interface | Global behavior configuration |
 | `GlobalBehaviorScope` | Type | `'commands' \| 'queries' \| 'events' \| 'all'` |
 | `PipelineItemToken<T>` | Interface | Typed context map key |
@@ -1096,7 +1347,10 @@ must account for the absent instance.
 | `PipelineBehaviorValidationContext` | Interface | Handler and option inspection context supplied to contract validators |
 | `PIPELINE_SKIPPED_BEHAVIORS_METADATA` | Symbol | Metadata key for skipped behavior classes |
 | `SET_TENANT_ID` | Symbol | Write-once symbol setter for `tenantId`, for custom runners constructing a context; assigning a different tenant throws |
-| `PipelineBehaviorEntry` | Type | `Type \| [Type, Record<string, unknown>]` |
+| `PipelineBehaviorEntry`, `PipelineBehaviorTuple` | Types | `Type<TBehavior> \| [Type<TBehavior>, TOptions]`, and the tuple alone, as returned by intent helpers |
+| `getBehaviorId`, `BehaviorId` | Function, type | The identity used for deduplication: `PIPELINE_BEHAVIOR_ID` when set, otherwise the class itself |
+| `PIPELINE_BEHAVIORS_METADATA`, `PIPELINE_BEHAVIORS_OPTIONS_METADATA` | Symbols | Metadata keys written by `@UsePipeline` |
+| `IPipelineBehaviorContract`, `PipelineBehaviorOrder`, `PipelineBehaviorOrderRule` | Types | A behavior contract and its ordering rules |
 | `toPostgresJson` | Function | Replaces the NUL characters and lone surrogates that PostgreSQL `jsonb` rejects in JSON text with U+FFFD; used by the Postgres audit sink and dead-letter transport |
 
 The serializers and key-segment helpers (`stableStringify`, `safeStringify`, …) come from

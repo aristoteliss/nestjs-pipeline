@@ -171,7 +171,7 @@ For each request, `FeatureFlagBehavior`:
 
 ### Options
 
-Per-handler options via `@UsePipeline([FeatureFlagBehavior, options])`:
+Per-handler options via `@UsePipeline(featureFlag(options))` or `@UsePipeline([FeatureFlagBehavior, options])`:
 
 | Option | Type | Default | Description |
 |---|---|---|---|
@@ -217,7 +217,10 @@ The base context is derived from the pipeline request:
   FeatureFlagBehavior,
   {
     flag: 'new-checkout',
-    context: (ctx) => ({ targetingKey: ctx.request.userId, plan: 'pro' }),
+    context: (ctx) => ({
+      targetingKey: (ctx.request as NewCheckoutCommand).userId,
+      plan: 'pro',
+    }),
   },
 ])
 ```
@@ -282,11 +285,11 @@ Registered through dependency injection
 `debug` messages, so wire it the same way as the other pipeline behaviors:
 
 ```typescript
-import { NativeLogger } from 'nestjs-pino';
+import { Logger } from 'nestjs-pino';
 import { LOGGING_BEHAVIOR_LOGGER } from '@nestjs-pipeline/core';
 
 @Module({
-  providers: [{ provide: LOGGING_BEHAVIOR_LOGGER, useExisting: NativeLogger }],
+  providers: [{ provide: LOGGING_BEHAVIOR_LOGGER, useExisting: Logger }],
 })
 export class AppModule {}
 ```
@@ -309,6 +312,20 @@ FeatureFlagsModule.forRoot({
 
 A handler can override the module resolver with `targetingKeyFactory`. If no factory produces a value, a `targetingKey` already supplied through module/handler evaluation context is preserved. The package intentionally does not invent a user identity.
 
+### Tenant targeting
+
+When the pipeline runs inside a tenant (see `@nestjs-pipeline/tenant`), the base
+context already carries `pipeline.tenant_id`, so a provider rule can target
+tenants without extra code. To roll out per tenant rather than per user, make the
+tenant the targeting key:
+
+```ts
+FeatureFlagsModule.forRoot({
+  provider,
+  targetingKeyFactory: (ctx) => ctx.tenantId,
+});
+```
+
 ## Variant-aware gates
 
 Boolean evaluation can be narrowed to provider variants:
@@ -330,7 +347,11 @@ The handler runs only when the flag is `true` and the provider-reported variant 
 The behavior evaluates a flag once and stores the result in `PipelineContext.items`:
 
 ```ts
-const decision = context.items.get(FEATURE_FLAG_DECISION_ITEM);
+import { getPipelineItem } from '@nestjs-pipeline/core';
+import { FEATURE_FLAG_DECISION_ITEM_TOKEN } from '@nestjs-pipeline/feature-flags';
+
+const decision = getPipelineItem(context, FEATURE_FLAG_DECISION_ITEM_TOKEN);
+// FeatureFlagDecision | undefined
 ```
 
 `FeatureFlagDecision` includes the flag key, raw value, final enabled decision, variant, resolution reason, provider error information, and targeting key. Audit/telemetry/custom behaviors can consume this without evaluating the flag a second time.
@@ -349,14 +370,41 @@ The default `errorPolicy: 'use-default'` follows OpenFeature's default-value ava
 }
 ```
 
-Provider errors are surfaced as `FeatureFlagEvaluationError`.
+Provider errors are surfaced as `FeatureFlagEvaluationError`, which carries `flag`,
+`requestName`, `errorCode` and `providerMessage`. It is not mapped by
+`FeatureDisabledFilter`; map it yourself, for example to `503`:
 
-## Stable rollout identity
+```ts
+import {
+  type ArgumentsHost,
+  Catch,
+  type ExceptionFilter,
+  HttpStatus,
+} from '@nestjs/common';
+import { FeatureFlagEvaluationError } from '@nestjs-pipeline/feature-flags';
 
-The default evaluation context does not derive `targetingKey` from
-`context.correlationId`. Percentage rollouts should configure a stable
-user/account/device/tenant identity explicitly so one subject remains in the
-same rollout bucket across requests.
+@Catch(FeatureFlagEvaluationError)
+export class FlagEvaluationFilter implements ExceptionFilter {
+  catch(error: FeatureFlagEvaluationError, host: ArgumentsHost): void {
+    host
+      .switchToHttp()
+      .getResponse()
+      .status(HttpStatus.SERVICE_UNAVAILABLE)
+      .json({ statusCode: 503, flag: error.flag, errorCode: error.errorCode });
+  }
+}
+```
+
+Outside HTTP, catch both errors where the request is dispatched:
+
+```ts
+try {
+  return await commandBus.execute(new NewCheckoutCommand(userId));
+} catch (error) {
+  if (error instanceof FeatureDisabledError) return legacyCheckout(userId);
+  throw error;
+}
+```
 
 ---
 
@@ -366,7 +414,9 @@ same rollout bucket across requests.
 
 ### Validation Invariants
 
-- **Non-empty flag required**: Whenever `FeatureFlagBehavior` is attached to a handler, a non-empty `flag: string` name must be configured via handler options (`featureFlag({ flag: '...' })`) or module-wide defaults (`FeatureFlagsModule.forRoot({ defaults: { flag: '...' } })`). Attaching the behavior without a flag name fails fast at application startup with `PipelineConfigurationError` in `strict` mode.
+- **Empty flag rejected**: a `flag` that is not a non-empty string is a diagnostic wherever it comes from.
+- **Handler intent needs a flag**: when `FeatureFlagBehavior` is declared on a handler (`@UsePipeline`), the effective options (handler options over module `defaults`) must name a `flag`. In `strict` mode a missing flag fails at startup with `PipelineConfigurationError`.
+- **Global declaration may omit it**: registered only under `globalBehaviors` without a flag, the behavior is a pass-through.
 - **Module defaults resolution**: Application-wide defaults supplied to `FeatureFlagsModule.forRoot({ defaults: { ... } })` are merged beneath handler options via `FeatureFlagBehavior.resolveEffectiveOptions` and evaluated during bootstrap diagnostics.
 
 ---
@@ -378,7 +428,7 @@ same rollout bucket across requests.
 | `FeatureFlagBehavior` | Class | Pipeline behavior — gates a handler behind a boolean flag |
 | `featureFlag` | Function | Type-safe intent builder returning `[FeatureFlagBehavior, options]` with required `flag` |
 | `FeatureFlagIntentOptions` | Type | Options for `featureFlag(...)` requiring `flag: string` |
-| `FeatureFlagsModule` | Class | `forRoot(options)` — registers the provider/client and defaults |
+| `FeatureFlagsModule` | Class | `forRoot(options)` — registers the provider/client and defaults (there is no `forRootAsync`) |
 | `FeatureFlagBehaviorOptions` | Interface | `Per-handler options listed above, including stable targeting, variants, and error policy` |
 | `FeatureFlagsModuleOptions` | Interface | ``client`, `provider`, `domain`, `context`, `waitForReady`, `defaults`, and `targetingKeyFactory`` |
 | `FeatureDisabledError` | Class | Thrown when a gated flag is disabled and no `fallback` is set |
@@ -388,6 +438,7 @@ same rollout bucket across requests.
 | `buildEvaluationContext` | Function | Merges base + module + handler targeting context |
 | `FeatureFlagEvaluationError` | Class | Provider evaluation failure under `errorPolicy: 'throw'` |
 | `FeatureFlagDecision` | Interface | Detailed recorded gate decision |
+| `EvaluationContextFactory` / `TargetingKeyFactory` / `FeatureFallbackFactory` / `FeatureFlagErrorPolicy` | Type | Option function and policy types |
 | `FEATURE_FLAG_DECISION_ITEM` | Symbol | Detailed decision key in `context.items` |
 | `FEATURE_FLAGS_TARGETING_KEY_FACTORY` | Token | Module targeting resolver |
 | `FEATURE_FLAGS_CLIENT` | Token | OpenFeature `Client` provider |

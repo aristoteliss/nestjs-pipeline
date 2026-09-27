@@ -29,11 +29,74 @@ PipelineModule.forRoot({ sources: { tenantId: tenantSource } });
 ```typescript
 import { currentTenantId, runWithTenant } from '@nestjs-pipeline/tenant';
 
-// Where work enters the application, such as HTTP middleware or a queue job:
-await runWithTenant(req.headers['x-tenant'], () => next());
+// Where work enters the application:
+await runWithTenant('tenant_a', () => this.commandBus.execute(command));
 
 // Anywhere below it, including inside a handler:
-const tenant = currentTenantId();
+const tenant = currentTenantId(); // 'tenant_a'
+```
+
+### HTTP middleware
+
+Resolve the tenant from something the application trusts, such as a verified token claim
+or a host name, and check it against the known tenants. A raw client header is shown here
+only for brevity.
+
+```typescript
+import type { IncomingMessage, ServerResponse } from 'node:http';
+import { Injectable, type NestMiddleware } from '@nestjs/common';
+import { runWithTenant } from '@nestjs-pipeline/tenant';
+
+const TENANTS = new Set(['tenant_a', 'tenant_b']);
+
+@Injectable()
+export class TenantMiddleware implements NestMiddleware {
+  use(req: IncomingMessage, _res: ServerResponse, next: () => void): void {
+    const header = req.headers['x-tenant'];
+    const tenant = typeof header === 'string' && TENANTS.has(header) ? header : undefined;
+    runWithTenant(tenant, next);
+  }
+}
+```
+
+Register it with `consumer.apply(TenantMiddleware).forRoutes('*')`.
+
+### Queue job
+
+```typescript
+@Processor('reports')
+export class ReportProcessor extends WorkerHost {
+  async process(job: Job<{ tenantId: string; reportId: string }>) {
+    await runWithTenant(job.data.tenantId, () =>
+      this.commandBus.execute(new BuildReportCommand(job.data.reportId)),
+    );
+  }
+}
+```
+
+To carry the tenant, correlation id and principal of the enqueuing request, with
+validation, use `withJobContext` and `@InJobContext` of
+[`@nestjs-pipeline/job-context`](https://github.com/aristoteliss/nestjs-pipeline/tree/master/packages/pipeline-job-context#readme),
+configured with `tenantSource`.
+
+### Changing the tenant for part of a handler
+
+```typescript
+for (const tenant of ['tenant_a', 'tenant_b']) {
+  await runWithTenant(tenant, () => this.commandBus.execute(new RecalculateCommand()));
+}
+```
+
+### Reading the tenant in a library
+
+```typescript
+import { currentTenantId } from '@nestjs-pipeline/tenant';
+
+function tenantKey(key: string): string {
+  const tenant = currentTenantId();
+  if (tenant === undefined) throw new Error('No tenant in scope.');
+  return `${tenant}:${key}`;
+}
 ```
 
 The package owns the tenant store. With `tenantSource` configured, a pipeline started

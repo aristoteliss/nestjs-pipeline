@@ -46,17 +46,44 @@ act on the active tenant, which `tenant()` supplies; `orm(tenant)` returns the i
 ORM holding its data. Both throw when there is no tenant or it is unknown: the store never
 falls back to one.
 
-```ts
-import { TenantStore } from '@cqrs-ddd/mikro-orm';
+```typescript
+import { AsyncLocalStorage } from 'node:async_hooks';
+import { setPersistenceDialect } from '@cqrs-ddd/core/persistence';
+import { CacheEntrySchema, MikroOrmDialect, TenantStore } from '@cqrs-ddd/mikro-orm';
+import { MikroORM } from '@mikro-orm/core';
+
+const requestTenant = new AsyncLocalStorage<string>();
+const orms = new Map<string, MikroORM>();
+for (const tenant of ['tenant_a', 'tenant_b']) {
+  orms.set(tenant, await MikroORM.init({ ...tenantOptions(tenant), entities: [UserSchema, CacheEntrySchema] }));
+}
 
 const store = new TenantStore({
-  tenant: () => currentTenantId() ?? fail('no tenant'),
-  orm: (tenant) => orms.get(tenant) ?? fail(`unknown tenant ${tenant}`),
+  tenant: () => {
+    const tenant = requestTenant.getStore();
+    if (!tenant) throw new Error('No tenant in scope.');
+    return tenant;
+  },
+  orm: (tenant) => {
+    const orm = orms.get(tenant);
+    if (!orm) throw new Error(`Unknown tenant ${tenant}.`);
+    return orm;
+  },
   isolation: 'database', // one ORM and database per tenant; 'schema': one ORM, a schema per tenant
 });
-const repository = new UpdateUserRepository(cache, store);
-await store.transactional((em) => em.nativeDelete(CacheEntry, { key }));
+
+const [first] = orms.values();
+if (first) setPersistenceDialect(new MikroOrmDialect(first));
+
+await requestTenant.run('tenant_a', () => store.em.findOne(User, { id }));
+await requestTenant.run('tenant_a', () =>
+  store.transactional((em) => em.nativeDelete(CacheEntry, { key })),
+);
 ```
+
+With `'schema'` isolation, `orm` returns the same ORM for every tenant and each manager is
+forked with `schema: tenant`; validate the tenant against a known list before it reaches
+the store, for example with `isSqlIdentifier`.
 
 - `em` reuses the contextual manager (a MikroORM `RequestContext` or an active
   transaction) only when it belongs to the tenant's ORM, configuration, driver and schema,
@@ -76,7 +103,8 @@ through the `hydrateFn` you pass, and translates driver failures with
 `mapPersistenceError`.
 
 ```typescript
-import { PersistedWrite } from '@cqrs-ddd/core/persistence';
+import type { ICache } from '@cqrs-ddd/core/application';
+import { cacheKey, PersistedWrite } from '@cqrs-ddd/core/persistence';
 import { AggregateRepository, type IEntityManagerSource, optimisticUpdate } from '@cqrs-ddd/mikro-orm';
 
 export class UpdateUserRepository extends AggregateRepository<UserSnapshot, User, UserSnapshot> {
@@ -84,13 +112,24 @@ export class UpdateUserRepository extends AggregateRepository<UserSnapshot, User
     super(cache, store, User, User.aggregateName, User.fromJSON);
   }
 
-  @PersistedWrite<User>({ cache: { setKey: (user) => `user:${user.id}` } })
+  @PersistedWrite<User>({
+    cache: { setKey: (user) => cacheKey(User.aggregateName, { id: user.id }) },
+  })
   async save(user: User): Promise<UserSnapshot> {
     const snapshot = user.toJSON();
-    await optimisticUpdate(this.store.em, User, user, { username: snapshot.username }, 'User');
+    await optimisticUpdate(
+      this.store.em,
+      User,
+      user,
+      { username: snapshot.username, updatedAt: snapshot.updatedAt },
+      'User',
+    );
     return snapshot;
   }
 }
+
+const users = new UpdateUserRepository(cache, store);
+const user = await users.findById(id); // always the database row, never the cache
 ```
 
 ## Version-conditioned writes
@@ -101,6 +140,34 @@ check the affected rows, and raise core's `EntityNotFoundException` or
 or cache work, call `assertAutocommit(em, operation)` first: a write inside an outer
 transaction is rejected before any statement runs, because its success would not mean
 durable persistence.
+
+```typescript
+import { ConcurrencyConflictError } from '@cqrs-ddd/core/domain';
+import { optimisticDelete, optimisticUpdate } from '@cqrs-ddd/mikro-orm';
+
+// UPDATE users SET department = ?, updated_at = ?, version = <user.version>
+//   WHERE id = <user.id> AND version = <user.getExpectedVersion()>
+await optimisticUpdate(store.em, User, user, { department: 'Research', updatedAt: user.updatedAt }, 'User');
+
+try {
+  await optimisticDelete(store.em, User, staleUser, 'User');
+} catch (error) {
+  if (error instanceof ConcurrencyConflictError) {
+    // error.expectedVersion is the version staleUser was loaded at; reload and retry
+  }
+  throw error;
+}
+
+await store.em.transactional((em) => optimisticUpdate(em, User, user, fields, 'User')); // rejected
+```
+
+- `data` holds the columns to write; `version` is set from `entity.version`, so a caller
+  lists every other changed column, `updatedAt` included.
+- No matching row: a refreshed read tells a missing row (`EntityNotFoundException`) from a
+  diverged version (`ConcurrencyConflictError`). More than one matching row throws an
+  `Error`.
+- Neither function touches the cache, acknowledges the aggregate or publishes events;
+  `@PersistedWrite`, `@Cache` and `CommandBaseHandler` do that.
 
 ## Persistence errors
 
@@ -115,8 +182,24 @@ import { MikroOrmDialect } from '@cqrs-ddd/mikro-orm';
 const orm = await MikroORM.init(options);
 setPersistenceDialect(new MikroOrmDialect(orm));
 
+// in a repository
 @PersistedWrite<User>({ unique: { email: (user) => new UniqueEmailException(user) } })
-async save(user: User): Promise<UserSnapshot> { ... }
+async save(user: User): Promise<UserSnapshot> {
+  const snapshot = user.toJSON();
+  await optimisticUpdate(this.store.em, User, user, { email: snapshot.email }, 'User');
+  return snapshot;
+}
+```
+
+A multi-property constraint is keyed by its declared name, passed as the constraint type:
+
+```typescript
+const ROLE_NAME = 'roles_tenant_name_unique';
+// schema: uniques: [{ name: ROLE_NAME, properties: ['tenantId', 'name'] }]
+
+@PersistedWrite<Role, typeof ROLE_NAME>({
+  unique: { [ROLE_NAME]: (role) => new DuplicateRoleNameException(role) },
+})
 ```
 
 It reads each entity's unique constraints from the ORM metadata: `unique: true` or
@@ -152,10 +235,15 @@ export const UserSchema = new EntitySchema<User, AggregateRoot>({
   properties: {
     ...rootEntityProperties(),
     version: versionProperty(),
-    email: { type: 'string', unique: true },
+    username: { type: 'string', length: 255, accessor: true },
+    department: { type: 'string', length: 255, nullable: true, accessor: true },
+    email: { type: 'string', length: 320, unique: true },
   },
 });
 ```
+
+`rootEntityProperties({ createdAt: 'created', updatedAt: 'modified' })` renames the
+columns; the defaults are `id`, `created_at` and `updated_at`.
 
 Map a subclass's fields the same way. An entity written without version checks has no
 version column; map its inherited `version` as `{ type: 'number', persist: false }`.
@@ -168,8 +256,35 @@ with one database row per key; every write is a compare-and-set in its own trans
 `createCacheEntrySchema(table)`) with the ORM, and create the table in a migration with
 `createCacheTableSql(table?)`, which covers PostgreSQL and SQLite.
 
-Reads bypass the identity map, a reader never deletes an expired row, and a corrupted
-payload throws instead of reading as a miss.
+```typescript
+import { CACHE_TOKEN } from '@cqrs-ddd/core/persistence';
+import { createCacheTableSql, MikroOrmCache } from '@cqrs-ddd/mikro-orm';
+
+// once, in a migration
+await orm.em.getConnection().execute(createCacheTableSql());
+
+const cache = new MikroOrmCache<UserSnapshot>(store, {
+  defaultTtlMs: 5 * 60_000, // 0 never expires
+  logger: { warn: (message) => console.warn(message) },
+});
+const users = new UpdateUserRepository(cache, store);
+const reads = new GetUserRepository(cache, store);
+
+// NestJS
+{
+  provide: CACHE_TOKEN,
+  useFactory: (store: TenantStore) => new MikroOrmCache(store, { logger: new Logger('MikroOrmCache') }),
+  inject: [STORE],
+}
+```
+
+- `store.transactional(work)` must run `work` on a manager of its own, never the caller's
+  request or transaction manager; `TenantStore` does, and so does
+  `{ em: orm.em, transactional: (work) => orm.em.fork().transactional(work) }`.
+- With a `TenantStore`, each tenant's cache rows live in that tenant's database or schema.
+- Reads bypass the identity map, a reader never deletes an expired row, and a corrupted
+  payload throws instead of reading as a miss.
+- `set` and `invalidate` throw when their compare-and-set cannot settle after 16 attempts.
 
 ## SQL identifiers
 

@@ -30,10 +30,10 @@ import { definedFields, defineHidden } from './request-fields.helper';
 export abstract class BaseQuery<TSessionPrincipal = unknown>
   implements IQueryOptions
 {
-  public declare readonly hydrate?: boolean;
-  public declare readonly refresh?: boolean;
-  public declare readonly sessionPrincipal?: TSessionPrincipal;
-  public declare readonly sessionUser?: TSessionPrincipal;
+  declare public readonly hydrate?: boolean;
+  declare public readonly refresh?: boolean;
+  declare public readonly sessionPrincipal?: TSessionPrincipal;
+  declare public readonly sessionUser?: TSessionPrincipal;
 
   constructor(
     options?: Partial<IQueryOptions>,

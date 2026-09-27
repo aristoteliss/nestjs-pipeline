@@ -74,10 +74,10 @@
   },
   "devDependencies": {
     "@nestjs-pipeline/core": "workspace:*",
-    "@nestjs/common": "^11.2.1",
+    "@nestjs/common": "^11.2.6",
     "@vitest/coverage-v8": "^4.1.11",
-    "cache-manager": "^7.2.8",
-    "keyv": "^5.5.3",
+    "cache-manager": "^7.2.9",
+    "keyv": "^5.6.0",
     "reflect-metadata": "^0.2.2",
     "vitest": "^4.1.11"
   },

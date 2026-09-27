@@ -1,15 +1,5 @@
 # nestjs-pipeline
 
-## Library scope
-
-The packages are reusable libraries for external applications and future use
-cases. `api` is one example, not the limit of the public contracts.
-Repository caching and pipeline query-result caching are complementary. See
-[AGENTS.md](AGENTS.md) for library scope and the criteria for reviewing or
-removing features, and the
-[architecture skill](.agents/skills/nestjs-pipeline-architecture/SKILL.md) for
-cache layer ownership, command reads, invalidation and security.
-
 Pipeline behaviors for **NestJS CQRS** — wrap every command, query, and event handler with reusable cross-cutting concerns (logging, validation, tracing, audit, …) using a clean middleware-like chain.
 
 ```
@@ -34,15 +24,25 @@ HTTP Request
 The core package adds no runtime dependencies beyond NestJS itself, apart from the
 dependency-free `@cqrs-ddd/uuidv7`, `@cqrs-ddd/safe-stringify` and `@cqrs-ddd/untyped`.
 `@nestjs-pipeline/tenant`, `/correlation` and `/job-context` depend on no other pipeline
-package. Add-on packages
-use their own declared integrations (Zod, OpenTelemetry, CASL, OpenFeature, etc.).
-Works with Express and Fastify.
+package. Add-on packages use their own declared integrations (Zod, OpenTelemetry, CASL,
+OpenFeature, etc.). Works with Express and Fastify.
+
+### Library scope
+
+The packages are reusable libraries for external applications and future use
+cases. `api` is one example, not the limit of the public contracts.
+Repository caching and pipeline query-result caching are complementary. See
+[AGENTS.md](AGENTS.md) for library scope and the criteria for reviewing or
+removing features, and the
+[architecture skill](.agents/skills/nestjs-pipeline-architecture/SKILL.md) for
+cache layer ownership, command reads, invalidation and security.
 
 ---
 
 ## Table of Contents
 
 - [Packages](#packages)
+- [Upgrading from 0.1.x](#upgrading-from-01x)
 - [Quick Start](#quick-start)
   - [1  Install](#1-install)
   - [2  Register the Module](#2-register-the-module)
@@ -96,7 +96,7 @@ Works with Express and Fastify.
 | Package | Description |
 |---|---|
 | [`@nestjs-pipeline/core`](packages/pipeline) | Pipeline engine, `@UsePipeline` decorator, `PipelineModule`, `LoggingBehavior` |
-| [`@nestjs-pipeline/correlation`](packages/pipeline-correlation) | Standalone correlation ID propagation — HTTP middleware, `@WithCorrelation`, `runWithCorrelationId`, `getCorrelationId` |
+| [`@nestjs-pipeline/correlation`](packages/pipeline-correlation) | Standalone correlation ID propagation — HTTP middleware, `@WithCorrelation`, `runWithCorrelationId`, `getCorrelationId`, and `correlationSource` for pipelines and jobs |
 | [`@nestjs-pipeline/zod`](packages/pipeline-zod) | Zod v4 validation/parsing behavior that applies successful parsed object output to the request, plus `ZodPipe`, `ZodValidationFilter`, `ZodValidationError` |
 | [`@nestjs-pipeline/opentelemetry`](packages/pipeline-opentelemetry) | OpenTelemetry tracing & metrics behaviors — spans plus duration/throughput/error instruments for every pipeline invocation |
 | [`@nestjs-pipeline/casl`](packages/pipeline-casl) | CASL authorization — type-level `CaslBehavior` fed by an application permission source, plus `CaslAuthorizer` (`can`, `authorize`, `project`) for entity and field checks |
@@ -107,46 +107,260 @@ Works with Express and Fastify.
 | [`@nestjs-pipeline/rate-limit`](packages/pipeline-rate-limit) | Rate-limiting behavior — backend-agnostic via rate-limiter-flexible (memory, Redis/Valkey, Mongo, SQL), HTTP 429 filter |
 | [`@nestjs-pipeline/audit`](packages/pipeline-audit) | Audit-trail behavior — records who/what/outcome/duration to a pluggable `AuditSink` (console default, Postgres drop-in), with payload redaction |
 | [`@nestjs-pipeline/idempotency`](packages/pipeline-idempotency) | Idempotency behavior — atomic concurrent duplicate exclusion and successful-response replay per key; failed executions are retryable by default, via a pluggable store (in-memory default, Redis/Postgres drop-in) |
-| [`@nestjs-pipeline/tenant`](packages/pipeline-tenant) | `currentTenantId()` and `runWithTenant()` — the tenant of the running pipeline or of a scope, for code deep inside a handler |
+| [`@nestjs-pipeline/tenant`](packages/pipeline-tenant) | `currentTenantId()`, `runWithTenant()` and `tenantSource` — the current tenant, for code deep inside a handler and for pipelines and jobs |
 | [`@nestjs-pipeline/job-context`](packages/pipeline-job-context) | Carries a request's tenant, correlation id and principal into the queue jobs it enqueues (`withJobContext`, `@InJobContext`), and gives system work an explicit context (`@AsSystem`) |
 
-> Add-on packages live in `packages/pipeline-<name>/` and peer-depend on `@nestjs-pipeline/core`.
+> Add-on packages live in `packages/pipeline-<name>/`. Those that plug into the pipeline
+> peer-depend on `@nestjs-pipeline/core`; `tenant`, `correlation` and `job-context` depend on
+> no pipeline package and are connected through module options (`sources`).
 
 Framework-neutral packages, with no NestJS dependency:
 
 | Package | Description |
 |---|---|
-| [`@cqrs-ddd/core`](packages/ddd-core) | DDD building blocks — aggregates with versioned mutations, detached domain events, `CommandBaseHandler`, repository contracts, MikroORM persistence decorators, a revision-fenced repository cache, tenant-scoped cache keys and HTTP status mapping |
+| [`@cqrs-ddd/core`](packages/ddd-core) | DDD building blocks — aggregates with versioned mutations, detached domain events, `CommandBaseHandler`, repository contracts, ORM-neutral persistence lifecycle decorators, a revision-fenced repository cache, tenant-scoped cache keys and HTTP status mapping |
+| [`@cqrs-ddd/mikro-orm`](packages/ddd-mikro-orm) | MikroORM 7 adapters for `@cqrs-ddd/core` — `AggregateRepository`, version-conditioned writes, `MikroOrmCache`, `MikroOrmDialect`, the multi-tenant `TenantStore` |
 | [`@cqrs-ddd/uuidv7`](packages/uuidv7) | RFC 9562 UUIDv7 generation and validation, with no dependencies |
 | [`@cqrs-ddd/safe-stringify`](packages/safe-stringify) | A strict, key-sorted serializer for identities, a redacting serializer for logs, and the key-segment helpers, with no dependencies |
 | [`@cqrs-ddd/untyped`](packages/untyped) | `untyped(value)`: a typed replacement for `as any` that reads undeclared properties as `unknown`, with no dependencies |
 
-> `@nestjs-pipeline/core` uses the three utilities. No `@nestjs-pipeline/*` package uses
-> `@cqrs-ddd/core`, and it knows nothing of them: an application connects the two.
+> `@nestjs-pipeline/core` uses the three utilities; import them from their own packages.
+> No `@nestjs-pipeline/*` package uses `@cqrs-ddd/core`, and it knows nothing of them: an
+> application connects the two.
 
-### Current Package Versions
+Every package is at **0.2.0**; [CHANGELOG.md](CHANGELOG.md) records each release.
 
-| Package | Version |
-|---|---|
-| `@nestjs-pipeline/core` | `0.2.0` |
-| `@nestjs-pipeline/correlation` | `0.2.0` |
-| `@nestjs-pipeline/zod` | `0.2.0` |
-| `@nestjs-pipeline/opentelemetry` | `0.2.0` |
-| `@nestjs-pipeline/casl` | `0.2.0` |
-| `@nestjs-pipeline/resilience` | `0.2.0` |
-| `@nestjs-pipeline/cache` | `0.2.0` |
-| `@nestjs-pipeline/feature-flags` | `0.2.0` |
-| `@nestjs-pipeline/deadletter` | `0.2.0` |
-| `@nestjs-pipeline/rate-limit` | `0.2.0` |
-| `@nestjs-pipeline/audit` | `0.2.0` |
-| `@nestjs-pipeline/idempotency` | `0.2.0` |
-| `@nestjs-pipeline/tenant` | `0.2.0` |
-| `@nestjs-pipeline/job-context` | `0.2.0` |
-| `@cqrs-ddd/core` | `0.2.0` |
-| `@cqrs-ddd/mikro-orm` | `0.2.0` |
-| `@cqrs-ddd/uuidv7` | `0.2.0` |
-| `@cqrs-ddd/safe-stringify` | `0.2.0` |
-| `@cqrs-ddd/untyped` | `0.2.0` |
+---
+
+## Upgrading from 0.1.x
+
+0.2.0 breaks the API of the five packages that were on npm before:
+`@nestjs-pipeline/core` 0.1.18, `/correlation`, `/opentelemetry`, `/zod` and `/casl`.
+Every change is listed per package in [CHANGELOG.md](CHANGELOG.md); the ones below need a
+code change in most applications.
+
+**1. Node.js 22 and NestJS 11.** Every package declares `engines.node >=22`. Core requires
+`@nestjs/common`, `@nestjs/core` and `@nestjs/cqrs` `^11.0.0`; `/correlation`,
+`/opentelemetry`, `/zod` and `/casl` require `@nestjs/common` `^11.0.0`, and the last three
+also require `@nestjs-pipeline/core` `^0.2.0` (it was `*`). Core now installs
+`@cqrs-ddd/uuidv7`, `@cqrs-ddd/untyped` and `@cqrs-ddd/safe-stringify` as dependencies.
+
+**2. Tenant and correlation id come from `sources`.** The module options
+`correlationIdFactory` and `correlationIdRunner` are removed. Pass the stores of
+`@nestjs-pipeline/correlation` (and, for multi-tenant applications, `@nestjs-pipeline/tenant`)
+instead:
+
+```typescript
+// 0.1.x
+import { getCorrelationId, runWithCorrelationId } from '@nestjs-pipeline/correlation';
+
+PipelineModule.forRoot({
+  correlationIdFactory: getCorrelationId,
+  correlationIdRunner: runWithCorrelationId,
+  globalBehaviors: { scope: 'all', before: [LoggingBehavior] },
+});
+
+// 0.2.0
+import { correlationSource } from '@nestjs-pipeline/correlation';
+import { tenantSource } from '@nestjs-pipeline/tenant';
+
+PipelineModule.forRoot({
+  sources: { tenantId: tenantSource, correlationId: correlationSource },
+  globalBehaviors: { scope: 'all', before: [LoggingBehavior] },
+});
+```
+
+Without `sources`, bootstrap logs a warning; `sources: {}` silences it when you use neither
+package.
+
+**3. `correlationStore` and `setCorrelationFallback` are gone.** Read and set the ID through
+the functions, which keep their API (`HttpCorrelationMiddleware` and `addCorrelationId` do
+change; see the [correlation migration notes](packages/pipeline-correlation/README.md#migrating-from-01x)):
+
+```typescript
+// 0.1.x
+import { correlationStore } from '@nestjs-pipeline/correlation';
+correlationStore.run(job.id, () => this.commandBus.execute(command));
+const id = correlationStore.getStore();
+
+// 0.2.0
+import { getCorrelationId, runWithCorrelationId } from '@nestjs-pipeline/correlation';
+await runWithCorrelationId(job.id, () => this.commandBus.execute(command));
+const id = getCorrelationId();
+```
+
+**4. The correlation ID of a running pipeline is read-only.** `originalCorrelationId` is
+removed, and a behavior can no longer assign `context.correlationId`. Set the ID where the
+work enters instead: `HttpCorrelationMiddleware`, `@WithCorrelation()` or
+`runWithCorrelationId()`.
+
+```typescript
+// 0.1.x — inside a behavior
+context.correlationId = request.headers['x-request-id'];
+
+// 0.2.0 — where the work enters
+await runWithCorrelationId(message.properties.correlationId, () =>
+  this.commandBus.execute(command),
+);
+```
+
+**5. Utilities move to their own packages.** Core no longer exports `uuidv7`, `isUuidV7` and
+`untyped`, and `/correlation` no longer exports `uuidv7`:
+
+```typescript
+// 0.1.x
+import { untyped, uuidv7 } from '@nestjs-pipeline/core';
+import { uuidv7 } from '@nestjs-pipeline/correlation';
+
+// 0.2.0
+import { untyped } from '@cqrs-ddd/untyped';
+import { isUuidV7, uuidv7 } from '@cqrs-ddd/uuidv7';
+```
+
+**6. Core internals are no longer exported.** `PipelineBootstrapService`,
+`PIPELINE_MODULE_OPTIONS`, `PIPELINE_OPTIONS_REGISTRY`, `clearPipelineOptionsRegistry`,
+`SET_RESPONSE` and `SET_ORIGINAL_CORRELATION_ID` are internal. Configure the pipeline through
+`PipelineModule.forRoot` or the new `forRootAsync`:
+
+```typescript
+PipelineModule.forRootAsync({
+  imports: [ConfigModule],
+  inject: [ConfigService],
+  useFactory: (config: ConfigService) => ({
+    bootstrapLogLevel: config.get('PIPELINE_LOG_LEVEL') ?? 'debug',
+  }),
+});
+```
+
+**7. Bootstrap diagnostics are strict by default.** The new `diagnostics` option defaults to
+`'strict'`: a handler whose behavior declares a `PIPELINE_BEHAVIOR_CONTRACT` that the
+handler's pipeline does not meet makes bootstrap throw a `PipelineConfigurationError`, which
+lists each handler, behavior and fix. Fix the reported handler, or relax the check while you do:
+
+```typescript
+PipelineModule.forRoot({ sources: {}, diagnostics: 'warn' }); // or 'off'
+```
+
+**8. `loggerProvider` must provide `LOGGING_BEHAVIOR_LOGGER`.** The option was any NestJS
+`Provider`; it is now `PipelineLoggerProvider`, whose `provide` must be that token:
+
+```typescript
+// 0.1.x
+PipelineModule.forRoot({ loggerProvider: { provide: 'LOGGER', useClass: PinoLogger } });
+
+// 0.2.0
+import { LOGGING_BEHAVIOR_LOGGER } from '@nestjs-pipeline/core';
+PipelineModule.forRoot({
+  loggerProvider: { provide: LOGGING_BEHAVIOR_LOGGER, useClass: PinoLogger },
+});
+```
+
+**9. A behavior without an explicit id is identified by its class.** `getBehaviorId()`
+returns the class, not `cls.name`, and `PIPELINE_BEHAVIOR_ID` is a `Symbol.for` value. Code
+that compared ids to strings must compare classes, or set an explicit id:
+
+```typescript
+// 0.1.x
+if (getBehaviorId(entry) === 'AuditBehavior') { /* ... */ }
+
+// 0.2.0
+if (getBehaviorId(entry) === AuditBehavior) { /* ... */ }
+```
+
+**10. `LoggingBehavior` masks sensitive fields by default.** Keys such as `password`, `token`
+and `refreshToken` (case, `_` and `-` ignored) are logged as `[REDACTED]`. To keep the 0.1.x
+output for a handler:
+
+```typescript
+@UsePipeline([LoggingBehavior, { redactSensitiveKeys: false }])
+```
+
+**11. `@nestjs-pipeline/zod`: `ZOD_SCHEMA` is removed** (it was a deprecated alias), and `zod`
+must be `^4.3.0`.
+
+```typescript
+// 0.1.x
+static readonly [ZOD_SCHEMA] = userCreatedSchema;
+// 0.2.0
+static readonly [ZOD_SCHEMA_KEY] = userCreatedSchema;
+```
+
+**12. `ZodValidationBehavior` applies the parsed output to the request.** In 0.1.x it only
+validated. It now parses asynchronously (`safeParseAsync`), deletes keys the schema strips,
+and assigns coerced and defaulted values to the request before the handler runs. A schema
+whose top-level output is not a plain object (an array, a primitive, a `Date`) is rejected
+with a `TypeError`. A handler that read unknown or raw fields must declare them in the
+schema. A class built with `createCommand()` or `createQuery()` keeps its original input:
+
+```typescript
+// 0.2.0
+import { getRawInput } from '@nestjs-pipeline/zod';
+const raw = getRawInput(command);
+```
+
+**13. `@nestjs-pipeline/casl`: one permission source replaces the providers.**
+The module options `roleProvider`, `userCapabilityProvider`, `userContextResolver`,
+`subjectContextPaths` and `defaultFieldsFromRequest` are removed, and `@casl/ability` must be
+`^7.0.0`. The `CaslBehavior` options `subjectFromRequest`, `subjectContextPaths`,
+`fieldsFromRequest`, `skipCheck` and `prebuiltAbility` are removed, and `rules` is required
+and non-empty. The provider tokens (`CASL_ROLE_PROVIDER`, `CASL_USER_CAPABILITY_PROVIDER`,
+`CASL_USER_CONTEXT_RESOLVER`, …), `StaticRoleProvider` and `buildAbilityFromRules` are removed,
+and `buildAbility(roles, user, …)` becomes `buildAbility(rules, principal)`. Implement
+`ICaslPermissionSource`, whose `load()` returns the caller and their rules, and check
+entities and fields in the handler with `CaslAuthorizer`:
+
+```typescript
+// 0.1.x
+CaslModule.forRoot({
+  roleProvider: { useFactory: () => roleProvider },
+  subjectContextPaths: ['sessionUser'],
+  userCapabilityProvider: DatabaseUserCapabilityProvider,
+});
+
+@UsePipeline([CaslBehavior, { rules: [{ action: 'create', subject: 'Post' }] }])
+
+// 0.2.0
+@Injectable()
+export class AppPermissionSource implements ICaslPermissionSource {
+  constructor(private readonly grants: GrantRepository) {}
+
+  async load(): Promise<CaslAuthorizationInput | null> {
+    const session = currentSession();
+    if (!session) return null; // unauthenticated: every gated handler is denied
+    return {
+      principal: { id: session.userId },
+      rules: await this.grants.rulesFor(session.userId),
+    };
+  }
+}
+
+CaslModule.forRoot({
+  imports: [AuthorizationModule],
+  permissionSource: { useExisting: AppPermissionSource },
+});
+
+@UsePipeline(requires({ action: 'create', subject: 'Post' }))
+```
+
+**14. A CASL denial throws `UnauthorizedActionException`, not `ForbiddenException`.** It
+extends `Error`, so without its filter NestJS answers HTTP 500. Register the filter to keep
+the 403:
+
+```typescript
+// 0.2.0
+import { UnauthorizedActionFilter } from '@nestjs-pipeline/casl';
+app.useGlobalFilters(new UnauthorizedActionFilter());
+```
+
+Each package README has a full migration section:
+[core](packages/pipeline/README.md#migrating-from-01x),
+[correlation](packages/pipeline-correlation/README.md#migrating-from-01x),
+[opentelemetry](packages/pipeline-opentelemetry/README.md#migrating-from-01x),
+[zod](packages/pipeline-zod/README.md#migrating-from-01x),
+[casl](packages/pipeline-casl/README.md#migrating-from-01x),
+[uuidv7](packages/uuidv7/README.md#migrating-from-01x),
+[untyped](packages/untyped/README.md#migrating-from-01x) and
+[safe-stringify](packages/safe-stringify/README.md#migrating-from-01x).
 
 ---
 
@@ -187,7 +401,11 @@ pnpm add nestjs-pino pino-http pino-pretty
 import { Module, NestModule, MiddlewareConsumer } from '@nestjs/common';
 import { CqrsModule } from '@nestjs/cqrs';
 import { PipelineModule, LoggingBehavior } from '@nestjs-pipeline/core';
-import { HttpCorrelationMiddleware } from '@nestjs-pipeline/correlation';
+import {
+  correlationSource,
+  HttpCorrelationMiddleware,
+} from '@nestjs-pipeline/correlation';
+import { tenantSource } from '@nestjs-pipeline/tenant';
 import { ZodValidationBehavior } from '@nestjs-pipeline/zod';
 import { TraceBehavior } from '@nestjs-pipeline/opentelemetry';
 
@@ -195,6 +413,8 @@ import { TraceBehavior } from '@nestjs-pipeline/opentelemetry';
   imports: [
     CqrsModule.forRoot(),
     PipelineModule.forRoot({
+      // Where each pipeline takes its tenant and correlation id from.
+      sources: { tenantId: tenantSource, correlationId: correlationSource },
       globalBehaviors: {
         scope: 'all',                // 'commands' | 'queries' | 'events' | 'all'
         before: [
@@ -214,6 +434,9 @@ export class AppModule implements NestModule {
   }
 }
 ```
+
+Without `sources`, pipelines have no tenant and generate their own correlation id, and
+bootstrap logs a warning; pass `sources: {}` to run without them on purpose.
 
 ### 3. Define a Command with Zod Validation
 
@@ -259,7 +482,7 @@ export class CreateUserHandler implements ICommandHandler<CreateUserCommand> {
 
   async execute(command: CreateUserCommand): Promise<User> {
     const user = User.create(command.username, command.email);
-    this.userRepository.save(user);
+    await this.userRepository.save(user);
 
     this.eventBus.publish(
       new UserCreatedEvent({
@@ -474,6 +697,10 @@ export class DeleteOrderHandler implements ICommandHandler<DeleteOrderCommand> {
 
 ### Example: Caching Behavior
 
+A minimal illustration only: its key has no tenant, principal or permission scope, so it
+can serve one caller's response to another. Use `@nestjs-pipeline/cache` with
+`createPartitionedCacheKeyFactory` for real handlers.
+
 ```typescript
 import { Injectable } from '@nestjs/common';
 import { IPipelineBehavior, IPipelineContext, NextDelegate } from '@nestjs-pipeline/core';
@@ -588,14 +815,14 @@ feature is imported, the registered behaviors are discoverable by
 ```
 ┌─ global before ──┐   ┌── @UsePipeline ──┐   ┌─ global after ──┐
 │ LoggingBehavior  │ → │ AuditBehavior    │ → │ TraceBehavior   │ → handler.execute()
-│ MetricsBehavior  │   │                  │   │ ZodValidation   │
+│ ZodValidation    │   │                  │   │ MetricsBehavior │
 └──────────────────┘   └──────────────────┘   └─────────────────┘
                     ← response propagates back through the chain ←
 ```
 
-1. **`PipelineBootstrapService`** scans all CQRS handlers at startup via `@nestjs/cqrs` `ExplorerService`.
+1. At startup the pipeline scans all CQRS handlers through `@nestjs/cqrs` `ExplorerService`.
 2. For each matching handler it precomputes request-independent metadata and resolves singleton behavior instances. Behaviors that cannot be resolved as singletons are marked for per-invocation resolution.
-3. Per invocation: creates a `PipelineContext`, resolves any dynamic/request-scoped/transient behaviors with the applicable Nest context ID, resolves correlation ID, and runs the chain inside `AsyncLocalStorage` for nested propagation.
+3. Per invocation: creates a `PipelineContext`, resolves any dynamic/request-scoped/transient behaviors with the applicable Nest context ID, takes the tenant and correlation id from the configured `sources`, and runs the chain inside them (and `AsyncLocalStorage`) so nested dispatches inherit them.
 4. The common all-singleton path reuses the pre-resolved instances with no request-time reflection or behavior DI lookup; scoped/dynamic behaviors intentionally use request-time DI resolution.
 5. Requires Nest and Nest CQRS 11. Request-scoped and transient handlers
    (`Scope.REQUEST`, `Scope.TRANSIENT`) rely on `AsyncContext`, which earlier
@@ -649,7 +876,8 @@ bypassing the guard.
 their own store and depend on no other pipeline package. Pass their stores to
 `PipelineModule.forRoot({ sources: { tenantId: tenantSource, correlationId: correlationSource } })`,
 and a pipeline takes both when it starts: `context.correlationId` is the current ID or a new
-`uuidv7()`, and `context.tenantId` is the current tenant (write-once). The behaviors and
+one from `correlationSource.create()`, and `context.tenantId` is the current tenant
+(write-once). The behaviors and
 handler run inside both values, so a saga, an event published with `eventBus.publish()` or a nested
 `CommandBus.execute()` inherits them, and `getCorrelationId()` in a handler equals
 `context.correlationId`. Set the values where work enters, with `HttpCorrelationMiddleware` or `runWithCorrelationId` of
@@ -679,7 +907,7 @@ curl -X POST http://localhost:3000/users \
   -d '{"name": "Jane", "email": "jane@example.com"}'
 ```
 
-The pipeline `context.correlationId` will be `"req-abc-123"` for the entire chain. If the header is omitted, a `uuidv7()` is generated automatically.
+The pipeline `context.correlationId` will be `"req-abc-123"` for the entire chain. If the header is omitted or malformed (over 128 characters, or characters outside `DEFAULT_CORRELATION_ID_PATTERN`), a new ID is generated.
 
 ### Bull Queue Processor
 
@@ -822,7 +1050,7 @@ await producer.send({
 await fetch(url, { headers: { ...correlationHeaders(), 'content-type': 'application/json' } });
 
 // ── Read the current ID anywhere ──
-const id = getCorrelationId(); // reads from async-local context, falls back to uuidv7()
+const id = getCorrelationId(); // the current ID, or a new one when none is set
 ```
 
 ---
@@ -1303,7 +1531,9 @@ Domain and application code should use the narrow entry points rather than the c
 | `ICache<T>`           | `/application` | Interface for cache providers (`get`, `set`, `delete`)                                |
 | `@Cache()`            | `/persistence` | Decorator for `save()` — write-through cache on writes, evict on delete, explicit keys |
 | `@FromCache()`        | `/persistence` | Decorator for `find()` — read-through cache with fail-closed semantics and hydration   |
-| `UnixTimestampType`   | `/persistence` | Custom MikroORM Type mapping Date to 64-bit bigint unix timestamp                       |
+
+MikroORM adapters, such as `AggregateRepository`, `MikroOrmCache` and `UnixTimestampType`,
+live in [`@cqrs-ddd/mikro-orm`](packages/ddd-mikro-orm).
 
 Import domain primitives in your domain layer:
 
@@ -1321,7 +1551,7 @@ pnpm install
 pnpm build              # build workspace dependencies
 cp .env.example .env    # create local environment file (edit as needed)
 pnpm db:migrate         # apply schema + data migrations (idempotent)
-pnpm dev                # start with ts-node (watch mode)
+pnpm dev                # start with ts-node in watch mode
 ```
 
 Configure the database via environment variables (defaults to a local file):
@@ -1332,6 +1562,9 @@ Configure the database via environment variables (defaults to a local file):
 | `SQLITE_TENANTS` | _(none)_ | Additional libSQL tenant names; local files get a tenant suffix |
 | `SQLITE_DATABASE_TEMPLATE` | _(none)_ | URL containing `{tenant}`; required for multiple remote tenants |
 | `AUTH_TOKEN`   | _(none)_        | Auth token for libSQL remote databases (e.g. Turso) |
+
+`DB_ENGINE=postgres` switches to PostgreSQL with a schema per tenant; the
+[api README](api/README.md) lists every variable.
 
 Both persistence engines require `x-tenant-schema` on routed HTTP requests.
 PostgreSQL selects a schema; libSQL selects the corresponding database.
@@ -1393,7 +1626,6 @@ ADAPTER=fastify pnpm start
 - MikroORM-backed CASL permission source (roles, per-user grants and denials)
 - Official MikroORM `accessor: true` entity schemas bridging private aggregate fields to public accessors without TypeScript bypasses
 - Decoupled CQRS caching architecture with collision-safe key derivation (`cacheKey`), fail-fast handler templates (`cacheKeyTemplate`), and static aggregate naming (`User.aggregateName`)
-- Decoupled CQRS caching architecture with centralized key derivation (`cacheKey`; type/delimiter collision handling requires verification), fail-fast handler templates (`cacheKeyTemplate`), and static aggregate naming (`User.aggregateName`)
 - Versioned database migrations with tracking (`mikro_orm_migrations` table)
 - Zod-parsed/validated commands and queries via `createCommand()` and `createQuery()` exposing Standard Schema (`['~standard']`) metadata
 - Controller-level `ZodPipe` validation
@@ -1427,7 +1659,7 @@ nestjs-pipeline/
 │   │       ├── helpers/          # behavior entries, logging intent, toPostgresJson
 │   │       ├── interfaces/       # IPipelineBehavior, IPipelineContext
 │   │       ├── options/          # PipelineModuleOptions, GlobalBehaviorsOptions
-│   │       ├── services/         # PipelineBootstrapService
+│   │       ├── services/         # handler discovery, chain planning, runner
 │   │       ├── pipeline.context.ts
 │   │       └── pipeline.module.ts
 │   ├── pipeline-correlation/      # @nestjs-pipeline/correlation
@@ -1435,7 +1667,7 @@ nestjs-pipeline/
 │   │       ├── decorators/       # @WithCorrelation, CorrelationFrom
 │   │       ├── middlewares/      # HttpCorrelationMiddleware
 │   │       ├── options/          # CorrelationOptions
-│   │       └── correlation.store.ts    # getCorrelationId, runWithCorrelationId, addCorrelationId
+│   │       └── correlation.store.ts    # correlationSource, getCorrelationId, runWithCorrelationId, addCorrelationId
 │   ├── pipeline-zod/             # @nestjs-pipeline/zod
 │   │   └── src/
 │   │       ├── errors/           # ZodValidationError
@@ -1513,18 +1745,18 @@ nestjs-pipeline/
 │   │       └── idempotency.module.ts
 │   ├── pipeline-tenant/          # @nestjs-pipeline/tenant
 │   │   └── src/
-│   │       └── tenant-scope.ts   # currentTenantId, runWithTenant
+│   │       └── tenant-scope.ts   # tenantSource, currentTenantId, runWithTenant
 │   ├── pipeline-job-context/     # @nestjs-pipeline/job-context
 │   │   └── src/
 │   │       ├── decorators/       # @InJobContext, @AsSystem
 │   │       ├── errors/           # MissingJobContextError, InvalidJobContextError
 │   │       ├── helpers/          # withJobContext, payload validation
 │   │       ├── interfaces/       # IJobPrincipal, PrincipalReference, JobContext
-│   │       └── job-context.module.ts   # JobContextModule.forRoot({ principal, tenants })
+│   │       └── job-context.module.ts   # JobContextModule.forRoot({ principal, tenants, sources })
 │   ├── uuidv7/                   # @cqrs-ddd/uuidv7 — RFC 9562 UUIDv7, no dependencies
 │   ├── safe-stringify/           # @cqrs-ddd/safe-stringify — strict and log-safe JSON, key segments
 │   ├── untyped/                  # @cqrs-ddd/untyped — typed replacement for `as any`
-│   ├── ddd-mikro-orm/            # @cqrs-ddd/mikro-orm — MikroORM repositories, optimistic writes, cache adapter
+│   ├── ddd-mikro-orm/            # @cqrs-ddd/mikro-orm — repositories, optimistic writes, cache, dialect, TenantStore
 │   └── ddd-core/                 # @cqrs-ddd/core — framework-neutral DDD primitives
 │       ├── domain/               # RootEntity, AggregateRoot, domain events and exceptions
 │       ├── application/          # CQRS base classes, repository and cache ports, tenant scope
@@ -1532,9 +1764,9 @@ nestjs-pipeline/
 │       └── http/                 # HTTP status mapping for its errors
 └── api/                          # @nestjs-pipeline/ddd-api — full working example using ddd-core + casl
     └── src/
-        ├── persistence/          # MikroOrmStore, schemas/, cli.ts
-        ├── roles/                # MikroORM-backed CASL providers (role CRUD + capabilities)
-        ├── auths/                # Auth CRUD + user-context resolver
+        ├── persistence/          # MikroOrmStore, schemas/, migrations, cli.ts
+        ├── roles/                # role and capability CRUD
+        ├── auths/                # login, sessions, permission source, job principal
         └── users/
             ├── cqrs/             # Commands, queries, events
             ├── domain/           # User entity, domain events
@@ -1580,7 +1812,7 @@ pnpm clean:all
 pnpm install
 ```
 
-`pnpm test:coverage` runs each workspace’s existing test script sequentially with Vitest coverage. It prints test results and a coverage summary per workspace, and writes `coverage/coverage-summary.json` in each workspace. Reports cover the same tests selected by each workspace’s Vitest configuration; E2E tests run separately. All workspaces run even if one fails, and any failure makes the command fail. `pnpm test:review` is an alias for this command. There is no combined monorepo coverage total.
+`pnpm test:coverage` runs each workspace’s existing test script sequentially with Vitest coverage. It prints test results and a coverage summary per workspace, and writes `coverage/coverage-summary.json` in each workspace. Reports cover the same tests selected by each workspace’s Vitest configuration; E2E tests run separately. All workspaces run even if one fails, and any failure makes the command fail. There is no combined monorepo coverage total.
 
 ### Lint rules
 
@@ -1599,16 +1831,17 @@ types: a rule sees names and import sources, not what a value is.
 | `transport-neutral-errors.grit` | No Nest HTTP exceptions in packages, domain, application or CQRS code; presentation adapters map neutral errors |
 | `event-handler-substance.grit` | Warns on an event handler that only logs or reads the correlation ID (`warn`, because the api keeps such showcase handlers) |
 | `core-environment.grit` | No `process.env` in published packages or `packages/ddd-core`; configuration comes through module options or ports |
-| `framework-independence.grit` | `packages/ddd-core`, `ddd-mikro-orm`, `uuidv7` and `safe-stringify` import nothing from NestJS or `@nestjs-pipeline/*`, in any import form |
+| `framework-independence.grit` | `packages/ddd-core`, `ddd-mikro-orm`, `uuidv7`, `safe-stringify` and `untyped` import nothing from NestJS or `@nestjs-pipeline/*`, in any import form |
 | `orm-independence.grit` | `packages/ddd-core` imports no ORM or database driver |
 | `verify-package-licenses.grit` | Published packages import neither the private `api` nor `@nestjs-pipeline/ddd-*`, and `@nestjs-pipeline/*` packages do not import `@cqrs-ddd/core` |
 | `package-licenses.grit` | Published packages import no private NestJS internals |
 | `test-suite.grit` | No focused tests (`.only`, `fit`, `fdescribe`) |
 
 Package manifests are checked by specs instead, because Grit cannot match JSON:
-`packages/pipeline/src/package-boundaries.spec.ts` requires every sibling to peer on
-`@nestjs-pipeline/core` through `workspace:^` and never depend on it at runtime (a second
-copy of core silently loses its async-local context and behavior identity), and forbids
+`packages/pipeline/src/package-boundaries.spec.ts` requires a package whose source imports
+`@nestjs-pipeline/core` to peer on it through `workspace:^`, and a package that does not
+import it not to declare it; none may depend on it at runtime (a second copy of core
+silently loses its async-local context and behavior identity). It also forbids
 dependencies on the private `api`; each `@cqrs-ddd/*` package has its own
 `package-manifest.spec.ts`. `api/test/lint/biome-persistence-plugin.spec.ts` and
 `biome-general-plugins.spec.ts` run every rule against the real Biome CLI.
@@ -1704,13 +1937,16 @@ conversation or file contents and always exits 0; remove the `hooks` block to di
    import { IPipelineBehavior, IPipelineContext, NextDelegate } from '@nestjs-pipeline/core';
 
    @Injectable()
-   export class RateLimitBehavior implements IPipelineBehavior {
-     constructor(private readonly rateLimiter: RateLimiterService) {}
+   export class TimingBehavior implements IPipelineBehavior {
+     constructor(private readonly timings: TimingService) {}
 
      async handle(context: IPipelineContext, next: NextDelegate): Promise<any> {
-       const key = `${context.requestKind}:${context.requestName}`;
-       await this.rateLimiter.consume(key);
-       return next();
+       const started = performance.now();
+       try {
+         return await next();
+       } finally {
+         this.timings.record(context.requestName, performance.now() - started);
+       }
      }
    }
    ```
@@ -1718,10 +1954,12 @@ conversation or file contents and always exits 0; remove the `hooks` block to di
 4. Export from `src/index.ts`:
 
    ```typescript
-   export { RateLimitBehavior } from './rate-limit.behavior';
+   export { TimingBehavior } from './timing.behavior';
    ```
 
-5. The package is automatically included via `pnpm-workspace.yaml`.
+5. The package is included through `pnpm-workspace.yaml`. Follow
+   [packages/CLAUDE.md](packages/CLAUDE.md) for the rest: license headers, a README, 100%
+   per-file coverage in `vitest.config.ts`, and `pnpm test:release`.
 
 ---
 

@@ -30,16 +30,17 @@ class OrderCreatedEvent extends DomainEvent {
 abstract class TestableHandler<
   TResult extends AggregateBearingResult,
 > extends CommandBaseHandler<TestCommand, TResult> {
-  // biome-ignore lint/complexity/noUselessConstructor: widens the protected base constructor to public
   constructor(eventBus: IDomainEventPublisher) {
     super(eventBus);
   }
 }
 
-class PlainCommandHandler extends TestableHandler<// @ts-expect-error — the constraint forbids a non-aggregate result. The
-// runtime guard is what this test exercises: JavaScript callers and `as any`
-// still reach it, and it must not publish anything.
-string> {
+class PlainCommandHandler extends TestableHandler<
+  // @ts-expect-error — the constraint forbids a non-aggregate result. The
+  // runtime guard is what this test exercises: JavaScript callers and `as any`
+  // still reach it, and it must not publish anything.
+  string
+> {
   async handle(_command: TestCommand): Promise<string> {
     return 'non-aggregate-result';
   }
@@ -212,8 +213,10 @@ describe('CommandBaseHandler', () => {
       publishAll: vi.fn(),
     } as unknown as IDomainEventPublisher;
 
-    class NullCommandHandler extends TestableHandler<// @ts-expect-error — as above: null is not an aggregate-bearing result.
-    null> {
+    class NullCommandHandler extends TestableHandler<
+      // @ts-expect-error — as above: null is not an aggregate-bearing result.
+      null
+    > {
       async handle(_command: TestCommand): Promise<null> {
         return null;
       }
