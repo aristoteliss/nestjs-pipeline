@@ -8,8 +8,8 @@
  * behind it.
  */
 
-export * from './decorators/ApplyMutation';
-export * from './decorators/Mutable';
+export * from './decorators/apply-mutation.decorator';
+export * from './decorators/mutable.decorator';
 export * from './events/domain.event';
 export * from './events/event.interface';
 export * from './events/root-domain.event';

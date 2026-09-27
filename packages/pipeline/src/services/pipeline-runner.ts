@@ -7,7 +7,10 @@ import {
   SET_RESPONSE,
   SET_TENANT_ID,
 } from '../constants/pipeline-context.constants';
-import { currentScope, runInScope } from '../execution-scope';
+import type {
+  ContextSource,
+  ContextSources,
+} from '../interfaces/context-source.interface';
 import type {
   IPipelineBehavior,
   NextDelegate,
@@ -28,6 +31,7 @@ export function createPipelineRunner(
     | readonly IPipelineBehavior[]
     | ((self: unknown, request: unknown) => Promise<IPipelineBehavior[]>),
   hasPipeline: boolean,
+  sources: ContextSources = {},
 ): PipelineRunner {
   return async (self, request) => {
     if (!hasPipeline) return originalMethod.call(self, request);
@@ -36,8 +40,13 @@ export function createPipelineRunner(
       typeof behaviors === 'function'
         ? await behaviors(self, request)
         : behaviors;
-    const { tenantId, correlationId } = currentScope();
-    context[SET_CORRELATION_ID](correlationId ?? uuidv7());
+    const parent = pipelineStore.getStore();
+    const { tenantId: tenant, correlationId: correlation } = sources;
+    const tenantId = tenant ? tenant.current() : parent?.tenantId;
+    const correlationId = correlation
+      ? (correlation.current() ?? correlation.create())
+      : (parent?.correlationId ?? uuidv7());
+    context[SET_CORRELATION_ID](correlationId);
     if (tenantId !== undefined) context[SET_TENANT_ID](tenantId);
 
     let chain: NextDelegate = async () => {
@@ -55,10 +64,17 @@ export function createPipelineRunner(
     // Behaviors and the handler run inside this execution's values, so a
     // nested dispatch inherits them and cannot see a different tenant.
     return pipelineStore.run(context, () =>
-      runInScope(
-        { tenantId: context.tenantId, correlationId: context.correlationId },
-        chain,
+      within(tenant, context.tenantId, () =>
+        within(correlation, context.correlationId, chain),
       ),
     );
   };
+}
+
+function within<T>(
+  source: ContextSource | undefined,
+  value: string | undefined,
+  fn: () => T,
+): T {
+  return source ? source.run(value, fn) : fn();
 }

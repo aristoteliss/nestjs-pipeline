@@ -1,7 +1,6 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import { getCorrelationId } from '@nestjs-pipeline/correlation';
-import { currentTenantId } from '@nestjs-pipeline/tenant';
+import { AsyncLocalStorage } from 'node:async_hooks';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { InvalidJobContextError } from '../errors/invalid-job-context.error';
 import { MissingJobContextError } from '../errors/missing-job-context.error';
@@ -9,6 +8,22 @@ import { register, unregister } from '../helpers/registration';
 import type { IJobPrincipal } from '../interfaces/job-principal.interface';
 import type { PrincipalReference } from '../interfaces/principal-reference.interface';
 import { InJobContext } from './in-job-context.decorator';
+
+function source() {
+  const store = new AsyncLocalStorage<string | undefined>();
+  return {
+    current: () => store.getStore(),
+    run: <T>(value: string | undefined, fn: () => T) => store.run(value, fn),
+  };
+}
+const sources = {
+  tenantId: source(),
+  correlationId: {
+    ...source(),
+    accepts: (id: string) => !id.includes(' '),
+    create: () => 'created-id',
+  },
+};
 
 const jobContext = {
   tenantId: 'tenant_a',
@@ -30,6 +45,7 @@ const restore = vi.fn(
 const registration = {
   principal: { capture: () => undefined, restore } as IJobPrincipal,
   tenants: ['tenant_a'],
+  sources,
 };
 
 class Processor {
@@ -39,15 +55,15 @@ class Processor {
   async process(job: { data: unknown }) {
     this.seen.push(job);
     return {
-      tenant: currentTenantId(),
-      correlationId: getCorrelationId(),
+      tenant: sources.tenantId.current(),
+      correlationId: sources.correlationId.current(),
       principal: bound,
     };
   }
 
   @InJobContext({ path: 'jobContext' })
   async handle(_message: unknown) {
-    return currentTenantId();
+    return sources.tenantId.current();
   }
 }
 

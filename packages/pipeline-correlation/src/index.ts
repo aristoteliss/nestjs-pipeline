@@ -5,6 +5,7 @@ export type { WithCorrelationId } from './correlation.store';
 export {
   addCorrelationId,
   correlationHeaders,
+  correlationSource,
   getCorrelationId,
   runWithCorrelationId,
 } from './correlation.store';
@@ -16,7 +17,6 @@ export {
   CorrelationFrom,
   WithCorrelation,
 } from './decorators/with-correlation.decorator';
-export { uuidv7 } from './helpers/uuidv7';
 export { HttpCorrelationMiddleware } from './middlewares/http-correlation.middleware';
 export type { CorrelationOptions } from './options/correlation.options';
 export {

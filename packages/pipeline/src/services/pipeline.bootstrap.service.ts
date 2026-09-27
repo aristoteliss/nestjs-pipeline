@@ -1,5 +1,6 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
+import { untyped } from '@cqrs-ddd/untyped';
 import {
   Inject,
   Injectable,
@@ -24,7 +25,6 @@ import {
   PIPELINE_MODULE_OPTIONS,
   PipelineModuleOptions,
 } from '../options/pipeline-module.options';
-import { untyped } from '../types/safe-typing';
 import { validateBehaviorContracts } from './pipeline-contracts';
 import { compilePipelinePlan } from './pipeline-plan';
 import { createPipelineRunner, type PipelineRunner } from './pipeline-runner';
@@ -155,6 +155,18 @@ export class PipelineBootstrapService
       }
 
       const diagnosticsMode = this.options?.diagnostics ?? 'strict';
+      if (
+        this.options?.sources === undefined &&
+        this.unwrappers.length > 0 &&
+        diagnosticsMode !== 'off'
+      ) {
+        this.logger.warn(
+          'PipelineModule has no `sources`: pipelines take no tenant and generate their own ' +
+            'correlation id, which currentTenantId() and getCorrelationId() inside handlers ' +
+            'do not see. Pass `sources` (such as tenantSource and correlationSource), or ' +
+            '`sources: {}` to run without them.',
+        );
+      }
       if (collectedDiagnostics.length > 0 && diagnosticsMode !== 'off') {
         if (diagnosticsMode === 'warn') {
           for (const d of collectedDiagnostics) {
@@ -346,6 +358,7 @@ export class PipelineBootstrapService
             );
           },
       hasPipeline,
+      this.options?.sources,
     );
 
     if (isScoped) {

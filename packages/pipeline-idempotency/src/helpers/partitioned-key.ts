@@ -1,7 +1,11 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { joinKeySegments } from '@cqrs-ddd/safe-stringify';
-import { type IPipelineContext } from '@nestjs-pipeline/core';
+import {
+  type IPipelineContext,
+  type TenantPartitionOptions,
+  tenantSegments,
+} from '@nestjs-pipeline/core';
 import { MissingIdempotencyPartitionError } from '../errors/missing-partition.error';
 import type { IdempotencyKeyFactory } from '../interfaces/idempotency-options.interface';
 
@@ -27,7 +31,8 @@ export type IdempotencyOperationFactory = (
 ) => string | undefined;
 
 /** Options for {@link createPartitionedIdempotencyKeyFactory}. */
-export interface PartitionedIdempotencyKeyOptions {
+export interface PartitionedIdempotencyKeyOptions
+  extends TenantPartitionOptions {
   /** Who performs the operation. Required, and never defaulted. */
   principal: IdempotencyPrincipalFactory;
 
@@ -46,21 +51,6 @@ export interface PartitionedIdempotencyKeyOptions {
    * execute again until those records expire.
    */
   version?: string;
-
-  /**
-   * Include `context.tenantId`, so equal principal ids in two tenants never share
-   * a namespace.
-   *
-   * @default true
-   */
-  includeTenant?: boolean;
-
-  /**
-   * Whether a missing tenant is an error rather than an absent segment.
-   *
-   * @default the value of `includeTenant`
-   */
-  requireTenant?: boolean;
 
   /**
    * Behavior when the operation identity is absent.
@@ -127,19 +117,14 @@ export function createPartitionedIdempotencyKeyFactory(
 export function createPartitionedIdempotencyKeyFactory(
   options: PartitionedIdempotencyKeyOptions,
 ): IdempotencyKeyFactory {
-  const includeTenant = options.includeTenant ?? true;
-  const requireTenant = options.requireTenant ?? includeTenant;
   const onMissingOperation = options.onMissingOperation ?? 'throw';
 
   return (context) => {
-    if (requireTenant && !context.tenantId) {
-      throw new MissingIdempotencyPartitionError(
-        context.requestName,
-        'tenant',
-        'Run the request inside a tenant scope (runWithTenant of @nestjs-pipeline/tenant), or pass requireTenant: false ' +
-          'for a single-tenant deployment.',
-      );
-    }
+    const tenant = tenantSegments(
+      context,
+      options,
+      MissingIdempotencyPartitionError,
+    );
 
     const principal = principalSegments(options.principal(context));
     if (!principal) {
@@ -163,7 +148,7 @@ export function createPartitionedIdempotencyKeyFactory(
 
     return joinKeySegments([
       ...(options.version ? [options.version] : []),
-      ...(includeTenant ? [context.tenantId] : []),
+      ...tenant,
       ...principal,
       options.action ?? context.requestName,
       operation,

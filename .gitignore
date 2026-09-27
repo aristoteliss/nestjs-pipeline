@@ -48,3 +48,4 @@ packages/*/COMMERCIAL_LICENSE.txt
 !.claude/codebase-map.md
 !.claude/tasks/
 .claude/state/
+__pycache__/

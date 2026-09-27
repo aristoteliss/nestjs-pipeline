@@ -157,12 +157,6 @@ describe('cacheKey', () => {
     );
   });
 
-  it('accepts a { prefixKey } object as the resource', () => {
-    const resource = { prefixKey: 'user:' };
-    const key = cacheKey(resource, { id: '1' }, 'tenant_prefix');
-    expect(key).toMatch(/^tenant_prefix:user:v1:[0-9a-f]{64}$/);
-  });
-
   it('resolves prefix from static aggregateName on entity classes', () => {
     class MockAggregate {
       static readonly aggregateName = 'user';
@@ -209,12 +203,12 @@ describe('cacheKey', () => {
     expect(key1).toBe(key2);
   });
 
-  it('throws an error if resourceOrEntity has neither aggregateName nor prefixKey', () => {
+  it('throws an error if resourceOrEntity has no aggregateName', () => {
     class UnnamedClass {}
     expect(() => {
       cacheKey(UnnamedClass as never, { id: '1' }, 't1');
     }).toThrow(
-      'Cannot resolve cache key prefix: resourceOrEntity must be a string or declare a static aggregateName or prefixKey.',
+      'Cannot resolve cache key prefix: resourceOrEntity must be a string or declare a static aggregateName.',
     );
   });
 
@@ -235,7 +229,7 @@ describe('cacheKey', () => {
     },
   );
 
-  it('throws when resourceOrEntity is neither a string nor an object with aggregateName or prefixKey', () => {
+  it('throws when resourceOrEntity is neither a string nor an object with aggregateName', () => {
     expect(() => cacheKey(123 as any, { id: '1' }, 'tenant_test')).toThrow(
       /Cannot resolve cache key prefix/,
     );
@@ -389,11 +383,6 @@ describe('cache key frozen output', () => {
       'an aggregate class',
       () => cacheKey(UserAggregate, { id: '42' }, 'tenant_golden'),
       'tenant_golden:user:v1:221333cb3fd41732a4f39619212c9589e9929cce6c3d63b1642dbac6e7a20586',
-    ],
-    [
-      'a prefixKey object',
-      () => cacheKey({ prefixKey: 'user:' }, { id: '1' }, 'tenant_golden'),
-      'tenant_golden:user:v1:647a0712378b1f69e500fdf2c8cd7404c0a93a8ac1a0518af2646b2a74609fd2',
     ],
     [
       'an escaped template scalar',

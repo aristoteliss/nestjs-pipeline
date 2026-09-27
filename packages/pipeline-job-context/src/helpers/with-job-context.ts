@@ -1,17 +1,14 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import { getCorrelationId } from '@nestjs-pipeline/correlation';
-import { currentTenantId } from '@nestjs-pipeline/tenant';
 import { MissingJobContextError } from '../errors/missing-job-context.error';
 import type { WithJobContext } from '../interfaces/job-context.interface';
 import { toReference } from './principal-reference';
 import { activeRegistration } from './registration';
 
 /**
- * Stamps the current execution context onto a job payload: the tenant from
- * `@nestjs-pipeline/tenant`, the correlation id from
- * `@nestjs-pipeline/correlation` (generated when none is active, as
- * `getCorrelationId` does), and the principal the registered `IJobPrincipal`
+ * Stamps the current execution context onto a job payload: the tenant and
+ * correlation id of the registered sources (a new one from the correlation
+ * source's `create()` when none is active), and the principal the registered `IJobPrincipal`
  * captures, reduced to its identity. The processor restores it with
  * `@InJobContext`.
  *
@@ -38,8 +35,8 @@ export function withJobContext<T extends Record<string, unknown>>(
       'withJobContext(data) requires a plain object payload. Wrap arrays and class instances in a plain object first.',
     );
   }
-  const { principal } = activeRegistration();
-  const tenantId = currentTenantId();
+  const { principal, sources } = activeRegistration();
+  const tenantId = sources.tenantId.current();
   if (tenantId === undefined) throw new MissingJobContextError('tenant');
   const captured = principal.capture();
   if (captured === undefined) throw new MissingJobContextError('principal');
@@ -47,7 +44,8 @@ export function withJobContext<T extends Record<string, unknown>>(
     ...data,
     jobContext: {
       tenantId,
-      correlationId: getCorrelationId(),
+      correlationId:
+        sources.correlationId.current() ?? sources.correlationId.create(),
       principal: toReference(captured),
     },
   };

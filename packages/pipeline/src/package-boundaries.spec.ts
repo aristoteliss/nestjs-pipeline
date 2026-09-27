@@ -48,6 +48,37 @@ function manifests(): Manifest[] {
 }
 
 const published = manifests();
+
+/**
+ * Whether a published package's source (specs excluded) references core: a
+ * static or type import, a dynamic `import()` or a `require()`, of the package
+ * or one of its subpaths.
+ */
+function importsCore(name: string): boolean {
+  const dir = readdirSync(PACKAGES_DIR).find((entry) => {
+    try {
+      return (
+        JSON.parse(
+          readFileSync(join(PACKAGES_DIR, entry, 'package.json'), 'utf8'),
+        ).name === name
+      );
+    } catch {
+      return false;
+    }
+  }) as string;
+  const sources = (folder: string): string[] =>
+    readdirSync(folder).flatMap((entry) => {
+      const path = join(folder, entry);
+      if (statSync(path).isDirectory()) return sources(path);
+      return path.endsWith('.ts') && !path.endsWith('.spec.ts') ? [path] : [];
+    });
+  const reference = new RegExp(
+    `(?:from|import\\s*\\(|require\\s*\\()\\s*['"]${CORE}(?:/[^'"]*)?['"]`,
+  );
+  return sources(join(PACKAGES_DIR, dir, 'src')).some((file) =>
+    reference.test(readFileSync(file, 'utf8')),
+  );
+}
 const siblings = published.filter(
   (manifest) => manifest.name.startsWith(SCOPE) && manifest.name !== CORE,
 );
@@ -62,29 +93,24 @@ describe('published package boundaries', () => {
   });
 
   it.each(siblings.map((m) => m.name))(
-    '%s declares the core package as a peer, never as a runtime dependency',
+    '%s declares the core package as a peer exactly when its source imports it, never as a runtime dependency',
     (name) => {
       const manifest = siblings.find((m) => m.name === name) as Manifest;
 
       // A runtime dependency lets a consumer resolve a second copy of core. The
       // `pipelineStore` AsyncLocalStorage and every Symbol()-keyed context setter
       // are module-scoped, so a duplicate copy silently drops correlation IDs,
-      // tenant IDs and behavior deduplication with no error at all.
+      // tenant IDs and behavior deduplication with no error at all. A package
+      // that does not import core must not require it.
       expect(manifest.dependencies ?? {}).not.toHaveProperty(CORE);
-      expect(manifest.peerDependencies ?? {}).toHaveProperty(CORE);
-    },
-  );
-
-  it.each(siblings.map((m) => m.name))(
-    '%s pins core through the workspace protocol so releases need no manual edit',
-    (name) => {
-      const manifest = siblings.find((m) => m.name === name) as Manifest;
-
-      // pnpm rewrites `workspace:^` to `^<core version>` when the tarball is built,
-      // so the published range tracks core automatically. A literal range here has
-      // to be updated in every sibling on every core release, and silently goes
-      // stale when it is not.
-      expect(manifest.peerDependencies?.[CORE]).toBe('workspace:^');
+      expect(Object.hasOwn(manifest.peerDependencies ?? {}, CORE)).toBe(
+        importsCore(name),
+      );
+      if (importsCore(name)) {
+        // pnpm rewrites `workspace:^` to `^<core version>` when the tarball is
+        // built, so the published range tracks core without manual edits.
+        expect(manifest.peerDependencies?.[CORE]).toBe('workspace:^');
+      }
     },
   );
 
@@ -95,6 +121,7 @@ describe('published package boundaries', () => {
     // harmless; anything else would be a runtime dependency beyond NestJS.
     expect(core.dependencies ?? {}).toEqual({
       '@cqrs-ddd/safe-stringify': 'workspace:^',
+      '@cqrs-ddd/untyped': 'workspace:^',
       '@cqrs-ddd/uuidv7': 'workspace:^',
     });
   });

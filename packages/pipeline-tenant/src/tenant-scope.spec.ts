@@ -1,8 +1,7 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import { currentScope, runInScope } from '@nestjs-pipeline/core';
 import { describe, expect, it } from 'vitest';
-import { currentTenantId, runWithTenant } from './tenant-scope';
+import { currentTenantId, runWithTenant, tenantSource } from './tenant-scope';
 
 describe('runWithTenant and currentTenantId', () => {
   it('has no tenant outside any scope', () => {
@@ -34,15 +33,12 @@ describe('runWithTenant and currentTenantId', () => {
     });
   });
 
-  it('shares the core execution scope and keeps its correlation id', () => {
-    runInScope({ tenantId: 'tenant_a', correlationId: 'corr-1' }, () => {
-      expect(currentTenantId()).toBe('tenant_a');
-      runWithTenant('tenant_b', () =>
-        expect(currentScope()).toEqual({
-          tenantId: 'tenant_b',
-          correlationId: 'corr-1',
-        }),
-      );
-    });
+  it('reads and sets the same tenant through tenantSource', () => {
+    expect(tenantSource.run('tenant_a', () => currentTenantId())).toBe(
+      'tenant_a',
+    );
+    expect(runWithTenant('tenant_b', () => tenantSource.current())).toBe(
+      'tenant_b',
+    );
   });
 });

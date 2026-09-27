@@ -8,18 +8,17 @@ the correlation id and the principal. A job then makes the decisions the request
 have made. System-started work, such as a cron job, declares its context explicitly
 instead. Nothing falls back to a default tenant or an anonymous principal.
 
-It builds on
+It depends on no other pipeline package. It reads and restores the tenant and the
+correlation id through the sources it is given, usually `tenantSource` of
 [`@nestjs-pipeline/tenant`](https://github.com/aristoteliss/nestjs-pipeline/tree/master/packages/pipeline-tenant#readme)
-and
-[`@nestjs-pipeline/correlation`](https://github.com/aristoteliss/nestjs-pipeline/tree/master/packages/pipeline-correlation#readme):
-the job runs inside their scopes, so pipelines it dispatches get the same tenant and
-correlation id.
+and `correlationSource` of
+[`@nestjs-pipeline/correlation`](https://github.com/aristoteliss/nestjs-pipeline/tree/master/packages/pipeline-correlation#readme),
+so pipelines a job dispatches get the same tenant and correlation id.
 
 ## Installation
 
 ```bash
-pnpm add @nestjs-pipeline/job-context @nestjs-pipeline/core \
-  @nestjs-pipeline/tenant @nestjs-pipeline/correlation @nestjs/common
+pnpm add @nestjs-pipeline/job-context @nestjs/common
 ```
 
 Requires Node.js 22 or later.
@@ -27,7 +26,7 @@ Requires Node.js 22 or later.
 ## Setup
 
 Implement `IJobPrincipal` over the application's authentication state, and register it
-with the tenants jobs may run in:
+with the tenants jobs may run in and the tenant and correlation id sources:
 
 ```typescript
 import { Injectable } from '@nestjs/common';
@@ -59,6 +58,7 @@ export class SessionJobPrincipal implements IJobPrincipal<Capability> {
     JobContextModule.forRoot({
       principal: SessionJobPrincipal,
       tenants: ['tenant_a', 'tenant_b'],
+      sources: { tenantId: tenantSource, correlationId: correlationSource },
       imports: [SessionsModule],
     }),
   ],
@@ -109,22 +109,23 @@ async purgeSessions() {
 
 ## Behavior
 
-- **`withJobContext(data)`** returns a copy of `data` with `jobContext`: the tenant from
-  `currentTenantId()`, the correlation id from `getCorrelationId()` (generated when none is
-  active), and the captured principal. It throws `MissingJobContextError` without a
+- **`withJobContext(data)`** returns a copy of `data` with `jobContext`: the tenant and
+  the correlation id of the configured sources (a new one from the correlation source's
+  `create()` when none is active), and the captured principal. It throws `MissingJobContextError` without a
   running `JobContextModule`, a tenant, or a principal, and `TypeError` for a payload that
   is not a plain object.
 - **`@InJobContext()`** validates the payload's context before the method runs. It refuses
   a missing context (`MissingJobContextError`), and a malformed one, an unconfigured
-  tenant, a correlation id outside `@nestjs-pipeline/correlation`'s default pattern, or a
+  tenant, a correlation id the correlation source's `accepts` refuses
+  (`correlationSource` accepts at most 128 characters of `A-Z a-z 0-9 . _ ~ : / + = @ -`), or a
   principal carrying any field beyond `id`, `type` and `sessionId`, such as grants
   (`InvalidJobContextError`). It then runs the method inside the tenant, the correlation
   id, and `restore(principal, work)`. The method becomes async.
 - **`@AsSystem({ principal, grants })`** runs the method once per configured tenant, one
-  after another, each with a new correlation id and `restore(principal, work, grants)`. A
+  after another, each with a new correlation id from `create()` and `restore(principal, work, grants)`. A
   failing tenant does not stop the others; the method then rejects with an
   `AggregateError` of the failures. Return values are discarded.
-- **`JobContextModule.forRoot`** registers the principal port and tenants when the module
+- **`JobContextModule.forRoot`** registers the principal port, tenants and sources when the module
   is instantiated and removes them at application shutdown. The decorators wrap methods
   outside dependency injection, so they use the registration of the running application;
   without one they fail closed. Register it once per application.
@@ -144,7 +145,8 @@ The tenant must be one of the configured tenants.
 | `withJobContext(data)` | function | Copies `data` and adds the current `jobContext` |
 | `InJobContext(options?)` | decorator | Runs a job method in its payload's context; `path` defaults to `'data.jobContext'` |
 | `AsSystem(options)` | decorator | Runs system work once per tenant as the declared principal and grants |
-| `JobContextModule.forRoot(options)` | module | Registers `principal` (a class), `tenants` and optional `imports` |
+| `JobContextModule.forRoot(options)` | module | Registers `principal` (a class), `tenants`, `sources` and optional `imports` |
+| `ContextSource`, `CorrelationSource`, `JobContextSources` | type | `{ current, run }`; the correlation source adds `create()` and `accepts(id)`; and the `{ tenantId, correlationId }` pair `sources` takes |
 | `IJobPrincipal<TGrant>` | interface | Application port: `capture()` and `restore(principal, work, grants?)` |
 | `PrincipalReference` | type | `{ id, type, sessionId? }` |
 | `JobContext`, `WithJobContext<T>` | type | The carried context, and a payload with it |

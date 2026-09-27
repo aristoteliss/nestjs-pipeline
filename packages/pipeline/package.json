@@ -55,6 +55,7 @@
   },
   "dependencies": {
     "@cqrs-ddd/safe-stringify": "workspace:^",
+    "@cqrs-ddd/untyped": "workspace:^",
     "@cqrs-ddd/uuidv7": "workspace:^"
   }
 }

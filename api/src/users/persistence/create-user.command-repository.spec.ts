@@ -38,7 +38,7 @@ describe('CreateUserCommandRepository', () => {
     const flush = vi.fn().mockResolvedValue(undefined);
     const store = {
       get em() {
-        return { create, persist, flush };
+        return { create, persist, flush, isInTransaction: () => false };
       },
     };
     const repository = new CreateUserCommandRepository(cache, store as never);
@@ -82,6 +82,7 @@ describe('CreateUserCommandRepository', () => {
           create: vi.fn().mockReturnValue(user),
           persist: vi.fn(),
           flush: vi.fn().mockRejectedValue(taken),
+          isInTransaction: () => false,
         };
       },
     };
@@ -103,6 +104,7 @@ describe('CreateUserCommandRepository', () => {
           create: vi.fn().mockReturnValue(user),
           persist: vi.fn(),
           flush: vi.fn().mockRejectedValue(new Error('Connection lost')),
+          isInTransaction: () => false,
         };
       },
     };

@@ -1,5 +1,6 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
+import { untyped } from '@cqrs-ddd/untyped';
 import { ExplorerService } from '@nestjs/cqrs/dist/services/explorer.service';
 import { describe, expect, it, vi } from 'vitest';
 import type {
@@ -7,7 +8,6 @@ import type {
   NextDelegate,
 } from '../interfaces/pipeline.behavior.interface';
 import type { IPipelineContext } from '../interfaces/pipeline.context.interface';
-import { untyped } from '../types/safe-typing';
 import { PipelineBootstrapService } from './pipeline.bootstrap.service';
 
 class LifecycleCommand {

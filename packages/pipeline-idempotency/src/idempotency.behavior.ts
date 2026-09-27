@@ -1,6 +1,7 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { randomUUID } from 'node:crypto';
+import { untyped } from '@cqrs-ddd/untyped';
 import {
   Inject,
   Injectable,
@@ -22,7 +23,6 @@ import {
   type PipelineBehaviorValidationContext,
   type PipelineItemToken,
   setPipelineItem,
-  untyped,
 } from '@nestjs-pipeline/core';
 import {
   DEFAULT_IDEMPOTENCY_TTL_MS,

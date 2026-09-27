@@ -33,11 +33,11 @@ export interface SimulatedBatchUpdateResult {
 }
 
 @Processor(BATCH_UPDATE_USERS_QUEUE)
-export class SimulatedBatchUpdateUsersProcessor
+export class BatchUpdateUsersProcessor
   extends WorkerHost
   implements OnModuleDestroy
 {
-  private readonly logger = new Logger(SimulatedBatchUpdateUsersProcessor.name);
+  private readonly logger = new Logger(BatchUpdateUsersProcessor.name);
 
   constructor(private readonly tenantContext: TenantSchemaContext) {
     super();
@@ -68,5 +68,3 @@ export class SimulatedBatchUpdateUsersProcessor
     };
   }
 }
-
-export { SimulatedBatchUpdateUsersProcessor as BatchUpdateUsersProcessor };

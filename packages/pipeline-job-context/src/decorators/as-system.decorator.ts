@@ -1,7 +1,5 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import { runWithCorrelationId, uuidv7 } from '@nestjs-pipeline/correlation';
-import { runWithTenant } from '@nestjs-pipeline/tenant';
 import { toReference } from '../helpers/principal-reference';
 import { activeRegistration } from '../helpers/registration';
 import type { PrincipalReference } from '../interfaces/principal-reference.interface';
@@ -49,13 +47,13 @@ export function AsSystem<TGrant>(
       this: unknown,
       ...args: unknown[]
     ): Promise<void> {
-      const { principal, tenants } = activeRegistration();
+      const { principal, tenants, sources } = activeRegistration();
       const failures: unknown[] = [];
       const failed: string[] = [];
       for (const tenant of tenants) {
         try {
-          await runWithTenant(tenant, () =>
-            runWithCorrelationId(uuidv7(), () =>
+          await sources.tenantId.run(tenant, () =>
+            sources.correlationId.run(sources.correlationId.create(), () =>
               principal.restore(
                 reference,
                 async () => original.apply(this, args),

@@ -1,11 +1,11 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
+import { untyped } from '@cqrs-ddd/untyped';
 import { Injectable } from '@nestjs/common';
 import {
   type IPipelineBehavior,
   type IPipelineContext,
   type NextDelegate,
-  untyped,
 } from '@nestjs-pipeline/core';
 import {
   type Attributes,

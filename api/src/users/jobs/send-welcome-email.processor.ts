@@ -26,11 +26,11 @@ export interface SimulatedWelcomeEmailResult {
 }
 
 @Processor(WELCOME_EMAIL_QUEUE)
-export class SimulatedSendWelcomeEmailProcessor
+export class SendWelcomeEmailProcessor
   extends WorkerHost
   implements OnModuleDestroy
 {
-  private readonly logger = new Logger(SimulatedSendWelcomeEmailProcessor.name);
+  private readonly logger = new Logger(SendWelcomeEmailProcessor.name);
 
   constructor(private readonly tenantContext: TenantSchemaContext) {
     super();
@@ -61,5 +61,3 @@ export class SimulatedSendWelcomeEmailProcessor
     };
   }
 }
-
-export { SimulatedSendWelcomeEmailProcessor as SendWelcomeEmailProcessor };

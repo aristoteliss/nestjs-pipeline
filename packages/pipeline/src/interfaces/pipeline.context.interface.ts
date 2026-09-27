@@ -11,16 +11,19 @@ import { Type } from '@nestjs/common';
  */
 export interface IPipelineContext<TRequest = unknown, TResponse = unknown> {
   /**
-   * Immutable correlation ID for distributed tracing: the execution scope's
-   * correlation id when the pipeline starts (`runInScope`, which nested
-   * dispatches inherit), otherwise a generated `uuidv7()`.
+   * Immutable correlation ID for distributed tracing: the current correlation
+   * id when the pipeline starts (from `@nestjs-pipeline/correlation`, or the
+   * enclosing pipeline), otherwise a new one from the correlation source's
+   * `create()` (`uuidv7()` without one). Nested dispatches
+   * inherit it.
    */
   readonly correlationId: string;
 
   /**
-   * Tenant of this execution: the execution scope's tenant when the pipeline
-   * starts, which nested dispatches inherit. Absent when the scope has none;
-   * tenant-scoped behaviors then fail closed.
+   * Tenant of this execution: the current tenant when the pipeline starts
+   * (from `@nestjs-pipeline/tenant`, or the enclosing pipeline), which nested
+   * dispatches inherit. Absent when there is none; tenant-scoped behaviors
+   * then fail closed.
    */
   readonly tenantId?: string;
 

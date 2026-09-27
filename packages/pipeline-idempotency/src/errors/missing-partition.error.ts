@@ -1,5 +1,7 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
+import { MissingPartitionError } from '@nestjs-pipeline/core';
+
 /** Which dimension of the idempotency key could not be resolved. */
 export type IdempotencyPartitionDimension =
   | 'tenant'
@@ -15,16 +17,14 @@ export type IdempotencyPartitionDimension =
  * would share one deduplication namespace, so one caller's completed operation
  * could be replayed to another, or suppress another's first execution.
  */
-export class MissingIdempotencyPartitionError extends Error {
+export class MissingIdempotencyPartitionError extends MissingPartitionError<IdempotencyPartitionDimension> {
   override readonly name = 'MissingIdempotencyPartitionError';
 
   constructor(
-    public readonly requestName: string,
-    public readonly dimension: IdempotencyPartitionDimension,
-    public readonly remedy: string,
+    requestName: string,
+    dimension: IdempotencyPartitionDimension,
+    remedy: string,
   ) {
-    super(
-      `Idempotency key for ${requestName} requires a ${dimension} partition, which could not be resolved. ${remedy}`,
-    );
+    super('Idempotency', requestName, dimension, remedy);
   }
 }

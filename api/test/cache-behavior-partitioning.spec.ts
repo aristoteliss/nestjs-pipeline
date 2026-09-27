@@ -7,6 +7,7 @@
  * not.
  */
 
+import { contextSources } from '@common/context/context-sources';
 import { type INestApplication, Injectable } from '@nestjs/common';
 import {
   CqrsModule,
@@ -83,6 +84,7 @@ describe('CacheBehavior partitioning in a real pipeline', () => {
         CacheModule.forRoot({ store: { type: 'memory' }, ttl: 60_000 }),
         PipelineModule.forRoot({
           behaviors: [PrincipalBehavior, CacheBehavior],
+          sources: contextSources,
         }),
       ],
       providers: [GetReportHandler],

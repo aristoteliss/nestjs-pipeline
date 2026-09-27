@@ -1,11 +1,8 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import {
-  ConcurrencyConflictError,
-  EntityNotFoundException,
-} from '@cqrs-ddd/core/domain';
 import type { EntityManager, EntityName, FilterQuery } from '@mikro-orm/core';
 import { assertAutocommit } from './assert-autocommit';
+import { expectOneRow, type VersionedAggregate } from './conditioned-write';
 
 /**
  * Executes a single version-conditioned, autocommitted `DELETE` on an aggregate.
@@ -44,54 +41,31 @@ import { assertAutocommit } from './assert-autocommit';
  *
  * @example Delete command repository
  * ```typescript
- * @Cache<User, null>({ deleteKeys: (user) => [cacheKey(user)] })
- * @MapPersistenceErrors<[User], User>({ entity: ([user]) => user, unique: [] })
+ * @Cache<User, null>({ deleteKeys: (user) => [cacheKey(User.aggregateName, { id: user.id })] })
+ * @MapPersistenceErrors<[User], User>({
+ *   entity: ([user]) => user,
+ *   otherwise: (error, user) => mapPersistenceError(error, `deleting User ${user.id}`),
+ * })
  * async save(user: User): Promise<null> {
  *   await optimisticDelete(this.store.em, User, user, 'User');
  *   return null;
  * }
  * ```
  */
-export async function optimisticDelete<
-  TEntity extends {
-    readonly id: string;
-    readonly version: number;
-    getExpectedVersion(): number;
-  },
->(
+export async function optimisticDelete<TEntity extends VersionedAggregate>(
   em: EntityManager,
   entityType: EntityName<TEntity>,
   aggregate: TEntity,
   entityName: string,
 ): Promise<void> {
   assertAutocommit(em, 'optimisticDelete');
-
-  const id = aggregate.id;
-  const expectedVersion = aggregate.getExpectedVersion();
-
+  const row = {
+    id: aggregate.id,
+    expectedVersion: aggregate.getExpectedVersion(),
+  };
   const affected = await em.nativeDelete(entityType, {
-    id,
-    version: expectedVersion,
+    id: row.id,
+    version: row.expectedVersion,
   } as FilterQuery<TEntity>);
-
-  if (affected === 0) {
-    const existing = await em.findOne(
-      entityType,
-      { id } as FilterQuery<TEntity>,
-      { refresh: true },
-    );
-    if (!existing) throw new EntityNotFoundException(entityName, id);
-    throw new ConcurrencyConflictError(
-      entityName,
-      id,
-      expectedVersion,
-      existing.version,
-    );
-  }
-
-  if (affected !== 1) {
-    throw new Error(
-      `Expected one deleted ${entityName}, received ${affected}.`,
-    );
-  }
+  await expectOneRow(affected, em, entityType, row, entityName, 'deleted');
 }

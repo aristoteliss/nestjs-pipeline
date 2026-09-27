@@ -1,12 +1,27 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import { runWithCorrelationId } from '@nestjs-pipeline/correlation';
-import { runWithTenant } from '@nestjs-pipeline/tenant';
+import { AsyncLocalStorage } from 'node:async_hooks';
 import { afterEach, describe, expect, it } from 'vitest';
 import { MissingJobContextError } from '../errors/missing-job-context.error';
 import type { PrincipalReference } from '../interfaces/principal-reference.interface';
 import { register, unregister } from './registration';
 import { withJobContext } from './with-job-context';
+
+function source() {
+  const store = new AsyncLocalStorage<string | undefined>();
+  return {
+    current: () => store.getStore(),
+    run: <T>(value: string | undefined, fn: () => T) => store.run(value, fn),
+  };
+}
+const sources = {
+  tenantId: source(),
+  correlationId: {
+    ...source(),
+    accepts: (id: string) => !id.includes(' '),
+    create: () => 'created-id',
+  },
+};
 
 function registerPrincipal(captured: PrincipalReference | undefined) {
   const registration = {
@@ -15,6 +30,7 @@ function registerPrincipal(captured: PrincipalReference | undefined) {
       restore: async <T>(_p: unknown, work: () => Promise<T>) => work(),
     },
     tenants: ['tenant_a'],
+    sources,
   };
   register(registration);
   return registration;
@@ -37,8 +53,8 @@ describe('withJobContext', () => {
     } as PrincipalReference);
     const data = { userId: 'u-2' };
 
-    const stamped = runWithTenant('tenant_a', () =>
-      runWithCorrelationId('corr-1', () => withJobContext(data)),
+    const stamped = sources.tenantId.run('tenant_a', () =>
+      sources.correlationId.run('corr-1', () => withJobContext(data)),
     );
 
     expect(stamped).toEqual({
@@ -56,7 +72,9 @@ describe('withJobContext', () => {
     registration = registerPrincipal({ id: 'svc', type: 'service' });
     const data = Object.assign(Object.create(null), { userId: 'u-2' });
 
-    const stamped = runWithTenant('tenant_a', () => withJobContext(data));
+    const stamped = sources.tenantId.run('tenant_a', () =>
+      withJobContext(data),
+    );
 
     expect(stamped.jobContext.principal).toEqual({
       id: 'svc',
@@ -78,9 +96,9 @@ describe('withJobContext', () => {
   });
 
   it('fails closed without a running module', () => {
-    expect(() => runWithTenant('tenant_a', () => withJobContext({}))).toThrow(
-      MissingJobContextError,
-    );
+    expect(() =>
+      sources.tenantId.run('tenant_a', () => withJobContext({})),
+    ).toThrow(MissingJobContextError);
   });
 
   it('fails closed without a tenant', () => {
@@ -94,8 +112,8 @@ describe('withJobContext', () => {
   it('fails closed without a principal', () => {
     registration = registerPrincipal(undefined);
 
-    expect(() => runWithTenant('tenant_a', () => withJobContext({}))).toThrow(
-      new MissingJobContextError('principal'),
-    );
+    expect(() =>
+      sources.tenantId.run('tenant_a', () => withJobContext({})),
+    ).toThrow(new MissingJobContextError('principal'));
   });
 });

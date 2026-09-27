@@ -3,20 +3,26 @@
 [![npm version](https://img.shields.io/npm/v/@nestjs-pipeline/tenant.svg)](https://www.npmjs.com/package/@nestjs-pipeline/tenant)
 [![License](https://img.shields.io/npm/l/@nestjs-pipeline/tenant.svg)](https://www.npmjs.com/package/@nestjs-pipeline/tenant)
 
-The current tenant for applications built on
-[`@nestjs-pipeline/core`](https://github.com/aristoteliss/nestjs-pipeline/tree/master/packages/pipeline#readme):
-`currentTenantId()` returns the tenant of the running pipeline, or of a `runWithTenant`
-scope, so code deep inside a handler can read the tenant without it being passed at every
-call site.
+The current tenant of an execution: `currentTenantId()` returns the tenant of the
+innermost `runWithTenant` scope, so code deep inside a handler can read the tenant without
+it being passed at every call site. It has no dependencies; `tenantSource` connects it to
+[`@nestjs-pipeline/core`](https://github.com/aristoteliss/nestjs-pipeline/tree/master/packages/pipeline#readme)
+pipelines and to `@nestjs-pipeline/job-context`.
 
 ## Installation
 
 ```bash
-pnpm add @nestjs-pipeline/tenant @nestjs-pipeline/core
+pnpm add @nestjs-pipeline/tenant
 ```
 
-Requires Node.js 22 or later. There is nothing to register: the package reads and writes
-the execution scope that `@nestjs-pipeline/core` already carries.
+Requires Node.js 22 or later. To give pipelines the tenant, pass `tenantSource` to
+`PipelineModule.forRoot`:
+
+```typescript
+import { tenantSource } from '@nestjs-pipeline/tenant';
+
+PipelineModule.forRoot({ sources: { tenantId: tenantSource } });
+```
 
 ## Usage
 
@@ -30,7 +36,7 @@ await runWithTenant(req.headers['x-tenant'], () => next());
 const tenant = currentTenantId();
 ```
 
-The tenant lives in the execution scope of `@nestjs-pipeline/core`. A pipeline started
+The package owns the tenant store. With `tenantSource` configured, a pipeline started
 inside `runWithTenant` takes that tenant as its write-once `context.tenantId` and runs its
 behaviors and handler with it, so nested dispatches inherit it. A `runWithTenant` inside a
 handler changes the tenant for its own callback only, and a pipeline dispatched there takes
@@ -47,6 +53,7 @@ pass `currentTenantId` itself.
 | --- | --- | --- |
 | `currentTenantId()` | function | The tenant of the innermost pipeline execution or `runWithTenant` scope, or `undefined` |
 | `runWithTenant(tenantId, fn)` | function | Runs `fn` with `tenantId` as the current tenant and returns its result |
+| `tenantSource` | object | `{ current, run }` over the same store, for `PipelineModule.forRoot({ sources })` and `JobContextModule.forRoot` |
 
 ## License
 

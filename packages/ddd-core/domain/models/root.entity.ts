@@ -1,8 +1,8 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { isUuidV7, uuidv7 } from '@cqrs-ddd/uuidv7';
-import type { MutationPatch } from '../decorators/ApplyMutation';
-import { getMutableFields } from '../decorators/Mutable';
+import type { MutationPatch } from '../decorators/apply-mutation.decorator';
+import { getMutableFields } from '../decorators/mutable.decorator';
 import { UnknownMutableFieldError } from '../exceptions/unknown-mutable-field.error';
 import { RootEntitySnapshot } from '../interfaces/root-entity-snapshot.interface';
 import { AggregateRoot } from './aggregate-root';

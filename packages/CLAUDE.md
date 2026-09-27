@@ -11,13 +11,18 @@ too. Repository-wide orientation: [.claude/codebase-map.md](../.claude/codebase-
   binds its tokens. Shared shapes live in `src/interfaces/`, tokens in `src/constants/`,
   pure functions in `src/helpers/`, framework-neutral errors in `src/errors/`, HTTP
   translation in `src/filters/`. `src/index.ts` is the only public entry.
-- Packages depend on `@nestjs-pipeline/core` and their own integration library as **peer**
-  dependencies, never as runtime `dependencies`. `@nestjs-pipeline/core` adds no runtime
-  dependency beyond NestJS itself, with one exception: the framework-neutral `@cqrs-ddd/*`
-  utilities (`@cqrs-ddd/uuidv7` and `@cqrs-ddd/safe-stringify`), which hold no
-  module-scoped state. Behavior packages may depend on them too, the same way. `package-boundaries.spec.ts` pins that list.
+- A package that imports `@nestjs-pipeline/core` declares it, and its own integration
+  library, as **peer** dependencies, never as runtime `dependencies`; a package that does
+  not import core does not declare it. `@nestjs-pipeline/tenant`, `/correlation` and
+  `/job-context` import no other pipeline package: an application connects them through
+  module options (`sources`). `@nestjs-pipeline/core` adds no runtime dependency beyond
+  NestJS itself, with one exception: the framework-neutral `@cqrs-ddd/*` utilities
+  (`@cqrs-ddd/uuidv7`, `@cqrs-ddd/safe-stringify` and `@cqrs-ddd/untyped`), which hold no
+  module-scoped state. Packages import them directly, never through a re-export.
+  `package-boundaries.spec.ts` pins these rules.
 - The exception is the framework-neutral `@cqrs-ddd/*` group, today `packages/uuidv7`
-  (`@cqrs-ddd/uuidv7`) and `packages/safe-stringify` (`@cqrs-ddd/safe-stringify`): no
+  (`@cqrs-ddd/uuidv7`), `packages/safe-stringify` (`@cqrs-ddd/safe-stringify`) and
+  `packages/untyped` (`@cqrs-ddd/untyped`): no
   dependencies, no peers, no NestJS or `@nestjs-pipeline/*` import
   (`framework-independence.grit`, each package's `package-manifest.spec.ts`).
 - `packages/ddd-core` (`@cqrs-ddd/core`) is the framework-neutral DDD package, in the same

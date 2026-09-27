@@ -578,20 +578,17 @@ def section_repository_shape(scan: RepoScan) -> str:
         )
     else:
         lines.append("- **Shape**: single package (no workspace globs found).")
-    lines.append(f"- **Publishable packages**: {len(published)} (manifest without `private: true`).")
-    lines.append(f"- **Private workspaces**: {len(private)}.")
     lines.append(
-        f"- **Runnable workspaces**: {len(runnable)} "
-        f"({code_list([pkg.rel_dir for pkg in runnable]) if runnable else 'none detected'})."
+        f"- **Publishable packages**: {len(published)}; private: "
+        f"{code_list([pkg.rel_dir for pkg in private]) if private else 'none'}."
     )
-    lines.append("")
-    lines.append("| Path | Package | Version | Publishable | Runnable |")
-    lines.append("| --- | --- | --- | --- | --- |")
-    for pkg in scan.packages:
-        lines.append(
-            f"| `{pkg.rel_dir}` | `{pkg.name}` | {cell(pkg.version)} | "
-            f"{'no' if pkg.private else 'yes'} | {'yes' if pkg.runnable else 'no'} |"
-        )
+    lines.append(
+        f"- **Runnable workspaces**: "
+        f"{code_list([pkg.rel_dir for pkg in runnable]) if runnable else 'none detected'}."
+    )
+    versions = sorted({pkg.version for pkg in scan.packages if pkg.version})
+    lines.append(f"- **Versions**: {code_list(versions)}.")
+    lines.append("- **Packages**: see the Workspace packages table under Directory Map.")
     return "\n".join(lines)
 
 
@@ -607,24 +604,6 @@ def section_technology_stack(scan: RepoScan) -> str:
         ),
         key=lambda item: (-item[1], item[0]),
     )
-    declared: dict = {}
-    for pkg in scan.packages + [
-        PackageInfo(
-            rel_dir=".",
-            name=str(root_manifest.get("name", "root")),
-            version="",
-            private=True,
-            description="",
-            main="",
-            scripts={},
-            dependencies=root_manifest.get("dependencies") or {},
-            dev_dependencies=root_manifest.get("devDependencies") or {},
-            peer_dependencies=root_manifest.get("peerDependencies") or {},
-        )
-    ]:
-        for source in (pkg.dependencies, pkg.dev_dependencies, pkg.peer_dependencies):
-            for name, spec in source.items():
-                declared.setdefault(str(name), set()).add(str(spec))
 
     lines = [
         "- **Languages** (file counts, excluded directories omitted): "
@@ -632,32 +611,39 @@ def section_technology_stack(scan: RepoScan) -> str:
         f"- **Runtime engines** (root `package.json`): "
         + (", ".join(f"`{key}` {value}" for key, value in sorted(engines.items())) or "not declared"),
         f"- **Package manager evidence**: {code_list(lock_files) if lock_files else 'no lock file found'}.",
-        "",
-        "| Technology | Evidence (declared) | Used in (sample) |",
-        "| --- | --- | --- |",
+        "- **Integrations**: listed with their purpose under Dependencies and Integrations.",
     ]
-    for label, modules, note in INTEGRATION_RULES:
-        present = [module for module in modules if module in declared or module in scan.imports]
-        if not present:
-            continue
-        importers: list = []
-        for module in present:
-            importers.extend(scan.imports.get(module, []))
-        sample = sorted(set(importers))[:2]
-        lines.append(
-            f"| {cell(label)} — {cell(note)} | {code_list(present, limit=3)} | "
-            f"{code_list(sample) if sample else 'declared only'} |"
-        )
     return "\n".join(lines)
 
 
-def script_file_targets(scan: RepoScan, command: str) -> list:
+def script_file_targets(scan: RepoScan, command: str, base: str = ".") -> list:
+    """Repository paths of the files `command` names, resolved from `base`."""
     found = []
     for match in re.finditer(r"[\w./@-]+\.(?:ts|tsx|js|mjs|cjs|py|sh)", command):
         candidate = match.group(0).lstrip("./")
+        if base != ".":
+            candidate = f"{base}/{candidate}"
         if candidate in scan.files:
             found.append(candidate)
     return sorted(set(found))
+
+
+def group_filtered_scripts(invocation: str) -> str:
+    """Merges `pnpm --filter <pkg> <script>` parts of one package into one part."""
+    parts = invocation.split("; ")
+    scripts: dict = {}
+    others = []
+    for part in parts:
+        match = re.fullmatch(r"`pnpm --filter (\S+) (\S+)`", part)
+        if match:
+            scripts.setdefault(match.group(1), []).append(match.group(2))
+        else:
+            others.append(part)
+    grouped = [
+        f"`pnpm --filter {name}` " + ", ".join(f"`{script}`" for script in names)
+        for name, names in scripts.items()
+    ]
+    return "; ".join(others + grouped)
 
 
 def section_entry_points(scan: RepoScan) -> str:
@@ -680,7 +666,7 @@ def section_entry_points(scan: RepoScan) -> str:
             if role:
                 add(rel, role, f"workspace `{pkg.name}`")
         for script_name in sorted(pkg.scripts):
-            for target in script_file_targets(scan, pkg.scripts[script_name]):
+            for target in script_file_targets(scan, pkg.scripts[script_name], pkg.rel_dir):
                 if target.startswith(pkg.rel_dir):
                     add(
                         target,
@@ -704,10 +690,22 @@ def section_entry_points(scan: RepoScan) -> str:
         "| Path | Role | Invocation |",
         "| --- | --- | --- |",
     ]
+    barrel = ENTRY_FILE_ROLES.get("index.ts")
+    standard = {f"{pkg.rel_dir}/src/index.ts" for pkg in scan.packages}
+    collapsed = sorted(path for path, (role, _) in rows.items() if role == barrel and path in standard)
     for path in sorted(rows):
+        if path in collapsed:
+            continue
         role, invocation = rows[path]
+        invocation = group_filtered_scripts(invocation)
         marker = "" if path in scan.files else " *(not committed)*"
         lines.append(f"| `{path}`{marker} | {cell(role)} | {cell(invocation)} |")
+    if collapsed:
+        lines.append("")
+        lines.append(
+            f"{cell(barrel)}: `<package>/src/index.ts` in {len(collapsed)} workspace packages; "
+            "exceptions are listed above."
+        )
     if published:
         lines.append("")
         lines.append(
@@ -725,19 +723,11 @@ def section_directory_map(scan: RepoScan) -> str:
         "Only directories that carry responsibility are listed. Generated output, caches and",
         "editor/tooling directories are excluded (see Snapshot Metadata).",
         "",
-        "| Directory | Responsibility | Key files |",
-        "| --- | --- | --- |",
+        "| Directory | Responsibility |",
+        "| --- | --- |",
     ]
     for rel_dir in top_level:
-        description = describe_directory(scan, rel_dir)
-        key_files = [
-            Path(rel).name
-            for rel in scan.files
-            if str(Path(rel).parent.as_posix()) == rel_dir and not is_sensitive_name(Path(rel).name)
-        ][:4]
-        lines.append(
-            f"| `{rel_dir}/` | {cell(description)} | {code_list(key_files) if key_files else 'subdirectories only'} |"
-        )
+        lines.append(f"| `{rel_dir}/` | {cell(describe_directory(scan, rel_dir))} |")
 
     root_files = [
         rel
@@ -751,25 +741,48 @@ def section_directory_map(scan: RepoScan) -> str:
         lines.append("")
         lines.append("### Workspace packages")
         lines.append("")
-        lines.append("| Path | Package | Source layout | Docs |")
-        lines.append("| --- | --- | --- | --- |")
+        without_readme = [pkg.rel_dir for pkg in scan.packages if not pkg.has_readme]
+        lines.append(
+            "Each has a `README.md`."
+            if not without_readme
+            else f"Without a `README.md`: {code_list(without_readme)}."
+        )
+        lines.append("")
+        lines.append("| Path | Package | Source layout |")
+        lines.append("| --- | --- | --- |")
         for pkg in scan.packages:
-            layout = code_list(pkg.source_dirs, limit=10) if pkg.source_dirs else "flat (no subdirectories)"
-            docs = f"[README]({pkg.rel_dir}/README.md)" if pkg.has_readme else "none"
-            lines.append(f"| `{pkg.rel_dir}` | `{pkg.name}` | {layout} | {docs} |")
+            layout = code_list(pkg.source_dirs, limit=10) if pkg.source_dirs else "flat"
+            lines.append(f"| `{pkg.rel_dir}` | `{pkg.name}` | {layout} |")
     return "\n".join(lines)
+
+
+def declared_dependencies(scan: RepoScan) -> set:
+    """Names of every dependency, dev dependency and peer declared in the workspace."""
+    root_manifest = read_json(scan.root / "package.json")
+    names = set()
+    for manifest_deps in (
+        root_manifest.get("dependencies") or {},
+        root_manifest.get("devDependencies") or {},
+        root_manifest.get("peerDependencies") or {},
+    ):
+        names.update(str(name) for name in manifest_deps)
+    for pkg in scan.packages:
+        for source in (pkg.dependencies, pkg.dev_dependencies, pkg.peer_dependencies):
+            names.update(str(name) for name in source)
+    return names
 
 
 def section_dependencies(scan: RepoScan) -> str:
     workspace_names = {pkg.name for pkg in scan.packages}
+    declared = declared_dependencies(scan)
     lines = [
         "External dependency names and declared ranges only. No credential, endpoint or",
         "environment value is read or reproduced here.",
         "",
-        "| Integration | Declared in | Imported by (sample) |",
+        "| Integration | Packages | Declared in |",
         "| --- | --- | --- |",
     ]
-    for label, modules, _note in INTEGRATION_RULES:
+    for label, modules, note in INTEGRATION_RULES:
         declared_in = sorted(
             pkg.rel_dir
             for pkg in scan.packages
@@ -778,15 +791,12 @@ def section_dependencies(scan: RepoScan) -> str:
                 for module in modules
             )
         )
-        importers: list = []
-        for module in modules:
-            importers.extend(scan.imports.get(module, []))
-        sample = sorted(set(importers))[:2]
-        if not declared_in and not sample:
+        present = [module for module in modules if module in declared or module in scan.imports]
+        if not declared_in and not present:
             continue
         lines.append(
-            f"| {cell(label)} | {code_list(declared_in, limit=4) if declared_in else 'root only'} | "
-            f"{code_list(sample) if sample else 'not imported directly'} |"
+            f"| {cell(label)} — {cell(note)} | {code_list(present, limit=3)} | "
+            f"{code_list(declared_in, limit=4) if declared_in else 'root only'} |"
         )
 
     lines.append("")
@@ -830,16 +840,21 @@ def section_commands(scan: RepoScan) -> str:
     ]
     for name in sorted(root_scripts):
         body = str(root_scripts[name])
-        body = body if len(body) <= 110 else body[:109] + "…"
+        body = body if len(body) <= 72 else body[:71] + "…"
         lines.append(f"| `pnpm {name}` | `{cell(body)}` |")
 
     lines.append("")
     lines.append("### Workspace scripts")
     lines.append("")
-    lines.append("| Workspace | Scripts |")
+    lines.append("Workspaces with the same scripts share a row.")
+    lines.append("")
+    lines.append("| Workspaces | Scripts |")
     lines.append("| --- | --- |")
+    groups: dict = {}
     for pkg in scan.packages:
-        lines.append(f"| `{pkg.rel_dir}` | {code_list(sorted(pkg.scripts), limit=14)} |")
+        groups.setdefault(tuple(sorted(pkg.scripts)), []).append(pkg.rel_dir)
+    for scripts, dirs in groups.items():
+        lines.append(f"| {code_list(dirs, limit=len(dirs))} | {code_list(list(scripts), limit=14)} |")
 
     lines.append("")
     lines.append("### Context-management commands")

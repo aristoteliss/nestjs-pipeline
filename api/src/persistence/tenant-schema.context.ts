@@ -8,7 +8,7 @@ import { tenantSchema } from './persistence.config';
 /**
  * Validates and resolves the active tenant schema.
  *
- * It reads and writes the tenant scope of `@nestjs-pipeline/tenant`, the one
+ * It reads and writes the tenant of `@nestjs-pipeline/tenant`, the one tenant
  * store the database store, the pipeline and core's tenant-scoped cache keys
  * share. It fails closed: work outside {@link run} or a pipeline execution has
  * no tenant, and reading {@link schema} there throws instead of falling back to
@@ -36,7 +36,7 @@ export class TenantSchemaContext {
   }
 
   /**
-   * The active tenant, validated on every read: the shared scope also accepts
+   * The active tenant, validated on every read: the tenant store also accepts
    * tenants set through `runWithTenant` directly.
    *
    * @throws {MissingTenantContextError} Outside {@link run} and outside a

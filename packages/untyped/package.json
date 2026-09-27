@@ -1,0 +1,50 @@
+{
+  "name": "@cqrs-ddd/untyped",
+  "version": "0.2.0",
+  "description": "A typed replacement for `as any`: reads undeclared properties as unknown. No dependencies and no framework.",
+  "author": "Aristotelis",
+  "license": "SEE LICENSE IN LICENSE",
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/aristoteliss/nestjs-pipeline.git",
+    "directory": "packages/untyped"
+  },
+  "homepage": "https://github.com/aristoteliss/nestjs-pipeline/tree/master/packages/untyped#readme",
+  "bugs": {
+    "url": "https://github.com/aristoteliss/nestjs-pipeline/issues"
+  },
+  "keywords": [
+    "typescript",
+    "types",
+    "unknown",
+    "no-explicit-any"
+  ],
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE",
+    "COMMERCIAL_LICENSE.txt"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "build:watch": "tsc -p tsconfig.build.json --watch",
+    "clean": "rm -rf dist tsconfig.tsbuildinfo",
+    "rebuild": "pnpm run clean && pnpm run build",
+    "lint": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "prepublishOnly": "pnpm run rebuild"
+  },
+  "devDependencies": {
+    "@vitest/coverage-v8": "^4.1.11",
+    "vitest": "^4.1.11"
+  }
+}

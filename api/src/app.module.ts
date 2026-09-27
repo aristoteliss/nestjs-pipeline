@@ -1,5 +1,6 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
+import { contextSources } from '@common/context/context-sources';
 import { AuthSessionGuard } from '@common/guards/auth-session.guard';
 import { SessionPrincipalContextInterceptor } from '@common/interceptors/session-principal-context.interceptor';
 import {
@@ -53,6 +54,7 @@ import { UsersModule } from './users/users.module';
     JobContextModule.forRoot({
       principal: SessionJobPrincipal,
       tenants: persistenceConfig().tenants,
+      sources: contextSources,
       imports: [AuthsModule],
     }),
   ],

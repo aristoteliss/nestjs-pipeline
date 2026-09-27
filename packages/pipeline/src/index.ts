@@ -1,37 +1,27 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-export {
-  ABSENT_SEGMENT,
-  DEFAULT_REDACT_KEYS,
-  escapeKeySegment,
-  joinKeySegments,
-  REDACTED,
-  redactValue,
-  type SanitizeOptions,
-  type StrictJsonValue,
-  safeSanitize,
-  safeStringify,
-  stableStringify,
-  toStrictJsonValue,
-} from '@cqrs-ddd/safe-stringify';
-export { isUuidV7, uuidv7 } from '@cqrs-ddd/uuidv7';
 export * from './behaviors/logging.behavior';
 export {
   pipelineStore,
   SET_TENANT_ID,
 } from './constants/pipeline-context.constants';
 export * from './decorators';
+export { MissingPartitionError } from './errors/missing-partition.error';
 export * from './errors/missing-pipeline-item.error';
-export {
-  currentScope,
-  type ExecutionScope,
-  runInScope,
-} from './execution-scope';
 export {
   type LoggingIntentOptions,
   logging,
 } from './helpers/logging.intent';
 export { toPostgresJson } from './helpers/postgres-json';
+export {
+  type TenantPartitionOptions,
+  tenantSegments,
+} from './helpers/tenant-partition';
+export type {
+  ContextSource,
+  ContextSources,
+  CorrelationSource,
+} from './interfaces/context-source.interface';
 export * from './interfaces/pipeline.behavior.interface';
 export * from './interfaces/pipeline.context.interface';
 export * from './interfaces/pipeline-behavior-contract.interface';
@@ -48,4 +38,3 @@ export type {
 export * from './pipeline.context';
 export * from './pipeline.module';
 export * from './pipeline-items';
-export { untyped } from './types/safe-typing';

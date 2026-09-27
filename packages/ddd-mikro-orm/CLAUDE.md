@@ -10,22 +10,34 @@ Read [AGENTS.md](../../AGENTS.md), the
 ## Local architecture
 
 One entry point, `src/index.ts`. The package implements core's ports for MikroORM; it
-defines no port of its own except `IEntityManagerSource`.
+defines no port of its own except `IEntityManagerSource`. Files are grouped by role:
+
+| Folder | Holds |
+| --- | --- |
+| `src/interfaces/` | `IEntityManagerSource`, the one port |
+| `src/repository/` | `AggregateRepository` |
+| `src/concurrency/` | version-conditioned writes and the autocommit guard |
+| `src/cache/` | `MikroOrmCache` and its `CacheEntry` |
+| `src/mapping/` | schema building blocks: root-entity properties, `UnixTimestampType` |
+| `src/errors/` | the dialect and the transient-failure classifier |
+| `src/tenancy/` | `TenantStore` |
+| `src/helpers/` | pure functions (`isSqlIdentifier`) |
 
 ## Ownership
 
-- the aggregate repository base (`AggregateRepository`, `src/aggregate.repository.ts`);
-- version-conditioned writes (`optimisticUpdate`, `optimisticDelete`, `assertAutocommit`);
+- the aggregate repository base (`AggregateRepository`, `src/repository/aggregate.repository.ts`);
+- version-conditioned writes (`optimisticUpdate`, `optimisticDelete`, `assertAutocommit`,
+  `src/concurrency/`), which share one row-count check (`conditioned-write.ts`);
 - the database `IVersionedCache` (`MikroOrmCache`, `CacheEntry`, `src/cache/`);
 - the root-entity schema mapping (`rootEntityProperties`, `versionProperty`,
   `UnixTimestampType`);
 - the SQL identifier check (`isSqlIdentifier`), used wherever a name is interpolated into
   SQL text;
-- the multi-tenant `EntityManager` source (`TenantStore`, `src/tenant-store.ts`), which
+- the multi-tenant `EntityManager` source (`TenantStore`, `src/tenancy/tenant-store.ts`), which
   alone decides whether a contextual manager may be reused for a tenant;
-- the persistence dialect (`MikroOrmDialect`, `src/mikro-orm.dialect.ts`) and the transient
+- the persistence dialect (`MikroOrmDialect`, `src/errors/mikro-orm.dialect.ts`) and the transient
   failure classifier (`isTransientPersistenceError`, `mapPersistenceError`,
-  `src/transient-error.ts`): every database error code of the stack lives here, never in
+  `src/errors/transient-error.ts`): every database error code of the stack lives here, never in
   core.
 
 Do not add another copy of any of them anywhere.

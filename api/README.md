@@ -624,7 +624,7 @@ fabricated `cache.hit=false` would be indistinguishable from a real miss. The
 cache key is deliberately not an attribute — it carries tenant and principal and
 is unbounded.
 
-The application also has its own tenant-aware DDD repository cache so user/role write invalidation has a single clear target. In addition, `TenantSchemaMiddleware` runs each request inside `TenantSchemaContext.run`, which sets the tenant of `@nestjs-pipeline/core`'s execution scope; every pipeline takes it as `IPipelineContext.tenantId`, so command handlers, rate limiters and idempotency key factories read the tenant from the context without direct ambient coupling. `ObservabilityModule` also registers `currentTenantId` from `@nestjs-pipeline/tenant` as the tenant resolver of `@cqrs-ddd/core` (`setTenantResolver`), so repository cache keys (`cacheKey`) take the scope's tenant without it being passed at each call site. The application is the only place that knows both packages.
+The application also has its own tenant-aware DDD repository cache so user/role write invalidation has a single clear target. In addition, `TenantSchemaMiddleware` runs each request inside `TenantSchemaContext.run`, which sets the current tenant of `@nestjs-pipeline/tenant`; every pipeline takes it as `IPipelineContext.tenantId`, so command handlers, rate limiters and idempotency key factories read the tenant from the context without direct ambient coupling. `ObservabilityModule` also registers `currentTenantId` from `@nestjs-pipeline/tenant` as the tenant resolver of `@cqrs-ddd/core` (`setTenantResolver`), so repository cache keys (`cacheKey`) take the scope's tenant without it being passed at each call site. The application is the only place that knows both packages.
 
 ## Code boundaries
 
@@ -656,7 +656,7 @@ filter's mapping; `test/not-found-boundary.e2e-spec.ts` and
 Repository cache keys use one serializer, `stableStringify` from
 `@cqrs-ddd/safe-stringify`. `cacheKey` adds only tenant namespacing, top-level filter
 segments and escaping of its `:` / `\` delimiters, and takes the tenant from the resolver
-`ObservabilityModule` registers (`currentTenantId`, the execution scope's tenant). Do not
+`ObservabilityModule` registers (`currentTenantId` of `@nestjs-pipeline/tenant`). Do not
 add another object sorter or JSON canonicalizer here.
 
 Idempotency and rate-limit key factories call `requireTenantId()` and fail closed when

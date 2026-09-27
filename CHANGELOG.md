@@ -26,10 +26,11 @@ Breaking:
   correlation ID.
 - A context's tenant id is write-once: assigning it again throws.
 - The module options `correlationIdFactory`, `correlationIdRunner` and `tenantIdFactory`
-  are removed. A pipeline takes its tenant and correlation id from the execution scope
-  (`runInScope`) when it starts, generates a `uuidv7()` correlation id when the scope has
-  none, and runs its behaviors inside a scope holding both. Set them where work enters the
-  application: `runWithTenant` of `@nestjs-pipeline/tenant`, `HttpCorrelationMiddleware`
+  are removed. A pipeline takes its tenant and correlation id from the `sources` module
+  option when it starts (`tenantSource` of `@nestjs-pipeline/tenant`, `correlationSource`
+  of `@nestjs-pipeline/correlation`), or from the pipeline it is nested in, generates a
+  `uuidv7()` correlation id when there is none, and runs its behaviors inside both values.
+  Set them where work enters the application: `runWithTenant` of `@nestjs-pipeline/tenant`, `HttpCorrelationMiddleware`
   or `runWithCorrelationId` of `@nestjs-pipeline/correlation`.
 - When several NestJS applications in one process wrap the same handler class, calling it
   on an instance that none of them created throws, instead of running without any
@@ -49,30 +50,35 @@ Added:
 - Behavior contracts and bootstrap diagnostics: `PIPELINE_BEHAVIOR_CONTRACT`,
   `PipelineConfigurationError` and their types.
 - `SET_TENANT_ID`, `toPostgresJson`.
-- The execution scope, the one async-local store of the tenant and correlation id:
-  `currentScope`, `runInScope`, `ExecutionScope`.
-- The serializers and key-segment helpers (`stableStringify`, `toStrictJsonValue`,
-  `safeStringify`, `safeSanitize`, `redactValue`, `DEFAULT_REDACT_KEYS`, `REDACTED`,
-  `joinKeySegments`, `escapeKeySegment`, `ABSENT_SEGMENT`), re-exported from
-  `@cqrs-ddd/safe-stringify`.
+- `tenantSegments` and `TenantPartitionOptions`, the tenant part of the cache,
+  idempotency and rate-limit key factories, and `MissingPartitionError`, the base of their
+  partition errors. The cache key factory now also takes `includeTenant`.
+- The `sources` module option with `ContextSource` and `ContextSources`: where pipelines
+  take their tenant and correlation id from. Bootstrap warns when it is omitted; pass
+  `sources: {}` to run without sources on purpose.
 
-Same API and output: `uuidv7` and `isUuidV7` now come from `@cqrs-ddd/uuidv7`, and the
-serializers above from `@cqrs-ddd/safe-stringify`. Both are installed as dependencies.
+Removed from the public API: `uuidv7`, `isUuidV7`, `untyped` and the serializers and
+key-segment helpers (`stableStringify`, `safeStringify`, …). Import them from
+`@cqrs-ddd/uuidv7`, `@cqrs-ddd/untyped` and `@cqrs-ddd/safe-stringify`.
 
 #### `@nestjs-pipeline/correlation` (from 0.1.8)
 
 Breaking:
 
-- New required peer: `@nestjs-pipeline/core` `^0.2.0`. `@nestjs/common` `^11.0.0`.
-- `setCorrelationFallback` is no longer exported.
-- `correlationStore` is removed: the correlation id lives in the execution scope of
-  `@nestjs-pipeline/core`. `runWithCorrelationId`, `getCorrelationId`, `addCorrelationId`,
+- New required peer: `@nestjs/common` `^11.0.0`. The package no longer depends on
+  `@nestjs-pipeline/core`.
+- `setCorrelationFallback` and `uuidv7` are no longer exported; import `uuidv7` from
+  `@cqrs-ddd/uuidv7`.
+- `correlationStore` is replaced by `correlationSource`. Pass it to
+  `PipelineModule.forRoot({ sources: { correlationId: correlationSource } })` so a pipeline
+  takes the id and `getCorrelationId()` in a handler returns the pipeline's id.
+  `runWithCorrelationId`, `getCorrelationId`, `addCorrelationId`,
   `correlationHeaders`, `@WithCorrelation` and `HttpCorrelationMiddleware` keep their API.
 - An incoming correlation ID longer than 128 characters, or not matching
   `DEFAULT_CORRELATION_ID_PATTERN`, is discarded and replaced by a locally generated ID.
 
-Added: `DEFAULT_CORRELATION_HEADER`, `DEFAULT_CORRELATION_ID_MAX_LENGTH`,
-`DEFAULT_CORRELATION_ID_PATTERN`.
+Added: `correlationSource`, `DEFAULT_CORRELATION_HEADER`,
+`DEFAULT_CORRELATION_ID_MAX_LENGTH`, `DEFAULT_CORRELATION_ID_PATTERN`.
 
 Same API and output: `uuidv7` now comes from `@cqrs-ddd/uuidv7`.
 
@@ -166,12 +172,16 @@ Added: `requires()`, `CaslAuthorizer` (`can`, `authorize`, `project`),
   bulkhead around a whole handler; a circuit breaker or fallback there is a bootstrap
   error. Retry, circuit breaker and fallback require a `handle` predicate or
   `handleAllErrors: true`.
-- `@nestjs-pipeline/tenant`: `runWithTenant()` sets the tenant of the execution scope and
-  `currentTenantId()` reads it, including the tenant of the running pipeline.
+- `@nestjs-pipeline/tenant`: `runWithTenant()` sets the current tenant and
+  `currentTenantId()` reads it; `tenantSource` hands the same store to
+  `PipelineModule.forRoot({ sources })` and `JobContextModule.forRoot`. It has no
+  dependencies.
 - `@nestjs-pipeline/job-context`: carries a request's tenant, correlation id and
   principal identity into the queue jobs it enqueues (`withJobContext`, `@InJobContext`),
   re-checked through an application `IJobPrincipal` when the job runs, and gives system
-  work an explicit principal and grants per tenant (`@AsSystem`).
+  work an explicit principal and grants per tenant (`@AsSystem`). It reads and restores the
+  tenant and correlation id through the `sources` of `JobContextModule.forRoot` and depends
+  on no other pipeline package.
 - `@cqrs-ddd/core`: framework-neutral DDD building blocks (aggregates, domain events,
   `CommandBaseHandler`, repository contracts, persistence lifecycle decorators that map
   unique violations by entity property through a pluggable persistence dialect
@@ -190,6 +200,8 @@ Added: `requires()`, `CaslAuthorizer` (`can`, `authorize`, `project`),
   a schema per tenant) and `UnixTimestampType`, which throws a `TypeError` for a value with no
   valid time. `@cqrs-ddd/core` and `@mikro-orm/core` are required peers.
 - `@cqrs-ddd/uuidv7`: RFC 9562 UUIDv7 generation and validation, with no dependencies.
+- `@cqrs-ddd/untyped`: `untyped(value)`, a typed replacement for `as any` that reads
+  undeclared properties as `unknown`; no dependencies.
 - `@cqrs-ddd/safe-stringify`: a strict, key-sorted serializer for identities and a safe,
   redacting serializer for logs, with the key-segment helpers; no dependencies. Its output
   is frozen, so stored cache keys stay valid.

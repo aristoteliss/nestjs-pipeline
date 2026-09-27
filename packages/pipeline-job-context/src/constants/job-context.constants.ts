@@ -5,3 +5,6 @@ export const JOB_PRINCIPAL = Symbol('JOB_PRINCIPAL');
 
 /** Injection token of the configured tenant list. */
 export const JOB_TENANTS = Symbol('JOB_TENANTS');
+
+/** Injection token of the tenant and correlation id sources. */
+export const JOB_SOURCES = Symbol('JOB_SOURCES');

@@ -4,8 +4,8 @@ import { describe, expect, it, vi } from 'vitest';
 import { IEvent } from '../events/event.interface';
 import { UnknownMutableFieldError } from '../exceptions/unknown-mutable-field.error';
 import { RootEntity } from '../models/root.entity';
-import { ApplyMutation } from './ApplyMutation';
-import { getMutableFields, Mutable } from './Mutable';
+import { ApplyMutation } from './apply-mutation.decorator';
+import { getMutableFields, Mutable } from './mutable.decorator';
 
 class RenamedEvent implements IEvent {
   constructor(

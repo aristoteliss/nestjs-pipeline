@@ -15,8 +15,9 @@ packages. Repository orientation: [.claude/codebase-map.md](../../.claude/codeba
   handler's options — this keeps global guards outside behaviors that may short-circuit.
 - The core package adds no runtime dependency beyond NestJS, except the framework-neutral
   `@cqrs-ddd/*` utilities (see [packages/CLAUDE.md](../CLAUDE.md)). `uuidv7` and `isUuidV7`
-  are re-exported from `@cqrs-ddd/uuidv7`; the serializers and key-segment helpers are
-  re-exported from `@cqrs-ddd/safe-stringify`.
+  come from `@cqrs-ddd/uuidv7`, the serializers and key-segment helpers from
+  `@cqrs-ddd/safe-stringify`, and `untyped` from `@cqrs-ddd/untyped`; core does not
+  re-export them.
 - Names follow [AGENTS.md → Naming](../../AGENTS.md#naming); an exported name or token is a
   published contract.
 
@@ -27,7 +28,7 @@ packages. Repository orientation: [.claude/codebase-map.md](../../.claude/codeba
 | `src/pipeline.module.ts` | Module registration and global behavior options |
 | `src/services/pipeline.bootstrap.service.ts` | Handler discovery, chain composition, bootstrap diagnostics |
 | `src/pipeline.context.ts` | `IPipelineContext`, the per-execution context |
-| `src/execution-scope.ts` | The execution scope: the one async-local store of tenant and correlation id (`runInScope`, `currentScope`); `@nestjs-pipeline/tenant` and `/correlation` read and write it |
+| `src/interfaces/context-source.interface.ts` | `ContextSource(s)`: the `sources` option through which a pipeline takes its tenant and correlation id; `@nestjs-pipeline/tenant` and `/correlation` own the stores and export them |
 | `src/decorators/pipeline.decorator.ts` | `@UsePipeline` metadata |
 | `src/behaviors/logging.behavior.ts` | The one bundled behavior |
 | `src/interfaces/` | `IPipelineBehavior`, `IPipelineContext` — the public contract |

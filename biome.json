@@ -156,7 +156,8 @@
         "**/packages/ddd-core/**/*.ts",
         "**/packages/ddd-mikro-orm/**/*.ts",
         "**/packages/uuidv7/**/*.ts",
-        "**/packages/safe-stringify/**/*.ts"
+        "**/packages/safe-stringify/**/*.ts",
+        "**/packages/untyped/**/*.ts"
       ]
     },
     {

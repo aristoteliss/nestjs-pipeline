@@ -1,5 +1,7 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
+import { MissingPartitionError } from '@nestjs-pipeline/core';
+
 /** Which dimension of the cache key could not be resolved. */
 export type CachePartitionDimension = 'tenant' | 'principal' | 'scope';
 
@@ -13,16 +15,14 @@ export type CachePartitionDimension = 'tenant' | 'principal' | 'scope';
  * not merely lose isolation — it can replay one caller's authorized response to
  * another.
  */
-export class MissingCachePartitionError extends Error {
+export class MissingCachePartitionError extends MissingPartitionError<CachePartitionDimension> {
   override readonly name = 'MissingCachePartitionError';
 
   constructor(
-    public readonly requestName: string,
-    public readonly dimension: CachePartitionDimension,
-    public readonly remedy: string,
+    requestName: string,
+    dimension: CachePartitionDimension,
+    remedy: string,
   ) {
-    super(
-      `Cache key for ${requestName} requires a ${dimension} partition, which could not be resolved. ${remedy}`,
-    );
+    super('Cache', requestName, dimension, remedy);
   }
 }

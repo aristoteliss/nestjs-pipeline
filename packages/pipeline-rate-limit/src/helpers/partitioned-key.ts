@@ -1,7 +1,11 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { joinKeySegments } from '@cqrs-ddd/safe-stringify';
-import { type IPipelineContext } from '@nestjs-pipeline/core';
+import {
+  type IPipelineContext,
+  type TenantPartitionOptions,
+  tenantSegments,
+} from '@nestjs-pipeline/core';
 import { MissingRateLimitPartitionError } from '../errors/missing-partition.error';
 import type { RateLimitKeyFactory } from '../interfaces/rate-limit-options.interface';
 
@@ -17,27 +21,7 @@ export type RateLimitPartitionFactory = (
 ) => string | undefined;
 
 /** Options for {@link createPartitionedRateLimitKeyFactory}. */
-export interface PartitionedRateLimitKeyOptions {
-  /**
-   * Include `context.tenantId` before the caller partition.
-   *
-   * This prevents the same user/account identifier in two tenants from sharing a
-   * limiter bucket accidentally.
-   *
-   * @default true
-   */
-  includeTenant?: boolean;
-
-  /**
-   * Whether a missing tenant is an error rather than an omitted segment.
-   *
-   * `includeTenant` answers "should the tenant be part of the key"; this answers
-   * "may it be absent".
-   *
-   * Defaults to `includeTenant`.
-   */
-  requireTenant?: boolean;
-
+export interface PartitionedRateLimitKeyOptions extends TenantPartitionOptions {
   /**
    * Behavior when the partition factory cannot resolve a non-empty identity.
    *
@@ -92,19 +76,14 @@ export function createPartitionedRateLimitKeyFactory(
   partitionFactory: RateLimitPartitionFactory,
   options: PartitionedRateLimitKeyOptions = {},
 ): RateLimitKeyFactory {
-  const includeTenant = options.includeTenant ?? true;
-  const requireTenant = options.requireTenant ?? includeTenant;
   const onMissingPartition = options.onMissingPartition ?? 'throw';
 
   return (context) => {
-    if (requireTenant && !context.tenantId) {
-      throw new MissingRateLimitPartitionError(
-        context.requestName,
-        'tenant',
-        'Run the request inside a tenant scope (runWithTenant of @nestjs-pipeline/tenant), or pass requireTenant: false ' +
-          'for a single-tenant deployment.',
-      );
-    }
+    const tenant = tenantSegments(
+      context,
+      options,
+      MissingRateLimitPartitionError,
+    );
 
     const resolved = partitionFactory(context);
     const partition = typeof resolved === 'string' ? resolved.trim() : '';
@@ -119,16 +98,9 @@ export function createPartitionedRateLimitKeyFactory(
       }
       // Shared bucket, but still inside the tenant partition when one is used,
       // so an anonymous caller in one tenant cannot exhaust another tenant's quota.
-      return joinKeySegments([
-        ...(includeTenant ? [context.tenantId] : []),
-        context.requestName,
-      ]);
+      return joinKeySegments([...tenant, context.requestName]);
     }
 
-    return joinKeySegments([
-      ...(includeTenant ? [context.tenantId] : []),
-      partition,
-      context.requestName,
-    ]);
+    return joinKeySegments([...tenant, partition, context.requestName]);
   };
 }

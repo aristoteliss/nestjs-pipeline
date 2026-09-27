@@ -2,7 +2,11 @@
 
 import { createHash } from 'node:crypto';
 import { joinKeySegments, stableStringify } from '@cqrs-ddd/safe-stringify';
-import { type IPipelineContext } from '@nestjs-pipeline/core';
+import {
+  type IPipelineContext,
+  type TenantPartitionOptions,
+  tenantSegments,
+} from '@nestjs-pipeline/core';
 import { MissingCachePartitionError } from '../errors/missing-partition.error';
 import type { CacheKeyFactory } from '../interfaces/cache-options.interface';
 
@@ -10,7 +14,7 @@ import type { CacheKeyFactory } from '../interfaces/cache-options.interface';
 const KEY_VERSION = 'v3';
 
 /** Options for {@link createPartitionedCacheKeyFactory}. */
-export interface PartitionedCacheKeyOptions {
+export interface PartitionedCacheKeyOptions extends TenantPartitionOptions {
   /**
    * Resolves the principal the response is scoped to.
    *
@@ -28,13 +32,6 @@ export interface PartitionedCacheKeyOptions {
    * under the old permissions until the entry expires.
    */
   scope?: (context: IPipelineContext) => string | undefined;
-
-  /**
-   * Whether a missing tenant is an error rather than an omitted segment.
-   *
-   * @default true
-   */
-  requireTenant?: boolean;
 
   /**
    * Whether a missing principal is an error.
@@ -103,7 +100,6 @@ function digestRequest(request: unknown): string {
 export function createPartitionedCacheKeyFactory(
   options: PartitionedCacheKeyOptions,
 ): CacheKeyFactory {
-  const requireTenant = options.requireTenant ?? true;
   const requirePrincipal = options.requirePrincipal ?? true;
   const requireScope = options.requireScope ?? true;
   if (requireScope && !options.scope) {
@@ -116,14 +112,7 @@ export function createPartitionedCacheKeyFactory(
   }
 
   return (context) => {
-    if (requireTenant && !context.tenantId) {
-      throw new MissingCachePartitionError(
-        context.requestName,
-        'tenant',
-        'Run the request inside a tenant scope (runWithTenant of @nestjs-pipeline/tenant), or pass requireTenant: false ' +
-          'for a single-tenant deployment.',
-      );
-    }
+    const tenant = tenantSegments(context, options, MissingCachePartitionError);
 
     const resolvedPrincipal = options.principal(context);
     const principal =
@@ -158,7 +147,7 @@ export function createPartitionedCacheKeyFactory(
     return joinKeySegments([
       'cache',
       KEY_VERSION,
-      context.tenantId,
+      ...tenant,
       principal || undefined,
       scope,
       context.requestName,

@@ -1,8 +1,41 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import { currentScope, runInScope } from '@nestjs-pipeline/core';
+import { AsyncLocalStorage } from 'node:async_hooks';
+import { uuidv7 } from '@cqrs-ddd/uuidv7';
 import { DEFAULT_CORRELATION_HEADER } from './constants/correlation.constants';
-import { uuidv7 } from './helpers/uuidv7';
+import {
+  DEFAULT_CORRELATION_ID_MAX_LENGTH,
+  DEFAULT_CORRELATION_ID_PATTERN,
+} from './options/correlation.options';
+
+const correlation = new AsyncLocalStorage<string | undefined>();
+
+/**
+ * The correlation id as a context source, for `PipelineModule.forRoot({ sources })`
+ * of `@nestjs-pipeline/core` and `JobContextModule.forRoot` of
+ * `@nestjs-pipeline/job-context`. Unlike {@link getCorrelationId}, `current()`
+ * generates nothing: it returns `undefined` when no id is set, so a pipeline
+ * generates one and runs with it, and {@link getCorrelationId} inside the
+ * handler returns that id. `create()` makes a new id, the one way this
+ * package, pipelines and jobs generate one. `accepts(id)` tells whether an id received from
+ * outside, such as in a job payload, is well formed: at most
+ * {@link DEFAULT_CORRELATION_ID_MAX_LENGTH} characters matching
+ * {@link DEFAULT_CORRELATION_ID_PATTERN}.
+ *
+ * @example
+ * ```ts
+ * PipelineModule.forRoot({ sources: { correlationId: correlationSource } });
+ * ```
+ */
+export const correlationSource = {
+  current: (): string | undefined => correlation.getStore(),
+  run: <T>(value: string | undefined, fn: () => T): T =>
+    correlation.run(value, fn),
+  create: (): string => uuidv7(),
+  accepts: (id: string): boolean =>
+    id.length <= DEFAULT_CORRELATION_ID_MAX_LENGTH &&
+    DEFAULT_CORRELATION_ID_PATTERN.test(id),
+} as const;
 
 /**
  * Run a callback within a correlation context.
@@ -12,7 +45,8 @@ import { uuidv7 } from './helpers/uuidv7';
  * into any CQRS commands or queries dispatched inside the callback.
  *
  * If `correlationId` is falsy (`undefined` or empty), the id is resolved via
- * {@link getCorrelationId} (the current one, or a generated `uuidv7()`), so
+ * {@link getCorrelationId} (the current one, or a new one from
+ * `correlationSource.create()`), so
  * `fn` always runs with a correlation id. A pipeline dispatched inside `fn`
  * takes it as its `context.correlationId`.
  *
@@ -54,14 +88,13 @@ export function runWithCorrelationId<T>(
   correlationId: string | undefined,
   fn: () => T,
 ): T {
-  return runInScope({ correlationId: correlationId || getCorrelationId() }, fn);
+  return correlation.run(correlationId || getCorrelationId(), fn);
 }
 
 /**
  * Read the current correlation ID.
  *
- * It is the correlation id of the current execution scope of
- * `@nestjs-pipeline/core`, set by {@link runWithCorrelationId}, the HTTP
+ * It is the correlation id set by {@link runWithCorrelationId}, the HTTP
  * middleware, or a running pipeline. Outside any, a new UUIDv7 is generated on
  * each call, so it always returns a string.
  *
@@ -81,7 +114,7 @@ export function runWithCorrelationId<T>(
  * ```
  */
 export function getCorrelationId(): string {
-  return currentScope().correlationId || uuidv7();
+  return correlation.getStore() || correlationSource.create();
 }
 
 /**
