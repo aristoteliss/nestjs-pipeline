@@ -25,7 +25,7 @@ export * from './decorators/persisted-write.decorator';
 export * from './helpers/cache-barrier.helper';
 export * from './helpers/cache-snapshot.helper';
 export * from './helpers/cache-version.helper';
-export * from './helpers/filter-cache-key.helper';
+export * from './helpers/cache-key.helper';
 export * from './is-transient-persistence-error';
 export * from './mikro-orm-write-side.command-repository';
 export * from './optimistic-delete';

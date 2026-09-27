@@ -4,13 +4,13 @@ import { ICache } from '@cqrs-ddd/core/application';
 import {
   CACHE_TOKEN,
   FromCache,
-  filterCacheKey,
+  cacheKey,
   QueryRepository,
 } from '@cqrs-ddd/core/persistence';
 import { Inject, Injectable } from '@nestjs/common';
 import { cacheReadLogger } from '@persistence/cache/cache-loggers';
 import { MIKRO_ORM_CLIENT, MikroOrmStore } from '@persistence/mikro-orm.store';
-import { GetRoleQuery } from '../cqrs/queries/get-role.query';
+import { GetRoleQuery } from '../application/cqrs/queries/get-role.query';
 import { Role, RoleSnapshot } from '../domain/models/role.entity';
 
 function buildConditions(query: GetRoleQuery): Record<string, unknown> {
@@ -33,7 +33,7 @@ export class GetRoleQueryRepository extends QueryRepository<
 
   @FromCache<GetRoleQuery, Role | null>({
     logger: cacheReadLogger,
-    keyFn: (q) => filterCacheKey(Role.aggregateName, buildConditions(q)),
+    keyFn: (q) => cacheKey(Role.aggregateName, buildConditions(q)),
   })
   async find(query: GetRoleQuery): Promise<Role | null> {
     return this.store.em.findOne(

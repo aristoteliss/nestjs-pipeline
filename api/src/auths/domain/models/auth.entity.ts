@@ -11,9 +11,9 @@ import {
   InvalidRefreshTokenError,
   RefreshTokenReuseError,
 } from '../errors/refresh-token.errors';
+import { AuthCreatedEvent } from '../events/auth-created.event';
 import { AuthRefreshedEvent } from '../events/auth-refreshed.event';
 import { AuthRevokedEvent } from '../events/auth-revoked.event';
-import { CreatedAuthEvent } from '../events/create-auth.event';
 
 export interface AuthSnapshot extends Partial<RootEntitySnapshot> {
   readonly userId: string;
@@ -87,13 +87,13 @@ export class Auth extends RootEntity<AuthSnapshot> {
     this._revokedAt = Auth.rules.revokedAt.parse(snapshot.revokedAt);
   }
 
-  static start(
+  static create(
     userId: string,
     refreshTokenHash: string,
     expiresAt: number,
   ): Auth {
     const auth = new Auth({ userId, refreshTokenHash, expiresAt });
-    auth.apply(new CreatedAuthEvent(auth));
+    auth.apply(new AuthCreatedEvent(auth));
     return auth;
   }
 
@@ -173,10 +173,6 @@ export class Auth extends RootEntity<AuthSnapshot> {
     return this._refreshTokenHash;
   }
 
-  /**
-   * For MikroORM hydration only (`accessor: true`). Private, so application code
-   * cannot assign it and changes state through domain methods and factories.
-   */
   private set refreshTokenHash(value: string) {
     this._refreshTokenHash = value;
   }
@@ -185,10 +181,6 @@ export class Auth extends RootEntity<AuthSnapshot> {
     return this._previousRefreshTokenHash;
   }
 
-  /**
-   * For MikroORM hydration only (`accessor: true`). Private, so application code
-   * cannot assign it and changes state through domain methods and factories.
-   */
   private set previousRefreshTokenHash(value: string | null) {
     this._previousRefreshTokenHash = value ?? null;
   }
@@ -197,10 +189,6 @@ export class Auth extends RootEntity<AuthSnapshot> {
     return this._rotatedAt;
   }
 
-  /**
-   * For MikroORM hydration only (`accessor: true`). Private, so application code
-   * cannot assign it and changes state through domain methods and factories.
-   */
   private set rotatedAt(value: number | null) {
     this._rotatedAt = Auth.rules.rotatedAt.parse(value);
   }
@@ -209,10 +197,6 @@ export class Auth extends RootEntity<AuthSnapshot> {
     return this._revokedAt;
   }
 
-  /**
-   * For MikroORM hydration only (`accessor: true`). Private, so application code
-   * cannot assign it and changes state through domain methods and factories.
-   */
   private set revokedAt(value: number | null) {
     this._revokedAt = Auth.rules.revokedAt.parse(value);
   }
@@ -221,10 +205,6 @@ export class Auth extends RootEntity<AuthSnapshot> {
     return this._version;
   }
 
-  /**
-   * For MikroORM hydration only (`accessor: true`). Private, so application code
-   * cannot assign it and changes state through domain methods and factories.
-   */
   private set version(value: number) {
     if (typeof value === 'number' && Number.isInteger(value) && value > 0) {
       this._version = value;

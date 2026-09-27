@@ -92,10 +92,6 @@ export class User extends RootEntity<UserSnapshot> {
     return this._username;
   }
 
-  /**
-   * For MikroORM hydration only (`accessor: true`). Private, so application code
-   * cannot assign it and changes state through domain methods and factories.
-   */
   private set username(value: string) {
     this._username = User.rules.username.parse(value);
   }
@@ -104,10 +100,6 @@ export class User extends RootEntity<UserSnapshot> {
     return this._department;
   }
 
-  /**
-   * For MikroORM hydration only (`accessor: true`). Private, so application code
-   * cannot assign it and changes state through domain methods and factories.
-   */
   private set department(value: string | null) {
     this._department = User.rules.department.parse(value);
   }
@@ -116,10 +108,6 @@ export class User extends RootEntity<UserSnapshot> {
     return this._version;
   }
 
-  /**
-   * For MikroORM hydration only (`accessor: true`). Private, so application code
-   * cannot assign it and changes state through domain methods and factories.
-   */
   private set version(value: number) {
     if (typeof value === 'number' && Number.isInteger(value) && value > 0) {
       this._version = value;

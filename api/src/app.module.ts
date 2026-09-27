@@ -16,7 +16,7 @@ import { PersistenceModule } from '@persistence/persistence.module';
 import { AuthorizationModule } from './auths/authorization.module';
 import { AuthsModule } from './auths/auths.module';
 import { CaslPermissionSource } from './auths/persistence/casl-permission.source';
-import { ObservabilityModule, ReliabilityModule } from './infrastructure';
+import { ObservabilityModule, ReliabilityModule } from './common/modules';
 import { RolesModule } from './roles/roles.module';
 import { UsersModule } from './users/users.module';
 

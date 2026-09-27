@@ -4,7 +4,9 @@ import { randomBytes, randomUUID } from 'node:crypto';
 import type { NestFastifyApplication } from '@nestjs/platform-fastify';
 import { Test } from '@nestjs/testing';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { Auth } from './auths/domain/models/auth.entity';
 import { SessionService } from './auths/services/session.service';
+import { httpExchangeStore } from './common/context/http-exchange.store';
 import { ACCESS_TOKEN_MAX_BYTES } from './common/environment/auth-token.config';
 import { createFastifyAdapter, registerSecureSession } from './http-platform';
 
@@ -25,18 +27,22 @@ describe('registerSecureSession', () => {
     app
       .getHttpAdapter()
       .getInstance()
-      .post('/login', async (request) => {
-        sessions.saveSession(
-          request.session,
-          {
-            id: randomUUID(),
-            principalType: 'user',
-            tenant: 'tenant',
-            email: 'user@example.test',
-            accessToken: 'a'.repeat(ACCESS_TOKEN_MAX_BYTES),
-            accessTokenExpiresAt: Date.now() + 300_000,
-          },
-          randomUUID(),
+      .post('/login', async (request, reply) => {
+        const userId = randomUUID();
+        const sessionExpiresAt = Date.now() + 3_600_000;
+        httpExchangeStore.run(
+          { session: request.session, response: reply },
+          () =>
+            sessions.save({
+              aggregate: Auth.create(userId, 'hash', sessionExpiresAt),
+              userId,
+              principalType: 'user',
+              tenant: 'tenant',
+              email: 'user@example.test',
+              accessToken: 'a'.repeat(ACCESS_TOKEN_MAX_BYTES),
+              accessTokenExpiresAt: Date.now() + 300_000,
+              sessionExpiresAt,
+            }),
         );
         return {};
       });

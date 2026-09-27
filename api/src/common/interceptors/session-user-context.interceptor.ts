@@ -1,5 +1,6 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
+import { httpExchangeStore } from '@common/context/http-exchange.store';
 import { sessionUserStore } from '@common/context/session-user.store';
 import {
   type CallHandler,
@@ -11,40 +12,22 @@ import type { Observable } from 'rxjs';
 import type { AuthenticatedRequest } from '../../auths/services/request-principal-resolver';
 
 /**
- * Global interceptor responsible strictly for request-scoped AsyncLocalStorage context scoping.
- *
- * Reads `req.sessionUser` populated by {@link AuthSessionGuard} and establishes an ALS boundary
- * by wrapping the downstream execution stream with `sessionUserStore.run(req.sessionUser, () => next.handle())`.
- *
- * In NestJS 11.2.1, `InterceptorsConsumer` binds stream continuations using `defer(AsyncResource.bind(...))`,
- * guaranteeing that context established via `run()` remains isolated and active across all downstream
- * asynchronous microtasks (controllers, CQRS command/query handlers, CASL behaviors, and audit loggers).
- *
- * @example
- * ```ts
- * // Consuming the scoped context anywhere downstream:
- * import { getSessionUserFromStore } from '@common/context/session-user.store';
- *
- * @CommandHandler(DeleteUserCommand)
- * export class DeleteUserHandler {
- *   async handle(command: DeleteUserCommand) {
- *     const currentUser = getSessionUserFromStore();
- *     console.log('Action performed by:', currentUser?.id, currentUser?.tenant);
- *   }
- * }
- * ```
+ * Runs the rest of the request with its principal in `sessionUserStore` and its
+ * secure session and response in `httpExchangeStore`, so handlers reach them
+ * through ports. `next.handle()` must be called inside `run()`: Nest binds the
+ * downstream call to the async context at that moment.
  */
 @Injectable()
 export class SessionUserContextInterceptor implements NestInterceptor {
-  /**
-   * Intercepts the execution stream and establishes the request-scoped session store.
-   *
-   * @param context - NestJS execution context.
-   * @param next - Stream call handler.
-   * @returns Observable stream executing within the scoped AsyncLocalStorage store.
-   */
   intercept(context: ExecutionContext, next: CallHandler): Observable<unknown> {
-    const req = context.switchToHttp().getRequest<AuthenticatedRequest>();
-    return sessionUserStore.run(req.sessionUser, () => next.handle());
+    const http = context.switchToHttp();
+    const req = http.getRequest<AuthenticatedRequest>();
+    const exchange = {
+      session: req.session,
+      response: http.getResponse<object>(),
+    };
+    return sessionUserStore.run(req.sessionUser, () =>
+      httpExchangeStore.run(exchange, () => next.handle()),
+    );
   }
 }

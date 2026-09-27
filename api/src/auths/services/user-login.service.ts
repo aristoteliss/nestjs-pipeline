@@ -2,50 +2,28 @@
 
 import type { IQueryRepository } from '@cqrs-ddd/core/application';
 import { Inject, Injectable } from '@nestjs/common';
-import { GetUserQuery } from '../../users/cqrs/queries/get-user.query';
+import { GetUserQuery } from '../../users/application/cqrs/queries/get-user.query';
 import { User } from '../../users/domain/models/user.entity';
 import { EXT_USER_QUERY_REPOSITORY } from '../../users/persistence/repository.tokens';
 import {
   ACCESS_TOKEN_ISSUER,
+  type AccessTokenIssueResult,
+  type IAccessTokenIssuer,
+} from '../application/ports/access-token-issuer.port';
+import {
   AUTH_TOKEN_POLICY,
   type AuthTokenPolicy,
-  type IAccessTokenIssuer,
+} from '../application/ports/auth-token-policy.port';
+import {
   type ILoginCodeVerifier,
   LOGIN_CODE_VERIFIER,
-} from '../application/authentication.ports';
+} from '../application/ports/login-code-verifier.port';
 import {
   type IUserPermissionRules,
   USER_PERMISSION_RULES,
 } from '../application/ports/user-permission-rules.port';
 import { InvalidLoginCredentialsException } from '../domain/errors/authentication.exception';
 
-export interface AuthResult {
-  userId: string;
-  accessToken: string;
-  /** Access-token expiry as a Unix timestamp in milliseconds. */
-  expiresAt: number;
-}
-
-/**
- * Application service responsible for user login verification and access token issuance.
- *
- * Encapsulates the `POST /auths/login` workflow:
- * 1. Fetches user account details from the tenant database via {@link GetUserQuery}.
- * 2. Validates the login code via {@link ILoginCodeVerifier} with user context.
- * 3. Signs a short-lived access token for a session via {@link IAccessTokenIssuer}.
- *
- * Infrastructure details like cryptography, JWT libraries, and environment variables
- * remain cleanly behind application ports.
- *
- * @example
- * ```bash
- * # Initiating login
- * curl -X POST https://api.example.com/auths/login \
- *   -H "x-tenant-schema: tenant_a" \
- *   -H "Content-Type: application/json" \
- *   -d '{"email":"alice@example.test","code":"123456"}'
- * ```
- */
 @Injectable()
 export class UserLoginService {
   constructor(
@@ -62,19 +40,18 @@ export class UserLoginService {
   ) {}
 
   /**
-   * Verifies login credentials (email and login code) against database records.
+   * Finds the user by email in primary storage and verifies the login code
+   * through `LOGIN_CODE_VERIFIER`.
    *
-   * Resolves the user identity through the query repository first and then delegates
-   * credential verification to {@link ILoginCodeVerifier} with caller user context.
-   *
-   * @param email - User email address.
-   * @param code - Login code provided by caller.
-   * @returns The resolved {@link User} entity upon successful verification.
-   * @throws {@link InvalidLoginCredentialsException} If the code does not match or the user does not exist.
+   * @param email - The claimed email.
+   * @param code - The presented login code.
+   * @returns The authenticated user.
+   * @throws InvalidLoginCredentialsException for an unknown email and for a wrong
+   *   code alike, so the answer does not reveal which accounts exist.
    *
    * @example
    * ```ts
-   * const user = await loginService.authenticate('alice@example.test', '123456');
+   * const user = await this.userLoginService.authenticate(command.email, command.code);
    * ```
    */
   async authenticate(email: string, code: string): Promise<User> {
@@ -92,32 +69,30 @@ export class UserLoginService {
   }
 
   /**
-   * Signs and issues a JWT access token for an authenticated user.
+   * Issues an access token for `user` bound to the `Auth` session `sessionId`.
+   * When `embedPermissions` is on, it reads the user's rules first and
+   * embeds them, so the token carries the rules as they are at issue time.
    *
-   * Delegates token generation to {@link IAccessTokenIssuer}.
-   *
-   * @param user - The authenticated domain {@link User} entity.
-   * @param sessionId - The session (`Auth` id) the token belongs to.
-   * @returns An {@link AuthResult} containing the userId and the signed JWT string.
+   * @param user - The authenticated user.
+   * @param sessionId - Id of the `Auth` session; the token carries it as `sid`.
+   * @returns The token and its expiry as a Unix timestamp in milliseconds.
    *
    * @example
    * ```ts
-   * const result = await loginService.signToken(user, auth.id);
-   * console.log(result.accessToken);
+   * await this.commandRepository.save(auth);
+   * const access = await this.userLoginService.signToken(user, auth.id);
    * ```
    */
-  async signToken(user: User, sessionId: string): Promise<AuthResult> {
-    const token = await this.accessTokenIssuer.issue({
+  async signToken(
+    user: User,
+    sessionId: string,
+  ): Promise<AccessTokenIssueResult> {
+    return this.accessTokenIssuer.issue({
       user,
       sessionId,
-      ...(this.policy.permissionsInAccessToken
+      ...(this.policy.embedPermissions
         ? { permissions: await this.permissionRules.findOrdered(user.id) }
         : {}),
     });
-
-    return {
-      userId: user.id,
-      ...token,
-    };
   }
 }

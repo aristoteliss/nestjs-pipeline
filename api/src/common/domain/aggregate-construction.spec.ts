@@ -13,7 +13,7 @@ describe('aggregate construction contracts', () => {
   it('creates new aggregates through semantic factories and records creation events', () => {
     const user = User.create('Alice', 'alice@example.test', 'Engineering');
     const role = Role.create('admin');
-    const auth = Auth.start(user.id, 'refresh-hash', Date.now() + 1000);
+    const auth = Auth.create(user.id, 'refresh-hash', Date.now() + 1000);
 
     expect(user.getUncommittedEvents()).toHaveLength(1);
     expect(role.getUncommittedEvents()).toHaveLength(1);

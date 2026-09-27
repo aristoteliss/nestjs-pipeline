@@ -1,27 +1,36 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import type { CreateAuthResult } from '../cqrs/results/create-auth.result';
-import type { SessionResponse } from '../responses/session.res';
+import { InternalServerErrorException } from '@nestjs/common';
+import type { AuthResult } from '../application/cqrs/results/auth.result';
+import {
+  type SessionResponse,
+  SessionResponseSchema,
+} from '../dtos/sessionResponse.dto';
 
 /**
- * Maps the application-level {@link CreateAuthResult} to the HTTP {@link SessionResponse}.
+ * Maps a login or refresh result to the response body through
+ * {@link SessionResponseSchema}, which keeps only the fields it lists: the
+ * refresh token and the session aggregate never reach the body. A missing
+ * department becomes `null`.
+ *
+ * @param result - Result of `CreateAuthCommand` or `RefreshAuthCommand`.
+ * @returns The body of `POST /auths/login` and `POST /auths/refresh`.
+ * @throws InternalServerErrorException when the result does not fit the schema.
  *
  * @example
- * ```typescript
- * const result = await this.commandBus.execute<CreateAuthCommand, CreateAuthResult>(command);
- * const sessionRes = toSessionRes(result);
- * this.sessionService.saveSession(req.session, sessionRes);
- * return sessionRes;
+ * ```ts
+ * this.sessionService.save(session, res, result);
+ * return toSessionRes(result);
  * ```
  */
-export function toSessionRes(result: CreateAuthResult): SessionResponse {
-  return {
-    id: result.id,
-    principalType: result.principalType,
-    tenant: result.tenant,
-    email: result.email,
+export function toSessionRes(result: AuthResult): SessionResponse {
+  const parsed = SessionResponseSchema.safeParse({
+    ...result,
+    id: result.userId,
     department: result.department ?? null,
-    accessToken: result.accessToken,
-    accessTokenExpiresAt: result.accessTokenExpiresAt,
-  };
+  });
+  if (!parsed.success) {
+    throw new InternalServerErrorException('Response mapping failed');
+  }
+  return parsed.data;
 }

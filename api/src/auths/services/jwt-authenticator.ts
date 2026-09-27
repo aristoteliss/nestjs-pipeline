@@ -12,9 +12,18 @@ import {
   type ITenantContext,
   TENANT_CONTEXT,
 } from '../../common/context/tenant-context.port';
-import { PERMISSIONS_IN_ACCESS_TOKEN } from '../../common/environment/auth-token.config';
+import {
+  JWT,
+  PERMISSIONS_IN_ACCESS_TOKEN,
+} from '../../common/environment/auth-token.config';
 import type { SessionUser } from '../../common/types/SessionUser';
 import { firstHeaderValue } from './first-header-value';
+
+type VerificationKey = {
+  key: Uint8Array | CryptoKey;
+  defaultAlgorithm: string;
+  symmetric: boolean;
+};
 
 /**
  * Verifies Bearer JSON Web Tokens presented in the `Authorization` request header.
@@ -49,17 +58,8 @@ import { firstHeaderValue } from './first-header-value';
  */
 @Injectable()
 export class JwtAuthenticator {
-  private readonly encoder = new TextEncoder();
   private readonly logger = new Logger(JwtAuthenticator.name);
-
-  private cachedCandidates?: Array<{
-    key: Uint8Array | CryptoKey;
-    defaultAlgorithm: string;
-    symmetric: boolean;
-  }>;
-  private cachedPublicKeyRaw?: string;
-  private cachedPublicKeyAlg?: string;
-  private cachedSecretRaw?: string;
+  private keys?: Promise<VerificationKey[]>;
 
   constructor(
     @Inject(TENANT_CONTEXT)
@@ -67,22 +67,25 @@ export class JwtAuthenticator {
   ) {}
 
   /**
-   * Parses and validates a Bearer JWT from the `Authorization` header.
+   * Verifies an `Authorization: Bearer <token>` header: signature, `exp`, issuer,
+   * audience, and a `tenant` claim equal to the request's tenant. Only `Bearer`
+   * and `bearer` are recognized as the scheme.
    *
-   * Scheme matching is case-insensitive (accepts both `Bearer <token>` and `bearer <token>`).
-   *
-   * @param req - Request object containing incoming HTTP headers.
-   * @returns The authenticated {@link SessionUser} with `principalType: 'user'` if the token is valid,
-   *          or `undefined` if no Bearer token was provided.
-   * @throws {@link UnauthorizedException} If the token is empty, expired, has an invalid signature,
-   *         misses required claims, targets a different tenant, or if no server-side keys are configured.
+   * @param req - Request with its headers.
+   * @returns The `user` principal with `sid`, `exp` (seconds) and `expiresAt`
+   *   (milliseconds), plus `grants` and `department` when the token carries
+   *   permissions and `PERMISSIONS_IN_ACCESS_TOKEN` is on; `undefined` when there
+   *   is no Bearer header.
+   * @throws UnauthorizedException for an empty, expired, badly signed or
+   *   foreign-tenant token, a missing `sub`, `tenant`, `sid` or `exp` claim, a
+   *   non-user `principalType`, malformed `perms`, or when no verification key is
+   *   configured.
    *
    * @example
    * ```ts
-   * const principal = await jwtAuthenticator.authenticate({
-   *   headers: { authorization: 'Bearer eyJhbGci...' },
+   * const principal = await this.jwtAuthenticator.authenticate({
+   *   headers: { authorization: `Bearer ${accessToken}` },
    * });
-   * // returns: { id: 'usr_123', principalType: 'user', tenant: 'tenant_a', sid: '019...', exp: 1741258800 }
    * ```
    */
   async authenticate(req: {
@@ -99,7 +102,8 @@ export class JwtAuthenticator {
       throw new UnauthorizedException('Bearer token is empty');
     }
 
-    const candidates = await this.getJwtVerificationCandidates();
+    this.keys ??= this.importKeys();
+    const candidates = await this.keys;
     if (candidates.length === 0) {
       this.logger.warn(
         'Bearer token received, but no JWT verification keys (JWT_SECRET or JWT_PUBLIC_KEY) are configured.',
@@ -107,11 +111,7 @@ export class JwtAuthenticator {
       throw new UnauthorizedException('JWT authentication is not configured');
     }
 
-    const issuer = process.env.JWT_ISSUER;
-    const audience = process.env.JWT_AUDIENCE;
-    const configuredAlgorithms = process.env.JWT_ALGORITHMS?.split(',')
-      .map((algorithm) => algorithm.trim())
-      .filter(Boolean);
+    const { issuer, audience, algorithms: configuredAlgorithms } = JWT;
 
     try {
       let payload: Awaited<ReturnType<typeof jwtVerify>>['payload'] | undefined;
@@ -215,67 +215,41 @@ export class JwtAuthenticator {
     }
   }
 
-  private async getJwtVerificationCandidates() {
-    const publicKey = process.env.JWT_PUBLIC_KEY;
-    const publicKeyAlg = process.env.JWT_PUBLIC_KEY_ALG ?? 'RS256';
-    const secret = process.env.JWT_SECRET;
-
-    if (
-      this.cachedCandidates &&
-      this.cachedPublicKeyRaw === publicKey &&
-      this.cachedPublicKeyAlg === publicKeyAlg &&
-      this.cachedSecretRaw === secret
-    ) {
-      return this.cachedCandidates;
-    }
-
-    const candidates: Array<{
-      key: Uint8Array | CryptoKey;
-      defaultAlgorithm: string;
-      symmetric: boolean;
-    }> = [];
-
-    if (publicKey) {
-      const normalizedKey = publicKey.replace(/\\n/g, '\n');
+  private async importKeys(): Promise<VerificationKey[]> {
+    const keys: VerificationKey[] = [];
+    if (JWT.publicKey) {
       try {
-        candidates.push({
-          key: await importSPKI(normalizedKey, publicKeyAlg),
-          defaultAlgorithm: publicKeyAlg,
+        keys.push({
+          key: await importSPKI(JWT.publicKey, JWT.publicKeyAlg),
+          defaultAlgorithm: JWT.publicKeyAlg,
           symmetric: false,
         });
-      } catch (_e: unknown) {
+      } catch {
         this.logger.warn(
           'JWT_PUBLIC_KEY is set but not a valid SPKI key; public-key verification is disabled.',
         );
       }
     }
-
-    if (secret) {
-      candidates.push({
-        key: this.encoder.encode(secret),
+    if (JWT.secret) {
+      keys.push({
+        key: new TextEncoder().encode(JWT.secret),
         defaultAlgorithm: 'HS256',
         symmetric: true,
       });
     }
-
-    this.cachedCandidates = candidates;
-    this.cachedPublicKeyRaw = publicKey;
-    this.cachedPublicKeyAlg = publicKeyAlg;
-    this.cachedSecretRaw = secret;
-
-    return candidates;
+    return keys;
   }
 }
 
 function parsePermissions(perms: unknown): Capability[] {
-  if (!Array.isArray(perms)) {
+  if (
+    !Array.isArray(perms) ||
+    perms.some((entry) => typeof entry !== 'string')
+  ) {
     throw new UnauthorizedException('Token permissions are malformed');
   }
   try {
-    return perms.map((entry) => {
-      if (typeof entry !== 'string') throw new TypeError('not a string');
-      return parseCapabilityString(entry);
-    });
+    return perms.map((entry: string) => parseCapabilityString(entry));
   } catch {
     throw new UnauthorizedException('Token permissions are malformed');
   }

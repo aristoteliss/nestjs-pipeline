@@ -9,8 +9,8 @@ import {
 } from '@nestjs-pipeline/core';
 import { describe, expect, it } from 'vitest';
 import { CreateAuthHandler } from '../src/auths/cqrs/commands/create-auth.handler';
-import { DeleteAuthHandler } from '../src/auths/cqrs/commands/delete-auth.handler';
 import { RefreshAuthHandler } from '../src/auths/cqrs/commands/refresh-auth.handler';
+import { RevokeAuthHandler } from '../src/auths/cqrs/commands/revoke-auth.handler';
 import { CreateRoleHandler } from '../src/roles/cqrs/commands/create-role.handler';
 import { DeleteRoleHandler } from '../src/roles/cqrs/commands/delete-role.handler';
 import { UpdateRoleHandler } from '../src/roles/cqrs/commands/update-role.handler';
@@ -40,7 +40,7 @@ describe('command handlers declare an audit action', () => {
     ['DeleteRoleHandler', DeleteRoleHandler, AUDIT_ACTIONS.ROLE_DELETE],
     ['CreateAuthHandler', CreateAuthHandler, AUDIT_ACTIONS.AUTH_LOGIN],
     ['RefreshAuthHandler', RefreshAuthHandler, AUDIT_ACTIONS.AUTH_REFRESH],
-    ['DeleteAuthHandler', DeleteAuthHandler, AUDIT_ACTIONS.AUTH_LOGOUT],
+    ['RevokeAuthHandler', RevokeAuthHandler, AUDIT_ACTIONS.AUTH_LOGOUT],
   ])('%s declares an audit action', (_name, handler, action) => {
     expect(auditAction(handler)).toBe(action);
   });

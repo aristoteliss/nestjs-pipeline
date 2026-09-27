@@ -27,13 +27,6 @@ import {
 export class AuthSessionGuard implements CanActivate {
   constructor(private readonly principalResolver: RequestPrincipalResolver) {}
 
-  /**
-   * Evaluates authentication for the active execution context.
-   *
-   * @param context - NestJS execution context.
-   * @returns `true` if authentication succeeds or the endpoint allows anonymous access.
-   * @throws {@link UnauthorizedException} If credentials were provided but are invalid or expired.
-   */
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const req = context.switchToHttp().getRequest<AuthenticatedRequest>();
     req.sessionUser = await this.principalResolver.resolvePrincipal(req);

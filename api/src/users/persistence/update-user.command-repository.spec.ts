@@ -7,7 +7,7 @@ import {
 } from '@cqrs-ddd/core/domain';
 import {
   DEFAULT_BARRIER_TTL_MS,
-  filterCacheKey,
+  cacheKey,
   toCacheSnapshot,
 } from '@cqrs-ddd/core/persistence';
 import { runWithTenant } from '@nestjs-pipeline/tenant';
@@ -45,8 +45,8 @@ describe('UpdateUserCommandRepository', () => {
         version: 2,
       },
     );
-    const idKey = filterCacheKey(User.aggregateName, { id: user.id }, 'tenant');
-    const emailKey = filterCacheKey(
+    const idKey = cacheKey(User.aggregateName, { id: user.id }, 'tenant');
+    const emailKey = cacheKey(
       User.aggregateName,
       { email: 'alice@example.test' },
       'tenant',

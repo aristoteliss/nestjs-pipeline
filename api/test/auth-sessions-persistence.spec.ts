@@ -51,7 +51,7 @@ describe('Auth session persistence', () => {
   });
 
   async function start(hash: string, expiresAt = Date.now() + DAY) {
-    const auth = Auth.start(ALICE, hash, expiresAt);
+    const auth = Auth.create(ALICE, hash, expiresAt);
     await inTenant(() =>
       new CreateAuthCommandRepository(cache, store as never).save(auth),
     );
@@ -101,10 +101,11 @@ describe('Auth session persistence', () => {
       {
         refreshTokenTtlSeconds: 3600,
         refreshReuseGraceSeconds: 30,
-        permissionsInAccessToken: false,
+        embedPermissions: false,
       },
       { signToken: vi.fn() } as never,
       { schema: 'tenant' },
+      { save: vi.fn(), clear: vi.fn() },
     );
     await expect(
       inTenant(() =>
@@ -158,10 +159,11 @@ describe('Auth session persistence', () => {
       {
         refreshTokenTtlSeconds: 3600,
         refreshReuseGraceSeconds: 30,
-        permissionsInAccessToken: false,
+        embedPermissions: false,
       },
       { signToken: vi.fn() } as never,
       { schema: 'tenant' },
+      { save: vi.fn(), clear: vi.fn() },
     );
     await expect(
       inTenant(() =>

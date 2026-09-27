@@ -104,4 +104,7 @@ task files and which working-tree paths were active before compaction.
 
 `AGENTS.md` governs. In short: no decorative banners or divider comments, no narrative
 signposting, no ticket or review identifiers in code or test titles, no history-telling
-comments, and no production surface added only so a test can reach it.
+comments, and no production surface added only so a test can reach it. Exported functions
+and public methods carry useful JSDoc with an `@example`; inline comments appear only in
+difficult core logic, never in CQRS handlers. Names are short and declarative, with no
+prefix or suffix their context already gives; a long name is a code smell.

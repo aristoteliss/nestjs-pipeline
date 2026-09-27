@@ -2,17 +2,12 @@
 
 import { generateKeyPairSync } from 'node:crypto';
 import { TenantSchemaContext } from '@persistence/tenant-schema.context';
-import { exportSPKI, importSPKI, SignJWT } from 'jose';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { JwtAuthenticator } from './jwt-authenticator';
+import { exportSPKI, SignJWT } from 'jose';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('jose', async (importOriginal) => {
   const real = await importOriginal<typeof import('jose')>();
   return { ...real, importSPKI: vi.fn(real.importSPKI) };
-});
-
-beforeEach(() => {
-  vi.mocked(importSPKI).mockClear();
 });
 
 const ENV_KEYS = [
@@ -24,41 +19,41 @@ const ENV_KEYS = [
   'JWT_AUDIENCE',
 ] as const;
 
-const originalEnv = new Map<string, string | undefined>(
-  ENV_KEYS.map((key) => [key, process.env[key]]),
-);
+const tenantContext = new TenantSchemaContext();
+
+async function load(env: Partial<Record<(typeof ENV_KEYS)[number], string>>) {
+  for (const key of ENV_KEYS) vi.stubEnv(key, env[key]);
+  vi.resetModules();
+  const { JwtAuthenticator } = await import('./jwt-authenticator');
+  const importSPKI = vi.mocked((await import('jose')).importSPKI);
+  importSPKI.mockClear();
+  return { authenticator: new JwtAuthenticator(tenantContext), importSPKI };
+}
 
 afterEach(() => {
+  vi.unstubAllEnvs();
   vi.restoreAllMocks();
-  for (const key of ENV_KEYS) {
-    const original = originalEnv.get(key);
-    if (original === undefined) delete process.env[key];
-    else process.env[key] = original;
-  }
 });
 
 describe('JwtAuthenticator', () => {
-  const tenantContext = new TenantSchemaContext();
   it('authenticates an asymmetric RS256 token with SPKI public key', async () => {
     const { privateKey, publicKey } = generateKeyPairSync('rsa', {
       modulusLength: 2048,
     });
-    process.env.JWT_PUBLIC_KEY = await exportSPKI(publicKey);
-    process.env.JWT_PUBLIC_KEY_ALG = 'RS256';
-    delete process.env.JWT_SECRET;
-
+    const { authenticator } = await load({
+      JWT_PUBLIC_KEY: await exportSPKI(publicKey),
+      JWT_PUBLIC_KEY_ALG: 'RS256',
+    });
     const token = await new SignJWT({
       tenant: tenantContext.schema,
       sid: 'sess-asymm',
       email: 'asymm@example.test',
-      roles: ['admin'],
     })
       .setProtectedHeader({ alg: 'RS256', typ: 'JWT' })
       .setSubject('user-asymm')
       .setExpirationTime('1h')
       .sign(privateKey);
 
-    const authenticator = new JwtAuthenticator(tenantContext);
     const user = await authenticator.authenticate({
       headers: { authorization: `Bearer ${token}` },
     });
@@ -74,21 +69,18 @@ describe('JwtAuthenticator', () => {
     expect(user).not.toHaveProperty('grants');
   });
 
-  it('authenticates case-insensitively with lower-case "bearer"', async () => {
-    process.env.JWT_SECRET = 'case-secret';
-    delete process.env.JWT_PUBLIC_KEY;
-
+  it('accepts the lower-case "bearer" scheme', async () => {
+    const secret = 'case-secret';
+    const { authenticator } = await load({ JWT_SECRET: secret });
     const token = await new SignJWT({
       tenant: tenantContext.schema,
       sid: 'sess-lower',
-      roles: [],
     })
       .setProtectedHeader({ alg: 'HS256' })
       .setSubject('user-lowercase-bearer')
       .setExpirationTime('1h')
-      .sign(new TextEncoder().encode(process.env.JWT_SECRET));
+      .sign(new TextEncoder().encode(secret));
 
-    const authenticator = new JwtAuthenticator(tenantContext);
     const user = await authenticator.authenticate({
       headers: { authorization: `bearer ${token}` },
     });
@@ -98,79 +90,36 @@ describe('JwtAuthenticator', () => {
     expect(user?.sid).toBe('sess-lower');
   });
 
-  it('reuses unchanged SPKI candidates and rebuilds them when the key rotates', async () => {
+  it('imports the SPKI key once and reuses it for later requests', async () => {
     const { privateKey, publicKey } = generateKeyPairSync('rsa', {
       modulusLength: 2048,
     });
-    process.env.JWT_PUBLIC_KEY = await exportSPKI(publicKey);
-    process.env.JWT_PUBLIC_KEY_ALG = 'RS256';
-    delete process.env.JWT_SECRET;
-
-    const token1 = await new SignJWT({
-      tenant: tenantContext.schema,
-      sid: 'sess-req-1',
-      roles: [],
-    })
-      .setProtectedHeader({ alg: 'RS256' })
-      .setSubject('user-req-1')
-      .setExpirationTime('1h')
-      .sign(privateKey);
-
-    const token2 = await new SignJWT({
-      tenant: tenantContext.schema,
-      sid: 'sess-req-2',
-      roles: [],
-    })
-      .setProtectedHeader({ alg: 'RS256' })
-      .setSubject('user-req-2')
-      .setExpirationTime('1h')
-      .sign(privateKey);
-
-    const authenticator = new JwtAuthenticator(tenantContext);
-    // Request 1: Must parse SPKI key
-    const res1 = await authenticator.authenticate({
-      headers: { authorization: `Bearer ${token1}` },
+    const { authenticator, importSPKI } = await load({
+      JWT_PUBLIC_KEY: await exportSPKI(publicKey),
+      JWT_PUBLIC_KEY_ALG: 'RS256',
     });
-    expect(res1?.id).toBe('user-req-1');
-    expect(importSPKI).toHaveBeenCalledTimes(1);
 
-    // Request 2: Must reuse cached key candidates, reuse the imported SPKI key
-    const res2 = await authenticator.authenticate({
-      headers: { authorization: `Bearer ${token2}` },
-    });
-    expect(res2?.id).toBe('user-req-2');
-    expect(importSPKI).toHaveBeenCalledTimes(1);
+    for (const subject of ['user-req-1', 'user-req-2']) {
+      const token = await new SignJWT({
+        tenant: tenantContext.schema,
+        sid: `sess-${subject}`,
+      })
+        .setProtectedHeader({ alg: 'RS256' })
+        .setSubject(subject)
+        .setExpirationTime('1h')
+        .sign(privateKey);
 
-    const rotated = generateKeyPairSync('rsa', { modulusLength: 2048 });
-    process.env.JWT_PUBLIC_KEY = await exportSPKI(rotated.publicKey);
-    const rotatedToken = await new SignJWT({
-      tenant: tenantContext.schema,
-      sid: 'sess-rot',
-      roles: [],
-    })
-      .setProtectedHeader({ alg: 'RS256' })
-      .setSubject('user-rotated')
-      .setExpirationTime('1h')
-      .sign(rotated.privateKey);
-    await expect(
-      authenticator.authenticate({
-        headers: { authorization: `Bearer ${rotatedToken}` },
-      }),
-    ).resolves.toMatchObject({ id: 'user-rotated' });
-    expect(importSPKI).toHaveBeenCalledTimes(2);
-    await expect(
-      authenticator.authenticate({
-        headers: { authorization: `Bearer ${token1}` },
-      }),
-    ).rejects.toThrow('Invalid or expired token');
-    expect(importSPKI).toHaveBeenCalledTimes(2);
+      await expect(
+        authenticator.authenticate({
+          headers: { authorization: `Bearer ${token}` },
+        }),
+      ).resolves.toMatchObject({ id: subject });
+    }
+    expect(importSPKI).toHaveBeenCalledTimes(1);
   });
 
   it('rejects when Bearer token is provided but no server keys are configured', async () => {
-    delete process.env.JWT_SECRET;
-    delete process.env.JWT_PUBLIC_KEY;
-
-    const authenticator = new JwtAuthenticator(tenantContext);
+    const { authenticator } = await load({});
 
     await expect(
       authenticator.authenticate({
@@ -180,19 +129,13 @@ describe('JwtAuthenticator', () => {
   });
 
   it('rejects expired tokens', async () => {
-    process.env.JWT_SECRET = 'expired-secret';
-    delete process.env.JWT_PUBLIC_KEY;
-
-    const token = await new SignJWT({
-      tenant: tenantContext.schema,
-      roles: [],
-    })
+    const secret = 'expired-secret';
+    const { authenticator } = await load({ JWT_SECRET: secret });
+    const token = await new SignJWT({ tenant: tenantContext.schema })
       .setProtectedHeader({ alg: 'HS256' })
       .setSubject('expired-user')
       .setExpirationTime('-1h')
-      .sign(new TextEncoder().encode(process.env.JWT_SECRET));
-
-    const authenticator = new JwtAuthenticator(tenantContext);
+      .sign(new TextEncoder().encode(secret));
 
     await expect(
       authenticator.authenticate({
@@ -202,20 +145,16 @@ describe('JwtAuthenticator', () => {
   });
 
   it('rejects tokens with mismatched tenant claim', async () => {
-    process.env.JWT_SECRET = 'tenant-secret';
-    delete process.env.JWT_PUBLIC_KEY;
-
+    const secret = 'tenant-secret';
+    const { authenticator } = await load({ JWT_SECRET: secret });
     const token = await new SignJWT({
       tenant: 'foreign-tenant-xyz',
       sid: 'sess-wrong-tenant',
-      roles: [],
     })
       .setProtectedHeader({ alg: 'HS256' })
       .setSubject('user-wrong-tenant')
       .setExpirationTime('1h')
-      .sign(new TextEncoder().encode(process.env.JWT_SECRET));
-
-    const authenticator = new JwtAuthenticator(tenantContext);
+      .sign(new TextEncoder().encode(secret));
 
     await expect(
       authenticator.authenticate({
@@ -225,28 +164,26 @@ describe('JwtAuthenticator', () => {
   });
 
   it('returns undefined when no authorization header is present', async () => {
-    const authenticator = new JwtAuthenticator(tenantContext);
+    const { authenticator } = await load({});
+
     await expect(
       authenticator.authenticate({ headers: {} }),
     ).resolves.toBeUndefined();
   });
 
   it('preserves exp and sets expiresAt in milliseconds from JWT payload', async () => {
-    process.env.JWT_SECRET = 'exp-secret';
-    delete process.env.JWT_PUBLIC_KEY;
-
-    const expTime = Math.floor(Date.now() / 1000) + 1800; // 30 minutes in future
+    const secret = 'exp-secret';
+    const { authenticator } = await load({ JWT_SECRET: secret });
+    const expTime = Math.floor(Date.now() / 1000) + 1800;
     const token = await new SignJWT({
       tenant: tenantContext.schema,
       sid: 'sess-exp',
-      roles: [],
     })
       .setProtectedHeader({ alg: 'HS256' })
       .setSubject('user-exp-check')
       .setExpirationTime(expTime)
-      .sign(new TextEncoder().encode(process.env.JWT_SECRET));
+      .sign(new TextEncoder().encode(secret));
 
-    const authenticator = new JwtAuthenticator(tenantContext);
     const user = await authenticator.authenticate({
       headers: { authorization: `Bearer ${token}` },
     });
@@ -256,9 +193,8 @@ describe('JwtAuthenticator', () => {
   });
 
   it('maps sub, tenant and sid statelessly', async () => {
-    process.env.JWT_SECRET = 'stateless-secret';
-    delete process.env.JWT_PUBLIC_KEY;
-
+    const secret = 'stateless-secret';
+    const { authenticator } = await load({ JWT_SECRET: secret });
     const token = await new SignJWT({
       tenant: tenantContext.schema,
       sid: 'session-1',
@@ -270,9 +206,9 @@ describe('JwtAuthenticator', () => {
       .setProtectedHeader({ alg: 'HS256' })
       .setSubject('user-active')
       .setExpirationTime('1h')
-      .sign(new TextEncoder().encode(process.env.JWT_SECRET));
+      .sign(new TextEncoder().encode(secret));
 
-    const user = await new JwtAuthenticator(tenantContext).authenticate({
+    const user = await authenticator.authenticate({
       headers: { authorization: `Bearer ${token}` },
     });
 
@@ -288,9 +224,8 @@ describe('JwtAuthenticator', () => {
   });
 
   it('rejects a token that claims a non-user principal type', async () => {
-    process.env.JWT_SECRET = 'principal-secret';
-    delete process.env.JWT_PUBLIC_KEY;
-
+    const secret = 'principal-secret';
+    const { authenticator } = await load({ JWT_SECRET: secret });
     const token = await new SignJWT({
       tenant: tenantContext.schema,
       sid: 'sess-svc',
@@ -299,41 +234,34 @@ describe('JwtAuthenticator', () => {
       .setProtectedHeader({ alg: 'HS256' })
       .setSubject('svc-1')
       .setExpirationTime('1h')
-      .sign(new TextEncoder().encode(process.env.JWT_SECRET));
+      .sign(new TextEncoder().encode(secret));
 
     await expect(
-      new JwtAuthenticator(tenantContext).authenticate({
+      authenticator.authenticate({
         headers: { authorization: `Bearer ${token}` },
       }),
     ).rejects.toThrow('not a user principal');
   });
 
-  it('rejects legacy tokens missing the sid claim', async () => {
-    process.env.JWT_SECRET = 'legacy-secret';
-    delete process.env.JWT_PUBLIC_KEY;
-
-    const legacyToken = await new SignJWT({
-      tenant: tenantContext.schema,
-      roles: ['admin'],
-    })
+  it('rejects a token without a sid claim', async () => {
+    const secret = 'sid-less-secret';
+    const { authenticator } = await load({ JWT_SECRET: secret });
+    const tokenWithoutSid = await new SignJWT({ tenant: tenantContext.schema })
       .setProtectedHeader({ alg: 'HS256' })
-      .setSubject('legacy-user')
+      .setSubject('user-without-sid')
       .setExpirationTime('1h')
-      .sign(new TextEncoder().encode(process.env.JWT_SECRET));
-
-    const authenticator = new JwtAuthenticator(tenantContext);
+      .sign(new TextEncoder().encode(secret));
 
     await expect(
       authenticator.authenticate({
-        headers: { authorization: `Bearer ${legacyToken}` },
+        headers: { authorization: `Bearer ${tokenWithoutSid}` },
       }),
     ).rejects.toThrow('Token is missing its session identifier claim');
   });
 
   it('rejects tokens missing the exp claim', async () => {
-    process.env.JWT_SECRET = 'no-exp-secret';
-    delete process.env.JWT_PUBLIC_KEY;
-
+    const secret = 'no-exp-secret';
+    const { authenticator } = await load({ JWT_SECRET: secret });
     const tokenWithoutExp = await new SignJWT({
       tenant: tenantContext.schema,
       sid: 'sess-no-exp',
@@ -341,9 +269,7 @@ describe('JwtAuthenticator', () => {
     })
       .setProtectedHeader({ alg: 'HS256' })
       .setSubject('user-no-exp')
-      .sign(new TextEncoder().encode(process.env.JWT_SECRET));
-
-    const authenticator = new JwtAuthenticator(tenantContext);
+      .sign(new TextEncoder().encode(secret));
 
     await expect(
       authenticator.authenticate({

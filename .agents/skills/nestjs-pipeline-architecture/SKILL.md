@@ -54,14 +54,26 @@ Keep architecture documentation focused on the repository as it exists.
 
 - Put generic agent/architecture rules in `AGENTS.md` and this skill.
 - Put package and consumer usage in the nearest README. Published packages and major core/runnable areas should document their public API, setup, options, behavior, caveats, and realistic examples.
-- Public reusable library functions/classes/types should have concise contract JSDoc when needed: purpose, inputs, output, observable errors/caveats, and example usage when non-obvious. Do not narrate the implementation.
+- Exported functions and the public methods of exported classes, in packages and in `api` alike, carry useful JSDoc: what the name does not say, each parameter, the return value, errors/caveats, and an `@example` of a real call. A block that restates the name or signature is slop. Do not narrate the implementation.
 - API-facing DTOs may document validation, field meaning, example payloads, and consumer expectations.
-- Handlers and ordinary domain entities should be self-explanatory and normally have no narrative JSDoc. A short comment is acceptable only for a non-obvious invariant, security/concurrency constraint, or external protocol requirement.
+- CQRS handlers, commands, queries and ordinary domain entities carry no inline comments and no narrative JSDoc. If their flow needs explaining, rename, extract or simplify, and state invariants in test names.
 - Do not leave review conclusions, refactor rationale, migration history, or "previously/now/used to" explanations in source comments or normal READMEs. Git history records changes.
 - **No AI slop, banners, or decorative divider lines**: Never write decorative section headers, ASCII divider lines, or boxed borders (e.g. `// ── ... ──`, `// ===== ... =====`, `/* ──────────────── */`). Write clean, standard code.
 - **No ticket or task identifiers in code or test suites**: Never include task/review IDs (e.g. `(S-15)`, `S-02`, `R-07`, ticket tags) in code comments, test file names, `describe` / `it` blocks, or identifier names. Tests must describe the *actual behavior or invariant*, not the development task that introduced it. Task IDs belong exclusively in task-tracking documents (such as `.claude/tasks/`).
-- **Concise step markers in core logic vs. narrative signposting**: Short, concise step comments in multi-phase core mechanisms or helpers (e.g. `// 1. Validate ordering constraints`, `// 2. Validate behavior options and intent`) are helpful and welcomed. Avoid conversational narrative commentary ("This block validates...", "Here we handle...", "Helper to...") and paragraph-sized inline explanations.
+- **Inline comments only in difficult core logic**: Inside difficult core mechanisms or helpers, short step markers (e.g. `// 1. Validate ordering constraints`, `// 2. Validate behavior options and intent`) and non-obvious concurrency, security or protocol constraints help the reader follow the internal flow and are welcome. Ordinary application code has no inline comments. Avoid conversational narrative commentary ("This block validates...", "Here we handle...", "Helper to...") and paragraph-sized inline explanations.
 - If a source comment needs a paragraph to explain ordinary application flow, simplify the code or move durable consumer guidance to the appropriate README.
+
+## Naming
+
+Follow `AGENTS.md` → Naming: short, declarative names with no prefix or suffix their context already gives; a long name is a code smell. The CQRS and DDD roles use these shapes:
+
+- Commands `<Verb><Aggregate>Command` in `<verb>-<aggregate>.command.ts`, handled by `<Verb><Aggregate>Handler`; the verb is what the handler does (`CreateUserCommand`).
+- Queries `Get<Aggregate>Query` / `Get<Aggregates>Query`.
+- Events `<Aggregate><PastTense>Event` in `<aggregate>-<past-tense>.event.ts` (`UserCreatedEvent`).
+- Domain methods use the domain's verbs (`user.update`, `role.rename`, `auth.revoke`); factories `create`/`start`; rehydration `fromJSON`.
+- Ports `I<Role>` with a `SCREAMING_SNAKE` token of the same words (`IAccessTokenIssuer` ↔ `ACCESS_TOKEN_ISSUER`); an implementation prefixes its technology (`JoseAccessTokenIssuer`).
+- Repositories `<Verb><Aggregate>CommandRepository` / `Get<Aggregate>QueryRepository`, with tokens under `COMMAND_REPOSITORY` / `QUERY_REPOSITORY`.
+- Request DTOs `<Verb><Aggregate>DtoSchema` with `type <Verb><Aggregate>Dto`; mappers `<Verb><Aggregate>Mapper`.
 
 ## Core architecture rules
 
@@ -164,7 +176,7 @@ For aggregate-changing commands, prefer the repository's `CommandBaseHandler` pa
 
 Handlers must return the aggregate root (or an application result containing `aggregate: AggregateRoot`) so `CommandBaseHandler.execute()` publishes buffered aggregate events automatically and clears uncommitted events.
 
-Never publish or commit domain events manually inside command handlers. Presentation-specific transformations (such as mapping to response DTOs or session cookies) belong in the controller/presentation layer via dedicated mappers (e.g. `toSessionRes(result)`), while cookie lifecycle operations belong in `SessionService`.
+Never publish or commit domain events manually inside command handlers. Presentation-specific transformations (such as mapping to response DTOs or session cookies) belong in the presentation layer via dedicated mappers (e.g. `toSessionRes(result)`), while cookie lifecycle operations belong in `SessionService`. The login, refresh and logout handlers apply them through the `SESSION_COOKIES` port, which `SessionService` implements over the request's session and response from `httpExchangeStore`; a command payload never carries an HTTP object.
 
 ### 7. Keep entity-level authorization in the application path
 
@@ -227,15 +239,14 @@ An idempotency key is an operation identity, not a disposable response-cache key
 
 ### 9. Keep controllers as presentation adapters
 
-Controllers may own:
+A controller method dispatches one command or query through `CommandBus` / `QueryBus` and maps its result to the response — nothing else. Calling an application service instead of the bus is the rare exception. It owns only:
 
 - HTTP decorators/status codes
-- DTO/pipeline validation
-- request/session extraction
+- input validation through zod DTOs (`ZodPipe`, parameter decorators)
 - mapping HTTP input to commands/queries
-- mapping command/query results to HTTP/session output
+- mapping command/query results to the response
 
-Controllers should dispatch through `CommandBus` / `QueryBus`, not access repositories/ORM directly.
+In the rare case the REST contract needs it, a controller translates an application error into a different HTTP answer itself (logout answers 204 for `InvalidRefreshTokenError`). Parameter decorators and interceptors used by one feature module live in that module's `decorators/` and `interceptors/` folders; shared ones live in `api/src/common/`. Controllers never access repositories/ORM directly.
 
 ### 10. Keep composition and runtime configuration outside business code
 

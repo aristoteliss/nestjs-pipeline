@@ -1,10 +1,39 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
+import { httpExchangeStore } from '@common/context/http-exchange.store';
 import type { Session } from '@fastify/secure-session';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { SessionData, SessionUser } from '../../common/types/SessionUser';
-import type { SessionResponse } from '../responses/session.res';
+import type { AuthResult } from '../cqrs/results/auth.result';
+import { Auth } from '../domain/models/auth.entity';
 import { SessionService } from './session.service';
+
+const COOKIE_OPTIONS = {
+  httpOnly: true,
+  secure: true,
+  sameSite: 'strict',
+  path: '/auths',
+};
+
+function result(refreshToken?: string): AuthResult {
+  return {
+    aggregate: Auth.create('user-1', 'hash', 9_000_000),
+    userId: 'user-1',
+    principalType: 'user',
+    tenant: 'tenant_alpha',
+    email: 'user@example.test',
+    department: 'Engineering',
+    accessToken: 'access-abc',
+    accessTokenExpiresAt: 20_000_000,
+    ...(refreshToken ? { refreshToken } : {}),
+    sessionExpiresAt: 9_000_000,
+  };
+}
+
+function secureSession() {
+  const session = { set: vi.fn(), delete: vi.fn() };
+  return { session, typed: session as unknown as Session<SessionData> };
+}
 
 describe('SessionService', () => {
   let service: SessionService;
@@ -13,53 +42,100 @@ describe('SessionService', () => {
     service = new SessionService();
   });
 
-  describe('saveSession', () => {
-    const response: SessionResponse = {
-      id: 'user-1',
-      principalType: 'user',
-      tenant: 'tenant_alpha',
-      email: 'user@example.test',
-      department: 'Engineering',
-      accessToken: 'access-abc',
-      accessTokenExpiresAt: 20_000_000,
-    };
+  describe('save', () => {
+    it('sets the refresh token as a strict HttpOnly cookie that expires with the session', () => {
+      const response = { cookie: vi.fn(), clearCookie: vi.fn() };
 
-    it('stores the access token, principal, expiry, and optional sid', () => {
-      const setMock = vi.fn();
-      const mockSession = { set: setMock } as unknown as Session<SessionData>;
+      httpExchangeStore.run({ response }, () =>
+        service.save(result('refresh-secret')),
+      );
 
-      service.saveSession(mockSession, response, 'sid-abc-123');
+      expect(response.cookie).toHaveBeenCalledExactlyOnceWith(
+        'refresh_token',
+        'refresh-secret',
+        { ...COOKIE_OPTIONS, expires: new Date(9_000_000) },
+      );
+    });
 
-      expect(setMock).toHaveBeenCalledWith('user', {
+    it('sets the refresh cookie through a Fastify reply', () => {
+      const reply = { setCookie: vi.fn(), clearCookie: vi.fn() };
+
+      httpExchangeStore.run({ response: reply }, () =>
+        service.save(result('refresh-secret')),
+      );
+
+      expect(reply.setCookie).toHaveBeenCalledExactlyOnceWith(
+        'refresh_token',
+        'refresh-secret',
+        { ...COOKIE_OPTIONS, expires: new Date(9_000_000) },
+      );
+    });
+
+    it('leaves the refresh cookie unchanged for a grace-window answer', () => {
+      const response = { cookie: vi.fn(), clearCookie: vi.fn() };
+
+      httpExchangeStore.run({ response }, () => service.save(result()));
+
+      expect(response.cookie).not.toHaveBeenCalled();
+    });
+
+    it('stores the access token and the principal with its session id in the secure session', () => {
+      const issued = result('refresh-secret');
+      const { session, typed } = secureSession();
+
+      httpExchangeStore.run(
+        { session: typed, response: { cookie: vi.fn(), clearCookie: vi.fn() } },
+        () => service.save(issued),
+      );
+
+      expect(session.set).toHaveBeenCalledWith('user', {
         id: 'user-1',
         principalType: 'user',
         tenant: 'tenant_alpha',
-        sid: 'sid-abc-123',
+        sid: issued.aggregate.id,
         exp: 20_000,
       });
-      expect(setMock).toHaveBeenCalledWith('token', 'access-abc');
-      expect(setMock).toHaveBeenCalledTimes(2);
+      expect(session.set).toHaveBeenCalledWith('token', 'access-abc');
+      expect(session.set).toHaveBeenCalledTimes(2);
     });
 
-    it('does nothing when session is undefined', () => {
-      expect(() => service.saveSession(undefined, response)).not.toThrow();
+    it('does nothing outside an HTTP request', () => {
+      expect(() => service.save(result('refresh-secret'))).not.toThrow();
     });
   });
 
-  describe('clearSession', () => {
-    it('calls session.delete()', () => {
-      const deleteMock = vi.fn();
-      const mockSession = {
-        delete: deleteMock,
-      } as unknown as Session<SessionData>;
+  describe('clear', () => {
+    it('deletes the secure session and clears the refresh cookie under its path', () => {
+      const { session, typed } = secureSession();
+      const response = { cookie: vi.fn(), clearCookie: vi.fn() };
 
-      service.clearSession(mockSession);
+      httpExchangeStore.run({ session: typed, response }, () =>
+        service.clear(),
+      );
 
-      expect(deleteMock).toHaveBeenCalledOnce();
+      expect(session.delete).toHaveBeenCalledOnce();
+      expect(response.clearCookie).toHaveBeenCalledExactlyOnceWith(
+        'refresh_token',
+        COOKIE_OPTIONS,
+      );
     });
 
-    it('does nothing when session is undefined', () => {
-      expect(() => service.clearSession(undefined)).not.toThrow();
+    it('does nothing outside an HTTP request', () => {
+      expect(() => service.clear()).not.toThrow();
+    });
+  });
+
+  describe('discard', () => {
+    it('deletes only the given secure session', () => {
+      const { session, typed } = secureSession();
+
+      service.discard(typed);
+
+      expect(session.delete).toHaveBeenCalledOnce();
+    });
+
+    it('does nothing without a session', () => {
+      expect(() => service.discard(undefined)).not.toThrow();
     });
   });
 

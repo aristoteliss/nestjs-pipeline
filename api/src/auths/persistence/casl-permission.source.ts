@@ -44,7 +44,6 @@ export class CaslPermissionSource implements ICaslPermissionSource {
     }
     if (session.principalType !== 'user') return null;
 
-    // Rules copied into a verified access token by the JWT authenticator.
     if (session.grants) {
       return {
         principal: {

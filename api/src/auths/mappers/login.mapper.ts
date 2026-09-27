@@ -2,7 +2,7 @@
 
 import { createZodMapper } from '@nestjs-pipeline/zod';
 import { z } from 'zod';
-import { CreateAuthCommand } from '../cqrs/commands/create-auth.command';
+import { CreateAuthCommand } from '../application/cqrs/commands/create-auth.command';
 import { type LoginDto, LoginDtoSchema } from '../dtos/login.dto';
 
 const base = createZodMapper(

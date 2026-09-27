@@ -5,7 +5,7 @@ import type { IQueryOptions } from '../../application/query.options';
 import { ICache, IVersionedCache, isVersionedCache } from '../cache.interface';
 import { Cache } from '../decorators/Cache';
 import { FromCache } from '../decorators/FromCache';
-import { filterCacheKey } from '../helpers/filter-cache-key.helper';
+import { cacheKey } from '../helpers/cache-key.helper';
 import { QueryRepository } from '../query-repository.abstract';
 import { MemoryCache } from './memory.cache';
 
@@ -28,7 +28,7 @@ class TestUserQueryRepository extends QueryRepository<
   onBeforeDbFetch?: () => Promise<void> | void;
 
   @FromCache<TestUserQuery, TestUserSnapshot | null>({
-    keyFn: (q) => filterCacheKey('user', { id: q.userId }, 'tenant_test'),
+    keyFn: (q) => cacheKey('user', { id: q.userId }, 'tenant_test'),
     alwaysHydrate: false,
   })
   async find(query: TestUserQuery): Promise<TestUserSnapshot | null> {
@@ -46,8 +46,8 @@ class TestUserCommandRepository {
 
   @Cache<TestUserSnapshot, TestUserSnapshot>({
     invalidateKeys: (user) => [
-      filterCacheKey('user', { id: user.id }, 'tenant_test'),
-      filterCacheKey('user', { email: user.email }, 'tenant_test'),
+      cacheKey('user', { id: user.id }, 'tenant_test'),
+      cacheKey('user', { email: user.email }, 'tenant_test'),
     ],
   })
   async save(user: TestUserSnapshot): Promise<TestUserSnapshot | null> {
@@ -56,8 +56,8 @@ class TestUserCommandRepository {
 
   @Cache<TestUserSnapshot, null>({
     deleteKeys: (user) => [
-      filterCacheKey('user', { id: user.id }, 'tenant_test'),
-      filterCacheKey('user', { email: user.email }, 'tenant_test'),
+      cacheKey('user', { id: user.id }, 'tenant_test'),
+      cacheKey('user', { email: user.email }, 'tenant_test'),
     ],
   })
   async delete(_user: TestUserSnapshot): Promise<null> {
@@ -74,7 +74,7 @@ describe('Versioned Cache Coordination Contract', () => {
 
   it('invalidate after final read before fill rejects stale fill', async () => {
     const cache = new MemoryCache<TestUserSnapshot>();
-    const key = filterCacheKey('user', { id: 'u-1' }, 'tenant_test');
+    const key = cacheKey('user', { id: 'u-1' }, 'tenant_test');
 
     // Reader observes missing state
     const state = await cache.readState(key);
@@ -102,7 +102,7 @@ describe('Versioned Cache Coordination Contract', () => {
 
   it('two competing fills commit first and reject second', async () => {
     const cache = new MemoryCache<TestUserSnapshot>();
-    const key = filterCacheKey('user', { id: 'u-2' }, 'tenant_test');
+    const key = cacheKey('user', { id: 'u-2' }, 'tenant_test');
 
     // Both readers observe missing state concurrently
     const state1 = await cache.readState(key);
@@ -136,7 +136,7 @@ describe('Versioned Cache Coordination Contract', () => {
   it('rejects fills observed before an update and before a delete', async () => {
     const cache = new MemoryCache<TestUserSnapshot>();
     const commands = new TestUserCommandRepository(cache);
-    const key = filterCacheKey('user', { id: 'u-3' }, 'tenant_test');
+    const key = cacheKey('user', { id: 'u-3' }, 'tenant_test');
 
     // Initial creation
     await commands.save({ id: 'u-3', email: 'v1@test.local', version: 1 });
@@ -178,7 +178,7 @@ describe('Versioned Cache Coordination Contract', () => {
   it('secondary key changes are fenced by revision on update', async () => {
     const cache = new MemoryCache<TestUserSnapshot>();
     const commands = new TestUserCommandRepository(cache);
-    const oldEmailKey = filterCacheKey(
+    const oldEmailKey = cacheKey(
       'user',
       { email: 'old@test.local' },
       'tenant_test',
@@ -201,7 +201,7 @@ describe('Versioned Cache Coordination Contract', () => {
 
   it('expired value preserves revision to prevent ABA races', async () => {
     const cache = new MemoryCache<TestUserSnapshot>();
-    const key = filterCacheKey('user', { id: 'u-5' }, 'tenant_test');
+    const key = cacheKey('user', { id: 'u-5' }, 'tenant_test');
 
     // Fill with 1ms TTL
     await cache.tryFill(
@@ -232,7 +232,7 @@ describe('Versioned Cache Coordination Contract', () => {
   it('bounded retry exhaustion falls back to authoritative DB read', async () => {
     const cache = new MemoryCache<TestUserSnapshot>();
     const queryRepo = new TestUserQueryRepository(cache);
-    const key = filterCacheKey('user', { id: 'u-6' }, 'tenant_test');
+    const key = cacheKey('user', { id: 'u-6' }, 'tenant_test');
 
     queryRepo.mockDbResult = {
       id: 'u-6',
@@ -294,8 +294,8 @@ describe('Versioned Cache Coordination Contract', () => {
 
   it('tenant isolation guarantees independent keys and revisions', async () => {
     const cache = new MemoryCache<TestUserSnapshot>();
-    const keyTenantA = filterCacheKey('user', { id: 'u-8' }, 'tenant_a');
-    const keyTenantB = filterCacheKey('user', { id: 'u-8' }, 'tenant_b');
+    const keyTenantA = cacheKey('user', { id: 'u-8' }, 'tenant_a');
+    const keyTenantB = cacheKey('user', { id: 'u-8' }, 'tenant_b');
 
     expect(keyTenantA).not.toBe(keyTenantB);
 

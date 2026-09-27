@@ -4,7 +4,7 @@ import { mapPersistenceError } from '@cqrs-ddd/core/persistence';
 import { Inject, Injectable } from '@nestjs/common';
 import { ConsumedRefreshToken } from '@persistence/entities/consumed-refresh-token.entity';
 import { MIKRO_ORM_CLIENT, MikroOrmStore } from '@persistence/mikro-orm.store';
-import type { IAuthSessions } from '../application/authentication.ports';
+import { type IAuthSessions } from '../application/ports/auth-sessions.port';
 import { Auth } from '../domain/models/auth.entity';
 
 /** Session lookups by refresh-token hash and the rotated-token history, from primary storage. */

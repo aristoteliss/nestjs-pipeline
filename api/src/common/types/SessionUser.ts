@@ -5,7 +5,17 @@ import type { Capability } from '@nestjs-pipeline/casl';
 /** Explicit principal classification. Authorization must never infer this from the id format. */
 export type PrincipalType = 'user' | 'service';
 
-/** Whether `value` is a {@link PrincipalType}, for data read back from a session cookie. */
+/**
+ * Whether `value` is a {@link PrincipalType}. Use it on data read back from a
+ * session cookie, which is not guaranteed to match `SessionUser`.
+ *
+ * @example
+ * ```ts
+ * if (!isPrincipalType(req.session?.user?.principalType)) {
+ *   this.sessionService.discard(req.session);
+ * }
+ * ```
+ */
 export function isPrincipalType(value: unknown): value is PrincipalType {
   return value === 'user' || value === 'service';
 }
@@ -19,7 +29,7 @@ export type SessionUser = {
   sid?: string;
   email?: string | null;
   department?: string | null;
-  /** Authorization rules attached by the authenticator (service principals). */
+  /** Absent: a user's rules are read from persistence; a service principal has none. */
   grants?: Capability[];
   expiresAt?: number;
   exp?: number;
@@ -29,13 +39,11 @@ export type SessionUser = {
 export interface SessionData {
   user?: SessionUser;
   token?: string;
-  api?: { id: string; tenant: string };
 }
 
 declare module '@fastify/secure-session' {
   interface SessionData {
     user?: SessionUser;
     token?: string;
-    api?: { id: string; tenant: string };
   }
 }

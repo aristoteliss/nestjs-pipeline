@@ -3,7 +3,6 @@
 import { BullModule } from '@nestjs/bullmq';
 import { Module } from '@nestjs/common';
 import { LoggerModule } from 'nestjs-pino';
-import { GetUserCapabilitiesQueryRepository } from '../auths/persistence/get-user-capabilities.query-repository';
 import { GetRolesQueryRepository } from '../roles/persistence/get-roles.query-repository';
 import { QUERY_REPOSITORY as ROLES_QUERY_REPOSITORY } from '../roles/persistence/repository.tokens';
 import {
@@ -11,14 +10,14 @@ import {
   WELCOME_EMAIL_DISPATCHER,
 } from './application/ports/user-event-dispatcher.port';
 import { UsersController } from './controllers/users.controller';
-import { CreateUserHandler } from './cqrs/commands/create-user.handler';
-import { DeleteUserHandler } from './cqrs/commands/delete-user.handler';
-import { UpdateUserHandler } from './cqrs/commands/update-user.handler';
-import { UserCreatedHandler } from './cqrs/events/user-created.handler';
-import { UserUpdatedHandler } from './cqrs/events/user-updated.handler';
-import { GetUserHandler } from './cqrs/queries/get-user.handler';
-import { GetUserOverviewHandler } from './cqrs/queries/get-user-overview.handler';
-import { GetUsersHandler } from './cqrs/queries/get-users.handler';
+import { CreateUserHandler } from './application/cqrs/commands/create-user.handler';
+import { DeleteUserHandler } from './application/cqrs/commands/delete-user.handler';
+import { UpdateUserHandler } from './application/cqrs/commands/update-user.handler';
+import { UserCreatedHandler } from './application/cqrs/events/user-created.handler';
+import { UserUpdatedHandler } from './application/cqrs/events/user-updated.handler';
+import { GetUserHandler } from './application/cqrs/queries/get-user.handler';
+import { GetUserOverviewHandler } from './application/cqrs/queries/get-user-overview.handler';
+import { GetUsersHandler } from './application/cqrs/queries/get-users.handler';
 import {
   BATCH_UPDATE_USERS_QUEUE,
   BatchUpdateUsersProcessor,
@@ -31,6 +30,7 @@ import {
 import { CreateUserCommandRepository } from './persistence/create-user.command-repository';
 import { DeleteUserCommandRepository } from './persistence/delete-user.command-repository';
 import { GetUserQueryRepository } from './persistence/get-user.query-repository';
+import { GetUserCapabilitiesQueryRepository } from './persistence/get-user-capabilities.query-repository';
 import { GetUsersQueryRepository } from './persistence/get-users.query-repository';
 import {
   COMMAND_REPOSITORY,

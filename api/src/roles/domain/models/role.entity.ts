@@ -61,10 +61,6 @@ export class Role extends RootEntity<RoleSnapshot> {
     return this._name;
   }
 
-  /**
-   * For MikroORM hydration only (`accessor: true`). Private, so application code
-   * cannot assign it and changes state through domain methods and factories.
-   */
   private set name(value: string) {
     this._name = Role.rules.name.parse(value);
   }
@@ -73,10 +69,6 @@ export class Role extends RootEntity<RoleSnapshot> {
     return this._version;
   }
 
-  /**
-   * For MikroORM hydration only (`accessor: true`). Private, so application code
-   * cannot assign it and changes state through domain methods and factories.
-   */
   private set version(value: number) {
     if (typeof value === 'number' && Number.isInteger(value) && value > 0) {
       this._version = value;

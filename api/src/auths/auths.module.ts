@@ -8,19 +8,20 @@ import {
 } from '../common/environment/auth-token.config';
 import { GetUserQueryRepository } from '../users/persistence/get-user.query-repository';
 import { EXT_USER_QUERY_REPOSITORY } from '../users/persistence/repository.tokens';
+import { ACCESS_TOKEN_ISSUER } from './application/ports/access-token-issuer.port';
+import { AUTH_SESSIONS } from './application/ports/auth-sessions.port';
 import {
-  ACCESS_TOKEN_ISSUER,
-  AUTH_SESSIONS,
   AUTH_TOKEN_POLICY,
   type AuthTokenPolicy,
-  LOGIN_CODE_VERIFIER,
-  REFRESH_TOKENS,
-} from './application/authentication.ports';
+} from './application/ports/auth-token-policy.port';
+import { LOGIN_CODE_VERIFIER } from './application/ports/login-code-verifier.port';
+import { REFRESH_TOKENS } from './application/ports/refresh-tokens.port';
+import { SESSION_COOKIES } from './application/ports/session-cookies.port';
 import { AuthorizationModule } from './authorization.module';
 import { AuthsController } from './controllers/auths.controller';
-import { CreateAuthHandler } from './cqrs/commands/create-auth.handler';
-import { DeleteAuthHandler } from './cqrs/commands/delete-auth.handler';
-import { RefreshAuthHandler } from './cqrs/commands/refresh-auth.handler';
+import { CreateAuthHandler } from './application/cqrs/commands/create-auth.handler';
+import { RefreshAuthHandler } from './application/cqrs/commands/refresh-auth.handler';
+import { RevokeAuthHandler } from './application/cqrs/commands/revoke-auth.handler';
 import { JoseAccessTokenIssuer } from './infrastructure/jose-access-token.issuer';
 import { NodeRefreshTokens } from './infrastructure/node-refresh-tokens';
 import { SharedDemoLoginCodeVerifier } from './infrastructure/shared-demo-login-code.verifier';
@@ -67,12 +68,13 @@ import { UserLoginService } from './services/user-login.service';
       useValue: {
         refreshTokenTtlSeconds: REFRESH_TOKEN_TTL_SECONDS,
         refreshReuseGraceSeconds: REFRESH_REUSE_GRACE_SECONDS,
-        permissionsInAccessToken: PERMISSIONS_IN_ACCESS_TOKEN,
+        embedPermissions: PERMISSIONS_IN_ACCESS_TOKEN,
       } satisfies AuthTokenPolicy,
     },
 
     AuthSessionRevocationService,
     SessionService,
+    { provide: SESSION_COOKIES, useExisting: SessionService },
     UserLoginService,
     JwtAuthenticator,
     ApiClientAuthenticator,
@@ -80,7 +82,7 @@ import { UserLoginService } from './services/user-login.service';
 
     // Commands
     CreateAuthHandler,
-    DeleteAuthHandler,
+    RevokeAuthHandler,
     RefreshAuthHandler,
   ],
   exports: [

@@ -2,7 +2,7 @@
 
 import type { Server } from 'node:http';
 import type { ICache } from '@cqrs-ddd/core/application';
-import { CACHE_TOKEN, filterCacheKey } from '@cqrs-ddd/core/persistence';
+import { CACHE_TOKEN, cacheKey } from '@cqrs-ddd/core/persistence';
 import request from 'supertest';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
@@ -42,14 +42,10 @@ describe('cache write-through CAS & read strong consistency (e2e)', () => {
 
     expect(createRes.status).toBe(201);
     const userId = createRes.body.id;
-    const cacheKey = filterCacheKey(
-      User.aggregateName,
-      { id: userId },
-      'tenant',
-    );
+    const userCacheKey = cacheKey(User.aggregateName, { id: userId }, 'tenant');
 
     const cache = ctx.app.get<ICache<UserSnapshot>>(CACHE_TOKEN);
-    const cachedInitial = await cache.get(cacheKey);
+    const cachedInitial = await cache.get(userCacheKey);
     expect(cachedInitial).toBeDefined();
     expect(cachedInitial?.version).toBe(1);
 

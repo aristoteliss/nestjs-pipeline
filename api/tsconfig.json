@@ -5,8 +5,12 @@
     "outDir": "dist",
     "rootDir": "src",
     "paths": {
+      "@auths/*": ["./src/auths/*"],
+      "@roles/*": ["./src/roles/*"],
+      "@users/*": ["./src/users/*"],
       "@common/*": ["./src/common/*"],
-      "@persistence/*": ["./src/persistence/*"]
+      "@persistence/*": ["./src/persistence/*"],
+      "@test/*": ["./test/*"]
     }
   },
   "include": ["src"],

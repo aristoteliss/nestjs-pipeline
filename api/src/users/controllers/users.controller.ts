@@ -17,13 +17,13 @@ import { CommandBus, QueryBus } from '@nestjs/cqrs';
 import { UnauthorizedActionException } from '@nestjs-pipeline/casl';
 import { ZodPipe } from '@nestjs-pipeline/zod';
 import type { UserReadModel } from '../application/user-read-model';
-import { CreateUserCommand } from '../cqrs/commands/create-user.command';
-import { DeleteUserCommand } from '../cqrs/commands/delete-user.command';
-import { UpdateUserCommand } from '../cqrs/commands/update-user.command';
-import { GetUserQuery } from '../cqrs/queries/get-user.query';
-import type { UserOverviewDto } from '../cqrs/queries/get-user-overview.handler';
-import { GetUserOverviewQuery } from '../cqrs/queries/get-user-overview.query';
-import { GetUsersQuery } from '../cqrs/queries/get-users.query';
+import { CreateUserCommand } from '../application/cqrs/commands/create-user.command';
+import { DeleteUserCommand } from '../application/cqrs/commands/delete-user.command';
+import { UpdateUserCommand } from '../application/cqrs/commands/update-user.command';
+import { GetUserQuery } from '../application/cqrs/queries/get-user.query';
+import type { UserOverviewDto } from '../application/cqrs/queries/get-user-overview.handler';
+import { GetUserOverviewQuery } from '../application/cqrs/queries/get-user-overview.query';
+import { GetUsersQuery } from '../application/cqrs/queries/get-users.query';
 import type { User } from '../domain/models/user.entity';
 import {
   type CreateUserDto,

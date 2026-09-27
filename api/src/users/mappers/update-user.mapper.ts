@@ -2,7 +2,7 @@
 
 import { createZodMapper } from '@nestjs-pipeline/zod';
 import { z } from 'zod';
-import { UpdateUserCommand } from '../cqrs/commands/update-user.command';
+import { UpdateUserCommand } from '../application/cqrs/commands/update-user.command';
 import type { UpdateUserDto } from '../dtos/update-user.dto';
 
 const base = createZodMapper(

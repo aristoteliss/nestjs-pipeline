@@ -1,6 +1,6 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 import { type ICache } from '@cqrs-ddd/core/application';
-import { filterCacheKey, MemoryCache } from '@cqrs-ddd/core/persistence';
+import { cacheKey, MemoryCache } from '@cqrs-ddd/core/persistence';
 import { runWithTenant } from '@nestjs-pipeline/tenant';
 import { ZodValidationBehavior } from '@nestjs-pipeline/zod';
 import { describe, expect, it, vi } from 'vitest';
@@ -15,7 +15,7 @@ async function cacheHolding(
   const cache = new MemoryCache<UserSnapshot>({ defaultTtlMs: 60_000 });
   if (snapshot) {
     await cache.set(
-      filterCacheKey(User.aggregateName, { id: snapshot.id }, 'tenant'),
+      cacheKey(User.aggregateName, { id: snapshot.id }, 'tenant'),
       snapshot,
     );
   }
@@ -85,7 +85,7 @@ describe('GetUserQueryRepository cache policy', () => {
     const result = await runWithTenant('tenant', () => repository.find(query));
 
     expect(result).toBe(persisted);
-    const idKey = filterCacheKey(
+    const idKey = cacheKey(
       User.aggregateName,
       { id: persisted.id },
       'tenant',

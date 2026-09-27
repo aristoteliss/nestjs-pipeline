@@ -78,4 +78,25 @@ describe('auth token configuration', () => {
 
     expect((await load()).PERMISSIONS_IN_ACCESS_TOKEN).toBe(true);
   });
+
+  it('reads JWT settings with empty values unset, the algorithm list split and key newlines restored', async () => {
+    vi.stubEnv('JWT_SECRET', '');
+    vi.stubEnv(
+      'JWT_PUBLIC_KEY',
+      '-----BEGIN PUBLIC KEY-----\\nKEY\\n-----END PUBLIC KEY-----',
+    );
+    vi.stubEnv('JWT_PUBLIC_KEY_ALG', undefined);
+    vi.stubEnv('JWT_ALGORITHMS', ' HS256, ,RS256 ');
+    vi.stubEnv('JWT_ISSUER', 'users-api');
+    vi.stubEnv('JWT_AUDIENCE', '');
+
+    expect((await load()).JWT).toEqual({
+      secret: undefined,
+      publicKey: '-----BEGIN PUBLIC KEY-----\nKEY\n-----END PUBLIC KEY-----',
+      publicKeyAlg: 'RS256',
+      algorithms: ['HS256', 'RS256'],
+      issuer: 'users-api',
+      audience: undefined,
+    });
+  });
 });

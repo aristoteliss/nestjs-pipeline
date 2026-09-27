@@ -5,7 +5,7 @@ import {
   assertAutocommit,
   CACHE_TOKEN,
   CommandRepository,
-  filterCacheKey,
+  cacheKey,
   PersistedWrite,
 } from '@cqrs-ddd/core/persistence';
 import { Inject, Injectable } from '@nestjs/common';
@@ -34,9 +34,9 @@ export class CreateUserCommandRepository extends CommandRepository<
   @PersistedWrite<User>({
     cache: {
       logger: cacheWriteLogger,
-      setKey: (user) => filterCacheKey(User.aggregateName, { id: user.id }),
+      setKey: (user) => cacheKey(User.aggregateName, { id: user.id }),
       invalidateKeys: (user) => [
-        filterCacheKey(User.aggregateName, { email: user.email }),
+        cacheKey(User.aggregateName, { email: user.email }),
       ],
     },
     unique: [

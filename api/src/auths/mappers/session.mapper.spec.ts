@@ -8,8 +8,8 @@ const USER = '019488e0-0000-7000-8000-000000000001';
 
 describe('toSessionRes', () => {
   const result = {
-    aggregate: Auth.start(USER, 'hash', 2_000),
-    id: USER,
+    aggregate: Auth.create(USER, 'hash', 2_000),
+    userId: USER,
     principalType: 'user' as const,
     tenant: 'tenant_alpha',
     email: 'user@example.test',

@@ -2,10 +2,10 @@
 
 import { createHash, timingSafeEqual } from 'node:crypto';
 import { Injectable } from '@nestjs/common';
-import type {
-  ILoginCodeVerifier,
-  LoginCredentialVerification,
-} from '../application/authentication.ports';
+import {
+  type ILoginCodeVerifier,
+  type LoginCredentialVerification,
+} from '../application/ports/login-code-verifier.port';
 import {
   AuthConfigurationException,
   InvalidLoginCredentialsException,
@@ -27,7 +27,7 @@ export class SharedDemoLoginCodeVerifier implements ILoginCodeVerifier {
   verify({ code }: LoginCredentialVerification): void {
     const configuredDigest =
       process.env.AUTH_LOGIN_CODE_SHA256?.trim().toLowerCase();
-    const legacyPlaintext = process.env.AUTH_LOGIN_CODE;
+    const plaintext = process.env.AUTH_LOGIN_CODE;
 
     if (
       process.env.NODE_ENV === 'production' &&
@@ -39,20 +39,19 @@ export class SharedDemoLoginCodeVerifier implements ILoginCodeVerifier {
     }
 
     if (!configuredDigest) {
-      if (process.env.NODE_ENV === 'production' && legacyPlaintext) {
+      if (process.env.NODE_ENV === 'production' && plaintext) {
         throw new AuthConfigurationException(
           'Plaintext AUTH_LOGIN_CODE is not allowed in production; configure AUTH_LOGIN_CODE_SHA256',
         );
       }
-      if (!legacyPlaintext) {
+      if (!plaintext) {
         throw new AuthConfigurationException(
           'AUTH_LOGIN_CODE_SHA256 is not configured',
         );
       }
     }
 
-    const expectedDigest =
-      configuredDigest ?? this.sha256Hex(legacyPlaintext ?? '');
+    const expectedDigest = configuredDigest ?? this.sha256Hex(plaintext ?? '');
     if (!/^[0-9a-f]{64}$/.test(expectedDigest)) {
       throw new AuthConfigurationException(
         'AUTH_LOGIN_CODE_SHA256 must be a 64-character SHA-256 hex digest',

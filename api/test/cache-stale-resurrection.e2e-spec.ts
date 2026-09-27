@@ -2,7 +2,7 @@
 
 import type { Server } from 'node:http';
 import { type ICache } from '@cqrs-ddd/core/application';
-import { CACHE_TOKEN, filterCacheKey } from '@cqrs-ddd/core/persistence';
+import { CACHE_TOKEN, cacheKey } from '@cqrs-ddd/core/persistence';
 import { uuidv7 } from '@cqrs-ddd/uuidv7';
 import { EntityManager } from '@mikro-orm/core';
 import request from 'supertest';
@@ -15,7 +15,7 @@ import { bootstrapE2E, type E2EContext } from './support/e2e-app';
 
 /** Resolves the primary user cache key exactly as the repositories derive it. */
 const userIdKey = (id: string) =>
-  filterCacheKey(User.aggregateName, { id }, 'tenant');
+  cacheKey(User.aggregateName, { id }, 'tenant');
 
 describe('Cache Revision Fencing & Anti-Resurrection (e2e)', () => {
   let ctx: E2EContext;
@@ -198,7 +198,7 @@ describe('Cache Revision Fencing & Anti-Resurrection (e2e)', () => {
 
     expect(createRes.status).toBe(201);
     const userId = createRes.body.id;
-    const emailKey = filterCacheKey(User.aggregateName, { email }, 'tenant');
+    const emailKey = cacheKey(User.aggregateName, { email }, 'tenant');
     const cache = ctx.app.get<ICache<unknown>>(CACHE_TOKEN);
 
     // Perform deletion

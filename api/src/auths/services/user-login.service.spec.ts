@@ -9,7 +9,7 @@ function createService(overrides?: {
   userRepository?: unknown;
   loginCodeVerifier?: unknown;
   accessTokenIssuer?: unknown;
-  permissionsInAccessToken?: boolean;
+  embedPermissions?: boolean;
   permissionRules?: unknown;
 }) {
   return new UserLoginService(
@@ -19,7 +19,7 @@ function createService(overrides?: {
     {
       refreshTokenTtlSeconds: 3600,
       refreshReuseGraceSeconds: 30,
-      permissionsInAccessToken: overrides?.permissionsInAccessToken ?? false,
+      embedPermissions: overrides?.embedPermissions ?? false,
     },
     (overrides?.permissionRules ?? { findOrdered: vi.fn() }) as never,
   );
@@ -58,38 +58,25 @@ describe('UserLoginService', () => {
     expect(verifier.verify).not.toHaveBeenCalled();
   });
 
-  it('delegates token issuance without loading permissions', async () => {
+  it('issues the token without reading permissions when they are not carried in the token', async () => {
     const user = User.create('Alice', 'alice@example.test');
+    const permissionRules = { findOrdered: vi.fn() };
     const issuer = {
       issue: vi.fn().mockResolvedValue({
         accessToken: 'issued-token',
         expiresAt: 123000,
       }),
     };
-    const service = createService({ accessTokenIssuer: issuer });
+    const service = createService({
+      accessTokenIssuer: issuer,
+      permissionRules,
+    });
 
     const result = await service.signToken(user, 'session-1');
 
-    expect(issuer.issue).toHaveBeenCalledWith({ user, sessionId: 'session-1' });
-    expect(result).toEqual({
-      userId: user.id,
-      accessToken: 'issued-token',
-      expiresAt: 123000,
-    });
-  });
-
-  it('reads no permissions when they are not carried in the token', async () => {
-    const permissionRules = { findOrdered: vi.fn() };
-    const issuer = { issue: vi.fn().mockResolvedValue({ accessToken: 't' }) };
-    const user = User.create('Alice', 'alice@example.test');
-
-    await createService({
-      accessTokenIssuer: issuer,
-      permissionRules,
-    }).signToken(user, 'session-1');
-
     expect(permissionRules.findOrdered).not.toHaveBeenCalled();
-    expect(issuer.issue.mock.calls[0][0]).not.toHaveProperty('permissions');
+    expect(issuer.issue).toHaveBeenCalledWith({ user, sessionId: 'session-1' });
+    expect(result).toEqual({ accessToken: 'issued-token', expiresAt: 123000 });
   });
 
   it('hands the ordered rules to the issuer when they are carried in the token', async () => {
@@ -104,7 +91,7 @@ describe('UserLoginService', () => {
     await createService({
       accessTokenIssuer: issuer,
       permissionRules,
-      permissionsInAccessToken: true,
+      embedPermissions: true,
     }).signToken(user, 'session-1');
 
     expect(permissionRules.findOrdered).toHaveBeenCalledWith(user.id);

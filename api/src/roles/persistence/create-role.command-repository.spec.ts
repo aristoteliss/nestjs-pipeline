@@ -1,6 +1,6 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 import { type ICache } from '@cqrs-ddd/core/application';
-import { filterCacheKey, toCacheSnapshot } from '@cqrs-ddd/core/persistence';
+import { cacheKey, toCacheSnapshot } from '@cqrs-ddd/core/persistence';
 import { runWithTenant } from '@nestjs-pipeline/tenant';
 import { describe, expect, it, vi } from 'vitest';
 import { UniqueRoleNameException } from '../domain/models/errors/role-name.exception';
@@ -25,8 +25,8 @@ describe('CreateRoleCommandRepository', () => {
 
     const result = await runWithTenant('tenant', () => repository.save(role));
 
-    const idKey = filterCacheKey(Role.aggregateName, { id: role.id }, 'tenant');
-    const nameKey = filterCacheKey(
+    const idKey = cacheKey(Role.aggregateName, { id: role.id }, 'tenant');
+    const nameKey = cacheKey(
       Role.aggregateName,
       { name: role.name },
       'tenant',

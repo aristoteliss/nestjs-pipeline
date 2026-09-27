@@ -17,6 +17,8 @@ packages. Repository orientation: [.claude/codebase-map.md](../../.claude/codeba
   `@cqrs-ddd/*` utilities (see [packages/CLAUDE.md](../CLAUDE.md)). `uuidv7` and `isUuidV7`
   are re-exported from `@cqrs-ddd/uuidv7`; the serializers and key-segment helpers are
   re-exported from `@cqrs-ddd/safe-stringify`.
+- Names follow [AGENTS.md → Naming](../../AGENTS.md#naming); an exported name or token is a
+  published contract.
 
 ## Important files
 
