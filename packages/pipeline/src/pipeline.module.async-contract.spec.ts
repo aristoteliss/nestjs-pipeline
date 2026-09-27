@@ -104,10 +104,7 @@ describe('PipelineModule async provider-graph contract', () => {
   it('accepts a [behavior, options] tuple in the static behaviors list', () => {
     const options: PipelineModuleAsyncOptions = {
       behaviors: [[TestBehavior, { enabled: true }]],
-      useFactory: () => ({
-        correlationIdFactory: () => 'corr',
-        tenantIdFactory: () => 'tenant',
-      }),
+      useFactory: () => ({ diagnostics: 'warn' }),
     };
 
     const module = PipelineModule.forRootAsync(options);
@@ -166,7 +163,7 @@ describe('PipelineModule async provider-graph contract', () => {
   it('applies static global configs to useClass factories', async () => {
     class Factory {
       createPipelineOptions(): PipelineRuntimeOptions {
-        return { tenantIdFactory: () => 'tenant' };
+        return { diagnostics: 'warn' };
       }
     }
     const staticConfig = { before: [StaticGlobalBehavior] };
@@ -180,7 +177,7 @@ describe('PipelineModule async provider-graph contract', () => {
     );
 
     expect(options?.globalBehaviors).toEqual([staticConfig]);
-    expect(options?.tenantIdFactory?.()).toBe('tenant');
+    expect(options?.diagnostics).toBe('warn');
   });
 
   it('provides static global configs when no async factory is declared', () => {

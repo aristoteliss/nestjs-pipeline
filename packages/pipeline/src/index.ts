@@ -23,6 +23,11 @@ export {
 export * from './decorators';
 export * from './errors/missing-pipeline-item.error';
 export {
+  currentScope,
+  type ExecutionScope,
+  runInScope,
+} from './execution-scope';
+export {
   type LoggingIntentOptions,
   logging,
 } from './helpers/logging.intent';

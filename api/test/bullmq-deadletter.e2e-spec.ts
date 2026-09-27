@@ -55,7 +55,8 @@ describe('BullMQ worker lifecycle & dead-letter queue (e2e)', () => {
       .post('/users')
       .set('x-tenant-schema', 'tenant')
       .set('x-correlation-id', correlationId)
-      .set('x-test-user', admin)
+      .set('x-api-id', 'api-admin-client')
+      .set('x-api-key', 'admin-secret-key-12345')
       .send({ email, name: 'BullMQ Worker User' });
 
     expect(res.status).toBe(201);
@@ -82,8 +83,10 @@ describe('BullMQ worker lifecycle & dead-letter queue (e2e)', () => {
 
     expect(completedJob).toBeDefined();
     expect(completedJob?.data.email).toBe(email);
-    expect(completedJob?.data.tenant).toBe('tenant');
-    expect(completedJob?.data.correlationId).toBe(correlationId);
+    expect(completedJob?.data.jobContext).toMatchObject({
+      tenantId: 'tenant',
+      correlationId,
+    });
   }, 15000);
 
   it('captures unhandled event handler failures into dead-letters queue via DeadLetterBehavior', async () => {

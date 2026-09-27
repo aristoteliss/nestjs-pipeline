@@ -20,13 +20,13 @@ npm install @nestjs-pipeline/correlation @nestjs-pipeline/core @nestjs/common
 pnpm add @nestjs-pipeline/correlation @nestjs-pipeline/core @nestjs/common
 ```
 
-> **Tip:** To integrate correlation IDs with the pipeline context, pass
-> `getCorrelationId` as `correlationIdFactory` and `runWithCorrelationId` as
-> `correlationIdRunner` in `PipelineModule.forRoot()`.
+The correlation ID lives in the execution scope of `@nestjs-pipeline/core`, so a
+pipeline takes the ID set by this package as its `context.correlationId`, and
+`getCorrelationId()` inside a handler returns that same ID. There is nothing to
+configure on `PipelineModule`.
 
 ## Features
 
-- **`correlationStore`** — `AsyncLocalStorage` holding the current correlation ID
 - **`getCorrelationId()`** — Read the active ID, falling back to a UUIDv7 when no context is active
 - **`runWithCorrelationId(id, fn)`** — Execute a callback inside a correlation context
 - **`addCorrelationId(data)`** — Stamp the current ID onto a payload (producer-side)
@@ -127,36 +127,22 @@ async handle(@Payload() data: any, @Ctx() ctx: KafkaContext) { }
 
 | Export | Type | Description |
 |--------|------|-------------|
-| `correlationStore` | `AsyncLocalStorage<string>` | Holds the current correlation ID |
-| `getCorrelationId()` | `() => string` | Read the active/fallback ID, or generate a UUIDv7 when none exists |
+| `getCorrelationId()` | `() => string` | Read the correlation ID of the execution scope, or generate a UUIDv7 when none exists |
 | `runWithCorrelationId(id, fn)` | `(id: string \| undefined, fn: () => T) => T` | Execute a callback inside a populated correlation context |
 | `addCorrelationId(data)` | `(data: object) => object` | Stamp the current ID onto a plain-object payload |
 | `correlationHeaders(key?)` | `(key?: string) => Record<string, string>` | Return a headers object for header-based transports |
 | `@WithCorrelation(opts?)` | Decorator | Restore correlation context on non-HTTP entry points |
 | `CorrelationFrom` | Object | Pre-built extractors: `.amqp()`, `.kafka()`, `.nats()`, `.grpc()` |
-| `correlationPipelineOptions()` | `() => { correlationIdFactory, correlationIdRunner }` | Core pipeline options that keep the pipeline context and the correlation store on one ID |
 | `HttpCorrelationMiddleware` | NestJS Middleware | Extracts/generates correlation ID from HTTP `x-correlation-id` header; accepts an incoming ID of at most 128 characters matching `DEFAULT_CORRELATION_ID_PATTERN` unless `CORRELATION_OPTIONS` overrides `maxLength`/`validateIncoming` |
 | `DEFAULT_CORRELATION_ID_MAX_LENGTH`, `DEFAULT_CORRELATION_ID_PATTERN` | Constants | Default incoming-ID length limit and character set |
 | `uuidv7()` | `() => string` | Generate a timestamp-sortable UUID v7 (RFC 9562) |
 
 ### Pipeline integration
 
-The core module exposes two independent hooks. `correlationIdFactory` chooses the
-ID assigned to a new pipeline context; `correlationIdRunner` wraps execution in
-an external correlation context. `correlationPipelineOptions()` returns both,
-wired to this package, so the pipeline context and this package's
-`AsyncLocalStorage` hold the same ID. Configuring only the factory leaves them
-independent: outside an HTTP request or `runWithCorrelationId`, `getCorrelationId()`
-inside a handler would differ from `context.correlationId`.
-
-```typescript
-import { PipelineModule } from '@nestjs-pipeline/core';
-import { correlationPipelineOptions } from '@nestjs-pipeline/correlation';
-
-PipelineModule.forRoot({
-  ...correlationPipelineOptions(),
-})
-```
+A pipeline takes the scope's correlation ID when it starts and runs its behaviors
+and handler inside it, so `getCorrelationId()` in a handler equals
+`context.correlationId`, including in event handlers and nested commands it
+dispatches. Outside any scope the pipeline generates its own `uuidv7()`.
 
 For HTTP requests, register `HttpCorrelationMiddleware` explicitly in your app
 module. The middleware is not installed automatically by either package:

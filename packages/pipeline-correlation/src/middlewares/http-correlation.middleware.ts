@@ -3,7 +3,7 @@
 import { IncomingMessage, ServerResponse } from 'node:http';
 import { Inject, Injectable, NestMiddleware, Optional } from '@nestjs/common';
 import { DEFAULT_CORRELATION_HEADER } from '../constants/correlation.constants';
-import { correlationStore, getCorrelationId } from '../correlation.store';
+import { getCorrelationId, runWithCorrelationId } from '../correlation.store';
 import {
   CORRELATION_OPTIONS,
   CorrelationOptions,
@@ -15,8 +15,8 @@ const HTTP_FIELD_NAME = /^[!#$%&'*+\-.^_`|~0-9A-Za-z]+$/;
 
 /**
  * NestJS middleware that extracts a correlation ID from the incoming HTTP
- * request header and stores it in {@link correlationStore} for the remainder of
- * the request callback.
+ * request header and runs the rest of the request with it
+ * ({@link runWithCorrelationId}), so pipelines dispatched by the request take it.
  *
  * The header name defaults to `x-correlation-id`. Applications that need a
  * different header can bind {@link CORRELATION_OPTIONS} with a string `header`.
@@ -97,7 +97,7 @@ export class HttpCorrelationMiddleware implements NestMiddleware {
       res.setHeader(this.header, correlationId);
     }
 
-    correlationStore.run(correlationId, next);
+    runWithCorrelationId(correlationId, next);
   }
 
   /** Applies configured validation/normalization to one incoming header value. */

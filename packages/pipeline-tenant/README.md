@@ -15,31 +15,28 @@ call site.
 pnpm add @nestjs-pipeline/tenant @nestjs-pipeline/core
 ```
 
-Requires Node.js 22 or later. There is nothing to register: the package reads the
-pipeline context that `@nestjs-pipeline/core` already carries.
+Requires Node.js 22 or later. There is nothing to register: the package reads and writes
+the execution scope that `@nestjs-pipeline/core` already carries.
 
 ## Usage
 
 ```typescript
 import { currentTenantId, runWithTenant } from '@nestjs-pipeline/tenant';
 
-// Inside a handler: the pipeline's tenant, from `tenantIdFactory` or a parent dispatch.
-const tenant = currentTenantId();
+// Where work enters the application, such as HTTP middleware or a queue job:
+await runWithTenant(req.headers['x-tenant'], () => next());
 
-// Outside a pipeline, such as in a queue job:
-await runWithTenant(job.data.tenant, () => processBatch(job.data));
+// Anywhere below it, including inside a handler:
+const tenant = currentTenantId();
 ```
 
-`currentTenantId()` returns the tenant of whichever was entered last:
-
-- a pipeline execution: its context's `tenantId`, which `tenantIdFactory` resolves and
-  nested dispatches inherit;
-- a `runWithTenant(tenantId, fn)` call: `tenantId`, for everything `fn` calls.
-
-So a scope entered inside a handler changes the tenant for its callback, and a pipeline
-dispatched inside a scope runs with its own tenant. `runWithTenant(undefined, fn)` runs
-`fn` with no tenant. Outside both, `currentTenantId()` returns `undefined`: code that
-needs a tenant must then fail rather than fall back to a shared one.
+The tenant lives in the execution scope of `@nestjs-pipeline/core`. A pipeline started
+inside `runWithTenant` takes that tenant as its write-once `context.tenantId` and runs its
+behaviors and handler with it, so nested dispatches inherit it. A `runWithTenant` inside a
+handler changes the tenant for its own callback only, and a pipeline dispatched there takes
+the new tenant. `runWithTenant(undefined, fn)` runs `fn` with no tenant. Outside any scope,
+`currentTenantId()` returns `undefined`: code that needs a tenant must then fail rather
+than fall back to a shared one, as the tenant-scoped behaviors do.
 
 To hand the tenant to a library that asks for a function returning the current tenant,
 pass `currentTenantId` itself.

@@ -2,7 +2,7 @@
 
 import { InjectQueue } from '@nestjs/bullmq';
 import { Injectable } from '@nestjs/common';
-import { addCorrelationId } from '@nestjs-pipeline/correlation';
+import { withJobContext } from '@nestjs-pipeline/job-context';
 import type { Queue } from 'bullmq';
 import type {
   IUserBatchDispatcher,
@@ -21,12 +21,9 @@ import {
 
 /**
  * BullMQ infrastructure adapter for user-event application dispatch ports.
- * Queue correlation metadata is derived from the current correlation store here,
- * not carried as an application-handler concern.
- *
- * Both queues stamp the correlation ID into the job payload with
- * `addCorrelationId`, as `@nestjs-pipeline/correlation` prescribes for
- * transports without headers.
+ * Both queues stamp the caller's tenant, correlation id and principal into the
+ * job payload with `withJobContext`; the processors restore them with
+ * `@InJobContext`.
  */
 @Injectable()
 export class BullMqUserEventDispatcher
@@ -40,7 +37,7 @@ export class BullMqUserEventDispatcher
   ) {}
 
   async enqueueWelcomeEmail(message: WelcomeEmailDispatch): Promise<void> {
-    await this.welcomeEmailQueue.add('send', addCorrelationId(message));
+    await this.welcomeEmailQueue.add('send', withJobContext(message));
   }
 
   async enqueueUserBatch(
@@ -48,7 +45,7 @@ export class BullMqUserEventDispatcher
   ): Promise<void> {
     await this.batchUpdateQueue.add(
       'batch-update',
-      addCorrelationId({ items: items.map((item) => ({ ...item })) }),
+      withJobContext({ items: items.map((item) => ({ ...item })) }),
     );
   }
 }

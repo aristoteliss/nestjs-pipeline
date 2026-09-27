@@ -87,6 +87,8 @@ import { SessionService } from './services/session.service';
     GetUserPermissionRulesHandler,
   ],
   exports: [
+    COMMAND_REPOSITORY.updateAuth,
+    EXT_USER_QUERY_REPOSITORY.getUser,
     SessionService,
     PrincipalLoginService,
     RequestPrincipalResolver,

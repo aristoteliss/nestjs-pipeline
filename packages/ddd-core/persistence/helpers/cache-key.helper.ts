@@ -60,7 +60,7 @@ function normalizeFilterConditions(
       typeof val === 'bigint'
     ) {
       throw new TypeError(
-        `filterCacheKey does not support values of type ${typeof val}.`,
+        `cacheKey does not support values of type ${typeof val}.`,
       );
     }
     normalized[key] = val;
@@ -143,7 +143,7 @@ function canonicalizeValue(val: NonNullable<unknown>): string {
  *
  * Required placeholders throw when absent; optional `{prop?}` placeholders resolve
  * to an empty string. Object placeholder values use the same canonical serializer
- * as `filterCacheKey`.
+ * as `cacheKey`.
  *
  * @param template - Key template containing required `{prop}` or optional `{prop?}` placeholders.
  * @param tenantOrContext - An explicit tenant used to namespace produced keys. When

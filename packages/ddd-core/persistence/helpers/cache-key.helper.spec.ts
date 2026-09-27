@@ -14,7 +14,7 @@ const inTenant = <T>(tenant: string | undefined, fn: () => T): T =>
 beforeAll(() => setTenantResolver(() => applicationTenant.getStore()));
 afterAll(() => setTenantResolver(undefined));
 
-describe('filterCacheKey', () => {
+describe('cacheKey', () => {
   it('generates a deterministic versioned key with sorted keys using resource string', () => {
     const key1 = cacheKey(
       'user',

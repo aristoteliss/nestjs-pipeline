@@ -11,10 +11,13 @@ import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { CqrsModule } from '@nestjs/cqrs';
 import { CaslModule } from '@nestjs-pipeline/casl';
 import { HttpCorrelationMiddleware } from '@nestjs-pipeline/correlation';
+import { JobContextModule } from '@nestjs-pipeline/job-context';
 import { TenantSchemaMiddleware } from '@persistence/middlewares/tenant-schema.middleware';
+import { persistenceConfig } from '@persistence/persistence.config';
 import { PersistenceModule } from '@persistence/persistence.module';
 import { AuthorizationModule } from './auths/authorization.module';
 import { AuthsModule } from './auths/auths.module';
+import { SessionJobPrincipal } from './auths/infrastructure/session-job-principal';
 import { CaslPermissionSource } from './auths/persistence/casl-permission.source';
 import { ObservabilityModule, ReliabilityModule } from './common/modules';
 import { RolesModule } from './roles/roles.module';
@@ -31,6 +34,7 @@ import { UsersModule } from './users/users.module';
  * - {@link ReliabilityModule}: BullMQ queue engine, dead-letter storage, rate limiting, distributed idempotency, resilience policies, caching, and feature flags.
  * - {@link CaslModule}: Role- and attribute-based access control; {@link AuthorizationModule} supplies the request permission source.
  * - {@link PersistenceModule}: MikroORM database connection, entity repositories, and tenant schema manager.
+ * - {@link JobContextModule}: carries a request's tenant, correlation id and principal into the jobs it enqueues.
  * - Domain Feature Modules: {@link UsersModule}, {@link RolesModule}, {@link AuthsModule}.
  */
 @Module({
@@ -46,6 +50,11 @@ import { UsersModule } from './users/users.module';
     UsersModule,
     RolesModule,
     AuthsModule,
+    JobContextModule.forRoot({
+      principal: SessionJobPrincipal,
+      tenants: persistenceConfig().tenants,
+      imports: [AuthsModule],
+    }),
   ],
   providers: [
     { provide: APP_GUARD, useClass: AuthSessionGuard },

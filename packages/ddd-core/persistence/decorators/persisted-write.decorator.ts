@@ -53,9 +53,9 @@ export interface PersistedWriteOptions<TEntity> {
  * ```typescript
  * @PersistedWrite<User>({
  *   cache: {
- *     setKey: (user) => filterCacheKey(User.aggregateName, { id: user.id }),
+ *     setKey: (user) => cacheKey(User.aggregateName, { id: user.id }),
  *     invalidateKeys: (user) => [
- *       filterCacheKey(User.aggregateName, { email: user.email }),
+ *       cacheKey(User.aggregateName, { email: user.email }),
  *     ],
  *   },
  *   unique: [

@@ -1,24 +1,16 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import { AsyncLocalStorage } from 'node:async_hooks';
-import { type IPipelineContext, pipelineStore } from '@nestjs-pipeline/core';
-
-interface TenantScope {
-  readonly tenantId: string | undefined;
-  /** The pipeline execution that was running when the scope was entered. */
-  readonly pipeline: IPipelineContext | undefined;
-}
-
-const tenantScope = new AsyncLocalStorage<TenantScope>();
+import { currentScope, runInScope } from '@nestjs-pipeline/core';
 
 /**
  * Runs `fn` with `tenantId` as the current tenant for everything it calls,
  * synchronously or asynchronously.
  *
- * Use it for work that runs outside a pipeline, such as a queue job, or to
- * change the tenant for part of a handler. A pipeline dispatched from inside
- * `fn` runs with its own tenant. A nested call replaces the tenant for its own
- * callback only, and `undefined` runs `fn` with no tenant.
+ * Use it where work enters the application, such as HTTP middleware or a queue
+ * job, or to change the tenant for part of a handler. A pipeline dispatched
+ * inside `fn` takes this tenant, and nested dispatches inherit it. A nested
+ * call replaces the tenant for its own callback only, and `undefined` runs `fn`
+ * with no tenant.
  *
  * @param tenantId - The tenant for the callback, or `undefined` for none.
  * @param fn - The work to run.
@@ -30,16 +22,13 @@ const tenantScope = new AsyncLocalStorage<TenantScope>();
  * ```
  */
 export function runWithTenant<T>(tenantId: string | undefined, fn: () => T): T {
-  return tenantScope.run({ tenantId, pipeline: pipelineStore.getStore() }, fn);
+  return runInScope({ tenantId }, fn);
 }
 
 /**
  * Returns the current tenant: that of the innermost {@link runWithTenant} call
- * or pipeline execution, whichever was entered last, or `undefined` outside
- * both.
- *
- * A pipeline execution's tenant is its context's `tenantId`, which the
- * pipeline's `tenantIdFactory` resolves and nested dispatches inherit.
+ * or running pipeline, or `undefined` outside both. A running pipeline's tenant
+ * is its `context.tenantId`, which it took from the scope when it started.
  *
  * @returns The current tenant id, or `undefined` for none.
  *
@@ -49,10 +38,5 @@ export function runWithTenant<T>(tenantId: string | undefined, fn: () => T): T {
  * ```
  */
 export function currentTenantId(): string | undefined {
-  const pipeline = pipelineStore.getStore();
-  const scope = tenantScope.getStore();
-  if (scope && (pipeline === undefined || scope.pipeline === pipeline)) {
-    return scope.tenantId;
-  }
-  return pipeline?.tenantId;
+  return currentScope().tenantId;
 }

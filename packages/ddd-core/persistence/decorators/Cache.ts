@@ -114,14 +114,14 @@ export const DEFAULT_BARRIER_TTL_MS = 60_000;
  * - **Best-effort safety**: Cache write and eviction operations swallow errors internally so that an
  *   already-committed database transaction is never converted into an application error.
  * - **Explicit keys**: Requires at least one of `setKey`, `deleteKeys` or `invalidateKeys`;
- *   scoping the key (for example with `filterCacheKey`) is the key function's job.
+ *   scoping the key (for example with `cacheKey`) is the key function's job.
  *
  * @example Positional syntax on creation / update
  * ```typescript
  * @Cache<User, UserSnapshot>(
- *   (user) => filterCacheKey(User.aggregateName, { id: user.id }),
+ *   (user) => cacheKey(User.aggregateName, { id: user.id }),
  *   null,
- *   (user) => [filterCacheKey(User.aggregateName, { email: user.email })],
+ *   (user) => [cacheKey(User.aggregateName, { email: user.email })],
  * )
  * async save(user: User): Promise<UserSnapshot> { ... }
  * ```
@@ -135,8 +135,8 @@ export const DEFAULT_BARRIER_TTL_MS = 60_000;
  * ```typescript
  * @Cache<User, null>({
  *   deleteKeys: (user) => [
- *     filterCacheKey(User.aggregateName, { id: user.id }),
- *     filterCacheKey(User.aggregateName, { email: user.email }),
+ *     cacheKey(User.aggregateName, { id: user.id }),
+ *     cacheKey(User.aggregateName, { email: user.email }),
  *   ],
  * })
  * async save(user: User): Promise<null> { ... }

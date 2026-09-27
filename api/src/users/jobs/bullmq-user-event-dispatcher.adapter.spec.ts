@@ -1,51 +1,61 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import { runWithCorrelationId } from '@nestjs-pipeline/correlation';
+import { withJobContext } from '@nestjs-pipeline/job-context';
 import { describe, expect, it, vi } from 'vitest';
 import { BullMqUserEventDispatcher } from './bullmq-user-event-dispatcher.adapter';
 
+vi.mock('@nestjs-pipeline/job-context', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@nestjs-pipeline/job-context')>()),
+  withJobContext: vi.fn((data: object) => ({
+    ...data,
+    jobContext: {
+      tenantId: 'tenant_a',
+      correlationId: 'corr-1',
+      principal: { id: 'u-1', type: 'user', sessionId: 's-1' },
+    },
+  })),
+}));
+
+const jobContext = {
+  tenantId: 'tenant_a',
+  correlationId: 'corr-1',
+  principal: { id: 'u-1', type: 'user', sessionId: 's-1' },
+};
+
 describe('BullMqUserEventDispatcher', () => {
-  it('adds correlation metadata to welcome-email BullMQ job data', async () => {
+  it('stamps the job context on welcome-email job data', async () => {
     const welcomeAdd = vi.fn().mockResolvedValue({ id: 'welcome-1' });
     const adapter = new BullMqUserEventDispatcher(
       { add: welcomeAdd } as never,
       { add: vi.fn() } as never,
     );
 
-    await runWithCorrelationId('corr-1', () =>
-      adapter.enqueueWelcomeEmail({
-        userId: 'user-1',
-        username: 'Alice',
-        email: 'alice@example.test',
-        tenant: 'tenant_a',
-      }),
-    );
+    await adapter.enqueueWelcomeEmail({
+      userId: 'user-1',
+      username: 'Alice',
+      email: 'alice@example.test',
+    });
 
     expect(welcomeAdd).toHaveBeenCalledWith('send', {
       userId: 'user-1',
       username: 'Alice',
       email: 'alice@example.test',
-      tenant: 'tenant_a',
-      correlationId: 'corr-1',
+      jobContext,
     });
   });
 
-  it('stamps the batch correlation ID into the payload, not into JobsOptions', async () => {
+  it('stamps the job context beside the batch items, not into JobsOptions', async () => {
     const batchAdd = vi.fn().mockResolvedValue({ id: 'batch-1' });
     const adapter = new BullMqUserEventDispatcher(
       { add: vi.fn() } as never,
       { add: batchAdd } as never,
     );
 
-    await runWithCorrelationId('corr-2', () =>
-      adapter.enqueueUserBatch([
-        { userId: 'user-1', username: 'Alice', tenant: 'tenant_a' },
-      ]),
-    );
+    await adapter.enqueueUserBatch([{ userId: 'user-1', username: 'Alice' }]);
 
     expect(batchAdd).toHaveBeenCalledWith('batch-update', {
-      items: [{ userId: 'user-1', username: 'Alice', tenant: 'tenant_a' }],
-      correlationId: 'corr-2',
+      items: [{ userId: 'user-1', username: 'Alice' }],
+      jobContext,
     });
     expect(batchAdd.mock.calls[0]).toHaveLength(2);
   });
@@ -56,10 +66,11 @@ describe('BullMqUserEventDispatcher', () => {
       { add: vi.fn() } as never,
       { add: batchAdd } as never,
     );
-    const item = { userId: 'user-1', tenant: 'tenant_a' };
+    const item = { userId: 'user-1' };
 
     await adapter.enqueueUserBatch([item]);
 
+    expect(withJobContext).toHaveBeenCalled();
     expect(batchAdd.mock.calls[0][1].items[0]).not.toBe(item);
     expect(batchAdd.mock.calls[0][1].items[0]).toEqual(item);
   });

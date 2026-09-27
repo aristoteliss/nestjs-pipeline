@@ -8,7 +8,11 @@ import {
   CaslAuthorizer,
   UnauthorizedActionException,
 } from '@nestjs-pipeline/casl';
-import { type IPipelineContext, pipelineStore } from '@nestjs-pipeline/core';
+import {
+  type IPipelineContext,
+  pipelineStore,
+  runInScope,
+} from '@nestjs-pipeline/core';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { GetRoleHandler } from '../src/roles/cqrs/queries/get-role.handler';
 import { GetRoleQuery } from '../src/roles/cqrs/queries/get-role.query';
@@ -41,7 +45,7 @@ function asCaller<T>(
       tenantId: 'tenant-a',
       items: new Map([[CASL_ABILITY_KEY, buildAbility(rules)]]),
     } as unknown as IPipelineContext,
-    fn,
+    () => runInScope({ tenantId: 'tenant-a' }, fn),
   );
 }
 

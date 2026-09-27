@@ -166,75 +166,6 @@ export interface PipelineModuleOptions {
   loggerProvider?: PipelineLoggerProvider;
 
   /**
-   * Optional factory that provides a correlation ID for a root pipeline run.
-   *
-   * Correlation IDs are resolved before any behavior executes in this order:
-   * inherited parent pipeline ID → `correlationIdFactory` result → `uuidv7()`.
-   * Therefore the factory is not called for a nested pipeline invocation that
-   * already inherited its parent's correlation ID. If the factory is called and
-   * returns `undefined`, a `uuidv7()` fallback is generated.
-   *
-   * Integrates with `@nestjs-pipeline/correlation` — pass `getCorrelationId`
-   * to bridge HTTP / message-queue correlation IDs into the pipeline:
-   *
-   * @example
-   * ```ts
-   * import { getCorrelationId } from '@nestjs-pipeline/correlation';
-   *
-   * PipelineModule.forRoot({
-   *   behaviors: [LoggingBehavior],
-   *   correlationIdFactory: getCorrelationId,
-   * })
-   * ```
-   *
-   * @example
-   * ```ts
-   * // Custom factory
-   * correlationIdFactory: () => myCustomIdSource(),
-   * ```
-   */
-  correlationIdFactory?: () => string | undefined;
-
-  /**
-   * Optional runner that wraps each pipeline invocation in a correlation context.
-   *
-   * When provided, every handler chain runs inside this wrapper **in addition to**
-   * `pipelineStore`. This ensures that `getCorrelationId()` (from the correlation
-   * package) returns the pipeline's `correlationId` throughout the entire handler —
-   * including event handlers dispatched via `eventBus.publish()`.
-   *
-   * Pair with `correlationIdFactory` for full bidirectional correlation support:
-   *
-   * @example
-   * ```ts
-   * import { getCorrelationId, runWithCorrelationId } from '@nestjs-pipeline/correlation';
-   *
-   * PipelineModule.forRoot({
-   *   correlationIdFactory: getCorrelationId,
-   *   correlationIdRunner: runWithCorrelationId,
-   * })
-   * ```
-   */
-  correlationIdRunner?: <T>(correlationId: string, fn: () => T) => T;
-
-  /**
-   * Optional factory that resolves the active tenant ID for each pipeline execution.
-   *
-   * When configured, called before behaviors execute to populate `context.tenantId`.
-   *
-   * @example
-   * ```ts
-   * PipelineModule.forRootAsync({
-   *   inject: [TenantSchemaContext],
-   *   useFactory: (tenantContext: TenantSchemaContext) => ({
-   *     tenantIdFactory: () => tenantContext.schema,
-   *   }),
-   * })
-   * ```
-   */
-  tenantIdFactory?: () => string | undefined;
-
-  /**
    * Mode for validating behavior configuration contracts during application bootstrap.
    *
    * - `'strict'` (default): Fails application bootstrap immediately by throwing
@@ -274,18 +205,16 @@ export interface PipelineOptionsFactory {
  * Provider-graph settings such as `behaviors`, `loggerProvider`, and
  * `extraProviders` are declared on this object, together with any global
  * behaviors that do not depend on injected values. Runtime settings such as
- * correlation, tenant resolution, and dynamic global behavior composition are
- * returned by `useFactory` / `PipelineOptionsFactory`.
+ * diagnostics and dynamic global behavior composition are returned by
+ * `useFactory` / `PipelineOptionsFactory`.
  *
- * @example Async composition with tenant and correlation context
+ * @example Async composition
  * ```ts
  * PipelineModule.forRootAsync({
- *   inject: [TenantSchemaContext],
+ *   inject: [ConfigService],
  *   behaviors: [LoggingBehavior, ZodValidationBehavior, TraceBehavior],
- *   useFactory: (tenant: TenantSchemaContext) => ({
- *     correlationIdFactory: getCorrelationId,
- *     correlationIdRunner: runWithCorrelationId,
- *     tenantIdFactory: () => tenant.schema,
+ *   useFactory: (config: ConfigService) => ({
+ *     diagnostics: config.get('PIPELINE_DIAGNOSTICS'),
  *     globalBehaviors: {
  *       scope: 'all',
  *       before: [
@@ -341,10 +270,10 @@ export interface PipelineModuleAsyncOptions
    * @example
    * ```ts
    * PipelineModule.forRootAsync({
-   *   inject: [TenantSchemaContext],
+   *   inject: [ConfigService],
    *   globalBehaviors: { scope: 'all', before: [LoggingBehavior] },
-   *   useFactory: (tenant: TenantSchemaContext) => ({
-   *     tenantIdFactory: () => tenant.schema,
+   *   useFactory: (config: ConfigService) => ({
+   *     diagnostics: config.get('PIPELINE_DIAGNOSTICS'),
    *   }),
    * })
    * ```

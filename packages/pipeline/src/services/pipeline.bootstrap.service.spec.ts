@@ -10,6 +10,7 @@ import {
   SkipPipeline,
   UsePipeline,
 } from '../decorators/pipeline.decorator';
+import { runInScope } from '../execution-scope';
 import {
   IPipelineBehavior,
   NextDelegate,
@@ -1123,83 +1124,23 @@ describe('PipelineBootstrapService', () => {
       expect(isUuidV7(result.store!.correlationId)).toBe(true);
     });
 
-    it('uses correlationIdFactory when provided', async () => {
+    it('takes the tenant and correlation id of the current execution scope', async () => {
       const handler = new MockCommandHandler();
       explorerServiceMock.explore.mockReturnValue({
         commands: [makeWrapper(handler, MockCommandHandler)],
-        queries: [],
-        events: [],
-      });
-
-      bootstrap({
-        correlationIdFactory: () => 'factory-corr-abc',
-      });
-
-      const result = await handler.execute(new MockCommand(1));
-
-      expect(result.store!.correlationId).toBe('factory-corr-abc');
-    });
-
-    it('inherits correlationId from parent pipeline context (saga / nested dispatch)', async () => {
-      const parentHandler = new MockCommandHandler();
-      // A second independent singleton handler (fresh class) to avoid double-wrapping.
-      class ChildCommandHandler {
-        async execute(_cmd: MockCommand) {
-          return { store: pipelineStore.getStore() };
-        }
-      }
-      @UsePipeline(MockBehavior)
-      class DecoratedChildHandler extends ChildCommandHandler {}
-
-      const childHandler = new DecoratedChildHandler();
-      explorerServiceMock.explore.mockReturnValue({
-        commands: [
-          makeWrapper(parentHandler, MockCommandHandler),
-          makeWrapper(childHandler, DecoratedChildHandler),
-        ],
         queries: [],
         events: [],
       });
 
       bootstrap();
 
-      // Run parent to get its correlation ID, then run child inside parent's store.
-      const parentResult = await parentHandler.execute(new MockCommand(1));
-      const parentCorrId = parentResult.store!.correlationId;
+      const result = await runInScope(
+        { tenantId: 'tenant-a', correlationId: 'scope-corr-abc' },
+        () => handler.execute(new MockCommand(1)),
+      );
 
-      let childCorrId: string | undefined;
-      await pipelineStore.run(parentResult.store!, async () => {
-        const childResult = (await childHandler.execute(
-          new MockCommand(2),
-        )) as any;
-        childCorrId = childResult.store!.correlationId;
-      });
-
-      expect(childCorrId).toBe(parentCorrId);
-    });
-
-    it('wraps the chain with correlationIdRunner when provided', async () => {
-      const handler = new MockCommandHandler();
-      explorerServiceMock.explore.mockReturnValue({
-        commands: [makeWrapper(handler, MockCommandHandler)],
-        queries: [],
-        events: [],
-      });
-
-      const runnerCalls: { id: string }[] = [];
-
-      bootstrap({
-        correlationIdFactory: () => 'runner-corr-id',
-        correlationIdRunner: <T>(id: string, fn: () => T): T => {
-          runnerCalls.push({ id });
-          return fn();
-        },
-      });
-
-      await handler.execute(new MockCommand(1));
-
-      expect(runnerCalls).toHaveLength(1);
-      expect(runnerCalls[0].id).toBe('runner-corr-id');
+      expect(result.store!.correlationId).toBe('scope-corr-abc');
+      expect(result.store!.tenantId).toBe('tenant-a');
     });
   });
 

@@ -2,7 +2,6 @@
 
 import { describe, expect, it } from 'vitest';
 import {
-  pipelineStore,
   SET_CORRELATION_ID,
   SET_RESPONSE,
   SET_TENANT_ID,
@@ -90,36 +89,6 @@ describe('PipelineContext', () => {
     expect(ctx.correlationId).toBe('');
   });
 
-  it('inherits correlationId from parent pipeline store', () => {
-    const parentCtx = new PipelineContext(
-      new FakeCommand('parent'),
-      buildMeta(),
-    );
-    parentCtx[SET_CORRELATION_ID]('parent-corr-id');
-
-    let childCtx: PipelineContext | undefined;
-    pipelineStore.run(parentCtx, () => {
-      childCtx = new PipelineContext(new FakeCommand('child'), buildMeta());
-    });
-
-    expect(childCtx!.correlationId).toBe('parent-corr-id');
-  });
-
-  it('does not inherit from parent when parent correlationId is empty', () => {
-    const parentCtx = new PipelineContext(
-      new FakeCommand('parent'),
-      buildMeta(),
-    );
-    parentCtx[SET_CORRELATION_ID]('');
-
-    let childCtx: PipelineContext | undefined;
-    pipelineStore.run(parentCtx, () => {
-      childCtx = new PipelineContext(new FakeCommand('child'), buildMeta());
-    });
-
-    expect(childCtx!.correlationId).toBe('');
-  });
-
   it('tenantId defaults to undefined', () => {
     const ctx = new PipelineContext(new FakeCommand('x'), buildMeta());
     expect(ctx.tenantId).toBeUndefined();
@@ -135,35 +104,6 @@ describe('PipelineContext', () => {
     }).toThrow();
   });
 
-  it('inherits tenantId from parent pipeline store', () => {
-    const parentCtx = new PipelineContext(
-      new FakeCommand('parent'),
-      buildMeta(),
-    );
-    parentCtx[SET_TENANT_ID]('tenant-parent');
-
-    let childCtx: PipelineContext | undefined;
-    pipelineStore.run(parentCtx, () => {
-      childCtx = new PipelineContext(new FakeCommand('child'), buildMeta());
-    });
-
-    expect(childCtx!.tenantId).toBe('tenant-parent');
-  });
-
-  it('does not set tenantId when parent tenantId is undefined', () => {
-    const parentCtx = new PipelineContext(
-      new FakeCommand('parent'),
-      buildMeta(),
-    );
-
-    let childCtx: PipelineContext | undefined;
-    pipelineStore.run(parentCtx, () => {
-      childCtx = new PipelineContext(new FakeCommand('child'), buildMeta());
-    });
-
-    expect(childCtx!.tenantId).toBeUndefined();
-  });
-
   it('rejects reassigning or clearing an assigned tenant', () => {
     const ctx = new PipelineContext(new FakeCommand('x'), buildMeta());
     ctx[SET_TENANT_ID]('initial-tenant');
@@ -176,24 +116,6 @@ describe('PipelineContext', () => {
       'tenantId is already assigned',
     );
     expect(ctx.tenantId).toBe('initial-tenant');
-  });
-
-  it('rejects replacing a tenant inherited from the parent context', () => {
-    const parentCtx = new PipelineContext(
-      new FakeCommand('parent'),
-      buildMeta(),
-    );
-    parentCtx[SET_TENANT_ID]('tenant-parent');
-
-    pipelineStore.run(parentCtx, () => {
-      const childCtx = new PipelineContext(
-        new FakeCommand('child'),
-        buildMeta(),
-      );
-      expect(() => childCtx[SET_TENANT_ID]('tenant-other')).toThrow(
-        'tenantId is already assigned',
-      );
-    });
   });
 });
 

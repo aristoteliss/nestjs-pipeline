@@ -26,7 +26,8 @@ packages. Repository orientation: [.claude/codebase-map.md](../../.claude/codeba
 | --- | --- |
 | `src/pipeline.module.ts` | Module registration and global behavior options |
 | `src/services/pipeline.bootstrap.service.ts` | Handler discovery, chain composition, bootstrap diagnostics |
-| `src/pipeline.context.ts` | `IPipelineContext` and the async-local store |
+| `src/pipeline.context.ts` | `IPipelineContext`, the per-execution context |
+| `src/execution-scope.ts` | The execution scope: the one async-local store of tenant and correlation id (`runInScope`, `currentScope`); `@nestjs-pipeline/tenant` and `/correlation` read and write it |
 | `src/decorators/pipeline.decorator.ts` | `@UsePipeline` metadata |
 | `src/behaviors/logging.behavior.ts` | The one bundled behavior |
 | `src/interfaces/` | `IPipelineBehavior`, `IPipelineContext` — the public contract |
@@ -56,6 +57,9 @@ pnpm test:e2e     # api exercises the real Nest composition paths
   Do not expand private-framework coupling, and do not treat the existing import as a
   precedent. Any change here requires explicit compatibility reasoning, tests for the
   supported Nest majors, and a README/ADR update if behavior or compatibility changes.
+- The pipeline reads no Nest CQRS decorator metadata constants: discovery goes through
+  `ExplorerService`. Do not re-export or import `@nestjs/cqrs/dist/decorators/constants`;
+  `src/constants/private-api-boundary.spec.ts` guards it.
 - Behaviors registered globally in the `before` segment are security guards for the whole
   chain. Reordering the chain, or letting a short-circuiting behavior run before them,
   changes the authorization boundary — treat any such change as architecture-sensitive.

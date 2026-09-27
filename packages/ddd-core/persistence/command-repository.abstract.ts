@@ -25,7 +25,7 @@ import { ICommandRepository } from './command-repository.interface';
  *   }
  *
  *   @Cache<User, UserSnapshot>(
- *     (user) => filterCacheKey(User.aggregateName, { id: user.id }),
+ *     (user) => cacheKey(User.aggregateName, { id: user.id }),
  *   )
  *   async save(user: User): Promise<UserSnapshot> {
  *     const created = await this.store.em.upsert(User, user);

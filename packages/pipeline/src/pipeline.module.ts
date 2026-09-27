@@ -124,11 +124,10 @@ function extractBehaviorTypes(
  * // The bare array is equivalent to { behaviors: [...] }; it does not make
  * // those behaviors execute globally. Use globalBehaviors for that.
  *
- * // Advanced — global behaviors + correlation ID factory
+ * // Advanced — global behaviors
  * PipelineModule.forRoot({
  *   behaviors: [LoggingBehavior],
  *   globalBehaviors: { scope: 'all', before: [MetricsBehavior] },
- *   correlationIdFactory: () => myCorrelationSource(),
  * })
  *
  * // Per-kind scoping with array form
@@ -139,23 +138,11 @@ function extractBehaviorTypes(
  *     { scope: 'all',      after:  [LoggingBehavior] },
  *   ],
  * })
- *
- * // Integration with @nestjs-pipeline/correlation
- * import {
- *   getCorrelationId,
- *   runWithCorrelationId,
- * } from '@nestjs-pipeline/correlation';
- * PipelineModule.forRoot({
- *   behaviors: [LoggingBehavior],
- *   correlationIdFactory: getCorrelationId,
- *   correlationIdRunner: runWithCorrelationId,
- * })
  * ```
  *
- * Correlation ID resolution order (before any behavior runs):
- * 1. Parent pipeline context (saga / nested command)
- * 2. `correlationIdFactory` — user-supplied factory from module options
- * 3. `uuidv7()` fallback (timestamp-sortable UUID)
+ * Each execution takes its tenant and correlation id from the current
+ * execution scope (`runInScope`), generating a `uuidv7()` correlation id
+ * when the scope has none, and runs its behaviors inside a scope holding them.
  */
 @Global()
 @Module({})
@@ -165,7 +152,7 @@ export class PipelineModule {
    *
    * Accepts either a bare array of behavior classes (DI registration only) or a
    * {@link PipelineModuleOptions} object (global before/after behaviors,
-   * correlation-id bridging, logger provider, etc.). Registers all behavior
+   * logger provider, etc.). Registers all behavior
    * classes for DI — deduplicating global behaviors already listed in
    * `behaviors` — and the {@link PipelineBootstrapService} that wraps handlers.
    * A bare array does not attach the listed behaviors to handlers globally.
@@ -215,15 +202,15 @@ export class PipelineModule {
    * @example
    * ```ts
    * PipelineModule.forRootAsync({
-   *   imports: [PersistenceModule],
-   *   inject: [TenantSchemaContext],
+   *   imports: [ConfigModule],
+   *   inject: [ConfigService],
    *   behaviors: [LoggingBehavior, ZodValidationBehavior],
    *   loggerProvider: {
    *     provide: LOGGING_BEHAVIOR_LOGGER,
    *     useExisting: MyLogger,
    *   },
-   *   useFactory: (tenantContext: TenantSchemaContext) => ({
-   *     tenantIdFactory: () => tenantContext.schema,
+   *   useFactory: (config: ConfigService) => ({
+   *     diagnostics: config.get('PIPELINE_DIAGNOSTICS'),
    *     globalBehaviors: [{ scope: 'all', before: [LoggingBehavior] }],
    *   }),
    * })

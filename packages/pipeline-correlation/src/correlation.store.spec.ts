@@ -1,41 +1,35 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
+import { currentScope, runInScope } from '@nestjs-pipeline/core';
 import { describe, expect, it } from 'vitest';
 import {
   addCorrelationId,
   correlationHeaders,
-  correlationPipelineOptions,
-  correlationStore,
   getCorrelationId,
   runWithCorrelationId,
-  setCorrelationFallback,
 } from './correlation.store';
 
-describe('correlationStore', () => {
-  it('returns undefined when no store is active', () => {
-    expect(correlationStore.getStore()).toBeUndefined();
+describe('getCorrelationId', () => {
+  it('generates a new UUIDv7 on each call outside any scope', () => {
+    const first = getCorrelationId();
+
+    expect(first).toMatch(/^[0-9a-f-]{36}$/);
+    expect(getCorrelationId()).not.toBe(first);
+    expect(currentScope().correlationId).toBeUndefined();
   });
 
-  it('stores and retrieves a correlation ID', () => {
-    correlationStore.run('test-id', () => {
-      expect(correlationStore.getStore()).toBe('test-id');
+  it('reads the correlation id of the core execution scope', () => {
+    runInScope({ correlationId: 'scope-id' }, () => {
+      expect(getCorrelationId()).toBe('scope-id');
     });
   });
 
-  it('does not leak correlation ID outside run()', () => {
-    correlationStore.run('scoped', () => {});
-    expect(correlationStore.getStore()).toBeUndefined();
-  });
-
   it('supports nested contexts (inner overrides outer)', () => {
-    correlationStore.run('outer', () => {
-      expect(correlationStore.getStore()).toBe('outer');
-
-      correlationStore.run('inner', () => {
-        expect(correlationStore.getStore()).toBe('inner');
+    runWithCorrelationId('outer', () => {
+      runWithCorrelationId('inner', () => {
+        expect(getCorrelationId()).toBe('inner');
       });
-
-      expect(correlationStore.getStore()).toBe('outer');
+      expect(getCorrelationId()).toBe('outer');
     });
   });
 });
@@ -43,23 +37,34 @@ describe('correlationStore', () => {
 describe('runWithCorrelationId', () => {
   it('runs fn inside a correlation context when id is provided', () => {
     const result = runWithCorrelationId('my-id', () => {
-      return correlationStore.getStore();
+      return currentScope().correlationId;
     });
     expect(result).toBe('my-id');
   });
 
   it('generates a uuidv7 fallback when id is undefined', () => {
     const result = runWithCorrelationId(undefined, () => {
-      return correlationStore.getStore();
+      return currentScope().correlationId;
     });
     expect(result).toMatch(/^[0-9a-f-]{36}$/);
   });
 
   it('generates a uuidv7 fallback when id is empty string', () => {
     const result = runWithCorrelationId('', () => {
-      return correlationStore.getStore();
+      return currentScope().correlationId;
     });
     expect(result).toMatch(/^[0-9a-f-]{36}$/);
+  });
+
+  it('keeps the tenant of the current scope', () => {
+    runInScope({ tenantId: 'tenant_a' }, () =>
+      runWithCorrelationId('my-id', () =>
+        expect(currentScope()).toEqual({
+          tenantId: 'tenant_a',
+          correlationId: 'my-id',
+        }),
+      ),
+    );
   });
 
   it('returns the value from fn', () => {
@@ -164,46 +169,5 @@ describe('correlationHeaders', () => {
     const result = correlationHeaders();
     expect(Object.keys(result)).toEqual(['x-correlation-id']);
     expect(result['x-correlation-id']).toMatch(/^[0-9a-f-]{36}$/);
-  });
-});
-
-describe('correlationPipelineOptions', () => {
-  it('runs the chain with the pipeline ID visible to getCorrelationId outside a request', () => {
-    const { correlationIdFactory, correlationIdRunner } =
-      correlationPipelineOptions();
-
-    const pipelineId = correlationIdFactory() as string;
-    const seen = correlationIdRunner(pipelineId, () => [
-      getCorrelationId(),
-      getCorrelationId(),
-    ]);
-
-    expect(seen).toEqual([pipelineId, pipelineId]);
-  });
-
-  it('assigns the active correlation ID to a new pipeline context', () => {
-    const { correlationIdFactory } = correlationPipelineOptions();
-
-    expect(runWithCorrelationId('http-id', correlationIdFactory)).toBe(
-      'http-id',
-    );
-  });
-});
-
-describe('correlation fallback', () => {
-  it('uses the registered fallback only outside an active context', () => {
-    setCorrelationFallback(() => 'ambient-id');
-    try {
-      expect(getCorrelationId()).toBe('ambient-id');
-      expect(runWithCorrelationId('explicit-id', getCorrelationId)).toBe(
-        'explicit-id',
-      );
-      expect(runWithCorrelationId(undefined, getCorrelationId)).toBe(
-        'ambient-id',
-      );
-    } finally {
-      setCorrelationFallback(() => undefined);
-    }
-    expect(getCorrelationId()).toMatch(/^[0-9a-f-]{36}$/);
   });
 });

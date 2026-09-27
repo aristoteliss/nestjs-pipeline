@@ -2,7 +2,7 @@
 
 import { IncomingMessage, ServerResponse } from 'node:http';
 import { describe, expect, it, vi } from 'vitest';
-import { correlationStore } from '../correlation.store';
+import { getCorrelationId } from '../correlation.store';
 import { HttpCorrelationMiddleware } from './http-correlation.middleware';
 
 function fakeRequest(headers: Record<string, string> = {}): IncomingMessage {
@@ -18,7 +18,7 @@ describe('HttpCorrelationMiddleware', () => {
 
     let captured: string | undefined;
     middleware.use(req, fakeResponse, () => {
-      captured = correlationStore.getStore();
+      captured = getCorrelationId();
     });
 
     expect(captured).toBe('abc-123');
@@ -41,7 +41,7 @@ describe('HttpCorrelationMiddleware', () => {
 
     let captured: string | undefined;
     middleware.use(req, fakeResponse, () => {
-      captured = correlationStore.getStore();
+      captured = getCorrelationId();
     });
 
     expect(captured).toBe('custom-456');
@@ -55,7 +55,7 @@ describe('HttpCorrelationMiddleware', () => {
 
     let captured: string | undefined;
     middleware.use(req, fakeResponse, () => {
-      captured = correlationStore.getStore();
+      captured = getCorrelationId();
     });
 
     expect(captured).toBe('custom-456');
@@ -67,7 +67,7 @@ describe('HttpCorrelationMiddleware', () => {
 
     let captured: string | undefined;
     middleware.use(req, fakeResponse, () => {
-      captured = correlationStore.getStore();
+      captured = getCorrelationId();
     });
 
     expect(captured).toBe('default-789');
@@ -90,7 +90,7 @@ describe('HttpCorrelationMiddleware', () => {
 
     let captured: string | undefined;
     middleware.use(req, fakeResponse, () => {
-      captured = correlationStore.getStore();
+      captured = getCorrelationId();
     });
 
     expect(captured).toBe('first-id');
@@ -102,7 +102,7 @@ describe('HttpCorrelationMiddleware', () => {
 
     let captured: string | undefined;
     middleware.use(req, fakeResponse, () => {
-      captured = correlationStore.getStore();
+      captured = getCorrelationId();
     });
 
     expect(captured).toBeDefined();

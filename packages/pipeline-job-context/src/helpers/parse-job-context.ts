@@ -1,0 +1,88 @@
+/* Copyright (C) 2026-present Aristotelis — see repository license. */
+
+import {
+  DEFAULT_CORRELATION_ID_MAX_LENGTH,
+  DEFAULT_CORRELATION_ID_PATTERN,
+} from '@nestjs-pipeline/correlation';
+import { InvalidJobContextError } from '../errors/invalid-job-context.error';
+import { MissingJobContextError } from '../errors/missing-job-context.error';
+import type { JobContext } from '../interfaces/job-context.interface';
+import { toReference } from './principal-reference';
+
+const CONTEXT_FIELDS = new Set(['tenantId', 'correlationId', 'principal']);
+const PRINCIPAL_FIELDS = new Set(['id', 'type', 'sessionId']);
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function isText(value: unknown): value is string {
+  return typeof value === 'string' && value.trim() !== '';
+}
+
+function assertFields(
+  value: Record<string, unknown>,
+  allowed: ReadonlySet<string>,
+  name: string,
+): void {
+  const extra = Object.keys(value).find((key) => !allowed.has(key));
+  if (extra !== undefined) {
+    throw new InvalidJobContextError(`${name} carries the field "${extra}"`);
+  }
+}
+
+/**
+ * Validates a job payload's context before anything runs with it. Every field
+ * is checked, unknown fields are refused, and the tenant must be configured.
+ *
+ * @param value - The payload's `jobContext` value, as read from the queue.
+ * @param tenants - The configured tenants.
+ * @returns A context holding only the validated fields.
+ * @throws {MissingJobContextError} When `value` is `undefined`.
+ * @throws {InvalidJobContextError} For any other value that is not a valid context.
+ *
+ * @example
+ * ```ts
+ * const context = parseJobContext(job.data.jobContext, ['tenant_a']);
+ * ```
+ */
+export function parseJobContext(
+  value: unknown,
+  tenants: readonly string[],
+): JobContext {
+  if (value === undefined) {
+    throw new MissingJobContextError('the payload has no jobContext');
+  }
+  if (!isRecord(value)) {
+    throw new InvalidJobContextError('jobContext is not an object');
+  }
+  assertFields(value, CONTEXT_FIELDS, 'jobContext');
+  const { tenantId, correlationId, principal } = value;
+  if (typeof tenantId !== 'string' || !tenants.includes(tenantId)) {
+    throw new InvalidJobContextError('tenantId is not a configured tenant');
+  }
+  if (
+    typeof correlationId !== 'string' ||
+    correlationId.length > DEFAULT_CORRELATION_ID_MAX_LENGTH ||
+    !DEFAULT_CORRELATION_ID_PATTERN.test(correlationId)
+  ) {
+    throw new InvalidJobContextError('correlationId is malformed');
+  }
+  if (!isRecord(principal)) {
+    throw new InvalidJobContextError('principal is not an object');
+  }
+  assertFields(principal, PRINCIPAL_FIELDS, 'principal');
+  const { id, type, sessionId } = principal;
+  if (
+    !isText(id) ||
+    !isText(type) ||
+    (sessionId !== undefined && !isText(sessionId))
+  ) {
+    throw new InvalidJobContextError('principal is malformed');
+  }
+  return {
+    tenantId,
+    correlationId,
+    principal: toReference({ id, type, sessionId }),
+  };
+}

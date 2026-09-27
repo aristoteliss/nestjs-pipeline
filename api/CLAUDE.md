@@ -22,7 +22,7 @@ Per feature module (`users/`, `roles/`, `auths/`):
 | Application | `cqrs/commands/`, `cqrs/queries/`, `application/ports/` | Depend on repository interfaces and injection tokens; never on ORM clients |
 | Domain | `domain/models/`, `domain/events/`, `domain/errors/` | Invariants inside aggregates; framework-neutral errors |
 | Persistence | `persistence/` | ORM, caching, tenant access, lifecycle decorators |
-| Jobs | `jobs/` | BullMQ processors and dispatcher adapters behind application ports |
+| Jobs | `jobs/` | BullMQ processors and dispatcher adapters behind application ports; payloads carry `withJobContext`, processors restore it with `@InJobContext()` |
 
 Generic DDD and persistence building blocks belong to `packages/ddd-core` (see its `CLAUDE.md`,
 Ownership). `src/common/filters/domain-exception.filter.ts` maps this application's own

@@ -28,6 +28,7 @@ import {
   PipelineModule,
   UsePipeline,
 } from '@nestjs-pipeline/core';
+import { runWithTenant } from '@nestjs-pipeline/tenant';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 /** Stands in for whatever an authentication behavior resolves per request. */
@@ -80,9 +81,8 @@ describe('CacheBehavior partitioning in a real pipeline', () => {
       imports: [
         CqrsModule.forRoot(),
         CacheModule.forRoot({ store: { type: 'memory' }, ttl: 60_000 }),
-        PipelineModule.forRootAsync({
+        PipelineModule.forRoot({
           behaviors: [PrincipalBehavior, CacheBehavior],
-          useFactory: () => ({ tenantIdFactory: () => currentTenant }),
         }),
       ],
       providers: [GetReportHandler],
@@ -90,7 +90,11 @@ describe('CacheBehavior partitioning in a real pipeline', () => {
 
     app = moduleRef.createNestApplication();
     await app.init();
-    queries = app.get(QueryBus);
+    const bus = app.get(QueryBus);
+    queries = {
+      execute: (query) =>
+        runWithTenant(currentTenant, () => bus.execute(query)),
+    } as QueryBus;
   });
 
   afterEach(async () => {

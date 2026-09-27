@@ -2,7 +2,7 @@
 import { cacheKey } from '@cqrs-ddd/core/persistence';
 import { describe, expect, it } from 'vitest';
 
-describe('filterCacheKey core canonical serialization', () => {
+describe('cacheKey core canonical serialization', () => {
   it('keeps nested key output stable regardless of object insertion order', () => {
     const left = cacheKey(
       'deployment',

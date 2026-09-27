@@ -11,23 +11,16 @@ import { Type } from '@nestjs/common';
  */
 export interface IPipelineContext<TRequest = unknown, TResponse = unknown> {
   /**
-   * Immutable correlation ID for distributed tracing.
-   *
-   * Resolution order (before any behavior runs):
-   * 1. Inherited from parent pipeline (saga / nested command via AsyncLocalStorage)
-   * 2. `correlationIdFactory` — user-supplied factory from module options
-   * 3. Auto-generated `uuidv7()` (timestamp-sortable UUID)
-   *
-   * It is fixed before the behavior chain starts so the context and any configured
-   * correlation async-local store cannot diverge.
+   * Immutable correlation ID for distributed tracing: the execution scope's
+   * correlation id when the pipeline starts (`runInScope`, which nested
+   * dispatches inherit), otherwise a generated `uuidv7()`.
    */
   readonly correlationId: string;
 
   /**
-   * Active tenant identifier for multi-tenant pipeline executions.
-   *
-   * Populated before behavior execution via `PipelineModuleOptions.tenantIdFactory`,
-   * or inherited from parent context.
+   * Tenant of this execution: the execution scope's tenant when the pipeline
+   * starts, which nested dispatches inherit. Absent when the scope has none;
+   * tenant-scoped behaviors then fail closed.
    */
   readonly tenantId?: string;
 

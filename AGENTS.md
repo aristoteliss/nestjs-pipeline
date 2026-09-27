@@ -99,7 +99,7 @@ The map is an index, not an authority: verify any claim against the source befor
 on it, and prefer the code when they disagree. Regenerate the generated sections with
 `pnpm context:update`, update the human-owned sections by hand, and verify with
 `pnpm context:validate`. Never place secret values in a context or task file.
-`.claude/README.md` documents the whole system.
+The root `README.md` section "Agent context files" documents the whole system.
 
 ## Library scope and review discipline
 

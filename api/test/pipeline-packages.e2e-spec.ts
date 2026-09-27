@@ -112,7 +112,7 @@ describe('pipeline-packages (e2e)', () => {
       const job = jobs.find((j) => j.data?.email === email);
 
       expect(job).toBeDefined();
-      expect(job?.data.correlationId).toBe(customCorrId);
+      expect(job?.data.jobContext.correlationId).toBe(customCorrId);
     });
   });
 
@@ -454,7 +454,7 @@ describe('pipeline-packages (e2e)', () => {
   });
 
   describe('BullMQ event job queueing', () => {
-    it('enqueues welcome-email job with stamped correlationId on UserCreatedEvent', async () => {
+    it('enqueues welcome-email job with the request’s job context on UserCreatedEvent', async () => {
       const welcomeEmailQueue = ctx.app.get<Queue>(
         getQueueToken(WELCOME_EMAIL_QUEUE),
       );
@@ -484,11 +484,11 @@ describe('pipeline-packages (e2e)', () => {
         email,
         username: 'Email Queue User',
         userId: created.body.id,
-        correlationId: customCorrId,
+        jobContext: { tenantId: 'tenant', correlationId: customCorrId },
       });
     });
 
-    it('enqueues batch-update-users job with stamped correlationId on UserUpdatedEvent', async () => {
+    it('enqueues batch-update-users job with the request’s job context on UserUpdatedEvent', async () => {
       const batchQueue = ctx.app.get<Queue>(
         getQueueToken(BATCH_UPDATE_USERS_QUEUE),
       );
@@ -526,7 +526,7 @@ describe('pipeline-packages (e2e)', () => {
 
       expect(matchingJob).toBeDefined();
       expect(matchingJob?.data).toMatchObject({
-        correlationId: customCorrId,
+        jobContext: { tenantId: 'tenant', correlationId: customCorrId },
       });
     });
   });

@@ -2,7 +2,7 @@
 
 ## 0.2.0 (unreleased)
 
-Every package is released at 0.2.0. Five were on npm before; eleven are released for the
+Every package is released at 0.2.0. Five were on npm before; thirteen are released for the
 first time.
 
 ### Requirements for every package
@@ -25,6 +25,12 @@ Breaking:
   or `forRootAsync`; a behavior can no longer set a context's response or original
   correlation ID.
 - A context's tenant id is write-once: assigning it again throws.
+- The module options `correlationIdFactory`, `correlationIdRunner` and `tenantIdFactory`
+  are removed. A pipeline takes its tenant and correlation id from the execution scope
+  (`runInScope`) when it starts, generates a `uuidv7()` correlation id when the scope has
+  none, and runs its behaviors inside a scope holding both. Set them where work enters the
+  application: `runWithTenant` of `@nestjs-pipeline/tenant`, `HttpCorrelationMiddleware`
+  or `runWithCorrelationId` of `@nestjs-pipeline/correlation`.
 - When several NestJS applications in one process wrap the same handler class, calling it
   on an instance that none of them created throws, instead of running without any
   pipeline.
@@ -43,6 +49,8 @@ Added:
 - Behavior contracts and bootstrap diagnostics: `PIPELINE_BEHAVIOR_CONTRACT`,
   `PipelineConfigurationError` and their types.
 - `SET_TENANT_ID`, `toPostgresJson`.
+- The execution scope, the one async-local store of the tenant and correlation id:
+  `currentScope`, `runInScope`, `ExecutionScope`.
 - The serializers and key-segment helpers (`stableStringify`, `toStrictJsonValue`,
   `safeStringify`, `safeSanitize`, `redactValue`, `DEFAULT_REDACT_KEYS`, `REDACTED`,
   `joinKeySegments`, `escapeKeySegment`, `ABSENT_SEGMENT`), re-exported from
@@ -57,11 +65,14 @@ Breaking:
 
 - New required peer: `@nestjs-pipeline/core` `^0.2.0`. `@nestjs/common` `^11.0.0`.
 - `setCorrelationFallback` is no longer exported.
+- `correlationStore` is removed: the correlation id lives in the execution scope of
+  `@nestjs-pipeline/core`. `runWithCorrelationId`, `getCorrelationId`, `addCorrelationId`,
+  `correlationHeaders`, `@WithCorrelation` and `HttpCorrelationMiddleware` keep their API.
 - An incoming correlation ID longer than 128 characters, or not matching
   `DEFAULT_CORRELATION_ID_PATTERN`, is discarded and replaced by a locally generated ID.
 
 Added: `DEFAULT_CORRELATION_HEADER`, `DEFAULT_CORRELATION_ID_MAX_LENGTH`,
-`DEFAULT_CORRELATION_ID_PATTERN`, `correlationPipelineOptions()`.
+`DEFAULT_CORRELATION_ID_PATTERN`.
 
 Same API and output: `uuidv7` now comes from `@cqrs-ddd/uuidv7`.
 
@@ -155,17 +166,24 @@ Added: `requires()`, `CaslAuthorizer` (`can`, `authorize`, `project`),
   bulkhead around a whole handler; a circuit breaker or fallback there is a bootstrap
   error. Retry, circuit breaker and fallback require a `handle` predicate or
   `handleAllErrors: true`.
-- `@nestjs-pipeline/tenant`: `currentTenantId()` returns the tenant of the running
-  pipeline or of the innermost `runWithTenant()` scope.
+- `@nestjs-pipeline/tenant`: `runWithTenant()` sets the tenant of the execution scope and
+  `currentTenantId()` reads it, including the tenant of the running pipeline.
+- `@nestjs-pipeline/job-context`: carries a request's tenant, correlation id and
+  principal identity into the queue jobs it enqueues (`withJobContext`, `@InJobContext`),
+  re-checked through an application `IJobPrincipal` when the job runs, and gives system
+  work an explicit principal and grants per tenant (`@AsSystem`).
 - `@cqrs-ddd/core`: framework-neutral DDD building blocks (aggregates, domain events,
-  `CommandBaseHandler`, repository contracts, MikroORM persistence decorators, a
+  `CommandBaseHandler`, repository contracts, persistence lifecycle decorators, a
   revision-fenced repository cache, tenant-scoped cache keys, HTTP status mapping, and
   the value rules `textRule` and `numberRule`, which throw an `InvalidValueException` or
   an application's own subclass). It depends on no framework: `CommandBaseHandler` takes
   any `IDomainEventPublisher`, the cache decorators take a `logger`, and cache keys take
   their tenant from a resolver the application registers with `setTenantResolver`.
-  `UnixTimestampType` throws a `TypeError` for a value with no valid time.
-  `@mikro-orm/core` 7 is an optional peer, needed only for `/persistence`.
+  It has no peers and no ORM dependency.
+- `@cqrs-ddd/mikro-orm`: the MikroORM 7 adapters of `@cqrs-ddd/core` —
+  `AggregateRepository`, `optimisticUpdate`, `optimisticDelete`, `assertAutocommit`,
+  `MikroOrmCache` and `UnixTimestampType`, which throws a `TypeError` for a value with no
+  valid time. `@cqrs-ddd/core` and `@mikro-orm/core` are required peers.
 - `@cqrs-ddd/uuidv7`: RFC 9562 UUIDv7 generation and validation, with no dependencies.
 - `@cqrs-ddd/safe-stringify`: a strict, key-sorted serializer for identities and a safe,
   redacting serializer for logs, with the key-segment helpers; no dependencies. Its output

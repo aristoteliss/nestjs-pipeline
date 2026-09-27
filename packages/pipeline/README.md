@@ -27,7 +27,7 @@ Its peer contract also includes the standard NestJS runtime peers
   - [Deduplication](#deduplication)
   - [Skipping Global Behaviors (@SkipPipeline)](#skipping-global-behaviors-skippipeline)
 - [Built-in LoggingBehavior](#built-in-loggingbehavior)
-- [Correlation IDs](#correlation-ids)
+- [Execution scope: tenant and correlation ID](#execution-scope-tenant-and-correlation-id)
   - [HTTP Requests](#http-requests)
   - [Non-HTTP Entry Points](#non-http-entry-points)
   - [@WithCorrelation Decorator](#withcorrelation-decorator)
@@ -86,11 +86,6 @@ import { PipelineModule, LoggingBehavior } from '@nestjs-pipeline/core';
       },
       // Behaviors to register in DI (for @UsePipeline references)
       behaviors: [AuditBehavior],
-      // Bridge correlation IDs from @nestjs-pipeline/correlation (optional)
-      // correlationIdFactory: getCorrelationId,
-      // correlationIdRunner: runWithCorrelationId,
-      // Eagerly resolve tenant ID per pipeline execution (optional)
-      // tenantIdFactory: () => TenantContext.currentTenant,
     }),
   ],
 })
@@ -109,22 +104,6 @@ export class AppModule {}
 // The array form is equivalent to { behaviors: [...] }:
 // it registers providers for @UsePipeline references, but does not make those
 // behaviors execute globally. Use globalBehaviors for global execution.
-
-// ── Style 3: With correlation ID bridge ──
-
-import { getCorrelationId, runWithCorrelationId } from '@nestjs-pipeline/correlation';
-
-@Module({
-  imports: [
-    CqrsModule.forRoot(),
-    PipelineModule.forRoot({
-      behaviors: [LoggingBehavior],
-      correlationIdFactory: getCorrelationId,
-      correlationIdRunner: runWithCorrelationId,
-    }),
-  ],
-})
-export class AppModule {}
 ```
 
 ### forFeature()
@@ -187,16 +166,16 @@ provider-graph fields — `behaviors` and `loggerProvider` — are declared on t
 
 ```typescript
 PipelineModule.forRootAsync({
-  imports: [PersistenceModule],
-  inject: [TenantSchemaContext],
+  imports: [ConfigModule],
+  inject: [ConfigService],
 
   // Provider graph — evaluated before the factory.
   behaviors: [LoggingBehavior, ZodValidationBehavior],
   loggerProvider: { provide: LOGGING_BEHAVIOR_LOGGER, useExisting: MyLogger },
 
   // Runtime configuration — resolved from injected providers.
-  useFactory: (tenant: TenantSchemaContext) => ({
-    tenantIdFactory: () => tenant.schema,
+  useFactory: (config: ConfigService) => ({
+    diagnostics: config.get('PIPELINE_DIAGNOSTICS'),
     globalBehaviors: [{ scope: 'all', before: [LoggingBehavior] }],
   }),
 });
@@ -208,13 +187,13 @@ statically on the same call. Their classes are registered as providers, as with
 
 ```typescript
 PipelineModule.forRootAsync({
-  inject: [TenantSchemaContext],
+  inject: [ConfigService],
   globalBehaviors: [
     { scope: 'all', before: [logging({ requestResponseLogLevel: 'log' })] },
     { scope: 'commands', before: [[DeadLetterBehavior, { captureKinds: ['command'] }]] },
   ],
-  useFactory: (tenant: TenantSchemaContext) => ({
-    tenantIdFactory: () => tenant.schema,
+  useFactory: (config: ConfigService) => ({
+    diagnostics: config.get('PIPELINE_DIAGNOSTICS'),
   }),
 });
 ```
@@ -380,7 +359,7 @@ Every behavior receives `IPipelineContext`:
 | Property | Type | Description |
 |---|---|---|
 | `correlationId` | `string` | Immutable ID fixed before the behavior chain starts |
-| `tenantId` | `string \| undefined` | Active tenant identifier (inherited from parent context or resolved via `tenantIdFactory`) |
+| `tenantId` | `string \| undefined` | Tenant of the execution scope when the pipeline started; write-once |
 | `request` | `TRequest` | The command / query / event instance |
 | `requestType` | `Type<TRequest>` | Class constructor (e.g. `CreateUserCommand`) |
 | `requestName` | `string` | Class name string (e.g. `"CreateUserCommand"`) |
@@ -764,41 +743,37 @@ With `logFormat: 'structured'`, the same events are emitted as plain objects ins
 
 ---
 
-## Correlation IDs
+## Execution scope: tenant and correlation ID
 
-Every pipeline invocation carries a `correlationId` for distributed tracing, resolved in priority order:
+The tenant and correlation ID of the current execution live in one async-local store,
+the execution scope. `runInScope(values, fn)` lays values over the current scope for
+everything `fn` calls; `currentScope()` reads it.
 
-1. **Parent pipeline** — inherited from `AsyncLocalStorage` (saga / nested command)
-2. **`correlationIdFactory`** — user-supplied factory from module options
-3. **`uuidv7()`** — timestamp-sortable UUID fallback
+When a pipeline starts, it takes both from the scope into its context:
 
-The pipeline core generates its own `uuidv7()` IDs by default. To bridge external correlation IDs (HTTP headers, message queues, etc.), install [`@nestjs-pipeline/correlation`](https://github.com/aristoteliss/nestjs-pipeline/tree/master/packages/pipeline-correlation) and pass `getCorrelationId` + `runWithCorrelationId`:
+- `context.correlationId` — the scope's correlation ID, or a new `uuidv7()` when it has
+  none;
+- `context.tenantId` — the scope's tenant, or none. It is write-once.
 
-```typescript
-import { getCorrelationId, runWithCorrelationId } from '@nestjs-pipeline/correlation';
-
-PipelineModule.forRoot({
-  correlationIdFactory: getCorrelationId,
-  correlationIdRunner: runWithCorrelationId,
-  // ...
-})
-```
-
-`correlationIdFactory` **reads** the current correlation ID (e.g. set by HTTP middleware or `@WithCorrelation`).  
-`correlationIdRunner` **writes** the pipeline's resolved correlation ID back into the correlation store so that `getCorrelationId()` returns it throughout the entire handler chain — including event handlers dispatched via `eventBus.publish()`.
-
-The resolved ID is immutable during execution. This keeps
-`context.correlationId`, nested pipeline inheritance, and the configured
-correlation store on one value.
-
-Or supply any custom factory/runner:
+The behaviors and the handler then run inside a scope holding these two values, so a
+nested dispatch (saga, `eventBus.publish()`, a command sent from a handler) inherits them,
+and code deep inside the handler reads the same values the behaviors keyed on. A pipeline
+dispatched inside a narrower `runInScope` takes that scope's values.
 
 ```typescript
-PipelineModule.forRoot({
-  correlationIdFactory: () => myCustomIdSource(),
-  correlationIdRunner: (id, fn) => myCustomRunner(id, fn),
-})
+import { currentScope, runInScope } from '@nestjs-pipeline/core';
+
+await runInScope({ tenantId: 'tenant_a', correlationId: job.id }, () =>
+  commandBus.execute(new SyncCommand()),
+);
 ```
+
+Set the values where work enters the application. The add-on packages do it for you:
+`@nestjs-pipeline/tenant` (`runWithTenant`, `currentTenantId`) and
+[`@nestjs-pipeline/correlation`](https://github.com/aristoteliss/nestjs-pipeline/tree/master/packages/pipeline-correlation)
+(`HttpCorrelationMiddleware`, `runWithCorrelationId`, `getCorrelationId`,
+`@WithCorrelation`). Without a tenant in the scope, tenant-scoped behaviors (cache,
+idempotency, rate limit) fail closed.
 
 ### HTTP Requests
 
@@ -1086,6 +1061,7 @@ must account for the absent instance.
 | `LoggingIntentOptions` | Type | Alias for `LoggingBehaviorOptions` |
 | `uuidv7` | Function | Generate timestamp-sortable UUIDs (re-exported from `@cqrs-ddd/uuidv7`) |
 | `pipelineStore` | `AsyncLocalStorage` | Access the current pipeline context |
+| `runInScope`, `currentScope`, `ExecutionScope` | Functions, type | The execution scope: the one async-local store of the tenant and correlation ID |
 | `PipelineModuleOptions` | Interface | Options for `PipelineModule.forRoot()` |
 | `GlobalBehaviorsOptions` | Interface | Global behavior configuration |
 | `GlobalBehaviorScope` | Type | `'commands' \| 'queries' \| 'events' \| 'all'` |
@@ -1123,9 +1099,6 @@ which documents them in full.
 | `behaviors` | `Type[]` | Behavior classes to register in DI; registration alone does not execute them globally |
 | `globalBehaviors` | `GlobalBehaviorsOptions \| GlobalBehaviorsOptions[]` | Auto-wrap matching handlers |
 | `diagnostics` | `'strict' \| 'warn' \| 'off'` | Bootstrap behavior contract verification mode (default `'strict'`) |
-| `correlationIdFactory` | `() => string \| undefined` | Read an external correlation ID for a root run after parent inheritance is checked (e.g. `getCorrelationId`) |
-| `correlationIdRunner` | `<T>(id: string, fn: () => T) => T` | Wrap each pipeline invocation in a correlation context (e.g. `runWithCorrelationId`) |
-| `tenantIdFactory` | `() => string \| undefined` | Eagerly resolve tenant ID per pipeline execution (e.g. from async storage context) |
 | `bootstrapLogLevel` | `LogLevel \| 'none'` | Log level for bootstrap messages (default `'debug'`) |
 | `loggerProvider` | `PipelineLoggerProvider` | Custom DI provider whose `provide` token must be `LOGGING_BEHAVIOR_LOGGER` (registered and exported) |
 
