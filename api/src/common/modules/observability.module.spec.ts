@@ -4,13 +4,25 @@ import { EventEmitter } from 'node:events';
 import { Writable } from 'node:stream';
 import { setTenantResolver } from '@cqrs-ddd/core/application';
 import { cacheKey } from '@cqrs-ddd/core/persistence';
+import { Test } from '@nestjs/testing';
+import { DeadLetterModule } from '@nestjs-pipeline/deadletter';
 import { runWithTenant } from '@nestjs-pipeline/tenant';
+import { PARAMS_PROVIDER_TOKEN, type Params } from 'nestjs-pino';
 import pinoHttp from 'pino-http';
 import { describe, expect, it } from 'vitest';
-import {
-  HTTP_LOG_REDACT_PATHS,
-  ObservabilityModule,
-} from './observability.module';
+import { ObservabilityModule } from './observability.module';
+
+async function configuredRedaction() {
+  const moduleRef = await Test.createTestingModule({
+    imports: [
+      ObservabilityModule,
+      DeadLetterModule.forRoot({ transport: { send: async () => {} } }),
+    ],
+  }).compile();
+  const { pinoHttp: options } = moduleRef.get<Params>(PARAMS_PROVIDER_TOKEN);
+  await moduleRef.close();
+  return (options as { redact: { paths: string[]; censor: string } }).redact;
+}
 
 describe('ObservabilityModule tenant resolver', () => {
   it('gives the tenant-scoped cache keys the current tenant', () => {
@@ -24,16 +36,7 @@ describe('ObservabilityModule tenant resolver', () => {
 });
 
 describe('ObservabilityModule HTTP logger redaction', () => {
-  it('defines redaction paths for all credential headers', () => {
-    expect(HTTP_LOG_REDACT_PATHS).toContain('req.headers.authorization');
-    expect(HTTP_LOG_REDACT_PATHS).toContain('req.headers.cookie');
-    expect(HTTP_LOG_REDACT_PATHS).toContain('req.headers["x-api-key"]');
-    expect(HTTP_LOG_REDACT_PATHS).toContain('req.headers["x-api-id"]');
-    expect(HTTP_LOG_REDACT_PATHS).toContain('req.headers["set-cookie"]');
-    expect(HTTP_LOG_REDACT_PATHS).toContain('res.headers["set-cookie"]');
-  });
-
-  it('redacts authorization, cookie, and api-key headers from emitted log records', () => {
+  it('redacts authorization, cookie, and API client headers from emitted log records', async () => {
     const logs: string[] = [];
     const stream = new Writable({
       write(chunk, _encoding, callback) {
@@ -43,18 +46,14 @@ describe('ObservabilityModule HTTP logger redaction', () => {
     });
 
     const httpLogger = pinoHttp(
-      {
-        redact: {
-          paths: HTTP_LOG_REDACT_PATHS,
-          censor: '[REDACTED]',
-        },
-      },
+      { redact: await configuredRedaction() },
       stream,
     );
 
     const syntheticBearer = 'Bearer super-secret-jwt-token-xyz';
     const syntheticCookie = 'session=super-secret-cookie-val-123';
     const syntheticApiKey = 'secret-api-key-999';
+    const syntheticApiId = 'secret-api-client-id';
 
     const req = {
       method: 'POST',
@@ -64,6 +63,7 @@ describe('ObservabilityModule HTTP logger redaction', () => {
         authorization: syntheticBearer,
         cookie: syntheticCookie,
         'x-api-key': syntheticApiKey,
+        'x-api-id': syntheticApiId,
         'user-agent': 'vitest-agent',
       },
     } as any;
@@ -88,6 +88,7 @@ describe('ObservabilityModule HTTP logger redaction', () => {
     expect(combinedLogOutput).not.toContain(syntheticBearer);
     expect(combinedLogOutput).not.toContain(syntheticCookie);
     expect(combinedLogOutput).not.toContain(syntheticApiKey);
+    expect(combinedLogOutput).not.toContain(syntheticApiId);
     expect(combinedLogOutput).not.toContain('new-secret-cookie-val');
 
     // Headers must be censored as [REDACTED]
@@ -95,6 +96,7 @@ describe('ObservabilityModule HTTP logger redaction', () => {
     expect(parsed.req.headers.authorization).toBe('[REDACTED]');
     expect(parsed.req.headers.cookie).toBe('[REDACTED]');
     expect(parsed.req.headers['x-api-key']).toBe('[REDACTED]');
+    expect(parsed.req.headers['x-api-id']).toBe('[REDACTED]');
 
     // Non-sensitive headers must remain intact
     expect(parsed.req.headers.host).toBe('api.example.test');

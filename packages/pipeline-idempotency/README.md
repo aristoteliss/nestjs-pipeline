@@ -651,6 +651,7 @@ Response body:
 - `IdempotencyBehavior` — the pipeline behavior.
 - `IDEMPOTENCY_KEY_ITEM`, `IDEMPOTENCY_REPLAYED_ITEM`, `IDEMPOTENCY_OWNERSHIP_LOST_ITEM` — exported unique `Symbol` context item keys.
 - `IDEMPOTENCY_KEY_ITEM_TOKEN`, `IDEMPOTENCY_REPLAYED_ITEM_TOKEN`, `IDEMPOTENCY_OWNERSHIP_LOST_ITEM_TOKEN` — typed tokens over the same keys, for `getPipelineItem` from `@nestjs-pipeline/core`.
+- `buildIdempotencyAttributes(context)` — the attributes `idempotency.replayed` and, when the claim was lost, `idempotency.ownership_lost`; `{}` when the behavior did not run, and never the key. Use it for span attributes through `AttributesBehavior` of [`@nestjs-pipeline/opentelemetry`](https://github.com/aristoteliss/nestjs-pipeline/tree/master/packages/pipeline-opentelemetry#attributes-from-other-behaviors), for audit `metadata`, or on a log line; it needs no telemetry package.
 
 
 **Stores**

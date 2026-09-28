@@ -1,13 +1,14 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import { createHash } from 'node:crypto';
 import { APP_ACTIONS, APP_SUBJECTS } from '@common/constants';
-import { stableStringify } from '@cqrs-ddd/safe-stringify';
+import { principalSegments } from '@common/types/session-principal';
+import { joinKeySegments } from '@cqrs-ddd/safe-stringify';
 import {
   type CacheCondition,
   createPartitionedCacheKeyFactory,
 } from '@nestjs-pipeline/cache';
 import {
+  abilityDigest,
   getCaslAbility,
   getCaslPrincipal,
   hasEntityConditions,
@@ -20,42 +21,27 @@ import { type IPipelineContext } from '@nestjs-pipeline/core';
  */
 export const OVERVIEW_RESPONSE_POLICY_VERSION = 'v3';
 
-function resolveViewer(
-  context: IPipelineContext,
-): { id: string; principalType: 'user' | 'service' } | undefined {
-  const viewer = getCaslPrincipal(context);
-  if (!viewer) return undefined;
-
-  const { principalType } = viewer;
-  if (principalType !== 'user' && principalType !== 'service') return undefined;
-
-  const id = viewer.id === undefined ? '' : String(viewer.id).trim();
-  return id ? { id, principalType } : undefined;
-}
-
 function resolveOverviewPrincipal(
   context: IPipelineContext,
 ): string | undefined {
-  const viewer = resolveViewer(context);
-  return viewer && `${viewer.principalType}:${viewer.id}`;
+  const viewer = getCaslPrincipal(context);
+  const segments = principalSegments({
+    id: viewer?.id,
+    type: viewer?.principalType,
+  });
+  return segments && joinKeySegments(segments);
 }
 
 /**
- * Computes a deterministic permission scope fingerprint from the resolved CASL ability.
- * Incorporates role definitions, additional capabilities, explicit denials, and field restrictions.
+ * The permission-scope segment of the overview key: the versioned
+ * `abilityDigest` of the viewer, so a change of role definitions, additional
+ * capabilities, explicit denials or field restrictions reads a different entry.
  */
 export function resolveOverviewScope(
   context: IPipelineContext,
 ): string | undefined {
-  const ability = getCaslAbility(context);
-  if (!ability) return undefined;
-
-  const digest = createHash('sha256')
-    .update(stableStringify(ability.rules))
-    .digest('hex')
-    .slice(0, 32);
-
-  return `${OVERVIEW_RESPONSE_POLICY_VERSION}:${digest}`;
+  const digest = abilityDigest(context);
+  return digest && `${OVERVIEW_RESPONSE_POLICY_VERSION}:${digest}`;
 }
 
 /**

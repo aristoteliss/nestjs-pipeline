@@ -3,7 +3,7 @@
 import {
   isPrincipalType,
   type PrincipalType,
-} from '@common/types/SessionPrincipal';
+} from '@common/types/session-principal';
 import { z } from 'zod';
 
 /**

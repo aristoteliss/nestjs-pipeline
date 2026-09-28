@@ -1,6 +1,48 @@
 # Changelog
 
-## 0.2.0 (unreleased)
+## 0.2.1
+
+A patch release of the ten packages below; the others stay at 0.2.0. Every change is an
+addition or a documentation fix: no export, signature, behavior or peer range of 0.2.0
+changes, so upgrading needs no code change.
+
+### Added
+
+- `@cqrs-ddd/core`: `requireTenant(purpose, source?)` returns the tenant for a
+  security-sensitive operation, from `source` or the registered resolver, and throws
+  `MissingTenantContextError` when there is none. `requireTenantId(source, purpose)`, the
+  same with the arguments reversed, is deprecated and calls it.
+- `@nestjs-pipeline/casl`: `abilityDigest(context?)`, the SHA-256 of the effective rules
+  (conditions resolved against the principal), for cache-key scopes and idempotency replay
+  scopes; `requireAbilityDigest(context?)`, which throws the new `MissingAbilityError`
+  instead of returning `undefined`; `CaslAuthorizer.dependsOnEntity(action, subject)`,
+  whether a conditional rule decides on entity attributes. Adds `@cqrs-ddd/safe-stringify`
+  as a dependency.
+- `@nestjs-pipeline/opentelemetry`: `AttributesBehavior` with `AttributesBehaviorOptions`
+  (`factories`). It runs attribute factories once the rest of the chain has finished,
+  successfully or not, and adds the result to the attribute bag that `TraceBehavior` and
+  `MetricsBehavior` read. A failing factory contributes nothing; the others still apply.
+- Attribute builders, each in `src/helpers/build-attributes.ts`, returning `{}` when their
+  behavior did not run and never a cache, idempotency or rate-limit key:
+  - `@nestjs-pipeline/cache`: `buildCacheAttributes` → `cache.hit`.
+  - `@nestjs-pipeline/idempotency`: `buildIdempotencyAttributes` →
+    `idempotency.replayed`, `idempotency.ownership_lost`.
+  - `@nestjs-pipeline/rate-limit`: `buildRateLimitAttributes` →
+    `rate_limit.remaining_points`.
+  - `@nestjs-pipeline/feature-flags`: `buildFeatureFlagAttributes` → `feature_flag.key`,
+    `feature_flag.enabled`, `feature_flag.variant`, `feature_flag.reason`,
+    `feature_flag.error_code`.
+  - `@nestjs-pipeline/deadletter`: `buildDeadLetterAttributes` → `dead_letter.captured`.
+
+### Documentation
+
+- `@nestjs-pipeline/zod`: examples use `z.email()` and `z.uuid()` instead of the
+  deprecated `z.string().email()` and `z.string().uuid()`.
+- `@nestjs-pipeline/audit`: the actor example reads `getSessionPrincipal()`.
+- `@nestjs-pipeline/feature-flags`: the module example uses `TypedInMemoryProvider`
+  (`@openfeature/server-sdk` 1.23+; `InMemoryProvider` before it).
+
+## 0.2.0
 
 Every package is released at 0.2.0. Five were on npm before; thirteen are released for the
 first time.

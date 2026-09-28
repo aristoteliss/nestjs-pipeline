@@ -20,8 +20,6 @@ export const APP_SUBJECTS = {
   USER_CAPABILITIES: 'UserCapabilities',
 } as const;
 
-export type AppSubject = (typeof APP_SUBJECTS)[keyof typeof APP_SUBJECTS];
-
 /**
  * Builds the authorization subject for one user's effective permissions.
  *
@@ -38,5 +36,3 @@ export function userCapabilitiesSubject(userId: string): object {
  * Inherits standard CASL verbs (manage, create, read, update, delete) from @nestjs-pipeline/casl.
  */
 export const APP_ACTIONS = CASL_ACTIONS;
-
-export type AppAction = (typeof APP_ACTIONS)[keyof typeof APP_ACTIONS];

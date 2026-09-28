@@ -2,28 +2,39 @@
 
 import { IncomingMessage } from 'node:http';
 import { AUDIT_MODULE_DEFAULTS } from '@common/audit/audit.options';
+import { HEADERS } from '@common/constants/headers.constants';
 import { contextSources } from '@common/context/context-sources';
 import { setTenantResolver } from '@cqrs-ddd/core/application';
 import { Module } from '@nestjs/common';
 import { AuditModule } from '@nestjs-pipeline/audit';
+import { buildCacheAttributes } from '@nestjs-pipeline/cache';
 import {
   LOGGING_BEHAVIOR_LOGGER,
   logging,
   PipelineModule,
 } from '@nestjs-pipeline/core';
-import { DeadLetterBehavior } from '@nestjs-pipeline/deadletter';
-import { MetricsBehavior, TraceBehavior } from '@nestjs-pipeline/opentelemetry';
+import {
+  buildDeadLetterAttributes,
+  DeadLetterBehavior,
+} from '@nestjs-pipeline/deadletter';
+import { buildFeatureFlagAttributes } from '@nestjs-pipeline/feature-flags';
+import { buildIdempotencyAttributes } from '@nestjs-pipeline/idempotency';
+import {
+  AttributesBehavior,
+  MetricsBehavior,
+  TraceBehavior,
+} from '@nestjs-pipeline/opentelemetry';
+import { buildRateLimitAttributes } from '@nestjs-pipeline/rate-limit';
 import { currentTenantId } from '@nestjs-pipeline/tenant';
 import { ZodValidationBehavior } from '@nestjs-pipeline/zod';
 import { LoggerModule, NativeLogger } from 'nestjs-pino';
-import { TelemetryBridgeBehavior } from '../behaviors/telemetry-bridge.behavior';
 
 /** Credential headers redacted from structured HTTP logs. */
-export const HTTP_LOG_REDACT_PATHS = [
+const HTTP_LOG_REDACT_PATHS = [
   'req.headers.authorization',
   'req.headers.cookie',
-  'req.headers["x-api-key"]',
-  'req.headers["x-api-id"]',
+  `req.headers["${HEADERS.API_KEY}"]`,
+  `req.headers["${HEADERS.API_ID}"]`,
   'req.headers["set-cookie"]',
   'res.headers["set-cookie"]',
 ];
@@ -86,19 +97,28 @@ export const HTTP_LOG_REDACT_PATHS = [
             logging({ requestResponseLogLevel: 'log' }),
             [TraceBehavior, { tracerName: 'users-api' }],
             [MetricsBehavior, { meterName: 'users-api' }],
-            // Inside the tracer, outside the add-ons: it reads their context
-            // items on unwind and TraceBehavior reads the merged bag after.
-            TelemetryBridgeBehavior,
+            [
+              AttributesBehavior,
+              {
+                factories: [
+                  buildFeatureFlagAttributes,
+                  buildCacheAttributes,
+                  buildIdempotencyAttributes,
+                  buildRateLimitAttributes,
+                  buildDeadLetterAttributes,
+                ],
+              },
+            ],
             ZodValidationBehavior,
           ],
         },
         {
           scope: 'commands',
-          before: [[DeadLetterBehavior, { captureKinds: ['command'] }]],
+          before: [DeadLetterBehavior],
         },
         {
           scope: 'events',
-          before: [[DeadLetterBehavior, { captureKinds: ['event'] }]],
+          before: [DeadLetterBehavior],
         },
       ],
     }),

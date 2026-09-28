@@ -6,25 +6,21 @@ import {
   AUDIT_ACTIONS,
   RATE_LIMIT_COST,
 } from '@common/constants';
-import {
-  operationIdempotencyKeyFactory,
-  replayScopeDigest,
-  requireTrustedPrincipal,
-} from '@common/cqrs/helpers/idempotent-operation.helper';
+import { sessionPrincipalKey } from '@common/context/session-principal.store';
+import { operationIdempotencyKeyFactory } from '@common/idempotency/operation-key';
 import {
   CommandBaseHandler,
   ICommandRepository,
 } from '@cqrs-ddd/core/application';
-import { joinKeySegments } from '@cqrs-ddd/safe-stringify';
 import { Inject } from '@nestjs/common';
 import { CommandHandler, EventBus } from '@nestjs/cqrs';
 import { AUDIT_SEVERITY, audit } from '@nestjs-pipeline/audit';
-import { CaslAuthorizer, requires } from '@nestjs-pipeline/casl';
 import {
-  type IPipelineContext,
-  logging,
-  UsePipeline,
-} from '@nestjs-pipeline/core';
+  CaslAuthorizer,
+  requireAbilityDigest,
+  requires,
+} from '@nestjs-pipeline/casl';
+import { logging, UsePipeline } from '@nestjs-pipeline/core';
 import { featureFlag } from '@nestjs-pipeline/feature-flags';
 import { idempotent } from '@nestjs-pipeline/idempotency';
 import {
@@ -36,25 +32,6 @@ import { User, type UserSnapshot } from '../../../domain/models/user.entity';
 import { COMMAND_REPOSITORY } from '../../../persistence/repository.tokens';
 import { CreateUserCommand } from './create-user.command';
 
-const USER_CREATE_PURPOSE = 'user creation idempotency';
-
-export const createUserIdempotencyKey = operationIdempotencyKeyFactory(
-  'user.create',
-  (ctx) => (ctx.request as CreateUserCommand).idempotencyKey,
-);
-
-export function createUserReplayScope(ctx: IPipelineContext): string {
-  return replayScopeDigest(ctx, USER_CREATE_PURPOSE);
-}
-
-/** Creation quota per acting principal within its tenant. */
-export const createUserRateLimitKey = createPartitionedRateLimitKeyFactory(
-  (ctx) => {
-    const { principalType, id } = requireTrustedPrincipal(ctx, 'user creation');
-    return joinKeySegments([principalType, id]);
-  },
-);
-
 @CommandHandler(CreateUserCommand)
 @UsePipeline(
   logging({
@@ -63,12 +40,15 @@ export const createUserRateLimitKey = createPartitionedRateLimitKeyFactory(
   requires({ action: APP_ACTIONS.CREATE, subject: APP_SUBJECTS.USER }),
   featureFlag({ flag: 'user-registration' }),
   rateLimit({
-    keyFactory: createUserRateLimitKey,
+    keyFactory: createPartitionedRateLimitKeyFactory(sessionPrincipalKey),
     points: RATE_LIMIT_COST.createUser,
   }),
   idempotent({
-    keyFactory: createUserIdempotencyKey,
-    replayScopeFactory: createUserReplayScope,
+    keyFactory: operationIdempotencyKeyFactory(
+      'user.create',
+      (ctx) => (ctx.request as CreateUserCommand).idempotencyKey,
+    ),
+    replayScopeFactory: requireAbilityDigest,
   }),
   audit({
     action: AUDIT_ACTIONS.USER_CREATE,

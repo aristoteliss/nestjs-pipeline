@@ -478,6 +478,7 @@ plain `Error`** when the backing store itself fails (e.g. Redis unreachable). Th
 | `RATE_LIMITER` / `RATE_LIMIT_DEFAULT_OPTIONS` | Token | Injection tokens |
 | `RATE_LIMIT_ITEM` / `RATE_LIMIT_KEY_ITEM` | Symbol | `context.items` exported unique Symbol keys set per request |
 | `RATE_LIMIT_ITEM_TOKEN` / `RATE_LIMIT_KEY_ITEM_TOKEN` | `PipelineItemToken` | Typed tokens over the same keys (`RateLimiterResLike` / `string`), for `getPipelineItem` |
+| `buildRateLimitAttributes` | Function | The attribute `rate_limit.remaining_points`, for span attributes through `AttributesBehavior` of [`@nestjs-pipeline/opentelemetry`](https://github.com/aristoteliss/nestjs-pipeline/tree/master/packages/pipeline-opentelemetry#attributes-from-other-behaviors), audit `metadata` or logs; `{}` when the behavior did not run or the store reported no points. The key is never included |
 
 
 ---

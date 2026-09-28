@@ -3,7 +3,7 @@ import type { Server } from 'node:http';
 import { MissingTenantContextError } from '@cqrs-ddd/core/domain';
 import request from 'supertest';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
-import { GetUsersHandler } from '../src/users/cqrs/queries/get-users.handler';
+import { GetUsersHandler } from '../src/users/application/cqrs/queries/get-users.handler';
 import { bootstrapE2E, type E2EContext } from './support/e2e-app';
 
 describe('missing tenant context at the HTTP boundary (e2e)', () => {

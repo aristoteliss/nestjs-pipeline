@@ -142,9 +142,10 @@ describe('PostgreSQL migration tenant isolation', () => {
     expect(await orm.migrator.up()).toHaveLength(1);
 
     const projector = new UserPermissionsProjector();
-    const rows = await connection.execute(
-      'select user_id, position, source, role_id, inverted from tenant_rules.user_permission_rules order by user_id, position',
-    );
+    const rows: { user_id: string; source: string; inverted: boolean }[] =
+      await connection.execute(
+        'select user_id, position, source, role_id, inverted from tenant_rules.user_permission_rules order by user_id, position',
+      );
     expect(rows.length).toBeGreaterThan(0);
     const denied = rows.filter(
       (row: { source: string }) => row.source === 'denied',

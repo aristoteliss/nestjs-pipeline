@@ -36,7 +36,7 @@ describe('versioned user updates with real MikroORM persistence', () => {
       get em() {
         return orm.em.fork();
       },
-    } as MikroOrmStore);
+    } as unknown as MikroOrmStore);
   });
 
   afterAll(async () => {
@@ -82,7 +82,7 @@ describe('versioned user updates with real MikroORM persistence', () => {
     await orm.em.fork().transactional(async (em) => {
       const transactionalRepository = new UpdateUserCommandRepository(cache, {
         em,
-      } as MikroOrmStore);
+      } as unknown as MikroOrmStore);
       await expect(transactionalRepository.save(user)).rejects.toThrow(
         'external transactions need commit hooks',
       );

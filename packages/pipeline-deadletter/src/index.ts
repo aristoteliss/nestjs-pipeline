@@ -22,6 +22,7 @@ export {
   type DeadLetterRedriverOptions,
 } from './dead-letter.redriver';
 export { DeadLetterRedriveError } from './errors/dead-letter-redrive.error';
+export { buildDeadLetterAttributes } from './helpers/build-attributes';
 export { buildDeadLetterRecord } from './helpers/build-record';
 export {
   type DeadLetterIntentOptions,

@@ -1,9 +1,15 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { generateKeyPairSync } from 'node:crypto';
-import type { ITenantContext } from '@common/context/tenant-context.port';
+import { setTenantResolver } from '@cqrs-ddd/core/application';
+import { currentTenantId } from '@nestjs-pipeline/tenant';
 import { exportSPKI, SignJWT } from 'jose';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+const TENANT = 'tenant';
+
+beforeEach(() => setTenantResolver(() => TENANT));
+afterEach(() => setTenantResolver(currentTenantId));
 
 vi.mock('jose', async (importOriginal) => {
   const real = await importOriginal<typeof import('jose')>();
@@ -19,15 +25,13 @@ const ENV_KEYS = [
   'JWT_AUDIENCE',
 ] as const;
 
-const tenantContext: ITenantContext = { schema: 'tenant' };
-
 async function load(env: Partial<Record<(typeof ENV_KEYS)[number], string>>) {
   for (const key of ENV_KEYS) vi.stubEnv(key, env[key]);
   vi.resetModules();
   const { JwtAuthenticator } = await import('./jwt-authenticator');
   const importSPKI = vi.mocked((await import('jose')).importSPKI);
   importSPKI.mockClear();
-  return { authenticator: new JwtAuthenticator(tenantContext), importSPKI };
+  return { authenticator: new JwtAuthenticator(), importSPKI };
 }
 
 afterEach(() => {
@@ -45,7 +49,7 @@ describe('JwtAuthenticator', () => {
       JWT_PUBLIC_KEY_ALG: 'RS256',
     });
     const token = await new SignJWT({
-      tenant: tenantContext.schema,
+      tenant: TENANT,
       sid: 'sess-asymm',
       email: 'asymm@example.test',
     })
@@ -61,7 +65,7 @@ describe('JwtAuthenticator', () => {
     expect(user).toMatchObject({
       id: 'user-asymm',
       type: 'user',
-      tenant: tenantContext.schema,
+      tenant: TENANT,
       sid: 'sess-asymm',
     });
     expect(user).not.toHaveProperty('email');
@@ -73,7 +77,7 @@ describe('JwtAuthenticator', () => {
     const secret = 'case-secret';
     const { authenticator } = await load({ JWT_SECRET: secret });
     const token = await new SignJWT({
-      tenant: tenantContext.schema,
+      tenant: TENANT,
       sid: 'sess-lower',
     })
       .setProtectedHeader({ alg: 'HS256' })
@@ -101,7 +105,7 @@ describe('JwtAuthenticator', () => {
 
     for (const subject of ['user-req-1', 'user-req-2']) {
       const token = await new SignJWT({
-        tenant: tenantContext.schema,
+        tenant: TENANT,
         sid: `sess-${subject}`,
       })
         .setProtectedHeader({ alg: 'RS256' })
@@ -131,7 +135,7 @@ describe('JwtAuthenticator', () => {
   it('rejects expired tokens', async () => {
     const secret = 'expired-secret';
     const { authenticator } = await load({ JWT_SECRET: secret });
-    const token = await new SignJWT({ tenant: tenantContext.schema })
+    const token = await new SignJWT({ tenant: TENANT })
       .setProtectedHeader({ alg: 'HS256' })
       .setSubject('expired-user')
       .setExpirationTime('-1h')
@@ -171,12 +175,12 @@ describe('JwtAuthenticator', () => {
     ).resolves.toBeUndefined();
   });
 
-  it('preserves exp and sets expiresAt in milliseconds from JWT payload', async () => {
+  it('sets expiresAt in milliseconds from the exp claim', async () => {
     const secret = 'exp-secret';
     const { authenticator } = await load({ JWT_SECRET: secret });
     const expTime = Math.floor(Date.now() / 1000) + 1800;
     const token = await new SignJWT({
-      tenant: tenantContext.schema,
+      tenant: TENANT,
       sid: 'sess-exp',
     })
       .setProtectedHeader({ alg: 'HS256' })
@@ -188,7 +192,7 @@ describe('JwtAuthenticator', () => {
       headers: { authorization: `Bearer ${token}` },
     });
 
-    expect(user?.exp).toBe(expTime);
+    expect(user).not.toHaveProperty('exp');
     expect(user?.expiresAt).toBe(expTime * 1000);
   });
 
@@ -196,7 +200,7 @@ describe('JwtAuthenticator', () => {
     const secret = 'stateless-secret';
     const { authenticator } = await load({ JWT_SECRET: secret });
     const token = await new SignJWT({
-      tenant: tenantContext.schema,
+      tenant: TENANT,
       sid: 'session-1',
       principalType: 'user',
       email: 'ignored@example.test',
@@ -215,7 +219,7 @@ describe('JwtAuthenticator', () => {
     expect(user).toMatchObject({
       id: 'user-active',
       type: 'user',
-      tenant: tenantContext.schema,
+      tenant: TENANT,
       sid: 'session-1',
     });
     expect(user).not.toHaveProperty('email');
@@ -227,7 +231,7 @@ describe('JwtAuthenticator', () => {
     const secret = 'principal-secret';
     const { authenticator } = await load({ JWT_SECRET: secret });
     const token = await new SignJWT({
-      tenant: tenantContext.schema,
+      tenant: TENANT,
       sid: 'sess-svc',
       principalType: 'service',
     })
@@ -246,7 +250,7 @@ describe('JwtAuthenticator', () => {
   it('rejects a token without a sid claim', async () => {
     const secret = 'sid-less-secret';
     const { authenticator } = await load({ JWT_SECRET: secret });
-    const tokenWithoutSid = await new SignJWT({ tenant: tenantContext.schema })
+    const tokenWithoutSid = await new SignJWT({ tenant: TENANT })
       .setProtectedHeader({ alg: 'HS256' })
       .setSubject('user-without-sid')
       .setExpirationTime('1h')
@@ -263,7 +267,7 @@ describe('JwtAuthenticator', () => {
     const secret = 'no-exp-secret';
     const { authenticator } = await load({ JWT_SECRET: secret });
     const tokenWithoutExp = await new SignJWT({
-      tenant: tenantContext.schema,
+      tenant: TENANT,
       sid: 'sess-no-exp',
       principalType: 'user',
     })

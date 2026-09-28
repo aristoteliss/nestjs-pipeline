@@ -4,7 +4,6 @@ import {
   ConcurrencyConflictError,
   EntityNotFoundException,
 } from '@cqrs-ddd/core/domain';
-import { UnauthorizedException } from '@nestjs/common';
 import { UnauthorizedActionException } from '@nestjs-pipeline/casl';
 import type { DeadLetterBehaviorOptions } from '@nestjs-pipeline/deadletter';
 import { FeatureDisabledError } from '@nestjs-pipeline/feature-flags';
@@ -40,9 +39,8 @@ import {
  * application or core domain error class that is neither listed here nor
  * declared there as dead-lettered.
  */
-export const EXPECTED_REJECTIONS = [
+const EXPECTED_REJECTIONS = [
   ZodValidationError,
-  UnauthorizedException,
   UnauthorizedActionException,
   InvalidLoginCredentialsException,
   InvalidRefreshTokenError,
@@ -65,9 +63,13 @@ export const EXPECTED_REJECTIONS = [
  * Replaying them from the dead-letter queue would execute the command twice, so
  * they are left to logging and metrics instead.
  */
-export const POST_SUCCESS_FAILURES = [IdempotencyCompletionError] as const;
+const POST_SUCCESS_FAILURES = [IdempotencyCompletionError] as const;
 
-/** Module-wide `DeadLetterBehavior` defaults for this application. */
+/**
+ * Module-wide `DeadLetterBehavior` defaults for this application: commands and
+ * events are captured; `ObservabilityModule` registers the behavior for exactly
+ * those kinds.
+ */
 export const DEAD_LETTER_DEFAULTS: DeadLetterBehaviorOptions = {
   captureKinds: ['command', 'event'],
   ignoreErrors: [...EXPECTED_REJECTIONS, ...POST_SUCCESS_FAILURES],

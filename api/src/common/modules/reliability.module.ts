@@ -1,6 +1,7 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { RATE_LIMIT_CAPACITY } from '@common/constants';
+import { redisConfig } from '@common/environment/redis.config';
 import { BullModule, getQueueToken } from '@nestjs/bullmq';
 import { Module } from '@nestjs/common';
 import { CacheModule } from '@nestjs-pipeline/cache';
@@ -12,10 +13,12 @@ import { FeatureFlagsModule } from '@nestjs-pipeline/feature-flags';
 import { IdempotencyModule } from '@nestjs-pipeline/idempotency';
 import { RateLimitModule } from '@nestjs-pipeline/rate-limit';
 import { ResilienceModule } from '@nestjs-pipeline/resilience';
-import { InMemoryProvider } from '@openfeature/server-sdk';
+import { TypedInMemoryProvider } from '@openfeature/server-sdk';
 import type { Queue } from 'bullmq';
 import { RateLimiterMemory } from 'rate-limiter-flexible';
-import { DEAD_LETTER_DEFAULTS } from '../constants/dead-letter.options';
+import { DEAD_LETTER_DEFAULTS } from '../dead-letter/dead-letter.options';
+
+const redis = redisConfig();
 
 /**
  * Wires BullMQ dead-letter delivery, rate limiting, idempotency, resilience,
@@ -23,7 +26,8 @@ import { DEAD_LETTER_DEFAULTS } from '../constants/dead-letter.options';
  *
  * Rate-limit quotas and idempotency records are process-local. Response caching
  * uses memory for local development and Redis when REDIS_HOST is configured or
- * NODE_ENV is production. Repository snapshot caching has its own adapters and
+ * NODE_ENV is production. Every Redis client takes its connection from
+ * `redisConfig()`. Repository snapshot caching has its own adapters and
  * invalidation lifecycle; this module configures pipeline response caching.
  *
  * @example Register the pipeline infrastructure alongside observability
@@ -35,10 +39,7 @@ import { DEAD_LETTER_DEFAULTS } from '../constants/dead-letter.options';
 @Module({
   imports: [
     BullModule.forRoot({
-      connection: {
-        host: process.env.REDIS_HOST ?? 'localhost',
-        port: Number(process.env.REDIS_PORT ?? 6379),
-      },
+      connection: { host: redis.host, port: redis.port },
     }),
     DeadLetterModule.forRootAsync({
       imports: [
@@ -57,24 +58,16 @@ import { DEAD_LETTER_DEFAULTS } from '../constants/dead-letter.options';
     IdempotencyModule.forRoot(),
     ResilienceModule.forRoot(),
     CacheModule.forRootAsync({
-      useFactory: () =>
-        !process.env.REDIS_HOST && process.env.NODE_ENV !== 'production'
-          ? {
-              store: { type: 'memory' },
-              ttl: 30_000,
-            }
-          : {
-              store: {
-                type: 'redis',
-                url: `redis://${process.env.REDIS_HOST ?? 'localhost'}:${Number(
-                  process.env.REDIS_PORT ?? 6379,
-                )}`,
-              },
-              ttl: 30_000,
-            },
+      useFactory: () => ({
+        store:
+          !redis.isConfigured && process.env.NODE_ENV !== 'production'
+            ? { type: 'memory' }
+            : { type: 'redis', url: redis.url },
+        ttl: 30_000,
+      }),
     }),
     FeatureFlagsModule.forRoot({
-      provider: new InMemoryProvider({
+      provider: new TypedInMemoryProvider({
         'user-registration': {
           disabled: false,
           variants: { on: true, off: false },

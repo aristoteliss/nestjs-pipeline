@@ -1,16 +1,13 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
+import { requireTenant } from '@cqrs-ddd/core/application';
 import type { Session } from '@fastify/secure-session';
-import { Inject, Injectable, UnauthorizedException } from '@nestjs/common';
-import {
-  type ITenantContext,
-  TENANT_CONTEXT,
-} from '../../common/context/tenant-context.port';
+import { Injectable, UnauthorizedException } from '@nestjs/common';
 import {
   isPrincipalType,
   type SessionData,
   type SessionPrincipal,
-} from '../../common/types/SessionPrincipal';
+} from '../../common/types/session-principal';
 import { ApiClientAuthenticator } from './api-client-authenticator';
 import { JwtAuthenticator } from './jwt-authenticator';
 import { SessionService } from './session.service';
@@ -19,7 +16,6 @@ export type AuthenticatedRequest = {
   headers?: Record<string, string | string[] | undefined>;
   session?: Session<SessionData>;
   sessionPrincipal?: SessionPrincipal;
-  sessionUser?: SessionPrincipal;
 };
 
 @Injectable()
@@ -27,8 +23,6 @@ export class RequestPrincipalResolver {
   constructor(
     private readonly jwtAuthenticator: JwtAuthenticator,
     private readonly apiClientAuthenticator: ApiClientAuthenticator,
-    @Inject(TENANT_CONTEXT)
-    private readonly tenantContext: ITenantContext,
     private readonly sessionService: SessionService,
   ) {}
 
@@ -75,7 +69,7 @@ export class RequestPrincipalResolver {
   }
 
   private assertCurrentTenant(credentialTenant: string): void {
-    if (credentialTenant !== this.tenantContext.schema) {
+    if (credentialTenant !== requireTenant('the credential tenant check')) {
       throw new UnauthorizedException(
         'Credential tenant does not match the selected tenant',
       );

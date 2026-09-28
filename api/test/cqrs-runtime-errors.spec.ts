@@ -15,44 +15,43 @@ import {
 } from '@nestjs-pipeline/casl';
 import { ZodValidationError, ZodValidationFilter } from '@nestjs-pipeline/zod';
 import { describe, expect, it, vi } from 'vitest';
+// Auths CQRS & Services
+import { CreateAuthCommand } from '../src/auths/application/cqrs/commands/create-auth.command';
+import { CreateAuthHandler } from '../src/auths/application/cqrs/commands/create-auth.handler';
+import { RevokeAuthCommand } from '../src/auths/application/cqrs/commands/revoke-auth.command';
+import { RevokeAuthHandler } from '../src/auths/application/cqrs/commands/revoke-auth.handler';
 import { GetUserPermissionRulesHandler } from '../src/auths/application/cqrs/queries/get-user-permission-rules.handler';
 import { GetUserPermissionRulesQuery } from '../src/auths/application/cqrs/queries/get-user-permission-rules.query';
-// Auths CQRS & Services
-import { CreateAuthCommand } from '../src/auths/cqrs/commands/create-auth.command';
-import { CreateAuthHandler } from '../src/auths/cqrs/commands/create-auth.handler';
-import { RevokeAuthCommand } from '../src/auths/cqrs/commands/revoke-auth.command';
-import { RevokeAuthHandler } from '../src/auths/cqrs/commands/revoke-auth.handler';
 import { InvalidRefreshTokenError } from '../src/auths/domain/errors/refresh-token.errors';
 import { NodeRefreshTokens } from '../src/auths/infrastructure/node-refresh-tokens';
 import { PrincipalLoginService } from '../src/auths/services/principal-login.service';
 // Filters
 import { DomainExceptionFilter } from '../src/common/filters/domain-exception.filter';
-import { TenantSchemaContext } from '../src/persistence/tenant-schema.context';
 
 // Roles CQRS & Exceptions
-import { CreateRoleCommand } from '../src/roles/cqrs/commands/create-role.command';
-import { CreateRoleHandler } from '../src/roles/cqrs/commands/create-role.handler';
-import { DeleteRoleCommand } from '../src/roles/cqrs/commands/delete-role.command';
-import { DeleteRoleHandler } from '../src/roles/cqrs/commands/delete-role.handler';
-import { UpdateRoleCommand } from '../src/roles/cqrs/commands/update-role.command';
-import { UpdateRoleHandler } from '../src/roles/cqrs/commands/update-role.handler';
-import { GetRoleHandler } from '../src/roles/cqrs/queries/get-role.handler';
-import { GetRoleQuery } from '../src/roles/cqrs/queries/get-role.query';
-import { GetRolesHandler } from '../src/roles/cqrs/queries/get-roles.handler';
-import { GetRolesQuery } from '../src/roles/cqrs/queries/get-roles.query';
+import { CreateRoleCommand } from '../src/roles/application/cqrs/commands/create-role.command';
+import { CreateRoleHandler } from '../src/roles/application/cqrs/commands/create-role.handler';
+import { DeleteRoleCommand } from '../src/roles/application/cqrs/commands/delete-role.command';
+import { DeleteRoleHandler } from '../src/roles/application/cqrs/commands/delete-role.handler';
+import { UpdateRoleCommand } from '../src/roles/application/cqrs/commands/update-role.command';
+import { UpdateRoleHandler } from '../src/roles/application/cqrs/commands/update-role.handler';
+import { GetRoleHandler } from '../src/roles/application/cqrs/queries/get-role.handler';
+import { GetRoleQuery } from '../src/roles/application/cqrs/queries/get-role.query';
+import { GetRolesHandler } from '../src/roles/application/cqrs/queries/get-roles.handler';
+import { GetRolesQuery } from '../src/roles/application/cqrs/queries/get-roles.query';
 import { UniqueRoleNameException } from '../src/roles/domain/models/errors/role-name.exception';
 import { Role } from '../src/roles/domain/models/role.entity';
 // Users CQRS & Exceptions
-import { CreateUserCommand } from '../src/users/cqrs/commands/create-user.command';
-import { CreateUserHandler } from '../src/users/cqrs/commands/create-user.handler';
-import { DeleteUserCommand } from '../src/users/cqrs/commands/delete-user.command';
-import { DeleteUserHandler } from '../src/users/cqrs/commands/delete-user.handler';
-import { UpdateUserCommand } from '../src/users/cqrs/commands/update-user.command';
-import { UpdateUserHandler } from '../src/users/cqrs/commands/update-user.handler';
-import { GetUserHandler } from '../src/users/cqrs/queries/get-user.handler';
-import { GetUserQuery } from '../src/users/cqrs/queries/get-user.query';
-import { GetUsersHandler } from '../src/users/cqrs/queries/get-users.handler';
-import { GetUsersQuery } from '../src/users/cqrs/queries/get-users.query';
+import { CreateUserCommand } from '../src/users/application/cqrs/commands/create-user.command';
+import { CreateUserHandler } from '../src/users/application/cqrs/commands/create-user.handler';
+import { DeleteUserCommand } from '../src/users/application/cqrs/commands/delete-user.command';
+import { DeleteUserHandler } from '../src/users/application/cqrs/commands/delete-user.handler';
+import { UpdateUserCommand } from '../src/users/application/cqrs/commands/update-user.command';
+import { UpdateUserHandler } from '../src/users/application/cqrs/commands/update-user.handler';
+import { GetUserHandler } from '../src/users/application/cqrs/queries/get-user.handler';
+import { GetUserQuery } from '../src/users/application/cqrs/queries/get-user.query';
+import { GetUsersHandler } from '../src/users/application/cqrs/queries/get-users.handler';
+import { GetUsersQuery } from '../src/users/application/cqrs/queries/get-users.query';
 import {
   EmptyUserUpdateException,
   InvalidDepartmentException,
@@ -83,6 +82,7 @@ function createMockAuthorizer(allow = true): CaslAuthorizer {
   };
   return {
     can: vi.fn(() => allow),
+    dependsOnEntity: vi.fn(() => false),
     authorize: vi.fn(check),
     project: vi.fn((action: string, subject: unknown, candidate: unknown) => {
       check(action, subject);
@@ -596,7 +596,10 @@ describe('CQRS Commands & Queries Runtime Error Taxonomy', () => {
     describe('Roles Queries', () => {
       it('GetRoleQuery returns null and throws NotFoundException at DTO mapping (404)', async () => {
         const queryRepo = { find: vi.fn().mockResolvedValue(null) };
-        const handler = new GetRoleHandler(queryRepo as any);
+        const handler = new GetRoleHandler(
+          queryRepo as any,
+          createMockAuthorizer(true),
+        );
 
         const query = new GetRoleQuery({
           roleId: 'a0000000-0000-4000-8000-000000000001',
@@ -629,7 +632,7 @@ describe('CQRS Commands & Queries Runtime Error Taxonomy', () => {
         };
         const handler = new GetRolesCapabilitiesHandler(queryRepo as any);
 
-        const query = new GetRolesCapabilitiesQuery({ roleNames: ['admin'] });
+        const query = new GetRolesCapabilitiesQuery({ names: ['admin'] });
         const result = await handler.execute(query);
 
         expect(result).toHaveLength(1);
@@ -658,12 +661,10 @@ describe('CQRS Commands & Queries Runtime Error Taxonomy', () => {
             .mockRejectedValue(new UnauthorizedException('Invalid login code')),
         };
         const commandRepo = { save: vi.fn() };
-        const tenantContext = new TenantSchemaContext();
         const handler = new CreateAuthHandler(
           eventBus,
           loginService as unknown as PrincipalLoginService,
           commandRepo as any,
-          tenantContext,
           new NodeRefreshTokens(),
           {
             refreshTokenTtlSeconds: 3600,
@@ -696,12 +697,10 @@ describe('CQRS Commands & Queries Runtime Error Taxonomy', () => {
             ),
         };
         const commandRepo = { save: vi.fn() };
-        const tenantContext = new TenantSchemaContext();
         const handler = new CreateAuthHandler(
           eventBus,
           loginService as unknown as PrincipalLoginService,
           commandRepo as any,
-          tenantContext,
           new NodeRefreshTokens(),
           {
             refreshTokenTtlSeconds: 3600,

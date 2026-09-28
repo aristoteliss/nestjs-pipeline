@@ -62,9 +62,9 @@ describe('cache write-through CAS & read strong consistency (e2e)', () => {
         department: 'platform',
         version: 5,
         createdAt: cachedInitial?.createdAt,
-        updatedAt: new Date().toISOString(),
+        updatedAt: new Date(),
       };
-      await cache.set(cacheKey, syntheticNewer);
+      await cache.set(userCacheKey, syntheticNewer);
 
       // 3. Perform an update on the user (which will advance DB to version 2)
       const updateRes = await request(http)
@@ -77,7 +77,7 @@ describe('cache write-through CAS & read strong consistency (e2e)', () => {
 
       // 4. In cache: @Cache write-through for version 2 ran, but CAS (isCacheNewer)
       // prevented version 2 from overwriting version 5!
-      const cachedAfter = await cache.get(cacheKey);
+      const cachedAfter = await cache.get(userCacheKey);
       expect(cachedAfter).toBeDefined();
       expect(cachedAfter?.version).toBe(5);
       expect(cachedAfter?.username).toBe('Concurrent Newer User');

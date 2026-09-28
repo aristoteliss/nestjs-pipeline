@@ -127,7 +127,6 @@ describe('Auth session persistence', () => {
       byConsumedTokenHash(),
       updates(),
       tokens,
-      { schema: 'tenant' },
       { save: vi.fn(), clear: vi.fn() },
     );
     await expect(
@@ -178,7 +177,6 @@ describe('Auth session persistence', () => {
       byConsumedTokenHash(),
       repository,
       tokens,
-      { schema: 'tenant' },
       { save: vi.fn(), clear: vi.fn() },
     );
     await expect(

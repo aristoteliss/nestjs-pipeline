@@ -50,25 +50,46 @@ export function setTenantResolver(resolver: TenantResolver | undefined): void {
  * idempotency and rate limits must never collapse several tenants into one
  * shared namespace.
  *
- * @param source - The explicit tenant, or `undefined` to use the resolver.
  * @param purpose - What the tenant is for, named in the error.
+ * @param source - The explicit tenant; omitted, the resolver's tenant.
  * @returns The non-empty tenant id.
  * @throws {MissingTenantContextError} When no tenant can be resolved.
  *
  * @example
  * ```ts
+ * // The tenant of the running unit of work, through the resolver:
+ * const tenantId = requireTenant('access token issuance');
+ *
  * // A key factory that receives a request or job context:
- * const tenantId = requireTenantId(ctx, 'users.create idempotency key');
+ * const keyTenant = requireTenant('users.create idempotency key', ctx);
  * ```
  */
-export function requireTenantId(
-  source: TenantSource | undefined,
-  purpose: string,
-): string {
+export function requireTenant(purpose: string, source?: TenantSource): string {
   const tenantId =
     typeof source === 'string'
       ? source
       : (source?.tenantId ?? tenantResolver?.());
   if (!tenantId) throw new MissingTenantContextError(purpose);
   return tenantId;
+}
+
+/**
+ * Returns the tenant for a security-sensitive operation, or fails closed; see
+ * {@link requireTenant}, which it calls.
+ *
+ * @deprecated Use {@link requireTenant}, which takes the required `purpose`
+ *   first and the optional `source` last.
+ *
+ * @example
+ * ```ts
+ * requireTenantId(ctx, 'users.create idempotency key');
+ * // becomes
+ * requireTenant('users.create idempotency key', ctx);
+ * ```
+ */
+export function requireTenantId(
+  source: TenantSource | undefined,
+  purpose: string,
+): string {
+  return requireTenant(purpose, source);
 }

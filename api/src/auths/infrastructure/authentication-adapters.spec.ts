@@ -1,9 +1,9 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { createHash } from 'node:crypto';
+import { runWithTenant } from '@nestjs-pipeline/tenant';
 import { decodeJwt } from 'jose';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { TenantSchemaContext } from '../../persistence/tenant-schema.context';
 import { User } from '../../users/domain/models/user.entity';
 import {
   AuthConfigurationException,
@@ -94,12 +94,11 @@ describe('authentication infrastructure adapters', () => {
       JWT_SECRET: 'tenant-bound-token-secret',
       JWT_ALGORITHMS: undefined,
     });
-    const tenantContext = new TenantSchemaContext();
-    const issuer = new JoseAccessTokenIssuer(tenantContext);
+    const issuer = new JoseAccessTokenIssuer();
     const user = User.create('Alice', 'alice@example.test', 'Engineering');
 
     const sessionId = '019488e0-0000-7000-8000-0000000000aa';
-    const result = await tenantContext.run('tenant_a', () =>
+    const result = await runWithTenant('tenant_a', () =>
       issuer.issue({ user, sessionId }),
     );
 
@@ -124,7 +123,7 @@ describe('authentication infrastructure adapters', () => {
       JWT_SECRET: 'tenant-bound-token-secret',
       JWT_ALGORITHMS: 'RS256',
     });
-    const issuer = new JoseAccessTokenIssuer(new TenantSchemaContext());
+    const issuer = new JoseAccessTokenIssuer();
     const user = User.create('Alice', 'alice@example.test');
 
     await expect(issuer.issue({ user, sessionId: 's' })).rejects.toThrow(

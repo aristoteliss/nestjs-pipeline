@@ -17,6 +17,7 @@ export {
   type CachePartitionDimension,
   MissingCachePartitionError,
 } from './errors/missing-partition.error';
+export { buildCacheAttributes } from './helpers/build-attributes';
 export {
   type CacheIntentOptions,
   cache,

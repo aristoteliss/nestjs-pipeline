@@ -1,12 +1,18 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 /** biome-ignore-all lint/suspicious/noTemplateCurlyInString: placeholders are data */
 
-import type { ITenantContext } from '@common/context/tenant-context.port';
+import { setTenantResolver } from '@cqrs-ddd/core/application';
 import { Logger, UnauthorizedException } from '@nestjs/common';
 import type { Capability } from '@nestjs-pipeline/casl';
+import { currentTenantId } from '@nestjs-pipeline/tenant';
 import { decodeJwt, SignJWT } from 'jose';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { User } from '../../users/domain/models/user.entity';
+
+const TENANT = 'tenant';
+
+beforeEach(() => setTenantResolver(() => TENANT));
+afterEach(() => setTenantResolver(currentTenantId));
 
 const SECRET = 'permissions-in-token-secret';
 const SESSION = '019488e0-0000-7000-8000-0000000000aa';
@@ -32,7 +38,6 @@ async function load(env: Record<string, string>) {
 }
 
 describe('permissions carried in the access token', () => {
-  const tenant: ITenantContext = { schema: 'tenant' };
   const user = User.create('Alice', 'alice@example.test', 'engineering');
 
   beforeEach(() => {
@@ -50,7 +55,7 @@ describe('permissions carried in the access token', () => {
     it('adds perms in port order and the department when given rules', async () => {
       const { JoseAccessTokenIssuer } = await load({});
 
-      const { accessToken } = await new JoseAccessTokenIssuer(tenant).issue({
+      const { accessToken } = await new JoseAccessTokenIssuer().issue({
         user,
         sessionId: SESSION,
         permissions: rules,
@@ -69,7 +74,7 @@ describe('permissions carried in the access token', () => {
     it('adds neither claim without rules', async () => {
       const { JoseAccessTokenIssuer } = await load({});
 
-      const { accessToken } = await new JoseAccessTokenIssuer(tenant).issue({
+      const { accessToken } = await new JoseAccessTokenIssuer().issue({
         user,
         sessionId: SESSION,
       });
@@ -91,7 +96,7 @@ describe('permissions carried in the access token', () => {
         action: 'read',
       }));
 
-      const { accessToken } = await new JoseAccessTokenIssuer(tenant).issue({
+      const { accessToken } = await new JoseAccessTokenIssuer().issue({
         user,
         sessionId: SESSION,
         permissions: many,
@@ -111,7 +116,7 @@ describe('permissions carried in the access token', () => {
   describe('authenticator', () => {
     const tokenWith = (claims: Record<string, unknown>) =>
       new SignJWT({
-        tenant: tenant.schema,
+        tenant: TENANT,
         principalType: 'user',
         sid: SESSION,
         ...claims,
@@ -130,7 +135,7 @@ describe('permissions carried in the access token', () => {
         perms: ['User|read|*', '!User|delete|*'],
       });
 
-      const principal = await new JwtAuthenticator(tenant).authenticate({
+      const principal = await new JwtAuthenticator().authenticate({
         headers: { authorization: `Bearer ${token}` },
       });
 
@@ -155,7 +160,7 @@ describe('permissions carried in the access token', () => {
       const token = await tokenWith({ perms });
 
       await expect(
-        new JwtAuthenticator(tenant).authenticate({
+        new JwtAuthenticator().authenticate({
           headers: { authorization: `Bearer ${token}` },
         }),
       ).rejects.toBeInstanceOf(UnauthorizedException);
@@ -170,7 +175,7 @@ describe('permissions carried in the access token', () => {
         perms: ['all|manage|*'],
       });
 
-      const principal = await new JwtAuthenticator(tenant).authenticate({
+      const principal = await new JwtAuthenticator().authenticate({
         headers: { authorization: `Bearer ${token}` },
       });
 

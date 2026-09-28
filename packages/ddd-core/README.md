@@ -50,7 +50,7 @@ needs.
 | Entry | Holds |
 | --- | --- |
 | `@cqrs-ddd/core/domain` | `AggregateRoot`, `RootEntity`, `RootEntitySnapshot`, `@Mutable`, `getMutableFields`, `@ApplyMutation`, `IEvent`, `DomainEvent`, `RootDomainEvent`, `deepCloneAndFreeze`, `textRule`, `numberRule`, `ValueViolation`, and the errors `DomainException`, `InvalidValueException`, `EntityNotFoundException`, `ConcurrencyConflictError`, `TransientOperationError` (with `isTransientOperationError`), `MissingTenantContextError`, `UnknownMutableFieldError` |
-| `@cqrs-ddd/core/application` | `BaseCommand`, `BaseQuery`, `IQueryOptions`, `CommandBaseHandler`, the ports (`IDomainEventPublisher`, `ICommandRepository`, `IQueryRepository`, `IWriteSideAggregateRepository`, `ICache`, `IVersionedCache`, `isVersionedCache`), `requireTenantId`, `setTenantResolver` |
+| `@cqrs-ddd/core/application` | `BaseCommand`, `BaseQuery`, `IQueryOptions`, `CommandBaseHandler`, the ports (`IDomainEventPublisher`, `ICommandRepository`, `IQueryRepository`, `IWriteSideAggregateRepository`, `ICache`, `IVersionedCache`, `isVersionedCache`), `requireTenant`, `setTenantResolver`, and the deprecated `requireTenantId` |
 | `@cqrs-ddd/core/persistence` | the lifecycle decorators (`@PersistedWrite`, `@Cache`, `@AcknowledgePersisted`, `@MapPersistenceErrors`, `@FromCache`), `QueryRepository`, `CommandRepository`, `MemoryCache` and its injection token `CACHE_TOKEN`, `cacheKey`, `cacheKeyTemplate`, `isCacheNewer`, `toCacheSnapshot`, the mutation-barrier helpers, `consoleCacheLogger`, `safeWarn`, and the persistence dialect contract (`IPersistenceDialect`, `setPersistenceDialect`, `persistenceDialect`) |
 | `@cqrs-ddd/core/http` | `domainErrorHttpStatus` |
 | `@cqrs-ddd/core` | all of the above, plus the `Method` type |
@@ -585,8 +585,19 @@ requestTenant.run(tenantId, () => handle(request));
 There is no shared namespace: a missing or empty tenant, or a resolver that returns
 nothing, throws. A single-tenant deployment passes a fixed id or registers
 `setTenantResolver(() => 'single')`. The same resolution is public as
-`requireTenantId(source, purpose)`, for any other key that must be partitioned by
-tenant, such as an idempotency or rate-limit key.
+`requireTenant(purpose, source?)`, for any other key that must be partitioned by
+tenant, such as an idempotency or rate-limit key, and for any code that needs the
+current tenant and must fail when there is none:
+
+```typescript
+import { requireTenant } from '@cqrs-ddd/core/application';
+
+requireTenant('access token issuance'); // the resolver's tenant
+requireTenant('users.create idempotency key', ctx); // ctx.tenantId, else the resolver's
+```
+
+`requireTenantId(source, purpose)` is deprecated: it takes the same arguments in the
+reverse order and calls `requireTenant`.
 
 `cacheKey` keys have the form `${tenant}:${resource}:v1:${sha256}`, hashed over a
 key-sorted serialization of `[tenant, resource, conditions]`. The format is frozen, so

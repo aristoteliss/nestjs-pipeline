@@ -1,10 +1,7 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { APP_ACTIONS, APP_SUBJECTS, AUDIT_ACTIONS } from '@common/constants';
-import {
-  operationIdempotencyKeyFactory,
-  replayScopeDigest,
-} from '@common/cqrs/helpers/idempotent-operation.helper';
+import { operationIdempotencyKeyFactory } from '@common/idempotency/operation-key';
 import {
   CommandBaseHandler,
   ICommandRepository,
@@ -12,29 +9,18 @@ import {
 import { Inject } from '@nestjs/common';
 import { CommandHandler, EventBus } from '@nestjs/cqrs';
 import { AUDIT_SEVERITY, audit } from '@nestjs-pipeline/audit';
-import { CaslAuthorizer, requires } from '@nestjs-pipeline/casl';
 import {
-  type IPipelineContext,
-  logging,
-  UsePipeline,
-} from '@nestjs-pipeline/core';
+  CaslAuthorizer,
+  requireAbilityDigest,
+  requires,
+} from '@nestjs-pipeline/casl';
+import { logging, UsePipeline } from '@nestjs-pipeline/core';
 import { featureFlag } from '@nestjs-pipeline/feature-flags';
 import { idempotent } from '@nestjs-pipeline/idempotency';
 import { UniqueRoleNameException } from '../../../domain/models/errors/role-name.exception';
 import { Role, type RoleSnapshot } from '../../../domain/models/role.entity';
 import { COMMAND_REPOSITORY } from '../../../persistence/repository.tokens';
 import { CreateRoleCommand } from './create-role.command';
-
-const ROLE_CREATE_PURPOSE = 'role creation idempotency';
-
-export const createRoleIdempotencyKey = operationIdempotencyKeyFactory(
-  'role.create',
-  (ctx) => (ctx.request as CreateRoleCommand).idempotencyKey,
-);
-
-export function createRoleReplayScope(ctx: IPipelineContext): string {
-  return replayScopeDigest(ctx, ROLE_CREATE_PURPOSE);
-}
 
 @CommandHandler(CreateRoleCommand)
 @UsePipeline(
@@ -47,8 +33,11 @@ export function createRoleReplayScope(ctx: IPipelineContext): string {
   ),
   featureFlag({ flag: 'role-creation' }),
   idempotent({
-    keyFactory: createRoleIdempotencyKey,
-    replayScopeFactory: createRoleReplayScope,
+    keyFactory: operationIdempotencyKeyFactory(
+      'role.create',
+      (ctx) => (ctx.request as CreateRoleCommand).idempotencyKey,
+    ),
+    replayScopeFactory: requireAbilityDigest,
   }),
   audit({
     action: AUDIT_ACTIONS.ROLE_CREATE,

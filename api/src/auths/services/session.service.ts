@@ -6,7 +6,7 @@ import { Injectable } from '@nestjs/common';
 import type {
   SessionData,
   SessionPrincipal,
-} from '../../common/types/SessionPrincipal';
+} from '../../common/types/session-principal';
 import type { ISessionCookies } from '../application/ports/session-cookies.port';
 import type { AuthResult } from '../application/results/auth.result';
 
@@ -45,7 +45,7 @@ export class SessionService implements ISessionCookies {
    *   `SameSite=Strict` is what protects it from CSRF. A grace-window refresh
    *   carries no new token and leaves the cookie as it is.
    * - On Fastify, the access token and the principal
-   *   `{ id, principalType, tenant, sid, exp }` go into the secure-session
+   *   `{ id, type, tenant, sid, expiresAt }` go into the secure-session
    *   cookie, so the browser authenticates without a Bearer header.
    *
    * @param result - Result of login or refresh.
@@ -79,7 +79,7 @@ export class SessionService implements ISessionCookies {
       type: result.principalType,
       tenant: result.tenant,
       sid: result.aggregate.id,
-      exp: Math.floor(result.accessTokenExpiresAt / 1000),
+      expiresAt: result.accessTokenExpiresAt,
     });
     exchange.session?.set('token', result.accessToken);
   }
@@ -125,9 +125,9 @@ export class SessionService implements ISessionCookies {
   }
 
   /**
-   * Whether a principal read back from the session cookie has expired, by its
-   * `expiresAt` (milliseconds) or `exp` (seconds). A missing principal counts as
-   * expired; a principal with neither field never expires.
+   * Whether a principal read back from the session cookie can no longer
+   * authenticate: it is missing, or its `expiresAt` is absent or past. A cookie
+   * written without `expiresAt` therefore never authenticates.
    *
    * @param user - `req.session?.user`.
    *
@@ -139,14 +139,6 @@ export class SessionService implements ISessionCookies {
    * ```
    */
   isExpired(user: SessionPrincipal | undefined): boolean {
-    if (!user) {
-      return true;
-    }
-
-    const now = Date.now();
-    return (
-      (typeof user.expiresAt === 'number' && user.expiresAt <= now) ||
-      (typeof user.exp === 'number' && user.exp * 1000 <= now)
-    );
+    return typeof user?.expiresAt !== 'number' || user.expiresAt <= Date.now();
   }
 }

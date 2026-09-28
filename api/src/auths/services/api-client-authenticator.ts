@@ -1,19 +1,11 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { createHash, timingSafeEqual } from 'node:crypto';
-import {
-  Inject,
-  Injectable,
-  Logger,
-  UnauthorizedException,
-} from '@nestjs/common';
-import { AUTH_HEADERS } from '../../common/constants/auth-headers.constants';
-import {
-  type ITenantContext,
-  TENANT_CONTEXT,
-} from '../../common/context/tenant-context.port';
+import { requireTenant } from '@cqrs-ddd/core/application';
+import { Injectable, Logger, UnauthorizedException } from '@nestjs/common';
+import { HEADERS } from '../../common/constants/headers.constants';
 import { API_CLIENTS } from '../../common/environment/api-clients.config';
-import type { SessionPrincipal } from '../../common/types/SessionPrincipal';
+import type { SessionPrincipal } from '../../common/types/session-principal';
 import { firstHeaderValue } from './helpers/first-header-value';
 
 /**
@@ -42,11 +34,6 @@ import { firstHeaderValue } from './helpers/first-header-value';
 export class ApiClientAuthenticator {
   private readonly logger = new Logger(ApiClientAuthenticator.name);
 
-  constructor(
-    @Inject(TENANT_CONTEXT)
-    private readonly tenantContext: ITenantContext,
-  ) {}
-
   /**
    * Verifies API credentials provided in `x-api-id` and `x-api-key` request headers.
    *
@@ -70,17 +57,18 @@ export class ApiClientAuthenticator {
   authenticate(req: {
     headers?: Record<string, string | string[] | undefined>;
   }): SessionPrincipal | undefined {
-    const apiId = firstHeaderValue(req.headers?.[AUTH_HEADERS.API_ID]);
+    const apiId = firstHeaderValue(req.headers?.[HEADERS.API_ID]);
     if (!apiId) return undefined;
 
-    const apiKey = firstHeaderValue(req.headers?.[AUTH_HEADERS.API_KEY]);
+    const apiKey = firstHeaderValue(req.headers?.[HEADERS.API_KEY]);
     const client = API_CLIENTS.get(apiId);
+    const tenant = requireTenant('API client authentication');
 
     if (
       !client ||
       !apiKey ||
       !this.timingSafeEqualString(apiKey, client.key) ||
-      !client.tenants.has(this.tenantContext.schema)
+      !client.tenants.has(tenant)
     ) {
       this.logger.warn(
         `Rejected API client "${apiId}": missing, invalid, or tenant-mismatched credentials`,
@@ -88,7 +76,6 @@ export class ApiClientAuthenticator {
       throw new UnauthorizedException('Invalid API credentials');
     }
 
-    const tenant = this.tenantContext.schema;
     this.logger.debug(
       `Authenticated API client ${apiId} from x-api-id/x-api-key headers`,
     );

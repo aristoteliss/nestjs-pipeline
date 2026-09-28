@@ -42,6 +42,7 @@ cache layer ownership, command reads, invalidation and security.
 ## Table of Contents
 
 - [Packages](#packages)
+- [What's new in 0.2.1](#whats-new-in-021)
 - [Upgrading from 0.1.x](#upgrading-from-01x)
 - [Quick Start](#quick-start)
   - [1  Install](#1-install)
@@ -98,8 +99,8 @@ cache layer ownership, command reads, invalidation and security.
 | [`@nestjs-pipeline/core`](packages/pipeline) | Pipeline engine, `@UsePipeline` decorator, `PipelineModule`, `LoggingBehavior` |
 | [`@nestjs-pipeline/correlation`](packages/pipeline-correlation) | Standalone correlation ID propagation — HTTP middleware, `@WithCorrelation`, `runWithCorrelationId`, `getCorrelationId`, and `correlationSource` for pipelines and jobs |
 | [`@nestjs-pipeline/zod`](packages/pipeline-zod) | Zod v4 validation/parsing behavior that applies successful parsed object output to the request, plus `ZodPipe`, `ZodValidationFilter`, `ZodValidationError` |
-| [`@nestjs-pipeline/opentelemetry`](packages/pipeline-opentelemetry) | OpenTelemetry tracing & metrics behaviors — spans plus duration/throughput/error instruments for every pipeline invocation |
-| [`@nestjs-pipeline/casl`](packages/pipeline-casl) | CASL authorization — type-level `CaslBehavior` fed by an application permission source, plus `CaslAuthorizer` (`can`, `authorize`, `project`) for entity and field checks |
+| [`@nestjs-pipeline/opentelemetry`](packages/pipeline-opentelemetry) | OpenTelemetry tracing & metrics behaviors — spans plus duration/throughput/error instruments for every pipeline invocation, and `AttributesBehavior` for the add-ons' span attributes |
+| [`@nestjs-pipeline/casl`](packages/pipeline-casl) | CASL authorization — type-level `CaslBehavior` fed by an application permission source, plus `CaslAuthorizer` (`can`, `authorize`, `project`, `dependsOnEntity`) for entity and field checks and `abilityDigest` for cache and replay scopes |
 | [`@nestjs-pipeline/resilience`](packages/pipeline-resilience) | Resilience on cockatiel — named policies for outbound dependencies (retry, circuit breaker, timeout, bulkhead, fallback), shared through DI, and a behavior for handler-level retry, timeout and bulkhead |
 | [`@nestjs-pipeline/cache`](packages/pipeline-cache) | Read-through caching behavior for queries — pluggable stores (memory, redis, memcache, sqlite, postgres) via cache-manager v7 on keyv |
 | [`@nestjs-pipeline/feature-flags`](packages/pipeline-feature-flags) | Feature-flag gating behavior — provider-agnostic via OpenFeature (Unleash shown in examples; Flagsmith/LaunchDarkly are drop-in alternatives) |
@@ -128,7 +129,113 @@ Framework-neutral packages, with no NestJS dependency:
 > No `@nestjs-pipeline/*` package uses `@cqrs-ddd/core`, and it knows nothing of them: an
 > application connects the two.
 
-Every package is at **0.2.0**; [CHANGELOG.md](CHANGELOG.md) records each release.
+Ten packages are at **0.2.1** — `@cqrs-ddd/core`, `@nestjs-pipeline/casl`, `/opentelemetry`,
+`/cache`, `/idempotency`, `/rate-limit`, `/feature-flags`, `/deadletter`, `/zod` and `/audit`;
+the others are at **0.2.0**. [CHANGELOG.md](CHANGELOG.md) records each release.
+
+---
+
+## What's new in 0.2.1
+
+0.2.1 only adds: no 0.2.0 export, signature or behavior changes, and no peer range moves.
+Upgrade the ten packages above to `^0.2.1` to use the following.
+
+### Span attributes from every add-on
+
+Each add-on publishes its decision as a `context.items` entry and now exports a builder
+that turns it into flat attributes, `{}` when the behavior did not run and never a key.
+`AttributesBehavior` of `@nestjs-pipeline/opentelemetry` runs the builders you choose
+after the chain has finished and adds the result to the attributes `TraceBehavior` puts on
+the span:
+
+```typescript
+import { buildCacheAttributes } from '@nestjs-pipeline/cache';
+import { buildDeadLetterAttributes } from '@nestjs-pipeline/deadletter';
+import { buildFeatureFlagAttributes } from '@nestjs-pipeline/feature-flags';
+import { buildIdempotencyAttributes } from '@nestjs-pipeline/idempotency';
+import {
+  AttributesBehavior,
+  MetricsBehavior,
+  TraceBehavior,
+} from '@nestjs-pipeline/opentelemetry';
+import { buildRateLimitAttributes } from '@nestjs-pipeline/rate-limit';
+
+PipelineModule.forRoot({
+  globalBehaviors: {
+    before: [
+      TraceBehavior,
+      MetricsBehavior,
+      [AttributesBehavior, {
+        factories: [
+          buildFeatureFlagAttributes, // feature_flag.key, .enabled, .variant, .reason, .error_code
+          buildCacheAttributes,       // cache.hit
+          buildIdempotencyAttributes, // idempotency.replayed, .ownership_lost
+          buildRateLimitAttributes,   // rate_limit.remaining_points
+          buildDeadLetterAttributes,  // dead_letter.captured
+        ],
+      }],
+    ],
+  },
+});
+```
+
+The builders are plain data, not telemetry-only. Wrap one to rename an attribute, or use
+it as audit metadata, with `audit()` declared outside the behavior it describes:
+
+```typescript
+const cacheHit = (context: IPipelineContext) => {
+  const { 'cache.hit': hit } = buildCacheAttributes(context);
+  return hit === undefined ? {} : { 'app.cache_hit': hit };
+};
+
+@UsePipeline(
+  audit({ action: 'order.create', metadata: buildIdempotencyAttributes }),
+  idempotent({ keyFactory }),
+)
+```
+
+### A ready-made permission digest
+
+`@nestjs-pipeline/casl` exports `abilityDigest(context?)`: the SHA-256 of the caller's
+effective rules, with conditions already resolved against the principal, so any change
+that can change a decision changes it. Use it as the scope of a principal-scoped cache
+key, and `requireAbilityDigest`, which throws `MissingAbilityError` without an ability,
+as an idempotency replay scope:
+
+```typescript
+import { abilityDigest, getCaslPrincipal, requireAbilityDigest } from '@nestjs-pipeline/casl';
+
+const overviewKey = createPartitionedCacheKeyFactory({
+  principal: (ctx) => getCaslPrincipal(ctx)?.id,
+  scope: abilityDigest,
+});
+
+@UsePipeline(idempotent({ keyFactory, replayScopeFactory: requireAbilityDigest }))
+```
+
+`CaslAuthorizer.dependsOnEntity(action, subject)` tells a handler that a conditional rule
+decides on entity attributes, so it reads the entity fresh instead of from a cache:
+
+```typescript
+const refresh = this.authorizer.dependsOnEntity('read', 'User');
+const user = await this.users.find(new GetUserQuery({ userId }, { refresh }));
+```
+
+### Tenant with the purpose first
+
+`@cqrs-ddd/core` adds `requireTenant(purpose, source?)`. It returns the tenant from
+`source`, or from the resolver registered with `setTenantResolver`, and throws
+`MissingTenantContextError` when there is none:
+
+```typescript
+import { requireTenant } from '@cqrs-ddd/core/application';
+
+requireTenant('access token issuance');           // the current tenant
+requireTenant('users.create idempotency key', ctx); // ctx.tenantId, else the current one
+```
+
+`requireTenantId(source, purpose)` keeps working and is deprecated: swap the arguments and
+call `requireTenant`.
 
 ---
 
@@ -448,7 +555,7 @@ import { z } from 'zod';
 // 1. Define the schema
 const schema = z.object({
   username: z.string().min(4),
-  email: z.string().email(),
+  email: z.email(),
 });
 
 // 2. Create the command — fully typed, self-validating, Standard Schema compatible
@@ -523,7 +630,7 @@ import { z } from 'zod';
 const CreateUserDtoSchema = z.object({ name: z.string().min(5), email: z.email() });
 type CreateUserDto = z.infer<typeof CreateUserDtoSchema>;
 
-const UserIdSchema = z.string().uuid();
+const UserIdSchema = z.uuid();
 
 @Controller('users')
 export class UsersController {
@@ -1272,7 +1379,7 @@ import { z } from 'zod';
 
 const schema = z.object({
   username: z.string().min(4),
-  email: z.string().email(),
+  email: z.email(),
 });
 
 // Generates a self-validating class with static _zodSchema,
@@ -1305,7 +1412,7 @@ const CreateUserDtoSchema = z.object({
 });
 type CreateUserDto = z.infer<typeof CreateUserDtoSchema>;
 
-const UserIdSchema = z.string().uuid();
+const UserIdSchema = z.uuid();
 
 @Controller('users')
 export class UsersController {
@@ -1403,7 +1510,7 @@ import { ZOD_SCHEMA_KEY } from '@nestjs-pipeline/zod';
 import { z } from 'zod';
 
 const userCreatedSchema = z.object({
-  userId: z.string().uuid(),
+  userId: z.uuid(),
   username: z.string().min(1),
   email: z.email(),
 });
@@ -1848,8 +1955,10 @@ dependencies on the private `api`; each `@cqrs-ddd/*` package has its own
 
 ### Releasing
 
-Every publishable workspace is released at the same version; `CHANGELOG.md` records
-each release. Before publishing:
+A release bumps only the packages whose published content changed; `CHANGELOG.md`
+records each release and lists them. A package that depends on a bumped one keeps its
+range as long as the range still covers the new version (`workspace:^` publishes as
+`^<version>`). Before publishing:
 
 1. Run `pnpm verify:all` (type checks, unit, build, release and E2E suites; E2E needs a
    container runtime). `pnpm test:release` packs every package and loads it from its
@@ -1861,7 +1970,11 @@ each release. Before publishing:
    allowed to publish to both.
 4. Merge to `master`, then run `pnpm publish:all`. It copies the license files into each
    package and publishes in dependency order; each package rebuilds in
-   `prepublishOnly`.
+   `prepublishOnly`. `pnpm -r publish` skips every package whose version is already on
+   the registry, so only the bumped packages are published.
+5. Tag each published package as `<name>@<version>` (for 0.2.1:
+   `git tag @cqrs-ddd/core@0.2.1`, `@nestjs-pipeline/casl@0.2.1`, … for the ten packages
+   in the changelog) and the release as `v<version>`, then push the tags.
 
 `pnpm test:release` (`integration/packages/release.mjs`) packs every non-private
 `packages/*` workspace and checks each archive: name and version, licenses, JavaScript and

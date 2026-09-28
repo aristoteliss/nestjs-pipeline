@@ -105,6 +105,28 @@ export class CaslAuthorizer {
     ) as Projected<TCandidate>;
   }
 
+  /**
+   * Whether the decision for `action` on `subject` depends on the entity's
+   * attributes: true when a rule for that subject, `all` or `manage` carries
+   * conditions, and when no ability is present. A handler that is about to
+   * decide against a cached or otherwise possibly stale entity reads a fresh
+   * one instead.
+   *
+   * @param action - The action about to be checked, such as `'read'`.
+   * @param subject - The subject type, such as `'User'`.
+   *
+   * @example
+   * ```ts
+   * const refresh = this.authorizer.dependsOnEntity('read', 'User');
+   * const user = await this.users.findById(query.id, { refresh });
+   * return user && this.authorizer.project('read', user, user.toJSON());
+   * ```
+   */
+  dependsOnEntity(action: string, subject: string): boolean {
+    const ability = this.ability ?? getCaslAbility();
+    return !ability || hasEntityConditions(ability, [subject], action);
+  }
+
   private permitted(action: string, subject: object | string) {
     const ability = this.ability ?? getCaslAbility();
     const resolved = resolveSubject(subject);

@@ -63,36 +63,37 @@ describe('Cache Revision Fencing & Anti-Resurrection (e2e)', () => {
       let hookTriggered = false;
 
       try {
-        EntityManager.prototype.findOne = async function (
-          this: EntityManager,
-          entityName: FindOneEntityName,
-          where: FindOneFilter,
-          ...rest: unknown[]
-        ) {
-          const result = await origFindOne.call(
-            this,
-            entityName as never,
-            where as never,
-            ...(rest as [never]),
-          );
-          if (
-            !hookTriggered &&
-            entityName === User &&
-            typeof where === 'object' &&
-            where !== null &&
-            (where as Record<string, unknown>).id === userId &&
-            result !== null
+        (EntityManager.prototype as { findOne: unknown }).findOne =
+          async function (
+            this: EntityManager,
+            entityName: FindOneEntityName,
+            where: FindOneFilter,
+            ...rest: unknown[]
           ) {
-            hookTriggered = true;
-            // Concurrently delete the user while reader has already loaded the stale entity
-            const delRes = await request(http)
-              .delete(`/users/${userId}`)
-              .set('x-tenant-schema', 'tenant')
-              .set('x-test-user', admin);
-            expect(delRes.status).toBe(204);
-          }
-          return result;
-        };
+            const result = await origFindOne.call(
+              this,
+              entityName as never,
+              where as never,
+              ...(rest as [never]),
+            );
+            if (
+              !hookTriggered &&
+              entityName === User &&
+              typeof where === 'object' &&
+              where !== null &&
+              (where as Record<string, unknown>).id === userId &&
+              result !== null
+            ) {
+              hookTriggered = true;
+              // Concurrently delete the user while reader has already loaded the stale entity
+              const delRes = await request(http)
+                .delete(`/users/${userId}`)
+                .set('x-tenant-schema', 'tenant')
+                .set('x-test-user', admin);
+              expect(delRes.status).toBe(204);
+            }
+            return result;
+          };
 
         // In-flight read executes
         const readRes = await request(http)
@@ -139,37 +140,38 @@ describe('Cache Revision Fencing & Anti-Resurrection (e2e)', () => {
       let hookTriggered = false;
 
       try {
-        EntityManager.prototype.findOne = async function (
-          this: EntityManager,
-          entityName: FindOneEntityName,
-          where: FindOneFilter,
-          ...rest: unknown[]
-        ) {
-          const result = await origFindOne.call(
-            this,
-            entityName as never,
-            where as never,
-            ...(rest as [never]),
-          );
-          if (
-            !hookTriggered &&
-            entityName === User &&
-            typeof where === 'object' &&
-            where !== null &&
-            (where as Record<string, unknown>).id === userId &&
-            result !== null
+        (EntityManager.prototype as { findOne: unknown }).findOne =
+          async function (
+            this: EntityManager,
+            entityName: FindOneEntityName,
+            where: FindOneFilter,
+            ...rest: unknown[]
           ) {
-            hookTriggered = true;
-            // Concurrently update to version 2 while reader loaded version 1
-            const updateRes = await request(http)
-              .patch(`/users/${userId}`)
-              .set('x-tenant-schema', 'tenant')
-              .set('x-test-user', admin)
-              .send({ name: 'Version 2 User' });
-            expect(updateRes.status).toBe(200);
-          }
-          return result;
-        };
+            const result = await origFindOne.call(
+              this,
+              entityName as never,
+              where as never,
+              ...(rest as [never]),
+            );
+            if (
+              !hookTriggered &&
+              entityName === User &&
+              typeof where === 'object' &&
+              where !== null &&
+              (where as Record<string, unknown>).id === userId &&
+              result !== null
+            ) {
+              hookTriggered = true;
+              // Concurrently update to version 2 while reader loaded version 1
+              const updateRes = await request(http)
+                .patch(`/users/${userId}`)
+                .set('x-tenant-schema', 'tenant')
+                .set('x-test-user', admin)
+                .send({ name: 'Version 2 User' });
+              expect(updateRes.status).toBe(200);
+            }
+            return result;
+          };
 
         const readRes = await request(http)
           .get(`/users/${userId}`)
@@ -226,39 +228,40 @@ describe('Cache Revision Fencing & Anti-Resurrection (e2e)', () => {
       let hookTriggered = false;
 
       try {
-        EntityManager.prototype.findOne = async function (
-          this: EntityManager,
-          entityName: FindOneEntityName,
-          where: FindOneFilter,
-          ...rest: unknown[]
-        ) {
-          const result = await origFindOne.call(
-            this,
-            entityName as never,
-            where as never,
-            ...(rest as [never]),
-          );
-          if (
-            !hookTriggered &&
-            entityName === User &&
-            typeof where === 'object' &&
-            where !== null &&
-            (where as Record<string, unknown>).id === syntheticId &&
-            result === null
+        (EntityManager.prototype as { findOne: unknown }).findOne =
+          async function (
+            this: EntityManager,
+            entityName: FindOneEntityName,
+            where: FindOneFilter,
+            ...rest: unknown[]
           ) {
-            hookTriggered = true;
-            // Concurrently seed the cache with the newly created entity snapshot
-            await cache.set(cacheKey, {
-              id: syntheticId,
-              username: 'Concurrent Created User',
-              email,
-              version: 1,
-              createdAt: new Date().toISOString(),
-              updatedAt: new Date().toISOString(),
-            });
-          }
-          return result;
-        };
+            const result = await origFindOne.call(
+              this,
+              entityName as never,
+              where as never,
+              ...(rest as [never]),
+            );
+            if (
+              !hookTriggered &&
+              entityName === User &&
+              typeof where === 'object' &&
+              where !== null &&
+              (where as Record<string, unknown>).id === syntheticId &&
+              result === null
+            ) {
+              hookTriggered = true;
+              // Concurrently seed the cache with the newly created entity snapshot
+              await cache.set(cacheKey, {
+                id: syntheticId,
+                username: 'Concurrent Created User',
+                email,
+                version: 1,
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString(),
+              });
+            }
+            return result;
+          };
 
         const readRes = await request(http)
           .get(`/users/${syntheticId}`)
@@ -295,31 +298,32 @@ describe('Cache Revision Fencing & Anti-Resurrection (e2e)', () => {
       let hookTriggered = false;
 
       try {
-        EntityManager.prototype.findOne = async function (
-          this: EntityManager,
-          entityName: FindOneEntityName,
-          where: FindOneFilter,
-          ...rest: unknown[]
-        ) {
-          const result = await origFindOne.call(
-            this,
-            entityName as never,
-            where as never,
-            ...(rest as [never]),
-          );
-          if (
-            !hookTriggered &&
-            entityName === User &&
-            typeof where === 'object' &&
-            where !== null &&
-            (where as Record<string, unknown>).id === userId
+        (EntityManager.prototype as { findOne: unknown }).findOne =
+          async function (
+            this: EntityManager,
+            entityName: FindOneEntityName,
+            where: FindOneFilter,
+            ...rest: unknown[]
           ) {
-            hookTriggered = true;
-            // A concurrent mutation advances the revision the reader observed
-            await cache.delete(cacheKey);
-          }
-          return result;
-        };
+            const result = await origFindOne.call(
+              this,
+              entityName as never,
+              where as never,
+              ...(rest as [never]),
+            );
+            if (
+              !hookTriggered &&
+              entityName === User &&
+              typeof where === 'object' &&
+              where !== null &&
+              (where as Record<string, unknown>).id === userId
+            ) {
+              hookTriggered = true;
+              // A concurrent mutation advances the revision the reader observed
+              await cache.delete(cacheKey);
+            }
+            return result;
+          };
 
         const readRes = await request(http)
           .get(`/users/${userId}`)

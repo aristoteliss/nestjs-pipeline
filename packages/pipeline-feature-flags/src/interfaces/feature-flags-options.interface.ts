@@ -162,8 +162,9 @@ export interface FeatureFlagBehaviorOptions {
  *
  * @example Register a provider with stable rollout identity
  * ```ts
+ * // TypedInMemoryProvider needs @openfeature/server-sdk 1.23+; before it, InMemoryProvider.
  * FeatureFlagsModule.forRoot({
- *   provider: new InMemoryProvider(flags),
+ *   provider: new TypedInMemoryProvider(flags),
  *   context: { environment: 'production' },
  *   targetingKeyFactory: (ctx) =>
  *     ctx.items.get('accountId') as string | undefined,

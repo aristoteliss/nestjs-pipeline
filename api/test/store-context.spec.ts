@@ -43,7 +43,6 @@ async function postgresOrm(schema: string): Promise<PostgresORM> {
   // Context and fork selection need real metadata, not a SQL connection.
   return PostgresORM.init({
     ...createPostgresOrmOptions(schema),
-    connect: false,
     debug: false,
   });
 }

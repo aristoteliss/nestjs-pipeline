@@ -1,13 +1,20 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
+import { setTenantResolver } from '@cqrs-ddd/core/application';
 import { ConcurrencyConflictError } from '@cqrs-ddd/core/domain';
 import { RateLimitExceededError } from '@nestjs-pipeline/rate-limit';
-import { describe, expect, it, vi } from 'vitest';
+import { currentTenantId } from '@nestjs-pipeline/tenant';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { User } from '../../users/domain/models/user.entity';
 import { InvalidLoginCredentialsException } from '../domain/errors/authentication.exception';
 import { InvalidRefreshTokenError } from '../domain/errors/refresh-token.errors';
 import { Auth } from '../domain/models/auth.entity';
 import { PrincipalLoginService } from './principal-login.service';
+
+const TENANT = 'tenant';
+
+beforeEach(() => setTenantResolver(() => TENANT));
+afterEach(() => setTenantResolver(currentTenantId));
 
 function createService(overrides?: {
   userRepository?: unknown;
@@ -19,7 +26,6 @@ function createService(overrides?: {
   authByConsumedTokenHash?: unknown;
   authRepository?: unknown;
   refreshTokens?: unknown;
-  tenantContext?: unknown;
   cookies?: unknown;
   eventBus?: unknown;
   rateLimiter?: unknown;
@@ -44,7 +50,6 @@ function createService(overrides?: {
       hash: (t: string) => `hash:${t}`,
       generate: () => 'token-next',
     }) as never,
-    (overrides?.tenantContext ?? { schema: 'tenant' }) as never,
     (overrides?.cookies ?? { save: vi.fn(), clear: vi.fn() }) as never,
     overrides?.eventBus as never,
     overrides?.rateLimiter as never,

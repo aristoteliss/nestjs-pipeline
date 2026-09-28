@@ -10,6 +10,7 @@ export {
 } from './errors/missing-partition.error';
 export { RateLimitExceededError } from './errors/rate-limit-exceeded.error';
 export { RateLimitExceededFilter } from './filters/rate-limit-exceeded.filter';
+export { buildRateLimitAttributes } from './helpers/build-attributes';
 export { buildRateLimitKey } from './helpers/build-key';
 export {
   createPartitionedRateLimitKeyFactory,

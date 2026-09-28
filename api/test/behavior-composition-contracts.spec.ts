@@ -10,6 +10,7 @@
  * 4. Nest TestingModule integration with real PipelineModule and @UsePipeline composition.
  */
 
+import type { Type } from '@nestjs/common';
 import {
   CommandBus,
   CommandHandler,
@@ -24,7 +25,6 @@ import {
 import {
   type IPipelineContext,
   PipelineModule,
-  type Type,
   UsePipeline,
 } from '@nestjs-pipeline/core';
 import {

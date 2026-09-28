@@ -26,8 +26,7 @@ export class SessionPrincipalContextInterceptor implements NestInterceptor {
       session: req.session,
       response: http.getResponse<object>(),
     };
-    const principal = req.sessionPrincipal ?? req.sessionUser;
-    return sessionPrincipalStore.run(principal, () =>
+    return sessionPrincipalStore.run(req.sessionPrincipal, () =>
       httpExchangeStore.run(exchange, () => next.handle()),
     );
   }

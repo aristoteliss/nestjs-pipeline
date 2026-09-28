@@ -140,7 +140,7 @@ The behavior stores the built ability and principal in `context.items`
 
 ## Check entities in the handler
 
-`CaslAuthorizer` has three methods. It uses the ability `CaslBehavior` stored for the
+`CaslAuthorizer` has four methods. It uses the ability `CaslBehavior` stored for the
 current execution, or one passed to its constructor (`new CaslAuthorizer(ability)`). No
 ability means deny.
 
@@ -160,6 +160,10 @@ return this.authorizer.project('read', user, {
 
 // Optional sections: a boolean check.
 if (this.authorizer.can('read', user, 'email')) { /* … */ }
+
+// Freshness: a conditional rule decides on entity attributes, so read the entity
+// fresh rather than from a cache. True as well when no ability is present.
+const refresh = this.authorizer.dependsOnEntity('read', 'User');
 ```
 
 A full handler, with tenant-scoped conditions evaluated against the loaded entity:
@@ -255,12 +259,19 @@ and field checks. `CaslBehavior` still runs first, but a type-level check does n
 reproduce them.
 
 - **Response caches** key on tenant + principal (`getCaslPrincipal()`) + a digest of the
-  effective rules (`getCaslAbility().rules`), and bypass the cache when entity
+  effective rules (`abilityDigest(context)`), and bypass the cache when entity
   conditions can change the result (`hasEntityConditions(ability, subjects, action)`).
 - **Idempotency** keeps a **stable operation key** (tenant + principal + operation, no
   permission data, so a permission change cannot run the effect twice) and binds replay
   with a **separate** fail-closed authorization digest compared before any stored
-  response is returned. A missing or mismatched digest refuses the replay.
+  response is returned (`replayScopeFactory: requireAbilityDigest`). A missing or mismatched digest refuses the replay.
+
+`abilityDigest(context?)` is the SHA-256 of the ability's rules in order, with conditions
+already resolved against the principal: a changed rule, order, field list, inversion or
+interpolated principal value changes it. It identifies permissions, not a caller, so
+combine it with the principal in any key that must separate callers. It is `undefined`
+when no ability is present; `requireAbilityDigest(context?)` throws `MissingAbilityError`
+instead, a configuration error to map to a server error, never to 403.
 
 ## Lists
 
@@ -298,14 +309,15 @@ unauthorized rows. Authorized pagination needs a query-side design.
 | `CaslModule`, `CaslModuleOptions` | Module registration |
 | `CaslBehavior`, `CaslBehaviorOptions`, `CASL_BEHAVIOR_ID` | Type-level behavior |
 | `requires` | `@UsePipeline` declaration helper |
-| `CaslAuthorizer` | `can`, `authorize`, `project` |
-| `getCaslAbility`, `getCaslPrincipal`, `hasEntityConditions` | Execution context and cache policy helpers |
+| `CaslAuthorizer` | `can`, `authorize`, `project`, `dependsOnEntity` |
+| `getCaslAbility`, `getCaslPrincipal`, `hasEntityConditions`, `abilityDigest`, `requireAbilityDigest` | Execution context and cache policy helpers |
 | `ICaslPermissionSource`, `CaslPrincipal`, `CaslAuthorizationInput`, `CASL_PERMISSION_SOURCE` | Application port |
 | `buildAbility`, `interpolateConditions` | Ability construction |
 | `parseCapabilityString`, `serializeCapability`, `normalizeCapability` | Capability codec |
 | `Capability`, `CapabilityString`, `AbilityRequirement`, `AppAbility`, `AppRawRule`, `Projected` | Types |
 | `CASL_ABILITY_KEY`, `CASL_PRINCIPAL_KEY`, `CASL_ACTIONS`, `CASL_SUBJECTS`, `CaslAction`, `CaslSubject` | Constants |
 | `UnauthorizedActionException`, `UnauthorizedActionDetails` | Denial error |
+| `MissingAbilityError` | No ability where one is required (configuration error) |
 | `UnauthorizedActionFilter` | Exception filter: denial → HTTP 403 |
 
 ## Migrating from 0.1.x

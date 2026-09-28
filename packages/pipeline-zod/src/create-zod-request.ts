@@ -112,7 +112,7 @@ function isPreValidated(value: unknown): value is PreValidated {
  *
  * const CreateUserSchema = z.object({
  *   username: z.string().min(3),
- *   email: z.string().email(),
+ *   email: z.email(),
  * });
  *
  * export class CreateUserCommand extends createCommand(CreateUserSchema, AppCommand) {}
@@ -121,7 +121,7 @@ function isPreValidated(value: unknown): value is PreValidated {
  *
  * @example Defining a Query without a base class
  * ```ts
- * const GetUserSchema = z.object({ id: z.string().uuid() });
+ * const GetUserSchema = z.object({ id: z.uuid() });
  * export class GetUserQuery extends createQuery(GetUserSchema) {}
  * ```
  */
@@ -243,7 +243,7 @@ export type ZodQueryClass<
  *
  * const CreateUserSchema = z.object({
  *   username: z.string().min(3),
- *   email: z.string().email(),
+ *   email: z.email(),
  * });
  *
  * export class CreateUserCommand extends createCommand(CreateUserSchema, AppCommand) {}
@@ -285,7 +285,7 @@ export function createCommand<
  *   constructor(readonly actorId?: string) {}
  * }
  *
- * const GetUserSchema = z.object({ id: z.string().uuid() });
+ * const GetUserSchema = z.object({ id: z.uuid() });
  * export class GetUserQuery extends createQuery(GetUserSchema, AppQuery) {}
  * ```
  */

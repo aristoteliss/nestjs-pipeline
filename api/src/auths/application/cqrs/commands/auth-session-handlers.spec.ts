@@ -1,9 +1,10 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import type { ITenantContext } from '@common/context/tenant-context.port';
 import type { IQueryRepository } from '@cqrs-ddd/core/application';
+import { setTenantResolver } from '@cqrs-ddd/core/application';
 import { ConcurrencyConflictError } from '@cqrs-ddd/core/domain';
 import type { EventBus } from '@nestjs/cqrs';
+import { currentTenantId } from '@nestjs-pipeline/tenant';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { User } from '../../../../users/domain/models/user.entity';
 import {
@@ -19,6 +20,11 @@ import { GetAuthByConsumedTokenHashQuery } from '../queries/get-auth-by-consumed
 import { GetAuthByTokenHashQuery } from '../queries/get-auth-by-token-hash.query';
 import { RevokeAuthCommand } from './revoke-auth.command';
 import { RevokeAuthHandler } from './revoke-auth.handler';
+
+const TENANT = 'tenant';
+
+beforeEach(() => setTenantResolver(() => TENANT));
+afterEach(() => setTenantResolver(currentTenantId));
 
 const T0 = Date.UTC(2026, 8, 22, 12, 0, 0);
 const GRACE_SECONDS = 30;
@@ -121,7 +127,6 @@ function setup() {
     store.byConsumedTokenHash,
     store.repository as never,
     tokens,
-    { schema: 'tenant' } as ITenantContext,
     cookies,
     { publishAll } as unknown as EventBus,
   );
@@ -149,7 +154,6 @@ function logoutHandler(store: SessionStore, publishAll = vi.fn()) {
     store.byConsumedTokenHash,
     store.repository as never,
     tokens,
-    { schema: 'tenant' } as ITenantContext,
     cookies,
     { publishAll } as unknown as EventBus,
   );

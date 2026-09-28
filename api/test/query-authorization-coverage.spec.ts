@@ -14,11 +14,11 @@ import {
 } from '@nestjs-pipeline/core';
 import { describe, expect, it } from 'vitest';
 import { GetUserPermissionRulesHandler } from '../src/auths/application/cqrs/queries/get-user-permission-rules.handler';
-import { GetRoleHandler } from '../src/roles/cqrs/queries/get-role.handler';
-import { GetRolesHandler } from '../src/roles/cqrs/queries/get-roles.handler';
-import { GetUserHandler } from '../src/users/cqrs/queries/get-user.handler';
-import { GetUserOverviewHandler } from '../src/users/cqrs/queries/get-user-overview.handler';
-import { GetUsersHandler } from '../src/users/cqrs/queries/get-users.handler';
+import { GetRoleHandler } from '../src/roles/application/cqrs/queries/get-role.handler';
+import { GetRolesHandler } from '../src/roles/application/cqrs/queries/get-roles.handler';
+import { GetUserHandler } from '../src/users/application/cqrs/queries/get-user.handler';
+import { GetUserOverviewHandler } from '../src/users/application/cqrs/queries/get-user-overview.handler';
+import { GetUsersHandler } from '../src/users/application/cqrs/queries/get-users.handler';
 
 function caslRules(
   handler: object,

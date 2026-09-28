@@ -1,6 +1,10 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 export {
+  AttributesBehavior,
+  type AttributesBehaviorOptions,
+} from './attributes.behavior';
+export {
   type MetricsIntentOptions,
   metrics,
 } from './helpers/metrics.intent';

@@ -8,14 +8,14 @@ import {
   PIPELINE_BEHAVIORS_OPTIONS_METADATA,
 } from '@nestjs-pipeline/core';
 import { describe, expect, it } from 'vitest';
-import { CreateAuthHandler } from '../src/auths/cqrs/commands/create-auth.handler';
-import { RevokeAuthHandler } from '../src/auths/cqrs/commands/revoke-auth.handler';
-import { CreateRoleHandler } from '../src/roles/cqrs/commands/create-role.handler';
-import { DeleteRoleHandler } from '../src/roles/cqrs/commands/delete-role.handler';
-import { UpdateRoleHandler } from '../src/roles/cqrs/commands/update-role.handler';
-import { CreateUserHandler } from '../src/users/cqrs/commands/create-user.handler';
-import { DeleteUserHandler } from '../src/users/cqrs/commands/delete-user.handler';
-import { UpdateUserHandler } from '../src/users/cqrs/commands/update-user.handler';
+import { CreateAuthHandler } from '../src/auths/application/cqrs/commands/create-auth.handler';
+import { RevokeAuthHandler } from '../src/auths/application/cqrs/commands/revoke-auth.handler';
+import { CreateRoleHandler } from '../src/roles/application/cqrs/commands/create-role.handler';
+import { DeleteRoleHandler } from '../src/roles/application/cqrs/commands/delete-role.handler';
+import { UpdateRoleHandler } from '../src/roles/application/cqrs/commands/update-role.handler';
+import { CreateUserHandler } from '../src/users/application/cqrs/commands/create-user.handler';
+import { DeleteUserHandler } from '../src/users/application/cqrs/commands/delete-user.handler';
+import { UpdateUserHandler } from '../src/users/application/cqrs/commands/update-user.handler';
 
 function auditAction(handler: object): string | undefined {
   const behaviors: Array<{ name: string }> =

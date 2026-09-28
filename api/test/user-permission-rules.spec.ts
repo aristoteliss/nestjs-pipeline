@@ -21,7 +21,7 @@ import { UserPermissionsProjector } from '../src/auths/persistence/user-permissi
 import { sessionPrincipalStore } from '../src/common/context/session-principal.store';
 import { UserPermissionRule } from '../src/persistence/entities/user-permission-rule.entity';
 import { UserRole } from '../src/persistence/entities/user-role.entity';
-import { GetUserCapabilitiesQuery } from '../src/users/cqrs/queries/get-user-capabilities.query';
+import { GetUserCapabilitiesQuery } from '../src/users/application/cqrs/queries/get-user-capabilities.query';
 import { GetUserCapabilitiesQueryRepository } from '../src/users/persistence/get-user-capabilities.query-repository';
 import {
   fixtures,
@@ -252,7 +252,9 @@ describe('Materialized user permission rules', () => {
 
       expect(rules.length).toBeGreaterThan(0);
       const invertedIndex = rules.findIndex((r) => r.inverted);
-      const directIndex = rules.findLastIndex((r) => !r.inverted);
+      const directIndex = rules
+        .map((r) => r.inverted === true)
+        .lastIndexOf(false);
       expect(directIndex).toBeLessThan(invertedIndex);
     });
 

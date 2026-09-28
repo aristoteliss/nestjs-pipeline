@@ -31,7 +31,6 @@ describe('AuthSessionGuard', () => {
 
     expect(result).toBe(true);
     expect(req.sessionPrincipal).toEqual(resolvedUser);
-    expect(req.sessionUser).toEqual(resolvedUser);
     expect(principalResolver.resolvePrincipal).toHaveBeenCalledWith(req);
   });
 
@@ -47,6 +46,6 @@ describe('AuthSessionGuard', () => {
 
     const guard = new AuthSessionGuard(principalResolver);
     await expect(guard.canActivate(context)).rejects.toThrow('Invalid token');
-    expect(req.sessionUser).toBeUndefined();
+    expect(req.sessionPrincipal).toBeUndefined();
   });
 });

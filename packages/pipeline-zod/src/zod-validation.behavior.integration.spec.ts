@@ -63,9 +63,7 @@ describe('ZodValidationBehavior – integration', () => {
     });
 
     it('throws for missing required fields', async () => {
-      const Req = makeClass(
-        z.object({ name: z.string(), email: z.string().email() }),
-      );
+      const Req = makeClass(z.object({ name: z.string(), email: z.email() }));
       await expect(behavior.handle(ctx({}, Req), next)).rejects.toThrow(
         'Validation failed',
       );
@@ -81,7 +79,7 @@ describe('ZodValidationBehavior – integration', () => {
 
   describe('event validation', () => {
     it('validates events with attached schema', async () => {
-      const Req = makeClass(z.object({ userId: z.string().uuid() }));
+      const Req = makeClass(z.object({ userId: z.uuid() }));
       const result = await behavior.handle(
         ctx({ userId: '018e0d5c-4ef6-7000-b7c8-a1e6bc5c9e70' }, Req, 'event'),
         next,
@@ -90,7 +88,7 @@ describe('ZodValidationBehavior – integration', () => {
     });
 
     it('rejects invalid events', async () => {
-      const Req = makeClass(z.object({ userId: z.string().uuid() }));
+      const Req = makeClass(z.object({ userId: z.uuid() }));
       await expect(
         behavior.handle(ctx({ userId: 'not-uuid' }, Req, 'event'), next),
       ).rejects.toThrow(ZodValidationError);

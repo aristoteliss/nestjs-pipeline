@@ -27,7 +27,11 @@ describe('tenant EntityManager metadata (e2e)', () => {
     const managerB = await tenantContext.run('tenant_b', async () => store.em);
 
     expect(managerA).not.toBe(managerB);
-    expect((managerA as Record<string, unknown>).__tenant).toBeUndefined();
-    expect((managerB as Record<string, unknown>).__tenant).toBeUndefined();
+    expect(
+      (managerA as unknown as Record<string, unknown>).__tenant,
+    ).toBeUndefined();
+    expect(
+      (managerB as unknown as Record<string, unknown>).__tenant,
+    ).toBeUndefined();
   });
 });

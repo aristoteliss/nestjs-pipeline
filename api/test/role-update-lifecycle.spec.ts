@@ -40,7 +40,7 @@ describe('versioned role updates with real MikroORM persistence', () => {
       get em() {
         return orm.em.fork();
       },
-    } as MikroOrmStore);
+    } as unknown as MikroOrmStore);
   });
   afterAll(async () => {
     setPersistenceDialect(undefined);
@@ -89,7 +89,7 @@ describe('versioned role updates with real MikroORM persistence', () => {
     await orm.em.fork().transactional(async (em) => {
       const transactionalRepository = new UpdateRoleCommandRepository(cache, {
         em,
-      } as MikroOrmStore);
+      } as unknown as MikroOrmStore);
       await expect(transactionalRepository.save(role)).rejects.toThrow(
         'external transactions need commit hooks',
       );

@@ -1,6 +1,6 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import { AUTH_HEADERS } from '@common/constants/auth-headers.constants';
+import { HEADERS } from '@common/constants/headers.constants';
 import { getSessionPrincipal } from '@common/context/session-principal.store';
 import { AuthSessionGuard } from '@common/guards/auth-session.guard';
 import { SessionPrincipalContextInterceptor } from '@common/interceptors/session-principal-context.interceptor';
@@ -25,7 +25,6 @@ import { ApiClientAuthenticator } from '../src/auths/services/api-client-authent
 import { JwtAuthenticator } from '../src/auths/services/jwt-authenticator';
 import { RequestPrincipalResolver } from '../src/auths/services/request-principal-resolver';
 import { SessionService } from '../src/auths/services/session.service';
-import { TENANT_CONTEXT } from '../src/common/context/tenant-context.port';
 import { TenantSchemaMiddleware } from '../src/persistence/middlewares/tenant-schema.middleware';
 
 @Controller('test-auth')
@@ -60,10 +59,6 @@ class TestAuthController {
   controllers: [TestAuthController],
   providers: [
     TenantSchemaContext,
-    {
-      provide: TENANT_CONTEXT,
-      useExisting: TenantSchemaContext,
-    },
     {
       provide: TenantSchemaMiddleware,
       useFactory: (context: TenantSchemaContext) =>
@@ -165,7 +160,7 @@ describe('HTTP Authentication Integration (Real Nest App Pipeline)', () => {
 
     const res = await request(app.getHttpServer())
       .get('/test-auth/principal')
-      .set(AUTH_HEADERS.TENANT_SCHEMA, 'tenant_a')
+      .set(HEADERS.TENANT_SCHEMA, 'tenant_a')
       .set('Authorization', `Bearer ${token}`);
 
     expect(res.status).toBe(200);
@@ -190,7 +185,7 @@ describe('HTTP Authentication Integration (Real Nest App Pipeline)', () => {
 
     const res = await request(app.getHttpServer())
       .get('/test-auth/principal')
-      .set(AUTH_HEADERS.TENANT_SCHEMA, 'tenant_a')
+      .set(HEADERS.TENANT_SCHEMA, 'tenant_a')
       .set('Authorization', `Bearer ${expiredToken}`);
 
     expect(res.status).toBe(401);
@@ -208,7 +203,7 @@ describe('HTTP Authentication Integration (Real Nest App Pipeline)', () => {
 
     const res = await request(app.getHttpServer())
       .get('/test-auth/principal')
-      .set(AUTH_HEADERS.TENANT_SCHEMA, 'tenant_a')
+      .set(HEADERS.TENANT_SCHEMA, 'tenant_a')
       .set('Authorization', `Bearer ${tokenForTenantB}`);
 
     expect(res.status).toBe(401);
@@ -217,9 +212,9 @@ describe('HTTP Authentication Integration (Real Nest App Pipeline)', () => {
   it('Valid API key -> 200 with principal resolved inside controller', async () => {
     const res = await request(app.getHttpServer())
       .get('/test-auth/principal')
-      .set(AUTH_HEADERS.TENANT_SCHEMA, 'tenant_a')
-      .set(AUTH_HEADERS.API_ID, 'trusted-client')
-      .set(AUTH_HEADERS.API_KEY, 'client-api-key-999');
+      .set(HEADERS.TENANT_SCHEMA, 'tenant_a')
+      .set(HEADERS.API_ID, 'trusted-client')
+      .set(HEADERS.API_KEY, 'client-api-key-999');
 
     expect(res.status).toBe(200);
     expect(res.body).toMatchObject({
@@ -232,9 +227,9 @@ describe('HTTP Authentication Integration (Real Nest App Pipeline)', () => {
   it('Valid API key + wrong tenant -> 401 Unauthorized', async () => {
     const res = await request(app.getHttpServer())
       .get('/test-auth/principal')
-      .set(AUTH_HEADERS.TENANT_SCHEMA, 'tenant_b')
-      .set(AUTH_HEADERS.API_ID, 'trusted-client')
-      .set(AUTH_HEADERS.API_KEY, 'client-api-key-999');
+      .set(HEADERS.TENANT_SCHEMA, 'tenant_b')
+      .set(HEADERS.API_ID, 'trusted-client')
+      .set(HEADERS.API_KEY, 'client-api-key-999');
 
     expect(res.status).toBe(401);
   });
@@ -263,12 +258,12 @@ describe('HTTP Authentication Integration (Real Nest App Pipeline)', () => {
     // Request A starts first and delays 25ms, Request B starts second and delays 5ms
     const reqA = request(app.getHttpServer())
       .get('/test-auth/concurrent?delay=25')
-      .set(AUTH_HEADERS.TENANT_SCHEMA, 'tenant_a')
+      .set(HEADERS.TENANT_SCHEMA, 'tenant_a')
       .set('Authorization', `Bearer ${tokenA}`);
 
     const reqB = request(app.getHttpServer())
       .get('/test-auth/concurrent?delay=5')
-      .set(AUTH_HEADERS.TENANT_SCHEMA, 'tenant_b')
+      .set(HEADERS.TENANT_SCHEMA, 'tenant_b')
       .set('Authorization', `Bearer ${tokenB}`);
 
     const [resA, resB] = await Promise.all([reqA, reqB]);
@@ -300,11 +295,12 @@ describe('HTTP Authentication Integration (Real Nest App Pipeline)', () => {
       tenant: 'tenant_a',
       email: 'cookie@example.test',
       sid: 'session-cookie-1',
+      expiresAt: Date.now() + 60_000,
     };
 
     const res = await request(app.getHttpServer())
       .get('/test-auth/principal')
-      .set(AUTH_HEADERS.TENANT_SCHEMA, 'tenant_a')
+      .set(HEADERS.TENANT_SCHEMA, 'tenant_a')
       .set('x-test-session-user', JSON.stringify(sessionUser));
 
     expect(res.status).toBe(200);
@@ -327,7 +323,7 @@ describe('HTTP Authentication Integration (Real Nest App Pipeline)', () => {
 
     const res = await request(app.getHttpServer())
       .get('/test-auth/session-status')
-      .set(AUTH_HEADERS.TENANT_SCHEMA, 'tenant_a')
+      .set(HEADERS.TENANT_SCHEMA, 'tenant_a')
       .set('x-test-session-user', JSON.stringify(expiredUser));
 
     expect(res.status).toBe(200);
@@ -358,7 +354,7 @@ describe('HTTP Authentication Integration (Real Nest App Pipeline)', () => {
 
     const res = await request(app.getHttpServer())
       .get('/test-auth/principal')
-      .set(AUTH_HEADERS.TENANT_SCHEMA, 'tenant_a')
+      .set(HEADERS.TENANT_SCHEMA, 'tenant_a')
       .set('x-test-session-user', JSON.stringify(expiredUser))
       .set('Authorization', `Bearer ${token}`);
 
@@ -375,11 +371,12 @@ describe('HTTP Authentication Integration (Real Nest App Pipeline)', () => {
       type: 'user',
       tenant: 'tenant_b',
       sid: 'session-cookie-mismatch',
+      expiresAt: Date.now() + 60_000,
     };
 
     const res = await request(app.getHttpServer())
       .get('/test-auth/principal')
-      .set(AUTH_HEADERS.TENANT_SCHEMA, 'tenant_a')
+      .set(HEADERS.TENANT_SCHEMA, 'tenant_a')
       .set('x-test-session-user', JSON.stringify(mismatchedUser));
 
     expect(res.status).toBe(401);
@@ -397,7 +394,7 @@ describe('HTTP Authentication Integration (Real Nest App Pipeline)', () => {
 
     const res = await request(app.getHttpServer())
       .get('/test-auth/principal')
-      .set(AUTH_HEADERS.TENANT_SCHEMA, 'tenant_a')
+      .set(HEADERS.TENANT_SCHEMA, 'tenant_a')
       .set('Authorization', `Bearer ${tokenWithoutSid}`);
 
     expect(res.status).toBe(401);
@@ -409,11 +406,12 @@ describe('HTTP Authentication Integration (Real Nest App Pipeline)', () => {
       type: 'user',
       tenant: 'tenant_a',
       email: 'legacy@example.test',
+      expiresAt: Date.now() + 60_000,
     };
 
     const res = await request(app.getHttpServer())
       .get('/test-auth/session-status')
-      .set(AUTH_HEADERS.TENANT_SCHEMA, 'tenant_a')
+      .set(HEADERS.TENANT_SCHEMA, 'tenant_a')
       .set('x-test-session-user', JSON.stringify(legacySessionUser));
 
     expect(res.status).toBe(200);
@@ -429,11 +427,12 @@ describe('HTTP Authentication Integration (Real Nest App Pipeline)', () => {
       tenant: 'tenant_a',
       email: 'legacy@example.test',
       sid: 'session-legacy-principal',
+      expiresAt: Date.now() + 60_000,
     };
 
     const res = await request(app.getHttpServer())
       .get('/test-auth/session-status')
-      .set(AUTH_HEADERS.TENANT_SCHEMA, 'tenant_a')
+      .set(HEADERS.TENANT_SCHEMA, 'tenant_a')
       .set('x-test-session-user', JSON.stringify(legacySessionUser));
 
     expect(res.status).toBe(200);

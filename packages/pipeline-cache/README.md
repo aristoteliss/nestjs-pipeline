@@ -468,6 +468,8 @@ The behavior records diagnostics on `context.items`:
 
 Exported as unique `Symbol` constants (`CACHE_HIT_ITEM` and `CACHE_KEY_ITEM`) to prevent key collisions in `context.items`. `CACHE_HIT_ITEM_TOKEN` and `CACHE_KEY_ITEM_TOKEN` are typed tokens over the same keys for `getPipelineItem` / `requirePipelineItem` from `@nestjs-pipeline/core`.
 
+`buildCacheAttributes(context)` turns the hit flag into the attribute `cache.hit`. Use it for span attributes through `AttributesBehavior` of [`@nestjs-pipeline/opentelemetry`](https://github.com/aristoteliss/nestjs-pipeline/tree/master/packages/pipeline-opentelemetry#attributes-from-other-behaviors), for audit `metadata`, or on a log line; it needs no telemetry package. It returns `{}` when the behavior did not run, never a fabricated miss, and never includes the key.
+
 
 ---
 
@@ -545,6 +547,7 @@ import {
   CACHE_KEY_ITEM_TOKEN,
   CacheManagerAdapter,
   buildCache,
+  buildCacheAttributes,
   buildKeyv,
   createPartitionedCacheKeyFactory,
   MissingCachePartitionError,

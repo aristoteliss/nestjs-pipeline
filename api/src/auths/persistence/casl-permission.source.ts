@@ -1,7 +1,7 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { getSessionPrincipal } from '@common/context/session-principal.store';
-import { isSessionPrincipalValid } from '@common/types/SessionPrincipal';
+import { isSessionPrincipalValid } from '@common/types/session-principal';
 import { Inject, Injectable, Scope } from '@nestjs/common';
 import type {
   CaslAuthorizationInput,

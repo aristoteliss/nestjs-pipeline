@@ -2,5 +2,10 @@
 
 import { z } from 'zod';
 
-/** Canonical email representation used for persistence and lookup. */
-export const EmailSchema = z.string().trim().toLowerCase().email();
+/**
+ * The canonical form of an email address, shared by registration, login and
+ * user lookup so the same mailbox always compares equal: surrounding spaces
+ * are removed and the address is lower-cased before it is validated, so
+ * `'  User@Example.COM '` is accepted as `'user@example.com'`.
+ */
+export const EmailSchema = z.string().trim().toLowerCase().pipe(z.email());

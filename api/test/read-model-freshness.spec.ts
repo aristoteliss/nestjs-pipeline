@@ -11,19 +11,19 @@ import {
 import { type IPipelineContext, pipelineStore } from '@nestjs-pipeline/core';
 import { runWithTenant } from '@nestjs-pipeline/tenant';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { GetRoleHandler } from '../src/roles/cqrs/queries/get-role.handler';
-import { GetRoleQuery } from '../src/roles/cqrs/queries/get-role.query';
-import { GetRolesHandler } from '../src/roles/cqrs/queries/get-roles.handler';
-import { GetRolesQuery } from '../src/roles/cqrs/queries/get-roles.query';
+import { GetRoleHandler } from '../src/roles/application/cqrs/queries/get-role.handler';
+import { GetRoleQuery } from '../src/roles/application/cqrs/queries/get-role.query';
+import { GetRolesHandler } from '../src/roles/application/cqrs/queries/get-roles.handler';
+import { GetRolesQuery } from '../src/roles/application/cqrs/queries/get-roles.query';
 import {
   Role,
   type RoleSnapshot,
 } from '../src/roles/domain/models/role.entity';
 import { GetRoleQueryRepository } from '../src/roles/persistence/get-role.query-repository';
-import { GetUserHandler } from '../src/users/cqrs/queries/get-user.handler';
-import { GetUserQuery } from '../src/users/cqrs/queries/get-user.query';
-import { GetUsersHandler } from '../src/users/cqrs/queries/get-users.handler';
-import { GetUsersQuery } from '../src/users/cqrs/queries/get-users.query';
+import { GetUserHandler } from '../src/users/application/cqrs/queries/get-user.handler';
+import { GetUserQuery } from '../src/users/application/cqrs/queries/get-user.query';
+import { GetUsersHandler } from '../src/users/application/cqrs/queries/get-users.handler';
+import { GetUsersQuery } from '../src/users/application/cqrs/queries/get-users.query';
 import {
   User,
   type UserSnapshot,
@@ -123,7 +123,7 @@ describe('User read freshness under conditional rules', () => {
     expect(query).toMatchObject({ userId: TARGET_ID });
     expect(query.refresh).toBe(true);
     expect(query.hydrate).toBe(true);
-    expect(query.sessionUser).toBe(sessionPrincipal);
+    expect(query.sessionPrincipal).toBe(sessionPrincipal);
   });
 });
 

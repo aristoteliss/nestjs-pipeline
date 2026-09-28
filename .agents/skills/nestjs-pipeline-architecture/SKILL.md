@@ -208,9 +208,9 @@ authenticator may put `grants` on the session user.
 
 Canonical references:
 
-- `api/src/users/cqrs/commands/create-user.handler.ts`
-- `api/src/users/cqrs/queries/get-user.handler.ts`
-- `api/src/users/cqrs/queries/get-users.handler.ts`
+- `api/src/users/application/cqrs/commands/create-user.handler.ts`
+- `api/src/users/application/cqrs/queries/get-user.handler.ts`
+- `api/src/users/application/cqrs/queries/get-users.handler.ts`
 
 ### 8. Treat cache and idempotency short-circuiting as a security boundary
 
@@ -256,13 +256,16 @@ Prefer application ports for:
 
 - token issuance
 - credential verification
-- current tenant reading
 - queues/message dispatch
 - external APIs
 - clocks/IDs when business-relevant
 - configuration values used by application logic
 
 Environment variables are acceptable in bootstrap/infrastructure/configuration modules, not as hidden dependencies inside application use cases.
+
+The current tenant needs no port: it lives in `@nestjs-pipeline/tenant`, set where work enters (HTTP middleware, job context), and code reads it with `requireTenant(purpose)` from `@cqrs-ddd/core/application`, which fails closed with `MissingTenantContextError`. A key factory that receives a pipeline or job context passes it as the source: `requireTenant(purpose, ctx)`.
+
+Each external system (Redis, the database, the OTLP collector, a broker, a third-party API) has one standalone config module, `<system>.config.ts`, whose function (`redisConfig()`, `persistenceConfig()`, `otlpConfig()`) reads, defaults and validates its environment variables and returns typed settings. Every consumer — module wiring, CLI, adapters, tests — takes the settings from it; nothing else reads those variables or rebuilds a URL from them.
 
 ## Event handling rules
 
@@ -419,6 +422,7 @@ Before finalizing an architecture-sensitive change, verify:
 - [ ] No ORM/database implementation leaked into a handler/application service.
 - [ ] No HTTP exception leaked into domain/application code.
 - [ ] No BullMQ/JWT/env/config implementation leaked into a use case that could depend on a port.
+- [ ] Connection settings of an external system come only from its `<system>.config.ts` module.
 - [ ] Cross-cutting concerns use pipeline behaviors when available.
 - [ ] Entity/field authorization still runs against the actual aggregate/result.
 - [ ] Cache/idempotency keys contain tenant + principal + permission scope when required.
@@ -443,13 +447,13 @@ Before finalizing an architecture-sensitive change, verify:
 
 Prefer adapting these files rather than inventing a new pattern:
 
-- Command + pipeline + domain mutation: `api/src/users/cqrs/commands/create-user.handler.ts`
-- Command update flow: `api/src/users/cqrs/commands/update-user.handler.ts` (authoritative pattern: loads via write-side repository `findById`, throws framework-neutral `EntityNotFoundException` on absence, authorizes aggregate, calls domain update method, persists, and auto-publishes events via `CommandBaseHandler`)
+- Command + pipeline + domain mutation: `api/src/users/application/cqrs/commands/create-user.handler.ts`
+- Command update flow: `api/src/users/application/cqrs/commands/update-user.handler.ts` (authoritative pattern: loads via write-side repository `findById`, throws framework-neutral `EntityNotFoundException` on absence, authorizes aggregate, calls domain update method, persists, and auto-publishes events via `CommandBaseHandler`)
 - Update repository with lifecycle decorators: `api/src/roles/persistence/update-role.command-repository.ts` and `api/src/users/persistence/update-user.command-repository.ts`
 - Create repository with lifecycle decorators: `api/src/users/persistence/create-user.command-repository.ts`
 - Conditional delete repository: `api/src/users/persistence/delete-user.command-repository.ts`
-- Authorized single query: `api/src/users/cqrs/queries/get-user.handler.ts`
-- Authorized collection query: `api/src/users/cqrs/queries/get-users.handler.ts`
+- Authorized single query: `api/src/users/application/cqrs/queries/get-user.handler.ts`
+- Authorized collection query: `api/src/users/application/cqrs/queries/get-users.handler.ts`
 - Domain aggregate: `api/src/users/domain/models/user.entity.ts`
 - Framework-neutral domain error: `api/src/users/domain/models/errors/email.exception.ts`
 - HTTP mapping boundary: `api/src/common/filters/domain-exception.filter.ts`

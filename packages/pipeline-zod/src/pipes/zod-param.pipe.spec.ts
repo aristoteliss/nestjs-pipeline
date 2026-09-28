@@ -81,7 +81,7 @@ describe('ZodPipe', () => {
 
   describe('generic type parameters', () => {
     it('can be typed with explicit TOutput and TInput', async () => {
-      const schema = z.object({ id: z.string().uuid() });
+      const schema = z.object({ id: z.uuid() });
       type Out = z.infer<typeof schema>;
       const pipe = new ZodPipe<Out, unknown>(schema);
       const result = await pipe.transform({

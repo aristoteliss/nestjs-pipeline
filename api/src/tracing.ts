@@ -5,12 +5,13 @@ import { HttpInstrumentation } from '@opentelemetry/instrumentation-http';
 import { NestInstrumentation } from '@opentelemetry/instrumentation-nestjs-core';
 import { PgInstrumentation } from '@opentelemetry/instrumentation-pg';
 import { NodeSDK } from '@opentelemetry/sdk-node';
+import { otlpConfig } from './common/environment/otlp.config';
+
+const { serviceName, endpoint } = otlpConfig();
 
 const sdk = new NodeSDK({
-  serviceName: process.env.OTEL_SERVICE_NAME ?? 'users-api',
-  traceExporter: new OTLPTraceExporter({
-    url: process.env.OTEL_EXPORTER_OTLP_ENDPOINT ?? 'http://localhost:4317',
-  }),
+  serviceName,
+  traceExporter: new OTLPTraceExporter({ url: endpoint }),
   instrumentations: [
     new HttpInstrumentation(), // HTTP/HTTPS in & out
     new PgInstrumentation(), // PostgreSQL queries

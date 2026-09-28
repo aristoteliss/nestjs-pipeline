@@ -68,7 +68,7 @@ describe('ZodValidationFilter', () => {
 
   it('includes flattened details from ZodValidationError', () => {
     const error = makeError(
-      z.object({ email: z.string().email(), age: z.number().positive() }),
+      z.object({ email: z.email(), age: z.number().positive() }),
       { email: 'bad', age: -1 },
     );
     let response: any;

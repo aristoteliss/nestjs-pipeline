@@ -298,6 +298,7 @@ function testSession(
     ? {
         ...parsedUser,
         sid: parsedUser.sid ?? 'e2e-session-id',
+        expiresAt: parsedUser.expiresAt ?? Date.now() + 3_600_000,
         tenant: parsedUser.tenant ?? tenant,
         type:
           parsedUser.type ??

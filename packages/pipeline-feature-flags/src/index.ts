@@ -22,6 +22,7 @@ export {
   FeatureDisabledFilter,
   type FeatureDisabledFilterOptions,
 } from './filters/feature-disabled.filter';
+export { buildFeatureFlagAttributes } from './helpers/build-attributes';
 export {
   baseEvaluationContext,
   buildEvaluationContext,

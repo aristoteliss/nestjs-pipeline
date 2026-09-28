@@ -1,7 +1,6 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { APP_ACTIONS, APP_SUBJECTS } from '@common/constants';
-import { readDependsOnEntityState } from '@common/cqrs/helpers/read-freshness.helper';
 import { IQueryRepository } from '@cqrs-ddd/core/application';
 import { Inject } from '@nestjs/common';
 import { type IQueryHandler, QueryHandler } from '@nestjs/cqrs';
@@ -28,11 +27,12 @@ export class GetRoleHandler
 
   async execute(query: GetRoleQuery): Promise<RoleReadModel | null> {
     const role = await this.queryRepository.find(
-      readDependsOnEntityState(APP_SUBJECTS.ROLE) && !query.refresh
+      this.authorizer.dependsOnEntity(APP_ACTIONS.READ, APP_SUBJECTS.ROLE) &&
+        !query.refresh
         ? new GetRoleQuery(
             { roleId: query.roleId },
             { hydrate: query.hydrate, refresh: true },
-            query.sessionPrincipal ?? query.sessionUser,
+            query.sessionPrincipal,
           )
         : query,
     );
