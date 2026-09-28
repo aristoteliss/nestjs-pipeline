@@ -1,8 +1,9 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import type {
-  IQueryRepository,
-  IWriteSideAggregateRepository,
+import {
+  type IQueryRepository,
+  type IWriteSideAggregateRepository,
+  requireTenant,
 } from '@cqrs-ddd/core/application';
 import { Inject, Injectable } from '@nestjs/common';
 import type { Capability } from '@nestjs-pipeline/casl';
@@ -15,16 +16,12 @@ import {
   getSessionPrincipal,
   sessionPrincipalStore,
 } from '../../common/context/session-principal.store';
-import {
-  type ITenantContext,
-  TENANT_CONTEXT,
-} from '../../common/context/tenant-context.port';
 import { API_CLIENTS } from '../../common/environment/api-clients.config';
 import {
   isPrincipalType,
   isSessionPrincipalValid,
   type SessionPrincipal,
-} from '../../common/types/SessionPrincipal';
+} from '../../common/types/session-principal';
 import { GetUserQuery } from '../../users/application/cqrs/queries/get-user.query';
 import type { User } from '../../users/domain/models/user.entity';
 import { EXT_USER_QUERY_REPOSITORY } from '../../users/persistence/repository.tokens';
@@ -50,8 +47,6 @@ export class SessionJobPrincipal implements IJobPrincipal<Capability> {
     private readonly sessions: IWriteSideAggregateRepository<Auth>,
     @Inject(EXT_USER_QUERY_REPOSITORY.getUser)
     private readonly users: IQueryRepository<GetUserQuery, User | null>,
-    @Inject(TENANT_CONTEXT)
-    private readonly tenantContext: ITenantContext,
   ) {}
 
   capture(): PrincipalReference | undefined {
@@ -76,7 +71,7 @@ export class SessionJobPrincipal implements IJobPrincipal<Capability> {
     if (!isPrincipalType(type)) {
       throw new InvalidJobContextError(`principal type "${type}" is unknown`);
     }
-    const tenant = this.tenantContext.schema;
+    const tenant = requireTenant('restoring a job principal');
     if (grants) return { id, type, tenant, grants: [...grants] };
 
     if (type === 'service') {

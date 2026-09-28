@@ -32,6 +32,7 @@ Both are no-op-safe: if the matching SDK isn't initialized, the OpenTelemetry AP
   - [Span Name and Custom Attributes](#span-name-and-custom-attributes)
   - [Disabling Telemetry for a Handler](#disabling-telemetry-for-a-handler)
   - [Request-Local Attributes](#request-local-attributes)
+  - [Attributes from Other Behaviors](#attributes-from-other-behaviors)
   - [Tenant and Correlation Attributes](#tenant-and-correlation-attributes)
 - [Instrumentation failure boundaries](#instrumentation-failure-boundaries)
 - [No SDK? No Problem.](#no-sdk-no-problem)
@@ -433,6 +434,74 @@ export class VariantBehavior implements IPipelineBehavior {
 **not** copied to metric labels unless `metrics({ includeContextAttributes: true })`
 is set; enable that only when every value in the bag is bounded.
 
+### Attributes from Other Behaviors
+
+Behaviors that take no telemetry dependency publish their decisions as
+`context.items` entries, and their packages export a factory that turns those
+entries into attributes. `AttributesBehavior` runs the factories once the rest of
+the chain has finished, successfully or not, and adds the result to the bag, so
+`TraceBehavior` puts it on the span and `MetricsBehavior` on its labels when
+`includeContextAttributes` is on. Register it inside `TraceBehavior` and
+`MetricsBehavior` and outside the behaviors it describes:
+
+```typescript
+import { buildCacheAttributes } from '@nestjs-pipeline/cache';
+import { buildDeadLetterAttributes } from '@nestjs-pipeline/deadletter';
+import { buildFeatureFlagAttributes } from '@nestjs-pipeline/feature-flags';
+import { buildIdempotencyAttributes } from '@nestjs-pipeline/idempotency';
+import {
+  AttributesBehavior,
+  MetricsBehavior,
+  TraceBehavior,
+} from '@nestjs-pipeline/opentelemetry';
+import { buildRateLimitAttributes } from '@nestjs-pipeline/rate-limit';
+
+PipelineModule.forRoot({
+  globalBehaviors: {
+    before: [
+      TraceBehavior,
+      MetricsBehavior,
+      [AttributesBehavior, {
+        factories: [
+          buildFeatureFlagAttributes,
+          buildCacheAttributes,
+          buildIdempotencyAttributes,
+          buildRateLimitAttributes,
+          buildDeadLetterAttributes,
+        ],
+      }],
+    ],
+  },
+});
+```
+
+| Factory | Package | Attributes |
+| --- | --- | --- |
+| `buildFeatureFlagAttributes` | `@nestjs-pipeline/feature-flags` | `feature_flag.key`, `feature_flag.enabled`; `feature_flag.variant`, `feature_flag.reason` and `feature_flag.error_code` when reported |
+| `buildCacheAttributes` | `@nestjs-pipeline/cache` | `cache.hit` |
+| `buildIdempotencyAttributes` | `@nestjs-pipeline/idempotency` | `idempotency.replayed`; `idempotency.ownership_lost` when the claim was lost |
+| `buildRateLimitAttributes` | `@nestjs-pipeline/rate-limit` | `rate_limit.remaining_points` |
+| `buildDeadLetterAttributes` | `@nestjs-pipeline/deadletter` | `dead_letter.captured` when a record was delivered |
+
+A factory returns nothing for a behavior that did not run, so a request without
+caching carries no `cache.hit` rather than a false miss, and no factory includes a
+cache, idempotency or rate-limit key, since those carry tenants and principals.
+Factories run in order and a later one wins on a shared name; one that throws or
+rejects adds nothing, the others still apply, and the request's result or error
+is returned unchanged.
+
+Choose the factories you want, and wrap one to rename or drop attributes:
+
+```typescript
+const cacheHit: PipelineTelemetryAttributeFactory = (context) => {
+  const { 'cache.hit': hit } = buildCacheAttributes(context);
+  return hit === undefined ? {} : { 'app.cache_hit': hit };
+};
+```
+
+`rate_limit.remaining_points` takes as many values as the limiter has points; keep
+it out of metric labels unless that cardinality is acceptable.
+
 ### Tenant and Correlation Attributes
 
 `pipeline.correlation_id` and `pipeline.tenant_id` come from the pipeline
@@ -685,6 +754,8 @@ form:
 | `MetricsBehaviorOptions` | Interface | `meterName`, `enabled`, `attributeFactory`, `includeContextAttributes` (default `false`) |
 | `metrics` | Function | Typed intent builder returning `[MetricsBehavior, options]` for `@UsePipeline` |
 | `MetricsIntentOptions` | Type | Alias for `MetricsBehaviorOptions` |
+| `AttributesBehavior` | Class | Pipeline behavior — adds the attributes of the configured factories to the bag after the chain has run |
+| `AttributesBehaviorOptions` | Interface | `factories` — attribute factories, applied in order |
 | `addPipelineTelemetryAttributes` | Function | Merges attributes into the request-local telemetry bag |
 | `getPipelineTelemetryAttributes` | Function | Returns a copy of the request-local telemetry bag |
 | `buildTraceAttributes` | Function | Default span attributes for a pipeline context |

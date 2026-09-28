@@ -9,7 +9,7 @@ import type { AuditActor, AuditBehaviorOptions } from '@nestjs-pipeline/audit';
  * Carries no `id`: an audit record must not be readable as if an identified
  * principal performed the action.
  */
-export const UNAUTHENTICATED_AUDIT_ACTOR: AuditActor = Object.freeze({
+const UNAUTHENTICATED_AUDIT_ACTOR: AuditActor = Object.freeze({
   authenticated: false,
 });
 

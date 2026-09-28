@@ -1,6 +1,6 @@
 {
   "name": "@cqrs-ddd/core",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Framework- and ORM-neutral DDD building blocks for TypeScript: aggregates and domain events, CQRS base classes and repository ports, and a revision-fenced repository cache, as separate entry points.",
   "author": "Aristotelis",
   "license": "SEE LICENSE IN LICENSE",
@@ -72,9 +72,7 @@
     "@cqrs-ddd/uuidv7": "workspace:^"
   },
   "devDependencies": {
-    "@biomejs/biome": "^2.5.14",
     "@vitest/coverage-v8": "^4.1.11",
-    "tsx": "^4.23.15",
     "typescript": "^6.0.3",
     "vitest": "^4.1.11"
   }

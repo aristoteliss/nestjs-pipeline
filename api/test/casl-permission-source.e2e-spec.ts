@@ -72,7 +72,7 @@ describe('CASL permission source wiring (e2e)', () => {
       '../src/persistence/tenant-schema.context'
     );
     const { GetUserQuery } = await import(
-      '../src/users/cqrs/queries/get-user.query'
+      '../src/users/application/cqrs/queries/get-user.query'
     );
     return ctx.app
       .get(TenantSchemaContext)

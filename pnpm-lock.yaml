@@ -50,16 +50,10 @@ importers:
       '@mikro-orm/migrations':
         specifier: ^7.2.1
         version: 7.2.1(@mikro-orm/core@7.2.1)
-      '@mikro-orm/nestjs':
-        specifier: ^7.1.0
-        version: 7.1.0(@mikro-orm/core@7.2.1)(@nestjs/common@11.2.6(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@7.2.0))(@nestjs/core@11.2.6)(reflect-metadata@0.2.2)
       '@mikro-orm/postgresql':
         specifier: ^7.2.1
         version: 7.2.1(@mikro-orm/core@7.2.1)
       '@mikro-orm/sql':
-        specifier: ^7.2.1
-        version: 7.2.1(@mikro-orm/core@7.2.1)
-      '@mikro-orm/sqlite':
         specifier: ^7.2.1
         version: 7.2.1(@mikro-orm/core@7.2.1)
       '@nestjs-pipeline/audit':
@@ -204,6 +198,9 @@ importers:
       '@types/cookie-parser':
         specifier: ^1.4.10
         version: 1.4.10(@types/express@5.0.6)
+      '@types/pg':
+        specifier: ^8.23.1
+        version: 8.23.1
       '@types/supertest':
         specifier: ^7.2.1
         version: 7.2.1
@@ -247,15 +244,9 @@ importers:
         specifier: workspace:^
         version: link:../uuidv7
     devDependencies:
-      '@biomejs/biome':
-        specifier: ^2.5.14
-        version: 2.5.14
       '@vitest/coverage-v8':
         specifier: ^4.1.11
         version: 4.1.11(vitest@4.1.11)
-      tsx:
-        specifier: ^4.23.15
-        version: 4.23.15
       typescript:
         specifier: ^6.0.3
         version: 6.0.3
@@ -384,6 +375,10 @@ importers:
         version: 4.1.11(@opentelemetry/api@1.9.1)(@types/node@26.6.3)(@vitest/coverage-v8@4.1.11)(vite@8.2.0(@types/node@26.6.3)(esbuild@0.28.2)(tsx@4.23.15)(yaml@2.9.1))
 
   packages/pipeline-casl:
+    dependencies:
+      '@cqrs-ddd/safe-stringify':
+        specifier: workspace:^
+        version: link:../safe-stringify
     devDependencies:
       '@casl/ability':
         specifier: ^7.0.1
@@ -1099,15 +1094,6 @@ packages:
     peerDependencies:
       '@mikro-orm/core': 7.2.1
 
-  '@mikro-orm/nestjs@7.1.0':
-    resolution: {integrity: sha512-S7UXOR4jYtl+lSl23GxQNoWaI3naf5WGUaWMjqZ1o+xcp+fha8une9Yu3qEizZNA+iulE4qA+yaB6sKnA67fbw==}
-    engines: {node: '>= 22.17.0'}
-    peerDependencies:
-      '@mikro-orm/core': ^7.0.0 || ^7.0.0-dev.0
-      '@nestjs/common': ^11.0.5 || ^12.0.0
-      '@nestjs/core': ^11.0.5 || ^12.0.0
-      reflect-metadata: ^0.1.0 || ^0.2.0
-
   '@mikro-orm/postgresql@7.2.1':
     resolution: {integrity: sha512-PQ1qe4Bj/hQSHYJjR02l06FfEDwniAvncduwZSCLSKuaCUddHc5AN2Utj3yo4xRIVRY8pOa7DFitEQPBozTMJA==}
     engines: {node: '>= 22.17.0'}
@@ -1116,12 +1102,6 @@ packages:
 
   '@mikro-orm/sql@7.2.1':
     resolution: {integrity: sha512-3M9dQeUDLlvAT5VJr/KBGAk9C7xez+psVCnvNkAO4hRhwx2Wm7N1HkuyP4Bwj0MjkHVB6LYvhTw/V6pYsVM8lA==}
-    engines: {node: '>= 22.17.0'}
-    peerDependencies:
-      '@mikro-orm/core': 7.2.1
-
-  '@mikro-orm/sqlite@7.2.1':
-    resolution: {integrity: sha512-+iAPGORAqLl+TcBF+JSLOfRq+PwTQG1NLts+AvN9D8C2czlbDpyjyeaAFSR+5wJlMEZ4wv2rdzt4jSS5T7x3XQ==}
     engines: {node: '>= 22.17.0'}
     peerDependencies:
       '@mikro-orm/core': 7.2.1
@@ -1900,9 +1880,6 @@ packages:
   '@types/node@18.19.130':
     resolution: {integrity: sha512-GRaXQx6jGfL8sKfaIDD6OupbIHBr9jv7Jnaml9tB7l4v068PAOXqfcujMMo5PhbIs6ggR1XODELqahT2R8v0fg==}
 
-  '@types/node@26.2.0':
-    resolution: {integrity: sha512-5IviulTZeRNp2vAJ514cc/HUlY5nZ9fCbq9DMyC52BrhFZACo3nI0R7qBxhQmo/d27NFe96ur/b7Wwxklda+kg==}
-
   '@types/node@26.6.3':
     resolution: {integrity: sha512-dsqMQQoeTLqu9wynDD00q573mNzso3IdQOAfHRJqLCcmCFPoGo9A1bDpUcv/9tnKpErQWv9uKeGfl37EIS02Yg==}
 
@@ -2175,9 +2152,6 @@ packages:
       bare-url:
         optional: true
 
-  bare-path@3.1.1:
-    resolution: {integrity: sha512-JprUlveX3QjApC1cTpsUOiscADftCGVWkzitbHsRqv84hzYwYHw2mbluddsq5TvI8mH/8Ov1f4BiMAdcB0oYnQ==}
-
   bare-path@3.1.2:
     resolution: {integrity: sha512-ZyKbsuuqK6Ag0K8pX6V5Txq6XeJRvY+wXucnFGRjiyVYP9YWDpIQugk/b+enRYrEYBJaqLzghRQpXPMR7341Nw==}
 
@@ -2210,10 +2184,6 @@ packages:
 
   bcrypt-pbkdf@1.0.2:
     resolution: {integrity: sha512-qeFIXtP4MSoi6NLqO12WfqARWWuCKi2Rn/9hJLEmtB5yTNr9DqFWkJRCf2qShWzPeAMRnOgCrq0sg/KLv5ES9w==}
-
-  better-sqlite3@13.0.3:
-    resolution: {integrity: sha512-RbOBxmLBG8uvFUc15X9+9SFemKcQ0WBuISBVkpuiaUB2qblC8UWlHEjdWVoZ8AdhSwmoEgsiXKfopX0CQxaACQ==}
-    engines: {node: '>=22'}
 
   binary-extensions@2.3.0:
     resolution: {integrity: sha512-Ceh+7ox5qe7LJuLHoY0feh3pHuUDHAcRUeyL2VYghZwfpkNIy/+8Ocg0a3UuSoYzavmylwuLWQOf3hl0jjMMIw==}
@@ -3274,10 +3244,6 @@ packages:
   node-addon-api@7.1.1:
     resolution: {integrity: sha512-5m3bsyrjFWE1xf7nz7YXdN4udnVtXK6/Yfgn5qnahL6bCkf2yKt4k3nuTKAtT4r3IG8JNR2ncsIMdZuAzJjHQQ==}
 
-  node-addon-api@8.9.2:
-    resolution: {integrity: sha512-VijLXbi3UACN69I0JVXJsX4tjACjNoQDgv2gTF6sx2wWEi8tkSg2eX8p5gSIFi8z2+DL3oHmY6OyKce38SDolg==}
-    engines: {node: ^18 || ^20 || >= 21}
-
   node-gyp-build-optional-packages@5.2.2:
     resolution: {integrity: sha512-s+w+rBWnpTMwSFbaE0UXsRlg7hU4FjekKU4eyAih5T8nJuNZT1nNsskXpxmeqSK9UzkBl6UgRlnKc8hz8IEqOw==}
     hasBin: true
@@ -3402,10 +3368,6 @@ packages:
   picomatch@2.3.2:
     resolution: {integrity: sha512-V7+vQEJ06Z+c5tSye8S+nHUfI51xoXIXjHQ99cQtKUkQqqO1kO/KCJUfZXuB47h/YBlDhah2H3hdUGXn8ie0oA==}
     engines: {node: '>=8.6'}
-
-  picomatch@4.0.5:
-    resolution: {integrity: sha512-RvwwcruNjI1ncT5xRakeyS9Lf8lcItv34KD+aif+VH9kduAyfYBipGh12274xtenIPZ119/R9BdTBa8gAwSh0A==}
-    engines: {node: '>=12'}
 
   picomatch@4.0.7:
     resolution: {integrity: sha512-qcJu88Q2IWqJsDD529JKMdwGm/dvInW4HvQnRwiH9JtihJvzGOscDtHE3x1pBKeUOTysQ8kVmLnJ2kJu7yhcGA==}
@@ -3961,9 +3923,6 @@ packages:
 
   undici-types@5.26.5:
     resolution: {integrity: sha512-JlCMO+ehdEIKqlFxk6IfVoAUVmgz7cU7zD/h9XZ0qzeosSHmUJVOzSQvvYSYWXkFXC+IfLKSIffhv0sVZup6pA==}
-
-  undici-types@8.3.0:
-    resolution: {integrity: sha512-j375ScV60dom+YkPFIfTLcOiPxkN/buHz5GobjLhixFuANaNs3C9l4GmrWqejgXWJ7BbJcFYpTEUkS1Ge8bpZQ==}
 
   undici-types@8.9.0:
     resolution: {integrity: sha512-KTDyRTYX8sWmKXAikPHHSyc63CRPETMctyjKFupcC6OBLXT3xsN0e9aF7m+mIXutFWpUXuedtowG7iLOzp0kQg==}
@@ -4593,13 +4552,6 @@ snapshots:
       '@mikro-orm/core': 7.2.1
       '@mikro-orm/sql': 7.2.1(@mikro-orm/core@7.2.1)
 
-  '@mikro-orm/nestjs@7.1.0(@mikro-orm/core@7.2.1)(@nestjs/common@11.2.6(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@7.2.0))(@nestjs/core@11.2.6)(reflect-metadata@0.2.2)':
-    dependencies:
-      '@mikro-orm/core': 7.2.1
-      '@nestjs/common': 11.2.6(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@7.2.0)
-      '@nestjs/core': 11.2.6(@nestjs/common@11.2.6(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@7.2.0))(@nestjs/platform-express@11.2.6)(reflect-metadata@0.2.2)(rxjs@7.8.2)
-      reflect-metadata: 0.2.2
-
   '@mikro-orm/postgresql@7.2.1(@mikro-orm/core@7.2.1)':
     dependencies:
       '@mikro-orm/core': 7.2.1
@@ -4616,13 +4568,6 @@ snapshots:
   '@mikro-orm/sql@7.2.1(@mikro-orm/core@7.2.1)':
     dependencies:
       '@mikro-orm/core': 7.2.1
-      kysely: 0.29.6
-
-  '@mikro-orm/sqlite@7.2.1(@mikro-orm/core@7.2.1)':
-    dependencies:
-      '@mikro-orm/core': 7.2.1
-      '@mikro-orm/sql': 7.2.1(@mikro-orm/core@7.2.1)
-      better-sqlite3: 13.0.3
       kysely: 0.29.6
 
   '@msgpackr-extract/msgpackr-extract-darwin-arm64@3.0.4':
@@ -5278,7 +5223,7 @@ snapshots:
   '@types/body-parser@1.19.6':
     dependencies:
       '@types/connect': 3.4.38
-      '@types/node': 26.2.0
+      '@types/node': 26.6.3
 
   '@types/chai@5.2.3':
     dependencies:
@@ -5287,7 +5232,7 @@ snapshots:
 
   '@types/connect@3.4.38':
     dependencies:
-      '@types/node': 26.2.0
+      '@types/node': 26.6.3
 
   '@types/cookie-parser@1.4.10(@types/express@5.0.6)':
     dependencies:
@@ -5312,7 +5257,7 @@ snapshots:
 
   '@types/express-serve-static-core@5.1.3':
     dependencies:
-      '@types/node': 26.2.0
+      '@types/node': 26.6.3
       '@types/qs': 6.15.1
       '@types/range-parser': 1.2.7
       '@types/send': 1.2.1
@@ -5330,10 +5275,6 @@ snapshots:
   '@types/node@18.19.130':
     dependencies:
       undici-types: 5.26.5
-
-  '@types/node@26.2.0':
-    dependencies:
-      undici-types: 8.3.0
 
   '@types/node@26.6.3':
     dependencies:
@@ -5361,12 +5302,12 @@ snapshots:
 
   '@types/send@1.2.1':
     dependencies:
-      '@types/node': 26.2.0
+      '@types/node': 26.6.3
 
   '@types/serve-static@2.2.0':
     dependencies:
       '@types/http-errors': 2.0.5
-      '@types/node': 26.2.0
+      '@types/node': 26.6.3
 
   '@types/ssh2-streams@0.1.13':
     dependencies:
@@ -5655,8 +5596,6 @@ snapshots:
     optionalDependencies:
       bare-url: 2.5.4
 
-  bare-path@3.1.1: {}
-
   bare-path@3.1.2: {}
 
   bare-semver@1.1.0: {}
@@ -5675,17 +5614,13 @@ snapshots:
 
   bare-url@2.5.4:
     dependencies:
-      bare-path: 3.1.1
+      bare-path: 3.1.2
 
   base64-js@1.5.1: {}
 
   bcrypt-pbkdf@1.0.2:
     dependencies:
       tweetnacl: 0.14.5
-
-  better-sqlite3@13.0.3:
-    dependencies:
-      node-addon-api: 8.9.2
 
   binary-extensions@2.3.0: {}
 
@@ -6189,9 +6124,9 @@ snapshots:
     dependencies:
       reusify: 1.1.0
 
-  fdir@6.5.0(picomatch@4.0.5):
+  fdir@6.5.0(picomatch@4.0.7):
     optionalDependencies:
-      picomatch: 4.0.5
+      picomatch: 4.0.7
 
   file-type@21.3.4(supports-color@7.2.0):
     dependencies:
@@ -6816,8 +6751,6 @@ snapshots:
 
   node-addon-api@7.1.1: {}
 
-  node-addon-api@8.9.2: {}
-
   node-gyp-build-optional-packages@5.2.2:
     dependencies:
       detect-libc: 2.1.2
@@ -6938,8 +6871,6 @@ snapshots:
   picocolors@1.1.1: {}
 
   picomatch@2.3.2: {}
-
-  picomatch@4.0.5: {}
 
   picomatch@4.0.7: {}
 
@@ -7571,8 +7502,8 @@ snapshots:
 
   tinyglobby@0.2.17:
     dependencies:
-      fdir: 6.5.0(picomatch@4.0.5)
-      picomatch: 4.0.5
+      fdir: 6.5.0(picomatch@4.0.7)
+      picomatch: 4.0.7
 
   tinyrainbow@3.1.1: {}
 
@@ -7663,8 +7594,6 @@ snapshots:
 
   undici-types@5.26.5: {}
 
-  undici-types@8.3.0: {}
-
   undici-types@8.9.0: {}
 
   undici@7.30.0: {}
@@ -7720,7 +7649,7 @@ snapshots:
   vite@8.2.0(@types/node@26.6.3)(esbuild@0.28.2)(tsx@4.23.15)(yaml@2.9.1):
     dependencies:
       lightningcss: 1.33.0
-      picomatch: 4.0.5
+      picomatch: 4.0.7
       postcss: 8.5.25
       rolldown: 1.2.1
       tinyglobby: 0.2.17

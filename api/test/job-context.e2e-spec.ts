@@ -70,7 +70,7 @@ describe('job execution context (e2e)', () => {
         email: 'job-context@acme.test',
         jobContext: { tenantId, correlationId: 'corr-job-context', principal },
       },
-    }) as Job<WelcomeEmailJobData>;
+    }) as unknown as Job<WelcomeEmailJobData>;
 
   beforeAll(async () => {
     ctx = await bootstrapE2E();

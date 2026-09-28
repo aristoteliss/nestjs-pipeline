@@ -6,33 +6,36 @@ import { PipelineContext, SET_TENANT_ID } from '@nestjs-pipeline/core';
 import {
   IDEMPOTENCY_REPLAYED_ITEM,
   IdempotencyBehavior,
+  type IdempotencyBehaviorOptions,
   MemoryIdempotencyStore,
 } from '@nestjs-pipeline/idempotency';
 import { describe, expect, it, vi } from 'vitest';
-import { CreateRoleCommand } from '../src/roles/cqrs/commands/create-role.command';
-import {
-  CreateRoleHandler,
-  createRoleIdempotencyKey,
-} from '../src/roles/cqrs/commands/create-role.handler';
+import { CreateRoleCommand } from '../src/roles/application/cqrs/commands/create-role.command';
+import { CreateRoleHandler } from '../src/roles/application/cqrs/commands/create-role.handler';
 import { RoleCreatedEvent } from '../src/roles/domain/events/role-created.event';
 import {
   Role,
   type RoleSnapshot,
 } from '../src/roles/domain/models/role.entity';
 import { toRoleResponseDto } from '../src/roles/dtos/role.dto';
+import { CreateUserCommand } from '../src/users/application/cqrs/commands/create-user.command';
+import { CreateUserHandler } from '../src/users/application/cqrs/commands/create-user.handler';
+import { GetUserQuery } from '../src/users/application/cqrs/queries/get-user.query';
 import { UsersController } from '../src/users/controllers/users.controller';
-import { CreateUserCommand } from '../src/users/cqrs/commands/create-user.command';
-import {
-  CreateUserHandler,
-  createUserIdempotencyKey,
-} from '../src/users/cqrs/commands/create-user.handler';
-import { GetUserQuery } from '../src/users/cqrs/queries/get-user.query';
 import { UserCreatedEvent } from '../src/users/domain/events/user-created.event';
 import {
   User,
   type UserSnapshot,
 } from '../src/users/domain/models/user.entity';
 import { toResponseDto } from '../src/users/dtos/user.dto';
+import { declaredOptions, requiredKey } from './support/declared-options';
+
+const { keyFactory: createUserIdempotencyKey } = declaredOptions<
+  Required<IdempotencyBehaviorOptions>
+>(CreateUserHandler, IdempotencyBehavior);
+const { keyFactory: createRoleIdempotencyKey } = declaredOptions<
+  Required<IdempotencyBehaviorOptions>
+>(CreateRoleHandler, IdempotencyBehavior);
 
 function tenantContext<T>(context: PipelineContext<T>): PipelineContext<T> {
   context[SET_TENANT_ID]('tenant');
@@ -87,7 +90,9 @@ describe('Create command idempotency composition', () => {
       const first = await behavior.handle(firstContext, () =>
         handler.execute(firstContext.request),
       );
-      const record = await store.get(createUserIdempotencyKey(firstContext));
+      const record = await store.get(
+        requiredKey(createUserIdempotencyKey, firstContext),
+      );
       expect(record?.status).toBe('completed');
       expect(record?.response).toEqual(JSON.parse(JSON.stringify(first)));
 
@@ -224,7 +229,9 @@ describe('Create command idempotency composition', () => {
     const first = await behavior.handle(firstContext, () =>
       handler.execute(firstContext.request),
     );
-    const record = await store.get(createRoleIdempotencyKey(firstContext));
+    const record = await store.get(
+      requiredKey(createRoleIdempotencyKey, firstContext),
+    );
     expect(record?.status).toBe('completed');
     expect(record?.response).toEqual(JSON.parse(JSON.stringify(first)));
 

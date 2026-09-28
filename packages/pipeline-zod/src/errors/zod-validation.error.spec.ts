@@ -56,7 +56,7 @@ describe('ZodValidationError', () => {
     const schema = z.object({
       name: z.string().min(3),
       age: z.number().int().positive(),
-      email: z.string().email(),
+      email: z.email(),
     });
     const err = new ZodValidationError(
       parseError(schema, { name: 'a', age: -1, email: 'bad' }),

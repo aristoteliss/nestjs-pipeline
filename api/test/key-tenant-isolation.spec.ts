@@ -1,12 +1,12 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 import { sessionPrincipalStore } from '@common/context/session-principal.store';
+import type { IPipelineContext } from '@nestjs-pipeline/core';
 import {
-  type BehaviorId,
-  getBehaviorId,
-  type IPipelineContext,
-  PIPELINE_BEHAVIORS_OPTIONS_METADATA,
-} from '@nestjs-pipeline/core';
-import { MissingIdempotencyPartitionError } from '@nestjs-pipeline/idempotency';
+  IdempotencyBehavior,
+  type IdempotencyBehaviorOptions,
+  type IdempotencyKeyFactory,
+  MissingIdempotencyPartitionError,
+} from '@nestjs-pipeline/idempotency';
 import {
   MissingRateLimitPartitionError,
   RateLimitBehavior,
@@ -14,35 +14,40 @@ import {
   type RateLimitKeyFactory,
 } from '@nestjs-pipeline/rate-limit';
 import { describe, expect, it } from 'vitest';
-import { CreateAuthCommand } from '../../../auths/application/cqrs/commands/create-auth.command';
-import { CreateAuthHandler } from '../../../auths/application/cqrs/commands/create-auth.handler';
-import { RevokeAuthCommand } from '../../../auths/application/cqrs/commands/revoke-auth.command';
-import { RevokeAuthHandler } from '../../../auths/application/cqrs/commands/revoke-auth.handler';
-import { CreateRoleCommand } from '../../../roles/application/cqrs/commands/create-role.command';
-import { createRoleIdempotencyKey } from '../../../roles/application/cqrs/commands/create-role.handler';
-import { CreateUserCommand } from '../../../users/application/cqrs/commands/create-user.command';
-import {
-  createUserIdempotencyKey,
-  createUserRateLimitKey,
-} from '../../../users/application/cqrs/commands/create-user.handler';
-
-import { MissingPrincipalContextError } from './idempotent-operation.helper';
+import { CreateAuthCommand } from '../src/auths/application/cqrs/commands/create-auth.command';
+import { CreateAuthHandler } from '../src/auths/application/cqrs/commands/create-auth.handler';
+import { RevokeAuthCommand } from '../src/auths/application/cqrs/commands/revoke-auth.command';
+import { RevokeAuthHandler } from '../src/auths/application/cqrs/commands/revoke-auth.handler';
+import { CreateRoleCommand } from '../src/roles/application/cqrs/commands/create-role.command';
+import { CreateRoleHandler } from '../src/roles/application/cqrs/commands/create-role.handler';
+import { CreateUserCommand } from '../src/users/application/cqrs/commands/create-user.command';
+import { CreateUserHandler } from '../src/users/application/cqrs/commands/create-user.handler';
+import { declaredOptions } from './support/declared-options';
 
 function context(request: unknown, tenantId?: string): IPipelineContext {
   return { request, tenantId } as IPipelineContext;
 }
 
-function rateLimitKeyOf(handler: object): RateLimitKeyFactory {
-  const options = Reflect.getMetadata(
-    PIPELINE_BEHAVIORS_OPTIONS_METADATA,
+const rateLimitKeyOf = (
+  handler: Parameters<typeof declaredOptions>[0],
+): RateLimitKeyFactory =>
+  declaredOptions<Required<RateLimitBehaviorOptions>>(
     handler,
-  ) as Map<BehaviorId, RateLimitBehaviorOptions>;
-  const keyFactory = options.get(getBehaviorId(RateLimitBehavior))?.keyFactory;
-  if (!keyFactory) throw new Error('handler declares no rate-limit key');
-  return keyFactory;
-}
+    RateLimitBehavior,
+  ).keyFactory;
+
+const idempotencyKeyOf = (
+  handler: Parameters<typeof declaredOptions>[0],
+): IdempotencyKeyFactory =>
+  declaredOptions<Required<IdempotencyBehaviorOptions>>(
+    handler,
+    IdempotencyBehavior,
+  ).keyFactory;
 
 const createAuthRateLimitKey = rateLimitKeyOf(CreateAuthHandler);
+const createUserRateLimitKey = rateLimitKeyOf(CreateUserHandler);
+const createUserIdempotencyKey = idempotencyKeyOf(CreateUserHandler);
+const createRoleIdempotencyKey = idempotencyKeyOf(CreateRoleHandler);
 
 describe('security-sensitive pipeline key tenant isolation', () => {
   it('fails closed for every key factory when tenant context is absent', () => {
@@ -167,6 +172,6 @@ describe('security-sensitive pipeline key tenant isolation', () => {
           'tenant_a',
         ),
       ),
-    ).toThrow(MissingPrincipalContextError);
+    ).toThrow(expect.objectContaining({ dimension: 'caller' }));
   });
 });

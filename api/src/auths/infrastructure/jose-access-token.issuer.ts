@@ -1,13 +1,10 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { randomUUID } from 'node:crypto';
-import { Inject, Injectable, Logger } from '@nestjs/common';
+import { requireTenant } from '@cqrs-ddd/core/application';
+import { Injectable, Logger } from '@nestjs/common';
 import { serializeCapability } from '@nestjs-pipeline/casl';
 import { SignJWT } from 'jose';
-import {
-  type ITenantContext,
-  TENANT_CONTEXT,
-} from '../../common/context/tenant-context.port';
 import {
   ACCESS_TOKEN_MAX_BYTES,
   ACCESS_TOKEN_TTL_SECONDS,
@@ -30,11 +27,6 @@ import { AuthConfigurationException } from '../domain/errors/authentication.exce
 export class JoseAccessTokenIssuer implements IAccessTokenIssuer {
   private readonly logger = new Logger(JoseAccessTokenIssuer.name);
 
-  constructor(
-    @Inject(TENANT_CONTEXT)
-    private readonly tenantContext: ITenantContext,
-  ) {}
-
   async issue({
     user,
     sessionId,
@@ -55,7 +47,7 @@ export class JoseAccessTokenIssuer implements IAccessTokenIssuer {
     const sign = (claims: Record<string, unknown>) => {
       const jwt = new SignJWT({
         sid: sessionId,
-        tenant: this.tenantContext.schema,
+        tenant: requireTenant('access token issuance'),
         principalType: 'user',
         ...claims,
       })

@@ -94,7 +94,7 @@ describe('CacheBehavior partitioning in a real pipeline', () => {
     await app.init();
     const bus = app.get(QueryBus);
     queries = {
-      execute: (query) =>
+      execute: (query: Parameters<QueryBus['execute']>[0]) =>
         runWithTenant(currentTenant, () => bus.execute(query)),
     } as QueryBus;
   });

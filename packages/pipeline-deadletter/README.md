@@ -226,7 +226,7 @@ For each request, `DeadLetterBehavior` runs the handler and, **only on failure**
 3. Builds a transport-neutral [`DeadLetterRecord`](#the-dead-letter-record) and calls
    `transport.send(record)`. A transport failure is logged and **never masks**
    the original handler error.
-4. Sets `DEAD_LETTER_ITEM_TOKEN` (key `DEAD_LETTER_ITEM`) on `context.items` to whether delivery succeeded.
+4. Sets `DEAD_LETTER_ITEM_TOKEN` (key `DEAD_LETTER_ITEM`) on `context.items` to whether delivery succeeded. `buildDeadLetterAttributes(context)` turns a delivered record into the attribute `dead_letter.captured`. Use it for span attributes through `AttributesBehavior` of [`@nestjs-pipeline/opentelemetry`](https://github.com/aristoteliss/nestjs-pipeline/tree/master/packages/pipeline-opentelemetry#attributes-from-other-behaviors), for audit `metadata`, or on a log line; it needs no telemetry package.
 5. Re-throws the original handler error (`rethrow: true`, default) or, on an
    **event** handler with `rethrow: false` **and successful delivery**, resolves to
    `undefined`. An excluded request kind, a command or query, or a failed transport
@@ -479,7 +479,7 @@ PipelineModule.forRoot({
 @UsePipeline([ResilienceBehavior, { retry: { maxAttempts: 5 } }])
 ```
 
-The chain becomes `Logging → ZodValidation → DeadLetterBehavior → ResilienceBehavior → handler`: validation errors exit immediately, retries happen first, and only exhausted command/event failures reach dead-letter capture.
+The chain becomes `LoggingBehavior → ZodValidationBehavior → DeadLetterBehavior → ResilienceBehavior → handler`: validation errors exit immediately, retries happen first, and only exhausted command/event failures reach dead-letter capture.
 
 ---
 
@@ -513,6 +513,7 @@ The chain becomes `Logging → ZodValidation → DeadLetterBehavior → Resilien
 | `DEAD_LETTER_TRANSPORT` / `DEAD_LETTER_DEFAULT_OPTIONS` | Token | Injection tokens |
 | `DEAD_LETTER_ITEM` | Symbol | `context.items` exported unique Symbol key set after the capture attempt |
 | `DEAD_LETTER_ITEM_TOKEN` | `PipelineItemToken<boolean>` | Typed token over the same key, for `getPipelineItem` |
+| `buildDeadLetterAttributes` | Function | The attribute `dead_letter.captured: true` when a record was delivered, else `{}` (spans, logs) |
 
 
 ---

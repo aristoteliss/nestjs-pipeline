@@ -3,7 +3,7 @@
   "compilerOptions": {
     "types": ["node"],
     "outDir": "dist",
-    "rootDir": "src",
+    "rootDir": ".",
     "paths": {
       "@auths/*": ["./src/auths/*"],
       "@roles/*": ["./src/roles/*"],
@@ -13,6 +13,6 @@
       "@test/*": ["./test/*"]
     }
   },
-  "include": ["src"],
+  "include": ["src", "test"],
   "exclude": ["dist", "node_modules"]
 }

@@ -61,8 +61,9 @@ application; ORM adapters belong in their own package. Four checks enforce this:
 Cache keys take their tenant from an explicit argument (`CacheKeyTenantSource`) or from
 the resolver the application registers with `setTenantResolver`
 (`application/tenant-resolver.ts`), never from another package's state: this package
-knows nothing of where an application keeps its tenant. `requireTenantId` in the same
-file is the one tenant resolution path; the cache-key helpers use it too.
+knows nothing of where an application keeps its tenant. `requireTenant` in the same
+file is the one tenant resolution path; the cache-key helpers use it too, and the
+deprecated `requireTenantId` only calls it.
 
 ## Important files
 

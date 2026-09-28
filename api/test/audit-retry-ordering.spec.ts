@@ -29,8 +29,8 @@ import {
 } from '@nestjs-pipeline/core';
 import { ResilienceBehavior, resilience } from '@nestjs-pipeline/resilience';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { DeleteRoleHandler } from '../src/roles/cqrs/commands/delete-role.handler';
-import { DeleteUserHandler } from '../src/users/cqrs/commands/delete-user.handler';
+import { DeleteRoleHandler } from '../src/roles/application/cqrs/commands/delete-role.handler';
+import { DeleteUserHandler } from '../src/users/application/cqrs/commands/delete-user.handler';
 
 const records: Array<{ action: string; outcome: string }> = [];
 

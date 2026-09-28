@@ -154,3 +154,18 @@ describe('Role domain entity', () => {
     });
   });
 });
+
+describe('Role.fromJSON', () => {
+  it('rehydrates a snapshot without recording a creation event', () => {
+    const now = new Date();
+    const role = Role.fromJSON({
+      id: uuidv7(),
+      name: 'admin',
+      createdAt: now,
+      updatedAt: now,
+      version: 2,
+    });
+
+    expect(role.getUncommittedEvents()).toHaveLength(0);
+  });
+});

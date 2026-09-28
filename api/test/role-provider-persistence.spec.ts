@@ -34,7 +34,7 @@ describe('Role provider with real MikroORM persistence', () => {
       get em() {
         return orm.em.fork();
       },
-    } as MikroOrmStore);
+    } as unknown as MikroOrmStore);
   });
 
   afterAll(async () => {

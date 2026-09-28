@@ -1,7 +1,7 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { getSessionPrincipal } from '@common/context/session-principal.store';
-import type { SessionPrincipal } from '@common/types/SessionPrincipal';
+import type { SessionPrincipal } from '@common/types/session-principal';
 import type { Capability } from '@nestjs-pipeline/casl';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { User } from '../../users/domain/models/user.entity';

@@ -87,6 +87,13 @@ module responsibilities, dependencies, entry points, commands, or repository con
 3. Run `pnpm context:validate`.
 4. Mention the map change in your summary so the owner can review it.
 
+## Configuration of external systems
+
+Each external system (Redis, the database, the OTLP collector, …) has one standalone
+`<system>.config.ts` module whose function reads, defaults and validates its environment
+variables; everything else takes the settings from it (AGENTS.md rule 23). Add a new
+system the same way instead of reading `process.env` where the client is built.
+
 ## Secrets
 
 Never place secret values, tokens, private keys, passwords, connection strings with

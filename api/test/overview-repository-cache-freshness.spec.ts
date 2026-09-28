@@ -4,9 +4,9 @@ import { MemoryCache } from '@cqrs-ddd/core/persistence';
 import { buildAbility, CaslAuthorizer } from '@nestjs-pipeline/casl';
 import { runWithTenant } from '@nestjs-pipeline/tenant';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { GetUserQuery } from '../src/users/cqrs/queries/get-user.query';
-import { GetUserOverviewHandler } from '../src/users/cqrs/queries/get-user-overview.handler';
-import { GetUserOverviewQuery } from '../src/users/cqrs/queries/get-user-overview.query';
+import { GetUserQuery } from '../src/users/application/cqrs/queries/get-user.query';
+import { GetUserOverviewHandler } from '../src/users/application/cqrs/queries/get-user-overview.handler';
+import { GetUserOverviewQuery } from '../src/users/application/cqrs/queries/get-user-overview.query';
 import {
   User,
   type UserSnapshot,

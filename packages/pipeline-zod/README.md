@@ -182,7 +182,7 @@ import { z } from 'zod';
 
 const schema = z.object({
   username: z.string().min(4),
-  email: z.string().email(),
+  email: z.email(),
 });
 
 export class CreateUserCommand extends createCommand(schema) {}
@@ -204,7 +204,7 @@ import { createQuery } from '@nestjs-pipeline/zod';
 import { z } from 'zod';
 
 const schema = z.object({
-  userId: z.string().uuid(),
+  userId: z.uuid(),
 });
 
 export class GetUserQuery extends createQuery(schema) {}
@@ -222,7 +222,7 @@ export abstract class AppCommand {
 
 const CreateUserSchema = z.object({
   name: z.string().min(2),
-  email: z.string().email(),
+  email: z.email(),
 });
 
 export class CreateUserCommand extends createCommand(CreateUserSchema, AppCommand) {}
@@ -343,7 +343,7 @@ import { ZOD_SCHEMA_KEY } from '@nestjs-pipeline/zod';
 import { z } from 'zod';
 
 const userCreatedSchema = z.object({
-  userId: z.string().uuid(),
+  userId: z.uuid(),
   username: z.string().min(1),
   email: z.email(),
 });
@@ -397,7 +397,7 @@ import { Get, Param, Controller } from '@nestjs/common';
 import { ZodPipe } from '@nestjs-pipeline/zod';
 import { z } from 'zod';
 
-const UserIdSchema = z.string().uuid();
+const UserIdSchema = z.uuid();
 
 @Controller('users')
 export class UsersController {

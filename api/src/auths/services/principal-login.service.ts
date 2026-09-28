@@ -1,8 +1,9 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import type {
-  IQueryRepository,
-  IWriteSideAggregateRepository,
+import {
+  type IQueryRepository,
+  type IWriteSideAggregateRepository,
+  requireTenant,
 } from '@cqrs-ddd/core/application';
 import { ConcurrencyConflictError } from '@cqrs-ddd/core/domain';
 import { joinKeySegments } from '@cqrs-ddd/safe-stringify';
@@ -15,10 +16,6 @@ import {
   type RateLimiterResLike,
 } from '@nestjs-pipeline/rate-limit';
 import { RATE_LIMIT_COST } from '../../common/constants/rate-limit.constants';
-import {
-  type ITenantContext,
-  TENANT_CONTEXT,
-} from '../../common/context/tenant-context.port';
 import { GetUserQuery } from '../../users/application/cqrs/queries/get-user.query';
 import { User } from '../../users/domain/models/user.entity';
 import { EXT_USER_QUERY_REPOSITORY } from '../../users/persistence/repository.tokens';
@@ -97,8 +94,6 @@ export class PrincipalLoginService {
     private readonly authRepository: IWriteSideAggregateRepository<Auth>,
     @Inject(REFRESH_TOKENS)
     private readonly refreshTokens: IRefreshTokens,
-    @Inject(TENANT_CONTEXT)
-    private readonly tenantContext: ITenantContext,
     @Inject(SESSION_COOKIES)
     private readonly cookies: ISessionCookies,
     @Optional()
@@ -193,7 +188,7 @@ export class PrincipalLoginService {
   async refresh(refreshToken: string, clientIp?: string): Promise<AuthResult> {
     if (this.rateLimiter && clientIp) {
       const key = joinKeySegments([
-        this.tenantContext.schema,
+        requireTenant('the refresh rate limit'),
         clientIp.trim(),
         'refresh',
       ]);
@@ -253,7 +248,7 @@ export class PrincipalLoginService {
           aggregate: auth,
           userId: user.id,
           principalType: 'user',
-          tenant: this.tenantContext.schema,
+          tenant: requireTenant('refresh'),
           email: user.email,
           department: user.department,
           accessToken: access.accessToken,

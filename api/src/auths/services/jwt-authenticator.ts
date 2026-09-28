@@ -1,22 +1,14 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import {
-  Inject,
-  Injectable,
-  Logger,
-  UnauthorizedException,
-} from '@nestjs/common';
+import { requireTenant } from '@cqrs-ddd/core/application';
+import { Injectable, Logger, UnauthorizedException } from '@nestjs/common';
 import { type Capability, parseCapabilityString } from '@nestjs-pipeline/casl';
 import { errors, importSPKI, jwtVerify } from 'jose';
-import {
-  type ITenantContext,
-  TENANT_CONTEXT,
-} from '../../common/context/tenant-context.port';
 import {
   JWT,
   PERMISSIONS_IN_ACCESS_TOKEN,
 } from '../../common/environment/auth-token.config';
-import type { SessionPrincipal } from '../../common/types/SessionPrincipal';
+import type { SessionPrincipal } from '../../common/types/session-principal';
 import { firstHeaderValue } from './helpers/first-header-value';
 
 type VerificationKey = {
@@ -61,19 +53,14 @@ export class JwtAuthenticator {
   private readonly logger = new Logger(JwtAuthenticator.name);
   private keys?: Promise<VerificationKey[]>;
 
-  constructor(
-    @Inject(TENANT_CONTEXT)
-    private readonly tenantContext: ITenantContext,
-  ) {}
-
   /**
    * Verifies an `Authorization: Bearer <token>` header: signature, `exp`, issuer,
    * audience, and a `tenant` claim equal to the request's tenant. Only `Bearer`
    * and `bearer` are recognized as the scheme.
    *
    * @param req - Request with its headers.
-   * @returns The `user` principal with `sid`, `exp` (seconds) and `expiresAt`
-   *   (milliseconds), plus `grants` and `department` when the token carries
+   * @returns The `user` principal with `sid` and `expiresAt` (milliseconds),
+   *   plus `grants` and `department` when the token carries
    *   permissions and `PERMISSIONS_IN_ACCESS_TOKEN` is on; `undefined` when there
    *   is no Bearer header.
    * @throws UnauthorizedException for an empty, expired, badly signed or
@@ -178,7 +165,7 @@ export class JwtAuthenticator {
         );
       }
 
-      if (payload.tenant !== this.tenantContext.schema) {
+      if (payload.tenant !== requireTenant('the credential tenant check')) {
         throw new UnauthorizedException(
           'Credential tenant does not match the selected tenant',
         );
@@ -199,7 +186,6 @@ export class JwtAuthenticator {
             }
           : {}),
         expiresAt: payload.exp * 1000,
-        exp: payload.exp,
       };
 
       this.logger.debug(`Authenticated user ${user.id} from Bearer token`);

@@ -220,7 +220,7 @@ AuthSessionGuard (APP_GUARD)
   ├─ 2. Parse & verify Bearer JWT (JwtAuthenticator)
   ├─ 3. Verify API-client credentials (ApiClientAuthenticator)
   │
-  ▼ Sets req.sessionPrincipal = principal (and req.sessionUser; undefined for anonymous callers;
+  ▼ Sets req.sessionPrincipal = principal (undefined for anonymous callers;
     throws 401 if credentials are provided but invalid, expired, or tenant-mismatched)
 SessionPrincipalContextInterceptor (APP_INTERCEPTOR)
   │
@@ -236,8 +236,8 @@ Downstream Pipeline (Controllers → CQRS Bus → CASL → Audit → DB)
    - **`RequestPrincipalResolver`**: Lean orchestrator coordinating priority resolution (Cookie $\rightarrow$ JWT $\rightarrow$ API Key $\rightarrow$ Anonymous fallback).
 
    *Note on Anonymous Access*: `AuthSessionGuard` does **not** reject unauthenticated requests; it resolves the caller to `undefined` (anonymous) and permits the request to continue. Rejections (HTTP 401 Unauthorized) only occur when credentials are provided but fail verification (e.g. expired JWT, invalid API key, or tenant mismatch). Downstream pipeline behaviors, such as `CaslBehavior` and `CaslAuthorizer`, enforce endpoint authorization and reject unauthorized callers with HTTP 403 Forbidden.
-2. **`SessionPrincipalContextInterceptor` (`APP_INTERCEPTOR`)**: Decides **the execution scope**. A single-responsibility interceptor that reads `req.sessionPrincipal` (populated by the guard) and invokes `sessionPrincipalStore.run(req.sessionPrincipal, () => next.handle())`. In NestJS 11.2.1, `InterceptorsConsumer` binds stream continuations using `defer(AsyncResource.bind(...))`, guaranteeing that the `AsyncLocalStorage` context established by `run()` persists across all downstream asynchronous operations, CQRS handlers, and pipeline behaviors without cross-request context bleeding. (`src/common/context/session-user.store.ts` re-exports `sessionPrincipalStore` as `sessionUserStore` and `getSessionPrincipal` as `getSessionUser`).
-3. **`SessionService`**: Owner of both auth cookies and the `SESSION_COOKIES` adapter. `save` sets a new refresh token as the `refresh_token` cookie (`HttpOnly; Secure; SameSite=Strict; Path=/auths`) and, on Fastify, stores the access token and `{ id, type, tenant, sid, exp }` in the `@fastify/secure-session` cookie; `clear` deletes both; both act on the current request's session and response from `httpExchangeStore` (set by `SessionPrincipalContextInterceptor`) and do nothing outside an HTTP request. `discard` drops a stale secure session during principal resolution, and `isExpired` checks a session principal's expiry. `CreateAuthHandler` and `PrincipalLoginService.refresh` call `save`, the logout handler calls `clear`, and `AuthsController` maps the result with `toSessionRes`; logout answers 204 for a missing or unknown refresh token. The `@RefreshToken()` parameter decorator reads the refresh cookie and validates it with `RefreshTokenDtoSchema`; a missing cookie on `POST /auths/refresh` answers 401 `refresh_invalid`.
+2. **`SessionPrincipalContextInterceptor` (`APP_INTERCEPTOR`)**: Decides **the execution scope**. A single-responsibility interceptor that reads `req.sessionPrincipal` (populated by the guard) and invokes `sessionPrincipalStore.run(req.sessionPrincipal, () => next.handle())`. In NestJS 11.2.1, `InterceptorsConsumer` binds stream continuations using `defer(AsyncResource.bind(...))`, guaranteeing that the `AsyncLocalStorage` context established by `run()` persists across all downstream asynchronous operations, CQRS handlers, and pipeline behaviors without cross-request context bleeding..
+3. **`SessionService`**: Owner of both auth cookies and the `SESSION_COOKIES` adapter. `save` sets a new refresh token as the `refresh_token` cookie (`HttpOnly; Secure; SameSite=Strict; Path=/auths`) and, on Fastify, stores the access token and `{ id, type, tenant, sid, expiresAt }` in the `@fastify/secure-session` cookie; `clear` deletes both; both act on the current request's session and response from `httpExchangeStore` (set by `SessionPrincipalContextInterceptor`) and do nothing outside an HTTP request. `discard` drops a stale secure session during principal resolution, and `isExpired` checks a session principal's `expiresAt`; a cookie principal without one counts as expired. `CreateAuthHandler` and `PrincipalLoginService.refresh` call `save`, the logout handler calls `clear`, and `AuthsController` maps the result with `toSessionRes`; logout answers 204 for a missing or unknown refresh token. The `@RefreshToken()` parameter decorator reads the refresh cookie and validates it with `RefreshTokenDtoSchema`; a missing cookie on `POST /auths/refresh` answers 401 `refresh_invalid`.
 4. **`PrincipalLoginService`**: Application service for login credential verification (`POST /auths/login`), token refresh (`POST /auths/refresh`), and signing access tokens for a session.
 5. **`toSessionRes` Mapper**: Maps `AuthResult` through `SessionResponseSchema`, which keeps only the response fields, so the refresh token never reaches the body.
 6. **Session persistence**: `CreateAuthCommandRepository` inserts a session, `UpdateAuthCommandRepository` saves rotation and revocation version-conditioned, first recording the hash a rotation consumed (`Auth.getConsumedToken()`, a `ConsumedRefreshToken`) so reuse stays detectable even when the version update loses, and `GetAuthByTokenHashQueryRepository` and `GetAuthByConsumedTokenHashQueryRepository` find sessions by current or previous refresh-token hash and by consumed history. Sessions are never cached. `PrincipalLoginService.revoke` coordinates durable revocation for refresh reuse and logout, reloads on version conflicts, and returns the saved aggregate or `null` if concurrently deleted. Exhausted conflicts propagate; handlers retain their own missing-session and event-publication semantics.
@@ -266,7 +266,7 @@ export class UpdateUserHandler extends CommandBaseHandler<UpdateUserCommand, Use
 ```
 
 - **Read models.** `GetUserHandler`/`GetRoleHandler` return `UserReadModel`/`RoleReadModel` (`Projected<…>`: any field may be absent). Lists filter with `can('read', item)` and project each row; this filters the loaded collection in memory and is not authorized pagination.
-- **Fresh reads under conditional rules.** When the caller's `read` rules for the subject have conditions (`readDependsOnEntityState`), the handler re-issues the query with `refresh: true`, which bypasses the repository cache and asks the ORM for a refreshed row, so a cached snapshot cannot decide access. Unconditional reads may be served from the repository cache.
+- **Fresh reads under conditional rules.** When the caller's `read` rules for the subject have conditions (`CaslAuthorizer.dependsOnEntity`), the handler re-issues the query with `refresh: true`, which bypasses the repository cache and asks the ORM for a refreshed row, so a cached snapshot cannot decide access. Unconditional reads may be served from the repository cache.
 - **Write responses.** `POST`/`PATCH` on users and roles answer with a fresh `GetUserQuery`/`GetRoleQuery` for the written id, so the body carries only what the caller may read afterwards. A write-only caller receives `{}` with the normal success status; a committed write is never reported as failed because its result is unreadable. Only `UnauthorizedActionException` is absorbed: any other failure of that read propagates as an error although the write has committed. An idempotent replay re-reads the same way. `DELETE` stays `204`.
 - **Create idempotency.** `POST /users` and `POST /roles` deduplicate a client operation, not a business object. A client that may retry sends an `Idempotency-Key` header (1-255 characters) and reuses it for retries of that operation: a retry replays the first result, and the same key with a different body answers `422 key_reuse`. A new operation uses a new key, so creating a user again after deleting it runs the handler. Without the header nothing is deduplicated and the unique email or role name answers a duplicate (`409`).
 - **Service principals.** Each `API_CLIENTS` entry lists `rules` as compact capability strings (`[!]subject|action[|conditions[|fields[|reason]]]`), parsed once at startup in `src/common/environment/api-clients.config.ts`; a malformed rule fails boot. Those rules are the client's complete authorization.
@@ -563,8 +563,16 @@ export class GetRolesHandler implements IQueryHandler<GetRolesQuery, RoleReadMod
 | `SESSION_SECRET` | Fastify only | 64-character hex string (32 bytes) for `@fastify/secure-session` cookies | `0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef` |
 | `OTEL_SERVICE_NAME` | Optional | Service name on exported spans (default `users-api`) | `users-api` |
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | Optional | OTLP gRPC endpoint for traces (default `http://localhost:4317`, where SigNoz and a Datadog Agent with `otlp_config` enabled listen) | `http://otel-collector:4317` |
+| `REDIS_HOST` | Optional | Redis server of the BullMQ queues and dead letters, and of the pipeline response cache when set or in production (default `localhost`) | `redis` |
+| `REDIS_PORT` | Optional | Its port, 1–65535 (default 6379); an invalid value fails boot | `6379` |
 
 *\* Note: At least one of `JWT_SECRET` or `JWT_PUBLIC_KEY` must be set if Bearer token authentication is enabled.*
+
+Each external system has one config module, the only code that reads its variables:
+`redisConfig()` (`src/common/environment/redis.config.ts`), `persistenceConfig()`
+(`src/persistence/persistence.config.ts`, the database variables above) and `otlpConfig()`
+(`src/common/environment/otlp.config.ts`). Every module, CLI command and test takes its
+connection settings from there.
 
 ## Background jobs
 
@@ -622,22 +630,19 @@ Global and per-handler examples exercise:
 - `@nestjs-pipeline/idempotency` — atomic duplicate exclusion and replay
 - `@cqrs-ddd/core` — entities, aggregate-bearing command results, events, and repository helpers
 
-### Telemetry bridge
+### Span attributes of the add-ons
 
 The add-ons publish their decisions as `context.items` entries and take no
-OpenTelemetry dependency, which is what lets them be installed one at a time.
-Nothing therefore writes those decisions to a span by itself. `ObservabilityModule`
-registers [`TelemetryBridgeBehavior`](src/common/behaviors/telemetry-bridge.behavior.ts),
-which reads them on unwind and adds `feature_flag.*`, `cache.hit`,
-`idempotency.*`, `rate_limit.remaining_points` and `dead_letter.captured` to the
-request span. It sits inside `TraceBehavior` and outside the add-ons, so every
-inner behavior has published before it reads and the tracer reads the merged bag
-after it returns.
-
-An absent item means the behavior did not run, and nothing is written for it: a
-fabricated `cache.hit=false` would be indistinguishable from a real miss. The
-cache key is deliberately not an attribute — it carries tenant and principal and
-is unbounded.
+OpenTelemetry dependency; each exports a factory that turns its entry into
+attributes (`buildFeatureFlagAttributes`, `buildCacheAttributes`,
+`buildIdempotencyAttributes`, `buildRateLimitAttributes`,
+`buildDeadLetterAttributes`). `ObservabilityModule` registers `AttributesBehavior`
+of `@nestjs-pipeline/opentelemetry` with those factories, inside `TraceBehavior`
+and `MetricsBehavior` and outside the add-ons, so it reads on unwind and the span
+receives `feature_flag.*`, `cache.hit`, `idempotency.*`,
+`rate_limit.remaining_points` and `dead_letter.captured`. A behavior that did not
+run contributes nothing, and no key becomes an attribute.
+`test/span-attributes.spec.ts` checks the attributes on real spans.
 
 The application also has its own tenant-aware DDD repository cache so user/role write invalidation has a single clear target. In addition, `TenantSchemaMiddleware` runs each request inside `TenantSchemaContext.run`, which sets the current tenant of `@nestjs-pipeline/tenant`; every pipeline takes it as `IPipelineContext.tenantId`, so command handlers, rate limiters and idempotency key factories read the tenant from the context without direct ambient coupling. `ObservabilityModule` also registers `currentTenantId` from `@nestjs-pipeline/tenant` as the tenant resolver of `@cqrs-ddd/core` (`setTenantResolver`), so repository cache keys (`cacheKey`) take the scope's tenant without it being passed at each call site. The application is the only place that knows both packages.
 
@@ -674,19 +679,25 @@ segments and escaping of its `:` / `\` delimiters, and takes the tenant from the
 `ObservabilityModule` registers (`currentTenantId` of `@nestjs-pipeline/tenant`). Do not
 add another object sorter or JSON canonicalizer here.
 
-Idempotency and rate-limit key factories call `requireTenantId()` and fail closed when
-`IPipelineContext.tenantId` is absent; never `ctx.tenantId ?? 'default'`, which would merge
+Idempotency and rate-limit key factories fail closed when `IPipelineContext.tenantId` is
+absent; never `ctx.tenantId ?? 'default'`, which would merge
 tenants into one namespace. The protected factories are user-create idempotency and rate
 limiting, role-create idempotency and auth-login rate limiting. Their unit specs check the
-refusal and the per-tenant partition, and `test/tenant-scoped-create-keys.e2e-spec.ts`
-checks two real tenant schemas.
+refusal and the per-tenant partition (`test/key-tenant-isolation.spec.ts`,
+`test/operation-idempotency-key.spec.ts`), and `test/tenant-scoped-create-keys.e2e-spec.ts`
+checks two real tenant schemas. Code outside a key factory that needs the current tenant
+calls `requireTenant(purpose)` from `@cqrs-ddd/core/application`, which fails closed the
+same way.
 
 ## Tests
 
 From the repository root, `pnpm test` delegates to `test:unit`: persistence lint
 followed by workspace unit/integration tests. It does not build packages or run
-the separate E2E suite. Run `pnpm test:build` for workspace builds, `pnpm lint`
-for workspace typechecks, and `pnpm test:e2e` for the application E2E suite.
+the separate E2E suite. The api resolves the packages through their built `dist/`, so
+run `pnpm build` first in a fresh checkout and after changing a package; otherwise api
+tests and its typecheck fail on missing or outdated package code. Run `pnpm test:build`
+for workspace builds, `pnpm lint` for workspace typechecks, and `pnpm test:e2e` for the
+application E2E suite.
 A failed persistence lint stops `test:unit` before the tests start.
 
 E2E tests require a running Docker-compatible container runtime. Testcontainers

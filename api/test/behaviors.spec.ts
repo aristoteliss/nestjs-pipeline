@@ -31,7 +31,7 @@ import {
   ZodValidationBehavior,
   ZodValidationError,
 } from '@nestjs-pipeline/zod';
-import { InMemoryProvider, OpenFeature } from '@openfeature/server-sdk';
+import { OpenFeature, TypedInMemoryProvider } from '@openfeature/server-sdk';
 import { metrics, trace } from '@opentelemetry/api';
 import { TenantSchemaContext } from '@persistence/tenant-schema.context';
 import { RateLimiterMemory } from 'rate-limiter-flexible';
@@ -39,7 +39,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
 import { UniqueRoleNameException } from '../src/roles/domain/models/errors/role-name.exception';
 import { Role } from '../src/roles/domain/models/role.entity';
-import { UpdateUserCommand } from '../src/users/cqrs/commands/update-user.command';
+import { UpdateUserCommand } from '../src/users/application/cqrs/commands/update-user.command';
 
 function createContext(options: {
   request?: unknown;
@@ -324,7 +324,7 @@ describe('Users API Pipeline Behaviors Specification', () => {
 
   describe('FeatureFlagBehavior (@nestjs-pipeline/feature-flags)', () => {
     it('allows execution when feature flag is enabled and blocks with FeatureDisabledError when disabled', async () => {
-      const provider = new InMemoryProvider({
+      const provider = new TypedInMemoryProvider({
         'role-creation': {
           disabled: false,
           variants: { on: true, off: false },
@@ -562,7 +562,7 @@ describe('Users API Pipeline Behaviors Specification', () => {
         handlerName: 'CreateUserHandler',
       });
 
-      const schema = z.object({ email: z.string().email() });
+      const schema = z.object({ email: z.email() });
       const parseResult = schema.safeParse({ email: 'invalid' });
       const validationError = new ZodValidationError(
         (parseResult as { error: z.ZodError }).error,
@@ -703,10 +703,10 @@ describe('Users API Pipeline Behaviors Specification', () => {
 
     it('leaves a generated command untouched across repeated pipeline passes', async () => {
       const zodBehavior = new ZodValidationBehavior();
-      const sessionUser = { id: 'session-user' };
+      const sessionPrincipal = { id: 'session-user' };
       const command = new UpdateUserCommand(
         { id: '018e0d5c-4ef6-7000-b7c8-a1e6bc5c9e70', username: '  Ada  ' },
-        sessionUser,
+        sessionPrincipal,
       );
       const ctx = createContext({ request: command });
       (ctx as any).requestType = UpdateUserCommand;
@@ -719,7 +719,7 @@ describe('Users API Pipeline Behaviors Specification', () => {
 
       expect(command.username).toBe('Ada');
       expect(Object.hasOwn(command, 'department')).toBe(false);
-      expect(command.sessionUser).toBe(sessionUser);
+      expect(command.sessionPrincipal).toBe(sessionPrincipal);
       expect(Object.keys(command)).toEqual(['id', 'username']);
       expect(
         command.getUpdateFields(UpdateUserCommand.updatableFields),

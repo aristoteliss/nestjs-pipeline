@@ -1,6 +1,6 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import { IDEMPOTENCY_KEY_HEADER } from '@common/validation/idempotency-key.schema';
+import { HEADERS } from '@common/constants/headers.constants';
 import {
   Body,
   Controller,
@@ -90,7 +90,7 @@ export class UsersController {
   @HttpCode(201)
   async createUser(
     @Body(new ZodPipe(CreateUserDtoSchema)) dto: CreateUserDto,
-    @Headers(IDEMPOTENCY_KEY_HEADER) idempotencyKey?: string,
+    @Headers(HEADERS.IDEMPOTENCY_KEY) idempotencyKey?: string,
   ): Promise<UserResponseDto> {
     const { id } = await this.commandBus.execute<CreateUserCommand, User>(
       CreateUserMapper.map(dto, idempotencyKey),

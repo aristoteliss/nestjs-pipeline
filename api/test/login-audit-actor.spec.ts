@@ -2,7 +2,6 @@
 
 import { AUDIT_MODULE_DEFAULTS } from '@common/audit/audit.options';
 import { AUDIT_ACTIONS } from '@common/constants';
-import { TENANT_CONTEXT } from '@common/context/tenant-context.port';
 import { CommandBus, CqrsModule } from '@nestjs/cqrs';
 import { Test } from '@nestjs/testing';
 import {
@@ -15,11 +14,11 @@ import { LoggingBehavior, PipelineModule } from '@nestjs-pipeline/core';
 import { MetricsBehavior } from '@nestjs-pipeline/opentelemetry';
 import { RateLimitBehavior } from '@nestjs-pipeline/rate-limit';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { CreateAuthCommand } from '../src/auths/application/cqrs/commands/create-auth.command';
+import { CreateAuthHandler } from '../src/auths/application/cqrs/commands/create-auth.handler';
 import { AUTH_TOKEN_POLICY } from '../src/auths/application/ports/auth-token-policy.port';
 import { REFRESH_TOKENS } from '../src/auths/application/ports/refresh-tokens.port';
 import { SESSION_COOKIES } from '../src/auths/application/ports/session-cookies.port';
-import { CreateAuthCommand } from '../src/auths/cqrs/commands/create-auth.command';
-import { CreateAuthHandler } from '../src/auths/cqrs/commands/create-auth.handler';
 import { NodeRefreshTokens } from '../src/auths/infrastructure/node-refresh-tokens';
 import { COMMAND_REPOSITORY } from '../src/auths/persistence/repository.tokens';
 import { PrincipalLoginService } from '../src/auths/services/principal-login.service';
@@ -65,7 +64,6 @@ describe('Login audit actor', () => {
           provide: COMMAND_REPOSITORY.createAuth,
           useValue: { save: vi.fn().mockResolvedValue(null) },
         },
-        { provide: TENANT_CONTEXT, useValue: { schema: 'tenant-a' } },
         { provide: REFRESH_TOKENS, useClass: NodeRefreshTokens },
         {
           provide: AUTH_TOKEN_POLICY,

@@ -853,6 +853,42 @@ describe('CaslAuthorizer', () => {
   });
 });
 
+describe('CaslAuthorizer.dependsOnEntity', () => {
+  it('reports a conditional rule for the subject and action', () => {
+    const authorizer = new CaslAuthorizer(
+      buildAbility(['User|read|{"department":"engineering"}', 'Role|read|*']),
+    );
+
+    expect(authorizer.dependsOnEntity('read', 'User')).toBe(true);
+    expect(authorizer.dependsOnEntity('read', 'Role')).toBe(false);
+  });
+
+  it('ignores conditions that cannot affect the action', () => {
+    const authorizer = new CaslAuthorizer(
+      buildAbility(['User|read|*', 'User|update|{"id":"u-1"}']),
+    );
+
+    expect(authorizer.dependsOnEntity('read', 'User')).toBe(false);
+    expect(authorizer.dependsOnEntity('update', 'User')).toBe(true);
+  });
+
+  it('reads the ability of the running pipeline', () => {
+    const context = contextWith([
+      [CASL_ABILITY_KEY, buildAbility(['all|read|{"isPublic":true}'])],
+    ]);
+
+    expect(
+      pipelineStore.run(context, () =>
+        new CaslAuthorizer().dependsOnEntity('read', 'User'),
+      ),
+    ).toBe(true);
+  });
+
+  it('reports a dependence when no ability is present, so callers stay fresh', () => {
+    expect(new CaslAuthorizer().dependsOnEntity('read', 'User')).toBe(true);
+  });
+});
+
 describe('hasEntityConditions', () => {
   it('detects conditions on targeted subjects', () => {
     const ability = buildAbility([

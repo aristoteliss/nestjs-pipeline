@@ -3,12 +3,9 @@
 import { claimedIdentityActor } from '@common/audit/audit.options';
 import { AUDIT_ACTIONS, RATE_LIMIT_COST } from '@common/constants';
 import {
-  type ITenantContext,
-  TENANT_CONTEXT,
-} from '@common/context/tenant-context.port';
-import {
   CommandBaseHandler,
   ICommandRepository,
+  requireTenant,
 } from '@cqrs-ddd/core/application';
 import { Inject } from '@nestjs/common';
 import { CommandHandler, EventBus } from '@nestjs/cqrs';
@@ -63,8 +60,6 @@ export class CreateAuthHandler extends CommandBaseHandler<
     private readonly principalLoginService: PrincipalLoginService,
     @Inject(COMMAND_REPOSITORY.createAuth)
     private readonly commandRepository: ICommandRepository<Auth, AuthSnapshot>,
-    @Inject(TENANT_CONTEXT)
-    private readonly tenantContext: ITenantContext,
     @Inject(REFRESH_TOKENS)
     private readonly refreshTokens: IRefreshTokens,
     @Inject(AUTH_TOKEN_POLICY)
@@ -94,7 +89,7 @@ export class CreateAuthHandler extends CommandBaseHandler<
       aggregate: auth,
       userId: user.id,
       principalType: 'user',
-      tenant: this.tenantContext.schema,
+      tenant: requireTenant('login'),
       email: user.email,
       department: user.department,
       accessToken: access.accessToken,

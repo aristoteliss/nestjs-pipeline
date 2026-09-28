@@ -278,3 +278,20 @@ describe('User domain entity', () => {
     });
   });
 });
+
+describe('User.fromJSON', () => {
+  it('rehydrates a snapshot without recording a creation event', () => {
+    const now = new Date();
+    const user = User.fromJSON({
+      id: uuidv7(),
+      username: 'Alice',
+      email: 'alice@example.test',
+      department: 'Engineering',
+      createdAt: now,
+      updatedAt: now,
+      version: 3,
+    });
+
+    expect(user.getUncommittedEvents()).toHaveLength(0);
+  });
+});

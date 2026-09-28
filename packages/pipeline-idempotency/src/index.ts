@@ -18,6 +18,7 @@ export {
   MissingIdempotencyPartitionError,
 } from './errors/missing-partition.error';
 export { IdempotencyConflictFilter } from './filters/idempotency-conflict.filter';
+export { buildIdempotencyAttributes } from './helpers/build-attributes';
 export { fingerprintValue } from './helpers/fingerprint';
 export {
   type IdempotencyIntentOptions,

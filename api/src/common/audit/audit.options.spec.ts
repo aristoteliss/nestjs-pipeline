@@ -7,7 +7,6 @@ import {
   AUDIT_MODULE_DEFAULTS,
   claimedIdentityActor,
   sessionAuditActor,
-  UNAUTHENTICATED_AUDIT_ACTOR,
 } from './audit.options';
 
 describe('sessionAuditActor', () => {
@@ -33,7 +32,7 @@ describe('sessionAuditActor', () => {
 
   it('returns unauthenticated actor when session store is empty', () => {
     const actor = sessionAuditActor();
-    expect(actor).toEqual(UNAUTHENTICATED_AUDIT_ACTOR);
+    expect(actor).toEqual({ authenticated: false });
     expect(actor.id).toBeUndefined();
     expect(actor.authenticated).toBe(false);
   });
@@ -56,7 +55,7 @@ describe('sessionAuditActor', () => {
   it('does not mutate the shared unauthenticated actor when adding a claim', () => {
     claimedIdentityActor('someone@corp.test');
 
-    expect(UNAUTHENTICATED_AUDIT_ACTOR).toEqual({ authenticated: false });
+    expect(sessionAuditActor()).toEqual({ authenticated: false });
   });
 
   it('provides actor resolver in module defaults', () => {

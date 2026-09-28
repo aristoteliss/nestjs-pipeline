@@ -11,6 +11,13 @@ too. Repository-wide orientation: [.claude/codebase-map.md](../.claude/codebase-
   binds its tokens. Shared shapes live in `src/interfaces/`, tokens in `src/constants/`,
   pure functions in `src/helpers/`, framework-neutral errors in `src/errors/`, HTTP
   translation in `src/filters/`. `src/index.ts` is the only public entry.
+- A behavior publishes its decisions as typed `context.items` entries and takes no
+  telemetry dependency. When a decision is worth recording elsewhere (a span, a log line,
+  audit metadata), its package exports `build<Name>Attributes(context)` from
+  `src/helpers/build-attributes.ts`: flat attributes, `{}` when the behavior did not run,
+  never a cache, idempotency or rate-limit key. `AttributesBehavior` of
+  `@nestjs-pipeline/opentelemetry` runs the builders an application chooses for spans;
+  `@nestjs-pipeline/opentelemetry` imports no add-on.
 - A package that imports `@nestjs-pipeline/core` declares it, and its own integration
   library, as **peer** dependencies, never as runtime `dependencies`; a package that does
   not import core does not declare it. `@nestjs-pipeline/tenant`, `/correlation` and

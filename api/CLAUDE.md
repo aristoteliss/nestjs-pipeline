@@ -19,8 +19,8 @@ Per feature module (`users/`, `roles/`, `auths/`):
 | Layer | Directory | Rule |
 | --- | --- | --- |
 | Presentation | `controllers/`, `decorators/`, `interceptors/`, `dtos/`, `responses/`, `mappers/` | A controller dispatches through `CommandBus`/`QueryBus` and maps the result, nothing else; in rare cases it translates an application error into another HTTP answer |
-| Application | `cqrs/commands/`, `cqrs/queries/`, `application/ports/` | Depend on repository interfaces and injection tokens; never on ORM clients |
-| Domain | `domain/models/`, `domain/events/`, `domain/errors/` | Invariants inside aggregates; framework-neutral errors |
+| Application | `application/cqrs/commands/`, `application/cqrs/queries/`, `application/ports/` | Depend on repository interfaces and injection tokens; never on ORM clients |
+| Domain | `domain/models/`, `domain/events/`, `domain/errors/` (users and roles: `domain/models/errors/`) | Invariants inside aggregates; framework-neutral errors |
 | Persistence | `persistence/` | ORM, caching, tenant access, lifecycle decorators |
 | Jobs | `jobs/` | BullMQ processors and dispatcher adapters behind application ports; payloads carry `withJobContext`, processors restore it with `@InJobContext()` |
 
@@ -34,9 +34,12 @@ framework-neutral: Nest glue (DI providers, logger adapter, tenant wiring, excep
 filters) for `packages/ddd-core` belongs in this application.
 
 Cross-cutting wiring lives in `src/common/modules/` (`ObservabilityModule` — Pino, OTel,
-audit, global behaviors; `ReliabilityModule` — BullMQ, dead-letter, rate limit,
-idempotency, resilience, cache, feature flags) and `src/common/` (guards, filters,
-interceptors, context, environment).
+audit, global behaviors, the add-ons' span attributes through `AttributesBehavior`;
+`ReliabilityModule` — BullMQ, dead-letter, rate limit, idempotency, resilience, cache,
+feature flags) and `src/common/` (guards, filters, interceptors, request context stores,
+`audit/` and `dead-letter/` options, `environment/` config modules). `src/common/` holds
+only this application's wiring and policy; a mechanism any consumer of a package would
+need belongs in that package.
 
 Names follow [AGENTS.md → Naming](../AGENTS.md#naming) and the skill's CQRS name shapes
 (`CreateUserCommand`, `UserCreatedEvent`, `IAccessTokenIssuer` ↔ `ACCESS_TOKEN_ISSUER`):
@@ -76,6 +79,9 @@ Copy `.env.example` to `.env` for local runs. The app reads it through
 
 ## Local testing requirements
 
+- The api resolves the workspace packages through their built `dist/`: run `pnpm build`
+  (or the changed package's `build`) before api tests or `typecheck`, or they fail on
+  missing or outdated package code.
 - `src/**/*.spec.ts` — unit and adapter specs beside the code. `test/*.spec.ts` and
   `test/*.e2e-spec.ts` — cross-module, composition, and HTTP-level suites.
 - This workspace is where integration tests that need `@nestjs/testing` belong; published
@@ -107,3 +113,10 @@ Copy `.env.example` to `.env` for local runs. The app reads it through
   real aggregate is available (`CaslAuthorizer`).
 - Environment variables are read in bootstrap/infrastructure/configuration code only —
   never inside a use case. Use an application port instead.
+- Each external system has one config module, the only reader of its variables:
+  `redisConfig()` (`src/common/environment/redis.config.ts`), `persistenceConfig()`
+  (`src/persistence/persistence.config.ts`), `otlpConfig()`
+  (`src/common/environment/otlp.config.ts`). A new system gets its own
+  `<system>.config.ts` (AGENTS.md rule 23).
+- Code that needs the current tenant calls `requireTenant(purpose)` from
+  `@cqrs-ddd/core/application`; there is no tenant port.

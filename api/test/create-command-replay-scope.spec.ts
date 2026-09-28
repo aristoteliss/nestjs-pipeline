@@ -1,7 +1,7 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { sessionPrincipalStore } from '@common/context/session-principal.store';
-import type { SessionPrincipal } from '@common/types/SessionPrincipal';
+import type { SessionPrincipal } from '@common/types/session-principal';
 import type { EventBus } from '@nestjs/cqrs';
 import {
   buildAbility,
@@ -9,22 +9,29 @@ import {
   CASL_PRINCIPAL_KEY,
   type Capability,
   type CaslAuthorizer,
+  MissingAbilityError,
 } from '@nestjs-pipeline/casl';
 import { PipelineContext, SET_TENANT_ID } from '@nestjs-pipeline/core';
 import {
   IDEMPOTENCY_REPLAYED_ITEM,
   IdempotencyBehavior,
+  type IdempotencyBehaviorOptions,
   IdempotencyConflictError,
   MemoryIdempotencyStore,
 } from '@nestjs-pipeline/idempotency';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { CreateUserCommand } from '../src/users/cqrs/commands/create-user.command';
-import {
-  CreateUserHandler,
-  createUserIdempotencyKey,
-  createUserReplayScope,
-} from '../src/users/cqrs/commands/create-user.handler';
+import { CreateUserCommand } from '../src/users/application/cqrs/commands/create-user.command';
+import { CreateUserHandler } from '../src/users/application/cqrs/commands/create-user.handler';
 import { User } from '../src/users/domain/models/user.entity';
+import { declaredOptions, requiredKey } from './support/declared-options';
+
+const {
+  keyFactory: createUserIdempotencyKey,
+  replayScopeFactory: createUserReplayScope,
+} = declaredOptions<Required<IdempotencyBehaviorOptions>>(
+  CreateUserHandler,
+  IdempotencyBehavior,
+);
 
 type RawRules = Capability[];
 
@@ -170,11 +177,13 @@ describe('Create user replay scope', () => {
 
     const next = vi.fn();
     await expect(behavior().handle(context, next)).rejects.toThrow(
-      /Missing authorization context/,
+      MissingAbilityError,
     );
 
     expect(next).not.toHaveBeenCalled();
-    expect(await store.get(createUserIdempotencyKey(context))).toBeUndefined();
+    expect(
+      await store.get(requiredKey(createUserIdempotencyKey, context)),
+    ).toBeUndefined();
   });
 
   it('refuses a record created before scope capture rather than replaying it', async () => {

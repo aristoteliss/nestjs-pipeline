@@ -13,7 +13,6 @@ import {
   UnknownMutableFieldError,
 } from '@cqrs-ddd/core/domain';
 import type { INestApplication } from '@nestjs/common';
-import { UnauthorizedException } from '@nestjs/common';
 import {
   CommandBus,
   CommandHandler,
@@ -56,21 +55,14 @@ import {
   UniqueEmailException,
 } from '../../users/domain/models/errors';
 import type { User } from '../../users/domain/models/user.entity';
-import {
-  MissingPrincipalContextError,
-  MissingReplayScopeContextError,
-} from '../cqrs/helpers/idempotent-operation.helper';
-import {
-  DEAD_LETTER_DEFAULTS,
-  EXPECTED_REJECTIONS,
-} from './dead-letter.options';
+import { DEAD_LETTER_DEFAULTS } from './dead-letter.options';
 
 type ErrorClass = abstract new (...args: never[]) => Error;
 
 /**
  * The application and core domain errors that are dead-lettered: base classes,
  * misconfigurations, broken invariants and failures a replay may fix. Every
- * other such error class must be in `EXPECTED_REJECTIONS`.
+ * other such error class must be among the ignored errors of `DEAD_LETTER_DEFAULTS`.
  * `InvalidValueException` is a base class: the application's subclasses for
  * caller input are rejections, and any other value violation is a broken
  * invariant.
@@ -82,8 +74,6 @@ const CAPTURED_ERRORS: readonly ErrorClass[] = [
   UnknownMutableFieldError,
   MissingTenantContextError,
   AuthConfigurationException,
-  MissingPrincipalContextError,
-  MissingReplayScopeContextError,
   InvalidTenantSchemaError,
   UnknownTenantSchemaError,
 ];
@@ -131,7 +121,6 @@ class FailingHandler implements ICommandHandler<FailingCommand> {
 
 const expectedRejections: Array<[string, Error]> = [
   ['request validation', new ZodValidationError(new ZodError([]))],
-  ['missing session', new UnauthorizedException()],
   [
     'CASL denial',
     new UnauthorizedActionException({ action: 'update', subject: 'User' }),
@@ -207,7 +196,9 @@ describe('application error classification', () => {
     const unclassified: string[] = [];
     const both: string[] = [];
     for (const errorClass of await errorClasses()) {
-      const expected = EXPECTED_REJECTIONS.some(
+      const expected = (
+        DEAD_LETTER_DEFAULTS.ignoreErrors as readonly ErrorClass[]
+      ).some(
         (target) =>
           errorClass === target || errorClass.prototype instanceof target,
       );

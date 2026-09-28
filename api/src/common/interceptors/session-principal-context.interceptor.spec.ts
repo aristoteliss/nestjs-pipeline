@@ -52,28 +52,6 @@ describe('SessionPrincipalContextInterceptor', () => {
     expect(getSessionPrincipal()).toBeUndefined();
   });
 
-  it('falls back to req.sessionUser when sessionPrincipal is absent', async () => {
-    const user = {
-      id: 'user-fallback',
-      type: 'user' as const,
-      tenant: 'tenant_a',
-    };
-    const req: AuthenticatedRequest = { sessionUser: user };
-    const context = makeContext(req);
-
-    let observedUser: unknown;
-    const next = makeCallHandler(() => {
-      observedUser = getSessionPrincipal();
-    }, 'success');
-
-    const interceptor = new SessionPrincipalContextInterceptor();
-    const result = await firstValueFrom(interceptor.intercept(context, next));
-
-    expect(result).toBe('success');
-    expect(observedUser).toEqual(user);
-    expect(getSessionPrincipal()).toBeUndefined();
-  });
-
   it('scopes the request session and response in httpExchangeStore during next.handle()', async () => {
     const session = { get: vi.fn() };
     const response = { cookie: vi.fn() };

@@ -131,3 +131,19 @@ describe('Auth session', () => {
     expect(Auth.fromJSON(auth.toJSON()).toJSON()).toEqual(auth.toJSON());
   });
 });
+
+describe('Auth.fromJSON', () => {
+  it('rehydrates a snapshot without recording a creation event', () => {
+    const now = new Date();
+    const auth = Auth.fromJSON({
+      id: '038f2d5e-4b6a-7b3f-8c1d-2e3f4a5b6c7d',
+      userId: '018f2d5e-4b6a-7b3f-8c1d-2e3f4a5b6c7d',
+      refreshTokenHash: 'refresh-hash',
+      expiresAt: now.getTime() + 1000,
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    expect(auth.getUncommittedEvents()).toHaveLength(0);
+  });
+});

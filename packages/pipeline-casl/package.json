@@ -1,6 +1,6 @@
 {
   "name": "@nestjs-pipeline/casl",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "CASL authorization behavior and entity authorizer for @nestjs-pipeline/core",
   "author": "Aristotelis <aristotelis@ik.me>",
   "license": "SEE LICENSE IN LICENSE",
@@ -35,6 +35,9 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "prepublishOnly": "pnpm run rebuild"
+  },
+  "dependencies": {
+    "@cqrs-ddd/safe-stringify": "workspace:^"
   },
   "peerDependencies": {
     "@casl/ability": "^7.0.0",

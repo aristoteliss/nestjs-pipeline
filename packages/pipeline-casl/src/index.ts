@@ -15,12 +15,17 @@ export {
   type CaslAction,
   type CaslSubject,
 } from './constants/tokens';
+export { MissingAbilityError } from './errors/missing-ability.error';
 export {
   type UnauthorizedActionDetails,
   UnauthorizedActionException,
 } from './errors/unauthorized-action.exception';
 export { UnauthorizedActionFilter } from './filters/unauthorized-action.filter';
 export { buildAbility, interpolateConditions } from './helpers/ability';
+export {
+  abilityDigest,
+  requireAbilityDigest,
+} from './helpers/ability-digest';
 export {
   CaslAuthorizer,
   getCaslAbility,

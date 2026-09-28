@@ -1,41 +1,46 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import type { ITenantContext } from '@common/context/tenant-context.port';
+import { setTenantResolver } from '@cqrs-ddd/core/application';
 import type { Session } from '@fastify/secure-session';
-import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { SessionData } from '../../common/types/SessionPrincipal';
+import { currentTenantId } from '@nestjs-pipeline/tenant';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { SessionData } from '../../common/types/session-principal';
 import { ApiClientAuthenticator } from './api-client-authenticator';
 import { JwtAuthenticator } from './jwt-authenticator';
 import { RequestPrincipalResolver } from './request-principal-resolver';
 import { SessionService } from './session.service';
+
+const TENANT = 'tenant';
+
+beforeEach(() => setTenantResolver(() => TENANT));
+afterEach(() => setTenantResolver(currentTenantId));
 
 afterEach(() => {
   vi.restoreAllMocks();
 });
 
 describe('RequestPrincipalResolver', () => {
-  const tenantContext: ITenantContext = { schema: 'tenant' };
   it('uses session cookie fast-path without invoking authenticators', async () => {
     const existingUser = {
       id: 'cookie-user-1',
       type: 'user' as const,
-      tenant: tenantContext.schema,
+      tenant: TENANT,
       sid: 'cookie-sid-1',
+      expiresAt: Date.now() + 60_000,
     };
     const session = {
       user: existingUser,
       delete: vi.fn(),
     } as unknown as Session<SessionData>;
 
-    const jwtAuth = new JwtAuthenticator(tenantContext);
-    const apiClientAuth = new ApiClientAuthenticator(tenantContext);
+    const jwtAuth = new JwtAuthenticator();
+    const apiClientAuth = new ApiClientAuthenticator();
     const jwtSpy = vi.spyOn(jwtAuth, 'authenticate');
     const apiSpy = vi.spyOn(apiClientAuth, 'authenticate');
 
     const resolver = new RequestPrincipalResolver(
       jwtAuth,
       apiClientAuth,
-      tenantContext,
       new SessionService(),
     );
     const user = await resolver.resolvePrincipal({ headers: {}, session });
@@ -49,7 +54,7 @@ describe('RequestPrincipalResolver', () => {
     const sessionPrincipalWithoutSid = {
       id: 'user-without-sid',
       type: 'user' as const,
-      tenant: tenantContext.schema,
+      tenant: TENANT,
     };
     const deleteSession = vi.fn();
     const session = {
@@ -58,9 +63,8 @@ describe('RequestPrincipalResolver', () => {
     } as unknown as Session<SessionData>;
 
     const resolver = new RequestPrincipalResolver(
-      new JwtAuthenticator(tenantContext),
-      new ApiClientAuthenticator(tenantContext),
-      tenantContext,
+      new JwtAuthenticator(),
+      new ApiClientAuthenticator(),
       new SessionService(),
     );
     const user = await resolver.resolvePrincipal({ headers: {}, session });
@@ -79,7 +83,7 @@ describe('RequestPrincipalResolver', () => {
       const session = {
         user: {
           id: 'cookie-user-1',
-          tenant: tenantContext.schema,
+          tenant: TENANT,
           sid: 'cookie-sid-1',
           ...principal,
         },
@@ -87,9 +91,8 @@ describe('RequestPrincipalResolver', () => {
       } as unknown as Session<SessionData>;
 
       const resolver = new RequestPrincipalResolver(
-        new JwtAuthenticator(tenantContext),
-        new ApiClientAuthenticator(tenantContext),
-        tenantContext,
+        new JwtAuthenticator(),
+        new ApiClientAuthenticator(),
         new SessionService(),
       );
       const user = await resolver.resolvePrincipal({ headers: {}, session });
@@ -105,6 +108,7 @@ describe('RequestPrincipalResolver', () => {
       type: 'user' as const,
       tenant: 'mismatched-tenant',
       sid: 'cookie-sid-1',
+      expiresAt: Date.now() + 60_000,
     };
     const session = {
       user: existingUser,
@@ -112,9 +116,8 @@ describe('RequestPrincipalResolver', () => {
     } as unknown as Session<SessionData>;
 
     const resolver = new RequestPrincipalResolver(
-      new JwtAuthenticator(tenantContext),
-      new ApiClientAuthenticator(tenantContext),
-      tenantContext,
+      new JwtAuthenticator(),
+      new ApiClientAuthenticator(),
       new SessionService(),
     );
 
@@ -127,7 +130,7 @@ describe('RequestPrincipalResolver', () => {
     const expiredUser = {
       id: 'expired-user-1',
       type: 'user' as const,
-      tenant: tenantContext.schema,
+      tenant: TENANT,
       expiresAt: Date.now() - 5000,
     };
     const deleteSession = vi.fn();
@@ -137,9 +140,8 @@ describe('RequestPrincipalResolver', () => {
     } as unknown as Session<SessionData>;
 
     const resolver = new RequestPrincipalResolver(
-      new JwtAuthenticator(tenantContext),
-      new ApiClientAuthenticator(tenantContext),
-      tenantContext,
+      new JwtAuthenticator(),
+      new ApiClientAuthenticator(),
       new SessionService(),
     );
     const user = await resolver.resolvePrincipal({ headers: {}, session });
@@ -152,8 +154,8 @@ describe('RequestPrincipalResolver', () => {
     const expiredUser = {
       id: 'expired-user-1',
       type: 'user' as const,
-      tenant: tenantContext.schema,
-      exp: Math.floor(Date.now() / 1000) - 10,
+      tenant: TENANT,
+      expiresAt: Date.now() - 10_000,
     };
     const deleteSession = vi.fn();
     const session = {
@@ -164,16 +166,15 @@ describe('RequestPrincipalResolver', () => {
     const jwtUser = {
       id: 'jwt-user-fresh',
       type: 'user' as const,
-      tenant: tenantContext.schema,
+      tenant: TENANT,
     };
-    const jwtAuth = new JwtAuthenticator(tenantContext);
-    const apiClientAuth = new ApiClientAuthenticator(tenantContext);
+    const jwtAuth = new JwtAuthenticator();
+    const apiClientAuth = new ApiClientAuthenticator();
     vi.spyOn(jwtAuth, 'authenticate').mockResolvedValue(jwtUser);
 
     const resolver = new RequestPrincipalResolver(
       jwtAuth,
       apiClientAuth,
-      tenantContext,
       new SessionService(),
     );
     const user = await resolver.resolvePrincipal({
@@ -189,7 +190,7 @@ describe('RequestPrincipalResolver', () => {
     const validUser = {
       id: 'cookie-user-valid',
       type: 'user' as const,
-      tenant: tenantContext.schema,
+      tenant: TENANT,
       sid: 'cookie-sid-valid',
       expiresAt: Date.now() + 60000,
     };
@@ -199,9 +200,8 @@ describe('RequestPrincipalResolver', () => {
     } as unknown as Session<SessionData>;
 
     const resolver = new RequestPrincipalResolver(
-      new JwtAuthenticator(tenantContext),
-      new ApiClientAuthenticator(tenantContext),
-      tenantContext,
+      new JwtAuthenticator(),
+      new ApiClientAuthenticator(),
       new SessionService(),
     );
     const user = await resolver.resolvePrincipal({ headers: {}, session });
@@ -213,19 +213,18 @@ describe('RequestPrincipalResolver', () => {
     const jwtUser = {
       id: 'jwt-user-1',
       type: 'user' as const,
-      tenant: tenantContext.schema,
+      tenant: TENANT,
     };
     const session = {} as unknown as Session<SessionData>;
     const req = { headers: { authorization: 'Bearer token' }, session };
 
-    const jwtAuth = new JwtAuthenticator(tenantContext);
-    const apiClientAuth = new ApiClientAuthenticator(tenantContext);
+    const jwtAuth = new JwtAuthenticator();
+    const apiClientAuth = new ApiClientAuthenticator();
     vi.spyOn(jwtAuth, 'authenticate').mockResolvedValue(jwtUser);
 
     const resolver = new RequestPrincipalResolver(
       jwtAuth,
       apiClientAuth,
-      tenantContext,
       new SessionService(),
     );
     const user = await resolver.resolvePrincipal(req);
@@ -238,20 +237,19 @@ describe('RequestPrincipalResolver', () => {
     const apiUser = {
       id: 'client-1',
       type: 'service' as const,
-      tenant: tenantContext.schema,
+      tenant: TENANT,
     };
     const session = {} as unknown as Session<SessionData>;
     const req = { headers: { 'x-api-id': 'client-1' }, session };
 
-    const jwtAuth = new JwtAuthenticator(tenantContext);
-    const apiClientAuth = new ApiClientAuthenticator(tenantContext);
+    const jwtAuth = new JwtAuthenticator();
+    const apiClientAuth = new ApiClientAuthenticator();
     vi.spyOn(jwtAuth, 'authenticate').mockResolvedValue(undefined);
     vi.spyOn(apiClientAuth, 'authenticate').mockReturnValue(apiUser);
 
     const resolver = new RequestPrincipalResolver(
       jwtAuth,
       apiClientAuth,
-      tenantContext,
       new SessionService(),
     );
     const user = await resolver.resolvePrincipal(req);
@@ -264,9 +262,8 @@ describe('RequestPrincipalResolver', () => {
     const req = { headers: {}, session };
 
     const resolver = new RequestPrincipalResolver(
-      new JwtAuthenticator(tenantContext),
-      new ApiClientAuthenticator(tenantContext),
-      tenantContext,
+      new JwtAuthenticator(),
+      new ApiClientAuthenticator(),
       new SessionService(),
     );
     const user = await resolver.resolvePrincipal(req);

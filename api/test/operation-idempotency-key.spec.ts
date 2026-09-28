@@ -1,13 +1,24 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 import { sessionPrincipalStore } from '@common/context/session-principal.store';
-import type { SessionPrincipal } from '@common/types/SessionPrincipal';
+import type { SessionPrincipal } from '@common/types/session-principal';
 import type { IPipelineContext } from '@nestjs-pipeline/core';
-import { MissingIdempotencyPartitionError } from '@nestjs-pipeline/idempotency';
+import {
+  IdempotencyBehavior,
+  type IdempotencyBehaviorOptions,
+  MissingIdempotencyPartitionError,
+} from '@nestjs-pipeline/idempotency';
 import { describe, expect, it } from 'vitest';
-import { createRoleIdempotencyKey } from '../../../roles/application/cqrs/commands/create-role.handler';
-import { createUserIdempotencyKey } from '../../../users/application/cqrs/commands/create-user.handler';
+import { CreateRoleHandler } from '../src/roles/application/cqrs/commands/create-role.handler';
+import { CreateUserHandler } from '../src/users/application/cqrs/commands/create-user.handler';
+import { declaredOptions } from './support/declared-options';
 
 type KeyFactory = (ctx: IPipelineContext) => string | undefined;
+
+const keyFactoryOf = (handler: Parameters<typeof declaredOptions>[0]) =>
+  declaredOptions<Required<IdempotencyBehaviorOptions>>(
+    handler,
+    IdempotencyBehavior,
+  ).keyFactory as KeyFactory;
 
 const session = (
   overrides: Partial<SessionPrincipal> = {},
@@ -33,13 +44,13 @@ describe('create idempotency security scope', () => {
   const cases = [
     {
       name: 'user creation',
-      factory: createUserIdempotencyKey,
+      factory: keyFactoryOf(CreateUserHandler),
       payload: { email: 'same@example.test', idempotencyKey: 'op-1' },
       action: 'user.create',
     },
     {
       name: 'role creation',
-      factory: createRoleIdempotencyKey,
+      factory: keyFactoryOf(CreateRoleHandler),
       payload: { name: 'same-role', idempotencyKey: 'op-1' },
       action: 'role.create',
     },

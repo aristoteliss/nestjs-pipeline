@@ -2,9 +2,9 @@
 
 import type { FactoryProvider, OnApplicationShutdown } from '@nestjs/common';
 import {
-  InMemoryProvider,
   NOOP_PROVIDER,
   OpenFeature,
+  TypedInMemoryProvider,
 } from '@openfeature/server-sdk';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { FEATURE_FLAGS_CLIENT } from './constants/tokens';
@@ -30,7 +30,7 @@ async function start(options: FeatureFlagsModuleOptions) {
 
 function provider() {
   const onClose = vi.fn().mockResolvedValue(undefined);
-  const registered = Object.assign(new InMemoryProvider({}), { onClose });
+  const registered = Object.assign(new TypedInMemoryProvider({}), { onClose });
   return { registered, onClose };
 }
 

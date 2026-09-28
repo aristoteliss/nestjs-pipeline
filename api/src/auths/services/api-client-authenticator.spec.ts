@@ -1,10 +1,14 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import type { ITenantContext } from '@common/context/tenant-context.port';
-import { afterEach, describe, expect, it, vi } from 'vitest';
-import { AUTH_HEADERS } from '../../common/constants/auth-headers.constants';
+import { setTenantResolver } from '@cqrs-ddd/core/application';
+import { currentTenantId } from '@nestjs-pipeline/tenant';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { HEADERS } from '../../common/constants/headers.constants';
 
-const tenantContext: ITenantContext = { schema: 'tenant' };
+const TENANT = 'tenant';
+
+beforeEach(() => setTenantResolver(() => TENANT));
+afterEach(() => setTenantResolver(currentTenantId));
 
 async function load(clients?: unknown[]) {
   vi.stubEnv(
@@ -13,7 +17,7 @@ async function load(clients?: unknown[]) {
   );
   vi.resetModules();
   const { ApiClientAuthenticator } = await import('./api-client-authenticator');
-  return new ApiClientAuthenticator(tenantContext);
+  return new ApiClientAuthenticator();
 }
 
 afterEach(() => {
@@ -26,22 +30,22 @@ describe('ApiClientAuthenticator', () => {
       {
         id: 'svc-1',
         key: 'secret-key-12345',
-        tenant: tenantContext.schema,
+        tenant: TENANT,
         rules: ['User|read|*|id,username', '!User|read|*|email'],
       },
     ]);
 
     const user = authenticator.authenticate({
       headers: {
-        [AUTH_HEADERS.API_ID]: 'svc-1',
-        [AUTH_HEADERS.API_KEY]: 'secret-key-12345',
+        [HEADERS.API_ID]: 'svc-1',
+        [HEADERS.API_KEY]: 'secret-key-12345',
       },
     });
 
     expect(user).toEqual({
       id: 'svc-1',
       type: 'service',
-      tenant: tenantContext.schema,
+      tenant: TENANT,
       grants: [
         { subject: 'User', action: 'read', fields: ['id', 'username'] },
         { subject: 'User', action: 'read', fields: ['email'], inverted: true },
@@ -51,13 +55,13 @@ describe('ApiClientAuthenticator', () => {
 
   it('authenticates a client without rules and attaches no grants', async () => {
     const authenticator = await load([
-      { id: 'svc-1', key: 'secret-key-12345', tenant: tenantContext.schema },
+      { id: 'svc-1', key: 'secret-key-12345', tenant: TENANT },
     ]);
 
     const user = authenticator.authenticate({
       headers: {
-        [AUTH_HEADERS.API_ID]: 'svc-1',
-        [AUTH_HEADERS.API_KEY]: 'secret-key-12345',
+        [HEADERS.API_ID]: 'svc-1',
+        [HEADERS.API_KEY]: 'secret-key-12345',
       },
     });
 
@@ -75,7 +79,7 @@ describe('ApiClientAuthenticator', () => {
         {
           id: 'svc-1',
           key: 'secret-key-12345',
-          tenant: tenantContext.schema,
+          tenant: TENANT,
           rules,
         },
       ]),
@@ -84,12 +88,12 @@ describe('ApiClientAuthenticator', () => {
 
   it('rejects when x-api-key is missing', async () => {
     const authenticator = await load([
-      { id: 'svc-1', key: 'secret-key-12345', tenant: tenantContext.schema },
+      { id: 'svc-1', key: 'secret-key-12345', tenant: TENANT },
     ]);
 
     expect(() =>
       authenticator.authenticate({
-        headers: { [AUTH_HEADERS.API_ID]: 'svc-1' },
+        headers: { [HEADERS.API_ID]: 'svc-1' },
       }),
     ).toThrow('Invalid API credentials');
   });
@@ -99,15 +103,15 @@ describe('ApiClientAuthenticator', () => {
       {
         id: 'svc-1',
         key: 'long-configured-key-value',
-        tenant: tenantContext.schema,
+        tenant: TENANT,
       },
     ]);
 
     expect(() =>
       authenticator.authenticate({
         headers: {
-          [AUTH_HEADERS.API_ID]: 'svc-1',
-          [AUTH_HEADERS.API_KEY]: 'short',
+          [HEADERS.API_ID]: 'svc-1',
+          [HEADERS.API_KEY]: 'short',
         },
       }),
     ).toThrow('Invalid API credentials');
@@ -125,8 +129,8 @@ describe('ApiClientAuthenticator', () => {
     expect(() =>
       authenticator.authenticate({
         headers: {
-          [AUTH_HEADERS.API_ID]: 'svc-1',
-          [AUTH_HEADERS.API_KEY]: 'secret-key-12345',
+          [HEADERS.API_ID]: 'svc-1',
+          [HEADERS.API_KEY]: 'secret-key-12345',
         },
       }),
     ).toThrow('Invalid API credentials');

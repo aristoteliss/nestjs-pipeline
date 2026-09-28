@@ -1,6 +1,5 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import { TENANT_CONTEXT } from '@common/context/tenant-context.port';
 import { CACHE_TOKEN } from '@cqrs-ddd/core/persistence';
 import { MikroOrmCache } from '@cqrs-ddd/mikro-orm';
 import { Global, Module } from '@nestjs/common';
@@ -16,10 +15,6 @@ const config = persistenceConfig();
 @Module({
   providers: [
     TenantSchemaContext,
-    {
-      provide: TENANT_CONTEXT,
-      useExisting: TenantSchemaContext,
-    },
     MikroOrmStore,
     {
       provide: TenantSchemaMiddleware,
@@ -44,7 +39,6 @@ const config = persistenceConfig();
   exports: [
     MIKRO_ORM_CLIENT,
     CACHE_TOKEN,
-    TENANT_CONTEXT,
     TenantSchemaContext,
     TenantSchemaMiddleware,
   ],

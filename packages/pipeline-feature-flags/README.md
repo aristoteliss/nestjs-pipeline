@@ -358,6 +358,8 @@ const decision = getPipelineItem(context, FEATURE_FLAG_DECISION_ITEM_TOKEN);
 
 `FEATURE_FLAG_ITEM` and `FEATURE_FLAG_KEY_ITEM` also expose the enabled decision and flag key.
 
+`buildFeatureFlagAttributes(context)` turns the decision into attributes named after the OpenTelemetry feature-flag conventions — `feature_flag.key`, `feature_flag.enabled`, and `feature_flag.variant`, `feature_flag.reason` and `feature_flag.error_code` when reported. Use it for span attributes through `AttributesBehavior` of [`@nestjs-pipeline/opentelemetry`](https://github.com/aristoteliss/nestjs-pipeline/tree/master/packages/pipeline-opentelemetry#attributes-from-other-behaviors), for audit `metadata`, or on a log line; it needs no telemetry package. The targeting key and error message are never included.
+
 ## Provider failure policy
 
 The default `errorPolicy: 'use-default'` follows OpenFeature's default-value availability model. For flags that must not silently fall back, use:
@@ -446,6 +448,7 @@ try {
 | `FEATURE_FLAGS_DEFAULT_CONTEXT` | Token | Module-wide default evaluation context |
 | `FEATURE_FLAG_ITEM` / `FEATURE_FLAG_KEY_ITEM` | Symbol | `context.items` exported unique Symbol keys for the resolved value / key |
 | `FEATURE_FLAG_ITEM_TOKEN`, `FEATURE_FLAG_KEY_ITEM_TOKEN`, `FEATURE_FLAG_DECISION_ITEM_TOKEN` | `PipelineItemToken` | Typed tokens over the same keys, for `getPipelineItem(context, FEATURE_FLAG_DECISION_ITEM_TOKEN)` without casts |
+| `buildFeatureFlagAttributes` | Function | The recorded decision as attributes (spans, audit metadata, logs); `{}` when the behavior did not run |
 
 
 ---

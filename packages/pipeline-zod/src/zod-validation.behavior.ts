@@ -44,9 +44,9 @@ export {
  * import { z } from 'zod';
  *
  * const userCreatedSchema = z.object({
- *   userId: z.string().uuid(),
+ *   userId: z.uuid(),
  *   username: z.string().min(1),
- *   email: z.string().email(),
+ *   email: z.email(),
  * });
  *
  * export class UserCreatedEvent {

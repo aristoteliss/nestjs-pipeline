@@ -3,7 +3,7 @@
 import { createHash } from 'node:crypto';
 import { escapeKeySegment, stableStringify } from '@cqrs-ddd/safe-stringify';
 import {
-  requireTenantId,
+  requireTenant,
   type TenantSource,
 } from '../../application/tenant-resolver';
 
@@ -91,7 +91,7 @@ export function cacheKey(
   conditions: Record<string, unknown>,
   tenantOrContext?: CacheKeyTenantSource,
 ): string {
-  const schema = requireTenantId(tenantOrContext, 'cache key derivation');
+  const schema = requireTenant('cache key derivation', tenantOrContext);
 
   let resource: string | undefined;
   if (typeof resourceOrEntity === 'string') {
@@ -167,9 +167,9 @@ export function cacheKeyTemplate<T = Record<string, unknown>>(
         ? (source as CacheKeyRequestContext)
         : undefined;
     const data = (ctx ? ctx.request : source) as Record<string, unknown>;
-    const schema = requireTenantId(
-      tenantOrContext ?? ctx,
+    const schema = requireTenant(
       'cache key derivation',
+      tenantOrContext ?? ctx,
     );
 
     const resolved = template.replace(

@@ -23,19 +23,19 @@ import {
 } from '@nestjs-pipeline/casl';
 import { type IPipelineContext, PipelineModule } from '@nestjs-pipeline/core';
 import { runWithTenant } from '@nestjs-pipeline/tenant';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import type { SessionPrincipal } from '../src/common/types/SessionPrincipal';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { SessionPrincipal } from '../src/common/types/session-principal';
 import { Role } from '../src/roles/domain/models/role.entity';
 import { QUERY_REPOSITORY as ROLES_QUERY_REPOSITORY } from '../src/roles/persistence/repository.tokens';
-import type { UserPermissionAssignments } from '../src/users/application/permission-assignments';
-import type { GetUserCapabilitiesQuery } from '../src/users/cqrs/queries/get-user-capabilities.query';
-import { GetUserOverviewHandler } from '../src/users/cqrs/queries/get-user-overview.handler';
-import { GetUserOverviewQuery } from '../src/users/cqrs/queries/get-user-overview.query';
+import type { GetUserCapabilitiesQuery } from '../src/users/application/cqrs/queries/get-user-capabilities.query';
+import { GetUserOverviewHandler } from '../src/users/application/cqrs/queries/get-user-overview.handler';
+import { GetUserOverviewQuery } from '../src/users/application/cqrs/queries/get-user-overview.query';
 import {
   OVERVIEW_RESPONSE_POLICY_VERSION,
   resolveOverviewScope,
   userOverviewCacheKey,
-} from '../src/users/cqrs/queries/user-overview-cache.policy';
+} from '../src/users/application/cqrs/queries/user-overview-cache.policy';
+import type { UserPermissionAssignments } from '../src/users/application/permission-assignments';
 import { User } from '../src/users/domain/models/user.entity';
 import { QUERY_REPOSITORY } from '../src/users/persistence/repository.tokens';
 import type { RoleDefinition } from './support/roles-capabilities/get-roles-capabilities.query-repository';
@@ -188,7 +188,7 @@ describe('User overview composed query security and caching contracts', () => {
     await app.init();
     const bus = app.get(QueryBus);
     queries = {
-      execute: (query) =>
+      execute: (query: Parameters<QueryBus['execute']>[0]) =>
         runWithTenant(currentTenant, () => bus.execute(query)),
     } as QueryBus;
   });
@@ -203,7 +203,7 @@ describe('User overview composed query security and caching contracts', () => {
       type: 'user',
       tenant: 'tenant-alpha',
       capabilities: { roles: ['admin'] },
-    };
+    } as Viewer;
 
     const first = await queries.execute(
       new GetUserOverviewQuery({ userId: targetUser.id }),
@@ -256,7 +256,7 @@ describe('User overview composed query security and caching contracts', () => {
       type: 'user',
       tenant: 'tenant-alpha',
       capabilities: { roles: ['admin'] },
-    };
+    } as Viewer;
     const adminResult = await queries.execute(
       new GetUserOverviewQuery({ userId: targetUser.id }),
     );
@@ -285,7 +285,7 @@ describe('User overview composed query security and caching contracts', () => {
       type: 'user',
       tenant: 'tenant-alpha',
       capabilities: { roles: ['admin'] },
-    };
+    } as Viewer;
 
     await queries.execute(new GetUserOverviewQuery({ userId: targetUser.id }));
     expect(userFindCount).toBe(1);
@@ -303,7 +303,7 @@ describe('User overview composed query security and caching contracts', () => {
       type: 'user',
       tenant: 'tenant-alpha',
       capabilities: { roles: ['admin'] },
-    };
+    } as Viewer;
 
     await queries.execute(new GetUserOverviewQuery({ userId: targetUser.id }));
     expect(userFindCount).toBe(1);
@@ -313,7 +313,7 @@ describe('User overview composed query security and caching contracts', () => {
       type: 'service',
       tenant: 'tenant-alpha',
       capabilities: { roles: ['admin'] },
-    };
+    } as Viewer;
 
     await queries.execute(new GetUserOverviewQuery({ userId: targetUser.id }));
     expect(userFindCount).toBe(2);
@@ -325,7 +325,7 @@ describe('User overview composed query security and caching contracts', () => {
       type: 'user',
       tenant: 'tenant-alpha',
       capabilities: { roles: ['admin'] },
-    };
+    } as Viewer;
 
     const firstId = '018f2d5e-4b6a-7b3f-8c1d-2e3f4a5b6c01';
     const secondId = '018f2d5e-4b6a-7b3f-8c1d-2e3f4a5b6c02';
@@ -496,7 +496,7 @@ describe('User overview composed query security and caching contracts', () => {
       id: 'viewer-admin',
       tenant: 'tenant-alpha',
       capabilities: { roles: ['admin'] },
-    };
+    } as Viewer;
 
     await expect(
       queries.execute(new GetUserOverviewQuery({ userId: targetUser.id })),
@@ -567,7 +567,7 @@ describe('User overview composed query security and caching contracts', () => {
       type: 'user',
       tenant: 'tenant-alpha',
       capabilities: { roles: ['admin'] },
-    };
+    } as Viewer;
 
     let observedQuery: unknown;
     const originalFind = mockUserRepo.find;

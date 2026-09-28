@@ -27,14 +27,14 @@ what the libraries support.
 - **Shape**: monorepo — workspace globs `api`, `packages/*` (20 workspace packages).
 - **Publishable packages**: 19; private: `api`.
 - **Runnable workspaces**: `api`.
-- **Versions**: `0.2.0`.
+- **Versions**: `0.2.0`, `0.2.1`.
 - **Packages**: see the Workspace packages table under Directory Map.
 <!-- context:generated-end repository-shape -->
 
 ## Technology Stack
 
 <!-- context:generated-start technology-stack -->
-- **Languages** (file counts, excluded directories omitted): `.ts` 783, `.md` 35, `.grit` 14, `.py` 3, `.mjs` 1
+- **Languages** (file counts, excluded directories omitted): `.ts` 794, `.md` 36, `.grit` 14, `.py` 3, `.mjs` 1
 - **Runtime engines** (root `package.json`): `node` >=22.0.0, `pnpm` >=9.0.0
 - **Package manager evidence**: `pnpm-lock.yaml`.
 - **Integrations**: listed with their purpose under Dependencies and Integrations.
@@ -117,7 +117,7 @@ path given before relying on it.*
 | Layer | Where | Depends on |
 | --- | --- | --- |
 | Presentation | `api/src/*/controllers`, `decorators`, `interceptors`, `dtos`, `responses`, `mappers`, `api/src/common/filters`, `guards`, `interceptors` | Command/Query buses only; controllers dispatch and map |
-| Application (CQRS) | `api/src/*/cqrs`, `src/*/application/ports` | Repository/port interfaces and injection tokens |
+| Application (CQRS) | `api/src/*/application/cqrs`, `api/src/*/application/ports` | Repository/port interfaces and injection tokens |
 | Domain | `api/src/*/domain`, `packages/ddd-core/domain` | Nothing framework-specific |
 | Persistence | `api/src/persistence`, `src/*/persistence`, `packages/ddd-core/persistence` | MikroORM, cache adapters |
 | Pipeline / cross-cutting | `packages/*`, wired in `api/src/common/modules/*.module.ts` | NestJS CQRS |
@@ -178,8 +178,9 @@ delivery guarantee.
 
 `TenantSchemaMiddleware` sets the request's tenant through `TenantSchemaContext` (over
 `@nestjs-pipeline/tenant`); the store, pipelines, cache keys and jobs read that one tenant.
-A missing tenant fails closed with `MissingTenantContextError`; see Multi-tenant
-persistence.
+Other code that needs it calls `requireTenant(purpose)` (`@cqrs-ddd/core/application`);
+there is no tenant port. A missing tenant fails closed with `MissingTenantContextError`;
+see Multi-tenant persistence.
 
 ### Authentication and authorization
 
@@ -248,6 +249,11 @@ in the handler (`CaslAuthorizer`). Details under Authentication and Authorizatio
 - `ObservabilityModule` holds the global behavior list and its order, which wraps every
   handler; `ReliabilityModule` wires queues, dead letters, rate limits, idempotency,
   resilience, cache and feature flags.
+- `AttributesBehavior` (`@nestjs-pipeline/opentelemetry`) must stay inside `TraceBehavior`
+  and `MetricsBehavior` and outside the add-ons whose `build<Name>Attributes` factories it
+  runs; `api/test/span-attributes.spec.ts` fails if the attributes stop reaching the span.
+- Redis, database and OTLP settings come only from `redisConfig()`, `persistenceConfig()`
+  and `otlpConfig()`.
 <!-- context:manual-end critical-modules -->
 
 ## Dependencies and Integrations
@@ -260,9 +266,9 @@ environment value is read or reproduced here.
 | --- | --- | --- |
 | NestJS runtime — Application framework and DI container | `@nestjs/common`, `@nestjs/core` | `api`, `packages/pipeline`, `packages/pipeline-audit`, `packages/pipeline-cache`, … (+10) |
 | NestJS CQRS — Command/query/event buses wrapped by the pipeline | `@nestjs/cqrs` | `api`, `packages/pipeline` |
-| MikroORM — ORM, unit of work, migrations | `@mikro-orm/core`, `@mikro-orm/nestjs`, `@mikro-orm/migrations` | `api`, `packages/ddd-mikro-orm` |
+| MikroORM — ORM, unit of work, migrations | `@mikro-orm/core`, `@mikro-orm/migrations` | `api`, `packages/ddd-mikro-orm` |
 | PostgreSQL — Relational backend and schema-per-tenant access | `pg`, `@mikro-orm/postgresql` | `api` |
-| SQLite / libSQL — Local and test persistence backend | `@libsql/client`, `@mikro-orm/sqlite`, `@mikro-orm/libsql` | `api` |
+| SQLite / libSQL — Local and test persistence backend | `@libsql/client`, `@mikro-orm/libsql` | `api` |
 | Redis — Cache and queue backend | `@keyv/redis`, `redis` | `api`, `packages/pipeline-cache` |
 | BullMQ — Background jobs and dead-letter transport | `bullmq`, `@nestjs/bullmq` | `api` |
 | Keyv / cache-manager — Pluggable cache stores | `keyv`, `cache-manager` | `api`, `packages/pipeline-cache` |
@@ -277,7 +283,7 @@ environment value is read or reproduced here.
 | Cockatiel — Retry, timeout and circuit-breaker policies | `cockatiel` | `api`, `packages/pipeline-resilience` |
 | rate-limiter-flexible — Rate-limit counters | `rate-limiter-flexible` | `api`, `packages/pipeline-rate-limit` |
 | Vitest — Test runner | `vitest` | `api`, `packages/ddd-core`, `packages/ddd-mikro-orm`, `packages/pipeline`, … (+16) |
-| Biome — Formatter, linter and Grit plugin host | `@biomejs/biome` | `api`, `packages/ddd-core` |
+| Biome — Formatter, linter and Grit plugin host | `@biomejs/biome` | `api` |
 | TypeScript — Language and type checker | `typescript` | `api`, `packages/ddd-core`, `packages/ddd-mikro-orm` |
 | SWC — Decorator-aware test transform | `unplugin-swc` | `api` |
 
@@ -285,13 +291,13 @@ environment value is read or reproduced here.
 
 | Workspace | Internal | External | Peers |
 | --- | --- | --- | --- |
-| `api` | 17 workspace packages | `@casl/ability`, `@fastify/secure-session`, `@keyv/redis`, `@libsql/client`, `@mikro-orm/core`, `@mikro-orm/libsql`, `@mikro-orm/migrations`, `@mikro-orm/nestjs`, `@mikro-orm/postgresql`, `@mikro-orm/sql`, … (+28) | — |
+| `api` | 17 workspace packages | `@casl/ability`, `@fastify/secure-session`, `@keyv/redis`, `@libsql/client`, `@mikro-orm/core`, `@mikro-orm/libsql`, `@mikro-orm/migrations`, `@mikro-orm/postgresql`, `@mikro-orm/sql`, `@nestjs/bullmq`, … (+26) | — |
 | `packages/ddd-core` | `@cqrs-ddd/safe-stringify`, `@cqrs-ddd/uuidv7` | — | — |
 | `packages/ddd-mikro-orm` | — | — | `@cqrs-ddd/core`, `@mikro-orm/core` |
 | `packages/pipeline` | `@cqrs-ddd/safe-stringify`, `@cqrs-ddd/untyped`, `@cqrs-ddd/uuidv7` | — | `@nestjs/common`, `@nestjs/core`, `@nestjs/cqrs`, `reflect-metadata`, `rxjs` |
 | `packages/pipeline-audit` | `@cqrs-ddd/safe-stringify`, `@cqrs-ddd/uuidv7` | — | `@nestjs-pipeline/core`, `@nestjs/common`, `reflect-metadata` |
 | `packages/pipeline-cache` | `@cqrs-ddd/safe-stringify` | — | `@keyv/memcache`, `@keyv/postgres`, `@keyv/redis`, `@keyv/sqlite`, `@nestjs-pipeline/core`, `@nestjs/common`, `cache-manager`, `keyv`, `reflect-metadata` |
-| `packages/pipeline-casl` | — | — | `@casl/ability`, `@nestjs-pipeline/core`, `@nestjs/common`, `reflect-metadata` |
+| `packages/pipeline-casl` | `@cqrs-ddd/safe-stringify` | — | `@casl/ability`, `@nestjs-pipeline/core`, `@nestjs/common`, `reflect-metadata` |
 | `packages/pipeline-correlation` | `@cqrs-ddd/untyped`, `@cqrs-ddd/uuidv7` | — | `@nestjs/common` |
 | `packages/pipeline-deadletter` | `@cqrs-ddd/safe-stringify`, `@cqrs-ddd/uuidv7` | — | `@nestjs-pipeline/core`, `@nestjs/common`, `reflect-metadata` |
 | `packages/pipeline-feature-flags` | — | — | `@nestjs-pipeline/core`, `@nestjs/common`, `@openfeature/server-sdk`, `reflect-metadata` |
@@ -325,7 +331,7 @@ live in `AGENTS.md`; this table keeps what is specific to this repository.*
 | Imports | `@common/*`, `@persistence/*` aliases in `api`; `@cqrs-ddd/core` only through `/domain`, `/application`, `/persistence`, `/http`; `@cqrs-ddd/*` utilities imported directly, never re-exported | `biome/plugins/ddd-entry-points.grit`, `packages/CLAUDE.md` |
 | Package independence | `@cqrs-ddd/*` import no NestJS or `@nestjs-pipeline/*`; `@nestjs-pipeline/tenant`, `/correlation`, `/job-context` import no other pipeline package; a package peers on core only if it imports it | `framework-independence.grit`, `packages/pipeline/src/package-boundaries.spec.ts` |
 | Errors | Framework-neutral inward; HTTP mapping only at the boundary (`domainErrorHttpStatus()`) | `transport-neutral-errors.grit`, `api/src/common/filters/` |
-| Configuration | `process.env` only in bootstrap and config code | `core-environment.grit`, `api/src/common/environment/` |
+| Configuration | `process.env` only in bootstrap and config code; one `<system>.config.ts` per external system (`redisConfig()`, `persistenceConfig()`, `otlpConfig()`), the only reader of its variables | `core-environment.grit`, `AGENTS.md` rule 23, `api/src/common/environment/` |
 | Persistence | Handlers depend on repository tokens; aggregates change only through domain methods; field limits live in the aggregate's `rules` | `handler-boundaries.grit`, `aggregate-identity.grit`, `packages/ddd-core/domain/rules/` |
 | Validation | Zod schemas on commands and queries plus `ZodPipe` | `packages/pipeline-zod` |
 | Tooling | Biome (2 spaces, single quotes); strict `tsc --noEmit` per workspace; license header on every package `.ts` | `biome.json`, `tsconfig.base.json`, `package-licenses.grit` |
@@ -402,6 +408,12 @@ Workspaces with the same scripts share a row.
 - **Release**: `pnpm test:release` loads every package from its tarball (root entry points only).
 - **Log helpers**: `test:all:full` writes `test-run.log`; its `tee` has no `pipefail`, so its
   exit status does not prove success.
+- **Build first**: `api` resolves the workspace packages through their built `dist/`. Without
+  `pnpm build`, most api test files and `pnpm lint` fail; after a package change, rebuild
+  that package before running api tests (verified 2026-09-29).
+- **Typecheck scope**: `api/tsconfig.json` (used by `lint` and `typecheck`) covers `api/src`
+  and `api/test`; `api/tsconfig.build.json` compiles `api/src` only. Test imports use the
+  real paths; there is no resolver that rewrites old ones.
 - **Gaps**: no combined coverage total and no CI; every suite runs locally.
 <!-- context:manual-end testing-strategy -->
 
@@ -449,10 +461,12 @@ secret value.*
 - **Global logging defaults live in `ObservabilityModule`.** users-api sets
   `requestResponseLogLevel: 'log'` globally; handler `logging({...})` entries carry only deltas
   such as `mapLogLevel` and shallow-merge over it (`api/src/common/modules/observability.module.ts`).
-- **One reader for persistence settings.** `DB_ENGINE`, the tenant lists and the connection
-  variables are read only by `persistenceConfig()` (`api/src/persistence/persistence.config.ts`);
-  the application, `TenantSchemaMiddleware` and the maintenance CLI share its tenant list. Read
-  them anywhere else and the served and migrated tenant sets can drift apart again.
+- **One reader per external system.** `DB_ENGINE`, the tenant lists and the database
+  connection variables are read only by `persistenceConfig()`
+  (`api/src/persistence/persistence.config.ts`); the application, `TenantSchemaMiddleware` and
+  the maintenance CLI share its tenant list. Read them anywhere else and the served and
+  migrated tenant sets can drift apart again. Redis settings come only from `redisConfig()`
+  and the OTLP exporter's from `otlpConfig()` (`api/src/common/environment/`).
 - **The aggregate property-write lint is naming-based only.** `biome/plugins/aggregate-identity.grit`
   matches receivers literally named `user`, `role`, `aggregate`, `entity`. Aliases, types,
   destructuring and dynamic keys are outside its coverage — domain-method mutation is still
@@ -494,13 +508,13 @@ secret value.*
 ## Snapshot Metadata
 
 <!-- context:generated-start metadata -->
-- Generated at: 2026-09-27T19:07:21Z
-- Git commit: c7a4d1ef377b390a60022841e85e20bf86e820cd
-- Git branch: publish
+- Generated at: 2026-09-29T08:34:14Z
+- Git commit: 8c9ff5264721e1b17ef08f92db256491de2ed143
+- Git branch: develop
 - Uncommitted changes when generated: yes
 - Generator: `scripts/update-claude-snapshot.py` version 1.0.0
 - Snapshot status: generated — structural inspection only, no code executed
-- Files inspected: 910
+- Files inspected: 922
 - Included top-level directories: `.agents`, `.claude`, `api`, `biome`, `integration`, `packages`, `scripts`
 - Excluded directory names: `.cache`, `.git`, `.gradle`, `.idea`, `.mypy_cache`, `.next`, `.nuxt`, `.parcel-cache`, `.pnpm-store`, `.pytest_cache`, `.ruff_cache`, `.svelte-kit`, `.terraform`, `.tmp`, `.tox`, `.turbo`, `.venv`, `.vscode`, `__pycache__`, `bower_components`, `build`, `coverage`, `dist`, `node_modules`, `out`, `target`, `vendor`, `venv`, `virtualenv`
 - Excluded file patterns: `.env`, `.env.*`, `*.env`, `*.pem`, `*.key`, `*.pfx`, `*.p12`, `*.jks`, `*.keystore`, `id_rsa*`, `id_ed25519*`, `*credentials*`, `*.secret`, `secrets.*`

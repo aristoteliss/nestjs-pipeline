@@ -1,7 +1,8 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import type { ITenantContext } from '@common/context/tenant-context.port';
+import { setTenantResolver } from '@cqrs-ddd/core/application';
 import type { EventBus } from '@nestjs/cqrs';
+import { currentTenantId } from '@nestjs-pipeline/tenant';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { User } from '../../../../users/domain/models/user.entity';
 import { AuthCreatedEvent } from '../../../domain/events/auth-created.event';
@@ -9,6 +10,11 @@ import { Auth } from '../../../domain/models/auth.entity';
 import { NodeRefreshTokens } from '../../../infrastructure/node-refresh-tokens';
 import { CreateAuthCommand } from './create-auth.command';
 import { CreateAuthHandler } from './create-auth.handler';
+
+const TENANT = 'tenant_alpha';
+
+beforeEach(() => setTenantResolver(() => TENANT));
+afterEach(() => setTenantResolver(currentTenantId));
 
 const NOW = Date.UTC(2026, 8, 22);
 
@@ -39,7 +45,6 @@ describe('CreateAuthHandler', () => {
       { publishAll } as unknown as EventBus,
       principalLoginService as never,
       { save },
-      { schema: 'tenant_alpha' } as ITenantContext,
       tokens,
       {
         refreshTokenTtlSeconds: 3600,
@@ -90,7 +95,7 @@ describe('CreateAuthHandler', () => {
     expect(result).toMatchObject({
       userId: user.id,
       principalType: 'user',
-      tenant: 'tenant_alpha',
+      tenant: TENANT,
       email: 'alice@example.test',
       department: 'Engineering',
       accessToken: `access-for-${auth.id}`,

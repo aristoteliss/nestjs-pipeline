@@ -15,12 +15,12 @@ import { CaslAuthorizer, CaslBehavior } from '@nestjs-pipeline/casl';
 import { LoggingBehavior, PipelineModule } from '@nestjs-pipeline/core';
 import { ResilienceBehavior } from '@nestjs-pipeline/resilience';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { DeleteRoleCommand } from '../src/roles/cqrs/commands/delete-role.command';
-import { DeleteRoleHandler } from '../src/roles/cqrs/commands/delete-role.handler';
+import { DeleteRoleCommand } from '../src/roles/application/cqrs/commands/delete-role.command';
+import { DeleteRoleHandler } from '../src/roles/application/cqrs/commands/delete-role.handler';
 import { Role } from '../src/roles/domain/models/role.entity';
 import { COMMAND_REPOSITORY as ROLE_COMMAND_REPOSITORY } from '../src/roles/persistence/repository.tokens';
-import { DeleteUserCommand } from '../src/users/cqrs/commands/delete-user.command';
-import { DeleteUserHandler } from '../src/users/cqrs/commands/delete-user.handler';
+import { DeleteUserCommand } from '../src/users/application/cqrs/commands/delete-user.command';
+import { DeleteUserHandler } from '../src/users/application/cqrs/commands/delete-user.handler';
 import { User } from '../src/users/domain/models/user.entity';
 import { COMMAND_REPOSITORY as USER_COMMAND_REPOSITORY } from '../src/users/persistence/repository.tokens';
 

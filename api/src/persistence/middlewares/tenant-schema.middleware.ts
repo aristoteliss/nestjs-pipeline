@@ -1,6 +1,6 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import { AUTH_HEADERS } from '@common/constants/auth-headers.constants';
+import { HEADERS } from '@common/constants/headers.constants';
 import {
   BadRequestException,
   ForbiddenException,
@@ -27,7 +27,7 @@ export class TenantSchemaMiddleware implements NestMiddleware {
     _response: unknown,
     next: () => void,
   ): void {
-    const rawHeaderValue = request.headers?.[AUTH_HEADERS.TENANT_SCHEMA];
+    const rawHeaderValue = request.headers?.[HEADERS.TENANT_SCHEMA];
     const headerValue = Array.isArray(rawHeaderValue)
       ? rawHeaderValue[0]
       : rawHeaderValue;

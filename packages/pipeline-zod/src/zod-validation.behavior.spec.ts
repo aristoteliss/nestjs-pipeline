@@ -112,7 +112,7 @@ describe('ZodValidationBehavior', () => {
   describe('when ZOD_SCHEMA_KEY is attached and the request is valid', () => {
     const schema = z.object({
       username: z.string().min(4),
-      email: z.string().email(),
+      email: z.email(),
     });
     const requestType = makeRequestType(schema);
     const request = { username: 'Alice', email: 'alice@example.com' };
@@ -203,7 +203,7 @@ describe('ZodValidationBehavior', () => {
   describe('when ZOD_SCHEMA_KEY is attached and the request is invalid', () => {
     const schema = z.object({
       username: z.string().min(4),
-      email: z.string().email(),
+      email: z.email(),
     });
     const requestType = makeRequestType(schema);
 
@@ -247,7 +247,7 @@ describe('ZodValidationBehavior', () => {
 
   describe('event handler scenarios', () => {
     const eventSchema = z.object({
-      userId: z.string().uuid(),
+      userId: z.uuid(),
       username: z.string().min(1),
     });
     const eventType = makeRequestType(eventSchema);

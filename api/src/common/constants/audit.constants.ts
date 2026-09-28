@@ -14,5 +14,3 @@ export const AUDIT_ACTIONS = {
   AUTH_REFRESH: 'auth.refresh',
   AUTH_LOGOUT: 'auth.logout',
 } as const;
-
-export type AuditAction = (typeof AUDIT_ACTIONS)[keyof typeof AUDIT_ACTIONS];

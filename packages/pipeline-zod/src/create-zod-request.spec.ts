@@ -14,7 +14,7 @@ import { ZOD_SCHEMA_KEY } from './zod-validation.behavior';
 
 describe('createZodRequest', () => {
   const testSchema = z.object({
-    id: z.string().uuid(),
+    id: z.uuid(),
     name: z.string().min(3),
     age: z.number().optional(),
   });

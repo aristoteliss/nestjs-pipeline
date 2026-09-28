@@ -463,13 +463,13 @@ so that handlers don't need to duplicate actor resolution:
 AuditModule.forRoot({
   defaults: {
     actor: (ctx) => {
-      const user = getSessionUserFromStore();
-      if (!user) return { authenticated: false };
+      const principal = getSessionPrincipal();
+      if (!principal) return { authenticated: false };
       return {
-        id: user.id,
+        id: principal.id,
         authenticated: true,
-        principalType: user.principalType,
-        email: user.email,
+        principalType: principal.type,
+        email: principal.email,
       };
     },
   },

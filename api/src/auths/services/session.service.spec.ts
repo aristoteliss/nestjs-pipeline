@@ -6,7 +6,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type {
   SessionData,
   SessionPrincipal,
-} from '../../common/types/SessionPrincipal';
+} from '../../common/types/session-principal';
 import type { AuthResult } from '../application/results/auth.result';
 import { Auth } from '../domain/models/auth.entity';
 import { SessionService } from './session.service';
@@ -96,7 +96,7 @@ describe('SessionService', () => {
         type: 'user',
         tenant: 'tenant_alpha',
         sid: issued.aggregate.id,
-        exp: 20_000,
+        expiresAt: 20_000_000,
       });
       expect(session.set).toHaveBeenCalledWith('token', 'access-abc');
       expect(session.set).toHaveBeenCalledTimes(2);
@@ -147,14 +147,14 @@ describe('SessionService', () => {
       expect(service.isExpired(undefined)).toBe(true);
     });
 
-    it('returns false when no expiry fields are set', () => {
+    it('returns true when no expiry is set, so an older cookie cannot authenticate', () => {
       const user: SessionPrincipal = {
         id: 'u1',
         type: 'user',
         tenant: 't1',
         email: 'u1@test.com',
       };
-      expect(service.isExpired(user)).toBe(false);
+      expect(service.isExpired(user)).toBe(true);
     });
 
     it('returns true when expiresAt is in the past', () => {
@@ -175,28 +175,6 @@ describe('SessionService', () => {
         tenant: 't1',
         email: 'u1@test.com',
         expiresAt: Date.now() + 60000,
-      };
-      expect(service.isExpired(user)).toBe(false);
-    });
-
-    it('returns true when exp * 1000 is in the past', () => {
-      const user: SessionPrincipal = {
-        id: 'u1',
-        type: 'user',
-        tenant: 't1',
-        email: 'u1@test.com',
-        exp: Math.floor(Date.now() / 1000) - 10,
-      };
-      expect(service.isExpired(user)).toBe(true);
-    });
-
-    it('returns false when exp * 1000 is in the future', () => {
-      const user: SessionPrincipal = {
-        id: 'u1',
-        type: 'user',
-        tenant: 't1',
-        email: 'u1@test.com',
-        exp: Math.floor(Date.now() / 1000) + 60,
       };
       expect(service.isExpired(user)).toBe(false);
     });
