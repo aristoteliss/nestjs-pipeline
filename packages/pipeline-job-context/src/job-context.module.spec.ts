@@ -5,12 +5,12 @@ import {
   JOB_PRINCIPAL,
   JOB_SOURCES,
   JOB_TENANTS,
-} from './constants/job-context.constants';
-import { MissingJobContextError } from './errors/missing-job-context.error';
-import { activeRegistration } from './helpers/registration';
-import type { JobContextSources } from './interfaces/context-source.interface';
-import type { IJobPrincipal } from './interfaces/job-principal.interface';
-import { JobContextModule } from './job-context.module';
+} from './constants/job-context.constants.js';
+import { MissingJobContextError } from './errors/missing-job-context.error.js';
+import { activeRegistration } from './helpers/registration.js';
+import type { JobContextSources } from './interfaces/context-source.interface.js';
+import type { IJobPrincipal } from './interfaces/job-principal.interface.js';
+import { JobContextModule } from './job-context.module.js';
 
 class Principal implements IJobPrincipal {
   capture() {

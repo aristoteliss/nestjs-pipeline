@@ -1,8 +1,8 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import { MissingJobContextError } from '../errors/missing-job-context.error';
-import type { JobContextSources } from '../interfaces/context-source.interface';
-import type { IJobPrincipal } from '../interfaces/job-principal.interface';
+import { MissingJobContextError } from '../errors/missing-job-context.error.js';
+import type { JobContextSources } from '../interfaces/context-source.interface.js';
+import type { IJobPrincipal } from '../interfaces/job-principal.interface.js';
 
 /** What `JobContextModule` registers for the decorators, which run outside DI. */
 export interface Registration {

@@ -1,7 +1,7 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { describe, expect, it } from 'vitest';
-import { toReference } from './principal-reference';
+import { toReference } from './principal-reference.js';
 
 describe('toReference', () => {
   it('keeps only the identity fields', () => {

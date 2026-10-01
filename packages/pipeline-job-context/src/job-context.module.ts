@@ -11,15 +11,15 @@ import {
   JOB_PRINCIPAL,
   JOB_SOURCES,
   JOB_TENANTS,
-} from './constants/job-context.constants';
+} from './constants/job-context.constants.js';
 import {
   type Registration,
   register,
   unregister,
-} from './helpers/registration';
-import type { JobContextSources } from './interfaces/context-source.interface';
-import type { JobContextOptions } from './interfaces/job-context-options.interface';
-import type { IJobPrincipal } from './interfaces/job-principal.interface';
+} from './helpers/registration.js';
+import type { JobContextSources } from './interfaces/context-source.interface.js';
+import type { JobContextOptions } from './interfaces/job-context-options.interface.js';
+import type { IJobPrincipal } from './interfaces/job-principal.interface.js';
 
 /**
  * Registers the principal port, tenants and sources when it is constructed, before any

@@ -1,7 +1,7 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import { parseJobContext } from '../helpers/parse-job-context';
-import { activeRegistration } from '../helpers/registration';
+import { parseJobContext } from '../helpers/parse-job-context.js';
+import { activeRegistration } from '../helpers/registration.js';
 
 /** Options of {@link InJobContext}. */
 export interface InJobContextOptions {

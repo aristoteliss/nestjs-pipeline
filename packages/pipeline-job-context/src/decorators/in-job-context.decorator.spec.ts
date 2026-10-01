@@ -2,12 +2,12 @@
 
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { InvalidJobContextError } from '../errors/invalid-job-context.error';
-import { MissingJobContextError } from '../errors/missing-job-context.error';
-import { register, unregister } from '../helpers/registration';
-import type { IJobPrincipal } from '../interfaces/job-principal.interface';
-import type { PrincipalReference } from '../interfaces/principal-reference.interface';
-import { InJobContext } from './in-job-context.decorator';
+import { InvalidJobContextError } from '../errors/invalid-job-context.error.js';
+import { MissingJobContextError } from '../errors/missing-job-context.error.js';
+import { register, unregister } from '../helpers/registration.js';
+import type { IJobPrincipal } from '../interfaces/job-principal.interface.js';
+import type { PrincipalReference } from '../interfaces/principal-reference.interface.js';
+import { InJobContext } from './in-job-context.decorator.js';
 
 function source() {
   const store = new AsyncLocalStorage<string | undefined>();
