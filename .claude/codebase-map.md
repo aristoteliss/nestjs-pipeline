@@ -24,9 +24,9 @@ what the libraries support.
 ## Repository Shape
 
 <!-- context:generated-start repository-shape -->
-- **Shape**: monorepo — workspace globs `api`, `packages/*` (20 workspace packages).
-- **Publishable packages**: 19; private: `api`.
-- **Runnable workspaces**: `api`.
+- **Shape**: monorepo — workspace globs `api`, `docs`, `packages/*` (21 workspace packages).
+- **Publishable packages**: 19; private: `api`, `docs`.
+- **Runnable workspaces**: `api`, `docs`.
 - **Versions**: `0.4.0`.
 - **Packages**: see the Workspace packages table under Directory Map.
 <!-- context:generated-end repository-shape -->
@@ -34,7 +34,7 @@ what the libraries support.
 ## Technology Stack
 
 <!-- context:generated-start technology-stack -->
-- **Languages** (file counts, excluded directories omitted): `.ts` 801, `.md` 35, `.grit` 14, `.py` 3, `.mjs` 1
+- **Languages** (file counts, excluded directories omitted): `.ts` 803, `.md` 37, `.grit` 14, `.mjs` 3, `.py` 3
 - **Runtime engines** (root `package.json`): `node` >=22.12.0, `pnpm` >=9.0.0
 - **Package manager evidence**: `pnpm-lock.yaml`.
 - **Integrations**: listed with their purpose under Dependencies and Integrations.
@@ -45,11 +45,13 @@ what the libraries support.
 <!-- context:generated-start entry-points -->
 | Path | Role | Invocation |
 | --- | --- | --- |
+| `.github/workflows/docs.yml` | CI pipeline definition | Runs in CI |
 | `api/src/bootstrap.ts` | Application bootstrap / composition | workspace `@nestjs-pipeline/ddd-api` |
 | `api/src/main.ts` | Process entry point | workspace `@nestjs-pipeline/ddd-api` |
 | `api/src/persistence/cli.ts` | CLI entry point | `pnpm --filter @nestjs-pipeline/ddd-api` `db:migrate`, `db:revert`, `permissions:rebuild`, `permissions:verify`, `sessions:purge` |
 | `api/src/tracing.ts` | Telemetry initialization (loaded before the framework) | workspace `@nestjs-pipeline/ddd-api` |
 | `api/vitest.config.e2e.ts` | Referenced by a package script | `pnpm --filter @nestjs-pipeline/ddd-api` `test:e2e`, `test:e2e:watch` |
+| `docs/scripts/sync-readmes.mjs` | Referenced by a package script | `pnpm --filter @nestjs-pipeline/docs` `sync` |
 | `integration/packages/release.mjs` | Referenced by a root script | `pnpm test:release` |
 | `packages/ddd-core/index.ts` | Package public entry (barrel) | workspace `@cqrs-ddd/core` |
 | `scripts/update-claude-snapshot.py` | Referenced by a root script | `pnpm context:check`; `pnpm context:update` |
@@ -70,8 +72,10 @@ editor/tooling directories are excluded (see Snapshot Metadata).
 | --- | --- |
 | `.agents/` | Guide architecture-sensitive implementation, reviews and documentation in nestjs-pipeline, preserving reusable library contracts and DDD boundaries. |
 | `.claude/` | Needs verification |
+| `.github/` | Needs verification |
 | `api/` | Sample NestJS app demonstrating @nestjs-pipeline/core usage |
 | `biome/` | Needs verification |
+| `docs/` | The documentation site of nestjs-pipeline, published on GitHub Pages. |
 | `integration/` | Needs verification |
 | `packages/` | Workspace container — 19 package(s); see the workspace table below |
 | `scripts/` | Needs verification |
@@ -85,6 +89,7 @@ Each has a `README.md`.
 | Path | Package | Source layout |
 | --- | --- | --- |
 | `api` | `@nestjs-pipeline/ddd-api` | `auths`, `common`, `persistence`, `roles`, `users` |
+| `docs` | `@nestjs-pipeline/docs` | `content` |
 | `packages/ddd-core` | `@cqrs-ddd/core` | `application`, `domain`, `http`, `persistence`, `types` |
 | `packages/ddd-mikro-orm` | `@cqrs-ddd/mikro-orm` | `cache`, `concurrency`, `errors`, `helpers`, `interfaces`, `mapping`, `repository`, `tenancy` |
 | `packages/pipeline` | `@nestjs-pipeline/core` | `behaviors`, `constants`, `decorators`, `errors`, `helpers`, `interfaces`, `options`, `services` |
@@ -288,7 +293,7 @@ environment value is read or reproduced here.
 | rate-limiter-flexible — Rate-limit counters | `rate-limiter-flexible` | `api`, `packages/pipeline-rate-limit` |
 | Vitest — Test runner | `vitest` | `api`, `packages/ddd-core`, `packages/ddd-mikro-orm`, `packages/pipeline`, … (+16) |
 | Biome — Formatter, linter and Grit plugin host | `@biomejs/biome` | `api` |
-| TypeScript — Language and type checker | `typescript` | `api`, `packages/ddd-core`, `packages/ddd-mikro-orm` |
+| TypeScript — Language and type checker | `typescript` | `api`, `docs`, `packages/ddd-core`, `packages/ddd-mikro-orm` |
 | SWC — Decorator-aware test transform | `unplugin-swc` | `api` |
 
 ### Declared dependencies per workspace
@@ -296,6 +301,7 @@ environment value is read or reproduced here.
 | Workspace | Internal | External | Peers |
 | --- | --- | --- | --- |
 | `api` | 17 workspace packages | `@casl/ability`, `@fastify/secure-session`, `@keyv/redis`, `@mikro-orm/core`, `@mikro-orm/libsql`, `@mikro-orm/migrations`, `@mikro-orm/postgresql`, `@mikro-orm/sql`, `@nestjs/bullmq`, `@nestjs/common`, … (+25) | — |
+| `docs` | — | — | — |
 | `packages/ddd-core` | `@cqrs-ddd/safe-stringify`, `@cqrs-ddd/uuidv7` | — | — |
 | `packages/ddd-mikro-orm` | — | — | `@cqrs-ddd/core`, `@mikro-orm/core` |
 | `packages/pipeline` | `@cqrs-ddd/safe-stringify`, `@cqrs-ddd/untyped`, `@cqrs-ddd/uuidv7` | — | `@nestjs/common`, `@nestjs/core`, `@nestjs/cqrs`, `reflect-metadata`, `rxjs` |
@@ -360,6 +366,8 @@ row as *declared* unless you have run it yourself in this checkout.
 | `pnpm context:update` | `python3 scripts/update-claude-snapshot.py` |
 | `pnpm context:validate` | `python3 scripts/validate-claude-context.py` |
 | `pnpm copy-licenses` | `node -e "const fs=require('fs'),path=require('path'),dirs=fs.readdirSyn…` |
+| `pnpm docs:build` | `pnpm build && pnpm --filter @nestjs-pipeline/ddd-api openapi && pnpm --…` |
+| `pnpm docs:dev` | `pnpm --filter @nestjs-pipeline/docs dev` |
 | `pnpm format` | `biome check --write .` |
 | `pnpm lint` | `pnpm lint:persistence && pnpm -r lint` |
 | `pnpm lint:persistence` | `biome lint --only=plugin .` |
@@ -383,7 +391,8 @@ Workspaces with the same scripts share a row.
 
 | Workspaces | Scripts |
 | --- | --- |
-| `api` | `build`, `clean`, `db:migrate`, `db:revert`, `dev`, `lint`, `permissions:rebuild`, `permissions:verify`, `rebuild`, `sessions:purge`, `start`, `start:fastify`, `start:prod`, `start:prod:fastify`, … (+5) |
+| `api` | `build`, `clean`, `db:migrate`, `db:revert`, `dev`, `lint`, `openapi`, `permissions:rebuild`, `permissions:verify`, `rebuild`, `sessions:purge`, `start`, `start:fastify`, `start:prod`, … (+6) |
+| `docs` | `build:site`, `dev`, `preview`, `sync` |
 | `packages/ddd-core`, `packages/ddd-mikro-orm` | `build`, `clean`, `lint`, `prepublishOnly`, `rebuild`, `test`, `test:watch` |
 | `packages/pipeline`, `packages/pipeline-audit`, `packages/pipeline-cache`, `packages/pipeline-casl`, `packages/pipeline-correlation`, `packages/pipeline-deadletter`, `packages/pipeline-feature-flags`, `packages/pipeline-idempotency`, `packages/pipeline-job-context`, `packages/pipeline-opentelemetry`, `packages/pipeline-rate-limit`, `packages/pipeline-resilience`, `packages/pipeline-tenant`, `packages/pipeline-zod`, `packages/safe-stringify`, `packages/untyped`, `packages/uuidv7` | `build`, `build:watch`, `clean`, `lint`, `prepublishOnly`, `rebuild`, `test`, `test:watch` |
 
@@ -528,6 +537,17 @@ secret value.*
   therefore cannot wrap the event handlers or observe their failures.
 - **Fastify mode refuses a numeric `TRUST_PROXY`.** Fastify 5.12, bundled with Nest 12,
   trusts no proxy for a hop count, so `api/src/http-platform.ts` fails at boot instead.
+- **The documentation site (`docs/`) generates most of its pages.** The guides are copies of the
+  READMEs and the API reference comes from the JSDoc, both gitignored: edit the source, never
+  the copy. Its build fails on a broken internal link or anchor, so a renamed README heading
+  must keep its links working. TypeDoc there runs on a pinned TypeScript 6.0.
+- **The site needs `pnpm docs:build`, not `pnpm build`.** The site's script is `build:site`, so
+  `pnpm -r build` skips it; `docs:build` builds the packages and `api`, writes
+  `api/dist/openapi.json` (Nest preview mode: no database or Redis), then the site.
+- **OpenAPI response bodies come from `*ResponseBodySchema`.** A Zod `.transform()` or
+  `z.custom()` has no JSON Schema form, so each response DTO has a documentation-only body
+  schema, checked against the DTO type with `satisfies`; requests come from the `{ schema }` of
+  `@Body`/`@Param`.
 - **Package `LICENSE` files are generated.** `pnpm copy-licenses` writes them into
   `packages/*` and they are gitignored; they exist only for tarball creation.
 - **No CI runs these checks.** There is no `.github/` or other CI configuration
@@ -537,14 +557,14 @@ secret value.*
 ## Snapshot Metadata
 
 <!-- context:generated-start metadata -->
-- Generated at: 2026-10-01T16:51:11Z
-- Git commit: facc79a0a965f12a3fa6ba60872669bcb8aa1a47
-- Git branch: devlop
-- Uncommitted changes when generated: no
+- Generated at: 2026-10-01T17:45:12Z
+- Git commit: 800bb2087ee634a0c1d60363f1e1af8de5c69cd7
+- Git branch: master
+- Uncommitted changes when generated: yes
 - Generator: `scripts/update-claude-snapshot.py` version 1.0.0
 - Snapshot status: generated — structural inspection only, no code executed
-- Files inspected: 929
-- Included top-level directories: `.agents`, `.claude`, `api`, `biome`, `integration`, `packages`, `scripts`
+- Files inspected: 939
+- Included top-level directories: `.agents`, `.claude`, `.github`, `api`, `biome`, `docs`, `integration`, `packages`, `scripts`
 - Excluded directory names: `.cache`, `.git`, `.gradle`, `.idea`, `.mypy_cache`, `.next`, `.nuxt`, `.parcel-cache`, `.pnpm-store`, `.pytest_cache`, `.ruff_cache`, `.svelte-kit`, `.terraform`, `.tmp`, `.tox`, `.turbo`, `.venv`, `.vscode`, `__pycache__`, `bower_components`, `build`, `coverage`, `dist`, `node_modules`, `out`, `target`, `vendor`, `venv`, `virtualenv`
 - Excluded file patterns: `.env`, `.env.*`, `*.env`, `*.pem`, `*.key`, `*.pfx`, `*.p12`, `*.jks`, `*.keystore`, `id_rsa*`, `id_ed25519*`, `*credentials*`, `*.secret`, `secrets.*`
 

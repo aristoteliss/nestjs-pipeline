@@ -26,6 +26,15 @@ export const RoleResponseDtoSchema = z
 
 export type RoleResponseDto = z.output<typeof RoleResponseDtoSchema>;
 
+/**
+ * The body of a role response as the OpenAPI document describes it.
+ * Documentation only: responses are mapped through {@link RoleResponseDtoSchema}.
+ */
+export const RoleResponseBodySchema = z.object({
+  id: z.string().optional(),
+  name: z.string().optional(),
+}) satisfies z.ZodType<RoleResponseDto>;
+
 export function toRoleResponseDto(
   role: Role | RoleSnapshot | RoleReadModel | null,
 ): RoleResponseDto {

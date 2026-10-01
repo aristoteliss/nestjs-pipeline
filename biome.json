@@ -6,6 +6,7 @@
       "!!**/dist",
       "!!**/coverage",
       "!!**/.turbo",
+      "!!**/.astro",
       "!!**/.claude",
       "!!**/.tmp",
       "!!**/.vscode",

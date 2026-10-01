@@ -73,6 +73,7 @@ pnpm --filter @nestjs-pipeline/ddd-api permissions:rebuild  # rebuild user_permi
 pnpm --filter @nestjs-pipeline/ddd-api permissions:verify   # exit non-zero on drift
 pnpm --filter @nestjs-pipeline/ddd-api sessions:purge       # delete expired/revoked sessions
 pnpm --filter @nestjs-pipeline/ddd-api typecheck
+pnpm --filter @nestjs-pipeline/ddd-api openapi      # after build: write dist/openapi.json for the docs site
 ```
 
 Copy `.env.example` to `.env` for local runs. The app reads it through

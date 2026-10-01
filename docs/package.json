@@ -1,0 +1,24 @@
+{
+  "name": "@nestjs-pipeline/docs",
+  "version": "0.4.0",
+  "private": true,
+  "type": "module",
+  "description": "The documentation site of nestjs-pipeline, published on GitHub Pages.",
+  "scripts": {
+    "sync": "node scripts/sync-readmes.mjs",
+    "dev": "pnpm sync && astro dev",
+    "build:site": "pnpm sync && astro build",
+    "preview": "astro preview"
+  },
+  "devDependencies": {
+    "@astrojs/starlight": "^0.42.4",
+    "astro": "^7.3.5",
+    "starlight-links-validator": "^0.26.0",
+    "starlight-openapi": "^0.26.3",
+    "starlight-typedoc": "^0.23.1",
+    "typedoc": "^0.28.20",
+    "typedoc-plugin-markdown": "^4.13.1",
+    "typedoc-plugin-mdn-links": "^5.1.1",
+    "typescript": "~6.0.3"
+  }
+}

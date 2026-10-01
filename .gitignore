@@ -14,6 +14,13 @@ api/src/persistence/*.db
 api/src/persistence/*.db-*
 api/src/persistence/migrations/.snapshot*
 
+# Documentation site: Astro's cache and the pages generated from the READMEs and JSDoc
+docs/.astro/
+docs/src/content/docs/overview.md
+docs/src/content/docs/changelog.md
+docs/src/content/docs/packages/
+docs/src/content/docs/api/
+
 # Coverage
 coverage/
 *.lcov

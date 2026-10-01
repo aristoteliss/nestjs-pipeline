@@ -2,6 +2,9 @@
 
 Pipeline behaviors for **NestJS CQRS** — wrap every command, query, and event handler with reusable cross-cutting concerns (logging, validation, tracing, audit, …) using a clean middleware-like chain.
 
+Documentation: guides, the API reference of every package and the example application's
+HTTP API are at [aristoteliss.github.io/nestjs-pipeline](https://aristoteliss.github.io/nestjs-pipeline/).
+
 ```
 HTTP Request
   → Controller (schema validation)
@@ -597,9 +600,9 @@ Each package README has a full migration section:
 [opentelemetry](packages/pipeline-opentelemetry/README.md#migrating-from-01x),
 [zod](packages/pipeline-zod/README.md#migrating-from-01x),
 [casl](packages/pipeline-casl/README.md#migrating-from-01x),
-[uuidv7](packages/uuidv7/README.md#migrating-from-01x),
-[untyped](packages/untyped/README.md#migrating-from-01x) and
-[safe-stringify](packages/safe-stringify/README.md#migrating-from-01x).
+[uuidv7](packages/uuidv7/README.md#migrating-from-nestjs-pipelinecore-01x),
+[untyped](packages/untyped/README.md#migrating-from-nestjs-pipelinecore-01x) and
+[safe-stringify](packages/safe-stringify/README.md#migrating-from-nestjs-pipelinecore-01x).
 
 ---
 

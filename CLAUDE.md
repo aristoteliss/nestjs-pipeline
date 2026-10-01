@@ -54,6 +54,7 @@ Use repository-native commands. Never invent an equivalent, and never `npm`/`yar
 | Build | `pnpm build` |
 | Migrations (users-api) | `pnpm --filter @nestjs-pipeline/ddd-api db:migrate` |
 | Permission rules (users-api) | `pnpm --filter @nestjs-pipeline/ddd-api permissions:rebuild`, `permissions:verify` |
+| Documentation site (build, local server) | `pnpm docs:build`, `pnpm docs:dev` |
 | Session cleanup (users-api) | `pnpm --filter @nestjs-pipeline/ddd-api sessions:purge` |
 | Regenerate the codebase map | `pnpm context:update` |
 | Check the map is current | `pnpm context:check` |

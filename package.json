@@ -23,6 +23,8 @@
     "verify:all": "pnpm lint && pnpm test:unit && pnpm test:build && pnpm test:release && pnpm test:e2e",
     "copy-licenses": "node -e \"const fs=require('fs'),path=require('path'),dirs=fs.readdirSync('packages').filter(d=>fs.existsSync(path.join('packages',d,'package.json')));for(const d of dirs){fs.copyFileSync('LICENSE',path.join('packages',d,'LICENSE'));fs.copyFileSync('COMMERCIAL_LICENSE.txt',path.join('packages',d,'COMMERCIAL_LICENSE.txt'));}\"",
     "publish:all": "pnpm copy-licenses && pnpm -r publish --access public",
+    "docs:build": "pnpm build && pnpm --filter @nestjs-pipeline/ddd-api openapi && pnpm --filter @nestjs-pipeline/docs build:site",
+    "docs:dev": "pnpm --filter @nestjs-pipeline/docs dev",
     "check": "biome check .",
     "format": "biome check --write .",
     "lint:persistence": "biome lint --only=plugin .",
