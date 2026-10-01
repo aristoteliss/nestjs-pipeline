@@ -1,9 +1,10 @@
 {
   "name": "@nestjs-pipeline/cache",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Caching behavior for the NestJS pipeline — cache-manager v7 on top of Keyv with pluggable stores (memory, redis, memcache, sqlite, postgres).",
   "author": "Aristotelis <aristotelis@ik.me>",
   "license": "SEE LICENSE IN LICENSE",
+  "type": "module",
   "engines": {
     "node": ">=22.12.0"
   },
@@ -26,6 +27,13 @@
   "homepage": "https://github.com/aristoteliss/nestjs-pipeline#readme",
   "bugs": {
     "url": "https://github.com/aristoteliss/nestjs-pipeline/issues"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
   },
   "main": "dist/index.js",
   "types": "dist/index.d.ts",

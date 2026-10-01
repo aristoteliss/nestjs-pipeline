@@ -4,7 +4,7 @@ import Module from 'node:module';
 import { createCache } from 'cache-manager';
 import { Keyv } from 'keyv';
 import { describe, expect, it } from 'vitest';
-import { buildCache, buildKeyv } from './cache-factory';
+import { buildCache, buildKeyv } from './cache-factory.js';
 
 describe('cache-factory', () => {
   describe('buildKeyv', () => {

@@ -10,18 +10,18 @@ import {
   type Provider,
 } from '@nestjs/common';
 import type { Cache } from 'cache-manager';
-import { CacheBehavior } from './cache.behavior';
+import { CacheBehavior } from './cache.behavior.js';
 import {
   CACHE_DEFAULT_OPTIONS,
   CACHE_MODULE_OPTIONS,
   PIPELINE_CACHE,
-} from './constants/tokens';
-import { buildCache } from './helpers/cache-factory';
+} from './constants/tokens.js';
+import { buildCache } from './helpers/cache-factory.js';
 import type {
   CacheBehaviorOptions,
   CacheModuleAsyncOptions,
   CacheModuleOptions,
-} from './interfaces/cache-options.interface';
+} from './interfaces/cache-options.interface.js';
 
 const logger = new Logger('CacheModule');
 

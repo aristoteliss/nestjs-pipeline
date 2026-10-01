@@ -12,10 +12,10 @@ import { Logger } from '@nestjs/common';
 import type { Cache } from 'cache-manager';
 import { Keyv } from 'keyv';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { CacheBehavior } from './cache.behavior';
-import { CacheModule } from './cache.module';
-import { CACHE_DEFAULT_OPTIONS, PIPELINE_CACHE } from './constants/tokens';
-import type { CacheModuleOptions } from './interfaces/cache-options.interface';
+import { CacheBehavior } from './cache.behavior.js';
+import { CacheModule } from './cache.module.js';
+import { CACHE_DEFAULT_OPTIONS, PIPELINE_CACHE } from './constants/tokens.js';
+import type { CacheModuleOptions } from './interfaces/cache-options.interface.js';
 
 function factoryFor(module: DynamicModule, token: symbol) {
   return module.providers?.find(

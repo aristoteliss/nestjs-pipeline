@@ -26,9 +26,9 @@ import type { Cache } from 'cache-manager';
 import {
   CacheManagerAdapter,
   type IPipelineCache,
-} from './adapters/cache-manager.adapter';
-import { CACHE_DEFAULT_OPTIONS, PIPELINE_CACHE } from './constants/tokens';
-import type { CacheBehaviorOptions } from './interfaces/cache-options.interface';
+} from './adapters/cache-manager.adapter.js';
+import { CACHE_DEFAULT_OPTIONS, PIPELINE_CACHE } from './constants/tokens.js';
+import type { CacheBehaviorOptions } from './interfaces/cache-options.interface.js';
 
 /**
  * Unique symbol key set on `context.items` recording whether the request was served from cache (`true` on hit).

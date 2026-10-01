@@ -1,14 +1,17 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
+import { createRequire } from 'node:module';
 import { type Cache, createCache } from 'cache-manager';
 import { Keyv, type KeyvStoreAdapter } from 'keyv';
 import type {
   CacheModuleOptions,
   CacheStoreConfig,
   CacheStoreType,
-} from '../interfaces/cache-options.interface';
+} from '../interfaces/cache-options.interface.js';
 
 type AdapterConstructor = new (...args: unknown[]) => KeyvStoreAdapter;
+
+const load = createRequire(import.meta.url);
 
 /** Maps declarative store types to their optional `@keyv/*` adapter package. */
 const ADAPTER_PACKAGES: Record<Exclude<CacheStoreType, 'memory'>, string> = {
@@ -63,7 +66,7 @@ function isNativeBindingFailure(error: unknown): boolean {
 function requireAdapter(pkg: string): AdapterConstructor {
   let mod: { default?: AdapterConstructor } | AdapterConstructor;
   try {
-    mod = require(pkg) as { default?: AdapterConstructor } | AdapterConstructor;
+    mod = load(pkg) as { default?: AdapterConstructor } | AdapterConstructor;
   } catch (error) {
     if (isRequestedModuleMissing(error, pkg)) {
       throw new Error(

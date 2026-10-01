@@ -2,7 +2,7 @@
 import { createCache } from 'cache-manager';
 import { Keyv } from 'keyv';
 import { expect, it } from 'vitest';
-import { CacheManagerAdapter } from './cache-manager.adapter';
+import { CacheManagerAdapter } from './cache-manager.adapter.js';
 
 it('does not assign a failed read error to a concurrent cache miss', async () => {
   let firstCalls = 0,

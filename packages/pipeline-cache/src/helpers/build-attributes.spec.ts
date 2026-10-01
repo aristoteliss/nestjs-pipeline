@@ -2,8 +2,8 @@
 
 import { type IPipelineContext, setPipelineItem } from '@nestjs-pipeline/core';
 import { describe, expect, it } from 'vitest';
-import { CACHE_HIT_ITEM_TOKEN } from '../cache.behavior';
-import { buildCacheAttributes } from './build-attributes';
+import { CACHE_HIT_ITEM_TOKEN } from '../cache.behavior.js';
+import { buildCacheAttributes } from './build-attributes.js';
 
 const context = () => ({ items: new Map() }) as unknown as IPipelineContext;
 

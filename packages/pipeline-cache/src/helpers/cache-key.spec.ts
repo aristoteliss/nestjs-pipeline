@@ -2,8 +2,8 @@
 
 import type { IPipelineContext } from '@nestjs-pipeline/core';
 import { describe, expect, it } from 'vitest';
-import { MissingCachePartitionError } from '../errors/missing-partition.error';
-import { createPartitionedCacheKeyFactory } from './cache-key';
+import { MissingCachePartitionError } from '../errors/missing-partition.error.js';
+import { createPartitionedCacheKeyFactory } from './cache-key.js';
 
 function makeContext(
   overrides: Partial<IPipelineContext> = {},

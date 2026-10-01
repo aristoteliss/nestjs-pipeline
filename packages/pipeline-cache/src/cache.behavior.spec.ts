@@ -8,14 +8,14 @@ import {
 import { type Cache, createCache } from 'cache-manager';
 import { Keyv } from 'keyv';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { CacheManagerAdapter } from './adapters/cache-manager.adapter';
+import { CacheManagerAdapter } from './adapters/cache-manager.adapter.js';
 import {
   CACHE_HIT_ITEM,
   CACHE_KEY_ITEM,
   CacheBehavior,
-} from './cache.behavior';
-import { createPartitionedCacheKeyFactory } from './helpers/cache-key';
-import type { CacheBehaviorOptions } from './interfaces/cache-options.interface';
+} from './cache.behavior.js';
+import { createPartitionedCacheKeyFactory } from './helpers/cache-key.js';
+import type { CacheBehaviorOptions } from './interfaces/cache-options.interface.js';
 
 /**
  * `CacheBehavior` has no default key. These tests exercise caching mechanics,
@@ -618,7 +618,7 @@ describe('CacheBehavior', () => {
     });
 
     it('names only functions this package exports in the missing-key fix', async () => {
-      const exported = await import('./index');
+      const exported = await import('./index.js');
       const diagnostics = contract?.validate?.({
         handlerType: class GetUsersHandler {},
         handlerName: 'GetUsersHandler',
