@@ -1,8 +1,8 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import type { PipelineBehaviorTuple } from '@nestjs-pipeline/core';
-import { CacheBehavior } from '../cache.behavior';
-import type { CacheBehaviorOptions } from '../interfaces/cache-options.interface';
+import { CacheBehavior } from '../cache.behavior.js';
+import type { CacheBehaviorOptions } from '../interfaces/cache-options.interface.js';
 
 export type CacheIntentOptions = Omit<CacheBehaviorOptions, 'key'> &
   (

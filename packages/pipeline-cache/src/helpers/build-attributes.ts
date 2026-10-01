@@ -5,7 +5,7 @@ import {
   hasPipelineItem,
   type IPipelineContext,
 } from '@nestjs-pipeline/core';
-import { CACHE_HIT_ITEM_TOKEN } from '../cache.behavior';
+import { CACHE_HIT_ITEM_TOKEN } from '../cache.behavior.js';
 
 /**
  * The cache decision of one execution as flat attributes:

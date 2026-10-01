@@ -6,8 +6,8 @@ import {
   UsePipeline,
 } from '@nestjs-pipeline/core';
 import { describe, expect, expectTypeOf, it } from 'vitest';
-import { CacheBehavior } from '../cache.behavior';
-import { type CacheIntentOptions, cache } from './cache.intent';
+import { CacheBehavior } from '../cache.behavior.js';
+import { type CacheIntentOptions, cache } from './cache.intent.js';
 
 describe('cache intent', () => {
   it('preserves the key factory in handler metadata', () => {

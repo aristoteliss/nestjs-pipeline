@@ -7,8 +7,8 @@ import {
   type TenantPartitionOptions,
   tenantSegments,
 } from '@nestjs-pipeline/core';
-import { MissingCachePartitionError } from '../errors/missing-partition.error';
-import type { CacheKeyFactory } from '../interfaces/cache-options.interface';
+import { MissingCachePartitionError } from '../errors/missing-partition.error.js';
+import type { CacheKeyFactory } from '../interfaces/cache-options.interface.js';
 
 /** Key format version. Bump to make a format change produce a cold cache. */
 const KEY_VERSION = 'v3';

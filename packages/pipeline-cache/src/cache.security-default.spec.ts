@@ -3,9 +3,9 @@ import type { IPipelineContext } from '@nestjs-pipeline/core';
 import { createCache } from 'cache-manager';
 import { Keyv } from 'keyv';
 import { describe, expect, it, vi } from 'vitest';
-import { CacheBehavior } from './cache.behavior';
-import { createPartitionedCacheKeyFactory } from './helpers/cache-key';
-import type { CacheBehaviorOptions } from './interfaces/cache-options.interface';
+import { CacheBehavior } from './cache.behavior.js';
+import { createPartitionedCacheKeyFactory } from './helpers/cache-key.js';
+import type { CacheBehaviorOptions } from './interfaces/cache-options.interface.js';
 
 const partitioned: CacheBehaviorOptions = {
   key: createPartitionedCacheKeyFactory({

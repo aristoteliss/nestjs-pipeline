@@ -2,7 +2,7 @@
 
 import EventEmitter from 'node:events';
 import { describe, expect, it, vi } from 'vitest';
-import { CacheManagerAdapter } from './cache-manager.adapter';
+import { CacheManagerAdapter } from './cache-manager.adapter.js';
 
 class MockCacheManager extends EventEmitter {
   public stores: any[] = [];
