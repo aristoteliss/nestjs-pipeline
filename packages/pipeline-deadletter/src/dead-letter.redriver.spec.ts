@@ -2,14 +2,14 @@
 
 import type { IPipelineContext } from '@nestjs-pipeline/core';
 import { describe, expect, it, vi } from 'vitest';
-import { DeadLetterBehavior } from './dead-letter.behavior';
-import { DeadLetterRedriver } from './dead-letter.redriver';
-import { DeadLetterRedriveError } from './errors/dead-letter-redrive.error';
-import { currentRedriveId } from './helpers/redrive-scope';
+import { DeadLetterBehavior } from './dead-letter.behavior.js';
+import { DeadLetterRedriver } from './dead-letter.redriver.js';
+import { DeadLetterRedriveError } from './errors/dead-letter-redrive.error.js';
+import { currentRedriveId } from './helpers/redrive-scope.js';
 import type {
   DeadLetterRecord,
   DeadLetterStore,
-} from './interfaces/dead-letter-transport.interface';
+} from './interfaces/dead-letter-transport.interface.js';
 
 class UserCreatedEvent {
   constructor(readonly userId: string) {}

@@ -10,7 +10,7 @@ import type { IPipelineContext } from '@nestjs-pipeline/core';
 import type {
   DeadLetterRequestKind,
   DeadLetterTransport,
-} from './dead-letter-transport.interface';
+} from './dead-letter-transport.interface.js';
 
 /**
  * Factory producing extra, request-aware metadata to attach to a dead letter

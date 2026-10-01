@@ -1,8 +1,11 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { describe, expect, expectTypeOf, it } from 'vitest';
-import { DeadLetterBehavior } from '../dead-letter.behavior';
-import { type DeadLetterIntentOptions, deadLetter } from './dead-letter.intent';
+import { DeadLetterBehavior } from '../dead-letter.behavior.js';
+import {
+  type DeadLetterIntentOptions,
+  deadLetter,
+} from './dead-letter.intent.js';
 
 describe('deadLetter intent builder', () => {
   it('creates entry with options object', () => {

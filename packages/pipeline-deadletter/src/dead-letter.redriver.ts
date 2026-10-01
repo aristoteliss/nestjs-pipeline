@@ -1,13 +1,13 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import type { Type } from '@nestjs/common';
-import { DeadLetterRedriveError } from './errors/dead-letter-redrive.error';
-import { runAsRedrive } from './helpers/redrive-scope';
+import { DeadLetterRedriveError } from './errors/dead-letter-redrive.error.js';
+import { runAsRedrive } from './helpers/redrive-scope.js';
 import type {
   DeadLetterRecord,
   DeadLetterRequestKind,
   DeadLetterStore,
-} from './interfaces/dead-letter-transport.interface';
+} from './interfaces/dead-letter-transport.interface.js';
 
 /**
  * Sends a rebuilt request back for handling. It must settle only when the

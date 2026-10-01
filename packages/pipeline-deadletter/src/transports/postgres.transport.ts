@@ -6,7 +6,7 @@ import type {
   DeadLetterListFilter,
   DeadLetterRecord,
   DeadLetterStore,
-} from '../interfaces/dead-letter-transport.interface';
+} from '../interfaces/dead-letter-transport.interface.js';
 
 /**
  * Minimal structural shape of a `pg` `Pool` / `Client`. Declared locally so this

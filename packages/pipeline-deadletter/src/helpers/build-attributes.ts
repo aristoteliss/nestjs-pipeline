@@ -1,7 +1,7 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { getPipelineItem, type IPipelineContext } from '@nestjs-pipeline/core';
-import { DEAD_LETTER_ITEM_TOKEN } from '../dead-letter.behavior';
+import { DEAD_LETTER_ITEM_TOKEN } from '../dead-letter.behavior.js';
 
 /**
  * The dead-letter outcome of one execution as flat attributes:

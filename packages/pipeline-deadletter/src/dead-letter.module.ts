@@ -4,12 +4,12 @@ import { type DynamicModule, Module } from '@nestjs/common';
 import {
   DEAD_LETTER_DEFAULT_OPTIONS,
   DEAD_LETTER_TRANSPORT,
-} from './constants/tokens';
-import { DeadLetterBehavior } from './dead-letter.behavior';
+} from './constants/tokens.js';
+import { DeadLetterBehavior } from './dead-letter.behavior.js';
 import type {
   DeadLetterModuleAsyncOptions,
   DeadLetterModuleOptions,
-} from './interfaces/dead-letter-options.interface';
+} from './interfaces/dead-letter-options.interface.js';
 
 /**
  * NestJS module that wires a {@link DeadLetterTransport} into the

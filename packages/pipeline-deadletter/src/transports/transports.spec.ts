@@ -2,13 +2,13 @@
 
 import { EventEmitter } from 'node:events';
 import { describe, expect, it, vi } from 'vitest';
-import type { DeadLetterRecord } from '../interfaces/dead-letter-transport.interface';
-import { BullMqDeadLetterTransport } from './bullmq.transport';
+import type { DeadLetterRecord } from '../interfaces/dead-letter-transport.interface.js';
+import { BullMqDeadLetterTransport } from './bullmq.transport.js';
 import {
   createDeadLetterTableSql,
   PostgresDeadLetterTransport,
-} from './postgres.transport';
-import { RabbitMqDeadLetterTransport } from './rabbitmq.transport';
+} from './postgres.transport.js';
+import { RabbitMqDeadLetterTransport } from './rabbitmq.transport.js';
 
 const record: DeadLetterRecord = {
   id: '0199a1b2-0000-7000-8000-000000000001',

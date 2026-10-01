@@ -7,8 +7,8 @@ import {
 } from '@cqrs-ddd/safe-stringify';
 import { uuidv7 } from '@cqrs-ddd/uuidv7';
 import { type IPipelineContext } from '@nestjs-pipeline/core';
-import type { DeadLetterBehaviorOptions } from '../interfaces/dead-letter-options.interface';
-import type { DeadLetterRecord } from '../interfaces/dead-letter-transport.interface';
+import type { DeadLetterBehaviorOptions } from '../interfaces/dead-letter-options.interface.js';
+import type { DeadLetterRecord } from '../interfaces/dead-letter-transport.interface.js';
 
 /** Redact a payload using a custom redactor or key-based masking. */
 function sanitizePayload(
