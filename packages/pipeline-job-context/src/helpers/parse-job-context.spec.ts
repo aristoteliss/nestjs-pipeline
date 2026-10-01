@@ -1,9 +1,9 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { describe, expect, it } from 'vitest';
-import { InvalidJobContextError } from '../errors/invalid-job-context.error';
-import { MissingJobContextError } from '../errors/missing-job-context.error';
-import { parseJobContext } from './parse-job-context';
+import { InvalidJobContextError } from '../errors/invalid-job-context.error.js';
+import { MissingJobContextError } from '../errors/missing-job-context.error.js';
+import { parseJobContext } from './parse-job-context.js';
 
 const tenants = ['tenant_a', 'tenant_b'];
 const accepts = (id: string) =>

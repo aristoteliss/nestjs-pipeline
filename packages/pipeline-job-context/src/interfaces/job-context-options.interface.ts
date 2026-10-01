@@ -1,8 +1,8 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import type { ModuleMetadata, Type } from '@nestjs/common';
-import type { JobContextSources } from './context-source.interface';
-import type { IJobPrincipal } from './job-principal.interface';
+import type { JobContextSources } from './context-source.interface.js';
+import type { IJobPrincipal } from './job-principal.interface.js';
 
 /** Options of `JobContextModule.forRoot`. */
 export interface JobContextOptions {

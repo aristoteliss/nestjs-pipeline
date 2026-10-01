@@ -2,10 +2,10 @@
 
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { afterEach, describe, expect, it } from 'vitest';
-import { MissingJobContextError } from '../errors/missing-job-context.error';
-import type { PrincipalReference } from '../interfaces/principal-reference.interface';
-import { register, unregister } from './registration';
-import { withJobContext } from './with-job-context';
+import { MissingJobContextError } from '../errors/missing-job-context.error.js';
+import type { PrincipalReference } from '../interfaces/principal-reference.interface.js';
+import { register, unregister } from './registration.js';
+import { withJobContext } from './with-job-context.js';
 
 function source() {
   const store = new AsyncLocalStorage<string | undefined>();

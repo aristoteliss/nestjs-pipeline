@@ -1,9 +1,10 @@
 {
   "name": "@nestjs-pipeline/job-context",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Carries the tenant, correlation id and principal of a request into the queue jobs it enqueues, and gives system-started work an explicit context",
   "author": "Aristotelis",
   "license": "SEE LICENSE IN LICENSE",
+  "type": "module",
   "engines": {
     "node": ">=22.12.0"
   },
@@ -26,6 +27,13 @@
     "authorization",
     "correlation-id"
   ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "files": [

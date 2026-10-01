@@ -1,8 +1,8 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { describe, expect, it } from 'vitest';
-import { InvalidJobContextError } from './invalid-job-context.error';
-import { MissingJobContextError } from './missing-job-context.error';
+import { InvalidJobContextError } from './invalid-job-context.error.js';
+import { MissingJobContextError } from './missing-job-context.error.js';
 
 describe('job context errors', () => {
   it('names what is missing and that nothing falls back to a default', () => {

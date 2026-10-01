@@ -1,8 +1,8 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { describe, expect, it } from 'vitest';
-import { MissingJobContextError } from '../errors/missing-job-context.error';
-import { activeRegistration, register, unregister } from './registration';
+import { MissingJobContextError } from '../errors/missing-job-context.error.js';
+import { activeRegistration, register, unregister } from './registration.js';
 
 const sources = {
   tenantId: {

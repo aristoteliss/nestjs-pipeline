@@ -1,9 +1,9 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import { MissingJobContextError } from '../errors/missing-job-context.error';
-import type { WithJobContext } from '../interfaces/job-context.interface';
-import { toReference } from './principal-reference';
-import { activeRegistration } from './registration';
+import { MissingJobContextError } from '../errors/missing-job-context.error.js';
+import type { WithJobContext } from '../interfaces/job-context.interface.js';
+import { toReference } from './principal-reference.js';
+import { activeRegistration } from './registration.js';
 
 /**
  * Stamps the current execution context onto a job payload: the tenant and

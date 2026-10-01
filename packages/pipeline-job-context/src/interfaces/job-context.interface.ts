@@ -1,6 +1,6 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import type { PrincipalReference } from './principal-reference.interface';
+import type { PrincipalReference } from './principal-reference.interface.js';
 
 /** Execution context a job payload carries from the request that enqueued it. */
 export interface JobContext {

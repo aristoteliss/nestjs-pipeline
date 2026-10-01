@@ -1,8 +1,8 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import { toReference } from '../helpers/principal-reference';
-import { activeRegistration } from '../helpers/registration';
-import type { PrincipalReference } from '../interfaces/principal-reference.interface';
+import { toReference } from '../helpers/principal-reference.js';
+import { activeRegistration } from '../helpers/registration.js';
+import type { PrincipalReference } from '../interfaces/principal-reference.interface.js';
 
 /** Options of {@link AsSystem}. */
 export interface AsSystemOptions<TGrant = unknown> {

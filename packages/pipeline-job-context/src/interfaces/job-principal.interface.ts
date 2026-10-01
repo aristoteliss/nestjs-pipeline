@@ -1,6 +1,6 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import type { PrincipalReference } from './principal-reference.interface';
+import type { PrincipalReference } from './principal-reference.interface.js';
 
 /**
  * Application port that reads the current principal when a job is enqueued and

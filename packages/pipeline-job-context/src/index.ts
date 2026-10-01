@@ -3,24 +3,24 @@
 export {
   AsSystem,
   type AsSystemOptions,
-} from './decorators/as-system.decorator';
+} from './decorators/as-system.decorator.js';
 export {
   InJobContext,
   type InJobContextOptions,
-} from './decorators/in-job-context.decorator';
-export { InvalidJobContextError } from './errors/invalid-job-context.error';
-export { MissingJobContextError } from './errors/missing-job-context.error';
-export { withJobContext } from './helpers/with-job-context';
+} from './decorators/in-job-context.decorator.js';
+export { InvalidJobContextError } from './errors/invalid-job-context.error.js';
+export { MissingJobContextError } from './errors/missing-job-context.error.js';
+export { withJobContext } from './helpers/with-job-context.js';
 export type {
   ContextSource,
   CorrelationSource,
   JobContextSources,
-} from './interfaces/context-source.interface';
+} from './interfaces/context-source.interface.js';
 export type {
   JobContext,
   WithJobContext,
-} from './interfaces/job-context.interface';
-export type { JobContextOptions } from './interfaces/job-context-options.interface';
-export type { IJobPrincipal } from './interfaces/job-principal.interface';
-export type { PrincipalReference } from './interfaces/principal-reference.interface';
-export { JobContextModule } from './job-context.module';
+} from './interfaces/job-context.interface.js';
+export type { JobContextOptions } from './interfaces/job-context-options.interface.js';
+export type { IJobPrincipal } from './interfaces/job-principal.interface.js';
+export type { PrincipalReference } from './interfaces/principal-reference.interface.js';
+export { JobContextModule } from './job-context.module.js';

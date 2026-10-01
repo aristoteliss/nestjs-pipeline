@@ -1,6 +1,6 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import type { PrincipalReference } from '../interfaces/principal-reference.interface';
+import type { PrincipalReference } from '../interfaces/principal-reference.interface.js';
 
 /**
  * Copies only the identity fields of `principal`, so grants or session data an
