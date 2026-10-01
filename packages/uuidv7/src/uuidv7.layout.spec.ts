@@ -1,7 +1,7 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { uuidv7 } from './uuidv7';
+import { uuidv7 } from './uuidv7.js';
 
 const random = vi.hoisted(() => ({ fill: 0x00 }));
 

@@ -7,7 +7,7 @@ import {
   redactValue,
   safeSanitize,
   safeStringify,
-} from './safeStringify';
+} from './safeStringify.js';
 
 describe('safeStringify', () => {
   it('excludes specified keys from objects', () => {

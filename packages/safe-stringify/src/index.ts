@@ -4,6 +4,6 @@ export {
   ABSENT_SEGMENT,
   escapeKeySegment,
   joinKeySegments,
-} from './key-segment';
-export * from './safeStringify';
-export * from './stableStringify';
+} from './key-segment.js';
+export * from './safeStringify.js';
+export * from './stableStringify.js';

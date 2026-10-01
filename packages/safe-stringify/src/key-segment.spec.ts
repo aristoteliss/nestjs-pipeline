@@ -5,7 +5,7 @@ import {
   ABSENT_SEGMENT,
   escapeKeySegment,
   joinKeySegments,
-} from './key-segment';
+} from './key-segment.js';
 
 describe('escapeKeySegment', () => {
   it('leaves ordinary identifiers untouched', () => {

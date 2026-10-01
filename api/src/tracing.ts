@@ -2,7 +2,6 @@
 
 import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-grpc';
 import { HttpInstrumentation } from '@opentelemetry/instrumentation-http';
-import { NestInstrumentation } from '@opentelemetry/instrumentation-nestjs-core';
 import { PgInstrumentation } from '@opentelemetry/instrumentation-pg';
 import { NodeSDK } from '@opentelemetry/sdk-node';
 import { otlpConfig } from './common/environment/otlp.config';
@@ -15,7 +14,6 @@ const sdk = new NodeSDK({
   instrumentations: [
     new HttpInstrumentation(), // HTTP/HTTPS in & out
     new PgInstrumentation(), // PostgreSQL queries
-    new NestInstrumentation(), // NestJS request lifecycle
   ],
 });
 

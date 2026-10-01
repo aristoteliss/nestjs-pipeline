@@ -1,7 +1,7 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { describe, expect, it } from 'vitest';
-import { stableStringify, toStrictJsonValue } from './stableStringify';
+import { stableStringify, toStrictJsonValue } from './stableStringify.js';
 
 describe('stableStringify and toStrictJsonValue', () => {
   it('produces identical strings regardless of key insertion order', () => {

@@ -12,8 +12,8 @@ import {
   ABSENT_SEGMENT,
   escapeKeySegment,
   joinKeySegments,
-} from './key-segment';
-import { stableStringify } from './stableStringify';
+} from './key-segment.js';
+import { stableStringify } from './stableStringify.js';
 
 describe('stableStringify golden output', () => {
   it.each([

@@ -20,9 +20,10 @@ It happens in two situations:
 [taskforcesh/bullmq#4656](https://github.com/taskforcesh/bullmq/issues/4656) (open). Its fix
 pull requests [#4839](https://github.com/taskforcesh/bullmq/pull/4839) and
 [#4730](https://github.com/taskforcesh/bullmq/pull/4730) were closed unmerged, and
-[#4676](https://github.com/taskforcesh/bullmq/pull/4676) is still open. 6.3.10's
-[#4833](https://github.com/taskforcesh/bullmq/pull/4833) ("stop infinite connection-error
-retries during shutdown") does not fix it.
+[#4676](https://github.com/taskforcesh/bullmq/pull/4676) is still open (see "Upstream fix"
+below). 6.3.10's [#4833](https://github.com/taskforcesh/bullmq/pull/4833) ("stop infinite
+connection-error retries during shutdown") does not fix it, and 6.3.11 (2026-10-01) has no
+shutdown change.
 
 ### Why it happens
 
@@ -108,52 +109,67 @@ setTimeout(async () => {
 }, 500);
 ```
 
+### Upstream fix: PR #4676
+
+[#4676](https://github.com/taskforcesh/bullmq/pull/4676) ("fix(worker): close when Redis is
+unreachable", "Fixes #4656") targets `master`, the `bullmq` 6 line; it has no 5.x backport.
+On 2026-10-01 it was open, conflicted with `master` (`mergeable_state: dirty`) and was in no
+release. Read from its diff on that date:
+
+- `RedisConnection` gains a closing signal: `close()` resolves it, and `waitUntilReady()`
+  races it, so a close cancels a pending readiness wait.
+- `disconnect()` disconnects at once when the client is not `ready`, instead of waiting for
+  an `end` event that a socketless reconnecting client never emits.
+- `Worker#close()` passes "no reconnect" to `whenCurrentJobsFinished()`, which then closes
+  the blocking connection with `close(true)`, and closes the regular connection too while
+  it is still initializing.
+- Its regression tests (ioredis, node-redis, Bun) close a worker before the first
+  connection: graceful, forced, and repeated `close()`.
+
+| Situation | Expected with #4676 |
+| --- | --- |
+| Never connected | Fixed, and covered by its tests. |
+| Outage after ready | Partly. The blocking connection now closes at once, but `close()` still awaits `mainLoopRunning`. If the loop waits for a command queued on the regular connection, that connection was `ready` before the outage, so it is not closed early and the wait stays. No test of #4676 covers this case. This is a code-path inference, to verify against the release. |
+
 ## Task
 
-Fix the worker shutdown hang from our side, then move `api` to `bullmq` 6 with node-redis
-clients.
+Once BullMQ releases #4676, move `api` to `bullmq` 6 with node-redis clients, verify both
+outage situations against that release, and fix on our side what it leaves: the
+"outage after ready" hang, if it remains, and a deadline on `app.close()`.
 
 ## Goal
 
 - `app.close()` settles within about a second when Redis is unreachable, in both
   situations above, and still waits for in-flight jobs when Redis is healthy.
-- `api` runs `@nestjs/bullmq` 12 with `bullmq` 6, and BullMQ uses a node-redis client the
-  application owns, so `api` uses one Redis client library.
+- `api` runs `@nestjs/bullmq` 12 with a `bullmq` 6 release that contains #4676, and BullMQ
+  uses a node-redis client the application owns, so `api` uses one Redis client library.
 - Tests cover both outage situations and the healthy case.
 
 ## Scope
 
 In scope: `api/src/users/jobs/`, `api/src/common/modules/reliability.module.ts`,
-`api/src/graceful-shutdown.ts`, a worker-close helper in `api/src/common/`, `api/test/`,
-`api/package.json`, `api/README.md`, `api/CLAUDE.md`, `.claude/codebase-map.md`.
+`api/src/graceful-shutdown.ts`, a worker-close helper in `api/src/common/` (only if step 4
+needs it), `api/test/`, `api/package.json`, `api/README.md`, `api/CLAUDE.md`,
+`.claude/codebase-map.md`.
 
 Out of scope: `packages/*` (the dead-letter transport is typed structurally and needs no
 change), the cache's `@keyv/redis` client (it pins `@redis/client` 5), a fix inside
-BullMQ itself.
+BullMQ itself, a fix on `bullmq` 5.
 
 ## Current Status
 
-Not started. Split out of the NestJS 12 upgrade (`.claude/tasks/nestjs-12-upgrade.md`,
-step 9), which moved `api` to `@nestjs/bullmq` 12 and kept `bullmq` 5.81.
+Waiting upstream: #4676 is open, conflicts with BullMQ's `master` and is in no release
+(latest `bullmq` 6.3.11, 2026-10-01). Nothing in `api` changes until it ships.
 
 ## Plan
 
-- [ ] 1. **Fix the shutdown hang on `bullmq` 5** (the "outage after ready" hang exists
-  today).
-  - A helper in `api/src/common/` that closes a worker gracefully when Redis answers a
-    ping within 1 s, and with `close(true)` otherwise, logging a warning when it forces.
-  - Both processors call it in `onModuleDestroy`. That hook runs before
-    `@nestjs/bullmq`'s `onApplicationShutdown`, so the explorer's later `close()` gets
-    the already settled promise.
-  - A deadline on `app.close()` in `graceful-shutdown.ts` as the last resort, for Redis
-    failing during a graceful close and for hangs we do not know about: log an error,
-    then flush telemetry and re-raise the signal as today.
-  - Tests with a Testcontainers Redis: healthy (an in-flight job completes on close),
-    outage after ready (stop the container, then `app.close()` settles quickly), never
-    connected (start against a closed port, then `app.close()` settles quickly).
-- [ ] 2. **`bullmq` 6 with node-redis.**
-  - `bullmq` `^6`, and node-redis 6 as a runtime dependency. Check whether BullMQ's
-    optional `redis` peer needs the `redis` package or accepts an `@redis/client`
+- [ ] 1. **Wait for the release.** #4676 merged and released in a `bullmq` 6.x version
+  (#4656 closed; the release notes name it). Re-read its merged diff: the summary above
+  describes the open PR, which may change before it merges. The version must also be older
+  than pnpm's minimum release age.
+- [ ] 2. **`bullmq` 6 with node-redis**, on that release.
+  - `bullmq` at that version, and node-redis 6 as a runtime dependency. Check whether
+    BullMQ's optional `redis` peer needs the `redis` package or accepts an `@redis/client`
     client.
   - A provider for one node-redis client, built from `redisConfig()`, connected at
     startup and closed after BullMQ in `onApplicationShutdown`. BullMQ leaves
@@ -162,27 +178,44 @@ step 9), which moved `api` to `@nestjs/bullmq` 12 and kept `bullmq` 5.81.
     ({ connection: client }) })`.
   - Check `forceDisconnectOnShutdown` with a shared, caller-owned client: does
     `Queue#disconnect()` close the application's client for the other queues?
-  - The probe pings the application-owned client.
-  - Removed `bullmq` 6 APIs: none used (checked in the upgrade's step 9: no
+  - Removed `bullmq` 6 APIs: none used (checked during the NestJS 12 upgrade: no
     `Queue#client`, `redisVersion`, `databaseType`, `repeat`, `debounce`,
     `Worker#resume()`, `Job#discard()`).
-- [ ] 3. **Docs and context**: client ownership and shutdown behavior in `api/README.md`
+- [ ] 3. **Tests first, against that release**, with a Testcontainers Redis:
+  - healthy: an in-flight job completes on `app.close()`;
+  - never connected: start against a closed port, then `app.close()` settles quickly
+    (expected to pass with #4676);
+  - outage after ready: stop the container once the workers are ready, then `app.close()`
+    settles quickly (expected to fail if the main-loop wait remains).
+- [ ] 4. **Fix what remains on our side.**
+  - Only if "outage after ready" still hangs: a helper in `api/src/common/` that closes a
+    worker gracefully when the application-owned node-redis client answers a ping within
+    1 s, and with `close(true)` otherwise, logging a warning when it forces. Both
+    processors call it in `onModuleDestroy`, which runs before `@nestjs/bullmq`'s
+    `onApplicationShutdown`, so the explorer's later `close()` gets the settled promise.
+  - Always: a deadline on `app.close()` in `graceful-shutdown.ts` as the last resort, for
+    Redis failing during a graceful close and for hangs we do not know about: log an
+    error, then flush telemetry and re-raise the signal as today.
+  - The step 3 tests pass.
+- [ ] 5. **Docs and context**: client ownership and shutdown behavior in `api/README.md`
   and `api/CLAUDE.md`, the map's Gotchas, then delete this file.
 
 ## Decisions
 
-- Fix it on our side by choosing graceful or forced before the first `close()` call:
+- Wait for #4676 instead of fixing the hang on `bullmq` 5 first (owner decision,
+  2026-10-01). Until it ships, `api` on `bullmq` 5.81 keeps the "outage after ready" hang.
+- If a helper is needed, it chooses graceful or forced before the first `close()` call:
   `close()` returns its first promise forever, and `disconnect()` hangs as well.
 - Force only when Redis does not answer within 1 s. In-flight jobs cannot complete during
   an outage anyway; BullMQ retries them as stalled jobs after their locks expire (BullMQ's
   documented behavior, not verified here).
-- Keep a deadline on `app.close()` as the last resort.
-- Probe the application-owned node-redis client after step 2, so the probe relies on no
-  BullMQ internals.
-- Rejected, each tested: `disconnect()` after a deadline (hangs); `waitUntilReady()` as
-  the probe (it stays resolved after an outage); a per-worker deadline alone (the
-  explorer's later `close()` awaits the same pending promise); always `close(true)`
-  (abandons in-flight jobs on a normal shutdown).
+- Keep a deadline on `app.close()` as the last resort, whatever #4676 fixes.
+- The probe pings the application-owned node-redis client, so it relies on no BullMQ
+  internals.
+- Rejected, each tested on `bullmq` 6.3.10: `disconnect()` after a deadline (hangs);
+  `waitUntilReady()` as the probe (it stays resolved after an outage); a per-worker
+  deadline alone (the explorer's later `close()` awaits the same pending promise); always
+  `close(true)` (abandons in-flight jobs on a normal shutdown).
 
 ## Modified Files
 
@@ -190,10 +223,15 @@ None yet.
 
 ## Tests and Verification
 
-Only the scratch reproductions above. Nothing in the repository has changed yet.
+Only the scratch reproductions above, and the reading of #4676's open diff on 2026-10-01.
+Nothing in the repository has changed yet.
 
 ## Risks
 
+- Until step 4 is done, a SIGTERM during a Redis outage leaves `api` running until it is
+  killed (`bullmq` 5.81, "outage after ready"); nothing logs it.
+- #4676 may change before it merges, or never merge; its predecessors #4839 and #4730 were
+  closed unmerged. If it stalls, revisit the decision to wait.
 - A forced close during an outage leaves in-flight jobs to the stalled-job check, so they
   run again once Redis is back; processors must stay idempotent (both are simulated
   today).
@@ -205,15 +243,22 @@ Only the scratch reproductions above. Nothing in the repository has changed yet.
 
 - How long should the `app.close()` deadline be, for example 10 s, below Kubernetes'
   default 30 s grace period? (Not blocking.)
-- Should our evidence be added to bullmq#4656? (Outward-facing; the repository owner
-  decides.)
+- Should our evidence about "outage after ready" be added to bullmq#4656 or #4676?
+  (Outward-facing; the repository owner decides.)
+- Trace BullMQ jobs, here or as a task of its own? `api`'s processors do not dispatch
+  through the `CommandBus`, so a job gets no span. BullMQ has a `telemetry` option, and
+  `bullmq-otel` 2.0.1 implements it with OpenTelemetry. (Not blocking.)
+- `RedisIdempotencyStore` sends `SET` with the flat `PX`/`NX` options, which node-redis 6
+  deprecates for `expiration`/`condition`. Moving to the new form drops node-redis 4, which
+  the idempotency README still names as supported; decide before node-redis removes them.
+  (Not blocking.)
 
 ## Next Steps
 
-1. Read `CLAUDE.md`, `AGENTS.md`, the architecture skill (queues, module wiring) and
-   `api/CLAUDE.md`.
-2. Start step 1 on `bullmq` 5, test first: the "outage after ready" test should fail
-   before the fix.
+1. Check #4676 and the BullMQ releases: `gh pr view 4676 --repo taskforcesh/bullmq`,
+   `pnpm view bullmq dist-tags`.
+2. Once a release contains it, read `CLAUDE.md`, `AGENTS.md`, the architecture skill
+   (queues, module wiring) and `api/CLAUDE.md`, then start step 2.
 
 ## Snapshot Impact
 
