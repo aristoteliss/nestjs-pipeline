@@ -55,6 +55,9 @@ pnpm add @nestjs-pipeline/feature-flags @openfeature/server-sdk
 pnpm add @nestjs-pipeline/core @nestjs/common @nestjs/core reflect-metadata
 ```
 
+Requires Node.js 22.12 or later, `@nestjs/common` and `@nestjs/core` `^12.1.0`,
+`@nestjs-pipeline/core` `^0.3.0` and `@openfeature/server-sdk` `^1.13.0`.
+
 Plus **one** OpenFeature provider for your backend, e.g. Unleash:
 
 ```bash

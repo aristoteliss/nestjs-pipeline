@@ -21,7 +21,7 @@ so pipelines a job dispatches get the same tenant and correlation id.
 pnpm add @nestjs-pipeline/job-context @nestjs/common
 ```
 
-Requires Node.js 22 or later.
+Requires Node.js 22.12 or later and `@nestjs/common` `^12.1.0`.
 
 ## Setup
 

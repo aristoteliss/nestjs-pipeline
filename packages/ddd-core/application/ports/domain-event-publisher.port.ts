@@ -7,6 +7,8 @@ import type { IEvent } from '../../domain/events/event.interface';
  *
  * Any bus with a `publishAll(events)` method fits, including the NestJS CQRS
  * `EventBus`, so a Nest handler passes its injected `EventBus` unchanged.
+ * `CommandBaseHandler` passes the aggregate as `dispatcherContext`, which the
+ * NestJS `EventBus` hands to its configured publisher.
  *
  * @example
  * ```ts
@@ -16,5 +18,5 @@ import type { IEvent } from '../../domain/events/event.interface';
  * ```
  */
 export interface IDomainEventPublisher {
-  publishAll(events: IEvent[]): unknown;
+  publishAll(events: IEvent[], dispatcherContext?: unknown): unknown;
 }

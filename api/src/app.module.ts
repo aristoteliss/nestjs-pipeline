@@ -7,8 +7,9 @@ import {
   type MiddlewareConsumer,
   Module,
   type NestModule,
+  StandardSchemaValidationPipe,
 } from '@nestjs/common';
-import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
+import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR, APP_PIPE } from '@nestjs/core';
 import { CqrsModule } from '@nestjs/cqrs';
 import { CaslModule, UnauthorizedActionFilter } from '@nestjs-pipeline/casl';
 import { HttpCorrelationMiddleware } from '@nestjs-pipeline/correlation';
@@ -16,7 +17,7 @@ import { FeatureDisabledFilter } from '@nestjs-pipeline/feature-flags';
 import { IdempotencyConflictFilter } from '@nestjs-pipeline/idempotency';
 import { JobContextModule } from '@nestjs-pipeline/job-context';
 import { RateLimitExceededFilter } from '@nestjs-pipeline/rate-limit';
-import { ZodValidationFilter } from '@nestjs-pipeline/zod';
+import { ZodValidationFilter, zodBadRequest } from '@nestjs-pipeline/zod';
 import { TenantSchemaMiddleware } from '@persistence/middlewares/tenant-schema.middleware';
 import { persistenceConfig } from '@persistence/persistence.config';
 import { PersistenceModule } from '@persistence/persistence.module';
@@ -41,6 +42,7 @@ import { UsersModule } from './users/users.module';
  * - {@link CaslModule}: Role- and attribute-based access control; {@link AuthorizationModule} supplies the request permission source.
  * - {@link PersistenceModule}: MikroORM database connection, entity repositories, and tenant schema manager.
  * - {@link JobContextModule}: carries a request's tenant, correlation id and principal into the jobs it enqueues.
+ * - `StandardSchemaValidationPipe`: validates every route parameter declared with a `schema` and answers 400 with {@link zodBadRequest}'s body.
  * - Exception filters: map the packages' and the domain's framework-neutral errors to HTTP answers.
  * - Domain Feature Modules: {@link UsersModule}, {@link RolesModule}, {@link AuthsModule}.
  */
@@ -67,6 +69,12 @@ import { UsersModule } from './users/users.module';
   providers: [
     { provide: APP_GUARD, useClass: AuthSessionGuard },
     { provide: APP_INTERCEPTOR, useClass: SessionPrincipalContextInterceptor },
+    {
+      provide: APP_PIPE,
+      useValue: new StandardSchemaValidationPipe({
+        exceptionFactory: zodBadRequest,
+      }),
+    },
     { provide: APP_FILTER, useClass: ZodValidationFilter },
     { provide: APP_FILTER, useClass: FeatureDisabledFilter },
     { provide: APP_FILTER, useClass: RateLimitExceededFilter },

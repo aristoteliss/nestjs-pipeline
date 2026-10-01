@@ -15,7 +15,6 @@ import {
 } from '@nestjs/common';
 import { CommandBus, QueryBus } from '@nestjs/cqrs';
 import { UnauthorizedActionException } from '@nestjs-pipeline/casl';
-import { ZodPipe } from '@nestjs-pipeline/zod';
 import { CreateUserCommand } from '../application/cqrs/commands/create-user.command';
 import { DeleteUserCommand } from '../application/cqrs/commands/delete-user.command';
 import { UpdateUserCommand } from '../application/cqrs/commands/update-user.command';
@@ -57,7 +56,7 @@ export class UsersController {
   @Get(':id')
   @HttpCode(200)
   async getUser(
-    @Param('id', new ZodPipe<UserIdDto, string>(UserIdDtoSchema)) id: UserIdDto,
+    @Param('id', { schema: UserIdDtoSchema }) id: UserIdDto,
   ): Promise<UserResponseDto> {
     const query = new GetUserQuery({ userId: id }, { hydrate: true });
 
@@ -72,7 +71,7 @@ export class UsersController {
   @Get(':id/overview')
   @HttpCode(200)
   async getUserOverview(
-    @Param('id', new ZodPipe<UserIdDto, string>(UserIdDtoSchema)) id: UserIdDto,
+    @Param('id', { schema: UserIdDtoSchema }) id: UserIdDto,
   ): Promise<UserOverviewDto> {
     const overview = await this.queryBus.execute<
       GetUserOverviewQuery,
@@ -89,7 +88,7 @@ export class UsersController {
   @Post()
   @HttpCode(201)
   async createUser(
-    @Body(new ZodPipe(CreateUserDtoSchema)) dto: CreateUserDto,
+    @Body({ schema: CreateUserDtoSchema }) dto: CreateUserDto,
     @Headers(HEADERS.IDEMPOTENCY_KEY) idempotencyKey?: string,
   ): Promise<UserResponseDto> {
     const { id } = await this.commandBus.execute<CreateUserCommand, User>(
@@ -101,8 +100,8 @@ export class UsersController {
   @Patch(':id')
   @HttpCode(200)
   async updateUser(
-    @Param('id', new ZodPipe<UserIdDto, string>(UserIdDtoSchema)) id: UserIdDto,
-    @Body(new ZodPipe(UpdateUserDtoSchema)) dto: UpdateUserDto,
+    @Param('id', { schema: UserIdDtoSchema }) id: UserIdDto,
+    @Body({ schema: UpdateUserDtoSchema }) dto: UpdateUserDto,
   ): Promise<UserResponseDto> {
     await this.commandBus.execute<UpdateUserCommand, User>(
       UpdateUserMapper.map(id, dto),
@@ -113,7 +112,7 @@ export class UsersController {
   @Delete(':id')
   @HttpCode(204)
   async deleteUser(
-    @Param('id', new ZodPipe<UserIdDto, string>(UserIdDtoSchema)) id: UserIdDto,
+    @Param('id', { schema: UserIdDtoSchema }) id: UserIdDto,
   ): Promise<void> {
     await this.commandBus.execute<DeleteUserCommand, User>(
       new DeleteUserCommand({ id }),

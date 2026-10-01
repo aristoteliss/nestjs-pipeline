@@ -349,9 +349,10 @@ describe('PrincipalLoginService refresh', () => {
     store.start('token-a');
 
     await refresh('token-a');
-    expect(publishAll).toHaveBeenCalledExactlyOnceWith([
-      expect.any(AuthRefreshedEvent),
-    ]);
+    expect(publishAll).toHaveBeenCalledExactlyOnceWith(
+      [expect.any(AuthRefreshedEvent)],
+      expect.any(Auth),
+    );
     publishAll.mockClear();
 
     await refresh('token-a');
@@ -365,9 +366,10 @@ describe('PrincipalLoginService refresh', () => {
     publishAll.mockReturnValueOnce(Promise.reject(failure));
 
     await expect(refresh('token-a')).rejects.toBe(failure);
-    expect(publishAll).toHaveBeenCalledExactlyOnceWith([
-      expect.any(AuthRefreshedEvent),
-    ]);
+    expect(publishAll).toHaveBeenCalledExactlyOnceWith(
+      [expect.any(AuthRefreshedEvent)],
+      expect.any(Auth),
+    );
     expect(store.current(auth.id).revokedAt).toBeNull();
   });
 
@@ -469,9 +471,10 @@ describe('RevokeAuthHandler', () => {
     );
 
     expect(store.current(auth.id).revokedAt).not.toBeNull();
-    expect(publishAll).toHaveBeenCalledExactlyOnceWith([
-      expect.any(AuthRevokedEvent),
-    ]);
+    expect(publishAll).toHaveBeenCalledExactlyOnceWith(
+      [expect.any(AuthRevokedEvent)],
+      expect.objectContaining({ id: auth.id }),
+    );
     expect(cookies.clear).toHaveBeenCalledOnce();
   });
 

@@ -90,6 +90,7 @@ describe('CommandBaseHandler', () => {
     expect(eventBus.publishAll).toHaveBeenCalledTimes(1);
     expect(eventBus.publishAll).toHaveBeenCalledWith(
       expect.arrayContaining([expect.objectContaining({ orderId: 'agg-101' })]),
+      agg,
     );
     expect(agg.getUncommittedEvents()).toHaveLength(0);
   });
@@ -133,6 +134,7 @@ describe('CommandBaseHandler', () => {
       expect.arrayContaining([
         expect.objectContaining({ orderId: 'agg-in-result-101' }),
       ]),
+      result.aggregate,
     );
     expect(result.aggregate.getUncommittedEvents()).toHaveLength(0);
   });
@@ -176,8 +178,26 @@ describe('CommandBaseHandler', () => {
     }
 
     await expect(new Handler(eventBus).execute({})).rejects.toBe(failure);
-    expect(publishAll).toHaveBeenCalledExactlyOnceWith([event]);
+    expect(publishAll).toHaveBeenCalledExactlyOnceWith([event], aggregate);
     expect(aggregate.getUncommittedEvents()).toEqual([event]);
+  });
+
+  it('passes the aggregate to the publisher as the dispatcher context', async () => {
+    const aggregate = new BufferedAggregate();
+    const event = new OrderCreatedEvent('dispatcher-context');
+    aggregate.apply(event);
+    const publishAll = vi.fn();
+    const eventBus = { publishAll } as unknown as IDomainEventPublisher;
+
+    class Handler extends TestableHandler<AggregateRoot> {
+      async handle(): Promise<AggregateRoot> {
+        return aggregate;
+      }
+    }
+
+    await new Handler(eventBus).execute({});
+
+    expect(publishAll).toHaveBeenCalledExactlyOnceWith([event], aggregate);
   });
 
   it('completes only after an asynchronous publisher settles', async () => {

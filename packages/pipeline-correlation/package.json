@@ -1,11 +1,11 @@
 {
   "name": "@nestjs-pipeline/correlation",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Correlation ID propagation for NestJS (HTTP, Bull, RabbitMQ, Kafka, gRPC, NATS, cron)",
   "author": "Aristotelis <aristotelis@ik.me>",
   "license": "SEE LICENSE IN LICENSE",
   "engines": {
-    "node": ">=22.0.0"
+    "node": ">=22.12.0"
   },
   "repository": {
     "type": "git",
@@ -37,13 +37,13 @@
     "prepublishOnly": "pnpm run rebuild"
   },
   "peerDependencies": {
-    "@nestjs/common": "^11.0.0"
+    "@nestjs/common": "^12.1.0"
   },
   "devDependencies": {
-    "@nestjs/common": "^11.2.6",
-    "@vitest/coverage-v8": "^4.1.11",
+    "@nestjs/common": "^12.1.1",
+    "@vitest/coverage-v8": "^5.0.2",
     "reflect-metadata": "^0.2.2",
-    "vitest": "^4.1.11"
+    "vitest": "^5.0.2"
   },
   "dependencies": {
     "@cqrs-ddd/untyped": "workspace:^",

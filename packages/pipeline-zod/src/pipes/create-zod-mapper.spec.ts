@@ -1,9 +1,12 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
-import { BadRequestException } from '@nestjs/common';
+import {
+  BadRequestException,
+  StandardSchemaValidationPipe,
+} from '@nestjs/common';
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import { createZodMapper } from './create-zod-mapper';
-import { ZodPipe } from './zod-param.pipe';
+import { zodBadRequest } from './zod-bad-request';
 
 describe('createZodMapper', () => {
   const schema = z.object({
@@ -52,10 +55,12 @@ describe('createZodMapper', () => {
     });
   });
 
-  it('answers with the same body as ZodPipe for the same input', async () => {
+  it("answers with the same body as Nest's schema validation pipe for the same input", async () => {
     const invalidInput = { id: '', count: -1 };
-    const fromPipe = await new ZodPipe(schema)
-      .transform(invalidInput)
+    const fromPipe = await new StandardSchemaValidationPipe({
+      exceptionFactory: zodBadRequest,
+    })
+      .transform(invalidInput, { type: 'body', schema })
       .catch((err: BadRequestException) => err.getResponse());
 
     let fromMapper: unknown;

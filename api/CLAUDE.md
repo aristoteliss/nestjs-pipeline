@@ -12,7 +12,7 @@ change in `src/`. Orientation: [.claude/codebase-map.md](../.claude/codebase-map
 ## Local architecture
 
 `src/main.ts` → `src/bootstrap.ts` (imports `./tracing` first, selects Express or Fastify)
-→ `src/app.module.ts` (also registers the global exception filters).
+→ `src/app.module.ts` (also registers the global validation pipe and exception filters).
 
 Per feature module (`users/`, `roles/`, `auths/`):
 
@@ -52,7 +52,7 @@ short and declarative, with no prefix or suffix the module already gives.
 | `src/main.ts` | Loads the optional env file before any environment-dependent import |
 | `src/bootstrap.ts` | Adapter choice, secure session, signal-driven shutdown |
 | `src/graceful-shutdown.ts` | SIGTERM/SIGINT → `app.close()` → telemetry flush → re-raise the signal |
-| `src/app.module.ts` | Composition root: CQRS, observability, reliability, CASL, persistence, features; the global exception filters (`APP_FILTER`) |
+| `src/app.module.ts` | Composition root: CQRS, observability, reliability, CASL, persistence, features; the global schema validation pipe and exception filters (`APP_PIPE`, `APP_FILTER`) |
 | `src/common/filters/domain-exception.filter.ts` | Framework-neutral errors → HTTP: this application's exceptions, then `domainErrorHttpStatus()` for `packages/ddd-core`'s (409, 404, generic 500 for a missing tenant, 400) |
 | `src/persistence/mikro-orm.store.ts` | The one store for both engines: builds the ORMs (libSQL: one per tenant; PostgreSQL: one, a schema per tenant), registers the dialect, and hands out the active tenant's `EntityManager` through `@cqrs-ddd/mikro-orm`'s `TenantStore` |
 | `src/auths/services/session.service.ts` | Cookie lifecycle, kept out of domain login |
@@ -61,9 +61,9 @@ short and declarative, with no prefix or suffix the module already gives.
 ## Local commands
 
 ```bash
-pnpm --filter @nestjs-pipeline/ddd-api start          # ts-node, Express adapter
+pnpm --filter @nestjs-pipeline/ddd-api start          # build, then run dist with the Express adapter
 pnpm --filter @nestjs-pipeline/ddd-api start:fastify  # ADAPTER=fastify
-pnpm --filter @nestjs-pipeline/ddd-api dev            # watch mode
+pnpm --filter @nestjs-pipeline/ddd-api dev            # build, then rebuild and restart on source changes
 pnpm --filter @nestjs-pipeline/ddd-api test           # unit + integration (vitest.config.ts)
 pnpm test:e2e                                               # vitest.config.e2e.ts
 pnpm --filter @nestjs-pipeline/ddd-api db:migrate     # apply migrations
@@ -82,6 +82,9 @@ Copy `.env.example` to `.env` for local runs. The app reads it through
 - The api resolves the workspace packages through their built `dist/`: run `pnpm build`
   (or the changed package's `build`) before api tests or `typecheck`, or they fail on
   missing or outdated package code.
+- The api needs Node 22.17 or newer (MikroORM 7) and the e2e suite Node 22.22 or newer
+  (Testcontainers 12). The root `engines.node` stays the published packages' minimum,
+  which their `package-manifest.spec.ts` files pin.
 - `src/**/*.spec.ts` — unit and adapter specs beside the code. `test/*.spec.ts` and
   `test/*.e2e-spec.ts` — cross-module, composition, and HTTP-level suites.
 - This workspace is where integration tests that need `@nestjs/testing` belong; published

@@ -16,7 +16,7 @@ npm install @cqrs-ddd/uuidv7
 pnpm add @cqrs-ddd/uuidv7
 ```
 
-Requires Node.js 22 or later.
+Requires Node.js 22.12 or later.
 
 ## API
 

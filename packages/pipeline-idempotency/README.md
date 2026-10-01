@@ -70,6 +70,8 @@ pnpm add @nestjs-pipeline/idempotency
 pnpm add @nestjs-pipeline/core @nestjs/common @nestjs/core reflect-metadata
 ```
 
+Requires Node.js 22.12 or later, `@nestjs/common` and `@nestjs/core` `^12.1.0`, and `@nestjs-pipeline/core` `^0.3.0`.
+
 The bundled stores are typed *structurally*, so this package adds **zero heavy
 dependencies**. For the Redis store add a `redis` client (`pnpm add redis`); for
 the Postgres store add a `pg` `Pool`/`Client` (`pnpm add pg`); the memory store
@@ -244,7 +246,7 @@ Configurable options via `new MemoryIdempotencyStore(options)`:
 ### Redis (drop-in)
 
 `RedisIdempotencyStore` — backed by a node-redis client (`redis` v4 or later;
-tested against `@redis/client` 5). Atomic claims via `SET key value PX <ttl> NX`;
+tested against `@redis/client` 6). Atomic claims via `SET key value PX <ttl> NX`;
 TTL is enforced by Redis.
 
 A stored value that is not valid JSON fails closed. `get()` throws, so the

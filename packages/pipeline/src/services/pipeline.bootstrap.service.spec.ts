@@ -3,7 +3,6 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { isUuidV7 } from '@cqrs-ddd/uuidv7';
 import { Logger } from '@nestjs/common';
-import { ExplorerService } from '@nestjs/cqrs/dist/services/explorer.service';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { pipelineStore } from '../constants/pipeline-context.constants';
 import {
@@ -17,6 +16,15 @@ import {
 } from '../interfaces/pipeline.behavior.interface';
 import { IPipelineContext } from '../interfaces/pipeline.context.interface';
 import { PipelineBootstrapService } from './pipeline.bootstrap.service';
+
+vi.mock('./handler-discovery', () => ({
+  discoverHandlers: (discovery: { handlers(): object }) => ({
+    commands: [],
+    queries: [],
+    events: [],
+    ...discovery.handlers(),
+  }),
+}));
 
 class MockBehavior implements IPipelineBehavior {
   async handle(ctx: IPipelineContext, next: NextDelegate) {
@@ -112,12 +120,13 @@ function makeWrapper(
 
 describe('PipelineBootstrapService', () => {
   let moduleRefMock: any;
-  let explorerServiceMock: any;
+  let discovery: any;
   const bootstrapped: PipelineBootstrapService[] = [];
 
   function bootstrap(options?: unknown): PipelineBootstrapService {
     const service = new PipelineBootstrapService(
       moduleRefMock,
+      discovery,
       options as never,
     );
     bootstrapped.push(service);
@@ -134,15 +143,14 @@ describe('PipelineBootstrapService', () => {
   beforeEach(() => {
     SecondMockBehavior.callCount = 0;
 
-    explorerServiceMock = {
-      explore: vi
+    discovery = {
+      handlers: vi
         .fn()
         .mockReturnValue({ commands: [], queries: [], events: [] }),
     };
 
     moduleRefMock = {
       get: vi.fn((token: any) => {
-        if (token === ExplorerService) return explorerServiceMock;
         if (token === MockBehavior) return new MockBehavior();
         if (token === SecondMockBehavior) return new SecondMockBehavior();
         if (typeof token === 'function') {
@@ -165,7 +173,7 @@ describe('PipelineBootstrapService', () => {
         execute = async (_request: object) => 'done';
       }
       const handler = new Handler();
-      explorerServiceMock.explore.mockReturnValue({
+      discovery.handlers.mockReturnValue({
         commands: [makeWrapper(handler, Handler)],
       });
       const warn = vi
@@ -193,7 +201,7 @@ describe('PipelineBootstrapService', () => {
         }
       }
       const handler = new Handler();
-      explorerServiceMock.explore.mockReturnValue({
+      discovery.handlers.mockReturnValue({
         commands: [makeWrapper(handler, Handler)],
       });
       bootstrap({
@@ -209,7 +217,7 @@ describe('PipelineBootstrapService', () => {
       (execute) => {
         class InvalidHandler {}
         const handler = Object.assign(new InvalidHandler(), { execute });
-        explorerServiceMock.explore.mockReturnValue({
+        discovery.handlers.mockReturnValue({
           commands: [makeWrapper(handler, InvalidHandler)],
         });
         bootstrap({ globalBehaviors: { before: [MockBehavior] } });
@@ -225,7 +233,7 @@ describe('PipelineBootstrapService', () => {
         }
       }
       const handler = new Handler();
-      explorerServiceMock.explore.mockReturnValue({
+      discovery.handlers.mockReturnValue({
         commands: [makeWrapper(handler, Handler)],
       });
       const service = bootstrap();
@@ -239,7 +247,7 @@ describe('PipelineBootstrapService', () => {
       @UsePipeline(MockBehavior)
       class Handler {}
       const handler = new Handler();
-      explorerServiceMock.explore.mockReturnValue({
+      discovery.handlers.mockReturnValue({
         commands: [makeWrapper(handler, Handler)],
       });
       bootstrap();
@@ -255,11 +263,10 @@ describe('PipelineBootstrapService', () => {
             return 'done';
           }
         }
-        explorerServiceMock.explore.mockReturnValue({
+        discovery.handlers.mockReturnValue({
           commands: [makeWrapper(new Handler(), Handler)],
         });
-        moduleRefMock.get.mockImplementation((token: unknown) => {
-          if (token === ExplorerService) return explorerServiceMock;
+        moduleRefMock.get.mockImplementation(() => {
           throw failure;
         });
         expect(() => bootstrap()).toThrow(
@@ -276,19 +283,17 @@ describe('PipelineBootstrapService', () => {
           return 'done';
         }
       }
-      explorerServiceMock.explore.mockReturnValue({
+      discovery.handlers.mockReturnValue({
         commands: [makeWrapper(new Handler(), Handler)],
       });
-      moduleRefMock.get.mockImplementation((token: unknown) =>
-        token === ExplorerService ? explorerServiceMock : undefined,
-      );
+      moduleRefMock.get.mockImplementation(() => undefined);
       expect(() => bootstrap()).toThrow(/resolved to a falsy value/);
       expect(moduleRefMock.resolve).not.toHaveBeenCalled();
     });
 
     it('wraps execute() and runs the full behavior chain', async () => {
       const handler = new MockCommandHandler();
-      explorerServiceMock.explore.mockReturnValue({
+      discovery.handlers.mockReturnValue({
         commands: [makeWrapper(handler, MockCommandHandler)],
         queries: [],
         events: [],
@@ -307,7 +312,7 @@ describe('PipelineBootstrapService', () => {
 
     it('does NOT wrap a handler with no @UsePipeline and no matching global behaviors', async () => {
       const handler = new NoPipelineCommandHandler();
-      explorerServiceMock.explore.mockReturnValue({
+      discovery.handlers.mockReturnValue({
         commands: [makeWrapper(handler, NoPipelineCommandHandler)],
         queries: [],
         events: [],
@@ -321,24 +326,30 @@ describe('PipelineBootstrapService', () => {
 
     it('skips a singleton wrapper whose instance is undefined', () => {
       // scope 0 = DEFAULT = isScoped false. No instance → should skip silently.
-      explorerServiceMock.explore.mockReturnValue({
+      discovery.handlers.mockReturnValue({
         commands: [makeWrapper(undefined, MockCommandHandler, 0)],
         queries: [],
         events: [],
       });
       expect(() =>
-        new PipelineBootstrapService(moduleRefMock).onApplicationBootstrap(),
+        new PipelineBootstrapService(
+          moduleRefMock,
+          discovery,
+        ).onApplicationBootstrap(),
       ).not.toThrow();
     });
 
     it('skips a wrapper where both metatype and instance are undefined', () => {
-      explorerServiceMock.explore.mockReturnValue({
+      discovery.handlers.mockReturnValue({
         commands: [makeWrapper(undefined, undefined, 0)],
         queries: [],
         events: [],
       });
       expect(() =>
-        new PipelineBootstrapService(moduleRefMock).onApplicationBootstrap(),
+        new PipelineBootstrapService(
+          moduleRefMock,
+          discovery,
+        ).onApplicationBootstrap(),
       ).not.toThrow();
     });
   });
@@ -346,7 +357,7 @@ describe('PipelineBootstrapService', () => {
   describe('Query and Event handler wrapping', () => {
     it('wraps query handler.execute() and sets requestKind to "query"', async () => {
       const handler = new MockQueryHandler();
-      explorerServiceMock.explore.mockReturnValue({
+      discovery.handlers.mockReturnValue({
         commands: [],
         events: [],
         queries: [makeWrapper(handler, MockQueryHandler)],
@@ -364,7 +375,7 @@ describe('PipelineBootstrapService', () => {
 
     it('wraps event handler.handle() (not execute) and sets requestKind to "event"', async () => {
       const handler = new MockEventHandler();
-      explorerServiceMock.explore.mockReturnValue({
+      discovery.handlers.mockReturnValue({
         commands: [],
         queries: [],
         events: [makeWrapper(handler, MockEventHandler)],
@@ -399,7 +410,7 @@ describe('PipelineBootstrapService', () => {
         getInstanceByContextId: get,
         setInstanceByContextId: set,
       };
-      explorerServiceMock.explore.mockReturnValue({ commands: [wrapper] });
+      discovery.handlers.mockReturnValue({ commands: [wrapper] });
       const service = bootstrap();
       const dispatcher = Handler.prototype.execute;
       service.onApplicationBootstrap();
@@ -440,7 +451,7 @@ describe('PipelineBootstrapService', () => {
         ...makeWrapper(undefined, Child, 2),
         getInstanceByContextId: () => host,
       };
-      explorerServiceMock.explore.mockReturnValue({
+      discovery.handlers.mockReturnValue({
         commands: [makeWrapper(undefined, Parent, 2), childWrapper],
       });
       bootstrap();
@@ -452,7 +463,7 @@ describe('PipelineBootstrapService', () => {
 
     it('patches the prototype for REQUEST-scoped handlers (scope: 2)', async () => {
       // At bootstrap, instance is undefined for scoped providers.
-      explorerServiceMock.explore.mockReturnValue({
+      discovery.handlers.mockReturnValue({
         commands: [makeWrapper(undefined, ScopedCommandHandler, 2)],
         queries: [],
         events: [],
@@ -474,7 +485,7 @@ describe('PipelineBootstrapService', () => {
 
     it('patches the CQRS-bound instance for a static TRANSIENT handler', async () => {
       const handler = new ScopedCommandHandler();
-      explorerServiceMock.explore.mockReturnValue({
+      discovery.handlers.mockReturnValue({
         commands: [makeWrapper(handler, ScopedCommandHandler, 1, true)],
         queries: [],
         events: [],
@@ -491,7 +502,7 @@ describe('PipelineBootstrapService', () => {
     });
 
     it('patches the prototype when DEFAULT scope bubbles from a request-scoped dependency', async () => {
-      explorerServiceMock.explore.mockReturnValue({
+      discovery.handlers.mockReturnValue({
         commands: [makeWrapper(undefined, ScopedCommandHandler, 0, false)],
         queries: [],
         events: [],
@@ -514,7 +525,7 @@ describe('PipelineBootstrapService', () => {
   describe('Global behaviors — handler-kind scope filtering', () => {
     it('applies global behaviors to commands when scope is "commands"', async () => {
       const handler = new NoPipelineCommandHandler();
-      explorerServiceMock.explore.mockReturnValue({
+      discovery.handlers.mockReturnValue({
         commands: [makeWrapper(handler, NoPipelineCommandHandler)],
         queries: [],
         events: [],
@@ -536,7 +547,7 @@ describe('PipelineBootstrapService', () => {
         }
       }
       const handler = new PlainQueryHandler();
-      explorerServiceMock.explore.mockReturnValue({
+      discovery.handlers.mockReturnValue({
         commands: [],
         queries: [makeWrapper(handler, PlainQueryHandler)],
         events: [],
@@ -552,7 +563,7 @@ describe('PipelineBootstrapService', () => {
 
     it('does NOT apply scope:"queries" global behaviors to commands', async () => {
       const handler = new NoPipelineCommandHandler();
-      explorerServiceMock.explore.mockReturnValue({
+      discovery.handlers.mockReturnValue({
         commands: [makeWrapper(handler, NoPipelineCommandHandler)],
         queries: [],
         events: [],
@@ -568,7 +579,7 @@ describe('PipelineBootstrapService', () => {
 
     it('does NOT apply scope:"events" global behaviors to commands', async () => {
       const handler = new NoPipelineCommandHandler();
-      explorerServiceMock.explore.mockReturnValue({
+      discovery.handlers.mockReturnValue({
         commands: [makeWrapper(handler, NoPipelineCommandHandler)],
         queries: [],
         events: [],
@@ -598,7 +609,7 @@ describe('PipelineBootstrapService', () => {
       const qHandler = new PlainQueryHandler2();
       const evHandler = new PlainEventHandler2();
 
-      explorerServiceMock.explore.mockReturnValue({
+      discovery.handlers.mockReturnValue({
         commands: [makeWrapper(cmdHandler, NoPipelineCommandHandler)],
         queries: [makeWrapper(qHandler, PlainQueryHandler2)],
         events: [makeWrapper(evHandler, PlainEventHandler2)],
@@ -630,7 +641,7 @@ describe('PipelineBootstrapService', () => {
       const cmdHandler = new NoPipelineCommandHandler();
       const qHandler = new PlainQueryHandler3();
 
-      explorerServiceMock.explore.mockReturnValue({
+      discovery.handlers.mockReturnValue({
         commands: [makeWrapper(cmdHandler, NoPipelineCommandHandler)],
         queries: [makeWrapper(qHandler, PlainQueryHandler3)],
         events: [],
@@ -657,7 +668,7 @@ describe('PipelineBootstrapService', () => {
 
     it('merges behaviors from multiple array entries with matching scopes', async () => {
       const handler = new NoPipelineCommandHandler();
-      explorerServiceMock.explore.mockReturnValue({
+      discovery.handlers.mockReturnValue({
         commands: [makeWrapper(handler, NoPipelineCommandHandler)],
         queries: [],
         events: [],
@@ -700,7 +711,7 @@ describe('PipelineBootstrapService', () => {
       }
 
       const handler = new NoPipelineCommandHandler();
-      explorerServiceMock.explore.mockReturnValue({
+      discovery.handlers.mockReturnValue({
         commands: [makeWrapper(handler, NoPipelineCommandHandler)],
         queries: [],
         events: [],
@@ -721,7 +732,7 @@ describe('PipelineBootstrapService', () => {
     it('deduplicates the same behavior across matching global configs and uses the later options', async () => {
       ConfiguredMockBehavior.callCount = 0;
       const handler = new NoPipelineCommandHandler();
-      explorerServiceMock.explore.mockReturnValue({
+      discovery.handlers.mockReturnValue({
         commands: [makeWrapper(handler, NoPipelineCommandHandler)],
         queries: [],
         events: [],
@@ -751,7 +762,7 @@ describe('PipelineBootstrapService', () => {
     it('does not clear tuple options when a later matching config uses a bare reference', async () => {
       ConfiguredMockBehavior.callCount = 0;
       const handler = new NoPipelineCommandHandler();
-      explorerServiceMock.explore.mockReturnValue({
+      discovery.handlers.mockReturnValue({
         commands: [makeWrapper(handler, NoPipelineCommandHandler)],
         queries: [],
         events: [],
@@ -776,7 +787,7 @@ describe('PipelineBootstrapService', () => {
     it('runs a behavior declared in both global before and after once, at its before position', async () => {
       ConfiguredMockBehavior.callCount = 0;
       const handler = new NoPipelineCommandHandler();
-      explorerServiceMock.explore.mockReturnValue({
+      discovery.handlers.mockReturnValue({
         commands: [makeWrapper(handler, NoPipelineCommandHandler)],
         queries: [],
         events: [],
@@ -800,7 +811,7 @@ describe('PipelineBootstrapService', () => {
 
     it('skips array entries whose scope does not match the handler kind', async () => {
       const handler = new NoPipelineCommandHandler();
-      explorerServiceMock.explore.mockReturnValue({
+      discovery.handlers.mockReturnValue({
         commands: [makeWrapper(handler, NoPipelineCommandHandler)],
         queries: [],
         events: [],
@@ -819,7 +830,7 @@ describe('PipelineBootstrapService', () => {
 
     it('handles an empty array gracefully', async () => {
       const handler = new NoPipelineCommandHandler();
-      explorerServiceMock.explore.mockReturnValue({
+      discovery.handlers.mockReturnValue({
         commands: [makeWrapper(handler, NoPipelineCommandHandler)],
         queries: [],
         events: [],
@@ -843,7 +854,7 @@ describe('PipelineBootstrapService', () => {
         }
       }
       const handler = new DedupHandler();
-      explorerServiceMock.explore.mockReturnValue({
+      discovery.handlers.mockReturnValue({
         commands: [makeWrapper(handler, DedupHandler)],
         queries: [],
         events: [],
@@ -871,7 +882,7 @@ describe('PipelineBootstrapService', () => {
         }
       }
       const handler = new OverrideHandler();
-      explorerServiceMock.explore.mockReturnValue({
+      discovery.handlers.mockReturnValue({
         commands: [makeWrapper(handler, OverrideHandler)],
         queries: [],
         events: [],
@@ -900,7 +911,7 @@ describe('PipelineBootstrapService', () => {
         }
       }
       const handler = new NestedOverrideHandler();
-      explorerServiceMock.explore.mockReturnValue({
+      discovery.handlers.mockReturnValue({
         commands: [makeWrapper(handler, NestedOverrideHandler)],
         queries: [],
         events: [],
@@ -935,7 +946,7 @@ describe('PipelineBootstrapService', () => {
         }
       }
       const handler = new BareOverrideHandler();
-      explorerServiceMock.explore.mockReturnValue({
+      discovery.handlers.mockReturnValue({
         commands: [makeWrapper(handler, BareOverrideHandler)],
         queries: [],
         events: [],
@@ -960,7 +971,7 @@ describe('PipelineBootstrapService', () => {
         }
       }
       const handler = new ExplicitDefaultsHandler();
-      explorerServiceMock.explore.mockReturnValue({
+      discovery.handlers.mockReturnValue({
         commands: [makeWrapper(handler, ExplicitDefaultsHandler)],
         queries: [],
         events: [],
@@ -1005,7 +1016,7 @@ describe('PipelineBootstrapService', () => {
       }
 
       const handler = new ProtectedHandler();
-      explorerServiceMock.explore.mockReturnValue({
+      discovery.handlers.mockReturnValue({
         commands: [makeWrapper(handler, ProtectedHandler)],
         queries: [],
         events: [],
@@ -1033,11 +1044,10 @@ describe('PipelineBootstrapService', () => {
       }
       const handler = new Handler();
       const singleton = new MockBehavior();
-      explorerServiceMock.explore.mockReturnValue({
+      discovery.handlers.mockReturnValue({
         commands: [makeWrapper(handler, Handler)],
       });
       moduleRefMock.get.mockImplementation((token: unknown) => {
-        if (token === ExplorerService) return explorerServiceMock;
         if (token === MockBehavior) return singleton;
         throw new InvalidClassScopeException();
       });
@@ -1065,7 +1075,7 @@ describe('PipelineBootstrapService', () => {
         }
       }
       const handler = new IsolatedHandler();
-      explorerServiceMock.explore.mockReturnValue({
+      discovery.handlers.mockReturnValue({
         commands: [makeWrapper(handler, IsolatedHandler)],
         queries: [],
         events: [],
@@ -1073,7 +1083,6 @@ describe('PipelineBootstrapService', () => {
 
       // Simulate request-scoped behavior: .get() throws, .resolve() succeeds.
       moduleRefMock.get.mockImplementation((token: any) => {
-        if (token === ExplorerService) return explorerServiceMock;
         if (token === MockBehavior)
           throw new Error(
             'ScopedBehavior is marked as a scoped provider. Please, use "resolve()" instead.',
@@ -1109,7 +1118,7 @@ describe('PipelineBootstrapService', () => {
   describe('Correlation ID resolution', () => {
     it('generates a uuidv7 correlation ID when no external store is active', async () => {
       const handler = new MockCommandHandler();
-      explorerServiceMock.explore.mockReturnValue({
+      discovery.handlers.mockReturnValue({
         commands: [makeWrapper(handler, MockCommandHandler)],
         queries: [],
         events: [],
@@ -1134,7 +1143,7 @@ describe('PipelineBootstrapService', () => {
         const warn = vi
           .spyOn(Logger.prototype, 'warn')
           .mockImplementation(() => {});
-        explorerServiceMock.explore.mockReturnValue({
+        discovery.handlers.mockReturnValue({
           commands: [makeWrapper(new MockCommandHandler(), MockCommandHandler)],
           queries: [],
           events: [],
@@ -1154,7 +1163,7 @@ describe('PipelineBootstrapService', () => {
       const warn = vi
         .spyOn(Logger.prototype, 'warn')
         .mockImplementation(() => {});
-      explorerServiceMock.explore.mockReturnValue({
+      discovery.handlers.mockReturnValue({
         commands: [],
         queries: [],
         events: [],
@@ -1168,7 +1177,7 @@ describe('PipelineBootstrapService', () => {
 
     it('takes the tenant and correlation id of the configured sources', async () => {
       const handler = new MockCommandHandler();
-      explorerServiceMock.explore.mockReturnValue({
+      discovery.handlers.mockReturnValue({
         commands: [makeWrapper(handler, MockCommandHandler)],
         queries: [],
         events: [],
@@ -1229,7 +1238,7 @@ describe('PipelineBootstrapService', () => {
 
     it('defaults to "debug" level when bootstrapLogLevel is not set', () => {
       const handler = new MockCommandHandler();
-      explorerServiceMock.explore.mockReturnValue({
+      discovery.handlers.mockReturnValue({
         commands: [makeWrapper(handler, MockCommandHandler)],
         queries: [],
         events: [],
@@ -1247,7 +1256,7 @@ describe('PipelineBootstrapService', () => {
 
     it('uses "log" level when bootstrapLogLevel is "log"', () => {
       const handler = new MockCommandHandler();
-      explorerServiceMock.explore.mockReturnValue({
+      discovery.handlers.mockReturnValue({
         commands: [makeWrapper(handler, MockCommandHandler)],
         queries: [],
         events: [],
@@ -1267,7 +1276,7 @@ describe('PipelineBootstrapService', () => {
 
     it('uses "verbose" level when bootstrapLogLevel is "verbose"', () => {
       const handler = new MockCommandHandler();
-      explorerServiceMock.explore.mockReturnValue({
+      discovery.handlers.mockReturnValue({
         commands: [makeWrapper(handler, MockCommandHandler)],
         queries: [],
         events: [],
@@ -1284,7 +1293,7 @@ describe('PipelineBootstrapService', () => {
 
     it('suppresses the message entirely when bootstrapLogLevel is "none"', () => {
       const handler = new MockCommandHandler();
-      explorerServiceMock.explore.mockReturnValue({
+      discovery.handlers.mockReturnValue({
         commands: [makeWrapper(handler, MockCommandHandler)],
         queries: [],
         events: [],
@@ -1318,7 +1327,7 @@ describe('PipelineBootstrapService', () => {
         }
       }
       const handler = new SkipCommandHandler();
-      explorerServiceMock.explore.mockReturnValue({
+      discovery.handlers.mockReturnValue({
         commands: [makeWrapper(handler, SkipCommandHandler)],
         queries: [],
         events: [],
@@ -1344,7 +1353,7 @@ describe('PipelineBootstrapService', () => {
         }
       }
       const handler = new SkipAllCommandHandler();
-      explorerServiceMock.explore.mockReturnValue({
+      discovery.handlers.mockReturnValue({
         commands: [makeWrapper(handler, SkipAllCommandHandler)],
         queries: [],
         events: [],
@@ -1376,7 +1385,7 @@ describe('PipelineBootstrapService', () => {
 
       const qHandler = new SkipQueryHandler();
       const evHandler = new SkipEventHandler();
-      explorerServiceMock.explore.mockReturnValue({
+      discovery.handlers.mockReturnValue({
         commands: [],
         queries: [makeWrapper(qHandler, SkipQueryHandler)],
         events: [makeWrapper(evHandler, SkipEventHandler)],
@@ -1404,7 +1413,7 @@ describe('PipelineBootstrapService', () => {
       }
 
       const handler = new ScopedSkipCommandHandler();
-      explorerServiceMock.explore.mockReturnValue({
+      discovery.handlers.mockReturnValue({
         commands: [makeWrapper(handler, ScopedSkipCommandHandler, 2)],
         queries: [],
         events: [],
@@ -1432,7 +1441,7 @@ describe('PipelineBootstrapService', () => {
       }
 
       const handler = new ContradictoryHandler();
-      explorerServiceMock.explore.mockReturnValue({
+      discovery.handlers.mockReturnValue({
         commands: [makeWrapper(handler, ContradictoryHandler)],
         queries: [],
         events: [],
@@ -1462,14 +1471,13 @@ describe('PipelineBootstrapService', () => {
       }
 
       const handler = new CustomSkipHandler();
-      explorerServiceMock.explore.mockReturnValue({
+      discovery.handlers.mockReturnValue({
         commands: [makeWrapper(handler, CustomSkipHandler)],
         queries: [],
         events: [],
       });
 
       moduleRefMock.get.mockImplementation((token: any) => {
-        if (token === ExplorerService) return explorerServiceMock;
         if (token === CustomSkipBehavior) return new CustomSkipBehavior();
         if (token === SecondMockBehavior) return new SecondMockBehavior();
         return undefined;

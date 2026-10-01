@@ -64,6 +64,8 @@ pnpm add @nestjs-pipeline/deadletter
 pnpm add @nestjs-pipeline/core @nestjs/common reflect-metadata
 ```
 
+Requires Node.js 22.12 or later, `@nestjs/common` `^12.1.0` and `@nestjs-pipeline/core` `^0.3.0`.
+
 Plus **one** backend client for your chosen transport — e.g. `bullmq`,
 `amqplib`, or `pg`. None are hard dependencies of this package.
 

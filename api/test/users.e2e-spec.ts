@@ -292,6 +292,10 @@ describe('users-api (e2e)', () => {
       const res = await as(admin).get('/users/not-a-uuid');
 
       expect(res.status).toBe(400);
+      expect(res.body).toEqual({
+        formErrors: [expect.any(String)],
+        fieldErrors: {},
+      });
     });
 
     it('rejects a malformed id on PATCH (400)', async () => {

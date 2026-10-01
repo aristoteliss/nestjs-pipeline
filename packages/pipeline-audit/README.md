@@ -7,8 +7,6 @@ Audit-trail behavior for `@nestjs-pipeline/core` — records **who did what, whe
 
 Sink-agnostic: it depends only on a tiny `AuditSink` interface. A zero-dependency **console** sink is the default; **Postgres** is a genuine drop-in, and your own sink (event store, Kafka, HTTP collector, …) is a one-line swap — handlers never change. Records are written on **both success and failure**, sensitive payload fields are **redacted** by default, and the actor can be resolved from the pipeline context.
 
-> **New in 0.2.0:** this is the first published release of the package.
-
 ---
 
 ## Table of Contents
@@ -68,7 +66,7 @@ pnpm add @nestjs-pipeline/audit
 pnpm add @nestjs-pipeline/core @nestjs/common reflect-metadata
 ```
 
-Requires `@nestjs/common` `^11.0.0` and `@nestjs-pipeline/core` `^0.2.0`.
+Requires Node.js 22.12 or later, `@nestjs/common` `^12.1.0` and `@nestjs-pipeline/core` `^0.3.0`.
 
 The bundled sinks are typed *structurally*, so this package adds **zero heavy
 dependencies**. For the Postgres sink, add a `pg` `Pool`/`Client` in your app

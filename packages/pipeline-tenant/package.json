@@ -1,11 +1,11 @@
 {
   "name": "@nestjs-pipeline/tenant",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "The current tenant for @nestjs-pipeline/core applications: the running pipeline's tenant, or the tenant of a runWithTenant scope",
   "author": "Aristotelis",
   "license": "SEE LICENSE IN LICENSE",
   "engines": {
-    "node": ">=22.0.0"
+    "node": ">=22.12.0"
   },
   "repository": {
     "type": "git",
@@ -45,8 +45,8 @@
     "prepublishOnly": "pnpm run rebuild"
   },
   "devDependencies": {
-    "@vitest/coverage-v8": "^4.1.11",
+    "@vitest/coverage-v8": "^5.0.2",
     "reflect-metadata": "^0.2.2",
-    "vitest": "^4.1.11"
+    "vitest": "^5.0.2"
   }
 }

@@ -1,7 +1,7 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import { BadRequestException } from '@nestjs/common';
 import type { ZodType } from 'zod';
+import { zodBadRequest } from './zod-bad-request';
 
 /** A schema-backed mapper returned by {@link createZodMapper}. */
 export interface ZodMapper<TInput, TOutput> {
@@ -10,8 +10,8 @@ export interface ZodMapper<TInput, TOutput> {
   /**
    * Parses `input` and returns the schema output, including any `.transform()`.
    *
-   * @throws {BadRequestException} When parsing fails, with the same
-   *   `{ formErrors, fieldErrors }` body as {@link ZodPipe}.
+   * @throws {BadRequestException} When parsing fails, with the
+   *   `{ formErrors, fieldErrors }` body of {@link zodBadRequest}.
    */
   map(input: TInput): TOutput;
 }
@@ -21,9 +21,10 @@ export interface ZodMapper<TInput, TOutput> {
  * typically turning a validated request DTO into an application command.
  *
  * It parses synchronously, so the schema must not use async refinements or
- * transforms; validate those with {@link ZodPipe}, which parses asynchronously.
- * A failure answers HTTP 400 with the same body as `ZodPipe`, so clients see one
- * validation error shape.
+ * transforms; declare those as a route parameter's `schema`, which Nest's
+ * `StandardSchemaValidationPipe` parses asynchronously. A failure answers HTTP
+ * 400 with the body that pipe gives with {@link zodBadRequest} as its
+ * `exceptionFactory`, so clients see one validation error shape.
  *
  * @param schema - Schema whose output is the mapped value.
  * @returns A {@link ZodMapper} over `schema`.
@@ -37,7 +38,7 @@ export interface ZodMapper<TInput, TOutput> {
  * );
  *
  * @Post()
- * create(@Body(new ZodPipe(CreateUserDtoSchema)) dto: CreateUserDto) {
+ * create(@Body({ schema: CreateUserDtoSchema }) dto: CreateUserDto) {
  *   return this.commandBus.execute(CreateUserMapper.map(dto));
  * }
  * ```
@@ -49,8 +50,7 @@ export function createZodMapper<TInput, TOutput>(
     schema,
     map(input: TInput): TOutput {
       const result = schema.safeParse(input);
-      if (!result.success)
-        throw new BadRequestException(result.error.flatten());
+      if (!result.success) throw zodBadRequest(result.error.issues);
       return result.data as TOutput;
     },
   };

@@ -4,25 +4,13 @@
  */
 
 import { IEvent } from '../events/event.interface';
+import type {
+  ApplyEventOptions,
+  IAggregateRoot,
+} from '../interfaces/aggregate-root.interface';
 
 const INTERNAL_EVENTS = Symbol('INTERNAL_EVENTS');
 const IS_AUTO_COMMIT_ENABLED = Symbol('IS_AUTO_COMMIT_ENABLED');
-
-/**
- * Options for applying an event to an aggregate root.
- */
-export interface ApplyEventOptions {
-  /**
-   * Whether the event originates from historical rehydration.
-   * If true, the event will not be buffered into uncommitted events.
-   */
-  readonly fromHistory?: boolean;
-
-  /**
-   * Whether to skip calling the corresponding `on<EventName>` handler.
-   */
-  readonly skipHandler?: boolean;
-}
 
 /**
  * Abstract base class representing a Domain-Driven Design (DDD) aggregate root.
@@ -36,7 +24,9 @@ export interface ApplyEventOptions {
  *
  * @template EventBase The base event type, defaults to {@link IEvent}.
  */
-export abstract class AggregateRoot<EventBase extends IEvent = IEvent> {
+export abstract class AggregateRoot<EventBase extends IEvent = IEvent>
+  implements IAggregateRoot<EventBase>
+{
   private [IS_AUTO_COMMIT_ENABLED] = false;
   private readonly [INTERNAL_EVENTS]: EventBase[] = [];
 
@@ -55,21 +45,60 @@ export abstract class AggregateRoot<EventBase extends IEvent = IEvent> {
   }
 
   /**
-   * Called by apply() for each event while autoCommit is enabled; a no-op unless overridden.
+   * Called by apply() for each event while autoCommit is enabled; a no-op that
+   * returns `undefined` unless overridden or connected to a publisher (for
+   * example NestJS's `EventPublisher.mergeObjectContext`).
+   *
+   * @param _event - The event to publish.
+   * @param _dispatcherContext - Passed through to the publisher, such as `{ transaction }`.
+   * @returns What the publisher returns.
    */
-  publish<T extends EventBase = EventBase>(_event: T): void {}
+  publish<T extends EventBase = EventBase>(
+    _event: T,
+    _dispatcherContext?: unknown,
+  ): unknown {
+    return undefined;
+  }
 
   /**
-   * Called by commit() with a copy of the buffered events; a no-op unless overridden.
+   * Called by commit() with a copy of the buffered events; a no-op that returns
+   * `undefined` unless overridden or connected to a publisher.
+   *
+   * @param _events - The events to publish.
+   * @param _dispatcherContext - Passed through to the publisher, such as `{ transaction }`.
+   * @returns What the publisher returns.
    */
-  publishAll<T extends EventBase = EventBase>(_events: T[]): void {}
+  publishAll<T extends EventBase = EventBase>(
+    _events: T[],
+    _dispatcherContext?: unknown,
+  ): unknown {
+    return undefined;
+  }
 
   /**
-   * Commits all uncommitted events by publishing them via {@link publishAll} and clearing the buffer.
+   * Hands a copy of the buffered events to {@link publishAll} with the dispatcher
+   * context, then clears the buffer. The buffer is cleared once `publishAll()`
+   * returns, before an asynchronous publisher settles, so a caller that does not
+   * await cannot publish the same events twice; if `publishAll()` throws, the
+   * events stay buffered.
+   *
+   * @param dispatcherContext - Passed to {@link publishAll}, such as `{ transaction }`.
+   * @returns What {@link publishAll} returns: await it to wait for, and catch the
+   *   errors of, an asynchronous publisher.
+   *
+   * @example
+   * ```ts
+   * const order = publisher.mergeObjectContext(Order.place(id));
+   * await order.commit({ transaction });
+   * ```
    */
-  commit(): void {
-    this.publishAll([...this[INTERNAL_EVENTS]]);
+  commit(dispatcherContext?: unknown): unknown {
+    const published = this.publishAll(
+      [...this[INTERNAL_EVENTS]],
+      dispatcherContext,
+    );
     this[INTERNAL_EVENTS].length = 0;
+    return published;
   }
 
   /**

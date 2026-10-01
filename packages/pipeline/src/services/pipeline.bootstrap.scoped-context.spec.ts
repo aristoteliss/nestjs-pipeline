@@ -1,7 +1,6 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { AsyncContext } from '@nestjs/cqrs';
-import { ExplorerService } from '@nestjs/cqrs/dist/services/explorer.service';
 import { describe, expect, it, vi } from 'vitest';
 import { pipelineStore } from '../constants/pipeline-context.constants';
 import { UsePipeline } from '../decorators/pipeline.decorator';
@@ -11,6 +10,15 @@ import type {
 } from '../interfaces/pipeline.behavior.interface';
 import type { IPipelineContext } from '../interfaces/pipeline.context.interface';
 import { PipelineBootstrapService } from './pipeline.bootstrap.service';
+
+vi.mock('./handler-discovery', () => ({
+  discoverHandlers: (discovery: { handlers(): object }) => ({
+    commands: [],
+    queries: [],
+    events: [],
+    ...discovery.handlers(),
+  }),
+}));
 
 class ScopedBehavior implements IPipelineBehavior {
   async handle(_context: IPipelineContext, next: NextDelegate) {
@@ -29,8 +37,8 @@ class RequestScopedHandler {
 
 describe('PipelineBootstrapService scoped CQRS context', () => {
   it('resolves dynamic behaviors with the same AsyncContext id as the scoped handler', async () => {
-    const explorer = {
-      explore: vi.fn().mockReturnValue({
+    const discovery = {
+      handlers: vi.fn().mockReturnValue({
         commands: [
           {
             instance: undefined,
@@ -47,7 +55,6 @@ describe('PipelineBootstrapService scoped CQRS context', () => {
     const resolve = vi.fn().mockResolvedValue(resolved);
     const moduleRef = {
       get: vi.fn((token: unknown) => {
-        if (token === ExplorerService) return explorer;
         if (token === ScopedBehavior) {
           throw new Error(
             'ScopedBehavior is marked as a scoped provider. Please, use "resolve()" instead.',
@@ -58,7 +65,10 @@ describe('PipelineBootstrapService scoped CQRS context', () => {
       resolve,
     };
 
-    new PipelineBootstrapService(moduleRef as never).onApplicationBootstrap();
+    new PipelineBootstrapService(
+      moduleRef as never,
+      discovery as never,
+    ).onApplicationBootstrap();
 
     const asyncContext = new AsyncContext();
     const command = new TestCommand();
@@ -101,13 +111,18 @@ describe('PipelineBootstrapService with several applications', () => {
     const moduleRef = {
       get: vi.fn((token: unknown) => {
         if (token === TagBehavior) return new TagBehavior(tag);
-        return {
-          explore: () => ({ commands: [wrapper], queries: [], events: [] }),
-        };
+        throw new Error('unexpected token');
       }),
       resolve: vi.fn(),
     };
-    const service = new PipelineBootstrapService(moduleRef as never, {});
+    const discovery = {
+      handlers: () => ({ commands: [wrapper], queries: [], events: [] }),
+    };
+    const service = new PipelineBootstrapService(
+      moduleRef as never,
+      discovery as never,
+      {},
+    );
     service.onApplicationBootstrap();
     return service;
   }

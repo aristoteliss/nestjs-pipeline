@@ -3,7 +3,15 @@
 import { randomBytes, randomUUID } from 'node:crypto';
 import type { NestFastifyApplication } from '@nestjs/platform-fastify';
 import { Test } from '@nestjs/testing';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  describe,
+  expect,
+  it,
+  vi,
+} from 'vitest';
 import { Auth } from './auths/domain/models/auth.entity';
 import { SessionService } from './auths/services/session.service';
 import { httpExchangeStore } from './common/context/http-exchange.store';
@@ -74,5 +82,38 @@ describe('registerSecureSession', () => {
 
     expect(Math.min(...sizes)).toBeGreaterThan(ACCESS_TOKEN_MAX_BYTES);
     expect(Math.max(...sizes)).toBeLessThanOrEqual(COOKIE_LIMIT_BYTES);
+  });
+});
+
+describe('createFastifyAdapter', () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.resetModules();
+  });
+
+  it('refuses a hop-count TRUST_PROXY, which Fastify would trust no proxy for', async () => {
+    vi.stubEnv('TRUST_PROXY', '1');
+    vi.resetModules();
+    const platform = await import('./http-platform');
+
+    expect(() => platform.createFastifyAdapter()).toThrow(
+      'TRUST_PROXY=1 is a hop count',
+    );
+  });
+
+  it('takes the client address from a trusted proxy in the address list', async () => {
+    vi.stubEnv('TRUST_PROXY', 'loopback');
+    vi.resetModules();
+    const platform = await import('./http-platform');
+    const fastify = platform.createFastifyAdapter().getInstance();
+    fastify.get('/ip', async (request) => ({ ip: request.ip }));
+
+    const response = await fastify.inject({
+      url: '/ip',
+      headers: { 'x-forwarded-for': '203.0.113.7' },
+    });
+    await fastify.close();
+
+    expect(response.json()).toEqual({ ip: '203.0.113.7' });
   });
 });

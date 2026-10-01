@@ -108,9 +108,10 @@ describe('Create command idempotency composition', () => {
       expect(save).toHaveBeenCalledTimes(1);
       const aggregate = save.mock.calls[0][0];
       expect(aggregate).toBeInstanceOf(User);
-      expect(publishAll).toHaveBeenCalledExactlyOnceWith([
-        expect.any(UserCreatedEvent),
-      ]);
+      expect(publishAll).toHaveBeenCalledExactlyOnceWith(
+        [expect.any(UserCreatedEvent)],
+        aggregate,
+      );
       expect(aggregate.getUncommittedEvents()).toHaveLength(0);
     },
   );
@@ -247,9 +248,10 @@ describe('Create command idempotency composition', () => {
     expect(save).toHaveBeenCalledTimes(1);
     const aggregate = save.mock.calls[0][0];
     expect(aggregate).toBeInstanceOf(Role);
-    expect(publishAll).toHaveBeenCalledExactlyOnceWith([
-      expect.any(RoleCreatedEvent),
-    ]);
+    expect(publishAll).toHaveBeenCalledExactlyOnceWith(
+      [expect.any(RoleCreatedEvent)],
+      aggregate,
+    );
     expect(aggregate.getUncommittedEvents()).toHaveLength(0);
   });
 });

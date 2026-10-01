@@ -1,7 +1,6 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import { ExplorerService } from '@nestjs/cqrs/dist/services/explorer.service';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { UsePipeline } from '../decorators/pipeline.decorator';
 import type {
   IPipelineBehavior,
@@ -10,6 +9,15 @@ import type {
 import type { IPipelineContext } from '../interfaces/pipeline.context.interface';
 import { PIPELINE_BEHAVIOR_CONTRACT } from '../interfaces/pipeline-behavior-contract.interface';
 import { PipelineBootstrapService } from './pipeline.bootstrap.service';
+
+vi.mock('./handler-discovery', () => ({
+  discoverHandlers: (discovery: { handlers(): object }) => ({
+    commands: [],
+    queries: [],
+    events: [],
+    ...discovery.handlers(),
+  }),
+}));
 
 class TagBehavior implements IPipelineBehavior {
   async handle(context: IPipelineContext, next: NextDelegate) {
@@ -30,11 +38,11 @@ function bootstrap(
   return new PipelineBootstrapService(
     {
       get(token: unknown) {
-        if (token === ExplorerService) return { explore: () => ({ commands }) };
         if (behaviors.has(token)) return behaviors.get(token);
         throw new Error('missing provider');
       },
     } as never,
+    { handlers: () => ({ commands }) } as never,
     { bootstrapLogLevel: 'none' },
   );
 }

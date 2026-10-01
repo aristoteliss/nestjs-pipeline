@@ -14,7 +14,7 @@ npm install @cqrs-ddd/untyped
 pnpm add @cqrs-ddd/untyped
 ```
 
-Requires Node.js 22 or later. No dependencies, no framework.
+Requires Node.js 22.12 or later. No dependencies, no framework.
 
 ## API
 

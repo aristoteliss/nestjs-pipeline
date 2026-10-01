@@ -2,7 +2,6 @@
 
 import { Body, Controller, HttpCode, Ip, Post } from '@nestjs/common';
 import { CommandBus } from '@nestjs/cqrs';
-import { ZodPipe } from '@nestjs-pipeline/zod';
 import type { CreateAuthCommand } from '../application/cqrs/commands/create-auth.command';
 import { RevokeAuthCommand } from '../application/cqrs/commands/revoke-auth.command';
 import type { AuthResult } from '../application/results/auth.result';
@@ -30,7 +29,7 @@ export class AuthsController {
   @Post('login')
   @HttpCode(200)
   async login(
-    @Body(new ZodPipe(LoginDtoSchema)) dto: LoginDto,
+    @Body({ schema: LoginDtoSchema }) dto: LoginDto,
     @Ip() clientIp: string,
   ): Promise<SessionResponse> {
     const result = await this.commandBus.execute<CreateAuthCommand, AuthResult>(
