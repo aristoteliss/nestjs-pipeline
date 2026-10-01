@@ -14,7 +14,16 @@ import {
   Req,
 } from '@nestjs/common';
 import { CommandBus, QueryBus } from '@nestjs/cqrs';
+import {
+  ApiBearerAuth,
+  ApiCookieAuth,
+  ApiCreatedResponse,
+  ApiNoContentResponse,
+  ApiOkResponse,
+  ApiSecurity,
+} from '@nestjs/swagger';
 import { UnauthorizedActionException } from '@nestjs-pipeline/casl';
+import { z } from 'zod';
 import { CreateRoleCommand } from '../application/cqrs/commands/create-role.command.js';
 import { DeleteRoleCommand } from '../application/cqrs/commands/delete-role.command.js';
 import { UpdateRoleCommand } from '../application/cqrs/commands/update-role.command.js';
@@ -27,7 +36,11 @@ import {
   CreateRoleDtoSchema,
 } from '../dtos/create-role.dto.js';
 import { type RoleIdDto, RoleIdDtoSchema } from '../dtos/get-role.dto.js';
-import { type RoleResponseDto, toRoleResponseDto } from '../dtos/role.dto.js';
+import {
+  RoleResponseBodySchema,
+  type RoleResponseDto,
+  toRoleResponseDto,
+} from '../dtos/role.dto.js';
 import {
   type UpdateRoleDto,
   UpdateRoleDtoSchema,
@@ -35,6 +48,9 @@ import {
 import { CreateRoleMapper } from '../mappers/create-role.mapper.js';
 import { UpdateRoleMapper } from '../mappers/update-role.mapper.js';
 
+@ApiBearerAuth()
+@ApiSecurity({ 'api-id': [], 'api-key': [] })
+@ApiCookieAuth()
 @Controller('roles')
 export class RolesController {
   constructor(
@@ -44,6 +60,10 @@ export class RolesController {
 
   @Get()
   @HttpCode(200)
+  @ApiOkResponse({
+    description: 'The roles the caller may read.',
+    standardSchema: z.object({ roles: z.array(RoleResponseBodySchema) }),
+  })
   async getRoles(
     @Req() _request: Request,
   ): Promise<{ roles: RoleResponseDto[] }> {
@@ -55,6 +75,10 @@ export class RolesController {
 
   @Get(':id')
   @HttpCode(200)
+  @ApiOkResponse({
+    description: 'The role, without the fields the caller may not read.',
+    standardSchema: RoleResponseBodySchema,
+  })
   async getRole(
     @Param('id', { schema: RoleIdDtoSchema }) id: RoleIdDto,
   ): Promise<RoleResponseDto> {
@@ -68,6 +92,10 @@ export class RolesController {
 
   @Post()
   @HttpCode(201)
+  @ApiCreatedResponse({
+    description: 'The created role, as far as the caller may read it.',
+    standardSchema: RoleResponseBodySchema,
+  })
   async createRole(
     @Body({ schema: CreateRoleDtoSchema }) dto: CreateRoleDto,
     @Headers(HEADERS.IDEMPOTENCY_KEY) idempotencyKey?: string,
@@ -80,6 +108,10 @@ export class RolesController {
 
   @Patch(':id')
   @HttpCode(200)
+  @ApiOkResponse({
+    description: 'The updated role, as far as the caller may read it.',
+    standardSchema: RoleResponseBodySchema,
+  })
   async updateRole(
     @Param('id', { schema: RoleIdDtoSchema }) id: RoleIdDto,
     @Body({ schema: UpdateRoleDtoSchema }) dto: UpdateRoleDto,
@@ -92,6 +124,7 @@ export class RolesController {
 
   @Delete(':id')
   @HttpCode(204)
+  @ApiNoContentResponse({ description: 'The role is deleted.' })
   async deleteRole(
     @Param('id', { schema: RoleIdDtoSchema }) id: RoleIdDto,
   ): Promise<void> {

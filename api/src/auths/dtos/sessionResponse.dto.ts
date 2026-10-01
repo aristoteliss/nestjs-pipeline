@@ -26,3 +26,17 @@ export const SessionResponseSchema = z.object({
 });
 
 export type SessionResponse = z.output<typeof SessionResponseSchema>;
+
+/**
+ * The body of a session response as the OpenAPI document describes it.
+ * Documentation only: responses are parsed through {@link SessionResponseSchema}.
+ */
+export const SessionResponseBodySchema = z.object({
+  id: z.string(),
+  principalType: z.enum(['user', 'service']),
+  tenant: z.string(),
+  email: z.string(),
+  department: z.string().nullable(),
+  accessToken: z.string(),
+  accessTokenExpiresAt: z.number(),
+}) satisfies z.ZodType<SessionResponse>;

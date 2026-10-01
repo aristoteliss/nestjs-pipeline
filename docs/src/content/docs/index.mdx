@@ -1,0 +1,62 @@
+---
+title: nestjs-pipeline
+description: Pipeline behaviors for NestJS CQRS commands, queries and events, and framework-neutral DDD building blocks.
+template: splash
+editUrl: false
+hero:
+  tagline: Cross-cutting behavior for NestJS CQRS handlers, declared once and run around every command, query and event, with DDD building blocks that need no framework.
+  actions:
+    - text: Overview
+      link: /nestjs-pipeline/overview/
+      icon: right-arrow
+    - text: API reference
+      link: /nestjs-pipeline/api/
+      variant: minimal
+    - text: GitHub
+      link: https://github.com/aristoteliss/nestjs-pipeline
+      icon: external
+      variant: minimal
+---
+
+import { Card, CardGrid, LinkCard } from '@astrojs/starlight/components';
+
+## What is here
+
+<CardGrid>
+  <LinkCard
+    title="Overview"
+    description="The pipeline model, a quick start, and the upgrade notes for every release."
+    href="/nestjs-pipeline/overview/"
+  />
+  <LinkCard
+    title="Packages"
+    description="One guide per package: purpose, setup, options, behavior and examples."
+    href="/nestjs-pipeline/packages/nestjs-pipeline/core/"
+  />
+  <LinkCard
+    title="API reference"
+    description="Every exported class, function, type and constant of the 19 packages, from their JSDoc."
+    href="/nestjs-pipeline/api/"
+  />
+  <LinkCard
+    title="HTTP API"
+    description="The OpenAPI reference of users-api, the example application."
+    href="/nestjs-pipeline/http-api/"
+  />
+</CardGrid>
+
+## Packages
+
+<CardGrid>
+  <Card title="@nestjs-pipeline/*" icon="puzzle">
+    The pipeline engine and its behaviors: logging, tracing and metrics,
+    validation, authorization, caching, idempotency, rate limiting,
+    resilience, dead letters, feature flags and audit, plus the tenant,
+    correlation id and job context that carry them across requests and jobs.
+  </Card>
+  <Card title="@cqrs-ddd/*" icon="seti:folder">
+    Framework-neutral building blocks: aggregates with versioned mutations,
+    domain events, repository contracts and cache helpers, their MikroORM
+    adapters, and three dependency-free utilities.
+  </Card>
+</CardGrid>

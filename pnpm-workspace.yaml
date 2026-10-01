@@ -1,9 +1,11 @@
 packages:
   - packages/*
   - api
+  - docs
 
 allowBuilds:
   '@nestjs/core': false
+  '@scarf/scarf': false
   '@swc/core': false
   better-sqlite3: false
   cpu-features: false

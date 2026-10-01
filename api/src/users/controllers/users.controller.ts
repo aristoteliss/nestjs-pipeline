@@ -14,7 +14,16 @@ import {
   Post,
 } from '@nestjs/common';
 import { CommandBus, QueryBus } from '@nestjs/cqrs';
+import {
+  ApiBearerAuth,
+  ApiCookieAuth,
+  ApiCreatedResponse,
+  ApiNoContentResponse,
+  ApiOkResponse,
+  ApiSecurity,
+} from '@nestjs/swagger';
 import { UnauthorizedActionException } from '@nestjs-pipeline/casl';
+import { z } from 'zod';
 import { CreateUserCommand } from '../application/cqrs/commands/create-user.command.js';
 import { DeleteUserCommand } from '../application/cqrs/commands/delete-user.command.js';
 import { UpdateUserCommand } from '../application/cqrs/commands/update-user.command.js';
@@ -33,10 +42,17 @@ import {
   type UpdateUserDto,
   UpdateUserDtoSchema,
 } from '../dtos/update-user.dto.js';
-import { toResponseDto, type UserResponseDto } from '../dtos/user.dto.js';
+import {
+  toResponseDto,
+  UserResponseBodySchema,
+  type UserResponseDto,
+} from '../dtos/user.dto.js';
 import { CreateUserMapper } from '../mappers/create-user.mapper.js';
 import { UpdateUserMapper } from '../mappers/update-user.mapper.js';
 
+@ApiBearerAuth()
+@ApiSecurity({ 'api-id': [], 'api-key': [] })
+@ApiCookieAuth()
 @Controller('users')
 export class UsersController {
   constructor(
@@ -46,6 +62,10 @@ export class UsersController {
 
   @Get()
   @HttpCode(200)
+  @ApiOkResponse({
+    description: 'The users the caller may read.',
+    standardSchema: z.object({ users: z.array(UserResponseBodySchema) }),
+  })
   async getUsers(): Promise<{ users: UserResponseDto[] }> {
     const users = await this.queryBus.execute<GetUsersQuery, UserReadModel[]>(
       new GetUsersQuery({}),
@@ -55,6 +75,10 @@ export class UsersController {
 
   @Get(':id')
   @HttpCode(200)
+  @ApiOkResponse({
+    description: 'The user, without the fields the caller may not read.',
+    standardSchema: UserResponseBodySchema,
+  })
   async getUser(
     @Param('id', { schema: UserIdDtoSchema }) id: UserIdDto,
   ): Promise<UserResponseDto> {
@@ -70,6 +94,9 @@ export class UsersController {
 
   @Get(':id/overview')
   @HttpCode(200)
+  @ApiOkResponse({
+    description: "The user's overview: the user, its roles and capabilities.",
+  })
   async getUserOverview(
     @Param('id', { schema: UserIdDtoSchema }) id: UserIdDto,
   ): Promise<UserOverviewDto> {
@@ -87,6 +114,10 @@ export class UsersController {
 
   @Post()
   @HttpCode(201)
+  @ApiCreatedResponse({
+    description: 'The created user, as far as the caller may read it.',
+    standardSchema: UserResponseBodySchema,
+  })
   async createUser(
     @Body({ schema: CreateUserDtoSchema }) dto: CreateUserDto,
     @Headers(HEADERS.IDEMPOTENCY_KEY) idempotencyKey?: string,
@@ -99,6 +130,10 @@ export class UsersController {
 
   @Patch(':id')
   @HttpCode(200)
+  @ApiOkResponse({
+    description: 'The updated user, as far as the caller may read it.',
+    standardSchema: UserResponseBodySchema,
+  })
   async updateUser(
     @Param('id', { schema: UserIdDtoSchema }) id: UserIdDto,
     @Body({ schema: UpdateUserDtoSchema }) dto: UpdateUserDto,
@@ -111,6 +146,7 @@ export class UsersController {
 
   @Delete(':id')
   @HttpCode(204)
+  @ApiNoContentResponse({ description: 'The user is deleted.' })
   async deleteUser(
     @Param('id', { schema: UserIdDtoSchema }) id: UserIdDto,
   ): Promise<void> {

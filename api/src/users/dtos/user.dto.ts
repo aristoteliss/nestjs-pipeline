@@ -34,6 +34,18 @@ export const UserResponseDtoSchema = z
 
 export type UserResponseDto = z.output<typeof UserResponseDtoSchema>;
 
+/**
+ * The body of a user response as the OpenAPI document describes it. A field
+ * the caller may not read is absent. Documentation only: responses are mapped
+ * through {@link UserResponseDtoSchema}.
+ */
+export const UserResponseBodySchema = z.object({
+  id: z.string().optional(),
+  email: z.string().optional(),
+  name: z.string().optional(),
+  department: z.string().nullable().optional(),
+}) satisfies z.ZodType<UserResponseDto>;
+
 export function toResponseDto(
   user: User | UserSnapshot | UserReadModel | null,
 ): UserResponseDto {
