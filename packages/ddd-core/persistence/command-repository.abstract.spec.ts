@@ -1,9 +1,9 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { describe, expect, it } from 'vitest';
-import type { ICache } from '../application/ports/cache.port';
-import { MemoryCache } from './cache/memory.cache';
-import { CommandRepository } from './command-repository.abstract';
+import type { ICache } from '../application/ports/cache.port.js';
+import { MemoryCache } from './cache/memory.cache.js';
+import { CommandRepository } from './command-repository.abstract.js';
 
 class NoteRepository extends CommandRepository<string, string, string> {
   async save(note: string): Promise<string> {

@@ -1,7 +1,7 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import { InvalidValueException } from '../exceptions/invalid-value.exception';
-import type { ValueViolation, ValueViolationError } from './value-violation';
+import { InvalidValueException } from '../exceptions/invalid-value.exception.js';
+import type { ValueViolation, ValueViolationError } from './value-violation.js';
 
 /** Throws a `TypeError` naming the rule when `field` is not a non-empty string. */
 export function assertField(field: unknown, rule: string): void {

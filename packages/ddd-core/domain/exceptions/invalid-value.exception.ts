@@ -1,7 +1,7 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import type { ValueViolation } from '../rules/value-violation';
-import { DomainException } from './domain.exception';
+import type { ValueViolation } from '../rules/value-violation.js';
+import { DomainException } from './domain.exception.js';
 
 function describeViolation(violation: ValueViolation): string {
   const { field } = violation;

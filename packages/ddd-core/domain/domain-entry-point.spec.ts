@@ -12,9 +12,10 @@ import { execSync } from 'node:child_process';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
-const packageRoot = resolve(__dirname, '..');
+const packageRoot = resolve(import.meta.dirname, '..');
 let scriptDirectory: string;
 
 beforeAll(() => {
@@ -26,22 +27,30 @@ afterAll(() => {
 });
 
 /**
- * Modules loaded when the given entry point is imported, as absolute paths.
+ * Modules resolved when the given entry point is imported, as URLs.
  *
- * The probe runs in a fresh process because `require.cache` is process-wide: the
- * test runner has already loaded plenty, so measuring inside it would prove
- * nothing. The script is written to a file rather than passed with `-e`, whose
- * shell quoting mangles newlines.
+ * The probe runs in a fresh process because the module caches are process-wide:
+ * the test runner has already loaded plenty, so measuring inside it would prove
+ * nothing. A resolve hook sees every `import` and `require()` the entry point
+ * makes, ES modules and CommonJS alike. The script is written to a file rather
+ * than passed with `-e`, whose shell quoting mangles newlines.
  */
 function loadedModules(entryPoint: string): string[] {
-  const target = resolve(packageRoot, entryPoint);
-  const scriptPath = join(scriptDirectory, 'probe.cjs');
+  const target = pathToFileURL(resolve(packageRoot, entryPoint)).href;
+  const scriptPath = join(scriptDirectory, 'probe.mjs');
   writeFileSync(
     scriptPath,
     [
-      'const before = new Set(Object.keys(require.cache));',
-      `require(${JSON.stringify(target)});`,
-      'const loaded = Object.keys(require.cache).filter((m) => !before.has(m));',
+      "import { registerHooks } from 'node:module';",
+      'const loaded = [];',
+      'registerHooks({',
+      '  resolve(specifier, context, nextResolve) {',
+      '    const resolved = nextResolve(specifier, context);',
+      '    loaded.push(resolved.url);',
+      '    return resolved;',
+      '  },',
+      '});',
+      `await import(${JSON.stringify(target)});`,
       'process.stdout.write(JSON.stringify(loaded));',
     ].join('\n'),
   );
@@ -87,7 +96,7 @@ describe('ddd-core entry points', () => {
   });
 
   it('exposes the domain surface handlers and aggregates actually use', async () => {
-    const domain = await import('./index');
+    const domain = await import('./index.js');
 
     expect(domain.DomainException).toBeTypeOf('function');
     expect(domain.EntityNotFoundException).toBeTypeOf('function');
@@ -99,7 +108,7 @@ describe('ddd-core entry points', () => {
   });
 
   it('exposes the repository ports from the application entry point', async () => {
-    const application = await import('../application/index');
+    const application = await import('../application/index.js');
 
     expect(application.CommandBaseHandler).toBeTypeOf('function');
     expect(application.BaseCommand).toBeTypeOf('function');

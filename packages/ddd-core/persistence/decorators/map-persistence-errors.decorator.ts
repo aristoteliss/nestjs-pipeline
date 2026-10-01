@@ -2,7 +2,7 @@
 import {
   type IPersistenceDialect,
   persistenceDialect,
-} from '../persistence-dialect';
+} from '../persistence-dialect.js';
 
 /**
  * Domain errors per violated unique constraint, keyed by the entity property the

@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest';
 import {
   createCacheMutationBarrier,
   isCacheMutationBarrier,
-} from './cache-barrier.helper';
+} from './cache-barrier.helper.js';
 
 describe('cache-barrier.helper', () => {
   it('creates valid mutation barrier with UUID v7 token', () => {

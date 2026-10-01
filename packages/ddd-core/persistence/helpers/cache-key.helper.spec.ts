@@ -2,9 +2,9 @@
 
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { setTenantResolver } from '../../application/tenant-resolver';
-import { MissingTenantContextError } from '../../domain/exceptions/missing-tenant-context.exception';
-import { cacheKey, cacheKeyTemplate } from './cache-key.helper';
+import { setTenantResolver } from '../../application/tenant-resolver.js';
+import { MissingTenantContextError } from '../../domain/exceptions/missing-tenant-context.exception.js';
+import { cacheKey, cacheKeyTemplate } from './cache-key.helper.js';
 
 /** The application's own tenant context, registered as the tenant resolver. */
 const applicationTenant = new AsyncLocalStorage<string | undefined>();

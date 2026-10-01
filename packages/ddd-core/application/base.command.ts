@@ -1,6 +1,6 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import { definedFields, defineHidden } from './request-fields.helper';
+import { definedFields, defineHidden } from './request-fields.helper.js';
 
 /**
  * Base class for application CQRS commands.

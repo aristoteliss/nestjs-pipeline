@@ -18,7 +18,7 @@ interface Manifest {
 }
 
 const manifest = JSON.parse(
-  readFileSync(resolve(__dirname, 'package.json'), 'utf8'),
+  readFileSync(resolve(import.meta.dirname, 'package.json'), 'utf8'),
 ) as Manifest;
 
 describe('ddd-core manifest', () => {
@@ -59,7 +59,7 @@ describe('ddd-core manifest', () => {
 
   it('requires the Node version the repository requires', () => {
     const root = JSON.parse(
-      readFileSync(resolve(__dirname, '../../package.json'), 'utf8'),
+      readFileSync(resolve(import.meta.dirname, '../../package.json'), 'utf8'),
     ) as Manifest;
 
     expect(manifest.engines?.node).toBe(root.engines?.node);

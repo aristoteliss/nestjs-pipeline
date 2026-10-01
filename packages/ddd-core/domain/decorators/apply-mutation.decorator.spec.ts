@@ -1,11 +1,11 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { describe, expect, it, vi } from 'vitest';
-import { IEvent } from '../events/event.interface';
-import { UnknownMutableFieldError } from '../exceptions/unknown-mutable-field.error';
-import { RootEntity } from '../models/root.entity';
-import { ApplyMutation } from './apply-mutation.decorator';
-import { getMutableFields, Mutable } from './mutable.decorator';
+import { IEvent } from '../events/event.interface.js';
+import { UnknownMutableFieldError } from '../exceptions/unknown-mutable-field.error.js';
+import { RootEntity } from '../models/root.entity.js';
+import { ApplyMutation } from './apply-mutation.decorator.js';
+import { getMutableFields, Mutable } from './mutable.decorator.js';
 
 class RenamedEvent implements IEvent {
   constructor(

@@ -9,9 +9,9 @@
  */
 
 import { describe, expect, it, vi } from 'vitest';
-import type { IAggregateRoot } from '../domain/interfaces/aggregate-root.interface';
-import { AggregateRoot } from '../domain/models/aggregate-root';
-import { CommandBaseHandler } from './command-base.handler';
+import type { IAggregateRoot } from '../domain/interfaces/aggregate-root.interface.js';
+import { AggregateRoot } from '../domain/models/aggregate-root.js';
+import { CommandBaseHandler } from './command-base.handler.js';
 
 class ThingCreated {
   constructor(readonly id: string) {}

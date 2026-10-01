@@ -2,8 +2,8 @@
 
 import { isUuidV7, uuidv7 } from '@cqrs-ddd/uuidv7';
 import { describe, expect, it, vi } from 'vitest';
-import { RootEntitySnapshot } from '../interfaces/root-entity-snapshot.interface';
-import { RootEntity } from './root.entity';
+import { RootEntitySnapshot } from '../interfaces/root-entity-snapshot.interface.js';
+import { RootEntity } from './root.entity.js';
 
 interface TestSnapshot extends Partial<RootEntitySnapshot> {
   name: string;

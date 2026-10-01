@@ -1,6 +1,6 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import { MissingTenantContextError } from '../domain/exceptions/missing-tenant-context.exception';
+import { MissingTenantContextError } from '../domain/exceptions/missing-tenant-context.exception.js';
 
 /**
  * An explicit tenant: a tenant id string, or an object carrying `tenantId`, such

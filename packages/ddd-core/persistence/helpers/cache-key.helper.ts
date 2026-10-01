@@ -5,7 +5,7 @@ import { escapeKeySegment, stableStringify } from '@cqrs-ddd/safe-stringify';
 import {
   requireTenant,
   type TenantSource,
-} from '../../application/tenant-resolver';
+} from '../../application/tenant-resolver.js';
 
 /**
  * Types supported as cache key resource specifiers:

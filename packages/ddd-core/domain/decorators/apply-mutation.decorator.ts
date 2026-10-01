@@ -1,7 +1,7 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import { Method } from '../../types/Method.type';
-import { IEvent } from '../events/event.interface';
+import { Method } from '../../types/Method.type.js';
+import { IEvent } from '../events/event.interface.js';
 
 /**
  * The state change a domain method describes: mutable field keys mapped to

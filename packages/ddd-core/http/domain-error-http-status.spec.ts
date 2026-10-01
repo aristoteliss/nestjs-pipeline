@@ -1,12 +1,12 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { describe, expect, it } from 'vitest';
-import { ConcurrencyConflictError } from '../domain/exceptions/concurrency-conflict.error';
-import { DomainException } from '../domain/exceptions/domain.exception';
-import { EntityNotFoundException } from '../domain/exceptions/entity-not-found.exception';
-import { MissingTenantContextError } from '../domain/exceptions/missing-tenant-context.exception';
-import { TransientOperationError } from '../domain/exceptions/transient-operation.error';
-import { domainErrorHttpStatus } from './domain-error-http-status';
+import { ConcurrencyConflictError } from '../domain/exceptions/concurrency-conflict.error.js';
+import { DomainException } from '../domain/exceptions/domain.exception.js';
+import { EntityNotFoundException } from '../domain/exceptions/entity-not-found.exception.js';
+import { MissingTenantContextError } from '../domain/exceptions/missing-tenant-context.exception.js';
+import { TransientOperationError } from '../domain/exceptions/transient-operation.error.js';
+import { domainErrorHttpStatus } from './domain-error-http-status.js';
 
 class InvariantViolated extends DomainException {}
 

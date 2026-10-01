@@ -1,6 +1,6 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import { isCacheMutationBarrier } from './cache-barrier.helper';
+import { isCacheMutationBarrier } from './cache-barrier.helper.js';
 
 /**
  * Checks whether a cached snapshot or record is strictly newer than an incoming

@@ -42,6 +42,8 @@ Requires Node.js 22.12 or later. It installs `@cqrs-ddd/uuidv7` and
 `@cqrs-ddd/safe-stringify`, which have no dependencies. To persist with MikroORM, add
 `@cqrs-ddd/mikro-orm` and `@mikro-orm/core` 7.
 
+Published as an ES module; a CommonJS application loads it with `require()`.
+
 ## Entry points
 
 Import from the entry point for the layer you are writing. Each one loads only what it

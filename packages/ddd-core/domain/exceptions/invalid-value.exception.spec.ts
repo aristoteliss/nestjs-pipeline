@@ -1,9 +1,9 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { describe, expect, it } from 'vitest';
-import type { ValueViolation } from '../rules/value-violation';
-import { DomainException } from './domain.exception';
-import { InvalidValueException } from './invalid-value.exception';
+import type { ValueViolation } from '../rules/value-violation.js';
+import { DomainException } from './domain.exception.js';
+import { InvalidValueException } from './invalid-value.exception.js';
 
 describe('InvalidValueException', () => {
   it.each<[ValueViolation, string]>([
