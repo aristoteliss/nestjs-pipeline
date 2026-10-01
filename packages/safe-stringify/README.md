@@ -22,7 +22,7 @@ npm install @cqrs-ddd/safe-stringify
 pnpm add @cqrs-ddd/safe-stringify
 ```
 
-Requires Node.js 22 or later.
+Requires Node.js 22.12 or later.
 
 ## Strict serializer
 

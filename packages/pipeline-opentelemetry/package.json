@@ -1,11 +1,11 @@
 {
   "name": "@nestjs-pipeline/opentelemetry",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "description": "OpenTelemetry tracing & metrics behaviors for @nestjs-pipeline/core",
   "author": "Aristotelis <aristotelis@ik.me>",
   "license": "SEE LICENSE IN LICENSE",
   "engines": {
-    "node": ">=22.0.0"
+    "node": ">=22.12.0"
   },
   "repository": {
     "type": "git",
@@ -38,17 +38,17 @@
   },
   "peerDependencies": {
     "@nestjs-pipeline/core": "workspace:^",
-    "@nestjs/common": "^11.0.0",
+    "@nestjs/common": "^12.1.0",
     "@opentelemetry/api": "^1.9.0",
     "reflect-metadata": "^0.1.13 || ^0.2.0"
   },
   "devDependencies": {
     "@nestjs-pipeline/core": "workspace:*",
-    "@nestjs/common": "^11.2.6",
+    "@nestjs/common": "^12.1.1",
     "@opentelemetry/api": "^1.9.1",
-    "@vitest/coverage-v8": "^4.1.11",
+    "@vitest/coverage-v8": "^5.0.2",
     "reflect-metadata": "^0.2.2",
-    "vitest": "^4.1.11"
+    "vitest": "^5.0.2"
   },
   "dependencies": {
     "@cqrs-ddd/untyped": "workspace:^"

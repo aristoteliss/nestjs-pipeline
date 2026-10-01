@@ -13,7 +13,7 @@ export {
 export { ZodValidationError } from './errors/zod-validation.error';
 export { ZodValidationFilter } from './filters/zod-validation.filter';
 export { createZodMapper, type ZodMapper } from './pipes/create-zod-mapper';
-export { ZodPipe } from './pipes/zod-param.pipe';
+export { zodBadRequest } from './pipes/zod-bad-request';
 export { updatable, updatableFieldsOf } from './updatable';
 export {
   getRawInput,

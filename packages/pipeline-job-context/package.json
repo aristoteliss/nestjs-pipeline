@@ -1,11 +1,11 @@
 {
   "name": "@nestjs-pipeline/job-context",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Carries the tenant, correlation id and principal of a request into the queue jobs it enqueues, and gives system-started work an explicit context",
   "author": "Aristotelis",
   "license": "SEE LICENSE IN LICENSE",
   "engines": {
-    "node": ">=22.0.0"
+    "node": ">=22.12.0"
   },
   "repository": {
     "type": "git",
@@ -47,12 +47,12 @@
     "prepublishOnly": "pnpm run rebuild"
   },
   "peerDependencies": {
-    "@nestjs/common": "^11.0.0"
+    "@nestjs/common": "^12.1.0"
   },
   "devDependencies": {
-    "@nestjs/common": "^11.2.6",
-    "@vitest/coverage-v8": "^4.1.11",
+    "@nestjs/common": "^12.1.1",
+    "@vitest/coverage-v8": "^5.0.2",
     "reflect-metadata": "^0.2.2",
-    "vitest": "^4.1.11"
+    "vitest": "^5.0.2"
   }
 }

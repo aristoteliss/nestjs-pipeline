@@ -103,9 +103,10 @@ describe('CreateAuthHandler', () => {
       sessionExpiresAt: NOW + 3_600_000,
     });
     expect(cookies.save).toHaveBeenCalledExactlyOnceWith(result);
-    expect(publishAll).toHaveBeenCalledExactlyOnceWith([
-      expect.any(AuthCreatedEvent),
-    ]);
+    expect(publishAll).toHaveBeenCalledExactlyOnceWith(
+      [expect.any(AuthCreatedEvent)],
+      auth,
+    );
   });
 
   it('issues a different refresh token for every login', async () => {

@@ -20,6 +20,7 @@ export * from './exceptions/invalid-value.exception';
 export * from './exceptions/missing-tenant-context.exception';
 export * from './exceptions/transient-operation.error';
 export * from './exceptions/unknown-mutable-field.error';
+export * from './interfaces/aggregate-root.interface';
 export * from './interfaces/root-entity-snapshot.interface';
 export * from './models/aggregate-root';
 export * from './models/root.entity';

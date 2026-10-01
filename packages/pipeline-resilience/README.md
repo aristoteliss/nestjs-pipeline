@@ -68,7 +68,9 @@ pnpm add @nestjs-pipeline/resilience cockatiel
 pnpm add @nestjs-pipeline/core @nestjs/common reflect-metadata
 ```
 
-> **Note:** This package targets **cockatiel `^3.2.1`** (CommonJS). cockatiel `4.x` is published as an ESM-only module and is not compatible with a CommonJS NestJS build.
+Requires Node.js 22.12 or later, `@nestjs/common` `^12.1.0` and `@nestjs-pipeline/core` `^0.3.0`.
+
+> **Note:** This package requires **cockatiel `^4.0.0`**, which is published as an ES module. A CommonJS NestJS application loads it through Node's `require()` of ES modules, available from Node.js 22.12. cockatiel types the errors its policies report as `unknown`, so narrow them before reading `message` or other fields.
 
 ---
 

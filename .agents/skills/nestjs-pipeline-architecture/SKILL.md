@@ -242,7 +242,7 @@ An idempotency key is an operation identity, not a disposable response-cache key
 A controller method dispatches one command or query through `CommandBus` / `QueryBus` and maps its result to the response — nothing else. Calling an application service instead of the bus is the rare exception. It owns only:
 
 - HTTP decorators/status codes
-- input validation through zod DTOs (`ZodPipe`, parameter decorators)
+- input validation through zod DTO schemas declared on the parameter (`@Body({ schema })`, `@Param('id', { schema })`), validated by the application's global `StandardSchemaValidationPipe`
 - mapping HTTP input to commands/queries
 - mapping command/query results to the response
 
@@ -284,17 +284,17 @@ Do not add an outbox automatically just because DDD commonly recommends one. It 
 
 ## Pipeline package rules
 
-The core pipeline intentionally integrates deeply with NestJS CQRS. Some private Nest APIs are currently used for handler discovery/bootstrap compatibility.
+The core pipeline intentionally integrates deeply with NestJS CQRS. Handler discovery uses Nest's `DiscoveryService` and recognizes handlers by the metadata key each public `@CommandHandler`, `@QueryHandler` and `@EventsHandler` decorator records; the bootstrap also hooks Nest's `InstanceWrapper` to bind request-scoped handler instances.
 
 Do not casually refactor away or expand private framework imports.
 
-Current accepted technical risk includes `ExplorerService`/Nest internals used by the pipeline bootstrap. Any change there requires:
+Current accepted technical risk includes the assumption that each CQRS handler decorator records one metadata key (bootstrap fails otherwise) and the `InstanceWrapper` hooks. Any change there requires:
 
 - explicit compatibility reasoning
 - tests for supported Nest major versions
 - README/ADR update if behavior or compatibility changes
 
-Do not use the unused CQRS metadata re-export as a precedent for more `@nestjs/cqrs/dist/*` imports.
+`@nestjs/cqrs` exports only its package root; do not import from `@nestjs/cqrs/dist/*` or work around its `exports` map.
 
 ## Query rules
 

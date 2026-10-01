@@ -15,7 +15,7 @@ pipelines and to `@nestjs-pipeline/job-context`.
 pnpm add @nestjs-pipeline/tenant
 ```
 
-Requires Node.js 22 or later. To give pipelines the tenant, pass `tenantSource` to
+Requires Node.js 22.12 or later. To give pipelines the tenant, pass `tenantSource` to
 `PipelineModule.forRoot`:
 
 ```typescript

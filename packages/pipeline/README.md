@@ -49,10 +49,12 @@ Its peer contract also includes the standard NestJS runtime peers
 pnpm add @nestjs-pipeline/core
 ```
 
-**Peer dependencies** (must be installed in your application). Nest and
-`@nestjs/cqrs` must both be version 11 — Nest 10 is not supported, because
-request-scoped and transient handlers are resolved through `AsyncContext`,
-which `@nestjs/cqrs` only exposes from version 11:
+Requires Node.js 22.12 or later.
+
+**Peer dependencies** (must be installed in your application). `@nestjs/common`,
+`@nestjs/core` and `@nestjs/cqrs` must be `^12.1.0`: from 12.1, a subclass of a behavior
+that declares no constructor of its own inherits the base class's `@Optional()` markers;
+Nest 12.0.x drops them, so the subclass fails to resolve its optional dependencies:
 
 ```bash
 pnpm add @nestjs/common @nestjs/core @nestjs/cqrs reflect-metadata rxjs
@@ -64,6 +66,8 @@ pnpm add nestjs-pino pino-http pino-pretty
 ---
 
 ## Migrating from 0.1.x
+
+These steps lead to 0.2.0. To reach 0.3.0, continue with [Upgrading from 0.2.x](https://github.com/aristoteliss/nestjs-pipeline#upgrading-from-02x) in the repository README.
 
 0.2.0 contains the following breaking changes for applications on 0.1.18. The full list
 is in the repository [CHANGELOG](https://github.com/aristoteliss/nestjs-pipeline/blob/master/CHANGELOG.md).
@@ -1193,10 +1197,14 @@ orderCreated = (events$: Observable<any>): Observable<ICommand> =>
 **Bootstrap process:**
 
 1. `PipelineBootstrapService` runs at `OnApplicationBootstrap`.
-2. Discovers all CQRS handlers via `@nestjs/cqrs` `ExplorerService` (commands, queries, events).
+2. Discovers the command, query and event handlers through Nest's `DiscoveryService`. A
+   provider is a handler when its class carries the metadata that `@CommandHandler`,
+   `@QueryHandler` or `@EventsHandler` records, the rule Nest CQRS applies when it
+   registers handlers. If the installed `@nestjs/cqrs` records that metadata in an
+   unexpected way, bootstrap fails instead of leaving handlers unwrapped.
 3. For each handler with `@UsePipeline` or matching global behaviors: computes effective behavior/handler metadata, resolves singleton behavior instances, and wraps the `execute()` / `handle()` method. Behaviors that cannot be resolved as singletons are marked for dynamic resolution.
 4. Request-independent metadata is computed once at startup. The common all-singleton path reuses pre-resolved behavior instances with no per-request reflection/behavior DI lookup; request-scoped/transient behaviors are resolved per invocation with `moduleRef.resolve()` and the applicable Nest context ID.
-5. Requires Nest and Nest CQRS 11. Request-scoped and transient handlers
+5. Requires Nest and Nest CQRS 12. Request-scoped and transient handlers
    (`Scope.REQUEST`, `Scope.TRANSIENT`) rely on `AsyncContext`, which earlier
    CQRS versions do not provide.
 

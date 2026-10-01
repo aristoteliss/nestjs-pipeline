@@ -15,8 +15,6 @@ shared.
 
 Caching behavior for `@nestjs-pipeline/core`, powered by [cache-manager](https://www.npmjs.com/package/cache-manager) v7 on top of [Keyv](https://keyv.org/). Transparently cache query results — declaratively, with zero changes to your handler code — and choose any backend: **memory** (default), **redis**, **memcache**, **sqlite**, or **postgres**.
 
-> **New in 0.2.0:** this is the first published release of the package.
-
 ---
 
 ## Table of Contents
@@ -67,7 +65,8 @@ pnpm add @nestjs-pipeline/cache cache-manager keyv
 pnpm add @nestjs-pipeline/core @nestjs/common reflect-metadata
 ```
 
-Requires `@nestjs/common` `^11.0.0` and `@nestjs-pipeline/core` `^0.2.0`.
+Requires Node.js 22.12 or later, `@nestjs/common` `^12.1.0`, `@nestjs-pipeline/core` `^0.3.0`,
+`cache-manager` `^7.0.0` and `keyv` `^5.0.0`.
 
 **Optional store adapters** — install only the one(s) you use:
 

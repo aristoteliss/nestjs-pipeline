@@ -554,7 +554,7 @@ export class GetRolesHandler implements IQueryHandler<GetRolesQuery, RoleReadMod
 | `ACCESS_TOKEN_TTL_SECONDS` | Optional | Access-token lifetime, 60–3600 (default 300); invalid values fail boot | `300` |
 | `REFRESH_TOKEN_TTL_SECONDS` | Optional | Session lifetime fixed at login, ≥ 3600 (default 1209600) | `1209600` |
 | `REFRESH_REUSE_GRACE_SECONDS` | Optional | Window for the immediately previous refresh token, 0–120 (default 30) | `30` |
-| `TRUST_PROXY` | Optional | Unset: off. Otherwise passed to Express `trust proxy` / Fastify `trustProxy` (`true`, a hop count, or an address list) so `req.ip` is the client | `loopback` |
+| `TRUST_PROXY` | Optional | Unset: off. Otherwise passed to Express `trust proxy` / Fastify `trustProxy` (`true`, an address list, or with Express a hop count; Fastify refuses a hop count at boot) so `req.ip` is the client | `loopback` |
 | `PERMISSIONS_IN_ACCESS_TOKEN` | Optional | `true` copies the user's rules into access tokens; `false` (default) ignores them | `false` |
 | `ACCESS_TOKEN_MAX_BYTES` | Optional | Largest access token that may carry permissions, 1024–16384 (default 2500) | `2500` |
 | `AUTH_LOGIN_CODE_SHA256` | Required for login in production | SHA-256 hex digest of the shared demo login code accepted for every user | `<64 hex characters>` |

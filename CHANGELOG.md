@@ -1,5 +1,70 @@
 # Changelog
 
+## 0.3.0
+
+Every package is released at 0.3.0, for NestJS 12.
+
+### Requirements for every package
+
+- Node.js 22.12 or later (`engines`): a CommonJS application loads the ES modules NestJS 12
+  publishes through Node's `require()` of ES modules. `@cqrs-ddd/mikro-orm` requires 22.17,
+  as its `@mikro-orm/core` 7 peer does.
+- NestJS `^12.1.0` (`@nestjs/common`, `@nestjs/core`, `@nestjs/cqrs`) for every
+  `@nestjs-pipeline/*` package that peers on NestJS. NestJS 11 and 12.0.x are not
+  supported: 12.0.x drops the `@Optional()` markers of a base class in a subclass that
+  declares no constructor of its own.
+- Packages that peer on `@nestjs-pipeline/core` require `^0.3.0` of it.
+- A CommonJS application that compiles with TypeScript `module: node16` moves to
+  `nodenext`, `node20` or `bundler`; `node16` refuses imports of ES modules (TS1479).
+
+### Breaking
+
+- `@nestjs-pipeline/zod`: `ZodPipe` is removed. Declare the schema with `{ schema }` on
+  `@Body`, `@Param` or `@Query`, and register Nest's `StandardSchemaValidationPipe` once
+  with `exceptionFactory: zodBadRequest`.
+- `@nestjs-pipeline/resilience`: requires `cockatiel` `^4.0.0`, whose policies report
+  errors as `unknown`.
+
+### Added
+
+- `@nestjs-pipeline/zod`: `zodBadRequest`, the exception factory for Nest's
+  `StandardSchemaValidationPipe`; it answers 400 with the body `ZodValidationFilter` gives.
+- `@cqrs-ddd/core`: `IAggregateRoot`, the event-buffering contract, matching NestJS 12's,
+  which this package's and NestJS's aggregates both satisfy. `AggregateRoot`'s `publish`,
+  `publishAll` and `commit` take an optional dispatcher context and return the
+  publisher's result; `commit` hands over a copy of the events and clears the buffer once
+  `publishAll` returns. `IDomainEventPublisher.publishAll(events, dispatcherContext?)`.
+- `@nestjs-pipeline/job-context`: `JobContextModule.forRoot`'s `tenants` also takes a
+  function, called once when the application builds its providers, so the list can come
+  from configuration read at startup.
+
+### Changed
+
+- `@cqrs-ddd/core`: `CommandBaseHandler` accepts any `IAggregateRoot` result and passes the
+  aggregate to `publishAll` as the dispatcher context, as NestJS's `EventPublisher` does.
+- `@nestjs-pipeline/core`: handlers are discovered through Nest's `DiscoveryService` and
+  the metadata key each public `@nestjs/cqrs` handler decorator records, because
+  `@nestjs/cqrs` 12 exports only its package root. The bootstrap fails when a decorator
+  records other than one key.
+- `@nestjs-pipeline/idempotency`: NestJS 12's default exception filter answers a plain
+  `Error` that carries a `statusCode` with 500, so register `IdempotencyConflictFilter` to
+  keep the 409 and 422 answers.
+- `@nestjs-pipeline/rate-limit`: tested with rate-limiter-flexible 11, which throws when a
+  limiter is created without a finite `points` or `duration`.
+
+### Fixed
+
+- `@cqrs-ddd/core`: `CommandBaseHandler.execute()` awaits what `publishAll()` returns,
+  after clearing the buffer, so a publisher that rejects rejects the command. The
+  rejection was unhandled, and Node exited the process.
+- `@nestjs-pipeline/audit`, `/cache`, `/deadletter`, `/feature-flags`, `/idempotency`,
+  `/rate-limit`, `/resilience` (behavior and `ResiliencePolicies`) and core's
+  `LoggingBehavior`: with the default Nest logger, each record prints its context once; the
+  class name was printed again as a record of its own. The fallback `Logger` has no
+  context and no timestamp delta of its own.
+- `@cqrs-ddd/mikro-orm`: `engines.node` is `>=22.17.0`, the minimum of its
+  `@mikro-orm/core` 7 peer.
+
 ## 0.2.2
 
 A release of `@nestjs-pipeline/zod`, `/casl`, `/feature-flags`, `/idempotency` and

@@ -53,16 +53,20 @@ pnpm test:e2e     # api exercises the real Nest composition paths
 
 ## Local security and compatibility rules
 
-- `src/services/pipeline.bootstrap.service.ts` imports NestJS CQRS internals
-  (`@nestjs/cqrs/dist/services/explorer.service`). This is an accepted, documented trade-off.
-  Do not expand private-framework coupling, and do not treat the existing import as a
-  precedent. Any change here requires explicit compatibility reasoning, tests for the
-  supported Nest majors, and a README/ADR update if behavior or compatibility changes.
-- The pipeline reads no Nest CQRS decorator metadata constants: discovery goes through
-  `ExplorerService`. Do not re-export or import `@nestjs/cqrs/dist/decorators/constants`;
-  `src/constants/private-api-boundary.spec.ts` guards it.
+- `src/services/handler-discovery.ts` lists providers through Nest's `DiscoveryService` and
+  recognizes handlers by the metadata key each public `@CommandHandler`, `@QueryHandler` and
+  `@EventsHandler` decorator records, learned at bootstrap from a throwaway class. It
+  classifies as Nest CQRS does (the instance's class, else the registered class, inherited
+  metadata included) and fails bootstrap when a decorator records other than one key. This
+  assumption about the decorators is an accepted, documented trade-off; any change here
+  requires explicit compatibility reasoning, tests for the supported Nest majors, and a
+  README/ADR update if behavior or compatibility changes.
+- `@nestjs/cqrs` exports only its package root. Do not import or re-export anything under
+  `@nestjs/cqrs/dist`; `src/constants/private-api-boundary.spec.ts` guards the decorator
+  constants. The bootstrap still hooks Nest's `InstanceWrapper` (`@nestjs/core/injector`) to
+  bind request-scoped handler instances; do not expand private-framework coupling.
 - Behaviors registered globally in the `before` segment are security guards for the whole
   chain. Reordering the chain, or letting a short-circuiting behavior run before them,
   changes the authorization boundary — treat any such change as architecture-sensitive.
-- `@nestjs/core`, `@nestjs/common` and `@nestjs/cqrs` are pinned via root `overrides`.
-  Changing those pins affects every package and the release verification.
+- `@nestjs/core`, `@nestjs/common` and `@nestjs/cqrs` are peers. Changing their ranges affects
+  every package and the release verification.

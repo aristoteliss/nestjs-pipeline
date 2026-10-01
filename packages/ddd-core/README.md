@@ -38,7 +38,7 @@ pnpm add @cqrs-ddd/core
 npm install @cqrs-ddd/core
 ```
 
-Requires Node.js 22 or later. It installs `@cqrs-ddd/uuidv7` and
+Requires Node.js 22.12 or later. It installs `@cqrs-ddd/uuidv7` and
 `@cqrs-ddd/safe-stringify`, which have no dependencies. To persist with MikroORM, add
 `@cqrs-ddd/mikro-orm` and `@mikro-orm/core` 7.
 
@@ -49,7 +49,7 @@ needs.
 
 | Entry | Holds |
 | --- | --- |
-| `@cqrs-ddd/core/domain` | `AggregateRoot`, `RootEntity`, `RootEntitySnapshot`, `@Mutable`, `getMutableFields`, `@ApplyMutation`, `IEvent`, `DomainEvent`, `RootDomainEvent`, `deepCloneAndFreeze`, `textRule`, `numberRule`, `ValueViolation`, and the errors `DomainException`, `InvalidValueException`, `EntityNotFoundException`, `ConcurrencyConflictError`, `TransientOperationError` (with `isTransientOperationError`), `MissingTenantContextError`, `UnknownMutableFieldError` |
+| `@cqrs-ddd/core/domain` | `AggregateRoot`, `IAggregateRoot`, `ApplyEventOptions`, `RootEntity`, `RootEntitySnapshot`, `@Mutable`, `getMutableFields`, `@ApplyMutation`, `IEvent`, `DomainEvent`, `RootDomainEvent`, `deepCloneAndFreeze`, `textRule`, `numberRule`, `ValueViolation`, and the errors `DomainException`, `InvalidValueException`, `EntityNotFoundException`, `ConcurrencyConflictError`, `TransientOperationError` (with `isTransientOperationError`), `MissingTenantContextError`, `UnknownMutableFieldError` |
 | `@cqrs-ddd/core/application` | `BaseCommand`, `BaseQuery`, `IQueryOptions`, `CommandBaseHandler`, the ports (`IDomainEventPublisher`, `ICommandRepository`, `IQueryRepository`, `IWriteSideAggregateRepository`, `ICache`, `IVersionedCache`, `isVersionedCache`), `requireTenant`, `setTenantResolver`, and the deprecated `requireTenantId` |
 | `@cqrs-ddd/core/persistence` | the lifecycle decorators (`@PersistedWrite`, `@Cache`, `@AcknowledgePersisted`, `@MapPersistenceErrors`, `@FromCache`), `QueryRepository`, `CommandRepository`, `MemoryCache` and its injection token `CACHE_TOKEN`, `cacheKey`, `cacheKeyTemplate`, `isCacheNewer`, `toCacheSnapshot`, the mutation-barrier helpers, `consoleCacheLogger`, `safeWarn`, and the persistence dialect contract (`IPersistenceDialect`, `setPersistenceDialect`, `persistenceDialect`) |
 | `@cqrs-ddd/core/http` | `domainErrorHttpStatus` |
@@ -338,9 +338,10 @@ const handler = new UpdateUserHandler(users, {
 await handler.execute(new UpdateUserCommand(id, 'bob'));
 ```
 
-- `handle()` returns the aggregate, or a result carrying it as `aggregate`.
-  `execute()` calls it, publishes the buffered events once with
-  `eventBus.publishAll(events)`, clears the buffer and returns the result unchanged.
+- `handle()` returns the aggregate, or a result carrying it as `aggregate`; any
+  `IAggregateRoot` qualifies. `execute()` calls it, publishes the buffered events once
+  with `eventBus.publishAll(events, aggregate)` (the aggregate is the dispatcher context),
+  clears the buffer and returns the result unchanged.
 - A rejected `handle()` publishes nothing. If `publishAll()` throws, the error
   propagates and the events stay buffered.
 - If `publishAll()` returns a promise, `execute()` waits for it after clearing the buffer.
@@ -348,12 +349,18 @@ await handler.execute(new UpdateUserCommand(id, 'bob'));
   events are not published a second time.
 - Any object with `publishAll(events)` is an `IDomainEventPublisher`.
 
-**`AggregateRoot.commit()` publishes nothing by default.** It hands the buffer to the
-aggregate's own `publish`/`publishAll` hooks, which do nothing until a publisher is
-connected by overriding them, and then clears the buffer. Calling `commit()` without a
-connected publisher therefore drops the events; so does `autoCommit`. Let
-`CommandBaseHandler` publish, or read `getUncommittedEvents()` and call `uncommit()`
-yourself.
+**`AggregateRoot.commit()` publishes nothing by default.** It hands a copy of the
+buffer to the aggregate's own `publishAll` hook (`apply()` calls `publish` while
+`autoCommit` is on), which does nothing until a publisher is connected, then clears the
+buffer. Calling `commit()` without a connected publisher therefore drops the events; so
+does `autoCommit`. Let `CommandBaseHandler` publish, or read `getUncommittedEvents()` and
+call `uncommit()` yourself.
+
+`commit(dispatcherContext?)` passes the context, such as `{ transaction }`, to
+`publishAll` and returns what it returns. The buffer is cleared once `publishAll`
+returns, before an asynchronous publisher settles, so `await aggregate.commit()` waits
+for the publisher and receives its error without risking a second publication; if
+`publishAll` throws, the events stay buffered.
 
 ## Write-side repositories
 
@@ -625,8 +632,14 @@ rest to it.
 
 Nothing in this package imports NestJS; the fit is structural.
 
-- The NestJS CQRS `EventBus` has `publishAll(events)`, so it is an
-  `IDomainEventPublisher`: a handler passes its injected bus to `super(eventBus)`.
+- The NestJS CQRS `EventBus` has `publishAll(events, dispatcherContext)`, so it is an
+  `IDomainEventPublisher`: a handler passes its injected bus to `super(eventBus)`, and
+  the bus hands the aggregate to its configured publisher as the dispatcher context.
+- `AggregateRoot` satisfies NestJS's `IAggregateRoot`, and a NestJS `AggregateRoot`
+  satisfies this package's `IAggregateRoot`. `EventPublisher.mergeObjectContext(aggregate)`
+  connects an aggregate to the `EventBus`: `commit()` then publishes with the aggregate as
+  the context, `commit({ transaction })` with that context, and both return the bus's
+  result.
 - `CommandBaseHandler.execute(command)` is the method the NestJS command bus calls, so a
   class decorated with `@CommandHandler` extends it directly.
 - `BaseCommand`, `BaseQuery` and the domain events are plain classes that NestJS

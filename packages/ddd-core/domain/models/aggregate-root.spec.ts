@@ -85,11 +85,53 @@ describe('AggregateRoot', () => {
     order.commit();
 
     expect(publishAllSpy).toHaveBeenCalledTimes(1);
-    expect(publishAllSpy).toHaveBeenCalledWith([
-      expect.any(OrderPlacedEvent),
-      expect.any(OrderCancelledEvent),
-    ]);
+    expect(publishAllSpy).toHaveBeenCalledWith(
+      [expect.any(OrderPlacedEvent), expect.any(OrderCancelledEvent)],
+      undefined,
+    );
     expect(order.getUncommittedEvents()).toHaveLength(0);
+  });
+
+  it('passes the dispatcher context of commit() to publishAll and returns its result', async () => {
+    const order = new TestOrderAggregate();
+    const context = { transaction: 'tx-1' };
+    const publishAllSpy = vi
+      .spyOn(order, 'publishAll')
+      .mockReturnValue(Promise.resolve('published'));
+    order.placeOrder('ord-1', 100);
+
+    await expect(order.commit(context)).resolves.toBe('published');
+    expect(publishAllSpy).toHaveBeenCalledExactlyOnceWith(
+      [expect.any(OrderPlacedEvent)],
+      context,
+    );
+  });
+
+  it('hands publishAll a copy and clears the buffer before an asynchronous publisher settles', () => {
+    const order = new TestOrderAggregate();
+    const publishAllSpy = vi
+      .spyOn(order, 'publishAll')
+      .mockReturnValue(new Promise(() => {}));
+    order.placeOrder('ord-1', 100);
+
+    void order.commit();
+
+    expect(order.getUncommittedEvents()).toHaveLength(0);
+    expect(publishAllSpy.mock.calls[0][0]).toEqual([
+      expect.any(OrderPlacedEvent),
+    ]);
+  });
+
+  it('keeps the events buffered when publishAll throws', () => {
+    const order = new TestOrderAggregate();
+    const failure = new Error('publication failed');
+    vi.spyOn(order, 'publishAll').mockImplementation(() => {
+      throw failure;
+    });
+    order.placeOrder('ord-1', 100);
+
+    expect(() => order.commit()).toThrow(failure);
+    expect(order.getUncommittedEvents()).toHaveLength(1);
   });
 
   it('publishes immediately and does not buffer when autoCommit is enabled', () => {

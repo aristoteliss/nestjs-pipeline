@@ -1,6 +1,7 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { DynamicModule, Global, Module, Provider, Type } from '@nestjs/common';
+import { DiscoveryModule } from '@nestjs/core';
 import { LOGGING_BEHAVIOR_LOGGER } from './behaviors/logging.behavior';
 import { PipelineBehaviorEntry } from './decorators/pipeline.decorator';
 import { behaviorEntryType } from './helpers/behavior-entries';
@@ -147,7 +148,7 @@ function extractBehaviorTypes(
  * those values.
  */
 @Global()
-@Module({})
+@Module({ imports: [DiscoveryModule] })
 export class PipelineModule {
   /**
    * Configures the pipeline as a global dynamic module.

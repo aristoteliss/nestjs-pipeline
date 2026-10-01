@@ -1,5 +1,6 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
+import type { IAggregateRoot } from '../domain/interfaces/aggregate-root.interface';
 import { AggregateRoot } from '../domain/models/aggregate-root';
 import type { IDomainEventPublisher } from './ports/domain-event-publisher.port';
 
@@ -8,16 +9,16 @@ import type { IDomainEventPublisher } from './ports/domain-event-publisher.port'
  * Return either the aggregate itself or an application result with an `aggregate` field.
  */
 export type AggregateBearingResult =
-  | AggregateRoot
-  | { readonly aggregate: AggregateRoot };
+  | IAggregateRoot
+  | { readonly aggregate: IAggregateRoot };
 
-function isAggregate(obj: unknown): obj is AggregateRoot {
+function isAggregate(obj: unknown): obj is IAggregateRoot {
   return (
     obj instanceof AggregateRoot ||
     (typeof obj === 'object' &&
       obj !== null &&
-      typeof (obj as AggregateRoot).getUncommittedEvents === 'function' &&
-      typeof (obj as AggregateRoot).uncommit === 'function')
+      typeof (obj as IAggregateRoot).getUncommittedEvents === 'function' &&
+      typeof (obj as IAggregateRoot).uncommit === 'function')
   );
 }
 
@@ -26,9 +27,10 @@ function isAggregate(obj: unknown): obj is AggregateRoot {
  *
  * Wraps every concrete command handler with shared lifecycle behavior:
  * 1. Executes command logic via the abstract {@link handle} method.
- * 2. If the result is an {@link AggregateRoot} (or an object containing `aggregate: AggregateRoot`),
- *    its buffered uncommitted domain events are automatically published through the
- *    {@link IDomainEventPublisher} and cleared after publication.
+ * 2. If the result is an aggregate root ({@link IAggregateRoot}, such as an
+ *    {@link AggregateRoot}) or an object containing one as `aggregate`, its buffered
+ *    uncommitted domain events are published through the {@link IDomainEventPublisher},
+ *    with the aggregate as the dispatcher context, and cleared after publication.
  *
  * It is framework-neutral. With NestJS CQRS, decorate the subclass with
  * `@CommandHandler` and pass the injected `EventBus`, which satisfies
@@ -111,7 +113,9 @@ export abstract class CommandBaseHandler<
    * `CommandBus`).
    *
    * Delegates to {@link handle} and automatically publishes any uncommitted domain
-   * events if the result is an {@link AggregateRoot} (or an object containing `aggregate: AggregateRoot`).
+   * events if the result is an aggregate root (or an object containing one as
+   * `aggregate`). The publisher receives the aggregate as its dispatcher context,
+   * as NestJS's `EventPublisher` passes it on `commit()`.
    *
    * The events are handed to the publisher and cleared from the aggregate, then
    * `execute()` awaits what `publishAll()` returned: an asynchronous publisher
@@ -141,7 +145,7 @@ export abstract class CommandBaseHandler<
     if (aggregate) {
       const events = [...aggregate.getUncommittedEvents()];
       if (events.length > 0) {
-        const published = this.eventBus.publishAll(events);
+        const published = this.eventBus.publishAll(events, aggregate);
         aggregate.uncommit();
         await published;
       }

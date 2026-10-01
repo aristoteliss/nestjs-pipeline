@@ -11,10 +11,14 @@ import {
   Optional,
   Type,
 } from '@nestjs/common';
-import { type ContextId, ContextIdFactory, ModuleRef } from '@nestjs/core';
+import {
+  type ContextId,
+  ContextIdFactory,
+  DiscoveryService,
+  ModuleRef,
+} from '@nestjs/core';
 import { InstanceWrapper } from '@nestjs/core/injector/instance-wrapper';
 import { AsyncContext } from '@nestjs/cqrs';
-import { ExplorerService } from '@nestjs/cqrs/dist/services/explorer.service';
 import { IPipelineBehavior } from '../interfaces/pipeline.behavior.interface';
 import {
   type PipelineBehaviorDiagnostic,
@@ -25,6 +29,7 @@ import {
   PIPELINE_MODULE_OPTIONS,
   PipelineModuleOptions,
 } from '../options/pipeline-module.options';
+import { discoverHandlers } from './handler-discovery';
 import { validateBehaviorContracts } from './pipeline-contracts';
 import { compilePipelinePlan } from './pipeline-plan';
 import { createPipelineRunner, type PipelineRunner } from './pipeline-runner';
@@ -94,7 +99,7 @@ function isScopedProviderError(error: unknown): boolean {
 
 /**
  * At application bootstrap, this service:
- * 1. Discovers all CQRS handlers via ExplorerService (commands, queries, events)
+ * 1. Discovers the command, query and event handlers Nest CQRS registers
  * 2. Finds handlers decorated with @UsePipeline(...) or matched by global behaviors
  * 3. Precomputes handler metadata and resolves singleton behavior instances
  * 4. Wraps each matching handler method with the effective behavior chain
@@ -125,6 +130,7 @@ export class PipelineBootstrapService
 
   constructor(
     private readonly moduleRef: ModuleRef,
+    private readonly discovery: DiscoveryService,
     @Optional()
     @Inject(PIPELINE_MODULE_OPTIONS)
     private readonly options?: PipelineModuleOptions,
@@ -134,8 +140,7 @@ export class PipelineBootstrapService
     this.bootstrapLogLevel = this.options?.bootstrapLogLevel ?? 'debug';
 
     try {
-      const explorer = this.moduleRef.get(ExplorerService, { strict: false });
-      const { commands = [], queries = [], events = [] } = explorer.explore();
+      const { commands, queries, events } = discoverHandlers(this.discovery);
 
       const collectedDiagnostics: PipelineBehaviorDiagnostic[] = [];
 
@@ -208,7 +213,7 @@ export class PipelineBootstrapService
    * without relocating it, preserving security-sensitive outer guards.
    *
    * @param wrapper     - The NestJS InstanceWrapper for this provider
-   * @param requestKind - Handler kind from ExplorerService categorization
+   * @param requestKind - Handler kind, from the bus Nest CQRS registers it with
    * @param methodName  - Method name to wrap ('execute' | 'handle')
    */
   private wrapIfDecorated(

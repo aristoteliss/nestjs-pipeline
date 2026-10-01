@@ -9,6 +9,7 @@
  */
 
 import { describe, expect, it, vi } from 'vitest';
+import type { IAggregateRoot } from '../domain/interfaces/aggregate-root.interface';
 import { AggregateRoot } from '../domain/models/aggregate-root';
 import { CommandBaseHandler } from './command-base.handler';
 
@@ -111,6 +112,40 @@ describe('CommandBaseHandler publication semantics', () => {
     expect(
       (bus as unknown as { publishAll: ReturnType<typeof vi.fn> }).publishAll,
     ).not.toHaveBeenCalled();
+  });
+
+  it('publishes from an aggregate that implements IAggregateRoot without extending AggregateRoot', async () => {
+    const event = new ThingCreated('t-5');
+    const events = [event];
+    const aggregate: IAggregateRoot = {
+      autoCommit: false,
+      publish: () => undefined,
+      publishAll: () => undefined,
+      commit: () => undefined,
+      uncommit: () => {
+        events.length = 0;
+      },
+      getUncommittedEvents: () => events,
+      loadFromHistory: () => {},
+      apply: () => {},
+    };
+    const publishAll = vi.fn();
+    class Handler extends CommandBaseHandler<
+      CreateThingCommand,
+      IAggregateRoot
+    > {
+      constructor() {
+        super({ publishAll });
+      }
+      async handle() {
+        return aggregate;
+      }
+    }
+
+    await new Handler().execute(new CreateThingCommand());
+
+    expect(publishAll).toHaveBeenCalledExactlyOnceWith([event], aggregate);
+    expect(events).toHaveLength(0);
   });
 
   it('rejects a handler whose result carries no aggregate', () => {

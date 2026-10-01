@@ -27,15 +27,15 @@ what the libraries support.
 - **Shape**: monorepo — workspace globs `api`, `packages/*` (20 workspace packages).
 - **Publishable packages**: 19; private: `api`.
 - **Runnable workspaces**: `api`.
-- **Versions**: `0.2.0`, `0.2.1`, `0.2.2`.
+- **Versions**: `0.3.0`.
 - **Packages**: see the Workspace packages table under Directory Map.
 <!-- context:generated-end repository-shape -->
 
 ## Technology Stack
 
 <!-- context:generated-start technology-stack -->
-- **Languages** (file counts, excluded directories omitted): `.ts` 796, `.md` 35, `.grit` 14, `.py` 3, `.mjs` 1
-- **Runtime engines** (root `package.json`): `node` >=22.0.0, `pnpm` >=9.0.0
+- **Languages** (file counts, excluded directories omitted): `.ts` 799, `.md` 39, `.grit` 14, `.py` 3, `.mjs` 1
+- **Runtime engines** (root `package.json`): `node` >=22.12.0, `pnpm` >=9.0.0
 - **Package manager evidence**: `pnpm-lock.yaml`.
 - **Integrations**: listed with their purpose under Dependencies and Integrations.
 <!-- context:generated-end technology-stack -->
@@ -46,7 +46,7 @@ what the libraries support.
 | Path | Role | Invocation |
 | --- | --- | --- |
 | `api/src/bootstrap.ts` | Application bootstrap / composition | workspace `@nestjs-pipeline/ddd-api` |
-| `api/src/main.ts` | Process entry point | workspace `@nestjs-pipeline/ddd-api`; `pnpm --filter @nestjs-pipeline/ddd-api` `dev`, `start`, `start:fastify` |
+| `api/src/main.ts` | Process entry point | workspace `@nestjs-pipeline/ddd-api` |
 | `api/src/persistence/cli.ts` | CLI entry point | `pnpm --filter @nestjs-pipeline/ddd-api` `db:migrate`, `db:revert`, `permissions:rebuild`, `permissions:verify`, `sessions:purge` |
 | `api/src/tracing.ts` | Telemetry initialization (loaded before the framework) | workspace `@nestjs-pipeline/ddd-api` |
 | `api/vitest.config.e2e.ts` | Referenced by a package script | `pnpm --filter @nestjs-pipeline/ddd-api` `test:e2e`, `test:e2e:watch` |
@@ -133,8 +133,9 @@ package; users-api supplies the Nest glue (`framework-independence.grit`,
 
 `HTTP request` → `HttpCorrelationMiddleware` + `TenantSchemaMiddleware`
 (`api/src/app.module.ts` `configure()`) → `AuthSessionGuard` (global `APP_GUARD`) →
-`SessionPrincipalContextInterceptor` (global `APP_INTERCEPTOR`) → controller (`ZodPipe`
-validation) → `CommandBus`/`QueryBus` → pipeline chain (order under Pipeline engine;
+`SessionPrincipalContextInterceptor` (global `APP_INTERCEPTOR`) → controller (`{ schema }`
+parameters, validated by the global `StandardSchemaValidationPipe` with `zodBadRequest`,
+an `APP_PIPE` in `AppModule`) → `CommandBus`/`QueryBus` → pipeline chain (order under Pipeline engine;
 global behaviors in `api/src/common/modules/observability.module.ts`) → handler.
 
 ### Persistence flow
@@ -206,8 +207,10 @@ in the handler (`CaslAuthorizer`). Details under Authentication and Authorizatio
 - Keeps no tenant or correlation store: it takes both from `PipelineModule.forRoot({ sources })`
   (`tenantSource`, `correlationSource`; the api wires them in
   `api/src/common/context/context-sources.ts`) and runs the chain inside them.
-- Imports NestJS CQRS internals (`@nestjs/cqrs/dist/services/explorer.service`): a Nest minor
-  release can break discovery. Do not expand that coupling.
+- Finds handlers through Nest's `DiscoveryService` by the metadata key each public CQRS
+  handler decorator records (`packages/pipeline/src/services/handler-discovery.ts`);
+  bootstrap fails if a decorator records other than one key. It still hooks Nest's
+  `InstanceWrapper` for request-scoped handlers. Do not expand that coupling.
 
 ### Persistence lifecycle — `packages/ddd-core/`, `packages/ddd-mikro-orm/` ([core](../packages/ddd-core/CLAUDE.md), [MikroORM](../packages/ddd-mikro-orm/CLAUDE.md))
 
@@ -292,7 +295,7 @@ environment value is read or reproduced here.
 
 | Workspace | Internal | External | Peers |
 | --- | --- | --- | --- |
-| `api` | 17 workspace packages | `@casl/ability`, `@fastify/secure-session`, `@keyv/redis`, `@libsql/client`, `@mikro-orm/core`, `@mikro-orm/libsql`, `@mikro-orm/migrations`, `@mikro-orm/postgresql`, `@mikro-orm/sql`, `@nestjs/bullmq`, … (+26) | — |
+| `api` | 17 workspace packages | `@casl/ability`, `@fastify/secure-session`, `@keyv/redis`, `@mikro-orm/core`, `@mikro-orm/libsql`, `@mikro-orm/migrations`, `@mikro-orm/postgresql`, `@mikro-orm/sql`, `@nestjs/bullmq`, `@nestjs/common`, … (+25) | — |
 | `packages/ddd-core` | `@cqrs-ddd/safe-stringify`, `@cqrs-ddd/uuidv7` | — | — |
 | `packages/ddd-mikro-orm` | — | — | `@cqrs-ddd/core`, `@mikro-orm/core` |
 | `packages/pipeline` | `@cqrs-ddd/safe-stringify`, `@cqrs-ddd/untyped`, `@cqrs-ddd/uuidv7` | — | `@nestjs/common`, `@nestjs/core`, `@nestjs/cqrs`, `reflect-metadata`, `rxjs` |
@@ -334,7 +337,7 @@ live in `AGENTS.md`; this table keeps what is specific to this repository.*
 | Errors | Framework-neutral inward; HTTP mapping only at the boundary (`domainErrorHttpStatus()`) | `transport-neutral-errors.grit`, `api/src/common/filters/` |
 | Configuration | `process.env` only in bootstrap and config code; one `<system>.config.ts` per external system (`redisConfig()`, `persistenceConfig()`, `otlpConfig()`), the only reader of its variables | `core-environment.grit`, `AGENTS.md` rule 23, `api/src/common/environment/` |
 | Persistence | Handlers depend on repository tokens; aggregates change only through domain methods; field limits live in the aggregate's `rules` | `handler-boundaries.grit`, `aggregate-identity.grit`, `packages/ddd-core/domain/rules/` |
-| Validation | Zod schemas on commands and queries plus `ZodPipe` | `packages/pipeline-zod` |
+| Validation | Zod schemas on commands and queries; route parameters declare `{ schema }`, which Nest's `StandardSchemaValidationPipe` validates with `zodBadRequest` | `packages/pipeline-zod`, `api/src/app.module.ts` |
 | Tooling | Biome (2 spaces, single quotes); strict `tsc --noEmit` per workspace; license header on every package `.ts` | `biome.json`, `tsconfig.base.json`, `package-licenses.grit` |
 | Commits | Conventional style: `feat(scope): …`, `fix(scope): …`, `refactor: …` | `git log` |
 <!-- context:manual-end conventions -->
@@ -498,8 +501,22 @@ secret value.*
   imported dynamically.
 - **`api/src/tracing.ts` must be imported before NestJS.** `api/src/bootstrap.ts` imports it on its
   first line; reordering breaks instrumentation.
-- **NestJS versions are pinned by root `overrides`** (`@nestjs/core`, `@nestjs/common`,
-  `@nestjs/cqrs`). Changing a pin affects every package and the release verification.
+- **NestJS 12 ships ES modules; the repository stays CommonJS.** Node's `require()` of ES
+  modules loads them (Node.js 22.12); TypeScript 7 resolves with `Bundler`, while
+  `module: node16` would refuse the imports (TS1479). `@nestjs/core` 12's `exports` map hides
+  `package.json`, so read a Nest version from the file system.
+- **NestJS 12's default exception filter answers a plain `Error` with a `statusCode` with
+  500.** A package error keeps its status only through its filter (the `APP_FILTER`
+  providers in `api/src/app.module.ts`, `IdempotencyConflictFilter` among them).
+- **A subclass that declares its own constructor must repeat `@Optional()`.** From
+  `@nestjs/core` 12.1, a subclass without a constructor inherits the markers; 12.0.x never
+  passed them on, which is why the Nest peers are `^12.1.0`.
+- **`@opentelemetry/instrumentation-nestjs-core` 0.68 gives no NestJS spans on Nest 12.**
+  HTTP and pg spans are unaffected; 0.69 restores them (upgrade step 10.5,
+  `.claude/tasks/http-route-tracing.md`). No test loads `tracing.ts`, so such a loss shows
+  only in a trace backend or a scratch check.
+- **Fastify mode refuses a numeric `TRUST_PROXY`.** Fastify 5.12, bundled with Nest 12,
+  trusts no proxy for a hop count, so `api/src/http-platform.ts` fails at boot instead.
 - **Package `LICENSE` files are generated.** `pnpm copy-licenses` writes them into
   `packages/*` and they are gitignored; they exist only for tarball creation.
 - **No CI runs these checks.** There is no `.github/` or other CI configuration
@@ -509,13 +526,13 @@ secret value.*
 ## Snapshot Metadata
 
 <!-- context:generated-start metadata -->
-- Generated at: 2026-10-01T12:08:06Z
-- Git commit: 232ad1bdf6dd14a07dfbec52e3d0916fe24cf718
-- Git branch: fix/master-defects
-- Uncommitted changes when generated: no
+- Generated at: 2026-10-01T13:50:13Z
+- Git commit: 8ef4543c2c22042916023d48628f4756db09c4d0
+- Git branch: develop
+- Uncommitted changes when generated: yes
 - Generator: `scripts/update-claude-snapshot.py` version 1.0.0
 - Snapshot status: generated — structural inspection only, no code executed
-- Files inspected: 923
+- Files inspected: 930
 - Included top-level directories: `.agents`, `.claude`, `api`, `biome`, `integration`, `packages`, `scripts`
 - Excluded directory names: `.cache`, `.git`, `.gradle`, `.idea`, `.mypy_cache`, `.next`, `.nuxt`, `.parcel-cache`, `.pnpm-store`, `.pytest_cache`, `.ruff_cache`, `.svelte-kit`, `.terraform`, `.tmp`, `.tox`, `.turbo`, `.venv`, `.vscode`, `__pycache__`, `bower_components`, `build`, `coverage`, `dist`, `node_modules`, `out`, `target`, `vendor`, `venv`, `virtualenv`
 - Excluded file patterns: `.env`, `.env.*`, `*.env`, `*.pem`, `*.key`, `*.pfx`, `*.p12`, `*.jks`, `*.keystore`, `id_rsa*`, `id_ed25519*`, `*credentials*`, `*.secret`, `secrets.*`

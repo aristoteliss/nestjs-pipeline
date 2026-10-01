@@ -1,7 +1,6 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { Logger } from '@nestjs/common';
-import { ExplorerService } from '@nestjs/cqrs/dist/services/explorer.service';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   PIPELINE_BEHAVIOR_ID,
@@ -20,6 +19,15 @@ import {
   PipelineConfigurationError,
 } from '../interfaces/pipeline-behavior-contract.interface';
 import { PipelineBootstrapService } from './pipeline.bootstrap.service';
+
+vi.mock('./handler-discovery', () => ({
+  discoverHandlers: (discovery: { handlers(): object }) => ({
+    commands: [],
+    queries: [],
+    events: [],
+    ...discovery.handlers(),
+  }),
+}));
 
 class AuthBehavior implements IPipelineBehavior {
   async handle(_ctx: IPipelineContext, next: NextDelegate) {
@@ -139,12 +147,13 @@ function makeWrapper(instance: any, metatype: any) {
 
 describe('PipelineBootstrapService Diagnostics', () => {
   let moduleRefMock: any;
-  let explorerServiceMock: any;
+  let discovery: any;
   const bootstrapped: PipelineBootstrapService[] = [];
 
   function bootstrap(options?: unknown): PipelineBootstrapService {
     const service = new PipelineBootstrapService(
       moduleRefMock,
+      discovery,
       options as never,
     );
     bootstrapped.push(service);
@@ -153,13 +162,12 @@ describe('PipelineBootstrapService Diagnostics', () => {
   }
 
   beforeEach(() => {
-    explorerServiceMock = {
-      explore: vi.fn(() => ({ commands: [], queries: [], events: [] })),
+    discovery = {
+      handlers: vi.fn(() => ({ commands: [], queries: [], events: [] })),
     };
 
     moduleRefMock = {
       get: vi.fn((token: any) => {
-        if (token === ExplorerService) return explorerServiceMock;
         if (token === AuthBehavior) return new AuthBehavior();
         if (token === CacheBehaviorWithOrder)
           return new CacheBehaviorWithOrder();
@@ -187,7 +195,7 @@ describe('PipelineBootstrapService Diagnostics', () => {
       CacheBehaviorWithOrder[PIPELINE_BEHAVIOR_CONTRACT],
       'validate',
     );
-    explorerServiceMock.explore.mockReturnValue({
+    discovery.handlers.mockReturnValue({
       commands: [makeWrapper(new Handler(), Handler)],
       queries: [],
       events: [],
@@ -209,7 +217,7 @@ describe('PipelineBootstrapService Diagnostics', () => {
 
   it('fails bootstrap with PipelineConfigurationError on ordering violations', () => {
     const instance = new MisorderedHandler();
-    explorerServiceMock.explore.mockReturnValue({
+    discovery.handlers.mockReturnValue({
       queries: [makeWrapper(instance, MisorderedHandler)],
       commands: [],
       events: [],
@@ -238,7 +246,7 @@ describe('PipelineBootstrapService Diagnostics', () => {
 
   it('fails bootstrap with PipelineConfigurationError on invalid explicit handler options', () => {
     const instance = new MissingKeyHandler();
-    explorerServiceMock.explore.mockReturnValue({
+    discovery.handlers.mockReturnValue({
       queries: [makeWrapper(instance, MissingKeyHandler)],
       commands: [],
       events: [],
@@ -262,7 +270,7 @@ describe('PipelineBootstrapService Diagnostics', () => {
 
   it('passes bootstrap when ordering and options are valid', () => {
     const instance = new ValidHandler();
-    explorerServiceMock.explore.mockReturnValue({
+    discovery.handlers.mockReturnValue({
       queries: [makeWrapper(instance, ValidHandler)],
       commands: [],
       events: [],
@@ -303,14 +311,13 @@ describe('PipelineBootstrapService Diagnostics', () => {
     }
 
     moduleRefMock.get.mockImplementation((token: any) => {
-      if (token === ExplorerService) return explorerServiceMock;
       if (token === AuthBehavior) return new AuthBehavior();
       if (token === DynamicOrderedBehavior) return new DynamicOrderedBehavior();
       return null;
     });
 
     // When handler is a command, DynamicOrderedBehavior is inactive for ordering -> passes
-    explorerServiceMock.explore.mockReturnValue({
+    discovery.handlers.mockReturnValue({
       commands: [
         makeWrapper(new DynamicCommandHandler(), DynamicCommandHandler),
       ],
@@ -320,7 +327,7 @@ describe('PipelineBootstrapService Diagnostics', () => {
     expect(() => bootstrap()).not.toThrow();
 
     // When handler is a query, DynamicOrderedBehavior requires order after AuthBehavior -> fails
-    explorerServiceMock.explore.mockReturnValue({
+    discovery.handlers.mockReturnValue({
       queries: [makeWrapper(new DynamicQueryHandler(), DynamicQueryHandler)],
       commands: [],
       events: [],
@@ -365,7 +372,6 @@ describe('PipelineBootstrapService Diagnostics', () => {
     }
 
     moduleRefMock.get.mockImplementation((token: any) => {
-      if (token === ExplorerService) return explorerServiceMock;
       if (token === RealAuthBehavior) return new RealAuthBehavior();
       if (token === SameNamedAuthBehavior) return new SameNamedAuthBehavior();
       if (token === SecuredBehavior) return new SecuredBehavior();
@@ -373,7 +379,7 @@ describe('PipelineBootstrapService Diagnostics', () => {
     });
 
     // SameNamedAuthBehavior does not have AUTH_ID, so edge is not matched -> passes
-    explorerServiceMock.explore.mockReturnValue({
+    discovery.handlers.mockReturnValue({
       queries: [makeWrapper(new SameNameHandler(), SameNameHandler)],
       commands: [],
       events: [],
@@ -388,7 +394,7 @@ describe('PipelineBootstrapService Diagnostics', () => {
     }
 
     // RealAuthBehavior matches AUTH_ID -> fails ordering
-    explorerServiceMock.explore.mockReturnValue({
+    discovery.handlers.mockReturnValue({
       queries: [makeWrapper(new RealAuthHandler(), RealAuthHandler)],
       commands: [],
       events: [],
@@ -417,13 +423,12 @@ describe('PipelineBootstrapService Diagnostics', () => {
     }
 
     moduleRefMock.get.mockImplementation((token: any) => {
-      if (token === ExplorerService) return explorerServiceMock;
       if (token === AuthBehavior) return new AuthBehavior();
       if (token === PreLoggingBehavior) return new PreLoggingBehavior();
       return null;
     });
 
-    explorerServiceMock.explore.mockReturnValue({
+    discovery.handlers.mockReturnValue({
       queries: [makeWrapper(new InvertedHandler(), InvertedHandler)],
       commands: [],
       events: [],
@@ -478,12 +483,11 @@ describe('PipelineBootstrapService Diagnostics', () => {
     }
 
     moduleRefMock.get.mockImplementation((token: any) => {
-      if (token === ExplorerService) return explorerServiceMock;
       if (token === ConfigurableBehavior) return new ConfigurableBehavior();
       return null;
     });
 
-    explorerServiceMock.explore.mockReturnValue({
+    discovery.handlers.mockReturnValue({
       queries: [makeWrapper(new BareHandler(), BareHandler)],
       commands: [],
       events: [],
@@ -495,7 +499,7 @@ describe('PipelineBootstrapService Diagnostics', () => {
 
   it('allows passive pass-through when behavior is global and handler did not opt in', () => {
     const instance = new PassiveGlobalHandler();
-    explorerServiceMock.explore.mockReturnValue({
+    discovery.handlers.mockReturnValue({
       queries: [makeWrapper(instance, PassiveGlobalHandler)],
       commands: [],
       events: [],
@@ -516,7 +520,7 @@ describe('PipelineBootstrapService Diagnostics', () => {
 
   it('logs warnings instead of throwing when diagnostics mode is warn', () => {
     const instance = new MissingKeyHandler();
-    explorerServiceMock.explore.mockReturnValue({
+    discovery.handlers.mockReturnValue({
       queries: [makeWrapper(instance, MissingKeyHandler)],
       commands: [],
       events: [],
@@ -535,7 +539,7 @@ describe('PipelineBootstrapService Diagnostics', () => {
 
   it('bypasses validation when diagnostics mode is off', () => {
     const instance = new MissingKeyHandler();
-    explorerServiceMock.explore.mockReturnValue({
+    discovery.handlers.mockReturnValue({
       queries: [makeWrapper(instance, MissingKeyHandler)],
       commands: [],
       events: [],

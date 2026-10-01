@@ -4,7 +4,7 @@ Pipeline behaviors for **NestJS CQRS** — wrap every command, query, and event 
 
 ```
 HTTP Request
-  → Controller (ZodPipe validation)
+  → Controller (schema validation)
   → CommandBus / QueryBus / EventBus
   → Pipeline chain:
       [global before] → [@UsePipeline behaviors] → [global after] → handler
@@ -42,6 +42,8 @@ cache layer ownership, command reads, invalidation and security.
 ## Table of Contents
 
 - [Packages](#packages)
+- [Upgrading from 0.2.x](#upgrading-from-02x)
+- [What's new in 0.2.2](#whats-new-in-022)
 - [What's new in 0.2.1](#whats-new-in-021)
 - [Upgrading from 0.1.x](#upgrading-from-01x)
 - [Quick Start](#quick-start)
@@ -75,7 +77,7 @@ cache layer ownership, command reads, invalidation and security.
 - [Built-in LoggingBehavior](#built-in-loggingbehavior)
 - [Zod Integration](#zod-integration-nestjs-pipelinezod)
   - [Pipeline-Level Validation](#pipeline-level-validation)
-  - [Controller-Level Validation with ZodPipe](#controller-level-validation-with-zodpipe)
+  - [Controller-Level Validation](#controller-level-validation)
   - [Zod Transform Mappers (DTO → Command)](#zod-transform-mappers-dto--command)
   - [Error Handling with ZodValidationFilter](#error-handling-with-zodvalidationfilter)
   - [Attaching Schemas to Plain Event Classes](#attaching-schemas-to-plain-event-classes)
@@ -98,7 +100,7 @@ cache layer ownership, command reads, invalidation and security.
 |---|---|
 | [`@nestjs-pipeline/core`](packages/pipeline) | Pipeline engine, `@UsePipeline` decorator, `PipelineModule`, `LoggingBehavior` |
 | [`@nestjs-pipeline/correlation`](packages/pipeline-correlation) | Standalone correlation ID propagation — HTTP middleware, `@WithCorrelation`, `runWithCorrelationId`, `getCorrelationId`, and `correlationSource` for pipelines and jobs |
-| [`@nestjs-pipeline/zod`](packages/pipeline-zod) | Zod v4 validation/parsing behavior that applies successful parsed object output to the request, plus `ZodPipe`, `ZodValidationFilter`, `ZodValidationError` |
+| [`@nestjs-pipeline/zod`](packages/pipeline-zod) | Zod v4 validation/parsing behavior that applies successful parsed object output to the request, plus `zodBadRequest` for Nest's schema validation, `ZodValidationFilter`, `ZodValidationError` |
 | [`@nestjs-pipeline/opentelemetry`](packages/pipeline-opentelemetry) | OpenTelemetry tracing & metrics behaviors — spans plus duration/throughput/error instruments for every pipeline invocation, and `AttributesBehavior` for the add-ons' span attributes |
 | [`@nestjs-pipeline/casl`](packages/pipeline-casl) | CASL authorization — type-level `CaslBehavior` fed by an application permission source, plus `CaslAuthorizer` (`can`, `authorize`, `project`, `dependsOnEntity`) for entity and field checks and `abilityDigest` for cache and replay scopes |
 | [`@nestjs-pipeline/resilience`](packages/pipeline-resilience) | Resilience on cockatiel — named policies for outbound dependencies (retry, circuit breaker, timeout, bulkhead, fallback), shared through DI, and a behavior for handler-level retry, timeout and bulkhead |
@@ -129,10 +131,74 @@ Framework-neutral packages, with no NestJS dependency:
 > No `@nestjs-pipeline/*` package uses `@cqrs-ddd/core`, and it knows nothing of them: an
 > application connects the two.
 
-Five packages are at **0.2.2** — `@nestjs-pipeline/zod`, `/casl`, `/feature-flags`,
-`/idempotency` and `/rate-limit`; five are at **0.2.1** — `@cqrs-ddd/core`,
-`@nestjs-pipeline/opentelemetry`, `/cache`, `/deadletter` and `/audit`; the others are at
-**0.2.0**. [CHANGELOG.md](CHANGELOG.md) records each release.
+Every package is at **0.3.0**. [CHANGELOG.md](CHANGELOG.md) records each release.
+
+---
+
+## Upgrading from 0.2.x
+
+0.3.0 moves every package to NestJS 12. Every change is listed in
+[CHANGELOG.md](CHANGELOG.md); the ones below need a change in most applications.
+
+**1. NestJS 12.1 and Node.js 22.12.** Every package declares `engines.node >=22.12.0`
+(`@cqrs-ddd/mikro-orm` `>=22.17.0`, as MikroORM 7 requires), and
+every `@nestjs/common`, `@nestjs/core` and `@nestjs/cqrs` peer is `^12.1.0`. Packages that
+peer on `@nestjs-pipeline/core` require `^0.3.0` of it. NestJS 12.0.x is not supported: it
+drops the `@Optional()` markers of a base class in a subclass that declares no constructor
+of its own, so such a subclass of a behavior fails to resolve its optional dependencies.
+
+```bash
+pnpm add @nestjs/common@^12.1.0 @nestjs/core@^12.1.0 @nestjs/cqrs@^12.1.0 @nestjs-pipeline/core@^0.3.0
+```
+
+**2. A CommonJS application compiles with TypeScript `module` `nodenext`, `node20` or
+`bundler`.** NestJS 12 publishes ES modules, which a CommonJS application loads through
+Node's `require()` of ES modules (Node.js 22.12). With `module: node16`, TypeScript refuses
+those imports (TS1479).
+
+**3. `ZodPipe` is removed.** Declare the schema on the parameter and register Nest's
+`StandardSchemaValidationPipe` once with `zodBadRequest`; the 400 body is the one
+`ZodValidationFilter` gives:
+
+```typescript
+// app.module.ts
+import { Module, StandardSchemaValidationPipe } from '@nestjs/common';
+import { APP_PIPE } from '@nestjs/core';
+import { zodBadRequest } from '@nestjs-pipeline/zod';
+
+@Module({
+  providers: [
+    {
+      provide: APP_PIPE,
+      useValue: new StandardSchemaValidationPipe({ exceptionFactory: zodBadRequest }),
+    },
+  ],
+})
+export class AppModule {}
+
+// users.controller.ts
+getUser(@Param('id', { schema: UserIdSchema }) id: string) {}
+```
+
+**4. Register `IdempotencyConflictFilter`.** NestJS 12's default exception filter answers a
+plain `Error` that carries a `statusCode` with 500. `IdempotencyConflictError` is one, so
+without the filter a request whose idempotency key is still running or was reused answers
+500 instead of 409 or 422. The bundled filters register as described in
+[What's new in 0.2.2](#whats-new-in-022).
+
+**5. cockatiel 4.** `@nestjs-pipeline/resilience` requires `cockatiel` `^4.0.0`, an ES
+module. Its policies report errors as `unknown`; narrow them before reading `message`.
+
+**6. rate-limiter-flexible 11.** `@nestjs-pipeline/rate-limit` declares no peer on it and is
+tested with 11, which throws when a limiter is created without a finite `points` or
+`duration`.
+
+**7. Domain events carry a dispatcher context.** `@cqrs-ddd/core`'s `CommandBaseHandler`
+calls `publishAll(events, aggregate)`, so a publisher that reads a second argument receives
+the aggregate, as NestJS's `EventPublisher` passes it. `AggregateRoot.commit(context?)`
+passes its context to `publishAll` and returns the publisher's result, and
+`IAggregateRoot` describes the contract that both this package's and NestJS's aggregates
+satisfy.
 
 ---
 
@@ -517,9 +583,9 @@ Each package README has a full migration section:
 
 ### 1. Install
 
-Requires **Nest 11** (`@nestjs/common`, `@nestjs/core`) and **`@nestjs/cqrs` 11**.
-Nest 10 is not supported: request-scoped and transient handlers are resolved
-through `AsyncContext`, which `@nestjs/cqrs` only exposes from version 11.
+Requires **Node.js 22.12** or later, **Nest 12.1** or a later 12.x (`@nestjs/common`,
+`@nestjs/core`) and **`@nestjs/cqrs` 12.1** or a later 12.x. Nest 12.0.x drops the `@Optional()` markers of a
+base class in a subclass that declares no constructor of its own.
 
 ```bash
 pnpm add @nestjs-pipeline/core @nestjs/common @nestjs/core @nestjs/cqrs reflect-metadata rxjs
@@ -547,7 +613,13 @@ pnpm add nestjs-pino pino-http pino-pretty
 
 ```typescript
 // app.module.ts
-import { Module, NestModule, MiddlewareConsumer } from '@nestjs/common';
+import {
+  MiddlewareConsumer,
+  Module,
+  NestModule,
+  StandardSchemaValidationPipe,
+} from '@nestjs/common';
+import { APP_PIPE } from '@nestjs/core';
 import { CqrsModule } from '@nestjs/cqrs';
 import { PipelineModule, LoggingBehavior } from '@nestjs-pipeline/core';
 import {
@@ -555,7 +627,7 @@ import {
   HttpCorrelationMiddleware,
 } from '@nestjs-pipeline/correlation';
 import { tenantSource } from '@nestjs-pipeline/tenant';
-import { ZodValidationBehavior } from '@nestjs-pipeline/zod';
+import { ZodValidationBehavior, zodBadRequest } from '@nestjs-pipeline/zod';
 import { TraceBehavior } from '@nestjs-pipeline/opentelemetry';
 
 @Module({
@@ -575,6 +647,13 @@ import { TraceBehavior } from '@nestjs-pipeline/opentelemetry';
         ],
       },
     }),
+  ],
+  providers: [
+    // Validates route parameters declared with `{ schema }` (step 5).
+    {
+      provide: APP_PIPE,
+      useValue: new StandardSchemaValidationPipe({ exceptionFactory: zodBadRequest }),
+    },
   ],
 })
 export class AppModule implements NestModule {
@@ -656,8 +735,8 @@ cannot complete:
 const command = await CreateUserCommand.parseAsync({ email, age });
 ```
 
-You can also validate raw input up front with `safeParseAsync()` in
-`ZodValidationBehavior`/`ZodPipe` rather than doing it
+You can also validate raw input up front, asynchronously, in
+`ZodValidationBehavior` or in Nest's schema validation pipe rather than doing it
 in a JavaScript constructor.
 
 ### 5. Wire Up the Controller
@@ -666,7 +745,6 @@ in a JavaScript constructor.
 // users.controller.ts
 import { Body, Controller, Get, Param, Post, HttpCode } from '@nestjs/common';
 import { CommandBus, QueryBus } from '@nestjs/cqrs';
-import { ZodPipe } from '@nestjs-pipeline/zod';
 import { z } from 'zod';
 
 const CreateUserDtoSchema = z.object({ name: z.string().min(5), email: z.email() });
@@ -684,7 +762,7 @@ export class UsersController {
   @Post()
   @HttpCode(201)
   async createUser(
-    @Body(new ZodPipe(CreateUserDtoSchema)) dto: CreateUserDto,
+    @Body({ schema: CreateUserDtoSchema }) dto: CreateUserDto,
   ) {
     return this.commandBus.execute(
       new CreateUserCommand({ username: dto.name, email: dto.email }),
@@ -693,7 +771,7 @@ export class UsersController {
 
   @Get(':id')
   async getUser(
-    @Param('id', new ZodPipe(UserIdSchema)) id: string,
+    @Param('id', { schema: UserIdSchema }) id: string,
   ) {
     return this.queryBus.execute(new GetUserQuery({ userId: id }));
   }
@@ -970,11 +1048,11 @@ feature is imported, the registered behaviors are discoverable by
                     ← response propagates back through the chain ←
 ```
 
-1. At startup the pipeline scans all CQRS handlers through `@nestjs/cqrs` `ExplorerService`.
+1. At startup the pipeline finds the CQRS handlers through Nest's `DiscoveryService`, by the metadata their `@CommandHandler`, `@QueryHandler` and `@EventsHandler` decorators record.
 2. For each matching handler it precomputes request-independent metadata and resolves singleton behavior instances. Behaviors that cannot be resolved as singletons are marked for per-invocation resolution.
 3. Per invocation: creates a `PipelineContext`, resolves any dynamic/request-scoped/transient behaviors with the applicable Nest context ID, takes the tenant and correlation id from the configured `sources`, and runs the chain inside them (and `AsyncLocalStorage`) so nested dispatches inherit them.
 4. The common all-singleton path reuses the pre-resolved instances with no request-time reflection or behavior DI lookup; scoped/dynamic behaviors intentionally use request-time DI resolution.
-5. Requires Nest and Nest CQRS 11. Request-scoped and transient handlers
+5. Requires Nest and Nest CQRS 12. Request-scoped and transient handlers
    (`Scope.REQUEST`, `Scope.TRANSIENT`) rely on `AsyncContext`, which earlier
    CQRS versions do not provide.
 
@@ -1427,7 +1505,7 @@ const schema = z.object({
 
 // Generates a self-validating class with static _zodSchema,
 // Standard Schema (~standard) metadata, and static parse()/safeParse().
-// This repository currently supports/tests NestJS 11.
+// This repository supports and tests NestJS 12.1.
 export class CreateUserCommand extends createCommand(schema) {}
 //                                       ↑ attaches schema as static _zodSchema, sets requestKind: 'command'
 ```
@@ -1440,13 +1518,16 @@ coerced, transformed, or defaulted values are assigned to that same request.
 The behavior uses Zod's async parser, so asynchronous refinements and
 transforms are supported.
 
-### Controller-Level Validation with ZodPipe
+### Controller-Level Validation
 
-`ZodPipe` asynchronously validates `@Body()`, `@Param()`, `@Query()` values against a Zod schema — including synchronous or asynchronous transform/refinement schemas. NestJS awaits the pipe's promise automatically:
+Declare a Zod schema on `@Body()`, `@Param()` or `@Query()` with `{ schema }`; Nest's
+`StandardSchemaValidationPipe`, registered once with `zodBadRequest` as its
+`exceptionFactory` (see [Register the Module](#2-register-the-module)), validates it,
+awaits asynchronous refinements and transforms, and hands the handler the schema output.
+A failure answers HTTP 400 with `{ formErrors, fieldErrors }`:
 
 ```typescript
 import { z } from 'zod';
-import { ZodPipe } from '@nestjs-pipeline/zod';
 
 // Simple schemas
 const CreateUserDtoSchema = z.object({
@@ -1461,21 +1542,21 @@ const UserIdSchema = z.uuid();
 export class UsersController {
   // Validate request body
   @Post()
-  createUser(@Body(new ZodPipe(CreateUserDtoSchema)) dto: CreateUserDto) {
+  createUser(@Body({ schema: CreateUserDtoSchema }) dto: CreateUserDto) {
     return this.commandBus.execute(new CreateUserCommand(dto));
   }
 
   // Validate route param (UUID format)
   @Get(':id')
-  getUser(@Param('id', new ZodPipe(UserIdSchema)) id: string) {
+  getUser(@Param('id', { schema: UserIdSchema }) id: string) {
     return this.queryBus.execute(new GetUserQuery({ userId: id }));
   }
 
   // Validate + transform body
   @Patch(':id')
   updateUser(
-    @Param('id', new ZodPipe(UserIdSchema)) id: string,
-    @Body(new ZodPipe(UpdateUserDtoSchema)) dto: UpdateUserDto,
+    @Param('id', { schema: UserIdSchema }) id: string,
+    @Body({ schema: UpdateUserDtoSchema }) dto: UpdateUserDto,
   ) {
     return this.commandBus.execute(UpdateUserMapper.map(id, dto));
   }
@@ -1507,7 +1588,7 @@ export const CreateUserMapper = {
 
 // Usage in controller
 @Post()
-createUser(@Body(new ZodPipe(CreateUserDtoSchema)) dto: CreateUserDto) {
+createUser(@Body({ schema: CreateUserDtoSchema }) dto: CreateUserDto) {
   return this.commandBus.execute(CreateUserMapper.map(dto));
 }
 ```
@@ -1704,7 +1785,7 @@ pnpm install
 pnpm build              # build workspace dependencies
 cp .env.example .env    # create local environment file (edit as needed)
 pnpm db:migrate         # apply schema + data migrations (idempotent)
-pnpm dev                # start with ts-node in watch mode
+pnpm dev                # build, then rebuild and restart on source changes
 ```
 
 Configure the database via environment variables (defaults to a local file):
@@ -1781,7 +1862,7 @@ ADAPTER=fastify pnpm start
 - Decoupled CQRS caching architecture with collision-safe key derivation (`cacheKey`), fail-fast handler templates (`cacheKeyTemplate`), and static aggregate naming (`User.aggregateName`)
 - Versioned database migrations with tracking (`mikro_orm_migrations` table)
 - Zod-parsed/validated commands and queries via `createCommand()` and `createQuery()` exposing Standard Schema (`['~standard']`) metadata
-- Controller-level `ZodPipe` validation
+- Controller-level schema validation through Nest's `StandardSchemaValidationPipe` with `zodBadRequest`
 - Zod transform mappers (DTO → Command mapping)
 - OpenTelemetry tracing with `TraceBehavior` and metrics with `MetricsBehavior`
 - Command- and event-scoped `DeadLetterBehavior` sending failed executions to a BullMQ `dead-letters` queue for inspection and replay (restricted to mutating command and event failures, excluding read queries and validation errors, with `UserCreatedHandler` opting into `{ rethrow: false }` only after successful delivery); transport failures are logged and preserve the original handler error
@@ -1825,7 +1906,7 @@ nestjs-pipeline/
 │   │   └── src/
 │   │       ├── errors/           # ZodValidationError
 │   │       ├── filters/          # ZodValidationFilter
-│   │       ├── pipes/            # ZodPipe
+│   │       ├── pipes/            # createZodMapper, zodBadRequest
 │   │       └── zod-validation.behavior.ts  # parse/validate and apply successful object output
 │   ├── pipeline-casl/            # @nestjs-pipeline/casl
 │   │   └── src/

@@ -1,7 +1,6 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { untyped } from '@cqrs-ddd/untyped';
-import { ExplorerService } from '@nestjs/cqrs/dist/services/explorer.service';
 import { describe, expect, it, vi } from 'vitest';
 import type {
   IPipelineBehavior,
@@ -9,6 +8,15 @@ import type {
 } from '../interfaces/pipeline.behavior.interface';
 import type { IPipelineContext } from '../interfaces/pipeline.context.interface';
 import { PipelineBootstrapService } from './pipeline.bootstrap.service';
+
+vi.mock('./handler-discovery', () => ({
+  discoverHandlers: (discovery: { handlers(): object }) => ({
+    commands: [],
+    queries: [],
+    events: [],
+    ...discovery.handlers(),
+  }),
+}));
 
 class LifecycleCommand {
   constructor(public readonly value: string) {}
@@ -69,21 +77,24 @@ describe('PipelineBootstrapService Lifecycle & OnModuleDestroy', () => {
     const originalProtoExecute = ScopedLifecycleHandler.prototype.execute;
 
     const wrapper1 = makeScopedWrapper(ScopedLifecycleHandler);
-    const explorer1 = {
-      explore: () => ({ commands: [wrapper1], queries: [], events: [] }),
+    const discovery1 = {
+      handlers: () => ({ commands: [wrapper1], queries: [], events: [] }),
     };
     const moduleRef1 = {
       get: vi.fn((token: any) => {
-        if (token === ExplorerService) return explorer1;
         if (token === BehaviorA) return new BehaviorA();
         throw new Error(`Unexpected token ${token}`);
       }),
       resolve: vi.fn(),
     };
 
-    const app1Bootstrap = new PipelineBootstrapService(moduleRef1 as never, {
-      globalBehaviors: { before: [BehaviorA] },
-    });
+    const app1Bootstrap = new PipelineBootstrapService(
+      moduleRef1 as never,
+      discovery1 as never,
+      {
+        globalBehaviors: { before: [BehaviorA] },
+      },
+    );
     app1Bootstrap.onApplicationBootstrap();
 
     expect(untyped(ScopedLifecycleHandler.prototype.execute).__pipelined).toBe(
@@ -107,21 +118,24 @@ describe('PipelineBootstrapService Lifecycle & OnModuleDestroy', () => {
     ).toBeUndefined();
 
     const wrapper2 = makeScopedWrapper(ScopedLifecycleHandler);
-    const explorer2 = {
-      explore: () => ({ commands: [wrapper2], queries: [], events: [] }),
+    const discovery2 = {
+      handlers: () => ({ commands: [wrapper2], queries: [], events: [] }),
     };
     const moduleRef2 = {
       get: vi.fn((token: any) => {
-        if (token === ExplorerService) return explorer2;
         if (token === BehaviorB) return new BehaviorB();
         throw new Error(`Unexpected token ${token}`);
       }),
       resolve: vi.fn(),
     };
 
-    const app2Bootstrap = new PipelineBootstrapService(moduleRef2 as never, {
-      globalBehaviors: { before: [BehaviorB] },
-    });
+    const app2Bootstrap = new PipelineBootstrapService(
+      moduleRef2 as never,
+      discovery2 as never,
+      {
+        globalBehaviors: { before: [BehaviorB] },
+      },
+    );
     app2Bootstrap.onApplicationBootstrap();
 
     expect(untyped(ScopedLifecycleHandler.prototype.execute).__pipelined).toBe(
@@ -150,8 +164,8 @@ describe('PipelineBootstrapService Lifecycle & OnModuleDestroy', () => {
     const originalProtoExecute = ScopedLifecycleHandler.prototype.execute;
 
     const wrapper1 = makeScopedWrapper(ScopedLifecycleHandler);
-    const explorer1 = {
-      explore: () => ({ commands: [wrapper1], queries: [], events: [] }),
+    const discovery1 = {
+      handlers: () => ({ commands: [wrapper1], queries: [], events: [] }),
     };
     let behaviorAExecuted = false;
     class CustomBehaviorA implements IPipelineBehavior {
@@ -162,20 +176,23 @@ describe('PipelineBootstrapService Lifecycle & OnModuleDestroy', () => {
     }
     const moduleRef1 = {
       get: vi.fn((token: any) => {
-        if (token === ExplorerService) return explorer1;
         if (token === CustomBehaviorA) return new CustomBehaviorA();
         throw new Error(`Unexpected token ${token}`);
       }),
       resolve: vi.fn(),
     };
-    const app1 = new PipelineBootstrapService(moduleRef1 as never, {
-      globalBehaviors: { before: [CustomBehaviorA] },
-    });
+    const app1 = new PipelineBootstrapService(
+      moduleRef1 as never,
+      discovery1 as never,
+      {
+        globalBehaviors: { before: [CustomBehaviorA] },
+      },
+    );
     app1.onApplicationBootstrap();
 
     const wrapper2 = makeScopedWrapper(ScopedLifecycleHandler);
-    const explorer2 = {
-      explore: () => ({ commands: [wrapper2], queries: [], events: [] }),
+    const discovery2 = {
+      handlers: () => ({ commands: [wrapper2], queries: [], events: [] }),
     };
     let behaviorBExecuted = false;
     class CustomBehaviorB implements IPipelineBehavior {
@@ -186,15 +203,18 @@ describe('PipelineBootstrapService Lifecycle & OnModuleDestroy', () => {
     }
     const moduleRef2 = {
       get: vi.fn((token: any) => {
-        if (token === ExplorerService) return explorer2;
         if (token === CustomBehaviorB) return new CustomBehaviorB();
         throw new Error(`Unexpected token ${token}`);
       }),
       resolve: vi.fn(),
     };
-    const app2 = new PipelineBootstrapService(moduleRef2 as never, {
-      globalBehaviors: { before: [CustomBehaviorB] },
-    });
+    const app2 = new PipelineBootstrapService(
+      moduleRef2 as never,
+      discovery2 as never,
+      {
+        globalBehaviors: { before: [CustomBehaviorB] },
+      },
+    );
     app2.onApplicationBootstrap();
 
     const inst1 = new ScopedLifecycleHandler();
@@ -240,21 +260,24 @@ describe('PipelineBootstrapService Lifecycle & OnModuleDestroy', () => {
     const originalExecute = singleton.execute;
 
     const wrapper = makeSingletonWrapper(singleton, SingletonLifecycleHandler);
-    const explorer = {
-      explore: () => ({ commands: [wrapper], queries: [], events: [] }),
+    const discovery = {
+      handlers: () => ({ commands: [wrapper], queries: [], events: [] }),
     };
     const moduleRef = {
       get: vi.fn((token: any) => {
-        if (token === ExplorerService) return explorer;
         if (token === BehaviorA) return new BehaviorA();
         throw new Error(`Unexpected token ${token}`);
       }),
       resolve: vi.fn(),
     };
 
-    const bootstrap = new PipelineBootstrapService(moduleRef as never, {
-      globalBehaviors: { before: [BehaviorA] },
-    });
+    const bootstrap = new PipelineBootstrapService(
+      moduleRef as never,
+      discovery as never,
+      {
+        globalBehaviors: { before: [BehaviorA] },
+      },
+    );
     bootstrap.onApplicationBootstrap();
 
     expect(untyped(singleton.execute).__pipelined).toBe(true);
