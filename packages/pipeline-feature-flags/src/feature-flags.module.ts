@@ -15,12 +15,12 @@ import {
   FEATURE_FLAGS_DEFAULT_CONTEXT,
   FEATURE_FLAGS_DEFAULT_OPTIONS,
   FEATURE_FLAGS_TARGETING_KEY_FACTORY,
-} from './constants/tokens';
-import { FeatureFlagBehavior } from './feature-flag.behavior';
+} from './constants/tokens.js';
+import { FeatureFlagBehavior } from './feature-flag.behavior.js';
 import type {
   FeatureFlagBehaviorOptions,
   FeatureFlagsModuleOptions,
-} from './interfaces/feature-flags-options.interface';
+} from './interfaces/feature-flags-options.interface.js';
 
 /**
  * NestJS module that wires an OpenFeature {@link Client} into the

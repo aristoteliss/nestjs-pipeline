@@ -2,8 +2,8 @@
 
 import { type IPipelineContext, setPipelineItem } from '@nestjs-pipeline/core';
 import { describe, expect, it } from 'vitest';
-import { FEATURE_FLAG_DECISION_ITEM_TOKEN } from '../feature-flag.behavior';
-import { buildFeatureFlagAttributes } from './build-attributes';
+import { FEATURE_FLAG_DECISION_ITEM_TOKEN } from '../feature-flag.behavior.js';
+import { buildFeatureFlagAttributes } from './build-attributes.js';
 
 const context = () => ({ items: new Map() }) as unknown as IPipelineContext;
 

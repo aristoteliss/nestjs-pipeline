@@ -1,8 +1,8 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import type { PipelineBehaviorTuple } from '@nestjs-pipeline/core';
-import { FeatureFlagBehavior } from '../feature-flag.behavior';
-import type { FeatureFlagBehaviorOptions } from '../interfaces/feature-flags-options.interface';
+import { FeatureFlagBehavior } from '../feature-flag.behavior.js';
+import type { FeatureFlagBehaviorOptions } from '../interfaces/feature-flags-options.interface.js';
 
 export type FeatureFlagIntentOptions = FeatureFlagBehaviorOptions & {
   flag: string;

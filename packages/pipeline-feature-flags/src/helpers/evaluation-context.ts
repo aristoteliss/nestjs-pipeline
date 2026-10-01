@@ -5,7 +5,7 @@ import type { EvaluationContext } from '@openfeature/server-sdk';
 import type {
   EvaluationContextFactory,
   TargetingKeyFactory,
-} from '../interfaces/feature-flags-options.interface';
+} from '../interfaces/feature-flags-options.interface.js';
 
 /**
  * Base OpenFeature attributes derived from the live pipeline request. It sets no

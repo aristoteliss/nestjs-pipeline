@@ -1,7 +1,7 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { describe, expect, it } from 'vitest';
-import { FeatureFlagEvaluationError } from './feature-flag-evaluation.error';
+import { FeatureFlagEvaluationError } from './feature-flag-evaluation.error.js';
 
 describe('FeatureFlagEvaluationError', () => {
   it('includes the error code and provider message and keeps the cause', () => {
