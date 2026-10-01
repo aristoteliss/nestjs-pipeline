@@ -1,7 +1,11 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { describe, expect, it } from 'vitest';
-import { currentTenantId, runWithTenant, tenantSource } from './tenant-scope';
+import {
+  currentTenantId,
+  runWithTenant,
+  tenantSource,
+} from './tenant-scope.js';
 
 describe('runWithTenant and currentTenantId', () => {
   it('has no tenant outside any scope', () => {
