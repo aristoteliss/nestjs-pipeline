@@ -3,13 +3,13 @@
 /** biome-ignore-all lint/suspicious/noTemplateCurlyInString: false positive */
 import { subject } from '@casl/ability';
 import { describe, expect, it } from 'vitest';
-import type { Capability } from '../types/casl.types';
-import { buildAbility } from './ability';
+import type { Capability } from '../types/casl.types.js';
+import { buildAbility } from './ability.js';
 import {
   normalizeCapability,
   parseCapabilityString,
   serializeCapability,
-} from './capability';
+} from './capability.js';
 
 describe('capability codec', () => {
   describe('parseCapabilityString', () => {

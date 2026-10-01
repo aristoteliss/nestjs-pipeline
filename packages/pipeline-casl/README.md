@@ -21,7 +21,9 @@ pnpm add @nestjs-pipeline/casl @nestjs-pipeline/core @casl/ability @nestjs/commo
 ```
 
 Peers: `@casl/ability` `^7.0.0`, `@nestjs/common` `^12.1.0`, `@nestjs/core` `^12.1.0`,
-`@nestjs-pipeline/core` `^0.3.0`, `reflect-metadata`. Node.js 22.12 or later.
+`@nestjs-pipeline/core` `^0.4.0`, `reflect-metadata`. Node.js 22.12 or later.
+
+Published as an ES module; a CommonJS application loads it with `require()`.
 
 ## Register the module
 
@@ -330,7 +332,8 @@ unauthorized rows. Authorized pagination needs a query-side design.
 
 ## Migrating from 0.1.x
 
-These steps lead to 0.2.0. To reach 0.3.0, continue with [Upgrading from 0.2.x](https://github.com/aristoteliss/nestjs-pipeline#upgrading-from-02x) in the repository README.
+These steps lead to 0.2.0. To reach 0.4.0, continue with [Upgrading from 0.2.x](https://github.com/aristoteliss/nestjs-pipeline#upgrading-from-02x) and
+[Upgrading from 0.3.x](https://github.com/aristoteliss/nestjs-pipeline#upgrading-from-03x) in the repository README.
 
 **1. Peers and runtime.** `@casl/ability` `^7.0.0` (was `^6.0.0`), `@nestjs/common`
 `^11.0.0` (was `^10 || ^11`), `@nestjs-pipeline/core` `^0.2.0`, Node.js 22 or later.

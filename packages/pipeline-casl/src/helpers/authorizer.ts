@@ -3,11 +3,11 @@
 import { subject as caslSubject } from '@casl/ability';
 import { Injectable } from '@nestjs/common';
 import { type IPipelineContext, pipelineStore } from '@nestjs-pipeline/core';
-import { CASL_ABILITY_KEY, CASL_PRINCIPAL_KEY } from '../constants/tokens';
-import { UnauthorizedActionException } from '../errors/unauthorized-action.exception';
-import type { CaslPrincipal } from '../interfaces/permission-source.interface';
-import type { AppAbility, Projected } from '../types/casl.types';
-import { projectPermittedFields } from './projection';
+import { CASL_ABILITY_KEY, CASL_PRINCIPAL_KEY } from '../constants/tokens.js';
+import { UnauthorizedActionException } from '../errors/unauthorized-action.exception.js';
+import type { CaslPrincipal } from '../interfaces/permission-source.interface.js';
+import type { AppAbility, Projected } from '../types/casl.types.js';
+import { projectPermittedFields } from './projection.js';
 
 /** The ability `CaslBehavior` built for the current pipeline execution. */
 export function getCaslAbility(

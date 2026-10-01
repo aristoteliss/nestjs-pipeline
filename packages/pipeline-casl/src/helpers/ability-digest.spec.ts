@@ -4,11 +4,11 @@
 import { createMongoAbility } from '@casl/ability';
 import { type IPipelineContext, pipelineStore } from '@nestjs-pipeline/core';
 import { describe, expect, it } from 'vitest';
-import { CASL_ABILITY_KEY } from '../constants/tokens';
-import { MissingAbilityError } from '../errors/missing-ability.error';
-import type { AppAbility } from '../types/casl.types';
-import { buildAbility } from './ability';
-import { abilityDigest, requireAbilityDigest } from './ability-digest';
+import { CASL_ABILITY_KEY } from '../constants/tokens.js';
+import { MissingAbilityError } from '../errors/missing-ability.error.js';
+import type { AppAbility } from '../types/casl.types.js';
+import { buildAbility } from './ability.js';
+import { abilityDigest, requireAbilityDigest } from './ability-digest.js';
 
 const contextWith = (ability?: AppAbility): IPipelineContext =>
   ({

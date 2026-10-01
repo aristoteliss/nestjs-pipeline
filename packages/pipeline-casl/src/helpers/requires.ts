@@ -1,8 +1,8 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import type { PipelineBehaviorTuple } from '@nestjs-pipeline/core';
-import { CaslBehavior, type CaslBehaviorOptions } from '../casl.behavior';
-import type { AbilityRequirement } from '../types/casl.types';
+import { CaslBehavior, type CaslBehaviorOptions } from '../casl.behavior.js';
+import type { AbilityRequirement } from '../types/casl.types.js';
 
 /**
  * `[CaslBehavior, { rules }]` for `@UsePipeline`; every requirement must pass.

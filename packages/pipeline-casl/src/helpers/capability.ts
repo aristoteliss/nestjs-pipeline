@@ -1,6 +1,6 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import type { Capability, CapabilityString } from '../types/casl.types';
+import type { Capability, CapabilityString } from '../types/casl.types.js';
 
 /**
  * Expand a compact {@link CapabilityString} (e.g. from a JWT or cookie) back

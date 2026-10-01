@@ -2,14 +2,14 @@
 
 import { Module } from '@nestjs/common';
 import { describe, expect, it } from 'vitest';
-import { CaslBehavior } from './casl.behavior';
-import { CaslModule } from './casl.module';
-import { CASL_PERMISSION_SOURCE } from './constants/tokens';
-import { CaslAuthorizer } from './helpers/authorizer';
+import { CaslBehavior } from './casl.behavior.js';
+import { CaslModule } from './casl.module.js';
+import { CASL_PERMISSION_SOURCE } from './constants/tokens.js';
+import { CaslAuthorizer } from './helpers/authorizer.js';
 import type {
   CaslAuthorizationInput,
   ICaslPermissionSource,
-} from './interfaces/permission-source.interface';
+} from './interfaces/permission-source.interface.js';
 
 class Source implements ICaslPermissionSource {
   async load(): Promise<CaslAuthorizationInput | null> {

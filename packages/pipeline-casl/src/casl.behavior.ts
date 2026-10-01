@@ -11,11 +11,11 @@ import {
   CASL_ABILITY_KEY,
   CASL_PERMISSION_SOURCE,
   CASL_PRINCIPAL_KEY,
-} from './constants/tokens';
-import { UnauthorizedActionException } from './errors/unauthorized-action.exception';
-import { buildAbility } from './helpers/ability';
-import type { ICaslPermissionSource } from './interfaces/permission-source.interface';
-import type { AbilityRequirement } from './types/casl.types';
+} from './constants/tokens.js';
+import { UnauthorizedActionException } from './errors/unauthorized-action.exception.js';
+import { buildAbility } from './helpers/ability.js';
+import type { ICaslPermissionSource } from './interfaces/permission-source.interface.js';
+import type { AbilityRequirement } from './types/casl.types.js';
 
 /** Stable behavior identity; cache and idempotency order themselves after it. */
 export const CASL_BEHAVIOR_ID = '@nestjs-pipeline/casl:CaslBehavior';
