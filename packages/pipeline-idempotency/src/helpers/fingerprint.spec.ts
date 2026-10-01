@@ -2,7 +2,7 @@
 
 import { stableStringify } from '@cqrs-ddd/safe-stringify';
 import { describe, expect, it } from 'vitest';
-import { fingerprintValue } from './fingerprint';
+import { fingerprintValue } from './fingerprint.js';
 
 describe('stableStringify and fingerprintValue', () => {
   it('produces identical string and hash regardless of key insertion order', () => {

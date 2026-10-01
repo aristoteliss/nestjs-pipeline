@@ -28,18 +28,18 @@ import {
   DEFAULT_IDEMPOTENCY_TTL_MS,
   IDEMPOTENCY_DEFAULT_OPTIONS,
   IDEMPOTENCY_STORE,
-} from './constants/tokens';
-import { IdempotencyCompletionError } from './errors/idempotency-completion.error';
-import { IdempotencyConflictError } from './errors/idempotency-conflict.error';
-import { fingerprintValue } from './helpers/fingerprint';
-import { toJsonSnapshot } from './helpers/json-snapshot';
-import type { IdempotencyBehaviorOptions } from './interfaces/idempotency-options.interface';
+} from './constants/tokens.js';
+import { IdempotencyCompletionError } from './errors/idempotency-completion.error.js';
+import { IdempotencyConflictError } from './errors/idempotency-conflict.error.js';
+import { fingerprintValue } from './helpers/fingerprint.js';
+import { toJsonSnapshot } from './helpers/json-snapshot.js';
+import type { IdempotencyBehaviorOptions } from './interfaces/idempotency-options.interface.js';
 import type {
   IdempotencyRecord,
   IdempotencyRequestKind,
   JsonValue,
-} from './interfaces/idempotency-record.interface';
-import type { IdempotencyStore } from './interfaces/idempotency-store.interface';
+} from './interfaces/idempotency-record.interface.js';
+import type { IdempotencyStore } from './interfaces/idempotency-store.interface.js';
 
 /**
  * Unique symbol key set on `context.items` holding the active idempotency key string.

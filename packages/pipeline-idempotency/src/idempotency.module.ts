@@ -11,13 +11,13 @@ import {
 import {
   IDEMPOTENCY_DEFAULT_OPTIONS,
   IDEMPOTENCY_STORE,
-} from './constants/tokens';
-import { IdempotencyBehavior } from './idempotency.behavior';
+} from './constants/tokens.js';
+import { IdempotencyBehavior } from './idempotency.behavior.js';
 import type {
   IdempotencyModuleAsyncOptions,
   IdempotencyModuleOptions,
-} from './interfaces/idempotency-options.interface';
-import { MemoryIdempotencyStore } from './stores/memory.store';
+} from './interfaces/idempotency-options.interface.js';
+import { MemoryIdempotencyStore } from './stores/memory.store.js';
 
 /** Destroys, on application shutdown, the default store the module created. */
 @Injectable()

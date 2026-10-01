@@ -1,8 +1,8 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import type { PipelineBehaviorTuple } from '@nestjs-pipeline/core';
-import { IdempotencyBehavior } from '../idempotency.behavior';
-import type { IdempotencyBehaviorOptions } from '../interfaces/idempotency-options.interface';
+import { IdempotencyBehavior } from '../idempotency.behavior.js';
+import type { IdempotencyBehaviorOptions } from '../interfaces/idempotency-options.interface.js';
 
 export type IdempotencyIntentOptions = Omit<
   IdempotencyBehaviorOptions,

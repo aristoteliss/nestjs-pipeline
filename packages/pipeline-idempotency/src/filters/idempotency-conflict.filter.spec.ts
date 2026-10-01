@@ -3,8 +3,8 @@
 import type { ArgumentsHost } from '@nestjs/common';
 import type { HttpAdapterHost } from '@nestjs/core';
 import { describe, expect, it, vi } from 'vitest';
-import { IdempotencyConflictError } from '../errors/idempotency-conflict.error';
-import { IdempotencyConflictFilter } from './idempotency-conflict.filter';
+import { IdempotencyConflictError } from '../errors/idempotency-conflict.error.js';
+import { IdempotencyConflictFilter } from './idempotency-conflict.filter.js';
 
 describe('IdempotencyConflictFilter', () => {
   const response = {};

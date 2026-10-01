@@ -1,8 +1,8 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { describe, expect, it } from 'vitest';
-import type { IdempotencyRecord } from '../interfaces/idempotency-record.interface';
-import { cloneIdempotencyRecord, toJsonSnapshot } from './json-snapshot';
+import type { IdempotencyRecord } from '../interfaces/idempotency-record.interface.js';
+import { cloneIdempotencyRecord, toJsonSnapshot } from './json-snapshot.js';
 
 describe('json-snapshot helpers', () => {
   it('toJsonSnapshot serializes valid JSON values and returns undefined for undefined input', () => {

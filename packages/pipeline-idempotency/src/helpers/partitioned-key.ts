@@ -6,8 +6,8 @@ import {
   type TenantPartitionOptions,
   tenantSegments,
 } from '@nestjs-pipeline/core';
-import { MissingIdempotencyPartitionError } from '../errors/missing-partition.error';
-import type { IdempotencyKeyFactory } from '../interfaces/idempotency-options.interface';
+import { MissingIdempotencyPartitionError } from '../errors/missing-partition.error.js';
+import type { IdempotencyKeyFactory } from '../interfaces/idempotency-options.interface.js';
 
 /**
  * Resolves the principal performing an operation.

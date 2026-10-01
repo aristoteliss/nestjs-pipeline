@@ -1,7 +1,7 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import type { IdempotencyRecord } from '../interfaces/idempotency-record.interface';
-import type { IdempotencyStore } from '../interfaces/idempotency-store.interface';
+import type { IdempotencyRecord } from '../interfaces/idempotency-record.interface.js';
+import type { IdempotencyStore } from '../interfaces/idempotency-store.interface.js';
 
 const COMPLETE_IF_OWNED_SCRIPT = `
 local raw = redis.call('GET', KEYS[1])

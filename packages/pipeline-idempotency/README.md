@@ -70,7 +70,9 @@ pnpm add @nestjs-pipeline/idempotency
 pnpm add @nestjs-pipeline/core @nestjs/common @nestjs/core reflect-metadata
 ```
 
-Requires Node.js 22.12 or later, `@nestjs/common` and `@nestjs/core` `^12.1.0`, and `@nestjs-pipeline/core` `^0.3.0`.
+Requires Node.js 22.12 or later, `@nestjs/common` and `@nestjs/core` `^12.1.0`, and `@nestjs-pipeline/core` `^0.4.0`.
+
+Published as an ES module; a CommonJS application loads it with `require()`.
 
 The bundled stores are typed *structurally*, so this package adds **zero heavy
 dependencies**. For the Redis store add a `redis` client (`pnpm add redis`); for

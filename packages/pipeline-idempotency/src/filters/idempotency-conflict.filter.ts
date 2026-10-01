@@ -7,7 +7,7 @@ import {
   Inject,
 } from '@nestjs/common';
 import { HttpAdapterHost } from '@nestjs/core';
-import { IdempotencyConflictError } from '../errors/idempotency-conflict.error';
+import { IdempotencyConflictError } from '../errors/idempotency-conflict.error.js';
 
 /**
  * Catches {@link IdempotencyConflictError} thrown by {@link IdempotencyBehavior}

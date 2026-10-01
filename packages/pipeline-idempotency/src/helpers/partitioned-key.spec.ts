@@ -2,11 +2,11 @@
 
 import type { IPipelineContext } from '@nestjs-pipeline/core';
 import { describe, expect, it } from 'vitest';
-import { MissingIdempotencyPartitionError } from '../errors/missing-partition.error';
+import { MissingIdempotencyPartitionError } from '../errors/missing-partition.error.js';
 import {
   createPartitionedIdempotencyKeyFactory,
   type PartitionedIdempotencyKeyOptions,
-} from './partitioned-key';
+} from './partitioned-key.js';
 
 function ctx(
   overrides: { tenantId?: string; request?: unknown } = {},
