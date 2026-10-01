@@ -1,11 +1,11 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { describe, expect, it } from 'vitest';
-import { AuditBehavior } from './audit.behavior';
-import { AuditModule } from './audit.module';
-import { AUDIT_DEFAULT_OPTIONS, AUDIT_SINK } from './constants/tokens';
-import type { AuditSink } from './interfaces/audit-sink.interface';
-import { LogAuditSink } from './sinks/log.sink';
+import { AuditBehavior } from './audit.behavior.js';
+import { AuditModule } from './audit.module.js';
+import { AUDIT_DEFAULT_OPTIONS, AUDIT_SINK } from './constants/tokens.js';
+import type { AuditSink } from './interfaces/audit-sink.interface.js';
+import { LogAuditSink } from './sinks/log.sink.js';
 
 describe('AuditModule', () => {
   it('registers globally via forRoot with default LogAuditSink', () => {

@@ -10,8 +10,8 @@ import type {
   AuditActor,
   AuditRequestKind,
   AuditSeverity,
-} from './audit-record.interface';
-import type { AuditSink } from './audit-sink.interface';
+} from './audit-record.interface.js';
+import type { AuditSink } from './audit-sink.interface.js';
 
 /** Resolves the acting principal from the pipeline context. */
 export type AuditActorFactory = (

@@ -1,7 +1,7 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_REDACT_KEYS, REDACTED, redactValue } from './redact';
+import { DEFAULT_REDACT_KEYS, REDACTED, redactValue } from './redact.js';
 
 describe('redactValue', () => {
   it('masks default sensitive keys', () => {

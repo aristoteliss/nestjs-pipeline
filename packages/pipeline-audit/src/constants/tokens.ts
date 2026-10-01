@@ -1,7 +1,7 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 /**
- * Injection token holding the {@link import('../interfaces/audit-sink.interface').AuditSink}
+ * Injection token holding the {@link import('../interfaces/audit-sink.interface.js').AuditSink}
  * that audit records are written to, supplied via
  * {@link AuditModule.forRoot} / {@link AuditModule.forRootAsync}.
  */
@@ -9,7 +9,7 @@ export const AUDIT_SINK = Symbol('AUDIT_SINK');
 
 /**
  * Injection token holding the module-wide default
- * {@link import('../interfaces/audit-options.interface').AuditBehaviorOptions}
+ * {@link import('../interfaces/audit-options.interface.js').AuditBehaviorOptions}
  * merged under each handler's per-pipeline configuration.
  */
 export const AUDIT_DEFAULT_OPTIONS = Symbol('AUDIT_DEFAULT_OPTIONS');

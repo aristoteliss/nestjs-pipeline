@@ -22,18 +22,18 @@ import {
   type PipelineItemToken,
   setPipelineItem,
 } from '@nestjs-pipeline/core';
-import { AUDIT_DEFAULT_OPTIONS, AUDIT_SINK } from './constants/tokens';
+import { AUDIT_DEFAULT_OPTIONS, AUDIT_SINK } from './constants/tokens.js';
 import {
   buildAuditRecord,
   buildAuditStartRecord,
-} from './helpers/build-record';
-import type { AuditBehaviorOptions } from './interfaces/audit-options.interface';
+} from './helpers/build-record.js';
+import type { AuditBehaviorOptions } from './interfaces/audit-options.interface.js';
 import type {
   AuditRecord,
   AuditRequestKind,
   AuditStartRecord,
-} from './interfaces/audit-record.interface';
-import type { AuditSink } from './interfaces/audit-sink.interface';
+} from './interfaces/audit-record.interface.js';
+import type { AuditSink } from './interfaces/audit-sink.interface.js';
 
 /**
  * Unique symbol key used on `context.items` to store or retrieve the produced {@link AuditRecord}.

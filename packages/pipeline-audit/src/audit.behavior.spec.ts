@@ -12,13 +12,13 @@ import {
   AUDIT_RECORD_ITEM,
   AUDIT_START_RECORD_ITEM_TOKEN,
   AuditBehavior,
-} from './audit.behavior';
-import type { AuditBehaviorOptions } from './interfaces/audit-options.interface';
+} from './audit.behavior.js';
+import type { AuditBehaviorOptions } from './interfaces/audit-options.interface.js';
 import type {
   AuditRecord,
   AuditStartRecord,
-} from './interfaces/audit-record.interface';
-import type { AuditSink } from './interfaces/audit-sink.interface';
+} from './interfaces/audit-record.interface.js';
+import type { AuditSink } from './interfaces/audit-sink.interface.js';
 
 const write = vi.fn();
 const sink: AuditSink = { write };

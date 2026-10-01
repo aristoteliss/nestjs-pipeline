@@ -1,8 +1,8 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import type { PipelineBehaviorTuple } from '@nestjs-pipeline/core';
-import { AuditBehavior } from '../audit.behavior';
-import type { AuditBehaviorOptions } from '../interfaces/audit-options.interface';
+import { AuditBehavior } from '../audit.behavior.js';
+import type { AuditBehaviorOptions } from '../interfaces/audit-options.interface.js';
 
 export type AuditIntentOptions = AuditBehaviorOptions;
 
