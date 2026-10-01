@@ -148,7 +148,7 @@ export class AuditBehavior
   ) {
     this.defaults = defaults ?? {};
 
-    this.logger = logger ?? new Logger(AuditBehavior.name, { timestamp: true });
+    this.logger = logger ?? new Logger();
   }
 
   async handle(

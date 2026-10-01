@@ -249,8 +249,7 @@ export class IdempotencyBehavior
     }
 
     this.defaults = defaults ?? {};
-    this.logger =
-      logger ?? new Logger(IdempotencyBehavior.name, { timestamp: true });
+    this.logger = logger ?? new Logger();
   }
 
   async handle(

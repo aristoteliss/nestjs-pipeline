@@ -1,5 +1,6 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
+import { ConsoleLogger } from '@nestjs/common';
 import {
   type IPipelineBehaviorContract,
   type IPipelineContext,
@@ -620,6 +621,41 @@ describe('IdempotencyBehavior', () => {
       expect.stringContaining('Replaying idempotent response'),
       IdempotencyBehavior.name,
     );
+  });
+
+  it('prints its context once through the default Nest logger', async () => {
+    const debug = vi
+      .spyOn(ConsoleLogger.prototype, 'debug')
+      .mockImplementation(() => {});
+    try {
+      const mockStore: IdempotencyStore = {
+        get: vi.fn().mockResolvedValue({
+          key: 'o1',
+          status: 'completed',
+          requestName: 'CreateOrderCommand',
+          claimId: 'existing-owner',
+          fingerprint: 'matching-fingerprint',
+          response: 'replayed',
+          createdAt: new Date().toISOString(),
+        }),
+        setIfAbsent: vi.fn().mockResolvedValue(false),
+        completeIfOwned: vi.fn(),
+        deleteIfOwned: vi.fn(),
+        set: vi.fn(),
+        delete: vi.fn(),
+      };
+      const behavior = new IdempotencyBehavior(mockStore);
+      const ctx = withOptions(makeCtx(), { ...byKey, fingerprint: false });
+
+      await expect(behavior.handle(ctx, vi.fn())).resolves.toBe('replayed');
+
+      expect(debug).toHaveBeenCalledWith(
+        expect.stringContaining('Replaying idempotent response'),
+        IdempotencyBehavior.name,
+      );
+    } finally {
+      debug.mockRestore();
+    }
   });
 
   it('merges module defaults under per-handler options', async () => {

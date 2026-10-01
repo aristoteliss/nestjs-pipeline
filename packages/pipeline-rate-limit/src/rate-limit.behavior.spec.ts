@@ -1,5 +1,6 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
+import { ConsoleLogger } from '@nestjs/common';
 import {
   type IPipelineBehaviorContract,
   type IPipelineContext,
@@ -91,6 +92,25 @@ describe('RateLimitBehavior', () => {
       expect.stringContaining('failing open'),
       RateLimitBehavior.name,
     );
+  });
+
+  it('prints its context once through the default Nest logger', async () => {
+    const warn = vi
+      .spyOn(ConsoleLogger.prototype, 'warn')
+      .mockImplementation(() => {});
+    try {
+      consume.mockRejectedValue(new Error('store unavailable'));
+      const behavior = new RateLimitBehavior(limiter);
+
+      await behavior.handle(makeCtx(), vi.fn().mockResolvedValue('ok'));
+
+      expect(warn).toHaveBeenCalledWith(
+        expect.stringContaining('failing open'),
+        RateLimitBehavior.name,
+      );
+    } finally {
+      warn.mockRestore();
+    }
   });
 
   it('consumes 1 point by default under a request-name keyFactory and proceeds', async () => {

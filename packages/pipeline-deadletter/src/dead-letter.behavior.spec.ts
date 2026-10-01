@@ -1,5 +1,6 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
+import { ConsoleLogger } from '@nestjs/common';
 import {
   type IPipelineBehaviorContract,
   type IPipelineContext,
@@ -69,6 +70,29 @@ describe('DeadLetterBehavior', () => {
       expect.stringContaining('Dead-lettered event TestCommand'),
       DeadLetterBehavior.name,
     );
+  });
+
+  it('prints its context once through the default Nest logger', async () => {
+    const warn = vi
+      .spyOn(ConsoleLogger.prototype, 'warn')
+      .mockImplementation(() => {});
+    try {
+      const behavior = new DeadLetterBehavior(transport);
+
+      await expect(
+        behavior.handle(
+          makeCtx(),
+          vi.fn().mockRejectedValue(new Error('boom')),
+        ),
+      ).rejects.toThrow('boom');
+
+      expect(warn).toHaveBeenCalledWith(
+        expect.stringContaining('Dead-lettered event TestCommand'),
+        DeadLetterBehavior.name,
+      );
+    } finally {
+      warn.mockRestore();
+    }
   });
 
   it('passes through and never touches the transport on success', async () => {

@@ -1,6 +1,6 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import { Type } from '@nestjs/common';
+import { ConsoleLogger, Type } from '@nestjs/common';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   LoggingBehavior,
@@ -80,6 +80,25 @@ describe('LoggingBehavior', () => {
       expect.stringContaining('SecondHandler completed'),
       'SecondHandler',
     );
+  });
+
+  it('prints the handler as the context once through the default Nest logger', async () => {
+    const log = vi
+      .spyOn(ConsoleLogger.prototype, 'log')
+      .mockImplementation(() => {});
+    try {
+      await behavior.handle(
+        createMockContext({ handlerName: 'FirstHandler' }),
+        vi.fn().mockResolvedValue('ok'),
+      );
+
+      expect(log).toHaveBeenCalledWith(
+        expect.stringContaining('FirstHandler completed'),
+        'FirstHandler',
+      );
+    } finally {
+      log.mockRestore();
+    }
   });
 
   it('re-throws errors from next()', async () => {

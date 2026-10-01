@@ -180,6 +180,55 @@ describe('CommandBaseHandler', () => {
     expect(aggregate.getUncommittedEvents()).toEqual([event]);
   });
 
+  it('completes only after an asynchronous publisher settles', async () => {
+    const aggregate = new BufferedAggregate();
+    aggregate.apply(new OrderCreatedEvent('awaited-publication'));
+    let settle = () => {};
+    const publishAll = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          settle = resolve;
+        }),
+    );
+    const eventBus = { publishAll } as unknown as IDomainEventPublisher;
+
+    class Handler extends TestableHandler<AggregateRoot> {
+      async handle(): Promise<AggregateRoot> {
+        return aggregate;
+      }
+    }
+
+    let isCompleted = false;
+    const execution = new Handler(eventBus).execute({}).then(() => {
+      isCompleted = true;
+    });
+    await vi.waitFor(() => expect(publishAll).toHaveBeenCalledOnce());
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(isCompleted).toBe(false);
+    settle();
+    await execution;
+    expect(isCompleted).toBe(true);
+  });
+
+  it("rejects the command with an asynchronous publisher's error, after handing over the events", async () => {
+    const aggregate = new BufferedAggregate();
+    aggregate.apply(new OrderCreatedEvent('rejected-publication'));
+    const failure = new Error('broker unavailable');
+    const publishAll = vi.fn(() => Promise.reject(failure));
+    const eventBus = { publishAll } as unknown as IDomainEventPublisher;
+
+    class Handler extends TestableHandler<AggregateRoot> {
+      async handle(): Promise<AggregateRoot> {
+        return aggregate;
+      }
+    }
+
+    await expect(new Handler(eventBus).execute({})).rejects.toBe(failure);
+    expect(publishAll).toHaveBeenCalledOnce();
+    expect(aggregate.getUncommittedEvents()).toEqual([]);
+  });
+
   it('does not publish events when aggregate has no uncommitted events', async () => {
     const eventBus = {
       publishAll: vi.fn(),

@@ -59,7 +59,7 @@ import { UsersModule } from './users/users.module';
     AuthsModule,
     JobContextModule.forRoot({
       principal: SessionJobPrincipal,
-      tenants: persistenceConfig().tenants,
+      tenants: () => persistenceConfig().tenants,
       sources: contextSources,
       imports: [AuthsModule],
     }),

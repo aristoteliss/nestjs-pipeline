@@ -70,30 +70,38 @@ export class JobContextModule {
   /**
    * Builds the module for `options`.
    *
-   * @throws {TypeError} When `options.tenants` is empty.
+   * @throws {TypeError} When `options.tenants` is an empty list. A tenant
+   *   function that returns an empty list throws when the application starts.
    *
    * @example
    * ```ts
    * JobContextModule.forRoot({
    *   principal: SessionJobPrincipal,
-   *   tenants: ['tenant_a'],
+   *   tenants: () => persistenceConfig().tenants,
    *   sources: { tenantId: tenantSource, correlationId: correlationSource },
    * });
    * ```
    */
   static forRoot(options: JobContextOptions): DynamicModule {
-    if (options.tenants.length === 0) {
-      throw new TypeError('JobContextModule needs at least one tenant.');
-    }
+    const { tenants } = options;
     return {
       module: JobContextModule,
       imports: options.imports ?? [],
       providers: [
         { provide: JOB_PRINCIPAL, useClass: options.principal },
-        { provide: JOB_TENANTS, useValue: [...options.tenants] },
+        typeof tenants === 'function'
+          ? { provide: JOB_TENANTS, useFactory: () => toTenantList(tenants()) }
+          : { provide: JOB_TENANTS, useValue: toTenantList(tenants) },
         { provide: JOB_SOURCES, useValue: options.sources },
         JobContextRegistration,
       ],
     };
   }
+}
+
+function toTenantList(tenants: readonly string[]): string[] {
+  if (tenants.length === 0) {
+    throw new TypeError('JobContextModule needs at least one tenant.');
+  }
+  return [...tenants];
 }

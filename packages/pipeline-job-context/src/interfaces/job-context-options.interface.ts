@@ -11,8 +11,12 @@ export interface JobContextOptions {
   /**
    * Tenants a job may run in. A payload naming another tenant is refused, and
    * `@AsSystem` work runs once per tenant, in this order. Must not be empty.
+   *
+   * A function is called once, when the application builds the module's
+   * providers, so the list can come from configuration read at startup
+   * instead of when the module file is imported.
    */
-  tenants: readonly string[];
+  tenants: readonly string[] | (() => readonly string[]);
   /**
    * Where the tenant and correlation id are read when a job is enqueued and
    * restored when it runs, such as `tenantSource` of `@nestjs-pipeline/tenant`

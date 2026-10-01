@@ -260,8 +260,9 @@ export class PrincipalLoginService {
 
         const events = [...auth.getUncommittedEvents()];
         if (events.length > 0) {
-          this.eventBus?.publishAll(events);
+          const published = this.eventBus?.publishAll(events);
           auth.uncommit();
+          await published;
         }
 
         return result;

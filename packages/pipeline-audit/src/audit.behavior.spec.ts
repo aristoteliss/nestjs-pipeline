@@ -1,5 +1,6 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
+import { ConsoleLogger } from '@nestjs/common';
 import {
   getPipelineItem,
   type IPipelineContext,
@@ -75,6 +76,27 @@ describe('AuditBehavior', () => {
       expect.stringContaining('failing open'),
       AuditBehavior.name,
     );
+  });
+
+  it('prints its context once through the default Nest logger', async () => {
+    const warn = vi
+      .spyOn(ConsoleLogger.prototype, 'warn')
+      .mockImplementation(() => {});
+    try {
+      const failingSink: AuditSink = {
+        write: vi.fn().mockRejectedValue(new Error('sink unavailable')),
+      };
+      const behavior = new AuditBehavior(failingSink);
+
+      await behavior.handle(makeCtx(), vi.fn().mockResolvedValue('ok'));
+
+      expect(warn).toHaveBeenCalledWith(
+        expect.stringContaining('failing open'),
+        AuditBehavior.name,
+      );
+    } finally {
+      warn.mockRestore();
+    }
   });
 
   it('returns the handler result when the sink and the diagnostic logger both fail with failOpen', async () => {

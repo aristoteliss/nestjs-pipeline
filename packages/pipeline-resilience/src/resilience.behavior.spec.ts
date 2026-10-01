@@ -1,5 +1,6 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
+import { ConsoleLogger } from '@nestjs/common';
 import {
   type IPipelineBehaviorContract,
   type IPipelineContext,
@@ -71,6 +72,38 @@ describe('ResilienceBehavior', () => {
       expect.stringContaining('[resilience] retrying'),
       ResilienceBehavior.name,
     );
+  });
+
+  it('prints its context once through the default Nest logger', async () => {
+    const debug = vi
+      .spyOn(ConsoleLogger.prototype, 'debug')
+      .mockImplementation(() => {});
+    try {
+      const behavior = new ResilienceBehavior();
+      const next = vi
+        .fn()
+        .mockRejectedValueOnce(new Error('transient'))
+        .mockResolvedValueOnce('ok');
+
+      await behavior.handle(
+        makeCtx({
+          retry: {
+            maxAttempts: 1,
+            replaySafe: true,
+            backoff: { type: 'constant', delay: 0 },
+          },
+          handleAllErrors: true,
+        }),
+        next,
+      );
+
+      expect(debug).toHaveBeenCalledWith(
+        expect.stringContaining('[resilience] retrying'),
+        ResilienceBehavior.name,
+      );
+    } finally {
+      debug.mockRestore();
+    }
   });
 
   it('passes through when no options are configured', async () => {

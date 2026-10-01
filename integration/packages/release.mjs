@@ -17,6 +17,18 @@ const root = resolve(import.meta.dirname, '../..');
 const template = resolve(import.meta.dirname, 'consumer');
 const readJson = (path) => JSON.parse(readFileSync(path, 'utf8'));
 const nodeEngine = readJson(resolve(root, 'package.json')).engines.node;
+// A package whose required peer needs a newer Node declares that peer's range.
+const peerNodeEngines = new Map([
+  [
+    '@cqrs-ddd/mikro-orm',
+    readJson(
+      resolve(
+        root,
+        'packages/ddd-mikro-orm/node_modules/@mikro-orm/core/package.json',
+      ),
+    ).engines.node.replace(/\s+/g, ''),
+  ],
+]);
 const run = (command, args, cwd = root) =>
   execFileSync(command, args, { cwd, stdio: 'inherit' });
 const tar = (args) => execFileSync('tar', args, { encoding: 'utf8' });
@@ -121,9 +133,10 @@ try {
     }
     seen.add(manifest.name);
     packedDependencies[manifest.name] = `file:${path}`;
-    if (manifest.engines?.node !== nodeEngine) {
+    const requiredNodeEngine = peerNodeEngines.get(manifest.name) ?? nodeEngine;
+    if (manifest.engines?.node !== requiredNodeEngine) {
       throw new Error(
-        `${manifest.name}: engines.node must be the root's "${nodeEngine}", found "${manifest.engines?.node}"`,
+        `${manifest.name}: engines.node must be "${requiredNodeEngine}", found "${manifest.engines?.node}"`,
       );
     }
     for (const field of [

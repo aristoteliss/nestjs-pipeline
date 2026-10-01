@@ -114,8 +114,8 @@ export async function createTestJwt(options?: {
  * authentication interceptor reads; every other layer runs as in production.
  *
  * Environment variables are configured **before** `AppModule` is imported,
- * because several modules (`BullModule`, `CacheModule`) read connection details
- * at module-evaluation time. All imports are therefore dynamic.
+ * because `ObservabilityModule` and `ReliabilityModule` read `NODE_ENV` when
+ * they are imported. All imports are therefore dynamic.
  */
 export async function bootstrapE2E(options?: E2EOptions): Promise<E2EContext> {
   const redis: StartedRedisContainer = await new RedisContainer(
