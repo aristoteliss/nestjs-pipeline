@@ -5,8 +5,8 @@ import type { RootEntitySnapshot } from '@cqrs-ddd/core/domain';
 import { RootEntity } from '@cqrs-ddd/core/domain';
 import { MemoryCache } from '@cqrs-ddd/core/persistence';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { CacheEntry } from './cache-entry';
-import { MikroOrmCache } from './mikro-orm.cache';
+import { CacheEntry } from './cache-entry.js';
+import { MikroOrmCache } from './mikro-orm.cache.js';
 
 interface MemberSnapshot extends Partial<RootEntitySnapshot> {
   username: string;

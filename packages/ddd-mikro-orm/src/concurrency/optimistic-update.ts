@@ -6,8 +6,8 @@ import type {
   EntityName,
   FilterQuery,
 } from '@mikro-orm/core';
-import { assertAutocommit } from './assert-autocommit';
-import { expectOneRow, type VersionedAggregate } from './conditioned-write';
+import { assertAutocommit } from './assert-autocommit.js';
+import { expectOneRow, type VersionedAggregate } from './conditioned-write.js';
 
 /**
  * Executes a single, version-conditioned, autocommitted SQL `UPDATE` statement on an aggregate entity.

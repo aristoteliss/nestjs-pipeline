@@ -1,7 +1,7 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { describe, expect, it } from 'vitest';
-import { UnixTimestampType } from './unix-timestamp.type';
+import { UnixTimestampType } from './unix-timestamp.type.js';
 
 describe('UnixTimestampType', () => {
   const type = new UnixTimestampType();

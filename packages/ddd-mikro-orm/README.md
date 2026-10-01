@@ -30,8 +30,10 @@ on no framework: it works in a plain Node service and in a NestJS application.
 pnpm add @cqrs-ddd/mikro-orm @cqrs-ddd/core @mikro-orm/core
 ```
 
-Requires Node.js 22.17 or later, as MikroORM 7 does. `@cqrs-ddd/core` `^0.3.0` and `@mikro-orm/core` `^7.2.1` are peer
+Requires Node.js 22.17 or later, as MikroORM 7 does. `@cqrs-ddd/core` `^0.4.0` and `@mikro-orm/core` `^7.2.1` are peer
 dependencies; add the MikroORM driver you use, such as `@mikro-orm/postgresql`.
+
+Published as an ES module; a CommonJS application loads it with `require()`.
 
 ## Entity manager source
 

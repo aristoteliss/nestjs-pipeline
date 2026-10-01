@@ -6,7 +6,7 @@ import {
   CacheEntrySchema,
   createCacheEntrySchema,
   createCacheTableSql,
-} from './cache-entry';
+} from './cache-entry.js';
 
 describe('cache entry schema', () => {
   it('maps CacheEntry to the cache table by default', () => {

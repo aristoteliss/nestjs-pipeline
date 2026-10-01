@@ -19,7 +19,9 @@ interface Manifest {
 }
 
 const read = (path: string) =>
-  JSON.parse(readFileSync(resolve(__dirname, path), 'utf8')) as Manifest;
+  JSON.parse(
+    readFileSync(resolve(import.meta.dirname, path), 'utf8'),
+  ) as Manifest;
 const manifest = read('../package.json');
 
 describe('ddd-mikro-orm manifest', () => {
