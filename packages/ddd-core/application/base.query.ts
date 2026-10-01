@@ -1,7 +1,7 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import type { IQueryOptions } from './query.options';
-import { definedFields, defineHidden } from './request-fields.helper';
+import type { IQueryOptions } from './query.options.js';
+import { definedFields, defineHidden } from './request-fields.helper.js';
 
 /**
  * Base class for application CQRS queries.

@@ -1,7 +1,7 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { describe, expect, it } from 'vitest';
-import { toCacheSnapshot } from './cache-snapshot.helper';
+import { toCacheSnapshot } from './cache-snapshot.helper.js';
 
 describe('toCacheSnapshot', () => {
   it('uses serializeFn when provided', () => {

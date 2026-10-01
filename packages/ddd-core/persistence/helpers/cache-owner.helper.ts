@@ -1,7 +1,7 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import type { ICacheLogger } from '../cache/cache-logger';
-import { consoleCacheLogger, safeWarn } from '../cache/cache-logger';
+import type { ICacheLogger } from '../cache/cache-logger.js';
+import { consoleCacheLogger, safeWarn } from '../cache/cache-logger.js';
 
 const defaultLogger = consoleCacheLogger('CacheDecorators');
 const reportedOwners = new WeakSet<object>();

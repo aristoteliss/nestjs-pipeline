@@ -1,10 +1,10 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { describe, expect, it, vi } from 'vitest';
-import type { ICache } from '../../application/ports/cache.port';
-import { MemoryCache } from '../cache/memory.cache';
-import type { IPersistenceDialect } from '../persistence-dialect';
-import { PersistedWrite } from './persisted-write.decorator';
+import type { ICache } from '../../application/ports/cache.port.js';
+import { MemoryCache } from '../cache/memory.cache.js';
+import type { IPersistenceDialect } from '../persistence-dialect.js';
+import { PersistedWrite } from './persisted-write.decorator.js';
 
 class Aggregate {
   readonly acknowledged: number[] = [];

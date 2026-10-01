@@ -1,15 +1,15 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import type { IPersistenceDialect } from '../persistence-dialect';
+import type { IPersistenceDialect } from '../persistence-dialect.js';
 import {
   AcknowledgePersisted,
   type PersistedAggregate,
-} from './acknowledge-persisted.decorator';
-import { Cache, type CacheOptions } from './cache.decorator';
+} from './acknowledge-persisted.decorator.js';
+import { Cache, type CacheOptions } from './cache.decorator.js';
 import {
   MapPersistenceErrors,
   type UniqueErrors,
-} from './map-persistence-errors.decorator';
+} from './map-persistence-errors.decorator.js';
 
 /**
  * Options for {@link PersistedWrite}. The aggregate is always the method's

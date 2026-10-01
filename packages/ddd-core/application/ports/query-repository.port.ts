@@ -1,6 +1,6 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import { IQueryOptions } from '../query.options';
+import { IQueryOptions } from '../query.options.js';
 
 /**
  * Application-facing read repository contract.

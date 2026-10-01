@@ -1,10 +1,10 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { describe, expect, expectTypeOf, it } from 'vitest';
-import { DomainException } from '../exceptions/domain.exception';
-import { InvalidValueException } from '../exceptions/invalid-value.exception';
-import { textRule } from './text.rule';
-import type { ValueViolation } from './value-violation';
+import { DomainException } from '../exceptions/domain.exception.js';
+import { InvalidValueException } from '../exceptions/invalid-value.exception.js';
+import { textRule } from './text.rule.js';
+import type { ValueViolation } from './value-violation.js';
 
 class InvalidNameException extends InvalidValueException {}
 

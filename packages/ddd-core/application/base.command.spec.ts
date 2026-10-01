@@ -1,7 +1,7 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { describe, expect, it } from 'vitest';
-import { BaseCommand } from './base.command';
+import { BaseCommand } from './base.command.js';
 
 class TestUpdateCommand extends BaseCommand<{ id: string; tenant: string }> {
   readonly id: string;

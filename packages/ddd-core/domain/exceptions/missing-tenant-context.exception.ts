@@ -1,6 +1,6 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import { DomainException } from './domain.exception';
+import { DomainException } from './domain.exception.js';
 
 /**
  * Framework-neutral signal that an operation requiring tenant isolation was

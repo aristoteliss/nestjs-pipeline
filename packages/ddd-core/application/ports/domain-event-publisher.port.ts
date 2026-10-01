@@ -1,6 +1,6 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import type { IEvent } from '../../domain/events/event.interface';
+import type { IEvent } from '../../domain/events/event.interface.js';
 
 /**
  * Publishes the buffered domain events of an aggregate after a command succeeds.

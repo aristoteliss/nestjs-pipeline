@@ -1,8 +1,8 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { describe, expect, it, vi } from 'vitest';
-import { IEvent } from '../events/event.interface';
-import { AggregateRoot } from './aggregate-root';
+import { IEvent } from '../events/event.interface.js';
+import { AggregateRoot } from './aggregate-root.js';
 
 class OrderPlacedEvent implements IEvent {
   constructor(

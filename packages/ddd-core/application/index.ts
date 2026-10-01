@@ -6,13 +6,13 @@
  * behind `@cqrs-ddd/core/persistence` or in an adapter package.
  */
 
-export * from './base.command';
-export * from './base.query';
-export * from './command-base.handler';
-export * from './ports/cache.port';
-export * from './ports/command-repository.port';
-export * from './ports/domain-event-publisher.port';
-export * from './ports/query-repository.port';
-export * from './ports/write-side-aggregate-repository.port';
-export * from './query.options';
-export * from './tenant-resolver';
+export * from './base.command.js';
+export * from './base.query.js';
+export * from './command-base.handler.js';
+export * from './ports/cache.port.js';
+export * from './ports/command-repository.port.js';
+export * from './ports/domain-event-publisher.port.js';
+export * from './ports/query-repository.port.js';
+export * from './ports/write-side-aggregate-repository.port.js';
+export * from './query.options.js';
+export * from './tenant-resolver.js';

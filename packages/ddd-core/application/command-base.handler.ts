@@ -1,8 +1,8 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import type { IAggregateRoot } from '../domain/interfaces/aggregate-root.interface';
-import { AggregateRoot } from '../domain/models/aggregate-root';
-import type { IDomainEventPublisher } from './ports/domain-event-publisher.port';
+import type { IAggregateRoot } from '../domain/interfaces/aggregate-root.interface.js';
+import { AggregateRoot } from '../domain/models/aggregate-root.js';
+import type { IDomainEventPublisher } from './ports/domain-event-publisher.port.js';
 
 /**
  * Result shapes that allow `CommandBaseHandler` to publish buffered aggregate events.

@@ -1,7 +1,7 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import { assertField, violationThrower } from './rule-support';
-import type { ValueViolationError } from './value-violation';
+import { assertField, violationThrower } from './rule-support.js';
+import type { ValueViolationError } from './value-violation.js';
 
 /** Options of {@link numberRule}. */
 export interface NumberRuleOptions {

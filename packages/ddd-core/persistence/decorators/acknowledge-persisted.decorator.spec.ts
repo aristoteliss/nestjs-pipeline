@@ -1,6 +1,6 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 import { describe, expect, it, vi } from 'vitest';
-import { AcknowledgePersisted } from './acknowledge-persisted.decorator';
+import { AcknowledgePersisted } from './acknowledge-persisted.decorator.js';
 
 describe('AcknowledgePersisted', () => {
   it('selects a non-first argument and preserves this, arguments, result, and entry version', async () => {

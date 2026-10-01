@@ -1,7 +1,7 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { uuidv7 } from '@cqrs-ddd/uuidv7';
-import type { IEvent } from './event.interface';
+import type { IEvent } from './event.interface.js';
 
 /**
  * Base class for all domain events.

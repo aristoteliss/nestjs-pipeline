@@ -5,7 +5,7 @@ import type {
   CacheSetOptions,
   CacheStateEntry,
   IVersionedCache,
-} from '../../application/ports/cache.port';
+} from '../../application/ports/cache.port.js';
 
 export const CACHE_TOKEN = Symbol('MemoryCache');
 

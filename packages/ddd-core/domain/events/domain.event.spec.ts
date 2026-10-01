@@ -2,9 +2,9 @@
 
 import { isUuidV7 } from '@cqrs-ddd/uuidv7';
 import { describe, expect, it } from 'vitest';
-import { RootEntity } from '../models/root.entity';
-import { DomainEvent } from './domain.event';
-import { deepCloneAndFreeze, RootDomainEvent } from './root-domain.event';
+import { RootEntity } from '../models/root.entity.js';
+import { DomainEvent } from './domain.event.js';
+import { deepCloneAndFreeze, RootDomainEvent } from './root-domain.event.js';
 
 class CustomDomainEvent extends DomainEvent {
   constructor(

@@ -3,18 +3,18 @@
 import {
   type CacheStateEntry,
   isVersionedCache,
-} from '../../application/ports/cache.port';
-import { IQueryOptions } from '../../application/query.options';
-import type { ICacheLogger } from '../cache/cache-logger';
-import { consoleCacheLogger, safeWarn } from '../cache/cache-logger';
-import { isCacheMutationBarrier } from '../helpers/cache-barrier.helper';
-import { reportMissingCacheProperty } from '../helpers/cache-owner.helper';
-import { toCacheSnapshot } from '../helpers/cache-snapshot.helper';
-import { isCacheNewer } from '../helpers/cache-version.helper';
+} from '../../application/ports/cache.port.js';
+import { IQueryOptions } from '../../application/query.options.js';
+import type { ICacheLogger } from '../cache/cache-logger.js';
+import { consoleCacheLogger, safeWarn } from '../cache/cache-logger.js';
+import { isCacheMutationBarrier } from '../helpers/cache-barrier.helper.js';
+import { reportMissingCacheProperty } from '../helpers/cache-owner.helper.js';
+import { toCacheSnapshot } from '../helpers/cache-snapshot.helper.js';
+import { isCacheNewer } from '../helpers/cache-version.helper.js';
 import type {
   QueryRepository,
   QueryRepositoryHydration,
-} from '../query-repository.abstract';
+} from '../query-repository.abstract.js';
 
 export { isCacheNewer };
 

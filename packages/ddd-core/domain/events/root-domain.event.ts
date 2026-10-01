@@ -1,8 +1,8 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import { RootEntitySnapshot } from '../interfaces/root-entity-snapshot.interface';
-import { RootEntity } from '../models/root.entity';
-import { DomainEvent } from './domain.event';
+import { RootEntitySnapshot } from '../interfaces/root-entity-snapshot.interface.js';
+import { RootEntity } from '../models/root.entity.js';
+import { DomainEvent } from './domain.event.js';
 
 /** Payload type of an event raised from `T`: its `toJSON()` result, or `T` itself. */
 export type InferPayload<T> = T extends { toJSON(): infer J }

@@ -4,8 +4,8 @@ import {
   type IPersistenceDialect,
   persistenceDialect,
   setPersistenceDialect,
-} from '../persistence-dialect';
-import { MapPersistenceErrors } from './map-persistence-errors.decorator';
+} from '../persistence-dialect.js';
+import { MapPersistenceErrors } from './map-persistence-errors.decorator.js';
 
 type Item = { id: string; name: string; code: string };
 

@@ -5,13 +5,13 @@ import {
   ICache,
   IVersionedCache,
   isVersionedCache,
-} from '../../application/ports/cache.port';
-import type { IQueryOptions } from '../../application/query.options';
-import { Cache } from '../decorators/cache.decorator';
-import { FromCache } from '../decorators/from-cache.decorator';
-import { cacheKey } from '../helpers/cache-key.helper';
-import { QueryRepository } from '../query-repository.abstract';
-import { MemoryCache } from './memory.cache';
+} from '../../application/ports/cache.port.js';
+import type { IQueryOptions } from '../../application/query.options.js';
+import { Cache } from '../decorators/cache.decorator.js';
+import { FromCache } from '../decorators/from-cache.decorator.js';
+import { cacheKey } from '../helpers/cache-key.helper.js';
+import { QueryRepository } from '../query-repository.abstract.js';
+import { MemoryCache } from './memory.cache.js';
 
 interface TestUserSnapshot {
   id: string;

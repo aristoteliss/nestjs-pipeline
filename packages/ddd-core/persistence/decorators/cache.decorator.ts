@@ -3,17 +3,17 @@
 import {
   type ICache,
   isVersionedCache,
-} from '../../application/ports/cache.port';
-import type { ICacheLogger } from '../cache/cache-logger';
-import { consoleCacheLogger, safeWarn } from '../cache/cache-logger';
-import type { CommandRepository } from '../command-repository.abstract';
+} from '../../application/ports/cache.port.js';
+import type { ICacheLogger } from '../cache/cache-logger.js';
+import { consoleCacheLogger, safeWarn } from '../cache/cache-logger.js';
+import type { CommandRepository } from '../command-repository.abstract.js';
 import {
   type CacheBarrierReason,
   createCacheMutationBarrier,
-} from '../helpers/cache-barrier.helper';
-import { reportMissingCacheProperty } from '../helpers/cache-owner.helper';
-import { toCacheSnapshot } from '../helpers/cache-snapshot.helper';
-import { isCacheNewer } from '../helpers/cache-version.helper';
+} from '../helpers/cache-barrier.helper.js';
+import { reportMissingCacheProperty } from '../helpers/cache-owner.helper.js';
+import { toCacheSnapshot } from '../helpers/cache-snapshot.helper.js';
+import { isCacheNewer } from '../helpers/cache-version.helper.js';
 
 const defaultLogger = consoleCacheLogger('CacheDecorator');
 

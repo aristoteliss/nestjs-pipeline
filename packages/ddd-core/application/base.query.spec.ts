@@ -1,7 +1,7 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { describe, expect, it } from 'vitest';
-import { BaseQuery } from './base.query';
+import { BaseQuery } from './base.query.js';
 
 class TestUserQuery extends BaseQuery<{ id: string; role: string }> {
   id: string;

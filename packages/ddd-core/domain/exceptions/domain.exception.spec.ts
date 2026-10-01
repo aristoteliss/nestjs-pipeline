@@ -1,12 +1,12 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 import { describe, expect, it } from 'vitest';
-import { ConcurrencyConflictError } from './concurrency-conflict.error';
-import { DomainException } from './domain.exception';
+import { ConcurrencyConflictError } from './concurrency-conflict.error.js';
+import { DomainException } from './domain.exception.js';
 import {
   isTransientOperationError,
   TransientOperationError,
-} from './transient-operation.error';
-import { UnknownMutableFieldError } from './unknown-mutable-field.error';
+} from './transient-operation.error.js';
+import { UnknownMutableFieldError } from './unknown-mutable-field.error.js';
 
 class SampleDomainException extends DomainException {
   constructor(message = 'Sample error') {

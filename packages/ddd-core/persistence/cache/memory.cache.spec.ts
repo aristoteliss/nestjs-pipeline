@@ -1,8 +1,8 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { isVersionedCache } from '../../application/ports/cache.port';
-import { MemoryCache } from './memory.cache';
+import { isVersionedCache } from '../../application/ports/cache.port.js';
+import { MemoryCache } from './memory.cache.js';
 
 describe('MemoryCache', () => {
   beforeEach(() => {

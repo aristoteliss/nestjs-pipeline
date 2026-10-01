@@ -1,14 +1,14 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { describe, expect, it, vi } from 'vitest';
-import { DomainEvent } from '../domain/events/domain.event';
-import { AggregateRoot } from '../domain/models/aggregate-root';
-import { RootEntity } from '../domain/models/root.entity';
+import { DomainEvent } from '../domain/events/domain.event.js';
+import { AggregateRoot } from '../domain/models/aggregate-root.js';
+import { RootEntity } from '../domain/models/root.entity.js';
 import {
   type AggregateBearingResult,
   CommandBaseHandler,
-} from './command-base.handler';
-import type { IDomainEventPublisher } from './ports/domain-event-publisher.port';
+} from './command-base.handler.js';
+import type { IDomainEventPublisher } from './ports/domain-event-publisher.port.js';
 
 type TestCommand = object;
 

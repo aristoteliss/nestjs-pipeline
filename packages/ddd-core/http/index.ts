@@ -8,4 +8,4 @@
  * HTTP stays out of `/domain` and `/application`.
  */
 
-export * from './domain-error-http-status';
+export * from './domain-error-http-status.js';

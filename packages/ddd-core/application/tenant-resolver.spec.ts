@@ -1,12 +1,12 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { afterEach, describe, expect, it } from 'vitest';
-import { MissingTenantContextError } from '../domain/exceptions/missing-tenant-context.exception';
+import { MissingTenantContextError } from '../domain/exceptions/missing-tenant-context.exception.js';
 import {
   requireTenant,
   requireTenantId,
   setTenantResolver,
-} from './tenant-resolver';
+} from './tenant-resolver.js';
 
 afterEach(() => setTenantResolver(undefined));
 

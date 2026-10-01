@@ -8,8 +8,8 @@
  * the import itself rather than only by convention.
  */
 
-export * from './application/index';
-export * from './domain/index';
-export * from './http/index';
-export * from './persistence/index';
-export * from './types/Method.type';
+export * from './application/index.js';
+export * from './domain/index.js';
+export * from './http/index.js';
+export * from './persistence/index.js';
+export * from './types/Method.type.js';

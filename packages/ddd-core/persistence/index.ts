@@ -9,17 +9,17 @@
  * live in their own packages, such as `@cqrs-ddd/mikro-orm`.
  */
 
-export * from './cache/cache-logger';
-export * from './cache/memory.cache';
-export * from './command-repository.abstract';
-export * from './decorators/acknowledge-persisted.decorator';
-export * from './decorators/cache.decorator';
-export * from './decorators/from-cache.decorator';
-export * from './decorators/map-persistence-errors.decorator';
-export * from './decorators/persisted-write.decorator';
-export * from './helpers/cache-barrier.helper';
-export * from './helpers/cache-key.helper';
-export * from './helpers/cache-snapshot.helper';
-export * from './helpers/cache-version.helper';
-export * from './persistence-dialect';
-export * from './query-repository.abstract';
+export * from './cache/cache-logger.js';
+export * from './cache/memory.cache.js';
+export * from './command-repository.abstract.js';
+export * from './decorators/acknowledge-persisted.decorator.js';
+export * from './decorators/cache.decorator.js';
+export * from './decorators/from-cache.decorator.js';
+export * from './decorators/map-persistence-errors.decorator.js';
+export * from './decorators/persisted-write.decorator.js';
+export * from './helpers/cache-barrier.helper.js';
+export * from './helpers/cache-key.helper.js';
+export * from './helpers/cache-snapshot.helper.js';
+export * from './helpers/cache-version.helper.js';
+export * from './persistence-dialect.js';
+export * from './query-repository.abstract.js';

@@ -1,7 +1,7 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { describe, expect, it } from 'vitest';
-import { isCacheNewer } from './cache-version.helper';
+import { isCacheNewer } from './cache-version.helper.js';
 
 describe('isCacheNewer', () => {
   describe('numeric version comparison', () => {

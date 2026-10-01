@@ -1,6 +1,6 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import { DomainException } from './domain.exception';
+import { DomainException } from './domain.exception.js';
 
 /**
  * Framework-neutral lookup failure for an aggregate or entity required by a use case.

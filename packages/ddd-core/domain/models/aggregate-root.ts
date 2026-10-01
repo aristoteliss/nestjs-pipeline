@@ -3,11 +3,11 @@
  * Copyright (c) 2017-2026 Kamil Mysliwiec (https://kamilmysliwiec.com)
  */
 
-import { IEvent } from '../events/event.interface';
+import { IEvent } from '../events/event.interface.js';
 import type {
   ApplyEventOptions,
   IAggregateRoot,
-} from '../interfaces/aggregate-root.interface';
+} from '../interfaces/aggregate-root.interface.js';
 
 const INTERNAL_EVENTS = Symbol('INTERNAL_EVENTS');
 const IS_AUTO_COMMIT_ENABLED = Symbol('IS_AUTO_COMMIT_ENABLED');

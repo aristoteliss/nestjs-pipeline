@@ -1,9 +1,9 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { describe, expect, expectTypeOf, it } from 'vitest';
-import { InvalidValueException } from '../exceptions/invalid-value.exception';
-import { numberRule } from './number.rule';
-import type { ValueViolation } from './value-violation';
+import { InvalidValueException } from '../exceptions/invalid-value.exception.js';
+import { numberRule } from './number.rule.js';
+import type { ValueViolation } from './value-violation.js';
 
 class InvalidQuantityException extends InvalidValueException {}
 

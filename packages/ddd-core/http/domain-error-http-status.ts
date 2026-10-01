@@ -1,9 +1,9 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import { ConcurrencyConflictError } from '../domain/exceptions/concurrency-conflict.error';
-import { DomainException } from '../domain/exceptions/domain.exception';
-import { EntityNotFoundException } from '../domain/exceptions/entity-not-found.exception';
-import { MissingTenantContextError } from '../domain/exceptions/missing-tenant-context.exception';
+import { ConcurrencyConflictError } from '../domain/exceptions/concurrency-conflict.error.js';
+import { DomainException } from '../domain/exceptions/domain.exception.js';
+import { EntityNotFoundException } from '../domain/exceptions/entity-not-found.exception.js';
+import { MissingTenantContextError } from '../domain/exceptions/missing-tenant-context.exception.js';
 
 /** HTTP answer for a {@link DomainException}, as plain values. */
 export interface DomainErrorHttpStatus {

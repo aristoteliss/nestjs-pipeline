@@ -1,6 +1,6 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import type { IEvent } from '../events/event.interface';
+import type { IEvent } from '../events/event.interface.js';
 
 /**
  * Options for applying an event to an aggregate root.
