@@ -2,7 +2,7 @@
 import type { Server } from 'node:http';
 import request from 'supertest';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { bootstrapE2E, type E2EContext } from './support/e2e-app';
+import { bootstrapE2E, type E2EContext } from './support/e2e-app.js';
 
 /** End-to-end regression for Architecture.md finding #11. */
 describe('delete resilience boundary (e2e)', () => {

@@ -1,14 +1,14 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import { httpExchangeStore } from '@common/context/http-exchange.store';
+import { httpExchangeStore } from '@common/context/http-exchange.store.js';
 import type { Session } from '@fastify/secure-session';
 import { Injectable } from '@nestjs/common';
 import type {
   SessionData,
   SessionPrincipal,
-} from '../../common/types/session-principal';
-import type { ISessionCookies } from '../application/ports/session-cookies.port';
-import type { AuthResult } from '../application/results/auth.result';
+} from '../../common/types/session-principal.js';
+import type { ISessionCookies } from '../application/ports/session-cookies.port.js';
+import type { AuthResult } from '../application/results/auth.result.js';
 
 export const REFRESH_COOKIE = 'refresh_token';
 

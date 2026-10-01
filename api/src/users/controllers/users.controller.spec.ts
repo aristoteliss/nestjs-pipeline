@@ -8,14 +8,14 @@ import {
   CaslAuthorizer,
 } from '@nestjs-pipeline/casl';
 import { describe, expect, it, vi } from 'vitest';
-import { CreateUserCommand } from '../application/cqrs/commands/create-user.command';
-import { DeleteUserCommand } from '../application/cqrs/commands/delete-user.command';
-import { GetUserHandler } from '../application/cqrs/queries/get-user.handler';
-import { GetUserQuery } from '../application/cqrs/queries/get-user.query';
-import { GetUserOverviewQuery } from '../application/cqrs/queries/get-user-overview.query';
-import { GetUsersQuery } from '../application/cqrs/queries/get-users.query';
-import { User } from '../domain/models/user.entity';
-import { UsersController } from './users.controller';
+import { CreateUserCommand } from '../application/cqrs/commands/create-user.command.js';
+import { DeleteUserCommand } from '../application/cqrs/commands/delete-user.command.js';
+import { GetUserHandler } from '../application/cqrs/queries/get-user.handler.js';
+import { GetUserQuery } from '../application/cqrs/queries/get-user.query.js';
+import { GetUserOverviewQuery } from '../application/cqrs/queries/get-user-overview.query.js';
+import { GetUsersQuery } from '../application/cqrs/queries/get-users.query.js';
+import { User } from '../domain/models/user.entity.js';
+import { UsersController } from './users.controller.js';
 
 describe('UsersController', () => {
   function readingBus(ability: AppAbility, user: User): QueryBus {

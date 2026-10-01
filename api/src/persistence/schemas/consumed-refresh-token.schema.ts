@@ -1,7 +1,7 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { BigIntType, EntitySchema } from '@mikro-orm/core';
-import { ConsumedRefreshToken } from '../../auths/domain/models/consumed-refresh-token.entity';
+import { ConsumedRefreshToken } from '../../auths/domain/models/consumed-refresh-token.entity.js';
 
 export const AUTH_CONSUMED_REFRESH_TOKENS_AUTH_ID_INDEX =
   'auth_consumed_refresh_tokens_auth_id_index';

@@ -10,7 +10,7 @@ import {
   type E2EContext,
   inTenant,
   rebuildPermissions,
-} from './support/e2e-app';
+} from './support/e2e-app.js';
 
 const ADMIN_ROLE = '019de10c-b680-7000-8000-000000000001';
 
@@ -51,7 +51,7 @@ describe.each(['express', 'fastify'] as const)('auths (e2e, %s)', (adapter) => {
       .send({ email, name: 'Login Lena', department: 'engineering' });
     expect(created.status).toBe(201);
     const { MIKRO_ORM_CLIENT } = await import(
-      '../src/persistence/mikro-orm.store'
+      '../src/persistence/mikro-orm.store.js'
     );
     await inTenant(ctx.app, () =>
       ctx.app

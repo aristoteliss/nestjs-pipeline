@@ -4,9 +4,9 @@ import { persistenceDialect } from '@cqrs-ddd/core/persistence';
 import { MikroOrmDialect } from '@cqrs-ddd/mikro-orm';
 import { MikroORM } from '@mikro-orm/core';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { MikroOrmStore } from './mikro-orm.store';
-import { TenantSchemaContext } from './tenant-schema.context';
-import { UnknownTenantSchemaError } from './tenant-schema.errors';
+import { MikroOrmStore } from './mikro-orm.store.js';
+import { TenantSchemaContext } from './tenant-schema.context.js';
+import { UnknownTenantSchemaError } from './tenant-schema.errors.js';
 
 /** Starts the store over ORMs that discover metadata but never connect. */
 async function started(env: Record<string, string>) {

@@ -1,6 +1,6 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { loadOptionalEnvFile } from './load-optional-env-file';
+import { loadOptionalEnvFile } from './load-optional-env-file.js';
 
 describe('loadOptionalEnvFile', () => {
   afterEach(() => vi.restoreAllMocks());

@@ -1,7 +1,7 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { redisConfig } from './redis.config';
+import { redisConfig } from './redis.config.js';
 
 afterEach(() => {
   vi.unstubAllEnvs();

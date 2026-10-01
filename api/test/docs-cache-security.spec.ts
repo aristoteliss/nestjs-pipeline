@@ -13,9 +13,9 @@ import { describe, expect, it } from 'vitest';
  * and that correlation IDs are never presented as cache security boundaries.
  */
 describe('Documentation cache security contracts', () => {
-  const usersApiReadmePath = resolve(__dirname, '..', 'README.md');
+  const usersApiReadmePath = resolve(import.meta.dirname, '..', 'README.md');
   const cacheReadmePath = resolve(
-    __dirname,
+    import.meta.dirname,
     '..',
     '..',
     'packages',

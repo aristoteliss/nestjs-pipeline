@@ -4,12 +4,12 @@ import { setTenantResolver } from '@cqrs-ddd/core/application';
 import type { EventBus } from '@nestjs/cqrs';
 import { currentTenantId } from '@nestjs-pipeline/tenant';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { User } from '../../../../users/domain/models/user.entity';
-import { AuthCreatedEvent } from '../../../domain/events/auth-created.event';
-import { Auth } from '../../../domain/models/auth.entity';
-import { NodeRefreshTokens } from '../../../infrastructure/node-refresh-tokens';
-import { CreateAuthCommand } from './create-auth.command';
-import { CreateAuthHandler } from './create-auth.handler';
+import { User } from '../../../../users/domain/models/user.entity.js';
+import { AuthCreatedEvent } from '../../../domain/events/auth-created.event.js';
+import { Auth } from '../../../domain/models/auth.entity.js';
+import { NodeRefreshTokens } from '../../../infrastructure/node-refresh-tokens.js';
+import { CreateAuthCommand } from './create-auth.command.js';
+import { CreateAuthHandler } from './create-auth.handler.js';
 
 const TENANT = 'tenant_alpha';
 

@@ -1,6 +1,6 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import type { AuthResult } from '../results/auth.result';
+import type { AuthResult } from '../results/auth.result.js';
 
 export const SESSION_COOKIES = Symbol('SESSION_COOKIES');
 

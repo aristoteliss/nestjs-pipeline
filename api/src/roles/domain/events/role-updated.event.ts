@@ -1,7 +1,7 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { RootDomainEvent } from '@cqrs-ddd/core/domain';
-import { Role } from '../models/role.entity';
+import { Role } from '../models/role.entity.js';
 
 export class RoleUpdatedEvent extends RootDomainEvent<Role> {
   public constructor(entity: Role) {

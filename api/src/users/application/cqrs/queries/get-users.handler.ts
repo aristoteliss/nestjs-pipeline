@@ -1,15 +1,15 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import { APP_ACTIONS, APP_SUBJECTS } from '@common/constants';
+import { APP_ACTIONS, APP_SUBJECTS } from '@common/constants/index.js';
 import type { IQueryRepository } from '@cqrs-ddd/core/application';
 import { Inject } from '@nestjs/common';
 import { type IQueryHandler, QueryHandler } from '@nestjs/cqrs';
 import { CaslAuthorizer, requires } from '@nestjs-pipeline/casl';
 import { UsePipeline } from '@nestjs-pipeline/core';
-import type { User } from '../../../domain/models/user.entity';
-import { QUERY_REPOSITORY } from '../../../persistence/repository.tokens';
-import { projectUserRead, type UserReadModel } from '../../user-read-model';
-import { GetUsersQuery } from './get-users.query';
+import type { User } from '../../../domain/models/user.entity.js';
+import { QUERY_REPOSITORY } from '../../../persistence/repository.tokens.js';
+import { projectUserRead, type UserReadModel } from '../../user-read-model.js';
+import { GetUsersQuery } from './get-users.query.js';
 
 @QueryHandler(GetUsersQuery)
 @UsePipeline(requires({ action: APP_ACTIONS.READ, subject: APP_SUBJECTS.USER }))

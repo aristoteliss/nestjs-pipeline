@@ -3,9 +3,9 @@
 import { cacheKey, MemoryCache } from '@cqrs-ddd/core/persistence';
 import { runWithTenant } from '@nestjs-pipeline/tenant';
 import { describe, expect, it, vi } from 'vitest';
-import { GetRoleQuery } from '../application/cqrs/queries/get-role.query';
-import { Role, type RoleSnapshot } from '../domain/models/role.entity';
-import { GetRoleQueryRepository } from './get-role.query-repository';
+import { GetRoleQuery } from '../application/cqrs/queries/get-role.query.js';
+import { Role, type RoleSnapshot } from '../domain/models/role.entity.js';
+import { GetRoleQueryRepository } from './get-role.query-repository.js';
 
 const roleKey = (id: string) => cacheKey(Role.aggregateName, { id }, 'tenant');
 

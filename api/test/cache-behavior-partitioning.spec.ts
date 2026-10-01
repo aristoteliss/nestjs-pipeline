@@ -7,7 +7,7 @@
  * not.
  */
 
-import { contextSources } from '@common/context/context-sources';
+import { contextSources } from '@common/context/context-sources.js';
 import { type INestApplication, Injectable } from '@nestjs/common';
 import {
   CqrsModule,

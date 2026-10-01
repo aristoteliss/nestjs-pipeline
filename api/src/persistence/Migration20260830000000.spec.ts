@@ -1,7 +1,7 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { describe, expect, it } from 'vitest';
-import { Migration20260830000000 } from './migrations/Migration20260830000000';
+import { Migration20260830000000 } from './migrations/Migration20260830000000.js';
 
 async function migrationSql(
   direction: 'up' | 'down',

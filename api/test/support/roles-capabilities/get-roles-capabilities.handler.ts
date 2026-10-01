@@ -3,8 +3,8 @@
 import { IQueryRepository } from '@cqrs-ddd/core/application';
 import { Inject } from '@nestjs/common';
 import { type IQueryHandler, QueryHandler } from '@nestjs/cqrs';
-import { GetRolesCapabilitiesQuery } from './get-roles-capabilities.query';
-import type { RoleDefinition } from './get-roles-capabilities.query-repository';
+import { GetRolesCapabilitiesQuery } from './get-roles-capabilities.query.js';
+import type { RoleDefinition } from './get-roles-capabilities.query-repository.js';
 
 export const GET_ROLES_CAPABILITIES_REPOSITORY = Symbol('getRolesCapabilities');
 

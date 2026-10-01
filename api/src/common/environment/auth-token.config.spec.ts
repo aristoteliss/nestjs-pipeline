@@ -2,7 +2,7 @@
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-const load = () => import('./auth-token.config');
+const load = () => import('./auth-token.config.js');
 
 afterEach(() => {
   vi.unstubAllEnvs();

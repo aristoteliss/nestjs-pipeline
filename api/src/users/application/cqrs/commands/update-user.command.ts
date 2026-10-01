@@ -3,7 +3,7 @@
 import { BaseCommand } from '@cqrs-ddd/core/application';
 import { createCommand, updatable } from '@nestjs-pipeline/zod';
 import { z } from 'zod';
-import { User } from '../../../domain/models/user.entity';
+import { User } from '../../../domain/models/user.entity.js';
 
 export const EMPTY_USER_UPDATE_MESSAGE =
   'At least one mutable field must be supplied.';

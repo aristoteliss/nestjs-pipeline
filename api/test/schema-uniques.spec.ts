@@ -1,15 +1,15 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { describe, expect, it } from 'vitest';
-import { Auth } from '../src/auths/domain/models/auth.entity';
-import { generateSchemaSql } from '../src/persistence/schema-ddl';
-import { Role } from '../src/roles/domain/models/role.entity';
-import { User } from '../src/users/domain/models/user.entity';
+import { Auth } from '../src/auths/domain/models/auth.entity.js';
+import { generateSchemaSql } from '../src/persistence/schema-ddl.js';
+import { Role } from '../src/roles/domain/models/role.entity.js';
+import { User } from '../src/users/domain/models/user.entity.js';
 import {
   postgresUniqueViolation,
   sqliteUniqueViolation,
   useSchemaDialect,
-} from './support/schema-dialect';
+} from './support/schema-dialect.js';
 
 /**
  * Every unique constraint the schemas declare, with the property a repository

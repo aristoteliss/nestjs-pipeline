@@ -3,7 +3,7 @@
 import { MissingTenantContextError } from '@cqrs-ddd/core/domain';
 import { Injectable } from '@nestjs/common';
 import { currentTenantId, runWithTenant } from '@nestjs-pipeline/tenant';
-import { tenantSchema } from './persistence.config';
+import { tenantSchema } from './persistence.config.js';
 
 /**
  * Validates and resolves the active tenant schema.

@@ -13,12 +13,12 @@ import {
   PIPELINE_BEHAVIORS_OPTIONS_METADATA,
 } from '@nestjs-pipeline/core';
 import { describe, expect, it } from 'vitest';
-import { GetUserPermissionRulesHandler } from '../src/auths/application/cqrs/queries/get-user-permission-rules.handler';
-import { GetRoleHandler } from '../src/roles/application/cqrs/queries/get-role.handler';
-import { GetRolesHandler } from '../src/roles/application/cqrs/queries/get-roles.handler';
-import { GetUserHandler } from '../src/users/application/cqrs/queries/get-user.handler';
-import { GetUserOverviewHandler } from '../src/users/application/cqrs/queries/get-user-overview.handler';
-import { GetUsersHandler } from '../src/users/application/cqrs/queries/get-users.handler';
+import { GetUserPermissionRulesHandler } from '../src/auths/application/cqrs/queries/get-user-permission-rules.handler.js';
+import { GetRoleHandler } from '../src/roles/application/cqrs/queries/get-role.handler.js';
+import { GetRolesHandler } from '../src/roles/application/cqrs/queries/get-roles.handler.js';
+import { GetUserHandler } from '../src/users/application/cqrs/queries/get-user.handler.js';
+import { GetUserOverviewHandler } from '../src/users/application/cqrs/queries/get-user-overview.handler.js';
+import { GetUsersHandler } from '../src/users/application/cqrs/queries/get-users.handler.js';
 
 function caslRules(
   handler: object,

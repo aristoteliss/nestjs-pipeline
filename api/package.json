@@ -1,7 +1,8 @@
 {
   "name": "@nestjs-pipeline/ddd-api",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "private": true,
+  "type": "module",
   "license": "SEE LICENSE IN LICENSE",
   "description": "Sample NestJS app demonstrating @nestjs-pipeline/core usage",
   "scripts": {

@@ -7,8 +7,8 @@ import { getQueueToken } from '@nestjs/bullmq';
 import type { Job, Queue } from 'bullmq';
 import request from 'supertest';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
-import type { IWelcomeEmailDispatcher } from '../src/users/application/ports/user-event-dispatcher.port';
-import { bootstrapE2E, type E2EContext } from './support/e2e-app';
+import type { IWelcomeEmailDispatcher } from '../src/users/application/ports/user-event-dispatcher.port.js';
+import { bootstrapE2E, type E2EContext } from './support/e2e-app.js';
 
 describe('BullMQ worker lifecycle & dead-letter queue (e2e)', () => {
   let ctx: E2EContext;
@@ -29,10 +29,10 @@ describe('BullMQ worker lifecycle & dead-letter queue (e2e)', () => {
     http = ctx.app.getHttpServer() as Server;
 
     const { WELCOME_EMAIL_DISPATCHER } = await import(
-      '../src/users/application/ports/user-event-dispatcher.port'
+      '../src/users/application/ports/user-event-dispatcher.port.js'
     );
     const { WELCOME_EMAIL_QUEUE } = await import(
-      '../src/users/jobs/send-welcome-email.processor'
+      '../src/users/jobs/send-welcome-email.processor.js'
     );
 
     welcomeQueue = ctx.app.get<Queue>(getQueueToken(WELCOME_EMAIL_QUEUE));

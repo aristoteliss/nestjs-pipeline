@@ -1,21 +1,21 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { Module } from '@nestjs/common';
-import { CreateRoleHandler } from './application/cqrs/commands/create-role.handler';
-import { DeleteRoleHandler } from './application/cqrs/commands/delete-role.handler';
-import { UpdateRoleHandler } from './application/cqrs/commands/update-role.handler';
-import { GetRoleHandler } from './application/cqrs/queries/get-role.handler';
-import { GetRolesHandler } from './application/cqrs/queries/get-roles.handler';
-import { RolesController } from './controllers/roles.controller';
-import { CreateRoleCommandRepository } from './persistence/create-role.command-repository';
-import { DeleteRoleCommandRepository } from './persistence/delete-role.command-repository';
-import { GetRoleQueryRepository } from './persistence/get-role.query-repository';
-import { GetRolesQueryRepository } from './persistence/get-roles.query-repository';
+import { CreateRoleHandler } from './application/cqrs/commands/create-role.handler.js';
+import { DeleteRoleHandler } from './application/cqrs/commands/delete-role.handler.js';
+import { UpdateRoleHandler } from './application/cqrs/commands/update-role.handler.js';
+import { GetRoleHandler } from './application/cqrs/queries/get-role.handler.js';
+import { GetRolesHandler } from './application/cqrs/queries/get-roles.handler.js';
+import { RolesController } from './controllers/roles.controller.js';
+import { CreateRoleCommandRepository } from './persistence/create-role.command-repository.js';
+import { DeleteRoleCommandRepository } from './persistence/delete-role.command-repository.js';
+import { GetRoleQueryRepository } from './persistence/get-role.query-repository.js';
+import { GetRolesQueryRepository } from './persistence/get-roles.query-repository.js';
 import {
   COMMAND_REPOSITORY,
   QUERY_REPOSITORY,
-} from './persistence/repository.tokens';
-import { UpdateRoleCommandRepository } from './persistence/update-role.command-repository';
+} from './persistence/repository.tokens.js';
+import { UpdateRoleCommandRepository } from './persistence/update-role.command-repository.js';
 
 @Module({
   controllers: [RolesController],

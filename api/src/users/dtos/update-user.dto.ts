@@ -4,7 +4,7 @@ import { z } from 'zod';
 import {
   EMPTY_USER_UPDATE_MESSAGE,
   UpdateUserCommand,
-} from '../application/cqrs/commands/update-user.command';
+} from '../application/cqrs/commands/update-user.command.js';
 
 const { username, department } = UpdateUserCommand.schema.shape;
 

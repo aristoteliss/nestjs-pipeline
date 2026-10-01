@@ -5,11 +5,11 @@ import { ConcurrencyConflictError } from '@cqrs-ddd/core/domain';
 import { RateLimitExceededError } from '@nestjs-pipeline/rate-limit';
 import { currentTenantId } from '@nestjs-pipeline/tenant';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { User } from '../../users/domain/models/user.entity';
-import { InvalidLoginCredentialsException } from '../domain/errors/authentication.exception';
-import { InvalidRefreshTokenError } from '../domain/errors/refresh-token.errors';
-import { Auth } from '../domain/models/auth.entity';
-import { PrincipalLoginService } from './principal-login.service';
+import { User } from '../../users/domain/models/user.entity.js';
+import { InvalidLoginCredentialsException } from '../domain/errors/authentication.exception.js';
+import { InvalidRefreshTokenError } from '../domain/errors/refresh-token.errors.js';
+import { Auth } from '../domain/models/auth.entity.js';
+import { PrincipalLoginService } from './principal-login.service.js';
 
 const TENANT = 'tenant';
 

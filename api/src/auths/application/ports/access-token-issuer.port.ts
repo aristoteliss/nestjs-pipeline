@@ -1,7 +1,7 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import type { Capability } from '@nestjs-pipeline/casl';
-import type { User } from '../../../users/domain/models/user.entity';
+import type { User } from '../../../users/domain/models/user.entity.js';
 
 export const ACCESS_TOKEN_ISSUER = Symbol('ACCESS_TOKEN_ISSUER');
 

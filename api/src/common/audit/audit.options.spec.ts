@@ -1,13 +1,13 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import { sessionPrincipalStore } from '@common/context/session-principal.store';
+import { sessionPrincipalStore } from '@common/context/session-principal.store.js';
 import { type AuditBehaviorOptions, audit } from '@nestjs-pipeline/audit';
 import { describe, expect, it } from 'vitest';
 import {
   AUDIT_MODULE_DEFAULTS,
   claimedIdentityActor,
   sessionAuditActor,
-} from './audit.options';
+} from './audit.options.js';
 
 describe('sessionAuditActor', () => {
   it('resolves actor from active session principal', () => {

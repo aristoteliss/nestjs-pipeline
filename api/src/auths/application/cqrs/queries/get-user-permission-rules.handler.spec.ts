@@ -2,8 +2,8 @@
 
 import type { Capability } from '@nestjs-pipeline/casl';
 import { describe, expect, it, vi } from 'vitest';
-import { GetUserPermissionRulesHandler } from './get-user-permission-rules.handler';
-import { GetUserPermissionRulesQuery } from './get-user-permission-rules.query';
+import { GetUserPermissionRulesHandler } from './get-user-permission-rules.handler.js';
+import { GetUserPermissionRulesQuery } from './get-user-permission-rules.query.js';
 
 describe('GetUserPermissionRulesHandler', () => {
   it('delegates query execution to the query repository', async () => {

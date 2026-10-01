@@ -1,6 +1,6 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import { forEachTenantOrm } from './tenant-orms';
+import { forEachTenantOrm } from './tenant-orms.js';
 
 /**
  * Reverts up to `steps` migrations in every tenant, stopping early in a tenant

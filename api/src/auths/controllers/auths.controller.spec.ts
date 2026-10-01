@@ -1,12 +1,12 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { describe, expect, it, vi } from 'vitest';
-import { CreateAuthCommand } from '../application/cqrs/commands/create-auth.command';
-import { RevokeAuthCommand } from '../application/cqrs/commands/revoke-auth.command';
-import type { AuthResult } from '../application/results/auth.result';
-import { InvalidRefreshTokenError } from '../domain/errors/refresh-token.errors';
-import { Auth } from '../domain/models/auth.entity';
-import { AuthsController } from './auths.controller';
+import { CreateAuthCommand } from '../application/cqrs/commands/create-auth.command.js';
+import { RevokeAuthCommand } from '../application/cqrs/commands/revoke-auth.command.js';
+import type { AuthResult } from '../application/results/auth.result.js';
+import { InvalidRefreshTokenError } from '../domain/errors/refresh-token.errors.js';
+import { Auth } from '../domain/models/auth.entity.js';
+import { AuthsController } from './auths.controller.js';
 
 const USER = '019488e0-0000-7000-8000-000000000001';
 const CLIENT_IP = '203.0.113.9';

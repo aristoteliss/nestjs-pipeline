@@ -3,8 +3,8 @@
 import { type ICache } from '@cqrs-ddd/core/application';
 import { runWithTenant } from '@nestjs-pipeline/tenant';
 import { describe, expect, it, vi } from 'vitest';
-import { Auth, type AuthSnapshot } from '../domain/models/auth.entity';
-import { CreateAuthCommandRepository } from './create-auth.command-repository';
+import { Auth, type AuthSnapshot } from '../domain/models/auth.entity.js';
+import { CreateAuthCommandRepository } from './create-auth.command-repository.js';
 
 describe('CreateAuthCommandRepository', () => {
   it('inserts the session without writing it or its refresh-token hash to the cache', async () => {

@@ -24,7 +24,7 @@ function run(command: string, dir: string, args: string[] = []) {
     'pnpm',
     ['exec', 'tsx', 'src/persistence/cli.ts', command, ...args],
     {
-      cwd: join(__dirname, '..'),
+      cwd: join(import.meta.dirname, '..'),
       encoding: 'utf8',
       env: {
         ...process.env,

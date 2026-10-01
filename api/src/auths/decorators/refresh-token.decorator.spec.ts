@@ -6,13 +6,13 @@ import { APP_FILTER } from '@nestjs/core';
 import type { NestFastifyApplication } from '@nestjs/platform-fastify';
 import { Test } from '@nestjs/testing';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { DomainExceptionFilter } from '../../common/filters/domain-exception.filter';
+import { DomainExceptionFilter } from '../../common/filters/domain-exception.filter.js';
 import {
   createFastifyAdapter,
   registerSecureSession,
-} from '../../http-platform';
-import type { RefreshTokenDto } from '../dtos/refresh-token.dto';
-import { RefreshToken } from './refresh-token.decorator';
+} from '../../http-platform.js';
+import type { RefreshTokenDto } from '../dtos/refresh-token.dto.js';
+import { RefreshToken } from './refresh-token.decorator.js';
 
 @Controller()
 class RefreshTokenProbe {

@@ -8,10 +8,13 @@ import {
   QueryRepository,
 } from '@cqrs-ddd/core/persistence';
 import { Inject, Injectable } from '@nestjs/common';
-import { cacheReadLogger } from '@persistence/cache/cache-loggers';
-import { MIKRO_ORM_CLIENT, MikroOrmStore } from '@persistence/mikro-orm.store';
-import { GetRoleQuery } from '../application/cqrs/queries/get-role.query';
-import { Role, RoleSnapshot } from '../domain/models/role.entity';
+import { cacheReadLogger } from '@persistence/cache/cache-loggers.js';
+import {
+  MIKRO_ORM_CLIENT,
+  MikroOrmStore,
+} from '@persistence/mikro-orm.store.js';
+import { GetRoleQuery } from '../application/cqrs/queries/get-role.query.js';
+import { Role, RoleSnapshot } from '../domain/models/role.entity.js';
 
 function buildConditions(query: GetRoleQuery): Record<string, unknown> {
   return { id: query.roleId };

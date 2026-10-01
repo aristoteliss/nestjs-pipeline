@@ -1,15 +1,18 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import './tracing'; // Must initialize before NestJS and AppModule load.
+import './tracing.js'; // Must initialize before NestJS and AppModule load.
 import { NestFactory } from '@nestjs/core';
 import type { NestExpressApplication } from '@nestjs/platform-express';
 import type { NestFastifyApplication } from '@nestjs/platform-fastify';
 import { NativeLogger } from 'nestjs-pino';
-import { AppModule } from './app.module';
-import { configureExpress } from './express-platform';
-import { closeOnShutdownSignals } from './graceful-shutdown';
-import { createFastifyAdapter, registerSecureSession } from './http-platform';
-import { shutdownTracing } from './tracing';
+import { AppModule } from './app.module.js';
+import { configureExpress } from './express-platform.js';
+import { closeOnShutdownSignals } from './graceful-shutdown.js';
+import {
+  createFastifyAdapter,
+  registerSecureSession,
+} from './http-platform.js';
+import { shutdownTracing } from './tracing.js';
 
 export async function bootstrap(): Promise<void> {
   const useFastify = process.env.ADAPTER === 'fastify';

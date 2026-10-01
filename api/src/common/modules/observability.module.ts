@@ -1,10 +1,10 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { IncomingMessage } from 'node:http';
-import { AUDIT_MODULE_DEFAULTS } from '@common/audit/audit.options';
-import { HEADERS } from '@common/constants/headers.constants';
-import { contextSources } from '@common/context/context-sources';
-import { HttpRouteInterceptor } from '@common/interceptors/http-route.interceptor';
+import { AUDIT_MODULE_DEFAULTS } from '@common/audit/audit.options.js';
+import { HEADERS } from '@common/constants/headers.constants.js';
+import { contextSources } from '@common/context/context-sources.js';
+import { HttpRouteInterceptor } from '@common/interceptors/http-route.interceptor.js';
 import { setTenantResolver } from '@cqrs-ddd/core/application';
 import { Module } from '@nestjs/common';
 import { APP_INTERCEPTOR } from '@nestjs/core';

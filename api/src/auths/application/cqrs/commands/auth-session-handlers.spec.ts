@@ -6,20 +6,20 @@ import { ConcurrencyConflictError } from '@cqrs-ddd/core/domain';
 import type { EventBus } from '@nestjs/cqrs';
 import { currentTenantId } from '@nestjs-pipeline/tenant';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { User } from '../../../../users/domain/models/user.entity';
+import { User } from '../../../../users/domain/models/user.entity.js';
 import {
   InvalidRefreshTokenError,
   RefreshTokenReuseError,
-} from '../../../domain/errors/refresh-token.errors';
-import { AuthRefreshedEvent } from '../../../domain/events/auth-refreshed.event';
-import { AuthRevokedEvent } from '../../../domain/events/auth-revoked.event';
-import { Auth, type AuthSnapshot } from '../../../domain/models/auth.entity';
-import { NodeRefreshTokens } from '../../../infrastructure/node-refresh-tokens';
-import { PrincipalLoginService } from '../../../services/principal-login.service';
-import { GetAuthByConsumedTokenHashQuery } from '../queries/get-auth-by-consumed-token-hash.query';
-import { GetAuthByTokenHashQuery } from '../queries/get-auth-by-token-hash.query';
-import { RevokeAuthCommand } from './revoke-auth.command';
-import { RevokeAuthHandler } from './revoke-auth.handler';
+} from '../../../domain/errors/refresh-token.errors.js';
+import { AuthRefreshedEvent } from '../../../domain/events/auth-refreshed.event.js';
+import { AuthRevokedEvent } from '../../../domain/events/auth-revoked.event.js';
+import { Auth, type AuthSnapshot } from '../../../domain/models/auth.entity.js';
+import { NodeRefreshTokens } from '../../../infrastructure/node-refresh-tokens.js';
+import { PrincipalLoginService } from '../../../services/principal-login.service.js';
+import { GetAuthByConsumedTokenHashQuery } from '../queries/get-auth-by-consumed-token-hash.query.js';
+import { GetAuthByTokenHashQuery } from '../queries/get-auth-by-token-hash.query.js';
+import { RevokeAuthCommand } from './revoke-auth.command.js';
+import { RevokeAuthHandler } from './revoke-auth.handler.js';
 
 const TENANT = 'tenant';
 

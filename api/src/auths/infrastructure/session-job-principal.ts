@@ -15,18 +15,18 @@ import {
 import {
   getSessionPrincipal,
   sessionPrincipalStore,
-} from '../../common/context/session-principal.store';
-import { API_CLIENTS } from '../../common/environment/api-clients.config';
+} from '../../common/context/session-principal.store.js';
+import { API_CLIENTS } from '../../common/environment/api-clients.config.js';
 import {
   isPrincipalType,
   isSessionPrincipalValid,
   type SessionPrincipal,
-} from '../../common/types/session-principal';
-import { GetUserQuery } from '../../users/application/cqrs/queries/get-user.query';
-import type { User } from '../../users/domain/models/user.entity';
-import { EXT_USER_QUERY_REPOSITORY } from '../../users/persistence/repository.tokens';
-import type { Auth } from '../domain/models/auth.entity';
-import { COMMAND_REPOSITORY } from '../persistence/repository.tokens';
+} from '../../common/types/session-principal.js';
+import { GetUserQuery } from '../../users/application/cqrs/queries/get-user.query.js';
+import type { User } from '../../users/domain/models/user.entity.js';
+import { EXT_USER_QUERY_REPOSITORY } from '../../users/persistence/repository.tokens.js';
+import type { Auth } from '../domain/models/auth.entity.js';
+import { COMMAND_REPOSITORY } from '../persistence/repository.tokens.js';
 
 /**
  * The api's `IJobPrincipal`: a job acts for the principal of the request that

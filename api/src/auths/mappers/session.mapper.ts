@@ -1,11 +1,11 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { InternalServerErrorException } from '@nestjs/common';
-import type { AuthResult } from '../application/results/auth.result';
+import type { AuthResult } from '../application/results/auth.result.js';
 import {
   type SessionResponse,
   SessionResponseSchema,
-} from '../dtos/sessionResponse.dto';
+} from '../dtos/sessionResponse.dto.js';
 
 /**
  * Maps a login or refresh result to the response body through

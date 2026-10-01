@@ -8,7 +8,7 @@ import {
   bootstrapE2E,
   E2E_LOGIN_CODE,
   type E2EContext,
-} from './support/e2e-app';
+} from './support/e2e-app.js';
 
 /** Runtime regression for Architecture.md finding #4. */
 describe('login command does not dispatch nested queries (e2e)', () => {

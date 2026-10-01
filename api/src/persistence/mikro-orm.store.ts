@@ -19,10 +19,10 @@ import {
   createLibsqlOrmOptions,
   createPostgresOrmOptions,
   libsqlDbUrl,
-} from './orm-options';
-import { persistenceConfig } from './persistence.config';
-import { TenantSchemaContext } from './tenant-schema.context';
-import { UnknownTenantSchemaError } from './tenant-schema.errors';
+} from './orm-options.js';
+import { persistenceConfig } from './persistence.config.js';
+import { TenantSchemaContext } from './tenant-schema.context.js';
+import { UnknownTenantSchemaError } from './tenant-schema.errors.js';
 
 /**
  * Injection token of the {@link MikroOrmStore}, which persists every entity of

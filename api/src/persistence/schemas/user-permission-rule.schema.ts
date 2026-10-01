@@ -1,7 +1,7 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { EntitySchema } from '@mikro-orm/core';
-import { UserPermissionRule } from '../entities/user-permission-rule.entity';
+import { UserPermissionRule } from '../entities/user-permission-rule.entity.js';
 
 export const USER_PERMISSION_RULES_ROLE_ID_INDEX =
   'user_permission_rules_role_id_index';

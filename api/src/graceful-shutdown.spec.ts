@@ -2,7 +2,7 @@
 
 import type { INestApplicationContext } from '@nestjs/common';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { closeOnShutdownSignals } from './graceful-shutdown';
+import { closeOnShutdownSignals } from './graceful-shutdown.js';
 
 function captureSignalHandlers() {
   const handlers = new Map<string, () => void>();

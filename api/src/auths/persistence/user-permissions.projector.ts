@@ -2,16 +2,16 @@
 
 import { type EntityManager, LockMode } from '@mikro-orm/core';
 import { Injectable } from '@nestjs/common';
-import { RoleCapability } from '@persistence/entities/role-capability.entity';
-import { UserAdditionalCapability } from '@persistence/entities/user-additional-capability.entity';
-import { UserDeniedCapability } from '@persistence/entities/user-denied-capability.entity';
+import { RoleCapability } from '@persistence/entities/role-capability.entity.js';
+import { UserAdditionalCapability } from '@persistence/entities/user-additional-capability.entity.js';
+import { UserDeniedCapability } from '@persistence/entities/user-denied-capability.entity.js';
 import {
   UserPermissionRule,
   type UserPermissionRuleSource,
-} from '@persistence/entities/user-permission-rule.entity';
-import { UserRole } from '@persistence/entities/user-role.entity';
-import { Capability } from '../../roles/domain/models/capability.entity';
-import { User } from '../../users/domain/models/user.entity';
+} from '@persistence/entities/user-permission-rule.entity.js';
+import { UserRole } from '@persistence/entities/user-role.entity.js';
+import { Capability } from '../../roles/domain/models/capability.entity.js';
+import { User } from '../../users/domain/models/user.entity.js';
 
 const BATCH_SIZE = 500;
 

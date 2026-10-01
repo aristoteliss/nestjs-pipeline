@@ -7,7 +7,7 @@ import type { Capability } from '@nestjs-pipeline/casl';
 import { currentTenantId } from '@nestjs-pipeline/tenant';
 import { decodeJwt, SignJWT } from 'jose';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { User } from '../../users/domain/models/user.entity';
+import { User } from '../../users/domain/models/user.entity.js';
 
 const TENANT = 'tenant';
 
@@ -32,8 +32,10 @@ const rules: Capability[] = [
 async function load(env: Record<string, string>) {
   for (const [name, value] of Object.entries(env)) vi.stubEnv(name, value);
   vi.resetModules();
-  const { JoseAccessTokenIssuer } = await import('./jose-access-token.issuer');
-  const { JwtAuthenticator } = await import('../services/jwt-authenticator');
+  const { JoseAccessTokenIssuer } = await import(
+    './jose-access-token.issuer.js'
+  );
+  const { JwtAuthenticator } = await import('../services/jwt-authenticator.js');
   return { JoseAccessTokenIssuer, JwtAuthenticator };
 }
 

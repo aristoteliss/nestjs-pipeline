@@ -1,5 +1,9 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
-import { APP_ACTIONS, APP_SUBJECTS, AUDIT_ACTIONS } from '@common/constants';
+import {
+  APP_ACTIONS,
+  APP_SUBJECTS,
+  AUDIT_ACTIONS,
+} from '@common/constants/index.js';
 import {
   CommandBaseHandler,
   IWriteSideAggregateRepository,
@@ -14,10 +18,10 @@ import {
   logging,
   UsePipeline,
 } from '@nestjs-pipeline/core';
-import { UniqueRoleNameException } from '../../../domain/models/errors/role-name.exception';
-import type { Role } from '../../../domain/models/role.entity';
-import { COMMAND_REPOSITORY } from '../../../persistence/repository.tokens';
-import { UpdateRoleCommand } from './update-role.command';
+import { UniqueRoleNameException } from '../../../domain/models/errors/role-name.exception.js';
+import type { Role } from '../../../domain/models/role.entity.js';
+import { COMMAND_REPOSITORY } from '../../../persistence/repository.tokens.js';
+import { UpdateRoleCommand } from './update-role.command.js';
 
 @CommandHandler(UpdateRoleCommand, { scope: Scope.REQUEST })
 @UsePipeline(

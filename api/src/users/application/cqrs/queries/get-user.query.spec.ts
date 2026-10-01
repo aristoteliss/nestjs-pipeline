@@ -1,7 +1,7 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { describe, expect, it } from 'vitest';
-import { GetUserQuery } from './get-user.query';
+import { GetUserQuery } from './get-user.query.js';
 
 describe('GetUserQuery validation', () => {
   const validUuid = '019488e0-0000-7000-8000-000000000001';

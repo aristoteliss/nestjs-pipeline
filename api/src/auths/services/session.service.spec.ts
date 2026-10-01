@@ -1,15 +1,15 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import { httpExchangeStore } from '@common/context/http-exchange.store';
+import { httpExchangeStore } from '@common/context/http-exchange.store.js';
 import type { Session } from '@fastify/secure-session';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type {
   SessionData,
   SessionPrincipal,
-} from '../../common/types/session-principal';
-import type { AuthResult } from '../application/results/auth.result';
-import { Auth } from '../domain/models/auth.entity';
-import { SessionService } from './session.service';
+} from '../../common/types/session-principal.js';
+import type { AuthResult } from '../application/results/auth.result.js';
+import { Auth } from '../domain/models/auth.entity.js';
+import { SessionService } from './session.service.js';
 
 const COOKIE_OPTIONS = {
   httpOnly: true,

@@ -1,6 +1,6 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 import { describe, expect, it } from 'vitest';
-import { UpdateRoleCommand } from './update-role.command';
+import { UpdateRoleCommand } from './update-role.command.js';
 
 describe('UpdateRoleCommand', () => {
   it('marks exactly the field the update handler writes, which CASL checks', () => {

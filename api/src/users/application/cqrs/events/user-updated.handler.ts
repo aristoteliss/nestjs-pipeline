@@ -2,11 +2,11 @@
 
 import { Inject } from '@nestjs/common';
 import { EventsHandler, type IEventHandler } from '@nestjs/cqrs';
-import { UserUpdatedEvent } from '../../../domain/events/user-updated.event';
+import { UserUpdatedEvent } from '../../../domain/events/user-updated.event.js';
 import {
   type IUserBatchDispatcher,
   USER_BATCH_DISPATCHER,
-} from '../../ports/user-event-dispatcher.port';
+} from '../../ports/user-event-dispatcher.port.js';
 
 @EventsHandler(UserUpdatedEvent)
 export class UserUpdatedHandler implements IEventHandler<UserUpdatedEvent> {

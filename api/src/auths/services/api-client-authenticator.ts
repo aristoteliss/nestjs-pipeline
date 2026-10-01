@@ -3,10 +3,10 @@
 import { createHash, timingSafeEqual } from 'node:crypto';
 import { requireTenant } from '@cqrs-ddd/core/application';
 import { Injectable, Logger, UnauthorizedException } from '@nestjs/common';
-import { HEADERS } from '../../common/constants/headers.constants';
-import { API_CLIENTS } from '../../common/environment/api-clients.config';
-import type { SessionPrincipal } from '../../common/types/session-principal';
-import { firstHeaderValue } from './helpers/first-header-value';
+import { HEADERS } from '../../common/constants/headers.constants.js';
+import { API_CLIENTS } from '../../common/environment/api-clients.config.js';
+import type { SessionPrincipal } from '../../common/types/session-principal.js';
+import { firstHeaderValue } from './helpers/first-header-value.js';
 
 /**
  * Authenticates machine-to-machine HTTP requests presenting `x-api-id` and `x-api-key` headers.

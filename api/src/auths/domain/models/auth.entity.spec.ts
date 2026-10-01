@@ -4,11 +4,11 @@ import { describe, expect, it } from 'vitest';
 import {
   InvalidRefreshTokenError,
   RefreshTokenReuseError,
-} from '../errors/refresh-token.errors';
-import { AuthCreatedEvent } from '../events/auth-created.event';
-import { AuthRefreshedEvent } from '../events/auth-refreshed.event';
-import { AuthRevokedEvent } from '../events/auth-revoked.event';
-import { Auth } from './auth.entity';
+} from '../errors/refresh-token.errors.js';
+import { AuthCreatedEvent } from '../events/auth-created.event.js';
+import { AuthRefreshedEvent } from '../events/auth-refreshed.event.js';
+import { AuthRevokedEvent } from '../events/auth-revoked.event.js';
+import { Auth } from './auth.entity.js';
 
 const USER = '019488e0-0000-7000-8000-000000000001';
 const START = 1_000_000;

@@ -1,6 +1,6 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
-import { sessionPrincipalStore } from '@common/context/session-principal.store';
-import type { SessionPrincipal } from '@common/types/session-principal';
+import { sessionPrincipalStore } from '@common/context/session-principal.store.js';
+import type { SessionPrincipal } from '@common/types/session-principal.js';
 import type { IPipelineContext } from '@nestjs-pipeline/core';
 import {
   IdempotencyBehavior,
@@ -8,9 +8,9 @@ import {
   MissingIdempotencyPartitionError,
 } from '@nestjs-pipeline/idempotency';
 import { describe, expect, it } from 'vitest';
-import { CreateRoleHandler } from '../src/roles/application/cqrs/commands/create-role.handler';
-import { CreateUserHandler } from '../src/users/application/cqrs/commands/create-user.handler';
-import { declaredOptions } from './support/declared-options';
+import { CreateRoleHandler } from '../src/roles/application/cqrs/commands/create-role.handler.js';
+import { CreateUserHandler } from '../src/users/application/cqrs/commands/create-user.handler.js';
+import { declaredOptions } from './support/declared-options.js';
 
 type KeyFactory = (ctx: IPipelineContext) => string | undefined;
 

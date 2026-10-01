@@ -13,21 +13,21 @@ import {
 } from '@nestjs-pipeline/idempotency';
 import { RateLimitExceededError } from '@nestjs-pipeline/rate-limit';
 import { ZodValidationError } from '@nestjs-pipeline/zod';
-import { InvalidLoginCredentialsException } from '../../auths/domain/errors/authentication.exception';
+import { InvalidLoginCredentialsException } from '../../auths/domain/errors/authentication.exception.js';
 import {
   InvalidRefreshTokenError,
   RefreshTokenReuseError,
-} from '../../auths/domain/errors/refresh-token.errors';
+} from '../../auths/domain/errors/refresh-token.errors.js';
 import {
   InvalidRoleNameException,
   UniqueRoleNameException,
-} from '../../roles/domain/models/errors/role-name.exception';
+} from '../../roles/domain/models/errors/role-name.exception.js';
 import {
   EmptyUserUpdateException,
   InvalidDepartmentException,
   InvalidUsernameException,
   UniqueEmailException,
-} from '../../users/domain/models/errors';
+} from '../../users/domain/models/errors/index.js';
 
 /**
  * Rejections the application raises as an ordinary answer to the caller. Replaying

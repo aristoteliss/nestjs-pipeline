@@ -7,7 +7,7 @@ import {
   InJobContext,
   type WithJobContext,
 } from '@nestjs-pipeline/job-context';
-import { TenantSchemaContext } from '@persistence/tenant-schema.context';
+import { TenantSchemaContext } from '@persistence/tenant-schema.context.js';
 import type { Job } from 'bullmq';
 
 export const WELCOME_EMAIL_QUEUE = 'welcome-email';

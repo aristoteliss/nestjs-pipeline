@@ -11,16 +11,16 @@ import {
 } from '@nestjs-pipeline/casl';
 import type { IPipelineContext } from '@nestjs-pipeline/core';
 import { describe, expect, it, vi } from 'vitest';
-import { Role } from '../../../../roles/domain/models/role.entity';
-import { User } from '../../../domain/models/user.entity';
-import { GetUserOverviewHandler } from './get-user-overview.handler';
-import { GetUserOverviewQuery } from './get-user-overview.query';
+import { Role } from '../../../../roles/domain/models/role.entity.js';
+import { User } from '../../../domain/models/user.entity.js';
+import { GetUserOverviewHandler } from './get-user-overview.handler.js';
+import { GetUserOverviewQuery } from './get-user-overview.query.js';
 import {
   hasEntityDependentConditions,
   OVERVIEW_RESPONSE_POLICY_VERSION,
   userOverviewCacheCondition,
   userOverviewCacheKey,
-} from './user-overview-cache.policy';
+} from './user-overview-cache.policy.js';
 
 type RawRules = Capability[];
 

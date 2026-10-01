@@ -10,7 +10,7 @@ import {
   type E2EContext,
   inTenant,
   rebuildPermissions,
-} from './support/e2e-app';
+} from './support/e2e-app.js';
 
 /**
  * End-to-end tests for the `/users` use cases, through the HTTP layer, the
@@ -509,10 +509,10 @@ describe('users-api (e2e)', () => {
         const userJwt = await createTestJwt({ sub: created.body.id, email });
 
         const { UserRole } = await import(
-          '../src/persistence/entities/user-role.entity'
+          '../src/persistence/entities/user-role.entity.js'
         );
         const { MIKRO_ORM_CLIENT } = await import(
-          '../src/persistence/mikro-orm.store'
+          '../src/persistence/mikro-orm.store.js'
         );
         const { em } = ctx.app.get(MIKRO_ORM_CLIENT);
         await em.upsert(UserRole, {
@@ -549,9 +549,11 @@ describe('users-api (e2e)', () => {
         });
         expect(created.status).toBe(201);
 
-        const { User } = await import('../src/users/domain/models/user.entity');
+        const { User } = await import(
+          '../src/users/domain/models/user.entity.js'
+        );
         const { MIKRO_ORM_CLIENT } = await import(
-          '../src/persistence/mikro-orm.store'
+          '../src/persistence/mikro-orm.store.js'
         );
         const store = ctx.app.get(MIKRO_ORM_CLIENT);
 

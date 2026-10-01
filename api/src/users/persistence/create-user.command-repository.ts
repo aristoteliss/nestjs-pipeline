@@ -9,10 +9,13 @@ import {
 } from '@cqrs-ddd/core/persistence';
 import { assertAutocommit } from '@cqrs-ddd/mikro-orm';
 import { Inject, Injectable } from '@nestjs/common';
-import { cacheWriteLogger } from '@persistence/cache/cache-loggers';
-import { MIKRO_ORM_CLIENT, MikroOrmStore } from '@persistence/mikro-orm.store';
-import { UniqueEmailException } from '../domain/models/errors/email.exception';
-import { User, UserSnapshot } from '../domain/models/user.entity';
+import { cacheWriteLogger } from '@persistence/cache/cache-loggers.js';
+import {
+  MIKRO_ORM_CLIENT,
+  MikroOrmStore,
+} from '@persistence/mikro-orm.store.js';
+import { UniqueEmailException } from '../domain/models/errors/email.exception.js';
+import { User, UserSnapshot } from '../domain/models/user.entity.js';
 
 @Injectable()
 export class CreateUserCommandRepository extends CommandRepository<

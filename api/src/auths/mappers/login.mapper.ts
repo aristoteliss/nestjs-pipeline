@@ -2,8 +2,8 @@
 
 import { createZodMapper } from '@nestjs-pipeline/zod';
 import { z } from 'zod';
-import { CreateAuthCommand } from '../application/cqrs/commands/create-auth.command';
-import { type LoginDto, LoginDtoSchema } from '../dtos/login.dto';
+import { CreateAuthCommand } from '../application/cqrs/commands/create-auth.command.js';
+import { type LoginDto, LoginDtoSchema } from '../dtos/login.dto.js';
 
 const base = createZodMapper(
   LoginDtoSchema.extend({ clientIp: z.string() }).transform(

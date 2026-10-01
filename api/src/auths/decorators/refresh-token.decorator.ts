@@ -1,12 +1,12 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { createParamDecorator, type ExecutionContext } from '@nestjs/common';
-import { InvalidRefreshTokenError } from '../domain/errors/refresh-token.errors';
+import { InvalidRefreshTokenError } from '../domain/errors/refresh-token.errors.js';
 import {
   type RefreshTokenDto,
   RefreshTokenDtoSchema,
-} from '../dtos/refresh-token.dto';
-import { REFRESH_COOKIE } from '../services/session.service';
+} from '../dtos/refresh-token.dto.js';
+import { REFRESH_COOKIE } from '../services/session.service.js';
 
 interface CookieRequest {
   cookies?: Record<string, string | undefined>;

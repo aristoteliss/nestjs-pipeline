@@ -18,20 +18,20 @@ import { HttpAdapterHost } from '@nestjs/core';
 import {
   AuthConfigurationException,
   InvalidLoginCredentialsException,
-} from '../../auths/domain/errors/authentication.exception';
+} from '../../auths/domain/errors/authentication.exception.js';
 import {
   InvalidRefreshTokenError,
   RefreshTokenReuseError,
-} from '../../auths/domain/errors/refresh-token.errors';
+} from '../../auths/domain/errors/refresh-token.errors.js';
 import {
   InvalidRoleNameException,
   UniqueRoleNameException,
-} from '../../roles/domain/models/errors/role-name.exception';
+} from '../../roles/domain/models/errors/role-name.exception.js';
 import {
   InvalidDepartmentException,
   InvalidUsernameException,
   UniqueEmailException,
-} from '../../users/domain/models/errors';
+} from '../../users/domain/models/errors/index.js';
 
 /**
  * API-layer mapper from framework-neutral domain/application failures to HTTP.

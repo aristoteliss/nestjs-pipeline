@@ -2,15 +2,15 @@
 
 import { uuidv7 } from '@cqrs-ddd/uuidv7';
 import { describe, expect, it } from 'vitest';
-import { UserCreatedEvent } from '../events/user-created.event';
-import { UserDeletedEvent } from '../events/user-deleted.event';
-import { UserUpdatedEvent } from '../events/user-updated.event';
+import { UserCreatedEvent } from '../events/user-created.event.js';
+import { UserDeletedEvent } from '../events/user-deleted.event.js';
+import { UserUpdatedEvent } from '../events/user-updated.event.js';
 import {
   EmptyUserUpdateException,
   InvalidDepartmentException,
   InvalidUsernameException,
-} from './errors';
-import { User } from './user.entity';
+} from './errors/index.js';
+import { User } from './user.entity.js';
 
 describe('User domain entity', () => {
   describe('validation on create', () => {

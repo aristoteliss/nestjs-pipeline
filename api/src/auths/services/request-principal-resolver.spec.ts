@@ -4,11 +4,11 @@ import { setTenantResolver } from '@cqrs-ddd/core/application';
 import type { Session } from '@fastify/secure-session';
 import { currentTenantId } from '@nestjs-pipeline/tenant';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { SessionData } from '../../common/types/session-principal';
-import { ApiClientAuthenticator } from './api-client-authenticator';
-import { JwtAuthenticator } from './jwt-authenticator';
-import { RequestPrincipalResolver } from './request-principal-resolver';
-import { SessionService } from './session.service';
+import type { SessionData } from '../../common/types/session-principal.js';
+import { ApiClientAuthenticator } from './api-client-authenticator.js';
+import { JwtAuthenticator } from './jwt-authenticator.js';
+import { RequestPrincipalResolver } from './request-principal-resolver.js';
+import { SessionService } from './session.service.js';
 
 const TENANT = 'tenant';
 

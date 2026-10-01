@@ -1,8 +1,8 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { createRequire } from 'node:module';
-import { DEAD_LETTER_DEFAULTS } from '@common/dead-letter/dead-letter.options';
-import { ObservabilityModule } from '@common/modules';
+import { DEAD_LETTER_DEFAULTS } from '@common/dead-letter/dead-letter.options.js';
+import { ObservabilityModule } from '@common/modules/index.js';
 import {
   Controller,
   Get,
@@ -48,7 +48,7 @@ beforeAll(() => {
   sdk.start();
   // The instrumentation patches `http` on its next `require`; the test runner
   // and the adapters loaded it before the SDK started.
-  createRequire(__filename)('node:http');
+  createRequire(import.meta.url)('node:http');
 });
 
 afterAll(() => sdk.shutdown());

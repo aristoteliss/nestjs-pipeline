@@ -1,5 +1,9 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
-import { APP_ACTIONS, APP_SUBJECTS, AUDIT_ACTIONS } from '@common/constants';
+import {
+  APP_ACTIONS,
+  APP_SUBJECTS,
+  AUDIT_ACTIONS,
+} from '@common/constants/index.js';
 import {
   CommandBaseHandler,
   IWriteSideAggregateRepository,
@@ -10,9 +14,9 @@ import { CommandHandler, EventBus } from '@nestjs/cqrs';
 import { AUDIT_SEVERITY, audit } from '@nestjs-pipeline/audit';
 import { CaslAuthorizer, requires } from '@nestjs-pipeline/casl';
 import { type IPipelineContext, UsePipeline } from '@nestjs-pipeline/core';
-import type { User } from '../../../domain/models/user.entity';
-import { COMMAND_REPOSITORY } from '../../../persistence/repository.tokens';
-import { UpdateUserCommand } from './update-user.command';
+import type { User } from '../../../domain/models/user.entity.js';
+import { COMMAND_REPOSITORY } from '../../../persistence/repository.tokens.js';
+import { UpdateUserCommand } from './update-user.command.js';
 
 @CommandHandler(UpdateUserCommand, { scope: Scope.REQUEST })
 @UsePipeline(

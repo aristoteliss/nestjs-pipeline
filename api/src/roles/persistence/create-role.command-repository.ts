@@ -9,10 +9,13 @@ import {
 } from '@cqrs-ddd/core/persistence';
 import { assertAutocommit } from '@cqrs-ddd/mikro-orm';
 import { Inject, Injectable } from '@nestjs/common';
-import { cacheWriteLogger } from '@persistence/cache/cache-loggers';
-import { MIKRO_ORM_CLIENT, MikroOrmStore } from '@persistence/mikro-orm.store';
-import { UniqueRoleNameException } from '../domain/models/errors/role-name.exception';
-import { Role, RoleSnapshot } from '../domain/models/role.entity';
+import { cacheWriteLogger } from '@persistence/cache/cache-loggers.js';
+import {
+  MIKRO_ORM_CLIENT,
+  MikroOrmStore,
+} from '@persistence/mikro-orm.store.js';
+import { UniqueRoleNameException } from '../domain/models/errors/role-name.exception.js';
+import { Role, RoleSnapshot } from '../domain/models/role.entity.js';
 
 @Injectable()
 export class CreateRoleCommandRepository extends CommandRepository<

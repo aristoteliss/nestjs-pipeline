@@ -5,8 +5,8 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { z } from 'zod';
-import type { RoleReadModel } from '../application/role-read-model';
-import type { Role, RoleSnapshot } from '../domain/models/role.entity';
+import type { RoleReadModel } from '../application/role-read-model.js';
+import type { Role, RoleSnapshot } from '../domain/models/role.entity.js';
 
 /**
  * Public role response shape. Undefined fields are omitted from serialized output.

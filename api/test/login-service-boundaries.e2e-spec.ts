@@ -7,7 +7,7 @@ import {
   bootstrapE2E,
   E2E_LOGIN_CODE,
   type E2EContext,
-} from './support/e2e-app';
+} from './support/e2e-app.js';
 
 /** E2E regression coverage for Architecture.md finding #6. */
 describe('login application/infrastructure boundary (e2e)', () => {

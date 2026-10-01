@@ -1,16 +1,19 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import { getSessionPrincipal } from '@common/context/session-principal.store';
-import { isSessionPrincipalValid } from '@common/types/session-principal';
+import { getSessionPrincipal } from '@common/context/session-principal.store.js';
+import { isSessionPrincipalValid } from '@common/types/session-principal.js';
 import { Inject, Injectable, Scope } from '@nestjs/common';
 import type {
   CaslAuthorizationInput,
   ICaslPermissionSource,
 } from '@nestjs-pipeline/casl';
-import { MIKRO_ORM_CLIENT, MikroOrmStore } from '@persistence/mikro-orm.store';
-import { User } from '../../users/domain/models/user.entity';
-import { GetUserPermissionRulesQuery } from '../application/cqrs/queries/get-user-permission-rules.query';
-import { GetUserPermissionRulesRepository } from './get-user-permission-rules.query-repository';
+import {
+  MIKRO_ORM_CLIENT,
+  MikroOrmStore,
+} from '@persistence/mikro-orm.store.js';
+import { User } from '../../users/domain/models/user.entity.js';
+import { GetUserPermissionRulesQuery } from '../application/cqrs/queries/get-user-permission-rules.query.js';
+import { GetUserPermissionRulesRepository } from './get-user-permission-rules.query-repository.js';
 
 /**
  * Resolves the authenticated principal and their rules for `CaslBehavior`.

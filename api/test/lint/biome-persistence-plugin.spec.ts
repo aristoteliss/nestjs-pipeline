@@ -11,7 +11,7 @@ import { tmpdir } from 'node:os';
 import { dirname, resolve } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
-const root = resolve(__dirname, '../../..');
+const root = resolve(import.meta.dirname, '../../..');
 const repositoryPath =
   'api/src/roles/persistence/update-role.command-repository.ts';
 const current = readFileSync(resolve(root, repositoryPath), 'utf8');

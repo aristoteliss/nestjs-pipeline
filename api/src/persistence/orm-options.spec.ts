@@ -3,13 +3,13 @@
 import { LibSqlDriver } from '@mikro-orm/libsql';
 import { PostgreSqlDriver } from '@mikro-orm/postgresql';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { Migration20260830000000 } from './migrations/Migration20260830000000';
+import { Migration20260830000000 } from './migrations/Migration20260830000000.js';
 import {
   createLibsqlOrmOptions,
   createPostgresOrmOptions,
   libsqlDbUrl,
-} from './orm-options';
-import { persistenceConfig } from './persistence.config';
+} from './orm-options.js';
+import { persistenceConfig } from './persistence.config.js';
 
 afterEach(() => vi.unstubAllEnvs());
 

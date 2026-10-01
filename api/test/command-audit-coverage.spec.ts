@@ -1,6 +1,6 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import { AUDIT_ACTIONS } from '@common/constants';
+import { AUDIT_ACTIONS } from '@common/constants/index.js';
 import { AuditBehavior } from '@nestjs-pipeline/audit';
 import {
   getBehaviorId,
@@ -8,14 +8,14 @@ import {
   PIPELINE_BEHAVIORS_OPTIONS_METADATA,
 } from '@nestjs-pipeline/core';
 import { describe, expect, it } from 'vitest';
-import { CreateAuthHandler } from '../src/auths/application/cqrs/commands/create-auth.handler';
-import { RevokeAuthHandler } from '../src/auths/application/cqrs/commands/revoke-auth.handler';
-import { CreateRoleHandler } from '../src/roles/application/cqrs/commands/create-role.handler';
-import { DeleteRoleHandler } from '../src/roles/application/cqrs/commands/delete-role.handler';
-import { UpdateRoleHandler } from '../src/roles/application/cqrs/commands/update-role.handler';
-import { CreateUserHandler } from '../src/users/application/cqrs/commands/create-user.handler';
-import { DeleteUserHandler } from '../src/users/application/cqrs/commands/delete-user.handler';
-import { UpdateUserHandler } from '../src/users/application/cqrs/commands/update-user.handler';
+import { CreateAuthHandler } from '../src/auths/application/cqrs/commands/create-auth.handler.js';
+import { RevokeAuthHandler } from '../src/auths/application/cqrs/commands/revoke-auth.handler.js';
+import { CreateRoleHandler } from '../src/roles/application/cqrs/commands/create-role.handler.js';
+import { DeleteRoleHandler } from '../src/roles/application/cqrs/commands/delete-role.handler.js';
+import { UpdateRoleHandler } from '../src/roles/application/cqrs/commands/update-role.handler.js';
+import { CreateUserHandler } from '../src/users/application/cqrs/commands/create-user.handler.js';
+import { DeleteUserHandler } from '../src/users/application/cqrs/commands/delete-user.handler.js';
+import { UpdateUserHandler } from '../src/users/application/cqrs/commands/update-user.handler.js';
 
 function auditAction(handler: object): string | undefined {
   const behaviors: Array<{ name: string }> =

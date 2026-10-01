@@ -5,20 +5,20 @@ import { ConcurrencyConflictError } from '@cqrs-ddd/core/domain';
 import { MemoryCache } from '@cqrs-ddd/core/persistence';
 import { type IPipelineContext, pipelineStore } from '@nestjs-pipeline/core';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { GetAuthByConsumedTokenHashQuery } from '../src/auths/application/cqrs/queries/get-auth-by-consumed-token-hash.query';
-import { GetAuthByTokenHashQuery } from '../src/auths/application/cqrs/queries/get-auth-by-token-hash.query';
-import { RefreshTokenReuseError } from '../src/auths/domain/errors/refresh-token.errors';
+import { GetAuthByConsumedTokenHashQuery } from '../src/auths/application/cqrs/queries/get-auth-by-consumed-token-hash.query.js';
+import { GetAuthByTokenHashQuery } from '../src/auths/application/cqrs/queries/get-auth-by-token-hash.query.js';
+import { RefreshTokenReuseError } from '../src/auths/domain/errors/refresh-token.errors.js';
 import {
   Auth,
   type AuthSnapshot,
-} from '../src/auths/domain/models/auth.entity';
-import { NodeRefreshTokens } from '../src/auths/infrastructure/node-refresh-tokens';
-import { CreateAuthCommandRepository } from '../src/auths/persistence/create-auth.command-repository';
-import { GetAuthByConsumedTokenHashQueryRepository } from '../src/auths/persistence/get-auth-by-consumed-token-hash.query-repository';
-import { GetAuthByTokenHashQueryRepository } from '../src/auths/persistence/get-auth-by-token-hash.query-repository';
-import { UpdateAuthCommandRepository } from '../src/auths/persistence/update-auth.command-repository';
-import { PrincipalLoginService } from '../src/auths/services/principal-login.service';
-import { type MigratedDb, migratedDb } from './support/permission-rules-db';
+} from '../src/auths/domain/models/auth.entity.js';
+import { NodeRefreshTokens } from '../src/auths/infrastructure/node-refresh-tokens.js';
+import { CreateAuthCommandRepository } from '../src/auths/persistence/create-auth.command-repository.js';
+import { GetAuthByConsumedTokenHashQueryRepository } from '../src/auths/persistence/get-auth-by-consumed-token-hash.query-repository.js';
+import { GetAuthByTokenHashQueryRepository } from '../src/auths/persistence/get-auth-by-token-hash.query-repository.js';
+import { UpdateAuthCommandRepository } from '../src/auths/persistence/update-auth.command-repository.js';
+import { PrincipalLoginService } from '../src/auths/services/principal-login.service.js';
+import { type MigratedDb, migratedDb } from './support/permission-rules-db.js';
 
 const ALICE = '019de10c-b680-7000-8000-000000000006';
 const DAY = 86_400_000;
@@ -257,7 +257,9 @@ describe('Auth session persistence', () => {
       'SQLITE_DATABASE_TEMPLATE',
       `file:${dirname(db.url.slice('file:'.length))}/{tenant}.db`,
     );
-    const { purgeSessions } = await import('../src/persistence/purge-sessions');
+    const { purgeSessions } = await import(
+      '../src/persistence/purge-sessions.js'
+    );
 
     expect(await purgeSessions()).toEqual(new Map([['tenant', 2]]));
     expect(

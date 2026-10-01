@@ -1,7 +1,7 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import { RATE_LIMIT_CAPACITY } from '@common/constants';
-import { redisConfig } from '@common/environment/redis.config';
+import { RATE_LIMIT_CAPACITY } from '@common/constants/index.js';
+import { redisConfig } from '@common/environment/redis.config.js';
 import { BullModule, getQueueToken } from '@nestjs/bullmq';
 import { Module } from '@nestjs/common';
 import { CacheModule } from '@nestjs-pipeline/cache';
@@ -16,7 +16,7 @@ import { ResilienceModule } from '@nestjs-pipeline/resilience';
 import { TypedInMemoryProvider } from '@openfeature/server-sdk';
 import type { Queue } from 'bullmq';
 import { RateLimiterMemory } from 'rate-limiter-flexible';
-import { DEAD_LETTER_DEFAULTS } from '../dead-letter/dead-letter.options';
+import { DEAD_LETTER_DEFAULTS } from '../dead-letter/dead-letter.options.js';
 
 /**
  * Wires BullMQ dead-letter delivery, rate limiting, idempotency, resilience,

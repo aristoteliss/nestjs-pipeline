@@ -1,7 +1,7 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { RootDomainEvent } from '@cqrs-ddd/core/domain';
-import type { Auth } from '../models/auth.entity';
+import type { Auth } from '../models/auth.entity.js';
 
 /** A session rotated its refresh token. The payload carries no token material. */
 export class AuthRefreshedEvent extends RootDomainEvent<

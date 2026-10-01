@@ -1,7 +1,7 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 import { fingerprintValue } from '@nestjs-pipeline/idempotency';
 import { describe, expect, it } from 'vitest';
-import { CreateUserCommand } from './create-user.command';
+import { CreateUserCommand } from './create-user.command.js';
 
 describe('CreateUserCommand', () => {
   it('keeps session context out of its fingerprint', () => {

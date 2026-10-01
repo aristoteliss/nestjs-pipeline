@@ -7,9 +7,9 @@ import { errors, importSPKI, jwtVerify } from 'jose';
 import {
   JWT,
   PERMISSIONS_IN_ACCESS_TOKEN,
-} from '../../common/environment/auth-token.config';
-import type { SessionPrincipal } from '../../common/types/session-principal';
-import { firstHeaderValue } from './helpers/first-header-value';
+} from '../../common/environment/auth-token.config.js';
+import type { SessionPrincipal } from '../../common/types/session-principal.js';
+import { firstHeaderValue } from './helpers/first-header-value.js';
 
 type VerificationKey = {
   key: Uint8Array | CryptoKey;

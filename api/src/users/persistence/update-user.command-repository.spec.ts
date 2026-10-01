@@ -12,8 +12,8 @@ import {
 } from '@cqrs-ddd/core/persistence';
 import { runWithTenant } from '@nestjs-pipeline/tenant';
 import { describe, expect, it, vi } from 'vitest';
-import { User, type UserSnapshot } from '../domain/models/user.entity';
-import { UpdateUserCommandRepository } from './update-user.command-repository';
+import { User, type UserSnapshot } from '../domain/models/user.entity.js';
+import { UpdateUserCommandRepository } from './update-user.command-repository.js';
 
 describe('UpdateUserCommandRepository', () => {
   it('writes the database before best-effort email invalidation and id refresh', async () => {

@@ -2,7 +2,7 @@
 
 import { withJobContext } from '@nestjs-pipeline/job-context';
 import { describe, expect, it, vi } from 'vitest';
-import { BullMqUserEventDispatcher } from './bullmq-user-event-dispatcher.adapter';
+import { BullMqUserEventDispatcher } from './bullmq-user-event-dispatcher.adapter.js';
 
 vi.mock('@nestjs-pipeline/job-context', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@nestjs-pipeline/job-context')>()),

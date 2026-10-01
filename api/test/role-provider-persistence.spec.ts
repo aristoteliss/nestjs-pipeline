@@ -1,10 +1,10 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 import { MikroORM } from '@mikro-orm/libsql';
-import { Migration20260830000000 } from '@persistence/migrations/Migration20260830000000';
-import type { MikroOrmStore } from '@persistence/mikro-orm.store';
-import { createLibsqlOrmOptions } from '@persistence/orm-options';
+import { Migration20260830000000 } from '@persistence/migrations/Migration20260830000000.js';
+import type { MikroOrmStore } from '@persistence/mikro-orm.store.js';
+import { createLibsqlOrmOptions } from '@persistence/orm-options.js';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { GetRolesCapabilitiesQueryRepository } from './support/roles-capabilities/get-roles-capabilities.query-repository';
+import { GetRolesCapabilitiesQueryRepository } from './support/roles-capabilities/get-roles-capabilities.query-repository.js';
 
 /** Role names seeded by the initial migration. */
 const SYSTEM_ROLES = {

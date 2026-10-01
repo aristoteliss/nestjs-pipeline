@@ -1,11 +1,11 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import { EmailSchema } from '@common/validation/email.schema';
-import { IdempotencyKeySchema } from '@common/validation/idempotency-key.schema';
+import { EmailSchema } from '@common/validation/email.schema.js';
+import { IdempotencyKeySchema } from '@common/validation/idempotency-key.schema.js';
 import { BaseCommand } from '@cqrs-ddd/core/application';
 import { createCommand } from '@nestjs-pipeline/zod';
 import { z } from 'zod';
-import { User } from '../../../domain/models/user.entity';
+import { User } from '../../../domain/models/user.entity.js';
 
 export class CreateUserCommand extends createCommand(
   z.object({

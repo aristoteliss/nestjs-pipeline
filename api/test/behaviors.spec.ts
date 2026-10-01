@@ -33,13 +33,13 @@ import {
 } from '@nestjs-pipeline/zod';
 import { OpenFeature, TypedInMemoryProvider } from '@openfeature/server-sdk';
 import { metrics, trace } from '@opentelemetry/api';
-import { TenantSchemaContext } from '@persistence/tenant-schema.context';
+import { TenantSchemaContext } from '@persistence/tenant-schema.context.js';
 import { RateLimiterMemory } from 'rate-limiter-flexible';
 import { describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
-import { UniqueRoleNameException } from '../src/roles/domain/models/errors/role-name.exception';
-import { Role } from '../src/roles/domain/models/role.entity';
-import { UpdateUserCommand } from '../src/users/application/cqrs/commands/update-user.command';
+import { UniqueRoleNameException } from '../src/roles/domain/models/errors/role-name.exception.js';
+import { Role } from '../src/roles/domain/models/role.entity.js';
+import { UpdateUserCommand } from '../src/users/application/cqrs/commands/update-user.command.js';
 
 function createContext(options: {
   request?: unknown;

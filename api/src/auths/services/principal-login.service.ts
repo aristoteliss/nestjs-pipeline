@@ -15,46 +15,46 @@ import {
   type RateLimiterLike,
   type RateLimiterResLike,
 } from '@nestjs-pipeline/rate-limit';
-import { RATE_LIMIT_COST } from '../../common/constants/rate-limit.constants';
-import { GetUserQuery } from '../../users/application/cqrs/queries/get-user.query';
-import { User } from '../../users/domain/models/user.entity';
-import { EXT_USER_QUERY_REPOSITORY } from '../../users/persistence/repository.tokens';
-import { GetAuthByConsumedTokenHashQuery } from '../application/cqrs/queries/get-auth-by-consumed-token-hash.query';
-import { GetAuthByTokenHashQuery } from '../application/cqrs/queries/get-auth-by-token-hash.query';
-import { GetUserPermissionRulesQuery } from '../application/cqrs/queries/get-user-permission-rules.query';
+import { RATE_LIMIT_COST } from '../../common/constants/rate-limit.constants.js';
+import { GetUserQuery } from '../../users/application/cqrs/queries/get-user.query.js';
+import { User } from '../../users/domain/models/user.entity.js';
+import { EXT_USER_QUERY_REPOSITORY } from '../../users/persistence/repository.tokens.js';
+import { GetAuthByConsumedTokenHashQuery } from '../application/cqrs/queries/get-auth-by-consumed-token-hash.query.js';
+import { GetAuthByTokenHashQuery } from '../application/cqrs/queries/get-auth-by-token-hash.query.js';
+import { GetUserPermissionRulesQuery } from '../application/cqrs/queries/get-user-permission-rules.query.js';
 import {
   ACCESS_TOKEN_ISSUER,
   type AccessTokenIssueResult,
   type IAccessTokenIssuer,
-} from '../application/ports/access-token-issuer.port';
+} from '../application/ports/access-token-issuer.port.js';
 import {
   AUTH_TOKEN_POLICY,
   type AuthTokenPolicy,
-} from '../application/ports/auth-token-policy.port';
+} from '../application/ports/auth-token-policy.port.js';
 import {
   type ILoginCodeVerifier,
   LOGIN_CODE_VERIFIER,
-} from '../application/ports/login-code-verifier.port';
+} from '../application/ports/login-code-verifier.port.js';
 import {
   type IRefreshTokens,
   REFRESH_TOKENS,
-} from '../application/ports/refresh-tokens.port';
+} from '../application/ports/refresh-tokens.port.js';
 import {
   type ISessionCookies,
   SESSION_COOKIES,
-} from '../application/ports/session-cookies.port';
-import type { AuthResult } from '../application/results/auth.result';
-import { InvalidLoginCredentialsException } from '../domain/errors/authentication.exception';
+} from '../application/ports/session-cookies.port.js';
+import type { AuthResult } from '../application/results/auth.result.js';
+import { InvalidLoginCredentialsException } from '../domain/errors/authentication.exception.js';
 import {
   InvalidRefreshTokenError,
   RefreshTokenReuseError,
-} from '../domain/errors/refresh-token.errors';
-import type { Auth } from '../domain/models/auth.entity';
-import { GetUserPermissionRulesRepository } from '../persistence/get-user-permission-rules.query-repository';
+} from '../domain/errors/refresh-token.errors.js';
+import type { Auth } from '../domain/models/auth.entity.js';
+import { GetUserPermissionRulesRepository } from '../persistence/get-user-permission-rules.query-repository.js';
 import {
   COMMAND_REPOSITORY,
   QUERY_REPOSITORY,
-} from '../persistence/repository.tokens';
+} from '../persistence/repository.tokens.js';
 
 function isRateLimiterRes(value: unknown): value is RateLimiterResLike {
   return (

@@ -1,8 +1,8 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import { UserPermissionsProjector } from '../auths/persistence/user-permissions.projector';
-import { User } from '../users/domain/models/user.entity';
-import { forEachTenantOrm } from './tenant-orms';
+import { UserPermissionsProjector } from '../auths/persistence/user-permissions.projector.js';
+import { User } from '../users/domain/models/user.entity.js';
+import { forEachTenantOrm } from './tenant-orms.js';
 
 const BATCH_SIZE = 500;
 

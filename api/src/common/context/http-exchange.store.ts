@@ -1,7 +1,7 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { AsyncLocalStorage } from 'node:async_hooks';
-import type { SessionData } from '@common/types/session-principal';
+import type { SessionData } from '@common/types/session-principal.js';
 import type { Session } from '@fastify/secure-session';
 
 export interface HttpExchange {

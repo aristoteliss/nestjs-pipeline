@@ -11,15 +11,15 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   InvalidRoleNameException,
   UniqueRoleNameException,
-} from '../../roles/domain/models/errors/role-name.exception';
+} from '../../roles/domain/models/errors/role-name.exception.js';
 import {
   EmptyUserUpdateException,
   InvalidDepartmentException,
   InvalidUsernameException,
   UniqueEmailException,
-} from '../../users/domain/models/errors';
-import { User } from '../../users/domain/models/user.entity';
-import { DomainExceptionFilter } from './domain-exception.filter';
+} from '../../users/domain/models/errors/index.js';
+import { User } from '../../users/domain/models/user.entity.js';
+import { DomainExceptionFilter } from './domain-exception.filter.js';
 
 class UnclassifiedDomainException extends DomainException {
   constructor() {

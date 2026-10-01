@@ -3,7 +3,7 @@
 import { BaseCommand } from '@cqrs-ddd/core/application';
 import { createCommand, updatable } from '@nestjs-pipeline/zod';
 import { z } from 'zod';
-import { Role } from '../../../domain/models/role.entity';
+import { Role } from '../../../domain/models/role.entity.js';
 
 export class UpdateRoleCommand extends createCommand(
   z.object({

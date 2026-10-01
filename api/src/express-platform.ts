@@ -2,7 +2,7 @@
 
 import type { NestExpressApplication } from '@nestjs/platform-express';
 import cookieParser from 'cookie-parser';
-import { TRUST_PROXY } from './common/environment/auth-token.config';
+import { TRUST_PROXY } from './common/environment/auth-token.config.js';
 
 /** Express setup: `TRUST_PROXY`, so `req.ip` is the client, and `request.cookies`. */
 export function configureExpress(app: NestExpressApplication): void {

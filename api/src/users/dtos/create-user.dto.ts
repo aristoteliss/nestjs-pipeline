@@ -1,8 +1,8 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import { EmailSchema } from '@common/validation/email.schema';
+import { EmailSchema } from '@common/validation/email.schema.js';
 import { z } from 'zod';
-import { User } from '../domain/models/user.entity';
+import { User } from '../domain/models/user.entity.js';
 
 /**
  * Request body for creating a user.

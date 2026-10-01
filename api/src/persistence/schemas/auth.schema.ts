@@ -3,7 +3,7 @@
 import { AggregateRoot } from '@cqrs-ddd/core/domain';
 import { rootEntityProperties, versionProperty } from '@cqrs-ddd/mikro-orm';
 import { BigIntType, EntitySchema } from '@mikro-orm/core';
-import { Auth } from '../../auths/domain/models/auth.entity';
+import { Auth } from '../../auths/domain/models/auth.entity.js';
 
 export const AUTH_PREVIOUS_REFRESH_TOKEN_HASH_INDEX =
   'auth_previous_refresh_token_hash_idx';

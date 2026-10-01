@@ -5,8 +5,8 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { z } from 'zod';
-import type { UserReadModel } from '../application/user-read-model';
-import type { User, UserSnapshot } from '../domain/models/user.entity';
+import type { UserReadModel } from '../application/user-read-model.js';
+import type { User, UserSnapshot } from '../domain/models/user.entity.js';
 
 /**
  * Public user response shape. `username` is exposed as `name`; omitted fields

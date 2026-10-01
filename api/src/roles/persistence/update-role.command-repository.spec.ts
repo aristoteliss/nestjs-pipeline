@@ -12,9 +12,9 @@ import {
 } from '@cqrs-ddd/core/persistence';
 import { runWithTenant } from '@nestjs-pipeline/tenant';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
-import { UniqueRoleNameException } from '../domain/models/errors/role-name.exception';
-import { Role, type RoleSnapshot } from '../domain/models/role.entity';
-import { UpdateRoleCommandRepository } from './update-role.command-repository';
+import { UniqueRoleNameException } from '../domain/models/errors/role-name.exception.js';
+import { Role, type RoleSnapshot } from '../domain/models/role.entity.js';
+import { UpdateRoleCommandRepository } from './update-role.command-repository.js';
 
 /** Reports the `name` constraint for `taken`, as the MikroORM dialect does for a real violation. */
 const taken = new Error('name already taken');

@@ -1,8 +1,8 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { describe, expect, it } from 'vitest';
-import { Auth } from '../domain/models/auth.entity';
-import { toSessionRes } from './session.mapper';
+import { Auth } from '../domain/models/auth.entity.js';
+import { toSessionRes } from './session.mapper.js';
 
 const USER = '019488e0-0000-7000-8000-000000000001';
 

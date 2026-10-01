@@ -3,15 +3,15 @@
 import type { ICache } from '@cqrs-ddd/core/application';
 import { ConcurrencyConflictError } from '@cqrs-ddd/core/domain';
 import { MikroORM } from '@mikro-orm/libsql';
-import { Migration20260830000000 } from '@persistence/migrations/Migration20260830000000';
-import type { MikroOrmStore } from '@persistence/mikro-orm.store';
-import { createLibsqlOrmOptions } from '@persistence/orm-options';
+import { Migration20260830000000 } from '@persistence/migrations/Migration20260830000000.js';
+import type { MikroOrmStore } from '@persistence/mikro-orm.store.js';
+import { createLibsqlOrmOptions } from '@persistence/orm-options.js';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import {
   User,
   type UserSnapshot,
-} from '../src/users/domain/models/user.entity';
-import { UpdateUserCommandRepository } from '../src/users/persistence/update-user.command-repository';
+} from '../src/users/domain/models/user.entity.js';
+import { UpdateUserCommandRepository } from '../src/users/persistence/update-user.command-repository.js';
 
 describe('versioned user updates with real MikroORM persistence', () => {
   let orm: MikroORM;

@@ -8,9 +8,9 @@ import {
 } from '@cqrs-ddd/core/persistence';
 import { runWithTenant } from '@nestjs-pipeline/tenant';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
-import { UniqueEmailException } from '../domain/models/errors/email.exception';
-import { User, type UserSnapshot } from '../domain/models/user.entity';
-import { CreateUserCommandRepository } from './create-user.command-repository';
+import { UniqueEmailException } from '../domain/models/errors/email.exception.js';
+import { User, type UserSnapshot } from '../domain/models/user.entity.js';
+import { CreateUserCommandRepository } from './create-user.command-repository.js';
 
 /** Reports the `email` constraint for `taken`, as the MikroORM dialect does for a real violation. */
 const taken = new Error('email already taken');

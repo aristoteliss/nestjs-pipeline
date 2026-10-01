@@ -4,12 +4,12 @@ import { createHash } from 'node:crypto';
 import { runWithTenant } from '@nestjs-pipeline/tenant';
 import { decodeJwt } from 'jose';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { User } from '../../users/domain/models/user.entity';
+import { User } from '../../users/domain/models/user.entity.js';
 import {
   AuthConfigurationException,
   InvalidLoginCredentialsException,
-} from '../domain/errors/authentication.exception';
-import { SharedDemoLoginCodeVerifier } from './shared-demo-login-code.verifier';
+} from '../domain/errors/authentication.exception.js';
+import { SharedDemoLoginCodeVerifier } from './shared-demo-login-code.verifier.js';
 
 const originalEnv = { ...process.env };
 
@@ -22,8 +22,8 @@ async function loadIssuer(env: Record<string, string | undefined>) {
   for (const [name, value] of Object.entries(env)) vi.stubEnv(name, value);
   vi.resetModules();
   const [{ JoseAccessTokenIssuer }, errors] = await Promise.all([
-    import('./jose-access-token.issuer'),
-    import('../domain/errors/authentication.exception'),
+    import('./jose-access-token.issuer.js'),
+    import('../domain/errors/authentication.exception.js'),
   ]);
   return { JoseAccessTokenIssuer, errors };
 }

@@ -1,7 +1,7 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import { AUDIT_MODULE_DEFAULTS } from '@common/audit/audit.options';
-import { AUDIT_ACTIONS } from '@common/constants';
+import { AUDIT_MODULE_DEFAULTS } from '@common/audit/audit.options.js';
+import { AUDIT_ACTIONS } from '@common/constants/index.js';
 import { CommandBus, CqrsModule } from '@nestjs/cqrs';
 import { Test } from '@nestjs/testing';
 import {
@@ -14,14 +14,14 @@ import { LoggingBehavior, PipelineModule } from '@nestjs-pipeline/core';
 import { MetricsBehavior } from '@nestjs-pipeline/opentelemetry';
 import { RateLimitBehavior } from '@nestjs-pipeline/rate-limit';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { CreateAuthCommand } from '../src/auths/application/cqrs/commands/create-auth.command';
-import { CreateAuthHandler } from '../src/auths/application/cqrs/commands/create-auth.handler';
-import { AUTH_TOKEN_POLICY } from '../src/auths/application/ports/auth-token-policy.port';
-import { REFRESH_TOKENS } from '../src/auths/application/ports/refresh-tokens.port';
-import { SESSION_COOKIES } from '../src/auths/application/ports/session-cookies.port';
-import { NodeRefreshTokens } from '../src/auths/infrastructure/node-refresh-tokens';
-import { COMMAND_REPOSITORY } from '../src/auths/persistence/repository.tokens';
-import { PrincipalLoginService } from '../src/auths/services/principal-login.service';
+import { CreateAuthCommand } from '../src/auths/application/cqrs/commands/create-auth.command.js';
+import { CreateAuthHandler } from '../src/auths/application/cqrs/commands/create-auth.handler.js';
+import { AUTH_TOKEN_POLICY } from '../src/auths/application/ports/auth-token-policy.port.js';
+import { REFRESH_TOKENS } from '../src/auths/application/ports/refresh-tokens.port.js';
+import { SESSION_COOKIES } from '../src/auths/application/ports/session-cookies.port.js';
+import { NodeRefreshTokens } from '../src/auths/infrastructure/node-refresh-tokens.js';
+import { COMMAND_REPOSITORY } from '../src/auths/persistence/repository.tokens.js';
+import { PrincipalLoginService } from '../src/auths/services/principal-login.service.js';
 
 describe('Login audit actor', () => {
   const recorded: AuditRecord[] = [];

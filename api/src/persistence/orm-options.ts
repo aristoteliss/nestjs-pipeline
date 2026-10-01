@@ -3,13 +3,13 @@
 import { LibSqlDriver } from '@mikro-orm/libsql';
 import { Migrator } from '@mikro-orm/migrations';
 import { PostgreSqlDriver } from '@mikro-orm/postgresql';
-import { Migration20260830000000 } from './migrations/Migration20260830000000';
+import { Migration20260830000000 } from './migrations/Migration20260830000000.js';
 import {
   type PersistenceConfig,
   persistenceConfig,
   tenantSchema,
-} from './persistence.config';
-import { PERSISTENCE_ENTITIES } from './persistence-entities';
+} from './persistence.config.js';
+import { PERSISTENCE_ENTITIES } from './persistence-entities.js';
 
 function sharedOptions(config: PersistenceConfig, tenant: string) {
   return {

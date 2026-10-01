@@ -9,15 +9,15 @@ import type {
   IWelcomeEmailDispatcher,
   UserBatchDispatchItem,
   WelcomeEmailDispatch,
-} from '../application/ports/user-event-dispatcher.port';
+} from '../application/ports/user-event-dispatcher.port.js';
 import {
   BATCH_UPDATE_USERS_QUEUE,
   type BatchUpdateUsersJobData,
-} from './batch-update-users.processor';
+} from './batch-update-users.processor.js';
 import {
   WELCOME_EMAIL_QUEUE,
   type WelcomeEmailJobData,
-} from './send-welcome-email.processor';
+} from './send-welcome-email.processor.js';
 
 /**
  * BullMQ infrastructure adapter for user-event application dispatch ports.

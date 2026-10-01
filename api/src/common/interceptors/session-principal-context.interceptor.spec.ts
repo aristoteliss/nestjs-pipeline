@@ -1,13 +1,13 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import { httpExchangeStore } from '@common/context/http-exchange.store';
-import { getSessionPrincipal } from '@common/context/session-principal.store';
+import { httpExchangeStore } from '@common/context/http-exchange.store.js';
+import { getSessionPrincipal } from '@common/context/session-principal.store.js';
 import type { CallHandler, ExecutionContext } from '@nestjs/common';
-import { TenantSchemaContext } from '@persistence/tenant-schema.context';
+import { TenantSchemaContext } from '@persistence/tenant-schema.context.js';
 import { firstValueFrom, from, of, throwError } from 'rxjs';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { AuthenticatedRequest } from '../../auths/services/request-principal-resolver';
-import { SessionPrincipalContextInterceptor } from './session-principal-context.interceptor';
+import type { AuthenticatedRequest } from '../../auths/services/request-principal-resolver.js';
+import { SessionPrincipalContextInterceptor } from './session-principal-context.interceptor.js';
 
 function makeContext(req: AuthenticatedRequest): ExecutionContext {
   return {

@@ -8,9 +8,12 @@ import {
 } from '@cqrs-ddd/core/persistence';
 import { mapPersistenceError } from '@cqrs-ddd/mikro-orm';
 import { Inject, Injectable } from '@nestjs/common';
-import { MIKRO_ORM_CLIENT, MikroOrmStore } from '@persistence/mikro-orm.store';
-import { GetAuthByTokenHashQuery } from '../application/cqrs/queries/get-auth-by-token-hash.query';
-import { Auth } from '../domain/models/auth.entity';
+import {
+  MIKRO_ORM_CLIENT,
+  MikroOrmStore,
+} from '@persistence/mikro-orm.store.js';
+import { GetAuthByTokenHashQuery } from '../application/cqrs/queries/get-auth-by-token-hash.query.js';
+import { Auth } from '../domain/models/auth.entity.js';
 
 /** Authoritative lookup of an active Auth session by current or immediately previous refresh token hash. */
 @Injectable()

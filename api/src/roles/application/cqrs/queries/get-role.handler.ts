@@ -1,15 +1,15 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import { APP_ACTIONS, APP_SUBJECTS } from '@common/constants';
+import { APP_ACTIONS, APP_SUBJECTS } from '@common/constants/index.js';
 import { IQueryRepository } from '@cqrs-ddd/core/application';
 import { Inject } from '@nestjs/common';
 import { type IQueryHandler, QueryHandler } from '@nestjs/cqrs';
 import { CaslAuthorizer, requires } from '@nestjs-pipeline/casl';
 import { UsePipeline } from '@nestjs-pipeline/core';
-import type { Role } from '../../../domain/models/role.entity';
-import { QUERY_REPOSITORY } from '../../../persistence/repository.tokens';
-import { projectRoleRead, type RoleReadModel } from '../../role-read-model';
-import { GetRoleQuery } from './get-role.query';
+import type { Role } from '../../../domain/models/role.entity.js';
+import { QUERY_REPOSITORY } from '../../../persistence/repository.tokens.js';
+import { projectRoleRead, type RoleReadModel } from '../../role-read-model.js';
+import { GetRoleQuery } from './get-role.query.js';
 
 @QueryHandler(GetRoleQuery)
 @UsePipeline(requires({ action: APP_ACTIONS.READ, subject: APP_SUBJECTS.ROLE }))
