@@ -1,7 +1,7 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { getPipelineItem, type IPipelineContext } from '@nestjs-pipeline/core';
-import { FEATURE_FLAG_DECISION_ITEM_TOKEN } from '../feature-flag.behavior';
+import { FEATURE_FLAG_DECISION_ITEM_TOKEN } from '../feature-flag.behavior.js';
 
 /**
  * The feature-flag decision of one execution as flat attributes, named after

@@ -3,11 +3,11 @@ import type { ArgumentsHost } from '@nestjs/common';
 import { OPTIONAL_DEPS_METADATA } from '@nestjs/common/constants';
 import type { HttpAdapterHost } from '@nestjs/core';
 import { describe, expect, it, vi } from 'vitest';
-import { FeatureDisabledError } from '../errors/feature-disabled.error';
+import { FeatureDisabledError } from '../errors/feature-disabled.error.js';
 import {
   FeatureDisabledFilter,
   type FeatureDisabledFilterOptions,
-} from './feature-disabled.filter';
+} from './feature-disabled.filter.js';
 
 const response = {};
 const host = {

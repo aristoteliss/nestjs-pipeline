@@ -9,7 +9,7 @@ import {
   Optional,
 } from '@nestjs/common';
 import { HttpAdapterHost } from '@nestjs/core';
-import { FeatureDisabledError } from '../errors/feature-disabled.error';
+import { FeatureDisabledError } from '../errors/feature-disabled.error.js';
 
 /** Options for {@link FeatureDisabledFilter}. */
 export interface FeatureDisabledFilterOptions {

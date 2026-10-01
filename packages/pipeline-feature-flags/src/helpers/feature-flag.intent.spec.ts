@@ -1,11 +1,11 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { describe, expect, expectTypeOf, it } from 'vitest';
-import { FeatureFlagBehavior } from '../feature-flag.behavior';
+import { FeatureFlagBehavior } from '../feature-flag.behavior.js';
 import {
   type FeatureFlagIntentOptions,
   featureFlag,
-} from './feature-flag.intent';
+} from './feature-flag.intent.js';
 
 describe('featureFlag intent builder', () => {
   it('requires a flag at compile time', () => {

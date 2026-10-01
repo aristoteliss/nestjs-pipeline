@@ -5,9 +5,9 @@ export {
   FEATURE_FLAGS_DEFAULT_CONTEXT,
   FEATURE_FLAGS_DEFAULT_OPTIONS,
   FEATURE_FLAGS_TARGETING_KEY_FACTORY,
-} from './constants/tokens';
-export { FeatureDisabledError } from './errors/feature-disabled.error';
-export { FeatureFlagEvaluationError } from './errors/feature-flag-evaluation.error';
+} from './constants/tokens.js';
+export { FeatureDisabledError } from './errors/feature-disabled.error.js';
+export { FeatureFlagEvaluationError } from './errors/feature-flag-evaluation.error.js';
 export {
   FEATURE_FLAG_DECISION_ITEM,
   FEATURE_FLAG_DECISION_ITEM_TOKEN,
@@ -16,21 +16,21 @@ export {
   FEATURE_FLAG_KEY_ITEM,
   FEATURE_FLAG_KEY_ITEM_TOKEN,
   FeatureFlagBehavior,
-} from './feature-flag.behavior';
-export { FeatureFlagsModule } from './feature-flags.module';
+} from './feature-flag.behavior.js';
+export { FeatureFlagsModule } from './feature-flags.module.js';
 export {
   FeatureDisabledFilter,
   type FeatureDisabledFilterOptions,
-} from './filters/feature-disabled.filter';
-export { buildFeatureFlagAttributes } from './helpers/build-attributes';
+} from './filters/feature-disabled.filter.js';
+export { buildFeatureFlagAttributes } from './helpers/build-attributes.js';
 export {
   baseEvaluationContext,
   buildEvaluationContext,
-} from './helpers/evaluation-context';
+} from './helpers/evaluation-context.js';
 export {
   type FeatureFlagIntentOptions,
   featureFlag,
-} from './helpers/feature-flag.intent';
+} from './helpers/feature-flag.intent.js';
 export type {
   EvaluationContextFactory,
   FeatureFallbackFactory,
@@ -39,4 +39,4 @@ export type {
   FeatureFlagErrorPolicy,
   FeatureFlagsModuleOptions,
   TargetingKeyFactory,
-} from './interfaces/feature-flags-options.interface';
+} from './interfaces/feature-flags-options.interface.js';

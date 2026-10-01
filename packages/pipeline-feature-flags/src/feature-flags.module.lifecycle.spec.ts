@@ -7,9 +7,9 @@ import {
   TypedInMemoryProvider,
 } from '@openfeature/server-sdk';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { FEATURE_FLAGS_CLIENT } from './constants/tokens';
-import { FeatureFlagsModule } from './feature-flags.module';
-import type { FeatureFlagsModuleOptions } from './interfaces/feature-flags-options.interface';
+import { FEATURE_FLAGS_CLIENT } from './constants/tokens.js';
+import { FeatureFlagsModule } from './feature-flags.module.js';
+import type { FeatureFlagsModuleOptions } from './interfaces/feature-flags-options.interface.js';
 
 async function start(options: FeatureFlagsModuleOptions) {
   const module = FeatureFlagsModule.forRoot(options);

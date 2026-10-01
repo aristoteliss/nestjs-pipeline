@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest';
 import {
   baseEvaluationContext,
   buildEvaluationContext,
-} from './evaluation-context';
+} from './evaluation-context.js';
 
 function makeContext(
   overrides: Partial<IPipelineContext> = {},

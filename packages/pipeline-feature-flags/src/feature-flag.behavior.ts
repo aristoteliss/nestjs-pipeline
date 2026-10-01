@@ -27,15 +27,15 @@ import {
   FEATURE_FLAGS_DEFAULT_CONTEXT,
   FEATURE_FLAGS_DEFAULT_OPTIONS,
   FEATURE_FLAGS_TARGETING_KEY_FACTORY,
-} from './constants/tokens';
-import { FeatureDisabledError } from './errors/feature-disabled.error';
-import { FeatureFlagEvaluationError } from './errors/feature-flag-evaluation.error';
-import { buildEvaluationContext } from './helpers/evaluation-context';
+} from './constants/tokens.js';
+import { FeatureDisabledError } from './errors/feature-disabled.error.js';
+import { FeatureFlagEvaluationError } from './errors/feature-flag-evaluation.error.js';
+import { buildEvaluationContext } from './helpers/evaluation-context.js';
 import type {
   FeatureFlagBehaviorOptions,
   FeatureFlagDecision,
   TargetingKeyFactory,
-} from './interfaces/feature-flags-options.interface';
+} from './interfaces/feature-flags-options.interface.js';
 
 /**
  * Unique symbol key set on `context.items` recording the final boolean gate

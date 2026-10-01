@@ -1,7 +1,7 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { describe, expect, it } from 'vitest';
-import { FeatureDisabledError } from './feature-disabled.error';
+import { FeatureDisabledError } from './feature-disabled.error.js';
 
 describe('FeatureDisabledError', () => {
   it('correctly populates error properties and message', () => {

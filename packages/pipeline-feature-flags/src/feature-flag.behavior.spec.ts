@@ -8,15 +8,15 @@ import {
 } from '@nestjs-pipeline/core';
 import type { Client, EvaluationContext } from '@openfeature/server-sdk';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { FeatureDisabledError } from './errors/feature-disabled.error';
-import { FeatureFlagEvaluationError } from './errors/feature-flag-evaluation.error';
+import { FeatureDisabledError } from './errors/feature-disabled.error.js';
+import { FeatureFlagEvaluationError } from './errors/feature-flag-evaluation.error.js';
 import {
   FEATURE_FLAG_DECISION_ITEM,
   FEATURE_FLAG_ITEM,
   FEATURE_FLAG_KEY_ITEM,
   FeatureFlagBehavior,
-} from './feature-flag.behavior';
-import type { FeatureFlagBehaviorOptions } from './interfaces/feature-flags-options.interface';
+} from './feature-flag.behavior.js';
+import type { FeatureFlagBehaviorOptions } from './interfaces/feature-flags-options.interface.js';
 
 const getBooleanDetails = vi.fn();
 const client = { getBooleanDetails } as unknown as Client;
