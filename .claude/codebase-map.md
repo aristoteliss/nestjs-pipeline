@@ -27,14 +27,14 @@ what the libraries support.
 - **Shape**: monorepo — workspace globs `api`, `docs`, `packages/*` (21 workspace packages).
 - **Publishable packages**: 19; private: `api`, `docs`.
 - **Runnable workspaces**: `api`, `docs`.
-- **Versions**: `0.4.0`.
+- **Versions**: `0.4.1`.
 - **Packages**: see the Workspace packages table under Directory Map.
 <!-- context:generated-end repository-shape -->
 
 ## Technology Stack
 
 <!-- context:generated-start technology-stack -->
-- **Languages** (file counts, excluded directories omitted): `.ts` 803, `.md` 71, `.grit` 14, `.mjs` 4, `.py` 3
+- **Languages** (file counts, excluded directories omitted): `.ts` 803, `.md` 70, `.grit` 14, `.mjs` 3, `.py` 3
 - **Runtime engines** (root `package.json`): `node` >=22.12.0, `pnpm` >=9.0.0
 - **Package manager evidence**: `pnpm-lock.yaml`.
 - **Integrations**: listed with their purpose under Dependencies and Integrations.
@@ -558,13 +558,13 @@ secret value.*
 ## Snapshot Metadata
 
 <!-- context:generated-start metadata -->
-- Generated at: 2026-10-01T18:20:26Z
-- Git commit: fdfdb0d967ee205c149c88a35b9e5032d86127d0
-- Git branch: develop
+- Generated at: 2026-10-01T18:28:26Z
+- Git commit: 6fee66d474dd36f5226621dfb0b329aefa209aaa
+- Git branch: master
 - Uncommitted changes when generated: yes
 - Generator: `scripts/update-claude-snapshot.py` version 1.0.0
 - Snapshot status: generated — structural inspection only, no code executed
-- Files inspected: 978
+- Files inspected: 976
 - Included top-level directories: `.agents`, `.claude`, `.github`, `api`, `biome`, `docs`, `integration`, `packages`, `scripts`
 - Excluded directory names: `.cache`, `.git`, `.gradle`, `.idea`, `.mypy_cache`, `.next`, `.nuxt`, `.parcel-cache`, `.pnpm-store`, `.pytest_cache`, `.ruff_cache`, `.svelte-kit`, `.terraform`, `.tmp`, `.tox`, `.turbo`, `.venv`, `.vscode`, `__pycache__`, `bower_components`, `build`, `coverage`, `dist`, `node_modules`, `out`, `target`, `vendor`, `venv`, `virtualenv`
 - Excluded file patterns: `.env`, `.env.*`, `*.env`, `*.pem`, `*.key`, `*.pfx`, `*.p12`, `*.jks`, `*.keystore`, `id_rsa*`, `id_ed25519*`, `*credentials*`, `*.secret`, `secrets.*`

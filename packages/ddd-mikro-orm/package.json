@@ -1,6 +1,6 @@
 {
   "name": "@cqrs-ddd/mikro-orm",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "description": "MikroORM persistence adapters for @cqrs-ddd/core: authoritative aggregate loading, version-conditioned writes, a revision-fenced cache and root-entity schema mapping.",
   "author": "Aristotelis",
   "license": "SEE LICENSE IN LICENSE",

@@ -46,7 +46,7 @@ Zod v4 validation and parsing integration for `@nestjs-pipeline/core` — parse 
 pnpm add @nestjs-pipeline/zod zod
 ```
 
-Requires Zod `^4.3.0`, NestJS `^12.1.0`, `@nestjs-pipeline/core` `^0.4.0` and Node.js 22.12
+Requires Zod `^4.3.0`, NestJS `^12.1.0`, `@nestjs-pipeline/core` `^0.4.1` and Node.js 22.12
 or later.
 
 Published as an ES module; a CommonJS application loads it with `require()`. Coming from
