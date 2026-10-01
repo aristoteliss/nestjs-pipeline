@@ -2,8 +2,8 @@
 
 import type { IPipelineContext } from '@nestjs-pipeline/core';
 import { describe, expect, it, vi } from 'vitest';
-import { DeadLetterBehavior } from './dead-letter.behavior';
-import type { DeadLetterTransport } from './interfaces/dead-letter-transport.interface';
+import { DeadLetterBehavior } from './dead-letter.behavior.js';
+import type { DeadLetterTransport } from './interfaces/dead-letter-transport.interface.js';
 
 function context(): IPipelineContext {
   return {

@@ -4,10 +4,10 @@ import { describe, expect, it } from 'vitest';
 import {
   DEAD_LETTER_DEFAULT_OPTIONS,
   DEAD_LETTER_TRANSPORT,
-} from './constants/tokens';
-import { DeadLetterBehavior } from './dead-letter.behavior';
-import { DeadLetterModule } from './dead-letter.module';
-import type { DeadLetterTransport } from './interfaces/dead-letter-transport.interface';
+} from './constants/tokens.js';
+import { DeadLetterBehavior } from './dead-letter.behavior.js';
+import { DeadLetterModule } from './dead-letter.module.js';
+import type { DeadLetterTransport } from './interfaces/dead-letter-transport.interface.js';
 
 describe('DeadLetterModule', () => {
   const mockTransport: DeadLetterTransport = {

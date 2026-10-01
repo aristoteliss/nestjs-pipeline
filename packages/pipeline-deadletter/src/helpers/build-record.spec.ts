@@ -2,7 +2,7 @@
 
 import type { IPipelineContext } from '@nestjs-pipeline/core';
 import { describe, expect, it } from 'vitest';
-import { buildDeadLetterRecord } from './build-record';
+import { buildDeadLetterRecord } from './build-record.js';
 
 describe('buildDeadLetterRecord', () => {
   const mockContext: IPipelineContext = {

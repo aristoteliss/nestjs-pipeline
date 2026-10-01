@@ -3,7 +3,7 @@
 import type {
   DeadLetterRecord,
   DeadLetterTransport,
-} from '../interfaces/dead-letter-transport.interface';
+} from '../interfaces/dead-letter-transport.interface.js';
 
 /**
  * Minimal structural shape of a BullMQ `Queue`. Declared locally so this package

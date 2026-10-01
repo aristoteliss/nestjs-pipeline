@@ -1,8 +1,8 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import type { PipelineBehaviorTuple } from '@nestjs-pipeline/core';
-import { DeadLetterBehavior } from '../dead-letter.behavior';
-import type { DeadLetterBehaviorOptions } from '../interfaces/dead-letter-options.interface';
+import { DeadLetterBehavior } from '../dead-letter.behavior.js';
+import type { DeadLetterBehaviorOptions } from '../interfaces/dead-letter-options.interface.js';
 
 export type DeadLetterIntentOptions = DeadLetterBehaviorOptions;
 

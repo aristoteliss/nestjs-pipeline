@@ -2,8 +2,8 @@
 
 import { type IPipelineContext, setPipelineItem } from '@nestjs-pipeline/core';
 import { describe, expect, it } from 'vitest';
-import { DEAD_LETTER_ITEM_TOKEN } from '../dead-letter.behavior';
-import { buildDeadLetterAttributes } from './build-attributes';
+import { DEAD_LETTER_ITEM_TOKEN } from '../dead-letter.behavior.js';
+import { buildDeadLetterAttributes } from './build-attributes.js';
 
 const context = () => ({ items: new Map() }) as unknown as IPipelineContext;
 

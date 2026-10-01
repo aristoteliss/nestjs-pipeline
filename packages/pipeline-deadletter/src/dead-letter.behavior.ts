@@ -23,14 +23,14 @@ import {
 import {
   DEAD_LETTER_DEFAULT_OPTIONS,
   DEAD_LETTER_TRANSPORT,
-} from './constants/tokens';
-import { buildDeadLetterRecord } from './helpers/build-record';
-import { currentRedriveId } from './helpers/redrive-scope';
-import type { DeadLetterBehaviorOptions } from './interfaces/dead-letter-options.interface';
+} from './constants/tokens.js';
+import { buildDeadLetterRecord } from './helpers/build-record.js';
+import { currentRedriveId } from './helpers/redrive-scope.js';
+import type { DeadLetterBehaviorOptions } from './interfaces/dead-letter-options.interface.js';
 import type {
   DeadLetterRequestKind,
   DeadLetterTransport,
-} from './interfaces/dead-letter-transport.interface';
+} from './interfaces/dead-letter-transport.interface.js';
 
 /**
  * Kinds captured when `captureKinds` is omitted: events. A command's or a

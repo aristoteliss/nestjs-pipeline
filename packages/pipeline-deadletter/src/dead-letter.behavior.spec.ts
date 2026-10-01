@@ -7,12 +7,15 @@ import {
   PIPELINE_BEHAVIOR_CONTRACT,
 } from '@nestjs-pipeline/core';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { DEAD_LETTER_ITEM, DeadLetterBehavior } from './dead-letter.behavior';
-import type { DeadLetterBehaviorOptions } from './interfaces/dead-letter-options.interface';
+import {
+  DEAD_LETTER_ITEM,
+  DeadLetterBehavior,
+} from './dead-letter.behavior.js';
+import type { DeadLetterBehaviorOptions } from './interfaces/dead-letter-options.interface.js';
 import type {
   DeadLetterRecord,
   DeadLetterTransport,
-} from './interfaces/dead-letter-transport.interface';
+} from './interfaces/dead-letter-transport.interface.js';
 
 const send = vi.fn();
 const transport: DeadLetterTransport = { send };
