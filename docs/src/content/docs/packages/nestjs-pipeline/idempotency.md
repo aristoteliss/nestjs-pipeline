@@ -1,0 +1,720 @@
+---
+title: "@nestjs-pipeline/idempotency"
+description: "Idempotency behavior for the NestJS pipeline — atomically excludes concurrent duplicates and replays stored successful responses per idempotency key, via a pluggable store (in-memory default, Redis/Postgres drop-in)."
+editUrl: false
+---
+[![npm version](https://img.shields.io/npm/v/@nestjs-pipeline/idempotency.svg)](https://www.npmjs.com/package/@nestjs-pipeline/idempotency)
+[![License](https://img.shields.io/npm/l/@nestjs-pipeline/idempotency.svg)](https://www.npmjs.com/package/@nestjs-pipeline/idempotency)
+
+Idempotency behavior for `@nestjs-pipeline/core` — atomically deduplicates concurrent requests sharing an idempotency key and **replays the stored response** after a successful execution. With the default `releaseOnError: true`, failed executions release the key so a later retry may execute the handler again.
+
+Store-agnostic: it depends only on a tiny `IdempotencyStore` interface. A zero-dependency **in-memory** store is the default; **Redis** and **Postgres** are drop-ins for multi-instance deployments. Replay responses use one shared JSON-snapshot contract across every bundled store.
+
+---
+
+## Table of Contents
+
+- [Why a behavior (vs. hand-rolling)](#why-a-behavior-vs-hand-rolling)
+- [Installation](#installation)
+- [Setup](#setup)
+- [The idempotency record](#the-idempotency-record)
+- [Stores](#stores)
+  - [Memory (default)](#memory-default)
+  - [Redis (drop-in)](#redis-drop-in)
+  - [Postgres (drop-in)](#postgres-drop-in)
+  - [Custom store](#custom-store)
+- [Behavior](#behavior)
+- [Configuration](#configuration)
+- [Partitioned keys](#partitioned-keys)
+- [Binding replay to authorization](#binding-replay-to-authorization)
+- [Fingerprinting & key reuse](#fingerprinting--key-reuse)
+- [Conflict handling](#conflict-handling)
+- [Behavior Contract & Bootstrap Diagnostics](#behavior-contract--bootstrap-diagnostics)
+- [API Reference](#api-reference)
+- [License](#license)
+
+---
+
+## Why a behavior (vs. hand-rolling)
+
+Idempotency is a classic cross-cutting concern: the same "have I already done
+this?" check is needed on every state-changing handler that a client might retry.
+Inlining it couples each handler to your dedupe storage and is easy to get subtly
+wrong (races between the check and the write, never replaying the original
+response, leaking partial writes after a crash). This behavior centralizes it:
+
+- **Atomic exclusion** — the key is claimed **atomically** before the handler runs
+  (`SET NX` on Redis, a conditional upsert on Postgres), so two concurrent
+  duplicates cannot both execute while the claim is live.
+- **Response replay** — after a successful execution, the response is stored and
+  returned to later duplicates without running the handler again while the record
+  remains live.
+- **Failure policy** — handler failures release the key by default
+  (`releaseOnError: true`), allowing a later retry to execute again. Set
+  `releaseOnError: false` when retaining the failed claim is preferable.
+- **In-flight protection** — a duplicate that arrives while the original is still
+  running gets a `409 Conflict` instead of racing it.
+- **Payload safety** — an optional fingerprint rejects a key reused with a
+  *different* body (`422`), catching client bugs and replay attacks.
+- **One seam** — the `IdempotencyStore` interface. Memory today, Redis or Postgres
+  the moment you scale past one instance, with no handler changes.
+
+---
+
+## Installation
+
+```bash
+pnpm add @nestjs-pipeline/idempotency
+```
+
+**Peer dependencies:**
+
+```bash
+pnpm add @nestjs-pipeline/core @nestjs/common @nestjs/core reflect-metadata
+```
+
+Requires Node.js 22.12 or later, `@nestjs/common` and `@nestjs/core` `^12.1.0`, and `@nestjs-pipeline/core` `^0.4.0`.
+
+Published as an ES module; a CommonJS application loads it with `require()`. Coming from
+0.3.x, see [Upgrading from 0.3.x](/nestjs-pipeline/upgrading/from-0-3/).
+
+The bundled stores are typed *structurally*, so this package adds **zero heavy
+dependencies**. For the Redis store add a `redis` client (`pnpm add redis`); for
+the Postgres store add a `pg` `Pool`/`Client` (`pnpm add pg`); the memory store
+needs nothing.
+
+---
+
+## Setup
+
+Register the module and add `IdempotencyBehavior` to a handler via `@UsePipeline`
+(or to your global behaviors). The behavior only acts when a `keyFactory`
+produces a key, so it is safe to enable broadly.
+
+```typescript
+import { Module } from '@nestjs/common';
+import { PipelineModule } from '@nestjs-pipeline/core';
+import {
+  IdempotencyModule,
+  IdempotencyBehavior,
+} from '@nestjs-pipeline/idempotency';
+
+@Module({
+  imports: [
+    // Zero-config: in-memory dedupe (single instance).
+    IdempotencyModule.forRoot(),
+    PipelineModule.forRoot(),
+  ],
+})
+export class AppModule {}
+```
+
+Then opt a command in and tell the behavior how to derive its key. A controller
+can copy the `Idempotency-Key` header into the CQRS command before dispatch:
+
+```typescript
+import { Body, Controller, Headers, Post } from '@nestjs/common';
+import { CommandBus, CommandHandler } from '@nestjs/cqrs';
+import { UsePipeline } from '@nestjs-pipeline/core';
+import { idempotent } from '@nestjs-pipeline/idempotency';
+
+class CreatePaymentCommand {
+  constructor(
+    readonly payment: PaymentInput,
+    readonly idempotencyKey?: string,
+  ) {}
+}
+
+@Controller('payments')
+export class PaymentsController {
+  constructor(private readonly commandBus: CommandBus) {}
+
+  @Post()
+  create(
+    @Body() body: PaymentInput,
+    @Headers('idempotency-key') key?: string,
+  ) {
+    return this.commandBus.execute(new CreatePaymentCommand(body, key));
+  }
+}
+
+@CommandHandler(CreatePaymentCommand)
+@UsePipeline(
+  idempotent({
+    keyFactory: (ctx) =>
+      (ctx.request as CreatePaymentCommand).idempotencyKey,
+    ttl: 86_400_000, // 24h (default)
+  }),
+)
+export class CreatePaymentHandler {
+  async execute(command: CreatePaymentCommand) {
+    /* concurrent duplicates are excluded; successful responses are replayed */
+  }
+}
+```
+
+> Use `idempotent({ inheritModuleKey: true })` only when the module supplies the key factory.
+> The raw tuple form `@UsePipeline([IdempotencyBehavior, { ... }])` remains supported as an escape hatch.
+
+Alternatively, an earlier pipeline behavior can place transport metadata in
+`context.items`. A controller cannot mutate the `PipelineContext` directly
+because core creates it later when the CQRS handler executes.
+
+Completed records replay before the handler runs. If the handler performs
+entity-level authorization or result filtering, derive a namespaced key that
+includes the tenant and principal/security scope, for example
+`` `${tenantId}:${principalId}:${clientKey}` ``. A client-supplied key by itself
+must never be shared across security principals.
+
+---
+
+## The idempotency record
+
+Each claimed key stores an `IdempotencyRecord`:
+
+```typescript
+interface IdempotencyRecord {
+  key: string;                          // the idempotency key
+  status: 'in_progress' | 'completed';  // lifecycle state
+  requestName: string;                  // e.g. 'CreatePaymentCommand'
+  claimId?: string;                     // unique owner token for in-progress record
+  fingerprint?: string;                 // hash of the original payload
+  replayScope?: string;                 // authorization scope replay is bound to
+  response?: JsonValue;                 // JSON snapshot captured for replay
+  createdAt: string;                    // ISO-8601, when first claimed
+  completedAt?: string;                 // ISO-8601, when the handler finished
+}
+```
+
+The record is created as `in_progress` the instant the key is claimed, then
+flipped to `completed` with the captured `response` when the handler succeeds.
+Handler responses used with idempotency must be in the strict portable JSON
+domain: `null`, booleans, finite numbers, strings, arrays, and record-like
+objects containing only those values. `Date` is explicitly converted to an ISO
+string. Lossy native JSON cases such as `Map`, `Set`, `RegExp`, `Error`, binary
+views, non-finite numbers, nested `undefined`, functions, symbols (including
+symbol-keyed properties), bigint, and cycles are rejected. A top-level
+`undefined` is retained only for successful void handlers.
+Custom objects may define `toJSON()` as their public serialization contract.
+The returned representation is validated recursively; internal fields excluded
+by `toJSON()` (such as NestJS aggregate event symbols) are not serialized or
+validated. Unsupported values and cycles exposed by that representation still
+fail validation.
+The initial caller receives the original handler value; subsequent callers
+receive its JSON snapshot (for example, a `Date` replays as an ISO string).
+
+---
+
+## Stores
+
+The store is the only backend-specific piece. Swap it in `IdempotencyModule`
+without touching any handler.
+
+### Memory (default)
+
+`MemoryIdempotencyStore` — zero dependencies, a `Map` with per-entry TTL, bounded capacity, and periodic cleanup. Perfect for a single instance, tests, or local development. State is **not** shared across processes, so use Redis or Postgres for multi-instance deployments.
+
+```typescript
+IdempotencyModule.forRoot(); // memory store, 24h default TTL
+```
+
+The default store is created per application and its cleanup timer is stopped on
+application shutdown. A store passed as `store` (or built by `forRootAsync`)
+belongs to the caller, who calls `destroy()` on a `MemoryIdempotencyStore` it
+created. New claims are refused once `maxEntries` unexpired records exist, so
+monitor that error in production; deduplication is per process, so replicas
+need the Redis or Postgres store.
+
+```typescript
+import { Module, type OnApplicationShutdown } from '@nestjs/common';
+import {
+  IdempotencyModule,
+  MemoryIdempotencyStore,
+} from '@nestjs-pipeline/idempotency';
+
+const store = new MemoryIdempotencyStore({ maxEntries: 50_000 });
+
+@Module({ imports: [IdempotencyModule.forRoot({ store })] })
+export class AppModule implements OnApplicationShutdown {
+  onApplicationShutdown(): void {
+    store.destroy();
+  }
+}
+```
+
+Configurable options via `new MemoryIdempotencyStore(options)`:
+- `maxEntries` (`number`, default `10_000`): Maximum live entries stored before capacity enforcement.
+- `cleanupIntervalMs` (`number`, default `30_000`): Periodic timer interval for evicting expired entries.
+
+> [!IMPORTANT]
+> **Active Claim Eviction Protection**: Unlike LRU caches that silently drop arbitrary entries when full, `MemoryIdempotencyStore` **refuses to evict active or unexpired claims**. When capacity is reached, it first purges expired entries. If capacity remains exhausted, it throws an explicit error (`MemoryIdempotencyStore capacity reached: cannot evict active or unexpired claims`), preventing concurrent race conditions and ensuring strict idempotency invariants are never compromised.
+
+### Redis (drop-in)
+
+`RedisIdempotencyStore` — backed by a node-redis client (`redis` v4 or later;
+tested against `@redis/client` 6). Atomic claims via `SET key value PX <ttl> NX`;
+TTL is enforced by Redis.
+
+A stored value that is not valid JSON fails closed. `get()` throws, so the
+request fails without running the handler. The owner-aware writes
+(`completeIfOwned`, `deleteIfOwned`) cannot prove ownership of it, so they leave
+it untouched and report `false`. The key stays blocked until its TTL expires or
+an operator deletes it.
+
+```typescript
+import { createClient } from 'redis';
+import {
+  IdempotencyModule,
+  RedisIdempotencyStore,
+} from '@nestjs-pipeline/idempotency';
+
+const client = createClient({ url: process.env.REDIS_URL });
+await client.connect();
+
+IdempotencyModule.forRoot({
+  store: new RedisIdempotencyStore(client, { keyPrefix: 'idempotency:' }),
+});
+```
+
+Wire a DI-managed client with `forRootAsync`:
+
+```typescript
+import type { RedisClientType } from 'redis';
+
+// REDIS_CLIENT is the application's own provider token for a connected client.
+IdempotencyModule.forRootAsync({
+  imports: [RedisModule],
+  inject: [REDIS_CLIENT],
+  useFactory: (client: RedisClientType) =>
+    new RedisIdempotencyStore(client, { keyPrefix: 'idempotency:' }),
+});
+```
+
+### Postgres (drop-in)
+
+`PostgresIdempotencyStore` — backed by a `pg` `Pool`/`Client`. No extra
+infrastructure if you already run Postgres. Create the table once with
+`createIdempotencyTableSql()`; claims are atomic via
+conditional `INSERT … ON CONFLICT (key) DO UPDATE`: live rows are left
+untouched, while expired rows are replaced by the new claim in one statement.
+
+The `response` column is `TEXT` holding the response as JSON, not `jsonb`: `jsonb`
+rejects NUL characters and unpaired surrogates, so a response containing them could
+not be completed. As JSON text, every response a handler returns is stored and
+replayed exactly.
+
+```typescript
+import { Pool } from 'pg';
+import {
+  IdempotencyModule,
+  PostgresIdempotencyStore,
+  createIdempotencyTableSql,
+} from '@nestjs-pipeline/idempotency';
+
+const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+await pool.query(createIdempotencyTableSql('idempotency_keys')); // run in a migration
+
+IdempotencyModule.forRoot({
+  store: new PostgresIdempotencyStore(pool, { table: 'idempotency_keys' }),
+  defaults: { ttl: 3_600_000 }, // 1h
+});
+```
+
+With a pool from Nest DI (`PG_POOL` is the application's own token):
+
+```typescript
+IdempotencyModule.forRootAsync({
+  imports: [DatabaseModule],
+  inject: [PG_POOL],
+  useFactory: (pool: Pool) => new PostgresIdempotencyStore(pool),
+});
+```
+
+### Custom store
+
+Implement the six-method `IdempotencyStore` interface to back idempotency with
+anything — DynamoDB, Memcached, an HTTP service. The two owner-aware operations
+must be atomic; a read followed by a separate write/delete is not sufficient:
+
+```typescript
+interface IdempotencyStore {
+  get(key: string): MaybePromise<IdempotencyRecord | undefined>;
+  /** Atomically claim a key. Returns false if a live record already exists. */
+  setIfAbsent(
+    key: string,
+    record: IdempotencyRecord,
+    ttlMs: number,
+  ): MaybePromise<boolean>;
+  /** Complete only while `claimId` still owns the live in-progress record. */
+  completeIfOwned(
+    key: string,
+    claimId: string,
+    record: IdempotencyRecord,
+    ttlMs: number,
+  ): MaybePromise<boolean>;
+  /** Delete only while `claimId` still owns the live record. */
+  deleteIfOwned(key: string, claimId: string): MaybePromise<boolean>;
+  /** Unconditional administrative overwrite. */
+  set(key: string, record: IdempotencyRecord, ttlMs: number): MaybePromise<void>;
+  /** Unconditional administrative delete. */
+  delete(key: string): MaybePromise<void>;
+}
+```
+
+`setIfAbsent`, `completeIfOwned`, and `deleteIfOwned` **must** each be atomic.
+The built-in memory, Redis, and Postgres stores implement those guarantees using
+a unique `claimId` per in-progress record, preventing an execution that outlives
+its TTL from overwriting or releasing a newer claim.
+
+---
+
+## Behavior
+
+For each in-scope request `IdempotencyBehavior`:
+
+1. derives the key via `keyFactory`; if none, the handler runs normally;
+2. exposes the key on the context as `IDEMPOTENCY_KEY_ITEM` (`Symbol`);
+3. atomically claims the key (`status: 'in_progress'`);
+4. **claimed** → runs the handler, stores the `completed` record with the
+   response, and returns it;
+5. **not claimed** → looks at the existing record:
+   - no live record (it expired/disappeared between claim and read) → retries
+     the atomic claim once;
+   - still `in_progress` → throws `IdempotencyConflictError` (`409`);
+   - `completed`, same request type and payload → **replays** the stored response (handler does
+     not run) and sets `IDEMPOTENCY_REPLAYED_ITEM` (`Symbol`) to
+     `true`;
+
+   - `completed`, different request type or payload → throws
+     `IdempotencyConflictError` (`422`).
+
+If the handler throws and `releaseOnError` is `true` (default), the key is
+released so the client can retry and the handler may execute again. The handler
+error is re-thrown after the cleanup attempt. If cleanup itself fails, that
+cleanup failure is logged and the handler error is still re-thrown.
+
+### After the handler has already succeeded
+
+Anything that fails once `next()` has resolved is a **finalization** problem, not
+a handler failure: the side effects have happened. Both cases throw
+`IdempotencyCompletionError`, which carries `executionSucceeded: true`, the
+original `cause`, and a `phase`:
+
+| `phase` | Cause | Claim |
+| --- | --- | --- |
+| `snapshot` | The response cannot be serialized into a replayable record — a cycle, a function, a `Map`, a `bigint`. | **Retained** until TTL. |
+| `store` | The record was serializable but the store rejected the write. | **Retained** until TTL. |
+
+The claim is deliberately not released in either case. Releasing it would let the
+very next retry repeat side effects that already ran. Retention is not a
+guarantee against duplicates — it only prevents immediate reentry while the claim
+is live — so treat this error as a reconciliation signal rather than something to
+retry blindly.
+
+Handle it where the request is dispatched: report the operation for
+reconciliation instead of retrying it.
+
+```typescript
+import { IdempotencyCompletionError } from '@nestjs-pipeline/idempotency';
+
+try {
+  return await commandBus.execute(command);
+} catch (error) {
+  if (error instanceof IdempotencyCompletionError) {
+    logger.error(`idempotency ${error.phase} failed for key ${error.key}`);
+    // The side effects ran; the client must not retry blindly.
+  }
+  throw error;
+}
+```
+
+`IdempotencyConflictFilter` maps only `IdempotencyConflictError`; an
+`IdempotencyCompletionError` reaches your own filters.
+
+Validate the response contract in application tests. Do not loosen serialization
+to make this error go away: a response that cannot be stored cannot be replayed,
+so the next caller would silently get different behavior from the first.
+
+---
+
+## Configuration
+
+Options are read per-handler from `@UsePipeline` and merged over module-wide
+`defaults`.
+
+| Option           | Type                                            | Default        | Description                                                                       |
+| ---------------- | ----------------------------------------------- | -------------- | --------------------------------------------------------------------------------- |
+| `keyFactory`     | `(ctx) => string \| undefined`                  | —              | Derives the idempotency key. Without one (or when it returns `undefined`) the handler runs normally. |
+| `ttl`            | positive safe integer                           | `86_400_000`   | Claim lifetime in ms (24h). Successful completion restarts this TTL for the replay record. |
+| `scope`          | `('command' \| 'query' \| 'event' \| 'unknown')[]` | `['command']`  | Which request kinds the policy applies to.                                         |
+| `fingerprint`    | `boolean`                                        | `true`         | Reject a key reused with a different payload (`422`).                              |
+| `replayScopeFactory` | `(ctx) => string \| undefined`               | —              | Bind replay to the caller's authorization scope while the key stays stable (`409` on mismatch). |
+| `releaseOnError` | `boolean`                                        | `true`         | Release the key when the handler throws, so retries can re-run.                    |
+
+---
+
+## Partitioned keys
+
+A key is a security boundary: a hit returns a stored response without running
+the handler, so two callers that share a key share a result. Build keys with
+`createPartitionedIdempotencyKeyFactory` rather than by hand:
+
+```typescript
+import {
+  createPartitionedIdempotencyKeyFactory,
+  idempotent,
+} from '@nestjs-pipeline/idempotency';
+
+const createOrderKey = createPartitionedIdempotencyKeyFactory({
+  version: 'v1',                    // namespace; change only deliberately
+  action: 'order.create',           // defaults to the request name
+  principal: (ctx) => ['user', currentUserId(ctx)],
+  operation: (ctx) => (ctx.request as CreateOrderCommand).externalRef,
+});
+
+@UsePipeline(idempotent({ keyFactory: createOrderKey }))
+export class CreateOrderHandler {}
+```
+
+The key is `[version:][tenantId:]<principal…>:<action>:<operation>`, and the
+helper guarantees three things a hand-written template does not:
+
+- **Escaping.** Every segment goes through `joinKeySegments` from
+  `@cqrs-ddd/safe-stringify`, so an email or a composite id containing `:`
+  cannot make two different operations collide.
+- **No shared fallback for the principal.** A missing tenant or principal throws
+  `MissingIdempotencyPartitionError` before anything is claimed. A placeholder
+  such as `'anonymous'` would put every unresolved caller in one namespace, where
+  one caller's completed operation replays to another. Resolve the principal from
+  authenticated context, never from a request body field.
+- **Distinct principal kinds.** `principal` may return several segments, so
+  `['service', id]` and `['user', id]` never share a namespace even when the ids
+  are equal.
+
+The tenant comes from `context.tenantId` (set by `@nestjs-pipeline/tenant`, or any
+`sources` configuration). Two options inherited from core's `TenantPartitionOptions`
+control it:
+
+- `includeTenant` (default `true`) — whether the key has a tenant segment;
+- `requireTenant` (default: the value of `includeTenant`) — whether a missing tenant
+  throws `MissingIdempotencyPartitionError` with dimension `'tenant'`.
+
+```typescript
+// Single-tenant deployment: no tenant segment, nothing to require.
+createPartitionedIdempotencyKeyFactory({
+  includeTenant: false,
+  principal: (ctx) => ['user', currentUserId(ctx)],
+  operation: (ctx) => (ctx.request as CreateOrderCommand).externalRef,
+});
+
+// Mixed traffic: partition by tenant when there is one, allow requests without.
+createPartitionedIdempotencyKeyFactory({
+  requireTenant: false,
+  principal: (ctx) => ['service', currentServiceId(ctx)],
+  operation: (ctx) => (ctx.request as SyncCommand).batchId,
+  onMissingOperation: 'skip',
+});
+```
+
+`MissingIdempotencyPartitionError` extends core's `MissingPartitionError`, so one
+filter on the base class maps the partition errors of every pipeline package.
+
+A missing operation identity throws by default. For an optional client
+`Idempotency-Key` header, pass `onMissingOperation: 'skip'`: the factory then
+returns `undefined` and the request runs without deduplication — but a missing
+principal still throws.
+
+With the default `'throw'` mode the returned factory is typed
+`(ctx) => string`, since it never produces `undefined`.
+
+Moving an existing hand-built factory onto the helper changes stored keys only
+where a segment contains `:` or `\`, or where the layout itself differs. When
+it does, completed operations become claimable again until their records expire;
+plan the change around the TTL or bump `version` deliberately.
+
+Keep permissions out of the key — see the next section.
+
+---
+
+## Binding replay to authorization
+
+An idempotency key identifies an *operation*, not a response. If permissions are
+folded into the key, a permission change produces a new key and the same side
+effect executes a second time. So the key stays stable and replay is bound
+separately, with `replayScopeFactory`:
+
+```typescript
+@UsePipeline([
+  IdempotencyBehavior,
+  {
+    keyFactory: (ctx) => operationKey(ctx),        // stable operation identity
+    replayScopeFactory: (ctx) => scopeDigest(ctx), // what replay is bound to
+  },
+])
+export class CreatePaymentHandler {}
+```
+
+The digest is captured when the key is claimed and stored on the record. A later
+duplicate replays the stored response only when its digest matches. Otherwise the
+behavior throws `IdempotencyConflictError` with reason `replay_scope` (`409`) and:
+
+- does **not** re-execute the handler — the operation already happened;
+- does **not** delete the record — deleting it would permit re-execution;
+- does **not** return the stored response — the caller's scope no longer matches.
+
+A record stored without a digest is refused the same way once a factory is
+configured, so records written before the policy existed cannot be replayed on
+trust. The factory runs **before** the key is claimed, so throwing on missing
+authorization context rejects the request without claiming anything.
+
+Return a digest covering every dimension that must invalidate replay — the
+effective rules in order, including fields, inversion and condition values, plus
+the trusted context those conditions resolve against. Scope equality only speaks
+for decisions the captured context represents: an operation whose authorization
+depends on resource state that changes later needs its own replay-authorization
+check, or must not replay results at all.
+
+Payload fingerprinting stays an independent check: a changed body is still
+`key_reuse` (`422`), whatever the scope says.
+
+---
+
+## Fingerprinting & key reuse
+
+An idempotency key is isolated to the request type that first claimed it; reuse
+by another command/query/event type is rejected with `422` even when the payload
+hash matches. With `fingerprint: true` (default) the behavior also stores a stable SHA-256 hash of
+the request payload (object keys sorted, so property order doesn't matter). If a
+later request reuses the key with a **different** body, it is rejected with a
+`422` `key_reuse` conflict — catching client bugs and replay attacks where the
+same key is sent with new data.
+
+When fingerprinting is enabled, any stored record without a fingerprint is
+unverifiable and is rejected as `key_reuse`; it is never replayed. Disable
+fingerprinting only when the storage contract intentionally permits
+fingerprintless records.
+
+Fingerprinting uses the same strict JSON domain as response snapshots, so
+values that native `JSON.stringify()` would silently collapse or discard are
+rejected before a key is claimed.
+
+Disable it (`fingerprint: false`) when your key already fully identifies the
+payload, or expose `fingerprintValue` to compute a hash yourself.
+
+---
+
+## Conflict handling
+
+`IdempotencyConflictError` carries `key`, `requestName`, `reason`
+(`'in_progress'` | `'key_reuse'` | `'replay_scope'`) and a suggested
+`statusCode` (`409` / `422`).
+Map it to an HTTP response with the bundled filter. Nest injects its `HttpAdapterHost`,
+and the filter replies through that adapter (Express and Fastify, also for an error thrown
+in middleware):
+
+```typescript
+import { Module } from '@nestjs/common';
+import { APP_FILTER } from '@nestjs/core';
+import { IdempotencyConflictFilter } from '@nestjs-pipeline/idempotency';
+
+@Module({
+  providers: [{ provide: APP_FILTER, useClass: IdempotencyConflictFilter }],
+})
+export class AppModule {}
+```
+
+In `main.ts`, pass the host:
+`app.useGlobalFilters(new IdempotencyConflictFilter(app.get(HttpAdapterHost)))`.
+Without the filter, Nest answers the error with a generic 500.
+
+Response body:
+
+```json
+{
+  "statusCode": 409,
+  "error": "Conflict",
+  "message": "A request with idempotency key \"…\" is already in progress for CreatePaymentCommand",
+  "idempotencyKey": "…",
+  "reason": "in_progress"
+}
+```
+
+---
+
+## Behavior Contract & Bootstrap Diagnostics
+
+`IdempotencyBehavior` implements `@nestjs-pipeline/core` behavior contract diagnostics:
+
+### Ordering Constraints
+
+- **Execution order**: Idempotency must execute **after** CASL authorization (`@nestjs-pipeline/casl:CaslBehavior`) for all active idempotency request kinds (`scope: ['command']` by default). This ensures unauthorized callers cannot claim idempotency keys or trigger replayed executions.
+- **Dynamic evaluation**: The ordering rule evaluates dynamically per handler based on the effective `scope`. If a handler handles a request kind outside the effective scope (e.g. a query handler with default command scope), ordering constraints are not enforced.
+
+### Validation Invariants
+
+- **Callable key factory for explicit intent**: Whenever `IdempotencyBehavior` is explicitly attached to a handler (via `@UsePipeline(IdempotencyBehavior)` or `@UsePipeline([IdempotencyBehavior, { ... }])`), a callable `keyFactory: (context) => string` (`typeof === 'function'`) must be supplied via handler options or module defaults. Omission or non-callable values fail fast at application startup with `PipelineConfigurationError` in `strict` mode.
+- **Module defaults resolution**: Application-wide defaults supplied to `IdempotencyModule.forRoot({ defaults: { ... } })` are merged beneath handler options via `IdempotencyBehavior.resolveEffectiveOptions` and evaluated during bootstrap diagnostics.
+
+---
+
+## API Reference
+
+**Module**
+
+- `IdempotencyModule.forRoot(options?)` — `{ store?, defaults? }`; defaults to the
+  memory store.
+- `IdempotencyModule.forRootAsync(options)` — `{ useFactory, inject?, imports?, defaults? }`.
+
+**Behavior**
+
+- `IdempotencyBehavior` — the pipeline behavior.
+- `IDEMPOTENCY_KEY_ITEM`, `IDEMPOTENCY_REPLAYED_ITEM`, `IDEMPOTENCY_OWNERSHIP_LOST_ITEM` — exported unique `Symbol` context item keys.
+- `IDEMPOTENCY_KEY_ITEM_TOKEN`, `IDEMPOTENCY_REPLAYED_ITEM_TOKEN`, `IDEMPOTENCY_OWNERSHIP_LOST_ITEM_TOKEN` — typed tokens over the same keys, for `getPipelineItem` from `@nestjs-pipeline/core`.
+- `buildIdempotencyAttributes(context)` — the attributes `idempotency.replayed` and, when the claim was lost, `idempotency.ownership_lost`; `{}` when the behavior did not run, and never the key. Use it for span attributes through `AttributesBehavior` of [`@nestjs-pipeline/opentelemetry`](/nestjs-pipeline/packages/nestjs-pipeline/opentelemetry/#attributes-from-other-behaviors), for audit `metadata`, or on a log line; it needs no telemetry package.
+
+
+**Stores**
+
+- `MemoryIdempotencyStore` — default, zero-dependency.
+- `MemoryIdempotencyStore` options — `{ maxEntries?, cleanupIntervalMs? }`; `destroy()` stops cleanup.
+- `RedisIdempotencyStore` — `(client, { keyPrefix? })`; `RedisClientLike`,
+  `RedisIdempotencyStoreOptions`.
+- `PostgresIdempotencyStore` — `(db, { table? })`; `createIdempotencyTableSql(table?)`,
+  `PostgresIdempotencyStoreOptions`, `PostgresQueryableLike`, `PostgresQueryResultLike`,
+  `PostgresRowLike`.
+
+**Errors & filter**
+
+- `IdempotencyConflictError` — `{ key, requestName, reason, statusCode }`;
+  `IdempotencyConflictReason`.
+- `IdempotencyCompletionError` — `{ key, claimId, cause, phase, executionSucceeded }`;
+  `IdempotencyFinalizationPhase`.
+- `IdempotencyConflictFilter` — maps it to `409` / `422`.
+- `MissingIdempotencyPartitionError` — `{ requestName, dimension, remedy }`, raised
+  by the partitioned key helper when the tenant, principal or operation is missing.
+
+**Helpers & tokens**
+
+- `idempotent(options)` — type-safe intent builder returning `[IdempotencyBehavior, options]` with required key intent.
+- `createPartitionedIdempotencyKeyFactory(options)` — tenant/principal/operation key
+  factory with escaping and fail-closed partitions; see [Partitioned keys](#partitioned-keys).
+- `fingerprintValue(value)`. Canonical serialization (`stableStringify`,
+  `joinKeySegments`) lives in `@cqrs-ddd/safe-stringify`; import it from there.
+- `IDEMPOTENCY_STORE`, `IDEMPOTENCY_DEFAULT_OPTIONS`, `DEFAULT_IDEMPOTENCY_TTL_MS`.
+
+**Types**
+
+- `IdempotencyStore`, `IdempotencyRecord`, `IdempotencyStatus`,
+  `IdempotencyRequestKind`, `IdempotencyBehaviorOptions`, `IdempotencyIntentOptions`,
+  `IdempotencyKeyFactory`, `IdempotencyReplayScopeFactory`,
+  `PartitionedIdempotencyKeyOptions`, `IdempotencyPrincipalFactory`,
+  `IdempotencyOperationFactory`, `IdempotencyPartitionDimension`,
+  `IdempotencyModuleOptions`, `IdempotencyModuleAsyncOptions`,
+  `MemoryIdempotencyStoreOptions`, `JsonValue`, `MaybePromise`.
+
+---
+
+## License
+
+Dual-licensed under **AGPL-3.0-or-later** or a **Commercial License**.
+See [LICENSE](https://github.com/aristoteliss/nestjs-pipeline/blob/master/LICENSE) and [COMMERCIAL_LICENSE.txt](https://github.com/aristoteliss/nestjs-pipeline/blob/master/COMMERCIAL_LICENSE.txt).

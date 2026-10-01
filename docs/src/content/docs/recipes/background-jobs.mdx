@@ -1,0 +1,59 @@
+---
+title: Jobs that keep the request's context
+description: Enqueue work from a request and run it later with the same tenant, correlation id and principal, re-checked when the job runs.
+sidebar:
+  order: 3
+---
+
+import { Code } from '@astrojs/starlight/components';
+import dispatcher from '../../../../../api/src/users/jobs/bullmq-user-event-dispatcher.adapter.ts?raw';
+import processor from '../../../../../api/src/users/jobs/send-welcome-email.processor.ts?raw';
+import principal from '../../../../../api/src/auths/infrastructure/session-job-principal.ts?raw';
+
+A job runs after the request that enqueued it is gone. With
+[`@nestjs-pipeline/job-context`](/nestjs-pipeline/packages/nestjs-pipeline/job-context/), the
+job carries the request's tenant, correlation id and principal, and restores them before it
+runs, so a pipeline it dispatches makes the decisions the request would have made. This
+recipe follows the welcome email of [A command through every
+layer](/nestjs-pipeline/recipes/command-pipeline/).
+
+## 1. Register the module
+
+`AppModule` registers it once, with the application's principal port, the tenants a job may
+run in, and the stores the tenant and correlation id are read from:
+
+```ts
+JobContextModule.forRoot({
+  principal: SessionJobPrincipal,
+  tenants: () => persistenceConfig().tenants,
+  sources: contextSources,
+  imports: [AuthsModule],
+}),
+```
+
+`tenants` is a function, read when the application starts, so the list comes from the same
+configuration as the database.
+
+## 2. Stamp the payload when enqueuing
+
+The application layer only knows a dispatcher port. Its BullMQ adapter wraps each payload in
+`withJobContext`, inside the request, while the context is current:
+
+<Code code={dispatcher} lang="ts" title="api/src/users/jobs/bullmq-user-event-dispatcher.adapter.ts" />
+
+## 3. Restore it in the processor
+
+`@InJobContext()` validates `job.data.jobContext` and runs `process` inside the tenant, the
+correlation id and the restored principal. `TenantSchemaContext` and `getCorrelationId()`
+then answer as they would in the request:
+
+<Code code={processor} lang="ts" title="api/src/users/jobs/send-welcome-email.processor.ts" />
+
+## 4. Re-check the principal when the job runs
+
+A payload is data: anyone who can write to the queue can write it. So it carries an identity
+reference only, never permissions, and the principal port decides what that identity may do
+now. `SessionJobPrincipal` reloads the session, so a revoked session or a deleted user
+refuses the job:
+
+<Code code={principal} lang="ts" title="api/src/auths/infrastructure/session-job-principal.ts" />

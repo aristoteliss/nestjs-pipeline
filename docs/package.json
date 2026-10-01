@@ -5,7 +5,7 @@
   "type": "module",
   "description": "The documentation site of nestjs-pipeline, published on GitHub Pages.",
   "scripts": {
-    "sync": "node scripts/sync-readmes.mjs",
+    "sync": "node scripts/sync-changelog.mjs",
     "dev": "pnpm sync && astro dev",
     "build:site": "pnpm sync && astro build",
     "preview": "astro preview"
