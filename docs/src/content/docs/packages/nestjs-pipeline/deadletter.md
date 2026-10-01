@@ -1,0 +1,533 @@
+---
+title: "@nestjs-pipeline/deadletter"
+description: "Dead-letter behavior for the NestJS pipeline — captures failed requests (events by default) through bundled BullMQ, RabbitMQ and Postgres transports, and redrives stored failures with an attempt count and a resolved state."
+editUrl: false
+---
+[![npm version](https://img.shields.io/npm/v/@nestjs-pipeline/deadletter.svg)](https://www.npmjs.com/package/@nestjs-pipeline/deadletter)
+[![License](https://img.shields.io/npm/l/@nestjs-pipeline/deadletter.svg)](https://www.npmjs.com/package/@nestjs-pipeline/deadletter)
+
+Dead-letter capture behavior for `@nestjs-pipeline/core` — when a command, query, or event handler fails (after any retries), it forwards a record of the failed request to a **dead-letter transport** for inspection and replay.
+
+Transport-agnostic: it depends only on a tiny `DeadLetterTransport` interface. **BullMQ**, **RabbitMQ**, and **Postgres** transports are bundled — handlers never change. The bundled transports are typed *structurally*, so this package adds **zero heavy dependencies**; you pass your own `Queue`, AMQP `Channel`, or pg `Pool`.
+
+---
+
+## Table of Contents
+
+- [How it fits CQRS](#how-it-fits-cqrs)
+- [Installation](#installation)
+- [Setup](#setup)
+- [Transports](#transports)
+  - [BullMQ](#bullmq)
+  - [RabbitMQ (drop-in)](#rabbitmq-drop-in)
+  - [Postgres (drop-in)](#postgres-drop-in)
+  - [Custom transport](#custom-transport)
+- [Behavior](#behavior)
+- [Configuration](#configuration)
+- [The dead-letter record](#the-dead-letter-record)
+- [Redrive: replay, count, resolve](#redrive-replay-count-resolve)
+- [Ordering with validation and retries](#ordering-with-validation-and-retries)
+- [API Reference](#api-reference)
+- [License](#license)
+
+---
+
+## How it fits CQRS
+
+A pipeline command/query is a **synchronous, in-process call** — you can't "park it
+for later." So this behavior does the one thing that *is* meaningful in-process:
+on final failure it attempts to send the request + error to the configured sink, then:
+
+- **events** (the default capture kind) → kept for [redrive](#redrive-replay-count-resolve);
+  an event handler may **swallow** the error with `rethrow: false`, logged at
+  `error` level with the record id;
+- **commands/queries** → captured only when listed in `captureKinds`, and always
+  re-thrown: their caller still gets the failure. `rethrow: false` on such a handler
+  fails at bootstrap.
+
+For async consumers on BullMQ or RabbitMQ, the broker's own dead-letter queue and
+retry tooling may already be enough; this package is for failures of handlers run
+through the pipeline, including event handlers that have no queue behind them.
+
+For *retrying* a request right now, use
+[`@nestjs-pipeline/resilience`](/nestjs-pipeline/packages/nestjs-pipeline/resilience/). This package is about
+what happens **after** retries are exhausted.
+
+---
+
+## Installation
+
+```bash
+pnpm add @nestjs-pipeline/deadletter
+```
+
+**Peer dependencies:**
+
+```bash
+pnpm add @nestjs-pipeline/core @nestjs/common reflect-metadata
+```
+
+Requires Node.js 22.12 or later, `@nestjs/common` `^12.1.0` and `@nestjs-pipeline/core` `^0.4.0`.
+
+Published as an ES module; a CommonJS application loads it with `require()`. Coming from
+0.3.x, see [Upgrading from 0.3.x](/nestjs-pipeline/upgrading/from-0-3/).
+
+Plus **one** backend client for your chosen transport — e.g. `bullmq`,
+`amqplib`, or `pg`. None are hard dependencies of this package.
+
+---
+
+## Setup
+
+```typescript
+// app.module.ts
+import { Module } from '@nestjs/common';
+import { PipelineModule } from '@nestjs-pipeline/core';
+import {
+  DeadLetterModule,
+  DeadLetterBehavior,
+  BullMqDeadLetterTransport,
+} from '@nestjs-pipeline/deadletter';
+import { Queue } from 'bullmq';
+
+const deadLetterQueue = new Queue('dead-letters', {
+  connection: { host: 'localhost', port: 6379 },
+});
+
+@Module({
+  imports: [
+    DeadLetterModule.forRoot({
+      transport: new BullMqDeadLetterTransport(deadLetterQueue),
+    }),
+    // Registers the behavior provider for @UsePipeline/globalBehaviors.
+    PipelineModule.forRoot({ behaviors: [DeadLetterBehavior] }),
+  ],
+})
+export class AppModule {}
+```
+
+Then opt a handler in per-handler, or configure `DeadLetterBehavior` under
+`globalBehaviors` if it should execute globally. The `behaviors` registration
+above only makes the provider available to the pipeline.
+
+```typescript
+import { deadLetter } from '@nestjs-pipeline/deadletter';
+
+@CommandHandler(CreateUserCommand)
+@UsePipeline(deadLetter()) // attempt capture + re-throw on failure
+export class CreateUserHandler implements ICommandHandler<CreateUserCommand> {}
+
+@EventsHandler(UserCreatedEvent)
+@UsePipeline(deadLetter({ rethrow: false })) // attempt capture + swallow handler error
+export class SendWelcomeEmailHandler implements IEventHandler<UserCreatedEvent> {}
+```
+
+> Need the queue from Nest's DI (`@nestjs/bullmq`)? Use `forRootAsync` (see below).
+
+---
+
+## Transports
+
+Swapping the backend is a **one-line** change — only the transport passed to
+`forRoot`/`forRootAsync` differs. Handlers are untouched.
+
+### BullMQ
+
+Each successful transport send adds a normal job to the dead-letter queue. It
+starts in BullMQ's waiting state, not its failed state, so `queue.getFailed()`
+and `job.retry()` do not apply. Inspect records with Bull Board or
+`queue.getJobs(['waiting', 'delayed', 'active', 'completed'])`, then use an
+application-specific replay worker/tool to validate the record and re-dispatch
+the original request. The job name defaults to `'dead-letter'`
+(`jobName`); `jobOptions` defaults to
+`{ removeOnComplete: false, removeOnFail: false, attempts: 1 }`.
+
+```typescript
+import { getQueueToken } from '@nestjs/bullmq';
+import { BullModule } from '@nestjs/bullmq';
+import { Queue } from 'bullmq';
+
+DeadLetterModule.forRootAsync({
+  imports: [BullModule.registerQueue({ name: 'dead-letters' })],
+  inject: [getQueueToken('dead-letters')],
+  useFactory: (queue: Queue) => new BullMqDeadLetterTransport(queue),
+});
+```
+
+### RabbitMQ (drop-in)
+
+Publishes a persistent JSON message and waits for broker publisher confirmation.
+Assert the queue/exchange first and use an `amqplib` confirm channel.
+
+This transport is tested with a mocked channel only; no test runs it against a real
+broker. Verify it against your RabbitMQ version before relying on it.
+
+```typescript
+import amqp from 'amqplib';
+import { RabbitMqDeadLetterTransport } from '@nestjs-pipeline/deadletter';
+
+const conn = await amqp.connect(process.env.AMQP_URL!);
+const channel = await conn.createConfirmChannel();
+await channel.assertQueue('dead-letters', { durable: true });
+
+DeadLetterModule.forRoot({
+  transport: new RabbitMqDeadLetterTransport(channel, { routingKey: 'dead-letters' }),
+});
+```
+
+Options: `exchange` (default `''`, the default exchange), `routingKey` (default
+`'dead-letter'`) and `publishOptions`, merged over the persistent JSON defaults.
+
+### Postgres (drop-in)
+
+Inserts one row per dead letter. Create the table once (the name is validated as
+a plain SQL identifier; all values are bound parameters).
+
+```typescript
+import { Pool } from 'pg';
+import {
+  PostgresDeadLetterTransport,
+  createDeadLetterTableSql,
+} from '@nestjs-pipeline/deadletter';
+
+const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+await pool.query(createDeadLetterTableSql()); // run in a migration
+
+DeadLetterModule.forRoot({
+  transport: new PostgresDeadLetterTransport(pool, { table: 'dead_letters' }),
+});
+```
+
+PostgreSQL `jsonb` cannot hold a NUL character or a lone UTF-16 surrogate, and
+rejects the whole `INSERT` when a payload or error message contains one. The
+transport stores each such character as U+FFFD (`�`) instead, so the dead letter
+is kept.
+
+### Custom transport
+
+Implement the one-method interface for anything (Kafka, S3, an HTTP webhook, …):
+
+```typescript
+import type { DeadLetterTransport, DeadLetterRecord } from '@nestjs-pipeline/deadletter';
+
+class WebhookTransport implements DeadLetterTransport {
+  async send(record: DeadLetterRecord): Promise<void> {
+    await fetch(process.env.DLQ_WEBHOOK!, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(record),
+    });
+  }
+}
+```
+
+---
+
+## Behavior
+
+For each request, `DeadLetterBehavior` runs the handler and, **only on failure**:
+
+1. Resolves effective options (module defaults ← per-handler options).
+2. Skips capture if the request kind isn't in `captureKinds` (default `['event']`).
+   During a [redrive](#redrive-replay-count-resolve) it skips capture and never
+   swallows: the redriver records the attempt on the existing record.
+3. Builds a transport-neutral [`DeadLetterRecord`](#the-dead-letter-record) and calls
+   `transport.send(record)`. A transport failure is logged and **never masks**
+   the original handler error.
+4. Sets `DEAD_LETTER_ITEM_TOKEN` (key `DEAD_LETTER_ITEM`) on `context.items` to whether delivery succeeded. `buildDeadLetterAttributes(context)` turns a delivered record into the attribute `dead_letter.captured`. Use it for span attributes through `AttributesBehavior` of [`@nestjs-pipeline/opentelemetry`](/nestjs-pipeline/packages/nestjs-pipeline/opentelemetry/#attributes-from-other-behaviors), for audit `metadata`, or on a log line; it needs no telemetry package.
+5. Re-throws the original handler error (`rethrow: true`, default) or, on an
+   **event** handler with `rethrow: false` **and successful delivery**, resolves to
+   `undefined`. An excluded request kind, a command or query, or a failed transport
+   always re-throws the original error.
+
+---
+
+## Configuration
+
+Per-handler options via `@UsePipeline(deadLetter(options))` or `@UsePipeline([DeadLetterBehavior, options])`, merged
+over module-wide `defaults`:
+
+| Option | Type | Default | Description |
+|---|---|---|---|
+| `rethrow` | `boolean` | `true` | Re-throw after capture. `false` swallows an **event** handler's error after successful delivery; on a command or query handler it is a bootstrap error. |
+| `includeStack` | `boolean` | `true` | Include the error stack in the record. |
+| `captureKinds` | `('command'\|'query'\|'event'\|'unknown')[]` | `['event']` | Request kinds to capture. |
+| `ignoreErrors` | `Type[] \| ((err, ctx) => boolean)` | — | Error classes or predicate function to skip from dead-letter capture. Combines intelligently when defined at both module and handler level. |
+| `metadata` | `(ctx) => Record<string, unknown>` | — | Extra request-aware metadata to attach. |
+| `redact` | `(payload: unknown) => unknown` | — | Custom redactor function taking precedence over `redactKeys`. |
+| `redactKeys` | `string[]` | `DEFAULT_REDACT_KEYS` | Extra field names to mask with `[REDACTED]` in the captured payload, added to `DEFAULT_REDACT_KEYS`. Case-insensitive matching. Merged as a Set union with module defaults. |
+
+### Smart Options Merging
+
+When both module-wide `defaults` and per-handler options define settings:
+- **`ignoreErrors` is additive**: If both module defaults and handler options define error filters, they are combined — arrays of error classes are concatenated, predicate functions are chained with logical OR (`defaultFilter(err, ctx) || handlerFilter(err, ctx)`), and combinations of class arrays and functions evaluate both.
+- **`redactKeys` is a union**: Extra keys configured on a handler are unioned with `defaults.redactKeys` without duplicates.
+- **Scalar options** (`rethrow`, `includeStack`, `captureKinds`, `metadata`, `redact`): The per-handler value overrides the module default.
+
+Module-wide defaults:
+
+```typescript
+DeadLetterModule.forRoot({
+  transport,
+  defaults: {
+    includeStack: false,
+    captureKinds: ['command', 'event'],
+    ignoreErrors: [ZodValidationError],
+    redactKeys: ['bankAccount', 'securityAnswer'],
+  },
+});
+```
+
+---
+
+## The dead-letter record
+
+Transport-neutral. The application-provided payload and metadata must be
+serializable by the selected transport; capture can fail otherwise (without
+replacing the original handler error under the default fail-open behavior):
+
+```typescript
+interface DeadLetterRecord {
+  id: string;                            // UUIDv7, sorts in capture order
+  correlationId: string;                 // cross-system tracing id
+  tenantId?: string;                     // active tenant, when there is one
+  requestKind: 'command' | 'query' | 'event' | 'unknown';
+  requestName: string;                   // e.g. 'CreateUserCommand'
+  handlerName: string;                   // e.g. 'CreateUserHandler'
+  payload: unknown;                      // the redacted request
+  error: { name: string; message: string; stack?: string };
+  failedAt: string;                      // ISO-8601
+  metadata?: Record<string, unknown>;    // `metadata` factory output, plus tenantId
+  attempts: number;                      // redrive attempts; 0 when captured
+  status: 'open' | 'resolved';
+  payloadRedacted: boolean;              // redaction changed the payload
+  lastError?: { name: string; message: string; stack?: string };
+  resolvedAt?: string;                   // ISO-8601
+}
+```
+
+`tenantId` and `correlationId` are read from the pipeline context, so records are
+partitioned by tenant without extra configuration. The Postgres transport keeps the
+tenant inside the `metadata` column and restores `tenantId` from it on read. Add
+request-aware fields with `metadata`:
+
+```typescript
+DeadLetterModule.forRoot({
+  transport,
+  defaults: {
+    metadata: (ctx) => ({
+      userId: (ctx.request as { userId?: string }).userId,
+      handler: ctx.handlerName,
+    }),
+  },
+});
+```
+
+---
+
+## Redrive: replay, count, resolve
+
+A record carries `id`, `attempts` (0 when captured), `status` (`'open'` or
+`'resolved'`) and `payloadRedacted`. A **store** keeps records so they can be acted
+on: `PostgresDeadLetterTransport` implements `DeadLetterStore` (`get`, `list`,
+`recordAttempt`, `markResolved`). Queue transports hand records to the broker, whose
+tooling retries them.
+
+`DeadLetterRedriver` replays a stored record:
+
+1. refuses — without dispatching — a missing or resolved record, a request name not
+   in `requestTypes`, a kind without a `dispatch`, or a redacted payload without
+   `rebuild` (`DeadLetterRedriveError`);
+2. rebuilds the request: by default an instance of the registered class with the
+   stored fields (its constructor is not run); `rebuild(record, type)` replaces this;
+3. dispatches it inside a redrive scope, where `DeadLetterBehavior` neither captures
+   nor swallows;
+4. marks the record resolved on success, or counts the attempt, keeps its error as
+   `lastError`, and rethrows it.
+
+The package does not depend on `@nestjs/cqrs`, so the application wires the
+dispatch. For an **event**, run only the handler that failed (`record.handlerName`):
+publishing the event again would rerun the handlers that already succeeded.
+
+```typescript
+import { Module } from '@nestjs/common';
+import { ModuleRef } from '@nestjs/core';
+import { CommandBus, type ICommand } from '@nestjs/cqrs';
+import {
+  DEAD_LETTER_TRANSPORT,
+  type DeadLetterStore,
+  DeadLetterRedriver,
+} from '@nestjs-pipeline/deadletter';
+
+const eventHandlers = { SendWelcomeEmailHandler };
+
+@Module({
+  providers: [
+    {
+      provide: DeadLetterRedriver,
+      inject: [DEAD_LETTER_TRANSPORT, CommandBus, ModuleRef],
+      useFactory: (store: DeadLetterStore, commandBus: CommandBus, moduleRef: ModuleRef) =>
+        new DeadLetterRedriver(store, {
+          requestTypes: [UserCreatedEvent, SendInvoiceCommand],
+          dispatch: {
+            command: (command) => commandBus.execute(command as ICommand),
+            event: (event, record) =>
+              moduleRef
+                .get(eventHandlers[record.handlerName], { strict: false })
+                .handle(event),
+          },
+        }),
+    },
+  ],
+})
+export class DeadLetterAdminModule {}
+
+```
+
+An admin job that redrives open records and separates refusals from handler failures:
+
+```typescript
+import { Inject, Injectable, Logger } from '@nestjs/common';
+import {
+  DEAD_LETTER_TRANSPORT,
+  DeadLetterRedriveError,
+  DeadLetterRedriver,
+  type DeadLetterStore,
+} from '@nestjs-pipeline/deadletter';
+
+@Injectable()
+export class RedriveJob {
+  private readonly logger = new Logger(RedriveJob.name);
+
+  constructor(
+    @Inject(DEAD_LETTER_TRANSPORT) private readonly store: DeadLetterStore,
+    private readonly redriver: DeadLetterRedriver,
+  ) {}
+
+  async run(): Promise<void> {
+    const open = await this.store.list({ status: 'open', limit: 50 });
+    for (const record of open) {
+      if (record.attempts >= 5) continue;
+      try {
+        await this.redriver.redrive(record.id);
+      } catch (error) {
+        if (error instanceof DeadLetterRedriveError) {
+          this.logger.warn(error.message); // nothing was dispatched
+        } else {
+          this.logger.error(`redrive ${record.id} failed`); // attempts +1
+        }
+      }
+    }
+  }
+
+  close(id: string): Promise<void> {
+    return this.redriver.resolve(id); // resolve without replaying
+  }
+}
+```
+
+A `rebuild` that restores redacted values from their source:
+
+```typescript
+new DeadLetterRedriver(store, {
+  requestTypes: [ChangePasswordCommand],
+  dispatch: { command: (command) => commandBus.execute(command as ICommand) },
+  rebuild: (record, type) => {
+    const fields = record.payload as { userId: string };
+    return Object.assign(Object.create(type.prototype), fields, {
+      password: secrets.pendingPassword(fields.userId),
+    });
+  },
+});
+```
+
+**Redacted payloads.** Redaction masks secrets in the stored payload, so a replayed
+request would carry `[REDACTED]` values. Such a record (`payloadRedacted: true`,
+also set whenever a custom `redact` runs) is refused unless `rebuild` restores the
+missing values, for example by reloading them from their source.
+
+A redriven command runs again: it needs the same replay safety as a retry.
+
+---
+
+## Ordering with validation and retries
+
+Place `DeadLetterBehavior`:
+- **Inside** request validation behaviors (e.g. `ZodValidationBehavior`) so malformed client inputs (HTTP 400) fail fast and are never dead-lettered.
+- **Outside** retry behaviors (`ResilienceBehavior`) so it attempts capture only after retries are exhausted.
+- **Scoped to mutating requests** (commands and events) via `captureKinds: ['command', 'event']` or scoping configs, preventing read query failures from landing in the DLQ.
+
+```typescript
+PipelineModule.forRoot({
+  globalBehaviors: [
+    {
+      scope: 'all',
+      before: [LoggingBehavior, ZodValidationBehavior],
+    },
+    {
+      scope: 'commands',
+      before: [
+        [
+          DeadLetterBehavior,
+          {
+            captureKinds: ['command'],
+            ignoreErrors: [ZodValidationError],
+          },
+        ],
+      ],
+    },
+    {
+      scope: 'events',
+      before: [[DeadLetterBehavior, { captureKinds: ['event'] }]],
+    },
+  ],
+});
+
+// …and per-handler, nest retries closer to the handler:
+@UsePipeline([ResilienceBehavior, { retry: { maxAttempts: 5 } }])
+```
+
+The chain becomes `LoggingBehavior → ZodValidationBehavior → DeadLetterBehavior → ResilienceBehavior → handler`: validation errors exit immediately, retries happen first, and only exhausted command/event failures reach dead-letter capture.
+
+---
+
+## API Reference
+
+| Export | Type | Description |
+|---|---|---|
+| `DeadLetterBehavior` | Class | Pipeline behavior — attempts to send failed requests to the transport |
+| `DeadLetterBehaviorOptions` | Interface | `{ rethrow?, includeStack?, captureKinds?, ignoreErrors?, metadata?, redact?, redactKeys? }` |
+| `deadLetter` | Function | Typed intent builder returning `[DeadLetterBehavior, options]` for `@UsePipeline` |
+| `DeadLetterIntentOptions` | Type | Alias for `DeadLetterBehaviorOptions` |
+| `DeadLetterModule` | Class | `forRoot(options)` / `forRootAsync(options)` |
+| `DeadLetterTransport` | Interface | One-method sink: `send(record)` |
+| `DeadLetterStore` | Interface | A transport that keeps records: `get`, `list`, `recordAttempt`, `markResolved` |
+| `DeadLetterRedriver` | Class | `redrive(id)` and `resolve(id)` over a store |
+| `DeadLetterRedriveError` | Class | A record that cannot be redriven; nothing was dispatched |
+| `DeadLetterRedriverOptions` / `DeadLetterDispatch` | Type | `requestTypes`, `dispatch` per kind, optional `rebuild` |
+| `DeadLetterRedriveResult` | Type | `{ id, response }` returned by `redrive` |
+| `DeadLetterListFilter` | Type | `{ status?, requestName?, limit? }` for `store.list` (default limit `100`, oldest first) |
+| `DeadLetterError` / `DeadLetterStatus` / `DeadLetterRequestKind` / `DeadLetterMetadataFactory` | Type | Record field and option types |
+| `DeadLetterRecord` | Interface | Serializable failed-request snapshot |
+| `DeadLetterModuleOptions` / `DeadLetterModuleAsyncOptions` | Interface | Module registration options |
+| `BullMqDeadLetterTransport` | Class | Adds a job to a BullMQ queue |
+| `RabbitMqDeadLetterTransport` | Class | Publishes a persistent AMQP message |
+| `BullMqDeadLetterTransportOptions` / `RabbitMqDeadLetterTransportOptions` / `PostgresDeadLetterTransportOptions` | Type | `{ jobName?, jobOptions? }` / `{ exchange?, routingKey?, publishOptions? }` / `{ table? }` |
+| `BullMqQueueLike` / `RabbitMqConfirmChannelLike` / `PostgresQueryableLike` | Type | Structural client types |
+| `PostgresDeadLetterTransport` | Class | `DeadLetterStore` on `pg` |
+| `createDeadLetterTableSql` | Function | `CREATE TABLE` DDL for the Postgres transport |
+| `buildDeadLetterRecord` | Function | Builds a record from a context + error |
+| `DEFAULT_REDACT_KEYS` / `REDACTED` / `redactValue` | Constant / Function | Re-exported from `@cqrs-ddd/safe-stringify`: default sensitive keys, the mask string, and the key-based redactor |
+| `DEAD_LETTER_TRANSPORT` / `DEAD_LETTER_DEFAULT_OPTIONS` | Token | Injection tokens |
+| `DEAD_LETTER_ITEM` | Symbol | `context.items` exported unique Symbol key set after the capture attempt |
+| `DEAD_LETTER_ITEM_TOKEN` | `PipelineItemToken<boolean>` | Typed token over the same key, for `getPipelineItem` |
+| `buildDeadLetterAttributes` | Function | The attribute `dead_letter.captured: true` when a record was delivered, else `{}` (spans, logs) |
+
+
+---
+
+## License
+
+Dual-licensed under **AGPLv3** and a **Commercial License**. See the root [`LICENSE`](https://github.com/aristoteliss/nestjs-pipeline/blob/master/LICENSE) and [`COMMERCIAL_LICENSE.txt`](https://github.com/aristoteliss/nestjs-pipeline/blob/master/COMMERCIAL_LICENSE.txt) for details.
+
+Contact: **aristotelis@ik.me**

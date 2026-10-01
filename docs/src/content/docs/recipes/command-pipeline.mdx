@@ -1,0 +1,64 @@
+---
+title: A command through every layer
+description: POST /users of the example application, from the route to the domain event, with six behaviors on one command.
+sidebar:
+  order: 1
+---
+
+import { Code } from '@astrojs/starlight/components';
+import command from '../../../../../api/src/users/application/cqrs/commands/create-user.command.ts?raw';
+import handler from '../../../../../api/src/users/application/cqrs/commands/create-user.handler.ts?raw';
+import mapper from '../../../../../api/src/users/mappers/create-user.mapper.ts?raw';
+import event from '../../../../../api/src/users/application/cqrs/events/user-created.handler.ts?raw';
+
+This recipe follows `POST /users` of users-api, the repository's example application. Every
+file below is the application's real code, shown as it is built and tested.
+
+## 1. The route maps the body to a command
+
+The controller declares the body schema with `@Body({ schema: CreateUserDtoSchema })`, which
+Nest's `StandardSchemaValidationPipe` validates (see [Validation with
+Zod](/nestjs-pipeline/guides/zod/)), reads the optional `Idempotency-Key` header, and hands
+both to a mapper. `createZodMapper` turns the request DTO into the command:
+
+<Code code={mapper} lang="ts" title="api/src/users/mappers/create-user.mapper.ts" />
+
+## 2. The command carries its own schema
+
+`createCommand` gives the command class its Zod schema, here built from the domain's own
+length rules (`User.rules`). `ZodValidationBehavior`, registered as a global behavior, parses
+every command against that schema before its handler runs, so a command that reaches the
+handler is valid whoever dispatched it:
+
+<Code code={command} lang="ts" title="api/src/users/application/cqrs/commands/create-user.command.ts" />
+
+## 3. The handler declares its pipeline
+
+`@UsePipeline` stacks the behaviors this command needs. They run after the global `before`
+behaviors and in the order listed (see [Pipeline execution
+model](/nestjs-pipeline/concepts/execution-model/)):
+
+| Behavior | What it does here | Package |
+| --- | --- | --- |
+| `logging` | Logs the command; a duplicate email (`UniqueEmailException`) logs as a warning, not an error | [core](/nestjs-pipeline/packages/nestjs-pipeline/core/) |
+| `requires` | The type-level check: the caller may `create` a `User` at all | [casl](/nestjs-pipeline/packages/nestjs-pipeline/casl/) |
+| `featureFlag` | Refuses the command while the `user-registration` flag is off | [feature-flags](/nestjs-pipeline/packages/nestjs-pipeline/feature-flags/) |
+| `rateLimit` | Spends `RATE_LIMIT_COST.createUser` points from the caller's bucket | [rate-limit](/nestjs-pipeline/packages/nestjs-pipeline/rate-limit/) |
+| `idempotent` | Replays the result of a retried operation with the same `Idempotency-Key`, for the same caller and permissions | [idempotency](/nestjs-pipeline/packages/nestjs-pipeline/idempotency/) |
+| `audit` | Records who created which user, and the outcome | [audit](/nestjs-pipeline/packages/nestjs-pipeline/audit/) |
+
+Inside `handle`, `CaslAuthorizer.authorize` checks the new entity and the fields being
+written. That entity-level check belongs in the handler, after the aggregate exists; the
+type-level `requires` above cannot see the entity. `CommandBaseHandler` then publishes the
+aggregate's buffered events once `handle` returns:
+
+<Code code={handler} lang="ts" title="api/src/users/application/cqrs/commands/create-user.handler.ts" />
+
+## 4. The event starts the follow-up work
+
+`User.create` recorded a `UserCreatedEvent`. Its handler enqueues the welcome email, and
+`deadLetter({ rethrow: false })` captures a failure as a dead letter instead of failing the
+command that already succeeded. [Jobs that keep the request's
+context](/nestjs-pipeline/recipes/background-jobs/) follows it into the queue:
+
+<Code code={event} lang="ts" title="api/src/users/application/cqrs/events/user-created.handler.ts" />

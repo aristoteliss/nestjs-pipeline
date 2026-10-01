@@ -1,0 +1,50 @@
+---
+title: Several tenants in one deployment
+description: Name the tenant once per request, and let persistence, pipelines and every key read it, failing closed when it is missing.
+sidebar:
+  order: 4
+---
+
+import { Code } from '@astrojs/starlight/components';
+import middleware from '../../../../../api/src/persistence/middlewares/tenant-schema.middleware.ts?raw';
+import context from '../../../../../api/src/persistence/tenant-schema.context.ts?raw';
+import sources from '../../../../../api/src/common/context/context-sources.ts?raw';
+import operationKey from '../../../../../api/src/common/idempotency/operation-key.ts?raw';
+
+users-api serves several tenants from one process: one PostgreSQL schema, or one SQLite file,
+per tenant. The tenant is set once, where the request enters, and everything downstream reads
+the same value. Nothing falls back to a default tenant.
+
+## 1. Set the tenant where the request enters
+
+`TenantSchemaMiddleware` reads `x-tenant-schema`, refuses a missing or unknown tenant, and
+runs the rest of the request inside it:
+
+<Code code={middleware} lang="ts" title="api/src/persistence/middlewares/tenant-schema.middleware.ts" />
+
+## 2. One store for the tenant
+
+`TenantSchemaContext.run` sets the tenant of
+[`@nestjs-pipeline/tenant`](/nestjs-pipeline/packages/nestjs-pipeline/tenant/), the one store
+the database, the pipelines and `@cqrs-ddd/core`'s cache keys all read:
+
+<Code code={context} lang="ts" title="api/src/persistence/tenant-schema.context.ts" />
+
+Pipelines and jobs take the tenant, and the correlation id, from the sources registered once:
+
+<Code code={sources} lang="ts" title="api/src/common/context/context-sources.ts" />
+
+## 3. Put the tenant in every key
+
+A cache hit or an idempotent replay skips the handler, and with it the handler's checks. So
+every key that can return a stored result carries the tenant, and the principal where the
+result depends on it. The partitioned key factories of the add-ons build such keys and fail
+closed when a segment is missing; this is the operation key of the application's idempotent
+commands:
+
+<Code code={operationKey} lang="ts" title="api/src/common/idempotency/operation-key.ts" />
+
+The rate limits partition the same way, per tenant and principal
+(`createPartitionedRateLimitKeyFactory`), and repository cache keys take the tenant through
+the resolver `ObservabilityModule` registers (see [Wiring an
+application](/nestjs-pipeline/recipes/application-wiring/)).

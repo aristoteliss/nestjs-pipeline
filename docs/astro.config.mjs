@@ -7,6 +7,8 @@ import starlightTypeDoc, { typeDocSidebarGroup } from 'starlight-typedoc';
 export default defineConfig({
   site: 'https://aristoteliss.github.io',
   base: '/nestjs-pipeline',
+  // The recipes import the example application's source files.
+  vite: { server: { fs: { allow: ['..'] } } },
   integrations: [
     starlight({
       title: 'nestjs-pipeline',
@@ -85,8 +87,20 @@ export default defineConfig({
           label: 'Start',
           items: [
             { label: 'Overview', slug: 'overview' },
-            { label: 'Changelog', slug: 'changelog' },
+            { label: 'Getting started', slug: 'getting-started' },
           ],
+        },
+        {
+          label: 'Concepts',
+          items: [{ autogenerate: { directory: 'concepts' } }],
+        },
+        {
+          label: 'Guides',
+          items: [{ autogenerate: { directory: 'guides' } }],
+        },
+        {
+          label: 'Recipes',
+          items: [{ autogenerate: { directory: 'recipes' } }],
         },
         {
           label: '@nestjs-pipeline',
@@ -95,6 +109,18 @@ export default defineConfig({
         {
           label: '@cqrs-ddd',
           items: [{ autogenerate: { directory: 'packages/cqrs-ddd' } }],
+        },
+        {
+          label: 'Upgrading',
+          collapsed: true,
+          items: [
+            { autogenerate: { directory: 'upgrading' } },
+            {
+              label: 'Release notes',
+              items: [{ autogenerate: { directory: 'releases' } }],
+            },
+            { label: 'Changelog', slug: 'changelog' },
+          ],
         },
         typeDocSidebarGroup,
         ...openAPISidebarGroups,

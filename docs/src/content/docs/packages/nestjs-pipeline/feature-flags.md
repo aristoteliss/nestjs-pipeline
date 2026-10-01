@@ -1,0 +1,481 @@
+---
+title: "@nestjs-pipeline/feature-flags"
+description: "Feature-flag gating behavior for the NestJS pipeline — provider-agnostic via OpenFeature (Unleash, Flagsmith, LaunchDarkly, …)."
+editUrl: false
+---
+[![npm version](https://img.shields.io/npm/v/@nestjs-pipeline/feature-flags.svg)](https://www.npmjs.com/package/@nestjs-pipeline/feature-flags)
+[![License](https://img.shields.io/npm/l/@nestjs-pipeline/feature-flags.svg)](https://www.npmjs.com/package/@nestjs-pipeline/feature-flags)
+
+Feature-flag **gating** behavior for `@nestjs-pipeline/core` — wrap any command, query, or event handler behind a boolean flag and short-circuit (or fall back) when it's off.
+
+Provider-agnostic by design: it talks only to the **[OpenFeature](https://openfeature.dev)** API, so the backing source is a drop-in swap. **Unleash** is used in the examples below, and **Flagsmith** (or LaunchDarkly, a local file, …) is a one-line replacement — your handlers never change.
+
+---
+
+## Table of Contents
+
+- [Why OpenFeature?](#why-openfeature)
+- [Installation](#installation)
+- [Setup](#setup)
+  - [1. Register a provider (Unleash)](#1-register-a-provider-unleash)
+  - [2. Gate a handler](#2-gate-a-handler)
+- [Drop-in Replacement: Flagsmith](#drop-in-replacement-flagsmith)
+- [Behavior](#behavior)
+- [Configuration](#configuration)
+  - [Options](#options)
+  - [Module-wide Defaults](#module-wide-defaults)
+  - [Targeting Context](#targeting-context)
+  - [Graceful Fallback](#graceful-fallback)
+  - [Mapping the Error to HTTP](#mapping-the-error-to-http)
+- [Custom Logger](#custom-logger)
+- [Behavior Contract & Bootstrap Diagnostics](#behavior-contract--bootstrap-diagnostics)
+- [API Reference](#api-reference)
+- [License](#license)
+
+---
+
+## Why OpenFeature?
+
+[OpenFeature](https://openfeature.dev) is a CNCF, vendor-neutral **standard** for
+feature-flag evaluation. This package builds on `@openfeature/server-sdk`, so:
+
+- **Generic** — handlers depend on a flag *key*, never on a vendor SDK.
+- **Swappable** — change the provider in one place (`forRoot`) to move between
+  Unleash, Flagsmith, LaunchDarkly, GO Feature Flag, environment variables, etc.
+- **Testable** — point it at an in-memory provider in tests.
+
+---
+
+## Installation
+
+```bash
+pnpm add @nestjs-pipeline/feature-flags @openfeature/server-sdk
+```
+
+**Peer dependencies:**
+
+```bash
+pnpm add @nestjs-pipeline/core @nestjs/common @nestjs/core reflect-metadata
+```
+
+Requires Node.js 22.12 or later, `@nestjs/common` and `@nestjs/core` `^12.1.0`,
+`@nestjs-pipeline/core` `^0.4.0` and `@openfeature/server-sdk` `^1.13.0`.
+
+Published as an ES module; a CommonJS application loads it with `require()`. Coming from
+0.3.x, see [Upgrading from 0.3.x](/nestjs-pipeline/upgrading/from-0-3/).
+
+Plus **one** OpenFeature provider for your backend, e.g. Unleash:
+
+```bash
+pnpm add @openfeature/unleash-provider
+```
+
+---
+
+## Setup
+
+### 1. Register a provider (Unleash)
+
+```typescript
+// app.module.ts
+import { Module } from '@nestjs/common';
+import { CqrsModule } from '@nestjs/cqrs';
+import { PipelineModule } from '@nestjs-pipeline/core';
+import { FeatureFlagsModule, FeatureFlagBehavior } from '@nestjs-pipeline/feature-flags';
+import { UnleashProvider } from '@openfeature/unleash-provider';
+
+@Module({
+  imports: [
+    CqrsModule.forRoot(),
+    FeatureFlagsModule.forRoot({
+      provider: new UnleashProvider({
+        url: 'https://unleash.example.com/api',
+        appName: 'my-app',
+        token: process.env.UNLEASH_TOKEN!,
+      }),
+      // Static context merged into every evaluation:
+      context: { environment: process.env.NODE_ENV ?? 'development' },
+    }),
+    PipelineModule.forRoot({ behaviors: [FeatureFlagBehavior] }),
+  ],
+})
+export class AppModule {}
+```
+
+> The module awaits provider readiness (`setProviderAndWait`) during bootstrap by
+> default, so the first request already sees correct flag values. Set
+> `waitForReady: false` to register without blocking startup.
+
+OpenFeature's provider registry is process-wide. A `provider` without `domain`
+becomes the provider of the default domain, so two applications in one process
+that each register one replace each other; give each application its own
+`domain`, or pass a `client` you own. On application shutdown the module
+replaces a provider it registered with OpenFeature's no-op provider, which
+closes it unless another domain still uses it; a provider that has since been
+replaced, and a supplied `client`, are left to their owner. The module never
+calls the global `OpenFeature.close()`.
+
+### 2. Gate a handler
+
+```typescript
+import { CommandHandler, ICommandHandler } from '@nestjs/cqrs';
+import { UsePipeline } from '@nestjs-pipeline/core';
+import { featureFlag } from '@nestjs-pipeline/feature-flags';
+
+@CommandHandler(NewCheckoutCommand)
+@UsePipeline(featureFlag({ flag: 'new-checkout' }))
+export class NewCheckoutHandler implements ICommandHandler<NewCheckoutCommand> {
+  async execute(command: NewCheckoutCommand): Promise<Receipt> {
+    // Only runs when the 'new-checkout' flag is enabled for this request.
+    return this.checkout.run(command);
+  }
+}
+```
+
+> The raw tuple form `@UsePipeline([FeatureFlagBehavior, { flag: 'new-checkout' }])` remains supported as an escape hatch.
+
+When `new-checkout` is **off**, the handler never executes — the behavior throws
+`FeatureDisabledError` (or returns your `fallback`).
+
+---
+
+## Drop-in Replacement: Flagsmith
+
+Switching providers is a **one-line** change in `forRoot` — no handler touches it:
+
+```typescript
+import { FlagsmithProvider } from '@openfeature/flagsmith-provider';
+
+FeatureFlagsModule.forRoot({
+  provider: new FlagsmithProvider({
+    environmentKey: process.env.FLAGSMITH_KEY!,
+  }),
+});
+```
+
+The flag key (`'new-checkout'`) and every `@UsePipeline` decorator stay exactly
+the same.
+
+---
+
+## Behavior
+
+For each request, `FeatureFlagBehavior`:
+
+1. Resolves effective options (module defaults ← per-handler options).
+2. If **no `flag`** is configured → passes straight through (no-op).
+3. Builds a targeting [context](#targeting-context) from the request.
+4. Evaluates boolean details via OpenFeature. `errorPolicy: 'use-default'` uses
+   `defaultValue` (default `false`); `'throw'` raises `FeatureFlagEvaluationError`.
+   If `allowedVariants` is set, a true value also needs an allowed variant.
+5. Records the value, flag key, and detailed decision under exported Symbol keys
+   in `context.items`: `FEATURE_FLAG_ITEM`, `FEATURE_FLAG_KEY_ITEM`, and
+   `FEATURE_FLAG_DECISION_ITEM`.
+6. **Enabled** → runs the handler. **Disabled** → returns `fallback(context)` if
+   set, otherwise throws `FeatureDisabledError`.
+
+---
+
+## Configuration
+
+### Options
+
+Per-handler options via `@UsePipeline(featureFlag(options))` or `@UsePipeline([FeatureFlagBehavior, options])`:
+
+| Option | Type | Default | Description |
+|---|---|---|---|
+| `flag` | `string` | — | Boolean flag key to gate on. Omit for a no-op. |
+| `defaultValue` | `boolean` | `false` | Value used when evaluation fails / key is unknown. |
+| `fallback` | `(ctx) => unknown \| Promise<unknown>` | — | Returned when disabled, instead of throwing. |
+| `context` | `(ctx) => EvaluationContext` | — | Extra targeting context for this handler. |
+| `targetingKeyFactory` | `(ctx) => string \| undefined` | — | Stable rollout identity; overrides the module resolver. |
+| `allowedVariants` | `readonly string[]` | — | Require a true value and an allowed provider variant. |
+| `errorPolicy` | `use-default` \| `throw` | `use-default` | Use the default value or raise `FeatureFlagEvaluationError` on provider errors. |
+
+### Module-wide Defaults
+
+Set defaults once; per-handler options are shallow-merged on top (handler wins):
+
+```typescript
+FeatureFlagsModule.forRoot({
+  provider,
+  defaults: { defaultValue: false },
+});
+```
+
+### Targeting Context
+
+Every evaluation receives a context, merged **later-wins**:
+
+```
+base(request) → module `context` → handler `context(request)` → targeting-key factory
+```
+
+The base context is derived from the pipeline request:
+
+| Key | Value |
+|---|---|
+| `pipeline.correlation_id` | `context.correlationId` (tracing metadata, not rollout identity) |
+| `pipeline.tenant_id` | `context.tenantId`, when present |
+| `pipeline.request.kind` | `command` \| `query` \| `event` |
+| `pipeline.request.name` | `NewCheckoutCommand` |
+| `pipeline.handler.name` | `NewCheckoutHandler` |
+
+```typescript
+@UsePipeline([
+  FeatureFlagBehavior,
+  {
+    flag: 'new-checkout',
+    context: (ctx) => ({
+      targetingKey: (ctx.request as NewCheckoutCommand).userId,
+      plan: 'pro',
+    }),
+  },
+])
+```
+
+### Graceful Fallback
+
+Return a safe value instead of throwing when a feature is off:
+
+```typescript
+@QueryHandler(GetRecommendationsQuery)
+@UsePipeline([
+  FeatureFlagBehavior,
+  { flag: 'ml-recommendations', fallback: () => [] },
+])
+export class GetRecommendationsHandler
+  implements IQueryHandler<GetRecommendationsQuery>
+{
+  async execute(): Promise<Item[]> {
+    return this.ml.recommend(); // only when the flag is on
+  }
+}
+```
+
+### Mapping the Error to HTTP
+
+`FeatureDisabledError` is transport-agnostic. For HTTP, register the bundled
+`FeatureDisabledFilter`. Nest injects its `HttpAdapterHost`, and the filter replies
+through that adapter, so it works with Express and Fastify, also for an error thrown in
+middleware:
+
+```typescript
+import { Module } from '@nestjs/common';
+import { APP_FILTER } from '@nestjs/core';
+import { FeatureDisabledFilter } from '@nestjs-pipeline/feature-flags';
+
+@Module({
+  providers: [{ provide: APP_FILTER, useClass: FeatureDisabledFilter }],
+})
+export class AppModule {}
+```
+
+In `main.ts`, pass the host:
+`app.useGlobalFilters(new FeatureDisabledFilter(app.get(HttpAdapterHost)))`.
+
+It answers `403 Forbidden` and names the flag:
+
+```json
+{
+  "statusCode": 403,
+  "error": "Forbidden",
+  "message": "Feature \"beta-export\" is disabled for ExportDataQuery",
+  "flag": "beta-export"
+}
+```
+
+To hide gated features, answer `404` instead. The body is then a plain Not Found
+that names neither the flag nor the request:
+
+```typescript
+{
+  provide: APP_FILTER,
+  inject: [HttpAdapterHost],
+  useFactory: (adapterHost: HttpAdapterHost) =>
+    new FeatureDisabledFilter(adapterHost, { status: 404 }),
+}
+```
+
+---
+
+## Custom Logger
+
+`FeatureFlagBehavior` accepts a custom Nest `LoggerService` via the
+`LOGGING_BEHAVIOR_LOGGER` token (useful with `nestjs-pino`). It emits only
+`debug` messages, so wire it the same way as the other pipeline behaviors:
+
+```typescript
+import { Logger } from 'nestjs-pino';
+import { LOGGING_BEHAVIOR_LOGGER } from '@nestjs-pipeline/core';
+
+@Module({
+  providers: [{ provide: LOGGING_BEHAVIOR_LOGGER, useExisting: Logger }],
+})
+export class AppModule {}
+```
+
+---
+
+## Stable rollout identity
+
+Do not use a request correlation ID as `targetingKey` for percentage rollouts. Correlation IDs normally change on every request, so the same user can move between cohorts.
+
+Configure a stable application identity instead:
+
+```ts
+FeatureFlagsModule.forRoot({
+  provider,
+  targetingKeyFactory: (ctx) =>
+    ctx.items.get('accountId') as string | undefined,
+});
+```
+
+A handler can override the module resolver with `targetingKeyFactory`. If no factory produces a value, a `targetingKey` already supplied through module/handler evaluation context is preserved. The package intentionally does not invent a user identity.
+
+### Tenant targeting
+
+When the pipeline runs inside a tenant (see `@nestjs-pipeline/tenant`), the base
+context already carries `pipeline.tenant_id`, so a provider rule can target
+tenants without extra code. To roll out per tenant rather than per user, make the
+tenant the targeting key:
+
+```ts
+FeatureFlagsModule.forRoot({
+  provider,
+  targetingKeyFactory: (ctx) => ctx.tenantId,
+});
+```
+
+## Variant-aware gates
+
+Boolean evaluation can be narrowed to provider variants:
+
+```ts
+@UsePipeline([
+  FeatureFlagBehavior,
+  {
+    flag: 'checkout-v2',
+    allowedVariants: ['treatment'],
+  },
+])
+```
+
+The handler runs only when the flag is `true` and the provider-reported variant is allowed.
+
+## Request-local decision metadata
+
+The behavior evaluates a flag once and stores the result in `PipelineContext.items`:
+
+```ts
+import { getPipelineItem } from '@nestjs-pipeline/core';
+import { FEATURE_FLAG_DECISION_ITEM_TOKEN } from '@nestjs-pipeline/feature-flags';
+
+const decision = getPipelineItem(context, FEATURE_FLAG_DECISION_ITEM_TOKEN);
+// FeatureFlagDecision | undefined
+```
+
+`FeatureFlagDecision` includes the flag key, raw value, final enabled decision, variant, resolution reason, provider error information, and targeting key. Audit/telemetry/custom behaviors can consume this without evaluating the flag a second time.
+
+`FEATURE_FLAG_ITEM` and `FEATURE_FLAG_KEY_ITEM` also expose the enabled decision and flag key.
+
+`buildFeatureFlagAttributes(context)` turns the decision into attributes named after the OpenTelemetry feature-flag conventions — `feature_flag.key`, `feature_flag.enabled`, and `feature_flag.variant`, `feature_flag.reason` and `feature_flag.error_code` when reported. Use it for span attributes through `AttributesBehavior` of [`@nestjs-pipeline/opentelemetry`](/nestjs-pipeline/packages/nestjs-pipeline/opentelemetry/#attributes-from-other-behaviors), for audit `metadata`, or on a log line; it needs no telemetry package. The targeting key and error message are never included.
+
+## Provider failure policy
+
+The default `errorPolicy: 'use-default'` follows OpenFeature's default-value availability model. For flags that must not silently fall back, use:
+
+```ts
+{
+  flag: 'high-risk-flow',
+  defaultValue: false,
+  errorPolicy: 'throw',
+}
+```
+
+Provider errors are surfaced as `FeatureFlagEvaluationError`, which carries `flag`,
+`requestName`, `errorCode` and `providerMessage`. It is not mapped by
+`FeatureDisabledFilter`; map it yourself, for example to `503`:
+
+```ts
+import {
+  type ArgumentsHost,
+  Catch,
+  type ExceptionFilter,
+  HttpStatus,
+} from '@nestjs/common';
+import { FeatureFlagEvaluationError } from '@nestjs-pipeline/feature-flags';
+
+@Catch(FeatureFlagEvaluationError)
+export class FlagEvaluationFilter implements ExceptionFilter {
+  catch(error: FeatureFlagEvaluationError, host: ArgumentsHost): void {
+    host
+      .switchToHttp()
+      .getResponse()
+      .status(HttpStatus.SERVICE_UNAVAILABLE)
+      .json({ statusCode: 503, flag: error.flag, errorCode: error.errorCode });
+  }
+}
+```
+
+Outside HTTP, catch both errors where the request is dispatched:
+
+```ts
+try {
+  return await commandBus.execute(new NewCheckoutCommand(userId));
+} catch (error) {
+  if (error instanceof FeatureDisabledError) return legacyCheckout(userId);
+  throw error;
+}
+```
+
+---
+
+## Behavior Contract & Bootstrap Diagnostics
+
+`FeatureFlagBehavior` implements `@nestjs-pipeline/core` behavior contract diagnostics:
+
+### Validation Invariants
+
+- **Empty flag rejected**: a `flag` that is not a non-empty string is a diagnostic wherever it comes from.
+- **Handler intent needs a flag**: when `FeatureFlagBehavior` is declared on a handler (`@UsePipeline`), the effective options (handler options over module `defaults`) must name a `flag`. In `strict` mode a missing flag fails at startup with `PipelineConfigurationError`.
+- **Global declaration may omit it**: registered only under `globalBehaviors` without a flag, the behavior is a pass-through.
+- **Module defaults resolution**: Application-wide defaults supplied to `FeatureFlagsModule.forRoot({ defaults: { ... } })` are merged beneath handler options via `FeatureFlagBehavior.resolveEffectiveOptions` and evaluated during bootstrap diagnostics.
+
+---
+
+## API Reference
+
+| Export | Type | Description |
+|---|---|---|
+| `FeatureFlagBehavior` | Class | Pipeline behavior — gates a handler behind a boolean flag |
+| `featureFlag` | Function | Type-safe intent builder returning `[FeatureFlagBehavior, options]` with required `flag` |
+| `FeatureFlagIntentOptions` | Type | Options for `featureFlag(...)` requiring `flag: string` |
+| `FeatureFlagsModule` | Class | `forRoot(options)` — registers the provider/client and defaults (there is no `forRootAsync`) |
+| `FeatureFlagBehaviorOptions` | Interface | `Per-handler options listed above, including stable targeting, variants, and error policy` |
+| `FeatureFlagsModuleOptions` | Interface | ``client`, `provider`, `domain`, `context`, `waitForReady`, `defaults`, and `targetingKeyFactory`` |
+| `FeatureDisabledError` | Class | Thrown when a gated flag is disabled and no `fallback` is set |
+| `FeatureDisabledFilter` | Class | Exception filter: `FeatureDisabledError` → `403` with the flag, or a plain `404` with `{ status: 404 }` |
+| `FeatureDisabledFilterOptions` | Interface | `status`: `403` (default) or `404` |
+| `baseEvaluationContext` | Function | Derives the base targeting context from a pipeline request |
+| `buildEvaluationContext` | Function | Merges base + module + handler targeting context |
+| `FeatureFlagEvaluationError` | Class | Provider evaluation failure under `errorPolicy: 'throw'` |
+| `FeatureFlagDecision` | Interface | Detailed recorded gate decision |
+| `EvaluationContextFactory` / `TargetingKeyFactory` / `FeatureFallbackFactory` / `FeatureFlagErrorPolicy` | Type | Option function and policy types |
+| `FEATURE_FLAG_DECISION_ITEM` | Symbol | Detailed decision key in `context.items` |
+| `FEATURE_FLAGS_TARGETING_KEY_FACTORY` | Token | Module targeting resolver |
+| `FEATURE_FLAGS_CLIENT` | Token | OpenFeature `Client` provider |
+| `FEATURE_FLAGS_DEFAULT_OPTIONS` | Token | Module-wide default behavior options |
+| `FEATURE_FLAGS_DEFAULT_CONTEXT` | Token | Module-wide default evaluation context |
+| `FEATURE_FLAG_ITEM` / `FEATURE_FLAG_KEY_ITEM` | Symbol | `context.items` exported unique Symbol keys for the resolved value / key |
+| `FEATURE_FLAG_ITEM_TOKEN`, `FEATURE_FLAG_KEY_ITEM_TOKEN`, `FEATURE_FLAG_DECISION_ITEM_TOKEN` | `PipelineItemToken` | Typed tokens over the same keys, for `getPipelineItem(context, FEATURE_FLAG_DECISION_ITEM_TOKEN)` without casts |
+| `buildFeatureFlagAttributes` | Function | The recorded decision as attributes (spans, audit metadata, logs); `{}` when the behavior did not run |
+
+
+---
+
+## License
+
+Dual-licensed under **AGPLv3** and a **Commercial License**. See the root [`LICENSE`](https://github.com/aristoteliss/nestjs-pipeline/blob/master/LICENSE) and [`COMMERCIAL_LICENSE.txt`](https://github.com/aristoteliss/nestjs-pipeline/blob/master/COMMERCIAL_LICENSE.txt) for details.
+
+Contact: **aristotelis@ik.me**

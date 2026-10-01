@@ -6,9 +6,12 @@ editUrl: false
 hero:
   tagline: Cross-cutting behavior for NestJS CQRS handlers, declared once and run around every command, query and event, with DDD building blocks that need no framework.
   actions:
+    - text: Getting started
+      link: /nestjs-pipeline/getting-started/
+      icon: right-arrow
     - text: Overview
       link: /nestjs-pipeline/overview/
-      icon: right-arrow
+      variant: minimal
     - text: API reference
       link: /nestjs-pipeline/api/
       variant: minimal
@@ -24,9 +27,19 @@ import { Card, CardGrid, LinkCard } from '@astrojs/starlight/components';
 
 <CardGrid>
   <LinkCard
-    title="Overview"
-    description="The pipeline model, a quick start, and the upgrade notes for every release."
-    href="/nestjs-pipeline/overview/"
+    title="Getting started"
+    description="Install the core package, register the module, and run a command through a pipeline."
+    href="/nestjs-pipeline/getting-started/"
+  />
+  <LinkCard
+    title="Concepts"
+    description="How a pipeline runs, in which order behaviors execute, and what the pipeline context holds."
+    href="/nestjs-pipeline/concepts/execution-model/"
+  />
+  <LinkCard
+    title="Guides"
+    description="Custom behaviors, correlation ids, logging, validation, tracing, and a DDD example."
+    href="/nestjs-pipeline/guides/custom-behaviors/"
   />
   <LinkCard
     title="Packages"
@@ -42,6 +55,11 @@ import { Card, CardGrid, LinkCard } from '@astrojs/starlight/components';
     title="HTTP API"
     description="The OpenAPI reference of users-api, the example application."
     href="/nestjs-pipeline/http-api/"
+  />
+  <LinkCard
+    title="Upgrading"
+    description="What changes between releases, and what an application has to do about it."
+    href="/nestjs-pipeline/upgrading/from-0-3/"
   />
 </CardGrid>
 

@@ -5,16 +5,15 @@ built with [Starlight](https://starlight.astro.build/). It is private and never 
 
 ## Where the content comes from
 
-| Section | Source | Produced by |
-| --- | --- | --- |
-| Overview, Changelog, Packages | the root `README.md`, `CHANGELOG.md` and each package's `README.md` | `scripts/sync-readmes.mjs`, at every build |
-| API reference | the packages' JSDoc | TypeDoc, through `starlight-typedoc` |
-| HTTP API | `api/dist/openapi.json`, from the api's controllers and Zod schemas | `pnpm --filter @nestjs-pipeline/ddd-api openapi`, rendered by `starlight-openapi` |
-| Home page | `src/content/docs/index.mdx` | written here |
+| Section | Source |
+| --- | --- |
+| Home, Overview, Getting started, Concepts, Guides, Packages, Upgrading, Release notes | the committed pages in `src/content/docs/` — edit them here |
+| Changelog | the repository's `CHANGELOG.md`, copied at every build by `scripts/sync-changelog.mjs` |
+| API reference | the packages' JSDoc, through TypeDoc and `starlight-typedoc` |
+| HTTP API | `api/dist/openapi.json`, written by `pnpm --filter @nestjs-pipeline/ddd-api openapi` from the api's controllers and Zod schemas, rendered by `starlight-openapi` |
 
-Generated pages are gitignored. Edit the README or the JSDoc they come from, never the generated
-copy. The sync script turns links between README files into links between pages; links to any
-other repository file point to GitHub.
+The package READMEs are short and point to these pages; npm shows them. The generated
+Changelog and API reference pages are gitignored.
 
 ## Commands
 

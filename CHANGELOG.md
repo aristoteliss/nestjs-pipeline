@@ -186,7 +186,7 @@ first time.
 
 ### Upgrading from 0.1.x
 
-The README's [Upgrading from 0.1.x](README.md#upgrading-from-01x) shows the common changes
+The README's [Upgrading from 0.1.x](https://aristoteliss.github.io/nestjs-pipeline/upgrading/from-0-1/) shows the common changes
 with before-and-after code.
 
 #### `@nestjs-pipeline/core` (from 0.1.18)
