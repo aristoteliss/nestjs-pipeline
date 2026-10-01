@@ -58,7 +58,8 @@ pnpm add @nestjs-pipeline/core @nestjs/common @nestjs/core reflect-metadata
 Requires Node.js 22.12 or later, `@nestjs/common` and `@nestjs/core` `^12.1.0`,
 `@nestjs-pipeline/core` `^0.4.0` and `@openfeature/server-sdk` `^1.13.0`.
 
-Published as an ES module; a CommonJS application loads it with `require()`.
+Published as an ES module; a CommonJS application loads it with `require()`. Coming from
+0.3.x, see [Upgrading from 0.3.x](https://github.com/aristoteliss/nestjs-pipeline#upgrading-from-03x).
 
 Plus **one** OpenFeature provider for your backend, e.g. Unleash:
 

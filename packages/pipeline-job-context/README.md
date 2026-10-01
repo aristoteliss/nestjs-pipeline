@@ -23,7 +23,8 @@ pnpm add @nestjs-pipeline/job-context @nestjs/common
 
 Requires Node.js 22.12 or later and `@nestjs/common` `^12.1.0`.
 
-Published as an ES module; a CommonJS application loads it with `require()`.
+Published as an ES module; a CommonJS application loads it with `require()`. Coming from
+0.3.x, see [Upgrading from 0.3.x](https://github.com/aristoteliss/nestjs-pipeline#upgrading-from-03x).
 
 ## Setup
 
