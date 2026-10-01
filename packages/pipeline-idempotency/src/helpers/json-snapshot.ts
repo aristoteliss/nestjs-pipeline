@@ -4,7 +4,7 @@ import { toStrictJsonValue } from '@cqrs-ddd/safe-stringify';
 import type {
   IdempotencyRecord,
   JsonValue,
-} from '../interfaces/idempotency-record.interface';
+} from '../interfaces/idempotency-record.interface.js';
 
 /** Convert a replay value to the representation shared by durable stores. */
 export function toJsonSnapshot(value: unknown): JsonValue | undefined {

@@ -2,9 +2,9 @@
 
 import type { IPipelineContext } from '@nestjs-pipeline/core';
 import { describe, expect, it, vi } from 'vitest';
-import { IdempotencyCompletionError } from './errors/idempotency-completion.error';
-import { IdempotencyBehavior } from './idempotency.behavior';
-import type { IdempotencyStore } from './interfaces/idempotency-store.interface';
+import { IdempotencyCompletionError } from './errors/idempotency-completion.error.js';
+import { IdempotencyBehavior } from './idempotency.behavior.js';
+import type { IdempotencyStore } from './interfaces/idempotency-store.interface.js';
 
 function context(): IPipelineContext {
   return {

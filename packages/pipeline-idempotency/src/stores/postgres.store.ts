@@ -3,8 +3,8 @@
 import type {
   IdempotencyRecord,
   JsonValue,
-} from '../interfaces/idempotency-record.interface';
-import type { IdempotencyStore } from '../interfaces/idempotency-store.interface';
+} from '../interfaces/idempotency-record.interface.js';
+import type { IdempotencyStore } from '../interfaces/idempotency-store.interface.js';
 
 /** A single returned row, keyed by column name. */
 export interface PostgresRowLike {

@@ -7,19 +7,19 @@ import {
   PIPELINE_BEHAVIOR_CONTRACT,
 } from '@nestjs-pipeline/core';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { IdempotencyCompletionError } from './errors/idempotency-completion.error';
-import { IdempotencyConflictError } from './errors/idempotency-conflict.error';
-import { fingerprintValue } from './helpers/fingerprint';
+import { IdempotencyCompletionError } from './errors/idempotency-completion.error.js';
+import { IdempotencyConflictError } from './errors/idempotency-conflict.error.js';
+import { fingerprintValue } from './helpers/fingerprint.js';
 import {
   IDEMPOTENCY_KEY_ITEM,
   IDEMPOTENCY_OWNERSHIP_LOST_ITEM,
   IDEMPOTENCY_REPLAYED_ITEM,
   IdempotencyBehavior,
-} from './idempotency.behavior';
-import type { IdempotencyBehaviorOptions } from './interfaces/idempotency-options.interface';
-import type { IdempotencyRecord } from './interfaces/idempotency-record.interface';
-import type { IdempotencyStore } from './interfaces/idempotency-store.interface';
-import { MemoryIdempotencyStore } from './stores/memory.store';
+} from './idempotency.behavior.js';
+import type { IdempotencyBehaviorOptions } from './interfaces/idempotency-options.interface.js';
+import type { IdempotencyRecord } from './interfaces/idempotency-record.interface.js';
+import type { IdempotencyStore } from './interfaces/idempotency-store.interface.js';
+import { MemoryIdempotencyStore } from './stores/memory.store.js';
 
 function makeCtx(overrides: Partial<IPipelineContext> = {}): IPipelineContext {
   return {

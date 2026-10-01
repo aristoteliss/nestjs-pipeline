@@ -5,8 +5,8 @@ import { describe, expect, it } from 'vitest';
 import {
   IDEMPOTENCY_OWNERSHIP_LOST_ITEM_TOKEN,
   IDEMPOTENCY_REPLAYED_ITEM_TOKEN,
-} from '../idempotency.behavior';
-import { buildIdempotencyAttributes } from './build-attributes';
+} from '../idempotency.behavior.js';
+import { buildIdempotencyAttributes } from './build-attributes.js';
 
 const context = () => ({ items: new Map() }) as unknown as IPipelineContext;
 

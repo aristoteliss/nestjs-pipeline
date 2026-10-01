@@ -4,10 +4,10 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   IDEMPOTENCY_DEFAULT_OPTIONS,
   IDEMPOTENCY_STORE,
-} from './constants/tokens';
-import { IdempotencyBehavior } from './idempotency.behavior';
-import { IdempotencyModule } from './idempotency.module';
-import { MemoryIdempotencyStore } from './stores/memory.store';
+} from './constants/tokens.js';
+import { IdempotencyBehavior } from './idempotency.behavior.js';
+import { IdempotencyModule } from './idempotency.module.js';
+import { MemoryIdempotencyStore } from './stores/memory.store.js';
 
 describe('IdempotencyModule', () => {
   it('registers globally with default MemoryIdempotencyStore via forRoot', () => {

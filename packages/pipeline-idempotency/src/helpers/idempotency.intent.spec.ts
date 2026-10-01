@@ -6,11 +6,11 @@ import {
   UsePipeline,
 } from '@nestjs-pipeline/core';
 import { describe, expect, expectTypeOf, it } from 'vitest';
-import { IdempotencyBehavior } from '../idempotency.behavior';
+import { IdempotencyBehavior } from '../idempotency.behavior.js';
 import {
   type IdempotencyIntentOptions,
   idempotent,
-} from './idempotency.intent';
+} from './idempotency.intent.js';
 
 describe('idempotent intent', () => {
   it('preserves the key factory in handler metadata', () => {

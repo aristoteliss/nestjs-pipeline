@@ -1,8 +1,8 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import { cloneIdempotencyRecord } from '../helpers/json-snapshot';
-import type { IdempotencyRecord } from '../interfaces/idempotency-record.interface';
-import type { IdempotencyStore } from '../interfaces/idempotency-store.interface';
+import { cloneIdempotencyRecord } from '../helpers/json-snapshot.js';
+import type { IdempotencyRecord } from '../interfaces/idempotency-record.interface.js';
+import type { IdempotencyStore } from '../interfaces/idempotency-store.interface.js';
 
 interface Entry {
   record: IdempotencyRecord;

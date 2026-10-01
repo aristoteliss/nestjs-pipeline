@@ -6,8 +6,8 @@ import type {
   OptionalFactoryDependency,
 } from '@nestjs/common';
 import type { IPipelineContext } from '@nestjs-pipeline/core';
-import type { IdempotencyRequestKind } from './idempotency-record.interface';
-import type { IdempotencyStore } from './idempotency-store.interface';
+import type { IdempotencyRequestKind } from './idempotency-record.interface.js';
+import type { IdempotencyStore } from './idempotency-store.interface.js';
 
 /**
  * Derives the digest of the authorization scope a request runs under.

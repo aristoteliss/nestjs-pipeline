@@ -1,6 +1,6 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import type { IdempotencyRecord } from './idempotency-record.interface';
+import type { IdempotencyRecord } from './idempotency-record.interface.js';
 
 /** A value that may be returned synchronously or as a promise. */
 export type MaybePromise<T> = T | Promise<T>;

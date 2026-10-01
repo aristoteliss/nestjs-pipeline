@@ -8,7 +8,7 @@ import {
 import {
   IDEMPOTENCY_OWNERSHIP_LOST_ITEM_TOKEN,
   IDEMPOTENCY_REPLAYED_ITEM_TOKEN,
-} from '../idempotency.behavior';
+} from '../idempotency.behavior.js';
 
 /**
  * The idempotency decision of one execution as flat attributes:

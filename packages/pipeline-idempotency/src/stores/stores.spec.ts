@@ -1,14 +1,14 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { IdempotencyRecord } from '../interfaces/idempotency-record.interface';
-import { MemoryIdempotencyStore } from './memory.store';
+import type { IdempotencyRecord } from '../interfaces/idempotency-record.interface.js';
+import { MemoryIdempotencyStore } from './memory.store.js';
 import {
   createIdempotencyTableSql,
   PostgresIdempotencyStore,
   type PostgresQueryableLike,
-} from './postgres.store';
-import { type RedisClientLike, RedisIdempotencyStore } from './redis.store';
+} from './postgres.store.js';
+import { type RedisClientLike, RedisIdempotencyStore } from './redis.store.js';
 
 const record = (
   overrides: Partial<IdempotencyRecord> = {},
