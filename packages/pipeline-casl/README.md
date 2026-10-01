@@ -17,11 +17,11 @@ configuration) is the application's decision.
 ## Installation
 
 ```bash
-pnpm add @nestjs-pipeline/casl @nestjs-pipeline/core @casl/ability @nestjs/common reflect-metadata
+pnpm add @nestjs-pipeline/casl @nestjs-pipeline/core @casl/ability @nestjs/common @nestjs/core reflect-metadata
 ```
 
-Peers: `@casl/ability` `^7.0.0`, `@nestjs/common` `^11.0.0`, `@nestjs-pipeline/core`
-`^0.2.0`, `reflect-metadata`. Node.js 22 or later.
+Peers: `@casl/ability` `^7.0.0`, `@nestjs/common` `^11.0.0`, `@nestjs/core` `^11.0.0`,
+`@nestjs-pipeline/core` `^0.2.0`, `reflect-metadata`. Node.js 22 or later.
 
 ## Register the module
 
@@ -289,11 +289,19 @@ unauthorized rows. Authorized pagination needs a query-side design.
 
 - Every denial is an `UnauthorizedActionException` (`action`, `subject`, optional
   `entityId` and `fields`). The package throws no transport exceptions. Over HTTP,
-  register the bundled `UnauthorizedActionFilter` (Express and Fastify):
+  register the bundled `UnauthorizedActionFilter`. Nest injects its `HttpAdapterHost`, and
+  the filter replies through that adapter (Express and Fastify, also for an error thrown
+  in middleware):
 
   ```typescript
-  app.useGlobalFilters(new UnauthorizedActionFilter());
+  @Module({
+    providers: [{ provide: APP_FILTER, useClass: UnauthorizedActionFilter }],
+  })
+  export class AppModule {}
   ```
+
+  In `main.ts`, pass the host:
+  `app.useGlobalFilters(new UnauthorizedActionFilter(app.get(HttpAdapterHost)))`.
 
   It answers `403 Forbidden` with `statusCode`, `error`, `message`, `action` and
   `subject`. The message can include the entity id and denied fields.
@@ -445,7 +453,7 @@ the weakest requirement and read the ability:
 filter to keep HTTP 403 responses:
 
 ```ts
-app.useGlobalFilters(new UnauthorizedActionFilter());
+{ provide: APP_FILTER, useClass: UnauthorizedActionFilter }
 ```
 
 Code that caught `ForbiddenException` must catch `UnauthorizedActionException`.

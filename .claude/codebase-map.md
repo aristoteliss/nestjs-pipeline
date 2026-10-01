@@ -27,14 +27,14 @@ what the libraries support.
 - **Shape**: monorepo — workspace globs `api`, `packages/*` (20 workspace packages).
 - **Publishable packages**: 19; private: `api`.
 - **Runnable workspaces**: `api`.
-- **Versions**: `0.2.0`, `0.2.1`.
+- **Versions**: `0.2.0`, `0.2.1`, `0.2.2`.
 - **Packages**: see the Workspace packages table under Directory Map.
 <!-- context:generated-end repository-shape -->
 
 ## Technology Stack
 
 <!-- context:generated-start technology-stack -->
-- **Languages** (file counts, excluded directories omitted): `.ts` 794, `.md` 36, `.grit` 14, `.py` 3, `.mjs` 1
+- **Languages** (file counts, excluded directories omitted): `.ts` 795, `.md` 35, `.grit` 14, `.py` 3, `.mjs` 1
 - **Runtime engines** (root `package.json`): `node` >=22.0.0, `pnpm` >=9.0.0
 - **Package manager evidence**: `pnpm-lock.yaml`.
 - **Integrations**: listed with their purpose under Dependencies and Integrations.
@@ -76,7 +76,7 @@ editor/tooling directories are excluded (see Snapshot Metadata).
 | `packages/` | Workspace container — 19 package(s); see the workspace table below |
 | `scripts/` | Needs verification |
 
-Root files: `.gitignore`, `.npmrc`, `AGENTS.md`, `CHANGELOG.md`, `CLAUDE.md`, `COMMERCIAL_LICENSE.txt`, `LICENSE`, `Packages.Guide.el.md`, `README.md`, `biome.json`, `package.json`, `pnpm-lock.yaml`, `pnpm-workspace.yaml`, `tsconfig.base.json`
+Root files: `.gitignore`, `.npmrc`, `AGENTS.md`, `CHANGELOG.md`, `CLAUDE.md`, `COMMERCIAL_LICENSE.txt`, `LICENSE`, `README.md`, `biome.json`, `package.json`, `pnpm-lock.yaml`, `pnpm-workspace.yaml`, `tsconfig.base.json`
 
 ### Workspace packages
 
@@ -157,9 +157,10 @@ Domain and application code throw framework-neutral errors
 (`packages/ddd-core/domain/exceptions/`). `api/src/common/filters/domain-exception.filter.ts` maps them:
 `ConcurrencyConflictError` → 409, `EntityNotFoundException` → 404, unique-constraint
 exceptions → 409, invariant violations → 422, `InvalidLoginCredentialsException` → 401,
-`AuthConfigurationException` → 500, otherwise 400. `ZodValidationFilter`,
+`AuthConfigurationException` → 500, otherwise 400. It and `ZodValidationFilter`,
 `RateLimitExceededFilter`, `IdempotencyConflictFilter`, `FeatureDisabledFilter` and
-`UnauthorizedActionFilter` are registered in `api/src/bootstrap.ts`.
+`UnauthorizedActionFilter` are `APP_FILTER` providers in `api/src/app.module.ts`; each
+replies through Nest's `HttpAdapterHost`, so one code path serves Express and Fastify.
 
 ### Background jobs
 
@@ -297,17 +298,17 @@ environment value is read or reproduced here.
 | `packages/pipeline` | `@cqrs-ddd/safe-stringify`, `@cqrs-ddd/untyped`, `@cqrs-ddd/uuidv7` | — | `@nestjs/common`, `@nestjs/core`, `@nestjs/cqrs`, `reflect-metadata`, `rxjs` |
 | `packages/pipeline-audit` | `@cqrs-ddd/safe-stringify`, `@cqrs-ddd/uuidv7` | — | `@nestjs-pipeline/core`, `@nestjs/common`, `reflect-metadata` |
 | `packages/pipeline-cache` | `@cqrs-ddd/safe-stringify` | — | `@keyv/memcache`, `@keyv/postgres`, `@keyv/redis`, `@keyv/sqlite`, `@nestjs-pipeline/core`, `@nestjs/common`, `cache-manager`, `keyv`, `reflect-metadata` |
-| `packages/pipeline-casl` | `@cqrs-ddd/safe-stringify` | — | `@casl/ability`, `@nestjs-pipeline/core`, `@nestjs/common`, `reflect-metadata` |
+| `packages/pipeline-casl` | `@cqrs-ddd/safe-stringify` | — | `@casl/ability`, `@nestjs-pipeline/core`, `@nestjs/common`, `@nestjs/core`, `reflect-metadata` |
 | `packages/pipeline-correlation` | `@cqrs-ddd/untyped`, `@cqrs-ddd/uuidv7` | — | `@nestjs/common` |
 | `packages/pipeline-deadletter` | `@cqrs-ddd/safe-stringify`, `@cqrs-ddd/uuidv7` | — | `@nestjs-pipeline/core`, `@nestjs/common`, `reflect-metadata` |
-| `packages/pipeline-feature-flags` | — | — | `@nestjs-pipeline/core`, `@nestjs/common`, `@openfeature/server-sdk`, `reflect-metadata` |
-| `packages/pipeline-idempotency` | `@cqrs-ddd/safe-stringify`, `@cqrs-ddd/untyped` | — | `@nestjs-pipeline/core`, `@nestjs/common`, `reflect-metadata` |
+| `packages/pipeline-feature-flags` | — | — | `@nestjs-pipeline/core`, `@nestjs/common`, `@nestjs/core`, `@openfeature/server-sdk`, `reflect-metadata` |
+| `packages/pipeline-idempotency` | `@cqrs-ddd/safe-stringify`, `@cqrs-ddd/untyped` | — | `@nestjs-pipeline/core`, `@nestjs/common`, `@nestjs/core`, `reflect-metadata` |
 | `packages/pipeline-job-context` | — | — | `@nestjs/common` |
 | `packages/pipeline-opentelemetry` | `@cqrs-ddd/untyped` | — | `@nestjs-pipeline/core`, `@nestjs/common`, `@opentelemetry/api`, `reflect-metadata` |
-| `packages/pipeline-rate-limit` | `@cqrs-ddd/safe-stringify` | — | `@nestjs-pipeline/core`, `@nestjs/common`, `reflect-metadata` |
+| `packages/pipeline-rate-limit` | `@cqrs-ddd/safe-stringify` | — | `@nestjs-pipeline/core`, `@nestjs/common`, `@nestjs/core`, `reflect-metadata` |
 | `packages/pipeline-resilience` | — | — | `@nestjs-pipeline/core`, `@nestjs/common`, `cockatiel`, `reflect-metadata` |
 | `packages/pipeline-tenant` | — | — | — |
-| `packages/pipeline-zod` | `@cqrs-ddd/untyped` | — | `@nestjs-pipeline/core`, `@nestjs/common`, `zod` |
+| `packages/pipeline-zod` | `@cqrs-ddd/untyped` | — | `@nestjs-pipeline/core`, `@nestjs/common`, `@nestjs/core`, `zod` |
 | `packages/safe-stringify` | — | — | — |
 | `packages/untyped` | — | — | — |
 | `packages/uuidv7` | — | — | — |
@@ -508,9 +509,9 @@ secret value.*
 ## Snapshot Metadata
 
 <!-- context:generated-start metadata -->
-- Generated at: 2026-09-29T08:34:14Z
-- Git commit: 8c9ff5264721e1b17ef08f92db256491de2ed143
-- Git branch: develop
+- Generated at: 2026-10-01T09:47:38Z
+- Git commit: 712bdb913917958ab9ca4d104d2e2596abba3a44
+- Git branch: master
 - Uncommitted changes when generated: yes
 - Generator: `scripts/update-claude-snapshot.py` version 1.0.0
 - Snapshot status: generated — structural inspection only, no code executed

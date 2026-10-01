@@ -11,8 +11,8 @@ change in `src/`. Orientation: [.claude/codebase-map.md](../.claude/codebase-map
 
 ## Local architecture
 
-`src/main.ts` → `src/bootstrap.ts` (imports `./tracing` first, selects Express or Fastify,
-registers global filters) → `src/app.module.ts`.
+`src/main.ts` → `src/bootstrap.ts` (imports `./tracing` first, selects Express or Fastify)
+→ `src/app.module.ts` (also registers the global exception filters).
 
 Per feature module (`users/`, `roles/`, `auths/`):
 
@@ -50,9 +50,9 @@ short and declarative, with no prefix or suffix the module already gives.
 | File | Role |
 | --- | --- |
 | `src/main.ts` | Loads the optional env file before any environment-dependent import |
-| `src/bootstrap.ts` | Adapter choice, secure session, global exception filters, signal-driven shutdown |
+| `src/bootstrap.ts` | Adapter choice, secure session, signal-driven shutdown |
 | `src/graceful-shutdown.ts` | SIGTERM/SIGINT → `app.close()` → telemetry flush → re-raise the signal |
-| `src/app.module.ts` | Composition root: CQRS, observability, reliability, CASL, persistence, features |
+| `src/app.module.ts` | Composition root: CQRS, observability, reliability, CASL, persistence, features; the global exception filters (`APP_FILTER`) |
 | `src/common/filters/domain-exception.filter.ts` | Framework-neutral errors → HTTP: this application's exceptions, then `domainErrorHttpStatus()` for `packages/ddd-core`'s (409, 404, generic 500 for a missing tenant, 400) |
 | `src/persistence/mikro-orm.store.ts` | The one store for both engines: builds the ORMs (libSQL: one per tenant; PostgreSQL: one, a schema per tenant), registers the dialect, and hands out the active tenant's `EntityManager` through `@cqrs-ddd/mikro-orm`'s `TenantStore` |
 | `src/auths/services/session.service.ts` | Cookie lifecycle, kept out of domain login |

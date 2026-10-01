@@ -52,7 +52,7 @@ pnpm add @nestjs-pipeline/feature-flags @openfeature/server-sdk
 **Peer dependencies:**
 
 ```bash
-pnpm add @nestjs-pipeline/core @nestjs/common reflect-metadata
+pnpm add @nestjs-pipeline/core @nestjs/common @nestjs/core reflect-metadata
 ```
 
 Plus **one** OpenFeature provider for your backend, e.g. Unleash:
@@ -247,13 +247,23 @@ export class GetRecommendationsHandler
 ### Mapping the Error to HTTP
 
 `FeatureDisabledError` is transport-agnostic. For HTTP, register the bundled
-`FeatureDisabledFilter`; it works with Express and Fastify:
+`FeatureDisabledFilter`. Nest injects its `HttpAdapterHost`, and the filter replies
+through that adapter, so it works with Express and Fastify, also for an error thrown in
+middleware:
 
 ```typescript
+import { Module } from '@nestjs/common';
+import { APP_FILTER } from '@nestjs/core';
 import { FeatureDisabledFilter } from '@nestjs-pipeline/feature-flags';
 
-app.useGlobalFilters(new FeatureDisabledFilter());
+@Module({
+  providers: [{ provide: APP_FILTER, useClass: FeatureDisabledFilter }],
+})
+export class AppModule {}
 ```
+
+In `main.ts`, pass the host:
+`app.useGlobalFilters(new FeatureDisabledFilter(app.get(HttpAdapterHost)))`.
 
 It answers `403 Forbidden` and names the flag:
 
@@ -270,11 +280,13 @@ To hide gated features, answer `404` instead. The body is then a plain Not Found
 that names neither the flag nor the request:
 
 ```typescript
-app.useGlobalFilters(new FeatureDisabledFilter({ status: 404 }));
+{
+  provide: APP_FILTER,
+  inject: [HttpAdapterHost],
+  useFactory: (adapterHost: HttpAdapterHost) =>
+    new FeatureDisabledFilter(adapterHost, { status: 404 }),
+}
 ```
-
-Registered through dependency injection
-(`{ provide: APP_FILTER, useClass: FeatureDisabledFilter }`), it uses the defaults.
 
 ---
 

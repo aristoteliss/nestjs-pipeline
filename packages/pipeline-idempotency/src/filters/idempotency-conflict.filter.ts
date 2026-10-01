@@ -4,51 +4,42 @@ import {
   type ArgumentsHost,
   Catch,
   type ExceptionFilter,
+  Inject,
 } from '@nestjs/common';
+import { HttpAdapterHost } from '@nestjs/core';
 import { IdempotencyConflictError } from '../errors/idempotency-conflict.error';
-
-type ErrorResponseBody = {
-  statusCode: number;
-  error: string;
-  message: string;
-  idempotencyKey: string;
-  reason: string;
-};
-
-type HttpResponse = {
-  status(code: number): HttpResponse;
-  json?(body: ErrorResponseBody): unknown;
-  send?(body: ErrorResponseBody): unknown;
-};
 
 /**
  * Catches {@link IdempotencyConflictError} thrown by {@link IdempotencyBehavior}
  * at the pipeline boundary, mapping it to `409 Conflict` (`in_progress`,
- * `replay_scope`) or `422 Unprocessable Entity` (`key_reuse`). Works with both
- * Express and Fastify responses.
+ * `replay_scope`) or `422 Unprocessable Entity` (`key_reuse`). It replies through
+ * Nest's HTTP adapter, so it works on Express and Fastify, also for errors thrown
+ * in middleware.
  *
- * Register it globally:
+ * @example Register it globally, so Nest injects the adapter host
  * ```ts
- * app.useGlobalFilters(new IdempotencyConflictFilter());
+ * @Module({ providers: [{ provide: APP_FILTER, useClass: IdempotencyConflictFilter }] })
+ * export class AppModule {}
  * ```
  */
 @Catch(IdempotencyConflictError)
 export class IdempotencyConflictFilter implements ExceptionFilter {
-  catch(exception: IdempotencyConflictError, host: ArgumentsHost): void {
-    const response = host.switchToHttp().getResponse<HttpResponse>();
-    const body: ErrorResponseBody = {
-      statusCode: exception.statusCode,
-      error: exception.statusCode === 409 ? 'Conflict' : 'Unprocessable Entity',
-      message: exception.message,
-      idempotencyKey: exception.key,
-      reason: exception.reason,
-    };
+  constructor(
+    @Inject(HttpAdapterHost) private readonly adapterHost: HttpAdapterHost,
+  ) {}
 
-    response.status(exception.statusCode);
-    if (typeof response.json === 'function') {
-      response.json(body);
-      return;
-    }
-    response.send?.(body);
+  catch(exception: IdempotencyConflictError, host: ArgumentsHost): void {
+    this.adapterHost.httpAdapter.reply(
+      host.switchToHttp().getResponse(),
+      {
+        statusCode: exception.statusCode,
+        error:
+          exception.statusCode === 409 ? 'Conflict' : 'Unprocessable Entity',
+        message: exception.message,
+        idempotencyKey: exception.key,
+        reason: exception.reason,
+      },
+      exception.statusCode,
+    );
   }
 }

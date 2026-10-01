@@ -67,7 +67,7 @@ pnpm add @nestjs-pipeline/idempotency
 **Peer dependencies:**
 
 ```bash
-pnpm add @nestjs-pipeline/core @nestjs/common reflect-metadata
+pnpm add @nestjs-pipeline/core @nestjs/common @nestjs/core reflect-metadata
 ```
 
 The bundled stores are typed *structurally*, so this package adds **zero heavy
@@ -600,13 +600,24 @@ payload, or expose `fingerprintValue` to compute a hash yourself.
 `IdempotencyConflictError` carries `key`, `requestName`, `reason`
 (`'in_progress'` | `'key_reuse'` | `'replay_scope'`) and a suggested
 `statusCode` (`409` / `422`).
-Map it to an HTTP response with the bundled filter (Express **and** Fastify):
+Map it to an HTTP response with the bundled filter. Nest injects its `HttpAdapterHost`,
+and the filter replies through that adapter (Express and Fastify, also for an error thrown
+in middleware):
 
 ```typescript
+import { Module } from '@nestjs/common';
+import { APP_FILTER } from '@nestjs/core';
 import { IdempotencyConflictFilter } from '@nestjs-pipeline/idempotency';
 
-app.useGlobalFilters(new IdempotencyConflictFilter());
+@Module({
+  providers: [{ provide: APP_FILTER, useClass: IdempotencyConflictFilter }],
+})
+export class AppModule {}
 ```
+
+In `main.ts`, pass the host:
+`app.useGlobalFilters(new IdempotencyConflictFilter(app.get(HttpAdapterHost)))`.
+Without the filter, Nest answers the error with a generic 500.
 
 Response body:
 

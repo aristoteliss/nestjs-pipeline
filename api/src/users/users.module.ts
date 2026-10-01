@@ -2,7 +2,6 @@
 
 import { BullModule } from '@nestjs/bullmq';
 import { Module } from '@nestjs/common';
-import { LoggerModule } from 'nestjs-pino';
 import { GetRolesQueryRepository } from '../roles/persistence/get-roles.query-repository';
 import { QUERY_REPOSITORY as ROLES_QUERY_REPOSITORY } from '../roles/persistence/repository.tokens';
 import { CreateUserHandler } from './application/cqrs/commands/create-user.handler';
@@ -40,7 +39,6 @@ import { UpdateUserCommandRepository } from './persistence/update-user.command-r
 
 @Module({
   imports: [
-    LoggerModule,
     BullModule.registerQueue({
       name: WELCOME_EMAIL_QUEUE,
       forceDisconnectOnShutdown: true,

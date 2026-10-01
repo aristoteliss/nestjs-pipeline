@@ -575,13 +575,13 @@ sdk.start();
 
 // ── main.ts ──
 import './tracing';
-import { NestFactory } from '@nestjs/core';
+import { HttpAdapterHost, NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { ZodValidationFilter } from '@nestjs-pipeline/zod';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
-  app.useGlobalFilters(new ZodValidationFilter());
+  app.useGlobalFilters(new ZodValidationFilter(app.get(HttpAdapterHost)));
   await app.listen(3000);
 }
 bootstrap();

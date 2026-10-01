@@ -106,7 +106,7 @@ pnpm add @nestjs-pipeline/rate-limit rate-limiter-flexible
 **Peer dependencies:**
 
 ```bash
-pnpm add @nestjs-pipeline/core @nestjs/common reflect-metadata
+pnpm add @nestjs-pipeline/core @nestjs/common @nestjs/core reflect-metadata
 ```
 
 > `rate-limiter-flexible` is **not** a hard dependency of this package — you pass
@@ -380,15 +380,23 @@ rateLimit({
 ## HTTP 429 filter
 
 `RateLimitExceededFilter` maps `RateLimitExceededError` to HTTP
-`429 Too Many Requests` and sets a `Retry-After` header (works with Express and
-Fastify):
+`429 Too Many Requests` and sets a `Retry-After` header. Nest injects its
+`HttpAdapterHost`, and the filter replies through that adapter (Express and Fastify, also
+for an error thrown in middleware):
 
 ```typescript
-// main.ts
+import { Module } from '@nestjs/common';
+import { APP_FILTER } from '@nestjs/core';
 import { RateLimitExceededFilter } from '@nestjs-pipeline/rate-limit';
 
-app.useGlobalFilters(new RateLimitExceededFilter());
+@Module({
+  providers: [{ provide: APP_FILTER, useClass: RateLimitExceededFilter }],
+})
+export class AppModule {}
 ```
+
+In `main.ts`, pass the host:
+`app.useGlobalFilters(new RateLimitExceededFilter(app.get(HttpAdapterHost)))`.
 
 Response body:
 

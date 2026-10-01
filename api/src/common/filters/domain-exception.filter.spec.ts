@@ -6,6 +6,7 @@ import {
   MissingTenantContextError,
 } from '@cqrs-ddd/core/domain';
 import type { ArgumentsHost } from '@nestjs/common';
+import type { HttpAdapterHost } from '@nestjs/core';
 import { describe, expect, it, vi } from 'vitest';
 import {
   InvalidRoleNameException,
@@ -32,8 +33,19 @@ function makeHost(response: unknown): ArgumentsHost {
   } as unknown as ArgumentsHost;
 }
 
+/** Answers through the fake response, as Express's adapter does. */
+const adapterHost = {
+  httpAdapter: {
+    reply: (
+      response: { status(code: number): { json(body: unknown): unknown } },
+      body: unknown,
+      status: number,
+    ) => response.status(status).json(body),
+  },
+} as unknown as HttpAdapterHost;
+
 describe('DomainExceptionFilter', () => {
-  const filter = new DomainExceptionFilter();
+  const filter = new DomainExceptionFilter(adapterHost);
 
   it('maps a missing tenant context to a generic HTTP 500, not a client error', () => {
     const error = new MissingTenantContextError('cache key derivation');
@@ -194,21 +206,6 @@ describe('DomainExceptionFilter', () => {
       statusCode: 400,
       error: 'Bad Request',
       message: 'Unclassified business violation',
-    });
-  });
-
-  it('uses Fastify send() when json() is not available', () => {
-    const error = new EmptyUserUpdateException();
-    const response = { status: vi.fn(), send: vi.fn() };
-    response.status.mockReturnValue(response);
-
-    filter.catch(error, makeHost(response));
-
-    expect(response.status).toHaveBeenCalledWith(400);
-    expect(response.send).toHaveBeenCalledWith({
-      statusCode: 400,
-      error: 'Bad Request',
-      message: 'At least one user field must be supplied for update.',
     });
   });
 });

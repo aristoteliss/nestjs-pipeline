@@ -5,50 +5,40 @@ import {
   Catch,
   type ExceptionFilter,
   HttpStatus,
+  Inject,
 } from '@nestjs/common';
+import { HttpAdapterHost } from '@nestjs/core';
 import { UnauthorizedActionException } from '../errors/unauthorized-action.exception';
-
-type ErrorResponseBody = {
-  statusCode: number;
-  error: string;
-  message: string;
-  action?: string;
-  subject?: string;
-};
-
-type HttpResponse = {
-  status(code: number): HttpResponse;
-  json?(body: ErrorResponseBody): unknown;
-  send?(body: ErrorResponseBody): unknown;
-};
 
 /**
  * Catches {@link UnauthorizedActionException} thrown from domain entities or CQRS handlers
  * and maps it to HTTP 403 Forbidden at the HTTP boundary, with the denied `action` and
- * `subject`. Works with both Express and Fastify responses.
+ * `subject`. It replies through Nest's HTTP adapter, so it works on Express and Fastify,
+ * also for errors thrown in middleware.
  *
- * Register it globally:
+ * @example Register it globally, so Nest injects the adapter host
  * ```ts
- * app.useGlobalFilters(new UnauthorizedActionFilter());
+ * @Module({ providers: [{ provide: APP_FILTER, useClass: UnauthorizedActionFilter }] })
+ * export class AppModule {}
  * ```
  */
 @Catch(UnauthorizedActionException)
 export class UnauthorizedActionFilter implements ExceptionFilter {
-  catch(exception: UnauthorizedActionException, host: ArgumentsHost): void {
-    const response = host.switchToHttp().getResponse<HttpResponse>();
-    const body: ErrorResponseBody = {
-      statusCode: HttpStatus.FORBIDDEN,
-      error: 'Forbidden',
-      message: exception.message,
-      action: exception.action,
-      subject: exception.subject,
-    };
+  constructor(
+    @Inject(HttpAdapterHost) private readonly adapterHost: HttpAdapterHost,
+  ) {}
 
-    response.status(HttpStatus.FORBIDDEN);
-    if (typeof response.json === 'function') {
-      response.json(body);
-      return;
-    }
-    response.send?.(body);
+  catch(exception: UnauthorizedActionException, host: ArgumentsHost): void {
+    this.adapterHost.httpAdapter.reply(
+      host.switchToHttp().getResponse(),
+      {
+        statusCode: HttpStatus.FORBIDDEN,
+        error: 'Forbidden',
+        message: exception.message,
+        action: exception.action,
+        subject: exception.subject,
+      },
+      HttpStatus.FORBIDDEN,
+    );
   }
 }

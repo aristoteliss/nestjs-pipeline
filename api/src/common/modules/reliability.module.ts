@@ -18,8 +18,6 @@ import type { Queue } from 'bullmq';
 import { RateLimiterMemory } from 'rate-limiter-flexible';
 import { DEAD_LETTER_DEFAULTS } from '../dead-letter/dead-letter.options';
 
-const redis = redisConfig();
-
 /**
  * Wires BullMQ dead-letter delivery, rate limiting, idempotency, resilience,
  * response caching and feature flags for handler-local pipeline configuration.
@@ -38,8 +36,11 @@ const redis = redisConfig();
  */
 @Module({
   imports: [
-    BullModule.forRoot({
-      connection: { host: redis.host, port: redis.port },
+    BullModule.forRootAsync({
+      useFactory: () => {
+        const { host, port } = redisConfig();
+        return { connection: { host, port } };
+      },
     }),
     DeadLetterModule.forRootAsync({
       imports: [
@@ -58,13 +59,16 @@ const redis = redisConfig();
     IdempotencyModule.forRoot(),
     ResilienceModule.forRoot(),
     CacheModule.forRootAsync({
-      useFactory: () => ({
-        store:
-          !redis.isConfigured && process.env.NODE_ENV !== 'production'
-            ? { type: 'memory' }
-            : { type: 'redis', url: redis.url },
-        ttl: 30_000,
-      }),
+      useFactory: () => {
+        const redis = redisConfig();
+        return {
+          store:
+            !redis.isConfigured && process.env.NODE_ENV !== 'production'
+              ? { type: 'memory' }
+              : { type: 'redis', url: redis.url },
+          ttl: 30_000,
+        };
+      },
     }),
     FeatureFlagsModule.forRoot({
       provider: new TypedInMemoryProvider({

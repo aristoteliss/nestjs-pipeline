@@ -12,7 +12,9 @@ import {
   Catch,
   type ExceptionFilter,
   HttpStatus,
+  Inject,
 } from '@nestjs/common';
+import { HttpAdapterHost } from '@nestjs/core';
 import {
   AuthConfigurationException,
   InvalidLoginCredentialsException,
@@ -30,19 +32,6 @@ import {
   InvalidUsernameException,
   UniqueEmailException,
 } from '../../users/domain/models/errors';
-
-type ErrorResponseBody = {
-  statusCode: number;
-  error: string;
-  message: string;
-  [key: string]: unknown;
-};
-
-type HttpResponse = {
-  status(code: number): HttpResponse;
-  json?(body: ErrorResponseBody): unknown;
-  send?(body: ErrorResponseBody): unknown;
-};
 
 /**
  * API-layer mapper from framework-neutral domain/application failures to HTTP.
@@ -68,11 +57,13 @@ type HttpResponse = {
  *
  * Application and persistence code must not throw Nest HTTP exceptions to obtain
  * these responses; this filter is the presentation boundary responsible for mapping.
+ * It replies through Nest's HTTP adapter, so it works on Express and Fastify, also
+ * for errors thrown in middleware.
  *
- * @example Registering globally in bootstrap:
+ * @example Registering globally, so Nest injects the adapter host:
  * ```typescript
- * const app = await NestFactory.create(AppModule);
- * app.useGlobalFilters(new DomainExceptionFilter());
+ * @Module({ providers: [{ provide: APP_FILTER, useClass: DomainExceptionFilter }] })
+ * export class AppModule {}
  * ```
  *
  * @example Sample 422 Unprocessable Entity payload:
@@ -89,24 +80,18 @@ type HttpResponse = {
  */
 @Catch(DomainException)
 export class DomainExceptionFilter implements ExceptionFilter {
+  constructor(
+    @Inject(HttpAdapterHost) private readonly adapterHost: HttpAdapterHost,
+  ) {}
+
   catch(exception: DomainException, host: ArgumentsHost): void {
-    const response = host.switchToHttp().getResponse<HttpResponse>();
     const { statusCode, error, message, extra } =
       this.resolveHttpError(exception);
-
-    const body: ErrorResponseBody = {
+    this.adapterHost.httpAdapter.reply(
+      host.switchToHttp().getResponse(),
+      { statusCode, error, message: message ?? exception.message, ...extra },
       statusCode,
-      error,
-      message: message ?? exception.message,
-      ...extra,
-    };
-
-    response.status(statusCode);
-    if (typeof response.json === 'function') {
-      response.json(body);
-      return;
-    }
-    response.send?.(body);
+    );
   }
 
   private resolveHttpError(exception: DomainException): {

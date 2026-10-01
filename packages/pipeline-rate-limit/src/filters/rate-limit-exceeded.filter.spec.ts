@@ -1,15 +1,10 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import type { ArgumentsHost } from '@nestjs/common';
+import type { HttpAdapterHost } from '@nestjs/core';
 import { describe, expect, it, vi } from 'vitest';
 import { RateLimitExceededError } from '../errors/rate-limit-exceeded.error';
 import { RateLimitExceededFilter } from './rate-limit-exceeded.filter';
-
-function makeHost(response: unknown): ArgumentsHost {
-  return {
-    switchToHttp: () => ({ getResponse: () => response }),
-  } as unknown as ArgumentsHost;
-}
 
 const error = new RateLimitExceededError({
   key: 'CreateUserCommand',
@@ -20,59 +15,28 @@ const error = new RateLimitExceededError({
 });
 
 describe('RateLimitExceededFilter', () => {
-  it('responds 429 with a Fastify send body and Retry-After header', () => {
-    const send = vi.fn();
-    const response = {
-      status: vi.fn(),
-      header: vi.fn(),
-      send,
-    };
-    response.status.mockReturnValue(response);
+  it('answers 429 with a Retry-After header in whole seconds', () => {
+    const response = {};
+    const host = {
+      switchToHttp: () => ({ getResponse: () => response }),
+    } as unknown as ArgumentsHost;
+    const reply = vi.fn();
+    const setHeader = vi.fn();
 
-    new RateLimitExceededFilter().catch(error, makeHost(response));
+    new RateLimitExceededFilter({
+      httpAdapter: { reply, setHeader },
+    } as unknown as HttpAdapterHost).catch(error, host);
 
-    expect(response.header).toHaveBeenCalledWith('Retry-After', '3');
-    expect(response.status).toHaveBeenCalledWith(429);
-    expect(send).toHaveBeenCalledWith({
-      statusCode: 429,
-      error: 'Too Many Requests',
-      message: error.message,
-      retryAfter: 3,
-    });
-  });
-
-  it('falls back to an Express-style setHeader and json response', () => {
-    const json = vi.fn();
-    const response = {
-      status: vi.fn(),
-      setHeader: vi.fn(),
-      json,
-    };
-    response.status.mockReturnValue(response);
-
-    new RateLimitExceededFilter().catch(error, makeHost(response));
-
-    expect(response.setHeader).toHaveBeenCalledWith('Retry-After', '3');
-    expect(response.status).toHaveBeenCalledWith(429);
-    expect(json).toHaveBeenCalledWith({
-      statusCode: 429,
-      error: 'Too Many Requests',
-      message: error.message,
-      retryAfter: 3,
-    });
-  });
-
-  it('handles response without header or setHeader functions', () => {
-    const send = vi.fn();
-    const response = {
-      status: vi.fn(),
-      send,
-    };
-    response.status.mockReturnValue(response);
-
-    new RateLimitExceededFilter().catch(error, makeHost(response));
-
-    expect(response.status).toHaveBeenCalledWith(429);
-    expect(send).toHaveBeenCalled();
+    expect(setHeader).toHaveBeenCalledWith(response, 'Retry-After', '3');
+    expect(reply).toHaveBeenCalledWith(
+      response,
+      {
+        statusCode: 429,
+        error: 'Too Many Requests',
+        message: error.message,
+        retryAfter: 3,
+      },
+      429,
+    );
   });
 });

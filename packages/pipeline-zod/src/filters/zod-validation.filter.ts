@@ -1,47 +1,45 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import {
-  ArgumentsHost,
+  type ArgumentsHost,
   Catch,
-  ExceptionFilter,
+  type ExceptionFilter,
   HttpStatus,
+  Inject,
 } from '@nestjs/common';
+import { HttpAdapterHost } from '@nestjs/core';
 import { ZodValidationError } from '../errors/zod-validation.error';
-
-type ErrorResponseBody = {
-  statusCode: number;
-  error: string;
-  message: string;
-  details: ZodValidationError['details'];
-};
-
-type HttpResponse = {
-  status(code: number): HttpResponse;
-  json?(body: ErrorResponseBody): unknown;
-  send?(body: ErrorResponseBody): unknown;
-};
 
 /**
  * Catches {@link ZodValidationError} thrown by `createCommand()`, `createQuery()`,
- * or `createZodRequest()` constructors and {@link ZodValidationBehavior} at the pipeline boundary, mapping them to HTTP 400.
+ * or `createZodRequest()` constructors and {@link ZodValidationBehavior} at the
+ * pipeline boundary, and answers HTTP 400 with
+ * `{ statusCode, error, message, details }`. It replies through Nest's HTTP
+ * adapter, so it works on Express and Fastify, also for errors thrown in
+ * middleware.
+ *
+ * @example Register it globally, so Nest injects the adapter host
+ * ```ts
+ * @Module({ providers: [{ provide: APP_FILTER, useClass: ZodValidationFilter }] })
+ * export class AppModule {}
+ * ```
  */
 @Catch(ZodValidationError)
 export class ZodValidationFilter implements ExceptionFilter {
-  catch(exception: ZodValidationError, host: ArgumentsHost): void {
-    const ctx = host.switchToHttp();
-    const response = ctx.getResponse<HttpResponse>();
-    const body: ErrorResponseBody = {
-      statusCode: HttpStatus.BAD_REQUEST,
-      error: 'Bad Request',
-      message: exception.message,
-      details: exception.details,
-    };
+  constructor(
+    @Inject(HttpAdapterHost) private readonly adapterHost: HttpAdapterHost,
+  ) {}
 
-    response.status(HttpStatus.BAD_REQUEST);
-    if (typeof response.json === 'function') {
-      response.json(body);
-      return;
-    }
-    response.send?.(body);
+  catch(exception: ZodValidationError, host: ArgumentsHost): void {
+    this.adapterHost.httpAdapter.reply(
+      host.switchToHttp().getResponse(),
+      {
+        statusCode: HttpStatus.BAD_REQUEST,
+        error: 'Bad Request',
+        message: exception.message,
+        details: exception.details,
+      },
+      HttpStatus.BAD_REQUEST,
+    );
   }
 }

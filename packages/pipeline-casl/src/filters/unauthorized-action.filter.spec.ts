@@ -1,15 +1,29 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import type { ArgumentsHost } from '@nestjs/common';
+import type { HttpAdapterHost } from '@nestjs/core';
 import { describe, expect, it, vi } from 'vitest';
 import { UnauthorizedActionException } from '../errors/unauthorized-action.exception';
 import { buildAbility } from '../helpers/ability';
 import { CaslAuthorizer } from '../helpers/authorizer';
 import { UnauthorizedActionFilter } from './unauthorized-action.filter';
 
+const response = {};
+const host = {
+  switchToHttp: () => ({ getResponse: () => response }),
+} as unknown as ArgumentsHost;
+
+function createFilter() {
+  const reply = vi.fn();
+  const filter = new UnauthorizedActionFilter({
+    httpAdapter: { reply },
+  } as unknown as HttpAdapterHost);
+  return { filter, reply };
+}
+
 describe('UnauthorizedActionFilter', () => {
   it('maps UnauthorizedActionException to HTTP 403 Forbidden with details', () => {
-    const filter = new UnauthorizedActionFilter();
+    const { filter, reply } = createFilter();
     const exception = new UnauthorizedActionException({
       action: 'delete',
       subject: 'User',
@@ -17,58 +31,23 @@ describe('UnauthorizedActionFilter', () => {
       fields: ['department'],
     });
 
-    const statusFn = vi.fn().mockReturnThis();
-    const jsonFn = vi.fn();
-
-    const host = {
-      switchToHttp: () => ({
-        getResponse: () => ({
-          status: statusFn,
-          json: jsonFn,
-        }),
-      }),
-    } as unknown as ArgumentsHost;
-
     filter.catch(exception, host);
 
-    expect(statusFn).toHaveBeenCalledWith(403);
-    expect(jsonFn).toHaveBeenCalledWith(
-      expect.objectContaining({
+    expect(reply).toHaveBeenCalledWith(
+      response,
+      {
         statusCode: 403,
         error: 'Forbidden',
+        message: exception.message,
         action: 'delete',
         subject: 'User',
-      }),
+      },
+      403,
     );
   });
 
-  it('uses Fastify send() when json() is unavailable', () => {
-    const exception = new UnauthorizedActionException({
-      action: 'update',
-      subject: 'Role',
-    });
-    const statusFn = vi.fn().mockReturnThis();
-    const sendFn = vi.fn();
-    const host = {
-      switchToHttp: () => ({
-        getResponse: () => ({ status: statusFn, send: sendFn }),
-      }),
-    } as unknown as ArgumentsHost;
-
-    new UnauthorizedActionFilter().catch(exception, host);
-
-    expect(statusFn).toHaveBeenCalledWith(403);
-    expect(sendFn).toHaveBeenCalledWith({
-      statusCode: 403,
-      error: 'Forbidden',
-      message: exception.message,
-      action: 'update',
-      subject: 'Role',
-    });
-  });
-
   it('catches exception thrown directly by CaslAuthorizer', () => {
-    const filter = new UnauthorizedActionFilter();
+    const { filter, reply } = createFilter();
     const authorizer = new CaslAuthorizer(buildAbility([]));
 
     let caughtException: unknown;
@@ -80,25 +59,15 @@ describe('UnauthorizedActionFilter', () => {
 
     expect(caughtException).toBeInstanceOf(UnauthorizedActionException);
 
-    const statusFn = vi.fn().mockReturnThis();
-    const jsonFn = vi.fn();
-    const host = {
-      switchToHttp: () => ({
-        getResponse: () => ({
-          status: statusFn,
-          json: jsonFn,
-        }),
-      }),
-    } as unknown as ArgumentsHost;
-
     filter.catch(caughtException as UnauthorizedActionException, host);
-    expect(statusFn).toHaveBeenCalledWith(403);
-    expect(jsonFn).toHaveBeenCalledWith(
+    expect(reply).toHaveBeenCalledWith(
+      response,
       expect.objectContaining({
         statusCode: 403,
         error: 'Forbidden',
         action: 'delete',
       }),
+      403,
     );
   });
 });
