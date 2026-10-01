@@ -27,7 +27,7 @@ what the libraries support.
 - **Shape**: monorepo — workspace globs `api`, `packages/*` (20 workspace packages).
 - **Publishable packages**: 19; private: `api`.
 - **Runnable workspaces**: `api`.
-- **Versions**: `0.3.0`.
+- **Versions**: `0.4.0`.
 - **Packages**: see the Workspace packages table under Directory Map.
 <!-- context:generated-end repository-shape -->
 
@@ -501,10 +501,17 @@ secret value.*
   imported dynamically.
 - **`api/src/tracing.ts` must be imported before NestJS.** `api/src/bootstrap.ts` imports it on its
   first line; reordering breaks instrumentation.
-- **NestJS 12 ships ES modules; the repository stays CommonJS.** Node's `require()` of ES
-  modules loads them (Node.js 22.12); TypeScript 7 resolves with `Bundler`, while
-  `module: node16` would refuse the imports (TS1479). `@nestjs/core` 12's `exports` map hides
-  `package.json`, so read a Nest version from the file system.
+- **Every package and `api` are ES modules.** `tsconfig.base.json` sets `module: NodeNext`,
+  so relative imports carry `.js` (`./x.js`, `./dir/index.js`), and so do `api`'s path
+  aliases (`@common/x.js`), which `tsc-alias` rewrites at build time. CommonJS consumers load
+  the packages with `require()` (Node.js 22.12); `module: node16` would refuse them (TS1479).
+  No top-level `await` in a package: `require()` of such a module fails. `@nestjs/core` 12's
+  `exports` map hides `package.json`, so read a Nest version from the file system.
+- **`api`'s Vitest configs leave the packages' `dist` to Node** (`test.server.deps.external`).
+  Run inside Vite, an ES module package is reloaded by `vi.resetModules()` (losing
+  registrations such as `setTenantResolver`) and reached by `vi.mock`.
+- **`pnpm test:release` needs Bun on PATH.** It loads every packed entry point in Bun through
+  `import` and `require()`, and stops at once when `bun` is missing.
 - **NestJS 12's default exception filter answers a plain `Error` with a `statusCode` with
   500.** A package error keeps its status only through its filter (the `APP_FILTER`
   providers in `api/src/app.module.ts`, `IdempotencyConflictFilter` among them).
@@ -530,13 +537,13 @@ secret value.*
 ## Snapshot Metadata
 
 <!-- context:generated-start metadata -->
-- Generated at: 2026-10-01T15:38:09Z
-- Git commit: d906bbbdac362b4bf1acf2d2ae23482e7c29dc21
+- Generated at: 2026-10-01T16:42:32Z
+- Git commit: 6e09296db08b40c202c9abee60b755632f4ddd2f
 - Git branch: devlop
 - Uncommitted changes when generated: yes
 - Generator: `scripts/update-claude-snapshot.py` version 1.0.0
 - Snapshot status: generated — structural inspection only, no code executed
-- Files inspected: 929
+- Files inspected: 930
 - Included top-level directories: `.agents`, `.claude`, `api`, `biome`, `integration`, `packages`, `scripts`
 - Excluded directory names: `.cache`, `.git`, `.gradle`, `.idea`, `.mypy_cache`, `.next`, `.nuxt`, `.parcel-cache`, `.pnpm-store`, `.pytest_cache`, `.ruff_cache`, `.svelte-kit`, `.terraform`, `.tmp`, `.tox`, `.turbo`, `.venv`, `.vscode`, `__pycache__`, `bower_components`, `build`, `coverage`, `dist`, `node_modules`, `out`, `target`, `vendor`, `venv`, `virtualenv`
 - Excluded file patterns: `.env`, `.env.*`, `*.env`, `*.pem`, `*.key`, `*.pfx`, `*.p12`, `*.jks`, `*.keystore`, `id_rsa*`, `id_ed25519*`, `*credentials*`, `*.secret`, `secrets.*`

@@ -16,6 +16,8 @@ pnpm add @cqrs-ddd/untyped
 
 Requires Node.js 22.12 or later. No dependencies, no framework.
 
+Published as an ES module; a CommonJS application loads it with `require()`.
+
 ## API
 
 ```typescript

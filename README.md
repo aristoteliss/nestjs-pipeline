@@ -42,6 +42,7 @@ cache layer ownership, command reads, invalidation and security.
 ## Table of Contents
 
 - [Packages](#packages)
+- [Upgrading from 0.3.x](#upgrading-from-03x)
 - [Upgrading from 0.2.x](#upgrading-from-02x)
 - [What's new in 0.2.2](#whats-new-in-022)
 - [What's new in 0.2.1](#whats-new-in-021)
@@ -131,7 +132,30 @@ Framework-neutral packages, with no NestJS dependency:
 > No `@nestjs-pipeline/*` package uses `@cqrs-ddd/core`, and it knows nothing of them: an
 > application connects the two.
 
-Every package is at **0.3.0**. [CHANGELOG.md](CHANGELOG.md) records each release.
+Every package is at **0.4.0**. [CHANGELOG.md](CHANGELOG.md) records each release.
+
+---
+
+## Upgrading from 0.3.x
+
+0.4.0 publishes every package as an ES module. The API, the requirements (Node.js 22.12,
+NestJS `^12.1.0`) and the behavior are those of 0.3.0; [CHANGELOG.md](CHANGELOG.md) lists
+the changes.
+
+**1. ES modules.** Every package declares `"type": "module"` and an `exports` map. An ES
+module application imports it; a CommonJS application loads it with `require()`, which
+Node.js supports from 22.12. A CommonJS application that compiles with TypeScript
+`module: node16` moves to `nodenext`, `node20` or `bundler`, as NestJS 12 already requires;
+this is new for applications that use only the `@cqrs-ddd/*` packages.
+
+**2. Entry points only.** A package resolves through its `exports` map: its root,
+`@cqrs-ddd/core`'s `/domain`, `/application`, `/persistence` and `/http`, and
+`/package.json`. An import of a path inside `dist` no longer resolves; import the same name
+from the entry point.
+
+```bash
+pnpm add @nestjs-pipeline/core@^0.4.0
+```
 
 ---
 

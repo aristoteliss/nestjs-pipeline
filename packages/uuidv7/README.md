@@ -18,6 +18,8 @@ pnpm add @cqrs-ddd/uuidv7
 
 Requires Node.js 22.12 or later.
 
+Published as an ES module; a CommonJS application loads it with `require()`.
+
 ## API
 
 ```typescript

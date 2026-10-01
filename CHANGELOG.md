@@ -1,5 +1,30 @@
 # Changelog
 
+## 0.4.0
+
+Every package is released at 0.4.0, as an ES module. The API and the requirements are
+those of 0.3.0.
+
+### Breaking
+
+- Every package is published as an ES module (`"type": "module"`) with an `exports` map.
+  An ES module application imports it; a CommonJS application loads it with `require()`
+  (Node.js 22.12 or later, the packages' minimum). A CommonJS application that compiles
+  with TypeScript `module: node16` moves to `nodenext`, `node20` or `bundler`.
+- Only the entry points in `exports` resolve: each package's root, `@cqrs-ddd/core`'s
+  `/domain`, `/application`, `/persistence` and `/http`, and `/package.json`. Paths inside
+  `dist` no longer resolve.
+- Packages that peer on `@nestjs-pipeline/core` require `^0.4.0` of it, and
+  `@cqrs-ddd/mikro-orm` requires `@cqrs-ddd/core` `^0.4.0`.
+
+### Changed
+
+- `@nestjs-pipeline/cache` loads its optional `@keyv/*` store adapter through
+  `createRequire`, synchronously, as before.
+- The release check loads every package from a CommonJS and an ES module consumer,
+  type-checks them with TypeScript `Bundler` resolution, and loads every entry point in
+  Bun through `import` and `require()`.
+
 ## 0.3.0
 
 Every package is released at 0.3.0, for NestJS 12.
