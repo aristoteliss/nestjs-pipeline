@@ -2,11 +2,11 @@
 
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { uuidv7 } from '@cqrs-ddd/uuidv7';
-import { DEFAULT_CORRELATION_HEADER } from './constants/correlation.constants';
+import { DEFAULT_CORRELATION_HEADER } from './constants/correlation.constants.js';
 import {
   DEFAULT_CORRELATION_ID_MAX_LENGTH,
   DEFAULT_CORRELATION_ID_PATTERN,
-} from './options/correlation.options';
+} from './options/correlation.options.js';
 
 const correlation = new AsyncLocalStorage<string | undefined>();
 

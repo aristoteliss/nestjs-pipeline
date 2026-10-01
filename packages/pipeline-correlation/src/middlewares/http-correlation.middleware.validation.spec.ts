@@ -2,8 +2,8 @@
 
 import { IncomingMessage, ServerResponse } from 'node:http';
 import { describe, expect, it, vi } from 'vitest';
-import { getCorrelationId } from '../correlation.store';
-import { HttpCorrelationMiddleware } from './http-correlation.middleware';
+import { getCorrelationId } from '../correlation.store.js';
+import { HttpCorrelationMiddleware } from './http-correlation.middleware.js';
 
 function run(
   middleware: HttpCorrelationMiddleware,
