@@ -8,14 +8,14 @@ import {
   PIPELINE_BEHAVIORS_OPTIONS_METADATA,
   PIPELINE_SKIPPED_BEHAVIORS_METADATA,
   type PipelineBehaviorEntry,
-} from '../decorators/pipeline.decorator';
+} from '../decorators/pipeline.decorator.js';
 import {
   type BehaviorEntryAccumulators,
   normalizeBehaviorEntries,
-} from '../helpers/behavior-entries';
-import type { IPipelineBehavior } from '../interfaces/pipeline.behavior.interface';
-import type { GlobalBehaviorsOptions } from '../options/global-behaviors.options';
-import type { PipelineModuleOptions } from '../options/pipeline-module.options';
+} from '../helpers/behavior-entries.js';
+import type { IPipelineBehavior } from '../interfaces/pipeline.behavior.interface.js';
+import type { GlobalBehaviorsOptions } from '../options/global-behaviors.options.js';
+import type { PipelineModuleOptions } from '../options/pipeline-module.options.js';
 
 /** Compiles handler declarations without resolving providers or mutating methods. */
 export function compilePipelinePlan(

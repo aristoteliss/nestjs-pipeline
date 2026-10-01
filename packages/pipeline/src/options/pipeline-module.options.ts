@@ -13,11 +13,11 @@ import {
   Type,
   ValueProvider,
 } from '@nestjs/common';
-import { LOGGING_BEHAVIOR_LOGGER } from '../behaviors/logging.behavior';
-import { PipelineBehaviorEntry } from '../decorators/pipeline.decorator';
-import type { ContextSources } from '../interfaces/context-source.interface';
-import { IPipelineBehavior } from '../interfaces/pipeline.behavior.interface';
-import { GlobalBehaviorsOptions } from './global-behaviors.options';
+import { LOGGING_BEHAVIOR_LOGGER } from '../behaviors/logging.behavior.js';
+import { PipelineBehaviorEntry } from '../decorators/pipeline.decorator.js';
+import type { ContextSources } from '../interfaces/context-source.interface.js';
+import { IPipelineBehavior } from '../interfaces/pipeline.behavior.interface.js';
+import { GlobalBehaviorsOptions } from './global-behaviors.options.js';
 
 /**
  * Injection token for pipeline module configuration.

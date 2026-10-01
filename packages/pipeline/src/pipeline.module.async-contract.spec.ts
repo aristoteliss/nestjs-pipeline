@@ -2,19 +2,19 @@
 
 import type { DynamicModule } from '@nestjs/common';
 import { describe, expect, it } from 'vitest';
-import { LOGGING_BEHAVIOR_LOGGER } from './behaviors/logging.behavior';
+import { LOGGING_BEHAVIOR_LOGGER } from './behaviors/logging.behavior.js';
 import type {
   IPipelineBehavior,
   NextDelegate,
-} from './interfaces/pipeline.behavior.interface';
-import type { IPipelineContext } from './interfaces/pipeline.context.interface';
+} from './interfaces/pipeline.behavior.interface.js';
+import type { IPipelineContext } from './interfaces/pipeline.context.interface.js';
 import {
   PIPELINE_MODULE_OPTIONS,
   type PipelineModuleAsyncOptions,
   type PipelineRuntimeOptions,
-} from './options/pipeline-module.options';
-import { PipelineModule } from './pipeline.module';
-import { PipelineBootstrapService } from './services/pipeline.bootstrap.service';
+} from './options/pipeline-module.options.js';
+import { PipelineModule } from './pipeline.module.js';
+import { PipelineBootstrapService } from './services/pipeline.bootstrap.service.js';
 
 class TestBehavior implements IPipelineBehavior {
   handle(_context: IPipelineContext, next: NextDelegate): Promise<unknown> {

@@ -4,20 +4,20 @@ import { AsyncLocalStorage } from 'node:async_hooks';
 import { isUuidV7 } from '@cqrs-ddd/uuidv7';
 import { Logger } from '@nestjs/common';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { pipelineStore } from '../constants/pipeline-context.constants';
+import { pipelineStore } from '../constants/pipeline-context.constants.js';
 import {
   PIPELINE_BEHAVIOR_ID,
   SkipPipeline,
   UsePipeline,
-} from '../decorators/pipeline.decorator';
+} from '../decorators/pipeline.decorator.js';
 import {
   IPipelineBehavior,
   NextDelegate,
-} from '../interfaces/pipeline.behavior.interface';
-import { IPipelineContext } from '../interfaces/pipeline.context.interface';
-import { PipelineBootstrapService } from './pipeline.bootstrap.service';
+} from '../interfaces/pipeline.behavior.interface.js';
+import { IPipelineContext } from '../interfaces/pipeline.context.interface.js';
+import { PipelineBootstrapService } from './pipeline.bootstrap.service.js';
 
-vi.mock('./handler-discovery', () => ({
+vi.mock('./handler-discovery.js', () => ({
   discoverHandlers: (discovery: { handlers(): object }) => ({
     commands: [],
     queries: [],

@@ -2,7 +2,7 @@
 
 import { untyped } from '@cqrs-ddd/untyped';
 import type { Type } from '@nestjs/common';
-import type { IPipelineBehavior } from '../interfaces/pipeline.behavior.interface';
+import type { IPipelineBehavior } from '../interfaces/pipeline.behavior.interface.js';
 
 /**
  * Optional static property on a behavior class that provides a stable,

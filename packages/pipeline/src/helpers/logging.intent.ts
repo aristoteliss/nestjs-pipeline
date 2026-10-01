@@ -3,8 +3,8 @@
 import {
   LoggingBehavior,
   type LoggingBehaviorOptions,
-} from '../behaviors/logging.behavior';
-import type { PipelineBehaviorTuple } from '../decorators/pipeline.decorator';
+} from '../behaviors/logging.behavior.js';
+import type { PipelineBehaviorTuple } from '../decorators/pipeline.decorator.js';
 
 export type LoggingIntentOptions = LoggingBehaviorOptions;
 

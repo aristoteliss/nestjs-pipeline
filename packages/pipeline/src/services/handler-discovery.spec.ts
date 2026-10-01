@@ -2,7 +2,7 @@
 
 import { CommandHandler, EventsHandler, QueryHandler } from '@nestjs/cqrs';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { discoverHandlers } from './handler-discovery';
+import { discoverHandlers } from './handler-discovery.js';
 
 class CreateCommand {}
 class RenameCommand {}
@@ -98,7 +98,9 @@ describe('discoverHandlers', () => {
       ...(await importOriginal<typeof import('@nestjs/cqrs')>()),
       QueryHandler: () => () => undefined,
     }));
-    const { discoverHandlers: discover } = await import('./handler-discovery');
+    const { discoverHandlers: discover } = await import(
+      './handler-discovery.js'
+    );
 
     expect(() => discover(discovery())).toThrow(
       '@QueryHandler recorded 0 metadata keys instead of one',

@@ -1,6 +1,6 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import { IPipelineContext } from './pipeline.context.interface';
+import { IPipelineContext } from './pipeline.context.interface.js';
 
 /**
  * Delegate to call the next behavior in the chain, or the real handler.

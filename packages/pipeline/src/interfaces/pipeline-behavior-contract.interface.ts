@@ -1,7 +1,7 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import type { Type } from '@nestjs/common';
-import type { IPipelineBehavior } from './pipeline.behavior.interface';
+import type { IPipelineBehavior } from './pipeline.behavior.interface.js';
 
 /**
  * Well-known symbol for declaring an optional {@link IPipelineBehaviorContract}

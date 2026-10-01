@@ -1,7 +1,7 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import { MissingPipelineItemError } from './errors/missing-pipeline-item.error';
-import type { IPipelineContext } from './interfaces/pipeline.context.interface';
+import { MissingPipelineItemError } from './errors/missing-pipeline-item.error.js';
+import type { IPipelineContext } from './interfaces/pipeline.context.interface.js';
 
 /** Associates a context map key with its compile-time value type. */
 export interface PipelineItemToken<T> {

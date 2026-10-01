@@ -2,17 +2,17 @@
 
 import { untyped } from '@cqrs-ddd/untyped';
 import type { Type } from '@nestjs/common';
-import { type BehaviorId, getBehaviorId } from '../helpers/behavior-id';
+import { type BehaviorId, getBehaviorId } from '../helpers/behavior-id.js';
 import type {
   IPipelineBehavior,
   IPipelineBehaviorOptionsResolver,
-} from '../interfaces/pipeline.behavior.interface';
+} from '../interfaces/pipeline.behavior.interface.js';
 import {
   type IPipelineBehaviorContract,
   PIPELINE_BEHAVIOR_CONTRACT,
   type PipelineBehaviorDiagnostic,
   type PipelineBehaviorValidationContext,
-} from '../interfaces/pipeline-behavior-contract.interface';
+} from '../interfaces/pipeline-behavior-contract.interface.js';
 
 /**
  * Validates behavior contracts and ordering rules during bootstrap.

@@ -1,6 +1,6 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import type { IPipelineContext } from '../interfaces/pipeline.context.interface';
+import type { IPipelineContext } from '../interfaces/pipeline.context.interface.js';
 
 /** How a partitioned key treats the tenant, shared by every key factory. */
 export interface TenantPartitionOptions {

@@ -2,11 +2,11 @@
 
 import { DynamicModule, Global, Module, Provider, Type } from '@nestjs/common';
 import { DiscoveryModule } from '@nestjs/core';
-import { LOGGING_BEHAVIOR_LOGGER } from './behaviors/logging.behavior';
-import { PipelineBehaviorEntry } from './decorators/pipeline.decorator';
-import { behaviorEntryType } from './helpers/behavior-entries';
-import { IPipelineBehavior } from './interfaces/pipeline.behavior.interface';
-import type { GlobalBehaviorsOptions } from './options/global-behaviors.options';
+import { LOGGING_BEHAVIOR_LOGGER } from './behaviors/logging.behavior.js';
+import { PipelineBehaviorEntry } from './decorators/pipeline.decorator.js';
+import { behaviorEntryType } from './helpers/behavior-entries.js';
+import { IPipelineBehavior } from './interfaces/pipeline.behavior.interface.js';
+import type { GlobalBehaviorsOptions } from './options/global-behaviors.options.js';
 import {
   PIPELINE_MODULE_OPTIONS,
   PipelineModuleAsyncOptions,
@@ -14,9 +14,9 @@ import {
   PipelineModuleOptions,
   PipelineOptionsFactory,
   PipelineRuntimeOptions,
-} from './options/pipeline-module.options';
-import { PipelineBootstrapService } from './services/pipeline.bootstrap.service';
-import { toGlobalConfigs } from './services/pipeline-plan';
+} from './options/pipeline-module.options.js';
+import { PipelineBootstrapService } from './services/pipeline.bootstrap.service.js';
+import { toGlobalConfigs } from './services/pipeline-plan.js';
 
 export {
   GlobalBehaviorScope,
@@ -26,7 +26,7 @@ export {
   PipelineModuleOptions,
   PipelineOptionsFactory,
   PipelineRuntimeOptions,
-} from './options';
+} from './options/index.js';
 
 /**
  * Validates that an async options factory returns runtime-only configuration.

@@ -2,15 +2,15 @@
 
 import { DynamicModule, Injectable } from '@nestjs/common';
 import { describe, expect, it } from 'vitest';
-import { LOGGING_BEHAVIOR_LOGGER } from './behaviors/logging.behavior';
+import { LOGGING_BEHAVIOR_LOGGER } from './behaviors/logging.behavior.js';
 import {
   IPipelineBehavior,
   NextDelegate,
-} from './interfaces/pipeline.behavior.interface';
-import { IPipelineContext } from './interfaces/pipeline.context.interface';
-import { PIPELINE_MODULE_OPTIONS } from './options/pipeline-module.options';
-import { PipelineModule } from './pipeline.module';
-import { PipelineBootstrapService } from './services/pipeline.bootstrap.service';
+} from './interfaces/pipeline.behavior.interface.js';
+import { IPipelineContext } from './interfaces/pipeline.context.interface.js';
+import { PIPELINE_MODULE_OPTIONS } from './options/pipeline-module.options.js';
+import { PipelineModule } from './pipeline.module.js';
+import { PipelineBootstrapService } from './services/pipeline.bootstrap.service.js';
 
 @Injectable()
 class AlphaBehavior implements IPipelineBehavior {
@@ -375,7 +375,7 @@ it('rejects undefined feature behavior providers at registration', () => {
 
 describe('Public surface invariants', () => {
   it('does not export PipelineBootstrapService from the package entry point', async () => {
-    const publicExports = await import('./index');
+    const publicExports = await import('./index.js');
     expect(publicExports).not.toHaveProperty('PipelineBootstrapService');
   });
 });
