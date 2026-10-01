@@ -1,25 +1,16 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { type ArgumentsHost, HttpStatus } from '@nestjs/common';
+import type { HttpAdapterHost } from '@nestjs/core';
 import { describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
 import { ZodValidationError } from '../errors/zod-validation.error';
 import { ZodValidationFilter } from './zod-validation.filter';
 
-function createMockHost(cb: (body: any) => void) {
-  const res = {
-    status: (code: number) => {
-      (res as any)._code = code;
-      return res;
-    },
-    json: (body: any) => cb({ code: (res as any)._code, ...body }),
-  };
-  return {
-    switchToHttp: () => ({
-      getResponse: () => res,
-    }),
-  } as any;
-}
+const response = {};
+const host = {
+  switchToHttp: () => ({ getResponse: () => response }),
+} as unknown as ArgumentsHost;
 
 function makeError(schema: z.ZodType, data: unknown): ZodValidationError {
   const result = schema.safeParse(data);
@@ -28,94 +19,29 @@ function makeError(schema: z.ZodType, data: unknown): ZodValidationError {
 }
 
 describe('ZodValidationFilter', () => {
-  const filter = new ZodValidationFilter();
-
-  it('responds with HTTP 400 status code', () => {
-    const error = makeError(z.object({ name: z.string() }), { name: 123 });
-    let response: any;
-    filter.catch(
-      error,
-      createMockHost((body) => {
-        response = body;
-      }),
-    );
-    expect(response.code).toBe(HttpStatus.BAD_REQUEST);
-  });
-
-  it('includes "Bad Request" as error string', () => {
-    const error = makeError(z.string(), 42);
-    let response: any;
-    filter.catch(
-      error,
-      createMockHost((body) => {
-        response = body;
-      }),
-    );
-    expect(response.error).toBe('Bad Request');
-  });
-
-  it('includes "Validation failed" as message', () => {
-    const error = makeError(z.string(), 42);
-    let response: any;
-    filter.catch(
-      error,
-      createMockHost((body) => {
-        response = body;
-      }),
-    );
-    expect(response.message).toBe('Validation failed');
-  });
-
-  it('includes flattened details from ZodValidationError', () => {
+  it('answers 400 through the HTTP adapter with the flattened details', () => {
+    const reply = vi.fn();
+    const filter = new ZodValidationFilter({
+      httpAdapter: { reply },
+    } as unknown as HttpAdapterHost);
     const error = makeError(
       z.object({ email: z.email(), age: z.number().positive() }),
       { email: 'bad', age: -1 },
     );
-    let response: any;
-    filter.catch(
-      error,
-      createMockHost((body) => {
-        response = body;
-      }),
-    );
-
-    expect(response.details).toHaveProperty('fieldErrors');
-    expect(response.details.fieldErrors).toHaveProperty('email');
-    expect(response.details.fieldErrors).toHaveProperty('age');
-  });
-
-  it('includes statusCode field in the response body', () => {
-    const error = makeError(z.string(), null);
-    let response: any;
-    filter.catch(
-      error,
-      createMockHost((body) => {
-        response = body;
-      }),
-    );
-    expect(response.statusCode).toBe(HttpStatus.BAD_REQUEST);
-  });
-
-  it('uses Fastify send() when json() is unavailable', () => {
-    const error = makeError(z.string(), 42);
-    const send = vi.fn();
-    const response = {
-      status: vi.fn(),
-      send,
-    };
-    response.status.mockReturnValue(response);
-    const host = {
-      switchToHttp: () => ({ getResponse: () => response }),
-    } as unknown as ArgumentsHost;
 
     filter.catch(error, host);
 
-    expect(response.status).toHaveBeenCalledWith(HttpStatus.BAD_REQUEST);
-    expect(send).toHaveBeenCalledWith({
-      statusCode: HttpStatus.BAD_REQUEST,
-      error: 'Bad Request',
-      message: 'Validation failed',
-      details: error.details,
-    });
+    expect(reply).toHaveBeenCalledWith(
+      response,
+      {
+        statusCode: HttpStatus.BAD_REQUEST,
+        error: 'Bad Request',
+        message: 'Validation failed',
+        details: error.details,
+      },
+      HttpStatus.BAD_REQUEST,
+    );
+    expect(error.details.fieldErrors).toHaveProperty('email');
+    expect(error.details.fieldErrors).toHaveProperty('age');
   });
 });

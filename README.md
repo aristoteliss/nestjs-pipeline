@@ -129,9 +129,47 @@ Framework-neutral packages, with no NestJS dependency:
 > No `@nestjs-pipeline/*` package uses `@cqrs-ddd/core`, and it knows nothing of them: an
 > application connects the two.
 
-Ten packages are at **0.2.1** — `@cqrs-ddd/core`, `@nestjs-pipeline/casl`, `/opentelemetry`,
-`/cache`, `/idempotency`, `/rate-limit`, `/feature-flags`, `/deadletter`, `/zod` and `/audit`;
-the others are at **0.2.0**. [CHANGELOG.md](CHANGELOG.md) records each release.
+Five packages are at **0.2.2** — `@nestjs-pipeline/zod`, `/casl`, `/feature-flags`,
+`/idempotency` and `/rate-limit`; five are at **0.2.1** — `@cqrs-ddd/core`,
+`@nestjs-pipeline/opentelemetry`, `/cache`, `/deadletter` and `/audit`; the others are at
+**0.2.0**. [CHANGELOG.md](CHANGELOG.md) records each release.
+
+---
+
+## What's new in 0.2.2
+
+0.2.2 changes how the exception filters of `@nestjs-pipeline/zod`, `/casl`,
+`/feature-flags`, `/idempotency` and `/rate-limit` answer, so that one code path serves
+Express and Fastify. Registering them needs a change, and the five packages add a
+`@nestjs/core` `^11.0.0` peer.
+
+### Exception filters reply through Nest's HTTP adapter
+
+`ZodValidationFilter`, `UnauthorizedActionFilter`, `FeatureDisabledFilter`,
+`IdempotencyConflictFilter` and `RateLimitExceededFilter` take Nest's `HttpAdapterHost` and
+answer with `httpAdapter.reply` (`RateLimitExceededFilter` also sets `Retry-After` through
+the adapter). On Fastify, an error thrown in Nest middleware reaches a filter with the raw
+Node response; the filters answer it too, instead of throwing and leaving the request
+without a response.
+
+Register each filter as a provider, so Nest injects the host:
+
+```typescript
+import { Module } from '@nestjs/common';
+import { APP_FILTER } from '@nestjs/core';
+import { ZodValidationFilter } from '@nestjs-pipeline/zod';
+
+@Module({
+  providers: [{ provide: APP_FILTER, useClass: ZodValidationFilter }],
+})
+export class AppModule {}
+```
+
+or pass it in `main.ts`:
+`app.useGlobalFilters(new ZodValidationFilter(app.get(HttpAdapterHost)))`. A filter built
+without the host (`new ZodValidationFilter()`) does not compile. `FeatureDisabledFilter`
+takes its options as the second argument:
+`new FeatureDisabledFilter(app.get(HttpAdapterHost), options)`.
 
 ---
 
@@ -454,9 +492,13 @@ extends `Error`, so without its filter NestJS answers HTTP 500. Register the fil
 the 403:
 
 ```typescript
-// 0.2.0
+import { APP_FILTER } from '@nestjs/core';
 import { UnauthorizedActionFilter } from '@nestjs-pipeline/casl';
-app.useGlobalFilters(new UnauthorizedActionFilter());
+
+@Module({
+  providers: [{ provide: APP_FILTER, useClass: UnauthorizedActionFilter }],
+})
+export class AppModule {}
 ```
 
 Each package README has a full migration section:
@@ -662,13 +704,14 @@ export class UsersController {
 
 ```typescript
 // main.ts
-import { NestFactory } from '@nestjs/core';
+import { HttpAdapterHost, NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { ZodValidationFilter } from '@nestjs-pipeline/zod';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
-  app.useGlobalFilters(new ZodValidationFilter()); // maps ZodValidationError → HTTP 400
+  // maps ZodValidationError → HTTP 400, replying through Nest's HTTP adapter
+  app.useGlobalFilters(new ZodValidationFilter(app.get(HttpAdapterHost)));
   await app.listen(3000);
 }
 bootstrap();
@@ -1471,18 +1514,21 @@ createUser(@Body(new ZodPipe(CreateUserDtoSchema)) dto: CreateUserDto) {
 
 ### Error Handling with ZodValidationFilter
 
-Register `ZodValidationFilter` as a global exception filter to catch `ZodValidationError` and return a structured HTTP 400 response:
+Register `ZodValidationFilter` as a global exception filter to catch `ZodValidationError` and return a structured HTTP 400 response. It replies through Nest's HTTP adapter, so register it as a provider, where Nest injects the adapter host:
 
 ```typescript
-// main.ts
+// app.module.ts
+import { APP_FILTER } from '@nestjs/core';
 import { ZodValidationFilter } from '@nestjs-pipeline/zod';
 
-async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
-  app.useGlobalFilters(new ZodValidationFilter());
-  await app.listen(3000);
-}
+@Module({
+  providers: [{ provide: APP_FILTER, useClass: ZodValidationFilter }],
+})
+export class AppModule {}
 ```
+
+The bundled filters of `@nestjs-pipeline/casl`, `/feature-flags`, `/idempotency` and
+`/rate-limit` register the same way.
 
 **Response format** (HTTP 400):
 

@@ -4,14 +4,8 @@ import './tracing'; // Must initialize before NestJS and AppModule load.
 import { NestFactory } from '@nestjs/core';
 import type { NestExpressApplication } from '@nestjs/platform-express';
 import type { NestFastifyApplication } from '@nestjs/platform-fastify';
-import { UnauthorizedActionFilter } from '@nestjs-pipeline/casl';
-import { FeatureDisabledFilter } from '@nestjs-pipeline/feature-flags';
-import { IdempotencyConflictFilter } from '@nestjs-pipeline/idempotency';
-import { RateLimitExceededFilter } from '@nestjs-pipeline/rate-limit';
-import { ZodValidationFilter } from '@nestjs-pipeline/zod';
 import { NativeLogger } from 'nestjs-pino';
 import { AppModule } from './app.module';
-import { DomainExceptionFilter } from './common/filters/domain-exception.filter';
 import { configureExpress } from './express-platform';
 import { closeOnShutdownSignals } from './graceful-shutdown';
 import { createFastifyAdapter, registerSecureSession } from './http-platform';
@@ -43,14 +37,6 @@ export async function bootstrap(): Promise<void> {
   }
 
   app.useLogger(app.get(NativeLogger));
-  app.useGlobalFilters(
-    new ZodValidationFilter(),
-    new FeatureDisabledFilter(),
-    new RateLimitExceededFilter(),
-    new IdempotencyConflictFilter(),
-    new UnauthorizedActionFilter(),
-    new DomainExceptionFilter(),
-  );
 
   closeOnShutdownSignals(app, shutdownTracing);
 

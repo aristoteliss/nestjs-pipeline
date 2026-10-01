@@ -175,21 +175,7 @@ export async function bootstrapE2E(options?: E2EOptions): Promise<E2EContext> {
   //    session from the `x-test-user` header (see below) so the request flows
   //    through the real authentication + authorization pipeline unchanged.
   const { Test } = await import('@nestjs/testing');
-  const { ZodValidationFilter } = await import('@nestjs-pipeline/zod');
-  const { RateLimitExceededFilter } = await import(
-    '@nestjs-pipeline/rate-limit'
-  );
-  const { IdempotencyConflictFilter } = await import(
-    '@nestjs-pipeline/idempotency'
-  );
   const { AppModule } = await import('../../src/app.module');
-  const { FeatureDisabledFilter } = await import(
-    '@nestjs-pipeline/feature-flags'
-  );
-  const { UnauthorizedActionFilter } = await import('@nestjs-pipeline/casl');
-  const { DomainExceptionFilter } = await import(
-    '../../src/common/filters/domain-exception.filter'
-  );
 
   const moduleRef = await Test.createTestingModule({
     imports: [AppModule],
@@ -243,14 +229,6 @@ export async function bootstrapE2E(options?: E2EOptions): Promise<E2EContext> {
     );
   }
 
-  app.useGlobalFilters(
-    new ZodValidationFilter(),
-    new FeatureDisabledFilter(),
-    new RateLimitExceededFilter(),
-    new IdempotencyConflictFilter(),
-    new UnauthorizedActionFilter(),
-    new DomainExceptionFilter(),
-  );
   await app.init();
   if (options?.adapter === 'fastify') {
     await (app as NestFastifyApplication)

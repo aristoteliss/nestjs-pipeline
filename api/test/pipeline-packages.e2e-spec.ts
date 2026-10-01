@@ -4,7 +4,9 @@ import { randomUUID } from 'node:crypto';
 import type { Server } from 'node:http';
 import { uuidv7 } from '@cqrs-ddd/uuidv7';
 import { getQueueToken } from '@nestjs/bullmq';
+import { ModulesContainer } from '@nestjs/core';
 import type { Queue } from 'bullmq';
+import { LoggerModule } from 'nestjs-pino';
 import request from 'supertest';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
@@ -58,6 +60,16 @@ describe('pipeline-packages (e2e)', () => {
 
   afterAll(async () => {
     await ctx?.close();
+  });
+
+  describe('nestjs-pino', () => {
+    it('registers the HTTP request logger once, so each request is logged once', () => {
+      const loggerModules = [...ctx.app.get(ModulesContainer).values()].filter(
+        (module) => module.metatype === LoggerModule,
+      );
+
+      expect(loggerModules).toHaveLength(1);
+    });
   });
 
   describe('@nestjs-pipeline/correlation', () => {

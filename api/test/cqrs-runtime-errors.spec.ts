@@ -7,6 +7,7 @@ import {
   NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
+import type { HttpAdapterHost } from '@nestjs/core';
 import type { EventBus } from '@nestjs/cqrs';
 import {
   CaslAuthorizer,
@@ -97,11 +98,22 @@ function makeHost(response: unknown): ArgumentsHost {
   } as unknown as ArgumentsHost;
 }
 
+/** Answers through the fake response, as Express's adapter does. */
+const adapterHost = {
+  httpAdapter: {
+    reply: (
+      response: { status(code: number): { json(body: unknown): unknown } },
+      body: unknown,
+      status: number,
+    ) => response.status(status).json(body),
+  },
+} as unknown as HttpAdapterHost;
+
 describe('CQRS Commands & Queries Runtime Error Taxonomy', () => {
   const eventBus = createMockEventBus();
-  const domainFilter = new DomainExceptionFilter();
-  const zodFilter = new ZodValidationFilter();
-  const authFilter = new UnauthorizedActionFilter();
+  const domainFilter = new DomainExceptionFilter(adapterHost);
+  const zodFilter = new ZodValidationFilter(adapterHost);
+  const authFilter = new UnauthorizedActionFilter(adapterHost);
 
   describe('Users Model', () => {
     describe('CreateUserCommand & Handler', () => {

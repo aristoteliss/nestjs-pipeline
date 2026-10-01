@@ -46,7 +46,7 @@ Requires Zod `^4.3.0`, NestJS `^11.0.0` and Node.js 22 or later.
 **Peer dependencies:**
 
 ```bash
-pnpm add @nestjs-pipeline/core @nestjs/common
+pnpm add @nestjs-pipeline/core @nestjs/common @nestjs/core
 ```
 
 ---
@@ -484,21 +484,21 @@ create(@Body(new ZodPipe(CreateUserDtoSchema)) dto: CreateUserDto) {
 A NestJS `ExceptionFilter` that catches `ZodValidationError` (thrown by `ZodValidationBehavior` or by a `createZodRequest()` constructor) and maps it to an HTTP 400 response.
 
 ```typescript
-// main.ts
-import { NestFactory } from '@nestjs/core';
+// app.module.ts
+import { Module } from '@nestjs/common';
+import { APP_FILTER } from '@nestjs/core';
 import { ZodValidationFilter } from '@nestjs-pipeline/zod';
-import { AppModule } from './app.module';
 
-async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
-  app.useGlobalFilters(new ZodValidationFilter());
-  await app.listen(3000);
-}
-bootstrap();
+@Module({
+  providers: [{ provide: APP_FILTER, useClass: ZodValidationFilter }],
+})
+export class AppModule {}
 ```
 
-The filter writes the body with `response.json()` when present (Express) and falls back to
-`response.send()` (Fastify).
+Nest injects its `HttpAdapterHost`, and the filter replies through that adapter, so it
+works with Express and Fastify, also for an error thrown in middleware. To register it in
+`main.ts` instead, pass the host:
+`app.useGlobalFilters(new ZodValidationFilter(app.get(HttpAdapterHost)))`.
 
 **Response format** (HTTP 400):
 
@@ -611,12 +611,12 @@ import { ZodValidationBehavior } from '@nestjs-pipeline/zod';
 export class AppModule {}
 
 // main.ts
-import { NestFactory } from '@nestjs/core';
+import { HttpAdapterHost, NestFactory } from '@nestjs/core';
 import { ZodValidationFilter } from '@nestjs-pipeline/zod';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
-  app.useGlobalFilters(new ZodValidationFilter());
+  app.useGlobalFilters(new ZodValidationFilter(app.get(HttpAdapterHost)));
   await app.listen(3000);
 }
 bootstrap();

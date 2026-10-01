@@ -172,3 +172,25 @@ describe('BullMQ worker lifecycle & dead-letter queue (e2e)', () => {
     expect(currentJobs.length).toBe(initialCount);
   }, 15000);
 });
+
+describe('a second application in the same process', () => {
+  let ctx: E2EContext;
+
+  beforeAll(async () => {
+    ctx = await bootstrapE2E();
+  });
+
+  afterAll(async () => {
+    await ctx?.close();
+  });
+
+  it("connects its queues to its own Redis, not the first application's", async () => {
+    const queue = ctx.app.get<Queue>(getQueueToken('dead-letters'));
+
+    const job = await queue.add('probe', { probe: true });
+
+    expect((await queue.getJob(job.id as string))?.data).toEqual({
+      probe: true,
+    });
+  });
+});

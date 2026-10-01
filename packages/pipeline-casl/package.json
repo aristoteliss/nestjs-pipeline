@@ -1,6 +1,6 @@
 {
   "name": "@nestjs-pipeline/casl",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "CASL authorization behavior and entity authorizer for @nestjs-pipeline/core",
   "author": "Aristotelis <aristotelis@ik.me>",
   "license": "SEE LICENSE IN LICENSE",
@@ -43,12 +43,14 @@
     "@casl/ability": "^7.0.0",
     "@nestjs-pipeline/core": "workspace:^",
     "@nestjs/common": "^11.0.0",
+    "@nestjs/core": "^11.0.0",
     "reflect-metadata": "^0.1.13 || ^0.2.0"
   },
   "devDependencies": {
     "@casl/ability": "^7.0.1",
     "@nestjs-pipeline/core": "workspace:*",
     "@nestjs/common": "^11.2.6",
+    "@nestjs/core": "^11.2.6",
     "@vitest/coverage-v8": "^4.1.11",
     "reflect-metadata": "^0.2.2",
     "vitest": "^4.1.11"

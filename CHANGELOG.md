@@ -1,6 +1,27 @@
 # Changelog
 
-## 0.2.1
+## 0.2.2
+
+A release of `@nestjs-pipeline/zod`, `/casl`, `/feature-flags`, `/idempotency` and
+`/rate-limit`; the others keep their versions. Unlike 0.2.1, it needs a code change where
+the exception filters are registered.
+
+### Changed
+
+- The exception filters `ZodValidationFilter`, `UnauthorizedActionFilter`,
+  `FeatureDisabledFilter`, `IdempotencyConflictFilter` and `RateLimitExceededFilter` take
+  Nest's `HttpAdapterHost` as their first constructor argument and answer through
+  `httpAdapter.reply` (`RateLimitExceededFilter` sets `Retry-After` with
+  `httpAdapter.setHeader`). Register them as `{ provide: APP_FILTER, useClass: X }`, or
+  pass `app.get(HttpAdapterHost)` to `useGlobalFilters(new X(...))`.
+  `FeatureDisabledFilter`'s options are its second argument.
+- The five packages declare `@nestjs/core` `^11.0.0` as a peer dependency.
+
+### Fixed
+
+- On Fastify, a package error thrown in Nest middleware reached its filter with the raw
+  Node response; the filter threw `TypeError: response.status is not a function` and the
+  request got no answer. The filters now answer it.
 
 A patch release of the ten packages below; the others stay at 0.2.0. Every change is an
 addition or a documentation fix: no export, signature, behavior or peer range of 0.2.0

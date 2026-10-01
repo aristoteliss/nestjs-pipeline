@@ -5,22 +5,11 @@ import {
   Catch,
   type ExceptionFilter,
   HttpStatus,
+  Inject,
   Optional,
 } from '@nestjs/common';
+import { HttpAdapterHost } from '@nestjs/core';
 import { FeatureDisabledError } from '../errors/feature-disabled.error';
-
-type ErrorResponseBody = {
-  statusCode: number;
-  error: string;
-  message: string;
-  flag?: string;
-};
-
-type HttpResponse = {
-  status(code: number): HttpResponse;
-  json?(body: ErrorResponseBody): unknown;
-  send?(body: ErrorResponseBody): unknown;
-};
 
 /** Options for {@link FeatureDisabledFilter}. */
 export interface FeatureDisabledFilterOptions {
@@ -37,29 +26,39 @@ export interface FeatureDisabledFilterOptions {
 /**
  * Catches {@link FeatureDisabledError} thrown by `FeatureFlagBehavior` at the
  * pipeline boundary and maps it to HTTP 403 Forbidden, or to 404 Not Found with
- * `{ status: 404 }` for applications that hide gated features entirely. Works
- * with both Express and Fastify responses.
+ * `{ status: 404 }` for applications that hide gated features entirely. It
+ * replies through Nest's HTTP adapter, so it works on Express and Fastify, also
+ * for errors thrown in middleware.
  *
- * Register it globally:
- * ```ts
- * app.useGlobalFilters(new FeatureDisabledFilter());
- * app.useGlobalFilters(new FeatureDisabledFilter({ status: 404 }));
- * ```
- *
- * The options parameter is optional to Nest's injector too, so
+ * The options parameter is optional to Nest's injector, so
  * `{ provide: APP_FILTER, useClass: FeatureDisabledFilter }` gets the defaults.
+ *
+ * @example Register it globally with the defaults, or hiding gated features
+ * ```ts
+ * @Module({ providers: [{ provide: APP_FILTER, useClass: FeatureDisabledFilter }] })
+ * export class AppModule {}
+ *
+ * {
+ *   provide: APP_FILTER,
+ *   inject: [HttpAdapterHost],
+ *   useFactory: (adapterHost: HttpAdapterHost) =>
+ *     new FeatureDisabledFilter(adapterHost, { status: 404 }),
+ * }
+ * ```
  */
 @Catch(FeatureDisabledError)
 export class FeatureDisabledFilter implements ExceptionFilter {
   private readonly hideFeature: boolean;
 
-  constructor(@Optional() options?: FeatureDisabledFilterOptions) {
+  constructor(
+    @Inject(HttpAdapterHost) private readonly adapterHost: HttpAdapterHost,
+    @Optional() options?: FeatureDisabledFilterOptions,
+  ) {
     this.hideFeature = options?.status === 404;
   }
 
   catch(exception: FeatureDisabledError, host: ArgumentsHost): void {
-    const response = host.switchToHttp().getResponse<HttpResponse>();
-    const body: ErrorResponseBody = this.hideFeature
+    const body = this.hideFeature
       ? {
           statusCode: HttpStatus.NOT_FOUND,
           error: 'Not Found',
@@ -71,12 +70,10 @@ export class FeatureDisabledFilter implements ExceptionFilter {
           message: exception.message,
           flag: exception.flag,
         };
-
-    response.status(body.statusCode);
-    if (typeof response.json === 'function') {
-      response.json(body);
-      return;
-    }
-    response.send?.(body);
+    this.adapterHost.httpAdapter.reply(
+      host.switchToHttp().getResponse(),
+      body,
+      body.statusCode,
+    );
   }
 }

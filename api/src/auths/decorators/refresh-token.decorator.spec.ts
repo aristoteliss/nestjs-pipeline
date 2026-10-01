@@ -2,6 +2,7 @@
 
 import { randomBytes } from 'node:crypto';
 import { Controller, HttpCode, Post } from '@nestjs/common';
+import { APP_FILTER } from '@nestjs/core';
 import type { NestFastifyApplication } from '@nestjs/platform-fastify';
 import { Test } from '@nestjs/testing';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -42,13 +43,13 @@ describe('RefreshToken', () => {
   beforeAll(async () => {
     const moduleRef = await Test.createTestingModule({
       controllers: [RefreshTokenProbe],
+      providers: [{ provide: APP_FILTER, useClass: DomainExceptionFilter }],
     }).compile();
     app = moduleRef.createNestApplication<NestFastifyApplication>(
       createFastifyAdapter(),
       { logger: false },
     );
     await registerSecureSession(app, randomBytes(32).toString('hex'));
-    app.useGlobalFilters(new DomainExceptionFilter());
     await app.init();
   });
 
