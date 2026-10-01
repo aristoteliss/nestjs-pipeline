@@ -7,7 +7,7 @@ export type GlobalBehaviorScope = 'commands' | 'queries' | 'events' | 'all';
 
 /**
  * Configuration for behaviors that are automatically applied to all
- * Commands, Queries, and/or Events, regardless of handler-level @UsePipeline.
+ * Commands, Queries, and/or Events, regardless of handler-level `@UsePipeline`.
  *
  * Execution order:
  * `[before] → [@UsePipeline behaviors] → [after] → handler`. If the same
@@ -44,13 +44,13 @@ export interface GlobalBehaviorsOptions {
   scope?: GlobalBehaviorScope;
 
   /**
-   * Behaviors prepended BEFORE handler-specific @UsePipeline behaviors.
+   * Behaviors prepended BEFORE handler-specific `@UsePipeline` behaviors.
    * These run first (outermost) in the pipeline chain.
    */
   before?: PipelineBehaviorEntry[];
 
   /**
-   * Behaviors appended AFTER handler-specific @UsePipeline behaviors
+   * Behaviors appended AFTER handler-specific `@UsePipeline` behaviors
    * (still before the actual handler execution).
    * These run closest to the handler, after all other behaviors.
    */

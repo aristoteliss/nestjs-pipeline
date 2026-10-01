@@ -17,8 +17,10 @@ import { ZOD_SCHEMA_KEY } from './zod-validation.behavior.js';
  * strongly typed. Constructor arguments stay unconstrained so a base class can
  * take any constructor parameters.
  */
-// biome-ignore lint/suspicious/noExplicitAny: constructor parameter covariance requires any[]
-type AbstractConstructor<T = object> = abstract new (...args: any[]) => T;
+export type AbstractConstructor<T = object> = abstract new (
+  // biome-ignore lint/suspicious/noExplicitAny: constructor parameter covariance requires any[]
+  ...args: any[]
+) => T;
 
 /**
  * Extracts the input type of a command or query class generated from a Zod schema.

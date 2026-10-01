@@ -16,7 +16,8 @@ import { RATE_LIMIT_ITEM_TOKEN } from '../rate-limit.behavior.js';
  * @param context - The pipeline execution, read after `RateLimitBehavior` ran.
  * @returns The attributes; empty when the behavior did not run.
  *
- * @example Span attributes, with `AttributesBehavior` of `@nestjs-pipeline/opentelemetry`
+ * @example Span attributes
+ * With `AttributesBehavior` of `@nestjs-pipeline/opentelemetry`:
  * ```ts
  * PipelineModule.forRoot({
  *   globalBehaviors: {
@@ -25,8 +26,8 @@ import { RATE_LIMIT_ITEM_TOKEN } from '../rate-limit.behavior.js';
  * });
  * ```
  *
- * @example Audit metadata: `audit()` is declared outside `rateLimit()`, so the
- * record is built after its decision
+ * @example Audit metadata
+ * `audit()` is declared outside `rateLimit()`, so the record is built after its decision:
  * ```ts
  * @UsePipeline(
  *   audit({ action: 'order.create', metadata: buildRateLimitAttributes }),

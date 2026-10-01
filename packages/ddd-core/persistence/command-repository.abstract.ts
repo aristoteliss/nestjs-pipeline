@@ -13,7 +13,7 @@ import { ICommandRepository } from '../application/ports/command-repository.port
  * @typeParam TEntity - The aggregate entity type accepted by {@link save}.
  * @typeParam TResult - The persisted result type returned by {@link save}.
  *
- * @example Creating a command repository with @Cache
+ * @example Creating a command repository with the Cache decorator
  * ```typescript
  * @Injectable()
  * export class CreateUserCommandRepository extends CommandRepository<User, UserSnapshot> {

@@ -3,6 +3,7 @@
 export * from './cache/cache-entry.js';
 export * from './cache/mikro-orm.cache.js';
 export * from './concurrency/assert-autocommit.js';
+export type { VersionedAggregate } from './concurrency/conditioned-write.js';
 export * from './concurrency/optimistic-delete.js';
 export * from './concurrency/optimistic-update.js';
 export * from './errors/mikro-orm.dialect.js';

@@ -136,8 +136,6 @@ function getByPath(obj: unknown, path: string): string | undefined {
  * const id = getCorrelationId();
  * ```
  *
- * @publicApi
- *
  * @example
  * ```ts
  * // Bull (default path: data.correlationId)
@@ -252,8 +250,6 @@ export function WithCorrelation(
  *
  * For transports that have no headers (Bull/BullMQ, PostgreSQL NOTIFY),
  * use the bare `@WithCorrelation()` which reads from the data payload.
- *
- * @publicApi
  *
  * @example
  * ```ts

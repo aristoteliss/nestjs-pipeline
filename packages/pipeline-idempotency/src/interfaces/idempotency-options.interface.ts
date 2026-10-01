@@ -76,7 +76,7 @@ export interface IdempotencyBehaviorOptions {
 
   /**
    * Which request kinds this policy applies to. Default `['command']` — queries
-   * are naturally idempotent and usually want {@link import('@nestjs-pipeline/cache')}
+   * are naturally idempotent and usually want `@nestjs-pipeline/cache`
    * instead.
    */
   scope?: IdempotencyRequestKind[];

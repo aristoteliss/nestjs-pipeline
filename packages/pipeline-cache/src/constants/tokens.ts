@@ -1,7 +1,7 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 /**
- * Injection token holding the shared `cache-manager` {@link import('cache-manager').Cache}
+ * Injection token holding the shared `cache-manager` `Cache`
  * instance built by {@link CacheModule.forRoot} or {@link CacheModule.forRootAsync}.
  */
 export const PIPELINE_CACHE = Symbol('PIPELINE_CACHE');

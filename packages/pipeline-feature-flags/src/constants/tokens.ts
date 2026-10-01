@@ -1,7 +1,7 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 /**
- * Injection token holding the OpenFeature {@link import('@openfeature/server-sdk').Client}
+ * Injection token holding the OpenFeature `Client`
  * used to evaluate flags, built by {@link FeatureFlagsModule.forRoot}.
  */
 export const FEATURE_FLAGS_CLIENT = Symbol('FEATURE_FLAGS_CLIENT');
@@ -16,7 +16,7 @@ export const FEATURE_FLAGS_DEFAULT_OPTIONS = Symbol(
 
 /**
  * Injection token holding the module-wide default OpenFeature
- * {@link import('@openfeature/server-sdk').EvaluationContext} merged into every
+ * `EvaluationContext` merged into every
  * evaluation (e.g. environment, region, service name).
  */
 export const FEATURE_FLAGS_DEFAULT_CONTEXT = Symbol(
