@@ -27,7 +27,7 @@ what the libraries support.
 - **Shape**: monorepo — workspace globs `api`, `docs`, `packages/*` (21 workspace packages).
 - **Publishable packages**: 19; private: `api`, `docs`.
 - **Runnable workspaces**: `api`, `docs`.
-- **Versions**: `0.4.1`.
+- **Versions**: `0.4.2`.
 - **Packages**: see the Workspace packages table under Directory Map.
 <!-- context:generated-end repository-shape -->
 
@@ -558,8 +558,8 @@ secret value.*
 ## Snapshot Metadata
 
 <!-- context:generated-start metadata -->
-- Generated at: 2026-10-01T18:28:26Z
-- Git commit: 6fee66d474dd36f5226621dfb0b329aefa209aaa
+- Generated at: 2026-10-01T18:52:22Z
+- Git commit: 21b2a70dc7ebef8a1ca28cf038f254172a7b68f2
 - Git branch: master
 - Uncommitted changes when generated: yes
 - Generator: `scripts/update-claude-snapshot.py` version 1.0.0

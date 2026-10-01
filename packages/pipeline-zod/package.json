@@ -1,6 +1,6 @@
 {
   "name": "@nestjs-pipeline/zod",
-  "version": "0.4.1",
+  "version": "0.4.2",
   "description": "Zod validation/parsing behavior for @nestjs-pipeline/core that applies successful parsed object output to the existing request",
   "author": "Aristotelis <aristotelis@ik.me>",
   "license": "SEE LICENSE IN LICENSE",
@@ -13,7 +13,7 @@
     "url": "git+https://github.com/aristoteliss/nestjs-pipeline.git",
     "directory": "packages/pipeline-zod"
   },
-  "homepage": "https://github.com/aristoteliss/nestjs-pipeline#readme",
+  "homepage": "https://aristoteliss.github.io/nestjs-pipeline/packages/nestjs-pipeline/zod/",
   "bugs": {
     "url": "https://github.com/aristoteliss/nestjs-pipeline/issues"
   },

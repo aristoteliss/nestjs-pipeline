@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.4.2
+
+Every package is released at 0.4.2. The API and the requirements are those of 0.4.1.
+
+### Changed
+
+- Each package's `homepage`, the Homepage link on npm, is its guide on the documentation
+  site, https://aristoteliss.github.io/nestjs-pipeline/.
+
 ## 0.4.1
 
 Every package is released at 0.4.1. The API and the requirements are those of 0.4.0,

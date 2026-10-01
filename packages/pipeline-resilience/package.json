@@ -1,6 +1,6 @@
 {
   "name": "@nestjs-pipeline/resilience",
-  "version": "0.4.1",
+  "version": "0.4.2",
   "description": "Resilience for @nestjs-pipeline/core, powered by cockatiel — named policies shared by outbound adapters (retry, circuit breaker, timeout, bulkhead, fallback) and a behavior for handler-level retry, timeout and bulkhead.",
   "author": "Aristotelis <aristotelis@ik.me>",
   "license": "SEE LICENSE IN LICENSE",
@@ -26,7 +26,7 @@
     "url": "git+https://github.com/aristoteliss/nestjs-pipeline.git",
     "directory": "packages/pipeline-resilience"
   },
-  "homepage": "https://github.com/aristoteliss/nestjs-pipeline#readme",
+  "homepage": "https://aristoteliss.github.io/nestjs-pipeline/packages/nestjs-pipeline/resilience/",
   "bugs": {
     "url": "https://github.com/aristoteliss/nestjs-pipeline/issues"
   },

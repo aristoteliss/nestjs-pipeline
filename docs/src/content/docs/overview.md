@@ -76,4 +76,4 @@ Framework-neutral packages, with no NestJS dependency:
 > No `@nestjs-pipeline/*` package uses `@cqrs-ddd/core`, and it knows nothing of them: an
 > application connects the two.
 
-Every package is at **0.4.1**. [CHANGELOG.md](/nestjs-pipeline/changelog/) records each release.
+Every package is at **0.4.2**. [CHANGELOG.md](/nestjs-pipeline/changelog/) records each release.

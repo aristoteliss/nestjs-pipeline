@@ -1,6 +1,6 @@
 {
   "name": "@cqrs-ddd/mikro-orm",
-  "version": "0.4.1",
+  "version": "0.4.2",
   "description": "MikroORM persistence adapters for @cqrs-ddd/core: authoritative aggregate loading, version-conditioned writes, a revision-fenced cache and root-entity schema mapping.",
   "author": "Aristotelis",
   "license": "SEE LICENSE IN LICENSE",
@@ -13,7 +13,7 @@
     "url": "git+https://github.com/aristoteliss/nestjs-pipeline.git",
     "directory": "packages/ddd-mikro-orm"
   },
-  "homepage": "https://github.com/aristoteliss/nestjs-pipeline/tree/master/packages/ddd-mikro-orm#readme",
+  "homepage": "https://aristoteliss.github.io/nestjs-pipeline/packages/cqrs-ddd/mikro-orm/",
   "bugs": {
     "url": "https://github.com/aristoteliss/nestjs-pipeline/issues"
   },
