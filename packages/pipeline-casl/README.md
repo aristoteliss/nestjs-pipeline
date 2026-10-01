@@ -23,7 +23,8 @@ pnpm add @nestjs-pipeline/casl @nestjs-pipeline/core @casl/ability @nestjs/commo
 Peers: `@casl/ability` `^7.0.0`, `@nestjs/common` `^12.1.0`, `@nestjs/core` `^12.1.0`,
 `@nestjs-pipeline/core` `^0.4.0`, `reflect-metadata`. Node.js 22.12 or later.
 
-Published as an ES module; a CommonJS application loads it with `require()`.
+Published as an ES module; a CommonJS application loads it with `require()`. Coming from
+0.3.x, see [Upgrading from 0.3.x](https://github.com/aristoteliss/nestjs-pipeline#upgrading-from-03x).
 
 ## Register the module
 

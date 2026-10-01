@@ -18,7 +18,8 @@ pnpm add @nestjs-pipeline/tenant
 Requires Node.js 22.12 or later. To give pipelines the tenant, pass `tenantSource` to
 `PipelineModule.forRoot`:
 
-Published as an ES module; a CommonJS application loads it with `require()`.
+Published as an ES module; a CommonJS application loads it with `require()`. Coming from
+0.3.x, see [Upgrading from 0.3.x](https://github.com/aristoteliss/nestjs-pipeline#upgrading-from-03x).
 
 ```typescript
 import { tenantSource } from '@nestjs-pipeline/tenant';

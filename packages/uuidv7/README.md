@@ -18,7 +18,8 @@ pnpm add @cqrs-ddd/uuidv7
 
 Requires Node.js 22.12 or later.
 
-Published as an ES module; a CommonJS application loads it with `require()`.
+Published as an ES module; a CommonJS application loads it with `require()`. Coming from
+0.3.x, see [Upgrading from 0.3.x](https://github.com/aristoteliss/nestjs-pipeline#upgrading-from-03x).
 
 ## API
 

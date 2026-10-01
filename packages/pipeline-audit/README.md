@@ -68,7 +68,8 @@ pnpm add @nestjs-pipeline/core @nestjs/common reflect-metadata
 
 Requires Node.js 22.12 or later, `@nestjs/common` `^12.1.0` and `@nestjs-pipeline/core` `^0.4.0`.
 
-Published as an ES module; a CommonJS application loads it with `require()`.
+Published as an ES module; a CommonJS application loads it with `require()`. Coming from
+0.3.x, see [Upgrading from 0.3.x](https://github.com/aristoteliss/nestjs-pipeline#upgrading-from-03x).
 
 The bundled sinks are typed *structurally*, so this package adds **zero heavy
 dependencies**. For the Postgres sink, add a `pg` `Pool`/`Client` in your app

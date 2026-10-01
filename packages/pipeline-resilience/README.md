@@ -70,7 +70,8 @@ pnpm add @nestjs-pipeline/core @nestjs/common reflect-metadata
 
 Requires Node.js 22.12 or later, `@nestjs/common` `^12.1.0` and `@nestjs-pipeline/core` `^0.4.0`.
 
-Published as an ES module; a CommonJS application loads it with `require()`.
+Published as an ES module; a CommonJS application loads it with `require()`. Coming from
+0.3.x, see [Upgrading from 0.3.x](https://github.com/aristoteliss/nestjs-pipeline#upgrading-from-03x).
 
 > **Note:** This package requires **cockatiel `^4.0.0`**. cockatiel types the errors its policies report as `unknown`, so narrow them before reading `message` or other fields.
 

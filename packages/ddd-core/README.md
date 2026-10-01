@@ -42,7 +42,8 @@ Requires Node.js 22.12 or later. It installs `@cqrs-ddd/uuidv7` and
 `@cqrs-ddd/safe-stringify`, which have no dependencies. To persist with MikroORM, add
 `@cqrs-ddd/mikro-orm` and `@mikro-orm/core` 7.
 
-Published as an ES module; a CommonJS application loads it with `require()`.
+Published as an ES module; a CommonJS application loads it with `require()`. Coming from
+0.3.x, see [Upgrading from 0.3.x](https://github.com/aristoteliss/nestjs-pipeline#upgrading-from-03x).
 
 ## Entry points
 
