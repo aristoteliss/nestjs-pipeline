@@ -12,13 +12,13 @@ import type { IDefaultPolicyContext } from 'cockatiel';
 import {
   getResiliencePolicyToken,
   RESILIENCE_POLICY_OPTIONS,
-} from './constants/tokens';
-import { ResiliencePolicyConfigurationError } from './errors/resilience-policy-configuration.error';
+} from './constants/tokens.js';
+import { ResiliencePolicyConfigurationError } from './errors/resilience-policy-configuration.error.js';
 import {
   type AnyPolicy,
   buildResiliencePolicy,
-} from './helpers/policy-factory';
-import type { ResiliencePolicyOptions } from './interfaces/resilience-options.interface';
+} from './helpers/policy-factory.js';
+import type { ResiliencePolicyOptions } from './interfaces/resilience-options.interface.js';
 
 /**
  * The named policies of the application, for outbound adapters: a payment API

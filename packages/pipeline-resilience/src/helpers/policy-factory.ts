@@ -38,11 +38,11 @@ import type {
   RetryBackoff,
   RetryPolicyOptions,
   TimeoutPolicyOptions,
-} from '../interfaces/resilience-options.interface';
+} from '../interfaces/resilience-options.interface.js';
 import {
   getResilienceRequestLabels,
   type ResilienceRequestLabels,
-} from './resilience-context';
+} from './resilience-context.js';
 
 /** Default outermost → innermost composition order of the resilience layers. */
 const DEFAULT_ORDER: readonly ResilienceLayer[] = [

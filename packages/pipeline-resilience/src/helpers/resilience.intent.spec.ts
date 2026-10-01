@@ -1,8 +1,11 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { describe, expect, expectTypeOf, it } from 'vitest';
-import { ResilienceBehavior } from '../resilience.behavior';
-import { type ResilienceIntentOptions, resilience } from './resilience.intent';
+import { ResilienceBehavior } from '../resilience.behavior.js';
+import {
+  type ResilienceIntentOptions,
+  resilience,
+} from './resilience.intent.js';
 
 describe('resilience intent builder', () => {
   it('requires a policy at compile time', () => {
