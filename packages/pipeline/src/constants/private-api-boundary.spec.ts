@@ -16,9 +16,9 @@ function collectTypeScriptFiles(root: string): string[] {
 
 describe('pipeline private CQRS metadata boundary', () => {
   it('does not depend on private decorator metadata constants', () => {
-    const srcRoot = join(__dirname, '..');
+    const srcRoot = join(import.meta.dirname, '..');
     const offenders = collectTypeScriptFiles(srcRoot)
-      .filter((path) => path !== __filename)
+      .filter((path) => path !== import.meta.filename)
       .filter((path) =>
         readFileSync(path, 'utf8').includes(
           '@nestjs/cqrs/dist/decorators/constants',

@@ -3,10 +3,10 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { isUuidV7, uuidv7 } from '@cqrs-ddd/uuidv7';
 import { describe, expect, it, vi } from 'vitest';
-import { pipelineStore } from '../constants/pipeline-context.constants';
-import type { ContextSource } from '../interfaces/context-source.interface';
-import type { PipelineHandlerMeta } from '../interfaces/pipeline-handler-meta.interface';
-import { createPipelineRunner } from './pipeline-runner';
+import { pipelineStore } from '../constants/pipeline-context.constants.js';
+import type { ContextSource } from '../interfaces/context-source.interface.js';
+import type { PipelineHandlerMeta } from '../interfaces/pipeline-handler-meta.interface.js';
+import { createPipelineRunner } from './pipeline-runner.js';
 
 class Request {}
 class Handler {}

@@ -1,7 +1,7 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { describe, expect, it } from 'vitest';
-import { toPostgresJson } from './postgres-json';
+import { toPostgresJson } from './postgres-json.js';
 
 const roundTrip = (value: unknown) =>
   JSON.parse(toPostgresJson(JSON.stringify(value)));

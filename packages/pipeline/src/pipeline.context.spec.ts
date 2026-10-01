@@ -5,18 +5,18 @@ import {
   SET_CORRELATION_ID,
   SET_RESPONSE,
   SET_TENANT_ID,
-} from './constants/pipeline-context.constants';
+} from './constants/pipeline-context.constants.js';
 import {
   type BehaviorId,
   PIPELINE_BEHAVIOR_ID,
-} from './decorators/pipeline.decorator';
+} from './decorators/pipeline.decorator.js';
 import type {
   IPipelineBehavior,
   NextDelegate,
-} from './interfaces/pipeline.behavior.interface';
-import type { IPipelineContext } from './interfaces/pipeline.context.interface';
-import { PipelineHandlerMeta } from './interfaces/pipeline-handler-meta.interface';
-import { PipelineContext } from './pipeline.context';
+} from './interfaces/pipeline.behavior.interface.js';
+import type { IPipelineContext } from './interfaces/pipeline.context.interface.js';
+import { PipelineHandlerMeta } from './interfaces/pipeline-handler-meta.interface.js';
+import { PipelineContext } from './pipeline.context.js';
 
 class FakeCommand {
   constructor(public readonly name: string) {}

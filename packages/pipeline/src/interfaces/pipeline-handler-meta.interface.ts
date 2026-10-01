@@ -1,7 +1,7 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { Type } from '@nestjs/common';
-import type { BehaviorId } from '../decorators/pipeline.decorator';
+import type { BehaviorId } from '../decorators/pipeline.decorator.js';
 
 /**
  * Pre-computed handler metadata, resolved once at bootstrap.

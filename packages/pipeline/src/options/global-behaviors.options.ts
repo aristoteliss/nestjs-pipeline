@@ -1,6 +1,6 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import { PipelineBehaviorEntry } from '../decorators/pipeline.decorator';
+import { PipelineBehaviorEntry } from '../decorators/pipeline.decorator.js';
 
 /** Determines which handler kinds global behaviors apply to. */
 export type GlobalBehaviorScope = 'commands' | 'queries' | 'events' | 'all';

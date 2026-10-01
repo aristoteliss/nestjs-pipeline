@@ -1,16 +1,16 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { describe, expect, it, vi } from 'vitest';
-import { UsePipeline } from '../decorators/pipeline.decorator';
+import { UsePipeline } from '../decorators/pipeline.decorator.js';
 import type {
   IPipelineBehavior,
   NextDelegate,
-} from '../interfaces/pipeline.behavior.interface';
-import type { IPipelineContext } from '../interfaces/pipeline.context.interface';
-import { PIPELINE_BEHAVIOR_CONTRACT } from '../interfaces/pipeline-behavior-contract.interface';
-import { PipelineBootstrapService } from './pipeline.bootstrap.service';
+} from '../interfaces/pipeline.behavior.interface.js';
+import type { IPipelineContext } from '../interfaces/pipeline.context.interface.js';
+import { PIPELINE_BEHAVIOR_CONTRACT } from '../interfaces/pipeline-behavior-contract.interface.js';
+import { PipelineBootstrapService } from './pipeline.bootstrap.service.js';
 
-vi.mock('./handler-discovery', () => ({
+vi.mock('./handler-discovery.js', () => ({
   discoverHandlers: (discovery: { handlers(): object }) => ({
     commands: [],
     queries: [],

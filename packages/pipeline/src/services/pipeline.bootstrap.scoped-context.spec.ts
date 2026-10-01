@@ -2,16 +2,16 @@
 
 import { AsyncContext } from '@nestjs/cqrs';
 import { describe, expect, it, vi } from 'vitest';
-import { pipelineStore } from '../constants/pipeline-context.constants';
-import { UsePipeline } from '../decorators/pipeline.decorator';
+import { pipelineStore } from '../constants/pipeline-context.constants.js';
+import { UsePipeline } from '../decorators/pipeline.decorator.js';
 import type {
   IPipelineBehavior,
   NextDelegate,
-} from '../interfaces/pipeline.behavior.interface';
-import type { IPipelineContext } from '../interfaces/pipeline.context.interface';
-import { PipelineBootstrapService } from './pipeline.bootstrap.service';
+} from '../interfaces/pipeline.behavior.interface.js';
+import type { IPipelineContext } from '../interfaces/pipeline.context.interface.js';
+import { PipelineBootstrapService } from './pipeline.bootstrap.service.js';
 
-vi.mock('./handler-discovery', () => ({
+vi.mock('./handler-discovery.js', () => ({
   discoverHandlers: (discovery: { handlers(): object }) => ({
     commands: [],
     queries: [],

@@ -1,8 +1,8 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { describe, expect, it, vi } from 'vitest';
-import type { IPipelineContext } from '../interfaces/pipeline.context.interface';
-import { LoggingBehavior } from './logging.behavior';
+import type { IPipelineContext } from '../interfaces/pipeline.context.interface.js';
+import { LoggingBehavior } from './logging.behavior.js';
 
 function context(options?: Record<string, unknown>): IPipelineContext {
   return {

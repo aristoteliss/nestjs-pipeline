@@ -5,22 +5,22 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   PIPELINE_BEHAVIOR_ID,
   UsePipeline,
-} from '../decorators/pipeline.decorator';
+} from '../decorators/pipeline.decorator.js';
 import {
   IPipelineBehavior,
   NextDelegate,
-} from '../interfaces/pipeline.behavior.interface';
-import { IPipelineContext } from '../interfaces/pipeline.context.interface';
+} from '../interfaces/pipeline.behavior.interface.js';
+import { IPipelineContext } from '../interfaces/pipeline.context.interface.js';
 import {
   IPipelineBehaviorContract,
   PIPELINE_BEHAVIOR_CONTRACT,
   PipelineBehaviorDiagnostic,
   PipelineBehaviorValidationContext,
   PipelineConfigurationError,
-} from '../interfaces/pipeline-behavior-contract.interface';
-import { PipelineBootstrapService } from './pipeline.bootstrap.service';
+} from '../interfaces/pipeline-behavior-contract.interface.js';
+import { PipelineBootstrapService } from './pipeline.bootstrap.service.js';
 
-vi.mock('./handler-discovery', () => ({
+vi.mock('./handler-discovery.js', () => ({
   discoverHandlers: (discovery: { handlers(): object }) => ({
     commands: [],
     queries: [],

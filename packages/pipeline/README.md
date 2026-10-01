@@ -51,6 +51,8 @@ pnpm add @nestjs-pipeline/core
 
 Requires Node.js 22.12 or later.
 
+Published as an ES module; a CommonJS application loads it with `require()`.
+
 **Peer dependencies** (must be installed in your application). `@nestjs/common`,
 `@nestjs/core` and `@nestjs/cqrs` must be `^12.1.0`: from 12.1, a subclass of a behavior
 that declares no constructor of its own inherits the base class's `@Optional()` markers;
@@ -67,7 +69,8 @@ pnpm add nestjs-pino pino-http pino-pretty
 
 ## Migrating from 0.1.x
 
-These steps lead to 0.2.0. To reach 0.3.0, continue with [Upgrading from 0.2.x](https://github.com/aristoteliss/nestjs-pipeline#upgrading-from-02x) in the repository README.
+These steps lead to 0.2.0. To reach 0.4.0, continue with [Upgrading from 0.2.x](https://github.com/aristoteliss/nestjs-pipeline#upgrading-from-02x) and
+[Upgrading from 0.3.x](https://github.com/aristoteliss/nestjs-pipeline#upgrading-from-03x) in the repository README.
 
 0.2.0 contains the following breaking changes for applications on 0.1.18. The full list
 is in the repository [CHANGELOG](https://github.com/aristoteliss/nestjs-pipeline/blob/master/CHANGELOG.md).

@@ -1,8 +1,8 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { describe, expect, expectTypeOf, it } from 'vitest';
-import { LoggingBehavior } from '../behaviors/logging.behavior';
-import { type LoggingIntentOptions, logging } from './logging.intent';
+import { LoggingBehavior } from '../behaviors/logging.behavior.js';
+import { type LoggingIntentOptions, logging } from './logging.intent.js';
 
 describe('logging intent builder', () => {
   it('creates entry with options object', () => {

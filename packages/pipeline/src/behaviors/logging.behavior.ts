@@ -18,8 +18,8 @@ import {
 import {
   IPipelineBehavior,
   NextDelegate,
-} from '../interfaces/pipeline.behavior.interface';
-import { IPipelineContext } from '../interfaces/pipeline.context.interface';
+} from '../interfaces/pipeline.behavior.interface.js';
+import { IPipelineContext } from '../interfaces/pipeline.context.interface.js';
 
 /**
  * Injection token for providing a custom {@link LoggerService} to {@link LoggingBehavior}.

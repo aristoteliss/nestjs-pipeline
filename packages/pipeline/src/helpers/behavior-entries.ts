@@ -1,8 +1,8 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import type { Type } from '@nestjs/common';
-import type { IPipelineBehavior } from '../interfaces/pipeline.behavior.interface';
-import { type BehaviorId, getBehaviorId } from './behavior-id';
+import type { IPipelineBehavior } from '../interfaces/pipeline.behavior.interface.js';
+import { type BehaviorId, getBehaviorId } from './behavior-id.js';
 
 /** Validates a declaration before reflection or Nest provider registration. */
 export function behaviorEntryType(

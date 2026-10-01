@@ -6,17 +6,17 @@ import {
   SET_CORRELATION_ID,
   SET_RESPONSE,
   SET_TENANT_ID,
-} from '../constants/pipeline-context.constants';
+} from '../constants/pipeline-context.constants.js';
 import type {
   ContextSource,
   ContextSources,
-} from '../interfaces/context-source.interface';
+} from '../interfaces/context-source.interface.js';
 import type {
   IPipelineBehavior,
   NextDelegate,
-} from '../interfaces/pipeline.behavior.interface';
-import type { PipelineHandlerMeta } from '../interfaces/pipeline-handler-meta.interface';
-import { PipelineContext } from '../pipeline.context';
+} from '../interfaces/pipeline.behavior.interface.js';
+import type { PipelineHandlerMeta } from '../interfaces/pipeline-handler-meta.interface.js';
+import { PipelineContext } from '../pipeline.context.js';
 
 export type PipelineRunner = (
   self: unknown,

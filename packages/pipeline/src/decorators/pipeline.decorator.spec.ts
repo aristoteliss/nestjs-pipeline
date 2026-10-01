@@ -11,12 +11,12 @@ import {
   type PipelineBehaviorEntry,
   SkipPipeline,
   UsePipeline,
-} from '../decorators/pipeline.decorator';
+} from '../decorators/pipeline.decorator.js';
 import {
   IPipelineBehavior,
   NextDelegate,
-} from '../interfaces/pipeline.behavior.interface';
-import { IPipelineContext } from '../interfaces/pipeline.context.interface';
+} from '../interfaces/pipeline.behavior.interface.js';
+import { IPipelineContext } from '../interfaces/pipeline.context.interface.js';
 
 class BehaviorA implements IPipelineBehavior {
   async handle(_ctx: IPipelineContext, next: NextDelegate) {

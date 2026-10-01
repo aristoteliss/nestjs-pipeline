@@ -2,14 +2,14 @@
 
 import 'reflect-metadata';
 import { Type } from '@nestjs/common';
-import { normalizeBehaviorEntries } from '../helpers/behavior-entries';
-import { IPipelineBehavior } from '../interfaces/pipeline.behavior.interface';
+import { normalizeBehaviorEntries } from '../helpers/behavior-entries.js';
+import { IPipelineBehavior } from '../interfaces/pipeline.behavior.interface.js';
 
 export {
   type BehaviorId,
   getBehaviorId,
   PIPELINE_BEHAVIOR_ID,
-} from '../helpers/behavior-id';
+} from '../helpers/behavior-id.js';
 
 export const PIPELINE_BEHAVIORS_METADATA = Symbol('PIPELINE_BEHAVIORS');
 export const PIPELINE_BEHAVIORS_OPTIONS_METADATA = Symbol(

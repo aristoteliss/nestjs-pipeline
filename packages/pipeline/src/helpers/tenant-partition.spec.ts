@@ -1,9 +1,9 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { describe, expect, it } from 'vitest';
-import { MissingPartitionError } from '../errors/missing-partition.error';
-import type { IPipelineContext } from '../interfaces/pipeline.context.interface';
-import { tenantSegments } from './tenant-partition';
+import { MissingPartitionError } from '../errors/missing-partition.error.js';
+import type { IPipelineContext } from '../interfaces/pipeline.context.interface.js';
+import { tenantSegments } from './tenant-partition.js';
 
 class MissingTestPartitionError extends MissingPartitionError<'tenant'> {
   override readonly name = 'MissingTestPartitionError';

@@ -6,14 +6,14 @@ import {
   SET_CORRELATION_ID,
   SET_RESPONSE,
   SET_TENANT_ID,
-} from './constants/pipeline-context.constants';
+} from './constants/pipeline-context.constants.js';
 import {
   type BehaviorId,
   getBehaviorId,
-} from './decorators/pipeline.decorator';
-import { IPipelineBehavior } from './interfaces/pipeline.behavior.interface';
-import { IPipelineContext } from './interfaces/pipeline.context.interface';
-import { PipelineHandlerMeta } from './interfaces/pipeline-handler-meta.interface';
+} from './decorators/pipeline.decorator.js';
+import { IPipelineBehavior } from './interfaces/pipeline.behavior.interface.js';
+import { IPipelineContext } from './interfaces/pipeline.context.interface.js';
+import { PipelineHandlerMeta } from './interfaces/pipeline-handler-meta.interface.js';
 
 /**
  * Abstract base class with shared implementation for all pipeline contexts.

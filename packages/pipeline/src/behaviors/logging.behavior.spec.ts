@@ -5,8 +5,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   LoggingBehavior,
   LoggingBehaviorOptions,
-} from '../behaviors/logging.behavior';
-import { IPipelineContext } from '../interfaces/pipeline.context.interface';
+} from '../behaviors/logging.behavior.js';
+import { IPipelineContext } from '../interfaces/pipeline.context.interface.js';
 
 function createMockContext(
   overrides: Partial<IPipelineContext> = {},

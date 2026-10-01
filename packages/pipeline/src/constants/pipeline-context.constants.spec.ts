@@ -5,8 +5,8 @@ import {
   pipelineStore,
   SET_RESPONSE,
   SET_TENANT_ID,
-} from '../constants/pipeline-context.constants';
-import { IPipelineContext } from '../interfaces/pipeline.context.interface';
+} from '../constants/pipeline-context.constants.js';
+import { IPipelineContext } from '../interfaces/pipeline.context.interface.js';
 
 describe('pipelineStore', () => {
   it('returns undefined outside of a run()', () => {

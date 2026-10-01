@@ -9,7 +9,7 @@ import {
   PipelineContext,
   requirePipelineItem,
   setPipelineItem,
-} from './index';
+} from './index.js';
 
 class Request {}
 class Handler {}

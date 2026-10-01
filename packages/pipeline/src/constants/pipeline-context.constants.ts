@@ -1,7 +1,7 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { AsyncLocalStorage } from 'node:async_hooks';
-import { IPipelineContext } from '../interfaces/pipeline.context.interface';
+import { IPipelineContext } from '../interfaces/pipeline.context.interface.js';
 
 /**
  * Async-local store that propagates pipeline context across the async call chain.

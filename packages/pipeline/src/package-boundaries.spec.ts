@@ -22,7 +22,7 @@ const SCOPE = '@nestjs-pipeline/';
 const NEUTRAL_SCOPE = '@cqrs-ddd/';
 const DDD_PACKAGES = ['@cqrs-ddd/core', '@cqrs-ddd/mikro-orm'];
 
-const PACKAGES_DIR = resolve(__dirname, '../..');
+const PACKAGES_DIR = resolve(import.meta.dirname, '../..');
 
 interface Manifest {
   name: string;

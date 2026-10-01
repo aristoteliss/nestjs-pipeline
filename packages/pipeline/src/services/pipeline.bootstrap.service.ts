@@ -19,20 +19,23 @@ import {
 } from '@nestjs/core';
 import { InstanceWrapper } from '@nestjs/core/injector/instance-wrapper';
 import { AsyncContext } from '@nestjs/cqrs';
-import { IPipelineBehavior } from '../interfaces/pipeline.behavior.interface';
+import { IPipelineBehavior } from '../interfaces/pipeline.behavior.interface.js';
 import {
   type PipelineBehaviorDiagnostic,
   PipelineConfigurationError,
-} from '../interfaces/pipeline-behavior-contract.interface';
-import { PipelineHandlerMeta } from '../interfaces/pipeline-handler-meta.interface';
+} from '../interfaces/pipeline-behavior-contract.interface.js';
+import { PipelineHandlerMeta } from '../interfaces/pipeline-handler-meta.interface.js';
 import {
   PIPELINE_MODULE_OPTIONS,
   PipelineModuleOptions,
-} from '../options/pipeline-module.options';
-import { discoverHandlers } from './handler-discovery';
-import { validateBehaviorContracts } from './pipeline-contracts';
-import { compilePipelinePlan } from './pipeline-plan';
-import { createPipelineRunner, type PipelineRunner } from './pipeline-runner';
+} from '../options/pipeline-module.options.js';
+import { discoverHandlers } from './handler-discovery.js';
+import { validateBehaviorContracts } from './pipeline-contracts.js';
+import { compilePipelinePlan } from './pipeline-plan.js';
+import {
+  createPipelineRunner,
+  type PipelineRunner,
+} from './pipeline-runner.js';
 
 interface PrototypeMethodEntry {
   originalMethod: (this: unknown, request: unknown) => unknown;
