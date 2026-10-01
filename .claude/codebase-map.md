@@ -34,7 +34,7 @@ what the libraries support.
 ## Technology Stack
 
 <!-- context:generated-start technology-stack -->
-- **Languages** (file counts, excluded directories omitted): `.ts` 799, `.md` 39, `.grit` 14, `.py` 3, `.mjs` 1
+- **Languages** (file counts, excluded directories omitted): `.ts` 801, `.md` 36, `.grit` 14, `.py` 3, `.mjs` 1
 - **Runtime engines** (root `package.json`): `node` >=22.12.0, `pnpm` >=9.0.0
 - **Package manager evidence**: `pnpm-lock.yaml`.
 - **Integrations**: listed with their purpose under Dependencies and Integrations.
@@ -511,10 +511,14 @@ secret value.*
 - **A subclass that declares its own constructor must repeat `@Optional()`.** From
   `@nestjs/core` 12.1, a subclass without a constructor inherits the markers; 12.0.x never
   passed them on, which is why the Nest peers are `^12.1.0`.
-- **`@opentelemetry/instrumentation-nestjs-core` 0.68 gives no NestJS spans on Nest 12.**
-  HTTP and pg spans are unaffected; 0.69 restores them (upgrade step 10.5,
-  `.claude/tasks/http-route-tracing.md`). No test loads `tracing.ts`, so such a loss shows
-  only in a trace backend or a scratch check.
+- **The HTTP server span's route comes from `HttpRouteInterceptor`.** It copies Express's
+  `req.route.path` or Fastify's `request.routeOptions.url` into the HTTP instrumentation's
+  RPC metadata; `api/test/http-route-tracing.spec.ts` fails if an adapter renames them. A
+  request answered before interceptors (guard, middleware, 404) keeps the bare method name.
+  No test loads `api/src/tracing.ts` itself, so a change to its instrumentation list shows
+  only in a trace backend.
+- **`@nestjs/cqrs` does not await a publisher's `publish()`.** A custom event publisher
+  therefore cannot wrap the event handlers or observe their failures.
 - **Fastify mode refuses a numeric `TRUST_PROXY`.** Fastify 5.12, bundled with Nest 12,
   trusts no proxy for a hop count, so `api/src/http-platform.ts` fails at boot instead.
 - **Package `LICENSE` files are generated.** `pnpm copy-licenses` writes them into
@@ -526,13 +530,13 @@ secret value.*
 ## Snapshot Metadata
 
 <!-- context:generated-start metadata -->
-- Generated at: 2026-10-01T13:50:13Z
-- Git commit: 8ef4543c2c22042916023d48628f4756db09c4d0
-- Git branch: develop
+- Generated at: 2026-10-01T15:38:09Z
+- Git commit: d906bbbdac362b4bf1acf2d2ae23482e7c29dc21
+- Git branch: devlop
 - Uncommitted changes when generated: yes
 - Generator: `scripts/update-claude-snapshot.py` version 1.0.0
 - Snapshot status: generated — structural inspection only, no code executed
-- Files inspected: 930
+- Files inspected: 929
 - Included top-level directories: `.agents`, `.claude`, `api`, `biome`, `integration`, `packages`, `scripts`
 - Excluded directory names: `.cache`, `.git`, `.gradle`, `.idea`, `.mypy_cache`, `.next`, `.nuxt`, `.parcel-cache`, `.pnpm-store`, `.pytest_cache`, `.ruff_cache`, `.svelte-kit`, `.terraform`, `.tmp`, `.tox`, `.turbo`, `.venv`, `.vscode`, `__pycache__`, `bower_components`, `build`, `coverage`, `dist`, `node_modules`, `out`, `target`, `vendor`, `venv`, `virtualenv`
 - Excluded file patterns: `.env`, `.env.*`, `*.env`, `*.pem`, `*.key`, `*.pfx`, `*.p12`, `*.jks`, `*.keystore`, `id_rsa*`, `id_ed25519*`, `*credentials*`, `*.secret`, `secrets.*`

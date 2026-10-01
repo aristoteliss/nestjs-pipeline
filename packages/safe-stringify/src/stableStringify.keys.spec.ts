@@ -1,7 +1,7 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { describe, expect, it } from 'vitest';
-import { stableStringify } from './stableStringify';
+import { stableStringify } from './stableStringify.js';
 
 describe('stableStringify for cache keys', () => {
   it('produces identical strings regardless of key insertion order', () => {

@@ -34,7 +34,8 @@ framework-neutral: Nest glue (DI providers, logger adapter, tenant wiring, excep
 filters) for `packages/ddd-core` belongs in this application.
 
 Cross-cutting wiring lives in `src/common/modules/` (`ObservabilityModule` — Pino, OTel,
-audit, global behaviors, the add-ons' span attributes through `AttributesBehavior`;
+audit, global behaviors, the add-ons' span attributes through `AttributesBehavior`, the
+HTTP span's route through `HttpRouteInterceptor`;
 `ReliabilityModule` — BullMQ, dead-letter, rate limit, idempotency, resilience, cache,
 feature flags) and `src/common/` (guards, filters, interceptors, request context stores,
 `audit/` and `dead-letter/` options, `environment/` config modules). `src/common/` holds
@@ -82,6 +83,8 @@ Copy `.env.example` to `.env` for local runs. The app reads it through
 - The api resolves the workspace packages through their built `dist/`: run `pnpm build`
   (or the changed package's `build`) before api tests or `typecheck`, or they fail on
   missing or outdated package code.
+- The api runs from its compiled `dist/`, which `start` builds first: `ts-node` cannot run
+  on TypeScript 7, and `tsx` emits no decorator metadata.
 - The api needs Node 22.17 or newer (MikroORM 7) and the e2e suite Node 22.22 or newer
   (Testcontainers 12). The root `engines.node` stays the published packages' minimum,
   which their `package-manifest.spec.ts` files pin.

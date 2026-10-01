@@ -4,6 +4,7 @@
   "description": "Deterministic JSON for identity (cache keys, fingerprints) and safe, redacting JSON for logs, with no dependencies and no framework.",
   "author": "Aristotelis",
   "license": "SEE LICENSE IN LICENSE",
+  "type": "module",
   "engines": {
     "node": ">=22.12.0"
   },
@@ -23,6 +24,13 @@
     "redaction",
     "cache-key"
   ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "files": [

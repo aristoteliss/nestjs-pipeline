@@ -4,8 +4,10 @@ import { IncomingMessage } from 'node:http';
 import { AUDIT_MODULE_DEFAULTS } from '@common/audit/audit.options';
 import { HEADERS } from '@common/constants/headers.constants';
 import { contextSources } from '@common/context/context-sources';
+import { HttpRouteInterceptor } from '@common/interceptors/http-route.interceptor';
 import { setTenantResolver } from '@cqrs-ddd/core/application';
 import { Module } from '@nestjs/common';
+import { APP_INTERCEPTOR } from '@nestjs/core';
 import { AuditModule } from '@nestjs-pipeline/audit';
 import { buildCacheAttributes } from '@nestjs-pipeline/cache';
 import {
@@ -43,6 +45,8 @@ const HTTP_LOG_REDACT_PATHS = [
  * Configures structured HTTP logging, correlation propagation, tracing, metrics,
  * request validation and operational audit recording. Global pipeline ordering
  * keeps telemetry around handler-local behaviors so their outcomes reach the span.
+ *
+ * HTTP server spans carry the matched route (`HttpRouteInterceptor`).
  *
  * HTTP credentials are redacted through `HTTP_LOG_REDACT_PATHS`. Auditing uses
  * the default console sink with `failOpen: true`; durable audit requirements need
@@ -126,6 +130,7 @@ const HTTP_LOG_REDACT_PATHS = [
       defaults: AUDIT_MODULE_DEFAULTS,
     }),
   ],
+  providers: [{ provide: APP_INTERCEPTOR, useClass: HttpRouteInterceptor }],
   exports: [LoggerModule, PipelineModule, AuditModule],
 })
 export class ObservabilityModule {

@@ -630,6 +630,24 @@ Global and per-handler examples exercise:
 - `@nestjs-pipeline/idempotency` — atomic duplicate exclusion and replay
 - `@cqrs-ddd/core` — entities, aggregate-bearing command results, events, and repository helpers
 
+### What a trace contains
+
+`src/tracing.ts` starts the OpenTelemetry SDK before NestJS loads and exports spans over
+OTLP to `OTEL_EXPORTER_OTLP_ENDPOINT`. A request's trace holds:
+
+- the HTTP server span of `@opentelemetry/instrumentation-http`, named by the method and
+  the route template (`GET /users/:id`) and carrying `http.route`. `HttpRouteInterceptor`,
+  which `ObservabilityModule` registers globally, gives the instrumentation the matched
+  route on Express and Fastify. A request answered before interceptors run, by a guard
+  (401, 403), by middleware, or for an unknown path (404), keeps the method alone (`GET`);
+- under it, one span per command, query and event from `TraceBehavior`
+  (`command.CreateUserCommand`), with the attributes described below;
+- PostgreSQL query spans from `@opentelemetry/instrumentation-pg`, when the database is
+  PostgreSQL.
+
+Nest's own lifecycle (application creation, guards, interceptors, handlers) has no spans.
+`test/http-route-tracing.spec.ts` checks the route-named server span on both adapters.
+
 ### Span attributes of the add-ons
 
 The add-ons publish their decisions as `context.items` entries and take no

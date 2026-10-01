@@ -4,6 +4,7 @@
   "description": "A typed replacement for `as any`: reads undeclared properties as unknown. No dependencies and no framework.",
   "author": "Aristotelis",
   "license": "SEE LICENSE IN LICENSE",
+  "type": "module",
   "engines": {
     "node": ">=22.12.0"
   },
@@ -22,6 +23,13 @@
     "unknown",
     "no-explicit-any"
   ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "files": [
