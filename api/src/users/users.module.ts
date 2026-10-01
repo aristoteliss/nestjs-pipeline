@@ -2,40 +2,40 @@
 
 import { BullModule } from '@nestjs/bullmq';
 import { Module } from '@nestjs/common';
-import { GetRolesQueryRepository } from '../roles/persistence/get-roles.query-repository';
-import { QUERY_REPOSITORY as ROLES_QUERY_REPOSITORY } from '../roles/persistence/repository.tokens';
-import { CreateUserHandler } from './application/cqrs/commands/create-user.handler';
-import { DeleteUserHandler } from './application/cqrs/commands/delete-user.handler';
-import { UpdateUserHandler } from './application/cqrs/commands/update-user.handler';
-import { UserCreatedHandler } from './application/cqrs/events/user-created.handler';
-import { UserUpdatedHandler } from './application/cqrs/events/user-updated.handler';
-import { GetUserHandler } from './application/cqrs/queries/get-user.handler';
-import { GetUserOverviewHandler } from './application/cqrs/queries/get-user-overview.handler';
-import { GetUsersHandler } from './application/cqrs/queries/get-users.handler';
+import { GetRolesQueryRepository } from '../roles/persistence/get-roles.query-repository.js';
+import { QUERY_REPOSITORY as ROLES_QUERY_REPOSITORY } from '../roles/persistence/repository.tokens.js';
+import { CreateUserHandler } from './application/cqrs/commands/create-user.handler.js';
+import { DeleteUserHandler } from './application/cqrs/commands/delete-user.handler.js';
+import { UpdateUserHandler } from './application/cqrs/commands/update-user.handler.js';
+import { UserCreatedHandler } from './application/cqrs/events/user-created.handler.js';
+import { UserUpdatedHandler } from './application/cqrs/events/user-updated.handler.js';
+import { GetUserHandler } from './application/cqrs/queries/get-user.handler.js';
+import { GetUserOverviewHandler } from './application/cqrs/queries/get-user-overview.handler.js';
+import { GetUsersHandler } from './application/cqrs/queries/get-users.handler.js';
 import {
   USER_BATCH_DISPATCHER,
   WELCOME_EMAIL_DISPATCHER,
-} from './application/ports/user-event-dispatcher.port';
-import { UsersController } from './controllers/users.controller';
+} from './application/ports/user-event-dispatcher.port.js';
+import { UsersController } from './controllers/users.controller.js';
 import {
   BATCH_UPDATE_USERS_QUEUE,
   BatchUpdateUsersProcessor,
-} from './jobs/batch-update-users.processor';
-import { BullMqUserEventDispatcher } from './jobs/bullmq-user-event-dispatcher.adapter';
+} from './jobs/batch-update-users.processor.js';
+import { BullMqUserEventDispatcher } from './jobs/bullmq-user-event-dispatcher.adapter.js';
 import {
   SendWelcomeEmailProcessor,
   WELCOME_EMAIL_QUEUE,
-} from './jobs/send-welcome-email.processor';
-import { CreateUserCommandRepository } from './persistence/create-user.command-repository';
-import { DeleteUserCommandRepository } from './persistence/delete-user.command-repository';
-import { GetUserQueryRepository } from './persistence/get-user.query-repository';
-import { GetUserCapabilitiesQueryRepository } from './persistence/get-user-capabilities.query-repository';
-import { GetUsersQueryRepository } from './persistence/get-users.query-repository';
+} from './jobs/send-welcome-email.processor.js';
+import { CreateUserCommandRepository } from './persistence/create-user.command-repository.js';
+import { DeleteUserCommandRepository } from './persistence/delete-user.command-repository.js';
+import { GetUserQueryRepository } from './persistence/get-user.query-repository.js';
+import { GetUserCapabilitiesQueryRepository } from './persistence/get-user-capabilities.query-repository.js';
+import { GetUsersQueryRepository } from './persistence/get-users.query-repository.js';
 import {
   COMMAND_REPOSITORY,
   QUERY_REPOSITORY,
-} from './persistence/repository.tokens';
-import { UpdateUserCommandRepository } from './persistence/update-user.command-repository';
+} from './persistence/repository.tokens.js';
+import { UpdateUserCommandRepository } from './persistence/update-user.command-repository.js';
 
 @Module({
   imports: [

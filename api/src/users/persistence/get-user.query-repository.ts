@@ -9,10 +9,13 @@ import {
 } from '@cqrs-ddd/core/persistence';
 import { FilterQuery } from '@mikro-orm/core';
 import { Inject, Injectable } from '@nestjs/common';
-import { cacheReadLogger } from '@persistence/cache/cache-loggers';
-import { MIKRO_ORM_CLIENT, MikroOrmStore } from '@persistence/mikro-orm.store';
-import { GetUserQuery } from '../application/cqrs/queries/get-user.query';
-import { User, UserSnapshot } from '../domain/models/user.entity';
+import { cacheReadLogger } from '@persistence/cache/cache-loggers.js';
+import {
+  MIKRO_ORM_CLIENT,
+  MikroOrmStore,
+} from '@persistence/mikro-orm.store.js';
+import { GetUserQuery } from '../application/cqrs/queries/get-user.query.js';
+import { User, UserSnapshot } from '../domain/models/user.entity.js';
 
 function buildConditions(query: GetUserQuery): Record<string, unknown> {
   const conditions: Record<string, unknown> = query.userId

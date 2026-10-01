@@ -3,7 +3,7 @@
 import { AggregateRoot } from '@cqrs-ddd/core/domain';
 import { rootEntityProperties, versionProperty } from '@cqrs-ddd/mikro-orm';
 import { EntitySchema } from '@mikro-orm/core';
-import { User } from '../../users/domain/models/user.entity';
+import { User } from '../../users/domain/models/user.entity.js';
 
 /**
  * MikroORM EntitySchema for the {@link User} aggregate root.

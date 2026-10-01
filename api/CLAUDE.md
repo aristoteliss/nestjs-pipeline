@@ -80,6 +80,8 @@ Copy `.env.example` to `.env` for local runs. The app reads it through
 
 ## Local testing requirements
 
+- The api is an ES module: relative imports and path aliases carry `.js`
+  (`./x.js`, `@common/x.js`); `tsc-alias` rewrites the aliases at build time.
 - The api resolves the workspace packages through their built `dist/`: run `pnpm build`
   (or the changed package's `build`) before api tests or `typecheck`, or they fail on
   missing or outdated package code.

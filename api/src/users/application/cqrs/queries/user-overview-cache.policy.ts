@@ -1,7 +1,7 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import { APP_ACTIONS, APP_SUBJECTS } from '@common/constants';
-import { principalSegments } from '@common/types/session-principal';
+import { APP_ACTIONS, APP_SUBJECTS } from '@common/constants/index.js';
+import { principalSegments } from '@common/types/session-principal.js';
 import { joinKeySegments } from '@cqrs-ddd/safe-stringify';
 import {
   type CacheCondition,

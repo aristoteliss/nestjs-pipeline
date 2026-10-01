@@ -1,7 +1,7 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import { claimedIdentityActor } from '@common/audit/audit.options';
-import { AUDIT_ACTIONS, RATE_LIMIT_COST } from '@common/constants';
+import { claimedIdentityActor } from '@common/audit/audit.options.js';
+import { AUDIT_ACTIONS, RATE_LIMIT_COST } from '@common/constants/index.js';
 import {
   CommandBaseHandler,
   ICommandRepository,
@@ -16,23 +16,23 @@ import {
   createPartitionedRateLimitKeyFactory,
   rateLimit,
 } from '@nestjs-pipeline/rate-limit';
-import { Auth, AuthSnapshot } from '../../../domain/models/auth.entity';
-import { COMMAND_REPOSITORY } from '../../../persistence/repository.tokens';
-import { PrincipalLoginService } from '../../../services/principal-login.service';
+import { Auth, AuthSnapshot } from '../../../domain/models/auth.entity.js';
+import { COMMAND_REPOSITORY } from '../../../persistence/repository.tokens.js';
+import { PrincipalLoginService } from '../../../services/principal-login.service.js';
 import {
   AUTH_TOKEN_POLICY,
   type AuthTokenPolicy,
-} from '../../ports/auth-token-policy.port';
+} from '../../ports/auth-token-policy.port.js';
 import {
   type IRefreshTokens,
   REFRESH_TOKENS,
-} from '../../ports/refresh-tokens.port';
+} from '../../ports/refresh-tokens.port.js';
 import {
   type ISessionCookies,
   SESSION_COOKIES,
-} from '../../ports/session-cookies.port';
-import { AuthResult } from '../../results/auth.result';
-import { CreateAuthCommand } from './create-auth.command';
+} from '../../ports/session-cookies.port.js';
+import { AuthResult } from '../../results/auth.result.js';
+import { CreateAuthCommand } from './create-auth.command.js';
 
 @CommandHandler(CreateAuthCommand)
 @UsePipeline(

@@ -2,11 +2,11 @@
 
 import { createZodMapper } from '@nestjs-pipeline/zod';
 import { z } from 'zod';
-import { UpdateRoleCommand } from '../application/cqrs/commands/update-role.command';
+import { UpdateRoleCommand } from '../application/cqrs/commands/update-role.command.js';
 import {
   type UpdateRoleDto,
   UpdateRoleDtoSchema,
-} from '../dtos/update-role.dto';
+} from '../dtos/update-role.dto.js';
 
 const base = createZodMapper(
   z

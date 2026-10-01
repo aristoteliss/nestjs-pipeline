@@ -2,11 +2,11 @@
 
 import { MikroORM } from '@mikro-orm/core';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { migrate } from './migrate';
-import { revert } from './revert';
+import { migrate } from './migrate.js';
+import { revert } from './revert.js';
 
 vi.mock('@mikro-orm/core', () => ({ MikroORM: { init: vi.fn() } }));
-vi.mock('./orm-options', () => ({
+vi.mock('./orm-options.js', () => ({
   createPostgresOrmOptions: (schema: string) => ({ schema }),
   createLibsqlOrmOptions: (dbName: string, tenant: string) => ({
     dbName,

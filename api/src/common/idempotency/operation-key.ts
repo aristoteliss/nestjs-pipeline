@@ -1,7 +1,7 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import { getSessionPrincipal } from '@common/context/session-principal.store';
-import { principalSegments } from '@common/types/session-principal';
+import { getSessionPrincipal } from '@common/context/session-principal.store.js';
+import { principalSegments } from '@common/types/session-principal.js';
 import type { IPipelineContext } from '@nestjs-pipeline/core';
 import {
   createPartitionedIdempotencyKeyFactory,

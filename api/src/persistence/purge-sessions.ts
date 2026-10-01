@@ -1,8 +1,8 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import { Auth } from '../auths/domain/models/auth.entity';
-import { REFRESH_TOKEN_TTL_SECONDS } from '../common/environment/auth-token.config';
-import { forEachTenantOrm } from './tenant-orms';
+import { Auth } from '../auths/domain/models/auth.entity.js';
+import { REFRESH_TOKEN_TTL_SECONDS } from '../common/environment/auth-token.config.js';
+import { forEachTenantOrm } from './tenant-orms.js';
 
 const BATCH_SIZE = 500;
 

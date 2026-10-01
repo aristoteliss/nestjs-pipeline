@@ -9,8 +9,8 @@ import {
 import { cacheKey, DEFAULT_BARRIER_TTL_MS } from '@cqrs-ddd/core/persistence';
 import { runWithTenant } from '@nestjs-pipeline/tenant';
 import { describe, expect, it, vi } from 'vitest';
-import { User, type UserSnapshot } from '../domain/models/user.entity';
-import { DeleteUserCommandRepository } from './delete-user.command-repository';
+import { User, type UserSnapshot } from '../domain/models/user.entity.js';
+import { DeleteUserCommandRepository } from './delete-user.command-repository.js';
 
 describe('DeleteUserCommandRepository', () => {
   it('deletes user entity directly relying on ON DELETE CASCADE and evicts tenant-aware keys', async () => {

@@ -2,7 +2,7 @@
 import type { ICache } from '@cqrs-ddd/core/application';
 import { CACHE_TOKEN, cacheKey } from '@cqrs-ddd/core/persistence';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { bootstrapE2E, type E2EContext, inTenant } from './support/e2e-app';
+import { bootstrapE2E, type E2EContext, inTenant } from './support/e2e-app.js';
 
 /** E2E regression coverage for Architecture.md finding #16. */
 describe('canonical repository cache keys (e2e)', () => {

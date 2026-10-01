@@ -4,7 +4,7 @@ import { randomUUID } from 'node:crypto';
 import type { Server } from 'node:http';
 import request from 'supertest';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { bootstrapE2E, type E2EContext } from './support/e2e-app';
+import { bootstrapE2E, type E2EContext } from './support/e2e-app.js';
 
 /**
  * Functional / end-to-end tests for the roles use cases (`/roles`).

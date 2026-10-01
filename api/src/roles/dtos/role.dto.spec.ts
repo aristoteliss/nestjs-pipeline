@@ -5,7 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { describe, expect, it } from 'vitest';
-import { toRoleResponseDto } from './role.dto';
+import { toRoleResponseDto } from './role.dto.js';
 
 describe('toRoleResponseDto', () => {
   it('maps a full role snapshot to response DTO', () => {

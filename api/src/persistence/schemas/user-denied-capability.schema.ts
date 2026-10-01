@@ -1,7 +1,7 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { EntitySchema } from '@mikro-orm/core';
-import { UserDeniedCapability } from '../entities/user-denied-capability.entity';
+import { UserDeniedCapability } from '../entities/user-denied-capability.entity.js';
 
 export const UserDeniedCapabilitySchema =
   new EntitySchema<UserDeniedCapability>({

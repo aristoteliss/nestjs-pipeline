@@ -12,15 +12,15 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
   MIKRO_ORM_CLIENT,
   type MikroOrmStore,
-} from '../src/persistence/mikro-orm.store';
-import { BATCH_UPDATE_USERS_QUEUE } from '../src/users/jobs/batch-update-users.processor';
-import { WELCOME_EMAIL_QUEUE } from '../src/users/jobs/send-welcome-email.processor';
+} from '../src/persistence/mikro-orm.store.js';
+import { BATCH_UPDATE_USERS_QUEUE } from '../src/users/jobs/batch-update-users.processor.js';
+import { WELCOME_EMAIL_QUEUE } from '../src/users/jobs/send-welcome-email.processor.js';
 import {
   bootstrapE2E,
   type E2EContext,
   inTenant,
   rebuildPermissions,
-} from './support/e2e-app';
+} from './support/e2e-app.js';
 
 /**
  * End-to-end coverage of the pipeline packages as users-api composes them: CASL,

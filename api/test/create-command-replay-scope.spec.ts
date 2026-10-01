@@ -1,7 +1,7 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import { sessionPrincipalStore } from '@common/context/session-principal.store';
-import type { SessionPrincipal } from '@common/types/session-principal';
+import { sessionPrincipalStore } from '@common/context/session-principal.store.js';
+import type { SessionPrincipal } from '@common/types/session-principal.js';
 import type { EventBus } from '@nestjs/cqrs';
 import {
   buildAbility,
@@ -20,10 +20,10 @@ import {
   MemoryIdempotencyStore,
 } from '@nestjs-pipeline/idempotency';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { CreateUserCommand } from '../src/users/application/cqrs/commands/create-user.command';
-import { CreateUserHandler } from '../src/users/application/cqrs/commands/create-user.handler';
-import { User } from '../src/users/domain/models/user.entity';
-import { declaredOptions, requiredKey } from './support/declared-options';
+import { CreateUserCommand } from '../src/users/application/cqrs/commands/create-user.command.js';
+import { CreateUserHandler } from '../src/users/application/cqrs/commands/create-user.handler.js';
+import { User } from '../src/users/domain/models/user.entity.js';
+import { declaredOptions, requiredKey } from './support/declared-options.js';
 
 const {
   keyFactory: createUserIdempotencyKey,

@@ -4,7 +4,7 @@ import { EntityNotFoundException } from '@cqrs-ddd/core/domain';
 import type { ArgumentsHost } from '@nestjs/common';
 import type { HttpAdapterHost } from '@nestjs/core';
 import { describe, expect, it, vi } from 'vitest';
-import { DomainExceptionFilter } from './domain-exception.filter';
+import { DomainExceptionFilter } from './domain-exception.filter.js';
 
 /** Answers through the fake response, as Express's adapter does. */
 const adapterHost = {

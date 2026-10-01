@@ -3,7 +3,7 @@
 import { AggregateRoot } from '@cqrs-ddd/core/domain';
 import { rootEntityProperties } from '@cqrs-ddd/mikro-orm';
 import { EntitySchema } from '@mikro-orm/core';
-import { Capability } from '../../roles/domain/models/capability.entity';
+import { Capability } from '../../roles/domain/models/capability.entity.js';
 
 /**
  * MikroORM EntitySchema for {@link Capability}. Capabilities are not written with

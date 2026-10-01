@@ -5,7 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { describe, expect, it } from 'vitest';
-import { toResponseDto } from './user.dto';
+import { toResponseDto } from './user.dto.js';
 
 describe('toResponseDto', () => {
   it('maps a full user snapshot to response DTO', () => {

@@ -1,5 +1,5 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
-import { sessionPrincipalStore } from '@common/context/session-principal.store';
+import { sessionPrincipalStore } from '@common/context/session-principal.store.js';
 import type { IPipelineContext } from '@nestjs-pipeline/core';
 import {
   IdempotencyBehavior,
@@ -14,15 +14,15 @@ import {
   type RateLimitKeyFactory,
 } from '@nestjs-pipeline/rate-limit';
 import { describe, expect, it } from 'vitest';
-import { CreateAuthCommand } from '../src/auths/application/cqrs/commands/create-auth.command';
-import { CreateAuthHandler } from '../src/auths/application/cqrs/commands/create-auth.handler';
-import { RevokeAuthCommand } from '../src/auths/application/cqrs/commands/revoke-auth.command';
-import { RevokeAuthHandler } from '../src/auths/application/cqrs/commands/revoke-auth.handler';
-import { CreateRoleCommand } from '../src/roles/application/cqrs/commands/create-role.command';
-import { CreateRoleHandler } from '../src/roles/application/cqrs/commands/create-role.handler';
-import { CreateUserCommand } from '../src/users/application/cqrs/commands/create-user.command';
-import { CreateUserHandler } from '../src/users/application/cqrs/commands/create-user.handler';
-import { declaredOptions } from './support/declared-options';
+import { CreateAuthCommand } from '../src/auths/application/cqrs/commands/create-auth.command.js';
+import { CreateAuthHandler } from '../src/auths/application/cqrs/commands/create-auth.handler.js';
+import { RevokeAuthCommand } from '../src/auths/application/cqrs/commands/revoke-auth.command.js';
+import { RevokeAuthHandler } from '../src/auths/application/cqrs/commands/revoke-auth.handler.js';
+import { CreateRoleCommand } from '../src/roles/application/cqrs/commands/create-role.command.js';
+import { CreateRoleHandler } from '../src/roles/application/cqrs/commands/create-role.handler.js';
+import { CreateUserCommand } from '../src/users/application/cqrs/commands/create-user.command.js';
+import { CreateUserHandler } from '../src/users/application/cqrs/commands/create-user.handler.js';
+import { declaredOptions } from './support/declared-options.js';
 
 function context(request: unknown, tenantId?: string): IPipelineContext {
   return { request, tenantId } as IPipelineContext;

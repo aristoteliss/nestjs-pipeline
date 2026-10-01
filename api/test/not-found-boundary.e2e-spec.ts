@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto';
 import type { Server } from 'node:http';
 import request from 'supertest';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { bootstrapE2E, type E2EContext } from './support/e2e-app';
+import { bootstrapE2E, type E2EContext } from './support/e2e-app.js';
 
 /** E2E regression coverage for Architecture.md finding #18. */
 describe('framework-neutral not-found boundary (e2e)', () => {

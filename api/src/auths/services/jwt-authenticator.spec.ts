@@ -28,7 +28,7 @@ const ENV_KEYS = [
 async function load(env: Partial<Record<(typeof ENV_KEYS)[number], string>>) {
   for (const key of ENV_KEYS) vi.stubEnv(key, env[key]);
   vi.resetModules();
-  const { JwtAuthenticator } = await import('./jwt-authenticator');
+  const { JwtAuthenticator } = await import('./jwt-authenticator.js');
   const importSPKI = vi.mocked((await import('jose')).importSPKI);
   importSPKI.mockClear();
   return { authenticator: new JwtAuthenticator(), importSPKI };

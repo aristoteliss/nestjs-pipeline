@@ -7,7 +7,7 @@ import {
   InJobContext,
   type WithJobContext,
 } from '@nestjs-pipeline/job-context';
-import { TenantSchemaContext } from '@persistence/tenant-schema.context';
+import { TenantSchemaContext } from '@persistence/tenant-schema.context.js';
 import type { Job } from 'bullmq';
 
 export const BATCH_UPDATE_USERS_QUEUE = 'batch-update-users';

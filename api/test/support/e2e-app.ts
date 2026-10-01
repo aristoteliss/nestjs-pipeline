@@ -157,10 +157,10 @@ export async function bootstrapE2E(options?: E2EOptions): Promise<E2EContext> {
   );
 
   // 1. Run migrations to establish the exact production database schema and seed data.
-  const { migrate } = await import('@persistence/migrate');
+  const { migrate } = await import('@persistence/migrate.js');
   await migrate();
   const { verifyUserPermissions } = await import(
-    '@persistence/verify-user-permissions'
+    '@persistence/verify-user-permissions.js'
   );
   for (const [tenant, drifted] of await verifyUserPermissions()) {
     if (drifted.length > 0) {
@@ -175,7 +175,7 @@ export async function bootstrapE2E(options?: E2EOptions): Promise<E2EContext> {
   //    session from the `x-test-user` header (see below) so the request flows
   //    through the real authentication + authorization pipeline unchanged.
   const { Test } = await import('@nestjs/testing');
-  const { AppModule } = await import('../../src/app.module');
+  const { AppModule } = await import('../../src/app.module.js');
 
   const moduleRef = await Test.createTestingModule({
     imports: [AppModule],
@@ -183,7 +183,7 @@ export async function bootstrapE2E(options?: E2EOptions): Promise<E2EContext> {
 
   let app: INestApplication;
   if (options?.adapter === 'fastify') {
-    const platform = await import('../../src/http-platform');
+    const platform = await import('../../src/http-platform.js');
     app = moduleRef.createNestApplication<NestFastifyApplication>(
       platform.createFastifyAdapter(),
     );
@@ -192,7 +192,7 @@ export async function bootstrapE2E(options?: E2EOptions): Promise<E2EContext> {
       E2E_SESSION_SECRET,
     );
   } else {
-    const { configureExpress } = await import('../../src/express-platform');
+    const { configureExpress } = await import('../../src/express-platform.js');
     app = moduleRef.createNestApplication<NestExpressApplication>();
     configureExpress(app as NestExpressApplication);
   }
@@ -335,9 +335,9 @@ export async function rebuildPermissions(
   app: INestApplication,
   userIds: string[],
 ): Promise<void> {
-  const { MIKRO_ORM_CLIENT } = await import('@persistence/mikro-orm.store');
+  const { MIKRO_ORM_CLIENT } = await import('@persistence/mikro-orm.store.js');
   const { UserPermissionsProjector } = await import(
-    '../../src/auths/persistence/user-permissions.projector'
+    '../../src/auths/persistence/user-permissions.projector.js'
   );
   const projector = app.get(UserPermissionsProjector);
   await inTenant(app, () =>
@@ -358,7 +358,7 @@ export async function inTenant<T>(
   tenant = 'tenant',
 ): Promise<T> {
   const { TenantSchemaContext } = await import(
-    '@persistence/tenant-schema.context'
+    '@persistence/tenant-schema.context.js'
   );
   const { runWithTenant } = await import('@nestjs-pipeline/tenant');
   return runWithTenant(tenant, () =>

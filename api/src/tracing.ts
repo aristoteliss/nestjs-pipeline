@@ -4,7 +4,7 @@ import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-grpc';
 import { HttpInstrumentation } from '@opentelemetry/instrumentation-http';
 import { PgInstrumentation } from '@opentelemetry/instrumentation-pg';
 import { NodeSDK } from '@opentelemetry/sdk-node';
-import { otlpConfig } from './common/environment/otlp.config';
+import { otlpConfig } from './common/environment/otlp.config.js';
 
 const { serviceName, endpoint } = otlpConfig();
 

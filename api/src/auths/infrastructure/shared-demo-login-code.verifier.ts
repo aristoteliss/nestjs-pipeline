@@ -5,11 +5,11 @@ import { Injectable } from '@nestjs/common';
 import {
   type ILoginCodeVerifier,
   type LoginCredentialVerification,
-} from '../application/ports/login-code-verifier.port';
+} from '../application/ports/login-code-verifier.port.js';
 import {
   AuthConfigurationException,
   InvalidLoginCredentialsException,
-} from '../domain/errors/authentication.exception';
+} from '../domain/errors/authentication.exception.js';
 
 /**
  * Demo credential adapter: one configured login code is accepted for every

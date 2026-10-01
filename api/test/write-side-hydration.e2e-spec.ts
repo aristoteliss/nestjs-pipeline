@@ -3,11 +3,11 @@ import type { Server } from 'node:http';
 import {
   MIKRO_ORM_CLIENT,
   type MikroOrmStore,
-} from '@persistence/mikro-orm.store';
+} from '@persistence/mikro-orm.store.js';
 import request from 'supertest';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { User } from '../src/users/domain/models/user.entity';
-import { bootstrapE2E, type E2EContext, inTenant } from './support/e2e-app';
+import { User } from '../src/users/domain/models/user.entity.js';
+import { bootstrapE2E, type E2EContext, inTenant } from './support/e2e-app.js';
 
 /** Regression coverage for Architecture.md finding #2. */
 describe('write-side command hydration (e2e)', () => {

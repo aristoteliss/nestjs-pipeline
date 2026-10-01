@@ -2,10 +2,10 @@
 
 import { BadRequestException } from '@nestjs/common';
 import { describe, expect, it } from 'vitest';
-import { CreateUserCommand } from '../application/cqrs/commands/create-user.command';
-import { UpdateUserCommand } from '../application/cqrs/commands/update-user.command';
-import { CreateUserMapper } from './create-user.mapper';
-import { UpdateUserMapper } from './update-user.mapper';
+import { CreateUserCommand } from '../application/cqrs/commands/create-user.command.js';
+import { UpdateUserCommand } from '../application/cqrs/commands/update-user.command.js';
+import { CreateUserMapper } from './create-user.mapper.js';
+import { UpdateUserMapper } from './update-user.mapper.js';
 
 describe('Users Mappers', () => {
   describe('CreateUserMapper', () => {

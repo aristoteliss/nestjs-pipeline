@@ -2,10 +2,10 @@
 
 import { MemoryCache } from '@cqrs-ddd/core/persistence';
 import { runWithTenant } from '@nestjs-pipeline/tenant';
-import { UserPermissionRule } from '@persistence/entities/user-permission-rule.entity';
+import { UserPermissionRule } from '@persistence/entities/user-permission-rule.entity.js';
 import { describe, expect, it, vi } from 'vitest';
-import { GetUserPermissionRulesQuery } from '../application/cqrs/queries/get-user-permission-rules.query';
-import { GetUserPermissionRulesRepository } from './get-user-permission-rules.query-repository';
+import { GetUserPermissionRulesQuery } from '../application/cqrs/queries/get-user-permission-rules.query.js';
+import { GetUserPermissionRulesRepository } from './get-user-permission-rules.query-repository.js';
 
 describe('GetUserPermissionRulesRepository', () => {
   it('reads materialized rules ordered by inverted and position', async () => {

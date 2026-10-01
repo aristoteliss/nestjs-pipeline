@@ -5,8 +5,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { type EntityManager, MikroORM } from '@mikro-orm/core';
 import type { LibSqlDriver } from '@mikro-orm/libsql';
-import { Migration20260830000000 } from '../../src/persistence/migrations/Migration20260830000000';
-import { createLibsqlOrmOptions } from '../../src/persistence/orm-options';
+import { Migration20260830000000 } from '../../src/persistence/migrations/Migration20260830000000.js';
+import { createLibsqlOrmOptions } from '../../src/persistence/orm-options.js';
 
 export interface MigratedDb {
   orm: MikroORM<LibSqlDriver>;

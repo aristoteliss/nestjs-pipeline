@@ -1,9 +1,9 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import { HEADERS } from '@common/constants/headers.constants';
-import { getSessionPrincipal } from '@common/context/session-principal.store';
-import { AuthSessionGuard } from '@common/guards/auth-session.guard';
-import { SessionPrincipalContextInterceptor } from '@common/interceptors/session-principal-context.interceptor';
+import { HEADERS } from '@common/constants/headers.constants.js';
+import { getSessionPrincipal } from '@common/context/session-principal.store.js';
+import { AuthSessionGuard } from '@common/guards/auth-session.guard.js';
+import { SessionPrincipalContextInterceptor } from '@common/interceptors/session-principal-context.interceptor.js';
 import {
   Controller,
   Get,
@@ -16,16 +16,16 @@ import {
 } from '@nestjs/common';
 import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { Test } from '@nestjs/testing';
-import { persistenceConfig } from '@persistence/persistence.config';
-import { TenantSchemaContext } from '@persistence/tenant-schema.context';
+import { persistenceConfig } from '@persistence/persistence.config.js';
+import { TenantSchemaContext } from '@persistence/tenant-schema.context.js';
 import { SignJWT } from 'jose';
 import request from 'supertest';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
-import { ApiClientAuthenticator } from '../src/auths/services/api-client-authenticator';
-import { JwtAuthenticator } from '../src/auths/services/jwt-authenticator';
-import { RequestPrincipalResolver } from '../src/auths/services/request-principal-resolver';
-import { SessionService } from '../src/auths/services/session.service';
-import { TenantSchemaMiddleware } from '../src/persistence/middlewares/tenant-schema.middleware';
+import { ApiClientAuthenticator } from '../src/auths/services/api-client-authenticator.js';
+import { JwtAuthenticator } from '../src/auths/services/jwt-authenticator.js';
+import { RequestPrincipalResolver } from '../src/auths/services/request-principal-resolver.js';
+import { SessionService } from '../src/auths/services/session.service.js';
+import { TenantSchemaMiddleware } from '../src/persistence/middlewares/tenant-schema.middleware.js';
 
 @Controller('test-auth')
 class TestAuthController {

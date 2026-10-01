@@ -5,8 +5,8 @@ import {
   defaultSchema,
   persistenceConfig,
   tenantSchema,
-} from './persistence.config';
-import { InvalidTenantSchemaError } from './tenant-schema.errors';
+} from './persistence.config.js';
+import { InvalidTenantSchemaError } from './tenant-schema.errors.js';
 
 beforeEach(() => {
   vi.stubEnv('DB_ENGINE', undefined);

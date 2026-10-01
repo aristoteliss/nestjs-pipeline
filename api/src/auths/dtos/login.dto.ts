@@ -1,7 +1,7 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { z } from 'zod';
-import { CreateAuthCommand } from '../application/cqrs/commands/create-auth.command';
+import { CreateAuthCommand } from '../application/cqrs/commands/create-auth.command.js';
 
 const { email, code } = CreateAuthCommand.schema.shape;
 

@@ -2,7 +2,7 @@
 
 import { ZodValidationError } from '@nestjs-pipeline/zod';
 import { describe, expect, it } from 'vitest';
-import { GetUserPermissionRulesQuery } from './get-user-permission-rules.query';
+import { GetUserPermissionRulesQuery } from './get-user-permission-rules.query.js';
 
 describe('GetUserPermissionRulesQuery validation', () => {
   it('accepts a valid query with a string userId', () => {

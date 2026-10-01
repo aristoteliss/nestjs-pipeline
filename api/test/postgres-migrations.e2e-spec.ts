@@ -1,17 +1,17 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 import { MikroOrmDialect } from '@cqrs-ddd/mikro-orm';
 import { MikroORM } from '@mikro-orm/postgresql';
-import { createPostgresOrmOptions } from '@persistence/orm-options';
+import { createPostgresOrmOptions } from '@persistence/orm-options.js';
 import {
   GenericContainer,
   type StartedTestContainer,
   Wait,
 } from 'testcontainers';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
-import { Auth } from '../src/auths/domain/models/auth.entity';
-import { UserPermissionsProjector } from '../src/auths/persistence/user-permissions.projector';
-import { Role } from '../src/roles/domain/models/role.entity';
-import { User } from '../src/users/domain/models/user.entity';
+import { Auth } from '../src/auths/domain/models/auth.entity.js';
+import { UserPermissionsProjector } from '../src/auths/persistence/user-permissions.projector.js';
+import { Role } from '../src/roles/domain/models/role.entity.js';
+import { User } from '../src/users/domain/models/user.entity.js';
 
 describe('PostgreSQL migration tenant isolation', () => {
   let postgres: StartedTestContainer | undefined;

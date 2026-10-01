@@ -1,7 +1,7 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { isSqlIdentifier } from '@cqrs-ddd/mikro-orm';
-import { InvalidTenantSchemaError } from './tenant-schema.errors';
+import { InvalidTenantSchemaError } from './tenant-schema.errors.js';
 
 /** The database engine this process persists to. */
 export type Engine = 'libsql' | 'postgres';

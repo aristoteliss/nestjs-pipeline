@@ -1,7 +1,7 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { z } from 'zod';
-import { Role } from '../domain/models/role.entity';
+import { Role } from '../domain/models/role.entity.js';
 
 /**
  * Request body for creating a role. `name` is trimmed and must contain 3 to 128 characters.

@@ -1,7 +1,7 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import { capabilityFromRow } from '@auths/persistence/helpers/capability-row.mapper';
-import { getSessionPrincipal } from '@common/context/session-principal.store';
+import { capabilityFromRow } from '@auths/persistence/helpers/capability-row.mapper.js';
+import { getSessionPrincipal } from '@common/context/session-principal.store.js';
 import type { ICache } from '@cqrs-ddd/core/application';
 import {
   CACHE_TOKEN,
@@ -11,10 +11,13 @@ import {
 } from '@cqrs-ddd/core/persistence';
 import { Inject, Injectable } from '@nestjs/common';
 import type { Capability } from '@nestjs-pipeline/casl';
-import { cacheReadLogger } from '@persistence/cache/cache-loggers';
-import { UserPermissionRule } from '@persistence/entities/user-permission-rule.entity';
-import { MIKRO_ORM_CLIENT, MikroOrmStore } from '@persistence/mikro-orm.store';
-import { GetUserPermissionRulesQuery } from '../application/cqrs/queries/get-user-permission-rules.query';
+import { cacheReadLogger } from '@persistence/cache/cache-loggers.js';
+import { UserPermissionRule } from '@persistence/entities/user-permission-rule.entity.js';
+import {
+  MIKRO_ORM_CLIENT,
+  MikroOrmStore,
+} from '@persistence/mikro-orm.store.js';
+import { GetUserPermissionRulesQuery } from '../application/cqrs/queries/get-user-permission-rules.query.js';
 
 function buildConditions(
   query: GetUserPermissionRulesQuery,

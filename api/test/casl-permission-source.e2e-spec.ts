@@ -13,7 +13,7 @@ import {
   type E2EContext,
   inTenant,
   rebuildPermissions,
-} from './support/e2e-app';
+} from './support/e2e-app.js';
 
 const TENANT = 'tenant';
 const ALICE_ADMIN = '019de10c-b680-7000-8000-000000000006';
@@ -43,7 +43,9 @@ describe('CASL permission source wiring (e2e)', () => {
   }
 
   async function sql(statement: string, params: unknown[]): Promise<void> {
-    const { MIKRO_ORM_CLIENT } = await import('@persistence/mikro-orm.store');
+    const { MIKRO_ORM_CLIENT } = await import(
+      '@persistence/mikro-orm.store.js'
+    );
     await inTenant(ctx.app, () =>
       ctx.app.get(MIKRO_ORM_CLIENT).em.execute(statement, params),
     );
@@ -66,13 +68,13 @@ describe('CASL permission source wiring (e2e)', () => {
 
   async function readAs(principalId: string): Promise<unknown> {
     const { sessionPrincipalStore } = await import(
-      '../src/common/context/session-principal.store'
+      '../src/common/context/session-principal.store.js'
     );
     const { TenantSchemaContext } = await import(
-      '../src/persistence/tenant-schema.context'
+      '../src/persistence/tenant-schema.context.js'
     );
     const { GetUserQuery } = await import(
-      '../src/users/application/cqrs/queries/get-user.query'
+      '../src/users/application/cqrs/queries/get-user.query.js'
     );
     return ctx.app
       .get(TenantSchemaContext)
@@ -89,10 +91,10 @@ describe('CASL permission source wiring (e2e)', () => {
 
   it('authorizes from materialized rules without per-request assignment or role queries', async () => {
     const { GetUserCapabilitiesQueryRepository } = await import(
-      '../src/users/persistence/get-user-capabilities.query-repository'
+      '../src/users/persistence/get-user-capabilities.query-repository.js'
     );
     const { GetRolesCapabilitiesQueryRepository } = await import(
-      './support/roles-capabilities/get-roles-capabilities.query-repository'
+      './support/roles-capabilities/get-roles-capabilities.query-repository.js'
     );
     const assignments = vi.spyOn(
       GetUserCapabilitiesQueryRepository.prototype,
@@ -169,7 +171,7 @@ describe('CASL permission source wiring (e2e)', () => {
 
   it('binds the application source to the package token', async () => {
     const { CaslPermissionSource } = await import(
-      '../src/auths/persistence/casl-permission.source'
+      '../src/auths/persistence/casl-permission.source.js'
     );
     const { ContextIdFactory } = await import('@nestjs/core');
 
@@ -184,13 +186,13 @@ describe('CASL permission source wiring (e2e)', () => {
 
   it('dispatches GetUserPermissionRulesQuery through QueryBus with Casl authorization', async () => {
     const { GetUserPermissionRulesQuery } = await import(
-      '../src/auths/application/cqrs/queries/get-user-permission-rules.query'
+      '../src/auths/application/cqrs/queries/get-user-permission-rules.query.js'
     );
     const { TenantSchemaContext } = await import(
-      '../src/persistence/tenant-schema.context'
+      '../src/persistence/tenant-schema.context.js'
     );
     const { sessionPrincipalStore } = await import(
-      '../src/common/context/session-principal.store'
+      '../src/common/context/session-principal.store.js'
     );
 
     const rules = await ctx.app

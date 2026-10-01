@@ -8,10 +8,13 @@ import {
 } from '@cqrs-ddd/core/persistence';
 import { mapPersistenceError } from '@cqrs-ddd/mikro-orm';
 import { Inject, Injectable } from '@nestjs/common';
-import { MIKRO_ORM_CLIENT, MikroOrmStore } from '@persistence/mikro-orm.store';
-import { GetAuthByConsumedTokenHashQuery } from '../application/cqrs/queries/get-auth-by-consumed-token-hash.query';
-import { Auth } from '../domain/models/auth.entity';
-import { ConsumedRefreshToken } from '../domain/models/consumed-refresh-token.entity';
+import {
+  MIKRO_ORM_CLIENT,
+  MikroOrmStore,
+} from '@persistence/mikro-orm.store.js';
+import { GetAuthByConsumedTokenHashQuery } from '../application/cqrs/queries/get-auth-by-consumed-token-hash.query.js';
+import { Auth } from '../domain/models/auth.entity.js';
+import { ConsumedRefreshToken } from '../domain/models/consumed-refresh-token.entity.js';
 
 /** Authoritative lookup of an Auth session that previously rotated away from a given token hash. */
 @Injectable()

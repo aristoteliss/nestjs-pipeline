@@ -1,15 +1,15 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import { HEADERS } from '@common/constants/headers.constants';
+import { HEADERS } from '@common/constants/headers.constants.js';
 import {
   BadRequestException,
   ForbiddenException,
   Injectable,
   type NestMiddleware,
 } from '@nestjs/common';
-import { tenantSchema } from '../persistence.config';
-import { TenantSchemaContext } from '../tenant-schema.context';
-import { InvalidTenantSchemaError } from '../tenant-schema.errors';
+import { tenantSchema } from '../persistence.config.js';
+import { TenantSchemaContext } from '../tenant-schema.context.js';
+import { InvalidTenantSchemaError } from '../tenant-schema.errors.js';
 
 @Injectable()
 /**

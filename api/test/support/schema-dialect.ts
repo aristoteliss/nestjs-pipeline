@@ -5,7 +5,7 @@ import { MikroOrmDialect } from '@cqrs-ddd/mikro-orm';
 import { UniqueConstraintViolationException } from '@mikro-orm/core';
 import { MikroORM } from '@mikro-orm/libsql';
 import { afterAll, beforeAll } from 'vitest';
-import { createLibsqlOrmOptions } from '../../src/persistence/orm-options';
+import { createLibsqlOrmOptions } from '../../src/persistence/orm-options.js';
 
 /**
  * Registers the dialect built from the application's real entity schemas for

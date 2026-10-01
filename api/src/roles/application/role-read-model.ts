@@ -1,6 +1,6 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 import type { CaslAuthorizer, Projected } from '@nestjs-pipeline/casl';
-import type { Role } from '../domain/models/role.entity';
+import type { Role } from '../domain/models/role.entity.js';
 
 interface RoleReadCandidate {
   id: string;

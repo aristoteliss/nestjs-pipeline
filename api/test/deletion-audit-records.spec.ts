@@ -1,8 +1,8 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import { AUDIT_MODULE_DEFAULTS } from '@common/audit/audit.options';
-import { AUDIT_ACTIONS } from '@common/constants';
-import { sessionPrincipalStore } from '@common/context/session-principal.store';
+import { AUDIT_MODULE_DEFAULTS } from '@common/audit/audit.options.js';
+import { AUDIT_ACTIONS } from '@common/constants/index.js';
+import { sessionPrincipalStore } from '@common/context/session-principal.store.js';
 import { CommandBus, CqrsModule } from '@nestjs/cqrs';
 import { Test } from '@nestjs/testing';
 import {
@@ -15,14 +15,14 @@ import { CaslAuthorizer, CaslBehavior } from '@nestjs-pipeline/casl';
 import { LoggingBehavior, PipelineModule } from '@nestjs-pipeline/core';
 import { ResilienceBehavior } from '@nestjs-pipeline/resilience';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { DeleteRoleCommand } from '../src/roles/application/cqrs/commands/delete-role.command';
-import { DeleteRoleHandler } from '../src/roles/application/cqrs/commands/delete-role.handler';
-import { Role } from '../src/roles/domain/models/role.entity';
-import { COMMAND_REPOSITORY as ROLE_COMMAND_REPOSITORY } from '../src/roles/persistence/repository.tokens';
-import { DeleteUserCommand } from '../src/users/application/cqrs/commands/delete-user.command';
-import { DeleteUserHandler } from '../src/users/application/cqrs/commands/delete-user.handler';
-import { User } from '../src/users/domain/models/user.entity';
-import { COMMAND_REPOSITORY as USER_COMMAND_REPOSITORY } from '../src/users/persistence/repository.tokens';
+import { DeleteRoleCommand } from '../src/roles/application/cqrs/commands/delete-role.command.js';
+import { DeleteRoleHandler } from '../src/roles/application/cqrs/commands/delete-role.handler.js';
+import { Role } from '../src/roles/domain/models/role.entity.js';
+import { COMMAND_REPOSITORY as ROLE_COMMAND_REPOSITORY } from '../src/roles/persistence/repository.tokens.js';
+import { DeleteUserCommand } from '../src/users/application/cqrs/commands/delete-user.command.js';
+import { DeleteUserHandler } from '../src/users/application/cqrs/commands/delete-user.handler.js';
+import { User } from '../src/users/domain/models/user.entity.js';
+import { COMMAND_REPOSITORY as USER_COMMAND_REPOSITORY } from '../src/users/persistence/repository.tokens.js';
 
 describe('Deletion audit records fidelity', () => {
   const recorded: AuditRecord[] = [];

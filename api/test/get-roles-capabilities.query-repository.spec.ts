@@ -1,10 +1,10 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
-import { RoleCapability } from '@persistence/entities/role-capability.entity';
+import { RoleCapability } from '@persistence/entities/role-capability.entity.js';
 import { describe, expect, it, vi } from 'vitest';
-import { Capability } from '../src/roles/domain/models/capability.entity';
-import { Role } from '../src/roles/domain/models/role.entity';
-import { GetRolesCapabilitiesQuery } from './support/roles-capabilities/get-roles-capabilities.query';
-import { GetRolesCapabilitiesQueryRepository } from './support/roles-capabilities/get-roles-capabilities.query-repository';
+import { Capability } from '../src/roles/domain/models/capability.entity.js';
+import { Role } from '../src/roles/domain/models/role.entity.js';
+import { GetRolesCapabilitiesQuery } from './support/roles-capabilities/get-roles-capabilities.query.js';
+import { GetRolesCapabilitiesQueryRepository } from './support/roles-capabilities/get-roles-capabilities.query-repository.js';
 
 describe('GetRolesCapabilitiesQueryRepository', () => {
   it('hydrates roles with schema-aware entity operations instead of raw SQL', async () => {

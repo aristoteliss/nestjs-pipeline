@@ -1,11 +1,11 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import { loadOptionalEnvFile } from '@common/environment/load-optional-env-file';
-import { migrate } from './migrate';
-import { purgeSessions } from './purge-sessions';
-import { rebuildUserPermissions } from './rebuild-user-permissions';
-import { revert } from './revert';
-import { verifyUserPermissions } from './verify-user-permissions';
+import { loadOptionalEnvFile } from '@common/environment/load-optional-env-file.js';
+import { migrate } from './migrate.js';
+import { purgeSessions } from './purge-sessions.js';
+import { rebuildUserPermissions } from './rebuild-user-permissions.js';
+import { revert } from './revert.js';
+import { verifyUserPermissions } from './verify-user-permissions.js';
 
 /**
  * The persistence maintenance commands, run as
@@ -78,19 +78,17 @@ function steps(args: string[]): number {
   return value;
 }
 
-if (require.main === module) {
-  const [name = '', ...args] = process.argv.slice(2);
-  const command = commands[name];
-  if (!command) {
-    console.error(
-      `Unknown command "${name}". Commands: ${Object.keys(commands).join(', ')}.`,
-    );
+const [name = '', ...args] = process.argv.slice(2);
+const command = commands[name];
+if (!command) {
+  console.error(
+    `Unknown command "${name}". Commands: ${Object.keys(commands).join(', ')}.`,
+  );
+  process.exitCode = 1;
+} else {
+  loadOptionalEnvFile();
+  command(args).catch((error: unknown) => {
+    console.error(error);
     process.exitCode = 1;
-  } else {
-    loadOptionalEnvFile();
-    command(args).catch((error: unknown) => {
-      console.error(error);
-      process.exitCode = 1;
-    });
-  }
+  });
 }

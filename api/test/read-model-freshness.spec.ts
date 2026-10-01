@@ -11,24 +11,24 @@ import {
 import { type IPipelineContext, pipelineStore } from '@nestjs-pipeline/core';
 import { runWithTenant } from '@nestjs-pipeline/tenant';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { GetRoleHandler } from '../src/roles/application/cqrs/queries/get-role.handler';
-import { GetRoleQuery } from '../src/roles/application/cqrs/queries/get-role.query';
-import { GetRolesHandler } from '../src/roles/application/cqrs/queries/get-roles.handler';
-import { GetRolesQuery } from '../src/roles/application/cqrs/queries/get-roles.query';
+import { GetRoleHandler } from '../src/roles/application/cqrs/queries/get-role.handler.js';
+import { GetRoleQuery } from '../src/roles/application/cqrs/queries/get-role.query.js';
+import { GetRolesHandler } from '../src/roles/application/cqrs/queries/get-roles.handler.js';
+import { GetRolesQuery } from '../src/roles/application/cqrs/queries/get-roles.query.js';
 import {
   Role,
   type RoleSnapshot,
-} from '../src/roles/domain/models/role.entity';
-import { GetRoleQueryRepository } from '../src/roles/persistence/get-role.query-repository';
-import { GetUserHandler } from '../src/users/application/cqrs/queries/get-user.handler';
-import { GetUserQuery } from '../src/users/application/cqrs/queries/get-user.query';
-import { GetUsersHandler } from '../src/users/application/cqrs/queries/get-users.handler';
-import { GetUsersQuery } from '../src/users/application/cqrs/queries/get-users.query';
+} from '../src/roles/domain/models/role.entity.js';
+import { GetRoleQueryRepository } from '../src/roles/persistence/get-role.query-repository.js';
+import { GetUserHandler } from '../src/users/application/cqrs/queries/get-user.handler.js';
+import { GetUserQuery } from '../src/users/application/cqrs/queries/get-user.query.js';
+import { GetUsersHandler } from '../src/users/application/cqrs/queries/get-users.handler.js';
+import { GetUsersQuery } from '../src/users/application/cqrs/queries/get-users.query.js';
 import {
   User,
   type UserSnapshot,
-} from '../src/users/domain/models/user.entity';
-import { GetUserQueryRepository } from '../src/users/persistence/get-user.query-repository';
+} from '../src/users/domain/models/user.entity.js';
+import { GetUserQueryRepository } from '../src/users/persistence/get-user.query-repository.js';
 
 const TARGET_ID = '019488e0-0000-7000-8000-000000000001';
 

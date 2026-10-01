@@ -13,9 +13,12 @@ import {
   optimisticDelete,
 } from '@cqrs-ddd/mikro-orm';
 import { Inject, Injectable } from '@nestjs/common';
-import { cacheWriteLogger } from '@persistence/cache/cache-loggers';
-import { MIKRO_ORM_CLIENT, MikroOrmStore } from '@persistence/mikro-orm.store';
-import { Role, RoleSnapshot } from '../domain/models/role.entity';
+import { cacheWriteLogger } from '@persistence/cache/cache-loggers.js';
+import {
+  MIKRO_ORM_CLIENT,
+  MikroOrmStore,
+} from '@persistence/mikro-orm.store.js';
+import { Role, RoleSnapshot } from '../domain/models/role.entity.js';
 
 @Injectable()
 export class DeleteRoleCommandRepository extends AggregateRepository<

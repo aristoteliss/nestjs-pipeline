@@ -9,8 +9,8 @@ import {
 import { cacheKey, DEFAULT_BARRIER_TTL_MS } from '@cqrs-ddd/core/persistence';
 import { runWithTenant } from '@nestjs-pipeline/tenant';
 import { describe, expect, it, vi } from 'vitest';
-import { Role, type RoleSnapshot } from '../domain/models/role.entity';
-import { DeleteRoleCommandRepository } from './delete-role.command-repository';
+import { Role, type RoleSnapshot } from '../domain/models/role.entity.js';
+import { DeleteRoleCommandRepository } from './delete-role.command-repository.js';
 
 describe('DeleteRoleCommandRepository', () => {
   it('evicts the tenant-aware query key and never caches the delete count', async () => {

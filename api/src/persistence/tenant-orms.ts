@@ -6,8 +6,8 @@ import {
   createLibsqlOrmOptions,
   createPostgresOrmOptions,
   libsqlDbUrl,
-} from './orm-options';
-import { persistenceConfig } from './persistence.config';
+} from './orm-options.js';
+import { persistenceConfig } from './persistence.config.js';
 
 /**
  * Runs `task` once per configured tenant with an ORM bound to that tenant's

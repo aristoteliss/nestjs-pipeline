@@ -39,23 +39,23 @@ import { ZodError } from 'zod';
 import {
   AuthConfigurationException,
   InvalidLoginCredentialsException,
-} from '../../auths/domain/errors/authentication.exception';
+} from '../../auths/domain/errors/authentication.exception.js';
 import {
   InvalidTenantSchemaError,
   UnknownTenantSchemaError,
-} from '../../persistence/tenant-schema.errors';
+} from '../../persistence/tenant-schema.errors.js';
 import {
   InvalidRoleNameException,
   UniqueRoleNameException,
-} from '../../roles/domain/models/errors/role-name.exception';
+} from '../../roles/domain/models/errors/role-name.exception.js';
 import {
   EmptyUserUpdateException,
   InvalidDepartmentException,
   InvalidUsernameException,
   UniqueEmailException,
-} from '../../users/domain/models/errors';
-import type { User } from '../../users/domain/models/user.entity';
-import { DEAD_LETTER_DEFAULTS } from './dead-letter.options';
+} from '../../users/domain/models/errors/index.js';
+import type { User } from '../../users/domain/models/user.entity.js';
+import { DEAD_LETTER_DEFAULTS } from './dead-letter.options.js';
 
 type ErrorClass = abstract new (...args: never[]) => Error;
 
@@ -87,7 +87,7 @@ const isErrorClass = (value: unknown): value is ErrorClass =>
  * errors.
  */
 async function errorClasses(): Promise<ErrorClass[]> {
-  const root = resolve(__dirname.split('/src')[0], 'src');
+  const root = resolve(import.meta.dirname.split('/src')[0], 'src');
   const declaring = readdirSync(root, { recursive: true, encoding: 'utf8' })
     .filter((file) => file.endsWith('.ts') && !file.endsWith('.spec.ts'))
     .map((file) => resolve(root, file))

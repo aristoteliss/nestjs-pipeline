@@ -1,6 +1,6 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import { HEADERS } from '@common/constants/headers.constants';
+import { HEADERS } from '@common/constants/headers.constants.js';
 import {
   Body,
   Controller,
@@ -15,25 +15,25 @@ import {
 } from '@nestjs/common';
 import { CommandBus, QueryBus } from '@nestjs/cqrs';
 import { UnauthorizedActionException } from '@nestjs-pipeline/casl';
-import { CreateRoleCommand } from '../application/cqrs/commands/create-role.command';
-import { DeleteRoleCommand } from '../application/cqrs/commands/delete-role.command';
-import { UpdateRoleCommand } from '../application/cqrs/commands/update-role.command';
-import { GetRoleQuery } from '../application/cqrs/queries/get-role.query';
-import { GetRolesQuery } from '../application/cqrs/queries/get-roles.query';
-import type { RoleReadModel } from '../application/role-read-model';
-import type { Role } from '../domain/models/role.entity';
+import { CreateRoleCommand } from '../application/cqrs/commands/create-role.command.js';
+import { DeleteRoleCommand } from '../application/cqrs/commands/delete-role.command.js';
+import { UpdateRoleCommand } from '../application/cqrs/commands/update-role.command.js';
+import { GetRoleQuery } from '../application/cqrs/queries/get-role.query.js';
+import { GetRolesQuery } from '../application/cqrs/queries/get-roles.query.js';
+import type { RoleReadModel } from '../application/role-read-model.js';
+import type { Role } from '../domain/models/role.entity.js';
 import {
   type CreateRoleDto,
   CreateRoleDtoSchema,
-} from '../dtos/create-role.dto';
-import { type RoleIdDto, RoleIdDtoSchema } from '../dtos/get-role.dto';
-import { type RoleResponseDto, toRoleResponseDto } from '../dtos/role.dto';
+} from '../dtos/create-role.dto.js';
+import { type RoleIdDto, RoleIdDtoSchema } from '../dtos/get-role.dto.js';
+import { type RoleResponseDto, toRoleResponseDto } from '../dtos/role.dto.js';
 import {
   type UpdateRoleDto,
   UpdateRoleDtoSchema,
-} from '../dtos/update-role.dto';
-import { CreateRoleMapper } from '../mappers/create-role.mapper';
-import { UpdateRoleMapper } from '../mappers/update-role.mapper';
+} from '../dtos/update-role.dto.js';
+import { CreateRoleMapper } from '../mappers/create-role.mapper.js';
+import { UpdateRoleMapper } from '../mappers/update-role.mapper.js';
 
 @Controller('roles')
 export class RolesController {

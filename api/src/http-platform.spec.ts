@@ -12,11 +12,14 @@ import {
   it,
   vi,
 } from 'vitest';
-import { Auth } from './auths/domain/models/auth.entity';
-import { SessionService } from './auths/services/session.service';
-import { httpExchangeStore } from './common/context/http-exchange.store';
-import { ACCESS_TOKEN_MAX_BYTES } from './common/environment/auth-token.config';
-import { createFastifyAdapter, registerSecureSession } from './http-platform';
+import { Auth } from './auths/domain/models/auth.entity.js';
+import { SessionService } from './auths/services/session.service.js';
+import { httpExchangeStore } from './common/context/http-exchange.store.js';
+import { ACCESS_TOKEN_MAX_BYTES } from './common/environment/auth-token.config.js';
+import {
+  createFastifyAdapter,
+  registerSecureSession,
+} from './http-platform.js';
 
 /** Browsers may drop a cookie whose `Set-Cookie` header is larger than this. */
 const COOKIE_LIMIT_BYTES = 4096;
@@ -94,7 +97,7 @@ describe('createFastifyAdapter', () => {
   it('refuses a hop-count TRUST_PROXY, which Fastify would trust no proxy for', async () => {
     vi.stubEnv('TRUST_PROXY', '1');
     vi.resetModules();
-    const platform = await import('./http-platform');
+    const platform = await import('./http-platform.js');
 
     expect(() => platform.createFastifyAdapter()).toThrow(
       'TRUST_PROXY=1 is a hop count',
@@ -104,7 +107,7 @@ describe('createFastifyAdapter', () => {
   it('takes the client address from a trusted proxy in the address list', async () => {
     vi.stubEnv('TRUST_PROXY', 'loopback');
     vi.resetModules();
-    const platform = await import('./http-platform');
+    const platform = await import('./http-platform.js');
     const fastify = platform.createFastifyAdapter().getInstance();
     fastify.get('/ip', async (request) => ({ ip: request.ip }));
 

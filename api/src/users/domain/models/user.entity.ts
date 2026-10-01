@@ -7,14 +7,14 @@ import {
   type RootEntitySnapshot,
   textRule,
 } from '@cqrs-ddd/core/domain';
-import { UserCreatedEvent } from '../events/user-created.event';
-import { UserDeletedEvent } from '../events/user-deleted.event';
-import { UserUpdatedEvent } from '../events/user-updated.event';
+import { UserCreatedEvent } from '../events/user-created.event.js';
+import { UserDeletedEvent } from '../events/user-deleted.event.js';
+import { UserUpdatedEvent } from '../events/user-updated.event.js';
 import {
   EmptyUserUpdateException,
   InvalidDepartmentException,
   InvalidUsernameException,
-} from './errors';
+} from './errors/index.js';
 
 export interface UserSnapshot extends Partial<RootEntitySnapshot> {
   readonly username: string;

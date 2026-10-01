@@ -1,5 +1,5 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
-import { sessionPrincipalStore } from '@common/context/session-principal.store';
+import { sessionPrincipalStore } from '@common/context/session-principal.store.js';
 import type { CommandBus, EventBus, QueryBus } from '@nestjs/cqrs';
 import type { CaslAuthorizer } from '@nestjs-pipeline/casl';
 import { PipelineContext, SET_TENANT_ID } from '@nestjs-pipeline/core';
@@ -10,25 +10,25 @@ import {
   MemoryIdempotencyStore,
 } from '@nestjs-pipeline/idempotency';
 import { describe, expect, it, vi } from 'vitest';
-import { CreateRoleCommand } from '../src/roles/application/cqrs/commands/create-role.command';
-import { CreateRoleHandler } from '../src/roles/application/cqrs/commands/create-role.handler';
-import { RoleCreatedEvent } from '../src/roles/domain/events/role-created.event';
+import { CreateRoleCommand } from '../src/roles/application/cqrs/commands/create-role.command.js';
+import { CreateRoleHandler } from '../src/roles/application/cqrs/commands/create-role.handler.js';
+import { RoleCreatedEvent } from '../src/roles/domain/events/role-created.event.js';
 import {
   Role,
   type RoleSnapshot,
-} from '../src/roles/domain/models/role.entity';
-import { toRoleResponseDto } from '../src/roles/dtos/role.dto';
-import { CreateUserCommand } from '../src/users/application/cqrs/commands/create-user.command';
-import { CreateUserHandler } from '../src/users/application/cqrs/commands/create-user.handler';
-import { GetUserQuery } from '../src/users/application/cqrs/queries/get-user.query';
-import { UsersController } from '../src/users/controllers/users.controller';
-import { UserCreatedEvent } from '../src/users/domain/events/user-created.event';
+} from '../src/roles/domain/models/role.entity.js';
+import { toRoleResponseDto } from '../src/roles/dtos/role.dto.js';
+import { CreateUserCommand } from '../src/users/application/cqrs/commands/create-user.command.js';
+import { CreateUserHandler } from '../src/users/application/cqrs/commands/create-user.handler.js';
+import { GetUserQuery } from '../src/users/application/cqrs/queries/get-user.query.js';
+import { UsersController } from '../src/users/controllers/users.controller.js';
+import { UserCreatedEvent } from '../src/users/domain/events/user-created.event.js';
 import {
   User,
   type UserSnapshot,
-} from '../src/users/domain/models/user.entity';
-import { toResponseDto } from '../src/users/dtos/user.dto';
-import { declaredOptions, requiredKey } from './support/declared-options';
+} from '../src/users/domain/models/user.entity.js';
+import { toResponseDto } from '../src/users/dtos/user.dto.js';
+import { declaredOptions, requiredKey } from './support/declared-options.js';
 
 const { keyFactory: createUserIdempotencyKey } = declaredOptions<
   Required<IdempotencyBehaviorOptions>

@@ -2,7 +2,7 @@
 
 import request from 'supertest';
 import { describe, expect, it } from 'vitest';
-import { bootstrapE2E } from './support/e2e-app';
+import { bootstrapE2E } from './support/e2e-app.js';
 
 const admin = JSON.stringify({
   id: 'admin-tenant-settings',

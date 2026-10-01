@@ -4,7 +4,7 @@ import { AsyncLocalStorage } from 'node:async_hooks';
 import {
   principalSegments,
   type SessionPrincipal,
-} from '@common/types/session-principal';
+} from '@common/types/session-principal.js';
 import { joinKeySegments } from '@cqrs-ddd/safe-stringify';
 
 export const sessionPrincipalStore = new AsyncLocalStorage<

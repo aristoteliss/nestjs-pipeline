@@ -4,9 +4,9 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
   MIKRO_ORM_CLIENT,
   type MikroOrmStore,
-} from '../src/persistence/mikro-orm.store';
-import { TenantSchemaContext } from '../src/persistence/tenant-schema.context';
-import { bootstrapE2E, type E2EContext } from './support/e2e-app';
+} from '../src/persistence/mikro-orm.store.js';
+import { TenantSchemaContext } from '../src/persistence/tenant-schema.context.js';
+import { bootstrapE2E, type E2EContext } from './support/e2e-app.js';
 
 describe('tenant EntityManager metadata (e2e)', () => {
   let ctx: E2EContext;

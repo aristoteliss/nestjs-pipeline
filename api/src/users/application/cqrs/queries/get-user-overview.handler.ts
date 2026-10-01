@@ -4,7 +4,7 @@ import {
   APP_ACTIONS,
   APP_SUBJECTS,
   userCapabilitiesSubject,
-} from '@common/constants';
+} from '@common/constants/index.js';
 import type { IQueryRepository } from '@cqrs-ddd/core/application';
 import { Inject } from '@nestjs/common';
 import { type IQueryHandler, QueryHandler } from '@nestjs/cqrs';
@@ -17,16 +17,16 @@ import {
   requires,
 } from '@nestjs-pipeline/casl';
 import { UsePipeline } from '@nestjs-pipeline/core';
-import { GetRolesQuery } from '../../../../roles/application/cqrs/queries/get-roles.query';
-import type { Role } from '../../../../roles/domain/models/role.entity';
-import { QUERY_REPOSITORY as ROLES_QUERY_REPOSITORY } from '../../../../roles/persistence/repository.tokens';
-import type { User } from '../../../domain/models/user.entity';
-import { QUERY_REPOSITORY } from '../../../persistence/repository.tokens';
-import type { UserPermissionAssignments } from '../../permission-assignments';
-import { GetUserQuery } from './get-user.query';
-import { GetUserCapabilitiesQuery } from './get-user-capabilities.query';
-import { GetUserOverviewQuery } from './get-user-overview.query';
-import { userOverviewCacheOptions } from './user-overview-cache.policy';
+import { GetRolesQuery } from '../../../../roles/application/cqrs/queries/get-roles.query.js';
+import type { Role } from '../../../../roles/domain/models/role.entity.js';
+import { QUERY_REPOSITORY as ROLES_QUERY_REPOSITORY } from '../../../../roles/persistence/repository.tokens.js';
+import type { User } from '../../../domain/models/user.entity.js';
+import { QUERY_REPOSITORY } from '../../../persistence/repository.tokens.js';
+import type { UserPermissionAssignments } from '../../permission-assignments.js';
+import { GetUserQuery } from './get-user.query.js';
+import { GetUserCapabilitiesQuery } from './get-user-capabilities.query.js';
+import { GetUserOverviewQuery } from './get-user-overview.query.js';
+import { userOverviewCacheOptions } from './user-overview-cache.policy.js';
 
 export interface UserOverviewDto {
   id?: string;

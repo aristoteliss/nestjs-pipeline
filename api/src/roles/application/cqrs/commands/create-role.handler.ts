@@ -1,7 +1,11 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import { APP_ACTIONS, APP_SUBJECTS, AUDIT_ACTIONS } from '@common/constants';
-import { operationIdempotencyKeyFactory } from '@common/idempotency/operation-key';
+import {
+  APP_ACTIONS,
+  APP_SUBJECTS,
+  AUDIT_ACTIONS,
+} from '@common/constants/index.js';
+import { operationIdempotencyKeyFactory } from '@common/idempotency/operation-key.js';
 import {
   CommandBaseHandler,
   ICommandRepository,
@@ -17,10 +21,10 @@ import {
 import { logging, UsePipeline } from '@nestjs-pipeline/core';
 import { featureFlag } from '@nestjs-pipeline/feature-flags';
 import { idempotent } from '@nestjs-pipeline/idempotency';
-import { UniqueRoleNameException } from '../../../domain/models/errors/role-name.exception';
-import { Role, type RoleSnapshot } from '../../../domain/models/role.entity';
-import { COMMAND_REPOSITORY } from '../../../persistence/repository.tokens';
-import { CreateRoleCommand } from './create-role.command';
+import { UniqueRoleNameException } from '../../../domain/models/errors/role-name.exception.js';
+import { Role, type RoleSnapshot } from '../../../domain/models/role.entity.js';
+import { COMMAND_REPOSITORY } from '../../../persistence/repository.tokens.js';
+import { CreateRoleCommand } from './create-role.command.js';
 
 @CommandHandler(CreateRoleCommand)
 @UsePipeline(

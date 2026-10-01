@@ -2,7 +2,7 @@
 
 import { uuidv7 } from '@cqrs-ddd/uuidv7';
 import { describe, expect, it } from 'vitest';
-import { Capability } from './capability.entity';
+import { Capability } from './capability.entity.js';
 
 describe('Capability entity', () => {
   it('creates a capability and serializes it to JSON', () => {

@@ -5,9 +5,9 @@ import {
   APP_SUBJECTS,
   AUDIT_ACTIONS,
   RATE_LIMIT_COST,
-} from '@common/constants';
-import { sessionPrincipalKey } from '@common/context/session-principal.store';
-import { operationIdempotencyKeyFactory } from '@common/idempotency/operation-key';
+} from '@common/constants/index.js';
+import { sessionPrincipalKey } from '@common/context/session-principal.store.js';
+import { operationIdempotencyKeyFactory } from '@common/idempotency/operation-key.js';
 import {
   CommandBaseHandler,
   ICommandRepository,
@@ -27,10 +27,10 @@ import {
   createPartitionedRateLimitKeyFactory,
   rateLimit,
 } from '@nestjs-pipeline/rate-limit';
-import { UniqueEmailException } from '../../../domain/models/errors/email.exception';
-import { User, type UserSnapshot } from '../../../domain/models/user.entity';
-import { COMMAND_REPOSITORY } from '../../../persistence/repository.tokens';
-import { CreateUserCommand } from './create-user.command';
+import { UniqueEmailException } from '../../../domain/models/errors/email.exception.js';
+import { User, type UserSnapshot } from '../../../domain/models/user.entity.js';
+import { COMMAND_REPOSITORY } from '../../../persistence/repository.tokens.js';
+import { CreateUserCommand } from './create-user.command.js';
 
 @CommandHandler(CreateUserCommand)
 @UsePipeline(

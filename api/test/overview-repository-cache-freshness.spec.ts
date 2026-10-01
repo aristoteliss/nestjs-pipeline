@@ -4,14 +4,14 @@ import { MemoryCache } from '@cqrs-ddd/core/persistence';
 import { buildAbility, CaslAuthorizer } from '@nestjs-pipeline/casl';
 import { runWithTenant } from '@nestjs-pipeline/tenant';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { GetUserQuery } from '../src/users/application/cqrs/queries/get-user.query';
-import { GetUserOverviewHandler } from '../src/users/application/cqrs/queries/get-user-overview.handler';
-import { GetUserOverviewQuery } from '../src/users/application/cqrs/queries/get-user-overview.query';
+import { GetUserQuery } from '../src/users/application/cqrs/queries/get-user.query.js';
+import { GetUserOverviewHandler } from '../src/users/application/cqrs/queries/get-user-overview.handler.js';
+import { GetUserOverviewQuery } from '../src/users/application/cqrs/queries/get-user-overview.query.js';
 import {
   User,
   type UserSnapshot,
-} from '../src/users/domain/models/user.entity';
-import { GetUserQueryRepository } from '../src/users/persistence/get-user.query-repository';
+} from '../src/users/domain/models/user.entity.js';
+import { GetUserQueryRepository } from '../src/users/persistence/get-user.query-repository.js';
 
 /**
  * The overview handler authorizes a department-scoped viewer against the user it

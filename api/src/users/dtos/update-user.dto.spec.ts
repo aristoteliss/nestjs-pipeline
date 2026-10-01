@@ -3,8 +3,8 @@ import { describe, expect, it } from 'vitest';
 import {
   EMPTY_USER_UPDATE_MESSAGE,
   UpdateUserCommand,
-} from '../application/cqrs/commands/update-user.command';
-import { UpdateUserDtoSchema } from './update-user.dto';
+} from '../application/cqrs/commands/update-user.command.js';
+import { UpdateUserDtoSchema } from './update-user.dto.js';
 
 describe('UpdateUserDtoSchema', () => {
   it('rejects an empty update', () => {

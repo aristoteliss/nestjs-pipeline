@@ -1,10 +1,10 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { describe, expect, it, vi } from 'vitest';
-import { UserUpdatedEvent } from '../../../domain/events/user-updated.event';
-import { User } from '../../../domain/models/user.entity';
-import type { IUserBatchDispatcher } from '../../ports/user-event-dispatcher.port';
-import { UserUpdatedHandler } from './user-updated.handler';
+import { UserUpdatedEvent } from '../../../domain/events/user-updated.event.js';
+import { User } from '../../../domain/models/user.entity.js';
+import type { IUserBatchDispatcher } from '../../ports/user-event-dispatcher.port.js';
+import { UserUpdatedHandler } from './user-updated.handler.js';
 
 describe('UserUpdatedHandler', () => {
   it('dispatches only application data; logging/correlation are cross-cutting concerns', async () => {

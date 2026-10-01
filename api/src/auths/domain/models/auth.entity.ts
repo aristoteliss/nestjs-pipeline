@@ -10,11 +10,11 @@ import {
 import {
   InvalidRefreshTokenError,
   RefreshTokenReuseError,
-} from '../errors/refresh-token.errors';
-import { AuthCreatedEvent } from '../events/auth-created.event';
-import { AuthRefreshedEvent } from '../events/auth-refreshed.event';
-import { AuthRevokedEvent } from '../events/auth-revoked.event';
-import { ConsumedRefreshToken } from './consumed-refresh-token.entity';
+} from '../errors/refresh-token.errors.js';
+import { AuthCreatedEvent } from '../events/auth-created.event.js';
+import { AuthRefreshedEvent } from '../events/auth-refreshed.event.js';
+import { AuthRevokedEvent } from '../events/auth-revoked.event.js';
+import { ConsumedRefreshToken } from './consumed-refresh-token.entity.js';
 
 export interface AuthSnapshot extends Partial<RootEntitySnapshot> {
   readonly userId: string;

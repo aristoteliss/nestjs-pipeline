@@ -7,10 +7,10 @@ import {
   type RootEntitySnapshot,
   textRule,
 } from '@cqrs-ddd/core/domain';
-import { RoleCreatedEvent } from '../events/role-created.event';
-import { RoleDeletedEvent } from '../events/role-deleted.event';
-import { RoleUpdatedEvent } from '../events/role-updated.event';
-import { InvalidRoleNameException } from './errors/role-name.exception';
+import { RoleCreatedEvent } from '../events/role-created.event.js';
+import { RoleDeletedEvent } from '../events/role-deleted.event.js';
+import { RoleUpdatedEvent } from '../events/role-updated.event.js';
+import { InvalidRoleNameException } from './errors/role-name.exception.js';
 
 export interface RoleSnapshot extends Partial<RootEntitySnapshot> {
   readonly name: string;

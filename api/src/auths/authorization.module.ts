@@ -1,10 +1,10 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { Module } from '@nestjs/common';
-import { CaslPermissionSource } from './persistence/casl-permission.source';
-import { GetUserPermissionRulesRepository } from './persistence/get-user-permission-rules.query-repository';
-import { QUERY_REPOSITORY } from './persistence/repository.tokens';
-import { UserPermissionsProjector } from './persistence/user-permissions.projector';
+import { CaslPermissionSource } from './persistence/casl-permission.source.js';
+import { GetUserPermissionRulesRepository } from './persistence/get-user-permission-rules.query-repository.js';
+import { QUERY_REPOSITORY } from './persistence/repository.tokens.js';
+import { UserPermissionsProjector } from './persistence/user-permissions.projector.js';
 
 /**
  * Provides the permission source `CaslModule` binds to `CASL_PERMISSION_SOURCE`,

@@ -2,7 +2,7 @@
 
 import { createHash, randomBytes } from 'node:crypto';
 import { Injectable } from '@nestjs/common';
-import { type IRefreshTokens } from '../application/ports/refresh-tokens.port';
+import { type IRefreshTokens } from '../application/ports/refresh-tokens.port.js';
 
 @Injectable()
 export class NodeRefreshTokens implements IRefreshTokens {

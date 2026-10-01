@@ -2,9 +2,12 @@
 
 import { IQueryRepository } from '@cqrs-ddd/core/application';
 import { Inject, Injectable } from '@nestjs/common';
-import { MIKRO_ORM_CLIENT, MikroOrmStore } from '@persistence/mikro-orm.store';
-import { GetRolesQuery } from '../application/cqrs/queries/get-roles.query';
-import { Role } from '../domain/models/role.entity';
+import {
+  MIKRO_ORM_CLIENT,
+  MikroOrmStore,
+} from '@persistence/mikro-orm.store.js';
+import { GetRolesQuery } from '../application/cqrs/queries/get-roles.query.js';
+import { Role } from '../domain/models/role.entity.js';
 
 @Injectable()
 export class GetRolesQueryRepository

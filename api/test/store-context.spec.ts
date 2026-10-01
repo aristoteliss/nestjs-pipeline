@@ -11,8 +11,8 @@ import { MikroORM as PostgresORM } from '@mikro-orm/postgresql';
 import {
   createLibsqlOrmOptions,
   createPostgresOrmOptions,
-} from '@persistence/orm-options';
-import { TenantSchemaContext } from '@persistence/tenant-schema.context';
+} from '@persistence/orm-options.js';
+import { TenantSchemaContext } from '@persistence/tenant-schema.context.js';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 type Manager = EntityManager;

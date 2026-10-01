@@ -3,8 +3,8 @@
 import {
   getSessionPrincipal,
   sessionPrincipalStore,
-} from '@common/context/session-principal.store';
-import type { SessionPrincipal } from '@common/types/session-principal';
+} from '@common/context/session-principal.store.js';
+import type { SessionPrincipal } from '@common/types/session-principal.js';
 import {
   type IQueryRepository,
   type IWriteSideAggregateRepository,
@@ -13,17 +13,17 @@ import {
 import { InvalidJobContextError } from '@nestjs-pipeline/job-context';
 import { currentTenantId } from '@nestjs-pipeline/tenant';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { GetUserQuery } from '../../users/application/cqrs/queries/get-user.query';
-import type { User } from '../../users/domain/models/user.entity';
-import { Auth } from '../domain/models/auth.entity';
-import { SessionJobPrincipal } from './session-job-principal';
+import type { GetUserQuery } from '../../users/application/cqrs/queries/get-user.query.js';
+import type { User } from '../../users/domain/models/user.entity.js';
+import { Auth } from '../domain/models/auth.entity.js';
+import { SessionJobPrincipal } from './session-job-principal.js';
 
 const TENANT = 'tenant_a';
 
 beforeEach(() => setTenantResolver(() => TENANT));
 afterEach(() => setTenantResolver(currentTenantId));
 
-vi.mock('../../common/environment/api-clients.config', () => ({
+vi.mock('../../common/environment/api-clients.config.js', () => ({
   API_CLIENTS: new Map([
     [
       'reporting',

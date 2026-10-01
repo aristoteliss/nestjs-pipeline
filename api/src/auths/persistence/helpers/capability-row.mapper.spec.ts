@@ -1,7 +1,7 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { describe, expect, it } from 'vitest';
-import { capabilityFromRow } from './capability-row.mapper';
+import { capabilityFromRow } from './capability-row.mapper.js';
 
 describe('capabilityFromRow', () => {
   it('maps a full row with conditions, fields, inverted, and reason', () => {

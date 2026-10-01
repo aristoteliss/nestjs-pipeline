@@ -5,16 +5,16 @@ import { ConcurrencyConflictError } from '@cqrs-ddd/core/domain';
 import { setPersistenceDialect } from '@cqrs-ddd/core/persistence';
 import { MikroOrmDialect } from '@cqrs-ddd/mikro-orm';
 import { MikroORM } from '@mikro-orm/libsql';
-import { Migration20260830000000 } from '@persistence/migrations/Migration20260830000000';
-import type { MikroOrmStore } from '@persistence/mikro-orm.store';
-import { createLibsqlOrmOptions } from '@persistence/orm-options';
+import { Migration20260830000000 } from '@persistence/migrations/Migration20260830000000.js';
+import type { MikroOrmStore } from '@persistence/mikro-orm.store.js';
+import { createLibsqlOrmOptions } from '@persistence/orm-options.js';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
-import { UniqueRoleNameException } from '../src/roles/domain/models/errors/role-name.exception';
+import { UniqueRoleNameException } from '../src/roles/domain/models/errors/role-name.exception.js';
 import {
   Role,
   type RoleSnapshot,
-} from '../src/roles/domain/models/role.entity';
-import { UpdateRoleCommandRepository } from '../src/roles/persistence/update-role.command-repository';
+} from '../src/roles/domain/models/role.entity.js';
+import { UpdateRoleCommandRepository } from '../src/roles/persistence/update-role.command-repository.js';
 
 describe('versioned role updates with real MikroORM persistence', () => {
   let orm: MikroORM;

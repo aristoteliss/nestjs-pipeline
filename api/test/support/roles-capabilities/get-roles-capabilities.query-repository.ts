@@ -1,16 +1,19 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import { capabilityFromRow } from '@auths/persistence/helpers/capability-row.mapper';
+import { capabilityFromRow } from '@auths/persistence/helpers/capability-row.mapper.js';
 import { Inject, Injectable } from '@nestjs/common';
 import type {
   CapabilityString,
   Capability as CaslCapability,
 } from '@nestjs-pipeline/casl';
-import { RoleCapability } from '@persistence/entities/role-capability.entity';
-import { MIKRO_ORM_CLIENT, MikroOrmStore } from '@persistence/mikro-orm.store';
-import { Capability } from '../../../src/roles/domain/models/capability.entity';
-import { Role } from '../../../src/roles/domain/models/role.entity';
-import { GetRolesCapabilitiesQuery } from './get-roles-capabilities.query';
+import { RoleCapability } from '@persistence/entities/role-capability.entity.js';
+import {
+  MIKRO_ORM_CLIENT,
+  MikroOrmStore,
+} from '@persistence/mikro-orm.store.js';
+import { Capability } from '../../../src/roles/domain/models/capability.entity.js';
+import { Role } from '../../../src/roles/domain/models/role.entity.js';
+import { GetRolesCapabilitiesQuery } from './get-roles-capabilities.query.js';
 
 /** Role capabilities read straight from the assignment tables. */
 export interface RoleDefinition {

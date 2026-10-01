@@ -1,8 +1,8 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { describe, expect, it } from 'vitest';
-import { CreateAuthCommand } from '../application/cqrs/commands/create-auth.command';
-import { LoginDtoSchema } from './login.dto';
+import { CreateAuthCommand } from '../application/cqrs/commands/create-auth.command.js';
+import { LoginDtoSchema } from './login.dto.js';
 
 describe('LoginDtoSchema', () => {
   it('accepts exactly the login codes the login command accepts', () => {

@@ -1,12 +1,12 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
-import { UserAdditionalCapability } from '@persistence/entities/user-additional-capability.entity';
-import { UserDeniedCapability } from '@persistence/entities/user-denied-capability.entity';
-import { UserRole } from '@persistence/entities/user-role.entity';
+import { UserAdditionalCapability } from '@persistence/entities/user-additional-capability.entity.js';
+import { UserDeniedCapability } from '@persistence/entities/user-denied-capability.entity.js';
+import { UserRole } from '@persistence/entities/user-role.entity.js';
 import { describe, expect, it, vi } from 'vitest';
-import { Capability } from '../../roles/domain/models/capability.entity';
-import { Role } from '../../roles/domain/models/role.entity';
-import { GetUserCapabilitiesQuery } from '../application/cqrs/queries/get-user-capabilities.query';
-import { GetUserCapabilitiesQueryRepository } from './get-user-capabilities.query-repository';
+import { Capability } from '../../roles/domain/models/capability.entity.js';
+import { Role } from '../../roles/domain/models/role.entity.js';
+import { GetUserCapabilitiesQuery } from '../application/cqrs/queries/get-user-capabilities.query.js';
+import { GetUserCapabilitiesQueryRepository } from './get-user-capabilities.query-repository.js';
 
 describe('GetUserCapabilitiesQueryRepository', () => {
   it('reads role names, grants and denials through tenant-scoped entity queries, never raw SQL', async () => {

@@ -2,17 +2,17 @@
 
 import { Body, Controller, HttpCode, Ip, Post } from '@nestjs/common';
 import { CommandBus } from '@nestjs/cqrs';
-import type { CreateAuthCommand } from '../application/cqrs/commands/create-auth.command';
-import { RevokeAuthCommand } from '../application/cqrs/commands/revoke-auth.command';
-import type { AuthResult } from '../application/results/auth.result';
-import { RefreshToken } from '../decorators/refresh-token.decorator';
-import { InvalidRefreshTokenError } from '../domain/errors/refresh-token.errors';
-import { type LoginDto, LoginDtoSchema } from '../dtos/login.dto';
-import type { RefreshTokenDto } from '../dtos/refresh-token.dto';
-import type { SessionResponse } from '../dtos/sessionResponse.dto';
-import { LoginMapper } from '../mappers/login.mapper';
-import { toSessionRes } from '../mappers/session.mapper';
-import { PrincipalLoginService } from '../services/principal-login.service';
+import type { CreateAuthCommand } from '../application/cqrs/commands/create-auth.command.js';
+import { RevokeAuthCommand } from '../application/cqrs/commands/revoke-auth.command.js';
+import type { AuthResult } from '../application/results/auth.result.js';
+import { RefreshToken } from '../decorators/refresh-token.decorator.js';
+import { InvalidRefreshTokenError } from '../domain/errors/refresh-token.errors.js';
+import { type LoginDto, LoginDtoSchema } from '../dtos/login.dto.js';
+import type { RefreshTokenDto } from '../dtos/refresh-token.dto.js';
+import type { SessionResponse } from '../dtos/sessionResponse.dto.js';
+import { LoginMapper } from '../mappers/login.mapper.js';
+import { toSessionRes } from '../mappers/session.mapper.js';
+import { PrincipalLoginService } from '../services/principal-login.service.js';
 
 @Controller('auths')
 export class AuthsController {

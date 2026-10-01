@@ -8,9 +8,9 @@ import { Test } from '@nestjs/testing';
 import { DeadLetterModule } from '@nestjs-pipeline/deadletter';
 import { runWithTenant } from '@nestjs-pipeline/tenant';
 import { PARAMS_PROVIDER_TOKEN, type Params } from 'nestjs-pino';
-import pinoHttp from 'pino-http';
+import { pinoHttp } from 'pino-http';
 import { describe, expect, it } from 'vitest';
-import { ObservabilityModule } from './observability.module';
+import { ObservabilityModule } from './observability.module.js';
 
 async function configuredRedaction() {
   const moduleRef = await Test.createTestingModule({

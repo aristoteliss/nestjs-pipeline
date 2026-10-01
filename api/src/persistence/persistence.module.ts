@@ -3,11 +3,11 @@
 import { CACHE_TOKEN } from '@cqrs-ddd/core/persistence';
 import { MikroOrmCache } from '@cqrs-ddd/mikro-orm';
 import { Global, Module } from '@nestjs/common';
-import { mikroOrmCacheLogger } from './cache/cache-loggers';
-import { TenantSchemaMiddleware } from './middlewares/tenant-schema.middleware';
-import { MIKRO_ORM_CLIENT, MikroOrmStore } from './mikro-orm.store';
-import { persistenceConfig } from './persistence.config';
-import { TenantSchemaContext } from './tenant-schema.context';
+import { mikroOrmCacheLogger } from './cache/cache-loggers.js';
+import { TenantSchemaMiddleware } from './middlewares/tenant-schema.middleware.js';
+import { MIKRO_ORM_CLIENT, MikroOrmStore } from './mikro-orm.store.js';
+import { persistenceConfig } from './persistence.config.js';
+import { TenantSchemaContext } from './tenant-schema.context.js';
 
 @Global()
 @Module({

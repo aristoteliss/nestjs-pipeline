@@ -7,8 +7,11 @@ import {
   PersistedWrite,
 } from '@cqrs-ddd/core/persistence';
 import { Inject, Injectable } from '@nestjs/common';
-import { MIKRO_ORM_CLIENT, MikroOrmStore } from '@persistence/mikro-orm.store';
-import { Auth, AuthSnapshot } from '../domain/models/auth.entity';
+import {
+  MIKRO_ORM_CLIENT,
+  MikroOrmStore,
+} from '@persistence/mikro-orm.store.js';
+import { Auth, AuthSnapshot } from '../domain/models/auth.entity.js';
 
 @Injectable()
 export class CreateAuthCommandRepository extends CommandRepository<

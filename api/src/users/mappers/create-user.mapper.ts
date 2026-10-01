@@ -2,11 +2,11 @@
 
 import { createZodMapper } from '@nestjs-pipeline/zod';
 import { z } from 'zod';
-import { CreateUserCommand } from '../application/cqrs/commands/create-user.command';
+import { CreateUserCommand } from '../application/cqrs/commands/create-user.command.js';
 import {
   type CreateUserDto,
   CreateUserDtoSchema,
-} from '../dtos/create-user.dto';
+} from '../dtos/create-user.dto.js';
 
 const base = createZodMapper(
   CreateUserDtoSchema.extend({

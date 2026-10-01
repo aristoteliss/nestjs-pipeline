@@ -1,7 +1,7 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import type { EntityProperty, EntitySchema } from '@mikro-orm/core';
-import { PERSISTENCE_ENTITIES } from './persistence-entities';
+import { PERSISTENCE_ENTITIES } from './persistence-entities.js';
 
 interface ForeignKeyRef {
   readonly table: string;

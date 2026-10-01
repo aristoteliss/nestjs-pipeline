@@ -1,6 +1,6 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 import { describe, expect, it } from 'vitest';
-import { UpdateUserCommand } from './update-user.command';
+import { UpdateUserCommand } from './update-user.command.js';
 
 const ID = '019488e0-0000-7000-8000-000000000001';
 const fields = UpdateUserCommand.updatableFields;

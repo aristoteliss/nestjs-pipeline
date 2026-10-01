@@ -1,7 +1,7 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import { persistenceConfig } from './persistence.config';
-import { forEachTenantOrm } from './tenant-orms';
+import { persistenceConfig } from './persistence.config.js';
+import { forEachTenantOrm } from './tenant-orms.js';
 
 /**
  * Applies the pending migrations in every tenant, creating a PostgreSQL tenant

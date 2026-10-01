@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 const eventHandlerSource = (name: string) =>
-  readFileSync(join(__dirname, name), 'utf8');
+  readFileSync(join(import.meta.dirname, name), 'utf8');
 
 describe('event handler cross-cutting boundary', () => {
   it.each(['user-created.handler.ts', 'user-updated.handler.ts'])(

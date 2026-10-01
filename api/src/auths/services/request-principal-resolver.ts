@@ -7,10 +7,10 @@ import {
   isPrincipalType,
   type SessionData,
   type SessionPrincipal,
-} from '../../common/types/session-principal';
-import { ApiClientAuthenticator } from './api-client-authenticator';
-import { JwtAuthenticator } from './jwt-authenticator';
-import { SessionService } from './session.service';
+} from '../../common/types/session-principal.js';
+import { ApiClientAuthenticator } from './api-client-authenticator.js';
+import { JwtAuthenticator } from './jwt-authenticator.js';
+import { SessionService } from './session.service.js';
 
 export type AuthenticatedRequest = {
   headers?: Record<string, string | string[] | undefined>;

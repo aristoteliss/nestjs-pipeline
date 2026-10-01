@@ -1,8 +1,8 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import { contextSources } from '@common/context/context-sources';
-import { AuthSessionGuard } from '@common/guards/auth-session.guard';
-import { SessionPrincipalContextInterceptor } from '@common/interceptors/session-principal-context.interceptor';
+import { contextSources } from '@common/context/context-sources.js';
+import { AuthSessionGuard } from '@common/guards/auth-session.guard.js';
+import { SessionPrincipalContextInterceptor } from '@common/interceptors/session-principal-context.interceptor.js';
 import {
   type MiddlewareConsumer,
   Module,
@@ -18,17 +18,20 @@ import { IdempotencyConflictFilter } from '@nestjs-pipeline/idempotency';
 import { JobContextModule } from '@nestjs-pipeline/job-context';
 import { RateLimitExceededFilter } from '@nestjs-pipeline/rate-limit';
 import { ZodValidationFilter, zodBadRequest } from '@nestjs-pipeline/zod';
-import { TenantSchemaMiddleware } from '@persistence/middlewares/tenant-schema.middleware';
-import { persistenceConfig } from '@persistence/persistence.config';
-import { PersistenceModule } from '@persistence/persistence.module';
-import { AuthorizationModule } from './auths/authorization.module';
-import { AuthsModule } from './auths/auths.module';
-import { SessionJobPrincipal } from './auths/infrastructure/session-job-principal';
-import { CaslPermissionSource } from './auths/persistence/casl-permission.source';
-import { DomainExceptionFilter } from './common/filters/domain-exception.filter';
-import { ObservabilityModule, ReliabilityModule } from './common/modules';
-import { RolesModule } from './roles/roles.module';
-import { UsersModule } from './users/users.module';
+import { TenantSchemaMiddleware } from '@persistence/middlewares/tenant-schema.middleware.js';
+import { persistenceConfig } from '@persistence/persistence.config.js';
+import { PersistenceModule } from '@persistence/persistence.module.js';
+import { AuthorizationModule } from './auths/authorization.module.js';
+import { AuthsModule } from './auths/auths.module.js';
+import { SessionJobPrincipal } from './auths/infrastructure/session-job-principal.js';
+import { CaslPermissionSource } from './auths/persistence/casl-permission.source.js';
+import { DomainExceptionFilter } from './common/filters/domain-exception.filter.js';
+import {
+  ObservabilityModule,
+  ReliabilityModule,
+} from './common/modules/index.js';
+import { RolesModule } from './roles/roles.module.js';
+import { UsersModule } from './users/users.module.js';
 
 /**
  * Root composition module of the Users API application.

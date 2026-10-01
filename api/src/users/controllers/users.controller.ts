@@ -1,6 +1,6 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import { HEADERS } from '@common/constants/headers.constants';
+import { HEADERS } from '@common/constants/headers.constants.js';
 import {
   Body,
   Controller,
@@ -15,27 +15,27 @@ import {
 } from '@nestjs/common';
 import { CommandBus, QueryBus } from '@nestjs/cqrs';
 import { UnauthorizedActionException } from '@nestjs-pipeline/casl';
-import { CreateUserCommand } from '../application/cqrs/commands/create-user.command';
-import { DeleteUserCommand } from '../application/cqrs/commands/delete-user.command';
-import { UpdateUserCommand } from '../application/cqrs/commands/update-user.command';
-import { GetUserQuery } from '../application/cqrs/queries/get-user.query';
-import type { UserOverviewDto } from '../application/cqrs/queries/get-user-overview.handler';
-import { GetUserOverviewQuery } from '../application/cqrs/queries/get-user-overview.query';
-import { GetUsersQuery } from '../application/cqrs/queries/get-users.query';
-import type { UserReadModel } from '../application/user-read-model';
-import type { User } from '../domain/models/user.entity';
+import { CreateUserCommand } from '../application/cqrs/commands/create-user.command.js';
+import { DeleteUserCommand } from '../application/cqrs/commands/delete-user.command.js';
+import { UpdateUserCommand } from '../application/cqrs/commands/update-user.command.js';
+import { GetUserQuery } from '../application/cqrs/queries/get-user.query.js';
+import type { UserOverviewDto } from '../application/cqrs/queries/get-user-overview.handler.js';
+import { GetUserOverviewQuery } from '../application/cqrs/queries/get-user-overview.query.js';
+import { GetUsersQuery } from '../application/cqrs/queries/get-users.query.js';
+import type { UserReadModel } from '../application/user-read-model.js';
+import type { User } from '../domain/models/user.entity.js';
 import {
   type CreateUserDto,
   CreateUserDtoSchema,
-} from '../dtos/create-user.dto';
-import { type UserIdDto, UserIdDtoSchema } from '../dtos/get-userId.dto';
+} from '../dtos/create-user.dto.js';
+import { type UserIdDto, UserIdDtoSchema } from '../dtos/get-userId.dto.js';
 import {
   type UpdateUserDto,
   UpdateUserDtoSchema,
-} from '../dtos/update-user.dto';
-import { toResponseDto, type UserResponseDto } from '../dtos/user.dto';
-import { CreateUserMapper } from '../mappers/create-user.mapper';
-import { UpdateUserMapper } from '../mappers/update-user.mapper';
+} from '../dtos/update-user.dto.js';
+import { toResponseDto, type UserResponseDto } from '../dtos/user.dto.js';
+import { CreateUserMapper } from '../mappers/create-user.mapper.js';
+import { UpdateUserMapper } from '../mappers/update-user.mapper.js';
 
 @Controller('users')
 export class UsersController {

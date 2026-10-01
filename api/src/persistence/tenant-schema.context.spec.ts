@@ -3,8 +3,8 @@
 import { MissingTenantContextError } from '@cqrs-ddd/core/domain';
 import { currentTenantId, runWithTenant } from '@nestjs-pipeline/tenant';
 import { describe, expect, it } from 'vitest';
-import { TenantSchemaContext } from './tenant-schema.context';
-import { InvalidTenantSchemaError } from './tenant-schema.errors';
+import { TenantSchemaContext } from './tenant-schema.context.js';
+import { InvalidTenantSchemaError } from './tenant-schema.errors.js';
 
 describe('TenantSchemaContext', () => {
   it('exposes the tenant of the enclosing run, across async turns', async () => {

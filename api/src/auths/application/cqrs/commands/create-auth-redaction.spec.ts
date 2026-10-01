@@ -13,8 +13,8 @@ import {
   PIPELINE_BEHAVIORS_OPTIONS_METADATA,
 } from '@nestjs-pipeline/core';
 import { describe, expect, it } from 'vitest';
-import { CreateAuthCommand } from './create-auth.command';
-import { CreateAuthHandler } from './create-auth.handler';
+import { CreateAuthCommand } from './create-auth.command.js';
+import { CreateAuthHandler } from './create-auth.handler.js';
 
 describe('CreateAuthHandler secret redaction', () => {
   const options = Reflect.getMetadata(

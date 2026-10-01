@@ -8,8 +8,8 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
   User,
   type UserSnapshot,
-} from '../src/users/domain/models/user.entity';
-import { bootstrapE2E, type E2EContext, inTenant } from './support/e2e-app';
+} from '../src/users/domain/models/user.entity.js';
+import { bootstrapE2E, type E2EContext, inTenant } from './support/e2e-app.js';
 
 describe('cache write-through CAS & read strong consistency (e2e)', () => {
   let ctx: E2EContext;

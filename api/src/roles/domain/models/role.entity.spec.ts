@@ -2,11 +2,11 @@
 
 import { uuidv7 } from '@cqrs-ddd/uuidv7';
 import { describe, expect, it } from 'vitest';
-import { RoleCreatedEvent } from '../events/role-created.event';
-import { RoleDeletedEvent } from '../events/role-deleted.event';
-import { RoleUpdatedEvent } from '../events/role-updated.event';
-import { InvalidRoleNameException } from './errors/role-name.exception';
-import { Role } from './role.entity';
+import { RoleCreatedEvent } from '../events/role-created.event.js';
+import { RoleDeletedEvent } from '../events/role-deleted.event.js';
+import { RoleUpdatedEvent } from '../events/role-updated.event.js';
+import { InvalidRoleNameException } from './errors/role-name.exception.js';
+import { Role } from './role.entity.js';
 
 describe('Role domain entity', () => {
   describe('creation', () => {

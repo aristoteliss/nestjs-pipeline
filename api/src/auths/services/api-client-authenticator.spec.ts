@@ -3,7 +3,7 @@
 import { setTenantResolver } from '@cqrs-ddd/core/application';
 import { currentTenantId } from '@nestjs-pipeline/tenant';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { HEADERS } from '../../common/constants/headers.constants';
+import { HEADERS } from '../../common/constants/headers.constants.js';
 
 const TENANT = 'tenant';
 
@@ -16,7 +16,9 @@ async function load(clients?: unknown[]) {
     clients === undefined ? undefined : JSON.stringify(clients),
   );
   vi.resetModules();
-  const { ApiClientAuthenticator } = await import('./api-client-authenticator');
+  const { ApiClientAuthenticator } = await import(
+    './api-client-authenticator.js'
+  );
   return new ApiClientAuthenticator();
 }
 

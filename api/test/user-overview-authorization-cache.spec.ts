@@ -1,6 +1,6 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import { contextSources } from '@common/context/context-sources';
+import { contextSources } from '@common/context/context-sources.js';
 import type { IQueryRepository } from '@cqrs-ddd/core/application';
 import { type INestApplication, Injectable } from '@nestjs/common';
 import { CqrsModule, QueryBus } from '@nestjs/cqrs';
@@ -24,21 +24,21 @@ import {
 import { type IPipelineContext, PipelineModule } from '@nestjs-pipeline/core';
 import { runWithTenant } from '@nestjs-pipeline/tenant';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { SessionPrincipal } from '../src/common/types/session-principal';
-import { Role } from '../src/roles/domain/models/role.entity';
-import { QUERY_REPOSITORY as ROLES_QUERY_REPOSITORY } from '../src/roles/persistence/repository.tokens';
-import type { GetUserCapabilitiesQuery } from '../src/users/application/cqrs/queries/get-user-capabilities.query';
-import { GetUserOverviewHandler } from '../src/users/application/cqrs/queries/get-user-overview.handler';
-import { GetUserOverviewQuery } from '../src/users/application/cqrs/queries/get-user-overview.query';
+import type { SessionPrincipal } from '../src/common/types/session-principal.js';
+import { Role } from '../src/roles/domain/models/role.entity.js';
+import { QUERY_REPOSITORY as ROLES_QUERY_REPOSITORY } from '../src/roles/persistence/repository.tokens.js';
+import type { GetUserCapabilitiesQuery } from '../src/users/application/cqrs/queries/get-user-capabilities.query.js';
+import { GetUserOverviewHandler } from '../src/users/application/cqrs/queries/get-user-overview.handler.js';
+import { GetUserOverviewQuery } from '../src/users/application/cqrs/queries/get-user-overview.query.js';
 import {
   OVERVIEW_RESPONSE_POLICY_VERSION,
   resolveOverviewScope,
   userOverviewCacheKey,
-} from '../src/users/application/cqrs/queries/user-overview-cache.policy';
-import type { UserPermissionAssignments } from '../src/users/application/permission-assignments';
-import { User } from '../src/users/domain/models/user.entity';
-import { QUERY_REPOSITORY } from '../src/users/persistence/repository.tokens';
-import type { RoleDefinition } from './support/roles-capabilities/get-roles-capabilities.query-repository';
+} from '../src/users/application/cqrs/queries/user-overview-cache.policy.js';
+import type { UserPermissionAssignments } from '../src/users/application/permission-assignments.js';
+import { User } from '../src/users/domain/models/user.entity.js';
+import { QUERY_REPOSITORY } from '../src/users/persistence/repository.tokens.js';
+import type { RoleDefinition } from './support/roles-capabilities/get-roles-capabilities.query-repository.js';
 
 /** An authenticated caller together with the assignments their rules come from. */
 type Viewer = Omit<SessionPrincipal, 'grants'> & {

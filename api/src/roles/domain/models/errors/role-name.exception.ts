@@ -1,6 +1,6 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 import { DomainException, InvalidValueException } from '@cqrs-ddd/core/domain';
-import { Role } from '../role.entity';
+import { Role } from '../role.entity.js';
 
 export class UniqueRoleNameException extends DomainException {
   readonly role?: Role | string;

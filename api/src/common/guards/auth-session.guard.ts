@@ -8,7 +8,7 @@ import {
 import {
   type AuthenticatedRequest,
   RequestPrincipalResolver,
-} from '../../auths/services/request-principal-resolver';
+} from '../../auths/services/request-principal-resolver.js';
 
 /**
  * Global authentication guard. It resolves the principal through

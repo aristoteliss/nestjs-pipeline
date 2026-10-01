@@ -11,12 +11,12 @@ import {
   SendWelcomeEmailProcessor,
   WELCOME_EMAIL_QUEUE,
   type WelcomeEmailJobData,
-} from '../src/users/jobs/send-welcome-email.processor';
+} from '../src/users/jobs/send-welcome-email.processor.js';
 import {
   bootstrapE2E,
   E2E_LOGIN_CODE,
   type E2EContext,
-} from './support/e2e-app';
+} from './support/e2e-app.js';
 
 const admin = JSON.stringify({ id: 'admin-1', grants: ['all|manage|*'] });
 

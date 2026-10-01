@@ -4,9 +4,9 @@ import { cacheKey, MemoryCache } from '@cqrs-ddd/core/persistence';
 import { runWithTenant } from '@nestjs-pipeline/tenant';
 import { ZodValidationBehavior } from '@nestjs-pipeline/zod';
 import { describe, expect, it, vi } from 'vitest';
-import { GetUserQuery } from '../application/cqrs/queries/get-user.query';
-import { User, type UserSnapshot } from '../domain/models/user.entity';
-import { GetUserQueryRepository } from './get-user.query-repository';
+import { GetUserQuery } from '../application/cqrs/queries/get-user.query.js';
+import { User, type UserSnapshot } from '../domain/models/user.entity.js';
+import { GetUserQueryRepository } from './get-user.query-repository.js';
 
 /** A real revision-fenced adapter holding `snapshot` under the tenant id key. */
 async function cacheHolding(

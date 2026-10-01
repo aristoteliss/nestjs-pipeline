@@ -3,7 +3,7 @@
 import type { Server } from 'node:http';
 import request from 'supertest';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { bootstrapE2E, type E2EContext } from './support/e2e-app';
+import { bootstrapE2E, type E2EContext } from './support/e2e-app.js';
 
 const admin = JSON.stringify({ id: 'denials-admin', grants: ['all|manage|*'] });
 

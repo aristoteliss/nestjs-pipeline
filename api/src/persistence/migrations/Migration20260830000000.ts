@@ -1,7 +1,7 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { Migration } from '@mikro-orm/migrations';
-import { generateDropSchemaSql, generateSchemaSql } from '../schema-ddl';
+import { generateDropSchemaSql, generateSchemaSql } from '../schema-ddl.js';
 
 const SYSTEM_ROLES = {
   ADMIN: 'admin',

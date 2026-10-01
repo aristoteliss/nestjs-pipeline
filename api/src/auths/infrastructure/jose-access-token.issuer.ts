@@ -9,13 +9,13 @@ import {
   ACCESS_TOKEN_MAX_BYTES,
   ACCESS_TOKEN_TTL_SECONDS,
   JWT,
-} from '../../common/environment/auth-token.config';
+} from '../../common/environment/auth-token.config.js';
 import {
   type AccessTokenIssueRequest,
   type AccessTokenIssueResult,
   type IAccessTokenIssuer,
-} from '../application/ports/access-token-issuer.port';
-import { AuthConfigurationException } from '../domain/errors/authentication.exception';
+} from '../application/ports/access-token-issuer.port.js';
+import { AuthConfigurationException } from '../domain/errors/authentication.exception.js';
 
 /**
  * Issues short-lived HS256 access tokens bound to a tenant and a session (`sid`).

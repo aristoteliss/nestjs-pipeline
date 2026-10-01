@@ -1,7 +1,7 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import { httpExchangeStore } from '@common/context/http-exchange.store';
-import { sessionPrincipalStore } from '@common/context/session-principal.store';
+import { httpExchangeStore } from '@common/context/http-exchange.store.js';
+import { sessionPrincipalStore } from '@common/context/session-principal.store.js';
 import {
   type CallHandler,
   type ExecutionContext,
@@ -9,7 +9,7 @@ import {
   type NestInterceptor,
 } from '@nestjs/common';
 import type { Observable } from 'rxjs';
-import type { AuthenticatedRequest } from '../../auths/services/request-principal-resolver';
+import type { AuthenticatedRequest } from '../../auths/services/request-principal-resolver.js';
 
 /**
  * Runs the rest of the request with its principal in `sessionPrincipalStore` and its

@@ -1,7 +1,7 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { EntitySchema } from '@mikro-orm/core';
-import { UserAdditionalCapability } from '../entities/user-additional-capability.entity';
+import { UserAdditionalCapability } from '../entities/user-additional-capability.entity.js';
 
 export const UserAdditionalCapabilitySchema =
   new EntitySchema<UserAdditionalCapability>({

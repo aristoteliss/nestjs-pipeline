@@ -2,14 +2,17 @@
 
 import type { IQueryRepository } from '@cqrs-ddd/core/application';
 import { Inject, Injectable } from '@nestjs/common';
-import { UserAdditionalCapability } from '@persistence/entities/user-additional-capability.entity';
-import { UserDeniedCapability } from '@persistence/entities/user-denied-capability.entity';
-import { UserRole } from '@persistence/entities/user-role.entity';
-import { MIKRO_ORM_CLIENT, MikroOrmStore } from '@persistence/mikro-orm.store';
-import { Capability } from '../../roles/domain/models/capability.entity';
-import { Role } from '../../roles/domain/models/role.entity';
-import { GetUserCapabilitiesQuery } from '../application/cqrs/queries/get-user-capabilities.query';
-import type { UserPermissionAssignments } from '../application/permission-assignments';
+import { UserAdditionalCapability } from '@persistence/entities/user-additional-capability.entity.js';
+import { UserDeniedCapability } from '@persistence/entities/user-denied-capability.entity.js';
+import { UserRole } from '@persistence/entities/user-role.entity.js';
+import {
+  MIKRO_ORM_CLIENT,
+  MikroOrmStore,
+} from '@persistence/mikro-orm.store.js';
+import { Capability } from '../../roles/domain/models/capability.entity.js';
+import { Role } from '../../roles/domain/models/role.entity.js';
+import { GetUserCapabilitiesQuery } from '../application/cqrs/queries/get-user-capabilities.query.js';
+import type { UserPermissionAssignments } from '../application/permission-assignments.js';
 
 /**
  * Query repository resolving a user's role names and per-user grants and denials.

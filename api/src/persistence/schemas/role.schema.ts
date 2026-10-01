@@ -3,7 +3,7 @@
 import { AggregateRoot } from '@cqrs-ddd/core/domain';
 import { rootEntityProperties, versionProperty } from '@cqrs-ddd/mikro-orm';
 import { EntitySchema } from '@mikro-orm/core';
-import { Role } from '../../roles/domain/models/role.entity';
+import { Role } from '../../roles/domain/models/role.entity.js';
 
 /**
  * MikroORM EntitySchema for the {@link Role} aggregate root.

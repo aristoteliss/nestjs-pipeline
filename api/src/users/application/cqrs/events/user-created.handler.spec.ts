@@ -1,10 +1,10 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { describe, expect, it, vi } from 'vitest';
-import { UserCreatedEvent } from '../../../domain/events/user-created.event';
-import { User } from '../../../domain/models/user.entity';
-import type { IWelcomeEmailDispatcher } from '../../ports/user-event-dispatcher.port';
-import { UserCreatedHandler } from './user-created.handler';
+import { UserCreatedEvent } from '../../../domain/events/user-created.event.js';
+import { User } from '../../../domain/models/user.entity.js';
+import type { IWelcomeEmailDispatcher } from '../../ports/user-event-dispatcher.port.js';
+import { UserCreatedHandler } from './user-created.handler.js';
 
 describe('UserCreatedHandler', () => {
   it('dispatches only application data; logging/correlation are cross-cutting concerns', async () => {

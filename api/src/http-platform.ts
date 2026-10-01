@@ -5,7 +5,7 @@ import {
   FastifyAdapter,
   type NestFastifyApplication,
 } from '@nestjs/platform-fastify';
-import { TRUST_PROXY } from './common/environment/auth-token.config';
+import { TRUST_PROXY } from './common/environment/auth-token.config.js';
 
 /**
  * Fastify adapter honouring `TRUST_PROXY`, so `request.ip` is the client.

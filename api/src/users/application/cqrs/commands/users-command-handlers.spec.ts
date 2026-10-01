@@ -5,11 +5,11 @@ import { EntityNotFoundException } from '@cqrs-ddd/core/domain';
 import type { EventBus } from '@nestjs/cqrs';
 import type { CaslAuthorizer } from '@nestjs-pipeline/casl';
 import { describe, expect, it, vi } from 'vitest';
-import { User } from '../../../domain/models/user.entity';
-import { DeleteUserCommand } from './delete-user.command';
-import { DeleteUserHandler } from './delete-user.handler';
-import { UpdateUserCommand } from './update-user.command';
-import { UpdateUserHandler } from './update-user.handler';
+import { User } from '../../../domain/models/user.entity.js';
+import { DeleteUserCommand } from './delete-user.command.js';
+import { DeleteUserHandler } from './delete-user.handler.js';
+import { UpdateUserCommand } from './update-user.command.js';
+import { UpdateUserHandler } from './update-user.handler.js';
 
 describe('Users CQRS write-side hydration', () => {
   const authorizer = { authorize: vi.fn() } as unknown as CaslAuthorizer;

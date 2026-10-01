@@ -11,7 +11,7 @@ import {
   type E2EContext,
   inTenant,
   rebuildPermissions,
-} from './support/e2e-app';
+} from './support/e2e-app.js';
 
 const ADMIN_ROLE = '019de10c-b680-7000-8000-000000000001';
 const admin = JSON.stringify({ id: 'admin-1', grants: ['all|manage|*'] });
@@ -29,7 +29,7 @@ function cookiePair(res: request.Response, name: string): string {
 
 async function sql(ctx: E2EContext, statement: string, params: unknown[]) {
   const { MIKRO_ORM_CLIENT } = await import(
-    '../src/persistence/mikro-orm.store'
+    '../src/persistence/mikro-orm.store.js'
   );
   return inTenant(ctx.app, () =>
     ctx.app.get(MIKRO_ORM_CLIENT).em.execute(statement, params),
@@ -103,7 +103,7 @@ describe('permissions in the access token (e2e, express)', () => {
 
   async function rulesReader() {
     const { GetUserPermissionRulesRepository } = await import(
-      '../src/auths/persistence/get-user-permission-rules.query-repository'
+      '../src/auths/persistence/get-user-permission-rules.query-repository.js'
     );
     return vi.spyOn(GetUserPermissionRulesRepository.prototype, 'find');
   }
@@ -146,7 +146,7 @@ describe('permissions in the access token (e2e, express)', () => {
     const loggedIn = await login(user.email);
     expect(loggedIn.status).toBe(200);
     const { ACCESS_TOKEN_MAX_BYTES } = await import(
-      '../src/common/environment/auth-token.config'
+      '../src/common/environment/auth-token.config.js'
     );
     expect(loggedIn.body.accessToken.length).toBeLessThanOrEqual(
       ACCESS_TOKEN_MAX_BYTES,
@@ -179,21 +179,21 @@ describe('permissions in the access token (e2e, fastify cookie budget)', () => {
   /** Length of the access token the issuer produces for the user's current rules. */
   async function tokenFor(userId: string): Promise<string> {
     const { ACCESS_TOKEN_ISSUER } = await import(
-      '../src/auths/application/ports/access-token-issuer.port'
+      '../src/auths/application/ports/access-token-issuer.port.js'
     );
     const { GetUserPermissionRulesRepository } = await import(
-      '../src/auths/persistence/get-user-permission-rules.query-repository'
+      '../src/auths/persistence/get-user-permission-rules.query-repository.js'
     );
-    const { User } = await import('../src/users/domain/models/user.entity');
+    const { User } = await import('../src/users/domain/models/user.entity.js');
     const { MIKRO_ORM_CLIENT } = await import(
-      '../src/persistence/mikro-orm.store'
+      '../src/persistence/mikro-orm.store.js'
     );
     return inTenant(ctx.app, async () => {
       const user = await ctx.app
         .get(MIKRO_ORM_CLIENT)
         .em.findOne(User, { id: userId }, { refresh: true });
       const { GetUserPermissionRulesQuery } = await import(
-        '../src/auths/application/cqrs/queries/get-user-permission-rules.query'
+        '../src/auths/application/cqrs/queries/get-user-permission-rules.query.js'
       );
       const permissions = await ctx.app
         .get(GetUserPermissionRulesRepository)
@@ -214,7 +214,7 @@ describe('permissions in the access token (e2e, fastify cookie budget)', () => {
 
   it('keeps a maximum-size permissions token within one cookie and falls back one byte over', async () => {
     const { ACCESS_TOKEN_MAX_BYTES } = await import(
-      '../src/common/environment/auth-token.config'
+      '../src/common/environment/auth-token.config.js'
     );
     expect(ACCESS_TOKEN_MAX_BYTES).toBe(2500);
     const user = await seedAdminUser(ctx, 'cookie-budget');

@@ -2,9 +2,9 @@
 
 import { type ExecutionContext, UnauthorizedException } from '@nestjs/common';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { AuthenticatedRequest } from '../../auths/services/request-principal-resolver';
-import { RequestPrincipalResolver } from '../../auths/services/request-principal-resolver';
-import { AuthSessionGuard } from './auth-session.guard';
+import type { AuthenticatedRequest } from '../../auths/services/request-principal-resolver.js';
+import { RequestPrincipalResolver } from '../../auths/services/request-principal-resolver.js';
+import { AuthSessionGuard } from './auth-session.guard.js';
 
 function makeContext(request: unknown): ExecutionContext {
   return {

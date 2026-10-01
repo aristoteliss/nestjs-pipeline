@@ -14,21 +14,21 @@ import {
   serializeCapability,
 } from '@nestjs-pipeline/casl';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { GetUserPermissionRulesQuery } from '../src/auths/application/cqrs/queries/get-user-permission-rules.query';
-import { CaslPermissionSource } from '../src/auths/persistence/casl-permission.source';
-import { GetUserPermissionRulesRepository } from '../src/auths/persistence/get-user-permission-rules.query-repository';
-import { UserPermissionsProjector } from '../src/auths/persistence/user-permissions.projector';
-import { sessionPrincipalStore } from '../src/common/context/session-principal.store';
-import { UserPermissionRule } from '../src/persistence/entities/user-permission-rule.entity';
-import { UserRole } from '../src/persistence/entities/user-role.entity';
-import { GetUserCapabilitiesQuery } from '../src/users/application/cqrs/queries/get-user-capabilities.query';
-import { GetUserCapabilitiesQueryRepository } from '../src/users/persistence/get-user-capabilities.query-repository';
+import { GetUserPermissionRulesQuery } from '../src/auths/application/cqrs/queries/get-user-permission-rules.query.js';
+import { CaslPermissionSource } from '../src/auths/persistence/casl-permission.source.js';
+import { GetUserPermissionRulesRepository } from '../src/auths/persistence/get-user-permission-rules.query-repository.js';
+import { UserPermissionsProjector } from '../src/auths/persistence/user-permissions.projector.js';
+import { sessionPrincipalStore } from '../src/common/context/session-principal.store.js';
+import { UserPermissionRule } from '../src/persistence/entities/user-permission-rule.entity.js';
+import { UserRole } from '../src/persistence/entities/user-role.entity.js';
+import { GetUserCapabilitiesQuery } from '../src/users/application/cqrs/queries/get-user-capabilities.query.js';
+import { GetUserCapabilitiesQueryRepository } from '../src/users/persistence/get-user-capabilities.query-repository.js';
 import {
   fixtures,
   type MigratedDb,
   migratedDb,
-} from './support/permission-rules-db';
-import { GetRolesCapabilitiesQueryRepository } from './support/roles-capabilities/get-roles-capabilities.query-repository';
+} from './support/permission-rules-db.js';
+import { GetRolesCapabilitiesQueryRepository } from './support/roles-capabilities/get-roles-capabilities.query-repository.js';
 
 const id = (suffix: string) => `01990000-0000-7000-8000-000000000${suffix}`;
 const U1 = id('a01');

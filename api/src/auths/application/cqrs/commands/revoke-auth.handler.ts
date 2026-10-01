@@ -1,6 +1,6 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import { AUDIT_ACTIONS, RATE_LIMIT_COST } from '@common/constants';
+import { AUDIT_ACTIONS, RATE_LIMIT_COST } from '@common/constants/index.js';
 import {
   CommandBaseHandler,
   type IQueryRepository,
@@ -15,20 +15,20 @@ import {
   createPartitionedRateLimitKeyFactory,
   rateLimit,
 } from '@nestjs-pipeline/rate-limit';
-import { InvalidRefreshTokenError } from '../../../domain/errors/refresh-token.errors';
-import type { Auth } from '../../../domain/models/auth.entity';
-import { QUERY_REPOSITORY } from '../../../persistence/repository.tokens';
-import { PrincipalLoginService } from '../../../services/principal-login.service';
+import { InvalidRefreshTokenError } from '../../../domain/errors/refresh-token.errors.js';
+import type { Auth } from '../../../domain/models/auth.entity.js';
+import { QUERY_REPOSITORY } from '../../../persistence/repository.tokens.js';
+import { PrincipalLoginService } from '../../../services/principal-login.service.js';
 import {
   type IRefreshTokens,
   REFRESH_TOKENS,
-} from '../../ports/refresh-tokens.port';
+} from '../../ports/refresh-tokens.port.js';
 import {
   type ISessionCookies,
   SESSION_COOKIES,
-} from '../../ports/session-cookies.port';
-import { GetAuthByTokenHashQuery } from '../queries/get-auth-by-token-hash.query';
-import { RevokeAuthCommand } from './revoke-auth.command';
+} from '../../ports/session-cookies.port.js';
+import { GetAuthByTokenHashQuery } from '../queries/get-auth-by-token-hash.query.js';
+import { RevokeAuthCommand } from './revoke-auth.command.js';
 
 @CommandHandler(RevokeAuthCommand)
 @UsePipeline(

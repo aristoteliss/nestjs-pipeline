@@ -1,7 +1,7 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import { DEAD_LETTER_DEFAULTS } from '@common/dead-letter/dead-letter.options';
-import { ObservabilityModule } from '@common/modules';
+import { DEAD_LETTER_DEFAULTS } from '@common/dead-letter/dead-letter.options.js';
+import { ObservabilityModule } from '@common/modules/index.js';
 import type { INestApplication } from '@nestjs/common';
 import {
   CommandBus,

@@ -6,9 +6,9 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
   USER_BATCH_DISPATCHER,
   WELCOME_EMAIL_DISPATCHER,
-} from '../src/users/application/ports/user-event-dispatcher.port';
-import { BullMqUserEventDispatcher } from '../src/users/jobs/bullmq-user-event-dispatcher.adapter';
-import { bootstrapE2E, type E2EContext } from './support/e2e-app';
+} from '../src/users/application/ports/user-event-dispatcher.port.js';
+import { BullMqUserEventDispatcher } from '../src/users/jobs/bullmq-user-event-dispatcher.adapter.js';
+import { bootstrapE2E, type E2EContext } from './support/e2e-app.js';
 
 /** End-to-end regression for Architecture.md finding #12. */
 describe('user event dispatch ports (e2e)', () => {

@@ -17,52 +17,52 @@ import {
 import { ZodValidationError, ZodValidationFilter } from '@nestjs-pipeline/zod';
 import { describe, expect, it, vi } from 'vitest';
 // Auths CQRS & Services
-import { CreateAuthCommand } from '../src/auths/application/cqrs/commands/create-auth.command';
-import { CreateAuthHandler } from '../src/auths/application/cqrs/commands/create-auth.handler';
-import { RevokeAuthCommand } from '../src/auths/application/cqrs/commands/revoke-auth.command';
-import { RevokeAuthHandler } from '../src/auths/application/cqrs/commands/revoke-auth.handler';
-import { GetUserPermissionRulesHandler } from '../src/auths/application/cqrs/queries/get-user-permission-rules.handler';
-import { GetUserPermissionRulesQuery } from '../src/auths/application/cqrs/queries/get-user-permission-rules.query';
-import { InvalidRefreshTokenError } from '../src/auths/domain/errors/refresh-token.errors';
-import { NodeRefreshTokens } from '../src/auths/infrastructure/node-refresh-tokens';
-import { PrincipalLoginService } from '../src/auths/services/principal-login.service';
+import { CreateAuthCommand } from '../src/auths/application/cqrs/commands/create-auth.command.js';
+import { CreateAuthHandler } from '../src/auths/application/cqrs/commands/create-auth.handler.js';
+import { RevokeAuthCommand } from '../src/auths/application/cqrs/commands/revoke-auth.command.js';
+import { RevokeAuthHandler } from '../src/auths/application/cqrs/commands/revoke-auth.handler.js';
+import { GetUserPermissionRulesHandler } from '../src/auths/application/cqrs/queries/get-user-permission-rules.handler.js';
+import { GetUserPermissionRulesQuery } from '../src/auths/application/cqrs/queries/get-user-permission-rules.query.js';
+import { InvalidRefreshTokenError } from '../src/auths/domain/errors/refresh-token.errors.js';
+import { NodeRefreshTokens } from '../src/auths/infrastructure/node-refresh-tokens.js';
+import { PrincipalLoginService } from '../src/auths/services/principal-login.service.js';
 // Filters
-import { DomainExceptionFilter } from '../src/common/filters/domain-exception.filter';
+import { DomainExceptionFilter } from '../src/common/filters/domain-exception.filter.js';
 
 // Roles CQRS & Exceptions
-import { CreateRoleCommand } from '../src/roles/application/cqrs/commands/create-role.command';
-import { CreateRoleHandler } from '../src/roles/application/cqrs/commands/create-role.handler';
-import { DeleteRoleCommand } from '../src/roles/application/cqrs/commands/delete-role.command';
-import { DeleteRoleHandler } from '../src/roles/application/cqrs/commands/delete-role.handler';
-import { UpdateRoleCommand } from '../src/roles/application/cqrs/commands/update-role.command';
-import { UpdateRoleHandler } from '../src/roles/application/cqrs/commands/update-role.handler';
-import { GetRoleHandler } from '../src/roles/application/cqrs/queries/get-role.handler';
-import { GetRoleQuery } from '../src/roles/application/cqrs/queries/get-role.query';
-import { GetRolesHandler } from '../src/roles/application/cqrs/queries/get-roles.handler';
-import { GetRolesQuery } from '../src/roles/application/cqrs/queries/get-roles.query';
-import { UniqueRoleNameException } from '../src/roles/domain/models/errors/role-name.exception';
-import { Role } from '../src/roles/domain/models/role.entity';
+import { CreateRoleCommand } from '../src/roles/application/cqrs/commands/create-role.command.js';
+import { CreateRoleHandler } from '../src/roles/application/cqrs/commands/create-role.handler.js';
+import { DeleteRoleCommand } from '../src/roles/application/cqrs/commands/delete-role.command.js';
+import { DeleteRoleHandler } from '../src/roles/application/cqrs/commands/delete-role.handler.js';
+import { UpdateRoleCommand } from '../src/roles/application/cqrs/commands/update-role.command.js';
+import { UpdateRoleHandler } from '../src/roles/application/cqrs/commands/update-role.handler.js';
+import { GetRoleHandler } from '../src/roles/application/cqrs/queries/get-role.handler.js';
+import { GetRoleQuery } from '../src/roles/application/cqrs/queries/get-role.query.js';
+import { GetRolesHandler } from '../src/roles/application/cqrs/queries/get-roles.handler.js';
+import { GetRolesQuery } from '../src/roles/application/cqrs/queries/get-roles.query.js';
+import { UniqueRoleNameException } from '../src/roles/domain/models/errors/role-name.exception.js';
+import { Role } from '../src/roles/domain/models/role.entity.js';
 // Users CQRS & Exceptions
-import { CreateUserCommand } from '../src/users/application/cqrs/commands/create-user.command';
-import { CreateUserHandler } from '../src/users/application/cqrs/commands/create-user.handler';
-import { DeleteUserCommand } from '../src/users/application/cqrs/commands/delete-user.command';
-import { DeleteUserHandler } from '../src/users/application/cqrs/commands/delete-user.handler';
-import { UpdateUserCommand } from '../src/users/application/cqrs/commands/update-user.command';
-import { UpdateUserHandler } from '../src/users/application/cqrs/commands/update-user.handler';
-import { GetUserHandler } from '../src/users/application/cqrs/queries/get-user.handler';
-import { GetUserQuery } from '../src/users/application/cqrs/queries/get-user.query';
-import { GetUsersHandler } from '../src/users/application/cqrs/queries/get-users.handler';
-import { GetUsersQuery } from '../src/users/application/cqrs/queries/get-users.query';
+import { CreateUserCommand } from '../src/users/application/cqrs/commands/create-user.command.js';
+import { CreateUserHandler } from '../src/users/application/cqrs/commands/create-user.handler.js';
+import { DeleteUserCommand } from '../src/users/application/cqrs/commands/delete-user.command.js';
+import { DeleteUserHandler } from '../src/users/application/cqrs/commands/delete-user.handler.js';
+import { UpdateUserCommand } from '../src/users/application/cqrs/commands/update-user.command.js';
+import { UpdateUserHandler } from '../src/users/application/cqrs/commands/update-user.handler.js';
+import { GetUserHandler } from '../src/users/application/cqrs/queries/get-user.handler.js';
+import { GetUserQuery } from '../src/users/application/cqrs/queries/get-user.query.js';
+import { GetUsersHandler } from '../src/users/application/cqrs/queries/get-users.handler.js';
+import { GetUsersQuery } from '../src/users/application/cqrs/queries/get-users.query.js';
 import {
   EmptyUserUpdateException,
   InvalidDepartmentException,
   InvalidUsernameException,
   UniqueEmailException,
-} from '../src/users/domain/models/errors';
-import { User } from '../src/users/domain/models/user.entity';
-import { toResponseDto } from '../src/users/dtos/user.dto';
-import { GetRolesCapabilitiesHandler } from './support/roles-capabilities/get-roles-capabilities.handler';
-import { GetRolesCapabilitiesQuery } from './support/roles-capabilities/get-roles-capabilities.query';
+} from '../src/users/domain/models/errors/index.js';
+import { User } from '../src/users/domain/models/user.entity.js';
+import { toResponseDto } from '../src/users/dtos/user.dto.js';
+import { GetRolesCapabilitiesHandler } from './support/roles-capabilities/get-roles-capabilities.handler.js';
+import { GetRolesCapabilitiesQuery } from './support/roles-capabilities/get-roles-capabilities.query.js';
 
 // Test Utilities
 function createMockEventBus(): EventBus {
