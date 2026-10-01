@@ -113,11 +113,18 @@ export abstract class CommandBaseHandler<
    * Delegates to {@link handle} and automatically publishes any uncommitted domain
    * events if the result is an {@link AggregateRoot} (or an object containing `aggregate: AggregateRoot`).
    *
+   * The events are handed to the publisher and cleared from the aggregate, then
+   * `execute()` awaits what `publishAll()` returned: an asynchronous publisher
+   * delays the result, and its rejection rejects the command, although the
+   * aggregate is already persisted. A publisher that throws synchronously leaves
+   * the events buffered.
+   *
    * Persistence and in-memory event publication are not atomic. A crash after
    * persistence can lose events; durable delivery requires an explicit outbox.
    *
    * @param command - The command dispatched through the command bus.
    * @returns The result produced by {@link handle}.
+   * @throws The error of {@link handle}, or of a publisher that throws or rejects.
    */
   async execute(command: TCommand): Promise<TResult> {
     const commandResult = await this.handle(command);
@@ -134,8 +141,9 @@ export abstract class CommandBaseHandler<
     if (aggregate) {
       const events = [...aggregate.getUncommittedEvents()];
       if (events.length > 0) {
-        this.eventBus.publishAll(events);
+        const published = this.eventBus.publishAll(events);
         aggregate.uncommit();
+        await published;
       }
     }
 

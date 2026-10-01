@@ -1,6 +1,7 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import 'reflect-metadata';
+import { ConsoleLogger } from '@nestjs/common';
 import { BrokenCircuitError, BulkheadRejectedError } from 'cockatiel';
 import { describe, expect, it, vi } from 'vitest';
 import { ResiliencePolicyConfigurationError } from './errors/resilience-policy-configuration.error';
@@ -25,6 +26,35 @@ function registry(
 }
 
 describe('ResiliencePolicies', () => {
+  it('prints its context once through the default Nest logger', async () => {
+    const warn = vi
+      .spyOn(ConsoleLogger.prototype, 'warn')
+      .mockImplementation(() => {});
+    try {
+      const policies = new ResiliencePolicies({
+        paymentsApi: {
+          handleAllErrors: true,
+          circuitBreaker: {
+            halfOpenAfter: 1000,
+            breaker: { type: 'consecutive', threshold: 1 },
+          },
+        },
+      });
+
+      await expect(
+        policies.execute('paymentsApi', async () => {
+          throw new Error('gateway down');
+        }),
+      ).rejects.toThrow('gateway down');
+
+      expect(warn).toHaveBeenCalledWith(
+        "[resilience] circuit OPEN for policy 'paymentsApi'",
+        'ResilienceBehavior',
+      );
+    } finally {
+      warn.mockRestore();
+    }
+  });
   it('builds each named policy once and returns the same instance to every caller', () => {
     const policies = registry({
       paymentsApi: { timeout: { duration: 1000 } },

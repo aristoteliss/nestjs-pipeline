@@ -1,6 +1,6 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
   JOB_PRINCIPAL,
   JOB_SOURCES,
@@ -38,6 +38,7 @@ type Provider = {
   provide?: unknown;
   useClass?: unknown;
   useValue?: unknown;
+  useFactory?: () => unknown;
 };
 
 function registrationClass() {
@@ -89,6 +90,30 @@ describe('JobContextModule', () => {
     expect(() =>
       JobContextModule.forRoot({ principal: Principal, tenants: [], sources }),
     ).toThrow(TypeError);
+  });
+
+  it('calls a tenant function when the application builds the provider, not in forRoot', () => {
+    const tenants = vi.fn(() => ['tenant_a', 'tenant_b']);
+    const providers = JobContextModule.forRoot({
+      principal: Principal,
+      tenants,
+      sources,
+    }).providers as Provider[];
+
+    expect(tenants).not.toHaveBeenCalled();
+    expect(providers[1].provide).toBe(JOB_TENANTS);
+    expect(providers[1].useFactory?.()).toEqual(['tenant_a', 'tenant_b']);
+    expect(tenants).toHaveBeenCalledOnce();
+  });
+
+  it('refuses an empty list from a tenant function when the application starts', () => {
+    const providers = JobContextModule.forRoot({
+      principal: Principal,
+      tenants: () => [],
+      sources,
+    }).providers as Provider[];
+
+    expect(() => providers[1].useFactory?.()).toThrow(TypeError);
   });
 
   it('registers the principal, tenants and sources when constructed and removes them at shutdown', () => {

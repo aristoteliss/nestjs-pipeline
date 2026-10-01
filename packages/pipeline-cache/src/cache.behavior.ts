@@ -189,7 +189,7 @@ export class CacheBehavior
         ? cache
         : new CacheManagerAdapter(cache as Cache);
 
-    this.logger = logger ?? new Logger(CacheBehavior.name, { timestamp: true });
+    this.logger = logger ?? new Logger();
   }
 
   async handle(

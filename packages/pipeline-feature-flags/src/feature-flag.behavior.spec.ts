@@ -1,5 +1,6 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
+import { ConsoleLogger } from '@nestjs/common';
 import {
   type IPipelineBehaviorContract,
   type IPipelineContext,
@@ -71,6 +72,29 @@ describe('FeatureFlagBehavior', () => {
       expect.stringContaining('enabled'),
       FeatureFlagBehavior.name,
     );
+  });
+
+  it('prints its context once through the default Nest logger', async () => {
+    const debug = vi
+      .spyOn(ConsoleLogger.prototype, 'debug')
+      .mockImplementation(() => {});
+    try {
+      getBooleanDetails.mockResolvedValue({
+        flagKey: 'new-checkout',
+        value: true,
+      });
+      const behavior = new FeatureFlagBehavior(client);
+      const ctx = withOptions(makeCtx(), { flag: 'new-checkout' });
+
+      await behavior.handle(ctx, vi.fn().mockResolvedValue('ok'));
+
+      expect(debug).toHaveBeenCalledWith(
+        expect.stringContaining('enabled'),
+        FeatureFlagBehavior.name,
+      );
+    } finally {
+      debug.mockRestore();
+    }
   });
 
   it('passes through without evaluating when no flag is configured', async () => {

@@ -250,8 +250,7 @@ export class FeatureFlagBehavior
     private readonly moduleTargetingKeyFactory?: TargetingKeyFactory,
   ) {
     this.defaults = defaults ?? {};
-    this.logger =
-      logger ?? new Logger(FeatureFlagBehavior.name, { timestamp: true });
+    this.logger = logger ?? new Logger();
   }
 
   async handle(

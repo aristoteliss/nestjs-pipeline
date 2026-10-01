@@ -1,5 +1,6 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
+import { ConsoleLogger } from '@nestjs/common';
 import {
   type IPipelineContext,
   PIPELINE_BEHAVIOR_CONTRACT,
@@ -81,6 +82,22 @@ describe('CacheBehavior', () => {
       expect.stringContaining('Cache miss'),
       CacheBehavior.name,
     );
+  });
+
+  it('prints its context once through the default Nest logger', async () => {
+    const debug = vi
+      .spyOn(ConsoleLogger.prototype, 'debug')
+      .mockImplementation(() => {});
+    try {
+      await behavior.handle(makeCtx(), vi.fn().mockResolvedValue('value'));
+
+      expect(debug).toHaveBeenCalledWith(
+        expect.stringContaining('Cache miss'),
+        CacheBehavior.name,
+      );
+    } finally {
+      debug.mockRestore();
+    }
   });
 
   it('caches the result on a miss and serves it on the next hit', async () => {

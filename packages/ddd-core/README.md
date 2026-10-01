@@ -343,6 +343,9 @@ await handler.execute(new UpdateUserCommand(id, 'bob'));
   `eventBus.publishAll(events)`, clears the buffer and returns the result unchanged.
 - A rejected `handle()` publishes nothing. If `publishAll()` throws, the error
   propagates and the events stay buffered.
+- If `publishAll()` returns a promise, `execute()` waits for it after clearing the buffer.
+  Its rejection rejects the command, although the aggregate is already persisted; the
+  events are not published a second time.
 - Any object with `publishAll(events)` is an `IDomainEventPublisher`.
 
 **`AggregateRoot.commit()` publishes nothing by default.** It hands the buffer to the

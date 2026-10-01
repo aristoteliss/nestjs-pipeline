@@ -172,8 +172,7 @@ export class ResilienceBehavior
     @Inject(LOGGING_BEHAVIOR_LOGGER)
     logger?: LoggerService,
   ) {
-    this.logger =
-      logger ?? new Logger(ResilienceBehavior.name, { timestamp: true });
+    this.logger = logger ?? new Logger();
   }
 
   async handle(

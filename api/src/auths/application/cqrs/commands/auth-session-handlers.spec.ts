@@ -358,6 +358,19 @@ describe('PrincipalLoginService refresh', () => {
     expect(publishAll).not.toHaveBeenCalled();
   });
 
+  it("rejects the refresh with an asynchronous publisher's error, after handing over the events", async () => {
+    const { store, refresh, publishAll } = setup();
+    const auth = store.start('token-a');
+    const failure = new Error('broker unavailable');
+    publishAll.mockReturnValueOnce(Promise.reject(failure));
+
+    await expect(refresh('token-a')).rejects.toBe(failure);
+    expect(publishAll).toHaveBeenCalledExactlyOnceWith([
+      expect.any(AuthRefreshedEvent),
+    ]);
+    expect(store.current(auth.id).revokedAt).toBeNull();
+  });
+
   it('never hands the raw refresh token to persistence', async () => {
     const { store, refresh } = setup();
     store.start('token-a');

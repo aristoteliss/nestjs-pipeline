@@ -52,9 +52,11 @@ describe('ddd-mikro-orm manifest', () => {
     );
   });
 
-  it('requires the Node version the repository requires', () => {
+  it('requires the Node version its MikroORM peer requires', () => {
+    const mikroOrm = read('../node_modules/@mikro-orm/core/package.json');
+
     expect(manifest.engines?.node).toBe(
-      read('../../../package.json').engines?.node,
+      mikroOrm.engines?.node?.replace(/\s+/g, ''),
     );
   });
 });

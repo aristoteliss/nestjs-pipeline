@@ -9,8 +9,6 @@ import { MIKRO_ORM_CLIENT, MikroOrmStore } from './mikro-orm.store';
 import { persistenceConfig } from './persistence.config';
 import { TenantSchemaContext } from './tenant-schema.context';
 
-const config = persistenceConfig();
-
 @Global()
 @Module({
   providers: [
@@ -21,7 +19,7 @@ const config = persistenceConfig();
       useFactory: (tenantSchemaContext: TenantSchemaContext) =>
         new TenantSchemaMiddleware(
           tenantSchemaContext,
-          new Set(config.tenants),
+          new Set(persistenceConfig().tenants),
         ),
       inject: [TenantSchemaContext],
     },

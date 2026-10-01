@@ -201,7 +201,7 @@ export class LoggingBehavior implements IPipelineBehavior {
     @Inject(LOGGING_BEHAVIOR_LOGGER)
     logger?: LoggerService,
   ) {
-    this.logger = logger ?? new Logger(LoggingBehavior.name);
+    this.logger = logger ?? new Logger();
   }
 
   /**

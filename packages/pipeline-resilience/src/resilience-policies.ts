@@ -56,8 +56,7 @@ export class ResiliencePolicies {
     @Inject(LOGGING_BEHAVIOR_LOGGER)
     logger?: LoggerService,
   ) {
-    const log =
-      logger ?? new Logger(ResiliencePolicies.name, { timestamp: true });
+    const log = logger ?? new Logger();
     for (const [name, policyOptions] of Object.entries(options ?? {})) {
       this.policies.set(name, buildNamedPolicy(name, policyOptions, log));
     }

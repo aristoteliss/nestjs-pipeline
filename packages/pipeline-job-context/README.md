@@ -76,6 +76,12 @@ export class SessionJobPrincipal implements IJobPrincipal<Capability> {
 export class JobsModule {}
 ```
 
+`tenants` is a list, or a function that returns one. A function is called once, when the
+application builds the module's providers, so the list can come from configuration read
+at startup (`tenants: () => config().tenants`) instead of when the module file is
+imported. An empty list throws: a list in `forRoot`, a function when the application
+starts.
+
 `capture` reads the current principal when a job is enqueued; only its `id`, `type` and
 `sessionId` are kept. `restore` runs when the job does, inside the job's tenant and
 correlation id: it must re-check the principal against current state, bind it the way a
@@ -196,7 +202,7 @@ The tenant must be one of the configured tenants.
 | `withJobContext(data)` | function | Copies `data` and adds the current `jobContext` |
 | `InJobContext(options?)` | decorator | Runs a job method in its payload's context; `path` defaults to `'data.jobContext'` |
 | `AsSystem(options)` | decorator | Runs system work once per tenant as the declared principal and grants |
-| `JobContextModule.forRoot(options)` | module | Registers `principal` (a class), `tenants`, `sources` and optional `imports` |
+| `JobContextModule.forRoot(options)` | module | Registers `principal` (a class), `tenants` (a list, or a function called at startup), `sources` and optional `imports` |
 | `ContextSource`, `CorrelationSource`, `JobContextSources` | type | `{ current, run }`; the correlation source adds `create()` and `accepts(id)`; and the `{ tenantId, correlationId }` pair `sources` takes |
 | `IJobPrincipal<TGrant>` | interface | Application port: `capture()` and `restore(principal, work, grants?)` |
 | `PrincipalReference` | type | `{ id, type, sessionId? }` |

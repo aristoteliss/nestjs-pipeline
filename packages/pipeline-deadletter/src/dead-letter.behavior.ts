@@ -119,8 +119,7 @@ export class DeadLetterBehavior implements IPipelineBehavior {
   ) {
     this.defaults = defaults ?? {};
 
-    this.logger =
-      logger ?? new Logger(DeadLetterBehavior.name, { timestamp: true });
+    this.logger = logger ?? new Logger();
   }
 
   async handle(

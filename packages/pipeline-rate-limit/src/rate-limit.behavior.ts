@@ -177,8 +177,7 @@ export class RateLimitBehavior
   ) {
     this.defaults = defaults ?? {};
 
-    this.logger =
-      logger ?? new Logger(RateLimitBehavior.name, { timestamp: true });
+    this.logger = logger ?? new Logger();
   }
 
   async handle(
