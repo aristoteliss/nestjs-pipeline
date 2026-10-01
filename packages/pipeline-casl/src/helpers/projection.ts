@@ -1,6 +1,6 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import type { AppAbility } from '../types/casl.types';
+import type { AppAbility } from '../types/casl.types.js';
 
 type FieldRule = ReturnType<AppAbility['relevantRuleFor']>;
 const OMIT = Symbol('unreadable-field');

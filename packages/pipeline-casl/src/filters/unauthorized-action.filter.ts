@@ -8,7 +8,7 @@ import {
   Inject,
 } from '@nestjs/common';
 import { HttpAdapterHost } from '@nestjs/core';
-import { UnauthorizedActionException } from '../errors/unauthorized-action.exception';
+import { UnauthorizedActionException } from '../errors/unauthorized-action.exception.js';
 
 /**
  * Catches {@link UnauthorizedActionException} thrown from domain entities or CQRS handlers

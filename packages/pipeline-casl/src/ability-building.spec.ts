@@ -9,14 +9,14 @@ import {
   CASL_BEHAVIOR_ID,
   CaslBehavior,
   type CaslBehaviorOptions,
-} from './casl.behavior';
-import { CASL_ABILITY_KEY, CASL_PRINCIPAL_KEY } from './constants/tokens';
-import { UnauthorizedActionException } from './errors/unauthorized-action.exception';
+} from './casl.behavior.js';
+import { CASL_ABILITY_KEY, CASL_PRINCIPAL_KEY } from './constants/tokens.js';
+import { UnauthorizedActionException } from './errors/unauthorized-action.exception.js';
 import type {
   CaslAuthorizationInput,
   ICaslPermissionSource,
-} from './interfaces/permission-source.interface';
-import type { AppAbility, Capability } from './types/casl.types';
+} from './interfaces/permission-source.interface.js';
+import type { AppAbility, Capability } from './types/casl.types.js';
 
 function makeContext(options?: CaslBehaviorOptions): IPipelineContext {
   return {
@@ -222,9 +222,12 @@ describe('CaslBehavior', () => {
   });
 
   it('imports nothing from Nest HTTP exceptions', () => {
-    const files = readdirSync(__dirname, { recursive: true, encoding: 'utf8' })
+    const files = readdirSync(import.meta.dirname, {
+      recursive: true,
+      encoding: 'utf8',
+    })
       .filter((file) => file.endsWith('.ts') && !file.endsWith('.spec.ts'))
-      .map((file) => readFileSync(join(__dirname, file), 'utf8'));
+      .map((file) => readFileSync(join(import.meta.dirname, file), 'utf8'));
 
     for (const source of files) {
       expect(source).not.toMatch(/HttpException|ForbiddenException/);

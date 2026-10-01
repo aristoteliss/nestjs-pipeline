@@ -1,7 +1,7 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import type { IPipelineContext } from '@nestjs-pipeline/core';
-import type { Capability } from '../types/casl.types';
+import type { Capability } from '../types/casl.types.js';
 
 /** The authenticated caller. Attributes are available to `${user.<path>}` placeholders. */
 export interface CaslPrincipal {

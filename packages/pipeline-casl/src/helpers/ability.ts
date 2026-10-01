@@ -1,14 +1,14 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { createMongoAbility } from '@casl/ability';
-import type { CaslPrincipal } from '../interfaces/permission-source.interface';
+import type { CaslPrincipal } from '../interfaces/permission-source.interface.js';
 import type {
   AppAbility,
   AppRawRule,
   Capability,
   CapabilityString,
-} from '../types/casl.types';
-import { isPlainObject, normalizeCapability } from './capability';
+} from '../types/casl.types.js';
+import { isPlainObject, normalizeCapability } from './capability.js';
 
 /**
  * Builds the ability for one caller. Every direct rule precedes every inverted

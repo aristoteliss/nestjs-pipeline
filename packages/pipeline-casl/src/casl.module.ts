@@ -8,10 +8,10 @@ import {
   type Provider,
   type Type,
 } from '@nestjs/common';
-import { CaslBehavior } from './casl.behavior';
-import { CASL_PERMISSION_SOURCE } from './constants/tokens';
-import { CaslAuthorizer } from './helpers/authorizer';
-import type { ICaslPermissionSource } from './interfaces/permission-source.interface';
+import { CaslBehavior } from './casl.behavior.js';
+import { CASL_PERMISSION_SOURCE } from './constants/tokens.js';
+import { CaslAuthorizer } from './helpers/authorizer.js';
+import type { ICaslPermissionSource } from './interfaces/permission-source.interface.js';
 
 export interface CaslModuleOptions {
   /** Modules whose exports the permission source provider needs (standard dynamic-module `imports`). */

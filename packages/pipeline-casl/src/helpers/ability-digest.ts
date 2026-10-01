@@ -3,8 +3,8 @@
 import { createHash } from 'node:crypto';
 import { stableStringify } from '@cqrs-ddd/safe-stringify';
 import type { IPipelineContext } from '@nestjs-pipeline/core';
-import { MissingAbilityError } from '../errors/missing-ability.error';
-import { getCaslAbility } from './authorizer';
+import { MissingAbilityError } from '../errors/missing-ability.error.js';
+import { getCaslAbility } from './authorizer.js';
 
 /**
  * A digest of the permissions the current ability grants: the SHA-256 (hex) of

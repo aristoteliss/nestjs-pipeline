@@ -1,8 +1,8 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { describe, expect, it } from 'vitest';
-import { CaslBehavior } from '../casl.behavior';
-import { requires } from './requires';
+import { CaslBehavior } from '../casl.behavior.js';
+import { requires } from './requires.js';
 
 describe('requires', () => {
   it('declares one requirement', () => {

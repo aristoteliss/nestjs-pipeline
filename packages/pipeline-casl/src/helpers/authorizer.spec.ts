@@ -4,16 +4,16 @@
 import { subject as caslSubject, createMongoAbility } from '@casl/ability';
 import { type IPipelineContext, pipelineStore } from '@nestjs-pipeline/core';
 import { describe, expect, expectTypeOf, it } from 'vitest';
-import { CASL_ABILITY_KEY, CASL_PRINCIPAL_KEY } from '../constants/tokens';
-import { UnauthorizedActionException } from '../errors/unauthorized-action.exception';
-import type { AppAbility, AppRawRule, Projected } from '../types/casl.types';
-import { buildAbility } from './ability';
+import { CASL_ABILITY_KEY, CASL_PRINCIPAL_KEY } from '../constants/tokens.js';
+import { UnauthorizedActionException } from '../errors/unauthorized-action.exception.js';
+import type { AppAbility, AppRawRule, Projected } from '../types/casl.types.js';
+import { buildAbility } from './ability.js';
 import {
   CaslAuthorizer,
   getCaslAbility,
   getCaslPrincipal,
   hasEntityConditions,
-} from './authorizer';
+} from './authorizer.js';
 
 const rawAbility = (rules: AppRawRule[]): AppAbility =>
   createMongoAbility<[string, string]>(rules);

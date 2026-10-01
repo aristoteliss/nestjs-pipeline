@@ -3,10 +3,10 @@
 import type { ArgumentsHost } from '@nestjs/common';
 import type { HttpAdapterHost } from '@nestjs/core';
 import { describe, expect, it, vi } from 'vitest';
-import { UnauthorizedActionException } from '../errors/unauthorized-action.exception';
-import { buildAbility } from '../helpers/ability';
-import { CaslAuthorizer } from '../helpers/authorizer';
-import { UnauthorizedActionFilter } from './unauthorized-action.filter';
+import { UnauthorizedActionException } from '../errors/unauthorized-action.exception.js';
+import { buildAbility } from '../helpers/ability.js';
+import { CaslAuthorizer } from '../helpers/authorizer.js';
+import { UnauthorizedActionFilter } from './unauthorized-action.filter.js';
 
 const response = {};
 const host = {

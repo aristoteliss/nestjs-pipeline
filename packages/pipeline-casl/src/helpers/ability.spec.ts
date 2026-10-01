@@ -3,9 +3,9 @@
 /** biome-ignore-all lint/suspicious/noTemplateCurlyInString: placeholders are data */
 import { subject } from '@casl/ability';
 import { describe, expect, it } from 'vitest';
-import type { CaslPrincipal } from '../interfaces/permission-source.interface';
-import type { Capability } from '../types/casl.types';
-import { buildAbility, interpolateConditions } from './ability';
+import type { CaslPrincipal } from '../interfaces/permission-source.interface.js';
+import type { Capability } from '../types/casl.types.js';
+import { buildAbility, interpolateConditions } from './ability.js';
 
 const entity = (type: string, attributes: Record<string, unknown>) =>
   subject(type, attributes) as unknown as string;
