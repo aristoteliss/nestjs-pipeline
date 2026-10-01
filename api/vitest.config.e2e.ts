@@ -34,43 +34,47 @@ export default defineConfig({
     alias: [
       {
         find: /^@auths\/cqrs\//,
-        replacement: `${resolve(__dirname, 'src/auths/application/cqrs')}/`,
+        replacement: `${resolve(import.meta.dirname, 'src/auths/application/cqrs')}/`,
       },
       {
         find: /^@roles\/cqrs\//,
-        replacement: `${resolve(__dirname, 'src/roles/application/cqrs')}/`,
+        replacement: `${resolve(import.meta.dirname, 'src/roles/application/cqrs')}/`,
       },
       {
         find: /^@users\/cqrs\//,
-        replacement: `${resolve(__dirname, 'src/users/application/cqrs')}/`,
+        replacement: `${resolve(import.meta.dirname, 'src/users/application/cqrs')}/`,
       },
       {
         find: /^@auths\//,
-        replacement: `${resolve(__dirname, 'src/auths')}/`,
+        replacement: `${resolve(import.meta.dirname, 'src/auths')}/`,
       },
       {
         find: /^@roles\//,
-        replacement: `${resolve(__dirname, 'src/roles')}/`,
+        replacement: `${resolve(import.meta.dirname, 'src/roles')}/`,
       },
       {
         find: /^@users\//,
-        replacement: `${resolve(__dirname, 'src/users')}/`,
+        replacement: `${resolve(import.meta.dirname, 'src/users')}/`,
       },
       {
         find: /^@common\//,
-        replacement: `${resolve(__dirname, 'src/common')}/`,
+        replacement: `${resolve(import.meta.dirname, 'src/common')}/`,
       },
       {
         find: /^@persistence\//,
-        replacement: `${resolve(__dirname, 'src/persistence')}/`,
+        replacement: `${resolve(import.meta.dirname, 'src/persistence')}/`,
       },
       {
         find: /^@test\//,
-        replacement: `${resolve(__dirname, 'test')}/`,
+        replacement: `${resolve(import.meta.dirname, 'test')}/`,
       },
     ],
   },
   test: {
+    // The workspace packages load natively, as in production. Run by Vite instead,
+    // a package is reloaded by `vi.resetModules()`, losing registrations such as
+    // `setTenantResolver`, and `vi.mock` reaches into its code.
+    server: { deps: { external: [/\/packages\/[^/]+\/dist\//] } },
     globals: true,
     root: '.',
     include: ['test/**/*.e2e-spec.ts'],
