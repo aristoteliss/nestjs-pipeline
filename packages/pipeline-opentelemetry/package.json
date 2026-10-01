@@ -1,9 +1,10 @@
 {
   "name": "@nestjs-pipeline/opentelemetry",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "OpenTelemetry tracing & metrics behaviors for @nestjs-pipeline/core",
   "author": "Aristotelis <aristotelis@ik.me>",
   "license": "SEE LICENSE IN LICENSE",
+  "type": "module",
   "engines": {
     "node": ">=22.12.0"
   },
@@ -15,6 +16,13 @@
   "homepage": "https://github.com/aristoteliss/nestjs-pipeline#readme",
   "bugs": {
     "url": "https://github.com/aristoteliss/nestjs-pipeline/issues"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
   },
   "main": "dist/index.js",
   "types": "dist/index.d.ts",

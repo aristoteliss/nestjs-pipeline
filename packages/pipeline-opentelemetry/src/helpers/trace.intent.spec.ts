@@ -1,8 +1,8 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { describe, expect, expectTypeOf, it } from 'vitest';
-import { TraceBehavior } from '../trace.behavior';
-import { type TraceIntentOptions, trace } from './trace.intent';
+import { TraceBehavior } from '../trace.behavior.js';
+import { type TraceIntentOptions, trace } from './trace.intent.js';
 
 describe('trace intent builder', () => {
   it('creates entry with options object', () => {

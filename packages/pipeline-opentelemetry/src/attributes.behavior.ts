@@ -11,7 +11,7 @@ import {
   addPipelineTelemetryAttributes,
   type PipelineTelemetryAttributeFactory,
   withFactoryAttributes,
-} from './telemetry-attributes';
+} from './telemetry-attributes.js';
 
 /** Options for {@link AttributesBehavior}. */
 export interface AttributesBehaviorOptions {

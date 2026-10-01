@@ -5,11 +5,11 @@ import { describe, expect, it } from 'vitest';
 import {
   AttributesBehavior,
   type AttributesBehaviorOptions,
-} from './attributes.behavior';
+} from './attributes.behavior.js';
 import {
   getPipelineTelemetryAttributes,
   type PipelineTelemetryAttributeFactory,
-} from './telemetry-attributes';
+} from './telemetry-attributes.js';
 
 const DECISION = Symbol('DECISION');
 

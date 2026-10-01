@@ -1,7 +1,7 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import type { PipelineBehaviorTuple } from '@nestjs-pipeline/core';
-import { TraceBehavior, type TraceBehaviorOptions } from '../trace.behavior';
+import { TraceBehavior, type TraceBehaviorOptions } from '../trace.behavior.js';
 
 export type TraceIntentOptions = TraceBehaviorOptions;
 
