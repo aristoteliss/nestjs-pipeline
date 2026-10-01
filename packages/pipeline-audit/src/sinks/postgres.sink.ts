@@ -1,12 +1,12 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { toPostgresJson } from '@nestjs-pipeline/core';
-import { stringifyAuditValue } from '../helpers/json';
+import { stringifyAuditValue } from '../helpers/json.js';
 import type {
   AuditRecord,
   AuditStartRecord,
-} from '../interfaces/audit-record.interface';
-import type { AuditSink } from '../interfaces/audit-sink.interface';
+} from '../interfaces/audit-record.interface.js';
+import type { AuditSink } from '../interfaces/audit-sink.interface.js';
 
 /**
  * Minimal structural shape of a `pg` `Pool` / `Client`. Declared locally so this

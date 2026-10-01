@@ -1,8 +1,8 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import { stringifyAuditValue } from '../helpers/json';
-import type { AuditRecord } from '../interfaces/audit-record.interface';
-import type { AuditSink } from '../interfaces/audit-sink.interface';
+import { stringifyAuditValue } from '../helpers/json.js';
+import type { AuditRecord } from '../interfaces/audit-record.interface.js';
+import type { AuditSink } from '../interfaces/audit-sink.interface.js';
 
 /** Minimal structural logger satisfied by the NestJS `Logger` and `console`. */
 export interface AuditLoggerLike {

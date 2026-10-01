@@ -1,7 +1,7 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { describe, expect, it } from 'vitest';
-import { stringifyAuditValue } from './json';
+import { stringifyAuditValue } from './json.js';
 
 describe('stringifyAuditValue', () => {
   it('serializes BigInt explicitly as tagged object', () => {

@@ -2,14 +2,14 @@
 
 import { uuidv7 } from '@cqrs-ddd/uuidv7';
 import type { IPipelineContext } from '@nestjs-pipeline/core';
-import type { AuditBehaviorOptions } from '../interfaces/audit-options.interface';
+import type { AuditBehaviorOptions } from '../interfaces/audit-options.interface.js';
 import type {
   AuditError,
   AuditRecord,
   AuditSeverity,
   AuditStartRecord,
-} from '../interfaces/audit-record.interface';
-import { DEFAULT_REDACT_KEYS, redactValue } from './redact';
+} from '../interfaces/audit-record.interface.js';
+import { DEFAULT_REDACT_KEYS, redactValue } from './redact.js';
 
 /** Inputs describing an operation about to run. */
 export interface BuildAuditStartRecordInput {

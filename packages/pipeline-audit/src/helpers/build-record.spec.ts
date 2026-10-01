@@ -2,13 +2,13 @@
 
 import type { IPipelineContext } from '@nestjs-pipeline/core';
 import { describe, expect, it } from 'vitest';
-import type { AuditBehaviorOptions } from '../interfaces/audit-options.interface';
+import type { AuditBehaviorOptions } from '../interfaces/audit-options.interface.js';
 import {
   type BuildAuditRecordInput,
   buildAuditRecord,
   buildAuditStartRecord,
-} from './build-record';
-import { REDACTED } from './redact';
+} from './build-record.js';
+import { REDACTED } from './redact.js';
 
 function makeContext(
   overrides: Partial<IPipelineContext> = {},

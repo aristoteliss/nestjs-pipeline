@@ -1,13 +1,13 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { type DynamicModule, Module } from '@nestjs/common';
-import { AuditBehavior } from './audit.behavior';
-import { AUDIT_DEFAULT_OPTIONS, AUDIT_SINK } from './constants/tokens';
+import { AuditBehavior } from './audit.behavior.js';
+import { AUDIT_DEFAULT_OPTIONS, AUDIT_SINK } from './constants/tokens.js';
 import type {
   AuditModuleAsyncOptions,
   AuditModuleOptions,
-} from './interfaces/audit-options.interface';
-import { LogAuditSink } from './sinks/log.sink';
+} from './interfaces/audit-options.interface.js';
+import { LogAuditSink } from './sinks/log.sink.js';
 
 /**
  * NestJS module that wires an {@link AuditSink} into the {@link AuditBehavior}

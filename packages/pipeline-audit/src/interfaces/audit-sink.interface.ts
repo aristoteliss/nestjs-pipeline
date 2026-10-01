@@ -1,6 +1,9 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import type { AuditRecord, AuditStartRecord } from './audit-record.interface';
+import type {
+  AuditRecord,
+  AuditStartRecord,
+} from './audit-record.interface.js';
 
 /**
  * Backend-agnostic sink for audit records — the single seam every storage

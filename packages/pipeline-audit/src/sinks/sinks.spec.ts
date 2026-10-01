@@ -4,13 +4,13 @@ import { describe, expect, it, vi } from 'vitest';
 import type {
   AuditRecord,
   AuditStartRecord,
-} from '../interfaces/audit-record.interface';
-import { LogAuditSink } from './log.sink';
+} from '../interfaces/audit-record.interface.js';
+import { LogAuditSink } from './log.sink.js';
 import {
   createAuditTableSql,
   PostgresAuditSink,
   type PostgresQueryableLike,
-} from './postgres.sink';
+} from './postgres.sink.js';
 
 function makeRecord(overrides: Partial<AuditRecord> = {}): AuditRecord {
   return {

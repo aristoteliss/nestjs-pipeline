@@ -1,8 +1,8 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { describe, expect, expectTypeOf, it } from 'vitest';
-import { AuditBehavior } from '../audit.behavior';
-import { type AuditIntentOptions, audit } from './audit.intent';
+import { AuditBehavior } from '../audit.behavior.js';
+import { type AuditIntentOptions, audit } from './audit.intent.js';
 
 describe('audit intent builder', () => {
   it('creates entry with options object', () => {
