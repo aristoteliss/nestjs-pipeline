@@ -6,7 +6,7 @@ import type {
   OptionalFactoryDependency,
 } from '@nestjs/common';
 import type { IPipelineContext } from '@nestjs-pipeline/core';
-import type { RateLimiterLike } from './rate-limiter.interface';
+import type { RateLimiterLike } from './rate-limiter.interface.js';
 
 /**
  * Derives the rate-limit bucket key from the pipeline context — e.g. combine

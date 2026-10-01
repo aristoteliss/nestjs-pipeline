@@ -8,7 +8,7 @@ import {
   Inject,
 } from '@nestjs/common';
 import { HttpAdapterHost } from '@nestjs/core';
-import { RateLimitExceededError } from '../errors/rate-limit-exceeded.error';
+import { RateLimitExceededError } from '../errors/rate-limit-exceeded.error.js';
 
 /**
  * Catches {@link RateLimitExceededError} thrown by {@link RateLimitBehavior} at

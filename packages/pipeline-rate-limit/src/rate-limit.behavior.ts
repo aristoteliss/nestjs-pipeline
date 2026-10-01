@@ -21,14 +21,17 @@ import {
   type PipelineItemToken,
   setPipelineItem,
 } from '@nestjs-pipeline/core';
-import { RATE_LIMIT_DEFAULT_OPTIONS, RATE_LIMITER } from './constants/tokens';
-import { RateLimitExceededError } from './errors/rate-limit-exceeded.error';
-import { buildRateLimitKey } from './helpers/build-key';
-import type { RateLimitBehaviorOptions } from './interfaces/rate-limit-options.interface';
+import {
+  RATE_LIMIT_DEFAULT_OPTIONS,
+  RATE_LIMITER,
+} from './constants/tokens.js';
+import { RateLimitExceededError } from './errors/rate-limit-exceeded.error.js';
+import { buildRateLimitKey } from './helpers/build-key.js';
+import type { RateLimitBehaviorOptions } from './interfaces/rate-limit-options.interface.js';
 import type {
   RateLimiterLike,
   RateLimiterResLike,
-} from './interfaces/rate-limiter.interface';
+} from './interfaces/rate-limiter.interface.js';
 
 /**
  * Unique symbol key set on `context.items` containing the result of a rate-limit check (or rejection payload).

@@ -1,8 +1,8 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import type { PipelineBehaviorTuple } from '@nestjs-pipeline/core';
-import type { RateLimitBehaviorOptions } from '../interfaces/rate-limit-options.interface';
-import { RateLimitBehavior } from '../rate-limit.behavior';
+import type { RateLimitBehaviorOptions } from '../interfaces/rate-limit-options.interface.js';
+import { RateLimitBehavior } from '../rate-limit.behavior.js';
 
 export type RateLimitIntentOptions = Omit<
   RateLimitBehaviorOptions,

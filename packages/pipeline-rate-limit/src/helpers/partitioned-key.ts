@@ -6,8 +6,8 @@ import {
   type TenantPartitionOptions,
   tenantSegments,
 } from '@nestjs-pipeline/core';
-import { MissingRateLimitPartitionError } from '../errors/missing-partition.error';
-import type { RateLimitKeyFactory } from '../interfaces/rate-limit-options.interface';
+import { MissingRateLimitPartitionError } from '../errors/missing-partition.error.js';
+import type { RateLimitKeyFactory } from '../interfaces/rate-limit-options.interface.js';
 
 /**
  * Resolves the stable caller/partition identifier used by

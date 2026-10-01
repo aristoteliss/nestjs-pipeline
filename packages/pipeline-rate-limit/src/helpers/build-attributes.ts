@@ -1,7 +1,7 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { getPipelineItem, type IPipelineContext } from '@nestjs-pipeline/core';
-import { RATE_LIMIT_ITEM_TOKEN } from '../rate-limit.behavior';
+import { RATE_LIMIT_ITEM_TOKEN } from '../rate-limit.behavior.js';
 
 /**
  * The rate-limit decision of one execution as flat attributes:

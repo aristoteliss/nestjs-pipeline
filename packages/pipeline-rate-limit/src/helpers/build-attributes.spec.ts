@@ -2,9 +2,9 @@
 
 import { type IPipelineContext, setPipelineItem } from '@nestjs-pipeline/core';
 import { describe, expect, it } from 'vitest';
-import type { RateLimiterResLike } from '../interfaces/rate-limiter.interface';
-import { RATE_LIMIT_ITEM_TOKEN } from '../rate-limit.behavior';
-import { buildRateLimitAttributes } from './build-attributes';
+import type { RateLimiterResLike } from '../interfaces/rate-limiter.interface.js';
+import { RATE_LIMIT_ITEM_TOKEN } from '../rate-limit.behavior.js';
+import { buildRateLimitAttributes } from './build-attributes.js';
 
 const context = () => ({ items: new Map() }) as unknown as IPipelineContext;
 

@@ -2,7 +2,7 @@
 
 import { escapeKeySegment } from '@cqrs-ddd/safe-stringify';
 import { type IPipelineContext } from '@nestjs-pipeline/core';
-import type { RateLimitBehaviorOptions } from '../interfaces/rate-limit-options.interface';
+import type { RateLimitBehaviorOptions } from '../interfaces/rate-limit-options.interface.js';
 
 /**
  * Resolve the rate-limit bucket key for a request.
