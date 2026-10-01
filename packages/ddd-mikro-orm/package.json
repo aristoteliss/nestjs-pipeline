@@ -1,9 +1,10 @@
 {
   "name": "@cqrs-ddd/mikro-orm",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "MikroORM persistence adapters for @cqrs-ddd/core: authoritative aggregate loading, version-conditioned writes, a revision-fenced cache and root-entity schema mapping.",
   "author": "Aristotelis",
   "license": "SEE LICENSE IN LICENSE",
+  "type": "module",
   "engines": {
     "node": ">=22.17.0"
   },
@@ -24,6 +25,13 @@
     "optimistic-concurrency",
     "cache"
   ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "files": [

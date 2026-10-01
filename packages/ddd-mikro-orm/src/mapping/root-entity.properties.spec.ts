@@ -5,8 +5,8 @@ import { describe, expect, it } from 'vitest';
 import {
   rootEntityProperties,
   versionProperty,
-} from './root-entity.properties';
-import { UnixTimestampType } from './unix-timestamp.type';
+} from './root-entity.properties.js';
+import { UnixTimestampType } from './unix-timestamp.type.js';
 
 describe('rootEntityProperties', () => {
   it('maps id and epoch-millisecond timestamps through accessors under the default column names', () => {

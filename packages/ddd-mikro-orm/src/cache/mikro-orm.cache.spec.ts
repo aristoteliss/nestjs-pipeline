@@ -1,8 +1,8 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { describe, expect, it, vi } from 'vitest';
-import { CacheEntry } from './cache-entry';
-import { MikroOrmCache } from './mikro-orm.cache';
+import { CacheEntry } from './cache-entry.js';
+import { MikroOrmCache } from './mikro-orm.cache.js';
 
 function createMockStore(mockEm: any): any {
   return {

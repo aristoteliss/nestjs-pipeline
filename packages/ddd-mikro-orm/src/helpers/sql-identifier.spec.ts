@@ -1,7 +1,7 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { describe, expect, it } from 'vitest';
-import { isSqlIdentifier } from './sql-identifier';
+import { isSqlIdentifier } from './sql-identifier.js';
 
 describe('isSqlIdentifier', () => {
   it.each(['tenant', 'tenant_a', '_tenant', 'Tenant1'])(

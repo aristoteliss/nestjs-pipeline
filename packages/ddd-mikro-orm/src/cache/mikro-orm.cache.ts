@@ -10,8 +10,8 @@ import {
 import type { ICacheLogger } from '@cqrs-ddd/core/persistence';
 import { consoleCacheLogger, safeWarn } from '@cqrs-ddd/core/persistence';
 import type { EntityManager } from '@mikro-orm/core';
-import type { IEntityManagerSource } from '../interfaces/entity-manager-source';
-import { CacheEntry } from './cache-entry';
+import type { IEntityManagerSource } from '../interfaces/entity-manager-source.js';
+import { CacheEntry } from './cache-entry.js';
 
 /**
  * Reads the committed row inside a CAS transaction, bypassing the identity map

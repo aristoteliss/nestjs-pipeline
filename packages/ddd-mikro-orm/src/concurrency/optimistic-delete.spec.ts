@@ -6,8 +6,8 @@ import {
 } from '@cqrs-ddd/core/domain';
 import type { EntityManager } from '@mikro-orm/core';
 import { describe, expect, it, vi } from 'vitest';
-import { assertAutocommit } from './assert-autocommit';
-import { optimisticDelete } from './optimistic-delete';
+import { assertAutocommit } from './assert-autocommit.js';
+import { optimisticDelete } from './optimistic-delete.js';
 
 class Item {
   id = 'item-1';

@@ -6,7 +6,7 @@ import {
 } from '@cqrs-ddd/core/domain';
 import { type EntityManager } from '@mikro-orm/core';
 import { describe, expect, it, vi } from 'vitest';
-import { optimisticUpdate } from './optimistic-update';
+import { optimisticUpdate } from './optimistic-update.js';
 
 class Item {
   id = 'item-1';

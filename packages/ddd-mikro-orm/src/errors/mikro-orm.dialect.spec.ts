@@ -7,7 +7,7 @@ import {
   UniqueConstraintViolationException,
 } from '@mikro-orm/core';
 import { describe, expect, it } from 'vitest';
-import { MikroOrmDialect } from './mikro-orm.dialect';
+import { MikroOrmDialect } from './mikro-orm.dialect.js';
 
 class User {}
 class Membership {}

@@ -10,8 +10,8 @@ import {
   MapPersistenceErrors,
 } from '@cqrs-ddd/core/persistence';
 import type { EntityName, FilterQuery } from '@mikro-orm/core';
-import { mapPersistenceError } from '../errors/transient-error';
-import type { IEntityManagerSource } from '../interfaces/entity-manager-source';
+import { mapPersistenceError } from '../errors/transient-error.js';
+import type { IEntityManagerSource } from '../interfaces/entity-manager-source.js';
 
 /**
  * Base class for the command repositories that load and save an existing aggregate.

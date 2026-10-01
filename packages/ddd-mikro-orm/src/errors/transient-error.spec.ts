@@ -10,7 +10,7 @@ import { describe, expect, it } from 'vitest';
 import {
   isTransientPersistenceError,
   mapPersistenceError,
-} from './transient-error';
+} from './transient-error.js';
 
 class UniqueEmailException extends DomainException {}
 

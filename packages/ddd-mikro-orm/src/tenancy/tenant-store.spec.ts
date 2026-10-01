@@ -2,7 +2,7 @@
 
 import type { MikroORM } from '@mikro-orm/core';
 import { describe, expect, it, vi } from 'vitest';
-import { type TenantIsolation, TenantStore } from './tenant-store';
+import { type TenantIsolation, TenantStore } from './tenant-store.js';
 
 type Manager = {
   id: string;
