@@ -2,11 +2,11 @@
 
 import { describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
-import { ZodValidationError } from './errors/zod-validation.error';
+import { ZodValidationError } from './errors/zod-validation.error.js';
 import {
   ZOD_SCHEMA_KEY,
   ZodValidationBehavior,
-} from './zod-validation.behavior';
+} from './zod-validation.behavior.js';
 
 function makeClass(schema?: z.ZodType) {
   const cls = class {};

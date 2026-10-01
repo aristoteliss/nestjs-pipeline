@@ -11,7 +11,7 @@ import {
   ZOD_VALIDATED_DATA_KEY,
   ZodValidationBehavior,
   ZodValidationError,
-} from './index';
+} from './index.js';
 
 function run(
   request: object,

@@ -5,8 +5,8 @@ import {
 } from '@nestjs/common';
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
-import { createZodMapper } from './create-zod-mapper';
-import { zodBadRequest } from './zod-bad-request';
+import { createZodMapper } from './create-zod-mapper.js';
+import { zodBadRequest } from './zod-bad-request.js';
 
 describe('createZodMapper', () => {
   const schema = z.object({

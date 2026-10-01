@@ -6,7 +6,7 @@ import {
 } from '@nestjs/common';
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
-import { zodBadRequest } from './zod-bad-request';
+import { zodBadRequest } from './zod-bad-request.js';
 
 const SignupSchema = z
   .object({

@@ -9,7 +9,7 @@ import {
   hasBeenMutated,
   ZOD_RAW_INPUT_KEY,
   ZOD_VALIDATED_DATA_KEY,
-} from './zod-data.helpers';
+} from './zod-data.helpers.js';
 
 describe('zod-data.helpers', () => {
   describe('deepEqual', () => {

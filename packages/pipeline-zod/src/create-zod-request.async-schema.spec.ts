@@ -7,9 +7,9 @@
 
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
-import { createCommand } from './create-zod-request';
-import { ZodValidationError } from './errors/zod-validation.error';
-import { getRawInput } from './helpers/zod-data.helpers';
+import { createCommand } from './create-zod-request.js';
+import { ZodValidationError } from './errors/zod-validation.error.js';
+import { getRawInput } from './helpers/zod-data.helpers.js';
 
 const AsyncSchema = z.object({
   email: z

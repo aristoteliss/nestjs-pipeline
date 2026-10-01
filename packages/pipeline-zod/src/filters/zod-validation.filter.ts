@@ -8,7 +8,7 @@ import {
   Inject,
 } from '@nestjs/common';
 import { HttpAdapterHost } from '@nestjs/core';
-import { ZodValidationError } from '../errors/zod-validation.error';
+import { ZodValidationError } from '../errors/zod-validation.error.js';
 
 /**
  * Catches {@link ZodValidationError} thrown by `createCommand()`, `createQuery()`,

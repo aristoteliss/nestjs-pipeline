@@ -4,13 +4,13 @@ import { Type } from '@nestjs/common';
 import { IPipelineContext } from '@nestjs-pipeline/core';
 import { describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
-import { createCommand, createZodRequest } from './create-zod-request';
-import { ZodValidationError } from './errors/zod-validation.error';
+import { createCommand, createZodRequest } from './create-zod-request.js';
+import { ZodValidationError } from './errors/zod-validation.error.js';
 import {
   getRawInput,
   ZOD_SCHEMA_KEY,
   ZodValidationBehavior,
-} from './zod-validation.behavior';
+} from './zod-validation.behavior.js';
 
 function makeRequestType(schema?: z.ZodType): Type {
   const cls = class {};
