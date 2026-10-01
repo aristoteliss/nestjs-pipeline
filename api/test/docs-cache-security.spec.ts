@@ -23,9 +23,23 @@ describe('Documentation cache security contracts', () => {
     'README.md',
   );
 
+  const cacheGuidePath = resolve(
+    import.meta.dirname,
+    '..',
+    '..',
+    'docs',
+    'src',
+    'content',
+    'docs',
+    'packages',
+    'nestjs-pipeline',
+    'cache.md',
+  );
+
   const usersApiReadme = readFileSync(usersApiReadmePath, 'utf8');
   const cacheReadme = readFileSync(cacheReadmePath, 'utf8');
-  const allDocs = [usersApiReadme, cacheReadme];
+  const cacheGuide = readFileSync(cacheGuidePath, 'utf8');
+  const allDocs = [usersApiReadme, cacheReadme, cacheGuide];
 
   it('does not contain unsafe tenant-only shared cache keys for authorized handlers', () => {
     expect(usersApiReadme).not.toContain(
@@ -49,8 +63,8 @@ describe('Documentation cache security contracts', () => {
     expect(usersApiReadme).toContain('createPartitionedCacheKeyFactory');
     expect(usersApiReadme).toContain('MissingCachePartitionError');
 
-    expect(cacheReadme).toContain('createPartitionedCacheKeyFactory');
-    expect(cacheReadme).toContain('MissingCachePartitionError');
+    expect(cacheGuide).toContain('createPartitionedCacheKeyFactory');
+    expect(cacheGuide).toContain('MissingCachePartitionError');
   });
 
   it('presents no correlation-scoped key as safe by default in any documentation', () => {

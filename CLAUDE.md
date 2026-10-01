@@ -33,7 +33,8 @@ detail belongs in the files it points to.
 ## Progressive disclosure
 
 1. Start with the map's Repository Shape, Directory Map, and Critical Modules.
-2. Read only the nested `CLAUDE.md` and README files for the areas in scope.
+2. Read only the nested `CLAUDE.md` files and the documentation pages
+   (`docs/src/content/docs/`) for the areas in scope.
 3. Open only the modules and symbols the task touches, plus their direct callers and tests.
 4. Do not scan the whole repository. Repo-wide sweeps need an explicit reason (a rename, a
    contract audit, a security review) — say what it is before doing one.
@@ -75,7 +76,7 @@ For any task that is large, multi-step, or likely to span sessions, create
 - Never put secrets, credentials, tokens, customer data, or personal information in a
   task id or a task file.
 - `.claude/tasks/` is for active work. When the task is done, move anything durable to the
-  place that owns it — source or a README — then delete the task file. Only `TEMPLATE.md` stays.
+  place that owns it — source, a documentation page or a README — then delete the task file. Only `TEMPLATE.md` stays.
 
 ## Keeping the map current
 

@@ -11,10 +11,9 @@ Use this skill for any change that affects architecture, CQRS handlers, domain m
 
 This repository is authoritative. Before changing architecture-sensitive code, inspect the closest existing implementation and these documents:
 
-- `README.md`
-- `packages/pipeline/README.md`
-- `packages/pipeline-cache/README.md`
-- `packages/ddd-core/README.md`
+- `docs/src/content/docs/` (the documentation site), in particular `overview.md`,
+  `packages/nestjs-pipeline/core.md`, `packages/nestjs-pipeline/cache.md` and
+  `packages/cqrs-ddd/core.md`
 - `api/README.md`
 
 If generic Clean Architecture / DDD / CQRS advice conflicts with this repository, follow the repository.
@@ -53,7 +52,7 @@ not infer that a cache layer must be removed.
 Keep architecture documentation focused on the repository as it exists.
 
 - Put generic agent/architecture rules in `AGENTS.md` and this skill.
-- Put package and consumer usage in the nearest README. Published packages and major core/runnable areas should document their public API, setup, options, behavior, caveats, and realistic examples.
+- Put package and consumer usage on the package's page of the documentation site (`docs/src/content/docs/packages/<scope>/<name>.md`), and application usage in `api/README.md`. Published packages and major core/runnable areas should document their public API, setup, options, behavior, caveats, and realistic examples.
 - Exported functions and the public methods of exported classes, in packages and in `api` alike, carry useful JSDoc: what the name does not say, each parameter, the return value, errors/caveats, and an `@example` of a real call. A block that restates the name or signature is slop. Do not narrate the implementation.
 - API-facing DTOs may document validation, field meaning, example payloads, and consumer expectations.
 - CQRS handlers, commands, queries and ordinary domain entities carry no inline comments and no narrative JSDoc. If their flow needs explaining, rename, extract or simplify, and state invariants in test names.
@@ -292,7 +291,7 @@ Current accepted technical risk includes the assumption that each CQRS handler d
 
 - explicit compatibility reasoning
 - tests for supported Nest major versions
-- README/ADR update if behavior or compatibility changes
+- documentation or ADR update if behavior or compatibility changes
 
 `@nestjs/cqrs` exports only its package root; do not import from `@nestjs/cqrs/dist/*` or work around its `exports` map.
 

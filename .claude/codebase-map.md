@@ -34,7 +34,7 @@ what the libraries support.
 ## Technology Stack
 
 <!-- context:generated-start technology-stack -->
-- **Languages** (file counts, excluded directories omitted): `.ts` 803, `.md` 37, `.grit` 14, `.mjs` 3, `.py` 3
+- **Languages** (file counts, excluded directories omitted): `.ts` 803, `.md` 71, `.grit` 14, `.mjs` 4, `.py` 3
 - **Runtime engines** (root `package.json`): `node` >=22.12.0, `pnpm` >=9.0.0
 - **Package manager evidence**: `pnpm-lock.yaml`.
 - **Integrations**: listed with their purpose under Dependencies and Integrations.
@@ -51,7 +51,7 @@ what the libraries support.
 | `api/src/persistence/cli.ts` | CLI entry point | `pnpm --filter @nestjs-pipeline/ddd-api` `db:migrate`, `db:revert`, `permissions:rebuild`, `permissions:verify`, `sessions:purge` |
 | `api/src/tracing.ts` | Telemetry initialization (loaded before the framework) | workspace `@nestjs-pipeline/ddd-api` |
 | `api/vitest.config.e2e.ts` | Referenced by a package script | `pnpm --filter @nestjs-pipeline/ddd-api` `test:e2e`, `test:e2e:watch` |
-| `docs/scripts/sync-readmes.mjs` | Referenced by a package script | `pnpm --filter @nestjs-pipeline/docs` `sync` |
+| `docs/scripts/sync-changelog.mjs` | Referenced by a package script | `pnpm --filter @nestjs-pipeline/docs` `sync` |
 | `integration/packages/release.mjs` | Referenced by a root script | `pnpm test:release` |
 | `packages/ddd-core/index.ts` | Package public entry (barrel) | workspace `@cqrs-ddd/core` |
 | `scripts/update-claude-snapshot.py` | Referenced by a root script | `pnpm context:check`; `pnpm context:update` |
@@ -537,10 +537,11 @@ secret value.*
   therefore cannot wrap the event handlers or observe their failures.
 - **Fastify mode refuses a numeric `TRUST_PROXY`.** Fastify 5.12, bundled with Nest 12,
   trusts no proxy for a hop count, so `api/src/http-platform.ts` fails at boot instead.
-- **The documentation site (`docs/`) generates most of its pages.** The guides are copies of the
-  READMEs and the API reference comes from the JSDoc, both gitignored: edit the source, never
-  the copy. Its build fails on a broken internal link or anchor, so a renamed README heading
-  must keep its links working. TypeDoc there runs on a pinned TypeScript 6.0.
+- **The documentation site (`docs/src/content/docs/`) is the manual.** Its guide, concept and
+  package pages are committed sources; package READMEs only point to them. The Changelog page
+  is copied from `CHANGELOG.md` and the API reference is generated from the JSDoc, both
+  gitignored. The build fails on a broken internal link or anchor. TypeDoc there runs on a
+  pinned TypeScript 6.0.
 - **The site needs `pnpm docs:build`, not `pnpm build`.** The site's script is `build:site`, so
   `pnpm -r build` skips it; `docs:build` builds the packages and `api`, writes
   `api/dist/openapi.json` (Nest preview mode: no database or Redis), then the site.
@@ -557,13 +558,13 @@ secret value.*
 ## Snapshot Metadata
 
 <!-- context:generated-start metadata -->
-- Generated at: 2026-10-01T17:45:12Z
-- Git commit: 800bb2087ee634a0c1d60363f1e1af8de5c69cd7
-- Git branch: master
+- Generated at: 2026-10-01T18:20:26Z
+- Git commit: fdfdb0d967ee205c149c88a35b9e5032d86127d0
+- Git branch: develop
 - Uncommitted changes when generated: yes
 - Generator: `scripts/update-claude-snapshot.py` version 1.0.0
 - Snapshot status: generated — structural inspection only, no code executed
-- Files inspected: 939
+- Files inspected: 978
 - Included top-level directories: `.agents`, `.claude`, `.github`, `api`, `biome`, `docs`, `integration`, `packages`, `scripts`
 - Excluded directory names: `.cache`, `.git`, `.gradle`, `.idea`, `.mypy_cache`, `.next`, `.nuxt`, `.parcel-cache`, `.pnpm-store`, `.pytest_cache`, `.ruff_cache`, `.svelte-kit`, `.terraform`, `.tmp`, `.tox`, `.turbo`, `.venv`, `.vscode`, `__pycache__`, `bower_components`, `build`, `coverage`, `dist`, `node_modules`, `out`, `target`, `vendor`, `venv`, `virtualenv`
 - Excluded file patterns: `.env`, `.env.*`, `*.env`, `*.pem`, `*.key`, `*.pfx`, `*.p12`, `*.jks`, `*.keystore`, `id_rsa*`, `id_ed25519*`, `*credentials*`, `*.secret`, `secrets.*`
