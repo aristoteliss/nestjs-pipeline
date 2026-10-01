@@ -53,8 +53,11 @@ too. Repository-wide orientation: [.claude/codebase-map.md](../.claude/codebase-
 
 - `src/index.ts` — public surface; anything not exported here is internal.
 - `src/constants/` — injection tokens; renaming one is a breaking change.
-- `README.md` — the consumer manual: purpose, setup, public API, options, behavior,
-  caveats, examples. Update it in the same change that alters the contract.
+- `docs/src/content/docs/packages/<scope>/<name>.md` — the consumer manual on the
+  documentation site: purpose, setup, public API, options, behavior, caveats, examples.
+  Update it in the same change that alters the contract.
+- `README.md` — short: what the package is, installation, requirements, and links to its
+  guide and API reference (npm shows it).
 - `package.json` `peerDependencies` — the advertised compatibility contract.
 
 ## Local commands

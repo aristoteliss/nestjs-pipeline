@@ -60,7 +60,7 @@ pnpm test:e2e     # api exercises the real Nest composition paths
   metadata included) and fails bootstrap when a decorator records other than one key. This
   assumption about the decorators is an accepted, documented trade-off; any change here
   requires explicit compatibility reasoning, tests for the supported Nest majors, and a
-  README/ADR update if behavior or compatibility changes.
+  documentation or ADR update if behavior or compatibility changes.
 - `@nestjs/cqrs` exports only its package root. Do not import or re-export anything under
   `@nestjs/cqrs/dist`; `src/constants/private-api-boundary.spec.ts` guards the decorator
   constants. The bootstrap still hooks Nest's `InstanceWrapper` (`@nestjs/core/injector`) to
