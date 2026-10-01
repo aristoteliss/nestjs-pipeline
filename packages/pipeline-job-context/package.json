@@ -1,6 +1,6 @@
 {
   "name": "@nestjs-pipeline/job-context",
-  "version": "0.4.1",
+  "version": "0.4.2",
   "description": "Carries the tenant, correlation id and principal of a request into the queue jobs it enqueues, and gives system-started work an explicit context",
   "author": "Aristotelis",
   "license": "SEE LICENSE IN LICENSE",
@@ -13,7 +13,7 @@
     "url": "git+https://github.com/aristoteliss/nestjs-pipeline.git",
     "directory": "packages/pipeline-job-context"
   },
-  "homepage": "https://github.com/aristoteliss/nestjs-pipeline/tree/master/packages/pipeline-job-context#readme",
+  "homepage": "https://aristoteliss.github.io/nestjs-pipeline/packages/nestjs-pipeline/job-context/",
   "bugs": {
     "url": "https://github.com/aristoteliss/nestjs-pipeline/issues"
   },

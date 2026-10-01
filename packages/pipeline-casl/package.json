@@ -1,6 +1,6 @@
 {
   "name": "@nestjs-pipeline/casl",
-  "version": "0.4.1",
+  "version": "0.4.2",
   "description": "CASL authorization behavior and entity authorizer for @nestjs-pipeline/core",
   "author": "Aristotelis <aristotelis@ik.me>",
   "license": "SEE LICENSE IN LICENSE",
@@ -13,7 +13,7 @@
     "url": "git+https://github.com/aristoteliss/nestjs-pipeline.git",
     "directory": "packages/pipeline-casl"
   },
-  "homepage": "https://github.com/aristoteliss/nestjs-pipeline#readme",
+  "homepage": "https://aristoteliss.github.io/nestjs-pipeline/packages/nestjs-pipeline/casl/",
   "bugs": {
     "url": "https://github.com/aristoteliss/nestjs-pipeline/issues"
   },

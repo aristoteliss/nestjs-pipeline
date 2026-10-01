@@ -1,6 +1,6 @@
 {
   "name": "@cqrs-ddd/safe-stringify",
-  "version": "0.4.1",
+  "version": "0.4.2",
   "description": "Deterministic JSON for identity (cache keys, fingerprints) and safe, redacting JSON for logs, with no dependencies and no framework.",
   "author": "Aristotelis",
   "license": "SEE LICENSE IN LICENSE",
@@ -13,7 +13,7 @@
     "url": "git+https://github.com/aristoteliss/nestjs-pipeline.git",
     "directory": "packages/safe-stringify"
   },
-  "homepage": "https://github.com/aristoteliss/nestjs-pipeline/tree/master/packages/safe-stringify#readme",
+  "homepage": "https://aristoteliss.github.io/nestjs-pipeline/packages/cqrs-ddd/safe-stringify/",
   "bugs": {
     "url": "https://github.com/aristoteliss/nestjs-pipeline/issues"
   },

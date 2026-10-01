@@ -1,6 +1,6 @@
 {
   "name": "@cqrs-ddd/core",
-  "version": "0.4.1",
+  "version": "0.4.2",
   "description": "Framework- and ORM-neutral DDD building blocks for TypeScript: aggregates and domain events, CQRS base classes and repository ports, and a revision-fenced repository cache, as separate entry points.",
   "author": "Aristotelis",
   "license": "SEE LICENSE IN LICENSE",
@@ -13,7 +13,7 @@
     "url": "git+https://github.com/aristoteliss/nestjs-pipeline.git",
     "directory": "packages/ddd-core"
   },
-  "homepage": "https://github.com/aristoteliss/nestjs-pipeline/tree/master/packages/ddd-core#readme",
+  "homepage": "https://aristoteliss.github.io/nestjs-pipeline/packages/cqrs-ddd/core/",
   "bugs": {
     "url": "https://github.com/aristoteliss/nestjs-pipeline/issues"
   },

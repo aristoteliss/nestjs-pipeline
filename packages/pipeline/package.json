@@ -1,6 +1,6 @@
 {
   "name": "@nestjs-pipeline/core",
-  "version": "0.4.1",
+  "version": "0.4.2",
   "description": "NestJS CQRS pipeline behavior base library",
   "author": "Aristotelis <aristotelis@ik.me>",
   "license": "SEE LICENSE IN LICENSE",
@@ -13,7 +13,7 @@
     "url": "git+https://github.com/aristoteliss/nestjs-pipeline.git",
     "directory": "packages/pipeline"
   },
-  "homepage": "https://github.com/aristoteliss/nestjs-pipeline#readme",
+  "homepage": "https://aristoteliss.github.io/nestjs-pipeline/packages/nestjs-pipeline/core/",
   "bugs": {
     "url": "https://github.com/aristoteliss/nestjs-pipeline/issues"
   },

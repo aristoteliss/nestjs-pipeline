@@ -1,6 +1,6 @@
 {
   "name": "@cqrs-ddd/untyped",
-  "version": "0.4.1",
+  "version": "0.4.2",
   "description": "A typed replacement for `as any`: reads undeclared properties as unknown. No dependencies and no framework.",
   "author": "Aristotelis",
   "license": "SEE LICENSE IN LICENSE",
@@ -13,7 +13,7 @@
     "url": "git+https://github.com/aristoteliss/nestjs-pipeline.git",
     "directory": "packages/untyped"
   },
-  "homepage": "https://github.com/aristoteliss/nestjs-pipeline/tree/master/packages/untyped#readme",
+  "homepage": "https://aristoteliss.github.io/nestjs-pipeline/packages/cqrs-ddd/untyped/",
   "bugs": {
     "url": "https://github.com/aristoteliss/nestjs-pipeline/issues"
   },

@@ -19,7 +19,7 @@ pnpm add @nestjs-pipeline/cache cache-manager keyv
 pnpm add @nestjs-pipeline/core @nestjs/common reflect-metadata
 ```
 
-Requires Node.js 22.12 or later, `@nestjs/common` `^12.1.0`, `@nestjs-pipeline/core` `^0.4.1`,
+Requires Node.js 22.12 or later, `@nestjs/common` `^12.1.0`, `@nestjs-pipeline/core` `^0.4.2`,
 `cache-manager` `^7.0.0` and `keyv` `^5.0.0`.
 
 Published as an ES module; a CommonJS application loads it with `require()`. Coming from 0.3.x, see [Upgrading from 0.3.x](https://aristoteliss.github.io/nestjs-pipeline/upgrading/from-0-3/).
