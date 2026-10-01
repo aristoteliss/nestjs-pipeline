@@ -3,8 +3,14 @@
 import 'reflect-metadata';
 import { Logger } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
-import { getCorrelationId, runWithCorrelationId } from '../correlation.store';
-import { CorrelationFrom, WithCorrelation } from './with-correlation.decorator';
+import {
+  getCorrelationId,
+  runWithCorrelationId,
+} from '../correlation.store.js';
+import {
+  CorrelationFrom,
+  WithCorrelation,
+} from './with-correlation.decorator.js';
 
 function fakeJob(data: Record<string, any> = {}) {
   return { data } as any;

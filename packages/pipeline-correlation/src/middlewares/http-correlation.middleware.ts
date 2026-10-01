@@ -2,14 +2,17 @@
 
 import { IncomingMessage, ServerResponse } from 'node:http';
 import { Inject, Injectable, NestMiddleware, Optional } from '@nestjs/common';
-import { DEFAULT_CORRELATION_HEADER } from '../constants/correlation.constants';
-import { getCorrelationId, runWithCorrelationId } from '../correlation.store';
+import { DEFAULT_CORRELATION_HEADER } from '../constants/correlation.constants.js';
+import {
+  getCorrelationId,
+  runWithCorrelationId,
+} from '../correlation.store.js';
 import {
   CORRELATION_OPTIONS,
   CorrelationOptions,
   DEFAULT_CORRELATION_ID_MAX_LENGTH,
   DEFAULT_CORRELATION_ID_PATTERN,
-} from '../options/correlation.options';
+} from '../options/correlation.options.js';
 
 const HTTP_FIELD_NAME = /^[!#$%&'*+\-.^_`|~0-9A-Za-z]+$/;
 

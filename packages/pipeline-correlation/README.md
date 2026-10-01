@@ -23,6 +23,8 @@ pnpm add @nestjs-pipeline/correlation @nestjs/common
 
 Requires Node.js 22.12 or later and `@nestjs/common` `^12.1.0`.
 
+Published as an ES module; a CommonJS application loads it with `require()`.
+
 The package owns the correlation store and depends on no other pipeline package. To give
 `@nestjs-pipeline/core` pipelines the ID set here, pass `correlationSource`:
 
@@ -281,7 +283,8 @@ not run inside this store, so `getCorrelationId()` in its handler does not retur
 
 ## Migrating from 0.1.x
 
-These steps lead to 0.2.0. To reach 0.3.0, continue with [Upgrading from 0.2.x](https://github.com/aristoteliss/nestjs-pipeline#upgrading-from-02x) in the repository README.
+These steps lead to 0.2.0. To reach 0.4.0, continue with [Upgrading from 0.2.x](https://github.com/aristoteliss/nestjs-pipeline#upgrading-from-02x) and
+[Upgrading from 0.3.x](https://github.com/aristoteliss/nestjs-pipeline#upgrading-from-03x) in the repository README.
 
 **Peer dependency.** `@nestjs/common` 10 is no longer supported; the peer range is
 `^11.0.0`.

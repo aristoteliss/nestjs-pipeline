@@ -7,7 +7,7 @@ import {
   correlationSource,
   getCorrelationId,
   runWithCorrelationId,
-} from './correlation.store';
+} from './correlation.store.js';
 
 const source = correlationSource;
 

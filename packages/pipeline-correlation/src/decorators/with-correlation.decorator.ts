@@ -2,9 +2,12 @@
 
 import { untyped } from '@cqrs-ddd/untyped';
 import { Logger, LoggerService, LogLevel } from '@nestjs/common';
-import { DEFAULT_CORRELATION_HEADER } from '../constants/correlation.constants';
-import { getCorrelationId, runWithCorrelationId } from '../correlation.store';
-import { dyn } from '../types/safe-typing';
+import { DEFAULT_CORRELATION_HEADER } from '../constants/correlation.constants.js';
+import {
+  getCorrelationId,
+  runWithCorrelationId,
+} from '../correlation.store.js';
+import { dyn } from '../types/safe-typing.js';
 
 /**
  * A function that extracts the correlation ID from the method arguments.
