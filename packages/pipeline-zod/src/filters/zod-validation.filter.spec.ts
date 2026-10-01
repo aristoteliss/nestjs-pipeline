@@ -4,8 +4,8 @@ import { type ArgumentsHost, HttpStatus } from '@nestjs/common';
 import type { HttpAdapterHost } from '@nestjs/core';
 import { describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
-import { ZodValidationError } from '../errors/zod-validation.error';
-import { ZodValidationFilter } from './zod-validation.filter';
+import { ZodValidationError } from '../errors/zod-validation.error.js';
+import { ZodValidationFilter } from './zod-validation.filter.js';
 
 const response = {};
 const host = {

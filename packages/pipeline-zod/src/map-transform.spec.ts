@@ -1,7 +1,7 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 import { expect, it } from 'vitest';
 import { z } from 'zod';
-import { createCommand, ZodValidationBehavior } from './index';
+import { createCommand, ZodValidationBehavior } from './index.js';
 
 it('does not revalidate an unchanged request holding a Map with object keys', async () => {
   const C = createCommand(

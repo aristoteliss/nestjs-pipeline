@@ -1,7 +1,7 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import type { ZodType } from 'zod';
-import { zodBadRequest } from './zod-bad-request';
+import { zodBadRequest } from './zod-bad-request.js';
 
 /** A schema-backed mapper returned by {@link createZodMapper}. */
 export interface ZodMapper<TInput, TOutput> {

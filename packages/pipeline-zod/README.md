@@ -43,8 +43,10 @@ Zod v4 validation and parsing integration for `@nestjs-pipeline/core` — parse 
 pnpm add @nestjs-pipeline/zod zod
 ```
 
-Requires Zod `^4.3.0`, NestJS `^12.1.0`, `@nestjs-pipeline/core` `^0.3.0` and Node.js 22.12
+Requires Zod `^4.3.0`, NestJS `^12.1.0`, `@nestjs-pipeline/core` `^0.4.0` and Node.js 22.12
 or later.
+
+Published as an ES module; a CommonJS application loads it with `require()`.
 
 **Peer dependencies:**
 
@@ -749,6 +751,9 @@ consumers that need to name them.
 
 ## Migrating from 0.2.x
 
+These steps lead to 0.3.0. To reach 0.4.0, continue with
+[Upgrading from 0.3.x](https://github.com/aristoteliss/nestjs-pipeline#upgrading-from-03x) in the repository README.
+
 **Peers and runtime.** NestJS `^12.1.0`, `@nestjs-pipeline/core` `^0.3.0`, Node.js 22.12 or
 later.
 
@@ -772,7 +777,7 @@ getUser(@Param('id', { schema: UserIdSchema }) id: string) {}
 
 ## Migrating from 0.1.x
 
-These steps lead to 0.2.0. To reach 0.3.0, continue with
+These steps lead to 0.2.0. To reach 0.4.0, continue with
 [Migrating from 0.2.x](#migrating-from-02x).
 
 **1. Peers and runtime.** `zod` must be `^4.3.0` (was `^4.0.0`), `@nestjs/common`

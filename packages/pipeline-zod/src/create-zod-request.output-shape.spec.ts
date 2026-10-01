@@ -2,7 +2,7 @@
 
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
-import { createZodRequest } from './create-zod-request';
+import { createZodRequest } from './create-zod-request.js';
 
 describe('createZodRequest output shape', () => {
   it.each([

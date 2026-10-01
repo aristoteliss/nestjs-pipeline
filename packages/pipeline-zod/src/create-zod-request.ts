@@ -1,14 +1,14 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import type { ZodType, z } from 'zod';
-import { ZodValidationError } from './errors/zod-validation.error';
+import { ZodValidationError } from './errors/zod-validation.error.js';
 import {
   assertPlainRequestOutput,
   defineEnumerableDataProperties,
-} from './helpers/request-output';
-import { setRawInput, setValidatedData } from './helpers/zod-data.helpers';
-import { updatableFieldsOf } from './updatable';
-import { ZOD_SCHEMA_KEY } from './zod-validation.behavior';
+} from './helpers/request-output.js';
+import { setRawInput, setValidatedData } from './helpers/zod-data.helpers.js';
+import { updatableFieldsOf } from './updatable.js';
+import { ZOD_SCHEMA_KEY } from './zod-validation.behavior.js';
 
 /**
  * Constructor shape accepted as the optional base class for generated requests.

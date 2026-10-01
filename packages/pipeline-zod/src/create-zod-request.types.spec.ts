@@ -12,7 +12,7 @@
 
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
-import { createCommand, createQuery } from './create-zod-request';
+import { createCommand, createQuery } from './create-zod-request.js';
 
 /** True only when `T` is exactly `any`. */
 type IsAny<T> = 0 extends 1 & T ? true : false;

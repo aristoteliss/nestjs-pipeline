@@ -2,7 +2,7 @@
 
 import { describe, expect, it } from 'vitest';
 import { ZodError, z } from 'zod';
-import { ZodValidationError } from './zod-validation.error';
+import { ZodValidationError } from './zod-validation.error.js';
 
 describe('ZodValidationError', () => {
   function parseError(schema: z.ZodType, data: unknown): ZodError {

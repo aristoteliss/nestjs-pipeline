@@ -6,7 +6,7 @@ import { z } from 'zod';
 import {
   ZOD_SCHEMA_KEY,
   ZodValidationBehavior,
-} from './zod-validation.behavior';
+} from './zod-validation.behavior.js';
 
 describe('ZodValidationBehavior top-level transform output', () => {
   it('rejects an array output before mutating the request class instance', async () => {

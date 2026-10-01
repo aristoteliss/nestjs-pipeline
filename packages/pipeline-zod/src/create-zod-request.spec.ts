@@ -8,9 +8,9 @@ import {
   createZodRequest,
   type InferInput,
   type InferOutput,
-} from './create-zod-request';
-import { ZodValidationError } from './errors/zod-validation.error';
-import { ZOD_SCHEMA_KEY } from './zod-validation.behavior';
+} from './create-zod-request.js';
+import { ZodValidationError } from './errors/zod-validation.error.js';
+import { ZOD_SCHEMA_KEY } from './zod-validation.behavior.js';
 
 describe('createZodRequest', () => {
   const testSchema = z.object({

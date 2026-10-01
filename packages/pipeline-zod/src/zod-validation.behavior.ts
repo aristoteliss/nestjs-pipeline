@@ -8,11 +8,11 @@ import {
   NextDelegate,
 } from '@nestjs-pipeline/core';
 import { ZodType } from 'zod';
-import { ZodValidationError } from './errors/zod-validation.error';
+import { ZodValidationError } from './errors/zod-validation.error.js';
 import {
   assertPlainRequestOutput,
   defineEnumerableDataProperties,
-} from './helpers/request-output';
+} from './helpers/request-output.js';
 import {
   getRawInput,
   getValidatedData,
@@ -21,7 +21,7 @@ import {
   setValidatedData,
   ZOD_RAW_INPUT_KEY,
   ZOD_VALIDATED_DATA_KEY,
-} from './helpers/zod-data.helpers';
+} from './helpers/zod-data.helpers.js';
 
 export {
   getRawInput,

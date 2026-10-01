@@ -9,12 +9,12 @@ export {
   type ZodCommandClass,
   type ZodQueryClass,
   type ZodRequestClass,
-} from './create-zod-request';
-export { ZodValidationError } from './errors/zod-validation.error';
-export { ZodValidationFilter } from './filters/zod-validation.filter';
-export { createZodMapper, type ZodMapper } from './pipes/create-zod-mapper';
-export { zodBadRequest } from './pipes/zod-bad-request';
-export { updatable, updatableFieldsOf } from './updatable';
+} from './create-zod-request.js';
+export { ZodValidationError } from './errors/zod-validation.error.js';
+export { ZodValidationFilter } from './filters/zod-validation.filter.js';
+export { createZodMapper, type ZodMapper } from './pipes/create-zod-mapper.js';
+export { zodBadRequest } from './pipes/zod-bad-request.js';
+export { updatable, updatableFieldsOf } from './updatable.js';
 export {
   getRawInput,
   getValidatedData,
@@ -22,4 +22,4 @@ export {
   ZOD_SCHEMA_KEY,
   ZOD_VALIDATED_DATA_KEY,
   ZodValidationBehavior,
-} from './zod-validation.behavior';
+} from './zod-validation.behavior.js';

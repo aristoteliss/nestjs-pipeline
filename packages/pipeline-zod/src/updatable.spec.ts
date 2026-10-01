@@ -2,8 +2,8 @@
 
 import { describe, expect, expectTypeOf, it } from 'vitest';
 import { z } from 'zod';
-import { createCommand, createQuery } from './create-zod-request';
-import { updatable, updatableFieldsOf } from './updatable';
+import { createCommand, createQuery } from './create-zod-request.js';
+import { updatable, updatableFieldsOf } from './updatable.js';
 
 describe('updatable', () => {
   it('lists the marked fields of a command in shape order, and only those', () => {
