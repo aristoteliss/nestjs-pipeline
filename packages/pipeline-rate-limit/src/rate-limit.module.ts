@@ -1,12 +1,15 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { type DynamicModule, Module } from '@nestjs/common';
-import { RATE_LIMIT_DEFAULT_OPTIONS, RATE_LIMITER } from './constants/tokens';
+import {
+  RATE_LIMIT_DEFAULT_OPTIONS,
+  RATE_LIMITER,
+} from './constants/tokens.js';
 import type {
   RateLimitModuleAsyncOptions,
   RateLimitModuleOptions,
-} from './interfaces/rate-limit-options.interface';
-import { RateLimitBehavior } from './rate-limit.behavior';
+} from './interfaces/rate-limit-options.interface.js';
+import { RateLimitBehavior } from './rate-limit.behavior.js';
 
 /**
  * NestJS module that wires a {@link RateLimiterLike} into the

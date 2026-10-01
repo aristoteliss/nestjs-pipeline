@@ -6,8 +6,8 @@ import {
   UsePipeline,
 } from '@nestjs-pipeline/core';
 import { describe, expect, expectTypeOf, it } from 'vitest';
-import { RateLimitBehavior } from '../rate-limit.behavior';
-import { type RateLimitIntentOptions, rateLimit } from './rate-limit.intent';
+import { RateLimitBehavior } from '../rate-limit.behavior.js';
+import { type RateLimitIntentOptions, rateLimit } from './rate-limit.intent.js';
 
 describe('rateLimit intent', () => {
   it('preserves the key factory in handler metadata', () => {

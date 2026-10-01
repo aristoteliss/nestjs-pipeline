@@ -3,8 +3,8 @@
 import type { ArgumentsHost } from '@nestjs/common';
 import type { HttpAdapterHost } from '@nestjs/core';
 import { describe, expect, it, vi } from 'vitest';
-import { RateLimitExceededError } from '../errors/rate-limit-exceeded.error';
-import { RateLimitExceededFilter } from './rate-limit-exceeded.filter';
+import { RateLimitExceededError } from '../errors/rate-limit-exceeded.error.js';
+import { RateLimitExceededFilter } from './rate-limit-exceeded.filter.js';
 
 const error = new RateLimitExceededError({
   key: 'CreateUserCommand',

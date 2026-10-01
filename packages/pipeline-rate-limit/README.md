@@ -109,7 +109,9 @@ pnpm add @nestjs-pipeline/rate-limit rate-limiter-flexible
 pnpm add @nestjs-pipeline/core @nestjs/common @nestjs/core reflect-metadata
 ```
 
-Requires Node.js 22.12 or later, `@nestjs/common` and `@nestjs/core` `^12.1.0`, and `@nestjs-pipeline/core` `^0.3.0`.
+Requires Node.js 22.12 or later, `@nestjs/common` and `@nestjs/core` `^12.1.0`, and `@nestjs-pipeline/core` `^0.4.0`.
+
+Published as an ES module; a CommonJS application loads it with `require()`.
 
 > `rate-limiter-flexible` is **not** a hard dependency of this package — you pass
 > your own limiter instance, so only the backend you actually use is loaded. It is

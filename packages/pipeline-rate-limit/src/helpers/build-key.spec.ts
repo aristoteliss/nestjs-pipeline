@@ -2,7 +2,7 @@
 
 import type { IPipelineContext } from '@nestjs-pipeline/core';
 import { describe, expect, it } from 'vitest';
-import { buildRateLimitKey } from './build-key';
+import { buildRateLimitKey } from './build-key.js';
 
 function makeContext(
   overrides: Partial<IPipelineContext> = {},

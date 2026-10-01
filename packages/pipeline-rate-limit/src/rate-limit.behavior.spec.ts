@@ -8,17 +8,17 @@ import {
 } from '@nestjs-pipeline/core';
 import { RateLimiterMemory } from 'rate-limiter-flexible';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { RateLimitExceededError } from './errors/rate-limit-exceeded.error';
-import type { RateLimitBehaviorOptions } from './interfaces/rate-limit-options.interface';
+import { RateLimitExceededError } from './errors/rate-limit-exceeded.error.js';
+import type { RateLimitBehaviorOptions } from './interfaces/rate-limit-options.interface.js';
 import type {
   RateLimiterLike,
   RateLimiterResLike,
-} from './interfaces/rate-limiter.interface';
+} from './interfaces/rate-limiter.interface.js';
 import {
   RATE_LIMIT_ITEM,
   RATE_LIMIT_KEY_ITEM,
   RateLimitBehavior,
-} from './rate-limit.behavior';
+} from './rate-limit.behavior.js';
 
 function okRes(over: Partial<RateLimiterResLike> = {}): RateLimiterResLike {
   return {

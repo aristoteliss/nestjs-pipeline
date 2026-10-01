@@ -1,7 +1,7 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { describe, expect, it } from 'vitest';
-import { RateLimitExceededError } from './rate-limit-exceeded.error';
+import { RateLimitExceededError } from './rate-limit-exceeded.error.js';
 
 describe('RateLimitExceededError', () => {
   it('correctly populates error properties and calculates retryAfterSeconds', () => {

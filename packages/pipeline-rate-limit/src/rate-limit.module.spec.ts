@@ -1,10 +1,13 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { describe, expect, it } from 'vitest';
-import { RATE_LIMIT_DEFAULT_OPTIONS, RATE_LIMITER } from './constants/tokens';
-import type { RateLimiterLike } from './interfaces/rate-limiter.interface';
-import { RateLimitBehavior } from './rate-limit.behavior';
-import { RateLimitModule } from './rate-limit.module';
+import {
+  RATE_LIMIT_DEFAULT_OPTIONS,
+  RATE_LIMITER,
+} from './constants/tokens.js';
+import type { RateLimiterLike } from './interfaces/rate-limiter.interface.js';
+import { RateLimitBehavior } from './rate-limit.behavior.js';
+import { RateLimitModule } from './rate-limit.module.js';
 
 describe('RateLimitModule', () => {
   const mockLimiter: RateLimiterLike = {

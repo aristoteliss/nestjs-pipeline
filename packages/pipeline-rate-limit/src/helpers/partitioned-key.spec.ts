@@ -3,8 +3,8 @@
 import { ABSENT_SEGMENT } from '@cqrs-ddd/safe-stringify';
 import { type IPipelineContext } from '@nestjs-pipeline/core';
 import { describe, expect, it } from 'vitest';
-import { MissingRateLimitPartitionError } from '../errors/missing-partition.error';
-import { createPartitionedRateLimitKeyFactory } from './partitioned-key';
+import { MissingRateLimitPartitionError } from '../errors/missing-partition.error.js';
+import { createPartitionedRateLimitKeyFactory } from './partitioned-key.js';
 
 function context(overrides: Partial<IPipelineContext> = {}): IPipelineContext {
   return {
