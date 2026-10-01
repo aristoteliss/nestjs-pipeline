@@ -32,6 +32,14 @@ const peerNodeEngines = new Map([
 const run = (command, args, cwd = root) =>
   execFileSync(command, args, { cwd, stdio: 'inherit' });
 const tar = (args) => execFileSync('tar', args, { encoding: 'utf8' });
+try {
+  execFileSync('bun', ['--version'], { stdio: 'ignore' });
+} catch (error) {
+  throw new Error(
+    'The release check loads every package in Bun: install Bun (https://bun.sh) and put it on PATH.',
+    { cause: error },
+  );
+}
 const packages = readdirSync(resolve(root, 'packages'))
   .sort()
   .flatMap((name) => {
@@ -206,10 +214,9 @@ try {
       2,
     ),
   );
-  copyFileSync(
-    resolve(template, 'tsconfig.json'),
-    resolve(consumer, 'tsconfig.json'),
-  );
+  for (const file of ['tsconfig.json', 'tsconfig.bundler.json']) {
+    copyFileSync(resolve(template, file), resolve(consumer, file));
+  }
   const fixtures = readdirSync(resolve(template, 'src')).filter((name) =>
     name.endsWith('.ts'),
   );
@@ -233,6 +240,40 @@ try {
     ].join('\n'),
   );
 
+  // Every entry point, subpaths included, from an ES module consumer and from Bun.
+  const entryPoints = [...expected.values()].flatMap((manifest) =>
+    Object.keys(manifest.exports ?? { '.': null })
+      .filter((key) => key !== './package.json')
+      .map((key) =>
+        key === '.' ? manifest.name : `${manifest.name}${key.slice(1)}`,
+      ),
+  );
+  writeFileSync(
+    resolve(consumer, 'src/all-packages.mts'),
+    [
+      "import 'reflect-metadata';",
+      ...entryPoints.map(
+        (name, index) =>
+          `import * as entry${index} from ${JSON.stringify(name)};\nif (!Object.keys(entry${index}).length) throw new Error(${JSON.stringify(`${name}: no exports`)});\nconsole.log('import', ${JSON.stringify(name)}, Object.keys(entry${index}).length);`,
+      ),
+    ].join('\n'),
+  );
+  writeFileSync(
+    resolve(consumer, 'bun-load.mjs'),
+    [
+      "import 'reflect-metadata';",
+      "import { createRequire } from 'node:module';",
+      'const require = createRequire(import.meta.url);',
+      "const names = (namespace) => Object.keys(namespace).filter((key) => !['default', '__esModule', 'module.exports'].includes(key)).sort().join();",
+      `for (const name of ${JSON.stringify(entryPoints)}) {`,
+      '  const imported = names(await import(name));',
+      '  const required = names(require(name));',
+      "  if (!imported || imported !== required) throw new Error(name + ': import and require() differ in Bun');",
+      "  console.log('bun', name, imported.split(',').length);",
+      '}',
+    ].join('\n'),
+  );
+
   run(
     'pnpm',
     [
@@ -251,6 +292,13 @@ try {
   for (const file of ['all-packages.ts', ...fixtures]) {
     run('node', [`dist/${file.replace(/\.ts$/, '.js')}`], consumer);
   }
+  run('node', ['dist/all-packages.mjs'], consumer);
+  run(
+    resolve(root, 'node_modules/.bin/tsc'),
+    ['-p', 'tsconfig.bundler.json'],
+    consumer,
+  );
+  run('bun', ['bun-load.mjs'], consumer);
 
   // Framework-neutral packages must work with nothing else installed: each gets an
   // empty consumer holding only its tarball, its peers and the packed packages
@@ -365,7 +413,7 @@ try {
     );
   }
   console.log(
-    `Release verification passed: ${seen.size} packed packages (${neutral.length} standalone), core lifecycle, CASL 7.`,
+    `Release verification passed: ${seen.size} packed packages (${neutral.length} standalone), CommonJS and ES module consumers, Bundler types, Bun, core lifecycle, CASL 7.`,
   );
 } finally {
   rmSync(temporary, { recursive: true, force: true });
