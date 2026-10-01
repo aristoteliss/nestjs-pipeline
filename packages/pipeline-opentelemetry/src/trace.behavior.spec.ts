@@ -3,8 +3,8 @@
 import type { IPipelineContext } from '@nestjs-pipeline/core';
 import { SpanKind, SpanStatusCode, trace } from '@opentelemetry/api';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { addPipelineTelemetryAttributes } from './telemetry-attributes';
-import { TraceBehavior } from './trace.behavior';
+import { addPipelineTelemetryAttributes } from './telemetry-attributes.js';
+import { TraceBehavior } from './trace.behavior.js';
 
 vi.mock('@opentelemetry/api', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@opentelemetry/api')>();

@@ -3,8 +3,8 @@
 import type { IPipelineContext } from '@nestjs-pipeline/core';
 import { metrics, trace } from '@opentelemetry/api';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { MetricsBehavior } from './metrics.behavior';
-import { TraceBehavior } from './trace.behavior';
+import { MetricsBehavior } from './metrics.behavior.js';
+import { TraceBehavior } from './trace.behavior.js';
 
 function makeContext(): IPipelineContext {
   return {

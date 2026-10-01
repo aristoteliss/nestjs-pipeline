@@ -19,14 +19,14 @@ import {
   metrics,
   type UpDownCounter,
 } from '@opentelemetry/api';
-import { safely } from './helpers/safely';
+import { safely } from './helpers/safely.js';
 import {
   buildMetricAttributes,
   getPipelineTelemetryAttributes,
   PIPELINE_OTEL_ATTRIBUTES,
   type PipelineTelemetryAttributeFactory,
   withFactoryAttributes,
-} from './telemetry-attributes';
+} from './telemetry-attributes.js';
 
 /**
  * Per-handler metrics options for {@link MetricsBehavior}.

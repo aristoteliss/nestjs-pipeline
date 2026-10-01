@@ -55,8 +55,10 @@ pnpm add @nestjs-pipeline/opentelemetry @opentelemetry/api
 pnpm add @nestjs-pipeline/core @nestjs/common reflect-metadata
 ```
 
-Requires Node.js 22.12 or later, `@nestjs/common` `^12.1.0`, `@nestjs-pipeline/core` `^0.3.0`
+Requires Node.js 22.12 or later, `@nestjs/common` `^12.1.0`, `@nestjs-pipeline/core` `^0.4.0`
 and `@opentelemetry/api` `^1.9.0`.
+
+Published as an ES module; a CommonJS application loads it with `require()`.
 
 You'll also need an OTel SDK and exporter for your backend (e.g. SigNoz, Jaeger, Datadog):
 
@@ -654,7 +656,8 @@ pipeline.handler.invocations{...,outcome="success"} counter   → request & erro
 
 ## Migrating from 0.1.x
 
-These steps lead to 0.2.0. To reach 0.3.0, continue with [Upgrading from 0.2.x](https://github.com/aristoteliss/nestjs-pipeline#upgrading-from-02x) in the repository README.
+These steps lead to 0.2.0. To reach 0.4.0, continue with [Upgrading from 0.2.x](https://github.com/aristoteliss/nestjs-pipeline#upgrading-from-02x) and
+[Upgrading from 0.3.x](https://github.com/aristoteliss/nestjs-pipeline#upgrading-from-03x) in the repository README.
 
 0.1.x exported only `TraceBehavior` and `TraceBehaviorOptions`. Everything else
 listed in the [API Reference](#api-reference) is new in 0.2.0.

@@ -3,8 +3,8 @@
 import type { IPipelineContext } from '@nestjs-pipeline/core';
 import { metrics } from '@opentelemetry/api';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { MetricsBehavior } from './metrics.behavior';
-import { addPipelineTelemetryAttributes } from './telemetry-attributes';
+import { MetricsBehavior } from './metrics.behavior.js';
+import { addPipelineTelemetryAttributes } from './telemetry-attributes.js';
 
 // Preserve the rest of the public API and stub only meter acquisition.
 vi.mock('@opentelemetry/api', async (importOriginal) => {

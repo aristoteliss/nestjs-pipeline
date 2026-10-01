@@ -1,8 +1,8 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { describe, expect, expectTypeOf, it } from 'vitest';
-import { MetricsBehavior } from '../metrics.behavior';
-import { type MetricsIntentOptions, metrics } from './metrics.intent';
+import { MetricsBehavior } from '../metrics.behavior.js';
+import { type MetricsIntentOptions, metrics } from './metrics.intent.js';
 
 describe('metrics intent builder', () => {
   it('creates entry with options object', () => {

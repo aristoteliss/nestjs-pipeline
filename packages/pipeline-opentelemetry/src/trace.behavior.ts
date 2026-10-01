@@ -15,14 +15,14 @@ import {
   SpanStatusCode,
   trace,
 } from '@opentelemetry/api';
-import { safely } from './helpers/safely';
+import { safely } from './helpers/safely.js';
 import {
   buildTraceAttributes,
   getPipelineTelemetryAttributes,
   PIPELINE_OTEL_ATTRIBUTES,
   type PipelineTelemetryAttributeFactory,
   withFactoryAttributes,
-} from './telemetry-attributes';
+} from './telemetry-attributes.js';
 
 /**
  * Per-handler tracing options for {@link TraceBehavior}.

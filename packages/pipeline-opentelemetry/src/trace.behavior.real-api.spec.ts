@@ -3,7 +3,7 @@
 import type { IPipelineContext } from '@nestjs-pipeline/core';
 import { trace } from '@opentelemetry/api';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { TraceBehavior } from './trace.behavior';
+import { TraceBehavior } from './trace.behavior.js';
 
 function makeCtx(options?: { enabled?: boolean }): IPipelineContext {
   return {

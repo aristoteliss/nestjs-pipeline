@@ -4,7 +4,7 @@ import type { PipelineBehaviorTuple } from '@nestjs-pipeline/core';
 import {
   MetricsBehavior,
   type MetricsBehaviorOptions,
-} from '../metrics.behavior';
+} from '../metrics.behavior.js';
 
 export type MetricsIntentOptions = MetricsBehaviorOptions;
 
