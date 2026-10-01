@@ -68,6 +68,8 @@ pnpm test:release                     # packs every package and verifies it from
 
 ## Local testing requirements
 
+- Packages are ES modules: write relative imports with `.js` (`./x.js`,
+  `./dir/index.js`); a file's own path is `import.meta.dirname` / `import.meta.filename`.
 - Specs live beside the source as `src/**/*.spec.ts` (Vitest, `globals: true`).
 - Every package's `vitest.config.ts` enforces 100% statements, branches, functions and lines
   per file of `src/**/*.ts`. Close a gap with a behavior test; no ignore directives or

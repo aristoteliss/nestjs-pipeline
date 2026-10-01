@@ -24,6 +24,8 @@ pnpm add @cqrs-ddd/safe-stringify
 
 Requires Node.js 22.12 or later.
 
+Published as an ES module; a CommonJS application loads it with `require()`.
+
 ## Strict serializer
 
 ```typescript
