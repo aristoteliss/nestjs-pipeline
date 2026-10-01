@@ -1,6 +1,9 @@
 # Changelog
 
-## Unreleased
+## 0.4.1
+
+Every package is released at 0.4.1. The API and the requirements are those of 0.4.0,
+with five more exported types.
 
 ### Added
 
@@ -15,6 +18,8 @@
 
 ### Changed
 
+- The manual is the documentation site, https://aristoteliss.github.io/nestjs-pipeline/;
+  each package's README is short and links to its guide and API reference.
 - The packages' JSDoc links resolve: the API reference of the documentation site, and the
   declarations every package ships, no longer show an unresolved `import('…')` link.
 

@@ -1,6 +1,6 @@
 {
   "name": "@cqrs-ddd/core",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "description": "Framework- and ORM-neutral DDD building blocks for TypeScript: aggregates and domain events, CQRS base classes and repository ports, and a revision-fenced repository cache, as separate entry points.",
   "author": "Aristotelis",
   "license": "SEE LICENSE IN LICENSE",

@@ -16,7 +16,7 @@ the database, and the `EntitySchema` mapping of `RootEntity`.
 pnpm add @cqrs-ddd/mikro-orm @cqrs-ddd/core @mikro-orm/core
 ```
 
-Requires Node.js 22.17 or later, as MikroORM 7 does. `@cqrs-ddd/core` `^0.4.0` and `@mikro-orm/core` `^7.2.1` are peer
+Requires Node.js 22.17 or later, as MikroORM 7 does. `@cqrs-ddd/core` `^0.4.1` and `@mikro-orm/core` `^7.2.1` are peer
 dependencies; add the MikroORM driver you use, such as `@mikro-orm/postgresql`.
 
 Published as an ES module; a CommonJS application loads it with `require()`. Coming from 0.3.x, see [Upgrading from 0.3.x](https://aristoteliss.github.io/nestjs-pipeline/upgrading/from-0-3/).
