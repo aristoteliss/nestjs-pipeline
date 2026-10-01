@@ -729,6 +729,7 @@ export class UsersController {
 | `createZodRequest(schema, Base?)` | Function | Generic factory generating a validated Request class with `~standard` forwarding and static parsers |
 | `type InferInput<T>` | Type | Extracts the input DTO type accepted by a generated command/query class |
 | `type InferOutput<T>` | Type | Extracts the parsed/transformed output payload of a generated command/query class |
+| `type AbstractConstructor<T>` | Type | The base class shape `createCommand`, `createQuery` and `createZodRequest` accept as `Base` |
 | `ZodValidationBehavior` | Class | Pipeline behavior — parses `_zodSchema` and applies successful plain-object output to the existing request |
 | `ZodValidationError` | Class | Error with `details` from `ZodError.flatten()` |
 | `ZodValidationFilter` | Class | Exception filter — catches `ZodValidationError` → HTTP 400 |

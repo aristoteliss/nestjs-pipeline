@@ -15,7 +15,8 @@ import { DEAD_LETTER_ITEM_TOKEN } from '../dead-letter.behavior.js';
  * @param context - The pipeline execution, read after `DeadLetterBehavior` ran.
  * @returns The attributes; empty unless a record was delivered.
  *
- * @example Span attributes, with `AttributesBehavior` of `@nestjs-pipeline/opentelemetry`
+ * @example Span attributes
+ * With `AttributesBehavior` of `@nestjs-pipeline/opentelemetry`:
  * ```ts
  * PipelineModule.forRoot({
  *   globalBehaviors: {

@@ -21,7 +21,7 @@ import { GlobalBehaviorsOptions } from './global-behaviors.options.js';
 
 /**
  * Injection token for pipeline module configuration.
- * @internal — consumed by {@link PipelineBootstrapService}.
+ * @internal — consumed by `PipelineBootstrapService`.
  */
 export const PIPELINE_MODULE_OPTIONS = Symbol('PIPELINE_MODULE_OPTIONS');
 
@@ -75,7 +75,7 @@ export interface PipelineModuleFeatureOptions
 export interface PipelineModuleOptions {
   /**
    * Global behaviors applied to all Commands, Queries, and/or Events.
-   * These are merged with handler-specific @UsePipeline behaviors.
+   * These are merged with handler-specific `@UsePipeline` behaviors.
    *
    * Execution order: `[before] → [@UsePipeline behaviors] → [after] → handler`.
    * A same-class handler declaration overrides options without relocating the

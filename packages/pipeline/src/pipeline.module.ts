@@ -157,7 +157,7 @@ export class PipelineModule {
    * {@link PipelineModuleOptions} object (global before/after behaviors,
    * logger provider, etc.). Registers all behavior
    * classes for DI — deduplicating global behaviors already listed in
-   * `behaviors` — and the {@link PipelineBootstrapService} that wraps handlers.
+   * `behaviors` — and the `PipelineBootstrapService` that wraps handlers.
    * A bare array does not attach the listed behaviors to handlers globally.
    *
    * @param optionsOrBehaviors - A list of behavior classes to register, or full module options.
@@ -196,7 +196,7 @@ export class PipelineModule {
    * factory returns {@link PipelineRuntimeOptions}, which excludes them: Nest
    * has already built the provider graph by the time the factory runs, so
    * returning them there would register nothing. The type rejects it at compile
-   * time, and {@link assertRuntimeOptions} rejects it at bootstrap for callers
+   * time, and `assertRuntimeOptions` rejects it at bootstrap for callers
    * who reach this API without the types.
    *
    * @param options - Async factory, its injected providers, behaviors, and optional imports.

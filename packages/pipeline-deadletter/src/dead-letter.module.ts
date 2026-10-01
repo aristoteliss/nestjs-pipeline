@@ -35,7 +35,8 @@ import type {
  * export class AppModule {}
  * ```
  *
- * @example BullMQ via DI (`@nestjs/bullmq`)
+ * @example BullMQ through dependency injection
+ * With `@nestjs/bullmq`:
  * ```ts
  * DeadLetterModule.forRootAsync({
  *   imports: [BullModule.registerQueue({ name: 'dead-letters' })],

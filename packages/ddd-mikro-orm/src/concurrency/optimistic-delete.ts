@@ -15,8 +15,8 @@ import { expectOneRow, type VersionedAggregate } from './conditioned-write.js';
  *   modified since the aggregate was loaded is not removed;
  * - one affected row is success;
  * - zero rows runs one refreshed diagnostic read: an absent row is
- *   {@link EntityNotFoundException}, a present row is
- *   {@link ConcurrencyConflictError};
+ *   `EntityNotFoundException`, a present row is
+ *   `ConcurrencyConflictError`;
  * - any other count is an invariant violation, since the filter includes a
  *   primary key.
  *

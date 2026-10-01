@@ -146,8 +146,8 @@ function inScope(
  * one-line swaps in {@link IdempotencyModule.forRoot}. When no key is produced,
  * the handler runs normally.
  *
- * @example Per-handler, keyed off an optional `Idempotency-Key` header and
- * partitioned by tenant and principal
+ * @example Per-handler idempotency
+ * Keyed off an optional `Idempotency-Key` header and partitioned by tenant and principal:
  * ```ts
  * @CommandHandler(CreatePaymentCommand)
  * @UsePipeline([IdempotencyBehavior, {

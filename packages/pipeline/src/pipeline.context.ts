@@ -89,7 +89,7 @@ export abstract class BasePipelineContext<
   }
 
   /**
-   * Symbol-keyed setter — only callable by code that imports {@link SET_RESPONSE}.
+   * Symbol-keyed setter — only callable by code that imports `SET_RESPONSE`.
    * This keeps `response` effectively readonly for behaviors.
    */
   [SET_RESPONSE](value: TResponse | undefined): void {

@@ -98,8 +98,6 @@ export function runWithCorrelationId<T>(
  * middleware, or a running pipeline. Outside any, a new UUIDv7 is generated on
  * each call, so it always returns a string.
  *
- * @publicApi
- *
  * @example
  * ```ts
  * import { getCorrelationId } from '@nestjs-pipeline/correlation';
@@ -133,8 +131,6 @@ export function getCorrelationId(): string {
  * // Queue typed as Queue<WithCorrelationId<WelcomeEmailJobData>>
  * await queue.add('send', addCorrelationId({ userId, email }));
  * ```
- *
- * @publicApi
  */
 export type WithCorrelationId<T = Record<string, unknown>> = T & {
   correlationId: string;
@@ -176,8 +172,6 @@ export type WithCorrelationId<T = Record<string, unknown>> = T & {
  * @param data - The payload to enrich. Must be a plain object, **not** an array.
  *              A shallow copy is returned; the original is not mutated.
  * @returns A new object with `correlationId` added.
- *
- * @publicApi
  */
 export function addCorrelationId<T extends Record<string, unknown>>(
   data: T,
@@ -207,8 +201,6 @@ export function addCorrelationId<T extends Record<string, unknown>>(
  *
  * @param key - Header name. Defaults to `'x-correlation-id'`.
  * @returns `{ [key]: correlationId }` — spread into your transport's headers.
- *
- * @publicApi
  *
  * @example
  * ```ts

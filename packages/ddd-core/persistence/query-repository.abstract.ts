@@ -29,7 +29,7 @@ export interface QueryRepositoryHydration<TResult> {
  * @typeParam TQuery - The query/options type accepted by {@link find}.
  * @typeParam TResult - The result type returned by {@link find}.
  *
- * @example Creating a query repository with @FromCache
+ * @example Creating a query repository with the FromCache decorator
  * ```typescript
  * @Injectable()
  * export class GetUserQueryRepository extends QueryRepository<GetUserQuery, User | null> {

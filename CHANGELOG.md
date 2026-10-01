@@ -1,5 +1,23 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- `@cqrs-ddd/mikro-orm`: exports `VersionedAggregate`, the entity type `optimisticDelete`
+  accepts, and `Timestamp`, the values `UnixTimestampType` reads.
+- `@nestjs-pipeline/core`: exports `ErrorClass`, the key type of
+  `LoggingBehaviorOptions.mapLogLevel`.
+- `@nestjs-pipeline/resilience`: exports `AnyPolicy`, the policy `buildResiliencePolicy`
+  returns.
+- `@nestjs-pipeline/zod`: exports `AbstractConstructor`, the `Base` class type of
+  `createCommand`, `createQuery` and `createZodRequest`.
+
+### Changed
+
+- The packages' JSDoc links resolve: the API reference of the documentation site, and the
+  declarations every package ships, no longer show an unresolved `import('…')` link.
+
 ## 0.4.0
 
 Every package is released at 0.4.0, as an ES module. The API and the requirements are

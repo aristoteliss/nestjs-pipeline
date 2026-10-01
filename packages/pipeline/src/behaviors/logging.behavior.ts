@@ -38,7 +38,11 @@ import { IPipelineContext } from '../interfaces/pipeline.context.interface.js';
  */
 export const LOGGING_BEHAVIOR_LOGGER = Symbol('LOGGING_BEHAVIOR_LOGGER');
 
-type ErrorClass = abstract new (...args: never[]) => Error;
+/**
+ * An error class used as a `mapLogLevel` key. It is matched with `instanceof`, so
+ * it also covers its subclasses.
+ */
+export type ErrorClass = abstract new (...args: never[]) => Error;
 
 /**
  * Configuration options for the logging behavior.
@@ -188,7 +192,7 @@ interface ErrorWithOptionalParams {
  * exclusion/redaction. Logging and serialization failures do not change the
  * handler result or error. If the wrapped handler throws,
  * the error is logged — including its stack trace and, when present, the error's
- * `optionalParams` (see {@link ErrorWithOptionalParams}) — and then re-thrown
+ * `optionalParams` (see `ErrorWithOptionalParams`) — and then re-thrown
  * unchanged. Uses the logger bound to `LOGGING_BEHAVIOR_LOGGER` (e.g.
  * nestjs-pino) when provided, otherwise falls back to the Nest `Logger`.
  */
@@ -414,7 +418,7 @@ export class LoggingBehavior implements IPipelineBehavior {
 
   /**
    * Extracts extra, loggable context from an error matching
-   * {@link ErrorWithOptionalParams}: a non-null object exposing a defined
+   * `ErrorWithOptionalParams`: a non-null object exposing a defined
    * `optionalParams` property. `handle`'s `catch` branch uses this to decide
    * whether the error log should be enriched with that extra context.
    *

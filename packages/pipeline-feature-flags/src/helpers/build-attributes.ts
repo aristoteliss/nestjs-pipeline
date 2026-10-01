@@ -17,7 +17,8 @@ import { FEATURE_FLAG_DECISION_ITEM_TOKEN } from '../feature-flag.behavior.js';
  * @param context - The pipeline execution, read after `FeatureFlagBehavior` ran.
  * @returns The attributes; empty when the behavior did not run.
  *
- * @example Span attributes, with `AttributesBehavior` of `@nestjs-pipeline/opentelemetry`
+ * @example Span attributes
+ * With `AttributesBehavior` of `@nestjs-pipeline/opentelemetry`:
  * ```ts
  * PipelineModule.forRoot({
  *   globalBehaviors: {
@@ -26,8 +27,8 @@ import { FEATURE_FLAG_DECISION_ITEM_TOKEN } from '../feature-flag.behavior.js';
  * });
  * ```
  *
- * @example Audit metadata: `audit()` is declared outside `featureFlag()`, so the
- * record is built after its decision
+ * @example Audit metadata
+ * `audit()` is declared outside `featureFlag()`, so the record is built after its decision:
  * ```ts
  * @UsePipeline(
  *   audit({ action: 'order.create', metadata: buildFeatureFlagAttributes }),

@@ -548,7 +548,7 @@ It does not run the startup validation of `ResiliencePolicies`.
 
 ### Types
 
-`ResilienceModuleOptions`, `ResilienceModuleAsyncOptions`, `RetryOptions` / `RetryPolicyOptions` (with and without `replaySafe`), `TimeoutOptions` / `TimeoutPolicyOptions`, `BulkheadOptions`, `CircuitBreakerOptions`, `BreakerStrategy`, `FallbackOptions` (`{ value }` or `{ factory }`), `RetryBackoff`, `JitterStrategy`, `ResilienceLayer`, `HandlerResilienceLayer` (`'retry' | 'bulkhead' | 'timeout'`), `ResilienceTelemetry`, `ResilienceTelemetryEvent`, `PolicyBuildContext` (`logger`, `requestName`, `handlerName`, `policyName`, `telemetry`).
+`ResilienceModuleOptions`, `ResilienceModuleAsyncOptions`, `RetryOptions` / `RetryPolicyOptions` (with and without `replaySafe`), `TimeoutOptions` / `TimeoutPolicyOptions`, `BulkheadOptions`, `CircuitBreakerOptions`, `BreakerStrategy`, `FallbackOptions` (`{ value }` or `{ factory }`), `RetryBackoff`, `JitterStrategy`, `ResilienceLayer`, `HandlerResilienceLayer` (`'retry' | 'bulkhead' | 'timeout'`), `ResilienceTelemetry`, `ResilienceTelemetryEvent`, `PolicyBuildContext` (`logger`, `requestName`, `handlerName`, `policyName`, `telemetry`), `AnyPolicy` (the composed cockatiel policy `buildResiliencePolicy` returns).
 
 ### Context Helpers & Tokens
 

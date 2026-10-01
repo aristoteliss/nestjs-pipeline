@@ -1334,6 +1334,7 @@ must account for the absent instance.
 | `PipelineContext` | Class | Concrete context created per invocation |
 | `LoggingBehavior` | Class | Built-in structured logging |
 | `LoggingBehaviorOptions` | Interface | Options for `LoggingBehavior` (`metricLogLevel`, `requestResponseLogLevel`, `errorLogLevel`, `mapLogLevel`, `excludeKeys`, `redactKeys`, `redactSensitiveKeys`, `excludeRequestObj`, `excludeResponseObj`, `logFormat`) |
+| `ErrorClass` | Type | An error class used as a `mapLogLevel` key; it also matches its subclasses |
 | `logging` | Function | Typed intent builder returning `[LoggingBehavior, options]` for `@UsePipeline` |
 | `LoggingIntentOptions` | Type | Alias for `LoggingBehaviorOptions` |
 | `pipelineStore` | `AsyncLocalStorage` | Access the current pipeline context |

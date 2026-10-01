@@ -137,7 +137,9 @@ const user = await users.findById(id); // always the database row, never the cac
 
 ## Version-conditioned writes
 
-`optimisticUpdate` and `optimisticDelete` write `WHERE id = ? AND version = expected`,
+`optimisticUpdate` and `optimisticDelete` write `WHERE id = ? AND version = expected`
+for any `VersionedAggregate` (an `id`, a `version` and `getExpectedVersion()`, as a
+`RootEntity` has),
 check the affected rows, and raise core's `EntityNotFoundException` or
 `ConcurrencyConflictError`. They, and every write whose success triggers acknowledgment
 or cache work, call `assertAutocommit(em, operation)` first: a write inside an outer
@@ -226,8 +228,9 @@ core's `TransientOperationError`. Any other error is returned unchanged.
 
 `rootEntityProperties(columns?)` and `versionProperty(column?)` give the `EntitySchema`
 properties every `RootEntity` needs, with timestamps stored as epoch milliseconds
-through `UnixTimestampType`. That type throws a `TypeError` for a value with no valid
-time instead of storing `NaN`. The properties use `accessor: true`, so MikroORM reads
+through `UnixTimestampType`. That type reads a `Timestamp`: a `Date`, epoch milliseconds
+as a number, a bigint or a numeric string, or a date string. It throws a `TypeError` for a
+value with no valid time instead of storing `NaN`. The properties use `accessor: true`, so MikroORM reads
 and writes them through the entity's getters and private setters, and queries use the
 public names.
 

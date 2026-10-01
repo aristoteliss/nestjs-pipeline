@@ -21,8 +21,8 @@ import { expectOneRow, type VersionedAggregate } from './conditioned-write.js';
  * - **Affected Row Verification**:
  *   - Exactly `1` row affected: Write succeeded; completes cleanly.
  *   - `0` rows affected: Performs a refreshed diagnostic read (`findOne` with `refresh: true`):
- *     - If the entity is absent, throws {@link EntityNotFoundException}.
- *     - If the entity is present, throws {@link ConcurrencyConflictError}.
+ *     - If the entity is absent, throws `EntityNotFoundException`.
+ *     - If the entity is present, throws `ConcurrencyConflictError`.
  *   - More than `1` row affected: Throws an `Error` indicating primary-key uniqueness invariant violation.
  *
  * > [!NOTE]

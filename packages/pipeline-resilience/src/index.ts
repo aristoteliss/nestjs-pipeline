@@ -20,6 +20,7 @@ export {
 export { ResilienceConfigurationError } from './errors/resilience-configuration.error.js';
 export { ResiliencePolicyConfigurationError } from './errors/resilience-policy-configuration.error.js';
 export {
+  type AnyPolicy,
   buildResiliencePolicy,
   type PolicyBuildContext,
 } from './helpers/policy-factory.js';

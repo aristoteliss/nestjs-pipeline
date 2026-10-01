@@ -82,7 +82,7 @@ export function MapPersistenceErrors<
    * replacement to express it in application terms.
    *
    * The canonical use is transient-failure classification with
-   * {@link mapPersistenceError}, so that retry policies consume
+   * `mapPersistenceError`, so that retry policies consume
    * `TransientOperationError` rather than driver codes:
    *
    * ```typescript

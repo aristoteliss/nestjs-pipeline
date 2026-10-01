@@ -6,7 +6,11 @@ import {
   Type,
 } from '@mikro-orm/core';
 
-type Timestamp = Date | number | string | bigint;
+/**
+ * A value {@link UnixTimestampType} reads as a time: a `Date`, epoch milliseconds as a
+ * number, a bigint or a numeric string, or a date string.
+ */
+export type Timestamp = Date | number | string | bigint;
 
 /**
  * Converts a timestamp value to epoch milliseconds, or throws.

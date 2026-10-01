@@ -302,7 +302,7 @@ export abstract class RootEntity<
    * }
    * ```
    *
-   * @example Declarative invocation via `@AcknowledgePersisted` (recommended)
+   * @example Declarative invocation through the AcknowledgePersisted decorator (recommended)
    * ```typescript
    * @AcknowledgePersisted<[User]>({ entity: ([user]) => user })
    * async save(user: User): Promise<UserSnapshot> {
