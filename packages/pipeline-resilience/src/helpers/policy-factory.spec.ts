@@ -5,7 +5,7 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   buildResiliencePolicy,
   type PolicyBuildContext,
-} from './policy-factory';
+} from './policy-factory.js';
 
 describe('buildResiliencePolicy', () => {
   const ctx: PolicyBuildContext = {

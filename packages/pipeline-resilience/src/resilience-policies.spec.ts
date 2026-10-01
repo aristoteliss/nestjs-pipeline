@@ -4,12 +4,12 @@ import 'reflect-metadata';
 import { ConsoleLogger } from '@nestjs/common';
 import { BrokenCircuitError, BulkheadRejectedError } from 'cockatiel';
 import { describe, expect, it, vi } from 'vitest';
-import { ResiliencePolicyConfigurationError } from './errors/resilience-policy-configuration.error';
-import type { ResiliencePolicyOptions } from './interfaces/resilience-options.interface';
+import { ResiliencePolicyConfigurationError } from './errors/resilience-policy-configuration.error.js';
+import type { ResiliencePolicyOptions } from './interfaces/resilience-options.interface.js';
 import {
   InjectResiliencePolicy,
   ResiliencePolicies,
-} from './resilience-policies';
+} from './resilience-policies.js';
 
 const logger = () => ({
   log: vi.fn(),

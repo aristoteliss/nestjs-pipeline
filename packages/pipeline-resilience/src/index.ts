@@ -16,18 +16,18 @@ export {
 export {
   getResiliencePolicyToken,
   RESILIENCE_DEFAULT_OPTIONS,
-} from './constants/tokens';
-export { ResilienceConfigurationError } from './errors/resilience-configuration.error';
-export { ResiliencePolicyConfigurationError } from './errors/resilience-policy-configuration.error';
+} from './constants/tokens.js';
+export { ResilienceConfigurationError } from './errors/resilience-configuration.error.js';
+export { ResiliencePolicyConfigurationError } from './errors/resilience-policy-configuration.error.js';
 export {
   buildResiliencePolicy,
   type PolicyBuildContext,
-} from './helpers/policy-factory';
+} from './helpers/policy-factory.js';
 export {
   type ResilienceIntentOptions,
   resilience,
-} from './helpers/resilience.intent';
-export { getResilienceAbortSignal } from './helpers/resilience-context';
+} from './helpers/resilience.intent.js';
+export { getResilienceAbortSignal } from './helpers/resilience-context.js';
 export type {
   BreakerStrategy,
   BulkheadOptions,
@@ -47,10 +47,10 @@ export type {
   RetryPolicyOptions,
   TimeoutOptions,
   TimeoutPolicyOptions,
-} from './interfaces/resilience-options.interface';
-export { ResilienceBehavior } from './resilience.behavior';
-export { ResilienceModule } from './resilience.module';
+} from './interfaces/resilience-options.interface.js';
+export { ResilienceBehavior } from './resilience.behavior.js';
+export { ResilienceModule } from './resilience.module.js';
 export {
   InjectResiliencePolicy,
   ResiliencePolicies,
-} from './resilience-policies';
+} from './resilience-policies.js';

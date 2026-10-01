@@ -7,11 +7,11 @@ import {
   RESILIENCE_DEFAULT_OPTIONS,
   RESILIENCE_MODULE_OPTIONS,
   RESILIENCE_POLICY_OPTIONS,
-} from './constants/tokens';
-import type { ResilienceModuleOptions } from './interfaces/resilience-options.interface';
-import { ResilienceBehavior } from './resilience.behavior';
-import { ResilienceModule } from './resilience.module';
-import { ResiliencePolicies } from './resilience-policies';
+} from './constants/tokens.js';
+import type { ResilienceModuleOptions } from './interfaces/resilience-options.interface.js';
+import { ResilienceBehavior } from './resilience.behavior.js';
+import { ResilienceModule } from './resilience.module.js';
+import { ResiliencePolicies } from './resilience-policies.js';
 
 type AnyProvider = { provide?: unknown };
 

@@ -19,17 +19,17 @@ import {
   type PipelineBehaviorDiagnostic,
   type PipelineBehaviorValidationContext,
 } from '@nestjs-pipeline/core';
-import { RESILIENCE_DEFAULT_OPTIONS } from './constants/tokens';
-import { ResilienceConfigurationError } from './errors/resilience-configuration.error';
+import { RESILIENCE_DEFAULT_OPTIONS } from './constants/tokens.js';
+import { ResilienceConfigurationError } from './errors/resilience-configuration.error.js';
 import {
   type AnyPolicy,
   buildResiliencePolicy,
-} from './helpers/policy-factory';
+} from './helpers/policy-factory.js';
 import {
   runWithResilienceAbortSignal,
   runWithResilienceRequest,
-} from './helpers/resilience-context';
-import type { ResilienceBehaviorOptions } from './interfaces/resilience-options.interface';
+} from './helpers/resilience-context.js';
+import type { ResilienceBehaviorOptions } from './interfaces/resilience-options.interface.js';
 
 interface ResilienceSafetyIssue {
   message: string;

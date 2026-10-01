@@ -8,9 +8,9 @@ import {
 } from '@nestjs-pipeline/core';
 import { TaskCancelledError } from 'cockatiel';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { ResilienceConfigurationError } from './errors/resilience-configuration.error';
-import type { ResilienceBehaviorOptions } from './interfaces/resilience-options.interface';
-import { ResilienceBehavior } from './resilience.behavior';
+import { ResilienceConfigurationError } from './errors/resilience-configuration.error.js';
+import type { ResilienceBehaviorOptions } from './interfaces/resilience-options.interface.js';
+import { ResilienceBehavior } from './resilience.behavior.js';
 
 function makeCtx(
   options?: ResilienceBehaviorOptions,

@@ -2,8 +2,8 @@
 
 import { type IPipelineContext, pipelineStore } from '@nestjs-pipeline/core';
 import { describe, expect, it, vi } from 'vitest';
-import { getResilienceAbortSignal } from './helpers/resilience-context';
-import { ResilienceBehavior } from './resilience.behavior';
+import { getResilienceAbortSignal } from './helpers/resilience-context.js';
+import { ResilienceBehavior } from './resilience.behavior.js';
 
 function deferred<T = void>() {
   let resolve!: (value: T | PromiseLike<T>) => void;

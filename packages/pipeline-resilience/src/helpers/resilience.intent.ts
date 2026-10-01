@@ -1,8 +1,8 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import type { PipelineBehaviorTuple } from '@nestjs-pipeline/core';
-import type { ResilienceBehaviorOptions } from '../interfaces/resilience-options.interface';
-import { ResilienceBehavior } from '../resilience.behavior';
+import type { ResilienceBehaviorOptions } from '../interfaces/resilience-options.interface.js';
+import { ResilienceBehavior } from '../resilience.behavior.js';
 
 export type ResilienceIntentOptions = ResilienceBehaviorOptions &
   (

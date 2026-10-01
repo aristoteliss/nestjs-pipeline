@@ -11,13 +11,13 @@ import {
   RESILIENCE_DEFAULT_OPTIONS,
   RESILIENCE_MODULE_OPTIONS,
   RESILIENCE_POLICY_OPTIONS,
-} from './constants/tokens';
+} from './constants/tokens.js';
 import type {
   ResilienceModuleAsyncOptions,
   ResilienceModuleOptions,
-} from './interfaces/resilience-options.interface';
-import { ResilienceBehavior } from './resilience.behavior';
-import { ResiliencePolicies } from './resilience-policies';
+} from './interfaces/resilience-options.interface.js';
+import { ResilienceBehavior } from './resilience.behavior.js';
+import { ResiliencePolicies } from './resilience-policies.js';
 
 /**
  * NestJS module that registers the {@link ResilienceBehavior}, its optional
