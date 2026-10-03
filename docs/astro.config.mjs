@@ -88,6 +88,7 @@ export default defineConfig({
           items: [
             { label: 'Overview', slug: 'overview' },
             { label: 'Getting started', slug: 'getting-started' },
+            { label: 'Architecture', slug: 'concepts/architecture' },
           ],
         },
         {
