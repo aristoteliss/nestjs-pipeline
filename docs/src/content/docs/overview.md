@@ -12,6 +12,8 @@ HTTP Request
       [global before] → [@UsePipeline behaviors] → [global after] → handler
 ```
 
+For the complete interactive map through all four Clean Architecture layers with clickable source links, see [Runtime architecture](/nestjs-pipeline/concepts/architecture/).
+
 > **Same-class override:** if a handler's `@UsePipeline` declares the same
 > behavior class as a global `before`/`after` entry, the behavior runs **once at
 > its global chain position**, using the handler's options. Preserving position

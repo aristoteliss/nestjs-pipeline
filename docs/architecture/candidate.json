@@ -1,0 +1,464 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Clean Architecture Runtime Map: Presentation, Pipeline, Domain & Persistence",
+    "subtitle": "End-to-end execution path across Presentation, Pipeline Interceptor, CQRS Application, DDD Domain, and Persistence layers • Generated: 2026-10-03 13:05:00 UTC",
+    "output": "docs/public/architecture/runtime-architecture.html",
+    "quality_profile": "showcase",
+    "repository": {
+      "url": "https://github.com/aristoteliss/nestjs-pipeline.git",
+      "revision": "e9a360e759c43defd87ea4bffec575c43520a9fe",
+      "link_mode": "local-only"
+    }
+  },
+  "components": [
+    {
+      "id": "tenant_middleware",
+      "type": "security",
+      "label": "TenantMiddleware",
+      "sublabel": "TenantSchemaContext",
+      "tag": "Context Isolation",
+      "pos": [50, 50],
+      "size": [170, 60],
+      "sources": [
+        {
+          "path": "api/src/persistence/middlewares/tenant-schema.middleware.ts",
+          "line": 19,
+          "end_line": 49,
+          "label": "TenantSchemaMiddleware.use"
+        }
+      ]
+    },
+    {
+      "id": "auth_guard",
+      "type": "security",
+      "label": "AuthSessionGuard",
+      "sublabel": "SessionPrincipalResolver",
+      "tag": "Authentication Guard",
+      "pos": [360, 50],
+      "size": [170, 60],
+      "sources": [
+        {
+          "path": "api/src/common/guards/auth-session.guard.ts",
+          "line": 26,
+          "end_line": 35,
+          "label": "AuthSessionGuard.canActivate"
+        }
+      ]
+    },
+    {
+      "id": "users_controller",
+      "type": "backend",
+      "label": "UsersController",
+      "sublabel": "Zod CreateUserDto",
+      "tag": "REST Presentation",
+      "pos": [670, 50],
+      "size": [170, 60],
+      "sources": [
+        {
+          "path": "api/src/users/controllers/users.controller.ts",
+          "line": 56,
+          "end_line": 65,
+          "label": "UsersController.createUser"
+        }
+      ]
+    },
+    {
+      "id": "command_bus",
+      "type": "backend",
+      "label": "CQRS CommandBus",
+      "sublabel": "@nestjs/cqrs Bus",
+      "tag": "Dispatch Port",
+      "pos": [980, 50],
+      "size": [170, 60],
+      "sources": [
+        {
+          "path": "packages/pipeline/src/services/pipeline.bootstrap.service.ts",
+          "line": 105,
+          "end_line": 123,
+          "label": "CommandBus dispatch hook"
+        }
+      ]
+    },
+    {
+      "id": "pipeline_runner",
+      "type": "backend",
+      "label": "PipelineRunner",
+      "sublabel": "pipelineStore (ALS)",
+      "tag": "Onion Runner",
+      "pos": [980, 220],
+      "size": [170, 60],
+      "sources": [
+        {
+          "path": "packages/pipeline/src/services/pipeline-runner.ts",
+          "line": 27,
+          "end_line": 72,
+          "label": "createPipelineRunner"
+        }
+      ]
+    },
+    {
+      "id": "logging_behavior",
+      "type": "external",
+      "label": "LoggingBehavior",
+      "sublabel": "Safe Redaction & Trace",
+      "tag": "Telemetry Onion",
+      "pos": [670, 220],
+      "size": [170, 60],
+      "sources": [
+        {
+          "path": "packages/pipeline/src/behaviors/logging.behavior.ts",
+          "line": 200,
+          "end_line": 240,
+          "label": "LoggingBehavior.handle"
+        }
+      ]
+    },
+    {
+      "id": "casl_behavior",
+      "type": "security",
+      "label": "CaslBehavior",
+      "sublabel": "requires(create, user)",
+      "tag": "Type Ability Check",
+      "pos": [360, 220],
+      "size": [170, 60],
+      "sources": [
+        {
+          "path": "packages/pipeline-casl/src/casl.behavior.ts",
+          "line": 40,
+          "end_line": 75,
+          "label": "CaslBehavior.handle"
+        }
+      ]
+    },
+    {
+      "id": "idempotency_behavior",
+      "type": "security",
+      "label": "Idempotency",
+      "sublabel": "idempotent(key, digest)",
+      "tag": "Deduplication Token",
+      "pos": [50, 220],
+      "size": [170, 60],
+      "sources": [
+        {
+          "path": "packages/pipeline-idempotency/src/idempotency.behavior.ts",
+          "line": 125,
+          "end_line": 210,
+          "label": "IdempotencyBehavior.handle"
+        }
+      ]
+    },
+    {
+      "id": "command_base_handler",
+      "type": "backend",
+      "label": "CommandBaseHandler",
+      "sublabel": "execute() Lifecycle",
+      "tag": "Application Template",
+      "pos": [50, 390],
+      "size": [170, 60],
+      "sources": [
+        {
+          "path": "packages/ddd-core/application/command-base.handler.ts",
+          "line": 111,
+          "end_line": 156,
+          "label": "CommandBaseHandler.execute"
+        }
+      ]
+    },
+    {
+      "id": "create_user_handler",
+      "type": "backend",
+      "label": "CreateUserHandler",
+      "sublabel": "handle(CreateUserCmd)",
+      "tag": "Use Case Handler",
+      "pos": [360, 390],
+      "size": [170, 60],
+      "sources": [
+        {
+          "path": "api/src/users/application/cqrs/commands/create-user.handler.ts",
+          "line": 58,
+          "end_line": 82,
+          "label": "CreateUserHandler.handle"
+        }
+      ]
+    },
+    {
+      "id": "user_aggregate",
+      "type": "backend",
+      "label": "User Aggregate",
+      "sublabel": "User.create() & Events",
+      "tag": "DDD AggregateRoot",
+      "pos": [670, 390],
+      "size": [170, 60],
+      "sources": [
+        {
+          "path": "api/src/users/domain/models/user.entity.ts",
+          "line": 25,
+          "end_line": 77,
+          "label": "User.create factory & invariants"
+        }
+      ]
+    },
+    {
+      "id": "command_repository",
+      "type": "database",
+      "label": "CreateUserRepo",
+      "sublabel": "MikroORM Store & Flush",
+      "tag": "Tenant Persistence",
+      "pos": [50, 560],
+      "size": [170, 60],
+      "sources": [
+        {
+          "path": "api/src/users/persistence/create-user.command-repository.ts",
+          "line": 20,
+          "end_line": 55,
+          "label": "CreateUserCommandRepository.save"
+        }
+      ]
+    },
+    {
+      "id": "persisted_write",
+      "type": "database",
+      "label": "PersistedWrite",
+      "sublabel": "@Cache -> @Acknowledge",
+      "tag": "Lifecycle Decorator",
+      "pos": [360, 560],
+      "size": [170, 60],
+      "sources": [
+        {
+          "path": "packages/ddd-core/persistence/decorators/persisted-write.decorator.ts",
+          "line": 76,
+          "end_line": 100,
+          "label": "@PersistedWrite decorator composition"
+        }
+      ]
+    },
+    {
+      "id": "user_created_handler",
+      "type": "backend",
+      "label": "UserCreatedHandler",
+      "sublabel": "deadLetter() & BullMQ",
+      "tag": "Event Consumer",
+      "pos": [670, 560],
+      "size": [170, 60],
+      "sources": [
+        {
+          "path": "api/src/users/application/cqrs/events/user-created.handler.ts",
+          "line": 13,
+          "end_line": 30,
+          "label": "UserCreatedHandler.handle"
+        }
+      ]
+    },
+    {
+      "id": "bullmq_queue",
+      "type": "messagebus",
+      "label": "BullMQ Queue",
+      "sublabel": "welcome-email & Jobs",
+      "tag": "Async Reliability",
+      "pos": [980, 560],
+      "size": [170, 60],
+      "sources": [
+        {
+          "path": "api/src/common/modules/reliability.module.ts",
+          "line": 45,
+          "end_line": 60,
+          "label": "BullMqDeadLetterTransport"
+        }
+      ]
+    }
+  ],
+  "boundaries": [
+    {
+      "kind": "region",
+      "label": "Presentation Layer (API & Ingress Boundary)",
+      "wraps": [
+        "tenant_middleware",
+        "auth_guard",
+        "users_controller",
+        "command_bus"
+      ],
+      "pad": 16
+    },
+    {
+      "kind": "security-group",
+      "label": "Pipeline Interceptors Layer (Cross-Cutting Behaviors)",
+      "wraps": [
+        "idempotency_behavior",
+        "casl_behavior",
+        "logging_behavior",
+        "pipeline_runner"
+      ],
+      "pad": 16
+    },
+    {
+      "kind": "region",
+      "label": "Application & Domain Layer (CQRS Handlers & DDD Aggregate)",
+      "wraps": [
+        "command_base_handler",
+        "create_user_handler",
+        "user_aggregate"
+      ],
+      "pad": 16
+    },
+    {
+      "kind": "region",
+      "label": "Persistence & Infrastructure Layer (Authoritative DB & Queues)",
+      "wraps": [
+        "command_repository",
+        "persisted_write",
+        "user_created_handler",
+        "bullmq_queue"
+      ],
+      "pad": 16
+    }
+  ],
+  "connections": [
+    {
+      "from": "tenant_middleware",
+      "to": "auth_guard",
+      "label": "TenantContext",
+      "variant": "emphasis"
+    },
+    {
+      "from": "auth_guard",
+      "to": "users_controller",
+      "label": "sessionPrincipal",
+      "variant": "emphasis"
+    },
+    {
+      "from": "users_controller",
+      "to": "command_bus",
+      "label": "execute(cmd)",
+      "variant": "emphasis"
+    },
+    {
+      "from": "command_bus",
+      "to": "pipeline_runner",
+      "label": "pipelineStore",
+      "variant": "emphasis",
+      "fromSide": "bottom",
+      "toSide": "top"
+    },
+    {
+      "from": "pipeline_runner",
+      "to": "logging_behavior",
+      "label": "run(context)",
+      "variant": "emphasis",
+      "fromSide": "left",
+      "toSide": "right"
+    },
+    {
+      "from": "logging_behavior",
+      "to": "casl_behavior",
+      "label": "next() -> rules",
+      "variant": "emphasis",
+      "fromSide": "left",
+      "toSide": "right"
+    },
+    {
+      "from": "casl_behavior",
+      "to": "idempotency_behavior",
+      "label": "next() -> token",
+      "variant": "emphasis",
+      "fromSide": "left",
+      "toSide": "right"
+    },
+    {
+      "from": "idempotency_behavior",
+      "to": "command_base_handler",
+      "label": "execute()",
+      "variant": "emphasis",
+      "fromSide": "bottom",
+      "toSide": "top"
+    },
+    {
+      "from": "command_base_handler",
+      "to": "create_user_handler",
+      "label": "handle(cmd)",
+      "variant": "emphasis"
+    },
+    {
+      "from": "create_user_handler",
+      "to": "user_aggregate",
+      "label": "User.create()",
+      "variant": "emphasis"
+    },
+    {
+      "from": "create_user_handler",
+      "to": "persisted_write",
+      "label": "save(user)",
+      "variant": "emphasis",
+      "fromSide": "bottom",
+      "toSide": "top"
+    },
+    {
+      "from": "persisted_write",
+      "to": "command_repository",
+      "label": "persist & flush",
+      "variant": "emphasis",
+      "fromSide": "left",
+      "toSide": "right"
+    },
+    {
+      "from": "user_aggregate",
+      "to": "user_created_handler",
+      "label": "UserCreated",
+      "variant": "emphasis",
+      "fromSide": "bottom",
+      "toSide": "top"
+    },
+    {
+      "from": "user_created_handler",
+      "to": "bullmq_queue",
+      "label": "enqueue email",
+      "variant": "emphasis",
+      "fromSide": "right",
+      "toSide": "left"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "emerald",
+      "title": "Presentation Layer (API & Ingress)",
+      "items": [
+        "Snapshot compiled: 2026-10-03 13:15:00 UTC @ git commit e9a360e",
+        "TenantSchemaMiddleware extracts multi-tenant context, setting up TenantSchemaContext for PostgreSQL search path or libSQL per-tenant isolation",
+        "AuthSessionGuard runs RequestPrincipalResolver to validate sessions, setting req.sessionPrincipal and caller identity",
+        "StandardSchemaValidationPipe validates CreateUserDto with Zod, returning structured 400 zodBadRequest on validation failure",
+        "UsersController maps validated DTO into CreateUserCommand and dispatches via commandBus.execute(cmd)"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "Pipeline Interceptor Layer (Cross-Cutting Onion)",
+      "items": [
+        "PipelineRunner binds PipelineContext in AsyncLocalStorage (pipelineStore), seeding tenantId and correlationId before entering behaviors",
+        "LoggingBehavior measures duration and sanitizes payloads using @cqrs-ddd/safe-stringify with configurable redaction",
+        "CaslBehavior checks type-level abilities (requires({ action: 'create', subject: 'User' })), failing closed with UnauthorizedActionException",
+        "IdempotencyBehavior claims Redis operation key; replay verifies requireAbilityDigest to prevent privilege escalation"
+      ]
+    },
+    {
+      "dot": "cyan",
+      "title": "Application & Domain Layers (CQRS & DDD Core)",
+      "items": [
+        "CommandBaseHandler.execute() provides a framework-neutral execution template around abstract handle(cmd)",
+        "CreateUserHandler.handle() instantiates User.create(), checks post-mutation CASL field authorization, and calls repository.save(user)",
+        "User aggregate inherits from RootEntity, enforcing username and department domain rules with private setters for MikroORM hydration",
+        "User.create() records UserCreatedEvent in the aggregate's uncommitted event buffer; version starts at 0"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "Persistence & Reliability Infrastructure Layers",
+      "items": [
+        "@PersistedWrite enforces lifecycle order: @Cache -> @AcknowledgePersisted -> @MapPersistenceErrors",
+        "CreateUserCommandRepository asserts autocommit and flushes the entity within the tenant's isolated EntityManager",
+        "user.acknowledgePersisted() advances version baseline only after durable database commit succeeds",
+        "CommandBaseHandler publishes uncommitted events via EventBus.publishAll(); UserCreatedHandler enqueues welcome email into BullMQ"
+      ]
+    }
+  ]
+}

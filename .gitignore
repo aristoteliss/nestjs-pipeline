@@ -54,3 +54,10 @@ packages/*/COMMERCIAL_LICENSE.txt
 !.claude/tasks/
 .claude/state/
 __pycache__/
+
+# Archify local generator toolchain and build receipts
+.archify/
+docs/public/architecture/*.finalize*.json
+docs/public/architecture/*.browser-check.json
+docs/public/architecture/*.delivery.json
+
