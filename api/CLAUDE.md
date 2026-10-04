@@ -24,17 +24,22 @@ Per feature module (`users/`, `roles/`, `auths/`):
 | Persistence | `persistence/` | ORM, caching, tenant access, lifecycle decorators |
 | Jobs | `jobs/` | BullMQ processors and dispatcher adapters behind application ports; payloads carry `withJobContext`, processors restore it with `@InJobContext()` |
 
-Generic DDD and persistence building blocks belong to `packages/ddd-core` (see its `CLAUDE.md`,
-Ownership). `src/common/filters/domain-exception.filter.ts` maps this application's own
-exceptions and takes the status for `packages/ddd-core` errors from `domainErrorHttpStatus()`
-(`@cqrs-ddd/core/http`).
+Generic DDD and persistence building blocks belong to `@cqrs-ddd/core` and
+`@cqrs-ddd/mikro-orm`, installed from ddd-cqrs; the pipeline behaviors come from the
+`@cqrs-ddd/pipeline*` packages and their NestJS wiring from `@cqrs-ddd/nestjs`
+(`PipelineModule`, `ErrorFilter`, `CorrelationMiddleware`, `JobContextModule`).
+`src/common/filters/domain-exception.filter.ts` is the one global filter: it maps this
+application's own exceptions to NestJS `HttpException`s and leaves every other error to the
+adapter's `ErrorFilter` (package errors, and `@cqrs-ddd/core` errors through
+`domainErrorHttpStatus()`).
 
-Keep application-specific behavior out of `packages/ddd-core`, and do not copy its code here. `packages/ddd-core` is
-framework-neutral: Nest glue (DI providers, logger adapter, tenant wiring, exception
-filters) for `packages/ddd-core` belongs in this application.
+Keep application-specific behavior out of the packages, and never copy or patch their code
+here: a missing feature or a bug is fixed in ddd-cqrs. What only this application needs
+(the behavior providers of its modules, its exception mapping) stays in `src/`.
 
-Cross-cutting wiring lives in `src/common/modules/` (`ObservabilityModule` — Pino, OTel,
-audit, global behaviors, the add-ons' span attributes through `AttributesBehavior`, the
+Cross-cutting wiring lives in `src/common/modules/`, each module providing the behaviors it
+configures (`ObservabilityModule` — Pino, OTel, audit, `PipelineModule.forRoot` with the
+global behaviors, the add-ons' span attributes through `AttributesBehavior`, the
 HTTP span's route through `HttpRouteInterceptor`;
 `ReliabilityModule` — BullMQ, dead-letter, rate limit, idempotency, resilience, cache,
 feature flags) and `src/common/` (guards, filters, interceptors, request context stores,
@@ -54,7 +59,7 @@ short and declarative, with no prefix or suffix the module already gives.
 | `src/bootstrap.ts` | Adapter choice, secure session, `app.enableShutdownHooks()` |
 | `src/server.module.ts` | Root module of the server: `AppModule` plus the telemetry flush, which NestJS's shutdown hooks run last |
 | `src/app.module.ts` | Composition root: CQRS, observability, reliability, CASL, persistence, features; the global schema validation pipe and exception filters (`APP_PIPE`, `APP_FILTER`) |
-| `src/common/filters/domain-exception.filter.ts` | Framework-neutral errors → HTTP: this application's exceptions, then `domainErrorHttpStatus()` for `packages/ddd-core`'s (409, 404, generic 500 for a missing tenant, 400) |
+| `src/common/filters/domain-exception.filter.ts` | The one global filter: this application's exceptions → NestJS `HttpException`s; everything else → `ErrorFilter` of `@cqrs-ddd/nestjs` (package errors; `@cqrs-ddd/core`'s through `domainErrorHttpStatus()`: 409, 404, generic 500 for a missing tenant, 400) |
 | `src/persistence/mikro-orm.store.ts` | The one store for both engines: builds the ORMs (libSQL: one per tenant; PostgreSQL: one, a schema per tenant), registers the dialect, and hands out the active tenant's `EntityManager` through `@cqrs-ddd/mikro-orm`'s `TenantStore` |
 | `src/auths/services/session.service.ts` | Cookie lifecycle, kept out of domain login |
 | `src/auths/persistence/casl-permission.source.ts` | Principal and rule loading for CASL (`ICaslPermissionSource`) |
@@ -83,9 +88,10 @@ Copy `.env.example` to `.env` for local runs. The app reads it through
 
 - The api is an ES module: relative imports and path aliases carry `.js`
   (`./x.js`, `@common/x.js`); `tsc-alias` rewrites the aliases at build time.
-- The api resolves the workspace packages through their built `dist/`: run `pnpm build`
-  (or the changed package's `build`) before api tests or `typecheck`, or they fail on
-  missing or outdated package code.
+- The api depends on no workspace package: it installs the `@cqrs-ddd/*` packages and
+  `@cqrs-ddd/nestjs` from the registry. Until they are on npm, install them from the local
+  registry of ddd-cqrs (`NPM_CONFIG_USERCONFIG=$HOME/.npmrc-cqrs-local pnpm install`, a file
+  holding only `@cqrs-ddd:registry=http://127.0.0.1:4873/`).
 - The api runs from its compiled `dist/`, which `start` builds first: `ts-node` cannot run
   on TypeScript 7, and `tsx` emits no decorator metadata.
 - The api needs Node 22.17 or newer (MikroORM 7) and the e2e suite Node 22.22 or newer

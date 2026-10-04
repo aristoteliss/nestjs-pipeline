@@ -8,17 +8,18 @@ preserved across regeneration and are owned by humans.
 ## Purpose
 
 <!-- context:manual-start purpose -->
-Reusable pipeline behaviors for **NestJS CQRS**: a middleware-like chain that wraps every
-command, query and event handler with cross-cutting concerns (logging, validation,
-correlation, tracing, metrics, audit, authorization, caching, idempotency, rate limiting,
-resilience, feature flags, dead-lettering). Twelve of these behaviors ship as published
-`@nestjs-pipeline/*` packages.
+The complete NestJS example of the `@cqrs-ddd` packages: `api` is a runnable multi-tenant
+NestJS application on official `@nestjs/cqrs` that installs, from 0.5.0, the `@cqrs-ddd/*`
+packages and their NestJS adapter `@cqrs-ddd/nestjs`, all built and published from ddd-cqrs
+(`~/Source/ddd-cqrs`). They add what NestJS lacks: the pipeline behaviors around every
+command, query and event handler (logging, validation, correlation, tracing, metrics, audit,
+authorization, caching, idempotency, rate limiting, resilience, feature flags,
+dead-lettering) and the DDD building blocks (`@cqrs-ddd/core`, `@cqrs-ddd/mikro-orm`).
 
-The Domain-Driven Design side: `packages/ddd-core` provides reusable DDD primitives
-(aggregate roots, domain events, command/query base classes, repository contracts, the
-persistence lifecycle decorators), and `api` is a runnable multi-tenant reference
-application that composes everything. The example is a demonstration, not the boundary of
-what the libraries support.
+`packages/*` keep the 0.4.x line of the old `@nestjs-pipeline/*` packages and of the
+`@cqrs-ddd/*` copies (fixes only), and `packages/cqrs-ddd` publishes
+`@nestjs-pipeline/cqrs-ddd`, a facade that re-exports `@cqrs-ddd/nestjs`. The example is a
+demonstration, not the boundary of what the libraries support.
 <!-- context:manual-end purpose -->
 
 ## Repository Shape
@@ -27,7 +28,7 @@ what the libraries support.
 - **Shape**: monorepo — workspace globs `api`, `docs`, `packages/*` (22 workspace packages).
 - **Publishable packages**: 20; private: `api`, `docs`.
 - **Runnable workspaces**: `api`, `docs`.
-- **Versions**: `0.4.2`, `0.5.0`.
+- **Versions**: `0.4.2`, `0.4.3`, `0.5.0`.
 - **Packages**: see the Workspace packages table under Directory Map.
 <!-- context:generated-end repository-shape -->
 
@@ -124,33 +125,33 @@ path given before relying on it.*
 | --- | --- | --- |
 | Presentation | `api/src/*/controllers`, `decorators`, `interceptors`, `dtos`, `responses`, `mappers`, `api/src/common/filters`, `guards`, `interceptors` | Command/Query buses only; controllers dispatch and map |
 | Application (CQRS) | `api/src/*/application/cqrs`, `api/src/*/application/ports` | Repository/port interfaces and injection tokens |
-| Domain | `api/src/*/domain`, `packages/ddd-core/domain` | Nothing framework-specific |
-| Persistence | `api/src/persistence`, `src/*/persistence`, `packages/ddd-core/persistence` | MikroORM, cache adapters |
-| Pipeline / cross-cutting | `packages/*`, wired in `api/src/common/modules/*.module.ts` | NestJS CQRS |
+| Domain | `api/src/*/domain`, on `@cqrs-ddd/core/domain` | Nothing framework-specific |
+| Persistence | `api/src/persistence`, `src/*/persistence`, on `@cqrs-ddd/core/persistence` and `@cqrs-ddd/mikro-orm` | MikroORM, cache adapters |
+| Pipeline / cross-cutting | the `@cqrs-ddd/pipeline*` behaviors, provided by `api/src/common/modules/*.module.ts` and `api/src/auths/authorization.module.ts`; `@cqrs-ddd/nestjs` wraps the handlers | NestJS CQRS |
 
 The direction is strictly inward: presentation → application → domain. Persistence
 implements application-owned interfaces. Biome Grit plugins enforce the crossings
 (`biome/plugins/ddd-layering.grit`, `handler-boundaries.grit`, `ddd-entry-points.grit`,
-`transport-neutral-errors.grit`). `packages/ddd-core` depends on no NestJS or `@nestjs-pipeline/*`
-package; users-api supplies the Nest glue (`framework-independence.grit`,
-`packages/ddd-core/package-manifest.spec.ts`).
+`transport-neutral-errors.grit`). `@cqrs-ddd/core` depends on no NestJS package; the NestJS
+side is `@cqrs-ddd/nestjs` and this application's modules.
 
 ### Request flow
 
-`HTTP request` → `HttpCorrelationMiddleware` + `TenantSchemaMiddleware`
+`HTTP request` → `CorrelationMiddleware` (`@cqrs-ddd/nestjs/correlation`) + `TenantSchemaMiddleware`
 (`api/src/app.module.ts` `configure()`) → `AuthSessionGuard` (global `APP_GUARD`) →
 `SessionPrincipalContextInterceptor` (global `APP_INTERCEPTOR`) → controller (`{ schema }`
-parameters, validated by the global `StandardSchemaValidationPipe` with `zodBadRequest`,
-an `APP_PIPE` in `AppModule`) → `CommandBus`/`QueryBus` → pipeline chain (order under Pipeline engine;
-global behaviors in `api/src/common/modules/observability.module.ts`) → handler.
+parameters, validated by NestJS's default `StandardSchemaValidationPipe`, an `APP_PIPE` in
+`AppModule`) → `CommandBus`/`QueryBus` → the handler's `execute`, wrapped at bootstrap by
+`PipelineModule` of `@cqrs-ddd/nestjs` (global behaviors placed in
+`api/src/common/modules/observability.module.ts`) → handler.
 
 ### Persistence flow
 
 Commands load aggregates through `IWriteSideAggregateRepository` →
-`AggregateRepository` (`packages/ddd-mikro-orm/src/`; `{ refresh: true }`, bypasses
+`AggregateRepository` (`@cqrs-ddd/mikro-orm`; `{ refresh: true }`, bypasses
 `@FromCache` and the identity map) → domain method uses `applyPatch(...)` and returns `this`; `@ApplyMutation` advances the lifecycle and records events → `ICommandRepository.save()` →
 `@PersistedWrite` (= `@Cache` → `@AcknowledgePersisted` → `@MapPersistenceErrors`) → MikroORM. Updates are
-version-conditioned (`packages/ddd-mikro-orm/src/concurrency/optimistic-update.ts`), deletes are conditional
+version-conditioned (`optimisticUpdate` of `@cqrs-ddd/mikro-orm`), deletes are conditional
 on `{ id, version }`. The handler then commits the aggregate's buffered events through
 `EventPublisher.mergeObjectContext(aggregate).commit()` (`@nestjs/cqrs`).
 
@@ -160,14 +161,16 @@ passed to `QueryRepository`, and return domain aggregates; entity/field authoriz
 
 ### Errors
 
-Domain and application code throw framework-neutral errors
-(`packages/ddd-core/domain/exceptions/`). `api/src/common/filters/domain-exception.filter.ts` maps them:
-`ConcurrencyConflictError` → 409, `EntityNotFoundException` → 404, unique-constraint
-exceptions → 409, invariant violations → 422, `InvalidLoginCredentialsException` → 401,
-`AuthConfigurationException` → 500, otherwise 400. It and `ZodValidationFilter`,
-`RateLimitExceededFilter`, `IdempotencyConflictFilter`, `FeatureDisabledFilter` and
-`UnauthorizedActionFilter` are `APP_FILTER` providers in `api/src/app.module.ts`; each
-replies through Nest's `HttpAdapterHost`, so one code path serves Express and Fastify.
+Domain and application code throw framework-neutral errors (`@cqrs-ddd/core/domain` and
+this application's own). `api/src/common/filters/domain-exception.filter.ts`, the one
+`APP_FILTER`, extends `ErrorFilter` of `@cqrs-ddd/nestjs`: it turns this application's
+exceptions into NestJS `HttpException`s (unique-constraint exceptions → 409, invariant
+violations → 422, `InvalidLoginCredentialsException` → 401, `AuthConfigurationException` →
+500) and leaves the rest to `ErrorFilter`, which converts the package errors (Zod → 400 with
+NestJS's validation body, CASL and feature flags → 403, rate limit → 429 with
+`Retry-After`, idempotency → 409/422) and `@cqrs-ddd/core`'s (`ConcurrencyConflictError` →
+409, `EntityNotFoundException` → 404, otherwise 400). Nest's own exception handling replies,
+so one code path serves Express and Fastify.
 
 ### Background jobs
 
@@ -176,7 +179,8 @@ BullMQ over Redis, wired in `api/src/common/modules/reliability.module.ts`. Proc
 through an application port implemented by `bullmq-user-event-dispatcher.adapter.ts`.
 A job runs in the tenant, correlation id and principal of the request that enqueued it:
 the dispatcher stamps `withJobContext`, the processors use `@InJobContext()`
-(`@nestjs-pipeline/job-context`), and `SessionJobPrincipal`
+(`@cqrs-ddd/pipeline-job-context`, registered by `JobContextModule` of
+`@cqrs-ddd/nestjs/job-context`), and `SessionJobPrincipal`
 (`api/src/auths/infrastructure/session-job-principal.ts`) re-checks the principal when the
 job runs. System work declares its principal and grants with `@AsSystem`. Failed commands and events are captured by `DeadLetterBehavior` into a `dead-letters`
 queue. The Nest in-memory `EventBus` is **not** a transactional outbox; there is no durable
@@ -185,7 +189,7 @@ delivery guarantee.
 ### Multi-tenancy
 
 `TenantSchemaMiddleware` sets the request's tenant through `TenantSchemaContext` (over
-`@nestjs-pipeline/tenant`); the store, pipelines, cache keys and jobs read that one tenant.
+`@cqrs-ddd/pipeline-tenant`); the store, pipelines, cache keys and jobs read that one tenant.
 Other code that needs it calls `requireTenant(purpose)` (`@cqrs-ddd/core/application`);
 there is no tenant port. A missing tenant fails closed with `MissingTenantContextError`;
 see Multi-tenant persistence.
@@ -205,20 +209,21 @@ in the handler (`CaslAuthorizer`). Details under Authentication and Authorizatio
 *Manual section — the generator never overwrites it. Each module's details are in the
 `CLAUDE.md` named in its heading; this is what must not break.*
 
-### Pipeline engine — `packages/pipeline/src/` ([CLAUDE.md](../packages/pipeline/CLAUDE.md))
+### Pipeline wiring — `@cqrs-ddd/nestjs` (in ddd-cqrs), used from `api/src/common/modules/`
 
-- Discovers CQRS handlers and wraps them: `[global before] → [@UsePipeline] → [global after]
-  → handler`; a behavior declared globally and on a handler runs once, at its global
-  position. Global guards stay outside short-circuiting behaviors.
-- Keeps no tenant or correlation store: it takes both from `PipelineModule.forRoot({ sources })`
-  (`tenantSource`, `correlationSource`; the api wires them in
-  `api/src/common/context/context-sources.ts`) and runs the chain inside them.
-- Finds handlers through Nest's `DiscoveryService` by the metadata key each public CQRS
-  handler decorator records (`packages/pipeline/src/services/handler-discovery.ts`);
-  bootstrap fails if a decorator records other than one key. It still hooks Nest's
-  `InstanceWrapper` for request-scoped handlers. Do not expand that coupling.
+- `PipelineModule.forRoot({ globalBehaviors, sources })` wraps each `@nestjs/cqrs` handler
+  instance at bootstrap: `[global before] → [@UsePipeline] → [global after] → handler`; a
+  behavior declared globally and on a handler runs once, at its global position. Global
+  guards stay outside short-circuiting behaviors.
+- It never builds a behavior: each module provides the behaviors it configures under their
+  class (`ObservabilityModule`, `ReliabilityModule`, `AuthorizationModule`). A missing or
+  doubly provided behavior, a request-scoped handler that runs behaviors, and a
+  request-scoped behavior fail startup.
+- Tenant and correlation come from `sources` (`tenantSource`, `correlationSource`, wired in
+  `api/src/common/context/context-sources.ts`). Package code is fixed in ddd-cqrs, never
+  here.
 
-### Persistence lifecycle — `packages/ddd-core/`, `packages/ddd-mikro-orm/` ([core](../packages/ddd-core/CLAUDE.md), [MikroORM](../packages/ddd-mikro-orm/CLAUDE.md))
+### Persistence lifecycle — `@cqrs-ddd/core`, `@cqrs-ddd/mikro-orm` (in ddd-cqrs; their 0.4.x source in `packages/ddd-core/`, `packages/ddd-mikro-orm/`)
 
 - Core owns the ORM-neutral contracts and lifecycle decorators; `@cqrs-ddd/mikro-orm` owns
   every MikroORM and database-specific piece, including `TenantStore`.
@@ -227,7 +232,7 @@ in the handler (`CaslAuthorizer`). Details under Authentication and Authorizatio
   surface as `ConcurrencyConflictError`. A DB commit and a cache change are not one
   transaction. Repair cache races inside the abstraction, with regression tests.
 
-### Authorization — `packages/pipeline-casl/`, `api/src/{users,roles,auths}`
+### Authorization — `@cqrs-ddd/pipeline-casl`, `api/src/auths/authorization.module.ts`, `api/src/{users,roles,auths}`
 
 - `CaslBehavior` checks types; `CaslAuthorizer` checks entities and fields after the aggregate
   loads. A cache or idempotency hit skips the second check, so keys must partition tenant,
@@ -259,7 +264,7 @@ in the handler (`CaslAuthorizer`). Details under Authentication and Authorizatio
 - `ObservabilityModule` holds the global behavior list and its order, which wraps every
   handler; `ReliabilityModule` wires queues, dead letters, rate limits, idempotency,
   resilience, cache and feature flags.
-- `AttributesBehavior` (`@nestjs-pipeline/opentelemetry`) must stay inside `TraceBehavior`
+- `AttributesBehavior` (`@cqrs-ddd/pipeline-opentelemetry`) must stay inside `TraceBehavior`
   and `MetricsBehavior` and outside the add-ons whose `build<Name>Attributes` factories it
   runs; `api/test/span-attributes.spec.ts` fails if the attributes stop reaching the span.
 - Redis, database and OTLP settings come only from `redisConfig()`, `persistenceConfig()`
@@ -341,11 +346,11 @@ live in `AGENTS.md`; this table keeps what is specific to this repository.*
 | --- | --- | --- |
 | Files | Kebab-case with a role suffix (`*.behavior.ts`, `*.handler.ts`, `*.command-repository.ts`, …); packages group source folders by role (`constants`, `helpers`, `interfaces`, `errors`, …) behind one index, such as `packages/pipeline/src/index.ts` | `AGENTS.md` → Naming, Directory Map |
 | Imports | `@common/*`, `@persistence/*` aliases in `api`; `@cqrs-ddd/core` only through `/domain`, `/application`, `/persistence`, `/http`; `@cqrs-ddd/*` utilities imported directly, never re-exported | `biome/plugins/ddd-entry-points.grit`, `packages/CLAUDE.md` |
-| Package independence | `@cqrs-ddd/*` import no NestJS or `@nestjs-pipeline/*`; `@nestjs-pipeline/tenant`, `/correlation`, `/job-context` import no other pipeline package; a package peers on core only if it imports it | `framework-independence.grit`, `packages/pipeline/src/package-boundaries.spec.ts` |
+| Package independence | No `@cqrs-ddd` package imports `@nestjs-pipeline/*`, and only `@cqrs-ddd/nestjs` imports NestJS (ddd-cqrs rule 1); in the 0.4.x line here, `@nestjs-pipeline/tenant`, `/correlation`, `/job-context` import no other pipeline package and a package peers on core only if it imports it | ddd-cqrs `AGENTS.md`, `framework-independence.grit`, `packages/pipeline/src/package-boundaries.spec.ts` (0.4.x manifests) |
 | Errors | Framework-neutral inward; HTTP mapping only at the boundary (`domainErrorHttpStatus()`) | `transport-neutral-errors.grit`, `api/src/common/filters/` |
 | Configuration | `process.env` only in bootstrap and config code; one `<system>.config.ts` per external system (`redisConfig()`, `persistenceConfig()`, `otlpConfig()`), the only reader of its variables | `core-environment.grit`, `AGENTS.md` rule 23, `api/src/common/environment/` |
-| Persistence | Handlers depend on repository tokens; aggregates change only through domain methods; field limits live in the aggregate's `rules` | `handler-boundaries.grit`, `aggregate-identity.grit`, `packages/ddd-core/domain/rules/` |
-| Validation | Zod schemas on commands and queries; route parameters declare `{ schema }`, which Nest's `StandardSchemaValidationPipe` validates with `zodBadRequest` | `packages/pipeline-zod`, `api/src/app.module.ts` |
+| Persistence | Handlers depend on repository tokens; aggregates change only through domain methods; field limits live in the aggregate's `rules` | `handler-boundaries.grit`, `aggregate-identity.grit`, `@cqrs-ddd/core/domain` rules |
+| Validation | Zod schemas on commands and queries; route parameters declare `{ schema }`, which NestJS's default `StandardSchemaValidationPipe` validates (400 with NestJS's body) | `packages/pipeline-zod`, `api/src/app.module.ts` |
 | Tooling | Biome (2 spaces, single quotes); strict `tsc --noEmit` per workspace; license header on every package `.ts` | `biome.json`, `tsconfig.base.json`, `package-licenses.grit` |
 | Commits | Conventional style: `feat(scope): …`, `fix(scope): …`, `refactor: …` | `git log` |
 <!-- context:manual-end conventions -->
@@ -560,8 +565,8 @@ secret value.*
 ## Snapshot Metadata
 
 <!-- context:generated-start metadata -->
-- Generated at: 2026-10-04T15:46:22Z
-- Git commit: c8747ef44c9d9357217d3c1d0a303784e02f6750
+- Generated at: 2026-10-04T15:56:18Z
+- Git commit: 15f6353f55212e26d6a7a1d9ee7b661d9b01016c
 - Git branch: adopt-cqrs-ddd
 - Uncommitted changes when generated: yes
 - Generator: `scripts/update-claude-snapshot.py` version 1.0.0

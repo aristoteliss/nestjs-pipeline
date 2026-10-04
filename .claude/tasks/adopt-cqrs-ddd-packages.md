@@ -46,8 +46,7 @@ functionality, the glue lives in `api` and each `api` module registers the behav
 configures (Phase 1.3). `AGENTS.md`, `CLAUDE.md` and this file were updated for it, and
 ddd-cqrs's `.claude/tasks/cqrs-ddd-pipeline.md` (Task, Goal, Scope); committed with the owner's
 agreement: here `d0a98a71`, in ddd-cqrs `c55e680`. The local registry answers on
-`http://127.0.0.1:4873/`. Phases 0.3 to 1.4 are done (uncommitted); `api` compiles and its unit
-and e2e tests pass (1.5); next: Phase 2 and the context files (3.2).
+`http://127.0.0.1:4873/`. Phases 0 to 2 and 3.2 are done and committed; next: the owner's publish (3.1).
 
 ## Plan
 
@@ -259,21 +258,29 @@ and e2e tests pass (1.5); next: Phase 2 and the context files (3.2).
 
 ### Phase 2: README notices and the 0.4.3 release
 
-- [ ] 2.1 A notice at the top of the root README, of every `packages/*/README.md` and of
+- [x] 2.1 A notice at the top of the root README, of every `packages/*/README.md` and of
   the documentation site's home page: the package continues from 0.5.0 as its successor
   (table below), with the successor's npm page, the ddd-cqrs GitHub repository and the
   ddd-cqrs documentation site; versions 0.1 to 0.4 stay on npm unchanged. No
   `npm deprecate`: the README notice alone carries the redirect (owner, 2026-10-04).
-- [ ] 2.2 Bump the 14 `@nestjs-pipeline/*` packages to 0.4.3, a README-only release (the
+- [x] 2.2 Bump the 14 `@nestjs-pipeline/*` packages to 0.4.3, a README-only release (the
   code does not change), with a CHANGELOG entry saying so. An npm page shows the README of
   the latest version, so the notice reaches npm only through a new version.
-- [ ] 2.3 The five `@cqrs-ddd/*` copies here (`ddd-core` as `@cqrs-ddd/core`,
+- [x] 2.3 The five `@cqrs-ddd/*` copies here (`ddd-core` as `@cqrs-ddd/core`,
   `ddd-mikro-orm`, `safe-stringify`, `untyped`, `uuidv7`) get the notice in their READMEs
   on GitHub but are never published from this repository again: ddd-cqrs publishes those
   names from 0.5.0, and its README replaces theirs on npm.
-- [ ] 2.4 Try the notices on the local registry: publish the 0.4.3 releases there, check
+- [x] 2.4 Try the notices on the local registry: publish the 0.4.3 releases there, check
   that `npm view @nestjs-pipeline/<name> readme --registry http://127.0.0.1:4873/` shows
   the notice, that 0.4.3 installs, and that 0.1 to 0.4.2 are still listed.
+
+  Done 2026-10-04 (2.1 to 2.4): a notice under the title of every package README (the 14
+  name their successor, its npm page, ddd-cqrs and its docs page, and say 0.4.x receives
+  fixes only; the five `@cqrs-ddd/*` copies say they are published from ddd-cqrs from
+  0.5.0), of the root README, and a banner on the docs home page; the 14 packages at
+  0.4.3, CHANGELOG entry (synced to the docs changelog). Published to the local registry
+  only: every 0.4.3 README carries the notice, each package lists its versions from 0.1 to
+  0.4.3, `@nestjs-pipeline/tenant@0.4.3` installs and loads, peer ranges read `^0.4.3`.
 
 ### Phase 3: hand over and close
 
@@ -281,9 +288,13 @@ and e2e tests pass (1.5); next: Phase 2 and the context files (3.2).
   step 8.3), so every link resolves; push this repository's branch; publish the 0.4.3
   notice releases of the 14 `@nestjs-pipeline/*` packages; switch `api` to the npm
   packages and rerun its suites.
-- [ ] 3.2 Context files (`AGENTS.md`, `CLAUDE.md`, nested `CLAUDE.md` files, the
+- [x] 3.2 Context files (`AGENTS.md`, `CLAUDE.md`, nested `CLAUDE.md` files, the
   architecture skill, `.claude/codebase-map.md`) describe the new shape; `pnpm
-  context:update`, `pnpm context:validate`.
+  context:update`, `pnpm context:validate`. Done 2026-10-04: `AGENTS.md`, `CLAUDE.md`,
+  `packages/CLAUDE.md`, `api/CLAUDE.md`, `api/README.md`, the skill and the map's manual
+  sections describe `api` on `@cqrs-ddd/*` and `@cqrs-ddd/nestjs`, and `packages/*` as the
+  0.4.x line plus the facade; `pnpm context:validate` 58/58. Verified afterwards:
+  `pnpm -r test`, `pnpm test:release` (both lines), `pnpm docs:build` passed.
 - [ ] 3.3 Move what lasts to its owners and delete this file.
 
 Successor of each package:
@@ -418,11 +429,13 @@ Successor of each package:
 
 ## Next Steps
 
-1. `pnpm-workspace.yaml` (`minimumReleaseAgeExclude` for the 19 new `@cqrs-ddd` versions)
-   stays uncommitted until the owner decides.
-2. Phase 2: README notices and the 0.4.3 README-only release.
-3. Phase 3.2 context files: `api/CLAUDE.md`, `api/README.md` and the map still describe
-   the old package modules (`PipelineModule.forRoot` of the package, `CaslModule`, ...).
+1. The owner publishes (3.1): ddd-cqrs first (its step 8.3, now with `@cqrs-ddd/nestjs`);
+   then here `pnpm update "@cqrs-ddd/*"` without the local-registry config, so the lockfile
+   takes the npm tarballs, and rerun every suite; then
+   `pnpm --filter @nestjs-pipeline/cqrs-ddd publish --access public` and the 14 0.4.3
+   releases (`pnpm --filter "./packages/pipeline*" publish --access public`). Never
+   `pnpm publish:all` here: it would try to republish the 0.4.2 copies.
+2. 3.3: move what lasts to its owners and delete this file.
 
 ## Snapshot Impact
 

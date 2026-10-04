@@ -1,5 +1,10 @@
 # @nestjs-pipeline/job-context
 
+> **From 0.5.0 this package continues as [`@cqrs-ddd/pipeline-job-context`](https://www.npmjs.com/package/@cqrs-ddd/pipeline-job-context).** Its code, issues and
+> releases are in [ddd-cqrs](https://github.com/aristoteliss/ddd-cqrs), documented at [aristoteliss.github.io/ddd-cqrs](https://aristoteliss.github.io/ddd-cqrs/packages/pipeline-job-context/).
+> NestJS applications add [`@cqrs-ddd/nestjs`](https://www.npmjs.com/package/@cqrs-ddd/nestjs). Versions 0.1 to 0.4 of
+> `@nestjs-pipeline/job-context` stay on npm unchanged, and 0.4.x receives fixes only.
+
 [![npm version](https://img.shields.io/npm/v/@nestjs-pipeline/job-context.svg)](https://www.npmjs.com/package/@nestjs-pipeline/job-context)
 [![License](https://img.shields.io/npm/l/@nestjs-pipeline/job-context.svg)](https://www.npmjs.com/package/@nestjs-pipeline/job-context)
 

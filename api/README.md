@@ -243,13 +243,13 @@ Downstream Pipeline (Controllers → CQRS Bus → CASL → Audit → DB)
 4. **`PrincipalLoginService`**: Application service for login credential verification (`POST /auths/login`), token refresh (`POST /auths/refresh`), and signing access tokens for a session.
 5. **`toSessionRes` Mapper**: Maps `AuthResult` through `SessionResponseSchema`, which keeps only the response fields, so the refresh token never reaches the body.
 6. **Session persistence**: `CreateAuthCommandRepository` inserts a session, `UpdateAuthCommandRepository` saves rotation and revocation version-conditioned, first recording the hash a rotation consumed (`Auth.getConsumedToken()`, a `ConsumedRefreshToken`) so reuse stays detectable even when the version update loses, and `GetAuthByTokenHashQueryRepository` and `GetAuthByConsumedTokenHashQueryRepository` find sessions by current or previous refresh-token hash and by consumed history. Sessions are never cached. `PrincipalLoginService.revoke` coordinates durable revocation for refresh reuse and logout, reloads on version conflicts, and returns the saved aggregate or `null` if concurrently deleted. Exhausted conflicts propagate; handlers retain their own missing-session and event-publication semantics.
-7. **`CaslPermissionSource`**: Request-scoped `ICaslPermissionSource` bound through `AuthorizationModule` and `CaslModule.forRoot({ imports: [AuthorizationModule], permissionSource: { useExisting: CaslPermissionSource } })`. For a `user` principal whose verified access token carried rules it uses them; otherwise it reads the user row (a deleted user is unauthenticated) and the materialized `user_permission_rules` in one parallel round-trip (see [Permission source](#permission-source)); the principal carries `department` for `${user.department}` placeholders. A `service` principal uses its `grants` without touching the users tables. Unclassified principals are unauthenticated.
+7. **`CaslPermissionSource`**: A singleton `ICaslPermissionSource` (the principal comes from the request's async context); the global `AuthorizationModule` provides it, `CaslBehavior` built on it, and `CaslAuthorizer`. For a `user` principal whose verified access token carried rules it uses them; otherwise it reads the user row (a deleted user is unauthenticated) and the materialized `user_permission_rules` in one parallel round-trip (see [Permission source](#permission-source)); the principal carries `department` for `${user.department}` placeholders. A `service` principal uses its `grants` without touching the users tables. Unclassified principals are unauthenticated.
 
 ### Authorization
 
-Authorization runs in two stages, both through `@nestjs-pipeline/casl`:
+Authorization runs in two stages, both through `@cqrs-ddd/pipeline-casl`:
 
-1. **Type level, before the handler.** Handlers declare requirements with `@UsePipeline(requires({ action, subject }))`. `CaslBehavior` loads the caller through `CaslPermissionSource`, builds the ability (every deny after every allow) and rejects with `UnauthorizedActionException` (HTTP 403 via `UnauthorizedActionFilter`) before cache or idempotency can short-circuit.
+1. **Type level, before the handler.** Handlers declare requirements with `@UsePipeline(requires({ action, subject }))`. `CaslBehavior` loads the caller through `CaslPermissionSource`, builds the ability (every deny after every allow) and rejects with `UnauthorizedActionException` (HTTP 403 through `ErrorFilter` of `@cqrs-ddd/nestjs`) before cache or idempotency can short-circuit.
 2. **Entity level, in the handler, after the authoritative load.** Commands call `authorizer.authorize(action, aggregate, acceptedFields)`, a void permit-or-throw check, before mutating and saving. Queries return read models built with `authorizer.project('read', entity, candidate)`.
 
 ```typescript
@@ -407,7 +407,7 @@ export class GetUserQuery extends createQuery(
 @Injectable()
 export class GetUserQueryRepository extends QueryRepository<GetUserQuery, User | null> {
   constructor(
-    @Inject(CACHE_TOKEN) protected readonly cache: ICache<UserSnapshot>,
+    @Inject(CACHE) protected readonly cache: ICache<UserSnapshot>,
     @Inject(MIKRO_ORM_CLIENT) private readonly store: MikroOrmStore,
   ) {
     super(cache, { hydrateFn: (cached) => User.fromJSON(cached as UserSnapshot) });
@@ -478,11 +478,11 @@ Under the hood:
 
 #### 8. Pipeline Caching with CacheBehavior
 
-While entity query repositories use `@FromCache`, CQRS query handlers can also declaratively cache aggregate query results using `CacheBehavior` from `@nestjs-pipeline/cache`:
+While entity query repositories use `@FromCache`, CQRS query handlers can also declaratively cache aggregate query results using `CacheBehavior` from `@cqrs-ddd/pipeline-cache`:
 
 The disabled example uses a raw tuple because no cache key is configured. Use
-`cache({ key, ...options })` when enabling caching, or `inheritModuleKey: true`
-when a suitable key is configured in module defaults.
+`cache({ key, ...options })` when enabling caching, or give the `CacheBehavior`
+provider a default key (`new CacheBehavior(store, { key })`).
 
 ```typescript
 import { Inject } from '@nestjs/common';
@@ -490,9 +490,9 @@ import type { IQueryRepository } from '@cqrs-ddd/core/application';
 import type { Role } from '../../../domain/models/role.entity';
 import { QUERY_REPOSITORY } from '../../../persistence/repository.tokens';
 import { QueryHandler, type IQueryHandler } from '@nestjs/cqrs';
-import { UsePipeline } from '@nestjs-pipeline/core';
-import { CacheBehavior } from '@nestjs-pipeline/cache';
-import { CaslAuthorizer, requires } from '@nestjs-pipeline/casl';
+import { UsePipeline } from '@cqrs-ddd/pipeline';
+import { CacheBehavior } from '@cqrs-ddd/pipeline-cache';
+import { CaslAuthorizer, requires } from '@cqrs-ddd/pipeline-casl';
 import { projectRoleRead, type RoleReadModel } from '../../role-read-model';
 import { GetRolesQuery } from './get-roles.query';
 
@@ -529,7 +529,7 @@ export class GetRolesHandler implements IQueryHandler<GetRolesQuery, RoleReadMod
 >
 > Correlation IDs may be supplied or reused and do not isolate principals. Before enabling the protected-result example above, provide an explicit `key` factory covering tenant, principal type/ID and effective permissions, and an invalidation/freshness policy. Fail closed on missing required context. A global type-level CASL check alone does not reproduce the handler's entity/field authorization.
 >
-> Use `createPartitionedCacheKeyFactory` from `@nestjs-pipeline/cache`. It partitions every dimension that influences the authorized response (`tenantId`, principal ID, role/capability scope, payload digest), escapes each segment so `a:b` + `c` cannot collide with `a` + `b:c`, and fails closed with `MissingCachePartitionError` on missing tenant or principal context — never falling back to `'default'`.
+> Use `createPartitionedCacheKeyFactory` from `@cqrs-ddd/pipeline-cache`. It partitions every dimension that influences the authorized response (`tenantId`, principal ID, role/capability scope, payload digest), escapes each segment so `a:b` + `c` cannot collide with `a` + `b:c`, and fails closed with `MissingCachePartitionError` on missing tenant or principal context — never falling back to `'default'`.
 
 #### 9. Composed Read Models & Authoritative Reads
 
@@ -579,10 +579,10 @@ connection settings from there.
 ## Background jobs
 
 A job runs with the tenant, correlation id and principal of the request that enqueued it
-(`@nestjs-pipeline/job-context`). `BullMqUserEventDispatcher` stamps each payload with
+(`@cqrs-ddd/pipeline-job-context`). `BullMqUserEventDispatcher` stamps each payload with
 `withJobContext`, and both processors restore it with `@InJobContext()`. `AppModule`
-registers `JobContextModule` with `SessionJobPrincipal` and the tenants of
-`persistenceConfig()`.
+registers `JobContextModule` of `@cqrs-ddd/nestjs/job-context` with `SessionJobPrincipal`
+and the tenants of `persistenceConfig()`.
 
 The payload carries identity only. `SessionJobPrincipal` checks it again when the job runs
 and binds it through `sessionPrincipalStore`, as a request does:
@@ -618,19 +618,20 @@ Human users' rules are materialized per rule and per user in `user_permission_ru
 
 Global and per-handler examples exercise:
 
-- `@nestjs-pipeline/core` — pipeline execution and logging
-- `@nestjs-pipeline/correlation` — HTTP and async correlation propagation
-- `@nestjs-pipeline/zod` — request parsing/validation
-- `@nestjs-pipeline/opentelemetry` — trace and metrics behaviors
-- `@nestjs-pipeline/casl` — ABAC authorization
-- `@nestjs-pipeline/resilience` — retry/circuit-breaker/timeout policies
-- `@nestjs-pipeline/cache` — cache behavior infrastructure
-- `@nestjs-pipeline/feature-flags` — OpenFeature gating
-- `@nestjs-pipeline/deadletter` — failed-request capture
-- `@nestjs-pipeline/rate-limit` — `rate-limiter-flexible` integration
-- `@nestjs-pipeline/audit` — redacted audit records
-- `@nestjs-pipeline/idempotency` — atomic duplicate exclusion and replay
-- `@cqrs-ddd/core` — entities, aggregate-bearing command results, events, and repository helpers
+- `@cqrs-ddd/nestjs` — runs the `@nestjs/cqrs` handlers through their pipelines, answers every package error as a NestJS `HttpException`, wires correlation and job context
+- `@cqrs-ddd/pipeline` — pipeline execution and logging
+- `@cqrs-ddd/pipeline-correlation` — HTTP and async correlation propagation
+- `@cqrs-ddd/pipeline-zod` — request parsing/validation
+- `@cqrs-ddd/pipeline-opentelemetry` — trace and metrics behaviors
+- `@cqrs-ddd/pipeline-casl` — ABAC authorization
+- `@cqrs-ddd/pipeline-resilience` — retry/circuit-breaker/timeout policies
+- `@cqrs-ddd/pipeline-cache` — cache behavior infrastructure
+- `@cqrs-ddd/pipeline-feature-flags` — OpenFeature gating
+- `@cqrs-ddd/pipeline-deadletter` — failed-request capture
+- `@cqrs-ddd/pipeline-rate-limit` — `rate-limiter-flexible` integration
+- `@cqrs-ddd/pipeline-audit` — redacted audit records
+- `@cqrs-ddd/pipeline-idempotency` — atomic duplicate exclusion and replay
+- `@cqrs-ddd/core` — entities, events, and repository helpers; command handlers publish aggregate events through NestJS's `EventPublisher`
 
 ### What a trace contains
 
@@ -657,14 +658,14 @@ OpenTelemetry dependency; each exports a factory that turns its entry into
 attributes (`buildFeatureFlagAttributes`, `buildCacheAttributes`,
 `buildIdempotencyAttributes`, `buildRateLimitAttributes`,
 `buildDeadLetterAttributes`). `ObservabilityModule` registers `AttributesBehavior`
-of `@nestjs-pipeline/opentelemetry` with those factories, inside `TraceBehavior`
+of `@cqrs-ddd/pipeline-opentelemetry` with those factories, inside `TraceBehavior`
 and `MetricsBehavior` and outside the add-ons, so it reads on unwind and the span
 receives `feature_flag.*`, `cache.hit`, `idempotency.*`,
 `rate_limit.remaining_points` and `dead_letter.captured`. A behavior that did not
 run contributes nothing, and no key becomes an attribute.
 `test/span-attributes.spec.ts` checks the attributes on real spans.
 
-The application also has its own tenant-aware DDD repository cache so user/role write invalidation has a single clear target. In addition, `TenantSchemaMiddleware` runs each request inside `TenantSchemaContext.run`, which sets the current tenant of `@nestjs-pipeline/tenant`; every pipeline takes it as `IPipelineContext.tenantId`, so command handlers, rate limiters and idempotency key factories read the tenant from the context without direct ambient coupling. `ObservabilityModule` also registers `currentTenantId` from `@nestjs-pipeline/tenant` as the tenant resolver of `@cqrs-ddd/core` (`setTenantResolver`), so repository cache keys (`cacheKey`) take the scope's tenant without it being passed at each call site. The application is the only place that knows both packages.
+The application also has its own tenant-aware DDD repository cache so user/role write invalidation has a single clear target. In addition, `TenantSchemaMiddleware` runs each request inside `TenantSchemaContext.run`, which sets the current tenant of `@cqrs-ddd/pipeline-tenant`; every pipeline takes it as `IPipelineContext.tenantId`, so command handlers, rate limiters and idempotency key factories read the tenant from the context without direct ambient coupling. `ObservabilityModule` also registers `currentTenantId` from `@cqrs-ddd/pipeline-tenant` as the tenant resolver of `@cqrs-ddd/core` (`setTenantResolver`), so repository cache keys (`cacheKey`) take the scope's tenant without it being passed at each call site. The application is the only place that knows both packages.
 
 ## Code boundaries
 
@@ -696,7 +697,7 @@ filter's mapping; `test/not-found-boundary.e2e-spec.ts` and
 Repository cache keys use one serializer, `stableStringify` from
 `@cqrs-ddd/safe-stringify`. `cacheKey` adds only tenant namespacing, top-level filter
 segments and escaping of its `:` / `\` delimiters, and takes the tenant from the resolver
-`ObservabilityModule` registers (`currentTenantId` of `@nestjs-pipeline/tenant`). Do not
+`ObservabilityModule` registers (`currentTenantId` of `@cqrs-ddd/pipeline-tenant`). Do not
 add another object sorter or JSON canonicalizer here.
 
 Idempotency and rate-limit key factories fail closed when `IPipelineContext.tenantId` is

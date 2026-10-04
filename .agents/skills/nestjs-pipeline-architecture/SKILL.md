@@ -266,7 +266,7 @@ Prefer application ports for:
 
 Environment variables are acceptable in bootstrap/infrastructure/configuration modules, not as hidden dependencies inside application use cases.
 
-The current tenant needs no port: it lives in `@nestjs-pipeline/tenant`, set where work enters (HTTP middleware, job context), and code reads it with `requireTenant(purpose)` from `@cqrs-ddd/core/application`, which fails closed with `MissingTenantContextError`. A key factory that receives a pipeline or job context passes it as the source: `requireTenant(purpose, ctx)`.
+The current tenant needs no port: it lives in `@cqrs-ddd/pipeline-tenant`, set where work enters (HTTP middleware, job context), and code reads it with `requireTenant(purpose)` from `@cqrs-ddd/core/application`, which fails closed with `MissingTenantContextError`. A key factory that receives a pipeline or job context passes it as the source: `requireTenant(purpose, ctx)`.
 
 Each external system (Redis, the database, the OTLP collector, a broker, a third-party API) has one standalone config module, `<system>.config.ts`, whose function (`redisConfig()`, `persistenceConfig()`, `otlpConfig()`) reads, defaults and validates its environment variables and returns typed settings. Every consumer — module wiring, CLI, adapters, tests — takes the settings from it; nothing else reads those variables or rebuilds a URL from them.
 
@@ -311,7 +311,7 @@ Query repositories and decorators:
 - Concurrent reads: when an in-flight query races a concurrent write that updates the cache, `@FromCache` detects the newer cached version (`newerCheck(current, snapshot)`) and returns the hydrated newer version rather than stale database data. A stale fill must never replace newer cache state; separate read/check/write steps do not prove that guarantee, so verify the coordination through the final write.
 - Anti-resurrection: `@Cache` writes a `CacheMutationBarrier` sentinel on deletions and secondary key invalidations, and `@FromCache` fills only through a revision-fenced `IVersionedCache`: it observes the key's revision before the database read and commits with `tryFill` only if nothing advanced it, so a stale snapshot cannot overwrite a barrier; a rejected fill re-reads and boundedly retries. An adapter with only `get`/`set` cannot be fenced, so `@FromCache` bypasses it for both reads and fills. Test invalidation after the last read but before fill, absence/expiry ABA, delete/recreate and retry exhaustion; the presence of barriers is not proof that all races are prevented, and DB commit plus cache maintenance remains a separate consistency boundary.
 - Cache adapters (`ICache<TSnapshot>`) store strictly serializable snapshots, never live domain aggregates. `MemoryCache` enforces deep detachment parity with database caches via JSON cloning on `set()` and `get()`.
-- `MikroOrmCache` (`packages/ddd-core`) executes queries outside the identity map (`{ disableIdentityMap: true }`) and never deletes an expired row: it reports it as `expired` and keeps its revision, so an expired reader cannot purge a concurrent fresh write.
+- `MikroOrmCache` (`@cqrs-ddd/mikro-orm`) executes queries outside the identity map (`{ disableIdentityMap: true }`) and never deletes an expired row: it reports it as `expired` and keeps its revision, so an expired reader cannot purge a concurrent fresh write.
 
 Query handlers:
 
@@ -460,7 +460,7 @@ Prefer adapting these files rather than inventing a new pattern:
 - Domain aggregate: `api/src/users/domain/models/user.entity.ts`
 - Framework-neutral domain error: `api/src/users/domain/models/errors/email.exception.ts`
 - HTTP mapping boundary: `api/src/common/filters/domain-exception.filter.ts`
-- Command lifecycle: `packages/ddd-core/application/command-base.handler.ts`
+- Command lifecycle (NestJS `EventPublisher`): `api/src/users/application/cqrs/commands/update-user.handler.ts`
 - Session cookie management: `api/src/auths/services/session.service.ts`
 - Permission source & principal discriminator: `api/src/auths/persistence/casl-permission.source.ts`
 

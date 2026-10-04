@@ -1,5 +1,15 @@
 # nestjs-pipeline
 
+> **From 0.5.0 the work continues as the [`@cqrs-ddd`](https://www.npmjs.com/org/cqrs-ddd)
+> packages**, developed in [ddd-cqrs](https://github.com/aristoteliss/ddd-cqrs) and documented at
+> [aristoteliss.github.io/ddd-cqrs](https://aristoteliss.github.io/ddd-cqrs/):
+> `@nestjs-pipeline/core` continues as `@cqrs-ddd/pipeline`, each `@nestjs-pipeline/<name>`
+> as `@cqrs-ddd/pipeline-<name>`, and NestJS applications add the adapter
+> [`@cqrs-ddd/nestjs`](https://www.npmjs.com/package/@cqrs-ddd/nestjs) (also published here as the
+> facade `@nestjs-pipeline/cqrs-ddd`). This repository is now the complete NestJS example of
+> those packages (`api/`) and keeps the 0.4.x line below, which receives fixes only;
+> versions 0.1 to 0.4 stay on npm unchanged.
+
 Pipeline behaviors for **NestJS CQRS** — wrap every command, query, and event handler with reusable cross-cutting concerns (logging, validation, tracing, audit, …) using a clean middleware-like chain.
 
 **Documentation: [aristoteliss.github.io/nestjs-pipeline](https://aristoteliss.github.io/nestjs-pipeline/)** — getting started, concepts, guides, one guide per package, the API reference generated from the JSDoc, and the HTTP API of the example application.
@@ -41,7 +51,9 @@ Framework-neutral packages, with no NestJS dependency:
 > No `@nestjs-pipeline/*` package uses `@cqrs-ddd/core`, and it knows nothing of them: an
 > application connects the two.
 
-Every package is at **0.4.2**. [CHANGELOG.md](CHANGELOG.md) records each release.
+The `@nestjs-pipeline/*` packages are at **0.4.3**, a README-only release that points to
+their successors; the five `@cqrs-ddd/*` packages above stay at **0.4.2** here and continue
+from 0.5.0 in ddd-cqrs. [CHANGELOG.md](CHANGELOG.md) records each release.
 
 ## Installation
 

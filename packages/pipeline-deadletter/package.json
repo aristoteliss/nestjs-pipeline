@@ -1,7 +1,7 @@
 {
   "name": "@nestjs-pipeline/deadletter",
-  "version": "0.4.2",
-  "description": "Dead-letter behavior for the NestJS pipeline — captures failed requests (events by default) through bundled BullMQ, RabbitMQ and Postgres transports, and redrives stored failures with an attempt count and a resolved state.",
+  "version": "0.4.3",
+  "description": "Dead-letter behavior for the NestJS pipeline \u2014 captures failed requests (events by default) through bundled BullMQ, RabbitMQ and Postgres transports, and redrives stored failures with an attempt count and a resolved state.",
   "author": "Aristotelis <aristotelis@ik.me>",
   "license": "SEE LICENSE IN LICENSE",
   "type": "module",

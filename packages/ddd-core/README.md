@@ -1,5 +1,9 @@
 # @cqrs-ddd/core
 
+> **From 0.5.0 `@cqrs-ddd/core` is developed and published from [ddd-cqrs](https://github.com/aristoteliss/ddd-cqrs)**, documented at
+> [aristoteliss.github.io/ddd-cqrs](https://aristoteliss.github.io/ddd-cqrs/packages/core/). This folder keeps its 0.4.x source; versions 0.1 to
+> 0.4 stay on npm unchanged.
+
 [![npm version](https://img.shields.io/npm/v/@cqrs-ddd/core.svg)](https://www.npmjs.com/package/@cqrs-ddd/core)
 [![License](https://img.shields.io/npm/l/@cqrs-ddd/core.svg)](https://www.npmjs.com/package/@cqrs-ddd/core)
 

@@ -1,5 +1,10 @@
 # @nestjs-pipeline/cache
 
+> **From 0.5.0 this package continues as [`@cqrs-ddd/pipeline-cache`](https://www.npmjs.com/package/@cqrs-ddd/pipeline-cache).** Its code, issues and
+> releases are in [ddd-cqrs](https://github.com/aristoteliss/ddd-cqrs), documented at [aristoteliss.github.io/ddd-cqrs](https://aristoteliss.github.io/ddd-cqrs/packages/pipeline-cache/).
+> NestJS applications add [`@cqrs-ddd/nestjs`](https://www.npmjs.com/package/@cqrs-ddd/nestjs). Versions 0.1 to 0.4 of
+> `@nestjs-pipeline/cache` stay on npm unchanged, and 0.4.x receives fixes only.
+
 [![npm version](https://img.shields.io/npm/v/@nestjs-pipeline/cache.svg)](https://www.npmjs.com/package/@nestjs-pipeline/cache)
 [![License](https://img.shields.io/npm/l/@nestjs-pipeline/cache.svg)](https://www.npmjs.com/package/@nestjs-pipeline/cache)
 
