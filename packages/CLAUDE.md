@@ -1,6 +1,9 @@
 # packages/ — published pipeline libraries
 
-Scope: every `@nestjs-pipeline/*` package published to npm. Root rules in
+Scope: every package published to npm from here: the 0.4.x line of the `@nestjs-pipeline/*`
+packages and the `@cqrs-ddd/*` copies (fixes only; from 0.5.0 their successors live in
+ddd-cqrs), and `cqrs-ddd/`, the 0.5 facade `@nestjs-pipeline/cqrs-ddd`, which only
+re-exports `@cqrs-ddd/nestjs`. The rules below are those of the 0.4.x line. Root rules in
 [AGENTS.md](../AGENTS.md) and the
 [architecture skill](../.agents/skills/nestjs-pipeline-architecture/SKILL.md) apply here
 too. Repository-wide orientation: [.claude/codebase-map.md](../.claude/codebase-map.md).

@@ -1,5 +1,9 @@
 # @cqrs-ddd/untyped
 
+> **From 0.5.0 `@cqrs-ddd/untyped` is developed and published from [ddd-cqrs](https://github.com/aristoteliss/ddd-cqrs)**, documented at
+> [aristoteliss.github.io/ddd-cqrs](https://aristoteliss.github.io/ddd-cqrs/packages/untyped/). This folder keeps its 0.4.x source; versions 0.1 to
+> 0.4 stay on npm unchanged.
+
 A typed replacement for `as any` when code must read a property the type does not
 declare, such as framework metadata on a wrapper object. `untyped(value)` returns the
 same value typed as `T & Record<string | symbol, unknown>`: declared properties keep

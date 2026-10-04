@@ -116,7 +116,8 @@ This repository is the complete NestJS example of the `@cqrs-ddd/*` packages: fr
 its `api` keeps all of NestJS and official `@nestjs/cqrs`, and installs the packages, whose
 one implementation lives in ddd-cqrs (`~/Source/ddd-cqrs`), only for what NestJS lacks;
 using the packages without NestJS belongs to ddd-cqrs. The `@nestjs-pipeline/*` packages
-here stop at 0.4.x and only receive README notices. Never copy or patch package code here:
+here stop at 0.4.x (README notices in 0.4.3, fixes only), and `packages/cqrs-ddd` publishes
+the facade `@nestjs-pipeline/cqrs-ddd` over `@cqrs-ddd/nestjs`. Never copy or patch package code here:
 fix it in ddd-cqrs, republish it to the local registry
 (`~/Source/ddd-cqrs/tools/local-registry/`) and install it again. Release order, package
 names and the rules of both sides: [AGENTS.md, The two repositories](AGENTS.md#the-two-repositories).

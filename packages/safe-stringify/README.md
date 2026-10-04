@@ -1,5 +1,9 @@
 # @cqrs-ddd/safe-stringify
 
+> **From 0.5.0 `@cqrs-ddd/safe-stringify` is developed and published from [ddd-cqrs](https://github.com/aristoteliss/ddd-cqrs)**, documented at
+> [aristoteliss.github.io/ddd-cqrs](https://aristoteliss.github.io/ddd-cqrs/packages/safe-stringify/). This folder keeps its 0.4.x source; versions 0.1 to
+> 0.4 stay on npm unchanged.
+
 Two JSON serializers with opposite goals, and the key-segment helpers that build
 identity keys. No runtime dependencies and no framework.
 

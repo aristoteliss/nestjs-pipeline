@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.4.3
+
+The 14 `@nestjs-pipeline/*` packages are released at 0.4.3, a README-only release: the code,
+the API and the requirements are those of 0.4.2.
+
+### Changed
+
+- Each README starts with a notice: from 0.5.0 the package continues as its `@cqrs-ddd`
+  successor (`@nestjs-pipeline/core` as `@cqrs-ddd/pipeline`, `@nestjs-pipeline/<name>` as
+  `@cqrs-ddd/pipeline-<name>`), developed in https://github.com/aristoteliss/ddd-cqrs and
+  documented at https://aristoteliss.github.io/ddd-cqrs/. Versions 0.1 to 0.4 stay on npm,
+  and 0.4.x receives fixes only.
+- The five `@cqrs-ddd/*` packages of this repository stay at 0.4.2: from 0.5.0 they are
+  published from ddd-cqrs.
+
 ## 0.4.2
 
 Every package is released at 0.4.2. The API and the requirements are those of 0.4.1.

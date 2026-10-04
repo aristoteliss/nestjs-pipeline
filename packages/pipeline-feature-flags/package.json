@@ -1,7 +1,7 @@
 {
   "name": "@nestjs-pipeline/feature-flags",
-  "version": "0.4.2",
-  "description": "Feature-flag gating behavior for the NestJS pipeline — provider-agnostic via OpenFeature (Unleash, Flagsmith, LaunchDarkly, …).",
+  "version": "0.4.3",
+  "description": "Feature-flag gating behavior for the NestJS pipeline \u2014 provider-agnostic via OpenFeature (Unleash, Flagsmith, LaunchDarkly, \u2026).",
   "author": "Aristotelis <aristotelis@ik.me>",
   "license": "SEE LICENSE IN LICENSE",
   "type": "module",

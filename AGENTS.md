@@ -144,7 +144,8 @@ after mistakes.
 `.claude/codebase-map.md` is the compact orientation map: repository shape, stack, entry
 points, directory responsibilities, verified commands, critical modules and gotchas.
 Nested `CLAUDE.md` files under `packages/`, `packages/pipeline/`, `packages/ddd-core/` and
-`api/` carry the local rules for those areas.
+`api/` carry the local rules for those areas; the `packages/*` rules govern the 0.4.x line,
+which receives fixes only.
 
 The map is an index, not an authority: verify any claim against the source before relying
 on it, and prefer the code when they disagree. Regenerate the generated sections with
@@ -154,9 +155,9 @@ The root `README.md` section "Agent context files" documents the whole system.
 
 ## Library scope and review discipline
 
-`packages/*` are reusable libraries for external applications and future use cases;
-`packages/ddd-core` provides reusable DDD primitives and `api` is one example, not
-the product boundary. Evaluate a feature against its contract, extension purpose,
+`packages/*` are reusable libraries for external applications and future use cases (the
+0.4.x line here; from 0.5.0 their successors live in ddd-cqrs, where `@cqrs-ddd/core`
+provides the reusable DDD primitives), and `api` is one example, not the product boundary. Evaluate a feature against its contract, extension purpose,
 correctness, maintenance cost and compatibility, not only local call sites. Absence
 of a users-api call site does not make an export, adapter or supported input type
 useless; conversely, future reuse does not justify speculative abstractions.
@@ -215,7 +216,7 @@ Good names are short and declarative. A long name is a code smell: it usually re
 4. Keep entity-level authorization and field filtering in the application path after the real aggregate/result is available.
 5. Cache/idempotency short-circuit keys must include tenant, principal, and permission scope whenever those dimensions can change the final authorized response. Fail closed when required security context is absent; never silently fall back to shared `'default'` namespaces. A pipeline hit skips the handler's entity/field checks, and an outer type-level CASL check does not reproduce them. Correlation IDs are tracing metadata, not principal or permission boundaries. An idempotency key is an operation identity, not a disposable response-cache key: rotating it on permission changes can let the same effect run again. An idempotent operation may therefore keep a stable key only when replay carries an equivalent fail-closed scope check — a stored authorization digest compared before any completed response is returned, refusing a mismatch and refusing a record that has none. Without that check the key itself is the only guard, and the two safe-looking options are both wrong: binding permissions into the key duplicates the side effect, while replaying across a permission change returns a response the caller is no longer entitled to. Scope equality is valid only for the decisions the captured context represents; an operation whose authorization depends on resource state that changes later needs an explicit replay-authorization hook or must not replay results at all.
 6. Mutate aggregates through factories/domain methods, not direct setters or synthetic snapshots constructed only to trigger persistence. Aggregates inherit from our owned, framework-neutral `AggregateRoot` (NestJS 12 semantics in `@cqrs-ddd/core/domain`). Aggregate setters are `private` and exist only for MikroORM hydration (`accessor: true`), so application code cannot assign them. `biome/plugins/aggregate-identity.grit` also flags syntactic property writes on receivers named `user`, `role`, `aggregate`, or `entity` in application layers. This naming-based lint guard cannot resolve types, aliases, or dynamic keys; domain-method mutation remains mandatory outside its coverage.
-7. Keep concrete queues, JWT libraries, environment/configuration access, persistence contexts, and similar infrastructure behind application-facing ports when used by application code. The current tenant is not such infrastructure: it lives in `@nestjs-pipeline/tenant`, and code that needs it calls `requireTenant(purpose)` from `@cqrs-ddd/core/application`, which fails closed with `MissingTenantContextError`. Do not wrap it in a port, and do not import a persistence tenant context (such as `TenantSchemaContext`) into application code.
+7. Keep concrete queues, JWT libraries, environment/configuration access, persistence contexts, and similar infrastructure behind application-facing ports when used by application code. The current tenant is not such infrastructure: it lives in `@cqrs-ddd/pipeline-tenant`, and code that needs it calls `requireTenant(purpose)` from `@cqrs-ddd/core/application`, which fails closed with `MissingTenantContextError`. Do not wrap it in a port, and do not import a persistence tenant context (such as `TenantSchemaContext`) into application code.
 8. Aggregate-changing commands publish events the NestJS way: `this.publisher.mergeObjectContext(aggregate)` (`EventPublisher` from `@nestjs/cqrs`), persist, then `await aggregate.commit()` once; do not publish events any other way.
 9. Do not introduce or expand private NestJS framework API coupling casually. Existing private CQRS bootstrap usage is an accepted repository trade-off and requires compatibility reasoning/tests before changing it.
 10. Do not assume Nest's in-memory EventBus is a transactional outbox. Durable delivery requires an explicit architecture decision.
