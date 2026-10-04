@@ -1,0 +1,48 @@
+---
+title: Πολλοί tenants σε μία εγκατάσταση
+description: Ορίστε τον tenant μία φορά ανά αίτημα, και αφήστε την αποθήκευση, τα pipelines και κάθε κλειδί να τον διαβάζουν, αποτυγχάνοντας άμεσα όταν λείπει.
+sidebar:
+  order: 4
+---
+
+import { Code } from '@astrojs/starlight/components';
+import middleware from '../../../../../../api/src/persistence/middlewares/tenant-schema.middleware.ts?raw';
+import context from '../../../../../../api/src/persistence/tenant-schema.context.ts?raw';
+import sources from '../../../../../../api/src/common/context/context-sources.ts?raw';
+import operationKey from '../../../../../../api/src/common/idempotency/operation-key.ts?raw';
+
+Το users-api εξυπηρετεί πολλαπλούς tenants από μία διεργασία: ένα PostgreSQL schema, ή ένα αρχείο SQLite,
+ανά tenant. Ο tenant ορίζεται μία φορά, εκεί όπου εισέρχεται το αίτημα, και οτιδήποτε κατάντη διαβάζει
+την ίδια τιμή. Τίποτα δεν καταφεύγει σιωπηρά σε προεπιλεγμένο tenant.
+
+## 1. Ορισμός του tenant εκεί όπου εισέρχεται το αίτημα
+
+Το `TenantSchemaMiddleware` διαβάζει το `x-tenant-schema`, απορρίπτει έναν ελλείποντα ή άγνωστο tenant, και
+εκτελεί το υπόλοιπο αίτημα εντός αυτού:
+
+<Code code={middleware} lang="ts" title="api/src/persistence/middlewares/tenant-schema.middleware.ts" />
+
+## 2. Ένα ενιαίο store για τον tenant
+
+Το `TenantSchemaContext.run` ορίζει τον tenant του
+[`@nestjs-pipeline/tenant`](/nestjs-pipeline/el/packages/nestjs-pipeline/tenant/), το μοναδικό store
+που διαβάζουν η βάση δεδομένων, τα pipelines και τα κλειδιά cache του `@cqrs-ddd/core`:
+
+<Code code={context} lang="ts" title="api/src/persistence/tenant-schema.context.ts" />
+
+Τα pipelines και τα jobs λαμβάνουν τον tenant, καθώς και το correlation id, από τις πηγές που έχουν καταχωρηθεί μία φορά:
+
+<Code code={sources} lang="ts" title="api/src/common/context/context-sources.ts" />
+
+## 3. Συμπερίληψη του tenant σε κάθε κλειδί
+
+Μια εύρεση cache ή ένα idempotent replay παρακάμπτει τον handler, και μαζί του τους ελέγχους του handler. Επομένως
+κάθε κλειδί που μπορεί να επιστρέψει αποθηκευμένο αποτέλεσμα φέρει τον tenant, καθώς και το principal όπου
+το αποτέλεσμα εξαρτάται από αυτό. Τα partitioned key factories των πρόσθετων κατασκευάζουν τέτοια κλειδιά και
+αποτυγχάνουν με fail-closed συμπεριφορά όταν λείπει ένα τμήμα· αυτό είναι το κλειδί λειτουργίας των idempotent εντολών της εφαρμογής:
+
+<Code code={operationKey} lang="ts" title="api/src/common/idempotency/operation-key.ts" />
+
+Τα rate limits διαχωρίζονται με τον ίδιο τρόπο, ανά tenant και principal
+(`createPartitionedRateLimitKeyFactory`), και τα κλειδιά cache του repository λαμβάνουν τον tenant μέσω
+του resolver που καταχωρίζει το `ObservabilityModule` (δείτε [Σύνδεση μιας εφαρμογής](/nestjs-pipeline/el/recipes/application-wiring/)).

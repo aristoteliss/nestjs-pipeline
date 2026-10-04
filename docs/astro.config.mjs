@@ -12,6 +12,11 @@ export default defineConfig({
   integrations: [
     starlight({
       title: 'nestjs-pipeline',
+      defaultLocale: 'root',
+      locales: {
+        root: { label: 'English', lang: 'en' },
+        el: { label: 'Ελληνικά', lang: 'el' },
+      },
       description:
         'Pipeline behaviors for NestJS CQRS, and framework-neutral DDD building blocks.',
       components: {
@@ -87,22 +92,38 @@ export default defineConfig({
       sidebar: [
         {
           label: 'Start',
+          translations: { el: 'Ξεκίνημα' },
           items: [
-            { label: 'Overview', slug: 'overview' },
-            { label: 'Getting started', slug: 'getting-started' },
-            { label: 'Architecture', slug: 'concepts/architecture' },
+            {
+              label: 'Overview',
+              translations: { el: 'Επισκόπηση' },
+              slug: 'overview',
+            },
+            {
+              label: 'Getting started',
+              translations: { el: 'Πρώτα βήματα' },
+              slug: 'getting-started',
+            },
+            {
+              label: 'Architecture',
+              translations: { el: 'Αρχιτεκτονική' },
+              slug: 'concepts/architecture',
+            },
           ],
         },
         {
           label: 'Concepts',
+          translations: { el: 'Έννοιες' },
           items: [{ autogenerate: { directory: 'concepts' } }],
         },
         {
           label: 'Guides',
+          translations: { el: 'Οδηγοί' },
           items: [{ autogenerate: { directory: 'guides' } }],
         },
         {
           label: 'Recipes',
+          translations: { el: 'Συνταγές' },
           items: [{ autogenerate: { directory: 'recipes' } }],
         },
         {
@@ -115,14 +136,20 @@ export default defineConfig({
         },
         {
           label: 'Upgrading',
+          translations: { el: 'Αναβάθμιση' },
           collapsed: true,
           items: [
             { autogenerate: { directory: 'upgrading' } },
             {
               label: 'Release notes',
+              translations: { el: 'Σημειώσεις έκδοσης' },
               items: [{ autogenerate: { directory: 'releases' } }],
             },
-            { label: 'Changelog', slug: 'changelog' },
+            {
+              label: 'Changelog',
+              translations: { el: 'Αρχείο αλλαγών' },
+              slug: 'changelog',
+            },
           ],
         },
         typeDocSidebarGroup,

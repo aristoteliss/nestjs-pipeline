@@ -1,0 +1,58 @@
+---
+title: Jobs που διατηρούν το context του αιτήματος
+description: Εισάγετε εργασίες στην ουρά από ένα αίτημα και εκτελέστε τες αργότερα με τον ίδιο tenant, correlation id και principal, επανελεγμένα όταν τρέχει το job.
+sidebar:
+  order: 3
+---
+
+import { Code } from '@astrojs/starlight/components';
+import dispatcher from '../../../../../../api/src/users/jobs/bullmq-user-event-dispatcher.adapter.ts?raw';
+import processor from '../../../../../../api/src/users/jobs/send-welcome-email.processor.ts?raw';
+import principal from '../../../../../../api/src/auths/infrastructure/session-job-principal.ts?raw';
+
+Ένα job εκτελείται αφού το αίτημα που το έβαλε στην ουρά έχει ολοκληρωθεί. Με το
+[`@nestjs-pipeline/job-context`](/nestjs-pipeline/el/packages/nestjs-pipeline/job-context/), το
+job μεταφέρει τον tenant, το correlation id και το principal του αιτήματος, και τα επαναφέρει πριν
+εκτελεστεί, ώστε το pipeline που αποστέλλει να λαμβάνει τις αποφάσεις που θα λάμβανε το αρχικό αίτημα. Αυτή η
+συνταγή ακολουθεί το email καλωσορίσματος από το [Μια εντολή μέσα από κάθε επίπεδο](/nestjs-pipeline/el/recipes/command-pipeline/).
+
+## 1. Καταχώριση του module
+
+Το `AppModule` το καταχωρίζει μία φορά, με το principal port της εφαρμογής, τους tenants στους οποίους επιτρέπεται
+να εκτελεστεί ένα job, και τα stores από τα οποία διαβάζονται ο tenant και το correlation id:
+
+```ts
+JobContextModule.forRoot({
+  principal: SessionJobPrincipal,
+  tenants: () => persistenceConfig().tenants,
+  sources: contextSources,
+  imports: [AuthsModule],
+}),
+```
+
+Το `tenants` είναι συνάρτηση, που διαβάζεται κατά την εκκίνηση της εφαρμογής, ώστε η λίστα να προέρχεται από τις ίδιες
+ρυθμίσεις με τη βάση δεδομένων.
+
+## 2. Σφράγιση (stamp) του payload κατά την προσθήκη στην ουρά
+
+Το application layer γνωρίζει μόνο ένα dispatcher port. Ο BullMQ adapter του περικλείει κάθε payload στο
+`withJobContext`, μέσα στο αίτημα, όσο το context είναι ενεργό:
+
+<Code code={dispatcher} lang="ts" title="api/src/users/jobs/bullmq-user-event-dispatcher.adapter.ts" />
+
+## 3. Επαναφορά στον processor
+
+Το `@InJobContext()` επικυρώνει το `job.data.jobContext` και εκτελεί τη μέθοδο `process` εντός του tenant, του
+correlation id και του επαναφερθέντος principal. Το `TenantSchemaContext` και η `getCorrelationId()`
+απαντούν τότε όπως θα απαντούσαν μέσα στο αίτημα:
+
+<Code code={processor} lang="ts" title="api/src/users/jobs/send-welcome-email.processor.ts" />
+
+## 4. Επανέλεγχος του principal κατά την εκτέλεση του job
+
+Ένα payload είναι δεδομένα: όποιος μπορεί να γράψει στην ουρά μπορεί να το συντάξει. Επομένως φέρει μόνο αναφορά
+ταυτότητας, ποτέ δικαιώματα (permissions), και το principal port αποφασίζει τι επιτρέπεται να κάνει αυτή η ταυτότητα
+τώρα. Το `SessionJobPrincipal` επαναφορτώνει το session, οπότε ένα ανακληθέν session ή ένας διαγραμμένος χρήστης
+απορρίπτει το job:
+
+<Code code={principal} lang="ts" title="api/src/auths/infrastructure/session-job-principal.ts" />

@@ -266,41 +266,44 @@ dependencies on the private `api`; each `@cqrs-ddd/*` package has its own
 
 ### Releasing
 
-A release bumps only the packages whose published content changed; `CHANGELOG.md`
-records each release and lists them. A package that depends on a bumped one keeps its
-range as long as the range still covers the new version (`workspace:^` publishes as
-`^<version>`). Before publishing:
+Two lines are released from here. The 0.4.x line, the `@nestjs-pipeline/*` packages,
+receives fixes only. The 0.5 line is `@nestjs-pipeline/cqrs-ddd`, a facade over
+`@cqrs-ddd/nestjs`. The five `@cqrs-ddd/*` copies stay at 0.4.2 and are never published
+from here again: from 0.5.0 they, and every other `@cqrs-ddd/*` package, are released
+from [ddd-cqrs](https://github.com/aristoteliss/ddd-cqrs).
 
-1. Run `pnpm verify:all` (type checks, unit, build, release and E2E suites; E2E needs a
-   container runtime). `pnpm test:release` packs every package and loads it from its
-   tarball in an isolated consumer.
-2. Run `pnpm copy-licenses && pnpm -r publish --access public --dry-run --no-git-checks`
-   and check the list: every `@cqrs-ddd/*` and `@nestjs-pipeline/*` package, no private
-   workspace (`@nestjs-pipeline/ddd-api`).
-3. The npm organizations `cqrs-ddd` and `nestjs-pipeline` must exist, with your account
-   allowed to publish to both.
-4. Merge to `master`, then run `pnpm publish:all`. It copies the license files into each
-   package and publishes in dependency order; each package rebuilds in
-   `prepublishOnly`. `pnpm -r publish` skips every package whose version is already on
-   the registry, so only the bumped packages are published.
-5. Tag each published package as `<name>@<version>` (for 0.2.1:
-   `git tag @cqrs-ddd/core@0.2.1`, `@nestjs-pipeline/casl@0.2.1`, … for the ten packages
-   in the changelog) and the release as `v<version>`, then push the tags.
+A release bumps only the packages whose published content changed; `CHANGELOG.md` records
+it. A package that depends on a bumped one keeps its range as long as the range still
+covers the new version (`workspace:^` publishes as `^<version>`). To release:
 
-`pnpm test:release` (`integration/packages/release.mjs`) packs every non-private
-`packages/*` workspace and checks each archive: name and version, licenses, JavaScript and
-declarations, `engines.node` equal to the root's, a README without relative links outside
-the package (they break on npmjs.com), no tests, and no dependency on the private `api`. No
-`@nestjs-pipeline/*` package may name `@cqrs-ddd/core`. Missing, duplicate or unexpected
-archives fail it. A temporary consumer outside the checkout then installs every tarball,
-with required peers at the lockfile's versions and automatic peer installation off, and
-compiles and runs the fixtures in `integration/packages/consumer/src/` (request-scoped
-behaviors across two Nest applications, the typed intent builders, CASL 7 startup). Every
-`.ts` file there is compiled and run; add a fixture for a new cross-package contract.
-Finally, each `@cqrs-ddd/*` package is installed alone with its peers and the packed
-packages it needs, and no NestJS: it fails if it depends on anything outside the release,
-pulls in anything else, or an entry point yields no exports. Requirements: the repository's
-Node and pnpm, `tar`, and registry access for uncached dependencies.
+1. On a clean, up-to-date `master`, run `pnpm verify:all` (type checks, unit, build,
+   release and E2E suites; E2E needs a container runtime).
+2. `npm whoami`, then `pnpm copy-licenses`.
+3. Publish only the bumped packages, by filter, for example
+   `pnpm --filter "./packages/pipeline*" publish --access public` for the 0.4.x line, or
+   `pnpm --filter @nestjs-pipeline/cqrs-ddd publish --access public`. Never
+   `pnpm publish:all` here: it would also try the frozen `@cqrs-ddd/*` copies. Each
+   package rebuilds in `prepublishOnly`, and `pnpm publish` skips a version already on
+   the registry, so check with `npm view <name> version` that it was published.
+4. Tag each published package as `<name>@<version>` and the release as `v<version>` on
+   the release commit, then push the tags; pushing `master` redeploys the documentation
+   site.
+
+`pnpm test:release` runs `integration/packages/release.mjs` once per line (`0.4`, then
+`0.5`), because the two lines need different versions of `@cqrs-ddd/core`. It packs every
+non-private workspace of the line and checks each archive: name and version, licenses,
+JavaScript and declarations, `engines.node` equal to the root's, a README without relative
+links outside the package (they break on npmjs.com), no tests, and no dependency on the
+private `api`; on the 0.4 line, no `@nestjs-pipeline/*` package may name `@cqrs-ddd/core`.
+A temporary consumer outside the checkout then installs the tarballs, with required peers
+at the lockfile's versions and automatic peer installation off (on the 0.5 line also the
+optional peers, which its entry points need), and compiles and runs the line's fixtures:
+`integration/packages/consumer/src/` for 0.4 (request-scoped behaviors across two Nest
+applications, the typed intent builders, CASL 7 startup) and
+`integration/packages/consumer/src-0.5/` for the facade. Every `.ts` file there is
+compiled and run; add a fixture for a new cross-package contract. Finally, on the 0.4 line,
+each framework-neutral `@cqrs-ddd/*` copy is installed alone, without NestJS. Requirements:
+the repository's Node and pnpm, Bun, `tar`, and registry access for uncached dependencies.
 
 ### Agent context files
 

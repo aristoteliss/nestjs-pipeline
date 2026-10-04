@@ -1,0 +1,61 @@
+---
+title: Μια εντολή μέσα από κάθε επίπεδο
+description: Το POST /users της παραδειγματικής εφαρμογής, από τη διαδρομή έως το domain event, με έξι behaviors σε μία εντολή.
+sidebar:
+  order: 1
+---
+
+import { Code } from '@astrojs/starlight/components';
+import command from '../../../../../../api/src/users/application/cqrs/commands/create-user.command.ts?raw';
+import handler from '../../../../../../api/src/users/application/cqrs/commands/create-user.handler.ts?raw';
+import mapper from '../../../../../../api/src/users/mappers/create-user.mapper.ts?raw';
+import event from '../../../../../../api/src/users/application/cqrs/events/user-created.handler.ts?raw';
+
+Αυτή η συνταγή ακολουθεί το `POST /users` του users-api, της παραδειγματικής εφαρμογής του repository. Κάθε
+αρχείο παρακάτω είναι πραγματικός κώδικας της εφαρμογής, όπως ακριβώς κατασκευάζεται και ελέγχεται.
+
+## 1. Η διαδρομή αντιστοιχίζει το body σε εντολή
+
+Ο controller δηλώνει το schema του body με `@Body({ schema: CreateUserDtoSchema })`, το οποίο
+το `StandardSchemaValidationPipe` του Nest επικυρώνει (δείτε [Επικύρωση με το Zod](/nestjs-pipeline/el/guides/zod/)), διαβάζει την προαιρετική κεφαλίδα `Idempotency-Key`, και παραδίδει
+και τα δύο σε έναν mapper. Το `createZodMapper` μετατρέπει το DTO αιτήματος στην εντολή:
+
+<Code code={mapper} lang="ts" title="api/src/users/mappers/create-user.mapper.ts" />
+
+## 2. Η εντολή φέρει το δικό της schema
+
+Το `createCommand` δίνει στην κλάση της εντολής το δικό της Zod schema, εδώ δομημένο από τους κανόνες
+μήκους του ίδιου του domain (`User.rules`). Το `ZodValidationBehavior`, δηλωμένο ως καθολικό behavior, αναλύει
+κάθε εντολή έναντι αυτού του schema πριν εκτελεστεί ο handler της, οπότε μια εντολή που φτάνει στον
+handler είναι έγκυρη όποιος κι αν την απέστειλε:
+
+<Code code={command} lang="ts" title="api/src/users/application/cqrs/commands/create-user.command.ts" />
+
+## 3. Ο handler δηλώνει το pipeline του
+
+Το `@UsePipeline` στοιβάζει τα behaviors που χρειάζεται αυτή η εντολή. Εκτελούνται μετά τα καθολικά `before`
+behaviors και με τη σειρά που αναφέρονται (δείτε [Μοντέλο εκτέλεσης pipeline](/nestjs-pipeline/el/concepts/execution-model/)):
+
+| Behavior | Τι κάνει εδώ | Πακέτο |
+| --- | --- | --- |
+| `logging` | Καταγράφει την εντολή· διπλότυπο email (`UniqueEmailException`) καταγράφεται ως warning, όχι error | [core](/nestjs-pipeline/el/packages/nestjs-pipeline/core/) |
+| `requires` | Έλεγχος επιπέδου τύπου: εάν ο καλών επιτρέπεται να εκτελέσει `create` σε `User` γενικά | [casl](/nestjs-pipeline/el/packages/nestjs-pipeline/casl/) |
+| `featureFlag` | Απορρίπτει την εντολή όσο το flag `user-registration` είναι απενεργοποιημένο | [feature-flags](/nestjs-pipeline/el/packages/nestjs-pipeline/feature-flags/) |
+| `rateLimit` | Καταναλώνει `RATE_LIMIT_COST.createUser` πόντους από τον κάδο του καλούντος | [rate-limit](/nestjs-pipeline/el/packages/nestjs-pipeline/rate-limit/) |
+| `idempotent` | Αναπαράγει το αποτέλεσμα επαναληπτικής λειτουργίας με το ίδιο `Idempotency-Key`, για τον ίδιο καλούντα και δικαιώματα | [idempotency](/nestjs-pipeline/el/packages/nestjs-pipeline/idempotency/) |
+| `audit` | Καταγράφει ποιος δημιούργησε ποιον χρήστη, και το αποτέλεσμα | [audit](/nestjs-pipeline/el/packages/nestjs-pipeline/audit/) |
+
+Μέσα στο `execute`, το `CaslAuthorizer.authorize` ελέγχει τη νέα οντότητα και τα πεδία που
+εγγράφονται. Αυτός ο έλεγχος επιπέδου οντότητας ανήκει στον handler, αφού υπάρξει το aggregate· το
+`requires` επιπέδου τύπου παραπάνω δεν μπορεί να δει την οντότητα. Στη συνέχεια, ο `EventPublisher` του NestJS δημοσιεύει
+τα buffer συμβάντα του aggregate αφού αποθηκευτεί (`publisher.mergeObjectContext(user).commit()`):
+
+<Code code={handler} lang="ts" title="api/src/users/application/cqrs/commands/create-user.handler.ts" />
+
+## 4. Το event εκκινεί τις επακόλουθες εργασίες
+
+Το `User.create` κατέγραψε ένα `UserCreatedEvent`. Ο handler του εισάγει στην ουρά το email καλωσορίσματος, και
+το `deadLetter({ rethrow: false })` καταγράφει μια αποτυχία ως dead letter αντί να αποτύχει η
+εντολή που έχει ήδη ολοκληρωθεί επιτυχώς. Το [Jobs που διατηρούν το context του αιτήματος](/nestjs-pipeline/el/recipes/background-jobs/) το ακολουθεί μέσα στην ουρά:
+
+<Code code={event} lang="ts" title="api/src/users/application/cqrs/events/user-created.handler.ts" />

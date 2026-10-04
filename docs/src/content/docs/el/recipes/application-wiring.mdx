@@ -1,0 +1,49 @@
+---
+title: Σύνδεση μιας εφαρμογής
+description: Τα modules, τα καθολικά behaviors και η υποδομή HTTP της παραδειγματικής εφαρμογής, και η σειρά με την οποία διέρχεται ένα αίτημα από αυτά.
+sidebar:
+  order: 2
+---
+
+import { Code } from '@astrojs/starlight/components';
+import app from '../../../../../../api/src/app.module.ts?raw';
+import observability from '../../../../../../api/src/common/modules/observability.module.ts?raw';
+import reliability from '../../../../../../api/src/common/modules/reliability.module.ts?raw';
+
+Το users-api καταχωρίζει τα πακέτα μία φορά, σε τρία modules. Ένας handler δηλώνει τότε μόνο τα
+behaviors που αφορούν ειδικά αυτόν, όπως στο [Μια εντολή μέσα από κάθε επίπεδο](/nestjs-pipeline/el/recipes/command-pipeline/).
+
+## Η σειρά που ακολουθεί ένα αίτημα
+
+1. Το `CorrelationMiddleware` ορίζει το correlation id· το `TenantSchemaMiddleware` εκτελεί το
+   υπόλοιπο αίτημα εντός του tenant που ορίζει το `x-tenant-schema` (δείτε [Πολλοί tenants σε μία εγκατάσταση](/nestjs-pipeline/el/recipes/multi-tenancy/)).
+2. Το `AuthSessionGuard` επιλύει το principal· το `SessionPrincipalContextInterceptor` το καθιστά
+   διαθέσιμο στην εφαρμογή· το `HttpRouteInterceptor` ονομάζει το HTTP span από τη διαδρομή του.
+3. Το `StandardSchemaValidationPipe` επικυρώνει τις παραμέτρους που έχουν δηλωθεί με `schema`.
+4. Ο controller αποστέλλει ένα command ή query· το bus εκτελεί το pipeline του: τα καθολικά
+   `before` behaviors, αυτά του ίδιου του handler, και στη συνέχεια τον handler.
+5. Κατά την έξοδο, τα exception filters μετατρέπουν τα framework-neutral σφάλματα των πακέτων σε
+   απαντήσεις HTTP: 400 για validation, 403 για απενεργοποιημένο feature ή απαγορευμένη ενέργεια, 429 για
+   rate limit, 409 ή 422 για σύγκρουση idempotency.
+
+## Το root module
+
+<Code code={app} lang="ts" title="api/src/app.module.ts" />
+
+## Καθολικά behaviors και observability
+
+Το `ObservabilityModule` ταξινομεί τα καθολικά behaviors ώστε η τηλεμετρία να περικλείει ό,τι
+προσθέτει ένας handler: logging, μετά το span και τα metrics, μετά το `AttributesBehavior`, το οποίο αντιγράφει
+τις αποφάσεις των προσθέτων στο span, και έπειτα το validation. Τα commands και events λαμβάνουν επίσης το
+`DeadLetterBehavior`. Συνδέει επίσης τον tenant του `@nestjs-pipeline/tenant` με
+τα tenant-scoped cache keys του `@cqrs-ddd/core`:
+
+<Code code={observability} lang="ts" title="api/src/common/modules/observability.module.ts" />
+
+## Ουρές, όρια και stores
+
+Το `ReliabilityModule` συνδέει τα πρόσθετα με την υποδομή τους: BullMQ queues, το
+dead-letter transport, το rate limiter, το idempotency store, τις πολιτικές ανθεκτικότητας (resilience policies), την
+cache αποκρίσεων και τα feature flags:
+
+<Code code={reliability} lang="ts" title="api/src/common/modules/reliability.module.ts" />
