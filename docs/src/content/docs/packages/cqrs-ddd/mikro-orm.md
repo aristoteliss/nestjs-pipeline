@@ -3,6 +3,9 @@ title: "@cqrs-ddd/mikro-orm"
 description: "MikroORM persistence adapters for @cqrs-ddd/core: authoritative aggregate loading, version-conditioned writes, a revision-fenced cache and root-entity schema mapping."
 editUrl: false
 ---
+
+> **From 0.5.0 `@cqrs-ddd/mikro-orm` is developed and published from [ddd-cqrs](https://github.com/aristoteliss/ddd-cqrs)**, documented at [aristoteliss.github.io/ddd-cqrs](https://aristoteliss.github.io/ddd-cqrs/packages/mikro-orm/). This site documents the 0.4.x line; versions 0.1 to 0.4 stay on npm unchanged.
+
 [![npm version](https://img.shields.io/npm/v/@cqrs-ddd/mikro-orm.svg)](https://www.npmjs.com/package/@cqrs-ddd/mikro-orm)
 [![License](https://img.shields.io/npm/l/@cqrs-ddd/mikro-orm.svg)](https://www.npmjs.com/package/@cqrs-ddd/mikro-orm)
 

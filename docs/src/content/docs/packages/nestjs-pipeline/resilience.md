@@ -3,6 +3,12 @@ title: "@nestjs-pipeline/resilience"
 description: "Resilience for @nestjs-pipeline/core, powered by cockatiel — named policies shared by outbound adapters (retry, circuit breaker, timeout, bulkhead, fallback) and a behavior for handler-level retry, timeout and bulkhead."
 editUrl: false
 ---
+
+> **From 0.5.0 this package continues as [`@cqrs-ddd/pipeline-resilience`](https://www.npmjs.com/package/@cqrs-ddd/pipeline-resilience).** Its code, issues and
+> releases are in [ddd-cqrs](https://github.com/aristoteliss/ddd-cqrs), documented at [aristoteliss.github.io/ddd-cqrs](https://aristoteliss.github.io/ddd-cqrs/packages/pipeline-resilience/).
+> NestJS applications add [`@cqrs-ddd/nestjs`](https://www.npmjs.com/package/@cqrs-ddd/nestjs). Versions 0.1 to 0.4 of
+> `@nestjs-pipeline/resilience` stay on npm unchanged, and 0.4.x receives fixes only.
+
 [![npm version](https://img.shields.io/npm/v/@nestjs-pipeline/resilience.svg)](https://www.npmjs.com/package/@nestjs-pipeline/resilience)
 [![License](https://img.shields.io/npm/l/@nestjs-pipeline/resilience.svg)](https://www.npmjs.com/package/@nestjs-pipeline/resilience)
 

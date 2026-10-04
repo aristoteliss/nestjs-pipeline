@@ -3,6 +3,9 @@ title: "@cqrs-ddd/safe-stringify"
 description: "Deterministic JSON for identity (cache keys, fingerprints) and safe, redacting JSON for logs, with no dependencies and no framework."
 editUrl: false
 ---
+
+> **From 0.5.0 `@cqrs-ddd/safe-stringify` is developed and published from [ddd-cqrs](https://github.com/aristoteliss/ddd-cqrs)**, documented at [aristoteliss.github.io/ddd-cqrs](https://aristoteliss.github.io/ddd-cqrs/packages/safe-stringify/). This site documents the 0.4.x line; versions 0.1 to 0.4 stay on npm unchanged.
+
 Two JSON serializers with opposite goals, and the key-segment helpers that build
 identity keys. No runtime dependencies and no framework.
 

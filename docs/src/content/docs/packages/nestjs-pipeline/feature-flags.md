@@ -3,6 +3,12 @@ title: "@nestjs-pipeline/feature-flags"
 description: "Feature-flag gating behavior for the NestJS pipeline — provider-agnostic via OpenFeature (Unleash, Flagsmith, LaunchDarkly, …)."
 editUrl: false
 ---
+
+> **From 0.5.0 this package continues as [`@cqrs-ddd/pipeline-feature-flags`](https://www.npmjs.com/package/@cqrs-ddd/pipeline-feature-flags).** Its code, issues and
+> releases are in [ddd-cqrs](https://github.com/aristoteliss/ddd-cqrs), documented at [aristoteliss.github.io/ddd-cqrs](https://aristoteliss.github.io/ddd-cqrs/packages/pipeline-feature-flags/).
+> NestJS applications add [`@cqrs-ddd/nestjs`](https://www.npmjs.com/package/@cqrs-ddd/nestjs). Versions 0.1 to 0.4 of
+> `@nestjs-pipeline/feature-flags` stay on npm unchanged, and 0.4.x receives fixes only.
+
 [![npm version](https://img.shields.io/npm/v/@nestjs-pipeline/feature-flags.svg)](https://www.npmjs.com/package/@nestjs-pipeline/feature-flags)
 [![License](https://img.shields.io/npm/l/@nestjs-pipeline/feature-flags.svg)](https://www.npmjs.com/package/@nestjs-pipeline/feature-flags)
 

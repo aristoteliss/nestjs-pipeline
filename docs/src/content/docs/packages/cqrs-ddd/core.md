@@ -3,6 +3,9 @@ title: "@cqrs-ddd/core"
 description: "Framework- and ORM-neutral DDD building blocks for TypeScript: aggregates and domain events, CQRS base classes and repository ports, and a revision-fenced repository cache, as separate entry points."
 editUrl: false
 ---
+
+> **From 0.5.0 `@cqrs-ddd/core` is developed and published from [ddd-cqrs](https://github.com/aristoteliss/ddd-cqrs)**, documented at [aristoteliss.github.io/ddd-cqrs](https://aristoteliss.github.io/ddd-cqrs/packages/core/). This site documents the 0.4.x line; versions 0.1 to 0.4 stay on npm unchanged.
+
 [![npm version](https://img.shields.io/npm/v/@cqrs-ddd/core.svg)](https://www.npmjs.com/package/@cqrs-ddd/core)
 [![License](https://img.shields.io/npm/l/@cqrs-ddd/core.svg)](https://www.npmjs.com/package/@cqrs-ddd/core)
 

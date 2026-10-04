@@ -3,6 +3,12 @@ title: "@nestjs-pipeline/cache"
 description: "Caching behavior for the NestJS pipeline — cache-manager v7 on top of Keyv with pluggable stores (memory, redis, memcache, sqlite, postgres)."
 editUrl: false
 ---
+
+> **From 0.5.0 this package continues as [`@cqrs-ddd/pipeline-cache`](https://www.npmjs.com/package/@cqrs-ddd/pipeline-cache).** Its code, issues and
+> releases are in [ddd-cqrs](https://github.com/aristoteliss/ddd-cqrs), documented at [aristoteliss.github.io/ddd-cqrs](https://aristoteliss.github.io/ddd-cqrs/packages/pipeline-cache/).
+> NestJS applications add [`@cqrs-ddd/nestjs`](https://www.npmjs.com/package/@cqrs-ddd/nestjs). Versions 0.1 to 0.4 of
+> `@nestjs-pipeline/cache` stay on npm unchanged, and 0.4.x receives fixes only.
+
 ## Architectural role
 
 This reusable package caches final application query results, including expensive

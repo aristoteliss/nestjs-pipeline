@@ -14,6 +14,9 @@ export default defineConfig({
       title: 'nestjs-pipeline',
       description:
         'Pipeline behaviors for NestJS CQRS, and framework-neutral DDD building blocks.',
+      components: {
+        Banner: './src/components/Banner.astro',
+      },
       social: [
         {
           icon: 'github',
