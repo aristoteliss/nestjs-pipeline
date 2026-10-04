@@ -3,6 +3,12 @@ title: "@nestjs-pipeline/zod"
 description: "Zod validation/parsing behavior for @nestjs-pipeline/core that applies successful parsed object output to the existing request"
 editUrl: false
 ---
+
+> **From 0.5.0 this package continues as [`@cqrs-ddd/pipeline-zod`](https://www.npmjs.com/package/@cqrs-ddd/pipeline-zod).** Its code, issues and
+> releases are in [ddd-cqrs](https://github.com/aristoteliss/ddd-cqrs), documented at [aristoteliss.github.io/ddd-cqrs](https://aristoteliss.github.io/ddd-cqrs/packages/pipeline-zod/).
+> NestJS applications add [`@cqrs-ddd/nestjs`](https://www.npmjs.com/package/@cqrs-ddd/nestjs). Versions 0.1 to 0.4 of
+> `@nestjs-pipeline/zod` stay on npm unchanged, and 0.4.x receives fixes only.
+
 Zod v4 validation and parsing integration for `@nestjs-pipeline/core` — parse commands, queries, and events at the pipeline boundary, validate controller params and bodies through Nest's `StandardSchemaValidationPipe` with the same 400 body (`zodBadRequest`), and catch validation errors with `ZodValidationFilter`.
 
 ---

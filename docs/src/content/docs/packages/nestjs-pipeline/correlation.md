@@ -3,6 +3,12 @@ title: "@nestjs-pipeline/correlation"
 description: "Correlation ID propagation for NestJS (HTTP, Bull, RabbitMQ, Kafka, gRPC, NATS, cron)"
 editUrl: false
 ---
+
+> **From 0.5.0 this package continues as [`@cqrs-ddd/pipeline-correlation`](https://www.npmjs.com/package/@cqrs-ddd/pipeline-correlation).** Its code, issues and
+> releases are in [ddd-cqrs](https://github.com/aristoteliss/ddd-cqrs), documented at [aristoteliss.github.io/ddd-cqrs](https://aristoteliss.github.io/ddd-cqrs/packages/pipeline-correlation/).
+> NestJS applications add [`@cqrs-ddd/nestjs`](https://www.npmjs.com/package/@cqrs-ddd/nestjs). Versions 0.1 to 0.4 of
+> `@nestjs-pipeline/correlation` stay on npm unchanged, and 0.4.x receives fixes only.
+
 Standalone correlation ID propagation for NestJS applications. Works with HTTP,
 Bull/BullMQ, RabbitMQ, Kafka, NATS, gRPC, cron jobs, and any custom transport.
 

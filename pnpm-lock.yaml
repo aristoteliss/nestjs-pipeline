@@ -1030,7 +1030,7 @@ packages:
       '@mikro-orm/core': ^7.2.3
 
   '@cqrs-ddd/nestjs@0.5.0':
-    resolution: {integrity: sha512-e5ukgmtMJKDg0QawceRJdpE2xFA/VkFu9Kg+oJ5u/hVOxGaioROyWrakCMi6LDJhxw5XXLk7kW2S73CUN0E7JA==}
+    resolution: {integrity: sha512-74g4LTWRg8iLlT6t/1dB2zUva0oLxjv7UfO+a5XDmXvaBFD13iZR6VFArzw4lXQjUJydKuhET0lu6um6etY9cw==}
     engines: {node: '>=22.12.0'}
     peerDependencies:
       '@cqrs-ddd/core': ^0.5.0
@@ -1096,11 +1096,11 @@ packages:
       '@cqrs-ddd/pipeline': ^0.5.0
 
   '@cqrs-ddd/pipeline-correlation@0.5.0':
-    resolution: {integrity: sha512-5LMYyus7Vin5N5FlbjHF5DgkJPv3RU6Y6Yi396mAh/ZSYCS2OBi5JCh6Khn28RwIqsJLe3NyozGwaFUfOmMvEw==}
+    resolution: {integrity: sha512-52S7oucGt6xpMSRCj1CYdhLTWqrdP/PtKZNNHwDG3XZO6Syhg9gqY3Qad2SnZlDQH3MZ/vwFMrZRDOkZyi8RhQ==}
     engines: {node: '>=22.12.0'}
 
   '@cqrs-ddd/pipeline-deadletter@0.5.0':
-    resolution: {integrity: sha512-VDWcnCgFDawXJ12Uxqkzvjh++eHccGKiVp0kK1Jx87M5TM/SAxYGGOSaGZTo4d6TLqidk8Sa0Gu/F9witBcx1A==}
+    resolution: {integrity: sha512-ZtbY/UiS6FHVf2O+/skcFAG+2x0A3bgBT+awN/IAnwtwtd/ZVYy3AwvBVdPiikrSDDIWfLAvIs4QDPCCqIcoRg==}
     engines: {node: '>=22.12.0'}
     peerDependencies:
       '@cqrs-ddd/pipeline': ^0.5.0
@@ -1154,7 +1154,7 @@ packages:
       zod: ^4.3.0
 
   '@cqrs-ddd/pipeline@0.5.0':
-    resolution: {integrity: sha512-tB80EwyN3/yKNkN06kTBW647nFG2Y9ECV3FdGquwRR7HYzEtBdTvb7P7fkt0kIH3EPU+SHEXiva1vY+c1XV0XQ==}
+    resolution: {integrity: sha512-gyJp4iw9kVMtU3ZsdzuoN2gCDzmGjb84YFC+bKDSW7xruK5lzfI8lH7VpnwXOnYPbzR3WS3YT+bMSkZUn3aspw==}
     engines: {node: '>=22.12.0'}
 
   '@cqrs-ddd/safe-stringify@0.5.0':

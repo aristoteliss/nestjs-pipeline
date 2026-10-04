@@ -89,9 +89,10 @@ Copy `.env.example` to `.env` for local runs. The app reads it through
 - The api is an ES module: relative imports and path aliases carry `.js`
   (`./x.js`, `@common/x.js`); `tsc-alias` rewrites the aliases at build time.
 - The api depends on no workspace package: it installs the `@cqrs-ddd/*` packages and
-  `@cqrs-ddd/nestjs` from the registry. Until they are on npm, install them from the local
-  registry of ddd-cqrs (`NPM_CONFIG_USERCONFIG=$HOME/.npmrc-cqrs-local pnpm install`, a file
-  holding only `@cqrs-ddd:registry=http://127.0.0.1:4873/`).
+  `@cqrs-ddd/nestjs` from npm. To try an unpublished fix, publish it to the local registry
+  of ddd-cqrs and install with `NPM_CONFIG_USERCONFIG=$HOME/.npmrc-cqrs-local pnpm install`
+  (a file holding only `@cqrs-ddd:registry=http://127.0.0.1:4873/`); never commit a
+  lockfile resolved there.
 - The api runs from its compiled `dist/`, which `start` builds first: `ts-node` cannot run
   on TypeScript 7, and `tsx` emits no decorator metadata.
 - The api needs Node 22.17 or newer (MikroORM 7) and the e2e suite Node 22.22 or newer

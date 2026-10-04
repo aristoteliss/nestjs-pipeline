@@ -3,6 +3,12 @@ title: "@nestjs-pipeline/opentelemetry"
 description: "OpenTelemetry tracing & metrics behaviors for @nestjs-pipeline/core"
 editUrl: false
 ---
+
+> **From 0.5.0 this package continues as [`@cqrs-ddd/pipeline-opentelemetry`](https://www.npmjs.com/package/@cqrs-ddd/pipeline-opentelemetry).** Its code, issues and
+> releases are in [ddd-cqrs](https://github.com/aristoteliss/ddd-cqrs), documented at [aristoteliss.github.io/ddd-cqrs](https://aristoteliss.github.io/ddd-cqrs/packages/pipeline-opentelemetry/).
+> NestJS applications add [`@cqrs-ddd/nestjs`](https://www.npmjs.com/package/@cqrs-ddd/nestjs). Versions 0.1 to 0.4 of
+> `@nestjs-pipeline/opentelemetry` stay on npm unchanged, and 0.4.x receives fixes only.
+
 [![npm version](https://img.shields.io/npm/v/@nestjs-pipeline/opentelemetry.svg)](https://www.npmjs.com/package/@nestjs-pipeline/opentelemetry)
 [![License](https://img.shields.io/npm/l/@nestjs-pipeline/opentelemetry.svg)](https://www.npmjs.com/package/@nestjs-pipeline/opentelemetry)
 

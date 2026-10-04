@@ -427,6 +427,15 @@ Successor of each package:
 - Q4 (answered 2026-10-04: keep 0.4.x releasable): the release check runs per line.
 - Q3 (answered 2026-10-04: NestJS's way): done in 1.2a.
 
+## Switch to npm (2026-10-04)
+
+The owner published the 21 `@cqrs-ddd` 0.5.0 packages to npm. Four tarballs differed from
+the local trial copies (`nestjs`, `pipeline`, `pipeline-correlation`, `pipeline-deadletter`),
+so `pnpm update -r "@cqrs-ddd/*"` re-resolved them; all 19 lockfile entries now match npm's
+integrity. Verified on the npm packages, without the local registry: `pnpm lint`,
+`pnpm lint:persistence`, `pnpm -r test`, `pnpm test:release` (both lines), `pnpm test:e2e`
+(35 files, 224 tests).
+
 ## Next Steps
 
 1. The owner publishes (3.1): ddd-cqrs first (its step 8.3, now with `@cqrs-ddd/nestjs`);

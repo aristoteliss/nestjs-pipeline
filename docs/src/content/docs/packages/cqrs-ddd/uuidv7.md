@@ -3,6 +3,9 @@ title: "@cqrs-ddd/uuidv7"
 description: "RFC 9562 UUID version 7 generation and validation, with no dependencies and no framework."
 editUrl: false
 ---
+
+> **From 0.5.0 `@cqrs-ddd/uuidv7` is developed and published from [ddd-cqrs](https://github.com/aristoteliss/ddd-cqrs)**, documented at [aristoteliss.github.io/ddd-cqrs](https://aristoteliss.github.io/ddd-cqrs/packages/uuidv7/). This site documents the 0.4.x line; versions 0.1 to 0.4 stay on npm unchanged.
+
 Generates and validates UUID version 7 identifiers as defined by
 [RFC 9562](https://www.rfc-editor.org/rfc/rfc9562). It has no runtime dependencies and
 no framework: it uses Node's built-in `crypto.randomBytes()` only.
