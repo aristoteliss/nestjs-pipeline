@@ -2,200 +2,229 @@
 
 ## Task
 
-When the `ddd-cqrs` repository is complete and its packages are published on npm, make
-nestjs-pipeline the NestJS plugin over them: the `@nestjs-pipeline/*` packages keep only
-NestJS glue and run the `@cqrs-ddd/*` behaviors, `api` imports the published packages, and
-the code that moved is removed here (owner, 2026-10-01 and 2026-10-02).
-
-## Preconditions (blocking)
-
-Nothing in this repository changes before all of these hold (owner, 2026-10-02):
-
-1. `ddd-cqrs` is complete: its tasks `cqrs-ddd-pipeline.md`, `cqrs-runtime.md` and
-   `api-app.md` are done (pipeline and behavior packages, the CQRS runtime with the NestJS
-   API, the NestJS-free users-api, documentation, checks).
-2. The `@cqrs-ddd/*` packages are published on npm (first under the `next` dist-tag, at
-   the lockstep version, `0.5.0` or later).
-3. The owner gives the go-ahead to start here.
-
-Where the work is planned and tracked until then: `~/Source/ddd-cqrs/.claude/tasks/`.
+Move nestjs-pipeline onto the `@cqrs-ddd` packages built in `~/Source/ddd-cqrs`: from
+0.5.0 the NestJS `api` uses `@cqrs-ddd/*`; the `@nestjs-pipeline/*` packages stop at
+0.4.x, stay on npm with every version, and every README points to the new packages.
+Everything is tried against a local registry before anything is published (owner,
+2026-10-01 to 2026-10-04).
 
 ## Goal
 
-- `@nestjs-pipeline/*` packages depend on `@cqrs-ddd/*` as peers and contain only NestJS
-  glue: modules, DI tokens, filters, `PipelineModule`, handler discovery, `@UsePipeline`,
-  `@SkipPipeline`.
-- An application keeps today's wiring: one `PipelineModule.forRoot({ globalBehaviors })`
-  and one `forRoot()` per configured package; a behavior is never registered per feature
-  module.
-- `api` builds and passes `pnpm verify:all` and `pnpm test:e2e` on the published packages.
-- The moved packages, their pages and their context files are gone from this repository.
+- `api` builds and passes `pnpm verify:all` and `pnpm test:e2e` on `@cqrs-ddd/*` 0.5.0,
+  installed first from the local registry, then from npm once they are published.
+- The `@nestjs-pipeline/*` packages keep every published version (0.1 to 0.4) on npm;
+  nothing is unpublished or deprecated.
+- Every README of this repository (root, each package, the documentation site's home
+  page), and the npm page of every `@nestjs-pipeline/*` package, says the work continues
+  from 0.5.0 as `@cqrs-ddd/*`, with links to npm, https://github.com/aristoteliss/ddd-cqrs
+  and https://aristoteliss.github.io/ddd-cqrs/.
 
 ## Scope
 
-In scope: `packages/*`, `api/`, `docs/`, `integration/`, context files (`AGENTS.md`,
-`CLAUDE.md`, nested `CLAUDE.md` files, the architecture skill, `.claude/codebase-map.md`),
-CHANGELOG and an upgrading page.
+In: `api/`, the READMEs of the root and of `packages/*`, the documentation site's home
+page, the `packages/*` versions for the README-only release, CHANGELOG, the context files.
 
-Out of scope: behavior changes; new features. Behavior code is fixed in `ddd-cqrs`, then
-consumed here.
+Out: behavior changes in the packages of this repository (they stay at their 0.4.x code);
+changes to the `@cqrs-ddd` packages, which are made in `~/Source/ddd-cqrs` and
+republished to the local registry; publishing, which is the owner's.
 
-## Design
+## Current Status
 
-### Package map
-
-| Today (`@nestjs-pipeline/`) | Comes from `@cqrs-ddd/` | Stays in `@nestjs-pipeline/` |
-| --- | --- | --- |
-| `core` | `pipeline`: interfaces, context, items, contracts, plan, runner, sources, errors, `tenantSegments`, `toPostgresJson`, `LoggingBehavior`, `logging()` | `PipelineModule`, bootstrap service, handler discovery, `@UsePipeline`, `@SkipPipeline`, `LOGGING_BEHAVIOR_LOGGER` |
-| `audit` | `pipeline-audit` | `AuditModule`, DI tokens |
-| `cache` | `pipeline-cache` | `CacheModule`, DI tokens, connection lifecycle |
-| `casl` | `pipeline-casl` | `CaslModule`, `CASL_PERMISSION_SOURCE`, `UnauthorizedActionFilter` (on `/http`) |
-| `correlation` | `pipeline-correlation` | `HttpCorrelationMiddleware` wrapper; the `CorrelationFrom` presets `amqp`, `kafka`, `nats` (NestJS microservice contexts), plus `grpc` |
-| `deadletter` | `pipeline-deadletter` | `DeadLetterModule`, DI tokens |
-| `feature-flags` | `pipeline-feature-flags` | `FeatureFlagsModule`, DI tokens, `FeatureDisabledFilter` (on `/http`) |
-| `idempotency` | `pipeline-idempotency` | `IdempotencyModule`, DI tokens, `IdempotencyConflictFilter` (on `/http`) |
-| `job-context` | `pipeline-job-context` | `JobContextModule` (calls `registerJobContext`) |
-| `opentelemetry` | `pipeline-opentelemetry` | nothing, unless Q1 keeps a module |
-| `rate-limit` | `pipeline-rate-limit` | `RateLimitModule`, DI tokens, `RateLimitExceededFilter` (on `/http`) |
-| `resilience` | `pipeline-resilience` | `ResilienceModule`, DI tokens, `InjectResiliencePolicy` |
-| `tenant` | `pipeline-tenant`, as it is | nothing; the package retires |
-| `zod` | `pipeline-zod` | `ZodValidationFilter` (on `/http`), `zodBadRequest`, the NestJS `createZodMapper` |
-| `ddd-core`, `ddd-mikro-orm`, `uuidv7`, `safe-stringify`, `untyped` | `core`, `mikro-orm`, `uuidv7`, `safe-stringify`, `untyped` | nothing; the copies here are deleted |
-
-The `XxxModuleOptions` types are defined in the `@cqrs-ddd` packages (their framework-free
-`XxxModule.forRoot()` takes them); the NestJS modules import them and add only
-`imports`/`inject`/`useFactory` for `forRootAsync()`.
-
-### Registration in the NestJS flavor
-
-Each package module registers its own behavior; a behavior is declared once, globally,
-for all commands, queries and events, never per feature module; module configuration can
-be overridden per kind and per handler.
-
-1. `PipelineModule` registers `LoggingBehavior` itself, with the `LOGGING_BEHAVIOR_LOGGER`
-   provider when one is given.
-2. A package module registers its neutral behavior under the behavior class through a
-   factory provider that injects the package's dependencies, its defaults and
-   `LOGGING_BEHAVIOR_LOGGER`, falling back to NestJS `Logger`.
-3. `PipelineModule.forRoot({ behaviors })` and `forFeature()` keep registering
-   application-owned, NestJS-decorated behaviors as class providers.
-4. `globalBehaviors` and `@UsePipeline` place and configure. `PipelineModule.forRoot()`
-   registers a placed class that carries decorator metadata, never one without it
-   (`Reflect.getMetadataKeys(type).length === 0`): that class belongs to its package module.
-5. At bootstrap, a placed class no module registered and without decorator metadata is
-   built once with the public `moduleRef.create()`; a missing required dependency throws
-   from its constructor with a message naming it.
-6. A behavior class registered by more than one module fails bootstrap, naming both
-   modules (a `DiscoveryService` scan).
-7. Option precedence: module defaults < the global entry of each matching scope < the
-   handler's `@UsePipeline([Behavior, options])`, each a shallow merge. Skipping and
-   declaring one behavior on the same handler fails bootstrap.
-8. A behavior declared globally and on a handler runs once, at its global position.
-
-The handler naming and precedence must match `@cqrs-ddd/cqrs` (same pieces:
-`compilePipelinePlan`, `createPipelineRunner`); its specs are the reference.
+In progress. The `@cqrs-ddd` packages are complete and verified in ddd-cqrs; all 20 are
+published at 0.5.0 on the local registry (2026-10-04). The work in this repository starts
+at Phase 0.3. This repository is no longer frozen for this task (owner, 2026-10-04).
 
 ## Plan
 
-### Phase 1: the plugin (one package per change)
+### Phase 0: setup
 
-- [ ] 1.1 `@nestjs-pipeline/core`: peer `@cqrs-ddd/pipeline`; delete the moved files and
-  specs; keep `PipelineModule`, the bootstrap service, handler discovery and the
-  decorators; implement the registration contract (Design 1 to 8). Private NestJS
-  coupling does not grow (AGENTS.md rule 9).
-- [ ] 1.2 Each add-on package: its module registers the neutral behavior through a factory
-  provider; its filters use the package's `/http` mapping; moved code and specs deleted;
-  NestJS specs stay.
-- [ ] 1.3 Retire `@nestjs-pipeline/tenant` (and `@nestjs-pipeline/opentelemetry` per Q1);
-  the npm deprecation message is the owner's action.
-- [ ] 1.4 Rewrite `packages/pipeline/src/package-boundaries.spec.ts` (allowed:
-  `@cqrs-ddd/pipeline*` as peers and the three utilities; forbidden: `@cqrs-ddd/core`,
-  `@cqrs-ddd/mikro-orm`, re-exports of `@cqrs-ddd`); update `packages/CLAUDE.md` and
-  `packages/pipeline/CLAUDE.md`.
-- [ ] 1.5 Specs in `api/test/` (a published package must not use `@nestjs/testing`):
-  either module import order works; a class registered by two modules fails bootstrap;
-  an undecorated behavior placed only globally is built once by `moduleRef.create()`; a
-  missing required dependency fails bootstrap with its message; a decorated application
-  behavior keeps DI and request scope; precedence per behavior.
-- Verify: `pnpm --filter <package> test` (100%), `pnpm lint`, `pnpm lint:persistence`,
-  `pnpm test:release`.
+- [x] 0.1 Local registry (ddd-cqrs, 2026-10-04): Verdaccio in Docker,
+  `~/Source/ddd-cqrs/tools/local-registry/` (`compose.yaml`, `config.yaml`, and a README
+  with every command), on `http://127.0.0.1:4873/`. `@cqrs-ddd/*` is served only from it
+  and never reaches npm; `@nestjs-pipeline/*` and every other package are proxied from
+  npmjs.org, so their published versions still resolve. Start it with
+  `docker compose -f ~/Source/ddd-cqrs/tools/local-registry/compose.yaml up -d`.
+- [x] 0.2 All 20 `@cqrs-ddd` packages published there at 0.5.0 (`next`, and `latest`
+  because it is their first version there).
+- [ ] 0.3 A branch here from `develop` (for example `adopt-cqrs-ddd`); commits only after
+  the owner agrees, never on `master`.
 
-### Phase 2: `api`
+### Phase 1: `api` 0.5.0 on the `@cqrs-ddd` packages
 
-- [ ] 2.1 A one-off codemod (scratch, never committed) moves the imports to the
-  `@cqrs-ddd` packages; NestJS glue symbols stay (139 files imported `@nestjs-pipeline/*`
-  on 2026-10-01).
-- [ ] 2.2 Wiring unchanged: the `globalBehaviors` of `ObservabilityModule` and the modules
-  of `ReliabilityModule`.
-- [ ] 2.3 `@cqrs-ddd/*` dependencies at the published versions.
-- Verify: `api` lint and tests, `pnpm test:e2e`, in particular the pipeline composition,
-  identity, bootstrap, context-source, skip, span-attribute, cache-partitioning and
-  job-context suites.
+- [ ] 1.1 Point `api` at the local registry during the trial without committing it: an
+  untracked `.npmrc` in `api/` or `--registry http://127.0.0.1:4873/` on install. A
+  committed `.npmrc` with a localhost registry would break CI.
+- [ ] 1.2 Replace the `@nestjs-pipeline/*` workspace dependencies of `api` with
+  `@cqrs-ddd/*@^0.5.0`, then move the imports with a one-off codemod (scratch, never
+  committed): 102 files in `api/src` import `@nestjs-pipeline/*` (2026-10-04). Package
+  successors are in the table below.
+- [ ] 1.3 Keep NestJS for HTTP and dependency injection. The wiring the packages do not
+  provide lives in `api`: building the behaviors with `new` and the handlers, calling
+  `createCqrs({ behaviors, globalBehaviors, sources, diagnostics, logger })` and
+  `register(...handlers)` in a provider factory, exposing `commandBus` and `queryBus` to
+  the controllers, and exception filters that answer with each package's
+  `toHttpResponse(error)` (from its `/http` entry point) and core's
+  `domainErrorHttpStatus`. No module classes or `forRoot()` come from the packages.
+  `~/Source/ddd-cqrs/api/src/app.ts` is the reference wiring of the same users, roles and
+  sessions on Express and Fastify.
+- [ ] 1.4 The `@nestjs/cqrs` buses are replaced by `@cqrs-ddd/cqrs` (same decorator names);
+  differences to handle are listed under "API facts".
+- [ ] 1.5 Verify: `api` lint and unit tests, then `pnpm test:e2e` (Docker), in particular
+  the pipeline composition, identity, bootstrap, context-source, skip, span-attribute,
+  cache-partitioning and job-context suites.
+- [ ] 1.6 Each failure caused by a `@cqrs-ddd` package is fixed in ddd-cqrs, the version
+  removed from the local registry
+  (`npm unpublish @cqrs-ddd/<name>@0.5.0 --force --registry http://127.0.0.1:4873/`),
+  republished, reinstalled here, and recorded under Decisions with its fix.
 
-### Phase 3: remove what moved
+### Phase 2: README notices and the 0.4.3 release
 
-- [ ] 3.1 Delete `packages/ddd-core`, `ddd-mikro-orm`, `uuidv7`, `safe-stringify`,
-  `untyped` and the moved code of `pipeline*`; update `pnpm-workspace.yaml`,
-  `copy-licenses`, `publish:all` and `integration/packages/release.mjs`.
-- [ ] 3.2 Documentation: remove the `cqrs-ddd` pages and their TypeDoc entry points; link
-  to https://aristoteliss.github.io/ddd-cqrs/; the plugin pages show the NestJS setup and
-  link to the `@cqrs-ddd` pages for behavior options.
-- [ ] 3.3 Context files: `AGENTS.md`, `CLAUDE.md`, nested `CLAUDE.md` files, the
-  architecture skill (delete the `ddd-core` and `ddd-mikro-orm` ones); `pnpm
-  context:update` and the manual map sections.
-- [ ] 3.4 CHANGELOG and `docs/src/content/docs/upgrading/from-0-4.md`: import mapping,
-  retired packages, renamed symbols, the registration change.
-- Verify: `pnpm verify:all`, `pnpm context:validate`, the documentation build.
+- [ ] 2.1 A notice at the top of the root README, of every `packages/*/README.md` and of
+  the documentation site's home page: the package continues from 0.5.0 as its successor
+  (table below), with the successor's npm page, the ddd-cqrs GitHub repository and the
+  ddd-cqrs documentation site; versions 0.1 to 0.4 stay on npm unchanged. No
+  `npm deprecate`: the README notice alone carries the redirect (owner, 2026-10-04).
+- [ ] 2.2 Bump the 14 `@nestjs-pipeline/*` packages to 0.4.3, a README-only release (the
+  code does not change), with a CHANGELOG entry saying so. An npm page shows the README of
+  the latest version, so the notice reaches npm only through a new version.
+- [ ] 2.3 The five `@cqrs-ddd/*` copies here (`ddd-core` as `@cqrs-ddd/core`,
+  `ddd-mikro-orm`, `safe-stringify`, `untyped`, `uuidv7`) get the notice in their READMEs
+  on GitHub but are never published from this repository again: ddd-cqrs publishes those
+  names from 0.5.0, and its README replaces theirs on npm.
+- [ ] 2.4 Try the notices on the local registry: publish the 0.4.3 releases there, check
+  that `npm view @nestjs-pipeline/<name> readme --registry http://127.0.0.1:4873/` shows
+  the notice, that 0.4.3 installs, and that 0.1 to 0.4.2 are still listed.
 
-### Phase 4: close
+### Phase 3: hand over and close
 
-- [ ] 4.1 `pnpm verify:all` passes in both repositories.
-- [ ] 4.2 Move durable content to its owners and delete this file.
+- [ ] 3.1 Order for the owner: publish `@cqrs-ddd` 0.5.0 from ddd-cqrs (its release task,
+  step 8.3), so every link resolves; push this repository's branch; publish the 0.4.3
+  notice releases of the 14 `@nestjs-pipeline/*` packages; switch `api` to the npm
+  packages and rerun its suites.
+- [ ] 3.2 Context files (`AGENTS.md`, `CLAUDE.md`, nested `CLAUDE.md` files, the
+  architecture skill, `.claude/codebase-map.md`) describe the new shape; `pnpm
+  context:update`, `pnpm context:validate`.
+- [ ] 3.3 Move what lasts to its owners and delete this file.
+
+Successor of each package:
+
+| Here (`@nestjs-pipeline/`) | Continues as (`@cqrs-ddd/`) |
+| --- | --- |
+| `core` | `pipeline` (the engine, `@UsePipeline`, `@SkipPipeline`, `pipelineOf`) and `cqrs` (the buses and handler decorators) |
+| `audit`, `cache`, `casl`, `correlation`, `deadletter`, `feature-flags`, `idempotency`, `job-context`, `opentelemetry`, `rate-limit`, `resilience`, `tenant`, `zod` | `pipeline-<same name>` |
+| `ddd-core`, `ddd-mikro-orm`, `safe-stringify`, `untyped`, `uuidv7` (already `@cqrs-ddd/*` names) | the same names, from 0.5.0 in ddd-cqrs |
+
+## State of ddd-cqrs (2026-10-04)
+
+- Branch `develop`, ahead of `origin/develop`; `master` can fast-forward to it. Nothing
+  of 0.5.0 is on npm yet: npm has `@cqrs-ddd/core`, `mikro-orm`, `uuidv7`,
+  `safe-stringify` and `untyped` up to 0.4.2 (published from this repository) and none of
+  the other 15.
+- Its release task, `~/Source/ddd-cqrs/.claude/tasks/cqrs-ddd-pipeline.md`, step 8.3, holds
+  the owner's publish commands, run from a clean checkout of ddd-cqrs once this task's
+  Phase 1 passes: `git push origin develop`, `git checkout master`,
+  `git merge --ff-only develop`, `git push origin master`, `pnpm install
+  --frozen-lockfile`, `pnpm verify:all`, `npm whoami`, `pnpm publish:all --tag next`.
+  Step 8.4 then installs the published packages in a scratch project.
+- Changes made there before publishing, which this migration must follow: the pipeline
+  declarations moved to `@cqrs-ddd/pipeline`; the unused `@nestjs/cqrs` copies were
+  removed from `@cqrs-ddd/cqrs`; `httpCorrelation()` replaced `HttpCorrelationMiddleware`;
+  the OpenTelemetry default scope name changed; `CACHE_TOKEN` left core (details below).
+- Its `api/` serves the users, roles and sessions endpoints of this repository's `api` on
+  Express and Fastify, with the same statuses and bodies where this repository's tests pin
+  them; its tests are the ported suites of this `api`, placed by what they test
+  (`src/**` next to the module, `test/application`, `test/e2e`). It is the model for
+  Phase 1.
+- Its `integration/` holds small applications that each use one package family
+  (`payments/`, `library/`, `inventory/`, `profiles/`, `members/`), useful as examples of
+  each package used alone.
+- Open in ddd-cqrs, not blocking this task: Q6 (a combined HTTP error mapper in a package,
+  or each application's own) and Q7 (dead-letter redrive for plain functions).
+
+## API facts of `@cqrs-ddd` 0.5.0 for the migration
+
+- `@UsePipeline`, `@SkipPipeline` and `pipelineOf()` are in `@cqrs-ddd/pipeline`; they
+  work in both TypeScript decorator modes and store their declaration under well-known
+  symbols, not `Reflect` metadata.
+- `@cqrs-ddd/cqrs`: `@CommandHandler`, `@QueryHandler`, `@EventsHandler`, `createCqrs()`
+  (returns `commandBus`, `queryBus`, `eventBus`, `unhandledExceptionBus`, `register`,
+  `close`). There is no `EventPublisher`, no `Command<R>`/`Query<R>`: a result is typed
+  with `execute<C, R>()`. A second handler for one command fails `register()`; a missing
+  handler rejects with `CommandHandlerNotFoundException`; `close()` waits for running
+  event handlers.
+- Behaviors are plain classes with constructor defaults (`new AuditBehavior(sink)`);
+  `createCqrs({ behaviors })` takes the instances. Entry helpers (`audit()`, `cache()`,
+  `idempotent()`, `requires()`, …) build the `[Behavior, options]` entries.
+- Errors with an HTTP meaning are answered by `toHttpResponse(error)` from the `/http`
+  entry point of `pipeline-zod`, `-casl`, `-idempotency`, `-rate-limit` and
+  `-feature-flags`; `createZodMapper` throws `ZodValidationError`.
+- `@cqrs-ddd/pipeline-correlation`: `httpCorrelation(options)` returns an
+  `(req, res, next)` middleware; only the `grpc()` preset of `CorrelationFrom` exists
+  (the `amqp`, `kafka` and `nats` presets were NestJS microservice contexts).
+- `@cqrs-ddd/pipeline-opentelemetry`: the default tracer and meter name is
+  `'@cqrs-ddd/pipeline-opentelemetry'`; pass `tracerName`/`meterName` `'nestjs-pipeline'`
+  to keep the old scope name.
+- `@cqrs-ddd/core`: `CACHE_TOKEN` is gone (no DI tokens); `@cqrs-ddd/mikro-orm` needs the
+  peer `@mikro-orm/core` `^7.2.3`.
+- `PipelineLogger` stays compatible with NestJS's `LoggerService`; `pinoLogger(pino)`
+  adapts pino.
+- Documentation: https://aristoteliss.github.io/ddd-cqrs/ ("Coming from NestJS" lists
+  what carries over from `@nestjs/cqrs`).
 
 ## Decisions
 
-- One implementation, in `@cqrs-ddd`; this repository is the NestJS plugin (owner,
-  2026-10-01).
-- Breaking changes for plugin users are accepted when they simplify and keep
-  functionality: moved imports, retired packages, renamed well-known symbols, the
-  registration change.
-- No re-exports between the two scopes.
-- No change here until the preconditions hold (owner, 2026-10-02).
+- One implementation, in `@cqrs-ddd` (owner, 2026-10-01).
+- The `@nestjs-pipeline/*` packages stop at 0.4.x: no 0.5.0, no plugin. They keep every
+  version on npm; nothing is unpublished. From 0.5.0, `api` uses the `@cqrs-ddd` packages
+  directly (owner, 2026-10-04). This replaces the earlier plan of a NestJS plugin with
+  modules, DI tokens and a registration contract.
+- The redirect is carried by README notices only, on GitHub and, through the README-only
+  0.4.3 release, on npm; no `npm deprecate` (owner, 2026-10-04).
+- This repository keeps its old code on GitHub; only its READMEs change (owner,
+  2026-10-04).
+- Everything is tried on the local registry before anything is published (owner,
+  2026-10-04).
+- Breaking changes for `api` are accepted when they simplify and keep functionality.
 
 ## Modified Files
 
-- `.claude/tasks/adopt-cqrs-ddd-packages.md`: this file. The earlier synced copies of the
-  `ddd-cqrs` task files were removed from this repository (2026-10-02); their live versions
-  are in `~/Source/ddd-cqrs/.claude/tasks/`.
+- `.claude/tasks/adopt-cqrs-ddd-packages.md`: this file, rewritten 2026-10-04 from the
+  decisions taken in ddd-cqrs (it replaces ddd-cqrs's `nestjs-pipeline-local-trial.md`).
+- `AGENTS.md` (The two repositories, Source of truth), `CLAUDE.md` (The sibling
+  repository), `.agents/skills/nestjs-pipeline-architecture/SKILL.md` (Source of truth):
+  the permanent description of how this repository and ddd-cqrs connect (owner,
+  2026-10-04).
 
 ## Tests and Verification
 
-Not started.
+- In ddd-cqrs (2026-10-04): `pnpm verify:all` passed (2,882 Vitest tests, 7
+  `node --test` cases, 20 packages packed and installed alone, every coverage threshold
+  met); its `api` end-to-end suites passed (356 tests, Docker); the 20 packages are on
+  the local registry at 0.5.0, and a scratch project installed and imported them.
+- Here: nothing run yet.
 
 ## Risks
 
-- Two installed versions of a stateful `@cqrs-ddd` package split its store; peers and the
-  release check guard against it.
-- The registration contract's metadata check treats any class with reflect metadata as
-  NestJS-decorated; the duplicate check (Design 6) catches a double registration.
-- `moduleRef.create()` ignores request scope; only undecorated classes go through it.
+- Two installed copies of a stateful package (`@cqrs-ddd/pipeline`, `pipeline-tenant`,
+  `pipeline-correlation`, `pipeline-job-context`) split its store; `api` must resolve one
+  copy of each.
+- Publishing a 0.4.3 with the npm registry configured while testing would publish it for
+  real; every trial command names the local registry explicitly.
+- A `.npmrc` pointing at localhost committed by mistake breaks CI and other machines.
 
 ## Open Questions
 
-- Q1: `@nestjs-pipeline/opentelemetry`: retire it, or keep a small module that injects
-  `LOGGING_BEHAVIOR_LOGGER` into `MetricsBehavior`?
-- Q2: the default tracer and meter name of `@cqrs-ddd/pipeline-opentelemetry` is
-  `'nestjs-pipeline'`; if `ddd-cqrs` changes it to the package name, the plugin passes
-  `'nestjs-pipeline'` to keep its telemetry scope name.
+- Q1: once 0.4.3 is published, do `packages/*` stay in this repository as the frozen
+  0.4.x source, or are they removed later, leaving `api` alone?
 
 ## Next Steps
 
-1. Wait for the preconditions; then Phase 1.1.
+1. Start the local registry; Phase 0.3, then Phase 1.
 
 ## Snapshot Impact
 
-Yes: package set, dependencies, entry points and conventions change (Phase 3.3).
+Yes: dependencies, entry points and conventions of `api` change (Phase 3.2).
 
 ## Last Updated
 
-2026-10-02
+2026-10-04

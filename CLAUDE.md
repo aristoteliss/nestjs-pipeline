@@ -110,6 +110,17 @@ Re-read, in this order: `CLAUDE.md` → `AGENTS.md` → `.claude/codebase-map.md
 checkpoint exists at `.claude/state/context-checkpoint.md`, read it too — it records which
 task files and which working-tree paths were active before compaction.
 
+## The sibling repository
+
+From 0.5.0 this repository's `api` installs the `@cqrs-ddd/*` packages, whose one
+implementation lives in ddd-cqrs (`~/Source/ddd-cqrs`); the `@nestjs-pipeline/*` packages
+here stop at 0.4.x and only receive README notices. Never copy or patch package code here:
+fix it in ddd-cqrs, republish it to the local registry
+(`~/Source/ddd-cqrs/tools/local-registry/`) and install it again. Release order, package
+names and the rules of both sides: [AGENTS.md, The two repositories](AGENTS.md#the-two-repositories).
+When a change here affects ddd-cqrs, update its active task file
+(`~/Source/ddd-cqrs/.claude/tasks/cqrs-ddd-pipeline.md`) in the same session.
+
 ## Writing style in this repository
 
 `AGENTS.md` governs. In short: no decorative banners or divider comments, no narrative

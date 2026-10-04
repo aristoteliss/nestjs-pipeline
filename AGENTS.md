@@ -2,6 +2,45 @@
 
 These instructions apply to every agent/LLM making changes in this repository.
 
+## The two repositories
+
+Two sibling repositories form one product (owner, 2026-10-04). Read this before any
+change that touches a package name, an export, a release or a decision the other
+repository relies on.
+
+| | ddd-cqrs | nestjs-pipeline |
+| --- | --- | --- |
+| Path | `~/Source/ddd-cqrs` | `~/Source/nestjs-pipeline` |
+| GitHub | https://github.com/aristoteliss/ddd-cqrs | https://github.com/aristoteliss/nestjs-pipeline |
+| Owns | The one implementation: the framework-neutral `@cqrs-ddd/*` packages, published from 0.5.0; the example application `api/` on Express and Fastify; the documentation site https://aristoteliss.github.io/ddd-cqrs/; the local registry `tools/local-registry/` | The NestJS application `api/`, which from 0.5.0 installs the `@cqrs-ddd/*` packages; the old `@nestjs-pipeline/*` packages, stopped at 0.4.x and kept on npm with every version |
+| Active task | `.claude/tasks/cqrs-ddd-pipeline.md` (the 0.5.0 release) | `.claude/tasks/adopt-cqrs-ddd-packages.md` (`api` on `@cqrs-ddd`, the README notices) |
+
+How they connect:
+
+- **Package code lives only in ddd-cqrs.** nestjs-pipeline installs the packages and never
+  copies or patches their code; a missing feature or a bug found there is fixed in
+  ddd-cqrs.
+- **Dependencies point one way:** nestjs-pipeline depends on `@cqrs-ddd/*`; no
+  `@cqrs-ddd` package imports NestJS or `@nestjs-pipeline/*` (ddd-cqrs `AGENTS.md`,
+  rule 1).
+- **Before anything is published,** nestjs-pipeline installs the packages from the local
+  registry: Verdaccio in Docker, `~/Source/ddd-cqrs/tools/local-registry/`, on
+  `http://127.0.0.1:4873/`, whose README holds every command. A fix in ddd-cqrs is
+  republished there and tested again in nestjs-pipeline.
+- **Package names.** `@nestjs-pipeline/core` continues as `@cqrs-ddd/pipeline` (the engine,
+  `@UsePipeline`, `@SkipPipeline`) and `@cqrs-ddd/cqrs` (the buses);
+  `@nestjs-pipeline/<name>` continues as `@cqrs-ddd/pipeline-<name>`. `@cqrs-ddd/core`,
+  `mikro-orm`, `uuidv7`, `safe-stringify` and `untyped`, published from nestjs-pipeline up
+  to 0.4.2, are published from ddd-cqrs from 0.5.0.
+- **The old packages stay.** Versions 0.1 to 0.4 of `@nestjs-pipeline/*` are never
+  unpublished or deprecated; a README notice, on GitHub and on npm through a README-only
+  0.4.3, points to `@cqrs-ddd` 0.5.0.
+- **Release order:** `@cqrs-ddd` 0.5.0 from ddd-cqrs first, so every link resolves; then
+  nestjs-pipeline's changes; then the 0.4.3 notices. The owner publishes and pushes;
+  agents commit only after asking, never on `master`.
+- **Keep both sides current.** When work in one repository changes something the other
+  relies on, update the other repository's active task file in the same session.
+
 ## Architecture-sensitive changes
 
 Before changing any of the following areas, **MUST read and follow**:
@@ -22,7 +61,7 @@ This requirement applies to changes involving:
 
 ## Source of truth
 
-The repository's current code and documentation are authoritative. Generic Clean Architecture, DDD, CQRS, NestJS, or TypeScript guidance is secondary. If external advice conflicts with an intentional repository decision, follow the repository and document any proposed architectural change explicitly.
+The repository's current code and documentation are authoritative, except for the code of the `@cqrs-ddd/*` packages, whose source of truth is ddd-cqrs from 0.5.0 (see The two repositories). Generic Clean Architecture, DDD, CQRS, NestJS, or TypeScript guidance is secondary. If external advice conflicts with an intentional repository decision, follow the repository and document any proposed architectural change explicitly.
 
 ## Working discipline
 

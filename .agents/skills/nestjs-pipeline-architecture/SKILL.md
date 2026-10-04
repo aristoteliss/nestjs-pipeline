@@ -9,7 +9,7 @@ Use this skill for any change that affects architecture, CQRS handlers, domain m
 
 ## Source of truth
 
-This repository is authoritative. Before changing architecture-sensitive code, inspect the closest existing implementation and these documents:
+This repository is authoritative for its NestJS application. From 0.5.0 the `@cqrs-ddd/*` packages, their contracts and their documentation (https://aristoteliss.github.io/ddd-cqrs/, `~/Source/ddd-cqrs/.agents/skills/cqrs-ddd-architecture/SKILL.md`) belong to ddd-cqrs; the `@nestjs-pipeline/*` packages here stop at 0.4.x (see `AGENTS.md`, The two repositories). Before changing architecture-sensitive code, inspect the closest existing implementation and these documents:
 
 - `docs/src/content/docs/` (the documentation site), in particular `overview.md`,
   `packages/nestjs-pipeline/core.md`, `packages/nestjs-pipeline/cache.md` and
