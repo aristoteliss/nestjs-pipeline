@@ -2,6 +2,7 @@
 
 import { contextSources } from '@common/context/context-sources.js';
 import type { IQueryRepository } from '@cqrs-ddd/core/application';
+import { PipelineModule } from '@cqrs-ddd/nestjs';
 import type { IPipelineContext } from '@cqrs-ddd/pipeline';
 import {
   buildCache,
@@ -24,7 +25,6 @@ import { type INestApplication, Injectable } from '@nestjs/common';
 import { CqrsModule, QueryBus } from '@nestjs/cqrs';
 import { Test } from '@nestjs/testing';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { PipelineModule } from '../src/common/pipeline/pipeline.module.js';
 import type { SessionPrincipal } from '../src/common/types/session-principal.js';
 import { Role } from '../src/roles/domain/models/role.entity.js';
 import { QUERY_REPOSITORY as ROLES_QUERY_REPOSITORY } from '../src/roles/persistence/repository.tokens.js';

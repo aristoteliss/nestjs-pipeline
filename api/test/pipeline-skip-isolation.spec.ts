@@ -1,5 +1,6 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
+import { PipelineModule } from '@cqrs-ddd/nestjs';
 import {
   type IPipelineBehavior,
   type IPipelineContext,
@@ -11,7 +12,6 @@ import { type INestApplicationContext, Injectable } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { CommandBus, CommandHandler, CqrsModule } from '@nestjs/cqrs';
 import { describe, expect, it } from 'vitest';
-import { PipelineModule } from '../src/common/pipeline/pipeline.module.js';
 
 class IsolatedCommand {}
 

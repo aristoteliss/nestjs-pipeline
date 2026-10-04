@@ -1,5 +1,6 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 import type { Server } from 'node:http';
+import { PipelineModule } from '@cqrs-ddd/nestjs';
 import {
   type IPipelineBehavior,
   type IPipelineContext,
@@ -17,7 +18,6 @@ import { CommandBus, CommandHandler, CqrsModule } from '@nestjs/cqrs';
 import { Test } from '@nestjs/testing';
 import request from 'supertest';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { PipelineModule } from '../src/common/pipeline/pipeline.module.js';
 
 @Injectable()
 class FeatureDependency {

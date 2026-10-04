@@ -1,5 +1,6 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
+import { PipelineModule } from '@cqrs-ddd/nestjs';
 import {
   type IPipelineBehavior,
   type IPipelineContext,
@@ -21,7 +22,6 @@ import { Injectable } from '@nestjs/common';
 import { CommandBus, CommandHandler, CqrsModule } from '@nestjs/cqrs';
 import { Test } from '@nestjs/testing';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { PipelineModule } from '../src/common/pipeline/pipeline.module.js';
 
 @Injectable()
 class PassBehavior implements IPipelineBehavior {

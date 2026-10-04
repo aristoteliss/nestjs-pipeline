@@ -168,10 +168,10 @@ export class PipelineBootstrap
 
     const method = kind === 'event' ? 'handle' : 'execute';
     const instance = provider.instance as Record<string, unknown>;
-    const original = instance[method];
-    if (typeof original !== 'function') {
-      throw new Error(`${handlerName} has no ${method}() method.`);
-    }
+    const original = instance[method] as (
+      this: unknown,
+      ...args: unknown[]
+    ) => unknown;
 
     const resolved = plan.behaviorTypes.map((t) => behavior(t, handlerName));
     if (diagnostics) {
@@ -189,7 +189,7 @@ export class PipelineBootstrap
     );
 
     const run = createPipelineRunner(
-      original as (this: unknown, ...args: unknown[]) => unknown,
+      original,
       {
         handlerType: type,
         handlerName,

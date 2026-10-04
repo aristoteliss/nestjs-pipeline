@@ -19,13 +19,13 @@ import {
   isTransientOperationError,
   TransientOperationError,
 } from '@cqrs-ddd/core/domain';
+import { PipelineModule } from '@cqrs-ddd/nestjs';
 import { pipelineOf, UsePipeline } from '@cqrs-ddd/pipeline';
 import { AuditBehavior, audit } from '@cqrs-ddd/pipeline-audit';
 import { ResilienceBehavior, resilience } from '@cqrs-ddd/pipeline-resilience';
 import { CommandBus, CommandHandler, CqrsModule } from '@nestjs/cqrs';
 import { Test } from '@nestjs/testing';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { PipelineModule } from '../src/common/pipeline/pipeline.module.js';
 import { DeleteRoleHandler } from '../src/roles/application/cqrs/commands/delete-role.handler.js';
 import { DeleteUserHandler } from '../src/users/application/cqrs/commands/delete-user.handler.js';
 

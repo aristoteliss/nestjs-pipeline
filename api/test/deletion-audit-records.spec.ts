@@ -3,6 +3,7 @@
 import { AUDIT_MODULE_DEFAULTS } from '@common/audit/audit.options.js';
 import { AUDIT_ACTIONS } from '@common/constants/index.js';
 import { sessionPrincipalStore } from '@common/context/session-principal.store.js';
+import { PipelineModule } from '@cqrs-ddd/nestjs';
 import { LoggingBehavior } from '@cqrs-ddd/pipeline';
 import {
   AUDIT_SEVERITY,
@@ -15,7 +16,6 @@ import { ResilienceBehavior } from '@cqrs-ddd/pipeline-resilience';
 import { CommandBus, CqrsModule } from '@nestjs/cqrs';
 import { Test } from '@nestjs/testing';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { PipelineModule } from '../src/common/pipeline/pipeline.module.js';
 import { DeleteRoleCommand } from '../src/roles/application/cqrs/commands/delete-role.command.js';
 import { DeleteRoleHandler } from '../src/roles/application/cqrs/commands/delete-role.handler.js';
 import { Role } from '../src/roles/domain/models/role.entity.js';

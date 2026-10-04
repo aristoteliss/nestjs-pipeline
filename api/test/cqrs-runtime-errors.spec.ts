@@ -8,11 +8,11 @@ import {
 import { ZodValidationError } from '@cqrs-ddd/pipeline-zod';
 import {
   type ArgumentsHost,
+  type HttpServer,
   HttpStatus,
   NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
-import type { HttpAdapterHost } from '@nestjs/core';
 import { type EventBus, EventPublisher } from '@nestjs/cqrs';
 import { describe, expect, it, vi } from 'vitest';
 // Auths CQRS & Services
@@ -27,7 +27,6 @@ import { NodeRefreshTokens } from '../src/auths/infrastructure/node-refresh-toke
 import { PrincipalLoginService } from '../src/auths/services/principal-login.service.js';
 // Filters
 import { DomainExceptionFilter } from '../src/common/filters/domain-exception.filter.js';
-import { PipelineErrorFilter } from '../src/common/filters/pipeline-error.filter.js';
 
 // Roles CQRS & Exceptions
 import { CreateRoleCommand } from '../src/roles/application/cqrs/commands/create-role.command.js';
@@ -95,24 +94,24 @@ function createMockAuthorizer(allow = true): CaslAuthorizer {
 function makeHost(response: unknown): ArgumentsHost {
   return {
     switchToHttp: () => ({ getResponse: () => response }),
+    getArgByIndex: () => response,
   } as unknown as ArgumentsHost;
 }
 
 /** Answers through the fake response, as Express's adapter does. */
-const adapterHost = {
-  httpAdapter: {
-    reply: (
-      response: { status(code: number): { json(body: unknown): unknown } },
-      body: unknown,
-      status: number,
-    ) => response.status(status).json(body),
-  },
-} as unknown as HttpAdapterHost;
+const httpAdapter = {
+  reply: (
+    response: { status(code: number): { json(body: unknown): unknown } },
+    body: unknown,
+    status: number,
+  ) => response.status(status).json(body),
+  isHeadersSent: () => false,
+  setHeader: () => undefined,
+} as unknown as HttpServer;
 
 describe('CQRS Commands & Queries Runtime Error Taxonomy', () => {
   const publisher = new EventPublisher(createMockEventBus());
-  const domainFilter = new DomainExceptionFilter(adapterHost);
-  const pipelineFilter = new PipelineErrorFilter(adapterHost);
+  const domainFilter = new DomainExceptionFilter(httpAdapter);
 
   describe('Users Model', () => {
     describe('CreateUserCommand & Handler', () => {
@@ -132,15 +131,13 @@ describe('CQRS Commands & Queries Runtime Error Taxonomy', () => {
           });
         } catch (err) {
           const res = { status: vi.fn().mockReturnThis(), json: vi.fn() };
-          pipelineFilter.catch(err as ZodValidationError, makeHost(res));
+          domainFilter.catch(err as ZodValidationError, makeHost(res));
           expect(res.status).toHaveBeenCalledWith(HttpStatus.BAD_REQUEST);
-          expect(res.json).toHaveBeenCalledWith(
-            expect.objectContaining({
-              statusCode: 400,
-              error: 'Bad Request',
-              details: expect.any(Object),
-            }),
-          );
+          expect(res.json).toHaveBeenCalledWith({
+            statusCode: 400,
+            error: 'Bad Request',
+            message: [expect.stringMatching(/^email: /)],
+          });
         }
       });
 
@@ -251,10 +248,7 @@ describe('CQRS Commands & Queries Runtime Error Taxonomy', () => {
           await handler.execute(command);
         } catch (err) {
           const res = { status: vi.fn().mockReturnThis(), json: vi.fn() };
-          pipelineFilter.catch(
-            err as UnauthorizedActionException,
-            makeHost(res),
-          );
+          domainFilter.catch(err as UnauthorizedActionException, makeHost(res));
           expect(res.status).toHaveBeenCalledWith(HttpStatus.FORBIDDEN);
           expect(res.json).toHaveBeenCalledWith(
             expect.objectContaining({

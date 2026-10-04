@@ -1,5 +1,6 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
+import { ErrorFilter } from '@cqrs-ddd/nestjs';
 import { RateLimitExceededError } from '@cqrs-ddd/pipeline-rate-limit';
 import { ZodValidationError } from '@cqrs-ddd/pipeline-zod';
 import {
@@ -19,7 +20,6 @@ import { Test } from '@nestjs/testing';
 import request from 'supertest';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { z } from 'zod';
-import { PipelineErrorFilter } from '../src/common/filters/pipeline-error.filter.js';
 
 function validationError(): ZodValidationError {
   const result = z.object({ name: z.string() }).safeParse({});
@@ -58,14 +58,14 @@ class ProbeModule implements NestModule {
 }
 
 describe.each(['express', 'fastify'] as const)(
-  'PipelineErrorFilter on %s',
+  'ErrorFilter on %s',
   (adapter) => {
     let app: INestApplication;
 
     beforeAll(async () => {
       const moduleRef = await Test.createTestingModule({
         imports: [ProbeModule],
-        providers: [{ provide: APP_FILTER, useClass: PipelineErrorFilter }],
+        providers: [{ provide: APP_FILTER, useClass: ErrorFilter }],
       }).compile();
       app =
         adapter === 'fastify'
@@ -91,10 +91,10 @@ describe.each(['express', 'fastify'] as const)(
       const response = await request(app.getHttpServer()).get('/middleware');
 
       expect(response.status).toBe(400);
-      expect(response.body).toMatchObject({
+      expect(response.body).toEqual({
         statusCode: 400,
         error: 'Bad Request',
-        details: { fieldErrors: { name: expect.any(Array) } },
+        message: [expect.stringMatching(/^name: /)],
       });
     });
 

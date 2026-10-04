@@ -1,0 +1,120 @@
+{
+  "name": "@cqrs-ddd/nestjs",
+  "version": "0.5.0",
+  "description": "NestJS adapter for the @cqrs-ddd packages: runs @nestjs/cqrs handlers through their pipelines, answers every package error as a NestJS HttpException, and wires correlation and job context",
+  "author": "Aristotelis",
+  "license": "SEE LICENSE IN LICENSE",
+  "type": "module",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/aristoteliss/nestjs-pipeline.git",
+    "directory": "packages/nestjs"
+  },
+  "homepage": "https://github.com/aristoteliss/nestjs-pipeline/tree/master/packages/nestjs#readme",
+  "bugs": {
+    "url": "https://github.com/aristoteliss/nestjs-pipeline/issues"
+  },
+  "keywords": [
+    "nestjs",
+    "cqrs",
+    "ddd",
+    "pipeline",
+    "cqrs-ddd"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./correlation": {
+      "types": "./dist/correlation.d.ts",
+      "default": "./dist/correlation.js"
+    },
+    "./job-context": {
+      "types": "./dist/job-context.d.ts",
+      "default": "./dist/job-context.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist",
+    "LICENSE",
+    "COMMERCIAL_LICENSE.txt"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "build:watch": "tsc -p tsconfig.build.json --watch",
+    "clean": "rm -rf dist tsconfig.tsbuildinfo",
+    "rebuild": "pnpm run clean && pnpm run build",
+    "lint": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "prepublishOnly": "pnpm run rebuild"
+  },
+  "peerDependencies": {
+    "@cqrs-ddd/core": "^0.5.0",
+    "@cqrs-ddd/pipeline": "^0.5.0",
+    "@cqrs-ddd/pipeline-casl": "^0.5.0",
+    "@cqrs-ddd/pipeline-correlation": "^0.5.0",
+    "@cqrs-ddd/pipeline-feature-flags": "^0.5.0",
+    "@cqrs-ddd/pipeline-idempotency": "^0.5.0",
+    "@cqrs-ddd/pipeline-job-context": "^0.5.0",
+    "@cqrs-ddd/pipeline-rate-limit": "^0.5.0",
+    "@cqrs-ddd/pipeline-zod": "^0.5.0",
+    "@nestjs/common": "^12.1.1",
+    "@nestjs/core": "^12.1.1",
+    "@nestjs/cqrs": "^12.1.0"
+  },
+  "peerDependenciesMeta": {
+    "@cqrs-ddd/pipeline-casl": {
+      "optional": true
+    },
+    "@cqrs-ddd/pipeline-correlation": {
+      "optional": true
+    },
+    "@cqrs-ddd/pipeline-feature-flags": {
+      "optional": true
+    },
+    "@cqrs-ddd/pipeline-idempotency": {
+      "optional": true
+    },
+    "@cqrs-ddd/pipeline-job-context": {
+      "optional": true
+    },
+    "@cqrs-ddd/pipeline-rate-limit": {
+      "optional": true
+    },
+    "@cqrs-ddd/pipeline-zod": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@casl/ability": "^7.0.1",
+    "@cqrs-ddd/core": "^0.5.0",
+    "@cqrs-ddd/pipeline": "^0.5.0",
+    "@cqrs-ddd/pipeline-casl": "^0.5.0",
+    "@cqrs-ddd/pipeline-correlation": "^0.5.0",
+    "@cqrs-ddd/pipeline-feature-flags": "^0.5.0",
+    "@cqrs-ddd/pipeline-idempotency": "^0.5.0",
+    "@cqrs-ddd/pipeline-job-context": "^0.5.0",
+    "@cqrs-ddd/pipeline-rate-limit": "^0.5.0",
+    "@cqrs-ddd/pipeline-zod": "^0.5.0",
+    "@nestjs/common": "^12.1.1",
+    "@nestjs/core": "^12.1.1",
+    "@nestjs/cqrs": "^12.1.0",
+    "@openfeature/server-sdk": "^1.23.0",
+    "@vitest/coverage-v8": "^5.0.2",
+    "reflect-metadata": "^0.2.2",
+    "rxjs": "^7.8.2",
+    "vitest": "^5.0.2",
+    "zod": "^4.6.5"
+  }
+}

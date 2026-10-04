@@ -662,15 +662,20 @@ describe('pipeline-packages (e2e)', () => {
   });
 
   describe('@cqrs-ddd/pipeline-zod (Validation boundaries)', () => {
-    it('validates payloads with Zod and returns 400 with fieldErrors', async () => {
+    it("validates payloads with Zod and returns NestJS's 400 body", async () => {
       const res = await as(admin)
         .post('/users')
         .send({ email: 'bad-email-address', name: 'sh' });
 
       expect(res.status).toBe(400);
-      expect(res.body).toHaveProperty('fieldErrors');
-      expect(res.body.fieldErrors).toHaveProperty('email');
-      expect(res.body.fieldErrors).toHaveProperty('name');
+      expect(res.body).toEqual({
+        statusCode: 400,
+        error: 'Bad Request',
+        message: expect.arrayContaining([
+          expect.stringMatching(/^email: /),
+          expect.stringMatching(/^name: /),
+        ]),
+      });
     });
 
     it('rejects UUID validation failures at parameter boundary (400)', async () => {

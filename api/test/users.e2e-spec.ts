@@ -136,10 +136,13 @@ describe('users-api (e2e)', () => {
       });
 
       expect(res.status).toBe(400);
-      expect(res.body).toHaveProperty('fieldErrors');
-      expect(res.body.fieldErrors).toMatchObject({
-        email: expect.any(Array),
-        name: expect.any(Array),
+      expect(res.body).toEqual({
+        statusCode: 400,
+        error: 'Bad Request',
+        message: expect.arrayContaining([
+          expect.stringMatching(/^email: /),
+          expect.stringMatching(/^name: /),
+        ]),
       });
     });
 
@@ -293,8 +296,9 @@ describe('users-api (e2e)', () => {
 
       expect(res.status).toBe(400);
       expect(res.body).toEqual({
-        formErrors: [expect.any(String)],
-        fieldErrors: {},
+        statusCode: 400,
+        error: 'Bad Request',
+        message: [expect.any(String)],
       });
     });
 
@@ -335,7 +339,9 @@ describe('users-api (e2e)', () => {
 
       expect(res.status).toBe(400);
       expect(res.body).toMatchObject({
-        formErrors: ['At least one mutable field must be supplied.'],
+        statusCode: 400,
+        error: 'Bad Request',
+        message: ['At least one mutable field must be supplied.'],
       });
     });
   });

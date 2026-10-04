@@ -1,11 +1,10 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import { JobContextRegistration } from '@common/context/job-context.registration.js';
-import { PipelineErrorFilter } from '@common/filters/pipeline-error.filter.js';
+import { contextSources } from '@common/context/context-sources.js';
 import { AuthSessionGuard } from '@common/guards/auth-session.guard.js';
 import { SessionPrincipalContextInterceptor } from '@common/interceptors/session-principal-context.interceptor.js';
-import { zodBadRequest } from '@common/validation/zod-bad-request.js';
-import { httpCorrelation } from '@cqrs-ddd/pipeline-correlation';
+import { CorrelationMiddleware } from '@cqrs-ddd/nestjs/correlation';
+import { JobContextModule } from '@cqrs-ddd/nestjs/job-context';
 import {
   type MiddlewareConsumer,
   Module,
@@ -15,6 +14,7 @@ import {
 import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR, APP_PIPE } from '@nestjs/core';
 import { CqrsModule } from '@nestjs/cqrs';
 import { TenantSchemaMiddleware } from '@persistence/middlewares/tenant-schema.middleware.js';
+import { persistenceConfig } from '@persistence/persistence.config.js';
 import { PersistenceModule } from '@persistence/persistence.module.js';
 import { AuthorizationModule } from './auths/authorization.module.js';
 import { AuthsModule } from './auths/auths.module.js';
@@ -38,10 +38,10 @@ import { UsersModule } from './users/users.module.js';
  * - {@link ReliabilityModule}: BullMQ queue engine, dead-letter storage, rate limiting, distributed idempotency, resilience policies, caching, and feature flags.
  * - {@link AuthorizationModule}: role- and attribute-based access control (`CaslBehavior`, `CaslAuthorizer`) on the application's permission source.
  * - {@link PersistenceModule}: MikroORM database connection, entity repositories, and tenant schema manager.
- * - {@link JobContextRegistration}: carries a request's tenant, correlation id and principal into the jobs it enqueues.
- * - `StandardSchemaValidationPipe`: validates every route parameter declared with a `schema` and answers 400 with {@link zodBadRequest}'s body.
- * - Exception filters: {@link PipelineErrorFilter} for the behaviors' errors, {@link DomainExceptionFilter} for the domain's.
- * - `httpCorrelation()`: takes or creates the correlation id of every request.
+ * - {@link JobContextModule}: carries a request's tenant, correlation id and principal into the jobs it enqueues.
+ * - `StandardSchemaValidationPipe`: validates every route parameter declared with a `schema`; NestJS answers 400 with its own body.
+ * - {@link DomainExceptionFilter}: the one global filter; every error becomes a NestJS `HttpException`.
+ * - {@link CorrelationMiddleware}: takes or creates the correlation id of every request.
  * - Domain Feature Modules: {@link UsersModule}, {@link RolesModule}, {@link AuthsModule}.
  */
 @Module({
@@ -54,19 +54,17 @@ import { UsersModule } from './users/users.module.js';
     UsersModule,
     RolesModule,
     AuthsModule,
+    JobContextModule.forRoot({
+      imports: [AuthsModule],
+      principal: SessionJobPrincipal,
+      tenants: () => persistenceConfig().tenants,
+      sources: contextSources,
+    }),
   ],
   providers: [
-    SessionJobPrincipal,
-    JobContextRegistration,
     { provide: APP_GUARD, useClass: AuthSessionGuard },
     { provide: APP_INTERCEPTOR, useClass: SessionPrincipalContextInterceptor },
-    {
-      provide: APP_PIPE,
-      useValue: new StandardSchemaValidationPipe({
-        exceptionFactory: zodBadRequest,
-      }),
-    },
-    { provide: APP_FILTER, useClass: PipelineErrorFilter },
+    { provide: APP_PIPE, useValue: new StandardSchemaValidationPipe() },
     { provide: APP_FILTER, useClass: DomainExceptionFilter },
   ],
 })
@@ -78,7 +76,7 @@ export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
     consumer
       .apply(
-        httpCorrelation(),
+        CorrelationMiddleware,
         this.tenantSchemaMiddleware.use.bind(this.tenantSchemaMiddleware),
       )
       .forRoutes('*');

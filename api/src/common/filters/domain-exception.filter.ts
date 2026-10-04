@@ -7,14 +7,13 @@ import type {
 } from '@cqrs-ddd/core/domain';
 import { DomainException } from '@cqrs-ddd/core/domain';
 import { domainErrorHttpStatus } from '@cqrs-ddd/core/http';
+import { ErrorFilter } from '@cqrs-ddd/nestjs';
 import {
   type ArgumentsHost,
   Catch,
-  type ExceptionFilter,
+  HttpException,
   HttpStatus,
-  Inject,
 } from '@nestjs/common';
-import { HttpAdapterHost } from '@nestjs/core';
 import {
   AuthConfigurationException,
   InvalidLoginCredentialsException,
@@ -57,8 +56,11 @@ import {
  *
  * Application and persistence code must not throw Nest HTTP exceptions to obtain
  * these responses; this filter is the presentation boundary responsible for mapping.
- * It replies through Nest's HTTP adapter, so it works on Express and Fastify, also
- * for errors thrown in middleware.
+ * It is the application's one global filter: it turns a domain exception into
+ * the matching NestJS `HttpException`, and leaves everything else to
+ * `ErrorFilter` of `@cqrs-ddd/nestjs`, which converts the other package errors
+ * and answers through Nest's own exception handling, on Express and Fastify,
+ * also for errors thrown in middleware.
  *
  * @example Registering globally, so Nest injects the adapter host:
  * ```typescript
@@ -78,18 +80,22 @@ import {
  * }
  * ```
  */
-@Catch(DomainException)
-export class DomainExceptionFilter implements ExceptionFilter {
-  constructor(
-    @Inject(HttpAdapterHost) private readonly adapterHost: HttpAdapterHost,
-  ) {}
+@Catch()
+export class DomainExceptionFilter extends ErrorFilter {
+  catch(exception: unknown, host: ArgumentsHost): void {
+    super.catch(
+      exception instanceof DomainException
+        ? this.toHttpException(exception)
+        : exception,
+      host,
+    );
+  }
 
-  catch(exception: DomainException, host: ArgumentsHost): void {
+  private toHttpException(exception: DomainException): HttpException {
     const { statusCode, error, message, extra } =
       this.resolveHttpError(exception);
-    this.adapterHost.httpAdapter.reply(
-      host.switchToHttp().getResponse(),
-      { statusCode, error, message: message ?? exception.message, ...extra },
+    return new HttpException(
+      { statusCode, message: message ?? exception.message, error, ...extra },
       statusCode,
     );
   }

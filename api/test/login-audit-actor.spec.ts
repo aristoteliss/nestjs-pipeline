@@ -2,6 +2,7 @@
 
 import { AUDIT_MODULE_DEFAULTS } from '@common/audit/audit.options.js';
 import { AUDIT_ACTIONS } from '@common/constants/index.js';
+import { PipelineModule } from '@cqrs-ddd/nestjs';
 import { LoggingBehavior } from '@cqrs-ddd/pipeline';
 import {
   AUDIT_SEVERITY,
@@ -22,7 +23,6 @@ import { SESSION_COOKIES } from '../src/auths/application/ports/session-cookies.
 import { NodeRefreshTokens } from '../src/auths/infrastructure/node-refresh-tokens.js';
 import { COMMAND_REPOSITORY } from '../src/auths/persistence/repository.tokens.js';
 import { PrincipalLoginService } from '../src/auths/services/principal-login.service.js';
-import { PipelineModule } from '../src/common/pipeline/pipeline.module.js';
 
 describe('Login audit actor', () => {
   const recorded: AuditRecord[] = [];

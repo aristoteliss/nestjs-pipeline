@@ -40,6 +40,10 @@ try {
     { cause: error },
   );
 }
+// One release line per run (`0.4` by default): the 0.4.x packages keep receiving fixes,
+// and the 0.5 NestJS adapters peer the @cqrs-ddd 0.5 packages; the two lines would
+// install two versions of @cqrs-ddd/core into one consumer.
+const line = process.argv[2] ?? '0.4';
 const packages = readdirSync(resolve(root, 'packages'))
   .sort()
   .flatMap((name) => {
@@ -47,7 +51,9 @@ const packages = readdirSync(resolve(root, 'packages'))
     const path = resolve(dir, 'package.json');
     if (!existsSync(path)) return [];
     const manifest = readJson(path);
-    return manifest.private === true ? [] : [{ dir, manifest }];
+    return manifest.private === true || !manifest.version.startsWith(`${line}.`)
+      ? []
+      : [{ dir, manifest }];
   });
 const expected = new Map(
   packages.map(({ manifest }) => [manifest.name, manifest]),
@@ -167,7 +173,12 @@ try {
       }
     }
     for (const name of Object.keys(manifest.peerDependencies ?? {})) {
-      if (manifest.peerDependenciesMeta?.[name]?.optional) continue;
+      // The 0.4 line proves packages load without their optional peers; each entry
+      // point of the 0.5 adapter needs its own optional peer, and every entry point
+      // is loaded below.
+      if (line === '0.4' && manifest.peerDependenciesMeta?.[name]?.optional) {
+        continue;
+      }
       const sourceDir = packages.find(
         (entry) => entry.manifest.name === manifest.name,
       ).dir;
@@ -217,14 +228,12 @@ try {
   for (const file of ['tsconfig.json', 'tsconfig.bundler.json']) {
     copyFileSync(resolve(template, file), resolve(consumer, file));
   }
-  const fixtures = readdirSync(resolve(template, 'src')).filter((name) =>
+  const fixtureDir = resolve(template, line === '0.4' ? 'src' : `src-${line}`);
+  const fixtures = readdirSync(fixtureDir).filter((name) =>
     name.endsWith('.ts'),
   );
   for (const file of fixtures) {
-    copyFileSync(
-      resolve(template, 'src', file),
-      resolve(consumer, 'src', file),
-    );
+    copyFileSync(resolve(fixtureDir, file), resolve(consumer, 'src', file));
   }
   // Static namespace imports exercise declarations and survive compilation into runtime loads.
   writeFileSync(
@@ -303,8 +312,12 @@ try {
   // Framework-neutral packages must work with nothing else installed: each gets an
   // empty consumer holding only its tarball, its peers and the packed packages
   // they depend on, and must load without NestJS.
-  const neutral = [...expected.values()].filter((manifest) =>
-    manifest.name.startsWith('@cqrs-ddd/'),
+  const neutral = [...expected.values()].filter(
+    (manifest) =>
+      manifest.name.startsWith('@cqrs-ddd/') &&
+      !Object.keys(manifest.peerDependencies ?? {}).some((name) =>
+        name.startsWith('@nestjs/'),
+      ),
   );
   for (const [index, manifest] of neutral.entries()) {
     const own = Object.keys(manifest.dependencies ?? {});

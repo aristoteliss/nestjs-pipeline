@@ -229,6 +229,33 @@ and e2e tests pass (1.5); next: Phase 2 and the context files (3.2).
   (`npm unpublish @cqrs-ddd/<name>@0.5.0 --force --registry http://127.0.0.1:4873/`),
   republished, reinstalled here, and recorded under Decisions with its fix.
 
+- [x] 1.7 The NestJS adapter package (owner, 2026-10-04, reversing "no plugin"): the glue
+  moved to `packages/nestjs` = `@cqrs-ddd/nestjs` 0.5.0 (code, published from here):
+  `PipelineModule`/`PipelineBootstrap`, `ErrorFilter` + `toHttpException`/`httpAnswer`
+  (every `@cqrs-ddd` error becomes a NestJS `HttpException` with Nest's body; package
+  extras kept; a `ZodValidationError` answers like NestJS's validation pipe, `message` a
+  list of `field: message`), `./correlation` (`CorrelationMiddleware`), `./job-context`
+  (`JobContextModule.forRoot`). Peers: NestJS 12, `@cqrs-ddd/pipeline` and `core`
+  required, the behavior packages optional (detected with `require.resolve`).
+  `packages/cqrs-ddd` = `@nestjs-pipeline/cqrs-ddd` 0.5.0 is a facade that only re-exports
+  each entry (no peers of its own: the release check forbids `@cqrs-ddd/core` in a
+  `@nestjs-pipeline/*` manifest). `api` uses `@cqrs-ddd/nestjs` (`workspace:*`):
+  `DomainExceptionFilter` extends `ErrorFilter` and is the one global filter;
+  `zodBadRequest`, `PipelineErrorFilter` and `JobContextRegistration` are gone; NestJS's
+  default `StandardSchemaValidationPipe`. `biome.json` exempts `packages/nestjs` from
+  `verify-package-licenses.grit` (it peers `@cqrs-ddd/core` by design); the converter lives
+  in `src/filters/`, which `transport-neutral-errors.grit` already exempts.
+  Verified 2026-10-04: adapter 31 tests, 100% coverage; facade 3 tests; `api` unit 911/911,
+  e2e 224/224; `pnpm lint`, Biome, Grit clean. The converter loads the optional peers
+  with `require` (no top-level `await`, so CommonJS Nest applications can `require()` the
+  adapter; the release check's Bun `require()` pass proves it).
+  `pnpm test:release` now runs per release line (`release.mjs 0.4`, then `0.5`; owner,
+  2026-10-04: the 0.4.x packages must stay releasable for fixes): the 0.4 line is
+  unchanged; the 0.5 line packs the adapter and the facade, installs their optional peers,
+  and runs `integration/packages/consumer/src-0.5/smoke.ts` (a Nest context with a
+  pipeline, the converter, the facade's identity). Both lines passed 2026-10-04 (with
+  `NPM_CONFIG_USERCONFIG=$HOME/.npmrc-cqrs-local` for the 0.5 registry packages).
+
 ### Phase 2: README notices and the 0.4.3 release
 
 - [ ] 2.1 A notice at the top of the root README, of every `packages/*/README.md` and of
@@ -385,6 +412,7 @@ Successor of each package:
 - Q1: once 0.4.3 is published, do `packages/*` stay in this repository as the frozen
   0.4.x source, or are they removed later, leaving `api` alone?
 - Q2 (answered 2026-10-04: use NestJS's way): done in 1.2a.
+- Q4 (answered 2026-10-04: keep 0.4.x releasable): the release check runs per line.
 - Q3 (answered 2026-10-04: NestJS's way): done in 1.2a.
 
 ## Next Steps
