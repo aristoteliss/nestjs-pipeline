@@ -12,11 +12,19 @@ repository relies on.
 | --- | --- | --- |
 | Path | `~/Source/ddd-cqrs` | `~/Source/nestjs-pipeline` |
 | GitHub | https://github.com/aristoteliss/ddd-cqrs | https://github.com/aristoteliss/nestjs-pipeline |
-| Owns | The one implementation: the framework-neutral `@cqrs-ddd/*` packages, published from 0.5.0; the example application `api/` on Express and Fastify; the documentation site https://aristoteliss.github.io/ddd-cqrs/; the local registry `tools/local-registry/` | The NestJS application `api/`, which from 0.5.0 installs the `@cqrs-ddd/*` packages; the old `@nestjs-pipeline/*` packages, stopped at 0.4.x and kept on npm with every version |
+| Owns | The one implementation: the framework-neutral `@cqrs-ddd/*` packages, published from 0.5.0, and every use of them without NestJS (the example application `api/` on Express and Fastify, `integration/`); the documentation site https://aristoteliss.github.io/ddd-cqrs/; the local registry `tools/local-registry/` | The complete NestJS example of the packages: `api/`, a NestJS application on official `@nestjs/cqrs` that installs the `@cqrs-ddd/*` packages from 0.5.0; the old `@nestjs-pipeline/*` packages, stopped at 0.4.x and kept on npm with every version |
 | Active task | `.claude/tasks/cqrs-ddd-pipeline.md` (the 0.5.0 release) | `.claude/tasks/adopt-cqrs-ddd-packages.md` (`api` on `@cqrs-ddd`, the README notices) |
 
 How they connect:
 
+- **NestJS stays NestJS here** (owner, 2026-10-04). `api` uses all of NestJS and of
+  `@nestjs/cqrs`: modules, dependency injection, controllers, `CommandBus`, `QueryBus`,
+  `EventBus`, `@CommandHandler`, `@QueryHandler`, `@EventsHandler`, `EventPublisher`. The
+  `@cqrs-ddd` packages only add what NestJS does not have (the pipeline behaviors, the DDD
+  building blocks) and replace nothing; `@cqrs-ddd/cqrs`, the framework-free buses, is not
+  used here. The glue between them (building the behaviors in providers, wrapping each
+  handler with its pipeline at startup, one exception filter over the packages'
+  `toHttpResponse`) lives in `api` and stays small.
 - **Package code lives only in ddd-cqrs.** nestjs-pipeline installs the packages and never
   copies or patches their code; a missing feature or a bug found there is fixed in
   ddd-cqrs.
@@ -28,7 +36,8 @@ How they connect:
   `http://127.0.0.1:4873/`, whose README holds every command. A fix in ddd-cqrs is
   republished there and tested again in nestjs-pipeline.
 - **Package names.** `@nestjs-pipeline/core` continues as `@cqrs-ddd/pipeline` (the engine,
-  `@UsePipeline`, `@SkipPipeline`) and `@cqrs-ddd/cqrs` (the buses);
+  `@UsePipeline`, `@SkipPipeline`); its NestJS wiring has no successor package, `api` holds
+  it;
   `@nestjs-pipeline/<name>` continues as `@cqrs-ddd/pipeline-<name>`. `@cqrs-ddd/core`,
   `mikro-orm`, `uuidv7`, `safe-stringify` and `untyped`, published from nestjs-pipeline up
   to 0.4.2, are published from ddd-cqrs from 0.5.0.

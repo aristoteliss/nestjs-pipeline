@@ -112,8 +112,10 @@ task files and which working-tree paths were active before compaction.
 
 ## The sibling repository
 
-From 0.5.0 this repository's `api` installs the `@cqrs-ddd/*` packages, whose one
-implementation lives in ddd-cqrs (`~/Source/ddd-cqrs`); the `@nestjs-pipeline/*` packages
+This repository is the complete NestJS example of the `@cqrs-ddd/*` packages: from 0.5.0
+its `api` keeps all of NestJS and official `@nestjs/cqrs`, and installs the packages, whose
+one implementation lives in ddd-cqrs (`~/Source/ddd-cqrs`), only for what NestJS lacks;
+using the packages without NestJS belongs to ddd-cqrs. The `@nestjs-pipeline/*` packages
 here stop at 0.4.x and only receive README notices. Never copy or patch package code here:
 fix it in ddd-cqrs, republish it to the local registry
 (`~/Source/ddd-cqrs/tools/local-registry/`) and install it again. Release order, package
