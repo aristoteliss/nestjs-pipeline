@@ -14,6 +14,10 @@ import { describe, expect, it } from 'vitest';
  * They belong to this package specifically: `@nestjs-pipeline/core` owns
  * process-wide singletons, so it is core's own contract that every sibling
  * resolves exactly one copy of it.
+ *
+ * They cover the 0.4 release line. The 0.5 NestJS adapters (`@cqrs-ddd/nestjs`
+ * and its facade `@nestjs-pipeline/cqrs-ddd`) peer NestJS and `@cqrs-ddd/core`
+ * by design; `integration/packages/release.mjs 0.5` checks them.
  */
 
 const CORE = '@nestjs-pipeline/core';
@@ -26,6 +30,7 @@ const PACKAGES_DIR = resolve(import.meta.dirname, '../..');
 
 interface Manifest {
   name: string;
+  version: string;
   private?: boolean;
   dependencies?: Record<string, string>;
   peerDependencies?: Record<string, string>;
@@ -44,7 +49,10 @@ function manifests(): Manifest[] {
       }
     })
     .map((file) => JSON.parse(readFileSync(file, 'utf8')) as Manifest)
-    .filter((manifest) => manifest.private !== true);
+    .filter(
+      (manifest) =>
+        manifest.private !== true && manifest.version.startsWith('0.4.'),
+    );
 }
 
 const published = manifests();

@@ -58,19 +58,16 @@ what happens **after** retries are exhausted.
 ## Installation
 
 ```bash
-pnpm add @nestjs-pipeline/deadletter
+pnpm add @cqrs-ddd/pipeline-deadletter @cqrs-ddd/nestjs @cqrs-ddd/pipeline @nestjs/cqrs
 ```
 
 **Peer dependencies:**
 
 ```bash
-pnpm add @nestjs-pipeline/core @nestjs/common reflect-metadata
+pnpm add @nestjs/common @nestjs/core reflect-metadata
 ```
 
-Requires Node.js 22.12 or later, `@nestjs/common` `^12.1.0` and `@nestjs-pipeline/core` `^0.4.2`.
-
-Published as an ES module; a CommonJS application loads it with `require()`. Coming from
-0.3.x, see [Upgrading from 0.3.x](/nestjs-pipeline/upgrading/from-0-3/).
+Requires Node.js 22.12 or later, `@nestjs/common` `^12.1.0`.
 
 Plus **one** backend client for your chosen transport — e.g. `bullmq`,
 `amqplib`, or `pg`. None are hard dependencies of this package.
@@ -79,39 +76,49 @@ Plus **one** backend client for your chosen transport — e.g. `bullmq`,
 
 ## Setup
 
+In your reliability module, configure your transport queue and register `DeadLetterBehavior` as a singleton provider:
+
 ```typescript
-// app.module.ts
-import { Module } from '@nestjs/common';
-import { PipelineModule } from '@nestjs-pipeline/core';
+import { Module, Logger } from '@nestjs/common';
+import { BullModule, getQueueToken } from '@nestjs/bullmq';
+import { PipelineModule } from '@cqrs-ddd/nestjs';
 import {
-  DeadLetterModule,
   DeadLetterBehavior,
   BullMqDeadLetterTransport,
-} from '@nestjs-pipeline/deadletter';
-import { Queue } from 'bullmq';
-
-const deadLetterQueue = new Queue('dead-letters', {
-  connection: { host: 'localhost', port: 6379 },
-});
+} from '@cqrs-ddd/pipeline-deadletter';
+import type { Queue } from 'bullmq';
 
 @Module({
   imports: [
-    DeadLetterModule.forRoot({
-      transport: new BullMqDeadLetterTransport(deadLetterQueue),
+    BullModule.registerQueue({ name: 'dead-letters' }),
+    PipelineModule.forRoot({
+      globalBehaviors: [
+        { scope: 'events', before: [DeadLetterBehavior] },
+      ],
     }),
-    // Registers the behavior provider for @UsePipeline/globalBehaviors.
-    PipelineModule.forRoot({ behaviors: [DeadLetterBehavior] }),
+  ],
+  providers: [
+    {
+      provide: DeadLetterBehavior,
+      inject: [getQueueToken('dead-letters')],
+      useFactory: (queue: Queue) =>
+        new DeadLetterBehavior(
+          new BullMqDeadLetterTransport(queue),
+          undefined, // Global default options
+          new Logger(DeadLetterBehavior.name),
+        ),
+    },
   ],
 })
-export class AppModule {}
+export class ReliabilityModule {}
 ```
 
-Then opt a handler in per-handler, or configure `DeadLetterBehavior` under
-`globalBehaviors` if it should execute globally. The `behaviors` registration
-above only makes the provider available to the pipeline.
+Then opt a handler in per-handler via `@UsePipeline(deadLetter())`:
 
 ```typescript
-import { deadLetter } from '@nestjs-pipeline/deadletter';
+import { CommandHandler, EventsHandler, ICommandHandler, IEventHandler } from '@nestjs/cqrs';
+import { UsePipeline } from '@cqrs-ddd/pipeline';
+import { deadLetter } from '@cqrs-ddd/pipeline-deadletter';
 
 @CommandHandler(CreateUserCommand)
 @UsePipeline(deadLetter()) // attempt capture + re-throw on failure
@@ -121,8 +128,6 @@ export class CreateUserHandler implements ICommandHandler<CreateUserCommand> {}
 @UsePipeline(deadLetter({ rethrow: false })) // attempt capture + swallow handler error
 export class SendWelcomeEmailHandler implements IEventHandler<UserCreatedEvent> {}
 ```
-
-> Need the queue from Nest's DI (`@nestjs/bullmq`)? Use `forRootAsync` (see below).
 
 ---
 

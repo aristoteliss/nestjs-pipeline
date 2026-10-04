@@ -100,7 +100,6 @@
         "**/packages/**/*.ts",
         "!**/packages/ddd-core/**",
         "!**/packages/ddd-mikro-orm/**",
-        "!**/packages/nestjs/**",
         "!**/integration/packages/consumer/src-0.5/**"
       ]
     },

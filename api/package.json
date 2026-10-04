@@ -31,7 +31,7 @@
     "@casl/ability": "^7.0.1",
     "@cqrs-ddd/core": "^0.5.0",
     "@cqrs-ddd/mikro-orm": "^0.5.0",
-    "@cqrs-ddd/nestjs": "workspace:*",
+    "@cqrs-ddd/nestjs": "^0.5.0",
     "@cqrs-ddd/pipeline": "^0.5.0",
     "@cqrs-ddd/pipeline-audit": "^0.5.0",
     "@cqrs-ddd/pipeline-cache": "^0.5.0",

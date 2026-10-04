@@ -28,6 +28,8 @@ pnpm db:migrate
 pnpm dev
 ```
 
+In VS Code, Run and Debug offers `API (Express)` and `API (Fastify)`: each builds the api, then starts `dist/main.js` with breakpoints mapped to its TypeScript. `API: migrate databases` runs the migration the same way, and `API tests: current file` and `API e2e: current file` debug the open spec. The Vitest extension, recommended by the workspace, runs and debugs any spec from the editor.
+
 `db:migrate` applies pending migrations for every configured tenant: the initial migration creates the schema, inserts the demo seed, and materializes its permission rules. The seed names its users after the tenant, which the ORM options hand to the migration: in `tenant_a`, Alice's email is `alice+tenant-a@seed.local`. Every maintenance script runs through one entry point, `src/persistence/cli.ts`.
 
 | Command | Purpose |

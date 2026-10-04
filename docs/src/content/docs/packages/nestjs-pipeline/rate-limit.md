@@ -103,19 +103,16 @@ one call into the pipeline and maps an exhausted bucket to a typed error.
 ## Installation
 
 ```bash
-pnpm add @nestjs-pipeline/rate-limit rate-limiter-flexible
+pnpm add @cqrs-ddd/pipeline-rate-limit @cqrs-ddd/nestjs @cqrs-ddd/pipeline @nestjs/cqrs rate-limiter-flexible
 ```
 
 **Peer dependencies:**
 
 ```bash
-pnpm add @nestjs-pipeline/core @nestjs/common @nestjs/core reflect-metadata
+pnpm add @nestjs/common @nestjs/core reflect-metadata
 ```
 
-Requires Node.js 22.12 or later, `@nestjs/common` and `@nestjs/core` `^12.1.0`, and `@nestjs-pipeline/core` `^0.4.2`.
-
-Published as an ES module; a CommonJS application loads it with `require()`. Coming from
-0.3.x, see [Upgrading from 0.3.x](/nestjs-pipeline/upgrading/from-0-3/).
+Requires Node.js 22.12 or later, `@nestjs/common` and `@nestjs/core` `^12.1.0`.
 
 > `rate-limiter-flexible` is **not** a hard dependency of this package — you pass
 > your own limiter instance, so only the backend you actually use is loaded. It is
@@ -126,35 +123,48 @@ Published as an ES module; a CommonJS application loads it with `require()`. Com
 
 ## Setup
 
+In your reliability module, configure your rate limiter and provide `RateLimitBehavior` as a singleton provider:
+
 ```typescript
-// app.module.ts
-import { Module } from '@nestjs/common';
-import { PipelineModule } from '@nestjs-pipeline/core';
-import { RateLimitModule, RateLimitBehavior } from '@nestjs-pipeline/rate-limit';
-import { tenantSource } from '@nestjs-pipeline/tenant';
+import { Module, Logger } from '@nestjs/common';
+import { PipelineModule } from '@cqrs-ddd/nestjs';
+import {
+  RateLimitBehavior,
+  type RateLimiterLike,
+} from '@cqrs-ddd/pipeline-rate-limit';
 import { RateLimiterMemory } from 'rate-limiter-flexible';
+
+export const RATE_LIMITER = Symbol('RATE_LIMITER');
 
 @Module({
   imports: [
-    RateLimitModule.forRoot({
-      // 10 points per second, shared default for every handler
-      limiter: new RateLimiterMemory({ points: 10, duration: 1 }),
-    }),
-    // Register the behavior provider so handlers/globalBehaviors can reference it.
-    PipelineModule.forRoot({
-      behaviors: [RateLimitBehavior],
-      // Partitioned keys read `context.tenantId`, which comes from this source.
-      sources: { tenantId: tenantSource },
-    }),
+    PipelineModule.forRoot(),
+  ],
+  providers: [
+    {
+      provide: RATE_LIMITER,
+      useFactory: () =>
+        new RateLimiterMemory({
+          points: 10, // 10 points per second
+          duration: 1,
+        }),
+    },
+    {
+      provide: RateLimitBehavior,
+      inject: [RATE_LIMITER],
+      useFactory: (limiter: RateLimiterLike) =>
+        new RateLimitBehavior(
+          limiter,
+          undefined, // Default behavior options
+          new Logger(RateLimitBehavior.name),
+        ),
+    },
   ],
 })
-export class AppModule {}
+export class ReliabilityModule {}
 ```
 
-The `behaviors` entry above registers `RateLimitBehavior` with Nest DI; it does
-**not** make rate limiting execute globally. Opt a handler in per-handler, or put
-`RateLimitBehavior` under `globalBehaviors` if you want it applied to a global
-scope:
+Opt a handler in per-handler via `@UsePipeline(rateLimit(...))`, or configure `RateLimitBehavior` under `globalBehaviors` in `PipelineModule.forRoot`:
 
 ```typescript
 import { rateLimit } from '@nestjs-pipeline/rate-limit';

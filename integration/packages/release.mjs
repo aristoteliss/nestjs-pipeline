@@ -162,7 +162,8 @@ try {
         if (
           range.startsWith('workspace:') ||
           /(?:^|[/:])api\//.test(range) ||
-          (name === '@cqrs-ddd/core' &&
+          (line === '0.4' &&
+            name === '@cqrs-ddd/core' &&
             !manifest.name.startsWith('@cqrs-ddd/')) ||
           name === '@nestjs-pipeline/ddd-api'
         ) {

@@ -43,20 +43,16 @@ Zod v4 validation and parsing integration for `@nestjs-pipeline/core` — parse 
 ## Installation
 
 ```bash
-pnpm add @nestjs-pipeline/zod zod
+pnpm add @cqrs-ddd/pipeline-zod @cqrs-ddd/nestjs @cqrs-ddd/pipeline @nestjs/cqrs zod
 ```
-
-Requires Zod `^4.3.0`, NestJS `^12.1.0`, `@nestjs-pipeline/core` `^0.4.2` and Node.js 22.12
-or later.
-
-Published as an ES module; a CommonJS application loads it with `require()`. Coming from
-0.3.x, see [Upgrading from 0.3.x](/nestjs-pipeline/upgrading/from-0-3/).
 
 **Peer dependencies:**
 
 ```bash
-pnpm add @nestjs-pipeline/core @nestjs/common @nestjs/core
+pnpm add @nestjs/common @nestjs/core reflect-metadata
 ```
+
+Requires Zod `^4.3.0` or `^3.24.0`, NestJS `^12.1.0` and Node.js 22.12 or later.
 
 ---
 
@@ -76,18 +72,23 @@ would expose raw input to those policies.
 ```typescript
 import { Module } from '@nestjs/common';
 import { CqrsModule } from '@nestjs/cqrs';
-import { PipelineModule } from '@nestjs-pipeline/core';
-import { ZodValidationBehavior } from '@nestjs-pipeline/zod';
+import { PipelineModule } from '@cqrs-ddd/nestjs';
+import { ZodValidationBehavior } from '@cqrs-ddd/pipeline-zod';
 
 @Module({
   imports: [
     CqrsModule.forRoot(),
     PipelineModule.forRoot({
-      globalBehaviors: {
-        scope: 'all',
-        before: [ZodValidationBehavior],
-      },
+      globalBehaviors: [
+        {
+          scope: 'all',
+          before: [ZodValidationBehavior],
+        },
+      ],
     }),
+  ],
+  providers: [
+    ZodValidationBehavior,
   ],
 })
 export class AppModule {}

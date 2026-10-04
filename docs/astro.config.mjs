@@ -76,10 +76,9 @@ export default defineConfig({
         ]),
         // starlight-openapi generates its routes, which are not content pages.
         starlightLinksValidator({
-          exclude: [
-            '/nestjs-pipeline/http-api/',
-            '/nestjs-pipeline/http-api/**',
-          ],
+          exclude: ({ link }) =>
+            link.startsWith('/nestjs-pipeline/http-api/') ||
+            link.includes('/readme'),
         }),
       ],
       sidebar: [

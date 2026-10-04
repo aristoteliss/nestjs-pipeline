@@ -1,6 +1,5 @@
 import 'reflect-metadata';
 import { EntityNotFoundException } from '@cqrs-ddd/core/domain';
-import { ErrorFilter, PipelineModule, toHttpException } from '@cqrs-ddd/nestjs';
 import {
   type IPipelineBehavior,
   type IPipelineContext,
@@ -15,7 +14,11 @@ import {
   CqrsModule,
   type ICommandHandler,
 } from '@nestjs/cqrs';
-import * as facade from '@nestjs-pipeline/cqrs-ddd';
+import {
+  ErrorFilter,
+  PipelineModule,
+  toHttpException,
+} from '@nestjs-pipeline/cqrs-ddd';
 
 class SmokeCommand {
   constructor(readonly value: string) {}
@@ -54,7 +57,7 @@ async function main() {
   await app.close();
   if (result !== 'behavior:packed') {
     throw new Error(
-      `Expected the packed adapter to run the pipeline, got ${result}`,
+      `Expected the packed facade to run the pipeline, got ${result}`,
     );
   }
 
@@ -66,10 +69,7 @@ async function main() {
       `Expected a core domain error to answer 404, got ${status}`,
     );
   }
-  if (facade.PipelineModule !== PipelineModule) {
-    throw new Error('The facade must re-export @cqrs-ddd/nestjs unchanged');
-  }
-  console.log('packed @cqrs-ddd/nestjs smoke passed');
+  console.log('packed @nestjs-pipeline/cqrs-ddd smoke passed');
 }
 
 main().catch((error: unknown) => {

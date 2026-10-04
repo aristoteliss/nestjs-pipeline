@@ -36,8 +36,8 @@ The map below visualizes the execution lifecycle of a CQRS mutation command acro
 
 ### 3. Application & domain layer (CQRS & DDD core)
 
-- **`CommandBaseHandler`**: Provides a framework-neutral execution template. Automatically detects buffered domain events on the returned aggregate root, dispatches them through `EventBus.publishAll()`, and clears uncommitted events.
-- **`CreateUserHandler`**: Orchestrates aggregate creation (`User.create()`), evaluates post-mutation CASL field authorization (`authorizer.authorize()`), and delegates persistence to the command repository.
+- **`ICommandHandler` & `EventPublisher`**: Handlers implement NestJS's `ICommandHandler<C, R>` with `execute()`. Domain events are committed through NestJS's `EventPublisher` (`publisher.mergeObjectContext(aggregate).commit()`) after durable repository persistence.
+- **`CreateUserHandler`**: Orchestrates aggregate creation (`User.create()`), evaluates post-mutation CASL field authorization (`authorizer.authorize()`), delegates persistence to the command repository, and commits domain events.
 - **`User` aggregate root**: Encapsulates business invariants, applies `UserCreatedEvent`, and tracks the expected entity version baseline. Setters remain private for ORM hydration.
 
 ### 4. Persistence & infrastructure layer (authoritative database & queues)

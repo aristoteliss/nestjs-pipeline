@@ -20,26 +20,24 @@ configuration) is the application's decision.
 ## Installation
 
 ```bash
-pnpm add @nestjs-pipeline/casl @nestjs-pipeline/core @casl/ability @nestjs/common @nestjs/core reflect-metadata
+pnpm add @cqrs-ddd/pipeline-casl @cqrs-ddd/nestjs @cqrs-ddd/pipeline @casl/ability @nestjs/cqrs
 ```
 
-Peers: `@casl/ability` `^7.0.0`, `@nestjs/common` `^12.1.0`, `@nestjs/core` `^12.1.0`,
-`@nestjs-pipeline/core` `^0.4.2`, `reflect-metadata`. Node.js 22.12 or later.
+Peers: `@casl/ability` `^7.0.0`, `@nestjs/common` `^12.1.0`, `@nestjs/core` `^12.1.0`. Node.js 22.12 or later.
 
-Published as an ES module; a CommonJS application loads it with `require()`. Coming from
-0.3.x, see [Upgrading from 0.3.x](/nestjs-pipeline/upgrading/from-0-3/).
+## Setup
 
-## Register the module
+Implement `ICaslPermissionSource` and register `CaslBehavior` and `CaslAuthorizer` as providers in your authorization module:
 
-```ts
+```typescript
 import { Injectable, Module } from '@nestjs/common';
-import { CqrsModule } from '@nestjs/cqrs';
+import { PipelineModule } from '@cqrs-ddd/nestjs';
 import {
   type CaslAuthorizationInput,
-  CaslModule,
+  CaslBehavior,
+  CaslAuthorizer,
   type ICaslPermissionSource,
-} from '@nestjs-pipeline/casl';
-import { PipelineModule } from '@nestjs-pipeline/core';
+} from '@cqrs-ddd/pipeline-casl';
 
 @Injectable()
 export class AppPermissionSource implements ICaslPermissionSource {
@@ -56,33 +54,36 @@ export class AppPermissionSource implements ICaslPermissionSource {
 }
 
 @Module({
-  providers: [AppPermissionSource, GrantRepository],
-  exports: [AppPermissionSource],
+  providers: [
+    AppPermissionSource,
+    GrantRepository,
+    {
+      provide: CaslBehavior,
+      inject: [AppPermissionSource],
+      useFactory: (source: AppPermissionSource) => new CaslBehavior(source),
+    },
+    CaslAuthorizer,
+  ],
+  exports: [CaslBehavior, CaslAuthorizer],
 })
 export class AuthorizationModule {}
+```
 
+In your root module:
+
+```typescript
 @Module({
   imports: [
     CqrsModule.forRoot(),
-    PipelineModule.forRoot({}),
-    CaslModule.forRoot({
-      imports: [AuthorizationModule],
-      permissionSource: { useExisting: AppPermissionSource },
+    PipelineModule.forRoot({
+      // Ensures CaslBehavior is evaluated before cache/idempotency in strict mode
+      diagnostics: 'strict',
     }),
+    AuthorizationModule,
   ],
 })
 export class AppModule {}
 ```
-
-`CaslModule.forRoot` is global: it provides and exports `CaslBehavior`, `CaslAuthorizer`
-and `CASL_PERMISSION_SOURCE`. `global: true` only makes those exports visible; the source
-still resolves its own dependencies, which is what `imports` is for. The recommended form
-is the one above: an application module that provides and exports the source, passed
-through `imports` and referenced with `useExisting`. `permissionSource` also accepts a
-class, `{ useClass }` and `{ useFactory, inject }`.
-
-A request-scoped source makes `CaslBehavior` request-scoped as well, which is how a
-source reads per-request state.
 
 `load()` receives the pipeline context, so a source can also read the caller from the
 request itself. A source built with a factory:

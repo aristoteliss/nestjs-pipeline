@@ -17,7 +17,7 @@ Provider-agnostic by design: it talks only to the **[OpenFeature](https://openfe
 - [Why OpenFeature?](#why-openfeature)
 - [Installation](#installation)
 - [Setup](#setup)
-  - [1. Register a provider (Unleash)](#1-register-a-provider-unleash)
+  - [1. Register FeatureFlagBehavior provider](#1-register-featureflagbehavior-provider)
   - [2. Gate a handler](#2-gate-a-handler)
 - [Drop-in Replacement: Flagsmith](#drop-in-replacement-flagsmith)
 - [Behavior](#behavior)
@@ -49,20 +49,17 @@ feature-flag evaluation. This package builds on `@openfeature/server-sdk`, so:
 ## Installation
 
 ```bash
-pnpm add @nestjs-pipeline/feature-flags @openfeature/server-sdk
+pnpm add @cqrs-ddd/pipeline-feature-flags @cqrs-ddd/nestjs @cqrs-ddd/pipeline @nestjs/cqrs @openfeature/server-sdk
 ```
 
 **Peer dependencies:**
 
 ```bash
-pnpm add @nestjs-pipeline/core @nestjs/common @nestjs/core reflect-metadata
+pnpm add @nestjs/common @nestjs/core reflect-metadata
 ```
 
 Requires Node.js 22.12 or later, `@nestjs/common` and `@nestjs/core` `^12.1.0`,
-`@nestjs-pipeline/core` `^0.4.2` and `@openfeature/server-sdk` `^1.13.0`.
-
-Published as an ES module; a CommonJS application loads it with `require()`. Coming from
-0.3.x, see [Upgrading from 0.3.x](/nestjs-pipeline/upgrading/from-0-3/).
+and `@openfeature/server-sdk` `^1.13.0`.
 
 Plus **one** OpenFeature provider for your backend, e.g. Unleash:
 
@@ -74,32 +71,46 @@ pnpm add @openfeature/unleash-provider
 
 ## Setup
 
-### 1. Register a provider (Unleash)
+### 1. Register FeatureFlagBehavior provider
+
+In your reliability module, initialize the OpenFeature client and provide `FeatureFlagBehavior`:
 
 ```typescript
-// app.module.ts
-import { Module } from '@nestjs/common';
-import { CqrsModule } from '@nestjs/cqrs';
-import { PipelineModule } from '@nestjs-pipeline/core';
-import { FeatureFlagsModule, FeatureFlagBehavior } from '@nestjs-pipeline/feature-flags';
+// reliability.module.ts
+import { Module, Logger } from '@nestjs/common';
+import { PipelineModule } from '@cqrs-ddd/nestjs';
+import {
+  createFeatureFlagClient,
+  FeatureFlagBehavior,
+} from '@cqrs-ddd/pipeline-feature-flags';
 import { UnleashProvider } from '@openfeature/unleash-provider';
+
+const FEATURE_FLAGS = {
+  provider: new UnleashProvider({
+    url: 'https://unleash.example.com/api',
+    appName: 'my-app',
+    token: process.env.UNLEASH_TOKEN!,
+  }),
+};
 
 @Module({
   imports: [
-    CqrsModule.forRoot(),
-    FeatureFlagsModule.forRoot({
-      provider: new UnleashProvider({
-        url: 'https://unleash.example.com/api',
-        appName: 'my-app',
-        token: process.env.UNLEASH_TOKEN!,
-      }),
-      // Static context merged into every evaluation:
-      context: { environment: process.env.NODE_ENV ?? 'development' },
-    }),
-    PipelineModule.forRoot({ behaviors: [FeatureFlagBehavior] }),
+    PipelineModule.forRoot(),
+  ],
+  providers: [
+    {
+      provide: FeatureFlagBehavior,
+      useFactory: async () =>
+        new FeatureFlagBehavior(
+          await createFeatureFlagClient(FEATURE_FLAGS),
+          undefined, // Global default options
+          { environment: process.env.NODE_ENV ?? 'development' },
+          new Logger(FeatureFlagBehavior.name),
+        ),
+    },
   ],
 })
-export class AppModule {}
+export class ReliabilityModule {}
 ```
 
 > The module awaits provider readiness (`setProviderAndWait`) during bootstrap by

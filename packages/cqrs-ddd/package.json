@@ -13,7 +13,7 @@
     "url": "git+https://github.com/aristoteliss/nestjs-pipeline.git",
     "directory": "packages/cqrs-ddd"
   },
-  "homepage": "https://github.com/aristoteliss/nestjs-pipeline/tree/master/packages/nestjs#readme",
+  "homepage": "https://aristoteliss.github.io/ddd-cqrs/packages/nestjs/",
   "bugs": {
     "url": "https://github.com/aristoteliss/nestjs-pipeline/issues"
   },
@@ -60,10 +60,22 @@
     "prepublishOnly": "pnpm run rebuild"
   },
   "dependencies": {
-    "@cqrs-ddd/nestjs": "workspace:*"
+    "@cqrs-ddd/nestjs": "^0.5.0"
   },
   "devDependencies": {
-    "@casl/ability": "^7.0.1",
+    "@cqrs-ddd/core": "^0.5.0",
+    "@cqrs-ddd/pipeline": "^0.5.0",
+    "@cqrs-ddd/pipeline-correlation": "^0.5.0",
+    "@cqrs-ddd/pipeline-job-context": "^0.5.0",
+    "@nestjs/common": "^12.1.1",
+    "@nestjs/core": "^12.1.1",
+    "@nestjs/cqrs": "^12.1.0",
+    "@vitest/coverage-v8": "^5.0.2",
+    "reflect-metadata": "^0.2.2",
+    "rxjs": "^7.8.2",
+    "vitest": "^5.0.2"
+  },
+  "peerDependencies": {
     "@cqrs-ddd/core": "^0.5.0",
     "@cqrs-ddd/pipeline": "^0.5.0",
     "@cqrs-ddd/pipeline-casl": "^0.5.0",
@@ -75,12 +87,29 @@
     "@cqrs-ddd/pipeline-zod": "^0.5.0",
     "@nestjs/common": "^12.1.1",
     "@nestjs/core": "^12.1.1",
-    "@nestjs/cqrs": "^12.1.0",
-    "@openfeature/server-sdk": "^1.23.0",
-    "@vitest/coverage-v8": "^5.0.2",
-    "reflect-metadata": "^0.2.2",
-    "rxjs": "^7.8.2",
-    "vitest": "^5.0.2",
-    "zod": "^4.6.5"
+    "@nestjs/cqrs": "^12.1.0"
+  },
+  "peerDependenciesMeta": {
+    "@cqrs-ddd/pipeline-casl": {
+      "optional": true
+    },
+    "@cqrs-ddd/pipeline-correlation": {
+      "optional": true
+    },
+    "@cqrs-ddd/pipeline-feature-flags": {
+      "optional": true
+    },
+    "@cqrs-ddd/pipeline-idempotency": {
+      "optional": true
+    },
+    "@cqrs-ddd/pipeline-job-context": {
+      "optional": true
+    },
+    "@cqrs-ddd/pipeline-rate-limit": {
+      "optional": true
+    },
+    "@cqrs-ddd/pipeline-zod": {
+      "optional": true
+    }
   }
 }

@@ -20,7 +20,7 @@ Both are no-op-safe: if the matching SDK isn't initialized, the OpenTelemetry AP
 - [Installation](#installation)
 - [Setup](#setup)
   - [1. Initialize the OTel SDK](#1-initialize-the-otel-sdk)
-  - [2. Register TraceBehavior](#2-register-tracebehavior)
+  - [2. Register Telemetry Providers](#2-register-telemetry-providers)
 - [Span Details](#span-details)
 - [Metrics](#metrics)
   - [Instruments](#instruments)
@@ -49,20 +49,16 @@ Both are no-op-safe: if the matching SDK isn't initialized, the OpenTelemetry AP
 ## Installation
 
 ```bash
-pnpm add @nestjs-pipeline/opentelemetry @opentelemetry/api
+pnpm add @cqrs-ddd/pipeline-opentelemetry @cqrs-ddd/nestjs @cqrs-ddd/pipeline @nestjs/cqrs @opentelemetry/api
 ```
 
 **Peer dependencies:**
 
 ```bash
-pnpm add @nestjs-pipeline/core @nestjs/common reflect-metadata
+pnpm add @nestjs/common @nestjs/core reflect-metadata
 ```
 
-Requires Node.js 22.12 or later, `@nestjs/common` `^12.1.0`, `@nestjs-pipeline/core` `^0.4.2`
-and `@opentelemetry/api` `^1.9.0`.
-
-Published as an ES module; a CommonJS application loads it with `require()`. Coming from
-0.3.x, see [Upgrading from 0.3.x](/nestjs-pipeline/upgrading/from-0-3/).
+Requires Node.js 22.12 or later, `@nestjs/common` `^12.1.0` and `@opentelemetry/api` `^1.9.0`.
 
 You'll also need an OTel SDK and exporter for your backend (e.g. SigNoz, Jaeger, Datadog):
 
@@ -106,28 +102,50 @@ async function bootstrap() {
 bootstrap();
 ```
 
-### 2. Register TraceBehavior
+### 2. Register Telemetry Providers
+
+In your application or observability module, register `TraceBehavior`, `MetricsBehavior`, and `AttributesBehavior` as providers and place them in the global pipeline:
 
 ```typescript
-// app.module.ts
-import { Module } from '@nestjs/common';
+// observability.module.ts
+import { Module, Logger } from '@nestjs/common';
 import { CqrsModule } from '@nestjs/cqrs';
-import { PipelineModule, LoggingBehavior } from '@nestjs-pipeline/core';
-import { TraceBehavior } from '@nestjs-pipeline/opentelemetry';
+import { PipelineModule } from '@cqrs-ddd/nestjs';
+import { LoggingBehavior, logging } from '@cqrs-ddd/pipeline';
+import {
+  TraceBehavior,
+  MetricsBehavior,
+  AttributesBehavior,
+} from '@cqrs-ddd/pipeline-opentelemetry';
 
 @Module({
   imports: [
     CqrsModule.forRoot(),
     PipelineModule.forRoot({
-      globalBehaviors: {
-        scope: 'all',
-        before: [LoggingBehavior],
-        after: [[TraceBehavior, { tracerName: 'my-service' }]],
-      },
+      globalBehaviors: [
+        {
+          scope: 'all',
+          before: [
+            logging(),
+            [TraceBehavior, { tracerName: 'my-service' }],
+            [MetricsBehavior, { meterName: 'my-service' }],
+            AttributesBehavior,
+          ],
+        },
+      ],
     }),
   ],
+  providers: [
+    LoggingBehavior,
+    TraceBehavior,
+    {
+      provide: MetricsBehavior,
+      useFactory: () => new MetricsBehavior(new Logger(MetricsBehavior.name)),
+    },
+    AttributesBehavior,
+  ],
 })
-export class AppModule {}
+export class ObservabilityModule {}
 ```
 
 That's it — every command, query, and event handler now emits OTel spans automatically when a tracer provider is installed; otherwise the Trace API uses its no-op tracer.
@@ -284,7 +302,7 @@ If no `meterName` is provided (neither globally nor per-handler), the default is
 With an OTLP → Prometheus pipeline, the instruments map to time series you can
 query directly:
 
-```promql
+```text
 # Request rate per handler (req/s)
 sum by (pipeline_handler_name) (rate(pipeline_handler_invocations_total[1m]))
 

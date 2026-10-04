@@ -78,15 +78,17 @@ Options can also be set at the global level:
 
 ```typescript
 PipelineModule.forRoot({
-  globalBehaviors: {
-    scope: 'all',
-    before: [
-      [LoggingBehavior, { metricLogLevel: 'log', requestResponseLogLevel: 'debug' }],
-    ],
-    after: [
-      [TraceBehavior, { tracerName: 'my-service' }],
-    ],
-  },
+  globalBehaviors: [
+    {
+      scope: 'all',
+      before: [
+        [LoggingBehavior, { metricLogLevel: 'log', requestResponseLogLevel: 'debug' }],
+      ],
+      after: [
+        [TraceBehavior, { tracerName: 'my-service' }],
+      ],
+    },
+  ],
 })
 ```
 
