@@ -4,10 +4,10 @@ import { createHash } from 'node:crypto';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { parseCapabilityString } from '@cqrs-ddd/pipeline-casl';
 import type { INestApplication } from '@nestjs/common';
 import type { NestExpressApplication } from '@nestjs/platform-express';
 import type { NestFastifyApplication } from '@nestjs/platform-fastify';
-import { parseCapabilityString } from '@nestjs-pipeline/casl';
 import {
   RedisContainer,
   type StartedRedisContainer,
@@ -360,7 +360,7 @@ export async function inTenant<T>(
   const { TenantSchemaContext } = await import(
     '@persistence/tenant-schema.context.js'
   );
-  const { runWithTenant } = await import('@nestjs-pipeline/tenant');
+  const { runWithTenant } = await import('@cqrs-ddd/pipeline-tenant');
   return runWithTenant(tenant, () =>
     app.get(TenantSchemaContext).run(tenant, work),
   );

@@ -1,15 +1,16 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
-import { uuidv7 } from '@cqrs-ddd/uuidv7';
+
 import {
   type AuditRecord,
   createAuditTableSql,
   PostgresAuditSink,
-} from '@nestjs-pipeline/audit';
+} from '@cqrs-ddd/pipeline-audit';
 import {
   createDeadLetterTableSql,
   type DeadLetterRecord,
   PostgresDeadLetterTransport,
-} from '@nestjs-pipeline/deadletter';
+} from '@cqrs-ddd/pipeline-deadletter';
+import { uuidv7 } from '@cqrs-ddd/uuidv7';
 import { Pool } from 'pg';
 import {
   GenericContainer,

@@ -1,7 +1,6 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { createRequire } from 'node:module';
-import { DEAD_LETTER_DEFAULTS } from '@common/dead-letter/dead-letter.options.js';
 import { ObservabilityModule } from '@common/modules/index.js';
 import {
   Controller,
@@ -16,7 +15,6 @@ import {
   type NestFastifyApplication,
 } from '@nestjs/platform-fastify';
 import { Test } from '@nestjs/testing';
-import { DeadLetterModule } from '@nestjs-pipeline/deadletter';
 import { SpanKind } from '@opentelemetry/api';
 import { HttpInstrumentation } from '@opentelemetry/instrumentation-http';
 import { NodeSDK, tracing } from '@opentelemetry/sdk-node';
@@ -60,15 +58,7 @@ describe.each(['express', 'fastify'] as const)(
 
     beforeAll(async () => {
       const moduleRef = await Test.createTestingModule({
-        imports: [
-          CqrsModule.forRoot(),
-          ObservabilityModule,
-          DeadLetterModule.forRoot({
-            transport: { send: async () => {} },
-            defaults: DEAD_LETTER_DEFAULTS,
-          }),
-          ProbeModule,
-        ],
+        imports: [CqrsModule.forRoot(), ObservabilityModule, ProbeModule],
       }).compile();
       app =
         adapter === 'fastify'

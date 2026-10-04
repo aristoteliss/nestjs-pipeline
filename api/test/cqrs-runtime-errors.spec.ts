@@ -2,19 +2,18 @@
 
 import { EntityNotFoundException } from '@cqrs-ddd/core/domain';
 import {
+  CaslAuthorizer,
+  UnauthorizedActionException,
+} from '@cqrs-ddd/pipeline-casl';
+import { ZodValidationError } from '@cqrs-ddd/pipeline-zod';
+import {
   type ArgumentsHost,
   HttpStatus,
   NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
 import type { HttpAdapterHost } from '@nestjs/core';
-import type { EventBus } from '@nestjs/cqrs';
-import {
-  CaslAuthorizer,
-  UnauthorizedActionException,
-  UnauthorizedActionFilter,
-} from '@nestjs-pipeline/casl';
-import { ZodValidationError, ZodValidationFilter } from '@nestjs-pipeline/zod';
+import { type EventBus, EventPublisher } from '@nestjs/cqrs';
 import { describe, expect, it, vi } from 'vitest';
 // Auths CQRS & Services
 import { CreateAuthCommand } from '../src/auths/application/cqrs/commands/create-auth.command.js';
@@ -28,6 +27,7 @@ import { NodeRefreshTokens } from '../src/auths/infrastructure/node-refresh-toke
 import { PrincipalLoginService } from '../src/auths/services/principal-login.service.js';
 // Filters
 import { DomainExceptionFilter } from '../src/common/filters/domain-exception.filter.js';
+import { PipelineErrorFilter } from '../src/common/filters/pipeline-error.filter.js';
 
 // Roles CQRS & Exceptions
 import { CreateRoleCommand } from '../src/roles/application/cqrs/commands/create-role.command.js';
@@ -110,10 +110,9 @@ const adapterHost = {
 } as unknown as HttpAdapterHost;
 
 describe('CQRS Commands & Queries Runtime Error Taxonomy', () => {
-  const eventBus = createMockEventBus();
+  const publisher = new EventPublisher(createMockEventBus());
   const domainFilter = new DomainExceptionFilter(adapterHost);
-  const zodFilter = new ZodValidationFilter(adapterHost);
-  const authFilter = new UnauthorizedActionFilter(adapterHost);
+  const pipelineFilter = new PipelineErrorFilter(adapterHost);
 
   describe('Users Model', () => {
     describe('CreateUserCommand & Handler', () => {
@@ -133,7 +132,7 @@ describe('CQRS Commands & Queries Runtime Error Taxonomy', () => {
           });
         } catch (err) {
           const res = { status: vi.fn().mockReturnThis(), json: vi.fn() };
-          zodFilter.catch(err as ZodValidationError, makeHost(res));
+          pipelineFilter.catch(err as ZodValidationError, makeHost(res));
           expect(res.status).toHaveBeenCalledWith(HttpStatus.BAD_REQUEST);
           expect(res.json).toHaveBeenCalledWith(
             expect.objectContaining({
@@ -151,7 +150,7 @@ describe('CQRS Commands & Queries Runtime Error Taxonomy', () => {
         const handler = new CreateUserHandler(
           commandRepo as any,
           authorizer,
-          eventBus,
+          publisher,
         );
 
         // When domain entity receives username shorter than 3 chars
@@ -163,12 +162,12 @@ describe('CQRS Commands & Queries Runtime Error Taxonomy', () => {
           },
         );
 
-        await expect(handler.handle(command)).rejects.toThrow(
+        await expect(handler.execute(command)).rejects.toThrow(
           InvalidUsernameException,
         );
 
         try {
-          await handler.handle(command);
+          await handler.execute(command);
         } catch (err) {
           const res = { status: vi.fn().mockReturnThis(), json: vi.fn() };
           domainFilter.catch(err as InvalidUsernameException, makeHost(res));
@@ -193,7 +192,7 @@ describe('CQRS Commands & Queries Runtime Error Taxonomy', () => {
         const handler = new CreateUserHandler(
           commandRepo as any,
           authorizer,
-          eventBus,
+          publisher,
         );
 
         // When domain entity receives department shorter than 3 chars
@@ -206,12 +205,12 @@ describe('CQRS Commands & Queries Runtime Error Taxonomy', () => {
           },
         );
 
-        await expect(handler.handle(command)).rejects.toThrow(
+        await expect(handler.execute(command)).rejects.toThrow(
           InvalidDepartmentException,
         );
 
         try {
-          await handler.handle(command);
+          await handler.execute(command);
         } catch (err) {
           const res = { status: vi.fn().mockReturnThis(), json: vi.fn() };
           domainFilter.catch(err as InvalidDepartmentException, makeHost(res));
@@ -236,7 +235,7 @@ describe('CQRS Commands & Queries Runtime Error Taxonomy', () => {
         const handler = new CreateUserHandler(
           commandRepo as any,
           authorizer,
-          eventBus,
+          publisher,
         );
 
         const command = new CreateUserCommand({
@@ -244,15 +243,18 @@ describe('CQRS Commands & Queries Runtime Error Taxonomy', () => {
           username: 'Alice',
         });
 
-        await expect(handler.handle(command)).rejects.toThrow(
+        await expect(handler.execute(command)).rejects.toThrow(
           UnauthorizedActionException,
         );
 
         try {
-          await handler.handle(command);
+          await handler.execute(command);
         } catch (err) {
           const res = { status: vi.fn().mockReturnThis(), json: vi.fn() };
-          authFilter.catch(err as UnauthorizedActionException, makeHost(res));
+          pipelineFilter.catch(
+            err as UnauthorizedActionException,
+            makeHost(res),
+          );
           expect(res.status).toHaveBeenCalledWith(HttpStatus.FORBIDDEN);
           expect(res.json).toHaveBeenCalledWith(
             expect.objectContaining({
@@ -275,7 +277,7 @@ describe('CQRS Commands & Queries Runtime Error Taxonomy', () => {
         const handler = new CreateUserHandler(
           commandRepo as any,
           authorizer,
-          eventBus,
+          publisher,
         );
 
         const command = new CreateUserCommand({
@@ -283,12 +285,12 @@ describe('CQRS Commands & Queries Runtime Error Taxonomy', () => {
           username: 'Alice',
         });
 
-        await expect(handler.handle(command)).rejects.toThrow(
+        await expect(handler.execute(command)).rejects.toThrow(
           UniqueEmailException,
         );
 
         try {
-          await handler.handle(command);
+          await handler.execute(command);
         } catch (err) {
           const res = { status: vi.fn().mockReturnThis(), json: vi.fn() };
           domainFilter.catch(err as UniqueEmailException, makeHost(res));
@@ -314,7 +316,7 @@ describe('CQRS Commands & Queries Runtime Error Taxonomy', () => {
         const handler = new UpdateUserHandler(
           commandRepo as any,
           authorizer,
-          eventBus,
+          publisher,
         );
 
         const command = new UpdateUserCommand({
@@ -322,7 +324,7 @@ describe('CQRS Commands & Queries Runtime Error Taxonomy', () => {
           username: 'Bob',
         });
 
-        await expect(handler.handle(command)).rejects.toThrow(
+        await expect(handler.execute(command)).rejects.toThrow(
           EntityNotFoundException,
         );
       });
@@ -337,7 +339,7 @@ describe('CQRS Commands & Queries Runtime Error Taxonomy', () => {
         const handler = new UpdateUserHandler(
           commandRepo as any,
           authorizer,
-          eventBus,
+          publisher,
         );
 
         const command = Object.assign(
@@ -347,12 +349,12 @@ describe('CQRS Commands & Queries Runtime Error Taxonomy', () => {
           },
         );
 
-        await expect(handler.handle(command)).rejects.toThrow(
+        await expect(handler.execute(command)).rejects.toThrow(
           EmptyUserUpdateException,
         );
 
         try {
-          await handler.handle(command);
+          await handler.execute(command);
         } catch (err) {
           const res = { status: vi.fn().mockReturnThis(), json: vi.fn() };
           domainFilter.catch(err as EmptyUserUpdateException, makeHost(res));
@@ -377,7 +379,7 @@ describe('CQRS Commands & Queries Runtime Error Taxonomy', () => {
         const handler = new UpdateUserHandler(
           commandRepo as any,
           authorizer,
-          eventBus,
+          publisher,
         );
 
         const command = new UpdateUserCommand({
@@ -385,7 +387,7 @@ describe('CQRS Commands & Queries Runtime Error Taxonomy', () => {
           username: 'Bob',
         });
 
-        await expect(handler.handle(command)).rejects.toThrow(
+        await expect(handler.execute(command)).rejects.toThrow(
           UnauthorizedActionException,
         );
       });
@@ -401,14 +403,14 @@ describe('CQRS Commands & Queries Runtime Error Taxonomy', () => {
         const handler = new DeleteUserHandler(
           commandRepo as any,
           authorizer,
-          eventBus,
+          publisher,
         );
 
         const command = new DeleteUserCommand({
           id: 'a0000000-0000-4000-8000-000000000001',
         });
 
-        await expect(handler.handle(command)).rejects.toThrow(
+        await expect(handler.execute(command)).rejects.toThrow(
           EntityNotFoundException,
         );
       });
@@ -423,14 +425,14 @@ describe('CQRS Commands & Queries Runtime Error Taxonomy', () => {
         const handler = new DeleteUserHandler(
           commandRepo as any,
           authorizer,
-          eventBus,
+          publisher,
         );
 
         const command = new DeleteUserCommand({
           id: existingUser.id,
         });
 
-        await expect(handler.handle(command)).rejects.toThrow(
+        await expect(handler.execute(command)).rejects.toThrow(
           UnauthorizedActionException,
         );
       });
@@ -489,17 +491,17 @@ describe('CQRS Commands & Queries Runtime Error Taxonomy', () => {
         const handler = new CreateRoleHandler(
           commandRepo as any,
           authorizer,
-          eventBus,
+          publisher,
         );
 
         const command = new CreateRoleCommand({ name: 'Admin' });
 
-        await expect(handler.handle(command)).rejects.toThrow(
+        await expect(handler.execute(command)).rejects.toThrow(
           UniqueRoleNameException,
         );
 
         try {
-          await handler.handle(command);
+          await handler.execute(command);
         } catch (err) {
           const res = { status: vi.fn().mockReturnThis(), json: vi.fn() };
           domainFilter.catch(err as UniqueRoleNameException, makeHost(res));
@@ -520,12 +522,12 @@ describe('CQRS Commands & Queries Runtime Error Taxonomy', () => {
         const handler = new CreateRoleHandler(
           commandRepo as any,
           authorizer,
-          eventBus,
+          publisher,
         );
 
         const command = new CreateRoleCommand({ name: 'Admin' });
 
-        await expect(handler.handle(command)).rejects.toThrow(
+        await expect(handler.execute(command)).rejects.toThrow(
           UnauthorizedActionException,
         );
       });
@@ -541,7 +543,7 @@ describe('CQRS Commands & Queries Runtime Error Taxonomy', () => {
         const handler = new UpdateRoleHandler(
           commandRepo as any,
           authorizer,
-          eventBus,
+          publisher,
         );
 
         const command = new UpdateRoleCommand({
@@ -549,7 +551,7 @@ describe('CQRS Commands & Queries Runtime Error Taxonomy', () => {
           name: 'Manager',
         });
 
-        await expect(handler.handle(command)).rejects.toThrow(
+        await expect(handler.execute(command)).rejects.toThrow(
           EntityNotFoundException,
         );
       });
@@ -568,7 +570,7 @@ describe('CQRS Commands & Queries Runtime Error Taxonomy', () => {
         const handler = new UpdateRoleHandler(
           commandRepo as any,
           authorizer,
-          eventBus,
+          publisher,
         );
 
         const command = new UpdateRoleCommand({
@@ -576,7 +578,7 @@ describe('CQRS Commands & Queries Runtime Error Taxonomy', () => {
           name: 'Admin',
         });
 
-        await expect(handler.handle(command)).rejects.toThrow(
+        await expect(handler.execute(command)).rejects.toThrow(
           UniqueRoleNameException,
         );
       });
@@ -592,14 +594,14 @@ describe('CQRS Commands & Queries Runtime Error Taxonomy', () => {
         const handler = new DeleteRoleHandler(
           commandRepo as any,
           authorizer,
-          eventBus,
+          publisher,
         );
 
         const command = new DeleteRoleCommand({
           id: 'a0000000-0000-4000-8000-000000000001',
         });
 
-        await expect(handler.handle(command)).rejects.toThrow(
+        await expect(handler.execute(command)).rejects.toThrow(
           EntityNotFoundException,
         );
       });
@@ -674,7 +676,7 @@ describe('CQRS Commands & Queries Runtime Error Taxonomy', () => {
         };
         const commandRepo = { save: vi.fn() };
         const handler = new CreateAuthHandler(
-          eventBus,
+          publisher,
           loginService as unknown as PrincipalLoginService,
           commandRepo as any,
           new NodeRefreshTokens(),
@@ -692,10 +694,10 @@ describe('CQRS Commands & Queries Runtime Error Taxonomy', () => {
           clientIp: '203.0.113.7',
         });
 
-        await expect(handler.handle(command)).rejects.toThrow(
+        await expect(handler.execute(command)).rejects.toThrow(
           UnauthorizedException,
         );
-        await expect(handler.handle(command)).rejects.toThrow(
+        await expect(handler.execute(command)).rejects.toThrow(
           'Invalid login code',
         );
       });
@@ -710,7 +712,7 @@ describe('CQRS Commands & Queries Runtime Error Taxonomy', () => {
         };
         const commandRepo = { save: vi.fn() };
         const handler = new CreateAuthHandler(
-          eventBus,
+          publisher,
           loginService as unknown as PrincipalLoginService,
           commandRepo as any,
           new NodeRefreshTokens(),
@@ -728,10 +730,10 @@ describe('CQRS Commands & Queries Runtime Error Taxonomy', () => {
           clientIp: '203.0.113.7',
         });
 
-        await expect(handler.handle(command)).rejects.toThrow(
+        await expect(handler.execute(command)).rejects.toThrow(
           UnauthorizedException,
         );
-        await expect(handler.handle(command)).rejects.toThrow(
+        await expect(handler.execute(command)).rejects.toThrow(
           'Invalid email or password',
         );
       });
@@ -741,7 +743,7 @@ describe('CQRS Commands & Queries Runtime Error Taxonomy', () => {
       it('rejects an unknown refresh token so logout can answer 204 without revoking', async () => {
         const principalLoginService = { revoke: vi.fn() };
         const handler = new RevokeAuthHandler(
-          eventBus,
+          publisher,
           { find: vi.fn().mockResolvedValue(null) } as any,
           new NodeRefreshTokens(),
           { save: vi.fn(), clear: vi.fn() },

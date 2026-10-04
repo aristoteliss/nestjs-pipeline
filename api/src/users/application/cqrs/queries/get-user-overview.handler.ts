@@ -6,17 +6,17 @@ import {
   userCapabilitiesSubject,
 } from '@common/constants/index.js';
 import type { IQueryRepository } from '@cqrs-ddd/core/application';
-import { Inject } from '@nestjs/common';
-import { type IQueryHandler, QueryHandler } from '@nestjs/cqrs';
-import { cache } from '@nestjs-pipeline/cache';
+import { UsePipeline } from '@cqrs-ddd/pipeline';
+import { cache } from '@cqrs-ddd/pipeline-cache';
 import {
   type Capability,
   type CapabilityString,
   CaslAuthorizer,
   type Projected,
   requires,
-} from '@nestjs-pipeline/casl';
-import { UsePipeline } from '@nestjs-pipeline/core';
+} from '@cqrs-ddd/pipeline-casl';
+import { Inject } from '@nestjs/common';
+import { type IQueryHandler, QueryHandler } from '@nestjs/cqrs';
 import { GetRolesQuery } from '../../../../roles/application/cqrs/queries/get-roles.query.js';
 import type { Role } from '../../../../roles/domain/models/role.entity.js';
 import { QUERY_REPOSITORY as ROLES_QUERY_REPOSITORY } from '../../../../roles/persistence/repository.tokens.js';

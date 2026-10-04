@@ -10,8 +10,8 @@ import {
   type IWriteSideAggregateRepository,
   setTenantResolver,
 } from '@cqrs-ddd/core/application';
-import { InvalidJobContextError } from '@nestjs-pipeline/job-context';
-import { currentTenantId } from '@nestjs-pipeline/tenant';
+import { InvalidJobContextError } from '@cqrs-ddd/pipeline-job-context';
+import { currentTenantId } from '@cqrs-ddd/pipeline-tenant';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { GetUserQuery } from '../../users/application/cqrs/queries/get-user.query.js';
 import type { User } from '../../users/domain/models/user.entity.js';

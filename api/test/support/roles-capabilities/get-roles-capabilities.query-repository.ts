@@ -1,11 +1,11 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { capabilityFromRow } from '@auths/persistence/helpers/capability-row.mapper.js';
-import { Inject, Injectable } from '@nestjs/common';
 import type {
   CapabilityString,
   Capability as CaslCapability,
-} from '@nestjs-pipeline/casl';
+} from '@cqrs-ddd/pipeline-casl';
+import { Inject, Injectable } from '@nestjs/common';
 import { RoleCapability } from '@persistence/entities/role-capability.entity.js';
 import {
   MIKRO_ORM_CLIENT,

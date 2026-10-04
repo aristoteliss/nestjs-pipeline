@@ -7,9 +7,29 @@
  * 1. DeadLetterBehavior outside ResilienceBehavior: dead-letters once after retries exhaust.
  * 2. FeatureFlagBehavior outside CacheBehavior: disabled feature flag short-circuits before cache.
  * 3. ResilienceBehavior outside IdempotencyBehavior: post-success finalization error is not retried.
- * 4. Nest TestingModule integration with real PipelineModule and @UsePipeline composition.
+ * 4. Nest TestingModule integration with the application's PipelineModule and @UsePipeline composition.
  */
 
+import { type IPipelineContext, UsePipeline } from '@cqrs-ddd/pipeline';
+import {
+  CacheBehavior,
+  createPartitionedCacheKeyFactory,
+} from '@cqrs-ddd/pipeline-cache';
+import {
+  DeadLetterBehavior,
+  type DeadLetterTransport,
+  deadLetter,
+} from '@cqrs-ddd/pipeline-deadletter';
+import {
+  FeatureDisabledError,
+  FeatureFlagBehavior,
+} from '@cqrs-ddd/pipeline-feature-flags';
+import {
+  IdempotencyBehavior,
+  IdempotencyCompletionError,
+  MemoryIdempotencyStore,
+} from '@cqrs-ddd/pipeline-idempotency';
+import { ResilienceBehavior, resilience } from '@cqrs-ddd/pipeline-resilience';
 import type { Type } from '@nestjs/common';
 import {
   CommandBus,
@@ -18,35 +38,11 @@ import {
   type ICommandHandler,
 } from '@nestjs/cqrs';
 import { Test } from '@nestjs/testing';
-import {
-  CacheBehavior,
-  createPartitionedCacheKeyFactory,
-} from '@nestjs-pipeline/cache';
-import {
-  type IPipelineContext,
-  PipelineModule,
-  UsePipeline,
-} from '@nestjs-pipeline/core';
-import {
-  DeadLetterBehavior,
-  DeadLetterModule,
-  type DeadLetterTransport,
-  deadLetter,
-} from '@nestjs-pipeline/deadletter';
-import {
-  FeatureDisabledError,
-  FeatureFlagBehavior,
-} from '@nestjs-pipeline/feature-flags';
-import {
-  IdempotencyBehavior,
-  IdempotencyCompletionError,
-  MemoryIdempotencyStore,
-} from '@nestjs-pipeline/idempotency';
-import { ResilienceBehavior, resilience } from '@nestjs-pipeline/resilience';
 import type { Client } from '@openfeature/server-sdk';
 import { createCache } from 'cache-manager';
 import { Keyv } from 'keyv';
 import { describe, expect, it, vi } from 'vitest';
+import { PipelineModule } from '../src/common/pipeline/pipeline.module.js';
 
 class TransientTestError extends Error {}
 
@@ -284,14 +280,15 @@ describe('Cross-package behavior composition contracts', () => {
       };
 
       const moduleRef = await Test.createTestingModule({
-        imports: [
-          CqrsModule.forRoot(),
-          DeadLetterModule.forRoot({ transport: deadLetterTransport }),
-          PipelineModule.forRoot({
-            behaviors: [DeadLetterBehavior, ResilienceBehavior],
-          }),
+        imports: [CqrsModule.forRoot(), PipelineModule.forRoot()],
+        providers: [
+          FailingRetriedHandler,
+          {
+            provide: DeadLetterBehavior,
+            useValue: new DeadLetterBehavior(deadLetterTransport),
+          },
+          { provide: ResilienceBehavior, useValue: new ResilienceBehavior() },
         ],
-        providers: [FailingRetriedHandler, ResilienceBehavior],
       }).compile();
 
       const app = moduleRef.createNestApplication();

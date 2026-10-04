@@ -253,13 +253,14 @@ Authorization runs in two stages, both through `@nestjs-pipeline/casl`:
 ```typescript
 @CommandHandler(UpdateUserCommand)
 @UsePipeline(requires({ action: APP_ACTIONS.UPDATE, subject: APP_SUBJECTS.USER }))
-export class UpdateUserHandler extends CommandBaseHandler<UpdateUserCommand, User> {
-  async handle(command: UpdateUserCommand): Promise<User> {
+export class UpdateUserHandler implements ICommandHandler<UpdateUserCommand, User> {
+  async execute(command: UpdateUserCommand): Promise<User> {
     const user = await this.commandRepository.findById(command.id);
     if (!user) throw new EntityNotFoundException('User', command.id);
     this.authorizer.authorize('update', user, command.getUpdateFields(UpdateUserCommand.updatableFields));
     user.update({ username: command.username, department: command.department });
     await this.commandRepository.save(user);
+    await this.publisher.mergeObjectContext(user).commit();
     return user;
   }
 }
@@ -359,17 +360,15 @@ export class CreateUserCommand extends createCommand(
     replayScopeFactory: createUserReplayScope,
   }),
 )
-export class CreateUserHandler extends CommandBaseHandler<CreateUserCommand, User> {
+export class CreateUserHandler implements ICommandHandler<CreateUserCommand, User> {
   constructor(
     @Inject(COMMAND_REPOSITORY.createUser)
     private readonly commandRepository: ICommandRepository<User, UserSnapshot>,
     private readonly authorizer: CaslAuthorizer,
-    protected readonly eventBus: EventBus,
-  ) {
-    super(eventBus);
-  }
+    private readonly publisher: EventPublisher,
+  ) {}
 
-  async handle(command: CreateUserCommand): Promise<User> {
+  async execute(command: CreateUserCommand): Promise<User> {
     const { username, email, department } = command;
     const user = User.create(username, email, department);
 
@@ -381,6 +380,7 @@ export class CreateUserHandler extends CommandBaseHandler<CreateUserCommand, Use
     ]);
 
     await this.commandRepository.save(user);
+    await this.publisher.mergeObjectContext(user).commit();
     return user;
   }
 }

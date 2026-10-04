@@ -1,6 +1,6 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import type { Capability, CapabilityString } from '@nestjs-pipeline/casl';
+import type { Capability, CapabilityString } from '@cqrs-ddd/pipeline-casl';
 
 /** A user's assigned roles plus per-user grants and denials. */
 export interface UserPermissionAssignments {

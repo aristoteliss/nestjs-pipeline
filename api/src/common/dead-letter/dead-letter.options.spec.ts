@@ -12,6 +12,18 @@ import {
   TransientOperationError,
   UnknownMutableFieldError,
 } from '@cqrs-ddd/core/domain';
+import { UnauthorizedActionException } from '@cqrs-ddd/pipeline-casl';
+import {
+  DeadLetterBehavior,
+  type DeadLetterRecord,
+} from '@cqrs-ddd/pipeline-deadletter';
+import { FeatureDisabledError } from '@cqrs-ddd/pipeline-feature-flags';
+import {
+  IdempotencyCompletionError,
+  IdempotencyConflictError,
+} from '@cqrs-ddd/pipeline-idempotency';
+import { RateLimitExceededError } from '@cqrs-ddd/pipeline-rate-limit';
+import { ZodValidationError } from '@cqrs-ddd/pipeline-zod';
 import type { INestApplication } from '@nestjs/common';
 import {
   CommandBus,
@@ -20,20 +32,6 @@ import {
   type ICommandHandler,
 } from '@nestjs/cqrs';
 import { Test } from '@nestjs/testing';
-import { UnauthorizedActionException } from '@nestjs-pipeline/casl';
-import { PipelineModule } from '@nestjs-pipeline/core';
-import {
-  DeadLetterBehavior,
-  DeadLetterModule,
-  type DeadLetterRecord,
-} from '@nestjs-pipeline/deadletter';
-import { FeatureDisabledError } from '@nestjs-pipeline/feature-flags';
-import {
-  IdempotencyCompletionError,
-  IdempotencyConflictError,
-} from '@nestjs-pipeline/idempotency';
-import { RateLimitExceededError } from '@nestjs-pipeline/rate-limit';
-import { ZodValidationError } from '@nestjs-pipeline/zod';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { ZodError } from 'zod';
 import {
@@ -55,6 +53,7 @@ import {
   UniqueEmailException,
 } from '../../users/domain/models/errors/index.js';
 import type { User } from '../../users/domain/models/user.entity.js';
+import { PipelineModule } from '../pipeline/pipeline.module.js';
 import { DEAD_LETTER_DEFAULTS } from './dead-letter.options.js';
 
 type ErrorClass = abstract new (...args: never[]) => Error;
@@ -220,16 +219,7 @@ describe('application dead-letter classification', () => {
     const moduleRef = await Test.createTestingModule({
       imports: [
         CqrsModule.forRoot(),
-        DeadLetterModule.forRoot({
-          transport: {
-            send: async (record) => {
-              records.push(record);
-            },
-          },
-          defaults: DEAD_LETTER_DEFAULTS,
-        }),
         PipelineModule.forRoot({
-          behaviors: [DeadLetterBehavior],
           globalBehaviors: [
             {
               scope: 'commands',
@@ -238,7 +228,20 @@ describe('application dead-letter classification', () => {
           ],
         }),
       ],
-      providers: [FailingHandler],
+      providers: [
+        FailingHandler,
+        {
+          provide: DeadLetterBehavior,
+          useValue: new DeadLetterBehavior(
+            {
+              send: async (record: DeadLetterRecord) => {
+                records.push(record);
+              },
+            },
+            DEAD_LETTER_DEFAULTS,
+          ),
+        },
+      ],
     }).compile();
 
     app = moduleRef.createNestApplication();

@@ -5,25 +5,23 @@ import { NestFactory } from '@nestjs/core';
 import type { NestExpressApplication } from '@nestjs/platform-express';
 import type { NestFastifyApplication } from '@nestjs/platform-fastify';
 import { NativeLogger } from 'nestjs-pino';
-import { AppModule } from './app.module.js';
 import { configureExpress } from './express-platform.js';
-import { closeOnShutdownSignals } from './graceful-shutdown.js';
 import {
   createFastifyAdapter,
   registerSecureSession,
 } from './http-platform.js';
-import { shutdownTracing } from './tracing.js';
+import { ServerModule } from './server.module.js';
 
 export async function bootstrap(): Promise<void> {
   const useFastify = process.env.ADAPTER === 'fastify';
 
   const app = useFastify
     ? await NestFactory.create<NestFastifyApplication>(
-        AppModule,
+        ServerModule,
         createFastifyAdapter(),
         { bufferLogs: true },
       )
-    : await NestFactory.create<NestExpressApplication>(AppModule, {
+    : await NestFactory.create<NestExpressApplication>(ServerModule, {
         bufferLogs: true,
       });
 
@@ -41,7 +39,7 @@ export async function bootstrap(): Promise<void> {
 
   app.useLogger(app.get(NativeLogger));
 
-  closeOnShutdownSignals(app, shutdownTracing);
+  app.enableShutdownHooks();
 
   await app.listen(3000, '0.0.0.0');
   console.log(

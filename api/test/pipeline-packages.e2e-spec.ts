@@ -72,7 +72,7 @@ describe('pipeline-packages (e2e)', () => {
     });
   });
 
-  describe('@nestjs-pipeline/correlation', () => {
+  describe('@cqrs-ddd/pipeline-correlation', () => {
     it('echoes the incoming x-correlation-id in response headers', async () => {
       const customCorrId = `corr-${randomUUID()}`;
 
@@ -128,7 +128,7 @@ describe('pipeline-packages (e2e)', () => {
     });
   });
 
-  describe('@nestjs-pipeline/casl (Fine-Grained Authorization)', () => {
+  describe('@cqrs-ddd/pipeline-casl (Fine-Grained Authorization)', () => {
     it('enforces RBAC: allows User|read|* to read but denies create/update/delete', async () => {
       const userReadOnly = JSON.stringify({
         id: 'user-reader-1',
@@ -364,7 +364,7 @@ describe('pipeline-packages (e2e)', () => {
       }));
   });
 
-  describe('@nestjs-pipeline/idempotency', () => {
+  describe('@cqrs-ddd/pipeline-idempotency', () => {
     it('replays identical response for a retried create with the same Idempotency-Key', async () => {
       const email = newEmail();
       const body = {
@@ -412,7 +412,7 @@ describe('pipeline-packages (e2e)', () => {
     });
   });
 
-  describe('@nestjs-pipeline/rate-limit', () => {
+  describe('@cqrs-ddd/pipeline-rate-limit', () => {
     it('throttles one principal creating more than 60 users within 60s, whatever the emails (429)', async () => {
       const creator = JSON.stringify({
         ...JSON.parse(admin),
@@ -564,7 +564,7 @@ describe('pipeline-packages (e2e)', () => {
     });
   });
 
-  describe('@nestjs-pipeline/feature-flags (Role Creation Feature Flag)', () => {
+  describe('@cqrs-ddd/pipeline-feature-flags (Role Creation Feature Flag)', () => {
     it('allows role creation when role-creation feature flag is enabled', async () => {
       const roleName = `flagged-role-${Date.now()}`;
       const res = await as(admin).post('/roles').send({ name: roleName });
@@ -574,7 +574,7 @@ describe('pipeline-packages (e2e)', () => {
     });
   });
 
-  describe('@nestjs-pipeline/idempotency (Roles API)', () => {
+  describe('@cqrs-ddd/pipeline-idempotency (Roles API)', () => {
     it('replays identical role response for a retried create with the same Idempotency-Key', async () => {
       const roleName = `idem-role-${Date.now()}`;
       const body = { name: roleName };
@@ -596,7 +596,7 @@ describe('pipeline-packages (e2e)', () => {
     });
   });
 
-  describe('@nestjs-pipeline/rate-limit (Auth Login Throttling)', () => {
+  describe('@cqrs-ddd/pipeline-rate-limit (Auth Login Throttling)', () => {
     it('throttles more than 20 login attempts within 60s from one address across emails (429)', async () => {
       for (let i = 0; i < 20; i++) {
         await request(http)
@@ -661,7 +661,7 @@ describe('pipeline-packages (e2e)', () => {
     });
   });
 
-  describe('@nestjs-pipeline/zod (Validation boundaries)', () => {
+  describe('@cqrs-ddd/pipeline-zod (Validation boundaries)', () => {
     it('validates payloads with Zod and returns 400 with fieldErrors', async () => {
       const res = await as(admin)
         .post('/users')

@@ -2,7 +2,7 @@
 
 import { sessionPrincipalStore } from '@common/context/session-principal.store.js';
 import type { SessionPrincipal } from '@common/types/session-principal.js';
-import type { EventBus } from '@nestjs/cqrs';
+import { PipelineContext, SET_TENANT_ID } from '@cqrs-ddd/pipeline';
 import {
   buildAbility,
   CASL_ABILITY_KEY,
@@ -10,15 +10,15 @@ import {
   type Capability,
   type CaslAuthorizer,
   MissingAbilityError,
-} from '@nestjs-pipeline/casl';
-import { PipelineContext, SET_TENANT_ID } from '@nestjs-pipeline/core';
+} from '@cqrs-ddd/pipeline-casl';
 import {
   IDEMPOTENCY_REPLAYED_ITEM,
   IdempotencyBehavior,
   type IdempotencyBehaviorOptions,
   IdempotencyConflictError,
   MemoryIdempotencyStore,
-} from '@nestjs-pipeline/idempotency';
+} from '@cqrs-ddd/pipeline-idempotency';
+import { type EventBus, EventPublisher } from '@nestjs/cqrs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { CreateUserCommand } from '../src/users/application/cqrs/commands/create-user.command.js';
 import { CreateUserHandler } from '../src/users/application/cqrs/commands/create-user.handler.js';
@@ -64,7 +64,7 @@ describe('Create user replay scope', () => {
     handler = new CreateUserHandler(
       { save } as never,
       { authorize: vi.fn() } as unknown as CaslAuthorizer,
-      { publishAll: vi.fn() } as unknown as EventBus,
+      new EventPublisher({ publishAll: vi.fn() } as unknown as EventBus),
     );
   });
 

@@ -1,8 +1,8 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { setTenantResolver } from '@cqrs-ddd/core/application';
+import { currentTenantId } from '@cqrs-ddd/pipeline-tenant';
 import type { Session } from '@fastify/secure-session';
-import { currentTenantId } from '@nestjs-pipeline/tenant';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { SessionData } from '../../common/types/session-principal.js';
 import { ApiClientAuthenticator } from './api-client-authenticator.js';

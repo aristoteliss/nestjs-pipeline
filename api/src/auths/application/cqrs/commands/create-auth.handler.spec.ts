@@ -1,8 +1,8 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { setTenantResolver } from '@cqrs-ddd/core/application';
-import type { EventBus } from '@nestjs/cqrs';
-import { currentTenantId } from '@nestjs-pipeline/tenant';
+import { currentTenantId } from '@cqrs-ddd/pipeline-tenant';
+import { type EventBus, EventPublisher } from '@nestjs/cqrs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { User } from '../../../../users/domain/models/user.entity.js';
 import { AuthCreatedEvent } from '../../../domain/events/auth-created.event.js';
@@ -42,7 +42,7 @@ describe('CreateAuthHandler', () => {
     const tokens = new NodeRefreshTokens();
     const cookies = { save: vi.fn(), clear: vi.fn() };
     const handler = new CreateAuthHandler(
-      { publishAll } as unknown as EventBus,
+      new EventPublisher({ publishAll } as unknown as EventBus),
       principalLoginService as never,
       { save },
       tokens,
@@ -106,6 +106,7 @@ describe('CreateAuthHandler', () => {
     expect(publishAll).toHaveBeenCalledExactlyOnceWith(
       [expect.any(AuthCreatedEvent)],
       auth,
+      undefined,
     );
   });
 

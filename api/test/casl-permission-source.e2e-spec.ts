@@ -1,11 +1,11 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import type { Server } from 'node:http';
-import { QueryBus } from '@nestjs/cqrs';
 import {
-  CASL_PERMISSION_SOURCE,
+  CaslBehavior,
   UnauthorizedActionException,
-} from '@nestjs-pipeline/casl';
+} from '@cqrs-ddd/pipeline-casl';
+import { QueryBus } from '@nestjs/cqrs';
 import request from 'supertest';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import {
@@ -169,19 +169,17 @@ describe('CASL permission source wiring (e2e)', () => {
     );
   });
 
-  it('binds the application source to the package token', async () => {
+  it('provides the application source as a singleton, beside CaslBehavior', async () => {
     const { CaslPermissionSource } = await import(
       '../src/auths/persistence/casl-permission.source.js'
     );
-    const { ContextIdFactory } = await import('@nestjs/core');
 
-    const source = await ctx.app.resolve(
-      CASL_PERMISSION_SOURCE,
-      ContextIdFactory.create(),
-      { strict: false },
+    expect(ctx.app.get(CaslPermissionSource, { strict: false })).toBeInstanceOf(
+      CaslPermissionSource,
     );
-
-    expect(source).toBeInstanceOf(CaslPermissionSource);
+    expect(ctx.app.get(CaslBehavior, { strict: false })).toBeInstanceOf(
+      CaslBehavior,
+    );
   });
 
   it('dispatches GetUserPermissionRulesQuery through QueryBus with Casl authorization', async () => {

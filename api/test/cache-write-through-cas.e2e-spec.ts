@@ -2,7 +2,8 @@
 
 import type { Server } from 'node:http';
 import type { ICache } from '@cqrs-ddd/core/application';
-import { CACHE_TOKEN, cacheKey } from '@cqrs-ddd/core/persistence';
+import { cacheKey } from '@cqrs-ddd/core/persistence';
+import { CACHE } from '@persistence/cache/cache.token.js';
 import request from 'supertest';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
@@ -49,7 +50,7 @@ describe('cache write-through CAS & read strong consistency (e2e)', () => {
         'tenant',
       );
 
-      const cache = ctx.app.get<ICache<UserSnapshot>>(CACHE_TOKEN);
+      const cache = ctx.app.get<ICache<UserSnapshot>>(CACHE);
       const cachedInitial = await cache.get(userCacheKey);
       expect(cachedInitial).toBeDefined();
       expect(cachedInitial?.version).toBe(1);

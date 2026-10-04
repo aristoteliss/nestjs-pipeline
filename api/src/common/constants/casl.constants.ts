@@ -1,7 +1,7 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { subject as caslSubject } from '@casl/ability';
-import { CASL_ACTIONS, CASL_SUBJECTS } from '@nestjs-pipeline/casl';
+import { CASL_ACTIONS, CASL_SUBJECTS } from '@cqrs-ddd/pipeline-casl';
 
 /**
  * Application domain subjects used in CASL access-control rules.
@@ -33,6 +33,6 @@ export function userCapabilitiesSubject(userId: string): object {
 
 /**
  * Operations / actions supported in CASL permission definitions.
- * Inherits standard CASL verbs (manage, create, read, update, delete) from @nestjs-pipeline/casl.
+ * Inherits standard CASL verbs (manage, create, read, update, delete) from @cqrs-ddd/pipeline-casl.
  */
 export const APP_ACTIONS = CASL_ACTIONS;

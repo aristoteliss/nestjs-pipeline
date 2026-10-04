@@ -14,7 +14,7 @@ describe('event handler cross-cutting boundary', () => {
       const source = eventHandlerSource(filename);
       expect(source).not.toContain('new Logger(');
       expect(source).not.toContain('getCorrelationId');
-      expect(source).not.toContain('@nestjs-pipeline/correlation');
+      expect(source).not.toContain('@cqrs-ddd/pipeline-correlation');
     },
   );
 });

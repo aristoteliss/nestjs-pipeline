@@ -2,18 +2,18 @@
 
 import { APP_ACTIONS, APP_SUBJECTS } from '@common/constants/index.js';
 import { principalSegments } from '@common/types/session-principal.js';
-import { joinKeySegments } from '@cqrs-ddd/safe-stringify';
+import { type IPipelineContext } from '@cqrs-ddd/pipeline';
 import {
   type CacheCondition,
   createPartitionedCacheKeyFactory,
-} from '@nestjs-pipeline/cache';
+} from '@cqrs-ddd/pipeline-cache';
 import {
   abilityDigest,
   getCaslAbility,
   getCaslPrincipal,
   hasEntityConditions,
-} from '@nestjs-pipeline/casl';
-import { type IPipelineContext } from '@nestjs-pipeline/core';
+} from '@cqrs-ddd/pipeline-casl';
+import { joinKeySegments } from '@cqrs-ddd/safe-stringify';
 
 /**
  * Local response-policy version prefix. Bumping this invalidates responses

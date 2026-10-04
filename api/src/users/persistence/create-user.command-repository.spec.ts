@@ -6,7 +6,7 @@ import {
   setPersistenceDialect,
   toCacheSnapshot,
 } from '@cqrs-ddd/core/persistence';
-import { runWithTenant } from '@nestjs-pipeline/tenant';
+import { runWithTenant } from '@cqrs-ddd/pipeline-tenant';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { UniqueEmailException } from '../domain/models/errors/email.exception.js';
 import { User, type UserSnapshot } from '../domain/models/user.entity.js';

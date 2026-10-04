@@ -1,8 +1,11 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { requireTenant } from '@cqrs-ddd/core/application';
+import {
+  type Capability,
+  parseCapabilityString,
+} from '@cqrs-ddd/pipeline-casl';
 import { Injectable, Logger, UnauthorizedException } from '@nestjs/common';
-import { type Capability, parseCapabilityString } from '@nestjs-pipeline/casl';
 import { errors, importSPKI, jwtVerify } from 'jose';
 import {
   JWT,

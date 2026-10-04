@@ -1,7 +1,7 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { MemoryCache } from '@cqrs-ddd/core/persistence';
-import { runWithTenant } from '@nestjs-pipeline/tenant';
+import { runWithTenant } from '@cqrs-ddd/pipeline-tenant';
 import { UserPermissionRule } from '@persistence/entities/user-permission-rule.entity.js';
 import { describe, expect, it, vi } from 'vitest';
 import { GetUserPermissionRulesQuery } from '../application/cqrs/queries/get-user-permission-rules.query.js';

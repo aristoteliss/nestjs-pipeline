@@ -2,12 +2,12 @@
 
 import type { ICache } from '@cqrs-ddd/core/application';
 import {
-  CACHE_TOKEN,
   MapPersistenceErrors,
   QueryRepository,
 } from '@cqrs-ddd/core/persistence';
 import { mapPersistenceError } from '@cqrs-ddd/mikro-orm';
 import { Inject, Injectable } from '@nestjs/common';
+import { CACHE } from '@persistence/cache/cache.token.js';
 import {
   MIKRO_ORM_CLIENT,
   MikroOrmStore,
@@ -22,7 +22,7 @@ export class GetAuthByTokenHashQueryRepository extends QueryRepository<
   Auth | null
 > {
   constructor(
-    @Inject(CACHE_TOKEN) cache: ICache<unknown>,
+    @Inject(CACHE) cache: ICache<unknown>,
     @Inject(MIKRO_ORM_CLIENT) private readonly store: MikroOrmStore,
   ) {
     super(cache);

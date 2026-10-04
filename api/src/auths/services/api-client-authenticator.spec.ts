@@ -1,7 +1,7 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { setTenantResolver } from '@cqrs-ddd/core/application';
-import { currentTenantId } from '@nestjs-pipeline/tenant';
+import { currentTenantId } from '@cqrs-ddd/pipeline-tenant';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { HEADERS } from '../../common/constants/headers.constants.js';
 

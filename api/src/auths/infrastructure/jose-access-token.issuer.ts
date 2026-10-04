@@ -2,8 +2,8 @@
 
 import { randomUUID } from 'node:crypto';
 import { requireTenant } from '@cqrs-ddd/core/application';
+import { serializeCapability } from '@cqrs-ddd/pipeline-casl';
 import { Injectable, Logger } from '@nestjs/common';
-import { serializeCapability } from '@nestjs-pipeline/casl';
 import { SignJWT } from 'jose';
 import {
   ACCESS_TOKEN_MAX_BYTES,

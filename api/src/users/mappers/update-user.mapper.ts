@@ -1,6 +1,6 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import { createZodMapper } from '@nestjs-pipeline/zod';
+import { createZodMapper } from '@cqrs-ddd/pipeline-zod';
 import { z } from 'zod';
 import { UpdateUserCommand } from '../application/cqrs/commands/update-user.command.js';
 import type { UpdateUserDto } from '../dtos/update-user.dto.js';

@@ -1,8 +1,8 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import type { Server } from 'node:http';
+import { InvalidJobContextError } from '@cqrs-ddd/pipeline-job-context';
 import { getQueueToken } from '@nestjs/bullmq';
-import { InvalidJobContextError } from '@nestjs-pipeline/job-context';
 import type { Job, Queue } from 'bullmq';
 import { decodeJwt } from 'jose';
 import request from 'supertest';

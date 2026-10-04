@@ -1,5 +1,11 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
+import { PipelineConfigurationError, UsePipeline } from '@cqrs-ddd/pipeline';
+import { CacheBehavior } from '@cqrs-ddd/pipeline-cache';
+import { CaslBehavior } from '@cqrs-ddd/pipeline-casl';
+import { IdempotencyBehavior } from '@cqrs-ddd/pipeline-idempotency';
+import { RateLimitBehavior } from '@cqrs-ddd/pipeline-rate-limit';
+import { ResilienceBehavior } from '@cqrs-ddd/pipeline-resilience';
 import {
   CommandBus,
   CommandHandler,
@@ -9,24 +15,9 @@ import {
   QueryHandler,
 } from '@nestjs/cqrs';
 import { Test } from '@nestjs/testing';
-import { CacheBehavior } from '@nestjs-pipeline/cache';
-import { CaslBehavior } from '@nestjs-pipeline/casl';
-import {
-  PipelineConfigurationError,
-  PipelineModule,
-  UsePipeline,
-} from '@nestjs-pipeline/core';
-import { IdempotencyBehavior } from '@nestjs-pipeline/idempotency';
-import {
-  RateLimitBehavior,
-  RateLimitModule,
-} from '@nestjs-pipeline/rate-limit';
-import {
-  ResilienceBehavior,
-  ResilienceModule,
-} from '@nestjs-pipeline/resilience';
 import { RateLimiterMemory } from 'rate-limiter-flexible';
 import { describe, expect, it, vi } from 'vitest';
+import { PipelineModule } from '../src/common/pipeline/pipeline.module.js';
 
 class DummyCommand {
   constructor(readonly id: string = 'cmd-1') {}
@@ -347,7 +338,7 @@ describe('Pipeline Bootstrap Diagnostics', () => {
     });
   });
 
-  describe('Addon module defaults and effective configuration', () => {
+  describe('Behavior provider defaults and effective configuration', () => {
     @CommandHandler(DummyCommand)
     @UsePipeline(RateLimitBehavior)
     class BareRateLimitCommandHandler implements ICommandHandler<DummyCommand> {
@@ -356,7 +347,7 @@ describe('Pipeline Bootstrap Diagnostics', () => {
       }
     }
 
-    it('passes bootstrap and executes CQRS dispatch when RateLimitModule provides defaults', async () => {
+    it('passes bootstrap and executes CQRS dispatch when the RateLimitBehavior provider has defaults', async () => {
       const limiter = new RateLimiterMemory({ points: 10, duration: 60 });
 
       const moduleRef = await Test.createTestingModule({
@@ -365,12 +356,16 @@ describe('Pipeline Bootstrap Diagnostics', () => {
           PipelineModule.forRoot({
             diagnostics: 'strict',
           }),
-          RateLimitModule.forRoot({
-            limiter,
-            defaults: { keyFactory: () => 'default-user' },
-          }),
         ],
-        providers: [BareRateLimitCommandHandler],
+        providers: [
+          BareRateLimitCommandHandler,
+          {
+            provide: RateLimitBehavior,
+            useValue: new RateLimitBehavior(limiter, {
+              keyFactory: () => 'default-user',
+            }),
+          },
+        ],
       }).compile();
 
       const app = moduleRef.createNestApplication();
@@ -393,19 +388,24 @@ describe('Pipeline Bootstrap Diagnostics', () => {
       }
     }
 
-    it('fails bootstrap fast when RateLimitBehavior is global and module provides no keyFactory', async () => {
+    it('fails bootstrap fast when RateLimitBehavior is global and its provider has no keyFactory', async () => {
       const limiter = new RateLimiterMemory({ points: 10, duration: 60 });
 
       const moduleRef = await Test.createTestingModule({
         imports: [
           CqrsModule.forRoot(),
-          RateLimitModule.forRoot({ limiter }),
           PipelineModule.forRoot({
             diagnostics: 'strict',
             globalBehaviors: { scope: 'all', before: [RateLimitBehavior] },
           }),
         ],
-        providers: [PlainCommandHandler],
+        providers: [
+          PlainCommandHandler,
+          {
+            provide: RateLimitBehavior,
+            useValue: new RateLimitBehavior(limiter),
+          },
+        ],
       }).compile();
 
       const app = moduleRef.createNestApplication();
@@ -427,18 +427,21 @@ describe('Pipeline Bootstrap Diagnostics', () => {
       }
     }
 
-    it('fails bootstrap fast when ResilienceModule defaults configure unsafe retry for commands', async () => {
+    it('fails bootstrap fast when ResilienceBehavior defaults configure unsafe retry for commands', async () => {
       const moduleRef = await Test.createTestingModule({
         imports: [
           CqrsModule.forRoot(),
           PipelineModule.forRoot({
             diagnostics: 'strict',
           }),
-          ResilienceModule.forRoot({
-            defaults: { retry: { maxAttempts: 2 } },
-          }),
         ],
-        providers: [BareResilienceCommandHandler],
+        providers: [
+          BareResilienceCommandHandler,
+          {
+            provide: ResilienceBehavior,
+            useValue: new ResilienceBehavior({ retry: { maxAttempts: 2 } }),
+          },
+        ],
       }).compile();
 
       const app = moduleRef.createNestApplication();
@@ -450,21 +453,24 @@ describe('Pipeline Bootstrap Diagnostics', () => {
       }
     });
 
-    it('passes bootstrap and executes CQRS dispatch when ResilienceModule defaults are replay-safe', async () => {
+    it('passes bootstrap and executes CQRS dispatch when ResilienceBehavior defaults are replay-safe', async () => {
       const moduleRef = await Test.createTestingModule({
         imports: [
           CqrsModule.forRoot(),
           PipelineModule.forRoot({
             diagnostics: 'strict',
           }),
-          ResilienceModule.forRoot({
-            defaults: {
+        ],
+        providers: [
+          BareResilienceCommandHandler,
+          {
+            provide: ResilienceBehavior,
+            useValue: new ResilienceBehavior({
               retry: { maxAttempts: 2, replaySafe: true },
               handleAllErrors: true,
-            },
-          }),
+            }),
+          },
         ],
-        providers: [BareResilienceCommandHandler],
       }).compile();
 
       const app = moduleRef.createNestApplication();
@@ -491,18 +497,21 @@ describe('Pipeline Bootstrap Diagnostics', () => {
       }
     }
 
-    it('combines module default error classification with local replaySafe retry', async () => {
+    it('combines the provider default error classification with local replaySafe retry', async () => {
       const moduleRef = await Test.createTestingModule({
         imports: [
           CqrsModule.forRoot(),
           PipelineModule.forRoot({
             diagnostics: 'strict',
           }),
-          ResilienceModule.forRoot({
-            defaults: { handleAllErrors: true },
-          }),
         ],
-        providers: [LocalRetryCommandHandler],
+        providers: [
+          LocalRetryCommandHandler,
+          {
+            provide: ResilienceBehavior,
+            useValue: new ResilienceBehavior({ handleAllErrors: true }),
+          },
+        ],
       }).compile();
 
       const app = moduleRef.createNestApplication();

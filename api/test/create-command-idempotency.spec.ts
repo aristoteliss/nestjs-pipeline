@@ -1,14 +1,19 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 import { sessionPrincipalStore } from '@common/context/session-principal.store.js';
-import type { CommandBus, EventBus, QueryBus } from '@nestjs/cqrs';
-import type { CaslAuthorizer } from '@nestjs-pipeline/casl';
-import { PipelineContext, SET_TENANT_ID } from '@nestjs-pipeline/core';
+import { PipelineContext, SET_TENANT_ID } from '@cqrs-ddd/pipeline';
+import type { CaslAuthorizer } from '@cqrs-ddd/pipeline-casl';
 import {
   IDEMPOTENCY_REPLAYED_ITEM,
   IdempotencyBehavior,
   type IdempotencyBehaviorOptions,
   MemoryIdempotencyStore,
-} from '@nestjs-pipeline/idempotency';
+} from '@cqrs-ddd/pipeline-idempotency';
+import {
+  type CommandBus,
+  type EventBus,
+  EventPublisher,
+  type QueryBus,
+} from '@nestjs/cqrs';
 import { describe, expect, it, vi } from 'vitest';
 import { CreateRoleCommand } from '../src/roles/application/cqrs/commands/create-role.command.js';
 import { CreateRoleHandler } from '../src/roles/application/cqrs/commands/create-role.handler.js';
@@ -64,7 +69,7 @@ describe('Create command idempotency composition', () => {
       const handler = new CreateUserHandler(
         { save },
         { authorize: vi.fn() } as unknown as CaslAuthorizer,
-        { publishAll } as unknown as EventBus,
+        new EventPublisher({ publishAll } as unknown as EventBus),
       );
       const context = () =>
         tenantContext(
@@ -111,6 +116,7 @@ describe('Create command idempotency composition', () => {
       expect(publishAll).toHaveBeenCalledExactlyOnceWith(
         [expect.any(UserCreatedEvent)],
         aggregate,
+        undefined,
       );
       expect(aggregate.getUncommittedEvents()).toHaveLength(0);
     },
@@ -123,7 +129,7 @@ describe('Create command idempotency composition', () => {
     const handler = new CreateUserHandler(
       { save },
       { authorize: vi.fn() } as unknown as CaslAuthorizer,
-      { publishAll } as unknown as EventBus,
+      new EventPublisher({ publishAll } as unknown as EventBus),
     );
     const behavior = new IdempotencyBehavior(new MemoryIdempotencyStore(), {
       keyFactory: createUserIdempotencyKey,
@@ -170,7 +176,7 @@ describe('Create command idempotency composition', () => {
     const handler = new CreateUserHandler(
       { save },
       { authorize: vi.fn() } as unknown as CaslAuthorizer,
-      { publishAll: vi.fn() } as unknown as EventBus,
+      new EventPublisher({ publishAll: vi.fn() } as unknown as EventBus),
     );
     const behavior = new IdempotencyBehavior(new MemoryIdempotencyStore(), {
       keyFactory: createUserIdempotencyKey,
@@ -209,7 +215,7 @@ describe('Create command idempotency composition', () => {
     const handler = new CreateRoleHandler(
       { save },
       { authorize: vi.fn() } as unknown as CaslAuthorizer,
-      { publishAll } as unknown as EventBus,
+      new EventPublisher({ publishAll } as unknown as EventBus),
     );
     const context = () =>
       tenantContext(
@@ -251,6 +257,7 @@ describe('Create command idempotency composition', () => {
     expect(publishAll).toHaveBeenCalledExactlyOnceWith(
       [expect.any(RoleCreatedEvent)],
       aggregate,
+      undefined,
     );
     expect(aggregate.getUncommittedEvents()).toHaveLength(0);
   });

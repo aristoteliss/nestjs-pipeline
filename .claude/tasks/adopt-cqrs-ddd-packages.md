@@ -44,9 +44,10 @@ Where the work stopped (2026-10-04): the plan was revised with the owner. `api` 
 complete NestJS application on official `@nestjs/cqrs`, the packages only add
 functionality, the glue lives in `api` and each `api` module registers the behaviors it
 configures (Phase 1.3). `AGENTS.md`, `CLAUDE.md` and this file were updated for it, and
-ddd-cqrs's `.claude/tasks/cqrs-ddd-pipeline.md` (Task, Goal, Scope); none of these edits
-is committed yet (commits only after the owner agrees). No code has changed. The local
-registry answers on `http://127.0.0.1:4873/`. Phase 0.3 is done (branch `adopt-cqrs-ddd`); next: 1.1 and 1.2.
+ddd-cqrs's `.claude/tasks/cqrs-ddd-pipeline.md` (Task, Goal, Scope); committed with the owner's
+agreement: here `d0a98a71`, in ddd-cqrs `c55e680`. The local registry answers on
+`http://127.0.0.1:4873/`. Phases 0.3 to 1.4 are done (uncommitted); `api` compiles and its unit
+and e2e tests pass (1.5); next: Phase 2 and the context files (3.2).
 
 ## Plan
 
@@ -62,18 +63,78 @@ registry answers on `http://127.0.0.1:4873/`. Phase 0.3 is done (branch `adopt-c
   because it is their first version there).
 - [x] 0.3 A branch here from `develop` (for example `adopt-cqrs-ddd`); commits only after
   the owner agrees, never on `master`. Done 2026-10-04: branch `adopt-cqrs-ddd`, created
-  from `develop` at `0caf5535`; nothing committed on it yet.
+  from `develop` at `0caf5535`; the revised plan is its first commit, `d0a98a71`
+  (ddd-cqrs's matching task edit: `c55e680` on its `develop`).
 
 ### Phase 1: `api` 0.5.0 on the `@cqrs-ddd` packages
 
-- [ ] 1.1 Point `api` at the local registry during the trial without committing it: an
-  untracked `.npmrc` in `api/` or `--registry http://127.0.0.1:4873/` on install. A
-  committed `.npmrc` with a localhost registry would break CI.
-- [ ] 1.2 Replace the `@nestjs-pipeline/*` workspace dependencies of `api` with
-  `@cqrs-ddd/*@^0.5.0`, then move the imports with a one-off codemod (scratch, never
-  committed): 102 files in `api/src` import `@nestjs-pipeline/*` (2026-10-04). Package
-  successors are in the table below.
-- [ ] 1.3 The glue, in `api` only and kept small (owner, 2026-10-04: "very small, near zero
+- [x] 1.1 Point `api` at the local registry during the trial without committing it. Done
+  2026-10-04: pnpm reads `.npmrc` only at the workspace root (committed), so an `api/.npmrc`
+  would be ignored; instead `~/.npmrc-cqrs-local` (outside the repository) holds only
+  `@cqrs-ddd:registry=http://127.0.0.1:4873/`, and installs run as
+  `NPM_CONFIG_USERCONFIG=$HOME/.npmrc-cqrs-local pnpm install`. The lockfile records no
+  localhost URL (checked).
+- [x] 1.2 Dependencies and imports. Done 2026-10-04 (uncommitted): in `api/package.json` the
+  14 `@nestjs-pipeline/*` workspace dependencies became their `@cqrs-ddd/pipeline*`
+  successors at `^0.5.0`; `@cqrs-ddd/core`, `mikro-orm`, `safe-stringify` and `uuidv7` went
+  from `workspace:*` to `^0.5.0`; the five `@mikro-orm/*` ranges went from `^7.2.1` to
+  `^7.2.3`, the peer `@cqrs-ddd/mikro-orm` 0.5.0 requires (7.2.1 was installed). The install
+  added the 19 new `@cqrs-ddd` versions to `minimumReleaseAgeExclude` in
+  `pnpm-workspace.yaml` (pnpm's age gate; ask the owner before committing it). One copy of
+  each stateful package resolves (`pipeline`, `pipeline-tenant`, `pipeline-correlation`,
+  `pipeline-job-context`, `core`, all 0.5.0); the remaining peer warnings (TypeScript 7 vs
+  `@nestjs/swagger`, `@emnapi`) predate this change. A one-off script (scratch, not
+  committed) rewrote every `@nestjs-pipeline/<name>` in `api/src` and `api/test` to its
+  successor: 141 files of imports, `vi.mock` names and test titles, then 7 files of comments
+  (`@nestjs-pipeline/ddd-api`, the package's own name, kept).
+  `tsc --noEmit` on `api` then reports 80 errors, all NestJS glue that 1.3 replaces:
+  `CACHE_TOKEN` (18, core has no DI tokens: the 16 repositories and
+  `persistence.module.ts`), `PipelineModule` (14), `DeadLetterModule` (6), `AuditModule`
+  (4), `PIPELINE_BEHAVIORS_OPTIONS_METADATA` (4, test support), `CacheModule` (3),
+  `ResilienceModule`, `RateLimitModule`, `FeatureFlagsModule`, `CaslModule` (2 each),
+  `JobContextModule`, `IdempotencyModule`, `zodBadRequest`, `HttpCorrelationMiddleware`,
+  `LOGGING_BEHAVIOR_LOGGER`, `PipelineModuleFeatureOptions`, `PIPELINE_CACHE` (1 each), the
+  package exception filters in `app.module.ts` and their specs, `RATE_LIMITER`,
+  `PIPELINE_BEHAVIORS_METADATA` (test support), `CASL_PERMISSION_SOURCE`, and two
+  implicit-`any` spec parameters.
+- [x] 1.2a The NestJS way where `api` stood in for NestJS (owner, 2026-10-04: "remove my
+  code that replaces NestJS code; use the packages only for what NestJS lacks; if
+  something we need is missing from NestJS, stop and tell me"). Done 2026-10-04
+  (uncommitted):
+  - the 8 command handlers no longer extend core's `CommandBaseHandler`: they implement
+    `ICommandHandler<C, R>` with `execute()`, inject NestJS's `EventPublisher`, and end
+    with `await this.publisher.mergeObjectContext(aggregate).commit()` after saving;
+    `PrincipalLoginService` refresh does the same instead of `eventBus.publishAll` +
+    `uncommit()`. Core's aggregates implement NestJS 12's `IAggregateRoot`, which
+    `mergeObjectContext` takes, so no cast is needed;
+  - specs pass `new EventPublisher(fakeBus)` and call `execute()`; NestJS's publisher
+    hands `publishAll` a third argument (`asyncContext`, `undefined` here) and its
+    `commit()` publishes an empty list when nothing happened (a refresh grace answer), so
+    those assertions changed;
+  - `AGENTS.md` rule 8, the architecture skill (section 6 and checklists), the map's
+    architecture section and the two `api/README.md` handler examples describe
+    `EventPublisher` instead of `CommandBaseHandler`;
+  - kept, because NestJS has no equivalent: `RootEntity`/`RootDomainEvent` and the rest of
+    core's domain and persistence building blocks; `BaseCommand`/`BaseQuery` with
+    `createCommand`/`createQuery` (payload without session metadata, stable fingerprints,
+    `getUpdateFields`); a class cannot extend both them and NestJS's `Command<R>`, and
+    `api` does not use `Command<R>` (controllers type `execute<C, R>()`);
+  - already the NestJS way: `@EventsHandler` event handlers, `@nestjs/bullmq` processors,
+    `StandardSchemaValidationPipe`, guards, interceptors and filters, `nestjs-pino`;
+  - shutdown (owner, 2026-10-04): `src/graceful-shutdown.ts` and its spec removed;
+    `bootstrap.ts` calls `app.enableShutdownHooks()` on the new root `ServerModule`
+    (`src/server.module.ts`), which imports a `@Global()` `TracingModule` before
+    `AppModule`. NestJS shuts global modules down last, and the first registered of them
+    last of all, so its `onApplicationShutdown` flushes telemetry after every other hook,
+    as before (`server.module.spec.ts` pins the order and fails with the import order
+    swapped). Differences NestJS brings: a second signal during shutdown is ignored
+    instead of terminating at once, and a failing hook ends with `process.exit(1)`
+    without the flush. `api/CLAUDE.md` and `bullmq-6-node-redis.md` (its planned shutdown
+    deadline needs code NestJS lacks: ask the owner) were updated;
+  - verified: `tsc` back to the glue errors only; the auth, user and role command specs
+    and `principal-login.service.spec.ts` pass (22 + 28 tests); the specs still failing
+    fail on old-module glue (1.3).
+- [x] 1.3 The glue, in `api` only and kept small (owner, 2026-10-04: "very small, near zero
   change, as a Nest project"):
   - **each `api` module registers the behaviors it configures** (owner, 2026-10-04): a
     factory provider under the behavior class, built with `new` and the options the old
@@ -103,15 +164,66 @@ registry answers on `http://127.0.0.1:4873/`. Phase 0.3 is done (branch `adopt-c
     `createPipelineRunner` (never the shared prototype), unwrapping it on shutdown;
   - one exception filter answering with each package's `toHttpResponse(error)` and core's
     `domainErrorHttpStatus`, replacing the six package filters.
-  `@nestjs/cqrs` dispatches as today and calls `instance.execute()` at call time, so the
-  wrapped method is what runs.
-- [ ] 1.4 The two request-scoped handlers (`UpdateUserHandler`, `UpdateRoleHandler`) and
+  Done 2026-10-04 (uncommitted):
+  - `src/common/pipeline/`: `PipelineModule.forRoot({ globalBehaviors, sources,
+    diagnostics })` and `PipelineBootstrap`. The handler metadata keys of `@nestjs/cqrs`
+    12.1 are not exported, so each public handler decorator is applied to a throwaway
+    class to read its key (as the old plugin did). Behavior instances are read from the
+    one provider whose token is the behavior class (`DiscoveryService`), not through
+    `moduleRef.get`;
+  - `ObservabilityModule` places the global behaviors and provides logging (on
+    `NativeLogger`), trace, metrics, attributes, Zod and audit (`LogAuditSink` on a Nest
+    `Logger`); `ReliabilityModule` provides dead letter, rate limit (`RATE_LIMITER`, shared
+    with the session refresh), idempotency (`MemoryIdempotencyStore`), resilience,
+    response cache (`RESPONSE_CACHE`, `buildCache`) and feature flags, and closes the
+    store, cache and flag provider in its `onApplicationShutdown`; `AuthorizationModule`
+    (now `@Global`, like the old `CaslModule`) provides `CaslBehavior` and
+    `CaslAuthorizer`. Behaviors log through `new Logger(Behavior.name)`;
+  - `PipelineErrorFilter` (`src/common/filters/`) replaces the five package filters with
+    each package's `toHttpResponse`; `zodBadRequest` moved to
+    `src/common/validation/zod-bad-request.ts` (NestJS pipe glue, no successor package);
+    `CACHE` (`src/persistence/cache/cache.token.ts`) replaces core's `CACHE_TOKEN`;
+    `httpCorrelation()` replaces `HttpCorrelationMiddleware`; `JobContextRegistration`
+    (`src/common/context/`) replaces `JobContextModule`;
+  - specs: the ones that composed the old modules now compose `api`'s `PipelineModule`
+    with behavior providers; `pipeline-bootstrap-regressions.spec.ts` was rewritten for
+    the new guarantees (restore on failed start and on close, class prototypes never
+    patched, request-scoped handlers and behaviors refused);
+    `pipeline-behavior-identity.spec.ts` gained "two modules provide the same behavior"
+    (fails, naming both); `pipeline-for-feature.e2e-spec.ts` became
+    `behavior-module-registration.e2e-spec.ts`; the mapper specs expect
+    `ZodValidationError`, which 0.5.0's `createZodMapper` throws (answered 400 by
+    `PipelineErrorFilter` with `{ statusCode, error, message, details }`; controller DTOs
+    still fail first in NestJS's pipe with `{ formErrors, fieldErrors }`);
+    `test/lint/biome-general-plugins.spec.ts` restored (the 1.2 rewrite had changed its
+    fixture strings, which test rules for the frozen `packages/*`).
+  `@nestjs/cqrs` dispatches as today and reads the method at call time, so the wrapped
+  method is what runs: `instance.execute(command|query)` for command and query handlers
+  (`command-bus.js:78`, `query-bus.js:75` of `@nestjs/cqrs` 12.1.0) and
+  `handler.instance.handle(event)` for event handlers (`event-bus.js:110`). The bootstrap
+  therefore wraps `execute` on command and query handlers and `handle` on event handlers;
+  `api` has two event handlers (`UserCreatedHandler`, `UserUpdatedHandler`, both
+  `@UsePipeline(deadLetter({ rethrow: false }))`), and `DeadLetterBehavior` is also scoped
+  to events globally, so the event path is part of the glue, not an afterthought.
+- [x] 1.4 The two request-scoped handlers (`UpdateUserHandler`, `UpdateRoleHandler`) and
   `CaslPermissionSource` become singletons (they read the principal from
   `AsyncLocalStorage`); the bootstrap refuses a request-scoped handler that declares a
-  pipeline, with a message saying why.
-- [ ] 1.5 Verify: `api` lint and unit tests, then `pnpm test:e2e` (Docker), in particular
+  pipeline, with a message saying why: for a request-scoped handler `@nestjs/cqrs`
+  resolves a new instance on every call (`command-bus.js:92`, `query-bus.js:84`,
+  `event-bus.js:117`), so a wrapped singleton instance would never run. NestJS request
+  scope itself stays available to every other provider of `api`. A side gain: the CASL
+  chain is no longer resolved through `moduleRef.resolve()` on every request. Done
+  2026-10-04 (uncommitted).
+- [x] 1.5 Verify: `api` lint and unit tests, then `pnpm test:e2e` (Docker). 2026-10-04:
+  `api` typecheck clean, `pnpm exec biome check api` clean (360 files),
+  `pnpm lint:persistence` clean, `pnpm --filter @nestjs-pipeline/ddd-api test` 113 files /
+  911 tests passed; `pnpm test:e2e` 35 files / 224 tests passed (the pinned 400 bodies
+  included, so no route reaches a mapper-only rule). Checked in particular
   the pipeline composition, identity, bootstrap, context-source, skip, span-attribute,
-  cache-partitioning and job-context suites.
+  cache-partitioning and job-context suites, and the cases behind the guards of the
+  2026-10-04 answer: no behavior runs twice, tenant and correlation ids reach handlers,
+  event handlers and jobs, the event handlers' dead-letter path, and shutdown closes the
+  memory-store timer, the Redis cache connection and the feature-flag provider.
 - [ ] 1.6 Each failure caused by a `@cqrs-ddd` package is fixed in ddd-cqrs, the version
   removed from the local registry
   (`npm unpublish @cqrs-ddd/<name>@0.5.0 --force --registry http://127.0.0.1:4873/`),
@@ -245,6 +357,9 @@ Successor of each package:
   repository), `.agents/skills/nestjs-pipeline-architecture/SKILL.md` (Source of truth):
   the permanent description of how this repository and ddd-cqrs connect (owner,
   2026-10-04).
+- Uncommitted (1.2): `api/package.json` (dependencies, description), `pnpm-lock.yaml`,
+  `pnpm-workspace.yaml` (`minimumReleaseAgeExclude`, ask before committing), and the 148
+  files of `api/src` and `api/test` the import rewrite touched.
 
 ## Tests and Verification
 
@@ -269,19 +384,16 @@ Successor of each package:
 
 - Q1: once 0.4.3 is published, do `packages/*` stay in this repository as the frozen
   0.4.x source, or are they removed later, leaving `api` alone?
+- Q2 (answered 2026-10-04: use NestJS's way): done in 1.2a.
+- Q3 (answered 2026-10-04: NestJS's way): done in 1.2a.
 
 ## Next Steps
 
-1. Ask the owner whether to commit the plan edits (`AGENTS.md`, `CLAUDE.md`, this file) on
-   `adopt-cqrs-ddd`.
-2. Phase 1.1: an untracked `api/.npmrc` with `@cqrs-ddd:registry=http://127.0.0.1:4873/`,
-   excluded locally through `.git/info/exclude`, never committed.
-3. Phase 1.2: in `api/package.json`, the 14 `@nestjs-pipeline/*` workspace dependencies
-   become their `@cqrs-ddd/pipeline*` successors at `^0.5.0`, and `@cqrs-ddd/core`,
-   `mikro-orm`, `safe-stringify`, `uuidv7` move from `workspace:*` to `^0.5.0`; then the
-   import codemod (scratch, never committed) over the 102 files of `api/src` (and the
-   specs in `api/test`).
-4. Phase 1.3 and 1.4: the glue and the request-scope changes, as described above.
+1. `pnpm-workspace.yaml` (`minimumReleaseAgeExclude` for the 19 new `@cqrs-ddd` versions)
+   stays uncommitted until the owner decides.
+2. Phase 2: README notices and the 0.4.3 README-only release.
+3. Phase 3.2 context files: `api/CLAUDE.md`, `api/README.md` and the map still describe
+   the old package modules (`PipelineModule.forRoot` of the package, `CaslModule`, ...).
 
 ## Snapshot Impact
 

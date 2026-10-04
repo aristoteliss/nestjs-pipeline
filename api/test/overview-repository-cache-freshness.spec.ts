@@ -1,8 +1,8 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { MemoryCache } from '@cqrs-ddd/core/persistence';
-import { buildAbility, CaslAuthorizer } from '@nestjs-pipeline/casl';
-import { runWithTenant } from '@nestjs-pipeline/tenant';
+import { buildAbility, CaslAuthorizer } from '@cqrs-ddd/pipeline-casl';
+import { runWithTenant } from '@cqrs-ddd/pipeline-tenant';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { GetUserQuery } from '../src/users/application/cqrs/queries/get-user.query.js';
 import { GetUserOverviewHandler } from '../src/users/application/cqrs/queries/get-user-overview.handler.js';

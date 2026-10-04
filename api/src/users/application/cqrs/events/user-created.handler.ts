@@ -1,9 +1,9 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
+import { UsePipeline } from '@cqrs-ddd/pipeline';
+import { deadLetter } from '@cqrs-ddd/pipeline-deadletter';
 import { Inject } from '@nestjs/common';
 import { EventsHandler, type IEventHandler } from '@nestjs/cqrs';
-import { UsePipeline } from '@nestjs-pipeline/core';
-import { deadLetter } from '@nestjs-pipeline/deadletter';
 import { UserCreatedEvent } from '../../../domain/events/user-created.event.js';
 import {
   type IWelcomeEmailDispatcher,

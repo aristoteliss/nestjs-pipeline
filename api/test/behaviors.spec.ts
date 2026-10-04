@@ -1,36 +1,39 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import { NotFoundException } from '@nestjs/common';
+import { type IPipelineContext, LoggingBehavior } from '@cqrs-ddd/pipeline';
 import {
   AuditBehavior,
   type AuditRecord,
   type AuditSink,
-} from '@nestjs-pipeline/audit';
-import { CacheBehavior } from '@nestjs-pipeline/cache';
-import { buildAbility, CaslAuthorizer } from '@nestjs-pipeline/casl';
-import { type IPipelineContext, LoggingBehavior } from '@nestjs-pipeline/core';
+} from '@cqrs-ddd/pipeline-audit';
+import { CacheBehavior } from '@cqrs-ddd/pipeline-cache';
+import { buildAbility, CaslAuthorizer } from '@cqrs-ddd/pipeline-casl';
 import {
   DeadLetterBehavior,
   type DeadLetterTransport,
-} from '@nestjs-pipeline/deadletter';
+} from '@cqrs-ddd/pipeline-deadletter';
 import {
   FeatureDisabledError,
   FeatureFlagBehavior,
-} from '@nestjs-pipeline/feature-flags';
+} from '@cqrs-ddd/pipeline-feature-flags';
 import {
   IdempotencyBehavior,
   MemoryIdempotencyStore,
-} from '@nestjs-pipeline/idempotency';
-import { MetricsBehavior, TraceBehavior } from '@nestjs-pipeline/opentelemetry';
+} from '@cqrs-ddd/pipeline-idempotency';
+import {
+  MetricsBehavior,
+  TraceBehavior,
+} from '@cqrs-ddd/pipeline-opentelemetry';
 import {
   RateLimitBehavior,
   RateLimitExceededError,
-} from '@nestjs-pipeline/rate-limit';
-import { ResilienceBehavior } from '@nestjs-pipeline/resilience';
+} from '@cqrs-ddd/pipeline-rate-limit';
+import { ResilienceBehavior } from '@cqrs-ddd/pipeline-resilience';
 import {
   ZodValidationBehavior,
   ZodValidationError,
-} from '@nestjs-pipeline/zod';
+} from '@cqrs-ddd/pipeline-zod';
+import { NotFoundException } from '@nestjs/common';
 import { OpenFeature, TypedInMemoryProvider } from '@openfeature/server-sdk';
 import { metrics, trace } from '@opentelemetry/api';
 import { TenantSchemaContext } from '@persistence/tenant-schema.context.js';
@@ -68,7 +71,7 @@ function createContext(options: {
 }
 
 describe('Users API Pipeline Behaviors Specification', () => {
-  describe('MetricsBehavior (@nestjs-pipeline/opentelemetry)', () => {
+  describe('MetricsBehavior (@cqrs-ddd/pipeline-opentelemetry)', () => {
     it('records duration histogram and invocation counter for handler executions', async () => {
       const mockDuration = { record: vi.fn() };
       const mockInvocations = { add: vi.fn() };
@@ -151,7 +154,7 @@ describe('Users API Pipeline Behaviors Specification', () => {
     });
   });
 
-  describe('RateLimitBehavior (@nestjs-pipeline/rate-limit)', () => {
+  describe('RateLimitBehavior (@cqrs-ddd/pipeline-rate-limit)', () => {
     it('throttles login attempts when rate limit points are exceeded', async () => {
       const limiter = new RateLimiterMemory({ points: 2, duration: 60 });
       const rateLimitBehavior = new RateLimitBehavior(limiter);
@@ -215,7 +218,7 @@ describe('Users API Pipeline Behaviors Specification', () => {
     });
   });
 
-  describe('AuditBehavior (@nestjs-pipeline/audit)', () => {
+  describe('AuditBehavior (@cqrs-ddd/pipeline-audit)', () => {
     it('records audit trail for role deletion with actor metadata', async () => {
       const records: AuditRecord[] = [];
       const mockSink: AuditSink = {
@@ -291,7 +294,7 @@ describe('Users API Pipeline Behaviors Specification', () => {
     });
   });
 
-  describe('IdempotencyBehavior (@nestjs-pipeline/idempotency)', () => {
+  describe('IdempotencyBehavior (@cqrs-ddd/pipeline-idempotency)', () => {
     it('replays cached response for duplicate role creation requests', async () => {
       const memoryStore = new MemoryIdempotencyStore();
       const idempotencyBehavior = new IdempotencyBehavior(memoryStore);
@@ -322,7 +325,7 @@ describe('Users API Pipeline Behaviors Specification', () => {
     });
   });
 
-  describe('FeatureFlagBehavior (@nestjs-pipeline/feature-flags)', () => {
+  describe('FeatureFlagBehavior (@cqrs-ddd/pipeline-feature-flags)', () => {
     it('allows execution when feature flag is enabled and blocks with FeatureDisabledError when disabled', async () => {
       const provider = new TypedInMemoryProvider({
         'role-creation': {
@@ -366,7 +369,7 @@ describe('Users API Pipeline Behaviors Specification', () => {
     });
   });
 
-  describe('CacheBehavior (@nestjs-pipeline/cache)', () => {
+  describe('CacheBehavior (@cqrs-ddd/pipeline-cache)', () => {
     it('caches query responses and bypasses handler on second query execution', async () => {
       const cacheStore = new Map<string, unknown>();
       const mockCache = {
@@ -437,7 +440,7 @@ describe('Users API Pipeline Behaviors Specification', () => {
     });
   });
 
-  describe('ResilienceBehavior (@nestjs-pipeline/resilience)', () => {
+  describe('ResilienceBehavior (@cqrs-ddd/pipeline-resilience)', () => {
     it('retries transient failures and succeeds on subsequent attempts', async () => {
       const resilienceBehavior = new ResilienceBehavior();
       const handlerClass = class TestDeleteRoleHandler {};
@@ -498,7 +501,7 @@ describe('Users API Pipeline Behaviors Specification', () => {
     });
   });
 
-  describe('DeadLetterBehavior (@nestjs-pipeline/deadletter)', () => {
+  describe('DeadLetterBehavior (@cqrs-ddd/pipeline-deadletter)', () => {
     it('swallows exception when rethrow is false on background events', async () => {
       const transport: DeadLetterTransport = {
         send: vi.fn().mockResolvedValue(undefined),
@@ -577,7 +580,7 @@ describe('Users API Pipeline Behaviors Specification', () => {
     });
   });
 
-  describe('CaslBehavior (@nestjs-pipeline/casl)', () => {
+  describe('CaslBehavior (@cqrs-ddd/pipeline-casl)', () => {
     it('verifies entity-level authorization with CaslAuthorizer', () => {
       const role = Role.create('manager');
       const otherRole = Role.create('admin');
@@ -597,7 +600,7 @@ describe('Users API Pipeline Behaviors Specification', () => {
     });
   });
 
-  describe('LoggingBehavior (@nestjs-pipeline/core)', () => {
+  describe('LoggingBehavior (@cqrs-ddd/pipeline)', () => {
     it('maps specific exceptions to warning log levels via mapLogLevel option', async () => {
       const mockLogger = {
         log: vi.fn(),
@@ -628,7 +631,7 @@ describe('Users API Pipeline Behaviors Specification', () => {
     });
   });
 
-  describe('TraceBehavior (@nestjs-pipeline/opentelemetry)', () => {
+  describe('TraceBehavior (@cqrs-ddd/pipeline-opentelemetry)', () => {
     it('creates an OpenTelemetry span for the handler invocation when SDK is initialized', async () => {
       const mockSpan = {
         setStatus: vi.fn(),
@@ -676,7 +679,7 @@ describe('Users API Pipeline Behaviors Specification', () => {
     });
   });
 
-  describe('ZodValidationBehavior (@nestjs-pipeline/zod)', () => {
+  describe('ZodValidationBehavior (@cqrs-ddd/pipeline-zod)', () => {
     it('validates request against static _zodSchema and throws ZodValidationError on mismatch', async () => {
       const zodBehavior = new ZodValidationBehavior();
 

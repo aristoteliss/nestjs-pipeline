@@ -4,21 +4,22 @@ import {
   APP_SUBJECTS,
   AUDIT_ACTIONS,
 } from '@common/constants/index.js';
-import {
-  CommandBaseHandler,
-  IWriteSideAggregateRepository,
-} from '@cqrs-ddd/core/application';
+import { IWriteSideAggregateRepository } from '@cqrs-ddd/core/application';
 import { EntityNotFoundException } from '@cqrs-ddd/core/domain';
-import { Inject, Scope } from '@nestjs/common';
-import { CommandHandler, EventBus } from '@nestjs/cqrs';
-import { AUDIT_SEVERITY, audit } from '@nestjs-pipeline/audit';
-import { CaslAuthorizer, requires } from '@nestjs-pipeline/casl';
-import { type IPipelineContext, UsePipeline } from '@nestjs-pipeline/core';
+import { type IPipelineContext, UsePipeline } from '@cqrs-ddd/pipeline';
+import { AUDIT_SEVERITY, audit } from '@cqrs-ddd/pipeline-audit';
+import { CaslAuthorizer, requires } from '@cqrs-ddd/pipeline-casl';
+import { Inject } from '@nestjs/common';
+import {
+  CommandHandler,
+  EventPublisher,
+  type ICommandHandler,
+} from '@nestjs/cqrs';
 import type { User } from '../../../domain/models/user.entity.js';
 import { COMMAND_REPOSITORY } from '../../../persistence/repository.tokens.js';
 import { UpdateUserCommand } from './update-user.command.js';
 
-@CommandHandler(UpdateUserCommand, { scope: Scope.REQUEST })
+@CommandHandler(UpdateUserCommand)
 @UsePipeline(
   requires({ action: APP_ACTIONS.UPDATE, subject: APP_SUBJECTS.USER }),
   audit({
@@ -30,20 +31,17 @@ import { UpdateUserCommand } from './update-user.command.js';
     },
   }),
 )
-export class UpdateUserHandler extends CommandBaseHandler<
-  UpdateUserCommand,
-  User
-> {
+export class UpdateUserHandler
+  implements ICommandHandler<UpdateUserCommand, User>
+{
   constructor(
     @Inject(COMMAND_REPOSITORY.updateUser)
     private readonly commandRepository: IWriteSideAggregateRepository<User>,
     private readonly authorizer: CaslAuthorizer,
-    protected readonly eventBus: EventBus,
-  ) {
-    super(eventBus);
-  }
+    private readonly publisher: EventPublisher,
+  ) {}
 
-  async handle(command: UpdateUserCommand): Promise<User> {
+  async execute(command: UpdateUserCommand): Promise<User> {
     const { id, username, department } = command;
     const user = await this.commandRepository.findById(id);
     if (!user) {
@@ -57,6 +55,7 @@ export class UpdateUserHandler extends CommandBaseHandler<
     );
     user.update({ username, department });
     await this.commandRepository.save(user);
+    await this.publisher.mergeObjectContext(user).commit();
     return user;
   }
 }

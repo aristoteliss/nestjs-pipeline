@@ -1,12 +1,11 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import type { Type } from '@nestjs/common';
 import {
-  type BehaviorId,
   getBehaviorId,
   type IPipelineBehavior,
-  PIPELINE_BEHAVIORS_OPTIONS_METADATA,
-} from '@nestjs-pipeline/core';
+  pipelineOf,
+} from '@cqrs-ddd/pipeline';
+import type { Type } from '@nestjs/common';
 
 /**
  * The options `handler` declares for `behavior` in its `@UsePipeline`, so a
@@ -26,11 +25,9 @@ export function declaredOptions<T>(
   handler: Type<unknown>,
   behavior: Type<IPipelineBehavior>,
 ): T {
-  const options = Reflect.getMetadata(
-    PIPELINE_BEHAVIORS_OPTIONS_METADATA,
-    handler,
-  ) as Map<BehaviorId, T> | undefined;
-  const declared = options?.get(getBehaviorId(behavior));
+  const declared = pipelineOf(handler).options.get(getBehaviorId(behavior)) as
+    | T
+    | undefined;
   if (!declared) {
     throw new Error(`${handler.name} declares no ${behavior.name} options.`);
   }

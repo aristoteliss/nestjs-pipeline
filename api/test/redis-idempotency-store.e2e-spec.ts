@@ -2,7 +2,7 @@
 import {
   type IdempotencyRecord,
   RedisIdempotencyStore,
-} from '@nestjs-pipeline/idempotency';
+} from '@cqrs-ddd/pipeline-idempotency';
 import { createClient } from '@redis/client';
 import {
   RedisContainer,

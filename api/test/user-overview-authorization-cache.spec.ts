@@ -2,28 +2,29 @@
 
 import { contextSources } from '@common/context/context-sources.js';
 import type { IQueryRepository } from '@cqrs-ddd/core/application';
-import { type INestApplication, Injectable } from '@nestjs/common';
-import { CqrsModule, QueryBus } from '@nestjs/cqrs';
-import { Test } from '@nestjs/testing';
+import type { IPipelineContext } from '@cqrs-ddd/pipeline';
 import {
+  buildCache,
   CacheBehavior,
-  CacheModule,
   MissingCachePartitionError,
-} from '@nestjs-pipeline/cache';
+} from '@cqrs-ddd/pipeline-cache';
 import {
   buildAbility,
   CASL_ABILITY_KEY,
   CASL_PRINCIPAL_KEY,
   type CaslAuthorizationInput,
+  CaslAuthorizer,
   CaslBehavior,
-  CaslModule,
   type ICaslPermissionSource,
   normalizeCapability,
   UnauthorizedActionException,
-} from '@nestjs-pipeline/casl';
-import { type IPipelineContext, PipelineModule } from '@nestjs-pipeline/core';
-import { runWithTenant } from '@nestjs-pipeline/tenant';
+} from '@cqrs-ddd/pipeline-casl';
+import { runWithTenant } from '@cqrs-ddd/pipeline-tenant';
+import { type INestApplication, Injectable } from '@nestjs/common';
+import { CqrsModule, QueryBus } from '@nestjs/cqrs';
+import { Test } from '@nestjs/testing';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { PipelineModule } from '../src/common/pipeline/pipeline.module.js';
 import type { SessionPrincipal } from '../src/common/types/session-principal.js';
 import { Role } from '../src/roles/domain/models/role.entity.js';
 import { QUERY_REPOSITORY as ROLES_QUERY_REPOSITORY } from '../src/roles/persistence/repository.tokens.js';
@@ -76,6 +77,7 @@ class ViewerPermissionSource implements ICaslPermissionSource {
 
 describe('User overview composed query security and caching contracts', () => {
   let app: INestApplication;
+  let responseCache: ReturnType<typeof buildCache>;
   let queries: QueryBus;
 
   let targetUser: User;
@@ -152,23 +154,20 @@ describe('User overview composed query security and caching contracts', () => {
     roleDefinitions = async (names) =>
       activeRoles.filter((r) => names.includes(r.name));
 
+    responseCache = buildCache({ store: { type: 'memory' }, ttl: 60_000 });
     const moduleRef = await Test.createTestingModule({
       imports: [
         CqrsModule.forRoot(),
-        CacheModule.forRoot({
-          store: { type: 'memory' },
-          ttl: 60_000,
-        }),
-        CaslModule.forRoot({
-          permissionSource: { useFactory: () => new ViewerPermissionSource() },
-        }),
-        PipelineModule.forRoot({
-          behaviors: [CaslBehavior, CacheBehavior],
-          sources: contextSources,
-        }),
+        PipelineModule.forRoot({ sources: contextSources }),
       ],
       providers: [
         GetUserOverviewHandler,
+        { provide: CacheBehavior, useValue: new CacheBehavior(responseCache) },
+        {
+          provide: CaslBehavior,
+          useValue: new CaslBehavior(new ViewerPermissionSource()),
+        },
+        { provide: CaslAuthorizer, useValue: new CaslAuthorizer() },
         { provide: QUERY_REPOSITORY.getUser, useValue: mockUserRepo },
         {
           provide: ROLES_QUERY_REPOSITORY.getRoles,
@@ -514,11 +513,7 @@ describe('User overview composed query security and caching contracts', () => {
   });
 
   it('enforces full loaded aggregate authorization even when cache store read throws', async () => {
-    const { PIPELINE_CACHE } = await import('@nestjs-pipeline/cache');
-    const cacheStore = app.get(PIPELINE_CACHE) as {
-      get: (k: string) => Promise<unknown>;
-    };
-    vi.spyOn(cacheStore, 'get').mockRejectedValueOnce(
+    vi.spyOn(responseCache, 'get').mockRejectedValueOnce(
       new Error('Redis connection failed'),
     );
 

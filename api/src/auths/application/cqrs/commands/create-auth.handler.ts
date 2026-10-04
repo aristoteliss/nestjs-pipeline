@@ -2,20 +2,20 @@
 
 import { claimedIdentityActor } from '@common/audit/audit.options.js';
 import { AUDIT_ACTIONS, RATE_LIMIT_COST } from '@common/constants/index.js';
-import {
-  CommandBaseHandler,
-  ICommandRepository,
-  requireTenant,
-} from '@cqrs-ddd/core/application';
-import { Inject } from '@nestjs/common';
-import { CommandHandler, EventBus } from '@nestjs/cqrs';
-import { AUDIT_SEVERITY, audit } from '@nestjs-pipeline/audit';
-import { type IPipelineContext, UsePipeline } from '@nestjs-pipeline/core';
-import { metrics } from '@nestjs-pipeline/opentelemetry';
+import { ICommandRepository, requireTenant } from '@cqrs-ddd/core/application';
+import { type IPipelineContext, UsePipeline } from '@cqrs-ddd/pipeline';
+import { AUDIT_SEVERITY, audit } from '@cqrs-ddd/pipeline-audit';
+import { metrics } from '@cqrs-ddd/pipeline-opentelemetry';
 import {
   createPartitionedRateLimitKeyFactory,
   rateLimit,
-} from '@nestjs-pipeline/rate-limit';
+} from '@cqrs-ddd/pipeline-rate-limit';
+import { Inject } from '@nestjs/common';
+import {
+  CommandHandler,
+  EventPublisher,
+  type ICommandHandler,
+} from '@nestjs/cqrs';
 import { Auth, AuthSnapshot } from '../../../domain/models/auth.entity.js';
 import { COMMAND_REPOSITORY } from '../../../persistence/repository.tokens.js';
 import { PrincipalLoginService } from '../../../services/principal-login.service.js';
@@ -51,12 +51,11 @@ import { CreateAuthCommand } from './create-auth.command.js';
       claimedIdentityActor((ctx.request as CreateAuthCommand)?.email),
   }),
 )
-export class CreateAuthHandler extends CommandBaseHandler<
-  CreateAuthCommand,
-  AuthResult
-> {
+export class CreateAuthHandler
+  implements ICommandHandler<CreateAuthCommand, AuthResult>
+{
   constructor(
-    protected readonly eventBus: EventBus,
+    private readonly publisher: EventPublisher,
     private readonly principalLoginService: PrincipalLoginService,
     @Inject(COMMAND_REPOSITORY.createAuth)
     private readonly commandRepository: ICommandRepository<Auth, AuthSnapshot>,
@@ -66,11 +65,9 @@ export class CreateAuthHandler extends CommandBaseHandler<
     private readonly policy: AuthTokenPolicy,
     @Inject(SESSION_COOKIES)
     private readonly cookies: ISessionCookies,
-  ) {
-    super(eventBus);
-  }
+  ) {}
 
-  async handle(command: CreateAuthCommand): Promise<AuthResult> {
+  async execute(command: CreateAuthCommand): Promise<AuthResult> {
     const { email, code } = command;
     const user = await this.principalLoginService.authenticate(email, code);
     const refreshToken = this.refreshTokens.generate();
@@ -98,6 +95,7 @@ export class CreateAuthHandler extends CommandBaseHandler<
       sessionExpiresAt,
     };
     this.cookies.save(result);
+    await this.publisher.mergeObjectContext(auth).commit();
     return result;
   }
 }

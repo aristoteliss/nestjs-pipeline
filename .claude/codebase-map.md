@@ -150,8 +150,8 @@ Commands load aggregates through `IWriteSideAggregateRepository` →
 `@FromCache` and the identity map) → domain method uses `applyPatch(...)` and returns `this`; `@ApplyMutation` advances the lifecycle and records events → `ICommandRepository.save()` →
 `@PersistedWrite` (= `@Cache` → `@AcknowledgePersisted` → `@MapPersistenceErrors`) → MikroORM. Updates are
 version-conditioned (`packages/ddd-mikro-orm/src/concurrency/optimistic-update.ts`), deletes are conditional
-on `{ id, version }`. `CommandBaseHandler` publishes the aggregate's buffered events after
-the handler returns.
+on `{ id, version }`. The handler then commits the aggregate's buffered events through
+`EventPublisher.mergeObjectContext(aggregate).commit()` (`@nestjs/cqrs`).
 
 Queries go through `IQueryRepository`: `@FromCache` plus a repository-level `{ hydrateFn }`
 passed to `QueryRepository`, and return domain aggregates; entity/field authorization runs afterwards via

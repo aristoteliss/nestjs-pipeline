@@ -1,14 +1,14 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { MissingTenantContextError } from '@cqrs-ddd/core/domain';
+import { currentTenantId, runWithTenant } from '@cqrs-ddd/pipeline-tenant';
 import { Injectable } from '@nestjs/common';
-import { currentTenantId, runWithTenant } from '@nestjs-pipeline/tenant';
 import { tenantSchema } from './persistence.config.js';
 
 /**
  * Validates and resolves the active tenant schema.
  *
- * It reads and writes the tenant of `@nestjs-pipeline/tenant`, the one tenant
+ * It reads and writes the tenant of `@cqrs-ddd/pipeline-tenant`, the one tenant
  * store the database store, the pipeline and core's tenant-scoped cache keys
  * share. It fails closed: work outside {@link run} or a pipeline execution has
  * no tenant, and reading {@link schema} there throws instead of falling back to

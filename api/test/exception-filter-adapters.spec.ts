@@ -1,5 +1,7 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
+import { RateLimitExceededError } from '@cqrs-ddd/pipeline-rate-limit';
+import { ZodValidationError } from '@cqrs-ddd/pipeline-zod';
 import {
   Controller,
   Get,
@@ -14,14 +16,10 @@ import {
   type NestFastifyApplication,
 } from '@nestjs/platform-fastify';
 import { Test } from '@nestjs/testing';
-import {
-  RateLimitExceededError,
-  RateLimitExceededFilter,
-} from '@nestjs-pipeline/rate-limit';
-import { ZodValidationError, ZodValidationFilter } from '@nestjs-pipeline/zod';
 import request from 'supertest';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { z } from 'zod';
+import { PipelineErrorFilter } from '../src/common/filters/pipeline-error.filter.js';
 
 function validationError(): ZodValidationError {
   const result = z.object({ name: z.string() }).safeParse({});
@@ -60,17 +58,14 @@ class ProbeModule implements NestModule {
 }
 
 describe.each(['express', 'fastify'] as const)(
-  'Exception filters on %s',
+  'PipelineErrorFilter on %s',
   (adapter) => {
     let app: INestApplication;
 
     beforeAll(async () => {
       const moduleRef = await Test.createTestingModule({
         imports: [ProbeModule],
-        providers: [
-          { provide: APP_FILTER, useClass: ZodValidationFilter },
-          { provide: APP_FILTER, useClass: RateLimitExceededFilter },
-        ],
+        providers: [{ provide: APP_FILTER, useClass: PipelineErrorFilter }],
       }).compile();
       app =
         adapter === 'fastify'

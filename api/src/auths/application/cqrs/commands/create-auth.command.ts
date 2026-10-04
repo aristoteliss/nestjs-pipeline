@@ -2,7 +2,7 @@
 
 import { EmailSchema } from '@common/validation/email.schema.js';
 import { BaseCommand } from '@cqrs-ddd/core/application';
-import { createCommand } from '@nestjs-pipeline/zod';
+import { createCommand } from '@cqrs-ddd/pipeline-zod';
 import { z } from 'zod';
 
 export class CreateAuthCommand extends createCommand(

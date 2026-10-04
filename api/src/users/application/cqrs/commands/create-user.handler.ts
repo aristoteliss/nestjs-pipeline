@@ -8,25 +8,26 @@ import {
 } from '@common/constants/index.js';
 import { sessionPrincipalKey } from '@common/context/session-principal.store.js';
 import { operationIdempotencyKeyFactory } from '@common/idempotency/operation-key.js';
-import {
-  CommandBaseHandler,
-  ICommandRepository,
-} from '@cqrs-ddd/core/application';
-import { Inject } from '@nestjs/common';
-import { CommandHandler, EventBus } from '@nestjs/cqrs';
-import { AUDIT_SEVERITY, audit } from '@nestjs-pipeline/audit';
+import { ICommandRepository } from '@cqrs-ddd/core/application';
+import { logging, UsePipeline } from '@cqrs-ddd/pipeline';
+import { AUDIT_SEVERITY, audit } from '@cqrs-ddd/pipeline-audit';
 import {
   CaslAuthorizer,
   requireAbilityDigest,
   requires,
-} from '@nestjs-pipeline/casl';
-import { logging, UsePipeline } from '@nestjs-pipeline/core';
-import { featureFlag } from '@nestjs-pipeline/feature-flags';
-import { idempotent } from '@nestjs-pipeline/idempotency';
+} from '@cqrs-ddd/pipeline-casl';
+import { featureFlag } from '@cqrs-ddd/pipeline-feature-flags';
+import { idempotent } from '@cqrs-ddd/pipeline-idempotency';
 import {
   createPartitionedRateLimitKeyFactory,
   rateLimit,
-} from '@nestjs-pipeline/rate-limit';
+} from '@cqrs-ddd/pipeline-rate-limit';
+import { Inject } from '@nestjs/common';
+import {
+  CommandHandler,
+  EventPublisher,
+  type ICommandHandler,
+} from '@nestjs/cqrs';
 import { UniqueEmailException } from '../../../domain/models/errors/email.exception.js';
 import { User, type UserSnapshot } from '../../../domain/models/user.entity.js';
 import { COMMAND_REPOSITORY } from '../../../persistence/repository.tokens.js';
@@ -55,20 +56,17 @@ import { CreateUserCommand } from './create-user.command.js';
     severity: AUDIT_SEVERITY.MEDIUM,
   }),
 )
-export class CreateUserHandler extends CommandBaseHandler<
-  CreateUserCommand,
-  User
-> {
+export class CreateUserHandler
+  implements ICommandHandler<CreateUserCommand, User>
+{
   constructor(
     @Inject(COMMAND_REPOSITORY.createUser)
     private readonly commandRepository: ICommandRepository<User, UserSnapshot>,
     private readonly authorizer: CaslAuthorizer,
-    protected readonly eventBus: EventBus,
-  ) {
-    super(eventBus);
-  }
+    private readonly publisher: EventPublisher,
+  ) {}
 
-  async handle(command: CreateUserCommand): Promise<User> {
+  async execute(command: CreateUserCommand): Promise<User> {
     const { username, email, department } = command;
     const user = User.create(username, email, department);
     this.authorizer.authorize('create', user, [
@@ -77,6 +75,7 @@ export class CreateUserHandler extends CommandBaseHandler<
       ...(department !== undefined ? ['department'] : []),
     ]);
     await this.commandRepository.save(user);
+    await this.publisher.mergeObjectContext(user).commit();
     return user;
   }
 }

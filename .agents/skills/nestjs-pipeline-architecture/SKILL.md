@@ -169,13 +169,17 @@ Aggregate setters (`id`, `createdAt`, `updatedAt`, `version`, `username`, `depar
 
 Do not instantiate aggregates in application code with `new Aggregate(snapshot)` merely to trigger a repository operation. Prefer a real domain operation or an explicit application port whose name expresses the intent.
 
-### 6. Use `CommandBaseHandler` for command lifecycle and aggregate events
+### 6. Publish aggregate events with NestJS's `EventPublisher`
 
-For aggregate-changing commands, prefer the repository's `CommandBaseHandler` pattern.
+Command handlers implement `ICommandHandler<TCommand, TResult>` from `@nestjs/cqrs` and inject its `EventPublisher`. After the aggregate is persisted, the handler commits its buffered events once, right before returning:
 
-Handlers must return the aggregate root (or an application result containing `aggregate: AggregateRoot`) so `CommandBaseHandler.execute()` publishes buffered aggregate events automatically and clears uncommitted events.
+```ts
+await this.commandRepository.save(user);
+await this.publisher.mergeObjectContext(user).commit();
+return user;
+```
 
-Never publish or commit domain events manually inside command handlers. Presentation-specific transformations (such as mapping to response DTOs or session cookies) belong in the presentation layer via dedicated mappers (e.g. `toSessionRes(result)`), while cookie lifecycle operations belong in `SessionService`. The login, refresh and logout handlers apply them through the `SESSION_COOKIES` port, which `SessionService` implements over the request's session and response from `httpExchangeStore`; a command payload never carries an HTTP object.
+The aggregates (`RootEntity` from `@cqrs-ddd/core`) implement NestJS's `IAggregateRoot`, so `mergeObjectContext` takes them as they are. Never call `EventBus.publish`/`publishAll` for aggregate events, and never commit twice. Presentation-specific transformations (such as mapping to response DTOs or session cookies) belong in the presentation layer via dedicated mappers (e.g. `toSessionRes(result)`), while cookie lifecycle operations belong in `SessionService`. The login, refresh and logout handlers apply them through the `SESSION_COOKIES` port, which `SessionService` implements over the request's session and response from `httpExchangeStore`; a command payload never carries an HTTP object.
 
 ### 7. Keep entity-level authorization in the application path
 
@@ -328,7 +332,7 @@ Command handlers should express the use case in a small sequence:
 4. call aggregate domain methods;
 5. persist through `ICommandRepository`;
 6. return aggregate or explicit result;
-7. let `CommandBaseHandler` manage aggregate event publication.
+7. commit the aggregate's events through `EventPublisher.mergeObjectContext(aggregate).commit()`.
 
 Cross-cutting concerns belong in `@UsePipeline(...)` declarations or module-wide behavior configuration.
 
@@ -427,7 +431,7 @@ Before finalizing an architecture-sensitive change, verify:
 - [ ] Cache/idempotency keys contain tenant + principal + permission scope when required.
 - [ ] Missing tenant context cannot merge security-sensitive operations into a shared namespace.
 - [ ] Aggregate mutations use domain methods/factories, not direct property writes/synthetic snapshots.
-- [ ] Command event publication follows `CommandBaseHandler` semantics.
+- [ ] Command events are committed once through `EventPublisher.mergeObjectContext(aggregate).commit()`.
 - [ ] Mutating command handlers inject `IWriteSideAggregateRepository<TEntity>` and work strictly with domain aggregates, never snapshots.
 - [ ] Query handlers do not perform writes.
 - [ ] Controllers remain presentation adapters.
@@ -447,7 +451,7 @@ Before finalizing an architecture-sensitive change, verify:
 Prefer adapting these files rather than inventing a new pattern:
 
 - Command + pipeline + domain mutation: `api/src/users/application/cqrs/commands/create-user.handler.ts`
-- Command update flow: `api/src/users/application/cqrs/commands/update-user.handler.ts` (authoritative pattern: loads via write-side repository `findById`, throws framework-neutral `EntityNotFoundException` on absence, authorizes aggregate, calls domain update method, persists, and auto-publishes events via `CommandBaseHandler`)
+- Command update flow: `api/src/users/application/cqrs/commands/update-user.handler.ts` (authoritative pattern: loads via write-side repository `findById`, throws framework-neutral `EntityNotFoundException` on absence, authorizes aggregate, calls domain update method, persists, and commits events through `EventPublisher`)
 - Update repository with lifecycle decorators: `api/src/roles/persistence/update-role.command-repository.ts` and `api/src/users/persistence/update-user.command-repository.ts`
 - Create repository with lifecycle decorators: `api/src/users/persistence/create-user.command-repository.ts`
 - Conditional delete repository: `api/src/users/persistence/delete-user.command-repository.ts`

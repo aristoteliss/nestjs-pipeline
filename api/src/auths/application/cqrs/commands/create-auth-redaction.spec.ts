@@ -1,26 +1,27 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
-import {
-  AuditBehavior,
-  type AuditBehaviorOptions,
-  buildAuditRecord,
-  REDACTED,
-} from '@nestjs-pipeline/audit';
+
 import {
   type BehaviorId,
   getBehaviorId,
   type IPipelineContext,
   LoggingBehavior,
-  PIPELINE_BEHAVIORS_OPTIONS_METADATA,
-} from '@nestjs-pipeline/core';
+  pipelineOf,
+} from '@cqrs-ddd/pipeline';
+import {
+  AuditBehavior,
+  type AuditBehaviorOptions,
+  buildAuditRecord,
+  REDACTED,
+} from '@cqrs-ddd/pipeline-audit';
 import { describe, expect, it } from 'vitest';
 import { CreateAuthCommand } from './create-auth.command.js';
 import { CreateAuthHandler } from './create-auth.handler.js';
 
 describe('CreateAuthHandler secret redaction', () => {
-  const options = Reflect.getMetadata(
-    PIPELINE_BEHAVIORS_OPTIONS_METADATA,
-    CreateAuthHandler,
-  ) as Map<BehaviorId, Record<string, unknown>>;
+  const options = pipelineOf(CreateAuthHandler).options as Map<
+    BehaviorId,
+    Record<string, unknown>
+  >;
 
   it('keeps request logging payloads excluded', () => {
     const logging = options.get(getBehaviorId(LoggingBehavior));

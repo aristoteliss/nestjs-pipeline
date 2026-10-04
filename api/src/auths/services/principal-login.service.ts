@@ -6,16 +6,18 @@ import {
   requireTenant,
 } from '@cqrs-ddd/core/application';
 import { ConcurrencyConflictError } from '@cqrs-ddd/core/domain';
-import { joinKeySegments } from '@cqrs-ddd/safe-stringify';
-import { Inject, Injectable, Optional } from '@nestjs/common';
-import { EventBus } from '@nestjs/cqrs';
 import {
-  RATE_LIMITER,
   RateLimitExceededError,
   type RateLimiterLike,
   type RateLimiterResLike,
-} from '@nestjs-pipeline/rate-limit';
-import { RATE_LIMIT_COST } from '../../common/constants/rate-limit.constants.js';
+} from '@cqrs-ddd/pipeline-rate-limit';
+import { joinKeySegments } from '@cqrs-ddd/safe-stringify';
+import { Inject, Injectable, Optional } from '@nestjs/common';
+import { EventPublisher } from '@nestjs/cqrs';
+import {
+  RATE_LIMIT_COST,
+  RATE_LIMITER,
+} from '../../common/constants/rate-limit.constants.js';
 import { GetUserQuery } from '../../users/application/cqrs/queries/get-user.query.js';
 import { User } from '../../users/domain/models/user.entity.js';
 import { EXT_USER_QUERY_REPOSITORY } from '../../users/persistence/repository.tokens.js';
@@ -97,8 +99,7 @@ export class PrincipalLoginService {
     @Inject(SESSION_COOKIES)
     private readonly cookies: ISessionCookies,
     @Optional()
-    @Inject(EventBus)
-    private readonly eventBus?: EventBus,
+    private readonly publisher?: EventPublisher,
     @Optional()
     @Inject(RATE_LIMITER)
     private readonly rateLimiter?: RateLimiterLike,
@@ -258,12 +259,7 @@ export class PrincipalLoginService {
         };
         this.cookies.save(result);
 
-        const events = [...auth.getUncommittedEvents()];
-        if (events.length > 0) {
-          const published = this.eventBus?.publishAll(events, auth);
-          auth.uncommit();
-          await published;
-        }
+        await (this.publisher?.mergeObjectContext(auth) ?? auth).commit();
 
         return result;
       } catch (error) {

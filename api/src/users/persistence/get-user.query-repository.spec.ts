@@ -1,8 +1,8 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 import { type ICache } from '@cqrs-ddd/core/application';
 import { cacheKey, MemoryCache } from '@cqrs-ddd/core/persistence';
-import { runWithTenant } from '@nestjs-pipeline/tenant';
-import { ZodValidationBehavior } from '@nestjs-pipeline/zod';
+import { runWithTenant } from '@cqrs-ddd/pipeline-tenant';
+import { ZodValidationBehavior } from '@cqrs-ddd/pipeline-zod';
 import { describe, expect, it, vi } from 'vitest';
 import { GetUserQuery } from '../application/cqrs/queries/get-user.query.js';
 import { User, type UserSnapshot } from '../domain/models/user.entity.js';
@@ -34,6 +34,7 @@ describe('GetUserQueryRepository cache policy', () => {
       {
         request: query,
         requestType: GetUserQuery,
+        getBehaviorOptions: () => undefined,
       } as never,
       async () => undefined,
     );

@@ -1,12 +1,12 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 import { sessionPrincipalStore } from '@common/context/session-principal.store.js';
 import type { SessionPrincipal } from '@common/types/session-principal.js';
-import type { IPipelineContext } from '@nestjs-pipeline/core';
+import type { IPipelineContext } from '@cqrs-ddd/pipeline';
 import {
   IdempotencyBehavior,
   type IdempotencyBehaviorOptions,
   MissingIdempotencyPartitionError,
-} from '@nestjs-pipeline/idempotency';
+} from '@cqrs-ddd/pipeline-idempotency';
 import { describe, expect, it } from 'vitest';
 import { CreateRoleHandler } from '../src/roles/application/cqrs/commands/create-role.handler.js';
 import { CreateUserHandler } from '../src/users/application/cqrs/commands/create-user.handler.js';

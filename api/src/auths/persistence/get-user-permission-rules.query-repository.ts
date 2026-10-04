@@ -4,13 +4,13 @@ import { capabilityFromRow } from '@auths/persistence/helpers/capability-row.map
 import { getSessionPrincipal } from '@common/context/session-principal.store.js';
 import type { ICache } from '@cqrs-ddd/core/application';
 import {
-  CACHE_TOKEN,
   cacheKey,
   FromCache,
   QueryRepository,
 } from '@cqrs-ddd/core/persistence';
+import type { Capability } from '@cqrs-ddd/pipeline-casl';
 import { Inject, Injectable } from '@nestjs/common';
-import type { Capability } from '@nestjs-pipeline/casl';
+import { CACHE } from '@persistence/cache/cache.token.js';
 import { cacheReadLogger } from '@persistence/cache/cache-loggers.js';
 import { UserPermissionRule } from '@persistence/entities/user-permission-rule.entity.js';
 import {
@@ -35,7 +35,7 @@ export class GetUserPermissionRulesRepository extends QueryRepository<
   Capability[]
 > {
   constructor(
-    @Inject(CACHE_TOKEN) protected readonly cache: ICache<Capability[]>,
+    @Inject(CACHE) protected readonly cache: ICache<Capability[]>,
     @Inject(MIKRO_ORM_CLIENT) private readonly store: MikroOrmStore,
   ) {
     super(cache);

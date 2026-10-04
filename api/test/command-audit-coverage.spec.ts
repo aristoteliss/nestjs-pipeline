@@ -1,12 +1,8 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { AUDIT_ACTIONS } from '@common/constants/index.js';
-import { AuditBehavior } from '@nestjs-pipeline/audit';
-import {
-  getBehaviorId,
-  PIPELINE_BEHAVIORS_METADATA,
-  PIPELINE_BEHAVIORS_OPTIONS_METADATA,
-} from '@nestjs-pipeline/core';
+import { getBehaviorId, pipelineOf } from '@cqrs-ddd/pipeline';
+import { AuditBehavior } from '@cqrs-ddd/pipeline-audit';
 import { describe, expect, it } from 'vitest';
 import { CreateAuthHandler } from '../src/auths/application/cqrs/commands/create-auth.handler.js';
 import { RevokeAuthHandler } from '../src/auths/application/cqrs/commands/revoke-auth.handler.js';
@@ -18,14 +14,13 @@ import { DeleteUserHandler } from '../src/users/application/cqrs/commands/delete
 import { UpdateUserHandler } from '../src/users/application/cqrs/commands/update-user.handler.js';
 
 function auditAction(handler: object): string | undefined {
-  const behaviors: Array<{ name: string }> =
-    Reflect.getMetadata(PIPELINE_BEHAVIORS_METADATA, handler) ?? [];
+  const behaviors: Array<{ name: string }> = pipelineOf(handler as never).types;
   if (!behaviors.some((behavior) => behavior.name === AuditBehavior.name)) {
     return undefined;
   }
-  const options: Map<unknown, { action?: string }> =
-    Reflect.getMetadata(PIPELINE_BEHAVIORS_OPTIONS_METADATA, handler) ??
-    new Map();
+  const options: Map<unknown, { action?: string }> = pipelineOf(
+    handler as never,
+  ).options;
   return options.get(getBehaviorId(AuditBehavior as never))?.action;
 }
 

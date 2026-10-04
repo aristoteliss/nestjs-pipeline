@@ -2,11 +2,11 @@
 
 import { getSessionPrincipal } from '@common/context/session-principal.store.js';
 import { isSessionPrincipalValid } from '@common/types/session-principal.js';
-import { Inject, Injectable, Scope } from '@nestjs/common';
 import type {
   CaslAuthorizationInput,
   ICaslPermissionSource,
-} from '@nestjs-pipeline/casl';
+} from '@cqrs-ddd/pipeline-casl';
+import { Inject, Injectable } from '@nestjs/common';
 import {
   MIKRO_ORM_CLIENT,
   MikroOrmStore,
@@ -24,9 +24,10 @@ import { GetUserPermissionRulesRepository } from './get-user-permission-rules.qu
  * user row and the materialized rules (direct rules first) are read in one
  * parallel round-trip, so a deleted user, a changed department or a rebuilt
  * rule set takes effect on the next request.
- * A missing or unclassified principal is unauthenticated.
+ * A missing or unclassified principal is unauthenticated. It is a singleton:
+ * the principal comes from the request's async context, not from the injector.
  */
-@Injectable({ scope: Scope.REQUEST })
+@Injectable()
 export class CaslPermissionSource implements ICaslPermissionSource {
   constructor(
     @Inject(MIKRO_ORM_CLIENT) private readonly store: MikroOrmStore,

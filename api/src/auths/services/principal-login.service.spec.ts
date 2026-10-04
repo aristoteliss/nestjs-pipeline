@@ -2,8 +2,8 @@
 
 import { setTenantResolver } from '@cqrs-ddd/core/application';
 import { ConcurrencyConflictError } from '@cqrs-ddd/core/domain';
-import { RateLimitExceededError } from '@nestjs-pipeline/rate-limit';
-import { currentTenantId } from '@nestjs-pipeline/tenant';
+import { RateLimitExceededError } from '@cqrs-ddd/pipeline-rate-limit';
+import { currentTenantId } from '@cqrs-ddd/pipeline-tenant';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { User } from '../../users/domain/models/user.entity.js';
 import { InvalidLoginCredentialsException } from '../domain/errors/authentication.exception.js';

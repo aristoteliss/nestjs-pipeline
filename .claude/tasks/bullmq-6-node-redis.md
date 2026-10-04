@@ -69,8 +69,9 @@ before it starts the loop, so without Redis `mainLoopRunning` is never set and
   and each queue closes its workers in
   [its shutdown hook](https://github.com/nestjs/bull/blob/%40nestjs/bullmq%4012.0.0/packages/bullmq/lib/bull.providers.ts#L68-L78).
   Both get the same pending promise.
-- [`closeOnShutdownSignals`](../../api/src/graceful-shutdown.ts#L24-L47) awaits
-  `app.close()` with no deadline before it flushes telemetry and re-raises the signal.
+- NestJS's `app.enableShutdownHooks()` (used since 2026-10-04, when the owner replaced
+  `api/src/graceful-shutdown.ts` with it; `ServerModule`'s `onApplicationShutdown` flushes
+  telemetry last) runs the shutdown sequence with no deadline, as the old helper did.
 
 ### Evidence
 
@@ -148,7 +149,7 @@ outage situations against that release, and fix on our side what it leaves: the
 ## Scope
 
 In scope: `api/src/users/jobs/`, `api/src/common/modules/reliability.module.ts`,
-`api/src/graceful-shutdown.ts`, a worker-close helper in `api/src/common/` (only if step 4
+`api/src/server.module.ts` and `api/src/bootstrap.ts` (shutdown), a worker-close helper in `api/src/common/` (only if step 4
 needs it), `api/test/`, `api/package.json`, `api/README.md`, `api/CLAUDE.md`,
 `.claude/codebase-map.md`.
 
@@ -193,9 +194,11 @@ Waiting upstream: #4676 is open, conflicts with BullMQ's `master` and is in no r
     1 s, and with `close(true)` otherwise, logging a warning when it forces. Both
     processors call it in `onModuleDestroy`, which runs before `@nestjs/bullmq`'s
     `onApplicationShutdown`, so the explorer's later `close()` gets the settled promise.
-  - Always: a deadline on `app.close()` in `graceful-shutdown.ts` as the last resort, for
-    Redis failing during a graceful close and for hangs we do not know about: log an
-    error, then flush telemetry and re-raise the signal as today.
+  - Always: a deadline on the shutdown as the last resort, for Redis failing during a
+    graceful close and for hangs we do not know about: log an error, then flush telemetry
+    and re-raise the signal. NestJS's `enableShutdownHooks()` has no deadline option, so
+    this needs code of `api`'s own on top of it: ask the owner first (2026-10-04: the
+    owner wants NestJS's way and to be told when something NestJS lacks is needed).
   - The step 3 tests pass.
 - [ ] 5. **Docs and context**: client ownership and shutdown behavior in `api/README.md`
   and `api/CLAUDE.md`, the map's Gotchas, then delete this file.
