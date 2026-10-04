@@ -127,13 +127,13 @@ ADAPTER=fastify pnpm start
 - Decoupled CQRS caching architecture with collision-safe key derivation (`cacheKey`), fail-fast handler templates (`cacheKeyTemplate`), and static aggregate naming (`User.aggregateName`)
 - Versioned database migrations with tracking (`mikro_orm_migrations` table)
 - Zod-parsed/validated commands and queries via `createCommand()` and `createQuery()` exposing Standard Schema (`['~standard']`) metadata
-- Controller-level schema validation through Nest's `StandardSchemaValidationPipe` with `zodBadRequest`
+- Controller-level schema validation through Nest's default `StandardSchemaValidationPipe`
 - Zod transform mappers (DTO → Command mapping)
 - OpenTelemetry tracing with `TraceBehavior` and metrics with `MetricsBehavior`
 - Command- and event-scoped `DeadLetterBehavior` sending failed executions to a BullMQ `dead-letters` queue for inspection and replay (restricted to mutating command and event failures, excluding read queries and validation errors, with `UserCreatedHandler` opting into `{ rethrow: false }` only after successful delivery); transport failures are logged and preserve the original handler error
-- Per-handler `RateLimitBehavior` throttling `CreateUserHandler` to 5 registrations / 60s per email (in-memory limiter), with `RateLimitExceededFilter` mapping breaches to HTTP 429 + `Retry-After`
-- Per-handler `AuditBehavior` recording the sensitive `user.delete` action (actor, outcome, duration, redacted payload) to the default `LogAuditSink`, with the actor resolved from the request-scoped session
-- Per-handler `IdempotencyBehavior` atomically excluding concurrent duplicates for `CreateUserHandler` per tenant + principal + email and replaying completed successful responses; with the default `releaseOnError: true`, a failed execution releases the key so a later retry may execute again. `IdempotencyConflictFilter` maps in-flight duplicates to HTTP 409 and payload-mismatched key reuse to HTTP 422
+- Per-handler `RateLimitBehavior` throttling `CreateUserHandler` to 5 registrations / 60s per email (in-memory limiter), with `ErrorFilter` mapping breaches to HTTP 429 + `Retry-After`
+- Per-handler `AuditBehavior` recording the sensitive `user.delete` action (actor, outcome, duration, redacted payload) to the default `LogAuditSink`, with the actor resolved from async session context
+- Per-handler `IdempotencyBehavior` atomically excluding concurrent duplicates for `CreateUserHandler` per tenant + principal + email and replaying completed successful responses; with the default `releaseOnError: true`, a failed execution releases the key so a later retry may execute again. `ErrorFilter` maps in-flight duplicates to HTTP 409 and payload-mismatched key reuse to HTTP 422
 - DDD-style `User` and `Role` entities built on `ddd-core` primitives (`RootEntity`, `RootDomainEvent`)
 - MikroORM (libSQL and PostgreSQL drivers) persistence with multi-tenant database/schema isolation
 - Pluggable `ICache<T>` — `MikroOrmCache` (MikroORM-backed, TTL-aware) or `MemoryCache` swapped via a single provider token

@@ -1,0 +1,14 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "build api",
+      "detail": "Build the api",
+      "type": "shell",
+      "command": "pnpm --filter @nestjs-pipeline/ddd-api build",
+      "options": { "cwd": "${workspaceFolder}" },
+      "group": "build",
+      "problemMatcher": "$tsc"
+    }
+  ]
+}

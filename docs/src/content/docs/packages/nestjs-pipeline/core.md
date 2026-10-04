@@ -49,25 +49,17 @@ Its peer contract also includes the standard NestJS runtime peers
 ## Installation
 
 ```bash
-pnpm add @nestjs-pipeline/core
+pnpm add @cqrs-ddd/pipeline @cqrs-ddd/nestjs @nestjs/cqrs
 ```
 
-Requires Node.js 22.12 or later.
-
-Published as an ES module; a CommonJS application loads it with `require()`. Coming from
-0.3.x, see [Upgrading from 0.3.x](/nestjs-pipeline/upgrading/from-0-3/).
-
-**Peer dependencies** (must be installed in your application). `@nestjs/common`,
-`@nestjs/core` and `@nestjs/cqrs` must be `^12.1.0`: from 12.1, a subclass of a behavior
-that declares no constructor of its own inherits the base class's `@Optional()` markers;
-Nest 12.0.x drops them, so the subclass fails to resolve its optional dependencies:
+**Peer dependencies:**
 
 ```bash
-pnpm add @nestjs/common @nestjs/core @nestjs/cqrs reflect-metadata rxjs
-
-# Optional: use pino as Nest logger
-pnpm add nestjs-pino pino-http pino-pretty
+pnpm add @nestjs/common @nestjs/core reflect-metadata rxjs
 ```
+
+Requires Node.js 22.12 or later, Nest 12.1 or later.
+`@cqrs-ddd/pipeline` provides the framework-neutral pipeline engine (`@UsePipeline`, `@SkipPipeline`, plan compilation, contracts), and `@cqrs-ddd/nestjs` provides the NestJS bootstrap integration (`PipelineModule`, `PipelineBootstrap`).
 
 ---
 

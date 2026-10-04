@@ -25,8 +25,8 @@ Caching behavior for `@nestjs-pipeline/core`, powered by [cache-manager](https:/
 - [Why](#why)
 - [Installation](#installation)
 - [Quick Start](#quick-start)
-  - [1. Register the module](#1-register-the-module)
-  - [2. Attach the behavior](#2-attach-the-behavior)
+  - [1. Register the cache provider and behavior](#1-register-the-cache-provider-and-behavior)
+  - [2. Attach the behavior to queries](#2-attach-the-behavior-to-queries)
   - [3. Configure per handler](#3-configure-per-handler)
 - [Choosing a Store](#choosing-a-store)
   - [Memory (default)](#memory-default)
@@ -59,20 +59,17 @@ Read-heavy queries often hit the same data repeatedly. `@nestjs-pipeline/cache` 
 ## Installation
 
 ```bash
-pnpm add @nestjs-pipeline/cache cache-manager keyv
+pnpm add @cqrs-ddd/pipeline-cache @cqrs-ddd/nestjs @cqrs-ddd/pipeline @nestjs/cqrs cache-manager keyv
 ```
 
 **Peer dependencies:**
 
 ```bash
-pnpm add @nestjs-pipeline/core @nestjs/common reflect-metadata
+pnpm add @nestjs/common @nestjs/core reflect-metadata
 ```
 
-Requires Node.js 22.12 or later, `@nestjs/common` `^12.1.0`, `@nestjs-pipeline/core` `^0.4.2`,
+Requires Node.js 22.12 or later, `@nestjs/common` `^12.1.0`,
 `cache-manager` `^7.0.0` and `keyv` `^5.0.0`.
-
-Published as an ES module; a CommonJS application loads it with `require()`. Coming from
-0.3.x, see [Upgrading from 0.3.x](/nestjs-pipeline/upgrading/from-0-3/).
 
 **Optional store adapters** — install only the one(s) you use:
 
@@ -89,45 +86,49 @@ pnpm add @keyv/postgres   # type: 'postgres'
 
 ## Quick Start
 
-### 1. Register the module
+### 1. Register the cache provider and behavior
 
-```ts
-import { Module } from '@nestjs/common';
-import { PipelineModule } from '@nestjs-pipeline/core';
-import { CacheModule, CacheBehavior } from '@nestjs-pipeline/cache';
+In your feature module (e.g. `ReliabilityModule`), construct the cache using `buildCache()` and register `CacheBehavior` as a singleton provider:
+
+```typescript
+import { Module, Logger } from '@nestjs/common';
+import { PipelineModule } from '@cqrs-ddd/nestjs';
+import { buildCache, CacheBehavior } from '@cqrs-ddd/pipeline-cache';
+import type { Cache } from 'cache-manager';
+
+export const RESPONSE_CACHE = Symbol('RESPONSE_CACHE');
 
 @Module({
   imports: [
-    // In-memory cache with a 30s default TTL
-    CacheModule.forRoot({ ttl: 30_000 }),
-    // Make CacheBehavior available to @UsePipeline/globalBehaviors.
-    PipelineModule.forRoot({ behaviors: [CacheBehavior] }),
+    PipelineModule.forRoot(),
+  ],
+  providers: [
+    {
+      provide: RESPONSE_CACHE,
+      useFactory: () =>
+        buildCache({
+          store: process.env.REDIS_URL
+            ? { type: 'redis', url: process.env.REDIS_URL }
+            : { type: 'memory' },
+          ttl: 30_000,
+        }),
+    },
+    {
+      provide: CacheBehavior,
+      inject: [RESPONSE_CACHE],
+      useFactory: (cache: Cache) =>
+        new CacheBehavior(cache, undefined, new Logger(CacheBehavior.name)),
+    },
   ],
 })
-export class AppModule {}
+export class ReliabilityModule {}
 ```
 
-The cache is built when the application instantiates its providers, once per
-application. To derive store settings from injected configuration, use
-`forRootAsync`:
+A cache built from `store` is disconnected on application shutdown via Nest lifecycle hooks.
 
-```ts
-CacheModule.forRootAsync({
-  inject: [ConfigService],
-  useFactory: (config: ConfigService) => ({
-    store: { type: 'redis', url: config.getOrThrow('REDIS_URL') },
-    ttl: 30_000,
-  }),
-});
-```
+### 2. Attach the behavior to queries
 
-A cache built from `store` (or the default memory store) is disconnected on
-application shutdown (`app.close()` or Nest shutdown hooks). A supplied `cache` or
-`stores` belongs to the caller, who closes it.
-
-### 2. Attach the behavior
-
-The `behaviors` option above registers `CacheBehavior` with Nest DI; it does not execute it globally. Attach it per handler with `@UsePipeline`, or put it in `globalBehaviors` if you want it to run for a global scope.
+Decorate queries with `@UsePipeline` and configure key derivation using `cache()`:
 
 ### 3. Configure per handler
 

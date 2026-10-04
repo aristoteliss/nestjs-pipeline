@@ -22,15 +22,18 @@ How they connect:
   `EventBus`, `@CommandHandler`, `@QueryHandler`, `@EventsHandler`, `EventPublisher`. The
   `@cqrs-ddd` packages only add what NestJS does not have (the pipeline behaviors, the DDD
   building blocks) and replace nothing; `@cqrs-ddd/cqrs`, the framework-free buses, is not
-  used here. The glue between them (building the behaviors in providers, wrapping each
-  handler with its pipeline at startup, one exception filter over the packages'
-  `toHttpResponse`) lives in `api` and stays small.
+  used here. The glue between them (wrapping each handler with its pipeline at startup,
+  one exception filter that answers every package error as a NestJS `HttpException`,
+  correlation and job-context wiring) is `@cqrs-ddd/nestjs`, built and published from
+  ddd-cqrs (owner, 2026-10-04); `api` installs it and provides the behaviors from its own
+  modules. `packages/cqrs-ddd` here publishes `@nestjs-pipeline/cqrs-ddd`, a facade that
+  only re-exports it.
 - **Package code lives only in ddd-cqrs.** nestjs-pipeline installs the packages and never
   copies or patches their code; a missing feature or a bug found there is fixed in
   ddd-cqrs.
 - **Dependencies point one way:** nestjs-pipeline depends on `@cqrs-ddd/*`; no
-  `@cqrs-ddd` package imports NestJS or `@nestjs-pipeline/*` (ddd-cqrs `AGENTS.md`,
-  rule 1).
+  `@cqrs-ddd` package imports `@nestjs-pipeline/*`, and only the adapter
+  `@cqrs-ddd/nestjs` imports NestJS (ddd-cqrs `AGENTS.md`, rule 1).
 - **Before anything is published,** nestjs-pipeline installs the packages from the local
   registry: Verdaccio in Docker, `~/Source/ddd-cqrs/tools/local-registry/`, on
   `http://127.0.0.1:4873/`, whose README holds every command. A fix in ddd-cqrs is

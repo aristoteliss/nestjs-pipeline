@@ -15,6 +15,28 @@ allowBuilds:
   sqlite3: false
   ssh2: false
 
+minimumReleaseAgeExclude:
+  - '@cqrs-ddd/core@0.5.0'
+  - '@cqrs-ddd/mikro-orm@0.5.0'
+  - '@cqrs-ddd/pipeline-audit@0.5.0'
+  - '@cqrs-ddd/pipeline-cache@0.5.0'
+  - '@cqrs-ddd/pipeline-casl@0.5.0'
+  - '@cqrs-ddd/pipeline-correlation@0.5.0'
+  - '@cqrs-ddd/pipeline-deadletter@0.5.0'
+  - '@cqrs-ddd/pipeline-feature-flags@0.5.0'
+  - '@cqrs-ddd/pipeline-idempotency@0.5.0'
+  - '@cqrs-ddd/pipeline-job-context@0.5.0'
+  - '@cqrs-ddd/pipeline-opentelemetry@0.5.0'
+  - '@cqrs-ddd/pipeline-rate-limit@0.5.0'
+  - '@cqrs-ddd/pipeline-resilience@0.5.0'
+  - '@cqrs-ddd/pipeline-tenant@0.5.0'
+  - '@cqrs-ddd/pipeline-zod@0.5.0'
+  - '@cqrs-ddd/pipeline@0.5.0'
+  - '@cqrs-ddd/safe-stringify@0.5.0'
+  - '@cqrs-ddd/untyped@0.5.0'
+  - '@cqrs-ddd/uuidv7@0.5.0'
+  - '@cqrs-ddd/nestjs@0.5.0'
+
 onlyBuiltDependencies:
   - esbuild
 

@@ -229,32 +229,33 @@ and e2e tests pass (1.5); next: Phase 2 and the context files (3.2).
   (`npm unpublish @cqrs-ddd/<name>@0.5.0 --force --registry http://127.0.0.1:4873/`),
   republished, reinstalled here, and recorded under Decisions with its fix.
 
-- [x] 1.7 The NestJS adapter package (owner, 2026-10-04, reversing "no plugin"): the glue
-  moved to `packages/nestjs` = `@cqrs-ddd/nestjs` 0.5.0 (code, published from here):
-  `PipelineModule`/`PipelineBootstrap`, `ErrorFilter` + `toHttpException`/`httpAnswer`
-  (every `@cqrs-ddd` error becomes a NestJS `HttpException` with Nest's body; package
-  extras kept; a `ZodValidationError` answers like NestJS's validation pipe, `message` a
-  list of `field: message`), `./correlation` (`CorrelationMiddleware`), `./job-context`
-  (`JobContextModule.forRoot`). Peers: NestJS 12, `@cqrs-ddd/pipeline` and `core`
-  required, the behavior packages optional (detected with `require.resolve`).
-  `packages/cqrs-ddd` = `@nestjs-pipeline/cqrs-ddd` 0.5.0 is a facade that only re-exports
-  each entry (no peers of its own: the release check forbids `@cqrs-ddd/core` in a
-  `@nestjs-pipeline/*` manifest). `api` uses `@cqrs-ddd/nestjs` (`workspace:*`):
-  `DomainExceptionFilter` extends `ErrorFilter` and is the one global filter;
-  `zodBadRequest`, `PipelineErrorFilter` and `JobContextRegistration` are gone; NestJS's
-  default `StandardSchemaValidationPipe`. `biome.json` exempts `packages/nestjs` from
-  `verify-package-licenses.grit` (it peers `@cqrs-ddd/core` by design); the converter lives
-  in `src/filters/`, which `transport-neutral-errors.grit` already exempts.
-  Verified 2026-10-04: adapter 31 tests, 100% coverage; facade 3 tests; `api` unit 911/911,
-  e2e 224/224; `pnpm lint`, Biome, Grit clean. The converter loads the optional peers
-  with `require` (no top-level `await`, so CommonJS Nest applications can `require()` the
-  adapter; the release check's Bun `require()` pass proves it).
-  `pnpm test:release` now runs per release line (`release.mjs 0.4`, then `0.5`; owner,
-  2026-10-04: the 0.4.x packages must stay releasable for fixes): the 0.4 line is
-  unchanged; the 0.5 line packs the adapter and the facade, installs their optional peers,
-  and runs `integration/packages/consumer/src-0.5/smoke.ts` (a Nest context with a
-  pipeline, the converter, the facade's identity). Both lines passed 2026-10-04 (with
-  `NPM_CONFIG_USERCONFIG=$HOME/.npmrc-cqrs-local` for the 0.5 registry packages).
+- [x] 1.7 The NestJS adapter package (owner, 2026-10-04, reversing "no plugin"; moved to
+  ddd-cqrs the same day, with one exception to its rule 1): `@cqrs-ddd/nestjs` 0.5.0 is
+  built, tested and published from `~/Source/ddd-cqrs/packages/nestjs`, and installed here
+  from the local registry (`^0.5.0`): `PipelineModule`/`PipelineBootstrap`, `ErrorFilter` +
+  `toHttpException`/`httpAnswer` (every `@cqrs-ddd` error becomes a NestJS `HttpException`
+  with Nest's body, package extras kept; a `ZodValidationError` answers like NestJS's
+  validation pipe; package errors are matched by name, so a second, bundled copy of a
+  package still converts), `./correlation`, `./job-context`. Peers: NestJS 12,
+  `@cqrs-ddd/pipeline` and `core` required, the behavior packages optional (their `/http`
+  mappings loaded with `require` when installed; no top-level `await`, so CommonJS apps
+  load it). `packages/cqrs-ddd` here = `@nestjs-pipeline/cqrs-ddd` 0.5.0, a facade that
+  depends on `@cqrs-ddd/nestjs` `^0.5.0`, declares its peers and re-exports every entry.
+  `api`: `DomainExceptionFilter` extends `ErrorFilter` as the one global filter; NestJS's
+  default `StandardSchemaValidationPipe`; every 400 answers with NestJS's body.
+  `pnpm test:release` runs per release line (owner, 2026-10-04: the 0.4.x packages stay
+  releasable for fixes): `release.mjs 0.4` unchanged; `release.mjs 0.5` packs the facade,
+  installs its optional peers and runs `integration/packages/consumer/src-0.5/smoke.ts`;
+  the 0.4-only rule "no `@nestjs-pipeline/*` manifest names `@cqrs-ddd/core`" applies to
+  the 0.4 line. `packages/pipeline/src/package-boundaries.spec.ts` reads the 0.4.x
+  manifests only. Verified 2026-10-04: ddd-cqrs `pnpm test` (23 workspaces), `pnpm lint`,
+  Biome, Grit, `pnpm test:release` (21 packages, the adapter installed alone with every
+  entry point) passed; adapter 32 tests, 100% coverage; published to the local registry
+  (user `claude-local`, token in `~/.npmrc-local`, outside both repositories). Here:
+  `pnpm -r test` (21 workspaces), `api` e2e 224/224, `pnpm lint`, Biome, Grit,
+  `pnpm test:release` (both lines) passed, installed with
+  `NPM_CONFIG_USERCONFIG=$HOME/.npmrc-cqrs-local`. `pnpm-workspace.yaml` gained
+  `@cqrs-ddd/nestjs@0.5.0` in `minimumReleaseAgeExclude` (still uncommitted, owner's call).
 
 ### Phase 2: README notices and the 0.4.3 release
 

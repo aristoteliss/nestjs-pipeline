@@ -33,8 +33,8 @@ importers:
         specifier: ^0.5.0
         version: 0.5.0(@cqrs-ddd/core@0.5.0)(@mikro-orm/core@7.2.3)
       '@cqrs-ddd/nestjs':
-        specifier: workspace:*
-        version: link:../packages/nestjs
+        specifier: ^0.5.0
+        version: 0.5.0(@cqrs-ddd/core@0.5.0)(@cqrs-ddd/pipeline-casl@0.5.0(@casl/ability@7.0.1)(@cqrs-ddd/pipeline@0.5.0))(@cqrs-ddd/pipeline-correlation@0.5.0)(@cqrs-ddd/pipeline-feature-flags@0.5.0(@cqrs-ddd/pipeline@0.5.0)(@openfeature/server-sdk@1.23.0(@openfeature/core@1.12.0)))(@cqrs-ddd/pipeline-idempotency@0.5.0(@cqrs-ddd/pipeline@0.5.0))(@cqrs-ddd/pipeline-job-context@0.5.0)(@cqrs-ddd/pipeline-rate-limit@0.5.0(@cqrs-ddd/pipeline@0.5.0))(@cqrs-ddd/pipeline-zod@0.5.0(@cqrs-ddd/pipeline@0.5.0)(zod@4.6.5))(@cqrs-ddd/pipeline@0.5.0)(@nestjs/common@12.1.1(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@10.2.2))(@nestjs/core@12.1.1)(@nestjs/cqrs@12.1.0(@nestjs/common@12.1.1(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@10.2.2))(@nestjs/core@12.1.1)(reflect-metadata@0.2.2)(rxjs@7.8.2))
       '@cqrs-ddd/pipeline':
         specifier: ^0.5.0
         version: 0.5.0
@@ -271,39 +271,36 @@ importers:
   packages/cqrs-ddd:
     dependencies:
       '@cqrs-ddd/nestjs':
-        specifier: workspace:*
-        version: link:../nestjs
-    devDependencies:
-      '@casl/ability':
-        specifier: ^7.0.1
-        version: 7.0.1
-      '@cqrs-ddd/core':
         specifier: ^0.5.0
-        version: 0.5.0
-      '@cqrs-ddd/pipeline':
-        specifier: ^0.5.0
-        version: 0.5.0
+        version: 0.5.0(@cqrs-ddd/core@0.5.0)(@cqrs-ddd/pipeline-casl@0.5.0(@casl/ability@7.0.1)(@cqrs-ddd/pipeline@0.5.0))(@cqrs-ddd/pipeline-correlation@0.5.0)(@cqrs-ddd/pipeline-feature-flags@0.5.0(@cqrs-ddd/pipeline@0.5.0)(@openfeature/server-sdk@1.23.0(@openfeature/core@1.12.0)))(@cqrs-ddd/pipeline-idempotency@0.5.0(@cqrs-ddd/pipeline@0.5.0))(@cqrs-ddd/pipeline-job-context@0.5.0)(@cqrs-ddd/pipeline-rate-limit@0.5.0(@cqrs-ddd/pipeline@0.5.0))(@cqrs-ddd/pipeline-zod@0.5.0(@cqrs-ddd/pipeline@0.5.0)(zod@4.6.5))(@cqrs-ddd/pipeline@0.5.0)(@nestjs/common@12.1.1(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@10.2.2))(@nestjs/core@12.1.1)(@nestjs/cqrs@12.1.0(@nestjs/common@12.1.1(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@10.2.2))(@nestjs/core@12.1.1)(reflect-metadata@0.2.2)(rxjs@7.8.2))
       '@cqrs-ddd/pipeline-casl':
         specifier: ^0.5.0
         version: 0.5.0(@casl/ability@7.0.1)(@cqrs-ddd/pipeline@0.5.0)
-      '@cqrs-ddd/pipeline-correlation':
-        specifier: ^0.5.0
-        version: 0.5.0
       '@cqrs-ddd/pipeline-feature-flags':
         specifier: ^0.5.0
         version: 0.5.0(@cqrs-ddd/pipeline@0.5.0)(@openfeature/server-sdk@1.23.0(@openfeature/core@1.12.0))
       '@cqrs-ddd/pipeline-idempotency':
         specifier: ^0.5.0
         version: 0.5.0(@cqrs-ddd/pipeline@0.5.0)
-      '@cqrs-ddd/pipeline-job-context':
-        specifier: ^0.5.0
-        version: 0.5.0
       '@cqrs-ddd/pipeline-rate-limit':
         specifier: ^0.5.0
         version: 0.5.0(@cqrs-ddd/pipeline@0.5.0)
       '@cqrs-ddd/pipeline-zod':
         specifier: ^0.5.0
         version: 0.5.0(@cqrs-ddd/pipeline@0.5.0)(zod@4.6.5)
+    devDependencies:
+      '@cqrs-ddd/core':
+        specifier: ^0.5.0
+        version: 0.5.0
+      '@cqrs-ddd/pipeline':
+        specifier: ^0.5.0
+        version: 0.5.0
+      '@cqrs-ddd/pipeline-correlation':
+        specifier: ^0.5.0
+        version: 0.5.0
+      '@cqrs-ddd/pipeline-job-context':
+        specifier: ^0.5.0
+        version: 0.5.0
       '@nestjs/common':
         specifier: ^12.1.1
         version: 12.1.1(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@10.2.2)
@@ -313,9 +310,6 @@ importers:
       '@nestjs/cqrs':
         specifier: ^12.1.0
         version: 12.1.0(@nestjs/common@12.1.1(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@10.2.2))(@nestjs/core@12.1.1)(reflect-metadata@0.2.2)(rxjs@7.8.2)
-      '@openfeature/server-sdk':
-        specifier: ^1.23.0
-        version: 1.23.0(@openfeature/core@1.12.0)
       '@vitest/coverage-v8':
         specifier: ^5.0.2
         version: 5.0.2(vitest@5.0.2)
@@ -328,9 +322,6 @@ importers:
       vitest:
         specifier: ^5.0.2
         version: 5.0.2(@opentelemetry/api@1.9.1)(@types/node@26.6.3)(@vitest/coverage-v8@5.0.2)(vite@8.2.0(@types/node@26.6.3)(esbuild@0.28.2)(tsx@4.23.15)(yaml@2.9.1))
-      zod:
-        specifier: ^4.6.5
-        version: 4.6.5
 
   packages/ddd-core:
     dependencies:
@@ -368,66 +359,6 @@ importers:
       vitest:
         specifier: ^5.0.2
         version: 5.0.2(@opentelemetry/api@1.9.1)(@types/node@26.6.3)(@vitest/coverage-v8@5.0.2)(vite@8.2.0(@types/node@26.6.3)(esbuild@0.28.2)(tsx@4.23.15)(yaml@2.9.1))
-
-  packages/nestjs:
-    devDependencies:
-      '@casl/ability':
-        specifier: ^7.0.1
-        version: 7.0.1
-      '@cqrs-ddd/core':
-        specifier: ^0.5.0
-        version: 0.5.0
-      '@cqrs-ddd/pipeline':
-        specifier: ^0.5.0
-        version: 0.5.0
-      '@cqrs-ddd/pipeline-casl':
-        specifier: ^0.5.0
-        version: 0.5.0(@casl/ability@7.0.1)(@cqrs-ddd/pipeline@0.5.0)
-      '@cqrs-ddd/pipeline-correlation':
-        specifier: ^0.5.0
-        version: 0.5.0
-      '@cqrs-ddd/pipeline-feature-flags':
-        specifier: ^0.5.0
-        version: 0.5.0(@cqrs-ddd/pipeline@0.5.0)(@openfeature/server-sdk@1.23.0(@openfeature/core@1.12.0))
-      '@cqrs-ddd/pipeline-idempotency':
-        specifier: ^0.5.0
-        version: 0.5.0(@cqrs-ddd/pipeline@0.5.0)
-      '@cqrs-ddd/pipeline-job-context':
-        specifier: ^0.5.0
-        version: 0.5.0
-      '@cqrs-ddd/pipeline-rate-limit':
-        specifier: ^0.5.0
-        version: 0.5.0(@cqrs-ddd/pipeline@0.5.0)
-      '@cqrs-ddd/pipeline-zod':
-        specifier: ^0.5.0
-        version: 0.5.0(@cqrs-ddd/pipeline@0.5.0)(zod@4.6.5)
-      '@nestjs/common':
-        specifier: ^12.1.1
-        version: 12.1.1(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@10.2.2)
-      '@nestjs/core':
-        specifier: ^12.1.1
-        version: 12.1.1(@nestjs/common@12.1.1(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@10.2.2))(@nestjs/platform-express@12.1.1)(reflect-metadata@0.2.2)(rxjs@7.8.2)
-      '@nestjs/cqrs':
-        specifier: ^12.1.0
-        version: 12.1.0(@nestjs/common@12.1.1(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@10.2.2))(@nestjs/core@12.1.1)(reflect-metadata@0.2.2)(rxjs@7.8.2)
-      '@openfeature/server-sdk':
-        specifier: ^1.23.0
-        version: 1.23.0(@openfeature/core@1.12.0)
-      '@vitest/coverage-v8':
-        specifier: ^5.0.2
-        version: 5.0.2(vitest@5.0.2)
-      reflect-metadata:
-        specifier: ^0.2.2
-        version: 0.2.2
-      rxjs:
-        specifier: ^7.8.2
-        version: 7.8.2
-      vitest:
-        specifier: ^5.0.2
-        version: 5.0.2(@opentelemetry/api@1.9.1)(@types/node@26.6.3)(@vitest/coverage-v8@5.0.2)(vite@8.2.0(@types/node@26.6.3)(esbuild@0.28.2)(tsx@4.23.15)(yaml@2.9.1))
-      zod:
-        specifier: ^4.6.5
-        version: 4.6.5
 
   packages/pipeline:
     dependencies:
@@ -1097,6 +1028,38 @@ packages:
     peerDependencies:
       '@cqrs-ddd/core': ^0.5.0
       '@mikro-orm/core': ^7.2.3
+
+  '@cqrs-ddd/nestjs@0.5.0':
+    resolution: {integrity: sha512-e5ukgmtMJKDg0QawceRJdpE2xFA/VkFu9Kg+oJ5u/hVOxGaioROyWrakCMi6LDJhxw5XXLk7kW2S73CUN0E7JA==}
+    engines: {node: '>=22.12.0'}
+    peerDependencies:
+      '@cqrs-ddd/core': ^0.5.0
+      '@cqrs-ddd/pipeline': ^0.5.0
+      '@cqrs-ddd/pipeline-casl': ^0.5.0
+      '@cqrs-ddd/pipeline-correlation': ^0.5.0
+      '@cqrs-ddd/pipeline-feature-flags': ^0.5.0
+      '@cqrs-ddd/pipeline-idempotency': ^0.5.0
+      '@cqrs-ddd/pipeline-job-context': ^0.5.0
+      '@cqrs-ddd/pipeline-rate-limit': ^0.5.0
+      '@cqrs-ddd/pipeline-zod': ^0.5.0
+      '@nestjs/common': ^12.1.1
+      '@nestjs/core': ^12.1.1
+      '@nestjs/cqrs': ^12.1.0
+    peerDependenciesMeta:
+      '@cqrs-ddd/pipeline-casl':
+        optional: true
+      '@cqrs-ddd/pipeline-correlation':
+        optional: true
+      '@cqrs-ddd/pipeline-feature-flags':
+        optional: true
+      '@cqrs-ddd/pipeline-idempotency':
+        optional: true
+      '@cqrs-ddd/pipeline-job-context':
+        optional: true
+      '@cqrs-ddd/pipeline-rate-limit':
+        optional: true
+      '@cqrs-ddd/pipeline-zod':
+        optional: true
 
   '@cqrs-ddd/pipeline-audit@0.5.0':
     resolution: {integrity: sha512-ulfEyDyP9OW6dT6NyLbViJgSnFz33ZCNlRadzLSeOlUHWXm+Wke3lSSRTn/MdZACRV5lNCJ97F9FU5LiVyvIHg==}
@@ -6486,6 +6449,22 @@ snapshots:
     dependencies:
       '@cqrs-ddd/core': 0.5.0
       '@mikro-orm/core': 7.2.3
+
+  '@cqrs-ddd/nestjs@0.5.0(@cqrs-ddd/core@0.5.0)(@cqrs-ddd/pipeline-casl@0.5.0(@casl/ability@7.0.1)(@cqrs-ddd/pipeline@0.5.0))(@cqrs-ddd/pipeline-correlation@0.5.0)(@cqrs-ddd/pipeline-feature-flags@0.5.0(@cqrs-ddd/pipeline@0.5.0)(@openfeature/server-sdk@1.23.0(@openfeature/core@1.12.0)))(@cqrs-ddd/pipeline-idempotency@0.5.0(@cqrs-ddd/pipeline@0.5.0))(@cqrs-ddd/pipeline-job-context@0.5.0)(@cqrs-ddd/pipeline-rate-limit@0.5.0(@cqrs-ddd/pipeline@0.5.0))(@cqrs-ddd/pipeline-zod@0.5.0(@cqrs-ddd/pipeline@0.5.0)(zod@4.6.5))(@cqrs-ddd/pipeline@0.5.0)(@nestjs/common@12.1.1(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@10.2.2))(@nestjs/core@12.1.1)(@nestjs/cqrs@12.1.0(@nestjs/common@12.1.1(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@10.2.2))(@nestjs/core@12.1.1)(reflect-metadata@0.2.2)(rxjs@7.8.2))':
+    dependencies:
+      '@cqrs-ddd/core': 0.5.0
+      '@cqrs-ddd/pipeline': 0.5.0
+      '@nestjs/common': 12.1.1(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@10.2.2)
+      '@nestjs/core': 12.1.1(@nestjs/common@12.1.1(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@10.2.2))(@nestjs/platform-express@12.1.1)(reflect-metadata@0.2.2)(rxjs@7.8.2)
+      '@nestjs/cqrs': 12.1.0(@nestjs/common@12.1.1(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@10.2.2))(@nestjs/core@12.1.1)(reflect-metadata@0.2.2)(rxjs@7.8.2)
+    optionalDependencies:
+      '@cqrs-ddd/pipeline-casl': 0.5.0(@casl/ability@7.0.1)(@cqrs-ddd/pipeline@0.5.0)
+      '@cqrs-ddd/pipeline-correlation': 0.5.0
+      '@cqrs-ddd/pipeline-feature-flags': 0.5.0(@cqrs-ddd/pipeline@0.5.0)(@openfeature/server-sdk@1.23.0(@openfeature/core@1.12.0))
+      '@cqrs-ddd/pipeline-idempotency': 0.5.0(@cqrs-ddd/pipeline@0.5.0)
+      '@cqrs-ddd/pipeline-job-context': 0.5.0
+      '@cqrs-ddd/pipeline-rate-limit': 0.5.0(@cqrs-ddd/pipeline@0.5.0)
+      '@cqrs-ddd/pipeline-zod': 0.5.0(@cqrs-ddd/pipeline@0.5.0)(zod@4.6.5)
 
   '@cqrs-ddd/pipeline-audit@0.5.0(@cqrs-ddd/pipeline@0.5.0)':
     dependencies:

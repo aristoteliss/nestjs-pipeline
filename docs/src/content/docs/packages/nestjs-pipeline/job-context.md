@@ -21,18 +21,14 @@ so pipelines a job dispatches get the same tenant and correlation id.
 ## Installation
 
 ```bash
-pnpm add @nestjs-pipeline/job-context @nestjs/common
+pnpm add @cqrs-ddd/pipeline-job-context @cqrs-ddd/nestjs @nestjs/common
 ```
 
 Requires Node.js 22.12 or later and `@nestjs/common` `^12.1.0`.
 
-Published as an ES module; a CommonJS application loads it with `require()`. Coming from
-0.3.x, see [Upgrading from 0.3.x](/nestjs-pipeline/upgrading/from-0-3/).
-
 ## Setup
 
-Implement `IJobPrincipal` over the application's authentication state, and register it
-with the tenants jobs may run in and the tenant and correlation id sources:
+Implement `IJobPrincipal` over the application's authentication state, and register `JobContextModule.forRoot` (from `@cqrs-ddd/nestjs`):
 
 `Capability`, `SessionRepository`, `SessionsModule`, `currentPrincipal`,
 `runAsPrincipal` and `SessionRevokedError` stand for the application's own authentication
@@ -40,13 +36,13 @@ code.
 
 ```typescript
 import { Injectable, Module } from '@nestjs/common';
-import { correlationSource } from '@nestjs-pipeline/correlation';
+import { JobContextModule } from '@cqrs-ddd/nestjs';
+import { correlationSource } from '@cqrs-ddd/pipeline-correlation';
 import {
   type IJobPrincipal,
-  JobContextModule,
   type PrincipalReference,
-} from '@nestjs-pipeline/job-context';
-import { tenantSource } from '@nestjs-pipeline/tenant';
+} from '@cqrs-ddd/pipeline-job-context';
+import { tenantSource } from '@cqrs-ddd/pipeline-tenant';
 
 @Injectable()
 export class SessionJobPrincipal implements IJobPrincipal<Capability> {

@@ -15,17 +15,15 @@ pipelines and to `@nestjs-pipeline/job-context`.
 ## Installation
 
 ```bash
-pnpm add @nestjs-pipeline/tenant
+pnpm add @cqrs-ddd/pipeline-tenant @cqrs-ddd/nestjs
 ```
 
 Requires Node.js 22.12 or later. To give pipelines the tenant, pass `tenantSource` to
 `PipelineModule.forRoot`:
 
-Published as an ES module; a CommonJS application loads it with `require()`. Coming from
-0.3.x, see [Upgrading from 0.3.x](/nestjs-pipeline/upgrading/from-0-3/).
-
 ```typescript
-import { tenantSource } from '@nestjs-pipeline/tenant';
+import { PipelineModule } from '@cqrs-ddd/nestjs';
+import { tenantSource } from '@cqrs-ddd/pipeline-tenant';
 
 PipelineModule.forRoot({ sources: { tenantId: tenantSource } });
 ```

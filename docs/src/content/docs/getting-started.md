@@ -5,122 +5,121 @@ title: "Getting started"
 ## 1. Install
 
 Requires **Node.js 22.12** or later, **Nest 12.1** or a later 12.x (`@nestjs/common`,
-`@nestjs/core`) and **`@nestjs/cqrs` 12.1** or a later 12.x. Nest 12.0.x drops the `@Optional()` markers of a
-base class in a subclass that declares no constructor of its own.
+`@nestjs/core`) and **`@nestjs/cqrs` 12.1** or a later 12.x.
 
 ```bash
-pnpm add @nestjs-pipeline/core @nestjs/common @nestjs/core @nestjs/cqrs reflect-metadata rxjs
+# Core NestJS CQRS and pipeline engine
+pnpm add @cqrs-ddd/nestjs @cqrs-ddd/pipeline @nestjs/cqrs @nestjs/common @nestjs/core reflect-metadata rxjs
 
-# Optional add-ons
-pnpm add @nestjs-pipeline/correlation   # HTTP correlation middleware, @WithCorrelation, etc.
-pnpm add @nestjs-pipeline/zod zod
-pnpm add @nestjs-pipeline/opentelemetry @opentelemetry/api
-pnpm add @nestjs-pipeline/casl @casl/ability      # ABAC authorization with CASL
-pnpm add @nestjs-pipeline/resilience cockatiel    # retry, circuit breaker, timeout, bulkhead, fallback
-pnpm add @nestjs-pipeline/cache cache-manager keyv  # read-through query caching (+ optional @keyv/redis, @keyv/postgres, ...)
-pnpm add @nestjs-pipeline/deadletter bullmq        # dead-letter failed requests (or amqplib / pg as a drop-in)
-pnpm add @nestjs-pipeline/rate-limit rate-limiter-flexible  # rate limiting (memory, Redis/Valkey, Mongo, SQL backends)
-pnpm add @nestjs-pipeline/audit   # audit trail (console default; + optional pg for Postgres)
-pnpm add @nestjs-pipeline/idempotency   # idempotent commands (in-memory default; + optional redis/pg)
-pnpm add @nestjs-pipeline/feature-flags @openfeature/server-sdk  # feature flags (provider adapters optional)
-pnpm add @nestjs-pipeline/tenant   # currentTenantId(): the running pipeline's tenant
-pnpm add @nestjs-pipeline/job-context   # a request's tenant, correlation id and principal in its queue jobs
-
-# Optional: pino logger integration
-pnpm add nestjs-pino pino-http pino-pretty
+# Optional behavior packages
+pnpm add @cqrs-ddd/pipeline-idempotency           # Deduplication & response replay (+ optional redis/pg)
+pnpm add @cqrs-ddd/pipeline-cache cache-manager keyv # Read-through query cache (+ optional @keyv/redis, ...)
+pnpm add @cqrs-ddd/pipeline-casl @casl/ability   # ABAC authorization with CASL
+pnpm add @cqrs-ddd/pipeline-audit                # Audit logging (log sink default; + optional pg)
+pnpm add @cqrs-ddd/pipeline-rate-limit rate-limiter-flexible # Quotas & rate limiting
+pnpm add @cqrs-ddd/pipeline-resilience cockatiel # Retries, circuit breakers, timeouts, bulkheads
+pnpm add @cqrs-ddd/pipeline-deadletter bullmq    # Dead-letter capture (or amqplib / pg)
+pnpm add @cqrs-ddd/pipeline-feature-flags @openfeature/server-sdk # Feature flag evaluations
+pnpm add @cqrs-ddd/pipeline-opentelemetry @opentelemetry/api      # Distributed tracing & metrics
+pnpm add @cqrs-ddd/pipeline-zod zod              # Schema validation
+pnpm add @cqrs-ddd/pipeline-tenant               # Multi-tenant async context
+pnpm add @cqrs-ddd/pipeline-correlation          # Request correlation ID context
+pnpm add @cqrs-ddd/pipeline-job-context          # Async queue job context propagation
 ```
 
-## 2. Register the Module
+## 2. Register Module and Behavior Providers <a id="2-register-the-module"></a>
+
+In the new architecture, behaviors are decoupled classes (`IPipelineBehavior`). Each behavior is registered as a **standard singleton provider** under its own class token in the module that configures it. `PipelineModule.forRoot()` coordinates the global pipeline and context sources:
 
 ```typescript
 // app.module.ts
 import {
+  Logger,
   MiddlewareConsumer,
   Module,
   NestModule,
-  StandardSchemaValidationPipe,
 } from '@nestjs/common';
-import { APP_PIPE } from '@nestjs/core';
 import { CqrsModule } from '@nestjs/cqrs';
-import { PipelineModule, LoggingBehavior } from '@nestjs-pipeline/core';
 import {
-  correlationSource,
-  HttpCorrelationMiddleware,
-} from '@nestjs-pipeline/correlation';
-import { tenantSource } from '@nestjs-pipeline/tenant';
-import { ZodValidationBehavior, zodBadRequest } from '@nestjs-pipeline/zod';
-import { TraceBehavior } from '@nestjs-pipeline/opentelemetry';
+  CorrelationMiddleware,
+  PipelineModule,
+} from '@cqrs-ddd/nestjs';
+import {
+  LoggingBehavior,
+  logging,
+} from '@cqrs-ddd/pipeline';
+import { correlationSource } from '@cqrs-ddd/pipeline-correlation';
+import { tenantSource } from '@cqrs-ddd/pipeline-tenant';
+import { ZodValidationBehavior } from '@cqrs-ddd/pipeline-zod';
+import { TraceBehavior } from '@cqrs-ddd/pipeline-opentelemetry';
 
 @Module({
   imports: [
     CqrsModule.forRoot(),
     PipelineModule.forRoot({
-      // Where each pipeline takes its tenant and correlation id from.
+      // Async context sources for tenant and correlation ID
       sources: { tenantId: tenantSource, correlationId: correlationSource },
-      globalBehaviors: {
-        scope: 'all',                // 'commands' | 'queries' | 'events' | 'all'
-        before: [
-          LoggingBehavior,          // outermost; may observe raw input
-          ZodValidationBehavior,     // normalizes before handler policies
-        ],
-        after: [                     // runs closest to the handler
-          [TraceBehavior, { tracerName: 'my-service' }],
-        ],
-      },
+      diagnostics: 'strict', // Fails fast at startup on broken ordering contracts
+      globalBehaviors: [
+        {
+          scope: 'all',
+          before: [
+            logging({ requestResponseLogLevel: 'debug' }),
+            ZodValidationBehavior,
+          ],
+          after: [
+            [TraceBehavior, { tracerName: 'my-service' }],
+          ],
+        },
+      ],
     }),
   ],
   providers: [
-    // Validates route parameters declared with `{ schema }` (step 5).
+    // Register behavior instances as singleton providers under their class tokens:
     {
-      provide: APP_PIPE,
-      useValue: new StandardSchemaValidationPipe({ exceptionFactory: zodBadRequest }),
+      provide: LoggingBehavior,
+      useFactory: () => new LoggingBehavior(new Logger('Pipeline')),
     },
+    ZodValidationBehavior,
+    TraceBehavior,
   ],
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
-    consumer.apply(HttpCorrelationMiddleware).forRoutes('*');
+    // Propagates x-correlation-id headers into the async context
+    consumer.apply(CorrelationMiddleware).forRoutes('*');
   }
 }
 ```
-
-Without `sources`, pipelines have no tenant and generate their own correlation id, and
-bootstrap logs a warning; pass `sources: {}` to run without them on purpose.
 
 ## 3. Define a Command with Zod Validation
 
 ```typescript
 // create-user.command.ts
-import { createCommand } from '@nestjs-pipeline/zod';
+import { createCommand } from '@cqrs-ddd/pipeline-zod';
 import { z } from 'zod';
 
-// 1. Define the schema
 const schema = z.object({
   username: z.string().min(4),
-  email: z.email(),
+  email: z.string().email(),
 });
 
-// 2. Create the command — fully typed, self-validating, Standard Schema compatible
 export class CreateUserCommand extends createCommand(schema) {}
-
-// Usage:
-// const cmd = new CreateUserCommand({ username: 'jane', email: 'jane@example.com' });
-// cmd.username → 'jane'
-// cmd.email    → 'jane@example.com'
-// new CreateUserCommand({ username: 'ab', email: 'bad' }) → throws ZodValidationError
 ```
 
-## 4. Write the Handler
+## 4. Write the CQRS Handler
+
+The handler is a standard `@nestjs/cqrs` handler decorated with `@UsePipeline`:
 
 ```typescript
 // create-user.handler.ts
 import { CommandHandler, EventBus, ICommandHandler } from '@nestjs/cqrs';
-import { UsePipeline, LoggingBehavior } from '@nestjs-pipeline/core';
-import { CreateUserCommand } from './create-user.command';
+import { UsePipeline, LoggingBehavior } from '@cqrs-ddd/pipeline';
+import { CreateUserCommand } from './create-user.command.js';
 
 @CommandHandler(CreateUserCommand)
 @UsePipeline(
-  // Override global LoggingBehavior options for this handler only
+  // Overrides global LoggingBehavior options for this handler while retaining its outer position
   [LoggingBehavior, { requestResponseLogLevel: 'log' }],
 )
 export class CreateUserHandler implements ICommandHandler<CreateUserCommand> {
@@ -146,20 +145,6 @@ export class CreateUserHandler implements ICommandHandler<CreateUserCommand> {
 }
 ```
 
-This constructor helper is intentionally synchronous and therefore requires a
-synchronous schema. For a schema with async refinements or transforms, build the
-instance with the generated `parseAsync()` static instead — the behavior and the
-pipe both run *after* construction, so they cannot rescue a constructor that
-cannot complete:
-
-```typescript
-const command = await CreateUserCommand.parseAsync({ email, age });
-```
-
-You can also validate raw input up front, asynchronously, in
-`ZodValidationBehavior` or in Nest's schema validation pipe rather than doing it
-in a JavaScript constructor.
-
 ## 5. Wire Up the Controller
 
 ```typescript
@@ -168,10 +153,8 @@ import { Body, Controller, Get, Param, Post, HttpCode } from '@nestjs/common';
 import { CommandBus, QueryBus } from '@nestjs/cqrs';
 import { z } from 'zod';
 
-const CreateUserDtoSchema = z.object({ name: z.string().min(5), email: z.email() });
+const CreateUserDtoSchema = z.object({ name: z.string().min(4), email: z.string().email() });
 type CreateUserDto = z.infer<typeof CreateUserDtoSchema>;
-
-const UserIdSchema = z.uuid();
 
 @Controller('users')
 export class UsersController {
@@ -182,35 +165,34 @@ export class UsersController {
 
   @Post()
   @HttpCode(201)
-  async createUser(
-    @Body({ schema: CreateUserDtoSchema }) dto: CreateUserDto,
-  ) {
+  async createUser(@Body() dto: CreateUserDto) {
     return this.commandBus.execute(
       new CreateUserCommand({ username: dto.name, email: dto.email }),
     );
   }
 
   @Get(':id')
-  async getUser(
-    @Param('id', { schema: UserIdSchema }) id: string,
-  ) {
+  async getUser(@Param('id') id: string) {
     return this.queryBus.execute(new GetUserQuery({ userId: id }));
   }
 }
 ```
 
-## 6. Bootstrap the Application
+## 6. Bootstrap with `ErrorFilter`
+
+In `main.ts`, register `@cqrs-ddd/nestjs`'s `ErrorFilter` (or extend it in a `DomainExceptionFilter`). It maps validation errors, pipeline contract exceptions, domain errors, and concurrency conflicts to standard NestJS HTTP responses (`{ statusCode, error, message, ... }`):
 
 ```typescript
 // main.ts
 import { HttpAdapterHost, NestFactory } from '@nestjs/core';
-import { AppModule } from './app.module';
-import { ZodValidationFilter } from '@nestjs-pipeline/zod';
+import { ErrorFilter } from '@cqrs-ddd/nestjs';
+import { AppModule } from './app.module.js';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
-  // maps ZodValidationError → HTTP 400, replying through Nest's HTTP adapter
-  app.useGlobalFilters(new ZodValidationFilter(app.get(HttpAdapterHost)));
+  const httpAdapter = app.get(HttpAdapterHost);
+
+  app.useGlobalFilters(new ErrorFilter(httpAdapter));
   await app.listen(3000);
 }
 bootstrap();

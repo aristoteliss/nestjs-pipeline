@@ -16,7 +16,7 @@ layer](/nestjs-pipeline/recipes/command-pipeline/).
 
 ## The order a request takes
 
-1. `HttpCorrelationMiddleware` sets the correlation id; `TenantSchemaMiddleware` runs the
+1. `CorrelationMiddleware` sets the correlation id; `TenantSchemaMiddleware` runs the
    rest of the request inside the tenant named by `x-tenant-schema` (see [Several tenants in
    one deployment](/nestjs-pipeline/recipes/multi-tenancy/)).
 2. `AuthSessionGuard` resolves the principal; `SessionPrincipalContextInterceptor` makes it

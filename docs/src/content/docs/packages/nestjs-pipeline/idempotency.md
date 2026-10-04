@@ -64,19 +64,16 @@ response, leaking partial writes after a crash). This behavior centralizes it:
 ## Installation
 
 ```bash
-pnpm add @nestjs-pipeline/idempotency
+pnpm add @cqrs-ddd/pipeline-idempotency @cqrs-ddd/nestjs @cqrs-ddd/pipeline @nestjs/cqrs
 ```
 
 **Peer dependencies:**
 
 ```bash
-pnpm add @nestjs-pipeline/core @nestjs/common @nestjs/core reflect-metadata
+pnpm add @nestjs/common @nestjs/core reflect-metadata
 ```
 
-Requires Node.js 22.12 or later, `@nestjs/common` and `@nestjs/core` `^12.1.0`, and `@nestjs-pipeline/core` `^0.4.2`.
-
-Published as an ES module; a CommonJS application loads it with `require()`. Coming from
-0.3.x, see [Upgrading from 0.3.x](/nestjs-pipeline/upgrading/from-0-3/).
+Requires Node.js 22.12 or later, `@nestjs/common` and `@nestjs/core` `^12.1.0`.
 
 The bundled stores are typed *structurally*, so this package adds **zero heavy
 dependencies**. For the Redis store add a `redis` client (`pnpm add redis`); for
@@ -87,36 +84,50 @@ needs nothing.
 
 ## Setup
 
-Register the module and add `IdempotencyBehavior` to a handler via `@UsePipeline`
-(or to your global behaviors). The behavior only acts when a `keyFactory`
-produces a key, so it is safe to enable broadly.
+In the NestJS architecture, register your store and `IdempotencyBehavior` as **singleton providers** in your feature module (e.g. `ReliabilityModule`). The pipeline engine binds the registered instance at startup.
 
 ```typescript
-import { Module } from '@nestjs/common';
-import { PipelineModule } from '@nestjs-pipeline/core';
+import { Module, Logger } from '@nestjs/common';
+import { PipelineModule } from '@cqrs-ddd/nestjs';
 import {
-  IdempotencyModule,
   IdempotencyBehavior,
-} from '@nestjs-pipeline/idempotency';
+  MemoryIdempotencyStore,
+} from '@cqrs-ddd/pipeline-idempotency';
 
 @Module({
   imports: [
-    // Zero-config: in-memory dedupe (single instance).
-    IdempotencyModule.forRoot(),
+    // Wires handler discovery and pipeline execution
     PipelineModule.forRoot(),
   ],
+  providers: [
+    // 1. Pluggable store instance
+    {
+      provide: MemoryIdempotencyStore,
+      useFactory: () => new MemoryIdempotencyStore(),
+    },
+    // 2. Behavior provider registered under its class token
+    {
+      provide: IdempotencyBehavior,
+      inject: [MemoryIdempotencyStore],
+      useFactory: (store: MemoryIdempotencyStore) =>
+        new IdempotencyBehavior(
+          store,
+          undefined, // Default behavior options
+          new Logger(IdempotencyBehavior.name),
+        ),
+    },
+  ],
 })
-export class AppModule {}
+export class ReliabilityModule {}
 ```
 
-Then opt a command in and tell the behavior how to derive its key. A controller
-can copy the `Idempotency-Key` header into the CQRS command before dispatch:
+Then opt a command in and tell the behavior how to derive its key using `@UsePipeline` and `idempotent()`:
 
 ```typescript
 import { Body, Controller, Headers, Post } from '@nestjs/common';
-import { CommandBus, CommandHandler } from '@nestjs/cqrs';
-import { UsePipeline } from '@nestjs-pipeline/core';
-import { idempotent } from '@nestjs-pipeline/idempotency';
+import { CommandBus } from '@nestjs/cqrs';
+import { UsePipeline } from '@cqrs-ddd/pipeline';
+import { idempotent } from '@cqrs-ddd/pipeline-idempotency';
 
 class CreatePaymentCommand {
   constructor(

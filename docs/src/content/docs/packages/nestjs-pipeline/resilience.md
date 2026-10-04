@@ -62,19 +62,16 @@ A layer protects either **one outbound call** (a named policy used by an adapter
 ## Installation
 
 ```bash
-pnpm add @nestjs-pipeline/resilience cockatiel
+pnpm add @cqrs-ddd/pipeline-resilience @cqrs-ddd/nestjs @cqrs-ddd/pipeline @nestjs/cqrs cockatiel
 ```
 
 **Peer dependencies:**
 
 ```bash
-pnpm add @nestjs-pipeline/core @nestjs/common reflect-metadata
+pnpm add @nestjs/common @nestjs/core reflect-metadata
 ```
 
-Requires Node.js 22.12 or later, `@nestjs/common` `^12.1.0` and `@nestjs-pipeline/core` `^0.4.2`.
-
-Published as an ES module; a CommonJS application loads it with `require()`. Coming from
-0.3.x, see [Upgrading from 0.3.x](/nestjs-pipeline/upgrading/from-0-3/).
+Requires Node.js 22.12 or later, `@nestjs/common` `^12.1.0`.
 
 > **Note:** This package requires **cockatiel `^4.0.0`**. cockatiel types the errors its policies report as `unknown`, so narrow them before reading `message` or other fields.
 
@@ -82,32 +79,33 @@ Published as an ES module; a CommonJS application loads it with `require()`. Com
 
 ## Quick Start
 
-### 1. Register the module
+### 1. Register ResilienceBehavior as a provider
+
+In your reliability module, register `ResilienceBehavior` as a singleton provider:
 
 ```typescript
-import { Module } from '@nestjs/common';
-import { PipelineModule } from '@nestjs-pipeline/core';
-import { ResilienceModule, ResilienceBehavior } from '@nestjs-pipeline/resilience';
+import { Module, Logger } from '@nestjs/common';
+import { PipelineModule } from '@cqrs-ddd/nestjs';
+import {
+  ResilienceBehavior,
+} from '@cqrs-ddd/pipeline-resilience';
 
 @Module({
   imports: [
-    ResilienceModule.forRoot({
-      // Named policies for outbound dependencies, built once at startup.
-      policies: {
-        paymentsApi: {
-          handle: (error) => error instanceof PaymentGatewayUnavailableError,
-          retry: { maxAttempts: 2, backoff: { type: 'exponential' } },
-          circuitBreaker: { halfOpenAfter: 30_000, breaker: { type: 'consecutive', threshold: 5 } },
-          timeout: { duration: 3_000, strategy: 'cooperative' },
-        },
-      },
-      // Optional defaults merged under every handler that attaches the behavior.
-      defaults: { timeout: { duration: 10_000, strategy: 'cooperative' } },
-    }),
-    PipelineModule.forRoot({ behaviors: [ResilienceBehavior] }),
+    PipelineModule.forRoot(),
+  ],
+  providers: [
+    {
+      provide: ResilienceBehavior,
+      useFactory: () =>
+        new ResilienceBehavior(
+          undefined, // Optional global default options
+          new Logger(ResilienceBehavior.name),
+        ),
+    },
   ],
 })
-export class AppModule {}
+export class ReliabilityModule {}
 ```
 
 ### 2. Use the named policy in the outbound adapter

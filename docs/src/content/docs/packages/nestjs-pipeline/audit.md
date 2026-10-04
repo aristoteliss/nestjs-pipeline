@@ -60,46 +60,74 @@ from the root README into a reusable, redaction-aware, outcome-aware package.
 ## Installation
 
 ```bash
-pnpm add @nestjs-pipeline/audit
+pnpm add @cqrs-ddd/pipeline-audit @cqrs-ddd/nestjs @cqrs-ddd/pipeline @nestjs/cqrs
 ```
 
 **Peer dependencies:**
 
 ```bash
-pnpm add @nestjs-pipeline/core @nestjs/common reflect-metadata
+pnpm add @nestjs/common @nestjs/core reflect-metadata
 ```
 
-Requires Node.js 22.12 or later, `@nestjs/common` `^12.1.0` and `@nestjs-pipeline/core` `^0.4.2`.
-
-Published as an ES module; a CommonJS application loads it with `require()`. Coming from
-0.3.x, see [Upgrading from 0.3.x](/nestjs-pipeline/upgrading/from-0-3/).
+Requires Node.js 22.12 or later, `@nestjs/common` `^12.1.0`.
 
 The bundled sinks are typed *structurally*, so this package adds **zero heavy
 dependencies**. For the Postgres sink, add a `pg` `Pool`/`Client` in your app
-(`pnpm add pg`); the console sink needs nothing.
+(`pnpm add pg`); the log sink needs nothing.
 
 ---
 
 ## Setup
 
-Register the module and add `AuditBehavior` to your global behaviors (or
-per-handler via `@UsePipeline`).
+In your application or observability module, construct an `AuditSink` and register `AuditBehavior` as a singleton provider:
 
 ```typescript
-import { Module } from '@nestjs/common';
-import { PipelineModule } from '@nestjs-pipeline/core';
-import { AuditModule, AuditBehavior } from '@nestjs-pipeline/audit';
+import { Module, Logger } from '@nestjs/common';
+import { PipelineModule } from '@cqrs-ddd/nestjs';
+import {
+  AuditBehavior,
+  LogAuditSink,
+} from '@cqrs-ddd/pipeline-audit';
 
 @Module({
   imports: [
-    // Zero-config: audit every command to the console.
-    AuditModule.forRoot(),
     PipelineModule.forRoot({
-      globalBehaviors: { scope: 'all', before: [AuditBehavior] },
+      globalBehaviors: [
+        { scope: 'all', before: [AuditBehavior] },
+      ],
     }),
   ],
+  providers: [
+    {
+      provide: AuditBehavior,
+      useFactory: () => {
+        const logger = new Logger(AuditBehavior.name);
+        return new AuditBehavior(
+          new LogAuditSink({ logger }),
+          undefined, // Global default options
+          logger,
+        );
+      },
+    },
+  ],
 })
-export class AppModule {}
+export class ObservabilityModule {}
+```
+
+Then attach handler-specific audit actions using `@UsePipeline` and `audit()`:
+
+```typescript
+import { CommandHandler } from '@nestjs/cqrs';
+import { UsePipeline } from '@cqrs-ddd/pipeline';
+import { audit } from '@cqrs-ddd/pipeline-audit';
+
+@CommandHandler(CreateUserCommand)
+@UsePipeline(
+  audit({ action: 'user.create', severity: 'medium' }),
+)
+export class CreateUserHandler {
+  // ...
+}
 ```
 
 > **Ordering:** place `AuditBehavior` near the **outside** of the chain so its

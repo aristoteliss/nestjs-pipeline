@@ -21,25 +21,25 @@ Part of the [@nestjs-pipeline](/nestjs-pipeline/overview/) monorepo.
 ## Installation
 
 ```bash
-pnpm add @nestjs-pipeline/correlation @nestjs/common
+pnpm add @cqrs-ddd/pipeline-correlation @cqrs-ddd/nestjs @nestjs/common
 ```
 
 Requires Node.js 22.12 or later and `@nestjs/common` `^12.1.0`.
 
-Published as an ES module; a CommonJS application loads it with `require()`. Coming from
-0.3.x, see [Upgrading from 0.3.x](/nestjs-pipeline/upgrading/from-0-3/).
-
 The package owns the correlation store and depends on no other pipeline package. To give
-`@nestjs-pipeline/core` pipelines the ID set here, pass `correlationSource`:
+pipelines the correlation ID, pass `correlationSource` into `PipelineModule.forRoot`:
 
 ```typescript
-import { correlationSource } from '@nestjs-pipeline/correlation';
+import { PipelineModule } from '@cqrs-ddd/nestjs';
+import { correlationSource } from '@cqrs-ddd/pipeline-correlation';
 
-PipelineModule.forRoot({ sources: { correlationId: correlationSource } });
+PipelineModule.forRoot({
+  sources: { correlationId: correlationSource },
+});
 ```
 
 A pipeline then takes the ID as its `context.correlationId`, and `getCorrelationId()`
-inside a handler returns that same ID.
+inside a handler returns that same ID. For HTTP ingress, apply `CorrelationMiddleware` from `@cqrs-ddd/nestjs`.
 
 ## Features
 

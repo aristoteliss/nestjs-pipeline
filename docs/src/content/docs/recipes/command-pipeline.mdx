@@ -47,10 +47,10 @@ model](/nestjs-pipeline/concepts/execution-model/)):
 | `idempotent` | Replays the result of a retried operation with the same `Idempotency-Key`, for the same caller and permissions | [idempotency](/nestjs-pipeline/packages/nestjs-pipeline/idempotency/) |
 | `audit` | Records who created which user, and the outcome | [audit](/nestjs-pipeline/packages/nestjs-pipeline/audit/) |
 
-Inside `handle`, `CaslAuthorizer.authorize` checks the new entity and the fields being
+Inside `execute`, `CaslAuthorizer.authorize` checks the new entity and the fields being
 written. That entity-level check belongs in the handler, after the aggregate exists; the
-type-level `requires` above cannot see the entity. `CommandBaseHandler` then publishes the
-aggregate's buffered events once `handle` returns:
+type-level `requires` above cannot see the entity. NestJS's `EventPublisher` then publishes the
+aggregate's buffered events once persisted (`publisher.mergeObjectContext(user).commit()`):
 
 <Code code={handler} lang="ts" title="api/src/users/application/cqrs/commands/create-user.handler.ts" />
 
