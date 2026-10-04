@@ -5,8 +5,7 @@ import {
   DomainException,
   MissingTenantContextError,
 } from '@cqrs-ddd/core/domain';
-import type { ArgumentsHost } from '@nestjs/common';
-import type { HttpAdapterHost } from '@nestjs/core';
+import type { ArgumentsHost, HttpServer } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
 import {
   InvalidRoleNameException,
@@ -30,22 +29,23 @@ class UnclassifiedDomainException extends DomainException {
 function makeHost(response: unknown): ArgumentsHost {
   return {
     switchToHttp: () => ({ getResponse: () => response }),
+    getArgByIndex: () => response,
   } as unknown as ArgumentsHost;
 }
 
 /** Answers through the fake response, as Express's adapter does. */
-const adapterHost = {
-  httpAdapter: {
-    reply: (
-      response: { status(code: number): { json(body: unknown): unknown } },
-      body: unknown,
-      status: number,
-    ) => response.status(status).json(body),
-  },
-} as unknown as HttpAdapterHost;
+const httpAdapter = {
+  reply: (
+    response: { status(code: number): { json(body: unknown): unknown } },
+    body: unknown,
+    status: number,
+  ) => response.status(status).json(body),
+  isHeadersSent: () => false,
+  setHeader: () => undefined,
+} as unknown as HttpServer;
 
 describe('DomainExceptionFilter', () => {
-  const filter = new DomainExceptionFilter(adapterHost);
+  const filter = new DomainExceptionFilter(httpAdapter);
 
   it('maps a missing tenant context to a generic HTTP 500, not a client error', () => {
     const error = new MissingTenantContextError('cache key derivation');

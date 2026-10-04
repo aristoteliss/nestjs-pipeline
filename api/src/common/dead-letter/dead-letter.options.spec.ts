@@ -12,6 +12,7 @@ import {
   TransientOperationError,
   UnknownMutableFieldError,
 } from '@cqrs-ddd/core/domain';
+import { PipelineModule } from '@cqrs-ddd/nestjs';
 import { UnauthorizedActionException } from '@cqrs-ddd/pipeline-casl';
 import {
   DeadLetterBehavior,
@@ -53,7 +54,6 @@ import {
   UniqueEmailException,
 } from '../../users/domain/models/errors/index.js';
 import type { User } from '../../users/domain/models/user.entity.js';
-import { PipelineModule } from '../pipeline/pipeline.module.js';
 import { DEAD_LETTER_DEFAULTS } from './dead-letter.options.js';
 
 type ErrorClass = abstract new (...args: never[]) => Error;

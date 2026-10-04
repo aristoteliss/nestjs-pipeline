@@ -15,6 +15,7 @@
  * modules are imported in.
  */
 
+import { PipelineModule } from '@cqrs-ddd/nestjs';
 import {
   type IPipelineBehavior,
   type IPipelineContext,
@@ -25,7 +26,6 @@ import { Injectable, Module } from '@nestjs/common';
 import { CommandBus, CommandHandler, CqrsModule } from '@nestjs/cqrs';
 import { Test } from '@nestjs/testing';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { PipelineModule } from '../src/common/pipeline/pipeline.module.js';
 
 const order: string[] = [];
 

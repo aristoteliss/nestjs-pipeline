@@ -8,6 +8,7 @@
  */
 
 import { contextSources } from '@common/context/context-sources.js';
+import { PipelineModule } from '@cqrs-ddd/nestjs';
 import {
   type IPipelineBehavior,
   type IPipelineContext,
@@ -30,7 +31,6 @@ import {
 } from '@nestjs/cqrs';
 import { Test } from '@nestjs/testing';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { PipelineModule } from '../src/common/pipeline/pipeline.module.js';
 
 /** Stands in for whatever an authentication behavior resolves per request. */
 let currentPrincipal: string | undefined = 'alice';

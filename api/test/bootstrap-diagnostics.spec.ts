@@ -1,5 +1,6 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
+import { PipelineModule } from '@cqrs-ddd/nestjs';
 import { PipelineConfigurationError, UsePipeline } from '@cqrs-ddd/pipeline';
 import { CacheBehavior } from '@cqrs-ddd/pipeline-cache';
 import { CaslBehavior } from '@cqrs-ddd/pipeline-casl';
@@ -17,7 +18,6 @@ import {
 import { Test } from '@nestjs/testing';
 import { RateLimiterMemory } from 'rate-limiter-flexible';
 import { describe, expect, it, vi } from 'vitest';
-import { PipelineModule } from '../src/common/pipeline/pipeline.module.js';
 
 class DummyCommand {
   constructor(readonly id: string = 'cmd-1') {}

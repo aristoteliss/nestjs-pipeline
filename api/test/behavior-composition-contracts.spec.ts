@@ -10,6 +10,7 @@
  * 4. Nest TestingModule integration with the application's PipelineModule and @UsePipeline composition.
  */
 
+import { PipelineModule } from '@cqrs-ddd/nestjs';
 import { type IPipelineContext, UsePipeline } from '@cqrs-ddd/pipeline';
 import {
   CacheBehavior,
@@ -42,7 +43,6 @@ import type { Client } from '@openfeature/server-sdk';
 import { createCache } from 'cache-manager';
 import { Keyv } from 'keyv';
 import { describe, expect, it, vi } from 'vitest';
-import { PipelineModule } from '../src/common/pipeline/pipeline.module.js';
 
 class TransientTestError extends Error {}
 

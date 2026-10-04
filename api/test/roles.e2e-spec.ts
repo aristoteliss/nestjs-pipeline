@@ -107,8 +107,11 @@ describe('roles-api (e2e)', () => {
       const res = await createRole(admin, 'ab');
 
       expect(res.status).toBe(400);
-      expect(res.body).toHaveProperty('fieldErrors');
-      expect(res.body.fieldErrors).toHaveProperty('name');
+      expect(res.body).toEqual({
+        statusCode: 400,
+        error: 'Bad Request',
+        message: expect.arrayContaining([expect.stringMatching(/^name: /)]),
+      });
     });
 
     it('denies role creation for a principal without capabilities (403)', async () => {

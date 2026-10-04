@@ -158,9 +158,13 @@ describe.each(['express', 'fastify'] as const)('auths (e2e, %s)', (adapter) => {
       const res = await login({ email: 'not-an-email', code: '' });
 
       expect(res.status).toBe(400);
-      expect(res.body.fieldErrors).toMatchObject({
-        email: expect.any(Array),
-        code: expect.any(Array),
+      expect(res.body).toEqual({
+        statusCode: 400,
+        error: 'Bad Request',
+        message: expect.arrayContaining([
+          expect.stringMatching(/^email: /),
+          expect.stringMatching(/^code: /),
+        ]),
       });
     });
 
