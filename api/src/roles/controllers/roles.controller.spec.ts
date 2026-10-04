@@ -1,11 +1,11 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import type { CommandBus, QueryBus } from '@nestjs/cqrs';
 import {
   type AppAbility,
   buildAbility,
   CaslAuthorizer,
-} from '@nestjs-pipeline/casl';
+} from '@cqrs-ddd/pipeline-casl';
+import type { CommandBus, QueryBus } from '@nestjs/cqrs';
 import { describe, expect, it, vi } from 'vitest';
 import { CreateRoleCommand } from '../application/cqrs/commands/create-role.command.js';
 import { DeleteRoleCommand } from '../application/cqrs/commands/delete-role.command.js';

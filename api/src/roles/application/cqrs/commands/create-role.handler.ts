@@ -6,21 +6,22 @@ import {
   AUDIT_ACTIONS,
 } from '@common/constants/index.js';
 import { operationIdempotencyKeyFactory } from '@common/idempotency/operation-key.js';
-import {
-  CommandBaseHandler,
-  ICommandRepository,
-} from '@cqrs-ddd/core/application';
-import { Inject } from '@nestjs/common';
-import { CommandHandler, EventBus } from '@nestjs/cqrs';
-import { AUDIT_SEVERITY, audit } from '@nestjs-pipeline/audit';
+import { ICommandRepository } from '@cqrs-ddd/core/application';
+import { logging, UsePipeline } from '@cqrs-ddd/pipeline';
+import { AUDIT_SEVERITY, audit } from '@cqrs-ddd/pipeline-audit';
 import {
   CaslAuthorizer,
   requireAbilityDigest,
   requires,
-} from '@nestjs-pipeline/casl';
-import { logging, UsePipeline } from '@nestjs-pipeline/core';
-import { featureFlag } from '@nestjs-pipeline/feature-flags';
-import { idempotent } from '@nestjs-pipeline/idempotency';
+} from '@cqrs-ddd/pipeline-casl';
+import { featureFlag } from '@cqrs-ddd/pipeline-feature-flags';
+import { idempotent } from '@cqrs-ddd/pipeline-idempotency';
+import { Inject } from '@nestjs/common';
+import {
+  CommandHandler,
+  EventPublisher,
+  type ICommandHandler,
+} from '@nestjs/cqrs';
 import { UniqueRoleNameException } from '../../../domain/models/errors/role-name.exception.js';
 import { Role, type RoleSnapshot } from '../../../domain/models/role.entity.js';
 import { COMMAND_REPOSITORY } from '../../../persistence/repository.tokens.js';
@@ -48,23 +49,21 @@ import { CreateRoleCommand } from './create-role.command.js';
     severity: AUDIT_SEVERITY.MEDIUM,
   }),
 )
-export class CreateRoleHandler extends CommandBaseHandler<
-  CreateRoleCommand,
-  Role
-> {
+export class CreateRoleHandler
+  implements ICommandHandler<CreateRoleCommand, Role>
+{
   constructor(
     @Inject(COMMAND_REPOSITORY.createRole)
     private readonly commandRepository: ICommandRepository<Role, RoleSnapshot>,
     private readonly authorizer: CaslAuthorizer,
-    protected readonly eventBus: EventBus,
-  ) {
-    super(eventBus);
-  }
+    private readonly publisher: EventPublisher,
+  ) {}
 
-  async handle(command: CreateRoleCommand): Promise<Role> {
+  async execute(command: CreateRoleCommand): Promise<Role> {
     const role = Role.create(command.name);
     this.authorizer.authorize('create', role, ['name']);
     await this.commandRepository.save(role);
+    await this.publisher.mergeObjectContext(role).commit();
     return role;
   }
 }

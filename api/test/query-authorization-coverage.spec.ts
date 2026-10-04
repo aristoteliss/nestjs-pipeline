@@ -6,12 +6,8 @@
  * pass-through that only forwards to a repository.
  */
 
-import { CaslBehavior } from '@nestjs-pipeline/casl';
-import {
-  getBehaviorId,
-  PIPELINE_BEHAVIORS_METADATA,
-  PIPELINE_BEHAVIORS_OPTIONS_METADATA,
-} from '@nestjs-pipeline/core';
+import { getBehaviorId, pipelineOf } from '@cqrs-ddd/pipeline';
+import { CaslBehavior } from '@cqrs-ddd/pipeline-casl';
 import { describe, expect, it } from 'vitest';
 import { GetUserPermissionRulesHandler } from '../src/auths/application/cqrs/queries/get-user-permission-rules.handler.js';
 import { GetRoleHandler } from '../src/roles/application/cqrs/queries/get-role.handler.js';
@@ -26,15 +22,12 @@ function caslRules(
   const options: Map<
     unknown,
     { rules?: Array<{ action: string; subject: string }> }
-  > =
-    Reflect.getMetadata(PIPELINE_BEHAVIORS_OPTIONS_METADATA, handler) ??
-    new Map();
+  > = pipelineOf(handler as never).options;
   return options.get(getBehaviorId(CaslBehavior as never))?.rules ?? [];
 }
 
 function declaresCasl(handler: object): boolean {
-  const behaviors: Array<{ name: string }> =
-    Reflect.getMetadata(PIPELINE_BEHAVIORS_METADATA, handler) ?? [];
+  const behaviors: Array<{ name: string }> = pipelineOf(handler as never).types;
   return behaviors.some((behavior) => behavior.name === CaslBehavior.name);
 }
 

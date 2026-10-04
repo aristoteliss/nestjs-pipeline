@@ -3,7 +3,7 @@
 import { dirname } from 'node:path';
 import { ConcurrencyConflictError } from '@cqrs-ddd/core/domain';
 import { MemoryCache } from '@cqrs-ddd/core/persistence';
-import { type IPipelineContext, pipelineStore } from '@nestjs-pipeline/core';
+import { type IPipelineContext, pipelineStore } from '@cqrs-ddd/pipeline';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { GetAuthByConsumedTokenHashQuery } from '../src/auths/application/cqrs/queries/get-auth-by-consumed-token-hash.query.js';
 import { GetAuthByTokenHashQuery } from '../src/auths/application/cqrs/queries/get-auth-by-token-hash.query.js';

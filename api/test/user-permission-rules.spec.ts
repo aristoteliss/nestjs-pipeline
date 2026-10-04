@@ -3,8 +3,6 @@
 /** biome-ignore-all lint/suspicious/noTemplateCurlyInString: placeholders are data */
 import { subject as caslSubject } from '@casl/ability';
 import { MemoryCache } from '@cqrs-ddd/core/persistence';
-import { stableStringify } from '@cqrs-ddd/safe-stringify';
-import type { EntityManager } from '@mikro-orm/core';
 import {
   type AppAbility,
   buildAbility,
@@ -12,7 +10,9 @@ import {
   normalizeCapability,
   parseCapabilityString,
   serializeCapability,
-} from '@nestjs-pipeline/casl';
+} from '@cqrs-ddd/pipeline-casl';
+import { stableStringify } from '@cqrs-ddd/safe-stringify';
+import type { EntityManager } from '@mikro-orm/core';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { GetUserPermissionRulesQuery } from '../src/auths/application/cqrs/queries/get-user-permission-rules.query.js';
 import { CaslPermissionSource } from '../src/auths/persistence/casl-permission.source.js';

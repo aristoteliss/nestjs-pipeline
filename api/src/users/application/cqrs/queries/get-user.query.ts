@@ -2,7 +2,7 @@
 
 import { EmailSchema } from '@common/validation/email.schema.js';
 import { BaseQuery } from '@cqrs-ddd/core/application';
-import { createQuery } from '@nestjs-pipeline/zod';
+import { createQuery } from '@cqrs-ddd/pipeline-zod';
 import { z } from 'zod';
 
 export class GetUserQuery extends createQuery(

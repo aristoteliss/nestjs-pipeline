@@ -5,13 +5,13 @@ import {
   type IWriteSideAggregateRepository,
   requireTenant,
 } from '@cqrs-ddd/core/application';
-import { Inject, Injectable } from '@nestjs/common';
-import type { Capability } from '@nestjs-pipeline/casl';
+import type { Capability } from '@cqrs-ddd/pipeline-casl';
 import {
   type IJobPrincipal,
   InvalidJobContextError,
   type PrincipalReference,
-} from '@nestjs-pipeline/job-context';
+} from '@cqrs-ddd/pipeline-job-context';
+import { Inject, Injectable } from '@nestjs/common';
 import {
   getSessionPrincipal,
   sessionPrincipalStore,

@@ -2,17 +2,17 @@
 
 import { AUDIT_MODULE_DEFAULTS } from '@common/audit/audit.options.js';
 import { AUDIT_ACTIONS } from '@common/constants/index.js';
-import { CommandBus, CqrsModule } from '@nestjs/cqrs';
-import { Test } from '@nestjs/testing';
+import { LoggingBehavior } from '@cqrs-ddd/pipeline';
 import {
   AUDIT_SEVERITY,
-  AuditModule,
+  AuditBehavior,
   type AuditRecord,
   type AuditSink,
-} from '@nestjs-pipeline/audit';
-import { LoggingBehavior, PipelineModule } from '@nestjs-pipeline/core';
-import { MetricsBehavior } from '@nestjs-pipeline/opentelemetry';
-import { RateLimitBehavior } from '@nestjs-pipeline/rate-limit';
+} from '@cqrs-ddd/pipeline-audit';
+import { MetricsBehavior } from '@cqrs-ddd/pipeline-opentelemetry';
+import { RateLimitBehavior } from '@cqrs-ddd/pipeline-rate-limit';
+import { CommandBus, CqrsModule } from '@nestjs/cqrs';
+import { Test } from '@nestjs/testing';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { CreateAuthCommand } from '../src/auths/application/cqrs/commands/create-auth.command.js';
 import { CreateAuthHandler } from '../src/auths/application/cqrs/commands/create-auth.handler.js';
@@ -22,6 +22,7 @@ import { SESSION_COOKIES } from '../src/auths/application/ports/session-cookies.
 import { NodeRefreshTokens } from '../src/auths/infrastructure/node-refresh-tokens.js';
 import { COMMAND_REPOSITORY } from '../src/auths/persistence/repository.tokens.js';
 import { PrincipalLoginService } from '../src/auths/services/principal-login.service.js';
+import { PipelineModule } from '../src/common/pipeline/pipeline.module.js';
 
 describe('Login audit actor', () => {
   const recorded: AuditRecord[] = [];
@@ -44,12 +45,12 @@ describe('Login audit actor', () => {
     authenticate = vi.fn().mockRejectedValue(new Error('Invalid credentials.'));
 
     const moduleRef = await Test.createTestingModule({
-      imports: [
-        CqrsModule.forRoot(),
-        AuditModule.forRoot({ sink, defaults: AUDIT_MODULE_DEFAULTS }),
-        PipelineModule.forRoot(),
-      ],
+      imports: [CqrsModule.forRoot(), PipelineModule.forRoot()],
       providers: [
+        {
+          provide: AuditBehavior,
+          useValue: new AuditBehavior(sink, AUDIT_MODULE_DEFAULTS),
+        },
         { provide: LoggingBehavior, useValue: passThroughBehavior },
         { provide: MetricsBehavior, useValue: passThroughBehavior },
         { provide: RateLimitBehavior, useValue: passThroughBehavior },

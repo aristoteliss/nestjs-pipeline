@@ -1,7 +1,7 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { sessionPrincipalStore } from '@common/context/session-principal.store.js';
-import { type AuditBehaviorOptions, audit } from '@nestjs-pipeline/audit';
+import { type AuditBehaviorOptions, audit } from '@cqrs-ddd/pipeline-audit';
 import { describe, expect, it } from 'vitest';
 import {
   AUDIT_MODULE_DEFAULTS,

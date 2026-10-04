@@ -2,13 +2,13 @@
 
 import { ICache } from '@cqrs-ddd/core/application';
 import {
-  CACHE_TOKEN,
   CommandRepository,
   cacheKey,
   PersistedWrite,
 } from '@cqrs-ddd/core/persistence';
 import { assertAutocommit } from '@cqrs-ddd/mikro-orm';
 import { Inject, Injectable } from '@nestjs/common';
+import { CACHE } from '@persistence/cache/cache.token.js';
 import { cacheWriteLogger } from '@persistence/cache/cache-loggers.js';
 import {
   MIKRO_ORM_CLIENT,
@@ -23,7 +23,7 @@ export class CreateRoleCommandRepository extends CommandRepository<
   RoleSnapshot
 > {
   constructor(
-    @Inject(CACHE_TOKEN) protected readonly cache: ICache<RoleSnapshot>,
+    @Inject(CACHE) protected readonly cache: ICache<RoleSnapshot>,
     @Inject(MIKRO_ORM_CLIENT) private readonly store: MikroOrmStore,
   ) {
     super(cache);

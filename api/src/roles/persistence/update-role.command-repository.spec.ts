@@ -10,7 +10,7 @@ import {
   setPersistenceDialect,
   toCacheSnapshot,
 } from '@cqrs-ddd/core/persistence';
-import { runWithTenant } from '@nestjs-pipeline/tenant';
+import { runWithTenant } from '@cqrs-ddd/pipeline-tenant';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { UniqueRoleNameException } from '../domain/models/errors/role-name.exception.js';
 import { Role, type RoleSnapshot } from '../domain/models/role.entity.js';

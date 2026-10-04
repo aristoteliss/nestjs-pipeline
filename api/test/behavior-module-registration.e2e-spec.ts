@@ -1,6 +1,12 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 import type { Server } from 'node:http';
 import {
+  type IPipelineBehavior,
+  type IPipelineContext,
+  type NextDelegate,
+  UsePipeline,
+} from '@cqrs-ddd/pipeline';
+import {
   Controller,
   Get,
   type INestApplication,
@@ -9,16 +15,9 @@ import {
 } from '@nestjs/common';
 import { CommandBus, CommandHandler, CqrsModule } from '@nestjs/cqrs';
 import { Test } from '@nestjs/testing';
-import {
-  type IPipelineBehavior,
-  type IPipelineContext,
-  type NextDelegate,
-  PipelineModule,
-  type PipelineModuleFeatureOptions,
-  UsePipeline,
-} from '@nestjs-pipeline/core';
 import request from 'supertest';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { PipelineModule } from '../src/common/pipeline/pipeline.module.js';
 
 @Injectable()
 class FeatureDependency {
@@ -88,16 +87,9 @@ class FeatureController {
   }
 }
 
-const featureOptions: PipelineModuleFeatureOptions = {
-  imports: [FeatureDependenciesModule],
-  behaviors: [ImportedBehavior],
-};
-
 @Module({
-  imports: [
-    PipelineModule.forFeature(featureOptions),
-    PipelineModule.forFeature([LegacyBehavior]),
-  ],
+  imports: [FeatureDependenciesModule],
+  providers: [ImportedBehavior, LegacyBehavior],
 })
 class BehaviorRegistrationModule {}
 
@@ -112,14 +104,14 @@ class ConsumerModule {}
 @Module({
   imports: [
     CqrsModule.forRoot(),
-    PipelineModule.forRoot({ bootstrapLogLevel: 'none' }),
+    PipelineModule.forRoot(),
     BehaviorRegistrationModule,
     ConsumerModule,
   ],
 })
 class TestAppModule {}
 
-describe('PipelineModule.forFeature (e2e)', () => {
+describe('behaviors registered by their own module (e2e)', () => {
   let app: INestApplication;
   let http: Server;
   let dependency: FeatureDependency;
@@ -140,7 +132,7 @@ describe('PipelineModule.forFeature (e2e)', () => {
     await app?.close();
   });
 
-  it('injects imported dependencies and runs both registration forms across modules exactly once', async () => {
+  it("injects the registering module's dependencies and runs each behavior once for a handler in another module", async () => {
     dependency.calls.length = 0;
     legacy.calls = 0;
 

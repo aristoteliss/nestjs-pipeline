@@ -1,6 +1,6 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import { BadRequestException } from '@nestjs/common';
+import { ZodValidationError } from '@cqrs-ddd/pipeline-zod';
 import { describe, expect, it } from 'vitest';
 import { CreateUserCommand } from '../application/cqrs/commands/create-user.command.js';
 import { UpdateUserCommand } from '../application/cqrs/commands/update-user.command.js';
@@ -36,10 +36,10 @@ describe('Users Mappers', () => {
       expect(cmd.department).toBeUndefined();
     });
 
-    it('throws BadRequestException for invalid email or name', () => {
+    it('throws ZodValidationError for invalid email or name', () => {
       expect(() =>
         CreateUserMapper.map({ name: '', email: 'not-an-email' } as any),
-      ).toThrow(BadRequestException);
+      ).toThrow(ZodValidationError);
     });
   });
 
@@ -76,16 +76,16 @@ describe('Users Mappers', () => {
       expect(cmd.department).toBe('Finance');
     });
 
-    it('throws BadRequestException when no mutable fields are provided', () => {
+    it('throws ZodValidationError when no mutable fields are provided', () => {
       expect(() => UpdateUserMapper.map(validId, {})).toThrow(
-        BadRequestException,
+        ZodValidationError,
       );
     });
 
-    it('throws BadRequestException for non-uuid id', () => {
+    it('throws ZodValidationError for non-uuid id', () => {
       expect(() =>
         UpdateUserMapper.map('invalid-uuid', { name: 'Alicia' }),
-      ).toThrow(BadRequestException);
+      ).toThrow(ZodValidationError);
     });
   });
 });

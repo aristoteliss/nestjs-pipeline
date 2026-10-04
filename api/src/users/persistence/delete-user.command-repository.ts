@@ -2,7 +2,6 @@
 
 import { ICache } from '@cqrs-ddd/core/application';
 import {
-  CACHE_TOKEN,
   Cache,
   cacheKey,
   MapPersistenceErrors,
@@ -13,6 +12,7 @@ import {
   optimisticDelete,
 } from '@cqrs-ddd/mikro-orm';
 import { Inject, Injectable } from '@nestjs/common';
+import { CACHE } from '@persistence/cache/cache.token.js';
 import { cacheWriteLogger } from '@persistence/cache/cache-loggers.js';
 import {
   MIKRO_ORM_CLIENT,
@@ -27,7 +27,7 @@ export class DeleteUserCommandRepository extends AggregateRepository<
   null
 > {
   constructor(
-    @Inject(CACHE_TOKEN) cache: ICache<UserSnapshot>,
+    @Inject(CACHE) cache: ICache<UserSnapshot>,
     @Inject(MIKRO_ORM_CLIENT) store: MikroOrmStore,
   ) {
     super(cache, store, User, User.aggregateName, User.fromJSON);

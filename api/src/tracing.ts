@@ -19,7 +19,7 @@ const sdk = new NodeSDK({
 
 sdk.start();
 
-/** Flushes pending telemetry and stops the SDK; called after the application closes. */
+/** Flushes pending telemetry and stops the SDK; `ServerModule` calls it on shutdown. */
 export function shutdownTracing(): Promise<void> {
   return sdk.shutdown();
 }

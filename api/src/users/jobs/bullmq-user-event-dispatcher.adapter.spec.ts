@@ -1,11 +1,11 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import { withJobContext } from '@nestjs-pipeline/job-context';
+import { withJobContext } from '@cqrs-ddd/pipeline-job-context';
 import { describe, expect, it, vi } from 'vitest';
 import { BullMqUserEventDispatcher } from './bullmq-user-event-dispatcher.adapter.js';
 
-vi.mock('@nestjs-pipeline/job-context', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@nestjs-pipeline/job-context')>()),
+vi.mock('@cqrs-ddd/pipeline-job-context', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@cqrs-ddd/pipeline-job-context')>()),
   withJobContext: vi.fn((data: object) => ({
     ...data,
     jobContext: {

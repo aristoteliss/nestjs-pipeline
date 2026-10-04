@@ -4,9 +4,8 @@ import { EventEmitter } from 'node:events';
 import { Writable } from 'node:stream';
 import { setTenantResolver } from '@cqrs-ddd/core/application';
 import { cacheKey } from '@cqrs-ddd/core/persistence';
+import { runWithTenant } from '@cqrs-ddd/pipeline-tenant';
 import { Test } from '@nestjs/testing';
-import { DeadLetterModule } from '@nestjs-pipeline/deadletter';
-import { runWithTenant } from '@nestjs-pipeline/tenant';
 import { PARAMS_PROVIDER_TOKEN, type Params } from 'nestjs-pino';
 import { pinoHttp } from 'pino-http';
 import { describe, expect, it } from 'vitest';
@@ -14,10 +13,7 @@ import { ObservabilityModule } from './observability.module.js';
 
 async function configuredRedaction() {
   const moduleRef = await Test.createTestingModule({
-    imports: [
-      ObservabilityModule,
-      DeadLetterModule.forRoot({ transport: { send: async () => {} } }),
-    ],
+    imports: [ObservabilityModule],
   }).compile();
   const { pinoHttp: options } = moduleRef.get<Params>(PARAMS_PROVIDER_TOKEN);
   await moduleRef.close();

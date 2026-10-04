@@ -1,12 +1,12 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import { Processor, WorkerHost } from '@nestjs/bullmq';
-import { Logger, OnModuleDestroy } from '@nestjs/common';
-import { getCorrelationId } from '@nestjs-pipeline/correlation';
+import { getCorrelationId } from '@cqrs-ddd/pipeline-correlation';
 import {
   InJobContext,
   type WithJobContext,
-} from '@nestjs-pipeline/job-context';
+} from '@cqrs-ddd/pipeline-job-context';
+import { Processor, WorkerHost } from '@nestjs/bullmq';
+import { Logger, OnModuleDestroy } from '@nestjs/common';
 import { TenantSchemaContext } from '@persistence/tenant-schema.context.js';
 import type { Job } from 'bullmq';
 

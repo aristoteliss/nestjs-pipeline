@@ -4,15 +4,15 @@ import {
   ConcurrencyConflictError,
   EntityNotFoundException,
 } from '@cqrs-ddd/core/domain';
-import { UnauthorizedActionException } from '@nestjs-pipeline/casl';
-import type { DeadLetterBehaviorOptions } from '@nestjs-pipeline/deadletter';
-import { FeatureDisabledError } from '@nestjs-pipeline/feature-flags';
+import { UnauthorizedActionException } from '@cqrs-ddd/pipeline-casl';
+import type { DeadLetterBehaviorOptions } from '@cqrs-ddd/pipeline-deadletter';
+import { FeatureDisabledError } from '@cqrs-ddd/pipeline-feature-flags';
 import {
   IdempotencyCompletionError,
   IdempotencyConflictError,
-} from '@nestjs-pipeline/idempotency';
-import { RateLimitExceededError } from '@nestjs-pipeline/rate-limit';
-import { ZodValidationError } from '@nestjs-pipeline/zod';
+} from '@cqrs-ddd/pipeline-idempotency';
+import { RateLimitExceededError } from '@cqrs-ddd/pipeline-rate-limit';
+import { ZodValidationError } from '@cqrs-ddd/pipeline-zod';
 import { InvalidLoginCredentialsException } from '../../auths/domain/errors/authentication.exception.js';
 import {
   InvalidRefreshTokenError,

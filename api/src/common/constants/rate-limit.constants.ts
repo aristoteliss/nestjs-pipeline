@@ -17,3 +17,9 @@ export const RATE_LIMIT_COST = {
   /** Per acting principal. */
   createUser: 1,
 } as const;
+
+/**
+ * Injection token of the one limiter `RateLimitBehavior` and the session
+ * refresh share, so both draw on the same quota.
+ */
+export const RATE_LIMITER = Symbol('RATE_LIMITER');

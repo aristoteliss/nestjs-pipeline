@@ -2,9 +2,9 @@
 /** biome-ignore-all lint/suspicious/noTemplateCurlyInString: placeholders are data */
 
 import { setTenantResolver } from '@cqrs-ddd/core/application';
+import type { Capability } from '@cqrs-ddd/pipeline-casl';
+import { currentTenantId } from '@cqrs-ddd/pipeline-tenant';
 import { Logger, UnauthorizedException } from '@nestjs/common';
-import type { Capability } from '@nestjs-pipeline/casl';
-import { currentTenantId } from '@nestjs-pipeline/tenant';
 import { decodeJwt, SignJWT } from 'jose';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { User } from '../../users/domain/models/user.entity.js';

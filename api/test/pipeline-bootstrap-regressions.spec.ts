@@ -1,8 +1,14 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
+import {
+  type IPipelineBehavior,
+  type IPipelineContext,
+  type NextDelegate,
+  PIPELINE_BEHAVIOR_CONTRACT,
+  UsePipeline,
+} from '@cqrs-ddd/pipeline';
 import { Injectable, Scope } from '@nestjs/common';
 import {
-  AsyncContext,
   CommandBus,
   CommandHandler,
   CqrsModule,
@@ -10,15 +16,8 @@ import {
   EventsHandler,
 } from '@nestjs/cqrs';
 import { Test } from '@nestjs/testing';
-import {
-  type IPipelineBehavior,
-  type IPipelineContext,
-  type NextDelegate,
-  PIPELINE_BEHAVIOR_CONTRACT,
-  PipelineModule,
-  UsePipeline,
-} from '@nestjs-pipeline/core';
 import { describe, expect, it, vi } from 'vitest';
+import { PipelineModule } from '../src/common/pipeline/pipeline.module.js';
 
 @Injectable()
 class LabelBehavior implements IPipelineBehavior {
@@ -34,7 +33,7 @@ class ParentCommand {}
 class ChildCommand {}
 class OverrideCommand {}
 
-@CommandHandler(ParentCommand, { scope: Scope.REQUEST })
+@CommandHandler(ParentCommand)
 @UsePipeline([LabelBehavior, { label: 'parent' }])
 class ParentHandler {
   async execute(_request: object) {
@@ -42,11 +41,11 @@ class ParentHandler {
   }
 }
 
-@CommandHandler(ChildCommand, { scope: Scope.REQUEST })
+@CommandHandler(ChildCommand)
 @UsePipeline([LabelBehavior, { label: 'child' }])
 class ChildHandler extends ParentHandler {}
 
-@CommandHandler(OverrideCommand, { scope: Scope.REQUEST })
+@CommandHandler(OverrideCommand)
 @UsePipeline([LabelBehavior, { label: 'override' }])
 class OverrideHandler extends ParentHandler {
   async execute(request: object) {
@@ -72,33 +71,38 @@ async function application(
   providers: Parameters<typeof Test.createTestingModule>[0]['providers'],
 ) {
   const module = await Test.createTestingModule({
-    imports: [
-      CqrsModule.forRoot(),
-      PipelineModule.forRoot({
-        behaviors: [LabelBehavior],
-        bootstrapLogLevel: 'none',
-      }),
-    ],
-    providers,
+    imports: [CqrsModule.forRoot(), PipelineModule.forRoot()],
+    providers: [LabelBehavior, ...(providers ?? [])],
   }).compile();
-  return module.createNestApplication();
+  return module.createNestApplication({ logger: false });
 }
 
 describe('pipeline bootstrap lifecycle in Nest', () => {
-  it('restores an already patched prototype immediately when initialization fails', async () => {
-    const original = ParentHandler.prototype.execute;
+  it('restores already wrapped handler instances when initialization fails', async () => {
     const app = await application([ParentHandler, BrokenHandler]);
     try {
       await expect(app.init()).rejects.toThrow(/MissingBehavior/);
-      expect(ParentHandler.prototype.execute).toBe(original);
+      expect(Object.hasOwn(app.get(ParentHandler), 'execute')).toBe(false);
     } finally {
       await app.close();
     }
   });
 
+  it('restores the handler instances when the application closes', async () => {
+    const app = await application([ParentHandler]);
+    await app.init();
+    const handler = app.get(ParentHandler);
+    expect(Object.hasOwn(handler, 'execute')).toBe(true);
+
+    await app.close();
+
+    expect(Object.hasOwn(handler, 'execute')).toBe(false);
+  });
+
   it.each([false, true])(
     'uses each inherited handler chain regardless of discovery order (child first: %s)',
     async (childFirst) => {
+      const original = ParentHandler.prototype.execute;
       const providers = childFirst
         ? [ChildHandler, ParentHandler]
         : [ParentHandler, ChildHandler];
@@ -114,10 +118,11 @@ describe('pipeline bootstrap lifecycle in Nest', () => {
           'child',
           'done',
         ]);
+        expect(ParentHandler.prototype.execute).toBe(original);
+        expect(Object.hasOwn(ChildHandler.prototype, 'execute')).toBe(false);
       } finally {
         await app.close();
       }
-      expect(Object.hasOwn(ChildHandler.prototype, 'execute')).toBe(false);
     },
   );
 
@@ -156,76 +161,6 @@ describe('pipeline bootstrap lifecycle in Nest', () => {
       await app.close();
     }
   });
-});
-
-describe('pipeline scoped composition', () => {
-  it('preserves order and request identity in a mixed singleton and scoped chain', async () => {
-    const visits: { stage: string; instance: object }[] = [];
-    @Injectable({ scope: Scope.REQUEST })
-    class RequestState {}
-    @Injectable()
-    class OuterBehavior implements IPipelineBehavior {
-      async handle(_context: IPipelineContext, next: NextDelegate) {
-        visits.push({ stage: 'outer', instance: this });
-        return next();
-      }
-    }
-    @Injectable({ scope: Scope.REQUEST })
-    class ScopedBehavior implements IPipelineBehavior {
-      constructor(private readonly state: RequestState) {}
-      async handle(_context: IPipelineContext, next: NextDelegate) {
-        visits.push({ stage: 'scoped', instance: this.state });
-        return next();
-      }
-    }
-    @Injectable()
-    class InnerBehavior implements IPipelineBehavior {
-      async handle(_context: IPipelineContext, next: NextDelegate) {
-        visits.push({ stage: 'inner', instance: this });
-        return next();
-      }
-    }
-    class MixedCommand {}
-    @CommandHandler(MixedCommand, { scope: Scope.REQUEST })
-    @UsePipeline(OuterBehavior, ScopedBehavior, InnerBehavior)
-    class MixedHandler {
-      constructor(private readonly state: RequestState) {}
-      async execute() {
-        visits.push({ stage: 'handler', instance: this.state });
-        return 'done';
-      }
-    }
-    const app = await application([
-      RequestState,
-      OuterBehavior,
-      ScopedBehavior,
-      InnerBehavior,
-      MixedHandler,
-    ]);
-    try {
-      await app.init();
-      const bus = app.get(CommandBus);
-      await expect(bus.execute(new MixedCommand())).resolves.toBe('done');
-      await expect(bus.execute(new MixedCommand())).resolves.toBe('done');
-      expect(visits.map((visit) => visit.stage)).toEqual([
-        'outer',
-        'scoped',
-        'inner',
-        'handler',
-        'outer',
-        'scoped',
-        'inner',
-        'handler',
-      ]);
-      expect(visits[0].instance).toBe(visits[4].instance);
-      expect(visits[2].instance).toBe(visits[6].instance);
-      expect(visits[1].instance).toBe(visits[3].instance);
-      expect(visits[5].instance).toBe(visits[7].instance);
-      expect(visits[1].instance).not.toBe(visits[5].instance);
-    } finally {
-      await app.close();
-    }
-  });
 
   it('preserves the surviving application when another fails initialization', async () => {
     const live = await application([ParentHandler]);
@@ -242,7 +177,7 @@ describe('pipeline scoped composition', () => {
     }
   });
 
-  it('restores prototypes after aggregated strict diagnostics', async () => {
+  it('restores the handler instances after aggregated strict diagnostics', async () => {
     class InvalidBehavior implements IPipelineBehavior {
       static readonly [PIPELINE_BEHAVIOR_CONTRACT] = {
         validate: () => [
@@ -259,15 +194,13 @@ describe('pipeline scoped composition', () => {
       }
     }
     class InvalidCommand {}
-    @CommandHandler(InvalidCommand, { scope: Scope.REQUEST })
+    @CommandHandler(InvalidCommand)
     @UsePipeline(InvalidBehavior)
     class InvalidHandler {
       async execute() {
         return 'done';
       }
     }
-    const original = ParentHandler.prototype.execute;
-    const invalidOriginal = InvalidHandler.prototype.execute;
     const app = await application([
       ParentHandler,
       InvalidHandler,
@@ -277,14 +210,14 @@ describe('pipeline scoped composition', () => {
       await expect(app.init()).rejects.toThrow(
         /Pipeline configuration invalid/,
       );
-      expect(ParentHandler.prototype.execute).toBe(original);
-      expect(InvalidHandler.prototype.execute).toBe(invalidOriginal);
+      expect(Object.hasOwn(app.get(ParentHandler), 'execute')).toBe(false);
+      expect(Object.hasOwn(app.get(InvalidHandler), 'execute')).toBe(false);
     } finally {
       await app.close();
     }
   });
 
-  it('keeps separate execute and handle runners on a shared scoped handler instance', async () => {
+  it('keeps separate execute and handle runners on one handler instance', async () => {
     const observed: string[] = [];
     @Injectable()
     class KindBehavior implements IPipelineBehavior {
@@ -295,8 +228,8 @@ describe('pipeline scoped composition', () => {
     }
     class DualCommand {}
     class DualEvent {}
-    @CommandHandler(DualCommand, { scope: Scope.REQUEST })
-    @EventsHandler(DualEvent, { scope: Scope.REQUEST })
+    @CommandHandler(DualCommand)
+    @EventsHandler(DualEvent)
     @UsePipeline(KindBehavior)
     class DualHandler {
       async execute() {
@@ -310,11 +243,10 @@ describe('pipeline scoped composition', () => {
     const app = await application([DualHandler, KindBehavior]);
     try {
       await app.init();
-      const context = new AsyncContext();
       await expect(
-        app.get(CommandBus).execute(new DualCommand(), context),
+        app.get(CommandBus).execute(new DualCommand()),
       ).resolves.toBe('done');
-      app.get(EventBus).publish(new DualEvent(), context);
+      app.get(EventBus).publish(new DualEvent());
       await vi.waitFor(() =>
         expect(observed).toEqual(['command', 'execute', 'event', 'handle']),
       );
@@ -322,42 +254,96 @@ describe('pipeline scoped composition', () => {
       await app.close();
     }
   });
+});
 
-  it('resolves a default-scoped behavior with a request-scoped dependency per invocation', async () => {
+describe('pipeline request scope', () => {
+  it('refuses a request-scoped handler that runs behaviors', async () => {
+    class ScopedCommand {}
+    @CommandHandler(ScopedCommand, { scope: Scope.REQUEST })
+    @UsePipeline([LabelBehavior, { label: 'scoped' }])
+    class ScopedHandler {
+      async execute() {
+        return 'done';
+      }
+    }
+    const app = await application([ScopedHandler]);
+    try {
+      await expect(app.init()).rejects.toThrow(
+        /ScopedHandler runs pipeline behaviors but is request-scoped/,
+      );
+    } finally {
+      await app.close();
+    }
+  });
+
+  it('refuses a handler that a request-scoped dependency makes request-scoped', async () => {
+    @Injectable({ scope: Scope.REQUEST })
+    class RequestState {}
+    class BubblingCommand {}
+    @CommandHandler(BubblingCommand)
+    @UsePipeline([LabelBehavior, { label: 'bubbling' }])
+    class BubblingHandler {
+      constructor(readonly state: RequestState) {}
+      async execute() {
+        return 'done';
+      }
+    }
+    const app = await application([RequestState, BubblingHandler]);
+    try {
+      await expect(app.init()).rejects.toThrow(
+        /BubblingHandler runs pipeline behaviors but is request-scoped/,
+      );
+    } finally {
+      await app.close();
+    }
+  });
+
+  it('dispatches a request-scoped handler without behaviors as Nest does', async () => {
+    class PlainCommand {}
+    @CommandHandler(PlainCommand, { scope: Scope.REQUEST })
+    class PlainHandler {
+      async execute() {
+        return 'plain';
+      }
+    }
+    const app = await application([PlainHandler]);
+    try {
+      await app.init();
+      await expect(
+        app.get(CommandBus).execute(new PlainCommand()),
+      ).resolves.toBe('plain');
+    } finally {
+      await app.close();
+    }
+  });
+
+  it('refuses a behavior that is request-scoped through a dependency', async () => {
     @Injectable({ scope: Scope.REQUEST })
     class RequestDependency {}
-    const dependencies: RequestDependency[] = [];
     @Injectable()
     class BubblingBehavior implements IPipelineBehavior {
-      constructor(private readonly dependency: RequestDependency) {}
+      constructor(readonly dependency: RequestDependency) {}
       async handle(_context: IPipelineContext, next: NextDelegate) {
-        dependencies.push(this.dependency);
         return next();
       }
     }
-    class BubblingCommand {}
-    @CommandHandler(BubblingCommand)
+    class GuardedCommand {}
+    @CommandHandler(GuardedCommand)
     @UsePipeline(BubblingBehavior)
-    class BubblingHandler {
+    class GuardedHandler {
       async execute() {
         return 'done';
       }
     }
     const app = await application([
-      BubblingHandler,
+      GuardedHandler,
       BubblingBehavior,
       RequestDependency,
     ]);
     try {
-      await app.init();
-      await Promise.all(
-        [1, 2, 3].map(() => app.get(CommandBus).execute(new BubblingCommand())),
+      await expect(app.init()).rejects.toThrow(
+        /BubblingBehavior must be a singleton provider/,
       );
-      expect(dependencies).toHaveLength(3);
-      expect(
-        dependencies.every((dep) => dep instanceof RequestDependency),
-      ).toBe(true);
-      expect(new Set(dependencies).size).toBe(3);
     } finally {
       await app.close();
     }

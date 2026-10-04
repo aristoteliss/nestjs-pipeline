@@ -2,7 +2,7 @@
 
 import { generateKeyPairSync } from 'node:crypto';
 import { setTenantResolver } from '@cqrs-ddd/core/application';
-import { currentTenantId } from '@nestjs-pipeline/tenant';
+import { currentTenantId } from '@cqrs-ddd/pipeline-tenant';
 import { exportSPKI, SignJWT } from 'jose';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 

@@ -1,6 +1,6 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import type { Capability } from '@nestjs-pipeline/casl';
+import type { Capability } from '@cqrs-ddd/pipeline-casl';
 
 /** Explicit principal classification. Authorization must never infer this from the id format. */
 export type PrincipalType = 'user' | 'service';

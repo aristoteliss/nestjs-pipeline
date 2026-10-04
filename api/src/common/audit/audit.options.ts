@@ -1,7 +1,10 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { getSessionPrincipal } from '@common/context/session-principal.store.js';
-import type { AuditActor, AuditBehaviorOptions } from '@nestjs-pipeline/audit';
+import type {
+  AuditActor,
+  AuditBehaviorOptions,
+} from '@cqrs-ddd/pipeline-audit';
 
 /**
  * Actor recorded when no authenticated principal is in scope.

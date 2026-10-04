@@ -4,20 +4,21 @@ import {
   APP_SUBJECTS,
   AUDIT_ACTIONS,
 } from '@common/constants/index.js';
-import {
-  CommandBaseHandler,
-  IWriteSideAggregateRepository,
-} from '@cqrs-ddd/core/application';
+import { IWriteSideAggregateRepository } from '@cqrs-ddd/core/application';
 import {
   EntityNotFoundException,
   isTransientOperationError,
 } from '@cqrs-ddd/core/domain';
+import { type IPipelineContext, UsePipeline } from '@cqrs-ddd/pipeline';
+import { AUDIT_SEVERITY, audit } from '@cqrs-ddd/pipeline-audit';
+import { CaslAuthorizer, requires } from '@cqrs-ddd/pipeline-casl';
+import { resilience } from '@cqrs-ddd/pipeline-resilience';
 import { Inject } from '@nestjs/common';
-import { CommandHandler, EventBus } from '@nestjs/cqrs';
-import { AUDIT_SEVERITY, audit } from '@nestjs-pipeline/audit';
-import { CaslAuthorizer, requires } from '@nestjs-pipeline/casl';
-import { type IPipelineContext, UsePipeline } from '@nestjs-pipeline/core';
-import { resilience } from '@nestjs-pipeline/resilience';
+import {
+  CommandHandler,
+  EventPublisher,
+  type ICommandHandler,
+} from '@nestjs/cqrs';
 import type { User } from '../../../domain/models/user.entity.js';
 import { COMMAND_REPOSITORY } from '../../../persistence/repository.tokens.js';
 import { DeleteUserCommand } from './delete-user.command.js';
@@ -46,20 +47,17 @@ import { DeleteUserCommand } from './delete-user.command.js';
     },
   }),
 )
-export class DeleteUserHandler extends CommandBaseHandler<
-  DeleteUserCommand,
-  User
-> {
+export class DeleteUserHandler
+  implements ICommandHandler<DeleteUserCommand, User>
+{
   constructor(
     @Inject(COMMAND_REPOSITORY.deleteUser)
     private readonly commandRepository: IWriteSideAggregateRepository<User>,
     private readonly authorizer: CaslAuthorizer,
-    protected readonly eventBus: EventBus,
-  ) {
-    super(eventBus);
-  }
+    private readonly publisher: EventPublisher,
+  ) {}
 
-  async handle(command: DeleteUserCommand): Promise<User> {
+  async execute(command: DeleteUserCommand): Promise<User> {
     const user = await this.commandRepository.findById(command.id);
     if (!user) {
       throw new EntityNotFoundException('User', command.id);
@@ -67,6 +65,7 @@ export class DeleteUserHandler extends CommandBaseHandler<
     this.authorizer.authorize('delete', user);
     user.delete();
     await this.commandRepository.save(user);
+    await this.publisher.mergeObjectContext(user).commit();
     return user;
   }
 }

@@ -1,8 +1,8 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import { CACHE_TOKEN } from '@cqrs-ddd/core/persistence';
 import { MikroOrmCache } from '@cqrs-ddd/mikro-orm';
 import { Global, Module } from '@nestjs/common';
+import { CACHE } from '@persistence/cache/cache.token.js';
 import { mikroOrmCacheLogger } from './cache/cache-loggers.js';
 import { TenantSchemaMiddleware } from './middlewares/tenant-schema.middleware.js';
 import { MIKRO_ORM_CLIENT, MikroOrmStore } from './mikro-orm.store.js';
@@ -28,7 +28,7 @@ import { TenantSchemaContext } from './tenant-schema.context.js';
       useExisting: MikroOrmStore,
     },
     {
-      provide: CACHE_TOKEN,
+      provide: CACHE,
       useFactory: (store: MikroOrmStore) =>
         new MikroOrmCache(store, { logger: mikroOrmCacheLogger }),
       inject: [MIKRO_ORM_CLIENT],
@@ -36,7 +36,7 @@ import { TenantSchemaContext } from './tenant-schema.context.js';
   ],
   exports: [
     MIKRO_ORM_CLIENT,
-    CACHE_TOKEN,
+    CACHE,
     TenantSchemaContext,
     TenantSchemaMiddleware,
   ],

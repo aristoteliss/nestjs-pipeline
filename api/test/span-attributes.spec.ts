@@ -2,6 +2,17 @@
 
 import { DEAD_LETTER_DEFAULTS } from '@common/dead-letter/dead-letter.options.js';
 import { ObservabilityModule } from '@common/modules/index.js';
+import { UsePipeline } from '@cqrs-ddd/pipeline';
+import {
+  DeadLetterBehavior,
+  type DeadLetterRecord,
+} from '@cqrs-ddd/pipeline-deadletter';
+import {
+  createFeatureFlagClient,
+  FeatureFlagBehavior,
+  featureFlag,
+  releaseFeatureFlagProvider,
+} from '@cqrs-ddd/pipeline-feature-flags';
 import type { INestApplication } from '@nestjs/common';
 import {
   CommandBus,
@@ -10,15 +21,6 @@ import {
   type ICommandHandler,
 } from '@nestjs/cqrs';
 import { Test } from '@nestjs/testing';
-import { UsePipeline } from '@nestjs-pipeline/core';
-import {
-  DeadLetterModule,
-  type DeadLetterRecord,
-} from '@nestjs-pipeline/deadletter';
-import {
-  FeatureFlagsModule,
-  featureFlag,
-} from '@nestjs-pipeline/feature-flags';
 import { TypedInMemoryProvider } from '@openfeature/server-sdk';
 import { trace } from '@opentelemetry/api';
 import { tracing } from '@opentelemetry/sdk-node';
@@ -36,6 +38,16 @@ class ProbeHandler implements ICommandHandler<ProbeCommand> {
     return 'done';
   }
 }
+
+const FEATURE_FLAGS = {
+  provider: new TypedInMemoryProvider({
+    probe: {
+      disabled: false,
+      variants: { on: true, off: false },
+      defaultVariant: 'on',
+    },
+  }),
+};
 
 describe('ObservabilityModule span attributes', () => {
   const exporter = new tracing.InMemorySpanExporter();
@@ -58,28 +70,28 @@ describe('ObservabilityModule span attributes', () => {
       }),
     );
     const moduleRef = await Test.createTestingModule({
-      imports: [
-        CqrsModule.forRoot(),
-        ObservabilityModule,
-        DeadLetterModule.forRoot({
-          transport: {
-            send: async (record) => {
-              records.push(record);
+      imports: [CqrsModule.forRoot(), ObservabilityModule],
+      providers: [
+        ProbeHandler,
+        {
+          provide: DeadLetterBehavior,
+          useValue: new DeadLetterBehavior(
+            {
+              send: async (record: DeadLetterRecord) => {
+                records.push(record);
+              },
             },
-          },
-          defaults: DEAD_LETTER_DEFAULTS,
-        }),
-        FeatureFlagsModule.forRoot({
-          provider: new TypedInMemoryProvider({
-            probe: {
-              disabled: false,
-              variants: { on: true, off: false },
-              defaultVariant: 'on',
-            },
-          }),
-        }),
+            DEAD_LETTER_DEFAULTS,
+          ),
+        },
+        {
+          provide: FeatureFlagBehavior,
+          useFactory: async () =>
+            new FeatureFlagBehavior(
+              await createFeatureFlagClient(FEATURE_FLAGS),
+            ),
+        },
       ],
-      providers: [ProbeHandler],
     }).compile();
     app = moduleRef.createNestApplication({ logger: false });
     await app.init();
@@ -88,6 +100,7 @@ describe('ObservabilityModule span attributes', () => {
 
   afterAll(async () => {
     await app.close();
+    await releaseFeatureFlagProvider(FEATURE_FLAGS);
     trace.disable();
   });
 

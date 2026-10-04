@@ -4,26 +4,27 @@ import {
   APP_SUBJECTS,
   AUDIT_ACTIONS,
 } from '@common/constants/index.js';
-import {
-  CommandBaseHandler,
-  IWriteSideAggregateRepository,
-} from '@cqrs-ddd/core/application';
+import { IWriteSideAggregateRepository } from '@cqrs-ddd/core/application';
 import { EntityNotFoundException } from '@cqrs-ddd/core/domain';
-import { Inject, Scope } from '@nestjs/common';
-import { CommandHandler, EventBus } from '@nestjs/cqrs';
-import { AUDIT_SEVERITY, audit } from '@nestjs-pipeline/audit';
-import { CaslAuthorizer, requires } from '@nestjs-pipeline/casl';
 import {
   type IPipelineContext,
   logging,
   UsePipeline,
-} from '@nestjs-pipeline/core';
+} from '@cqrs-ddd/pipeline';
+import { AUDIT_SEVERITY, audit } from '@cqrs-ddd/pipeline-audit';
+import { CaslAuthorizer, requires } from '@cqrs-ddd/pipeline-casl';
+import { Inject } from '@nestjs/common';
+import {
+  CommandHandler,
+  EventPublisher,
+  type ICommandHandler,
+} from '@nestjs/cqrs';
 import { UniqueRoleNameException } from '../../../domain/models/errors/role-name.exception.js';
 import type { Role } from '../../../domain/models/role.entity.js';
 import { COMMAND_REPOSITORY } from '../../../persistence/repository.tokens.js';
 import { UpdateRoleCommand } from './update-role.command.js';
 
-@CommandHandler(UpdateRoleCommand, { scope: Scope.REQUEST })
+@CommandHandler(UpdateRoleCommand)
 @UsePipeline(
   logging({
     mapLogLevel: new Map([[UniqueRoleNameException, 'warn']]),
@@ -38,20 +39,17 @@ import { UpdateRoleCommand } from './update-role.command.js';
     },
   }),
 )
-export class UpdateRoleHandler extends CommandBaseHandler<
-  UpdateRoleCommand,
-  Role
-> {
+export class UpdateRoleHandler
+  implements ICommandHandler<UpdateRoleCommand, Role>
+{
   constructor(
     @Inject(COMMAND_REPOSITORY.updateRole)
     private readonly commandRepository: IWriteSideAggregateRepository<Role>,
     private readonly authorizer: CaslAuthorizer,
-    protected readonly eventBus: EventBus,
-  ) {
-    super(eventBus);
-  }
+    private readonly publisher: EventPublisher,
+  ) {}
 
-  async handle(command: UpdateRoleCommand): Promise<Role> {
+  async execute(command: UpdateRoleCommand): Promise<Role> {
     const role = await this.commandRepository.findById(command.id);
     if (!role) {
       throw new EntityNotFoundException('Role', command.id);
@@ -63,6 +61,7 @@ export class UpdateRoleHandler extends CommandBaseHandler<
     );
     role.rename(command.name);
     await this.commandRepository.save(role);
+    await this.publisher.mergeObjectContext(role).commit();
     return role;
   }
 }

@@ -5,30 +5,27 @@ import { AUDIT_MODULE_DEFAULTS } from '@common/audit/audit.options.js';
 import { HEADERS } from '@common/constants/headers.constants.js';
 import { contextSources } from '@common/context/context-sources.js';
 import { HttpRouteInterceptor } from '@common/interceptors/http-route.interceptor.js';
+import { PipelineModule } from '@common/pipeline/pipeline.module.js';
 import { setTenantResolver } from '@cqrs-ddd/core/application';
-import { Module } from '@nestjs/common';
-import { APP_INTERCEPTOR } from '@nestjs/core';
-import { AuditModule } from '@nestjs-pipeline/audit';
-import { buildCacheAttributes } from '@nestjs-pipeline/cache';
-import {
-  LOGGING_BEHAVIOR_LOGGER,
-  logging,
-  PipelineModule,
-} from '@nestjs-pipeline/core';
+import { LoggingBehavior, logging } from '@cqrs-ddd/pipeline';
+import { AuditBehavior, LogAuditSink } from '@cqrs-ddd/pipeline-audit';
+import { buildCacheAttributes } from '@cqrs-ddd/pipeline-cache';
 import {
   buildDeadLetterAttributes,
   DeadLetterBehavior,
-} from '@nestjs-pipeline/deadletter';
-import { buildFeatureFlagAttributes } from '@nestjs-pipeline/feature-flags';
-import { buildIdempotencyAttributes } from '@nestjs-pipeline/idempotency';
+} from '@cqrs-ddd/pipeline-deadletter';
+import { buildFeatureFlagAttributes } from '@cqrs-ddd/pipeline-feature-flags';
+import { buildIdempotencyAttributes } from '@cqrs-ddd/pipeline-idempotency';
 import {
   AttributesBehavior,
   MetricsBehavior,
   TraceBehavior,
-} from '@nestjs-pipeline/opentelemetry';
-import { buildRateLimitAttributes } from '@nestjs-pipeline/rate-limit';
-import { currentTenantId } from '@nestjs-pipeline/tenant';
-import { ZodValidationBehavior } from '@nestjs-pipeline/zod';
+} from '@cqrs-ddd/pipeline-opentelemetry';
+import { buildRateLimitAttributes } from '@cqrs-ddd/pipeline-rate-limit';
+import { currentTenantId } from '@cqrs-ddd/pipeline-tenant';
+import { ZodValidationBehavior } from '@cqrs-ddd/pipeline-zod';
+import { Logger, Module } from '@nestjs/common';
+import { APP_INTERCEPTOR } from '@nestjs/core';
 import { LoggerModule, NativeLogger } from 'nestjs-pino';
 
 /** Credential headers redacted from structured HTTP logs. */
@@ -43,13 +40,16 @@ const HTTP_LOG_REDACT_PATHS = [
 
 /**
  * Configures structured HTTP logging, correlation propagation, tracing, metrics,
- * request validation and operational audit recording. Global pipeline ordering
- * keeps telemetry around handler-local behaviors so their outcomes reach the span.
+ * request validation and operational audit recording. It places the global
+ * behaviors of every handler's pipeline, and provides the logging, telemetry,
+ * validation and audit behaviors under their behavior classes. Global pipeline
+ * ordering keeps telemetry around handler-local behaviors so their outcomes
+ * reach the span.
  *
  * HTTP server spans carry the matched route (`HttpRouteInterceptor`).
  *
  * HTTP credentials are redacted through `HTTP_LOG_REDACT_PATHS`. Auditing uses
- * the default console sink with `failOpen: true`; durable audit requirements need
+ * a log sink on the Nest logger with `failOpen: true`; durable audit requirements need
  * a persistent sink and an explicit failure policy.
  *
  * It also makes the pipeline's tenant the tenant of `@cqrs-ddd/core`'s
@@ -90,10 +90,6 @@ const HTTP_LOG_REDACT_PATHS = [
     }),
     PipelineModule.forRoot({
       sources: contextSources,
-      loggerProvider: {
-        provide: LOGGING_BEHAVIOR_LOGGER,
-        useExisting: NativeLogger,
-      },
       globalBehaviors: [
         {
           scope: 'all',
@@ -126,12 +122,34 @@ const HTTP_LOG_REDACT_PATHS = [
         },
       ],
     }),
-    AuditModule.forRoot({
-      defaults: AUDIT_MODULE_DEFAULTS,
-    }),
   ],
-  providers: [{ provide: APP_INTERCEPTOR, useClass: HttpRouteInterceptor }],
-  exports: [LoggerModule, PipelineModule, AuditModule],
+  providers: [
+    { provide: APP_INTERCEPTOR, useClass: HttpRouteInterceptor },
+    {
+      provide: LoggingBehavior,
+      inject: [NativeLogger],
+      useFactory: (logger: NativeLogger) => new LoggingBehavior(logger),
+    },
+    TraceBehavior,
+    {
+      provide: MetricsBehavior,
+      useFactory: () => new MetricsBehavior(new Logger(MetricsBehavior.name)),
+    },
+    AttributesBehavior,
+    ZodValidationBehavior,
+    {
+      provide: AuditBehavior,
+      useFactory: () => {
+        const logger = new Logger(AuditBehavior.name);
+        return new AuditBehavior(
+          new LogAuditSink({ logger }),
+          AUDIT_MODULE_DEFAULTS,
+          logger,
+        );
+      },
+    },
+  ],
+  exports: [LoggerModule],
 })
 export class ObservabilityModule {
   constructor() {

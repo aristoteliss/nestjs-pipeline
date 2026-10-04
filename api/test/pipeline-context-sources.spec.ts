@@ -1,27 +1,27 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import { Injectable } from '@nestjs/common';
-import { CommandBus, CommandHandler, CqrsModule } from '@nestjs/cqrs';
-import { Test } from '@nestjs/testing';
 import {
   type IPipelineBehavior,
   type IPipelineContext,
   type NextDelegate,
-  PipelineModule,
   pipelineStore,
   UsePipeline,
-} from '@nestjs-pipeline/core';
+} from '@cqrs-ddd/pipeline';
 import {
   correlationSource,
   getCorrelationId,
   runWithCorrelationId,
-} from '@nestjs-pipeline/correlation';
+} from '@cqrs-ddd/pipeline-correlation';
 import {
   currentTenantId,
   runWithTenant,
   tenantSource,
-} from '@nestjs-pipeline/tenant';
+} from '@cqrs-ddd/pipeline-tenant';
+import { Injectable } from '@nestjs/common';
+import { CommandBus, CommandHandler, CqrsModule } from '@nestjs/cqrs';
+import { Test } from '@nestjs/testing';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { PipelineModule } from '../src/common/pipeline/pipeline.module.js';
 
 @Injectable()
 class PassBehavior implements IPipelineBehavior {
@@ -87,12 +87,10 @@ describe('pipeline context from the tenant and correlation sources', () => {
       imports: [
         CqrsModule.forRoot(),
         PipelineModule.forRoot({
-          behaviors: [PassBehavior],
-          bootstrapLogLevel: 'none',
           sources: { tenantId: tenantSource, correlationId: correlationSource },
         }),
       ],
-      providers: [InnerHandler, OuterHandler],
+      providers: [InnerHandler, OuterHandler, PassBehavior],
     }).compile();
     const app = await module.createNestApplication().init();
     commands = app.get(CommandBus);

@@ -2,7 +2,7 @@
 
 import { getSessionPrincipal } from '@common/context/session-principal.store.js';
 import type { SessionPrincipal } from '@common/types/session-principal.js';
-import type { Capability } from '@nestjs-pipeline/casl';
+import type { Capability } from '@cqrs-ddd/pipeline-casl';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { User } from '../../users/domain/models/user.entity.js';
 import { CaslPermissionSource } from './casl-permission.source.js';

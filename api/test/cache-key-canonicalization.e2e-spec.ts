@@ -1,6 +1,8 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
+
 import type { ICache } from '@cqrs-ddd/core/application';
-import { CACHE_TOKEN, cacheKey } from '@cqrs-ddd/core/persistence';
+import { cacheKey } from '@cqrs-ddd/core/persistence';
+import { CACHE } from '@persistence/cache/cache.token.js';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { bootstrapE2E, type E2EContext, inTenant } from './support/e2e-app.js';
 
@@ -11,7 +13,7 @@ describe('canonical repository cache keys (e2e)', () => {
 
   beforeAll(async () => {
     ctx = await bootstrapE2E();
-    cache = ctx.app.get<ICache<{ marker: string }>>(CACHE_TOKEN);
+    cache = ctx.app.get<ICache<{ marker: string }>>(CACHE);
   });
 
   afterAll(async () => {

@@ -1,15 +1,15 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { MemoryCache } from '@cqrs-ddd/core/persistence';
+import { type IPipelineContext, pipelineStore } from '@cqrs-ddd/pipeline';
 import {
   buildAbility,
   CASL_ABILITY_KEY,
   type CapabilityString,
   CaslAuthorizer,
   UnauthorizedActionException,
-} from '@nestjs-pipeline/casl';
-import { type IPipelineContext, pipelineStore } from '@nestjs-pipeline/core';
-import { runWithTenant } from '@nestjs-pipeline/tenant';
+} from '@cqrs-ddd/pipeline-casl';
+import { runWithTenant } from '@cqrs-ddd/pipeline-tenant';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { GetRoleHandler } from '../src/roles/application/cqrs/queries/get-role.handler.js';
 import { GetRoleQuery } from '../src/roles/application/cqrs/queries/get-role.query.js';

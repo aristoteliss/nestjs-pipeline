@@ -1,7 +1,10 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
+import {
+  type Capability,
+  parseCapabilityString,
+} from '@cqrs-ddd/pipeline-casl';
 import { Logger } from '@nestjs/common';
-import { type Capability, parseCapabilityString } from '@nestjs-pipeline/casl';
 
 export interface ApiClient {
   readonly key: string;

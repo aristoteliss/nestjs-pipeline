@@ -1,20 +1,17 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
-import {
-  type INestApplicationContext,
-  Injectable,
-  Scope,
-} from '@nestjs/common';
-import { NestFactory } from '@nestjs/core';
-import { CommandBus, CommandHandler, CqrsModule } from '@nestjs/cqrs';
+
 import {
   type IPipelineBehavior,
   type IPipelineContext,
   type NextDelegate,
-  PipelineModule,
   pipelineStore,
   SkipPipeline,
-} from '@nestjs-pipeline/core';
+} from '@cqrs-ddd/pipeline';
+import { type INestApplicationContext, Injectable } from '@nestjs/common';
+import { NestFactory } from '@nestjs/core';
+import { CommandBus, CommandHandler, CqrsModule } from '@nestjs/cqrs';
 import { describe, expect, it } from 'vitest';
+import { PipelineModule } from '../src/common/pipeline/pipeline.module.js';
 
 class IsolatedCommand {}
 
@@ -32,7 +29,7 @@ class MarkerBehavior implements IPipelineBehavior {
   }
 }
 
-@CommandHandler(IsolatedCommand, { scope: Scope.REQUEST })
+@CommandHandler(IsolatedCommand)
 @SkipPipeline(SkippedBehavior)
 class SharedHandler {
   async execute() {
@@ -54,7 +51,7 @@ async function start(marked: boolean) {
           },
         }),
       ],
-      providers: [SharedHandler],
+      providers: [SharedHandler, SkippedBehavior, MarkerBehavior],
     },
     { logger: false, abortOnError: false },
   );
@@ -75,13 +72,13 @@ describe('SkipPipeline application isolation', () => {
     [false, true],
     [false, false],
   ])(
-    'isolates scoped handlers (marked boots first: %s, marked closes first: %s)',
+    'isolates the handlers of one class across applications (marked boots first: %s, marked closes first: %s)',
     async (markedFirst, closeMarkedFirst) => {
       const first = await start(markedFirst);
       let second: INestApplicationContext | undefined;
       let closed: INestApplicationContext | undefined;
       try {
-        // Resolve an instance before the other application patches the shared prototype.
+        // Dispatch in the first application before the second one wraps its own instance.
         expect(await execute(first)).toEqual(
           markedFirst ? markedResult : skippedResult,
         );

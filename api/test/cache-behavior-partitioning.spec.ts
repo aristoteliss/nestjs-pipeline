@@ -8,6 +8,19 @@
  */
 
 import { contextSources } from '@common/context/context-sources.js';
+import {
+  type IPipelineBehavior,
+  type IPipelineContext,
+  type NextDelegate,
+  UsePipeline,
+} from '@cqrs-ddd/pipeline';
+import {
+  buildCache,
+  CacheBehavior,
+  createPartitionedCacheKeyFactory,
+  MissingCachePartitionError,
+} from '@cqrs-ddd/pipeline-cache';
+import { runWithTenant } from '@cqrs-ddd/pipeline-tenant';
 import { type INestApplication, Injectable } from '@nestjs/common';
 import {
   CqrsModule,
@@ -16,21 +29,8 @@ import {
   QueryHandler,
 } from '@nestjs/cqrs';
 import { Test } from '@nestjs/testing';
-import {
-  CacheBehavior,
-  CacheModule,
-  createPartitionedCacheKeyFactory,
-  MissingCachePartitionError,
-} from '@nestjs-pipeline/cache';
-import {
-  type IPipelineBehavior,
-  type IPipelineContext,
-  type NextDelegate,
-  PipelineModule,
-  UsePipeline,
-} from '@nestjs-pipeline/core';
-import { runWithTenant } from '@nestjs-pipeline/tenant';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { PipelineModule } from '../src/common/pipeline/pipeline.module.js';
 
 /** Stands in for whatever an authentication behavior resolves per request. */
 let currentPrincipal: string | undefined = 'alice';
@@ -74,20 +74,24 @@ describe('CacheBehavior partitioning in a real pipeline', () => {
     currentTenant = 'tenant-a';
     GetReportHandler.executions = 0;
 
-    // The module is composed per test on purpose. `CacheModule.forRoot()` builds
-    // its Keyv store when the metadata is evaluated, so a statically decorated
-    // module would share one store across every test in the file and turn the
-    // first lookup of each later test into a hit.
+    // The module is composed per test on purpose, so each test gets a new cache
+    // store; one shared store would turn the first lookup of each later test
+    // into a hit.
     const moduleRef = await Test.createTestingModule({
       imports: [
         CqrsModule.forRoot(),
-        CacheModule.forRoot({ store: { type: 'memory' }, ttl: 60_000 }),
-        PipelineModule.forRoot({
-          behaviors: [PrincipalBehavior, CacheBehavior],
-          sources: contextSources,
-        }),
+        PipelineModule.forRoot({ sources: contextSources }),
       ],
-      providers: [GetReportHandler],
+      providers: [
+        GetReportHandler,
+        PrincipalBehavior,
+        {
+          provide: CacheBehavior,
+          useValue: new CacheBehavior(
+            buildCache({ store: { type: 'memory' }, ttl: 60_000 }),
+          ),
+        },
+      ],
     }).compile();
 
     app = moduleRef.createNestApplication();

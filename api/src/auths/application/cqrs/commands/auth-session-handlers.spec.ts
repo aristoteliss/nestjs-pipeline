@@ -3,8 +3,8 @@
 import type { IQueryRepository } from '@cqrs-ddd/core/application';
 import { setTenantResolver } from '@cqrs-ddd/core/application';
 import { ConcurrencyConflictError } from '@cqrs-ddd/core/domain';
-import type { EventBus } from '@nestjs/cqrs';
-import { currentTenantId } from '@nestjs-pipeline/tenant';
+import { currentTenantId } from '@cqrs-ddd/pipeline-tenant';
+import { type EventBus, EventPublisher } from '@nestjs/cqrs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { User } from '../../../../users/domain/models/user.entity.js';
 import {
@@ -128,7 +128,7 @@ function setup() {
     store.repository as never,
     tokens,
     cookies,
-    { publishAll } as unknown as EventBus,
+    new EventPublisher({ publishAll } as unknown as EventBus),
   );
   const sign = vi.spyOn(service, 'sign');
   const refresh = (refreshToken: string) =>
@@ -155,10 +155,10 @@ function logoutHandler(store: SessionStore, publishAll = vi.fn()) {
     store.repository as never,
     tokens,
     cookies,
-    { publishAll } as unknown as EventBus,
+    new EventPublisher({ publishAll } as unknown as EventBus),
   );
   const handler = new RevokeAuthHandler(
-    { publishAll } as unknown as EventBus,
+    new EventPublisher({ publishAll } as unknown as EventBus),
     store.byTokenHash,
     tokens,
     cookies,
@@ -352,11 +352,16 @@ describe('PrincipalLoginService refresh', () => {
     expect(publishAll).toHaveBeenCalledExactlyOnceWith(
       [expect.any(AuthRefreshedEvent)],
       expect.any(Auth),
+      undefined,
     );
     publishAll.mockClear();
 
     await refresh('token-a');
-    expect(publishAll).not.toHaveBeenCalled();
+    expect(publishAll).toHaveBeenCalledExactlyOnceWith(
+      [],
+      expect.any(Auth),
+      undefined,
+    );
   });
 
   it("rejects the refresh with an asynchronous publisher's error, after handing over the events", async () => {
@@ -369,6 +374,7 @@ describe('PrincipalLoginService refresh', () => {
     expect(publishAll).toHaveBeenCalledExactlyOnceWith(
       [expect.any(AuthRefreshedEvent)],
       expect.any(Auth),
+      undefined,
     );
     expect(store.current(auth.id).revokedAt).toBeNull();
   });
@@ -474,6 +480,7 @@ describe('RevokeAuthHandler', () => {
     expect(publishAll).toHaveBeenCalledExactlyOnceWith(
       [expect.any(AuthRevokedEvent)],
       expect.objectContaining({ id: auth.id }),
+      undefined,
     );
     expect(cookies.clear).toHaveBeenCalledOnce();
   });

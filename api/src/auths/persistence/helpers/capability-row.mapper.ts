@@ -1,6 +1,6 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import type { Capability } from '@nestjs-pipeline/casl';
+import type { Capability } from '@cqrs-ddd/pipeline-casl';
 
 /** Maps a stored capability row (JSON conditions, comma-separated fields) to a rule. */
 export function capabilityFromRow(row: {

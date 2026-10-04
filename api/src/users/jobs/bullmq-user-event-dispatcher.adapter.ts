@@ -1,8 +1,8 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
+import { withJobContext } from '@cqrs-ddd/pipeline-job-context';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Injectable } from '@nestjs/common';
-import { withJobContext } from '@nestjs-pipeline/job-context';
 import type { Queue } from 'bullmq';
 import type {
   IUserBatchDispatcher,

@@ -1,7 +1,7 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { MissingTenantContextError } from '@cqrs-ddd/core/domain';
-import { currentTenantId, runWithTenant } from '@nestjs-pipeline/tenant';
+import { currentTenantId, runWithTenant } from '@cqrs-ddd/pipeline-tenant';
 import { describe, expect, it } from 'vitest';
 import { TenantSchemaContext } from './tenant-schema.context.js';
 import { InvalidTenantSchemaError } from './tenant-schema.errors.js';

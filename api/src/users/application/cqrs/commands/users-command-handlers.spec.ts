@@ -2,8 +2,8 @@
 
 import { type IWriteSideAggregateRepository } from '@cqrs-ddd/core/application';
 import { EntityNotFoundException } from '@cqrs-ddd/core/domain';
-import type { EventBus } from '@nestjs/cqrs';
-import type { CaslAuthorizer } from '@nestjs-pipeline/casl';
+import type { CaslAuthorizer } from '@cqrs-ddd/pipeline-casl';
+import { type EventBus, EventPublisher } from '@nestjs/cqrs';
 import { describe, expect, it, vi } from 'vitest';
 import { User } from '../../../domain/models/user.entity.js';
 import { DeleteUserCommand } from './delete-user.command.js';
@@ -13,7 +13,9 @@ import { UpdateUserHandler } from './update-user.handler.js';
 
 describe('Users CQRS write-side hydration', () => {
   const authorizer = { authorize: vi.fn() } as unknown as CaslAuthorizer;
-  const eventBus = { publishAll: vi.fn() } as unknown as EventBus;
+  const publisher = new EventPublisher({
+    publishAll: vi.fn(),
+  } as unknown as EventBus);
 
   it('UpdateUserHandler hydrates from the command repository, not a read-side cache', async () => {
     const existing = User.create('Alice', 'alice@example.test', 'Engineering');
@@ -22,7 +24,7 @@ describe('Users CQRS write-side hydration', () => {
       findById: vi.fn().mockResolvedValue(existing),
       save: vi.fn().mockResolvedValue(existing.toJSON()),
     } as unknown as IWriteSideAggregateRepository<User>;
-    const handler = new UpdateUserHandler(repository, authorizer, eventBus);
+    const handler = new UpdateUserHandler(repository, authorizer, publisher);
 
     const result = await handler.execute(
       new UpdateUserCommand({ id: existing.id, username: 'Alicia' }),
@@ -38,7 +40,7 @@ describe('Users CQRS write-side hydration', () => {
       findById: vi.fn().mockResolvedValue(null),
       save: vi.fn(),
     } as unknown as IWriteSideAggregateRepository<User>;
-    const handler = new UpdateUserHandler(repository, authorizer, eventBus);
+    const handler = new UpdateUserHandler(repository, authorizer, publisher);
 
     await expect(
       handler.execute(
@@ -58,7 +60,7 @@ describe('Users CQRS write-side hydration', () => {
       findById: vi.fn().mockResolvedValue(existing),
       save: vi.fn().mockResolvedValue(null),
     } as unknown as IWriteSideAggregateRepository<User>;
-    const handler = new DeleteUserHandler(repository, authorizer, eventBus);
+    const handler = new DeleteUserHandler(repository, authorizer, publisher);
 
     const result = await handler.execute(
       new DeleteUserCommand({ id: existing.id }),

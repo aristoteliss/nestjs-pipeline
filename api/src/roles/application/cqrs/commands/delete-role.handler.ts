@@ -4,20 +4,21 @@ import {
   APP_SUBJECTS,
   AUDIT_ACTIONS,
 } from '@common/constants/index.js';
-import {
-  CommandBaseHandler,
-  IWriteSideAggregateRepository,
-} from '@cqrs-ddd/core/application';
+import { IWriteSideAggregateRepository } from '@cqrs-ddd/core/application';
 import {
   EntityNotFoundException,
   isTransientOperationError,
 } from '@cqrs-ddd/core/domain';
+import { type IPipelineContext, UsePipeline } from '@cqrs-ddd/pipeline';
+import { AUDIT_SEVERITY, audit } from '@cqrs-ddd/pipeline-audit';
+import { CaslAuthorizer, requires } from '@cqrs-ddd/pipeline-casl';
+import { resilience } from '@cqrs-ddd/pipeline-resilience';
 import { Inject } from '@nestjs/common';
-import { CommandHandler, EventBus } from '@nestjs/cqrs';
-import { AUDIT_SEVERITY, audit } from '@nestjs-pipeline/audit';
-import { CaslAuthorizer, requires } from '@nestjs-pipeline/casl';
-import { type IPipelineContext, UsePipeline } from '@nestjs-pipeline/core';
-import { resilience } from '@nestjs-pipeline/resilience';
+import {
+  CommandHandler,
+  EventPublisher,
+  type ICommandHandler,
+} from '@nestjs/cqrs';
 import type { Role } from '../../../domain/models/role.entity.js';
 import { COMMAND_REPOSITORY } from '../../../persistence/repository.tokens.js';
 import { DeleteRoleCommand } from './delete-role.command.js';
@@ -46,20 +47,17 @@ import { DeleteRoleCommand } from './delete-role.command.js';
     },
   }),
 )
-export class DeleteRoleHandler extends CommandBaseHandler<
-  DeleteRoleCommand,
-  Role
-> {
+export class DeleteRoleHandler
+  implements ICommandHandler<DeleteRoleCommand, Role>
+{
   constructor(
     @Inject(COMMAND_REPOSITORY.deleteRole)
     private readonly commandRepository: IWriteSideAggregateRepository<Role>,
     private readonly authorizer: CaslAuthorizer,
-    protected readonly eventBus: EventBus,
-  ) {
-    super(eventBus);
-  }
+    private readonly publisher: EventPublisher,
+  ) {}
 
-  async handle(command: DeleteRoleCommand): Promise<Role> {
+  async execute(command: DeleteRoleCommand): Promise<Role> {
     const role = await this.commandRepository.findById(command.id);
     if (!role) {
       throw new EntityNotFoundException('Role', command.id);
@@ -67,6 +65,7 @@ export class DeleteRoleHandler extends CommandBaseHandler<
     this.authorizer.authorize('delete', role);
     role.delete();
     await this.commandRepository.save(role);
+    await this.publisher.mergeObjectContext(role).commit();
     return role;
   }
 }

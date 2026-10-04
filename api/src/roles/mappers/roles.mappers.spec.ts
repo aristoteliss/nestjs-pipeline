@@ -1,6 +1,6 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import { BadRequestException } from '@nestjs/common';
+import { ZodValidationError } from '@cqrs-ddd/pipeline-zod';
 import { describe, expect, it } from 'vitest';
 import { CreateRoleCommand } from '../application/cqrs/commands/create-role.command.js';
 import { UpdateRoleCommand } from '../application/cqrs/commands/update-role.command.js';
@@ -17,9 +17,9 @@ describe('Roles Mappers', () => {
       expect(cmd.name).toBe('admin');
     });
 
-    it('throws BadRequestException for empty or invalid name', () => {
+    it('throws ZodValidationError for empty or invalid name', () => {
       expect(() => CreateRoleMapper.map({ name: '' } as any)).toThrow(
-        BadRequestException,
+        ZodValidationError,
       );
     });
   });
@@ -35,15 +35,15 @@ describe('Roles Mappers', () => {
       expect(cmd.name).toBe('superadmin');
     });
 
-    it('throws BadRequestException for invalid id format', () => {
+    it('throws ZodValidationError for invalid id format', () => {
       expect(() =>
         UpdateRoleMapper.map('invalid-id', { name: 'superadmin' }),
-      ).toThrow(BadRequestException);
+      ).toThrow(ZodValidationError);
     });
 
-    it('throws BadRequestException for invalid role name', () => {
+    it('throws ZodValidationError for invalid role name', () => {
       expect(() => UpdateRoleMapper.map(validId, { name: '' } as any)).toThrow(
-        BadRequestException,
+        ZodValidationError,
       );
     });
   });

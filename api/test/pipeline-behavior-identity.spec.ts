@@ -2,29 +2,30 @@
 
 /**
  * Bootstrap contracts exercised against a real Nest application. These live
- * here rather than in `@nestjs-pipeline/core` because a published package must
+ * here rather than in `@cqrs-ddd/pipeline` because a published package must
  * not depend on `@nestjs/testing`.
  *
  * Behavior identity is the class, not its name: two unrelated classes that share
  * a name, one per module, are two behaviors. Merged, only one would run, with
  * the other's options, and a security guard could leave the chain unnoticed.
  *
- * Provider resolution treats only Nest's scoped-provider error as a scoping
- * problem, so an unregistered behavior fails at bootstrap, not on the first
- * request.
+ * Each behavior instance is the one provider a module registers under the
+ * behavior class: a behavior no module provides, or one two modules provide,
+ * fails at bootstrap, not on the first request, and never depends on the order
+ * modules are imported in.
  */
 
-import { Injectable } from '@nestjs/common';
-import { CommandBus, CommandHandler, CqrsModule } from '@nestjs/cqrs';
-import { Test } from '@nestjs/testing';
 import {
   type IPipelineBehavior,
   type IPipelineContext,
   type NextDelegate,
-  PipelineModule,
   UsePipeline,
-} from '@nestjs-pipeline/core';
+} from '@cqrs-ddd/pipeline';
+import { Injectable, Module } from '@nestjs/common';
+import { CommandBus, CommandHandler, CqrsModule } from '@nestjs/cqrs';
+import { Test } from '@nestjs/testing';
 import { beforeEach, describe, expect, it } from 'vitest';
+import { PipelineModule } from '../src/common/pipeline/pipeline.module.js';
 
 const order: string[] = [];
 
@@ -82,11 +83,8 @@ describe('pipeline behavior identity', () => {
     expect(FirstLogging.name).toBe(SecondLogging.name);
 
     const moduleRef = await Test.createTestingModule({
-      imports: [
-        CqrsModule.forRoot(),
-        PipelineModule.forRoot({ behaviors: [FirstLogging, SecondLogging] }),
-      ],
-      providers: [DoThingHandler],
+      imports: [CqrsModule.forRoot(), PipelineModule.forRoot()],
+      providers: [DoThingHandler, FirstLogging, SecondLogging],
     }).compile();
     const app = moduleRef.createNestApplication();
     await app.init();
@@ -111,7 +109,49 @@ describe('pipeline provider registration', () => {
     const app = moduleRef.createNestApplication();
 
     await expect(app.init()).rejects.toThrow(
-      /UnregisteredBehavior could not be resolved from the Nest container/,
+      /UnregisteredBehavior runs in the pipeline of OtherHandler, but no module provides it/,
+    );
+
+    await app.close().catch(() => undefined);
+  });
+
+  it('fails at bootstrap when two modules provide the same behavior, naming both', async () => {
+    @Injectable()
+    class GuardBehavior implements IPipelineBehavior {
+      async handle(_context: IPipelineContext, next: NextDelegate) {
+        return next();
+      }
+    }
+
+    class GuardedCommand {}
+
+    @CommandHandler(GuardedCommand)
+    @UsePipeline(GuardBehavior)
+    class GuardedHandler {
+      async execute() {
+        return 'done';
+      }
+    }
+
+    @Module({ providers: [GuardBehavior] })
+    class ObservabilityModule {}
+
+    @Module({ providers: [GuardBehavior] })
+    class ReliabilityModule {}
+
+    const moduleRef = await Test.createTestingModule({
+      imports: [
+        CqrsModule.forRoot(),
+        PipelineModule.forRoot(),
+        ObservabilityModule,
+        ReliabilityModule,
+      ],
+      providers: [GuardedHandler],
+    }).compile();
+    const app = moduleRef.createNestApplication();
+
+    await expect(app.init()).rejects.toThrow(
+      /GuardBehavior is provided by (ObservabilityModule and ReliabilityModule|ReliabilityModule and ObservabilityModule)/,
     );
 
     await app.close().catch(() => undefined);

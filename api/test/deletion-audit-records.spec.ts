@@ -3,18 +3,19 @@
 import { AUDIT_MODULE_DEFAULTS } from '@common/audit/audit.options.js';
 import { AUDIT_ACTIONS } from '@common/constants/index.js';
 import { sessionPrincipalStore } from '@common/context/session-principal.store.js';
-import { CommandBus, CqrsModule } from '@nestjs/cqrs';
-import { Test } from '@nestjs/testing';
+import { LoggingBehavior } from '@cqrs-ddd/pipeline';
 import {
   AUDIT_SEVERITY,
-  AuditModule,
+  AuditBehavior,
   type AuditRecord,
   type AuditSink,
-} from '@nestjs-pipeline/audit';
-import { CaslAuthorizer, CaslBehavior } from '@nestjs-pipeline/casl';
-import { LoggingBehavior, PipelineModule } from '@nestjs-pipeline/core';
-import { ResilienceBehavior } from '@nestjs-pipeline/resilience';
+} from '@cqrs-ddd/pipeline-audit';
+import { CaslAuthorizer, CaslBehavior } from '@cqrs-ddd/pipeline-casl';
+import { ResilienceBehavior } from '@cqrs-ddd/pipeline-resilience';
+import { CommandBus, CqrsModule } from '@nestjs/cqrs';
+import { Test } from '@nestjs/testing';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { PipelineModule } from '../src/common/pipeline/pipeline.module.js';
 import { DeleteRoleCommand } from '../src/roles/application/cqrs/commands/delete-role.command.js';
 import { DeleteRoleHandler } from '../src/roles/application/cqrs/commands/delete-role.handler.js';
 import { Role } from '../src/roles/domain/models/role.entity.js';
@@ -43,15 +44,12 @@ describe('Deletion audit records fidelity', () => {
     recorded.length = 0;
 
     const moduleRef = await Test.createTestingModule({
-      imports: [
-        CqrsModule.forRoot(),
-        AuditModule.forRoot({
-          sink,
-          defaults: AUDIT_MODULE_DEFAULTS,
-        }),
-        PipelineModule.forRoot(),
-      ],
+      imports: [CqrsModule.forRoot(), PipelineModule.forRoot()],
       providers: [
+        {
+          provide: AuditBehavior,
+          useValue: new AuditBehavior(sink, AUDIT_MODULE_DEFAULTS),
+        },
         { provide: LoggingBehavior, useValue: passThroughBehavior },
         { provide: CaslBehavior, useValue: passThroughBehavior },
         { provide: ResilienceBehavior, useValue: passThroughBehavior },

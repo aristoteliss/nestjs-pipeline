@@ -19,16 +19,13 @@ import {
   isTransientOperationError,
   TransientOperationError,
 } from '@cqrs-ddd/core/domain';
+import { pipelineOf, UsePipeline } from '@cqrs-ddd/pipeline';
+import { AuditBehavior, audit } from '@cqrs-ddd/pipeline-audit';
+import { ResilienceBehavior, resilience } from '@cqrs-ddd/pipeline-resilience';
 import { CommandBus, CommandHandler, CqrsModule } from '@nestjs/cqrs';
 import { Test } from '@nestjs/testing';
-import { AuditBehavior, AuditModule, audit } from '@nestjs-pipeline/audit';
-import {
-  PIPELINE_BEHAVIORS_METADATA,
-  PipelineModule,
-  UsePipeline,
-} from '@nestjs-pipeline/core';
-import { ResilienceBehavior, resilience } from '@nestjs-pipeline/resilience';
 import { beforeEach, describe, expect, it } from 'vitest';
+import { PipelineModule } from '../src/common/pipeline/pipeline.module.js';
 import { DeleteRoleHandler } from '../src/roles/application/cqrs/commands/delete-role.handler.js';
 import { DeleteUserHandler } from '../src/users/application/cqrs/commands/delete-user.handler.js';
 
@@ -75,14 +72,15 @@ describe('audit records per logical operation, not per retry', () => {
 
   it('writes exactly one record when the operation succeeds after retries', async () => {
     const moduleRef = await Test.createTestingModule({
-      imports: [
-        CqrsModule.forRoot(),
-        AuditModule.forRoot({ sink: recordingSink as never }),
-        PipelineModule.forRoot({
-          behaviors: [AuditBehavior, ResilienceBehavior],
-        }),
+      imports: [CqrsModule.forRoot(), PipelineModule.forRoot()],
+      providers: [
+        FlakyDeleteHandler,
+        {
+          provide: AuditBehavior,
+          useValue: new AuditBehavior(recordingSink as never),
+        },
+        { provide: ResilienceBehavior, useValue: new ResilienceBehavior() },
       ],
-      providers: [FlakyDeleteHandler],
     }).compile();
     const app = moduleRef.createNestApplication();
     await app.init();
@@ -105,8 +103,9 @@ describe('audit records per logical operation, not per retry', () => {
 describe('reference handlers declare audit outside resilience', () => {
   /** Reads the behavior order the pipeline will apply. */
   function declaredBehaviors(handler: object): string[] {
-    const behaviors: Array<{ name: string }> =
-      Reflect.getMetadata(PIPELINE_BEHAVIORS_METADATA, handler) ?? [];
+    const behaviors: Array<{ name: string }> = pipelineOf(
+      handler as never,
+    ).types;
     return behaviors.map((behavior) => behavior.name);
   }
 

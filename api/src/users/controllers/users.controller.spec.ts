@@ -1,12 +1,12 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import { NotFoundException } from '@nestjs/common';
-import type { CommandBus, QueryBus } from '@nestjs/cqrs';
 import {
   type AppAbility,
   buildAbility,
   CaslAuthorizer,
-} from '@nestjs-pipeline/casl';
+} from '@cqrs-ddd/pipeline-casl';
+import { NotFoundException } from '@nestjs/common';
+import type { CommandBus, QueryBus } from '@nestjs/cqrs';
 import { describe, expect, it, vi } from 'vitest';
 import { CreateUserCommand } from '../application/cqrs/commands/create-user.command.js';
 import { DeleteUserCommand } from '../application/cqrs/commands/delete-user.command.js';

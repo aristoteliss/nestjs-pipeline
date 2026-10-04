@@ -2,11 +2,11 @@
 
 import { getSessionPrincipal } from '@common/context/session-principal.store.js';
 import { principalSegments } from '@common/types/session-principal.js';
-import type { IPipelineContext } from '@nestjs-pipeline/core';
+import type { IPipelineContext } from '@cqrs-ddd/pipeline';
 import {
   createPartitionedIdempotencyKeyFactory,
   type IdempotencyKeyFactory,
-} from '@nestjs-pipeline/idempotency';
+} from '@cqrs-ddd/pipeline-idempotency';
 
 /**
  * Namespace version for operation keys. Bump it only deliberately: a new
@@ -30,7 +30,7 @@ const OPERATION_KEY_VERSION = 'v1';
  * principal is missing. It carries nothing about permissions — an operation key
  * that changed when permissions changed would let the same side effect run a
  * second time. Bind replay to the caller's authorization with
- * `requireAbilityDigest` of `@nestjs-pipeline/casl` instead.
+ * `requireAbilityDigest` of `@cqrs-ddd/pipeline-casl` instead.
  *
  * @example
  * ```ts

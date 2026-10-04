@@ -1,13 +1,10 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { ICache } from '@cqrs-ddd/core/application';
-import {
-  CACHE_TOKEN,
-  cacheKey,
-  PersistedWrite,
-} from '@cqrs-ddd/core/persistence';
+import { cacheKey, PersistedWrite } from '@cqrs-ddd/core/persistence';
 import { AggregateRepository, optimisticUpdate } from '@cqrs-ddd/mikro-orm';
 import { Inject, Injectable } from '@nestjs/common';
+import { CACHE } from '@persistence/cache/cache.token.js';
 import { cacheWriteLogger } from '@persistence/cache/cache-loggers.js';
 import {
   MIKRO_ORM_CLIENT,
@@ -23,7 +20,7 @@ export class UpdateRoleCommandRepository extends AggregateRepository<
   RoleSnapshot
 > {
   constructor(
-    @Inject(CACHE_TOKEN) cache: ICache<RoleSnapshot>,
+    @Inject(CACHE) cache: ICache<RoleSnapshot>,
     @Inject(MIKRO_ORM_CLIENT) store: MikroOrmStore,
   ) {
     super(cache, store, Role, Role.aggregateName, Role.fromJSON);

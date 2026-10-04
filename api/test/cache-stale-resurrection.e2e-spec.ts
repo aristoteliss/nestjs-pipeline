@@ -2,9 +2,10 @@
 
 import type { Server } from 'node:http';
 import { type ICache } from '@cqrs-ddd/core/application';
-import { CACHE_TOKEN, cacheKey } from '@cqrs-ddd/core/persistence';
+import { cacheKey } from '@cqrs-ddd/core/persistence';
 import { uuidv7 } from '@cqrs-ddd/uuidv7';
 import { EntityManager } from '@mikro-orm/core';
+import { CACHE } from '@persistence/cache/cache.token.js';
 import request from 'supertest';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
@@ -53,7 +54,7 @@ describe('Cache Revision Fencing & Anti-Resurrection (e2e)', () => {
       expect(createRes.status).toBe(201);
       const userId = createRes.body.id;
       const cacheKey = userIdKey(userId);
-      const cache = ctx.app.get<ICache<unknown>>(CACHE_TOKEN);
+      const cache = ctx.app.get<ICache<unknown>>(CACHE);
 
       // Evict so next read-through must query the database
       await cache.delete(cacheKey);
@@ -131,7 +132,7 @@ describe('Cache Revision Fencing & Anti-Resurrection (e2e)', () => {
       expect(createRes.status).toBe(201);
       const userId = createRes.body.id;
       const cacheKey = userIdKey(userId);
-      const cache = ctx.app.get<ICache<unknown>>(CACHE_TOKEN);
+      const cache = ctx.app.get<ICache<unknown>>(CACHE);
 
       // Evict so next read-through must query the database
       await cache.delete(cacheKey);
@@ -204,7 +205,7 @@ describe('Cache Revision Fencing & Anti-Resurrection (e2e)', () => {
       expect(createRes.status).toBe(201);
       const userId = createRes.body.id;
       const emailKey = cacheKey(User.aggregateName, { email }, 'tenant');
-      const cache = ctx.app.get<ICache<unknown>>(CACHE_TOKEN);
+      const cache = ctx.app.get<ICache<unknown>>(CACHE);
 
       // Perform deletion
       const delRes = await request(http)
@@ -222,7 +223,7 @@ describe('Cache Revision Fencing & Anti-Resurrection (e2e)', () => {
       const email = `create-race-${Date.now()}@acme.test`;
       const syntheticId = uuidv7();
       const cacheKey = userIdKey(syntheticId);
-      const cache = ctx.app.get<ICache<unknown>>(CACHE_TOKEN);
+      const cache = ctx.app.get<ICache<unknown>>(CACHE);
 
       const origFindOne = EntityManager.prototype.findOne;
       let hookTriggered = false;
@@ -289,7 +290,7 @@ describe('Cache Revision Fencing & Anti-Resurrection (e2e)', () => {
     inTenant(ctx.app, async () => {
       const userId = uuidv7();
       const cacheKey = userIdKey(userId);
-      const cache = ctx.app.get<ICache<unknown>>(CACHE_TOKEN);
+      const cache = ctx.app.get<ICache<unknown>>(CACHE);
 
       // Key starts at an advanced revision, as a prior deletion would leave it
       await cache.delete(cacheKey);

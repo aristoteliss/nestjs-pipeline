@@ -1,6 +1,6 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import { runWithCorrelationId } from '@nestjs-pipeline/correlation';
+import { runWithCorrelationId } from '@cqrs-ddd/pipeline-correlation';
 import type { TenantSchemaContext } from '@persistence/tenant-schema.context.js';
 import type { Job } from 'bullmq';
 import { describe, expect, it, vi } from 'vitest';
@@ -9,7 +9,7 @@ import {
   type WelcomeEmailJobData,
 } from './send-welcome-email.processor.js';
 
-vi.mock('@nestjs-pipeline/job-context', () => ({
+vi.mock('@cqrs-ddd/pipeline-job-context', () => ({
   InJobContext: () => () => undefined,
 }));
 

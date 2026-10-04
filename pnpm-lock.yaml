@@ -27,14 +27,56 @@ importers:
         specifier: ^7.0.1
         version: 7.0.1
       '@cqrs-ddd/core':
-        specifier: workspace:*
-        version: link:../packages/ddd-core
+        specifier: ^0.5.0
+        version: 0.5.0
       '@cqrs-ddd/mikro-orm':
-        specifier: workspace:*
-        version: link:../packages/ddd-mikro-orm
+        specifier: ^0.5.0
+        version: 0.5.0(@cqrs-ddd/core@0.5.0)(@mikro-orm/core@7.2.3)
+      '@cqrs-ddd/pipeline':
+        specifier: ^0.5.0
+        version: 0.5.0
+      '@cqrs-ddd/pipeline-audit':
+        specifier: ^0.5.0
+        version: 0.5.0(@cqrs-ddd/pipeline@0.5.0)
+      '@cqrs-ddd/pipeline-cache':
+        specifier: ^0.5.0
+        version: 0.5.0(@cqrs-ddd/pipeline@0.5.0)(@keyv/memcache@2.0.2(keyv@5.6.0))(@keyv/postgres@2.2.3(keyv@5.6.0))(@keyv/redis@5.1.6(@node-rs/xxhash@1.7.7)(@opentelemetry/api@1.9.1)(keyv@5.6.0))(@keyv/sqlite@4.0.8(keyv@5.6.0)(supports-color@10.2.2))(cache-manager@7.2.9)(keyv@5.6.0)
+      '@cqrs-ddd/pipeline-casl':
+        specifier: ^0.5.0
+        version: 0.5.0(@casl/ability@7.0.1)(@cqrs-ddd/pipeline@0.5.0)
+      '@cqrs-ddd/pipeline-correlation':
+        specifier: ^0.5.0
+        version: 0.5.0
+      '@cqrs-ddd/pipeline-deadletter':
+        specifier: ^0.5.0
+        version: 0.5.0(@cqrs-ddd/pipeline@0.5.0)
+      '@cqrs-ddd/pipeline-feature-flags':
+        specifier: ^0.5.0
+        version: 0.5.0(@cqrs-ddd/pipeline@0.5.0)(@openfeature/server-sdk@1.23.0(@openfeature/core@1.12.0))
+      '@cqrs-ddd/pipeline-idempotency':
+        specifier: ^0.5.0
+        version: 0.5.0(@cqrs-ddd/pipeline@0.5.0)
+      '@cqrs-ddd/pipeline-job-context':
+        specifier: ^0.5.0
+        version: 0.5.0
+      '@cqrs-ddd/pipeline-opentelemetry':
+        specifier: ^0.5.0
+        version: 0.5.0(@cqrs-ddd/pipeline@0.5.0)(@opentelemetry/api@1.9.1)
+      '@cqrs-ddd/pipeline-rate-limit':
+        specifier: ^0.5.0
+        version: 0.5.0(@cqrs-ddd/pipeline@0.5.0)
+      '@cqrs-ddd/pipeline-resilience':
+        specifier: ^0.5.0
+        version: 0.5.0(@cqrs-ddd/pipeline@0.5.0)(cockatiel@4.0.0)
+      '@cqrs-ddd/pipeline-tenant':
+        specifier: ^0.5.0
+        version: 0.5.0
+      '@cqrs-ddd/pipeline-zod':
+        specifier: ^0.5.0
+        version: 0.5.0(@cqrs-ddd/pipeline@0.5.0)(zod@4.6.5)
       '@cqrs-ddd/safe-stringify':
-        specifier: workspace:*
-        version: link:../packages/safe-stringify
+        specifier: ^0.5.0
+        version: 0.5.0
       '@fastify/secure-session':
         specifier: ^8.4.0
         version: 8.4.0(bare-events@2.9.2)(bare-url@2.5.4)
@@ -42,62 +84,20 @@ importers:
         specifier: ^5.1.6
         version: 5.1.6(@node-rs/xxhash@1.7.7)(@opentelemetry/api@1.9.1)(keyv@5.6.0)
       '@mikro-orm/core':
-        specifier: ^7.2.1
-        version: 7.2.1
+        specifier: ^7.2.3
+        version: 7.2.3
       '@mikro-orm/libsql':
-        specifier: ^7.2.1
-        version: 7.2.1(@mikro-orm/core@7.2.1)
+        specifier: ^7.2.3
+        version: 7.2.3(@mikro-orm/core@7.2.3)
       '@mikro-orm/migrations':
-        specifier: ^7.2.1
-        version: 7.2.1(@mikro-orm/core@7.2.1)
+        specifier: ^7.2.3
+        version: 7.2.3(@mikro-orm/core@7.2.3)
       '@mikro-orm/postgresql':
-        specifier: ^7.2.1
-        version: 7.2.1(@mikro-orm/core@7.2.1)
+        specifier: ^7.2.3
+        version: 7.2.3(@mikro-orm/core@7.2.3)
       '@mikro-orm/sql':
-        specifier: ^7.2.1
-        version: 7.2.1(@mikro-orm/core@7.2.1)
-      '@nestjs-pipeline/audit':
-        specifier: workspace:*
-        version: link:../packages/pipeline-audit
-      '@nestjs-pipeline/cache':
-        specifier: workspace:*
-        version: link:../packages/pipeline-cache
-      '@nestjs-pipeline/casl':
-        specifier: workspace:*
-        version: link:../packages/pipeline-casl
-      '@nestjs-pipeline/core':
-        specifier: workspace:*
-        version: link:../packages/pipeline
-      '@nestjs-pipeline/correlation':
-        specifier: workspace:*
-        version: link:../packages/pipeline-correlation
-      '@nestjs-pipeline/deadletter':
-        specifier: workspace:*
-        version: link:../packages/pipeline-deadletter
-      '@nestjs-pipeline/feature-flags':
-        specifier: workspace:*
-        version: link:../packages/pipeline-feature-flags
-      '@nestjs-pipeline/idempotency':
-        specifier: workspace:*
-        version: link:../packages/pipeline-idempotency
-      '@nestjs-pipeline/job-context':
-        specifier: workspace:*
-        version: link:../packages/pipeline-job-context
-      '@nestjs-pipeline/opentelemetry':
-        specifier: workspace:*
-        version: link:../packages/pipeline-opentelemetry
-      '@nestjs-pipeline/rate-limit':
-        specifier: workspace:*
-        version: link:../packages/pipeline-rate-limit
-      '@nestjs-pipeline/resilience':
-        specifier: workspace:*
-        version: link:../packages/pipeline-resilience
-      '@nestjs-pipeline/tenant':
-        specifier: workspace:*
-        version: link:../packages/pipeline-tenant
-      '@nestjs-pipeline/zod':
-        specifier: workspace:*
-        version: link:../packages/pipeline-zod
+        specifier: ^7.2.3
+        version: 7.2.3(@mikro-orm/core@7.2.3)
       '@nestjs/bullmq':
         specifier: ^12.0.0
         version: 12.0.0(@nestjs/common@12.1.1(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@10.2.2))(@nestjs/core@12.1.1)(bullmq@5.81.5(supports-color@10.2.2))
@@ -184,8 +184,8 @@ importers:
         specifier: ^2.5.14
         version: 2.5.14
       '@cqrs-ddd/uuidv7':
-        specifier: workspace:*
-        version: link:../packages/uuidv7
+        specifier: ^0.5.0
+        version: 0.5.0
       '@libsql/client':
         specifier: ^0.18.0
         version: 0.18.0
@@ -960,6 +960,125 @@ packages:
     resolution: {integrity: sha512-dlT1m5e/0yUL0kRNcQn7yGLVThkgbB0Ga/1AmfDDC/8ik6AIiSf2QLQO2zPYvefsHP0aFgxO93cVLCCfDp7kzQ==}
     engines: {node: '>= 20.12.0'}
 
+  '@cqrs-ddd/core@0.5.0':
+    resolution: {integrity: sha512-sMDJvD7yEy6v19TUyQnuqjGcr6fN48h9KU+PTjp30wYpBW5lycpzcWF0aeDSfxMsi6vA33D6uDqKV1dY5gdfCQ==}
+    engines: {node: '>=22.12.0'}
+
+  '@cqrs-ddd/mikro-orm@0.5.0':
+    resolution: {integrity: sha512-lTd4Gtr6LJW1crWdBTV5GVcgdF3e/e1arXVxTcjmIw7G4ziWpfu7ChrUk2duzmk487khwFuxMAYF7P7CLI4VjQ==}
+    engines: {node: '>=22.17.0'}
+    peerDependencies:
+      '@cqrs-ddd/core': ^0.5.0
+      '@mikro-orm/core': ^7.2.3
+
+  '@cqrs-ddd/pipeline-audit@0.5.0':
+    resolution: {integrity: sha512-ulfEyDyP9OW6dT6NyLbViJgSnFz33ZCNlRadzLSeOlUHWXm+Wke3lSSRTn/MdZACRV5lNCJ97F9FU5LiVyvIHg==}
+    engines: {node: '>=22.12.0'}
+    peerDependencies:
+      '@cqrs-ddd/pipeline': ^0.5.0
+
+  '@cqrs-ddd/pipeline-cache@0.5.0':
+    resolution: {integrity: sha512-IElvGVfl9Py2Er5hhDG4FH0bLOLxBqx6WF4nWLeOqQQGkbAZuoTc3Rb14uoR3E6Bc2b02LItLBLEVGOyS57tNw==}
+    engines: {node: '>=22.12.0'}
+    peerDependencies:
+      '@cqrs-ddd/pipeline': ^0.5.0
+      '@keyv/memcache': ^2.0.0
+      '@keyv/postgres': ^2.0.0
+      '@keyv/redis': ^4.0.0 || ^5.0.0
+      '@keyv/sqlite': ^4.0.0
+      cache-manager: ^7.0.0
+      keyv: ^5.0.0
+    peerDependenciesMeta:
+      '@keyv/memcache':
+        optional: true
+      '@keyv/postgres':
+        optional: true
+      '@keyv/redis':
+        optional: true
+      '@keyv/sqlite':
+        optional: true
+
+  '@cqrs-ddd/pipeline-casl@0.5.0':
+    resolution: {integrity: sha512-6AiDVGkr/VN+YwdBTm7B2uB09Y1/OvwX1h63syn93tO/u7y30Ws4xm5WwFCi7ESFmwVLKl5cSdC2BP4BQdxzUg==}
+    engines: {node: '>=22.12.0'}
+    peerDependencies:
+      '@casl/ability': ^7.0.0
+      '@cqrs-ddd/pipeline': ^0.5.0
+
+  '@cqrs-ddd/pipeline-correlation@0.5.0':
+    resolution: {integrity: sha512-5LMYyus7Vin5N5FlbjHF5DgkJPv3RU6Y6Yi396mAh/ZSYCS2OBi5JCh6Khn28RwIqsJLe3NyozGwaFUfOmMvEw==}
+    engines: {node: '>=22.12.0'}
+
+  '@cqrs-ddd/pipeline-deadletter@0.5.0':
+    resolution: {integrity: sha512-VDWcnCgFDawXJ12Uxqkzvjh++eHccGKiVp0kK1Jx87M5TM/SAxYGGOSaGZTo4d6TLqidk8Sa0Gu/F9witBcx1A==}
+    engines: {node: '>=22.12.0'}
+    peerDependencies:
+      '@cqrs-ddd/pipeline': ^0.5.0
+
+  '@cqrs-ddd/pipeline-feature-flags@0.5.0':
+    resolution: {integrity: sha512-He03QpJ1aiH1lADEYZ98j52lE5fus/H+1uoI5iVjwXSIOsKdk1FSpR4a0Vyz0Gzb8QsAPKHk35AnWoB68aFK5w==}
+    engines: {node: '>=22.12.0'}
+    peerDependencies:
+      '@cqrs-ddd/pipeline': ^0.5.0
+      '@openfeature/server-sdk': ^1.13.0
+
+  '@cqrs-ddd/pipeline-idempotency@0.5.0':
+    resolution: {integrity: sha512-l/GFSJOqaS3UeBr3svDcGtTXVqt3GSvOqPcxEpVspuGHkkVkTA2120Oqrdn2/VAD//bSPstNNwdECDUiB2M+7w==}
+    engines: {node: '>=22.12.0'}
+    peerDependencies:
+      '@cqrs-ddd/pipeline': ^0.5.0
+
+  '@cqrs-ddd/pipeline-job-context@0.5.0':
+    resolution: {integrity: sha512-WcpbBhAxqdI08dhuL0v+/sOvRX15d2mimGJqWl7NnixLRFHq8JM4j0iP+khLneOenoVl/ySmuJRfCYcjaBw1MQ==}
+    engines: {node: '>=22.12.0'}
+
+  '@cqrs-ddd/pipeline-opentelemetry@0.5.0':
+    resolution: {integrity: sha512-mnuAkCKb8/kZ08zUBlkIsLXGCQ8j/7pDv+O7py2EPb6i1o0rsR6vLIdniQ5ihwhyiIpV4/RlIsy5MpKJoAzyhg==}
+    engines: {node: '>=22.12.0'}
+    peerDependencies:
+      '@cqrs-ddd/pipeline': ^0.5.0
+      '@opentelemetry/api': ^1.9.0
+
+  '@cqrs-ddd/pipeline-rate-limit@0.5.0':
+    resolution: {integrity: sha512-d85COVGW0B9CCGRLMKYUdgCehqyfq6JoE76uV3+WQzSUJ/1nu498ir7irbDVYlWmMWZZW5XoKfdE9f6NutqUmQ==}
+    engines: {node: '>=22.12.0'}
+    peerDependencies:
+      '@cqrs-ddd/pipeline': ^0.5.0
+
+  '@cqrs-ddd/pipeline-resilience@0.5.0':
+    resolution: {integrity: sha512-X1J10TkX472L2GlvYFivdjc8PW81uLtT1whY5ZHOtksWXGjwOn3RH0XK7XlNY3YZvBdonvUlxlm1lnwj97R9pg==}
+    engines: {node: '>=22.12.0'}
+    peerDependencies:
+      '@cqrs-ddd/pipeline': ^0.5.0
+      cockatiel: ^4.0.0
+
+  '@cqrs-ddd/pipeline-tenant@0.5.0':
+    resolution: {integrity: sha512-Nm/voIikmjX7XII5TFBQ108rhnU8ew0rK2DcsvWLCUi9fA3EpA4bzcxF+rfbv/meg4xBbqtzlAs0tJitHIUtQw==}
+    engines: {node: '>=22.12.0'}
+
+  '@cqrs-ddd/pipeline-zod@0.5.0':
+    resolution: {integrity: sha512-r8gRInPp/6lBb0/nkkd/yE+/8KO7LhsysYeO/1zT/K3lH42D3cpEkxabwQ2AGUCjUqlLEQvcoZqWnkpq9FZ9jA==}
+    engines: {node: '>=22.12.0'}
+    peerDependencies:
+      '@cqrs-ddd/pipeline': ^0.5.0
+      zod: ^4.3.0
+
+  '@cqrs-ddd/pipeline@0.5.0':
+    resolution: {integrity: sha512-tB80EwyN3/yKNkN06kTBW647nFG2Y9ECV3FdGquwRR7HYzEtBdTvb7P7fkt0kIH3EPU+SHEXiva1vY+c1XV0XQ==}
+    engines: {node: '>=22.12.0'}
+
+  '@cqrs-ddd/safe-stringify@0.5.0':
+    resolution: {integrity: sha512-FaIqroF6OZOGsCayxOiqIaQ5RH/SiUiQJJQb949HaYOnrRvh2+TEryV4iblZHsQ7AzBQ41nKLRZ00M9VyFM0aQ==}
+    engines: {node: '>=22.12.0'}
+
+  '@cqrs-ddd/untyped@0.5.0':
+    resolution: {integrity: sha512-/qQ2K3THPs/JUH7UuWOTtXC59Xw45O6B9BVT/PuhfooUFSHTtpq3WwfGG23IPwF/IMT3kZfKAVrizVcqtvfmEA==}
+    engines: {node: '>=22.12.0'}
+
+  '@cqrs-ddd/uuidv7@0.5.0':
+    resolution: {integrity: sha512-a7vz8PGAdgSSRU3hJ5gOA279go0fiktEqSu/DTuN1qK8fnQ74gTPHvhnnSpbnCBOvLKCKUYnM0+wpvfFhyk/CQ==}
+    engines: {node: '>=22.12.0'}
+
   '@ctrl/tinycolor@4.2.1':
     resolution: {integrity: sha512-Vh5uy9Y1JBMId6J1f68TMXnZrTCvNdo9Fu2k0d1YnJngR+sM5kWTKl441c/3TFs+cG0NWOjRWgQ/iaWhbYx+7A==}
     engines: {node: '>=14'}
@@ -1676,29 +1795,38 @@ packages:
       dataloader:
         optional: true
 
-  '@mikro-orm/libsql@7.2.1':
-    resolution: {integrity: sha512-jXvptoHpbzfj8XUy5V5BvVee2LOsxgI/GnITfmh6Jl42tpIEDJx6Talqbv+z1PNGkHhw8OU5GoHXDJqYpNqo5w==}
+  '@mikro-orm/core@7.2.3':
+    resolution: {integrity: sha512-c/OHEApYBzfUtr1VoBe5hiTDEV+tHZJifdgF4RlGrmuhuNJCsgWHxdv1ZjI0zzG79B6QdxqQ8ujgGqwLhCzOPg==}
     engines: {node: '>= 22.17.0'}
     peerDependencies:
-      '@mikro-orm/core': 7.2.1
+      dataloader: 2.2.3
+    peerDependenciesMeta:
+      dataloader:
+        optional: true
 
-  '@mikro-orm/migrations@7.2.1':
-    resolution: {integrity: sha512-sxGcB7na0AkcREsD5U3xP+Psb/nhQFkx7/eY1Nsqq9MBs67O5RoCL97bn3lmgq6GwKZFbktMuuOGozq42+GaNg==}
+  '@mikro-orm/libsql@7.2.3':
+    resolution: {integrity: sha512-gSScJbRmsgSbuTgcScjxsGT+eUDz5926E5leCNXuHbCBgUVCDhDNZNFHwCIXi7nAKMOYTLH/pNh6pFM0YQHLkA==}
     engines: {node: '>= 22.17.0'}
     peerDependencies:
-      '@mikro-orm/core': 7.2.1
+      '@mikro-orm/core': 7.2.3
 
-  '@mikro-orm/postgresql@7.2.1':
-    resolution: {integrity: sha512-PQ1qe4Bj/hQSHYJjR02l06FfEDwniAvncduwZSCLSKuaCUddHc5AN2Utj3yo4xRIVRY8pOa7DFitEQPBozTMJA==}
+  '@mikro-orm/migrations@7.2.3':
+    resolution: {integrity: sha512-mI1+xP6AJyFyu343bQXK+kiHweMJaYUy2zJlgvxym+PnIRY2PZQqdKE2mSbNOI1tOmwoQgR9kI+6BO7Xjbu6MQ==}
     engines: {node: '>= 22.17.0'}
     peerDependencies:
-      '@mikro-orm/core': 7.2.1
+      '@mikro-orm/core': 7.2.3
 
-  '@mikro-orm/sql@7.2.1':
-    resolution: {integrity: sha512-3M9dQeUDLlvAT5VJr/KBGAk9C7xez+psVCnvNkAO4hRhwx2Wm7N1HkuyP4Bwj0MjkHVB6LYvhTw/V6pYsVM8lA==}
+  '@mikro-orm/postgresql@7.2.3':
+    resolution: {integrity: sha512-fzIB9DptYpKTqt0qHJTsUtm+cfZUsZPd82iwivRA06fCtjy4GRBiUp+wKqjEFScqTOAkJ9vz3M3d+CrdzBaaDQ==}
     engines: {node: '>= 22.17.0'}
     peerDependencies:
-      '@mikro-orm/core': 7.2.1
+      '@mikro-orm/core': 7.2.3
+
+  '@mikro-orm/sql@7.2.3':
+    resolution: {integrity: sha512-lRciF3CGPJbwEyk2yiUHK/7SUgFegt1ULQ9quQ08nvo3hFVnAy25IGxZRgp7hrsTBaNOuRSj+VvBswztqRIrKg==}
+    engines: {node: '>= 22.17.0'}
+    peerDependencies:
+      '@mikro-orm/core': 7.2.3
 
   '@modelcontextprotocol/sdk@1.30.0':
     resolution: {integrity: sha512-xKd8OIzlqNzcqcNumGAa6g+PW2kjD5vrpcKOnfldAUPP3j7lnqMPwlTXQm8gF+UwH72z0lqaRbjr9hqGz0eITA==}
@@ -6222,6 +6350,100 @@ snapshots:
       fast-wrap-ansi: 0.2.2
       sisteransi: 1.0.5
 
+  '@cqrs-ddd/core@0.5.0':
+    dependencies:
+      '@cqrs-ddd/safe-stringify': 0.5.0
+      '@cqrs-ddd/uuidv7': 0.5.0
+
+  '@cqrs-ddd/mikro-orm@0.5.0(@cqrs-ddd/core@0.5.0)(@mikro-orm/core@7.2.3)':
+    dependencies:
+      '@cqrs-ddd/core': 0.5.0
+      '@mikro-orm/core': 7.2.3
+
+  '@cqrs-ddd/pipeline-audit@0.5.0(@cqrs-ddd/pipeline@0.5.0)':
+    dependencies:
+      '@cqrs-ddd/pipeline': 0.5.0
+      '@cqrs-ddd/safe-stringify': 0.5.0
+      '@cqrs-ddd/uuidv7': 0.5.0
+
+  '@cqrs-ddd/pipeline-cache@0.5.0(@cqrs-ddd/pipeline@0.5.0)(@keyv/memcache@2.0.2(keyv@5.6.0))(@keyv/postgres@2.2.3(keyv@5.6.0))(@keyv/redis@5.1.6(@node-rs/xxhash@1.7.7)(@opentelemetry/api@1.9.1)(keyv@5.6.0))(@keyv/sqlite@4.0.8(keyv@5.6.0)(supports-color@10.2.2))(cache-manager@7.2.9)(keyv@5.6.0)':
+    dependencies:
+      '@cqrs-ddd/pipeline': 0.5.0
+      '@cqrs-ddd/safe-stringify': 0.5.0
+      cache-manager: 7.2.9
+      keyv: 5.6.0
+    optionalDependencies:
+      '@keyv/memcache': 2.0.2(keyv@5.6.0)
+      '@keyv/postgres': 2.2.3(keyv@5.6.0)
+      '@keyv/redis': 5.1.6(@node-rs/xxhash@1.7.7)(@opentelemetry/api@1.9.1)(keyv@5.6.0)
+      '@keyv/sqlite': 4.0.8(keyv@5.6.0)(supports-color@10.2.2)
+
+  '@cqrs-ddd/pipeline-casl@0.5.0(@casl/ability@7.0.1)(@cqrs-ddd/pipeline@0.5.0)':
+    dependencies:
+      '@casl/ability': 7.0.1
+      '@cqrs-ddd/pipeline': 0.5.0
+      '@cqrs-ddd/safe-stringify': 0.5.0
+
+  '@cqrs-ddd/pipeline-correlation@0.5.0':
+    dependencies:
+      '@cqrs-ddd/untyped': 0.5.0
+      '@cqrs-ddd/uuidv7': 0.5.0
+
+  '@cqrs-ddd/pipeline-deadletter@0.5.0(@cqrs-ddd/pipeline@0.5.0)':
+    dependencies:
+      '@cqrs-ddd/pipeline': 0.5.0
+      '@cqrs-ddd/safe-stringify': 0.5.0
+      '@cqrs-ddd/uuidv7': 0.5.0
+
+  '@cqrs-ddd/pipeline-feature-flags@0.5.0(@cqrs-ddd/pipeline@0.5.0)(@openfeature/server-sdk@1.23.0(@openfeature/core@1.12.0))':
+    dependencies:
+      '@cqrs-ddd/pipeline': 0.5.0
+      '@openfeature/server-sdk': 1.23.0(@openfeature/core@1.12.0)
+
+  '@cqrs-ddd/pipeline-idempotency@0.5.0(@cqrs-ddd/pipeline@0.5.0)':
+    dependencies:
+      '@cqrs-ddd/pipeline': 0.5.0
+      '@cqrs-ddd/safe-stringify': 0.5.0
+      '@cqrs-ddd/untyped': 0.5.0
+
+  '@cqrs-ddd/pipeline-job-context@0.5.0': {}
+
+  '@cqrs-ddd/pipeline-opentelemetry@0.5.0(@cqrs-ddd/pipeline@0.5.0)(@opentelemetry/api@1.9.1)':
+    dependencies:
+      '@cqrs-ddd/pipeline': 0.5.0
+      '@cqrs-ddd/untyped': 0.5.0
+      '@opentelemetry/api': 1.9.1
+
+  '@cqrs-ddd/pipeline-rate-limit@0.5.0(@cqrs-ddd/pipeline@0.5.0)':
+    dependencies:
+      '@cqrs-ddd/pipeline': 0.5.0
+      '@cqrs-ddd/safe-stringify': 0.5.0
+
+  '@cqrs-ddd/pipeline-resilience@0.5.0(@cqrs-ddd/pipeline@0.5.0)(cockatiel@4.0.0)':
+    dependencies:
+      '@cqrs-ddd/pipeline': 0.5.0
+      cockatiel: 4.0.0
+
+  '@cqrs-ddd/pipeline-tenant@0.5.0': {}
+
+  '@cqrs-ddd/pipeline-zod@0.5.0(@cqrs-ddd/pipeline@0.5.0)(zod@4.6.5)':
+    dependencies:
+      '@cqrs-ddd/pipeline': 0.5.0
+      '@cqrs-ddd/untyped': 0.5.0
+      zod: 4.6.5
+
+  '@cqrs-ddd/pipeline@0.5.0':
+    dependencies:
+      '@cqrs-ddd/safe-stringify': 0.5.0
+      '@cqrs-ddd/untyped': 0.5.0
+      '@cqrs-ddd/uuidv7': 0.5.0
+
+  '@cqrs-ddd/safe-stringify@0.5.0': {}
+
+  '@cqrs-ddd/untyped@0.5.0': {}
+
+  '@cqrs-ddd/uuidv7@0.5.0': {}
+
   '@ctrl/tinycolor@4.2.1': {}
 
   '@dev.fast/review@0.2.14(@types/node@26.6.3)(supports-color@10.2.2)':
@@ -6836,22 +7058,24 @@ snapshots:
 
   '@mikro-orm/core@7.2.1': {}
 
-  '@mikro-orm/libsql@7.2.1(@mikro-orm/core@7.2.1)':
+  '@mikro-orm/core@7.2.3': {}
+
+  '@mikro-orm/libsql@7.2.3(@mikro-orm/core@7.2.3)':
     dependencies:
-      '@mikro-orm/core': 7.2.1
-      '@mikro-orm/sql': 7.2.1(@mikro-orm/core@7.2.1)
+      '@mikro-orm/core': 7.2.3
+      '@mikro-orm/sql': 7.2.3(@mikro-orm/core@7.2.3)
       kysely: 0.29.6
       libsql: 0.5.29
 
-  '@mikro-orm/migrations@7.2.1(@mikro-orm/core@7.2.1)':
+  '@mikro-orm/migrations@7.2.3(@mikro-orm/core@7.2.3)':
     dependencies:
-      '@mikro-orm/core': 7.2.1
-      '@mikro-orm/sql': 7.2.1(@mikro-orm/core@7.2.1)
+      '@mikro-orm/core': 7.2.3
+      '@mikro-orm/sql': 7.2.3(@mikro-orm/core@7.2.3)
 
-  '@mikro-orm/postgresql@7.2.1(@mikro-orm/core@7.2.1)':
+  '@mikro-orm/postgresql@7.2.3(@mikro-orm/core@7.2.3)':
     dependencies:
-      '@mikro-orm/core': 7.2.1
-      '@mikro-orm/sql': 7.2.1(@mikro-orm/core@7.2.1)
+      '@mikro-orm/core': 7.2.3
+      '@mikro-orm/sql': 7.2.3(@mikro-orm/core@7.2.3)
       kysely: 0.29.6
       pg: 8.23.0
       pg-cursor: 2.22.0(pg@8.23.0)
@@ -6861,9 +7085,9 @@ snapshots:
     transitivePeerDependencies:
       - pg-native
 
-  '@mikro-orm/sql@7.2.1(@mikro-orm/core@7.2.1)':
+  '@mikro-orm/sql@7.2.3(@mikro-orm/core@7.2.3)':
     dependencies:
-      '@mikro-orm/core': 7.2.1
+      '@mikro-orm/core': 7.2.3
       kysely: 0.29.6
 
   '@modelcontextprotocol/sdk@1.30.0(supports-color@10.2.2)(zod@4.4.3)':

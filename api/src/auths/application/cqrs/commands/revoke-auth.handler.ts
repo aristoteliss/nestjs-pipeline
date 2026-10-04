@@ -1,20 +1,21 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { AUDIT_ACTIONS, RATE_LIMIT_COST } from '@common/constants/index.js';
-import {
-  CommandBaseHandler,
-  type IQueryRepository,
-} from '@cqrs-ddd/core/application';
-import { Inject } from '@nestjs/common';
-import { CommandHandler, EventBus } from '@nestjs/cqrs';
-import { AUDIT_SEVERITY, audit } from '@nestjs-pipeline/audit';
-import { UsePipeline } from '@nestjs-pipeline/core';
-import { deadLetter } from '@nestjs-pipeline/deadletter';
-import { metrics } from '@nestjs-pipeline/opentelemetry';
+import { type IQueryRepository } from '@cqrs-ddd/core/application';
+import { UsePipeline } from '@cqrs-ddd/pipeline';
+import { AUDIT_SEVERITY, audit } from '@cqrs-ddd/pipeline-audit';
+import { deadLetter } from '@cqrs-ddd/pipeline-deadletter';
+import { metrics } from '@cqrs-ddd/pipeline-opentelemetry';
 import {
   createPartitionedRateLimitKeyFactory,
   rateLimit,
-} from '@nestjs-pipeline/rate-limit';
+} from '@cqrs-ddd/pipeline-rate-limit';
+import { Inject } from '@nestjs/common';
+import {
+  CommandHandler,
+  EventPublisher,
+  type ICommandHandler,
+} from '@nestjs/cqrs';
 import { InvalidRefreshTokenError } from '../../../domain/errors/refresh-token.errors.js';
 import type { Auth } from '../../../domain/models/auth.entity.js';
 import { QUERY_REPOSITORY } from '../../../persistence/repository.tokens.js';
@@ -46,12 +47,11 @@ import { RevokeAuthCommand } from './revoke-auth.command.js';
     redactKeys: ['refreshToken'],
   }),
 )
-export class RevokeAuthHandler extends CommandBaseHandler<
-  RevokeAuthCommand,
-  Auth
-> {
+export class RevokeAuthHandler
+  implements ICommandHandler<RevokeAuthCommand, Auth>
+{
   constructor(
-    protected readonly eventBus: EventBus,
+    private readonly publisher: EventPublisher,
     @Inject(QUERY_REPOSITORY.getAuthByTokenHash)
     private readonly authByTokenHash: IQueryRepository<
       GetAuthByTokenHashQuery,
@@ -60,11 +60,9 @@ export class RevokeAuthHandler extends CommandBaseHandler<
     @Inject(REFRESH_TOKENS) private readonly refreshTokens: IRefreshTokens,
     @Inject(SESSION_COOKIES) private readonly cookies: ISessionCookies,
     private readonly principalLoginService: PrincipalLoginService,
-  ) {
-    super(eventBus);
-  }
+  ) {}
 
-  async handle({ refreshToken }: RevokeAuthCommand): Promise<Auth> {
+  async execute({ refreshToken }: RevokeAuthCommand): Promise<Auth> {
     const auth = refreshToken
       ? await this.authByTokenHash.find(
           new GetAuthByTokenHashQuery({
@@ -78,6 +76,7 @@ export class RevokeAuthHandler extends CommandBaseHandler<
 
     this.cookies.clear();
     if (!revoked) throw new InvalidRefreshTokenError();
+    await this.publisher.mergeObjectContext(revoked).commit();
     return revoked;
   }
 }

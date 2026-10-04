@@ -1,7 +1,7 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { BaseCommand } from '@cqrs-ddd/core/application';
-import { createCommand, updatable } from '@nestjs-pipeline/zod';
+import { createCommand, updatable } from '@cqrs-ddd/pipeline-zod';
 import { z } from 'zod';
 import { User } from '../../../domain/models/user.entity.js';
 

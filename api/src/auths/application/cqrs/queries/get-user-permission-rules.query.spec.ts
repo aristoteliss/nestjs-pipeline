@@ -1,6 +1,6 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import { ZodValidationError } from '@nestjs-pipeline/zod';
+import { ZodValidationError } from '@cqrs-ddd/pipeline-zod';
 import { describe, expect, it } from 'vitest';
 import { GetUserPermissionRulesQuery } from './get-user-permission-rules.query.js';
 

@@ -1,6 +1,7 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import { MissingCachePartitionError } from '@nestjs-pipeline/cache';
+import type { IPipelineContext } from '@cqrs-ddd/pipeline';
+import { MissingCachePartitionError } from '@cqrs-ddd/pipeline-cache';
 import {
   buildAbility,
   CASL_ABILITY_KEY,
@@ -8,8 +9,7 @@ import {
   type Capability,
   CaslAuthorizer,
   UnauthorizedActionException,
-} from '@nestjs-pipeline/casl';
-import type { IPipelineContext } from '@nestjs-pipeline/core';
+} from '@cqrs-ddd/pipeline-casl';
 import { describe, expect, it, vi } from 'vitest';
 import { Role } from '../../../../roles/domain/models/role.entity.js';
 import { User } from '../../../domain/models/user.entity.js';

@@ -1,6 +1,6 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
-import type { Capability } from '@nestjs-pipeline/casl';
+import type { Capability } from '@cqrs-ddd/pipeline-casl';
 import { describe, expect, it, vi } from 'vitest';
 import { GetUserPermissionRulesHandler } from './get-user-permission-rules.handler.js';
 import { GetUserPermissionRulesQuery } from './get-user-permission-rules.query.js';

@@ -1,5 +1,5 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
-import type { CaslAuthorizer, Projected } from '@nestjs-pipeline/casl';
+import type { CaslAuthorizer, Projected } from '@cqrs-ddd/pipeline-casl';
 import type { User } from '../domain/models/user.entity.js';
 
 interface UserReadCandidate {

@@ -7,7 +7,7 @@ import {
   TransientOperationError,
 } from '@cqrs-ddd/core/domain';
 import { cacheKey, DEFAULT_BARRIER_TTL_MS } from '@cqrs-ddd/core/persistence';
-import { runWithTenant } from '@nestjs-pipeline/tenant';
+import { runWithTenant } from '@cqrs-ddd/pipeline-tenant';
 import { describe, expect, it, vi } from 'vitest';
 import { User, type UserSnapshot } from '../domain/models/user.entity.js';
 import { DeleteUserCommandRepository } from './delete-user.command-repository.js';

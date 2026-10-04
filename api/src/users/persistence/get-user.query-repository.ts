@@ -2,13 +2,13 @@
 
 import { ICache } from '@cqrs-ddd/core/application';
 import {
-  CACHE_TOKEN,
   cacheKey,
   FromCache,
   QueryRepository,
 } from '@cqrs-ddd/core/persistence';
 import { FilterQuery } from '@mikro-orm/core';
 import { Inject, Injectable } from '@nestjs/common';
+import { CACHE } from '@persistence/cache/cache.token.js';
 import { cacheReadLogger } from '@persistence/cache/cache-loggers.js';
 import {
   MIKRO_ORM_CLIENT,
@@ -33,7 +33,7 @@ export class GetUserQueryRepository extends QueryRepository<
   User | null
 > {
   constructor(
-    @Inject(CACHE_TOKEN) protected readonly cache: ICache<UserSnapshot>,
+    @Inject(CACHE) protected readonly cache: ICache<UserSnapshot>,
     @Inject(MIKRO_ORM_CLIENT) private readonly store: MikroOrmStore,
   ) {
     super(cache, {

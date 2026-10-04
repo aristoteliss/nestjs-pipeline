@@ -1,7 +1,7 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { createHash } from 'node:crypto';
-import { runWithTenant } from '@nestjs-pipeline/tenant';
+import { runWithTenant } from '@cqrs-ddd/pipeline-tenant';
 import { decodeJwt } from 'jose';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { User } from '../../users/domain/models/user.entity.js';

@@ -3,7 +3,7 @@ import {
   createIdempotencyTableSql,
   type IdempotencyRecord,
   PostgresIdempotencyStore,
-} from '@nestjs-pipeline/idempotency';
+} from '@cqrs-ddd/pipeline-idempotency';
 import { Pool } from 'pg';
 import {
   GenericContainer,

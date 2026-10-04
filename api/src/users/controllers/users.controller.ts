@@ -1,6 +1,7 @@
 /* Copyright (C) 2026-present Aristotelis — see repository license. */
 
 import { HEADERS } from '@common/constants/headers.constants.js';
+import { UnauthorizedActionException } from '@cqrs-ddd/pipeline-casl';
 import {
   Body,
   Controller,
@@ -22,7 +23,6 @@ import {
   ApiOkResponse,
   ApiSecurity,
 } from '@nestjs/swagger';
-import { UnauthorizedActionException } from '@nestjs-pipeline/casl';
 import { z } from 'zod';
 import { CreateUserCommand } from '../application/cqrs/commands/create-user.command.js';
 import { DeleteUserCommand } from '../application/cqrs/commands/delete-user.command.js';
