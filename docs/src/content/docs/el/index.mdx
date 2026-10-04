@@ -1,0 +1,85 @@
+---
+title: nestjs-pipeline
+description: Pipeline behaviors για NestJS CQRS commands, queries και events, και δομικά στοιχεία DDD χωρίς framework.
+template: splash
+editUrl: false
+hero:
+  tagline: Cross-cutting behaviors για NestJS CQRS handlers, δηλωμένα μία φορά και εκτελούμενα γύρω από κάθε command, query και event, με δομικά στοιχεία DDD που δεν χρειάζονται framework.
+  actions:
+    - text: Πρώτα βήματα
+      link: /nestjs-pipeline/el/getting-started/
+      icon: right-arrow
+    - text: Επισκόπηση
+      link: /nestjs-pipeline/el/overview/
+      variant: minimal
+    - text: API reference
+      link: /nestjs-pipeline/api/
+      variant: minimal
+    - text: GitHub
+      link: https://github.com/aristoteliss/nestjs-pipeline
+      icon: external
+      variant: minimal
+---
+
+import { Card, CardGrid, LinkCard } from '@astrojs/starlight/components';
+
+## Τι περιλαμβάνεται
+
+<CardGrid>
+  <LinkCard
+    title="Πρώτα βήματα"
+    description="Εγκατάσταση των πακέτων, δήλωση του module και εκτέλεση ενός command μέσω του pipeline."
+    href="/nestjs-pipeline/el/getting-started/"
+  />
+  <LinkCard
+    title="Αρχιτεκτονική runtime"
+    description="Διαδραστικός χάρτης των επιπέδων presentation, pipeline behaviors, CQRS domain και persistence."
+    href="/nestjs-pipeline/concepts/architecture/"
+  />
+  <LinkCard
+    title="Έννοιες"
+    description="Πώς εκτελείται ένα pipeline, με ποια σειρά τρέχουν τα behaviors και τι περιέχει το context."
+    href="/nestjs-pipeline/concepts/execution-model/"
+  />
+  <LinkCard
+    title="Οδηγοί"
+    description="Custom behaviors, correlation IDs, logging, validation, tracing και παράδειγμα DDD."
+    href="/nestjs-pipeline/guides/custom-behaviors/"
+  />
+  <LinkCard
+    title="Πακέτα"
+    description="Οδηγός για κάθε πακέτο: σκοπός, ρυθμίσεις, επιλογές, συμπεριφορά και παραδείγματα."
+    href="/nestjs-pipeline/packages/nestjs-pipeline/core/"
+  />
+  <LinkCard
+    title="API reference"
+    description="Κάθε εξαγόμενη κλάση, συνάρτηση, τύπος και σταθερά των 19 πακέτων, από το JSDoc τους."
+    href="/nestjs-pipeline/api/"
+  />
+  <LinkCard
+    title="HTTP API"
+    description="Η τεκμηρίωση OpenAPI του users-api, της εφαρμογής παραδείγματος."
+    href="/nestjs-pipeline/http-api/"
+  />
+  <LinkCard
+    title="Αναβάθμιση"
+    description="Τι αλλάζει μεταξύ των εκδόσεων και τι απαιτείται να προσαρμόσει μια εφαρμογή."
+    href="/nestjs-pipeline/upgrading/from-0-3/"
+  />
+</CardGrid>
+
+## Πακέτα
+
+<CardGrid>
+  <Card title="@nestjs-pipeline/*" icon="puzzle">
+    Η μηχανή του pipeline και τα behaviors του: logging, tracing και metrics,
+    validation, authorization, caching, idempotency, rate limiting,
+    resilience, dead letters, feature flags και audit, καθώς και τα tenant,
+    correlation ID και job context.
+  </Card>
+  <Card title="@cqrs-ddd/*" icon="seti:folder">
+    Δομικά στοιχεία χωρίς framework: aggregates με versioned mutations,
+    domain events, συμβόλαια repositories και βοηθήματα cache, οι MikroORM
+    adapters τους και τρία βοηθητικά εργαλεία χωρίς εξαρτήσεις.
+  </Card>
+</CardGrid>

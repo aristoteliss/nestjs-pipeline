@@ -35,7 +35,7 @@ demonstration, not the boundary of what the libraries support.
 ## Technology Stack
 
 <!-- context:generated-start technology-stack -->
-- **Languages** (file counts, excluded directories omitted): `.ts` 810, `.md` 74, `.grit` 14, `.mjs` 3, `.py` 3
+- **Languages** (file counts, excluded directories omitted): `.ts` 810, `.md` 73, `.grit` 14, `.mjs` 3, `.py` 3
 - **Runtime engines** (root `package.json`): `node` >=22.12.0, `pnpm` >=9.0.0
 - **Package manager evidence**: `pnpm-lock.yaml`, `package-lock.json`.
 - **Integrations**: listed with their purpose under Dependencies and Integrations.
@@ -90,7 +90,7 @@ Each has a `README.md`.
 | Path | Package | Source layout |
 | --- | --- | --- |
 | `api` | `@nestjs-pipeline/ddd-api` | `auths`, `common`, `persistence`, `roles`, `users` |
-| `docs` | `@nestjs-pipeline/docs` | `content` |
+| `docs` | `@nestjs-pipeline/docs` | `components`, `content` |
 | `packages/cqrs-ddd` | `@nestjs-pipeline/cqrs-ddd` | flat |
 | `packages/ddd-core` | `@cqrs-ddd/core` | `application`, `domain`, `http`, `persistence`, `types` |
 | `packages/ddd-mikro-orm` | `@cqrs-ddd/mikro-orm` | `cache`, `concurrency`, `errors`, `helpers`, `interfaces`, `mapping`, `repository`, `tenancy` |
@@ -374,7 +374,7 @@ row as *declared* unless you have run it yourself in this checkout.
 | `pnpm context:validate` | `python3 scripts/validate-claude-context.py` |
 | `pnpm copy-licenses` | `node -e "const fs=require('fs'),path=require('path'),dirs=fs.readdirSyn…` |
 | `pnpm docs:build` | `pnpm build && pnpm --filter @nestjs-pipeline/ddd-api openapi && pnpm --…` |
-| `pnpm docs:dev` | `pnpm --filter @nestjs-pipeline/docs dev` |
+| `pnpm docs:dev` | `pnpm --filter @nestjs-pipeline/ddd-api build && pnpm --filter @nestjs-p…` |
 | `pnpm format` | `biome check --write .` |
 | `pnpm lint` | `pnpm lint:persistence && pnpm -r lint` |
 | `pnpm lint:persistence` | `biome lint --only=plugin .` |
@@ -565,9 +565,9 @@ secret value.*
 ## Snapshot Metadata
 
 <!-- context:generated-start metadata -->
-- Generated at: 2026-10-04T15:56:18Z
-- Git commit: 15f6353f55212e26d6a7a1d9ee7b661d9b01016c
-- Git branch: adopt-cqrs-ddd
+- Generated at: 2026-10-04T17:01:47Z
+- Git commit: aa04f0362ce630818851396a4b2dff7a2375ee14
+- Git branch: master
 - Uncommitted changes when generated: yes
 - Generator: `scripts/update-claude-snapshot.py` version 1.0.0
 - Snapshot status: generated — structural inspection only, no code executed

@@ -121,8 +121,8 @@ the facade `@nestjs-pipeline/cqrs-ddd` over `@cqrs-ddd/nestjs`. Never copy or pa
 fix it in ddd-cqrs, republish it to the local registry
 (`~/Source/ddd-cqrs/tools/local-registry/`) and install it again. Release order, package
 names and the rules of both sides: [AGENTS.md, The two repositories](AGENTS.md#the-two-repositories).
-When a change here affects ddd-cqrs, update its active task file
-(`~/Source/ddd-cqrs/.claude/tasks/cqrs-ddd-pipeline.md`) in the same session.
+When a change here affects ddd-cqrs, update its active task file under
+`~/Source/ddd-cqrs/.claude/tasks/`, if one exists, in the same session.
 
 ## Writing style in this repository
 
