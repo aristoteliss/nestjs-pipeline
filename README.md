@@ -10,11 +10,31 @@
 > those packages (`api/`) and keeps the 0.4.x line below, which receives fixes only;
 > versions 0.1 to 0.4 stay on npm unchanged.
 
+## New applications: `@cqrs-ddd/nestjs`
+
+A NestJS application that starts today installs the adapter and keeps the official
+`@nestjs/cqrs` buses and handlers:
+
+```bash
+pnpm add @cqrs-ddd/nestjs @cqrs-ddd/pipeline @cqrs-ddd/core @nestjs/cqrs
+```
+
+[Minimal setup](https://aristoteliss.github.io/ddd-cqrs/packages/nestjs/#minimal-setup) is
+a complete root module, and
+[NestJS & @cqrs-ddd](https://aristoteliss.github.io/ddd-cqrs/guides/from-nestjs/) covers an
+application that already uses `@nestjs/cqrs`. `api/` in this repository is a complete
+NestJS application on these packages.
+
+## The 0.4.x line: `@nestjs-pipeline/*`
+
+An application already on `@nestjs-pipeline/*` 0.4.x keeps working, and the line receives
+fixes only. The rest of this section documents it.
+
 Pipeline behaviors for **NestJS CQRS** — wrap every command, query, and event handler with reusable cross-cutting concerns (logging, validation, tracing, audit, …) using a clean middleware-like chain.
 
 **Documentation: [aristoteliss.github.io/nestjs-pipeline](https://aristoteliss.github.io/nestjs-pipeline/)** — getting started, concepts, guides, one guide per package, the API reference generated from the JSDoc, and the HTTP API of the example application.
 
-## Packages
+### Packages
 
 | Package | Description |
 |---|---|
@@ -55,7 +75,7 @@ The `@nestjs-pipeline/*` packages are at **0.4.3**, a README-only release that p
 their successors; the five `@cqrs-ddd/*` packages above stay at **0.4.2** here and continue
 from 0.5.0 in ddd-cqrs. [CHANGELOG.md](CHANGELOG.md) records each release.
 
-## Installation
+### Installation
 
 ```bash
 pnpm add @nestjs-pipeline/core @nestjs/common @nestjs/core @nestjs/cqrs reflect-metadata rxjs
@@ -398,13 +418,15 @@ By default, this project is licensed under the **GNU AGPLv3** (see the `LICENSE`
 
 If you are using this software commercially and cannot (or do not want to) open-source your application under the AGPLv3, you must use the **Commercial License** (see `COMMERCIAL_LICENSE.txt`).
 
-Revenue-based pricing:
+Revenue-based pricing, in marginal brackets: each rate applies only to the portion of annual gross revenue within its bracket, and the fee is the sum of all brackets, capped at $50,000 per year.
 
-| Annual Gross Revenue | Fee |
+| Portion of Annual Gross Revenue | Rate on That Portion |
 |---|---|
-| Under $500,000 | **Free** |
-| $500,001 — $10,000,000 | 0.1% of gross revenue |
-| $10,000,001 — $50,000,000 | 0.05% of gross revenue |
-| Over $50,000,000 | 0.01% of gross revenue (capped at $50,000/year) |
+| Up to $500,000 | **0% (Free)** |
+| Above $500,000, up to $10,000,000 | 0.1% |
+| Above $10,000,000, up to $50,000,000 | 0.05% |
+| Above $50,000,000 | 0.01% |
+
+Example: for gross revenue of $20,000,000, the fee is $9,500 (0.1% of $9,500,000) plus $5,000 (0.05% of $10,000,000), a total of $14,500 per year.
 
 Contact: **aristotelis@ik.me**

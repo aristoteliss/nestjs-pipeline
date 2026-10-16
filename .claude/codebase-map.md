@@ -35,7 +35,7 @@ demonstration, not the boundary of what the libraries support.
 ## Technology Stack
 
 <!-- context:generated-start technology-stack -->
-- **Languages** (file counts, excluded directories omitted): `.ts` 810, `.md` 73, `.grit` 14, `.mjs` 3, `.py` 3
+- **Languages** (file counts, excluded directories omitted): `.ts` 810, `.md` 111, `.grit` 14, `.mjs` 3, `.py` 3
 - **Runtime engines** (root `package.json`): `node` >=22.12.0, `pnpm` >=9.0.0
 - **Package manager evidence**: `pnpm-lock.yaml`, `package-lock.json`.
 - **Integrations**: listed with their purpose under Dependencies and Integrations.
@@ -565,13 +565,13 @@ secret value.*
 ## Snapshot Metadata
 
 <!-- context:generated-start metadata -->
-- Generated at: 2026-10-04T17:01:47Z
-- Git commit: aa04f0362ce630818851396a4b2dff7a2375ee14
+- Generated at: 2026-10-16T09:58:45Z
+- Git commit: 08227e4b7d3052c34cc43d617cf19cf2e91559e5
 - Git branch: master
 - Uncommitted changes when generated: yes
 - Generator: `scripts/update-claude-snapshot.py` version 1.0.0
 - Snapshot status: generated — structural inspection only, no code executed
-- Files inspected: 993
+- Files inspected: 1037
 - Included top-level directories: `.agents`, `.claude`, `.github`, `api`, `biome`, `docs`, `integration`, `packages`, `scripts`
 - Excluded directory names: `.cache`, `.git`, `.gradle`, `.idea`, `.mypy_cache`, `.next`, `.nuxt`, `.parcel-cache`, `.pnpm-store`, `.pytest_cache`, `.ruff_cache`, `.svelte-kit`, `.terraform`, `.tmp`, `.tox`, `.turbo`, `.venv`, `.vscode`, `__pycache__`, `bower_components`, `build`, `coverage`, `dist`, `node_modules`, `out`, `target`, `vendor`, `venv`, `virtualenv`
 - Excluded file patterns: `.env`, `.env.*`, `*.env`, `*.pem`, `*.key`, `*.pfx`, `*.p12`, `*.jks`, `*.keystore`, `id_rsa*`, `id_ed25519*`, `*credentials*`, `*.secret`, `secrets.*`
