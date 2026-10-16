@@ -9,21 +9,25 @@ This Commercial License Agreement ("Agreement") is a legal agreement between You
 Upon acceptance of this Agreement and compliance with the Payment Terms in Section 2, the Licensor grants You a non-exclusive, worldwide, non-transferable license to use, modify, integrate, and distribute the Software in commercial applications WITHOUT the copyleft obligations of the GNU Affero General Public License v3 (AGPLv3). Under this Agreement, You are NOT required to open-source Your proprietary code that integrates with the Software.
 
 2. PAYMENT TERMS AND REVENUE TIERS
-This license requires an annual fee based on Your (or Your organization's) total gross global revenue for the most recently completed fiscal year. 
+This license requires an annual fee based on Your (or Your organization's) total gross global revenue for the most recently completed fiscal year.
 
-The annual fee is calculated using the following scaled brackets:
+The annual fee is calculated using the following marginal brackets. Each rate applies only to the portion of gross revenue that falls within its bracket, and the annual fee is the sum of the amounts for all brackets:
 
-a) Tier 1: Gross revenue up to $500,000 USD
-   Fee: $0 (Free Commercial Use)
+a) Tier 1: The portion of gross revenue up to $500,000 USD
+   Rate: 0% (Free Commercial Use). If gross revenue does not exceed $500,000 USD, the fee is $0.
 
-b) Tier 2: Gross revenue between $500,001 and $10,000,000 USD
-   Fee: 0.1% of total gross revenue.
+b) Tier 2: The portion of gross revenue above $500,000 USD and up to $10,000,000 USD
+   Rate: 0.1% of that portion.
 
-c) Tier 3: Gross revenue between $10,000,001 and $50,000,000 USD
-   Fee: 0.05% of total gross revenue.
+c) Tier 3: The portion of gross revenue above $10,000,000 USD and up to $50,000,000 USD
+   Rate: 0.05% of that portion.
 
-d) Tier 4: Gross revenue exceeding $50,000,000 USD
-   Fee: 0.01% of total gross revenue, up to a maximum hard cap of $50,000 USD per year.
+d) Tier 4: The portion of gross revenue above $50,000,000 USD
+   Rate: 0.01% of that portion.
+
+The total annual fee never exceeds a maximum hard cap of $50,000 USD per year.
+
+Example: for gross revenue of $20,000,000 USD, the annual fee is 0.1% of $9,500,000 USD ($9,500) plus 0.05% of $10,000,000 USD ($5,000), a total of $14,500 USD.
 
 3. REPORTING AND REMITTANCE
 - Fees are calculated annually and must be remitted to the Licensor within ninety (90) days following the close of Your fiscal year.
